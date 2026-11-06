@@ -10,7 +10,7 @@ import { autoFills, autoStore } from './systemcore.js';   // 1.6.2 (auto apply)
 import { laySync } from './systemcore.js';   // 1.6.2 Laid from: rows another list's rows lay, kept in step beside openSync
 import { picRef, cssColor } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { cleanDamageRules, CUR_MAX, priceCurOf, moneySummary, condShare, cleanHeld, areaFxPlan, cleanOnRemove, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsCapLines, capRead, capFOk, fitRows, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { cleanDamageRules, CUR_MAX, priceCurOf, moneySummary, condShare, cleanHeld, areaFxPlan, cleanOnRemove, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsCapLines, capRead, capFOk, fitRows, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, hudOf, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { swDice, renamesOf, renamesCarry, renamesOnChars, renamesSay, swGone, goneRefs, catsGone, catNear, keysGone, keyUses, keyUseSays } from './systemcore.js';   // 1.6.2: backlog 208, the tracing audit
 import { cleanCardActs, CARD_MAX, cleanHelp } from './systemcore.js';   // 1.6.2: what a card offers
 import { cleanAsks, askEnds, askJudge, withAsk, ASKS_MAX, ASK_OPTS } from './systemcore.js';   // 1.6.2: a roll's questions
@@ -1222,7 +1222,7 @@ function renderSheet() {
     if (typeof renderStaleBar === 'function') renderStaleBar(c, camp, gm, own);   // 1.6.0 (backlog 190): an out-of-date sheet says so
     if (seeP) { if (bdB) bdB.style.display = !cD.partial && budgetBar(bdB, sysD, cD) ? '' : 'none'; if (lkB) lkB.style.display = linkBar(lkB, sysD, cD, camp, true) ? '' : 'none'; }   // 1.6.0: As player, what its owner reads
     var rvB = ui('sheetReview'), rvN = gm ? uploadsOf(camp, c.id) : []; if (rvB) { rvB.style.display = rvN.length ? '' : 'none'; if (rvN.length) { var rvC = rvN[0].changes.filter(function(x) { return !x || x.kind !== 'note'; }).length; rvB.textContent = rvC ? 'Review (' + rvC + ')' : 'Review'; } }   // U3: the GM's review of it
-    var hb = ui('sheetHud'); if (hb) { var hOn = hudHasContent(sys) && canOpen(c.id); hb.style.display = hOn ? '' : 'none'; if (hOn) hb.title = 'Open ' + (sys.sheet.hud.title || 'the HUD'); }   // HUD frame (HF2a): only when the saved system has a HUD they can see
+    var hb = ui('sheetHud'); if (hb) { var hOn = hudHasContent(sys) && canOpen(c.id); hb.style.display = hOn ? '' : 'none'; if (hOn) hb.title = 'Open ' + ((hudOf(sys) || {}).title || 'the HUD'); }   // HUD frame (HF2a): only when the saved system has a HUD they can see
     p.classList.toggle('sheet-has-headportrait', !!(sys.sheet && sys.sheet.look && sys.sheet.look.portrait));   // Stage 5g: the header block carries the portrait, so the title bar's small one steps aside
     var all = resolveAll(sysD, cD, F(), tokenCtxFor(c.id, camp));   // 5h Fold 3 / Stage 6: the token names read this character's token
     _dialSig = dialSigOf(c, camp); _dialStale = false; _dialOn = JSON.stringify(tokenFlags()); _roundSig = roundSigOf(c, camp); _rangeSig = rangeSigOf(c, camp);
@@ -1368,7 +1368,7 @@ function renderHud(charId) {
     var camp = getActiveCampaign(), full = systemOf(camp), c = charById(charId, camp);
     if (!c || !full || !F() || !canOpen(charId) || !hudHasContent(full)) { closeHud(charId); return; }   // the HUD removed, the feature off, the character gone or no longer theirs
     var sys = hudView(full), fk = focusKeyOf(v.body), stH = v.body.scrollTop, gm = !isClient(), own = !!(c.ownerId && c.ownerId === myId());
-    v.name.textContent = c.name; v.sub.textContent = (full.sheet.hud.title || 'HUD') + (c.npc ? ' \u00b7 NPC' : '');
+    v.name.textContent = c.name; v.sub.textContent = ((hudOf(full) || {}).title || 'HUD') + (c.npc ? ' \u00b7 NPC' : '');
     if (window.wpPlook) window.wpPlook.dress(v.name, window.wpPlook.ofChar(c));   // 1.6.2, backlog 35: its name in its own look
     if (typeof plookText === 'function') plookText(v.body, c);
     v.panel.setAttribute('aria-label', 'HUD: ' + c.name);
@@ -10347,15 +10347,42 @@ function blastScaleInto(box, cm, bl) {
     if (sS) sS.addEventListener('change', function(e) { e.stopPropagation(); var b2 = cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : (cm.blast = {}); if (sS.value) b2.scale = sS.value; else delete b2.scale; if (!Object.keys(b2).length) delete cm.blast; said(false); });
     box.appendChild(sL); lineUnder(box, SCALE_LINE);
 }
+// 1.6.2 (the owner: "Folds by part, answer shown"): the parts of Blasts and throws, each a fold whose head says in one line what is set in it.
+// Which are open is kept while the app runs
+var _blastOpen = {}, BLAST_PARTS = [['throw', 'Throwing'], ['dist', 'Damage by distance'], ['launch', 'Launchers'], ['frag', 'Fragments'], ['aff', 'Afflictions']], BLAST_THROW = { roll: 1, scatter: 1, hand: 1, max: 1, min: 1 };
+function blastAnswer(body) {   // what is set in a part, in one line: each box or list that holds something, by its caption
+    var said = [], items = body && body.querySelectorAll ? body.querySelectorAll('.sys-combat-item') : [];
+    Array.prototype.forEach.call(items, function(l) {
+        var cap = l.querySelector ? l.querySelector('.sys-num-cap') : null, sel = l.querySelector ? l.querySelector('select') : null, inp = l.querySelector ? l.querySelector('input') : null, w = '';
+        if (sel && sel.value !== '' && sel.selectedIndex > 0 && sel.options && sel.options[sel.selectedIndex]) w = sel.options[sel.selectedIndex].textContent;
+        else if (inp && String(inp.value || '').trim()) w = String(inp.value).trim();
+        if (w && cap) said.push(cap.textContent + ': ' + w);
+    });
+    return said.length ? said.slice(0, 2).join('; ') + (said.length > 2 ? '; and ' + (said.length - 2) + ' more' : '') : 'Nothing set yet';
+}
+function blastParts(box) {
+    var P = {};
+    BLAST_PARTS.forEach(function(pt) {
+        var d = el('details', 'sys-blast-part'), sm = el('summary', 'sys-blast-sum'), body = el('div', 'sys-blast-body'); d.dataset.part = pt[0]; d.open = _blastOpen[pt[0]] === true;
+        sm.appendChild(el('span', 'sys-blast-name', pt[1])); var an = el('span', 'sys-blast-ans'); sm.appendChild(an); d.appendChild(sm); d.appendChild(body); box.appendChild(d);
+        var say = function() { an.textContent = blastAnswer(body); };
+        if (typeof d.addEventListener === 'function') d.addEventListener('toggle', function() { _blastOpen[pt[0]] = d.open === true; });
+        if (typeof body.addEventListener === 'function') { body.addEventListener('change', say); body.addEventListener('input', say); } P[pt[0]] = body; P[pt[0] + 'Say'] = say;
+    });
+    return P;
+}
 function blastBox(box, cm) {
     var bl = cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : {};
     box.appendChild(el('div', 'sys-combat-head', 'Blasts and throws'));
+    var PB = blastParts(box), outer = box;
     BLAST_BOXES.forEach(function(d) {
+        var box = BLAST_THROW[d[0]] === 1 ? PB.throw : PB.dist;
         var l = el('label', 'sys-combat-item'); l.appendChild(el('span', 'sys-num-cap', d[1]));
         var i = input('sys-combat-b' + d[0] + ' field', typeof bl[d[0]] === 'string' ? bl[d[0]] : '', d[2], d[3] ? 'e.g. ' + d[3] : 'A formula'); i.dataset.bk = d[0]; l.appendChild(i); box.appendChild(l);
         lineUnder(box, d[2]);
         var er = el('div', 'sys-blast-err'); er.dataset.bk = d[0]; er.textContent = blastSays(d[0], bl[d[0]]); box.appendChild(er);
     });
+    box = PB.dist;
     {   // 1.6.0: an item that fills its area, and one no drop answers: a number stat of its list, read by the falloff
         var stB = {}, stA = [['', 'None']]; (draft.fields || []).forEach(function(f) { if (f && f.kind === 'item-list' && f.list && Array.isArray(f.list.stats)) f.list.stats.forEach(function(s) { if (s && s.kind !== 'pick' && typeof s.key === 'string' && s.key && !stB[s.key.toLowerCase()]) { stB[s.key.toLowerCase()] = 1; stA.push([s.key, s.label || s.key]); } }); });
         var stO = function(k) { var cur = typeof bl[k] === 'string' ? bl[k] : ''; return cur && !stB[cur.toLowerCase()] ? stA.concat([[cur, cur + ' (no list has this stat)']]) : stA; };
@@ -10368,8 +10395,10 @@ function blastBox(box, cm) {
     { box.appendChild(labeledSelect('sys-combat-bflying', 'Things in flight', [['', 'A blast passes them by'], ['hit', 'A blast hurts them as any token']], bl.flying === true ? 'hit' : '', FLYING_LINE)); lineUnder(box, FLYING_LINE); }   // 1.6.2 (vehicles, fold (d))
     { box.appendChild(labeledSelect('sys-combat-beachadd', 'A die each victim loses', [['', 'Leaves the adds whole'], ['go', 'Takes its add with it']], bl.eachAdd === true ? 'go' : '', EACH_ADD_LINE)); lineUnder(box, EACH_ADD_LINE); }   // 1.6.0 (the core's rule on gap 8)
     { box.appendChild(labeledSelect('sys-combat-beachby', 'Each victim\u2019s dice rolled by', [['', 'The GM, each at once'], ['victim', 'The victim, from a card']], bl.eachBy === 'victim' ? 'victim' : '', EACH_BY_LINE)); lineUnder(box, EACH_BY_LINE); }   // 1.6.0 (the core's gap 8)
+    box = PB.throw;
     box.appendChild(labeledSelect('sys-combat-bways', 'Ways a miss goes', [['6', 'Six, a d6 (the sides of a hex)'], ['8', 'Eight']], bl.ways === 8 ? '8' : '6', 'How many ways a miss may scatter from its aim, rolled as a die'));
     box.appendChild(labeledSelect('sys-combat-bfuse', 'A thrown explosive goes off', [['', 'At once, where it lands'], ['turn', 'At the start of the next turn in a fight']], bl.fuse === 'turn' ? 'turn' : '', 'With a fight on its map, a fused explosive lies there until the next turn starts. Outside a fight it goes off at once'));
+    box = PB.launch;
     var lnB = bl.launch && typeof bl.launch === 'object' && !Array.isArray(bl.launch) ? bl.launch : {};   // 1.5.9 (es): a launched round's miss; each first choice is the book's reading where it has ruled (the fuse, (eu) H1), else the plan's
     box.appendChild(labeledSelect('sys-combat-blfuse', 'A launched round that misses', [['', 'Waits for the fuse, as a throw'], ['now', 'Goes off where it lands, at once']], lnB.now === true ? 'now' : '', 'For a round whose item scatters on a miss. With the fuse set to the next turn and a fight on its map, it lies there until the next turn starts, as a thrown grenade does'));
     box.appendChild(labeledSelect('sys-combat-blfumble', 'Its critical failure', [['', 'Misses by its margin'], ['feet', 'Goes off at the shooter\u2019s feet'], ['none', 'Spends the round and goes nowhere']], lnB.fumble === 'feet' || lnB.fumble === 'none' ? lnB.fumble : '', 'What a launched round does when its roll is a critical failure'));
@@ -10377,8 +10406,10 @@ function blastBox(box, cm) {
     box.appendChild(labeledSelect('sys-combat-blglance', 'A character it stops on', [['', 'Is struck directly'], ['glance', 'Is not struck directly']], lnB.glance === true ? 'glance' : '', 'Whether a character a straight round stops on takes the blast as its direct target'));
     var stV = typeof lnB.stray === 'string' ? lnB.stray : '', stL = el('label', 'sys-combat-item'); stL.appendChild(el('span', 'sys-num-cap', 'A stray round lands')); var stI = input('sys-combat-blstray field', stV, STRAY_LINE, 'e.g. 1d6'); stI.dataset.sk = 'stray'; stI.maxLength = 1200; stL.appendChild(stI); box.appendChild(stL); lineUnder(box, STRAY_LINE);   // 1.6.0 A burst
     var stE = el('div', 'sys-blast-err'); stE.dataset.sk = 'stray'; stE.textContent = straySays(stV); box.appendChild(stE);
+    box = PB.dist;
     var kdB = cm.damage && Array.isArray(cm.damage.kinds) ? cm.damage.kinds.filter(function(y) { return y && typeof y.key === 'string' && y.key; }) : [];   // 1.6.0: the kind of blow its shares and fragmentation carry, where the system names kinds
     if (kdB.length || bl.kind) { var kdO = [['', 'None']].concat(kdB.map(function(y) { return [y.key, y.label || y.key]; })); if (typeof bl.kind === 'string' && bl.kind && !kdO.some(function(o) { return o[0] === bl.kind; })) kdO.push([bl.kind, bl.kind]); box.appendChild(labeledSelect('sys-combat-bkind', 'A blast\u2019s kind of blow', kdO, typeof bl.kind === 'string' ? bl.kind : '', BLAST_KIND_LINE)); lineUnder(box, BLAST_KIND_LINE); }
+    box = PB.frag;
     var fgC = bl.frag && typeof bl.frag === 'object' && !Array.isArray(bl.frag) ? bl.frag : {}, fgV = typeof fgC.reach === 'string' ? fgC.reach : '';   // 1.5.9 (es): fragmentation
     var fl = el('label', 'sys-combat-item'); fl.appendChild(el('span', 'sys-num-cap', 'Fragmentation reaches')); var fi = input('sys-combat-fgreach field', fgV, FRAG_REACH_LINE, 'e.g. 5 * FragDice'); fi.dataset.fk = 'reach'; fl.appendChild(fi); box.appendChild(fl);
     lineUnder(box, FRAG_REACH_LINE);
@@ -10391,11 +10422,13 @@ function blastBox(box, cm) {
         var on = d[0] === 'cover' ? (fgC.cover === 'total' ? 'total' : '') : d[0] === 'each' ? (fgC.each === true ? 'each' : '') : d[0] === 'direct' ? (fgC.direct === true ? 'own' : '') : (fgC.ad === true ? 'yes' : '');
         box.appendChild(labeledSelect('sys-combat-fg' + d[0], d[1], d[2], on, d[3])); lineUnder(box, d[3]);
     });
+    box = PB.aff;
     var rsV = typeof bl.resist === 'string' ? bl.resist : '';   // 1.5.9 (es): an affliction's resist roll, and whom one that reaches those it hurt reaches
     var rl = el('label', 'sys-combat-item'); rl.appendChild(el('span', 'sys-num-cap', 'Resist roll')); var ri = input('sys-combat-resist field', rsV, RESIST_LINE, 'e.g. 3d6 <= Resist'); ri.dataset.rk = 'resist'; rl.appendChild(ri); box.appendChild(rl);
     lineUnder(box, RESIST_LINE);
     var re = el('div', 'sys-blast-err'); re.dataset.rk = 'resist'; re.textContent = resistSays(rsV); box.appendChild(re);
     box.appendChild(labeledSelect('sys-combat-affhurt', 'Those an affliction hurts', [['', 'Took a wound, after DR'], ['share', 'Took any share of the blast']], bl.hurt === 'share' ? 'share' : '', HURT_LINE)); lineUnder(box, HURT_LINE);
+    BLAST_PARTS.forEach(function(pt) { PB[pt[0] + 'Say'](); }); void outer;   // each fold's head says what is set in it
 }
 // 1.6.0 A blast's own Defense roll: the Blasts and throws part's rows for combat.blast.defend. Save cleans it (systemcore cleanBlastDefend); defendSays says what it drops, under errorCell('blastdefend')
 var DEFEND_LINE = 'Each character in reach gets a card of this roll before its share. A success counts it as further off. The blast waits for the cards, and Apply now on the GM\u2019s card lets it go. Who rolled nothing takes it whole. The roll\u2019s Needs may hold it back. A launched burst takes one roll.';

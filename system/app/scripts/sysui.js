@@ -175,7 +175,9 @@ var GROUPS = {
         ['blast', 'Blast', 0, ['sys-item-area', 'sys-item-affs', 'sys-fly']]] },
     lists: { split: ['sys-flags', 'sys-list-cols'], head: ['sys-list-title'], list: [
         ['holds', 'What it holds', 1, ['sys-list-cats', 'sys-starts']],
-        ['rows', 'How its rows behave', 1, ['sys-list-multi', 'sys-list-noqty', 'sys-list-sheets', 'sys-list-sheettpl', 'sys-list-sheeton', 'sys-list-hang', 'sys-list-graise', 'sys-list-custom', 'sys-ownsw', 'sys-list-open', 'sys-list-hand', 'sys-list-handgm', 'sys-list-trade', 'sys-list-togm', 'sys-list-edge', 'sys-list-groupby', 'sys-list-menus', 'sys-list-boxes', 'sys-traderules']],
+        ['rows', 'What a row may be', 1, ['sys-list-multi', 'sys-list-noqty', 'sys-list-custom', 'sys-ownsw', 'sys-list-hang', 'sys-list-graise', 'sys-list-sheets', 'sys-list-sheettpl', 'sys-list-sheeton', 'sys-list-hand', 'sys-list-handgm']],   // 1.6.2 (the owner: "Three groups"): the list's ticks by what they are for
+        ['rowlook', 'How it looks', 0, ['sys-list-open', 'sys-list-edge', 'sys-list-groupby', 'sys-list-menus', 'sys-list-boxes']],
+        ['rowrules', 'Rules', 0, ['sys-list-trade', 'sys-list-togm', 'sys-traderules']],
         ['level', 'Level', 1, ['sys-list-lvl', 'sys-list-lcaps']],
         ['on', 'Switch', 1, ['sys-list-on', 'sys-list-upkeep']],
         ['stats', 'Stats', 1, ['sys-list-stats']],

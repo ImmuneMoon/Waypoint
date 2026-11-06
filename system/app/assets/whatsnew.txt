@@ -397,6 +397,11 @@ Around the app
   center here, Fit to grid cells and Delete. Its settings stand in folds:
   Character and GM notes on a token, then Map links, Look, Map rules, and
   Vision and light.
+- A system that builds no HUD of its own has a plain one: the name and
+  picture, its pools, and the rolls of the sheet's first section.
+- A list's ticks stand in three groups in the System editor: What a row
+  may be, How it looks and Rules. Blasts and throws, on the Combat tab,
+  stands in folds, each saying in one line what is set in it.
 
 Writing planners and pages
 - You write a planner or a page on the page itself. Press a block and its

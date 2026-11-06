@@ -22417,6 +22417,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.2 a named roll with nothing to roll is said under its row, since Save leaves it out; an apply action, a roll nobody has typed in and one with a formula say nothing (sheets.js refreshErrors pinned)',
             shE.includes("if (!r || typeof r !== 'object' || Array.isArray(r.apply) || typeof r.label !== 'string' || !r.label.trim() || (typeof r.formula === 'string' && r.formula.trim())) return;") && shE.includes("(errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'formula', message: 'It has nothing to roll yet, so Save leaves it out.' });"), '');
     }
+    {   // 1.6.2, found by the session that builds a campaign's system: a row's own copy kept no stat named as a String method (strike, link, big, at...), since its picks are the word 'labels' and 'labels'.strike is a function
+        const J = JSON.stringify, SN = Object.getOwnPropertyNames(String.prototype).filter(n => /^[A-Za-z][A-Za-z0-9_]*$/.test(n)), stS = {}; SN.forEach((n, i) => { stS[n] = i + 1; });
+        const cS = S.cleanRowDef({ name: 'X', stats: stS }, true), kS = Object.keys((cS && cS.stats) || {}), lostS = SN.filter(n => kS.indexOf(n) < 0);
+        check('1.6.2 a row\'s own copy keeps a stat named as any String method (cleanEntryStats with picks of labels): strike, link, big, at and the rest, all but the three the key rule refuses everywhere',
+            J(S.cleanRowDef({ name: 'Articulated Arm (HK)', stats: { strike: 3, cr: 5250 } }, true).stats) === J({ strike: 3, cr: 5250 }) && J(lostS) === J(['constructor', 'toString', 'valueOf']) && lostS.every(n => S.statKey(n) === ''), J(lostS));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

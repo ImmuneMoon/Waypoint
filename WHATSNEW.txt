@@ -36,6 +36,8 @@ The System editor
 - A deck's number takes its short name from the name you first give it, and
   its cards keep their figures. A card dealt to a hand shows as one card, where
   it showed a count it did not have.
+- A row's own copy keeps a stat named like strike, link or big. Such a stat
+  was lost when a sheet was read without its library.
 - Combat and Rules are tabs of their own now. Everything the Combat card held
   is on the Combat tab, and the budgets, readings, linked sheets and tables
   that stood on the Lists tab are on the Rules tab. Each has its topics down

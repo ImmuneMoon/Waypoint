@@ -4440,7 +4440,7 @@ function cleanEntryStats(v, keys, picks) {   // picks (F5a2): lower key -> the c
     if (!isObj(v)) return null;
     var out = {}, seen = map(), n = 0, ks = Object.keys(v);
     for (var i = 0; i < ks.length && n < LIMITS.entryStats; i++) {
-        var kk = keys ? keys[lower(ks[i])] : statKey(ks[i]), raw = v[ks[i]], pk = kk && picks ? picks[lower(kk)] : null;
+        var kk = keys ? keys[lower(ks[i])] : statKey(ks[i]), raw = v[ks[i]], pk = kk && picks && typeof picks === 'object' ? picks[lower(kk)] : null;
         var x = pk ? (typeof raw === 'string' ? pk[lower(cutText(raw, LIMITS.label))] : undefined) : (!keys && picks === 'labels' && typeof raw === 'string' ? (cutText(raw, LIMITS.label) || undefined) : statNum(raw));   // picks 'labels': a copy's own (a snapshot, a custom row) may hold a choice's label
         if (!kk || x === undefined || seen[lower(kk)]) continue;
         out[kk] = x; seen[lower(kk)] = 1; n++;

@@ -6986,6 +6986,28 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       renderImgLib(document.getElementById('imgLibSearch').value);
   });
 
+  // 1.6.2 (the viewing: the library had no way to add a picture from inside it): Add pictures uploads into this campaign's own folder, the map
+  // on screen or else its first map, and draws the library again. Nothing is placed. The folder a picture lands in is what makes it this campaign's
+  function imgAddFolder(camp) {
+      if (!camp || !camp.items) return '';
+      var a = camp.activeItemId; if (typeof a === 'string' && Object.prototype.hasOwnProperty.call(camp.items, a) && camp.items[a] && camp.items[a].type === 'map') return a;
+      var m = Object.keys(camp.items).filter(function(k) { return camp.items[k] && camp.items[k].type === 'map'; })[0];
+      return m || (typeof a === 'string' && Object.prototype.hasOwnProperty.call(camp.items, a) ? a : '');
+  }
+  window.wpImgAddFolder = imgAddFolder;
+  var _el_imgLibAdd = document.getElementById('imgLibAddBtn'), _el_imgLibAddFile = document.getElementById('imgLibAddFile');
+  if (_el_imgLibAdd && _el_imgLibAddFile) {
+      _el_imgLibAdd.addEventListener('click', function() { if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; } _el_imgLibAddFile.value = ''; _el_imgLibAddFile.click(); });
+      _el_imgLibAddFile.addEventListener('change', async function() {
+          var camp = getActiveCampaign(), dir = imgAddFolder(camp), fl = Array.prototype.slice.call(this.files || []).filter(function(f) { return f && typeof f.type === 'string' && f.type.indexOf('image/') === 0; }).slice(0, 50);
+          if (!fl.length) return; if (!dir) { toast('Make a map first: a picture is kept with one of the campaign\'s maps.'); return; }
+          var ok = 0, bad = 0; toast('Adding ' + fl.length + (fl.length === 1 ? ' picture\u2026' : ' pictures\u2026'));
+          for (var i = 0; i < fl.length; i++) { try { await uploadBlob(dir, fl[i].name, fl[i]); ok++; } catch (e) { bad++; } }
+          if (bad) toast(bad + (bad === 1 ? ' picture' : ' pictures') + ' could not be added' + (ok ? '. ' + ok + ' added.' : '.'), 'warn'); else toast(ok === 1 ? 'Added 1 picture.' : 'Added ' + ok + ' pictures.');
+          try { _imgLibCache = await (await fetch('/api/list-images')).json(); } catch (e) {} _imgIndex = null; _imgLibScope = 'camp';
+          renderImgLib(document.getElementById('imgLibSearch').value);
+      });
+  }
   var _el_imgLibClose = document.getElementById('imgLibCloseBtn');
 
   if (_el_imgLibClose) _el_imgLibClose.addEventListener('click', function() {

@@ -355,6 +355,12 @@ function syncRoleLabels() {
     if (lbl) lbl.title = isClient() ? 'Only you and the GM see this roll' : 'Only you see this roll (it is still logged)';
     var s = ui('diceSoundChk'); if (s) s.checked = soundOn();
 }
+// 1.6.2 (the viewing, a player at the table): the first of these characters whose token stands, seated, on the map on screen, else null
+function charOnMap(camp, list) {
+    var m = camp && camp.items && typeof camp.activeItemId === 'string' && Object.prototype.hasOwnProperty.call(camp.items, camp.activeItemId) ? camp.items[camp.activeItemId] : null, wb = m && Array.isArray(m.whiteboard) ? m.whiteboard : [];
+    for (var i = 0; i < wb.length; i++) { var w = wb[i]; if (w && typeof w.charId === 'string' && !w.waiting && list.some(function(c) { return c.id === w.charId; })) return w.charId; }
+    return null;
+}
 // The character picker (character sheets, 1.5.0): a player's own characters, any of the campaign's for the GM; hidden when there are none
 function syncChars() {
     var s = ui('diceChar'); if (!s) return;
@@ -363,7 +369,7 @@ function syncChars() {
     var was = s.value; s.textContent = '';
     var none = el('option', null, 'No character'); none.value = ''; s.appendChild(none);
     list.forEach(function(c) { var o = el('option', null, c.name + (c.npc ? ' (NPC)' : '')); o.value = c.id; s.appendChild(o); });
-    if (!was && isClient() && list.length) { var SC = window.wpSystemCore, camp = getActiveCampaign(), pl = SC && typeof SC.activeCharOf === 'function' && camp ? SC.activeCharOf(camp, me).id : null; was = list.some(function(c) { return c.id === pl; }) ? pl : list.length === 1 ? list[0].id : ''; }   // 1.6.2: a player's roller starts on the character they play
+    if (!was && isClient() && list.length) { var SC = window.wpSystemCore, camp = getActiveCampaign(), pl = SC && typeof SC.activeCharOf === 'function' && camp ? SC.activeCharOf(camp, me).id : null; if (!list.some(function(c) { return c.id === pl; })) pl = charOnMap(camp, list); was = list.some(function(c) { return c.id === pl; }) ? pl : list.length === 1 ? list[0].id : ''; }   // 1.6.2: a player's roller starts on the character they play
     s.value = list.some(function(c) { return c.id === was; }) ? was : '';
     s.style.display = list.length && (!window.wpVtt || window.wpVtt.on('sheets')) ? '' : 'none';
 }

@@ -629,6 +629,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
       const rd = (t, ds, vars) => { const r = roll(t, ds); return (r.breakdown.reads || []).map(x => [x.fn, x.value, x.op, x.at].filter(v => v !== undefined).join(' ')).join(' | '); };
       check('each reading of named dice is kept for its card', rd('with(6d10@p, high(p) + count(p >= 7))', [3, 6, 8, 9, 1, 10]) === 'high 10 | count 3 >= 7' && rd('with(4d6@q, nth(q, 2) + best(q, 2))', [1, 2, 5, 6]) === 'nth 5 2 | best 11 2', rd('with(6d10@p, high(p) + count(p >= 7))', [3, 6, 8, 9, 1, 10]));
     }
+    { // 1.6.2 (the viewing, a player at the table): the roller takes the character whose token stands on the player's map before it says No character
+      const dj = require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'scripts', 'dice.js'), 'utf8').replace(/\r\n/g, '\n');
+      const cA = dj.indexOf('function charOnMap('), cZ = dj.indexOf('\n}\n', cA), com = new Function(dj.slice(cA, cZ + 3) + '\nreturn charOnMap;')();
+      const list = [{ id: 'c1' }, { id: 'c2' }], camp = id => ({ activeItemId: 'm1', items: { m1: { type: 'map', whiteboard: [{ id: 'a', type: 'image' }, { id: 't0', charId: 'c9' }, { id: 't1', charId: 'c2', waiting: true }, { id: 't2', charId: id }] } } });
+      check('the roller\'s character on a player\'s app (dice.js charOnMap, run for real): the first of their characters whose token stands seated on the map on screen, never a waiting token nor someone else\'s; none with no such token, no map on screen or an id the items only inherit',
+        com(camp('c2'), list) === 'c2' && com(camp('c9'), list) === null && com({ activeItemId: 'toString', items: {} }, list) === null && com(null, list) === null && com({ activeItemId: 'm1', items: { m1: { type: 'map' } } }, list) === null
+        && dj.includes("if (!list.some(function(c) { return c.id === pl; })) pl = charOnMap(camp, list);"));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

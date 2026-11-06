@@ -6893,7 +6893,7 @@ function lookBar(box, c, gm, own) {
     var mine = !gm && !!own && isClient() && !!n && typeof n.charLook === 'function' && c.shared !== 1;
     if (!(gm ? canWrite() : mine)) return false;
     var cur = S.cleanPlook(c.plook) || {}, row = el('span', 'sheet-plook-row');
-    row.appendChild(el('span', 'sheet-plook-cap', gm ? 'Name look' : 'My look'));
+    var capP = el('span', 'sheet-plook-cap', 'Name shown as'); capP.title = 'The font and colour this character\u2019s name is shown in, for everyone at the table'; row.appendChild(capP);   // 1.6.2, the viewing: the line says what it sets
     var fs = el('select', 'field sheet-plook-font'); fs.title = 'The font this character\u2019s name is shown in, for everyone at the table'; fs.setAttribute('aria-label', 'Font of the name');
     var o0 = el('option', null, 'Plain'); o0.value = ''; fs.appendChild(o0);
     var groups = []; (T.FONTS || []).forEach(function(f) { if (groups.indexOf(f[2]) < 0) groups.push(f[2]); });

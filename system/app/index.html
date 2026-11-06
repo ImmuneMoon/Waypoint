@@ -642,6 +642,7 @@
                           </li>
                           <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h15v11H3zM6 8V5h15v11h-3M3.5 17l4-4 3 3 2.5-2.5 4.5 4.5"/></svg> Image Library</b> shows <b>this campaign's pictures</b> by default: every picture uploaded from its maps, planners and pages, used by them, or brought in. <b>Shared</b>, <b>Unfiled</b> and <b>All campaigns</b> are a chip away. Shared is the tutorial art. Unfiled holds pictures whose map, planner or page is gone. Click a picture for a large preview, then Add to map.
                               <ul>
+                                  <li><b>Add pictures&hellip;</b> beside the search box brings pictures in from your computer. They join this campaign&rsquo;s pictures and wait there until you place them.</li>
                                   <li><b>Import from another campaign&hellip;</b> lets you pick pictures from another campaign, from Shared or from Unfiled, and bring them in. Ctrl-click picks several. Nothing is copied: this campaign simply remembers them.</li>
                                   <li><b>Tags</b> sort your pictures. A picture can wear several. Right-click a picture to give it a tag, and press <b>+ New tag</b> for a new one. A tag is this campaign&rsquo;s own, or shared with every campaign and marked &#9671;. Pick a tag&rsquo;s chip and the tools under it rename it, put it on its own shelf, share it or delete it. Deleting a tag never deletes a picture by itself: you are asked about the files after.</li>
                                   <li>Tags are yours alone. They stay on your computer and never go to your players. What used to be called a category is now a tag, and every one you had is still there.</li>
@@ -4690,6 +4691,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
             <input type="text" id="imgLibSearch" placeholder="Filter by name, map or tag&hellip;" style="flex:1; min-width:0; box-sizing:border-box;">
             <button type="button" class="tool ghost" id="imgLibSelectBtn" aria-pressed="false" title="Pick pictures with a plain click, to tag them or add them all at once. Ctrl-click, Shift-click and Ctrl+A pick too">Select</button>
+            <button type="button" class="tool ghost" id="imgLibAddBtn" title="Add pictures from your computer to this campaign. They wait here until you place them">Add pictures&hellip;</button><input type="file" id="imgLibAddFile" accept="image/*" multiple hidden>
             <span id="imgLibSourceWrap" style="display:none; align-items:center; gap:6px;"><label style="font-size:12px; color:var(--dim); display:inline-flex; align-items:center; gap:6px;">From <select id="imgLibSource" class="tool" title="Whose pictures to pick from"></select></label></span>
             <label class="cast-batch-wrap" title="How many copies a picture's &times; button (or Add to map in the preview) places, 1 to 50 &mdash; remembered">Copies <input type="number" id="imgLibCopies" class="cast-batch" min="1" max="50" value="1"></label>
         </div>

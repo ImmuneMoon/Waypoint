@@ -377,6 +377,14 @@ Around the app
 - The Journal has one row of tabs: Everything, My notes, Received, Sent and
   Personal notes. Clear journal stands at the window's foot. It asks first, in
   the app's own question, and so does removing a note or a handout.
+- The Image Library has Add pictures beside its search box. It brings
+  pictures in from your computer, and they wait in the library until you place
+  them.
+- A sheet's line for its name's font and colour now says Name shown as.
+- The dice roller picks your character whose token stands on your map, where
+  you play several, in place of No character.
+- While a question asks whether to end the session for another campaign, the
+  top row still names the campaign on screen.
 - The bell folds a fight's turn and round notices into one line. Press it to
   open them, and its x deletes that fight's notices. A notice said again and
   again, such as Hosting resumed at each reload, folds to one line too, which

@@ -359,7 +359,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   // A session is exactly one campaign: while hosting, every way onto another campaign asks first and ends the
   // session on yes (net.js guardCampaignSwitch). Before net.js has loaded there is no session to guard.
-  function guardSwitch(fn, onCancel) { if (window.wpConfirmCampaignSwitch) window.wpConfirmCampaignSwitch(fn, onCancel); else fn(); }
+  function guardSwitch(fn, onCancel) {
+      if (campaignSelect.value !== state.appState.activeCampaignId) { updateCampaignSelect(); if (window.wpTopRow && window.wpTopRow.sync) window.wpTopRow.sync(); }   // 1.6.2, found in the viewing: while a question asks about the switch, the row still names the campaign on screen
+      if (window.wpConfirmCampaignSwitch) window.wpConfirmCampaignSwitch(fn, onCancel); else fn();
+  }
 
   // One way to open a campaign, guarded as a pick of the list is. done runs once it is the one on screen, and not at all where the GM says no
   function openCampaign(pick, done) {

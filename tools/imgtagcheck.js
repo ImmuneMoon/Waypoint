@@ -184,6 +184,15 @@ const ch = n => String.fromCharCode(n);
         check('CI runs this suite', ci.includes('run: node tools/imgtagcheck.js'));
     }
 
+    {   // 1.6.2 (the viewing: the library had no way to add a picture from inside it): Add pictures uploads into this campaign's own folder
+        const wb = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n'), ix2 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8');
+        const fA = wb.indexOf('  function imgAddFolder('), fZ = wb.indexOf('\n  window.wpImgAddFolder', fA), fold = fA > 0 && fZ > fA ? new Function(wb.slice(fA, fZ) + '\nreturn imgAddFolder;')() : null;
+        const items = { p1: { type: 'planner' }, m1: { type: 'map' }, m2: { type: 'map' } };
+        check('Add pictures in the Image Library (whiteboard.js imgAddFolder, run for real): a picture goes into the map on screen, else the campaign\'s first map, else the item on screen; never a name the items only inherit; a campaign with nothing says so; the button and its file box are in the page beside Select, and the upload draws the library again',
+            !!fold && fold({ activeItemId: 'm2', items }) === 'm2' && fold({ activeItemId: 'p1', items }) === 'm1' && fold({ activeItemId: 'p1', items: { p1: { type: 'planner' } } }) === 'p1'
+            && fold({ activeItemId: 'toString', items: {} }) === '' && fold(null) === '' && fold({}) === ''
+            && ix2.includes('id="imgLibAddBtn"') && ix2.includes('<input type="file" id="imgLibAddFile" accept="image/*" multiple hidden>') && wb.includes("try { await uploadBlob(dir, fl[i].name, fl[i]); ok++; } catch (e) { bad++; }") && wb.includes("renderImgLib(document.getElementById('imgLibSearch').value);\n      });\n  }\n  var _el_imgLibClose"));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

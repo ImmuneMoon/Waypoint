@@ -10497,7 +10497,7 @@ function gmRulesModel(items) {
 function gmRulesHtml(m) { return m ? '<div class="menu-item cm-gm-rules" role="menuitemcheckbox" aria-checked="' + (m.on ? 'true' : 'false') + '" title="Ticked, this NPC&rsquo;s time rules run by themselves as time passes. Unticked, they do not. With the Calendar on, its runs wait unticked in the Calendar&rsquo;s list">' + (m.on ? '&#10003; ' : '') + '<i class="wib wi-hourglass"></i> Rules run</div>' : ''; }
 function gmRulesDo(m) { var C = window.wpCalendar; return !!(m && C && typeof C.setRulesRun === 'function' && C.setRulesRun(m.charId, !m.on) === true); }   // the press: the switch the other way
 // T while pointing at a token, for the GM at a hosted table: the same pointer as the menu's Target
-function gmCanTarget(tok) { var n = window.wpNet; return !!(tok && tok.isChar && !tok.hidden && !tok.waiting && n && n.active && n.role === 'host' && !window.wpStream); }
+function gmCanTarget(tok) { var n = window.wpNet; return !!(tok && tok.isChar && !tok.hidden && !tok.waiting && n && (n.active ? n.role === 'host' : (n.solo === true || (typeof n.soloOk === 'function' && n.soloOk()))) && !window.wpStream); }   // 1.6.2: and with no table open
 function gmTarget(tok, mapId) { var n = window.wpNet; if (!gmCanTarget(tok) || !n.setTarget || typeof mapId !== 'string') return false; n.setTarget(tok.id, mapId, tok.charName || tok.name); return true; }
 // [systemcheck:gmfight-end]
 function tableRole() { var n = window.wpNet; if (!n) return 'offline'; if (n.active && n.role === 'host') return 'host'; if (n.active && n.role === 'client') return 'client'; return 'offline'; }

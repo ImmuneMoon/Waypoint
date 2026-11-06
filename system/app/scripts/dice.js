@@ -513,7 +513,7 @@ function sync() {
 }
 (function wire() {
     var b = ui('diceBtn'), p = ui('dicePanel'); if (!b || !p) return;
-    b.addEventListener('click', function() { if (panelShown()) closePanel(); else openPanel(); });
+    b.addEventListener('click', function() { if (panelShown()) { if (typeof window.wpBoxFront === 'function' && window.wpBoxFront(p)) return; closePanel(); } else openPanel(); });   // 1.6.2: a roller under a box opened after it comes in front first
     var cl = ui('diceCloseBtn'); if (cl) cl.addEventListener('click', closePanel);
     var hb = ui('diceHelpBtn'); if (hb) hb.addEventListener('click', function() { if (window.wpOpenHelp) window.wpOpenHelp('dice'); });
     var rb = ui('diceRollBtn'); if (rb) rb.addEventListener('click', rollFromPanel);

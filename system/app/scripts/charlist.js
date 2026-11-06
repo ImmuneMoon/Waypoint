@@ -35,6 +35,15 @@ function charRowsOf(chars, names, me) {
     out.players.sort(by); out.npcs.sort(by);
     return out;
 }
+// 1.6.2 (the owner, by prompt: "The map they stand on"): where two rows of a list share a name, each says the map its token stands on, or that
+// it has none on a map. A name of its own says nothing more. all: the GM's, who reads a hidden token too. Rows are changed in place
+function charPlaces(model, items, activeId, all) {
+    [model.players, model.npcs].forEach(function(l) {
+        var seen = Object.create(null); l.forEach(function(r) { seen[r.name] = (seen[r.name] || 0) + 1; });
+        l.forEach(function(r) { if (seen[r.name] < 2) return; var t = charTokenOf(items, r.id, activeId, all), tt = t && t.map && t.map.meta && typeof t.map.meta.title === 'string' ? charText(t.map.meta.title, 40) : ''; r.at = t ? tt || 'Untitled' : 'no token'; });
+    });
+    return model;
+}
 // The list, drawn: elements made by name and text nodes, never markup. gm: the Players label and the NPCs' fold; open: whether that fold is
 // open. An empty list says how a sheet is made. Answers the number of characters it holds
 function charDraw(doc, box, model, gm, open) {
@@ -42,7 +51,7 @@ function charDraw(doc, box, model, gm, open) {
     var el = function(tag, cls, text) { var e = doc.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.appendChild(doc.createTextNode(text)); return e; };
     var rowOf = function(r) {
         var d = el('div', 'ch-row'); d.dataset.char = r.id; d.setAttribute('role', 'button'); d.setAttribute('tabindex', '0');   // a class of its own: the tree binds its own rows by theirs (sidebar.js)
-        var tN = el('span', 'si-title', r.name); if (typeof window !== 'undefined' && window.wpPlook) window.wpPlook.dress(tN, window.wpPlook.ofCharId(r.id)); d.appendChild(tN); if (r.who) d.appendChild(el('small', 'ch-who', r.who));
+        var tN = el('span', 'si-title', r.name); if (typeof window !== 'undefined' && window.wpPlook) window.wpPlook.dress(tN, window.wpPlook.ofCharId(r.id)); d.appendChild(tN); if (r.at) d.appendChild(el('small', 'ch-at', r.at)); if (r.who) d.appendChild(el('small', 'ch-who', r.who));
         return d;
     };
     var n = model.players.length + model.npcs.length;
@@ -59,7 +68,7 @@ function charDraw(doc, box, model, gm, open) {
     return n;
 }
 // What was drawn, as a text: the list is drawn again only when this changed
-function charSig(model, gm, open) { return JSON.stringify([gm ? 1 : 0, open ? 1 : 0, model.players.map(function(r) { return [r.id, r.name, r.who]; }), model.npcs.map(function(r) { return [r.id, r.name]; }), typeof window !== 'undefined' && window.wpPlook ? model.players.concat(model.npcs).map(function(r) { return window.wpPlook.sig(window.wpPlook.ofCharId(r.id)); }) : []]); }   // 1.6.2, backlog 35: and the looks
+function charSig(model, gm, open) { return JSON.stringify([gm ? 1 : 0, open ? 1 : 0, model.players.map(function(r) { return [r.id, r.name, r.who, r.at || '']; }), model.npcs.map(function(r) { return [r.id, r.name, r.at || '']; }), typeof window !== 'undefined' && window.wpPlook ? model.players.concat(model.npcs).map(function(r) { return window.wpPlook.sig(window.wpPlook.ofCharId(r.id)); }) : []]); }   // 1.6.2, backlog 35: and the looks
 // A character's token to go to: on the map on screen before any other, a shown one before one the GM hid; hidden ones only for the GM (all).
 // items: camp.items. Answers { map, tok } or null
 function charTokenOf(items, charId, activeId, all) {
@@ -120,7 +129,7 @@ function sync() {
     var box = document.getElementById('charNavList'), sec = box && box.closest ? box.closest('.sidebar-section') : null, rb = document.getElementById('railCharacters'); if (!box || !sec) { panelJudge(0); return 0; }
     var camp = getActiveCampaign(), S = sheets(), client = foreign(), n = window.wpNet, me = client ? String((n && n.myId) || '\u0000') : '';
     var on = !!camp && !!S && !window.wpStream && (!window.wpVtt || !!window.wpVtt.on('sheets'));
-    var model = on ? charRowsOf(camp.chars, namesOf(camp), me) : { players: [], npcs: [] }, count = model.players.length + model.npcs.length, show = on && (!client || count > 0);
+    var model = on ? charPlaces(charRowsOf(camp.chars, namesOf(camp), me), camp.items, camp.activeItemId, !client) : { players: [], npcs: [] }, count = model.players.length + model.npcs.length, show = on && (!client || count > 0);
     sec.hidden = !show; if (rb) rb.hidden = !show;
     var sig = show ? charSig(model, !client, _open) : '';
     if (sig !== _sig) { _sig = sig; if (show) { var KP = typeof window !== 'undefined' ? window.wpKeepPlace : null, dr = function() { charDraw(document, box, model, !client, _open); }; if (typeof KP === 'function') KP(box, dr); else dr(); } else while (box.firstChild) box.removeChild(box.firstChild); }

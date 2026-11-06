@@ -8303,6 +8303,13 @@ pendingChecks.push((async () => {
                     JSON.stringify(vv) === JSON.stringify([true, 'host', true, 1, true, 1]) && no.every(x => JSON.stringify(x) === JSON.stringify([false, null, false, 0])) && atT.net.soloHost() === true && atT.net.solo === false && atC.net.soloHost() === false
                     && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').split('n.soloHost').length >= 3 && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'pills.js'), 'utf8').includes('net.solo === true'), JSON.stringify([vv, no]));
             }
+            {   // 1.6.2, found by the owner ("the option is there but im not targeting anymore"): the GM's Target rows show with no table open, so the pointers work there too
+                const wbT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8');
+                const soloG = "!(net.active ? net.role === 'host' : (typeof net.soloHost === 'function' && net.soloHost()))";
+                check('1.6.2 targeting with no table open (found by the owner: the Target rows showed and set nothing): net.setTarget, setTargetAs and clearTargetOf make the GM\'s own machine its own host as a fight does (soloHost), and the GM\'s T key and menu rows judge it as the fight rows do',
+                    src.includes("if (!net.active && !(typeof net.soloHost === 'function' && net.soloHost())) return;") && src.split(soloG).length - 1 >= 2
+                    && wbT.includes("function gmCanTarget(tok) { var n = window.wpNet; return !!(tok && tok.isChar && !tok.hidden && !tok.waiting && n && (n.active ? n.role === 'host' : (n.solo === true || (typeof n.soloOk === 'function' && n.soloOk()))) && !window.wpStream); }"));
+            }
             const ixF = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8'), ntF = [path.join(__dirname, '..', 'WHATSNEW.txt'), path.join(__dirname, '..', 'system', 'app', 'assets', 'whatsnew.txt')].map(p => fs.readFileSync(p, 'utf8'));
             check('1.6.0 a running fight kept: Help and both release notes say it', ixF.includes('<li><b>A running fight</b> is kept in the save.') && ntF.every(t => t.includes('- A running fight is kept in the save.')));
         }

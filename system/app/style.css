@@ -1722,6 +1722,7 @@
   .ch-row { padding: 8px 10px; border-radius: 5px; color: var(--ink); cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 3px; transition: background 0.1s; border: 1px solid transparent; }   /* the look of a row of the tree (.sidebar-item), under a class of its own */
   .ch-row:hover { background: rgba(255,255,255,0.06); }
   .ch-row .si-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ch-row .ch-at { flex: none; color: var(--dim); font-size: 11px; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }   /* 1.6.2: the map a repeated name stands on */
   .ch-row .ch-who { flex: none; color: var(--dim); font-size: 11px; font-weight: normal; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ch-row:focus-visible, .ch-fold:focus-visible { outline: 1px solid var(--gold); outline-offset: -1px; }
   .ch-fold { display: block; width: 100%; text-align: left; background: none; border: 0; cursor: pointer; font: inherit; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); padding: 6px 10px 4px; }
@@ -3462,7 +3463,7 @@
   .roll-crit { background: var(--green); } .roll-fumble { background: var(--red); }
   .roll-tier { font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 1px 6px; border-radius: 10px; margin-left: 4px; color: var(--gold); border: 1px solid var(--gold); }
   .roll-bad { color: var(--dim); font-style: italic; font-size: 12px; }
-  #dicePanel { position: fixed; z-index: 90001; width: 320px; display: flex; flex-direction: column; gap: 6px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 10px; box-shadow: var(--shadow); padding: 8px 10px 10px; }
+  #dicePanel { position: fixed; z-index: 8999; width: 320px; display: flex; flex-direction: column; gap: 6px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 10px; box-shadow: var(--shadow); padding: 8px 10px 10px; }
   /* Stage 5a: the situational-modifier popover (shift-click a sheet roll button) */
   .dice-modpop { position: fixed; z-index: 90002; width: 210px; display: flex; flex-direction: column; gap: 6px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 10px; box-shadow: var(--shadow); padding: 8px 10px 10px; }
   .dice-modpop-title { font-size: 11px; color: var(--dim); }
@@ -4091,7 +4092,7 @@
   #sheetAsPlayer.on { color: var(--gold-ink, #1a1a1a); }   /* 1.6.0: As player while it is on, as Lock sheet is */
   .sheet-grid > .sheet-kind-roll > .sheet-roll { flex: 1 1 auto; }   /* every roll of a section one height (sheets.js rollEven): the button fills the height it is given */
   .sheet-roll-pair > .sheet-roll { flex: 1 1 auto; min-width: 0; width: auto; }
-  .sheet-grid > .sheet-kind-roll .sheet-roll { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }   /* 1.6.2 (the owner, 2026-11-05: "One line, shrink to fit"): a section's roll keeps its name on one line, smaller where it must be (sheets.js rollFit), else cut with an ellipsis */
+  .sheet-grid > .sheet-kind-roll .sheet-roll { white-space: normal; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }   /* 1.6.2 (the owner, 2026-11-06, by prompt: "a mix of 1 and 3, very long names could be an issue"): a section's roll takes a second line where its name needs one, and past two lines it is cut, its tooltip naming it whole; every roll of the section stands at one height (sheets.js rollEven) */
   .sheet-roll-pair > .sheet-roll-mod { padding: 0 7px; }
   .sheet-field-roll + .sheet-roll-mod { padding: 0 4px; font-size: 11px; margin-left: 2px; vertical-align: middle; }
   .sheet-item-roll + .sheet-roll-mod { height: 24px; font-size: 11px; margin-left: -2px; }

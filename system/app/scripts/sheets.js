@@ -1612,25 +1612,35 @@ function turnView(v, final) {
     if (final && v.dialStale) { v.dialStale = false; if (namesFacing(systemOf(camp))) redrawForFacing(v); }
 }
 // The floating panels (the sheet, every HUD, the page panel, Sound, Music, Video, Effects and the notepad) come to the front when pressed or
-// opened: z from 9001, renumbered in order before it passes 9400 (chat is at 90000, a tool bar with a menu open at 90010, the map's hover
+// opened: z from 9001, renumbered in order before it passes 9400 (Table Chat and the dice roller too since 1.6.2; a tool bar with a menu open at 90010, the map's hover
 // card and right-click menu at 90020, modals above: lookcheck holds the ladder). 1.5.4: every one of them, with or without a HUD open (found
 // live: Effects, Sound, Music, Video and the notepad came up under an open sheet or page panel, which stand later in the page at the same z,
 // and a press on them left them there)
 var _zTop = 9000;
-var Z_BOXES = ['sheetPanel', 'docPanel', 'soundPanel', 'musicPanel', 'videoPanel', 'fxPanel', 'notepadPanel', 'timePanel', 'deckPanel', 'trkPanel'];
+var Z_BOXES = ['sheetPanel', 'docPanel', 'soundPanel', 'musicPanel', 'videoPanel', 'fxPanel', 'notepadPanel', 'timePanel', 'deckPanel', 'trkPanel', 'chatPanel', 'dicePanel'];   // 1.6.2 (the owner, by prompt: "Last opened in front"): Table Chat and the dice roller too
 function floatPanels() { var l = Z_BOXES.map(function(id) { return ui(id); }); Object.keys(huds).forEach(function(id) { l.push(huds[id].panel); }); return l.filter(Boolean); }
 function raisePanel(p) {
     if (!p || String(p.style.zIndex) === String(_zTop)) return;
     if (_zTop >= 9400) { var ps = floatPanels().filter(function(x) { return x !== p; }).sort(function(a, b) { return (+a.style.zIndex || 9000) - (+b.style.zIndex || 9000); }); _zTop = 9000; ps.forEach(function(x) { x.style.zIndex = String(++_zTop); }); }
     p.style.zIndex = String(++_zTop);
 }
+// 1.6.2 (the owner, by prompt: "Last opened in front"): a box that shows is covered where a box that shows in front of it overlaps it. Its own
+// button then brings it forward (wpBoxFront answers true) in place of closing it, so the chat under a sheet opened after it is one press away
+function boxAway(x) { return x.style.display === 'none' || (typeof x.className === 'string' && /(^| )wp-away( |$)/.test(x.className)); }
+function boxCovered(p) {
+    if (!p || !p.style || boxAway(p) || typeof p.getBoundingClientRect !== 'function') return false;
+    var z = +p.style.zIndex || 0, r = p.getBoundingClientRect();
+    return floatPanels().some(function(x) { if (x === p || !x.style || boxAway(x) || (+x.style.zIndex || 0) <= z || typeof x.getBoundingClientRect !== 'function') return false; var q = x.getBoundingClientRect(); return q.left < r.right && q.right > r.left && q.top < r.bottom && q.bottom > r.top; });
+}
+if (typeof window !== 'undefined') window.wpBoxFront = function(p) { if (!boxCovered(p)) return false; raisePanel(p); return true; };
 // A box comes forward when it is pressed (in the capture phase, before its own controls) and when its own module shows it (its inline display)
 function raiseWire(bx, MO) {
     if (!bx || typeof bx.addEventListener !== 'function') return;
     bx.addEventListener('pointerdown', function() { raisePanel(bx); }, true);
     if (typeof MO !== 'function') return;
-    var shown = bx.style.display !== 'none';
-    new MO(function() { var now = bx.style.display !== 'none'; if (now && !shown) raisePanel(bx); shown = now; }).observe(bx, { attributes: true, attributeFilter: ['style'] });
+    var upNow = function() { return bx.style.display !== 'none' && !(typeof bx.className === 'string' && /(^| )wp-away( |$)/.test(bx.className)); };   // 1.6.2, found live: a box put away on another view and back is shown again too
+    var shown = upNow();
+    new MO(function() { var now = upNow(); if (now && !shown) raisePanel(bx); shown = now; }).observe(bx, { attributes: true, attributeFilter: ['style', 'class'] });
 }
 // 1.5.4: a window a button opens takes the focus, so the next key is that window's own (found live: Escape closed the sheet behind a HUD just
 // opened from it, and the HUD stayed). The panel itself takes it, so a stray key presses nothing in it, and only while it holds it: a press
@@ -5571,13 +5581,9 @@ function rollHidden(r, vars) {
 // prompt: "Same height in a section"): every roll of one section's grid stands at the height of its tallest, for any system's sheet. A grid is
 // measured when it is drawn and again when its width changes or it comes into sight (one observer a view), and a section that folds open
 // measures anew. A grid out of sight is left alone until then
-// 1.6.2 (the owner, 2026-11-05, by prompt: "One line, shrink to fit"): a roll's name stays on one line in a section, its text a little smaller where it
-// would not fit, down to 82% of its size and never under 10.5 px, and cut with an ellipsis past that (its tooltip names it whole)
-function rollFit(b) {
-    if (!b || !b.style) return; b.style.fontSize = ''; if (!(b.scrollWidth > b.clientWidth + 1) || typeof getComputedStyle !== 'function') return;
-    var cs = parseFloat(getComputedStyle(b).fontSize); if (!(cs > 0)) return;
-    for (var f = cs - 0.5, lo = Math.max(10.5, cs * 0.82); f >= lo; f -= 0.5) { b.style.fontSize = f + 'px'; if (b.scrollWidth <= b.clientWidth + 1) return; }
-}
+// 1.6.2: a roll's name in a section takes two lines where it needs them and is cut past that (the style sheet; the owner, 2026-11-06, by prompt: "a mix
+// of 1 and 3", which took the place of "One line, shrink to fit" of 2026-11-05). Its text keeps its size: rollFit only clears a size an earlier draw set
+function rollFit(b) { if (b && b.style) b.style.fontSize = ''; }
 function evenGrid(g) {
     var rolls = Array.prototype.filter.call(g.children || [], function(x) { return x && x.classList && x.classList.contains('sheet-kind-roll'); });
     rolls.forEach(function(x) { var bt = typeof x.querySelector === 'function' ? x.querySelector('.sheet-roll') : null; if (bt) rollFit(bt); });

@@ -2086,7 +2086,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         Object.defineProperty(e, 'firstChild', { get() { return e.kids[0] || null; } }); Object.defineProperty(e, 'innerHTML', { set() { throw new Error('markup'); } }); return e; };
     const pdoc = { made: 0, createElement(t) { this.made++; return mkEl(t); }, createTextNode: t => ({ text: String(t) }) }, textOf = e => (e.text !== undefined ? e.text : e.kids.map(textOf).join(''));
     let C = null, cerr = '';
-    try { C = new Function(cSl + '\nreturn { charRowsOf: charRowsOf, charDraw: charDraw, charSig: charSig, charTokenOf: charTokenOf, charMenuRows: charMenuRows, charNpcsRead: charNpcsRead, charNpcsKeep: charNpcsKeep, charWaiting: charWaiting, charNoToken: charNoToken, CHAR_ID: CHAR_ID };')(); } catch (e) { cerr = String(e && e.stack || e); }
+    try { C = new Function(cSl + '\nreturn { charRowsOf: charRowsOf, charDraw: charDraw, charSig: charSig, charTokenOf: charTokenOf, charMenuRows: charMenuRows, charNpcsRead: charNpcsRead, charNpcsKeep: charNpcsKeep, charWaiting: charWaiting, charNoToken: charNoToken, charPlaces: charPlaces, CHAR_ID: CHAR_ID };')(); } catch (e) { cerr = String(e && e.stack || e); }
     const HOSTILE = '<img src=x onerror=1>"\'&', chars = { c_b: { id: 'c_b', name: 'Borin', ownerId: 'p2' }, c_a: { id: 'c_a', name: 'Aria', ownerId: 'p1' }, c_k: { id: 'c_k', name: 'Kess', ownerId: '' }, c_n1: { id: 'c_n1', name: 'Lurker', npc: true }, c_n2: { id: 'c_n2', name: 'Gate guard', npc: true, ownerId: 'p1' },
         c_h: { id: 'c_h', name: 'Hover copy', ownerId: 'p1', partial: true }, c_null: null, c_str: 'x', c_mis: { id: 'c_other', name: 'Mismatch' }, c_m: { id: 'c_m', name: 'New one', ownerId: 'p1', making: 1 }, c_z: { id: 'c_z', name: 'Zed', ownerId: 'p9' }, 'bad id': { id: 'bad id', name: 'Bad' }, c_x: { id: 'c_x', name: ' \u0007 ', ownerId: 'p2' }, c_long: { id: 'c_long', name: 'L'.repeat(200) } };
     const names = Object.assign(Object.create({ p9: 'Inherited' }), { p1: 'Sam', p2: HOSTILE });
@@ -2095,6 +2095,16 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         const gm = C.charRowsOf(chars, names, ''), p1 = C.charRowsOf(chars, names, 'p1'), nob = C.charRowsOf(chars, names, 'p7');
         c1 = J([gm.players.map(r => [r.id, r.name.length > 30 ? r.name.length : r.name, r.who]), gm.npcs.map(r => [r.id, r.name, r.who]), p1.players.map(r => [r.id, r.name, r.who]), p1.npcs.length, nob.players.length + nob.npcs.length,
             J(C.charRowsOf(null, names, '')), J(C.charRowsOf('x', null, '')), J(C.charRowsOf(JSON.parse('{"__proto__":{"id":"__proto__","name":"P"},"constructor":{"id":"constructor","name":"C"}}'), {}, '')), C.CHAR_ID.source === (/CHAR_ID = (\/\^c_[^/]+\/)/.exec(coreSrc) || [])[1].slice(1, -1)]);
+        {   // 1.6.2 (the owner, by prompt: "The map they stand on"): a name two rows share says the map its token stands on
+            const it = { m1: { id: 'm1', type: 'map', meta: { title: 'Upper Deck' }, whiteboard: [{ id: 't1', isChar: true, charId: 'c_s1' }] }, m2: { id: 'm2', type: 'map', meta: { title: 'Town' }, whiteboard: [{ id: 't2', isChar: true, charId: 'c_s2', hidden: true }] } };
+            const mdl = () => ({ players: [{ id: 'c_s1', name: 'Skiff' }, { id: 'c_s2', name: 'Skiff' }, { id: 'c_g', name: 'Gunner' }, { id: 'c_s3', name: 'Skiff' }], npcs: [{ id: 'c_n', name: 'Skiff' }] });
+            const g = C.charPlaces(mdl(), it, 'm1', true), pl = C.charPlaces(mdl(), it, 'm1', false);
+            const bx = mkEl('div'); C.charDraw(pdoc, bx, g, true, true); const atTexts = bx.kids.filter(k => k.className === 'ch-row').map(k => (k.kids.find(x => x.className === 'ch-at') || { kids: [] })).map(textOf);
+            check('Characters tells two rows of one name apart (1.6.2, the owner, by prompt: "The map they stand on"; charlist.js charPlaces, run for real): each row whose name another row of its list shares says the map its token stands on, the GM\'s view reading a hidden token too and a player\'s not, or that it has no token; a name of its own, and the same name in the other list, say nothing more; drawn as a small grey text after the name; the signature follows it',
+                J(g.players.map(r => r.at || '')) === J(['Upper Deck', 'Town', '', 'no token']) && J(g.npcs.map(r => r.at || '')) === J([''])
+                && J(pl.players.map(r => r.at || '')) === J(['Upper Deck', 'no token', '', 'no token']) && J(atTexts) === J(['Upper Deck', 'Town', '', 'no token'])
+                && C.charSig(g, true, true) !== C.charSig(C.charPlaces(mdl(), {}, 'm1', true), true, true), J([g, pl, atTexts]));
+        }
         // drawn
         const box = mkEl('div'), n1 = C.charDraw(pdoc, box, gm, true, false), shape = e => e.kids.map(k => k.tag + '.' + k.className + (k.hidden ? '[hidden]' : '') + ':' + textOf(k).slice(0, 34));
         const first = shape(box), rowB = box.kids.find(k => k.dataset.char === 'c_b'), fold = box.kids.find(k => k.className === 'ch-fold'), npcs = box.kids.find(k => k.className === 'ch-npcs');
@@ -2522,9 +2532,10 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const modals = [...ix.matchAll(/<div id="(\w+Modal)"[^>]*? style="[^"]*?z-index: ?(\d+);/g)].map(m => m[1]);
     const STAY = ['#toast', '#pauseBanner', '#updateBanner', '#soundGate', '#musicGate', '@customConfirm', '@customPrompt', '.gen-modal', '.frame-modal', '@welcomeScreen', '#tourOverlay', '#tourChip'].concat(modals.map(id => '@' + id));
     const frontTop = Math.max(...FRONT.map(zOf)), bad = [];
-    // the bar at rest stands over the boxes (the owner, 2026-10-17, by prompt: "The toolbar always stays over windows"), and under Table Chat,
-    // its dice roller and the roller's pop, which stand over it
-    const OVER = ['chatPanel', 'dicePanel', '.dice-modpop'];
+    // the bar at rest stands over the boxes (the owner, 2026-10-17, by prompt: "The toolbar always stays over windows"), and under the dice
+    // roller's pop, which stands over it. Table Chat and the roller are boxes like the others since 1.6.2 (the owner, by prompt: "Last opened
+    // in front", moved on purpose): a sheet opened after them comes in front of them
+    const OVER = ['.dice-modpop'];
     floatZ.forEach(([id, z]) => { if (!(z < OPEN && (OVER.indexOf(id) >= 0 ? z > REST : z < REST))) bad.push('float ' + id + '=' + z); });
     if (!(RAISED < REST && RAISED < OPEN && zBase && +zBase[1] === floatZ[0][1])) bad.push('raised ' + RAISED);
     FRONT.concat(LATER).forEach(s => { if (!(zOf(s) > OPEN)) bad.push('in front ' + s + '=' + zOf(s)); });
@@ -2539,7 +2550,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const OVER_NOTE = "- The play map's toolbar now stays over the floating boxes. A sheet, a\n  HUD or the page panel moved over it no longer covers its tools. While\n  a tool's options are up, a box you press still comes in front of\n  them, and one press on the tool brings them back.\n";
     check('the toolbar over the boxes is said: both release notes carry the line under 1.5.4, alike, and this file\'s paragraph on the look says where the bar at rest stands, with the owner\'s words, where the file is there',
         wn.every(t => count(t, OVER_NOTE) === 1 && t.indexOf(OVER_NOTE) < t.indexOf('WAYPOINT 1.5.3'))
-        && (clLook === null || count(clLook, 'With no menu open the bar stands over the floating boxes, at 9500, above the highest place sheets.js `raisePanel` gives a box (9400) and under Table Chat, its dice roller and every menu (the owner, 2026-10-17, by prompt: "The toolbar always stays over windows")') === 1), clLook === null ? 'no CLAUDE.md here' : '');
+        && (clLook === null || count(clLook, 'With no menu open the bar stands over the floating boxes, Table Chat and its dice roller among them, at 9500, above the highest place sheets.js `raisePanel` gives a box (9400) and under every menu (the owner, 2026-10-17, by prompt: "The toolbar always stays over windows")') === 1), clLook === null ? 'no CLAUDE.md here' : '');
     // every menu of the three bars is a .shape-menu inside its .floating-toolbar, so the one rule raises each of them
     const seg = (a, z) => { const i = ix.indexOf(a), j = ix.indexOf(z, i + 1); return i > 0 && j > i ? ix.slice(i, j) : ''; };
     const menusIn = s => (s.match(/<[a-z]+\b[^>]*>/g) || []).map(t => { const i = / id="(\w*Menu)"/.exec(t), c = / class="([^"]*)"/.exec(t); return i ? i[1] + (c && c[1].split(' ').indexOf('shape-menu') >= 0 ? '' : ':NOT') : null; }).filter(Boolean);

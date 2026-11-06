@@ -377,6 +377,17 @@ Around the app
 - The Journal has one row of tabs: Everything, My notes, Received, Sent and
   Personal notes. Clear journal stands at the window's foot. It asks first, in
   the app's own question, and so does removing a note or a handout.
+- Table Chat and the dice roller take their place among the other windows.
+  A sheet opened after them comes in front of them. Where a window covers the
+  chat, its button brings the chat back in front, and the next press closes
+  it.
+- Under Characters, two characters of one name each say the map their token
+  stands on.
+- A roll's name on a sheet takes a second line where it needs one. Past two
+  lines it is cut, and pointing at it shows the whole name.
+- With no table open, Target and Target as on a token's right-click menu work
+  again. They showed there since a fight could run with no table, and set
+  nothing.
 - The Image Library has Add pictures beside its search box. It brings
   pictures in from your computer, and they wait in the library until you place
   them.

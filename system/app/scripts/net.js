@@ -6712,7 +6712,7 @@ function applyTarget(pid, name, t) {
 }
 // Toggle my own target (client or host). itemName is only for the toast.
 net.setTarget = function(itemId, mapId, itemName) {
-    if (!net.active) return;
+    if (!net.active && !(typeof net.soloHost === 'function' && net.soloHost())) return;   // 1.6.2: with no table open the GM's own machine points as its own host (Fight without hosting)
     var me = net.myId, cur = net.targets[me];
     var next = (cur && cur.id === itemId) ? null : { id: itemId, mapId: mapId };
     if (net.role === 'client') {
@@ -6735,7 +6735,7 @@ net.clearMyTarget = function() { var t = net.targets[net.myId]; if (t) net.setTa
 // nobody's while that token is hidden or gone (targetTok), and a player whose sight drops that token is not sent it (targetsFor). Targeting
 // never starts or offers a fight (the owner: "we probably cant default to a fight when one player selects another")
 net.setTargetAs = function(from, itemId, mapId, itemName) {
-    if (!net.active || net.role !== 'host' || !from || typeof from.id !== 'string' || !from.id || from.id.length > 77 || typeof itemId !== 'string' || !itemId || itemId.length > 80 || itemId === from.id || typeof mapId !== 'string' || mapId.length > 80) return false;
+    if (!(net.active ? net.role === 'host' : (typeof net.soloHost === 'function' && net.soloHost())) || !from || typeof from.id !== 'string' || !from.id || from.id.length > 77 || typeof itemId !== 'string' || !itemId || itemId.length > 80 || itemId === from.id || typeof mapId !== 'string' || mapId.length > 80) return false;
     var key = 'tk:' + from.id, cur = Object.prototype.hasOwnProperty.call(net.targets, key) ? net.targets[key] : null, who = String(from.charName || from.name || 'Your character').slice(0, 40);
     var next = cur && cur.id === itemId && cur.mapId === mapId ? null : { id: itemId, mapId: mapId, from: from.id };
     applyTarget(key, who, next); broadcastTargets();
@@ -6748,7 +6748,7 @@ net.setTargetAs = function(from, itemId, mapId, itemName) {
 // table afresh (broadcastTargets, per recipient as ever) and the GM is told whose it was, the name set as text by the notice. A key that holds
 // no pointer changes nothing and sends nothing
 net.clearTargetOf = function(pid) {
-    if (!net.active || net.role !== 'host' || typeof pid !== 'string' || !pid || pid.length > 80 || !net.targets || !Object.prototype.hasOwnProperty.call(net.targets, pid) || !net.targets[pid]) return false;
+    if (!(net.active ? net.role === 'host' : (typeof net.soloHost === 'function' && net.soloHost())) || typeof pid !== 'string' || !pid || pid.length > 80 || !net.targets || !Object.prototype.hasOwnProperty.call(net.targets, pid) || !net.targets[pid]) return false;
     var t = net.targets[pid], who = String((t && typeof t.name === 'string' && t.name) || 'Player').slice(0, 40);
     applyTarget(pid, who, null); broadcastTargets();
     toast(pid === net.myId ? 'Target cleared.' : who + '\u2019s target is cleared.');
@@ -12115,6 +12115,7 @@ if (_chatBtn) _chatBtn.addEventListener('click', function() {
     var opening = chatHidden(panel), back = !opening && chatGiveBack(panel);   // 1.5.4 (floats.js): put away on this view counts as closed; one a roll only borrowed is given back, not closed
     cancelChatDismiss();   // the user is driving the chat now — no auto-dismiss
     if (back) return;
+    if (!opening && typeof window.wpBoxFront === 'function' && window.wpBoxFront(panel)) return;   // 1.6.2: under a box opened after it, it comes in front, and closes at the next press
     panel.style.display = opening ? 'flex' : 'none';
     if (opening && window.wpFloats) window.wpFloats.reveal(panel);   // asked for here: it shows on this view
     if (opening) { chatUnread = 0; refreshChatRecipients(); renderChat(); var i = ui('chatInput'); if (i) i.focus(); }

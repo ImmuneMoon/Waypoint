@@ -610,7 +610,7 @@ const dice = read('scripts/dice.js');
     check('the roller is placed against Table Chat only when the chat shows; with the chat closed, or put away where it has no place on screen to measure, the roller takes its own corner',
         J(up.at) === J(['20px', '246px']) && J(put.at) === J(['20px', '90px']) && J(noChat.at) === J(['20px', '90px']) && J(bare.at) === J(['20px', '246px']), J([up.at, put.at, noChat.at, bare.at]));
     check('the roller\'s wiring goes by what shows: its button opens a roller that is put away rather than closing it unseen, the Esc key and a resize leave it alone, and back on screen it is placed again; opening it brings up a chat that is closed or put away, and says it was asked for here',
-        count(dice, "b.addEventListener('click', function() { if (panelShown()) closePanel(); else openPanel(); });") === 1
+        count(dice, "b.addEventListener('click', function() { if (panelShown()) { if (typeof window.wpBoxFront === 'function' && window.wpBoxFront(p)) return; closePanel(); } else openPanel(); });") === 1   /* 1.6.2 ("Last opened in front"): a roller under a box opened after it comes in front first, moved on purpose */
         && count(dice, "document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && panelShown() && (!window.wpEsc || window.wpEsc.free(e))) closePanel(); }, true);") === 1
         && count(dice, "window.addEventListener('resize', function() { if (panelShown()) placePanel(); });") === 1
         && count(dice, "p.addEventListener('wpfloatback', function() { if (panelShown()) placePanel(); });") === 1

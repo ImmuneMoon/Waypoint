@@ -797,8 +797,10 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
           // and their box passes clicks through — only the stroke itself is clickable (CSS).
           if (item.type === 'path' && !item.layer) z = Math.max(z, 35);
 
-          // Per-item exception: render above the grid overlay (z 15000)
-          if (item.aboveGrid) z += 15020;
+          // Per-item exception: render above the grid overlay (z 15000). 1.6.2 (the owner): a token stands over the grid lines, and so does a drawing
+          // that is no piece of the map's own (systemcore pathBack), still over the tokens as before
+          var SCz = window.wpSystemCore;
+          z += SCz && typeof SCz.stackLift === 'function' ? SCz.stackLift(item, z) : (item.aboveGrid ? 15100 : item.isChar || item.waiting || z > 20 ? 15020 : 0);
 
           el.style.zIndex = z;
 

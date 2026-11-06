@@ -95,9 +95,10 @@ function shows(item, labels) {
 function stackZ(item, gridOn) {
     var n = Number(item.z), z = fin(n) && n ? n : 10;   // read as systemcore's stackZ reads it: a level a file wrote as text counts
     if (typeof item.layer === 'string' && own(LAYER_Z, item.layer)) z = LAYER_Z[item.layer];
-    if (item.type === 'path' && !item.layer) z = Math.max(z, 35);
-    if (item.aboveGrid) z += 15020;
-    if (gridOn && item.type === 'text') z = 15010;
+    var lz = z; if (item.type === 'path' && !item.layer) z = Math.max(z, 35);
+    var back = item.type === 'path' && (item.tip === 'fill' || item.blocksSight === true || item.barrier === true || (typeof item.texture === 'string' && item.texture !== '') || (typeof item.texSrc === 'string' && item.texSrc !== ''));   // 1.6.2: systemcore pathBack and stackLift, the board's own
+    z += item.aboveGrid ? 15100 : item.isChar || item.waiting ? 15020 : item.type === 'path' ? (!back && (!item.layer || lz > 20) ? 15020 : 0) : (z > 20 ? 15020 : 0);
+    if (gridOn && item.type === 'text') z = 15080;
     return z;
 }
 // The pieces to draw, lowest first, the later of two on one level on top (the board's rule), split at the grid's own level. A map of more

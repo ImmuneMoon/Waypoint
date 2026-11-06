@@ -784,7 +784,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var SC = window.wpSystemCore;
       if (SC && typeof SC.stackZ === 'function') return SC.stackZ(cand);
       var LZ = { back: 10, 'back-mid': 15, middle: 20, 'front-mid': 25, front: 30 }, n = Number(cand.z), z = Object.prototype.hasOwnProperty.call(LZ, cand.layer) ? LZ[cand.layer] : (isFinite(n) && n ? n : (cand.isChar ? 20 : 10));
-      return cand.aboveGrid ? z + 15020 : z;
+      var bk = cand.type === 'path' && (cand.tip === 'fill' || cand.blocksSight === true || cand.barrier === true || (typeof cand.texture === 'string' && cand.texture !== '') || (typeof cand.texSrc === 'string' && cand.texSrc !== ''));   // 1.6.2: systemcore pathBack and stackLift, read alike where no core is at hand
+      return z + (cand.aboveGrid ? 15100 : cand.isChar || cand.waiting ? 15020 : cand.type === 'path' ? (!bk && (!cand.layer || z > 20) ? 15020 : 0) : (z > 20 ? 15020 : 0));
   }
   // The topmost unlocked character token under a press on a piece that is no token (1.6.0, found by hand: the press handed the token on, and a double-click then opened the picture over it)
   function tokenUnder(map, item, e) {

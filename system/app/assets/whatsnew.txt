@@ -388,6 +388,10 @@ Around the app
 - With no table open, Target and Target as on a token's right-click menu work
   again. They showed there since a fight could run with no table, and set
   nothing.
+- Character tokens stand over the grid's lines. So does a drawing that is no
+  part of the map, such as an arrow or a mark, and anything you placed on a
+  layer above the tokens, so nothing you stacked by hand changes order. A wall,
+  a door, a filled area and a textured drawing stay under the lines.
 - A picture fitted to the grid lands in its cells when you let it go, even
   with the magnet sticking it to a piece nearby while you drag.
 - The Image Library has Add pictures beside its search box. It brings

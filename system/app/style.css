@@ -1430,7 +1430,7 @@
   
   /* Grids draw over content (z 15000), but text must stay readable — lift text
      items above the grid whenever one is active. */
-  #whiteboard.grid-active .wb-item.text { z-index: 15010 !important; }
+  #whiteboard.grid-active .wb-item.text { z-index: 15080 !important; }   /* 1.6.2: over the tokens, which stand over the grid's lines now, and under a piece marked above the grid */
 
   /* "Size matched" pill during resize */
   /* Size-match feedback while resizing: matched edges get a bright bar on both
@@ -4827,7 +4827,7 @@
   #fogScreen { position: fixed; z-index: 3950; pointer-events: none; overflow: hidden; }
   #fogScreen canvas.fog-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
   #fogScreen canvas.sight-canvas { position: absolute; inset: 0; }
-  #fxLayer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15000; overflow: visible; }
+  #fxLayer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15070; overflow: visible; }
   .fx-flash { position: absolute; inset: 0; opacity: 0; animation: fxFlash linear forwards; }
   @keyframes fxFlash { 0% { opacity: 0; } 15% { opacity: 0.85; } 100% { opacity: 0; } }
   .fx-wash { position: absolute; inset: 0; opacity: 0; animation: fxWashIn var(--fx-in, 400ms) ease forwards; }

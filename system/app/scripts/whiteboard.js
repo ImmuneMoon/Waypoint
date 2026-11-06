@@ -6997,6 +6997,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       return m || (typeof a === 'string' && Object.prototype.hasOwnProperty.call(camp.items, a) ? a : '');
   }
   window.wpImgAddFolder = imgAddFolder;
+  var _el_imgLibHow = document.getElementById('imgLibHowBtn');   // 1.6.2 (the owner: "A How it works button"): the how-to opens and folds in place
+  if (_el_imgLibHow) _el_imgLibHow.addEventListener('click', function() { var h = document.getElementById('imgLibHow'); if (!h) return; h.hidden = !h.hidden; _el_imgLibHow.setAttribute('aria-expanded', h.hidden ? 'false' : 'true'); });
   var _el_imgLibAdd = document.getElementById('imgLibAddBtn'), _el_imgLibAddFile = document.getElementById('imgLibAddFile');
   if (_el_imgLibAdd && _el_imgLibAddFile) {
       _el_imgLibAdd.addEventListener('click', function() { if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; } _el_imgLibAddFile.value = ''; _el_imgLibAddFile.click(); });

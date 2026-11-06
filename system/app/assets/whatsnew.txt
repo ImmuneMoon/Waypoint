@@ -388,6 +388,10 @@ Around the app
 - With no table open, Target and Target as on a token's right-click menu work
   again. They showed there since a fight could run with no table, and set
   nothing.
+- The stream window's bar shows a fight's round and whose turn it is, and
+  each character token there has its name under it.
+- The Image Library's how-to is folded behind How it works in its head.
+- A handbook page's bar keeps Import and Appearance together when it wraps.
 - Character tokens stand over the grid's lines. So does a drawing that is no
   part of the map, such as an arrow or a mark, and anything you placed on a
   layer above the tokens, so nothing you stacked by hand changes order. A wall,

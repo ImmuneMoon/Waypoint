@@ -1528,6 +1528,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li><b>Stream window shows</b> in Settings holds it while you set things up. Frozen picture keeps what it shows until you pick Live. Cover card shows the campaign&rsquo;s name and Back soon. It is Live again whenever Waypoint starts.</li>
                                   <li><b>Stream window grid</b> draws the grid there as your screen does, faint or not at all. Your own screen keeps its grid.</li>
                                   <li>Its corner menu follows your map, focuses one map, or focuses one of the players' characters. Focused on a character it switches maps with them and stays centred at 150%.</li>
+                                  <li>During a fight its bar shows the round and whose turn it is, where the party can see that token. Every character token there has its name under it.</li>
                               </ul>
                           </li>
                           <li><b>Player drawings:</b> players have the pen and eraser too. Their marks ride above tokens without blocking them, and they can only erase their own.
@@ -3824,8 +3825,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
       <span id="plannerModeSeg" class="pg-seg" role="group" aria-label="How the page is shown"><button type="button" class="tool ghost" data-mode="edit" title="Write on the page: press a block to edit it where it stands">Edit</button><button type="button" class="tool ghost" data-mode="read" title="The page as it reads, with nothing to edit">Read</button><button type="button" class="tool ghost" data-mode="side" title="The editor and the page side by side, as before">Side by side</button></span>
       <select id="plannerStatus" class="tool" title="Where this scene stands: Next is the one you play next (it shows in the play-map right-click menu), Played and Skipped are done."><option value="">Status…</option><option value="next">Next</option><option value="played">Played</option><option value="skipped">Skipped</option></select>
       <button class="tool ghost" id="docPlayersBtn" style="display:none;" title="Whether players at your table receive this page"><i class="wib wi-eye"></i> Players can read</button>
-      <button class="tool ghost icon" id="plannerImportBtn" title="Import a Markdown file (pick its pictures with it, or a zip of both) into this document" aria-label="Import document"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8.5L18 7v13.5H6zM12 9.5v7.5M9 14l3 3 3-3"/></svg><span class="pg-word">Import</span></button>
-      <button class="tool ghost icon" id="plannerAppearanceBtn" title="Appearance &mdash; font, colors &amp; a background image for this page, and a campaign-wide default" aria-label="Appearance"><i class="wib wi-palette"></i><span class="pg-word">Appearance</span></button>
+      <span class="pg-pair"><button class="tool ghost icon" id="plannerImportBtn" title="Import a Markdown file (pick its pictures with it, or a zip of both) into this document" aria-label="Import document"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8.5L18 7v13.5H6zM12 9.5v7.5M9 14l3 3 3-3"/></svg><span class="pg-word">Import</span></button>
+      <button class="tool ghost icon" id="plannerAppearanceBtn" title="Appearance &mdash; font, colors &amp; a background image for this page, and a campaign-wide default" aria-label="Appearance"><i class="wib wi-palette"></i><span class="pg-word">Appearance</span></button></span>
     </span><span id="plannerFindWrap" title="Find in this planner — the exact phrase first, then each word at word starts; case and accents ignored. Enter / Shift+Enter jump between hits, Esc clears.">
         <button class="tool ghost" id="plannerOutlineBtn" title="Outline: the headings of this page. Click one to jump to it."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M8 12h12M12 18h8"/></svg> Outline</button>
         <input type="search" id="plannerFind" placeholder="Find (Ctrl+F)" autocomplete="off" spellcheck="false">
@@ -4119,6 +4120,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <select id="streamFocus" title="Follow the GM's current map, or focus one map until you change it"></select>
     <label for="streamChar">Focus on</label>
     <select id="streamChar" title="Follow one character: the view switches to the map they are on and stays centred on them at 150%"></select>
+    <span id="streamFight" class="stream-fight" hidden title="The fight on the map shown: its round, and whose turn it is where the party can see that token"></span>
     <button class="tool ghost" id="streamHideBtn" title="Hide this bar (move the mouse to the top-left corner to bring it back)"><i class="wib wi-close"></i></button>
 </div>
 <div id="travelLockBanner" style="display:none; position:fixed; top:64px; left:50%; transform:translateX(-50%); z-index:5000; background:var(--panel2); border:1px solid var(--gold); color:var(--ink); padding:5px 12px; border-radius:6px; font-size:12px; box-shadow:var(--shadow);"><i class="wib wi-lock"></i> Travel between maps is locked by the GM</div>
@@ -4687,7 +4689,16 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 
 <div id="imgLibModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div style="background:var(--bg2); padding:20px; border:1px solid var(--gold); border-radius:8px; width:720px; max-width:94vw; height:78vh; display:flex; flex-direction:column;">
-        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Image Library <button id="imgLibCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Image Library <span style="flex:1"></span><button type="button" class="tool ghost imglib-howbtn" id="imgLibHowBtn" aria-expanded="false" aria-controls="imgLibHow" title="How the library works, in a few points">How it works</button> <button id="imgLibCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
+        <ul id="imgLibHow" class="imglib-how" hidden>
+            <li>The chips at the top pick whose pictures you see: this campaign&rsquo;s, Shared, Unfiled or every campaign&rsquo;s.</li>
+            <li>This campaign&rsquo;s pictures are those uploaded from its maps, planners and pages, used by them, or brought in.</li>
+            <li><b>Add pictures&hellip;</b> brings pictures in from your computer.</li>
+            <li>Click a picture for a large preview, then Add to map.</li>
+            <li>Press <b>Select</b>, or Ctrl-click, to pick several. Shift-click picks a run. Then add them all or tag them at once.</li>
+            <li>Right-click a picture to give it a tag.</li>
+            <li>The &times; on a picture places as many copies as <b>Copies</b> says.</li>
+        </ul>
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
             <input type="text" id="imgLibSearch" placeholder="Filter by name, map or tag&hellip;" style="flex:1; min-width:0; box-sizing:border-box;">
             <button type="button" class="tool ghost" id="imgLibSelectBtn" aria-pressed="false" title="Pick pictures with a plain click, to tag them or add them all at once. Ctrl-click, Shift-click and Ctrl+A pick too">Select</button>
@@ -4716,7 +4727,6 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         </div>
         <div id="imgCatMenu" class="shape-menu" style="display:none; position:fixed; flex-direction:column; min-width:180px; z-index:100001;"></div>
         <div id="imgLibSelBar" style="display:none; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap;"></div>
-        <div style="color:var(--dim); font-size:11px; margin-top:10px;">The chips at the top pick whose pictures you see: this campaign's (uploaded from its maps, planners and pages, used by them, or brought in), Shared, Unfiled, or every campaign's. Click an image for a large preview, then Add to map. Press Select, or Ctrl-click, to pick several (Shift-click for a run), then add them all or tag them at once. Right-click one to give it a tag. The &times; on a picture drops the number set in Copies.</div>
     </div>
 </div>
 

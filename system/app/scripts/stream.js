@@ -140,6 +140,9 @@ if (on) {
         refreshSelect(camp);
         refreshCharSelect(camp);
         streamTrackers(rawTk && rawTk.id === campId ? rawTk : null, want, Date.now());
+        var sfW = document.getElementById('streamFight'), sfT = streamFightWords(rawTk && rawTk.id === campId ? rawTk : null, want, camp.items[want]);   // 1.6.2 (the owner: "Round, turn and names")
+        if (sfW) { if (sfW.textContent !== sfT) sfW.textContent = sfT; sfW.hidden = !sfT; }
+        streamNames(document, document.getElementById('whiteboard'), camp.items[want]);
     }
     try {
         var hChan = new BroadcastChannel('waypoint');
@@ -165,6 +168,33 @@ if (on) {
         } catch (e) {}
     }
 }
+// [lookcheck:streamfight-start]
+// 1.6.2 (the owner, by prompt: "Round, turn and names (Recommended)"): the fight on the map shown, as words for the bar. raw: the campaign as
+// saved (its fights are the host's own and the party's copy holds none); map: the party's copy of the map, so a turn is named only where
+// the party can see that token (a hidden one, or one no player's token sees, is not in the copy). The fight played on that map, else the first
+function streamFightWords(raw, mapId, map) {
+    var fs0 = raw && raw.fights && typeof raw.fights === 'object' ? raw.fights : null, fl = fs0 && fs0.list && typeof fs0.list === 'object' && !Array.isArray(fs0.list) ? fs0.list : null;
+    if (!fl || typeof mapId !== 'string' || !mapId) return '';
+    var ids = Object.keys(fl).filter(function(k) { var f = fl[k]; return !!f && typeof f === 'object' && f.mapId === mapId && Array.isArray(f.rows) && f.rows.length > 0; }); if (!ids.length) return '';
+    var f = fl[ids.indexOf(fs0.on) >= 0 ? fs0.on : ids[0]], rd = typeof f.round === 'number' && isFinite(f.round) && f.round >= 1 ? Math.floor(f.round) : 1;
+    var r = typeof f.turn === 'number' && Math.floor(f.turn) === f.turn && f.turn >= 0 ? f.rows[f.turn] : null, wb = map && Array.isArray(map.whiteboard) ? map.whiteboard : [];
+    var tok = r && typeof r.tokId === 'string' ? wb.filter(function(w) { return !!w && w.id === r.tokId && !w.hidden; })[0] : null, nm = tok ? streamTokName(tok) : '';
+    return 'Round ' + Math.min(rd, 9999) + (nm ? ' \u00b7 ' + nm + '\u2019s turn' : '');
+}
+function streamTokName(w) { return String(w && (w.charName || w.name) || '').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 40); }
+// The tokens' names under them, in a layer of the board's own (the board draws no name on a token): one label a character token of the party's
+// copy, as text, placed at the token's foot; drawn again only where it changed
+function streamNames(doc, board, map) {
+    if (!doc || !board) return 0;
+    var layer = doc.getElementById('streamNames'); if (!layer) { layer = doc.createElement('div'); layer.id = 'streamNames'; board.appendChild(layer); }
+    var wb = map && Array.isArray(map.whiteboard) ? map.whiteboard : [], list = wb.filter(function(w) { return !!w && w.isChar && !w.waiting && !w.hidden && typeof w.x === 'number' && typeof w.y === 'number' && isFinite(w.x) && isFinite(w.y) && streamTokName(w) !== ''; });
+    var sig = JSON.stringify(list.map(function(w) { return [w.id, streamTokName(w), Math.round(w.x + (w.w || 60) / 2), Math.round(w.y + (w.h || 52))]; }));
+    if (layer.getAttribute('data-sig') === sig) return list.length;
+    layer.setAttribute('data-sig', sig); while (layer.firstChild) layer.removeChild(layer.firstChild);
+    list.forEach(function(w) { var d = doc.createElement('div'); d.className = 'stream-name'; d.appendChild(doc.createTextNode(streamTokName(w))); d.style.left = Math.round(w.x + (w.w || 60) / 2) + 'px'; d.style.top = Math.round(w.y + (w.h || 52) + 3) + 'px'; layer.appendChild(d); });
+    return list.length;
+}
+// [lookcheck:streamfight-end]
 // [trackcheck:stream-start]
 // Backlog 29: the stream window shows the table trackers shown to the table, on every map and on the map it shows, as a player is sent them
 // (trackcore wireFor, cleaned again as a player's copy). A GM-only tracker never: this window is the party's view

@@ -146,7 +146,8 @@ var GROUPS = {
     fields: { split: ['sys-row-main', 'sys-flags'], pull: ['sys-round', 'sys-roundto', 'sys-roundat'], head: ['sys-key', 'sys-label', 'sys-kind', 'sys-btns'], list: [
         ['value', 'The number', 1, ['sys-def']],
         ['who', 'Who sees and changes it', 1, ['sys-edit', 'sys-vis', 'sys-live-sel']],
-        ['sheet', 'On the sheet', 1, ['sys-hover-chk', 'sys-tile-chk', 'sys-slider-chk', 'sys-counter-chk', 'sys-unit', 'sys-unit-text', 'sys-metricshow', 'sys-dec', 'sys-group-chk', 'sys-sign-chk', 'sys-caption', 'sys-res-icon', 'sys-glyph-btn', 'sys-reset-chk', 'sys-res-color', 'act:rescolorclr', 'sys-colorband-chk', 'sys-bar-chk', 'sys-badge-chk', 'sys-tones-row', 'sys-slider-row', 'sys-trackshape', 'sys-trackof']],
+        ['sheet', 'How it shows', 1, ['sys-hover-chk', 'sys-tile-chk', 'sys-slider-chk', 'sys-counter-chk', 'sys-res-icon', 'sys-glyph-btn', 'sys-reset-chk', 'sys-res-color', 'act:rescolorclr', 'sys-colorband-chk', 'sys-bar-chk', 'sys-badge-chk', 'sys-tones-row', 'sys-slider-row', 'sys-trackshape', 'sys-trackof']],
+        ['figs', 'Units and figures', 0, ['sys-unit', 'sys-unit-text', 'sys-metricshow', 'sys-dec', 'sys-group-chk', 'sys-sign-chk', 'sys-caption'], null, 'say'],   // 1.6.2 (the owner, by prompt: "Split in two"): folded, its heading saying what is set
         ['rules', 'Rolls and rules', 0, ['sys-roll', 'sys-fielddie', 'sys-vnames', 'sys-ovr-value', 'sys-ovr-when', 'sys-spill-*']],
         ['auto', 'Worked out and filled', 0, ['sys-wout-box']],   // 1.6.2 (auto apply)
         ['round', 'Rounding', 0, ['sys-round', 'sys-roundto', 'sys-roundat']]] },
@@ -221,6 +222,15 @@ function wordIn(words, list) {
 function groupOf(spec, words) { for (var i = 0; i < spec.list.length; i++) if (wordIn(words, spec.list[i][3])) return spec.list[i][0]; return 'more'; }
 function hasClass(n, c) { return typeof n.className === 'string' && n.className.split(/\s+/).indexOf(c) >= 0; }
 // Whether a group holds anything set: a tick ticked, a box written in, a list off its first choice
+// 1.6.2 (the owner, by prompt: "Split in two"): what a folded Units and figures holds, in words for its heading: the unit, then each thing set
+function figsSay(b) {
+    var find = function(n, c) { if (!n || n.nodeType !== 1) return null; if (hasClass(n, c)) return n; for (var k = n.firstChild; k; k = k.nextSibling) { var x = find(k, c); if (x) return x; } return null; };
+    var val = function(c) { var n = find(b, c); return n ? String(n.value || '').trim() : ''; }, on = function(c) { var n = find(b, c); return !!n && n.checked === true; }, out = [];
+    var u = val('sys-unit') || val('sys-unit-text'); if (u) out.push(u);
+    var m = find(b, 'sys-metricshow'); if (m && usedIn(m)) out.push('metric');
+    if (val('sys-decmin') || val('sys-decmax')) out.push('decimals'); if (on('sys-group-chk')) out.push('1,000s'); if (on('sys-sign-chk')) out.push('\u00b1 colour'); if (val('sys-caption')) out.push('a caption');
+    return out.join(', ');
+}
 function usedIn(n) {
     if (n.tagName === 'INPUT') { var t = n.type; if (t === 'checkbox' || t === 'radio') return n.checked === true; return t !== 'color' && String(n.value || '') !== ''; }
     if (n.tagName === 'SELECT') {
@@ -270,8 +280,8 @@ function arrange(row, kind, doc, kept, touched) {
         d.className = 'sys-grp'; d.dataset.grp = key; s.className = 'sys-grp-head'; s.appendChild(doc.createTextNode(name)); b.className = 'sys-flags sys-grp-body';
         ps.forEach(function(p) { b.appendChild(p); });
         if (g[4]) kindsArrange(b, g[4], doc, kind + ':' + ((row.dataset && row.dataset.lid) || ''));
-        var used = usedIn(b); if (used && !g[2]) { var u = doc.createElement('small'); u.className = 'sys-grp-used'; u.textContent = 'in use'; s.appendChild(u); }
-        d.open = kept && own(kept, key) ? kept[key] === 1 : !!g[2] || used || !!(touched && touched[key]);
+        var used = usedIn(b), said = used && g[5] === 'say' ? figsSay(b) : ''; if (used && !g[2]) { var u = doc.createElement('small'); u.className = 'sys-grp-used'; u.textContent = said || 'in use'; s.appendChild(u); }
+        d.open = kept && own(kept, key) ? kept[key] === 1 : !!g[2] || (used && g[5] !== 'say') || !!(touched && touched[key]);   // a group that says what is set stays folded
         d.appendChild(s); d.appendChild(b); row.appendChild(d);
     });
     return row;

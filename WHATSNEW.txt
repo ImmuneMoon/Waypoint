@@ -65,6 +65,9 @@ The System editor
 - How it rolls opens on Draws a card first, with When does it jam and the
   Big Hit after it. The welcome keeps room for Continue a campaign while the
   save loads, so its cards stay put.
+- A field's On the sheet is now two groups. How it shows stays open. Units
+  and figures stays folded and names what is set in it, such as yd, 1,000s.
+  Work out every field sits at its own width.
 - Combat and Rules are tabs of their own now. Everything the Combat card held
   is on the Combat tab, and the budgets, readings, linked sheets and tables
   that stood on the Lists tab are on the Rules tab. Each has its topics down

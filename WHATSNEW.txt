@@ -397,7 +397,8 @@ Around the app
   box one cell by two was drawn half a cell off. It now gets one cell.
 - A value name of a number stat renamed in place is followed at Save. A line of
   Holds by kind and a place split by that stat keep it, where Save dropped them.
-- With Snap on to the grid, the corner handle sizes a piece by whole cells. So does a drawing that is no
+- With Snap on to the grid, the corner handle sizes a piece by whole cells. Lock
+  proportions or Shift keeps its shape as near as whole cells allow. So does a drawing that is no
   part of the map, such as an arrow or a mark, and anything you placed on a
   layer above the tokens, so nothing you stacked by hand changes order. A wall,
   a door, a filled area and a textured drawing stay under the lines.

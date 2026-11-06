@@ -2198,7 +2198,8 @@ export function keepPlace(root, draw, idOf) {
 if (typeof window !== 'undefined') window.wpKeepPlace = keepPlace;
 // [lookcheck:keepplace-end]
 
-export function toast(msg) {
+// 1.6.2: lv 'warn' says something went wrong, as words that say so do (notices.js noteWarn)
+export function toast(msg, lv) {
 
     var tb = document.getElementById('toastBtn');
 
@@ -2206,7 +2207,9 @@ export function toast(msg) {
 
         document.getElementById('toastMsg').textContent = msg;
 
-        document.getElementById('toast').className = 'show';
+        var wn = !!(window.wpNotices && typeof window.wpNotices.warn === 'function' && window.wpNotices.warn(String(msg == null ? '' : msg), lv));
+
+        document.getElementById('toast').className = wn ? 'show warn' : 'show';
 
         tb.hidden = true; _toastAct = null; ++_toastGen;   // 1.5.8: a plain notice wears no button, and takes the place of one that did (toastAction)
 
@@ -2214,7 +2217,7 @@ export function toast(msg) {
 
     }
 
-    if (window.wpNotices && typeof window.wpNotices.add === 'function') { try { window.wpNotices.add(msg); } catch (e) {} }   // 160: every notice is kept in the bell's list as well (notices.js)
+    if (window.wpNotices && typeof window.wpNotices.add === 'function') { try { window.wpNotices.add(msg, undefined, lv); } catch (e) {} }   // 160: every notice is kept in the bell's list as well (notices.js)
 
 }
 

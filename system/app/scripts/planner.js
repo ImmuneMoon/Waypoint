@@ -38,7 +38,7 @@ import * as TF from './textfmt.js';
 
 import { num, picRef } from './safecore.js';
 
-import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, rebaseHistory, withoutHistory, fieldUndoChord, boxUndo, stepBoundary, stepFold, stepSel } from './io.js';
+import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, rebaseHistory, withoutHistory, fieldUndoChord, boxUndo, stepBoundary, stepFold, stepSel, toastAction } from './io.js';
 
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 
@@ -275,6 +275,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // ▲, ▼ and ✕ (1.6.2, found by hand): the open form goes with the block it was open on, and the focus stays on the arrow pressed
   function pgMoved(from, to) { if (_pg.open === from) _pg.open = to; else if (_pg.open === to) _pg.open = from; }
   function pgDropped(i) { if (_pg.open === i) _pg.open = -1; else if (_pg.open > i) _pg.open--; }
+  // 1.6.2 (the planner editor's sheet): a block that holds words, read as text; its kind, id, look and links are no words
+  function blockWords(b, d) { if (typeof b === 'string') return /\S/.test(b.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ')); if (!b || typeof b !== 'object' || (d || 0) > 6) return false;
+      return Object.keys(b).some(function(k) { return !/^(type|id|style|fmt|fmts|colFmt|align|layout|color|src|look|width|height|link|linkMapId|at|blk|kind|cls|size|font)$/.test(k) && blockWords(b[k], (d || 0) + 1); }); }
+  // ...and its Undo, while the planner is the one on screen: the block back where it stood, else at the end
+  function blockBack(map, at, b) { if (!map || !Array.isArray(map.blocks) || map.blocks.indexOf(b) >= 0 || getActiveMap() !== map) return false; var i = Math.max(0, Math.min(at, map.blocks.length)); map.blocks.splice(i, 0, b); if (_pg.open >= i) _pg.open++; save(true); renderPlanner(); pgReopen(); return true; }
   function pgReopen() { if (!pgOn() || _pg.open < 0) return; var ed = document.getElementById('plannerEditorWrap'), form = ed ? ed.querySelector('.planner-block-edit[data-idx="' + _pg.open + '"]') : null; if (_pg.ro) { _pg.ro.disconnect(); _pg.ro = null; } if (form && typeof ResizeObserver === 'function') { _pg.ro = new ResizeObserver(pgPlaceSoon); _pg.ro.observe(form); } pgPlace(); }
   function pbeToolBack(i, cls) {
       var ed = document.getElementById('plannerEditorWrap'), form = ed ? ed.querySelector('.planner-block-edit[data-idx="' + i + '"]') : null, tools = form ? Array.prototype.slice.call(form.querySelectorAll('.block-tools button')) : [];
@@ -1957,7 +1962,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       Array.from(blockContainer.querySelectorAll('.del-blk')).forEach(el => el.addEventListener('click', function() { 
 
-          var di = parseInt(this.dataset.idx); activeMap.blocks.splice(di, 1); pgDropped(di); save(true); renderPlanner(); pgReopen(); 
+          var gone = activeMap.blocks[parseInt(this.dataset.idx)], inMap = activeMap; var di = parseInt(this.dataset.idx); activeMap.blocks.splice(di, 1); pgDropped(di); save(true); renderPlanner(); pgReopen(); 
+          if (gone && blockWords(gone) && typeof toastAction === 'function') toastAction('Block deleted.', 'Undo', function() { if (!blockBack(inMap, di, gone)) toast('That planner is not on screen, so the block was not put back.'); });   // 1.6.2: a block with words offers Undo
 
       }));
 

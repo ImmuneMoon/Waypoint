@@ -19,6 +19,9 @@ var EYE_D = 'M2 12c2.5-4.5 6-7 10-7s7.5 2.5 10 7c-2.5 4.5-6 7-10 7s-7.5-2.5-10-7
 function tabMap(camp, id) {   // a map of the campaign by its own id, or nothing: never a name the list only inherits
     return typeof id === 'string' && !!camp && !!camp.items && Object.prototype.hasOwnProperty.call(camp.items, id) && !!camp.items[id] && camp.items[id].type === 'map' ? camp.items[id] : null;
 }
+function tabPage(camp, id) {   // a planner or a handbook page of the campaign by its own id, or nothing
+    return typeof id === 'string' && !!camp && !!camp.items && Object.prototype.hasOwnProperty.call(camp.items, id) && !!camp.items[id] && (camp.items[id].type === 'planner' || camp.items[id].type === 'doc') ? camp.items[id] : null;
+}
 function tabTitle(m) { var t = m && m.meta && typeof m.meta.title === 'string' ? m.meta.title.trim() : ''; return t || 'Untitled'; }
 function tabIds(v) { return Array.isArray(v) ? v.filter(function(x) { return typeof x === 'string'; }) : []; }
 // The tabs of a campaign. recent: the maps last opened, the newest first. hereOf(id): the names of the players who are on that map now.
@@ -33,6 +36,7 @@ function tabsModel(camp, recent, hereOf) {
         return { id: id, title: tabTitle(m), pinned: pins.indexOf(id) >= 0, who: Array.isArray(who) ? who.filter(function(n) { return typeof n === 'string' && n !== ''; }) : [] };
     }
     if (camp) out.front = one(camp.activeItemId);
+    if (camp && !out.front) { var pg = tabPage(camp, camp.activeItemId); if (pg) out.front = { id: camp.activeItemId, title: tabTitle(pg), pinned: false, who: [], page: pg.type === 'planner' ? 'planner' : 'doc' }; }   // 1.6.2 (the planner editor's sheet): a page in front says it is a page
     if (out.front) { var kw = tabKind(camp, out.front.id); if (kw) out.front.kind = kw; }   // 1.6.2 (vehicles, fold (g)): a map switched to another scale says so, for everyone on it
     var np = 0, nr = 0;
     pins.forEach(function(id) { if (np < TAB_PINS) { var t = one(id); if (t) { out.tabs.push(t); np++; } } });
@@ -49,6 +53,7 @@ function tabKind(camp, id) {
 }
 // What a tab says when it is pointed at: where a press goes, that it is pinned, and who is there
 function tabTip(t, front) {
+    if (t.page) return (t.page === 'planner' ? 'The planner ' : 'The page ') + t.title + ' is open. Press a map tab to go back to a map.';
     var s = (front === true ? '' : 'Go to ') + t.title, n = t.who.length;
     if (t.pinned) s += '. Pinned';
     if (n) s += '. ' + (n === 1 ? '1 player is here: ' : n + ' players are here: ') + t.who.slice(0, TAB_NAMES).join(', ') + (n > TAB_NAMES ? ' and ' + (n - TAB_NAMES) + ' more' : '');
@@ -71,9 +76,11 @@ function tabsDraw(doc, model, crumbUp) {
     var list = doc.getElementById('mapTabList'), front = doc.getElementById('mapTabFront'); if (!list || !front) return false;
     var f = model.front, name = doc.getElementById('mapTabName'), pin = doc.getElementById('mapTabPin'), here = doc.getElementById('mapTabHere'), n = doc.getElementById('mapTabHereN');
     front.hidden = !f;
+    if (front.classList) front.classList.toggle('mt-onpage', !!(f && f.page));   // 1.6.2: a page in front wears its own drawing, never the map's marks
+    var pgM = doc.getElementById('mapTabPg'), bkM = doc.getElementById('mapTabBk'); if (pgM) pgM.hidden = !(f && f.page === 'planner'); if (bkM) bkM.hidden = !(f && f.page === 'doc');
     if (f) {
         front.title = tabTip(f, true);
-        if (name) { name.textContent = f.title; name.hidden = crumbUp === true; }
+        if (name) { name.textContent = f.title; name.hidden = crumbUp === true && !f.page; }
         if (pin) pin.hidden = !f.pinned;
         if (here) here.hidden = !f.who.length;
         if (n) n.textContent = f.who.length ? String(f.who.length) : '';

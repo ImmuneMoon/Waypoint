@@ -2177,6 +2177,18 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /var t=activeMap\.blocks\[i\]; activeMap\.blocks\[i\]=activeMap\.blocks\[i-1\]; activeMap\.blocks\[i-1\]=t;/.test(plannerSrc) && /var t=activeMap\.blocks\[i\]; activeMap\.blocks\[i\]=activeMap\.blocks\[i\+1\]; activeMap\.blocks\[i\+1\]=t;/.test(plannerSrc)
             && /var di = parseInt\(this\.dataset\.idx\); activeMap\.blocks\.splice\(di, 1\); pgDropped\(di\); save\(true\)/.test(plannerSrc)   // 1.6.2, found by hand: the open form follows a block moved or deleted (moved on purpose)
             && /pgMoved\(i, i - 1\); save\(true\); renderPlanner\(\); pgReopen\(\); pbeToolBack\(i - 1, 'mv-up'\);/.test(plannerSrc) && /pgMoved\(i, i \+ 1\); save\(true\); renderPlanner\(\); pgReopen\(\); pbeToolBack\(i \+ 1, 'mv-dn'\);/.test(plannerSrc) && /tsSetColCount\(bb, n\);/.test(plannerSrc));
+        {   // 1.6.2 (the planner editor's sheet, "whichever changes"): Delete on a block with words offers Undo, which puts the very block back where it stood
+            const bA = plannerSrc.indexOf('  function blockWords('), bZ = plannerSrc.indexOf('      if (gone && blockWords(gone)');
+            const bSrc = plannerSrc.slice(bA, plannerSrc.indexOf('\n', plannerSrc.indexOf('  function blockBack(', bA)));
+            let saved = 0, drawn = 0; const pgS = { open: -1 }, mapA = { blocks: [{ type: 'text', id: 'b1' }, { type: 'heading', id: 'b3', text: 'Two' }] }; let onScreen = mapA;
+            const fns = new Function('_pg', 'getActiveMap', 'save', 'renderPlanner', 'pgReopen', bSrc + '\nreturn { blockWords, blockBack };')(pgS, () => onScreen, () => { saved++; }, () => { drawn++; }, () => {});
+            const words = [{ type: 'text', html: '<p> </p>' }, { type: 'text', html: '<p>Hi</p>' }, { type: 'table', rows: [{ c1: 'x' }], cols: [''] }, { type: 'image', src: '/saves/images/a.png', caption: 'The gate' }, { type: 'flowchart', nodes: [{ id: 'A', label: 'Gate' }] }, { type: 'text', id: 'zz', html: '&nbsp;' }, { type: 'image', src: '/saves/images/a.png' }].map(b => fns.blockWords(b));
+            const gone = { type: 'heading', id: 'b2', text: 'One' }, back1 = fns.blockBack(mapA, 1, gone), order = mapA.blocks.map(b => b.id), again = fns.blockBack(mapA, 1, gone);
+            onScreen = { blocks: [] }; const off = fns.blockBack(mapA, 0, { type: 'text', html: 'x' });
+            check('planner: Delete on a block that holds words offers Undo (1.6.2, the planner editor\'s sheet; planner.js blockWords and blockBack, run for real): words in a box, a cell, a caption or a node count, and a block of nothing but its kind, its picture or white space does not; Undo puts the very block back where it stood, once, saved and drawn, and nothing while another page is on screen; the delete handler offers it through toastAction',
+                JSON.stringify(words) === JSON.stringify([false, true, true, true, true, false, false]) && back1 === true && JSON.stringify(order) === JSON.stringify(['b1', 'b2', 'b3']) && again === false && off === false && saved === 1 && drawn === 1
+                && bZ > 0 && plannerSrc.includes("toastAction('Block deleted.', 'Undo', function() { if (!blockBack(inMap, di, gone))"), JSON.stringify([words, order, back1, again, off, saved, drawn]));
+        }
         const t = { type: 'node', cols: ['A', 'B', 'C', 'D'], colFmt: [{ b: true }, null, null, { i: true }], rows: [{ col1: 'a', col4: 'd', fmt: { col4: { b: true } } }] };
         pg.tsSetColCount(t, 2); const cut = J([t.cols, t.colFmt, t.rows]);
         pg.tsSetColCount(t, 5);

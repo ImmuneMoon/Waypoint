@@ -39,6 +39,7 @@ function noteOk(x) {
     var i = Object.prototype.hasOwnProperty.call(x, 'i') ? x.i : null, at = Object.prototype.hasOwnProperty.call(x, 'at') ? x.at : null, m = Object.prototype.hasOwnProperty.call(x, 'm') ? noteText(x.m) : '', n = Object.prototype.hasOwnProperty.call(x, 'n') ? x.n : null;
     if (typeof i !== 'string' || !/^n[0-9a-z]{1,12}_[0-9a-z]{1,8}$/.test(i) || typeof at !== 'number' || !isFinite(at) || at < 0 || !m) return null;
     var o = { i: i, at: at, m: m }; if (typeof n === 'number' && Math.floor(n) === n && n > 1) o.n = Math.min(n, 9999);
+    if (Object.prototype.hasOwnProperty.call(x, 'w') && x.w === 1) o.w = 1;
     return o;
 }
 // What this computer keeps: { campaign id: { at, l: [notice] } }, read once and bounded as it is read
@@ -72,14 +73,18 @@ function listOf(cid) {
     else _mem[cid] = [];
     return _mem[cid];
 }
+// 1.6.2: a notice that says something went wrong is a warning (a caller may say so itself: toast(msg, 'warn')). A refusal (cannot) is no
+// warning, and a dice result's critical failure is none either
+var WARN_RE = /\b(could not|couldn[\u2019']t|failed|error (reading|uploading|saving|loading|writing))\b|not reaching the disk/i;
+function noteWarn(m, lv) { if (lv === 'warn') return true; if (lv) return false; return typeof m === 'string' && WARN_RE.test(m) && !/^A critical failure/i.test(m); }
 // A notice shown: kept. The same words again within NOTE_JOIN_MS are one line, counted. Answers the notice, or null
-function add(msg, now) {
+function add(msg, now, lv) {
     if (window.wpStream || window.wpPopout) return null;
     var m = noteText(msg); if (!m) return null;
     now = typeof now === 'number' && isFinite(now) ? now : Date.now();
-    var cid = campId(), l = listOf(cid), top = l[0];
-    if (top && top.m === m && now - top.at < NOTE_JOIN_MS) { top.n = Math.min((top.n || 1) + 1, 9999); top.at = now; }
-    else { l.unshift({ i: 'n' + Math.floor(now).toString(36).slice(-12) + '_' + (_seq++ % 2821109907456).toString(36), at: now, m: m }); if (l.length > NOTE_MAX) l.length = NOTE_MAX; }
+    var cid = campId(), l = listOf(cid), top = l[0], wn = noteWarn(m, lv);
+    if (top && top.m === m && now - top.at < NOTE_JOIN_MS) { top.n = Math.min((top.n || 1) + 1, 9999); top.at = now; if (wn) top.w = 1; }
+    else { var nw = { i: 'n' + Math.floor(now).toString(36).slice(-12) + '_' + (_seq++ % 2821109907456).toString(36), at: now, m: m }; if (wn) nw.w = 1; l.unshift(nw); if (l.length > NOTE_MAX) l.length = NOTE_MAX; }
     saveSoon(cid); sync(); return l[0];
 }
 function kindOf(k) { var ks = window.wpNoticeKinds; return ks && typeof k === 'string' && Object.prototype.hasOwnProperty.call(ks, k) && ks[k] && typeof ks[k] === 'object' ? ks[k] : null; }
@@ -145,11 +150,12 @@ function whenWords(at, now) {   // the time today, else the day and the time
 // 1.6.2: a turn or round notice of a fight (net.js says "Kael's turn.", "Kael's turn \u2014 round 3.", "Combat! Kael's turn." and "Combat is over.")
 var TURN_RE = /^(Combat! )?[^\n]{1,120}'s turn( \u2014 round \d+)?\.$|^Combat is over\.$/, _fold = Object.create(null);
 function turnNote(m) { return typeof m === 'string' && TURN_RE.test(m); }
-// The list, newest first, as runs: a fight's turn notices one run (from its Combat! to its Combat is over.), every other notice a run of its own
+// The list, newest first, as runs: a fight's turn notices one run (from its Combat! to its Combat is over.); the same words said again one run
+// where the newest of them stands (1.6.2: Hosting resumed at every reload), marked same; every other notice a run of its own
 function foldRuns(l) {
-    var out = [], cur = null;
+    var out = [], cur = null, seen = Object.create(null);
     l.forEach(function(n) {
-        if (!turnNote(n.m)) { cur = null; out.push([n]); return; }
+        if (!turnNote(n.m)) { cur = null; var sr = seen[n.m]; if (sr) { sr.push(n); sr.same = true; } else { var r1 = [n]; seen[n.m] = r1; out.push(r1); } return; }
         if (n.m === 'Combat is over.' && cur) cur = null;
         if (!cur) { cur = []; out.push(cur); }
         cur.push(n);
@@ -172,8 +178,9 @@ function draw() {
     if (typeof KP === 'function' && !draw._in) { draw._in = true; try { return KP(box, draw); } finally { draw._in = false; } }
     while (box.firstChild) box.removeChild(box.firstChild);
     var ws = waiting(), l = listOf(campId()), now = Date.now();
+    var warns = l.filter(function(n) { return n.w === 1; }), rest = warns.length ? l.filter(function(n) { return n.w !== 1; }) : l;   // 1.6.2: what went wrong stands on top, under what waits
+    if (ws.length || warns.length) box.appendChild(mk('div', 'rm-label notes-sec', 'Waiting for you'));
     if (ws.length) {
-        box.appendChild(mk('div', 'rm-label notes-sec', 'Waiting for you'));
         ws.forEach(function(w) {
             var row = mk('div', 'notes-item notes-wait'), txt = mk('span', 'notes-txt', w.t), k = kindOf(w.kind);
             txt.appendChild(mk('span', 'notes-when', whenWords(w.at, now))); row.appendChild(txt);
@@ -186,18 +193,21 @@ function draw() {
             box.appendChild(row);
         });
     }
-    if (l.length) {
-        box.appendChild(mk('div', 'rm-label notes-sec', ws.length ? 'Earlier' : 'Notices'));
-        foldRuns(l).forEach(function(g) {
-            if (g.length < 2) { box.appendChild(noteRow(g[0], now)); return; }
-            var fk = g[g.length - 1].i, open = _fold[fk] === true, row = mk('div', 'notes-item notes-fold');   // known by its oldest notice, which stays as the fight goes on
-            var fb = mkBtn('tool ghost notes-foldbtn', (open ? '\u25be ' : '\u25b8 ') + 'A fight: ' + g.length + ' turn notices', open ? 'Hide this fight\u2019s turn notices' : 'Show this fight\u2019s turn notices', true);
+    var runsOf = function(list, warn) { foldRuns(list).forEach(function(g) {
+            if (g.length < 2) { var r0 = noteRow(g[0], now); if (warn) r0.className += ' notes-warn'; box.appendChild(r0); return; }
+            var fk = g[g.length - 1].i, open = _fold[fk] === true, row = mk('div', 'notes-item notes-fold' + (warn ? ' notes-warn' : '')), said = g.same ? g.reduce(function(s, n) { return s + (n.n > 1 ? n.n : 1); }, 0) : 0;   // known by its oldest notice, which stays as the fight goes on
+            var fb = said ? mkBtn('tool ghost notes-foldbtn', (open ? '\u25be ' : '\u25b8 ') + 'Said ' + said + ' times', open ? 'Hide each time it was said' : 'Show each time it was said', true)
+                : mkBtn('tool ghost notes-foldbtn', (open ? '\u25be ' : '\u25b8 ') + 'A fight: ' + g.length + ' turn notices', open ? 'Hide this fight\u2019s turn notices' : 'Show this fight\u2019s turn notices', true);
             fb.setAttribute('data-note-fold', fk); fb.setAttribute('aria-expanded', open ? 'true' : 'false'); row.appendChild(fb);
             var lt = mk('span', 'notes-txt', g[0].m); lt.appendChild(mk('span', 'notes-when', whenWords(g[0].at, now))); row.appendChild(lt);
             var xs = mkBtn('tool ghost notes-x', '\u00d7', 'Delete these ' + g.length + ' notices', true); xs.setAttribute('data-note-xs', g.map(function(n) { return n.i; }).join(' ')); xs.setAttribute('aria-label', 'Delete these notices'); xs.setAttribute('data-note-stop', ''); row.appendChild(xs);
             box.appendChild(row);
             if (open) g.forEach(function(n) { box.appendChild(noteRow(n, now, true)); });
-        });
+        }); };
+    if (warns.length) runsOf(warns, true);
+    if (rest.length) {
+        box.appendChild(mk('div', 'rm-label notes-sec', ws.length || warns.length ? 'Earlier' : 'Notices'));
+        runsOf(rest, false);
     }
     if (!ws.length && !l.length) box.appendChild(mk('div', 'notes-none', 'Nothing yet.'));
     place();
@@ -257,5 +267,5 @@ function focusAt(pos) {   // the stop at that place in the list as it is now, el
     window.addEventListener('resize', function() { var mn = document.getElementById('notesMenu'); if (mn && mn.hidden !== true) place(); });
     sync();
 })();
-window.wpNotices = { add: add, wait: wait, done: done, sync: sync, draw: draw, waiting: waiting };
+window.wpNotices = { add: add, wait: wait, done: done, sync: sync, draw: draw, waiting: waiting, warn: noteWarn };
 export { add, wait, done, sync, draw };

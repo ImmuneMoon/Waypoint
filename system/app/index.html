@@ -779,6 +779,7 @@
                       <div class="help-tip"><b>Who can see this?</b> Every item is either <b><i class="wib wi-eye"></i> Visible to players</b> or <b><i class="wib wi-hide"></i> Hidden from players</b>. The big box at the top of the Properties panel shows which, and the toolbar's eye turns red when hidden. Hidden items show to you dimmed. Players at your table see nothing at all. Use it for unrevealed enemies, traps and GM-only notes. A secret door has a tick of its own, since a hidden door stops no sight.</div>
                       <h4>The right-click menu</h4>
                       <ul>
+                          <li>A piece&rsquo;s <b>Properties</b> start with its commands in a row: Duplicate, Map center here, Fit to grid cells and Delete. Under them its settings stand in folds: Character and GM notes on a token, then Map links, Look, Map rules, and Vision and light.</li>
                           <li><b>Lock / Unlock</b>: locked items can't be moved or resized, and they dim slightly. A locked token is frozen for its player too. They can't move or turn it, change its posture or elevation, or mark threats on it until you unlock it.</li>
                           <li><b>Wall marks</b>: a wall shows a gold line, and its small mark when you point at it or select it. Its hover card says what it is. Settings can show the marks always or never.</li>
                           <li><b>Hide from players / Show to players</b>: in multiplayer, players see nothing at all of a hidden item. They get no outline, no placeholder and none of its moves. You see a ghost with an eye. Show it again and it appears for them where it stands. To leave hidden pieces off your own screen too, pick Invisible under <b>Hidden pieces on my map</b> in Settings.</li>
@@ -1433,6 +1434,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                               </ul>
                           </li>
                           <li>The <b>Welcome</b> screen&rsquo;s <b>Host a game</b> asks which campaign to host. It opens that campaign, starts the table and shows this window with your room code.</li>
+                          <li><b>Table options</b>, under the button, folds away where players arrive, players without a character and the password. Set them before you start or at any time.</li>
                           <li>Press <b>Start Hosting This Campaign</b>. A <b>room code</b> appears. Send it to your players however you like, then <b>close the window</b>. The session keeps running while you work, and the <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 3.5c-4.4 4.8-4.4 12.2 0 17M12 3.5c4.4 4.8 4.4 12.2 0 17M4.6 9h14.8M4.6 15h14.8"/></svg> button reopens the window whenever you need the roster, pause or summon.</li>
                           <li>Players who join appear in the roster and see the arrival map. On <b>Follow me</b>, changing maps brings them along. Otherwise they stay where they are until they travel or you <b>Summon</b> them, which moves them once. Your planners, room notes and character dossiers are <b>never sent</b> to them. <b>Handbook</b> pages you leave open to players are sent.</li>
                       </ol>
@@ -2246,6 +2248,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li><b>Replacing a pack, by id</b> makes the pack the file. An entry both hold keeps its id, so the rows characters carry still find it. The entries the file lacks are removed, after a question that names them. Where characters use one of those, the import waits until you tick <b>Remove them anyway</b>. Their rows keep the copies they carry.</li>
                                   <li>The import says how many are added, updated, unchanged, skipped or not valid, and why. It also names any stats it would leave out. That is a stat no list of the system has: set up the lists, or import the system, first.</li>
                                   <li><b>Export&hellip;</b> saves a pack as such a file. The GM&rsquo;s copy holds everything. A players&rsquo; copy holds only what players may see: no GM-only entries, GM notes or formulas.</li>
+                                  <li><b>Pack settings</b>, over the list, folds away the pack&rsquo;s name, icon, who sees it, Export and Delete pack.</li>
+                                  <li><b>Save entry</b>, Duplicate and Delete stand at the top of an entry&rsquo;s form. An entry&rsquo;s key shows when <b>Short names</b> is ticked, in the window&rsquo;s top row. It is the System editor&rsquo;s own switch.</li>
                               </ul>
                           </li>
                           <li>A character <b>carries</b> items through an <b>Item list</b> field. Add it in Fields and place it on the sheet in Layout. The sheet then shows an inventory with a qty &minus;/+, a remove, and an <b>+ Add item&hellip;</b> picker of the library.
@@ -2704,6 +2708,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>In the trade window a side ticks <b>Fence</b> to take such goods, and says what it buys them at. A trader not ticked refuses them, with a word why.</li>
                                   <li>Tick <b>Traders haggle</b> under Money and pick a roll. In the trade window either side may press <b>Haggle</b> once, and both roll it. The difference in how well they did moves the prices, by your figure a point and no further than your most. Both confirm again after.</li>
                                   <li>The GM may give a merchant a figure under <b>Haggles at</b> in the trade window. It takes the place of what the roll is compared with, so a merchant needs no sheet of skills.</li>
+                                  <li>In the trade window your offer and your sheet come first. <b>More</b>, under your sheet, holds I owe you, what you accept, your prices and Fence.</li>
                                   <li>In the trade window a side may put <b>I owe you</b> and a figure in place of money. Once both confirm, both sheets keep the line under <b>Debts</b>: who owes whom how much. A later trade pays it off with the other side&rsquo;s own I owe you, which counts against it.</li>
                                   <li>The GM changes or clears a debt on the sheet, and adds one with <b>Debts&hellip;</b> on the character&rsquo;s menu under Characters.</li>
                                   <li>The <b>Trade log</b>, in the quick jump, lists this session&rsquo;s trades. <b>Put back</b> restores both sheets as they stood, where the rows still are as the trade left them, and says what changed since and stayed.</li>
@@ -4027,36 +4032,6 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Campaign being hosted</div>
                 <select id="netCampSelect" style="width:100%; box-sizing:border-box;" title="The campaign players join. Changing it switches your app to that campaign."></select>
             </div>
-            <div style="margin-bottom:10px;">
-                <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Players arrive at</div>
-                <select id="netStageSelect" style="width:100%; box-sizing:border-box;" title="Where joining players land. 'Player's last location' (the default) sends each player back to the map they were last on, where they stay put until they travel or you summon: nobody is moved because you open another map. 'Follow me' makes the whole table move with you from map to map; picking a map pins the table there until you switch back."></select>
-                <div class="set-line">Follow me moves the whole table with you. A map keeps it on that map.</div>
-            </div>
-            <div id="netStageFallbackRow" style="margin-bottom:10px; display:none;">
-                <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">New players start at</div>
-                <select id="netStageFallbackSelect" style="width:100%; box-sizing:border-box;" title="Where a player joining this campaign for the first time lands — they have no last location yet (a last map that was deleted or locked for players counts the same). 'Follow me' puts them on the map you are on when they join, once: they do not follow you afterwards; picking a map parks them there until they travel or you summon."></select>
-                <div class="set-line">Follow me puts them on your map once. After that they stay put.</div>
-            </div>
-            <div id="newPlayersBox" style="margin-bottom:10px;">
-                <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Players without a character</div>
-                <select id="netWaitingSelect" style="width:100%; box-sizing:border-box;" title="A player who joins with no character gets a waiting token: their picture in a dashed outline they can move about, until you give them a character (right-click it, or their chip on the party strip). Off: nothing until you give them one.">
-                    <option value="on">Get a waiting token until you give them a character</option>
-                    <option value="off">Get no token until you give them a character</option>
-                </select>
-                <div class="set-line">A waiting token is their picture in a dashed outline. They can move it.</div>
-                <label style="display:flex; gap:6px; align-items:center; color:var(--dim); font-size:12px; margin-top:6px;" title="Off (the default): a waiting token sees nothing of its own under fog, only what you have revealed. On: it sees around itself like a character's token."><input type="checkbox" id="netWaitingSight"> <span class="set-name"><span>Waiting tokens see around them under fog</span><small>Off, they see only what you have revealed.</small></span></label>
-                <select id="netMakeSelect" style="width:100%; box-sizing:border-box; margin-top:6px;" title="With character sheets on: whether a player without a character may make one of their own (Make a character&hellip; or Just a token&hellip; on their card). Only when you ask: their chip &#9656; Let them make a character.">
-                    <option value="live">Players may make a character of their own</option>
-                    <option value="invite">Players make one only when you ask them</option>
-                    <option value="off">Players never make a character</option>
-                </select>
-                <div class="set-line">Right-click their chip for Let them make a character.</div>
-                <label style="display:flex; gap:6px; align-items:center; color:var(--dim); font-size:12px; margin-top:6px;" title="On (the default): a player making a character may fill it from a file with Import on its sheet &mdash; their own sheet download &mdash; at once, with their own rights; you review the whole character when they press Done."><input type="checkbox" id="netMakeFile"> <span class="set-name"><span>&hellip;may start it from a file</span><small>With Import on the new sheet. You review it when they press Done.</small></span></label>
-            </div>
-            <div style="margin-bottom:10px;">
-                <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Session password (optional)</div>
-                <input type="text" id="netPassInput" placeholder="Leave empty for code-only entry" style="width:100%; box-sizing:border-box;" title="If set, players must enter this along with the room code. An extra lock in case the code leaks.">
-            </div>
             <button class="tool" id="netHostBtn" style="width:100%;">Start Hosting This Campaign</button>
             <div id="netHostInfo" style="display:none; margin-top:10px; text-align:center;">
                 <div style="color:var(--dim); font-size:12px;" title="Send this to your players. It changes every session you end on purpose.">Room code</div>
@@ -4075,6 +4050,39 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <button class="tool ghost" id="netPauseBtn" style="margin-top:8px; width:100%;" title="Freeze the table: players can't move tokens or travel until you resume. Chat stays open."><i class="wib wi-pause"></i> Pause the Table</button>
                 <div class="set-line">While the table is paused, players cannot move tokens or travel. Chat stays open.</div>
             </div>
+            <details class="net-opts">
+                <summary title="Where players arrive, players without a character and the password. Set them before you start, or at any time.">Table options</summary>
+                <div style="margin-bottom:10px;">
+                    <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Players arrive at</div>
+                    <select id="netStageSelect" style="width:100%; box-sizing:border-box;" title="Where joining players land. 'Player's last location' (the default) sends each player back to the map they were last on, where they stay put until they travel or you summon: nobody is moved because you open another map. 'Follow me' makes the whole table move with you from map to map; picking a map pins the table there until you switch back."></select>
+                    <div class="set-line">Follow me moves the whole table with you. A map keeps it on that map.</div>
+                </div>
+                <div id="netStageFallbackRow" style="margin-bottom:10px; display:none;">
+                    <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">New players start at</div>
+                    <select id="netStageFallbackSelect" style="width:100%; box-sizing:border-box;" title="Where a player joining this campaign for the first time lands — they have no last location yet (a last map that was deleted or locked for players counts the same). 'Follow me' puts them on the map you are on when they join, once: they do not follow you afterwards; picking a map parks them there until they travel or you summon."></select>
+                    <div class="set-line">Follow me puts them on your map once. After that they stay put.</div>
+                </div>
+                <div id="newPlayersBox" style="margin-bottom:10px;">
+                    <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Players without a character</div>
+                    <select id="netWaitingSelect" style="width:100%; box-sizing:border-box;" title="A player who joins with no character gets a waiting token: their picture in a dashed outline they can move about, until you give them a character (right-click it, or their chip on the party strip). Off: nothing until you give them one.">
+                        <option value="on">Get a waiting token until you give them a character</option>
+                        <option value="off">Get no token until you give them a character</option>
+                    </select>
+                    <div class="set-line">A waiting token is their picture in a dashed outline. They can move it.</div>
+                    <label style="display:flex; gap:6px; align-items:center; color:var(--dim); font-size:12px; margin-top:6px;" title="Off (the default): a waiting token sees nothing of its own under fog, only what you have revealed. On: it sees around itself like a character's token."><input type="checkbox" id="netWaitingSight"> <span class="set-name"><span>Waiting tokens see around them under fog</span><small>Off, they see only what you have revealed.</small></span></label>
+                    <select id="netMakeSelect" style="width:100%; box-sizing:border-box; margin-top:6px;" title="With character sheets on: whether a player without a character may make one of their own (Make a character&hellip; or Just a token&hellip; on their card). Only when you ask: their chip &#9656; Let them make a character.">
+                        <option value="live">Players may make a character of their own</option>
+                        <option value="invite">Players make one only when you ask them</option>
+                        <option value="off">Players never make a character</option>
+                    </select>
+                    <div class="set-line">Right-click their chip for Let them make a character.</div>
+                    <label style="display:flex; gap:6px; align-items:center; color:var(--dim); font-size:12px; margin-top:6px;" title="On (the default): a player making a character may fill it from a file with Import on its sheet &mdash; their own sheet download &mdash; at once, with their own rights; you review the whole character when they press Done."><input type="checkbox" id="netMakeFile"> <span class="set-name"><span>&hellip;may start it from a file</span><small>With Import on the new sheet. You review it when they press Done.</small></span></label>
+                </div>
+                <div style="margin-bottom:10px;">
+                    <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Session password (optional)</div>
+                    <input type="text" id="netPassInput" placeholder="Leave empty for code-only entry" style="width:100%; box-sizing:border-box;" title="If set, players must enter this along with the room code. An extra lock in case the code leaks.">
+                </div>
+            </details>
         </div>
         <div id="netPaneJoin" style="display:none; border:1px solid var(--edge); border-radius:8px; padding:12px; margin-bottom:12px;">
             <div class="net-section-label" style="color:var(--gold); font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Join (be a player)</div>
@@ -4866,7 +4874,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 </div>
 <div id="libraryModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100004; align-items:center; justify-content:center;">
     <div class="lib-box" role="dialog" aria-label="Library">
-        <div class="lib-head"><h3><i class="wib wi-lib"></i> Library &mdash; <span id="libCampName" style="color:var(--ink); font-weight:500;"></span></h3><span id="libState" class="sys-note"></span><span style="flex:1;"></span><button class="tool ghost" id="libClose" title="Close (a change still pending is written first)">&times;</button></div>
+        <div class="lib-head"><h3><i class="wib wi-lib"></i> Library &mdash; <span id="libCampName" style="color:var(--ink); font-weight:500;"></span></h3><span id="libState" class="sys-note"></span><span style="flex:1;"></span><label class="lib-short" title="Shows each entry&rsquo;s key, the short name a formula reads it by. The same switch as the System editor&rsquo;s."><input type="checkbox" id="libShowKeys"> Short names</label><button class="tool ghost" id="libClose" title="Close (a change still pending is written first)">&times;</button></div>
         <div id="libGuide" class="lib-guide" hidden></div>
         <div class="lib-cols">
             <div class="lib-col"><div class="sys-toolbar"><button class="tool" id="libNewPack" title="Make a new pack">+ Pack</button><button class="tool ghost" id="libImport" title="Read a .wppack.json file: see what it would do before anything changes">Import&hellip;</button><button class="tool ghost" id="libCsv" title="Read a CSV file, as a spreadsheet program saves one. Say which column goes where, then see the rows before anything changes">Spreadsheet&hellip;</button></div><div id="libPacks" class="lib-packs"></div></div>

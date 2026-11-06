@@ -78,6 +78,9 @@ async function flush() {
 }
 
 /* ---- open and close ---- */
+// Short names (1.6.2): the System editor's switch, wp_sysShort, read and set here as well
+function shortOn() { try { return localStorage.getItem('wp_sysShort') === '1'; } catch (e) { return false; } }
+function shortSync() { var m = ui('libraryModal'), b = ui('libShowKeys'), on = shortOn(); if (m) m.classList.toggle('lib-show-keys', on); if (b) b.checked = on; }
 function open() {
     if (window.wpSheets && typeof window.wpSheets.formOn === 'function') window.wpSheets.formOn();   // 1.6.2: its formula boxes wear the form
     if (!gmHere() || !LB()) { toast('The library is the GM’s: open it on your own machine.'); return; }
@@ -85,6 +88,7 @@ function open() {
     st.open = true; st.campId = c.id; st.work = map(); st.dirty = map(); st.q = ''; st.entryId = null; st.draftNew = null; st.sel = map(); st.anchor = null; st.imp = null;
     if (!packById(st.packId)) st.packId = packs().length ? packs()[0].id : null;
     var cn = ui('libCampName'); if (cn) cn.textContent = c.name || '';
+    shortSync();   // 1.6.2: Short names, as this computer last left it
     var s = ui('libSearch'); if (s) s.value = '';
     m.style.display = 'flex'; state(''); renderAll(); guideOpen();
     if (s) try { s.focus({ preventScroll: true }); } catch (e) {}
@@ -126,7 +130,9 @@ function renderPackBar() {
     ex.disabled = !ready(p.id); ex.addEventListener('change', function() { var v = ex.value; ex.value = ''; if (v) exportPack(v); });
     var del = el('button', 'tool ghost lib-pack-del', 'Delete pack'); del.type = 'button'; del.title = 'Delete this pack and its entries (characters keep the copies they carry)';
     del.addEventListener('click', function() { showConfirm('Delete the pack “' + p.name + '” and its ' + plural(ready(p.id) ? workOf(p.id).length : p.count) + '? Characters keep the copies they carry.', async function(yes) { if (!yes || !st.open) return; delete st.dirty[p.id]; delete st.work[p.id]; var r = await LB().deletePack(p.id); if (r && r.error) toast(r.error); st.packId = packs().length ? packs()[0].id : null; st.entryId = null; st.draftNew = null; st.sel = map(); renderAll(); }); });
-    bar.appendChild(nm); bar.appendChild(ic); bar.appendChild(vis); bar.appendChild(ex); bar.appendChild(del);
+    var fold = el('details', 'lib-pack-fold'), sm = el('summary', 'lib-pack-sum', 'Pack settings'); fold.open = st.packFold === true;   // 1.6.2: the pack's own settings in a fold, which stays as you left it
+    fold.addEventListener('toggle', function() { st.packFold = fold.open; });
+    fold.appendChild(sm); var fb = el('div', 'lib-pack-foldbody'); fb.appendChild(nm); fb.appendChild(ic); fb.appendChild(vis); fb.appendChild(ex); fb.appendChild(del); fold.appendChild(fb); bar.appendChild(fold);
     if (!ready(p.id)) bar.appendChild(el('div', 'lib-warn', LB().state() === 'loading' ? 'Reading this pack…' : 'This pack could not be read, so it cannot change here. Its file is kept as it is.'));
 }
 function newPack() {
@@ -340,7 +346,7 @@ function placeTicks(form, inp, names) {
     form.appendChild(box);
 }
 function field(form, id, label, value, opts) {
-    opts = opts || {}; var row = el('label', 'lib-frow' + (opts.area ? ' lib-frow-area' : '')); row.appendChild(el('span', 'lib-flabel', label));
+    opts = opts || {}; var row = el('label', 'lib-frow' + (opts.area ? ' lib-frow-area' : '') + (opts.rowCls ? ' ' + opts.rowCls : '')); row.appendChild(el('span', 'lib-flabel', label));
     var v = value == null ? '' : String(value), inp;
     if (opts.pairs) inp = select(opts.pairs, v);
     else if (opts.choices) { var pairs = [['', '—']].concat(opts.choices.map(function(c) { return [c, c]; })); if (v && opts.choices.indexOf(v) < 0) pairs.push([v, v]); inp = select(pairs, v); }
@@ -369,10 +375,15 @@ function renderForm() {
     var many = st.draftNew ? [] : chosen(); if (many.length > 1) { renderBulk(form, many); return; }
     var e = current(); if (!e) { form.appendChild(el('div', 'lib-empty', st.packId && ready(st.packId) ? 'Choose an entry, or + Entry to add one. Ctrl-click, Shift-click or Ctrl+A choose several.' : '')); return; }
     form.appendChild(el('div', 'lib-fhead', st.draftNew && !e.name ? 'New entry' : e.name));
+    var btns = el('div', 'lib-fbtns');   // 1.6.2 (the owner: "Save on top"): Save, Duplicate and Delete stand at the form's top
+    var sv = el('button', 'tool lib-save', 'Save entry'); sv.type = 'button'; sv.addEventListener('click', saveEntry);
+    var dup = el('button', 'tool ghost', 'Duplicate'); dup.type = 'button'; dup.disabled = !!st.draftNew; dup.addEventListener('click', duplicateEntry);
+    var del = el('button', 'tool ghost lib-del', st.draftNew ? 'Discard' : 'Delete entry'); del.type = 'button'; del.addEventListener('click', deleteEntry);
+    btns.appendChild(sv); btns.appendChild(dup); btns.appendChild(del); form.appendChild(btns);
     if (!st.draftNew) { var cb0 = camp() ? carriedBy(camp().system, camp().chars || {}, e.id) : { rows: 0 }; form.appendChild(el('div', 'lib-note', cb0.rows ? 'Carried by ' + cb0.rows + (cb0.rows === 1 ? ' row' : ' rows') + ' on ' + cb0.chars + (cb0.chars === 1 ? ' character' : ' characters') + ': a change here reaches them.' : 'No character carries it.')); }   // L4
     field(form, 'name', 'Name', e.name, { max: 240 });   // 1.6.0, backlog 194: an entry's name 240, as the item cleaner keeps it
-    field(form, 'key', 'Key', e.key, { max: 40, ph: 'e.g. Stealth', title: 'The name formulas use for it (List.Key.stat): unique within the lists that draw on it' });
-    var clash = keyClashes(allEntries().concat(sysItems()), e); if (clash.length) form.appendChild(el('div', 'lib-warn', 'Also the key of ' + clash.slice(0, 3).map(function(c) { return c.name; }).join(', ') + (clash.length > 3 ? '…' : '') + ' (an item of the system wins in formulas).'));
+    field(form, 'key', 'Key', e.key, { max: 40, ph: 'e.g. Stealth', title: 'The name formulas use for it (List.Key.stat): unique within the lists that draw on it', rowCls: 'lib-frow-key' });   // 1.6.2: shown under Short names
+    var clash = keyClashes(allEntries().concat(sysItems()), e); if (clash.length) form.appendChild(el('div', 'lib-warn lib-keyclash', 'Also the key of ' + clash.slice(0, 3).map(function(c) { return c.name; }).join(', ') + (clash.length > 3 ? '…' : '') + ' (an item of the system wins in formulas).'));
     catList(form);
     field(form, 'category', 'Category', e.category, { max: 40, list: 'libCats', title: 'Which item lists offer it (a list names the categories it draws on)' });
     field(form, 'icon', 'Icon', e.icon || '', { max: 32, ph: 'An emoji', title: 'An emoji, or a bundled icon as icon:name (kept as it is)' });
@@ -408,11 +419,6 @@ function renderForm() {
         field(form, 'eq', 'When switched off', e.eq === 'bound' || e.eq === 'curse' ? e.eq : '', { pairs: [['', 'A player may switch it off'], ['bound', 'Bound: it stays on'], ['curse', 'Curse on contact: you keep it on']], title: 'When a player switches it off. Bound: it stays on, with your message. Curse on contact: it looks off to them and stays on' });
         field(form, 'eqMsg', 'Message', e.eqMsg, { max: 200, ph: 'Shown to the player (optional)' });
     }
-    var btns = el('div', 'lib-fbtns');
-    var sv = el('button', 'tool lib-save', 'Save entry'); sv.type = 'button'; sv.addEventListener('click', saveEntry);
-    var dup = el('button', 'tool ghost', 'Duplicate'); dup.type = 'button'; dup.disabled = !!st.draftNew; dup.addEventListener('click', duplicateEntry);
-    var del = el('button', 'tool ghost lib-del', st.draftNew ? 'Discard' : 'Delete entry'); del.type = 'button'; del.addEventListener('click', deleteEntry);
-    btns.appendChild(sv); btns.appendChild(dup); btns.appendChild(del); form.appendChild(btns);
 }
 // Stage 6 F6: an entry's changes to the character carrying it — a working copy while its form is open (Save entry keeps it), each a field to
 // change (the system's numbers, skills, formulas, pools' max, toggles) by an amount, per level once a list has levels; "only while switched on"
@@ -848,6 +854,7 @@ function guidePress(e) {
 (function wire() {
     var m = ui('libraryModal'); if (!m) return;
     var c = ui('libClose'); if (c) c.addEventListener('click', close);
+    var sk = ui('libShowKeys'); if (sk) sk.addEventListener('change', function() { try { if (sk.checked) localStorage.setItem('wp_sysShort', '1'); else localStorage.removeItem('wp_sysShort'); } catch (e) {} shortSync(); });
     var np = ui('libNewPack'); if (np) np.addEventListener('click', newPack);
     var im = ui('libImport'); if (im) im.addEventListener('click', importPick);
     var cs = ui('libCsv'); if (cs) cs.addEventListener('click', csvPick);

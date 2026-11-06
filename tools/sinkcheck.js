@@ -5449,6 +5449,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && JSON.stringify(acts) === JSON.stringify([['num', 'a', { i: 0, n: 3 }], ['add', 'a', 'q|f_c|w_4'], ['ok', 'a', true]])
             && JSON.stringify(tw.twOffer(v.a.lines)) === JSON.stringify([{ fid: 'f_g', rowId: 'w_1', qty: 2 }, { fid: 'f_c', rowId: 'w_2', key: '@lvl', amt: 40 }])
             && !/innerHTML|insertAdjacentHTML|outerHTML|document\.write/.test(twS), JSON.stringify([texts.slice(0, 12), invR.map(o => o.children.map(c => c.textContent)), acts]));
+        {   // 1.6.2 (the owner: "Sheet first, extras in a fold"): your side's extras stand under More, after your sheet; the other side's are said where they were
+            const cols = root.children[0].children, mineC = cols[0], kinds = mineC.children.map(c => c.className), more = mineC.children.filter(c => c.className === 'trade-more')[0];
+            const inMore = more ? more.children.map(c => c.className) : [], hasOwe = more ? more.children.some(c => /trade-owe/.test(c.className)) : false;
+            check('1.6.2 trading, sheet first and extras in a fold (trade.js twDraw, run for real): your column holds your lines, then your sheet, then a More fold that holds I owe you and nothing that is not an extra, then Confirm; the other column has no fold',
+                !!more && kinds.indexOf('trade-inv') >= 0 && kinds.indexOf('trade-more') === kinds.indexOf('trade-inv') + 1 && /trade-ok/.test(kinds[kinds.length - 1]) && inMore[0] === 'trade-more-sum' && hasOwe
+                && inMore.slice(1).every(c => /(^| )trade-acc( |$)/.test(c)) && !cols[1].children.some(c => c.className === 'trade-more'), JSON.stringify([kinds, inMore]));
+        }
         {   // the receiver picks a chip: the row under your side, from a hostile view
             made.length = 0; const acts2 = [], root2 = node('div');
             const v2 = Object.assign({}, v, { a: Object.assign({}, v.a, { gets: [{ fid: 'f_c', list: H + 'Chips', label: H + 'Stored', pick: 'w_7', opts: [{ rowId: 'w_7', name: H + 'Purse', cur: 12.5 }, { rowId: 'w_8', name: 'Spare', cur: null }] }] }), b: Object.assign({}, v.b, { gets: [{ fid: 'f_c', list: 'X', label: 'Theirs', pick: '', opts: [{ rowId: 'w_9', name: 'Not yours' }] }] }) });

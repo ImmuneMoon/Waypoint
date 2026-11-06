@@ -17,6 +17,12 @@ var campaignSelect = document.getElementById('campaignSelect');
 var modeSelect = document.getElementById('viewModeSelect');
 
 var inspector = document.getElementById('inspector');
+// 1.6.2 (the owner: "Folds, commands on top"): a fold of a piece's Properties. Whether each is open is kept while the app runs, Look and Character
+// open at first; a fold with nothing in it is taken off once the markup is made (inspFoldsTidy)
+var _inspFold = { look: true, char: true };
+function inspFoldOpen(k, label, tip) { return '<details class="insp-fold insp-part" data-fold="' + k + '"' + (_inspFold[k] === true ? ' open' : '') + '><summary title="' + tip + '">' + label + '</summary>'; }
+function inspFoldsTidy(html) { return String(html).replace(/<details class="insp-fold insp-part" data-fold="[a-z]+"( open)?><summary title="[^"]*">[^<]*<\/summary><\/details>/g, ''); }
+if (inspector) inspector.addEventListener('toggle', function(e) { var d = e.target; if (d && d.dataset && d.dataset.fold && /(^| )insp-part( |$)/.test(d.className)) _inspFold[d.dataset.fold] = d.open === true; }, true);
 
 var canvas = document.getElementById('canvas');
 
@@ -954,6 +960,12 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                   : 'Everyone at your table sees this. Untick to hide it (unrevealed enemies, traps, GM notes).') + '</div>' +
               '</div>';
               
+            html += '<div class="insp-cmds">'   // 1.6.2 (the owner: "commands on top"): the piece's commands, a row at the top
+              + '<button class="tool ghost" id="wbDup" title="Make a full copy of this item, settings and data included (Ctrl+D)"><i class="wib wi-dup"></i> Duplicate</button>'
+              + '<button class="tool ghost" id="setHomeVisualBtn" title="The map opens centred here"><i class="wib wi-target"></i> Map center here</button>'
+              + (state.gridType && state.gridType !== 'off' && w.type !== 'path' ? '<button class="tool ghost" id="wbFitGrid" title="Size to whole grid cells and seat it in the grid">&#8862; Fit to grid cells</button>' : '')
+              + '<button class="tool ghost danger" id="wbDel" title="Delete this piece. Undo brings it back">Delete</button>'
+              + '</div>';
             if (w.groupId) {
                 html += '<button id="ungroupBtn" class="tool ghost danger" style="width:100%; margin-bottom:10px;">Ungroup</button>';
             }
@@ -964,29 +976,10 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             } else if (w.type !== 'light') {   // a light source is never a character
                 html += '<div class="field check-row"><input type="checkbox" id="wbIsChar" '+(w.isChar?'checked':'')+'> <label for="wbIsChar">Is Character</label></div>';
                 if(w.isChar) {
+                    html += inspFoldOpen('char', 'Character', 'Who it is, how it turns, its condition and its player');   // 1.6.2: the folds
                     if (window.wpSheets) html += window.wpSheets.charSelectHtml(w);   // 1.5.6 (backlog 186 (1), the owner: "hes not linked"): who this token is, first: its character sheet, with Open sheet
                     html += '<div class="field"><label for="wbCharName">Character Name</label><input type="text" id="wbCharName" value="'+esc(w.charName||'')+'"></div>';
                     html += '<div class="field"><label for="wbCharStats">Stats / Notes</label><textarea id="wbCharStats">'+esc(w.charStats||'')+'</textarea></div>';
-                    if (!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) html += '<div class="field"><label for="wbGmInfo">GM note / dialogue <span class="muted">(this token only — hidden from players)</span></label><textarea id="wbGmInfo" placeholder="Private notes, read-aloud dialogue…">'+esc(w.gmInfo||'')+'</textarea><div id="wbGmDice" class="gm-dice" hidden></div></div>';
-                    // Character (roster): the linked roster entry's Info/Background + Reference — one source of truth with the Data Map editor; unlinked → a link-or-create picker. GM only.
-                    var _rEntry = null, _rRoom = null;
-                    if (!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) {
-                        (activeMap.rooms || []).some(function(rm) { var c = (rm.characters || []).find(function(x) { return x.id === w.charRef; }); if (c) { _rEntry = c; _rRoom = rm; } return !!c; });
-                        if (_rEntry) {
-                            var _rN = (activeMap.whiteboard || []).filter(function(t) { return t.isChar && t.charRef === _rEntry.id; }).length;
-                            html += '<div class="field"><label>Character (roster)</label>'
-                                + '<div class="muted" style="margin-bottom:4px;">Linked to <b>' + esc(_rEntry.name || '(unnamed)') + '</b>' + (_rRoom && _rRoom.name ? ' in ' + esc(_rRoom.name) : '') + (_rN > 1 ? ' &mdash; shared by ' + _rN + ' tokens' : '') + '. This Info / Reference is the same one the Data Map shows. <a href="#" id="wbRosterUnlink">Unlink</a></div>'
-                                + '<textarea id="wbRosterInfo" placeholder="Info / Background…">' + esc(_rEntry.info || '') + '</textarea>'
-                                + '<input type="text" id="wbRosterRef" placeholder="Reference (dossier path or URL)" value="' + esc(_rEntry.ref || '') + '" style="font-weight:normal; font-size:11px; margin-top:4px;"></div>';
-                        } else {
-                            var _rOpts = '';
-                            (activeMap.rooms || []).forEach(function(rm) { (rm.characters || []).forEach(function(c) { _rOpts += '<option value="' + esc(c.id) + '">' + esc(c.name || '(unnamed)') + (rm.name ? ' — ' + esc(rm.name) : '') + '</option>'; }); });
-                            html += '<div class="field"><label for="wbRosterLink">Character (roster)</label>'
-                                + '<div class="muted" style="margin-bottom:4px;">Not linked to a roster character. Link it to share one Info / Background / Reference with the Data Map.</div>'
-                                + '<select id="wbRosterLink"><option value="">— Link to a character… —</option>' + _rOpts + (w.hidden ? '' : '<option value="__new">+ New character from this token</option>') + '</select>'
-                                + (w.hidden ? '<div class="muted" style="margin-top:4px;">A new roster entry waits until you show the token: a roster name is sent to players. The GM note above stays yours.</div>' : '') + '</div>';   // hidden pieces: as a drag never surfaces a hidden token in a room's roster (wpAutoRoom)
-                        }
-                    }
                     html += '<div class="field"><label for="wbFront">Front Side <span class="muted">(the little arrow)</span></label><select id="wbFront">' +
                         [[0, 'Top'], [90, 'Right'], [180, 'Bottom'], [270, 'Left']].concat((num(w.front, 0) && [0, 90, 180, 270].indexOf(num(w.front, 0)) < 0) ? [[num(w.front, 0), num(w.front, 0) + '\u00b0 (turned)']] : []).map(function(o) { return '<option value="' + o[0] + '"' + (num(w.front, 0) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
                     html += '<div class="field"><label for="wbFaceMode">Turning</label><select id="wbFaceMode"><option value="art"' + (w.faceMode !== 'arrow' ? ' selected' : '') + '>Art turns with the arrow</option><option value="arrow"' + (w.faceMode === 'arrow' ? ' selected' : '') + '>Arrow only (art stays upright)</option></select></div>';
@@ -1017,6 +1010,28 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                     var npcTok = !!(w.charId && campNow && campNow.chars && Object.prototype.hasOwnProperty.call(campNow.chars, w.charId) && campNow.chars[w.charId] && campNow.chars[w.charId].npc);   // a player never owns an NPC's token
                     html += '<div class="field"><label for="wbOwner">Player Owner (can move this token)</label><select id="wbOwner"' + (npcTok ? ' disabled title="An NPC\u2019s token \u2014 unlink it from the NPC first"' : '') + '>'+ownerOpts+'</select></div>';
                     var rdT = sheetReaderTok(); if (rdT) html += '<div class="field" id="wbReaderBox"></div>';   // an outside sheet reader's own part of a token's Properties (2026-10-18): its page code fills it below
+                    html += '</details>' + inspFoldOpen('gm', 'GM notes', 'Yours alone: its note, its dialogue and its roster entry');   // 1.6.2: the GM's own notes, a fold of their own
+                    if (!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) html += '<div class="field"><label for="wbGmInfo">GM note / dialogue <span class="muted">(this token only — hidden from players)</span></label><textarea id="wbGmInfo" placeholder="Private notes, read-aloud dialogue…">'+esc(w.gmInfo||'')+'</textarea><div id="wbGmDice" class="gm-dice" hidden></div></div>';
+                    // Character (roster): the linked roster entry's Info/Background + Reference — one source of truth with the Data Map editor; unlinked → a link-or-create picker. GM only.
+                    var _rEntry = null, _rRoom = null;
+                    if (!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) {
+                        (activeMap.rooms || []).some(function(rm) { var c = (rm.characters || []).find(function(x) { return x.id === w.charRef; }); if (c) { _rEntry = c; _rRoom = rm; } return !!c; });
+                        if (_rEntry) {
+                            var _rN = (activeMap.whiteboard || []).filter(function(t) { return t.isChar && t.charRef === _rEntry.id; }).length;
+                            html += '<div class="field"><label>Character (roster)</label>'
+                                + '<div class="muted" style="margin-bottom:4px;">Linked to <b>' + esc(_rEntry.name || '(unnamed)') + '</b>' + (_rRoom && _rRoom.name ? ' in ' + esc(_rRoom.name) : '') + (_rN > 1 ? ' &mdash; shared by ' + _rN + ' tokens' : '') + '. This Info / Reference is the same one the Data Map shows. <a href="#" id="wbRosterUnlink">Unlink</a></div>'
+                                + '<textarea id="wbRosterInfo" placeholder="Info / Background…">' + esc(_rEntry.info || '') + '</textarea>'
+                                + '<input type="text" id="wbRosterRef" placeholder="Reference (dossier path or URL)" value="' + esc(_rEntry.ref || '') + '" style="font-weight:normal; font-size:11px; margin-top:4px;"></div>';
+                        } else {
+                            var _rOpts = '';
+                            (activeMap.rooms || []).forEach(function(rm) { (rm.characters || []).forEach(function(c) { _rOpts += '<option value="' + esc(c.id) + '">' + esc(c.name || '(unnamed)') + (rm.name ? ' — ' + esc(rm.name) : '') + '</option>'; }); });
+                            html += '<div class="field"><label for="wbRosterLink">Character (roster)</label>'
+                                + '<div class="muted" style="margin-bottom:4px;">Not linked to a roster character. Link it to share one Info / Background / Reference with the Data Map.</div>'
+                                + '<select id="wbRosterLink"><option value="">— Link to a character… —</option>' + _rOpts + (w.hidden ? '' : '<option value="__new">+ New character from this token</option>') + '</select>'
+                                + (w.hidden ? '<div class="muted" style="margin-top:4px;">A new roster entry waits until you show the token: a roster name is sent to players. The GM note above stays yours.</div>' : '') + '</div>';   // hidden pieces: as a drag never surfaces a hidden token in a room's roster (wpAutoRoom)
+                        }
+                    }
+                    html += '</details>';
                 }
             }
               
@@ -1049,7 +1064,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             }
             // 1.5.6 (backlog 186 (3), the owner: "why are the elements for every map in every character's properties?"): on a character token the
             // map links (Portal to Map, Link Node, a portal's lock, a page pin) stand in one fold, Map links, closed unless the token uses one of them
-            var linkFold = !!w.isChar && w.type !== 'text';
+            var linkFold = w.type !== 'text';   // 1.6.2 (the owner: "Folds"): every piece's map links stand in the fold
             if (linkFold) html += '<details class="insp-fold" id="wbMapLinks"' + (w.targetMapId || w.nodeId || w.page ? ' open' : '') + '><summary title="Portal to Map, Link Node and a page pin: what a character token seldom needs">Map links</summary>';
             if (w.type !== 'text') {
                 html += '<div class="field"><label for="wbPortalMap">Portal to Map</label><select id="wbPortalMap">' + portalOpts + '</select>' +
@@ -1062,6 +1077,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               portalLockFieldHtml(w, activeMap)+   // a portal's own lock: Locked for players, on a piece that is a portal (its own Portal to Map, or its linked node's)
               pagePinFieldHtml(w)+   // 1.5.4: a pin, the page this piece opens (the GM's alone)
               (linkFold ? '</details>' : '') +   // 1.5.6: the end of a character token's Map links
+              inspFoldOpen('look', 'Look', 'Colour, size, turn, layer and lock')+   // 1.6.2: the folds
               (w.type !== 'image' && w.type !== 'trigger' && w.type !== 'light' ? '<div class="field"><label>' + (w.type === 'text' ? 'Text Color' : w.type === 'path' ? 'Pen Color' : 'Fill Color') + '</label><div class="color-row">' + ((w.type === 'path' || w.type === 'text') ? penHtml : colorHtml) + '</div></div>' : '') +
               (w.type === 'text' ? textStyleHtml(w) : '') +
               (w.type !== 'path' && w.type !== 'text' ? '<div class="field check-row"><input type="checkbox" id="wbLockRatio" '+(w.lockRatio?'checked':'')+'> <label for="wbLockRatio">Lock proportions when resizing</label></div>' : '') +
@@ -1076,6 +1092,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               '<option value="back"'+(layerNow(w)==='back'?' selected':'')+'>Back Layer (New pieces)</option>'+
               '</select></div>'+
               '<div class="field check-row"><input type="checkbox" id="wbLock" '+(w.locked?'checked':'')+'> <label for="wbLock">Locked (Prevent drag & resize)</label></div>'+
+              '</details>'+
+              inspFoldOpen('rules', 'Map rules', 'What it does on the map: walls, doors, cover, terrain, height, fog')+
               (['rect','hexagon','circle','diamond','image','path'].indexOf(w.type) >= 0 && !w.hidden && !w.isChar && !w.waiting ? '<div class="field check-row"><input type="checkbox" id="wbBlocksSight" '+(w.blocksSight?'checked':'')+'> <label for="wbBlocksSight">'+(w.type === 'path' ? 'Blocks sight (a wall along the line)' : 'Blocks sight (wall / pillar)')+'</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">'+(w.type === 'path' ? 'Fog vision (and each player&rsquo;s view), light, cover and players&rsquo; moves stop at the line itself, a thin wall between cells.' : 'Fog vision (and each player&rsquo;s view) stops at the cells its outline covers, turned as it is drawn.')+' Needs fog on for the map.</div>' : '')+   // item 18 W2: a pen line
               barrierFieldHtml(w)+   // see-through barriers (1.5.1): Stops movement only, with a barrier's own door rows
               (w.barrier === true && !w.blocksSight ? secretFieldHtml(w) : '')+   // the map builder: a barrier's door may be secret
@@ -1096,6 +1114,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               groundFieldHtml(w)+   // item 19b H5: a piece's Ground height (a hill, a ledge, a pit)
               (['rect','hexagon','circle','diamond','image','path'].indexOf(w.type) >= 0 && !w.isChar && !w.hidden ? ('<div class="field"><label for="wbCover">Cover</label><select id="wbCover" title="What this piece gives as cover (the ruler, blasts and target marks, with Cover from blockers on in your system): as its sight (a wall, pillar or closed door gives it; anything else none), cover you can see over (a crate, a low wall: half or three-quarters, never total), or none. It counts in the grid cells whose centres it covers."><option value="like"'+(w.cover!=='yes'&&w.cover!=='no'?' selected':'')+'>'+(w.blocksSight?'Gives cover (it blocks sight)':(window.wpFog&&window.wpFog.coverObject&&window.wpFog.coverObject(Object.assign({},w,{cover:'like'}))?'Gives cover you can see over (a placed object)':'No cover (it does not block sight)'))+'</option><option value="yes"'+(w.cover==='yes'?' selected':'')+'>'+(w.blocksSight?'Gives cover':'Gives cover you can see over')+'</option><option value="no"'+(w.cover==='no'?' selected':'')+'>No cover</option>'+(window.wpFogCore&&window.wpFogCore.cleanCoverAs&&window.wpFogCore.cleanCoverAs(w.coverAs)?'<option value="as" selected>'+({half:'Half',threeq:'Three-quarters',total:'Total'})[w.coverAs]+' (a map object)</option>':'')+'</select></div>'+'<div class="field"><label for="wbCoverPro">Protection</label><input type="number" id="wbCoverPro" min="0" max="999" step="1" placeholder="None" value="'+(window.wpFogCore&&window.wpFogCore.cleanCoverPro?(window.wpFogCore.cleanCoverPro(w.coverPro)||''):'')+'" title="How much this cover stops of a blow that passes through it, where your system reads it in a roll. The highest on the line counts. Empty for none."></div>') : '')+
               (['rect','hexagon','circle','diamond','image'].indexOf(w.type) >= 0 && !w.isChar && !w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbFogged" '+(w.fogged?'checked':'')+'> <label for="wbFogged">Play area (fog covers only this)</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">With fog on, only cells under items marked as play areas are fogged &mdash; scenes and map art stay lit. Mark none to fog the whole map (or nothing), per your campaign default in the <i class="wib wi-fog"></i> menu.</div>' : '')+
+              '</details>'+
+              inspFoldOpen('vision', 'Vision and light', 'Its light, its senses, its bars and the senses that fail on it')+
               ((w.type === 'light' || w.isChar) && !w.waiting && !w.hidden && window.wpCanPersistLocal && window.wpCanPersistLocal() ? (function() {   // lighting (L2): the GM sets a light's radii (a player's own light: the host takes none of this from them)
                   var L = window.wpFogCore && window.wpFogCore.cleanLight ? window.wpFogCore.cleanLight(w.light) : null;
                   return lightFieldHtml(w, L, lightPresetsNow());
@@ -1103,11 +1123,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               (w.isChar && !w.waiting && window.wpCanPersistLocal && window.wpCanPersistLocal() ? sensesFieldHtml(w, activeMap) : '')+   // senses S2b: the system's senses, as this token has them
               (w.isChar && !w.waiting && window.wpCanPersistLocal && window.wpCanPersistLocal() ? barsFieldHtml(w) : '')+   // backlog 28: its bars
               (['rect','hexagon','circle','diamond','image'].indexOf(w.type) >= 0 && !w.isChar && !w.waiting && !w.gmNoteFor && window.wpCanPersistLocal && window.wpCanPersistLocal() ? nullsFieldHtml(w) : '')+   // senses S7a: a null area (hidden or not)
-              '<div class="divider"></div>'+
-              '<button class="tool ghost" id="wbDup" style="width:100%; margin-bottom:5px;" title="Make a full copy of this item, settings and data included (Ctrl+D)"><i class="wib wi-dup"></i> Duplicate</button>'+
-              '<button class="tool ghost danger" id="wbDel" style="width:100%">Delete Shape</button>'+
-              '<button class="tool ghost" id="setHomeVisualBtn" style="width:100%; margin-top:5px;">⌖ Set Map Center to Shape</button>'+
-              (state.gridType && state.gridType !== 'off' && w.type !== 'path' ? '<button class="tool ghost" id="wbFitGrid" style="width:100%; margin-top:5px;" title="Size to whole grid cells and seat it in the grid">&#8862; Fit to Grid Cells</button>' : '') +
+              '</details>' +
               (w.type==='text' ? '<div class="muted">Tip: Double-click the text box on the canvas to edit its words. The color above sets the text color.</div>' : '');
             
             var linkedRoom = w.nodeId ? activeMap.rooms.find(x=>x.id===w.nodeId) : null;
@@ -1116,7 +1132,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 html += '<div class="divider"></div>' + getRoomInspectorHtml(linkedRoom);
             }
             
-            inspector.innerHTML = html;
+            inspector.innerHTML = inspFoldsTidy(html);   // 1.6.2: a fold with nothing in it is no fold
               
             inspector.querySelectorAll('.color-btn').forEach(btn => btn.addEventListener('click', function() {
                 w.color = this.dataset.c; save(); render();

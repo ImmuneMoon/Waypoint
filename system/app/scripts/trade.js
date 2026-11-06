@@ -42,6 +42,7 @@ function twInv(doc, name, ch, add) {
 function twTotal(lines, deal) { var t = 0, any = false; (lines || []).forEach(function(l) { if (typeof l.price === 'number' && l.qty) { t += (deal && typeof l.deal === 'number' ? l.deal : l.price) * l.qty; any = true; } }); return any ? t : null; }   // deal: at this trade's prices (157 M1c)
 // draw the window's body for a view: doc the page, root the body to fill, off { a: [...], b: [...] } what each side of this screen may offer,
 // act(kind, side, arg) the window's own handler
+var _twMore = {};   // 1.6.2: whether each side's More fold is open, kept while the window is drawn anew at every word
 function twDraw(doc, root, v, off, act) {
     while (root.firstChild) root.removeChild(root.firstChild);
     var mine = twMine(v), cols = twEl(doc, 'div', 'trade-cols');
@@ -118,7 +119,10 @@ function twDraw(doc, root, v, off, act) {
             } else if (typeof s.sell === 'number' || typeof s.buy === 'number') col.appendChild(twEl(doc, 'div', 'trade-acc-said', [typeof s.sell === 'number' ? 'Sells at ' + s.sell + '%' : '', typeof s.buy === 'number' ? 'buys at ' + s.buy + '%' : ''].filter(Boolean).join(' and ').replace(/^b/, 'B') + ' of list price.'));
         }
         if (me && v.status === 'open') {
+            var kids = Array.prototype.slice.call(col.children || []), extra = kids.filter(function(c) { return /(^| )trade-acc( |$)/.test(String(c.className || '')); });   // 1.6.2: your side's extras, moved under More after your sheet
+            extra.forEach(function(c) { col.removeChild(c); });
             col.appendChild(twInv(doc, s.name, twChoices(off[sd], s.lines), function(v) { act('add', sd, v); }));
+            if (extra.length) { var mo = twEl(doc, 'details', 'trade-more'); mo.open = _twMore[sd] === true; mo.addEventListener('toggle', function() { _twMore[sd] = mo.open === true; }); var ms = twEl(doc, 'summary', 'trade-more-sum', 'More'); ms.title = 'I owe you, what you accept, your prices and fencing'; mo.appendChild(ms); extra.forEach(function(c) { mo.appendChild(c); }); col.appendChild(mo); }
             var ovr = v.change && v.change.payer === sd && !s.ok ? v.change.over : 0;   // 157 M1d: the payer is asked to overpay in words
             var ok = twEl(doc, 'button', 'tool trade-ok' + (s.ok ? ' on' : ''), s.ok ? 'Confirmed' : ovr ? 'Confirm, overpaying by ' + twNum(ovr) : 'Confirm'); ok.type = 'button'; ok.setAttribute('aria-pressed', s.ok ? 'true' : 'false'); ok.setAttribute('data-k', 'ok|' + sd);
             ok.title = s.ok ? 'Take your confirm back' : ovr ? 'You give ' + twNum(ovr) + ' more than you get, and the other side keeps it. Any change clears both confirms' : 'You agree to this trade as it stands. Any change clears both confirms';
@@ -134,7 +138,7 @@ function twDraw(doc, root, v, off, act) {
     if (v.hagOn && v.status === 'open') {   // 157 M1i: haggling, once a trade, pressed by either side
         if (typeof v.hag === 'number' && v.hag) root.appendChild(twEl(doc, 'div', 'trade-msg trade-hag', 'Haggled: prices move ' + twNum(Math.abs(v.hag)) + '% toward ' + (v.hag > 0 ? v.a.name : v.b.name) + '.'));
         else if (v.hagDone) root.appendChild(twEl(doc, 'div', 'trade-msg trade-hag', 'Haggled: prices stay as they are.'));
-        if (!v.hagDone && mine.length) { var hb = twEl(doc, 'button', 'tool ghost trade-hagbtn', 'Haggle'); hb.type = 'button'; hb.title = 'Both sides roll, and the difference moves the prices. Once a trade, and both confirm again after'; hb.setAttribute('data-k', 'hag'); hb.addEventListener('click', function() { act('hag', mine[0], null); }); root.appendChild(hb); }
+        if (!v.hagDone && mine.length) { var hb = twEl(doc, 'button', 'tool ghost trade-hagbtn', 'Haggle'); hb.type = 'button'; hb.title = 'Both sides roll, and the difference moves the prices. Once a trade, and both confirm again after'; hb.setAttribute('data-k', 'hag'); hb.addEventListener('click', function() { act('hag', mine[0], null); }); root.appendChild(hb); root.appendChild(twEl(doc, 'small', 'trade-hagline', 'Both sides roll, and the difference moves the prices. Once a trade.')); }
     }
     if (typeof v.debt === 'number' && v.debt) root.appendChild(twEl(doc, 'div', 'trade-msg trade-debt', (v.debt > 0 ? v.a.name + ' owes ' + v.b.name + ' ' + twNum(v.debt) : v.b.name + ' owes ' + v.a.name + ' ' + twNum(-v.debt)) + ' from before.'));   // 157 M1h: the debt that stands between them
     var line = v.status === 'asking' ? (mine.indexOf('a') >= 0 ? 'Waiting for ' + v.b.name + ' to answer.' : v.a.name + ' asks to trade.') : (v.msg || 'Both sides confirm, and everything moves at once.');

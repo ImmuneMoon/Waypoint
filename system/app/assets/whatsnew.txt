@@ -384,6 +384,19 @@ Around the app
 - Visual effects says what each row does in one grey line, and Clear the
   colour and Stop the weather stand at its foot.
 - The GM's sound card opens the sound effects board.
+- The Library folds the pack's own settings away under Pack settings. Save
+  entry, Duplicate and Delete stand at the top of an entry's form, and an
+  entry's key shows under Short names, the System editor's own switch.
+- The Multiplayer window puts Start Hosting and the room code first. Where
+  players arrive, players without a character and the password fold away
+  under Table options.
+- The trade window puts your offer and your sheet first, with one scroll.
+  I owe you, what you accept, your prices and Fence stand under More, and
+  Haggle says what it does.
+- A piece's Properties start with its commands in a row: Duplicate, Map
+  center here, Fit to grid cells and Delete. Its settings stand in folds:
+  Character and GM notes on a token, then Map links, Look, Map rules, and
+  Vision and light.
 
 Writing planners and pages
 - You write a planner or a page on the page itself. Press a block and its

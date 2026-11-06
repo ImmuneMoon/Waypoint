@@ -12497,6 +12497,7 @@ function syncSessionButtons() {
     var hosting = !!(net.active && net.role === 'host');
     var endB = ui('netEndBtn'), leaveB = ui('netLeaveBtn');
     if (endB) endB.style.display = hosting ? 'block' : 'none';
+    var hostB = ui('netHostBtn'); if (hostB) hostB.style.display = hosting ? 'none' : '';   // 1.6.2, found by hand: pressed again mid-table it started the table over, clearing the chat and what each player holds
     if (leaveB) leaveB.style.display = !hosting && ((net.active && net.role === 'client') || net.foreign) ? 'block' : 'none';   // 1.5.4: only at someone else's table, or on the way back from one (it showed outside every session, and did nothing)
     var pauseHdr = ui('sessionPauseBtn');
     if (pauseHdr) pauseHdr.style.display = hosting ? '' : 'none';   // the header pause button is a host-only session control

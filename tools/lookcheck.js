@@ -1396,17 +1396,18 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
 // The same passed mock-up, the second window. Ten lines: eight under a control and two under a tick's name. A first draft had thirteen, and
 // longer ones, and pushed Start Hosting out of view in a window 900 high. So a line above that button is one line long, and an option whose
 // caption, choices or placeholder already say it has none: the name, the campaign, the password. net.js rewrites the words of Pause and of
-// Lock Travel, so their lines stand under the buttons and are true in both states. A new control of the window joins `IDS`
+// Lock Travel, so their lines stand under the buttons and are true in both states. A new control of the window joins `IDS`. 1.6.2 (the owner: "Start first, options folded"): Start Hosting and the room code stand first, the
+// setup options under a Table options fold after them, so nothing but the campaign stands above the button, moved on purpose
 {
     const nA = ix.indexOf('<div id="netModal"'), nZ = ix.indexOf('<div id="streamVideo"', nA), netHtml = nA > 0 && nZ > nA ? ix.slice(nA, nZ) : '';
-    const IDS = ['netModal', 'netCloseBtn', 'netStatus', 'netJoinAvatar', 'netNameInput', 'netPaneBar', 'netPaneHostBtn', 'netPaneJoinBtn', 'netPaneHost', 'netCampSelect', 'netStageSelect', 'netStageFallbackRow', 'netStageFallbackSelect', 'newPlayersBox',
-        'netWaitingSelect', 'netWaitingSight', 'netMakeSelect', 'netMakeFile', 'netPassInput', 'netHostBtn', 'netHostInfo', 'netCode', 'netCopyBtn', 'netSummonBtn', 'netCombatBtn', 'netNotepadBtn', 'netLogBtn', 'netTravelLockBtn', 'netPauseBtn', 'netPaneJoin',
+    const IDS = ['netModal', 'netCloseBtn', 'netStatus', 'netJoinAvatar', 'netNameInput', 'netPaneBar', 'netPaneHostBtn', 'netPaneJoinBtn', 'netPaneHost', 'netCampSelect', 'netHostBtn', 'netHostInfo', 'netCode', 'netCopyBtn', 'netSummonBtn', 'netCombatBtn', 'netNotepadBtn', 'netLogBtn', 'netTravelLockBtn', 'netPauseBtn',
+        'netStageSelect', 'netStageFallbackRow', 'netStageFallbackSelect', 'newPlayersBox', 'netWaitingSelect', 'netWaitingSight', 'netMakeSelect', 'netMakeFile', 'netPassInput', 'netPaneJoin',
         'netCodeInput', 'netJoinBtn', 'netJoinPassInput', 'netRoster', 'netVttLine', 'netPlayersBtn', 'netEndBtn', 'netLeaveBtn'];
     const TICKS = [['netWaitingSight', 'Waiting tokens see around them under fog', 'Off, they see only what you have revealed.'], ['netMakeFile', '&hellip;may start it from a file', 'With Import on the new sheet. You review it when they press Done.']];
-    const UNDER = [['netStageSelect', 'Follow me moves the whole table with you. A map keeps it on that map.'], ['netStageFallbackSelect', 'Follow me puts them on your map once. After that they stay put.'],
-        ['netWaitingSelect', 'A waiting token is their picture in a dashed outline. They can move it.'], ['netMakeSelect', 'Right-click their chip for Let them make a character.'],
-        ['netNotepadBtn', 'A throwaway notepad the whole table sees as you type.'], ['netTravelLockBtn', 'While travel is locked, portals and room links do not work for players. Tokens still move.'],
-        ['netPauseBtn', 'While the table is paused, players cannot move tokens or travel. Chat stays open.'], ['netJoinPassInput', 'Your GM sends you the room code. Type or paste it with or without the hyphen.']];
+    const UNDER = [['netNotepadBtn', 'A throwaway notepad the whole table sees as you type.'], ['netTravelLockBtn', 'While travel is locked, portals and room links do not work for players. Tokens still move.'],
+        ['netPauseBtn', 'While the table is paused, players cannot move tokens or travel. Chat stays open.'],
+        ['netStageSelect', 'Follow me moves the whole table with you. A map keeps it on that map.'], ['netStageFallbackSelect', 'Follow me puts them on your map once. After that they stay put.'],
+        ['netWaitingSelect', 'A waiting token is their picture in a dashed outline. They can move it.'], ['netMakeSelect', 'Right-click their chip for Let them make a character.'], ['netJoinPassInput', 'Your GM sends you the room code. Type or paste it with or without the hyphen.']];
     const ticks = [...netHtml.matchAll(/<input type="checkbox" id="([A-Za-z]+)"> <span class="set-name"><span>([^<]+)<\/span><small>([^<]+)<\/small><\/span><\/label>/g)].map(m => [m[1], m[2], m[3]]);
     // a line tells of the control it stands under: the last id before it, with nothing between the two but that control's own choices and its end
     const OWN_END = /^(?:option value="[a-z]*">[^<]*|\/option>\s*|\/select>\s*|\/button>\s*|i class="wib wi-[a-z0-9-]+">|\/i>[^<]*)$/;
@@ -1421,8 +1422,8 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     check('the Multiplayer window says what its options do (the same passed mock-up): the window holds the thirty-eight ids it held, in their order, each in the page once; the two ticks of Players without a character each carry one grey line under their name, and eight controls have their line under them, ten lines in all and no other: where players arrive, where a new player starts, what a waiting token is, how to ask one player to make a character, the Table Notepad, Lock Travel, Pause, and the room code; each line stands right under its own control, is plain words with no bracket, dash or semicolon, ends in a full stop and runs to no long sentence; a line above Start Hosting is one line long, so that the button stays in view; and "Every tooltip of today stays": each of those controls still has its tooltip, the room code and the password of the join part in the tips, and the window holds the twenty-three it held',
         netHtml.length > 10000 && J((netHtml.match(/ id="[A-Za-z]+"/g) || []).map(s => s.slice(5, -1))) === J(IDS) && IDS.length === 38 && IDS.every(id => count(ix, ' id="' + id + '"') === 1)
         && J(ticks) === J(TICKS) && J(under.map(u => u.slice(0, 2))) === J(UNDER) && under.every(u => u[2] === true) && rough.length === 0
-        && count(netHtml, 'class="set-name"') === 2 && count(netHtml, 'class="set-line') === 8 && count(netHtml, '<small>') === 2 && above.length === 6 && long.length === 0
-        && count(netHtml, ' title="') === 24 && TICKS.concat(UNDER).every(r => r[0] === 'netJoinPassInput' || tipOn(r[0]))
+        && count(netHtml, 'class="set-name"') === 2 && count(netHtml, 'class="set-line') === 8 && count(netHtml, '<small>') === 2 && above.length === 0 && long.length === 0
+        && count(netHtml, ' title="') === 25 && TICKS.concat(UNDER).every(r => r[0] === 'netJoinPassInput' || tipOn(r[0]))
         && count(tips, "    netCodeInput: 'The room code your GM gave you: ten characters, shown as XXXXX-XXXXX. Type or paste it with or without the hyphen.',") === 1 && count(tips, "    netJoinPassInput: 'Only needed if the GM set a session password.',") === 1,
         J([ticks.filter((t, i) => J(t) !== J(TICKS[i])).slice(0, 2), under.filter((u, i) => J(u.slice(0, 2)) !== J(UNDER[i]) || u[2] !== true).slice(0, 2), rough, long, count(netHtml, ' title="')]));
     check('Pause and Lock Travel keep their lines whatever they read: net.js rewrites the words of each button and nothing beside it, so each line stands after its button, begins with the state it tells of, and is true while the button says Resume or Allow as well',

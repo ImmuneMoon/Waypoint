@@ -1143,7 +1143,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       list.textContent = '';
       var camps = (state.appState && state.appState.campaigns) || {};
       var ids = Object.keys(camps).filter(function(id) { return !wcSeedOnly(camps[id]); });
-      if (!ids.length) { box.style.display = 'none'; return; }
+      if (!ids.length) { var wcWait = !state.appState || state.appState.activeCampaignId === null; box.style.visibility = wcWait ? 'hidden' : ''; box.style.display = wcWait ? '' : 'none'; return; }   // 1.6.2 (the builder trial): while the save is still loading, its room is kept, so the cards do not jump when it comes
       ids.slice(0, 12).forEach(function(id) {
           var b = document.createElement('button');
           b.className = 'wc-continue-item' + (id === state.appState.activeCampaignId ? ' active' : '');
@@ -1156,7 +1156,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
           });
           list.appendChild(b);
       });
-      box.style.display = '';
+      box.style.visibility = ''; box.style.display = '';
   }
   // A no-picture default avatar: a user silhouette on the given color, as an inline SVG data-URL. One shared helper
   // for every no-avatar site (welcome, Settings, roster, map presence, party, the hover card) so a user without a

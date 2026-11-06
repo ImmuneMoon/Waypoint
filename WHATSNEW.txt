@@ -62,6 +62,9 @@ The System editor
   Characters say where its sheets are set up. The add buttons for a question
   and a card action sit at their own width, and Short names stays put in the
   foot.
+- How it rolls opens on Draws a card first, with When does it jam and the
+  Big Hit after it. The welcome keeps room for Continue a campaign while the
+  save loads, so its cards stay put.
 - Combat and Rules are tabs of their own now. Everything the Combat card held
   is on the Combat tab, and the budgets, readings, linked sheets and tables
   that stood on the Lists tab are on the Rules tab. Each has its topics down

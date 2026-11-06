@@ -117,7 +117,7 @@ for (const t of targets) {
         && wcSeedOnly({ name: 'Default Campaign', items: { m: emptyMap(), p: { type: 'planner', blocks: [] } } }) === false && wcSeedOnly({ name: 'Default Campaign', items: { m: { type: 'map', rooms: [{ id: 'r' }], whiteboard: [] } } }) === false
         && wcSeedOnly({ name: 'Default Campaign', items: { m: { type: 'map', rooms: [], whiteboard: [{ id: 'w' }] } } }) === false && wcSeedOnly({ name: 'My New Campaign', items: {} }) === false && wcSeedOnly({ name: 'Tutorial', items: { m: emptyMap() } }) === false
         && wcSeedOnly(null) === false && wcSeedOnly({ name: 'Default Campaign' }) === true
-        && /var ids = Object\.keys\(camps\)\.filter\(function\(id\) \{ return !wcSeedOnly\(camps\[id\]\); \}\);\n\s*if \(!ids\.length\) \{ box\.style\.display = 'none'; return; \}/.test(mainLf);
+        && /var ids = Object\.keys\(camps\)\.filter\(function\(id\) \{ return !wcSeedOnly\(camps\[id\]\); \}\);\n\s*if \(!ids\.length\) \{ var wcWait = !state\.appState \|\| state\.appState\.activeCampaignId === null; box\.style\.visibility = wcWait \? 'hidden' : ''; box\.style\.display = wcWait \? '' : 'none'; return; \}/.test(mainLf);
     if (seedOk) console.log('ok        a fresh Waypoint lists no campaign to continue: the seeded Default Campaign with nothing in it (no room, no drawing, no planner or page) is left off the welcome\'s list and the box hidden, run for real; one with anything in it, or under any other name, is listed');
     else { bad++; console.log('FAIL      a fresh Waypoint lists no campaign to continue (wcSeedOnly)'); }
     // "Show this on launch" is set once from the welcome: the wclaunch slice run for real on a stub page — the row shown while nothing is stored, the first

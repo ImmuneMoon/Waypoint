@@ -1852,7 +1852,7 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
           return true;
       } catch (e) { return false; }
   }
-  // 1.6.0 backlog 34: what Export This Campaign or Export Everything would carry, for the share sheet (share.js) to count before anything is
+  // 1.6.0 backlog 34: what Export this campaign or Export everything would carry, for the share sheet (share.js) to count before anything is
   // written: the payload as the export makes it, the files it names with the campaign's own pictures, and each listed picture's size
   async function exportPlan(scope) {
       if (!canPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return null; }
@@ -2048,7 +2048,7 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
           else exportScope(sc);
       });
   });
-  // Share This Campaign: the same sheet, with Players unticked (the owner, 2026-10-29: "Yes, Share starts Players unticked (Recommended)")
+  // Share this campaign: the same sheet, with Players unticked (the owner, 2026-10-29: "Yes, Share starts Players unticked (Recommended)")
   var _el_exportShareBtn = document.getElementById('exportShareBtn');
   if (_el_exportShareBtn) _el_exportShareBtn.addEventListener('click', function() { if (window.wpShare && typeof window.wpShare.open === 'function') window.wpShare.open('campaign', true); else exportScope('campaign'); });
 

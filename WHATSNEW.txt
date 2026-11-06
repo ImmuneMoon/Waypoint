@@ -404,6 +404,9 @@ Around the app
   stands in folds, each saying in one line what is set in it.
 - Each generator shows a small picture of what Generate would lay, drawn
   again as you change its settings.
+- Buttons are in sentence case, such as Start combat and Export this
+  campaign. A step that cannot be undone, such as End session for everyone,
+  wears a red outline.
 
 Writing planners and pages
 - You write a planner or a page on the page itself. Press a block and its

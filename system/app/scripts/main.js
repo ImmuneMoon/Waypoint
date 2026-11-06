@@ -1796,9 +1796,9 @@ window.wpDebug = { getState: function() {
 
 
 // Frame the content: walk the bounding box of the active map's items (or just the selection) and set
-// BOTH zoom and pan so the whole box fits the viewport with a margin. "Center on Items" only ever panned,
+// BOTH zoom and pan so the whole box fits the viewport with a margin. "Center on items" only ever panned,
 // so anything larger than the screen still ran off the edges — this is the missing zoom half. Reached from
-// the 🎯 Center menu (Fit to Content) and Shift+1. pad is in world units; setZoom re-centres on the OLD view,
+// the 🎯 Center menu (Fit to content) and Shift+1. pad is in world units; setZoom re-centres on the OLD view,
 // so the scroll must be written AFTER it. Same bbox walk and w||100/h||100 fallbacks as Center-on-Items.
 function fitView(selectionOnly) {
     var m = getActiveMap(); if(!m || m.type === 'planner') return;

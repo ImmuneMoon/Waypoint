@@ -128,7 +128,7 @@ function renderPackBar() {
     ex.title = 'Save this pack as a .wppack.json file: the GM’s copy holds everything; a players’ copy holds only what players may see (no GM-only entries, GM notes or formulas)';
     if (p.vis === 'gm') ex.options[2].disabled = true;   // a GM-only pack's entries count as GM-only: its players' copy would be empty
     ex.disabled = !ready(p.id); ex.addEventListener('change', function() { var v = ex.value; ex.value = ''; if (v) exportPack(v); });
-    var del = el('button', 'tool ghost lib-pack-del', 'Delete pack'); del.type = 'button'; del.title = 'Delete this pack and its entries (characters keep the copies they carry)';
+    var del = el('button', 'tool ghost no-back lib-pack-del', 'Delete pack'); del.type = 'button'; del.title = 'Delete this pack and its entries (characters keep the copies they carry)';
     del.addEventListener('click', function() { showConfirm('Delete the pack “' + p.name + '” and its ' + plural(ready(p.id) ? workOf(p.id).length : p.count) + '? Characters keep the copies they carry.', async function(yes) { if (!yes || !st.open) return; delete st.dirty[p.id]; delete st.work[p.id]; var r = await LB().deletePack(p.id); if (r && r.error) toast(r.error); st.packId = packs().length ? packs()[0].id : null; st.entryId = null; st.draftNew = null; st.sel = map(); renderAll(); }); });
     var fold = el('details', 'lib-pack-fold'), sm = el('summary', 'lib-pack-sum', 'Pack settings'); fold.open = st.packFold === true;   // 1.6.2: the pack's own settings in a fold, which stays as you left it
     fold.addEventListener('toggle', function() { st.packFold = fold.open; });

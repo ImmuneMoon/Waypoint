@@ -2017,10 +2017,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
 
 
-  // Render Preview toggles a fullscreen reading view: editor hidden, preview full-width
+  // Render preview toggles a fullscreen reading view: editor hidden, preview full-width
 
   var plannerFullscreen = false;
-  // Exports always use the rendered document: switch to Render Preview if needed, re-render at
+  // Exports always use the rendered document: switch to Render preview if needed, re-render at
   // full width, run the export, then put the view back the way it was.
   window.wpWithRenderedPlanner = async function(fn) {
       var am = getActiveMap();
@@ -2057,7 +2057,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       pw.style.width = plannerFullscreen ? '100%' : '50%';
 
-      if (btn) btn.innerHTML = plannerFullscreen ? '<i class="wib wi-pen"></i> Edit' : '&#9654; Render Preview';
+      if (btn) btn.innerHTML = plannerFullscreen ? '<i class="wib wi-pen"></i> Edit' : '&#9654; Render preview';
       pgWire(); pgLayout();   // 1.6.2, backlog 171: Edit on the page, Read, or Side by side
 
   }

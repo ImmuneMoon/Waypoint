@@ -1,4 +1,4 @@
-/* Map builder (1.5.4, backlog item 23, fold B4): Save Map as Picture, the page's half. The owner, 2026-10-10, by prompt on a sheet: the
+/* Map builder (1.5.4, backlog item 23, fold B4): Save map as picture, the page's half. The owner, 2026-10-10, by prompt on a sheet: the
    command lives in "Export As", the dialog is "As drawn", and tokens are "Never" in the picture.
 
    shotcore.js draws the picture and decides what belongs in it. This module is the dialog, the loading and the file: it reads the kept
@@ -77,7 +77,7 @@ function shotSync() {
 function shotShow() {
     var m = shotEl('shotModal'); if (!m) return false;
     if (!shotMay()) { toast('Not while you are at someone else’s table.'); return false; }
-    if (!shotMap()) { toast('Save Map as Picture is for a play map. Open a map and its Play Map view first.'); return false; }
+    if (!shotMap()) { toast('Save map as picture is for a play map. Open a map and its Play Map view first.'); return false; }
     shotLoad(); _shot.busy = false; _shot.err = ''; shotSync();
     m.style.display = 'flex';
     var first = m.querySelector('#shotArea .gen-chip.on') || shotEl('shotCancel'); if (first && typeof first.focus === 'function') first.focus();

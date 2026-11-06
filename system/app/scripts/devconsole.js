@@ -64,7 +64,7 @@
         { name: 'wpReloadFromDisk()', short: 're-read data.json from disk, dropping the pending autosave',
           detail: 'Clears the ~500ms autosave debounce, then reloads data.json through the app’s normal load path and\nre-renders. Use it when something outside the app rebuilt the save, so the open tab picks up the new\nfile instead of overwriting it on the next autosave. Any unsaved in-memory edit is discarded.' },
         { name: 'wpFitView(sel)', short: 'zoom + pan to frame everything, or just the selection',
-          detail: 'wpFitView(false)   frame every item on the active map.\nwpFitView(true)    frame only the current selection.\nComputes a fit-zoom (clamped 0.1–4, with an 80-unit margin) then centres. Same as the Fit to Content\nmenu item and the Shift+1 shortcut.' },
+          detail: 'wpFitView(false)   frame every item on the active map.\nwpFitView(true)    frame only the current selection.\nComputes a fit-zoom (clamped 0.1–4, with an 80-unit margin) then centres. Same as the Fit to content\nmenu item and the Shift+1 shortcut.' },
         { name: 'wpNet', short: 'the multiplayer object',
           detail: 'wpNet.active   true while you are hosting or joined.\nwpNet.role     "host" | "client".\nAlso holds the P2P internals (peers, snapshot, broadcast helpers). Reading is safe; calling internals\ncan affect a live session, so be careful mid-game.' },
         { name: 'wpAppVersion', short: 'the running app version string',

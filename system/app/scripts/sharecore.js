@@ -1,5 +1,5 @@
-/* The export share sheet (1.6.0, backlog 34) \u2014 the pure half. The owner, 2026-10-29, by prompt: Export This Campaign, a new Share This
-   Campaign and Export Everything all open the sheet ("all of the above"), Share with Players unticked ("Yes, Share starts Players unticked
+/* The export share sheet (1.6.0, backlog 34) \u2014 the pure half. The owner, 2026-10-29, by prompt: Export this campaign, a new Share This
+   Campaign and Export everything all open the sheet ("all of the above"), Share with Players unticked ("Yes, Share starts Players unticked
    (Recommended)"); the card is "share.json beside data.json (Recommended)"; an import shows it as "A card at the top of Import (Recommended)";
    and "Yes, a Players tick (Recommended)".
 

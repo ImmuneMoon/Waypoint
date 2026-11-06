@@ -1,8 +1,8 @@
-/* The export share sheet (1.6.0, backlog 34): the window that comes up before Export This Campaign, Share This Campaign and Export
+/* The export share sheet (1.6.0, backlog 34): the window that comes up before Export this campaign, Share this campaign and Export
    Everything write their file, and the card an import shows at the top of its box. The owner's answers are in sharecore.js, its pure half.
 
    The sheet: a cover picked from the pictures the file would carry, a title (the campaign's name to start with), an author, a version and a
-   few words, then the contents by kind, each with its count and the size of its files, and a tick to keep it. Share This Campaign starts
+   few words, then the contents by kind, each with its count and the size of its files, and a tick to keep it. Share this campaign starts
    with Players unticked. Left as it came, the sheet hands the export nothing and the file is the one it always was. What was typed is
    remembered for the campaign on this computer (wp_shareCards), never sent.
 

@@ -867,15 +867,15 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             });
             
             if (allSameGroup) html += '<button id="ungroupMultiBtn" class="tool ghost danger" style="width:100%; margin-bottom:10px;">Ungroup</button>';
-            else html += '<button id="groupMultiBtn" class="tool ghost" style="width:100%; margin-bottom:10px;">Group Elements</button>';
+            else html += '<button id="groupMultiBtn" class="tool ghost" style="width:100%; margin-bottom:10px;">Group elements</button>';
             
-            html += '<div class="field" style="margin-top:15px"><label>Layering (All Selected)</label></div>';
-            html += '<button id="multiBringFrontBtn" class="tool ghost" style="width:100%; margin-bottom:5px">Bring to Front</button>';
-            html += '<button id="multiBringFwdBtn" class="tool ghost" style="width:100%; margin-bottom:5px">Bring Forward</button>';
-            html += '<button id="multiSendBwdBtn" class="tool ghost" style="width:100%; margin-bottom:5px">Send Backward</button>';
-            html += '<button id="multiSendBackBtn" class="tool ghost" style="width:100%; margin-bottom:15px">Send to Back</button>';
+            html += '<div class="field" style="margin-top:15px"><label>Layering (all selected)</label></div>';
+            html += '<button id="multiBringFrontBtn" class="tool ghost" style="width:100%; margin-bottom:5px">Bring to front</button>';
+            html += '<button id="multiBringFwdBtn" class="tool ghost" style="width:100%; margin-bottom:5px">Bring forward</button>';
+            html += '<button id="multiSendBwdBtn" class="tool ghost" style="width:100%; margin-bottom:5px">Send backward</button>';
+            html += '<button id="multiSendBackBtn" class="tool ghost" style="width:100%; margin-bottom:15px">Send to back</button>';
             
-            html += '<div class="divider"></div><button class="tool ghost danger" id="wbDelMulti" style="width:100%">Delete All Selected</button>';
+            html += '<div class="divider"></div><button class="tool ghost danger" id="wbDelMulti" style="width:100%">Delete all selected</button>';
             
             inspector.innerHTML = html;
             

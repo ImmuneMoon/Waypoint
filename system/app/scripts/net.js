@@ -53,7 +53,7 @@ function webJoinOnly() { var W = typeof window !== 'undefined' ? window.wpWebMod
 function webOlderWords(gms) { return 'The GM’s Waypoint' + (gms ? ' ' + gms : '') + ' is newer than this website’s. Try again once the website is updated.'; }
 // [netcheck:webjoin-end]
 function updateMessage(theirs, ours) {
-    return 'Your Waypoint (' + (theirs || 'older than 1.1.2') + ') is older than the GM\'s' + (ours ? ' (' + ours + ')' : '') + '. Update Waypoint, then rejoin: open Settings ▸ Check for updates and press Update Now (or get the latest Waypoint_Setup.exe from your GM and run it over your copy — saves and settings are kept).';
+    return 'Your Waypoint (' + (theirs || 'older than 1.1.2') + ') is older than the GM\'s' + (ours ? ' (' + ours + ')' : '') + '. Update Waypoint, then rejoin: open Settings ▸ Check for updates and press Update now (or get the latest Waypoint_Setup.exe from your GM and run it over your copy — saves and settings are kept).';
 }
 
 var net = {
@@ -2474,7 +2474,7 @@ function refreshPauseUi() {
     if (banner && frozenMe && !net.paused && !net.selfPaused && net.selfHeld) banner.textContent = heldBanner();   // 1.6.0 (backlog 190): held for a new sheet
     document.body.classList.toggle('net-paused', !!((net.paused || ((net.selfPaused || net.selfHeld) && isClient)) && net.active));   // always a true or a false: toggle with undefined flips the class (found live, 2026-10-30: the map dimmed with no pause)
     var btn = ui('netPauseBtn');
-    if (btn) { btn.innerHTML = net.paused ? '<i class="wib wi-play"></i> Resume the Table' : '<i class="wib wi-pause"></i> Pause the Table'; btn.classList.toggle('paused', net.paused); }
+    if (btn) { btn.innerHTML = net.paused ? '<i class="wib wi-play"></i> Resume the table' : '<i class="wib wi-pause"></i> Pause the table'; btn.classList.toggle('paused', net.paused); }
     var sb = ui('sessionPauseBtn');
     if (sb) { sb.innerHTML = net.paused ? '<i class="wib wi-play"></i>' : '<i class="wib wi-pause"></i>'; sb.title = net.paused ? 'Resume the table' : 'Pause the table (freeze everyone)'; sb.classList.toggle('paused', net.paused); }
     if (typeof window !== 'undefined' && window.wpPills) window.wpPills.sync();   // the top row's Paused pill (pills.js)
@@ -4360,7 +4360,7 @@ net.travelLocked = false;
 function setTravelLockLocal(on) {
     net.travelLocked = !!on;
     var btn = ui('netTravelLockBtn');
-    if (btn) { btn.innerHTML = net.travelLocked ? '<i class="wib wi-unlock"></i> Allow Travel Between Maps' : '<i class="wib wi-lock"></i> Lock Travel Between Maps'; btn.classList.toggle('paused', net.travelLocked); }
+    if (btn) { btn.innerHTML = net.travelLocked ? '<i class="wib wi-unlock"></i> Allow travel between maps' : '<i class="wib wi-lock"></i> Lock travel between maps'; btn.classList.toggle('paused', net.travelLocked); }
     var hint = ui('travelLockBanner');
     if (hint) hint.style.display = (net.travelLocked && net.role === 'client' && net.active) ? 'block' : 'none';
 }
@@ -4454,7 +4454,7 @@ function applyPosToDom(msg) {
    item on their current map, linked to a room with a warp target; then moves
    their location, spawns/adopts their token on the far side, and tells only
    that player to change map. Returns true when the travel happened.
-   What refuses a player, in this order (pinned by netcheck): Lock Travel Between Maps, a destination closed to players (the map's Lock for
+   What refuses a player, in this order (pinned by netcheck): Lock travel between maps, a destination closed to players (the map's Lock for
    players), then whatever travelBar says — the map they stand on being locked for players (a locked map is closed both ways), then this
    portal's own lock. gmHand (true only, from net.tokenDropped's third argument: the GM's
    own drop of that player's token on the board) is never asked travelBar: a portal locked for players does not stop the GM's own hand. */
@@ -4527,7 +4527,7 @@ function hostTravel(conn, traveler, portal, fromMap, gmHand) {
 // GM is told when a hidden trap tile could not fire. Two rules, in this order: the map the player stands on is locked for players (its
 // meta.playerLock, as the Maps list writes it: the owner, 2026-10-03, "Closed both ways" — a locked map lets no player in, which hostTravel
 // asks of the destination, and no player out, which is asked here), then a portal the GM locked for players (portalLock, only as true; fogcore
-// cleanPortalLock). hostTravel asks it for every player's crossing — a travel request and a drop alike — after Lock Travel Between Maps and
+// cleanPortalLock). hostTravel asks it for every player's crossing — a travel request and a drop alike — after Lock travel between maps and
 // a closed destination, and never for the GM's own hand; summon, Bring, the stage, npcTravel and offlinePlayerTravel never ask it. A further
 // rule is added in this function and nowhere else
 function travelBar(traveler, portal, fromMap, destMap) {
@@ -12469,8 +12469,8 @@ setTimeout(function() {
     }
     });
 }, 1200);
-/* The GM gets one clear "End Session for Everyone" (the host's Leave was the same
-   teardown, but its label read like a player's exit). Players keep Leave Session. */
+/* The GM gets one clear "End session for everyone" (the host's Leave was the same
+   teardown, but its label read like a player's exit). Players keep Leave session. */
 // [netcheck:netpane-start]
 // The Multiplayer panel shows one of its two parts at a time, each behind its own button: Host a table, Join a table. Out of a session
 // the part shown is the one last pressed (pressing it again closes it; none until one is pressed). In a session it is the part of the

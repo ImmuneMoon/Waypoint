@@ -832,15 +832,15 @@ function appVersionPromise() {   // the newer of the shell's version and the app
 
 /* ---------- updates ----------
    /api/update-check asks the shell to look at the newest GitHub Release. If the front end alone
-   changed, Update Now downloads it, the shell swaps system/app in place and we reload. If the
-   release needs a newer shell, the button becomes Get Installer instead. A quiet check runs a
+   changed, Update now downloads it, the shell swaps system/app in place and we reload. If the
+   release needs a newer shell, the button becomes Get installer instead. A quiet check runs a
    few seconds after launch; a newer version raises the header Update button and a notice.
    The shell takes an update only when it is signed by the key it carries (updater.js); the page
    hands it nothing to judge by. The shell keeps the app as it was before the last update, and
    says so (hasPrev): Restore the previous version asks it to put that back (/api/update-rollback).
    From 1.5.0 on a release that needs a newer shell is one click too where the shell says this copy
    can take it (canSelfInstall): the shell downloads the installer, checks it, runs it and Waypoint
-   reopens; Get Installer and its steps remain for every case where that cannot be done. */
+   reopens; Get installer and its steps remain for every case where that cannot be done. */
 var _upd = { info: null, shellOld: null, shell: null, selfBusy: false, selfFailed: false, selfText: '', failNote: '', failSeen: '' };
 var SHELL_WANTED = '1.6.0';   // 1.6.0 adds /api/account (account.js: this install linked to a Waypoint website account, the key kept in saves/account.json); 1.5.9 carries the outside sheet reader's folder (system/app/private) across an update and a restore; 1.5.6 adds the right-click menu of a text box, Cut, Copy, Paste and Select all (shellguard.editMenuTemplate); 1.5.0 added /api/library (the item library's pack files beside the save), serves a file in byte ranges under its media type (servefile.js: a video seeks without being read whole), takes only signed updates, keeps a way back and updates its own core; 1.4.6 added /api/delete-image (Image Library → Delete picture)   // the core this app expects; older cores are walked through the installer. It is the version tools/shellrev.json records as the core's last change: updatercheck holds the two together, and a release's manifest says the same as minShell
 var RELEASES_PAGE = 'https://github.com/ImmuneMoon/Waypoint/releases/latest';
@@ -873,8 +873,8 @@ function coreNudge(firstTime) {
     if (b) { b.textContent = 'Core update'; b.title = "Waypoint's core is older than this app — it needs the installer once. Click to see the steps; nothing downloads until you say so."; b.style.display = 'inline-block'; }
     var bar = ui('updateBanner'), txt = ui('updateBannerText'), go = ui('updateBannerGo');
     if (bar && txt) {
-        txt.textContent = "Waypoint's app files are current, but its core needs the installer once — Get Installer shows the steps first.";
-        if (go) go.textContent = 'Get Installer';
+        txt.textContent = "Waypoint's app files are current, but its core needs the installer once — Get installer shows the steps first.";
+        if (go) go.textContent = 'Get installer';
         var hdr = document.querySelector('header'); if (hdr) bar.style.top = (hdr.getBoundingClientRect().bottom + 8) + 'px';
         bar.style.display = 'flex';
         wcStrip();   // 1.5.5: and the welcome screen's strip with it
@@ -907,7 +907,7 @@ function updateUI() {
         back.textContent = 'Restore the previous version' + (pv ? ' (' + pv + ')' : '');
     }
     var self = selfCan(i);
-    if (inst) { inst.textContent = self ? 'Update' : 'Get Installer'; inst.title = self ? SELF_TITLE : INST_TITLE; }
+    if (inst) { inst.textContent = self ? 'Update' : 'Get installer'; inst.title = self ? SELF_TITLE : INST_TITLE; }
     if (!st || !row) return;
     if (!i) { st.textContent = ''; row.style.display = 'none'; return; }
     if (i.error) { st.textContent = 'could not check (' + (i.error.length > 40 ? 'offline?' : i.error) + ')'; row.style.display = 'none'; return; }
@@ -985,7 +985,7 @@ if (_updBack) _updBack.addEventListener('click', runRestore);
    Where the shell says this copy can (canSelfInstall): it downloads the installer, checks it against the update key,
    and — once the campaign is saved — starts it and closes Waypoint; the installer opens Waypoint again. The page only
    asks and shows how it stands: it hands the shell nothing to download, nowhere to put it and nothing to run.
-   Anything that goes wrong is said in one line and the walk-through (Get Installer, the steps, the browser) takes over. */
+   Anything that goes wrong is said in one line and the walk-through (Get installer, the steps, the browser) takes over. */
 function selfButtons(off) { [ui('setUpdateInstallerBtn'), ui('setUpdateNowBtn'), ui('setUpdateRestoreBtn'), ui('setUpdateCheckBtn'), ui('updateBannerGo'), ui('updateBtn')].forEach(function(b) { if (b) b.disabled = off; }); }
 // How it stands, as text: beside the Updates heading in Settings and on the header's Update button.
 function selfSay(text) {
@@ -997,7 +997,7 @@ function selfFail(why, i) {
     _upd.selfBusy = false; _upd.selfFailed = true; _upd.selfText = '';
     selfButtons(false); updateUI(); showUpdateButton(i); hideUpdateBanner();
     var line = plainLine(why);
-    toast('Waypoint could not update itself' + (line ? ': ' + line : '') + '. Get Installer shows the steps instead.');
+    toast('Waypoint could not update itself' + (line ? ': ' + line : '') + '. Get installer shows the steps instead.');
     showInstallerSteps(i);
 }
 // Nothing unsaved may be lost when the app closes. io.js says how a save stands in the save note ("Saving..." until it is
@@ -1075,7 +1075,7 @@ function showUpdateBanner(i) {
     var one = !!(i.canHotUpdate || selfCan(i));
     var txt = ui('updateBannerText');
     if (txt) txt.textContent = 'Waypoint Alpha ' + i.latest + ' is available' + (one ? ' — one click to update.' : ' — this one comes as an installer; Update shows the steps first.');
-    var go = ui('updateBannerGo'); if (go) go.textContent = one ? 'Update' : 'Get Installer';
+    var go = ui('updateBannerGo'); if (go) go.textContent = one ? 'Update' : 'Get installer';
     var hdr = document.querySelector('header'); if (hdr) bar.style.top = (hdr.getBoundingClientRect().bottom + 8) + 'px';
     bar.style.display = 'flex';
     wcStrip();
@@ -1087,9 +1087,9 @@ function showFailNote(i) {
     var v = i ? cleanVer(i.installFailed) : ''; if (!v || _upd.failSeen === v) return;
     var bar = ui('updateBanner'), txt = ui('updateBannerText'); if (!bar || !txt) return;
     _upd.failSeen = v; _upd.failNote = v;
-    txt.textContent = 'The update to ' + v + ' did not finish. Try Update again, or use Get Installer.';
+    txt.textContent = 'The update to ' + v + ' did not finish. Try Update again, or use Get installer.';
     var go = ui('updateBannerGo'), notes = ui('updateBannerNotes'), later = ui('updateBannerLater');
-    if (go) go.textContent = 'Update'; if (notes) notes.textContent = 'Get Installer'; if (later) later.textContent = 'Dismiss';
+    if (go) go.textContent = 'Update'; if (notes) notes.textContent = 'Get installer'; if (later) later.textContent = 'Dismiss';
     var hdr = document.querySelector('header'); if (hdr) bar.style.top = (hdr.getBoundingClientRect().bottom + 8) + 'px';
     bar.style.display = 'flex';
     wcStrip();

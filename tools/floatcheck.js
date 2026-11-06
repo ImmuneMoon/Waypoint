@@ -1022,10 +1022,10 @@ const dice = read('scripts/dice.js');
             && wb.includes("if (e.key === 'Escape' && " + G + ") closePartyMenu(); });") && wb.includes("if (e.key === 'Escape' && " + G + ") hideImgCatMenu(); });") && wb.includes("if (e.key === 'Escape' && pop && !pop.hidden && " + G + ") pop.hidden = true;")
             && count(wb, 'wpEsc') === 14);
     }
-    // 9. the page loads it once, before the modules that hear Escape at the window after it (Save Map as Picture, the token creator)
+    // 9. the page loads it once, before the modules that hear Escape at the window after it (Save map as picture, the token creator)
     {
         const names = (ix.match(/<script type="module" src="scripts\/[a-z]+\.js"><\/script>/g) || []).map(s => s.replace(/^.*scripts\/|\.js.*$/g, ''));
-        check('the page loads the router once, as a module, after the modules whose own Escape it must stand aside for are wired before it (the generators\' dialogs in whiteboard.js, by main.js) and before the ones it stands aside for after it (the token creator, Save Map as Picture); it publishes free and judge; it writes no markup',
+        check('the page loads the router once, as a module, after the modules whose own Escape it must stand aside for are wired before it (the generators\' dialogs in whiteboard.js, by main.js) and before the ones it stands aside for after it (the token creator, Save map as picture); it publishes free and judge; it writes no markup',
             count(ix, 'scripts/esckey.js') === 1 && names.indexOf('esckey') > names.indexOf('main') && names.indexOf('esckey') < names.indexOf('framer') && names.indexOf('esckey') < names.indexOf('mapshot')
             && ix.includes('<script type="module" src="scripts/syskey.js"></script>\n<script type="module" src="scripts/esckey.js"></script>\n<script type="module" src="scripts/net.js"></script>\n')
             && ek.includes("    window.addEventListener('keydown', escDown, true);\n    window.addEventListener('keydown', escBack);\n    window.wpEsc = { free: escFree, judge:")

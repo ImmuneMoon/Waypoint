@@ -7296,7 +7296,7 @@ if(_el_clearWbBtn) _el_clearWbBtn.addEventListener('click', function() {
           charBtn.style.display = (state.viewMode === 'visual') ? '' : 'none';
           charBtn.style.opacity = tok ? '1' : '0.5';
           charBtn.style.pointerEvents = tok ? 'auto' : 'none';
-          charBtn.textContent = isClientC ? 'Center on My Character' : (tok ? 'Center on ' + (tok.charName || 'Character') : 'Center on Character');
+          charBtn.textContent = isClientC ? 'Center on My Character' : (tok ? 'Center on ' + (tok.charName || 'Character') : 'Center on character');
       }
       if(_el_wbCenterMenu) _el_wbCenterMenu.classList.toggle('show');
   });
@@ -9843,7 +9843,7 @@ function renderCombatModal() {
     var mapNm = map && map.meta && map.meta.title || combatDraft.mapId, fidsM = fightsHere(combatDraft.mapId), atM = combatDraft.fid ? fidsM.indexOf(combatDraft.fid) : -1;
     document.getElementById('combatMapName').textContent = mapNm + (atM >= 0 && fidsM.length > 1 ? ', fight ' + (atM + 1) + ' of ' + fidsM.length : (!combatDraft.fid && fidsM.length ? ', another fight' : ''));   // fold 2: which fight on the map
     var running = combatDraft.running, findHere = findWho(window.wpNet, !!window.wpStream), amHere = getActiveMap();   // backlog 26: a name finds its token on this screen
-    document.getElementById('combatStartBtn').textContent = running ? 'Update Combat' : 'Start Combat';
+    document.getElementById('combatStartBtn').textContent = running ? 'Update Combat' : 'Start combat';
     var rallB = document.getElementById('combatRollAllBtn'); if (rallB) rallB.style.display = window.wpSheets && window.wpSheets.hasInitRoll() ? '' : 'none';   // initiative O1: only with an initiative roll in the system
     var nameN = {}, nameAt = {}; combatDraft.rows.forEach(function(r) { nameN['n' + r.name] = (nameN['n' + r.name] || 0) + 1; });   // 1.6.0: rows of one name told apart by a number
     var fa = document.activeElement, fr = fa && list.contains(fa) && fa.closest ? fa.closest('.combat-row') : null, keepR = fr ? fr.dataset.rid : '', keepC = fr ? ['combat-on', 'combat-init', 'combat-roll', 'combat-up', 'combat-down'].filter(function(c) { return fa.classList.contains(c); })[0] : '';   // 1.6.0: a redraw keeps the keyboard's place in the list
@@ -10268,7 +10268,7 @@ function tableMenuParts(e, role) {
     function head(label) { return '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + label + '</div>'; }
     function bringItems() { return players.map(function(p) { return '<div class="menu-item cm-session" data-act="bring" data-pid="' + esc(p.id) + '"><i class="wib wi-bring"></i> Bring ' + esc(p.name) + ' here</div>'; }).join(''); }
     if (role === 'client') {
-        html += head('Session') + '<div class="menu-item cm-session" data-act="leave" style="color:var(--danger)">Leave Session</div>';
+        html += head('Session') + '<div class="menu-item cm-session" data-act="leave" style="color:var(--danger)">Leave session</div>';
     } else {
         var nextScene = camp ? Object.values(camp.items).find(function(it) { return it.type === 'planner' && it.meta && it.meta.status === 'next'; }) : null;
         if (nextScene) html += '<div class="menu-item cm-session" data-act="scene" data-id="' + esc(nextScene.id) + '" title="The planner marked Next. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the planner itself.">&#9654; Next scene: ' + esc(nextScene.meta.title || 'planner') + '</div><div class="menu-divider"></div>';
@@ -10290,14 +10290,14 @@ function tableMenuParts(e, role) {
                 html += '<div class="menu-item cm-session" data-act="combat-edit"><i class="wib wi-pen"></i> Combat Roster\u2026</div>';
                 html += '<div class="menu-item cm-session" data-act="combat-end" style="color:var(--danger)">End Combat</div>';
                 html += '<div class="menu-item cm-session" data-act="combat-new" title="Another fight on this map, with its own order and rounds. A token is in one fight at a time"><i class="wib wi-fight"></i> Start another fight here\u2026</div>';
-            } else html += '<div class="menu-item cm-session" data-act="combat" title="Pick who is in the fight, give initiative, run the turns"><i class="wib wi-fight"></i> Start Combat\u2026</div>';
+            } else html += '<div class="menu-item cm-session" data-act="combat" title="Pick who is in the fight, give initiative, run the turns"><i class="wib wi-fight"></i> Start combat\u2026</div>';
             html += '<div class="menu-item cm-session" data-act="notepad"><i class="wib wi-note"></i> ' + (n.notepad && n.notepad.on ? (typeof n.notepadHidden === 'function' && n.notepadHidden() ? 'Show Table Notepad' : 'Put Away Table Notepad') : 'Open Table Notepad') + '</div>';
             html += '<div class="menu-divider"></div>';
             html += '<div class="menu-item cm-session" data-act="summon"><i class="wib wi-summon"></i> Summon Everyone Here</div>';
-            html += '<div class="menu-item cm-session" data-act="travel">' + (n.travelLocked ? '<i class="wib wi-unlock"></i> Allow Travel Between Maps' : '<i class="wib wi-lock"></i> Lock Travel Between Maps') + '</div>';
-            html += '<div class="menu-item cm-session" data-act="pause">' + (n.paused ? '<i class="wib wi-play"></i> Resume the Table' : '<i class="wib wi-pause"></i> Pause the Table') + '</div>';
+            html += '<div class="menu-item cm-session" data-act="travel">' + (n.travelLocked ? '<i class="wib wi-unlock"></i> Allow travel between maps' : '<i class="wib wi-lock"></i> Lock travel between maps') + '</div>';
+            html += '<div class="menu-item cm-session" data-act="pause">' + (n.paused ? '<i class="wib wi-play"></i> Resume the table' : '<i class="wib wi-pause"></i> Pause the table') + '</div>';
             html += '<div class="menu-item cm-session" data-act="log"><i class="wib wi-scroll"></i> Game Record\u2026</div>';
-            html += '<div class="menu-item cm-session" data-act="end" style="color:var(--danger)">End Session for Everyone</div>';
+            html += '<div class="menu-item cm-session" data-act="end" style="color:var(--danger)">End session for everyone</div>';
         }
     }
     function wire(cMenu) {
@@ -10496,7 +10496,7 @@ document.addEventListener('contextmenu', function(e) {
     if (window.wpNet && window.wpNet.foreign && !(window.wpNet.active && window.wpNet.role === 'client')) return;   // the owed review, 2026-10-09: someone else's table on this screen with its link down, between two attempts to reconnect. The GM's menu is not theirs then either
     if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') {
         // players get no edit menu — except elevation / posture on their own token (the
-        // same permission line as moving it); empty play-map space offers Leave Session
+        // same permission line as moving it); empty play-map space offers Leave session
         if (state.viewMode === 'visual' && e.target.closest('#whiteboardWrap')) {
             var ownEl = e.target.closest('.wb-item');
             var ownW = ownEl && getActiveMap() ? (getActiveMap().whiteboard || []).find(function(x) { return x.id === ownEl.dataset.id; }) : null;

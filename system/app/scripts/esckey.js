@@ -5,7 +5,7 @@
 
    One listener hears Escape first, at the window in the capture phase, and judges what is on top (escJudge):
    - a question or a prompt of the app's own, the tour, the cleanup's questions, a dialog that hears Escape first at the window (the token
-     creator, the three generators, Save Map as Picture), the Image Library's preview and a video filling the window keep their own rules:
+     creator, the three generators, Save map as picture), the Image Library's preview and a video filling the window keep their own rules:
      the key is left to them, and nothing else hears it as free (aside);
    - else a right-click menu is put away (close);
    - else an open menu: of the top row, of a toolbar, the party's, the voice popover, the library's categories, a section's actions, the colour

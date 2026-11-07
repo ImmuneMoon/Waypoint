@@ -3096,6 +3096,24 @@ window.wpFitToGrid = fitToGrid;
       toast('Focused on ' + (loc.tok.charName || loc.tok.name || 'the character') + '.');
   }
   window.wpFocusCharacter = focusCharacter;
+  // 1.6.2 (the owner: a press on a face in a map's hover list jumps to that player on the map they are on): their token on that very map,
+  // the character they play before any other, centred and selected; with none of theirs there, the map, and a word. Never a waiting token
+  function focusPlayerOn(pid, mapId, name) {
+      var camp = getActiveCampaign(), m = camp && typeof mapId === 'string' ? camp.items[mapId] : null;
+      if (!m || m.type !== 'map' || typeof pid !== 'string' || !pid) return false;
+      var wb = m.whiteboard || [], mine = function(x) { return x && x.isChar && !x.waiting && x.ownerId === pid; };
+      var tok = wb.find(function(x) { return mine(x) && !x.hidden && x.charId; }) || wb.find(function(x) { return mine(x) && !x.hidden; }) || wb.find(mine);
+      var nm = String(name || (tok && (tok.charName || tok.name)) || 'That player');
+      if (camp.activeItemId !== mapId) { camp.activeItemId = mapId; updateSidebarNav(); }
+      state.viewMode = 'visual';
+      if (tok) { m.meta = m.meta || {}; m.meta.lastWbX = tok.x + (tok.w || 60) / 2; m.meta.lastWbY = tok.y + (tok.h || 52) / 2; m.meta.lastWbZoom = FOCUS_ZOOM; state.selWbId = tok.id; state.selWbIds = [tok.id]; }
+      render();
+      if (window.appRestoreCamera) window.appRestoreCamera();
+      save();
+      toast(tok ? 'Focused on ' + (tok.charName || tok.name || nm) + '.' : nm + ' is on this map with no token of theirs to show.');
+      return true;
+  }
+  window.wpFocusPlayerOn = focusPlayerOn;
   (function wirePartyStrip() {
       var strip = document.getElementById('partyStrip'); if (!strip) return;
       strip.addEventListener('click', function(e) {

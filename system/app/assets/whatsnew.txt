@@ -588,6 +588,8 @@ Writing planners and pages
 - Layers, in the play map's More menu, lists the map's pieces front to back in
   a window of its own titled with the map's name. A group and a flattened
   picture hold their pieces under them.
+- A map's row in the Maps list shows up to four overlapping faces. Point at
+  them for everyone on that map, and press a name to centre on their token.
 - The bar over a selected piece folds to one small button, and Settings can
   put it away altogether, so it covers less of the pieces around it.
 - Properties floats over the map in a window you move by its title, and opens

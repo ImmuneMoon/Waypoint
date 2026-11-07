@@ -262,6 +262,89 @@ function panelHeld(doc, foreign, chN, hasDoc) {
 // [lookcheck:panelbare-end]
 // The one place the class and the Handbook's own stepping aside are written: asked by the Characters section's sync (charlist.js), which
 // runs at every redraw of the panel and of the board, and by the panel itself while that module is not there yet
+// [lookcheck:prespop-start]
+// 1.6.2 (the owner: a map's faces overlap, a few on the row and the rest in a list over the panel, sorted by who arrived last or first, a press
+// in the list jumping to that player on that map). Four faces show (PRES_SHOWN); the order is this computer's own (wp_presOrder: 'first', else
+// newest first). Players there now come before those last seen there, and a time the app does not know comes last in either order
+var PRES_SHOWN = 4;
+function presOrder() { try { return localStorage.getItem('wp_presOrder') === 'first' ? 'first' : 'new'; } catch (e) { return 'new'; } }
+function presSort(list, order) {
+    var l = (Array.isArray(list) ? list : []).filter(function(p) { return p && typeof p === 'object'; }).map(function(p, i) { return { p: p, i: i }; });
+    l.sort(function(a, b) {
+        if (!!a.p.connected !== !!b.p.connected) return a.p.connected ? -1 : 1;
+        var x = Number(a.p.at) > 0 ? Number(a.p.at) : 0, y = Number(b.p.at) > 0 ? Number(b.p.at) : 0;
+        if (x !== y) { if (!x || !y) return x ? -1 : 1; return order === 'first' ? x - y : y - x; }
+        return a.i - b.i;
+    });
+    return l.map(function(e) { return e.p; });
+}
+var _presPop = null, _presFor = null, _presT = 0;
+function presPopEl() {
+    if (_presPop) return _presPop;
+    var d = document.createElement('div'); d.id = 'presPop'; d.className = 'pres-pop'; d.setAttribute('role', 'menu'); d.style.display = 'none';
+    document.body.appendChild(d);
+    d.addEventListener('mouseenter', function() { clearTimeout(_presT); });
+    d.addEventListener('mouseleave', presLater);
+    d.addEventListener('click', function(e) {
+        var b = e.target && e.target.closest ? e.target.closest('.pres-row') : null; if (!b) return;
+        presHide();
+        if (window.wpFocusPlayerOn) window.wpFocusPlayerOn(b.dataset.pid, b.dataset.map, b.dataset.name);
+    });
+    d.addEventListener('keydown', function(e) {
+        if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+        var rows = Array.prototype.slice.call(d.querySelectorAll('.pres-row')), at = rows.indexOf(document.activeElement);
+        var n = rows[(at + (e.key === 'ArrowDown' ? 1 : rows.length - 1)) % rows.length]; if (n) { n.focus(); e.preventDefault(); }
+    });
+    return (_presPop = d);
+}
+function presHide() { clearTimeout(_presT); if (_presPop) _presPop.style.display = 'none'; _presFor = null; }
+function presLater() { clearTimeout(_presT); _presT = setTimeout(presHide, 200); }
+function presShow(box, focus) {
+    var net = window.wpNet, mapId = box && box.dataset ? box.dataset.map : '';
+    if (!net || !mapId || typeof net.playersOnMap !== 'function') return;
+    var list = presSort(net.playersOnMap(mapId) || [], presOrder()); if (!list.length) return;
+    var d = presPopEl(), camp = getActiveCampaign(), m = camp && camp.items ? camp.items[mapId] : null;
+    clearTimeout(_presT); _presFor = box; d.textContent = '';
+    var h = document.createElement('div'); h.className = 'pres-head';
+    h.textContent = 'On ' + ((m && m.meta && m.meta.title) || 'this map') + ' \u00b7 ' + list.length; d.appendChild(h);
+    list.forEach(function(p) {
+        var nm = String(p.name || ''), b = document.createElement('button');
+        b.type = 'button'; b.className = 'pres-row' + (p.connected ? '' : ' off'); b.setAttribute('role', 'menuitem');
+        b.dataset.pid = String(p.id || ''); b.dataset.map = mapId; b.dataset.name = nm; b.title = 'Jump to ' + (nm || 'this player') + ' on this map';
+        var img = document.createElement('img'); img.alt = '';
+        img.src = net.safeAvatar && net.safeAvatar(p.avatar) ? p.avatar : (window.wpDefaultAvatar ? window.wpDefaultAvatar(p.color || ('hsl(' + (p.hue || 0) + ',55%,55%)')) : '');
+        var t = document.createElement('span'); t.className = 'pres-name'; t.textContent = nm || 'A player';
+        var s = document.createElement('small'); s.textContent = p.connected ? 'Here now' : 'Last seen here';
+        b.appendChild(img); b.appendChild(t); b.appendChild(s); d.appendChild(b);
+    });
+    d.style.display = 'flex';
+    var r = box.getBoundingClientRect(), w = d.offsetWidth, ht = d.offsetHeight;
+    var left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)), top = r.bottom + 4;
+    if (top + ht > window.innerHeight - 8) top = Math.max(8, r.top - ht - 4);
+    d.style.left = Math.round(left) + 'px'; d.style.top = Math.round(top) + 'px';
+    if (focus) { var f = d.querySelector('.pres-row'); if (f) f.focus(); }
+}
+(function presWire() {
+    if (typeof document === 'undefined' || !document.addEventListener) return;
+    var boxOf = function(e) { return e.target && e.target.closest ? e.target.closest('.si-presence') : null; };
+    document.addEventListener('mouseover', function(e) { var b = boxOf(e); if (!b) return; if (b !== _presFor) presShow(b); else clearTimeout(_presT); });
+    document.addEventListener('mouseout', function(e) { var b = boxOf(e); if (b && !(e.relatedTarget && b.contains(e.relatedTarget))) presLater(); });
+    document.addEventListener('click', function(e) {   // the faces open their list, never the map's row under them
+        var b = boxOf(e); if (!b) return;
+        e.stopPropagation(); e.preventDefault();
+        if (_presFor === b && _presPop && _presPop.style.display !== 'none') presHide(); else presShow(b);
+    }, true);
+    document.addEventListener('keydown', function(e) {
+        var b = boxOf(e); if (!b || (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'ArrowDown')) return;
+        e.preventDefault(); e.stopPropagation(); presShow(b, true);
+    }, true);
+    document.addEventListener('pointerdown', function(e) {
+        if (!_presPop || _presPop.style.display === 'none') return;
+        if (_presPop.contains(e.target) || boxOf(e)) return;
+        presHide();
+    }, true);
+})();
+// [lookcheck:prespop-end]
 function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(document, !!(window.wpNet && window.wpNet.foreign), chN, panelHasDoc(camp && camp.items)); }
 
   function updateSidebarNav() {
@@ -305,19 +388,19 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
       function mapPresenceHtml(mapId) {
           var net = window.wpNet;
           if (!net || (net.active && net.role === 'client') || net.foreign || typeof net.playersOnMap !== 'function') return '';
-          var players = net.playersOnMap(mapId) || [];
+          var players = presSort(net.playersOnMap(mapId) || [], presOrder());
           if (!players.length) return '';
-          var chips = players.slice(0, 6).map(function(p) {
+          var chips = players.slice(0, PRES_SHOWN).map(function(p, pi) {
               var nm = String(p.name || '');
               var initials = (nm.trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase()) || '?';
               var avOk = !!(net.safeAvatar && net.safeAvatar(p.avatar));   // the whole data URL (net.js), and escaped anyway
               var face = avOk
                   ? '<img src="' + esc(p.avatar) + '" alt="">'
                   : '<img src="' + (window.wpDefaultAvatar ? window.wpDefaultAvatar(p.color || ('hsl(' + (p.hue || 0) + ',55%,55%)')) : '') + '" alt="">';   // no photo → the color-tinted silhouette default
-              return '<span class="si-pres' + (p.connected ? '' : ' off') + '" title="' + esc(nm) + (p.connected ? ' — here now' : ' — last seen here') + '">' + face + '</span>';
+              return '<span class="si-pres' + (p.connected ? '' : ' off') + '" style="z-index:' + (PRES_SHOWN + 1 - pi) + '">' + face + '</span>';   // the first on top, each after it tucked under the one before
           }).join('');
-          var extra = players.length > 6 ? '<span class="si-pres si-pres-more" title="' + (players.length - 6) + ' more">+' + (players.length - 6) + '</span>' : '';
-          return '<span class="si-presence" title="Players on this map">' + chips + extra + '</span>';
+          var extra = players.length > PRES_SHOWN ? '<span class="si-pres si-pres-more">+' + (players.length - PRES_SHOWN) + '</span>' : '';
+          return '<span class="si-presence" tabindex="0" role="button" aria-haspopup="true" data-map="' + esc(mapId) + '" aria-label="' + players.length + ' player' + (players.length === 1 ? '' : 's') + ' on this map. Show them">' + chips + extra + '</span>';
       }
       function rowHtml(item, depth, hasKids, collapsed) {
 

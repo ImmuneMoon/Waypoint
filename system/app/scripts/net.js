@@ -691,16 +691,23 @@ function syncLastMaps() {
 // Who is on a given map — for the Maps sidebar presence dots. Connected players (live) plus
 // registered players last seen there (persisted after they leave). GM-side only: camp.players is
 // stripped for players, and net.roster is the host's. Each: { id, name, avatar, connected, hue }.
+// [lookcheck:arrive-start]
+// 1.6.2 (the owner: a map's faces sorted by who arrived last or first): when each player arrived on the map they stand on, noted the first time
+// this machine sees them there, kept in its memory alone and never sent. A player last seen on a map keeps the time they arrived there
+var _arrive = Object.create(null);
+function arriveAt(pid, mapId, now) { var a = _arrive[pid]; if (!a || a.map !== mapId) a = _arrive[pid] = { map: mapId, at: typeof now === 'number' ? now : Date.now() }; return a.at; }
+function arrivedOn(pid, mapId) { var a = _arrive[pid]; return a && a.map === mapId ? a.at : 0; }
+// [lookcheck:arrive-end]
 net.playersOnMap = function(mapId) {
     if (!mapId) return [];
     var out = [], seen = {};
     Object.values(net.roster || {}).forEach(function(p) {
-        if (p && p.id && p.location === mapId) { out.push({ id: p.id, name: p.name || p.id, avatar: p.avatar, connected: true, hue: playerHue(p.id), color: p.color || null }); seen[p.id] = 1; }
+        if (p && p.id && p.location === mapId) { out.push({ id: p.id, name: p.name || p.id, avatar: p.avatar, connected: true, hue: playerHue(p.id), color: p.color || null, at: arriveAt(p.id, mapId) }); seen[p.id] = 1; }
     });
     var camp = getActiveCampaign();
     if (camp && camp.players) Object.keys(camp.players).forEach(function(pid) {
         var rec = camp.players[pid];
-        if (rec && !seen[pid] && rec.lastMap === mapId) out.push({ id: pid, name: rec.name || pid, avatar: null, connected: false, hue: playerHue(pid), color: rec.color || null });
+        if (rec && !seen[pid] && rec.lastMap === mapId) out.push({ id: pid, name: rec.name || pid, avatar: null, connected: false, hue: playerHue(pid), color: rec.color || null, at: arrivedOn(pid, mapId) });
     });
     return out;
 };

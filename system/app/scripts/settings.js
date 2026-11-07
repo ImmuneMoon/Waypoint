@@ -250,6 +250,9 @@ if (_wmSel) { _wmSel.value = _wm0; _wmSel.addEventListener('change', function() 
 // 1.6.2, backlog 212: where this computer shows the dice of a roll tumbling (wp_dice3d: card, the default, map or off), which dice3d.js reads at each roll
 var _d3Sel = ui('setDiceShow'), _d3Of = function(v) { return v === 'map' || v === 'off' ? v : 'card'; };
 if (_d3Sel) { try { _d3Sel.value = _d3Of(localStorage.getItem('wp_dice3d')); } catch (e) { _d3Sel.value = 'card'; } _d3Sel.addEventListener('change', function() { try { localStorage.setItem('wp_dice3d', _d3Of(_d3Sel.value)); } catch (e) {} }); }
+// 1.6.2: which players come first among a map's faces in the Maps list (wp_presOrder: 'first', else newest first), read by sidebar.js
+var _presSel = ui('setPresOrder');
+if (_presSel) { try { _presSel.value = localStorage.getItem('wp_presOrder') === 'first' ? 'first' : 'new'; } catch (e) { _presSel.value = 'new'; } _presSel.addEventListener('change', function() { try { if (_presSel.value === 'first') localStorage.setItem('wp_presOrder', 'first'); else localStorage.removeItem('wp_presOrder'); } catch (e) {} if (window.appRender) window.appRender(); }); }
 var _hidSel = ui('setHiddenLook'), _hid0 = 'fade';
 try { _hid0 = hiddenLookOf(localStorage.getItem('wp_hiddenLook')); } catch (e) {}
 hiddenLookApply(_hid0);

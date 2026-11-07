@@ -1633,7 +1633,13 @@ function draw() {
         else hexPath(cx2, lx, ly, grid.s * z * 1.02);
     };
     var traceCell = function(cell) { traceOn(ctx, cell); };
-    var mem = isClientView() && rememberOn(camp) ? memRemember(map, grid, tiers) : null, memLay = mem && mem.n ? memLayer(map, mem, z, sx, sy, W, H, traceOn) : null;   // senses S6: the ground this player remembers
+    var traceIn = function(b) { var cp = 2 + (grid.type === 'square' ? grid.size * z / 2 : grid.s * z * 1.02); return function(cx2, cell) {   // 1.6.2 (backlog 82b): a cell traced into the remembered ground's layer where it covers a turned screen (the box b)
+        var ctr = C.cellCenter(cell, grid), lx = ctr.x * z - sx - b.x, ly = ctr.y * z - sy - b.y;
+        if (lx < -cp || ly < -cp || lx > b.w + cp || ly > b.h + cp) return;
+        if (grid.type === 'square') { var half = grid.size * z / 2; cx2.rect(lx - half - 1, ly - half - 1, half * 2 + 2, half * 2 + 2); }
+        else hexPath(cx2, lx, ly, grid.s * z * 1.02);
+    }; };
+    var mem = isClientView() && rememberOn(camp) ? memRemember(map, grid, tiers) : null, memBox = turnV && turnV.fogBox ? turnV.fogBox(W, H) : null, memLay = mem && mem.n ? (memBox ? memLayer(map, mem, z, sx + memBox.x, sy + memBox.y, memBox.w, memBox.h, traceIn(memBox)) : memLayer(map, mem, z, sx, sy, W, H, traceOn)) : null;   // senses S6: the ground this player remembers
     if (!isStreamView() && typeof heightShown === 'function') tiers = heightShown(tiers, map, camp, drawOwner(), grid, mask);   // item 19b H4: the cell of a creature seen over a low wall (after the memory: it is no ground seen)
     ctx.save();
     if (turnV) turnV.turnCtx(ctx);   // the fog's cells turn about the same point as the board
@@ -1647,7 +1653,7 @@ function draw() {
     if (turnV) { var dg = Math.hypot(W, H); ctx.fillRect(-dg, -dg, W + 2 * dg, H + 2 * dg); } else   // turned, the fill covers the screen's turned corners too
     ctx.fillRect(0, 0, W, H);                                      // one flat fill (clipped to the mask when set) — no per-cell alpha seams
     ctx.globalCompositeOperation = 'destination-out';
-    if (memLay) { ctx.globalAlpha = 0.3; ctx.drawImage(memLay, 0, 0); ctx.globalAlpha = 1; }   // senses S6: remembered ground, a third of the way through the fog
+    if (memLay) { ctx.globalAlpha = 0.3; ctx.drawImage(memLay, memBox ? memBox.x : 0, memBox ? memBox.y : 0); ctx.globalAlpha = 1; }   // senses S6: remembered ground, a third of the way through the fog
     // lighting: a dim cell is punched part-way (its terrain shows, darkened), a clear or bright one fully — each tier one path filled once, so
     // padded cells never double-punch a seam. Lighting off: every cell is tier 2, exactly as before
     var tl = tiers.list, tk = tiers.keys, anyDim = false;

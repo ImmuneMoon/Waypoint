@@ -55,6 +55,15 @@ function uprightOf(item, facing) { return !!item && !item.waiting && (item.type 
 function uprightTurn(deg) { return Math.abs(deg) > 0.01 ? (Math.round(-deg * 100) / 100) + 'deg' : ''; }
 // A token's own turn on the board (what it wears of ours and its own rot), taken back from its words: always a value, so a map turned back to
 // north keeps the words level while the token keeps a turn
+// The fog's screen as its unturned drawing reaches it (backlog 82b): the box, in the fog canvas's own unturned space, that holds the four
+// corners of a W by H screen once that space is turned by a about the pivot's place p and moved by t. A layer drawn there covers every
+// corner of a turned screen. Whole pixels, two to spare each way
+function fogBox(W, H, a, tx, ty, px, py) {
+    var c = Math.cos(a), s = Math.sin(a), xs = [], ys = [];
+    [[0, 0], [W, 0], [W, H], [0, H]].forEach(function(p) { var dx = p[0] - tx - px, dy = p[1] - ty - py; xs.push(Math.round((px + c * dx + s * dy) * 1000) / 1000); ys.push(Math.round((py - s * dx + c * dy) * 1000) / 1000); });
+    var x = Math.floor(Math.min.apply(null, xs)) - 2, y = Math.floor(Math.min.apply(null, ys)) - 2;
+    return { x: x, y: y, w: Math.ceil(Math.max.apply(null, xs)) + 2 - x, h: Math.ceil(Math.max.apply(null, ys)) + 2 - y };
+}
 function levelTurn(own) { return (Math.round(-(Number(own) || 0) * 100) / 100 || 0) + 'deg'; }
 // The turn a piece wears of its own: a text box reads across the screen; a character token that faces no way stands upright while the view follows a
 // token (follow), else faces the way it last moved where Turn to movement is on (heading, null for none yet), else stands upright on a turned map
@@ -173,6 +182,7 @@ window.wpView = {
     // the fog's canvas turned about the pivot's place on screen, where it draws a board point at board * zoom - scroll
     screenRect: function() { var w = wrapEl(); if (!w || !isTurned()) return null; var r = w.getBoundingClientRect(), cs = [[r.left, r.top], [r.right, r.top], [r.right, r.bottom], [r.left, r.bottom]]; return cs.map(function(p) { return bxy(p[0], p[1], r, w); }); },   // the screen's four corners on the board, for the minimap
     turnCtx: function(ctx) { if (!isTurned() || !ctx) return false; var w = wrapEl(), z = state.zoomLevel || 1, px = V.ox * z - (w ? w.scrollLeft : 0), py = V.oy * z - (w ? w.scrollTop : 0); ctx.translate(V.tx + px, V.ty + py); ctx.rotate(rad()); ctx.translate(-px, -py); return true; },
+    fogBox: function(W, H) { if (!isTurned() || !(W > 0) || !(H > 0)) return null; var w = wrapEl(), z = state.zoomLevel || 1; return fogBox(W, H, rad(), V.tx, V.ty, V.ox * z - (w ? w.scrollLeft : 0), V.oy * z - (w ? w.scrollTop : 0)); },   // where the fog's remembered ground must be drawn to reach a turned screen's corners
     on: function() { return prefOn(); }, set: setOn, wake: wake, upright: function() { upright(true); },
     setGm: setGmTurn, gmSync: gmSync,
     now: function() { return { on: V.on, src: V.src, tok: V.tok, goal: V.goal, deg: V.deg, ox: V.ox, oy: V.oy, tx: V.tx, ty: V.ty }; }   // what the view follows, for the step log and a check

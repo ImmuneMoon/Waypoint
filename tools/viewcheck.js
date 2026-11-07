@@ -12,7 +12,7 @@ const viewSrc = read('scripts/view.js');
 const a = viewSrc.indexOf('// [viewcheck:core-start]'), z = viewSrc.indexOf('// [viewcheck:core-end]');
 check('view.js holds its core between its markers', a >= 0 && z > a);
 const state = { zoomLevel: 1 };
-const K = new Function('state', viewSrc.slice(a, z) + '\nreturn { uprightOf: uprightOf, uprightTurn: uprightTurn, levelTurn: levelTurn, pieceTurn: pieceTurn, viewSource: viewSource, V: V, rad: rad, isTurned: isTurned, turnTo: turnTo, bxy: bxy, dxy: dxy, sxy: sxy, pivotTo: pivotTo, transform: transform, headingOf: headingOf, moveHeading: moveHeading };')(state);
+const K = new Function('state', viewSrc.slice(a, z) + '\nreturn { uprightOf: uprightOf, uprightTurn: uprightTurn, levelTurn: levelTurn, fogBox: fogBox, pieceTurn: pieceTurn, viewSource: viewSource, V: V, rad: rad, isTurned: isTurned, turnTo: turnTo, bxy: bxy, dxy: dxy, sxy: sxy, pivotTo: pivotTo, transform: transform, headingOf: headingOf, moveHeading: moveHeading };')(state);
 const V = K.V, near = (p, q, e) => Math.abs(p - q) <= (e || 1e-6);
 
 // the shortest way round
@@ -124,6 +124,13 @@ check('Turn to movement is a VTT feature a player may switch off, the GM sets ev
     && read('scripts/net.js').includes('CPv.cleanViewTurn(m.meta.viewTurn)') && read('scripts/cleanup.js').includes('CPt.cleanViewTurn(it.meta.viewTurn)')
     && help.includes('<b>Everyone&rsquo;s map</b>') && help.includes('<b>Turn to movement</b>')
     && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n').includes('- Turn to movement, a new VTT setting, turns a token that faces no way to\n')));
+{ const b0 = K.fogBox(800, 600, 0, 0, 0, 400, 300), b90 = K.fogBox(800, 600, Math.PI / 2, 0, 0, 400, 300), b45 = K.fogBox(800, 600, Math.PI / 4, 30, -10, 100, 50);
+  const inside = (b, x, y) => x >= b.x && y >= b.y && x <= b.x + b.w && y <= b.y + b.h, back = (a, tx, ty, px, py, x, y) => [px + Math.cos(a) * (x - tx - px) + Math.sin(a) * (y - ty - py), py - Math.sin(a) * (x - tx - px) + Math.cos(a) * (y - ty - py)];
+  check('the fog\'s remembered ground reaches a turned screen\'s corners: fogBox is the box, in the fog\'s unturned space, that holds the screen\'s four corners turned back (unturned, the screen itself with two pixels to spare; a quarter turn about the middle, the screen on its side), and the overlay draws its layer there',
+    JSON.stringify(b0) === JSON.stringify({ x: -2, y: -2, w: 804, h: 604 }) && JSON.stringify(b90) === JSON.stringify({ x: 98, y: -102, w: 604, h: 804 })
+    && [[0, 0], [800, 0], [800, 600], [0, 600]].every(p => inside(b45, ...back(Math.PI / 4, 30, -10, 100, 50, p[0], p[1])))
+    && fog.includes('ctx.drawImage(memLay, memBox ? memBox.x : 0, memBox ? memBox.y : 0);') && fog.includes('memBox = turnV && turnV.fogBox ? turnV.fogBox(W, H) : null') && viewSrc.includes('fogBox: function(W, H) { if (!isTurned()'),
+    JSON.stringify([b0, b90, b45])); }
 check('a token\'s words read level: its own turn taken back from them as a value always written (levelTurn), and the style sheet turns them, the stream names and the ruler\'s and marks\' words by the board\'s turn too',
     K.levelTurn(-30) === '30deg' && K.levelTurn(45.256) === '-45.26deg' && K.levelTurn(0) === '0deg' && K.levelTurn('x') === '0deg' && K.levelTurn(undefined) === '0deg'
     && viewSrc.includes("el.style.setProperty('--lvl-own', t)") && viewSrc.includes("if (!w || !w.isChar || w.waiting || !(r || want[w.id])) return;")

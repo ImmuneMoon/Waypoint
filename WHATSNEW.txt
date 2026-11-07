@@ -588,7 +588,8 @@ Writing planners and pages
 - A job of a list's roll may be ticked At once out of a fight: out of one its
   first press is its last, and its roll is made then.
 - A defence may answer a critical that is otherwise not resisted: Answers a
-  critical where, on a roll that resists, says for whom.
+  critical where, on a roll that resists, says for whom. A list roll may say
+  its Attempt type, worked out from its row, which a defence reads.
 - Cloud saves say when a day's uploads or a month's downloads on your plan
   are used up, and when they start again.
 - On the website, when a month's downloads are used up, sounds and videos say

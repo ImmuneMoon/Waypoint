@@ -5758,6 +5758,15 @@ pendingChecks.push((async () => {
     check('1.6.2 Answers a critical where (the CORE session): an attack not resisted on a critical still posts its defender the defence whose formula holds for them (Will >= 12 on Sela\'s Will 12), and none where it fails or cannot be worked out; kept in the GM\'s view alone and only on a roll ticked Resists an attempt',
         ckHold.length === 1 && ckHold[0].act === 'r_dg' && ckHold[0].ch === 'c_b' && ckFail.length === 0 && ckBad.length === 0 && ckP.rolls[1].critOk === undefined && ckSys('Will >= 12').rolls[1].critOk === 'Will >= 12'
         && !('critOk' in ckRaw.rolls[0]) && ckRaw.rolls[1].critOk === 'Will >= 1', j([ckHold, ckFail, ckBad]));
+    {   // 1.6.2 (the CORE session): Attempt type. A list roll's formula of its row, worked out on the host as the attempt is made, read by a resist roll as Attempt.type
+        const atSys = ck => { const r = JSON.parse(JSON.stringify(sys)); const sw = r.fields[2].list.rolls[1]; sw.formula = '3d6 <= 13'; sw.resistBy = 'r_dg'; sw.noResistOnCrit = true; sw.attemptType = 'Row.Def + 100'; r.rolls[1].critOk = ck; return Sx.cleanSystem(r, { F: Fx, gmView: true }); };
+        const keepA = camp.chars.c_a.values; camp.chars.c_a.values = { f_wp: [{ id: 'w_ka', defId: 'i_sw', qty: 1 }] };
+        const atRun = s => { camp.system = s; const k = out.dues.length; roll(cA, 'c_a', { row: { f: 'f_wp', r: 'w_ka', i: 1 } }, '3d6 <= 13', [1, 1, 1]); const d = out.dues.slice(k); camp.system = sys; return d; };
+        const tHold = atRun(atSys('Attempt.type = 111')), tMiss = atRun(atSys('Attempt.type = 110')), atP = Sx.cleanSystem(atSys('Attempt.type = 111'), { F: Fx, gmView: false }); camp.chars.c_a.values = keepA;
+        const vT = Sx.validateSystem(atSys('Attempt.type = 111'), Fx);
+        check('1.6.2 Attempt type (the CORE session): a list roll\'s Attempt type is worked out on the host from the attacking row (Row.Def + 100 on a Blade of Def 11 gives 111), and a defence reads it as Attempt.type, here in Answers a critical where: 111 answers the critical, 110 does not; kept in the GM\'s view alone, and the validator takes it in a roll that resists',
+            tHold.length === 1 && tHold[0].act === 'r_dg' && tMiss.length === 0 && atSys('x').fields[2].list.rolls[1].attemptType === 'Row.Def + 100' && !('attemptType' in atP.fields[2].list.rolls[1]) && !vT.errors.some(e => /Attempt\.type/.test(e.message)), j([tHold, tMiss, vT.errors.slice(0, 3)]));
+    }
     // 1.6.0: a list's roll offered for each row the target holds, only where that roll's own Shown where (showIf) holds on the row, as the host then judges the press
     const shSys = sh => { const r = JSON.parse(JSON.stringify(sys)); r.fields.push({ id: 'f_sc', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm', def: 0 }); r.fields[2].list.rolls[0].showIf = sh; return Sx.cleanSystem(r, { F: Fx, gmView: true }); };
     const offer = (s, priv) => { camp.system = s; roll(cA, 'c_a', Object.assign({ act: 'r_tr' }, priv ? { priv: 'gm' } : {}), '3d6 <= 13', [2, 3, 4]); return out.dues[out.dues.length - 1]; };

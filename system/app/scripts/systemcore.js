@@ -5180,6 +5180,13 @@ function droppedCounts(raw, clean) {
     };
     var rsh = isObj(raw.sheet) ? raw.sheet : null, csh = isObj(clean.sheet) ? clean.sheet : null;
     lay(rsh, csh, ''); lay(rsh && rsh.hud, csh && csh.hud, 'HUD ');
+    // 1.6.2 (found by the CORE session: a counter keyed as a stat of its list was left out, and with it the job that counted on it, with no word): a
+    // list's stats, columns and counters, and the jobs of its rolls and actions, in the lists kept, compared by the field's id
+    var keptF = map(); (Array.isArray(clean.fields) ? clean.fields : []).forEach(function(f) { if (isObj(f) && typeof f.id === 'string' && isObj(f.list)) keptF[f.id] = f.list; });
+    var len = function(a) { return Array.isArray(a) ? a.filter(isObj).length : 0; }, jobs = function(l) { return Array.isArray(l.rolls) ? l.rolls.filter(function(r) { return isObj(r) && isObj(r.job); }).length : 0; }, lsd = { 'list stats': 0, 'list columns': 0, 'list counters': 0, jobs: 0 };
+    (Array.isArray(raw.fields) ? raw.fields : []).forEach(function(f) { var cl = isObj(f) && typeof f.id === 'string' && isObj(f.list) ? keptF[f.id] : null; if (!cl) return; var rl = f.list;
+        lsd['list stats'] += Math.max(0, len(rl.stats) - len(cl.stats)); lsd['list columns'] += Math.max(0, len(rl.cols) - len(cl.cols)); lsd['list counters'] += Math.max(0, len(rl.counters) - len(cl.counters)); lsd.jobs += Math.max(0, jobs(rl) - jobs(cl)); });
+    Object.keys(lsd).forEach(function(k) { if (lsd[k] > 0) out[k] = lsd[k]; });
     var cutN = textsCut(raw, clean, 0); if (cutN) out.texts = cutN;
     return out;
 }

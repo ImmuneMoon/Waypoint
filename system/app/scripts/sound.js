@@ -107,7 +107,7 @@ function effGain(entry) { return muted ? 0 : mixGain(entry, isClient() ? hostMas
 function bytesFor(entry) {
     if (bytes[entry.path]) return Promise.resolve(bytes[entry.path]);
     var p;
-    if (entry.def || !isClient()) p = fetch(encodeURI(entry.path)).then(function(r) { if (!r.ok) throw new Error('missing'); return r.blob(); });
+    if (entry.def || !isClient()) p = fetch(encodeURI(entry.path)).then(function(r) { if (!r.ok) { if (window.wpMediaLimit) window.wpMediaLimit(r); throw new Error('missing'); } return r.blob(); });   // 1.6.2: a website's month of downloads used up is said once (medialimit.js)
     else { var n = net(); if (!n || !n.fetchAsset) return Promise.reject(new Error('offline')); p = n.fetchAsset(entry.path, entry.size); }
     return p.then(function(blob) { if (blob.size > LIMITS.file * 3) throw new Error('too-big'); bytes[entry.path] = blob; return blob; });
 }

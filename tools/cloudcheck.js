@@ -120,6 +120,15 @@ const mk = (dir, S, now) => CS.makeHandler({ savesDir: dir, base: BASE, fetch: S
         check('a GM\'s page on the website whose day of uploads is used up (429 daily-upload on POST /api/data) says so in the failed save\'s notice, with when saving starts again; any other failure says what it always did',
             ioS.includes("_saveLimit = j && j.error === 'daily-upload' && j.resetsAt > 0 ? j.resetsAt : 0;") && ioS.includes("Saving starts again at ") && ioS.includes("toast('Saving failed. The campaign is not reaching the disk.');"));
     }
+    {   // a sound or a video past a website's month of downloads: one notice with when it starts again (medialimit.js, run for real)
+        const mlS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'medialimit.js'), 'utf8'), a = mlS.indexOf('// [cloudcheck:medialimit-start]'), b = mlS.indexOf('// [cloudcheck:medialimit-end]');
+        const ML = new Function(mlS.slice(a, b) + '\nreturn { limitOf: limitOf, limitWords: limitWords };')();
+        const sndS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sound.js'), 'utf8'), musS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'music.js'), 'utf8'), ixM = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8');
+        check('a sound or a video past a website\'s month of downloads: only 429 monthly-download counts (not the rate limit\'s 429, not another status), its reset kept or none, the words saying sounds and videos do not play and when they start again; sound.js and music.js hand a refused answer over, a failed video or sound element asks its address once, and the module is in the page once',
+            J(ML.limitOf(429, { error: 'monthly-download', resetsAt: 1796083200000 })) === J({ at: 1796083200000 }) && J(ML.limitOf(429, { error: 'monthly-download' })) === J({ at: 0 }) && ML.limitOf(429, { error: 'too many' }) === null && ML.limitOf(403, { error: 'monthly-download' }) === null && ML.limitOf(429, null) === null
+            && /downloads from the website are used up, so sounds and videos do not play\. They start again on /.test(ML.limitWords(1796083200000)) && !/start again/.test(ML.limitWords(0))
+            && sndS.includes('if (window.wpMediaLimit) window.wpMediaLimit(r); throw new Error(\'missing\');') && musS.includes('if (window.wpMediaLimit) window.wpMediaLimit(r); throw new Error(\'missing\');') && /el\.tagName !== 'VIDEO' && el\.tagName !== 'AUDIO'/.test(mlS) && ixM.split('scripts/medialimit.js').length === 2);
+    }
     fs.unlinkSync(path.join(dir, 'account.json')); const ul = await H.sync('page', false), us = JSON.parse(await route(H, 'GET', '/api/cloud'));
     check('with no website account linked nothing is sent and the page is told so', ul.did === 'off' && us.linked === false, J([ul, us]));
 

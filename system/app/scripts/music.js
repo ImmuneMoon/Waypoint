@@ -59,7 +59,7 @@ function bytesFor(entry) {
     if (bytes[entry.path]) return Promise.resolve(bytes[entry.path]);
     var p;
     if (!isClient() && !isUploadPath(entry.path)) return Promise.reject(new Error('not an upload'));   // the GM's machine fetches the campaign's own uploads only (a client's list is cleaned on arrival)
-    if (!isClient()) p = fetch(encodeURI(entry.path)).then(function(r) { if (!r.ok) throw new Error('missing'); return r.blob(); });
+    if (!isClient()) p = fetch(encodeURI(entry.path)).then(function(r) { if (!r.ok) { if (window.wpMediaLimit) window.wpMediaLimit(r); throw new Error('missing'); } return r.blob(); });   // 1.6.2: a website's month of downloads used up is said once (medialimit.js)
     else { var n = net(); if (!n || !n.fetchAsset) return Promise.reject(new Error('offline')); p = n.fetchAsset(entry.path, entry.size); }   // M3
     return p.then(function(blob) { if (blob.size > LIMITS.file * 2) throw new Error('too-big'); bytes[entry.path] = blob; return blob; });
 }

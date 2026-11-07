@@ -1299,7 +1299,8 @@ profWire();
 // the user wishes"). The page asks only its own server (/api/account/*, system/resources/app/account.js), which alone talks to the site and
 // keeps the key. What the account keeps is the profile pack's four stores, never wp_hostId. On linking the account is read first and then
 // decided on, before any sync (an early sync merges this computer's table keys and makes the account count as played): an account that has
-// played nowhere adopts this computer's player; one that has takes over a computer that has played nowhere; where both have, you are asked.
+// played nowhere adopts this computer's player, unless it already holds one and this computer has played nowhere, which then takes it (1.6.2);
+// one that has played takes over a computer that has played nowhere; where both have, you are asked.
 // After that every change of the four is sent, and at launch a newer copy on the account is taken, only between tables
 var ACCT = { linked: false, poll: null, url: '', timer: null, code: '', stopped: '' };   // code: the one waiting; stopped: the one Stop ended
 function acctStep(step, o) { if (typeof window.wpStepLog === 'function') window.wpStepLog('account v1', step, o); }
@@ -1370,11 +1371,14 @@ function acctDecide() {
             });
         };
         if (a.played === true) return both();
-        return acctApi('POST', '/api/account/adopt', acctPrefs()).then(function(ad) {
+        // 1.6.2 (the first live test, 2026-11-07): where neither has played, a computer linked to an account that already holds a player takes
+        // that player, so a second computer joins as the same person; only an account that holds none, or a computer that has played, adopts
+        var held = mine ? Promise.resolve(false) : acctApi('GET', '/api/account/prefs').then(function(pr) { return pr.status === 200 && !!pr.json.prefs && typeof pr.json.prefs.wp_profile === 'string' && pr.json.prefs.wp_profile.length > 2; });
+        return held.then(function(h) { if (h) { acctStep('decide', { take: 'account' }); return take(); } return acctApi('POST', '/api/account/adopt', acctPrefs()).then(function(ad) {
             if (ad.status === 200) { acctStep('adopted', {}); return acctTake('adopt', ad.json).then(function() { toast('Linked. Your account now holds the player you are here.'); return acctRefresh(); }); }   // what the site added (a colour) is taken too
             if (ad.status === 409) return both();
             acctStep('adopt-failed', { status: ad.status }); toast('Linked, but your player could not be sent. Try again later.'); return acctRefresh();
-        });
+        }); });
     });
 }
 function acctPoll(interval) {

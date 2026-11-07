@@ -261,7 +261,7 @@ function makeHandler(cfg) {
                 const key = keyOf(); if (!key) return send(res, 409, { error: 'unlinked' });
                 if (!Number.isInteger(j.rev) || j.rev < 1) return send(res, 400, { error: 'bad rev' });
                 if (p === '/api/cloud/keep') { const r = await site('POST', '/api/cloud/keep', { rev: j.rev, kept: j.kept === true }, key); return r.status === 200 ? send(res, 200, { ok: true }) : send(res, 502, { error: words(r.status) }); }
-                const r = await site('POST', '/api/cloud/restore', { rev: j.rev }, key);
+                const r = await site('POST', '/api/cloud/restore', { rev: j.rev, device: device(confOf()) }, key);   // the site names the restoring computer (website Alpha 1.0.8)
                 if (r.status !== 200 || !isObj(r.json) || !Number.isInteger(r.json.rev)) return send(res, 502, { error: words(r.status) });
                 step('restore', { from: j.rev, rev: r.json.rev });
                 send(res, 200, await sync('restore', false));

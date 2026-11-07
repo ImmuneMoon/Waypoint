@@ -142,7 +142,13 @@ function call(h, method, p, body) {
         const r1 = run({ local: { wp_profile: PROF }, answers: { 'GET /api/account': acct(false), 'POST /api/account/adopt': b => ({ status: 200, json: { updated: 77, prefs: Object.assign({}, b.prefs, { wp_profile: J({ id: 'p_here', name: 'Kael', color: '#5976cf' }) }) } }) } });
         await r1.api.acctDecide(); await settle();
         check('linked to an account that has played nowhere: the account is read first, then this computer\'s player is adopted, and what the site added to it (a colour) is taken; nothing is synced before the account was read',
-            r1.calls[0] === 'GET /api/account' && /^POST \/api\/account\/adopt /.test(r1.calls[1]) && !r1.calls.some(c => /^POST \/api\/account\/prefs/.test(c)) && JSON.parse(r1.store.get('wp_profile')).color === '#5976cf' && r1.store.get('wp_acctStamp') === '77', J([r1.calls, [...r1.store]]));
+            r1.calls[0] === 'GET /api/account' && r1.calls[1] === 'GET /api/account/prefs' && /^POST \/api\/account\/adopt /.test(r1.calls[2]) && !r1.calls.some(c => /^POST \/api\/account\/prefs/.test(c)) && JSON.parse(r1.store.get('wp_profile')).color === '#5976cf' && r1.store.get('wp_acctStamp') === '77', J([r1.calls, [...r1.store]]));
+        // 1b (1.6.2, the first live test): neither has played, but the account already holds a player: this computer takes it, with no adopt
+        const HELD = { updated: 90, prefs: { wp_profile: J({ id: 'p_acct', name: 'Kael Renn' }) } };
+        const r1b = run({ local: { wp_profile: PROF, wp_hostId: 'u_mine' }, answers: { 'GET /api/account': acct(false), 'GET /api/account/prefs': { status: 200, json: HELD }, 'POST /api/account/prefs': { status: 200, json: { ok: true } } } });
+        await r1b.api.acctDecide(); await settle(); await settle();
+        check('a second computer that has played nowhere, linked to an account that holds a player but has played nowhere either, takes the account\'s player and adopts nothing (found on the first live test, where it replaced the first computer\'s); the host id stays this computer\'s',
+            !r1b.calls.some(c => /adopt/.test(c)) && JSON.parse(r1b.store.get('wp_profile')).id === 'p_acct' && r1b.store.get('wp_hostId') === 'u_mine' && r1b.asked.length === 0, J([r1b.calls, [...r1b.store]]));
         // 2: an account that has played takes over a computer that has played nowhere, joining the table keys, and only then syncs
         const ACC = { updated: 88, prefs: { wp_profile: J({ id: 'p_acct', name: 'Kael Renn' }), wp_tableKeys: J({ g_one: 'a'.repeat(32) }) } };
         const r2 = run({ local: { wp_profile: PROF, wp_hostId: 'u_mine' }, answers: { 'GET /api/account': acct(true), 'GET /api/account/prefs': { status: 200, json: ACC }, 'POST /api/account/prefs': { status: 200, json: { ok: true } } } });

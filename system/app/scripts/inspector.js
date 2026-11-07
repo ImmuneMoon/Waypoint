@@ -1590,7 +1590,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
       var html = lyEl ? '' : '<h2>' + (state.viewMode==='data' ? 'Data Nodes' : 'Visual Shapes') + '</h2>';
 
-      html += '<input type="text" id="elementSearchInput" placeholder="Filter elements..." style="width:100%; box-sizing:border-box; margin-bottom:10px; padding: 4px;" />';
+      html += '<input type="text" id="elementSearchInput" placeholder="Find a piece" style="width:100%; box-sizing:border-box; margin-bottom:10px; padding: 4px;" />';
 
       
 
@@ -1617,7 +1617,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
       var visual = state.viewMode === 'visual';
       var ordered = items.map(function(it, idx) { return { it: it, idx: idx }; });
       if (visual) ordered.sort(function(a, b) {
-          var la = LAYER_ORDER.indexOf(a.it.layer || 'middle'), lb = LAYER_ORDER.indexOf(b.it.layer || 'middle');
+          var la = LAYER_ORDER.indexOf(layerNow(a.it)), lb = LAYER_ORDER.indexOf(layerNow(b.it));   // 1.6.2: the layer a piece is drawn on, as Properties says it (a piece with no layer word, or one the list lacks, read by its z)
           if (la !== lb) return la - lb;
           return b.idx - a.idx;
       });
@@ -1646,7 +1646,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
           if (done[item.id] || flatOf(item)) return;   // drawn already, or under its picture
 
           if (visual) {
-              var lay = item.layer || 'middle';
+              var lay = layerNow(item);
               if (lay !== lastLayer) {
                   html += '<div class="el-layer-head">' + LAYER_LABEL[lay] + ' layer</div>';
                   lastLayer = lay;
@@ -1673,6 +1673,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
       function elementName(item) {
           if (!visual) return item.name || 'Unnamed Node';
           if (item.name) return item.name;
+          if (item.flatPic === true) return 'Flattened picture';   // 1.6.2 (backlog 39): what Flatten made, said as such in Layers
           if (item.isChar && item.charName) return item.charName;
           if (item.type === 'text') {
               var tmp = document.createElement('div'); tmp.innerHTML = item.text || 'Text';
@@ -1726,7 +1727,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               e.stopPropagation();
               var it = items.find(function(x) { return x.id === b.dataset.id; });
               if (!it) return;
-              var i = LAYER_ORDER.indexOf(it.layer || 'middle');
+              var i = LAYER_ORDER.indexOf(layerNow(it));
               var ni = b.classList.contains('el-up') ? Math.max(0, i - 1) : Math.min(LAYER_ORDER.length - 1, i + 1);
               if (ni === i) return;
               it.layer = LAYER_ORDER[ni];

@@ -3865,5 +3865,22 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         && inS.includes('id="wbSightOutline"') && inS.includes("localStorage.setItem('wp_sightOutline', this.checked ? 'on' : 'off'); } catch (e) {} render(); });")
         && ix.includes('folds to one small button with the arrow at its end'));
 }
+{   // 1.6.2, the hand test of Layers, Flatten and the bar's fold: what it found
+    const inS = read('scripts/inspector.js'), src = sliceOf(wbSrc, 'barkeep');
+    const mk = (l, r, t) => ({ style: { left: '500px', transform: 'x' }, getBoundingClientRect: () => ({ left: l, right: r, top: t, width: r - l }), parentNode: { getBoundingClientRect: () => ({ left: 200, right: 1300, top: 30, width: 1100 }) } });
+    let ok = !!src, f = null;
+    try { f = new Function('window', src + '; return barKeepIn;')({ innerWidth: 1200 }); } catch (e) { ok = false; }
+    const a = mk(900, 1260, 200), b = mk(150, 400, 200), c = mk(500, 700, 10), d = mk(500, 700, 200), e0 = mk(0, 0, 0);
+    if (f) { f(a, 40); f(b, 40); f(c, 40); f(d, 40); f(e0, 40); }
+    check('the bar over a selected piece is kept inside the part of the map in sight: moved back from the window\'s right edge and from the map\'s left edge, set under the piece where no room is above it, and left alone where it fits or has no size',
+        ok && a.style.left === '434px' && b.style.left === '556px' && c.style.transform === 'translate(-50%, 40px)' && d.style.left === '500px' && d.style.transform === 'x' && e0.style.left === '500px'
+        && wbSrc.includes("barKeepIn(bar, Math.round((maxB - minY) * z) + 12);"), [a.style.left, b.style.left, c.style.transform]);
+    check('Layers reads each piece on the layer it is drawn on (a piece with no layer word, or one the list lacks, by its z, as Properties says it), and a flattened picture is named so',
+        inS.includes("var la = LAYER_ORDER.indexOf(layerNow(a.it)), lb = LAYER_ORDER.indexOf(layerNow(b.it));") && inS.includes("              var lay = layerNow(item);") && inS.includes("              var i = LAYER_ORDER.indexOf(layerNow(it));") && !inS.includes("layer || 'middle'")
+        && inS.includes("if (item.flatPic === true) return 'Flattened picture';") && inS.includes('placeholder="Find a piece"'));
+    check('the bar\'s Group button wears the app\'s own chain drawing, in Help too, and no emoji', ix.includes('<button data-st="group" class="st-group" title="Group"><i class="wib wi-chain"></i></button>') && ix.includes('<li><i class="wib wi-chain"></i> is <b>group/ungroup</b>.') && !ix.includes('&#128279;'));
+    check('a piece drawn into a flattened picture stays out of sight and out of reach on the GM\'s map while its picture is there, so a press finds the picture',
+        wbSrc.includes("el.classList.toggle('wb-flat-in', !clientView && typeof item.flatIn === 'string' && activeMap.whiteboard.some(") && css.includes('#whiteboard .wb-item.wb-flat-in { visibility: hidden !important; pointer-events: none !important; }'));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

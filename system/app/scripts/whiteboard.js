@@ -938,6 +938,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
           var hideFromMe = !!item.hidden && clientView;
 
           el.classList.toggle('wb-hidden-gm', !!item.hidden && !clientView);
+          el.classList.toggle('wb-flat-in', !clientView && typeof item.flatIn === 'string' && activeMap.whiteboard.some(function(f) { return f && f.id === item.flatIn && f.flatPic === true; }));   // 1.6.2, found by hand: a piece drawn into a flattened picture stays out of sight and out of reach on the map, its picture showing it; Layers lists it under the picture
 
           el.classList.toggle('wb-trap', !!item.trap && !!el.dataset.portal && !!item.hidden && !clientView);   // GM-only: an armed hidden trap portal
           // [sinkcheck:portalcue-start]
@@ -1517,7 +1518,22 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
       bar.style.display = 'flex';
       var stripEl = document.getElementById('combatStrip'), sr = stripEl ? stripEl.getBoundingClientRect() : null, br = sr && sr.width > 0 ? bar.getBoundingClientRect() : null;
       if (br && br.left < sr.right && sr.left < br.right && br.top < sr.bottom && sr.top < br.bottom) bar.style.transform = 'translate(-50%, ' + (Math.round((maxB - minY) * z) + 12) + 'px)';   // the live test, 2026-10-30: over the turn strip it half-covered its buttons: it stands under the selection
+      barKeepIn(bar, Math.round((maxB - minY) * z) + 12);   // 1.6.2, found by hand: a piece near the map's edge put half the bar, and its fold arrow, out of sight
   }
+
+  // [lookcheck:barkeep-start]
+  // The bar over a selected piece kept inside the part of the map in sight: moved back from an edge it would pass, and set under the piece
+  // where there is no room above it (below: how far under the selection's top that is). A box with no size moves nothing
+  function barKeepIn(bar, below) {
+      var wrap = bar && bar.parentNode, wr = wrap && wrap.getBoundingClientRect ? wrap.getBoundingClientRect() : null, br = bar.getBoundingClientRect();
+      if (!wr || !(br.width > 0) || !(wr.width > 0)) return;
+      var vl = Math.max(wr.left, 0) + 6, vr = Math.min(wr.right, window.innerWidth) - 6, vt = Math.max(wr.top, 0) + 4, dx = 0;
+      if (br.right > vr) dx = vr - br.right;
+      if (br.left + dx < vl) dx = vl - br.left;
+      if (dx) bar.style.left = (parseFloat(bar.style.left) || 0) + dx + 'px';
+      if (br.top < vt && typeof below === 'number' && below > 0) bar.style.transform = 'translate(-50%, ' + below + 'px)';
+  }
+  // [lookcheck:barkeep-end]
 
   /* Fit to grid: size the selection to whole cells and seat it. Hex maps —
      tokens and hex shapes become exactly one cell; anything else rounds to

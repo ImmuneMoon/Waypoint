@@ -15,6 +15,7 @@ var LIMITS = Object.freeze({
     hours: 100, minutes: 1000, seconds: 1000,   // a day's hours, an hour's minutes, a minute's seconds
     leapEvery: 1000, leapDays: 100,     // a leap rule: every 2 to 1000 years, 1 to 100 days more
     leaps: 8, leapTurns: 12,            // 1.6.2 (backlog 60): more leap rules, and the periods one rule's days take turns through
+    others: 4, otherAt: 1e9,            // ... and other calendars over the same days, and how many days in each one's own count world day 1 falls
     notes: 500, noteChars: 400,         // item 20 K3: a clock's dated notes, and a note's text (code points, one line)
     rates: Object.freeze([1, 2, 5, 10, 60]),   // 1.5.4: how fast a clock may run by itself, times real time (1 is the absent default)
     moons: 4, cycle: 10000,             // 1.6.2 (backlog 147): a calendar's moons, and the days of a moon's cycle at most
@@ -42,7 +43,7 @@ function cutName(v, n) {   // plain one-line text, cut by code points
 // as the calendar numbers it), period (a place in periods), days } }. A period needs a name and 1 to 1000 days; a weekday a name.
 // A leap rule's period and the first weekday are places in the lists AS WRITTEN: one dropped before them moves them with it, and the
 // rule (or the first weekday) goes with a period (or a weekday) that is dropped. Nothing set: null (a plain count of days of 24 hours)
-function cleanCalendar(v) {
+function cleanCalendar(v, inner) {
     if (!isObj(v)) return null;
     var out = {}, ps = [], wk = [], pAt = {}, wAt = {};
     (Array.isArray(v.periods) ? v.periods : []).forEach(function(p, i) {
@@ -93,8 +94,37 @@ function cleanCalendar(v) {
         sns = sns.map(function(s, i) { return [s, i]; }).sort(function(a, b) { return a[0].period - b[0].period || a[0].day - b[0].day || a[1] - b[1]; }).map(function(x) { return x[0]; });
         if (sns.length) out.seasons = sns;
     }
+    // 1.6.2 (backlog 60; the owner, 2026-11-07, by prompt: "Yes, header shows one"): other calendars reckoning the same days, as another people
+    // counts them. Each has a name, periods, a week, years and leap rules of its own (no moons, no seasons, and the main calendar's day), and at: the
+    // days its own count has run when world day 1 begins (0: they begin together). The campaign's clock says which one the top row shows
+    if (!inner && Array.isArray(v.others)) {
+        var os = [];
+        v.others.forEach(function(o) {
+            if (os.length >= LIMITS.others || !isObj(o)) return;
+            var nm = cutName(o.name, LIMITS.name); if (!nm) return;
+            var c = cleanCalendar(o, true) || {}, oo = { name: nm };
+            ['periods', 'week', 'first', 'era', 'one', 'down', 'leap', 'leaps'].forEach(function(k) { if (c[k] !== undefined) oo[k] = c[k]; });
+            var at = whole(o.at, 0, LIMITS.otherAt); if (at) oo.at = at;
+            os.push(oo);
+        });
+        if (os.length) out.others = os;
+    }
     return Object.keys(out).length ? out : null;
 }
+// 1.6.2 (backlog 60): calendar k as the clock reads it, 0 (or none, or one that is not there) the main one: { k, name, cal (a calendar to reckon and
+// say a date with, the main one's day), shift (seconds to add to world time) }
+function viewCal(cal, k) {
+    var cc = cleanCalendar(cal) || {}, os = cc.others || [], i = whole(k, 1, os.length);
+    if (i === null) return { k: 0, name: '', cal: cc, shift: 0 };
+    var o = os[i - 1], c = {}; Object.keys(o).forEach(function(key) { if (key !== 'name' && key !== 'at') c[key] = o[key]; });
+    ['hours', 'minutes', 'seconds'].forEach(function(key) { if (cc[key] !== undefined) c[key] = cc[key]; });
+    return { k: i, name: o.name, cal: c, shift: (o.at || 0) * shape(cc).dayLen };
+}
+// Every calendar's name in order, the main one ''
+function calNamesOf(cal) { var cc = cleanCalendar(cal) || {}; return [''].concat((cc.others || []).map(function(o) { return o.name; })); }
+// A moment's date and time in calendar k: "Firstday, 4 First, 1200 BCE, 08:05"
+function fmtIn(cal, k, t, secs) { var v = viewCal(cal, k); return fmtWhen(v.cal, clampT(t) + v.shift, secs); }
+function fmtDateIn(cal, k, t) { var v = viewCal(cal, k); return fmtDate(v.cal, clampT(t) + v.shift); }
 
 // What the maths needs, worked out from a calendar cleaned again (so a draft being edited, or anything else, is read as Save would keep it)
 function shape(cal) {
@@ -231,6 +261,7 @@ function cleanClock(v) {
     var top = cleanTime(v.top); if (top && tCmp(top, o.t) > 0) o.top = top;   // 152: the highest second reached, while the clock is under it
     var lv = cleanLived(v.lived, o.top || o.t); if (lv) o.lived = lv;   // 152: each character's own time past the clock's
     var off = cleanRulesOff(v.rulesOff); if (off) o.rulesOff = off;   // 152: the NPCs whose time rules the GM switched off
+    var sc = whole(v.cal, 1, LIMITS.others); if (sc !== null) o.cal = sc;   // 1.6.2 (backlog 60): the other calendar the top row shows (absent: the main one)
     return o;
 }
 // Item 20 K5: what each character's time rules have counted towards their next firing — { charId: { ruleId: seconds } }, ids by pattern, seconds
@@ -436,6 +467,6 @@ function preset(id) {
 
 // Names another module can import beside its own LIMITS and helpers (sheets.js)
 var CAL_LIMITS = LIMITS, calPreset = preset;
-var API = { PHASES: PHASES, MOON_KEYS: MOON_KEYS, moonPhases: moonPhases, seasonOf: seasonOf, VERSION: VERSION, LIMITS: LIMITS, DAY: DAY, PRESETS: PRESETS, cleanCalendar: cleanCalendar, cleanClock: cleanClock, cleanAcc: cleanAcc, everySecs: everySecs, ruleFires: ruleFires, cleanTime: cleanTime, tAdd: tAdd, tCmp: tCmp, tFloor: tFloor, tSpanMs: tSpanMs, cleanLived: cleanLived, cleanRulesOff: cleanRulesOff, livedSpans: livedSpans, fightSecs: fightSecs, freshAcc: freshAcc, dateOf: dateOf, dateNames: dateNames, cleanDateFig: cleanDateFig, timeOf: timeOf, periodDays: periodDays, yearDays: yearDays, dayLength: dayLength, fmtDate: fmtDate, fmtTime: fmtTime, fmtWhen: fmtWhen, fmtSpan: fmtSpan, preset: preset };
+var API = { viewCal: viewCal, calNamesOf: calNamesOf, fmtIn: fmtIn, fmtDateIn: fmtDateIn, PHASES: PHASES, MOON_KEYS: MOON_KEYS, moonPhases: moonPhases, seasonOf: seasonOf, VERSION: VERSION, LIMITS: LIMITS, DAY: DAY, PRESETS: PRESETS, cleanCalendar: cleanCalendar, cleanClock: cleanClock, cleanAcc: cleanAcc, everySecs: everySecs, ruleFires: ruleFires, cleanTime: cleanTime, tAdd: tAdd, tCmp: tCmp, tFloor: tFloor, tSpanMs: tSpanMs, cleanLived: cleanLived, cleanRulesOff: cleanRulesOff, livedSpans: livedSpans, fightSecs: fightSecs, freshAcc: freshAcc, dateOf: dateOf, dateNames: dateNames, cleanDateFig: cleanDateFig, timeOf: timeOf, periodDays: periodDays, yearDays: yearDays, dayLength: dayLength, fmtDate: fmtDate, fmtTime: fmtTime, fmtWhen: fmtWhen, fmtSpan: fmtSpan, preset: preset };
 if (typeof window !== 'undefined') window.wpCalendarCore = API;
-export { PHASES, MOON_KEYS, moonPhases, seasonOf, dateNames, cleanDateFig, VERSION, LIMITS, CAL_LIMITS, calPreset, DAY, PRESETS, cleanCalendar, cleanClock, cleanAcc, everySecs, ruleFires, cleanTime, tAdd, tCmp, tFloor, tSpanMs, cleanLived, cleanRulesOff, livedSpans, fightSecs, freshAcc, dateOf, timeOf, periodDays, yearDays, dayLength, fmtDate, fmtTime, fmtWhen, fmtSpan, preset };
+export { viewCal, calNamesOf, fmtIn, fmtDateIn, PHASES, MOON_KEYS, moonPhases, seasonOf, dateNames, cleanDateFig, VERSION, LIMITS, CAL_LIMITS, calPreset, DAY, PRESETS, cleanCalendar, cleanClock, cleanAcc, everySecs, ruleFires, cleanTime, tAdd, tCmp, tFloor, tSpanMs, cleanLived, cleanRulesOff, livedSpans, fightSecs, freshAcc, dateOf, timeOf, periodDays, yearDays, dayLength, fmtDate, fmtTime, fmtWhen, fmtSpan, preset };

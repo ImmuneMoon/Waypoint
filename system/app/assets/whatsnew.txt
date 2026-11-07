@@ -579,6 +579,10 @@ Writing planners and pages
   and with + Then its leap day takes turns through months, one month one
   leap year and the next month the next. + Leap rule adds one beside the
   first.
+- Other calendars can count the same days, as another people would. Add one
+  with + Another calendar on the Calendar tab and say where its count stands
+  on day 1. The Calendar window shows the day in each, and The top row shows
+  picks the one the top row uses, for you and your players.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

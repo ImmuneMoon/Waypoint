@@ -8,7 +8,7 @@
 import { getActiveCampaign } from './models.js';
 import { save, saveView, toast } from './io.js';
 import { roundSecs, needsHeld, chainsShallow, setDateSource } from './systemcore.js';
-import { cleanCalendar, cleanClock, cleanAcc, ruleFires, everySecs, fightSecs, livedSpans, freshAcc, tCmp, tSpanMs, dateOf, timeOf, periodDays, dayLength, fmtDate, fmtWhen, fmtSpan, CAL_LIMITS, moonPhases, seasonOf, PHASES } from './calendarcore.js';
+import { viewCal, calNamesOf, fmtIn, fmtDateIn, cleanCalendar, cleanClock, cleanAcc, ruleFires, everySecs, fightSecs, livedSpans, freshAcc, tCmp, tSpanMs, dateOf, timeOf, periodDays, dayLength, fmtDate, fmtWhen, fmtSpan, CAL_LIMITS, moonPhases, seasonOf, PHASES } from './calendarcore.js';
 
 function net() { return window.wpNet || null; }
 function sysNow() { var sh = window.wpSheets; return sh && sh.systemOf ? sh.systemOf() : null; }
@@ -644,6 +644,7 @@ function renderWin() {
     winSig = winSigOf(camp, ck, cal); winBase = winBaseOf(camp, ck, cal); winDay = Math.floor(t / dl);
     body.textContent = '';
     body.appendChild(cel('div', 'cal-now', fmtWhen(cal, t, now.s !== 0)));
+    otherCals(body, cal, ck, t, gm);   // 1.6.2 (backlog 60): the same day in each other calendar
     var sky = skyWords(cal, t); if (sky) body.appendChild(cel('div', 'cal-sky', sky));   // 1.6.2 (backlog 147): the season and each moon's phase
     if (gm && pend) pendPanel(body, cal);   // K5: what the time rules have due, first
     if (gm) liveRow(body, camp, ck);   // 1.5.4: the clock runs by itself, or is held
@@ -725,6 +726,26 @@ function liveWords(why, rate) {
     if (why === 'fight') return 'Waiting: a fight is on. The clock follows the fight furthest behind.';
     return '';
 }
+// [calendarcheck:othercals-start]
+// 1.6.2 (backlog 60; the owner, 2026-11-07, by prompt: "Yes, header shows one"): the day in each other calendar of the system, a line each, and for
+// the GM which one the top row shows (camp.clock.cal, sent to players with the clock). Names and dates as text nodes
+function otherCals(body, cal, ck, t, gm) {
+    var names = calNamesOf(cal); if (names.length < 2) return;
+    for (var k = 1; k < names.length; k++) { var ln = cel('div', 'cal-also'); ln.appendChild(cel('span', 'cal-also-name', names[k] + ': ')); ln.appendChild(cel('span', 'cal-also-date', fmtDateIn(cal, k, t))); body.appendChild(ln); }
+    if (!gm) return;
+    var row = cel('div', 'cal-show'); row.appendChild(cel('span', 'sys-num-cap', 'The top row shows'));
+    var sel = cel('select', 'field cal-show-sel'); sel.title = 'Which calendar the date in the top row is in, for you and your players';
+    names.forEach(function(n, k) { var o = cel('option', '', k ? n : 'The main calendar'); o.value = String(k); sel.appendChild(o); });
+    sel.value = String(viewCal(cal, ck.cal).k); row.appendChild(sel); body.appendChild(row);
+}
+function setShowCal(k) {
+    var camp = getActiveCampaign(); if (!camp || isPlayer()) return false;
+    var ck = clockOf(camp) || { t: 0 }, n = calNamesOf(sysCal()).length, v = Number(k), cur = typeof ck.cal === 'number' ? ck.cal : 0; if (!(v >= 0 && v < n && Math.floor(v) === v) || v === cur) return false;
+    var nc = Object.assign({}, ck); if (v) nc.cal = v; else delete nc.cal; camp.clock = nc;
+    if (net() && net().logEvent) net().logEvent('time', 'The top row shows ' + (v ? calNamesOf(sysCal())[v] : 'the main calendar'));
+    save(); refresh(); if (winOpen()) renderWin(); return true;
+}
+// [calendarcheck:othercals-end]
 function liveRow(body, camp, ck) {   // the GM's window: Runs / Held, the speed, and what the clock is doing now
     var held = ck.hold === true, rate = liveRate(ck), row = cel('div', 'cal-live');
     row.appendChild(cel('span', 'sys-num-cap', 'The clock'));
@@ -856,7 +877,8 @@ function onWinClick(e) {
 function onWinChange(e) {
     var tg = e.target; if (!tg || !tg.classList) return;
     if (tg.classList.contains('cal-hide')) setHidden(tg.checked !== true);
-    else if (tg.classList.contains('cal-live-rate')) { if (!isPlayer()) setRate(Number(tg.value)); }   // 1.5.4: the running clock's speed
+    else if (tg.classList.contains('cal-live-rate')) { if (!isPlayer()) setRate(Number(tg.value)); }
+    else if (tg.classList.contains('cal-show-sel')) { if (!isPlayer()) setShowCal(Number(tg.value)); }   // 1.6.2 (backlog 60)   // 1.5.4: the running clock's speed
     else if (tg.classList.contains('cal-note-vis') && tg.dataset) noteVis(tg.dataset.note, tg.checked === true);   // K3
     else if (tg.classList.contains('cal-pend-tick') && tg.dataset && pend && typeof tg.dataset.char === 'string' && Object.prototype.hasOwnProperty.call(pend.on, tg.dataset.char)) pend.on[tg.dataset.char] = tg.checked === true;   // K5
     else if (tg.classList.contains('cal-pend-run') && tg.dataset && typeof tg.dataset.char === 'string') { if (!setRulesRun(tg.dataset.char, tg.checked === true)) tg.checked = rulesRun(tg.dataset.char) === true; }   // 152 fold 4b: the Rules run switch, put back where it was not kept
@@ -871,7 +893,7 @@ function refresh(live) {   // live (1.5.4): the clock ran by itself, or a host's
     var chip = document.getElementById('clockChip'); if (!chip) return;
     var camp = getActiveCampaign(), on = shown(camp); chip.style.display = on ? '' : 'none';
     if (!on) { if (winOpen()) closeWin(); return; }
-    var cal = sysCal(), ck = clockOf(camp) || { t: 0 }, txt = chip.querySelector('.clock-txt'), words = fmtWhen(cal, ck.t);
+    var cal = sysCal(), ck = clockOf(camp) || { t: 0 }, txt = chip.querySelector('.clock-txt'), words = fmtIn(cal, ck.cal, ck.t);   // 1.6.2 (backlog 60): in the calendar the GM picked
     if (txt && txt.textContent !== words) txt.textContent = words;
     var off = !isPlayer() && !!ck.hide; chip.classList.toggle('clock-private', off);
     var why = isPlayer() ? 'off' : liveHeld(camp), run = chip.querySelector('.clock-run'), mark = why === '' ? '\u25b6' : why === 'hold' || why === 'paused' || why === 'fight' ? '\u275A\u275A' : '';   // 1.5.4: the GM sees whether the clock is running

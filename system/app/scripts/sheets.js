@@ -49,7 +49,7 @@ import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from 
 import { FEEDS_MAX, feedOf, feedSpec, feedCt, feedCount, feedStack, feedLive } from './systemcore.js';   // 1.6.0 Feeds
 import { lvlsFromBox, lvlsToText, rowLibJudge, entryFromRow, packsForRow } from './librarycore.js';
 import { dieNode, DIE_LABELS } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
-import { cleanCalendar, fmtWhen, fmtDate, timeOf, calPreset, CAL_LIMITS } from './calendarcore.js';
+import { cleanCalendar, fmtWhen, fmtDate, timeOf, dateOf, dayLength, calPreset, CAL_LIMITS } from './calendarcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -8804,6 +8804,11 @@ function refreshErrors() {
             else if (!cWh(cLp.days, 1, CAL_LIMITS.leapDays)) cErr.push({ message: 'Leap years: 1 to ' + CAL_LIMITS.leapDays + ' days more, or Save drops the rule.' });
             else if (!(typeof cLp.period === 'number' && cOkP[cLp.period])) cErr.push({ message: 'Leap years: the period that gains the days is dropped, so Save drops the rule.' });
         }
+        (Array.isArray(calE.others) ? calE.others : []).forEach(function(o, k) {   // 1.6.2 (backlog 60): another calendar keeps its name, and four at most
+            var q = o && typeof o === 'object' ? o : {};
+            if (k >= CAL_LIMITS.others) cErr.push({ message: 'Calendar ' + (k + 2) + ': at most ' + CAL_LIMITS.others + ' other calendars, so Save drops it.' });
+            else if (!cleanCalendar({ others: [{ name: q.name }] })) cErr.push({ message: 'Calendar ' + (k + 2) + ' needs a name: Save drops it.' });
+        });
         (Array.isArray(calE.leaps) ? calE.leaps : []).forEach(function(r0, k) {   // 1.6.2 (backlog 60): each rule beside the first, read as cleanCalendar reads it
             var r = r0 && typeof r0 === 'object' ? r0 : {}, nm = 'Leap rule ' + (k + (cLp ? 2 : 1)), tu = Array.isArray(r.periods) ? r.periods : [];
             if (!cKp) cErr.push({ message: nm + ': add a period first, or Save drops it.' });
@@ -12681,8 +12686,12 @@ function heightClick(b) {
 // periods in order (a name, its days, whether it stands outside the month count: a festival week, a holiday), the week's days and which
 // one day 1 is, the day's hours, minutes and seconds, the year of day 1 with the label after it and whether years count down, and a leap
 // rule. Every text lands as a value or a text node; Save cleans it (calendarcore cleanCalendar) and refreshErrors says what it would drop
-function calDraft() { if (!draft.calendar || typeof draft.calendar !== 'object' || Array.isArray(draft.calendar)) draft.calendar = {}; return draft.calendar; }
-function calOf() { return draft && draft.calendar && typeof draft.calendar === 'object' && !Array.isArray(draft.calendar) ? draft.calendar : {}; }
+// 1.6.2 (backlog 60): the tab edits the main calendar or another one (_calK, 1 the first other), the same rows for either
+var _calK = 0;
+function calMain() { if (!draft.calendar || typeof draft.calendar !== 'object' || Array.isArray(draft.calendar)) draft.calendar = {}; return draft.calendar; }
+function calOther(m) { var os = m && Array.isArray(m.others) ? m.others : null, o = os && _calK >= 1 && Math.floor(_calK) === _calK ? os[_calK - 1] : null; return o && typeof o === 'object' && !Array.isArray(o) ? o : null; }
+function calDraft() { var m = calMain(), o = calOther(m); if (_calK && !o) _calK = 0; return o || m; }
+function calOf() { var m = draft && draft.calendar && typeof draft.calendar === 'object' && !Array.isArray(draft.calendar) ? draft.calendar : {}, o = calOther(m); if (_calK && !o) _calK = 0; return o || m; }
 function calNum(cls, value, title, min, max, cap) {
     var l = el('label', 'sys-num'); if (cap) l.appendChild(el('span', 'sys-num-cap', cap));
     var n = el('input', 'field ' + cls); n.type = 'number'; n.min = String(min); n.max = String(max); n.step = '1'; n.value = typeof value === 'number' && isFinite(value) ? String(value) : ''; n.title = title;
@@ -12690,16 +12699,17 @@ function calNum(cls, value, title, min, max, cap) {
 }
 function calSums(cal) {   // [the year's length in words, day 1 and a year on as the clock reads them]: the calendar as Save would keep it
     var cc = cleanCalendar(cal), ps = cc && cc.periods ? cc.periods : [], base = 0; ps.forEach(function(p) { base += p.days; });
-    if (!ps.length) return ['No periods: the clock counts days (Day 1, Day 2 \u2026).', 'Day 1 reads: ' + fmtWhen(cc, 0) + '.'];
+    if (!ps.length) return ['No periods: the clock counts days (Day 1, Day 2 \u2026).', _calK ? 'World day 1 reads: ' + fmtDate(cc, otherAt(cal) * dayLength(cc)) + '.' : 'Day 1 reads: ' + fmtWhen(cc, 0) + '.'];
     var ms = ps.filter(function(p) { return !p.extra; }).length, ex = ps.length - ms, rls = (cc.leap ? [cc.leap] : []).concat(cc.leaps || []), lp = rls.length === 1 ? rls[0].days : 0, y2 = timeOf(cc, { yi: 1, period: 0, pday: 1 });
     return [base + ' days a year' + (lp ? ' (' + (base + lp) + ' in a leap year)' : rls.length > 1 ? ' (longer in its leap years)' : '') + ': ' + ms + ' month' + (ms === 1 ? '' : 's') + (ex ? ' and ' + ex + ' period' + (ex === 1 ? '' : 's') + ' outside the month count' : '') + '.',
-        'Day 1 reads: ' + fmtWhen(cc, 0) + (y2 !== null ? '. A year on: ' + fmtDate(cc, y2) : '') + '.'];
+        (_calK ? 'World day 1 reads: ' + fmtDate(cc, otherAt(cal) * dayLength(cc)) + '.' : 'Day 1 reads: ' + fmtWhen(cc, 0) + (y2 !== null ? '. A year on: ' + fmtDate(cc, y2) : '') + '.')];
 }
 function renderCalendar() { var box = ui('sysCalendar'); if (!box) return; var st = box.scrollTop; box.textContent = ''; calendarBox(box, calOf()); box.scrollTop = st; }   // the pane scrolls: a redraw keeps its place
 function calendarBox(box, cal) {
     var wrap = el('div', 'sys-cal');
     wrap.appendChild(el('div', 'sys-light-head', 'Calendar'));
     wrap.appendChild(el('div', 'sys-note', 'The calendar your game keeps: its months and other periods, its week, its day and how its years are numbered. With none, a plain count of days of 24 hours.'));
+    calStrip(wrap, cal);
     var pr = el('div', 'sys-flags sys-cal-presets'); pr.appendChild(el('span', 'sys-num-cap', 'Start from'));
     [['twelve', 'Twelve months', 'The real-world year: twelve months, a seven-day week, a leap day in February every fourth year. It replaces what is here.'], ['days', 'A plain count of days', 'No calendar: the clock counts days (Day 1, Day 2 \u2026). It clears what is here.']].forEach(function(p) {
         var b = el('button', 'tool ghost sys-btn sys-cal-preset', p[1]); b.dataset.act = 'calpreset'; b.dataset.preset = p[0]; b.title = p[2]; pr.appendChild(b);
@@ -12727,12 +12737,14 @@ function calendarBox(box, cal) {
     });
     var wa = el('button', 'tool ghost sys-btn sys-cal-wadd', '+ Weekday'); wa.dataset.act = 'calwadd'; wa.disabled = wk.length >= CAL_LIMITS.week; wa.title = wa.disabled ? 'At most ' + CAL_LIMITS.week : 'A day of the week, at its end; the week runs on across months and years'; wrap.appendChild(wa);
     if (wk.length) wrap.appendChild(labeledSelect('sys-cal-first', 'Day 1 is a', wk.map(function(w, i) { return [String(i), typeof w === 'string' && w.trim() ? w : 'Day ' + (i + 1)]; }), String(typeof cal.first === 'number' ? cal.first : 0), 'The weekday of the very first day; the week runs on from it'));
+    if (!_calK) {
     wrap.appendChild(el('div', 'sys-cal-sub', 'The day'));
     var dr = el('div', 'sys-flags sys-cal-day');
     dr.appendChild(calNum('sys-cal-hours', typeof cal.hours === 'number' ? cal.hours : 24, 'Hours in a day (1 to ' + CAL_LIMITS.hours + ')', 1, CAL_LIMITS.hours, 'Hours a day'));
     dr.appendChild(calNum('sys-cal-minutes', typeof cal.minutes === 'number' ? cal.minutes : 60, 'Minutes in an hour (1 to ' + CAL_LIMITS.minutes + ')', 1, CAL_LIMITS.minutes, 'Minutes an hour'));
     dr.appendChild(calNum('sys-cal-seconds', typeof cal.seconds === 'number' ? cal.seconds : 60, 'Seconds in a minute (1 to ' + CAL_LIMITS.seconds + ')', 1, CAL_LIMITS.seconds, 'Seconds a minute'));
     wrap.appendChild(dr);
+    }
     wrap.appendChild(el('div', 'sys-cal-sub', 'Years'));
     var yr = el('div', 'sys-flags sys-cal-years');
     yr.appendChild(calNum('sys-cal-one', typeof cal.one === 'number' ? cal.one : 1, 'The year the very first day falls in', -CAL_LIMITS.year, CAL_LIMITS.year, 'Day 1 is in year'));
@@ -12754,6 +12766,7 @@ function calendarBox(box, cal) {
     wrap.appendChild(lr);
     leapRows(wrap, cal, ps, lp, lx);
     // 1.6.2 (backlog 147; the owner, by prompt: "Moons and phases", "Seasons"): each season by the day of the year it begins on, each moon by its cycle
+    if (!_calK) {
     wrap.appendChild(el('div', 'sys-cal-sub', 'Seasons'));
     var ss = Array.isArray(cal.seasons) ? cal.seasons : [];
     ss.forEach(function(s0, i) {
@@ -12776,6 +12789,7 @@ function calendarBox(box, cal) {
         wrap.appendChild(rw);
     });
     var ma = el('button', 'tool ghost sys-btn sys-cal-madd', '+ Moon'); ma.dataset.act = 'calmadd'; ma.disabled = mo.length >= CAL_LIMITS.moons; ma.title = ma.disabled ? 'At most ' + CAL_LIMITS.moons : 'A moon: the Calendar shows its phase on every day'; wrap.appendChild(ma);
+    }
     var sm = calSums(cal), s1 = el('div', 'sys-note sys-cal-sum', sm[0]), s2 = el('div', 'sys-note sys-cal-preview', sm[1]); s1.id = 'sysCalSum'; s2.id = 'sysCalPreview';
     wrap.appendChild(s1); wrap.appendChild(s2);
     var err = errorCell('calendar'); err.dataset.errFor = 'calendar'; wrap.appendChild(err);
@@ -12844,11 +12858,51 @@ function leapFollow(cal, op, i, j) {
     if (!cal.leaps.length) delete cal.leaps;
 }
 // [systemcheck:leaprows-end]
+// [systemcheck:calstrip-start]
+// 1.6.2 (backlog 60; the owner, 2026-11-07, by prompt: "Yes, header shows one"): other calendars over the same days. A strip picks the one the tab
+// edits; another calendar has a name and the day of its own count that world day 1 falls on, and the main calendar's day, so no Day, Seasons or Moons
+function otherAt(o) { var v = o && typeof o.at === 'number' && isFinite(o.at) ? Math.floor(o.at) : 0; return v > 0 ? v : 0; }
+function calStrip(wrap, cal) {
+    var m = calMain(), os = Array.isArray(m.others) ? m.others : [], st = el('div', 'sys-flags sys-cal-cals');
+    [null].concat(os).forEach(function(o, k) { var nm = k ? (o && typeof o.name === 'string' && o.name.trim() ? o.name : 'Calendar ' + (k + 1)) : 'The main calendar', b = el('button', 'tool ghost sys-btn sys-cal-pick' + (k === _calK ? ' on' : ''), nm); b.dataset.act = 'calpick'; b.dataset.k = String(k); b.title = k ? 'Edit this calendar: the same days, counted its own way' : 'Edit the calendar the game keeps'; b.ariaPressed = k === _calK ? 'true' : 'false'; st.appendChild(b); });
+    var add = el('button', 'tool ghost sys-btn sys-cal-oadd', '+ Another calendar'); add.dataset.act = 'calother'; add.disabled = os.length >= CAL_LIMITS.others; add.title = add.disabled ? 'At most ' + CAL_LIMITS.others : 'The same days as another people counts them. The Calendar shows the day in each, and the top row the one you pick'; st.appendChild(add);
+    wrap.appendChild(st);
+    if (!_calK) return;
+    var row = el('div', 'sys-flags sys-cal-orow'), nmI = input('sys-cal-oname field', typeof cal.name === 'string' ? cal.name : '', 'This calendar\u2019s name, as the Calendar and the top row say it', 'Name'); nmI.maxLength = CAL_LIMITS.name; row.appendChild(nmI);
+    var rm = el('button', 'tool ghost sys-btn sys-cal-odel', 'Remove this calendar'); rm.dataset.act = 'calodel'; rm.title = 'Take this calendar away. The main calendar stays'; row.appendChild(rm);
+    wrap.appendChild(row);
+    var cc = cleanCalendar(cal, true) || {}, ps = cc.periods || [], dl = dayLength(cc), d = dateOf(cc, otherAt(cal) * dl), at = el('div', 'sys-flags sys-cal-oat');
+    at.appendChild(el('span', 'sys-num-cap', 'World day 1 falls on'));
+    if (ps.length) {
+        at.appendChild(calNum('sys-cal-oday', d.pday, 'The day of that period', 1, CAL_LIMITS.periodDays, 'Day'));
+        at.appendChild(labeledSelect('sys-cal-operiod', 'Of', ps.map(function(p, i) { return [String(i), p.name]; }), String(d.period), 'The period of this calendar'));
+        at.appendChild(calNum('sys-cal-oyear', d.year, 'The year, as this calendar numbers it', -CAL_LIMITS.year, CAL_LIMITS.year, 'Year'));
+    } else at.appendChild(calNum('sys-cal-oday', d.pday, 'Its own day count on world day 1', 1, CAL_LIMITS.otherAt, 'Its day'));
+    wrap.appendChild(at);
+}
+// The day world day 1 falls on, from the three boxes: written as days since this calendar's day 1, or refused in words
+function otherAtSet(cal, box) {
+    var cc = cleanCalendar(cal, true) || {}, ps = cc.periods || [], q = function(c) { var e = box.querySelector('.' + c); return e ? Number(e.value) : NaN; }, t;
+    if (ps.length) t = timeOf(cc, { year: q('sys-cal-oyear'), period: q('sys-cal-operiod'), pday: q('sys-cal-oday') }); else { var n = q('sys-cal-oday'); t = n >= 1 && Math.floor(n) === n ? (n - 1) * dayLength(cc) : null; }
+    if (t === null || !(t >= 0)) { toast('That day is not in this calendar, or falls before its first day.'); return false; }
+    var dd = Math.floor(t / dayLength(cc)); if (dd > CAL_LIMITS.otherAt) { toast('That day is too far into this calendar.'); return false; }
+    if (dd) cal.at = dd; else delete cal.at; return true;
+}
+function calStripClick(b) {
+    var act = b.dataset.act || '', m = calMain();
+    if (act === 'calpick') { var k = +b.dataset.k, n = Array.isArray(m.others) ? m.others.length : 0; if (!(k >= 0 && k <= n && Math.floor(k) === k)) return true; _calK = k; renderAll(); return true; }
+    if (act === 'calother') { var os = Array.isArray(m.others) ? m.others : (m.others = []); if (os.length >= CAL_LIMITS.others) { toast('At most ' + CAL_LIMITS.others + '.'); return true; } os.push({ name: '' }); _calK = os.length; markDirty(); renderAll(); return true; }
+    if (act === 'calodel') { var o = calOther(m); if (!o) return true; m.others.splice(_calK - 1, 1); if (!m.others.length) delete m.others; _calK = 0; markDirty(); renderAll(); return true; }
+    return false;
+}
+// [systemcheck:calstrip-end]
 function calRefreshText() { var sm = calSums(calOf()), a = ui('sysCalSum'), b = ui('sysCalPreview'); if (a) a.textContent = sm[0]; if (b) b.textContent = sm[1]; }
 function onCalendarInput(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-cal-') < 0) return false;
     var cal = calDraft(), numV = function() { var v = Number(t.value); return String(t.value).trim() !== '' && isFinite(v) ? v : null; };
     var lx = leapInput(t, c, numV); if (lx === true) return true; if (lx) { markDirty(); patchErrors(); calRefreshText(); return true; }   // 1.6.2: a leap rule beside the first
+    if (c.indexOf('sys-cal-oname') >= 0) { if (_calK) cal.name = String(t.value).slice(0, CAL_LIMITS.name * 2); markDirty(); patchErrors(); return true; }   // 1.6.2 (backlog 60): another calendar's name
+    if (c.indexOf('sys-cal-oyear') >= 0 || c.indexOf('sys-cal-oday') >= 0) return true;   // ... the day it begins on is read when a box is left
     if (c.indexOf('sys-cal-pname') >= 0 || c.indexOf('sys-cal-pdays') >= 0) {
         var prw = t.closest ? t.closest('.sys-cal-prow') : null, i = prw ? +prw.dataset.ci : -1, p = Array.isArray(cal.periods) && i >= 0 && Math.floor(i) === i && cal.periods[i] && typeof cal.periods[i] === 'object' ? cal.periods[i] : null; if (!p) return true;
         if (c.indexOf('sys-cal-pname') >= 0) p.name = String(t.value).slice(0, CAL_LIMITS.name * 2); else { var d = numV(); if (d === null) delete p.days; else p.days = d; }
@@ -12876,6 +12930,7 @@ function onCalendarChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-cal-') < 0) return false;
     var cal = calDraft();
     var lc = leapChange(t, c); if (lc === true) return true; if (lc) { markDirty(); patchErrors(); calRefreshText(); return true; }   // 1.6.2: a rule's period in turn
+    if (c.indexOf('sys-cal-oyear') >= 0 || c.indexOf('sys-cal-oday') >= 0 || c.indexOf('sys-cal-operiod') >= 0) { var ob = t.closest ? t.closest('.sys-cal-oat') : null; if (_calK && ob && otherAtSet(cal, ob)) { markDirty(); patchErrors(); } renderAll(); return true; }   // 1.6.2 (backlog 60): the day world day 1 falls on
     if (c.indexOf('sys-cal-pextra') >= 0) {
         var rw = t.closest ? t.closest('.sys-cal-prow') : null, i = rw ? +rw.dataset.ci : -1, p = Array.isArray(cal.periods) && i >= 0 && Math.floor(i) === i && cal.periods[i] && typeof cal.periods[i] === 'object' ? cal.periods[i] : null; if (!p) return true;
         if (t.checked === true) p.extra = true; else delete p.extra;
@@ -12893,9 +12948,11 @@ function onCalendarChange(t) {
 }
 function calendarClick(b) {
     var act = b.dataset.act || '';
+    if (calStripClick(b)) return true;   // 1.6.2 (backlog 60): which calendar the tab edits
     if (act === 'calpreset') {
         var pid = b.dataset.preset;
-        if (pid === 'days') delete draft.calendar; else { var pz = calPreset(pid); if (!pz) return true; draft.calendar = pz; }
+        if (_calK) { var mo0 = calMain(), oo = calOther(mo0); if (!oo) return true; var keep = { name: oo.name }; if (oo.at) keep.at = oo.at; var pz0 = pid === 'days' ? {} : calPreset(pid); if (!pz0) return true; delete pz0.hours; delete pz0.minutes; delete pz0.seconds; mo0.others[_calK - 1] = Object.assign(keep, pz0); markDirty(); renderAll(); return true; }
+        if (pid === 'days') { var keptO = draft.calendar && Array.isArray(draft.calendar.others) ? draft.calendar.others : null; delete draft.calendar; if (keptO) draft.calendar = { others: keptO }; } else { var pz = calPreset(pid); if (!pz) return true; if (draft.calendar && Array.isArray(draft.calendar.others)) pz.others = draft.calendar.others; draft.calendar = pz; }   // the other calendars stay
         markDirty(); renderAll(); return true;
     }
     if (/^cal(lthen0|ruleadd|ruledel|turnadd|turndel)$/.test(act)) return leapClick(b);   // 1.6.2 (backlog 60): the leap rules

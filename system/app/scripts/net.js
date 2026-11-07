@@ -1261,7 +1261,7 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
         delete camp.handoutLog;
         delete camp.cast;
         delete camp.pinnedMaps;
-        delete camp.pinnedPages; delete camp.groups;   // 1.5.4 (pageshelf.js): the pages pinned for the session name planners, which never leave this machine; backlog 31: and the GM's encounter groups
+        delete camp.pinnedPages; delete camp.panelOrder; delete camp.groups;   // 1.5.4 (pageshelf.js): the pages pinned for the session name planners, which never leave this machine; backlog 31: and the GM's encounter groups
         delete camp.buildPins;   // 1.6.2: the GM's own palette in Build
         delete camp.fxSaved;   // 1.6.2 (backlog 81): the GM's saved effects (fxcore cleanSaved)
         if (camp.piles || Array.isArray(camp.decks) || (camp.system && Array.isArray(camp.system.decks))) camp.pileN = typeof decksFor === 'function' ? decksFor(camp) : {}; delete camp.piles; if (Array.isArray(camp.decks)) { camp.decks = window.wpDeckCore ? window.wpDeckCore.cleanDecks(camp.decks, false, /^C[0-9]+$/) : []; if (!camp.decks.length) delete camp.decks; }   // 1.6.2 (G9): never the order of a pile

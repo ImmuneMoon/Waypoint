@@ -3404,6 +3404,27 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         J([writers, rulesG.length, scopedG, namedG.filter(id => count(ix, 'id="' + id + '"') !== 1), never]));
 }
 
+// 1.6.2, backlog 56's other half: the left panel's own order of sections, kept by each campaign (the owner, 2026-11-07, by prompt: "Each
+// campaign"). panelorder.js's pure part run for real: the order a campaign keeps read as the names the page knows, each once, the rest in the usual
+// order; a step passes over a section that is hidden; a drop puts a section before another; the usual order keeps no key. Then the wiring, the menu
+// rows, net.js and cleanup.js keeping the key off the wire, Help and both notes
+{
+    const po = read('scripts/panelorder.js'), a = po.indexOf('// [lookcheck:panelorder-start]'), b = po.indexOf('// [lookcheck:panelorder-end]');
+    const P = new Function(po.slice(a, b) + '\nreturn { PANEL_SECS: PANEL_SECS, orderOf: orderOf, orderStep: orderStep, orderPut: orderPut, orderKept: orderKept };')();
+    const U = 'handbook,planners,maps,characters,decks', jn = o => o.join(',');
+    const reads = [P.orderOf(null), P.orderOf(['maps', 'maps', 'x', 5, 'handbook']), P.orderOf('maps'), P.orderOf(Array(100).fill('decks'))].map(jn);
+    const steps = [P.orderStep(null, 'maps', -1), P.orderStep(null, 'handbook', -1), P.orderStep(null, 'decks', 1), P.orderStep(null, 'characters', -1, ['handbook', 'planners', 'characters']), P.orderStep(null, 'maps', 2), P.orderStep(null, 'nope', 1)].map(jn);
+    const puts = [P.orderPut(null, 'handbook', ''), P.orderPut(null, 'decks', 'handbook'), P.orderPut(null, 'maps', 'maps')].map(jn);
+    const nb = read('scripts/net.js'), cu = read('scripts/cleanup.js'), sb = read('scripts/sidebar.js'), notes = ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].map(f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8'));
+    check('1.6.2 the left panel\'s own order (panelorder.js, run for real): a campaign\'s order read as the sections the page knows, each once, the rest in the usual order; Move section up and down pass over a section that is hidden and stop at the ends; a drop puts a section before another or last; the usual order keeps no key; the panel and the rail drawn in it at every redraw of the panel; the key never leaves this machine; Help and both notes say it',
+        J(reads) === J([U, 'maps,handbook,planners,characters,decks', U, 'decks,handbook,planners,maps,characters'])
+        && J(steps) === J(['handbook,maps,planners,characters,decks', U, U, 'handbook,characters,planners,maps,decks', U, U])
+        && J(puts) === J(['planners,maps,characters,decks,handbook', 'decks,handbook,planners,maps,characters', U]) && P.orderKept(null) === null && P.orderKept(['planners']) !== null
+        && sb.includes('if (window.wpPanelOrder) window.wpPanelOrder.sync();') && count(ix, 'scripts/panelorder.js') === 1 && /delete camp\.panelOrder;/.test(nb) && /'panelOrder'/.test(cu)
+        && /Move section up/.test(po) && /Move section up<\/b>, <b>Move section down<\/b> and <b>Usual order<\/b>\. Each campaign keeps its own order/.test(ix) && notes.every(t => /Drag a section's title in the left panel/.test(t)),
+        J([reads, steps, puts]));
+}
+
 /* ---------- the dice drawings (1.5.8, backlog 149) ---------- */
 // The owner, 2026-10-25: "implement the custom dice icons for the character sheet where there are currently emoji dice icons", and of the
 // drawings on docs/sheets/dice-icons-sheet.html, the face (A) for 1d6, three faces (C) for 3d6 and the rest of the set: "those look pretty good"

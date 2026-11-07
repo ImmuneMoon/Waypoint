@@ -379,6 +379,7 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
       if (dNav) dNav.innerHTML = treeHtml('doc') || '<div class="nav-empty">No pages yet — press + above to write a rules or reference page your players can read.</div>';
       // The Characters section follows every redraw of the panel (charlist.js), and its sync asks panelJudge what a joined player's panel holds
       if (window.wpCharList) window.wpCharList.sync(); else panelJudge(0);
+      if (window.wpPanelOrder) window.wpPanelOrder.sync();   // 1.6.2 (backlog 56): the sections in this campaign's own order (panelorder.js)
       if (window.wpDeckWin) window.wpDeckWin.sync();   // 1.6.2 (G9)
 
       if (window.wpPageShelf && window.wpPageShelf.noteActive) window.wpPageShelf.noteActive();   // 1.5.4 (pageshelf.js): a page that is the item on screen is one of the last pages opened

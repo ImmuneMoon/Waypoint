@@ -214,12 +214,15 @@ function makeHandler(cfg) {
         const key = keyOf(), c = confOf(), cf = st.conflict; if (!key || !cf || !cf.head) return { did: 'none' };
         st.conflict = null; st.status = 'busy';
         const m = await localManifest(c); if (!m) { st.status = 'idle'; return { did: 'none' }; }
+        // the head as it stands now, not as it stood when the question was asked: the cloud may have moved on meanwhile (found live on
+        // waypointvtt.com, 2026-11-07: taking the cloud's took the older version the question named, and a newer one never arrived)
+        const hr = await site('GET', '/api/cloud', undefined, key), hc = hr.status === 200 ? cleanCloud(hr.json) : null, head = hc && hc.head ? hc.head : cf.head;
         if (use === 'mine') {
-            const p = await push(key, c, m, cf.head.rev, false);
+            const p = await push(key, c, m, head.rev, false);
             if (p.rev) { done(c, p.rev, manifestSig(m)); st.status = 'idle'; step('resolved', { use: 'mine', rev: p.rev }); return { did: 'pushed', rev: p.rev }; }
             st.status = p.conflict ? 'conflict' : 'error'; if (p.conflict) st.conflict = { head: p.conflict }; else st.error = p.error; keepConf(c); return { did: p.conflict ? 'conflict' : 'error', error: p.error };
         }
-        const q = await pull(key, c, cf.head.rev, m);
+        const q = await pull(key, c, head.rev, m);
         if (q.error) { st.status = 'error'; st.error = q.error; keepConf(c); return { did: 'error', error: q.error }; }
         done(c, q.rev, q.sig); st.status = 'idle'; step('resolved', { use: 'cloud', rev: q.rev }); return { did: 'pulled', rev: q.rev };
     };

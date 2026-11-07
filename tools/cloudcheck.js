@@ -91,6 +91,9 @@ const mk = (dir, S, now) => CS.makeHandler({ savesDir: dir, base: BASE, fetch: S
     S.other({ 'data.json': '{"v":4}' }); fs.writeFileSync(path.join(dir, 'data.json'), '{"v":"mine2"}');
     await H.sync('page', false); const rc = JSON.parse(await route(H, 'POST', '/api/cloud/resolve', { use: 'cloud' }));
     check('Use the cloud\'s: the head is taken here', rc.did === 'pulled' && rc.rev === 6 && fs.readFileSync(path.join(dir, 'data.json'), 'utf8') === '{"v":4}', J(rc));
+    S.other({ 'data.json': '{"v":41}' }); fs.writeFileSync(path.join(dir, 'data.json'), '{"v":"mine3"}'); await H.sync('page', false); S.other({ 'data.json': '{"v":42}' });
+    const rn = JSON.parse(await route(H, 'POST', '/api/cloud/resolve', { use: 'cloud' }));
+    check('Use the cloud\'s answered after the cloud moved on takes the head as it stands then, not the one the question named (found live on waypointvtt.com, 2026-11-07)', rn.did === 'pulled' && rn.rev === 8 && fs.readFileSync(path.join(dir, 'data.json'), 'utf8') === '{"v":42}', J(rn));
 
     // the site misbehaving
     S.other({ 'data.json': '{"v":5}', 'images/m1/a.png': 'PNG-A' }); S.hostile = { '../evil.txt': sha(Buffer.from('x')), 'account.json': sha(Buffer.from('x')) };
@@ -112,12 +115,12 @@ const mk = (dir, S, now) => CS.makeHandler({ savesDir: dir, base: BASE, fetch: S
 
     {
         const uiS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'cloudui.js'), 'utf8'), a = uiS.indexOf('// [cloudcheck:words-start]'), b = uiS.indexOf('// [cloudcheck:words-end]');
-        const W = new Function(uiS.slice(a, b) + '\nreturn { sizeWords: sizeWords, stateWords: stateWords, usageWords: usageWords };')();
+        const W = new Function(uiS.slice(a, b) + '\nreturn { sizeWords: sizeWords, stateWords: stateWords, usageWords: usageWords, fromWords: fromWords };')();
         const ixS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').split(String.fromCharCode(13)).join(''), stS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'settings.js'), 'utf8');
         check('the Profile window\'s Cloud saves part says each state in plain words (not linked, switched off, a conflict, busy, each failure, synced, not yet) and its usage; its switch, status, usage and Sync now are in the page, the module after the cell size\'s, and a snapshot asks the cloud to keep that version too',
             /Link this computer/.test(W.stateWords({ linked: false })) && /this computer only/.test(W.stateWords({ linked: true, on: false })) && /both changed/.test(W.stateWords({ linked: true, on: true, conflict: { head: {} } }))
             && /plan does not include/.test(W.stateWords({ linked: true, on: true, status: 'error', error: 'plan' })) && /did not arrive whole/.test(W.stateWords({ linked: true, on: true, status: 'error', error: 'download' })) && /^Synced at /.test(W.stateWords({ linked: true, on: true, status: 'idle', last: { at: 1 } })) && /Not synced yet/.test(W.stateWords({ linked: true, on: true, status: 'idle' }))
-            && W.usageWords({ linked: true, on: true, used: 2 * 1024 * 1024, quota: 5 * 1024 * 1024 * 1024 }) === '2 MB of 5 GB used.' && W.usageWords({ linked: true, on: false, used: 1, quota: 5 }) === '' && W.sizeWords(10) === '1 KB'
+            && W.usageWords({ linked: true, on: true, used: 2 * 1024 * 1024, quota: 5 * 1024 * 1024 * 1024 }) === '2 MB of 5 GB used.' && W.usageWords({ linked: true, on: false, used: 1, quota: 5 }) === '' && W.sizeWords(10) === '1 KB' && W.fromWords('waypoint-7f101e919d32') === 'another computer' && W.fromWords('Browser') === 'the website in a browser' && W.fromWords(undefined) === 'another computer'
             && ['cloudPart', 'cloudOn', 'cloudStatus', 'cloudUsage', 'cloudSyncNow'].every(id => ixS.split('id="' + id + '"').length === 2) && ixS.includes('<script type="module" src="scripts/cellsize.js"></script>\n<script type="module" src="scripts/cloudui.js"></script>')
             && stS.includes("if (window.wpCloud && typeof window.wpCloud.backup === 'function') window.wpCloud.backup();") && uiS.includes("{ yes: 'Keep this computer\u2019s', alt: 'Use the cloud\u2019s', noEnter: true, noEscape: true }")
             && ixS.includes('<b>Cloud saves</b>') && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').includes('Keep my')));

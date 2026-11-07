@@ -32,6 +32,8 @@ function stateWords(s) {
     var at = s.last && s.last.at ? new Date(s.last.at) : null;
     return at ? 'Synced at ' + at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' on ' + at.toLocaleDateString() + '.' : 'Not synced yet. Waypoint syncs on close, ten minutes after a change, and on Backup now.';
 }
+// Which computer a version came from, in words: an install's device id is no name (found live, 2026-11-07), the website's own is the browser
+function fromWords(by) { return by === 'Browser' ? 'the website in a browser' : 'another computer'; }
 function usageWords(s) { return s && s.linked && s.on && s.quota > 0 ? sizeWords(s.used) + ' of ' + sizeWords(s.quota) + ' used.' : ''; }
 // [cloudcheck:words-end]
 function render() {
@@ -55,7 +57,7 @@ async function after(r) {
 }
 function ask(head) {
     var when = head && head.at ? new Date(head.at).toLocaleString() : 'another time';
-    showConfirm('Your save changed on this computer and in the cloud (saved from ' + (head && head.by ? head.by : 'another computer') + ', ' + when + '). Which do you keep? The other stays in the cloud’s history.', async function(a) {
+    showConfirm('Your save changed on this computer and in the cloud (saved from ' + fromWords(head && head.by) + ', ' + when + '). Which do you keep? The other stays in the cloud’s history.', async function(a) {
         var use = a === 'alt' ? 'cloud' : a ? 'mine' : '';
         if (!use) { await refresh(); return; }
         log('resolve', { use: use });

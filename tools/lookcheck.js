@@ -3783,5 +3783,18 @@ check('the roster numbers rows of one name, and the sheet that says it is out of
             && /FC\.trimRect\(px, aw, ah\)/.test(s141) && /window\.wpTokenFit = tokenFit;/.test(s141) && /var tipU = window\.wpFrameCore && window\.wpFrameCore\.sizeTip/.test(wb141));
     }
 }
+{   // 1.6.2 (backlog 59 i): a menu of the map's bars held inside the window sideways (whiteboard.js menuInView and menusInView, sliced and run for real)
+    const wbM = read('scripts/whiteboard.js'), mS = wbM.slice(wbM.indexOf('// [lookcheck:menuinview-start]'), wbM.indexOf('// [lookcheck:menuinview-end]'));
+    const M = new Function(mS + '\nreturn { menuInView, menusInView };')();
+    const mm = (l, wd) => ({ style: { translate: 'x' }, classList: { contains: () => true }, getBoundingClientRect() { const dx = parseFloat(this.style.translate) || 0; return { left: l + dx, right: l + wd + dx, width: wd }; } });
+    const a = mm(731, 303), b = mm(-20, 200), c = mm(300, 200), d = mm(100, 2000), win = { innerWidth: 1024 };
+    const ra = M.menuInView(a, win), rb = M.menuInView(b, win), rc = M.menuInView(c, win), rd = M.menuInView(d, win);
+    const obs = [], resizes = [], ms = [mm(900, 300), mm(10, 100)]; ms[1].classList.contains = () => false; ms[1].style.translate = '5px 0';
+    const n = M.menusInView({ querySelectorAll: () => ms }, { innerWidth: 1024, addEventListener: (k, f) => resizes.push([k, f]) }, function(cb) { this.observe = (el, o) => obs.push([el, o]); this.cb = cb; });
+    resizes[0][1]();
+    check('1.6.2 (backlog 59 i) a menu of the map\'s bars is held inside the window sideways, 8 px from each edge, by its translate alone: one past the right edge moved left, one past the left moved right, one inside left as it is, one wider than the window to the left edge; each menu of the three bars watched for opening and the window for its size, and a closed menu\'s shift taken off; the style sheet gives every tool\'s options a scroll of their own',
+        ra === -18 && a.style.translate === '-18px 0' && rb === 28 && b.style.translate === '28px 0' && rc === 0 && c.style.translate === '' && rd === -92 && n === 2 && obs.length === 2 && obs[0][1].attributeFilter[0] === 'class' && resizes[0][0] === 'resize' && ms[0].style.translate === '-184px 0' && ms[1].style.translate === ''
+        && read('style.css').includes('#envMenu, #measureMenu, #fillMenu, #eraserMenu, #snapMenu, #linkMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; }') && wbM.includes("if (typeof document !== 'undefined' && typeof window !== 'undefined') menusInView(document, window, window.MutationObserver);"), J([ra, rb, rc, rd, n, ms.map(x => x.style.translate)]));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

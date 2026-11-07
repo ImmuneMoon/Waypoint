@@ -8,6 +8,10 @@ Tokens
   the Image Library say the size a token's picture is best at.
 
 The System editor
+- Every window and menu was measured on a short screen. The options of every
+  tool now scroll inside, a menu near the window's edge moves in so that it is
+  never cut off, and the dice roller stands beside Table Chat where it does not
+  fit above it.
 - The campaign's characters have a window of their own, Manage characters,
   the cog in the left panel's Characters section. The System editor keeps the
   system's work: Ask for new sheets, Mark all current and the Reader mark are

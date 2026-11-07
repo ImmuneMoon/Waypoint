@@ -600,7 +600,7 @@ const due = theirs => ({ due: { theirs: theirs }, from: { id: 'u_gm', name: 'GM'
 const dice = read('scripts/dice.js');
 {
     const src = lineOf(dice, 'function panelOpen() {') + sliceOf(dice, 'floatcheck', 'dice');
-    const mk = o => { const p = { id: 'dicePanel', style: { display: o.dice } }, c = { id: 'chatPanel', style: { display: o.chat }, getBoundingClientRect: () => ({ right: 1480, top: 662 }) };
+    const mk = o => { const p = { id: 'dicePanel', style: { display: o.dice }, offsetHeight: o.h || 0 }, c = { id: 'chatPanel', style: { display: o.chat }, getBoundingClientRect: () => ({ left: 1160, right: 1480, top: o.top || 662, bottom: 880 }) };
         const win = { innerWidth: 1500, innerHeight: 900, wpFloats: o.floats === false ? undefined : { away: e => (e === p && !!o.diceAway) || (e === c && !!o.chatAway) } };
         const a = new Function('ui', 'window', src + '\nreturn { open: panelOpen, shown: panelShown, away: awayNow, place: placePanel };')(id => id === 'dicePanel' ? p : id === 'chatPanel' ? c : null, win);
         a.place(); return { open: a.open(), shown: a.shown(), at: [p.style.right, p.style.bottom], awayNull: a.away(null), awayC: a.away(c) }; };
@@ -609,6 +609,8 @@ const dice = read('scripts/dice.js');
         up.open && up.shown && put.open && !put.shown && !shut.open && !shut.shown && up.awayNull === false && put.awayC === true && bare.open && bare.shown && bare.awayC === false, J([up, put, shut, bare]));
     check('the roller is placed against Table Chat only when the chat shows; with the chat closed, or put away where it has no place on screen to measure, the roller takes its own corner',
         J(up.at) === J(['20px', '246px']) && J(put.at) === J(['20px', '90px']) && J(noChat.at) === J(['20px', '90px']) && J(bare.at) === J(['20px', '246px']), J([up.at, put.at, noChat.at, bare.at]));
+    const fits = mk({ dice: 'flex', chat: 'flex', h: 200 }), tall = mk({ dice: 'flex', chat: 'flex', h: 300, top: 220 });
+    check('1.6.2 (backlog 59 i) the roller stands above Table Chat where it fits there, and beside it where it does not, as in a short window, never above the top', J(fits.at) === J(['20px', '246px']) && J(tall.at) === J(['348px', '20px']), J([fits.at, tall.at]));
     check('the roller\'s wiring goes by what shows: its button opens a roller that is put away rather than closing it unseen, the Esc key and a resize leave it alone, and back on screen it is placed again; opening it brings up a chat that is closed or put away, and says it was asked for here',
         count(dice, "b.addEventListener('click', function() { if (panelShown()) { if (typeof window.wpBoxFront === 'function' && window.wpBoxFront(p)) return; closePanel(); } else openPanel(); });") === 1   /* 1.6.2 ("Last opened in front"): a roller under a box opened after it comes in front first, moved on purpose */
         && count(dice, "document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && panelShown() && (!window.wpEsc || window.wpEsc.free(e))) closePanel(); }, true);") === 1

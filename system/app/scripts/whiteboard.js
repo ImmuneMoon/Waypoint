@@ -2468,6 +2468,28 @@ window.wpFitToGrid = fitToGrid;
   }
   wireMenuArrows();
   // [lookcheck:press-end]
+  // [lookcheck:menuinview-start]
+  // 1.6.2 (backlog 59 i; the owner: "Find and fix the rest (Recommended)"): a menu of the map's bars is held inside the window sideways, so one whose
+  // button stands near an edge is never cut off there (Scene's effects ran 10 px past the right edge at 1024 px). It moves by the translate
+  // property, which adds to the transform a menu is centred by, and is taken off as the menu closes
+  function menuInView(menu, win) {
+      if (!menu || !menu.style || typeof menu.getBoundingClientRect !== 'function') return 0;
+      menu.style.translate = '';
+      var r = menu.getBoundingClientRect(), w = win && win.innerWidth; if (!r || !(r.width > 0) || !(w > 0)) return 0;
+      var dx = r.width > w - 16 || r.left < 8 ? 8 - r.left : r.right > w - 8 ? (w - 8) - r.right : 0;
+      dx = Math.round(dx); if (dx) menu.style.translate = dx + 'px 0';
+      return dx;
+  }
+  function menusInView(doc, win, MO) {   // each menu of the three bars, as it opens and as the window changes size
+      if (!doc || typeof doc.querySelectorAll !== 'function' || !win) return 0;
+      var ms = doc.querySelectorAll('#wbFloatingToolbar .shape-menu, #wbEdgeTools .shape-menu, #dataFloatingToolbar .shape-menu');
+      var fit = function(m) { if (m.classList.contains('show')) menuInView(m, win); else if (m.style.translate) m.style.translate = ''; };
+      if (typeof MO === 'function') { var ob = new MO(function(list) { list.forEach(function(x) { fit(x.target); }); }); Array.prototype.forEach.call(ms, function(m) { ob.observe(m, { attributes: true, attributeFilter: ['class'] }); }); }
+      if (typeof win.addEventListener === 'function') win.addEventListener('resize', function() { Array.prototype.forEach.call(ms, fit); });
+      return ms.length;
+  }
+  // [lookcheck:menuinview-end]
+  if (typeof document !== 'undefined' && typeof window !== 'undefined') menusInView(document, window, window.MutationObserver);
   function updateWbToolbar(activeId) {
       ['moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'fillModeBtn', 'buildModeBtn', 'envModeBtn'].forEach(id => {
           var el = document.getElementById(id);

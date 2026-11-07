@@ -339,7 +339,9 @@ function panelShown() { return panelOpen() && !awayNow(ui('dicePanel')); }
 function placePanel() {
     var p = ui('dicePanel'), c = ui('chatPanel'); if (!p) return;
     var r = c && c.style.display !== 'none' && !awayNow(c) ? c.getBoundingClientRect() : null;
-    if (r) { p.style.right = Math.max(8, window.innerWidth - r.right) + 'px'; p.style.bottom = Math.max(8, window.innerHeight - r.top + 8) + 'px'; }
+    var hd = typeof document !== 'undefined' && document && typeof document.querySelector === 'function' ? document.querySelector('header') : null, top = hd ? hd.getBoundingClientRect().bottom : 0, h = p.offsetHeight || 0;
+    if (r && h && h > r.top - 16 - top) { p.style.right = Math.max(8, window.innerWidth - r.left + 8) + 'px'; p.style.bottom = Math.max(8, window.innerHeight - r.bottom) + 'px'; }   // 1.6.2 (backlog 59 i): where it does not fit above Table Chat, as in a short window, it stands beside it
+    else if (r) { p.style.right = Math.max(8, window.innerWidth - r.right) + 'px'; p.style.bottom = Math.max(8, window.innerHeight - r.top + 8) + 'px'; }
     else { p.style.right = '20px'; p.style.bottom = '90px'; }
 }
 // [floatcheck:dice-end]

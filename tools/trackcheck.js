@@ -174,7 +174,7 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
             && css.includes('#trkStrip .trk-pill.trk-done {') && css.includes('#trkPanel {'));
         const help = ix.slice(ix.indexOf('<h4 id="helpTrackers">Table trackers</h4>'), ix.indexOf('<h4>Coordinate rulers &amp; minimap</h4>'));
         check('Help has Table trackers on the Play Map part (the three kinds, + Tracker, who sees it, the end, the fold, the log) and a line for players; both release notes say it',
-            help.length > 400 && help.includes('<b>+ Tracker</b> opens a small form.') && help.includes('It never leaves your computer.') && help.includes('Table Chat says so on every screen that sees it.') && help.includes('Each step is written to <b>saves/error.log</b>.')
+            help.length > 400 && help.includes('<b>+ Add</b> on it opens a small form.') && help.includes('one bar named Trackers') && help.includes('It never leaves your computer.') && help.includes('Table Chat says so on every screen that sees it.') && help.includes('Each step is written to <b>saves/error.log</b>.')
             && ix.includes('<li><b>Table trackers:</b> the pills at the top left of the map are counters, countdowns and clocks your GM shows the table.')
             && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => readRoot(f).includes(NL + 'Table trackers' + NL + '- Put counters, countdowns and clocks on the play map.')));
         /* the owner, 2026-10-29, by prompt: "gm but for the whole table or specific players", and for the one player "maybe a combo of all?" */
@@ -196,9 +196,14 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
             && setJ.includes("function syncTrkHide(camp, editable, client) {") && setJ.includes("if (!T.setHidden(p.id, cb.checked))") && ix.includes('<div id="setTrkHide" class="gm-only set-trk-hide"')
             && ix.includes('<div class="set-vtt-row set-sw-row" data-vtt="trackers"') && ix.includes('id="setTrackersBtn"') && ix.includes('id="setVttGlobalTrackersBtn"'));
         check('backlog 29 Help says where the switch is and the three ways to keep the trackers from one player, the player\'s line says the GM may, and both release notes say it',
-            help.includes('<b>Settings &#9656; This campaign &#9656; Table trackers</b>') && help.includes('<b>Who sees these</b>') && help.includes('<b>Hide table trackers from them</b>') && help.includes('That player then gets no tracker at all.')
+            help.includes('<b>Settings &#9656; This campaign &#9656; Table trackers</b>') && help.includes('<b>Who sees</b> at the end of the bar') && help.includes('<b>Hide table trackers from them</b>') && help.includes('That player then gets no tracker at all.')
             && ix.includes('Your GM may switch them off, for the table or for you alone.') && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => readRoot(f).includes('- Table trackers is a VTT feature in Settings, on by default.')));
         const ci = readRoot('.github/workflows/checks.yml');
+        const trkB = readU('scripts/trackers.js'), cssB = readU('style.css');
+        check('backlog 217 (the owner: "One joined bar"): the strip is one bar named Trackers on every screen but the stream window, the fold, the name, the trackers, + Add and Who sees its parts, parted by thin lines; the ids the GM presses stay, and Help and both release notes say it',
+            trkB.includes("box.classList.toggle('trk-bar', !tv);") && trkB.includes("lb.className = 'trk-lab'; lb.textContent = 'Trackers';") && trkB.includes("btn('trk-pill trk-add', '+ Add', ") && trkB.includes("a.id = 'trkAdd'") && trkB.includes("wb.id = 'trkWho'") && trkB.includes("f.id = 'trkFold'")
+            && cssB.includes('#trkStrip.trk-bar { gap: 0; background: var(--panel2);') && cssB.includes('#trkStrip.trk-bar > * + * { border-left: 1px solid var(--edge); }')
+            && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => readRoot(f).includes('- The table trackers stand in one bar named Trackers')));
         check('CI runs this suite', ci.includes('run: node tools/trackcheck.js'));
     }
 

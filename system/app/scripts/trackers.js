@@ -259,12 +259,13 @@ function draw(force) {
     place(box);   // beside the minimap, or in its place, and clear of the zoom box
     if (force || sig !== _sig) {
         var had = document.activeElement && box.contains(document.activeElement) ? focusKey(document.activeElement) : '';   // a press from the keyboard keeps its place when the strip is drawn again
-        _sig = sig; box.textContent = '';
+        _sig = sig; box.textContent = ''; box.classList.toggle('trk-bar', !tv);   // backlog 217 (the owner, 2026-11-07, by prompt: "One joined bar"): the fold, the bar's name, the trackers and the GM's two buttons read as one thing
         if (!tv) { var f = btn('trk-fold', folded ? (list.length ? 'Trackers · ' + list.length : 'Trackers') : '◂', folded ? 'Show the trackers' : 'Put the trackers away on this screen'); f.id = 'trkFold'; f.setAttribute('aria-expanded', folded ? 'false' : 'true'); box.appendChild(f); }   // the stream window, the party's screen, has no fold: it shares this computer's storage with the GM's window
         if (!folded) {
+            if (!tv) { var lb = document.createElement('span'); lb.className = 'trk-lab'; lb.textContent = 'Trackers'; box.appendChild(lb); }
             list.forEach(function(t) { box.appendChild(pill(t, gm, camp, now)); });
-            if (gm) { var a = btn('trk-pill trk-add', '+ Tracker', 'Add a counter, a countdown or a clock to this map or every map'); a.id = 'trkAdd'; if (ownList(camp).length >= T.LIMITS.list) a.disabled = true; box.appendChild(a); }
-            if (gm) { var hN = T.cleanHide(camp.trkHide).length, wb = btn('trk-btn trk-who', hN ? 'Who sees these · ' + hN + ' hidden' : 'Who sees these', 'Keep the trackers from chosen players'); wb.id = 'trkWho'; wb.setAttribute('aria-haspopup', 'true'); box.appendChild(wb); }
+            if (gm) { var a = btn('trk-pill trk-add', '+ Add', 'Add a counter, a countdown or a clock to this map or every map'); a.id = 'trkAdd'; if (ownList(camp).length >= T.LIMITS.list) a.disabled = true; box.appendChild(a); }
+            if (gm) { var hN = T.cleanHide(camp.trkHide).length, wb = btn('trk-btn trk-who', hN ? 'Who sees · ' + hN + ' hidden' : 'Who sees', 'Keep the trackers from chosen players'); wb.id = 'trkWho'; wb.setAttribute('aria-haspopup', 'true'); box.appendChild(wb); }
         }
         if (had) { var back = box.querySelector(had); if (back) back.focus(); }
         return;

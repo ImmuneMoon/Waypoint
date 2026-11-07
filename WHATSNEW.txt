@@ -585,6 +585,8 @@ Writing planners and pages
   changed you are asked which to keep. This update changes the core, so it
   installs through the installer once.
 - The install's website key is no longer readable by the page as a file.
+- The table trackers stand in one bar named Trackers: its fold, the trackers,
+  + Add and Who sees are parts of it, parted by thin lines.
 - A list's action may be a job of several turns too, as a reload that rolls
   nothing: each press counts, and its changes are made at the last press.
 - Flatten into one picture: select many map pieces and draw them into one

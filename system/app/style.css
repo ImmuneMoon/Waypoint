@@ -3149,6 +3149,14 @@
   .trk-menu .trk-msep { height: 1px; background: var(--edge); margin: 3px 6px; }
   .trk-menu .trk-mnote { padding: 3px 9px 4px; color: var(--dim); font-size: 11px; max-width: 220px; line-height: 1.35; }   /* backlog 29: Who sees these, its words */
   #trkStrip .trk-who { height: 24px; padding: 0 8px; border-radius: 13px; background: var(--panel2); box-shadow: 0 2px 6px rgba(0,0,0,0.35); }
+  #trkStrip.trk-bar { gap: 0; background: var(--panel2); border: 1px solid var(--edge); border-radius: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.35); overflow: hidden; }   /* backlog 217: one joined bar, its parts parted by thin lines */
+  #trkStrip.trk-bar > * { min-height: 26px; height: auto; margin: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+  #trkStrip.trk-bar > * + * { border-left: 1px solid var(--edge); }
+  #trkStrip.trk-bar .trk-lab { display: inline-flex; align-items: center; padding: 0 9px; color: var(--dim); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; }
+  #trkStrip.trk-bar .trk-fold, #trkStrip.trk-bar .trk-who, #trkStrip.trk-bar .trk-add { padding: 0 10px; font-size: 12px; }
+  #trkStrip.trk-bar .trk-add { border-style: none; border-left-style: solid; opacity: 1; }
+  #trkStrip.trk-bar button:hover, #trkStrip.trk-bar button:focus-visible { background: rgba(224,165,79,0.14); }
+  #trkStrip.trk-bar .trk-pill.trk-done { border: 0; border-left: 1px solid var(--edge); box-shadow: inset 0 0 0 2px rgba(224,165,79,0.55); }
   .set-trk-hide .combat-row { margin-top: 4px; font-size: 12px; cursor: pointer; }
   #trkPanel { position: fixed; left: 60px; top: 100px; width: 320px; max-width: calc(100vw - 24px); max-height: 80vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   #trkHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }

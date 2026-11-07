@@ -37,10 +37,14 @@ function shotLoad() {
     } catch (e) {}
 }
 function shotKeep() { try { localStorage.setItem(SHOT_KEY, JSON.stringify({ area: _shot.area, cell: _shot.cell, grid: _shot.grid, labels: _shot.labels, bg: _shot.bg })); } catch (e) {} }
+// 1.6.2 (backlog 38): a map's own cell (fogcore cleanMapCell), null for today's lattice
+function shotOwnCell(map) { var g = shotGridOf(map), FC = window.wpFogCore; return g && map.meta && FC && typeof FC.cleanMapCell === 'function' ? FC.cleanMapCell(map.meta.cell, g) : null; }
+// the board px a Cell size chip measures against: one cell of the map's own (a hex by its row as 52 is to 50), today's 50 with none
+function shotRef(map) { var c = shotOwnCell(map); return c ? (shotGridOf(map) === 'hex' ? c.size * 50 / 52 : c.size) : 50; }
 function shotGridOf(map) { var g = map && map.meta && map.meta.gridType; return g === 'square' || g === 'hex' ? g : ''; }   // the map's own grid, never this screen's
 // The whole map begins and ends on the grid's own lines (a square's 50 px, a hex tile's 90 by 52), so that a grid laid over the picture in
 // another program can start at the picture's corner. A map with no grid has no lines to keep to
-function shotSnap(map) { var g = shotGridOf(map); return g === 'square' ? { w: 50, h: 50 } : g === 'hex' ? { w: 90, h: 52 } : null; }
+function shotSnap(map) { var g = shotGridOf(map), c = shotOwnCell(map), k = c ? c.size / (g === 'hex' ? 52 : 50) : 1; return g === 'square' ? { w: 50 * k, h: 50 * k } : g === 'hex' ? { w: 90 * k, h: 52 * k } : null; }
 // What is on screen, in the board's own units: where the map's area is scrolled to, over its zoom
 function shotView() {
     var wrap = shotEl('whiteboardWrap'), z = state.zoomLevel > 0 ? state.zoomLevel : 1;
@@ -60,7 +64,7 @@ function shotCellTip(c, kind) {
 // The dialog as the choices stand: the chip in use lit, the ticks, the size in words, and Save off while no picture can be made. A picture
 // that could not be made is said in the same line, in sight: a notice of the page's would lie under the dialog's own backdrop
 function shotSync() {
-    var map = shotMap(), p = SC.plan(map ? shotBox(map) : null, _shot.cell), gridKind = shotGridOf(map);
+    var map = shotMap(), p = SC.plan(map ? shotBox(map) : null, _shot.cell, map ? shotRef(map) : 50), gridKind = shotGridOf(map);
     var seg = function(id, attr, val, tip) {
         var box = shotEl(id); if (!box) return;
         Array.prototype.forEach.call(box.querySelectorAll('[' + attr + ']'), function(b) { var on = b.getAttribute(attr) === String(val); b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); if (tip) shotTip(b, tip(b.getAttribute(attr))); });
@@ -138,7 +142,7 @@ function shotGo() {
     if (!shotShown() || _shot.busy) return false;
     var map = shotMap(); if (!map || !shotMay()) { shotHide(); return false; }
     _shot.err = '';
-    var box = shotBox(map), p = SC.plan(box, _shot.cell); if (!p.ok) { shotSync(); return false; }
+    var box = shotBox(map), p = SC.plan(box, _shot.cell, shotRef(map)); if (!p.ok) { shotSync(); return false; }
     var grid = shotGridOf(map), lines = _shot.grid && !!grid, labels = _shot.labels, bg = _shot.bg, items = map.whiteboard.slice(), need = SC.needs(items, { labels: labels, grid: !!grid, box: box }), title = shotTitle(map), my = ++_shot.gen;
     _shot.busy = true; shotKeep(); shotSync();
     var fail = function() { if (my !== _shot.gen) return; _shot.busy = false; _shot.err = SHOT_CANT; shotSync(); };
@@ -149,7 +153,7 @@ function shotGo() {
         need.tiles.forEach(function(n) { tiles[n] = shotTile(n, k); });
         var cv = document.createElement('canvas'); cv.width = p.w; cv.height = p.h;
         var ctx = cv.getContext('2d'); if (!ctx) throw new Error('no context');
-        var drew = SC.draw(ctx, { box: box, scale: p.scale, bg: bg, grid: grid, lines: lines, labels: labels, items: items, res: {
+        var drew = SC.draw(ctx, { box: box, scale: p.scale, bg: bg, grid: grid, cell: shotOwnCell(map), lines: lines, labels: labels, items: items, res: {
             pic: function(a) { return pics[a] || null; },
             tile: function(n) { return tiles[n] || null; },
             text: shotText

@@ -164,11 +164,11 @@ function cleanCell(v) { return CELLS.indexOf(v) >= 0 ? v : 70; }
 function fits(w, h) { return fin(w) && fin(h) && w >= 1 && h >= 1 && w <= LIMITS.side && h <= LIMITS.side && w * h <= LIMITS.area; }
 // What a box becomes at a cell size: its size in pixels, whether a picture that large is made, and where it is not, the largest cell size
 // below the asked one at which it would be (0 for none)
-function plan(box, cell) {
-    var c = cleanCell(cell), s = c / 50;
+function plan(box, cell, ref) {
+    var r = fin(ref) && ref > 0 ? ref : 50, c = cleanCell(cell), s = c / r;   // ref: the board px of one of the map's own cells (backlog 38), today's 50 where it sets none
     if (!box || !(box.w > 0) || !(box.h > 0)) return { ok: false, why: 'empty', cell: c, scale: s, w: 0, h: 0, fit: 0 };
     var w = Math.ceil(box.w * s), h = Math.ceil(box.h * s), ok = fits(w, h), fit = 0;
-    if (!ok) for (var i = CELLS.length - 1; i >= 0 && !fit; i--) if (CELLS[i] < c && fits(Math.ceil(box.w * CELLS[i] / 50), Math.ceil(box.h * CELLS[i] / 50))) fit = CELLS[i];
+    if (!ok) for (var i = CELLS.length - 1; i >= 0 && !fit; i--) if (CELLS[i] < c && fits(Math.ceil(box.w * CELLS[i] / r), Math.ceil(box.h * CELLS[i] / r))) fit = CELLS[i];
     return { ok: ok, why: ok ? '' : 'large', cell: c, scale: s, w: w, h: h, fit: fit };
 }
 function num(n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
@@ -402,20 +402,21 @@ function drawPiece(ctx, item, job) {
 // 50 px, on hexagons the seven edges of the board's 90 by 52 tile, dark under light
 var HEX_EDGES = Object.freeze([[30, 26, 0, 26], [30, 26, 45, 0], [30, 26, 45, 52], [75, 0, 45, 0], [75, 0, 90, 26], [75, 52, 45, 52], [75, 52, 90, 26]]);
 function drawGrid(ctx, job) {
-    var s = job.scale, b = job.box, W = b.w * s, H = b.h * s, kind = job.grid;
+    var s = job.scale, b = job.box, W = b.w * s, H = b.h * s, kind = job.grid, oc = job.cell && typeof job.cell === 'object' && fin(job.cell.size) && job.cell.size > 0 ? job.cell : null;   // a map's own cell (backlog 38)
+    var sz = oc && kind === 'square' ? oc.size : 50, gx0 = oc && fin(oc.ox) ? oc.ox : 0, gy0 = oc && fin(oc.oy) ? oc.oy : 0, hk = oc && kind === 'hex' ? oc.size / 52 : 1;
     if (kind === 'square') {
         var bands = [['rgba(255,255,255,0.55)', 1], ['rgba(0,0,0,0.55)', 3]];
         bands.forEach(function(band) {
             ctx.fillStyle = band[0];
-            for (var gx = Math.ceil(b.x / 50) * 50; gx <= b.x + b.w; gx += 50) ctx.fillRect((gx - b.x - band[1] / 2) * s, 0, band[1] * s, H);
-            for (var gy = Math.ceil(b.y / 50) * 50; gy <= b.y + b.h; gy += 50) ctx.fillRect(0, (gy - b.y - band[1] / 2) * s, W, band[1] * s);
+            for (var gx = Math.ceil((b.x - gx0) / sz) * sz + gx0; gx <= b.x + b.w; gx += sz) ctx.fillRect((gx - b.x - band[1] / 2) * s, 0, band[1] * s, H);
+            for (var gy = Math.ceil((b.y - gy0) / sz) * sz + gy0; gy <= b.y + b.h; gy += sz) ctx.fillRect(0, (gy - b.y - band[1] / 2) * s, W, band[1] * s);
         });
     } else if (kind === 'hex') {
-        var strokes = [['rgba(0,0,0,0.55)', 3], ['rgba(255,255,255,0.55)', 1.2]], tx0 = Math.floor(b.x / 90) * 90, ty0 = Math.floor(b.y / 52) * 52;
+        var strokes = [['rgba(0,0,0,0.55)', 3], ['rgba(255,255,255,0.55)', 1.2]], tw = 90 * hk, th = 52 * hk, tx0 = Math.floor((b.x - gx0) / tw) * tw + gx0, ty0 = Math.floor((b.y - gy0) / th) * th + gy0;
         strokes.forEach(function(st) {
             ctx.strokeStyle = st[0]; ctx.lineWidth = st[1] * s; ctx.lineCap = 'butt';
             ctx.beginPath();
-            for (var tx = tx0; tx < b.x + b.w; tx += 90) for (var ty = ty0; ty < b.y + b.h; ty += 52) HEX_EDGES.forEach(function(e) { ctx.moveTo((tx + e[0] - b.x) * s, (ty + e[1] - b.y) * s); ctx.lineTo((tx + e[2] - b.x) * s, (ty + e[3] - b.y) * s); });
+            for (var tx = tx0; tx < b.x + b.w; tx += tw) for (var ty = ty0; ty < b.y + b.h; ty += th) HEX_EDGES.forEach(function(e) { ctx.moveTo((tx + e[0] * hk - b.x) * s, (ty + e[1] * hk - b.y) * s); ctx.lineTo((tx + e[2] * hk - b.x) * s, (ty + e[3] * hk - b.y) * s); });
             ctx.stroke();
         });
     }

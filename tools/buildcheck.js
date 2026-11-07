@@ -5178,6 +5178,18 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             && wbG.includes("if (mapGrid !== state.gridType || (ovG && (ovG.dataset.cellSig || '') !== gridCellSig(activeMap, mapGrid))) applyGridType(mapGrid);") && (wbG.match(/gridOwnDraw\(overlay, type, /g) || []).length === 4, JSON.stringify([pat && pat.at, sqT.w, hxT.lines.length]));
     }
 
+    {   // 1.6.2, backlog 38 fold 3b: the map's picture measures and draws a map's own cell (shotcore plan's ref, draw's job.cell)
+        const SH = await import(url('shotcore.js') + '?cell');
+        const p70 = SH.plan({ x: 0, y: 0, w: 700, h: 350 }, 70, 70), p50 = SH.plan({ x: 0, y: 0, w: 700, h: 350 }, 70), pNo = SH.plan({ x: 0, y: 0, w: 700, h: 350 }, 70, 0);
+        const rects = [], ctx = { fillRect: (x, y, w, h) => rects.push([x, y, w, h]), beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, set fillStyle(v) {}, set strokeStyle(v) {}, set lineWidth(v) {}, set lineCap(v) {} };
+        const shS = read('system/app/scripts/shotcore.js'), dgS = shS.slice(shS.indexOf('var HEX_EDGES'), shS.indexOf('\n}', shS.indexOf('function drawGrid(')) + 2);
+        const DG = new Function('fin', dgS + '\nreturn drawGrid;')(v => typeof v === 'number' && isFinite(v));
+        DG(ctx, { scale: 1, box: { x: 0, y: 0, w: 210, h: 70 }, grid: 'square', cell: { size: 70, ox: 5 } });
+        const xs = rects.filter(r => r[3] === 70 && r[2] === 1).map(r => r[0] + 0.5);
+        check('the map\'s picture of a map with its own cell: a Cell size of 70 gives 70 file pixels a cell of 70 board px, so 700 by 350 board px stay 700 by 350, as today\'s 50 px cells give 980 by 490; its square lines stand on its own lattice from its origin (5, 75, 145)',
+            p70.ok && p70.w === 700 && p70.h === 350 && p50.w === 980 && pNo.w === 980 && JSON.stringify(xs) === JSON.stringify([5, 75, 145]), JSON.stringify([p70.w, p50.w, xs]));
+    }
+
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

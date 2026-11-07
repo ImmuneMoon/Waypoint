@@ -3844,5 +3844,8 @@ check('the roster numbers rows of one name, and the sheet that says it is out of
         && mnS.includes("document.getElementById('sidebar').classList.toggle('no-elements', state.viewMode === 'visual');") && css.includes('#sidebar.no-elements .sidebar-tabs, #sidebar.no-elements #elementList { display: none !important; }')
         && ix.includes('<li><b>Layers</b> in the toolbar&rsquo;s More menu') && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').includes("- Layers, in the play map's More menu")));
 }
+check('Properties floats (backlog 217, the owner: "Floating window"): over the map and never narrowing it, moved by its title bar and kept where it was left on this computer, its close pressing the toggle at the map\'s edge; the stream window untouched',
+    css.includes('body:not(.stream-mode) #sidebar { position: fixed; right: 18px; top: 110px;') && css.includes('body:not(.stream-mode) #sidebar.collapsed { display: none !important; }') && ix.includes('<div id="propHead"><span class="notepad-title">Properties</span>') && ix.includes('id="propClose"')
+    && read('scripts/layers.js').includes("localStorage.setItem('wp_propAt', JSON.stringify({ x: Math.round(r.left), y: Math.round(r.top) }))") && read('scripts/layers.js').includes("var t = document.getElementById('toggleRightBtn'); if (t && !sb.classList.contains('collapsed')) t.click();"));
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

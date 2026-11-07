@@ -948,7 +948,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var typeLabel = w.type === 'text' ? 'Text Box' : w.type === 'path' ? 'Drawing' : w.type === 'image' ? 'Image' : w.type === 'trigger' ? 'Trigger Zone' : w.type.charAt(0).toUpperCase() + w.type.slice(1);
             var html =
               '<h2>' + esc(w.name ? w.name : typeLabel) + (w.name ? ' <span class="muted" style="font-weight:normal; font-size:11px;">' + esc(typeLabel) + '</span>' : '') + '</h2>' +
-              '<div class="field"><label for="wbName">Name <span class="muted">(shown in the Elements list)</span></label><input type="text" id="wbName" maxlength="60" value="' + esc(w.name || '') + '" placeholder="' + esc(w.isChar && w.charName ? w.charName : typeLabel) + '"></div>' +
+              '<div class="field"><label for="wbName">Name <span class="muted">(shown in Layers)</span></label><input type="text" id="wbName" maxlength="60" value="' + esc(w.name || '') + '" placeholder="' + esc(w.isChar && w.charName ? w.charName : typeLabel) + '"></div>' +
               // Player visibility up top — this is the setting testers kept missing
               '<div class="field vis-field' + (w.hidden ? ' is-hidden' : '') + '">' +
                 '<label style="display:flex; align-items:center; gap:8px; margin:0; text-transform:none; cursor:pointer;">' +

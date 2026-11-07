@@ -4314,6 +4314,7 @@ window.wpFitToGrid = fitToGrid;
   })();
   function syncMeasureMenu() {
       if (window.wpCompass && typeof window.wpCompass.menuSync === 'function') window.wpCompass.menuSync();   // 1.6.2, backlog 82: the Compass part
+      if (window.wpCellSize && typeof window.wpCellSize.menuSync === 'function') window.wpCellSize.menuSync();   // 1.6.2, backlog 38: the map's own cell
 
       document.querySelectorAll('#measureUnitRow .draw-style-btn').forEach(function(b) {
 
@@ -8332,7 +8333,8 @@ window.wpPlaceCommit = function(px, py, pw, ph, sx, sy) {
     if (!P) return;
     if (P.build) { wpBuildCommit(P, px, py, pw, ph, sx, sy); return; }
     if (P.align) { alignStep(P.align, sx, sy); return; }   // 1.6.2 (backlog 38): a click of Align its grid
-    if (P.trim) { trimStep(P.trim, px, py, pw, ph, sx, sy); return; }   // 1.6.2 (backlog 37): a click or a drag of Trim to cells   // the map builder: a built piece lands by its own rules (on the lattice, a hexagon a cell) and Build stays in hand
+    if (P.trim) { trimStep(P.trim, px, py, pw, ph, sx, sy); return; }
+    if (P.cellfit) { if (window.wpCellSize && typeof window.wpCellSize.fitStep === 'function') window.wpCellSize.fitStep(P.cellfit, sx, sy); return; }   // 1.6.2 (backlog 38): a click of Fit grid to picture   // 1.6.2 (backlog 37): a click or a drag of Trim to cells   // the map builder: a built piece lands by its own rules (on the lattice, a hexagon a cell) and Build stays in hand
     var props = Object.assign({}, P.props);
     var dragged = pw > 12 && ph > 12;
     var type = P.type;

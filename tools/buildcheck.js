@@ -5190,6 +5190,34 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             p70.ok && p70.w === 700 && p70.h === 350 && p50.w === 980 && pNo.w === 980 && JSON.stringify(xs) === JSON.stringify([5, 75, 145]), JSON.stringify([p70.w, p50.w, xs]));
     }
 
+    {   // 1.6.2, backlog 38 fold 4: a map's own cell set (cellcore.js, run for real with fogcore; cellsize.js's controls pinned)
+        const CC = await import(url('cellcore.js') + '?t'), J = JSON.stringify;
+        const tok = () => ({ id: 't', isChar: true, x: 615, y: 598, w: 60, h: 52 });
+        const map = { meta: { gridType: 'hex' }, fog: { manual: { adds: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 2, r: 0 }], cuts: [] } }, whiteboard: [tok(), { id: 'p', type: 'image', x: 494, y: 325, w: 300, h: 300 }, { id: 'w', type: 'path', x: 0, y: 0, w: 10, h: 10, blocksSight: true }] };
+        const r1 = CC.cellChange(map, { size: 104 }, true), t1 = map.whiteboard[0], p1 = map.whiteboard[1];
+        check('a map\'s own cell set (cellChange): the cell kept, a token fitted to the new cell and seated in the hex under its centre, a picture and a wall left where they were, the hand-painted fog\'s cells moved by their centres onto the new lattice, each once',
+            r1.changed && r1.moved === 1 && J(map.meta.cell) === J({ size: 104 }) && t1.w === 120 && t1.h === 104 && t1.x === 600 && t1.y === 520 && p1.x === 494 && p1.w === 300 && map.whiteboard[2].x === 0
+            && J(map.fog.manual.adds) === J([{ q: 0, r: 0 }, { q: 1, r: 0 }]), J([r1, t1, map.fog.manual.adds]));
+        const r2 = CC.cellChange(map, { size: 104 }, true), r3 = CC.cellChange(map, null, false);
+        check('a cell that is the one the map has changes nothing; back to the usual cell takes the key off, and with resize false a token is left as it stands',
+            r2.changed === false && r3.changed && !('cell' in map.meta) && t1.w === 120 && CC.cellChange({ meta: { gridType: 'off' } }, { size: 70 }, true).changed === false);
+        const sqm = { meta: { gridType: 'square', envCells: { '0,0': { t: 1 }, '1,0': { t: 2 } } }, whiteboard: [{ isChar: true, x: 100, y: 100, w: 100, h: 100 }] }; CC.cellChange(sqm, { size: 100 }, true);
+        check('on squares a token of two cells across keeps two cells of the new size with its corner on the lattice, and the environment\'s cells move by their centres (the later kept where two land in one)',
+            J(sqm.whiteboard[0]) === J({ isChar: true, x: 100, y: 100, w: 200, h: 200 }) && J(sqm.meta.envCells) === J({ '0,0': { t: 2 } }), J([sqm.whiteboard[0], sqm.meta.envCells]));
+        const fh = CC.cellFromClicks('hex', { x: 100, y: 200 }, { x: 100, y: 380 }, 2), fs2 = CC.cellFromClicks('square', { x: 12, y: 20 }, { x: 212, y: 20 }, 5);
+        check('Fit grid to picture (cellFromClicks): two hex centres two hexes apart in a column give a row of 90 with a centre on the first click; two corners five cells apart give 40 px squares from the first; nothing for no whole number from 1 to 1000 or points closer than 4 px',
+            fh.size === 90 && fh.oy === 20 && Math.abs((fh.ox + 90 * 30 / 52 / 2) % (3 * 90 * 30 / 52) - 100 % (3 * 90 * 30 / 52)) < 0.02 && J(fs2) === J({ size: 40, ox: 12, oy: 20 })
+            && CC.cellFromClicks('hex', { x: 0, y: 0 }, { x: 0, y: 3 }, 1) === null && [0, 1.5, 1001, NaN].every(n => CC.cellFromClicks('square', { x: 0, y: 0 }, { x: 100, y: 0 }, n) === null) && CC.cellFromClicks('off', { x: 0, y: 0 }, { x: 100, y: 0 }, 2) === null, J([fh, fs2]));
+        const ixC = read('system/app/index.html'), csC = read('system/app/scripts/cellsize.js'), wbC = read('system/app/scripts/whiteboard.js'), ntC = read('system/app/scripts/net.js'), clC = read('system/app/scripts/cleanup.js');
+        check('the controls: the Measure options hold the GM\'s Grid cell on the board part (Cell size, Offset, Fit grid to picture, Usual size, Ask before tokens resize), loaded after the compass; the board hands Fit grid to picture its clicks; a change asks first only where the tick says so, with Resize them and Leave them; a player\'s app and a file keep a map\'s cell only as fogcore keeps it; Help and both notes say it',
+            ['measureCell', 'measureCellPx', 'measureCellOx', 'measureCellOy', 'measureCellFit', 'measureCellReset', 'measureCellAsk'].every(id => ixC.split('id="' + id + '"').length === 2)
+            && ixC.includes('<script type="module" src="scripts/compass.js"></script>\n<script type="module" src="scripts/cellsize.js"></script>')
+            && wbC.includes("if (P.cellfit) { if (window.wpCellSize && typeof window.wpCellSize.fitStep === 'function') window.wpCellSize.fitStep(P.cellfit, sx, sy); return; }")
+            && csC.includes("{ yes: 'Resize them', alt: 'Leave them', noEnter: true }") && csC.includes("if (!asks()) { go(true); return; }")
+            && ntC.includes("window.wpFogCore.cleanMapCell(m.meta.cell, m.meta.gridType) : null; if (MCh) m.meta.cell = MCh; else delete m.meta.cell;") && clC.includes("FC.cleanMapCell(it.meta.cell, it.meta.gridType) : null; if (MCf) it.meta.cell = MCf; else delete it.meta.cell;")
+            && ixC.includes('<b>Fit grid to picture</b>') && [read('WHATSNEW.txt'), read('system/app/assets/whatsnew.txt')].every(t => t.includes('Fit grid to picture')));
+    }
+
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

@@ -88,6 +88,7 @@
 <script type="module" src="scripts/trackcore.js"></script>
 <script type="module" src="scripts/trackers.js"></script>
 <script type="module" src="scripts/compass.js"></script>
+<script type="module" src="scripts/cellsize.js"></script>
 <script type="module" src="scripts/view.js"></script>
 <script type="module" src="scripts/mapobjects.js"></script>
 <script type="module" src="scripts/trade.js"></script>
@@ -789,6 +790,7 @@
                           <li>A piece&rsquo;s <b>Properties</b> start with its commands in a row: Duplicate, Map center here, Fit to grid cells and Delete. Under them its settings stand in folds: Character and GM notes on a token, then Map links, Look, Map rules, and Vision and light.</li>
                           <li><b>Align its grid</b> is among a map picture&rsquo;s commands. It fits a picture that has its own grid printed on it.<ul><li>Click two corners of that grid along a row or a column, or on a hex map two hex centres in one column. Then say how many cells apart they are.</li><li>The picture is sized and placed so that its grid lies on the board&rsquo;s. It is never stretched, and Undo puts it back.</li></ul></li>
                           <li><b>Trim to cells</b> keeps only the cells you pick of a map picture.<ul><li>Click a cell to keep it, or drag over cells. Click a kept cell to let it go, and press <kbd>Esc</kbd> when you are done.</li><li>The picture is cut to the kept cells and the cut moves with it. <b>Whole picture</b> takes the trim off. The file is never changed.</li></ul></li>
+                          <li><b>Grid cell on the board</b>, in the measure options, gives a map a cell of its own size for a picture with its own grid.<ul><li><b>Fit grid to picture</b> takes two clicks on the picture&rsquo;s printed grid and how many cells apart they are. The grid then fits the picture, and the picture stays put.</li><li>You can also type the cell size and the offset. <b>Usual size</b> puts the grid back.</li><li>Tokens take the new cell size and sit in their cells. Pictures, drawings and walls stay where they are. Tick <b>Ask before tokens resize</b> to be asked each time.</li></ul></li>
                           <li><b>Lock / Unlock</b>: locked items can't be moved or resized, and they dim slightly. A locked token is frozen for its player too. They can't move or turn it, change its posture or elevation, or mark threats on it until you unlock it.</li>
                           <li><b>Wall marks</b>: a wall shows a gold line, and its small mark when you point at it or select it. Its hover card says what it is. Settings can show the marks always or never.</li>
                           <li><b>Hide from players / Show to players</b>: in multiplayer, players see nothing at all of a hidden item. They get no outline, no placeholder and none of its moves. You see a ghost with an eye. Show it again and it appears for them where it stands. To leave hidden pieces off your own screen too, pick Invisible under <b>Hidden pieces on my map</b> in Settings.</li>
@@ -3477,6 +3479,13 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <option value="km">kilometers</option>
                           <option value="mi">miles</option>
                       </select>
+                  </div>
+                  <div class="gm-only" id="measureCell" hidden>
+                      <div class="draw-menu-label">Grid cell on the board</div>
+                      <div class="draw-menu-row"><label class="compass-lab" id="measureCellLab" for="measureCellPx">Cell size</label><input type="number" class="cell-num" id="measureCellPx" min="10" max="1000" step="1" title="How many board pixels one cell is across, or one hex row high. 50 for squares and 52 for hexes is the usual size"><span class="cell-unit">px</span></div>
+                      <div class="draw-menu-row"><label class="compass-lab" for="measureCellOx">Offset</label><input type="number" class="cell-num" id="measureCellOx" step="1" title="How far right the grid is moved, in board pixels"><input type="number" class="cell-num" id="measureCellOy" step="1" title="How far down the grid is moved, in board pixels"></div>
+                      <div class="draw-menu-row"><button class="draw-style-btn" id="measureCellFit" title="Click two points of a grid printed on a map picture and say how many cells apart they are. The grid then fits the picture, and the picture stays where it is">Fit grid to picture</button><button class="draw-style-btn" id="measureCellReset" title="Back to the usual cell, 50 px squares or 52 px hex rows, from the board&rsquo;s corner">Usual size</button></div>
+                      <label class="draw-menu-row compass-tick" title="When the cell size changes, ask whether to resize the tokens on the map. Unticked, they always resize. Kept on this computer"><input type="checkbox" id="measureCellAsk"> Ask before tokens resize</label>
                   </div>
                   <div class="draw-menu-label gm-only" id="measureKindLabel" hidden>Map kind</div>
                   <div class="draw-menu-row gm-only" id="measureKindRow" hidden>

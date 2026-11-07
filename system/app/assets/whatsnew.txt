@@ -579,6 +579,9 @@ Writing planners and pages
   on the board's.
 - Trim to cells, in a map picture's Properties, keeps only the cells you
   pick of it, on players' screens too. Whole picture takes the trim off.
+- Grid cell on the board, in the measure options, gives a map a cell of its
+  own size. Fit grid to picture lines the grid up with a map picture's own
+  printed grid, and tokens take the new cell size.
 - While the map is turned, words and tokens that face no way stay upright,
   a corner compass turns with it and the minimap shows the turned screen.
 - The GM can turn a map on every screen, in the View menu, and say whether

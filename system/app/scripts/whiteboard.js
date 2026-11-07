@@ -8389,7 +8389,7 @@ var BUILD_LINES = { floor: 'Flagstones. Tokens walk on it.', wall: 'Blocks sight
 var BUILD_SHAPE_LINES = { rect: 'Click a cell, or drag an area.', circle: 'Click a cell, or drag an area. The circle fills its box.', poly: 'Click each corner. Click the first again to close it.', corridor: 'Drag along it.', line: 'Draw along the grid lines. The line is the wall.' };
 var _build = { mat: 'floor', shape: 'rect', tex: 'flagstones', pic: '', tile: 1, color: '#5a5663', terrain: 0, corridorW: 1, walls: false, poly: null, polyEl: null, pen: false, loaded: false, era: '', find: '', drawn: '', body: null, eraEls: [] };
 function buildCore() { return window.wpBuildCore || null; }
-function buildGrid() { var C = window.wpFogCore; if (!C) return null; return state.gridType === 'hex' ? C.hexGrid(30, 52) : state.gridType === 'square' ? C.squareGrid(50) : null; }   // the lattice the fill tool's cellSnap reads
+function buildGrid() { var C = window.wpFogCore; if (!C) return null; if ((state.gridType === 'hex' || state.gridType === 'square') && window.wpLatticeOf) { var BL = window.wpLatticeOf(); if (BL && BL.type === state.gridType) return BL; } return state.gridType === 'hex' ? C.hexGrid(30, 52) : state.gridType === 'square' ? C.squareGrid(50) : null; }   // 1.6.2, backlog 38: the map's own cell   // the lattice the fill tool's cellSnap reads
 function buildHex6(v) { return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null; }
 function buildWet(id) { var BC = buildCore(), k = BC ? BC.cleanMaterial(id) : null; return !!(k && BC.MATERIALS[k].terrain); }   // a material that costs movement
 function buildMay() { return !playerScreen() && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()); }   // the GM's own campaign on the GM's own screen
@@ -8895,7 +8895,8 @@ function genText(v, n) { return String(v === null || v === undefined ? '' : v).r
 function genShown() { var m = genEl('genModal'); return !!m && m.style.display === 'flex'; }
 // The lattice a dungeon is laid on: a map's own hex or square grid, and the 50 px lattice Build seats its pieces on where it has none
 function genKind(map) { var g = map && map.meta && typeof map.meta === 'object' ? map.meta.gridType : null; return g === 'hex' ? 'hex' : 'square'; }
-function genGridFor(kind) { var C = window.wpFogCore; return !C ? null : kind === 'hex' ? C.hexGrid(30, 52) : C.squareGrid(50); }
+function genBare(g) { var o = {}; Object.keys(g).forEach(function(k) { if (k !== 'ox' && k !== 'oy') o[k] = g[k]; }); return o; }
+function genGridFor(kind, map) { var C = window.wpFogCore; if (!C) return null; if (map && window.wpLatticeOf) { var GL = window.wpLatticeOf(map); if (GL && GL.type === kind) return GL; } return kind === 'hex' ? C.hexGrid(30, 52) : C.squareGrid(50); }   // 1.6.2, backlog 38: a map's own cell (none for a new map)
 // The campaign's maps other than the one on screen, by name: [{ id, title }]
 function genMaps(camp, hereId) {
     var out = []; if (!camp || !camp.items || typeof camp.items !== 'object') return out;
@@ -8947,8 +8948,9 @@ function genPlan() {
         if (!map) return { ok: false, say: GEN_LINES.none };
     }
     if (fresh) { var gs = genEl('genGrid'); kind = gs && gs.value === 'hex' ? 'hex' : 'square'; map = null; } else kind = genKind(map);
-    var grid = genGridFor(kind); if (!grid) return no;
-    var dg = GC.genDungeon(opts), at = genCorner(map, where === 'here' ? viewCentre() : null, grid, dg.cols, dg.rows), pc = GC.dungeonPieces(dg, grid, at.x, at.y);
+    var grid = genGridFor(kind, map); if (!grid) return no;
+    var dg = GC.genDungeon(opts), at = genCorner(map, where === 'here' ? viewCentre() : null, grid, dg.cols, dg.rows), gox = grid.ox || 0, goy = grid.oy || 0, pc = GC.dungeonPieces(dg, gox || goy ? genBare(grid) : grid, at.x - gox, at.y - goy);
+    if (gox || goy) [pc.floors, pc.doors, pc.walls].forEach(function(list) { (list || []).forEach(function(b) { if (b && typeof b.x === 'number') b.x += gox; if (b && typeof b.y === 'number') b.y += goy; }); });   // a lattice off the board's 0,0: laid from 0,0 and moved by its origin
     if (!pc.floors.length || !pc.walls.length) return { ok: false, say: 'That dungeon could not be laid out. Try another seed.' };
     var held = map && Array.isArray(map.whiteboard) ? map.whiteboard.length : 0;
     if (held + pc.count > BUILD_MAX) return { ok: false, say: genCountWords(pc.count, held) };
@@ -9830,7 +9832,11 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
   // datamap.js snapToHex's own: x = 45q + 15, y = 52r in an even column and 52r + 26 in an odd one. A cell has a label where its column is on
   // the board and its middle below the board's top edge, and the label is listed where its own box (40 wide, from 22 to 12 above the cell's
   // middle) meets the box asked for. null where the box is none, or spans more columns or would hold more labels than max
-  function hexLabelCells(x0, y0, x1, y1, max) {
+  function hexLabelCells(x0, y0, x1, y1, max, L) {
+      if (L && L.type === 'hex' && (L.h !== 52 || L.ox || L.oy)) {   // 1.6.2, backlog 38: a map's own hex, worked out on today's and moved and scaled to it
+          var lk = L.h / 52, lx = L.ox || 0, ly = L.oy || 0, got = hexLabelCells((x0 - lx) / lk, (y0 - ly) / lk, (x1 - lx) / lk, (y1 - ly) / lk, max);
+          return got ? got.map(function(o) { return { x: o.x * lk + lx, y: o.y * lk + ly, t: o.t }; }) : got;
+      }
       var num = function(v) { return typeof v === 'number' && isFinite(v); };
       if (!num(x0) || !num(y0) || !num(x1) || !num(y1) || !(x1 >= x0) || !(y1 >= y0) || !num(max) || !(max > 0)) return null;
       var qa = Math.max(0, Math.ceil((x0 - 35) / 45)), qb = Math.floor((x1 + 5) / 45);
@@ -9855,7 +9861,7 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
       var m = getActiveMap(), wrap = document.getElementById('whiteboardWrap'), z = state.zoomLevel || 1;
       var a = m && m.type === 'map' && m.meta ? cellLabelsOf(m.meta.cellLabels) : 0, W = wrap ? wrap.clientWidth : 0, H = wrap ? wrap.clientHeight : 0;
       var cells = a > 0 && state.viewMode === 'visual' && state.gridType === 'hex' && W > 0 && H > 0 && CELL_LABEL_FONT * z >= CELL_LABEL_MIN_PX
-          ? hexLabelCells(wrap.scrollLeft / z, wrap.scrollTop / z, (wrap.scrollLeft + W) / z, (wrap.scrollTop + H) / z, CELL_LABEL_MAX) : null;
+          ? hexLabelCells(wrap.scrollLeft / z, wrap.scrollTop / z, (wrap.scrollLeft + W) / z, (wrap.scrollTop + H) / z, CELL_LABEL_MAX, window.wpLatticeOf ? window.wpLatticeOf(m) : null) : null;
       if (!cells) { if (_cellLab.key !== 'off') { cv.style.display = 'none'; _cellLab.key = 'off'; } return false; }
       var d = Math.min(2, Math.max(1, Number(window.devicePixelRatio) || 1)), key = [m.id, a, z, wrap.scrollLeft, wrap.scrollTop, W, H, d].join('|');
       if (key === _cellLab.key) return true;

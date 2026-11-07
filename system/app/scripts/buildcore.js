@@ -408,13 +408,13 @@ function gridOk(grid) { return squareOk(grid) || hexOk(grid); }
 // cell each way (an axis that rounds to nothing keeps the press cell on that axis). null on any other grid or for a number that is none
 function snapBox(grid, sx, sy, ex, ey, dragged) {
     if (!squareOk(grid) || !fin(sx) || !fin(sy)) return null;
-    var s = grid.size, c = cellOf(sx, sy, grid);
-    if (!dragged) return { x: c.c * s, y: c.r * s, w: s, h: s };
+    var s = grid.size, c = cellOf(sx, sy, grid), gx = grid.ox || 0, gy = grid.oy || 0;   // a map's own cell (backlog 38): from its origin
+    if (!dragged) return { x: c.c * s + gx, y: c.r * s + gy, w: s, h: s };
     if (!fin(ex) || !fin(ey)) return null;
     // a drag lays every cell from the one the press lies in to the one the release lies in, inclusive (a drag that stays inside the press cell
     // lays that one cell): what a painter expects, never a box rounded to the nearest lines that could leave the pressed cell out
     var e = cellOf(ex, ey, grid), c0 = Math.min(c.c, e.c), c1 = Math.max(c.c, e.c), r0 = Math.min(c.r, e.r), r1 = Math.max(c.r, e.r);
-    return { x: c0 * s, y: r0 * s, w: (c1 - c0 + 1) * s, h: (r1 - r0 + 1) * s };
+    return { x: c0 * s + gx, y: r0 * s + gy, w: (c1 - c0 + 1) * s, h: (r1 - r0 + 1) * s };
 }
 // The hexagon item seated exactly on a hex cell: 2s wide, h tall, centred on the cell (whiteboard's 60 x 52 hexagon on the 30/52 grid)
 function hexCellBox(grid, cell) {
@@ -458,13 +458,13 @@ function corridor(grid, sx, sy, ex, ey, width) {
     if (!gridOk(grid) || !fin(sx) || !fin(sy) || !fin(ex) || !fin(ey)) return null;
     var two = width === 2;
     if (grid.type === 'square') {
-        var s = grid.size, a = cellOf(sx, sy, grid), b = cellOf(ex, ey, grid);
+        var s = grid.size, a = cellOf(sx, sy, grid), b = cellOf(ex, ey, grid), gx = grid.ox || 0, gy = grid.oy || 0;
         if (Math.abs(ex - sx) >= Math.abs(ey - sy)) {
             var c0 = Math.min(a.c, b.c), c1 = Math.max(a.c, b.c), r0 = two && ey - sy < 0 ? a.r - 1 : a.r;
-            return { x: c0 * s, y: r0 * s, w: (c1 - c0 + 1) * s, h: (two ? 2 : 1) * s };
+            return { x: c0 * s + gx, y: r0 * s + gy, w: (c1 - c0 + 1) * s, h: (two ? 2 : 1) * s };
         }
         var rr0 = Math.min(a.r, b.r), rr1 = Math.max(a.r, b.r), cc0 = two && ex - sx < 0 ? a.c - 1 : a.c;
-        return { x: cc0 * s, y: rr0 * s, w: (two ? 2 : 1) * s, h: (rr1 - rr0 + 1) * s };
+        return { x: cc0 * s + gx, y: rr0 * s + gy, w: (two ? 2 : 1) * s, h: (rr1 - rr0 + 1) * s };
     }
     var dx = ex - sx, dy = ey - sy, len = Math.hypot(dx, dy), steps = Math.min(20000, Math.max(1, Math.ceil(len / (grid.s / 4)))), run = [];
     var nx = -dy, ny = dx;   // the segment's normal, turned to point down, or right when it is level (a point: right)
@@ -491,7 +491,7 @@ function corridor(grid, sx, sy, ex, ey, width) {
 function snapVertex(grid, x, y, snap) {
     if (!fin(x) || !fin(y)) return null;
     if (!isObj(grid)) return snap ? { x: Math.round(x / 50) * 50, y: Math.round(y / 50) * 50 } : { x: r2(x), y: r2(y) };
-    if (squareOk(grid)) return { x: r2(Math.round(x / grid.size) * grid.size), y: r2(Math.round(y / grid.size) * grid.size) };
+    if (squareOk(grid)) { var vx = grid.ox || 0, vy = grid.oy || 0; return { x: r2(Math.round((x - vx) / grid.size) * grid.size + vx), y: r2(Math.round((y - vy) / grid.size) * grid.size + vy) }; }
     if (!hexOk(grid)) return null;
     var c = cellCenter(cellOf(x, y, grid), grid), s = grid.s, hh = grid.h / 2, best = null, bd = Infinity;
     var vs = [[c.x - s, c.y], [c.x - s / 2, c.y - hh], [c.x + s / 2, c.y - hh], [c.x + s, c.y], [c.x + s / 2, c.y + hh], [c.x - s / 2, c.y + hh]];
@@ -600,7 +600,15 @@ function lineOf(pts) {
 //            a row line first and then along a column line, each in order. Hex: the zigzag of the edges that are not walled yet, as
 //            chains of at most 120 edges, an open chain before a closed one
 //   over     the floors cover more than 6000 cells together, or one of them is too large to list: nothing is laid
+// 1.6.2 (backlog 38): a lattice off the board's 0,0. The walls code reads lattice lines from 0,0, so a map's own origin is met by moving the
+// pieces it reads by minus the origin, working on the lattice with none, and moving the lines it answers back
+function gridBare(grid) { var g = {}; Object.keys(grid).forEach(function(k) { if (k !== 'ox' && k !== 'oy') g[k] = grid[k]; }); return g; }
+function gridShift(grid) { return isObj(grid) && ((fin(grid.ox) && grid.ox) || (fin(grid.oy) && grid.oy)) ? { x: grid.ox || 0, y: grid.oy || 0 } : null; }
+function pieceMoved(w, dx, dy) { if (!isObj(w)) return w; var c = Object.assign({}, w); if (fin(c.x)) c.x += dx; if (fin(c.y)) c.y += dy; return c; }
+function optsMoved(o, dx, dy) { if (!isObj(o)) return o; var c = Object.assign({}, o); ['doors', 'have'].forEach(function(k) { if (Array.isArray(c[k])) c[k] = c[k].map(function(w) { return pieceMoved(w, dx, dy); }); }); return c; }
+function linesMoved(res, dx, dy) { if (isObj(res) && Array.isArray(res.lines)) res.lines.forEach(function(l) { if (isObj(l)) { if (fin(l.x)) l.x = r2(l.x + dx); if (fin(l.y)) l.y = r2(l.y + dy); } }); return res; }
 function outlineWalls(pieces, grid, opts) {
+    var sh = gridShift(grid); if (sh && Array.isArray(pieces)) return linesMoved(outlineWalls(pieces.map(function(w) { return pieceMoved(w, -sh.x, -sh.y); }), gridBare(grid), optsMoved(opts, -sh.x, -sh.y)), sh.x, sh.y);
     var out = { lines: [], floors: 0, cells: 0, had: 0, over: false };
     if (!Array.isArray(pieces) || !gridOk(grid)) return out;
     var inSet = Object.create(null), cells = [], i, k;
@@ -761,6 +769,7 @@ function wallsOfCells(out, cells, inSet, grid, opts, end) {
 // middle no further back than a quarter of a cell from that end. The direction runs from the first cell's centre to the last one's; a
 // corridor of one cell takes the gesture's own (a tie reads level, as corridor() reads it). opts as outlineWalls takes them
 function corridorWalls(grid, sx, sy, ex, ey, width, opts) {
+    var sh = gridShift(grid); if (sh) return linesMoved(corridorWalls(gridBare(grid), sx - sh.x, sy - sh.y, ex - sh.x, ey - sh.y, width, optsMoved(opts, -sh.x, -sh.y)), sh.x, sh.y);   // backlog 38: a lattice off the board's 0,0
     var out = { lines: [], floors: 0, cells: 0, had: 0, over: false };
     var co = corridor(grid, sx, sy, ex, ey, width), run = corridor(grid, sx, sy, ex, ey, 1); if (!co || !run) return out;
     var sq = grid.type === 'square', list = sq ? cellsUnderRect(co.x, co.y, co.w, co.h, grid) : co.cells, a, b, inSet = Object.create(null), cells = [], i;

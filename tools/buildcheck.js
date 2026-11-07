@@ -5218,6 +5218,33 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             && ixC.includes('<b>Fit grid to picture</b>') && [read('WHATSNEW.txt'), read('system/app/assets/whatsnew.txt')].every(t => t.includes('Fit grid to picture')));
     }
 
+    {   // 1.6.2, backlog 38 fold 5b: the map builder on a map's own cell, its origin included (buildcore)
+        const BB = await import(url('buildcore.js') + '?cell'), FB = await import(url('fogcore.js') + '?cellb'), J = JSON.stringify;
+        const g0 = FB.squareGrid(70), gO = FB.squareGrid(70, 5, 60), h0 = FB.hexGrid(60, 104), hO = FB.hexGrid(60, 104, 20, 10);
+        const mv = (o, dx, dy) => o && typeof o === 'object' ? Object.assign({}, o, { x: o.x + dx, y: o.y + dy }) : o;
+        const floor = (x, y, w, h) => ({ id: 'f', type: 'rect', x: x, y: y, w: w, h: h, color: '#777' });
+        const w0 = BB.outlineWalls([floor(0, 0, 140, 140)], g0, {}), wO = BB.outlineWalls([floor(5, 60, 140, 140)], gO, {});
+        const hx0 = BB.outlineWalls([floor(0, 0, 200, 200)], h0, {}), hxO = BB.outlineWalls([floor(20, 10, 200, 200)], hO, {});
+        const linesAt = (r, dx, dy) => J(r.lines.map(l => [Math.round((l.x - dx) * 100) / 100, Math.round((l.y - dy) * 100) / 100, l.w, l.h, J(l.pts)]));
+        const c0 = BB.corridor(g0, 10, 10, 300, 20, 2), cO = BB.corridor(gO, 15, 70, 305, 80, 2), cw0 = BB.corridorWalls(g0, 10, 10, 300, 20, 1, {}), cwO = BB.corridorWalls(gO, 15, 70, 305, 80, 1, {});
+        check('the map builder on a map\'s own cell: a box, a corridor, a vertex, the walls round a floor and a corridor\'s walls on a lattice moved by its origin are exactly those on the same lattice from 0,0 moved by it, on squares and on hexes, and the walls code is handed the lattice with no origin',
+            J(BB.snapBox(gO, 80, 135, 0, 0, false)) === J({ x: 75, y: 130, w: 70, h: 70 }) && J(BB.snapBox(g0, 75, 75, 0, 0, false)) === J({ x: 70, y: 70, w: 70, h: 70 })
+            && J(cO) === J(mv(c0, 5, 60)) && J(BB.snapVertex(gO, 77, 128, true)) === J({ x: 75, y: 130 })
+            && w0.lines.length > 0 && linesAt(wO, 5, 60) === linesAt(w0, 0, 0) && hx0.lines.length > 0 && linesAt(hxO, 20, 10) === linesAt(hx0, 0, 0) && linesAt(cwO, 5, 60) === linesAt(cw0, 0, 0),
+            J([w0.lines.length, wO.lines.length, hx0.lines.length, hxO.lines.length]));
+    }
+
+    {   // 1.6.2, backlog 38 fold 5b: a hex map's own cell labels, and a dungeon on the map's own lattice
+        const wbH = read('system/app/scripts/whiteboard.js'), hlS = wbH.slice(wbH.indexOf('  function hexLabelCells('), wbH.indexOf('  // Draws this screen\'s labels'));
+        const hcS = wbH.slice(wbH.indexOf('  function hexColName('), wbH.indexOf('  function hexLabelCells('));
+        const HL = new Function("'use strict';" + NL + hcS + NL + hlS + NL + 'return hexLabelCells;')();
+        const base = HL(0, 0, 400, 300, 500), big = HL(20, 10, 820, 610, 500, { type: 'hex', s: 60, h: 104, ox: 20, oy: 10 }), same = HL(0, 0, 400, 300, 500, { type: 'hex', s: 30, h: 52 });
+        check('a hex map\'s own cell labels: each label stands where today\'s would, scaled by the row over 52 and moved by the origin, with the same names; a map with today\'s hex gives today\'s labels',
+            base && big && big.length === base.length && big.every((o, i) => o.t === base[i].t && Math.abs(o.x - (base[i].x * 2 + 20)) < 1e-9 && Math.abs(o.y - (base[i].y * 2 + 10)) < 1e-9) && JSON.stringify(same) === JSON.stringify(base), JSON.stringify([base && base.slice(0, 2), big && big.slice(0, 2)]));
+        check('a dungeon is planned on the lattice of the map it is laid on (genGridFor with the map), and on one off the board\'s 0,0 it is laid from 0,0 and moved by the origin',
+            wbH.includes("var grid = genGridFor(kind, map); if (!grid) return no;") && wbH.includes("pc = GC.dungeonPieces(dg, gox || goy ? genBare(grid) : grid, at.x - gox, at.y - goy);") && wbH.includes("if (GL && GL.type === kind) return GL;"));
+    }
+
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

@@ -721,7 +721,7 @@ function openChars() {
     return true;
 }
 function closeChars() { var m = ui('charsModal'); if (m) m.style.display = 'none'; }
-function addCharAsk() { showPrompt('Name the character', 'New character', function(name) { if (name === null) return; var c = newCharacter({ name: String(name || '').trim() || 'New character' }); afterCharChange(c, true); renderAll(); }); }
+function addCharAsk() { showPrompt('Name the character', 'New character', function(name) { if (name === null) return; var c = newCharacter({ name: String(name || '').trim() || 'New character' }); afterCharChange(c, true); renderAll(); }, { name: 'person' }); }   // 1.6.2 (backlog 147): with the name button
 function charRowChange(t) {
     var c = (t && t.className) || '', crow = t && t.closest && t.closest('.sys-char-row');
     if (crow) {   // characters save as you go
@@ -6931,11 +6931,11 @@ function startMaking() {
         if (nm === null || nm === undefined) return;
         var r = n.charMake(String(nm), function(a) { if (a.error) { toast(a.error); return; } if (a.charId) openSheet(a.charId); });
         if (r && r.error) toast(r.error);
-    });
+    }, { name: 'person' });
 }
 function renameMaking() {
     var c = sheetOpen ? charById(sheetOpen) : null, n = net(); if (!c || !isClient() || c.making !== 1 || !n || !n.charName) return;
-    showPrompt('Your character\u2019s name', c.name, function(nm) { if (nm === null || nm === undefined || !String(nm).trim()) return; var r = n.charName(c.id, String(nm), function(a) { if (a.error) toast(a.error); }); if (r && r.error) toast(r.error); });
+    showPrompt('Your character\u2019s name', c.name, function(nm) { if (nm === null || nm === undefined || !String(nm).trim()) return; var r = n.charName(c.id, String(nm), function(a) { if (a.error) toast(a.error); }); if (r && r.error) toast(r.error); }, { name: 'person' });
 }
 function doneMaking() {
     var c = sheetOpen ? charById(sheetOpen) : null, n = net(); if (!c || !isClient() || !(c.making === 1 || c.unlocked === 1) || !n || !n.charDone) return;
@@ -7432,7 +7432,7 @@ function startFromFile() {
                     if (rU && rU.error) toast(rU.error + ' Your character is made: Import on its sheet can fill it later.');
                 });
                 if (r && r.error) toast(r.error);
-            });
+            }, { name: 'person' });
         });
     });
     inp.click();
@@ -9406,6 +9406,7 @@ function charRow(c, camp) {
     var row = el('div', 'sys-row sys-char-row'); row.dataset.cid = c.id;
     var top = el('div', 'sys-row-main');
     var nm = input('sys-char-name field', c.name, 'The character\'s name', 'Name'); top.appendChild(nm);
+    if (typeof window !== 'undefined' && window.wpNames) top.appendChild(window.wpNames.button('person', nm));   // 1.6.2 (backlog 147): the name button
     var pn = playerNames(camp), ownOpts = [['', '— unassigned —']].concat(Object.keys(pn).map(function(pid) { return [pid, pn[pid]]; }));
     if (c.ownerId && !Object.prototype.hasOwnProperty.call(pn, c.ownerId)) ownOpts.push([c.ownerId, c.ownerId + ' (forgotten player)']);   // so unassigning them is a real change
     var owner = select('sys-char-owner', ownOpts, c.ownerId || '', 'The player who plays this character (their token moves and their sheet edits)'); owner.disabled = !!c.npc; top.appendChild(owner);
@@ -11245,6 +11246,40 @@ function renderTables() {
     var err = errorCell('tables'); err.dataset.errFor = 'tables'; wrap.appendChild(err);
     box.appendChild(wrap);
 }
+// [systemcheck:namelists-start]
+// 1.6.2 (backlog 147; the owner: "Lists, else a maker (Recommended)"): the name button's lists, on the Rules tab. A list is a name, a kind and its names,
+// one a line, with Who reads it; the box has listeners of its own, so the editor's dispatchers never read it
+var NAME_KIND_OPTS = [['', 'Characters and places'], ['person', 'Characters'], ['place', 'Places']];
+function namesDraft() { if (!Array.isArray(draft.names)) draft.names = []; return draft.names; }
+function renderNames() {
+    var box = ui('sysNames'); if (!box || !draft) return; box.textContent = '';
+    var arr = Array.isArray(draft.names) ? draft.names : [], wrap = el('div', 'sys-budgets sys-names');
+    wrap.appendChild(el('div', 'sys-light-head', 'Name lists'));
+    wrap.appendChild(el('div', 'sys-note', 'The name button picks from these lists, then makes a name up where you have none of that kind. Write one name a line.'));
+    arr.forEach(function(l0, i) {
+        var l = l0 && typeof l0 === 'object' ? l0 : {}, blk = el('div', 'sys-nl'), head = el('div', 'sys-flags');
+        blk.dataset.ni = String(i);
+        var nm = input('sys-nl-label field', typeof l.label === 'string' ? l.label : '', 'The list\u2019s name, such as River towns', 'Name'); nm.maxLength = 60; var lb = el('label', 'sys-combat-item'); lb.appendChild(el('span', 'sys-num-cap', 'Name')); lb.appendChild(nm); head.appendChild(lb);
+        head.appendChild(labeledSelect('sys-nl-kind field', 'Serves', NAME_KIND_OPTS, l.kind === 'person' || l.kind === 'place' ? l.kind : '', 'Which name button offers this list'));
+        head.appendChild(labeledSelect('sys-nl-vis field', 'Who reads it', TABLE_VIS_OPTS, l.vis === 'gm' ? 'gm' : '', 'A list for the GM alone never reaches players'));
+        var del = tableBtn('\u00d7', 'nldel', 'Remove this list'); head.appendChild(del); blk.appendChild(head);
+        var ta = el('textarea', 'sys-nl-names field'); ta.rows = 5; ta.value = Array.isArray(l.names) ? l.names.join('\n') : ''; ta.placeholder = 'One name a line'; ta.title = 'One name a line, 500 at most'; blk.appendChild(ta);
+        blk.appendChild(el('div', 'sys-note', (Array.isArray(l.names) ? l.names.length : 0) + ' names'));
+        wrap.appendChild(blk);
+    });
+    var ad = tableBtn('+ Name list', 'nladd', arr.length >= 24 ? 'At most 24' : 'A list of names the name button picks from'); ad.disabled = arr.length >= 24; wrap.appendChild(ad);
+    box.appendChild(wrap);
+    if (!box._nlWired) { box._nlWired = true;
+        box.addEventListener('input', function(e) { var tg = e.target, blk = tg.closest ? tg.closest('.sys-nl') : null, x = blk ? namesDraft()[+blk.dataset.ni] : null; if (!x) return; e.stopPropagation();
+            if (tg.classList.contains('sys-nl-label')) x.label = tg.value.slice(0, 60); else if (tg.classList.contains('sys-nl-names')) x.names = tg.value.split('\n').slice(0, 520); else return; markDirty(); });
+        box.addEventListener('change', function(e) { var tg = e.target, blk = tg.closest ? tg.closest('.sys-nl') : null, x = blk ? namesDraft()[+blk.dataset.ni] : null; if (!x) return; e.stopPropagation();
+            if (tg.classList.contains('sys-nl-kind')) { if (tg.value) x.kind = tg.value; else delete x.kind; } else if (tg.classList.contains('sys-nl-vis')) { if (tg.value === 'gm') x.vis = 'gm'; else delete x.vis; } else if (tg.classList.contains('sys-nl-names')) { x.names = tg.value.split('\n').slice(0, 520); renderNames(); return; } else return; markDirty(); });
+        box.addEventListener('click', function(e) { var b = e.target && e.target.closest ? e.target.closest('button') : null; if (!b || (b.dataset.act !== 'nladd' && b.dataset.act !== 'nldel')) return; e.stopPropagation(); var arr2 = namesDraft();
+            if (b.dataset.act === 'nladd') { if (arr2.length < 24) arr2.push({ label: '', names: [] }); } else { var blk2 = b.closest('.sys-nl'), i2 = blk2 ? +blk2.dataset.ni : -1; if (i2 >= 0) arr2.splice(i2, 1); }
+            if (!arr2.length) delete draft.names; markDirty(); renderNames(); });
+    }
+}
+// [systemcheck:namelists-end]
 function tableOfEl(t) { var b = t.closest('.sys-tbl'), i = b ? +b.dataset.ti : -1, arr = tablesDraft(); return arr[i] && typeof arr[i] === 'object' ? arr[i] : null; }
 function onTableInput(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-tbl-') < 0) return false;
@@ -13258,6 +13293,7 @@ function renderAll() {
     if (tab === 'rules') renderBudgets();   // 126: the Point budgets box
     if (tab === 'rules') renderEnv();   // 1.6.0: the Environment readings box
     if (tab === 'rules') renderTables();   // 1.6.0: the Tables box
+    if (tab === 'rules') renderNames();   // 1.6.2 (backlog 147): the Name lists box
     if (tab === 'rules') renderResults();   // 1.6.2 (G7)
     if (tab === 'rules') renderValues();   // 1.6.2 (G8)
     if (tab === 'rules') renderTests();   // 1.6.2 (backlog 59)

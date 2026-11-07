@@ -53,7 +53,7 @@ const kids = n => n.childNodes.slice();
     check('what is in view is kept for this computer, and each step is logged by structure alone', J(JSON.parse(kept.wp_sysTopics)) === J({ combat: 'range', rules: 'budgets' }) && window.steps.every(s => s[0] === 'sysui v1' && !/Range|Damage/.test(J(s[2]))) && window.steps.length === 4, J(window.steps));
     ui.rulesDrawn();
     const rb = document.getElementById('sysRulesBox'), rn = document.getElementById('sysRulesNav'), shown = () => kids(rb).filter(x => !x.hidden).map(x => x.id);
-    check('the Rules tab has its eleven topics, one at a time, and draws nothing itself', J(kids(rn).map(b => b.dataset.topic)) === J(['budgets', 'env', 'links', 'tables', 'results', 'values', 'tags', 'money', 'decks', 'tests', 'sheets']) /* 1.6.2 (backlog 59): Tests (moved on purpose) */ /* 1.6.2 (backlog 59 f): Sheets and readers (moved on purpose) */ /* 1.6.2 (vehicles, fold (c)): Marks (moved on purpose) */ && J(shown()) === J(['sysBudgets']));
+    check('the Rules tab has its twelve topics, one at a time, and draws nothing itself', J(kids(rn).map(b => b.dataset.topic)) === J(['budgets', 'env', 'links', 'tables', 'results', 'values', 'tags', 'money', 'decks', 'tests', 'sheets', 'names']) /* 1.6.2 (backlog 147): Name lists (moved on purpose) */ /* 1.6.2 (backlog 59): Tests (moved on purpose) */ /* 1.6.2 (backlog 59 f): Sheets and readers (moved on purpose) */ /* 1.6.2 (vehicles, fold (c)): Marks (moved on purpose) */ && J(shown()) === J(['sysBudgets']));
     ui.topicPress('rules', 'tables');
     check('a press there shows that box alone', J(shown()) === J(['sysTables']));
     ui.combatDrawn((() => { box.textContent = ''; return box; })());

@@ -1911,7 +1911,7 @@ pendingChecks.push((async () => {
           j([heldQ, escQ, ownQ, noneQ, graveQ])); }
     // dialogs.js showPrompt and showConfirm, run for real on a page of plain objects, with timers the test runs itself
     {
-        const dlgAll = dlgT.slice(dlgT.indexOf('  function showPrompt(title, defaultText, callback) {'), dlgT.indexOf('  // One-button variant of showConfirm'));
+        const dlgAll = dlgT.slice(dlgT.indexOf('  function showPrompt(title, defaultText, callback, opts) {'), dlgT.indexOf('  // One-button variant of showConfirm'));
         const mkLay = () => { const els = {}, keys = [], timers = [], el = id => (els[id] = els[id] || { id, style: { display: 'none' }, textContent: '', value: '', onclick: null, onkeydown: null, focus() { els._focus = id; }, select() {} });
             ['customConfirm', 'customConfirmTitle', 'customConfirmOk', 'customConfirmCancel', 'customPrompt', 'customPromptTitle', 'customPromptInput', 'customPromptOk', 'customPromptCancel'].forEach(el);
             const doc = { getElementById: id => els[id] || null, addEventListener: (k, h) => { if (k === 'keydown') keys.push(h); }, removeEventListener: (k, h) => { const i = keys.indexOf(h); if (i >= 0) keys.splice(i, 1); } };

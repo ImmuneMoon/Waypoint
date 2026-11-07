@@ -46,10 +46,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
 
 
-  function showPrompt(title, defaultText, callback) {
+  function showPrompt(title, defaultText, callback, opts) {
       var p = document.getElementById('customPrompt');
       // One layer at a time (the owed review, 2026-10-09): a prompt asked while a question or another prompt is up waits its turn
-      if (p.style.display === 'flex' || layerUp('customConfirm')) { _promptWait.push([title, defaultText, callback]); return; }
+      if (p.style.display === 'flex' || layerUp('customConfirm')) { _promptWait.push([title, defaultText, callback, opts]); return; }
       document.getElementById('customPromptTitle').textContent = title;
       var inp = document.getElementById('customPromptInput');
       inp.value = defaultText || '';
@@ -58,10 +58,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       inp.select();
       var okBtn = document.getElementById('customPromptOk');
       var cancelBtn = document.getElementById('customPromptCancel');
+      var nameBtn = document.getElementById('customPromptName'), nameKind = opts && (opts.name === 'person' || opts.name === 'place' || opts.name === 'any') ? opts.name : '';   // 1.6.2 (backlog 147): the name button, where a name is asked for
+      if (nameBtn) { nameBtn.hidden = !(nameKind && typeof window !== 'undefined' && window.wpNames); nameBtn.onclick = nameKind ? function(e) { if (e) e.stopPropagation(); var N = window.wpNames; if (!N) return; if (N.isOpen()) { N.close(); return; } N.open(nameBtn, nameKind, function(n) { inp.value = n; inp.focus(); inp.select(); }); } : null; }
       function cleanup() {
           p.style.display = 'none';
           okBtn.onclick = null;
           cancelBtn.onclick = null;
+          if (nameBtn) { nameBtn.onclick = null; nameBtn.hidden = true; } if (typeof window !== 'undefined' && window.wpNames) window.wpNames.close();
           inp.onkeydown = null;
           layersNext();
       }
@@ -89,7 +92,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       setTimeout(function() {
           if (layerUp('customConfirm') || layerUp('customPrompt')) return;   // something came up meanwhile: whatever closes it asks here again
           var nx = _confirmQueue.shift(); if (nx) { showConfirm(nx[0], nx[1], nx[2]); return; }
-          var np = _promptWait.shift(); if (np && typeof showPrompt === 'function') showPrompt(np[0], np[1], np[2]);
+          var np = _promptWait.shift(); if (np && typeof showPrompt === 'function') showPrompt(np[0], np[1], np[2], np[3]);
       }, 0);
   }
 
@@ -333,6 +336,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   function promptForItemName(initialTitle, promptMsg, ignoreId, callback) {
 
+      var nameOpts = { name: /map/i.test(String(promptMsg || '')) ? 'place' : 'any' };   // 1.6.2 (backlog 147): a map's name button offers places
       showPrompt(promptMsg, initialTitle, function(title) {
 
           if (!title) return;
@@ -351,7 +355,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           }
 
-      });
+      }, nameOpts);
 
   }
 

@@ -250,7 +250,7 @@ function wire() {
                 var c = S.addCharacter(String(name || '').trim() || def, npc); if (!c) return;
                 if (npc) _open = true;
                 sync(); if (S.canOpen(c.id)) S.openSheet(c.id);
-            });
+            }, { name: 'person' });   // 1.6.2 (backlog 147): with the name button
         }, { yes: 'NPC', alt: 'Player\u2019s character', noEnter: true });
     });
     updateSidebarNav();   // the panel judges once more what it holds for this screen, the section among it (sidebar.js asks sync)

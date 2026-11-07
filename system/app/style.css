@@ -5109,6 +5109,13 @@
   #imgCatMenu .party-menu-head { padding: 6px 10px 2px; }
   #imgCatMenu .party-menu-head + .party-menu-head { margin-top: 4px; border-top: 1px solid var(--edge); padding-top: 8px; }
 
+  /* 1.6.2 (backlog 147): the name button and its menu, over the naming box */
+  #nameMenu { position: fixed; flex-direction: column; min-width: 180px; max-height: 60vh; overflow-y: auto; z-index: 100030; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); padding: 4px; gap: 1px; }
+  #nameMenu > button { display: block; width: 100%; text-align: left; white-space: nowrap; padding: 6px 10px; background: none; border: 0; border-radius: 6px; color: var(--ink); font-size: 13px; cursor: pointer; }
+  #nameMenu > button:hover, #nameMenu > button:focus-visible { background: var(--edge); outline: none; }
+  .name-btn { padding: 2px 8px; font-size: 12px; }
+  .sys-nl { border-top: 1px solid var(--edge); padding-top: 8px; margin-top: 8px; }
+  .sys-nl .sys-nl-names { width: 100%; box-sizing: border-box; min-height: 90px; }
   /* ---- Stage 6 HUD frame: every rule of the HUD fold (HF1-HF5) lives in this one block, after the look fold's ---- */
   .sys-seg { display: inline-flex; flex: none; gap: 2px; padding: 2px; border: 1px solid var(--edge); border-radius: 7px; background: var(--panel); }
   .sys-seg .sys-btn { border: 0; border-radius: 5px; margin: 0; color: var(--dim); }
@@ -5416,3 +5423,4 @@
   #charsModal .chars-box { width: min(980px, 94vw); max-height: 88vh; display: flex; flex-direction: column; padding: 14px 18px; box-sizing: border-box; }
   #charsModal #sysChars { display: flex; flex-direction: column; min-height: 0; flex: 1; }
   #charsModal #sysCharRows { overflow-y: auto; min-height: 0; flex: 1; }
+

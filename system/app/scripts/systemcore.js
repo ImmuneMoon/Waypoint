@@ -7,7 +7,8 @@
    Design of record: docs/SHEET_BUILDER_PLAN.md. */
 'use strict';
 import { cleanDecks, deckOf, drawCards, shufflePile, returnCard, cleanPile, cardVal, pileCounts } from './deckcore.js';   // 1.6.2 (G9): decks and bags, a pure module of its own (deckcheck runs it)
-import { cleanObjects } from './objcore.js';   // 1.6.0: a system's own set of map objects (pure; objcheck runs it)
+import { cleanObjects } from './objcore.js';
+import { cleanNameLists } from './namecore.js';   // 1.6.2 (backlog 147): the name button's lists (pure; namecheck runs it)   // 1.6.0: a system's own set of map objects (pure; objcheck runs it)
 import { cleanCalendar } from './calendarcore.js';   // item 20 K1: the system's calendar (a pure module of its own: calendarcheck runs it)
 import { cleanRec, makeRec, textSig, recShapeOk, RULES as LOOK_RULES } from './lookcore.js';
 import { fontKnown } from './textfmt.js';   // 1.6.2, backlog 35: a personal look's font is one of Waypoint's own   // item 35: the look of a text outside a planner, a record that names its text (pure; textcheck runs it)
@@ -5139,7 +5140,8 @@ function cleanSystem(sys, opts) {
     var cuC = cleanCurrencies(sys.currencies); if (cuC.length) out.currencies = cuC;   // 157 M1: the currencies, the same in both views; a list's currency only one they name, spelled as they spell it, and a row's choice of one only where there are some
     (Array.isArray(out.fields) ? out.fields : []).forEach(function(f) { if (!isObj(f) || f.kind !== 'item-list' || !isObj(f.list)) return; var L = f.list; ['cur', 'priceCur'].forEach(function(k) { if (L[k] === undefined) return; var cuH = cuC.filter(function(c) { return lower(c.key) === lower(L[k]); })[0]; if (cuH) L[k] = cuH.key; else delete L[k]; }); if (!cuC.length) { delete L.curBy; delete L.priceCurBy; } if (!tgC || !tgC.rates) { delete L.buyBy; delete L.sellBy; } });
     var dkC = cleanDecks(sys.decks, gmView, /^D[0-9]+$/); if (dkC.length) out.decks = dkC;   // 1.6.2 (G9)
-    var tbls = cleanTables(sys.tables, gmView); if (tbls) out.tables = tbls;   // 1.6.0: the tables a formula reads by name (absent: none)
+    var tbls = cleanTables(sys.tables, gmView); if (tbls) out.tables = tbls;
+    var nmL = cleanNameLists(sys.names, gmView !== false); if (nmL) out.names = nmL;   // 1.6.2 (backlog 147): the name button's lists (absent: none), a list for the GM alone left out of the players' view   // 1.6.0: the tables a formula reads by name (absent: none)
     if (!gmView && typeof mentions === 'function' && out.links) out.links.forEach(function(k) { if (!Array.isArray(k.figs)) return; k.figs = k.figs.filter(function(x) { return !mentions(x.formula); }); if (!k.figs.length) delete k.figs; });   // the core handbook session's ask 6: a group's figure read from a GM-only value is the GM's alone
     var cal = cleanCalendar(sys.calendar); if (cal) out.calendar = cal;   // item 20 K1: the calendar, the same in both views (absent: a plain count of days)
     if (gmView) Object.defineProperty(out, 'gmSide', { value: true });   // 1.6.0 linked sheets: a system cleaned for the GM, never written or sent (not enumerable), so the link source reads the GM's own character with it

@@ -1781,7 +1781,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           } else if (b.type === 'node' || b.type === 'table') {
               var plain = b.mode === 'table' || b.type === 'table';   // a page's table block is the node grid in table mode, without the mode switch
-              if (b.type === 'node') html += '<div class="fc-opts" style="margin-bottom:6px;"><label>Mode <select class="b-mode" data-idx="'+idx+'" title="Scene node: a scene with what must be resolved and the routes out of it. Plain table: just a grid of information."><option value="node"'+(plain ? '' : ' selected')+'>Scene node</option><option value="table"'+(plain ? ' selected' : '')+'>Plain table</option></select></label></div>';
+              if (b.type === 'node') html += '<div class="fc-opts" style="margin-bottom:6px;"><label>Mode <select class="b-mode" data-idx="'+idx+'" title="Scene node: a scene with what must be resolved and the routes out of it. Plain table: just a grid of information."><option value="node"'+(plain ? '' : ' selected')+'>Scene node</option><option value="table"'+(plain ? ' selected' : '')+'>Plain table</option></select></label>' + (plain ? '' : ' <button type="button" class="tool ghost name-btn b-namebtn" data-idx="'+idx+'" title="Make a name for this card: a person or a place">Name</button>') + '</div>';   // 1.6.2 (backlog 147): a scene node's title from the name button
               html += pbeCap(plain ? 'Table title' : 'Scene title') + tsBoxHtml('field b-title', plain ? 'Table title (optional)' : 'Scene title', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
               if (!plain) {
                   html += pbeCap('Tag') + tsBoxHtml('field b-sub', 'Tag (optional)', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
@@ -1931,6 +1931,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           var bb = activeMap.blocks[this.dataset.idx];
           if (this.value) bb.linkRoomId = this.value; else delete bb.linkRoomId;
           save(false); renderPlannerPreview();
+      }));
+      Array.from(blockContainer.querySelectorAll('.b-namebtn')).forEach(el => el.addEventListener('click', function(e) {   // 1.6.2 (backlog 147): a name for a scene node's title, as one change
+          e.stopPropagation(); var N = window.wpNames, idx = this.dataset.idx; if (!N) return; if (N.isOpen()) { N.close(); return; }
+          N.open(this, 'any', function(n) { var bb = activeMap && Array.isArray(activeMap.blocks) ? activeMap.blocks[idx] : null; if (!bb || bb.type !== 'node') return; bb.title = n; if (bb.fmt && typeof bb.fmt === 'object' && !Array.isArray(bb.fmt)) { delete bb.fmt.title; if (!Object.keys(bb.fmt).length) delete bb.fmt; } save(true); renderPlanner(); });
       }));
       Array.from(blockContainer.querySelectorAll('.b-mode')).forEach(el => el.addEventListener('change', function() {
           var bb = activeMap.blocks[this.dataset.idx];

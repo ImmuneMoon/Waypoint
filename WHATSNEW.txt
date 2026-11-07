@@ -8,6 +8,11 @@ Tokens
   the Image Library say the size a token's picture is best at.
 
 The System editor
+- A name button makes a name for a character or a place. It stands where you
+  name a character, a map, a planner or a page, on a planner's scene card, in
+  Manage characters, in a token's Properties and in the dice roller, and
+  Make a name in quick jump puts one in your chat. It offers your system's
+  name lists, set up on the Rules tab, then names Waypoint makes up.
 - Every window and menu was measured on a short screen. The options of every
   tool now scroll inside, a menu near the window's edge moves in so that it is
   never cut off, and the dice roller stands beside Table Chat where it does not

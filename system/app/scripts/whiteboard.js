@@ -2791,7 +2791,7 @@ window.wpFitToGrid = fitToGrid;
               if (nm === null || nm === undefined) return;
               var r = n.charToken(String(nm), function(a) { toast(a.error || (a.charId ? 'You play at once \u2014 its sheet is yours to fill in when you like (press Done when it is finished).' : 'You play at once with your own token.')); });
               if (r && r.error) toast(r.error);
-          });
+          }, { name: 'person' });
       }
       function show() { var card = document.getElementById('joinCard'), t = mine(), mk = making(); if (!card) return; if (!t && !mk && !bare()) { card.style.display = 'none'; return; } text(t, mk); dismissed = false; card.style.display = ''; }   // their right-click or their chip's menu: always
       function check() {

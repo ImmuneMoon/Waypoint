@@ -1243,6 +1243,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 if(wbIsChar) wbIsChar.addEventListener('change', function() { if (typeof secretCharOk === 'function' && !secretCharOk(w, this.checked)) { this.checked = false; return; } var low = this.checked && !w.layer; w.isChar = this.checked; if (low) w.layer = 'middle'; var fit = this.checked && typeof wpTokenFit === 'function' ? wpTokenFit(w) : false; save(); if (low || fit) render(); renderInspector(); });
                 var wbCharName = document.getElementById('wbCharName');
                 if(wbCharName) wbCharName.addEventListener('input', function() { w.charName = this.value; save(); });
+                if (wbCharName && window.wpNames && wbCharName.parentNode) wbCharName.parentNode.insertBefore(window.wpNames.button('person', wbCharName), wbCharName.nextSibling);   // 1.6.2 (backlog 147): the name button
                 var wbCharStats = document.getElementById('wbCharStats');
                 if(wbCharStats) wbCharStats.addEventListener('input', function() { w.charStats = this.value; save(); });
                 var gmDice = function(tx) { var gd = document.getElementById('wbGmDice'); if (gd && window.wpInlineDice) window.wpInlineDice.list(gd, typeof tx === 'string' ? tx : (w.gmInfo || '')); }; gmDice();   // 1.6.0, backlog 27: the note's dice formulas as roll buttons

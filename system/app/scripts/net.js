@@ -5921,6 +5921,12 @@ net.timeNotesNow = function() { var mode = timeNotesMode(); if (mode === 'off') 
 // [netcheck:timenote-end]
 // Backlog 29: a tracker reached its end. Each machine that sees the tracker says it for itself (trackers.js), so the line is this machine's
 // own: a whisper, which no join's history holds (chatHistoryOf), never sent. None in the stream window
+// 1.6.2 (backlog 147): a name the name button made, put in this computer's chat: a whisper of its own, never sent and in no join's history
+net.nameLine = function(text) {
+    if (net.stream || typeof text !== 'string' || !text) return false;
+    pushChat({ type: 'chat', scope: 'whisper', from: { id: 'names', name: 'Name' }, text: text.slice(0, 60), ts: Date.now(), trk: true });
+    return true;
+};
 net.trackerLine = function(text) {
     if (net.stream || typeof text !== 'string' || !text) return false;
     pushChat({ type: 'chat', scope: 'whisper', from: { id: 'tracker', name: 'Tracker' }, text: text.slice(0, 200), ts: Date.now(), trk: true });

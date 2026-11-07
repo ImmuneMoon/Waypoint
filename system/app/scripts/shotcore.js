@@ -13,7 +13,7 @@
    What it knowingly does not match to the pixel: a see-through piece's border and pattern are blended on the piece's colour one after the
    other, where the board blends the whole piece once, and a label's words are plain, wrapped by measured width. */
 import { cleanTexSrc, cleanTexTile, secretSeen, lineWidth, lineOpacity, lineTip, trimPolys } from './fogcore.js';
-import { cleanTexture, TEX, PIC_CELL, picUrl } from './buildcore.js';
+import { cleanTexture, TEX, PIC_CELL, picCell, picUrl } from './buildcore.js';
 import { cssColor, picRef } from './safecore.js';
 import { fontCss } from './textfmt.js';
 
@@ -296,10 +296,10 @@ function outline(ctx, type, w, h, s, plain) {
 }
 // A pattern's tile or a picture's repeat laid over the shape that was just clipped to, seated as the board seats it: from the piece's own
 // corner, back by the piece's place within one repeat, so that pieces side by side read as one surface
-function tileOver(ctx, img, sx, sy, item, tw, th, s, w, h) {
+function tileOver(ctx, img, sx, sy, item, tw, th, s, w, h, ox, oy) {
     var pat = typeof ctx.createPattern === 'function' ? ctx.createPattern(img, 'repeat') : null; if (!pat) return false;
     if (typeof pat.setTransform === 'function') pat.setTransform({ a: sx, b: 0, c: 0, d: sy, e: 0, f: 0 });
-    ctx.translate(-mod(item.x, tw) * s, -mod(item.y, th) * s);
+    ctx.translate(-mod(item.x - (ox || 0), tw) * s, -mod(item.y - (oy || 0), th) * s);
     ctx.fillStyle = pat;
     ctx.fillRect(0, 0, w + tw * s, h + th * s);
     return true;
@@ -311,8 +311,9 @@ function wear(ctx, item, job, w, h) {
         var p = typeof res.pic === 'function' ? res.pic(f.url) : null;
         if (!p || !p.img || !(p.w > 0) || !(p.h > 0)) { job.out.missing++; return false; }
         if (f.tile === 'whole') { ctx.drawImage(p.img, 0, 0, w, h); return true; }
-        var rep = f.tile * PIC_CELL;
-        return tileOver(ctx, p.img, rep * s / p.w, rep * s / p.h, item, rep, rep, s, w, h);
+        var oc = job.cell && typeof job.cell === 'object' && fin(job.cell.size) ? job.cell : null;   // 1.6.2 (backlog 38): a map's own cell, as the board reads it
+        var pc = oc ? picCell({ u: job.grid === 'hex' ? oc.size * 50 / 52 : oc.size, ox: oc.ox, oy: oc.oy }) : null, rep = f.tile * (pc ? pc.u : PIC_CELL);
+        return tileOver(ctx, p.img, rep * s / p.w, rep * s / p.h, item, rep, rep, s, w, h, pc ? pc.ox : 0, pc ? pc.oy : 0);
     }
     var name = patternOf(item); if (!name) return false;
     var t = typeof res.tile === 'function' ? res.tile(name) : null;

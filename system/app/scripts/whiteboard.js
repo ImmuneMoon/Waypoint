@@ -381,8 +381,18 @@ function wbPicFill(item) {
     if (!box && !(item.type === 'path' && item.tip === 'fill')) return null;
     var src = FC.cleanTexSrc(item.texSrc); if (!src) return null;
     var url = resolveImg(src); if (typeof url !== 'string' || !url) return null;
-    return { src: src, url: url, tile: FC.cleanTexTile(item.texTile) || 1, box: box };
+    var out = { src: src, url: url, tile: FC.cleanTexTile(item.texTile) || 1, box: box }, cell = wbPicCell(FC);
+    if (cell) out.cell = cell;   // 1.6.2 (backlog 38): one repeat a cell of the map's own lattice, from its origin
+    return out;
 }
+// The map on screen's own cell as a picture's repeat reads it ({ u, ox, oy }: a square's side, a hex row's 50/52, as today's 50 is to 52), or null
+function wbPicCell(FC) {
+    var map = typeof getActiveMap === 'function' ? getActiveMap() : null, g = map && map.meta ? map.meta.gridType : null;
+    if ((g !== 'square' && g !== 'hex') || typeof FC.cleanMapCell !== 'function') return null;
+    var c = FC.cleanMapCell(map.meta.cell, g); if (!c) return null;
+    return { u: g === 'hex' ? c.size * 50 / 52 : c.size, ox: c.ox || 0, oy: c.oy || 0 };
+}
+function wbPicCellKey(pf) { return pf.cell ? '|' + pf.cell.u + ',' + pf.cell.ox + ',' + pf.cell.oy : ''; }
 // A short text that stands for a resolved address in a key: the address itself when it is short, else its length and both its ends. On a
 // player's app an SVG picture's address is the whole picture inline, which may be millions of characters
 function wbPicUrlKey(u) { return u.length <= 256 ? u : u.length + '|' + u.slice(0, 64) + u.slice(-64); }
@@ -390,10 +400,10 @@ function wbPicUrlKey(u) { return u.length <= 256 ? u : u.length + '|' + u.slice(
 // place, its size or its colour changes. True when the region wears its picture
 function wbPicPath(svg, pathEl, item, bw, bh, col) {
     var pf = wbPicFill(item), BC = window.wpBuildCore; if (!pf || pf.box || !svg || !pathEl) return false;
-    var key = 'pic|' + pf.src + '|' + pf.tile + '|' + item.x + '|' + item.y + '|' + (item.w || 0) + '|' + (item.h || 0) + '|' + bw + '|' + bh + '|' + col + '|' + wbPicUrlKey(pf.url), defs = svg.querySelector(':scope > defs');
+    var key = 'pic|' + pf.src + '|' + pf.tile + wbPicCellKey(pf) + '|' + item.x + '|' + item.y + '|' + (item.w || 0) + '|' + (item.h || 0) + '|' + bw + '|' + bh + '|' + col + '|' + wbPicUrlKey(pf.url), defs = svg.querySelector(':scope > defs');
     if (!defs || svg.dataset.texKey !== key) {
         if (defs) defs.remove();
-        var pat = BC.picPattern(document, pf.url, pf.tile, item.x, item.y, item.w || bw, item.h || bh, col, ++_texSerial);
+        var pat = BC.picPattern(document, pf.url, pf.tile, item.x, item.y, item.w || bw, item.h || bh, col, ++_texSerial, pf.cell);
         if (!pat) { delete svg.dataset.texKey; delete svg.dataset.texId; return false; }
         pat.setAttribute('patternTransform', 'scale(' + (bw / (item.w || bw)) + ' ' + (bh / (item.h || bh)) + ')');
         defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs'); defs.appendChild(pat); svg.insertBefore(defs, svg.firstChild);
@@ -855,8 +865,8 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
           var picT = typeof wbPicFill === 'function' ? wbPicFill(item) : null, BCt = window.wpBuildCore;   // fold B3: one of the campaign's own pictures comes before any pattern
           // The picture an element already wears is known by a short key kept on it, never by reading its style back: on a player's app an SVG
           // picture's address is the whole picture inline, and a map may hold thousands of cells that wear it. Then only its place can have changed
-          var picKey = picT && picT.box ? picT.src + '|' + picT.tile + '|' + wbPicUrlKey(picT.url) : '', picKept = !!picKey && el.dataset.picKey === picKey && !!el.dataset.pic;
-          var picBox = picKey && !picKept ? BCt.picStyle(picT.url, picT.tile, item.x, item.y) : null;
+          var picKey = picT && picT.box ? picT.src + '|' + picT.tile + (typeof wbPicCellKey === 'function' ? wbPicCellKey(picT) : '') + '|' + wbPicUrlKey(picT.url) : '', picKept = !!picKey && el.dataset.picKey === picKey && !!el.dataset.pic;
+          var picBox = picKey && !picKept ? BCt.picStyle(picT.url, picT.tile, item.x, item.y, picT.cell) : null;
           var texN = picBox || picKept ? null : (BCt && BCt.cleanTexture ? BCt.cleanTexture(item.texture) : null);   // an address that is none leaves the pattern the piece also names
           var texBox = picBox || (texN && (item.type === 'rect' || item.type === 'circle' || item.type === 'hexagon' || item.type === 'diamond') && !item.isChar && !item.waiting ? BCt.texStyle(texN, item.x, item.y) : null);
           if (picKept) { var posK = BCt.picPos(item.x, item.y, el.dataset.pic); if (el.style.backgroundPosition !== posK) el.style.backgroundPosition = posK; }

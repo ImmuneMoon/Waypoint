@@ -347,8 +347,16 @@ function penPreset(matId, ov) {
 // The address handed in is what the board resolved for a piece's texSrc: the app's own path, or on a player's app the blob or data address
 // of the bytes the host sent. It reaches a style or an attribute only as picUrl gives it: a path percent-encoded (a file's name may hold a
 // space, a bracket or a quote mark), a blob or data address only when it holds nothing that could end a css url(). Anything else is no
-// address, and the piece shows its colour. One repeat is PIC_CELL px a cell on every map, the lattice the code-drawn patterns use
+// address, and the piece shows its colour. One repeat is PIC_CELL px a cell, the lattice the code-drawn patterns use, or on a map with its own
+// cell (1.6.2, backlog 38) that cell's unit and origin, handed in as { u, ox, oy } (picCell): the board's and the map picture's alike
 var PIC_CELL = 50;
+// A map's own cell as a picture's repeat reads it: its unit (5 to 1000 px) and its origin, or null for PIC_CELL from the board's corner
+function picCell(c) {
+    if (!c || typeof c !== 'object' || !fin(c.u) || c.u < 5 || c.u > 1000) return null;
+    var u = r2(c.u), ox = fin(c.ox) ? r2(mod(c.ox, u)) : 0, oy = fin(c.oy) ? r2(mod(c.oy, u)) : 0;
+    if (ox >= u) ox = 0; if (oy >= u) oy = 0;
+    return u === PIC_CELL && !ox && !oy ? null : { u: u, ox: ox, oy: oy };
+}
 function picUrl(u) {
     if (typeof u !== 'string' || !u || u.length > 4194304) return '';
     var out = u;
@@ -365,30 +373,35 @@ function picName(u) {
     var cp = Array.from(u.slice(u.lastIndexOf('/') + 1));
     return cp.length > 40 ? cp.slice(0, 39).join('') + '\u2026' : cp.join('');
 }
-// Where a repeat of `mark` px (a text: '50', '100', '200') sits so that its origin is the board's; 'whole' and anything else sit at the piece's own corner
+// Where a repeat of `mark` px (a text: '50', '100', '200', or with a map's own origin '134.62|12|8') sits so that its origin is the board's
+// or the map's lattice's; 'whole' and anything else sit at the piece's own corner
 function picPos(x, y, mark) {
-    var t = typeof mark === 'string' && /^[1-9][0-9]{1,3}$/.test(mark) ? Number(mark) : 0; if (!t) return '0px 0px';
-    return px(mod(x, t)) + ' ' + px(mod(y, t));
+    var m = typeof mark === 'string' ? /^([1-9][0-9]{1,3}(?:\.[0-9]{1,2})?)(?:\|([0-9]{1,4}(?:\.[0-9]{1,2})?)\|([0-9]{1,4}(?:\.[0-9]{1,2})?))?$/.exec(mark) : null;
+    var t = m ? Number(m[1]) : 0; if (!t) return '0px 0px';
+    var ox = m[2] ? Number(m[2]) : 0, oy = m[3] ? Number(m[3]) : 0;
+    return px(r2(mod(fin(x) ? x - ox : -ox, t))) + ' ' + px(r2(mod(fin(y) ? y - oy : -oy, t)));
 }
+function picMark(t, pc) { return pc && (pc.ox || pc.oy) ? r2(t) + '|' + pc.ox + '|' + pc.oy : String(r2(t)); }
 // A box shape's picture as its background: { image, size, position, repeat, mark } or null where the address is none
-function picStyle(u, tile, x, y) {
+function picStyle(u, tile, x, y, cell) {
     var url = picUrl(u); if (!url) return null;
     var tl = picTileOf(tile), img = 'url("' + url + '")';
     if (tl === 'whole') return { image: img, size: '100% 100%', position: '0px 0px', repeat: 'no-repeat', mark: 'whole' };
-    var t = tl * PIC_CELL;
-    return { image: img, size: t + 'px ' + t + 'px', position: picPos(x, y, String(t)), repeat: '', mark: String(t) };
+    var pc = picCell(cell), t = r2(tl * (pc ? pc.u : PIC_CELL)), mark = picMark(t, pc);
+    return { image: img, size: t + 'px ' + t + 'px', position: picPos(x, y, mark), repeat: '', mark: mark };
 }
 // The same picture as an SVG <pattern> for a filled region, built with createElementNS only. w and h: the region's box as drawn, which
 // 'whole' stretches the picture over once (the pattern is then marked data-whole and sits at the region's own corner)
-function picPattern(doc, u, tile, x, y, w, h, color, serial) {
+function picPattern(doc, u, tile, x, y, w, h, color, serial, cell) {
     if (!doc || typeof doc.createElementNS !== 'function') return null;
     var url = picUrl(u); if (!url) return null;
-    var tl = picTileOf(tile), whole = tl === 'whole', tw = whole ? (fin(w) && w > 0 ? w : 0) : tl * PIC_CELL, th = whole ? (fin(h) && h > 0 ? h : 0) : tl * PIC_CELL; if (!(tw > 0 && th > 0)) return null;
+    var pc = picCell(cell), cu = pc ? pc.u : PIC_CELL, tl = picTileOf(tile), whole = tl === 'whole', tw = whole ? (fin(w) && w > 0 ? w : 0) : r2(tl * cu), th = whole ? (fin(h) && h > 0 ? h : 0) : r2(tl * cu); if (!(tw > 0 && th > 0)) return null;
+    if (pc && !whole) { x = (fin(x) ? x : 0) - pc.ox; y = (fin(y) ? y : 0) - pc.oy; }
     var sn = fin(serial) && serial >= 0 && Math.floor(serial) === serial ? serial : 0, p = doc.createElementNS(SVG_NS, 'pattern');
     p.setAttribute('id', 'wptex' + sn);
     p.setAttribute('patternUnits', 'userSpaceOnUse');
     p.setAttribute('width', String(tw)); p.setAttribute('height', String(th));
-    p.setAttribute('x', whole ? '0' : String(-mod(x, tw))); p.setAttribute('y', whole ? '0' : String(-mod(y, th)));
+    p.setAttribute('x', whole ? '0' : String(-r2(mod(x, tw)))); p.setAttribute('y', whole ? '0' : String(-r2(mod(y, th))));
     if (whole) p.setAttribute('data-whole', '1');
     var r = doc.createElementNS(SVG_NS, 'rect');
     r.setAttribute('width', String(tw)); r.setAttribute('height', String(th)); r.setAttribute('fill', cssColor(color, 'transparent'));
@@ -902,6 +915,6 @@ function walledUnder(kept, D, Dv) {
 }
 function runLen(r) { var n = 0; for (var i = 1; i < r.length; i++) n += Math.sqrt((r[i][0] - r[i - 1][0]) * (r[i][0] - r[i - 1][0]) + (r[i][1] - r[i - 1][1]) * (r[i][1] - r[i - 1][1])); return n; }
 
-var API = { VERSION: VERSION, TEXTURES: TEXTURES, cleanTexture: cleanTexture, texName: texName, MAT_KINDS: MAT_KINDS, ERAS: ERAS, MAT_ERAS: MAT_ERAS, lineMat: lineMat, PIN_MAX: PIN_MAX, cleanPins: cleanPins, THEME_IDS: THEME_IDS, THEME_NAMES: THEME_NAMES, THEMES: THEMES, cleanTheme: cleanTheme, TEX: TEX, TEX_CSS: TEX_CSS, TEX_INK: TEX_INK, texStyle: texStyle, texPos: texPos, texPattern: texPattern, PIC_CELL: PIC_CELL, picUrl: picUrl, picPos: picPos, picStyle: picStyle, picPattern: picPattern, picName: picName, MATERIALS: MATERIALS, MATERIAL_IDS: MATERIAL_IDS, cleanMaterial: cleanMaterial, pieceProps: pieceProps, penPreset: penPreset, snapBox: snapBox, hexCellBox: hexCellBox, hexCellsInBox: hexCellsInBox, corridor: corridor, snapVertex: snapVertex, polyItem: polyItem, seatedAt: seatedAt, floorOk: floorOk, outlineWalls: outlineWalls, corridorWalls: corridorWalls, wallLine: wallLine, cutOk: cutOk, cutWalls: cutWalls };
+var API = { VERSION: VERSION, TEXTURES: TEXTURES, cleanTexture: cleanTexture, texName: texName, MAT_KINDS: MAT_KINDS, ERAS: ERAS, MAT_ERAS: MAT_ERAS, lineMat: lineMat, PIN_MAX: PIN_MAX, cleanPins: cleanPins, THEME_IDS: THEME_IDS, THEME_NAMES: THEME_NAMES, THEMES: THEMES, cleanTheme: cleanTheme, TEX: TEX, TEX_CSS: TEX_CSS, TEX_INK: TEX_INK, texStyle: texStyle, texPos: texPos, texPattern: texPattern, PIC_CELL: PIC_CELL, picUrl: picUrl, picPos: picPos, picStyle: picStyle, picPattern: picPattern, picName: picName, picCell: picCell, MATERIALS: MATERIALS, MATERIAL_IDS: MATERIAL_IDS, cleanMaterial: cleanMaterial, pieceProps: pieceProps, penPreset: penPreset, snapBox: snapBox, hexCellBox: hexCellBox, hexCellsInBox: hexCellsInBox, corridor: corridor, snapVertex: snapVertex, polyItem: polyItem, seatedAt: seatedAt, floorOk: floorOk, outlineWalls: outlineWalls, corridorWalls: corridorWalls, wallLine: wallLine, cutOk: cutOk, cutWalls: cutWalls };
 if (typeof window !== 'undefined') window.wpBuildCore = API;
-export { VERSION, TEXTURES, cleanTexture, texName, MAT_KINDS, ERAS, MAT_ERAS, lineMat, PIN_MAX, cleanPins, THEME_IDS, THEME_NAMES, THEMES, cleanTheme, TEX, TEX_CSS, TEX_INK, texStyle, texPos, texPattern, PIC_CELL, picUrl, picPos, picStyle, picPattern, picName, MATERIALS, MATERIAL_IDS, cleanMaterial, pieceProps, penPreset, snapBox, hexCellBox, hexCellsInBox, corridor, snapVertex, polyItem, seatedAt, floorOk, outlineWalls, corridorWalls, wallLine, cutOk, cutWalls };
+export { VERSION, TEXTURES, cleanTexture, texName, MAT_KINDS, ERAS, MAT_ERAS, lineMat, PIN_MAX, cleanPins, THEME_IDS, THEME_NAMES, THEMES, cleanTheme, TEX, TEX_CSS, TEX_INK, texStyle, texPos, texPattern, PIC_CELL, picUrl, picPos, picStyle, picPattern, picName, picCell, MATERIALS, MATERIAL_IDS, cleanMaterial, pieceProps, penPreset, snapBox, hexCellBox, hexCellsInBox, corridor, snapVertex, polyItem, seatedAt, floorOk, outlineWalls, corridorWalls, wallLine, cutOk, cutWalls };

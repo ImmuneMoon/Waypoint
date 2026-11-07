@@ -1565,10 +1565,13 @@ function cleanTrim(v) {
         if (!Array.isArray(c) || c.length !== 2 || !fin(c[0]) || !fin(c[1]) || c[0] !== Math.floor(c[0]) || c[1] !== Math.floor(c[1]) || Math.abs(c[0]) > 1e5 || Math.abs(c[1]) > 1e5) continue;
         var k = c[0] + ',' + c[1]; if (seen[k]) continue; seen[k] = 1; cells.push([c[0], c[1]]);
     }
-    return cells.length ? { g: v.g, box: b, cells: cells } : null;
+    if (!cells.length) return null;
+    var out = { g: v.g, box: b, cells: cells }, mc = cleanMapCell(v.cell, v.g);   // the map's own cell it was picked on (backlog 38), none for today's
+    if (mc) out.cell = mc;
+    return out;
 }
 // The board's own lattice for a trim's word, with a hex's corners at half a 52 px row so that neighbours share their edges exactly
-function trimGrid(g) { return g === 'hex' ? hexGrid(30, 52) : squareGrid(50); }
+function trimGrid(g, cell) { return gridFor(g === 'hex' ? 'hex' : 'square', null, cell); }
 function trimCorners(cell, grid) {
     if (grid.type === 'square') { var s = grid.size, x = cell.c * s + (grid.ox || 0), y = cell.r * s + (grid.oy || 0); return [[x, y], [x + s, y], [x + s, y + s], [x, y + s]]; }
     var ctr = cellCenter(cell, grid), sx = grid.s, hy = grid.h / 2;
@@ -1577,7 +1580,7 @@ function trimCorners(cell, grid) {
 // Each kept cell as a polygon in the picture's own box (0, 0 at its top left), its box w by h now: [] for no trim
 function trimPolys(t, w, h) {
     t = cleanTrim(t); if (!t || !(w > 0) || !(h > 0)) return [];
-    var grid = trimGrid(t.g), kx = w / t.box[2], ky = h / t.box[3], r2 = function(v) { return Math.round(v * 100) / 100; };
+    var grid = trimGrid(t.g, t.cell), kx = w / t.box[2], ky = h / t.box[3], r2 = function(v) { return Math.round(v * 100) / 100; };
     return t.cells.map(function(c) {
         var cell = t.g === 'square' ? { c: c[0], r: c[1] } : { q: c[0], r: c[1] };
         return trimCorners(cell, grid).map(function(p) { return [r2((p[0] - t.box[0]) * kx), r2((p[1] - t.box[1]) * ky)]; });
@@ -1589,10 +1592,11 @@ function trimPath(t, w, h) {
 }
 // A trim moved onto the picture's box as it stands: each kept cell's centre carried with the box and the cell under it taken again, so a
 // picture moved or resized since its trim is trimmed again on the lattice where it now lies. g the lattice to pick on now
-function trimRebase(t, x, y, w, h, g) {
-    var grid = trimGrid(g), base = { g: g === 'hex' ? 'hex' : 'square', box: [x, y, w, h], cells: [] };
+function trimRebase(t, x, y, w, h, g, cell) {
+    var grid = trimGrid(g, cell), base = { g: g === 'hex' ? 'hex' : 'square', box: [x, y, w, h], cells: [] }, bc = cleanMapCell(cell, base.g);
+    if (bc) base.cell = bc;
     t = cleanTrim(t); if (!t || !(w > 0) || !(h > 0)) return base;
-    var old = trimGrid(t.g), kx = w / t.box[2], ky = h / t.box[3], seen = Object.create(null);
+    var old = trimGrid(t.g, t.cell), kx = w / t.box[2], ky = h / t.box[3], seen = Object.create(null);
     t.cells.forEach(function(c) {
         var ctr = cellCenter(t.g === 'square' ? { c: c[0], r: c[1] } : { q: c[0], r: c[1] }, old);
         var n = cellOf(x + (ctr.x - t.box[0]) * kx, y + (ctr.y - t.box[1]) * ky, grid), pair = grid.type === 'square' ? [n.c, n.r] : [n.q, n.r], k = pair.join(',');

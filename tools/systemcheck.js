@@ -7376,6 +7376,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 srRun(S_OFF, { active: true, role: 'client', tableSnapOn: true }).on, srRun(S_ON, { active: true, role: 'client', tableSnapOn: false }).on, srRun(S_ON, { active: true, role: 'client', tableSnapOn: 'yes' }).on, srRun(S_OFF, { active: false, role: 'client', tableSnapOn: true }).on, srRun(S_ON, { active: true, role: 'host' }).on];
             check('snap rule: wpSnapOn (datamap.js, run for real) — Snap on to the grid or to both, not to other items only; a connected player follows the GM\'s Snap as the table was told it (true only), whatever their own; off the table, their own',
                 srA > 0 && srB > srA && j(onGot) === j([true, true, false, false, true, false, false, false, true]), j(onGot));
+            {   // 1.6.2, backlog 38 fold 2: range and a token's one cell on a map of its own cell (systemcore rangeDist, tokenCell, shapeStandIn)
+                const SCL = await import(url('systemcore.js') + '?lat');
+                const sqM = { meta: { gridType: 'square', cell: { size: 70 }, cellValue: 5, cellUnit: 'ft' } }, hxM = { meta: { gridType: 'hex', cell: { size: 104 }, cellValue: 1, cellUnit: 'yd' } }, plain = { meta: { gridType: 'square', cellValue: 5, cellUnit: 'ft' } };
+                const dSq = SCL.rangeDist(null, sqM, { x: 35, y: 35 }, { x: 315, y: 35 }, 'ft'), dPl = SCL.rangeDist(null, plain, { x: 25, y: 25 }, { x: 225, y: 25 }, 'ft');
+                const dHx = SCL.rangeDist(null, hxM, { x: 30, y: 0 }, { x: 30, y: 312 }, 'yd');
+                const tc = [SCL.tokenCell(sqM), SCL.tokenCell(hxM), SCL.tokenCell(plain)];
+                const tok = { isChar: true, type: 'circle', x: 0, y: 0, w: 70, h: 70 }; SCL.shapeStandIn(tok, sqM);
+                check('a map with its own cell counts range and sizes a token by it (backlog 38): 280 px on 70 px squares is 4 squares, 20 ft, as 200 px on today\'s 50 px squares is; three 104 px hex rows down a column are 3 hexes; one cell is a 70 px square or a hex 120 by 104; a token of 70 px is one cell there and takes the cell\'s shape',
+                    dSq === 20 && dPl === 20 && dHx === 3 && j(tc) === j([{ type: 'rect', w: 70, h: 70 }, { type: 'hexagon', w: 120, h: 104 }, { type: 'rect', w: 50, h: 50 }]) && tok.type === 'rect' && tok.w === 70, j([dSq, dPl, dHx, tc, tok]));
+            }
             {   // 1.6.2, backlog 38 fold 2: a map with its own cell seats a drop on that lattice (datamap.js latticeOf, run for real with the real fogcore)
                 const FCL = await import(url('fogcore.js') + '?lat'), dmL = dmG.slice(srA, srB);
                 const run = (map, item) => { const win = { wpNet: null, wpFogCore: FCL }; win.wpSeatHex = (it) => false; new Function('window', 'getActiveMap', 'state', dmL)(win, () => map, { snap: true, snapMode: 'grid', gridType: map.meta.gridType }); return { got: win.wpSeatDrop(item, map), item: item, lat: win.wpLatticeOf(map) }; };

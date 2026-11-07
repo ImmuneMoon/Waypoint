@@ -8,6 +8,7 @@
 'use strict';
 import { cleanDecks, deckOf, drawCards, shufflePile, returnCard, cleanPile, cardVal, pileCounts } from './deckcore.js';   // 1.6.2 (G9): decks and bags, a pure module of its own (deckcheck runs it)
 import { cleanObjects } from './objcore.js';
+import { gridFor as fcGridFor, cellOf as fcCellOf } from './fogcore.js';   // 1.6.2 (backlog 38): a map's own cell, read by fogcore's one lattice
 import { cleanNameLists } from './namecore.js';   // 1.6.2 (backlog 147): the name button's lists (pure; namecheck runs it)   // 1.6.0: a system's own set of map objects (pure; objcheck runs it)
 import { cleanCalendar, PHASES as MOON_PHASES } from './calendarcore.js';   // item 20 K1: the system's calendar (a pure module of its own: calendarcheck runs it)
 import { cleanRec, makeRec, textSig, recShapeOk, RULES as LOOK_RULES } from './lookcore.js';
@@ -1502,13 +1503,9 @@ function rangeModOf(rr, dist, F) {
     return v === null ? null : rangeModNum(v);
 }
 // The hex a board point falls in (flat-top, 30 px sides, 52 px rows): whiteboard.js hexCellOf's rounding, so range counts the hexes the ruler does
-function hexCellAt(x, y) {
-    var s = 30, h = 52, q = (x - s / 2) / (1.5 * s), r = y / h - q / 2;
-    var rx = Math.round(q), ry = Math.round(r), rz = Math.round(-q - r);
-    var dx = Math.abs(rx - q), dy = Math.abs(ry - r), dz = Math.abs(rz - (-q - r));
-    if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz;
-    return { q: rx, r: ry };
-}
+function hexCellAt(x, y, mp) { var c = fcCellOf(x, y, mapLattice(mp, 'hex')); return { q: c.q, r: c.r }; }
+// 1.6.2 (backlog 38): the lattice a map's cells lie on (fogcore gridFor with the map's own cell, map.meta.cell); today's where it sets none
+function mapLattice(mp, g) { return fcGridFor(g || mapGridOf(mp), null, isObj(mp) && isObj(mp.meta) ? mp.meta.cell : null); }
 // The distance between two points of a map, in a range rule's unit (yards with none), as the ruler counts it: a hex grid counts hexes, a
 // square one follows the system's diagonal rule (combat.turn.diag), a gridless map the straight line over 50 px cells; the map's scale converts
 // (mapCellScale). dz: yards of height between the two (the elevation feature on), for the 3D distance the ruler's 3D line and a blast count.
@@ -1517,8 +1514,8 @@ function rangeDist(sys, mp, a, b, unit, dz) {
     var num = function(v) { return typeof v === 'number' && isFinite(v) && Math.abs(v) <= 1e9; };
     if (!isObj(a) || !isObj(b) || !num(a.x) || !num(a.y) || !num(b.x) || !num(b.y)) return null;
     var g = mapGridOf(mp), cells;
-    if (g === 'hex') { var ha = hexCellAt(a.x, a.y), hb = hexCellAt(b.x, b.y), dq = ha.q - hb.q, dr = ha.r - hb.r; cells = Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr)); }
-    else if (g === 'square') { var dg = sys && isObj(sys.combat) && isObj(sys.combat.turn) ? sys.combat.turn.diag : ''; cells = gridCells((b.x - a.x) / 50, (b.y - a.y) / 50, dg === 'one' || dg === 'alt' ? dg : ''); }
+    if (g === 'hex') { var ha = hexCellAt(a.x, a.y, mp), hb = hexCellAt(b.x, b.y, mp), dq = ha.q - hb.q, dr = ha.r - hb.r; cells = Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr)); }
+    else if (g === 'square') { var dg = sys && isObj(sys.combat) && isObj(sys.combat.turn) ? sys.combat.turn.diag : ''; var sz = mapLattice(mp, 'square').size; cells = gridCells((b.x - a.x) / sz, (b.y - a.y) / sz, dg === 'one' || dg === 'alt' ? dg : ''); }
     else cells = Math.hypot(b.x - a.x, b.y - a.y) / 50;
     var sc = mapCellScale(mp), cellYd = sc.per * MAP_UNITS[sc.unit], u = typeof unit === 'string' && hasOwn(RANGE_UNITS, unit) ? unit : 'yd';
     var d = u === 'cells' ? cells : u === sc.unit ? cells * sc.per : cells * cellYd / MAP_UNITS[u];
@@ -1824,14 +1821,20 @@ var MAP_UNITS = Object.freeze({ yd: 1, ft: 1 / 3, m: 1.0936133, km: 1093.6133, m
 var TOKEN_CELL = Object.freeze({ hex: Object.freeze({ type: 'hexagon', w: 60, h: 52 }), square: Object.freeze({ type: 'rect', w: 50, h: 50 }), off: Object.freeze({ type: 'circle', w: 60, h: 52 }) });
 var STAND_IN = Object.freeze({ circle: 1, rect: 1, hexagon: 1 });
 function mapGridOf(mp) { var g = isObj(mp) && isObj(mp.meta) ? mp.meta.gridType : null; return g === 'hex' || g === 'square' ? g : 'off'; }
-function tokenCell(mp) { var c = TOKEN_CELL[mapGridOf(mp)]; return { type: c.type, w: c.w, h: c.h }; }
+function tokenCell(mp) {
+    var g = mapGridOf(mp), c = TOKEN_CELL[g], L = g === 'off' ? null : mapLattice(mp, g);   // a map's own cell (backlog 38): one cell of its lattice
+    if (L && g === 'hex') return { type: c.type, w: 2 * L.s, h: L.h };
+    if (L && g === 'square') return { type: c.type, w: L.size, h: L.size };
+    return { type: c.type, w: c.w, h: c.h };
+}
 function shapeStandIn(tok, mp) {
     if (!isObj(tok) || !(tok.isChar || tok.waiting)) return false;
     var pic = tok.type === 'image' && typeof tok.src === 'string' && tok.src !== '';
     if (!pic && !(typeof tok.type === 'string' && hasOwn(STAND_IN, tok.type))) return false;
     var num0 = function(v, d) { return typeof v === 'number' && fin(v) && v > 0 ? v : d; }, w0 = num0(tok.w, 60), h0 = num0(tok.h, 52);
-    if (Math.max(w0, h0) > 64) return false;
-    var g = mapGridOf(mp), c = TOKEN_CELL[g], sig = function() { return [tok.type, tok.shape, tok.w, tok.h, tok.src, tok.x, tok.y].join('|'); }, before = sig();
+    var g = mapGridOf(mp), c = tokenCell(mp);
+    if (Math.max(w0, h0) > 64 * (g === 'off' ? 1 : c.h / TOKEN_CELL[g].h)) return false;   // one cell at most, on the map's own cell's scale
+    var sig = function() { return [tok.type, tok.shape, tok.w, tok.h, tok.src, tok.x, tok.y].join('|'); }, before = sig();
     var w = pic && g === 'off' ? w0 : c.w, h = pic && g === 'off' ? h0 : c.h;
     if (pic) {
         tok.shape = c.type;
@@ -1849,7 +1852,7 @@ function shapeStandIn(tok, mp) {
 function tokenOneCell(tok, mp) {
     if (!isObj(tok) || !tok.isChar || tok.waiting || tok.locked || tok.type !== 'image' || typeof tok.src !== 'string' || !tok.src) return false;
     var g = mapGridOf(mp); if (g === 'off') return false;
-    var c = TOKEN_CELL[g], num0 = function(v, d) { return typeof v === 'number' && fin(v) && v > 0 ? v : d; }, w0 = num0(tok.w, c.w), h0 = num0(tok.h, c.h);
+    var c = tokenCell(mp), num0 = function(v, d) { return typeof v === 'number' && fin(v) && v > 0 ? v : d; }, w0 = num0(tok.w, c.w), h0 = num0(tok.h, c.h);
     var sig = function() { return [tok.x, tok.y, tok.w, tok.h, tok.shape, tok.src].join('|'); }, before = sig();
     if (typeof tok.x === 'number' && fin(tok.x)) tok.x = tok.x + w0 / 2 - c.w / 2;
     if (typeof tok.y === 'number' && fin(tok.y)) tok.y = tok.y + h0 / 2 - c.h / 2;

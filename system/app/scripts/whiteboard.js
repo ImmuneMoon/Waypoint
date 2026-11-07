@@ -1527,17 +1527,20 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
   // [lookcheck:fitpic-end]
   function fitItemInPlace(it, g, ratio) {
     var ox = it.x, oy = it.y, ow = it.w, oh = it.h, sh = fitShown(it, ratio === undefined ? fitPicRatio(it) : ratio);
+    var LF = (typeof window !== 'undefined' && window.wpLatticeOf ? window.wpLatticeOf() : null);   // the map's own cell (backlog 38): today's 60 by 52 hex and 50 px square where it sets none
     if (g === 'hex') {
-        if (it.isChar || it.type === 'hexagon' || it.shape === 'hexagon') { it.w = 60; it.h = 52; }
+        var fs = LF && LF.type === 'hex' ? LF.s : 30, fh = LF && LF.type === 'hex' ? LF.h : 52;
+        if (it.isChar || it.type === 'hexagon' || it.shape === 'hexagon') { it.w = 2 * fs; it.h = fh; }
         else {
-            var rows = Math.max(1, Math.round(sh.h / 52)), cols = Math.max(1, Math.round((sh.w - 15) / 45));
-            it.x = sh.x; it.y = sh.y; it.w = cols * 45 + 15; it.h = rows * 52;
+            var rows = Math.max(1, Math.round(sh.h / fh)), cols = Math.max(1, Math.round((sh.w - fs / 2) / (1.5 * fs)));
+            it.x = sh.x; it.y = sh.y; it.w = cols * 1.5 * fs + fs / 2; it.h = rows * fh;
         }
         if (window.wpSeatHex) window.wpSeatHex(it, null, true);
     } else {
-        it.w = Math.max(50, Math.round(sh.w / 50) * 50);
-        it.h = Math.max(50, Math.round(sh.h / 50) * 50);
-        it.x = Math.round(sh.x / 50) * 50; it.y = Math.round(sh.y / 50) * 50;
+        var fz = LF && LF.type === 'square' ? LF.size : 50, fx0 = LF && LF.ox || 0, fy0 = LF && LF.oy || 0;
+        it.w = Math.max(fz, Math.round(sh.w / fz) * fz);
+        it.h = Math.max(fz, Math.round(sh.h / fz) * fz);
+        it.x = Math.round((sh.x - fx0) / fz) * fz + fx0; it.y = Math.round((sh.y - fy0) / fz) * fz + fy0;
     }
     return Math.abs(it.x - ox) > 0.01 || Math.abs(it.y - oy) > 0.01 || Math.abs(it.w - ow) > 0.01 || Math.abs(it.h - oh) > 0.01;
 }
@@ -1621,7 +1624,8 @@ function alignStep(rec, x, y) {
         if (!p) { toast('That picture is no longer on this map.'); return; }
         if (no) { toast(no); return; }
         var n = Number(String(v).trim());
-        var f = alignFit(p, a, b, n, g === 'hex' ? 52 : 50, g === 'hex' ? function(px, py) { return snapToHex(px, py, 30, 'center'); } : function(px, py) { return { x: Math.round(px / 50) * 50, y: Math.round(py / 50) * 50 }; });
+        var AL = (typeof window !== 'undefined' && window.wpLatticeOf ? window.wpLatticeOf() : null), az = AL && AL.type === 'square' ? AL.size : 50, ax0 = AL && AL.ox || 0, ay0 = AL && AL.oy || 0;   // the map's own cell (backlog 38)
+        var f = alignFit(p, a, b, n, g === 'hex' ? (AL && AL.type === 'hex' ? AL.h : 52) : az, g === 'hex' ? function(px, py) { return snapToHex(px, py, 30, 'center'); } : function(px, py) { return { x: Math.round((px - ax0) / az) * az + ax0, y: Math.round((py - ay0) / az) * az + ay0 }; });
         if (!f) { toast(!(n >= 1) || n !== Math.floor(n) || n > 1000 ? 'Type a whole number of cells, from 1 to 1000.' : 'The two points are too close together, or the picture would be too large. Try two points further apart.'); return; }
         p.x = f.x; p.y = f.y; p.w = f.w; p.h = f.h; delete p.gridFit;
         save(); render();
@@ -1670,7 +1674,7 @@ function trimStep(rec, px, py, pw, ph, sx, sy) {
     if (!w) { toast('That picture is no longer on this map.'); render(); return; }
     if (why) { toast(why); render(); return; }
     if (!FC || typeof FC.trimRebase !== 'function') return;
-    var grid = g === 'hex' ? FC.hexGrid(30, 52) : FC.squareGrid(50), t = FC.trimRebase(w.trim, w.x, w.y, w.w || 100, w.h || 100, g);
+    var TM = getActiveMap(), cell = TM && TM.meta ? TM.meta.cell : null, grid = FC.gridFor(g, null, cell), t = FC.trimRebase(w.trim, w.x, w.y, w.w || 100, w.h || 100, g, cell);   // the map's own cell (backlog 38)
     var next = trimEdit(t, FC, grid, px, py, pw, ph, sx, sy);
     if (!next) { toast('A picture keeps at most ' + FC.TRIM_MAX + ' cells.'); trimArm(rec, false); return; }
     var clean = FC.cleanTrim(next);
@@ -1979,7 +1983,7 @@ window.wpFitToGrid = fitToGrid;
           return on && (state.gridType === 'square' || state.gridType === 'hex') ? state.gridType : null;
       }
       function gridStep(w, h, g, box, lock) {
-          var edge = g === 'hex' && !box ? 15 : 0, sx = g === 'hex' ? 45 : 50, sy = g === 'hex' ? 52 : 50;
+          var LR = (typeof window !== 'undefined' && window.wpLatticeOf ? window.wpLatticeOf() : null), hs = LR && LR.type === 'hex' ? LR.s : 30, edge = g === 'hex' && !box ? hs / 2 : 0, sx = g === 'hex' ? 1.5 * hs : LR && LR.type === 'square' ? LR.size : 50, sy = g === 'hex' ? (LR && LR.type === 'hex' ? LR.h : 52) : sx;   // the map's own cell (backlog 38)
           var W = function(v) { return Math.max(1, Math.round((v - edge) / sx)) * sx + edge; }, H = function(v) { return Math.max(1, Math.round(v / sy)) * sy; };
           var r = lock && typeof lock.r === 'number' && isFinite(lock.r) && lock.r > 0 ? lock.r : 0;
           if (!r) return { w: W(w), h: H(h) };
@@ -3764,11 +3768,11 @@ window.wpFitToGrid = fitToGrid;
 
       var meta = (m && m.meta) || {};
 
-      var hex = state.gridType === 'hex';
+      var hex = state.gridType === 'hex', LM = (typeof window !== 'undefined' && window.wpLatticeOf ? window.wpLatticeOf(m) : null);   // 1.6.2 (backlog 38): the map's own cell
 
       return {
 
-          cellPx: hex ? 52 : 50,
+          cellPx: LM ? (LM.type === 'hex' ? LM.h : LM.size) : hex ? 52 : 50,
 
           cellName: hex ? 'hex' : 'sq',
 
@@ -4619,8 +4623,10 @@ window.wpFitToGrid = fitToGrid;
   var _armedThrow = null;   // { charId, fieldId, rowId, ft, name, by, damage, gmOnly } while a sheet Throw is armed (one-shot)
   function unitToYd(u) { return { yd: 1, ft: 1 / 3, m: 1 / 0.9144, km: 1000 / 0.9144, mi: 1760 }[u] || 1; }   // by the exact definitions, as ydPer
   function cellYards() { var cfg = mapMeasureConfig(); return cfg.per * unitToYd(cfg.unit); }
-  function hexCellOf(x, y) {   // same rounding as datamap.js snapToHex (flat-top, s = 30, 52 px rows)
-      var s = 30, h = 52, q = (x - s / 2) / (1.5 * s), r = y / h - q / 2;
+  function hexCellOf(x, y, map) {   // same rounding as datamap.js snapToHex (flat-top, s = 30, 52 px rows; the map's own hex where it sets one: backlog 38)
+      var LH = (typeof window !== 'undefined' && window.wpLatticeOf ? window.wpLatticeOf(map) : null), s = LH && LH.type === 'hex' ? LH.s : 30, h = LH && LH.type === 'hex' ? LH.h : 52;
+      if (LH && LH.type === 'hex') { x -= LH.ox || 0; y -= LH.oy || 0; }
+      var q = (x - s / 2) / (1.5 * s), r = y / h - q / 2;
       var rx = Math.round(q), ry = Math.round(r), rz = Math.round(-q - r);
       var dx = Math.abs(rx - q), dy = Math.abs(ry - r), dz = Math.abs(rz - (-q - r));
       if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz;
@@ -4698,7 +4704,7 @@ window.wpFitToGrid = fitToGrid;
   // Seat a blast in its grid cell; a blast whose height was never edited follows the token standing there
   function seatBlast(b) {
       if (state.gridType === 'hex') { var hc = snapToHex(b.x, b.y, 30, 'center'); b.x = hc.x; b.y = hc.y; }
-      else if (state.gridType === 'square') { b.x = Math.floor(b.x / 50) * 50 + 25; b.y = Math.floor(b.y / 50) * 50 + 25; }
+      else if (state.gridType === 'square') { var LB = (typeof window !== 'undefined' && window.wpLatticeOf ? window.wpLatticeOf() : null) || { size: 50 }, bz = LB.size, bx0 = LB.ox || 0, by0 = LB.oy || 0; b.x = Math.floor((b.x - bx0) / bz) * bz + bz / 2 + bx0; b.y = Math.floor((b.y - by0) / bz) * bz + bz / 2 + by0; }
       if (b.autoElev) { var mapS = getActiveMap(), under = mapS && tokenAtPoint(mapS, b.x, b.y, b.thrown); b.elev = under ? tokenElevation(under, mapS, b.thrown === true) : groundAt(mapS, b.x, b.y, b.thrown === true); }   // item 19b H5: on the ground there (a thrown blast never reads a hidden piece's)   // hidden pieces: a thrown blast (sent to the table) takes no height from a token the GM hid; the GM's own tool reads them, the GM being its only viewer
   }
   function placeBlast(e) {
@@ -5343,8 +5349,8 @@ window.wpFitToGrid = fitToGrid;
   // Whether a point stands in the blast's own cell: the same square or hex on a map with a grid, within half a cell on one with none
   function sameCellOn(map, a, b) {
       var S = window.wpSystemCore, g = S && S.mapGridOf ? S.mapGridOf(map) : state.gridType;
-      if (g === 'hex') { var ha = hexCellOf(a.x, a.y), hb = hexCellOf(b.x, b.y); return ha.q === hb.q && ha.r === hb.r; }
-      if (g === 'square') return Math.floor(a.x / 50) === Math.floor(b.x / 50) && Math.floor(a.y / 50) === Math.floor(b.y / 50);
+      if (g === 'hex') { var ha = hexCellOf(a.x, a.y, map), hb = hexCellOf(b.x, b.y, map); return ha.q === hb.q && ha.r === hb.r; }
+      if (g === 'square') { var LS = (typeof window !== 'undefined' && window.wpLatticeOf ? window.wpLatticeOf(map) : null) || { size: 50 }, sz = LS.size, sx0 = LS.ox || 0, sy0 = LS.oy || 0; return Math.floor((a.x - sx0) / sz) === Math.floor((b.x - sx0) / sz) && Math.floor((a.y - sy0) / sz) === Math.floor((b.y - sy0) / sz); }
       return Math.hypot(a.x - b.x, a.y - b.y) < 25;
   }
   // The GM's row on a mine's right-click menu: set it off by hand. The GM's alone, never a player's app or the stream window; fixed words
@@ -6026,8 +6032,9 @@ window.wpFitToGrid = fitToGrid;
   // Snap a board point to its grid cell (square 50px, or hex). One source of truth for fill + flood-fill.
   function cellSnap(x, y) {
       var cx, cy, w, h, type;
-      if (state.gridType === 'hex') { var hc = snapToHex(x, y, 30, 'center'); cx = hc.x; cy = hc.y; w = 60; h = 52; type = 'hexagon'; }
-      else { cx = Math.floor(x / 50) * 50 + 25; cy = Math.floor(y / 50) * 50 + 25; w = 50; h = 50; type = 'rect'; }
+      var LC = (typeof window !== 'undefined' && window.wpLatticeOf ? window.wpLatticeOf() : null);   // the map's own cell (backlog 38)
+      if (state.gridType === 'hex') { var hc = snapToHex(x, y, 30, 'center'); cx = hc.x; cy = hc.y; w = LC && LC.type === 'hex' ? 2 * LC.s : 60; h = LC && LC.type === 'hex' ? LC.h : 52; type = 'hexagon'; }
+      else { var cz = LC && LC.type === 'square' ? LC.size : 50, cx0 = LC && LC.ox || 0, cy0 = LC && LC.oy || 0; cx = Math.floor((x - cx0) / cz) * cz + cz / 2 + cx0; cy = Math.floor((y - cy0) / cz) * cz + cz / 2 + cy0; w = cz; h = cz; type = 'rect'; }
       return { cx: cx, cy: cy, w: w, h: h, type: type, px: Math.round(cx - w / 2), py: Math.round(cy - h / 2) };
   }
   // [fogcheck:fillcell-start]

@@ -8,7 +8,7 @@
 import { getActiveCampaign } from './models.js';
 import { save, saveView, toast } from './io.js';
 import { roundSecs, needsHeld, chainsShallow, setDateSource } from './systemcore.js';
-import { cleanCalendar, cleanClock, cleanAcc, ruleFires, everySecs, fightSecs, livedSpans, freshAcc, tCmp, tSpanMs, dateOf, timeOf, periodDays, dayLength, fmtDate, fmtWhen, fmtSpan, CAL_LIMITS } from './calendarcore.js';
+import { cleanCalendar, cleanClock, cleanAcc, ruleFires, everySecs, fightSecs, livedSpans, freshAcc, tCmp, tSpanMs, dateOf, timeOf, periodDays, dayLength, fmtDate, fmtWhen, fmtSpan, CAL_LIMITS, moonPhases, seasonOf, PHASES } from './calendarcore.js';
 
 function net() { return window.wpNet || null; }
 function sysNow() { var sh = window.wpSheets; return sh && sh.systemOf ? sh.systemOf() : null; }
@@ -61,7 +61,7 @@ function gridOf(cal, v, t, pk, nd) {
         out.title = cc.periods[v.period].name + ', ' + dd.year + (cc.era ? ' ' + cc.era : '');
     }
     if (wk.length) { out.cols = wk.length; out.heads = wk.slice(); for (var i = dateOf(cc, d0 * dl).weekday; i > 0; i--) out.cells.push(null); }
-    for (var k = 0; k < len; k++) { var c = { day: d0 + k, n: typeof v.page === 'number' ? d0 + k + 1 : k + 1 }; if (d0 + k === today) c.today = true; if (d0 + k === pk) c.picked = true; if (nd && nd[d0 + k]) c.notes = nd[d0 + k]; out.cells.push(c); }
+    for (var k = 0; k < len; k++) { var c = { day: d0 + k, n: typeof v.page === 'number' ? d0 + k + 1 : k + 1 }; if (d0 + k === today) c.today = true; if (d0 + k === pk) c.picked = true; if (nd && nd[d0 + k]) c.notes = nd[d0 + k]; if ((cc.moons || []).length) c.moons = moonPhases(cc, (d0 + k) * dl); out.cells.push(c); }   // 1.6.2 (backlog 147): each moon's phase that day
     return out;
 }
 // The steps that move time on, by the calendar's own day ({ label, secs }), and what an amount can count in ({ id, name, secs }): the
@@ -576,6 +576,7 @@ function dayNotes(body, cal, notes, day, gm) {   // the picked day's notes: the 
     if (!mine.length && !gm) box.appendChild(cel('div', 'sys-note', 'No notes on this day.'));
     mine.forEach(function(n) {
         var row = cel('div', 'cal-note'); row.dataset.note = n.id; row.appendChild(cel('span', 'cal-note-txt', n.text));
+        if (gm && realWords(n.at)) row.appendChild(cel('span', 'cal-note-real', 'Written ' + realWords(n.at)));   // 1.6.2: the real date, the GM's alone
         if (gm) {
             var l = cel('label', 'cal-tick'), c = cel('input', 'cal-note-vis'); c.type = 'checkbox'; c.checked = n.vis === 'all'; c.dataset.note = n.id; c.title = 'Players see this note on the calendar';
             l.appendChild(c); l.appendChild(document.createTextNode(' Players see it')); row.appendChild(l);
@@ -591,6 +592,48 @@ function dayNotes(body, cal, notes, day, gm) {   // the picked day's notes: the 
     }
     body.appendChild(box);
 }
+// [calendarcheck:sky-start]
+// 1.6.2 (backlog 147; the owner, 2026-11-06, by prompt: the moon's phase on the grid as "both the first and second option", the drawings passed
+// on docs/sheets/moon-phases-sheet.html with "Use these drawings"; the timeline "A tab beside the grid"; the real date "The GM only"). The
+// eight drawings: the rim, and the lit part filled, made by createElementNS from these constants alone
+var PHASE_LIT = ['', 'M12 4a8 8 0 0 1 0 16a4.5 8 0 0 0 0-16z', 'M12 4a8 8 0 0 1 0 16z', 'M12 4a8 8 0 0 1 0 16a4.5 8 0 0 1 0-16z', 'M12 4a8 8 0 1 1 0 16a8 8 0 1 1 0-16z', 'M12 4a8 8 0 0 0 0 16a4.5 8 0 0 0 0-16z', 'M12 4a8 8 0 0 0 0 16z', 'M12 4a8 8 0 0 0 0 16a4.5 8 0 0 1 0-16z'];
+var SVGNS = 'http://www.w3.org/2000/svg';
+function phaseIcon(i) {
+    var s = document.createElementNS(SVGNS, 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('class', 'cal-moon'); s.setAttribute('aria-hidden', 'true');
+    var r = document.createElementNS(SVGNS, 'circle'); r.setAttribute('class', 'cal-moon-rim'); r.setAttribute('cx', '12'); r.setAttribute('cy', '12'); r.setAttribute('r', '8'); s.appendChild(r);
+    var d = PHASE_LIT[i] || ''; if (d) { var p = document.createElementNS(SVGNS, 'path'); p.setAttribute('class', 'cal-moon-lit'); p.setAttribute('d', d); s.appendChild(p); }
+    return s;
+}
+// A day's moons in words, for its tooltip: "Selune: Full moon. Red: Waxing crescent."
+function moonWords(ms) { return (ms || []).map(function(m) { return m.name + ': ' + PHASES[m.i] + '.'; }).join(' '); }
+// The line under the date: the season, then each moon's phase
+function skyWords(cal, t) { var se = seasonOf(cal, t), ms = moonPhases(cal, t), bits = []; if (se) bits.push(se.name + '.'); if (ms.length) bits.push(moonWords(ms)); return bits.join(' '); }
+// A day's cell: its number, the first moon's phase drawn at its corner, and New or Full under the number on the day a moon is new or full
+function dayFace(b, c) {
+    if (!c.moons || !c.moons.length) return;
+    b.appendChild(phaseIcon(c.moons[0].i));
+    var pk = c.moons.filter(function(m) { return m.peak; })[0]; if (pk) b.appendChild(cel('span', 'cal-moon-w', pk.peak === 'full' ? 'Full' : 'New'));
+}
+var calTab = 'month';   // the window's two tabs: the month grid, or the timeline of dated notes
+// The real moment a note was written, in this computer's own words, the GM's alone
+function realWords(at) { if (!(typeof at === 'number' && at > 0)) return ''; try { return new Date(at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); } catch (e) { return ''; } }
+// The timeline: every dated note in date order, today marked between the past and what is coming, the past dimmed. A press opens its day
+function timeline(body, cal, notes, today, gm) {
+    var box = cel('div', 'cal-tl'), dl = dayLength(cal), marked = false;
+    if (!notes.length) { box.appendChild(cel('div', 'sys-note', gm ? 'No dated notes yet. Pick a day on the month and add one.' : 'No dated notes you can see.')); body.appendChild(box); return; }
+    var mark = function() { if (marked) return; marked = true; box.appendChild(cel('div', 'cal-tl-today', 'Today, ' + fmtDate(cal, today * dl))); };
+    notes.forEach(function(n) {
+        if (n.day >= today) mark();
+        var row = cbtn('cal-tl-row' + (n.day < today ? ' cal-tl-past' : '') + (n.day === today ? ' cal-tl-now' : ''), '', 'Open this day on the month', 'caltlday'); row.dataset.day = String(n.day);
+        row.appendChild(cel('span', 'cal-tl-date', fmtDate(cal, n.day * dl)));
+        row.appendChild(cel('span', 'cal-tl-txt', n.text));
+        if (gm) { var rw = realWords(n.at), meta = (n.vis === 'all' ? '' : 'You only') + (rw ? (n.vis === 'all' ? '' : '. ') + 'Written ' + rw : ''); if (meta) row.appendChild(cel('span', 'cal-tl-meta', meta)); }
+        box.appendChild(row);
+    });
+    mark();
+    body.appendChild(box);
+}
+// [calendarcheck:sky-end]
 function renderWin() {
     var body = document.getElementById('calendarBody'), camp = getActiveCampaign(); if (!body) return;
     if (!shown(camp)) { closeWin(); return; }
@@ -601,9 +644,15 @@ function renderWin() {
     winSig = winSigOf(camp, ck, cal); winBase = winBaseOf(camp, ck, cal); winDay = Math.floor(t / dl);
     body.textContent = '';
     body.appendChild(cel('div', 'cal-now', fmtWhen(cal, t, now.s !== 0)));
+    var sky = skyWords(cal, t); if (sky) body.appendChild(cel('div', 'cal-sky', sky));   // 1.6.2 (backlog 147): the season and each moon's phase
     if (gm && pend) pendPanel(body, cal);   // K5: what the time rules have due, first
     if (gm) liveRow(body, camp, ck);   // 1.5.4: the clock runs by itself, or is held
     var notes = notesOf(ck), g = gridOf(cal, view, t, pick, noteDays(notes)), nav = cel('div', 'cal-nav');
+    var tabs = cel('div', 'cal-tabs'); tabs.role = 'tablist';   // 1.6.2 (backlog 147): Month and Timeline
+    [['month', 'Month', 'The month as a grid of days'], ['timeline', 'Timeline', 'Every dated note in date order']].forEach(function(tb) { var b = cbtn('cal-tab' + (calTab === tb[0] ? ' cal-tab-on' : ''), tb[1], tb[2], 'caltab'); b.dataset.tab = tb[0]; b.role = 'tab'; b.ariaSelected = calTab === tb[0] ? 'true' : 'false'; tabs.appendChild(b); });
+    body.appendChild(tabs);
+    if (calTab === 'timeline') timeline(body, cal, notes, now.day, gm);
+    else {
     nav.appendChild(cbtn('cal-prev', '\u25c0', 'The period before', 'calprev')); nav.appendChild(cel('span', 'cal-title', g.title)); nav.appendChild(cbtn('cal-next', '\u25b6', 'The period after', 'calnext'));
     nav.appendChild(cbtn('cal-back', 'Today', 'Back to the period the clock is in', 'caltoday'));
     body.appendChild(nav);
@@ -611,11 +660,13 @@ function renderWin() {
     g.heads.forEach(function(h) { var hd = cel('div', 'cal-head', Array.from(h).slice(0, 3).join('')); hd.title = h; grid.appendChild(hd); });
     g.cells.forEach(function(c) {
         if (!c) { grid.appendChild(cel('div', 'cal-blank')); return; }
-        var b = cel('button', 'cal-day' + (c.today ? ' cal-is-today' : '') + (c.picked ? ' cal-is-picked' : '') + (c.notes ? ' cal-has-note' : ''), String(c.n)); b.type = 'button'; b.dataset.day = String(c.day); b.title = fmtDate(cal, c.day * dl) + (c.today ? ' (today)' : '') + (c.notes ? ' \u2014 ' + c.notes + ' note' + (c.notes === 1 ? '' : 's') : '');
+        var b = cel('button', 'cal-day' + (c.today ? ' cal-is-today' : '') + (c.picked ? ' cal-is-picked' : '') + (c.notes ? ' cal-has-note' : '') + (c.moons && c.moons.length ? ' cal-has-moon' : ''), String(c.n)); b.type = 'button'; b.dataset.day = String(c.day); b.title = fmtDate(cal, c.day * dl) + (c.today ? ' (today)' : '') + (c.moons && c.moons.length ? '. ' + moonWords(c.moons) : '') + (c.notes ? ' \u2014 ' + c.notes + ' note' + (c.notes === 1 ? '' : 's') : '');
+        dayFace(b, c);   // 1.6.2: the moon's phase drawn, and New or Full on its day
         grid.appendChild(b);
     });
     body.appendChild(grid);
     comingUp(body, cal, notes, now.day, gm);
+    }
     if (!gm) { if (pick !== null) dayNotes(body, cal, notes, pick, false); body.appendChild(cbtn('cal-hideme', 'Hide the clock for me', 'Takes the clock out of your header at this table; Settings \u25b8 This campaign brings it back', 'calhideme')); return; }
     var pr = cel('div', 'cal-pick');
     if (pick === null) pr.appendChild(cel('span', 'sys-note', 'Pick a day. Then set the clock to it, or add a note to it.'));
@@ -745,7 +796,7 @@ function editNotes(fn) {
 }
 function addNote(day, text, shown) {
     var tx = typeof text === 'string' ? text.trim() : ''; if (!(typeof day === 'number' && day >= 0 && Math.floor(day) === day) || !tx) return false;
-    return editNotes(function(list) { if (list.length >= CAL_LIMITS.notes) { toast('At most ' + CAL_LIMITS.notes + ' notes.'); return false; } var n = { id: newNoteId(), day: day, text: tx }; if (shown) n.vis = 'all'; list.push(n); });
+    return editNotes(function(list) { if (list.length >= CAL_LIMITS.notes) { toast('At most ' + CAL_LIMITS.notes + ' notes.'); return false; } var n = { id: newNoteId(), day: day, text: tx, at: Date.now() }; if (shown) n.vis = 'all'; list.push(n); });   // 1.6.2 (backlog 147): the real moment it was written, the GM's own
 }
 function noteVis(id, shown) { return editNotes(function(list) { var n = list.filter(function(x) { return x.id === id; })[0]; if (!n) return false; if (shown) n.vis = 'all'; else delete n.vis; }); }
 function delNote(id) { return editNotes(function(list) { var i = -1; list.forEach(function(x, k) { if (x.id === id) i = k; }); if (i < 0) return false; list.splice(i, 1); }); }
@@ -779,6 +830,8 @@ function onWinClick(e) {
     if (b.classList.contains('cal-day')) { var d = Number(b.dataset.day); if (d >= 0 && Math.floor(d) === d) { pick = pick === d ? null : d; renderWin(); } return; }
     if (act === 'calprev' || act === 'calnext') { view = stepView(cal, view || viewOf(cal, tOf(camp)), act === 'calnext' ? 1 : -1); renderWin(); return; }
     if (act === 'caltoday') { view = viewOf(cal, tOf(camp)); pick = null; renderWin(); return; }
+    if (act === 'caltab') { calTab = b.dataset.tab === 'timeline' ? 'timeline' : 'month'; renderWin(); return; }   // 1.6.2 (backlog 147): Month or Timeline
+    if (act === 'caltlday') { var td = Number(b.dataset.day); if (td >= 0 && Math.floor(td) === td) { calTab = 'month'; pick = td; view = viewOf(cal, td * dayLength(cal)); renderWin(); } return; }   // a timeline row opens its day on the month
     if (isPlayer()) { if (act === 'calhideme' && window.wpVtt && window.wpVtt.setLocal('calendar', true)) { closeWin(); toast('The clock is hidden for you. Settings \u25b8 This campaign brings it back.'); } return; }
     var body = document.getElementById('calendarBody'), q = function(c) { return body ? body.querySelector('.' + c) : null; };
     if (act === 'calkind') { if (b.dataset.kind === 'rest' && ordersRun()) { restMode = false; toast('A fight is running: time passes as Active until it ends.'); renderWin(); return; } restMode = b.dataset.kind === 'rest'; renderWin(); return; }   // K5; 1.5.7: no Rest while a fight runs

@@ -16,6 +16,8 @@ var LIMITS = Object.freeze({
     leapEvery: 1000, leapDays: 100,     // a leap rule: every 2 to 1000 years, 1 to 100 days more
     notes: 500, noteChars: 400,         // item 20 K3: a clock's dated notes, and a note's text (code points, one line)
     rates: Object.freeze([1, 2, 5, 10, 60]),   // 1.5.4: how fast a clock may run by itself, times real time (1 is the absent default)
+    moons: 4, cycle: 10000,             // 1.6.2 (backlog 147): a calendar's moons, and the days of a moon's cycle at most
+    seasons: 12,                        // ... and its seasons
     time: 1e15                          // world time, in seconds (about 31 million years of 24-hour days)
 });
 var DAY = Object.freeze({ hours: 24, minutes: 60, seconds: 60 });   // a day's shape when the calendar says nothing
@@ -26,6 +28,7 @@ var CTRL_RE_G = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g;
 function isObj(o) { return !!o && typeof o === 'object' && !Array.isArray(o); }
 function whole(v, lo, hi) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v >= lo && v <= hi ? v : null; }
 function mod(a, n) { return ((a % n) + n) % n; }
+function hund(v, lo, hi) { if (typeof v !== 'number' || !isFinite(v)) return null; var r = Math.round(v * 100) / 100; return r >= lo && r <= hi ? r : null; }   // a number to the hundredth, inside its bounds
 function cutName(v, n) {   // plain one-line text, cut by code points
     if (typeof v !== 'string') return '';
     var s = v.replace(CTRL_RE_G, ' ').replace(/\s+/g, ' ').trim(), cps = Array.from(s);
@@ -56,6 +59,25 @@ function cleanCalendar(v) {
     if (ps.length && isObj(v.leap)) {
         var lv = v.leap, ev = whole(lv.every, 2, LIMITS.leapEvery), fr = whole(lv.from, -LIMITS.year, LIMITS.year), pi = whole(lv.period, 0, 1e6), ld = whole(lv.days, 1, LIMITS.leapDays);
         if (ev !== null && fr !== null && pi !== null && Object.prototype.hasOwnProperty.call(pAt, pi) && ld !== null) out.leap = { every: ev, from: fr, period: pAt[pi], days: ld };
+    }
+    // 1.6.2 (backlog 147; the owner, 2026-11-06, by prompt: "Moons and phases", "Seasons"): a moon has a name, the days of its cycle (to the
+    // hundredth, 2 to 10,000) and how far into its cycle it is on day 1 (absent 0, a new moon); a season a name and the day of the year it
+    // begins on, a period and a day of it, in the year's order
+    var mns = []; (Array.isArray(v.moons) ? v.moons : []).forEach(function(mo) {
+        if (mns.length >= LIMITS.moons || !isObj(mo)) return;
+        var nm = cutName(mo.name, LIMITS.name), cy = hund(mo.cycle, 2, LIMITS.cycle); if (!nm || cy === null) return;
+        var o = { name: nm, cycle: cy }, at = hund(mo.at, 0, cy); if (at !== null && at > 0 && at < cy) o.at = at; mns.push(o);
+    });
+    if (mns.length) out.moons = mns;
+    if (ps.length) {
+        var sns = []; (Array.isArray(v.seasons) ? v.seasons : []).forEach(function(se) {
+            if (sns.length >= LIMITS.seasons || !isObj(se)) return;
+            var nm = cutName(se.name, LIMITS.name), pi = whole(se.period, 0, 1e6); if (!nm || pi === null || !Object.prototype.hasOwnProperty.call(pAt, pi)) return;
+            var p = pAt[pi], dy = whole(se.day === undefined ? 1 : se.day, 1, ps[p].days); if (dy === null) return;
+            sns.push({ name: nm, period: p, day: dy });
+        });
+        sns = sns.map(function(s, i) { return [s, i]; }).sort(function(a, b) { return a[0].period - b[0].period || a[0].day - b[0].day || a[1] - b[1]; }).map(function(x) { return x[0]; });
+        if (sns.length) out.seasons = sns;
     }
     return Object.keys(out).length ? out : null;
 }
@@ -90,9 +112,27 @@ function yearIndex(sh, year) { return sh.down ? sh.one - year : year - sh.one; }
 // 1.6.0: the date as formulas read it (Date.year, Date.day, Date.days, Date.hour, Date.minute): the year signed, so a year that counts down
 // (3963 before an era) reads -3963 and an era counting down compares; the day of its period; whole days since the calendar's first; the
 // hour and the minute. A calendar with no periods has no year (0)
-function dateNames(cal, t) { var d = dateOf(cal, t), sh = shape(cal); return { year: typeof d.year === 'number' ? (sh.down ? -d.year : d.year) : 0, day: d.pday, days: d.day, hour: d.h, minute: d.m }; }
+function dateNames(cal, t) { var d = dateOf(cal, t), sh = shape(cal), o = { year: typeof d.year === 'number' ? (sh.down ? -d.year : d.year) : 0, day: d.pday, days: d.day, hour: d.h, minute: d.m }, se = seasonOf(cal, t), mp = moonPhases(cal, t);
+    if (se) o.season = se.n; mp.forEach(function(m, i) { if (MOON_KEYS[i]) o[MOON_KEYS[i]] = m.i + 1; }); return o; }   // 1.6.2 (backlog 147): the season by its place (1 the first) and each moon's phase (1 new to 8), only where the calendar has them: a formula reads 0 for one it does not
+// 1.6.2 (backlog 147): a moon's eight phases, in order, and the date's names for each moon
+var PHASES = Object.freeze(['New moon', 'Waxing crescent', 'First quarter', 'Waxing gibbous', 'Full moon', 'Waning gibbous', 'Last quarter', 'Waning crescent']);
+var MOON_KEYS = Object.freeze(['moon', 'moon2', 'moon3', 'moon4']);
+// Each moon's phase on the day a moment falls in: [{ name, i (0 a new moon to 7), f (how far through its cycle, 0 to under 1), peak (new, full or '') }], one a moon
+function moonPhases(cal, t) {
+    var sh = shape(cal), D = Math.floor(clampT(t) / sh.dayLen);
+    return (sh.c.moons || []).map(function(mo) { var f = mod(D + (mo.at || 0), mo.cycle) / mo.cycle, w = 0.5 / mo.cycle; return { name: mo.name, i: mod(Math.floor(f * 8 + 0.5), 8), f: f, peak: f < w || f >= 1 - w ? 'new' : f >= 0.5 - w && f < 0.5 + w ? 'full' : '' }; });   // peak: the one day a cycle nearest its new or its full point
+}
+// The season a moment falls in: { name, n (its place, 1 the first) }, or null with none. A day before the year's first season is in its last
+function seasonOf(cal, t) {
+    var sh = shape(cal), ss = sh.c.seasons || []; if (!ss.length || !sh.ps.length) return null;
+    var d = dateOf(cal, t), at = ss.length - 1;
+    for (var k = 0; k < ss.length; k++) { var s0 = 0; for (var i = 0; i < ss[k].period; i++) s0 += plen(sh, d.yi, i); s0 += Math.min(ss[k].day, plen(sh, d.yi, ss[k].period)); if (s0 <= d.doy) at = k; else break; }
+    return { name: ss[at].name, n: at + 1 };
+}
 // What a player's app takes of those five numbers from its host (the date kept from players: the numbers alone), numbers only, bounded
-function cleanDateFig(v) { if (!isObj(v)) return null; var o = {}, ok = true; ['year', 'day', 'days', 'hour', 'minute'].forEach(function(k) { var x = v[k]; if (typeof x !== 'number' || !isFinite(x) || Math.abs(x) > 1e12) ok = false; else o[k] = Math.round(x); }); return ok ? o : null; }
+function cleanDateFig(v) { if (!isObj(v)) return null; var o = {}, ok = true; ['year', 'day', 'days', 'hour', 'minute'].forEach(function(k) { var x = v[k]; if (typeof x !== 'number' || !isFinite(x) || Math.abs(x) > 1e12) ok = false; else o[k] = Math.round(x); });
+    if (ok) ['season'].concat(MOON_KEYS).forEach(function(k) { var x = whole(v[k], 0, k === 'season' ? LIMITS.seasons : 8); if (x !== null) o[k] = x; });   // 1.6.2: the season and the moons' phases, each only as a whole number in its range
+    return ok ? o : null; }
 function dateOf(cal, t) {
     var sh = shape(cal); t = clampT(t);
     var D = Math.floor(t / sh.dayLen), sod = t - D * sh.dayLen;
@@ -165,7 +205,7 @@ function cleanClock(v) {
     (Array.isArray(v.notes) ? v.notes : []).forEach(function(n) {
         if (ns.length >= LIMITS.notes || !isObj(n) || typeof n.id !== 'string' || !NOTE_ID.test(n.id) || seen[n.id] === 1) return;
         var day = whole(n.day, 0, LIMITS.time), tx = cutName(n.text, LIMITS.noteChars); if (day === null || !tx) return;
-        seen[n.id] = 1; var nn = { id: n.id, day: day, text: tx }; if (n.vis === 'all') nn.vis = 'all'; ns.push(nn);
+        seen[n.id] = 1; var nn = { id: n.id, day: day, text: tx }; if (n.vis === 'all') nn.vis = 'all'; var wr = whole(n.at, 0, MS_MAX); if (wr !== null) nn.at = wr; ns.push(nn);   // 1.6.2 (backlog 147): the real moment it was written, in milliseconds, the GM's own
     });
     if (ns.length) o.notes = ns.map(function(n, i) { return [n, i]; }).sort(function(a, b) { return a[0].day - b[0].day || a[1] - b[1]; }).map(function(x) { return x[0]; });
     var acc = cleanAcc(v.acc); if (acc) o.acc = acc;   // K5: what each character's time rules have counted (the GM's own; never sent)
@@ -377,6 +417,6 @@ function preset(id) {
 
 // Names another module can import beside its own LIMITS and helpers (sheets.js)
 var CAL_LIMITS = LIMITS, calPreset = preset;
-var API = { VERSION: VERSION, LIMITS: LIMITS, DAY: DAY, PRESETS: PRESETS, cleanCalendar: cleanCalendar, cleanClock: cleanClock, cleanAcc: cleanAcc, everySecs: everySecs, ruleFires: ruleFires, cleanTime: cleanTime, tAdd: tAdd, tCmp: tCmp, tFloor: tFloor, tSpanMs: tSpanMs, cleanLived: cleanLived, cleanRulesOff: cleanRulesOff, livedSpans: livedSpans, fightSecs: fightSecs, freshAcc: freshAcc, dateOf: dateOf, dateNames: dateNames, cleanDateFig: cleanDateFig, timeOf: timeOf, periodDays: periodDays, yearDays: yearDays, dayLength: dayLength, fmtDate: fmtDate, fmtTime: fmtTime, fmtWhen: fmtWhen, fmtSpan: fmtSpan, preset: preset };
+var API = { PHASES: PHASES, MOON_KEYS: MOON_KEYS, moonPhases: moonPhases, seasonOf: seasonOf, VERSION: VERSION, LIMITS: LIMITS, DAY: DAY, PRESETS: PRESETS, cleanCalendar: cleanCalendar, cleanClock: cleanClock, cleanAcc: cleanAcc, everySecs: everySecs, ruleFires: ruleFires, cleanTime: cleanTime, tAdd: tAdd, tCmp: tCmp, tFloor: tFloor, tSpanMs: tSpanMs, cleanLived: cleanLived, cleanRulesOff: cleanRulesOff, livedSpans: livedSpans, fightSecs: fightSecs, freshAcc: freshAcc, dateOf: dateOf, dateNames: dateNames, cleanDateFig: cleanDateFig, timeOf: timeOf, periodDays: periodDays, yearDays: yearDays, dayLength: dayLength, fmtDate: fmtDate, fmtTime: fmtTime, fmtWhen: fmtWhen, fmtSpan: fmtSpan, preset: preset };
 if (typeof window !== 'undefined') window.wpCalendarCore = API;
-export { dateNames, cleanDateFig, VERSION, LIMITS, CAL_LIMITS, calPreset, DAY, PRESETS, cleanCalendar, cleanClock, cleanAcc, everySecs, ruleFires, cleanTime, tAdd, tCmp, tFloor, tSpanMs, cleanLived, cleanRulesOff, livedSpans, fightSecs, freshAcc, dateOf, timeOf, periodDays, yearDays, dayLength, fmtDate, fmtTime, fmtWhen, fmtSpan, preset };
+export { PHASES, MOON_KEYS, moonPhases, seasonOf, dateNames, cleanDateFig, VERSION, LIMITS, CAL_LIMITS, calPreset, DAY, PRESETS, cleanCalendar, cleanClock, cleanAcc, everySecs, ruleFires, cleanTime, tAdd, tCmp, tFloor, tSpanMs, cleanLived, cleanRulesOff, livedSpans, fightSecs, freshAcc, dateOf, timeOf, periodDays, yearDays, dayLength, fmtDate, fmtTime, fmtWhen, fmtSpan, preset };

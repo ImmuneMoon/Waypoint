@@ -565,6 +565,12 @@ Writing planners and pages
   person card can name its character sheet, and a clue has a Found tick.
 - Every card has Also known as for its other names. Search and quick jump
   find a card by any of them and open the page at the card.
+- The Calendar has moons and seasons. Each moon shows its phase on every
+  day of the month, with New or Full on those days, and the date says the
+  season. A rule or a formula can ask which season it is or a moon's phase.
+- The Calendar window has a Timeline tab: every dated note in date order,
+  today marked. Each note keeps the real date you wrote it, which you alone
+  see.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

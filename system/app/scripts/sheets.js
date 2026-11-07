@@ -8805,6 +8805,20 @@ function refreshErrors() {
             else if (!(typeof cLp.period === 'number' && cOkP[cLp.period])) cErr.push({ message: 'Leap years: the period that gains the days is dropped, so Save drops the rule.' });
         }
     }
+    if (calE) {   // 1.6.2 (backlog 147): a season and a moon, read by calendarcore cleanCalendar itself
+        (Array.isArray(calE.seasons) ? calE.seasons : []).forEach(function(s, i) {
+            var q = s && typeof s === 'object' ? s : {}, nm = 'Season ' + (i + 1), cp = Array.isArray(calE.periods) ? calE.periods : [];
+            if (!cleanCalendar({ moons: [{ name: q.name, cycle: 2 }] })) cErr.push({ message: nm + ' needs a name: Save drops it.' });
+            else if (!(typeof q.period === 'number' && cp[q.period])) cErr.push({ message: nm + ': the period it begins in is gone, so Save drops it.' });
+            else if (!(typeof q.day === 'number' && Math.floor(q.day) === q.day && q.day >= 1 && cp[q.period] && q.day <= cp[q.period].days)) cErr.push({ message: nm + ': the day it begins on is a day of its period, so Save drops it.' });
+        });
+        (Array.isArray(calE.moons) ? calE.moons : []).forEach(function(mo, i) {
+            var q = mo && typeof mo === 'object' ? mo : {}, nm = 'Moon ' + (i + 1);
+            if (!cleanCalendar({ moons: [{ name: q.name, cycle: 2 }] })) cErr.push({ message: nm + ' needs a name: Save drops it.' });
+            else if (!(typeof q.cycle === 'number' && q.cycle >= 2 && q.cycle <= CAL_LIMITS.cycle)) cErr.push({ message: nm + ': its cycle is 2 to ' + CAL_LIMITS.cycle + ' days, so Save drops it.' });
+            else if (q.at !== undefined && !(typeof q.at === 'number' && q.at >= 0 && q.at < q.cycle)) cErr.push({ message: nm + ': the days in on day 1 are from 0 to under its cycle, so Save starts it at a new moon.' });
+        });
+    }
     if (cErr.length) errorsById.calendar = cErr;
     // item 20 K5: what Save drops of a roll's clock rule, said under the roll (a unit the Combat tab no longer has: it runs by nothing)
     var evUnits = Object.create(null); (draft.combat && draft.combat.turn && Array.isArray(draft.combat.turn.units) ? draft.combat.turn.units : []).forEach(function(u) { if (u && typeof u.key === 'string') evUnits[u.key.toLowerCase()] = 1; });
@@ -12728,6 +12742,29 @@ function calendarBox(box, cal) {
         if (ps.length) lr.appendChild(labeledSelect('sys-cal-lperiod', 'In', ps.map(function(p, i) { return [String(i), p && typeof p.name === 'string' && p.name.trim() ? p.name : 'Period ' + (i + 1)]; }), String(lp.period), 'The period that gains the days'));
     }
     wrap.appendChild(lr);
+    // 1.6.2 (backlog 147; the owner, by prompt: "Moons and phases", "Seasons"): each season by the day of the year it begins on, each moon by its cycle
+    wrap.appendChild(el('div', 'sys-cal-sub', 'Seasons'));
+    var ss = Array.isArray(cal.seasons) ? cal.seasons : [];
+    ss.forEach(function(s0, i) {
+        var s = s0 && typeof s0 === 'object' ? s0 : {}, rw = el('div', 'sys-flags sys-cal-srow'); rw.dataset.si = String(i);
+        var nm = input('sys-cal-sname field', typeof s.name === 'string' ? s.name : '', 'This season\u2019s name: Spring, the Wet, Long Night', 'Name'); nm.maxLength = CAL_LIMITS.name; rw.appendChild(nm);
+        if (ps.length) rw.appendChild(labeledSelect('sys-cal-speriod', 'Begins in', ps.map(function(p, k) { return [String(k), p && typeof p.name === 'string' && p.name.trim() ? p.name : 'Period ' + (k + 1)]; }), String(typeof s.period === 'number' ? s.period : 0), 'The period the season begins in'));
+        rw.appendChild(calNum('sys-cal-sday', typeof s.day === 'number' ? s.day : 1, 'The day of that period it begins on', 1, CAL_LIMITS.periodDays, 'On day'));
+        var sd = el('button', 'tool ghost sys-btn', '\u00d7'); sd.dataset.act = 'calsdel'; sd.title = 'Remove'; rw.appendChild(sd);
+        wrap.appendChild(rw);
+    });
+    var sa = el('button', 'tool ghost sys-btn sys-cal-sadd', '+ Season'); sa.dataset.act = 'calsadd'; sa.disabled = !ps.length || ss.length >= CAL_LIMITS.seasons; sa.title = !ps.length ? 'Add a period first: a season begins on a day of one' : ss.length >= CAL_LIMITS.seasons ? 'At most ' + CAL_LIMITS.seasons : 'A season, from the day it begins on until the next one begins'; wrap.appendChild(sa);
+    wrap.appendChild(el('div', 'sys-cal-sub', 'Moons'));
+    var mo = Array.isArray(cal.moons) ? cal.moons : [];
+    mo.forEach(function(m0, i) {
+        var m = m0 && typeof m0 === 'object' ? m0 : {}, rw = el('div', 'sys-flags sys-cal-mrow'); rw.dataset.mi = String(i);
+        var nm = input('sys-cal-mname field', typeof m.name === 'string' ? m.name : '', 'This moon\u2019s name', 'Name'); nm.maxLength = CAL_LIMITS.name; rw.appendChild(nm);
+        var cy = calNum('sys-cal-mcycle', m.cycle, 'The days from one new moon to the next, to the hundredth (2 to ' + CAL_LIMITS.cycle + ')', 2, CAL_LIMITS.cycle, 'Days a cycle'); cy.querySelector('input').step = '0.01'; rw.appendChild(cy);
+        var at = calNum('sys-cal-mat', typeof m.at === 'number' ? m.at : 0, 'How many days into its cycle it is on day 1. 0 is a new moon, half its cycle a full moon', 0, CAL_LIMITS.cycle, 'Days in on day 1'); at.querySelector('input').step = '0.01'; rw.appendChild(at);
+        var md = el('button', 'tool ghost sys-btn', '\u00d7'); md.dataset.act = 'calmdel'; md.title = 'Remove'; rw.appendChild(md);
+        wrap.appendChild(rw);
+    });
+    var ma = el('button', 'tool ghost sys-btn sys-cal-madd', '+ Moon'); ma.dataset.act = 'calmadd'; ma.disabled = mo.length >= CAL_LIMITS.moons; ma.title = ma.disabled ? 'At most ' + CAL_LIMITS.moons : 'A moon: the Calendar shows its phase on every day'; wrap.appendChild(ma);
     var sm = calSums(cal), s1 = el('div', 'sys-note sys-cal-sum', sm[0]), s2 = el('div', 'sys-note sys-cal-preview', sm[1]); s1.id = 'sysCalSum'; s2.id = 'sysCalPreview';
     wrap.appendChild(s1); wrap.appendChild(s2);
     var err = errorCell('calendar'); err.dataset.errFor = 'calendar'; wrap.appendChild(err);
@@ -12740,6 +12777,12 @@ function onCalendarInput(t) {
     if (c.indexOf('sys-cal-pname') >= 0 || c.indexOf('sys-cal-pdays') >= 0) {
         var prw = t.closest ? t.closest('.sys-cal-prow') : null, i = prw ? +prw.dataset.ci : -1, p = Array.isArray(cal.periods) && i >= 0 && Math.floor(i) === i && cal.periods[i] && typeof cal.periods[i] === 'object' ? cal.periods[i] : null; if (!p) return true;
         if (c.indexOf('sys-cal-pname') >= 0) p.name = String(t.value).slice(0, CAL_LIMITS.name * 2); else { var d = numV(); if (d === null) delete p.days; else p.days = d; }
+    } else if (c.indexOf('sys-cal-sname') >= 0 || c.indexOf('sys-cal-sday') >= 0) {   // 1.6.2: a season's name and its day
+        var srw = t.closest ? t.closest('.sys-cal-srow') : null, si = srw ? +srw.dataset.si : -1, s = Array.isArray(cal.seasons) && si >= 0 && Math.floor(si) === si && cal.seasons[si] && typeof cal.seasons[si] === 'object' ? cal.seasons[si] : null; if (!s) return true;
+        if (c.indexOf('sys-cal-sname') >= 0) s.name = String(t.value).slice(0, CAL_LIMITS.name * 2); else { var sd = numV(); if (sd === null) delete s.day; else s.day = sd; }
+    } else if (c.indexOf('sys-cal-mname') >= 0 || c.indexOf('sys-cal-mcycle') >= 0 || c.indexOf('sys-cal-mat') >= 0) {   // ... a moon's name, its cycle and where it stands on day 1
+        var mrw = t.closest ? t.closest('.sys-cal-mrow') : null, mi = mrw ? +mrw.dataset.mi : -1, mo = Array.isArray(cal.moons) && mi >= 0 && Math.floor(mi) === mi && cal.moons[mi] && typeof cal.moons[mi] === 'object' ? cal.moons[mi] : null; if (!mo) return true;
+        if (c.indexOf('sys-cal-mname') >= 0) mo.name = String(t.value).slice(0, CAL_LIMITS.name * 2); else { var mk = c.indexOf('sys-cal-mcycle') >= 0 ? 'cycle' : 'at', mv = numV(); if (mv === null) delete mo[mk]; else mo[mk] = mv; }
     } else if (c.indexOf('sys-cal-wname') >= 0) {
         var wrw = t.closest ? t.closest('.sys-cal-wrow') : null, k = wrw ? +wrw.dataset.wi : -1; if (!(Array.isArray(cal.week) && k >= 0 && k < cal.week.length && Math.floor(k) === k)) return true;
         cal.week[k] = String(t.value).slice(0, CAL_LIMITS.name * 2);
@@ -12767,6 +12810,7 @@ function onCalendarChange(t) {
         if (t.checked === true) { if (!cal.leap || typeof cal.leap !== 'object' || Array.isArray(cal.leap)) cal.leap = { every: 4, from: typeof cal.one === 'number' ? cal.one : 1, period: 0, days: 1 }; } else delete cal.leap;
         markDirty(); renderAll(); return true;
     }
+    else if (c.indexOf('sys-cal-speriod') >= 0) { var srw2 = t.closest ? t.closest('.sys-cal-srow') : null, si2 = srw2 ? +srw2.dataset.si : -1, s2 = Array.isArray(cal.seasons) && si2 >= 0 && Math.floor(si2) === si2 && cal.seasons[si2] && typeof cal.seasons[si2] === 'object' ? cal.seasons[si2] : null, pv = Number(t.value); if (!s2 || !(pv >= 0 && Math.floor(pv) === pv && Array.isArray(cal.periods) && pv < cal.periods.length)) return true; s2.period = pv; }   // 1.6.2: the period a season begins in
     else if (c.indexOf('sys-cal-lperiod') >= 0) { var lp = cal.leap && typeof cal.leap === 'object' && !Array.isArray(cal.leap) ? cal.leap : null, v = Number(t.value); if (!lp || !(v >= 0 && Math.floor(v) === v && Array.isArray(cal.periods) && v < cal.periods.length)) return true; lp.period = v; }
     else return true;   // the boxes' change events (their input events did the work)
     markDirty(); patchErrors(); calRefreshText(); return true;
@@ -12776,6 +12820,13 @@ function calendarClick(b) {
     if (act === 'calpreset') {
         var pid = b.dataset.preset;
         if (pid === 'days') delete draft.calendar; else { var pz = calPreset(pid); if (!pz) return true; draft.calendar = pz; }
+        markDirty(); renderAll(); return true;
+    }
+    var sm2 = /^cal(s|m)(add|del)$/.exec(act);   // 1.6.2 (backlog 147): a season or a moon added at the end, or a row removed
+    if (sm2) {
+        var calS = calDraft(), keyS = sm2[1] === 's' ? 'seasons' : 'moons', capS = sm2[1] === 's' ? CAL_LIMITS.seasons : CAL_LIMITS.moons, arrS = Array.isArray(calS[keyS]) ? calS[keyS] : (calS[keyS] = []);
+        if (sm2[2] === 'add') { if (arrS.length >= capS) { toast('At most ' + capS + '.'); return true; } arrS.push(sm2[1] === 's' ? { name: '', period: 0, day: 1 } : { name: '', cycle: 30 }); }
+        else { var rwS = b.closest ? b.closest(sm2[1] === 's' ? '.sys-cal-srow' : '.sys-cal-mrow') : null, iS = rwS ? +(sm2[1] === 's' ? rwS.dataset.si : rwS.dataset.mi) : -1; if (!(iS >= 0 && iS < arrS.length && Math.floor(iS) === iS)) return true; arrS.splice(iS, 1); if (!arrS.length) delete calS[keyS]; }
         markDirty(); renderAll(); return true;
     }
     var m = /^cal(p|w)(add|up|down|del)$/.exec(act); if (!m) return false;
@@ -12790,6 +12841,11 @@ function calendarClick(b) {
         var r = refOf(), j = m[2] === 'up' ? i - 1 : m[2] === 'down' ? i + 1 : -1;
         if (m[2] === 'del') { arr.splice(i, 1); if (r === i) setRef(isP ? -1 : 0); else if (r > i) setRef(r - 1); }
         else if (j >= 0 && j < arr.length) { arr.splice(j, 0, arr.splice(i, 1)[0]); if (r === i) setRef(j); else if (r === j) setRef(i); }
+        if (isP && Array.isArray(cal.seasons)) {   // 1.6.2: a season begins in a period by its place, so it follows a move, and goes with its period
+            cal.seasons = cal.seasons.filter(function(s) { return !(s && typeof s === 'object' && m[2] === 'del' && s.period === i); });
+            cal.seasons.forEach(function(s) { if (!s || typeof s !== 'object' || typeof s.period !== 'number') return; if (m[2] === 'del') { if (s.period > i) s.period--; } else if (j >= 0 && j < arr.length) { if (s.period === i) s.period = j; else if (s.period === j) s.period = i; } });
+            if (!cal.seasons.length) delete cal.seasons;
+        }
     }
     markDirty(); renderAll(); return true;
 }

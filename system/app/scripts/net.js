@@ -11179,6 +11179,14 @@ function attOffers(camp, tch, toO, r, at) {   // a system roll that resists: whe
         return S.rollNeedsOk(vr, S.makeResolver(view, chv, Fs, S.withAttempt(attTokCtx(tch, true, at), at.m, at.k, at.r)), Fs);
     } catch (e) { return false; }
 }
+// [netcheck:critok-start]
+// 1.6.2: whether a defence answers a critical that is not resisted: its Answers a critical where, read on the defender as the host holds it, with the
+// attempt's names (AttemptMargin, Attempt.kind, Attempter.<key>). None set, or one that cannot be worked out, answers no
+function attCritOk(camp, tch, r, at) {
+    var S = SC(), Fs = window.wpFormula; if (!r || typeof r.critOk !== 'string' || !r.critOk || !S || !Fs) return false;
+    try { return S.rollNeedsOk({ needs: r.critOk }, S.makeResolver(camp.system, tch, Fs, S.withAttempt(attTokCtx(tch, false, at), at.m, at.k, at.r)), Fs) === true; } catch (e) { return false; }
+}
+// [netcheck:critok-end]
 function attRowAlts(camp, tch, ref, toO, out, at) {
     var S = SC(), lr0 = S && typeof S.listRollRef === 'function' ? S.listRollRef(ref) : null; if (!lr0) return;
     var f = null; (Array.isArray(camp.system.fields) ? camp.system.fields : []).forEach(function(x) { if (x && x.id === lr0.f && x.kind === 'item-list' && x.list && Array.isArray(x.list.rolls)) f = x; }); if (!f) return;
@@ -11207,7 +11215,8 @@ function attRowAlts(camp, tch, ref, toO, out, at) {
 }
 function attemptMake(camp, entry, vd, malf, range, fromCh, priv, vars, rowRef) {   // vars: the roller's names, which a Calls for that waits for it to be resisted is read with; rowRef: the row a list's roll was made on, where an attempt's kind is read
     var S = SC(); if (!S || !camp || !camp.system || !entry || typeof entry.resistBy !== 'string' || !vd || vd.kind !== 'check' || vd.pass !== true || malf === true) return null;
-    if (entry.noResistOnCrit === true && typeof S.thenCrit === 'function' && S.thenCrit(vd, malf) === 'crit') return null;   // 1.6.0: a critical success its system does not let be resisted makes no attempt
+    var critOnly = entry.noResistOnCrit === true && typeof S.thenCrit === 'function' && S.thenCrit(vd, malf) === 'crit';   // 1.6.0: a critical success its system does not let be resisted makes no attempt; 1.6.2, but for a defence whose Answers a critical where holds for its defender (below)
+    if (critOnly && !(Array.isArray(camp.system.rolls) ? camp.system.rolls : []).some(function(r) { return r && r.resist === true && typeof r.critOk === 'string' && !!r.critOk; })) return null;
     var rr = null; (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === entry.resistBy && r.resist === true && typeof r.formula === 'string' && !r.apply) rr = r; });
     if (!rr || !range || typeof range.tid !== 'string' || typeof range.mapId !== 'string' || !camp.items || !Object.prototype.hasOwnProperty.call(camp.items, range.mapId)) return null;
     var map = camp.items[range.mapId], tok = null; (map && Array.isArray(map.whiteboard) ? map.whiteboard : []).forEach(function(w) { if (w && w.id === range.tid) tok = w; });
@@ -11221,6 +11230,11 @@ function attemptMake(camp, entry, vd, malf, range, fromCh, priv, vars, rowRef) {
         (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === oid && r.id !== rr.id && r.resist === true && typeof r.formula === 'string' && !r.apply && !(toO && r.vis === 'gm') && alts.indexOf(r) < 0 && alts.length < 3) alts.push(r); }); });
     var noMain = false, atK = kindOn ? Object.assign({ map: map, tok: tok, mapId: range.mapId }, kindA) : null;   // 1.6.0 An attempt's kind: a defence whose needs fail is not offered, the next that holds standing first
     if (kindOn) { alts = alts.filter(function(r) { return attOffers(camp, tch, toO, r, atK); }); if (!attOffers(camp, tch, toO, rr, atK)) { if (alts.length) rr = alts.shift(); else if (rowsA.length) noMain = true; else { if (window.wpStepLog) window.wpStepLog('attempt v1', 'none offered', { rows: 0 }); return null; } } }
+    if (critOnly) {   // 1.6.2 (the CORE session): a critical that is not resisted is still answered by a defence whose Answers a critical where holds for its defender; a list's row is not offered then
+        var atC = atK || Object.assign({ map: map, tok: tok, mapId: range.mapId, m: m }, rdA ? { r: rdA } : {}), cOk = function(r) { return attCritOk(camp, tch, r, atC); };
+        alts = alts.filter(cOk); rowsA = [];
+        if (noMain || !cOk(rr)) { if (alts.length) { rr = alts.shift(); noMain = false; } else { if (window.wpStepLog) window.wpStepLog('attempt v1', 'crit unanswered', {}); return null; } }
+    }
     var hdA = typeof S.hideFigOn === 'function' && S.hideFigOn(camp.system, fromCh);   // 1.6.2: its figure is hidden, on the host's own record
     _attempts[id] = { charId: tch.id, act: noMain ? '' : rr.id, m: m }; if (hdA) _attempts[id].hide = true; if (range.area) _attempts[id].area = range.area; if (kindOn) { _attempts[id].k = kindA.k; if (priv) _attempts[id].kp = true; } if (rdA) { _attempts[id].rd = rdA; if (priv) _attempts[id].kp = true; } if (alts.length) _attempts[id].alts = alts.map(function(r) { return r.id; }); if (rowsA.length) _attempts[id].rows = rowsA.map(function(x) { return x.f + '#' + x.i + '#' + x.r; }); _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
     var csA = vars && typeof S.callsDue === 'function' ? S.callsDue(entry, 'resisted', vars, window.wpFormula) : []; if (csA.length) { _attempts[id].calls = csA.map(function(c) { var cK = { roll: c.roll, by: c.by || '' }; if (c.byIf) cK.byIf = c.byIf; if (c.to === 'self') cK.to = 'self'; return cK; }); _attempts[id].callBy = callName(entry); if (fromCh && typeof fromCh.id === 'string') _attempts[id].callFrom = fromCh.id; if (rowRef && typeof rowRef.f === 'string' && typeof rowRef.r === 'string') _attempts[id].callRow = { f: rowRef.f, r: rowRef.r }; if (priv) _attempts[id].callPriv = true; }   // 1.6.0: Calls for, waiting for the target's roll   // 1.6.2: and who made it, on which row, for a call to the roller

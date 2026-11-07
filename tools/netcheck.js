@@ -5749,6 +5749,15 @@ pendingChecks.push((async () => {
     const n2 = out.dues.length; dq = [1, 1, 2]; const gC = W.dr('3d6 <= 13', { charId: 'c_a', act: 'r_tr' }); const gmCrit = out.dues.length - n2; camp.system = sys;
     check('1.6.0 Not resisted on a critical: kept in the GM\'s view alone beside Resisted by; a critical success (a natural 3, and the GM\'s own natural 4) then makes no attempt while a plain success still does; without the tick a critical is resisted as any success',
         sysC.rolls[0].noResistOnCrit === true && !('noResistOnCrit' in sysCP.rolls[0]) && !('noResistOnCrit' in sys.rolls[0]) && critPlain === 1 && critTicked === 0 && plainTicked === 1 && gC && gC.ok === true && gmCrit === 0, j([critPlain, critTicked, plainTicked, gC, gmCrit]));
+    // 1.6.2 (the CORE session): Answers a critical where. A critical that is not resisted still offers a defence whose formula holds for its defender,
+    // read on the host with the defender's own names; none that holds makes no attempt, as before. The GM's view alone, beside Resists an attempt
+    const ckSys = ck => { const r = JSON.parse(JSON.stringify(sysC)); r.rolls[1].critOk = ck; return Sx.cleanSystem(r, { F: Fx, gmView: true }); };
+    const critRun = s => { camp.system = s; const k = out.dues.length; roll(cA, 'c_a', { act: 'r_tr' }, '3d6 <= 13', [1, 1, 1]); const d = out.dues.slice(k); camp.system = sys; return d; };
+    const ckHold = critRun(ckSys('Will >= 12')), ckFail = critRun(ckSys('Will >= 13')), ckBad = critRun(ckSys('Nobody >= 1')), ckP = Sx.cleanSystem(ckSys('Will >= 12'), { F: Fx, gmView: false });
+    const ckRaw = Sx.cleanSystem({ v: 1, name: 'K', fields: [{ id: 'f_w', key: 'Will', kind: 'number', def: 1 }], rolls: [{ id: 'r_a', label: 'A', formula: '3d6 <= 10', critOk: 'Will >= 1' }, { id: 'r_b', label: 'B', formula: '3d6 <= 10', resist: true, critOk: 'Will >= 1' }] }, { F: Fx, gmView: true });
+    check('1.6.2 Answers a critical where (the CORE session): an attack not resisted on a critical still posts its defender the defence whose formula holds for them (Will >= 12 on Sela\'s Will 12), and none where it fails or cannot be worked out; kept in the GM\'s view alone and only on a roll ticked Resists an attempt',
+        ckHold.length === 1 && ckHold[0].act === 'r_dg' && ckHold[0].ch === 'c_b' && ckFail.length === 0 && ckBad.length === 0 && ckP.rolls[1].critOk === undefined && ckSys('Will >= 12').rolls[1].critOk === 'Will >= 12'
+        && !('critOk' in ckRaw.rolls[0]) && ckRaw.rolls[1].critOk === 'Will >= 1', j([ckHold, ckFail, ckBad]));
     // 1.6.0: a list's roll offered for each row the target holds, only where that roll's own Shown where (showIf) holds on the row, as the host then judges the press
     const shSys = sh => { const r = JSON.parse(JSON.stringify(sys)); r.fields.push({ id: 'f_sc', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm', def: 0 }); r.fields[2].list.rolls[0].showIf = sh; return Sx.cleanSystem(r, { F: Fx, gmView: true }); };
     const offer = (s, priv) => { camp.system = s; roll(cA, 'c_a', Object.assign({ act: 'r_tr' }, priv ? { priv: 'gm' } : {}), '3d6 <= 13', [2, 3, 4]); return out.dues[out.dues.length - 1]; };

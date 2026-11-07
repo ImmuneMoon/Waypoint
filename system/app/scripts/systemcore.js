@@ -953,6 +953,7 @@ function cleanRollDef(r, gmView) {
     if (onOther(r) && out.init !== true) out.to = r.to;   // 1.5.9 (book es/et plan, section 3): Applies to the user or an adjacent character; the initiative roll is always its own character's
     if (r.named === true || hasRange(out) || out.drawFirst) out.named = true;   // 1.6.0: it names itself as it is rolled, so the host can tell a sneak's roll; true only, and it says nothing of why
     if (r.resist === true && out.init !== true) out.resist = true;   // 1.6.0 (a build's sort, B2): Resists an attempt, so it reads AttemptMargin
+    if (gmView && out.resist && typeof r.critOk === 'string' && r.critOk.trim()) out.critOk = cutText(r.critOk, LIMITS.formula);   // 1.6.2 (the CORE session): Answers a critical where, read on the defender as a critical that is not resisted is made; the host's alone
     resistByInto(out, r, gmView);   // 1.6.0 (B2): and Resisted by, the roll its target resists it with
     rollAreaInto(out, r, gmView, false);   // 1.6.0: and a line it hits
     callsInto(out, r, gmView, true);   // 1.6.0: and Calls for, the rolls it posts as cards
@@ -12053,6 +12054,7 @@ function validateSystem(sys, F) {
         if (Array.isArray(r.resistOr) && r.resistOr.some(function(id) { return !resistOrOk(sys, id); })) warnings.push({ id: r.id, prop: 'resistOr', message: 'Or resisted by names a roll that is not ticked Resists an attempt, so the target is not offered it.' });   // 1.6.0 (the core's gap 5)
         if (nearV && !(Array.isArray(r.apply) ? r.apply : Array.isArray(r.then) ? r.then : []).some(function(c) { return isObj(c) && (!!c.f || typeof c.fx === 'string' || typeof c.list === 'string'); })) warnings.push({ id: r.id, prop: 'to', message: 'It applies to an adjacent character, but no change of it names a value, so nothing lands on the one it is used on.' });
         if (r.needs) checkFormula({ id: r.id, key: r.id }, 'needs', r.needs, false, r.vis);   // 1.5.4: what a roll or an apply action needs (no dice)
+        if (r.critOk && r.resist === true) checkFormula({ id: r.id, key: r.id }, 'critOk', r.critOk, false, 'gm');   // 1.6.2: Answers a critical where (no dice), read on the defender, the host's alone
         if (Array.isArray(r.calls)) { r.calls.forEach(function(cl, j) { if (isObj(cl) && cl.if) checkFormula({ id: r.id, key: r.id }, 'calls', cl.if, false, r.vis); if (isObj(cl) && cl.byIf) checkByIf({ id: r.id, key: r.id }, 'byIf.' + j, cl); }); callSays(sys, r).forEach(function(m) { warnings.push({ id: r.id, prop: 'calls', message: m }); }); }   // 1.6.0: Calls for
         if (r.dmgMajorIf) checkFormula({ id: r.id, key: r.id }, 'dmgMajorIf', r.dmgMajorIf, false, r.vis);   // 1.6.0: A Major Wound where (no dice)
         if (r.hits) checkFormula({ id: r.id, key: r.id }, 'hits', r.hits, false, r.vis);   // 1.6.0: Hits it rolls for (no dice)

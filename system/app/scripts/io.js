@@ -1522,11 +1522,13 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
                   if (hexToken) {
                       // On a hex grid a token hops cell to cell: ↑/↓ one row, ←/→ one
                       // column along the diagonal (Shift takes the other diagonal)
-                      if (dy) { it.y += Math.sign(dy) * 52; }
-                      else { it.x += Math.sign(dx) * 45; it.y += (shift ? -1 : 1) * Math.sign(dx) * -26; }
+                      var NH = (typeof window !== 'undefined' && window.wpLatticeOf ? window.wpLatticeOf(m2) : null), nh = NH && NH.type === 'hex' ? NH.h : 52, ns = NH && NH.type === 'hex' ? NH.s : 30;   // the map's own cell (backlog 38)
+                      if (dy) { it.y += Math.sign(dy) * nh; }
+                      else { it.x += Math.sign(dx) * 1.5 * ns; it.y += (shift ? -1 : 1) * Math.sign(dx) * -nh / 2; }
                       if (window.wpSeatHex) window.wpSeatHex(it, m2);
                   } else if (snapN && (it.isChar || it.waiting) && window.wpSeatDrop) {   // a square grid or a map with no grid: one cell (one dot) at a time
-                      it.x += Math.sign(dx) * 50; it.y += Math.sign(dy) * 50;
+                      var NQ = (typeof window !== 'undefined' && window.wpLatticeOf ? window.wpLatticeOf(m2) : null), nq = NQ && NQ.type === 'square' ? NQ.size : 50;
+                      it.x += Math.sign(dx) * nq; it.y += Math.sign(dy) * nq;
                       window.wpSeatDrop(it, m2);
                   } else { it.x += dx; it.y += dy; }
                   if (window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(it, true);

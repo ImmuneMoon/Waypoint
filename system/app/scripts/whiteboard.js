@@ -8341,7 +8341,8 @@ window.wpPlaceCommit = function(px, py, pw, ph, sx, sy) {
     var isHexItem = (type === 'hexagon' || props.shape === 'hexagon');
     var cell = shapeSizeMode() === 'cell' && type !== 'text' && !P.sized;   // 1.6.0: a map object says its own size
     var hexGrid = state.gridType === 'hex';
-    if (cell) { props.w = hexGrid ? 60 : 50; props.h = hexGrid ? 52 : 50; }
+    var PL = (typeof window !== 'undefined' && window.wpLatticeOf ? window.wpLatticeOf() : null);   // the map's own cell (backlog 38)
+    if (cell) { props.w = PL && PL.type === 'hex' ? 2 * PL.s : PL && PL.type === 'square' ? PL.size : hexGrid ? 60 : 50; props.h = PL && PL.type === 'hex' ? PL.h : PL && PL.type === 'square' ? PL.size : hexGrid ? 52 : 50; }
     else if (dragged) { props.w = Math.round(pw); props.h = Math.round(ph); }
     var x = (dragged && !cell) ? px : sx - (props.w || 100) / 2;
     var y = (dragged && !cell) ? py : sy - (props.h || 100) / 2;
@@ -8353,7 +8354,7 @@ window.wpPlaceCommit = function(px, py, pw, ph, sx, sy) {
             var hc = snapToHex(ci.x + ci.w / 2, ci.y + ci.h / 2, 30, 'center');
             ci.x = hc.x - ci.w / 2; ci.y = hc.y - ci.h / 2; save(); render();
         } else if (ci && state.gridType === 'square') {
-            ci.x = Math.round(ci.x / 50) * 50; ci.y = Math.round(ci.y / 50) * 50; save(); render();
+            var cz = PL && PL.type === 'square' ? PL.size : 50, cx0 = PL && PL.ox || 0, cy0 = PL && PL.oy || 0; ci.x = Math.round((ci.x - cx0) / cz) * cz + cx0; ci.y = Math.round((ci.y - cy0) / cz) * cz + cy0; save(); render();
         }
     } else if (isHexItem && hexGrid && !dragged) snapNewHexItem();
     if (type === 'trigger') toast(isHexItem ? 'Hex trigger added — it fills one grid cell; write its Event Message in Properties.' : 'Trigger zone added — write its Event Message in the Properties panel.');

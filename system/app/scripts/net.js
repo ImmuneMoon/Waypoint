@@ -4575,7 +4575,9 @@ function trapToast(traveler, portal, text) {
 function freeSpotNear(map, cx, cy, w, h, avoidId, portal, from) {
     var others = (map.whiteboard || []).filter(function(o) { return (o.isChar || o.waiting) && o.id !== avoidId; });   // Onboarding F1a: a waiting token holds its spot too
     var sq = !!(map && map.meta && map.meta.gridType === 'square');   // grid-shaped tokens: a square grid seats in its 50 px cells
+    var LSQ = sq && typeof window === 'object' && window && window.wpLatticeOf ? window.wpLatticeOf(map) : null, SZ = LSQ && LSQ.size > 0 ? LSQ.size : 50;   // the map's own cell (backlog 38)
     function seated(x, y) {   // where a token placed at (x, y) ends up after seating on this map (a hex cell, a square cell)
+        if (sq && LSQ) { var st = { x: x, y: y, w: w, h: h, isChar: true }; if (window.wpSeatCell) window.wpSeatCell(st, map); return { x: st.x, y: st.y }; }   // a map's own cell (backlog 38): datamap's seat on its lattice
         if (sq) return Math.max(w, h) <= 64 ? { x: Math.floor((x + w / 2) / 50) * 50 + 25 - w / 2, y: Math.floor((y + h / 2) / 50) * 50 + 25 - h / 2 } : { x: Math.round(x / 50) * 50, y: Math.round(y / 50) * 50 };   // one cell: centred; sized up: its corner on the lattice
         if (!window.wpSeatHex) return { x: x, y: y };
         var tmp = { x: x, y: y, w: w, h: h, isChar: true };
@@ -4589,7 +4591,7 @@ function freeSpotNear(map, cx, cy, w, h, avoidId, portal, from) {
     var F = typeof window === 'object' && window && window.wpFog && typeof window.wpFog.arrivalOk === 'function' ? window.wpFog : null;
     var fc = from && typeof from === 'object' && isFinite(from.x) && isFinite(from.y) ? from : { x: cx, y: cy }, fx = fc.x - w / 2, fy = fc.y - h / 2, tok = { w: w, h: h };
     function walks(x, y) { if (!F) return true; try { return F.arrivalOk(map, tok, fx, fy, x, y) !== false; } catch (e) { return true; } }   // the one judge of walls, barriers and the play area (a judge that fails stops nothing, as before)
-    var step = sq ? Math.ceil(Math.max(w, h) / 50) * 50 : Math.max(w, h) + 8, x0 = cx - w / 2, y0 = cy - h / 2, tried = {};   // on a square grid a step is whole cells (no cell skipped)
+    var step = sq ? Math.ceil(Math.max(w, h) / SZ) * SZ : Math.max(w, h) + 8, x0 = cx - w / 2, y0 = cy - h / 2, tried = {};   // on a square grid a step is whole cells (no cell skipped)
     var first = seated(x0, y0);
     if (!clashes(first.x, first.y) && walks(first.x, first.y)) return first;
     for (var ring = 1; ring <= 8; ring++) {

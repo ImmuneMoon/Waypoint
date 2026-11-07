@@ -7431,9 +7431,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         }
         {
             const ioS = fs.readFileSync(path.join(app, 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, NL);
-            check('snap rule (source): an arrow-key nudge follows Snap — on, a hex token hops cell to cell and a token on a square grid or a map with no grid one cell (one dot) at a time, seated; off, every item moves by pixels',
+            check('snap rule (source): an arrow-key nudge follows Snap — on, a hex token hops cell to cell and a token on a square grid or a map with no grid one cell (one dot) at a time, seated, one cell of the map at its own cell size where it has one (backlog 38, moved on purpose); off, every item moves by pixels',
                 /var snapN = window\.wpSnapOn \? window\.wpSnapOn\(\) : !!state\.snap;/.test(ioS) && /var hexToken = snapN && state\.gridType === 'hex' && \(it\.isChar \|\| it\.type === 'hexagon' \|\| it\.shape === 'hexagon'\);/.test(ioS)
-                && /\} else if \(snapN && \(it\.isChar \|\| it\.waiting\) && window\.wpSeatDrop\) \{[^\n]*\n\s*it\.x \+= Math\.sign\(dx\) \* 50; it\.y \+= Math\.sign\(dy\) \* 50;\n\s*window\.wpSeatDrop\(it, m2\);\n\s*\} else \{ it\.x \+= dx; it\.y \+= dy; \}/.test(ioS));
+                && /\} else if \(snapN && \(it\.isChar \|\| it\.waiting\) && window\.wpSeatDrop\) \{[^\n]*\n\s*var NQ = [^\n]*nq = NQ && NQ\.type === 'square' \? NQ\.size : 50;\n\s*it\.x \+= Math\.sign\(dx\) \* nq; it\.y \+= Math\.sign\(dy\) \* nq;\n\s*window\.wpSeatDrop\(it, m2\);\n\s*\} else \{ it\.x \+= dx; it\.y \+= dy; \}/.test(ioS));
         }
         check('grid shape: wpSeatCell (datamap.js, run for real) — on a square grid a one-cell token is centred in its 50 px cell (a 50x50 lands on the lattice), a sized-up one has its corner on the lattice (a 2x2 covers four whole cells), on hex it is wpSeatHex, with no grid or on an item that is no token nothing moves',
             scA > 0 && sc1 === true && it1.x === 100 && it1.y === 200 && sc2 === true && j(seats2) === j(['m']) && sc3 === false && it3.x === 107 && sc4 === false && it4.x === 107 && sc5 === false && it5.x === 100 && sc6 === true && it6.x === 1000 && it6.y === 1000 && sc7 === false, j([it1, it3, it4, it6]));

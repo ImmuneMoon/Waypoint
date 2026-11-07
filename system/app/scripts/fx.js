@@ -152,7 +152,7 @@ function renderBurst(f) {
 // cell on a gridless map). A receiver draws at most pingLive at once, the oldest taken away, and ignores one that comes
 // sooner than pingGapMs after the last it drew. Under reduced motion it is a still ring that fades, never a pulse.
 function pingAt(map, x, y) {
-    var F = window.wpFogCore, g = F && map ? F.gridFor((map.meta && map.meta.gridType) || 'off', map.fog && map.fog.cell) : null;
+    var F = window.wpFogCore, g = F && map ? F.gridFor((map.meta && map.meta.gridType) || 'off', map.fog && map.fog.cell, map.meta && map.meta.cell) : null;
     if (!g) return { x: x, y: y, r: 50 };
     var c = F.cellCenter(F.cellOf(x, y, g), g);
     return { x: c.x, y: c.y, r: g.type === 'square' ? g.size : g.h };

@@ -501,7 +501,7 @@ function ownTokIdsOf(m) {
 // Senses S4: the cells of this player's own tokens on a map (no mark is kept on one): their keys, by the map's grid; none with no grid
 function ownCellKeysOf(m) {
     var C = window.wpFogCore, out = Object.create(null); if (!C || !C.gridFor || !m || !Array.isArray(m.whiteboard) || !net.myId) return out;
-    var grid = C.gridFor((m.meta && m.meta.gridType) || 'off', m.fog && m.fog.cell); if (!grid) return out;
+    var grid = C.gridFor((m.meta && m.meta.gridType) || 'off', m.fog && m.fog.cell, m.meta && m.meta.cell); if (!grid) return out;
     m.whiteboard.forEach(function(w) { var x = w ? Number(w.x) : NaN, y = w ? Number(w.y) : NaN; if (w && w.ownerId === net.myId && isFinite(x) && isFinite(y)) out[C.cellKey(C.cellOf(x + (Number(w.w) || 60) / 2, y + (Number(w.h) || 52) / 2, grid), grid)] = 1; });
     return out;
 }
@@ -9206,7 +9206,7 @@ function handleMessage(msg, conn) {
         var FCsd = window.wpFogCore; if (FCsd && typeof FCsd.secretOn === 'function' ? FCsd.secretOn(doorEl) : doorEl.secret === true) return;   // a secret door answers nothing, as the wall the players hold there would: before its lock is asked, which would say that it is a door
         if (doorEl.doorLock) { denyDR('locked'); return; }                            // GM-locked against players
         var Cdr = window.wpFogCore; if (!Cdr) return;
-        var gridDR = Cdr.gridFor((amDR.meta && amDR.meta.gridType) || 'off', amDR.fog && amDR.fog.cell); if (!gridDR) return;   // gridless: can't judge adjacency -> ignore
+        var gridDR = Cdr.gridFor((amDR.meta && amDR.meta.gridType) || 'off', amDR.fog && amDR.fog.cell, amDR.meta && amDR.meta.cell); if (!gridDR) return;   // gridless: can't judge adjacency -> ignore
         var dCellsR = doorEl.type === 'path' ? Cdr.pathCells(doorEl, gridDR) : Cdr.itemCells(doorEl, gridDR);   // item 18: the door's own cells, by its outline (a turned door as it is drawn); W2: a line door's, the cells its line passes
         var adjacentR = (amDR.whiteboard || []).some(function(w) {
             if (!w || !(w.isChar || w.waiting) || w.hidden || w.ownerId !== profDR.id) return false;   // a shown token of theirs: a character's or a waiting one (the same walls stop it, so it opens the same doors)

@@ -34,7 +34,7 @@ function tokenElevation(it, map, shown) { var e = Number(it && it.elevation); e 
 function tokenGround(it, map, shown) { return it && typeof it === 'object' ? groundAt(map, it.x + (it.w || 60) / 2, it.y + (it.h || 52) / 2, shown) : 0; }   // the ground under a token's centre
 function groundAt(map, x, y, shown) {   // the ground under a board point of a map, yards (0: none, no map, no fog core)
     var C = window.wpFogCore; if (!C || !C.groundAt || !C.gridFor || !map || typeof map !== 'object' || !Array.isArray(map.whiteboard)) return 0;
-    return C.groundAt(map.whiteboard, x, y, C.gridFor((map.meta && map.meta.gridType) || 'off', map.fog && map.fog.cell), shown === true);
+    return C.groundAt(map.whiteboard, x, y, C.gridFor((map.meta && map.meta.gridType) || 'off', map.fog && map.fog.cell, map.meta && map.meta.cell), shown === true);
 }
 // ... and its words beside a token's own Elevation, in the viewer's unit: "+3 yd ground" ('' on no ground, or with Token elevation off). A
 // number and fixed words; callers escape it
@@ -4828,7 +4828,7 @@ window.wpFitToGrid = fitToGrid;
   // 1.6.2: the Environment readings where a blast goes off, by the system's readings: its cell's, else the map's, as a token there reads them
   function blastEnvAt(camp, map, b) {
       var FC = window.wpFogCore, env = camp && camp.system && Array.isArray(camp.system.env) ? camp.system.env : []; if (!FC || typeof FC.envAt !== 'function' || !env.length || !map || !b) return null;
-      var got = FC.envAt(env.map(function(e) { return e && e.key; }), map, { x: b.x - 30, y: b.y - 26, w: 60, h: 52 }, FC.gridFor((map.meta && map.meta.gridType) || 'off', map.fog && map.fog.cell));
+      var got = FC.envAt(env.map(function(e) { return e && e.key; }), map, { x: b.x - 30, y: b.y - 26, w: 60, h: 52 }, FC.gridFor((map.meta && map.meta.gridType) || 'off', map.fog && map.fog.cell, map.meta && map.meta.cell));
       return got && Object.keys(got).length ? got : null;
   }
   function blastRules(sys) { var c = sys && sys.combat && typeof sys.combat === 'object' ? sys.combat : null; return c && c.blast && typeof c.blast === 'object' && !Array.isArray(c.blast) ? c.blast : null; }

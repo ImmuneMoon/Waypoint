@@ -53,7 +53,7 @@ function campFog(camp) {
     camp.fog = C ? C.cleanCampFog(camp.fog) : (camp.fog || { fields: {}, defaults: { sight: 0 } });
     return camp.fog;
 }
-function gridForMap(map) { var C = core(); if (!C || !map) return null; return C.gridFor((map.meta && map.meta.gridType) || 'off', map.fog && map.fog.cell); }
+function gridForMap(map) { var C = core(); if (!C || !map) return null; return C.gridFor((map.meta && map.meta.gridType) || 'off', map.fog && map.fog.cell, map.meta && map.meta.cell); }
 // Per-map yards-per-cell (mirrors whiteboard.js mapMeasureConfig without depending on the ACTIVE map — §11R-7)
 var UNIT_YD = { yd: 1, ft: 1 / 3, m: 1.09361, km: 1093.61, mi: 1760 };
 function cellYardsForMap(map) {
@@ -705,7 +705,7 @@ function barrierAsk() {
 // the move's own length
 function moveCells(map, w, fx, fy, tx, ty, diag, out) {
     var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2;
-    if (map && map.meta && map.meta.gridType === 'square') { fx = Math.round(fx / 50) * 50; fy = Math.round(fy / 50) * 50; tx = Math.round(tx / 50) * 50; ty = Math.round(ty / 50) * 50; }
+    if (map && map.meta && map.meta.gridType === 'square') { var C0 = core(), MG = C0 && C0.gridFor ? C0.gridFor('square', null, map.meta.cell) : null, mz = MG ? MG.size : 50, mx = MG && MG.ox || 0, my = MG && MG.oy || 0, ml = function(v, o) { return Math.round((v - o) / mz) * mz + o; }; fx = ml(fx, mx); fy = ml(fy, my); tx = ml(tx, mx); ty = ml(ty, my); }   // the map's own lattice (backlog 38)
     var mc = moveCost(map, fx + hw, fy + hh, tx + hw, ty + hh, diag);
     if (out && typeof out === 'object') out.len = mc.len;
     return mc.cost;
@@ -716,8 +716,8 @@ function moveCells(map, w, fx, fy, tx, ty, diag, out) {
 function moveCost(map, x1, y1, x2, y2, diag) {
     var C = core(), S = window.wpSystemCore; if (!C || !map) return { len: 0, cost: 0 };
     var gt = map.meta && map.meta.gridType, len;
-    if (gt === 'hex') { var g = C.gridFor('hex'); len = g ? C.hexDist(C.cellOf(x1, y1, g), C.cellOf(x2, y2, g)) : 0; }
-    else if (gt === 'square') { var gs = C.gridFor('square'), ca = gs ? C.cellOf(x1, y1, gs) : null, cb = gs ? C.cellOf(x2, y2, gs) : null; len = !ca || !cb ? 0 : S && S.gridCells ? S.gridCells(cb.c - ca.c, cb.r - ca.r, diag) : Math.hypot(cb.c - ca.c, cb.r - ca.r); }
+    if (gt === 'hex') { var g = C.gridFor('hex', null, map.meta.cell); len = g ? C.hexDist(C.cellOf(x1, y1, g), C.cellOf(x2, y2, g)) : 0; }
+    else if (gt === 'square') { var gs = C.gridFor('square', null, map.meta.cell), ca = gs ? C.cellOf(x1, y1, gs) : null, cb = gs ? C.cellOf(x2, y2, gs) : null; len = !ca || !cb ? 0 : S && S.gridCells ? S.gridCells(cb.c - ca.c, cb.r - ca.r, diag) : Math.hypot(cb.c - ca.c, cb.r - ca.r); }
     else len = Math.hypot((x2 - x1) / 50, (y2 - y1) / 50);
     if (!(len > 0) || (gt !== 'square' && gt !== 'hex') || !C.terrainFactor) return { len: len || 0, cost: len || 0 };
     var grid = gridForMap(map), terr = grid ? terrainFor(map, grid) : null;

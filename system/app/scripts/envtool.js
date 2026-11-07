@@ -22,7 +22,7 @@ function envShown(e, c, metric) { return e && e.unit === 'temp' && !metric ? c *
 function envStored(e, v, metric) { return e && e.unit === 'temp' && !metric ? (v - 32) * 5 / 9 : v; }
 function envUnit(e, metric) { return e && e.unit === 'temp' ? (metric ? '°C' : '°F') : (e && typeof e.unit === 'string' ? e.unit : ''); }
 function envFig(n) { return String(Math.round(n * 10) / 10); }
-function envGrid(map, FC) { return map && FC ? FC.gridFor((map.meta && map.meta.gridType) || 'off', map.fog && map.fog.cell) : null; }
+function envGrid(map, FC) { return map && FC ? FC.gridFor((map.meta && map.meta.gridType) || 'off', map.fog && map.fog.cell, map.meta && map.meta.cell) : null; }
 function envCellOfKey(k, grid) { var m = /^(-?\d+)(,|:)(-?\d+)$/.exec(String(k)); if (!m || !grid) return null; return grid.type === 'square' ? (m[2] === ',' ? { c: +m[1], r: +m[3] } : null) : (m[2] === ':' ? { q: +m[1], r: +m[3] } : null); }
 // The cells one press or drag covers: the brush's block round each cell the pointer passes, a dragged box's cells, or a piece's cells (the
 // topmost plain piece under the point that is no token, waiting token or GM note card), each by its key

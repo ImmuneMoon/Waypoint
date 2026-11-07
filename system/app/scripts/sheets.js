@@ -446,7 +446,7 @@ function envTokenOf(camp, c, idx) {   // where a character's readings are read: 
     return null;
 }
 function envWant(sys, camp, c, FC) {   // { fieldId: value | null (cleared) } where the stored value differs from the readings now
-    var env = sys && Array.isArray(sys.env) ? sys.env : [], vals = {}, at = envTokenOf(camp, c), got = at ? FC.envAt(env.map(function(e) { return e.key; }), at.map, at.tok, FC.gridFor((at.map.meta && at.map.meta.gridType) || 'off', at.map.fog && at.map.fog.cell)) : {}, pl = {};
+    var env = sys && Array.isArray(sys.env) ? sys.env : [], vals = {}, at = envTokenOf(camp, c), got = at ? FC.envAt(env.map(function(e) { return e.key; }), at.map, at.tok, FC.gridFor((at.map.meta && at.map.meta.gridType) || 'off', at.map.fog && at.map.fog.cell, at.map.meta && at.map.meta.cell)) : {}, pl = {};
     var cur = c.values && typeof c.values === 'object' ? c.values : {};
     env.forEach(function(e) {
         var f = fieldById(sys, e.field); if (!f || f.kind !== 'number') return;

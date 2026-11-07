@@ -7376,6 +7376,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 srRun(S_OFF, { active: true, role: 'client', tableSnapOn: true }).on, srRun(S_ON, { active: true, role: 'client', tableSnapOn: false }).on, srRun(S_ON, { active: true, role: 'client', tableSnapOn: 'yes' }).on, srRun(S_OFF, { active: false, role: 'client', tableSnapOn: true }).on, srRun(S_ON, { active: true, role: 'host' }).on];
             check('snap rule: wpSnapOn (datamap.js, run for real) — Snap on to the grid or to both, not to other items only; a connected player follows the GM\'s Snap as the table was told it (true only), whatever their own; off the table, their own',
                 srA > 0 && srB > srA && j(onGot) === j([true, true, false, false, true, false, false, false, true]), j(onGot));
+            {   // 1.6.2, backlog 38 fold 2: a map with its own cell seats a drop on that lattice (datamap.js latticeOf, run for real with the real fogcore)
+                const FCL = await import(url('fogcore.js') + '?lat'), dmL = dmG.slice(srA, srB);
+                const run = (map, item) => { const win = { wpNet: null, wpFogCore: FCL }; win.wpSeatHex = (it) => false; new Function('window', 'getActiveMap', 'state', dmL)(win, () => map, { snap: true, snapMode: 'grid', gridType: map.meta.gridType }); return { got: win.wpSeatDrop(item, map), item: item, lat: win.wpLatticeOf(map) }; };
+                const own = run({ meta: { gridType: 'square', cell: { size: 70, ox: 5, oy: 60 } } }, { isChar: true, x: 100, y: 100, w: 70, h: 70 });
+                const plain = run({ meta: { gridType: 'square' } }, { isChar: true, x: 112, y: 88, w: 50, h: 50 });
+                check('a map with its own cell (backlog 38): a drop by hand lands on that lattice, its size and its origin; a map that sets none on today\'s 50 px lattice, as before',
+                    own.got === true && own.item.x === 75 && own.item.y === 130 && j(own.lat) === j({ type: 'square', size: 70, ox: 5, oy: 60 }) && plain.item.x === 100 && plain.item.y === 100 && j(plain.lat) === j({ type: 'square', size: 50 }), j([own, plain]));
+            }
             const dotGot = [srRun(S_ON).dot({ x: 107, y: 213, w: 50, h: 50 }), srRun(S_ON).dot({ x: 1, y: 1, w: 60, h: 52 }), srRun(S_ON).dot({ x: 1010, y: 990, w: 100, h: 100 }), srRun(S_ON).dot({ x: 100, y: 200, w: 50, h: 50 })];
             check('snap rule: wpSeatDot — a one-cell token\'s centre onto the nearest dot of a gridless map\'s background (every 50 px, at 25), a sized-up one\'s corner on the lattice; one already there does not move',
                 j(dotGot) === j([[true, 100, 200], [true, -5, -1], [true, 1000, 1000], [false, 100, 200]]), j(dotGot));

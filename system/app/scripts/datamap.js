@@ -394,16 +394,18 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   });
   syncLinkMenu();
 
-  function snapToHex(x, y, s, mode) {
+  function snapToHex(x, y, s, mode, grid) {
+      var LG = grid && grid.type === 'hex' ? grid : (typeof latticeOf === 'function' ? latticeOf() : null);   // 1.6.2 (backlog 38): the lattice of the map asked for, else of the map on screen
+      if (LG && LG.type === 'hex') s = LG.s;
       // FLAT-TOP hexes (a flat side faces up), size s = 30: a cell is 2s = 60 wide
       // and sqrt(3)*s = 51.96 tall. The drawn tile uses a whole 52 px row pitch:
       // Chrome tiles repeated backgrounds at whole pixels, so a fractional tile
       // drifts ~0.04px per row and tokens would sit visibly off-cell mid-canvas.
       // Columns are 1.5s = 45 apart; each column is shifted half a row from the
       // last. Cell centres: x = 45q + 15, y = 52(r + q/2).
-      var h = 52;
-      var offsetX = s / 2;
-      var offsetY = 0;
+      var h = LG && LG.type === 'hex' ? LG.h : 52;
+      var offsetX = s / 2 + (LG && LG.type === 'hex' ? LG.ox || 0 : 0);
+      var offsetY = LG && LG.type === 'hex' ? LG.oy || 0 : 0;
       var tx = x - offsetX;
       var ty = y - offsetY;
       var q = tx / (1.5 * s);
@@ -485,7 +487,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (g !== 'hex') return false;
       if (!force && !(item.isChar || item.waiting || item.type === 'hexagon' || item.shape === 'hexagon')) return false;
       var w = item.w || 0, h = item.h || 0;
-      var hc = snapToHex(item.x + w / 2, item.y + h / 2, 30, 'center');
+      var hc = snapToHex(item.x + w / 2, item.y + h / 2, 30, 'center', (typeof latticeOf === 'function' ? latticeOf(map) : null));
       var nx = hc.x - w / 2, ny = hc.y - h / 2;
       if (Math.abs(nx - item.x) < 0.01 && Math.abs(ny - item.y) < 0.01) return false;
       item.x = nx; item.y = ny;
@@ -500,13 +502,24 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (!g && map === getActiveMap()) g = state.gridType;
       if (g === 'hex') return window.wpSeatHex(item, map);
       if (g !== 'square' || !(item.isChar || item.waiting)) return false;
-      var w = item.w || 0, h = item.h || 0, one = Math.max(w, h) <= 64;   // one cell: centred in it; sized up: its corner on the lattice, as a drag release and Fit to grid put it
-      var nx = one ? Math.floor((item.x + w / 2) / 50) * 50 + 25 - w / 2 : Math.round(item.x / 50) * 50, ny = one ? Math.floor((item.y + h / 2) / 50) * 50 + 25 - h / 2 : Math.round(item.y / 50) * 50;
+      var G = (typeof latticeOf === 'function' ? latticeOf(map) : null) || { type: 'square', size: 50 }, w = item.w || 0, h = item.h || 0, one = Math.max(w, h) <= G.size * 1.28;   // one cell: centred in it; sized up: its corner on the lattice, as a drag release and Fit to grid put it
+      var nx = one ? (Math.floor((item.x + w / 2 - (G.ox || 0)) / G.size) * G.size + G.size / 2 + (G.ox || 0) - w / 2) : (Math.round((item.x - (G.ox || 0)) / G.size) * G.size + (G.ox || 0)), ny = one ? (Math.floor((item.y + h / 2 - (G.oy || 0)) / G.size) * G.size + G.size / 2 + (G.oy || 0) - h / 2) : (Math.round((item.y - (G.oy || 0)) / G.size) * G.size + (G.oy || 0));
       if (Math.abs(nx - item.x) < 0.01 && Math.abs(ny - item.y) < 0.01) return false;
       item.x = nx; item.y = ny;
       return true;
   };
   // [systemcheck:snaprule-start]
+  // 1.6.2 (backlog 38, a map's own cell size): the lattice a map's pieces seat on, fogcore gridFor with the map's own cell (map.meta.cell);
+  // today's (a 50 px square, a hex of s 30 and 52 px rows, from the board's 0,0) where it sets none. Null for a map with no grid
+  function latticeOf(map) {
+      map = map || getActiveMap();
+      var g = map && map.meta && map.meta.gridType;
+      if (!g && map === getActiveMap()) g = state.gridType;
+      if (g !== 'square' && g !== 'hex') return null;
+      var FC = window.wpFogCore, G = FC && typeof FC.gridFor === 'function' ? FC.gridFor(g, null, map && map.meta ? map.meta.cell : null) : null;
+      return G || (g === 'hex' ? { type: 'hex', s: 30, h: 52 } : { type: 'square', size: 50 });
+  }
+  window.wpLatticeOf = latticeOf;
   // The snap rule (the owner, 2026-09-29): Snap decides where a token dropped by hand lands, on every grid — on, in a cell (on hex centred in
   // it, on a square grid on the lattice, with no grid on a dot of the background); off, exactly where it was dropped. A player's drop follows
   // the GM's Snap (net.js sends it to the table: net.tableSnapOn); Snap to other items only is no grid seat. A token fitted to the grid
@@ -533,7 +546,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (!g && map === getActiveMap()) g = state.gridType;
       if (g === 'hex') return window.wpSeatHex(item, map, force);
       if (g === 'square') {
-          var nx = Math.round(item.x / 50) * 50, ny = Math.round(item.y / 50) * 50;   // the lattice, as a drag release puts it
+          var GS = (typeof latticeOf === 'function' ? latticeOf(map) : null) || { type: 'square', size: 50 }, nx = (Math.round((item.x - (GS.ox || 0)) / GS.size) * GS.size + (GS.ox || 0)), ny = (Math.round((item.y - (GS.oy || 0)) / GS.size) * GS.size + (GS.oy || 0));   // the lattice, as a drag release puts it
           if (Math.abs(nx - item.x) < 0.01 && Math.abs(ny - item.y) < 0.01) return false;
           item.x = nx; item.y = ny; return true;
       }
@@ -544,16 +557,17 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // CORNER on a hex vertex, and a cell's box has no vertex at its corner: the nearest is 15 px along. About one cell: 39 to 64 px each way
   // (three quarters of a cell's height, up to the app's own bound for one cell). A bar or a railing, thinner, and anything larger keep
   // their corner on a vertex, where walls and floors line up; a text, a pen line, a trigger and a light are no pieces of this kind
-  window.wpHexCellSized = function(it) {
+  window.wpHexCellSized = function(it, map) {
       if (!it || ['image', 'rect', 'circle', 'diamond'].indexOf(it.type) < 0) return false;
-      return typeof it.w === 'number' && typeof it.h === 'number' && it.w >= 39 && it.w <= 64 && it.h >= 39 && it.h <= 64;
+      var LH = (typeof latticeOf === 'function' ? latticeOf(map) : null), k = LH && LH.type === 'hex' ? LH.h / 52 : 1;   // a map's own hex cell: the same bounds at its scale
+      return typeof it.w === 'number' && typeof it.h === 'number' && it.w >= 39 * k && it.w <= 64 * k && it.h >= 39 * k && it.h <= 64 * k;
   };
   // …and when a piece is RESIZED to that size (it pauses at a token's beside it): it seats in its cell at once. true when it moved
   window.wpSeatSized = function(item, map) {
       map = map || getActiveMap();
       var g = map && map.meta && map.meta.gridType;
       if (!g && map === getActiveMap()) g = state.gridType;
-      if (g !== 'hex' || !window.wpSnapOn() || !window.wpHexCellSized(item)) return false;
+      if (g !== 'hex' || !window.wpSnapOn() || !window.wpHexCellSized(item, map)) return false;
       return window.wpSeatHex(item, map, true);
   };
   // [systemcheck:snaprule-end]
@@ -563,7 +577,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // pen does (the thin wall of item 18). With no grid, as Snap says
   function snapLattice(x, y) {
       if (state.gridType === 'hex') { var ph = snapToHex(x, y, 30, 'vertex'); return { x: ph.x, y: ph.y }; }
-      if (state.gridType === 'square') return { x: Math.round(x / 50) * 50, y: Math.round(y / 50) * 50 };
+      if (state.gridType === 'square') { var GL = (typeof latticeOf === 'function' ? latticeOf() : null) || { type: 'square', size: 50 }; return { x: (Math.round((x - (GL.ox || 0)) / GL.size) * GL.size + (GL.ox || 0)), y: (Math.round((y - (GL.oy || 0)) / GL.size) * GL.size + (GL.oy || 0)) }; }
       return getSnapCoords(x, y);
   }
   function penSnap(x, y) { return window.wpPenPreset ? snapLattice(x, y) : getSnapCoords(x, y); }
@@ -590,7 +604,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               var p = snapToHex(x, y, 30, 'vertex');
               return {x: p.x, y: p.y};
           } else {
-              return {x: Math.round(x/50)*50, y: Math.round(y/50)*50};
+              var GQ = (typeof latticeOf === 'function' ? latticeOf() : null); return GQ && GQ.type === 'square' ? { x: (Math.round((x - (GQ.ox || 0)) / GQ.size) * GQ.size + (GQ.ox || 0)), y: (Math.round((y - (GQ.oy || 0)) / GQ.size) * GQ.size + (GQ.oy || 0)) } : {x: Math.round(x/50)*50, y: Math.round(y/50)*50};
           }
       }
       return {x: x, y: y};
@@ -1185,7 +1199,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               // Item-to-item snaps beat the grid: an axis that glued to a
               // neighbor mid-drag keeps its flush/aligned position on release.
               var glued = doSmartSnapping.last || {};
-              var sn = (state.gridType === 'hex') ? getSnapCoords(item.x, item.y) : { x: Math.round(item.x / 50) * 50, y: Math.round(item.y / 50) * 50 };   // square: round to the 50-cell even with Snap off (a gridFit item stays fitted)
+              var sn = (state.gridType === 'hex') ? getSnapCoords(item.x, item.y) : (function(GR) { return GR && GR.type === 'square' ? { x: (Math.round((item.x - (GR.ox || 0)) / GR.size) * GR.size + (GR.ox || 0)), y: (Math.round((item.y - (GR.oy || 0)) / GR.size) * GR.size + (GR.oy || 0)) } : { x: Math.round(item.x / 50) * 50, y: Math.round(item.y / 50) * 50 }; })((typeof latticeOf === 'function' ? latticeOf() : null));   // square: round to the lattice's cell even with Snap off (a gridFit item stays fitted)
               // the same correction for every item in the drag: a group never loosens on release
               var sdx = glued.x && !fitDrag ? 0 : sn.x - item.x, sdy = glued.y && !fitDrag ? 0 : sn.y - item.y;   // 1.6.2, found by the owner: a piece fitted to the grid lands in its cells, whatever it glued to on the way
               multiDrag.forEach(function(md) { md.item.x += sdx; md.item.y += sdy; var melG = md.el || state.wbEls[md.item.id]; if (melG) { melG.style.left = md.item.x + 'px'; melG.style.top = md.item.y + 'px'; } });
@@ -1476,12 +1490,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                           if (state.gridType === 'hex') {
                               // Flat-top lattice (90×52 tile): vertices with x ≡ 0 (mod 45) branch
                               // up-left / down-left / right; those with x ≡ 30 branch up-right / down-right / left
-                              var xm = ((Math.round(cur[0]) % 45) + 45) % 45;
-                              nbrs = xm === 0
-                                  ? [[cur[0] - 15, cur[1] - 26], [cur[0] - 15, cur[1] + 26], [cur[0] + 30, cur[1]]]
-                                  : [[cur[0] + 15, cur[1] - 26], [cur[0] + 15, cur[1] + 26], [cur[0] - 30, cur[1]]];
+                              var PG = (typeof latticeOf === 'function' ? latticeOf() : null), ps = PG && PG.type === 'hex' ? PG.s : 30, ph = PG && PG.type === 'hex' ? PG.h / 2 : 26, pt = 1.5 * ps, xm = (((cur[0] - (PG && PG.ox || 0)) % pt) + pt) % pt;   // the map's own hex (backlog 38): today's 45, 15, 26 and 30 where it sets none
+                              nbrs = Math.min(xm, pt - xm) < ps / 4
+                                  ? [[cur[0] - ps / 2, cur[1] - ph], [cur[0] - ps / 2, cur[1] + ph], [cur[0] + ps, cur[1]]]
+                                  : [[cur[0] + ps / 2, cur[1] - ph], [cur[0] + ps / 2, cur[1] + ph], [cur[0] - ps, cur[1]]];
                           } else {
-                              nbrs = [[cur[0] + 50, cur[1]], [cur[0] - 50, cur[1]], [cur[0], cur[1] + 50], [cur[0], cur[1] - 50]];
+                              var PQ = (typeof latticeOf === 'function' ? latticeOf() : null), pq = PQ && PQ.type === 'square' ? PQ.size : 50;
+                              nbrs = [[cur[0] + pq, cur[1]], [cur[0] - pq, cur[1]], [cur[0], cur[1] + pq], [cur[0], cur[1] - pq]];
                           }
                           var best = null, bestD = Infinity;
                           for (var ni = 0; ni < nbrs.length; ni++) {

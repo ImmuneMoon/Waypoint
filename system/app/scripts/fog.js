@@ -1624,7 +1624,8 @@ function draw() {
     if (tiers === null) return;                                    // reveal-all: no fog
     if (!isStreamView() && typeof wallEdged === 'function') tiers = wallEdged(tiers, map, grid);   // the cells a wall runs through (the stream window's come with the host's word)
     var z = state.zoomLevel || 1, sx = wrap.scrollLeft, sy = wrap.scrollTop;
-    var pad = 80 + (grid.type === 'square' ? grid.size * z / 2 : grid.s * z * 1.02);   // keep a cell whose CENTRE is off-view but whose body reaches the viewport (else a sliver of the clip edge stays unfogged at high zoom)
+    var turnV = typeof window !== 'undefined' && window.wpView && window.wpView.turned && window.wpView.turned() ? window.wpView : null;   // 1.6.2 (backlog 82b): a view turned with its token
+    var pad = 80 + (grid.type === 'square' ? grid.size * z / 2 : grid.s * z * 1.02) + (turnV ? Math.hypot(W, H) : 0);   // turned, the screen's corners reach cells past its own edges   // keep a cell whose CENTRE is off-view but whose body reaches the viewport (else a sliver of the clip edge stays unfogged at high zoom)
     var traceOn = function(cx2, cell) {                            // add one cell's outline to a path (screen space); off-view cells are skipped
         var ctr = C.cellCenter(cell, grid), lx = ctr.x * z - sx, ly = ctr.y * z - sy;
         if (lx < -pad || ly < -pad || lx > W + pad || ly > H + pad) return;
@@ -1635,6 +1636,7 @@ function draw() {
     var mem = isClientView() && rememberOn(camp) ? memRemember(map, grid, tiers) : null, memLay = mem && mem.n ? memLayer(map, mem, z, sx, sy, W, H, traceOn) : null;   // senses S6: the ground this player remembers
     if (!isStreamView() && typeof heightShown === 'function') tiers = heightShown(tiers, map, camp, drawOwner(), grid, mask);   // item 19b H4: the cell of a creature seen over a low wall (after the memory: it is no ground seen)
     ctx.save();
+    if (turnV) turnV.turnCtx(ctx);   // the fog's cells turn about the same point as the board
     if (mask.mode === 'set') {                                     // confine the fog to the play-area cells
         var mp = maskClip(mask, grid, z, sx, sy, W, H, traceOn);   // the same clip, kept from the frame before while nothing moved
         if (mp) ctx.clip(mp);
@@ -1642,6 +1644,7 @@ function draw() {
     }
     ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = isClientView() || isStreamView() ? 'rgba(5,6,12,0.97)' : 'rgba(9,11,20,0.62)';   // players and the stream window: opaque; the GM: see-through
+    if (turnV) { var dg = Math.hypot(W, H); ctx.fillRect(-dg, -dg, W + 2 * dg, H + 2 * dg); } else   // turned, the fill covers the screen's turned corners too
     ctx.fillRect(0, 0, W, H);                                      // one flat fill (clipped to the mask when set) — no per-cell alpha seams
     ctx.globalCompositeOperation = 'destination-out';
     if (memLay) { ctx.globalAlpha = 0.3; ctx.drawImage(memLay, 0, 0); ctx.globalAlpha = 1; }   // senses S6: remembered ground, a third of the way through the fog
@@ -1660,10 +1663,14 @@ function draw() {
     ctx.fill();                                                    // punch every clear or bright cell in one pass
     ctx.globalCompositeOperation = 'source-over';
     ctx.restore();
+    ctx.save(); if (turnV) turnV.turnCtx(ctx);
     drawMarks(ctx, s, marksToDraw(map, camp), tiers.keys, grid, Date.now(), marksStill(), marksStrictOn(camp, map), tiers.edge || null);   // senses S4: the marks, over the fog
+    ctx.restore();
     drawCaptions(ctx, s);
     drawSenseCaptions(ctx, s, blindCaptionsFor(map, camp, drawOwner()));   // senses S3: why a blind token's screen is dark
+    ctx.save(); if (turnV) turnV.turnCtx(ctx);
     if (typeof drawWhyDark === 'function') drawWhyDark(ctx, s, map, grid, mask, tiers, Date.now());   // 1.5.4: why the cell under a resting pointer is dark (the GM's screen)
+    ctx.restore();
     if (typeof measureCaps === 'function') measureCaps(ctx, s);    // the rulers and shapes, over the fog on every screen
 }
 // Lighting L4 (owner answer 7): the name of the light a targeted token stands in, under the token. Drawn here, over the fog: the board's own

@@ -569,6 +569,10 @@ Writing planners and pages
   to turn north, and stand it at a corner or on the map. It can say the way a
   token faces and the way the ruler points, and it can go into the map's
   picture. Anyone can hide its words on their own screen in Settings.
+- Turn with my token, in the View menu, turns the map under the token you
+  control on your screen alone. That token stays upright and the way it faces
+  points up, or the way it last moved. Pick no token and the map turns back
+  to north.
 - The Calendar has moons and seasons. Each moon shows its phase on every
   day of the month, with New or Full on those days, and the date says the
   season. A rule or a formula can ask which season it is or a moon's phase.

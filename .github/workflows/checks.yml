@@ -81,6 +81,9 @@ jobs:
       - name: startercheck — a starter system with its packs
         if: ${{ !cancelled() }}
         run: node tools/startercheck.js
+      - name: viewcheck — the view that turns with your token
+        if: ${{ !cancelled() }}
+        run: node tools/viewcheck.js
       - name: musiccheck — music playlists
         if: ${{ !cancelled() }}
         run: node tools/musiccheck.js

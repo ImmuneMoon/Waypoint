@@ -588,12 +588,16 @@ Writing planners and pages
 - Layers, in the play map's More menu, lists the map's pieces front to back in
   a window of its own titled with the map's name. A group and a flattened
   picture hold their pieces under them.
+- The bar over a selected piece folds to one small button, and Settings can
+  put it away altogether, so it covers less of the pieces around it.
 - Properties floats over the map in a window you move by its title, and opens
   where you left it. It no longer narrows the map. Its title names the piece's
   kind, a shut fold says what it holds, and Find a setting shows only the
   settings that match.
 - The table trackers stand in one bar named Trackers: its fold, the trackers,
   + Add and Who sees are parts of it, parted by thin lines.
+- A damage type's Instead, if may have up to three more cases after it, each
+  with its own pool and multiplier, the first that holds winning.
 - A list's action may be a job of several turns too, as a reload that rolls
   nothing: each press counts, and its changes are made at the last press.
 - Flatten into one picture: select many map pieces and draw them into one

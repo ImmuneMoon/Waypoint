@@ -87,6 +87,7 @@ function syncPanel() {
     var zcState = ui('setZoomCtlState'), ppState = ui('setPointerPosState');   // 107: the zoom buttons and the pointer location, each its own switch
     if (zcState) zcState.textContent = viewShown('wp_zoomCtl') ? 'shown' : 'hidden';
     if (ppState) ppState.textContent = viewShown('wp_pointerPos') ? 'shown' : 'hidden';
+    var sbState = ui('setSelBarState'); if (sbState) sbState.textContent = viewShown('wp_selBar') ? 'shown' : 'hidden';
     syncVttPanel();   // elevation, posture, minimap: per campaign, the default, or the GM's ceiling at a table
     var dcState = ui('setDevConsoleState');
     if (dcState) dcState.textContent = localStorage.getItem('wp_devconsole') === 'on' ? 'on' : 'off';
@@ -404,7 +405,7 @@ if (_ud) _ud.addEventListener('input', function() {
 // location (the owner, 2026-10-06, of the last two: "optionally hide both independently"). ONE function switches each, whether it is pressed in
 // Settings (Table) or ticked in the play map's View menu. A thing is shown unless its key says off. viewSwitch answers what is so now: true shown,
 // false hidden, null for a name it does not know
-var VIEW_SWITCHES = { rulers: ['wp_rulers', 'Rulers'], zoom: ['wp_zoomCtl', 'Zoom buttons'], pointer: ['wp_pointerPos', 'Pointer location'] };
+var VIEW_SWITCHES = { rulers: ['wp_rulers', 'Rulers'], zoom: ['wp_zoomCtl', 'Zoom buttons'], pointer: ['wp_pointerPos', 'Pointer location'], selbar: ['wp_selBar', 'The bar over a selected piece'] };   // 1.6.2: the owner, of the bar over a selected piece: "Both", a fold on it and a switch here
 function viewShown(key) { try { return localStorage.getItem(key) !== 'off'; } catch (e) { return true; } }
 function viewSwitchOf(which) { return typeof which === 'string' && Object.prototype.hasOwnProperty.call(VIEW_SWITCHES, which) ? VIEW_SWITCHES[which] : null; }
 function viewSwitch(which) {
@@ -413,6 +414,7 @@ function viewSwitch(which) {
     try { localStorage.setItem(sw[0], viewShown(sw[0]) ? 'off' : 'on'); } catch (e) {}
     var shown = viewShown(sw[0]);   // read back: what is said is what is so, also where the store took no write
     if (which === 'rulers') { state.showRulers = shown; if (window.appRender) window.appRender(); }
+    else if (which === 'selbar') { if (window.appRender) window.appRender(); }
     else if (window.wpApplyCorner) window.wpApplyCorner();
     syncPanel();
     toast(sw[1] + (shown ? ' shown.' : ' hidden.'));
@@ -421,7 +423,7 @@ function viewSwitch(which) {
 window.wpViewSwitch = viewSwitch;
 window.wpViewShown = function(which) { var sw = viewSwitchOf(which); return sw ? viewShown(sw[0]) : null; };
 // [lookcheck:viewswitch-end]
-[['setRulersBtn', 'rulers'], ['setZoomCtlBtn', 'zoom'], ['setPointerPosBtn', 'pointer']].forEach(function(r) { var b = ui(r[0]); if (b) b.addEventListener('click', function() { viewSwitch(r[1]); }); });
+[['setRulersBtn', 'rulers'], ['setZoomCtlBtn', 'zoom'], ['setPointerPosBtn', 'pointer'], ['setSelBarBtn', 'selbar']].forEach(function(r) { var b = ui(r[0]); if (b) b.addEventListener('click', function() { viewSwitch(r[1]); }); });
 
 /* ---------- VTT features (vtt.js): per campaign, the default for new campaigns, and a player's view at a table ----------
    Token elevation and posture (the chips and the blast tool's 3D figure) and the minimap. The rows keep their

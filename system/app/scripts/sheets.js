@@ -12052,13 +12052,17 @@ function damageBox(box, cm) {
             lkeys.forEach(function(kv) { var t = dbxTick('sys-dmgr-yplus', pl.indexOf(kv[0].toLowerCase()) >= 0, kv[1], 'Ticked: this stat or column of the location is added to its DR against this type'); t.firstChild.dataset.k = kv[0]; p.appendChild(t); });
             tw.appendChild(p);
         }
-        var al = dbxObj(y.alt) ? y.alt : {}, b = el('div', 'sys-flags sys-dmgr-alt');
-        dbxCap(b, 'Instead, if');
-        var ai = input('sys-dmgr-aif field', dbxStr(al.if), 'Where this holds for the character, the three after it take the place of the type’s own', 'e.g. Droid'); ai.maxLength = LIMITS.formula; b.appendChild(ai);
-        b.appendChild(select('sys-dmgr-apool', dbxOpts(['', 'The same pool'], pools, al.pool), dbxStr(al.pool), 'The pool it comes off then'));
-        dbxCap(b, 'Times'); b.appendChild(dbxNum('sys-dmgr-amult', al.mult, 'Its multiplier then. Unset is the type’s own', ''));
-        b.appendChild(dbxTick('sys-dmgr-anowear', al.noWear, 'Wears nothing', 'Ticked: then it wears no armour'));
-        tw.appendChild(b);
+        [dbxObj(y.alt) ? y.alt : {}].concat(dbxObj(y.alt) && Array.isArray(y.alts) ? y.alts : []).forEach(function(al, ak) {   // 1.6.2 (the CORE session): Instead, if, and Or else, if after it, the first that holds
+            var b = el('div', 'sys-flags sys-dmgr-alt'); b.dataset.ai = String(ak);
+            dbxCap(b, ak ? 'Or else, if' : 'Instead, if');
+            var ai = input('sys-dmgr-aif field', dbxStr(al.if), ak ? 'Where the ones above do not hold and this does, the three after it take the place of the type’s own' : 'Where this holds for the character, the three after it take the place of the type’s own', 'e.g. Droid'); ai.maxLength = LIMITS.formula; b.appendChild(ai);
+            b.appendChild(select('sys-dmgr-apool', dbxOpts(['', 'The same pool'], pools, al.pool), dbxStr(al.pool), 'The pool it comes off then'));
+            dbxCap(b, 'Times'); b.appendChild(dbxNum('sys-dmgr-amult', al.mult, 'Its multiplier then. Unset is the type’s own', ''));
+            b.appendChild(dbxTick('sys-dmgr-anowear', al.noWear, 'Wears nothing', 'Ticked: then it wears no armour'));
+            if (ak) b.appendChild(dbxBtn('dmgraltdel', '×', 'Remove this alternative'));
+            tw.appendChild(b);
+        });
+        if (dbxObj(y.alt) && y.alt.if && (Array.isArray(y.alts) ? y.alts.length : 0) < 3) tw.appendChild(dbxBtn('dmgraltnew', '+ Or else, if', 'Another case, asked where Instead, if does not hold, such as a vehicle\u2019s hull. The first that holds wins'));
         var dr = el('div', 'sys-flags sys-dmgr-die');   // 1.6.0: its figures a die, read with the dice the blow rolled
         dbxCap(dr, 'A die adds');
         DBX_DIE.forEach(function(g) { dbxCap(dr, g[2]); var n = dbxNum(g[0], y[g[1]], g[3], '0'); n.min = String(g[4]); dr.appendChild(n); });
@@ -12163,7 +12167,7 @@ function onDamageInput(t) {
         else if (dbxHas(c, 'sys-dmgr-ylabel')) dbxSet(y, 'label', txt.slice(0, LIMITS.label));
         else if (dbxHas(c, 'sys-dmgr-ymult')) dbxSet(y, 'mult', dbxNumOf(t));
         else if (dbxHas(c, 'sys-dmgr-yvital')) dbxSet(y, 'vital', dbxNumOf(t));
-        else { var al = dbxObj(y.alt) ? y.alt : (y.alt = {}); if (dbxHas(c, 'sys-dmgr-aif')) dbxSet(al, 'if', txt.trim() ? txt : ''); else dbxSet(al, 'mult', dbxNumOf(t)); if (!Object.keys(al).length) delete y.alt; }
+        else { var al = dbxAltOf(y, t); if (!al) return true; if (dbxHas(c, 'sys-dmgr-aif')) dbxSet(al, 'if', txt.trim() ? txt : ''); else dbxSet(al, 'mult', dbxNumOf(t)); dbxAltTidy(y); }
     } else if (dbxHas(c, 'sys-dmgr-lat')) { var l = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!l) return true; dbxSet(l, 'at', txt.trim() ? txt : ''); }
     else if (dbxHas(c, 'sys-dmgr-wdur')) { var w = dbxRow(t, 'sys-dmgr-weapon', 'wi', 'weapons'); if (!w) return true; dbxSet(w, 'dur', txt.trim() ? txt : ''); }
     else return true;   // a select or a tick: its change event does the work
@@ -12194,7 +12198,7 @@ function onDamageChange(t) {
             var k = t.dataset && typeof t.dataset.k === 'string' ? t.dataset.k : ''; if (!k) return true;
             var pl = (Array.isArray(y.plus) ? y.plus : []).filter(function(x) { return typeof x === 'string' && x.toLowerCase() !== k.toLowerCase(); }); if (on) pl.push(k);
             if (pl.length) y.plus = pl; else delete y.plus;
-        } else { var al = dbxObj(y.alt) ? y.alt : (y.alt = {}); if (dbxHas(c, 'sys-dmgr-apool')) dbxSet(al, 'pool', v); else dbxSet(al, 'noWear', on); if (!Object.keys(al).length) delete y.alt; }
+        } else { var al = dbxAltOf(y, t); if (!al) return true; if (dbxHas(c, 'sys-dmgr-apool')) dbxSet(al, 'pool', v); else dbxSet(al, 'noWear', on); dbxAltTidy(y); }
     } else if (dbxHas(c, 'sys-dmgr-llist') || dbxHas(c, 'sys-dmgr-lwear')) {
         var l = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!l) return true;
         if (dbxHas(c, 'sys-dmgr-llist')) { if (l.list !== v) { delete l.wear; delete l.wears; delete l.typed; } dbxSet(l, 'list', v); redraw = true; } else dbxSet(l, 'wear', v);
@@ -12221,7 +12225,17 @@ function onDamageChange(t) {
     } else return true;   // a text box: its input event did the work
     markDirty(); if (redraw) renderAll(); else patchErrors(); return true;
 }
+// 1.6.2 (the CORE session): which alternative a row of Instead, if stands for (0 the first, y.alt; n, y.alts[n - 1]), made where it is the first; and an
+// empty first takes the rest with it, an empty later one goes
+function dbxAltOf(y, t) { var r = t && t.closest ? t.closest('.sys-dmgr-alt') : null, k = r && r.dataset ? Number(r.dataset.ai) : 0; if (!(k >= 0) || Math.floor(k) !== k) return null; if (!k) return dbxObj(y.alt) ? y.alt : (y.alt = {}); return Array.isArray(y.alts) && dbxObj(y.alts[k - 1]) ? y.alts[k - 1] : null; }
+function dbxAltTidy(y) { if (dbxObj(y.alt) && !Object.keys(y.alt).length) delete y.alt; if (!dbxObj(y.alt)) delete y.alts; }
 function damageClick(b) {
+    var mT = /^dmgralt(new|del)$/.exec(b.dataset && b.dataset.act || ''); if (mT) {
+        var yT = dbxRow(b, 'sys-dmgr-type', 'yi', 'types'); if (!yT) return true;
+        if (mT[1] === 'new') { var lT = Array.isArray(yT.alts) ? yT.alts : (yT.alts = []); if (lT.length >= 3) { toast('At most 3 more alternatives.'); return true; } lT.push({}); }
+        else { var rT = b.closest ? b.closest('.sys-dmgr-alt') : null, kT = rT ? Number(rT.dataset.ai) : 0; if (kT >= 1 && Array.isArray(yT.alts)) { yT.alts.splice(kT - 1, 1); if (!yT.alts.length) delete yT.alts; } }
+        markDirty(); renderAll(); return true;
+    }
     var mA = /^dmgrmj(add|del)$/.exec(b.dataset && b.dataset.act || ''); if (mA) {   // 1.6.0: onMajor's rows
         var dA = dbxDraft(), rA = majRowsOf(dA.onMajor);
         if (mA[1] === 'add') { if (rA.length >= DBX_LIM.onMajor) { toast('At most ' + DBX_LIM.onMajor + ' rows of a Major Wound.'); return true; } if (!rA.length) rA.push({}); rA.push({}); }
@@ -12334,6 +12348,7 @@ function damageSays(d, sys, Fx) {
             if (!cy.alt) say(nm + ': Instead, if needs a formula Save can keep, so Save drops what it changes.');
             else { if (typeof y.alt.pool === 'string' && y.alt.pool && !cy.alt.pool) say(nm + ': the pool for Instead, if is gone, so Save drops it.'); if (y.alt.mult !== undefined && cy.alt.mult === undefined) say(nm + ': the multiplier for Instead, if is no number, so Save drops it.'); reads(y.alt.if, nm + ', Instead, if'); }
         }
+        if (Array.isArray(y.alts)) y.alts.forEach(function(x, xk) { if (!dbxObj(x) || !Object.keys(x).length) return; var cx = cy.alts && cy.alts.filter(function(z) { return z.if === x.if; })[0]; if (!cx) say(nm + ': Or else, if ' + (xk + 2) + ' needs a formula Save can keep, beside an Instead, if, so Save drops it.'); else reads(x.if, nm + ', Or else, if'); });   // 1.6.2
     });
     var kSeen = Object.create(null), kKept = 0;   // 1.6.0: the kinds of blow, as the cleaner reads them
     (Array.isArray(d.kinds) ? d.kinds : []).forEach(function(y, i) {

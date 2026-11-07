@@ -1412,7 +1412,10 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
       var clientView = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
       var ids = (state.selWbIds && state.selWbIds.length) ? state.selWbIds : (state.selWbId ? [state.selWbId] : []);
       var its = ids.map(function(id) { return am.whiteboard.find(function(x) { return x.id === id; }); }).filter(Boolean);
-      if (clientView || state.viewMode !== 'visual' || !its.length || window.isDrawingMode || window.isEraserMode) {
+      var selBarOff = (function() { try { return localStorage.getItem('wp_selBar') === 'off'; } catch (e) { return false; } })();   // 1.6.2: Settings' Bar over a selected piece
+      bar.classList.toggle('st-folded', (function() { try { return localStorage.getItem('wp_selBarFold') === '1'; } catch (e) { return false; } })());   // and its own fold, this computer's
+      if (selBarOff && !clientView && state.viewMode === 'visual' && its.length && !window.isDrawingMode && !window.isEraserMode) { bar.style.display = 'none'; var e1 = its.length === 1 && its[0].isChar && !its[0].waiting ? its[0] : null; sightSync(e1 && sightPref() && window.wpFog && window.wpFog.canOutline && window.wpFog.canOutline() ? e1.id : null); return; }   // the bar away, its sight outline still kept
+      if (clientView || selBarOff || state.viewMode !== 'visual' || !its.length || window.isDrawingMode || window.isEraserMode) {
           bar.style.display = 'none';
           sightSync(null);
           return;
@@ -1890,6 +1893,7 @@ window.wpFitToGrid = fitToGrid;
           var btn = e.target.closest('[data-st]');
           if (!btn) return;
           var act = btn.dataset.st;
+          if (act === 'fold') { var fo = !bar.classList.contains('st-folded'); try { if (fo) localStorage.setItem('wp_selBarFold', '1'); else localStorage.removeItem('wp_selBarFold'); } catch (e2) {} var amF = getActiveMap(); if (amF) updateSelToolbar(amF); return; }   // 1.6.2: the bar folds to one small button and back
           var its = selToolbarItems();
           if (!its.length) return;
           if (act === 'sheet') { if (its.length === 1 && its[0].charId && window.wpSheets && window.wpSheets.canOpen(its[0].charId)) window.wpSheets.openSheet(its[0].charId); return; }

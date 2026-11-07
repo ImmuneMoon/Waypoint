@@ -13920,6 +13920,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
           check('1.6.0 Major Wound is called: a system\'s own word, kept trimmed in both views and read by majorWords alone, stands in the damage lines in place of A Major Wound, and with none the words are as ever',
             clW.majorWord === 'Crippling Blow' && plW.majorWord === 'Crippling Blow' && S.majorWords(clW) === 'Crippling Blow' && S.majorWords({}) === 'A Major Wound' && S.majorWords(null) === 'A Major Wound' && S.majorWords({ majorWord: 3 }) === 'A Major Wound'
             && mwL.info.major === true && mwL.lines.includes('Crippling Blow.') && !mwL.lines.includes('A Major Wound.') && d1.lines.includes('A Major Wound.'), j([clW, plW, mwL.lines])); }
+        {   // 1.6.2 (the CORE session): Instead, if and up to three more cases after it, the first that holds winning (ion on a droid, and on a hull)
+            const mkA = () => { const r = mkD(); r.fields.push({ id: 'f_hull', key: 'Hull', label: 'Hull', kind: 'toggle', vis: 'all', edit: 'gm' }); const ion = r.combat.damage.types.find(y => y.key === 'ion'); ion.alts = [{ if: 'Hull', pool: 'f_hp', mult: 2 }, { if: '', pool: 'f_hp' }, 'x', { if: 'Hull', pool: 'f_nope', mult: 3 }, { if: 'Hull' }, { if: 'Hull' }]; r.combat.damage.types.find(y => y.key === 'stun').alts = [{ if: 'Hull', pool: 'f_hp' }]; return r; };
+            const sA = cleanSystem(mkA(), { F, gmView: true }), ionA = sA.combat.damage.types.find(y => y.key === 'ion'), stunA = sA.combat.damage.types.find(y => y.key === 'stun');
+            const hull = () => { const c = chD(); c.values.f_hull = true; return c; }, hA = DS(sA, hull(), { amt: 8, type: 'ion', loc: 'w_body' }, F), nA = DS(sA, chD(), { amt: 8, type: 'ion', loc: 'w_body' }, F);
+            check('1.6.2 Or else, if: a damage type keeps up to three more cases after its Instead, if (one with no formula, no object, and past three left out; a pool that is gone dropped from its case), none beside a type with no Instead, if; the damage step takes the first that holds (a hull takes ion to Hit Points at twice, the type\'s own pool where none holds)',
+                ionA.alts && ionA.alts.length === 3 && j(ionA.alts[0]) === j({ if: 'Hull', pool: 'f_hp', mult: 2 }) && !('pool' in ionA.alts[1]) && !('alts' in stunA)
+                && hA.ok && 'f_hp' in hA.values && !('f_ep' in hA.values) && nA.ok && 'f_ep' in nA.values && !('f_hp' in nA.values) && hA.info.wound === nA.info.through * 2, j([ionA, hA.info, nA.info]));
+        }
         // 1.6.0 (the core's armour rule, asked by the campaign build's session): a layer's own formulas for what a hit wears (systemcore layerStep)
         const lwMkW = o => { const s = mkD(); Object.assign(s.combat.damage.layers[0], o); return cleanSystem(s, { F, gmView: true }); };
         const lwSysW = lwMkW({ majorWear: 'ceil(Listed / 2)', brokenWear: '2', brokenMajorWear: 'ceil(Row.drBody / 3) + 1' });

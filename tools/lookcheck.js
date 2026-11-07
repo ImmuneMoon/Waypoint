@@ -737,7 +737,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         swSrc.length > 500 && J(got) === J([false, '{"wp_zoomCtl":"off"}', false, '{"wp_zoomCtl":"off","wp_pointerPos":"off"}', true, '{"wp_zoomCtl":"on","wp_pointerPos":"off"}', false, false, true, true, true, '{"wp_zoomCtl":"on","wp_pointerPos":"on","wp_rulers":"on"}'])
         && J(W.said) === J(['Zoom buttons hidden.', 'Pointer location hidden.', 'Zoom buttons shown.', 'Rulers hidden.', 'Rulers shown.', 'Pointer location shown.'])
         && J(W.did) === J(['corner', 'panel', 'corner', 'panel', 'corner', 'panel', 'render', 'panel', 'render', 'panel', 'corner', 'panel']) && J(W.ls.log) === J(['wp_zoomCtl', 'wp_pointerPos', 'wp_zoomCtl', 'wp_rulers', 'wp_rulers', 'wp_pointerPos'])
-        && J(W.api.VIEW_SWITCHES) === J({ rulers: ['wp_rulers', 'Rulers'], zoom: ['wp_zoomCtl', 'Zoom buttons'], pointer: ['wp_pointerPos', 'Pointer location'] }), W.err || J([got, W.said, W.did]));
+        && J(W.api.VIEW_SWITCHES) === J({ rulers: ['wp_rulers', 'Rulers'], zoom: ['wp_zoomCtl', 'Zoom buttons'], pointer: ['wp_pointerPos', 'Pointer location'], selbar: ['wp_selBar', 'The bar over a selected piece'] }) /* 1.6.2: and the bar over a selected piece (moved on purpose) */, W.err || J([got, W.said, W.did]));
     const X = world(), odd = ['nothing', '__proto__', 'toString', 'constructor', 'hasOwnProperty', '', undefined, null, 5, {}, ['zoom']].map(n => X.api ? X.api.viewSwitch(n) : 0);
     const F = world({ full: true }), D = world({ deaf: true }), H = world({ have: { wp_zoomCtl: 'off', wp_pointerPos: 'OFF', wp_rulers: 'hidden' } });
     const shownOf = w => ['rulers', 'zoom', 'pointer', 'nope', '__proto__'].map(n => w.win.wpViewShown(n));
@@ -754,7 +754,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         cornerSrc.length > 300 && J(cg) === J(['|function', 'no-zoomctl|function', 'no-pointerpos|function', 'no-pointerpos no-zoomctl|function', '|function', '|function', '|function'])
         && mainSrc.includes('  // [lookcheck:corner-end]\n  applyCorner();\n') && count(mainSrc, 'applyCorner();') === 1
         && setSrc.includes("    applyGridOpacity();\n    if (window.wpApplyCorner) window.wpApplyCorner();   // 107: the zoom buttons and the pointer location are back at once\n"), J(cg));
-    const tb = count(setSrc, "[['setRulersBtn', 'rulers'], ['setZoomCtlBtn', 'zoom'], ['setPointerPosBtn', 'pointer']].forEach(function(r) { var b = ui(r[0]); if (b) b.addEventListener('click', function() { viewSwitch(r[1]); }); });\n");
+    const tb = count(setSrc, "[['setRulersBtn', 'rulers'], ['setZoomCtlBtn', 'zoom'], ['setPointerPosBtn', 'pointer'], ['setSelBarBtn', 'selbar']].forEach(function(r) { var b = ui(r[0]); if (b) b.addEventListener('click', function() { viewSwitch(r[1]); }); });\n");
     const GREY = '<div style="font-size:10.5px; color:var(--dim); line-height:1.4;">', row = (label, state, id, btn, grey) => '        <div class="set-sw-row" style="margin-bottom:8px;">\n            <div class="set-field-label" style="display:flex; justify-content:space-between;">' + label + ' <span id="' + state + '" style="color:var(--dim);"></span></div>\n'
         + '            <button class="tool ghost set-sw" id="' + id + '" role="switch" aria-checked="false">' + btn + '</button>\n            ' + GREY + grey + '</div>\n        </div>\n';
     check('Settings, On my screen has the three switches in a row each (1.6.2, backlog 171: a switch at the row\'s right, moved on purpose), the rulers as before and the two new ones under it: its name, how it stands, its button, and a grey line that says what it is; each button presses the one function, no other code writes the three keys, and the row\'s word follows the key',
@@ -3856,6 +3856,14 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         && inS.includes("if (typeof inspDress === 'function') inspDress(panel);") && inS.includes("&& d.dataset.was === undefined) _inspFold[d.dataset.fold] = d.open === true; }, true);")
         && ix.includes('<input type="search" id="propFind" placeholder="Find a setting"') && ix.includes('<span id="propKind" class="ly-map"></span>') && css.includes('.insp-part[open] > summary .insp-says { display: none; }') && css.includes('#inspector .insp-miss { display: none !important; }')
         && ix.includes('<li><b>Properties</b> floats over the map.'));
+}
+{   // 1.6.2 (the owner, of the bar over a selected piece: "Both"; and "all of the options it provides need to be present somewhere")
+    const inS = read('scripts/inspector.js');
+    check('the bar over a selected piece folds to one small button and opens again (this computer\'s wp_selBarFold), and Settings\' Bar over a selected piece puts it away by the one view switch; with it away the sight outline still follows, and Properties offers that outline too, so every command of the bar has another home',
+        ix.includes('<button data-st="fold" class="st-fold"') && wbSrc.includes("if (act === 'fold') { var fo = !bar.classList.contains('st-folded');") && css.includes('#selToolbar.st-folded > :not(.st-fold) { display: none !important; }')
+        && ix.includes('id="setSelBarBtn"') && ix.includes('Bar over a selected piece <span id="setSelBarState"') && wbSrc.includes("if (clientView || selBarOff || state.viewMode !== 'visual'") && wbSrc.includes("sightSync(e1 && sightPref() && window.wpFog && window.wpFog.canOutline && window.wpFog.canOutline() ? e1.id : null); return; }")
+        && inS.includes('id="wbSightOutline"') && inS.includes("localStorage.setItem('wp_sightOutline', this.checked ? 'on' : 'off'); } catch (e) {} render(); });")
+        && ix.includes('folds to one small button with the arrow at its end'));
 }
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

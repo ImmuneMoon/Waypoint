@@ -1165,6 +1165,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                   return lightFieldHtml(w, L, lightPresetsNow());
               })() : '')+
               (w.isChar && !w.waiting && window.wpCanPersistLocal && window.wpCanPersistLocal() ? sensesFieldHtml(w, activeMap) : '')+   // senses S2b: the system's senses, as this token has them
+              (w.isChar && !w.waiting && window.wpFog && window.wpFog.canOutline && window.wpFog.canOutline() ? '<div class="field check-row"><input type="checkbox" id="wbSightOutline"' + ((function() { try { return localStorage.getItem('wp_sightOutline') === 'on'; } catch (e) { return false; } })() ? ' checked' : '') + '> <label for="wbSightOutline" title="An outline around the area this token sees, on your screen alone. The same switch as the eye on the bar over a selected piece">Show what it sees</label></div>' : '')+   // 1.6.2: the bar's eye, here too, so nothing is lost with the bar away
               (w.isChar && !w.waiting && window.wpCanPersistLocal && window.wpCanPersistLocal() ? barsFieldHtml(w) : '')+   // backlog 28: its bars
               (['rect','hexagon','circle','diamond','image'].indexOf(w.type) >= 0 && !w.isChar && !w.waiting && !w.gmNoteFor && window.wpCanPersistLocal && window.wpCanPersistLocal() ? nullsFieldHtml(w) : '')+   // senses S7a: a null area (hidden or not)
               '</details>' +
@@ -1451,6 +1452,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbBT) _el_wbBT.addEventListener('change', function() { setTokenBlind(w, this.checked); });   // senses S3: the GM's Blind tick
             var _el_wbLK = document.getElementById('wbLightLock');
             if (_el_wbLK) _el_wbLK.addEventListener('change', function() { if (this.checked) w.lightLock = true; else delete w.lightLock; save(); });
+            var _el_wbSight = document.getElementById('wbSightOutline'); if (_el_wbSight) _el_wbSight.addEventListener('change', function() { try { localStorage.setItem('wp_sightOutline', this.checked ? 'on' : 'off'); } catch (e) {} render(); });   // 1.6.2: the sight outline, as the bar's eye
             var _el_wbFogged = document.getElementById('wbFogged');
             if(_el_wbFogged) _el_wbFogged.addEventListener('change', function() {
                 if (this.checked) w.fogged = true; else delete w.fogged;   // marks this item as a play area — fog is confined to the union of such items' footprints

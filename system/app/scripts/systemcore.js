@@ -2177,6 +2177,7 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
             var pls = []; if (out.locs) (Array.isArray(y.plus) ? y.plus : []).forEach(function(k) { var n = dmgNameOk(fl, out.locs.list, k); if (n && pls.indexOf(n) < 0 && pls.length < DMG_LIM.plus) pls.push(n); }); if (pls.length) o.plus = pls;
             if (y.noDr === true) o.noDr = true;
             if (isObj(y.alt)) { var ai = cleanFormulaText(y.alt.if); if (ai) { var al = { if: ai }; if (isPool(y.alt.pool)) al.pool = y.alt.pool; if (typeof y.alt.mult === 'number' && fin(y.alt.mult)) al.mult = dmgNum(y.alt.mult, 0, DMG_LIM.mult, 1); if (y.alt.noWear === true) al.noWear = true; o.alt = al; } }
+            if (o.alt && Array.isArray(y.alts)) { var als = []; y.alts.slice(0, 8).forEach(function(x) { if (als.length >= 3 || !isObj(x)) return; var xi = cleanFormulaText(x.if); if (!xi) return; var xa = { if: xi }; if (isPool(x.pool)) xa.pool = x.pool; if (typeof x.mult === 'number' && fin(x.mult)) xa.mult = dmgNum(x.mult, 0, DMG_LIM.mult, 1); if (x.noWear === true) xa.noWear = true; als.push(xa); }); if (als.length) o.alts = als; }   // 1.6.2 (the CORE session): more alternatives, the first that holds wins (ion on a droid, and on a hull)
             if (y.noWear === true) o.noWear = true;
             if (y.cuts === true) o.cuts = true;
             var ywf = cleanFormulaText(y.woundF); if (ywf) o.woundF = ywf; else if (y.byMult === true) o.byMult = true;   // 1.6.2: its own wound formula, or its multiplier in place of the system's
@@ -2367,7 +2368,8 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
     var kindL = Array.isArray(rules.kinds) ? rules.kinds : [], kindOf = function(k) { var o = null; kindL.forEach(function(y) { if (!o && isObj(y) && typeof k === 'string' && lower(y.key) === lower(k)) o = y; }); return o; };   // 1.6.0: the blow's kind, read by its place (Blow.kind)
     var kd = kindOf(inp.kind); if (inp.kind && !kd) return { ok: false, reason: 'value' };
     var pool = (ty && ty.pool) || rules.pool || (sys.combat.hpResource || ''), mult = ty ? (typeof ty.mult === 'number' ? ty.mult : 1) : 1, noWear = !!(ty && ty.noWear);
-    if (ty && ty.alt && yes(ev(ty.alt.if, R))) { if (ty.alt.pool) pool = ty.alt.pool; if (typeof ty.alt.mult === 'number') mult = ty.alt.mult; noWear = ty.alt.noWear === true; }
+    var altOf = function(t) { var l = t && t.alt ? [t.alt].concat(Array.isArray(t.alts) ? t.alts : []) : []; for (var i = 0; i < l.length; i++) if (l[i] && yes(ev(l[i].if, R))) return l[i]; return null; };   // 1.6.2: Instead, if, and the alternatives after it, the first that holds
+    var a1 = altOf(ty); if (a1) { if (a1.pool) pool = a1.pool; if (typeof a1.mult === 'number') mult = a1.mult; noWear = a1.noWear === true; }
     var pf = pool ? fieldById(sys, pool) : null; if (!pf || pf.kind !== 'resource') return { ok: false, reason: 'field' };
     var twos = [];   // 1.6.0 (B3): each added part, its own type, pool, multiplier, armour divisor and dice, in slot order (none: empty)
     for (var pi2 = 0; pi2 < pIn.length; pi2++) {
@@ -2377,7 +2379,7 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
         var kd2 = kindOf(p2.kind); if (p2.kind && !kd2) return { ok: false, reason: 'value' };   // 1.6.0: its own kind, else the first part's
         two = { amt: Math.floor(p2.amt), ad: typeof p2.ad === 'number' && fin(p2.ad) && p2.ad > 0 ? clampNum(p2.ad, 0.1, 100) : 1, dice: typeof p2.dice === 'number' && fin(p2.dice) && p2.dice > 0 ? Math.min(DMG_LIM.dice, Math.floor(p2.dice)) : 0, ty: ty2,
             pool: (ty2 && ty2.pool) || rules.pool || (sys.combat.hpResource || ''), mult: ty2 ? (typeof ty2.mult === 'number' ? ty2.mult : 1) : 1, noWear: !!(ty2 && ty2.noWear) };
-        if (ty2 && ty2.alt && yes(ev(ty2.alt.if, R))) { if (ty2.alt.pool) two.pool = ty2.alt.pool; if (typeof ty2.alt.mult === 'number') two.mult = ty2.alt.mult; two.noWear = ty2.alt.noWear === true; }
+        var a2 = altOf(ty2); if (a2) { if (a2.pool) two.pool = a2.pool; if (typeof a2.mult === 'number') two.mult = a2.mult; two.noWear = a2.noWear === true; }
         two.pf = two.pool ? fieldById(sys, two.pool) : null; if (!two.pf || two.pf.kind !== 'resource') return { ok: false, reason: 'field' };
         two.k = pIn[pi2].k; two.kd = kd2 || kd; twos.push(two);
     }

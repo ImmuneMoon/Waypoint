@@ -805,7 +805,8 @@
                           <li><b>Order</b> opens <b>Bring to front</b>, <b>Bring forward</b>, <b>Send backward</b> and <b>Send to back</b>: five stacking layers for building scenes.</li>
                           <li>The <b>Opacity</b> slider adjusts the transparency of anything already on the board.</li>
                           <li>Select several items by dragging a box around them, then <b>Group</b> them or <b>Merge drawings</b>.</li>
-                          <li><b>Properties</b> floats over the map. Move it by its title, where the piece&rsquo;s kind stands beside the word Properties. A shut fold says what it holds, such as Blocks sight. Where a piece has many folds, <b>Find a setting</b> shows only the settings whose words match.</li>
+                          <li>The bar of buttons over a selected piece folds to one small button with the arrow at its end, and opens again from it. <b>Bar over a selected piece</b> in Settings puts it away altogether. Its commands are on the right-click menu too.</li>
+                                  <li><b>Properties</b> floats over the map. Move it by its title, where the piece&rsquo;s kind stands beside the word Properties. A shut fold says what it holds, such as Blocks sight. Where a piece has many folds, <b>Find a setting</b> shows only the settings whose words match.</li>
                                   <li><b>Layers</b> in the toolbar&rsquo;s More menu lists this map&rsquo;s pieces, front to back, in a window titled with the map&rsquo;s name. A group and a flattened picture hold their pieces under them, and fold. Click a piece to find it, and rename, hide or move it up or down a layer there.</li>
                                   <li><b>Flatten into one picture</b> draws two pieces or more into one picture saved with this campaign. It is on their right-click, and in Build&rsquo;s options. Players then load one picture, not many. The plain pieces are hidden. Pieces with rules, such as walls, doors and cover, are drawn in and kept as invisible pieces, or left out, as you choose. <b>Unflatten</b> on the picture&rsquo;s right-click puts the pieces back.</li>
                           <li><b>Save to Campaign Cast</b>, on a character token, keeps a copy of it in the campaign&rsquo;s cast. Right-click the play map &#9656; <b><i class="wib wi-starf"></i> Campaign Cast</b> and click a member to place a copy there, or its <b>&times;5</b> for five. The cast is a folder of the Image Library too.</li>
@@ -2720,7 +2721,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>An attack that lands as a Big Hit passes it on to the damage roll it calls for. That damage is then a Major Wound whatever its size, if any of it gets through. Its formulas read <code>Blow.big</code> as 1.</li>
                                   <li><b>its failure cripples</b> picks a number stat of the hit locations. Where that roll fails, the location hit gets how far it failed, at least 1. A formula can then read 1 or more as crippled, and 5 or more as severed.</li>
                                   <li>The box beside it, <b>by</b>, writes a formula&rsquo;s number instead. It reads <code>Margin</code>, how far the roll failed, <code>Natural</code>, its bare total, and the blow&rsquo;s <code>Blow.</code> names. So <code>if(Natural = 18, max(5, Margin), Margin)</code> marks a natural 18 as severed. 0 or below writes nothing.</li>
-                                  <li>Each damage type has a key, a name and its multipliers. It can ignore DR, come off another pool, wear nothing or cut. <b>Instead, if</b> gives it another pool and multiplier where a formula holds, as for ion on a droid. A system holds up to 320 types.</li>
+                                  <li>Each damage type has a key, a name and its multipliers. It can ignore DR, come off another pool, wear nothing or cut. <b>Instead, if</b> gives it another pool and multiplier where a formula holds, as for ion on a droid. <b>+ Or else, if</b> adds up to three more cases, such as a vehicle&rsquo;s hull, and the first that holds wins. A system holds up to 320 types.</li>
                                   <li><b>Kinds of blow</b> name how a blow reaches its target, apart from what it does to them. A system names up to 80, each with a key and a name. None comes with the app.</li>
                                   <li><b>What wears</b> lists armour or clothing. Where a hit gets through it loses 1 of its figure, or a quarter on a Major Wound.</li>
                                   <li>A layer can say what it wears by formula. <b>Wears on a hit</b> replaces the 1, and <b>Wears on a Major Wound</b> replaces the quarter. <b>Once broken</b> sets what a hit and a Major Wound wear after its figure there is used up. Each reads Row, Hit, Listed and Worn.</li>
@@ -3865,6 +3866,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div class="st-sep"></div>
                 <button data-st="dup" class="st-dup" title="Duplicate — a full copy, settings and data included (Ctrl+D)"><i class="wib wi-dup"></i></button>
                 <button data-st="del" title="Delete" style="color:var(--red);"><i class="wib wi-bin"></i></button>
+                <button data-st="fold" class="st-fold" title="Fold this bar to one small button, so it covers less of the map. Press it again to open the bar">&#9666;</button>
             </div>
             <svg id="tagLayer"></svg>
             <svg id="measureLayer"></svg>
@@ -4473,6 +4475,11 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div class="set-field-label" style="display:flex; justify-content:space-between;">Pointer location <span id="setPointerPosState" style="color:var(--dim);"></span></div>
             <button class="tool ghost set-sw" id="setPointerPosBtn" role="switch" aria-checked="false">Toggle Pointer Location</button>
             <div style="font-size:10.5px; color:var(--dim); line-height:1.4;">Where the pointer is on the map, shown at the top right.</div>
+        </div>
+        <div class="set-sw-row" style="margin-bottom:8px;">
+            <div class="set-field-label" style="display:flex; justify-content:space-between;">Bar over a selected piece <span id="setSelBarState" style="color:var(--dim);"></span></div>
+            <button class="tool ghost set-sw" id="setSelBarBtn" role="switch" aria-checked="false">Toggle the Bar</button>
+            <div style="font-size:10.5px; color:var(--dim); line-height:1.4;">The row of buttons over what you select on the play map. Its commands are on the right-click menu too.</div>
         </div>
         <div style="margin-bottom:14px;">
             <div class="set-field-label" style="display:flex; justify-content:space-between;">Grid opacity <span id="setGridOpacityVal" style="color:var(--dim);"></span></div>

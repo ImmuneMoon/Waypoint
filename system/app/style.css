@@ -3151,6 +3151,12 @@
   #trkStrip .trk-who { height: 24px; padding: 0 8px; border-radius: 13px; background: var(--panel2); box-shadow: 0 2px 6px rgba(0,0,0,0.35); }
   #trkStrip.trk-bar { gap: 0; background: var(--panel2); border: 1px solid var(--edge); border-radius: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.35); overflow: hidden; }   /* backlog 217: one joined bar, its parts parted by thin lines */
   #trkStrip.trk-bar > * { min-height: 26px; height: auto; margin: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+  #trkStrip.trk-bar { flex-wrap: nowrap; align-items: stretch; } #trkStrip.trk-bar > :not(.trk-list) { flex: none; white-space: nowrap; display: inline-flex; align-items: center; }   /* the bar's controls stay on one line; only the trackers wrap */
+  #trkStrip.trk-bar .trk-list { display: flex; flex-wrap: wrap; flex: 0 0 auto; align-items: stretch; }
+  #trkStrip.trk-bar.trk-two { flex-wrap: wrap; } #trkStrip.trk-bar.trk-two .trk-list { order: 9; flex: 1 1 100%; border-left: 0; border-top: 1px solid var(--edge); }   /* trackers.js fitBar: too long for one line, the trackers go under the controls */
+  #trkStrip.trk-bar .trk-list > .trk-pill { min-height: 26px; border: 0; border-radius: 0; background: transparent; box-shadow: 0 1px 0 var(--edge); }   /* a tracker on a line below is parted from the one above */
+  #trkStrip.trk-bar .trk-list > .trk-pill + .trk-pill { border-left: 1px solid var(--edge); }
+  #trkStrip.trk-bar .trk-list > .trk-pill.trk-done { box-shadow: inset 0 0 0 2px rgba(224,165,79,0.55); }
   #trkStrip.trk-bar > * + * { border-left: 1px solid var(--edge); }
   #trkStrip.trk-bar .trk-lab { display: inline-flex; align-items: center; padding: 0 9px; color: var(--dim); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; }
   #trkStrip.trk-bar .trk-fold, #trkStrip.trk-bar .trk-who, #trkStrip.trk-bar .trk-add { padding: 0 10px; font-size: 12px; }

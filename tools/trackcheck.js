@@ -202,7 +202,7 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
         const trkB = readU('scripts/trackers.js'), cssB = readU('style.css');
         check('backlog 217 (the owner: "One joined bar"): the strip is one bar named Trackers on every screen but the stream window, the fold, the name, the trackers, + Add and Who sees its parts, parted by thin lines; the ids the GM presses stay, and Help and both release notes say it',
             trkB.includes("box.classList.toggle('trk-bar', !tv);") && trkB.includes("lb.className = 'trk-lab'; lb.textContent = 'Trackers';") && trkB.includes("btn('trk-pill trk-add', '+ Add', ") && trkB.includes("a.id = 'trkAdd'") && trkB.includes("wb.id = 'trkWho'") && trkB.includes("f.id = 'trkFold'")
-            && cssB.includes('#trkStrip.trk-bar { gap: 0; background: var(--panel2);') && cssB.includes('#trkStrip.trk-bar > * + * { border-left: 1px solid var(--edge); }')
+            && cssB.includes('#trkStrip.trk-bar { gap: 0; background: var(--panel2);') && cssB.includes('#trkStrip.trk-bar > * + * { border-left: 1px solid var(--edge); }') && trkB.includes("if (box.querySelector('.trk-list') && box.scrollWidth > box.clientWidth + 1) box.classList.add('trk-two');") && trkB.includes("into.className = 'trk-list';") && cssB.includes('#trkStrip.trk-bar.trk-two .trk-list { order: 9; flex: 1 1 100%;')
             && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => readRoot(f).includes('- The table trackers stand in one bar named Trackers')));
         check('CI runs this suite', ci.includes('run: node tools/trackcheck.js'));
     }

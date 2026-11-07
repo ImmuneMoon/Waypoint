@@ -248,6 +248,11 @@ function focusKey(b) {
     if (d.trkmenu) return q('trkmenu', d.trkmenu);
     return '';
 }
+// backlog 217: the bar on one line where it fits; where it does not, the trackers stand on a line of their own under the bar's controls
+function fitBar(box) {
+    if (!box || !box.classList || !box.classList.contains('trk-bar')) return; box.classList.remove('trk-two');
+    if (box.querySelector('.trk-list') && box.scrollWidth > box.clientWidth + 1) box.classList.add('trk-two');
+}
 function draw(force) {
     var box = strip(), T = TK(); if (!box || !T) return;
     var n = net(), camp = campNow(), gm = gmHand(n, window), on = featOn(), play = onPlay() && !!camp && on, list = play ? shownList() : [], now = Date.now();
@@ -257,16 +262,19 @@ function draw(force) {
     var tv = !!(n && n.stream), folded = !tv && foldOn(), sig = JSON.stringify([gm, folded, gm ? T.cleanHide(camp.trkHide).length : 0, list.map(function(t) { var c = Object.assign({}, t); if (c.kind === 'timer') { c.left = c.run === true ? -1 : c.left; delete c.end; } return c; }), T.LIMITS.list]);
     if (box.style.display === 'none') box.style.display = '';
     place(box);   // beside the minimap, or in its place, and clear of the zoom box
+    if (!force && sig === _sig) fitBar(box);
     if (force || sig !== _sig) {
         var had = document.activeElement && box.contains(document.activeElement) ? focusKey(document.activeElement) : '';   // a press from the keyboard keeps its place when the strip is drawn again
         _sig = sig; box.textContent = ''; box.classList.toggle('trk-bar', !tv);   // backlog 217 (the owner, 2026-11-07, by prompt: "One joined bar"): the fold, the bar's name, the trackers and the GM's two buttons read as one thing
         if (!tv) { var f = btn('trk-fold', folded ? (list.length ? 'Trackers · ' + list.length : 'Trackers') : '◂', folded ? 'Show the trackers' : 'Put the trackers away on this screen'); f.id = 'trkFold'; f.setAttribute('aria-expanded', folded ? 'false' : 'true'); box.appendChild(f); }   // the stream window, the party's screen, has no fold: it shares this computer's storage with the GM's window
         if (!folded) {
             if (!tv) { var lb = document.createElement('span'); lb.className = 'trk-lab'; lb.textContent = 'Trackers'; box.appendChild(lb); }
-            list.forEach(function(t) { box.appendChild(pill(t, gm, camp, now)); });
+            var into = box; if (!tv && list.length) { into = document.createElement('span'); into.className = 'trk-list'; box.appendChild(into); }   // backlog 217 (the owner: "this doesnt wrap well"): in the bar the trackers wrap in a part of their own, the bar's controls staying on one line
+            list.forEach(function(t) { into.appendChild(pill(t, gm, camp, now)); });
             if (gm) { var a = btn('trk-pill trk-add', '+ Add', 'Add a counter, a countdown or a clock to this map or every map'); a.id = 'trkAdd'; if (ownList(camp).length >= T.LIMITS.list) a.disabled = true; box.appendChild(a); }
             if (gm) { var hN = T.cleanHide(camp.trkHide).length, wb = btn('trk-btn trk-who', hN ? 'Who sees · ' + hN + ' hidden' : 'Who sees', 'Keep the trackers from chosen players'); wb.id = 'trkWho'; wb.setAttribute('aria-haspopup', 'true'); box.appendChild(wb); }
         }
+        fitBar(box);
         if (had) { var back = box.querySelector(had); if (back) back.focus(); }
         return;
     }

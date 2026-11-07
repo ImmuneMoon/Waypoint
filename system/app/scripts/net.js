@@ -5696,6 +5696,14 @@ function jobPress(S, camp, ch, ref, ent, vars, F, round, label, saved) {
     if (st.done) return '';
     var nm = String(label || ent.label || 'The job').split('{')[0].trim().slice(0, 60) || 'The job'; return nm + ': ' + st.n + ' of ' + st.of + '.';
 }
+// 1.6.2 (the CORE session): a list's ACTION may be a job too. The GM's own press, from sheets.js applyAction: '' to go on to its changes, else the words to say, the count moved
+// where it was short of its turns. Its needs are judged first, so a press that could never land counts nothing
+net.jobGo = function(camp, ch, ref, ent, vars, F, label) {
+    var S = typeof SC === 'function' ? SC() : null; if (!S || !camp || !camp.system || !ch || !ref || !ent || !ent.job || typeof S.jobStep !== 'function') return '';
+    var rd = jobRound(camp, ch.id), bar = S.jobBar(ch, ref, ent, vars, F, rd); if (bar) return bar;
+    if (ent.needs && typeof S.rollNeedsOk === 'function' && !S.rollNeedsOk(ent, vars, F)) return S.rollNeedsSays(ent);
+    return jobPress(S, camp, ch, ref, ent, vars, F, rd, label, function() { if (typeof save === 'function') save(true); });
+};
 function turnJobEnd(mapId, c, row, round) {
     if (typeof SC !== 'function' || typeof fxCombatChars !== 'function' || net.role === 'client') return;   // asked through typeof: a suite runs a turn's end alone
     var camp = getActiveCampaign(), S = SC(); if (!camp || !camp.system || !S || typeof S.jobsEnd !== 'function') return;
@@ -8816,9 +8824,16 @@ function handleMessage(msg, conn) {
         if (qa.ask && !Array.isArray(actA.asks)) { denyA('error', 'That asks nothing.'); return; }
         var askedA = null; if (Array.isArray(actA.asks)) { var ajA = Sa.askJudge(viewA, actA, qa.ask, varsA, Fa); if (ajA.error) { denyA('error', ajA.error); return; } varsA = Sa.withAsk(varsA, ajA); askedA = ajA.said; }   // 1.6.2: what they answered, read as Ask.<key>
         var rowGA = typeof rowOnGm === 'function' ? rowOnGm(Sa, campA, viewA, qa.row) : qa.row, offA = typeof offTurnBar === 'function' ? offTurnBar(campA, chA, qa.act, rowGA, actA.label) : ''; if (offA) { denyA('error', offA); return; }   // 1.6.0: off their turn, by the system's rule
+        var jobA = actA.job && qa.row && typeof Sa.jobStep === 'function', costDoneA = false;   // 1.6.2 (the CORE session): a list's action that is a job, judged and counted before its changes, which only its last press makes
+        if (jobA) {
+            var jrA = typeof jobRound === 'function' ? jobRound(campA, chA.id) : null, jbA = Sa.jobBar(chA, qa.row, actA, varsA, Fa, jrA); if (jbA) { denyA('error', jbA); return; }
+            if (actA.needs && !Sa.rollNeedsOk(actA, varsA, Fa)) { denyA('error', Sa.rollNeedsSays(actA)); return; }
+            var cjA = typeof actSpend === 'function' ? actSpend(campA, qa.charId, profA, actA.cost, conn, chA.name, false, actA.costN) : ''; if (cjA) { denyA('error', cjA); return; } if (typeof clockPress === 'function') clockPress(campA, qa.charId, actA); costDoneA = true;
+            var jsA = jobPress(Sa, campA, chA, qa.row, actA, varsA, Fa, jrA, qa.label, saveRemoteSoon); if (jsA) { denyA('error', jsA); return; }
+        }
         var resA = Sa.applyAct(campA.system, chA, actA, varsA, Fa, tcA, qa.row ? { f: qa.row.f, r: qa.row.r } : null, undefined, window.wpDiceCore || null, onA ? { char: onA.ch, tctx: typeof allyCtx === 'function' ? allyCtx(mapA, onA.tok) : null } : null, typeof fxNow === 'function' ? fxNow(qa.charId, onA) : null);   // R2b: a list's action may move its row's counters; 1.5.9: the host's dice roll a Rolled amount (never the player's word); and its changes land on the one it is used on
         if (!resA.ok) { denyA(resA.reason, resA.message); return; }
-        var costA = typeof actSpend === 'function' ? actSpend(campA, qa.charId, profA, actA.cost, conn, chA.name, false, actA.costN) : ''; if (costA) { denyA('error', costA); return; } if (typeof clockPress === 'function') clockPress(campA, qa.charId, actA);   // 1.6.2 (G10)   // turn-based combat T4: what it costs (worked out first: a press that cannot land spends nothing)
+        var costA = costDoneA ? '' : typeof actSpend === 'function' ? actSpend(campA, qa.charId, profA, actA.cost, conn, chA.name, false, actA.costN) : ''; if (costA) { denyA('error', costA); return; } if (!costDoneA && typeof clockPress === 'function') clockPress(campA, qa.charId, actA);   // 1.6.2 (G10)   // turn-based combat T4: what it costs (worked out first: a press that cannot land spends nothing)
         if (typeof offTurnWarn === 'function') offTurnWarn(campA, chA, qa.act, rowGA, actA.label, conn);   // 1.6.0: nothing refused it, so a warning is said
         if (resA && Array.isArray(resA.fitSays) && resA.fitSays.length && typeof toast === 'function') toast('A part no longer fits. ' + resA.fitSays[0]);   // 1.6.0 Fits where, judged again: the GM is told
         var ownA = !onA || Object.keys(resA.values).length > 0;   // 1.5.9: a press that moved only the one it was used on writes nothing of the user's

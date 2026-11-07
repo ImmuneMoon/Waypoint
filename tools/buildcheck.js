@@ -5040,7 +5040,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         check('cell labels: the canvas lies over the map\'s view as the rulers do, under the fog of war as the grid is, and takes no press; the stream window keeps it where it keeps the grid; main.js asks for the labels at every scroll, zoom and resize of the view before the rulers\' own way out; the board asks at every redraw, once the grid is set; the slice writes no markup, and is wired once',
             cssL.includes('\n  #cellLabels { position: absolute; top: 0; left: 0; z-index: 3940; pointer-events: none; display: none; }') && /\n  #fogScreen \{ position: fixed; z-index: 3950;/.test(cssL) && !/stream-mode[^{]*#cellLabels/.test(cssL)
             && mainL.includes('    function renderRulers() {\n        if (window.wpCellLabels) window.wpCellLabels();') && mainL.split('window.wpCellLabels').length === 3
-            && wbL.includes("      if (mapGrid !== state.gridType) applyGridType(mapGrid);\n      if (typeof cellLabelsSync === 'function') cellLabelsSync();")
+            && wbL.includes("applyGridType(mapGrid);   // backlog 38: a map's own cell draws its grid again too\n      if (typeof cellLabelsSync === 'function') cellLabelsSync();")
             && wbL.split('cellLabelsWire();').length === 2 && wbL.includes('  // [buildcheck:celllabels-end]\n  cellLabelsWire();\n') && !/innerHTML|insertAdjacentHTML|outerHTML|document\.write/.test(labSrc));
         const NOTE_L = "- On the play map, a hex grid can name its cells. Cell labels, in the\n  Grid menu, shows each cell's column letter and row number, as A1.\n  Label opacity sets how strongly they show. Both are kept with the\n  map, and everyone at the table sees them.\n";
         check('cell labels said: Help\'s Grids part tells what they are, where to press, that they are kept with the map and seen by the table, how a cell is named and when they hide; both release notes carry the same lines',
@@ -5158,6 +5158,24 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
           check('the map\'s picture draws a trimmed picture cut to its kept cells, as the board does, and an untrimmed one call for call as before',
             dS.includes('var tr = item.trim ? trimPolys(item.trim, w, h) : [];') && dS.includes('ctx.clip(); }') && dS.includes('if (tr.length) ctx.restore();') && /import \{[^}]*trimPolys[^}]*\} from '\.\/fogcore\.js';/.test(shS) && typeof SH === 'object'); }
         check('Trim to cells is said in Help and both release notes', ixT.includes('<b>Trim to cells</b>') && [read('WHATSNEW.txt'), read('system/app/assets/whatsnew.txt')].every(t => t.includes('Trim to cells')));
+    }
+
+    {   // 1.6.2, backlog 38 fold 3: a map with its own cell draws its grid as one SVG pattern (whiteboard.js gridOwnDraw)
+        const wbG = read('system/app/scripts/whiteboard.js'), gS = wbG.slice(wbG.indexOf('  // [lookcheck:cellgrid-start]'), wbG.indexOf('  // [lookcheck:cellgrid-end]'));
+        const htS = wbG.slice(wbG.indexOf('  function hexTilePaths() {'), wbG.indexOf('  function hexBgCss('));
+        const FCg = await import(url('fogcore.js') + '?grid');
+        const mkEl = (n) => { const e = { n: n, at: {}, kids: [], style: {}, dataset: {}, setAttribute(k, v) { this.at[k] = v; }, getAttribute(k) { return this.at[k]; }, appendChild(c) { this.kids.push(c); return c; }, remove() { this.gone = true; }, querySelector() { return null; } }; return e; };
+        const doc = { createElementNS: (ns, n) => mkEl(n) };
+        const G = new Function('window', 'document', "'use strict';" + NL + htS + NL + gS + NL + 'return { gridOwnCell: gridOwnCell, gridCellSig: gridCellSig, gridTileLines: gridTileLines, gridOwnDraw: gridOwnDraw };')({ wpFogCore: FCg }, doc);
+        const ov = mkEl('div'), drew = G.gridOwnDraw(ov, 'hex', { size: 104, ox: 20, oy: 10 }, 0.55), svg = ov.kids[0], pat = svg && svg.kids[0].kids[0];
+        const sqT = G.gridTileLines('square', 70), hxT = G.gridTileLines('hex', 52);
+        const ov2 = mkEl('div'), none = G.gridOwnDraw(ov2, 'square', null, 0.55);
+        check('a map with its own cell draws its grid as one SVG pattern from the lattice\'s origin (no drift at any size), with today\'s dark and light strokes; a hex tile is today\'s scaled by the row over 52, a square\'s its four sides; today\'s lattice keeps its background, and the overlay is drawn again when the cell changes',
+            drew === true && svg.at.class === 'grid-own' && pat.n === 'pattern' && pat.at.width === '180' && pat.at.height === '104' && pat.at.x === '20' && pat.at.y === '10' && pat.at.patternUnits === 'userSpaceOnUse'
+            && pat.kids.length === 2 && pat.kids[0].at['stroke-width'] === '3' && pat.kids[1].at['stroke-width'] === '1.2' && ov.style.backgroundImage === 'none' && ov.dataset.cellSig === 'hex:104:20:10'
+            && sqT.w === 70 && sqT.lines.length === 4 && hxT.w === 90 && hxT.h === 52 && hxT.lines.length > 6 && none === false && ov2.dataset.cellSig === ''
+            && G.gridCellSig({ meta: { cell: { size: 50 } } }, 'square') === '' && G.gridCellSig({ meta: { cell: { size: 70, ox: 5 } } }, 'square') === 'square:70:5:0'
+            && wbG.includes("if (mapGrid !== state.gridType || (ovG && (ovG.dataset.cellSig || '') !== gridCellSig(activeMap, mapGrid))) applyGridType(mapGrid);") && (wbG.match(/gridOwnDraw\(overlay, type, /g) || []).length === 4, JSON.stringify([pat && pat.at, sqT.w, hxT.lines.length]));
     }
 
     summed = true;

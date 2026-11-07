@@ -459,7 +459,8 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
       var mapGrid = (activeMap.meta && activeMap.meta.gridType) || 'off';
 
-      if (mapGrid !== state.gridType) applyGridType(mapGrid);
+      var ovG = document.getElementById('gridOverlay');
+      if (mapGrid !== state.gridType || (ovG && (ovG.dataset.cellSig || '') !== gridCellSig(activeMap, mapGrid))) applyGridType(mapGrid);   // backlog 38: a map's own cell draws its grid again too
       if (typeof cellLabelsSync === 'function') cellLabelsSync();   // backlog 34: the Grid menu's Cell labels and the labels themselves follow the map on screen
 
       // Placed rulers are per-scene: clear them when the map changes
@@ -9665,6 +9666,41 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
 
   // zooms with the content, always layered above the items.
 
+  // [lookcheck:cellgrid-start]
+  // 1.6.2 (backlog 38, a map's own cell size): a map's own cell as fogcore keeps it, null for today's lattice (a 50 px square, a hex of 52 px
+  // rows, from the board's 0,0), and the text that says which, so the overlay is drawn again when it changes
+  function gridOwnCell(map, type) { var FC = window.wpFogCore; return map && map.meta && FC && typeof FC.cleanMapCell === 'function' ? FC.cleanMapCell(map.meta.cell, type) : null; }
+  function gridCellSig(map, type) { var c = gridOwnCell(map, type); return c ? type + ':' + c.size + ':' + (c.ox || 0) + ':' + (c.oy || 0) : ''; }
+  // The lines of one tile of a map's own lattice, in board px from the tile's corner: a hex tile is today's 90 by 52 tile scaled by its row
+  // over 52 (fogcore keeps a hex's half-width at 30/52 of its row), a square's its four sides
+  function gridTileLines(type, size) {
+      if (type === 'square') return { w: size, h: size, lines: [[0, 0, size, 0], [0, 0, 0, size], [0, size, size, size], [size, 0, size, size]] };
+      var k = size / 52, out = [], re = /M (-?[\d.]+) (-?[\d.]+) L (-?[\d.]+) (-?[\d.]+)/g, m, src = hexTilePaths();
+      while ((m = re.exec(src))) out.push([+m[1] * k, +m[2] * k, +m[3] * k, +m[4] * k]);
+      return { w: 90 * k, h: 52 * k, lines: out };
+  }
+  // The overlay of a map with its own cell: one SVG pattern of the tile, in board px and from the lattice's origin, which a browser draws at
+  // any size with no drift (a repeated background is tiled at whole pixels); the same dark and light strokes as today's grid. Taken away
+  // for today's lattice, which keeps its background
+  function gridOwnDraw(overlay, type, cell, alpha) {
+      var old = overlay.querySelector(':scope > svg.grid-own');
+      if (!cell) { if (old) old.remove(); overlay.dataset.cellSig = ''; return false; }
+      var NS = 'http://www.w3.org/2000/svg', t = gridTileLines(type, cell.size), mk = function(n, at) { var e = document.createElementNS(NS, n); Object.keys(at).forEach(function(k) { e.setAttribute(k, String(at[k])); }); return e; };
+      var svg = mk('svg', { class: 'grid-own', width: '100%', height: '100%' }), defs = mk('defs', {}), pat = mk('pattern', { id: 'wpGridOwn', patternUnits: 'userSpaceOnUse', x: cell.ox || 0, y: cell.oy || 0, width: t.w, height: t.h });
+      [['rgba(0,0,0,' + alpha + ')', 3], ['rgba(255,255,255,' + alpha + ')', 1.2]].forEach(function(st) {
+          var g = mk('g', { stroke: st[0], 'stroke-width': st[1], fill: 'none' });
+          t.lines.forEach(function(l) { g.appendChild(mk('path', { d: 'M ' + l[0] + ' ' + l[1] + ' L ' + l[2] + ' ' + l[3] })); });
+          pat.appendChild(g);
+      });
+      defs.appendChild(pat); svg.appendChild(defs); svg.appendChild(mk('rect', { width: '100%', height: '100%', fill: 'url(#wpGridOwn)' }));
+      svg.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible';
+      if (old) old.remove();
+      overlay.appendChild(svg);
+      overlay.style.backgroundImage = 'none';
+      overlay.dataset.cellSig = type + ':' + cell.size + ':' + (cell.ox || 0) + ':' + (cell.oy || 0);
+      return true;
+  }
+  // [lookcheck:cellgrid-end]
   function applyGridType(type) {
 
       var overlay = document.getElementById('gridOverlay');
@@ -9701,6 +9737,7 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
           overlay.style.backgroundPosition = '0 -1.5px, -1.5px 0, 0 -0.5px, -0.5px 0';
 
           overlay.style.display = 'block';
+          gridOwnDraw(overlay, type, gridOwnCell(getActiveMap(), type), alpha);   // a map's own cell (backlog 38): its pattern in place of the background
 
       } else if (type === 'hex') {
 
@@ -9711,12 +9748,14 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
           overlay.style.backgroundPosition = '0 0';
 
           overlay.style.display = 'block';
+          gridOwnDraw(overlay, type, gridOwnCell(getActiveMap(), type), alpha);
 
       } else {
 
           type = 'off';
 
           overlay.style.display = 'none';
+          gridOwnDraw(overlay, type, null, alpha);
 
       }
 

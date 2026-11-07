@@ -1308,11 +1308,14 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
   // A failed save was said only in the row's saved note, which is out of sight while the row is hidden (the owed review, 2026-10-09): it is
   // said in a notice too, once when saving begins to fail, and again only after a save has gone through in between
   var _saveFailSaid = false, _saveFailAt = 0, SAVE_FAIL_AGAIN = 60000, _saveSeq = 0;   // ... and once a minute while it goes on failing: a notice is on screen for three seconds
+  var _saveLimit = 0;   // 1.6.2: when a website's day of uploads is renewed, where the last save was refused for it
   function saveFailed(bad) {
       if (!bad) { if (_saveFailSaid) toast('Saving works again. The campaign is on the disk.'); _saveFailSaid = false; return; }
       var nowF = Date.now();
       if (_saveFailSaid && nowF - _saveFailAt < SAVE_FAIL_AGAIN) return;
-      _saveFailSaid = true; _saveFailAt = nowF; toast('Saving failed. The campaign is not reaching the disk.');
+      _saveFailSaid = true; _saveFailAt = nowF;
+      if (_saveLimit > 0) { var dL = new Date(_saveLimit); toast('Today’s saves to the website are used up, so changes are not kept. Saving starts again at ' + dL.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' on ' + dL.toLocaleDateString() + '.'); return; }
+      toast('Saving failed. The campaign is not reaching the disk.');
   }
   function save(immediate) {
     if (window.__wpNoSave) return;   // a snapshot is being restored: the in-memory copy must not win
@@ -1363,6 +1366,8 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
 
         .then(res => {
 
+            if (res.status === 429) return res.json().then(function(j) { _saveLimit = j && j.error === 'daily-upload' && j.resetsAt > 0 ? j.resetsAt : 0; saveNote.innerHTML = 'Error saving.'; }, function() { _saveLimit = 0; saveNote.innerHTML = 'Error saving.'; });   // 1.6.2: a GM's page on the website whose day of uploads is used up (website 1.0.9)
+            _saveLimit = 0;
             if(res.ok) saveNote.innerHTML = 'Saved to disk <b>&#10003;</b>';
 
             else saveNote.innerHTML = 'Error saving.';

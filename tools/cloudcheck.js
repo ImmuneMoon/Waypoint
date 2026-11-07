@@ -25,6 +25,8 @@ function makeSite() {
         if ((opt.headers || {}).Authorization !== 'Bearer ' + KEY) return reply(401, { error: 'unlinked' });
         const hd = head();
         if (u.pathname === '/api/cloud' && m === 'GET') return reply(200, { plan: S.plan, readOnly: S.readOnly, quota: S.quota, used: 10, head: hd ? { rev: hd.rev, at: 1, by: hd.device, data: hd.data, size: 1 } : null });
+        if (u.pathname === '/api/cloud/prepare' && S.fail.daily) return reply(429, { error: 'daily-upload', resetsAt: S.fail.daily });
+        if (u.pathname === '/api/cloud/fetch' && S.fail.monthly) return reply(429, { error: 'monthly-download', resetsAt: S.fail.monthly });
         if (u.pathname === '/api/cloud/prepare') return reply(200, { missing: body.files.filter(f => !S.blobs[f.hash]).map(f => ({ hash: f.hash, url: BASE + '/blob/' + f.hash, headers: { 'Content-Type': 'application/octet-stream', 'x-goog-content-length-range': f.size + ',' + f.size, Host: 'evil' }, expires: 1 })) });
         if (u.pathname === '/api/cloud/commit') {
             if (S.readOnly) return reply(402, { error: 'plan' });
@@ -105,6 +107,19 @@ const mk = (dir, S, now) => CS.makeHandler({ savesDir: dir, base: BASE, fetch: S
     await H.sync('page', false); S.readOnly = true; fs.writeFileSync(path.join(dir, 'data.json'), '{"v":"ro"}');
     const ro = await H.sync('page', false); S.readOnly = false;
     check('with no plan (read only) nothing is sent and the state says why', ro.did === 'error' && ro.error === 'plan', J(ro));
+    // website 1.0.9's two allowances: a day's uploads and a month's downloads, each told apart from the rate limit by its error, with when it is renewed
+    const RES = Date.UTC(2026, 10, 8); S.fail.daily = RES; fs.writeFileSync(path.join(dir, 'images', 'm1', 'e.png'), 'PNG-E');
+    const dl = await H.sync('page', false), ds = JSON.parse(await route(H, 'GET', '/api/cloud')); S.fail.daily = 0;
+    const pushed = await H.sync('page', false); S.other({ 'data.json': '{"v":7}', 'images/m1/f.png': 'PNG-F' }); S.fail.monthly = RES + 1;
+    const ml = await H.sync('page', false), ms = JSON.parse(await route(H, 'GET', '/api/cloud')); S.fail.monthly = 0; const fNow = fs.existsSync(path.join(dir, 'images', 'm1', 'f.png')), after = await H.sync('page', false);
+    check('a day\'s uploads used up (429 daily-upload) and a month\'s downloads used up (429 monthly-download) are said as such, with when each is renewed, and nothing is written; the next sync once it is renewed goes through',
+        dl.did === 'error' && dl.error === 'daily' && ds.error === 'daily' && ds.resetsAt === RES && pushed.did === 'pushed' && ml.did === 'error' && ml.error === 'monthly' && ms.resetsAt === RES + 1 && !fNow && after.did === 'pulled',
+        J([dl, ds.error, ds.resetsAt, pushed, ml, ms.resetsAt, after]));
+    {   // a GM's page on the website: a save refused for a day's uploads says so, with when saving starts again
+        const ioS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'io.js'), 'utf8');
+        check('a GM\'s page on the website whose day of uploads is used up (429 daily-upload on POST /api/data) says so in the failed save\'s notice, with when saving starts again; any other failure says what it always did',
+            ioS.includes("_saveLimit = j && j.error === 'daily-upload' && j.resetsAt > 0 ? j.resetsAt : 0;") && ioS.includes("Saving starts again at ") && ioS.includes("toast('Saving failed. The campaign is not reaching the disk.');"));
+    }
     fs.unlinkSync(path.join(dir, 'account.json')); const ul = await H.sync('page', false), us = JSON.parse(await route(H, 'GET', '/api/cloud'));
     check('with no website account linked nothing is sent and the page is told so', ul.did === 'off' && us.linked === false, J([ul, us]));
 
@@ -120,7 +135,7 @@ const mk = (dir, S, now) => CS.makeHandler({ savesDir: dir, base: BASE, fetch: S
         check('the Profile window\'s Cloud saves part says each state in plain words (not linked, switched off, a conflict, busy, each failure, synced, not yet) and its usage; its switch, status, usage and Sync now are in the page, the module after the cell size\'s, and a snapshot asks the cloud to keep that version too',
             /Link this computer/.test(W.stateWords({ linked: false })) && /this computer only/.test(W.stateWords({ linked: true, on: false })) && /both changed/.test(W.stateWords({ linked: true, on: true, conflict: { head: {} } }))
             && /plan does not include/.test(W.stateWords({ linked: true, on: true, status: 'error', error: 'plan' })) && /did not arrive whole/.test(W.stateWords({ linked: true, on: true, status: 'error', error: 'download' })) && /^Synced at /.test(W.stateWords({ linked: true, on: true, status: 'idle', last: { at: 1 } })) && /Not synced yet/.test(W.stateWords({ linked: true, on: true, status: 'idle' }))
-            && W.usageWords({ linked: true, on: true, used: 2 * 1024 * 1024, quota: 5 * 1024 * 1024 * 1024 }) === '2 MB of 5 GB used.' && W.usageWords({ linked: true, on: false, used: 1, quota: 5 }) === '' && W.sizeWords(10) === '1 KB' && W.fromWords('waypoint-7f101e919d32') === 'another computer' && W.fromWords('Browser') === 'the website in a browser' && W.fromWords(undefined) === 'another computer'
+            && W.usageWords({ linked: true, on: true, used: 2 * 1024 * 1024, quota: 5 * 1024 * 1024 * 1024 }) === '2 MB of 5 GB used.' && W.usageWords({ linked: true, on: false, used: 1, quota: 5 }) === '' && W.sizeWords(10) === '1 KB' && /uploads are used up[^]* It starts again at /.test(W.stateWords({ linked: true, on: true, status: 'error', error: 'daily', resetsAt: Date.UTC(2026, 10, 8) })) && /downloads are used up/.test(W.stateWords({ linked: true, on: true, status: 'error', error: 'monthly' })) && W.fromWords('waypoint-7f101e919d32') === 'another computer' && W.fromWords('Browser') === 'the website in a browser' && W.fromWords(undefined) === 'another computer'
             && ['cloudPart', 'cloudOn', 'cloudStatus', 'cloudUsage', 'cloudSyncNow'].every(id => ixS.split('id="' + id + '"').length === 2) && ixS.includes('<script type="module" src="scripts/cellsize.js"></script>\n<script type="module" src="scripts/cloudui.js"></script>')
             && stS.includes("if (window.wpCloud && typeof window.wpCloud.backup === 'function') window.wpCloud.backup();") && uiS.includes("{ yes: 'Keep this computer\u2019s', alt: 'Use the cloud\u2019s', noEnter: true, noEscape: true }")
             && ixS.includes('<b>Cloud saves</b>') && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').includes('Keep my')));

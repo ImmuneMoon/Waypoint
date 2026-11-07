@@ -27,11 +27,13 @@ function stateWords(s) {
     if (!s.on) return 'Your save is kept on this computer only.';
     if (s.conflict) return 'This computer and the cloud both changed. Waypoint asks which to keep.';
     if (s.status === 'busy') return 'Syncing now.';
-    var why = { plan: 'Your plan does not include cloud saves, so nothing new is sent. What is in the cloud stays readable.', quota: 'The cloud is full. Nothing new is sent.', busy: 'The website is busy. Waypoint tries again later.', offline: 'The website could not be reached. Waypoint tries again later.', unlinked: 'This computer is no longer linked to your account.', download: 'A file from the cloud did not arrive whole, so nothing was changed. Try again.' };
-    if (s.status === 'error') return why[s.error] || 'The last sync did not finish. Waypoint tries again later.';
+    var why = { plan: 'Your plan does not include cloud saves, so nothing new is sent. What is in the cloud stays readable.', quota: 'The cloud is full. Nothing new is sent.', busy: 'The website is busy. Waypoint tries again later.', offline: 'The website could not be reached. Waypoint tries again later.', unlinked: 'This computer is no longer linked to your account.', download: 'A file from the cloud did not arrive whole, so nothing was changed. Try again.', daily: 'Today’s cloud uploads are used up, so nothing new is sent. Your save is kept on this computer as always.', monthly: 'This month’s cloud downloads are used up, so nothing was taken from the cloud. Your save here is as it was.' };
+    if (s.status === 'error') return (why[s.error] || 'The last sync did not finish. Waypoint tries again later.') + ((s.error === 'daily' || s.error === 'monthly') && s.resetsAt > 0 ? ' It starts again ' + whenWords(s.resetsAt) + '.' : '');
     var at = s.last && s.last.at ? new Date(s.last.at) : null;
     return at ? 'Synced at ' + at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' on ' + at.toLocaleDateString() + '.' : 'Not synced yet. Waypoint syncs on close, ten minutes after a change, and on Backup now.';
 }
+// When an allowance is renewed, in this computer's own time
+function whenWords(ms) { var d = new Date(ms); return 'at ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' on ' + d.toLocaleDateString(); }
 // Which computer a version came from, in words: an install's device id is no name (found live, 2026-11-07), the website's own is the browser
 function fromWords(by) { return by === 'Browser' ? 'the website in a browser' : 'another computer'; }
 function usageWords(s) { return s && s.linked && s.on && s.quota > 0 ? sizeWords(s.used) + ' of ' + sizeWords(s.quota) + ' used.' : ''; }

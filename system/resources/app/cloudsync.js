@@ -113,6 +113,13 @@ function makeHandler(cfg) {
         c.files = next;
         return data ? { data, files, list } : null;
     };
+    // The site's two allowances (website 1.0.9): 429 daily-upload from prepare and 429 monthly-download from fetch, each with resetsAt, the
+    // moment it is renewed. Told apart from the rate limit's 429 by error; the moment is kept for the page and the quiet sync waits for it
+    const limitOf = (r) => {
+        if (!r || r.status !== 429 || !isObj(r.json)) return '';
+        const e = r.json.error === 'daily-upload' ? 'daily' : r.json.error === 'monthly-download' ? 'monthly' : ''; if (!e) return '';
+        const at = r.json.resetsAt; st.resets = Number.isFinite(at) && at > 0 && at < 1e14 ? Math.floor(at) : 0; return e;
+    };
     const words = (status) => status === 401 ? 'unlinked' : status === 402 ? 'plan' : status === 413 ? 'quota' : status === 429 ? 'busy' : status === 0 ? 'offline' : 'site';
     // Upload what the site lacks and make the version: { rev } or { conflict: head } or { error }
     const push = async (key, c, m, baseRev, keep) => {
@@ -122,7 +129,7 @@ function makeHandler(cfg) {
         const upload = async (want) => {
             for (let i = 0; i < want.length; i += BATCH) {
                 const part = want.slice(i, i + BATCH), r = await site('POST', '/api/cloud/prepare', { files: part.map(h => ({ hash: h, size: bySize[blobs[h]] || 0 })) }, key);
-                if (r.status !== 200 || !isObj(r.json) || !Array.isArray(r.json.missing)) return words(r.status);
+                if (r.status !== 200 || !isObj(r.json) || !Array.isArray(r.json.missing)) return limitOf(r) || words(r.status);
                 for (const mm of r.json.missing) {
                     if (!isObj(mm) || !HASH_RE.test(mm.hash) || !blobs[mm.hash] || !linkOk(mm.url, base)) return 'site';
                     const bytes = fs.readFileSync(path.join(dir, blobs[mm.hash]));
@@ -150,7 +157,7 @@ function makeHandler(cfg) {
         const hashes = Object.keys(want), got = {};
         for (let i = 0; i < hashes.length; i += BATCH) {
             const f = await site('POST', '/api/cloud/fetch', { hashes: hashes.slice(i, i + BATCH) }, key);
-            if (f.status !== 200 || !isObj(f.json) || !isObj(f.json.urls)) return { error: words(f.status) };
+            if (f.status !== 200 || !isObj(f.json) || !isObj(f.json.urls)) return { error: limitOf(f) || words(f.status) };
             Object.keys(f.json.urls).forEach(h => { if (want[h] && linkOk(f.json.urls[h], base)) got[h] = f.json.urls[h]; });
         }
         if (Object.keys(got).length !== hashes.length) return { error: 'missing' };
@@ -229,6 +236,7 @@ function makeHandler(cfg) {
     // The quiet sync: once the newest file of the set is 10 minutes old and the set differs from what was last synced
     const tick = async () => {
         if (st.busy || st.conflict || !keyOf()) return;
+        if ((st.error === 'daily' || st.error === 'monthly') && st.resets && now() < st.resets) return;   // nothing is tried again before the allowance is renewed
         const c = confOf(); if (c.on !== true) return;
         const list = listSet(dir), sig = list.map(f => f.path + ':' + f.size + ':' + f.mtime).join('|'), newest = list.reduce((a, f) => Math.max(a, f.mtime), 0);
         if (sig === st.stat || now() - newest < QUIET_MS) return;
@@ -240,7 +248,7 @@ function makeHandler(cfg) {
     const body = (req, res, fn) => cfg.readBody(req, res, cfg.bodyCap, (text) => { let j = null; try { j = text ? JSON.parse(text) : {}; } catch (e) { return send(res, 400, { error: 'invalid json' }); } Promise.resolve().then(() => fn(isObj(j) ? j : {})).catch(() => { try { send(res, 500, { error: 'failed' }); } catch (e) {} }); });
     const state = async () => {
         const key = keyOf(), c = confOf(), out = { linked: !!key, on: c.on === true, status: st.status, last: isObj(c.last) ? { rev: c.last.rev, at: c.last.at } : null };
-        if (st.error) out.error = st.error; if (st.conflict) out.conflict = st.conflict;
+        if (st.error) out.error = st.error; if (st.conflict) out.conflict = st.conflict; if ((st.error === 'daily' || st.error === 'monthly') && st.resets) out.resetsAt = st.resets;
         if (key) { const r = await site('GET', '/api/cloud', undefined, key), cl = r.status === 200 ? cleanCloud(r.json) : null; if (cl) Object.assign(out, cl); else out.offline = true; }
         return out;
     };

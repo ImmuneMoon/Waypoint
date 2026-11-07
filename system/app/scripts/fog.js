@@ -8,6 +8,15 @@
    Sight range resolves from a campaign-mapped character-sheet field (camp.fog.fields.sight) via the formula engine,
    falling back to camp.fog.defaults.sight. Design of record: docs/FOG_OF_WAR_PLAN.md §13. */
 import { state } from './state.js';
+// [view:helpers-start]
+// 1.6.2 (backlog 82b, fold 1; the owner, 2026-11-07, by prompt: "In folds, starting now"): a pointer read on a map, in board pixels. Every reading
+// goes through these, so a view that turns has one place to undo its turn (window.wpView, the view module). cx, cy: the pointer on screen; r: the
+// wrap's box; w: the wrap that scrolls. Unturned they give exactly what the reading always gave. A drag's step goes through wbDX / wbDY
+function wbX(cx, cy, r, w) { var V = typeof window !== 'undefined' ? window.wpView : null; return V && V.turned && V.turned(w) ? V.bx(cx, cy, r, w) : (cx - r.left + w.scrollLeft) / state.zoomLevel; }
+function wbY(cx, cy, r, w) { var V = typeof window !== 'undefined' ? window.wpView : null; return V && V.turned && V.turned(w) ? V.by(cx, cy, r, w) : (cy - r.top + w.scrollTop) / state.zoomLevel; }
+function wbDX(dx, dy) { var V = typeof window !== 'undefined' ? window.wpView : null; return V && V.turned && V.turned() ? V.dx(dx, dy) : dx / state.zoomLevel; }
+function wbDY(dx, dy) { var V = typeof window !== 'undefined' ? window.wpView : null; return V && V.turned && V.turned() ? V.dy(dx, dy) : dy / state.zoomLevel; }
+// [view:helpers-end]
 import { getActiveMap, getActiveCampaign } from './models.js';
 
 var ui = function(id) { return document.getElementById(id); };
@@ -1805,7 +1814,7 @@ function drawMarks(ctx, s, marks, seenKeys, grid, now, still, held, edge) {   //
     w.addEventListener('pointermove', function(e) {
         var map = activeMap(), grid = map ? gridForMap(map) : null, C = core(); if (!grid || !C) { _markHover = null; return; }
         var r = w.getBoundingClientRect(), z = state.zoomLevel || 1;
-        var bx = (e.clientX - r.left + w.scrollLeft) / z, by = (e.clientY - r.top + w.scrollTop) / z, k = C.cellKey(C.cellOf(bx, by, grid), grid);
+        var bx = wbX(e.clientX, e.clientY, r, w), by = wbY(e.clientX, e.clientY, r, w), k = C.cellKey(C.cellOf(bx, by, grid), grid);
         if (k !== _markHover) _whySince = Date.now();   // 1.5.4: a word over a dark cell waits for the pointer to rest on it
         _markHover = k; _whyPt = { x: bx, y: by }; _whyHeld = e.buttons > 0;
     }, { passive: true });

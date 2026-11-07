@@ -3234,7 +3234,7 @@ pendingChecks.push((async () => {
         new Function('net', 'getActiveCampaign', 'sendFailed', bbSrc)(net, () => camp, e => { throw e; });
         const win = { wpNet: net, wpVtt: { on: () => true }, wpDice: { rollFor: (...a) => { out.rolls.push(JSON.parse(JSON.stringify(a))); return { ok: true, value: 7 }; } } };
         const api = new Function('window', 'document', 'toast', 'getActiveMap', 'getActiveCampaign', 'seatBlast', 'pushBlast', 'renderMeasures', 'syncBlastMenu', 'blastDistances', 'blastRadiusYd', 'applyBlastDamage', 'wbWrap', 'state',
-            'var _armedThrow = null;\n' + placeSrc + throwSrc + armSrc + '\nreturn { place: placeBlast };')(
+            require('./viewhelp.js').viewHelpers() + 'var _armedThrow = null;\n' + placeSrc + throwSrc + armSrc + '\nreturn { place: placeBlast };')(
             win, { body: { classList: { add() {}, remove() {} } }, getElementById: () => null }, () => {}, () => map, () => camp, () => {}, b => out.placed.push(JSON.parse(JSON.stringify(b))), () => {}, () => {}, () => [], () => 1,
             (b, total, hp) => out.applied.push([total, hp]), { getBoundingClientRect: () => ({ left: 0, top: 0 }), scrollLeft: 0, scrollTop: 0, style: {} }, { zoomLevel: 1 });
         win.wpArmBlast(10, name, ctx); api.place({ clientX: 120, clientY: 80 }); return out; };
@@ -3269,7 +3269,7 @@ pendingChecks.push((async () => {
         new Function('net', 'getActiveCampaign', 'sendFailed', bbSrc)(net, () => camp, e => { throw e; });
         const win = { wpNet: net, wpVtt: { on: () => true }, wpDice: { rollFor: () => ({ ok: true, value: 7 }) }, wpFog: { blastSeat: (m, x, y) => (noWall ? null : { x: x, y: y }) } };
         const api = new Function('window', 'document', 'toast', 'getActiveMap', 'getActiveCampaign', 'pushBlast', 'renderMeasures', 'syncBlastMenu', 'blastDistances', 'blastRadiusYd', 'applyBlastDamage', 'wbWrap', 'state', 'tokenElevation', 'groundAt', 'snapToHex', 'stanceOn', 'fmtElev', 'lenUnit', 'circleKept', 'circleWords', 'rulerUnitNow',
-            'var _armedThrow = null;\n' + tapSrc + seatSrc + placeSrc + throwSrc + armSrc + '\nreturn { place: placeBlast };')(
+            require('./viewhelp.js').viewHelpers() + 'var _armedThrow = null;\n' + tapSrc + seatSrc + placeSrc + throwSrc + armSrc + '\nreturn { place: placeBlast };')(
             win, { body: { classList: { add() {}, remove() {} } }, getElementById: () => null }, () => {}, () => map, () => camp, b => out.placed.push(JSON.parse(JSON.stringify(b))), () => {}, () => {}, () => [], () => 1,
             () => {}, { getBoundingClientRect: () => ({ left: 0, top: 0 }), scrollLeft: 0, scrollTop: 0, style: {} }, { zoomLevel: 1, gridType: 'square' }, real ? real.tokenElevation : t => Number(t.elevation) || 0, real ? real.groundAt : () => 0, null, () => true, v => String(v), () => 'yd', { yd: 4, as: 'r' }, () => 'Radius 4 yd', () => 'yd');
         if (thrown) win.wpArmBlast(10, 'Frag', { charId: 'c_n', fieldId: 'f_it', rowId: 'w_1', by: 'Nix', damage: '2d6' });

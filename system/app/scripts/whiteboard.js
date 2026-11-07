@@ -415,6 +415,15 @@ function fixEmbeddedImgs(el) {
 }
 
 import { state, dom } from './state.js';
+// [view:helpers-start]
+// 1.6.2 (backlog 82b, fold 1; the owner, 2026-11-07, by prompt: "In folds, starting now"): a pointer read on a map, in board pixels. Every reading
+// goes through these, so a view that turns has one place to undo its turn (window.wpView, the view module). cx, cy: the pointer on screen; r: the
+// wrap's box; w: the wrap that scrolls. Unturned they give exactly what the reading always gave. A drag's step goes through wbDX / wbDY
+function wbX(cx, cy, r, w) { var V = typeof window !== 'undefined' ? window.wpView : null; return V && V.turned && V.turned(w) ? V.bx(cx, cy, r, w) : (cx - r.left + w.scrollLeft) / state.zoomLevel; }
+function wbY(cx, cy, r, w) { var V = typeof window !== 'undefined' ? window.wpView : null; return V && V.turned && V.turned(w) ? V.by(cx, cy, r, w) : (cy - r.top + w.scrollTop) / state.zoomLevel; }
+function wbDX(dx, dy) { var V = typeof window !== 'undefined' ? window.wpView : null; return V && V.turned && V.turned() ? V.dx(dx, dy) : dx / state.zoomLevel; }
+function wbDY(dx, dy) { var V = typeof window !== 'undefined' ? window.wpView : null; return V && V.turned && V.turned() ? V.dy(dx, dy) : dy / state.zoomLevel; }
+// [view:helpers-end]
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, findLandingRoom, characterList, locateCharacter } from './models.js';
 
@@ -1884,8 +1893,8 @@ window.wpFitToGrid = fitToGrid;
 
           if (!isResizing) return;
 
-      var dx = (e.clientX - startX) / state.zoomLevel;
-      var dy = (e.clientY - startY) / state.zoomLevel;
+      var dx = wbDX(e.clientX - startX, e.clientY - startY);
+      var dy = wbDY(e.clientX - startX, e.clientY - startY);
       if (groupMembers) {
           // The handle sits on the selection's corner: dragging it scales the
           // whole box from its top-left, every member along with it.
@@ -2159,7 +2168,7 @@ window.wpFitToGrid = fitToGrid;
       var turning = null;
       function boardPt(e) {
           var wrap = document.getElementById('whiteboardWrap'); var b = wrap.getBoundingClientRect(); var z = state.zoomLevel || 1;
-          return { x: (e.clientX - b.left + wrap.scrollLeft) / z, y: (e.clientY - b.top + wrap.scrollTop) / z };
+          return { x: wbX(e.clientX, e.clientY, b, wrap), y: wbY(e.clientX, e.clientY, b, wrap) };
       }
       document.addEventListener('pointerdown', function(e) {
           if (e.button !== 0 || !e.target || !e.target.closest) return;
@@ -2221,9 +2230,9 @@ window.wpFitToGrid = fitToGrid;
 
           var wrapBox = document.getElementById('whiteboardWrap').getBoundingClientRect();
 
-          var mouseX = (e.clientX - wrapBox.left + document.getElementById('whiteboardWrap').scrollLeft) / state.zoomLevel;
+          var mouseX = wbX(e.clientX, e.clientY, wrapBox, document.getElementById('whiteboardWrap'));
 
-          var mouseY = (e.clientY - wrapBox.top + document.getElementById('whiteboardWrap').scrollTop) / state.zoomLevel;
+          var mouseY = wbY(e.clientX, e.clientY, wrapBox, document.getElementById('whiteboardWrap'));
 
           
 
@@ -2248,9 +2257,9 @@ window.wpFitToGrid = fitToGrid;
 
           var wrapBox = document.getElementById('whiteboardWrap').getBoundingClientRect();
 
-          var mouseX = (e.clientX - wrapBox.left + document.getElementById('whiteboardWrap').scrollLeft) / state.zoomLevel;
+          var mouseX = wbX(e.clientX, e.clientY, wrapBox, document.getElementById('whiteboardWrap'));
 
-          var mouseY = (e.clientY - wrapBox.top + document.getElementById('whiteboardWrap').scrollTop) / state.zoomLevel;
+          var mouseY = wbY(e.clientX, e.clientY, wrapBox, document.getElementById('whiteboardWrap'));
 
           
 
@@ -2646,7 +2655,7 @@ window.wpFitToGrid = fitToGrid;
       wbWrap.addEventListener('pointermove', function(e) {
           if (!window.isEraserMode) { if (_eraserCursor && _eraserCursor.style.display !== 'none') _eraserCursor.style.display = 'none'; return; }
           var box = wbWrap.getBoundingClientRect();
-          eraserCursorAt((e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel, (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel);
+          eraserCursorAt(wbX(e.clientX, e.clientY, box, wbWrap), wbY(e.clientX, e.clientY, box, wbWrap));
       });
       wbWrap.addEventListener('pointerleave', function() { if (_eraserCursor) _eraserCursor.style.display = 'none'; });
   }
@@ -2964,7 +2973,7 @@ window.wpFitToGrid = fitToGrid;
           var wr = wrap.getBoundingClientRect();
           if (e.clientX < wr.left || e.clientX > wr.right || e.clientY < wr.top || e.clientY > wr.bottom) return;
           var z = state.zoomLevel || 1;
-          bringKeyHere(d.key, (e.clientX - wr.left + wrap.scrollLeft) / z, (e.clientY - wr.top + wrap.scrollTop) / z);
+          bringKeyHere(d.key, wbX(e.clientX, e.clientY, wr, wrap), wbY(e.clientX, e.clientY, wr, wrap));
           strip.dataset.justDragged = '1'; setTimeout(function() { delete strip.dataset.justDragged; }, 300);
       });
       var menu = document.getElementById('partyMenu');
@@ -3305,7 +3314,7 @@ window.wpFitToGrid = fitToGrid;
   // A player's right-click near a drawing of their own to show, whose line takes no press on their screen: one row, Ask to put it on the map. true: the menu is up
   function showMineMenu(e) {
       var DS = window.wpDrawShow, cMenu = document.getElementById('contextMenu'), wrap = document.getElementById('whiteboardWrap'); if (!DS || !cMenu || !wrap) return false;
-      var box = wrap.getBoundingClientRect(), z = state.zoomLevel || 1, w = DS.mineAt((e.clientX - box.left + wrap.scrollLeft) / z, (e.clientY - box.top + wrap.scrollTop) / z); if (!w) return false;
+      var box = wrap.getBoundingClientRect(), z = state.zoomLevel || 1, w = DS.mineAt(wbX(e.clientX, e.clientY, box, wrap), wbY(e.clientX, e.clientY, box, wrap)); if (!w) return false;
       e.preventDefault();
       cMenu.onclick = null;   // as showStanceMenu: a machine that hosted earlier in this run still holds the GM's item menu's handler
       cMenu.innerHTML = '<div class="menu-item cm-show-ask" title="Asks your GM to put this drawing on the map itself. On a yes it becomes the GM&rsquo;s."><i class="wib wi-eye"></i> Ask to put it on the map</div>';
@@ -3415,8 +3424,8 @@ window.wpFitToGrid = fitToGrid;
 
   function eraseAt(clientX, clientY) {
       var box = wbWrap.getBoundingClientRect();
-      var x = (clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel;
-      var y = (clientY - box.top + wbWrap.scrollTop) / state.zoomLevel;
+      var x = wbX(clientX, clientY, box, wbWrap);
+      var y = wbY(clientX, clientY, box, wbWrap);
       // Interpolate from the previous sample so fast swipes don't skip over strokes
       if (lastErasePt) {
           var dist = Math.hypot(x - lastErasePt[0], y - lastErasePt[1]);
@@ -4119,9 +4128,9 @@ window.wpFitToGrid = fitToGrid;
 
       var box = wbWrap.getBoundingClientRect();
 
-      var x = (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel;
+      var x = wbX(e.clientX, e.clientY, box, wbWrap);
 
-      var y = (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel;
+      var y = wbY(e.clientX, e.clientY, box, wbWrap);
 
       return getSnapCoords(x, y);
 
@@ -4550,8 +4559,8 @@ window.wpFitToGrid = fitToGrid;
   function placeBlast(e) {
       var map = getActiveMap(); if (!map) return;
       var box = wbWrap.getBoundingClientRect();
-      var x = (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel;
-      var y = (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel;
+      var x = wbX(e.clientX, e.clientY, box, wbWrap);
+      var y = wbY(e.clientX, e.clientY, box, wbWrap);
       if (_armedThrow) {   // a throw from a character sheet: one-shot, host-authoritative, shared to the map
           var ctx = _armedThrow; _armedThrow = null; document.body.classList.remove('placing');
           if (ctx.stray) { if (typeof strayClick === 'function') strayClick(ctx.stray, x, y); var mvS = document.getElementById('moveModeBtn'); if (mvS) mvS.click(); return; }   // 1.6.0 A burst: the way a stray round lands
@@ -4585,7 +4594,7 @@ window.wpFitToGrid = fitToGrid;
       if (e.buttons === 0) { coneLetGo(); return; }   // the button was let go where no pointerup came, outside the window: the aim ends here
       if (!a.moved && Math.hypot(e.clientX - a.sx, e.clientY - a.sy) < 6) return;
       a.moved = true;
-      var box = wbWrap.getBoundingClientRect(), dx = (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel - b.x, dy = (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel - b.y;
+      var box = wbWrap.getBoundingClientRect(), dx = wbX(e.clientX, e.clientY, box, wbWrap) - b.x, dy = wbY(e.clientX, e.clientY, box, wbWrap) - b.y;
       if (Math.hypot(dx, dy) < 4) return;   // on the point itself there is no way to turn
       b.dir = Math.atan2(dy, dx); renderMeasures();
   }
@@ -5649,8 +5658,8 @@ window.wpFitToGrid = fitToGrid;
   function placeFx(e) {
       var map = getActiveMap(); if (!map || !_fxArm) { window.isMeasureMode = false; window.wpMeasureKind = 'ruler'; return; }
       var box = wbWrap.getBoundingClientRect();
-      var x = (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel;
-      var y = (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel;
+      var x = wbX(e.clientX, e.clientY, box, wbWrap);
+      var y = wbY(e.clientX, e.clientY, box, wbWrap);
       x = Math.max(0, Math.min(30000, x)); y = Math.max(0, Math.min(30000, y));
       var look = _fxArm.look, r = _fxArm.r; _fxArm = null; window.isMeasureMode = false; window.wpMeasureKind = 'ruler';
       if (window.wpFx) window.wpFx.placeBurst(x, y, look, r);
@@ -5663,7 +5672,7 @@ window.wpFitToGrid = fitToGrid;
           if (!e.altKey || e.button !== 0 || !window.wpFx || !window.wpFx.canPing()) return;
           if (window.wpMouse && typeof window.wpMouse.gesture === 'function' && window.wpMouse.gesture('ping') === 'ctrlalt' && !(e.ctrlKey || e.metaKey)) return;   // 1.6.2: the ping on Ctrl + Alt + click where the GM picked it
           var box = wbWrap.getBoundingClientRect();
-          var x = (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel, y = (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel;
+          var x = wbX(e.clientX, e.clientY, box, wbWrap), y = wbY(e.clientX, e.clientY, box, wbWrap);
           if (!(x >= 0 && x <= 30000 && y >= 0 && y <= 30000)) return;
           e.preventDefault(); e.stopImmediatePropagation(); _pingAlt = true;
           window.wpFx.ping(x, y);
@@ -5714,7 +5723,7 @@ window.wpFitToGrid = fitToGrid;
   };
   if (wbWrap) {
       var _fogPaintBtn = -1;
-      var _fogBoard = function(e) { var box = wbWrap.getBoundingClientRect(); return { x: (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel, y: (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel }; };
+      var _fogBoard = function(e) { var box = wbWrap.getBoundingClientRect(); return { x: wbX(e.clientX, e.clientY, box, wbWrap), y: wbY(e.clientX, e.clientY, box, wbWrap) }; };
       wbWrap.addEventListener('pointerdown', function(e) {
           if (!window.isFogMode || (e.button !== 0 && e.button !== 2)) return;
           var pt = _fogBoard(e);
@@ -5742,7 +5751,7 @@ window.wpFitToGrid = fitToGrid;
       state.selWbId = null; state.selWbIds = []; render();
   } });
   if (wbWrap) {
-      var _envBtn = -1, _envBoard = function(e) { var box = wbWrap.getBoundingClientRect(); return { x: (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel, y: (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel }; };
+      var _envBtn = -1, _envBoard = function(e) { var box = wbWrap.getBoundingClientRect(); return { x: wbX(e.clientX, e.clientY, box, wbWrap), y: wbY(e.clientX, e.clientY, box, wbWrap) }; };
       wbWrap.addEventListener('pointerdown', function(e) { if (!window.isEnvMode || e.button !== 0 || !window.wpEnvTool) return; var pt = _envBoard(e); _envBtn = 0; window.wpEnvTool.strokeStart(pt.x, pt.y); e.preventDefault(); });
       wbWrap.addEventListener('pointermove', function(e) { if (!window.isEnvMode || _envBtn < 0 || !window.wpEnvTool) return; var pt = _envBoard(e); window.wpEnvTool.strokeMove(pt.x, pt.y); });
       document.addEventListener('pointerup', function() { if (_envBtn >= 0 && window.wpEnvTool) window.wpEnvTool.strokeEnd(); _envBtn = -1; });
@@ -6119,7 +6128,7 @@ window.wpFitToGrid = fitToGrid;
   }
   if (wbWrap) {
       var _fillPaintBtn = -1;
-      var _fillBoard = function(e) { var box = wbWrap.getBoundingClientRect(); return { x: (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel, y: (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel }; };
+      var _fillBoard = function(e) { var box = wbWrap.getBoundingClientRect(); return { x: wbX(e.clientX, e.clientY, box, wbWrap), y: wbY(e.clientX, e.clientY, box, wbWrap) }; };
       wbWrap.addEventListener('pointerdown', function(e) {
           if (!window.isFillMode || (e.button !== 0 && e.button !== 2)) return;
           var pt = _fillBoard(e); e.preventDefault();
@@ -8658,7 +8667,7 @@ function buildKey(e) {
 }
 function buildMove(e) {   // the rubber band follows the pointer to the corner the next click would take
     var BC = buildCore(); if (!BC || !_build.poly || !_build.poly.length || !wbWrap || !buildPolyHere()) return;
-    var r = wbWrap.getBoundingClientRect(), z = state.zoomLevel || 1, x = (e.clientX - r.left + wbWrap.scrollLeft) / z, y = (e.clientY - r.top + wbWrap.scrollTop) / z;
+    var r = wbWrap.getBoundingClientRect(), z = state.zoomLevel || 1, x = wbX(e.clientX, e.clientY, r, wbWrap), y = wbY(e.clientX, e.clientY, r, wbWrap);
     buildPolyDraw(BC.snapVertex(buildGrid(), x, y, !!(window.wpSnapOn && window.wpSnapOn())));
 }
 function buildWire() {   // the options' own controls, each once
@@ -10395,7 +10404,7 @@ function placeMenu(cMenu, e) {
 function tableMenuParts(e, role) {
     var n = window.wpNet, camp = getActiveCampaign(), html = '';
     var wrap = document.getElementById('whiteboardWrap'), b = wrap ? wrap.getBoundingClientRect() : { left: 0, top: 0 }, z = state.zoomLevel || 1;
-    var pt = { x: (e.clientX - b.left + (wrap ? wrap.scrollLeft : 0)) / z, y: (e.clientY - b.top + (wrap ? wrap.scrollTop : 0)) / z };
+    var pt = wrap ? { x: wbX(e.clientX, e.clientY, b, wrap), y: wbY(e.clientX, e.clientY, b, wrap) } : { x: e.clientX / z, y: e.clientY / z };
     var players = camp && camp.players ? Object.keys(camp.players).map(function(id) { return { id: id, name: camp.players[id].name || id }; }).sort(function(a, c) { return a.name.localeCompare(c.name); }).slice(0, 12) : [];
     function head(label) { return '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + label + '</div>'; }
     function bringItems() { return players.map(function(p) { return '<div class="menu-item cm-session" data-act="bring" data-pid="' + esc(p.id) + '"><i class="wib wi-bring"></i> Bring ' + esc(p.name) + ' here</div>'; }).join(''); }

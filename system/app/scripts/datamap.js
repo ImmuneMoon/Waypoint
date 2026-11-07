@@ -38,6 +38,15 @@ var canvas = document.getElementById('canvas');
 var svg = document.getElementById('edges');
 
 import { state, dom } from './state.js';
+// [view:helpers-start]
+// 1.6.2 (backlog 82b, fold 1; the owner, 2026-11-07, by prompt: "In folds, starting now"): a pointer read on a map, in board pixels. Every reading
+// goes through these, so a view that turns has one place to undo its turn (window.wpView, the view module). cx, cy: the pointer on screen; r: the
+// wrap's box; w: the wrap that scrolls. Unturned they give exactly what the reading always gave. A drag's step goes through wbDX / wbDY
+function wbX(cx, cy, r, w) { var V = typeof window !== 'undefined' ? window.wpView : null; return V && V.turned && V.turned(w) ? V.bx(cx, cy, r, w) : (cx - r.left + w.scrollLeft) / state.zoomLevel; }
+function wbY(cx, cy, r, w) { var V = typeof window !== 'undefined' ? window.wpView : null; return V && V.turned && V.turned(w) ? V.by(cx, cy, r, w) : (cy - r.top + w.scrollTop) / state.zoomLevel; }
+function wbDX(dx, dy) { var V = typeof window !== 'undefined' ? window.wpView : null; return V && V.turned && V.turned() ? V.dx(dx, dy) : dx / state.zoomLevel; }
+function wbDY(dx, dy) { var V = typeof window !== 'undefined' ? window.wpView : null; return V && V.turned && V.turned() ? V.dy(dx, dy) : dy / state.zoomLevel; }
+// [view:helpers-end]
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, findLandingRoom } from './models.js';
 
@@ -790,7 +799,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // The topmost unlocked character token under a press on a piece that is no token (1.6.0, found by hand: the press handed the token on, and a double-click then opened the picture over it)
   function tokenUnder(map, item, e) {
       if (!map || !Array.isArray(map.whiteboard) || !item || item.isChar || item.waiting || e.shiftKey || e.ctrlKey || e.metaKey) return null;
-      var wr = wbWrap.getBoundingClientRect(), px = (e.clientX - wr.left + wbWrap.scrollLeft) / state.zoomLevel, py = (e.clientY - wr.top + wbWrap.scrollTop) / state.zoomLevel, tok = null, tz = -Infinity, at = -1;
+      var wr = wbWrap.getBoundingClientRect(), px = wbX(e.clientX, e.clientY, wr, wbWrap), py = wbY(e.clientX, e.clientY, wr, wbWrap), tok = null, tz = -Infinity, at = -1;
       map.whiteboard.forEach(function(c, i) {
           if (!c.isChar || c.locked || c.id === item.id || px < c.x || px > c.x + (c.w || 0) || py < c.y || py > c.y + (c.h || 0)) return;
           var z = handZ(c); if (z > tz || (z === tz && i > at)) { tok = c; tz = z; at = i; }
@@ -850,7 +859,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // a press of the pointer event e on the piece `pressed` of the map: the element of the line it goes to, or null
   function wallPickEl(map, pressed, e) {
       if (!map || !Array.isArray(map.whiteboard) || !wallPickGm()) return null;
-      var wr = wbWrap.getBoundingClientRect(), px = (e.clientX - wr.left + wbWrap.scrollLeft) / state.zoomLevel, py = (e.clientY - wr.top + wbWrap.scrollTop) / state.zoomLevel;
+      var wr = wbWrap.getBoundingClientRect(), px = wbX(e.clientX, e.clientY, wr, wbWrap), py = wbY(e.clientX, e.clientY, wr, wbWrap);
       var w = wallPick(map.whiteboard, pressed, px, py), wEl = w && document.querySelector('.wb-item[data-id="' + w.id + '"]');
       return wEl && wEl.style.display !== 'none' ? wEl : null;
   }
@@ -896,8 +905,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                 // token (a text box, a note card, a trigger zone) must not trap it:
                 // hand the drag to their own token under the pointer, if there is one.
                 var wrC = wbWrap.getBoundingClientRect();
-                var cpx = (e.clientX - wrC.left + wbWrap.scrollLeft) / state.zoomLevel;
-                var cpy = (e.clientY - wrC.top + wbWrap.scrollTop) / state.zoomLevel;
+                var cpx = wbX(e.clientX, e.clientY, wrC, wbWrap);
+                var cpy = wbY(e.clientX, e.clientY, wrC, wbWrap);
                 var mine = activeMap.whiteboard.find(function(cand) {
                     return (cand.isChar || cand.waiting) && cand.ownerId === window.wpNet.myId && cand.id !== item.id &&
                            cpx >= cand.x && cpx <= cand.x + (cand.w || 0) && cpy >= cand.y && cpy <= cand.y + (cand.h || 0);
@@ -917,8 +926,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
             var asPlayer = !!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client');
             if (modeStr === 'visual' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
                 var wrB = wbWrap.getBoundingClientRect();
-                var wpx = (e.clientX - wrB.left + wbWrap.scrollLeft) / state.zoomLevel;
-                var wpy = (e.clientY - wrB.top + wbWrap.scrollTop) / state.zoomLevel;
+                var wpx = wbX(e.clientX, e.clientY, wrB, wbWrap);
+                var wpy = wbY(e.clientX, e.clientY, wrB, wbWrap);
                 var best = null, bestZ = -Infinity, bestIdx = -1;
                 activeMap.whiteboard.forEach(function(cand, idx) {
                     if (cand.locked || cand.id === item.id) return;
@@ -964,8 +973,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         // to it without end). The locked branch above already hands a locked cover-item's drag to whatever is beneath it.
         if (modeStr === 'visual' && !item.isChar && !item.waiting && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
             var wrT = wbWrap.getBoundingClientRect();
-            var tpx = (e.clientX - wrT.left + wbWrap.scrollLeft) / state.zoomLevel;
-            var tpy = (e.clientY - wrT.top + wbWrap.scrollTop) / state.zoomLevel;
+            var tpx = wbX(e.clientX, e.clientY, wrT, wbWrap);
+            var tpy = wbY(e.clientX, e.clientY, wrT, wbWrap);
             var tok = null, tokZ = -Infinity, tokIdx = -1;
             activeMap.whiteboard.forEach(function(cand, idx) {
                 if (!cand.isChar || cand.locked || cand.id === item.id) return;
@@ -1039,15 +1048,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
             if (moved) {
                 var wrLM = wbWrap.getBoundingClientRect();
                 var lsx = (startX - wrLM.left + wbWrap.scrollLeft) / state.zoomLevel, lsy = (startY - wrLM.top + wbWrap.scrollTop) / state.zoomLevel;
-                var lcx = (e.clientX - wrLM.left + wbWrap.scrollLeft) / state.zoomLevel, lcy = (e.clientY - wrLM.top + wbWrap.scrollTop) / state.zoomLevel;
+                var lcx = wbX(e.clientX, e.clientY, wrLM, wbWrap), lcy = wbY(e.clientX, e.clientY, wrLM, wbWrap);
                 if (!lockedMq.box) { lockedMq.box = document.createElement('div'); lockedMq.box.className = 'marquee-selection'; document.getElementById('whiteboard').appendChild(lockedMq.box); }
                 lockedMq.box.style.left = Math.min(lsx, lcx) + 'px'; lockedMq.box.style.top = Math.min(lsy, lcy) + 'px';
                 lockedMq.box.style.width = Math.abs(lcx - lsx) + 'px'; lockedMq.box.style.height = Math.abs(lcy - lsy) + 'px';
             }
             return;
         }
-        var dx = (e.clientX - startX) / state.zoomLevel;
-        var dy = (e.clientY - startY) / state.zoomLevel;
+        var dx = wbDX(e.clientX - startX, e.clientY - startY);
+        var dy = wbDY(e.clientX - startX, e.clientY - startY);
         if(Math.abs(e.clientX - startX)>3||Math.abs(e.clientY - startY)>3) moved=true;   // click-vs-drag slop in SCREEN px so it stays 3px at any zoom (dx/dy are world px = screen/zoom)
         
         var clientVis = modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && window.wpOwnTokenNow;
@@ -1308,7 +1317,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if (window.wpPlace.type === 'text') {
                   // the text tool on an existing text box edits it instead of stacking a new one
                   var tbT = wrapEl.getBoundingClientRect();
-                  var txT = (e.clientX - tbT.left + wrapEl.scrollLeft) / state.zoomLevel, tyT = (e.clientY - tbT.top + wrapEl.scrollTop) / state.zoomLevel;
+                  var txT = wbX(e.clientX, e.clientY, tbT, wrapEl), tyT = wbY(e.clientX, e.clientY, tbT, wrapEl);
                   var amT = getActiveMap(), hitT = null, hitZ = -Infinity;
                   ((amT && amT.whiteboard) || []).forEach(function(w) {
                       if (w.type !== 'text' || w.locked) return;
@@ -1326,8 +1335,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               var pb = wrapEl.getBoundingClientRect();
               var P = window.__place = {
                   on: true,
-                  sx: (e.clientX - pb.left + wrapEl.scrollLeft) / state.zoomLevel,
-                  sy: (e.clientY - pb.top + wrapEl.scrollTop) / state.zoomLevel,
+                  sx: wbX(e.clientX, e.clientY, pb, wrapEl),
+                  sy: wbY(e.clientX, e.clientY, pb, wrapEl),
                   box: document.createElement('div')
               };
               P.box.className = 'marquee-selection';
@@ -1361,9 +1370,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               var wrapBox = wrapEl.getBoundingClientRect();
 
-              var mouseX = (e.clientX - wrapBox.left + wrapEl.scrollLeft) / state.zoomLevel;
+              var mouseX = wbX(e.clientX, e.clientY, wrapBox, wrapEl);
 
-              var mouseY = (e.clientY - wrapBox.top + wrapEl.scrollTop) / state.zoomLevel;
+              var mouseY = wbY(e.clientX, e.clientY, wrapBox, wrapEl);
 
               var snapped = penSnap(mouseX, mouseY);
 
@@ -1421,9 +1430,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               var wrapBox = wrapEl.getBoundingClientRect();
 
-              var mouseX = (e.clientX - wrapBox.left + wrapEl.scrollLeft) / state.zoomLevel;
+              var mouseX = wbX(e.clientX, e.clientY, wrapBox, wrapEl);
 
-              var mouseY = (e.clientY - wrapBox.top + wrapEl.scrollTop) / state.zoomLevel;
+              var mouseY = wbY(e.clientX, e.clientY, wrapBox, wrapEl);
 
               var rawX = mouseX, rawY = mouseY;
 
@@ -1543,8 +1552,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           var P0 = window.__place;
           if (P0 && P0.on && P0.box) {
               var pb0 = wrapEl.getBoundingClientRect();
-              var mx0 = (e.clientX - pb0.left + wrapEl.scrollLeft) / state.zoomLevel;
-              var my0 = (e.clientY - pb0.top + wrapEl.scrollTop) / state.zoomLevel;
+              var mx0 = wbX(e.clientX, e.clientY, pb0, wrapEl);
+              var my0 = wbY(e.clientX, e.clientY, pb0, wrapEl);
               P0.box.style.left = Math.min(mx0, P0.sx) + 'px';
               P0.box.style.top = Math.min(my0, P0.sy) + 'px';
               P0.box.style.width = Math.abs(mx0 - P0.sx) + 'px';
@@ -1554,8 +1563,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           }
           if (isMarquee && marqueeBox) {
               var wrapBox = wrapEl.getBoundingClientRect();
-              var mouseX = (e.clientX - wrapBox.left + wrapEl.scrollLeft) / state.zoomLevel;
-              var mouseY = (e.clientY - wrapBox.top + wrapEl.scrollTop) / state.zoomLevel;
+              var mouseX = wbX(e.clientX, e.clientY, wrapBox, wrapEl);
+              var mouseY = wbY(e.clientX, e.clientY, wrapBox, wrapEl);
 
               var x = Math.min(mouseX, marqueeStartX);
               var y = Math.min(mouseY, marqueeStartY);

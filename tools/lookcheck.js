@@ -3384,9 +3384,24 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const named = (css.match(/body\.web-join #[A-Za-z][\w-]*/g) || []).map(s => s.slice(s.indexOf('#') + 1)).filter((v, i, a) => a.indexOf(v) === i);
     let wm = ''; try { wm = read('scripts/webmode.js'); } catch (e) { wm = ''; }   // a module that is not there fails the check, not the suite
     check('1.5.5 plan-aware mode removes nothing: a website\'s Player plan puts the welcome\'s other choices, the GM\'s parts and the save\'s out of sight under the body\'s one word web-join, which the page never carries and only webmode.js writes (and only for a join-only answer); every id the style sheet names under it is a control of the page, there once; the play map\'s, the data map\'s and the top row\'s inventories stand whole',
-        J(writers) === J(['webmode.js']) && /document\.body\.classList\.toggle\('web-join', _known\.mode === 'join-only'\)/.test(wm) && /if \(!_local\) \{ try \{ if \(typeof document !== 'undefined' && document\.body\) document\.body\.classList\.add\('web-join'\); \} catch \(e\) \{\} \}/.test(wm) && rulesW.length >= 2 && scoped && named.length >= 20
+        J(writers) === J(['webmode.js']) && /cl\.toggle\('web-join', _known\.mode === 'join-only'\); cl\.toggle\('web', _known\.mode === 'web'\);/.test(wm) && /if \(!_local\) \{ try \{ if \(typeof document !== 'undefined' && document\.body\) document\.body\.classList\.add\('web-join'\); \} catch \(e\) \{\} \}/.test(wm) && rulesW.length >= 2 && scoped && named.length >= 20
         && J(gateW) === J(['main.js']) && J(gateRules) === J(['  body.web-join.web-gate > .app, body.web-join.web-gate > .app * { visibility: hidden !important; transition: none !important; }']) && !/class="[^"]*\bweb-gate\b/.test(ix)
         && named.every(id => count(ix, 'id="' + id + '"') === 1) && !/class="[^"]*\bweb-join\b/.test(ix) && INVENTORY.every(id => count(ix, 'id="' + id + '"') === 1), J([writers, rulesW.length, scoped, named.filter(id => count(ix, 'id="' + id + '"') !== 1), gateW, gateRules]));
+}
+
+// 1.6.2, a GM's page on the website (webmode.js web): the same rule of removing nothing. The words web and web-no-<word> are written by webmode.js
+// alone and the page carries none; every rule naming them is scoped by the body's word; every id named is a control of the page, there once; what a
+// website never has (Updates, Developer mode, the saves folder, the website account) is put away under web as it is under web-join
+{
+    const scripts = fs.readdirSync(path.join(app, 'scripts')).filter(f => f.endsWith('.js'));
+    const writers = scripts.filter(f => /['"]web['"]|'web-no-'/.test(read('scripts/' + f)));
+    const rulesG = css.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(l => /body\.web(-no-[a-z]+)?\s/.test(l));
+    const scopedG = rulesG.every(l => l.indexOf(':has(') < 0 && l.replace(/body\.web(?:-no-(?:host|uploads|files|backups|join|campaigns))?\s/g, '').indexOf('body.web') < 0);
+    const namedG = (css.match(/body\.web(?:-no-[a-z]+)? #[A-Za-z][\w-]*/g) || []).map(t => t.slice(t.indexOf('#') + 1)).filter((v, i, a) => a.indexOf(v) === i);
+    const never = ['updateBtn', 'updateBanner', 'installerModal', 'wcUpdate'].every(id => css.indexOf('body.web #' + id) >= 0) && ['.set-devmode', '.set-saves', '.set-acct', '[data-group="updates"]'].every(k => rulesG.some(l => l.indexOf('body.web #') >= 0 && l.indexOf(k) >= 0));
+    check('1.6.2 a GM\'s page on the website removes nothing either: the body\'s words web and web-no-<word> are written by webmode.js alone and the page carries none; every rule naming them is scoped by them and leans on no :has(); every id named under them is a control of the page, there once; what a website never has (Updates, Developer mode, the saves folder, this install\'s website account) is put away under web',
+        J(writers) === J(['webmode.js']) && rulesG.length >= 4 && scopedG && namedG.length >= 15 && namedG.every(id => count(ix, 'id="' + id + '"') === 1) && !/class="[^"]*\bweb(-no-[a-z]+)?\b/.test(ix) && never,
+        J([writers, rulesG.length, scopedG, namedG.filter(id => count(ix, 'id="' + id + '"') !== 1), never]));
 }
 
 /* ---------- the dice drawings (1.5.8, backlog 149) ---------- */

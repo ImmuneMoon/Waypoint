@@ -585,6 +585,9 @@ Writing planners and pages
   changed you are asked which to keep. This update changes the core, so it
   installs through the installer once.
 - The install's website key is no longer readable by the page as a file.
+- A GM's account on Waypoint's website opens the whole app in the browser,
+  as the website now serves it. Updates, Developer mode and the saves folder
+  stay the desktop app's, and what a plan does not include is put away.
 - Grid cell on the board, in the measure options, gives a map a cell of its
   own size. Fit grid to picture lines the grid up with a map picture's own
   printed grid, and tokens take the new cell size.

@@ -14,11 +14,14 @@
      full        a page of this computer (webLocal: the shell loads http://localhost:<port>, and the shell's server and the dev server
                  listen on the loopback names alone and answer no other), and no web key in the answer, or no answer that reads: a desktop
                  never loses a thing for a fetch that failed
-     join-only   any web key at all, and every page that is not this computer's whatever its answer says. This release knows join alone,
-                 so every plan a site names is join-only here; a web key it cannot read, an answer that does not read, an answer that
-                 does not come and an answer with no web key are join-only on a website too (fail closed). A later release that reads more
-                 words of can gives its plans more. A website's page is join-only from the moment this module runs, before the answer is in
-   The words of can, each what it would show (only join is sent today, and none of the others is read yet):
+     web         1.6.2: a web key whose can holds campaigns: a GM's page on the website, which serves the shell's own routes from the
+                 cloud. The app is whole but for what the site never has (Updates, Developer mode, the saves folder, this install's website
+                 account and its cloud saves) and for each word of can the answer lacks (the body's web-no-<word>)
+     join-only   any other web key, and every page that is not this computer's whatever its answer says until that answer says web.
+                 Without campaigns nothing of the player's own is kept, which is what join-only is; a web key it cannot read, an answer
+                 that does not read, an answer that does not come and an answer with no web key are join-only on a website (fail closed).
+                 A website's page is join-only from the moment this module runs, before the answer is in
+   The words of can, each what it shows (1.6.2 reads them all; campaigns is the word that opens the web mode):
      join        Join a game, and the player's side at a table
      host        Host a table: the Multiplayer window's Host part, the stream window, the relay, the GM's side at a table
      campaigns   campaigns of the account's own kept on the site: Start a campaign, Continue, Enter Waypoint, the Campaign menu,
@@ -29,7 +32,8 @@
      backups     snapshots of the saved campaign: Snapshot the save now, the snapshots list and Restore
    Updates, Developer mode and the saves folder never show on a website, whatever can holds: there the deploy is the update.
 
-   Join-only is the body's one word web-join (the style sheet puts away what is not the player's, and while the join page is up the whole
+   The web mode is the body's word web, under which the style sheet puts away what a website never has, and web-no-<word> for each word
+   the plan lacks. Join-only is the body's one word web-join (the style sheet puts away what is not the player's, and while the join page is up the whole
    app behind it: main.js wcGate), canPersistLocal answering no for every write (io.js), load bringing the welcome's Join a game up in
    place of a campaign (io.js), the welcome itself (main.js), no stream window (stream.js) and no quick jump (main.js). */
 
@@ -52,7 +56,7 @@ export function webCaps(answer, where) {
     try {
         if (!answer || typeof answer !== 'object' || Array.isArray(answer) || !own(answer, 'web')) return out;
     } catch (e) { return out; }   // an answer that cannot even be asked is no answer
-    out.mode = 'join-only';   // a web key, whatever it holds: the one mode this release has for a website
+    out.mode = 'join-only';   // a web key: join-only unless its can holds campaigns (below)
     try {
         var w = answer.web;
         if (!w || typeof w !== 'object' || Array.isArray(w)) return out;
@@ -65,6 +69,13 @@ export function webCaps(answer, where) {
             }
         }
     } catch (e) { out.plan = ''; out.can = []; }
+    if (out.can.indexOf('campaigns') >= 0) out.mode = 'web';   // 1.6.2: a GM's page on the website; without campaigns nothing is kept, so join-only
+    return out;
+}
+// What the web mode lacks, as the body's words: web-no-<word> for each word of WEB_CAN that can does not hold
+export function webNoWords(caps) {
+    var out = []; if (!caps || caps.mode !== 'web') return out;
+    for (var i = 0; i < WEB_CAN.length; i++) if (!Array.isArray(caps.can) || caps.can.indexOf(WEB_CAN[i]) < 0) out.push('web-no-' + WEB_CAN[i]);
     return out;
 }
 // [servercheck:webcaps-end]
@@ -77,7 +88,13 @@ var _known = null;
 function webSettle(answer) {
     if (!_known) {
         _known = webCaps(answer, { local: _local });
-        try { if (typeof document !== 'undefined' && document.body) document.body.classList.toggle('web-join', _known.mode === 'join-only'); } catch (e) {}
+        try {
+            if (typeof document !== 'undefined' && document.body) {
+                var cl = document.body.classList, no = webNoWords(_known);
+                cl.toggle('web-join', _known.mode === 'join-only'); cl.toggle('web', _known.mode === 'web');
+                for (var i = 0; i < WEB_CAN.length; i++) cl.toggle('web-no-' + WEB_CAN[i], no.indexOf('web-no-' + WEB_CAN[i]) >= 0);
+            }
+        } catch (e) {}
     }
     return _known;
 }
@@ -103,6 +120,8 @@ if (typeof window !== 'undefined') {
         local: function() { return _local; },
         mode: function() { return _known ? _known.mode : _local ? null : 'join-only'; },     // on this computer null until the answer is in
         joinOnly: function() { return _known ? _known.mode === 'join-only' : !_local; },     // on this computer false until the answer is in; a website's page true from the start
+        web: function() { return _known ? _known.mode !== 'full' : !_local; },               // 1.6.2: any page of a website, either mode: what a website never has is put away
+        has: function(word) { if (!_known) return _local; return _known.mode === 'full' || (_known.mode === 'web' && _known.can.indexOf(word) >= 0); },   // 1.6.2: whether a word of can holds here (the whole app: every word)
         plan: function() { return _known ? _known.plan : ''; },
         can: function() { return _known ? _known.can.slice() : []; }
     };

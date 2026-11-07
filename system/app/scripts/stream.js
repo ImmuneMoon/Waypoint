@@ -15,7 +15,7 @@ import { esc } from './safecore.js';
 // 1.5.5: the stream window is the GM's. A website's plan that joins tables alone opens none (webmode.js), and the page is the join page: a website's
 // page knows it is one from the start. Where only the site's answer can say it (the dev server's test switch), a stream window already open asks
 // for nothing once it has
-function streamWebJoin() { var W = typeof window !== 'undefined' ? window.wpWebMode : null; return !!(W && typeof W.joinOnly === 'function' && W.joinOnly() === true); }
+function streamWebJoin() { var W = typeof window !== 'undefined' ? window.wpWebMode : null; return !!(W && typeof W.joinOnly === 'function' && (W.joinOnly() === true || (typeof W.has === 'function' && W.web() === true && W.has('host') === false))); }   // 1.6.2: nor a GM's page whose plan does not host
 // [netcheck:streamweb-end]
 const on = new URLSearchParams(location.search).get('stream') === '1' && !streamWebJoin();
 if (on) {

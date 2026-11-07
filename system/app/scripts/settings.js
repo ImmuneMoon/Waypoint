@@ -726,7 +726,7 @@ function fmtBytes(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : M
 function snapLabel(b) { return /before-restore/.test(b.file) ? 'before a restore' : b.kept ? 'taken by hand' : 'at launch'; }
 async function loadSnapshots() {
     var list = ui('setSnapList'); if (!list) return;
-    var Ws = window.wpWebMode; if (Ws && typeof Ws.joinOnly === 'function' && Ws.joinOnly() === true) return;   // 1.5.5: a website's plan that joins tables alone keeps no save to snapshot, and the list is put away (webmode.js)
+    var Ws = window.wpWebMode; if (Ws && typeof Ws.joinOnly === 'function' && (Ws.joinOnly() === true || (typeof Ws.has === 'function' && Ws.has('backups') === false && Ws.web() === true))) return;   // 1.6.2: nor a GM's page whose plan keeps no backups. 1.5.5: a website's plan that joins tables alone keeps no save to snapshot, and the list is put away (webmode.js)
     var rows = null;
     try { var r = await fetch('/api/backups', { cache: 'no-store' }); if (r.ok) rows = await r.json(); } catch (e) {}
     if (!Array.isArray(rows)) {
@@ -1399,7 +1399,7 @@ function acctLink() {
 }
 // At launch: a newer copy on the account is taken (between tables only); else this computer's, if it changed since the last sync, is sent
 function acctLaunch() {
-    if (window.wpStream || /[?&]popout=/.test(location.search) || (window.wpWebMode && window.wpWebMode.joinOnly && window.wpWebMode.joinOnly())) return;
+    if (window.wpStream || /[?&]popout=/.test(location.search) || (window.wpWebMode && window.wpWebMode.joinOnly && window.wpWebMode.joinOnly()) || (window.wpWebMode && typeof window.wpWebMode.web === 'function' && window.wpWebMode.web() === true)) return;   // 1.6.2: a website's page is the account itself
     acctRefresh().then(function(a) {
         if (!a || a.linked !== true || a.offline) return;
         var stamp = parseInt(localStorage.getItem('wp_acctStamp') || '0', 10) || 0;

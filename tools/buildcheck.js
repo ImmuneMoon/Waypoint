@@ -5056,6 +5056,56 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             [read('WHATSNEW.txt'), read('system/app/assets/whatsnew.txt')].map(underL).join() + ' ' + ciL.indexOf('cellLabels'));
     }
 
+    {   // 1.6.2, backlog 38: Align its grid (the owner, 2026-11-07, by prompt: "Both", the alignment now)
+        const wbA = read('system/app/scripts/whiteboard.js'), alSrc = cutM(wbA, 'alignpic', 'whiteboard.js'), insA = read('system/app/scripts/inspector.js');
+        const toasts = [], prompts = [], saves = [], placed = [];
+        const map = { id: 'm1', whiteboard: [] }, st = { gridType: 'square' };
+        const body = { classList: { add: c => placed.push(c) } };
+        const env = { document: { getElementById: () => null, body: body }, window: {}, wbWrap: { style: {} } };
+        const A = new Function('state', 'toast', 'showPrompt', 'save', 'render', 'getActiveMap', 'snapToHex', 'document', 'window', 'wbWrap',
+            "'use strict';" + NL + alSrc + NL + 'return { alignMay: alignMay, alignFit: alignFit, alignStep: alignStep, alignWords: alignWords };')(
+            st, t => toasts.push(t), (q, d, cb) => prompts.push([q, cb]), () => saves.push(1), () => {}, () => map,
+            (x, y) => ({ x: Math.round((x - 15) / 45) * 45 + 15, y: Math.round(y / 52) * 52 }), env.document, env.window, env.wbWrap);
+        const pic = { id: 'p', type: 'image', x: 0, y: 0, w: 400, h: 300 };
+        const sq = (x, y) => ({ x: Math.round(x / 50) * 50, y: Math.round(y / 50) * 50 });
+        // the picture's own cells are 40 px; two corners 5 cells apart along a row at (12, 20) and (212, 20)
+        const f1 = A.alignFit(pic, { x: 12, y: 20 }, { x: 212, y: 20 }, 5, 50, sq);
+        const f2 = A.alignFit(pic, { x: 12, y: 20 }, { x: 12, y: 220 }, 5, 50, sq);
+        const kAt = (f, px, py) => ({ x: f.x + (px - pic.x) * f.w / pic.w, y: f.y + (py - pic.y) * f.h / pic.h });
+        const land1 = kAt(f1, 12, 20), land2 = kAt(f1, 212, 20), land3 = kAt(f1, 52, 60);
+        check('Align its grid (backlog 38): two corners five cells of 40 px apart on the picture scale it by 50/40 the same both ways, the first corner lands on a corner of the board\'s lattice, the second five cells along, and every other corner of its grid on a corner too; a column works as a row does',
+            f1 && f1.w === 500 && f1.h === 375 && land1.x % 50 === 0 && land1.y % 50 === 0 && land2.x - land1.x === 250 && land2.y === land1.y && land3.x - land1.x === 50 && land3.y - land1.y === 50 && JSON.stringify(f2) === JSON.stringify(f1),
+            JSON.stringify([f1, land1, land2, land3]));
+        const hx = A.alignFit(pic, { x: 100, y: 100 }, { x: 100, y: 180 }, 2, 52, (x, y) => ({ x: 105, y: 104 }));
+        check('Align its grid on a hex map: two hex centres two hexes apart down a column scale the picture by 104 over their distance, and the first centre lands on the board\'s hex centre',
+            hx && hx.w === 520 && hx.h === 390 && Math.abs(hx.x + (100 - pic.x) * 1.3 - 105) < 0.01 && Math.abs(hx.y + (100 - pic.y) * 1.3 - 104) < 0.01, JSON.stringify(hx));
+        check('Align its grid refuses what it cannot work out: no whole number of cells from 1 to 1000, two points closer than 4 px, a picture that would be too large, a lattice that answers nothing',
+            [0, -2, 1.5, NaN, 1001].every(n => A.alignFit(pic, { x: 0, y: 0 }, { x: 100, y: 0 }, n, 50, sq) === null) && A.alignFit(pic, { x: 0, y: 0 }, { x: 2, y: 0 }, 1, 50, sq) === null
+            && A.alignFit(pic, { x: 0, y: 0 }, { x: 4, y: 0 }, 1000, 50, sq) === null && A.alignFit(pic, { x: 0, y: 0 }, { x: 100, y: 0 }, 2, 50, () => null) === null && A.alignFit(pic, { x: 0, y: 0 }, { x: 100, y: 0 }, 2, 50, null) === null);
+        check('Align its grid is for a straight, unlocked map picture on a square or hex grid alone, each refusal in words',
+            A.alignMay(pic, 'square') === '' && A.alignMay(pic, 'hex') === '' && /Turn on a square or hex grid/.test(A.alignMay(pic, 'off')) && /map picture/.test(A.alignMay({ type: 'rect' }, 'square'))
+            && /token/.test(A.alignMay({ type: 'image', isChar: true }, 'square')) && /Unlock/.test(A.alignMay({ type: 'image', locked: true }, 'square')) && /straight/.test(A.alignMay({ type: 'image', rot: 90 }, 'square'))
+            && A.alignMay({ type: 'image', rot: 360 }, 'square') === '' && /map picture/.test(A.alignMay(null, 'square')));
+        // the two clicks and the number, as the board hands them on
+        const p2 = { id: 'p2', type: 'image', x: 0, y: 0, w: 400, h: 300, gridFit: true }; map.whiteboard = [p2];
+        const rec = { id: 'p2', map: 'm1', step: 1 };
+        A.alignStep(rec, 12, 20); const armed = env.window.wpPlace;
+        A.alignStep(rec, 212, 20); const asked = prompts.length;
+        prompts[0][1]('5');
+        check('Align its grid by its clicks: the first click arms the second with its own words, the second asks how many cells apart, and the answer sizes and places the picture in one save, saying that Undo puts it back; a picture fitted to the grid before is no longer re-seated on a move',
+            armed && armed.type === 'align' && armed.align === rec && rec.step === 2 && placed.includes('placing') && asked === 1 && /How many cells apart/.test(prompts[0][0])
+            && p2.w === 500 && p2.h === 375 && !('gridFit' in p2) && saves.length === 1 && /Undo puts it back/.test(toasts[toasts.length - 1]) && /same row or column/.test(toasts[0]), JSON.stringify([p2, toasts]));
+        const before = JSON.stringify(p2); prompts.length = 0; rec.step = 1; A.alignStep(rec, 0, 0); A.alignStep(rec, 100, 0); prompts[0][1]('two'); const typo = toasts[toasts.length - 1]; prompts[0][1](null);
+        map.whiteboard = []; prompts.length = 0; rec.step = 1; A.alignStep(rec, 0, 0);
+        check('Align its grid changes nothing for an answer that is no whole number (said), a cancel, or a picture gone from the map (said)',
+            JSON.stringify(p2) === before && /whole number/.test(typo) && saves.length === 1 && /no longer on this map/.test(toasts[toasts.length - 1]) && prompts.length === 0);
+        check('Align its grid is wired: the placement hands its click on, Properties offers it for a map picture on a gridded map beside Fit to grid cells, and its button presses wpAlignPic',
+            wbA.includes("    if (P.align) { alignStep(P.align, sx, sy); return; }") && wbA.indexOf('// [buildcheck:alignpic-start]') > wbA.indexOf('function fitToGrid(')
+            && /w\.type === 'image' && !w\.isChar && !w\.waiting \? '<button class="tool ghost" id="wbAlignPic" title="[^"]+">Align its grid<\/button>'/.test(insA) && insA.includes("if (_el_wbAlignPic) _el_wbAlignPic.addEventListener('click', function() { if (window.wpAlignPic) window.wpAlignPic(w); });"));
+        const ixA = read('system/app/index.html');
+        check('Align its grid is said in Help and both release notes', ixA.includes('<b>Align its grid</b>') && [read('WHATSNEW.txt'), read('system/app/assets/whatsnew.txt')].every(t => t.includes('Align its grid')));
+    }
+
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

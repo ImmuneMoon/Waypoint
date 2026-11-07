@@ -1567,6 +1567,73 @@ function fitToGrid(its) {
     if (n) { save(); render(); toast('Fitted ' + n + ' item' + (n === 1 ? '' : 's') + ' to the ' + g + ' grid.'); }
     else { toast('Already aligned to the grid.'); }
 }
+// [buildcheck:alignpic-start]
+// 1.6.2 (backlog 38; the owner, 2026-11-07, by prompt: "Both": align now, a per-map cell size as a later fold): a map picture with a grid
+// printed on it is sized and placed so that its grid lies on the board's. Two clicks on the picture and how many cells lie between them: the
+// picture is scaled about the first point, the same both ways, so nothing is distorted, and that point is then moved onto the board's
+// lattice, a corner of a square cell or the centre of a hex. The grid itself is never changed. Why a picture cannot be aligned, or ''
+function alignMay(w, grid) {
+    if (!w || typeof w !== 'object' || w.type !== 'image') return 'Pick a map picture first.';
+    if (w.isChar || w.waiting) return 'A token is sized by Fit to grid cells, not by a grid on its picture.';
+    if (w.locked) return 'Unlock the picture first.';
+    if ((Number(w.rot) || 0) % 360) return 'Turn the picture straight first: Align its grid needs a picture with no rotation.';
+    if (grid !== 'square' && grid !== 'hex') return 'Turn on a square or hex grid first.';
+    return '';
+}
+// The picture's new box: a and b the two points clicked (board px), n the cells between them, step one cell's length along a row or column
+// (50 on a square grid, 52 down a hex column), seat(x, y) the board's lattice point nearest a point. Null where it cannot be worked out
+function alignFit(w, a, b, n, step, seat) {
+    if (!w || !a || !b || typeof seat !== 'function') return null;
+    var d = Math.hypot(b.x - a.x, b.y - a.y), k = n * step / d;
+    if (!(n >= 1) || n !== Math.floor(n) || n > 1000 || !(d >= 4) || !isFinite(k)) return null;
+    var nw = (Number(w.w) || 100) * k, nh = (Number(w.h) || 100) * k;
+    if (!(nw >= 10 && nh >= 10 && nw <= 200000 && nh <= 200000)) return null;
+    var to = seat(a.x, a.y); if (!to || !isFinite(to.x) || !isFinite(to.y)) return null;
+    var r2 = function(v) { return Math.round(v * 100) / 100; };
+    return { x: r2(a.x + ((Number(w.x) || 0) - a.x) * k + to.x - a.x), y: r2(a.y + ((Number(w.y) || 0) - a.y) * k + to.y - a.y), w: r2(nw), h: r2(nh) };
+}
+function alignWords(grid, step) {
+    if (step === 1) return grid === 'hex' ? 'Click the centre of a hex on the picture. Esc cancels.' : 'Click a corner where two lines of the picture\u2019s grid cross. Esc cancels.';
+    return grid === 'hex' ? 'Now click the centre of another hex in the same column, a few hexes up or down. Esc cancels.' : 'Now click another corner a few cells along the same row or column. Esc cancels.';
+}
+function alignArm(rec) {
+    var mv = document.getElementById('moveModeBtn');
+    if (mv && (!mv.classList.contains('active') || window.isMeasureMode)) mv.click();
+    window.wpPlace = { type: 'align', props: {}, align: rec };
+    if (wbWrap) wbWrap.style.cursor = 'crosshair';
+    document.body.classList.add('placing');
+    toast(alignWords(state.gridType, rec.step));
+}
+function alignPiece(rec) {
+    var map = getActiveMap();
+    return map && map.id === rec.map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(i) { return i && i.id === rec.id; }) || null : null;
+}
+function alignStep(rec, x, y) {
+    var w = alignPiece(rec), why = alignMay(w, state.gridType);
+    if (!w) { toast('That picture is no longer on this map.'); return; }
+    if (why) { toast(why); return; }
+    if (rec.step === 1) { rec.a = { x: x, y: y }; rec.step = 2; alignArm(rec); return; }
+    var a = rec.a, b = { x: x, y: y };
+    showPrompt(state.gridType === 'hex' ? 'How many hexes apart are the two points?' : 'How many cells apart are the two points?', '', function(v) {
+        if (v === null || v === undefined) return;
+        var p = alignPiece(rec), g = state.gridType, no = alignMay(p, g);
+        if (!p) { toast('That picture is no longer on this map.'); return; }
+        if (no) { toast(no); return; }
+        var n = Number(String(v).trim());
+        var f = alignFit(p, a, b, n, g === 'hex' ? 52 : 50, g === 'hex' ? function(px, py) { return snapToHex(px, py, 30, 'center'); } : function(px, py) { return { x: Math.round(px / 50) * 50, y: Math.round(py / 50) * 50 }; });
+        if (!f) { toast(!(n >= 1) || n !== Math.floor(n) || n > 1000 ? 'Type a whole number of cells, from 1 to 1000.' : 'The two points are too close together, or the picture would be too large. Try two points further apart.'); return; }
+        p.x = f.x; p.y = f.y; p.w = f.w; p.h = f.h; delete p.gridFit;
+        save(); render();
+        toast('The picture\u2019s grid now lies on the board\u2019s. Undo puts it back.');
+    });
+}
+window.wpAlignPic = function(w) {
+    var why = alignMay(w, state.gridType), map = getActiveMap();
+    if (why) { toast(why); return; }
+    if (!map) return;
+    alignArm({ id: w.id, map: map.id, step: 1 });
+};
+// [buildcheck:alignpic-end]
 // [lookcheck:tokfit-start]
 // 1.6.2 (backlog 141; the owner, 2026-11-06, by prompt: "Yes, one cell (Recommended)", "Trim and centre (Recommended)"): a picture ticked
 // Is Character fits one cell of the map's grid and is seated in it, in the very change the tick saves, so Undo puts it back. Then, apart,
@@ -8177,7 +8244,8 @@ window.wpPlaceCommit = function(px, py, pw, ph, sx, sy) {
     var P = window.wpPlace;
     disarmPlacement();
     if (!P) return;
-    if (P.build) { wpBuildCommit(P, px, py, pw, ph, sx, sy); return; }   // the map builder: a built piece lands by its own rules (on the lattice, a hexagon a cell) and Build stays in hand
+    if (P.build) { wpBuildCommit(P, px, py, pw, ph, sx, sy); return; }
+    if (P.align) { alignStep(P.align, sx, sy); return; }   // 1.6.2 (backlog 38): a click of Align its grid   // the map builder: a built piece lands by its own rules (on the lattice, a hexagon a cell) and Build stays in hand
     var props = Object.assign({}, P.props);
     var dragged = pw > 12 && ph > 12;
     var type = P.type;

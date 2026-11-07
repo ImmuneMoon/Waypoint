@@ -964,6 +964,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               + '<button class="tool ghost" id="wbDup" title="Make a full copy of this item, settings and data included (Ctrl+D)"><i class="wib wi-dup"></i> Duplicate</button>'
               + '<button class="tool ghost" id="setHomeVisualBtn" title="The map opens centred here"><i class="wib wi-target"></i> Map center here</button>'
               + (state.gridType && state.gridType !== 'off' && w.type !== 'path' ? '<button class="tool ghost" id="wbFitGrid" title="Size to whole grid cells and seat it in the grid">&#8862; Fit to grid cells</button>' : '')
+              + (state.gridType && state.gridType !== 'off' && w.type === 'image' && !w.isChar && !w.waiting ? '<button class="tool ghost" id="wbAlignPic" title="For a map picture with its own grid: click two points of that grid and say how many cells lie between them. The picture is sized and placed so its grid lies on the board\u2019s">Align its grid</button>' : '')
               + '<button class="tool ghost danger" id="wbDel" title="Delete this piece. Undo brings it back">Delete</button>'
               + '</div>';
             if (w.groupId) {
@@ -1206,6 +1207,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if(_el_wbNodeLink) _el_wbNodeLink.addEventListener('change', function() {
                 w.nodeId = this.value || null; portalLockTidy(w, activeMap); save(); render();
             });
+            var _el_wbAlignPic = document.getElementById('wbAlignPic');   // 1.6.2 (backlog 38)
+            if (_el_wbAlignPic) _el_wbAlignPic.addEventListener('click', function() { if (window.wpAlignPic) window.wpAlignPic(w); });
             var _el_wbFitGrid = document.getElementById('wbFitGrid');
             if (_el_wbFitGrid) { _el_wbFitGrid.addEventListener('click', function() { if (window.wpFitToGrid) window.wpFitToGrid([w]); }); if (window.wpFitWouldChange && !window.wpFitWouldChange([w])) { _el_wbFitGrid.disabled = true; _el_wbFitGrid.title = w.locked ? 'Locked — unlock it to fit to the grid' : 'Already aligned to the grid'; } }
             var _el_wbPortalMap = document.getElementById('wbPortalMap');

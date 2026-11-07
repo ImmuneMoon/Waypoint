@@ -2679,6 +2679,10 @@
 #contextMenu .menu-item.cm-walls > * { pointer-events: none; }   /* a click lands on the row itself: the menu reads the class of what was pressed */
 #contextMenu .menu-item.cm-walls .ico { margin-top: 2px; }
 #contextMenu .menu-item.cm-walls small { display: block; color: var(--dim); font-size: 11px; }
+#contextMenu .menu-item.cm-flatten, #contextMenu .menu-item.cm-unflat { display: flex; align-items: flex-start; gap: 9px; }   /* 1.6.2 (backlog 39): Flatten and Unflatten, drawn as Walls around selection is */
+#contextMenu .menu-item.cm-flatten > *, #contextMenu .menu-item.cm-unflat > * { pointer-events: none; }   /* a click lands on the row itself: the menu reads the class of what was pressed */
+#contextMenu .menu-item.cm-flatten .ico, #contextMenu .menu-item.cm-unflat .ico { margin-top: 2px; }
+#contextMenu .menu-item.cm-flatten small, #contextMenu .menu-item.cm-unflat small { display: block; color: var(--dim); font-size: 11px; }
 #contextMenu .menu-divider + .menu-divider { display: none; }   /* two rules in a row read as one */
 /* a menu taller than the window (placeMenu): compact rows first, then its own scroll */
 #contextMenu.compact .menu-item { padding: 5px 16px; font-size: 13px; }

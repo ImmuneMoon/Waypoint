@@ -8,6 +8,7 @@
 // [helpchipcheck:core-start]
 function chipHelpBox(doc) { return doc.getElementById('helpModal'); }
 // a window a control may live in, the control that opens it, and what a tab of it is called: the System editor for now
+function chipGmOnly(doc) { return doc.body && doc.body.classList && doc.body.classList.contains('net-client') ? 'The GM\u2019s' : ''; }   // fold 8: a window only the GM's machine has
 var CHIP_WINDOWS = { systemModal: { open: 'systemBtn', tabs: '.sys-tabs button[data-tab]', tabOf: function(el) { var t = el && el.closest ? el.closest('.sys-tab') : null; return t && t.id ? CHIP_TAB_IDS[t.id] || '' : ''; } },
     settingsModal: { open: 'settingsBtn' }, profileModal: { open: 'rowMeBtn' }, netModal: { open: 'netBtn' },
     // fold 5: windows the map and the campaign open, each by its own button; the combat roster only at a table you host
@@ -17,6 +18,9 @@ var CHIP_WINDOWS = { systemModal: { open: 'systemBtn', tabs: '.sys-tabs button[d
     // fold 7: the Calendar, Sound, Music, Video, the Journal and the table notepad; a control their scripts build as they open is reached by an in: key
     calendarModal: { open: 'clockChip', when: function(doc) { var c = doc.getElementById('clockChip'); return c && !c.hidden && !(c.style && c.style.display === 'none') ? '' : 'With the Calendar on'; } },
     soundPanel: { open: 'soundBtn' }, musicPanel: { open: 'musicBtn' }, videoPanel: { open: 'videoBtn' }, journalModal: { open: 'journalBtn' },
+    // fold 8: the Image Library, the Sound Library, which opens from Sound's own Library button (via), and the Time rules panel, which no button opens (go)
+    imgLibModal: { open: 'imgLibBtn', when: chipGmOnly }, soundLibModal: { open: 'soundBtn', via: '[data-act="lib"]', when: chipGmOnly },
+    timePanel: { go: function() { var tp = typeof window !== 'undefined' ? window.wpTimePanel : null; if (tp && tp.open) tp.open(); }, when: chipGmOnly },
     notepadPanel: { when: function(doc) { var p = doc.getElementById('notepadPanel'); return p && p.style.display !== 'none' && !(p.classList && p.classList.contains('wp-away')) ? '' : 'While the table notepad is up'; } },
     combatModal: { open: 'netCombatBtn', when: function() { var n = typeof window !== 'undefined' ? window.wpNet : null; return n && n.active && n.role === 'host' ? '' : 'While you host'; } } };   // fold 3: Settings, your profile and Multiplayer, which have no tabs: a group of Settings unfolds and a part of Multiplayer opens by its own button
 // fold 3: the names Help says them by, marked as Help opens (Help's text stays as written, which many suites read): the part of Help, the name in
@@ -48,11 +52,14 @@ var CHIP_NAMES = [
     ['grids', 'set the clock', 'in:calendarModal.cal-set'], ['grids', 'hide the clock for me', 'in:calendarModal.cal-hideme'], ['whiteboard', 'mute mine', 'in:soundPanel.snd-mute'],
     ['whiteboard', '+ add a sound on an action', 'in:soundPanel.snd-on-add'], ['whiteboard', '+ add music', 'in:musicPanel.music-add'], ['whiteboard', 'auto-play map music while solo', 'in:musicPanel.music-solo-opt'],
     ['whiteboard', 'add videos', 'in:videoPanel.vid-add'], ['mp-player', '+ note', 'in:journalModal.journal-add'], ['mp-player', 'every journal', '#journalAll'],
-    ['mp-player', 'save to my journal', '#notepadSaveBtn'], ['mp-player', 'clear', '#notepadClearBtn']];
+    ['mp-player', 'save to my journal', '#notepadSaveBtn'], ['mp-player', 'clear', '#notepadClearBtn'],
+    // fold 8: the Image Library, the Sound Library and the Time rules panel
+    ['whiteboard', 'select', '#imgLibSelectBtn'], ['whiteboard', '+ new tag', 'in:imgLibModal.img-cat-new'], ['whiteboard', 'add to map', '#imgLibPreviewAdd'], ['whiteboard', 'add sounds', '#soundLibUpload'], ['start', 'mute', 'in:timePanel.tp-mute']];
 // fold 7: what a chip draws for a control a window's script builds, until that window has been drawn once: its look, whose it is, and what is lit
 // in its place where the window shows it only after a pick (near: Set the clock comes once a day is picked, so the row that says so is lit)
 var CHIP_STANDS = { 'in:calendarModal.cal-set': { cls: 'tool ghost', gm: true, near: 'cal-pick' }, 'in:calendarModal.cal-hideme': { cls: 'tool ghost', player: true }, 'in:soundPanel.snd-mute': { tick: true },
-    'in:soundPanel.snd-on-add': { cls: 'tool ghost snd-btn' }, 'in:musicPanel.music-add': { cls: 'tool ghost' }, 'in:musicPanel.music-solo-opt': { tick: true }, 'in:videoPanel.vid-add': { cls: 'tool' }, 'in:journalModal.journal-add': { cls: 'tool ghost' } };
+    'in:soundPanel.snd-on-add': { cls: 'tool ghost snd-btn' }, 'in:musicPanel.music-add': { cls: 'tool ghost' }, 'in:musicPanel.music-solo-opt': { tick: true }, 'in:videoPanel.vid-add': { cls: 'tool' }, 'in:journalModal.journal-add': { cls: 'tool ghost' },
+    'in:imgLibModal.img-cat-new': { cls: 'journal-from img-cat-new' }, 'in:timePanel.tp-mute': { cls: 'tp-mute', gm: true, near: 'tp-ch-h' } };   // fold 8: a rule's Mute stands in a character's fold, so a character is lit where none is open
 function chipIn(key) { var m = /^in:([A-Za-z][A-Za-z0-9]{0,40})\.([a-z][a-z0-9-]{0,63})$/.exec(typeof key === 'string' ? key : ''); return m ? { win: m[1], cls: m[2] } : null; }
 function chipWords(s) { return String(s || '').replace(/\s+/g, ' ').trim().replace(/[.\u2026:]+$/, '').toLowerCase(); }
 function chipsName(help) {
@@ -65,7 +72,7 @@ function chipsName(help) {
     return n;
 }
 // fold 3: a part of a window that shows only at times, and the words a chip says while it does not
-var CHIP_WHEN = { netHostInfo: 'While you host', setUpdateRow: 'When an update is found', setRelayBlock: 'With a relay server set', drawShowAsk: 'On a player\u2019s screen' };
+var CHIP_WHEN = { netHostInfo: 'While you host', setUpdateRow: 'When an update is found', setRelayBlock: 'With a relay server set', drawShowAsk: 'On a player\u2019s screen', imgLibPreview: 'With a picture picked' };
 var CHIP_TAB_IDS = { sysFields: 'fields', sysRolls: 'rolls', sysItems: 'items', sysLists: 'lists', sysEffects: 'effects', sysCombat: 'combat', sysRules: 'rules', sysChars: 'chars', sysLayout: 'layout', sysCalendar: 'calendar' };
 var CHIP_KEY = /^(?:sys-tab:[a-z]{1,16}|sys:[a-z]{1,16}:[a-z][a-z0-9-]{0,63}|in:[A-Za-z][A-Za-z0-9]{0,40}\.[a-z][a-z0-9-]{0,63}|#[A-Za-z][A-Za-z0-9_-]{0,63})$/;   // a tab, the first control of a class inside a tab, the first of a class inside a window (fold 7), or a control by its id
 // the control a key names in this document, and the window that holds it (none for a control of the page itself)
@@ -196,7 +203,8 @@ function chipGo(doc, key) {
     _chipBack = { pane: pane ? pane.dataset.pane : '', top: body ? body.scrollTop : 0 };
     if (help) help.style.display = 'none';
     if (f.win && !CHIP_WINDOWS[f.win].tabs) {   // fold 3: a window with no tabs opens now, and a moment after, its group or its part, and the control is lit
-        var boxW = doc.getElementById(f.win); if (boxW && boxW.style.display === 'none') { var opW = doc.getElementById(CHIP_WINDOWS[f.win].open); if (opW) opW.click(); }
+        var boxW = doc.getElementById(f.win), cwW = CHIP_WINDOWS[f.win];
+        if (boxW && boxW.style.display === 'none') { var vW = cwW.via ? doc.querySelector(cwW.via) : null; if (!vW) { var opW = doc.getElementById(cwW.open); if (opW) opW.click(); vW = cwW.via ? doc.querySelector(cwW.via) : null; } if (vW && vW.click) vW.click(); }   // fold 8: a window opened by a button of another, which is pressed first only where it is not drawn yet
         chipBackShow(doc);
         setTimeout(function() {
             chipFolds(f.el, boxW).forEach(function(d) { d.open = true; });
@@ -228,7 +236,7 @@ function chipGoIn(doc, key, ip) {
     if (help) help.style.display = 'none';
     var box = doc.getElementById(ip.win), cw = CHIP_WINDOWS[ip.win], fl = typeof window !== 'undefined' ? window.wpFloats : null;
     var up = !!box && (fl && typeof fl.shown === 'function' ? fl.shown(box) : box.style.display !== 'none' && !(box.classList && box.classList.contains('wp-away')));
-    if (!up && cw.open) { var op = doc.getElementById(cw.open); if (op && op.click) op.click(); }
+    if (!up && typeof cw.go === 'function') cw.go(doc); else if (!up && cw.open) { var op = doc.getElementById(cw.open); if (op && op.click) op.click(); }   // fold 8: a window no button opens has its own way (go)
     chipBackShow(doc);
     var rec = Object.prototype.hasOwnProperty.call(CHIP_STANDS, key) ? CHIP_STANDS[key] : {};
     var tries = 0, look = function() { var f = chipFind(doc, key), nr = !f && rec.near && tries >= 5 && box ? box.querySelector('.' + rec.near) : null; if (!f && !nr) { if (++tries < 20) setTimeout(look, 100); return; } var el = f ? f.el : nr; if (el.scrollIntoView) el.scrollIntoView({ block: 'center' }); el.classList.add('help-found'); setTimeout(function() { el.classList.remove('help-found'); }, 2000); };

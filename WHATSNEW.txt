@@ -383,7 +383,8 @@ At the table
   roller or the combat roster opens its window first; the roster says that it
   needs a table you host.
   A button of the Calendar, Sound, Music, Video, the Journal
-  or the table notepad opens its window first, and is lit there.
+  or the table notepad opens its window first, and is lit there. So does a
+  button of the Image Library, the Sound Library or the Time rules panel.
   A button in a sheet's head is lit in the sheet you have open, and the Game
   Record's two buttons open it first.
 - A roll can wait for help. Its card asks the others on the roller's map, and

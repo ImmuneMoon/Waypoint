@@ -132,6 +132,9 @@ jobs:
       - name: accountcheck — this install linked to a Waypoint website account, the shell's routes and the order of linking
         if: ${{ !cancelled() }}
         run: node tools/accountcheck.js
+      - name: cloudcheck — cloud saves, the shell's half, against a site of its own
+        if: ${{ !cancelled() }}
+        run: node tools/cloudcheck.js
       - name: shapecheck — turn shapes
         if: ${{ !cancelled() }}
         run: node tools/shapecheck.js

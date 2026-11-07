@@ -7,7 +7,8 @@ const { app, BrowserWindow, shell } = require('electron');
 // put there by the installer (updater.js), with the walk-through in the browser as the fallback.
 const UPDATE_REPO = 'ImmuneMoon/Waypoint';   // <owner>/<repo> — change here and nowhere else
 const updater = require('./updater');
-const account = require('./account');   // 1.6.0: the link between this install and a Waypoint website account (only this server talks to the site)
+const account = require('./account');
+const cloudsync = require('./cloudsync');   // 1.6.2: cloud saves, the shell's half (the website's API of 2026-11-07)   // 1.6.0: the link between this install and a Waypoint website account (only this server talks to the site)
 const recstore = require('./recstore');   // 1.6.0: the game record, a file a session beside the save, shared with tools/dev-server.js
 const libstore = require('./libstore');   // Stage 6 library L1b: a campaign's pack files, shared with tools/dev-server.js
 const servefile = require('./servefile');   // item 21 V1: a media file's type and byte ranges, shared with tools/dev-server.js
@@ -91,6 +92,8 @@ Object.defineProperty(updateCfg, 'currentVersion', { get: appVersion, enumerable
 const updateHandler = updater.makeHandler(updateCfg);
 const accountHandler = account.makeHandler({ savesDir, base: account.siteBase(process.env), get version() { return appVersion(); }, readBody: reqguard.readBody, bodyCap: reqguard.BODY.small,
     log: (s) => { try { reqguard.appendLog(savesDir, '[account] ' + s); } catch (e) {} } });
+const cloudHandler = cloudsync.makeHandler({ savesDir, base: account.siteBase(process.env), readBody: reqguard.readBody, bodyCap: reqguard.BODY.small,
+    log: (s) => { try { reqguard.appendLog(savesDir, '[cloud] ' + s); } catch (e) {} } });
 
 // Only Waypoint's own pages may talk to this server. It listens on localhost with no login and a
 // predictable port, so any web page open in the GM's browser could otherwise read /api/data (the whole
@@ -133,6 +136,7 @@ const server = http.createServer((req, res) => {
         return;
     }
     if (account.ACCOUNT_ROUTES.includes(url.pathname)) { accountHandler(req, res, url); return; }   // 1.6.0: the website account link
+    if (cloudsync.CLOUD_ROUTES.includes(url.pathname) || url.pathname.startsWith('/api/cloud/')) { cloudHandler(req, res, url); return; }   // 1.6.2: cloud saves
     // Open a release page or installer link in the system browser — this project's own release pages on github.com only
     // (shellguard.releaseLink: no other host, no other part of the project, no port, no user name)
     if (url.pathname === '/api/open-external' && req.method === 'POST') {
@@ -426,5 +430,12 @@ waitForInstanceLock(8000, function() {
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
+});
+// 1.6.2: cloud saves sync once on close, waited for five seconds at most; a second quit goes at once
+let cloudClosed = false;
+app.on('before-quit', (e) => {
+    if (cloudClosed) return;
+    cloudClosed = true; e.preventDefault();
+    cloudHandler.closeSync(5000).catch(() => {}).then(() => { cloudHandler.stop(); app.quit(); });
 });
 

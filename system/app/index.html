@@ -90,6 +90,7 @@
 <script type="module" src="scripts/compass.js"></script>
 <script type="module" src="scripts/view.js"></script>
 <script type="module" src="scripts/cellsize.js"></script>
+<script type="module" src="scripts/cloudui.js"></script>
 <script type="module" src="scripts/mapobjects.js"></script>
 <script type="module" src="scripts/trade.js"></script>
 <script type="module" src="scripts/keycore.js"></script>
@@ -349,6 +350,7 @@
                                   <li><b>Link to my account</b> links this computer to your account on the Waypoint website. Sign in on the page it opens and check the code. Then your profile follows you to every computer you link.</li>
                                   <li>The first computer you link gives the account its player. A computer that has played nowhere takes the account&rsquo;s. Where both have played, you are asked which to keep.</li>
                               </ul></li>
+                          <li><b>Cloud saves</b>, in your profile, keeps your save on the Waypoint website once this computer is linked to your account.<ul><li>Tick <b>Keep my save in the cloud</b>. Waypoint then syncs when it closes, ten minutes after a change, and when you take a snapshot.</li><li>A computer with no save yet takes the cloud&rsquo;s. Where this computer and the cloud both changed, you are asked which to keep, and the other stays in the cloud&rsquo;s history.</li><li>Your save stays on this computer as always. Taking the cloud&rsquo;s first copies your save to the backups folder.</li></ul></li>
                           <li><b>Settings &#9656; Profile &#9656; Welcome screen on launch</b> sets how often the screen appears: every time, on the first run only, or never. The Welcome screen itself asks only the first time.</li>
                           <li>The screen lists a campaign to continue only once that campaign holds something.</li>
                       </ul>
@@ -4391,6 +4393,13 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                     <button class="tool ghost" id="setAcctUnlinkBtn" type="button" style="flex:1;" title="This computer stops following your account. Your profile here stays as it is" hidden>Unlink this computer</button>
                 </div>
             </div>
+        </div>
+        <div class="set-acct" id="cloudPart" style="margin-top:12px;" hidden>
+            <div class="set-field-label">Cloud saves</div>
+            <label class="compass-tick" style="margin-top:4px;" title="Your save is kept in the cloud on the Waypoint website and synced on every computer you link. Off, it stays on this computer only"><input type="checkbox" id="cloudOn"> Keep my save in the cloud</label>
+            <div id="cloudStatus" class="set-acct-line" aria-live="polite"></div>
+            <div id="cloudUsage" class="set-line"></div>
+            <div style="display:flex; gap:6px; margin-top:6px;"><button class="tool ghost" id="cloudSyncNow" type="button" style="flex:1;" title="Compares this computer's save with the cloud's now" hidden>Sync now</button></div>
         </div>
         <div class="prof-tables" style="margin-top:16px;">
             <div class="set-field-label">Tables that know you</div>

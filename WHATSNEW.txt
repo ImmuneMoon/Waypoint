@@ -579,6 +579,12 @@ Writing planners and pages
   on the board's.
 - Trim to cells, in a map picture's Properties, keeps only the cells you
   pick of it, on players' screens too. Whole picture takes the trim off.
+- Cloud saves: once this computer is linked to your Waypoint account, Keep my
+  save in the cloud in your profile syncs your save with the website when
+  Waypoint closes, ten minutes after a change and on a snapshot. Where both
+  changed you are asked which to keep. This update changes the core, so it
+  installs through the installer once.
+- The install's website key is no longer readable by the page as a file.
 - Grid cell on the board, in the measure options, gives a map a cell of its
   own size. Fit grid to picture lines the grid up with a map picture's own
   printed grid, and tokens take the new cell size.

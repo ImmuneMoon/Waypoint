@@ -753,6 +753,7 @@ if (_snapNow) _snapNow.addEventListener('click', async function() {
         if (!r.ok) throw new Error();
         toast('Snapshot taken. It stays until you delete it.');
         loadSnapshots();
+        if (window.wpCloud && typeof window.wpCloud.backup === 'function') window.wpCloud.backup();   // 1.6.2: Backup now keeps that version in the cloud too, where cloud saves are on
     } catch (e) { toast('Snapshot failed.'); }
 });
 // [sinkcheck:snaps-start]
@@ -844,7 +845,7 @@ function appVersionPromise() {   // the newer of the shell's version and the app
    can take it (canSelfInstall): the shell downloads the installer, checks it, runs it and Waypoint
    reopens; Get installer and its steps remain for every case where that cannot be done. */
 var _upd = { info: null, shellOld: null, shell: null, selfBusy: false, selfFailed: false, selfText: '', failNote: '', failSeen: '' };
-var SHELL_WANTED = '1.6.0';   // 1.6.0 adds /api/account (account.js: this install linked to a Waypoint website account, the key kept in saves/account.json); 1.5.9 carries the outside sheet reader's folder (system/app/private) across an update and a restore; 1.5.6 adds the right-click menu of a text box, Cut, Copy, Paste and Select all (shellguard.editMenuTemplate); 1.5.0 added /api/library (the item library's pack files beside the save), serves a file in byte ranges under its media type (servefile.js: a video seeks without being read whole), takes only signed updates, keeps a way back and updates its own core; 1.4.6 added /api/delete-image (Image Library → Delete picture)   // the core this app expects; older cores are walked through the installer. It is the version tools/shellrev.json records as the core's last change: updatercheck holds the two together, and a release's manifest says the same as minShell
+var SHELL_WANTED = '1.6.2';   // 1.6.2 adds /api/cloud (cloudsync.js: cloud saves, the shell's half) and hides account.json and cloud.json from /saves/; 1.6.0 adds /api/account (account.js: this install linked to a Waypoint website account, the key kept in saves/account.json); 1.5.9 carries the outside sheet reader's folder (system/app/private) across an update and a restore; 1.5.6 adds the right-click menu of a text box, Cut, Copy, Paste and Select all (shellguard.editMenuTemplate); 1.5.0 added /api/library (the item library's pack files beside the save), serves a file in byte ranges under its media type (servefile.js: a video seeks without being read whole), takes only signed updates, keeps a way back and updates its own core; 1.4.6 added /api/delete-image (Image Library → Delete picture)   // the core this app expects; older cores are walked through the installer. It is the version tools/shellrev.json records as the core's last change: updatercheck holds the two together, and a release's manifest says the same as minShell
 var RELEASES_PAGE = 'https://github.com/ImmuneMoon/Waypoint/releases/latest';
 function vcmp(x, y) { var p = String(x).split('-')[0].split('.').map(Number), q = String(y).split('-')[0].split('.').map(Number); for (var k = 0; k < 3; k++) { if ((p[k] || 0) !== (q[k] || 0)) return (p[k] || 0) - (q[k] || 0); } return 0; }
 // Is the core older than this app wants? The shell says so itself from 1.3.6 on; before that, the

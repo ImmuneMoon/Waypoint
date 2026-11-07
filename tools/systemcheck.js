@@ -8,7 +8,7 @@ const path = require('path'), fs = require('fs');
 const NL = String.fromCharCode(10);
 const app = path.join(__dirname, '..', 'system', 'app');
 const sevenList = () => ['standing', 'crouching', 'sitting', 'kneeling', 'crawling', 'lying-prone', 'lying-face-up'].map(id => ({ id, name: id }));   // 1.6.0, backlog 183 (3): a system's own list for the tests, none being a default
-const starterFile = n => n === '3d6' ? path.join(__dirname, 'fixtures', 'starter-3d6.json') : path.join(app, 'assets', 'systems', n + '.json');   // 1.5.6: Basic 3d6 is out of the app, kept here for the tests
+const starterFile = n => n === '3d6' ? path.join(__dirname, 'fixtures', 'starter-3d6.json') : n === 'd20' ? path.join(__dirname, 'fixtures', 'starter-d20.json') : path.join(app, 'assets', 'systems', n + '.json');   // 1.5.6: Basic 3d6 is out of the app, kept here for the tests; 1.6.2 (backlog 147): Basic d20 as it stood before its gear and coins, frozen here for the folds' own baselines   // 1.5.6: Basic 3d6 is out of the app, kept here for the tests
 const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).replace(/[\\]/g, '/');
 let pass = 0, fail = 0;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', name); } else { fail++; console.log('FAIL     ', name, detail !== undefined ? '-> ' + String(detail).slice(0, 300) : ''); } }
@@ -13400,7 +13400,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 { id: 's_plain', title: 'Plain', collapsible: true, tab: 't_a', fields: [{ id: 'f_gear', w: 'row' }] },
                 { id: 's_fixed', title: 'Fixed', fields: [{ id: 'f_note', w: 1 }] } ],
                 hud: { tabs: [], sections: [{ id: 's_hm', title: 'Pack', collapsible: true, fields: [{ id: 'f_coin', w: 1 }] }, { id: 's_hc', title: 'Purse', parent: 's_hm', fields: [{ id: 'f_pouch', w: 1 }] }] } } };
-        const pinsM = {}; [['d20', d20], ['3d6', g3d6], ['none', NONE]].forEach(([n, s]) => { pinsM[n] = [hM(cleanSystem(s, { F, gmView: true })), hM(cleanSystem(s, { F, gmView: false }))]; });
+        const pinsM = {}; [['d20', JSON.parse(fs.readFileSync(starterFile('d20'), 'utf8'))], ['3d6', g3d6], ['none', NONE]].forEach(([n, s]) => { pinsM[n] = [hM(cleanSystem(s, { F, gmView: true })), hM(cleanSystem(s, { F, gmView: false }))]; });
         check('1.5.5 a system that uses none of it cleans byte for byte as before: the d20 and 3d6 starters in both views and a system of nested, collapsible, pinned and tabbed sections with a HUD, by the hashes the cleaner gave before this fold',
             j(pinsM) === j({ d20: ['bede783f5eb9c02e', '780aefd2f3fc53bf'], '3d6': ['4304a54a60ddddcb', 'c571cb18d44d94fe'], none: ['aef346f8fd431a7c', 'aef346f8fd431a7c'] }), j(pinsM));
 
@@ -22505,6 +22505,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.2 a list roll\'s Shown on rows where stands in its When it can be used row beside Pressed only while and Hidden, for a roll and an action alike, and its handler finds the roll from either row; a fault for a box left empty says Nothing is set here yet',
             shM.includes("ndRow.appendChild(el('span', 'sys-num-cap sys-offered', 'When it can be used')); ndRow.appendChild(rsI);") && shM.includes("ndA.appendChild(el('span', 'sys-num-cap sys-offered', 'When it can be used')); ndA.appendChild(rsI);") && shM.includes("var rrw = t.closest('.sys-list-roll') || t.closest('.sys-list-needsrow'),")
             && !shM.includes('rsI.maxLength = LIMITS.formula; rw.appendChild(rsI);') && S.plainMessage({ fields: [] }, 'Roll “A”: Missing formula') === 'Roll “A”: Nothing is set here yet.' && S.plainMessage({ fields: [] }, 'Missing formula') === 'Nothing is set here yet.', '');
+    }
+    {   // 1.6.2 (backlog 147; the owner: "Coins by kind (Recommended)", and of weight: "waypoint should follow the systems rules, if the system says theres a penalty there is, if there is not penalty, then there isnt")
+        const J = JSON.stringify, dG = S.cleanSystem(d20, { F, gmView: true }), dP = S.cleanSystem(d20, { F, gmView: false }), fld = id => dG.fields.find(x => x.id === id);
+        const ch = { id: 'c_g', name: 'Gale', values: {} }; S.startRows(dG, ch, F);
+        const load = (str, wt) => { const r = S.resolveAll(dG, { values: { f_str: str, f_gear: [{ id: 'w_p', def: { name: 'Pack', stats: { wt: wt } }, qty: 2 }] } }, F); return [r.f_carried.value, r.f_capacity.value, r.f_load.value, r.f_load.text]; };
+        const coinsSys = dG.items.filter(i => i.category === 'Coin').map(i => [i.name, i.stats.worth]);
+        check('Basic d20 has coins by kind and carried weight (backlog 147): Gold, Silver and Copper worth 100, 10 and 1 make change as money does, and a new character starts with 10 Gold; Gear rows weigh in pounds, Carried adds them times their quantity, the Carrying limit is Strength times 15, and Load says Over the limit past it, the starter\'s own rule with no penalty; both views alike, and the validator finds nothing',
+            J(coinsSys) === J([['Gold', 100], ['Silver', 10], ['Copper', 1]]) && fld('f_coins').list.money === 'worth' && J(ch.values.f_coins.map(r => [r.defId, r.qty])) === J([['i_gold', 10]]) && fld('f_gear').list.custom === true
+            && J(load(10, 50)) === J([100, 150, 0, 'Within the limit']) && J(load(10, 80)) === J([160, 150, 1, 'Over the limit']) && J(load(12, 80)) === J([160, 180, 0, 'Within the limit'])
+            && J(dP.fields.filter(x => /^f_(coins|gear|carried|capacity|load)$/.test(x.id))) === J(dG.fields.filter(x => /^f_(coins|gear|carried|capacity|load)$/.test(x.id))) && S.validateSystem(dG, F).errors.length === 0
+            && dG.sheet.sections.some(s => s.id === 's_gear' && s.fields.map(x => x.id).join() === 'f_carried,f_capacity,f_load,f_gear,f_coins'), J([coinsSys, ch.values.f_coins, load(10, 80)]));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

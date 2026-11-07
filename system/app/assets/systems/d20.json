@@ -46,6 +46,11 @@
     { "id": "f_class", "key": "Class", "label": "Class", "kind": "text", "def": "", "max": 60, "edit": "owner", "vis": "all", "hover": false },
     { "id": "f_race", "key": "Race", "label": "Ancestry", "kind": "text", "def": "", "max": 60, "edit": "owner", "vis": "all", "hover": false },
     { "id": "f_align", "key": "Alignment", "label": "Alignment", "kind": "select", "options": ["Lawful good", "Neutral good", "Chaotic good", "Lawful neutral", "Neutral", "Chaotic neutral", "Lawful evil", "Neutral evil", "Chaotic evil"], "def": "Neutral", "edit": "owner", "vis": "all", "hover": false },
+    { "id": "f_coins", "key": "Coins", "label": "Coins", "kind": "item-list", "edit": "owner", "vis": "all", "hover": false, "list": { "multi": true, "cats": ["Coin"], "stats": [ { "key": "worth", "label": "Worth" } ], "money": "worth", "starts": [ { "entry": "i_gold", "qty": 10 } ] } },
+    { "id": "f_gear", "key": "Gear", "label": "Gear", "kind": "item-list", "edit": "owner", "vis": "all", "hover": false, "list": { "multi": true, "custom": true, "cats": ["Gear"], "stats": [ { "key": "wt", "label": "Weight", "unit": "lb" } ] } },
+    { "id": "f_carried", "key": "Carried", "label": "Carried", "kind": "formula", "formula": "Gear.wt", "unit": "lb", "vis": "all", "hover": false },
+    { "id": "f_capacity", "key": "Capacity", "label": "Carrying limit", "kind": "formula", "formula": "STR * 15", "unit": "lb", "vis": "all", "hover": false },
+    { "id": "f_load", "key": "Load", "label": "Load", "kind": "formula", "formula": "if(Carried > Capacity, 1, 0)", "labels": ["Within the limit", "Over the limit"], "tones": ["", "danger"], "vis": "all", "hover": false },
     { "id": "f_notes", "key": "Notes", "label": "Notes", "kind": "notes", "edit": "owner", "vis": "all", "hover": false },
     { "id": "f_gmnotes", "key": "GMnotes", "label": "GM notes", "kind": "notes", "edit": "gm", "vis": "gm", "hover": false }
   ],
@@ -91,9 +96,21 @@
       { "id": "s_senses", "title": "Senses", "cols": 4, "fields": [ { "id": "f_dark", "w": 1 }, { "id": "f_blindsight", "w": 1 }, { "id": "f_trem", "w": 1 }, { "id": "f_true", "w": 1 } ] },
       { "id": "s_rolls", "title": "Rolls", "cols": 3, "fields": [ { "roll": "r_atk_str", "w": 1 }, { "roll": "r_atk_dex", "w": 1 }, { "roll": "r_save_str", "w": 1 }, { "roll": "r_save_dex", "w": 1 }, { "roll": "r_save_con", "w": 1 }, { "roll": "r_save_wis", "w": 1 } ] },
       { "id": "s_details", "title": "Details", "cols": 3, "fields": [ { "id": "f_class", "w": 1 }, { "id": "f_race", "w": 1 }, { "id": "f_align", "w": 1 } ] },
+      { "id": "s_gear", "title": "Gear and coins", "cols": 3, "fields": [ { "id": "f_carried", "w": 1 }, { "id": "f_capacity", "w": 1 }, { "id": "f_load", "w": 1 }, { "id": "f_gear", "w": "row" }, { "id": "f_coins", "w": "row" } ] },
       { "id": "s_notes", "title": "Notes", "cols": 1, "fields": [ { "id": "f_notes", "w": "row" }, { "id": "f_gmnotes", "w": "row" } ] }
     ]
   },
+  "items": [
+    { "id": "i_gold", "name": "Gold", "category": "Coin", "vis": "all", "stats": { "worth": 100 } },
+    { "id": "i_silver", "name": "Silver", "category": "Coin", "vis": "all", "stats": { "worth": 10 } },
+    { "id": "i_copper", "name": "Copper", "category": "Coin", "vis": "all", "stats": { "worth": 1 } },
+    { "id": "i_backpack", "name": "Backpack", "category": "Gear", "vis": "all", "stats": { "wt": 5 } },
+    { "id": "i_bedroll", "name": "Bedroll", "category": "Gear", "vis": "all", "stats": { "wt": 7 } },
+    { "id": "i_rope", "name": "Rope, 50 feet", "category": "Gear", "vis": "all", "stats": { "wt": 10 } },
+    { "id": "i_torch", "name": "Torch", "category": "Gear", "vis": "all", "stats": { "wt": 1 } },
+    { "id": "i_rations", "name": "Rations, one day", "category": "Gear", "vis": "all", "stats": { "wt": 2 } },
+    { "id": "i_waterskin", "name": "Waterskin", "category": "Gear", "vis": "all", "stats": { "wt": 5 } }
+  ],
   "effects": [
     { "id": "e_blinded", "name": "Blinded", "icon": "", "tone": "", "dur": "", "notes": "", "vis": "all", "mods": [ { "f": "f_blinded", "op": "on" } ] },
     { "id": "e_deafened", "name": "Deafened", "icon": "", "tone": "", "dur": "", "notes": "", "vis": "all", "mods": [ { "f": "f_deafened", "op": "on" } ] }

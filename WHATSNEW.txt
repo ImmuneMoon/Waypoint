@@ -8,6 +8,10 @@ Tokens
   the Image Library say the size a token's picture is best at.
 
 The System editor
+- Basic d20 has coins and carried weight. A new character starts with 10
+  Gold, and Gold, Silver and Copper make change as you spend. Gear has weights,
+  Carried adds them up, and the carrying limit is Strength times 15. Going over
+  it only marks Load, since Basic d20 sets no penalty for it.
 - A name button makes a name for a character or a place. It stands where you
   name a character, a map, a planner or a page, on a planner's scene card, in
   Manage characters, in a token's Properties and in the dice roller, and

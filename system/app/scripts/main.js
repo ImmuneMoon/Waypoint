@@ -1396,6 +1396,8 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
             ? (am.rooms || []).map(function(r) { return { x: r.x, y: r.y, w: 140, h: 60, c: (am.cats && am.cats[r.cat] && am.cats[r.cat].color) || '#e0a54f' }; })
             : (am.whiteboard || []).filter(function(w) { return !(w && w.type === 'light' && window.wpNet && window.wpNet.active && window.wpNet.role === 'client'); }).map(function(w) { return { x: w.x, y: w.y, w: w.w || 50, h: w.h || 50, c: w.type === 'image' ? '#8a8a97' : (/^#/.test(w.color || '') ? w.color : '#4db3d3') }; });   // a player never sees a light source's marker
         var vx = wrap.scrollLeft / z, vy = wrap.scrollTop / z, vw = wrap.clientWidth / z, vh = wrap.clientHeight / z;
+        var turnRect = state.viewMode !== 'data' && window.wpView && window.wpView.screenRect ? window.wpView.screenRect() : null;   // 1.6.2 (backlog 82b): a turned screen is a turned box on the minimap, framed by its own extent
+        if (turnRect) { var txs = turnRect.map(function(p) { return p.x; }), tys = turnRect.map(function(p) { return p.y; }); vx = Math.min.apply(null, txs); vy = Math.min.apply(null, tys); vw = Math.max.apply(null, txs) - vx; vh = Math.max.apply(null, tys) - vy; }
         var W = cv.width, H = cv.height;
         var sc, ox, oy;
         if (_mmFrozen) {
@@ -1438,7 +1440,8 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         ctx.globalAlpha = 1;
         ctx.strokeStyle = lightM ? '#1f1d24' : '#ffffff';
         ctx.lineWidth = 1.5;
-        ctx.strokeRect(vx * sc + ox, vy * sc + oy, vw * sc, vh * sc);
+        if (turnRect) { ctx.beginPath(); turnRect.forEach(function(p, i) { if (i) ctx.lineTo(p.x * sc + ox, p.y * sc + oy); else ctx.moveTo(p.x * sc + ox, p.y * sc + oy); }); ctx.closePath(); ctx.stroke(); }
+        else ctx.strokeRect(vx * sc + ox, vy * sc + oy, vw * sc, vh * sc);
     }
     window.renderMinimap = renderMinimap;
     window.wpRenderRulers = renderRulers;
@@ -1462,9 +1465,9 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
             var wx = (e.clientX - r.left - _mm.ox) / _mm.scale;
             var wy = (e.clientY - r.top - _mm.oy) / _mm.scale;
             var wrap = state.viewMode === 'data' ? document.getElementById('canvasWrap') : document.getElementById('whiteboardWrap');
-            var z = state.zoomLevel || 1;
-            wrap.scrollLeft = wx * z - wrap.clientWidth / 2;
-            wrap.scrollTop = wy * z - wrap.clientHeight / 2;
+            var z = state.zoomLevel || 1, tv = state.viewMode !== 'data' && window.wpView && window.wpView.turned && window.wpView.turned() ? window.wpView.screen(wx, wy) : null;   // a turned screen: centre where the board draws that point
+            wrap.scrollLeft = tv ? tv.x - wrap.clientWidth / 2 : wx * z - wrap.clientWidth / 2;
+            wrap.scrollTop = tv ? tv.y - wrap.clientHeight / 2 : wy * z - wrap.clientHeight / 2;
         }
         var mmDrag = false;
         cv.addEventListener('pointerdown', function(e) { mmDrag = true; _mmFrozen = true; jump(e); try { cv.setPointerCapture(e.pointerId); } catch(err) {} });

@@ -12,7 +12,7 @@ const viewSrc = read('scripts/view.js');
 const a = viewSrc.indexOf('// [viewcheck:core-start]'), z = viewSrc.indexOf('// [viewcheck:core-end]');
 check('view.js holds its core between its markers', a >= 0 && z > a);
 const state = { zoomLevel: 1 };
-const K = new Function('state', viewSrc.slice(a, z) + '\nreturn { V: V, rad: rad, isTurned: isTurned, turnTo: turnTo, bxy: bxy, dxy: dxy, sxy: sxy, pivotTo: pivotTo, transform: transform, headingOf: headingOf, moveHeading: moveHeading };')(state);
+const K = new Function('state', viewSrc.slice(a, z) + '\nreturn { uprightOf: uprightOf, uprightTurn: uprightTurn, pieceTurn: pieceTurn, viewSource: viewSource, V: V, rad: rad, isTurned: isTurned, turnTo: turnTo, bxy: bxy, dxy: dxy, sxy: sxy, pivotTo: pivotTo, transform: transform, headingOf: headingOf, moveHeading: moveHeading };')(state);
 const V = K.V, near = (p, q, e) => Math.abs(p - q) <= (e || 1e-6);
 
 // the shortest way round
@@ -77,6 +77,24 @@ check('the way it went: degrees clockwise from up, nothing for a step of 4 pixel
     near(K.moveHeading({ x: 0, y: 0 }, { x: 0, y: -10 }), 0) && near(K.moveHeading({ x: 0, y: 0 }, { x: 10, y: 0 }), 90) && near(K.moveHeading({ x: 0, y: 0 }, { x: 0, y: 10 }), 180) && near(K.moveHeading({ x: 0, y: 0 }, { x: -10, y: 0 }), 270)
     && K.moveHeading({ x: 0, y: 0 }, { x: 3, y: 2 }) === null && K.moveHeading(null, { x: 1, y: 1 }) === null);
 
+// fold 3: what stays upright
+check('every text box stays upright, and a character token where Token facing is off; never a waiting token or anything else',
+    K.uprightOf({ type: 'text' }, true) && K.uprightOf({ type: 'image', isChar: true }, false) && !K.uprightOf({ type: 'image', isChar: true }, true)
+    && !K.uprightOf({ type: 'image' }, false) && !K.uprightOf({ type: 'text', waiting: true }, false) && !K.uprightOf(null, false));
+check('a piece stays upright by turning back the turn of the view, and wears nothing of its own on a map that is not turned', K.uprightTurn(-60) === '60deg' && K.uprightTurn(37.123) === '-37.12deg' && K.uprightTurn(0) === '' && K.uprightTurn(0.005) === '');
+// fold 4: turn to movement and the GM's angle
+const tx = { type: 'text' }, tk = { type: 'image', isChar: true };
+check('a token faces the way it last moved where Turn to movement is on and the view follows no token; upright while it follows one; text always reads across',
+    K.pieceTurn(tk, 0, false, true, 90) === '90deg' && K.pieceTurn(tk, -30, false, true, 90) === '90deg' && K.pieceTurn(tk, 0, false, true, null) === '' && K.pieceTurn(tk, -30, true, true, 90) === '30deg'
+    && K.pieceTurn(tk, -30, false, false, 90) === '30deg' && K.pieceTurn(tx, -30, false, true, 90) === '30deg' && K.pieceTurn(tk, 0, false, false, 90) === '');
+check('which turn a screen wears: the GM turn where it holds or the screen follows no token, else its own, else none',
+    K.viewSource({ deg: 30 }, false) === 'gm' && K.viewSource({ deg: 30 }, true) === 'own' && K.viewSource({ deg: 30, hold: true }, true) === 'gm' && K.viewSource(null, true) === 'own' && K.viewSource(null, false) === '');
+{
+    const ccSrc = read('scripts/compasscore.js').replace(/^export .*$/m, '').replace(/^if \(typeof window.*$/m, ''), CV = new Function(ccSrc + '\nreturn cleanViewTurn;')();
+    check('the GM turn of a map is kept as whole degrees from -179 to 180 and a hold only as true, and a map with neither keeps no key',
+        J(CV({ deg: 30 })) === J({ deg: 30 }) && J(CV({ deg: 270.4 })) === J({ deg: -90 }) && J(CV({ deg: -180 })) === J({ deg: 180 }) && J(CV({ deg: 0, hold: true })) === J({ hold: true })
+        && CV({ deg: 0 }) === null && CV({ deg: 360 }) === null && J(CV({ deg: 15, hold: 'yes' })) === J({ deg: 15 }) && CV({ deg: 'x' }) === null && CV(null) === null && CV([30]) === null && J(CV({ deg: 1e400, hold: true })) === J({ hold: true }));
+}
 // the wiring
 const ix = read('index.html'), main = read('scripts/main.js'), fog = read('scripts/fog.js');
 check('the page loads view.js as a module after the compass', ix.includes('<script type="module" src="scripts/compass.js"></script>\n<script type="module" src="scripts/view.js"></script>'));
@@ -88,12 +106,23 @@ check('the fog turns its cells, its marks and the word over a dark cell about th
     const s = read('scripts/' + f);
     check(f + ' reads the pointer through the view helpers (wbX, wbY, wbDX, wbDY), kept between its markers', s.includes('// [view:helpers-start]') && s.includes('// [view:helpers-end]') && /function wbX\(cx, cy, r, w\)/.test(s));
 });
-check('view.js is this computer\'s own: wp_viewTurn, off unless it says on, nothing stored on a map or sent',
-    viewSrc.includes("localStorage.getItem('wp_viewTurn') === 'on'") && !/net\(\)\.(send|broadcast)|\.meta\.|save\(/.test(viewSrc));
+check('Turn with my token is this computer\'s own (wp_viewTurn, off unless it says on), and the one thing view.js stores is the GM\'s turn of the map, meta.viewTurn, through its cleaner and the save, by the GM alone; nothing is sent by hand',
+    viewSrc.includes("localStorage.getItem('wp_viewTurn') === 'on'") && !/net\(\)\.(send|broadcast)/.test(viewSrc)
+    && (viewSrc.match(/\.meta\.[a-zA-Z]+/g) || []).every(m => m === '.meta.viewTurn') && (viewSrc.match(/\bsave\(\)/g) || []).length === 1
+    && viewSrc.includes('var m = getActiveMap(); if (!m || !gmHere()) return false; if (!m.meta) m.meta = {};\n    var v = cleanViewTurn({ deg: deg, hold: hold }); if (v) m.meta.viewTurn = v; else delete m.meta.viewTurn;'));
 check('a press held on the board holds the view still until it is let go', viewSrc.includes("if (_down) { _raf = ") && viewSrc.includes("window.addEventListener('pointerdown', function(e) { var w = wrapEl(); if (w && e.target && w.contains(e.target)) _down = true; }, true);"));
 const help = ix.slice(ix.indexOf('<h4>Turning with your token</h4>'));
 check('Help says it, and both release notes', ix.includes('<h4>Turning with your token</h4>') && help.includes('<b>Turn with my token</b>')
     && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n').includes('- Turn with my token, in the View menu, turns the map under the token you\n')));
 
+check('folds 3 and 4 are wired: the body says the view is turned and the rulers step aside by visibility alone, the minimap frames and draws the turned screen and a press on it centres a point where the board draws it, a corner compass turns with the map and its rose reads north back with the turn taken off',
+    viewSrc.includes("document.body.classList.toggle('view-turned', isTurned());") && read('style.css').includes('body.view-turned #rulerTop, body.view-turned #rulerLeft, body.view-turned #rulerCursorX, body.view-turned #rulerCursorY { visibility: hidden; }')
+    && main.includes('window.wpView.screenRect ? window.wpView.screenRect() : null;') && main.includes('wrap.scrollLeft = tv ? tv.x - wrap.clientWidth / 2 : wx * z - wrap.clientWidth / 2;') && viewSrc.includes('window.renderMinimap();')
+    && viewSrc.includes("rose.classList.contains('compass-map') || !r ? ''") && read('scripts/compass.js').includes('n = ((Math.round(n - window.wpView.deg()) % 360) + 360) % 360;'));
+check('Turn to movement is a VTT feature a player may switch off, the GM sets everyone\'s turn in the View menu, and a player\'s app and a file keep it only as the cleaner keeps it',
+    /\{ id: 'moveturn', label: 'Turn to movement', legacyKey: null \}/.test(read('scripts/vtt.js')) && ix.includes('id="wbViewAll"') && ix.includes('id="wbViewHold"')
+    && read('scripts/net.js').includes('CPv.cleanViewTurn(m.meta.viewTurn)') && read('scripts/cleanup.js').includes('CPt.cleanViewTurn(it.meta.viewTurn)')
+    && help.includes('<b>Everyone&rsquo;s map</b>') && help.includes('<b>Turn to movement</b>')
+    && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n').includes('- Turn to movement, a new VTT setting, turns a token that faces no way to\n')));
 console.log(pass + ' passed, ' + fail + ' failed.');
 process.exit(fail ? 1 : 0);

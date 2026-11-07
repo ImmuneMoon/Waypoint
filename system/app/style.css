@@ -583,6 +583,8 @@
     .wb-tool-btn.view-tick { padding: 7px 12px; gap: 8px; }
     .wb-tool-btn.view-tick > .ico { width: 14px; height: 14px; color: var(--gold); visibility: hidden; }
     .wb-tool-btn.view-tick.on > .ico { visibility: visible; }
+    #wbViewAllPart { border-top: 1px solid var(--edge); margin-top: 4px; padding-top: 2px; }
+    body.view-turned #rulerTop, body.view-turned #rulerLeft, body.view-turned #rulerCursorX, body.view-turned #rulerCursorY { visibility: hidden; }   /* 1.6.2 (backlog 82b): a turned map has no straight edge to number */
     /* The bar never runs off the map (whiteboard.js fitBar): it tightens, then wraps. Only the bar's own buttons shrink, never a menu's */
     .floating-toolbar.tb-tight { gap: 2px; padding: 4px; }
     .floating-toolbar.tb-tight > .wb-tool-btn, .floating-toolbar.tb-tight > div > .wb-tool-btn { width: 32px; height: 32px; }

@@ -826,7 +826,7 @@ var STEPS = [
       help: ['start', 'Updates'],
       before: function() { closeSettingsForTour(); var cp = document.getElementById('chatPanel'); if (cp) cp.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel(); } },
     { target: '#setVttCampBlock', title: 'This campaign',
-      html: 'This campaign&rsquo;s table features are switched here. They are token elevation, token posture, token facing, the minimap, sound, music and dice. Then come character sheets, visual effects, fog of war, lighting, turn-based combat, the calendar, video, table trackers and personal looks. Their New switches set what a new campaign starts with. In a session your campaign&rsquo;s settings are the most your players see.',
+      html: 'This campaign&rsquo;s table features are switched here. They are token elevation, token posture, token facing, the minimap, sound, music and dice. Then come character sheets, visual effects, fog of war, lighting and turn-based combat. Last are the calendar, video, table trackers, personal looks and turn to movement. Their New switches set what a new campaign starts with. In a session your campaign&rsquo;s settings are the most your players see.',
       help: ['grids', 'VTT settings'],
       before: function() { openSettingsForTour(); } },
     { target: '#helpBtn', title: 'Help is always here',

@@ -9,11 +9,13 @@
    dx and dy here. The fog turns its drawing about the same point (fog.js asks turnCtx). Nothing is stored on a map or sent. */
 import { state } from './state.js';
 import { getActiveMap } from './models.js';
+import { save } from './io.js';
+import { cleanViewTurn } from './compasscore.js';
 
 // [viewcheck:core-start]
 // The view's own numbers: the angle the board is turned by (degrees, clockwise on screen), and the board point it turns about
 // tx, ty: an offset in the wrap's content pixels that keeps the screen still when the point it turns about moves (a token walks, another is picked)
-var V = { on: false, deg: 0, goal: 0, ox: 0, oy: 0, tx: 0, ty: 0, tok: null, last: {} };
+var V = { on: false, src: '', deg: 0, goal: 0, ox: 0, oy: 0, tx: 0, ty: 0, tok: null, last: {} };
 function rad() { return V.deg * Math.PI / 180; }
 function isTurned() { return Math.abs(V.deg) > 0.01 || Math.abs(V.tx) > 0.5 || Math.abs(V.ty) > 0.5; }
 // Shortest way round from one angle to another, in degrees from -180 to 180
@@ -47,6 +49,18 @@ function headingOf(item, facing, last) {
 }
 // The way a token went, from where it was to where it is: degrees clockwise from up, once it has gone more than a few pixels
 function moveHeading(from, to) { if (!from || !to) return null; var dx = to.x - from.x, dy = to.y - from.y; if (dx * dx + dy * dy < 16) return null; return (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360; }
+// What stays upright on screen as the map turns: every text box, so that its words read across, and a character token where Token facing is off,
+// since it faces no way of its own. Answered as the element's own rotate, which turns it on top of the rot its transform already carries
+function uprightOf(item, facing) { return !!item && !item.waiting && (item.type === 'text' || (!facing && !!item.isChar)); }
+function uprightTurn(deg) { return Math.abs(deg) > 0.01 ? (Math.round(-deg * 100) / 100) + 'deg' : ''; }
+// The turn a piece wears of its own: a text box reads across the screen; a character token that faces no way stands upright while the view follows a
+// token (follow), else faces the way it last moved where Turn to movement is on (heading, null for none yet), else stands upright on a turned map
+function pieceTurn(item, deg, follow, moveTurn, heading) {
+    if (item.type === 'text' || follow || !moveTurn) return uprightTurn(deg);
+    return typeof heading === 'number' && Math.abs(heading) > 0.01 ? (Math.round(heading * 100) / 100) + 'deg' : '';
+}
+// Which turn a screen wears: the GM's for everyone where it holds or the screen follows no token of its own; else the screen's own, or none
+function viewSource(gmTurn, mine) { return gmTurn && (gmTurn.hold || !mine) ? 'gm' : mine ? 'own' : ''; }
 // [viewcheck:core-end]
 
 function wrapEl() { return document.getElementById('whiteboardWrap'); }
@@ -54,6 +68,9 @@ function boardEl() { return document.getElementById('whiteboard'); }
 function onPlay() { return state.viewMode !== 'data' && !!getActiveMap(); }
 function prefOn() { try { return localStorage.getItem('wp_viewTurn') === 'on'; } catch (e) { return false; } }
 function net() { return window.wpNet || null; }
+function moveTurnOn() { return !!(window.wpVtt && window.wpVtt.on && window.wpVtt.on('moveturn')) && !facingOn() && onPlay(); }
+function gmTurnOf(m) { return m && m.meta ? cleanViewTurn(m.meta.viewTurn) : null; }
+function gmHere() { var n = window.wpNet; return !state.streamMode && !(n && (n.foreign || n.stream || (n.active && n.role === 'client'))) && (typeof window.wpCanPersistLocal !== 'function' || window.wpCanPersistLocal() !== false); }
 function facingOn() { return !!(window.wpVtt && window.wpVtt.on && window.wpVtt.on('turning')); }
 // The token the view follows: a player's own character token on this map, the one selected first; the GM's one selected character token
 function followed() {
@@ -65,24 +82,48 @@ function followed() {
     return picked.length === 1 ? picked[0] : null;
 }
 function centreOf(w) { var x = Number(w.x) || 0, y = Number(w.y) || 0, wd = Number(w.w) || 50, ht = Number(w.h) || 50; return { x: x + wd / 2, y: y + ht / 2 }; }
+var _up = {}, _upAt = 0, _upOn = false, _upMt = false, _mv = {};   // the ids that stay upright, worked out again twice a second or when the map turns or comes back
+function upright(force) {
+    var now = Date.now(), els = state.wbEls || {}, r = uprightTurn(V.deg);
+    var mt = moveTurnOn(), fol = V.src === 'own';
+    if (force || now - _upAt > 500 || !!r !== _upOn || mt !== _upMt) {
+        var m = getActiveMap(), want = {}, facing = facingOn(); _upAt = now; _upOn = !!r; _upMt = mt;
+        if ((r || mt) && m && Array.isArray(m.whiteboard)) m.whiteboard.forEach(function(w) {
+            if (!uprightOf(w, facing)) return;
+            if (w.isChar && mt) { var c = centreOf(w), p = _mv[w.id], h = moveHeading(p, c); if (!p || h !== null) _mv[w.id] = { x: c.x, y: c.y, h: h !== null ? h : p ? p.h : null }; }
+            var t = pieceTurn(w, V.deg, fol, mt, _mv[w.id] ? _mv[w.id].h : null); if (t) want[w.id] = t;
+        });
+        Object.keys(_up).forEach(function(id) { if (!want[id]) { var el = els[id]; if (el && el.style) el.style.rotate = ''; } });
+        _up = want;
+    }
+    Object.keys(_up).forEach(function(id) { var el = els[id], t = _up[id]; if (el && el.style && el.style.rotate !== t) el.style.rotate = t; });   // each frame, so a piece the board draws again stays upright
+    var rose = document.getElementById('compassRose');   // a compass at a corner turns with the map, so its north still points north
+    if (rose && rose.style) { var cr = rose.classList.contains('compass-map') || !r ? '' : (Math.round(V.deg * 100) / 100) + 'deg'; if (rose.style.rotate !== cr) rose.style.rotate = cr; }
+}
+var _mmOn = false, _mmDeg = 0, _mmAt = 0;
 var _raf = 0, _down = false;   // a press held on the board: the view stands still until it is let go, so a drag lands where it is let go
 function apply() {
     var b = boardEl(); if (!b) return;
     var t = transform(state.zoomLevel || 1); if (b.style.transform !== t) b.style.transform = t;
-    if (b.style && b.style.setProperty) b.style.setProperty('--view-turn', V.deg + 'deg');   // fold 3: what stays upright counters it
+    if (b.style && b.style.setProperty) b.style.setProperty('--view-turn', V.deg + 'deg');
+    if (document.body) document.body.classList.toggle('view-turned', isTurned());   // the coordinate rulers stand aside: a turned map has no straight edge to number
+    upright();
+    var now = Date.now(), tv = isTurned();   // the minimap draws the turned screen as a turned box: drawn again as the turn changes, at most ten times a second
+    if ((tv !== _mmOn || Math.abs(V.deg - _mmDeg) > 0.5) && now - _mmAt > 100 && typeof window.renderMinimap === 'function') { _mmOn = tv; _mmDeg = V.deg; _mmAt = now; try { window.renderMinimap(); } catch (e) {} }
 }
 function tick() {
     _raf = 0;
     if (_down) { _raf = window.requestAnimationFrame ? requestAnimationFrame(tick) : setTimeout(tick, 33); return; }
-    V.on = prefOn() && onPlay();
-    var w = V.on ? followed() : null, goal = 0;
-    if (w) {
+    var map = onPlay() ? getActiveMap() : null, gt = gmTurnOf(map); V.src = map ? viewSource(gt, prefOn()) : ''; V.on = !!V.src;
+    var w = V.src === 'own' ? followed() : null, goal = 0;
+    if (V.src === 'gm') { var wr0 = wrapEl(); goal = gt.deg || 0; V.tok = null; if (wr0) { var r0 = wr0.getBoundingClientRect(), mid = bxy(r0.left + r0.width / 2, r0.top + r0.height / 2, r0, wr0); pivotTo(mid.x, mid.y); } }   // the GM's turn, about the middle of this screen
+    else if (w) {
         var c = centreOf(w), prev = V.last[w.id], h = moveHeading(prev, c);
         if (h !== null) V.last[w.id] = { x: c.x, y: c.y, h: h }; else if (!prev) V.last[w.id] = { x: c.x, y: c.y, h: prev && prev.h };
         var hd = headingOf(w, facingOn(), V.last[w.id]);
         if (hd !== null) goal = -hd;
         pivotTo(c.x, c.y); V.tok = w.id;
-    } else V.tok = null;
+    } else if (V.src !== 'gm') V.tok = null;
     V.goal = goal;
     var d = turnTo(V.deg, V.goal), moved = Math.abs(d) > 0.05;
     if (moved) V.deg = (V.deg + d * 0.18 + 360) % 360; else V.deg = ((V.goal % 360) + 360) % 360;
@@ -95,7 +136,19 @@ function tick() {
 }
 function wake() { if (!_raf) _raf = window.requestAnimationFrame ? requestAnimationFrame(tick) : setTimeout(tick, 33); }
 function setOn(on) { try { localStorage.setItem('wp_viewTurn', on ? 'on' : 'off'); } catch (e) {} syncTick(); wake(); }
-function syncTick() { var b = document.getElementById('wbViewTurnBtn'); if (!b) return; var on = prefOn(); b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); }
+// The GM's turn of the map on screen, written: cleaned, saved and drawn, so every screen at the table turns with it
+function setGmTurn(deg, hold) {
+    var m = getActiveMap(); if (!m || !gmHere()) return false; if (!m.meta) m.meta = {};
+    var v = cleanViewTurn({ deg: deg, hold: hold }); if (v) m.meta.viewTurn = v; else delete m.meta.viewTurn;
+    save(); if (typeof window.render === 'function') window.render(); gmSync(); wake(); return true;
+}
+function gmSync() {
+    var part = document.getElementById('wbViewAllPart'); if (!part) return;
+    var m = onPlay() ? getActiveMap() : null, gm = gmHere() && !!m; part.hidden = !gm; if (!gm) return;
+    var g = gmTurnOf(m), nb = document.getElementById('wbViewAll'), hb = document.getElementById('wbViewHold');
+    if (nb && document.activeElement !== nb) nb.value = String(g && g.deg ? g.deg : 0); if (hb) hb.checked = !!(g && g.hold);
+}
+function syncTick() { gmSync(); var b = document.getElementById('wbViewTurnBtn'); if (!b) return; var on = prefOn(); b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); }
 
 window.wpView = {
     turned: function(w) { return isTurned() && (!w || w === wrapEl()); },
@@ -107,15 +160,21 @@ window.wpView = {
     screen: sxy,
     rad: rad, deg: function() { return V.deg; },
     // the fog's canvas turned about the pivot's place on screen, where it draws a board point at board * zoom - scroll
+    screenRect: function() { var w = wrapEl(); if (!w || !isTurned()) return null; var r = w.getBoundingClientRect(), cs = [[r.left, r.top], [r.right, r.top], [r.right, r.bottom], [r.left, r.bottom]]; return cs.map(function(p) { return bxy(p[0], p[1], r, w); }); },   // the screen's four corners on the board, for the minimap
     turnCtx: function(ctx) { if (!isTurned() || !ctx) return false; var w = wrapEl(), z = state.zoomLevel || 1, px = V.ox * z - (w ? w.scrollLeft : 0), py = V.oy * z - (w ? w.scrollTop : 0); ctx.translate(V.tx + px, V.ty + py); ctx.rotate(rad()); ctx.translate(-px, -py); return true; },
-    on: function() { return prefOn(); }, set: setOn, wake: wake,
-    now: function() { return { on: V.on, tok: V.tok, goal: V.goal, deg: V.deg, ox: V.ox, oy: V.oy, tx: V.tx, ty: V.ty }; }   // what the view follows, for the step log and a check
+    on: function() { return prefOn(); }, set: setOn, wake: wake, upright: function() { upright(true); },
+    setGm: setGmTurn, gmSync: gmSync,
+    now: function() { return { on: V.on, src: V.src, tok: V.tok, goal: V.goal, deg: V.deg, ox: V.ox, oy: V.oy, tx: V.tx, ty: V.ty }; }   // what the view follows, for the step log and a check
 };
 (function wire() {
     var b = document.getElementById('wbViewTurnBtn'); if (b) b.addEventListener('click', function() { setOn(!prefOn()); });
     window.addEventListener('pointerdown', function(e) { var w = wrapEl(); if (w && e.target && w.contains(e.target)) _down = true; }, true);
     ['pointerup', 'pointercancel', 'blur'].forEach(function(k) { window.addEventListener(k, function() { if (_down) { _down = false; wake(); } }, true); });
     window.addEventListener('storage', function(e) { if (e.key === 'wp_viewTurn') { syncTick(); wake(); } });
+    var nb = document.getElementById('wbViewAll'), hb = document.getElementById('wbViewHold');
+    if (nb) nb.addEventListener('change', function() { var v = Number(nb.value); if (!isFinite(v)) { gmSync(); return; } setGmTurn(v, !!(hb && hb.checked)); });
+    if (hb) hb.addEventListener('change', function() { setGmTurn(Number(nb && nb.value) || 0, hb.checked); });
+    var vb = document.getElementById('wbCenterBtn'); if (vb) vb.addEventListener('click', gmSync);
     syncTick(); wake();
-    setInterval(function() { if (prefOn() || isTurned()) wake(); }, 400);   // a map opened, a token picked or moved: the view follows within a moment
+    setInterval(function() { var m = onPlay() ? getActiveMap() : null; if (prefOn() || isTurned() || gmTurnOf(m)) wake(); else if (moveTurnOn() || Object.keys(_up).length) upright(true); }, 400);   // a map opened, a token picked or moved: the view follows within a moment   // a map opened, a token picked or moved: the view follows within a moment
 })();

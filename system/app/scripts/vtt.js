@@ -35,6 +35,7 @@ var FEATURES = [
     { id: 'video',     label: 'Video',            legacyKey: null },     // 1.5.0 item 21 (owner 2026-09-30): the campaign's videos, the GM's Video panel (V1) and the live stream to the table (V2); ON by default; a player may switch it off for themselves
     { id: 'trackers',  label: 'Table trackers',   legacyKey: null, noLocal: true }   // 1.6.0 backlog 29 (the owner, 2026-10-29, by prompt: "gm but for the whole table or specific players"): the strip, its menu and the wire; ON by default; the GM's for the whole table, and the players they keep it from are camp.trkHide (trackers.js), never a player's own switch
     , { id: 'plook', label: 'Personal looks', legacyKey: null }   // 1.6.2, backlog 35 (the owner, 2026-11-03, by prompt: "Yes, a VTT feature, on"): a character's name in its own font and colour; off, every name is drawn plain
+    , { id: 'moveturn', label: 'Turn to movement', legacyKey: null }   // 1.6.2, backlog 82b (the owner, by prompt: "each individual player should be able to turn it off"): a token with no facing turns to the way it moved, on screen alone
 ];
 // noLocal: a feature the GM controls for the whole table — no per-player "off for me". def: a default-off flag (def:false) for an
 // opt-in feature — none today: every feature is on by default and the GM switches it off (owner, 2026-09-30: "all features are opt out").

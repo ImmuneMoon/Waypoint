@@ -573,6 +573,12 @@ Writing planners and pages
   control on your screen alone. That token stays upright and the way it faces
   points up, or the way it last moved. Pick no token and the map turns back
   to north.
+- While the map is turned, words and tokens that face no way stay upright,
+  a corner compass turns with it and the minimap shows the turned screen.
+- The GM can turn a map on every screen, in the View menu, and say whether
+  that holds over a player's own turning.
+- Turn to movement, a new VTT setting, turns a token that faces no way to
+  the way it last moved. Each player can switch it off for themselves.
 - The Calendar has moons and seasons. Each moon shows its phase on every
   day of the month, with New or Full on those days, and the date says the
   season. A rule or a formula can ask which season it is or a moon's phase.

@@ -35,6 +35,13 @@ function cleanCompass(v) {
     READS.forEach(function(k) { if (v[k] === true) o[k] = true; });
     return o;
 }
+// 1.6.2 (backlog 82b): the GM's turn of everyone's map, meta.viewTurn: deg whole degrees from -179 to 180 the map turns clockwise on every screen, hold true
+// only where it holds over a player's own Turn with my token. Null for none: a map with no turn and no hold keeps no key
+function cleanViewTurn(v) {
+    if (!isObj(v)) return null;
+    var d = typeof v.deg === 'number' && isFinite(v.deg) ? mod(Math.round(v.deg), 360) : 0, o = {}; if (d > 180) d -= 360; if (d) o.deg = d; if (v.hold === true) o.hold = true;
+    return o.deg || o.hold ? o : null;
+}
 // The compass of a map's meta, cleaned, or null
 function compassOf(map) { return map && isObj(map.meta) ? cleanCompass(map.meta.compass) : null; }
 // The way a bearing points (degrees clockwise from straight up on the board) by a compass's north: one of eight words, '' with no compass
@@ -81,6 +88,6 @@ function roseDraw(ctx, cx, cy, size, north) {
     });
     ctx.restore(); return true;
 }
-var api = { roseDraw: roseDraw, AT: AT, WAYS: WAYS, READS: READS, ROSE: ROSE, INK: INK, cleanCompass: cleanCompass, compassOf: compassOf, wayOf: wayOf, bearing: bearing, reads: reads, northAt: northAt };
+var api = { roseDraw: roseDraw, AT: AT, WAYS: WAYS, READS: READS, ROSE: ROSE, INK: INK, cleanCompass: cleanCompass, compassOf: compassOf, wayOf: wayOf, bearing: bearing, reads: reads, northAt: northAt, cleanViewTurn: cleanViewTurn };
 if (typeof window !== 'undefined') window.wpCompassCore = api;
-export { roseDraw, AT, WAYS, READS, ROSE, INK, cleanCompass, compassOf, wayOf, bearing, reads, northAt };
+export { roseDraw, AT, WAYS, READS, ROSE, INK, cleanCompass, compassOf, wayOf, bearing, reads, northAt, cleanViewTurn };

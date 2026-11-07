@@ -67,7 +67,9 @@ function dragStart(e, box) {
 function dragMove(e) {
     var d = _drag; if (!d) return;
     if (d.mv) { d.c.x = Math.round(d.x0 + (e.clientX - d.sx) / d.k); d.c.y = Math.round(d.y0 + (e.clientY - d.sy) / d.k); d.box.style.left = (d.c.x - 32) + 'px'; d.box.style.top = (d.c.y - 32) + 'px'; return; }
-    var n = northAt(d.cx, d.cy, e.clientX, e.clientY); if (n === null) return; d.c.north = n;
+    var n = northAt(d.cx, d.cy, e.clientX, e.clientY); if (n === null) return;
+    if (!d.box.classList.contains('compass-map') && window.wpView && window.wpView.deg) n = ((Math.round(n - window.wpView.deg()) % 360) + 360) % 360;   // 1.6.2: a corner rose turns with a turned map
+    d.c.north = n;
     var g = d.box.querySelector('g'); if (g) g.setAttribute('transform', 'rotate(' + n + ' 32 32)');
 }
 function dragEnd() {

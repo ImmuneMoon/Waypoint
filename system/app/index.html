@@ -1151,6 +1151,12 @@
                               </ul></li>
                           <li>Planners nest under planners just like maps, and <b>re-order</b> the same way. Drag onto the top or bottom of a row, or right-click &rarr; <b>&#8593; Move Up</b> / <b>&#8595; Move Down</b>. Keep one parent per module with a child page per scene.</li>
                           <li>The toolbar&rsquo;s <b>Status&hellip;</b> list says where a scene stands. <b>Next</b> is the one you play next: the play map&rsquo;s right-click menu then offers it as <b>&#9654; Next scene</b>. A click there opens it over the map. <b>Played</b> and <b>Skipped</b> mark a scene done.</li>
+                          <li><b>Cards</b>: a scene node&rsquo;s <b>Mode</b> list makes it a <b>Person</b>, a <b>Place</b> or a <b>Clue</b> card, or a plain table. Switching keeps every field.<ul>
+                                  <li>Each kind names its fields its own way. A person has a Role, Wants and Where they are. A place has an Area and When they arrive. A clue has Points to and Where it can be found.</li>
+                                  <li><b>Also known as</b> takes a card&rsquo;s other names, with commas between them. Search and quick jump find the card by any of them and open the page at the card.</li>
+                                  <li>A person card can name its character <b>Sheet</b>. A scene card has a <b>Played</b> tick, and a clue a <b>Found</b> tick.</li>
+                                  <li>The <b>+</b> between blocks offers a Person, a Place and a Clue card too.</li>
+                              </ul></li>
                           <li><b>Outline</b>, beside the Find box, lists the page&rsquo;s headings. Click one to jump to it. The panel over the map, a page in its own window and a player&rsquo;s reader have the same button.</li>
                           <li><b>Folds</b>: an arrow in the page&rsquo;s left margin folds a section, from its heading down to the next heading. Each text, table and chart has a small arrow of its own. Click a folded part to open it. <b>Fold all</b> and <b>Open all</b> are at the foot of the Outline menu. A page opens as you left it on this computer, and each person&rsquo;s folds are their own. Find and the Outline open what they lead to. An export or a print shows the whole page.</li>
                       </ol>
@@ -1403,7 +1409,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <ul>
                           <li>Everything between two headings becomes <b>one</b> text block. A rule, <code>---</code>, splits it.</li>
                           <li>Raw HTML in a file never becomes a raw block. The tags a page allows survive: bold, italic, underline, lists, and links to http or https. The rest is dropped and its text kept.</li>
-                          <li>Scene nodes are planner-only: <code>### Scene: The docks</code> with <code>**Tag:**</code>, <code>**Must resolve:**</code> and <code>Map: title / room</code> lines under it, then a table of routes.</li>
+                          <li>Scene nodes are planner-only: <code>### Scene: The docks</code> with <code>**Tag:**</code>, <code>**Must resolve:**</code> and <code>Map: title / room</code> lines under it, then a table of routes. <code>### Person:</code>, <code>### Place:</code> and <code>### Clue:</code> open a card of that kind, which writes its own words in place of Tag and Must resolve, with <code>**Also known as:**</code> for its other names.</li>
                           <li>Not read: footnotes, task boxes, setext headings written with <code>====</code>, nested quotes, and links that are not http or https.</li>
                       </ul>
                       <h4>What players see</h4>

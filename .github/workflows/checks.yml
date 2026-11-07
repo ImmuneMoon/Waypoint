@@ -162,6 +162,9 @@ jobs:
       - name: namecheck — the name button, its lists and the names it makes up
         if: ${{ !cancelled() }}
         run: node tools/namecheck.js
+      - name: plancardcheck — a planner's Person, Place and Clue cards and their other names
+        if: ${{ !cancelled() }}
+        run: node tools/plancardcheck.js
       - name: dice3dcheck — animated dice, the stand-in dice, a model file and the face each die lands on
         if: ${{ !cancelled() }}
         run: node tools/dice3dcheck.js

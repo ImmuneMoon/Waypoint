@@ -560,6 +560,11 @@ Writing planners and pages
   joins by their own words.
 - One formatting bar stands above the blocks and styles the text block
   you are in. It is greyed until you click into one.
+- A planner's scene node can now be a Person, a Place or a Clue card. Each
+  kind names its fields its own way, and switching keeps every field. A
+  person card can name its character sheet, and a clue has a Found tick.
+- Every card has Also known as for its other names. Search and quick jump
+  find a card by any of them and open the page at the card.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

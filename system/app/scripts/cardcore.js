@@ -1,0 +1,99 @@
+/* Waypoint — the kinds of card a planner's node block can be (backlog 107 step 3, with backlog 147's aliases).
+
+   The owner, 2026-10-16, by prompt: "Person, Place, Clue (Recommended)": the scene node's Mode list gains three kinds, each
+   reusing today's fields under a name that fits it, so that switching keeps every field. And 2026-11-06, by prompt: aliases
+   "Build the cards first (Recommended)" and "Every kind of card (Recommended)": every card has an Also known as, and search
+   finds a card by any of its names. The drawings: Place wears the map pin a scene's Open map link already wears (wi-marker),
+   a Person the Characters drawing, a Clue the magnifying glass with a cross inside (the owner: "the magnifying glass is good").
+
+   Stored on a node block, each only where it says something, so a node with none is stored and drawn byte for byte as before:
+     mode   absent (a scene), 'table', 'person', 'place', 'clue'
+     aka    other names, a list of short texts
+     done   true only: Played on a scene, Found on a clue
+     sheet  a person's character sheet, a plain id
+
+   Pure: no imports, nothing touched at load time. Planners never travel, so none of this is ever sent. */
+
+var VERSION = 1;
+var AKA_MAX = 12;       // names a card may have besides its title
+var AKA_CHARS = 80;     // one name's length
+
+// What each kind calls its fields. ico: the drawing before a card's title (a scene has none, so a scene is drawn as before)
+var KINDS = Object.freeze({
+    scene: Object.freeze({ key: 'scene', mode: '', label: 'Scene node', word: 'Scene', title: 'Scene title', tag: 'Tag', must: 'Must resolve', mustPh: 'What must be settled (optional)', map: 'Map', cols: Object.freeze(['Action', 'Why', 'Cost', 'Returns via']), tick: 'Played', ico: '', sheet: false }),
+    person: Object.freeze({ key: 'person', mode: 'person', label: 'Person', word: 'Person', title: 'Name', tag: 'Role', must: 'Wants', mustPh: 'What they want (optional)', map: 'Where they are', cols: Object.freeze(['If asked about', 'Says', 'The truth']), tick: '', ico: 'wi-person', sheet: true }),
+    place: Object.freeze({ key: 'place', mode: 'place', label: 'Place', word: 'Place', title: 'Place', tag: 'Area', must: 'When they arrive', mustPh: 'What they find when they arrive (optional)', map: 'Map', cols: Object.freeze(['If they', 'Then']), tick: '', ico: 'wi-marker', sheet: false }),
+    clue: Object.freeze({ key: 'clue', mode: 'clue', label: 'Clue', word: 'Clue', title: 'Clue', tag: 'Tag', must: 'Points to', mustPh: 'What it leads to (optional)', map: 'Where it can be found', cols: Object.freeze(['Can turn up', 'How']), tick: 'Found', ico: 'wi-clue', sheet: false }),
+    table: Object.freeze({ key: 'table', mode: 'table', label: 'Plain table', word: '', title: 'Table title', tag: '', must: '', mustPh: '', map: '', cols: Object.freeze(['Item', 'Detail', 'Notes']), tick: '', ico: '', sheet: false })
+});
+var ORDER = Object.freeze(['scene', 'person', 'place', 'clue', 'table']);   // the Mode list's order
+var MODES = Object.freeze(['table', 'person', 'place', 'clue']);           // the words a node's mode may hold
+
+function own(o, k) { return !!o && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k); }
+
+// A stored mode as the app reads it: one of the four words, or nothing (a scene)
+function cleanMode(v) { return typeof v === 'string' && MODES.indexOf(v) >= 0 ? v : undefined; }
+// The kind of a node block: its mode, else a scene
+function cardKind(b) { var m = b && typeof b === 'object' ? cleanMode(b.mode) : undefined; return m || 'scene'; }
+function kindOf(b) { return KINDS[cardKind(b)]; }
+// A kind by its key, the Mode list's value; anything else is a scene
+function kindBy(k) { return typeof k === 'string' && own(KINDS, k) ? KINDS[k] : KINDS.scene; }
+
+// One name: a line of text, spaces folded, no control or direction characters, 80 at most
+function cleanName(v) {
+    if (typeof v !== 'string') return '';
+    var s = v.replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (s.length > AKA_CHARS) { s = s.slice(0, AKA_CHARS); if (/[\ud800-\udbff]$/.test(s)) s = s.slice(0, -1); s = s.trim(); }
+    return s;
+}
+// Other names: a list of names, each once whatever its capitals, 12 at most; nothing when none is left
+function cleanAka(v) {
+    if (typeof v === 'string') v = akaFrom(v);
+    if (!Array.isArray(v)) return undefined;
+    var out = [], seen = Object.create(null);
+    for (var i = 0; i < v.length && i < AKA_MAX * 4 && out.length < AKA_MAX; i++) {
+        var n = cleanName(v[i]); if (!n) continue;
+        var k = n.toLowerCase(); if (seen[k]) continue;
+        seen[k] = 1; out.push(n);
+    }
+    return out.length ? out : undefined;
+}
+// The box's text read as names: separated by commas or semicolons
+function akaFrom(s) { return typeof s === 'string' ? s.split(/[,;]/) : []; }
+// The names as the box shows them
+function akaText(v) { var a = cleanAka(v); return a ? a.join(', ') : ''; }
+// Every name a card goes by, its title first
+function cardNames(b) {
+    if (!b || typeof b !== 'object') return [];
+    var out = [], t = cleanName(typeof b.title === 'string' ? b.title.replace(/<[^>]*>/g, '') : '');
+    if (t) out.push(t);
+    (cleanAka(b.aka) || []).forEach(function(n) { if (out.every(function(o) { return o.toLowerCase() !== n.toLowerCase(); })) out.push(n); });
+    return out;
+}
+// Played or Found: true only, and only on a kind that has the tick
+function cleanDone(v, kind) { return v === true && !!kindBy(kind).tick ? true : undefined; }
+// A person's sheet: a plain id, and where the characters are handed in, one of them
+var SHEET_ID = /^[A-Za-z0-9_-]{1,64}$/;
+function cleanSheet(v, chars) {
+    if (typeof v !== 'string' || !SHEET_ID.test(v)) return undefined;
+    if (chars && typeof chars === 'object' && !own(chars, v)) return undefined;
+    return v;
+}
+// A node block's card keys, cleaned in place: what does not clean goes, and what its kind does not have goes (the editor keeps
+// every field when the kind is switched, so a switch back finds them; a file is cleaned to what its kind reads)
+function cleanCard(b, chars) {
+    if (!b || typeof b !== 'object' || b.type !== 'node') return b;
+    var m = cleanMode(b.mode); if (m) b.mode = m; else delete b.mode;
+    var k = cardKind(b);
+    var a = cleanAka(b.aka); if (a && k !== 'table') b.aka = a; else delete b.aka;
+    if (cleanDone(b.done, k)) b.done = true; else delete b.done;
+    var s = k === 'person' ? cleanSheet(b.sheet, chars) : undefined; if (s) b.sheet = s; else delete b.sheet;
+    return b;
+}
+// The default columns of a node with none of its own
+function defaultCols(b) { return kindOf(b).cols.slice(); }
+
+var api = { VERSION: VERSION, AKA_MAX: AKA_MAX, AKA_CHARS: AKA_CHARS, KINDS: KINDS, ORDER: ORDER, MODES: MODES, cleanMode: cleanMode, cardKind: cardKind, kindOf: kindOf, kindBy: kindBy, cleanName: cleanName, cleanAka: cleanAka, akaFrom: akaFrom, akaText: akaText, cardNames: cardNames, cleanDone: cleanDone, cleanSheet: cleanSheet, cleanCard: cleanCard, defaultCols: defaultCols };
+if (typeof window !== 'undefined') window.wpCardCore = api;
+
+export { VERSION, AKA_MAX, AKA_CHARS, KINDS, ORDER, MODES, cleanMode, cardKind, kindOf, kindBy, cleanName, cleanAka, akaFrom, akaText, cardNames, cleanDone, cleanSheet, cleanCard, defaultCols };

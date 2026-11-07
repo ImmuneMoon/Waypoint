@@ -41,7 +41,7 @@ function blockText(b) {
         case 'table': return (b.title || '') + ' ' + (Array.isArray(b.cols) ? b.cols.join(' ') : '') + ' ' + (Array.isArray(b.rows) ? b.rows.map(rowText).join(' ') : '');
         // 1.5.4: a planner's node (its name, tag, Must resolve line, headings and rows) and a flowchart's labels are page text too. Until now a word
         // that stood only in a node's table was found by no search: not quick-jump's, not the panel's, not the lists'
-        case 'node': return stripMarkup([b.title, b.tag, b.must].concat(Array.isArray(b.cols) ? b.cols : []).filter(function(s) { return typeof s === 'string'; }).join(' ') + ' ' + (Array.isArray(b.rows) ? b.rows.map(rowText).join(' ') : ''));
+        case 'node': return stripMarkup([b.title, b.tag, b.must].concat(Array.isArray(b.aka) ? b.aka : [], Array.isArray(b.cols) ? b.cols : []).filter(function(s) { return typeof s === 'string'; }).join(' ') + ' ' + (Array.isArray(b.rows) ? b.rows.map(rowText).join(' ') : ''));
         case 'flowchart': return stripMarkup((Array.isArray(b.nodes) ? b.nodes : []).concat(Array.isArray(b.edges) ? b.edges : []).map(function(n) { return n && typeof n.text === 'string' ? n.text : ''; }).join(' '));
         default: return '';   // a diagram written as source: its mermaid text is skipped
     }

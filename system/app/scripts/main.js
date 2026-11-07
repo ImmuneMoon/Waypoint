@@ -612,7 +612,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
   // Items from a file someone else made are content from another table (cleanup.js cleanImportItems: raw HTML rebuilt, diagram clicks
   // stripped, pages through cleanDoc, map text rebuilt, no prototype-key id). A whole file (Replace, a legacy one) also goes through the
   // load's own normaliser first (cleanImport). importDeps() hands both the app's real cleaners.
-  function importDeps() { return { migrate: function(d) { return migrateAppState(d).data; }, DR: window.wpDocRender, sanitize: window.wpNet && window.wpNet.sanitizeRichText, FC: window.wpFogCore, TF: window.wpTextFmt, GEN: window.wpGenCore, CITY: window.wpCityCore, WORLD: window.wpWorldCore, SU: window.wpSetupCore }; }
+  function importDeps() { return { migrate: function(d) { return migrateAppState(d).data; }, CARD: window.wpCardCore, DR: window.wpDocRender, sanitize: window.wpNet && window.wpNet.sanitizeRichText, FC: window.wpFogCore, TF: window.wpTextFmt, GEN: window.wpGenCore, CITY: window.wpCityCore, WORLD: window.wpWorldCore, SU: window.wpSetupCore }; }
 
   function cleanImportedItems(ic) { cleanImportItems(ic, importDeps()); }
 
@@ -1487,6 +1487,14 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
                 if (it.type === 'map') (it.rooms || []).forEach(function(r) {
                     _cmdkEntries.push({ kind: 'room', label: r.name || r.id, sub: title, campId: c.id, itemId: it.id, roomId: r.id });
                 });
+                // backlog 107 step 3 and 147: a planner's cards by name and by every other name they go by, each opening at its card
+                var CCq = window.wpCardCore;
+                if (it.type === 'planner' && CCq && Array.isArray(it.blocks)) it.blocks.forEach(function(b) {
+                    if (!b || b.type !== 'node' || b.mode === 'table' || typeof b.id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(b.id)) return;
+                    var names = CCq.cardNames(b); if (!names.length) return;
+                    var kq = CCq.kindOf(b);
+                    _cmdkEntries.push({ kind: 'planner', card: true, label: names[0], aka: names.slice(1), sub: kq.label + ' in ' + title, icon: kq.ico ? kq.ico.slice(3) : 'page', campId: c.id, itemId: it.id, at: b.id });
+                });
             });
         });
         // 1.6.0, backlog 33: the commands that can run now and Settings' options, from the one list of commands (commands.js)
@@ -1500,10 +1508,11 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         _cmdkEntries.forEach(function(en) {
             var l = en.label.toLowerCase();
             var s = -1;
-            if (!ql) s = en.kind === 'set' ? -1 : en.kind === 'cmd' ? 3 : en.kind === 'room' ? 2 : 1;   // 1.6.0: with nothing typed the commands come last, and Settings' options wait for a word
+            if (!ql) s = en.kind === 'set' || en.card ? -1 : en.kind === 'cmd' ? 3 : en.kind === 'room' ? 2 : 1;   // a card waits for a word too   // 1.6.0: with nothing typed the commands come last, and Settings' options wait for a word
             else if (l.indexOf(ql) === 0) s = 0;
             else if (l.indexOf(ql) !== -1) s = 1;
-            else if (Array.isArray(en.also) && en.also.some(function(w) { return String(w).indexOf(ql) === 0; })) s = 1;   // a command's other words (the Ruler is found by measure)
+            else if (Array.isArray(en.also) && en.also.some(function(w) { return String(w).indexOf(ql) === 0; })) s = 1;
+            else if (Array.isArray(en.aka) && en.aka.some(function(w) { return String(w).toLowerCase().indexOf(ql) !== -1; })) s = en.aka.some(function(w) { return String(w).toLowerCase().indexOf(ql) === 0; }) ? 0 : 1;   // a card by another of its names   // a command's other words (the Ruler is found by measure)
             else if (en.sub.toLowerCase().indexOf(ql) !== -1) s = 2;
             if (s >= 0) scored.push([s, en]);
         });
@@ -1566,6 +1575,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
     // one cleaner (pagenav.js landOf); a row matched by its name has none and opens as before
     function cmdkLand(en) {
         var pn = window.wpPageNav;
+        if (en && typeof en.at === 'string' && en.at && pn && typeof pn.landOf === 'function') { try { return pn.landOf({ at: en.at }) || null; } catch (e) { return null; } }   // a card opens at the card
         if (!en || typeof en.q !== 'string' || !en.q || !pn || typeof pn.landOf !== 'function') return null;
         try { return pn.landOf({ q: en.q }) || null; } catch (e) { return null; }
     }

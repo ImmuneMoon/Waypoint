@@ -36,6 +36,8 @@ import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cl
 
 import * as TF from './textfmt.js';
 
+import * as CC from './cardcore.js';   // backlog 107 step 3: the kinds of card a node can be (Person, Place, Clue) and its other names
+
 import { num, picRef } from './safecore.js';
 
 import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, rebaseHistory, withoutHistory, fieldUndoChord, boxUndo, stepBoundary, stepFold, stepSel, toastAction } from './io.js';
@@ -88,7 +90,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // flowchart's arrows by the words of the steps they join, never by an id
   var BLOCK_NAMES = { h1: 'Title', h2: 'Section heading', h3: 'Sub-heading', lede: 'Lead text', oneline: 'One-line summary', node: 'Scene', table: 'Table',
       flare: 'Callout', callout: 'Gold-edged note', image: 'Picture', rule: 'Line', flowchart: 'Flowchart', diagram: 'Diagram from code', text: 'Text', raw: 'Raw HTML' };
-  function blockName(b) { if (!b || typeof b !== 'object') return 'Block'; if (b.type === 'node' && b.mode === 'table') return 'Table'; return Object.prototype.hasOwnProperty.call(BLOCK_NAMES, b.type) ? BLOCK_NAMES[b.type] : String(b.type || 'Block'); }
+  function blockName(b) { if (!b || typeof b !== 'object') return 'Block'; if (b.type === 'node' && b.mode === 'table') return 'Table'; if (b.type === 'node' && typeof CC === 'object' && CC && CC.cardKind(b) !== 'scene') return CC.kindOf(b).label + ' card'; return Object.prototype.hasOwnProperty.call(BLOCK_NAMES, b.type) ? BLOCK_NAMES[b.type] : String(b.type || 'Block'); }
   function pbeCap(t) { return '<div class="pbe-cap">' + esc(t) + '</div>'; }
   function fcStepWords(n) { var t = String(n && n.text != null ? n.text : '').split('\n')[0].trim(); if (t.length > 40) t = t.slice(0, 39) + '\u2026'; return t || 'A step with no words'; }
   function fcStepOpts(b, was) {
@@ -109,11 +111,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   var BLOCK_KINDS = [
       ['text', 'Text', 'Words'], ['h2', 'Section heading', 'Words'], ['h3', 'Sub-heading', 'Words', '', 'doc'], ['lede', 'Lead text', 'Words', 'the line under a title'],
       ['oneline', 'One-line summary', 'Words'], ['flare', 'Callout', 'Words'], ['callout', 'Gold-edged note', 'Words', '', 'doc'], ['h1', 'Title', 'Words', 'with a subtitle'],
-      ['node', 'Scene', 'Play', 'title, must resolve, routes', 'planner'], ['table', 'Table', 'Play'], ['flowchart', 'Flowchart', 'Play'],
+      ['node', 'Scene', 'Play', 'title, must resolve, routes', 'planner'], ['person', 'Person card', 'Play', 'wants, what they say', 'planner'], ['place', 'Place card', 'Play', 'what they find there', 'planner'], ['clue', 'Clue card', 'Play', 'what it points to', 'planner'],   // backlog 107 step 3: a node made a card of its kind
+      ['table', 'Table', 'Play'], ['flowchart', 'Flowchart', 'Play'],
       ['image', 'Picture', 'More'], ['rule', 'Line', 'More', '', 'doc'], ['diagram', 'Diagram from code', 'More'], ['raw', 'Raw HTML', 'More', '', 'planner']];
   function blockKinds(isDoc) { return BLOCK_KINDS.filter(function(k) { return !k[4] || k[4] === (isDoc ? 'doc' : 'planner'); }); }
   function blockMake(type, isDoc) {
       if (type === 'table') return isDoc ? { id: 'b_' + uid(), type: 'table', cols: ['Item', 'Detail', 'Notes'], rows: [] } : { id: 'b_' + uid(), type: 'node', mode: 'table' };
+      if (type === 'person' || type === 'place' || type === 'clue') return { id: 'b_' + uid(), type: 'node', mode: type };   // a card of that kind
       return { id: 'b_' + uid(), type: type };
   }
   function blockAdd(map, type, at, swap) {   // at: the place it goes; swap: true where it takes the place of the block there
@@ -375,7 +379,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // [sinkcheck:boxes-start]
   // [textcheck:fields-start]
   var TS_PLAIN = '.b-title, .b-sub, .b-must, .b-caption, .b-colhead, .r-col, .fc-n-text, .fc-e-text';   // the editor boxes that hold a plain field
-  function tsDefaultCols(b) { return (b.mode === 'table' || b.type === 'table') ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via']; }
+  function tsDefaultCols(b) { return (b.mode === 'table' || b.type === 'table') ? ['Item', 'Detail', 'Notes'] : b.type === 'node' && typeof CC === 'object' && CC ? CC.defaultCols(b) : ['Action', 'Why', 'Cost', 'Returns via']; }   // a card's own kind's columns (backlog 107 step 3)
   function tsCols(b) { return (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols : tsDefaultCols(b); }
   function tsOwnCols(b) { if (!Array.isArray(b.cols) || !b.cols.length) b.cols = tsDefaultCols(b).slice(); }
   function tsInt(v) { var n = parseInt(v, 10); return n >= 0 ? n : -1; }
@@ -517,9 +521,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var b = d && Array.isArray(blocks) ? blocks[d.idx] : null; if (!b || !tsField(blocks, d)) return '';
       var cut = function(s) { s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); return s.length > 30 ? s.slice(0, 29) + '\u2026' : s; };
       var plain = b.mode === 'table' || b.type === 'table';
-      if (d.k === 'title') return b.type === 'h1' ? 'Title' : b.type === 'h2' ? 'Section heading' : b.type === 'h3' ? 'Sub-heading' : plain ? 'Table title' : 'Scene title';
-      if (d.k === 'sub') return b.type === 'node' ? 'Tag' : 'Subtitle';
-      if (d.k === 'must') return 'Must resolve';
+      var kd = b.type === 'node' && typeof CC === 'object' && CC ? CC.kindOf(b) : null;   // a card's own names for its fields (backlog 107 step 3)
+      if (d.k === 'title') return b.type === 'h1' ? 'Title' : b.type === 'h2' ? 'Section heading' : b.type === 'h3' ? 'Sub-heading' : plain ? 'Table title' : kd ? kd.title : 'Scene title';
+      if (d.k === 'sub') return b.type === 'node' ? (kd ? kd.tag : 'Tag') : 'Subtitle';
+      if (d.k === 'must') return kd ? kd.must : 'Must resolve';
       if (d.k === 'caption') return 'Caption';
       if (d.k === 'col') return 'Heading of column ' + (d.ci + 1);
       if (d.k === 'cell') { var cn = cut(tsCols(b)[d.ci]); return 'Row ' + (d.ri + 1) + ', ' + (cn || 'column ' + (d.ci + 1)); }
@@ -1781,19 +1786,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           } else if (b.type === 'node' || b.type === 'table') {
               var plain = b.mode === 'table' || b.type === 'table';   // a page's table block is the node grid in table mode, without the mode switch
-              if (b.type === 'node') html += '<div class="fc-opts" style="margin-bottom:6px;"><label>Mode <select class="b-mode" data-idx="'+idx+'" title="Scene node: a scene with what must be resolved and the routes out of it. Plain table: just a grid of information."><option value="node"'+(plain ? '' : ' selected')+'>Scene node</option><option value="table"'+(plain ? ' selected' : '')+'>Plain table</option></select></label>' + (plain ? '' : ' <button type="button" class="tool ghost name-btn b-namebtn" data-idx="'+idx+'" title="Make a name for this card: a person or a place">Name</button>') + '</div>';   // 1.6.2 (backlog 147): a scene node's title from the name button
-              html += pbeCap(plain ? 'Table title' : 'Scene title') + tsBoxHtml('field b-title', plain ? 'Table title (optional)' : 'Scene title', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
+              var kd = b.type === 'node' ? CC.kindOf(b) : CC.KINDS.table;   // backlog 107 step 3: the kind of card, and what it calls its fields
+              if (b.type === 'node') html += '<div class="fc-opts" style="margin-bottom:6px;"><label>Mode <select class="b-mode" data-idx="'+idx+'" title="What this card is. A scene to play, a person, a place, a clue, or a plain table of information. Switching keeps every field.">' + CC.ORDER.map(function(k) { return '<option value="' + (k === 'scene' ? 'node' : k) + '"' + (kd.key === k ? ' selected' : '') + '>' + esc(CC.KINDS[k].label) + '</option>'; }).join('') + '</select></label>' + (plain ? '' : ' <button type="button" class="tool ghost name-btn b-namebtn" data-idx="'+idx+'" title="Make a name for this card: a person or a place">Name</button>') + (kd.tick ? ' <label class="b-done-l" title="' + (kd.key === 'clue' ? 'Tick it once the players have found this clue' : 'Tick it once this scene has been played') + '"><input type="checkbox" class="b-done" data-idx="'+idx+'"' + (b.done === true ? ' checked' : '') + '> ' + esc(kd.tick) + '</label>' : '') + '</div>';   // 1.6.2 (backlog 147): a card's title from the name button
+              html += pbeCap(plain ? 'Table title' : kd.title) + tsBoxHtml('field b-title', plain ? 'Table title (optional)' : kd.title, 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
               if (!plain) {
-                  html += pbeCap('Tag') + tsBoxHtml('field b-sub', 'Tag (optional)', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
-                  html += pbeCap('Must resolve') + tsBoxHtml('field b-must', 'What must be settled (optional)', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
+                  html += pbeCap('Also known as') + '<input type="text" class="field b-aka" data-idx="'+idx+'" value="' + esc(CC.akaText(b.aka)) + '" placeholder="Other names, with commas between them (optional)" title="Other names this card goes by. Search and quick jump find it by any of them." style="margin-bottom:6px; width:100%;">';
+                  html += pbeCap(kd.tag) + tsBoxHtml('field b-sub', kd.tag + ' (optional)', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
+                  html += pbeCap(kd.must) + tsBoxHtml('field b-must', kd.mustPh, 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
+                  if (kd.sheet) { var campS = getActiveCampaign(), chS = campS && campS.chars && typeof campS.chars === 'object' ? Object.keys(campS.chars).map(function(cid) { return { id: cid, name: String((campS.chars[cid] && campS.chars[cid].name) || cid) }; }).sort(function(x, y) { return x.name.localeCompare(y.name); }) : [];
+                      html += '<div class="fc-opts" style="margin-bottom:6px;"><label>Sheet <select class="b-sheet" data-idx="'+idx+'" title="The character sheet this person has, if any"><option value="">(none)</option>' + chS.map(function(o) { return '<option value="' + esc(o.id) + '"' + (b.sheet === o.id ? ' selected' : '') + '>' + esc(o.name) + '</option>'; }).join('') + '</select></label></div>'; }
                   var campL = getActiveCampaign();
                   var mapsL = campL ? Object.values(campL.items).filter(function(i) { return i.type === 'map'; }).sort(function(x, y) { return String(x.meta.title || '').localeCompare(String(y.meta.title || '')); }) : [];
                   var linkedMap = b.linkMapId && campL ? campL.items[b.linkMapId] : null;
-                  html += '<div class="fc-opts" style="margin-bottom:10px;"><label>Map <select class="b-linkmap" data-idx="'+idx+'" title="The map this scene plays on; the preview gets an Open link"><option value="">(none)</option>' + mapsL.map(function(m) { return '<option value="'+esc(m.id)+'"'+(b.linkMapId === m.id ? ' selected' : '')+'>'+esc(m.meta.title || m.id)+'</option>'; }).join('') + '</select></label>';
+                  html += '<div class="fc-opts" style="margin-bottom:10px;"><label>' + esc(kd.map) + ' <select class="b-linkmap" data-idx="'+idx+'" title="' + (kd.key === 'scene' ? 'The map this scene plays on; the preview gets an Open link' : 'The map, and the room, this card belongs to. The preview gets an Open link.') + '"><option value="">(none)</option>' + mapsL.map(function(m) { return '<option value="'+esc(m.id)+'"'+(b.linkMapId === m.id ? ' selected' : '')+'>'+esc(m.meta.title || m.id)+'</option>'; }).join('') + '</select></label>';
                   if (linkedMap) html += '<label>Room <select class="b-linkroom" data-idx="'+idx+'" title="Land in this room"><option value="">(map as a whole)</option>' + (linkedMap.rooms || []).map(function(r) { return '<option value="'+esc(r.id)+'"'+(b.linkRoomId === r.id ? ' selected' : '')+'>'+esc(r.name || r.id)+'</option>'; }).join('') + '</select></label>';
                   html += '</div>';
               }
-              var colNames = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plain ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via']);
+              var colNames = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plain ? ['Item', 'Detail', 'Notes'] : kd.cols.slice());
               if (!b.rows) b.rows = [];
               html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + [1,2,3,4,5,6,7,8].map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label><span style="color:var(--dim); font-size:11px;">Headers below, then one line of boxes per row.</span></div>';
               html += '<div class="grouped-fields b-table"><div class="row-h b-heads">';
@@ -1934,12 +1943,29 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }));
       Array.from(blockContainer.querySelectorAll('.b-namebtn')).forEach(el => el.addEventListener('click', function(e) {   // 1.6.2 (backlog 147): a name for a scene node's title, as one change
           e.stopPropagation(); var N = window.wpNames, idx = this.dataset.idx; if (!N) return; if (N.isOpen()) { N.close(); return; }
-          N.open(this, 'any', function(n) { var bb = activeMap && Array.isArray(activeMap.blocks) ? activeMap.blocks[idx] : null; if (!bb || bb.type !== 'node') return; bb.title = n; if (bb.fmt && typeof bb.fmt === 'object' && !Array.isArray(bb.fmt)) { delete bb.fmt.title; if (!Object.keys(bb.fmt).length) delete bb.fmt; } save(true); renderPlanner(); });
+          var nk = activeMap && Array.isArray(activeMap.blocks) && activeMap.blocks[idx] ? CC.cardKind(activeMap.blocks[idx]) : 'scene';
+          N.open(this, nk === 'person' ? 'person' : nk === 'place' ? 'place' : 'any', function(n) { var bb = activeMap && Array.isArray(activeMap.blocks) ? activeMap.blocks[idx] : null; if (!bb || bb.type !== 'node') return; bb.title = n; if (bb.fmt && typeof bb.fmt === 'object' && !Array.isArray(bb.fmt)) { delete bb.fmt.title; if (!Object.keys(bb.fmt).length) delete bb.fmt; } save(true); renderPlanner(); });
       }));
       Array.from(blockContainer.querySelectorAll('.b-mode')).forEach(el => el.addEventListener('change', function() {
           var bb = activeMap.blocks[this.dataset.idx];
-          if (this.value === 'table') bb.mode = 'table'; else delete bb.mode;
+          var mv = CC.cleanMode(this.value); if (mv) bb.mode = mv; else delete bb.mode;   // every field kept, so switching back finds them
+          if (bb.done === true && !CC.kindOf(bb).tick) delete bb.done;
           save(true); renderPlanner();
+      }));
+      Array.from(blockContainer.querySelectorAll('.b-aka')).forEach(el => el.addEventListener('change', function() {   // backlog 147: other names, kept as a list
+          var bb = activeMap.blocks[this.dataset.idx], a = CC.cleanAka(this.value); if (!bb) return;
+          if (a) bb.aka = a; else delete bb.aka; this.value = CC.akaText(bb.aka);
+          save(true); renderPlannerPreview();
+      }));
+      Array.from(blockContainer.querySelectorAll('.b-done')).forEach(el => el.addEventListener('change', function() {   // Played on a scene, Found on a clue
+          var bb = activeMap.blocks[this.dataset.idx]; if (!bb) return;
+          if (this.checked && CC.kindOf(bb).tick) bb.done = true; else delete bb.done;
+          save(true); renderPlannerPreview();
+      }));
+      Array.from(blockContainer.querySelectorAll('.b-sheet')).forEach(el => el.addEventListener('change', function() {   // a person's character sheet
+          var bb = activeMap.blocks[this.dataset.idx], camp = getActiveCampaign(), s = CC.cleanSheet(this.value, camp && camp.chars); if (!bb) return;
+          if (s) bb.sheet = s; else delete bb.sheet;
+          save(true); renderPlannerPreview();
       }));
       Array.from(blockContainer.querySelectorAll('.b-ncols')).forEach(el => el.addEventListener('change', function() {
           var bb = activeMap.blocks[this.dataset.idx], n = Math.max(1, Math.min(8, parseInt(this.value, 10) || 1));
@@ -2907,9 +2933,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               html += (b.content||'');   // the GM's own HTML, as written (an import rebuilds a raw block)
           } else if (b.type === 'node') {
               var plainPv = b.mode === 'table';
-              html += '<div class="node' + (plainPv ? ' plain-table' : '') + '">';
-              if (!plainPv || b.title) html += '<h3>' + fmtRich(b.title || '', fieldFmt(b, 'title')) + (!plainPv && b.tag ? ' <span class="tag">' + fmtRich(b.tag, fieldFmt(b, 'tag')) + '</span>' : '') + '</h3>';
-              if (!plainPv && b.must) html += '<p class="must"><b>Must resolve:</b> ' + fmtRich(b.must, fieldFmt(b, 'must')) + '</p>';
+              var ccP = typeof CC === 'object' && CC ? CC : null, kdP = ccP ? ccP.kindOf(b) : { key: 'scene', ico: '', tick: '', must: 'Must resolve', sheet: false, cols: ['Action', 'Why', 'Cost', 'Returns via'] }, akaP = plainPv || !ccP ? null : ccP.cleanAka(b.aka), doneP = !plainPv && b.done === true && kdP.tick;   // backlog 107 step 3 and 147: a card's kind, its other names and its tick
+              html += '<div class="node' + (plainPv ? ' plain-table' : '') + (kdP.ico ? ' card-' + kdP.key : '') + (doneP ? ' card-done' : '') + '">';
+              if (!plainPv || b.title) html += '<h3>' + (kdP.ico ? '<i class="wib ' + kdP.ico + '" title="' + esc(kdP.label) + '"></i> ' : '') + fmtRich(b.title || '', fieldFmt(b, 'title')) + (!plainPv && b.tag ? ' <span class="tag">' + fmtRich(b.tag, fieldFmt(b, 'tag')) + '</span>' : '') + (doneP ? ' <span class="card-tick">' + esc(kdP.tick) + '</span>' : '') + '</h3>';
+              if (akaP) html += '<p class="card-aka"><b>Also known as:</b> ' + esc(akaP.join(', ')) + '</p>';
+              if (!plainPv && kdP.sheet && typeof b.sheet === 'string' && camp && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, b.sheet) && camp.chars[b.sheet]) html += '<p class="card-sheet"><b>Sheet:</b> ' + esc(String(camp.chars[b.sheet].name || '')) + '</p>';
+              if (!plainPv && b.must) html += '<p class="must"><b>' + esc(kdP.must) + ':</b> ' + fmtRich(b.must, fieldFmt(b, 'must')) + '</p>';
               if (!plainPv && b.linkMapId) {
                   var mapP = camp && camp.items && typeof b.linkMapId === 'string' && Object.prototype.hasOwnProperty.call(camp.items, b.linkMapId) ? camp.items[b.linkMapId] : null;
                   if (mapP && typeof mapP === 'object') {
@@ -2918,7 +2947,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   }
               }
               if (Array.isArray(b.rows) && b.rows.length > 0) {
-                  var cols = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plainPv ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via']);
+                  var cols = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plainPv ? ['Item', 'Detail', 'Notes'] : kdP.cols.slice());
                   html += '<table><thead><tr>' + cols.map(function(c, ci) { return '<th>' + fmtRich(c, colFmtOf(b, ci)) + '</th>'; }).join('') + '</tr></thead><tbody>';
                   b.rows.forEach(function(r, ri) {
                       html += '<tr>' + cols.map(function(c, ci) { return '<td>' + fmtRich((r && r['col' + (ci + 1)]) || '', cellFmtOf(b, ri, ci)) + '</td>'; }).join('') + '</tr>';

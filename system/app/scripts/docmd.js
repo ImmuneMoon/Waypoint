@@ -29,6 +29,7 @@
 'use strict';
 import { sanitizeHtml, DOC_BLOCKS, fieldFmt, colFmtOf, cellFmtOf, labelFmt, stripMermaidLinks, linkLine, readLinkLine } from './docrender.js';
 import { cleanFmt, runsOf, SIZE_EM, MAX_RAW } from './textfmt.js';
+import * as CC from './cardcore.js';   // backlog 107 step 3: a card's kind, other names and tick, written and read back
 
 var VERSION = '1.5.0';
 var LIMITS = { text: 2 * 1024 * 1024, blocks: 500, picture: 8 * 1024 * 1024, cols: 8 };   // blocks: what a page holds (docrender LIMITS.blocks; it was 300, and a long file lost its end)
@@ -565,9 +566,10 @@ function markdownToBlocks(text, opts) {
             } else if (level <= 2) {
                 var h2 = push({ type: 'h2', title: title }); setFmt(h2, 'title', hf.fmt);
                 if (kind === 'doc' && ht.attrs && ht.attrs.cols) { var cn = parseInt(ht.attrs.cols, 10); if (cn >= 1 && cn <= 3) h2.cols = cn; else notes.push('Section "' + title + '": columns must be 1–3.'); }
-            } else if (level === 3 && kind === 'planner' && /^scene:\s*/i.test(title)) {
-                var sceneRaw = /^scene:\s*/i.exec(ht.text), sceneF = sceneRaw ? fieldOf(ht.text.slice(sceneRaw[0].length)) : null, sceneT = title.replace(/^scene:\s*/i, '');
-                scene = push({ type: 'node', title: sceneT, tag: '', must: '', cols: [], rows: [] });
+            } else if (level === 3 && kind === 'planner' && /^(?:scene|person|place|clue):\s*/i.test(title)) {   // a card by its kind: Scene, Person, Place or Clue
+                var sceneRaw = /^(scene|person|place|clue):\s*/i.exec(ht.text), sceneF = sceneRaw ? fieldOf(ht.text.slice(sceneRaw[0].length)) : null, sceneT = title.replace(/^(?:scene|person|place|clue):\s*/i, '');
+                var sceneK = (/^(scene|person|place|clue):/i.exec(title) || ['', 'scene'])[1].toLowerCase();
+                scene = push(sceneK === 'scene' ? { type: 'node', title: sceneT, tag: '', must: '', cols: [], rows: [] } : { type: 'node', mode: sceneK, title: sceneT, tag: '', must: '', cols: [], rows: [] });
                 if (sceneF && sceneF.text === sceneT) setFmt(scene, 'title', sceneF.fmt);   // the title after "Scene:", its format with it
             } else if (level === 3 && kind === 'doc') {
                 setFmt(push({ type: 'h3', title: title }), 'title', hf.fmt);
@@ -604,9 +606,12 @@ function markdownToBlocks(text, opts) {
         }
         // scene-node field lines (planner) right under "### Scene:"
         if (scene && kind === 'planner') {
-            var fld = /^\*\*(tag|must resolve|must):?\*\*:?\s*(.*)$/i.exec(line) || /^(map)\s*:\s*(.*)$/i.exec(line);
+            var fld = /^\*\*(tag|role|area|must resolve|must|wants|when they arrive|points to|also known as|played|found):?\*\*:?\s*(.*)$/i.exec(line) || /^(map)\s*:\s*(.*)$/i.exec(line);
             if (fld) {
                 var key = fld[1].toLowerCase(), vf = fieldOf(fld[2]), val = vf.text;
+                if (key === 'role' || key === 'area') key = 'tag'; else if (key === 'wants' || key === 'when they arrive' || key === 'points to') key = 'must';   // a card's own words for its tag and its lead line
+                if (key === 'also known as') { var akaI = CC.cleanAka(val); if (akaI) scene.aka = akaI; i++; continue; }
+                if (key === 'played' || key === 'found') { if (/^(yes|true|x)$/i.test(val.trim()) && CC.kindOf(scene).tick.toLowerCase() === key) scene.done = true; i++; continue; }
                 if (key === 'tag') { scene.tag = val; setFmt(scene, 'tag', vf.fmt); }
                 else if (key === 'map') {
                     var parts = val.split('/').map(function(x) { return x.trim(); }), mapT = parts[0].toLowerCase(), roomT = (parts[1] || '').toLowerCase();
@@ -775,11 +780,14 @@ function docToMarkdown(item, opts) {
             case 'table': L.push(tableMd(b.title, b.cols, b.rows, b), ''); break;
             case 'node':
                 if (b.mode === 'table') { L.push(tableMd(b.title, b.cols, b.rows, b), ''); break; }
-                L.push('### Scene: ' + fieldText(b, 'title', IN_SCENE));
-                if (b.tag) L.push('**Tag:** ' + fieldText(b, 'tag', IN_LINE));
-                if (b.must) L.push('**Must resolve:** ' + fieldText(b, 'must', IN_LINE));
+                var kdM = CC.kindOf(b), akaM = CC.cleanAka(b.aka);   // backlog 107 step 3 and 147
+                L.push('### ' + kdM.word + ': ' + fieldText(b, 'title', IN_SCENE));
+                if (akaM) L.push('**Also known as:** ' + IN_LINE.put(akaM.join(', '), true));
+                if (b.done === true && kdM.tick) L.push('**' + kdM.tick + ':** yes');
+                if (b.tag) L.push('**' + kdM.tag + ':** ' + fieldText(b, 'tag', IN_LINE));
+                if (b.must) L.push('**' + kdM.must + ':** ' + fieldText(b, 'must', IN_LINE));
                 if (b.linkMapId && items[b.linkMapId]) { var mp = items[b.linkMapId], rm = b.linkRoomId && (mp.rooms || []).find(function(r) { return r.id === b.linkRoomId; }); L.push('Map: ' + ((mp.meta && mp.meta.title) || mp.id) + (rm ? ' / ' + (rm.name || rm.id) : '')); }
-                if ((b.cols && b.cols.length) || (b.rows && b.rows.length)) L.push(tableMd('', b.cols && b.cols.length ? b.cols : ['Action', 'Why', 'Cost', 'Returns via'], b.rows, b));
+                if ((b.cols && b.cols.length) || (b.rows && b.rows.length)) L.push(tableMd('', b.cols && b.cols.length ? b.cols : kdM.cols.slice(), b.rows, b));
                 L.push(''); break;
             case 'rule': L.push('---', ''); break;
             case 'diagram': L.push('```mermaid', stripMermaidLinks(unent(String(b.content || ''))).replace(/```/g, '` ` `'), '```', ''); break;   // as it is drawn: its links as canonical lines

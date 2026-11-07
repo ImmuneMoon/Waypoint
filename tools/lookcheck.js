@@ -3426,7 +3426,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
 
 {
     // 1.6.0 (the owner, 2026-10-31, on the sheets they passed: the drawings that took the place of the interface's emoji; "when in game it will also be hard to see line drawings of icons on the map, so we need a solution there", the dark plate, and "keep c if we do a light mode": the gold plate in the light theme)
-    const WI_HASH = 'a4dd5375f5d9b42aca65c538eeb552279fae78a0575737beb55b149c3337dc81';   // moves only after a new drawing was shown to the owner on a sheet
+    const WI_HASH = 'a54e14bc5abe8cba9b414ad67176a778d7fe48e520649160b3527d32c3ad7c9a';   // moves only after a new drawing was shown to the owner on a sheet (2026-11-06: a Person card's and a Clue card's, docs/sheets/card-kinds-sheet.html: "the magnifying glass is good")
     const wiSet = css.split('\n').filter(l => /^  \.wi-[a-z0-9-]+ \{ --wi: url|^  :root \{ --mk-|^  html\[data-theme="light"\] \{ --mk-/.test(l)).sort().join('\n');
     const wiSrc = [ix].concat(fs.readdirSync(path.join(app, 'scripts')).filter(f => /\.js$/.test(f)).map(f => read('scripts/' + f)));
     const wiUsed = new Set(); wiSrc.forEach(s => { s.replace(/\bwi-([a-z][a-z0-9-]*)\b(?!')/g, (m, n) => { wiUsed.add(n); return m; }); });

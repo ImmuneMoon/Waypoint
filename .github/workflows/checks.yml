@@ -75,6 +75,9 @@ jobs:
       - name: fxcheck — visual effects
         if: ${{ !cancelled() }}
         run: node tools/fxcheck.js
+      - name: fxsavedcheck — saved effects with sounds
+        if: ${{ !cancelled() }}
+        run: node tools/fxsavedcheck.js
       - name: musiccheck — music playlists
         if: ${{ !cancelled() }}
         run: node tools/musiccheck.js

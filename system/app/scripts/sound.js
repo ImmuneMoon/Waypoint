@@ -9,8 +9,8 @@
    validators; net.js holds the wire (sounds / sound messages, chunked asset-part transfer). */
 import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
-import { save, toast } from './io.js';
-import { LIMITS, safeId, cleanSoundList, cleanSoundCue, mixGain, seamBlend, EXT_RE } from './soundcore.js';
+import { save, toast, keepPlace } from './io.js';
+import { LIMITS, safeId, cleanSoundList, cleanSoundCue, cleanSoundNow, mixGain, seamBlend, EXT_RE } from './soundcore.js';
 import { showConfirm } from './dialogs.js';
 import { num } from './safecore.js';
 
@@ -49,13 +49,59 @@ function playable() {
 function entryById(id) { return playable().find(function(e) { return e.id === id; }) || null; }
 
 /* ---------- the engine ---------- */
-var ctx = null, ambient = null, cues = [], cache = {}, bytes = {}, cacheSec = 0, listeners = [];
+var ctx = null, ambient = null, layers = [], cues = [], cache = {}, bytes = {}, cacheSec = 0, listeners = [];
 var local = Number(pref('wp_soundVolume', '80')) / 100, master = Number(pref('wp_soundMaster', '80')) / 100, muted = pref('wp_soundMuted', 'no') === 'yes', hostMaster = 1;
+var ambientWant = null, layerWant = Object.create(null), pendingLayers = [];   // 1.6.2 (backlog 81): the loop asked for while it loads, and the layers asked for, by id, with their gain and volume
 var pendingGate = null, gateShown = false, queue = [], queueBusy = false, queueBytes = 0, atTable = false;
 function ac() { if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctx = null; } } return ctx; }
 function running() { return !!(ctx && ctx.state === 'running'); }
 function emit() { listeners.forEach(function(fn) { try { fn(status()); } catch (e) {} }); }
-function status() { return { ambient: ambient ? ambient.entry : null, cues: cues.length, muted: muted, volume: local, master: master, ready: running(), gate: !!pendingGate, on: featureOn() }; }
+// [soundcheck:lanes-start]
+// The loops that play: the ambient one first, then those layered over it (1.6.2, backlog 81: up to three in all, each at its own volume)
+function lanes() { return (ambient ? [ambient] : []).concat(layers); }
+function laneVol(l) { var v = l ? Number(l.vol) : NaN; return isFinite(v) ? Math.max(0, Math.min(1, v)) : 1; }
+function laneOf(id) { return lanes().find(function(l) { return l.entry.id === id; }) || null; }
+function playingIds() { return lanes().map(function(l) { return l.entry.id; }); }
+// A lane's gain: on a player's app what the host said (its volume is in it), times this machine's own volume; elsewhere the mix times the lane's volume
+function laneGain(l) { return Math.max(0.0001, l.hostGain !== undefined && isClient() ? l.hostGain * (muted ? 0 : local) : effGain(l.entry) * laneVol(l)); }
+function fadeLane(l, sec) { if (ctx) ramp(l.gain, 0.0001, sec); setTimeout(function() { try { l.src.stop(); } catch (e) {} }, sec * 1000 + 100); }
+function startLane(rec, entry, gainOverride, vol) {
+    var a = ac(), g = a.createGain(); g.gain.value = 0.0001; g.connect(a.destination);
+    var src = a.createBufferSource(); src.buffer = rec.buffer; src.loop = true; if (rec.loopEnd) src.loopEnd = rec.loopEnd; src.connect(g); src.start();
+    var l = { src: src, gain: g, entry: entry, hostGain: gainOverride, vol: vol === undefined ? 1 : vol };
+    ramp(g, laneGain(l), 1.5); return l;
+}
+// A lane already playing takes a new volume (and on a player's app the host's gain) where it stands
+function retune(l, gainOverride, vol) { l.hostGain = gainOverride; if (vol !== undefined) l.vol = vol; ramp(l.gain, laneGain(l), 0.3); emit(); streamPost(); }
+// With the ambient loop gone, the first layer takes its place, so a loop that plays is always the ambient one or a layer over it
+function promote() { if (ambient || ambientWant || !layers.length) return; ambient = layers.shift(); ambientWant = ambient.entry.id; delete layerWant[ambient.entry.id]; }
+function playLayer(entry, gainOverride, vol) {
+    if (!ambient && !ambientWant && !layers.length) return playAmbient(entry, gainOverride, vol);   // nothing plays: a layer is the loop
+    if (ambientWant === entry.id) return playAmbient(entry, gainOverride, vol);   // the ambient loop itself: its volume
+    layerWant[entry.id] = { gain: gainOverride, vol: vol };
+    var same = layers.find(function(l) { return l.entry.id === entry.id; });
+    if (same) { retune(same, gainOverride, vol); return Promise.resolve(); }
+    return bufferFor(entry).then(function(rec) {
+        var a = ac(); if (!a) return;
+        var w = layerWant[entry.id]; if (!w) return;   // stopped while it loaded
+        if (a.state === 'suspended') { pendingLayers = pendingLayers.filter(function(p) { return p.entry.id !== entry.id; }).concat([{ entry: entry, gain: w.gain, vol: w.vol }]); showGate(); return; }
+        var again = layers.find(function(l) { return l.entry.id === entry.id; }); if (again) { retune(again, w.gain, w.vol); return; }
+        if (ambient && ambient.entry.id === entry.id) return;
+        while (layers.length >= LIMITS.layers) { var o = layers.shift(); delete layerWant[o.entry.id]; fadeLane(o, 0.8); }   // past three, the oldest layer goes
+        layers.push(startLane(rec, entry, w.gain, w.vol)); promote(); emit(); streamPost();
+    }).catch(function(e) { if (!isClient()) toast('Could not play "' + entry.name + '": ' + (e.message || e)); });
+}
+function stopLayer(id, fadeMs) {
+    delete layerWant[id]; pendingLayers = pendingLayers.filter(function(p) { return p.entry.id !== id; });
+    var l = layers.find(function(x) { return x.entry.id === id; }); if (!l) return false;
+    layers = layers.filter(function(x) { return x !== l; }); fadeLane(l, (fadeMs === undefined ? 800 : fadeMs) / 1000); emit(); streamPost(); return true;
+}
+function stopLayers(fadeMs) { layers.slice().forEach(function(l) { stopLayer(l.entry.id, fadeMs); }); layerWant = Object.create(null); pendingLayers = []; }
+function stopLoops(fadeMs) { stopLayers(fadeMs); stopAmbient(fadeMs); }
+// One loop stopped by its id, the ambient one or a layer
+function stopLoop(id, fadeMs) { if ((ambient && ambient.entry.id === id) || (!ambient && ambientWant === id)) { stopAmbient(fadeMs); return true; } return stopLayer(id, fadeMs); }
+// [soundcheck:lanes-end]
+function status() { return { ambient: ambient ? ambient.entry : null, layers: layers.map(function(l) { return l.entry; }), loops: lanes().map(function(l) { return { id: l.entry.id, name: l.entry.name, vol: laneVol(l) }; }), cues: cues.length, muted: muted, volume: local, master: master, ready: running(), gate: !!pendingGate, on: featureOn() }; }
 function effGain(entry) { return muted ? 0 : mixGain(entry, isClient() ? hostMaster : master, local); }
 // bytes: defaults and the host / solo / stream read the local server; a client asks the host through net.fetchAsset
 function bytesFor(entry) {
@@ -67,7 +113,7 @@ function bytesFor(entry) {
 }
 function evict(keep) {
     var ids = Object.keys(cache).sort(function(a, b) { return cache[a].last - cache[b].last; });
-    while (cacheSec > LIMITS.cacheSec && ids.length) { var id = ids.shift(); if (id === keep || (ambient && ambient.entry.id === id)) continue; cacheSec -= cache[id].sec; delete cache[id]; }
+    while (cacheSec > LIMITS.cacheSec && ids.length) { var id = ids.shift(); if (id === keep || laneOf(id)) continue; cacheSec -= cache[id].sec; delete cache[id]; }
 }
 function bufferFor(entry) {
     if (cache[entry.id] && cache[entry.id].path === entry.path) { cache[entry.id].last = Date.now(); return Promise.resolve(cache[entry.id]); }
@@ -85,26 +131,29 @@ function bufferFor(entry) {
     });
 }
 function ramp(g, to, sec) { var a = ac(), t = a.currentTime; g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), t); g.gain.exponentialRampToValueAtTime(Math.max(0.0001, to), t + Math.max(0.02, sec)); }
-function playAmbient(entry, gainOverride) {
+// [soundcheck:ambient-start]
+function playAmbient(entry, gainOverride, vol) {
+    ambientWant = entry.id;
+    if (ambient && ambient.entry.id === entry.id) { retune(ambient, gainOverride, vol); return Promise.resolve(); }   // the loop that plays: only its volume (1.6.2)
     return bufferFor(entry).then(function(rec) {
         var a = ac(); if (!a) return;
-        if (a.state === 'suspended') { pendingGate = { entry: entry, gain: gainOverride }; showGate(); return; }
+        if (ambientWant !== entry.id) return;   // another loop was asked for, or this one stopped, while it loaded
+        if (a.state === 'suspended') { pendingGate = { entry: entry, gain: gainOverride, vol: vol }; showGate(); return; }
+        if (ambient && ambient.entry.id === entry.id) { retune(ambient, gainOverride, vol); return; }
         var old = ambient;
-        var g = a.createGain(); g.gain.value = 0.0001; g.connect(a.destination);
-        var src = a.createBufferSource(); src.buffer = rec.buffer; src.loop = true; if (rec.loopEnd) src.loopEnd = rec.loopEnd; src.connect(g); src.start();
-        ambient = { src: src, gain: g, entry: entry, hostGain: gainOverride };
-        ramp(g, Math.max(0.0001, gainOverride !== undefined && isClient() ? gainOverride * (muted ? 0 : local) : effGain(entry)), 1.5);
-        if (old) { ramp(old.gain, 0.0001, 1.5); setTimeout(function() { try { old.src.stop(); } catch (e) {} }, 1600); }
+        ambient = startLane(rec, entry, gainOverride, vol);
+        if (old) fadeLane(old, 1.5);
         emit(); streamPost();
     }).catch(function(e) { if (!isClient()) toast('Could not play "' + entry.name + '": ' + (e.message || e)); });
 }
 function stopAmbient(fadeMs) {
-    if (!ambient) return;
+    ambientWant = null; if (pendingGate) pendingGate = null;
+    if (!ambient) { promote(); return; }
     var old = ambient; ambient = null;
-    var sec = (fadeMs === undefined ? 800 : fadeMs) / 1000;
-    if (ctx) ramp(old.gain, 0.0001, sec); setTimeout(function() { try { old.src.stop(); } catch (e) {} }, sec * 1000 + 100);
-    emit(); streamPost();
+    fadeLane(old, (fadeMs === undefined ? 800 : fadeMs) / 1000);
+    promote(); emit(); streamPost();
 }
+// [soundcheck:ambient-end]
 function playCue(entry, gainOverride, quiet) {
     return bufferFor(entry).then(function(rec) {
         var a = ac(); if (!a) return;
@@ -118,26 +167,28 @@ function playCue(entry, gainOverride, quiet) {
         src.start(0, 0, Math.min(rec.buffer.duration, LIMITS.cueSec));
     }).catch(function(e) { if (!isClient()) toast('Could not play "' + entry.name + '": ' + (e.message || e)); });
 }
-function stopAll(fadeMs) { stopAmbient(fadeMs); cues.forEach(function(c) { try { c.src.stop(); } catch (e) {} }); cues = []; pendingGate = null; hideGate(); emit(); }
-function reapplyGains() { if (ambient) ramp(ambient.gain, Math.max(0.0001, ambient.hostGain !== undefined && isClient() ? ambient.hostGain * (muted ? 0 : local) : effGain(ambient.entry)), 0.1); cues.forEach(function(c) { ramp(c.gain, Math.max(0.0001, effGain(c.entry)), 0.1); }); emit(); }
+function stopAll(fadeMs) { stopLoops(fadeMs); cues.forEach(function(c) { try { c.src.stop(); } catch (e) {} }); cues = []; pendingGate = null; hideGate(); emit(); }
+function reapplyGains() { lanes().forEach(function(l) { ramp(l.gain, laneGain(l), 0.1); }); cues.forEach(function(c) { ramp(c.gain, Math.max(0.0001, effGain(c.entry)), 0.1); }); emit(); }
 function setLocalVolume(v) { local = Math.max(0, Math.min(1, v)); setPref('wp_soundVolume', Math.round(local * 100)); reapplyGains(); }
 function setMute(on) { muted = !!on; setPref('wp_soundMuted', muted ? 'yes' : 'no'); reapplyGains(); }
 function setMaster(v) { master = Math.max(0, Math.min(1, v)); setPref('wp_soundMaster', Math.round(master * 100)); reapplyGains(); var n = net(); if (n && n.sendSound) n.sendSound({ act: 'volume', gain: master }); }
 // the feature switched (vtt.js fan-out, a stance from the host, a snapshot): stop what may not play
 function refresh() {
     if (!featureOn()) { if (isHost() && ambient) hostStopAmbient(); stopAll(300); queue = []; queueBusy = false; }   // a host silences the table too, not just his speakers
-    else if (isClient()) {   // back on (for me, or at the table): the host's ambient resumes from the list, and the prefetch queue with it
+    else if (isClient()) {   // back on (for me, or at the table): the host's loops resume from the list, and the prefetch queue with it
         var n = net(), e = n && Array.isArray(n.sounds) && n.soundNow ? n.sounds.find(function(x) { return x.id === n.soundNow; }) : null;
-        if (e && !ambient) playAmbient(e, mixGain(e, hostMaster, 1));
-        if (n && Array.isArray(n.sounds)) prefetch(n.sounds, n.soundNow);
+        if (e && !ambient) { var v0 = typeof n.soundNowVol === 'number' ? n.soundNowVol : 1; playAmbient(e, mixGain(e, hostMaster, 1) * v0, v0); }
+        if (e && Array.isArray(n.soundLayers)) n.soundLayers.forEach(function(x) { var le = n.sounds.find(function(s) { return s.id === x.id; }); if (le) playLayer(le, mixGain(le, hostMaster, 1) * x.vol, x.vol); });
+        if (n && Array.isArray(n.sounds)) prefetch(n.sounds, n.soundNow, (n.soundLayers || []).map(function(x) { return x.id; }));
     }
     renderInd(); renderPanel();
 }
 // prefetch: one transfer at a time, the current loop first, then small cues, then loops, under a byte budget
-function prefetch(list, nowId) {
+function prefetch(list, nowId, more) {
     if (!isClient() || !featureOn()) return;
     var order = [];
     var nowE = list.find(function(e) { return e.id === nowId; }); if (nowE) order.push(nowE);
+    (more || []).forEach(function(id) { var le = list.find(function(e) { return e.id === id; }); if (le && order.indexOf(le) < 0) order.push(le); });   // the layers next
     list.filter(function(e) { return e.kind === 'cue' && !e.def && e.size <= 256 * 1024 && e !== nowE; }).forEach(function(e) { order.push(e); });
     list.filter(function(e) { return e.kind === 'loop' && !e.def && e !== nowE; }).forEach(function(e) { order.push(e); });
     order.forEach(function(e) { if (!bytes[e.path] && !queue.some(function(q) { return q.id === e.id; })) queue.push(e); });
@@ -156,20 +207,21 @@ function showGate() { var g = ui('soundGate'); if (g) g.style.display = 'flex'; 
 function hideGate() { var g = ui('soundGate'); if (g) g.style.display = 'none'; gateShown = false; }
 function tryResume() {
     if (!ctx || ctx.state !== 'suspended') { if (gateShown) hideGate(); return; }
-    ctx.resume().then(function() { hideGate(); var p = pendingGate; pendingGate = null; if (p) playAmbient(p.entry, p.gain); emit(); }).catch(function() {});
+    ctx.resume().then(function() { hideGate(); var p = pendingGate, pl = pendingLayers; pendingGate = null; pendingLayers = []; if (p) playAmbient(p.entry, p.gain, p.vol); pl.forEach(function(x) { playLayer(x.entry, x.gain, x.vol); }); emit(); }).catch(function() {});
 }
 document.addEventListener('pointerdown', function() { if (gateShown || (ctx && ctx.state === 'suspended' && pendingGate)) tryResume(); }, true);
 document.addEventListener('keydown', function() { if (gateShown || (ctx && ctx.state === 'suspended' && pendingGate)) tryResume(); }, true);
 
 /* ---------- the wire glue ---------- */
 var streamChan = null; try { streamChan = new BroadcastChannel('waypoint'); } catch (e) {}
-function streamPost() { if (!isHost() && net() && net().active) return; if (!streamChan || window.wpStream) return; try { streamChan.postMessage({ type: 'sound', now: ambient ? { id: ambient.entry.id, path: ambient.entry.path, name: ambient.entry.name, gain: effGain(ambient.entry) } : null }); } catch (e) {} }
+function streamPost() { if (!isHost() && net() && net().active) return; if (!streamChan || window.wpStream) return; var one = function(l) { return { id: l.entry.id, path: l.entry.path, name: l.entry.name, gain: Math.min(2, effGain(l.entry) * laneVol(l)) }; }; try { streamChan.postMessage({ type: 'sound', now: ambient ? one(ambient) : null, layers: layers.map(one) }); } catch (e) {} }
+// [soundcheck:wire-start]
 // The host's list for the table: uploads by path, defaults by id, the master and what is playing now
 function listMessage() {
     var camp = getActiveCampaign(); if (!camp) return null;
     var list = ownEntries().map(function(e) { return { id: e.id, name: e.name, path: e.path, kind: e.kind, gain: e.gain, size: e.size, dur: e.dur }; })
         .concat(defaultEntries().map(function(e) { return { id: e.id, def: true, name: e.name, kind: e.kind, gain: e.gain, dur: e.dur }; }));
-    return { type: 'sounds', campId: camp.id, master: master, now: ambient ? { ambientId: ambient.entry.id, gain: effGainHost(ambient.entry) } : null, list: list };
+    return { type: 'sounds', campId: camp.id, master: master, now: ambient ? { ambientId: ambient.entry.id, gain: Math.min(2, effGainHost(ambient.entry) * laneVol(ambient)), vol: laneVol(ambient), layers: layers.map(function(l) { return { id: l.entry.id, gain: Math.min(2, effGainHost(l.entry) * laneVol(l)), vol: laneVol(l) }; }) } : null, list: list };
 }
 function effGainHost(entry) { return mixGain(entry, master, 1); }
 function onList(msg) {
@@ -177,37 +229,63 @@ function onList(msg) {
     defaultsLoaded.then(function() {
         n.sounds = cleanSoundList(msg.list, { defaults: defaults }); atTable = true;
         hostMaster = Math.max(0, Math.min(2, Number(msg.master) || 1));
-        var now = msg.now && typeof msg.now === 'object' ? msg.now : null;
-        n.soundNow = now && typeof now.ambientId === 'string' ? now.ambientId : null;
-        // reconcile: the playing loop must still be listed; the host's ambient is applied on every list
+        var now = cleanSoundNow(msg.now, n.sounds);
+        n.soundNow = now.id; n.soundNowVol = now.vol; n.soundLayers = now.layers;
+        // reconcile: what plays must still be listed and still asked for; the host's loops are applied on every list
+        layers.slice().forEach(function(l) { if (!now.layers.some(function(x) { return x.id === l.entry.id; })) stopLayer(l.entry.id, 600); });
         if (ambient && !n.sounds.some(function(e) { return e.id === ambient.entry.id; })) stopAmbient(600);
         if (!featureOn()) { refresh(); return; }
-        if (n.soundNow) { var e = n.sounds.find(function(x) { return x.id === n.soundNow; }); if (e && (!ambient || ambient.entry.id !== e.id)) playAmbient(e, Math.max(0, Math.min(2, Number(now.gain) || 1))); }
-        else if (ambient) stopAmbient(800);
-        prefetch(n.sounds, n.soundNow);
+        if (n.soundNow) {
+            var e = n.sounds.find(function(x) { return x.id === n.soundNow; }); if (e) playAmbient(e, now.gain, now.vol);   // the same loop only takes its volume
+            now.layers.forEach(function(x) { var le = n.sounds.find(function(s) { return s.id === x.id; }); if (le) playLayer(le, x.gain, x.vol); });
+        }
+        else if (ambient || layers.length) stopLoops(800);
+        prefetch(n.sounds, n.soundNow, now.layers.map(function(x) { return x.id; }));
         renderInd();
     });
 }
 function onCue(msg) {
     var n = net(); if (!n || !Array.isArray(n.sounds)) return;
     var c = cleanSoundCue(msg, n.sounds); if (!c) return;
-    if (c.act === 'stop') { if (c.id === 'all') { n.soundNow = null; stopAll(c.fade); } else if (c.id === 'ambient' || (ambient && ambient.entry.id === c.id)) { n.soundNow = null; stopAmbient(c.fade || 800); } return; }   // a stop is honoured even while sound is off here: the table's loop is over
+    if (c.act === 'stop') { if (c.id === 'all') stopAll(c.fade); else if (c.id === 'ambient') stopLoops(c.fade || 800); else stopLoop(c.id, c.fade || 800); noteNow(); return; }   // a stop is honoured even while sound is off here: the table's loop is over
+    if (c.act === 'ambient' || c.act === 'layer') {   // what the host plays is noted first, so that sound switched on again here resumes it
+        var e = n.sounds.find(function(x) { return x.id === c.id; }); if (!e) return;
+        if (c.act === 'ambient') { var cur = ambient ? ambient.entry.id : ambientWant; if (cur !== e.id) { stopLayers(800); n.soundLayers = []; } n.soundNow = e.id; n.soundNowVol = c.vol; }
+        else if (n.soundNow && n.soundNow !== e.id) { n.soundLayers = (n.soundLayers || []).filter(function(x) { return x.id !== e.id; }).concat([{ id: e.id, gain: c.gain, vol: c.vol }]).slice(-LIMITS.layers); }
+        if (!featureOn()) return;
+        if (c.act === 'ambient') playAmbient(e, c.gain, c.vol); else playLayer(e, c.gain, c.vol);
+        return;
+    }
     if (!featureOn()) return;
-    if (c.act === 'ambient') { var e = n.sounds.find(function(x) { return x.id === c.id; }); if (e) { n.soundNow = e.id; playAmbient(e, c.gain); } }
-    else if (c.act === 'cue') { var e2 = n.sounds.find(function(x) { return x.id === c.id; }); if (e2) playCue(e2, c.gain); }
-    else if (c.act === 'volume') { if (c.id === undefined) { hostMaster = c.gain; if (ambient && ambient.hostGain !== undefined) ambient.hostGain = mixGain(ambient.entry, hostMaster, 1); } else { var e3 = n.sounds.find(function(x) { return x.id === c.id; }); if (e3) { e3.gain = c.gain; if (ambient && ambient.entry.id === c.id) ambient.hostGain = mixGain(e3, hostMaster, 1); } } reapplyGains(); }
+    if (c.act === 'cue') { var e2 = n.sounds.find(function(x) { return x.id === c.id; }); if (e2) playCue(e2, c.gain); }
+    else if (c.act === 'volume') { if (c.id === undefined) { hostMaster = c.gain; lanes().forEach(function(l) { if (l.hostGain !== undefined) l.hostGain = mixGain(l.entry, hostMaster, 1) * laneVol(l); }); } else { var e3 = n.sounds.find(function(x) { return x.id === c.id; }); if (e3) { e3.gain = c.gain; var l3 = laneOf(c.id); if (l3) l3.hostGain = mixGain(e3, hostMaster, 1) * laneVol(l3); } } reapplyGains(); }
 }
-function onSnapshot() { var n = net(); if (n) { n.sounds = null; n.soundNow = null; } stopAll(300); queue = []; queueBusy = false; queueBytes = 0; bytes = {}; renderInd(); }
+// What plays, as a player's app keeps it for sound switched on again here and for the prefetch
+function noteNow() { var n = net(); if (!n || !isClient()) return; n.soundNow = ambient ? ambient.entry.id : ambientWant; n.soundNowVol = ambient ? laneVol(ambient) : 1; n.soundLayers = layers.map(function(l) { return { id: l.entry.id, gain: l.hostGain === undefined ? 1 : l.hostGain, vol: laneVol(l) }; }); }
+// [soundcheck:wire-end]
+function onSnapshot() { var n = net(); if (n) { n.sounds = null; n.soundNow = null; n.soundLayers = null; } stopAll(300); queue = []; queueBusy = false; queueBytes = 0; bytes = {}; renderInd(); }
 // the session ended or dropped: a player's table sound stops and its bytes go; a GM keeps what he was playing (his campaign is still on screen)
-function tableLeft(wasClient) { queue = []; queueBusy = false; queueBytes = 0; hostMaster = 1; if (wasClient) { stopAll(300); bytes = {}; atTable = false; } renderInd(); renderPanel(); }
+function tableLeft(wasClient) { queue = []; queueBusy = false; queueBytes = 0; hostMaster = 1; var nn = net(); if (nn) nn.soundLayers = null; if (wasClient) { stopAll(300); bytes = {}; atTable = false; } renderInd(); renderPanel(); }
 // io.js load(): the campaign on screen is foreign (a table's) or the player's own again; only the foreign -> own move stops a table's loop
 function foreign(isForeign) { if (!isForeign && atTable) { stopAll(300); bytes = {}; queue = []; queueBusy = false; queueBytes = 0; } if (!isForeign) atTable = false; renderInd(); }
 function sessionEnded() { stopAll(500); renderInd(); renderPanel(); }
 
 /* ---------- the GM's panel ---------- */
 var panelOpen = false;
-function hostPlayAmbient(entry) { playAmbient(entry); var n = net(); if (n && n.sendSound) n.sendSound({ act: 'ambient', id: entry.id, gain: effGainHost(entry) }); }
-function hostStopAmbient() { stopAmbient(800); var n = net(); if (n && n.sendSound) n.sendSound({ act: 'stop', id: 'ambient', fade: 800 }); }
+// [soundcheck:hostlanes-start]
+function hostSend(m) { var n = net(); if (n && n.sendSound) n.sendSound(m); }
+function laneMsg(act, entry, vol) { return { act: act, id: entry.id, gain: Math.min(2, effGainHost(entry) * vol), vol: vol }; }
+// A loop pressed: it is the one loop now, whatever was layered (1.6.2: a player's app stops the layers when the ambient loop changes)
+function hostPlayAmbient(entry, vol) { vol = vol === undefined ? 1 : vol; stopLayers(800); playAmbient(entry, undefined, vol); hostSend(laneMsg('ambient', entry, vol)); }
+// Its Layer button: played beside what plays, three at most; with nothing playing it is the ambient loop
+function hostLayer(entry, vol) { vol = vol === undefined ? 1 : vol; if (!ambient && !ambientWant) { hostPlayAmbient(entry, vol); return; } if (ambientWant === entry.id) { hostLaneVol(entry.id, vol, true); return; } playLayer(entry, undefined, vol); hostSend(laneMsg('layer', entry, vol)); }
+function hostStopLoop(id) { if (!stopLoop(id, 800)) return false; hostSend({ act: 'stop', id: id, fade: 800 }); return true; }
+// One loop's own volume: here as the slider moves, for the table when it is let go
+function hostLaneVol(id, vol, send) { var l = laneOf(id); if (!l) return false; vol = Math.max(0, Math.min(1, Number(vol) || 0)); l.vol = vol; ramp(l.gain, laneGain(l), 0.1); if (layerWant[id]) layerWant[id].vol = vol; if (send) { hostSend(laneMsg(l === ambient ? 'ambient' : 'layer', l.entry, vol)); streamPost(); } emit(); return true; }
+// A set of loops (a saved effect): the first is the loop, the others layered over it, each at its volume
+function hostPlaySet(list) { var es = (Array.isArray(list) ? list : []).map(function(x) { var e = x && entryById(x.id); return e && e.kind === 'loop' ? { e: e, vol: Math.max(0, Math.min(1, Number(x.vol) >= 0 ? Number(x.vol) : 1)) } : null; }).filter(Boolean).slice(0, 1 + LIMITS.layers); if (!es.length) return 0; hostPlayAmbient(es[0].e, es[0].vol); es.slice(1).forEach(function(x) { hostLayer(x.e, x.vol); }); return es.length; }
+function hostStopAmbient() { stopLoops(800); hostSend({ act: 'stop', id: 'ambient', fade: 800 }); }
+// [soundcheck:hostlanes-end]
 function hostCue(entry) { playCue(entry); var n = net(); if (n && n.sendSound) n.sendSound({ act: 'cue', id: entry.id, gain: effGainHost(entry) }); }
 var _cueLast = {};
 function renderPanel() {
@@ -218,14 +296,24 @@ function renderPanel() {
     var list = playable(), loops = list.filter(function(e) { return e.kind === 'loop'; }), cs = list.filter(function(e) { return e.kind === 'cue'; });
     var on = featureOn();
     if (!on) { ui('soundBody').innerHTML = '<div class="snd-none">Sound is off for this campaign — switch it on in <i class="wib wi-cog"></i> Settings &#9656; This campaign.</div>'; return; }
-    var html = '<div class="snd-row"><span class="snd-label">Ambient</span>' + (loops.length ? loops.map(function(e) { return '<button class="journal-from snd-loop' + (ambient && ambient.entry.id === e.id ? ' active' : '') + '" data-id="' + esc(e.id) + '" title="' + esc(e.name) + ' · ' + fmtDur(e.dur) + (e.def ? ' · bundled' : '') + '">' + esc(e.name) + '</button>'; }).join('') + '<button class="journal-from snd-stop" data-act="stop-ambient" title="Fade the ambient out"' + (ambient ? '' : ' disabled') + '>&#9632;</button>' : '<span class="snd-none">No loops yet — add one in the library.</span>') + '</div>';
+    var ls = lanes(), full = ls.length >= 1 + LIMITS.layers;
+    var html = '<div class="snd-row"><span class="snd-label">Ambient</span>' + (loops.length ? loops.map(function(e) { var on = !!laneOf(e.id); return '<span class="snd-loopgrp"><button class="journal-from snd-loop' + (on ? ' active' : '') + '" data-id="' + esc(e.id) + '" title="' + esc(e.name) + ' · ' + fmtDur(e.dur) + (e.def ? ' · bundled' : '') + '. Press to play it alone.">' + esc(e.name) + '</button><button class="journal-from snd-layer" data-id="' + esc(e.id) + '" aria-label="Layer ' + esc(e.name) + '" title="Layer: play it with what plays, three loops at most"' + (on || full ? ' disabled' : '') + '>+</button></span>'; }).join('') + '<button class="journal-from snd-stop" data-act="stop-ambient" title="Fade every loop out"' + (ambient ? '' : ' disabled') + '>&#9632;</button>' : '<span class="snd-none">No loops yet — add one in the library.</span>') + '</div>';
+    if (ls.length) html += '<div class="snd-row snd-lanes"><span class="snd-label">Playing</span>' + ls.map(function(l) { return '<span class="snd-lane"><span class="snd-lane-name">' + esc(l.entry.name) + '</span><input type="range" class="snd-lvol" data-id="' + esc(l.entry.id) + '" min="0" max="100" value="' + Math.round(laneVol(l) * 100) + '" aria-label="Volume of ' + esc(l.entry.name) + '" title="This loop\'s own volume"><button class="journal-from snd-lstop" data-id="' + esc(l.entry.id) + '" aria-label="Stop ' + esc(l.entry.name) + '" title="Stop this loop">&#9632;</button></span>'; }).join('') + '</div>';
     html += '<div class="snd-row"><span class="snd-label">Cues</span>' + (cs.length ? cs.map(function(e) { return '<button class="journal-from snd-cue" data-id="' + esc(e.id) + '" title="' + esc(e.name) + ' · ' + fmtDur(e.dur) + (e.def ? ' · bundled' : '') + '">' + esc(e.name) + '</button>'; }).join('') : '<span class="snd-none">No cues yet.</span>') + '</div>';
     html += '<div class="snd-row snd-foot"><label title="The GM\'s master: what players hear, and your own speakers">Master <input type="range" id="soundMaster" min="0" max="100" value="' + Math.round(master * 100) + '"></label><label class="snd-mute" title="Silence your own speakers only; players still hear the table"><input type="checkbox" id="soundHostMute"' + (muted ? ' checked' : '') + '> Mute mine</label><span class="snd-players" title="Whether the campaign\'s Sound feature is on for the table (Settings ▸ This campaign)">Players: ' + (isHost() ? 'hear this table' : 'no session') + '</span><button class="tool ghost snd-btn" data-act="lib">Library…</button></div>';
-    ui('soundBody').innerHTML = html;
-    if (window.wpSoundOn) window.wpSoundOn.draw(ui('soundBody'));   // 1.6.2: On actions, the sounds tied to what happens
+    keepPlace(ui('soundBody'), function() {   // 1.6.2: a redraw under a press keeps the focus and the scroll
+        ui('soundBody').innerHTML = html;
+        if (window.wpSoundOn) window.wpSoundOn.draw(ui('soundBody'));
+    });   // 1.6.2: On actions, the sounds tied to what happens
 }
 // the chips and the stop button follow the engine without rebuilding the body (a rebuild mid-drag would drop the master slider)
-function syncPanelState() { var body = ui('soundBody'); if (!body || !panelOpen) return; var id = ambient ? ambient.entry.id : null; body.querySelectorAll('.snd-loop').forEach(function(b) { b.classList.toggle('active', b.dataset.id === id); }); var st = body.querySelector('.snd-stop'); if (st) st.disabled = !ambient; }
+var _laneSig = '';
+function syncPanelState() {
+    var body = ui('soundBody'); if (!body || !panelOpen) return;
+    var sig = playingIds().join('|'), ae = document.activeElement;
+    if (sig !== _laneSig && !(ae && ae.classList && ae.classList.contains('snd-lvol') && body.contains(ae))) { _laneSig = sig; renderPanel(); return; }   // which loops play changed: the Playing row and the Layer buttons follow
+    var ids = playingIds(); body.querySelectorAll('.snd-loop').forEach(function(b) { b.classList.toggle('active', ids.indexOf(b.dataset.id) >= 0); }); var st = body.querySelector('.snd-stop'); if (st) st.disabled = !ambient;
+}
 function openPanel() { panelOpen = true; if (window.wpFx && window.wpFx.closePanel) window.wpFx.closePanel(); ac(); renderPanel(); placePanel(); var b = ui('soundBtn'); if (b) b.classList.add('active'); }   // Sound and Visual effects share the corner: only one panel at a time
 function closePanel() { panelOpen = false; renderPanel(); var b = ui('soundBtn'); if (b) b.classList.remove('active'); }
 function placePanel() { var p = ui('soundPanel'); if (!p) return; try { var pos = JSON.parse(pref('wp_soundPanel', 'null')); if (pos && isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 120, pos.x)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 60, pos.y)) + 'px'; p.style.right = 'auto'; } } catch (e) {} }
@@ -239,11 +327,13 @@ function placePanel() { var p = ui('soundPanel'); if (!p) return; try { var pos 
         if (b.dataset.act === 'lib') { openLib(); return; }
         if (b.dataset.act === 'stop-ambient') { hostStopAmbient(); renderPanel(); return; }
         var entry = b.dataset.id ? entryById(b.dataset.id) : null; if (!entry) return;
-        if (b.classList.contains('snd-loop')) { if (ambient && ambient.entry.id === entry.id) hostStopAmbient(); else hostPlayAmbient(entry); renderPanel(); }
+        if (b.classList.contains('snd-loop')) { if (laneOf(entry.id)) hostStopLoop(entry.id); else hostPlayAmbient(entry); renderPanel(); }
+        else if (b.classList.contains('snd-layer')) { if (!laneOf(entry.id)) hostLayer(entry, 1); renderPanel(); }
+        else if (b.classList.contains('snd-lstop')) { hostStopLoop(entry.id); renderPanel(); }
         else if (b.classList.contains('snd-cue')) { var t = Date.now(); if (_cueLast[entry.id] && t - _cueLast[entry.id] < 150) return; _cueLast[entry.id] = t; hostCue(entry); }
     });
-    p.addEventListener('input', function(e) { if (e.target.id === 'soundMaster') setMaster(Number(e.target.value) / 100); });
-    p.addEventListener('change', function(e) { if (e.target.id === 'soundHostMute') setMute(e.target.checked); });
+    p.addEventListener('input', function(e) { if (e.target.id === 'soundMaster') setMaster(Number(e.target.value) / 100); else if (e.target.classList.contains('snd-lvol')) hostLaneVol(e.target.dataset.id, Number(e.target.value) / 100, false); });
+    p.addEventListener('change', function(e) { if (e.target.id === 'soundHostMute') setMute(e.target.checked); else if (e.target.classList.contains('snd-lvol')) hostLaneVol(e.target.dataset.id, Number(e.target.value) / 100, true); });
     // drag by the head; the position is remembered
     var drag = null;
     head.addEventListener('pointerdown', function(e) { if (e.target.closest('button')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
@@ -357,12 +447,12 @@ function uploadFiles(files) {
         if (!row) return;
         var id = row.dataset.id;
         if (b.classList.contains('snd-prev')) { stopPreview(); var pe = (libScope === 'camp' ? ownEntries() : libScope === 'shared' ? defaultEntries() : libScope === 'pick' && libPickFrom ? campList(state.appState.campaigns[libPickFrom]) : Object.values(state.appState.campaigns).reduce(function(a, c) { return a.concat(campList(c)); }, [])).find(function(x) { return x.id === id; }); if (!pe) return; var pl = cleanSoundList([pe], { defaults: defaults })[0]; if (!pl) { toast('That sound cannot be played here.'); return; } bufferFor(pl).then(function(rec) { var a = ac(); if (a.state === 'suspended') a.resume(); var g = a.createGain(); g.gain.value = effGain(pl); g.connect(a.destination); var s = a.createBufferSource(); s.buffer = rec.buffer; s.connect(g); s.start(0, 0, Math.min(rec.buffer.duration, 20)); previewing = { src: s }; s.onended = function() { if (previewing && previewing.src === s) previewing = null; }; }).catch(function(err) { toast('Could not play it: ' + (err.message || err)); }); return; }
-        if (b.classList.contains('snd-hide')) { var h = hiddenDefaults(); if (h.indexOf(id) < 0) h.push(id); setHiddenDefaults(h); if (ambient && ambient.entry.id === id) hostStopAmbient(); renderLib(); saveLib(true); return; }
+        if (b.classList.contains('snd-hide')) { var h = hiddenDefaults(); if (h.indexOf(id) < 0) h.push(id); setHiddenDefaults(h); if (laneOf(id)) hostStopLoop(id); renderLib(); saveLib(true); return; }
         if (b.classList.contains('snd-del')) {
             var list = campListW(camp), entry = list.find(function(x) { return x.id === id; }); if (!entry) return;
             var ownFile = !entry.from && String(entry.path || '').indexOf('/saves/images/audio/' + safeId(camp.id) + '/') === 0, shared = ownFile && !fileIsOnlyOurs(camp, entry.path), isRef = !ownFile || shared;   // shared: our file, but another campaign names it (its sounds, or a song brought in From another campaign…): the entry goes, the file stays
             var go = function() {
-                if (ambient && ambient.entry.id === id) hostStopAmbient();
+                if (laneOf(id)) hostStopLoop(id);
                 var idx = list.indexOf(entry); if (idx >= 0) list.splice(idx, 1);
                 delete cache[id]; delete bytes[entry.path];
                 saveLib(true); renderLib();
@@ -399,14 +489,14 @@ function renderInd() {
     var mine = !st.on && !!(window.wpVtt && typeof window.wpVtt.whyOff === 'function' && window.wpVtt.whyOff('sound') === 'local');   // off by this player's own switch: struck through, and its menu offers the way back
     b.classList.toggle('off-mine', mine);
     b.classList.toggle('gate', !!gateShown);
-    b.title = !st.on ? (mine ? 'Sound is off for you at this table \u2014 click to turn it back on' : 'Sound is off ' + (isClient() ? 'for you at this table' : 'for this campaign')) : gateShown ? 'Click to enable sound at this table' : st.ambient ? 'Playing: ' + st.ambient.name + (muted ? ' (muted for you)' : '') : muted ? 'Sound effects muted for you. Right-click to unmute' : 'Sound effects — your volume and mute. Right-click to mute' + (atTable ? '' : ' (nothing playing)');
+    b.title = !st.on ? (mine ? 'Sound is off for you at this table \u2014 click to turn it back on' : 'Sound is off ' + (isClient() ? 'for you at this table' : 'for this campaign')) : gateShown ? 'Click to enable sound at this table' : st.ambient ? 'Playing: ' + st.loops.map(function(x) { return x.name; }).join(', ') + (muted ? ' (muted for you)' : '') : muted ? 'Sound effects muted for you. Right-click to unmute' : 'Sound effects — your volume and mute. Right-click to mute' + (atTable ? '' : ' (nothing playing)');
     var pop = ui('soundPop'); if (!pop || pop.style.display === 'none') return;
     var vol = ui('soundVolume'); if (vol && document.activeElement !== vol) vol.value = Math.round(local * 100);
     var mu = ui('soundMuteChk'); if (mu) mu.checked = muted;
     var onB = ui('soundOnBtn'); if (onB) onB.style.display = mine ? '' : 'none';
     var offRow = ui('soundOffRow'), offChk = ui('soundOffChk');
     if (offRow) { var client = isClient() && window.wpVtt && window.wpVtt.mode && window.wpVtt.mode() === 'client'; offRow.style.display = client ? '' : 'none'; if (offChk && client) { offChk.checked = !!window.wpVtt.localOff('sound'); offChk.disabled = !(window.wpVtt.ceiling() && window.wpVtt.ceiling().sound === true); } }
-    var now = ui('soundNow'); if (now) now.textContent = st.ambient ? 'Playing: ' + st.ambient.name : (st.on ? 'Nothing playing' : 'Sound is off here');
+    var now = ui('soundNow'); if (now) now.textContent = st.ambient ? 'Playing: ' + st.loops.map(function(x) { return x.name; }).join(', ') : (st.on ? 'Nothing playing' : 'Sound is off here');
     var bd = ui('soundBoardBtn'); if (bd) bd.style.display = boardOk() ? '' : 'none';   // 1.6.2: the GM's card opens the board
 }
 function boardOk() { return !isClient() && !window.wpStream && !!getActiveCampaign() && (!window.wpCanPersistLocal || window.wpCanPersistLocal()); }
@@ -427,12 +517,14 @@ if (window.wpStream && streamChan) {
     var streamOn = function() { return pref('wp_streamSound', 'off') === 'on'; };
     streamChan.addEventListener('message', function(e) {
         var d = e.data; if (!d || d.type !== 'sound') return;
-        if (!streamOn()) { stopAmbient(300); return; }
-        if (!d.now) { stopAmbient(600); return; }
-        if (ambient && ambient.entry.id === d.now.id) return;
-        var entry = { id: String(d.now.id || '').slice(0, 40), name: String(d.now.name || '').slice(0, 60), path: String(d.now.path || ''), kind: 'loop', gain: Math.max(0.1, Math.min(2, Number(d.now.gain) || 1)), size: 0, dur: 0 };
-        if (!/^(assets\/sounds\/[A-Za-z0-9_.-]+|\/saves\/images\/audio\/[A-Za-z0-9_-]{1,60}\/[^\/?#]{1,200})$/.test(entry.path)) return;
-        playAmbient(entry);
+        if (!streamOn()) { stopLoops(300); return; }
+        if (!d.now) { stopLoops(600); return; }
+        var mk = function(x) { var en = x && typeof x === 'object' ? { id: String(x.id || '').slice(0, 40), name: String(x.name || '').slice(0, 60), path: String(x.path || ''), kind: 'loop', gain: Math.max(0.1, Math.min(2, Number(x.gain) || 1)), size: 0, dur: 0 } : null; return en && en.id && /^(assets\/sounds\/[A-Za-z0-9_.-]+|\/saves\/images\/audio\/[A-Za-z0-9_-]{1,60}\/[^\/?#]{1,200})$/.test(en.path) ? en : null; };
+        var entry = mk(d.now); if (!entry) return;
+        var want = (Array.isArray(d.layers) ? d.layers : []).slice(0, LIMITS.layers).map(mk).filter(function(x) { return x && x.id !== entry.id; });
+        layers.slice().forEach(function(l) { if (!want.some(function(w) { return w.id === l.entry.id; })) stopLayer(l.entry.id, 600); });
+        if (!ambient || ambient.entry.id !== entry.id) playAmbient(entry); else if (Math.abs(ambient.entry.gain - entry.gain) > 0.005) { ambient.entry.gain = entry.gain; retune(ambient, undefined); }
+        want.forEach(function(w) { var l = laneOf(w.id); if (!l) playLayer(w); else if (Math.abs(l.entry.gain - w.gain) > 0.005) { l.entry.gain = w.gain; retune(l, undefined); } });
     });
     try { streamChan.postMessage({ type: 'sound-query' }); } catch (e) {}
     window.addEventListener('storage', function(e) { if (e.key !== 'wp_streamSound') return; if (!streamOn()) stopAll(300); else { try { streamChan.postMessage({ type: 'sound-query' }); } catch (e2) {} } });
@@ -473,7 +565,14 @@ function actionCue(id, who) {
 }
 window.wpSound = {
     play: function(idOrEntry, opts) { var e = typeof idOrEntry === 'string' ? entryById(idOrEntry) : idOrEntry; if (!e) return false; if (e.kind === 'loop') (isHost() ? hostPlayAmbient : playAmbient)(e); else (isHost() ? hostCue : playCue)(e); return true; },
-    stop: function(what, fade) { if (what === 'ambient' || what === undefined) { if (isHost()) hostStopAmbient(); else stopAmbient(fade); } else stopAll(fade); },
+    stop: function(what, fade) { if (what === 'ambient' || what === undefined) { if (isHost() || !isClient()) hostStopAmbient(); else stopLoops(fade); } else stopAll(fade); },
+    // 1.6.2 (backlog 81): the loops in lanes, and the panel's entries for the Effects panel
+    entries: function() { return playable().map(function(e) { return { id: e.id, name: e.name, kind: e.kind }; }); },
+    loops: function() { return status().loops; },
+    layer: function(id, vol) { var e = entryById(id); if (!e || e.kind !== 'loop' || isClient()) return false; hostLayer(e, vol); return true; },
+    stopLoop: function(id) { return isClient() ? false : hostStopLoop(id); },
+    loopVolume: function(id, vol) { return isClient() ? false : hostLaneVol(id, vol, true); },
+    playSet: function(list) { return isClient() ? 0 : hostPlaySet(list); },
     setVolume: setLocalVolume, setMaster: setMaster, mute: setMute, prefetch: function(e) { return bufferFor(e); },
     now: status, onChange: function(fn) { listeners.push(fn); }, refresh: refresh,
     listMessage: listMessage, onList: onList, onCue: onCue, onSnapshot: onSnapshot, tableLeft: tableLeft, sessionEnded: sessionEnded, foreign: foreign,

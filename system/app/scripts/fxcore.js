@@ -113,6 +113,54 @@ function runningSet(running, id) {
 }
 function withMap(fx, id) { var f = {}; for (var k in fx) if (Object.prototype.hasOwnProperty.call(fx, k)) f[k] = fx[k]; f.mapId = id; f.type = 'fx'; return f; }
 
+// Saved effects (1.6.2, backlog 81 and 99; the owner's answers of 2026-11-07): what the GM has running, kept by name in the campaign. The
+// weather with its density, the colour held on the screen and up to three loops of the Sound panel, each at its own volume. A map may name
+// one to start when it is opened (its meta's fxEffect). Read through these alone: a campaign from a file holds whatever it holds
+var SAVED = Object.freeze({ count: 24, name: 40, loops: 3 });
+var SAVED_ID = /^se_[a-z0-9]{1,16}$/, LOOP_ID = /^[A-Za-z0-9_-]{1,40}$/;
+function savedName(v) { if (typeof v !== 'string') return ''; var s = ''; for (var i = 0; i < v.length; i++) { var c = v.charCodeAt(i); s += c < 32 || c === 127 ? ' ' : v.charAt(i); } s = s.replace(/\s+/g, ' ').trim(); var out = '', n = 0; for (var j = 0; j < s.length && n < SAVED.name; j++) { var cc = s.charCodeAt(j); out += s.charAt(j); if (cc >= 0xD800 && cc <= 0xDBFF && j + 1 < s.length) { out += s.charAt(++j); } n++; } return out.trim(); }
+function cleanSavedOne(s) {
+    if (!isObj(s) || typeof s.id !== 'string' || !SAVED_ID.test(s.id)) return null;
+    var name = savedName(s.name); if (!name) return null;
+    var out = { id: s.id, name: name };
+    if (isObj(s.weather) && LOOKS.weather.indexOf(s.weather.look) >= 0) out.weather = { look: s.weather.look, density: Math.round(rangeIn(s.weather.density, LIMITS.density, 0.6) * 100) / 100 };
+    if (isObj(s.wash)) { var c = color(s.wash.color, 'wash'); if (c) out.wash = { color: c, alpha: Math.round(rangeIn(s.wash.alpha, LIMITS.alpha, 0.7) * 100) / 100 }; }
+    if (Array.isArray(s.loops)) {
+        var seen = Object.create(null), ls = [];
+        for (var i = 0; i < s.loops.length && i < 16 && ls.length < SAVED.loops; i++) { var l = s.loops[i]; if (!isObj(l) || typeof l.id !== 'string' || !LOOP_ID.test(l.id) || seen[l.id]) continue; seen[l.id] = 1; ls.push({ id: l.id, vol: Math.round(rangeIn(l.vol, [0, 1], 1) * 100) / 100 }); }
+        if (ls.length) out.loops = ls;
+    }
+    return out.weather || out.wash || out.loops ? out : null;
+}
+function cleanSaved(list) {
+    if (!Array.isArray(list)) return [];
+    var out = [], seen = Object.create(null);
+    for (var i = 0; i < list.length && i < 200 && out.length < SAVED.count; i++) { var s = cleanSavedOne(list[i]); if (!s || seen[s.id]) continue; seen[s.id] = 1; out.push(s); }
+    return out;
+}
+// A saved effect made from what runs: st { weather, wash } as the panel reads the map on screen, loops [{ id, vol }] from the Sound panel
+function savedMake(st, loops, name, id) {
+    var w = st && st.weather, h = st && st.wash;
+    return cleanSavedOne({ id: id, name: name, weather: w ? { look: w.look, density: w.density } : null, wash: h ? { color: h.color, alpha: h.alpha } : null, loops: loops });
+}
+// The messages that show a saved effect on a map: its weather, and its colour held until cleared
+function savedFx(s, mapId) {
+    var out = []; if (!s || !mapId) return out;
+    if (s.weather) out.push({ kind: 'weather', mapId: mapId, look: s.weather.look, density: s.weather.density });
+    if (s.wash) out.push({ kind: 'wash', mapId: mapId, color: s.wash.color, alpha: s.wash.alpha, hold: true });
+    return out;
+}
+// Whether a saved effect is what runs: every part of it, on the map on screen (st) and in the Sound panel (playing: the loop ids that play)
+function savedOn(s, st, playing) {
+    if (!s) return false;
+    var w = st && st.weather, h = st && st.wash, p = Array.isArray(playing) ? playing : [];
+    if (s.weather && !(w && w.look === s.weather.look && Math.abs((Number(w.density) || 0) - s.weather.density) < 0.011)) return false;
+    if (s.wash && !(h && h.color === s.wash.color && Math.abs((Number(h.alpha) || 0) - s.wash.alpha) < 0.011)) return false;
+    return !(s.loops || []).some(function(l) { return p.indexOf(l.id) < 0; });
+}
+// The saved effect a map starts with, or null: its meta names one of the campaign's by id
+function savedFor(map, list) { var id = map && isObj(map.meta) && typeof map.meta.fxEffect === 'string' ? map.meta.fxEffect : ''; if (!id) return null; var l = cleanSaved(list); for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i]; return null; }
+
 // The ✨ panel's buttons, as data. mapId (and, for a burst, x/y) are filled by the panel at click time.
 var PRESETS = [
     { id: 'flash', label: 'Flash', row: 'screen', fx: { kind: 'flash', color: '#ffffff', ms: 300 } },
@@ -130,6 +178,6 @@ var PRESETS = [
     { id: 'weather-haze', label: 'Haze', row: 'weather', fx: { kind: 'weather', look: 'haze', density: 0.5 } }
 ];
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, LOOKS: LOOKS, PRESETS: PRESETS, cleanFx: cleanFx, reduced: reduced, allowFlash: allowFlash, pingAdmit: pingAdmit, bright: bright, brightKey: brightKey, runningSet: runningSet, codePoints: codePoints };
+var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, LOOKS: LOOKS, PRESETS: PRESETS, cleanFx: cleanFx, reduced: reduced, allowFlash: allowFlash, pingAdmit: pingAdmit, bright: bright, brightKey: brightKey, runningSet: runningSet, codePoints: codePoints, SAVED: SAVED, cleanSaved: cleanSaved, cleanSavedOne: cleanSavedOne, savedMake: savedMake, savedFx: savedFx, savedOn: savedOn, savedFor: savedFor };
 if (typeof window !== 'undefined') window.wpFxCore = API;
-export { VERSION, LIMITS, KINDS, LOOKS, PRESETS, cleanFx, reduced, allowFlash, pingAdmit, bright, brightKey, runningSet, codePoints };
+export { VERSION, LIMITS, KINDS, LOOKS, PRESETS, cleanFx, reduced, allowFlash, pingAdmit, bright, brightKey, runningSet, codePoints, SAVED, cleanSaved, cleanSavedOne, savedMake, savedFx, savedOn, savedFor };

@@ -6,8 +6,9 @@
    docs/SENSES_PLAN.md 4.6) is a burst of its own look: Alt+click on the play map, or the panel's Ping row. */
 import { state } from './state.js';
 import { getActiveMap, getActiveCampaign } from './models.js';
-import { toast } from './io.js';
-import { PRESETS, LIMITS, LOOKS } from './fxcore.js';
+import { toast, save } from './io.js';
+import { showPrompt, showConfirm } from './dialogs.js';
+import { PRESETS, LIMITS, LOOKS, SAVED, cleanSaved, savedMake, savedFx, savedOn, savedFor } from './fxcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 function core() { return window.wpFxCore || null; }
@@ -304,16 +305,18 @@ if (window.wpStream && streamChan) {
 }
 
 /* ---------- the map poll: an effect belongs to its map ---------- */
-var _pollMap = null;
+var _pollMap = null, _pollCamp = null, _pollFirst = true;
 setInterval(function() {
-    var id = mapNow();
+    var id = mapNow(), cm = getActiveCampaign(), cid = cm ? cm.id : null;
     pingPoll();
     syncButtons();
     if (id === _pollMap) return;
-    _pollMap = id;
+    var was = _pollMap, wasCamp = _pollCamp, first = _pollFirst; _pollMap = id; _pollCamp = cid; _pollFirst = false;
     stopWeather();
     var s = screenEl(); if (s) s.querySelectorAll('.fx-wash, .fx-banner, .fx-flash, .fx-burst').forEach(function(n) { n.remove(); });
     if ((id && isHost()) || (id && !(net() && net().active))) { (core() ? core().runningSet(running, id) : []).forEach(function(m) { apply(m); }); }   // the GM restores its own running set for the map it moved to
+    if (!first) mapMoved(wasCamp === cid ? was : null, id);   // 1.6.2 (backlog 81): not at launch, as nothing plays by itself then
+    if (panelOpen) renderPanel();   // the panel says what this map starts with
 }, 500);
 
 /* ---------- the ✨ panel ---------- */
@@ -361,8 +364,89 @@ function syncButtons() {   // the panel's buttons say what is armed and what run
     var p = ui('fxPanel'); if (!p || !panelOpen) return;
     var st = panelState();
     p.querySelectorAll('.fx-burst-btn, .fx-light-btn, .fx-weather-btn, .fx-screen-btn').forEach(function(b) { var on = litOf(btnOf(b), st); b.classList.toggle('armed', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    var sl = savedList(), pl = loopsNow().map(function(l) { return l.id; });
+    p.querySelectorAll('.fx-saved-btn').forEach(function(b) { var s = sl.find(function(x) { return x.id === b.dataset.sid; }), on = savedOn(s, st, pl); b.classList.toggle('armed', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
 }
 
+// [fxcheck:saved-start]
+// Saved effects (1.6.2, backlog 81 and 99; the owner, 2026-11-07, by prompt: "Save what is running", "In the campaign", "Yes, as music does").
+// What runs is saved by name in the campaign (camp.fxSaved, the GM's alone), read only through fxcore's cleanSaved. Pressing one puts its weather,
+// its colour and its loops on in place of what runs; pressed again while it runs, it stops. A map may name one (meta.fxEffect) to start when the GM
+// opens it, and its loops stop as the GM leaves it
+function savedList() { var c = getActiveCampaign(); return c ? cleanSaved(c.fxSaved) : []; }
+function savedWrite(list) { var c = getActiveCampaign(); if (!c) return; var l = cleanSaved(list); if (l.length) c.fxSaved = l; else delete c.fxSaved; save(); }
+function loopsNow() { try { return window.wpSound && window.wpSound.loops ? window.wpSound.loops() : []; } catch (e) { return []; } }
+function soundOn() { return !!(window.wpSound && (!window.wpVtt || window.wpVtt.on('sound'))); }
+function savedId(list) { var id; do { id = 'se_' + Math.random().toString(36).slice(2, 10); } while (list.some(function(s) { return s.id === id; })); return id; }
+function savedWords(st, lp) {   // a name to start from: what runs, in words
+    var w = st.weather && PRESETS.find(function(p) { return p.row === 'weather' && p.fx.look === st.weather.look; }), h = st.wash && PRESETS.find(function(p) { return p.fx.kind === 'wash' && p.fx.color === st.wash.color; });
+    var parts = [w ? w.label : '', h ? h.label : st.wash ? 'Colour' : ''].concat(lp.map(function(l) { return l.name; })).filter(Boolean);
+    return (parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1] : parts.join('')).slice(0, SAVED.name);
+}
+function savedSave() {
+    if (!canWrite()) return;
+    var st = panelState(), lp = loopsNow();
+    if (!st.weather && !st.wash && !lp.length) { toast('Nothing runs to save. Start a weather, a colour or a loop first.'); return; }
+    var list = savedList(); if (list.length >= SAVED.count) { toast('You have ' + SAVED.count + ' saved effects. Delete one first.'); return; }
+    showPrompt('Name this effect', savedWords(st, lp), function(name) {
+        if (name === null) return;
+        var l2 = savedList(), s = savedMake(st, lp, name, savedId(l2)); if (!s) { toast('Give it a name.'); return; }
+        l2.push(s); savedWrite(l2); renderPanel(); toast('Saved "' + s.name + '".');
+    });
+}
+function savedRuns(s) { return savedOn(s, panelState(), loopsNow().map(function(l) { return l.id; })); }
+function savedStart(s) {
+    var id = mapNow(); if (!id || !s) return;
+    var st = panelState();
+    if (st.weather && !s.weather) play({ kind: 'stop', what: 'weather' });   // in place of what runs: a part it lacks is put away
+    if (st.wash && !s.wash) play({ kind: 'stop', what: 'wash' });
+    savedFx(s, id).forEach(function(fx) { play(fx); });
+    if (soundOn()) { if (s.loops) window.wpSound.playSet(s.loops); else if (loopsNow().length && window.wpSound.stop) window.wpSound.stop('ambient'); }
+    syncButtons();
+}
+function savedStop(s) {
+    if (!s) return;
+    var st = panelState();
+    if (s.weather && st.weather && st.weather.look === s.weather.look) play({ kind: 'stop', what: 'weather' });
+    if (s.wash && st.wash && st.wash.color === s.wash.color) play({ kind: 'stop', what: 'wash' });
+    savedLoopsOff(s);
+    syncButtons();
+}
+function savedLoopsOff(s) { if (!s || !s.loops || !window.wpSound || !window.wpSound.stopLoop) return; var p = loopsNow().map(function(l) { return l.id; }); s.loops.forEach(function(l) { if (p.indexOf(l.id) >= 0) window.wpSound.stopLoop(l.id); }); }
+function savedDel(sid) {
+    var s = savedList().find(function(x) { return x.id === sid; }); if (!s) return;
+    showConfirm('Delete the saved effect "' + s.name + '"? What runs now keeps running.', function(ok) {
+        if (!ok) return;
+        savedWrite(savedList().filter(function(x) { return x.id !== sid; }));
+        var c = getActiveCampaign(); if (c && c.items) Object.keys(c.items).forEach(function(k) { var m = c.items[k]; if (m && m.meta && m.meta.fxEffect === sid) delete m.meta.fxEffect; });   // a map that named it starts nothing now
+        save(); renderPanel();
+    });
+}
+// The map on screen starts with this one ('' for none); set on the map it is, it starts now
+function savedForMap(sid) {
+    var m = getActiveMap(); if (!m || m.type !== 'map' || !canWrite()) return;
+    m.meta = m.meta || {};
+    var s = sid ? savedList().find(function(x) { return x.id === sid; }) : null;
+    if (s) m.meta.fxEffect = s.id; else delete m.meta.fxEffect;
+    save();
+    if (s && !savedRuns(s)) savedStart(s);
+}
+// The GM went from one map to another: the old map's own effect lets its loops go, the new one's starts
+function mapMoved(fromId, toId) {
+    if (!canWrite() || isClient() || !featureOn()) return;
+    var c = getActiveCampaign(); if (!c || !c.items) return;
+    var list = c.fxSaved, from = fromId ? savedFor(c.items[fromId], list) : null, to = toId ? savedFor(c.items[toId], list) : null;
+    if (from && (!to || to.id !== from.id)) savedLoopsOff(from);
+    if (to && !savedRuns(to)) savedStart(to);
+}
+function savedHtml() {   // the panel's Saved row and This map row, as markup of names through esc
+    var list = savedList(), m = getActiveMap(), mine = m && m.meta && typeof m.meta.fxEffect === 'string' ? m.meta.fxEffect : '';
+    var line = function(t) { return '<div class="fx-line">' + esc(t) + '</div>'; };
+    var h = '<div class="snd-row fx-saved"><span class="snd-label">Saved</span>' + list.map(function(s) { return '<span class="fx-savedgrp"><button class="journal-from fx-saved-btn" data-sid="' + esc(s.id) + '" title="Puts this on in place of what runs. Press it again to stop it.">' + esc(s.name) + '</button><button class="journal-from fx-saved-del" data-sid="' + esc(s.id) + '" aria-label="Delete ' + esc(s.name) + '" title="Delete this saved effect">&times;</button></span>'; }).join('') + '<button class="journal-from fx-save-btn" title="Keep the weather, the colour and the loops that run now, by a name">Save as an effect</button></div>' + line('Keeps what runs now, the weather, the colour and the loops of Sound, by a name.');
+    if (list.length) h += '<div class="snd-row"><span class="snd-label">This map</span><select id="fxMapEffect" class="field"><option value="">Starts with none</option>' + list.map(function(s) { return '<option value="' + esc(s.id) + '"' + (s.id === mine ? ' selected' : '') + '>Starts with ' + esc(s.name) + '</option>'; }).join('') + '</select></div>' + line('Opening this map starts it. Leaving it stops its loops.');
+    return h;
+}
+// [fxcheck:saved-end]
 function renderPanel() {
     var body = ui('fxBody'); if (!body) return;
     if (!featureOn()) { body.innerHTML = '<div class="snd-none">Visual effects are off for this campaign — switch them on in <i class="wib wi-cog"></i> Settings &#9656; This campaign.</div>'; return; }
@@ -372,6 +456,7 @@ function renderPanel() {
     var here = playersHere();
     var html = '';
     if (here >= 0) html += '<div class="fx-here' + (here === 0 ? ' none' : '') + '">' + (here === 0 ? 'No players on this map — they will not see it' : here + ' player' + (here === 1 ? '' : 's') + ' on this map') + '</div>';
+    html += savedHtml();
     html += '<div class="snd-row"><span class="snd-label">Screen</span>' + byRow('screen').map(function(p) { return chip('fx-screen-btn', p.id, p.label, ' data-id="' + p.id + '"' + (p.fx.kind === 'wash' ? ' title="Held until you clear it: press it again, or Clear"' : '')); }).join('') + '</div>' + line('Tints, flashes or shakes the screen for everyone on this map. A colour stays until you clear it.');
     html += '<div class="snd-row"><span class="snd-label">Burst</span>' + byRow('burst').map(function(p) { return chip('fx-burst-btn', p.fx.look, p.label, ' title="Click, then click the map"'); }).join('') + '</div>' + line('Press one, then the map. Everyone on this map sees it go off there.');
     html += '<div class="snd-row fx-slider"><span class="snd-label"></span><label title="Burst radius">Radius <input type="range" id="fxRadius" min="20" max="1200" value="160"><span id="fxRadiusVal" class="fx-dim"></span></label></div>';
@@ -401,6 +486,9 @@ function withCue(fn) { fn(); var sel = ui('fxCue'); if (sel && sel.value && wind
         var act = btn.dataset.act;
         if (act === 'stop-wash') { play({ kind: 'stop', what: 'wash' }); syncButtons(); return; }
         if (act === 'stop-weather') { play({ kind: 'stop', what: 'weather' }); syncButtons(); return; }
+        if (btn.classList.contains('fx-save-btn')) { savedSave(); return; }
+        if (btn.classList.contains('fx-saved-del')) { savedDel(btn.dataset.sid); return; }
+        if (btn.classList.contains('fx-saved-btn')) { var sv = savedList().find(function(x) { return x.id === btn.dataset.sid; }); if (sv) { if (savedRuns(sv)) savedStop(sv); else savedStart(sv); } return; }
         var pz = pressOf(btnOf(btn), panelState()); if (!pz) return;   // a second press on a lit button puts it away
         if (pz.act === 'disarm') { if (window.wpDisarmFxBurst) window.wpDisarmFxBurst(); }
         else if (pz.act === 'arm') { var rv = ui('fxRadius'); armBurst(pz.look, rv ? +rv.value : 160); }
@@ -414,6 +502,7 @@ function withCue(fn) { fn(); var sel = ui('fxCue'); if (sel && sel.value && wind
     // Density moves the weather that runs here: on this screen while the slider moves, for the table when it is let go
     p.addEventListener('input', function(e) { if (!e.target || e.target.id !== 'fxDensity') return; var C = core(), d = densityFx(panelState()), clean = C && d ? C.cleanFx(d) : null; if (clean) apply(clean); });
     p.addEventListener('change', function(e) { if (!e.target || e.target.id !== 'fxDensity') return; var d = densityFx(panelState()); if (d) play(d); });
+    p.addEventListener('change', function(e) { if (e.target && e.target.id === 'fxMapEffect') savedForMap(e.target.value); });
     p.addEventListener('change', function(e) {
         if (!e.target || e.target.id !== 'fxPingTo') return;
         var v = e.target.value; pingTo = pingPlayers().some(function(q) { return q.id === v; }) ? v : ''; syncPingTo();
@@ -456,5 +545,6 @@ window.wpFx = {
     armBurst: armBurst, placeBurst: placeBurst, blastBoom: blastBoom, ping: ping, canPing: canPing,
     openPanel: openPanel, closePanel: closePanel, sync: sync,
     tableLeft: tableLeft, onSnapshot: onSnapshot, foreign: foreign,
+    saved: savedList, startSaved: function(sid) { var s = savedList().find(function(x) { return x.id === sid; }); if (s) savedStart(s); return !!s; },
     stats: function() { return { raf: !!raf, particles: particles.length, running: Object.keys(running).length, weather: weatherFx ? weatherFx.look : null }; }
 };

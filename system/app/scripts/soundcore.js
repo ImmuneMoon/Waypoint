@@ -25,7 +25,8 @@ var LIMITS = {
     overlap: 4,                   // simultaneous cues
     cacheSec: 900,                // decoded PCM kept, in seconds of audio
     prefetchBytes: 16 * 1024 * 1024,
-    name: 60, seamSec: 0.3, part: 256 * 1024
+    name: 60, seamSec: 0.3, part: 256 * 1024,
+    layers: 2                     // 1.6.2 (backlog 81): loops layered over the ambient one, so three loops at most play at once
 };
 var EXT_RE = /\.(mp3|ogg|oga|m4a|webm|opus)$/i;
 var ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
@@ -67,16 +68,31 @@ function cleanSoundList(list, opts) {
     }
     return out;
 }
-var ACTS = { ambient: 1, cue: 1, stop: 1, volume: 1 };
+var ACTS = { ambient: 1, cue: 1, stop: 1, volume: 1, layer: 1 };   // layer (1.6.2): a loop played beside the ambient one; an older app drops it and hears the ambient alone
+function idSet(list) { var ids = Object.create(null); (Array.isArray(list) ? list : []).forEach(function(e) { if (e && typeof e.id === 'string') ids[e.id] = 1; }); return ids; }
 function cleanSoundCue(msg, list) {
     if (!msg || typeof msg !== 'object' || !ACTS[msg.act]) return null;
     var ids = Object.create(null); (Array.isArray(list) ? list : []).forEach(function(e) { if (e && e.id) ids[e.id] = 1; });
     var out = { act: msg.act, fade: num(msg.fade, 0, 5000, 0) };
-    if (msg.act === 'ambient' || msg.act === 'cue') { if (!ids[msg.id]) return null; out.id = msg.id; out.gain = num(msg.gain, 0, 2, 1); return out; }
+    if (msg.act === 'ambient' || msg.act === 'cue' || msg.act === 'layer') { if (!ids[msg.id]) return null; out.id = msg.id; out.gain = num(msg.gain, 0, 2, 1); if (msg.act !== 'cue') out.vol = num(msg.vol, 0, 1, 1); return out; }
     if (msg.act === 'stop') { if (msg.id === 'ambient' || msg.id === 'all' || msg.id === undefined) out.id = msg.id || 'all'; else if (ids[msg.id]) out.id = msg.id; else return null; return out; }
     // volume: the host's master (no id) or one entry's gain
     out.gain = num(msg.gain, 0, 2, 1);
     if (msg.id !== undefined) { if (!ids[msg.id]) return null; out.id = msg.id; }
+    return out;
+}
+// What the host says is playing, for a player who joins or a list sent again: the ambient loop and the loops layered over it (1.6.2), each
+// listed, each once, the ambient one never again as a layer, and at most LIMITS.layers of them. An older host's `now` has no layers
+function cleanSoundNow(now, list) {
+    var ids = idSet(list), out = { id: null, gain: 1, vol: 1, layers: [] };
+    if (!now || typeof now !== 'object' || typeof now.ambientId !== 'string' || !ids[now.ambientId]) return out;
+    out.id = now.ambientId; out.gain = num(now.gain, 0, 2, 1); out.vol = num(now.vol, 0, 1, 1);
+    var seen = Object.create(null); seen[out.id] = 1;
+    var ls = Array.isArray(now.layers) ? now.layers : [];
+    for (var i = 0; i < ls.length && i < 16 && out.layers.length < LIMITS.layers; i++) {
+        var l = ls[i]; if (!l || typeof l !== 'object' || typeof l.id !== 'string' || !ids[l.id] || seen[l.id]) continue;
+        seen[l.id] = 1; out.layers.push({ id: l.id, gain: num(l.gain, 0, 2, 1), vol: num(l.vol, 0, 1, 1) });
+    }
     return out;
 }
 function mixGain(entry, master, local) { return num(num(entry && entry.gain, 0.1, 2, 1) * num(master, 0, 2, 1) * num(local, 0, 1, 1), 0, 2, 0); }
@@ -98,6 +114,6 @@ function seamBlend(channels, rate, seamSec) {
     return { channels: out, loopEnd: (len - n) / rate };
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, safeId: safeId, isUploadPath: isUploadPath, cleanEntry: cleanEntry, cleanSoundList: cleanSoundList, cleanSoundCue: cleanSoundCue, mixGain: mixGain, seamBlend: seamBlend, EXT_RE: EXT_RE };
+var API = { VERSION: VERSION, LIMITS: LIMITS, safeId: safeId, isUploadPath: isUploadPath, cleanEntry: cleanEntry, cleanSoundList: cleanSoundList, cleanSoundCue: cleanSoundCue, cleanSoundNow: cleanSoundNow, mixGain: mixGain, seamBlend: seamBlend, EXT_RE: EXT_RE };
 if (typeof window !== 'undefined') window.wpSoundCore = API;
-export { VERSION, LIMITS, safeId, isUploadPath, cleanEntry, cleanSoundList, cleanSoundCue, mixGain, seamBlend, EXT_RE };
+export { VERSION, LIMITS, safeId, isUploadPath, cleanEntry, cleanSoundList, cleanSoundCue, cleanSoundNow, mixGain, seamBlend, EXT_RE };

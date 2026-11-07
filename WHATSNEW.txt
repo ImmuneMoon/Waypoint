@@ -691,6 +691,20 @@ Sounds on actions
   secret door play for you alone, and so does anything a player cannot see.
 - A line whose roll or sound has gone stays in the list and says so.
 
+Saved effects with sounds
+- Up to three ambient loops now play at once, so rain and a forest can sound
+  together. In the Sound panel each loop has a + beside it. Press the loop to
+  play it alone, or its + to layer it over what plays.
+- Each loop that plays has its own volume and its own stop, under Playing.
+  Players hear the layers at those volumes, and so does a player who joins.
+- Save as an effect, in the Effects panel, keeps what runs now by a name: the
+  weather and its density, the colour held on the screen and the loops with
+  their volumes. Press it to put it all on, and again to stop it.
+- This map, under the saved effects, picks one that starts when you open the
+  map. Leaving the map stops its loops, as a map's music does.
+- Sound with it, in the Effects panel, lists your cues again. It had stopped
+  showing.
+
 Making a catalogue
 - The Library window has a new button, Spreadsheet... It reads a CSV file, as a
   spreadsheet program saves one. Waypoint matches each column to what an entry

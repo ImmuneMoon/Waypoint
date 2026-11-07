@@ -1170,6 +1170,8 @@
   .wb-item.text.editing * { user-select: text; -webkit-user-select: text; cursor: text !important; }
   
   .wb-item.image img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+  .wb-item.image > img.trim-keep { position: absolute; inset: 0; }   /* 1.6.2 (backlog 37): while Trim to cells is in hand, the kept part over the whole picture faded */
+  .wb-item.wb-trimming > img:not(.trim-keep) { opacity: 0.3; }
   /* a portal locked for players (the owner, 2026-10-03): a small lock beside its marker, for the GM and for players alike (whiteboard.js sets the class) */
   .wb-item.wb-portal-locked[data-portal="true"]::after { width: 54px; background: var(--pi) left center / 26px 26px no-repeat, var(--mk-lock) right center / 26px 26px no-repeat; }
   .wb-item[data-portal="true"]::after { content:''; width:26px; height:26px; background:var(--pi) center / contain no-repeat; position:absolute; bottom:-13px; right:-13px; filter:drop-shadow(0 0 3px rgba(0,0,0,0.95)) drop-shadow(0 2px 4px rgba(0,0,0,0.85)); pointer-events:none; z-index:100; transform: scale(var(--wbz, 1)); transform-origin: 0% 0%; }

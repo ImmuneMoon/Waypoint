@@ -801,7 +801,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     const idsIn = (pair.match(/ id="[A-Za-z]+"/g) || []).map(s => s.slice(5, -1)), chipsIn = (pair.match(/data-buildshape="[a-z]+"/g) || []).map(s => s.slice(17, -1)), swIn = (pair.match(/class="draw-swatch build-sw" data-color="#[0-9a-f]{6}"/g) || []).map(s => s.slice(-8, -1));
     check('the Build tool in the app, pinned: Build is a tool of the bar\'s one update (its id, window.isBuildMode, its cursor class, and what it armed put down when another tool is taken, asked through typeof), of TOOL_OPTS and of the one wiring; the pen counts as in hand only while Build is not; a placement that is Build\'s goes to wpBuildCommit and is not the page\'s Escape to cancel; the pen snaps and previews through the preset and a wall line tells the fog at once. The page: the pair is the GM\'s, after Add and before the next group, its ids each once and in their order, the material rows and the Texture list empty in the page (built by code), the five shapes in their order with the drawings the owner passed, seven colours that are the materials\' own, the two rows that show for one choice only written hidden; the styles put them away',
         has(wbSrc, "blastModeBtn: 'blastMenu', buildModeBtn: 'buildMenu', envModeBtn: 'envMenu' };") && has(wbSrc, "'fogModeBtn', 'fillModeBtn', 'buildModeBtn', 'envModeBtn'].forEach(id => {") && has(wbSrc, "      window.isBuildMode = (activeId === 'buildModeBtn');") && has(wbSrc, "      if (activeId !== 'buildModeBtn' && typeof buildDown === 'function') buildDown(activeId);") && has(wbSrc, "'mode-fog', 'mode-fill', 'mode-build', 'mode-env'].forEach(")
-        && has(wbSrc, "inHand: function() { return !!window.isDrawingMode && !window.isBuildMode; }, sync: syncDrawMenu") && has(wbSrc, "    if (!P) return;\n    if (P.build) { wpBuildCommit(P, px, py, pw, ph, sx, sy); return; }") && has(wbSrc, "    if (e.key === 'Escape' && window.wpPlace && !window.wpPlace.build && (!window.wpEsc || window.wpEsc.free(e))) { disarmPlacement(); toast('Placement cancelled.'); }")
+        && has(wbSrc, "inHand: function() { return !!window.isDrawingMode && !window.isBuildMode; }, sync: syncDrawMenu") && has(wbSrc, "    if (!P) return;\n    if (P.build) { wpBuildCommit(P, px, py, pw, ph, sx, sy); return; }") && has(wbSrc, "    if (e.key === 'Escape' && window.wpPlace && !window.wpPlace.build && (!window.wpEsc || window.wpEsc.free(e))) { var trimEnd = !!window.wpPlace.trim; disarmPlacement(); toast(trimEnd ? 'Trim to cells is put down.' : 'Placement cancelled.'); if (trimEnd) render(); }")
         && has(wbSrc, "// [buildcheck:buildtool-end]\nbuildWire();\n") && has(toolSrc, "    wireTool({ id: 'buildModeBtn', chev: 'buildOptBtn', inHand: function() { return !!window.isBuildMode; }, sync: buildSync, take: buildTake });") && !/innerHTML|insertAdjacentHTML|outerHTML|\barmPlacement\(/.test(toolSrc.replace(/\/\/[^\n]*/g, ''))
         && (dmSrc.match(/var snapped = penSnap\(mouseX, mouseY\);/g) || []).length === 2 && !/var snapped = getSnapCoords\(mouseX, mouseY\);/.test(dmSrc) && has(dmSrc, "              if (typeof state !== 'undefined' && penSnapOn()) {") && has(dmSrc, "                  if (penSnapOn() && state.gridType && state.gridType !== 'off' && drawPoints.length) {")
         && has(dmSrc, "var _sp = window.wpBuildStrokePath ? window.wpBuildStrokePath(normPts, _dtip, _dw) : null;") && !/state\.drawTip === 'square'/.test(dmSrc) && /item\.byPlayer = true;\n              \}\n              \/\/ \[buildcheck:penpreset-start\]/.test(dmSrc) && /render\(\);[^\n]*\n              if \(item\.blocksSight && window\.wpFog && window\.wpFog\.invalidateVision\) \{ window\.wpFog\.invalidateVision\(\); window\.wpFog\.redraw\(\); \}/.test(dmSrc)
@@ -2409,7 +2409,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         && j(S5.extent(b5Reg(b5Wall, { strokeWidth: '40' }))) === j({ x: 100, y: 100, w: 100, h: 100 }) && j(S5.bounds([mwW({ strokeWidth: '40' })], {})) === j(S5.bounds([mwW({ strokeWidth: 40 })], {})) && j(S5.bounds([mwW({ strokeWidth: '40' })], {})) !== j(S5.bounds([mwW({ strokeWidth: 3 })], {}))
         && j([m2Far('40'), m2Far(40), m2Far('40px'), m2Far('4'), m2Far(3), m2Far('wide'), m2Far(0)].map(w => b5Shot([w]).out.drawn)) === j([1, 1, 1, 0, 0, 0, 0])
         && m2ShotSrc.split('lineWidth(item)').length === 3 && m2ShotSrc.split('lineTip(item)').length === 2 && m2ShotSrc.split('lineOpacity(item)').length === 2 && !m2ShotSrc.includes('item.strokeWidth') && m2ShotSrc.split('item.opacity').length === 2
-        && m2ShotSrc.split("ctx.globalAlpha = item.type === 'path' && item.tip !== 'fill' ? lineOpacity(item) : alpha(item.opacity);").length === 2 && m2ShotSrc.split("var tip = item.tip === 'fill' ? 'fill' : lineTip(item), col = paint(item.color, INK.ink), sw = lineWidth(item),").length === 2 && m2ShotSrc.split("import { cleanTexSrc, cleanTexTile, secretSeen, lineWidth, lineOpacity, lineTip } from './fogcore.js';").length === 2,
+        && m2ShotSrc.split("ctx.globalAlpha = item.type === 'path' && item.tip !== 'fill' ? lineOpacity(item) : alpha(item.opacity);").length === 2 && m2ShotSrc.split("var tip = item.tip === 'fill' ? 'fill' : lineTip(item), col = paint(item.color, INK.ink), sw = lineWidth(item),").length === 2 && m2ShotSrc.split("import { cleanTexSrc, cleanTexTile, secretSeen, lineWidth, lineOpacity, lineTip, trimPolys } from './fogcore.js';").length === 2,
         j([m2Odd.filter((o, i) => !m2OddRun[i]).map(o => o[0]), m2Ops.filter((o, i) => !m2OpsRun[i]).map(o => o[0]), S5.extent(mwW({ strokeWidth: '40' })), [m2Far('40'), m2Far(40), m2Far('40px'), m2Far('4'), m2Far(3), m2Far('wide'), m2Far(0)].map(w => b5Shot([w]).out.drawn), m2ShotSrc.split('lineWidth(item)').length, m2ShotSrc.split('item.opacity').length]));
 
     /* 2. the width as drawn: a resized line */
@@ -5104,6 +5104,60 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             && /w\.type === 'image' && !w\.isChar && !w\.waiting \? '<button class="tool ghost" id="wbAlignPic" title="[^"]+">Align its grid<\/button>'/.test(insA) && insA.includes("if (_el_wbAlignPic) _el_wbAlignPic.addEventListener('click', function() { if (window.wpAlignPic) window.wpAlignPic(w); });"));
         const ixA = read('system/app/index.html');
         check('Align its grid is said in Help and both release notes', ixA.includes('<b>Align its grid</b>') && [read('WHATSNEW.txt'), read('system/app/assets/whatsnew.txt')].every(t => t.includes('Align its grid')));
+    }
+
+    {   // 1.6.2, backlog 37: Trim to cells (the owner, 2026-11-07, by prompt: "Trim to picked cells (Recommended)")
+        const FCt = await import(url('fogcore.js'));
+        const J = JSON.stringify;
+        const okT = FCt.cleanTrim({ g: 'square', box: [50, 50, 100, 100], cells: [[1, 1], [1, 1], [2, 1], ['x', 1], [1.5, 2], [1e6, 0], 7] });
+        check('cleanTrim keeps a lattice word, a box of four numbers and whole cells each once, and nothing else; a trim that keeps no cell is none',
+            J(okT) === J({ g: 'square', box: [50, 50, 100, 100], cells: [[1, 1], [2, 1]] })
+            && [null, 'x', [], { g: 'tri', box: [0, 0, 1, 1], cells: [[0, 0]] }, { g: 'hex', box: [0, 0, 0, 5], cells: [[0, 0]] }, { g: 'hex', box: [0, 0, 5], cells: [[0, 0]] }, { g: 'hex', box: [0, 0, 5, 5], cells: [] }, { g: 'hex', box: [0, 0, 5, 5], cells: 'x' }, { g: 'hex', box: [0, NaN, 5, 5], cells: [[0, 0]] }].every(v => FCt.cleanTrim(v) === null)
+            && FCt.cleanTrim({ g: 'hex', box: [0, 0, 5, 5], cells: Array.from({ length: 5000 }, (_, i) => [i, 0]) }).cells.length === FCt.TRIM_MAX, J(okT));
+        const sqP = FCt.trimPolys({ g: 'square', box: [50, 50, 100, 100], cells: [[1, 1]] }, 200, 200);
+        const hxP = FCt.trimPolys({ g: 'hex', box: [0, 0, 300, 300], cells: [[0, 0], [1, 0]] }, 300, 300), shared = hxP[0].filter(p => hxP[1].some(q => q[0] === p[0] && q[1] === p[1]));
+        check('a trim\'s cells are drawn in the picture\'s own box, moved and scaled with it: a square cell at the box\'s corner fills its quarter at twice the size; two neighbouring hexes share an edge exactly, so the cut has no seam',
+            J(sqP) === J([[[0, 0], [100, 0], [100, 100], [0, 100]]]) && hxP.length === 2 && hxP[0].length === 6 && shared.length === 2, J([sqP, shared]));
+        const pth = FCt.trimPath({ g: 'hex', box: [0, 0, 300, 300], cells: [[0, 0], [1, 0]] }, 300, 300);
+        check('trimPath is the cells\' outlines as a path\'s text of numbers and its own letters alone, and nothing for no trim',
+            /^(M[-0-9. L]+Z)+$/.test(pth) && pth.split('Z').length === 3 && FCt.trimPath(null, 100, 100) === '' && FCt.trimPath(okT, 0, 100) === '' && FCt.trimPath({ g: 'square', box: [0, 0, 1, 1], cells: [["');alert(1);('", 0]] }, 10, 10) === '', pth.slice(0, 80));
+        const reb = FCt.trimRebase({ g: 'square', box: [0, 0, 100, 100], cells: [[0, 0], [1, 1]] }, 50, 0, 100, 100, 'square'), reb0 = FCt.trimRebase(null, 5, 6, 70, 80, 'hex');
+        check('trimRebase carries the kept cells with a picture moved since its trim onto the lattice where it lies now, and starts a picture with no trim with none',
+            J(reb) === J({ g: 'square', box: [50, 0, 100, 100], cells: [[1, 0], [2, 1]] }) && J(reb0) === J({ g: 'hex', box: [5, 6, 70, 80], cells: [] }), J([reb, reb0]));
+        const wbT = read('system/app/scripts/whiteboard.js'), alS = cutM(wbT, 'alignpic', 'whiteboard.js'), trS = cutM(wbT, 'trimpic', 'whiteboard.js');
+        const tToasts = [], tSaves = [], tMap = { id: 'm1', whiteboard: [] }, tSt = { gridType: 'square' }, tWin = { wpFogCore: FCt }, tBody = { classList: { add: () => {} } };
+        const T = new Function('state', 'toast', 'showPrompt', 'save', 'render', 'getActiveMap', 'snapToHex', 'document', 'window', 'wbWrap',
+            "'use strict';" + NL + alS + NL + trS + NL + 'return { trimMay: trimMay, trimEdit: trimEdit, trimStep: trimStep, trimClipOf: trimClipOf };')(
+            tSt, t => tToasts.push(t), () => {}, () => tSaves.push(1), () => {}, () => tMap, null, { getElementById: () => null, body: tBody }, tWin, { style: {} });
+        const tp = { id: 'tp', type: 'image', x: 0, y: 0, w: 200, h: 200 }; tMap.whiteboard = [tp];
+        const tRec = { id: 'tp', map: 'm1' };
+        T.trimStep(tRec, 60, 60, 0, 0, 60, 60); const one = J(tp.trim);
+        T.trimStep(tRec, 0, 0, 100, 40, 10, 10); const box = tp.trim.cells.length;
+        T.trimStep(tRec, 0, 0, 100, 100, 60, 60); const dropped = tp.trim;
+        check('Trim to cells by its clicks: a click keeps the cell under it, a drag keeps every cell under its box, a drag that begins on a kept cell lets the box\'s cells go, each one save, and the picture stays in the mode',
+            one === J({ g: 'square', box: [0, 0, 200, 200], cells: [[1, 1]] }) && box === 3 && dropped === undefined && tSaves.length === 3 && tWin.wpPlace && tWin.wpPlace.type === 'trim' && tWin.wpPlace.trim === tRec, J([one, box, dropped]));
+        T.trimStep(tRec, 60, 60, 0, 0, 60, 60); T.trimStep(tRec, 60, 60, 0, 0, 60, 60);
+        check('a click on a kept cell lets it go, and a trim that keeps nothing is taken off: the whole picture shows', tp.trim === undefined && tSaves.length === 5);
+        tp.rot = 90; T.trimStep(tRec, 60, 60, 0, 0, 60, 60); const rotSaid = tToasts[tToasts.length - 1]; delete tp.rot; tMap.whiteboard = []; T.trimStep(tRec, 60, 60, 0, 0, 60, 60);
+        check('Trim to cells changes nothing for a turned picture (said) or a picture gone from the map (said), and is for a straight map picture on a gridded map alone',
+            tSaves.length === 5 && /Trim to cells needs a picture with no rotation/.test(rotSaid) && /no longer on this map/.test(tToasts[tToasts.length - 1]) && T.trimMay({ type: 'image' }, 'hex') === '' && /grid/.test(T.trimMay({ type: 'image' }, 'off')) && /token/.test(T.trimMay({ type: 'image', isChar: true }, 'square')));
+        const big = { cells: Array.from({ length: FCt.TRIM_MAX }, (_, i) => [i, 0]), g: 'square', box: [0, 0, 1, 1] };
+        check('a trim keeps at most ' + 'TRIM_MAX cells: a drag past it changes nothing', T.trimEdit(big, FCt, FCt.squareGrid(50), 0, 50, 500, 40, 0, 60) === null);
+        const tc1 = T.trimClipOf({ id: 'c', w: 100, h: 100, trim: okT }), tc2 = T.trimClipOf({ id: 'c', w: 100, h: 100, trim: okT });
+        check('a picture\'s clip is worked out once while its trim and its box stay the same, and is nothing without a trim', tc1 && tc1 === tc2 && T.trimClipOf({ id: 'd', w: 100, h: 100 }) === '');
+        const insT = read('system/app/scripts/inspector.js'), cssT = read('system/app/style.css'), netT = read('system/app/scripts/net.js'), clT = read('system/app/scripts/cleanup.js'), ixT = read('system/app/index.html');
+        check('Trim to cells is wired: the placement hands its click and its drag on, every picture lays its trim at each draw, Esc puts the mode down and draws the picture again, Properties offers Trim to cells and Whole picture, the style sheet fades the whole picture under the kept part',
+            wbT.includes("    if (P.trim) { trimStep(P.trim, px, py, pw, ph, sx, sy); return; }") && wbT.includes("              trimDraw(el, imEl, item);") && wbT.includes("toast(trimEnd ? 'Trim to cells is put down.' : 'Placement cancelled.'); if (trimEnd) render(); }")
+            && insT.includes('id="wbTrimPic"') && insT.includes('id="wbTrimReset"') && insT.includes("window.wpTrimPic(w)") && insT.includes("window.wpTrimReset(w)")
+            && cssT.includes('.wb-item.image > img.trim-keep { position: absolute; inset: 0; }') && cssT.includes('.wb-item.wb-trimming > img:not(.trim-keep) { opacity: 0.3; }'));
+        check('a trim travels only as its cleaner keeps it, on a map picture alone: on its way out, on a player\'s app and from a file, and none without the cleaner',
+            netT.includes("tro = FCt && typeof FCt.cleanTrim === 'function' && w.type === 'image' && !w.isChar ? FCt.cleanTrim(w.trim) : null; if (tro) w.trim = tro; else delete w.trim;")
+            && netT.includes("trq = FCtq && typeof FCtq.cleanTrim === 'function' && w.type === 'image' && !w.isChar ? FCtq.cleanTrim(w.trim) : null; if (trq) w.trim = trq; else delete w.trim;")
+            && clT.includes("var TR = FC && typeof FC.cleanTrim === 'function' && w.type === 'image' && !w.isChar ? FC.cleanTrim(w.trim) : null; if (TR) w.trim = TR; else delete w.trim;"));
+        { const SH = await import(url('shotcore.js')), shS = read('system/app/scripts/shotcore.js'), dS = shS.slice(shS.indexOf('function drawImagePiece('), shS.indexOf('\n}', shS.indexOf('function drawImagePiece(')) + 2);
+          check('the map\'s picture draws a trimmed picture cut to its kept cells, as the board does, and an untrimmed one call for call as before',
+            dS.includes('var tr = item.trim ? trimPolys(item.trim, w, h) : [];') && dS.includes('ctx.clip(); }') && dS.includes('if (tr.length) ctx.restore();') && /import \{[^}]*trimPolys[^}]*\} from '\.\/fogcore\.js';/.test(shS) && typeof SH === 'object'); }
+        check('Trim to cells is said in Help and both release notes', ixT.includes('<b>Trim to cells</b>') && [read('WHATSNEW.txt'), read('system/app/assets/whatsnew.txt')].every(t => t.includes('Trim to cells')));
     }
 
     summed = true;

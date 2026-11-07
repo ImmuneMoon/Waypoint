@@ -12,7 +12,7 @@
 
    What it knowingly does not match to the pixel: a see-through piece's border and pattern are blended on the piece's colour one after the
    other, where the board blends the whole piece once, and a label's words are plain, wrapped by measured width. */
-import { cleanTexSrc, cleanTexTile, secretSeen, lineWidth, lineOpacity, lineTip } from './fogcore.js';
+import { cleanTexSrc, cleanTexTile, secretSeen, lineWidth, lineOpacity, lineTip, trimPolys } from './fogcore.js';
 import { cleanTexture, TEX, PIC_CELL, picUrl } from './buildcore.js';
 import { cssColor, picRef } from './safecore.js';
 import { fontCss } from './textfmt.js';
@@ -338,7 +338,10 @@ function drawImagePiece(ctx, item, job, w, h) {
     var addr = picOf(item), res = job.res || {}, p = addr && typeof res.pic === 'function' ? res.pic(addr) : null;
     if (!p || !p.img || !(p.w > 0) || !(p.h > 0)) { job.out.missing++; return; }
     var k = Math.min(w / p.w, h / p.h), dw = p.w * k, dh = p.h * k;   // contain: the whole picture inside the box, centred
+    var tr = item.trim ? trimPolys(item.trim, w, h) : [];   // 1.6.2 (backlog 37): a picture trimmed to cells is drawn cut to them, as the board draws it
+    if (tr.length) { ctx.save(); ctx.beginPath(); tr.forEach(function(pl) { pl.forEach(function(pt, i) { if (i) ctx.lineTo(pt[0], pt[1]); else ctx.moveTo(pt[0], pt[1]); }); ctx.closePath(); }); ctx.clip(); }
     ctx.drawImage(p.img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+    if (tr.length) ctx.restore();
 }
 function pointsOk(pts, min) { if (!Array.isArray(pts) || pts.length < min) return false; for (var i = 0; i < pts.length; i++) if (!Array.isArray(pts[i]) || !fin(pts[i][0]) || !fin(pts[i][1])) return false; return true; }
 function trace(ctx, pts, close) { for (var i = 0; i < pts.length; i++) { if (i) ctx.lineTo(pts[i][0], pts[i][1]); else ctx.moveTo(pts[i][0], pts[i][1]); } if (close) ctx.closePath(); }

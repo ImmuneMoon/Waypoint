@@ -1020,6 +1020,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
               var imEl = el.querySelector('img');
 
               if (imEl.getAttribute('src') !== wantSrc) imEl.src = wantSrc;
+              trimDraw(el, imEl, item);   // 1.6.2 (backlog 37): a picture cut to the cells kept
               // A player's copy while the picture's bytes are still on their way (or never came): the character's
               // initials stand in, so a token is never an invisible box with a facing wedge and chips floating around it.
               var pendingPic = !!(item.isChar && window.wpNet && window.wpNet.ASSET_PLACEHOLDER && wantSrc === window.wpNet.ASSET_PLACEHOLDER);
@@ -1634,6 +1635,83 @@ window.wpAlignPic = function(w) {
     alignArm({ id: w.id, map: map.id, step: 1 });
 };
 // [buildcheck:alignpic-end]
+// [buildcheck:trimpic-start]
+// 1.6.2 (backlog 37; the owner, 2026-11-07, by prompt: "Trim to picked cells (Recommended)"): Trim to cells keeps the cells of a map
+// picture the GM picks and draws it cut to their outline (fogcore cleanTrim, trimPath, trimRebase). While it is in hand a click keeps or
+// lets go of one cell and a drag a box of them, the picture shown whole and faded with the kept part at full strength; each change is one
+// save, so Undo takes it back; Esc puts it down. Whole picture takes the trim off. The picture's file is never changed
+function trimMay(w, grid) { var why = alignMay(w, grid); return why.indexOf('Turn the picture straight') === 0 ? 'Turn the picture straight first: Trim to cells needs a picture with no rotation.' : why; }
+function trimArm(rec, say) {
+    var mv = document.getElementById('moveModeBtn');
+    if (mv && (!mv.classList.contains('active') || window.isMeasureMode)) mv.click();
+    window.wpPlace = { type: 'trim', props: {}, trim: rec };
+    if (wbWrap) wbWrap.style.cursor = 'crosshair';
+    document.body.classList.add('placing');
+    if (say) toast('Click a cell to keep it, or drag over cells. Click a kept cell to let it go. Press Esc when you are done.');
+}
+// The cells a click or a drag changes, and the trim after it: a click keeps a cell or lets it go; a drag keeps every cell under its box,
+// or lets them all go where it began on a kept cell. Null where past TRIM_MAX
+function trimEdit(t, FC, grid, px, py, pw, ph, sx, sy) {
+    var key = function(c) { return grid.type === 'square' ? [c.c, c.r] : [c.q, c.r]; }, have = Object.create(null);
+    t.cells.forEach(function(c) { have[c[0] + ',' + c[1]] = 1; });
+    var start = key(FC.cellOf(sx, sy, grid)), sk = start.join(','), list;
+    if (!(pw > 12 || ph > 12)) { if (have[sk]) delete have[sk]; else have[sk] = 1; }
+    else {
+        list = FC.cellsUnderRect(px, py, pw, ph, grid) || [];
+        var drop = !!have[sk];
+        list.forEach(function(c) { var k = key(c).join(','); if (drop) delete have[k]; else have[k] = 1; });
+    }
+    var cells = Object.keys(have).map(function(k) { return k.split(',').map(Number); });
+    if (cells.length > FC.TRIM_MAX) return null;
+    return { g: t.g, box: t.box, cells: cells };
+}
+function trimStep(rec, px, py, pw, ph, sx, sy) {
+    var w = alignPiece(rec), g = state.gridType, why = trimMay(w, g), FC = window.wpFogCore;
+    if (!w) { toast('That picture is no longer on this map.'); render(); return; }
+    if (why) { toast(why); render(); return; }
+    if (!FC || typeof FC.trimRebase !== 'function') return;
+    var grid = g === 'hex' ? FC.hexGrid(30, 52) : FC.squareGrid(50), t = FC.trimRebase(w.trim, w.x, w.y, w.w || 100, w.h || 100, g);
+    var next = trimEdit(t, FC, grid, px, py, pw, ph, sx, sy);
+    if (!next) { toast('A picture keeps at most ' + FC.TRIM_MAX + ' cells.'); trimArm(rec, false); return; }
+    var clean = FC.cleanTrim(next);
+    if (clean) w.trim = clean; else delete w.trim;
+    trimArm(rec, false);
+    save(); render();
+}
+window.wpTrimPic = function(w) {
+    var why = trimMay(w, state.gridType), map = getActiveMap();
+    if (why) { toast(why); return; }
+    if (!map) return;
+    trimArm({ id: w.id, map: map.id }, true);
+    render();
+};
+window.wpTrimReset = function(w) {
+    if (!w || !w.trim) return;
+    delete w.trim; save(); render();
+    toast('The whole picture shows again. Undo puts the trim back.');
+};
+// The clip a picture wears: its trim's outline as a path in its own box, kept by its id while the trim and the box are the same
+var _trimClip = {};
+function trimClipOf(item) {
+    var FC = window.wpFogCore; if (!item || !item.trim || !FC || typeof FC.trimPath !== 'function') return '';
+    var w = Number(item.w) || 100, h = Number(item.h) || 100, k = _trimClip[item.id];
+    if (k && k.t === item.trim && k.w === w && k.h === h) return k.p;
+    var p = FC.trimPath(item.trim, w, h); _trimClip[item.id] = { t: item.trim, w: w, h: h, p: p }; return p;
+}
+// Lays a picture's trim on its element: the clip on the picture alone (never the selection's outline or handles), and while Trim to cells
+// is in hand for it, the whole picture faded with the kept part over it
+function trimDraw(el, imEl, item) {
+    var tp = trimClipOf(item), on = !!(window.wpPlace && window.wpPlace.trim && window.wpPlace.trim.id === item.id);
+    var clip = tp ? "path('" + tp + "')" : '', keep = el.querySelector(':scope > img.trim-keep');
+    if (imEl.style.clipPath !== (on ? '' : clip)) imEl.style.clipPath = on ? '' : clip;
+    el.classList.toggle('wb-trimming', on);
+    if (on && clip) {
+        if (!keep) { keep = document.createElement('img'); keep.className = 'trim-keep'; keep.alt = ''; el.appendChild(keep); }
+        if (keep.getAttribute('src') !== imEl.getAttribute('src')) keep.src = imEl.getAttribute('src');
+        if (keep.style.clipPath !== clip) keep.style.clipPath = clip;
+    } else if (keep) keep.remove();
+}
+// [buildcheck:trimpic-end]
 // [lookcheck:tokfit-start]
 // 1.6.2 (backlog 141; the owner, 2026-11-06, by prompt: "Yes, one cell (Recommended)", "Trim and centre (Recommended)"): a picture ticked
 // Is Character fits one cell of the map's grid and is seated in it, in the very change the tick saves, so Undo puts it back. Then, apart,
@@ -8245,7 +8323,8 @@ window.wpPlaceCommit = function(px, py, pw, ph, sx, sy) {
     disarmPlacement();
     if (!P) return;
     if (P.build) { wpBuildCommit(P, px, py, pw, ph, sx, sy); return; }
-    if (P.align) { alignStep(P.align, sx, sy); return; }   // 1.6.2 (backlog 38): a click of Align its grid   // the map builder: a built piece lands by its own rules (on the lattice, a hexagon a cell) and Build stays in hand
+    if (P.align) { alignStep(P.align, sx, sy); return; }   // 1.6.2 (backlog 38): a click of Align its grid
+    if (P.trim) { trimStep(P.trim, px, py, pw, ph, sx, sy); return; }   // 1.6.2 (backlog 37): a click or a drag of Trim to cells   // the map builder: a built piece lands by its own rules (on the lattice, a hexagon a cell) and Build stays in hand
     var props = Object.assign({}, P.props);
     var dragged = pw > 12 && ph > 12;
     var type = P.type;
@@ -8284,7 +8363,7 @@ function addWbItemAt(type, props, x, y) {
     save(); render();
 }
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && window.wpPlace && !window.wpPlace.build && (!window.wpEsc || window.wpEsc.free(e))) { disarmPlacement(); toast('Placement cancelled.'); }   // a placement that is Build's own is Build's to end (buildKey)
+    if (e.key === 'Escape' && window.wpPlace && !window.wpPlace.build && (!window.wpEsc || window.wpEsc.free(e))) { var trimEnd = !!window.wpPlace.trim; disarmPlacement(); toast(trimEnd ? 'Trim to cells is put down.' : 'Placement cancelled.'); if (trimEnd) render(); }   // a placement that is Build's own is Build's to end (buildKey)
 });
 // [buildcheck:buildtool-start]
 // The map builder (fold B1c, backlog 23): the Build tool, the GM's alone. A tool with options, wired like every other (wireTool): its icon

@@ -965,6 +965,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               + '<button class="tool ghost" id="setHomeVisualBtn" title="The map opens centred here"><i class="wib wi-target"></i> Map center here</button>'
               + (state.gridType && state.gridType !== 'off' && w.type !== 'path' ? '<button class="tool ghost" id="wbFitGrid" title="Size to whole grid cells and seat it in the grid">&#8862; Fit to grid cells</button>' : '')
               + (state.gridType && state.gridType !== 'off' && w.type === 'image' && !w.isChar && !w.waiting ? '<button class="tool ghost" id="wbAlignPic" title="For a map picture with its own grid: click two points of that grid and say how many cells lie between them. The picture is sized and placed so its grid lies on the board\u2019s">Align its grid</button>' : '')
+              + (state.gridType && state.gridType !== 'off' && w.type === 'image' && !w.isChar && !w.waiting ? '<button class="tool ghost" id="wbTrimPic" title="Keep only the cells you pick of this picture: click a cell, or drag over cells, then press Esc. The picture file is not changed">Trim to cells</button>' : '')
+              + (w.type === 'image' && w.trim ? '<button class="tool ghost" id="wbTrimReset" title="Take the trim off and show the whole picture again">Whole picture</button>' : '')
               + '<button class="tool ghost danger" id="wbDel" title="Delete this piece. Undo brings it back">Delete</button>'
               + '</div>';
             if (w.groupId) {
@@ -1209,6 +1211,9 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             });
             var _el_wbAlignPic = document.getElementById('wbAlignPic');   // 1.6.2 (backlog 38)
             if (_el_wbAlignPic) _el_wbAlignPic.addEventListener('click', function() { if (window.wpAlignPic) window.wpAlignPic(w); });
+            var _el_wbTrimPic = document.getElementById('wbTrimPic'), _el_wbTrimReset = document.getElementById('wbTrimReset');   // 1.6.2 (backlog 37)
+            if (_el_wbTrimPic) _el_wbTrimPic.addEventListener('click', function() { if (window.wpTrimPic) window.wpTrimPic(w); });
+            if (_el_wbTrimReset) _el_wbTrimReset.addEventListener('click', function() { if (window.wpTrimReset) window.wpTrimReset(w); });
             var _el_wbFitGrid = document.getElementById('wbFitGrid');
             if (_el_wbFitGrid) { _el_wbFitGrid.addEventListener('click', function() { if (window.wpFitToGrid) window.wpFitToGrid([w]); }); if (window.wpFitWouldChange && !window.wpFitWouldChange([w])) { _el_wbFitGrid.disabled = true; _el_wbFitGrid.title = w.locked ? 'Locked — unlock it to fit to the grid' : 'Already aligned to the grid'; } }
             var _el_wbPortalMap = document.getElementById('wbPortalMap');

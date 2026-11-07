@@ -577,6 +577,8 @@ Writing planners and pages
   own grid printed on it. Click two points of that grid and say how many
   cells apart they are, and the picture is sized and placed so its grid lies
   on the board's.
+- Trim to cells, in a map picture's Properties, keeps only the cells you
+  pick of it, on players' screens too. Whole picture takes the trim off.
 - While the map is turned, words and tokens that face no way stay upright,
   a corner compass turns with it and the minimap shows the turned screen.
 - The GM can turn a map on every screen, in the View menu, and say whether

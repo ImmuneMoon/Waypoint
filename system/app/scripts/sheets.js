@@ -8804,6 +8804,15 @@ function refreshErrors() {
             else if (!cWh(cLp.days, 1, CAL_LIMITS.leapDays)) cErr.push({ message: 'Leap years: 1 to ' + CAL_LIMITS.leapDays + ' days more, or Save drops the rule.' });
             else if (!(typeof cLp.period === 'number' && cOkP[cLp.period])) cErr.push({ message: 'Leap years: the period that gains the days is dropped, so Save drops the rule.' });
         }
+        (Array.isArray(calE.leaps) ? calE.leaps : []).forEach(function(r0, k) {   // 1.6.2 (backlog 60): each rule beside the first, read as cleanCalendar reads it
+            var r = r0 && typeof r0 === 'object' ? r0 : {}, nm = 'Leap rule ' + (k + (cLp ? 2 : 1)), tu = Array.isArray(r.periods) ? r.periods : [];
+            if (!cKp) cErr.push({ message: nm + ': add a period first, or Save drops it.' });
+            else if (k >= CAL_LIMITS.leaps) cErr.push({ message: nm + ': at most ' + CAL_LIMITS.leaps + ' rules beside the first, so Save drops it.' });
+            else if (!cWh(r.every, 2, CAL_LIMITS.leapEvery)) cErr.push({ message: nm + ': every 2 to ' + CAL_LIMITS.leapEvery + ' years, or Save drops it.' });
+            else if (!cWh(r.from, -CAL_LIMITS.year, CAL_LIMITS.year)) cErr.push({ message: nm + ': the year it counts from is a whole number within 10,000,000 either way, or Save drops it.' });
+            else if (!cWh(r.days, 1, CAL_LIMITS.leapDays)) cErr.push({ message: nm + ': 1 to ' + CAL_LIMITS.leapDays + ' days more, or Save drops it.' });
+            else { var kept = tu.slice(0, CAL_LIMITS.leapTurns).filter(function(p) { return typeof p === 'number' && cOkP[p]; }).length; if (!kept) cErr.push({ message: nm + ': every period it gives its days to is dropped, so Save drops it.' }); else if (kept < tu.length) cErr.push({ message: nm + ': a period in its turns is dropped, so Save leaves it out of the turns.' }); }
+        });
     }
     if (calE) {   // 1.6.2 (backlog 147): a season and a moon, read by calendarcore cleanCalendar itself
         (Array.isArray(calE.seasons) ? calE.seasons : []).forEach(function(s, i) {
@@ -12682,8 +12691,8 @@ function calNum(cls, value, title, min, max, cap) {
 function calSums(cal) {   // [the year's length in words, day 1 and a year on as the clock reads them]: the calendar as Save would keep it
     var cc = cleanCalendar(cal), ps = cc && cc.periods ? cc.periods : [], base = 0; ps.forEach(function(p) { base += p.days; });
     if (!ps.length) return ['No periods: the clock counts days (Day 1, Day 2 \u2026).', 'Day 1 reads: ' + fmtWhen(cc, 0) + '.'];
-    var ms = ps.filter(function(p) { return !p.extra; }).length, ex = ps.length - ms, lp = cc.leap ? cc.leap.days : 0, y2 = timeOf(cc, { yi: 1, period: 0, pday: 1 });
-    return [base + ' days a year' + (lp ? ' (' + (base + lp) + ' in a leap year)' : '') + ': ' + ms + ' month' + (ms === 1 ? '' : 's') + (ex ? ' and ' + ex + ' period' + (ex === 1 ? '' : 's') + ' outside the month count' : '') + '.',
+    var ms = ps.filter(function(p) { return !p.extra; }).length, ex = ps.length - ms, rls = (cc.leap ? [cc.leap] : []).concat(cc.leaps || []), lp = rls.length === 1 ? rls[0].days : 0, y2 = timeOf(cc, { yi: 1, period: 0, pday: 1 });
+    return [base + ' days a year' + (lp ? ' (' + (base + lp) + ' in a leap year)' : rls.length > 1 ? ' (longer in its leap years)' : '') + ': ' + ms + ' month' + (ms === 1 ? '' : 's') + (ex ? ' and ' + ex + ' period' + (ex === 1 ? '' : 's') + ' outside the month count' : '') + '.',
         'Day 1 reads: ' + fmtWhen(cc, 0) + (y2 !== null ? '. A year on: ' + fmtDate(cc, y2) : '') + '.'];
 }
 function renderCalendar() { var box = ui('sysCalendar'); if (!box) return; var st = box.scrollTop; box.textContent = ''; calendarBox(box, calOf()); box.scrollTop = st; }   // the pane scrolls: a redraw keeps its place
@@ -12732,16 +12741,18 @@ function calendarBox(box, cal) {
     var dnL = el('label', 'sys-cal-tick'), dnC = el('input', 'sys-cal-down'); dnC.type = 'checkbox'; dnC.checked = cal.down === true; dnC.title = 'Years count down, as a count before an event does: 3964, then 3963';
     dnL.appendChild(dnC); dnL.appendChild(document.createTextNode(' Years count down')); yr.appendChild(dnL);
     wrap.appendChild(yr);
-    var lp = cal.leap && typeof cal.leap === 'object' && !Array.isArray(cal.leap) ? cal.leap : null, lr = el('div', 'sys-flags sys-cal-leap');
-    var lpL = el('label', 'sys-cal-tick'), lpC = el('input', 'sys-cal-leapon'); lpC.type = 'checkbox'; lpC.checked = !!lp; lpC.disabled = !ps.length && !lp; lpC.title = ps.length ? 'Some years are longer: a period gains days every so many years' : 'Add a period first: a leap year\u2019s days go into one';
+    var lp = cal.leap && typeof cal.leap === 'object' && !Array.isArray(cal.leap) ? cal.leap : null, lr = el('div', 'sys-flags sys-cal-leap'), lx = Array.isArray(cal.leaps) ? cal.leaps : [];
+    var lpL = el('label', 'sys-cal-tick'), lpC = el('input', 'sys-cal-leapon'); lpC.type = 'checkbox'; lpC.checked = !!lp || lx.length > 0; lpC.disabled = !ps.length && !lp; lpC.title = ps.length ? 'Some years are longer: a period gains days every so many years' : 'Add a period first: a leap year\u2019s days go into one';
     lpL.appendChild(lpC); lpL.appendChild(document.createTextNode(' Leap years')); lr.appendChild(lpL);
     if (lp) {
         lr.appendChild(calNum('sys-cal-levery', lp.every, 'Every how many years (2 to ' + CAL_LIMITS.leapEvery + ')', 2, CAL_LIMITS.leapEvery, 'Every (years)'));
         lr.appendChild(calNum('sys-cal-lfrom', lp.from, 'A leap year, as the calendar numbers it: the rule counts from it both ways', -CAL_LIMITS.year, CAL_LIMITS.year, 'Counting from year'));
         lr.appendChild(calNum('sys-cal-ldays', lp.days, 'How many days a leap year adds (1 to ' + CAL_LIMITS.leapDays + ')', 1, CAL_LIMITS.leapDays, 'Days more'));
         if (ps.length) lr.appendChild(labeledSelect('sys-cal-lperiod', 'In', ps.map(function(p, i) { return [String(i), p && typeof p.name === 'string' && p.name.trim() ? p.name : 'Period ' + (i + 1)]; }), String(lp.period), 'The period that gains the days'));
+        if (ps.length) { var th0 = el('button', 'tool ghost sys-btn sys-cal-lthen', '+ Then'); th0.dataset.act = 'callthen0'; th0.title = 'Its days take turns: the next leap year they go to another period'; lr.appendChild(th0); }
     }
     wrap.appendChild(lr);
+    leapRows(wrap, cal, ps, lp, lx);
     // 1.6.2 (backlog 147; the owner, by prompt: "Moons and phases", "Seasons"): each season by the day of the year it begins on, each moon by its cycle
     wrap.appendChild(el('div', 'sys-cal-sub', 'Seasons'));
     var ss = Array.isArray(cal.seasons) ? cal.seasons : [];
@@ -12770,10 +12781,74 @@ function calendarBox(box, cal) {
     var err = errorCell('calendar'); err.dataset.errFor = 'calendar'; wrap.appendChild(err);
     box.appendChild(wrap);
 }
+// [systemcheck:leaprows-start]
+// 1.6.2 (backlog 60; the owner, 2026-11-07, by prompt: "Several rules", "Yes, a rule may rotate"): the leap rules beside the first, each with
+// its own years and days and the periods its days take turns through, in order. The first rule stays as it was while it names one period
+function leapPeriodOpts(ps) { return ps.map(function(p, i) { return [String(i), p && typeof p.name === 'string' && p.name.trim() ? p.name : 'Period ' + (i + 1)]; }); }
+function leapRows(wrap, cal, ps, lp, lx) {
+    if (!ps.length) return;
+    lx.forEach(function(r0, k) {
+        var r = r0 && typeof r0 === 'object' ? r0 : {}, rw = el('div', 'sys-flags sys-cal-lrow'); rw.dataset.lk = String(k);
+        rw.appendChild(el('span', 'sys-num-cap sys-cal-lname', 'Rule ' + (k + (lp ? 2 : 1))));
+        rw.appendChild(calNum('sys-cal-lxevery', r.every, 'Every how many years (2 to ' + CAL_LIMITS.leapEvery + ')', 2, CAL_LIMITS.leapEvery, 'Every (years)'));
+        rw.appendChild(calNum('sys-cal-lxfrom', r.from, 'A leap year of this rule, as the calendar numbers it. Its days go to the first period in that year', -CAL_LIMITS.year, CAL_LIMITS.year, 'Counting from year'));
+        rw.appendChild(calNum('sys-cal-lxdays', r.days, 'How many days its leap year adds (1 to ' + CAL_LIMITS.leapDays + ')', 1, CAL_LIMITS.leapDays, 'Days more'));
+        var tu = Array.isArray(r.periods) ? r.periods : [];
+        tu.forEach(function(pi, ti) {
+            var sl = labeledSelect('sys-cal-lturn', ti === 0 ? 'In' : 'then', leapPeriodOpts(ps), String(typeof pi === 'number' ? pi : 0), ti === 0 ? 'The period that gains the days first' : 'The period that gains them the next leap year, in turn'); sl.dataset.ti = String(ti); rw.appendChild(sl);
+            if (tu.length > 1) { var td = el('button', 'tool ghost sys-btn sys-cal-ltdel', '\u00d7'); td.dataset.act = 'callturndel'; td.dataset.ti = String(ti); td.title = 'Take this period out of the turns'; rw.appendChild(td); }
+        });
+        var tha = el('button', 'tool ghost sys-btn sys-cal-lthen', '+ Then'); tha.dataset.act = 'callturnadd'; tha.disabled = tu.length >= CAL_LIMITS.leapTurns; tha.title = tha.disabled ? 'At most ' + CAL_LIMITS.leapTurns : 'Its days take turns: the next leap year they go to another period'; rw.appendChild(tha);
+        var rd = el('button', 'tool ghost sys-btn sys-cal-lrdel', 'Remove rule'); rd.dataset.act = 'callruledel'; rd.title = 'Remove this leap rule'; rw.appendChild(rd);
+        wrap.appendChild(rw);
+    });
+    if (lp || lx.length) { var ra = el('button', 'tool ghost sys-btn sys-cal-ladd', '+ Leap rule'); ra.dataset.act = 'calruleadd'; ra.disabled = lx.length >= CAL_LIMITS.leaps; ra.title = ra.disabled ? 'At most ' + CAL_LIMITS.leaps + ' more' : 'Another rule beside it: other years, other days, other periods'; wrap.appendChild(ra); }
+}
+function leapRuleOf(t) { var cal = calDraft(), rw = t.closest ? t.closest('.sys-cal-lrow') : null, k = rw ? +rw.dataset.lk : -1; return Array.isArray(cal.leaps) && k >= 0 && Math.floor(k) === k && cal.leaps[k] && typeof cal.leaps[k] === 'object' ? { cal: cal, k: k, r: cal.leaps[k] } : null; }
+function leapInput(t, c, numV) {
+    if (!(c.indexOf('sys-cal-lxevery') >= 0 || c.indexOf('sys-cal-lxfrom') >= 0 || c.indexOf('sys-cal-lxdays') >= 0)) return false;
+    var q = leapRuleOf(t); if (!q) return true;
+    var lk = c.indexOf('sys-cal-lxevery') >= 0 ? 'every' : c.indexOf('sys-cal-lxfrom') >= 0 ? 'from' : 'days', ln = numV(); if (ln === null) delete q.r[lk]; else q.r[lk] = ln;
+    return 'input';
+}
+function leapChange(t, c) {
+    if (c.indexOf('sys-cal-lturn') < 0) return false;
+    var q = leapRuleOf(t), sl = t.closest ? t.closest('[data-ti]') : null, ti = sl ? +sl.dataset.ti : -1, v = Number(t.value), cal = calDraft();
+    if (!q || !Array.isArray(q.r.periods) || !(ti >= 0 && ti < q.r.periods.length && Math.floor(ti) === ti) || !(v >= 0 && Math.floor(v) === v && Array.isArray(cal.periods) && v < cal.periods.length)) return true;
+    q.r.periods[ti] = v; return 'change';
+}
+function leapClick(b) {
+    var act = b.dataset.act || '', cal = calDraft(), lx = Array.isArray(cal.leaps) ? cal.leaps : null;
+    if (act === 'callthen0') {   // the first rule takes turns: it moves beside the others as their first, with the period after its own next
+        var lp = cal.leap && typeof cal.leap === 'object' && !Array.isArray(cal.leap) ? cal.leap : null, n = Array.isArray(cal.periods) ? cal.periods.length : 0; if (!lp || !n) return true;
+        var p0 = typeof lp.period === 'number' ? lp.period : 0, r = {}; ['every', 'from', 'days'].forEach(function(k) { if (lp[k] !== undefined) r[k] = lp[k]; }); r.periods = [p0, (p0 + 1) % n];
+        cal.leaps = [r].concat(lx || []).slice(0, CAL_LIMITS.leaps); delete cal.leap;
+    } else if (act === 'calruleadd') {
+        var all = (lx || []); if (all.length >= CAL_LIMITS.leaps) { toast('At most ' + CAL_LIMITS.leaps + ' more.'); return true; }
+        all.push({ every: 4, from: typeof cal.one === 'number' ? cal.one : 1, days: 1, periods: [0] }); cal.leaps = all;
+    } else if (act === 'callruledel' || act === 'callturnadd' || act === 'callturndel') {
+        var q = leapRuleOf(b); if (!q) return true;
+        if (act === 'callruledel') { cal.leaps.splice(q.k, 1); if (!cal.leaps.length) delete cal.leaps; }
+        else { var tu = Array.isArray(q.r.periods) ? q.r.periods : (q.r.periods = []), m = Array.isArray(cal.periods) ? cal.periods.length : 0;
+            if (act === 'callturnadd') { if (tu.length >= CAL_LIMITS.leapTurns || !m) return true; tu.push(tu.length ? (tu[tu.length - 1] + 1) % m : 0); }
+            else { var ti = +b.dataset.ti; if (!(ti >= 0 && ti < tu.length && Math.floor(ti) === ti) || tu.length < 2) return true; tu.splice(ti, 1); } }
+    } else return false;
+    markDirty(); renderAll(); return true;
+}
+// A period moved or removed: the rules' turns follow it, and a rule left with none goes
+function leapFollow(cal, op, i, j) {
+    if (!Array.isArray(cal.leaps)) return;
+    cal.leaps.forEach(function(r) { if (!r || typeof r !== 'object' || !Array.isArray(r.periods)) return;
+        r.periods = r.periods.filter(function(p) { return !(op === 'del' && p === i); }).map(function(p) { if (typeof p !== 'number') return p; if (op === 'del') return p > i ? p - 1 : p; return p === i ? j : p === j ? i : p; }); });
+    cal.leaps = cal.leaps.filter(function(r) { return !(r && typeof r === 'object' && Array.isArray(r.periods) && !r.periods.length); });
+    if (!cal.leaps.length) delete cal.leaps;
+}
+// [systemcheck:leaprows-end]
 function calRefreshText() { var sm = calSums(calOf()), a = ui('sysCalSum'), b = ui('sysCalPreview'); if (a) a.textContent = sm[0]; if (b) b.textContent = sm[1]; }
 function onCalendarInput(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-cal-') < 0) return false;
     var cal = calDraft(), numV = function() { var v = Number(t.value); return String(t.value).trim() !== '' && isFinite(v) ? v : null; };
+    var lx = leapInput(t, c, numV); if (lx === true) return true; if (lx) { markDirty(); patchErrors(); calRefreshText(); return true; }   // 1.6.2: a leap rule beside the first
     if (c.indexOf('sys-cal-pname') >= 0 || c.indexOf('sys-cal-pdays') >= 0) {
         var prw = t.closest ? t.closest('.sys-cal-prow') : null, i = prw ? +prw.dataset.ci : -1, p = Array.isArray(cal.periods) && i >= 0 && Math.floor(i) === i && cal.periods[i] && typeof cal.periods[i] === 'object' ? cal.periods[i] : null; if (!p) return true;
         if (c.indexOf('sys-cal-pname') >= 0) p.name = String(t.value).slice(0, CAL_LIMITS.name * 2); else { var d = numV(); if (d === null) delete p.days; else p.days = d; }
@@ -12800,6 +12875,7 @@ function onCalendarInput(t) {
 function onCalendarChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-cal-') < 0) return false;
     var cal = calDraft();
+    var lc = leapChange(t, c); if (lc === true) return true; if (lc) { markDirty(); patchErrors(); calRefreshText(); return true; }   // 1.6.2: a rule's period in turn
     if (c.indexOf('sys-cal-pextra') >= 0) {
         var rw = t.closest ? t.closest('.sys-cal-prow') : null, i = rw ? +rw.dataset.ci : -1, p = Array.isArray(cal.periods) && i >= 0 && Math.floor(i) === i && cal.periods[i] && typeof cal.periods[i] === 'object' ? cal.periods[i] : null; if (!p) return true;
         if (t.checked === true) p.extra = true; else delete p.extra;
@@ -12807,7 +12883,7 @@ function onCalendarChange(t) {
     else if (c.indexOf('sys-cal-down') >= 0) { if (t.checked === true) cal.down = true; else delete cal.down; }
     else if (c.indexOf('sys-cal-first') >= 0) { var f = Number(t.value); if (f > 0 && Math.floor(f) === f && Array.isArray(cal.week) && f < cal.week.length) cal.first = f; else delete cal.first; }
     else if (c.indexOf('sys-cal-leapon') >= 0) {
-        if (t.checked === true) { if (!cal.leap || typeof cal.leap !== 'object' || Array.isArray(cal.leap)) cal.leap = { every: 4, from: typeof cal.one === 'number' ? cal.one : 1, period: 0, days: 1 }; } else delete cal.leap;
+        if (t.checked === true) { if ((!cal.leap || typeof cal.leap !== 'object' || Array.isArray(cal.leap)) && !(Array.isArray(cal.leaps) && cal.leaps.length)) cal.leap = { every: 4, from: typeof cal.one === 'number' ? cal.one : 1, period: 0, days: 1 }; } else { delete cal.leap; delete cal.leaps; }   // 1.6.2: off takes every rule
         markDirty(); renderAll(); return true;
     }
     else if (c.indexOf('sys-cal-speriod') >= 0) { var srw2 = t.closest ? t.closest('.sys-cal-srow') : null, si2 = srw2 ? +srw2.dataset.si : -1, s2 = Array.isArray(cal.seasons) && si2 >= 0 && Math.floor(si2) === si2 && cal.seasons[si2] && typeof cal.seasons[si2] === 'object' ? cal.seasons[si2] : null, pv = Number(t.value); if (!s2 || !(pv >= 0 && Math.floor(pv) === pv && Array.isArray(cal.periods) && pv < cal.periods.length)) return true; s2.period = pv; }   // 1.6.2: the period a season begins in
@@ -12822,6 +12898,7 @@ function calendarClick(b) {
         if (pid === 'days') delete draft.calendar; else { var pz = calPreset(pid); if (!pz) return true; draft.calendar = pz; }
         markDirty(); renderAll(); return true;
     }
+    if (/^cal(lthen0|ruleadd|ruledel|turnadd|turndel)$/.test(act)) return leapClick(b);   // 1.6.2 (backlog 60): the leap rules
     var sm2 = /^cal(s|m)(add|del)$/.exec(act);   // 1.6.2 (backlog 147): a season or a moon added at the end, or a row removed
     if (sm2) {
         var calS = calDraft(), keyS = sm2[1] === 's' ? 'seasons' : 'moons', capS = sm2[1] === 's' ? CAL_LIMITS.seasons : CAL_LIMITS.moons, arrS = Array.isArray(calS[keyS]) ? calS[keyS] : (calS[keyS] = []);
@@ -12839,8 +12916,8 @@ function calendarClick(b) {
     else if (!(i >= 0 && i < arr.length && Math.floor(i) === i)) return true;
     else {
         var r = refOf(), j = m[2] === 'up' ? i - 1 : m[2] === 'down' ? i + 1 : -1;
-        if (m[2] === 'del') { arr.splice(i, 1); if (r === i) setRef(isP ? -1 : 0); else if (r > i) setRef(r - 1); }
-        else if (j >= 0 && j < arr.length) { arr.splice(j, 0, arr.splice(i, 1)[0]); if (r === i) setRef(j); else if (r === j) setRef(i); }
+        if (m[2] === 'del') { arr.splice(i, 1); if (r === i) setRef(isP ? -1 : 0); else if (r > i) setRef(r - 1); if (isP) leapFollow(cal, 'del', i); }
+        else if (j >= 0 && j < arr.length) { arr.splice(j, 0, arr.splice(i, 1)[0]); if (r === i) setRef(j); else if (r === j) setRef(i); if (isP) leapFollow(cal, 'move', i, j); }
         if (isP && Array.isArray(cal.seasons)) {   // 1.6.2: a season begins in a period by its place, so it follows a move, and goes with its period
             cal.seasons = cal.seasons.filter(function(s) { return !(s && typeof s === 'object' && m[2] === 'del' && s.period === i); });
             cal.seasons.forEach(function(s) { if (!s || typeof s !== 'object' || typeof s.period !== 'number') return; if (m[2] === 'del') { if (s.period > i) s.period--; } else if (j >= 0 && j < arr.length) { if (s.period === i) s.period = j; else if (s.period === j) s.period = i; } });

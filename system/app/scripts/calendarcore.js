@@ -14,6 +14,7 @@ var LIMITS = Object.freeze({
     year: 1e7,                          // the year day 1 falls in, and a leap rule's year, either way
     hours: 100, minutes: 1000, seconds: 1000,   // a day's hours, an hour's minutes, a minute's seconds
     leapEvery: 1000, leapDays: 100,     // a leap rule: every 2 to 1000 years, 1 to 100 days more
+    leaps: 8, leapTurns: 12,            // 1.6.2 (backlog 60): more leap rules, and the periods one rule's days take turns through
     notes: 500, noteChars: 400,         // item 20 K3: a clock's dated notes, and a note's text (code points, one line)
     rates: Object.freeze([1, 2, 5, 10, 60]),   // 1.5.4: how fast a clock may run by itself, times real time (1 is the absent default)
     moons: 4, cycle: 10000,             // 1.6.2 (backlog 147): a calendar's moons, and the days of a moon's cycle at most
@@ -60,6 +61,19 @@ function cleanCalendar(v) {
         var lv = v.leap, ev = whole(lv.every, 2, LIMITS.leapEvery), fr = whole(lv.from, -LIMITS.year, LIMITS.year), pi = whole(lv.period, 0, 1e6), ld = whole(lv.days, 1, LIMITS.leapDays);
         if (ev !== null && fr !== null && pi !== null && Object.prototype.hasOwnProperty.call(pAt, pi) && ld !== null) out.leap = { every: ev, from: fr, period: pAt[pi], days: ld };
     }
+    // 1.6.2 (backlog 60; the owner, 2026-11-07, by prompt: "Several rules", "Yes, a rule may rotate"): more leap rules beside the first, each
+    // every so many years from a year of its own, adding its days to the periods it names in turn: the first leap year it counts from to the
+    // first, the next to the second, and round again. A period is a place as written, as the first rule's is; one dropped goes from the turns
+    if (ps.length && Array.isArray(v.leaps)) {
+        var lps = [];
+        v.leaps.forEach(function(lv) {
+            if (lps.length >= LIMITS.leaps || !isObj(lv)) return;
+            var ev = whole(lv.every, 2, LIMITS.leapEvery), fr = whole(lv.from, -LIMITS.year, LIMITS.year), ld = whole(lv.days, 1, LIMITS.leapDays), tu = [];
+            (Array.isArray(lv.periods) ? lv.periods : [lv.period]).forEach(function(pi) { if (tu.length >= LIMITS.leapTurns) return; pi = whole(pi, 0, 1e6); if (pi !== null && Object.prototype.hasOwnProperty.call(pAt, pi)) tu.push(pAt[pi]); });
+            if (ev !== null && fr !== null && ld !== null && tu.length) lps.push({ every: ev, from: fr, periods: tu, days: ld });
+        });
+        if (lps.length) out.leaps = lps;
+    }
     // 1.6.2 (backlog 147; the owner, 2026-11-06, by prompt: "Moons and phases", "Seasons"): a moon has a name, the days of its cycle (to the
     // hundredth, 2 to 10,000) and how far into its cycle it is on day 1 (absent 0, a new moon); a season a name and the day of the year it
     // begins on, a period and a day of it, in the year's order
@@ -86,17 +100,22 @@ function cleanCalendar(v) {
 function shape(cal) {
     var c = cleanCalendar(cal) || {}, ps = c.periods || [], base = 0;
     ps.forEach(function(p) { base += p.days; });
-    var H = c.hours || DAY.hours, M = c.minutes || DAY.minutes, S = c.seconds || DAY.seconds, one = typeof c.one === 'number' ? c.one : 1, down = c.down === true, lp = null;
-    if (c.leap) lp = { every: c.leap.every, r: mod(down ? one - c.leap.from : c.leap.from - one, c.leap.every), period: c.leap.period, days: c.leap.days };
-    return { c: c, ps: ps, week: c.week || [], first: c.first || 0, H: H, M: M, S: S, dayLen: H * M * S, base: base, lp: lp, one: one, down: down, era: c.era || '' };
+    var H = c.hours || DAY.hours, M = c.minutes || DAY.minutes, S = c.seconds || DAY.seconds, one = typeof c.one === 'number' ? c.one : 1, down = c.down === true, lr = [];
+    // each rule: every, f (the year it counts from, as years since day 1's, either way), r (its first leap year from day 1's on), days, ps (its periods in turn)
+    (c.leap ? [{ every: c.leap.every, from: c.leap.from, days: c.leap.days, periods: [c.leap.period] }] : []).concat(c.leaps || []).forEach(function(l) { var f = down ? one - l.from : l.from - one; lr.push({ every: l.every, f: f, r: mod(f, l.every), days: l.days, ps: l.periods }); });
+    return { c: c, ps: ps, week: c.week || [], first: c.first || 0, H: H, M: M, S: S, dayLen: H * M * S, base: base, lr: lr, lp: lr[0] || null, one: one, down: down, era: c.era || '' };
 }
 // Years are counted from 0 (the year day 1 falls in); a leap year is one whose count sits on the rule's cycle
-function leapY(sh, yi) { return !!sh.lp && mod(yi - sh.lp.r, sh.lp.every) === 0; }
-function leapsBefore(sh, yi) { return !sh.lp || yi <= sh.lp.r ? 0 : Math.floor((yi - 1 - sh.lp.r) / sh.lp.every) + 1; }
-function daysBefore(sh, yi) { return yi * sh.base + leapsBefore(sh, yi) * (sh.lp ? sh.lp.days : 0); }
-function plen(sh, yi, i) { return sh.ps[i].days + (sh.lp && i === sh.lp.period && leapY(sh, yi) ? sh.lp.days : 0); }
+function ruleHit(rl, yi) { return mod(yi - rl.r, rl.every) === 0; }
+function ruleBefore(rl, yi) { return yi <= rl.r ? 0 : Math.floor((yi - 1 - rl.r) / rl.every) + 1; }   // its leap years before this one, from day 1's on
+function ruleTurn(rl, yi) { return rl.ps[mod(Math.round((yi - rl.f) / rl.every), rl.ps.length)]; }   // the period this leap year's days go to: counted from the year the rule counts from
+function leapY(sh, yi) { return sh.lr.some(function(rl) { return ruleHit(rl, yi); }); }
+function leapDays(sh, yi) { var d = 0; sh.lr.forEach(function(rl) { if (ruleHit(rl, yi)) d += rl.days; }); return d; }
+function daysBefore(sh, yi) { var d = yi * sh.base; sh.lr.forEach(function(rl) { d += ruleBefore(rl, yi) * rl.days; }); return d; }
+function plen(sh, yi, i) { var d = sh.ps[i].days; sh.lr.forEach(function(rl) { if (ruleHit(rl, yi) && ruleTurn(rl, yi) === i) d += rl.days; }); return d; }
 function yearOfDay(sh, D) {
-    var avg = sh.base + (sh.lp ? sh.lp.days / sh.lp.every : 0), yi = Math.max(0, Math.floor(D / avg));
+    var avg = sh.base; sh.lr.forEach(function(rl) { avg += rl.days / rl.every; });
+    var yi = Math.max(0, Math.floor(D / avg));
     while (yi > 0 && daysBefore(sh, yi) > D) yi--;
     while (daysBefore(sh, yi + 1) <= D) yi++;
     return yi;
@@ -166,7 +185,7 @@ function periodDays(cal, year, period) {
     var sh = shape(cal), yi = typeof year === 'number' && isFinite(year) ? yearIndex(sh, year) : -1;
     return sh.ps.length && whole(yi, 0, 1e12) !== null && whole(period, 0, sh.ps.length - 1) !== null ? plen(sh, yi, period) : 0;
 }
-function yearDays(cal, year) { var sh = shape(cal), yi = typeof year === 'number' && isFinite(year) ? yearIndex(sh, year) : -1; if (!sh.ps.length || whole(yi, 0, 1e12) === null) return 0; return sh.base + (leapY(sh, yi) ? sh.lp.days : 0); }
+function yearDays(cal, year) { var sh = shape(cal), yi = typeof year === 'number' && isFinite(year) ? yearIndex(sh, year) : -1; if (!sh.ps.length || whole(yi, 0, 1e12) === null) return 0; return sh.base + leapDays(sh, yi); }
 function dayLength(cal) { return shape(cal).dayLen; }
 
 // Words (plain text for a text node, a title or a toast; never markup): "Firstday, 4 First, 1200 BCE"; a one-day period outside the

@@ -131,6 +131,40 @@ function extent(item, wide) {
     var a = rot * Math.PI / 180, c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a)), hw = (w / 2 + pad), hh = (h / 2 + pad), ex = hw * c + hh * s, ey = hw * s + hh * c;
     return { x: x + w / 2 - ex, y: y + h / 2 - ey, w: 2 * ex, h: 2 * ey };
 }
+// [buildcheck:flatplan-start]
+// 1.6.2 (backlog 39; the owner, 2026-11-07, by prompt): Flatten into one picture. What a flatten of a selection takes, pure. A piece that carries
+// a rule (it blocks sight or movement, is a door or a way to another map, gives cover, smoke, difficult terrain or ground height, holds a light,
+// a fog mark, a page pin or a null area) is drawn in and kept as an invisible piece where the dialog says Drawn in (mode 'keep'), and is left
+// out as it is otherwise ('out'). Every other piece the picture draws (shows) is drawn in and then hidden, to be put back by Unflatten. A piece
+// the picture never draws (a token, a hidden piece, a GM note card) is left as it is. The box is the drawn pieces' own extent, to whole pixels,
+// and the picture takes the lowest level among them
+var FLAT_RULES = ['blocksSight', 'barrier', 'cover', 'coverAs', 'smoke', 'terrain', 'ground', 'height', 'light', 'fogHand', 'nulls', 'targetMapId', 'nodeId', 'page', 'trigger', 'playArea', 'secret', 'sightType'];
+function flatRule(item) {
+    if (!item || typeof item !== 'object') return false;
+    for (var i = 0; i < FLAT_RULES.length; i++) {
+        var k = FLAT_RULES[i]; if (!own(item, k)) continue; var v = item[k];
+        if (k === 'cover' ? (v === true || (typeof v === 'string' && v !== '' && v !== 'no')) : (v !== undefined && v !== null && v !== false && v !== '' && v !== 0)) return true;
+    }
+    return false;
+}
+function flatPlan(items, ids, mode) {
+    var set = Object.create(null), list = Array.isArray(items) ? items : [], keep = mode === 'keep', draw = [], hide = [], ghost = [], left = 0;
+    (Array.isArray(ids) ? ids : []).forEach(function(id) { if (typeof id === 'string') set[id] = 1; });
+    list.forEach(function(it) {
+        if (!it || typeof it !== 'object' || typeof it.id !== 'string' || set[it.id] !== 1) return;
+        if (!shows(it, true)) { left++; return; }
+        var r = flatRule(it); if (r && !keep) { left++; return; }
+        draw.push(it); if (r) ghost.push(it.id); else hide.push(it.id);
+    });
+    if (!draw.length) return { ok: false, left: left };
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, low = null, lowZ = Infinity;
+    draw.forEach(function(it) { var e = extent(it); x0 = Math.min(x0, e.x); y0 = Math.min(y0, e.y); x1 = Math.max(x1, e.x + e.w); y1 = Math.max(y1, e.y + e.h); var z = stackZ(it, false); if (z < lowZ) { lowZ = z; low = it; } });
+    var bx = Math.floor(x0), by = Math.floor(y0), box = { x: bx, y: by, w: Math.max(1, Math.ceil(x1) - bx), h: Math.max(1, Math.ceil(y1) - by) };
+    var out = { ok: true, draw: draw, hide: hide, ghost: ghost, left: left, box: box };
+    if (low && typeof low.layer === 'string' && low.layer) out.layer = low.layer; if (low && fin(Number(low.z)) && Number(low.z)) out.z = Number(low.z);
+    return out;
+}
+// [buildcheck:flatplan-end]
 // Whether a piece could show inside a box of the board: by its extent, taken six times wider for a line, whose sharp corners reach past
 // its width. A label always could, since its words are not held to its box. With no box every piece could
 function near(item, box) {
@@ -443,6 +477,6 @@ function draw(ctx, job) {
     return out;
 }
 
-var API = { VERSION: VERSION, CELLS: CELLS, LIMITS: LIMITS, INK: INK, POLY: POLY, paint: paint, plateInk: plateInk, shows: shows, stackZ: stackZ, order: order, extent: extent, bounds: bounds, viewBox: viewBox, cleanCell: cleanCell, fits: fits, plan: plan, sizeWords: sizeWords, fillOf: fillOf, patternOf: patternOf, picOf: picOf, fontOf: fontOf, needs: needs, plainLines: plainLines, wrapLines: wrapLines, draw: draw };
+var API = { VERSION: VERSION, CELLS: CELLS, LIMITS: LIMITS, INK: INK, POLY: POLY, paint: paint, plateInk: plateInk, shows: shows, stackZ: stackZ, order: order, flatRule: flatRule, flatPlan: flatPlan, FLAT_RULES: FLAT_RULES, extent: extent, bounds: bounds, viewBox: viewBox, cleanCell: cleanCell, fits: fits, plan: plan, sizeWords: sizeWords, fillOf: fillOf, patternOf: patternOf, picOf: picOf, fontOf: fontOf, needs: needs, plainLines: plainLines, wrapLines: wrapLines, draw: draw };
 if (typeof window !== 'undefined') window.wpShotCore = API;
-export { VERSION, CELLS, LIMITS, INK, POLY, paint, plateInk, shows, stackZ, order, extent, bounds, viewBox, cleanCell, fits, plan, sizeWords, fillOf, patternOf, picOf, fontOf, needs, plainLines, wrapLines, draw };
+export { VERSION, CELLS, LIMITS, INK, POLY, paint, plateInk, shows, stackZ, order, flatRule, flatPlan, FLAT_RULES, extent, bounds, viewBox, cleanCell, fits, plan, sizeWords, fillOf, patternOf, picOf, fontOf, needs, plainLines, wrapLines, draw };

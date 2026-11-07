@@ -65,6 +65,7 @@
 <script type="module" src="scripts/mapshot.js"></script>
 <script type="module" src="scripts/citycore.js"></script>
 <script type="module" src="scripts/worldcore.js"></script>
+<script type="module" src="scripts/flatten.js"></script>
 <script type="module" src="scripts/calendarcore.js"></script>
 <script type="module" src="scripts/calendar.js"></script>
 <script type="module" src="scripts/fog.js"></script>
@@ -803,6 +804,7 @@
                           <li><b>Order</b> opens <b>Bring to front</b>, <b>Bring forward</b>, <b>Send backward</b> and <b>Send to back</b>: five stacking layers for building scenes.</li>
                           <li>The <b>Opacity</b> slider adjusts the transparency of anything already on the board.</li>
                           <li>Select several items by dragging a box around them, then <b>Group</b> them or <b>Merge drawings</b>.</li>
+                          <li><b>Flatten into one picture</b> draws two pieces or more into one picture saved with this campaign. It is on their right-click, and in Build&rsquo;s options. Players then load one picture, not many. The plain pieces are hidden. Pieces with rules, such as walls, doors and cover, are drawn in and kept as invisible pieces, or left out, as you choose. <b>Unflatten</b> on the picture&rsquo;s right-click puts the pieces back.</li>
                           <li><b>Save to Campaign Cast</b>, on a character token, keeps a copy of it in the campaign&rsquo;s cast. Right-click the play map &#9656; <b><i class="wib wi-starf"></i> Campaign Cast</b> and click a member to place a copy there, or its <b>&times;5</b> for five. The cast is a folder of the Image Library too.</li>
                       </ul>
                       <div class="help-tip">Character tokens: any shape or image with <b>Is Character</b> set in the right sidebar becomes a token with a name and a stats tooltip. It can be handed to a player in multiplayer.</div>
@@ -3456,6 +3458,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       </div>
                       <div class="build-line" id="buildCorridorLine" hidden>With walls lays a wall line along each side. The ends stay open.</div>
                   </div>
+                  <button class="wb-tool-btn menu-row" id="buildFlatBtn" title="The selected pieces drawn into one picture, saved with this campaign. The plain pieces are hidden and Unflatten on the picture's right-click puts them back"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5V5h3.5M17.5 5H21v3.5M21 15.5V19h-3.5M6.5 19H3v-3.5M7.5 8.5h9v7h-9zM12 8.5v7M7.5 12h9"/></svg></span><span class="mr-txt">Flatten selection&hellip;<small>Many pieces become one picture.</small></span></button>
                   <div class="menu-rule"></div>
                   <div class="draw-menu-label">Map objects</div>
                   <div class="menu-list" id="buildObjRows"></div>
@@ -3958,6 +3961,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div class="gen-rule"></div>
         <div class="gen-row"><span class="gen-name" id="shotShowName">Show</span><span class="gen-seg" role="group" aria-labelledby="shotShowName"><label class="gen-tick" id="shotGridTick" title="The map&rsquo;s own grid, drawn over the pieces."><input type="checkbox" id="shotGrid" checked> Grid lines</label><label class="gen-tick" title="Your text boxes, as plain words in their own font, size and color."><input type="checkbox" id="shotLabels" checked> Labels</label></span></div>
         <div class="gen-row"><span class="gen-name" id="shotBgName">Background</span><span class="gen-seg" id="shotBg" role="radiogroup" aria-labelledby="shotBgName"><button type="button" class="gen-chip on" data-bg="dark" role="radio" aria-checked="true" title="A dark ground behind the pieces.">Dark</button><button type="button" class="gen-chip" data-bg="none" role="radio" aria-checked="false" title="The ground is left see-through, which prints as white paper. A label with no color of its own is then drawn dark.">None</button></span></div>
+        <div class="gen-row" id="shotRulesRow" hidden><span class="gen-name" id="shotRulesName">Pieces with rules</span><span class="gen-seg" id="shotRules" role="radiogroup" aria-labelledby="shotRulesName"><button type="button" class="gen-chip on" data-rules="keep" role="radio" aria-checked="true" title="Walls, doors, cover, smoke, terrain, ground height and lights are drawn into the picture and kept as pieces that draw nothing, so fog, cover and movement work as before">Drawn in, rules kept</button><button type="button" class="gen-chip" data-rules="out" role="radio" aria-checked="false" title="Pieces with rules stay as they are, drawn over the picture">Left out</button></span></div>
         <div class="gen-line" id="shotNote">Tokens, hidden pieces and your own GM marks are left out. Fog is not drawn, so the picture also shows what your players have not seen yet.</div>
         <div class="gen-foot"><button type="button" class="tool ghost" id="shotCancel">Cancel</button><button type="button" class="tool" id="shotGo">Save picture</button></div>
     </div>

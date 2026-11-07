@@ -8622,6 +8622,7 @@ function buildTabsWire() {
         if (c.id === 'buildGenBtn') part = 'generate';
         c.setAttribute('data-bpart', part);
     });
+    var flB = document.getElementById('buildFlatBtn'); if (flB && !flB.dataset.wired) { flB.dataset.wired = '1'; flB.addEventListener('click', function() { var am = getActiveMap(), ids = Array.isArray(state.selWbIds) && state.selWbIds.length ? state.selWbIds.slice() : (state.selWbId ? [state.selWbId] : []); if (!am || ids.length < 2) { toast('Select two pieces or more on the map first, then Flatten selection.'); return; } if (window.wpMapShot && window.wpMapShot.flatten) window.wpMapShot.flatten(ids); }); }   // 1.6.2 (backlog 39)
     var gens = ['buildGenBtn', 'buildCityBtn', 'buildWorldBtn'].map(function(id) { return document.getElementById(id); }).filter(Boolean);
     if (gens.length && gens[0].parentNode) { var box = document.createElement('div'); box.className = 'build-gens'; box.setAttribute('data-bpart', 'generate'); gens[0].parentNode.insertBefore(box, gens[0]); gens.forEach(function(b) { box.appendChild(b); }); }   // three cards, in their order
     Array.prototype.forEach.call(tabs.querySelectorAll('.build-tab'), function(b) {
@@ -8870,6 +8871,16 @@ buildWire();
 // fixed words and the Wall line's own drawing, and nothing of a piece
 var WALLS_ROW = '<div class="menu-item cm-walls" title="Thin wall lines along the outer edge of the selected floors together. Where two of them touch there is no wall between them, and a doorway that holds a door stays open. Each line is an ordinary piece afterwards, and one Undo takes them all back.">'
     + '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 18.5V8.5h13M3.5 18.5h4M18.5 6.5v4"/></svg><span>Walls around selection<small>Lays wall lines along the outer edge.</small></span></div>';
+// 1.6.2 (backlog 39): Flatten into one picture, on the GM's menu of a selection the map picture would draw, and Unflatten on a flattened picture
+var FLAT_ROW = '<div class="menu-item cm-flatten" title="The selected pieces drawn into one picture, saved with this campaign. The plain pieces are hidden, and Unflatten on the picture puts them back.">' + '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5V5h3.5M17.5 5H21v3.5M21 15.5V19h-3.5M6.5 19H3v-3.5M7.5 8.5h9v7h-9zM12 8.5v7M7.5 12h9"/></svg>' + '<span>Flatten into one picture&hellip;<small>Many pieces become one picture.</small></span></div>';
+var UNFLAT_ROW = '<div class="menu-item cm-unflat" title="Puts back the pieces this picture was made from, as they were, and takes the picture away.">' + '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5V5h3.5M17.5 5H21v3.5M21 15.5V19h-3.5M6.5 19H3v-3.5M7.5 8.5h9v7h-9zM12 8.5v7M7.5 12h9"/></svg>' + '<span>Unflatten<small>Puts its pieces back.</small></span></div>';
+function flatRows(items) {
+    var SCf = window.wpShotCore; if (window.wpStream || !buildMay() || !window.wpMapShot || typeof window.wpMapShot.flatten !== 'function') return null;
+    var list = (Array.isArray(items) ? items : []).filter(Boolean), html = '';
+    if (list.length === 1 && list[0].flatPic === true) html += UNFLAT_ROW;
+    if (list.length >= 2 && SCf && typeof SCf.shows === 'function' && list.filter(function(w) { return SCf.shows(w, true); }).length >= 2) html += FLAT_ROW;
+    return html ? { html: html } : null;
+}
 function wallsRow(items) {
     var BC = buildCore();
     if (!BC || typeof BC.outlineWalls !== 'function' || window.wpStream || !buildMay()) return null;
@@ -11005,6 +11016,8 @@ document.addEventListener('contextmenu', function(e) {
                 var wlRow = wallsRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // the map builder: walls around the selected floors, a group of its own
                 if (wlRow) html += wlRow.html + '<div class="menu-divider"></div>';
             }
+            var flRow = isWb && typeof flatRows === 'function' ? flatRows(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); })) : null;   // 1.6.2 (backlog 39): Flatten, and Unflatten
+            if (flRow) html += flRow.html + '<div class="menu-divider"></div>';
             // 1.6.2 (the owner: "stacking folded"): one Order row opens the four stacking rows in place
             html += '<div class="menu-item cm-order" aria-expanded="false" title="Bring to front, forward, backward or send to back">Order &#9656;</div>';
             html += '<div class="cm-stackrows" hidden><div class="menu-item cm-front">Bring to front</div><div class="menu-item cm-fwd">Bring forward</div><div class="menu-item cm-bwd">Send backward</div><div class="menu-item cm-back">Send to back</div></div>';
@@ -11259,6 +11272,10 @@ document.addEventListener('contextmenu', function(e) {
                         if (it) it.locked = lockThem;
                     });
                     import('./io.js').then(m => m.toast(lockThem ? 'Locked in place.' : 'Unlocked: free to move.'));
+                } else if (action.includes('cm-flatten')) {   // 1.6.2 (backlog 39): the map picture's dialog, flattening the selection
+                    if (window.wpMapShot && window.wpMapShot.flatten) window.wpMapShot.flatten(selectedIds.slice());
+                } else if (action.includes('cm-unflat')) {
+                    if (window.wpFlatten && selectedIds.length === 1) window.wpFlatten.undo(am, selectedIds[0]);
                 } else if (action.includes('cm-walls')) {   // the map builder: wall lines around the selected floors (saved and drawn again below: ONE save, so one Undo takes them all back)
                     var saidW = wallsLay(am, selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));
                     if (saidW) toast(saidW);

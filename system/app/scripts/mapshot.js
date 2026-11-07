@@ -15,7 +15,7 @@ import * as BC from './buildcore.js';
 
 // [buildcheck:mapshot-start]
 var SHOT_KEY = 'wp_shot', SHOT_CANT = 'The picture could not be made. Try a smaller cell size.';
-var _shot = { area: 'map', cell: 70, grid: true, labels: true, bg: 'dark', busy: false, gen: 0, loaded: false, err: '' };
+var _shot = { area: 'map', cell: 70, grid: true, labels: true, bg: 'dark', busy: false, gen: 0, loaded: false, err: '', flat: null, rules: 'keep' };   // 1.6.2 (backlog 39): flat, a flatten of a selection under way ({ ids }); rules, what its pieces with rules do
 function shotEl(id) { return document.getElementById(id); }
 // The GM's own campaign on this computer, never someone else's table, the stream window or a window of a page's own
 function shotMay() {
@@ -35,8 +35,9 @@ function shotLoad() {
         var v = JSON.parse(localStorage.getItem(SHOT_KEY) || 'null'); if (!v || typeof v !== 'object') return;
         _shot.area = v.area === 'view' ? 'view' : 'map'; _shot.cell = SC.cleanCell(v.cell); _shot.grid = v.grid !== false; _shot.labels = v.labels !== false; _shot.bg = v.bg === 'none' ? 'none' : 'dark';
     } catch (e) {}
+    try { _shot.rules = localStorage.getItem('wp_flatRules') === 'out' ? 'out' : 'keep'; } catch (e) {}   // 1.6.2 (backlog 39): a flatten's pieces with rules, kept apart
 }
-function shotKeep() { try { localStorage.setItem(SHOT_KEY, JSON.stringify({ area: _shot.area, cell: _shot.cell, grid: _shot.grid, labels: _shot.labels, bg: _shot.bg })); } catch (e) {} }
+function shotKeep() { try { localStorage.setItem(SHOT_KEY, JSON.stringify({ area: _shot.area, cell: _shot.cell, grid: _shot.grid, labels: _shot.labels, bg: _shot.bg })); } catch (e) {} try { localStorage.setItem('wp_flatRules', _shot.rules); } catch (e) {} }
 // 1.6.2 (backlog 38): a map's own cell (fogcore cleanMapCell), null for today's lattice
 function shotOwnCell(map) { var g = shotGridOf(map), FC = window.wpFogCore; return g && map.meta && FC && typeof FC.cleanMapCell === 'function' ? FC.cleanMapCell(map.meta.cell, g) : null; }
 // the board px a Cell size chip measures against: one cell of the map's own (a hex by its row as 52 is to 50), today's 50 with none
@@ -50,7 +51,9 @@ function shotView() {
     var wrap = shotEl('whiteboardWrap'), z = state.zoomLevel > 0 ? state.zoomLevel : 1;
     return wrap ? SC.viewBox({ x: wrap.scrollLeft / z, y: wrap.scrollTop / z, w: wrap.clientWidth / z, h: wrap.clientHeight / z }) : null;
 }
-function shotBox(map) { return _shot.area === 'view' ? shotView() : SC.bounds(map.whiteboard, { labels: _shot.labels, grid: !!shotGridOf(map), snap: shotSnap(map) }); }
+// 1.6.2 (backlog 39): a flatten of the selection, planned on the map as it stands (shotcore flatPlan); flatten.js lays it, since this dialog changes nothing on the map
+function flatNow(map) { return _shot.flat && map ? SC.flatPlan(map.whiteboard, _shot.flat.ids, _shot.rules) : null; }
+function shotBox(map) { if (_shot.flat) { var fpB = flatNow(map); return fpB && fpB.ok ? fpB.box : null; } return _shot.area === 'view' ? shotView() : SC.bounds(map.whiteboard, { labels: _shot.labels, grid: !!shotGridOf(map), snap: shotSnap(map) }); }
 function shotTitle(map) { var raw = (map && map.meta && typeof map.meta.title === 'string' && map.meta.title) || 'map'; return String(raw).replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '').trim().slice(0, 80) || 'map'; }
 // A tooltip set while the page runs goes into data-tip, where the app's own tooltips read it. Set back into title, the browser's own bubble
 // would come up beside the app's
@@ -73,13 +76,17 @@ function shotSync() {
     var g = shotEl('shotGrid'), l = shotEl('shotLabels'), line = shotEl('shotSize'), go = shotEl('shotGo'), cancel = shotEl('shotCancel');
     if (g) { g.checked = _shot.grid && !!gridKind; g.disabled = !gridKind || _shot.busy; shotTip(shotEl('shotGridTick') || g, gridKind ? 'The map’s own grid, drawn over the pieces.' : 'This map has no grid.'); }
     if (l) { l.checked = _shot.labels; l.disabled = _shot.busy; }
-    if (line) line.textContent = _shot.busy ? 'Making the picture…' : (_shot.err || SC.sizeWords(p, _shot.area));
-    if (go) go.disabled = !p.ok || _shot.busy;
+    var fl = !!_shot.flat, rowOf = function(id) { var e = shotEl(id); return e && typeof e.closest === 'function' ? e.closest('.gen-row') : null; };   // 1.6.2 (backlog 39): the same dialog flattens a selection
+    [rowOf('shotArea'), rowOf('shotGridTick'), rowOf('shotBg')].forEach(function(r) { if (r) r.hidden = fl; }); var rr = shotEl('shotRulesRow'); if (rr) rr.hidden = !fl; seg('shotRules', 'data-rules', _shot.rules);
+    var tt = shotEl('shotTitle'), nt = shotEl('shotNote'); if (tt) tt.textContent = fl ? 'Flatten into one picture' : 'Save map as picture'; if (nt) nt.textContent = fl ? 'The selected pieces become one picture, saved with this campaign. The plain pieces are hidden, and Unflatten on its right-click puts them back.' : 'Tokens, hidden pieces and your own GM marks are left out. Fog is not drawn, so the picture also shows what your players have not seen yet.';
+    if (line) line.textContent = _shot.busy ? 'Making the picture\u2026' : (_shot.err || (fl && !p.ok && p.why === 'empty' ? 'Nothing selected can be drawn into a picture.' : SC.sizeWords(p, _shot.area)));
+    if (go) { go.disabled = !p.ok || _shot.busy; go.textContent = fl ? 'Flatten' : 'Save picture'; }
     if (cancel) cancel.disabled = false;
     return p;
 }
-function shotShow() {
+function shotShow(flat) {
     var m = shotEl('shotModal'); if (!m) return false;
+    _shot.flat = flat && typeof flat === 'object' && Array.isArray(flat.ids) && flat.ids.length ? { ids: flat.ids.filter(function(x) { return typeof x === 'string'; }).slice(0, 60000) } : null;
     if (!shotMay()) { toast('Not while you are at someone else’s table.'); return false; }
     if (!shotMap()) { toast('Save map as picture is for a play map. Open a map and its Play Map view first.'); return false; }
     shotLoad(); _shot.busy = false; _shot.err = ''; shotSync();
@@ -89,7 +96,7 @@ function shotShow() {
 }
 function shotHide() {
     var m = shotEl('shotModal'); if (!m || !shotShown()) return;
-    m.style.display = 'none'; _shot.gen++; _shot.busy = false; _shot.err = '';   // a picture still being made is let go: its answer finds another count
+    m.style.display = 'none'; _shot.gen++; _shot.busy = false; _shot.err = ''; _shot.flat = null;   // a picture still being made is let go: its answer finds another count
     var b = shotEl('moreMenuBtn'); if (b && typeof b.focus === 'function') b.focus();
 }
 // One picture, loaded whole or not at all: { img, w, h }, or null for a file that is gone, is no picture or takes too long
@@ -143,7 +150,7 @@ function shotGo() {
     var map = shotMap(); if (!map || !shotMay()) { shotHide(); return false; }
     _shot.err = '';
     var box = shotBox(map), p = SC.plan(box, _shot.cell, shotRef(map)); if (!p.ok) { shotSync(); return false; }
-    var grid = shotGridOf(map), lines = _shot.grid && !!grid, labels = _shot.labels, bg = _shot.bg, items = map.whiteboard.slice(), need = SC.needs(items, { labels: labels, grid: !!grid, box: box }), title = shotTitle(map), my = ++_shot.gen;
+    var fp = flatNow(map), grid = fp ? '' : shotGridOf(map), lines = !fp && _shot.grid && !!grid, labels = fp ? true : _shot.labels, bg = fp ? 'none' : _shot.bg, items = fp ? fp.draw.slice() : map.whiteboard.slice(), need = SC.needs(items, { labels: labels, grid: !!grid, box: box }), title = shotTitle(map), my = ++_shot.gen;   // 1.6.2 (backlog 39): a flatten draws its own pieces alone, on a clear ground
     _shot.busy = true; shotKeep(); shotSync();
     var fail = function() { if (my !== _shot.gen) return; _shot.busy = false; _shot.err = SHOT_CANT; shotSync(); };
     Promise.all([Promise.all(need.pics.map(shotPic)), Promise.all(need.fonts.map(shotFont))]).then(function(got) {
@@ -163,6 +170,14 @@ function shotGo() {
         return new Promise(function(res, rej) { try { cv.toBlob(function(b) { if (b) res({ blob: b, lost: lost, cut: !!(drew && drew.cut) }); else rej(new Error('no file')); }, 'image/png'); } catch (e) { rej(e); } });
     }).then(function(r) {
         if (!r || my !== _shot.gen) return;
+        if (fp) {   // 1.6.2 (backlog 39): the picture is saved with the campaign's pictures and laid where its pieces were
+            var mapId = state.appState && state.appState.campaigns && state.appState.activeCampaignId ? (state.appState.campaigns[state.appState.activeCampaignId] || {}).activeItemId : null;
+            if (typeof window.wpUploadBlob !== 'function' || !mapId) throw new Error('no upload');
+            return window.wpUploadBlob(mapId, title + '-flat.png', r.blob).then(function(url) {
+                if (my !== _shot.gen) return; var m2 = shotMap(); if (!m2 || !window.wpFlatten) throw new Error('map gone'); var fp2 = SC.flatPlan(m2.whiteboard, _shot.flat.ids, _shot.rules); if (!fp2.ok) throw new Error('nothing left');
+                shotHide(); window.wpFlatten.lay(m2, fp2, url);
+            });
+        }
         shotSave(title + '.png', r.blob);
         shotHide();
         toast(shotDoneWords(p, r.lost, r.cut));
@@ -212,6 +227,7 @@ function shotWire() {
     chips('shotArea', 'data-area', function(v) { _shot.area = v === 'view' ? 'view' : 'map'; });
     chips('shotCell', 'data-cell', function(v) { _shot.cell = SC.cleanCell(Number(v)); });
     chips('shotBg', 'data-bg', function(v) { _shot.bg = v === 'none' ? 'none' : 'dark'; });
+    chips('shotRules', 'data-rules', function(v) { _shot.rules = v === 'out' ? 'out' : 'keep'; });   // 1.6.2 (backlog 39)
     var g = shotEl('shotGrid'), l = shotEl('shotLabels'), cancel = shotEl('shotCancel'), go = shotEl('shotGo'), back = shotEl('moreMenuBtn');
     if (g) g.addEventListener('change', function() { var on = this.checked === true; shotPick(function() { _shot.grid = on; }); });
     if (l) l.addEventListener('change', function() { var on = this.checked === true; shotPick(function() { _shot.labels = on; }); });
@@ -225,6 +241,7 @@ function shotWire() {
 // [buildcheck:mapshot-end]
 shotWire();
 if (typeof window !== 'undefined') window.wpMapShot = { open: shotShow, shown: shotShown };
+if (typeof window !== 'undefined') window.wpMapShot.flatten = function(ids) { return shotShow({ ids: ids }); };   // 1.6.2 (backlog 39): the same dialog, flattening the selection
 
 // [buildcheck:portalpic-start]
 /* 1.6.0, a portal's destination as a small picture (backlog 32; the owner, 2026-10-29, by prompt). Resting on a portal shows the map it leads

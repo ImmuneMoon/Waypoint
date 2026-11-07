@@ -53,6 +53,9 @@ function moveHeading(from, to) { if (!from || !to) return null; var dx = to.x - 
 // since it faces no way of its own. Answered as the element's own rotate, which turns it on top of the rot its transform already carries
 function uprightOf(item, facing) { return !!item && !item.waiting && (item.type === 'text' || (!facing && !!item.isChar)); }
 function uprightTurn(deg) { return Math.abs(deg) > 0.01 ? (Math.round(-deg * 100) / 100) + 'deg' : ''; }
+// A token's own turn on the board (what it wears of ours and its own rot), taken back from its words: always a value, so a map turned back to
+// north keeps the words level while the token keeps a turn
+function levelTurn(own) { return (Math.round(-(Number(own) || 0) * 100) / 100 || 0) + 'deg'; }
 // The turn a piece wears of its own: a text box reads across the screen; a character token that faces no way stands upright while the view follows a
 // token (follow), else faces the way it last moved where Turn to movement is on (heading, null for none yet), else stands upright on a turned map
 function pieceTurn(item, deg, follow, moveTurn, heading) {
@@ -82,7 +85,7 @@ function followed() {
     return picked.length === 1 ? picked[0] : null;
 }
 function centreOf(w) { var x = Number(w.x) || 0, y = Number(w.y) || 0, wd = Number(w.w) || 50, ht = Number(w.h) || 50; return { x: x + wd / 2, y: y + ht / 2 }; }
-var _up = {}, _upAt = 0, _upOn = false, _upMt = false, _mv = {};   // the ids that stay upright, worked out again twice a second or when the map turns or comes back
+var _up = {}, _lv = {}, _upAt = 0, _upOn = false, _upMt = false, _mv = {};   // the ids that stay upright, worked out again twice a second or when the map turns or comes back
 function upright(force) {
     var now = Date.now(), els = state.wbEls || {}, r = uprightTurn(V.deg);
     var mt = moveTurnOn(), fol = V.src === 'own';
@@ -95,8 +98,16 @@ function upright(force) {
         });
         Object.keys(_up).forEach(function(id) { if (!want[id]) { var el = els[id]; if (el && el.style) el.style.rotate = ''; } });
         _up = want;
+        var lv = {};   // a token's words (its initials, its effect marks) read level: the style sheet turns them by this less the board's own turn
+        if (m && Array.isArray(m.whiteboard)) m.whiteboard.forEach(function(w) {
+            if (!w || !w.isChar || w.waiting || !(r || want[w.id])) return;
+            var own = (parseFloat(want[w.id]) || 0) + (Number(w.rot) || 0); lv[w.id] = levelTurn(own);
+        });
+        Object.keys(_lv).forEach(function(id) { if (!lv[id]) { var el = els[id]; if (el && el.style && el.style.removeProperty) el.style.removeProperty('--lvl-own'); } });
+        _lv = lv;
     }
     Object.keys(_up).forEach(function(id) { var el = els[id], t = _up[id]; if (el && el.style && el.style.rotate !== t) el.style.rotate = t; });   // each frame, so a piece the board draws again stays upright
+    Object.keys(_lv).forEach(function(id) { var el = els[id], t = _lv[id]; if (el && el.style && el.style.setProperty && el.style.getPropertyValue('--lvl-own') !== t) el.style.setProperty('--lvl-own', t); });
     var rose = document.getElementById('compassRose');   // a compass at a corner turns with the map, so its north still points north
     if (rose && rose.style) { var cr = rose.classList.contains('compass-map') || !r ? '' : (Math.round(V.deg * 100) / 100) + 'deg'; if (rose.style.rotate !== cr) rose.style.rotate = cr; }
 }

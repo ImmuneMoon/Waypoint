@@ -12,7 +12,7 @@ const viewSrc = read('scripts/view.js');
 const a = viewSrc.indexOf('// [viewcheck:core-start]'), z = viewSrc.indexOf('// [viewcheck:core-end]');
 check('view.js holds its core between its markers', a >= 0 && z > a);
 const state = { zoomLevel: 1 };
-const K = new Function('state', viewSrc.slice(a, z) + '\nreturn { uprightOf: uprightOf, uprightTurn: uprightTurn, pieceTurn: pieceTurn, viewSource: viewSource, V: V, rad: rad, isTurned: isTurned, turnTo: turnTo, bxy: bxy, dxy: dxy, sxy: sxy, pivotTo: pivotTo, transform: transform, headingOf: headingOf, moveHeading: moveHeading };')(state);
+const K = new Function('state', viewSrc.slice(a, z) + '\nreturn { uprightOf: uprightOf, uprightTurn: uprightTurn, levelTurn: levelTurn, pieceTurn: pieceTurn, viewSource: viewSource, V: V, rad: rad, isTurned: isTurned, turnTo: turnTo, bxy: bxy, dxy: dxy, sxy: sxy, pivotTo: pivotTo, transform: transform, headingOf: headingOf, moveHeading: moveHeading };')(state);
 const V = K.V, near = (p, q, e) => Math.abs(p - q) <= (e || 1e-6);
 
 // the shortest way round
@@ -124,5 +124,11 @@ check('Turn to movement is a VTT feature a player may switch off, the GM sets ev
     && read('scripts/net.js').includes('CPv.cleanViewTurn(m.meta.viewTurn)') && read('scripts/cleanup.js').includes('CPt.cleanViewTurn(it.meta.viewTurn)')
     && help.includes('<b>Everyone&rsquo;s map</b>') && help.includes('<b>Turn to movement</b>')
     && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n').includes('- Turn to movement, a new VTT setting, turns a token that faces no way to\n')));
+check('a token\'s words read level: its own turn taken back from them as a value always written (levelTurn), and the style sheet turns them, the stream names and the ruler\'s and marks\' words by the board\'s turn too',
+    K.levelTurn(-30) === '30deg' && K.levelTurn(45.256) === '-45.26deg' && K.levelTurn(0) === '0deg' && K.levelTurn('x') === '0deg' && K.levelTurn(undefined) === '0deg'
+    && viewSrc.includes("el.style.setProperty('--lvl-own', t)") && viewSrc.includes("if (!w || !w.isChar || w.waiting || !(r || want[w.id])) return;")
+    && read('style.css').includes('#whiteboard .wb-item > .token-initials, #whiteboard .token-fx .tfx { rotate: calc(var(--lvl-own, 0deg) - var(--view-turn, 0deg)); }')
+    && read('style.css').includes('#streamNames .stream-name { rotate: calc(var(--view-turn, 0deg) * -1); transform-origin: 0 50%; }')
+    && read('style.css').includes('#measureLayer text, #tagLayer text { transform-box: fill-box; transform-origin: center; rotate: calc(var(--view-turn, 0deg) * -1); }'));
 console.log(pass + ' passed, ' + fail + ' failed.');
 process.exit(fail ? 1 : 0);

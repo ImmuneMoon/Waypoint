@@ -6333,6 +6333,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                     j(dK) === j({ 'list stats': 1, 'list counters': 1, jobs: 1 }) && S.droppedWords(dK) === '1 list stat, 1 list counter, 1 job' && cK.fields[0].list.counters.length === 1 && !('job' in cK.fields[0].list.rolls[0]) && j(cK.fields[0].list.rolls[1].job) === j({ turns: '2', ct: 'Used' })
                     && j(S.droppedCounts(cK, cleanSystem(cK, { F, gmView: true }))) === '{}', j(dK));
             }
+            {   // 1.6.2 (the CORE session): a bundled icon the app does not know is cleared to none; counted wherever the file names one
+                const known = Object.keys(S.GLYPHS || {})[0] || 'check', rawI = { v: 1, name: 'I', rolls: [], fields: [], effects: [{ id: 'e_a', name: 'Fallen', icon: 'icon:pebble-falling' }, { id: 'e_b', name: 'Fine', icon: 'icon:' + known }, { id: 'e_c', name: 'Plain', icon: '\u2605' }] };
+                const cI = cleanSystem(rawI, { F, gmView: true }), dI = S.droppedCounts(rawI, cI);
+                check('1.6.2 an icon the app does not know is counted and said (an emoji and a known icon are not), and a fresh clean of a clean system counts none',
+                    dI.icons === 1 && S.droppedWords({ icons: 1 }) === '1 icon' && !('icons' in S.droppedCounts(cI, cleanSystem(cI, { F, gmView: true }))), j([dI, cI.effects.map(e => e.icon), known]));
+            }
             const cT = cleanSystem(rawT, { F, gmView: true }), dT = S.droppedCounts(rawT, cT);
             check('1.6.0 a text a limit cuts short is said: a caption past 400, a roll\'s words past 200, notes past 1,000 each counted once, a text at its limit and one only trimmed not counted, a comma taken out of a value name no cut; the words say it, a fresh clean of a clean system counts none, and the caps stand where they were read',
                 dT.texts === 4 && S.droppedWords({ texts: 4 }) === '4 texts cut short' && S.droppedWords({ texts: 1 }) === '1 text cut short' && S.droppedWords({ fields: 1, texts: 2 }) === '1 field, 2 texts cut short' && !('texts' in S.droppedCounts(cT, cleanSystem(cT, { F, gmView: true }))) && !('texts' in S.droppedCounts({ __proto__: { x: 'y' }, fields: 'no' }, cT))

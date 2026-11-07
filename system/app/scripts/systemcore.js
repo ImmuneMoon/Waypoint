@@ -5187,6 +5187,10 @@ function droppedCounts(raw, clean) {
     (Array.isArray(raw.fields) ? raw.fields : []).forEach(function(f) { var cl = isObj(f) && typeof f.id === 'string' && isObj(f.list) ? keptF[f.id] : null; if (!cl) return; var rl = f.list;
         lsd['list stats'] += Math.max(0, len(rl.stats) - len(cl.stats)); lsd['list columns'] += Math.max(0, len(rl.cols) - len(cl.cols)); lsd['list counters'] += Math.max(0, len(rl.counters) - len(cl.counters)); lsd.jobs += Math.max(0, jobs(rl) - jobs(cl)); });
     Object.keys(lsd).forEach(function(k) { if (lsd[k] > 0) out[k] = lsd[k]; });
+    // 1.6.2 (the CORE session): a bundled icon the app does not know (icon: and a name glyphPath lacks) is cleared to none by the cleaners; counted
+    // wherever the file names one, a walk bounded in depth and in what it reads
+    var icN = 0, seenN = 0, walk = function(v, d) { if (seenN++ > 200000 || d > 16) return; if (typeof v === 'string') { var t = v.trim(); if (/^icon:/i.test(t) && !glyphPath(t.toLowerCase())) icN++; return; } if (Array.isArray(v)) { v.forEach(function(x) { walk(x, d + 1); }); return; } if (isObj(v)) Object.keys(v).forEach(function(k) { walk(v[k], d + 1); }); };
+    walk(raw, 0); if (icN) out.icons = icN;
     var cutN = textsCut(raw, clean, 0); if (cutN) out.texts = cutN;
     return out;
 }

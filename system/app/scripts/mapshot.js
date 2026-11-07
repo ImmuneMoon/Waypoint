@@ -154,6 +154,8 @@ function shotGo() {
             tile: function(n) { return tiles[n] || null; },
             text: shotText
         } });
+        var CPs = window.wpCompassCore, cps = CPs && CPs.compassOf ? CPs.compassOf(map) : null;   // 1.6.2, backlog 82: the map's compass drawn in, where its pic tick is on
+        if (cps && cps.pic === true && typeof CPs.roseDraw === 'function') { var rs = Math.max(48, Math.min(256, Math.round(Math.min(p.w, p.h) * 0.12))), rx = cps.at === 'map' ? (cps.x - box.x) * p.scale : cps.at === 'bl' ? rs / 2 + 12 : p.w - rs / 2 - 12, ry = cps.at === 'map' ? (cps.y - box.y) * p.scale : p.h - rs / 2 - 12; if (cps.at === 'map') rs = Math.max(16, 64 * p.scale); CPs.roseDraw(ctx, rx, ry, rs, cps.north || 0); }
         return new Promise(function(res, rej) { try { cv.toBlob(function(b) { if (b) res({ blob: b, lost: lost, cut: !!(drew && drew.cut) }); else rej(new Error('no file')); }, 'image/png'); } catch (e) { rej(e); } });
     }).then(function(r) {
         if (!r || my !== _shot.gen) return;

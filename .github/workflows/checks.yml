@@ -165,6 +165,9 @@ jobs:
       - name: plancardcheck — a planner's Person, Place and Clue cards and their other names
         if: ${{ !cancelled() }}
         run: node tools/plancardcheck.js
+      - name: compasscheck — a map's compass, the way it names and the rose
+        if: ${{ !cancelled() }}
+        run: node tools/compasscheck.js
       - name: dice3dcheck — animated dice, the stand-in dice, a model file and the face each die lands on
         if: ${{ !cancelled() }}
         run: node tools/dice3dcheck.js

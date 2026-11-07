@@ -565,6 +565,10 @@ Writing planners and pages
   person card can name its character sheet, and a clue has a Found tick.
 - Every card has Also known as for its other names. Search and quick jump
   find a card by any of them and open the page at the card.
+- A map can have a compass. Put it on in the measure options, drag the rose
+  to turn north, and stand it at a corner or on the map. It can say the way a
+  token faces and the way the ruler points, and it can go into the map's
+  picture. Anyone can hide its words on their own screen in Settings.
 - The Calendar has moons and seasons. Each moon shows its phase on every
   day of the month, with New or Full on those days, and the date says the
   season. A rule or a formula can ask which season it is or a moon's phase.

@@ -716,6 +716,7 @@
         color: var(--dim); text-align: left; padding: 0 2px;
     }
     .draw-menu-row { display: flex; gap: 5px; align-items: center; }
+    .draw-menu-row[hidden], .draw-menu-label[hidden] { display: none; }   /* 1.6.2: a row put away stays away (the Map kind list showed empty on a system with no map kinds) */
     #drawShowBox { display: flex; flex-direction: column; gap: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--edge); }   /* the pen's first choice: On the map or To show */
     #drawShowBox[hidden], #drawShowPart[hidden] { display: none; }
     #drawShowPart { display: flex; flex-direction: column; gap: 5px; }
@@ -1208,6 +1209,20 @@
   #tagLayer circle { fill: var(--teal); }
   #tagLayer text { fill: var(--teal); font: bold 12px sans-serif; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; }
   #tagLayer .tag-mark-off { pointer-events: auto; cursor: pointer; }
+  /* 1.6.2, backlog 82: a map's compass (compass.js), at a corner of the play map or on the map itself; the GM drags it to turn north, and its middle to move it on the map */
+  #compassRose { position: absolute; width: 64px; height: 64px; z-index: 5005; pointer-events: none; }
+  #compassRose.compass-br { right: 26px; bottom: 20px; }
+  #compassRose.compass-bl { left: 26px; bottom: 20px; }
+  #compassRose.compass-map { z-index: 15980; }
+  #compassRose svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  #compassRose.compass-gm { pointer-events: auto; cursor: grab; }
+  #compassRose .compass-n { font: 700 9px Inter, system-ui, sans-serif; fill: #e3a23b; }
+  #compassRose .compass-o { font: 600 7px Inter, system-ui, sans-serif; fill: #e9e6ef; }
+  #compassRose .compass-grip { fill: transparent; cursor: move; }
+  #compassRose.compass-gm .compass-grip:hover { fill: rgba(227,162,59,0.35); }
+  .compass-tick { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
+  .compass-lab { font-size: 12px; color: var(--dim); min-width: 58px; }
+  .compass-unit { font-size: 11px; color: var(--dim); }
   #measureLayer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 16000; overflow: visible; }
   #measureLayer line { stroke: var(--gold); stroke-width: 2; stroke-dasharray: 8 5; }
   #measureLayer circle { fill: var(--gold); }

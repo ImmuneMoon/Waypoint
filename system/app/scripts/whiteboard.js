@@ -3768,6 +3768,7 @@ window.wpFitToGrid = fitToGrid;
       if (names.length) out.push('Effects: ' + names.join(', '));
       var env = window.wpSheets && window.wpSheets.tokenEnv ? window.wpSheets.tokenEnv(item) : null;
       if (env && typeof env.text === 'string' && env.text) out.push(env.text);
+      var cpF = window.wpCompass && typeof window.wpCompass.faceWords === 'function' ? window.wpCompass.faceWords(item) : ''; if (cpF) out.push(cpF);   // 1.6.2, backlog 82: the way it faces by the map's compass
       return out;
   }
   // [lookcheck:badgesay-end]
@@ -4000,7 +4001,8 @@ window.wpFitToGrid = fitToGrid;
               if (cv && cv.name) labCov = 'Cover: ' + cv.name;
           }
           var prR = tB && tB !== tA ? postureRanged(tB) : '';   // posture: its ranged note against the token the ruler ends on, after the distance (display only)
-          html += '<text x="' + (mx + 8) + '" y="' + (my - 8) + '">' + measureLabel(dist, diagCells(m)) + (prR ? ' \u00b7 ' + esc(prR) : '') + '</text>';
+          var cpW = window.wpCompass && typeof window.wpCompass.rulerWay === 'function' ? window.wpCompass.rulerWay(m.x1, m.y1, m.x2, m.y2) : '';   // 1.6.2, backlog 82: the way it points by the map's compass
+          html += '<text x="' + (mx + 8) + '" y="' + (my - 8) + '">' + measureLabel(dist, diagCells(m)) + esc(cpW) + (prR ? ' \u00b7 ' + esc(prR) : '') + '</text>';
           var _covY = my + 11;
           if (lab3) { html += '<text x="' + (mx + 8) + '" y="' + _covY + '">' + lab3 + '</text>'; _covY += 19; }
           if (labCov) html += '<text x="' + (mx + 8) + '" y="' + _covY + '">' + labCov + '</text>';
@@ -4152,6 +4154,7 @@ window.wpFitToGrid = fitToGrid;
       });
   })();
   function syncMeasureMenu() {
+      if (window.wpCompass && typeof window.wpCompass.menuSync === 'function') window.wpCompass.menuSync();   // 1.6.2, backlog 82: the Compass part
 
       document.querySelectorAll('#measureUnitRow .draw-style-btn').forEach(function(b) {
 

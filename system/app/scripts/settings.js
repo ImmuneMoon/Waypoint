@@ -240,6 +240,8 @@ function hiddenLookApply(v) { try { document.body.classList.toggle('hid-none', h
 function wallMarkOf(v) { return v === 'always' || v === 'never' ? v : 'hover'; }
 function wallMarkApply(v) { var w = wallMarkOf(v); try { document.body.classList.toggle('wallmk-always', w === 'always'); document.body.classList.toggle('wallmk-never', w === 'never'); } catch (e) {} }
 // [lookcheck:wallmarks-end]
+// 1.6.2, backlog 82 (the owner, by prompt: "Both"): the compass's words on this screen, wp_compassWords, read by compass.js; shown unless off
+var _cwSel = ui('setCompassWords'); if (_cwSel) { try { _cwSel.value = localStorage.getItem('wp_compassWords') === 'off' ? 'off' : 'on'; } catch (e) { _cwSel.value = 'on'; } _cwSel.addEventListener('change', function() { try { localStorage.setItem('wp_compassWords', _cwSel.value === 'off' ? 'off' : 'on'); } catch (e) {} if (window.render) window.render(); else if (window.appRender) window.appRender(); }); }
 var _wmSel = ui('setWallMarks'), _wm0 = 'hover';
 try { _wm0 = wallMarkOf(localStorage.getItem('wp_wallMarks')); } catch (e) {}
 wallMarkApply(_wm0);

@@ -7750,6 +7750,7 @@ function open(which, topic) {
     if (ui('sysMark')) { ui('sysMark').value = typeof draft.mark === 'string' ? draft.mark : ''; var mkR = ui('sysMark').closest('.sys-flags'); if (mkR) mkR.hidden = !draft.mark && !sysReaders();   // 1.6.2: a word for an outside reader, which a table without one has no use for
     }
     m.style.display = 'flex';
+    _starterPacks = null; startersLoad().then(function(l) { startersFill(ui('sysStartSel'), l); });   // 1.6.2: the starters from their list, none waiting
     if (window.wpSysUi) window.wpSysUi.pickReset();   // 1.6.2: a list opens on its first row
     if (topic && window.wpSysUi) window.wpSysUi.topicPress(tab, topic);   // the Combat or Rules tab at one topic
     renderAll();
@@ -7759,7 +7760,7 @@ function close(force) {
     var m = ui('systemModal'); if (!m || m.style.display === 'none') return;
     if (dirty && !force) { showConfirm('Close the System editor without saving? Your changes to the fields, rolls and layout since the last Save are lost (characters are saved as you go).', function(yes) { if (yes) { dirty = false; close(true); } }, { noEnter: true }); return; }   // 1.6.2: a key pressed for something else never throws the changes away
     if (window.wpArrange && window.wpArrange.on()) window.wpArrange.set(false);
-    m.style.display = 'none'; draft = null;
+    m.style.display = 'none'; draft = null; _starterPacks = null;
 }
 // [systemcheck:altbox-start]
 // 1.6.0: other names for a list roll, an action or a counter (alt: [{ if, label }]), edited in place on the draft object it is handed: a name and a
@@ -8237,6 +8238,7 @@ function saveDraft() {
     draft = clone(clean); dirty = false; var s = ui('sysSaveBtn'); if (s) s.classList.remove('on');
     if (pendS.length) { var dc = draft.combat || (draft.combat = {}), dsn = dc.senses && typeof dc.senses === 'object' ? dc.senses : (dc.senses = {}); dsn.list = (Array.isArray(dsn.list) ? dsn.list : []).concat(clone(pendS)); markDirty(); }
     save(true);
+    starterSaved();   // 1.6.2: a starter's own packs, now that its system is the campaign's
     var n = net(); if (n && n.syncSystem) n.syncSystem();
     if (n && n.active && n.role === 'host' && n.sensesMoved) n.sensesMoved(null);   // Senses S0: a formula or a default only the GM sees may feed Sight, and moves neither view of the system
     if (n && n.active && n.role === 'host' && n.syncChars && gmFacing(prevSys) !== gmFacing(clean)) n.syncChars();   // Stage 6 F4a: an edit to a GM-only item or effect changes what its owner holds inline (the players' view alone would not resend it)
@@ -14490,12 +14492,56 @@ function runTest() {
     clean.fields.forEach(function(f) { var e = all[f.id]; var line = el('div', 'sys-test-line' + (e.error ? ' sys-err-line' : '')); line.textContent = (f.label || f.key) + ': ' + (e.error ? (typeof plainMessage === 'function' ? plainMessage(e.error) : e.error) : e.text); out.appendChild(line); });
     if (!clean.fields.length) out.appendChild(el('div', 'sys-note', 'There is no field to work out yet.'));
 }
+// [systemcheck:starters-start]
+// 1.6.2 (the owner, 2026-11-07, by prompt: "Replace with CORE", "System and all ten packs"): the starters a system can begin from are listed in
+// assets/systems/starters.json ({ starters: [{ id, name, packs?: [file] }] }), read once; a starter's packs are fetched with it and kept waiting
+// until Save, which writes them into the campaign's library (wpLibrary.starterPacks), since the library cleans each entry against the saved system.
+// An id and a pack file are names of the app's own folder only. With no list the page's own options stand
+var _starterPacks = null, _starters = null;
+var STARTER_ID = /^[a-z0-9-]{1,40}$/, STARTER_FILE = /^[A-Za-z0-9_-]{1,60}(\/[A-Za-z0-9_.-]{1,80})?\.wppack\.json$/;
+function cleanStarters(j) {
+    var out = [], seen = Object.create(null), src = j && typeof j === 'object' && Array.isArray(j.starters) ? j.starters : [];
+    src.slice(0, 16).forEach(function(s) {
+        if (!s || typeof s !== 'object' || typeof s.id !== 'string' || !STARTER_ID.test(s.id) || s.id === 'blank' || seen[s.id]) return;
+        var nm = typeof s.name === 'string' ? s.name.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) : ''; if (!nm) return;
+        var ps = (Array.isArray(s.packs) ? s.packs : []).filter(function(p) { return typeof p === 'string' && STARTER_FILE.test(p) && p.indexOf('..') < 0; }).slice(0, 32);
+        seen[s.id] = 1; var o = { id: s.id, name: nm }; if (ps.length) o.packs = ps; out.push(o);
+    });
+    return out;
+}
+function startersLoad() {
+    if (_starters) return Promise.resolve(_starters);
+    return fetch('assets/systems/starters.json', { cache: 'no-store' }).then(function(r) { if (!r.ok) throw new Error('missing'); return r.json(); }).then(function(j) { _starters = cleanStarters(j); return _starters; }).catch(function() { return null; });
+}
+function startersFill(sel, list) {   // the Start from list: Start from, Blank, then each starter by its name, as option elements with text
+    if (!sel || !Array.isArray(list) || !list.length) return;
+    while (sel.options.length > 2) sel.remove(2);
+    list.forEach(function(s) { var o = document.createElement('option'); o.value = s.id; o.textContent = s.name; sel.appendChild(o); });
+}
+function starterOf(id) { return (_starters || []).filter(function(s) { return s.id === id; })[0] || null; }
+function starterPacksGet(st) {   // the starter's packs as text, all or none
+    return Promise.all(st.packs.map(function(p) { return fetch('assets/systems/' + p, { cache: 'no-store' }).then(function(r) { if (!r.ok) throw new Error('missing'); return r.text(); }); }));
+}
+function starterSaved() {   // after Save: the waiting packs written, and said
+    var sp = _starterPacks; _starterPacks = null; if (!sp || !window.wpLibrary || !window.wpLibrary.starterPacks) return;
+    window.wpLibrary.starterPacks(sp.texts).then(function(r) {
+        if (!r || r.error) { toast((r && r.error) || 'The starter\u2019s packs could not be added.'); return; }
+        toast(sp.name + '\u2019s library: ' + r.packs + ' pack' + (r.packs === 1 ? '' : 's') + ', ' + r.add + ' entr' + (r.add === 1 ? 'y' : 'ies') + ' added' + (r.update ? ', ' + r.update + ' updated' : '') + (r.skip ? ', ' + r.skip + ' passed over, their ids already in another pack' : '') + (r.bad ? '. ' + r.bad + ' could not be added' : '') + '.');
+        if (typeof renderAll === 'function' && draft) renderAll();
+    }).catch(function() { toast('The starter\u2019s packs could not be added.'); });
+}
+// [systemcheck:starters-end]
 function startFrom(id) {
     if (!draft) return;
-    var apply = function(sys) { draft = clone(sys); draft.updated = 0; ui('sysName').value = draft.name || ''; markDirty(); renderAll(); toast(id === 'blank' ? 'Starting from a blank system.' : 'Starting from ' + draft.name + '. Save to keep it.'); };
+    var apply = function(sys, packs) { draft = clone(sys); draft.updated = 0; _starterPacks = packs || null; ui('sysName').value = draft.name || ''; markDirty(); renderAll(); toast(id === 'blank' ? 'Starting from a blank system.' : 'Starting from ' + draft.name + '. Save to keep it' + (packs ? ', with its ' + packs.texts.length + ' library pack' + (packs.texts.length === 1 ? '' : 's') : '') + '.'); };
     var go = function() {
         if (id === 'blank') { apply(emptySystem()); return; }
-        fetch('assets/systems/' + id + '.json', { cache: 'no-store' }).then(function(r) { if (!r.ok) throw new Error('missing'); return r.json(); }).then(function(j) { var c = cleanSystem(j, { F: F(), gmView: true }); if (!c) throw new Error('bad'); apply(c); }).catch(function() { toast('That preset could not be loaded.'); });
+        var st = starterOf(id);
+        fetch('assets/systems/' + id + '.json', { cache: 'no-store' }).then(function(r) { if (!r.ok) throw new Error('missing'); return r.json(); }).then(function(j) {
+            var c = cleanSystem(j, { F: F(), gmView: true }); if (!c) throw new Error('bad');
+            if (!st || !st.packs) { apply(c); return; }
+            return starterPacksGet(st).then(function(texts) { apply(c, { name: st.name, texts: texts }); });
+        }).catch(function() { toast('That preset could not be loaded.'); });
     };
     if (draft.fields.length || draft.rolls.length) showConfirm('Replace the current fields, rolls and layout with this preset? Values your characters keep under other field ids stay stored but hidden until a field with that id exists again.', function(yes) { if (yes) go(); });
     else go();

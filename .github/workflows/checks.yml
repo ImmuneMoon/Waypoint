@@ -78,6 +78,9 @@ jobs:
       - name: fxsavedcheck — saved effects with sounds
         if: ${{ !cancelled() }}
         run: node tools/fxsavedcheck.js
+      - name: startercheck — a starter system with its packs
+        if: ${{ !cancelled() }}
+        run: node tools/startercheck.js
       - name: musiccheck — music playlists
         if: ${{ !cancelled() }}
         run: node tools/musiccheck.js

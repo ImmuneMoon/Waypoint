@@ -7,7 +7,7 @@
    docs/STAGE_6_LIBRARY_BUILD.md. */
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
-import { libCtx, readPackFile, cleanPack, packMeta, manifestSig, addPack, removePack, nextRev, libImportPlan, setPackMeta, keyIndex, playerIndex, hashText, itemsToMove } from './librarycore.js';
+import { libCtx, readPackFile, cleanPack, packMeta, manifestSig, addPack, removePack, nextRev, libImportPlan, setPackMeta, keyIndex, playerIndex, hashText, itemsToMove, readPackImport, packImportPlan } from './librarycore.js';
 import { setLibraryFind, setLibraryIds, coreOf, cleanSystem, libSnaps, setRuleJudge, gmDerivedNames, gmViewFields } from './systemcore.js';
 
 function map() { return Object.create(null); }
@@ -212,6 +212,30 @@ function entryFor(id) {
     if (!p || p.vis !== 'gm') return e;
     return _gmCopy.copies[id] || (_gmCopy.copies[id] = Object.assign({}, e, { vis: 'gm' }));
 }
+// [librarycheck:starterpacks-start]
+// 1.6.2 (the owner, 2026-11-07, by prompt: "Replace with CORE", "System and all ten packs"): a starter system's own packs, written once its system
+// is saved, since each entry is cleaned against the campaign's system. texts: the pack files as text, in order. A pack of the same name (case
+// aside) is merged into by id, so an entry the GM changed keeps its own changes only where the starter has no entry of that id; else a pack is made.
+// Answers { packs, add, update, skip (an entry whose id another pack holds), bad }; nothing is removed. Its steps go to the app's log as `starter v1`, counts alone
+async function starterPacks(texts) {
+    var camp = getActiveCampaign(), log = function(step, o) { try { if (typeof window.wpStepLog === 'function') window.wpStepLog('starter v1', step, o); } catch (e) {} };
+    if (!camp || !gmHere()) return { error: 'No campaign here.' };
+    if (cur.campId !== camp.id || cur.state === 'loading') await load(camp);
+    var out = { packs: 0, add: 0, update: 0, skip: 0, bad: 0 }, list = Array.isArray(texts) ? texts.slice(0, 32) : [];
+    log('start', { files: list.length });
+    for (var i = 0; i < list.length; i++) {
+        var d = readPackImport(list[i], libCtx(camp.system, F(), true)); if (d.error) { out.bad++; log('refused', { at: i, why: 'file' }); continue; }
+        var low = d.name.trim().toLowerCase(), hit = (camp.library ? camp.library.packs : []).filter(function(p) { return String(p.name || '').trim().toLowerCase() === low; })[0], pid = hit ? hit.id : null;
+        if (!pid) { var r = await createPack(d.name); if (!r || r.error) { out.bad++; log('refused', { at: i, why: 'create' }); continue; } pid = r.id; setMeta(pid, { icon: d.icon || '', vis: d.vis }); }
+        if (!ready(pid)) { out.bad++; log('refused', { at: i, why: 'unread' }); continue; }
+        var lib = camp.library.packs.map(function(p) { return { id: p.id, name: p.name, entries: entriesOf(p.id) }; }), plan = packImportPlan(lib, pid, d, 'id');
+        if (plan.add || plan.update || !hit) { var w = await savePack(pid, plan.entries); if (w && w.error) { out.bad++; log('refused', { at: i, why: 'write' }); continue; } }
+        out.packs++; out.add += plan.add; out.update += plan.update; out.skip += plan.skip;
+    }
+    log('done', out);
+    return out;
+}
+// [librarycheck:starterpacks-end]
 function entriesOf(packId) { return (cur.packs[packId] || []).map(function(id) { return cur.byId[id]; }).filter(Boolean); }
 // L2a: a pack read for the campaign on screen (made, written or loaded): one still loading or unreadable is not, so nothing writes over it
 function ready(packId) { var camp = getActiveCampaign(); return !!camp && cur.campId === camp.id && typeof packId === 'string' && Object.prototype.hasOwnProperty.call(cur.packs, packId); }
@@ -299,4 +323,4 @@ setLibraryIds(function() { var camp = getActiveCampaign(), o = []; (camp && camp
 // the campaign on screen, or its manifest, changed (a load, a switch, a restore): read it again
 setInterval(function() { if (busy) return; var camp = getActiveCampaign(), sig = manifestSig(camp); if (sig !== cur.sig || (camp ? camp.id : null) !== cur.campId) load(camp); }, 1000);
 
-window.wpLibrary = { whole: function() { var cW = getActiveCampaign(); return !!cW && libWhole(cW); }, load: load, entry: entry, entryFor: entryFor, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore, syncSnaps: syncSnaps, ready: ready, setMeta: setMeta, migrateItems: migrateItems, playerIndexOf: playerIndexOf, playerManifest: playerManifest, catsFor: catsFor, playerEntry: playerEntry, needShown: needShown, needRuleShown: needRuleShown };
+window.wpLibrary = { whole: function() { var cW = getActiveCampaign(); return !!cW && libWhole(cW); }, load: load, entry: entry, entryFor: entryFor, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, starterPacks: starterPacks, importPlan: libImportPlan, refreshCore: refreshCore, syncSnaps: syncSnaps, ready: ready, setMeta: setMeta, migrateItems: migrateItems, playerIndexOf: playerIndexOf, playerManifest: playerManifest, catsFor: catsFor, playerEntry: playerEntry, needShown: needShown, needRuleShown: needRuleShown };

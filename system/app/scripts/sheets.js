@@ -7898,7 +7898,9 @@ function rollJobBox(rr, sp, ch) {
     var kL = checkLabel('sys-rljobkeep', !!jb && jb.keep === true, 'Keeps progress', 'A stop keeps the count. Off: a turn that ends with no press sets it back to 0, a lost action among them'), kC = kL.firstChild;
     tI.addEventListener('input', function(e) { e.stopPropagation(); put(); }); cS.addEventListener('change', function(e) { e.stopPropagation(); put(); });
     if (kC && kC.addEventListener) kC.addEventListener('change', function(e) { e.stopPropagation(); if (rr.job && typeof rr.job === 'object') { if (kC.checked) rr.job.keep = true; else delete rr.job.keep; ch(); } });
-    w.appendChild(tI); w.appendChild(cS); w.appendChild(kL); return w;
+    var nL = checkLabel('sys-rljobnow', !!jb && jb.now === true, 'At once out of a fight', 'Out of a fight its first press is its last, and its roll is made then. In a fight it still takes one press a turn'), nC = nL.firstChild;   // 1.6.2 (the CORE session)
+    if (nC && nC.addEventListener) nC.addEventListener('change', function(e) { e.stopPropagation(); if (rr.job && typeof rr.job === 'object') { if (nC.checked) rr.job.now = true; else delete rr.job.now; ch(); } });
+    w.appendChild(tI); w.appendChild(cS); w.appendChild(kL); w.appendChild(nL); return w;
 }
 // [systemcheck:rowswitchbox-end]
 // [systemcheck:partcaps-start]

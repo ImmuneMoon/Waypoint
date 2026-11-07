@@ -4054,7 +4054,7 @@ function cleanJob(v, counters) {
     var t = cleanFormulaText(v.turns), ck = typeof v.ct === 'string' ? lower(v.ct.trim()) : '', ct = null;
     (Array.isArray(counters) ? counters : []).forEach(function(c) { if (!ct && isObj(c) && typeof c.key === 'string' && lower(c.key) === ck) ct = c; });
     if (!t || !ct) return null;
-    var o = { turns: t, ct: ct.key }; if (v.keep === true) o.keep = true; return o;
+    var o = { turns: t, ct: ct.key }; if (v.keep === true) o.keep = true; if (v.now === true) o.now = true; return o;   // 1.6.2 (the CORE session): now, out of a fight its last press is the first, its roll still made
 }
 function listJobs(spec) { return isObj(spec) && Array.isArray(spec.rolls) ? spec.rolls.filter(function(r) { return isObj(r) && isObj(r.job); }) : []; }
 function cleanJr(v, spec) {   // the round each job of a row last had its work in, by its counter's key as the list spells it
@@ -4076,7 +4076,7 @@ function jobBar(char, ref, ent, vars, F, round) {
 function jobStep(sys, char, ref, ent, vars, F, round) {
     var f = fieldById(sys, ref.f), of = jobTurns(ent, vars, F), rows = isObj(char.values) && Array.isArray(char.values[ref.f]) ? JSON.parse(JSON.stringify(char.values[ref.f])) : [], rw = jobRowOf({ values: { x: rows } }, { f: 'x', r: ref.r }), t = null;
     (f && isObj(f.list) && Array.isArray(f.list.counters) ? f.list.counters : []).forEach(function(c) { if (!t && isObj(c) && c.key === ent.job.ct) t = c; }); if (!rw || !t || of === null) return null;
-    var n = rowCt(rw, t) + 1, done = n >= of, ct = isObj(rw.ct) ? rw.ct : (rw.ct = {}); ct[t.key] = done ? 0 : n;
+    var n = typeof round !== 'number' && ent.job.now === true ? of : rowCt(rw, t) + 1, done = n >= of, ct = isObj(rw.ct) ? rw.ct : (rw.ct = {}); ct[t.key] = done ? 0 : n;
     if (typeof round === 'number') { if (!isObj(rw.jr)) rw.jr = {}; rw.jr[t.key] = round; }
     var values = {}; values[ref.f] = rows; return { n: Math.min(n, of), of: of, done: done, values: values };
 }

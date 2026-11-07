@@ -10,7 +10,7 @@ function chipHelpBox(doc) { return doc.getElementById('helpModal'); }
 // a window a control may live in, the control that opens it, and what a tab of it is called: the System editor for now
 function chipGmOnly(doc) { return doc.body && doc.body.classList && doc.body.classList.contains('net-client') ? 'The GM\u2019s' : ''; }   // fold 8: a window only the GM's machine has
 var CHIP_WINDOWS = { systemModal: { open: 'systemBtn', tabs: '.sys-tabs button[data-tab]', tabOf: function(el) { var t = el && el.closest ? el.closest('.sys-tab') : null; return t && t.id ? CHIP_TAB_IDS[t.id] || '' : ''; } },
-    settingsModal: { open: 'settingsBtn' }, profileModal: { open: 'rowMeBtn' }, netModal: { open: 'netBtn' },
+    settingsModal: { open: 'settingsBtn' }, charsModal: { open: 'charsManageBtn' }, profileModal: { open: 'rowMeBtn' }, netModal: { open: 'netBtn' },
     // fold 5: windows the map and the campaign open, each by its own button; the combat roster only at a table you host
     libraryModal: { open: 'libraryCampBtn' }, objModal: { open: 'addObjectsBtn' }, dicePanel: { open: 'diceBtn' },
     sessionLogModal: { open: 'netLogBtn' },   // fold 6: the Game Record
@@ -73,7 +73,7 @@ function chipsName(help) {
 }
 // fold 3: a part of a window that shows only at times, and the words a chip says while it does not
 var CHIP_WHEN = { netHostInfo: 'While you host', setUpdateRow: 'When an update is found', setRelayBlock: 'With a relay server set', drawShowAsk: 'On a player\u2019s screen', imgLibPreview: 'With a picture picked' };
-var CHIP_TAB_IDS = { sysFields: 'fields', sysRolls: 'rolls', sysItems: 'items', sysLists: 'lists', sysEffects: 'effects', sysCombat: 'combat', sysRules: 'rules', sysChars: 'chars', sysLayout: 'layout', sysCalendar: 'calendar' };
+var CHIP_TAB_IDS = { sysFields: 'fields', sysRolls: 'rolls', sysItems: 'items', sysLists: 'lists', sysEffects: 'effects', sysCombat: 'combat', sysRules: 'rules', sysLayout: 'layout', sysCalendar: 'calendar' };
 var CHIP_KEY = /^(?:sys-tab:[a-z]{1,16}|sys:[a-z]{1,16}:[a-z][a-z0-9-]{0,63}|in:[A-Za-z][A-Za-z0-9]{0,40}\.[a-z][a-z0-9-]{0,63}|#[A-Za-z][A-Za-z0-9_-]{0,63})$/;   // a tab, the first control of a class inside a tab, the first of a class inside a window (fold 7), or a control by its id
 // the control a key names in this document, and the window that holds it (none for a control of the page itself)
 function chipFind(doc, key) {

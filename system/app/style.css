@@ -5407,3 +5407,8 @@
 .sys-kind-block[hidden], .sys-kind-pick[hidden] { display: none !important; }
 .sys-kind-block { flex-wrap: wrap; align-items: center; }
 .sys-kind-head { flex-basis: 100%; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-top: 4px; }
+
+  /* 1.6.2 (backlog 59 f): Manage characters, a window of its own */
+  #charsModal .chars-box { width: min(980px, 94vw); max-height: 88vh; display: flex; flex-direction: column; padding: 14px 18px; box-sizing: border-box; }
+  #charsModal #sysChars { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+  #charsModal #sysCharRows { overflow-y: auto; min-height: 0; flex: 1; }

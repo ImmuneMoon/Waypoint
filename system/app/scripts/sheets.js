@@ -701,6 +701,65 @@ function charFilter() {
     Array.prototype.forEach.call(cr.children, function(row) { var nm = row.querySelector ? row.querySelector('.sys-char-name') : null; row.style.display = !q || !nm || String(nm.value || '').toLowerCase().indexOf(q) >= 0 ? '' : 'none'; });
 }
 // [systemcheck:sheetdelete-end]
+// 1.6.2 (backlog 59 f; the owner, 2026-11-06, by prompt: "Left panel (Recommended)"): a campaign's characters are the campaign's work, not the
+// system's, so they stand in a window of their own, Manage characters, opened from the left panel's Characters section. The System editor keeps
+// what is the system's: Ask for new sheets, Mark all current and the Reader mark stand on its Rules tab, under Sheets and readers
+// [systemcheck:charswin-start]
+function charsUp() { var m = ui('charsModal'); return !!m && m.style.display !== 'none'; }
+function charsDraw() {
+    var cr = ui('sysCharRows'); if (!cr || !charsUp()) return;
+    var camp = getActiveCampaign(), st = cr.scrollTop, list = camp ? charList(camp) : []; cr.textContent = '';
+    if (ui('charsCampName')) ui('charsCampName').textContent = camp ? (camp.name || 'Campaign') : '';
+    if (!list.length) cr.appendChild(el('div', 'sys-empty', 'No characters yet. Make one with + Character, or with New character sheet on a token\'s right-click menu.'));
+    list.forEach(function(c) { cr.appendChild(charRow(c, camp)); }); charFilter(); if (st) cr.scrollTop = st;
+}
+function openChars() {
+    if (!canWrite()) { toast('Not while you are at someone else\'s table.'); return false; }
+    var m = ui('charsModal'); if (!m || !getActiveCampaign()) return false;
+    m.style.display = 'flex'; charsDraw();
+    var f = ui('sysCharFilter'); if (f) { try { f.focus(); } catch (e) {} }
+    return true;
+}
+function closeChars() { var m = ui('charsModal'); if (m) m.style.display = 'none'; }
+function addCharAsk() { showPrompt('Name the character', 'New character', function(name) { if (name === null) return; var c = newCharacter({ name: String(name || '').trim() || 'New character' }); afterCharChange(c, true); renderAll(); }); }
+function charRowChange(t) {
+    var c = (t && t.className) || '', crow = t && t.closest && t.closest('.sys-char-row');
+    if (crow) {   // characters save as you go
+        var camp = getActiveCampaign(), ch = charById(crow.dataset.cid, camp); if (!ch) return true;
+        if (c.indexOf('sys-char-name') >= 0) { ch.name = t.value.trim().slice(0, LIMITS.charName) || ch.name; t.value = ch.name; nameInStep(camp, ch); afterCharChange(ch, true); }
+        else if (c.indexOf('sys-char-owner') >= 0) { giveCharacter(t.value, ch.id); renderAll(); }
+        else if (c.indexOf('sys-char-plays') >= 0) { if (t.checked && ch.ownerId) giveCharacter(ch.ownerId, ch.id); renderAll(); }
+        else if (c.indexOf('sys-char-npc') >= 0) { if (t.checked && ch.ownerId) giveCharacter('', ch.id); ch.npc = t.checked; afterCharChange(ch, true); renderAll(); }
+        return true;
+    }
+    return false;
+}
+function charRowClick(b) {
+    var crow = b.closest('.sys-char-row');
+    if (crow) {
+        var camp = getActiveCampaign(), ch = charById(crow.dataset.cid, camp); if (!ch) return true;
+        if (b.dataset.act === 'open') { openSheet(ch.id); return true; }
+        if (b.dataset.act === 'hud') { openHud(ch.id); return true; }
+        if (b.dataset.act === 'delchar') { showConfirm('Delete ' + ch.name + '? Its values are gone; tokens keep their name and lose the link.', function(yes) { if (yes) { deleteCharacter(ch.id); renderAll(); } }); return true; }
+        if (b.dataset.act === 'portrait') { if (!window.wpPickImage) return; window.wpPickImage(function(src) { if (typeof src === 'string' && /^[/]saves[/]images[/]/.test(src)) framePortrait(ch, src); }); return true; }   // the token creator frames it first
+        return true;
+    }
+    return false;
+}
+// a right-click on Portrait clears it, as its tooltip says
+function charRowMenu(e) {
+    var b = e.target && e.target.closest ? e.target.closest('.sys-char-portrait') : null, crow = b ? b.closest('.sys-char-row') : null; if (!crow) return false;
+    e.preventDefault(); var camp = getActiveCampaign(), ch = charById(crow.dataset.cid, camp); if (!ch || !ch.portrait) return true;
+    delete ch.portrait; delete ch.frame; afterCharChange(ch, true); renderAll(); return true;
+}
+function charsWire() {
+    var m = ui('charsModal'); if (!m) return;
+    m.addEventListener('change', function(e) { charRowChange(e.target); });
+    m.addEventListener('click', function(e) { var b = e.target && e.target.closest ? e.target.closest('button') : null; if (!b) return; if (b.id === 'charsClose') { closeChars(); return; } if (b.id === 'sysAddChar') { addCharAsk(); return; } charRowClick(b); });
+    m.addEventListener('contextmenu', charRowMenu);
+    var mb = ui('charsManageBtn'); if (mb) mb.addEventListener('click', function(e) { e.stopPropagation(); openChars(); });
+}
+// [systemcheck:charswin-end]
 function deleteCharacter(id) {
     var camp = getActiveCampaign(), c = charById(id, camp); if (!c) return;
     var prev = c.ownerId || '';
@@ -13182,7 +13241,7 @@ function capNoteSync() {
 var _tabPress = false;   // 1.6.0: a press of a tab changes nothing Save would say
 function renderAll() {
     closeGlyphPicker();   // Stage 6: the rows it was opened from are being redrawn
-    if (!draft) return;
+    if (!draft) { charsDraw(); return; }   // 1.6.2 (backlog 59 f): Manage characters works with the System editor shut
     if (!_tabPress) refreshErrors();
     // 1.6.0: a tab's rows are drawn for the tab in view alone. Every tab's rows at every press of a tab held a large system's editor ten seconds
     var rowsFor = function(id, which, draw) { var box = ui(id); if (!box) return; var st = box.scrollTop; box.textContent = ''; if (tab === which) { draw(box); if (st) box.scrollTop = st; } };
@@ -13191,7 +13250,6 @@ function renderAll() {
     document.querySelectorAll('#systemModal .sys-tabs button').forEach(function(b) { b.classList.toggle('active', b.dataset.tab === tab); });
     ui('sysFields').style.display = tab === 'fields' ? '' : 'none';
     ui('sysRolls').style.display = tab === 'rolls' ? '' : 'none';
-    var sc = ui('sysChars'); if (sc) sc.style.display = tab === 'chars' ? '' : 'none';
     var scb = ui('sysCombat'); if (scb) { scb.style.display = tab === 'combat' ? '' : 'none'; if (tab === 'combat') renderCombat(); }   // 1.6.2: the Combat tab, its topics down the side
     var sru = ui('sysRules'); if (sru) sru.style.display = tab === 'rules' ? '' : 'none';   // 1.6.2: and the Rules tab
     var siEl = ui('sysItems'); if (siEl) siEl.style.display = tab === 'items' ? '' : 'none';
@@ -13217,7 +13275,7 @@ function renderAll() {
     pickRows(rr, 'rolls', draft.rolls, rollRow); });
     var rAdd = ui('sysAddRoll'); if (rAdd) { rAdd.disabled = draft.rolls.length >= LIMITS.rolls; rAdd.title = rAdd.disabled ? 'A system holds ' + LIMITS.rolls + ' rolls at most. Remove one to add another.' : 'Add a roll'; }   // 1.6.0: one past the cap was dropped at Save with nothing said
     rowsFor('sysItemRows', 'items', function(itr) { if (!draft.items || !draft.items.length) itr.appendChild(el('div', 'sys-empty', 'No items yet. Add weapons, gear or explosives your characters can carry — an item with a blast area can be thrown from the sheet.')); pickRows(itr, 'items', draft.items || [], itemRow); });
-    rowsFor('sysCharRows', 'chars', function(cr) { var camp = getActiveCampaign(), list = charList(camp); if (!list.length) cr.appendChild(el('div', 'sys-empty', 'No characters yet. New character here, or "New character from this token" in a token\'s Properties.')); list.forEach(function(c) { cr.appendChild(charRow(c, camp)); }); charFilter(); });
+    charsDraw();   // 1.6.2 (backlog 59 f): the characters stand in a window of their own
     var note = ui('sysFeatureNote'); if (note) note.style.display = featureOn() ? 'none' : '';
     if (!_tabPress) patchErrors();
     rowFocusBack(was);
@@ -13953,15 +14011,7 @@ function onChange(e) {
         else return;
         markDirty(); renderAll(); return;
     }
-    var crow = t.closest && t.closest('.sys-char-row');
-    if (crow) {   // characters save as you go
-        var camp = getActiveCampaign(), ch = charById(crow.dataset.cid, camp); if (!ch) return;
-        if (c.indexOf('sys-char-name') >= 0) { ch.name = t.value.trim().slice(0, LIMITS.charName) || ch.name; t.value = ch.name; nameInStep(camp, ch); afterCharChange(ch, true); }
-        else if (c.indexOf('sys-char-owner') >= 0) { giveCharacter(t.value, ch.id); renderAll(); }
-        else if (c.indexOf('sys-char-plays') >= 0) { if (t.checked && ch.ownerId) giveCharacter(ch.ownerId, ch.id); renderAll(); }
-        else if (c.indexOf('sys-char-npc') >= 0) { if (t.checked && ch.ownerId) giveCharacter('', ch.id); ch.npc = t.checked; afterCharChange(ch, true); renderAll(); }
-        return;
-    }
+    if (charRowChange(t)) return;   // 1.6.2 (backlog 59 f)
     var ctx = fieldOfRow(t); if (!ctx) return;
     var f = ctx.f, r = ctx.r;
     if (f) {
@@ -14040,7 +14090,7 @@ function onClick(e) {
     if (onSwClick(b)) return;   // 1.6.0: an item's or an effect's roll bonuses
     if (b.id === 'sysAddField') { if (draft.fields.length >= LIMITS.fields) { toast('At most ' + LIMITS.fields + ' fields.'); return; } draft.fields.push({ id: uid('f_'), key: '', label: '', kind: 'number', def: 0, step: 1, edit: 'owner', vis: 'all', hover: false }); markDirty(); renderAll(); var last = ui('sysFieldRows').lastElementChild; if (last) { var k = last.querySelector('input.sys-label'); if (k) k.focus(); last.scrollIntoView({ block: 'nearest' }); } return; }
     if (b.id === 'sysAddRoll') { draft.rolls.push({ id: uid('r_'), label: '', formula: '', vis: 'all' }); markDirty(); renderAll(); var lr = ui('sysRollRows').lastElementChild; if (lr) { var l = lr.querySelector('.sys-label'); if (l) l.focus(); } return; }
-    if (b.id === 'sysAddChar') { showPrompt('Name the character', 'New character', function(name) { if (name === null) return; var c = newCharacter({ name: String(name || '').trim() || 'New character' }); afterCharChange(c, true); renderAll(); }); return; }
+    if (b.id === 'sysAddChar') { addCharAsk(); return; }
     if (b.id === 'sysAddItem') { if (!Array.isArray(draft.items)) draft.items = []; if (draft.items.length >= LIMITS.items) { toast('At most ' + LIMITS.items + ' items.'); return; } draft.items.push({ id: uid('i_'), name: '', category: '', icon: '', notes: '', vis: 'all', area: null, damage: '', cost: '', throwSkill: '' }); markDirty(); renderAll(); var li = ui('sysItemRows').lastElementChild; if (li) { var n = li.querySelector('.sys-item-name'); if (n) n.focus(); li.scrollIntoView({ block: 'nearest' }); } return; }
     if (b.id === 'sysAddList') { if (draft.fields.length >= LIMITS.fields) { toast('At most ' + LIMITS.fields + ' fields.'); return; } var nlF = { id: uid('f_'), key: '', label: '', kind: 'item-list', list: {}, def: 0, edit: 'owner', vis: 'all', hover: false }; draft.fields.push(nlF); if (window.wpSysUi && window.wpSysUi.pickSet) window.wpSysUi.pickSet('lists', nlF.id); markDirty(); renderAll(); var nlB = ui('sysListRows') ? ui('sysListRows').querySelector('input.sys-list-name') : null; if (nlB) nlB.focus(); return; }   // 1.6.2 (the owner, by prompt: "New list from the Lists tab")
     if (b.id === 'sysAddEffect') { if (!Array.isArray(draft.effects)) draft.effects = []; if (draft.effects.length >= LIMITS.effects) { toast('At most ' + LIMITS.effects + ' effects.'); return; } draft.effects.push({ id: uid('e_'), name: '', icon: '', tone: '', dur: '', notes: '', vis: 'all', mods: [] }); markDirty(); renderAll(); var lastE = ui('sysEffectRows') && ui('sysEffectRows').lastElementChild; if (lastE) { var ni = lastE.querySelector('.sys-fx-name'); if (ni) ni.focus(); } return; }   // 5h
@@ -14063,15 +14113,7 @@ function onClick(e) {
     if (linkClick(b)) return;   // 1.6.0: the Linked sheets
     if (damageClick(b)) return;   // 1.5.6: the Taking damage box
     if (typeof coverHitClick === 'function' && coverHitClick(b)) return;   // 1.6.0: where a hit behind cover lands
-    var crow = b.closest('.sys-char-row');
-    if (crow) {
-        var camp = getActiveCampaign(), ch = charById(crow.dataset.cid, camp); if (!ch) return;
-        if (b.dataset.act === 'open') { openSheet(ch.id); return; }
-        if (b.dataset.act === 'hud') { openHud(ch.id); return; }
-        if (b.dataset.act === 'delchar') { showConfirm('Delete ' + ch.name + '? Its values are gone; tokens keep their name and lose the link.', function(yes) { if (yes) { deleteCharacter(ch.id); renderAll(); } }); return; }
-        if (b.dataset.act === 'portrait') { if (!window.wpPickImage) return; window.wpPickImage(function(src) { if (typeof src === 'string' && /^[/]saves[/]images[/]/.test(src)) framePortrait(ch, src); }); return; }   // the token creator frames it first
-        return;
-    }
+    if (charRowClick(b)) return;   // 1.6.2 (backlog 59 f)
     var erow = b.closest('.sys-fx-row');   // 5h: a library effect's buttons
     if (erow) {
         if (!b.dataset.act) return;
@@ -14291,6 +14333,7 @@ function importFile(file) {
     var edBt = ui('sheetEdit'); if (edBt) edBt.addEventListener('click', function() { if (!sheetOpen) return; _sheetEdit = _sheetEdit === sheetOpen ? null : sheetOpen; renderSheet(); });   // the sheet's lock: this viewer's own switch, for the sheet that is open
     var delBt = ui('sheetDelete'); if (delBt) delBt.addEventListener('click', function() { if (sheetOpen) askDeleteSheet(sheetOpen); });
     var cfI = ui('sysCharFilter'); if (cfI) cfI.addEventListener('input', charFilter);
+    charsWire();   // 1.6.2 (backlog 59 f): Manage characters
     var nsB = ui('sysNewSheets'); if (nsB) nsB.addEventListener('click', askNewSheets);   // 1.6.0 (backlog 190)
     var acB = ui('sysSheetsCurrent'); if (acB) acB.addEventListener('click', allSheetsCurrent);
     var rvBt = ui('sheetReview'); if (rvBt) rvBt.addEventListener('click', function() { if (sheetOpen) openReview(sheetOpen); });
@@ -14510,7 +14553,7 @@ function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient(
 // [systemcheck:dmgwin-end]
 function nameWordNow(n) { var c = getActiveCampaign(), s = c ? systemOf(c) : null; return nameWord(s, n); }   // 1.6.2: a name in words, for a card
 window.wpSheets = { bellNote: bellNote, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
-    gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame,
+    gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame, openChars: openChars, closeChars: closeChars,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,
     playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,

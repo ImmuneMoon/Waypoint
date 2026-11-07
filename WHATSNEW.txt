@@ -8,6 +8,11 @@ Tokens
   the Image Library say the size a token's picture is best at.
 
 The System editor
+- The campaign's characters have a window of their own, Manage characters,
+  the cog in the left panel's Characters section. The System editor keeps the
+  system's work: Ask for new sheets, Mark all current and the Reader mark are
+  on its Rules tab, under Sheets and readers. A right-click on a character's
+  Portrait clears it, as its tooltip always said.
 - Arrange, on the Layout tab, makes the preview large so that you can drag the
   sheet itself. Drag a section by its grip, or a field from anywhere on it.
   Drop a field in another section to move it there, and a section on a tab to

@@ -42,7 +42,7 @@ var ESC_TOOL_OPTS = ['drawMenu', 'eraserMenu', 'fillMenu', 'measureMenu', 'blast
 var ESC_WINDOWS = [['helpModal', 'helpCloseBtn'], ['settingsModal', 'settingsCloseBtn'], ['netModal', 'netCloseBtn'], ['aboutModal', 'aboutCloseBtn'], ['legalModal', 'legalCloseBtn'],
     ['campSearchModal', 'campSearchClose'], ['plannerSearchModal', 'plannerSearchClose'], ['mapSearchModal', 'mapSearchClose'], ['docSearchModal', 'docSearchClose'],
     ['importChoiceModal', 'importCancelBtn'], ['imgLibModal', 'imgLibCloseBtn'], ['playersModal', 'playersCloseBtn'], ['sheetViewModal', 'sheetViewCloseBtn'],
-    ['vttNoticeModal', 'vttNoticeKeepBtn'], ['vttPushModal', 'vttPushCancelBtn'], ['soundLibModal', 'soundLibClose'], ['systemModal', 'sysClose', 1], ['libraryModal', 'libClose', 1],
+    ['vttNoticeModal', 'vttNoticeKeepBtn'], ['vttPushModal', 'vttPushCancelBtn'], ['soundLibModal', 'soundLibClose'], ['systemModal', 'sysClose', 1], ['charsModal', 'charsClose'], ['libraryModal', 'libClose', 1],
     ['calendarModal', 'calendarClose'], ['journalModal', 'journalCloseBtn'], ['combatModal', 'combatCloseBtn'], ['castModal', 'castCloseBtn'],
     ['handoutModal', 'handoutCloseBtn'], ['handoutsModal', 'handoutsCloseBtn'], ['installerModal', 'installerCloseBtn'], ['sessionLogModal', 'sessionLogClose'],
     ['uploadModal', 'uploadClose'], ['docReaderModal', 'docReaderClose'], ['docImportModal', 'docImportCancel'], ['cmdkModal', ''], ['tradeModal', 'tradeCloseBtn'], ['tradeLogModal', 'tradeLogClose'], ['setupModal', 'setupClose'], ['objModal', 'objClose'], ['priceModal', 'priceCloseBtn'], ['sceneModal', 'sceneCloseBtn'], ['profileModal', 'profileCloseBtn'], ['dicePaintModal', 'dicePaintCloseBtn'], ['shareModal', 'shareCancel']];

@@ -3057,7 +3057,7 @@ window.wpFitToGrid = fitToGrid;
           else if (act === 'bring') { var ctrB = viewCentre(); bringKeyHere(key, ctrB.x, ctrB.y); }
           else if (act === 'sheet') { var campS = getActiveCampaign(), nS = charNow(campS, key), locS = nS.loc || nS.left; if (locS && locS.tok && window.wpSheets) { if (!locS.tok.charId && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) window.wpSheets.newFromToken(locS.tok); if (locS.tok.charId) window.wpSheets.openSheet(locS.tok.charId); } }
           else if (act === 'hud') { var campH = getActiveCampaign(), nH = charNow(campH, key), locH = nH.loc || nH.left; if (locH && locH.tok && locH.tok.charId && window.wpSheets && window.wpSheets.openHud) window.wpSheets.openHud(locH.tok.charId); }   // HUD frame (HF2b)
-          else if (act === 'chars') { if (window.wpSheets) window.wpSheets.open('chars'); }
+          else if (act === 'chars') { if (window.wpSheets && window.wpSheets.openChars) window.wpSheets.openChars(); }   // 1.6.2 (backlog 59 f): Manage characters
           else if (act === 'target') {
               var camp = getActiveCampaign(); var loc = charNow(camp, key).loc;   // where they are: never a token a teammate left behind on this map (a player's app does not draw it)
               var am = getActiveMap();

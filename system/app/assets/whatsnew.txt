@@ -589,7 +589,9 @@ Writing planners and pages
   a window of its own titled with the map's name. A group and a flattened
   picture hold their pieces under them.
 - Properties floats over the map in a window you move by its title, and opens
-  where you left it. It no longer narrows the map.
+  where you left it. It no longer narrows the map. Its title names the piece's
+  kind, a shut fold says what it holds, and Find a setting shows only the
+  settings that match.
 - The table trackers stand in one bar named Trackers: its fold, the trackers,
   + Add and Who sees are parts of it, parted by thin lines.
 - A list's action may be a job of several turns too, as a reload that rolls

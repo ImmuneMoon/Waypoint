@@ -22,7 +22,47 @@ var inspector = document.getElementById('inspector');
 var _inspFold = { look: true, char: true };
 function inspFoldOpen(k, label, tip) { return '<details class="insp-fold insp-part" data-fold="' + k + '"' + (_inspFold[k] === true ? ' open' : '') + '><summary title="' + tip + '">' + label + '</summary>'; }
 function inspFoldsTidy(html) { return String(html).replace(/<details class="insp-fold insp-part" data-fold="[a-z]+"( open)?><summary title="[^"]*">[^<]*<\/summary><\/details>/g, ''); }
-if (inspector) inspector.addEventListener('toggle', function(e) { var d = e.target; if (d && d.dataset && d.dataset.fold && /(^| )insp-part( |$)/.test(d.className)) _inspFold[d.dataset.fold] = d.open === true; }, true);
+if (inspector) inspector.addEventListener('toggle', function(e) { var d = e.target; if (d && d.dataset && d.dataset.fold && /(^| )insp-part( |$)/.test(d.className) && d.dataset.was === undefined) _inspFold[d.dataset.fold] = d.open === true; }, true);   // 1.6.2: a fold a search opened is not kept open
+
+// 1.6.2, backlog 217 (the owner, by prompt, of Properties: "Yes, as drawn"): the piece's kind beside the title, each fold saying what it holds
+// while shut, and a search where a piece has many folds. All of it read from the panel as drawn, never stored
+var INSP_KIND = { rect: 'Rectangle', circle: 'Circle', diamond: 'Diamond', hexagon: 'Hexagon', image: 'Picture', path: 'Drawing', text: 'Text box', trigger: 'Trigger zone' };
+function inspKindOf(w) { if (!w || typeof w !== 'object') return ''; if (w.isChar) return 'Token'; if (w.flatPic === true) return 'Flattened picture'; return Object.prototype.hasOwnProperty.call(INSP_KIND, w.type) ? INSP_KIND[w.type] : ''; }
+function inspWord(t) { t = String(t || '').replace(/\s+/g, ' ').trim(); var i = t.search(/ \(| \u2014 | - /); return (i > 0 ? t.slice(0, i) : t).slice(0, 28); }
+function inspSays(d) {   // a fold's words while shut: its ticks that are on, and its lists set to something other than their first choice
+    var out = [];
+    d.querySelectorAll('input[type="checkbox"]').forEach(function(c) { if (!c.checked) return; var l = c.id ? d.querySelector('label[for="' + c.id + '"]') : null; l = l || c.closest('label'); var w = inspWord(l ? l.textContent : ''); if (w && out.indexOf(w) < 0) out.push(w); });
+    d.querySelectorAll('select').forEach(function(s) { if (s.selectedIndex > 0 && s.options[s.selectedIndex]) { var w = inspWord(s.options[s.selectedIndex].textContent); if (w && out.indexOf(w) < 0) out.push(w); } });
+    return out.length ? out.slice(0, 2).join(', ') + (out.length > 2 ? ' +' + (out.length - 2) : '') : '';
+}
+function inspFind(panel, q) {
+    q = String(q || '').trim().toLowerCase();
+    var parts = panel.querySelectorAll('details.insp-part'), rows = [];
+    Array.prototype.forEach.call(panel.children, function(k) { if (!(k.tagName === 'DETAILS' && / insp-part /.test(' ' + k.className + ' '))) rows.push(k); });
+    Array.prototype.forEach.call(parts, function(d) { Array.prototype.forEach.call(d.children, function(k) { if (k.tagName !== 'SUMMARY') rows.push(k); }); });
+    rows.forEach(function(r) { r.classList.toggle('insp-miss', !!q && r.textContent.toLowerCase().indexOf(q) < 0); });
+    Array.prototype.forEach.call(parts, function(d) {
+        if (!q) { d.classList.remove('insp-miss'); if (d.dataset.was !== undefined) { d.open = d.dataset.was === '1'; delete d.dataset.was; } return; }
+        var hit = Array.prototype.some.call(d.children, function(k) { return k.tagName !== 'SUMMARY' && !k.classList.contains('insp-miss'); });
+        if (d.dataset.was === undefined) d.dataset.was = d.open ? '1' : '0';
+        d.classList.toggle('insp-miss', !hit); if (hit) d.open = true;
+    });
+}
+var _inspFinding = false;
+function inspDress(panel) {
+    if (!panel) return;
+    var kEl = document.getElementById('propKind'), w = null;
+    try { var am = getActiveMap(); if (am && state.viewMode === 'visual' && state.selWbId) w = (am.whiteboard || []).find(function(x) { return x && x.id === state.selWbId; }) || null; } catch (e) { w = null; }
+    if (kEl) kEl.textContent = state.viewMode === 'data' ? (state.selId ? 'Room' : '') : ((state.selWbIds || []).length > 1 ? (state.selWbIds.length + ' pieces') : inspKindOf(w));
+    panel.querySelectorAll('details.insp-part > summary').forEach(function(s) {
+        var old = s.querySelector('.insp-says'); if (old) old.remove();
+        var t = inspSays(s.parentNode); if (!t) return; var sp = document.createElement('span'); sp.className = 'insp-says'; sp.textContent = t; s.appendChild(sp);
+    });
+    var row = document.getElementById('propFindRow'), f = document.getElementById('propFind'), many = panel.querySelectorAll('details.insp-part').length >= 3;
+    if (row) row.hidden = !many;
+    if (f) { if (!f.dataset.wired) { f.dataset.wired = '1'; f.addEventListener('input', function() { _inspFinding = true; inspFind(inspector, f.value); _inspFinding = false; }); f.addEventListener('keydown', function(e) { if (e.key === 'Escape' && f.value) { e.preventDefault(); e.stopPropagation(); f.value = ''; inspFind(inspector, ''); } }); }
+        if (!many && f.value) f.value = ''; inspFind(panel, many ? f.value : ''); }
+}
 
 var canvas = document.getElementById('canvas');
 
@@ -640,6 +680,7 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
         try { caret = [ae.selectionStart, ae.selectionEnd]; } catch (e) {}
     }
     renderInspectorInner();
+    if (typeof inspDress === 'function') inspDress(panel);   // 1.6.2, backlog 217: its kind, what each fold holds, and a search
     if (!panel) return;
     panel.scrollTop = scrollTop;
     if (focusKey || focusAt) {

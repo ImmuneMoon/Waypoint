@@ -3847,5 +3847,15 @@ check('the roster numbers rows of one name, and the sheet that says it is out of
 check('Properties floats (backlog 217, the owner: "Floating window"): over the map and never narrowing it, moved by its title bar and kept where it was left on this computer, its close pressing the toggle at the map\'s edge; the stream window untouched',
     css.includes('body:not(.stream-mode) #sidebar { position: fixed; right: 18px; top: 110px;') && css.includes('body:not(.stream-mode) #sidebar.collapsed { display: none !important; }') && ix.includes('<div id="propHead"><span class="notepad-title">Properties</span>') && ix.includes('id="propClose"')
     && read('scripts/layers.js').includes("localStorage.setItem('wp_propAt', JSON.stringify({ x: Math.round(r.left), y: Math.round(r.top) }))") && read('scripts/layers.js').includes("var t = document.getElementById('toggleRightBtn'); if (t && !sb.classList.contains('collapsed')) t.click();"));
+{   // backlog 217, section 3 ("Yes, as drawn"): the kind beside the title, a shut fold's words, a search; inspector.js's helpers run on plain objects
+    const inS = read('scripts/inspector.js'), a = inS.indexOf("var INSP_KIND = "), b = inS.indexOf("var _inspFinding = false;");
+    const H = new Function(inS.slice(a, b) + '\nreturn { inspKindOf: inspKindOf, inspWord: inspWord };')();
+    check('Properties reads as drawn: its title names the piece\'s kind (a token, a flattened picture, each shape by name, nothing for what it does not know), a shut fold says its ticks that are on and its lists not at their first choice by their words before a bracket, and Find a setting shows only the settings that match and opens their folds, a fold it opened not kept open',
+        H.inspKindOf({ type: 'rect' }) === 'Rectangle' && H.inspKindOf({ type: 'image', isChar: true }) === 'Token' && H.inspKindOf({ type: 'image', flatPic: true }) === 'Flattened picture' && H.inspKindOf({ type: 'nope' }) === '' && H.inspKindOf(null) === ''
+        && H.inspWord('Blocks sight (wall / pillar)') === 'Blocks sight' && H.inspWord('Back Layer (New pieces)') === 'Back Layer' && H.inspWord('  Smoke   ') === 'Smoke'
+        && inS.includes("if (typeof inspDress === 'function') inspDress(panel);") && inS.includes("&& d.dataset.was === undefined) _inspFold[d.dataset.fold] = d.open === true; }, true);")
+        && ix.includes('<input type="search" id="propFind" placeholder="Find a setting"') && ix.includes('<span id="propKind" class="ly-map"></span>') && css.includes('.insp-part[open] > summary .insp-says { display: none; }') && css.includes('#inspector .insp-miss { display: none !important; }')
+        && ix.includes('<li><b>Properties</b> floats over the map.'));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

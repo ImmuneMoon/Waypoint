@@ -805,7 +805,8 @@
                           <li><b>Order</b> opens <b>Bring to front</b>, <b>Bring forward</b>, <b>Send backward</b> and <b>Send to back</b>: five stacking layers for building scenes.</li>
                           <li>The <b>Opacity</b> slider adjusts the transparency of anything already on the board.</li>
                           <li>Select several items by dragging a box around them, then <b>Group</b> them or <b>Merge drawings</b>.</li>
-                          <li><b>Layers</b> in the toolbar&rsquo;s More menu lists this map&rsquo;s pieces, front to back, in a window titled with the map&rsquo;s name. A group and a flattened picture hold their pieces under them, and fold. Click a piece to find it, and rename, hide or move it up or down a layer there.</li>
+                          <li><b>Properties</b> floats over the map. Move it by its title, where the piece&rsquo;s kind stands beside the word Properties. A shut fold says what it holds, such as Blocks sight. Where a piece has many folds, <b>Find a setting</b> shows only the settings whose words match.</li>
+                                  <li><b>Layers</b> in the toolbar&rsquo;s More menu lists this map&rsquo;s pieces, front to back, in a window titled with the map&rsquo;s name. A group and a flattened picture hold their pieces under them, and fold. Click a piece to find it, and rename, hide or move it up or down a layer there.</li>
                                   <li><b>Flatten into one picture</b> draws two pieces or more into one picture saved with this campaign. It is on their right-click, and in Build&rsquo;s options. Players then load one picture, not many. The plain pieces are hidden. Pieces with rules, such as walls, doors and cover, are drawn in and kept as invisible pieces, or left out, as you choose. <b>Unflatten</b> on the picture&rsquo;s right-click puts the pieces back.</li>
                           <li><b>Save to Campaign Cast</b>, on a character token, keeps a copy of it in the campaign&rsquo;s cast. Right-click the play map &#9656; <b><i class="wib wi-starf"></i> Campaign Cast</b> and click a member to place a copy there, or its <b>&times;5</b> for five. The cast is a folder of the Image Library too.</li>
                       </ul>
@@ -3925,7 +3926,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
       </div>
       <div id="rightGrip" title="Drag to resize the panel"></div>
       <aside id="sidebar">
-          <div id="propHead"><span class="notepad-title">Properties</span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="propClose" title="Close Properties">&times;</button></div>
+          <div id="propHead"><span class="notepad-title">Properties</span><span id="propKind" class="ly-map"></span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="propClose" title="Close Properties">&times;</button></div>
+          <div id="propFindRow" hidden><input type="search" id="propFind" placeholder="Find a setting" aria-label="Find a setting in Properties" title="Shows only the settings whose words hold what you type, and opens the folds they are in"></div>
           <div class="sidebar-tabs">
               <div id="tabProps" class="sidebar-tab active">Properties</div>
               <div id="tabList" class="sidebar-tab">Elements</div>

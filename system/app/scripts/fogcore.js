@@ -39,9 +39,27 @@ function norm180(d) { d = ((d % 360) + 360) % 360; return d > 180 ? d - 360 : d;
    Square maps use size 50; hex maps use s=30,h=52 (the app's flat-top lattice); a gridless map passes its
    assigned fog.cell (square size = len, or hex s = len/2 with h = len*0.866*2 kept to the app ratio → we keep
    it simple: gridless hex reuses s=30/h=52 scaled by len/60). */
-function squareGrid(size) { return { type: 'square', size: size > 0 ? size : 50 }; }
-function hexGrid(s, h) { return { type: 'hex', s: s > 0 ? s : 30, h: h > 0 ? h : 52 }; }
-function gridFor(gridType, fogCell) {
+// 1.6.2 (backlog 38, a map's own cell size): a lattice may lie off the board's 0,0 by its origin, ox and oy, kept on the grid only where it
+// is not 0, so a grid with no origin is key for key today's
+function gridOrigin(g, ox, oy) { if (fin(ox) && ox) g.ox = ox; if (fin(oy) && oy) g.oy = oy; return g; }
+function squareGrid(size, ox, oy) { return gridOrigin({ type: 'square', size: size > 0 ? size : 50 }, ox, oy); }
+function hexGrid(s, h, ox, oy) { return gridOrigin({ type: 'hex', s: s > 0 ? s : 30, h: h > 0 ? h : 52 }, ox, oy); }
+// A map's own cell (map.meta.cell): its size in board px, the side of a square or the row of a hex, 10 to 1000 to the hundredth, and its
+// origin, taken within one cell (a square's side, or a hex tile's three half-widths across and its row down). Null for none, or for exactly
+// today's lattice (50 or 52 and no origin), so a map is byte for byte as before until its cell is changed
+var CELL_SIZE = [10, 1000];
+function cleanMapCell(v, type) {
+    if (!isObj(v) || !fin(v.size) || v.size < CELL_SIZE[0] || v.size > CELL_SIZE[1]) return null;
+    var size = Math.round(v.size * 100) / 100, hex = type === 'hex', s = hex ? size * 30 / 52 : size, tw = hex ? 3 * s : size, th = size;
+    var mod = function(n, m) { if (!fin(n)) return 0; var r = n % m; if (r < 0) r += m; r = Math.round(r * 100) / 100; return r >= m ? 0 : r; };
+    var ox = mod(v.ox, tw), oy = mod(v.oy, th);
+    if (size === (hex ? 52 : 50) && !ox && !oy) return null;
+    var out = { size: size }; if (ox) out.ox = ox; if (oy) out.oy = oy;
+    return out;
+}
+function gridFor(gridType, fogCell, cell) {
+    var mc = gridType === 'square' || gridType === 'hex' ? cleanMapCell(cell, gridType) : null;   // 1.6.2 (backlog 38): the map's own cell
+    if (mc) return gridType === 'square' ? squareGrid(mc.size, mc.ox, mc.oy) : hexGrid(mc.size * 30 / 52, mc.size, mc.ox, mc.oy);
     if (gridType === 'square') return squareGrid(50);
     if (gridType === 'hex') return hexGrid(30, 52);
     // gridless: use the map's assigned fog.cell
@@ -52,6 +70,7 @@ function gridFor(gridType, fogCell) {
 
 /* ---------- cells ---------- */
 function cellOf(x, y, grid) {
+    x -= grid.ox || 0; y -= grid.oy || 0;   // a lattice off the board's 0,0 (backlog 38)
     if (grid.type === 'square') return { c: Math.floor(x / grid.size), r: Math.floor(y / grid.size) };
     // flat-top hex: x = 1.5s·q + s/2, y = h·(r + q/2); invert then cube-round (the app's snapToHex)
     var q = (x - grid.s / 2) / (1.5 * grid.s), r = y / grid.h - q / 2;
@@ -61,8 +80,9 @@ function cellOf(x, y, grid) {
     return { q: rx, r: ry };
 }
 function cellCenter(cell, grid) {
-    if (grid.type === 'square') return { x: cell.c * grid.size + grid.size / 2, y: cell.r * grid.size + grid.size / 2 };
-    return { x: 1.5 * grid.s * cell.q + grid.s / 2, y: grid.h * (cell.r + cell.q / 2) };
+    var ox = grid.ox || 0, oy = grid.oy || 0;
+    if (grid.type === 'square') return { x: cell.c * grid.size + grid.size / 2 + ox, y: cell.r * grid.size + grid.size / 2 + oy };
+    return { x: 1.5 * grid.s * cell.q + grid.s / 2 + ox, y: grid.h * (cell.r + cell.q / 2) + oy };
 }
 function cellKey(cell, grid) { return grid.type === 'square' ? cell.c + ',' + cell.r : cell.q + ':' + cell.r; }
 function hexDist(a, b) { var dq = a.q - b.q, dr = a.r - b.r; return Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr)); }
@@ -137,10 +157,10 @@ function cellsUnderSpan(x, y, w, h, grid, span) {
     cs.forEach(function(c) { var a = sq ? c.c : c.q; a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, c.r); b1 = Math.max(b1, c.r); });
     if (!sq) { a0 -= 2; a1 += 2; b0 -= 2; b1 += 2; }
     for (var a = a0; a <= a1; a++) {
-        var px = sq ? a * grid.size + grid.size / 2 : 1.5 * grid.s * a + grid.s / 2, lo = y, hi = y + h;
+        var px = (sq ? a * grid.size + grid.size / 2 : 1.5 * grid.s * a + grid.s / 2) + (grid.ox || 0), lo = y, hi = y + h, oy0 = grid.oy || 0;
         if (span) { var sp = span(px); if (!sp) continue; lo = Math.max(sp[0], y); hi = Math.min(sp[1], y + h); }
         if (!(lo <= hi)) continue;
-        var from = Math.max(b0, sq ? Math.floor(lo / grid.size) - 1 : Math.floor(lo / grid.h - a / 2) - 2), to = Math.min(b1, sq ? Math.floor(hi / grid.size) + 1 : Math.ceil(hi / grid.h - a / 2) + 2);
+        var from = Math.max(b0, sq ? Math.floor((lo - oy0) / grid.size) - 1 : Math.floor((lo - oy0) / grid.h - a / 2) - 2), to = Math.min(b1, sq ? Math.floor((hi - oy0) / grid.size) + 1 : Math.ceil((hi - oy0) / grid.h - a / 2) + 2);
         for (var b = from; b <= to; b++) {
             var cell = sq ? { c: a, r: b } : { q: a, r: b }, p = cellCenter(cell, grid);
             if (p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h) out.push(cell);
@@ -343,7 +363,7 @@ function firstWallAt(ax, ay, bx, by, lists, ka, kb) {   // how far along a -> b 
 // meets the walls where they turn, well inside this cell
 function wallCutCells(blockers, grid) {
     var wl = wallsOf(blockers); if (!wl) return [];
-    var sq = grid.type === 'square', sig = grid.type + ':' + (sq ? grid.size : grid.s + '/' + grid.h), kept = EDGE ? EDGE.get(blockers) : null;
+    var sq = grid.type === 'square', sig = grid.type + ':' + (sq ? grid.size : grid.s + '/' + grid.h) + (grid.ox || grid.oy ? '@' + (grid.ox || 0) + ',' + (grid.oy || 0) : ''), kept = EDGE ? EDGE.get(blockers) : null;
     if (kept && kept.n === wl.length && kept.sig === sig) return kept.list;
     var out = [], done = Object.create(null);
     for (var L = 0; L < wl.length; L++) for (var k in wl[L].cells) {
@@ -421,7 +441,7 @@ function terrainFactor(a, b, grid, terr, diag) {
 function cellCorners(cell, grid) {
     var eps = 0.01, ctr = cellCenter(cell, grid), out = [];
     if (grid.type === 'square') {
-        var s = grid.size, x0 = cell.c * s, y0 = cell.r * s, pts = [[x0, y0], [x0 + s, y0], [x0 + s, y0 + s], [x0, y0 + s]];
+        var s = grid.size, x0 = cell.c * s + (grid.ox || 0), y0 = cell.r * s + (grid.oy || 0), pts = [[x0, y0], [x0 + s, y0], [x0 + s, y0 + s], [x0, y0 + s]];
         for (var i = 0; i < 4; i++) out.push({ x: pts[i][0] + (ctr.x - pts[i][0]) * eps, y: pts[i][1] + (ctr.y - pts[i][1]) * eps });
         return out;
     }
@@ -1550,7 +1570,7 @@ function cleanTrim(v) {
 // The board's own lattice for a trim's word, with a hex's corners at half a 52 px row so that neighbours share their edges exactly
 function trimGrid(g) { return g === 'hex' ? hexGrid(30, 52) : squareGrid(50); }
 function trimCorners(cell, grid) {
-    if (grid.type === 'square') { var s = grid.size, x = cell.c * s, y = cell.r * s; return [[x, y], [x + s, y], [x + s, y + s], [x, y + s]]; }
+    if (grid.type === 'square') { var s = grid.size, x = cell.c * s + (grid.ox || 0), y = cell.r * s + (grid.oy || 0); return [[x, y], [x + s, y], [x + s, y + s], [x, y + s]]; }
     var ctr = cellCenter(cell, grid), sx = grid.s, hy = grid.h / 2;
     return [[ctr.x - sx, ctr.y], [ctr.x - sx / 2, ctr.y - hy], [ctr.x + sx / 2, ctr.y - hy], [ctr.x + sx, ctr.y], [ctr.x + sx / 2, ctr.y + hy], [ctr.x - sx / 2, ctr.y + hy]];
 }
@@ -1580,6 +1600,6 @@ function trimRebase(t, x, y, w, h, g) {
     });
     return base;
 }
-var API = { TRIM_MAX: TRIM_MAX, cleanTrim: cleanTrim, trimPolys: trimPolys, trimPath: trimPath, trimRebase: trimRebase, showOk: showOk, showOn: showOn, cleanShowFor: cleanShowFor, keepShow: keepShow, showToMap: showToMap, cleanNullFx: cleanNullFx, cleanCoverAs: cleanCoverAs, cleanCoverPro: cleanCoverPro, proOnLine: proOnLine, coverAsOf: coverAsOf, gradeOnLine: gradeOnLine, coverOfGrade: coverOfGrade, objectOn: objectOn, coverMost: coverMost, VERSION: VERSION, cleanEnvVals: cleanEnvVals, cleanEnvCells: cleanEnvCells, envAt: envAt, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, nearTokens: nearTokens, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, itemOver: itemOver, pathSegs: pathSegs, pathCells: pathCells, withWalls: withWalls, wallsOf: wallsOf, copyWalls: copyWalls, wallEdgeCells: wallEdgeCells, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, lineFirst: lineFirst, coverRole: coverRole, barrierOn: barrierOn, isDoor: isDoor, strokeHeld: strokeHeld, cleanBarrier: cleanBarrier, blastStopOn: blastStopOn, cleanBlastStop: cleanBlastStop, fogHandOf: fogHandOf, cleanFogHand: cleanFogHand, cellsNear: cellsNear, isPortal: isPortal, cleanPortalLock: cleanPortalLock, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX_TILES: TEX_TILES, cleanTexSrc: cleanTexSrc, cleanTexTile: cleanTexTile, cleanHeight: cleanHeight, cleanGround: cleanGround, itemCovers: itemCovers, groundAt: groundAt, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, lineOverHeight: lineOverHeight, lineOverWall: lineOverWall, heightStops: heightStops, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog, secretOk: secretOk, secretOn: secretOn, cleanSecret: cleanSecret, SECRET_WALL: SECRET_WALL, cleanSeenColor: cleanSeenColor, cleanSeenTexture: cleanSeenTexture, secretLook: secretLook, secretSeen: secretSeen, secretReveal: secretReveal, lineOf: lineOf, lineWidth: lineWidth, lineOpacity: lineOpacity, lineTip: lineTip, lineScale: lineScale, lineFactor: lineFactor, cleanSeenWidth: cleanSeenWidth, cleanSeenOpacity: cleanSeenOpacity, cleanSeenTip: cleanSeenTip, MATCH: MATCH, secretMatch: secretMatch, seenDrawn: seenDrawn };
+var API = { CELL_SIZE: CELL_SIZE, cleanMapCell: cleanMapCell, TRIM_MAX: TRIM_MAX, cleanTrim: cleanTrim, trimPolys: trimPolys, trimPath: trimPath, trimRebase: trimRebase, showOk: showOk, showOn: showOn, cleanShowFor: cleanShowFor, keepShow: keepShow, showToMap: showToMap, cleanNullFx: cleanNullFx, cleanCoverAs: cleanCoverAs, cleanCoverPro: cleanCoverPro, proOnLine: proOnLine, coverAsOf: coverAsOf, gradeOnLine: gradeOnLine, coverOfGrade: coverOfGrade, objectOn: objectOn, coverMost: coverMost, VERSION: VERSION, cleanEnvVals: cleanEnvVals, cleanEnvCells: cleanEnvCells, envAt: envAt, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, nearTokens: nearTokens, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, itemOver: itemOver, pathSegs: pathSegs, pathCells: pathCells, withWalls: withWalls, wallsOf: wallsOf, copyWalls: copyWalls, wallEdgeCells: wallEdgeCells, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, lineFirst: lineFirst, coverRole: coverRole, barrierOn: barrierOn, isDoor: isDoor, strokeHeld: strokeHeld, cleanBarrier: cleanBarrier, blastStopOn: blastStopOn, cleanBlastStop: cleanBlastStop, fogHandOf: fogHandOf, cleanFogHand: cleanFogHand, cellsNear: cellsNear, isPortal: isPortal, cleanPortalLock: cleanPortalLock, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX_TILES: TEX_TILES, cleanTexSrc: cleanTexSrc, cleanTexTile: cleanTexTile, cleanHeight: cleanHeight, cleanGround: cleanGround, itemCovers: itemCovers, groundAt: groundAt, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, lineOverHeight: lineOverHeight, lineOverWall: lineOverWall, heightStops: heightStops, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog, secretOk: secretOk, secretOn: secretOn, cleanSecret: cleanSecret, SECRET_WALL: SECRET_WALL, cleanSeenColor: cleanSeenColor, cleanSeenTexture: cleanSeenTexture, secretLook: secretLook, secretSeen: secretSeen, secretReveal: secretReveal, lineOf: lineOf, lineWidth: lineWidth, lineOpacity: lineOpacity, lineTip: lineTip, lineScale: lineScale, lineFactor: lineFactor, cleanSeenWidth: cleanSeenWidth, cleanSeenOpacity: cleanSeenOpacity, cleanSeenTip: cleanSeenTip, MATCH: MATCH, secretMatch: secretMatch, seenDrawn: seenDrawn };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { TRIM_MAX, cleanTrim, trimPolys, trimPath, trimRebase, showOk, showOn, cleanShowFor, keepShow, showToMap, cleanNullFx, cleanCoverAs, cleanCoverPro, proOnLine, coverAsOf, gradeOnLine, coverOfGrade, objectOn, coverMost, cleanEnvVals, cleanEnvCells, envAt, VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, nearTokens, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, itemOver, pathSegs, pathCells, withWalls, wallsOf, copyWalls, wallEdgeCells, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, lineFirst, coverRole, barrierOn, isDoor, strokeHeld, cleanBarrier, blastStopOn, cleanBlastStop, fogHandOf, cleanFogHand, cellsNear, isPortal, cleanPortalLock, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, TEXTURES, cleanTexture, TEX_TILES, cleanTexSrc, cleanTexTile, cleanHeight, cleanGround, itemCovers, groundAt, cleanTokFx, terrainFactor, cleanFogOff, markCells, lineOverHeight, lineOverWall, heightStops, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog, secretOk, secretOn, cleanSecret, SECRET_WALL, cleanSeenColor, cleanSeenTexture, secretLook, secretSeen, secretReveal, lineOf, lineWidth, lineOpacity, lineTip, lineScale, lineFactor, cleanSeenWidth, cleanSeenOpacity, cleanSeenTip, MATCH, secretMatch, seenDrawn };
+export { CELL_SIZE, cleanMapCell, TRIM_MAX, cleanTrim, trimPolys, trimPath, trimRebase, showOk, showOn, cleanShowFor, keepShow, showToMap, cleanNullFx, cleanCoverAs, cleanCoverPro, proOnLine, coverAsOf, gradeOnLine, coverOfGrade, objectOn, coverMost, cleanEnvVals, cleanEnvCells, envAt, VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, nearTokens, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, itemOver, pathSegs, pathCells, withWalls, wallsOf, copyWalls, wallEdgeCells, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, lineFirst, coverRole, barrierOn, isDoor, strokeHeld, cleanBarrier, blastStopOn, cleanBlastStop, fogHandOf, cleanFogHand, cellsNear, isPortal, cleanPortalLock, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, TEXTURES, cleanTexture, TEX_TILES, cleanTexSrc, cleanTexTile, cleanHeight, cleanGround, itemCovers, groundAt, cleanTokFx, terrainFactor, cleanFogOff, markCells, lineOverHeight, lineOverWall, heightStops, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog, secretOk, secretOn, cleanSecret, SECRET_WALL, cleanSeenColor, cleanSeenTexture, secretLook, secretSeen, secretReveal, lineOf, lineWidth, lineOpacity, lineTip, lineScale, lineFactor, cleanSeenWidth, cleanSeenOpacity, cleanSeenTip, MATCH, secretMatch, seenDrawn };

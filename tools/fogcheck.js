@@ -6109,6 +6109,24 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             sqOk && bigOk && tinyOk && hexOk && offOk && htOk && hugeOk && badOk, J([sqOk, bigOk, tinyOk, hexOk, offOk, htOk, hugeOk, badOk]));
     }
 
+    {   // 1.6.2, backlog 38 fold 1: a map's own cell size and origin, in the lattice core
+        const FCc = await import(url('fogcore.js') + '?cell'), J = JSON.stringify, MC = FCc.cleanMapCell;
+        check('a map\'s own cell (cleanMapCell): a size 10 to 1000 to the hundredth and an origin within one cell; today\'s lattice, and anything that is no cell, is none, so such a map is as before',
+            J(MC({ size: 70, ox: 75, oy: -10 }, 'square')) === J({ size: 70, ox: 5, oy: 60 }) && J(MC({ size: 104, ox: 200 }, 'hex')) === J({ size: 104, ox: 20 })
+            && MC({ size: 50 }, 'square') === null && MC({ size: 52, ox: 0 }, 'hex') === null && J(MC({ size: 50, ox: 3 }, 'square')) === J({ size: 50, ox: 3 })
+            && [null, 'x', {}, { size: 9 }, { size: 1001 }, { size: NaN }, { size: '70' }].every(v => MC(v, 'square') === null) && J(MC({ size: 60.456, ox: 'a', oy: Infinity }, 'square')) === J({ size: 60.46 }));
+        const g0 = FCc.gridFor('square', null), g1 = FCc.gridFor('square', null, { size: 50 }), gh = FCc.gridFor('hex', null, { size: 104, oy: 10 });
+        check('gridFor takes a map\'s own cell for a square or hex map, and with none, or today\'s, gives today\'s grid key for key; a hex keeps today\'s shape, its half-width 30/52 of its row',
+            J(g0) === J({ type: 'square', size: 50 }) && J(g1) === J(g0) && J(FCc.gridFor('hex', null, null)) === J({ type: 'hex', s: 30, h: 52 })
+            && gh.type === 'hex' && gh.h === 104 && Math.abs(gh.s - 60) < 1e-9 && gh.oy === 10 && !('ox' in gh) && J(FCc.gridFor('off', { grid: 'square', len: 60 }, { size: 80 })) === J({ type: 'square', size: 60 }), J([g1, gh]));
+        const sq = FCc.squareGrid(70, 5, 60), cOf = FCc.cellOf(80, 135, sq), ctr = FCc.cellCenter(cOf, sq), hx = FCc.hexGrid(60, 104, 20, 10);
+        const hxRound = [[0, 0], [3, -2], [-4, 5], [7, 1]].every(([q, r]) => { const c = FCc.cellCenter({ q: q, r: r }, hx), back = FCc.cellOf(c.x + 3, c.y - 2, hx); return back.q === q && back.r === r; });
+        const under = FCc.cellsUnderRect(5, 60, 140, 140, sq).map(c => c.c + ',' + c.r).join(' ');
+        const corners = FCc.cellCorners({ c: 0, r: 0 }, sq).map(p => [Math.round(p.x), Math.round(p.y)]);
+        check('the lattice reads its origin and size everywhere: a point\'s cell and a cell\'s centre agree, every hex comes back to itself, the cells under a box are those whose centres lie in it, and a cell\'s corners stand on the moved lattice',
+            J(cOf) === J({ c: 1, r: 1 }) && J(ctr) === J({ x: 110, y: 165 }) && hxRound && under === '0,0 0,1 1,0 1,1' && J(corners) === J([[5, 60], [75, 60], [75, 130], [5, 130]]), J([cOf, ctr, under, corners]));
+    }
+
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

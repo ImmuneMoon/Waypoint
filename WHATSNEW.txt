@@ -1,6 +1,12 @@
 WAYPOINT 1.6.2 — What's New
 ============================
 
+Tokens
+- A picture you tick Is Character fits one cell of the map's grid by itself,
+  and Undo puts it back. An empty or see-through border is trimmed and the
+  picture centred, and Frame picture still changes it. The token creator and
+  the Image Library say the size a token's picture is best at.
+
 The System editor
 - Arrange, on the Layout tab, makes the preview large so that you can drag the
   sheet itself. Drag a section by its grip, or a field from anywhere on it.

@@ -3773,5 +3773,15 @@ check('the roster numbers rows of one name, and the sheet that says it is out of
     check('Fit to grid sizes a picture by the part it shows (1.6.2, the owner\'s recording of 2026-11-06: a square picture in a box of one cell by two was drawn half a cell off; whiteboard.js fitShown and fitItemInPlace, run for real): a square picture in a 50 by 100 box fitted to one cell where it shows, a 74 by 76 box to one cell, the box as before where the picture\'s shape is not known, a wide picture by its own shape, one already in its cell left as it is, and a shape that is no picture as before',
         J(R) === J([[15250, 15150, 50, 50, true], [15250, 15100, 50, 50, true], [0, 0, 50, 100, true], [0, 100, 300, 150, true], [15250, 15150, 50, 50, false], [0, 0, 50, 100, true], 0]), J(R));
 }
+{
+    {   // 1.6.2 (backlog 141): a picture ticked Is Character fits one cell in that change, then is trimmed apart; the Image Library's upload says the best size
+        const wb141 = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').replace(/\r/g, ''), ins141 = fs.readFileSync(path.join(app, 'scripts', 'inspector.js'), 'utf8');
+        const s141 = wb141.slice(wb141.indexOf('// [lookcheck:tokfit-start]'), wb141.indexOf('// [lookcheck:tokfit-end]'));
+        check('a picture ticked Is Character fits one cell in the tick\'s own save (so Undo puts it back), on the machine that owns the campaign; its trim is a frame of its own, the original kept, and a framed picture is left alone (backlog 141)',
+            s141.length > 200 && /var fit = this\.checked && typeof wpTokenFit === 'function' \? wpTokenFit\(w\) : false; save\(\); if \(low \|\| fit\) render\(\);/.test(ins141)
+            && /wpCanPersistLocal\(\)/.test(s141) && /SC\.tokenOneCell\(w, am\)/.test(s141) && /window\.wpSeatCell\(w, am\)/.test(s141) && /worn\.of === w\.src/.test(s141) && /S\.applyTokenFrame\(mapId, \[id\], \{ blob: blob, was: was, frame: \{ src: was,/.test(s141)
+            && /FC\.trimRect\(px, aw, ah\)/.test(s141) && /window\.wpTokenFit = tokenFit;/.test(s141) && /var tipU = window\.wpFrameCore && window\.wpFrameCore\.sizeTip/.test(wb141));
+    }
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

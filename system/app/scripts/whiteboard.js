@@ -1558,6 +1558,44 @@ function fitToGrid(its) {
     if (n) { save(); render(); toast('Fitted ' + n + ' item' + (n === 1 ? '' : 's') + ' to the ' + g + ' grid.'); }
     else { toast('Already aligned to the grid.'); }
 }
+// [lookcheck:tokfit-start]
+// 1.6.2 (backlog 141; the owner, 2026-11-06, by prompt: "Yes, one cell (Recommended)", "Trim and centre (Recommended)"): a picture ticked
+// Is Character fits one cell of the map's grid and is seated in it, in the very change the tick saves, so Undo puts it back. Then, apart,
+// an empty or see-through border is trimmed and the rest centred in a square (framecore trimRect), saved as a new picture with the
+// original kept as its frame, so Frame picture still changes it. Only on the machine that owns the campaign. True when it was resized
+function tokenFit(w) {
+    var am = getActiveMap(), SC = window.wpSystemCore;
+    if (!w || !am || am.type !== 'map' || !SC || !SC.tokenOneCell || !(window.wpCanPersistLocal && window.wpCanPersistLocal())) return false;
+    var fit = SC.tokenOneCell(w, am);
+    if (fit && window.wpSeatCell) window.wpSeatCell(w, am);
+    var worn = SC.cleanFrame ? SC.cleanFrame(w.frame) : null;
+    if (w.isChar && w.type === 'image' && typeof w.src === 'string' && w.src && !w.charId && !(worn && worn.of === w.src)) { var mid = am.id, wid = w.id, was = w.src; setTimeout(function() { tokenTrim(mid, wid, was); }, 0); }
+    return fit;
+}
+function tokenTrim(mapId, id, was) {
+    var S = window.wpSheets, FC = window.wpFrameCore;
+    if (!S || !S.applyTokenFrame || !FC || !FC.trimRect || typeof document === 'undefined' || !picRef(was)) return;
+    var img = new Image();
+    img.onload = function() {
+        var W = img.naturalWidth, H = img.naturalHeight; if (!(W > 0 && H > 0)) return;
+        var k = Math.min(1, 1024 / Math.max(W, H)), aw = Math.max(1, Math.round(W * k)), ah = Math.max(1, Math.round(H * k));
+        var cv = document.createElement('canvas'); cv.width = aw; cv.height = ah; var cx = cv.getContext('2d'); if (!cx) return;
+        cx.drawImage(img, 0, 0, aw, ah);
+        var px; try { px = cx.getImageData(0, 0, aw, ah).data; } catch (e) { return; }
+        var r = FC.trimRect(px, aw, ah); if (!r) return;
+        var kx = W / aw, ky = H / ah, s1 = r.s * Math.max(kx, ky), out = FC.outSide ? FC.outSide(s1, 512) : 256, f = out / s1;
+        var oc = document.createElement('canvas'); oc.width = out; oc.height = out; var octx = oc.getContext('2d'); if (!octx) return;
+        octx.drawImage(img, r.bx * kx, r.by * ky, r.bw * kx, r.bh * ky, (s1 - r.bw * kx) / 2 * f, (s1 - r.bh * ky) / 2 * f, r.bw * kx * f, r.bh * ky * f);
+        oc.toBlob(function(blob) {
+            if (!blob) return;
+            var s0 = Math.min(s1, W, H), fx = Math.max(0, Math.min(W - s0, r.x * kx)), fy = Math.max(0, Math.min(H - s0, r.y * ky));
+            S.applyTokenFrame(mapId, [id], { blob: blob, was: was, frame: { src: was, x: fx, y: fy, s: s0 } }).then(function(ok) { if (ok) toast('Its empty border is trimmed and the picture centred. Frame picture changes it.'); });
+        }, 'image/png');
+    };
+    img.src = was;
+}
+window.wpTokenFit = tokenFit;
+// [lookcheck:tokfit-end]
 // One shared builder so the live draw preview and the committed stroke never drift.
 function buildStrokePath(pts, tip, w, holes) {
     tip = tip || 'round'; w = w || 3;
@@ -7046,7 +7084,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           if (!fl.length) return; if (!dir) { toast('Make a map first: a picture is kept with one of the campaign\'s maps.'); return; }
           var ok = 0, bad = 0; toast('Adding ' + fl.length + (fl.length === 1 ? ' picture\u2026' : ' pictures\u2026'));
           for (var i = 0; i < fl.length; i++) { try { await uploadBlob(dir, fl[i].name, fl[i]); ok++; } catch (e) { bad++; } }
-          if (bad) toast(bad + (bad === 1 ? ' picture' : ' pictures') + ' could not be added' + (ok ? '. ' + ok + ' added.' : '.'), 'warn'); else toast(ok === 1 ? 'Added 1 picture.' : 'Added ' + ok + ' pictures.');
+          var tipU = window.wpFrameCore && window.wpFrameCore.sizeTip ? ' ' + window.wpFrameCore.sizeTip(window.wpSystemCore && window.wpSystemCore.mapGridOf ? window.wpSystemCore.mapGridOf(getActiveMap()) : 'off') : '';   // 1.6.2 (backlog 141): the size a token's picture is best at
+          if (bad) toast(bad + (bad === 1 ? ' picture' : ' pictures') + ' could not be added' + (ok ? '. ' + ok + ' added.' : '.') + tipU, 'warn'); else toast((ok === 1 ? 'Added 1 picture.' : 'Added ' + ok + ' pictures.') + tipU);
           try { _imgLibCache = await (await fetch('/api/list-images')).json(); } catch (e) {} _imgIndex = null; _imgLibScope = 'camp';
           renderImgLib(document.getElementById('imgLibSearch').value);
       });

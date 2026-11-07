@@ -2081,6 +2081,7 @@
   .frame-shape.sel { border-color: var(--gold); color: var(--gold); }
   .frame-zoom { flex: 1; min-width: 120px; }
   .frame-keep { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .frame-size { margin: 0; font-size: 12px; color: var(--dim); line-height: 1.4; }
   .frame-hint { color: var(--dim); font-size: 11px; line-height: 1.4; }
   .frame-actions { display: flex; justify-content: flex-end; gap: 8px; }
   .party-tok.party-ini { display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: var(--ink); }

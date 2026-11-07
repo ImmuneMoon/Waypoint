@@ -64,7 +64,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         cfg = cfg || {};
         const log = { toasts: [], created: 0, revoked: 0, blobCbs: [], listeners: {}, encoded: [], focus: 0 };
         const el = id => ({ id, style: {}, attrs: {}, textContent: '', value: '', checked: false, clientWidth: 300, setAttribute(k, v) { this.attrs[k] = String(v); }, removeAttribute(k) { delete this.attrs[k]; }, focus() { log.focus++; }, querySelectorAll() { return []; }, getBoundingClientRect() { return { left: 0, top: 0 }; } });
-        const els = {}; ['frameModal', 'frameImg', 'frameTitle', 'frameZoom', 'frameDim', 'frameEdge', 'frameOk', 'frameKeep', 'frameKeepRow', 'frameStage'].forEach(id => { els[id] = el(id); });
+        const els = {}; ['frameModal', 'frameImg', 'frameTitle', 'frameZoom', 'frameDim', 'frameEdge', 'frameOk', 'frameKeep', 'frameKeepRow', 'frameStage', 'frameSize'].forEach(id => { els[id] = el(id); });
         const lens = Object.assign({ 'image/png': 100, 'image/webp': 100, 'image/jpeg': 100 }, cfg.lens || {});
         const canvas = () => { const cv = { width: 0, height: 0, fill: null, getContext() { return { fillStyle: '', drawImage() {}, fillRect() { cv.fill = this.fillStyle; } }; },
             toDataURL(t) { log.encoded.push([t, cv.fill]); return 'data:' + ((cfg.answer && cfg.answer[t]) || t) + ';base64,' + 'A'.repeat(lens[t]); },
@@ -74,9 +74,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const URLs = { createObjectURL: () => { log.created++; return 'blob:pic'; }, revokeObjectURL: () => { log.revoked++; } };
         class Img { set src(v) { this._s = v; if (cfg.defer) { (cfg.pending = cfg.pending || []).push(this); return; } if (cfg.err) { if (this.onerror) this.onerror(); return; } if (this.onload) this.onload(); } get naturalWidth() { return cfg.bad ? 0 : cfg.w || 400; } get naturalHeight() { return cfg.h || 200; } }
         const picRef = v => typeof v === 'string' && v.indexOf('/saves/') === 0 ? v : '';
-        const api = new Function('clampRect', 'zoomAt', 'panBy', 'zoomOf', 'setZoom', 'outSide', 'firstFit', 'guidePath', 'defaultRect', 'ENCODE', 'wheelFactor', 'picRef', 'getActiveMap', 'document', 'window', 'URL', 'Image',
+        const api = new Function('clampRect', 'zoomAt', 'panBy', 'zoomOf', 'setZoom', 'outSide', 'firstFit', 'guidePath', 'defaultRect', 'ENCODE', 'wheelFactor', 'sizeTip', 'picRef', 'getActiveMap', 'document', 'window', 'URL', 'Image',
             frS.slice(fA, fB) + '\nreturn { open, close, finish, cancel, onKey, block, pickShape, isOpen: function() { return !!st; } };')(
-            F.clampRect, F.zoomAt, F.panBy, F.zoomOf, F.setZoom, F.outSide, F.firstFit, F.guidePath, F.defaultRect, F.ENCODE, F.wheelFactor, picRef, () => cfg.map || null, doc, win, URLs, Img);
+            F.clampRect, F.zoomAt, F.panBy, F.zoomOf, F.setZoom, F.outSide, F.firstFit, F.guidePath, F.defaultRect, F.ENCODE, F.wheelFactor, F.sizeTip, picRef, () => cfg.map || null, doc, win, URLs, Img);
         return { api, log, els, cfg, live: t => (log.listeners[t] || []).length };
     };
     const FILE = { type: 'image/png', size: 1000 };
@@ -137,6 +137,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     const kp2 = mkFramer(), kp2Got = []; kp2.api.open(FILE, {}, r => kp2Got.push(r)); kp2.els.frameKeep.checked = true; const kp2Show = kp2.els.frameKeepRow.style.display; kp2.api.finish();
     check('the creator (run for real): "Keep the original" shows only when the caller offers it (as it was set) and is reported only then; the title is text, at most 80 characters',
         kpShow === '' && kpGot[0].keep === true && kp2Show === 'none' && kp2Got[0].keep === false && kpTitle === 80);
+    // 1.6.2 (backlog 141): a picture made a token, trimmed and centred, and the size a token's picture is best at
+    const pic = (w, h, paint, bg) => { const px = new Uint8ClampedArray(w * h * 4); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = (y * w + x) * 4, c = paint(x, y) || bg || [0, 0, 0, 0]; px[i] = c[0]; px[i + 1] = c[1]; px[i + 2] = c[2]; px[i + 3] = c[3]; } return px; };
+    const RED = [200, 20, 20, 255], WHITE = [255, 255, 255, 255];
+    const tr1 = F.trimRect(pic(100, 100, (x, y) => x >= 30 && x < 70 && y >= 20 && y < 80 ? RED : null), 100, 100);
+    const tr2 = F.trimRect(pic(100, 100, (x, y) => x >= 10 && x < 40 && y >= 10 && y < 40 ? RED : null, WHITE), 100, 100);
+    const tr3 = F.trimRect(pic(100, 100, () => RED), 100, 100), tr4 = F.trimRect(pic(100, 100, () => null), 100, 100), tr5 = F.trimRect(pic(100, 100, (x, y) => x >= 1 && y >= 1 && x < 99 && y < 99 ? RED : null), 100, 100);
+    const tr6 = F.trimRect(pic(100, 100, (x, y) => (x < 2 && y < 2) ? [0, 0, 255, 255] : x >= 30 && x < 70 ? RED : null, WHITE), 100, 100);
+    check('a picture made a token: its see-through border is trimmed and the rest centred in a square that may reach past it (backlog 141)', j(tr1) === j({ bx: 30, by: 20, bw: 40, bh: 60, s: 60, x: 20, y: 20 }), j(tr1));
+    check('... a border all of the colour of its four corners is trimmed too, and one of mixed corners is not (it may be a photograph)', j(tr2) === j({ bx: 10, by: 10, bw: 30, bh: 30, s: 30, x: 10, y: 10 }) && tr6 === null, j([tr2, tr6]));
+    check('... nothing to trim, a picture that is all border, a border no wider than a fiftieth of its side and bytes that are none give null', tr3 === null && tr4 === null && tr5 === null && F.trimRect(null, 10, 10) === null && F.trimRect(new Uint8ClampedArray(8), 10, 10) === null && F.trimRect(pic(4, 4, () => RED), 4.5, 4) === null, j([tr3, tr4, tr5]));
+    check('... the size a token\'s picture is best at, by the map\'s grid, in plain words', /^For a token, a square picture of 256 pixels or more fits best\.$/.test(F.sizeTip('square')) && /hexagon is cut from the middle/.test(F.sizeTip('hex')) && /circle is cut from the middle/.test(F.sizeTip('off')) && /circle/.test(F.sizeTip(undefined)));
+    const sz1 = mkFramer({ map: { id: 'm', type: 'map', meta: { gridType: 'hex' } }, w: 400, h: 300 }); sz1.api.open(FILE, {}, () => {}); const sz1T = sz1.els.frameSize.textContent; sz1.api.finish();
+    const sz2 = mkFramer({ map: { id: 'm', type: 'map', meta: { gridType: 'square' } }, w: 90, h: 120 }); sz2.api.open(FILE, {}, () => {}); const sz2T = sz2.els.frameSize.textContent; sz2.api.finish();
+    check('the creator (run for real) says the size a token\'s picture is best at for the open map\'s grid, and that a small picture may look soft', sz1T === F.sizeTip('hex') && sz2T === F.sizeTip('square') + ' This one is 90 pixels across, so it may look soft.', j([sz1T, sz2T]));
+    const frS141 = fs.readFileSync(path.join(app, 'scripts', 'framer.js'), 'utf8'), idx141 = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+    check('... its line is in the page under Keep the original, as text', /id="frameKeepRow"[^\n]*\n\s*<p id="frameSize" class="frame-size"><\/p>/.test(idx141.replace(/\r/g, '')) && /tipEl\.textContent = sizeTip\(/.test(frS141));
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

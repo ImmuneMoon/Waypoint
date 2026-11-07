@@ -7,7 +7,7 @@
    (the GM's "Keep the original" choice, shown only when given), onCancel, onError, maxInput (a larger cap for the GM's own local file) };
    cb({ data | blob, rect, w, h, keep }) on OK only; onCancel when it ends without a picture (Cancel, x, Escape, another framing opened over
    it, or a picture it could not read when there is no onError); onError when the picture could not be read. */
-import { clampRect, zoomAt, panBy, zoomOf, setZoom, outSide, firstFit, guidePath, defaultRect, ENCODE, wheelFactor } from './framecore.js';
+import { clampRect, zoomAt, panBy, zoomOf, setZoom, outSide, firstFit, guidePath, defaultRect, ENCODE, wheelFactor, sizeTip } from './framecore.js';
 import { picRef } from './safecore.js';
 import { getActiveMap } from './models.js';
 
@@ -95,6 +95,8 @@ function open(source, opts, cb) {
         var keepRow = ui('frameKeepRow'), keep = ui('frameKeep');
         if (keepRow) keepRow.style.display = typeof opts.keep === 'boolean' ? '' : 'none';
         if (keep) keep.checked = opts.keep === true;
+        var tipEl = ui('frameSize');   // 1.6.2 (backlog 141): the size a token's picture is best at, for this map's grid
+        if (tipEl) tipEl.textContent = sizeTip(S && S.mapGridOf ? S.mapGridOf(am) : 'off') + (Math.min(w, h) < 128 ? ' This one is ' + Math.min(w, h) + ' pixels across, so it may look soft.' : '');
         ui('frameModal').style.display = 'flex';
         window.addEventListener('keydown', onKey, true);
         ['paste', 'drop', 'dragover'].forEach(function(t) { window.addEventListener(t, block, true); });

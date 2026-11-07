@@ -7294,6 +7294,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             S.mapGridOf(mp('hex')) === 'hex' && S.mapGridOf(mp('square')) === 'square' && ['off', 'Hex', 'constructor', '__proto__', 5, undefined].every(g => S.mapGridOf(mp(g)) === 'off') && S.mapGridOf(null) === 'off' && S.mapGridOf({ meta: 'hex' }) === 'off'
             && j(S.tokenCell(mp('hex'))) === j({ type: 'hexagon', w: 60, h: 52 }) && j(S.tokenCell(mp('square'))) === j({ type: 'rect', w: 50, h: 50 }) && j(S.tokenCell(mp())) === j({ type: 'circle', w: 60, h: 52 }) && j(S.tokenCell(null)) === j({ type: 'circle', w: 60, h: 52 }));
         const sh = (tok, g) => { const t = JSON.parse(j(tok)); const r = S.shapeStandIn(t, mp(g)); return [r, t]; };
+        {   // 1.6.2 (backlog 141): a picture made a token fits one cell of the map's grid, its centre kept, and takes the cell's outline
+            const one = (tok, g) => { const t = JSON.parse(j(tok)); const r = S.tokenOneCell(t, mp(g)); return [r, t]; };
+            const big = { type: 'image', src: '/saves/images/a.png', isChar: true, x: 100, y: 100, w: 300, h: 200 };
+            const [rh, th] = one(big, 'hex'), [rs, ts] = one(big, 'square'), [ro, to] = one(big, 'off'), [rn, tn] = one(Object.assign({}, big, { isChar: false }), 'square');
+            const [rw, tw] = one(Object.assign({}, big, { waiting: true }), 'square'), [rl, tl] = one(Object.assign({}, big, { locked: true }), 'square'), [rc, tc] = one({ type: 'circle', isChar: true, x: 0, y: 0, w: 300, h: 300 }, 'square');
+            const [ra, ta] = one(Object.assign({}, big, { w: 50, h: 50, x: 75, y: 75, shape: 'rect' }), 'square');
+            check('a picture ticked Is Character fits one cell of a hex or square grid, its centre kept, with the cell as its outline; no grid, a plain shape, a waiting or locked token, one that is no token, and one already a cell are left as they are (backlog 141)',
+                rh === true && th.w === 60 && th.h === 52 && th.shape === 'hexagon' && th.x === 220 && th.y === 174 && rs === true && ts.w === 50 && ts.h === 50 && ts.shape === 'rect' && ts.x === 225 && ts.y === 175
+                && ro === false && j(to) === j(big) && rn === false && j(tn) === j(Object.assign({}, big, { isChar: false })) && rw === false && rl === false && rc === false && tc.w === 300 && ra === false && ta.x === 75
+                && S.tokenOneCell(null, mp('hex')) === false && S.tokenOneCell({ type: 'image', isChar: true }, mp('hex')) === false, j([th, ts, to, ta]));
+        }
         const c1 = { id: 't', isChar: true, type: 'circle', x: 100, y: 200, w: 60, h: 52 };
         const [rH, tH] = sh(c1, 'hex'), [rS, tS] = sh(c1, 'square'), [rO, tO] = sh(c1, 'off'), [rW, tW] = sh({ id: 'w', waiting: 1, type: 'circle', x: 100, y: 200, w: 60, h: 52 }, 'square'), [rB, tB] = sh(tS, 'hex');
         check('grid shape: a plain one-cell token takes the cell (hex: a hexagon 60x52, square: a square 50x50 — its centre kept; no grid: the circle it was, unchanged); a waiting token too; back from square to hex it is a hexagon again',

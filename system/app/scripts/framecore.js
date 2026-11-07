@@ -60,11 +60,39 @@ function guidePath(shape, bw, bh) {
 // (100 px) about 10%, a touchpad's small steps and pinches (ctrl+wheel) a little each — never more than a notch in one event
 function wheelFactor(dy, mode) { if (!fin(dy) || !dy) return 1; var px = dy * (mode === 1 ? 16 : mode === 2 ? 400 : 1); px = Math.max(-100, Math.min(100, px)); return Math.exp(-px * 0.001); }
 // A stored framing (the GM's kept original: its square), cleaned against the picture's size: numbers only, inside it; else null
+// 1.6.2 (backlog 141; the owner: "Trim and centre (Recommended)"): the square a picture made a token is cut to, in the picture's own pixels.
+// Its see-through border is trimmed, or, where its four corners are all one colour, a border of that colour. The rest is centred in a
+// square, which may reach past the picture: what lies past it stays see-through. px is the RGBA bytes. null where nothing is worth trimming:
+// no border wider than a fiftieth of the shorter side, or a picture that is all border
+function trimRect(px, w, h) {
+    if (!px || !(w >= 1) || !(h >= 1) || Math.floor(w) !== w || Math.floor(h) !== h || !(px.length >= w * h * 4)) return null;
+    var at = function(x, y) { return (y * w + x) * 4; }, see = function(i) { return px[i + 3] <= 8; };
+    var cs = [at(0, 0), at(w - 1, 0), at(0, h - 1), at(w - 1, h - 1)], c0 = cs[0];
+    var near = function(i, j) { return Math.abs(px[i] - px[j]) + Math.abs(px[i + 1] - px[j + 1]) + Math.abs(px[i + 2] - px[j + 2]) <= 24; };
+    var plain = cs.every(function(i) { return !see(i) && near(i, c0); });
+    var empty = plain ? function(i) { return see(i) || (px[i + 3] >= 240 && near(i, c0)); } : see;
+    var rowFull = function(y) { for (var x = 0; x < w; x++) if (!empty(at(x, y))) return true; return false; };
+    var colFull = function(x, y0, y1) { for (var y = y0; y <= y1; y++) if (!empty(at(x, y))) return true; return false; };
+    var y0 = 0; while (y0 < h && !rowFull(y0)) y0++;
+    if (y0 >= h) return null;
+    var y1 = h - 1; while (y1 > y0 && !rowFull(y1)) y1--;
+    var x0 = 0; while (x0 < w && !colFull(x0, y0, y1)) x0++;
+    var x1 = w - 1; while (x1 > x0 && !colFull(x1, y0, y1)) x1--;
+    var m = Math.max(1, Math.round(Math.min(w, h) / 50));
+    if (x0 < m && y0 < m && w - 1 - x1 < m && h - 1 - y1 < m) return null;
+    var bw = x1 - x0 + 1, bh = y1 - y0 + 1, s = Math.max(bw, bh);
+    return { bx: x0, by: y0, bw: bw, bh: bh, s: s, x: x0 + bw / 2 - s / 2, y: y0 + bh / 2 - s / 2 };
+}
+// ... and the size a token's picture is best at, for a map's grid ('hex', 'square' or 'off'), in plain words (the owner: "Also on upload")
+function sizeTip(grid) {
+    var cut = grid === 'hex' ? ' Its hexagon is cut from the middle, so keep the subject there.' : grid === 'square' ? '' : ' Its circle is cut from the middle, so keep the subject there.';
+    return 'For a token, a square picture of 256 pixels or more fits best.' + cut;
+}
 function cleanRect(v, w, h) {
     if (!v || typeof v !== 'object' || !fin(v.x) || !fin(v.y) || !fin(v.s) || !(fin(w) && fin(h) && w > 0 && h > 0)) return null;
     return clampRect({ x: v.x, y: v.y, s: v.s }, w, h);
 }
 
-var API = { VERSION: VERSION, MIN_SIDE: MIN_SIDE, ZOOM_MAX: ZOOM_MAX, ENCODE: ENCODE, defaultRect: defaultRect, minSide: minSide, clampRect: clampRect, zoomAt: zoomAt, panBy: panBy, zoomOf: zoomOf, setZoom: setZoom, outSide: outSide, firstFit: firstFit, guidePath: guidePath, cleanRect: cleanRect, wheelFactor: wheelFactor };
+var API = { VERSION: VERSION, MIN_SIDE: MIN_SIDE, ZOOM_MAX: ZOOM_MAX, ENCODE: ENCODE, defaultRect: defaultRect, minSide: minSide, clampRect: clampRect, zoomAt: zoomAt, panBy: panBy, zoomOf: zoomOf, setZoom: setZoom, outSide: outSide, firstFit: firstFit, guidePath: guidePath, cleanRect: cleanRect, wheelFactor: wheelFactor, trimRect: trimRect, sizeTip: sizeTip };
 if (typeof window !== 'undefined') window.wpFrameCore = API;
-export { VERSION, MIN_SIDE, ZOOM_MAX, ENCODE, defaultRect, minSide, clampRect, zoomAt, panBy, zoomOf, setZoom, outSide, firstFit, guidePath, cleanRect, wheelFactor };
+export { VERSION, MIN_SIDE, ZOOM_MAX, ENCODE, defaultRect, minSide, clampRect, zoomAt, panBy, zoomOf, setZoom, outSide, firstFit, guidePath, cleanRect, wheelFactor, trimRect, sizeTip };

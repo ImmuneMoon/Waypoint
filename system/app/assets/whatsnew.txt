@@ -585,6 +585,10 @@ Writing planners and pages
   changed you are asked which to keep. This update changes the core, so it
   installs through the installer once.
 - The install's website key is no longer readable by the page as a file.
+- Layers, in the play map's More menu, lists the map's pieces front to back in
+  a window of its own titled with the map's name. A group and a flattened
+  picture hold their pieces under them. On the play map the right panel is
+  now Properties alone.
 - The table trackers stand in one bar named Trackers: its fold, the trackers,
   + Add and Who sees are parts of it, parted by thin lines.
 - A list's action may be a job of several turns too, as a reload that rolls

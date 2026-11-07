@@ -1531,9 +1531,11 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
 
 
+  var _lyShut = Object.create(null);   // 1.6.2, backlog 217: the groups and flattened pictures folded in Layers, by id, in memory
   function renderElementList() {
 
-      var listEl = document.getElementById('elementList');
+      var lyEl = state.viewMode === 'visual' && window.wpLayers && window.wpLayers.shown() ? document.getElementById('layersList') : null, listEl = lyEl || document.getElementById('elementList');   // 1.6.2, backlog 217: on the play map, into Layers
+      if (lyEl) { var oldEl = document.getElementById('elementList'); if (oldEl) oldEl.textContent = ''; if (window.wpLayers.title) window.wpLayers.title(); }
 
       if(!listEl) return;
 
@@ -1543,7 +1545,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
       
 
-      var html = '<h2>' + (state.viewMode==='data' ? 'Data Nodes' : 'Visual Shapes') + '</h2>';
+      var html = lyEl ? '' : '<h2>' + (state.viewMode==='data' ? 'Data Nodes' : 'Visual Shapes') + '</h2>';
 
       html += '<input type="text" id="elementSearchInput" placeholder="Filter elements..." style="width:100%; box-sizing:border-box; margin-bottom:10px; padding: 4px;" />';
 
@@ -1576,15 +1578,29 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
           if (la !== lb) return la - lb;
           return b.idx - a.idx;
       });
+      var byId = {}, kids = {}, gm = {}, done = {}; items.forEach(function(it) { if (it && typeof it.id === 'string') byId[it.id] = it; });
+      var flatOf = function(it) { return visual && typeof it.flatIn === 'string' && byId[it.flatIn] && byId[it.flatIn].flatPic === true ? it.flatIn : ''; };   // 1.6.2, backlog 217: a flattened picture holds its pieces, a group its members
+      if (visual) ordered.forEach(function(e) { var it = e.it, fp = flatOf(it); if (fp) (kids[fp] = kids[fp] || []).push(it); else if (typeof it.groupId === 'string' && it.groupId) (gm[it.groupId] = gm[it.groupId] || []).push(it); });
+      var rowOf = function(item, deep) {
+          var htmlName = esc(elementName(item));
+          if (item.locked) htmlName = '<i class="wib wi-lock"></i> ' + htmlName;
+          if (visual && item.hidden) htmlName = '<i class="wib wi-hide"></i> ' + htmlName;
+          var sel = (state.selWbIds || []).includes(item.id) || state.selWbId === item.id || state.selId === item.id, sh = !!_lyShut[item.id];
+          var fold = visual && kids[item.id] ? '<button class="tool ghost el-fold" data-g="' + esc(item.id) + '" aria-expanded="' + (!sh) + '" title="Show or hide the pieces drawn into this picture">' + (sh ? '&#9656;' : '&#9662;') + '</button>' : '';
+          return '<div class="element-list-item' + (sel ? ' sel' : '') + (deep ? ' el-child el-d' + deep : '') + '" data-id="' + esc(item.id) + '">' + fold +
+                  '<div class="el-name" data-id="'+esc(item.id)+'" title="Click to jump to it · double-click to rename">' + htmlName + '</div>' +
+                  '<button class="tool ghost el-rename" aria-label="Rename" title="Rename" data-id="'+esc(item.id)+'"><i class="wib wi-pen"></i></button>' +
+                  (visual ? '<button class="tool ghost el-up" aria-label="Move up a layer" title="Move up a layer (toward the front)" data-id="'+esc(item.id)+'">&#9650;</button>' +
+                            '<button class="tool ghost el-down" aria-label="Move down a layer" title="Move down a layer (toward the back)" data-id="'+esc(item.id)+'">&#9660;</button>' : '') +
+                  '<button class="tool ghost danger el-del" aria-label="Delete Element" title="Delete Element" data-id="'+esc(item.id)+'">X</button>' +
+                  '</div>';
+      };
+      var withKids = function(item, deep) { var h = rowOf(item, deep); done[item.id] = 1; (kids[item.id] || []).forEach(function(k) { done[k.id] = 1; if (!_lyShut[item.id]) h += rowOf(k, deep + 1); }); return h; };
       var lastLayer = null;
 
       ordered.forEach(function(entry) {
           var item = entry.it;
-          var name = elementName(item);
-          var htmlName = esc(name);
-
-          if (item.locked) htmlName = '<i class="wib wi-lock"></i> ' + htmlName;
-          if (visual && item.hidden) htmlName = '<i class="wib wi-hide"></i> ' + htmlName;
+          if (done[item.id] || flatOf(item)) return;   // drawn already, or under its picture
 
           if (visual) {
               var lay = item.layer || 'middle';
@@ -1594,19 +1610,22 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               }
           }
 
-          var sel = (state.selWbIds || []).includes(item.id) || state.selWbId === item.id || state.selId === item.id;
-          html += '<div class="element-list-item' + (sel ? ' sel' : '') + '" data-id="' + esc(item.id) + '">' +
-                  '<div class="el-name" data-id="'+esc(item.id)+'" title="Click to jump to it · double-click to rename">' + htmlName + '</div>' +
-                  '<button class="tool ghost el-rename" aria-label="Rename" title="Rename" data-id="'+esc(item.id)+'"><i class="wib wi-pen"></i></button>' +
-                  (visual ? '<button class="tool ghost el-up" aria-label="Move up a layer" title="Move up a layer (toward the front)" data-id="'+esc(item.id)+'">&#9650;</button>' +
-                            '<button class="tool ghost el-down" aria-label="Move down a layer" title="Move down a layer (toward the back)" data-id="'+esc(item.id)+'">&#9660;</button>' : '') +
-                  '<button class="tool ghost danger el-del" aria-label="Delete Element" title="Delete Element" data-id="'+esc(item.id)+'">X</button>' +
-                  '</div>';
+          var g = visual && typeof item.groupId === 'string' && item.groupId && gm[item.groupId] && gm[item.groupId].length > 1 ? item.groupId : '';
+          if (g) {   // a group: one row that folds, its members under it
+              var mem = gm[g], gs = !!_lyShut['g:' + g];
+              html += '<div class="element-group" data-g="g:' + esc(g) + '"><button class="tool ghost el-fold" data-g="g:' + esc(g) + '" aria-expanded="' + (!gs) + '" title="Show or hide the group\u2019s pieces">' + (gs ? '&#9656;' : '&#9662;') + '</button><span class="el-gname" data-g="' + esc(g) + '" title="Click to select the whole group">Group \u00b7 ' + mem.length + '</span></div>';
+              mem.forEach(function(m) { if (gs) { done[m.id] = 1; (kids[m.id] || []).forEach(function(k) { done[k.id] = 1; }); } else html += withKids(m, 1); });
+              return;
+          }
+          html += withKids(item, 0);
       });
 
       html += '</div>';
 
       listEl.innerHTML = html;
+
+      listEl.querySelectorAll('.el-fold').forEach(function(b) { b.addEventListener('click', function(e) { e.stopPropagation(); var g = b.dataset.g; if (_lyShut[g]) delete _lyShut[g]; else _lyShut[g] = 1; renderElementList(); }); });   // 1.6.2, backlog 217: a group or a flattened picture folds
+      listEl.querySelectorAll('.el-gname').forEach(function(b) { b.addEventListener('click', function() { var g = b.dataset.g, ids = items.filter(function(x) { return x && x.groupId === g; }).map(function(x) { return x.id; }); if (!ids.length) return; state.selWbIds = ids; state.selWbId = ids[0]; render(); }); });
 
       function elementName(item) {
           if (!visual) return item.name || 'Unnamed Node';
@@ -1689,7 +1708,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
               row.style.display = (txt.indexOf(q) !== -1 || q === '') ? 'flex' : 'none';
 
           });
-          document.querySelectorAll('.el-layer-head').forEach(function(h) { h.style.display = q ? 'none' : ''; });
+          document.querySelectorAll('.el-layer-head, .element-group').forEach(function(h) { h.style.display = q ? 'none' : ''; });
 
       });
 

@@ -1684,7 +1684,7 @@ function turnView(v, final) {
 // live: Effects, Sound, Music, Video and the notepad came up under an open sheet or page panel, which stand later in the page at the same z,
 // and a press on them left them there)
 var _zTop = 9000;
-var Z_BOXES = ['sheetPanel', 'docPanel', 'soundPanel', 'musicPanel', 'videoPanel', 'fxPanel', 'notepadPanel', 'timePanel', 'deckPanel', 'trkPanel', 'chatPanel', 'dicePanel'];   // 1.6.2 (the owner, by prompt: "Last opened in front"): Table Chat and the dice roller too
+var Z_BOXES = ['sheetPanel', 'docPanel', 'soundPanel', 'musicPanel', 'videoPanel', 'fxPanel', 'notepadPanel', 'timePanel', 'deckPanel', 'trkPanel', 'layersPanel', 'chatPanel', 'dicePanel'];   // 1.6.2 (the owner, by prompt: "Last opened in front"): Table Chat and the dice roller too
 function floatPanels() { var l = Z_BOXES.map(function(id) { return ui(id); }); Object.keys(huds).forEach(function(id) { l.push(huds[id].panel); }); return l.filter(Boolean); }
 function raisePanel(p) {
     if (!p || String(p.style.zIndex) === String(_zTop)) return;

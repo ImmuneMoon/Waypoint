@@ -3093,6 +3093,14 @@
   #timePanel { position: fixed; right: 18px; top: 140px; width: 440px; max-width: calc(100vw - 24px); max-height: 70vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   #timeHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
   #timeHead .notepad-btn { padding: 1px 7px; font-size: 11px; }
+  #layersPanel { position: fixed; right: 18px; top: 120px; width: 320px; max-width: calc(100vw - 24px); max-height: 70vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }   /* 1.6.2, backlog 217: Layers */
+  #layersHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
+  #layersHead .notepad-btn { padding: 1px 7px; font-size: 11px; } #layersHead .ly-map { color: var(--dim); font-size: 12px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #layersList { padding: 8px 10px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 5px; }
+  #layersList .element-list-item.el-d1 { margin-left: 16px; } #layersList .element-list-item.el-d2 { margin-left: 32px; }
+  .element-group { display: flex; align-items: center; gap: 4px; padding: 2px 0; color: var(--dim); font-size: 12px; } .element-group .el-gname { cursor: pointer; } .element-group .el-gname:hover { color: var(--ink); text-decoration: underline; }
+  .el-fold { padding: 0 4px; min-width: 20px; font-size: 11px; }
+  #sidebar.no-elements .sidebar-tabs, #sidebar.no-elements #elementList { display: none !important; } #sidebar.no-elements #inspector { display: block !important; }   /* the play map's pieces are in Layers */
   #timeBody { overflow: auto; padding-bottom: 4px; }
   #timePanel .tp-runs, #timePanel .tp-tools { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px 0; align-items: center; }
   #timePanel .tp-tools { padding-bottom: 6px; }

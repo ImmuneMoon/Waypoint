@@ -10889,7 +10889,7 @@ document.addEventListener('contextmenu', function(e) {
         isCanvasOrWb = true; isWb = false;
         var itemEl = e.target.closest('.room');
         if (itemEl) targetId = itemEl.dataset.id;
-    } else if (e.target.closest('#elementList')) {
+    } else if (e.target.closest('#elementList, #layersList')) {
         isCanvasOrWb = true;
         isWb = (state.viewMode === 'visual');
         var listEl = e.target.closest('.el-name');

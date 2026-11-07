@@ -95,6 +95,7 @@
 <script type="module" src="scripts/cloudui.js"></script>
 <script type="module" src="scripts/medialimit.js"></script>
 <script type="module" src="scripts/mapobjects.js"></script>
+<script type="module" src="scripts/layers.js"></script>
 <script type="module" src="scripts/trade.js"></script>
 <script type="module" src="scripts/keycore.js"></script>
 <script type="module" src="scripts/commands.js"></script>
@@ -804,7 +805,8 @@
                           <li><b>Order</b> opens <b>Bring to front</b>, <b>Bring forward</b>, <b>Send backward</b> and <b>Send to back</b>: five stacking layers for building scenes.</li>
                           <li>The <b>Opacity</b> slider adjusts the transparency of anything already on the board.</li>
                           <li>Select several items by dragging a box around them, then <b>Group</b> them or <b>Merge drawings</b>.</li>
-                          <li><b>Flatten into one picture</b> draws two pieces or more into one picture saved with this campaign. It is on their right-click, and in Build&rsquo;s options. Players then load one picture, not many. The plain pieces are hidden. Pieces with rules, such as walls, doors and cover, are drawn in and kept as invisible pieces, or left out, as you choose. <b>Unflatten</b> on the picture&rsquo;s right-click puts the pieces back.</li>
+                          <li><b>Layers</b> in the toolbar&rsquo;s More menu lists this map&rsquo;s pieces, front to back, in a window titled with the map&rsquo;s name. A group and a flattened picture hold their pieces under them, and fold. Click a piece to find it, and rename, hide or move it up or down a layer there.</li>
+                                  <li><b>Flatten into one picture</b> draws two pieces or more into one picture saved with this campaign. It is on their right-click, and in Build&rsquo;s options. Players then load one picture, not many. The plain pieces are hidden. Pieces with rules, such as walls, doors and cover, are drawn in and kept as invisible pieces, or left out, as you choose. <b>Unflatten</b> on the picture&rsquo;s right-click puts the pieces back.</li>
                           <li><b>Save to Campaign Cast</b>, on a character token, keeps a copy of it in the campaign&rsquo;s cast. Right-click the play map &#9656; <b><i class="wib wi-starf"></i> Campaign Cast</b> and click a member to place a copy there, or its <b>&times;5</b> for five. The cast is a folder of the Image Library too.</li>
                       </ul>
                       <div class="help-tip">Character tokens: any shape or image with <b>Is Character</b> set in the right sidebar becomes a token with a name and a stats tooltip. It can be handed to a player in multiplayer.</div>
@@ -3737,6 +3739,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
           <div style="position:relative; display:inline-block;" class="gm-only">
               <button class="wb-tool-btn" id="wbMoreBtn" title="More"><svg class="ico ico-dots" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5h.01M12 12h.01M12 19h.01"/></svg></button>
               <div class="shape-menu menu-list" id="wbMoreMenu" style="bottom:100%; top:auto; flex-direction:column; min-width:200px; left:auto; right:0; transform:none; margin-bottom:10px;">
+                  <button class="wb-tool-btn menu-row" id="layersBtn" title="This map's pieces, front to back. A group and a flattened picture hold their pieces under them. Pick, hide, rename and reorder them there."><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5.5h4v4h-4Z M3.5 14.5h4v4h-4Z M10.5 7.5h10 M10.5 16.5h10 M12.5 11.5h8 M12.5 20.5h6"/></svg></span><span class="mr-txt">Layers<small>This map's pieces, front to back.</small></span></button>
                   <button class="wb-tool-btn menu-row menu-row-red" id="clearWbBtn" title="Clear Board"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 4h4M6.5 7l1 13h9l1-13M9.8 10.5v6M12 10.5v6M14.2 10.5v6"/></svg></span><span class="mr-txt">Clear board<small>Removes everything on this map. It asks first.</small></span></button>
               </div>
           </div>
@@ -4916,6 +4919,11 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <div id="timePanel" style="display:none;" role="dialog" aria-label="Time rules">
     <div id="timeHead"><span class="notepad-title"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 7.5V12l-3 2.2"/></svg> Time rules</span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="timeCloseBtn" title="Close the panel (the rules keep running)">&times;</button></div>
     <div id="timeBody"></div>
+</div>
+<!-- Layers (1.6.2, backlog 217): this map's pieces, front to back, in a floating window titled with the map's name (layers.js) -->
+<div id="layersPanel" style="display:none;" role="dialog" aria-label="Layers">
+    <div id="layersHead"><span class="notepad-title"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5.5h4v4h-4Z M3.5 14.5h4v4h-4Z M10.5 7.5h10 M10.5 16.5h10 M12.5 11.5h8 M12.5 20.5h6"/></svg> Layers</span><span id="layersMap" class="ly-map"></span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="layersClose" title="Close Layers">&times;</button></div>
+    <div id="layersList"></div>
 </div>
 <!-- Table trackers (1.6.0, backlog 29): a tracker's menu beside its name and its form (trackers.js) -->
 <div id="trkMenu" class="trk-menu" role="menu" aria-label="Tracker" style="display:none;"></div>

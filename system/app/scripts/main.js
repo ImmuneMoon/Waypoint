@@ -283,7 +283,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       document.getElementById('plannerWrap').style.display = isPlanner ? 'flex' : 'none';
 
-      document.getElementById('sidebar').style.display = isPlanner ? 'none' : 'flex';
+      document.getElementById('sidebar').style.display = isPlanner ? 'none' : 'flex'; document.getElementById('sidebar').classList.toggle('no-elements', state.viewMode === 'visual');   // 1.6.2, backlog 217: on the play map the pieces are in Layers, and the panel is Properties alone
 
       document.getElementById('toggleRightBtn').style.display = isPlanner ? 'none' : 'flex';
       if (window.wpLeftRail) window.wpLeftRail.sync();   // the left panel folds to its rail on the play map (leftrail.js), before the bar measures the room the map has
@@ -369,7 +369,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           if (window.wpSyncRightPanel) window.wpSyncRightPanel();   // Properties panel follows the selection
 
-          if(document.getElementById('elementList').style.display === 'block') {
+          if(document.getElementById('elementList').style.display === 'block' || (window.wpLayers && window.wpLayers.shown())) {   // 1.6.2, backlog 217: and while Layers is up
 
               renderElementList();
 

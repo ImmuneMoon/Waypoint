@@ -10024,6 +10024,23 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
             });
             fl.appendChild(lyRow);
         }
+        var lyR = el('div', 'sys-lock-cells sys-lay-rules'), lyRu = Array.isArray(lyS.rules) ? lyS.rules : [], lyRe = function() { markDirty(); renderAll(); }, lyStop = function(e) { e.stopPropagation(); };   // 1.6.2: rules by the source row's category
+        lyR.appendChild(el('span', 'sys-lock-cap', 'By category:'));
+        lyRu.forEach(function(ru, i) {
+            var rw = el('div', 'sys-flags sys-lay-rule'), cI = el('input', 'field sys-list-layrcats'); cI.type = 'text'; cI.value = Array.isArray(ru.cats) ? ru.cats.join(', ') : ''; cI.placeholder = 'Categories, such as Arm'; cI.title = 'The source rows of these categories, by commas, lay by this rule. Two categories here lay one row between them where it lays one between them';
+            cI.addEventListener('change', function(e) { lyStop(e); ru.cats = cI.value.split(',').map(function(c) { return c.trim(); }).filter(Boolean); lyRe(); }); rw.appendChild(cI);
+            var nI = el('input', 'field sys-list-layrname'); nI.type = 'text'; nI.value = typeof ru.name === 'string' ? ru.name : ''; nI.placeholder = 'Its name, such as {side} Arm'; nI.title = 'The laid row\u2019s name. {side} is its side\u2019s word, such as Right. Empty: the name of the row that lays it';
+            nI.addEventListener('change', function(e) { lyStop(e); if (nI.value.trim()) ru.name = nI.value.slice(0, 240); else delete ru.name; lyRe(); }); rw.appendChild(nI);
+            var eS = select('sys-list-layreach', [['row', 'One a row'], ['unit', 'One a unit'], ['kind', 'One between them']], ru.each === 'unit' || ru.each === 'kind' ? ru.each : 'row', 'One a row: as ever. One a unit: a row of quantity 2 lays two, their sides in order. One between them: rows of these categories lay one row, kept while any is there');
+            eS.addEventListener('change', function(e) { lyStop(e); ru.each = eS.value; lyRe(); }); rw.appendChild(eS);
+            var dB = el('button', 'tool ghost sys-btn sys-list-layrdel', '\u00d7'); dB.type = 'button'; dB.title = 'Remove this rule'; dB.addEventListener('click', function(e) { lyStop(e); lyRu.splice(i, 1); if (!lyRu.length) delete lyS.rules; lyRe(); }); rw.appendChild(dB);
+            lyR.appendChild(rw);
+        });
+        var aB = el('button', 'tool ghost sys-btn sys-list-layradd', '+ Rule'); aB.type = 'button'; aB.title = 'Lay rows of some categories by a rule of their own: their name, and one a row, a unit or between them. With rules, a category no rule names lays nothing'; aB.addEventListener('click', function(e) { lyStop(e); if (!Array.isArray(lyS.rules)) lyS.rules = []; lyS.rules.push({ cats: [], each: 'row' }); lyRe(); }); lyR.appendChild(aB);
+        var lyNum = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s2) { return s2 && typeof s2.key === 'string' && s2.key && s2.kind !== 'pick'; }), sdP = select('sys-list-layside', [['', 'No side']].concat(lyNum.map(function(s2) { return [s2.key, 'Side in ' + (s2.label || s2.key)]; })), typeof lyS.side === 'string' ? lyS.side : '', 'The stat of a laid row its side goes into, as hit locations read a side');
+        sdP.addEventListener('change', function(e) { lyStop(e); if (sdP.value) lyS.side = sdP.value; else { delete lyS.side; delete lyS.sides; } lyRe(); }); lyR.appendChild(sdP);
+        if (lyS.side) { var ssI = el('input', 'field sys-list-laysides'); ssI.type = 'text'; ssI.value = Array.isArray(lyS.sides) ? lyS.sides.join(', ') : ''; ssI.placeholder = 'Sides in order, such as 2, 1'; ssI.title = 'The side each unit gets, in order: the figures of the side stat, such as 2 for Right then 1 for Left. Past them a unit gets 0'; ssI.addEventListener('change', function(e) { lyStop(e); var ns = ssI.value.split(',').map(function(x) { return Number(x.trim()); }).filter(function(n) { return isFinite(n) && String(n) !== ''; }); if (ns.length) lyS.sides = ns.slice(0, 8); else delete lyS.sides; lyRe(); }); lyR.appendChild(ssI); }
+        fl.appendChild(lyR);
     } }
     { var lkS = sp.lock && typeof sp.lock === 'object' ? sp.lock : {}, lkW = el('label', 'sys-check'), lkI = el('input', 'field sys-list-lockif');   // 1.6.2 Locked while: chosen cells of its rows while a test of the character holds, for everyone, the GM too
     lkI.type = 'text'; lkI.value = typeof lkS['if'] === 'string' ? lkS['if'] : ''; lkI.placeholder = 'never'; lkI.spellcheck = false; lkI.autocomplete = 'off';

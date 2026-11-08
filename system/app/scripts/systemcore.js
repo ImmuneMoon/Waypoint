@@ -6637,7 +6637,7 @@ function rowFacts(o, e, spec) {
     var slF = lvlNum(e.sl); if (slF !== undefined && typeof e.sl === 'number') o.sl = isObj(spec) && isObj(spec.lvl) ? lvlClamp(spec.lvl, slF) : slF;   // 1.6.0: the level it started at (Row.startlvl; applyRowOp stamps it where its list keeps the starting level, as a level is kept)
     if (e.mk === 1) o.mk = 1;   // 1.6.0 (v2, B5): added while its character was in the making (applyRowOp stamps it; nothing on the wire names it)
     if (e.ag === 1 && e.lnk === 1) o.ag = 1;   // 193: an owner's inline copy held again under a name (only there: the host reads its own row)
-    if (isObj(spec) && isObj(spec.lay) && typeof e.lf === 'string' && ROW_ID.test(e.lf)) o.lf = e.lf;   // 1.6.2 Laid from: the row that laid it, by its id (laySync)
+    if (isObj(spec) && isObj(spec.lay) && typeof e.lf === 'string' && (ROW_ID.test(e.lf) || /^k:[0-9]{1,2}$/.test(e.lf) || (/#[1-8]$/.test(e.lf) && ROW_ID.test(e.lf.slice(0, -2))))) o.lf = e.lf;   // 1.6.2 Laid from: the row that laid it, by its id (laySync); by category, a unit of it (#n) or a rule's one row between them (k:n)
     if (typeof e.opn === 'string' && ROW_ID.test(e.opn)) o.opn = e.opn;   // 1.5.8: a row another row opens (openSync), by that row's id   // F4c1: what one cost when it was added (kept while the list has no price, as a level is)
     if (burstList(spec)) { var buF = cleanBu(e.bu); if (buF) o.bu = buF; }   // 1.6.0: its last burst, the host's own record, on a list whose rolls name one
     if (isObj(spec) && (isObj(spec.look) || spec.workLog === true)) rowLookInto(o, e, spec);   // 1.6.0, backlog 206: its look and its work log, where its list keeps them (the one cleaner)
@@ -7396,7 +7396,7 @@ function ownStatsOnly(spec, q) {
 // come, change and go. A laid row says which row laid it (lf); its name, its count and its copied stats are nobody's to change, and it is never
 // removed by hand. laySync is the one place it is laid, on the machine that owns the character, beside openSync. What a laid row held when its
 // source went is kept by the caller (keep), so an Undo that brings the source back brings it back as it was
-var LAY_STATS = 16;
+var LAY_STATS = 16, LAY_RULES = 24;
 function cleanLay(v, out) {
     if (!isObj(v) || typeof v.from !== 'string' || !/^[A-Za-z0-9_\-]{1,64}$/.test(v.from)) return undefined;
     var o = { from: v.from }, t = typeof v['if'] === 'string' ? cleanFormulaText(v['if']) : ''; if (t) o['if'] = t;
@@ -7405,7 +7405,20 @@ function cleanLay(v, out) {
         var s = statDefOf(out, p.to); if (!s || seen[lower(s.key)]) return null; seen[lower(s.key)] = 1; return { to: s.key, from: p.from };
     }).filter(Boolean).slice(0, LAY_STATS);
     if (st.length) o.stats = st;
+    if (Array.isArray(v.rules)) { var rl = []; v.rules.slice(0, LAY_RULES * 2).forEach(function(x) {   // 1.6.2 (the owner, by prompt: "Three options on Laid from"): rules by the source row's category
+        if (rl.length >= LAY_RULES || !isObj(x)) return; var cs = (Array.isArray(x.cats) ? x.cats : typeof x.cats === 'string' ? x.cats.split(',') : []).map(function(c) { return typeof c === 'string' ? c.trim().slice(0, 40) : ''; }).filter(Boolean).slice(0, 8); if (!cs.length) return;
+        var ru = { cats: cs, each: x.each === 'unit' || x.each === 'kind' ? x.each : 'row' }, rn = typeof x.name === 'string' ? x.name.replace(CTRL_RE_G, ' ').trim().slice(0, LIMITS.itemName) : ''; if (rn) ru.name = rn; rl.push(ru);
+    }); if (rl.length) o.rules = rl; }
+    var sdS = typeof v.side === 'string' ? statDefOf(out, v.side) : null; if (sdS) o.side = sdS.key;
+    if (Array.isArray(v.sides)) { var sds = v.sides.filter(function(n) { return typeof n === 'number' && fin(n); }).map(function(n) { return Math.max(-99, Math.min(99, Math.round(n))); }).slice(0, 8); if (sds.length) o.sides = sds; }
     return o;
+}
+// 1.6.2: the row a rule lays, from the source row's own (layWant): its name from the rule (a {side} in it the side's own word, from the side stat's
+// value names), and the side's figure in the side stat, where the list names one
+function layRuleWant(w, src, ru, fig, lay, spec) {
+    var sd = lay.side && isObj(spec) ? statDefOf(spec, lay.side) : null, word = sd && Array.isArray(sd.labels) && fig > 0 && typeof sd.labels[fig] === 'string' ? sd.labels[fig] : '';
+    var nm = typeof ru.name === 'string' && ru.name ? ru.name.replace(/\{side\}/gi, word).replace(/\s+/g, ' ').trim() : w.name, st = Object.assign({}, w.stats); if (sd) st[sd.key] = fig;
+    return { src: src, name: cutText(nm || w.name, LIMITS.itemName), stats: st };
 }
 // The row a source row lays: its name as the sheet shows it, and each named stat as the source row reads it (a copy's own value first)
 function layWant(sys, sf, r, lay) {
@@ -7424,11 +7437,18 @@ function laySync(sys, char, F, keep) {
     sys.fields.forEach(function(f) {
         if (!isObj(f) || f.kind !== 'item-list' || !isObj(f.list) || !isObj(f.list.lay)) return;
         var lay = f.list.lay, sf = fieldById(sys, lay.from); if (!sf || sf.kind !== 'item-list' || sf.id === f.id) return;
-        var want = [];
+        var want = [], kinds = map();
         (Array.isArray(char.values[sf.id]) ? char.values[sf.id] : []).forEach(function(r) {
             if (!isObj(r) || r.hid === 1 || typeof r.lf === 'string') return;
             if (lay['if']) { if (!F || typeof F.evaluate !== 'function') return; if (!base) base = makeResolver(sys, char, F, { noFx: true, reuse: false }); var ok = false; try { ok = base.needsOk(sf, r, lay['if']) === true; } catch (e) { ok = false; } if (!ok) return; }
-            var w = layWant(sys, sf, r, lay); if (w && typeof w.src === 'string') want.push(w);
+            var w = layWant(sys, sf, r, lay); if (!w || typeof w.src !== 'string') return;
+            if (!Array.isArray(lay.rules) || !lay.rules.length) { want.push(w); return; }
+            var rdL = rowDef(sys, r), catL = rdL && isObj(rdL.def) && typeof rdL.def.category === 'string' ? lower(rdL.def.category.trim()) : '', ri = -1;   // 1.6.2: the first rule that takes its category
+            lay.rules.forEach(function(x, i) { if (ri < 0 && isObj(x) && Array.isArray(x.cats) && x.cats.some(function(c) { return lower(c) === catL; })) ri = i; }); if (ri < 0) return;
+            var ru = lay.rules[ri];
+            if (ru.each === 'kind') { if (kinds[ri]) return; kinds[ri] = 1; want.push(layRuleWant(w, 'k:' + ri, ru, 0, lay, f.list)); return; }   // Once a kind: one row between them, while any is there
+            if (ru.each === 'unit') { var nU = Math.max(1, Math.min(8, Math.round(typeof r.qty === 'number' && fin(r.qty) ? r.qty : 1))); for (var u = 0; u < nU; u++) want.push(layRuleWant(w, w.src + '#' + (u + 1), ru, Array.isArray(lay.sides) && u < lay.sides.length ? lay.sides[u] : 0, lay, f.list)); return; }   // One row a unit, its side in order
+            want.push(layRuleWant(w, w.src, ru, 0, lay, f.list));
         });
         var did = false, list = (Array.isArray(char.values[f.id]) ? char.values[f.id] : []).filter(function(r) {
             if (!isObj(r) || typeof r.lf !== 'string') return true;
@@ -7438,6 +7458,7 @@ function laySync(sys, char, F, keep) {
         }).map(function(r) { return isObj(r) ? JSON.parse(JSON.stringify(r)) : r; });
         want.forEach(function(w) {
             var ix = -1; list.forEach(function(r, i) { if (ix < 0 && isObj(r) && r.lf === w.src) ix = i; });
+            if (ix < 0 && !(isObj(keep) && isObj(keep[f.id + '|' + w.src]))) list.forEach(function(r, i) { if (ix < 0 && isObj(r) && typeof r.lf !== 'string' && r.hid !== 1 && r.defId === undefined && isObj(r.def) && typeof r.def.name === 'string' && lower(r.def.name.trim()) === lower(w.name)) { r.lf = w.src; ix = i; did = true; } });   // 1.6.2: a row of its own of that very name, laid before by hand or by a file, is taken over with all it holds
             if (ix < 0) {
                 var kk = f.id + '|' + w.src, back = isObj(keep) && isObj(keep[kk]) ? keep[kk] : null, row;
                 if (back) { row = back; delete keep[kk]; }
@@ -7460,7 +7481,7 @@ function laySync(sys, char, F, keep) {
 // What a laid row keeps from its source: its name, its count and each copied stat, as lockCells names cells
 function layCells(spec, rw) {
     if (!isObj(spec) || !isObj(spec.lay) || !isObj(rw) || typeof rw.lf !== 'string') return null;
-    var o = { name: 1, qty: 1 }; (Array.isArray(spec.lay.stats) ? spec.lay.stats : []).forEach(function(p) { o['s:' + lower(p.to)] = 1; }); return o;
+    var o = { name: 1, qty: 1 }; (Array.isArray(spec.lay.stats) ? spec.lay.stats : []).forEach(function(p) { o['s:' + lower(p.to)] = 1; }); if (typeof spec.lay.side === 'string' && spec.lay.side) o['s:' + lower(spec.lay.side)] = 1; return o;
 }
 // [systemcheck:laid-end]
 // [systemcheck:rowlock-start]

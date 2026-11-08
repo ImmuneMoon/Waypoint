@@ -58,6 +58,8 @@ The System editor
   set their step, a light lights its cells, and a roll reads the step at its target.
 - An effect's bonus can say it doesn't stack with others of its kind, so two
   stims that raise the same thing give the larger, never the sum.
+- Laid from can go by category: a part of quantity 2 lays a right and a left
+  location, several parts can lay one, and each rule names the row it lays.
 - Basic d20 has coins and carried weight. A new character starts with 10
   Gold, and Gold, Silver and Copper make change as you spend. Gear has weights,
   Carried adds them up, and the carrying limit is Strength times 15. Going over

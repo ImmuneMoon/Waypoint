@@ -20009,6 +20009,29 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && J(locs) === J([['Torso', 0, 'w_ch'], ['Right Arm', 2, 'w_arm#1'], ['Left Arm', 1, 'w_arm#2'], ['Face (Sensors)', 0, 'k:2'], ['Processor/Memory Core', 0, 'k:3']]) && torso.length === 1 && torso[0].id === 'w_old' && torso[0].def.stats.dmg === 3
             && J(after) === J(['Face (Sensors)', 'Left Arm', 'Processor/Memory Core', 'Right Arm', 'Torso']) && S.layCells(sysL.fields[1].list, droid.values.f_locs[1])['s:side'] === 1, J([sysL.fields[1].list.lay, locs, torso, after]));
     }
+    {   // 1.6.2 a rule's {n} and its own Only where (asked by a campaign's build: a part x3 opens three locations), on invented data
+        const J = JSON.stringify, sysN = cleanSystem({ v: 1, name: 'Ln', fields: [
+            { id: 'f_parts', key: 'Parts', label: 'Parts', kind: 'item-list', list: { cats: ['Arm', 'Hand'], stats: [{ key: 'opens', label: 'Opens' }] } },
+            { id: 'f_locs', key: 'Locs', label: 'Locations', kind: 'item-list', list: { stats: [{ key: 'side', label: 'Side', labels: ['None', 'Left', 'Right'] }],
+                lay: { from: 'f_parts', side: 'side', sides: [2, 1], rules: [{ cats: ['Arm'], name: '{side} Arm {n}', each: 'unit' }, { cats: ['Hand'], name: 'Hand {n}', 'if': 'Row.opens > 0' }] } } }],
+            items: [{ id: 'i_arm', name: 'Arm', category: 'Arm' }, { id: 'i_h', name: 'Hand', category: 'Hand', stats: { opens: 1 } }, { id: 'i_h0', name: 'Glove', category: 'Hand', stats: { opens: 0 } }] }, { F, gmView: true });
+        const ch = { id: 'c_f', values: { f_parts: [{ id: 'w_a', defId: 'i_arm', qty: 5 }, { id: 'w_h1', defId: 'i_h', qty: 1 }, { id: 'w_h2', defId: 'i_h', qty: 1 }, { id: 'w_g', defId: 'i_h0', qty: 1 }], f_locs: [] } };
+        S.laySync(sysN, ch, F, {}); const nms = ch.values.f_locs.map(r => r.def.name), vN = S.validateSystem(sysN, F).errors.filter(e => e.prop === 'list.layrif');
+        check('1.6.2 Laid from: {n} in a rule\'s name is the row\'s number among the rows that rule lays on that side (Right Arm 1, Left Arm 1, then Arm 1 to 3 past the sides), and a rule\'s own Only where, a test of the source row, lays nothing for a row where it fails (the Glove); the cleaner keeps it and the validator reads it as the list\'s',
+            J(nms) === J(['Right Arm 1', 'Left Arm 1', 'Arm 1', 'Arm 2', 'Arm 3', 'Hand 1', 'Hand 2']) && sysN.fields[1].list.lay.rules[1]['if'] === 'Row.opens > 0' && vN.length === 0, J([nms, sysN.fields[1].list.lay, vN]));
+    }
+    {   // 1.6.2 Fx.<effect>.on and .n (asked by a campaign's build: temporary HP that falls to the largest stim still on), on invented data
+        const J = JSON.stringify, sysF = cleanSystem({ v: 1, name: 'Fx', fields: [{ id: 'f_fx', key: 'Fx1', label: 'Effects', kind: 'effects' }, { id: 'f_t', key: 'Temp', label: 'Temp', kind: 'formula', formula: 'max(if(Fx.e_a.on, 3, 0), if(Fx.e_b.on, 9, 0)) + Fx.e_b.n' }],
+            effects: [{ id: 'e_a', name: 'Stim A' }, { id: 'e_b', name: 'Stim B', val: { start: 2 } }, { id: 'e_g', name: 'Secret', vis: 'gm' }] }, { F, gmView: true });
+        const chF = { id: 'c', values: { f_fx: [{ id: 'x1', ref: 'e_a', on: true }, { id: 'x2', ref: 'e_b', on: false, v: 4 }] } }, R1 = S.makeResolver(sysF, chF, F);
+        const chF2 = { id: 'c', values: { f_fx: [{ id: 'x1', ref: 'e_a', on: true }, { id: 'x2', ref: 'e_b', v: 4 }, { id: 'x3', ref: 'e_b', v: 6 }] } }, R2 = S.makeResolver(sysF, chF2, F);
+        const vF = S.validateSystem(cleanSystem({ v: 1, name: 'V', fields: [], effects: [{ id: 'e_a', name: 'Stim A' }], rolls: [{ id: 'r_a', label: 'A', formula: '1d6 + Fx.e_a.on' }, { id: 'r_b', label: 'B', formula: '1d6 + Fx.e_zz.on' }] }, { F, gmView: true }), F).errors;
+        const gmF = cleanSystem({ v: 1, name: 'G', fields: [{ id: 'f_fx', key: 'Fx1', label: 'Effects', kind: 'effects' }, { id: 'f_s', key: 'Sec', label: 'Sec', kind: 'formula', formula: 'Fx.e_g.on' }], effects: [{ id: 'e_g', name: 'Secret', vis: 'gm' }] }, { F, gmView: true }), plF = cleanSystem(gmF, { F, gmView: false });
+        check('1.6.2 Fx.<effect>.on reads 1 while a row of that library effect is switched on in any effects list, and Fx.<effect>.n the largest number such a row holds, 0 off; the validator knows an effect the system holds and no other; a formula reading a GM-only effect is GM-only, so it leaves the players\' view; the builder says them by the effect\'s name',
+            R1('Fx.e_a.on') === 1 && R1('Fx.e_b.on') === 0 && R1('Fx.e_b.n') === 0 && R1('Temp') === 3 && R2('Fx.e_b.on') === 1 && R2('Fx.e_b.n') === 6 && R2('Temp') === 15
+            && vF.length === 1 && vF[0].id === 'r_b' && S.gmOnlyNames(gmF, [{ name: 'Fx.e_g.on' }]).length === 1 && J(plF.fields.filter(f => f.id === 'f_s').map(f => f.formula)) !== J(['Fx.e_g.on'])
+            && /Stim A is on/.test(S.nameWord(sysF, 'Fx.e_a.on')) && /Stim B.s number/.test(S.nameWord(sysF, 'Fx.e_b.n')), J([R1('Temp'), R2('Temp'), R2('Fx.e_b.n'), vF, S.gmOnlyNames(gmF, [{ name: 'Fx.e_g.on' }]), plF.fields, S.nameWord(sysF, 'Fx.e_a.on')]));
+    }
     {   // 1.6.2 Doesn't stack (the campaign build's stims; Ch14: two that raise the same thing give the larger bonus, never the sum), on invented data
         const J = JSON.stringify, sysSt = cleanSystem({ v: 1, name: 'St', fields: [{ id: 'f_agi', key: 'AGI', label: 'Agility', kind: 'number' }, { id: 'f_fx', key: 'Effects', label: 'Effects', kind: 'effects' }],
             effects: [{ id: 'e_alac', name: 'Adrenal Alacrity', mods: [{ f: 'f_agi', op: 'add', v: 2, stack: 'stim' }] }, { id: 'e_hyper', name: 'Hyper-Adrenal', mods: [{ f: 'f_agi', op: 'add', v: 4, stack: ' Stim ' }] },

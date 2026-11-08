@@ -59,6 +59,10 @@ The System editor
   A Defense reads the step where the attacker stands.
 - A smoke or gas grenade can leave a cloud where it goes off. It stays put, and
   counts rounds in a fight or game time out of one before it clears.
+- A formula can ask whether an effect is on, and read its number, so temporary
+  HP can fall to the largest stim still working.
+- A rule of Laid from can number what it lays, as Right Arm 1, Left Arm 1,
+  Right Arm 2, and test each row it takes.
 - An effect's bonus can say it doesn't stack with others of its kind, so two
   stims that raise the same thing give the larger, never the sum.
 - Laid from can go by category: a part of quantity 2 lays a right and a left

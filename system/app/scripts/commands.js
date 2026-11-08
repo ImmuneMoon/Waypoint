@@ -26,7 +26,7 @@ var CMD_TOOLS = [
     ['tool.pan', 'Pan', 'panModeBtn', 'Drag to move the view. Pieces stay put.', ['hand'], '', 'KeyH'],
     ['tool.pen', 'Pen', 'drawModeBtn', 'Draw on the map.', ['draw'], '', 'KeyP'],
     ['tool.eraser', 'Eraser', 'eraserModeBtn', 'Rub out strokes.', ['erase'], '', 'KeyE'],
-    ['tool.fill', 'Fill', 'fillModeBtn', 'Color grid cells.', ['paint', 'colour'], '', ''],
+    ['tool.fill', 'Fill', 'fillModeBtn', 'Colour grid cells.', ['paint', 'colour'], '', ''],
     ['tool.build', 'Build', 'buildModeBtn', 'Lay floors, walls, doors and water.', ['wall', 'floor'], '', ''],
     ['tool.ruler', 'Ruler', 'measureModeBtn', 'Measure a distance.', ['measure', 'distance'], '', 'KeyM'],
     ['tool.radius', 'Radius', 'blastModeBtn', 'Place a circle, a ring or a cone.', ['blast', 'circle', 'cone'], '', 'KeyR'],

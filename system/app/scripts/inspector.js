@@ -193,7 +193,7 @@ import { cssColor, num, picRef } from './safecore.js';   // a campaign from a fi
 
           catEditorHtml = '<div style="display:flex; gap:5px; align-items:center; background:rgba(0,0,0,0.2); padding:6px; border-radius:6px; margin-top:5px; border:1px solid var(--edge);">' +
 
-                          '<input type="color" id="fCatColor" value="'+selColor+'" aria-label="Edit Category Color" style="width:24px; height:24px; padding:0; border:none; background:none; cursor:pointer;" title="Category Color">' +
+                          '<input type="color" id="fCatColor" value="'+selColor+'" aria-label="Edit Category Colour" style="width:24px; height:24px; padding:0; border:none; background:none; cursor:pointer;" title="Category Colour">' +
 
                           '<input type="text" id="fCatName" class="cat-label" value="'+esc(selName)+'" aria-label="Edit Category Name" style="flex:1; padding:4px 6px;" title="Category Name">' +
 
@@ -739,11 +739,11 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
 
               return '<div class="cat-row" style="display:flex; gap:5px; margin-bottom:5px; align-items:center;">' +
 
-                     '<input type="color" aria-label="Category Color" class="cat-color" data-id="'+esc(k)+'" value="'+cssColor(c.color, '#c9c9d4')+'" style="width:24px; height:24px; padding:0; cursor:pointer; border:none; background:none;">' +
+                     '<input type="color" aria-label="Category Colour" class="cat-color" data-id="'+esc(k)+'" value="'+cssColor(c.color, '#c9c9d4')+'" style="width:24px; height:24px; padding:0; cursor:pointer; border:none; background:none;">' +
 
                      '<input type="text" aria-label="Category Name" class="cat-label" data-id="'+esc(k)+'" value="'+esc(c.label)+'" style="flex:1;">' +
 
-                     '<button class="tool ghost cat-save' + (saved ? ' on' : '') + '" aria-label="Save to library" title="' + (saved ? 'Saved in the campaign library (click to update its color)' : 'Save to the campaign library so other maps can add it') + '" data-id="'+esc(k)+'" style="padding:2px 6px;' + (saved ? ' color:var(--gold);' : '') + '">' + (saved ? '<i class="wib wi-starf"></i>' : '<i class="wib wi-star"></i>') + '</button>' +
+                     '<button class="tool ghost cat-save' + (saved ? ' on' : '') + '" aria-label="Save to library" title="' + (saved ? 'Saved in the campaign library (click to update its colour)' : 'Save to the campaign library so other maps can add it') + '" data-id="'+esc(k)+'" style="padding:2px 6px;' + (saved ? ' color:var(--gold);' : '') + '">' + (saved ? '<i class="wib wi-starf"></i>' : '<i class="wib wi-star"></i>') + '</button>' +
 
                      '<button class="tool ghost danger cat-del" aria-label="Delete Category" data-id="'+esc(k)+'" style="padding:2px 6px;">×</button>' +
 
@@ -752,7 +752,7 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
           }).join('');
 
           var libMissing = Object.keys(lib).filter(function(id) { return !onMap(lib[id].label); }).sort(function(a, b) { return String(lib[a].label).localeCompare(String(lib[b].label)); });
-          var libHtml = '<div class="field" style="margin-top:10px;"><label title="Categories saved from any map in this campaign. Pick one to add it here with its color.">Category Library <span class="muted">(' + Object.keys(lib).length + ' saved)</span></label>' +
+          var libHtml = '<div class="field" style="margin-top:10px;"><label title="Categories saved from any map in this campaign. Pick one to add it here with its colour.">Category Library <span class="muted">(' + Object.keys(lib).length + ' saved)</span></label>' +
               (Object.keys(lib).length
                   ? '<div style="display:flex; gap:5px; align-items:center;">' +
                     '<select id="catLibPick" style="flex:1;">' + (libMissing.length ? libMissing.map(function(id) { return '<option value="' + esc(id) + '">' + esc(lib[id].label) + '</option>'; }).join('') : '<option value="">All saved categories are on this map</option>') + '</select>' +
@@ -974,13 +974,13 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var fillCur = (w.color || '').toLowerCase();
             var colorHtml = Object.keys(WB_COLORS).map(function(k) {
                 return '<div class="color-btn' + (k.toLowerCase() === fillCur ? ' on' : '') + (k === 'transparent' ? ' clear' : '') + '" style="background:'+k+'" data-c="'+k+'" title="'+WB_COLORS[k]+'"></div>';
-            }).join('') + '<label class="color-btn custom" title="Custom color"><input type="color" id="wbFillCustomColor" value="' + (/^#[0-9a-f]{6}$/i.test(w.color || '') ? w.color : '#4db3d3') + '"></label>';
+            }).join('') + '<label class="color-btn custom" title="Custom colour"><input type="color" id="wbFillCustomColor" value="' + (/^#[0-9a-f]{6}$/i.test(w.color || '') ? w.color : '#4db3d3') + '"></label>';
             // Drawings use the pen's palette (solid inks + custom), not the shape tints
             var PEN_COLORS = { '#e9e9f0': 'White', '#1a1a1a': 'Black', '#d9534f': 'Red', '#e0a54f': 'Gold', '#5cb87a': 'Green', '#4db3d3': 'Blue', '#b98cff': 'Violet' };
             var penHtml = Object.keys(PEN_COLORS).map(function(k) {
                 var on = (w.color || '').toLowerCase() === k;
                 return '<div class="color-btn' + (on ? ' on' : '') + '" style="background:'+k+'" data-c="'+k+'" title="'+PEN_COLORS[k]+'"></div>';
-            }).join('') + '<label class="color-btn custom" title="Custom color"><input type="color" id="wbStrokeCustomColor" value="' + (/^#[0-9a-f]{6}$/i.test(w.color || '') ? w.color : '#e9e9f0') + '"></label>';
+            }).join('') + '<label class="color-btn custom" title="Custom colour"><input type="color" id="wbStrokeCustomColor" value="' + (/^#[0-9a-f]{6}$/i.test(w.color || '') ? w.color : '#e9e9f0') + '"></label>';
             
             var nodeOpts = '<option value="">-- None --</option>' + activeMap.rooms.map(function(room) {
                 return '<option value="'+esc(room.id)+'"'+(w.nodeId===room.id?' selected':'')+'>'+esc(room.name||'(unnamed)')+'</option>';
@@ -1122,7 +1122,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               pagePinFieldHtml(w)+   // 1.5.4: a pin, the page this piece opens (the GM's alone)
               (linkFold ? '</details>' : '') +   // 1.5.6: the end of a character token's Map links
               inspFoldOpen('look', 'Look', 'Colour, size, turn, layer and lock')+   // 1.6.2: the folds
-              (w.type !== 'image' && w.type !== 'trigger' && w.type !== 'light' ? '<div class="field"><label>' + (w.type === 'text' ? 'Text Color' : w.type === 'path' ? 'Pen Color' : 'Fill Color') + '</label><div class="color-row">' + ((w.type === 'path' || w.type === 'text') ? penHtml : colorHtml) + '</div></div>' : '') +
+              (w.type !== 'image' && w.type !== 'trigger' && w.type !== 'light' ? '<div class="field"><label>' + (w.type === 'text' ? 'Text Colour' : w.type === 'path' ? 'Pen Colour' : 'Fill Colour') + '</label><div class="color-row">' + ((w.type === 'path' || w.type === 'text') ? penHtml : colorHtml) + '</div></div>' : '') +
               (w.type === 'text' ? textStyleHtml(w) : '') +
               (w.type !== 'path' && w.type !== 'text' ? '<div class="field check-row"><input type="checkbox" id="wbLockRatio" '+(w.lockRatio?'checked':'')+'> <label for="wbLockRatio">Lock proportions when resizing</label></div>' : '') +
               (w.type === 'path' ? '<div class="field"><label for="wbStrokeWidth">Pen Size <span class="muted" id="wbStrokeWidthVal">' + (num(w.strokeWidth, 0)||3) + ' px</span></label><div style="display:flex; gap:8px; align-items:center;"><input type="range" id="wbStrokeWidth" min="1" max="20" value="'+(num(w.strokeWidth, 0)||3)+'" style="flex:1"><input type="number" id="wbStrokeWidthNum" value="'+(num(w.strokeWidth, 0)||3)+'" min="1" max="20" style="width:56px" aria-label="Pen size in pixels"></div></div>' : '') +
@@ -1169,7 +1169,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               (w.isChar && !w.waiting && window.wpCanPersistLocal && window.wpCanPersistLocal() ? barsFieldHtml(w) : '')+   // backlog 28: its bars
               (['rect','hexagon','circle','diamond','image'].indexOf(w.type) >= 0 && !w.isChar && !w.waiting && !w.gmNoteFor && window.wpCanPersistLocal && window.wpCanPersistLocal() ? nullsFieldHtml(w) : '')+   // senses S7a: a null area (hidden or not)
               '</details>' +
-              (w.type==='text' ? '<div class="muted">Tip: Double-click the text box on the canvas to edit its words. The color above sets the text color.</div>' : '');
+              (w.type==='text' ? '<div class="muted">Tip: Double-click the text box on the canvas to edit its words. The colour above sets the text colour.</div>' : '');
             
             var linkedRoom = w.nodeId ? activeMap.rooms.find(x=>x.id===w.nodeId) : null;
             if(linkedRoom) {
@@ -2044,9 +2044,9 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   function textureFieldHtml(w) {
       var BC = window.wpBuildCore, cur = BC && BC.cleanTexture ? BC.cleanTexture(w.texture) : null, names = BC && Array.isArray(BC.TEXTURES) ? BC.TEXTURES : [], pic = texFieldPic(w);
       var TL = window.wpTexList, canPick = !!(TL && typeof TL.pick === 'function' && typeof TL.tileOf === 'function' && Array.isArray(TL.TILES) && BC && typeof BC.picName === 'function' && window.wpFogCore && typeof window.wpFogCore.cleanTexSrc === 'function'), tile = pic && canPick ? String(TL.tileOf(w.texTile)) : '';
-      return '<div class="field"><label for="wbTexture">Texture</label><select id="wbTexture" title="A pattern Waypoint draws over the color, seated on the grid."><option value=""' + (cur || pic ? '' : ' selected') + '>Plain color</option>' + names.map(function(n) { return '<option value="' + esc(n) + '"' + (n === cur && !pic ? ' selected' : '') + '>' + esc((window.wpBuildCore && typeof window.wpBuildCore.texName === 'function' && window.wpBuildCore.texName(n)) || n.charAt(0).toUpperCase() + n.slice(1)) + '</option>'; }).join('') + (pic ? '<option value="@pic" selected>' + esc(BC.picName(pic)) + '</option>' : '') + (canPick ? '<option value="@pick">A picture&hellip;</option>' : '') + '</select></div>'
+      return '<div class="field"><label for="wbTexture">Texture</label><select id="wbTexture" title="A pattern Waypoint draws over the colour, seated on the grid."><option value=""' + (cur || pic ? '' : ' selected') + '>Plain colour</option>' + names.map(function(n) { return '<option value="' + esc(n) + '"' + (n === cur && !pic ? ' selected' : '') + '>' + esc((window.wpBuildCore && typeof window.wpBuildCore.texName === 'function' && window.wpBuildCore.texName(n)) || n.charAt(0).toUpperCase() + n.slice(1)) + '</option>'; }).join('') + (pic ? '<option value="@pic" selected>' + esc(BC.picName(pic)) + '</option>' : '') + (canPick ? '<option value="@pick">A picture&hellip;</option>' : '') + '</select></div>'
           + (tile ? '<div class="field"><label for="wbTexTile">Tile size</label><select id="wbTexTile" title="How large one repeat of the picture is. Whole piece stretches it over the piece once.">' + TL.TILES.map(function(r) { return '<option value="' + esc(String(r[0])) + '"' + (String(r[0]) === tile ? ' selected' : '') + '>' + esc(r[1]) + '</option>'; }).join('') + '</select></div>' : '')
-          + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + (pic ? 'One of your own pictures, over the color. A pattern or Plain color takes it off.' : 'A pattern drawn over the color. Pieces side by side read as one surface.') + '</div>';
+          + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + (pic ? 'One of your own pictures, over the colour. A pattern or Plain colour takes it off.' : 'A pattern drawn over the colour. Pieces side by side read as one surface.') + '</div>';
   }
   function setItemTexture(w, v) {
       if (v === '@pic') { renderInspector(); return; }   // the picture's own row: nothing changes
@@ -2199,15 +2199,15 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
           + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Your players see wall here until it is found. Reveal it from its right-click menu, or open it.</div>';
       if (!look) return html;
       var col = /^#[0-9a-f]{6}$/.test(look.color) ? look.color : '#3f3b47';
-      html += '<div class="field"><label for="wbSeenColor">Seen as</label><input type="color" id="wbSeenColor" value="' + esc(col) + '" title="The color your players see where the secret door stands." style="height:30px; padding:2px;"></div>';
-      if (!line) html += '<div class="field"><label for="wbSeenTexture">Seen pattern</label><select id="wbSeenTexture" title="The pattern your players see there."><option value=""' + (look.texture ? '' : ' selected') + '>Plain color</option>' + names.map(function(n) { return '<option value="' + esc(n) + '"' + (n === look.texture ? ' selected' : '') + '>' + esc((window.wpBuildCore && typeof window.wpBuildCore.texName === 'function' && window.wpBuildCore.texName(n)) || String(n).charAt(0).toUpperCase() + String(n).slice(1)) + '</option>'; }).join('') + '</select></div>';
-      html += '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + (look.clear ? (w.seenColor === 'transparent' ? (line ? 'Your players see nothing drawn here, like the see-through wall this door is matched to. Pick a color to give it a look.' : 'Your players see nothing drawn here. Pick a color or a pattern to give it a look.') : 'This piece is see-through, so your players see nothing drawn here. Pick a color or a pattern to give it a look.') : 'What your players see there. It starts as the Wall material. Match it to a wall of your own. It cannot wear one of your pictures.') + '</div>';
+      html += '<div class="field"><label for="wbSeenColor">Seen as</label><input type="color" id="wbSeenColor" value="' + esc(col) + '" title="The colour your players see where the secret door stands." style="height:30px; padding:2px;"></div>';
+      if (!line) html += '<div class="field"><label for="wbSeenTexture">Seen pattern</label><select id="wbSeenTexture" title="The pattern your players see there."><option value=""' + (look.texture ? '' : ' selected') + '>Plain colour</option>' + names.map(function(n) { return '<option value="' + esc(n) + '"' + (n === look.texture ? ' selected' : '') + '>' + esc((window.wpBuildCore && typeof window.wpBuildCore.texName === 'function' && window.wpBuildCore.texName(n)) || String(n).charAt(0).toUpperCase() + String(n).slice(1)) + '</option>'; }).join('') + '</select></div>';
+      html += '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + (look.clear ? (w.seenColor === 'transparent' ? (line ? 'Your players see nothing drawn here, like the see-through wall this door is matched to. Pick a colour to give it a look.' : 'Your players see nothing drawn here. Pick a colour or a pattern to give it a look.') : 'This piece is see-through, so your players see nothing drawn here. Pick a colour or a pattern to give it a look.') : 'What your players see there. It starts as the Wall material. Match it to a wall of your own. It cannot wear one of your pictures.') + '</div>';
       if (line) {   // Match a wall (the owner, 2026-10-12, by prompt): one press, and the players see the door as the wall line it meets
-          html += '<div class="field"><button type="button" class="tool ghost" style="width:100%" id="wbSeenMatch" title="Your players then see this door with the color, width, opacity and nib of the wall line it meets. Your own screen still shows the door as you drew it.">Match the wall it meets</button></div>';
+          html += '<div class="field"><button type="button" class="tool ghost" style="width:100%" id="wbSeenMatch" title="Your players then see this door with the colour, width, opacity and nib of the wall line it meets. Your own screen still shows the door as you drew it.">Match the wall it meets</button></div>';
           var seenAs = look.clear ? '' : seenLineWords(look, typeof FC.seenDrawn === 'function' ? FC.seenDrawn(w) : null);   // nothing is drawn for a see-through look, so no width is said
           if (seenAs) html += '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + esc(seenAs) + '</div>';
       }
-      if (named) html += '<div class="field"><button type="button" class="tool ghost" style="width:100%" id="wbSeenReset" title="' + (line ? 'Takes the color you named and what Match set off again. Your players then see the door in the Wall color at its own width, opacity and nib, or nothing where it is see-through.' : 'Takes the color and pattern you named off again. Your players then see the Wall material, or nothing where the piece is see-through.') + '">Back to the Wall look</button></div>';
+      if (named) html += '<div class="field"><button type="button" class="tool ghost" style="width:100%" id="wbSeenReset" title="' + (line ? 'Takes the colour you named and what Match set off again. Your players then see the door in the Wall colour at its own width, opacity and nib, or nothing where it is see-through.' : 'Takes the colour and pattern you named off again. Your players then see the Wall material, or nothing where the piece is see-through.') + '">Back to the Wall look</button></div>';
       return html;
   }
   // What Match set for a door drawn as a line, in words: numbers the core cleaned and one of three fixed words for the nib. '' where nothing
@@ -2252,7 +2252,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
           if (mO === null || mO === undefined) delete w.seenOpacity; else w.seenOpacity = mO;
           if (mT === null || mT === undefined) delete w.seenTip; else w.seenTip = mT;
           if (mC) w.seenColor = mC;   // a wall in a colour a secret door cannot be seen in leaves the colour named so far
-          said = mC ? 'Matched. Your players see this door as the wall line it meets.' : 'Matched in width, opacity and nib. That wall has a color a secret door cannot be seen in. Give the wall one of the pen colors, then press Match again.';
+          said = mC ? 'Matched. Your players see this door as the wall line it meets.' : 'Matched in width, opacity and nib. That wall has a colour a secret door cannot be seen in. Give the wall one of the pen colours, then press Match again.';
       }
       else return;
       save(); render(); renderInspector();

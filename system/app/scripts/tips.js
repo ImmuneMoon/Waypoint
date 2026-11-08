@@ -10,11 +10,11 @@
 var BY_ID = {
     // data node (room)
     fName: 'What this place is called. Players see room names, so keep spoilers out of them.',
-    fCat: 'The kind of place this is. Categories give nodes their color and are per map — manage them under Categories below.',
+    fCat: 'The kind of place this is. Categories give nodes their colour and are per map — manage them under Categories below.',
     fTargetMap: 'Turns this node into a portal: pick another map and double-clicking it (or dropping a player token on its play map item) travels there.',
     fIcon: 'A badge drawn on the node — door, stairs, gate… — hinting at what kind of exit or place it is.',
     fNotes: 'GM-only text: read-alouds, secrets, DCs. Never sent to players in multiplayer.',
-    fCatColor: 'Color of the selected category.',
+    fCatColor: 'Colour of the selected category.',
     // whiteboard item
     wbName: 'Optional label shown in the Elements list and this header. Cosmetic only.',
     wbEventMsg: 'Pops up when a character token is dropped inside this zone.',
@@ -93,9 +93,9 @@ var BY_TEXT = {
     'hexagon': 'A hexagon that centers itself on hex-grid cells. Resizes like any other shape.',
     'visual shapes': 'Every item on this play map, grouped by layer from front to back. Click to jump to one, double-click to rename, ▲▼ to move it a layer.',
     'data nodes': 'Every room on this data map. Click to jump to one, double-click to rename.',
-    'text color': 'Ink color for the text. The palette plus a custom color wheel.',
-    'pen color': 'Color of the stroke. The pen palette plus a custom color wheel.',
-    'fill color': 'Fill for the shape — tints let the map show through. Custom wheel at the end.',
+    'text colour': 'Ink colour for the text. The palette plus a custom colour wheel.',
+    'pen colour': 'Colour of the stroke. The pen palette plus a custom colour wheel.',
+    'fill colour': 'Fill for the shape — tints let the map show through. Custom wheel at the end.',
     'alignment': 'Where the text sits inside its box: left / center / right / justified, and top / middle / bottom.',
     'text alignment': 'Where the text sits inside its box. Horizontal: left / center / right / justified. Vertical: top / middle / bottom.',
     'box background': 'A backdrop behind the text so it reads over busy art. None keeps it transparent.',
@@ -122,7 +122,7 @@ var BY_TEXT = {
     'sound': 'Ambient loops and one-shot cues from the Sound panel on the play map, heard by every player at the table. Off silences the table for this campaign and hides the panel; the library keeps its files.',
     'dice': 'Rolls at the table: /roll in Table Chat and the roller beside it. The GM\'s machine makes every roll and everyone sees the same card. Off for the campaign, nobody rolls at its table.',
     'character sheets': 'The campaign\'s system (attributes, formulas, rolls) and the sheets built on it. Off for the campaign, the system stays yours to edit but nothing of it shows at the table.',
-    'visual effects': 'The GM\'s Effects panel: flashes, screen shake, color washes, bursts on the map, weather and banners, seen by the players on that map, and a ping (Alt+click on the play map) that rings a cell for a moment. Off for the campaign hides the panel; a player can switch it off for themselves.',
+    'visual effects': 'The GM\'s Effects panel: flashes, screen shake, colour washes, bursts on the map, weather and banners, seen by the players on that map, and a ping (Alt+click on the play map) that rings a cell for a moment. Off for the campaign hides the panel; a player can switch it off for themselves.',
     'fog of war': 'Per-player token vision, painted and previewed from the Fog tool on the play-map toolbar: each player sees only the cells their characters can. Off for the campaign lifts the fog for everyone; the GM runs it for the whole table, so there is no per-player off.',
     'table trackers': 'Counters, countdowns and clocks in a strip at the top left of the play map. The GM may keep them from chosen players: Who sees on the Trackers bar, a player\'s menu, or the ticks under the switch in Settings. The GM runs it for the whole table, so there is no per-player off.',
     'lighting': 'Light and darkness on fogged maps: a map is lit until the GM places a light source, a token can carry a light, and a token\'s sight is how far it sees in the dark. Off for the campaign, a token sees only as far as its sight. The GM runs it for the whole table, so there is no per-player off.',
@@ -144,7 +144,7 @@ var BY_TEXT = {
     'player history bans': 'Everyone who has ever joined this campaign, and who is banned from it.',
     // tool menus
     'pen style': 'Freehand sketching, or straight lines from point to point.',
-    'pen color': 'Color for new strokes.',
+    'pen colour': 'Colour for new strokes.',
     'stroke size': 'Thickness of new strokes.',
     'opacity': 'Transparency of new strokes.',
     'eraser size': 'Radius of the eraser — the circle around your pointer shows it.',
@@ -159,7 +159,7 @@ var BY_TEXT = {
     'rotation': 'Rotate the item; the blue handle on the canvas does the same.',
     'link node': 'Tie this item to a data-map room (hover info, portals, room tracking).',
     'name': 'The name shown in lists and on hover.',
-    'category': 'The kind of place this is; categories give nodes their color.',
+    'category': 'The kind of place this is; categories give nodes their colour.',
     'linked map': 'Makes this node a portal to another map.',
     'node icon': 'A badge hinting at what kind of exit or place this is.',
     'notes room details': 'GM-only text. Never sent to players.'

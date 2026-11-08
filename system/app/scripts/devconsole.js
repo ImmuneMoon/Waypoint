@@ -177,7 +177,7 @@
         wpUploadImage: 'Upload an image file into the saves folder.',
         wpVersionReady: 'Promise that resolves with the newest known app version.',
         wpVtt: 'VTT feature settings (vtt.js): on(id) is the one gate; mode(), locked(), campaignOn / setCampaign / setMaster (camp.vtt), globalVtt / setGlobal (the default, wp_vtt_global), localOff / setLocal (off-for-me at a table, wp_vtt_local), ceiling() (the GM\'s flags while joined), hostFlags / hostCamps / hostSig (the wire), pushTo(ids), debug().',
-        wpWithAlpha: 'Apply an alpha to a color (text / background opacity).',
+        wpWithAlpha: 'Apply an alpha to a colour (text / background opacity).',
         wpWithRenderedPlanner: 'Run a callback with a planner fully rendered (used by exports).'
     };
 

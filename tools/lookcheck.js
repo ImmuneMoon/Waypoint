@@ -562,7 +562,7 @@ function runPress(P, win) {
         ["wireTool({ id: 'measureModeBtn', chev: 'measureOptBtn', inHand: function() { return !!window.isMeasureMode && window.wpMeasureKind === 'ruler'; }, sync: syncMeasureMenu, take: function() {", "updateWbToolbar('measureModeBtn');"],
         ["wireTool({ id: 'blastModeBtn', chev: 'blastOptBtn', inHand: function() { return !_armedThrow && !!window.isMeasureMode && window.wpMeasureKind === 'blast'; }, sync: syncBlastMenu, take: function() {", "updateWbToolbar('blastModeBtn');"]];
     const notWired = wired.filter(w => { const a = wbSrc.indexOf(w[0]), z = wbSrc.indexOf('  } });', a); return count(wbSrc, w[0]) !== 1 || z < 0 || z - a > 900 || !wbSrc.slice(a, z).includes(w[1]); }).map(w => w[0].slice(15, 32));
-    const OLD = ["wbWrap.addEventListener('pointerdown', closeDrawMenu)", "!e.target.closest('#drawMenu')", "!e.target.closest('#eraserMenu')", "!e.target.closest('#measureMenu')", "!e.target.closest('#fillMenu')", "!e.target.closest('#blastMenu')", 'click again for pen options', 'click again for size', 'click again for units', 'Click again for the color', 'Click the tool again for options', 'click for options'];
+    const OLD = ["wbWrap.addEventListener('pointerdown', closeDrawMenu)", "!e.target.closest('#drawMenu')", "!e.target.closest('#eraserMenu')", "!e.target.closest('#measureMenu')", "!e.target.closest('#fillMenu')", "!e.target.closest('#blastMenu')", 'click again for pen options', 'click again for size', 'click again for units', 'Click again for the colour', 'Click the tool again for options', 'click for options'];
     check('each of the five tools, and Build as the sixth, is wired through the one wiring, with what it means for it to be in hand, and taking any tool puts the others\' options away; nothing closes a tool\'s options at a press elsewhere or when a stroke begins any more, so they stay up while they are wanted; no tooltip still says to click again for options',
         notWired.length === 0 && count(wbSrc, 'wireTool({') === 7 && count(wbSrc, "  wireTool({ id: 'envModeBtn', chev: 'envOptBtn', inHand: function() { return !!window.isEnvMode; },") === 1 && count(wbSrc, "    wireTool({ id: 'buildModeBtn', chev: 'buildOptBtn', inHand: function() { return !!window.isBuildMode; }, sync: buildSync, take: buildTake });") === 1 && count(wbSrc, "    updateWbToolbar('buildModeBtn'); closeDrawMenu();") === 1 && wbSrc.includes("      toolOptsOnly(activeId);   // 107: a tool's options belong to the tool in hand\n      disarmThrow();   // a tool taken puts an armed sheet Throw down (the owed review, 2026-10-09)\n  }\n")
         && OLD.every(o => count(wbSrc, o) + count(ix, o) === 0), J([notWired, OLD.filter(o => count(wbSrc, o) + count(ix, o) > 0)]));
@@ -1018,7 +1018,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && count(ix, 'drag across the map to place a ruler. Press the small arrow beside the tool for its options.</li>') === 1
         && count(ix, ' id="drawModeBtn" title="Pen. Press again to put it away.">') === 1 && count(ix, ' id="eraserModeBtn" title="Eraser. Click or drag over strokes to erase them. Press again to put it away.">') === 1
         && count(ix, ' id="measureModeBtn" title="Measure. Drag to place a ruler. Press again to put it away.">') === 1
-        && count(ix, ' id="fillModeBtn" title="Fill. Click or drag grid cells to fill them with a color: a hexagon on hex maps, a square on square maps. Right-click a cell to clear it. Press again to put it away.">') === 1);
+        && count(ix, ' id="fillModeBtn" title="Fill. Click or drag grid cells to fill them with a colour: a hexagon on hex maps, a square on square maps. Right-click a cell to clear it. Press again to put it away.">') === 1);
 }
 
 /* ---------- the top row's menus: Campaign and More ---------- */
@@ -2036,8 +2036,8 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && rule2(LISTS) === '{ cursor: pointer; }' && rule2(LISTS + ' option') === '{ background: var(--panel); color: var(--ink); }'
         && css.indexOf('\n  ' + BOXES + ':hover {') < css.indexOf('\n  ' + BOXES + ':focus {') && css.indexOf('\n  ' + BOXES + ':focus {') < css.indexOf('\n  ' + BOXES + ':disabled {')
         && ['fillTexture', 'buildTexture', 'buildCorridorW', 'fillTerrainCost', 'buildTerrainCost'].every(id => count(ix, ' id="' + id + '"') === 1)
-        && count(ix, '<select id="fillTexture" style="flex:1; font-size:11px;"></select>') === 1 && count(ix, '<select id="buildTexture" style="flex:1; font-size:11px;" title="The pattern drawn over the piece\'s color. Plain color: no pattern. A picture: one of your own pictures, picked in the Image Library."></select>') === 1
-        && count(ix, 'so that painted cells read as one surface. Plain color: no pattern. A picture: one of your own pictures, picked in the Image Library.">Texture <select id="fillTexture"') === 1,
+        && count(ix, '<select id="fillTexture" style="flex:1; font-size:11px;"></select>') === 1 && count(ix, '<select id="buildTexture" style="flex:1; font-size:11px;" title="The pattern drawn over the piece\'s colour. Plain colour: no pattern. A picture: one of your own pictures, picked in the Image Library."></select>') === 1
+        && count(ix, 'so that painted cells read as one surface. Plain colour: no pattern. A picture: one of your own pictures, picked in the Image Library.">Texture <select id="fillTexture"') === 1,
         J([rule2(BOXES), rule2(LISTS)]));
     // the rail's icons: leftrail.js sliced by its markers and run for real on a page of plain objects whose sections fold as the panel's own do
     const rSrc2 = read('scripts/leftrail.js'), rSl = sliceOf(rSrc2, 'leftrail');

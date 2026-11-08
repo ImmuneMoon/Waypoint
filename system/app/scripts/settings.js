@@ -144,7 +144,7 @@ if (_nameIn) _nameIn.addEventListener('change', function() {
 var _colIn = ui('setColorInput');
 if (_colIn) _colIn.addEventListener('input', function() { var p = getProfile(); p.color = this.value; saveProfile(p); renderAvatarPreview(); });
 var _colClear = ui('setColorClearBtn');
-if (_colClear) _colClear.addEventListener('click', function() { var p = getProfile(); delete p.color; saveProfile(p); var c = ui('setColorInput'); if (c) c.value = '#7aa7ff'; renderAvatarPreview(); toast('Using an automatic color.'); });
+if (_colClear) _colClear.addEventListener('click', function() { var p = getProfile(); delete p.color; saveProfile(p); var c = ui('setColorInput'); if (c) c.value = '#7aa7ff'; renderAvatarPreview(); toast('Using an automatic colour.'); });
 
 var _avBtn = ui('setAvatarBtn');
 if (_avBtn) _avBtn.addEventListener('click', function() { ui('setAvatarFile').click(); });

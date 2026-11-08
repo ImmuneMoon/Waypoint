@@ -468,7 +468,7 @@ function renderPanel() {
     html += '<div class="snd-row"><span class="snd-label">Banner</span><input type="text" id="fxBanner" class="field" maxlength="120" placeholder="Round 3 &middot; Enter to send" style="flex:1;"></div>' + line('Big words across the screen of everyone on this map. Type, then press Enter.');
     var cues = soundEntries().filter(function(e) { return e.kind === 'cue'; });
     if (cues.length && (!window.wpVtt || window.wpVtt.on('sound'))) html += '<div class="snd-row"><span class="snd-label">Sound with it</span><select id="fxCue" class="field"><option value="">none</option>' + cues.map(function(e) { return '<option value="' + esc(e.id) + '">' + esc(e.name) + '</option>'; }).join('') + '</select></div>';
-    html += '<div class="snd-row fx-foot"><button class="journal-from fx-stop" data-act="stop-wash" title="Clear the color wash">Clear the colour</button><button class="journal-from fx-stop" data-act="stop-weather" title="Stop the weather">Stop the weather</button></div>';   // 1.6.2: at the foot, and no longer red
+    html += '<div class="snd-row fx-foot"><button class="journal-from fx-stop" data-act="stop-wash" title="Clear the colour wash">Clear the colour</button><button class="journal-from fx-stop" data-act="stop-weather" title="Stop the weather">Stop the weather</button></div>';   // 1.6.2: at the foot, and no longer red
     body.innerHTML = html;
     syncPingTo();
     syncButtons();

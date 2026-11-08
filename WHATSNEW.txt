@@ -26,6 +26,8 @@ Tidier screens
 - The System editor's Layout tab lists its parts down the left, as Combat
   does. Sections, Tabs, Sheet look, Header and Pinned band each open on
   their own, and the preview stays beside them.
+- The app spells it colour everywhere now, from Pen Colour on the toolbar
+  to Plain colour in a Texture list and every line of Help.
 - Every button that cannot be undone wears a red outline, such as Start over
   as a new player and Clear all handouts.
 

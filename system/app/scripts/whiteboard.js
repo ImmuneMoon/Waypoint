@@ -683,7 +683,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                                      '<div class="rn">Text box</div>' +
                                      '<div class="rc" style="color:var(--dim); font-size:11px;">' + wordCount + ' word' + (wordCount === 1 ? '' : 's') +
                                      (wItem.hidden ? ' &middot; hidden from players' : '') + '</div>' +
-                                     (isClient ? '' : '<div class="rc" style="color:var(--gold); font-size:11px;">Double-click to edit &middot; color swatch sets the text color</div>') +
+                                     (isClient ? '' : '<div class="rc" style="color:var(--gold); font-size:11px;">Double-click to edit &middot; colour swatch sets the text colour</div>') +
                                      '</div>';
                       tt.style.display = 'block';
                       return;
@@ -1497,7 +1497,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
       var colBtn = bar.querySelector('.st-color');
       var kind = selColorKind(its);
       if (colBtn) {
-          colBtn.title = kind === 'text' ? 'Text color' : kind === 'pen' ? 'Pen color' : 'Fill color';
+          colBtn.title = kind === 'text' ? 'Text colour' : kind === 'pen' ? 'Pen colour' : 'Fill colour';
           colBtn.classList.toggle('st-text-color', kind === 'text');
           var chip = colBtn.querySelector('.st-color-chip');
           var cur = its[0] && its[0].color;
@@ -1865,13 +1865,13 @@ window.wpFitToGrid = fitToGrid;
       var kind = selColorKind(its);
       var cur = (its[0] && its[0].color || '').toLowerCase();
       var sets = kind === 'fill' ? [ST_FILL, ST_PEN] : [ST_PEN];
-      var html = '<div class="stc-title">' + (kind === 'text' ? 'Text color' : kind === 'pen' ? 'Pen color' : 'Fill color') + '</div><div class="stc-grid">';
+      var html = '<div class="stc-title">' + (kind === 'text' ? 'Text colour' : kind === 'pen' ? 'Pen colour' : 'Fill colour') + '</div><div class="stc-grid">';
       sets.forEach(function(set) {
           Object.keys(set).forEach(function(k) {
               html += '<button class="stc-sw' + (k.toLowerCase() === cur ? ' on' : '') + (k === 'transparent' ? ' clear' : '') + '" data-c="' + k + '" title="' + set[k] + '" style="background:' + k + '"></button>';
           });
       });
-      html += '<label class="stc-sw custom" title="Custom color"><input type="color" value="' + (/^#[0-9a-f]{6}$/i.test(cur) ? cur : '#e9e9f0') + '"></label></div>';
+      html += '<label class="stc-sw custom" title="Custom colour"><input type="color" value="' + (/^#[0-9a-f]{6}$/i.test(cur) ? cur : '#e9e9f0') + '"></label></div>';
       pop.innerHTML = html;
       pop.dataset.sel = its.map(function(i) { return i.id; }).join(',');
       pop.querySelectorAll('.stc-sw[data-c]').forEach(function(b) {
@@ -6015,7 +6015,7 @@ window.wpFitToGrid = fitToGrid;
   function texOptionsInto(sel, cur, pic) {
       var BC = window.wpBuildCore; if (!sel || !BC || !Array.isArray(BC.TEXTURES)) return;
       while (sel.firstChild) sel.removeChild(sel.firstChild);
-      var o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Plain color'; sel.appendChild(o0);
+      var o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Plain colour'; sel.appendChild(o0);
       BC.TEXTURES.forEach(function(n) { var o = document.createElement('option'); o.value = n; o.textContent = typeof BC.texName === 'function' ? BC.texName(n) : n.charAt(0).toUpperCase() + n.slice(1); sel.appendChild(o); });
       var can = typeof BC.picName === 'function' && !!(window.wpFogCore && typeof window.wpFogCore.cleanTexSrc === 'function'), src = can ? texPicOf(pic) : '';
       if (src) { var op = document.createElement('option'); op.value = TEX_PIC; op.textContent = BC.picName(src); sel.appendChild(op); }

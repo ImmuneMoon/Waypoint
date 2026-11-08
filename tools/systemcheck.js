@@ -20027,6 +20027,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.2 darkness steps: the system\'s steps keep a name, a short name made once from it and a whole penalty, each once, the same in both views; TargetDark and TargetDarkPen read the step at the target through the range, 0 with no target; the validator knows both',
             J(sysDk.dark) === J([{ key: 'Dim', label: 'Dim', pen: -1 }, { key: 'PitchBlack', label: 'Pitch black', pen: -8 }]) && J(cleanSystem(sysDk, { F, gmView: false }).dark) === J(sysDk.dark)
             && Rd('TargetDark') === 2 && Rd('TargetDarkPen') === -8 && R0d('TargetDarkPen') === 0 && vDk.length === 0, J([sysDk.dark, Rd('TargetDark'), Rd('TargetDarkPen'), vDk]));
+        const rgA = S.withRange({}, { mod: 0, dist: 3, adk: 1, adkp: -1, dk: 2 }).range, RAd = S.makeResolver(sysDk, { id: 'c', values: {} }, F, S.withAttempt(null, 3, undefined, { '@dk': 2, '@dkp': -8 })), RAd0 = S.makeResolver(sysDk, { id: 'c', values: {} }, F, S.withAttempt(null, 3));
+        const vAd = S.validateSystem(cleanSystem({ v: 1, name: 'V', fields: [], rolls: [{ id: 'r_d', label: 'Defend', formula: '3d6 <= 10 + AttackerDarkPen', resist: true }, { id: 'r_p', label: 'Plain', formula: '3d6 + AttackerDark' }] }, { F, gmView: true }), F).errors;
+        const offA = S.readsOf(sysDk, { roll: { resist: true } }), wordA = S.nameWord(sysDk, 'AttackerDarkPen');
+        check('1.6.2 a Defense reads the darkness at the attacker\'s place (the CORE session\'s answer 7): the range carries the attacker\'s own step and its penalty, a resist roll reads them from the attempt as AttackerDark and AttackerDarkPen, 0 with none, the validator knows them only in a roll ticked Resists an attempt, a sheet never greys by them, and the builder offers them in words',
+            rgA.adk === 1 && rgA.adkp === -1 && RAd('AttackerDark') === 2 && RAd('AttackerDarkPen') === -8 && RAd0('AttackerDarkPen') === 0 && R0d('AttackerDark') === 0
+            && vAd.length === 1 && vAd[0].id === 'r_p' && /Resists an attempt/.test(vAd[0].message) && S.readsAttempt('AttackerDarkPen', F) === true
+            && /attacker stands/.test(wordA) && J(offA).indexOf('AttackerDarkPen') >= 0, J([rgA, RAd('AttackerDark'), vAd, wordA, offA]));
     }
     {   // 1.6.2 scene context (the owner, by prompt: "The scene carries it", "A Scene row on the map's menu", "A roll ticked Kept for the scene"), on invented data
         const J = JSON.stringify, sysSc = cleanSystem({ v: 1, name: 'Sc', fields: [{ id: 'f_wits', key: 'Wits', label: 'Wits', kind: 'number' }],

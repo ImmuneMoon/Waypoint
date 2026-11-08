@@ -19757,6 +19757,10 @@ pendingChecks.push((async () => {
         pB.length = 0; runB.attemptCalled({ system: null }, un('1 > 0'), 'r_duck', undefined, true, tar, false); const m4 = pB.length;
         check('1.6.0 a byIf that cannot be worked out does not hold, so no card comes: a name no one has, Row.* on a system roll, a formula that does not read, dice in it. It reads that roll\'s token context, AttemptMargin among them, and a row that is no row is passed over, not read',
             u1 === '' && u2 === '' && u3 === '' && u4 === '' && m1 === 'r_ash' && m2 === '' && m3 === 'r_ash' && m4 === 0, j([u1, u2, u3, u4, m1, m2, m3, m4]));
+        const idD = runB.attemptMake(campB, hitB, { kind: 'check', pass: true, margin: 3 }, false, { tid: 't1', mapId: 'm1', adk: 2, adkp: -8 }, att, false, () => undefined), recD = attB[idD], idD0 = runB.attemptMake(campB, hitB, { kind: 'check', pass: true, margin: 3 }, false, { tid: 't1', mapId: 'm1' }, att, false, () => undefined), recD0 = attB[idD0];
+        const RdD = Sc.makeResolver(sysB, tar, Fc, Sc.withAttempt(null, recD.m, recD.k, recD.rd, recD.t));
+        check('1.6.2 attemptMake keeps the darkness at the attacker\'s place, which the range carried, on the attempt\'s own figures, and the Defense reads it as AttackerDark and AttackerDarkPen; an attack with none keeps none; both roll paths hand the record\'s figures on',
+            recD.rd && recD.rd['@dk'] === 2 && recD.rd['@dkp'] === -8 && !(recD0 && recD0.rd) && RdD('AttackerDark') === 2 && RdD('AttackerDarkPen') === -8 && full.includes('rc.adk = adN.i; rc.adkp = adN.pen;'), j([recD && recD.rd, recD0 && recD0.rd]));
         check('1.6.0 both paths hand the resist roll its token context (a player\'s roll and the GM\'s own)', full.includes('attemptCalled(campQ, blowRecQ, q.act, rowGQ, pcQ, chQ, !!recQ.priv, tcQ);') && full.includes('attemptCalled(campR, blowRecR, o.act, o.row, pcR, chR, !!rec.priv || !!rec.to, tcR);'));
     }
 })());

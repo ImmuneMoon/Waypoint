@@ -56,6 +56,7 @@ The System editor
   menu, and a reaction rolled once can be kept on the NPC for the scene.
 - A system can name steps of darkness, each with its penalty. A map and a shape
   set their step, a light lights its cells, and a roll reads the step at its target.
+  A Defense reads the step where the attacker stands.
 - An effect's bonus can say it doesn't stack with others of its kind, so two
   stims that raise the same thing give the larger, never the sum.
 - Laid from can go by category: a part of quantity 2 lays a right and a left

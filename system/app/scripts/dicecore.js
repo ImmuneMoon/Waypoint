@@ -432,6 +432,7 @@ function cleanRoll(rec) {
     if (rec.sw !== undefined) { var swc = cleanSwNames(rec.sw); if (swc) out.sw = swc; }   // 1.6.0: the roll switches it was rolled with, by name (a list that does not clean is left off, the roll kept)   // 1.5.8: what changed the values it reads (a list that does not clean is left off, the roll kept)
     if (rec.refs !== undefined) { var rfc = cleanRefs(rec.refs); if (rfc) out.refs = rfc; }   // 1.6.0 Specialties: the case each reference used
     if (rec.dmg !== undefined) { if (rec.dmg !== 1) return null; out.dmg = 1; }
+    if (out.dmg === 1 && typeof rec.tb === 'number' && isFinite(rec.tb) && Math.abs(rec.tb) <= 180) out.tb = Math.round(rec.tb);   // 1.6.2 (13): where the attacker stood, from the target's facing (the host's, from the range)
     if (rec.dmgOn !== undefined && out.dmg === 1 && typeof rec.dmgOn === 'string' && /^c_[A-Za-z0-9_]{1,24}$/.test(rec.dmgOn)) out.dmgOn = rec.dmgOn;   // 1.6.0: the character this damage lands on, the host's from its entry (one that does not clean is left off, the roll kept)
     if (rec.cov === 'Half cover' || rec.cov === 'Three-quarters cover' || rec.cov === 'Total cover' || rec.cov === 'Cover') out.cov = rec.cov;   // 1.6.0: the cover a roll read, by the four words coverTier gives
     if (rec.cvh !== undefined) { var cvc = cleanCovHit(rec.cvh); if (cvc) out.cvh = cvc; }

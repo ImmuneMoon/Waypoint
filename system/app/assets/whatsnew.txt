@@ -603,6 +603,9 @@ Writing planners and pages
   moved on its turn in a fight, so moving can spoil an aim.
 - An item's roll bonus can help by its row's level, such as +1 at level 1
   and +2 from level 3.
+- A roll can read which arc of its target the attacker stands in, by the
+  arcs the Combat tab names. A damage card carries it, so a wound, a DR or
+  a layer can differ for a blow from behind.
 - An effect can do something once when it ends: changes to a pool or a number,
   switching an effect, or a roll asked of the character. It runs when the
   effect runs out, and, where ticked, when it is switched off by hand too.

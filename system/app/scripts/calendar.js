@@ -150,7 +150,7 @@ function ownTime(groups) {   // the one counter: each group's spans, once, to th
         if (!Object.keys(spans).length) return;
         g.held = needsAt(camp, sys, g, spans);   // 1.5.5: the needs of the rules ticked Only while its needs hold, judged as the stretch is counted, before its timed effects run
         if (g.kind !== 'fight' && n && typeof n.fxSpans === 'function') { try { n.fxSpans(spans, g.walk === true); } catch (e) { console.error(e); } }
-        if (n && typeof n.rowSpans === 'function') { try { n.rowSpans(spans, function(p) { return everySecs(sysCal(), sysUnits(sys), p); }); } catch (e) { console.error(e); } }   // 1.6.0 Counts by the game clock: a row's timed counters live every stretch, a fight's rounds too   // section 6: outside a fight its timed effects follow its own time; in one, its turns. walk: those who walk into a fight live the gap before it
+        if (n && typeof n.rowSpans === 'function') { try { n.rowSpans(spans, function(p) { return everySecs(sysCal(), sysUnits(sys), p); }, g.kind === 'fight'); } catch (e) { console.error(e); } }   // 1.6.0 Counts by the game clock: a row's timed counters live every stretch, a fight's rounds too   // section 6: outside a fight its timed effects follow its own time; in one, its turns. walk: those who walk into a fight live the gap before it
         if (groupRules(camp, sys, g, spans)) made = true;
     });
     if (marked && frameOf() === 'clock') saveView();   // a fight that runs ahead moves no clock: its people's marks are written quietly

@@ -6013,12 +6013,12 @@ net.fxSpans = function(spans, walk) {
 // (systemcore rowTimers); perOf, a step's length in seconds on the campaign's calendar. Stored on the GM's machine; sent and drawn only where a
 // count moved (the part of a step lived is the GM's alone). A count down that reached 0 is told to the GM, and to its player unless it is a row
 // they may not see
-net.rowSpans = function(spans, perOf) {
+net.rowSpans = function(spans, perOf, fight) {   // fight (1.6.2): the stretch is a fight's, so an upkeep's rate out of a fight pays nothing
     if (net.role === 'client' || net.stream || !spans || typeof spans !== 'object' || typeof perOf !== 'function' || (window.wpVtt && !window.wpVtt.on('sheets'))) return;
     var camp = getActiveCampaign(), S = SC(), now = Date.now(); if (!camp || !camp.system || !camp.chars || !S || !S.rowTimers) return;
     Object.keys(spans).forEach(function(id) {
         var s = spans[id], ch = own(camp.chars, id) ? camp.chars[id] : null; if (!ch || typeof s !== 'number' || !isFinite(s) || !(s > 0)) return;
-        var r; try { r = S.rowTimers(camp.system, ch, s, perOf, window.wpFormula); } catch (e) { if (window.wpStepLog) window.wpStepLog('rowtimer v1', 'failed', { at: 'tick', secs: Math.round(s) }); throw e; }
+        var r; try { r = S.rowTimers(camp.system, ch, s, perOf, window.wpFormula, fight === true); } catch (e) { if (window.wpStepLog) window.wpStepLog('rowtimer v1', 'failed', { at: 'tick', secs: Math.round(s) }); throw e; }
         var ids = Object.keys(r.values); if (!ids.length) return;
         ch.values = ch.values || {}; ids.forEach(function(fid) { ch.values[fid] = r.values[fid]; });
         saveRemoteSoon();

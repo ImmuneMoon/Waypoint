@@ -17146,7 +17146,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0 Counts by the game clock, the GM\'s machine (net.js rowSpans, run for real): every character\'s span on its rows, stored; sent and redrawn only where a count moved (a part of a step is saved alone); a count down at 0 told to the GM and its own player alone ("Bread on Pat: Spoiled."), and a step line in the log; calendar.js ownTime hands it every stretch, a fight\'s rounds too, with a step on the campaign\'s own calendar',
             J(afterHalf) === J([1, 1, 1]) && J(afterPart) === J([1, 1, 2]) && deltas.length === 2 && J(deltas[0]) === J(['c_t', ['f_food']])
             && J(told.filter(x => /Bread/.test(x[1]))) === J([['p1', 'Bread on Pat: Spoiled.'], ['gm', 'Bread on Pat: Spoiled.']]) && J(logs) === J([['rowtimer v1', 'ended', { rows: 2, lists: 1, secs: 172800, sent: true }]])
-            && caT.includes("        if (n && typeof n.rowSpans === 'function') { try { n.rowSpans(spans, function(p) { return everySecs(sysCal(), sysUnits(sys), p); }); } catch (e) { console.error(e); } }")
+            && caT.includes("        if (n && typeof n.rowSpans === 'function') { try { n.rowSpans(spans, function(p) { return everySecs(sysCal(), sysUnits(sys), p); }, g.kind === 'fight'); } catch (e) { console.error(e); } }")   /* 1.6.2: and whether the stretch is a fight's (moved on purpose) */
             && caT.indexOf("n.rowSpans(spans") > caT.indexOf("if (g.kind !== 'fight' && n && typeof n.fxSpans === 'function')"),
             J([afterHalf, afterPart, deltas, told, logs]));
         const lcT = shT.slice(shT.indexOf('function listCard('), shT.indexOf('function renderCombat('));
@@ -17309,7 +17309,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         UC(lscE, { value: 'round' }, 'sys-list-upeach'); const e2 = J(lscE.upkeep); UC(lscE, { value: '' }, 'sys-list-upby'); const e3 = J(lscE.upkeep);
         check('the core handbook session\'s ask 5 in the Lists tab (sheets.js upkeepChange, run for real; the box\'s Pays when its Pace says, its dispatcher and Help pinned): picking the stat names it and gives a row that says the clock its Every, a minute by default; changing when every row pays keeps that Every while the stat is picked; picking Every row pays so takes both away',
             e1 === J({ pool: 'f_mp', amt: '1', each: 'turn', eachBy: 'Pace', per: { n: 1, u: 'min' } }) && e2 === J({ pool: 'f_mp', amt: '1', each: 'round', eachBy: 'Pace', per: { n: 1, u: 'min' } }) && e3 === J({ pool: 'f_mp', amt: '1', each: 'round' })
-            && shE.includes("rw.appendChild(sl('sys-list-upby', ebo, ebc,") && shE.includes("|| c.indexOf('sys-list-upby') >= 0) upkeepChange(lsc, t, c);") && fs.readFileSync(path.join(app, 'index.html'), 'utf8').includes('Then pick <b>Pays when its Pace says</b>.'), J([e1, e2, e3]));
+            && shE.includes("rw.appendChild(sl('sys-list-upby', ebo, ebc,") && shE.includes("|| c.indexOf('sys-list-upby') >= 0 || c.indexOf('sys-list-upevery') >= 0 || c.indexOf('sys-list-upout') >= 0) upkeepChange(lsc, t, c);")   /* 1.6.2: and Every and Out of a fight (moved on purpose) */ && fs.readFileSync(path.join(app, 'index.html'), 'utf8').includes('Then pick <b>Pays when its Pace says</b>.'), J([e1, e2, e3]));
     }
     {   // the core handbook session's asks (a) and (b) (2026-10-29): a counter keyed paid, and a list action's needs, on invented data
         const J = JSON.stringify;
@@ -18349,7 +18349,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const dsS = sysH([{ fx: 'e_hurt' }]), says = w => DS(Object.assign({}, dsS.combat.damage, { onWound: [w] }), dsS, F).errs.map(e => e.message).filter(m => /Any wound/.test(m)), cases = [{ held: { list: 'f_e', at: '1', stat: 'Cond', to: '1' } }, { held: { list: 'f_e', at: '1' } }, { held: { list: 'f_gone', at: '1' }, fx: 'e_hurt' }, { held: { list: 'f_e', at: '1', stat: 'Cond' }, fx: 'e_hurt' }, { held: { list: 'f_e', at: '1', stat: 'Cond', to: '1' }, fx: 'e_hurt' }];
         const said = cases.map(says), rows = cases.map(w => (S.cleanSystem(Object.assign({}, dsS, { combat: Object.assign({}, dsS.combat, { damage: Object.assign({}, dsS.combat.damage, { onWound: [w] }) }) }), { F, gmView: true }).combat.damage.onWound || []).length);
         check('1.6.0 what stands where a blow lands in the Taking damage box: what Save does is said as the cleaner reads it (a row that writes needs nothing else, a row that only reads is dropped with no effect or roll, a list that is gone and a stat with no figure each said); the row\'s controls, their handlers and Help are wired',
-            J(said.map(s => s.length)) === J([0, 1, 1, 1, 0]) && J(rows) === J([1, 0, 1, 1, 1]) && /nothing on and asks for nothing/.test(said[1][0]) && /needs a list and a formula/.test(said[2][0]) && /needs a number stat/.test(said[3][0])
+            J(said.map(s => s.length)) === J([0, 1, 1, 1, 0]) && J(rows) === J([1, 0, 1, 1, 1]) && /nothing on, asks for nothing and adds nothing/.test(said[1][0])   /* 1.6.2: a row may add a row (moved on purpose) */ && /needs a list and a formula/.test(said[2][0]) && /needs a number stat/.test(said[3][0])
             && shH.includes("select('sys-dmgr-ohlist',") && shH.includes("input('sys-dmgr-ohat field',") && shH.includes("select('sys-dmgr-ohstat',") && shH.includes("input('sys-dmgr-ohto field',") && shH.includes("dbxHas(c, 'sys-dmgr-ohlist') || dbxHas(c, 'sys-dmgr-ohstat')") && shH.includes("dbxHas(c, 'sys-dmgr-ohat') || dbxHas(c, 'sys-dmgr-ohto')") && hA.includes('<b>Reads what stands there</b>') && hA.includes('<code>Held.count</code>'), J([said, rows]));
     }
     {   // 1.6.0: When a row is taken off (systemcore cleanOnRemove, onRemoveRun and onRemoveBack through the real applyRowOp and rowOpMoney)
@@ -19961,6 +19961,34 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.2 Costs more while (source): the Fields tab draws it beside Spills into, a form of the character, how much more once a test is written; a change offers Subtract, not a cost where the draft has such a pool or the change says so; Help and both release notes say it',
             /spillCtl\(flags, f\);   \/\/ 1\.6\.0 Spills into\n\s*surchargeCtl\(flags, f\);/.test(shS.replace(/\r\n/g, NL)) && /'sys-surch-if': 'cond'/.test(fbS) && /\['loss', 'Subtract, not a cost'\]/.test(shS)
             && ixS.includes('A resource can <b>Cost more while</b>') && ntS.every(t => t.includes('A pool can cost more while a test holds')));
+    }
+    {   // 1.6.2 bleeding as rows (the owner, by prompt: "A wound adds a row", "Every N, and a clock out of a fight"; the CORE session: each wound counted, tagged by where it started), on invented data
+        const J = JSON.stringify, sysB = cleanSystem({ v: 1, name: 'Bl', fields: [
+            { id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '20', min: -99, vis: 'all', edit: 'owner' },
+            { id: 'f_locs', key: 'Locs', label: 'Locations', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'nat', label: 'Natural' }], cols: [{ key: 'DR', label: 'DR', formula: 'Row.nat' }] } },
+            { id: 'f_bl', key: 'Bleed', label: 'Bleeding', kind: 'item-list', vis: 'all', edit: 'owner', list: { on: { label: 'Open', def: true }, stand: { from: 'f_locs' }, upkeep: { pool: 'f_hp', amt: '1', each: 'turnEnd', every: 2, out: { per: { n: 1, u: 'min' } } } } }],
+            items: [{ id: 'i_torso', name: 'Torso', stats: { nat: 0 } }, { id: 'i_bleed', name: 'Bleeding wound' }],
+            combat: { hpResource: 'f_hp', damage: { pool: 'f_hp', locs: { list: 'f_locs', dr: 'DR' }, onWound: [{ add: { list: 'f_bl', entry: 'i_bleed' } }, { add: { list: 'f_bl' } }] } } }, { F, gmView: true });
+        const kc = () => ({ id: 'c_k', name: 'Kael', values: { f_hp: { cur: 20 }, f_locs: [{ defId: 'i_torso', qty: 1 }] } }), wv = (c, v) => Object.assign({}, c, { values: Object.assign({}, c.values, v) });
+        const hit = S.damageStep(sysB, kc(), { amt: 3, loc: 'w_torso' }, F), none = S.damageStep(sysB, kc(), { amt: 0, loc: 'w_torso' }, F);
+        const bl = hit.ok && Array.isArray(hit.values.f_bl) ? hit.values.f_bl : [], c2 = wv(kc(), hit.values || {}), vf = w => S.resolveAll(sysB, w, F, null).vars;
+        const t1 = S.applyRound(sysB, c2, vf, F, null, 'turnEnd'), c3 = wv(c2, t1.values), t2 = S.applyRound(sysB, c3, vf, F, null, 'turnEnd'), tS = S.applyRound(sysB, c2, vf, F, null, 'turn');
+        const perOf = p => p && p.u === 'min' ? p.n * 60 : 0, clk = S.rowTimers(sysB, c2, 120, perOf, F, false), inF = S.rowTimers(sysB, c2, 120, perOf, F, true);
+        const up = sysB.fields.filter(f => f.id === 'f_bl')[0].list.upkeep, ows = sysB.combat.damage.onWound;
+        check('1.6.2 a wound adds a row standing where the blow struck (woundAdd): a wound to the torso adds one Bleeding wound row there, switched on as its list starts, and says so; a blow that wounds nobody adds none; a row with no entry is no part of Any wound',
+            hit.ok && bl.length === 1 && bl[0].defId === 'i_bleed' && bl[0].pl === 'w_torso' && bl[0].on === true && J(hit.info.woundAdd) === J(['f_bl']) && hit.lines.some(l => /Bleeding wound/.test(l))
+            && none.ok && !('f_bl' in (none.values || {})) && ows.length === 1 && J(ows[0]) === J({ add: { list: 'f_bl', entry: 'i_bleed' } }),
+            J([hit.values, hit.lines, none.values, ows]));
+        check('1.6.2 Keeps paying every Nth time and by the clock out of a fight: the cleaner keeps At its turn\'s end, every 2 and a rate of 1 a minute; the first turn\'s end counts and pays nothing, the second pays 1, a turn\'s start pays nothing; two minutes out of a fight pay 2, and a fight\'s stretch pays nothing by that rate',
+            J(up) === J({ pool: 'f_hp', amt: '1', each: 'turnEnd', every: 2, out: { per: { n: 1, u: 'min' } } })
+            && !('f_hp' in t1.values) && t1.values.f_bl && t1.values.f_bl[0].un === 1 && J(t2.values.f_hp) === J({ cur: 16 }) && !('un' in t2.values.f_bl[0]) && !('f_hp' in tS.values)
+            && J(clk.values.f_hp) === J({ cur: 15 }) && !('f_hp' in inF.values),
+            J([up, t1.values, t2.values, tS.values, clk.values, inF.values]));
+        const shB = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), ixB = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), ntB = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, NL));
+        check('1.6.2 bleeding (source): Any wound has adds a row to with its entry, Keeps paying has At its turn\'s end, Every and Out of a fight, by the clock; the clock tells a fight\'s stretch apart; Help and both release notes say it',
+            /'sys-dmgr-oalist'/.test(shB) && /'sys-dmgr-oaent'/.test(shB) && /'sys-list-upevery'/.test(shB) && /'sys-list-upout'/.test(shB) && /\['turnEnd', 'At its turn\\u2019s end'\]/.test(shB)
+            && /n\.rowSpans\(spans, function\(p\) \{ return everySecs\(sysCal\(\), sysUnits\(sys\), p\); \}, g\.kind === 'fight'\)/.test(fs.readFileSync(path.join(app, 'scripts', 'calendar.js'), 'utf8'))
+            && ixB.includes('An Any wound row can also <b>add a row</b>') && ixB.includes('<b>Every</b> 2 pays every other') && ntB.every(t => t.includes('A wound can add a row')));
     }
     {   // 1.6.0: a pool down to minus its max (minNeg, asked by a system build), on invented data
         const J = JSON.stringify, base = (o) => ({ v: 1, name: 'Ng', fields: [

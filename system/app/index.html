@@ -2234,6 +2234,14 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>The sheet shows the number beside the effect, with &minus; and + for whoever may change that list.</li>
                               </ul>
                           </li>
+                          <li><b>When it ends.</b> An effect can do something once as it ends, as a boost whose crash comes when it runs out, or a rage that leaves you tired.
+                              <ul>
+                                  <li>Under <b>When it ends</b>, add changes to a pool or a number, or switch an effect on or off. An amount can read <b>the number the effect held</b>.</li>
+                                  <li>It can also ask the character for a roll, on a card to its player. An NPC&rsquo;s card comes to you.</li>
+                                  <li>It runs when the effect runs out, by its time or its number reaching 0. Tick <b>Also when switched off</b> to run it when someone switches it off or takes it off too.</li>
+                                  <li>Your app runs it, as it runs time rules, and Undo does not take it back.</li>
+                              </ul>
+                          </li>
                           <li><b>Inline rows and counters.</b> A section set to <b>Inline rows</b> draws each field on one line, for attributes, skills and defences. The label and value sit on the left and its Roll on the right.
                               <ul>
                                   <li>A number, formula or skill shown as a stat tile draws as a row there. A pool, and a number drawn as a slider, keep their own look. A save shows as a row when it is a formula field with its own roll.</li>
@@ -2707,6 +2715,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>A hit first meets the DR at its hit location, read from a stat or column of your list of locations. A damage type can add stats of its own to that DR. The armour divisor divides it.</li>
                                   <li>What gets through is multiplied by the type&rsquo;s multiplier, or its vital one where <b>Vital where</b> holds. It then comes off the pool you pick, at least 1.</li>
                                   <li><b>Taken first from</b> names a number, as temporary hit points. A wound to that pool comes off the number first, down to 0, and the rest off the pool. A Major Wound and every rule after it read the whole wound. Set the number with a roll&rsquo;s Then or an action, such as the larger of itself and 3.</li>
+                                  <li><b>Taken first from</b> can also name an effect that holds a number, as a ward of 5 points. The wound comes off that number first, and the effect ends when its number reaches 0.</li>
                                   <li><b>Major Wound at</b> is a formula, such as <code>HP.max / 2</code>. A wound that large in one blow is a Major Wound. It may read the location hit as <code>Hit.</code> and a name, such as a third on the head. <b>A Major Wound switches on</b> an effect, and <b>and asks for</b> posts a roll to the wounded character&rsquo;s player. <b>Cripple above</b> says when a location may be crippled.</li>
                                   <li>A Major Wound row has a <b>where</b> formula too, blank for every Major Wound. It reads the blow and the location hit as Any wound does. Press <b>+ Another Major Wound</b> for up to forty rows, and the first whose where holds is what the Major Wound does. So a Major Wound to an arm can cripple it, and one to the head can switch Stunned on.</li>
                                   <li><b>Wound by</b> works a wound out by a formula, for every damage type. It reads what got through and the character&rsquo;s sheet, as one wound for every 4 through. A type may have its own, or tick <b>Its multiplier</b> to keep today&rsquo;s.</li>

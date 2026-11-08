@@ -197,7 +197,7 @@ var GROUPS = {
         ['names', 'What formulas read', 0, ['sys-list-names']]] },
     effects: { split: ['sys-row-main', 'sys-flags'], head: ['sys-fx-icon', 'sys-glyph-btn', 'sys-fx-name', 'sys-fx-tone', 'sys-btns'], list: [
         ['changes', 'What it changes', 1, ['sys-fx-target', 'act:fxmodadd']],
-        ['time', 'How long it lasts', 1, ['sys-fx-dur', 'sys-fx-agbox', 'sys-fx-endsbox', 'sys-fx-egbox', 'sys-fx-autorow']],
+        ['time', 'How long it lasts', 1, ['sys-fx-dur', 'sys-fx-agbox', 'sys-fx-endsbox', 'sys-fx-egbox', 'sys-fx-autorow', 'sys-fx-endrow']],   // 1.6.2: and When it ends
         ['val', 'Its number', 0, ['sys-fxv-box']],
         ['who', 'Who sees it', 1, ['sys-fx-vis', 'sys-fx-notes']],
         ['posture', 'Posture', 0, ['sys-fx-posture', 'sys-fx-postureback', 'sys-fx-keepbox']],

@@ -5892,6 +5892,7 @@ function fxApply(camp, ch, kind, now, secs, at) {   // one tick of one character
     ch.values = ch.values || {}; ids.forEach(function(fid) { ch.values[fid] = r.values[fid]; }); ch.updated = now;
     saveRemoteSoon();
     if (net.active && net.role === 'host') net.syncCharDelta(ch.id, r.values);
+    if (window.wpSheets && typeof window.wpSheets.fxRanOut === 'function' && Array.isArray(r.gone) && r.gone.length) window.wpSheets.fxRanOut(ch.id, r.gone);   // 1.6.2: what ran out runs its end as one that ran out
     if (window.wpSheets) window.wpSheets.charChanged(ch.id);
     r.expired.forEach(function(nm) { fxEnded(ch, nm); });
 }
@@ -11109,7 +11110,7 @@ function dueLine(rec) { var D = DC(); return D && D.dueText ? D.dueText(rec) : '
 // (each connection of theirs; the GM's copy then says whose it is to press), else the GM's alone. A whisper: never in the join's history
 net.postDue = function(ch, act, kind, round, toOwner, more) {   // more (1.6.0, B2): an attempt to resist, { att, by, m } (1.6.0, the core's gap 5: and or, the other rolls it may be resisted by)
     if (!ch || typeof ch.id !== 'string' || !act || typeof act.id !== 'string') return;
-    var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, act: act.id, label: String(act.label || 'Apply').split('{')[0].trim().slice(0, 60) || 'Apply', why: kind === 'turn' ? 'turn' : kind === 'turnEnd' ? 'turnEnd' : kind === 'cross' ? 'cross' : kind === 'major' ? 'major' : kind === 'wound' ? 'wound' : kind === 'resist' && more && typeof more.att === 'string' ? 'resist' : kind === 'called' ? 'called' : 'round', round: Math.max(1, Math.min(9999, Math.floor(Number(round) || 1))), ts: Date.now() };
+    var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, act: act.id, label: String(act.label || 'Apply').split('{')[0].trim().slice(0, 60) || 'Apply', why: kind === 'turn' ? 'turn' : kind === 'turnEnd' ? 'turnEnd' : kind === 'cross' ? 'cross' : kind === 'end' ? 'end' : kind === 'major' ? 'major' : kind === 'wound' ? 'wound' : kind === 'resist' && more && typeof more.att === 'string' ? 'resist' : kind === 'called' ? 'called' : 'round', round: Math.max(1, Math.min(9999, Math.floor(Number(round) || 1))), ts: Date.now() };
     if (ch.name) rec.as = String(ch.name).slice(0, 60); if (typeof plOn === 'function') plOn(rec, ch);
     if (rec.why === 'major' && more && typeof more.mw === 'string' && more.mw) rec.mw = more.mw.slice(0, 60);   // 1.6.0: the system's own word for a Major Wound
     if (rec.why === 'called' && more) { if (typeof more.att === 'string' && more.att) rec.att = more.att; if (more.by) rec.by = String(more.by).slice(0, 60); }   // 1.6.0: a roll another called for

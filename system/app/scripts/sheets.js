@@ -425,6 +425,7 @@ function afterCharChange(c, whole, values) {
     renderViews(c.id);   // HUD frame (HF2a): the sheet and every HUD of this character
     if (typeof tileFollow === 'function') tileFollow(c, camp);   // 1.6.2 (body fold 8)
     if (typeof crossFollow === 'function') crossFollow(c, camp);   // 1.5.9: a value that crossed a step runs its rules, once the change is stored
+    if (typeof fxEndFollow === 'function') fxEndFollow(c, camp);   // 1.6.2: an effect that ended runs its end
 }
 // [systemcheck:envfollow-start]
 // 1.6.0, the map environment, fold 2 (docs/MAP_ENVIRONMENT_PLAN.md 4, 11 and 13; the owner, by prompt: "No reading at all"): on the machine that
@@ -603,6 +604,7 @@ function ruleFollow(c, camp) {
     var mp = typeof postureFollow === 'function' ? postureFollow(c, camp) : [];
     if (mp.length) { var n = net(), was = n ? n.applyingRemote : false; if (n) n.applyingRemote = true; try { save(true); } finally { if (n) n.applyingRemote = was; } if (n && n.active && n.role === 'host' && n.broadcastItemFiltered) mp.forEach(function(mid) { n.broadcastItemFiltered(camp.id, mid); }); }
     if (typeof tileFollow === 'function') tileFollow(c, camp);   // 1.6.2 (body fold 8)
+    if (typeof fxEndFollow === 'function') fxEndFollow(c, camp);   // 1.6.2: an effect that ended runs its end
     return typeof crossFollow === 'function' ? crossFollow(c, camp) : 0;
 }
 // [systemcheck:cross-end]
@@ -677,6 +679,74 @@ function postureSeed(camp) {
     return n;
 }
 // [systemcheck:fxposture-end]
+// [systemcheck:fxend-start]
+// 1.6.2 (the CORE session: a boost whose crash comes when it runs out, a rage that leaves you tired, a disguise that drops): an effect's end. On
+// the machine that owns the campaign, after every change of a character, a library effect with changes or a roll for its end that was on and is
+// no longer runs them once: when it ran out (its time, its number falling to 0, or its number spent to 0 by a blow: fxRanOut, which the host's
+// tick and the damage step tell, and which a preview of a blow does not), and, ticked Also when switched off, when it was switched off or taken
+// off by hand. Its amounts read EffectNumber, the number it held as it ended. What was on is kept in this machine's memory alone; the first look
+// at a character only notes it (fxEndSeed), so a load runs nothing. The changes are stored outside the GM's undo, as a time rule's are, sent to
+// the table and said on a card; the roll is asked of the character's player, or of the GM for an NPC, a GM-only roll or a GM-only effect
+var _fxOnSeen = Object.create(null), _fxOut = Object.create(null), _fxEndDepth = 0, _dmgPeek = false, FX_OUT_MS = 5000;
+function fxOnOf(sys, c) {
+    var on = Object.create(null);
+    (sys && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (!f || f.kind !== 'effects') return; var l = c && c.values ? c.values[f.id] : null; if (!Array.isArray(l)) return; l.forEach(function(r) { if (r && typeof r.ref === 'string' && r.on !== false) { var v = typeof r.v === 'number' ? r.v : 0; on[r.ref] = Object.prototype.hasOwnProperty.call(on, r.ref) ? Math.max(on[r.ref], v) : v; } }); });
+    return on;
+}
+function fxRanOut(charId, gone) {
+    var camp = getActiveCampaign(); if (!camp || typeof charId !== 'string' || !Array.isArray(gone) || _dmgPeek) return;
+    var k = (camp.id || '') + '|' + charId, m = _fxOut[k] || (_fxOut[k] = Object.create(null)), at = Date.now();
+    gone.forEach(function(g) { if (g && typeof g.ref === 'string') m[g.ref] = { v: typeof g.v === 'number' && isFinite(g.v) ? g.v : 0, at: at }; });
+}
+function fxEndFollow(c, camp) {
+    if (!c || typeof c.id !== 'string' || !camp || !camp.system || isClient() || !canWrite() || !F()) return 0;
+    var sys = camp.system, defs = (Array.isArray(sys.effects) ? sys.effects : []).filter(function(d) { return !!d && typeof d.id === 'string' && (Array.isArray(d.end) || typeof d.endRoll === 'string'); });
+    var k = (camp.id || '') + '|' + c.id, now = fxOnOf(sys, c), was = _fxOnSeen[k], out = _fxOut[k] || null, at = Date.now(); _fxOnSeen[k] = now; delete _fxOut[k];
+    if (!was || !defs.length) return 0;
+    var runs = [];
+    defs.forEach(function(d) {
+        if (!Object.prototype.hasOwnProperty.call(was, d.id) || Object.prototype.hasOwnProperty.call(now, d.id)) return;
+        var ran = !!out && Object.prototype.hasOwnProperty.call(out, d.id) && at - out[d.id].at <= FX_OUT_MS;
+        if (!ran && d.endOff !== true) return;
+        runs.push({ d: d, v: ran ? out[d.id].v : was[d.id] });
+    });
+    if (!runs.length) return 0;
+    if (_fxEndDepth >= 3) { toast('An effect\u2019s end set off another too many times in one change. The rest did not run.'); return 0; }
+    _fxEndDepth++;
+    try { runs.forEach(function(x) { fxEndRun(c, camp, x.d, x.v); }); } finally { _fxEndDepth--; }
+    if (window.wpStepLog) window.wpStepLog('fxend v1', 'ran', { n: runs.length });
+    return runs.length;
+}
+function fxEndRun(c, camp, d, v) {
+    var n = net(), sys = camp.system, SCe = window.wpSystemCore, label = String(d.name || 'An effect').slice(0, 50) + ' ends', gmOnly = d.vis === 'gm';
+    if (Array.isArray(d.end) && d.end.length && typeof applyAct === 'function') {
+        var tc = tokenCtxFor(c.id, camp), vv = resolveAll(sys, c, F(), tc).vars; if (SCe && typeof SCe.withEndNum === 'function') vv = SCe.withEndNum(vv, v);
+        var act = { id: 'r_fxend', label: label, vis: gmOnly ? 'gm' : 'all', apply: d.end };
+        var resE = applyAct(sys, c, act, vv, F(), tc, null, undefined, window.wpDiceCore || null, null, { now: Date.now(), inCombat: !!(n && n.charInCombat && n.charInCombat(c.id)) });
+        if (resE && resE.ok) {
+            var ids = Object.keys(resE.values || {});
+            if (ids.length) {
+                c.values = c.values || {}; ids.forEach(function(fid) { c.values[fid] = resE.values[fid]; }); c.updated = Date.now();
+                var wasR = n ? n.applyingRemote : false; if (n) n.applyingRemote = true; try { save(true); } finally { if (n) n.applyingRemote = wasR; }
+                if (n && n.active && n.role === 'host' && n.syncCharDelta) n.syncCharDelta(c.id, resE.values);
+                charChanged(c.id);
+            }
+            if (n && n.postApplyCard && Array.isArray(resE.lines) && resE.lines.length) n.postApplyCard(c, label, resE.lines, gmOnly ? 'gm' : (typeof applyScope === 'function' ? applyScope(sys, c, act, false, F()) : 'gm'));
+        } else if (resE && resE.reason === 'error') toast(label + ': ' + (resE.message || 'an amount could not be worked out.'));
+    }
+    if (typeof d.endRoll === 'string' && n && n.postDue) {
+        var rl = (Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return !!r && r.id === d.endRoll; })[0];
+        if (rl) n.postDue(c, rl, 'end', 1, !gmOnly && rl.vis !== 'gm' && !!c.ownerId && c.npc !== true);
+    }
+}
+function fxEndSeed(camp) {
+    if (!camp || !camp.system || !camp.chars || typeof camp.chars !== 'object' || isClient() || !canWrite()) return 0;
+    var sys = camp.system; if (!(Array.isArray(sys.effects) ? sys.effects : []).some(function(d) { return !!d && (Array.isArray(d.end) || typeof d.endRoll === 'string'); })) return 0;
+    var cnt = 0; Object.keys(camp.chars).forEach(function(id) { var c = camp.chars[id]; if (!c || typeof c !== 'object' || typeof c.id !== 'string') return; var k = (camp.id || '') + '|' + c.id; if (Object.prototype.hasOwnProperty.call(_fxOnSeen, k)) return; _fxOnSeen[k] = fxOnOf(sys, c); cnt++; });
+    return cnt;
+}
+(function() { var SCs = typeof window !== 'undefined' ? window.wpSystemCore : null; if (SCs && typeof SCs.setFxOutSink === 'function') SCs.setFxOutSink(function(id, g) { fxRanOut(id, [g]); }); })();
+// [systemcheck:fxend-end]
 // [systemcheck:sheetdelete-start]
 // Delete on the sheet itself (the owner, 2026-10-04: a player who joined from a second computer had two sheets under one name and the only
 // Delete was a small x on a row of the System editor's Characters tab: "both I and the player should be able to just delete these"). The GM
@@ -7655,6 +7725,7 @@ function charChanged(id) {
     if (typeof tileFollow === 'function' && typeof id === 'string') { var campT = getActiveCampaign(), cT = charById(id, campT); if (cT) tileFollow(cT, campT); }   // 1.6.2 (body fold 8)
     if (typeof crossFollow === 'function' && typeof id === 'string') { var campX = getActiveCampaign(), cX = charById(id, campX); if (cX) crossFollow(cX, campX); }   // 1.5.9: a change from the table that crossed a step
     if (typeof postureFollow === 'function' && typeof id === 'string') { var campP = getActiveCampaign(), cP = charById(id, campP), mpP = cP ? postureFollow(cP, campP) : []; if (mpP.length) { var nP = net(), wasP = nP ? nP.applyingRemote : false; if (nP) nP.applyingRemote = true; try { save(true); } finally { if (nP) nP.applyingRemote = wasP; } if (nP && nP.active && nP.role === 'host' && nP.broadcastItemFiltered) mpP.forEach(function(mid) { nP.broadcastItemFiltered(campP.id, mid); }); } }   // 1.5.9: a change from the table (a player's edit, a time rule) that brought on an effect that sets a posture; never a step of the GM's undo
+    if (typeof fxEndFollow === 'function' && typeof id === 'string') { var campE = getActiveCampaign(), cE = charById(id, campE); if (cE) fxEndFollow(cE, campE); }   // 1.6.2: an effect that ran out or was taken off from the table runs its end
     if (typeof goneFire === 'function') goneFire(id);   // 1.6.0: a row a press of ours used up, now gone from our copy: its Undo
     var lost = {};   // HUD frame (HF2a): one notice per character, however many of its views close
     if (sheetOpen && isClient() && (id === null || sheetOpen === id)) { var gone = charById(sheetOpen); if (gone && (gone.partial || gone.ownerId !== myId())) { var nmG = gone.name; lost[gone.id] = 1; closeSheet(); toast(nmG + ' is no longer your character.'); var nG = net(); if (nG && nG.dropPending) nG.dropPending(gone.id); } }
@@ -7690,6 +7761,7 @@ function formCtx(inp) {
     if (cl) { Object.keys(FORM_ONLY).forEach(function(k) { if (cl.contains(k)) own = FORM_ONLY[k]; }); Object.keys(FORM_MORE).forEach(function(k) { if (cl.contains(k)) more = FORM_MORE[k]; }); for (var q = 0; q < cl.length; q++) if (cl[q].indexOf('sys-dmgr-') === 0 || cl[q] === 'sys-cvh-where') dmg = true; }
     if (own && cl && (cl.contains('sys-combat-bfall') || cl.contains('sys-combat-beach') || cl.contains('sys-combat-bradius'))) own = own.concat((Array.isArray(draft.env) ? draft.env : []).filter(function(e) { return e && typeof e.key === 'string' && e.key; }).map(function(e) { return 'Env.' + e.key; }));   // 1.6.2: and the Environment readings where it goes off
     if (own) return { only: own };
+    var endRw = inp && inp.closest ? inp.closest('.sys-fx-endrow') : null; if (endRw) { var endFx = inp.closest('.sys-fx-row'), endD = endFx ? (draft.effects || []).filter(function(x) { return !!x && x.id === endFx.dataset.eid; })[0] : null; return { end: true, subject: endD ? (endD.name || '') + ' ends' : 'When it ends' }; }   // 1.6.2: an effect's When it ends reads its number
     if (cl && cl.contains('sys-list-layif')) { var lyF0 = fieldOf(inp.dataset ? inp.dataset.rl : ''); return { list: lyF0 && lyF0.list ? lyF0.list : undefined, subject: 'A row of ' + (lyF0 && lyF0.label ? lyF0.label : 'the list it lays from') }; }   // 1.6.2 Laid from's Only where: the rows of the list it lays from
     if (cl && (cl.contains('sys-rnd-test') || cl.contains('sys-rnd-next'))) { var rlF = fieldOf(inp.dataset ? inp.dataset.rl : ''); return { list: rlF && rlF.list ? rlF.list : undefined, subject: 'A row picked at random' }; }   // 1.6.2 (fold (f))
     if (dmg) return { blow: true, more: more || undefined, list: formRowList(inp) };
@@ -9262,18 +9334,18 @@ function roundCells(def, f) {
     if (how === 'from') def.appendChild(numField('sys-roundat', typeof f.roundAt === 'number' ? f.roundAt : 0.5, 'Up only when what lies past the place is this much or more, 0.01 to 0.99: at .95, 7.94 stays 7 and 7.95 becomes 8', 'Up from', '0.01'));
 }
 // Stage 6 HUD H7: an apply action's changes — each a pool or a number, Subtract or Add, and the amount (a formula, no dice); LIMITS.applyChanges at most
-function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's changes; 'then' — a roll's consequences (each with its When)
-    key = key === 'then' ? 'then' : 'apply';
+function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's changes; 'then' — a roll's consequences (each with its When); 1.6.2: 'end' — an effect's When it ends (a pool, a number or an effect switched)
+    key = key === 'then' ? 'then' : key === 'end' ? 'end' : 'apply';
     var box = el('div', 'sys-apply' + (key === 'then' ? ' sys-then' : '')), list = Array.isArray(r[key]) ? r[key] : [];
     var targets = draft.fields.filter(function(f) { return f && APPLY_KINDS[f.kind] === 1; }).map(function(f) { return [f.id, (f.label || f.key || f.id) + (f.kind === 'resource' ? ' (pool)' : '')]; });
     list.forEach(function(ch0, i) {
         var ch = ch0 && typeof ch0 === 'object' ? ch0 : {}, rw = el('div', 'sys-flags sys-apply-row'); rw.dataset.ai = String(i); rw.dataset.k = key;
         if (key === 'then') rw.appendChild(select('sys-apply-when', [['', 'Always'], ['hit', 'On success'], ['crit', 'On a critical success'], ['miss', 'On failure'], ['fumble', 'On a critical failure'], ['malf', 'On malfunction']].concat(typeof bandWhens === 'function' ? bandWhens(r, ch) : []), ch.band ? 'band:' + ch.band : ch.when || '', 'When the roll makes this change: always, or only when its test succeeds or fails. A critical success is a success too, and a critical failure a failure'));
         if (key === 'then') { var ifI = input('sys-apply-if field', typeof ch.if === 'string' ? ch.if : '', 'Only where: a formula with no dice this change also needs, reading how the roll went, such as RollMargin >= 3. Empty: nothing more', 'Only where'); ifI.maxLength = LIMITS.formula; rw.appendChild(ifI); }   // 1.6.2
-        var fxT = []; (Array.isArray(draft.effects) ? draft.effects : []).forEach(function(d) { if (d && typeof d.id === 'string') fxT.push(['fx+:' + d.id, 'Switch on: ' + (d.name || d.id)], ['fx-:' + d.id, 'Switch off: ' + (d.name || d.id)]); });   // 1.6.0: an effect switched on or off
+        var fxT = []; (Array.isArray(draft.effects) ? draft.effects : []).forEach(function(d) { if (d && typeof d.id === 'string') fxT.push(['fx+:' + d.id, 'Switch on: ' + (d.name || 'An effect with no name')], ['fx-:' + d.id, 'Switch off: ' + (d.name || 'An effect with no name')]); });   // 1.6.0: an effect switched on or off
         var allT = [].concat(allRowTargets(), typeof randTargets === 'function' ? randTargets(ch) : []), allV = typeof ch.list === 'string' ? allRowValue(ch, allT) : typeof ch.rand === 'string' ? 'rnd:' + ch.rand : '';   // 1.6.0: one number stat on every row of a list; 1.6.2 (fold (f)): a row picked at random
-        var opts = [['', 'Pick a pool, number or effect\u2026']].concat(targets, fxT, allT); if (allV && !allT.some(function(o) { return o[0] === allV; })) opts.push([allV, 'A list or stat that is gone']); if (typeof ch.fx === 'string' && !fxT.some(function(o) { return o[0].slice(4) === ch.fx; })) opts.push([(ch.on === false ? 'fx-:' : 'fx+:') + ch.fx, 'An effect that is gone']); if (ch.f && !targets.some(function(o) { return o[0] === ch.f; })) opts.push([ch.f, 'A field that is gone']);
-        if (typeof resultTargets === 'function') resultTargets(ch).forEach(function(o) { opts.push(o); });   // 1.6.2 (G7)
+        var opts = [['', 'Pick a pool, number or effect\u2026']].concat(targets, fxT, key === 'end' ? [] : allT);   // 1.6.2: an effect's end moves a pool or a number, or switches an effect if (allV && !allT.some(function(o) { return o[0] === allV; })) opts.push([allV, 'A list or stat that is gone']); if (typeof ch.fx === 'string' && !fxT.some(function(o) { return o[0].slice(4) === ch.fx; })) opts.push([(ch.on === false ? 'fx-:' : 'fx+:') + ch.fx, 'An effect that is gone']); if (ch.f && !targets.some(function(o) { return o[0] === ch.f; })) opts.push([ch.f, 'A field that is gone']);
+        if (key !== 'end' && typeof resultTargets === 'function') resultTargets(ch).forEach(function(o) { opts.push(o); });   // 1.6.2 (G7)
         rw.appendChild((typeof lazySelect === 'function' ? lazySelect : select)('sys-apply-target', opts, allV ? allV : typeof ch.deck === 'string' ? (ch.shuffle === true ? 'ds:' : 'dk:') + ch.deck : typeof ch.shared === 'string' ? 'val:' + ch.shared : typeof ch.table === 'string' ? 'tbl:' + ch.table : typeof ch.tag === 'string' ? (ch.shake === true ? 'tg~:' : ch.on === false ? 'tg-:' : 'tg+:') + ch.tag : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or an effect it switches on or off (on the character it is used on). Every row of a list sets one of its number stats on each of the list\u2019s rows'));
         if (typeof ch.rand === 'string') rw.appendChild(randBox(ch)); else
         if (typeof ch.deck === 'string') rw.appendChild(deckBox(ch)); else
@@ -9288,7 +9360,7 @@ function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's chan
         [['applyup', '\u25b2', 'Move up'], ['applydown', '\u25bc', 'Move down'], ['applydel', '\u00d7', 'Remove this change']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
         box.appendChild(rw);
     });
-    var addB = el('button', 'tool ghost sys-btn sys-apply-add', key === 'then' ? '+ Then\u2026' : '+ Change'); addB.dataset.act = 'applyadd'; addB.dataset.k = key; addB.disabled = list.length >= LIMITS.applyChanges; addB.title = addB.disabled ? 'At most ' + LIMITS.applyChanges + ' changes' : key === 'then' ? 'A change this roll makes to the character: always, on success or on failure (a pending hit, spent ammo, a stun cleared)' : 'Another pool or number this button moves (Apply costs: FP and EP together)'; box.appendChild(addB);
+    var addB = el('button', 'tool ghost sys-btn sys-apply-add', key === 'then' ? '+ Then\u2026' : key === 'end' ? '+ When it ends' : '+ Change'); addB.dataset.act = 'applyadd'; addB.dataset.k = key; addB.disabled = list.length >= LIMITS.applyChanges; addB.title = addB.disabled ? 'At most ' + LIMITS.applyChanges + ' changes' : key === 'then' ? 'A change this roll makes to the character: always, on success or on failure (a pending hit, spent ammo, a stun cleared)' : 'Another pool or number this button moves (Apply costs: FP and EP together)'; box.appendChild(addB);
     return box;
 }
 // 1.6.0: what a change's target select names, written on the change: a field, a counter (c:), Fire, an effect switched on or off (fx+: / fx-:),
@@ -9377,7 +9449,7 @@ function setChangeTarget(ch, v) {
     else { ch.f = v; if (typeof markOpts === 'function' && markOpts(ch).length) { ch.mark = 'on'; delete ch.add; delete ch.set; } }   // 1.6.2: a number of boxes marked one by one is marked, never summed
     if (typeof ch.fx !== 'string' && typeof ch.formula !== 'string' && ch.fire !== true && ch.feed !== true && ch.off !== true && typeof ch.money !== 'string') ch.formula = '';
 }
-function applyChangeOf(t, r) { var rw = t.closest('.sys-apply-row'), i = rw ? +rw.dataset.ai : -1, k = rw && rw.dataset.k === 'then' ? 'then' : 'apply'; return r && Array.isArray(r[k]) && i >= 0 && i < r[k].length && r[k][i] && typeof r[k][i] === 'object' ? r[k][i] : null; }
+function applyChangeOf(t, r) { var rw = t.closest('.sys-apply-row'), i = rw ? +rw.dataset.ai : -1, k = rw && rw.dataset.k === 'then' ? 'then' : rw && rw.dataset.k === 'end' ? 'end' : 'apply'; return r && Array.isArray(r[k]) && i >= 0 && i < r[k].length && r[k][i] && typeof r[k][i] === 'object' ? r[k][i] : null; }
 function rollRow(r) {
     var row = el('div', 'sys-row'); row.dataset.id = r.id;
     var top = el('div', 'sys-row-main');
@@ -9503,8 +9575,22 @@ function effectRow(d) {
     flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '<i class="wib wi-dup"></i>'], ['del', 'Delete this effect', '&times;']]));
     row.appendChild(top); row.appendChild(mods); if (typeof swBox === 'function') row.appendChild(swBox(d)); row.appendChild(flags);
     var auR = el('div', 'sys-flags sys-fx-autorow'), auI = input('sys-fx-auto field', typeof d.auto === 'string' ? d.auto : '', 'A formula: while it is true, or a number other than 0, the effect is on by itself for every character, as HP <= 0 turns on Unconscious. It reads the character\u2019s own values with the effects applied by hand (never another automatic effect, and a token\u2019s names read 0). Only a visible effect reading only what players can read applies itself', 'Applies itself when\u2026 (e.g. HP <= 0)'); auI.maxLength = LIMITS.formula; auR.appendChild(auI); row.appendChild(auR);   // conditions C4
+    row.appendChild(fxEndBox(d));   // 1.6.2 (the CORE session): what happens when it ends
     var auE = errorCell(d.id); auE.dataset.errFor = d.id; row.appendChild(auE);
     return row;
+}
+// 1.6.2 (the CORE session: a boost whose crash comes when it runs out, a rage that leaves you tired): an effect's When it ends, its changes in an
+// action's own rows (applyEditor, key 'end': a pool, a number or an effect switched), a roll asked of the character, and whether switching it off
+// by hand runs them too. Their amounts read the effect's own number as EffectNumber
+function fxEndBox(d) {
+    var box = el('div', 'sys-fx-endrow'), hd = el('div', 'sys-fx-endhead', 'When it ends'); hd.title = 'What happens once, on the character, when the effect runs out by its time or its number reaching 0. An amount may read the number the effect held, as its own number'; box.appendChild(hd);
+    box.appendChild(applyEditor(d, 'end'));
+    var fl = el('div', 'sys-flags'), rls = (draft.rolls || []).filter(function(r) { return !!r && typeof r.id === 'string' && !Array.isArray(r.apply); }).map(function(r) { return [r.id, 'Asks for ' + (String(r.label || 'a roll').split('{')[0].trim() || 'a roll')]; });
+    if (typeof d.endRoll === 'string' && d.endRoll && !rls.some(function(o) { return o[0] === d.endRoll; })) rls.push([d.endRoll, 'A roll that is gone']);
+    fl.appendChild(select('sys-fx-endroll', [['', 'Asks for no roll']].concat(rls), typeof d.endRoll === 'string' ? d.endRoll : '', 'A roll asked of the character as the effect ends: a card to its player, or to you for an NPC, a GM-only roll or a GM-only effect'));
+    var ol = el('label', 'sys-hover'), oc = el('input'); oc.type = 'checkbox'; oc.className = 'sys-fx-endoff'; oc.checked = d.endOff === true; ol.appendChild(oc); ol.appendChild(document.createTextNode(' Also when switched off')); ol.title = 'Ticked: it runs when the effect is switched off or taken off by hand too. Unticked: only when it runs out'; fl.appendChild(ol);
+    box.appendChild(fl);
+    return box;
 }
 // 1.6.0 roll switches (the owner, by prompt: "In the ± window"): the bonuses an item or an effect offers to rolls, each a line: its name, how
 // much it helps, and the rolls it offers itself to (a field's own roll, a system roll, any roll on a list's rows, or only on rows of one entry
@@ -11971,7 +12057,7 @@ function damageBox(box, cm) {
     wrap.appendChild(el('div', 'sys-note', 'How a hit is taken in the Take damage window. It goes through DR at the hit location, comes off a pool, and wears armour and weapons.'));
     var r1 = el('div', 'sys-flags sys-dmgr-top');
     dbxCap(r1, 'Wounds come off'); r1.appendChild(select('sys-dmgr-pool', dbxOpts(['', 'The pool Full auto damage comes off'], pools, d.pool), dbxStr(d.pool), 'The pool a wound comes off. Unset, the one Full auto damage is taken from'));
-    dbxCap(r1, 'Taken first from'); r1.appendChild(select('sys-dmgr-first', dbxOpts(['', 'Nothing'], (draft.fields || []).filter(function(f) { return f && f.kind === 'number'; }).map(function(f) { return [f.id, f.label || f.key || f.id]; }), d.first), dbxStr(d.first), 'A number a wound to that pool comes off first, down to 0, as temporary hit points. The rest goes to the pool. A Major Wound and every rule after it read the whole wound'));   // 1.6.2 (temporary hit points)
+    dbxCap(r1, 'Taken first from'); r1.appendChild(select('sys-dmgr-first', dbxOpts(['', 'Nothing'], (draft.fields || []).filter(function(f) { return f && f.kind === 'number'; }).map(function(f) { return [f.id, f.label || f.key || f.id]; }).concat((draft.effects || []).filter(function(x) { return !!x && typeof x.id === 'string' && !!x.val; }).map(function(x) { return ['fx:' + x.id, (x.name || 'An effect') + ': its number']; })), d.first), dbxStr(d.first),   /* 1.6.2 (the CORE session): or an effect that holds a number, spent first and ending at 0 */ 'A number a wound to that pool comes off first, down to 0, as temporary hit points. The rest goes to the pool. A Major Wound and every rule after it read the whole wound'));   // 1.6.2 (temporary hit points)
     dbxCap(r1, 'Major Wound at'); var mj = input('sys-dmgr-major field', dbxStr(d.major), 'A wound this large or larger in one blow is a Major Wound. No dice. It may read the hit location as Hit. and a name, 0 where no location was struck', 'e.g. HP.max / 2'); mj.maxLength = LIMITS.formula; r1.appendChild(mj);
     dbxCap(r1, 'Wound by'); var wfI = input('sys-dmgr-woundf field', dbxStr(d.woundF), 'How large a wound is, worked out from what got through and the character\u2019s sheet, for every damage type. 0 is no wound. Empty: what gets through, times the type\u2019s multiplier', 'What gets through'); wfI.maxLength = LIMITS.formula; r1.appendChild(wfI);   // 1.6.2
     r1.appendChild(select('sys-dmgr-zero', [['', 'A wound of 0 still wears armour'], ['none', 'A wound of 0 does nothing']], d.zero === 'none' ? 'none' : '', 'When the wound formula gives 0 for damage that got through: armour layers still wear as for a hit, or nothing happens at all'));
@@ -13778,6 +13864,7 @@ function onInput(e) {
     var fxd = fxOfRow(t);   // 5h: a library effect's text boxes
     if (fxd) {
         var fc = t.className || '';
+        if (fc.indexOf('sys-apply-formula') >= 0 && t.closest && t.closest('.sys-fx-endrow')) { var chIe = applyChangeOf(t, fxd); if (chIe) { chIe.formula = t.value.slice(0, LIMITS.formula); markDirty(); patchErrors(); } return; }   // 1.6.2: an effect's end, its amount
         if (fc.indexOf('sys-fx-name') >= 0) fxd.name = t.value.slice(0, LIMITS.name);
         else if (fc.indexOf('sys-fx-icon') >= 0) fxd.icon = t.value.slice(0, 32);
         else if (fc.indexOf('sys-fx-dur') >= 0) fxd.dur = t.value.slice(0, 200);
@@ -14056,6 +14143,13 @@ function onChange(e) {
     if (c.indexOf('sys-listrules-stats') >= 0 || c.indexOf('sys-listrules-upload') >= 0) { var lr = Object.assign({}, draft.listRules || {}); if (c.indexOf('sys-listrules-stats') >= 0) { delete lr.ownerStats; delete lr.statsAsk; if (t.value === 'owner') lr.ownerStats = true; else if (t.value === 'ask') lr.statsAsk = true; } else { if (t.value === 'facts') lr.uploadFacts = true; else delete lr.uploadFacts; } if (Object.keys(lr).length) draft.listRules = lr; else delete draft.listRules; markDirty(); patchErrors(); return; }   // Stage 6: settings A and B   // Stage 6 F4c2: Setting A
     var fxc = fxOfRow(t);   // 5h: a library effect's selects
     if (fxc) {
+        if (c.indexOf('sys-fx-endroll') >= 0) { if (t.value) fxc.endRoll = t.value; else delete fxc.endRoll; markDirty(); patchErrors(); return; }   // 1.6.2: an effect's end
+        if (c.indexOf('sys-fx-endoff') >= 0) { if (t.checked) fxc.endOff = true; else delete fxc.endOff; markDirty(); return; }
+        if (t.closest && t.closest('.sys-fx-endrow')) {
+            if (c.indexOf('sys-apply-target') >= 0) { var chTe = applyChangeOf(t, fxc); if (!chTe) return; setChangeTarget(chTe, t.value); markDirty(); renderAll(); return; }
+            if (c.indexOf('sys-apply-op') >= 0) { var chOe = applyChangeOf(t, fxc); if (!chOe) return; delete chOe.add; delete chOe.set; delete chOe.mark; if (t.value === 'add') chOe.add = true; else if (t.value === 'set') chOe.set = true; markDirty(); patchErrors(); return; }
+            if (c.indexOf('sys-apply-rolled') >= 0) { var chRe = applyChangeOf(t, fxc); if (!chRe) return; if (t.checked) chRe.roll = true; else delete chRe.roll; markDirty(); patchErrors(); return; }
+        }
         if (c.indexOf('sys-fxv-chk') >= 0) { if (t.checked) fxc.val = { start: 1 }; else delete fxc.val; markDirty(); renderAll(); return; }   // 1.6.2: Holds a number
         if (c.indexOf('sys-fxv-again') >= 0) { if (fxc.val) { if (t.value === 'higher' || t.value === 'replace') fxc.val.again = t.value; else delete fxc.val.again; } markDirty(); patchErrors(); return; }
         if (c.indexOf('sys-fxv-each') >= 0) { if (fxc.val) { if (t.value) { fxc.val.each = t.value; if (!(fxc.val.by >= 1)) fxc.val.by = 1; } else { delete fxc.val.each; delete fxc.val.by; } } markDirty(); renderAll(); return; }
@@ -14369,6 +14463,15 @@ function onClick(e) {
         if (!b.dataset.act) return;
         var ed = (draft.effects || []).find(function(x) { return x.id === erow.dataset.eid; }); if (!ed) return;
         var ei = draft.effects.indexOf(ed), eact = b.dataset.act;
+        if (/^apply(add|up|down|del)$/.test(eact) && b.closest('.sys-fx-endrow')) {   // 1.6.2: an effect's end, its rows
+            var eRw = b.closest('.sys-apply-row'), eArr = Array.isArray(ed.end) ? ed.end : (ed.end = []), eI = eRw ? +eRw.dataset.ai : -1;
+            if (eact === 'applyadd') { if (eArr.length >= LIMITS.applyChanges) { toast('At most ' + LIMITS.applyChanges + ' changes.'); return; } eArr.push({ f: '', formula: '' }); }
+            else if (eact === 'applyup' && eI > 0 && eI < eArr.length) { var eu = eArr[eI]; eArr[eI] = eArr[eI - 1]; eArr[eI - 1] = eu; }
+            else if (eact === 'applydown' && eI >= 0 && eI < eArr.length - 1) { var ed2 = eArr[eI]; eArr[eI] = eArr[eI + 1]; eArr[eI + 1] = ed2; }
+            else if (eact === 'applydel' && eI >= 0 && eI < eArr.length) eArr.splice(eI, 1);
+            if (!eArr.length) delete ed.end;
+            markDirty(); renderAll(); return;
+        }
         if (eact === 'up' && ei > 0) { draft.effects.splice(ei, 1); draft.effects.splice(ei - 1, 0, ed); }
         else if (eact === 'down' && ei < draft.effects.length - 1) { draft.effects.splice(ei, 1); draft.effects.splice(ei + 1, 0, ed); }
         else if (eact === 'dup') { var dd = clone(ed); dd.id = uid('e_'); if (dd.name) dd.name = dd.name + ' copy'; draft.effects.splice(ei + 1, 0, dd); }
@@ -14753,7 +14856,7 @@ function takeDamage(charId, pre) {
         while (prev.firstChild) prev.removeChild(prev.firstChild);
         var q = inpHits(inp()); if (amt.value === '' || !(q.amt >= 0)) { prev.appendChild(el('div', 'dmg-hint', 'Type the damage.')); return; }
         if (isClient()) { prev.appendChild(el('div', 'dmg-hint', 'The GM\u2019s app works it out when you press Apply.')); return; }
-        var cN = charById(charId, getActiveCampaign()), r = cN ? (q.hits ? SCd.damageBurst : SCd.damageStep)(sys, cN, q, F(), tokenCtxFor(charId), dmgFxo(cN)) : null;
+        _dmgPeek = true; var cN, r; try { cN = charById(charId, getActiveCampaign()); r = cN ? (q.hits ? SCd.damageBurst : SCd.damageStep)(sys, cN, q, F(), tokenCtxFor(charId), dmgFxo(cN)) : null; } finally { _dmgPeek = false; }   // 1.6.2: a preview spends no effect's number
         if (!r || !r.ok) { prev.appendChild(el('div', 'dmg-hint', dmgWhy(r))); return; }
         r.lines.forEach(function(l) { prev.appendChild(el('div', 'dmg-pl', l)); });
         var flW = typeof dmgFollowWords === 'function' ? dmgFollowWords(sys, r.info) : ''; if (flW) prev.appendChild(el('div', 'dmg-pl', flW));
@@ -14846,7 +14949,7 @@ function dmgPartPre(mk) { if (!dmgObj(mk) || typeof mk.amt !== 'number' || !isFi
 function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient() && canWrite(); }   // the cards' Apply to target: the GM's own machine
 // [systemcheck:dmgwin-end]
 function nameWordNow(n) { var c = getActiveCampaign(), s = c ? systemOf(c) : null; return nameWord(s, n); }   // 1.6.2: a name in words, for a card
-window.wpSheets = { bellNote: bellNote, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+window.wpSheets = { bellNote: bellNote, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, fxEndSeed: function() { return fxEndSeed(getActiveCampaign()); }, fxRanOut: fxRanOut, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame, openChars: openChars, closeChars: closeChars,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,

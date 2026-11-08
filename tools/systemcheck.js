@@ -5999,7 +5999,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             j(tOf(kT, 'x_1')) === j({ left: 6, at: 0 }) && tOf(kT, 'x_2') === null && j(kT.expired) === j(['Quick', 'Stun', 'An effect']) && kT.values.f_fx.some(r => r.id === 'x_4' && !r.t)
             && j(tOf(kB, 'x_2')) === j({ left: 6, at: 0 }) && j(tOf(kB, 'x_1')) === j({ left: 12, at: 0 }) && j(kB.expired) === '[]'
             && j(tOf(kR, 'x_1')) === j({ left: 12, at: 5000 }) && j(tOf(kR, 'x_3')) === j({ left: 6, at: 0, p: 1 }) && j(tOf(kR, 'x_2')) === j({ left: 10, at: 1000 })
-            && j(kC.expired) === j(['Quick']) && j(kC2.values) === '{}' && j(S.fxTick(gmT, { id: 'c', values: {} }, 'turn', 1)) === j({ values: {}, expired: [] }), j([kT, kB, kR, kC.expired, kC2]));
+            && j(kC.expired) === j(['Quick']) && j(kC2.values) === '{}' && j(S.fxTick(gmT, { id: 'c', values: {} }, 'turn', 1)) === j({ values: {}, expired: [], gone: [] }) /* 1.6.2: and gone, moved on purpose */ && j(kT.gone) === j([{ ref: 'e_q', v: 0 }]), j([kT, kB, kR, kC.expired, kC2]));
         const kG1 = S.fxTick(gmT, chK, 'game', 5000, 4), kG2 = S.fxTick(gmT, chK, 'game', 5000, 20), kG0 = [S.fxTick(gmT, chK, 'game', 5000, 0), S.fxTick(gmT, chK, 'game', 5000, -3), S.fxTick(gmT, chK, 'game', 5000, NaN), S.fxTick(gmT, chK, 'game', 5000), S.fxTick(gmT, chK, 'game', 5000, '4')];
         check('item 20 K4 fxTick by the game clock (the Calendar on, outside a fight): the move\'s seconds come off every row not paused, a clock still running banked first (10 s running since 1000, at 5000: 6 left, then 2), and each stops; a paused row waits; what runs out comes off by its name; no move, one back, or one that is no number changes nothing',
             j(tOf(kG1, 'x_1')) === j({ left: 8, at: 0 }) && j(tOf(kG1, 'x_2')) === j({ left: 2, at: 0 }) && j(tOf(kG1, 'x_3')) === j({ left: 6, at: 0, p: 1 }) && j(kG1.expired) === j(['An effect']) && kG1.values.f_fx.some(r => r.id === 'x_4' && !r.t)
@@ -16870,7 +16870,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && J(D6.cleanApply(cardA).lines) === J(cardA.lines) && D6.applyText(cardA) === 'U applied an action: Locations: Crippled (4 rows) set → 0, Locations: Crippled (4 rows) +2'
             && D6.cleanApply(Object.assign({}, cardA, { lines: [{ n: 'L', s: 1, v: 'x' }] })) === null && D6.cleanApply(Object.assign({}, cardA, { lines: [{ n: 'L', s: 1, v: 1e16 }] })) === null
             && J(tgE) === J([['all:f_loc:Cripd', 'Every row of Locations: Crippled'], ['all:f_sec:Mark', 'Every row of Secrets: Mark']]) && chE1 === J({ formula: '1', set: true, list: 'f_loc', s: 'Cripd' }) && J(chE) === J({ formula: '1', set: true, f: 'f_hp' })
-            && ceApi.allRowValue({ list: 'f_loc', s: 'cripd' }, tgE) === 'all:f_loc:Cripd' && /var opts = \[\['', 'Pick a pool, number or effect\\u2026'\]\]\.concat\(targets, fxT, allT\);/.test(shY) && /'Every row of: that list is gone'/.test(shY),
+            && ceApi.allRowValue({ list: 'f_loc', s: 'cripd' }, tgE) === 'all:f_loc:Cripd' && /var opts = \[\['', 'Pick a pool, number or effect\\u2026'\]\]\.concat\(targets, fxT, key === 'end' \? \[\] : allT\);/.test(shY) /* 1.6.2: an effect's end offers no list's rows, moved on purpose */ && /'Every row of: that list is gone'/.test(shY),
             J([mvA, D6.applyText(cardA), tgE, chE1, J(chE)]));
         // a system that names no list on any change: cleaned, applied, run by the clock, judged and carded byte for byte as before (the hash the code before this fold gave)
         const rawP = { v: 1, name: 'P', fields: [
@@ -22487,6 +22487,52 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             tS.combat.damage.first === 'f_tmp' && t1.values.f_tmp === 0 && J(t1.values.f_hp) === J({ cur: 10 }) && t1.lines.some(l => l === '3 taken by Temporary HP.') && t1.info.first === 3 && t1.info.major === true
             && t2.values.f_tmp === 4 && !('f_hp' in t2.values) && t2.info.major === true && !('f_tmp' in t3.values) && J(t3.values.f_hp) === J({ cur: 8 }) && t4.values.f_tmp === 0 && !t4.lines.some(l => /Temporary/.test(l)) && !('first' in tBad.combat.damage), J([t1, t2.values, t3.values, t4.lines]));
         check('the host\u2019s fill of a character being made and the Review\u2019s Apply lay those marks on the host\u2019s record', /Su\.afApply\(chU, Su\.fillMarks\(campU\.system, fillF, rF\.values\)\)/.test(ntF) && /window\.wpSystemCore\.afApply\(ch2, window\.wpSystemCore\.proposalMarks\(sys, up, acc\)\)/.test(shA));
+    }
+    {   // 1.6.2 (the CORE session): an effect's end (its changes and a roll, once, when it runs out, and with Also when switched off when it is taken off by hand), EffectNumber, and damage spending an effect's number first
+        const J = v => JSON.stringify(v);
+        const eRaw = (first, extra) => ({ v: 1, name: 'E', sheet: { sections: [] }, rolls: [{ id: 'r_res', label: 'Resist', formula: '3d6 <= 10' }].concat(extra || []),
+            fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '12', min: -99, vis: 'all', edit: 'owner' }, { id: 'f_fx', key: 'FX', label: 'Effects', kind: 'effects', vis: 'all' }, { id: 'f_txt', key: 'Note', kind: 'text' }],
+            effects: [{ id: 'e_boost', name: 'Boost', dur: '', mods: [], val: { start: 3 }, end: [{ f: 'f_hp', formula: 'EffectNumber' }, { fx: 'e_tired', on: true }, { f: 'f_txt', formula: '1' }, { fx: 'e_nope', on: true }], endRoll: 'r_res', endOff: true },
+                { id: 'e_tired', name: 'Tired', dur: '', mods: [] }, { id: 'e_ward', name: 'Ward', dur: '', mods: [], val: { start: 5 } }, { id: 'e_bad', name: 'Bad', dur: '', mods: [], endRoll: 'r_gone', endOff: true },
+                { id: 'e_crash', name: 'Crash', dur: '', mods: [], end: [{ f: 'f_hp', formula: '2' }] }, { id: 'e_gm', name: 'Secret', vis: 'gm', dur: '', mods: [], val: { start: 4 } }],
+            combat: { hpResource: 'f_hp', damage: { pool: 'f_hp', first: first || 'fx:e_ward', types: [{ key: 'cut', label: 'Cut', mult: 1 }] } } });
+        const gm = S.cleanSystem(eRaw(), { F, gmView: true }), pl = S.cleanSystem(eRaw(), { F, gmView: false }), fxOf = (sy, id) => (sy.effects || []).find(d => d.id === id);
+        const bG = fxOf(gm, 'e_boost'), bP = fxOf(pl, 'e_boost'), bad = fxOf(gm, 'e_bad');
+        const cleanOk = J(bG.end) === J([{ f: 'f_hp', formula: 'EffectNumber' }, { fx: 'e_tired', on: true }]) && bG.endRoll === 'r_res' && bG.endOff === true && !('end' in bP) && !('endRoll' in bP) && !('endOff' in bP) && !('endRoll' in bad) && !('endOff' in bad)
+            && gm.combat.damage.first === 'fx:e_ward' && !('first' in S.cleanSystem(eRaw('fx:e_tired'), { F, gmView: true }).combat.damage) && S.cleanSystem(eRaw('fx:e_gm'), { F, gmView: true }).combat.damage.first === 'fx:e_gm' && !('first' in S.cleanSystem(eRaw('fx:e_gm'), { F, gmView: false }).combat.damage);
+        const chE = { id: 'c', name: 'Bo', values: { f_hp: { cur: 12 } } }, rv = S.makeResolver(gm, chE, F), wv = S.withEndNum(rv, 7);
+        const numOk = wv('EffectNumber') === 7 && wv('effectnumber') === 7 && rv('EffectNumber') === undefined && S.withEndNum(rv, 'x')('EffectNumber') === 0;
+        const vOk = !S.validateSystem(gm, F).errors.some(e => e.id === 'e_boost') && S.validateSystem(S.cleanSystem(eRaw(undefined, [{ id: 'r_bad', label: 'Bad', formula: 'EffectNumber + 1' }]), { F, gmView: true }), F).errors.some(e => e.id === 'r_bad' && /known only in what happens when an effect ends/.test(e.message));
+        const sunk = []; S.setFxOutSink((id, g) => sunk.push([id, g]));
+        const dc = v => ({ id: 'c', name: 'Bo', values: { f_hp: { cur: 12 }, f_fx: [{ id: 'x_1', ref: 'e_ward', on: true, v: v }, { id: 'x_2', ref: 'e_tired', on: true }] } });
+        const d1 = S.damageStep(gm, dc(3), { amt: 5, type: 'cut' }, F, undefined, { now: 1 }), sunk1 = J(sunk), d2 = S.damageStep(gm, dc(9), { amt: 5, type: 'cut' }, F, undefined, { now: 1 });
+        S.setFxOutSink(null);
+        const dmgOk = d1.ok && J(d1.values.f_fx) === J([{ id: 'x_2', ref: 'e_tired', on: true }]) && J(d1.values.f_hp) === J({ cur: 10 }) && d1.lines.some(l => l === '3 taken by Ward.') && J(d1.info.fxOut) === J([{ ref: 'e_ward', v: 3 }]) && sunk1 === J([['c', { ref: 'e_ward', v: 3 }]])
+            && d2.ok && d2.values.f_fx[0].v === 4 && !('f_hp' in d2.values) && J(sunk) === sunk1;
+        check('1.6.2 an effect\'s end: its changes (a pool, a number or an effect switched) and a roll asked, kept in the GM\'s view alone, with Also when switched off only beside one; a change of a field that is no pool or number, an effect or a roll that is gone left out; EffectNumber reads the number it held, known only there; damage may spend an effect\'s number first (Taken first from, fx:), its row ending at 0 and said the moment it does, an effect that holds no number or is not in the view no such rule',
+            cleanOk && numOk && vOk && dmgOk, J([bG, bP, bad, numOk, vOk, d1.values, d1.lines, d1.info.fxOut, sunk, d2.values]));
+        // the follow, run for real on the machine that owns the campaign
+        const shE = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), sl = shE.slice(shE.indexOf('// [systemcheck:fxend-start]'), shE.indexOf('// [systemcheck:fxend-end]'));
+        const cards = [], dues = [], toasts = [], saves = [], changed = [];
+        const camp = { id: 'k', system: gm, chars: {} };
+        const api = new Function('getActiveCampaign', 'isClient', 'canWrite', 'F', 'net', 'toast', 'applyAct', 'tokenCtxFor', 'resolveAll', 'save', 'charChanged', 'applyScope', 'window', sl + '\nreturn { fxEndFollow: fxEndFollow, fxRanOut: fxRanOut, fxEndSeed: fxEndSeed };')(
+            () => camp, () => false, () => true, () => F, () => ({ postApplyCard: (...a) => cards.push(a), postDue: (...a) => dues.push(a), charInCombat: () => false, applyingRemote: false }), m => toasts.push(m), S.applyAct, () => null, S.resolveAll, q => saves.push(q), id => changed.push(id), S.applyScope,
+            { wpSystemCore: S, wpDiceCore: null });
+        S.setFxOutSink(null);
+        const mk = rows => ({ id: 'c', name: 'Bo', ownerId: 'u', values: { f_hp: { cur: 12 }, f_fx: rows } }), ch = mk([{ id: 'x_1', ref: 'e_boost', on: true, v: 5 }, { id: 'x_2', ref: 'e_crash', on: true }]); camp.chars.c = ch;
+        const seeded = api.fxEndSeed(camp), first = api.fxEndFollow(ch, camp);
+        ch.values.f_fx = [{ id: 'x_2', ref: 'e_crash', on: true }]; const r1 = api.fxEndFollow(ch, camp);
+        const hp1 = J(ch.values.f_hp), tired1 = ch.values.f_fx.some(r => r.ref === 'e_tired' && r.on !== false), card1 = J(cards.map(c => [c[1], c[2]])), due1 = J(dues.map(d => [d[1].id, d[2], d[4]]));
+        ch.values.f_fx = ch.values.f_fx.filter(r => r.ref !== 'e_crash'); const r2 = api.fxEndFollow(ch, camp), hp2 = J(ch.values.f_hp);
+        ch.values.f_fx.push({ id: 'x_3', ref: 'e_crash', on: true }); api.fxEndFollow(ch, camp); api.fxRanOut('c', [{ ref: 'e_crash', v: 0 }]); ch.values.f_fx = ch.values.f_fx.filter(r => r.ref !== 'e_crash'); const r3 = api.fxEndFollow(ch, camp), hp3 = J(ch.values.f_hp);
+        check('1.6.2 an effect\'s end runs once on the machine that owns the campaign: the first look notes only; switched off by hand it runs where ticked Also when switched off, reading the number it held, its changes stored outside the GM\'s undo with a card and its roll asked of the player; unticked it runs only when it ran out (fxRanOut)',
+            seeded === 1 && first === 0 && r1 === 1 && hp1 === J({ cur: 7 }) && tired1 && card1 === J([['Boost ends', [{ f: 'f_hp', n: 'HP', d: -5, v: 7 }, { f: 'f_fx', n: 'Tired', fx: 1 }]]]) && due1 === J([['r_res', 'end', true]]) && saves.length === 2 && J(changed) === J(['c', 'c'])
+            && r2 === 0 && hp2 === hp1 && r3 === 1 && hp3 === J({ cur: 5 }), J([seeded, first, r1, hp1, card1, due1, saves, changed, r2, r3, hp3, toasts]));
+        const ntE = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'latin1'), dcE = fs.readFileSync(path.join(app, 'scripts', 'dicecore.js'), 'utf8');
+        check('1.6.2 the host\'s tick tells which effects ran out before the change is followed, the reminder card says an effect ended, and the three funnels and the first look at load ask the follow',
+            ntE.includes("window.wpSheets.fxRanOut(ch.id, r.gone);") && ntE.indexOf('window.wpSheets.fxRanOut(ch.id, r.gone)') < ntE.indexOf('r.expired.forEach(function(nm) { fxEnded(ch, nm); });') && dcE.includes("rec.why === 'end' ? 'an effect ended'")
+            && (shE.split('fxEndFollow(c, camp);').length - 1) === 2 && shE.includes('if (cE) fxEndFollow(cE, campE);') && fs.readFileSync(path.join(app, 'scripts', 'main.js'), 'utf8').includes('window.wpSheets.fxEndSeed()')
+            && shE.includes("_dmgPeek = true; var cN, r; try {"));
     }
     {   // 1.6.2, found by the owner: a picture fitted to the grid, dragged with the magnet's item snapping on, stuck half a cell off on release
         const dmF = fs.readFileSync(path.join(app, 'scripts', 'datamap.js'), 'utf8');

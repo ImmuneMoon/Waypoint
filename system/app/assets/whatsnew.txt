@@ -604,7 +604,8 @@ Writing planners and pages
   An amount can read the number the effect held.
 - Taken first from, in the Taking damage box, can name an effect that holds a
   number, as temporary hit points or a ward. The wound comes off that number
-  first, and the effect ends at 0.
+  first, and the effect ends at 0. Tick Not a wound beside it when what it
+  takes is no injury, so the rules for a wound read only what gets past it.
 - A damage type's Instead, if may have up to three more cases after it, each
   with its own pool and multiplier, the first that holds winning.
 - A list's action may be a job of several turns too, as a reload that rolls

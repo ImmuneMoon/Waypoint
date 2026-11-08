@@ -22511,6 +22511,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && d2.ok && d2.values.f_fx[0].v === 4 && !('f_hp' in d2.values) && J(sunk) === sunk1;
         check('1.6.2 an effect\'s end: its changes (a pool, a number or an effect switched) and a roll asked, kept in the GM\'s view alone, with Also when switched off only beside one; a change of a field that is no pool or number, an effect or a roll that is gone left out; EffectNumber reads the number it held, known only there; damage may spend an effect\'s number first (Taken first from, fx:), its row ending at 0 and said the moment it does, an effect that holds no number or is not in the view no such rule',
             cleanOk && numOk && vOk && dmgOk, J([bG, bP, bad, numOk, vOk, d1.values, d1.lines, d1.info.fxOut, sunk, d2.values]));
+        // Not a wound (the CORE session, its ruling TH2): what the number taken first takes is no wound, so a Major Wound, the rows On a wound and Blow.wound read what got past it
+        const sRaw = soak => { const r = eRaw(); r.combat.damage.major = '3'; r.combat.damage.onWound = [{ fx: 'e_tired' }]; if (soak !== undefined) r.combat.damage.firstSoaks = soak; return r; };
+        const sOn = S.cleanSystem(sRaw(true), { F, gmView: true }), sOff = S.cleanSystem(sRaw(), { F, gmView: true }), sJunk = S.cleanSystem(sRaw('yes'), { F, gmView: true });
+        const sNone = (() => { const r = sRaw(true); delete r.combat.damage.first; return S.cleanSystem(r, { F, gmView: true }); })();
+        const dcN = v => ({ id: 'c', name: 'Bo', values: { f_hp: { cur: 12 }, f_fx: [{ id: 'x_1', ref: 'e_ward', on: true, v: v }] } }); const w1 = S.damageStep(sOn, dcN(3), { amt: 5, type: 'cut' }, F, undefined, { now: 1 }), w0 = S.damageStep(sOff, dc(3), { amt: 5, type: 'cut' }, F, undefined, { now: 1 }), wAll = S.damageStep(sOn, dcN(9), { amt: 5, type: 'cut' }, F, undefined, { now: 1 });
+        const tiredOn = r => !!(r.info && Array.isArray(r.info.woundFx) && r.info.woundFx.length);   // the rows On a wound that ran
+        check('1.6.2 Not a wound beside Taken first from: kept only as true and only beside a number taken first; ticked, a wound the number takes part of reads what got past it (5 against 3 is a wound of 2, no Major Wound at 3, the row On a wound still runs), one it takes whole runs no wound rule; unticked, the whole wound as before',
+            sOn.combat.damage.firstSoaks === true && !('firstSoaks' in sOff.combat.damage) && !('firstSoaks' in sJunk.combat.damage) && !('firstSoaks' in sNone.combat.damage)
+            && w1.ok && w1.info.wound === 2 && w1.info.soaked === 3 && !w1.info.major && tiredOn(w1) && J(w1.values.f_hp) === J({ cur: 10 })
+            && w0.ok && w0.info.wound === 5 && w0.info.major === true && !('soaked' in w0.info)
+            && wAll.ok && wAll.info.wound === 0 && !wAll.info.major && !('f_hp' in wAll.values) && !tiredOn(wAll), J([sOn.combat.damage, w1.info, w0.info, wAll.info, wAll.values]));
         // the follow, run for real on the machine that owns the campaign
         const shE = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), sl = shE.slice(shE.indexOf('// [systemcheck:fxend-start]'), shE.indexOf('// [systemcheck:fxend-end]'));
         const cards = [], dues = [], toasts = [], saves = [], changed = [];

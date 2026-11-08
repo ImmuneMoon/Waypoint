@@ -5823,6 +5823,9 @@ net.actsNow = function(charId) {
 // player's token on turn: st, the turn's move, holds walk, run, act and charId only where a run is in play, and none of it travels but what a strip says
 function runAct(camp, st) { var a = null; actsOf(camp).forEach(function(x) { if (!a && x && x.key === st.act) a = x; }); return a; }
 function runLeft(camp, st) { var a = runAct(camp, st), sp = net.turnSpent[st.charId] || {}; return a ? Math.max(0, actMax(st.charId, a) - (sp[a.key] || 0)) : 0; }
+// 1.6.2 (the CORE session's batch 6, 5b): whether a token has moved on its turn, read by MovedThisTurn (systemcore setMovedSource)
+function movedNow(tokId) { return typeof tokId === 'string' && !!net.turnMove && Object.keys(net.turnMove).some(function(fid) { var s = net.turnMove[fid]; return !!s && s.tokId === tokId && typeof s.moved === 'number' && s.moved > 0; }); }
+(function() { var Sm = typeof window !== 'undefined' ? window.wpSystemCore : null; if (Sm && typeof Sm.setMovedSource === 'function') Sm.setMovedSource(movedNow); })();
 function runOf(charId, act) { var hit = null; Object.keys(net.turnMove || {}).forEach(function(fid) { var s = net.turnMove[fid]; if (!hit && s && s.charId === charId && typeof s.run === 'number' && (!act || s.act === act)) hit = s; }); return hit; }
 function runSyncOf(camp, charId) { var s = runOf(charId); if (!s) return; var a = s.ran === true || runLeft(camp, s) > 0 ? s.run : s.walk; if (a !== s.allow) { s.allow = a; if (typeof mvTold === 'function') mvTold(); } }
 function runStart(st, t, S, F, R, camp, ch, map, w, c) {   // at a turn's start: the words for that action where a run is on offer, else ''

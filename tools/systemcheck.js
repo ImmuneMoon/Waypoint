@@ -22551,6 +22551,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && (shE.split('fxEndFollow(c, camp);').length - 1) === 2 && shE.includes('if (cE) fxEndFollow(cE, campE);') && fs.readFileSync(path.join(app, 'scripts', 'main.js'), 'utf8').includes('window.wpSheets.fxEndSeed()')
             && shE.includes("_dmgPeek = true; var cN, r; try {"));
     }
+    {   // 1.6.2 (the CORE session's batch 6, 5b): MovedThisTurn, 1 where the rolling token has moved on its turn, through the host's source
+        const J = v => JSON.stringify(v), sys = S.cleanSystem({ v: 1, name: 'M', sheet: { sections: [] }, rolls: [{ id: 'r_aim', label: 'Aim', formula: '3d6 <= 10 - MovedThisTurn * 4' }], fields: [{ id: 'f_a', key: 'A', kind: 'number' }] }, { F, gmView: true });
+        const own = S.cleanSystem({ v: 1, name: 'M', sheet: { sections: [] }, rolls: [], fields: [{ id: 'f_m', key: 'MovedThisTurn', kind: 'number', def: 7 }] }, { F, gmView: true });
+        const ch = { id: 'c', values: {} }, rd = (sy, ctx) => S.makeResolver(sy, ch, F, ctx)('MovedThisTurn');
+        const none = rd(sys, { self: 'w_1' }); S.setMovedSource(t => t === 'w_1');
+        const yes = rd(sys, { self: 'w_1' }), other = rd(sys, { self: 'w_2' }), noTok = rd(sys, null), ownF = rd(own, { self: 'w_1' }); S.setMovedSource(() => { throw new Error('x'); }); const thrown = rd(sys, { self: 'w_1' }); S.setMovedSource(null);
+        const ntM = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'latin1');
+        check('1.6.2 MovedThisTurn reads 1 where the rolling token has moved on its turn (the host\'s own record through setMovedSource), 0 for another token, with no token or no source, and 0 where the source throws; a field of the system named MovedThisTurn keeps its own; the validator knows it and the form offers it under This token; net.js registers its record',
+            none === 0 && yes === 1 && other === 0 && noTok === 0 && ownF === 7 && thrown === 0 && !S.validateSystem(sys, F).errors.length
+            && ntM.includes('function movedNow(tokId) {') && ntM.includes('Sm.setMovedSource(movedNow);'), J([none, yes, other, noTok, ownF, thrown, S.validateSystem(sys, F).errors]));
+    }
     {   // 1.6.2, found by the owner: a picture fitted to the grid, dragged with the magnet's item snapping on, stuck half a cell off on release
         const dmF = fs.readFileSync(path.join(app, 'scripts', 'datamap.js'), 'utf8');
         check('a piece fitted to the grid lands in its cells at the release whatever it glued to while dragged (found by the owner: "it would stick in between cells vertically instead of inside of one, centered"): the release rounds a fitted piece\'s corner to the lattice on both axes, and only a piece that is not fitted keeps an axis it glued to a neighbour',

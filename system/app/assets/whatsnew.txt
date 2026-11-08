@@ -599,7 +599,8 @@ Writing planners and pages
 - The table trackers stand in one bar named Trackers: its fold, the trackers,
   + Add and Who sees are parts of it, parted by thin lines.
 - Any roll can read the light its target stands in, as the side vision check
-  does: 0 dark, 1 dim, 2 lit.
+  does: 0 dark, 1 dim, 2 lit. A roll can also read whether the token has
+  moved on its turn in a fight, so moving can spoil an aim.
 - An effect can do something once when it ends: changes to a pool or a number,
   switching an effect, or a roll asked of the character. It runs when the
   effect runs out, and, where ticked, when it is switched off by hand too.

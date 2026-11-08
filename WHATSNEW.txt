@@ -37,6 +37,8 @@ The System editor
   Apply makes the sheet where the row has none yet.
 - A sheet joined to a row can now read that row and the character who owns
   it, such as a vehicle reading its owner's skill.
+- Loads from and Chambers from can say which rows they take, so a magazine
+  in storage is no longer offered when you reload.
 - Basic d20 has coins and carried weight. A new character starts with 10
   Gold, and Gold, Silver and Copper make change as you spend. Gear has weights,
   Carried adds them up, and the carrying limit is Strength times 15. Going over

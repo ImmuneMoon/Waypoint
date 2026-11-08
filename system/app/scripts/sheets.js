@@ -4141,6 +4141,7 @@ function loadChoices(sys, c, sf, spec, host) {   // the source rows a load may t
         var sd = rowDef(sys, s), d = sd ? sd.def : null; if (!d) return;
         if (Array.isArray(ld.cats) && !ld.cats.some(function(x) { return String(x).toLowerCase() === String(d.category || '').trim().toLowerCase(); })) return;
         if (host && typeof loadFits === 'function' && !loadFits(sys, spec, host, sl, s)) return;   // Matched by: only what fits this row
+        if (ld.takeIf && typeof window !== 'undefined' && window.wpSystemCore && typeof window.wpSystemCore.takeOk === 'function' && !window.wpSystemCore.takeOk(sys, c, sf, s, ld.takeIf, F())) return;   // 1.6.2 Takes rows where
         out.push({ id: rowIdOf(s), name: d.name || 'Item', qty: s.qty | 0 || 1, lvl: rowLvl(sl, s, d) });
     });
     return out;
@@ -4311,6 +4312,7 @@ function chamberChoices(sys, c, sf, spec, host) {   // the rows the chamber take
     var sl = sf.list, out = [];
     (c && c.values && Array.isArray(c.values[sf.id]) ? c.values[sf.id] : []).forEach(function(s) {
         if (!s || typeof s !== 'object' || s === host || typeof chamberTakes !== 'function' || !chamberTakes(sys, spec, host, sl, s)) return;
+        if (spec.chamber && spec.chamber.takeIf && typeof window !== 'undefined' && window.wpSystemCore && typeof window.wpSystemCore.takeOk === 'function' && !window.wpSystemCore.takeOk(sys, c, sf, s, spec.chamber.takeIf, F())) return;   // 1.6.2 Takes rows where
         var sd = rowDef(sys, s), d = sd ? sd.def : null; if (!d) return;
         out.push({ id: rowIdOf(s), name: d.name || 'Item', qty: s.qty | 0 || 1 });
     });
@@ -10303,6 +10305,7 @@ function ctKeySays(sp, F0) {
             var jbs = (Array.isArray(sp.rolls) ? sp.rolls : []).filter(function(r) { return r && r.job && typeof r.job.ct === 'string'; });   // 1.6.2 Load takes a job: a job of this list's that makes the load at its last press
             if (jbs.length || ldS.job) { var jsel = el('select', 'sys-list-loadjob'); jsel.title = 'A job of this list. A Load picked then waits, and the job\u2019s last press makes it, as a reload that takes turns'; var jo0 = el('option', null, 'Loads at once'); jo0.value = ''; jsel.appendChild(jo0); jbs.forEach(function(r) { var o = el('option', null, 'Takes the job ' + String(r.label || 'Job').split('{')[0].trim()); o.value = r.job.ct; if (ldS.job === r.job.ct) o.selected = true; jsel.appendChild(o); }); if (ldS.job && !jbs.some(function(r) { return r.job.ct === ldS.job; })) { var jg = el('option', null, 'A job that is gone'); jg.value = ldS.job; jg.selected = true; jsel.appendChild(jg); } lrw.appendChild(jsel); }
             lrw.appendChild(input('sys-list-loadcats field', Array.isArray(ldS.cats) ? ldS.cats.join(', ') : '', 'The categories of that list a row may load, separated by commas. Blank: any of its rows', 'Categories it takes (blank: any)'));
+            var tkLi = input('sys-list-ldtake field', typeof ldS.takeIf === 'string' ? ldS.takeIf : '', 'Which rows of that list it may take, each read with its own figures. Blank: every row it fits. A row that does not pass is not offered', 'Takes rows where (blank: every row)'); tkLi.dataset.rl = ldS.from || ''; lrw.appendChild(tkLi);   // 1.6.2
             lrw.appendChild(input('sys-list-loadneeds field', typeof ldS.needs === 'string' ? ldS.needs : '', 'A formula a row must meet to load, read with its own names (Row.*), no dice. Blank: every row. A row that does not meet it shows no Load', 'Loads only where (blank: every row)'));
             lrw.appendChild(input('sys-list-loadby field', typeof ldS.by === 'string' ? ldS.by : '', 'A stat of this list. A row loads only what reads the same figure in the stat below, as a gun takes its own kind of magazine. Blank: anything the categories take', 'Matched by: this list\u2019s stat'));
             lrw.appendChild(input('sys-list-loadto field', typeof ldS.to === 'string' ? ldS.to : '', 'The stat of the list it loads from that must read the same figure', 'and that list\u2019s stat'));
@@ -10354,6 +10357,7 @@ function ctKeySays(sp, F0) {
             crw.appendChild(hbs);
             crw.appendChild(input('sys-list-chambercats field', Array.isArray(chS.cats) ? chS.cats.join(', ') : '', 'The categories of that list a row may chamber, separated by commas. Blank: any of its rows', 'Categories it takes (blank: any)'));
             crw.appendChild(input('sys-list-chamberreach field', typeof chS.reach === 'string' ? chS.reach : '', 'The yards a round that flies straight goes, from the row\u2019s own names (Row.*), no dice, such as Row.MaxRange. Blank: to the map\u2019s edge', 'Flies at most (blank: to the map\u2019s edge)'));   // 1.5.9 (es)
+            var tkCi = input('sys-list-chtake field', typeof chS.takeIf === 'string' ? chS.takeIf : '', 'Which rows of that list it may take a round from, each read with its own figures. Blank: every row it fits. A row that does not pass is not offered', 'Takes rows where (blank: every row)'); tkCi.dataset.rl = chS.from || ''; crw.appendChild(tkCi);   // 1.6.2
             crw.appendChild(input('sys-list-chamberneeds field', typeof chS.needs === 'string' ? chS.needs : '', 'A formula a row must meet to chamber, read with its own names (Row.*), no dice. Blank: every row. A row that does not meet it shows no chamber, and one that still holds rounds can only unchamber them', 'Chambers only where (blank: every row)'));
             crw.appendChild(input('sys-list-chamberby field', typeof chS.by === 'string' ? chS.by : '', 'A stat of this list. A row chambers only what reads the same figure in the stat below, as a launcher takes only its own kind of round. Blank: anything the categories take', 'Matched by: this list\u2019s stat'));
             crw.appendChild(input('sys-list-chamberto field', typeof chS.to === 'string' ? chS.to : '', 'The stat of the round\u2019s list that must read the same figure', 'and that list\u2019s stat'));
@@ -14031,6 +14035,8 @@ function onInput(e) {
             else { if (t.value.trim()) nR.needs = t.value.slice(0, LIMITS.formula); else delete nR.needs; }
         }
         else if (lcc.indexOf('sys-list-chamberreach') >= 0) { if (!lsp.chamber || typeof lsp.chamber !== 'object') return; if (t.value.trim()) lsp.chamber.reach = t.value.slice(0, LIMITS.formula); else delete lsp.chamber.reach; }   // 1.5.9 (es) Flies at most (Save cleans it)
+        else if (lcc.indexOf('sys-list-chtake') >= 0) { if (!lsp.chamber || typeof lsp.chamber !== 'object') return; if (t.value.trim()) lsp.chamber.takeIf = t.value; else delete lsp.chamber.takeIf; }   // 1.6.2 Takes rows where
+        else if (lcc.indexOf('sys-list-ldtake') >= 0) { if (!lsp.load || typeof lsp.load !== 'object') return; if (t.value.trim()) lsp.load.takeIf = t.value; else delete lsp.load.takeIf; }
         else if (lcc.indexOf('sys-list-chamberneedstext') >= 0) { if (!lsp.chamber || typeof lsp.chamber !== 'object') return; if (t.value.trim()) lsp.chamber.needsText = t.value; else delete lsp.chamber.needsText; }   // 1.5.9 Chambers only where's words
         else if (lcc.indexOf('sys-list-chamberneeds') >= 0) { if (!lsp.chamber || typeof lsp.chamber !== 'object') return; if (t.value.trim()) lsp.chamber.needs = t.value; else delete lsp.chamber.needs; }   // 1.5.9 Chambers only where (Save cleans it as a list roll's needs)
         else if (lcc.indexOf('sys-list-chambercats') >= 0) { if (!lsp.chamber || typeof lsp.chamber !== 'object') return; var ccv = t.value.split(',').map(function(s) { return s.trim(); }).filter(Boolean); if (ccv.length) lsp.chamber.cats = ccv; else delete lsp.chamber.cats; }   // 1.5.9 Chambers from (Save cleans them)

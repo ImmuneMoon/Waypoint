@@ -15556,6 +15556,21 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && no.ok === false && no.reason === 'needs' && /takes no cell/.test(no.msg || '') && yes.ok === true && !!ldOk && ldOk.w_glow === true && ldOk.w_rope === false && out.ok === true,
             [lf.list.load, no, yes.ok, ldOk, out.ok, out.reason]);
     }
+    {   // 1.6.2 Takes rows where (a campaign build: a row in storage could still be loaded or chambered): a test of each source row, read with its own names
+        const lw = { id: 'f_lw', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { cats: ['Gear'], multi: true, counters: [{ key: 'ch', label: 'Charge', max: 'Row.loadmax' }], load: { from: 'f_lc', ct: 'ch', takeIf: 'Row.subject = 0' } } };
+        const lc = { id: 'f_lc', key: 'Cells', label: 'Cells', kind: 'item-list', vis: 'all', edit: 'owner', list: { cats: ['Cell'], multi: true, subject: ['Carried', 'Stored'], lvl: { label: 'Charge', min: 0, max: 100, def: 0 } } };
+        const sysT = S.cleanSystem({ fields: [lw, lc], items: [{ id: 'i_glow', name: 'Glowstick', category: 'Gear' }, { id: 'i_cell', name: 'Cell', category: 'Cell', lvl: 40 }] }, { F, gmView: true });
+        const sysTP = S.cleanSystem(sysT, { F, gmView: false }), lfT = S.fieldById(sysT, 'f_lw'), sfT = S.fieldById(sysT, 'f_lc');
+        const kT = { id: 'c_k', name: 'Kael', values: { f_lw: [{ id: 'w_glow', defId: 'i_glow', qty: 1 }], f_lc: [{ id: 'w_c1', defId: 'i_cell', qty: 1, lvl: 40, sj: 1 }, { id: 'w_c2', defId: 'i_cell', qty: 1, lvl: 40 }] } };
+        const shTk = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
+        const tNo = S.applyRowOp(sysT, kT, 'f_lw', { op: 'load', rowId: 'w_glow', from: 'w_c1', back: 'w_b1' }, F, {}), tYes = S.applyRowOp(sysT, kT, 'f_lw', { op: 'load', rowId: 'w_glow', from: 'w_c2', back: 'w_b2' }, F, {});
+        check('1.6.2 Takes rows where: kept in both views; a source row it does not hold for is refused (a stored cell), one it holds for loads; with none, every row; the editor’s box reads the source list’s rows',
+            lfT.list.load.takeIf === 'Row.subject = 0' && S.fieldById(sysTP, 'f_lw').list.load.takeIf === 'Row.subject = 0' && tNo.ok === false && /cannot take that one/.test(tNo.msg || '') && tYes.ok === true
+            && S.takeOk(sysT, kT, sfT, kT.values.f_lc[0], '', F) === true && S.takeOk(sysT, kT, sfT, kT.values.f_lc[0], 'Row.subject = 1', F) === true && S.takeOk(sysT, kT, sfT, kT.values.f_lc[0], 'Row.nope = 1', F) === false
+            && !(S.validateSystem(sysT, F).errors || []).some(e => /Row\.subject/.test(e.message || ''))
+            && shTk.includes("tkLi.dataset.rl = ldS.from || '';") && shTk.includes("!window.wpSystemCore.takeOk(sys, c, sf, s, ld.takeIf, F())") && shTk.includes("!window.wpSystemCore.takeOk(sys, c, sf, s, spec.chamber.takeIf, F())"),
+            [lfT.list.load, tNo, tYes.ok, S.validateSystem(sysT, F).errors]);
+    }
     {   // 1.5.8 Loads from (docs/LOAD_PLAN.md; the owner, 2026-10-25, by prompt: "Full pack swap now"): a row loads one unit of a row of another list
         const tools = (load, extra) => Object.assign({ id: 'f_tools', key: 'Tools', label: 'Tools', kind: 'item-list', vis: 'all', edit: 'owner', list: Object.assign({ on: { label: 'Held' }, trade: true, counters: [{ key: 'ch', label: 'Charge', max: 'Row.loadmax' }], cols: [{ key: 'Full', label: 'Full', formula: 'Row.loadmax' }, { key: 'In', label: 'In', formula: 'Row.loaded' }] }, load === undefined ? { load: { from: 'f_cells', ct: 'ch', cats: ['Cell'] } } : load) }, extra || {});
         const cells = extra => Object.assign({ id: 'f_cells', key: 'Cells', label: 'Cells', kind: 'item-list', vis: 'all', edit: 'owner', list: { cats: ['Cell', 'Gem'], trade: true, lvl: { label: 'Charge', min: 0, max: 500, def: 0 } } }, extra || {});

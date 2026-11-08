@@ -534,6 +534,40 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
     /* ---- the words ---- */
     const help = read('index.html');
     check('Help says Rows are sheets, in plain words', /<b>Rows are sheets<\/b>/.test(help) && /Make a new sheet/.test(help));
+    /* ---- 1.6.2: a reader's file fills the sheets its rows own (a campaign build session, on the owner's word: "we should make waypoint work for this instead of
+       a work around"): an upload's joined sheets, cleaned, counted, reviewed under one set of ticks and applied, a sheet made where a row has none ---- */
+    {
+        const CJ = chars0(); CJ.c_kael.values.f_veh[0].sh = 'c_bolt';
+        const vc = (id, f, v) => ({ id, kind: 'value', f, label: 'L', from: '', to: '', value: v, accept: true });
+        const upJ = { id: 'up_j1', charId: 'c_kael', from: '', name: 'File', at: 1, changes: [vc('u_a1', 'f_note', 'hi')], joined: [
+            { f: 'f_veh', row: 'w_s1', name: 'Bolt', changes: [vc('u_b1', 'f_hp', 30)] },
+            { f: 'f_veh', row: 'w_s2', name: 'Skiff two', changes: [vc('u_c1', 'f_hp', 12)] },
+            { f: 'f_veh', row: 'w_none', changes: [vc('u_d1', 'f_hp', 5)] },
+            { f: 'f_kit', row: 'w_s1', changes: [vc('u_e1', 'f_hp', 5)] },
+            { f: 'f_veh', row: 'w_s1', changes: [vc('u_f1', 'f_hp', 9)] },
+            { f: 'f_veh', row: 'w_dup', changes: [vc('u_b1', 'f_hp', 9)] },
+            { f: 'bad id', row: 'w_s1', changes: [vc('u_g1', 'f_hp', 9)] }, 'junk'] };
+        const cu = S.cleanUploads([upJ])[0];
+        check('an upload keeps the sheets its rows own: a list and a row once each, a change id unique across the whole entry, nothing that does not clean, and an entry with none keeps no key',
+            J(cu.joined.map(j => [j.f, j.row, j.name, j.changes.map(c => c.id)])) === J([['f_veh', 'w_s1', 'Bolt', ['u_b1']], ['f_veh', 'w_s2', 'Skiff two', ['u_c1']], ['f_veh', 'w_none', '', ['u_d1']], ['f_kit', 'w_s1', '', ['u_e1']]])
+            && !('joined' in S.cleanUploads([{ id: 'up_x', charId: 'c_kael', changes: [] }])[0]) && S.upChanges(cu) === 5 && S.joinedClean(Array(80).fill(0).map((x, i) => ({ f: 'f_veh', row: 'w_' + i, changes: [vc('u_' + i, 'f_hp', 1)] })), Object.create(null)).length === S.JOIN_MAX, J(cu.joined));
+        const main = Object.assign({}, CJ.c_kael, { values: Object.assign({}, CJ.c_kael.values, { f_note: 'hi' }) }), acc = { u_a1: true, u_b1: true, u_c1: true, u_d1: true, u_e1: true };
+        const aj = S.applyJoined(SYS, CJ, main, cu, acc, F, {}, () => 'c_made'), bolt = aj.sheets.find(s => s.id === 'c_bolt'), made = aj.sheets.find(s => s.id === 'c_made');
+        check('Apply changes the sheet a row is joined to, makes one for a row with none (the row’s name and owner, the template’s values, the list’s toggle on) and joins the row to it; a row or a list that is not there is missed',
+            !!bolt && bolt.made === false && bolt.values.f_hp === 30 && !!made && made.made === true && made.char.name === 'Skiff' && made.char.ownerId === 'u_a' && made.values.f_hp === 12 && made.values.f_isv === true
+            && aj.values.f_veh.find(r => r.id === 'w_s2').sh === 'c_made' && aj.values.f_veh.find(r => r.id === 'w_s1').sh === 'c_bolt' && aj.done === 2 && aj.missed === 2 && CJ.c_bolt.values.f_hp === 22 && !('sh' in CJ.c_kael.values.f_veh[1]), J([aj.sheets.map(s => [s.id, s.made, s.values.f_hp]), aj.missed, aj.done]));
+        const aj2 = S.applyJoined(SYS, CJ, main, cu, { u_c1: true }, F, {}, () => 'not an id');
+        check('an unticked sheet is left alone, and where no new id can be made nothing is made', aj2.sheets.length === 0 && aj2.missed === 1 && !('sh' in aj2.values.f_veh[1]), J(aj2));
+        const jo = S.joinedOf(SYS, CJ, CJ.c_kael);
+        check('joinedOf hands a reader each row joined to a sheet, with that sheet', jo.length === 1 && jo[0].f === 'f_veh' && jo[0].row === 'w_s1' && jo[0].sheet === CJ.c_bolt && S.joinedOf(SYS, CJ, null).length === 0, J(jo.map(j => [j.f, j.row, j.sheet.id])));
+        const kitJ = S.readerKit();
+        check('the reader kit carries the joins: sheetRows, sheetFromRow, rowSheetSet, joinedOf, applyJoined and JOIN_MAX', ['sheetRows', 'sheetFromRow', 'rowSheetSet', 'joinedOf', 'applyJoined'].every(k => typeof kitJ[k] === 'function') && kitJ.JOIN_MAX === S.JOIN_MAX);
+        const shJ = read('scripts/sheets.js'), netJ = read('scripts/net.js');
+        check('the Review lists each joined sheet’s changes under its own name and Apply makes or changes those sheets; the host keeps a player’s and hands a player’s export each sheet that is theirs',
+            shJ.includes("SCj.applyJoined(sys, charsOf(cmp), ch2, up, acc, F(), rdA ? { rowOp: rdA.rowOp } : {}") && shJ.includes("list.appendChild(el('div', 'upl-sub',") && shJ.includes("window.wpStepLog('sheetjoin v1', 'applied'")
+            && netJ.includes('if (joinU.length) entU.joined = prU.joined;') && netJ.includes('campId: campX.id, joined: joinX }') && netJ.includes("var v = charViewFor(s.id, pidX);"));
+        check('Help and both release notes say it', /A sheet file read by an outside reader can fill the sheets its rows own as well\./.test(help) && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /A sheet reader can now fill a vehicle's own sheet/.test(readRoot(p))));
+    }
     check('Help says what a mark is, in plain words', /<b>Marks<\/b>/.test(help) && /dashed line/.test(help));
     check('Help says what else ends a mark and what Shake off does', /<b>Ends out of sight<\/b>/.test(help) && /<b>Kept while<\/b>/.test(help) && /<b>Shake off<\/b>/.test(help));
     check('Help says the system\u2019s own arcs and Arcs by, in plain words', /<b>Arcs<\/b> on the Combat tab names the arcs/.test(help) && /<b>Arcs by<\/b> names a choice stat/.test(help) && !/Arc\.left/.test(help));

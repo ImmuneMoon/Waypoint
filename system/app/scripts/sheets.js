@@ -7640,14 +7640,21 @@ function openReview(charId, mine, pick) {   // mine: the GM's own file, read on 
         return a && a.reason === 'same' ? Object.assign({}, ch, { accept: false, now: true }) : ch;
     }) });
     _review = { upId: up.id }; var ticks = {};
-    var realC = up.changes.filter(function(ch) { return ch.kind !== 'note'; }), noteC = up.changes.length - realC.length;   // 1.6.0: a note is read: it has no tick and is no change in any count
+    var joinedU = Array.isArray(up.joined) ? up.joined : [], allC = up.changes.concat.apply(up.changes, joinedU.map(function(j) { return j.changes; }));   // 1.6.2: the sheets its rows own, under the same ticks
+    var realC = allC.filter(function(ch) { return ch.kind !== 'note'; }), noteC = allC.length - realC.length;   // 1.6.0: a note is read: it has no tick and is no change in any count
     realC.forEach(function(ch) { ticks[ch.id] = ch.accept === true; });
     var head = ui('uploadHead'), list = ui('uploadList'); head.textContent = (up.own === true ? 'Your file for ' : up.ask === true ? up.name + ' asks to change ' : up.name + '\u2019s sheet update for ') + c.name + ' \u2014 ' + (realC.length ? realC.length + (realC.length === 1 ? ' change' : ' changes') : noteC ? '' : 'nothing to apply') + (noteC ? (realC.length ? ', ' : '') + noteC + (noteC === 1 ? ' note' : ' notes') : '');
     list.textContent = '';
     var hintQ = ui('uploadHint'); if (hintQ) hintQ.style.display = realC.length ? '' : 'none';   // no tick to speak of
     if (!realC.length) list.appendChild(el('div', 'upl-none', 'Nothing in it differs from the sheet as it stands.' + (up.rev === true ? ' Mark current lets its player play again.' : '')));   // here, not in the head: the head is one line and is cut
     var KIND = { value: 'Value', add: 'New row', fact: 'Row', stat: 'Its own values', def: 'Its numbers', remove: 'Not in the file' };
-    up.changes.forEach(function(ch) {
+    var joinHead = function(j) {   // 1.6.2: whose sheet the lines below change: the row's own sheet, or one Apply makes for it
+        var fJ = fieldById(sysQ, j.f), rJ = null; (fJ && c.values && Array.isArray(c.values[j.f]) ? c.values[j.f] : []).forEach(function(x) { if (!rJ && x && rowIdOf(x) === j.row) rJ = x; });
+        var shJ = rJ && typeof rJ.sh === 'string' ? charById(rJ.sh, camp) : null, dJ = rJ ? rowDef(sysQ, rJ) : null, nmJ = shJ ? shJ.name : (j.name || (rJ && rJ.ov && typeof rJ.ov.name === 'string' && rJ.ov.name) || (dJ && dJ.def && dJ.def.name) || 'A row');
+        list.appendChild(el('div', 'upl-sub', shJ ? nmJ + '’s own sheet' : nmJ + '’s own sheet, made when you apply'));
+    };
+    up.changes.concat.apply([], [up.changes].concat(joinedU.map(function(j) { return [{ kind: '__joined', j: j }].concat(j.changes); }))).forEach(function(ch) {
+        if (ch.kind === '__joined') { joinHead(ch.j); return; }
         if (ch.kind === 'note') { var nRow = el('div', 'upl-row upl-line'); nRow.appendChild(el('span', 'upl-tick')); nRow.appendChild(el('span', 'upl-kind', 'Note')); nRow.appendChild(el('span', 'upl-label', ch.label)); nRow.appendChild(el('span', 'upl-from', ch.from || '')); nRow.appendChild(el('span', 'upl-arrow', ch.from || ch.to ? '\u2192' : '')); nRow.appendChild(el('span', 'upl-to', ch.to || '')); list.appendChild(nRow); return; }   // 1.6.0: no tick: nothing to apply
         var row = el('label', 'upl-row' + (ch.kind === 'remove' ? ' upl-remove' : '') + (ch.held ? ' upl-held' : ''));
         var box = el('input'); box.type = 'checkbox'; box.checked = ticks[ch.id]; box.addEventListener('change', function() { ticks[ch.id] = box.checked; count(); });
@@ -7675,7 +7682,18 @@ function openReview(charId, mine, pick) {   // mine: the GM's own file, read on 
         var cmp = getActiveCampaign(), sys = systemOf(cmp), ch2 = charById(up.charId, cmp); if (!sys || !ch2 || !F() || noRd || stale(cmp)) return;
         var acc = {}; Object.keys(ticks).forEach(function(k) { if (ticks[k]) acc[k] = true; });
         var r = applyProposal(sys, ch2, up, acc, F(), rdA ? { rowOp: rdA.rowOp } : {});
-        ch2.values = r.values; lastChange = null;   // the values are replaced whole: no single field to Revert
+        ch2.values = r.values; lastChange = null;
+        var SCj = typeof window !== 'undefined' ? window.wpSystemCore : null, jr = Array.isArray(up.joined) && up.joined.length && SCj && typeof SCj.applyJoined === 'function' ? SCj.applyJoined(sys, charsOf(cmp), ch2, up, acc, F(), rdA ? { rowOp: rdA.rowOp } : {}, function() { var nid = uid('c_'), csN = charsOf(cmp); while (Object.prototype.hasOwnProperty.call(csN, nid)) nid = uid('c_'); return nid; }) : null;   // 1.6.2: then the sheets its rows own
+        if (jr) {
+            ch2.values = jr.values;
+            jr.sheets.forEach(function(s) {
+                var csJ = charsOf(cmp), t = s.made ? s.char : charById(s.id, cmp); if (!t) return;
+                if (s.made) { var srJ = typeof SCj.sheetRevOf === 'function' ? SCj.sheetRevOf(sys) : 0; if (srJ) t.sheetRev = srJ; csJ[t.id] = t; }
+                t.values = s.values; t.updated = Date.now(); afterCharChange(t, true);
+            });
+            r.done += jr.done; r.failed += jr.failed + jr.missed;
+            if (typeof window !== 'undefined' && window.wpStepLog) window.wpStepLog('sheetjoin v1', 'applied', { sheets: jr.sheets.length, made: jr.sheets.filter(function(s) { return s.made; }).length, done: jr.done, failed: jr.failed, missed: jr.missed });
+        }   // the values are replaced whole: no single field to Revert
         if (typeof window !== 'undefined' && window.wpSystemCore && typeof window.wpSystemCore.proposalMarks === 'function') window.wpSystemCore.afApply(ch2, window.wpSystemCore.proposalMarks(sys, up, acc));   // 1.6.2 (auto apply): an accepted figure the file says a fill wrote is marked, any other is typed
         if (up.rev === true && window.wpSystemCore && typeof window.wpSystemCore.sheetRevOf === 'function') { var srA = window.wpSystemCore.sheetRevOf(sys); if (srA) { ch2.sheetRev = srA; if (window.wpStepLog) window.wpStepLog('sheetrev v1', 'current', { by: 'review', changes: r.done }); } }   // 1.6.0 (backlog 190): approved: current
         cmp.uploads = (Array.isArray(cmp.uploads) ? cmp.uploads : []).filter(function(u) { return !u || u.id !== up.id; });

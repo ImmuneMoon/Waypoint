@@ -3592,6 +3592,7 @@
   .sys-row-main input.sys-roll-critat, .sys-row-main input.sys-roll-fumbleat, .sys-row-main input.sys-roll-bigat, .sys-list-card .sys-flags.sys-list-needsrow input.sys-list-critat, .sys-list-card .sys-flags.sys-list-needsrow input.sys-list-fumbleat, .sys-list-card .sys-flags.sys-list-needsrow input.sys-list-bigat { flex: 0 1 150px; font-family: ui-monospace, Consolas, monospace; }
   .upl-box { width: min(760px, 94vw); max-height: 86vh; display: flex; flex-direction: column; gap: 8px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 12px 14px; }   /* Stage 6 U3: the GM's review of a sheet upload */
   .upl-list { overflow: auto; display: flex; flex-direction: column; gap: 2px; min-height: 80px; }
+  .upl-sub { margin: 10px 0 4px; padding: 0 6px; color: var(--gold); font-weight: 600; font-size: 12px; }   /* 1.6.2: a joined sheet's changes, under its own heading */
   .upl-row { display: grid; grid-template-columns: 18px 92px minmax(120px, 1.2fr) minmax(60px, 1fr) 14px minmax(60px, 1fr) auto; gap: 6px; align-items: center; padding: 4px 6px; border-radius: 4px; font-size: 12px; cursor: pointer; }
   .upl-row:hover { background: var(--panel); }
   .upl-kind { color: var(--dim); font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; }

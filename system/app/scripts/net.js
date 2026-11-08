@@ -4260,7 +4260,7 @@ function sheetFilesHere() { var S = SC(), cR = getActiveCampaign(); return !!(S 
 net.sheetFilesOk = function() { return net.role === 'client' ? !!net.active && _sheetFilesOk === true : sheetFilesHere(); };
 // [netcheck:sheetoutask-start]
 // 1.6.0: the other way: an outside reader on the host writes a file for a player's own character, from the players' view of the system and that
-// player's own copy, and nothing else (ui.playerFile on the reader: { label, sub, write(ctx) }, ctx { char, system, F, campId }, answering
+// player's own copy, and nothing else (ui.playerFile on the reader: { label, sub, write(ctx) }, ctx { char, system, F, campId, joined: [{ f, row, char }] (1.6.2: the sheets its rows own that are theirs) }, answering
 // { name, text } or a promise of one; none ships with the app). The snapshot names what is offered, and a player's Download menu shows it. One
 // question at a time, a newer one dropping the older unanswered
 var _sheetOuts = [], _outAsk = null, OUT_WAIT_MS = 30000, OUT_PART = 300000, OUT_PARTS = 20;
@@ -9021,11 +9021,12 @@ function handleMessage(msg, conn) {
             }
             prU.changes = prU.changes.filter(function(ch) { return doneU[ch.id] !== true; });
         }
-        if (prU.changes.length || staleU) {   // an out-of-date character's new sheet waits for the GM even where it changes nothing: applying it makes the character current
-            var nU = prU.changes.filter(function(ch) { return !ch || ch.kind !== 'note'; }).length;   // 1.6.0: a note is no change in any count
+        var joinU = rdU && typeof Su.joinedClean === 'function' ? Su.joinedClean(prU.joined, Object.create(null)) : [];   // 1.6.2: what the reader read for the sheets its rows own, judged by the GM in the same Review
+        if (prU.changes.length || joinU.length || staleU) {   // an out-of-date character's new sheet waits for the GM even where it changes nothing: applying it makes the character current
+            var nU = prU.changes.concat.apply(prU.changes, joinU.map(function(j) { return j.changes; })).filter(function(ch) { return !ch || ch.kind !== 'note'; }).length;   // 1.6.0: a note is no change in any count
             var upsU = (Array.isArray(campU.uploads) ? campU.uploads : []).filter(function(u) { return u && (u.charId !== qu.charId || u.ask === true); });   // 1.5.5: a player's asks for that character stay   // a newer upload of the same character replaces the older
             var idU = 'up_' + nowU.toString(36) + Math.random().toString(36).slice(2, 6);
-            var entU = { id: idU, charId: qu.charId, from: profU.id, name: String(profU.name || 'A player').slice(0, 60), at: nowU, changes: prU.changes }; if (rdU) entU.reader = rdU.id; if (staleU) entU.rev = true; upsU.push(entU);   // the reader that read it applies it
+            var entU = { id: idU, charId: qu.charId, from: profU.id, name: String(profU.name || 'A player').slice(0, 60), at: nowU, changes: prU.changes }; if (rdU) entU.reader = rdU.id; if (staleU) entU.rev = true; if (joinU.length) entU.joined = prU.joined; upsU.push(entU);   // the reader that read it applies it
             campU.uploads = upsU.slice(-Su.LIMITS.uploads);
             var tU = (profU.name || 'A player') + (staleU ? ' sent a new sheet for ' : ' sent a sheet update for ') + (chU.name || 'their character') + (staleU ? ' (out of date)' : '') + ': ' + nU + (nU === 1 ? ' change' : ' changes') + ' to review (the gold Review button in the header).';
             if (staleU && !nU) tU = (profU.name || 'A player') + ' sent a new sheet for ' + (chU.name || 'their character') + '. It changes nothing, so Mark current lets them play again.';   // found live, 2026-10-30: no zero to review
@@ -9945,7 +9946,11 @@ function handleMessage(msg, conn) {
         var rdX = (typeof Sx.readers === 'function' ? Array.prototype.slice.call(Sx.readers(campX.system)) : []).filter(function(r) { return !!r && r.id === qx.id; })[0], outX = rdX && rdX.ui && rdX.ui.playerFile, viewX = window.wpSheets && window.wpSheets.playerSystem ? window.wpSheets.playerSystem(campX) : null, copyX = viewX ? charViewFor(qx.charId, pidX) : null;
         if (!outX || typeof outX.write !== 'function' || !viewX || !copyX || copyX.partial) { ansX({ reason: 'none' }); return; }
         stepX('asked', { reader: qx.id });
-        Promise.resolve().then(function() { return outX.write({ char: copyX, system: viewX, F: window.wpFormula, campId: campX.id }); }).then(function(fX) {
+        var joinX = (typeof Sx.joinedOf === 'function' ? Sx.joinedOf(viewX, campX.chars, copyX) : []).map(function(j) {   // 1.6.2: the sheets its rows own, each as its owner holds it, and only one that is this player's own
+            var s = j.sheet; if (!s || s.npc || (s.ownerId !== pidX && !(typeof handsTo === 'function' && handsTo(s, pidX)))) return null;
+            var v = charViewFor(s.id, pidX); return v && !v.partial ? { f: j.f, row: j.row, char: v } : null;
+        }).filter(Boolean);
+        Promise.resolve().then(function() { return outX.write({ char: copyX, system: viewX, F: window.wpFormula, campId: campX.id, joined: joinX }); }).then(function(fX) {
             var cleanX = Sx.cleanSheetFile(fX); if (!cleanX) { stepX('failed', { at: 'file' }); ansX({ reason: 'unread' }); return; }
             var parts = []; for (var ix = 0; ix < cleanX.text.length && parts.length < OUT_PARTS; ix += OUT_PART) parts.push(cleanX.text.slice(ix, ix + OUT_PART));
             stepX('sent', { size: cleanX.text.length, parts: parts.length }); var outO = { name: cleanX.name, parts: parts }; if (cleanX.note) outO.note = cleanX.note; ansX(outO);

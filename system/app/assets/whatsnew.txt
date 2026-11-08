@@ -32,6 +32,9 @@ Tidier screens
   as a new player and Clear all handouts.
 
 The System editor
+- A sheet reader can now fill a vehicle's own sheet from the same file as
+  its owner. The Review shows each sheet's changes under its own name, and
+  Apply makes the sheet where the row has none yet.
 - Basic d20 has coins and carried weight. A new character starts with 10
   Gold, and Gold, Silver and Copper make change as you spend. Gear has weights,
   Carried adds them up, and the carrying limit is Strength times 15. Going over

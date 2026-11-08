@@ -35,6 +35,8 @@ The System editor
 - A sheet reader can now fill a vehicle's own sheet from the same file as
   its owner. The Review shows each sheet's changes under its own name, and
   Apply makes the sheet where the row has none yet.
+- A sheet joined to a row can now read that row and the character who owns
+  it, such as a vehicle reading its owner's skill.
 - Basic d20 has coins and carried weight. A new character starts with 10
   Gold, and Gold, Silver and Copper make change as you spend. Gear has weights,
   Carried adds them up, and the carrying limit is Strength times 15. Going over

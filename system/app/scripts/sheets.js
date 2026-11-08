@@ -6119,6 +6119,9 @@ function linkSource(id, sys) {
     return sys && Array.isArray(sys.fields) ? charForView(c, sys, { full: camp.system }) : null;
 }
 if (typeof setLinkSource === 'function') setLinkSource(linkSource);   // (a suite's slice of this file holds no import)
+// 1.6.2: the row a sheet is joined to, for Holder.<w> and Owner.<name>: the character holding it, its list and the row (the first, none kept from its player)
+function holderSource(id, sys) { var S = window.wpSystemCore, camp = getActiveCampaign(); if (!S || typeof S.sheetRows !== 'function' || !camp) return null; var h = null; S.sheetRows(sys && Array.isArray(sys.fields) ? sys : camp.system, charsOf(camp)).forEach(function(x) { if (!h && x.r.sh === id) h = x; }); return h ? { id: h.c.id, f: h.f.id, row: rowIdOf(h.r) } : null; }
+if (typeof window !== 'undefined' && window.wpSystemCore && typeof window.wpSystemCore.setHolderSource === 'function') window.wpSystemCore.setHolderSource(holderSource);
 if (typeof setTagSource === 'function') setTagSource(function(map) { var n = net(); return n && typeof n.tagsOf === 'function' ? n.tagsOf(map) : []; });   // 1.6.2 (vehicles, fold (c)): a map's marks as this screen holds them
 if (typeof setTagSink === 'function') setTagSink(function(moves) { var n = net(); if (n && typeof n.tagsPut === 'function') n.tagsPut(moves); });
 if (typeof setSetOffSink === 'function') setSetOffSink(function(list) { return typeof window.wpSetOffNear === 'function' ? window.wpSetOffNear(list) : 0; });   // 1.6.2 (the CORE session's batch 6, 10)

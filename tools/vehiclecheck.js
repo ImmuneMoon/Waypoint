@@ -568,6 +568,37 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
             && netJ.includes('if (joinU.length) entU.joined = prU.joined;') && netJ.includes('campId: campX.id, joined: joinX }') && netJ.includes("var v = charViewFor(s.id, pidX);"));
         check('Help and both release notes say it', /A sheet file read by an outside reader can fill the sheets its rows own as well\./.test(help) && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /A sheet reader can now fill a vehicle's own sheet/.test(readRoot(p))));
     }
+    /* ---- 1.6.2 (the owner, 2026-11-08: "Add reading names for the row and its owner regardless, as a general builder option"): a joined sheet
+       reads the row that holds it as Holder.<w> and that row's owner as Owner.<name>, one level deep; a player's copy reads the host's figures ---- */
+    {
+        const RH = { v: 1, name: 'Held', fields: [
+            { id: 'f_lvl', key: 'Level', label: 'Level', kind: 'number', def: 1 },
+            { id: 'f_on', key: 'IsCraft', label: 'Is a craft', kind: 'toggle' },
+            { id: 'f_rd', key: 'Reads', label: 'Reads', kind: 'formula', formula: 'Owner.Level + Holder.Size + Owner.has' },
+            { id: 'f_cr', key: 'Craft', label: 'Craft', kind: 'item-list', list: { sheets: { on: 'f_on' }, stats: [{ key: 'Size', label: 'Size', def: 0 }] } }],
+            items: [{ id: 'i_sk', key: 'Skiff', name: 'Skiff', category: '', stats: { Size: 3 } }] };
+        const SH = S.cleanSystem(RH, { F, gmView: true }), vH = S.validateSystem(SH, F);
+        check('Owner.<name> and Holder.<stat> are names a formula may read where a list joins rows to sheets, and a name of neither is not',
+            !(vH.errors || []).some(e => /Owner|Holder/.test(e.message || '')) && (S.validateSystem(S.cleanSystem(Object.assign({}, RH, { fields: RH.fields.map(f => f.id === 'f_rd' ? Object.assign({}, f, { formula: 'Holder.Nope' }) : f) }), { F, gmView: true }), F).errors || []).some(e => /Holder\.Nope/.test(e.message || '')), J(vH.errors));
+        const CH = { c_o: { id: 'c_o', name: 'Owner', ownerId: 'u_a', npc: false, values: { f_lvl: 5, f_cr: [{ id: 'w_1', defId: 'i_sk', qty: 1, sh: 'c_s' }] } }, c_s: { id: 'c_s', name: 'Skiff', ownerId: 'u_a', npc: false, values: {} } };
+        S.setLinkSource(id => CH[id] || null);
+        S.setHolderSource(id => { let h = null; S.sheetRows(SH, CH).forEach(x => { if (!h && x.r.sh === id) h = { id: x.c.id, f: x.f.id, row: x.r.id }; }); return h; });
+        const rH = S.makeResolver(SH, CH.c_s, F);
+        check('the joined sheet reads its owner’s figure and its row’s stat live, and Owner.has is 1 while a row holds it', rH('Reads') === 9 && rH('Owner.Level') === 5 && rH('Holder.Size') === 3 && rH('Owner.has') === 1 && S.makeResolver(SH, CH.c_o, F)('Owner.has') === 0, J([rH('Reads'), rH('Owner.Level'), rH('Holder.Size')]));
+        const hk = S.holdFigs(SH, CH.c_s, F);
+        check('the host works out the figures a player’s copy carries, by the names the system reads', J(hk) === J({ of: 'c_o', owner: { level: 5 }, holder: { size: 3 } }) && J(S.cleanHk(hk, SH)) === J(hk) && S.cleanHk({ of: 'x y', owner: {} }, SH) === null && J(S.cleanHk({ of: 'c_o', owner: { level: 5, 'bad name': 1, has: 1 }, holder: { size: 'big' } }, SH)) === J({ of: 'c_o', owner: { level: 5 }, holder: {} }), J(hk));
+        S.setHolderSource(null);
+        const copyH = Object.assign({}, CH.c_s, { hk: hk }), rC = S.makeResolver(SH, copyH, F);
+        check('a player’s copy reads those figures with no source at all, and with neither it reads 0', rC('Reads') === 9 && S.makeResolver(SH, CH.c_s, F)('Reads') === 0, J([rC('Reads')]));
+        check('the GM-only judges read Owner.X and Holder.X as X, and a copy for its owner keeps the figures', S.linkBare(SH, null, 'Owner.Level') === 'Level' && S.linkBare(SH, null, 'Holder.Size') === 'Size' && !!S.cleanChar(copyH, SH, { state: 'owner' }).hk && !S.cleanChar(copyH, SH, { state: 'host' }).hk);
+        const gH = S.readsOf(SH, {}).map(g => g.name);
+        check('the builder’s lists offer them in words: Its owner and The row that holds it', gH.indexOf('Its owner') >= 0 && gH.indexOf('The row that holds it') >= 0 && S.nameWord(SH, 'Owner.Level') === 'its owner’s Level' && /^the row that holds it: /.test(S.nameWord(SH, 'Holder.Size')), J([gH, S.nameWord(SH, 'Owner.Level'), S.nameWord(SH, 'Holder.Size')]));
+        const netH = read('scripts/net.js'), shH = read('scripts/sheets.js');
+        check('the host puts the figures on a player’s copy and sends it again when they move; the sheet registers the source; Help and both release notes say it',
+            netH.includes('if (S.holdFigs) { var hk = S.holdFigs(view, v, window.wpFormula); if (hk) v.hk = hk; }') && netH.includes("if (typeof heldSheetTell === 'function') heldSheetTell(id);") && shH.includes('window.wpSystemCore.setHolderSource(holderSource);')
+            && /A joined sheet can read the row that holds it and the character who owns that row/.test(help) && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /A sheet joined to a row can now read that row and the character who owns/.test(readRoot(p))));
+        S.setLinkSource(id => C[id] || null);
+    }
     check('Help says what a mark is, in plain words', /<b>Marks<\/b>/.test(help) && /dashed line/.test(help));
     check('Help says what else ends a mark and what Shake off does', /<b>Ends out of sight<\/b>/.test(help) && /<b>Kept while<\/b>/.test(help) && /<b>Shake off<\/b>/.test(help));
     check('Help says the system\u2019s own arcs and Arcs by, in plain words', /<b>Arcs<\/b> on the Combat tab names the arcs/.test(help) && /<b>Arcs by<\/b> names a choice stat/.test(help) && !/Arc\.left/.test(help));

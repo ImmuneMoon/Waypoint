@@ -1352,6 +1352,7 @@ function renderSheet() {
     if (typeof hideFigHead === 'function') hideFigHead(c, gm);   // 1.6.2: Hide figures
     var dlX = ui('sheetDelete'); if (dlX) { var mineX = isClient() && own && !c.partial && charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }).length > 1; dlX.style.display = (gm && canWrite()) || mineX ? '' : 'none'; dlX.title = gm ? 'Delete this sheet: its values are gone; its tokens keep their name and lose the link' : 'Delete this sheet of yours: one you are still making, or one you do not play (your GM is told)'; }
     if (c.shared === 1) ['sheetUpload', 'sheetPic', 'sheetDelete'].forEach(function(k) { var bS = ui(k); if (bS) bS.style.display = 'none'; });   // 1.6.2 (G8): those stay with its one player
+    if (typeof sheetMoreWire === 'function') { sheetMoreWire(); sheetMoreSync(); }   // 1.6.2: the second row's ⋯ menu
     renderReviewBar(c, camp, gm);
     var bdB = ui('sheetBudgets'); if (bdB) bdB.style.display = !c.partial && budgetBar(bdB, sys, c) ? '' : 'none';   // 126: the point budgets, under the head
     var plB = ui('sheetPlook'); if (plB) plB.style.display = !c.partial && typeof lookBar === 'function' && lookBar(plB, c, gm, own) ? '' : 'none';   // 1.6.2, backlog 35: its personal look
@@ -7034,13 +7035,51 @@ function doneMaking() {
 // 157 M1h: a character's debts, a line a character: what it owes or is owed. On the GM's sheet each has its amount to change and Clear, and the
 // character's menu's Debts... opens a line to add one (debtAdd). Every word a text node
 var _debtAdd = Object.create(null);
+// 1.6.2 (171's third sitting; the owner, by prompt: "Two used, rest in a menu (Recommended)"): the sheet's second row keeps Edit sheet and
+// As player, and Upload, Unlock for player, Arrange, Hide figures, Download and Delete stand in a menu behind a ⋯ button, Delete last and in
+// red. The buttons themselves move into the menu, so each keeps its id, its handler and the place that says whether it shows
+// [sinkcheck:sheetmore-start]
+var SHEET_MORE = ['sheetUpload', 'sheetUnlock', 'sheetArrange', 'sheetHideFig', 'sheetDownload', 'sheetDelete'];
+function sheetMoreOpen(on) {
+    var b = ui('sheetMoreBtn'), m = ui('sheetMoreMenu'); if (!b || !m) return;
+    m.hidden = !on; b.setAttribute('aria-expanded', on ? 'true' : 'false'); if (b.classList) b.classList.toggle('on', !!on);
+}
+function sheetMoreWire() {
+    var head = ui('sheetHead'), after = ui('sheetAsPlayer'); if (!head || ui('sheetMoreBtn')) return;
+    var btn = el('button', 'tool ghost notepad-btn sheet-more-btn', '\u22ef'); btn.id = 'sheetMoreBtn'; btn.type = 'button';
+    btn.title = 'More: upload a file, unlock for its player, arrange, download, delete'; btn.setAttribute('aria-label', 'More'); btn.setAttribute('aria-haspopup', 'menu'); btn.setAttribute('aria-expanded', 'false');
+    var menu = el('div', 'sheet-more-menu'); menu.id = 'sheetMoreMenu'; menu.setAttribute('role', 'menu'); menu.hidden = true;
+    SHEET_MORE.forEach(function(id) {
+        var b = ui(id); if (!b) return; b.classList.add('sheet-more-row'); b.setAttribute('role', 'menuitem');
+        if (id === 'sheetDownload' && !b.querySelector('.sheet-more-word')) b.appendChild(el('span', 'sheet-more-word', 'Download'));
+        if (id === 'sheetDelete') b.classList.add('no-back');
+        menu.appendChild(b);
+    });
+    head.insertBefore(btn, after ? after.nextSibling : null); head.appendChild(menu);
+    btn.addEventListener('click', function(e) { e.stopPropagation(); sheetMoreOpen(menu.hidden); });
+    menu.addEventListener('click', function(e) { var t = e.target && e.target.closest ? e.target.closest('button') : null; if (t) sheetMoreOpen(false); });
+    menu.addEventListener('mousedown', function(e) { e.stopPropagation(); });   // the head's drag stays put
+    document.addEventListener('mousedown', function(e) { if (!menu.hidden && !menu.contains(e.target) && e.target !== btn && !btn.contains(e.target)) sheetMoreOpen(false); }, true);
+    window.addEventListener('keydown', function(e) { if (e.key === 'Escape' && !menu.hidden) { e.preventDefault(); e.stopPropagation(); sheetMoreOpen(false); btn.focus(); } }, true);   // heard before the sheet's own Escape, once Escape's router has stood aside for it
+}
+// The ⋯ button shows only while one of its rows does
+function sheetMoreSync() {
+    var b = ui('sheetMoreBtn'); if (!b) return;
+    var any = SHEET_MORE.some(function(id) { var x = ui(id); return !!x && x.style.display !== 'none'; });
+    b.style.display = any ? '' : 'none'; if (!any) sheetMoreOpen(false);
+}
+// [sinkcheck:sheetmore-end]
 function debtBar(box, c, gm, camp) {
     if (!box) return false; box.textContent = ''; var SD = window.wpSystemCore, list = SD && SD.cleanDebts ? SD.cleanDebts(c.debts) || [] : [], n = window.wpNet, can = !!gm && !!n && typeof n.debtSet === 'function' && n.role !== 'client';
     var said = function(r) { if (r && r.error) toast(r.error); };
     list.forEach(function(d) {
-        var row = el('span', 'sheet-debt' + (d.v > 0 ? ' owes' : ' owed')); row.appendChild(document.createTextNode(d.v > 0 ? 'Owes ' + d.name + ' ' + debtNum(d.v) : d.name + ' owes ' + debtNum(-d.v)));
-        if (can) { var nb = el('input', 'field sheet-debt-amt'); nb.type = 'number'; nb.min = '0'; nb.step = 'any'; nb.value = String(Math.abs(d.v)); nb.title = 'How much'; nb.setAttribute('aria-label', 'How much'); nb.addEventListener('change', function() { var x = Number(nb.value); if (!isFinite(x) || x < 0) return; said(n.debtSet(c.id, d.with, d.v > 0 ? x : -x)); }); row.appendChild(nb);
-            var cl = el('button', 'tool ghost', 'Clear'); cl.type = 'button'; cl.title = 'Clear this debt on both sheets'; cl.addEventListener('click', function() { said(n.debtSet(c.id, d.with, 0)); }); row.appendChild(cl); }
+        var row = el('span', 'sheet-debt' + (d.v > 0 ? ' owes' : ' owed')); row.title = 'A debt between two characters, from a trade or set by the GM. It is on both sheets.';   // 1.6.2 (171's third sitting; the owner, by prompt: "A labelled line (Recommended)"): what it is, said
+        row.appendChild(el('span', 'sheet-debt-lab', 'I owe you'));
+        var amt = document.createTextNode(debtNum(Math.abs(d.v)));
+        if (can) { amt = el('input', 'field sheet-debt-amt'); amt.type = 'number'; amt.min = '0'; amt.step = 'any'; amt.value = String(Math.abs(d.v)); amt.title = 'How much'; amt.setAttribute('aria-label', 'How much'); amt.addEventListener('change', function() { var x = Number(amt.value); if (!isFinite(x) || x < 0) return; said(n.debtSet(c.id, d.with, d.v > 0 ? x : -x)); }); }
+        if (d.v > 0) { row.appendChild(document.createTextNode('Owes ')); row.appendChild(amt); row.appendChild(document.createTextNode(' to ' + d.name)); }
+        else { row.appendChild(document.createTextNode(d.name + ' owes ')); row.appendChild(amt); }
+        if (can) { var cl = el('button', 'tool ghost', 'Paid'); cl.type = 'button'; cl.title = 'Mark it paid: the debt goes from both sheets'; cl.addEventListener('click', function() { said(n.debtSet(c.id, d.with, 0)); }); row.appendChild(cl); }
         box.appendChild(row);
     });
     if (can && _debtAdd[c.id]) {
@@ -14745,7 +14784,7 @@ function importFile(file) {
     var hdB = ui('sheetHud'); if (hdB) hdB.addEventListener('click', function() { var id = sheetOpen; if (!id) return; openHud(id); hudFocus(id); });   // 1.5.4: the HUD opened takes the focus, so Escape closes it and not the sheet
     var upBt = ui('sheetUpload'); if (upBt) upBt.addEventListener('click', importJson);   // Stage 6 U3
     var picBt = ui('sheetPic'); if (picBt) picBt.addEventListener('click', function(e) { e.stopPropagation(); pickCharPicture(picBt); });   // Onboarding F1c
-    var dlBt = ui('sheetDownload'); if (dlBt) dlBt.addEventListener('click', function(e) { e.stopPropagation(); openDownloadMenu(dlBt); });   // Onboarding F2a
+    var dlBt = ui('sheetDownload'); if (dlBt) dlBt.addEventListener('click', function(e) { e.stopPropagation(); openDownloadMenu(dlBt.closest && dlBt.closest('#sheetMoreMenu') && ui('sheetMoreBtn') ? ui('sheetMoreBtn') : dlBt); if (typeof sheetMoreOpen === 'function') sheetMoreOpen(false); });   // Onboarding F2a
     var dnBt = ui('sheetDone'); if (dnBt) dnBt.addEventListener('click', doneMaking);   // Onboarding F3
     var nmBt = ui('sheetName'); if (nmBt) nmBt.addEventListener('click', renameMaking);
     var ulBt = ui('sheetUnlock'); if (ulBt) ulBt.addEventListener('click', function() { if (sheetOpen) unlockChar(sheetOpen); });

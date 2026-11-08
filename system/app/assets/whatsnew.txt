@@ -16,6 +16,16 @@ The tutorial
   to 5, and his wounds come off Health. A Tutorial you already have switches the next time you start the
   tour, and Bren gets his new numbers.
 
+Tidier screens
+- A sheet's second row keeps Edit sheet and As player. Upload, Unlock for
+  player, Arrange, Download and Delete moved into a menu behind a ... button.
+- A debt from a trade now says what it is: I owe you, Owes 3 to Quartermaster
+  Ilex, and Paid in place of Clear.
+- The top row keeps the map's whole name when a player joins. The clock and
+  the pills go short first.
+- Every button that cannot be undone wears a red outline, such as Start over
+  as a new player and Clear all handouts.
+
 The System editor
 - Basic d20 has coins and carried weight. A new character starts with 10
   Gold, and Gold, Silver and Copper make change as you spend. Gear has weights,

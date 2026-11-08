@@ -3194,6 +3194,11 @@
   #trkStrip.trk-bar .trk-add { border-style: none; border-left-style: solid; opacity: 1; }
   #trkStrip.trk-bar button:hover, #trkStrip.trk-bar button:focus-visible { background: rgba(224,165,79,0.14); }
   #trkStrip.trk-bar .trk-pill.trk-done { border: 0; border-left: 1px solid var(--edge); box-shadow: inset 0 0 0 2px rgba(224,165,79,0.55); }
+  /* 1.6.2 (the owner, 2026-11-08: "this isnt wrapping well ... its laid out weirdly"): on two lines the controls run across the top, Add and Who sees at its right, and the trackers stand below as pills of their own in a padded row */
+  #trkStrip.trk-bar.trk-two .trk-add { margin-left: auto; }
+  #trkStrip.trk-bar .trk-list { gap: 6px; padding: 4px 8px; align-items: center; justify-content: flex-start; } #trkStrip.trk-bar.trk-two .trk-list { padding: 6px 8px; }   /* the owner: "the layout here isnt great either": on one line too, each tracker its own pill */
+  #trkStrip.trk-bar .trk-list > .trk-pill, #trkStrip.trk-bar .trk-list > .trk-pill + .trk-pill { min-height: 24px; border: 1px solid var(--edge); border-radius: 13px; padding: 0 6px 0 8px; box-shadow: none; }
+  #trkStrip.trk-bar .trk-list > .trk-pill.trk-done { border-color: rgba(224,165,79,0.7); box-shadow: none; }
   .set-trk-hide .combat-row { margin-top: 4px; font-size: 12px; cursor: pointer; }
   #trkPanel { position: fixed; left: 60px; top: 100px; width: 320px; max-width: calc(100vw - 24px); max-height: 80vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   #trkHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
@@ -4102,6 +4107,15 @@
   #sheetHead > .notepad-btn { order: 2; margin-top: 5px; }
   #sheetHead > #sheetHud, #sheetHead > #sheetPop, #sheetHead > #sheetClose { order: 0; margin-top: 0; }
   #sheetHead > #sheetDownload { margin-left: auto; }
+  /* 1.6.2 (171's third sitting): the second row's ⋯ menu, its rows the buttons themselves */
+  #sheetHead { position: relative; }
+  #sheetHead > #sheetMoreBtn { margin-left: auto; min-width: 30px; font-size: 15px; line-height: 1; }
+  #sheetMoreMenu { position: absolute; right: 8px; top: 100%; z-index: 30; display: flex; flex-direction: column; gap: 2px; min-width: 190px; padding: 5px; background: var(--panel); border: 1px solid var(--edge); border-radius: 9px; box-shadow: 0 8px 22px rgba(0,0,0,0.45); cursor: default; }
+  #sheetMoreMenu[hidden] { display: none; }
+  #sheetMoreMenu > .sheet-more-row { justify-content: flex-start; gap: 6px; width: 100%; margin: 0; padding: 6px 10px; border: 1px solid transparent; text-align: left; }
+  #sheetMoreMenu > .sheet-more-row:hover, #sheetMoreMenu > .sheet-more-row:focus-visible { background: rgba(224,165,79,0.12); }
+  #sheetMoreMenu > #sheetDelete { order: 9; margin-top: 4px; border-color: rgba(217,83,79,0.55); color: #f0a19e; }
+  .sheet-debt-lab { margin-right: 6px; padding: 1px 6px; border-radius: 8px; background: rgba(224,165,79,0.14); color: var(--gold); font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; }
   #sheetHead > .sheet-titles { flex: 1 1 90px; overflow: hidden; }
   #sheetHead > .sheet-pick { flex: 1 1 70px; min-width: 0; }   /* the list gives way before row one wraps in a narrow panel: close stays at its right end */
   #sheetTitle { overflow: hidden; text-overflow: ellipsis; }

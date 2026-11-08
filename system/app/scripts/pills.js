@@ -80,7 +80,8 @@ function pillPress(id, doc, w, am) {
 }
 // [lookcheck:pills-end]
 
-function pillsSync() { return pillsDraw(document, pillsModel(pillsState(window, getActiveMap(), state.viewMode, document.getElementById('fogModeBtn')))); }
+var _pillsSig = null;   // 1.6.2 (171's third sitting): a pill that comes, goes or says other words is another width, so the top row is measured again
+function pillsSync() { var m = pillsModel(pillsState(window, getActiveMap(), state.viewMode, document.getElementById('fogModeBtn'))), n = pillsDraw(document, m), sig = JSON.stringify(m); if (sig !== _pillsSig) { _pillsSig = sig; if (window.wpTopRow && window.wpTopRow.fit) window.wpTopRow.fit(); } return n; }
 function wire() {
     var box = document.getElementById('rowPills');
     if (box) box.addEventListener('click', function(e) {

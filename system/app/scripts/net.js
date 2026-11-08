@@ -4355,7 +4355,7 @@ function noteHostCopy(id, values) { _charHost[id] = JSON.parse(JSON.stringify(va
 // onCancel lets a picker put its selection back.
 net.guardCampaignSwitch = function(fn, onCancel) {
     if (!(net.active && net.role === 'host')) { fn(); return; }
-    showConfirm('Switching campaigns ends the session — everyone at the table is disconnected. End the session and switch?', function(yes) {
+    showConfirm('Switching campaigns ends the session, and everyone at the table is disconnected. End the session and switch?', function(yes) {
         if (!yes) { if (onCancel) onCancel(); return; }
         leaveSession(false);
         var nm = ui('netModal'); if (nm) nm.style.display = 'none';

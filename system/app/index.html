@@ -568,7 +568,7 @@
                           <button class="tool gm-only" id="tourResumeBtn" style="display:none;">&#9654; Resume the tutorial</button>
                           <button class="tool ghost gm-only" id="tourOpenBtn">Open the Tutorial campaign</button>
                           <button class="tool ghost gm-only" id="tourRebuildBtn" title="Replace the Tutorial campaign with a fresh copy">Rebuild it</button>
-                          <button class="tool ghost danger gm-only" id="tourDiscardBtn" title="Delete the Tutorial campaign from your save">Discard the Tutorial campaign</button>
+                          <button class="tool ghost danger no-back gm-only" id="tourDiscardBtn" title="Delete the Tutorial campaign from your save">Discard the Tutorial campaign</button>
                       </div>
                       <div id="tourSectionsWrap" class="gm-only" style="margin:2px 0 10px;">
                           <div style="font-size:11px; color:var(--dim); margin-bottom:5px;">Or jump straight to a section:</div>
@@ -782,7 +782,7 @@
                       <h4>The selection toolbar</h4>
                       <p>A small toolbar floats above whatever you select. These are its main buttons.</p>
                       <ul>
-                          <li>Color, and layer up and down.</li>
+                          <li>Colour, and layer up and down.</li>
                           <li><i class="wib wi-chain"></i> is <b>group/ungroup</b>. It is lit gold when the selection is a group.</li>
                           <li>The dashed box with a diagonal arrow is <b>lock proportions</b>. A padlock appears on it when it is on.</li>
                           <li>The padlock is the lock. It shows the current state: closed means locked.</li>
@@ -3461,7 +3461,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <div class="draw-menu-row"><select id="buildTexture" style="flex:1; font-size:11px;" title="The pattern drawn over the piece's color. Plain color: no pattern. A picture: one of your own pictures, picked in the Image Library."></select></div>
                       <div class="draw-menu-row tile-row" id="buildTileRow" hidden><span class="tile-cap">Tile size</span><button type="button" class="tile-chip" data-tile="1" title="The picture repeats. One tile is as wide as one square cell.">1 cell</button><button type="button" class="tile-chip" data-tile="2" title="The picture repeats. One tile is as wide as two square cells.">2 cells</button><button type="button" class="tile-chip" data-tile="4" title="The picture repeats. One tile is as wide as four square cells.">4 cells</button><button type="button" class="tile-chip" data-tile="whole" title="The picture is stretched over each piece once.">Whole piece</button></div>
                       <div class="build-line" id="buildTileLine" hidden></div>
-                      <div class="draw-menu-label">Color</div>
+                      <div class="draw-menu-label">Colour</div>
                       <div class="draw-menu-row" id="buildColorRow">
                           <button class="draw-swatch build-sw" data-color="#5a5663" title="Stone grey" style="background:#5a5663;"></button>
                           <button class="draw-swatch build-sw" data-color="#3f3b47" title="Dark stone" style="background:#3f3b47;"></button>
@@ -4162,7 +4162,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                     <span id="netCode" style="font-family:monospace; font-size:24px; font-weight:bold; color:var(--gold); letter-spacing:3px;"></span>
                     <button class="tool ghost" id="netCopyBtn" title="Copy code" style="padding:2px 8px;"><i class="wib wi-clip"></i></button>
                 </div>
-                <div style="color:var(--dim); font-size:11px; line-height:1.45; margin-top:6px;"><i class="wib wi-bulb"></i> Send this code to your players, then <b>close this window</b> &mdash; the session keeps running while you work. Reopen it any time with the <i class="wib wi-globe"></i> button to see who's here, pause, or summon.</div>
+                <div style="color:var(--dim); font-size:11px; line-height:1.45; margin-top:6px;"><i class="wib wi-bulb"></i> Send this code to your players, then <b>close this window</b>. The session keeps running while you work. Reopen it any time with the <i class="wib wi-globe"></i> button to see who's here, pause, or summon.</div>
                 <button class="tool ghost" id="netSummonBtn" style="margin-top:8px; width:100%;" title="Bring every player back to your current map. To fetch just one, use the Summon button on their name in the player list above."><i class="wib wi-summon"></i> Summon all players</button>
                 <button class="tool ghost" id="netCombatBtn" style="margin-top:8px; width:100%;" title="Start combat on the map you are on: pick who is in, give initiative, run the turns. Also on the play-map right-click menu."><i class="wib wi-fight"></i> Start combat</button>
                 <button class="tool ghost" id="netNotepadBtn" style="margin-top:8px; width:100%;" title="A disposable notepad the whole table sees as you type. Gone when you put it away or the session ends; anyone can save it to their Journal."><i class="wib wi-note"></i> Table Notepad</button>
@@ -4338,7 +4338,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <input type="file" id="wcAvatarFile" accept="image/*" hidden>
         <div class="wc-fields">
           <label class="wc-field"><span>Your name</span><input type="text" id="wcNameInput" placeholder="How players see you" maxlength="40" autocomplete="off"></label>
-          <label class="wc-field wc-field-color"><span>Color</span><input type="color" id="wcColorInput" value="#7aa7ff"></label>
+          <label class="wc-field wc-field-color"><span>Colour</span><input type="color" id="wcColorInput" value="#7aa7ff"></label>
           <div class="wc-field wc-field-face"><span>Token face</span><button class="tool ghost" id="wcFaceBtn" type="button" title="What your token shows until your GM gives you a character: your picture, the plain default, a bundled token picture or an emoji"><span class="face-prev"></span></button></div>
         </div>
       </div>
@@ -4401,7 +4401,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <input type="text" id="setNameInput" placeholder="How players see you" style="width:100%; box-sizing:border-box;">
         </div>
         <div style="margin-bottom:6px; display:flex; align-items:center; gap:10px;">
-            <div class="set-field-label" style="margin:0;">Color</div>
+            <div class="set-field-label" style="margin:0;">Colour</div>
             <input type="color" id="setColorInput" value="#7aa7ff" title="Your color in the roster and on the maps" style="width:40px; height:26px; padding:0; border:1px solid var(--edge); background:none; cursor:pointer;">
             <button class="tool ghost" id="setColorClearBtn" style="padding:4px 10px;" title="Use an automatic color instead">Auto</button>
             <span style="font-size:10.5px; color:var(--dim); flex:1; line-height:1.35;">Your dot in the roster and on each map (initials when you have no picture).</span>
@@ -4448,7 +4448,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div class="set-line">The GMs whose tables have let you in. Each table knows you by a key kept on this computer. The key is never shown, and nothing here is sent.</div>
         </div>
         <div class="prof-over" style="margin-top:16px;">
-            <button class="tool ghost danger" id="profStartOverBtn" type="button" style="width:100%;" title="Forgets every table that knows you, erases your profile on this computer and unlinks your Waypoint account. You are asked first">Start over as a new player&hellip;</button>
+            <button class="tool ghost danger no-back" id="profStartOverBtn" type="button" style="width:100%;" title="Forgets every table that knows you, erases your profile on this computer and unlinks your Waypoint account. You are asked first">Start over as a new player&hellip;</button>
             <div class="set-line">Forgets the tables that know you, erases your name, picture, colour and token face here, and unlinks your Waypoint account. It cannot be undone.</div>
         </div>
     </div>
@@ -4726,7 +4726,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim); margin-top:6px; cursor:pointer;" title="Off by default: the stream window usually shares your own speakers. On, it plays the ambient loop the table hears (cues stay with the main window) and the sound of a video you show to players."><input type="checkbox" id="setStreamSoundChk"> Stream window plays the table's sound (the ambient loop, a video shown to players)</label>
             <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim); margin-top:6px; cursor:pointer;" title="On by default: the stream window shows the visual effects for the map it is on."><input type="checkbox" id="setStreamFxChk"> Stream window shows visual effects</label>
             </div>
-            <button class="tool ghost danger" id="setResetIdentityBtn" title="Generates a new multiplayer identity. GMs' token assignments to your old identity will no longer recognize you; if you host, your table gets a new signing key and your players join it as a new GM's.">Reset multiplayer identity</button>
+            <button class="tool ghost danger no-back" id="setResetIdentityBtn" title="Generates a new multiplayer identity. GMs' token assignments to your old identity will no longer recognize you; if you host, your table gets a new signing key and your players join it as a new GM's.">Reset multiplayer identity</button>
             <div class="set-line">Makes you a new identity at every table. A GM&rsquo;s tokens given to the old one no longer know you. If you host, your players join your table as a new GM&rsquo;s.</div>
             <!-- Relay-only connections: hidden until Waypoint has a working TURN relay again (openrelay.metered.ca stopped allocating, Sept 2026). The code path in net.js/peerOpts() is complete. -->
             <div class="gm-only"><!-- GM tools: hidden while joined to someone else's session -->
@@ -4782,7 +4782,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div style="display:flex; flex-direction:column; gap:8px;">
             <button class="tool ghost" id="setResetLayoutBtn" title="Restore both side panels to their default widths">Reset panel layout</button>
             <div class="set-line tight">Puts both side panels back to their default widths.</div>
-            <button class="tool ghost danger" id="setResetPrefsBtn" title="Clears every remembered preference (units, snap and snap mode, pen color/width/style, eraser, shape sizing, opacities, the minimap fold, rulers, the zoom buttons, the pointer location, panel sizes, folded sections, the VTT default for new campaigns, your per-table VTT choices, the sound volumes, the Sound panel's position, any bundled sounds you hid and the dice-sound switch) here and in the saves folder's preferences.json. Your campaigns — each with its own VTT settings — your name, picture, multiplayer identity and the tables that know you are untouched.">Reset local preferences</button>
+            <button class="tool ghost danger no-back" id="setResetPrefsBtn" title="Clears every remembered preference (units, snap and snap mode, pen color/width/style, eraser, shape sizing, opacities, the minimap fold, rulers, the zoom buttons, the pointer location, panel sizes, folded sections, the VTT default for new campaigns, your per-table VTT choices, the sound volumes, the Sound panel's position, any bundled sounds you hid and the dice-sound switch) here and in the saves folder's preferences.json. Your campaigns — each with its own VTT settings — your name, picture, multiplayer identity and the tables that know you are untouched.">Reset local preferences</button>
             <div class="set-line tight">Clears what this computer remembers of your choices. Your campaigns and your profile are not touched.</div>
             </div>
         </div>
@@ -4856,7 +4856,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <button class="tool" id="imgLibPreviewAdd">Add to map</button>
                 <button class="tool ghost" id="imgLibPreviewScene" title="Show this picture big to everyone or to some players, without putting it on the map"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.5M17 4l-1.5 2.5"/></svg> Show as a scene&hellip;</button>
                 <button class="tool ghost" id="imgLibPreviewCat" title="Give this picture a tag (it can wear several)">Tags&hellip;</button>
-                <button class="tool ghost danger" id="imgLibPreviewDel" title="Delete this picture file from your saves folder (asks first, and says where it is used)">Delete picture</button>
+                <button class="tool ghost danger no-back" id="imgLibPreviewDel" title="Delete this picture file from your saves folder (asks first, and says where it is used)">Delete picture</button>
                 <button class="tool ghost" id="imgLibPreviewBack">&larr; Back to the library</button>
             </div>
         </div>
@@ -4870,7 +4870,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:720px; max-width:94vw; height:82vh; display:flex; flex-direction:column;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Handouts <button id="handoutsCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div style="color:var(--dim); font-size:12px; line-height:1.45; margin-bottom:10px;">What you show your players: a picture (a place they have found, a face) or a written page (a letter, a briefing, a recap of the last session). Shown handouts are saved into each player's own Journal, where they can add notes and look again any time &mdash; even with no session running. Attach one to a room (in the room's Properties) and a player whose token enters that room sees it on their own.</div>
-        <div style="display:flex; gap:8px; margin-bottom:10px;"><button class="tool" id="handoutNewBtn">+ Picture handout</button><button class="tool" id="handoutNewTextBtn" title="A written handout: a letter, a briefing, a recap">+ Text handout</button><span style="flex:1;"></span><button class="tool ghost danger" id="handoutClearAll" title="Delete every handout of this campaign. You are asked first. Players keep what they were already shown.">Clear all</button></div>
+        <div style="display:flex; gap:8px; margin-bottom:10px;"><button class="tool" id="handoutNewBtn">+ Picture handout</button><button class="tool" id="handoutNewTextBtn" title="A written handout: a letter, a briefing, a recap">+ Text handout</button><span style="flex:1;"></span><button class="tool ghost danger no-back" id="handoutClearAll" title="Delete every handout of this campaign. You are asked first. Players keep what they were already shown.">Clear all</button></div>
         <div id="handoutPick" style="display:none;">
             <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;"><input type="text" id="handoutPickSearch" placeholder="Filter pictures&hellip;" style="flex:1;"><button class="tool ghost modal-close" id="handoutPickClose" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></div>
             <div id="handoutPickGrid" style="overflow-y:auto; flex:1;"></div>
@@ -4906,7 +4906,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 </div>
 <div id="sessionLogModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
     <div class="rec-win">
-        <div class="rec-head"><h3>Game Record</h3><button class="tool ghost" id="sessionLogSave" title="Save the session on screen as a text file">Save as text</button><button class="tool ghost danger" id="sessionLogClear" title="Delete the session on screen (asks first)">Delete session</button><button id="sessionLogClose" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg></button></div>
+        <div class="rec-head"><h3>Game Record</h3><button class="tool ghost" id="sessionLogSave" title="Save the session on screen as a text file">Save as text</button><button class="tool ghost danger no-back" id="sessionLogClear" title="Delete the session on screen (asks first)">Delete session</button><button id="sessionLogClose" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg></button></div>
         <div class="rec-body">
             <aside id="recSessions" class="rec-side"></aside>
             <div class="rec-main">
@@ -4922,7 +4922,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <div id="notepadPanel" style="display:none;">
     <div id="notepadHead"><span class="notepad-title"><i class="wib wi-note"></i> Table notepad</span><span id="notepadWho" class="notepad-who"></span><button class="tool ghost notepad-btn" id="notepadMinBtn" title="Fold / unfold">&#9662;</button><button class="tool ghost notepad-btn" id="notepadCloseBtn" title="Put it away for everyone">&times;</button></div>
     <div id="notepadText" class="field"></div>
-    <div class="notepad-foot"><span class="notepad-hint">Gone at the end of the session.</span><span style="display:flex; gap:4px;"><button class="tool ghost danger notepad-btn" id="notepadClearBtn" title="Wipe the text for everyone (asks first); the notepad stays open">Clear</button><button class="tool ghost notepad-btn" id="notepadSaveBtn" title="Copy the text into your Journal as a note of your own">Save to my Journal</button></span></div>
+    <div class="notepad-foot"><span class="notepad-hint">Gone at the end of the session.</span><span style="display:flex; gap:4px;"><button class="tool ghost danger no-back notepad-btn" id="notepadClearBtn" title="Wipe the text for everyone (asks first); the notepad stays open">Clear</button><button class="tool ghost notepad-btn" id="notepadSaveBtn" title="Copy the text into your Journal as a note of your own">Save to my Journal</button></span></div>
 </div>
 <!-- Sound (1.5.0): the speaker's popover (everyone), the autoplay gate, the GM's panel and library -->
 <div id="soundPop" style="display:none;">
@@ -5167,7 +5167,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <p id="importChoiceSummary" style="color:var(--ink); font-size:13px; margin-bottom:16px;"></p>
         <div style="display:flex; flex-direction:column; gap:8px;">
             <button class="tool" id="importMergeBtn">Merge into existing campaigns (recommended)</button>
-            <button class="tool ghost danger" id="importReplaceBtn">Replace everything</button>
+            <button class="tool ghost danger no-back" id="importReplaceBtn">Replace everything</button>
             <button class="tool ghost" id="importCancelBtn">Cancel</button>
         </div>
     </div>

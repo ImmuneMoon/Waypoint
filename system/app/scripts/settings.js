@@ -1459,7 +1459,7 @@ function profTablesDraw(why) {
     var draw = function(names) {
         var rows = PC.tablesOf(st, names);
         while (box.firstChild) box.removeChild(box.firstChild);
-        if (!rows.length) { var none = document.createElement('div'); none.className = 'prof-none'; none.textContent = 'No GM\u2019s table knows you yet. When a GM lets you in, their table is listed here.'; box.appendChild(none); return rows; }
+        if (!rows.length) { var none = document.createElement('div'); none.className = 'prof-none'; none.textContent = 'No GM\u2019s table knows you yet.'; box.appendChild(none); return rows; }
         rows.forEach(function(r) {   // every name a text node: a GM's name and their campaign's come from their table
             var row = document.createElement('div'), who = document.createElement('div'), nm = document.createElement('span');
             row.className = 'prof-table'; who.className = 'prof-table-who';

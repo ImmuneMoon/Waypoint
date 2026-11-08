@@ -139,7 +139,7 @@ function tabsSync() {
     var camp = getActiveCampaign(), bc = document.getElementById('mapBreadcrumb'); if (!camp) return;
     var model = tabsModel(camp, tabsRecent(localStorage, camp), function(id) { return tabsHere(window.wpNet, id); });
     tabsDraw(document, model, !!bc && bc.style.display === 'flex'); tabsFit();
-    var nameNow = model.front ? model.front.title : ''; if (nameNow !== _tabName) { _tabName = nameNow; if (window.wpTopRow && window.wpTopRow.fit) window.wpTopRow.fit(); }
+    var nameNow = JSON.stringify(model); if (nameNow !== _tabName) { _tabName = nameNow; if (window.wpTopRow && window.wpTopRow.fit) window.wpTopRow.fit(); }   // 1.6.2 (171's third sitting): any change of the tabs (a name, a player's badge, a pin), not the name alone, so the map's name is not left cut
 }
 function wire() {
     var list = document.getElementById('mapTabList'), add = document.getElementById('mapTabAdd'), box = document.getElementById('mapTabs');

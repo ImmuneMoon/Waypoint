@@ -34,7 +34,7 @@
 // [floatcheck:esc-start]
 var ESC_ASIDE = ['customConfirm', 'customPrompt', 'cleanupAskModal', 'cleanupSummaryModal', 'cleanupMissingModal', 'cleanupBackupModal', 'frameModal', 'genModal', 'cityModal', 'worldModal', 'shotModal', 'imgLibPreview'];
 var ESC_RIGHT = ['contextMenu', 'sidebarContextMenu', 'edgeMenu', 'charMenu', 'sceneMenu', 'trkMenu', 'presPop'];   // the right-click menus: put away by their display
-var ESC_OWN_MENUS = '#pageNavMenu, #pageLinkMenu, .snd-on-pop, .hold-ask, .face-pop, .sheet-dl-pop, .dice-modpop, .sys-glyph-pop, .lib-pick, .rte-symwrap.open, #pbeAddMenu, #nameMenu';   // menus whose own listener takes Escape
+var ESC_OWN_MENUS = '#pageNavMenu, #pageLinkMenu, .snd-on-pop, .hold-ask, .face-pop, .sheet-dl-pop, .dice-modpop, .sys-glyph-pop, .lib-pick, .rte-symwrap.open, #pbeAddMenu, #nameMenu, #sheetMoreMenu:not([hidden])';   // menus whose own listener takes Escape
 var ESC_ROW_MENUS = ['campMenu', 'moreMenu', 'notesMenu', 'rowTray'];   // the top row's (toprow.js): put away by hidden
 var ESC_TOOL_OPTS = ['drawMenu', 'eraserMenu', 'fillMenu', 'measureMenu', 'blastMenu', 'buildMenu'];   // a tool's options: a menu the first Escape closes, the tool staying in hand; a field of theirs keeps its own Escape first (the Radius tool's two boxes)
 // The app's windows, each with the button that closes it ('' where hiding it is all its own close does). A third place of 1: its own

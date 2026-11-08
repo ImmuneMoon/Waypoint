@@ -2497,7 +2497,7 @@ function renderLayout() {
     var tabs = layoutTabs();
     var tabBox = el('div', 'sys-tabmgr');
     tabBox.appendChild(el('div', 'sys-tabmgr-head', 'Tabs'));
-    if (!tabs.length) tabBox.appendChild(el('div', 'sys-hint', 'No tabs — the sections stack as one page. Add a tab to group them into a tab strip on the sheet; each section then picks its tab.'));
+    if (!tabs.length) tabBox.appendChild(el('div', 'sys-hint', 'No tabs yet, so the sections stack as one page. Add a tab to group them into a tab strip. Each section then picks its tab.'));
     tabs.forEach(function(tb) {
         var tr = el('div', 'sys-row sys-tab'); tr.dataset.tid = tb.id;
         var tmain = el('div', 'sys-row-main');
@@ -2682,17 +2682,17 @@ function renderLayout() {
     }
     if (!hudOn) pinBox({ key: 'identity', boxId: 'sysIdentityBox', title: 'Identity rows', kinds: IDENTITY_KINDS, rolls: false, limit: LIMITS.identity,
         hintFull: 'Under the name, in columns: a small label over each value; they scroll away with the sheet, leaving the band and the tabs at the top. Text, select, number and yes/no rows are changed right here by whoever may edit them, so they need no second copy in a section; formulas, skills and resources are read-only here. Players see the same rows.',
-        hintEmpty: 'No identity rows \u2014 pick the fields that say who this is (ancestry, class, level, homeworld\u2026) and they read as labelled values under the name, in columns.',
+        hintEmpty: 'No identity rows yet. Pick the fields that say who this is, such as a class or a level. They read as labelled values under the name.',
         addLabel: 'Add an identity row\u2026', addTitle: 'A text, select, number or toggle (changed right there) or a formula, skill or resource (read-only) to show under the name', delTitle: 'Take off the identity rows (the field stays wherever else it is)', clearTitle: 'Take every identity row off', capMsg: 'At most ' + LIMITS.identity + ' identity rows.' });
     pinBox({ key: 'ledger', boxId: 'sysLedgerBox', title: 'Ledger figures', kinds: LEDGER_KINDS, rolls: false, limit: LIMITS.ledger,
         hintFull: 'Figures under the identity rows: a small label over a bold value (a negative reads red). A number is a box whoever may edit it can change right there; formulas, skills and resources are edited in the sections.',
-        hintEmpty: 'No ledger \u2014 pick a few numbers (points spent, remaining, a total) and they read as bold figures under the name.',
+        hintEmpty: 'No ledger yet. Pick a few numbers, such as points spent and points left. They read as bold figures under the name.',
         addLabel: 'Add a figure\u2026', addTitle: 'A number, formula, skill or resource to show as a figure (a number stays editable there)', delTitle: 'Take off the ledger (the field stays wherever else it is)', clearTitle: 'Take every figure off', capMsg: 'At most ' + LIMITS.ledger + ' ledger figures.' });
     pinBox({ key: 'band', boxId: 'sysBandBox', title: 'Pinned band', kinds: BAND_KINDS, rolls: true, limit: LIMITS.band, groups: true,
         hintFull: 'Shown on every tab, just above the tab strip, and it stays at the top with the strip while the sheet scrolls. A field can be here and in a section too.',
-        hintEmpty: 'No band \u2014 pin a few numbers, resources, toggles or rolls and they stay under the name on every tab, above the tab strip.',
+        hintEmpty: 'No band yet. Pin a few numbers, resources, toggles or rolls, and they stay in view on every tab, above the tab strip.',
         addLabel: 'Pin to the band\u2026', addTitle: 'A number, formula, skill, resource, toggle or roll to keep in view on every tab', delTitle: 'Take off the band (it stays wherever else it is on the sheet)', clearTitle: 'Take everything off the band', capMsg: 'The band holds at most ' + LIMITS.band + ' items.' });
-    if (!secs.length) root.appendChild(el('div', 'sys-empty', hudOn ? 'No HUD yet \u2014 add a section, a band figure or a ledger figure.' : 'No layout of your own yet: the sheet shows the automatic layout (one section per kind, then the rolls). Start from it, or add a section.'));
+    if (!secs.length) root.appendChild(el('div', 'sys-empty', hudOn ? 'No HUD yet. Add a section, a band figure or a ledger figure.' : 'No layout of your own yet: the sheet shows the automatic layout (one section per kind, then the rolls). Start from it, or add a section.'));
     var metaOpts = [['', 'No count']].concat(draft.fields.map(function(f) { return [f.id, f.label || f.key || '(field)']; })), topSecs = secs.filter(function(o) { return !o.parent; }), addOpts = layoutAddOpts(placed, hudOn, onSheet, grpList);   // 1.6.2: once for the tab, not once a section
     secs.forEach(function(sec) {
         var row = el('div', 'sys-row sys-sec'); row.dataset.sid = sec.id;
@@ -13670,7 +13670,7 @@ function renderAll() {
     rowsFor('sysRollRows', 'rolls', function(rr) { if (!draft.rolls.length) rr.appendChild(el('div', 'sys-empty', 'No rolls yet. A roll makes a button on the sheet. Set its Kind to Apply for a button that moves pools or numbers instead (Apply costs, Apply wounds).'));
     pickRows(rr, 'rolls', draft.rolls, rollRow); });
     var rAdd = ui('sysAddRoll'); if (rAdd) { rAdd.disabled = draft.rolls.length >= LIMITS.rolls; rAdd.title = rAdd.disabled ? 'A system holds ' + LIMITS.rolls + ' rolls at most. Remove one to add another.' : 'Add a roll'; }   // 1.6.0: one past the cap was dropped at Save with nothing said
-    rowsFor('sysItemRows', 'items', function(itr) { if (!draft.items || !draft.items.length) itr.appendChild(el('div', 'sys-empty', 'No items yet. Add weapons, gear or explosives your characters can carry — an item with a blast area can be thrown from the sheet.')); pickRows(itr, 'items', draft.items || [], itemRow); });
+    rowsFor('sysItemRows', 'items', function(itr) { if (!draft.items || !draft.items.length) itr.appendChild(el('div', 'sys-empty', 'No items yet. Add the weapons, gear and explosives your characters carry. An item with a blast area can be thrown from the sheet.')); pickRows(itr, 'items', draft.items || [], itemRow); });
     charsDraw();   // 1.6.2 (backlog 59 f): the characters stand in a window of their own
     var note = ui('sysFeatureNote'); if (note) note.style.display = featureOn() ? 'none' : '';
     if (!_tabPress) patchErrors();

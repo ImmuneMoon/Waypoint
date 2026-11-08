@@ -6,6 +6,9 @@ Tokens
   and Undo puts it back. An empty or see-through border is trimmed and the
   picture centred, and Frame picture still changes it. The token creator and
   the Image Library say the size a token's picture is best at.
+- Tokens now sit exactly in their hexes and squares at every zoom. The grid
+  used to drift a few pixels off them on a scaled display, so I draw its
+  lines over the part of the map you are looking at instead.
 
 The tutorial
 - The tutorial has rules of its own now, so nothing in it reads like another

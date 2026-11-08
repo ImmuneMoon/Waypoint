@@ -1590,7 +1590,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
       var html = lyEl ? '' : '<h2>' + (state.viewMode==='data' ? 'Data Nodes' : 'Visual Shapes') + '</h2>';
 
-      html += '<input type="text" id="elementSearchInput" placeholder="Find a piece" style="width:100%; box-sizing:border-box; margin-bottom:10px; padding: 4px;" />';
+      html += '<input type="search" id="elementSearchInput" placeholder="Find a piece" aria-label="Find a piece on this map" />';   // 1.6.2: styled as Properties' Find box (the owner: "this need styles")
 
       
 

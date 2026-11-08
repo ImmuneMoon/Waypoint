@@ -65,6 +65,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       renderRulers();
 
       if (window.wpUpdateSelToolbar) window.wpUpdateSelToolbar();   // re-counter-scale the selection toolbar
+      if (typeof window.wpGridSync === 'function') window.wpGridSync();   // 1.6.2: the grid's lines over what a zoom brings into view
 
   }
 

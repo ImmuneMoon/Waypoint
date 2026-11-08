@@ -5189,6 +5189,30 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         check('Trim to cells is said in Help and both release notes', ixT.includes('<b>Trim to cells</b>') && [read('WHATSNEW.txt'), read('system/app/assets/whatsnew.txt')].every(t => t.includes('Trim to cells')));
     }
 
+    {   // 1.6.2 (the owner, 2026-11-08: "these tokens arent perfectly aligned on the hexes"): the grid drawn as its own lines over the view, every
+        // edge of the very lattice tokens are seated on (fogcore gridFor), each once, never a repeated tile that a browser draws at whole screen pixels
+        const wbL = read('system/app/scripts/whiteboard.js'), a = wbL.indexOf('  // [buildcheck:gridlines-start]'), b = wbL.indexOf('  // [buildcheck:gridlines-end]');
+        const body = wbL.slice(a, b).split('\n').filter(l => !/window\.wpGridSync|^\s*\(function\(\) \{|^\s*\}\)\(\);|addEventListener/.test(l)).join('\n');
+        const GL = new Function('state', 'document', 'window', 'getActiveMap', 'gridOwnCell', "'use strict';" + '\n' + body + '\nreturn { gridLattice: gridLattice, gridLinesPath: gridLinesPath };')({ zoomLevel: 1, gridType: 'hex' }, {}, {}, () => null, () => null);
+        const segs = d => (d.match(/M[^M]+/g) || []).map(x => x.slice(1).split('L').map(q => q.trim().split(' ').map(Number)));
+        const key = sg => { const [p0, p1] = sg; const a2 = p0[0] < p1[0] || (p0[0] === p1[0] && p0[1] <= p1[1]) ? [p0, p1] : [p1, p0]; return a2.map(q => q.map(v => v.toFixed(2)).join(',')).join(';'); };
+        // each edge lies between two cells of the lattice: its middle, nudged to either side, falls in two cells one step apart, whose shared corners are its ends
+        const onLattice = (type, cell, list) => { const g = F.gridFor(type, cell ? 50 : undefined, cell || undefined); return list.every(([p0, p1]) => {
+            const mx = (p0[0] + p1[0]) / 2, my = (p0[1] + p1[1]) / 2, nx = -(p1[1] - p0[1]), ny = p1[0] - p0[0], ln = Math.hypot(nx, ny), e = 0.5 / ln;
+            const c1 = F.cellOf(mx + nx * e, my + ny * e, g), c2 = F.cellOf(mx - nx * e, my - ny * e, g); if (!c1 || !c2 || F.cellKey(c1, g) === F.cellKey(c2, g)) return false;
+            const k1 = F.cellCorners(c1, g), k2 = F.cellCorners(c2, g), near = (ks, q) => ks.some(k => Math.hypot(k.x - q[0], k.y - q[1]) < 1);
+            return near(k1, p0) && near(k1, p1) && near(k2, p0) && near(k2, p1); }); };
+        const box = { x0: 14600, y0: 14900, x1: 15100, y1: 15300 };
+        const hx = segs(GL.gridLinesPath('hex', null, box)), sq = segs(GL.gridLinesPath('square', null, box)), own = segs(GL.gridLinesPath('hex', { size: 104, ox: 20, oy: 10 }, box));
+        const once = list => new Set(list.map(key)).size === list.length;
+        check('1.6.2 the grid drawn as its own lines (whiteboard.js gridLinesPath): every hex and square edge over a box is an edge between two cells of the lattice tokens are seated on, with today\'s cell and with a map\'s own, each once; a box past GRID_LINES_MAX lines is no path, so the tile stays; and applyGridType, a zoom, a scroll and the view\'s turn draw them',
+            hx.length > 100 && once(hx) && onLattice('hex', null, hx) && sq.length > 40 && once(sq) && onLattice('square', null, sq)
+            && once(own) && onLattice('hex', { size: 104, ox: 20, oy: 10 }, own)
+            && GL.gridLinesPath('hex', null, { x0: 0, y0: 0, x1: 30000, y1: 30000 }) === null
+            && (wbL.match(/gridLinesDraw\(overlay, type, .*, alpha, true\);/g) || []).length === 3 && /w\.addEventListener\('scroll', gridLinesSoon/.test(wbL)
+            && /if \(typeof window\.wpGridSync === 'function'\) window\.wpGridSync\(\);/.test(read('system/app/scripts/main.js')) && /if \(typeof window\.wpGridSync === 'function'\) window\.wpGridSync\(\);/.test(read('system/app/scripts/view.js')),
+            JSON.stringify([hx.length, sq.length, own.length, once(hx), onLattice('hex', null, hx), onLattice('square', null, sq), onLattice('hex', { size: 104, ox: 20, oy: 10 }, own)]));
+    }
     {   // 1.6.2, backlog 38 fold 3: a map with its own cell draws its grid as one SVG pattern (whiteboard.js gridOwnDraw)
         const wbG = read('system/app/scripts/whiteboard.js'), gS = wbG.slice(wbG.indexOf('  // [lookcheck:cellgrid-start]'), wbG.indexOf('  // [lookcheck:cellgrid-end]'));
         const htS = wbG.slice(wbG.indexOf('  function hexTilePaths() {'), wbG.indexOf('  function hexBgCss('));

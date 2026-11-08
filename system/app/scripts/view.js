@@ -128,6 +128,7 @@ function apply() {
     if (b.style && b.style.setProperty) b.style.setProperty('--view-turn', V.deg + 'deg');
     if (document.body) document.body.classList.toggle('view-turned', isTurned());   // the coordinate rulers stand aside: a turned map has no straight edge to number
     upright();
+    if (typeof window.wpGridSync === 'function') window.wpGridSync();   // 1.6.2: the grid's lines over what is now in view
     var now = Date.now(), tv = isTurned();   // the minimap draws the turned screen as a turned box: drawn again as the turn changes, at most ten times a second
     if ((tv !== _mmOn || Math.abs(V.deg - _mmDeg) > 0.5) && now - _mmAt > 100 && typeof window.renderMinimap === 'function') { _mmOn = tv; _mmDeg = V.deg; _mmAt = now; try { window.renderMinimap(); } catch (e) {} }
 }

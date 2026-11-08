@@ -9781,6 +9781,74 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
       return true;
   }
   // [lookcheck:cellgrid-end]
+  // 1.6.2 (the owner, 2026-11-08: "these tokens arent perfectly aligned on the hexes"): a repeated tile, a background or an SVG pattern alike, is
+  // drawn at whole screen pixels, so at a zoom or a display scale that makes a tile no whole number of them the grid drifts a few pixels off the
+  // lattice its tokens stand on. The grid is drawn as its own lines instead, over the part of the board in view and half a view around it, and
+  // drawn again only when the view leaves what was drawn. Past GRID_LINES_MAX lines (far out) the tile stays, where it is a fraction of a cell
+  // [buildcheck:gridlines-start]
+  var GRID_LINES_MAX = 30000, _gridDrawn = null, _gridBg = '', _gridRaf = 0;
+  // One tile of the lattice: its size, its origin and the edges that, tile by tile, draw every edge once (a hex tile's two hexes have six)
+  function gridLattice(type, cell) {
+      var ox = cell && cell.ox || 0, oy = cell && cell.oy || 0;
+      if (type === 'square') { var s = cell && cell.size > 0 ? cell.size : 50; return { w: s, h: s, ox: ox, oy: oy, edges: [[0, 0, s, 0], [0, 0, 0, s]] }; }
+      var k = (cell && cell.size > 0 ? cell.size : 52) / 52;
+      return { w: 90 * k, h: 52 * k, ox: ox, oy: oy, edges: [[30, 26, 0, 26], [30, 26, 45, 0], [30, 26, 45, 52], [75, 0, 45, 0], [75, 0, 90, 26], [75, 52, 90, 26]].map(function(e) { return e.map(function(v) { return v * k; }); }) };
+  }
+  // The path data of the lattice's edges over a box of the board, or null where it would be more than GRID_LINES_MAX of them
+  function gridLinesPath(type, cell, box) {
+      var L = gridLattice(type, cell), n = function(v) { return Math.round(v * 100) / 100; };
+      var i0 = Math.floor((box.x0 - L.ox) / L.w) - 1, i1 = Math.ceil((box.x1 - L.ox) / L.w) + 1, j0 = Math.floor((box.y0 - L.oy) / L.h) - 1, j1 = Math.ceil((box.y1 - L.oy) / L.h) + 1;
+      if (!isFinite(i0) || !isFinite(i1) || !isFinite(j0) || !isFinite(j1) || (i1 - i0) * (j1 - j0) * L.edges.length > GRID_LINES_MAX) return null;
+      var out = [];
+      for (var i = i0; i <= i1; i++) for (var j = j0; j <= j1; j++) {
+          var x = L.ox + i * L.w, y = L.oy + j * L.h;
+          L.edges.forEach(function(e) { out.push('M' + n(x + e[0]) + ' ' + n(y + e[1]) + 'L' + n(x + e[2]) + ' ' + n(y + e[3])); });
+      }
+      return out.join('');
+  }
+  // The part of the board in view, in board px: the screen's corners where the map is turned
+  function gridViewBox() {
+      var w = document.getElementById('whiteboardWrap'); if (!w || !(w.clientWidth > 0) || !(w.clientHeight > 0)) return null;
+      var z = state.zoomLevel || 1, r = window.wpView && typeof window.wpView.screenRect === 'function' ? window.wpView.screenRect() : null;
+      if (Array.isArray(r) && r.length) { var xs = r.map(function(p) { return p.x; }), ys = r.map(function(p) { return p.y; }); return { x0: Math.min.apply(null, xs), x1: Math.max.apply(null, xs), y0: Math.min.apply(null, ys), y1: Math.max.apply(null, ys) }; }
+      return { x0: w.scrollLeft / z, y0: w.scrollTop / z, x1: (w.scrollLeft + w.clientWidth) / z, y1: (w.scrollTop + w.clientHeight) / z };
+  }
+  // Draws the lines (fresh: the grid was just set, so the tile it set is kept to come back to), or leaves them while the view is inside them
+  function gridLinesDraw(overlay, type, cell, alpha, fresh) {
+      if (!overlay) return false;
+      var old = overlay.querySelector(':scope > svg.grid-lines'), own = overlay.querySelector(':scope > svg.grid-own');
+      if (fresh) { _gridDrawn = null; _gridBg = overlay.style.backgroundImage || ''; }
+      var tile = function() { if (old) old.remove(); _gridDrawn = null; if (own) own.style.display = ''; if (_gridBg && overlay.style.backgroundImage !== _gridBg) overlay.style.backgroundImage = _gridBg; return false; };
+      if (type !== 'square' && type !== 'hex') return tile();
+      var need = gridViewBox(); if (!need) return !!old;
+      var sig = type + ':' + (cell ? cell.size + ':' + (cell.ox || 0) + ':' + (cell.oy || 0) : '') + ':' + alpha;
+      if (old && _gridDrawn && _gridDrawn.sig === sig && need.x0 >= _gridDrawn.x0 && need.y0 >= _gridDrawn.y0 && need.x1 <= _gridDrawn.x1 && need.y1 <= _gridDrawn.y1) return true;
+      var mw = (need.x1 - need.x0) / 2, mh = (need.y1 - need.y0) / 2, box = { x0: need.x0 - mw, y0: need.y0 - mh, x1: need.x1 + mw, y1: need.y1 + mh };
+      var d = gridLinesPath(type, cell, box); if (d === null) return tile();
+      var NS = 'http://www.w3.org/2000/svg', svg = old;
+      if (!svg) { svg = document.createElementNS(NS, 'svg'); svg.setAttribute('class', 'grid-lines'); svg.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible'; overlay.appendChild(svg); }
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+      [['rgba(0,0,0,' + alpha + ')', 3], ['rgba(255,255,255,' + alpha + ')', type === 'square' ? 1 : 1.2]].forEach(function(st) {
+          var p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); p.setAttribute('fill', 'none'); p.setAttribute('stroke', st[0]); p.setAttribute('stroke-width', String(st[1])); svg.appendChild(p);
+      });
+      if (own) own.style.display = 'none';
+      overlay.style.backgroundImage = 'none';
+      _gridDrawn = { sig: sig, x0: box.x0, y0: box.y0, x1: box.x1, y1: box.y1 };
+      return true;
+  }
+  function gridLinesSync() {
+      _gridRaf = 0;
+      var ov = document.getElementById('gridOverlay'); if (!ov || ov.style.display === 'none') return;
+      var t = state.gridType; if (t !== 'square' && t !== 'hex') return;
+      gridLinesDraw(ov, t, gridOwnCell(getActiveMap(), t), 0.55, false);
+  }
+  function gridLinesSoon() { if (!_gridRaf) _gridRaf = window.requestAnimationFrame ? requestAnimationFrame(gridLinesSync) : setTimeout(gridLinesSync, 16); }
+  window.wpGridSync = gridLinesSoon;
+  (function() {
+      var w = document.getElementById('whiteboardWrap'); if (w && w.addEventListener) w.addEventListener('scroll', gridLinesSoon, { passive: true });
+      if (window.addEventListener) window.addEventListener('resize', gridLinesSoon);
+  })();
+  // [buildcheck:gridlines-end]
   function applyGridType(type) {
 
       var overlay = document.getElementById('gridOverlay');
@@ -9818,6 +9886,7 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
 
           overlay.style.display = 'block';
           gridOwnDraw(overlay, type, gridOwnCell(getActiveMap(), type), alpha);   // a map's own cell (backlog 38): its pattern in place of the background
+          gridLinesDraw(overlay, type, gridOwnCell(getActiveMap(), type), alpha, true);   // 1.6.2: its own lines over the view, where the tile would drift
 
       } else if (type === 'hex') {
 
@@ -9829,6 +9898,7 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
 
           overlay.style.display = 'block';
           gridOwnDraw(overlay, type, gridOwnCell(getActiveMap(), type), alpha);
+          gridLinesDraw(overlay, type, gridOwnCell(getActiveMap(), type), alpha, true);
 
       } else {
 
@@ -9836,6 +9906,7 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
 
           overlay.style.display = 'none';
           gridOwnDraw(overlay, type, null, alpha);
+          gridLinesDraw(overlay, type, null, alpha, true);
 
       }
 

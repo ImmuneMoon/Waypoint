@@ -14778,7 +14778,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && q2.values.f_kit[0].ov.stats.wear === 2 && hQ({ amt: 10, type: 'cut', loc: 'w_body', part2: { amt: 0, type: 'burn' } }).values.f_kit[0].ov.stats.wear === 1
                 && RQ('blow.type2') === 2 && RQ('blow.wound2') === 4 && RQ('blow.type3') === 0 && RQ('blow.wound4') === 0 && RQ1('blow.type2') === 0 && RQ1('blow.wound2') === 0
                 && S.blowCripN('Blow.type2 * 10 + Blow.wound2', -1, 9, q2.info.blow, F) === 24 && S.blowCripN('Blow.type2 * 10 + Blow.wound2', -1, 9, bA.info.blow, F) === 0
-                && j(Object.keys(S.BLOW_NAMES)) === j(['dmg', 'through', 'wound', 'type', 'cuts', 'major', 'big', 'type2', 'wound2', 'type3', 'wound3', 'type4', 'wound4', 'type5', 'wound5', 'kind', 'kind2', 'kind3', 'kind4', 'kind5']) /* a fifth part's two names (moved on purpose); and a blow's kinds (moved on purpose); 1.6.2 and Blow.big (moved on purpose) */ && !vdQ.errors.some(e => /Blow\./.test(e.message || '')),
+                && j(Object.keys(S.BLOW_NAMES)) === j(['dmg', 'through', 'wound', 'first', 'type', 'cuts', 'major', 'big', 'type2', 'wound2', 'type3', 'wound3', 'type4', 'wound4', 'type5', 'wound5', 'kind', 'kind2', 'kind3', 'kind4', 'kind5']) /* a fifth part's two names (moved on purpose); and a blow's kinds (moved on purpose); 1.6.2 and Blow.big (moved on purpose); 1.6.2 and Blow.first (moved on purpose) */ && !vdQ.errors.some(e => /Blow\./.test(e.message || '')),
                 j([q2.info, q1.info, q2c.info.follows, q1m.info.majorRoll, RQ('blow.type2'), vdQ.errors]));
             // item 2: up to three added parts (dmg2, dmg3, dmg4 and their types and divisors), one blow
             const rawM = JSON.parse(j(rawP)); rawM.rolls.push({ id: 'r_tri', label: 'Tri', formula: '2d6', dmg: true, dtype: 'cut', dmg2: '1d6', dtype2: 'burn', dmg3: ' 1d6 + Edge ', dtype3: 'stun', dmg4: '2', dtype4: 'cut', ad4: '3' }, { id: 'r_odd', label: 'Odd', formula: '2d6', dmg: true, dmg3: 'Secret + 1', dtype3: 'burn', dmg4: 'Nothing' }, { id: 'r_nd3', label: 'Nd3', formula: '2d6', dmg3: '1d6', dtype4: 'burn' });
@@ -22606,6 +22606,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const p2 = pHit(true, 'Blow.wound2 >= 2'), p3 = pHit(true, 'Blow.wound2 >= 3'), p0 = pHit(undefined, 'Blow.wound2 >= 4');
         check('1.6.2 Not a wound takes what the number took off each part\'s own wound too, the main part first and then the added parts in slot order (5 and 4 against 7: the main part none, the second 2), so Blow.wound2 reads 2 and Blow.wound their sum; without it each part reads its whole wound',
             p2.ok && p2.info.wound === 2 && p2.info.soaked === 7 && tiredOn(p2) && p3.ok && !tiredOn(p3) && p0.ok && tiredOn(p0) && p0.info.wound === 9, J([p2.info, p3.info.woundFx, p0.info.wound]));
+        {   // 1.6.2 (asked by a build session, the core's TH1 and TH2): Blow.first, what Taken first from took, read by a wound rule, a posted roll and a layer's wear; no key on a blow it took nothing from
+            const f7 = pHit(true, 'Blow.first = 7'), f6 = pHit(true, 'Blow.first = 6'), fOff = pHit(undefined, 'Blow.first = 7');
+            const f0 = S.damageStep(S.cleanSystem(pRaw(true, 'Blow.first = 0'), { F, gmView: true }), { id: 'c', name: 'Bo', values: { f_hp: { cur: 12 } } }, { amt: 5, type: 'cut', part2: { amt: 4, type: 'zap' } }, F, undefined, { now: 1 });
+            const R7 = S.makeResolver(S.cleanSystem(pRaw(true), { F, gmView: true }), dcN(7), F, S.withBlow(null, { first: 7, wound: 2 }));
+            check('1.6.2 Blow.first reads what Taken first from took (7 of a 5 and 4 blow against a number of 7), ticked Not a wound or not; an Any wound row reads it, a posted roll reads it through withBlow, a layer\'s wear formula reads it, and a blow it took nothing from has no such key and reads 0',
+                f7.ok && tiredOn(f7) && f6.ok && !tiredOn(f6) && fOff.ok && tiredOn(fOff) && f0.ok && !('first' in (f0.info.blow || {}))
+                && R7('blow.first') === 7 && S.BLOW_NAMES.first === 1 && /if \(l === 'blow\.first'\) return bn\(bw\.first\);/.test(fs.readFileSync(path.join(app, 'scripts', 'systemcore.js'), 'utf8')),
+                J([f7.info, f6.info.woundFx, fOff.info, f0.info]));
+        }
         // the follow, run for real on the machine that owns the campaign
         const shE = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), sl = shE.slice(shE.indexOf('// [systemcheck:fxend-start]'), shE.indexOf('// [systemcheck:fxend-end]'));
         const cards = [], dues = [], toasts = [], saves = [], changed = [];

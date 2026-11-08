@@ -22698,6 +22698,23 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && shL.includes('if (res.linkValues) linkValuesWrite(res.linkValues);') && shL.includes('setLinkCharSource(function(id) {'),
             J([sy.rolls[0].then, aG, aL, aN]));
     }
+    {   // 1.6.2: a run by itself (a time rule, an each-round or each-turn action) writes a linked sheet too, each run reading what the last moved
+        const J = v => JSON.stringify(v);
+        const raw = { v: 1, name: 'L', sheet: { sections: [] }, links: [{ id: 'lk_m', kind: 'mount', key: 'Mount', label: 'Mount' }],
+            rolls: [{ id: 'r_drain', label: 'Drain', apply: [{ f: 'f_end', formula: '1', link: 'lk_m' }], every: { n: 1, u: 'hours' } }, { id: 'r_rnd', label: 'Tire', apply: [{ f: 'f_end', formula: '2', link: 'lk_m' }], each: 'round' }],
+            fields: [{ id: 'f_end', key: 'End', label: 'Endurance', kind: 'resource', maxFormula: '10' }] };
+        const sy = S.cleanSystem(raw, { F, gmView: true });
+        const horse = { id: 'c_h', name: 'Horse', values: { f_end: { cur: 9 } } }, rider = { id: 'c_r', name: 'Rider', links: { lk_m: 'c_h' }, values: {} };
+        S.setLinkCharSource(id => id === 'c_h' ? horse : null);
+        const tr = S.timeRuleRun(sy, rider, sy.rolls[0], 3, F, null, null), rd = S.applyRound(sy, rider, w => S.makeResolver(sy, w, F), F, null, 'round', null);
+        S.setLinkCharSource(null);
+        const shR = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8');
+        check('1.6.2 a time rule and an each-round run land a change on a linked sheet as a press does: each run reads what the one before moved there (three runs of 1 take 3), the stored sheet stays as it was until the caller writes it, the summary says it under the sheet\'s name, and both callers write it through linkValuesWrite',
+            tr.ran === 3 && J(tr.linkValues) === J({ c_h: { f_end: { cur: 6 } } }) && tr.lines.some(l => l.lk === 1 && l.n === 'Horse: Endurance' && l.d === -3 && l.v === 6) && J(tr.values) === '{}' && horse.values.f_end.cur === 9
+            && rd.ran === 1 && J(rd.linkValues) === J({ c_h: { f_end: { cur: 7 } } })
+            && (shR.split('linkValuesWrite(res.linkValues)').length - 1) >= 4,
+            J([tr, rd]));
+    }
     {   // 1.6.2 (the CORE session's batch 6, 5c): a roll bonus's figure by the level of the row that holds it
         const J = v => JSON.stringify(v);
         const raw = (tiers, v) => ({ v: 1, name: 'T', sheet: { sections: [] }, rolls: [{ id: 'r_x', label: 'Shoot', formula: '3d6 <= 10' }], items: [{ id: 'i_s', name: 'Scope', key: 'Scope', rollSw: [{ name: 'Aim', v: v, tiers: tiers, to: [{ r: 'r_x' }] }] }],

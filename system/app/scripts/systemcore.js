@@ -5763,7 +5763,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
             var lnC = { f: a.lf.id, n: a.ctr.label || a.ctr.key, d: a.set ? nxC - curC : a.add ? a.amt : -a.amt, v: nxC }; if (a.roll) lnC.roll = a.roll; lines.push(lnC);   // 1.5.9: and what a Rolled amount drew
             continue;
         }
-        var lkW = null; if (a.lk) { if (!lkWs[a.lk]) { var lk0 = null; try { lk0 = _linkCharSrc ? _linkCharSrc(a.lk) : null; } catch (e) { lk0 = null; } if (isObj(lk0)) lkWs[a.lk] = Object.assign({}, lk0, { values: JSON.parse(JSON.stringify(lk0.values || {})) }); } lkW = lkWs[a.lk] || null; if (!lkW) { lines.push({ n: a.f.label || a.f.key, say: 'The linked sheet is not here, so nothing moves.' }); continue; } }   // 1.6.2 (12): a copy of the linked sheet, read and moved in its own names
+        var lkW = null; if (a.lk) { if (!lkWs[a.lk]) { var lk0 = null; try { lk0 = _linkCharSrc ? _linkCharSrc(a.lk) : null; } catch (e) { lk0 = null; } if (isObj(lk0) && _linkOver && isObj(_linkOver[a.lk])) lk0 = Object.assign({}, lk0, { values: Object.assign({}, lk0.values || {}, _linkOver[a.lk]) }); if (isObj(lk0)) lkWs[a.lk] = Object.assign({}, lk0, { values: JSON.parse(JSON.stringify(lk0.values || {})) }); } lkW = lkWs[a.lk] || null; if (!lkW) { lines.push({ n: a.f.label || a.f.key, say: 'The linked sheet is not here, so nothing moves.' }); continue; } }   // 1.6.2 (12): a copy of the linked sheet, read and moved in its own names
         var tw = lkW || onW || work, tAs = !lkW && !onW && asIs, ttc = lkW ? null : onW ? onTc : tctx, cur = 0;   // 1.5.9: a field's change lands on the character it is used on, worked out on its own copy and in its own token's context
         if (a.f.kind === 'resource') { var rv = (tAs ? vars : makeResolver(sys, tw, F, ttc || null))(a.f.key); if (typeof rv === 'number' && fin(rv)) cur = rv; }   // full (nothing stored) reads as the max
         else if (a.f.kind === 'toggle') { var tv = storedOf(a.f, tw); cur = tv === true || (typeof tv === 'number' && tv > 0) ? 1 : 0; }   // 1.5.7: a toggle reads 1 on, 0 off
@@ -5779,10 +5779,10 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
         if (!ed.ok) return { ok: false, reason: ed.reason };
         tw.values[a.f.id] = ed.value; if (lkW) (lkOut[a.lk] = lkOut[a.lk] || {})[a.f.id] = ed.value; else if (onW) onOut[a.f.id] = ed.value; else { out[a.f.id] = ed.value; asIs = false; }
         var nv = a.f.kind === 'resource' ? ed.value.cur : a.f.kind === 'toggle' ? (ed.value ? 1 : 0) : ed.value;
-        var lnF = { f: a.f.id, n: a.f.label || a.f.key, d: a.set || mkR ? nv - cur : a.add ? a.amt : -a.amt, v: nv }; if (mkR) lnF.say = mkR.say; if (a.roll) lnF.roll = a.roll; if (lkW) { delete lnF.f; lnF.n = cutText(lkW.name || 'The linked sheet', 40) + ': ' + lnF.n; lines.push(lnF); } else { if (onW && a.set) lnF.set = true; (onW ? onLines : lines).push(lnF); }
+        var lnF = { f: a.f.id, n: a.f.label || a.f.key, d: a.set || mkR ? nv - cur : a.add ? a.amt : -a.amt, v: nv }; if (mkR) lnF.say = mkR.say; if (a.roll) lnF.roll = a.roll; if (lkW) { delete lnF.f; lnF.n = cutText(lkW.name || 'The linked sheet', 40) + ': ' + lnF.n; lnF.lk = 1; lines.push(lnF); } else { if (onW && a.set) lnF.set = true; (onW ? onLines : lines).push(lnF); }
         if (a.f.kind === 'resource' && !a.set && !a.add && isObj(a.f.spill)) {   // 1.6.0 Spills into: a Subtract past the pool's spill point goes on into another pool, in this one change
             var spA = poolSpill(sys, tw, a.f, cur, a.amt, F, ttc); if (spA.error) return { ok: false, reason: 'error', message: spA.error };
-            spA.steps.forEach(function(s) { if (lkW) { (lkOut[a.lk] = lkOut[a.lk] || {})[s.f] = s.value; lines.push({ n: cutText(lkW.name || 'The linked sheet', 40) + ': ' + s.label, d: -s.amt, v: s.v }); return; } if (onW) onOut[s.f] = s.value; else out[s.f] = s.value; (onW ? onLines : lines).push({ f: s.f, n: s.label, d: -s.amt, v: s.v }); });
+            spA.steps.forEach(function(s) { if (lkW) { (lkOut[a.lk] = lkOut[a.lk] || {})[s.f] = s.value; lines.push({ n: cutText(lkW.name || 'The linked sheet', 40) + ': ' + s.label, d: -s.amt, v: s.v, lk: 1 }); return; } if (onW) onOut[s.f] = s.value; else out[s.f] = s.value; (onW ? onLines : lines).push({ f: s.f, n: s.label, d: -s.amt, v: s.v }); });
         }   // a Set's line says what it moved; 1.5.9: and what a Rolled amount drew; a Set on another says so, for the card its user's player gets with no figure
     }
     tagMoves.forEach(function(t) { lines.push({ n: t.n, fx: t.put ? 1 : 0 }); });   // 1.6.2 (vehicles, fold (c)): a mark on or off, said as an effect is
@@ -5823,15 +5823,17 @@ function combatChars(mp, combat, chars) {
 // an amount that fails) is passed over, as his sweep carries on. { values: { fieldId: value }, ran: n }
 function applyRound(sys, char, varsFor, F, tctx, kind, D, fxo) {   // fxo (1.6.0): the clock an effect a run switches on starts its timer by   // kind (T2b): 'round' (the default) or 'turn' (1.6.0: or 'turnEnd'); D (1.5.9): the host's dice, for a Rolled amount
     var out = { values: {}, ran: 0 }; if (!sys || !isObj(char) || typeof varsFor !== 'function' || !F) return out;
-    var work = Object.assign({}, char, { values: Object.assign({}, isObj(char.values) ? char.values : {}) });
+    var work = Object.assign({}, char, { values: Object.assign({}, isObj(char.values) ? char.values : {}) }), lvR = map();
     if (kind === 'turn') turnCounters(sys, work, out);   // 1.6.0: counters that start again each turn, before the turn's own actions run
     if (kind === 'turn' || kind === 'round') { var upT = rowUpkeep(sys, work, out, kind, F); if (upT.paid || upT.off.length) { out.upkeep = { paid: upT.paid, off: upT.off }; if (upT.said.length) out.upkeepSaid = upT.said; } }   // 1.6.0 (CORE gap 13): then what rows switched on keep paying
     roundActs(sys, kind).forEach(function(act) {
         var vv = varsFor(work); if (typeof vv !== 'function') return;
         if (onOther(act)) vv = withOnSelf(vv, true);   // 1.6.0 (the review of 96e39ae6): a run by itself is on its own character, so OnSelf reads 1
-        var res = applyAct(sys, work, act, vv, F, tctx || null, null, undefined, D, null, fxo); if (!res.ok) return;
+        var loR = _linkOver, res; _linkOver = lvR; try { res = applyAct(sys, work, act, vv, F, tctx || null, null, undefined, D, null, fxo); } finally { _linkOver = loR; } if (!res.ok) return;
         Object.keys(res.values).forEach(function(k) { work.values[k] = res.values[k]; out.values[k] = res.values[k]; }); out.ran++;
+        if (res.linkValues) Object.keys(res.linkValues).forEach(function(id) { lvR[id] = Object.assign(lvR[id] || {}, res.linkValues[id]); });   // 1.6.2: what it moved on a linked sheet, which the next action reads
     });
+    if (Object.keys(lvR).length) out.linkValues = lvR;   // 1.6.2: by the linked sheet's id, which the caller writes
     return out;
 }
 // 1.6.0 (the v2 combat module): a list counter ticked Starts again each turn (turn) goes back to where a row starts (its def, else 0) at its
@@ -5878,7 +5880,7 @@ function ruleRunCtx(at) { return isObj(at) && fin(at.round) ? { combat: { round:
 function timeRuleRun(sys, char, rule, n, F, D, at, opt) {
     var out = { values: {}, lines: [], rolls: { made: 0, pass: 0, fail: 0 }, ran: 0 }; if (!isObj(sys) || !isObj(char) || !isObj(rule) || !F) return out;
     var tctx = ruleRunCtx(at), own = isObj(opt) && typeof opt.vars === 'function', due = isObj(opt) && Array.isArray(opt.due) && opt.due.length ? opt.due : null, lazy = own || (!!due && opt.flat === true);
-    var work = Object.assign({}, char, { values: JSON.parse(JSON.stringify(isObj(char.values) ? char.values : {})) }), tot = map(), init = map(), order = [], count = Math.max(0, Math.min(500, Math.floor(Number(n) || 0)));
+    var work = Object.assign({}, char, { values: JSON.parse(JSON.stringify(isObj(char.values) ? char.values : {})) }), tot = map(), init = map(), order = [], lvT = map(), count = Math.max(0, Math.min(500, Math.floor(Number(n) || 0)));
     var chk = isObj(sys.combat) && sys.combat.checks === 'under3d6' ? 'under3d6' : '', efx = due && Array.isArray(sys.fields) ? sys.fields.filter(function(f) { return isObj(f) && f.kind === 'effects' && typeof f.id === 'string'; }).map(function(f) { return f.id; }) : null;
     for (var i = 0; i < count; i++) {
         var fx = due ? dueFx(due, efx, i) : null, wk = fx ? Object.assign({}, work, { values: Object.assign({}, work.values, fx) }) : work;   // 1.5.5's review: as its character stood where it came due
@@ -5897,13 +5899,15 @@ function timeRuleRun(sys, char, rule, n, F, D, at, opt) {
         }
         if (!act) break;
         act.apply.forEach(function(c) { if (isObj(c) && typeof c.f === 'string' && init[c.f] === undefined) { var fd = fieldById(sys, c.f), iv = fd ? vars(fd.key) : null; init[c.f] = typeof iv === 'number' && fin(iv) ? iv : 0; } });   // where each field began, for how far it really moved
-        var r = applyAct(sys, wk, act, vars, F, tctx, null, lazy, D); if (!r.ok) continue;   // 1.5.9: D rolls a Rolled amount
+        var loT = _linkOver, r; _linkOver = lvT; try { r = applyAct(sys, wk, act, vars, F, tctx, null, lazy, D); } finally { _linkOver = loT; } if (!r.ok) continue;   // 1.5.9: D rolls a Rolled amount   // 1.6.2: on what it already moved on a linked sheet
+        if (r.linkValues) Object.keys(r.linkValues).forEach(function(id) { lvT[id] = Object.assign(lvT[id] || {}, r.linkValues[id]); });
         if (r.drew) out.drew = (out.drew || 0) + 1;   // and a run that drew dice says so (the flood rule counts it as rolled)
         Object.keys(r.values).forEach(function(k) { work.values[k] = r.values[k]; out.values[k] = r.values[k]; });
-        r.lines.forEach(function(l) { if (l.all) { var ka = 'all:' + l.f + ':' + l.k; if (!tot[ka]) { tot[ka] = { f: l.f, n: l.n, d: 0, v: l.v, all: 0, k: l.k }; order.push(ka); } var ta = tot[ka]; ta.n = l.n; ta.v = l.v; ta.all = Math.max(ta.all, l.all); if (l.set) { ta.set = true; ta.d = l.d; if (l.vary) ta.vary = true; else delete ta.vary; } else { ta.d = Math.round((ta.d + l.d) * 1000) / 1000; if (l.vary) ta.vary = true; } return; } if (!tot[l.f]) { tot[l.f] = { f: l.f, n: l.n, v: l.v }; order.push(l.f); } tot[l.f].v = l.v; });   // 1.6.0: every row of a list, by its list and stat
+        r.lines.forEach(function(l) { if (l.lk) { var kL = 'lk:' + l.n; if (!tot[kL]) { tot[kL] = { n: l.n, d: 0, v: l.v, lk: 1 }; order.push(kL); } tot[kL].d = Math.round((tot[kL].d + (typeof l.d === 'number' ? l.d : 0)) * 1000) / 1000; tot[kL].v = l.v; return; } if (l.all) { var ka = 'all:' + l.f + ':' + l.k; if (!tot[ka]) { tot[ka] = { f: l.f, n: l.n, d: 0, v: l.v, all: 0, k: l.k }; order.push(ka); } var ta = tot[ka]; ta.n = l.n; ta.v = l.v; ta.all = Math.max(ta.all, l.all); if (l.set) { ta.set = true; ta.d = l.d; if (l.vary) ta.vary = true; else delete ta.vary; } else { ta.d = Math.round((ta.d + l.d) * 1000) / 1000; if (l.vary) ta.vary = true; } return; } if (!tot[l.f]) { tot[l.f] = { f: l.f, n: l.n, v: l.v }; order.push(l.f); } tot[l.f].v = l.v; });   // 1.6.0: every row of a list, by its list and stat
         out.ran++;
     }
-    out.lines = order.map(function(k) { if (tot[k].all) return Object.assign({}, tot[k]); var v = tot[k].v; return { f: k, n: tot[k].n, d: typeof v === 'number' && fin(v) ? Math.round((v - (init[k] || 0)) * 1000) / 1000 : 0, v: v }; });
+    if (Object.keys(lvT).length) out.linkValues = lvT;   // 1.6.2: by the linked sheet's id, which the caller writes
+    out.lines = order.map(function(k) { if (tot[k].all || tot[k].lk) return Object.assign({}, tot[k]); var v = tot[k].v; return { f: k, n: tot[k].n, d: typeof v === 'number' && fin(v) ? Math.round((v - (init[k] || 0)) * 1000) / 1000 : 0, v: v }; });
     return out;
 }
 // the effects lists run i of a fire is made with (timeRuleRun's opt.due): the part of due that holds it, each part n runs in order; only a list of an
@@ -9178,6 +9182,7 @@ function mapTagsSet(map, list) { if (!isObj(map)) return; map.meta = isObj(map.m
 function setTagSource(fn) { _tagSrc = typeof fn === 'function' ? fn : null; return !!_tagSrc; }   // fn(map): the marks of a map as this screen holds them (the host its own, a player's app what its host sent)
 // 1.6.2 (vehicles, fold (d)): the host's own, which puts a launched thing on the map: fn([{ by, f, r, def, from, map, target }])
 var _launchSink = null;
+var _linkOver = null;   // 1.6.2: while a run by itself goes on (applyRound, timeRuleRun), what it already moved on each linked sheet, by its id, laid over the stored sheet
 var _linkCharSrc = null;   // 1.6.2 (the CORE session's batch 6, 12): the stored character a link holds, on the machine that owns the campaign (sheets.js), which a change that names a link lands on
 function setLinkCharSource(fn) { _linkCharSrc = typeof fn === 'function' ? fn : null; return !!_linkCharSrc; }
 var _setOffSink = null;   // 1.6.2 (the CORE session's batch 6, 10): the host sets off a placed blast (whiteboard.js wpSetOffNear); answers how many went off

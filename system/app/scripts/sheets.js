@@ -5874,6 +5874,7 @@ function timedHook(mapId, combat, kind) {
         dues.forEach(function(a) { if (a.needs && typeof rollNeedsOk === 'function') { vvD = vvD || resolveAll(sys, c, F(), tc).vars; if (!rollNeedsOk(a, (a.to === 'near' || a.to === 'target') ? withOnSelf(vvD, true) : vvD, F())) return; } if (n.postDue) n.postDue(c, a, kind, combat.round, a.by === 'owner' && a.vis !== 'gm'); });   // 1.5.4: no reminder while its needs are not met
         var res = applyRound(sys, c, function(w) { return resolveAll(sys, w, F(), tc).vars; }, F(), tc, kind, window.wpDiceCore || null, { now: Date.now(), inCombat: true }), ids = Object.keys(res.values);   // 1.5.9: the host's dice roll a Rolled amount
         if (res.upkeep && window.wpStepLog) window.wpStepLog('upkeep v1', 'paid', { when: kind, paid: res.upkeep.paid, off: res.upkeep.off.length });   // 1.6.0 (CORE gap 13)
+        if (res.linkValues && typeof linkValuesWrite === 'function' && linkValuesWrite(res.linkValues) && !ids.length) { done++; return; }   // 1.6.2: what it moved on a linked sheet
         if (!ids.length) return;
         c.values = c.values || {}; ids.forEach(function(fid) { c.values[fid] = res.values[fid]; }); c.updated = Date.now();
         if (n.active) n.syncCharDelta(c.id, res.values);
@@ -5979,7 +5980,8 @@ function runTimeRules(fires, words, at, back, when) {
                 var wrote = ks.filter(function(k) { return JSON.stringify(c.values ? c.values[k] : undefined) !== JSON.stringify(res.values[k]); });
                 var pre = wrote.length ? ruleReads(sys, c, wrote, tcF) : null;
                 if (wrote.length) { c.values = c.values || {}; wrote.forEach(function(k) { c.values[k] = res.values[k]; all[k] = res.values[k]; }); }
-                var mv = !wrote.length ? [] : pre ? ruleMoves(sys, c, wrote, pre, tcF, res.lines) : res.lines.filter(function(l) { return l.all || l.d !== 0; });   // 1.6.0: a line on every row of a list is said whatever its d (a Set, or a figure that differs by row), as ruleMoves passes it
+                var mv = !wrote.length ? [] : pre ? ruleMoves(sys, c, wrote, pre, tcF, res.lines) : res.lines.filter(function(l) { return l.all || l.d !== 0; });
+                if (res.linkValues && typeof linkValuesWrite === 'function' && linkValuesWrite(res.linkValues)) mv = mv.concat(res.lines.filter(function(l) { return l.lk && l.d !== 0; }));   // 1.6.2: what it moved on a linked sheet, stored and said   // 1.6.0: a line on every row of a list is said whatever its d (a Set, or a figure that differs by row), as ruleMoves passes it
                 mv.forEach(function(l) { var h = A.lines.filter(function(x) { return x.n === l.n; })[0]; if (h) { h.d = l.all && l.set ? l.d : Math.round((h.d + (typeof l.d === 'number' ? l.d : 0)) * 1000) / 1000; h.v = l.v; if (l.all && l.set) { if (l.vary) h.vary = true; else delete h.vary; } else if (l.vary) h.vary = true; } else { var nl = { n: l.n, d: typeof l.d === 'number' ? l.d : 0, v: l.v }; if (l.all) { nl.all = l.all; if (l.set) nl.set = true; if (l.vary) nl.vary = true; } A.lines.push(nl); } });   // 1.6.0: a line on every row keeps saying so
             });
             acc.filter(function(A) { return A.rule; }).sort(function(a, b) { return a.first - b.first; }).forEach(function(A) {
@@ -6009,7 +6011,8 @@ function runTimeRules(fires, words, at, back, when) {
             var pre = wrote.length ? ruleReads(sys, c, wrote, tcF, r0) : null;   // what the sheet read before, in the round timeRuleRun ran it in
             if (ks.length) { c.values = c.values || {}; wrote.forEach(function(k) { c.values[k] = res.values[k]; all[k] = res.values[k]; }); }
             if (wrote.length) kept = r0 ? { k: ck, r: makeResolver(sys, c, F(), tcF ? { combat: tcF.combat, reuse: true } : { reuse: true }) } : null;   // stored: a resolver of c as it now stands, for what it reads after and the next fire
-            var moved = !wrote.length ? [] : pre ? ruleMoves(sys, c, wrote, pre, tcF, res.lines, kept ? kept.r : null) : null;   // null: no resolver to ask, so each value written counts as moved
+            var moved = !wrote.length ? [] : pre ? ruleMoves(sys, c, wrote, pre, tcF, res.lines, kept ? kept.r : null) : null;
+            if (res.linkValues && typeof linkValuesWrite === 'function' && linkValuesWrite(res.linkValues) && moved !== null) moved = moved.concat(res.lines.filter(function(l) { return l.lk && l.d !== 0; }));   // 1.6.2: what it moved on a linked sheet, stored and said   // null: no resolver to ask, so each value written counts as moved
             if (moved !== null && !moved.length && !(res.rolls.made && ruleDice(rule)) && !(res.drew > 0)) return;   // the flood fix: it moved nothing and rolled no dice, so it says nothing (1.5.9: a Rolled amount that drew dice rolled them)
             var head = (rule.label || 'A rule') + ' \u00d7' + fi.n + (res.rolls.made ? ' (' + res.rolls.pass + ' of ' + res.rolls.made + ' succeeded)' : '');
             var lns = moved || res.lines.filter(function(l) { return l.all || l.d !== 0; });   // with no resolver, the run's own lines, as before; a roll of dice that moved nothing says no change

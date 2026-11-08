@@ -610,6 +610,8 @@ Writing planners and pages
   halving it, on the part of the DR its rows give.
 - An item's blast can strike a named hit location, such as the legs for a
   mine underfoot.
+- A roll that resists an attack can read a stat or column of the row the
+  attack came from, so a weapon can be harder to parry.
 - An effect can do something once when it ends: changes to a pool or a number,
   switching an effect, or a roll asked of the character. It runs when the
   effect runs out, and, where ticked, when it is switched off by hand too.

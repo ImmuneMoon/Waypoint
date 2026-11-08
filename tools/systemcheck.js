@@ -22610,6 +22610,26 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             none === 0 && yes === 1 && other === 0 && noTok === 0 && ownF === 7 && thrown === 0 && !S.validateSystem(sys, F).errors.length
             && ntM.includes('function movedNow(tokId) {') && ntM.includes('Sm.setMovedSource(movedNow);'), J([none, yes, other, noTok, ownF, thrown, S.validateSystem(sys, F).errors]));
     }
+    {   // 1.6.2 (the CORE session's batch 6, 7): a resist roll reads the attacking row as Attempter.Row.<name>, from the host's record of the attempt
+        const J = v => JSON.stringify(v);
+        const raw = { v: 1, name: 'A', sheet: { sections: [] }, rolls: [{ id: 'r_par', label: 'Parry', resist: true, formula: '3d6 <= 10 - Attempter.Row.pen' }, { id: 'r_bad', label: 'Odd', formula: '3d6 <= Attempter.Row.pen' }],
+            fields: [{ id: 'f_w', key: 'Weap', label: 'Weapons', kind: 'item-list', list: { stats: [{ key: 'dmg', label: 'Damage' }, { key: 'secret', label: 'Secret', vis: 'gm' }], cols: [{ key: 'pen', label: 'Pen', formula: 'Row.dmg - 1' }], rolls: [{ label: 'Swing', formula: '3d6 <= 12', resistBy: 'r_par' }] } }],
+            items: [{ id: 'i_ax', name: 'Axe', stats: { dmg: 4 } }] };
+        const sy = S.cleanSystem(raw, { F, gmView: true }), vr = S.validateSystem(sy, F);
+        const parV = r => S.makeResolver(sy, { id: 'c_d', values: {} }, F, S.withAttempt({}, 2, undefined, r))('Attempter.Row.pen');
+        const ntR = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'latin1').replace(/\r\n/g, '\n'), aA = ntR.indexOf('var _attRowW = '), aZ = ntR.indexOf('function attKindOf(', aA);
+        const attRowFigs = new Function('SC', 'window', ntR.slice(aA, aZ) + '\nreturn attRowFigs;')(() => S, { wpFormula: F });
+        const camp = { system: sy }, atk = { id: 'c_a', values: { f_w: [{ id: 'w_ax', defId: 'i_ax', qty: 1 }] } };
+        const figs = attRowFigs(camp, atk, { f: 'f_w', r: 'w_ax' }), noRow = attRowFigs(camp, atk, null), sy0 = S.cleanSystem(Object.assign({}, raw, { rolls: [{ id: 'r_par', label: 'Parry', resist: true, formula: '3d6 <= 10' }] }), { F, gmView: true }), none = attRowFigs({ system: sy0 }, atk, { f: 'f_w', r: 'w_ax' });
+        check('1.6.2 a roll ticked Resists an attempt reads a stat or column of the attacking row as Attempter.Row.<name>: the host works out each such name any formula of the system names, with that row\'s names, as the attempt is made, and keeps it beside the attacker\'s figures; it reads 0 for any other press; the validator knows it only in a resist roll and only for a number stat or column some list has; a GM-only stat read so is GM-only; its words, and the form offers it',
+            J(figs) === J({ 'row.pen': 3 }) && noRow === null && none === null && parV(figs) === 3 && parV(undefined) === 0
+            && !vr.errors.some(e => e.id === 'r_par') && vr.errors.some(e => e.id === 'r_bad' && /Resists an attempt/.test(e.message))
+            && S.validateSystem(S.cleanSystem(Object.assign({}, raw, { rolls: [{ id: 'r_par', label: 'Parry', resist: true, formula: '3d6 <= Attempter.Row.nope' }] }), { F, gmView: true }), F).errors.some(e => /no list has a number stat or column nope/.test(e.message))
+            && S.gmOnlyNames(sy, [{ name: 'Attempter.Row.secret' }]).length === 1 && S.gmOnlyNames(sy, [{ name: 'Attempter.Row.pen' }]).length === 0
+            && S.nameWord(sy, 'Attempter.Row.pen') === 'the Pen of the attacking row' && J(S.readsOf(sy, { roll: sy.rolls[0] }).filter(g => g.name === 'Their attempt').map(g => g.items.map(x => x.s))[0] || []).includes('Attempter.Row.pen')
+            && ntR.includes("var rfA = attRowFigs(camp, fromCh, rowRef);"),
+            J([figs, noRow, none, parV(figs), vr.errors, S.gmOnlyNames(sy, [{ name: 'Attempter.Row.secret' }]), S.nameWord(sy, 'Attempter.Row.pen'), S.readsOf(sy, { roll: sy.rolls[0] })]));
+    }
     {   // 1.6.2 (the CORE session's batch 6, 5c): a roll bonus's figure by the level of the row that holds it
         const J = v => JSON.stringify(v);
         const raw = (tiers, v) => ({ v: 1, name: 'T', sheet: { sections: [] }, rolls: [{ id: 'r_x', label: 'Shoot', formula: '3d6 <= 10' }], items: [{ id: 'i_s', name: 'Scope', key: 'Scope', rollSw: [{ name: 'Aim', v: v, tiers: tiers, to: [{ r: 'r_x' }] }] }],

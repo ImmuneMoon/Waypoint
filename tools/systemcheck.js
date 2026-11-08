@@ -19978,6 +19978,21 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /function liveHold\(ck\)/.test(caT) && /fightMode\(\) !== 'runs'\) return 'fight'/.test(caT) && /ordersRun\(\) && fightMode\(\) === 'sync'\) \{ toast\(fightHolds\(camp\)\)/.test(caT)
             && ixT.includes('<b>A fight and the clock</b>') && ntT.every(t => t.includes('A system now says how a fight moves the game clock')));
     }
+    {   // 1.6.2 a kind that goes round armour, built from today's options alone (the CORE session's answer 6: the jet is stopped only by a sealed wearer's armour, and going round wears nothing), on invented data
+        const J = JSON.stringify, GO = 'Blow.kind = Kind.jet and Sealed = 0', sysJ = cleanSystem({ v: 1, name: 'J', fields: [
+            { id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '40', min: -99, vis: 'all', edit: 'owner' },
+            { id: 'f_seal', key: 'Sealed', label: 'Sealed', kind: 'toggle', vis: 'all', edit: 'owner' },
+            { id: 'f_locs', key: 'Locs', label: 'Locations', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'nat', label: 'Natural' }], cols: [{ key: 'DR', label: 'DR', formula: 'if(' + GO + ', 0, Row.nat + Gear.on.plate)' }] } },
+            { id: 'f_gear', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { on: { label: 'Worn' }, stats: [{ key: 'plate', label: 'Plate' }, { key: 'pworn', label: 'Plate worn' }] } }],
+            items: [{ id: 'i_torso', name: 'Torso', stats: { nat: 0 } }, { id: 'i_coat', name: 'Coat', stats: { plate: 3 } }],
+            combat: { hpResource: 'f_hp', damage: { pool: 'f_hp', locs: { list: 'f_locs', dr: 'DR' }, kinds: [{ key: 'jet', label: 'Jet' }, { key: 'burn', label: 'Burn' }], types: [{ key: 'heat', label: 'Heat' }],
+                layers: [{ list: 'f_gear', at: 'if(' + GO + ', 0, Row.plate)', wear: 'pworn', whole: true }] } } }, { F, gmView: true });
+        const chJ = sealed => ({ id: 'c', name: 'Kael', values: { f_hp: { cur: 40 }, f_seal: sealed, f_locs: [{ defId: 'i_torso', qty: 1 }], f_gear: [{ defId: 'i_coat', qty: 1, on: true }] } });
+        const hitJ = (sealed, inp) => { const r = S.damageStep(sysJ, chJ(sealed), Object.assign({ loc: 'w_torso', type: 'heat' }, inp), F); return [r.ok, r.info && r.info.dr, r.info && r.info.wound, r.values && r.values.f_gear ? r.values.f_gear[0].ov.stats.pworn : 0]; };
+        const jets = [hitJ(false, { amt: 10, kind: 'jet' }), hitJ(true, { amt: 10, kind: 'jet' }), hitJ(false, { amt: 10, kind: 'jet', part2: { amt: 10, type: 'heat', kind: 'burn' } })];
+        check('1.6.2 a kind that goes round armour, with no option of its own (the CORE session\'s jet): a location\'s DR and a layer\'s at read each part by its own Blow.kind, so where they give 0 to the jet on an unsealed wearer it goes round the armour and wears nothing, a sealed wearer\'s armour stops it and wears, and in a blow of jet and burn the jet part goes round while the burn part is stopped and alone wears the coat',
+            J(jets) === J([[true, 0, 10, 0], [true, 3, 7, 1], [true, 3, 17, 1]]), J(jets));
+    }
     {   // 1.6.2 bleeding as rows (the owner, by prompt: "A wound adds a row", "Every N, and a clock out of a fight"; the CORE session: each wound counted, tagged by where it started), on invented data
         const J = JSON.stringify, sysB = cleanSystem({ v: 1, name: 'Bl', fields: [
             { id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '20', min: -99, vis: 'all', edit: 'owner' },

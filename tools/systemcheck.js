@@ -22522,6 +22522,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && w1.ok && w1.info.wound === 2 && w1.info.soaked === 3 && !w1.info.major && tiredOn(w1) && J(w1.values.f_hp) === J({ cur: 10 })
             && w0.ok && w0.info.wound === 5 && w0.info.major === true && !('soaked' in w0.info)
             && wAll.ok && wAll.info.wound === 0 && !wAll.info.major && !('f_hp' in wAll.values) && !tiredOn(wAll), J([sOn.combat.damage, w1.info, w0.info, wAll.info, wAll.values]));
+        // ... and off each part's own wound (the CORE session: a shock part reads its own injury): the main part first, then the added parts in slot order
+        const pRaw = (soak, iff) => { const r = sRaw(soak); r.combat.damage.types.push({ key: 'zap', label: 'Zap', mult: 1 }); r.combat.damage.major = '99'; r.combat.damage.onWound = [{ fx: 'e_tired', if: iff }]; return r; };
+        const pHit = (soak, iff) => S.damageStep(S.cleanSystem(pRaw(soak, iff), { F, gmView: true }), dcN(7), { amt: 5, type: 'cut', part2: { amt: 4, type: 'zap' } }, F, undefined, { now: 1 });
+        const p2 = pHit(true, 'Blow.wound2 >= 2'), p3 = pHit(true, 'Blow.wound2 >= 3'), p0 = pHit(undefined, 'Blow.wound2 >= 4');
+        check('1.6.2 Not a wound takes what the number took off each part\'s own wound too, the main part first and then the added parts in slot order (5 and 4 against 7: the main part none, the second 2), so Blow.wound2 reads 2 and Blow.wound their sum; without it each part reads its whole wound',
+            p2.ok && p2.info.wound === 2 && p2.info.soaked === 7 && tiredOn(p2) && p3.ok && !tiredOn(p3) && p0.ok && tiredOn(p0) && p0.info.wound === 9, J([p2.info, p3.info.woundFx, p0.info.wound]));
         // the follow, run for real on the machine that owns the campaign
         const shE = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), sl = shE.slice(shE.indexOf('// [systemcheck:fxend-start]'), shE.indexOf('// [systemcheck:fxend-end]'));
         const cards = [], dues = [], toasts = [], saves = [], changed = [];

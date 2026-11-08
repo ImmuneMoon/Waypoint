@@ -3610,12 +3610,12 @@ function cleanCombat(c, resIds, fieldIds, secretIds, F, viewKinds, pl, fl) {   /
 //            victim's dice as BlastScale; 1 for none, 0 or a figure that is no number above 0
 //   eachBy   'victim', only beside each (the owner, by prompt: "the gm or the victim can roll, controlled by a setting"): each character's
 //            player gets a card whose Roll asks the host to roll it, an NPC's card the GM's; absent: the host rolls each at once
-var FRAG_NAMES = Object.freeze({ fragdice: 1, blastdice: 1, mapcell: 1 });   // 1.6.0: and BlastDice, the dice the blast's own damage rolls
+var FRAG_NAMES = Object.freeze({ fragdice: 1, blastdice: 1, mapcell: 1, blastscale: 1 });   // 1.6.2 (the CORE session's batch 6, 8): and BlastScale, the firing row's own scale   // 1.6.0: and BlastDice, the dice the blast's own damage rolls
 var BLAST_FALL =Object.freeze({ blastdamage: 1, blastdistance: 1, blastdice: 1, direct: 1, centre: 1, blastfills: 1, blastnodrop: 1, blastscale: 1, mapcell: 1, hitscale: 1, 'env.': 1 });   // 1.6.2 (vehicles, fold (e)): MapCell, one cell of the map in the system's own unit; HitScale, the scale of the one it hits   // 1.6.2 env.: and each Environment reading where it goes off, as Env.<key>   // Centre: 1 for a token in the blast's own cell; 1.6.0: BlastFills and BlastNoDrop, what the two stats below read
 var BLAST_EACH = Object.freeze({ blastdistance: 1, blastdice: 1, direct: 1, centre: 1, blastfills: 1, blastnodrop: 1, blastscale: 1, mapcell: 1, hitscale: 1, 'env.': 1 });
 // 1.6.2 (build 14: a blast at scale, half its reach in vacuum, double in water): the Combat tab's Blast radius, a formula with no dice of BlastRadius (the
 // item's own radius, in yards) and the Environment readings where it goes off; what it gives, above 0, is the blast's radius, else the item's own
-var BLAST_RADIUS = Object.freeze({ blastradius: 1, mapcell: 1, 'env.': 1 });   // 1.6.0 (the core's gap 8): what the dice each victim rolls may read, an item that fills its area among it, since a blast that rolls per victim rolls before any falloff
+var BLAST_RADIUS = Object.freeze({ blastradius: 1, mapcell: 1, 'env.': 1, blastdice: 1, blastscale: 1 });   // 1.6.2 (8): and the dice the blast rolls and the firing row's own scale, so its reach may be set a die and by the weapon   // 1.6.0 (the core's gap 8): what the dice each victim rolls may read, an item that fills its area among it, since a blast that rolls per victim rolls before any falloff
 function blastFormula(text, F, names, dice) {
     var t = cleanFormulaText(text); if (!t) return '';
     if (!F || typeof F.parse !== 'function') return '';

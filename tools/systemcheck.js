@@ -14430,7 +14430,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const wbE = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8'), shE = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
             check('1.6.2 the host reads the readings at the blast\u2019s own place and takes its radius by the formula before it is shown, the shares and each victim\u2019s dice read them, and the Combat card has the box with its names',
                 wbE.includes('var enB = blastEnvAt(getActiveCampaign(), map, b); if (enB) b.env = enB; var rdF = typeof blastRules') && wbE.includes('b.ft = Math.max(1, Math.min(3000, Math.round(rdV * 3)));') && (wbE.match(/noDrop: (o\.)?b\.noDrop, iscale: (o\.)?b\.iscale, env: (o\.)?b\.env, cell: /g) || []).length === 3
-                && shE.includes("['radius', 'Blast radius',") && shE.includes("'sys-combat-bradius': ['BlastRadius', 'MapCell']") && shE.includes("return 'Env.' + e.key;"));
+                && shE.includes("['radius', 'Blast radius',") && shE.includes("'sys-combat-bradius': ['BlastRadius', 'MapCell', 'BlastDice', 'BlastScale']") /* 1.6.2 (8): moved on purpose */ && shE.includes("return 'Env.' + e.key;"));
         }
         {   /* 1.6.2 Row.pastSlot (build 14: an arm or a leg past the chassis's slots gives nothing) */
             const sysP = cleanSystem({ v: 1, name: 'P', rolls: [], fields: [
@@ -16142,7 +16142,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const wbB = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8');
         check('1.6.0 fragmentation\'s reach may read BlastDice, the dice the blast\'s own damage rolls, beside FragDice, with no dice; fragPass hands it the count of the blast\'s damage formula, and each hit the dice its own roll rolled',
             jf(frC({ reach: '2 * BlastDice' })) === jf({ frag: { reach: '2 * BlastDice' } }) && jf(frC({ reach: 'FragDice + blastdice' })) === jf({ frag: { reach: 'FragDice + blastdice' } }) && frC({ reach: 'BlastDice + 1d6' }) === null
-            && wbB.includes("var bDice = BC.diceCount(b.dmgExpr || ''), rch = fr.reach ? blastFig(fr.reach, function(n) { var l = String(n).toLowerCase(); return l === 'fragdice' ? dice : l === 'blastdice' ? bDice : l === 'mapcell' ? blastCellOf(b, map) : undefined; }, false) : null;") && wbB.includes('if (dice > 0) q.dice = Math.min(100, dice);'), '');
+            && wbB.includes("var bDice = BC.diceCount(b.dmgExpr || ''), rch = fr.reach ? blastFig(fr.reach, function(n) { var l = String(n).toLowerCase(); return l === 'fragdice' ? dice : l === 'blastdice' ? bDice : l === 'mapcell' ? blastCellOf(b, map) : l === 'blastscale' ? (typeof b.iscale === 'number' && b.iscale > 0 ? b.iscale : 1) : undefined; }, false) : null;") && wbB.includes('if (dice > 0) q.dice = Math.min(100, dice);'), '');
         {   /* 1.6.0: the throw roll reads the thrown row's own names and the yards to the aim (whiteboard.js throwExpr, sliced and run for real) */
             const t0 = wbB.indexOf('  function throwExpr('), t1 = wbB.indexOf('  function blastFig('), t2 = wbB.indexOf('  function useOneUp(');
             const TEK = t0 > 0 && t1 > t0 && t2 > t1 ? new Function('window', wbB.slice(t0, t2) + '\nreturn { throwExpr: throwExpr, rowSafe: rowSafe };')({ wpFormula: F, wpSystemCore: S }) : null, TE = TEK ? TEK.throwExpr : null;
@@ -22645,6 +22645,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && vr.errors.some(e => e.id === 'r_bad' && /\.rows$/.test(e.prop))
             && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').includes("input('sys-apply-rows field'") && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'formbox.js'), 'utf8').includes("'sys-apply-rows': 'cond',"),
             J([sy.rolls[0].then, aR, aL, vr.errors]));
+    }
+    {   // 1.6.2 (the CORE session's batch 6, 8): a blast's radius and its fragmentation's reach read the firing row's own scale, and the radius the dice it rolls
+        const J = v => JSON.stringify(v);
+        const mk = (radius, reach) => S.cleanSystem({ v: 1, name: 'B', sheet: { sections: [] }, rolls: [], fields: [{ id: 'f_w', key: 'Gear', label: 'Gear', kind: 'item-list', list: { stats: [{ key: 'scale', label: 'Scale' }] } }],
+            combat: { blast: { radius: radius, itemScale: 'scale', frag: { reach: reach } } } }, { F, gmView: true });
+        const ok = mk('BlastDice * 2 * BlastScale', 'FragDice * BlastScale'), bad = mk('Nope * 2', 'FragDice');
+        const eOk = S.validateSystem(ok, F).errors.concat(S.validateSystem(ok, F).warnings).filter(e => /BlastScale|BlastDice/.test(e.message || '')), eBad = S.validateSystem(bad, F).errors.concat(S.validateSystem(bad, F).warnings).filter(e => /Nope/.test(e.message || ''));
+        const wbS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8');
+        check('1.6.2 a blast\'s radius may read BlastDice, the dice it rolls, and BlastScale, the firing row\'s own scale, and its fragmentation\'s reach BlastScale, so its reach may be set a die and by the weapon; a blast with none reads 1',
+            ok.combat.blast.radius === 'BlastDice * 2 * BlastScale' && ok.combat.blast.frag.reach === 'FragDice * BlastScale' && !eOk.length && !('radius' in (bad.combat.blast || {}))
+            && wbS.includes("l === 'blastscale' ? (typeof b.iscale === 'number' && b.iscale > 0 ? b.iscale : 1) : l === 'blastdice' ? (window.wpBlastCore && window.wpBlastCore.diceCount ? window.wpBlastCore.diceCount(b.dmgExpr || '') : 0) :")
+            && (wbS.split("l === 'blastscale' ? (typeof b.iscale === 'number' && b.iscale > 0 ? b.iscale : 1)").length - 1) === 2,
+            J([ok.combat, eOk, eBad]));
     }
     {   // 1.6.2 (the CORE session's batch 6, 5c): a roll bonus's figure by the level of the row that holds it
         const J = v => JSON.stringify(v);

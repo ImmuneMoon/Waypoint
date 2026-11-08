@@ -3892,9 +3892,16 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
     const ids = l => l.map(x => x.id).join('');
     const nw = P && ids(P.presSort(L, 'new')), fr = P && ids(P.presSort(L, 'first'));
     const a1 = A && A.arriveAt('x', 'm1', 10), a2 = A && A.arriveAt('x', 'm1', 20), a3 = A && A.arriveAt('x', 'm2', 30), a4 = A && A.arrivedOn('x', 'm1'), a5 = A && A.arrivedOn('x', 'm2');
-    check('the faces on a map\'s row are sorted by when each player arrived there, newest or first to arrive as this computer picks (players there now before those last seen, a time not known last), four show, and the host notes an arrival once a map in its memory alone',
+    // the GM's own record keeps it (the owner: "lets have it track that then"): a reload finds the time saved for the map they are still on, never another map's, never junk
+    const C = { players: { y: { lastMap: 'm1', lastAt: 500 }, z: { lastMap: 'm1', lastAt: 'soon' } } };
+    const s1 = A && A.arriveAt('y', 'm1', 900, C), s2 = A && A.arrivedOn('y', 'm1', C), s3 = A && A.arriveAt('y', 'm3', 950, C), s4 = A && A.arrivedOn('z', 'm1', C), s5 = A && A.arriveAt('z', 'm1', 70, C), s6 = A && A.arrivedOn('q', 'm1', C);
+    const cl = read('scripts/cleanup.js');
+    check('the faces on a map\'s row are sorted by when each player arrived there, newest or first to arrive as this computer picks (players there now before those last seen, a time not known last), four show; an arrival is noted once a map, and the GM\'s own record of the player keeps it as lastAt beside lastMap, so a reload keeps it (a file\'s only as a time, Merge into carrying it with the last map)',
         ok && nw === 'ceadb' && fr === 'aecdb' && P.presOrder() === 'first' && P.PRES_SHOWN === 4 && a1 === 10 && a2 === 10 && a3 === 30 && a4 === 0 && a5 === 30
-        && netS.includes("color: p.color || null, at: arriveAt(p.id, mapId) });") && netS.includes("color: rec.color || null, at: arrivedOn(pid, mapId) });"), [nw, fr, a1, a2, a3, a4, a5]);
+        && s1 === 500 && s2 === 500 && s3 === 950 && s4 === 0 && s5 === 70 && s6 === 0
+        && netS.includes("color: p.color || null, at: arriveAt(p.id, mapId, undefined, getActiveCampaign()) });") && netS.includes("color: rec.color || null, at: arrivedOn(pid, mapId, camp) });")
+        && netS.includes("camp.players[p.id].lastAt = atL;") && netS.includes("var atL = typeof arriveAt === 'function' ? arriveAt(p.id, p.location, undefined, camp) : Date.now();") && netS.includes("['charId', 'charName', 'lastMap', 'lastAt']).forEach(")
+        && cl.includes("if (!(typeof p.lastAt === 'number' && isFinite(p.lastAt) && p.lastAt > 0)) delete p.lastAt;"), [nw, fr, a1, a2, a3, a4, a5, s1, s2, s3, s4, s5, s6]);
     check('the faces overlap by some 40%, the first on top, with +N past four; pointed at or pressed they open a list over the panel (text nodes alone) whose press goes to that map and centres on that player\'s token; Escape puts it away; Settings picks the order; Help says it',
         sbS.includes("var chips = players.slice(0, PRES_SHOWN).map(function(p, pi) {") && sbS.includes("style=\"z-index:' + (PRES_SHOWN + 1 - pi) + '\"") && sbS.includes("data-map=\"' + esc(mapId) + '\"")
         && css.includes('.si-presence .si-pres + .si-pres:not(.si-pres-more) { margin-left: -7px; }') && !ps.includes('innerHTML')

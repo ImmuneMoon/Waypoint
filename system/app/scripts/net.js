@@ -685,7 +685,9 @@ function syncLastMaps() {
     Object.values(net.roster).forEach(function(p) {
         if (!p || !p.id || !p.location || net.forgotten[p.id]) return;
         camp.players[p.id] = camp.players[p.id] || { name: p.name || p.id };
+        var atL = typeof arriveAt === 'function' ? arriveAt(p.id, p.location, undefined, camp) : Date.now();   // 1.6.2 (the owner: "lets have it track that then"): when they arrived there, kept with the campaign
         camp.players[p.id].lastMap = p.location;
+        camp.players[p.id].lastAt = atL;
     });
 }
 // Who is on a given map — for the Maps sidebar presence dots. Connected players (live) plus
@@ -693,21 +695,23 @@ function syncLastMaps() {
 // stripped for players, and net.roster is the host's. Each: { id, name, avatar, connected, hue }.
 // [lookcheck:arrive-start]
 // 1.6.2 (the owner: a map's faces sorted by who arrived last or first): when each player arrived on the map they stand on, noted the first time
-// this machine sees them there, kept in its memory alone and never sent. A player last seen on a map keeps the time they arrived there
+// this machine sees them there. The GM's own record of the player keeps it as lastAt beside lastMap (the owner: "lets have it track that then"),
+// saved with the campaign and never sent, so a reload or a player's return to the same map keeps the time they first arrived there
 var _arrive = Object.create(null);
-function arriveAt(pid, mapId, now) { var a = _arrive[pid]; if (!a || a.map !== mapId) a = _arrive[pid] = { map: mapId, at: typeof now === 'number' ? now : Date.now() }; return a.at; }
-function arrivedOn(pid, mapId) { var a = _arrive[pid]; return a && a.map === mapId ? a.at : 0; }
+function savedAt(camp, pid, mapId) { var r = camp && camp.players && typeof camp.players === 'object' && Object.prototype.hasOwnProperty.call(camp.players, pid) ? camp.players[pid] : null; var t = r && r.lastMap === mapId ? Number(r.lastAt) : 0; return t > 0 && isFinite(t) ? t : 0; }
+function arriveAt(pid, mapId, now, camp) { var a = _arrive[pid]; if (!a || a.map !== mapId) a = _arrive[pid] = { map: mapId, at: savedAt(camp, pid, mapId) || (typeof now === 'number' ? now : Date.now()) }; return a.at; }
+function arrivedOn(pid, mapId, camp) { var a = _arrive[pid]; return a && a.map === mapId ? a.at : savedAt(camp, pid, mapId); }
 // [lookcheck:arrive-end]
 net.playersOnMap = function(mapId) {
     if (!mapId) return [];
     var out = [], seen = {};
     Object.values(net.roster || {}).forEach(function(p) {
-        if (p && p.id && p.location === mapId) { out.push({ id: p.id, name: p.name || p.id, avatar: p.avatar, connected: true, hue: playerHue(p.id), color: p.color || null, at: arriveAt(p.id, mapId) }); seen[p.id] = 1; }
+        if (p && p.id && p.location === mapId) { out.push({ id: p.id, name: p.name || p.id, avatar: p.avatar, connected: true, hue: playerHue(p.id), color: p.color || null, at: arriveAt(p.id, mapId, undefined, getActiveCampaign()) }); seen[p.id] = 1; }
     });
     var camp = getActiveCampaign();
     if (camp && camp.players) Object.keys(camp.players).forEach(function(pid) {
         var rec = camp.players[pid];
-        if (rec && !seen[pid] && rec.lastMap === mapId) out.push({ id: pid, name: rec.name || pid, avatar: null, connected: false, hue: playerHue(pid), color: rec.color || null, at: arrivedOn(pid, mapId) });
+        if (rec && !seen[pid] && rec.lastMap === mapId) out.push({ id: pid, name: rec.name || pid, avatar: null, connected: false, hue: playerHue(pid), color: rec.color || null, at: arrivedOn(pid, mapId, camp) });
     });
     return out;
 };
@@ -7819,7 +7823,7 @@ function mergeRecords(camp, oldId, keptId, sel) {
     var o = camp.players[oldId] || {}, k = camp.players[keptId] || {}, nr = Object.assign({}, k);
     var mv = moveOwned(camp, oldId, keptId, sel);
     mv.kept = mv.leftChars + mv.leftToks > 0; mv.bound = !mv.kept || !bindStays(camp, o, oldId);
-    (mv.kept ? (mv.bound ? ['charId', 'charName'] : []) : ['charId', 'charName', 'lastMap']).forEach(function(f) { if (o[f] !== undefined && o[f] !== null && o[f] !== '') nr[f] = o[f]; });
+    (mv.kept ? (mv.bound ? ['charId', 'charName'] : []) : ['charId', 'charName', 'lastMap', 'lastAt']).forEach(function(f) { if (o[f] !== undefined && o[f] !== null && o[f] !== '') nr[f] = o[f]; });
     if (mv.kept) {
         if (mv.bound) { delete o.charId; delete o.charName; }
     } else {

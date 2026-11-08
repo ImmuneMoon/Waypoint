@@ -15809,6 +15809,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && dark.placed[0][0].gmOnly === true && dark.placed[0][0].notes === '' && dark.placed[0][0].direct === null && client.r === null && client.placed.length === 0
             && armed && armed.launch === true && armed.rowId === 'w_tube' && hitP.length === 1 && hitP[0][1] === 'm_1' && hitP[0][0].x === 330 && hitP[0][0].direct === 't_foe' && hidHit === null && noMap === null,
             JSON.stringify([L.err, onFoe, onGround, empty, plain, dark, client, armed, hitP, hidHit, noMap]));
+        {   // 1.6.2 (the CORE session): Bursts at its target, the row's own blast at the target (own), on a list with no chamber too
+            if (!L.err) camp.chars.c_kael.values.f_gear.push({ id: 'w_own', defId: 'i_fizz', qty: 1 });
+            out.placed.length = 0; const ownHit = L.err ? null : win.wpLaunchHit({ charId: 'c_kael', fieldId: 'f_gear', rowId: 'w_own', tid: 't_foe', mapId: 'm_1', own: true }), ownP = out.placed.slice();
+            out.placed.length = 0; const notOwn = L.err ? 1 : win.wpLaunchHit({ charId: 'c_kael', fieldId: 'f_gear', rowId: 'w_own', tid: 't_foe', mapId: 'm_1' });
+            check('1.6.2 a hit of a roll ticked Bursts at its target puts the row\'s own blast down at the target as a launched round is, striking it, and without own the row that fired nothing puts nothing down',
+                !L.err && !!ownHit && ownP.length === 1 && ownP[0][0].name === 'Fizz burst' && ownP[0][0].direct === 't_foe' && ownP[0][0].x === 330 && notOwn === null, JSON.stringify([ownHit, ownP, notOwn]));
+        }
         check('1.5.9 Chambers from, the board\'s own click (whiteboard.js, pinned): an armed Launch is put down by launchAt before a throw is, and a blast that goes off skips the throw\'s row, roll and scatter',
             wbL.includes("if (ctx.launch) { if (typeof launchAt === 'function') launchAt({ x: x, y: y, charId: ctx.charId, fieldId: ctx.fieldId, rowId: ctx.rowId }, map);") && wbL.indexOf('if (ctx.launch)') < wbL.indexOf("if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') { if (window.wpNet.throwReq)")
             && wbL.includes('var tr = opts.goOff ? null : throwRowOf(camp, opts)') && wbL.includes('if (opts.goOff || !rules || !thrC || !tr || !S || !F) return out;'));
@@ -16067,7 +16074,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && hidT.n === 0 && hidT.toasts.length === 1 && offMap.n === 0 && offMap.toasts.length === 1 && protoM.n === 0 && protoM.toasts.length === 1 && client.n === 0 && client.toasts.length === 0,
             jm([noFl, noTid, hidT, offMap, protoM, client]));
         check('1.5.9 (es) a hit still goes off at once (whiteboard.js, pinned): a launched round that hits goes through launchAt with no fuse, and a blast that goes off waits for the fuse only where the launch asks it (fuseOk), its notice saying it lands where it waits; launchAt hands a miss\'s own point, whom it strikes and its words on',
-            wbM.includes("var c = tokenCentre(t); return launchAt({ charId: o.charId, fieldId: o.fieldId, rowId: o.rowId, x: c.x, y: c.y, margin: o.margin }, map);") && wbM.includes("var fz = (!opts.goOff || opts.fuseOk === true) && rules && rules.fuse === 'turn'")
+            wbM.includes("var c = tokenCentre(t); return launchAt({ charId: o.charId, fieldId: o.fieldId, rowId: o.rowId, x: c.x, y: c.y, margin: o.margin, own: o.own === true }, map);") && wbM.includes("var fz = (!opts.goOff || opts.fuseOk === true) && rules && rules.fuse === 'turn'")
             && wbM.includes("said: opts.goOff && typeof opts.said === 'string' ? opts.said.slice(0, 400) : ''") && wbM.includes("(opts.goOff ? (b.name || 'A mine') + (pre && pre.fuse ? ' lands' : ' goes off')")
             && wbM.includes("if (typeof opts.said === 'string' && opts.said) po.said = opts.said; if (opts.fuse === true) po.fuseOk = true;"));
         // the System editor: the Combat tab's four lists (sheets.js blastBox and onBlastChange, sliced by the blastbox markers and run for real), the

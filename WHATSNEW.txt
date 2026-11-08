@@ -619,6 +619,8 @@ Writing planners and pages
   scale, and the radius the dice it rolls, so big guns reach further.
 - A roll or an action can set off the placed blast nearest the token, so a
   bad slip while disarming a mine sets it off.
+- A list roll can burst at its target: on a hit the row's own blast goes
+  off there, and on a miss it lands as its blast's flight says.
 - A change can land on a linked sheet, so a gunner spends the vehicle's
   power, or a rider the mount's endurance, and a roll bonus can cost it.
   A time rule and an action that runs each round or turn can do it too.

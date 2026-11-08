@@ -3880,6 +3880,18 @@ pendingChecks.push((async () => {
             ret = dr(exprX || '3d6 <= 10', { charId: 'c_a', row: { f: 'f_gear', r: 'w_t', i: 0 } }); } catch (e) { err = String(e && e.stack || e).slice(0, 400); }
         return { err, ret, c, cards, rd: camp.chars.c_a.values.f_gear[0].rd }; };
     const gHit = runG(3), gMiss = runG(5), gD1 = runG(1, sysD, '1d20 + 5 >= 15'), gFum = runG(6);
+    {   // 1.6.2 (the CORE session): a list roll ticked Bursts at its target sets the row's own blast off at its target on a hit, and lands it by its area's flight on a miss, on both roads
+        const rawBh = { v: 1, name: 'B', combat: { checks: 'under3d6' }, fields: [{ id: 'f_gear', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { rolls: [{ label: 'Fire', formula: '3d6 <= 10', blastHit: true }, { label: 'Hurt', formula: '3d6', dmg: true, blastHit: true }] } }],
+            items: [{ id: 'i_las', name: 'Big Laser', vis: 'all', damage: '8d6', area: { ft: 18, flight: 'line' } }], sheet: { sections: [] } };
+        const sysBh = Sx.cleanSystem(rawBh, { F: Fx, gmView: true }), plBh = Sx.cleanSystem(rawBh, { F: Fx, gmView: false }), rowsB = () => [{ id: 'w_t', defId: 'i_las', qty: 1 }];
+        const bQh = runQ(0, 3, true, sysBh, '3d6 <= 10', rowsB()), bQm = runQ(0, 5, true, sysBh, '3d6 <= 10', rowsB()), bGh = runG(3, sysBh, '3d6 <= 10', rowsB()), bGm = runG(5, sysBh, '3d6 <= 10', rowsB());
+        check('1.6.2 a list roll ticked Bursts at its target, on the roll-req branch and net.diceRoll, run for real: a hit sets the row\'s own blast off at the roller\'s target, named as its own row, and a miss hands it to the area\'s On a miss, launched with the margin; both views keep the tick, never beside Damage',
+            plBh.fields[0].list.rolls[0].blastHit === true && !('blastHit' in plBh.fields[0].list.rolls[1])
+            && !bQh.err && bQh.c.miss.length === 0 && j(bQh.c.hit) === j([{ charId: 'c_a', fieldId: 'f_gear', rowId: 'w_t', tid: 't_foe', mapId: 'm1', margin: bQh.c.hit[0] && bQh.c.hit[0].margin, own: true }])
+            && !bQm.err && bQm.c.hit.length === 0 && bQm.c.miss.length === 1 && bQm.c.miss[0].own === true && bQm.c.miss[0].margin === -5
+            && !bGh.err && bGh.c.hit.length === 1 && bGh.c.hit[0].own === true && bGh.c.hit[0].rowId === 'w_t' && !bGm.err && bGm.c.miss.length === 1 && bGm.c.miss[0].own === true,
+            j([plBh.fields[0].list.rolls, bQh, bQm, bGh.c, bGm.c]));
+    }
     // 1.6.0: a list roll's Then moves the sheet's money, on the host (roll-req and net.diceRoll, run for real): the card goes to its owner, and too little refuses a player's whole Then in words and passes under the GM's hand
     const sysMo = Sx.cleanSystem({ v: 1, name: 'Mo', combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: '', checks: 'under3d6' }, sheet: { sections: [] }, fields: [{ id: 'f_ch', key: 'Chips', label: 'Chips', kind: 'item-list', vis: 'all', edit: 'owner', list: { multi: true, lvl: { label: 'Held', min: 0, max: 100000, step: 0.01, def: 0 }, money: '@lvl' } },
         { id: 'f_gear', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Cost', label: 'Cost' }], counters: [{ key: 'Done', label: 'Done' }], rolls: [{ label: 'Mend', formula: '3d6 <= 10', then: [{ money: '0 - Row.Cost', when: 'hit' }, { c: 'Done', formula: '1', add: true, when: 'hit' }] }] } }],
@@ -3949,7 +3961,7 @@ pendingChecks.push((async () => {
         j([gD1, gFum]));
     check('1.5.9 (es) a launched round lands by the GM\'s own roll\'s verdict (net.diceRoll, run for real): a hit that fires calls wpLaunchHit alone, a miss wpLaunchMiss alone with the verdict\'s margin; wired after the hit\'s line in both places, through typeof',
         !gHit.err && gHit.c.hit.length === 1 && gHit.c.miss.length === 0 && !gMiss.err && gMiss.c.hit.length === 0 && gMiss.c.miss.length === 1 && gMiss.c.miss[0].margin === -5 && gMiss.c.miss[0].tid === 't_foe'
-        && (srcL.match(/typeof window\.wpLaunchMiss === 'function'\) window\.wpLaunchMiss\(/g) || []).length === 2,
+        && (srcL.match(/typeof window\.wpLaunchMiss === 'function'\) window\.wpLaunchMiss\(/g) || []).length === 4, /* 1.6.2: and the two of Bursts at its target, moved on purpose */
         j([gHit, gMiss]));
 })());
 

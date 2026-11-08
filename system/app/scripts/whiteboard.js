@@ -5453,9 +5453,9 @@ window.wpFitToGrid = fitToGrid;
   function launchRowOf(camp, opts) {   // the launcher's row on this machine's own copy and the round it puts down: { ch, f, row, def, area }
       var S = window.wpSystemCore, sys = camp && camp.system; if (!S || !sys || !opts || typeof opts.charId !== 'string' || typeof opts.fieldId !== 'string' || typeof opts.rowId !== 'string') return null;
       var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, opts.charId) ? camp.chars[opts.charId] : null; if (!ch) return null;
-      var f = S.fieldById(sys, opts.fieldId); if (!f || f.kind !== 'item-list' || !f.list || !f.list.chamber) return null;
+      var f = S.fieldById(sys, opts.fieldId); if (!f || f.kind !== 'item-list' || !f.list || (!f.list.chamber && opts.own !== true)) return null;   // 1.6.2 (the CORE session): own, the row's own blast (a list roll ticked Bursts at its target)
       var row = (ch.values && Array.isArray(ch.values[f.id]) ? ch.values[f.id] : []).filter(function(r) { return r && r.hid !== 1 && S.rowIdOf(r) === opts.rowId; })[0], sht = opts.shot && typeof opts.shot === 'object' ? opts.shot : null; if (!row && !sht) return null;   // 1.6.0 A burst: the host names the very round, in firing order
-      var cp = sht ? sht : row.fd && typeof row.fd === 'object' ? row.fd : Array.isArray(row.rd) && row.rd[0] && typeof row.rd[0] === 'object' ? row.rd[0] : null; if (!cp) return null;
+      var cp = sht ? sht : opts.own === true ? row : row.fd && typeof row.fd === 'object' ? row.fd : Array.isArray(row.rd) && row.rd[0] && typeof row.rd[0] === 'object' ? row.rd[0] : null; if (!cp) return null;
       var rd = S.rowDef(sys, cp), def = rd && rd.def; if (!def || !def.area || typeof def.area !== 'object') return null;
       return { ch: ch, f: f, row: row, def: def, area: def.area };
   }
@@ -5466,7 +5466,7 @@ window.wpFitToGrid = fitToGrid;
       var lr = launchRowOf(camp, opts); if (!lr) { toast('Nothing to put down there: no round fired or chambered on that row has a blast.'); return null; }
       var hasD = Object.prototype.hasOwnProperty.call(opts, 'direct'), aimT = hasD ? null : tokenAtPoint(map, x, y, true), aim = aimT ? tokenCentre(aimT) : { x: x, y: y }, d = lr.def, a = lr.area, gm = d.vis === 'gm' || lr.f.vis === 'gm';   // the character token clicked, else the point; 1.5.9 (es): a miss names its own point and whom it strikes
       var dir = hasD ? (typeof opts.direct === 'string' ? opts.direct : null) : aimT ? aimT.id : null, po = { goOff: true, launched: true, x: aim.x, y: aim.y, ft: a.ft, name: a.name || d.name || '', by: lr.ch.name || '', charId: opts.charId, fieldId: lr.f.id, rowId: opts.rowId, damage: d.damage || '', gmOnly: gm, direct: dir, dtype: a.type, ad: a.ad, loc: a.loc, notes: gm ? '' : d.notes, icon: d.icon, frag: a.frag, fragType: a.fragType, aff: a.aff };   // 1.5.9 (es): the round's own fragmentation and afflictions
-      var lsS = window.wpSystemCore, lsF = lsS && typeof lsS.fieldById === 'function' && lr.f.list.chamber && typeof blastStats === 'function' ? lsS.fieldById(camp.system, lr.f.list.chamber.from) : null; if (lsF) Object.assign(po, blastStats(camp.system, lsF, d));   // 1.6.0: by the list its round comes from
+      var lsS = window.wpSystemCore, lsF = lsS && typeof lsS.fieldById === 'function' && lr.f.list.chamber && typeof blastStats === 'function' ? lsS.fieldById(camp.system, lr.f.list.chamber.from) : null; if (lsF) Object.assign(po, blastStats(camp.system, lsF, d)); else if (opts.own === true && typeof blastStats === 'function') Object.assign(po, blastStats(camp.system, lr.f, d));   // 1.6.0: by the list its round comes from; 1.6.2: a row's own blast by its own list
       if (typeof opts.said === 'string' && opts.said) po.said = opts.said; if (opts.fuse === true) po.fuseOk = true;
       var fsL = typeof blastStats === 'function' ? blastStats(camp.system, lr.f, d) : null; if (fsL) { if (typeof fsL.fills === 'number' && fsL.fills > 0) po.fills = fsL.fills; if (fsL.noDrop === true) po.noDrop = true; if (typeof fsL.iscale === 'number' && fsL.iscale > 0) po.iscale = fsL.iscale; }   // 1.6.0: what its list says of it, as a throw's row is read
       if (typeof opts.margin === 'number' && isFinite(opts.margin)) po.atkM = opts.margin; if (opts.shot) po.defKey = burstKey(opts);   // 1.6.0: a blast's own Defense roll: the attack's margin, read by its direct target, and the burst whose rounds take one roll
@@ -5580,7 +5580,7 @@ window.wpFitToGrid = fitToGrid;
       }
       if (!t) return null;
       if (o.shot) { if (!launchRowOf(camp, o)) return null; var cS = tokenCentre(t); return launchAt({ charId: o.charId, fieldId: o.fieldId, rowId: o.rowId, x: cS.x, y: cS.y, shot: o.shot, margin: o.margin }, map); }   // 1.6.0 A burst: the very round, and one with no blast of its own puts nothing down
-      var c = tokenCentre(t); return launchAt({ charId: o.charId, fieldId: o.fieldId, rowId: o.rowId, x: c.x, y: c.y, margin: o.margin }, map);
+      var c = tokenCentre(t); return launchAt({ charId: o.charId, fieldId: o.fieldId, rowId: o.rowId, x: c.x, y: c.y, margin: o.margin, own: o.own === true }, map);
   };
   // [vehiclecheck:fly-start]
   // 1.6.2 (vehicles, fold (d), things in flight; the core's D1 to D7): what an act launches is a small token of its own on the launcher's map, with no sheet. Its figures
@@ -5702,7 +5702,7 @@ window.wpFitToGrid = fitToGrid;
       var nm = lr.area.name || lr.def.name || 'the round', ends = shotEnds(camp, o), map = ends.map, wb = ends.wb, t = ends.t, sh = ends.sh;   // 1.6.0 A burst: its own memory stands in for a token gone since the attack
       if (!ends.aim || !ends.from) { toast(nm.charAt(0).toUpperCase() + nm.slice(1) + ' missed, with no target and shooter on one map to tell where it went. Place it with Launch on the sheet.'); return null; }
       var bl = camp.system && camp.system.combat && camp.system.combat.blast && typeof camp.system.combat.blast === 'object' ? camp.system.combat.blast : {}, ln = bl.launch && typeof bl.launch === 'object' ? bl.launch : {};
-      var sc = ends.from, aim = ends.aim, mg = BC.missOf({ kind: 'check', pass: false, margin: o.margin }) || 1, base = { charId: o.charId, fieldId: o.fieldId, rowId: o.rowId, shot: o.shot };
+      var sc = ends.from, aim = ends.aim, mg = BC.missOf({ kind: 'check', pass: false, margin: o.margin }) || 1, base = { charId: o.charId, fieldId: o.fieldId, rowId: o.rowId, shot: o.shot, own: o.own === true };
       var dYd = typeof yardsOn === 'function' ? yardsOn(map, sc, aim) : Math.hypot(aim.x - sc.x, aim.y - sc.y) / 50, dPx = Math.hypot(aim.x - sc.x, aim.y - sc.y), px = dYd > 1e-9 && dPx > 0 ? dPx / dYd : 50;   // board pixels to a yard on that map, as it reads the distance fired
       var lenW = function(yd) { return typeof rulerLen === 'function' && typeof rulerUnitNow === 'function' ? rulerLen(yd, rulerUnitNow()) : Math.round(yd * 10) / 10 + ' yd'; };
       if (o.crit === 'fumble' && ln.fumble === 'none') { toast('A critical failure: ' + nm + ' misfires and goes nowhere. The round is spent.'); return null; }

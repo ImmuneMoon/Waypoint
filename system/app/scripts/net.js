@@ -10574,7 +10574,7 @@ function startHosting(forceFresh) {
         var hiEl = ui('netHostInfo'); if (hiEl && typeof hiEl.scrollIntoView === 'function') hiEl.scrollIntoView({ block: 'start' });   // the live test, 2026-10-30: the code came up at the foot of a long window with the words under it cut off
         syncSessionButtons();
         renderRoster();
-        toast(resumed ? 'Hosting resumed with the same room code — players can rejoin as before.' : 'Hosting started. Share the room code.');
+        toast(resumed ? 'Hosting resumed with the same room code. Players can rejoin as before.' : 'Hosting started. Share the room code.');
         if (typeof window !== 'undefined' && window.wpRecord) window.wpRecord.start(getActiveCampaign(), showCode(code), !!resumed);   // 1.6.0: the game record opens with the table
         logEvent('session', (resumed ? 'Session resumed' : 'Session started') + ' — room ' + showCode(code));
         var campH = getActiveCampaign(), Sh = SC(); if (campH && campH.system && Sh && Sh.stampRows) Sh.stampRows(campH.system, campH.chars || {});   // Stage 6: a legacy row of a GM-only item gets its own id before anything is sent

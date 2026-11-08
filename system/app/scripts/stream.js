@@ -40,7 +40,7 @@ if (on) {
         var sig = list.map(function(c) { return c.key + ':' + c.name + '@' + c.map; }).join('|') + '#' + charFocus;
         if (charSel.dataset.sig === sig) return;
         charSel.dataset.sig = sig;
-        var html = '<option value="">\u2014 no one \u2014</option>';
+        var html = '<option value="">No one</option>';
         list.forEach(function(c) { html += '<option value="' + esc(c.key) + '"' + (c.key === charFocus ? ' selected' : '') + '>' + (c.name + ' (' + c.map + ')').replace(/[<>&]/g, '') + '</option>'; });
         charSel.innerHTML = html;
         if (sel) { sel.disabled = !!charFocus; sel.title = charFocus ? 'The map follows the focused character; clear "Focus on" to pick a map' : 'Follow the GM\'s current map, or focus one map until you change it'; }

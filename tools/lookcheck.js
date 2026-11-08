@@ -3904,7 +3904,7 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         && cl.includes("if (!(typeof p.lastAt === 'number' && isFinite(p.lastAt) && p.lastAt > 0)) delete p.lastAt;"), [nw, fr, a1, a2, a3, a4, a5, s1, s2, s3, s4, s5, s6]);
     check('the faces overlap by some 40%, the first on top, with +N past four; pointed at or pressed they open a list over the panel (text nodes alone) whose press goes to that map and centres on that player\'s token; Escape puts it away; Settings picks the order; Help says it',
         sbS.includes("var chips = players.slice(0, PRES_SHOWN).map(function(p, pi) {") && sbS.includes("style=\"z-index:' + (PRES_SHOWN + 1 - pi) + '\"") && sbS.includes("data-map=\"' + esc(mapId) + '\"")
-        && css.includes('.si-presence .si-pres + .si-pres:not(.si-pres-more) { margin-left: -7px; }') && !ps.includes('innerHTML')
+        && css.includes('.si-presence .si-pres + .si-pres:not(.si-pres-more) { margin-left: -7px; }') && css.includes('.si-pres.off { filter: grayscale(.7) brightness(.55); }') && !/\.si-pres\.off \{[^}]*opacity/.test(css) && !ps.includes('innerHTML')
         && ps.includes("if (window.wpFocusPlayerOn) window.wpFocusPlayerOn(b.dataset.pid, b.dataset.map, b.dataset.name);") && wbSrc.includes('window.wpFocusPlayerOn = focusPlayerOn;')
         && escS.includes("'trkMenu', 'presPop'];") && ix.includes('<select id="setPresOrder"') && setS.includes("localStorage.setItem('wp_presOrder', 'first')")
         && ix.includes('Up to four faces show, overlapping. Point at them, or press them, for a list of everyone on that map.'));

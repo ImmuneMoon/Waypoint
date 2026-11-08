@@ -10824,6 +10824,8 @@ function tableMenuParts(e, role) {
         if (scnPg) html += '<div class="menu-item cm-session" data-act="scene" data-id="' + esc(scnPg.id) + '" title="This map\'s scene page. Shift+P opens it too. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself."><i class="wib wi-mask"></i> Scene page: ' + esc(scnPg.title) + '</div>';
         var amPin = getActiveMap(), isPinned = !!(camp && amPin && Array.isArray(camp.pinnedMaps) && camp.pinnedMaps.indexOf(amPin.id) >= 0);
         if (amPin && amPin.type === 'map' && window.wpSetups) html += '<div class="menu-item cm-session" data-act="setups" title="Named saves of this map\u2019s tokens, fog and lights, restored from a list">Set-ups\u2026</div>';   // backlog 31
+        var scSys = camp && camp.system && Array.isArray(camp.system.scenes) ? camp.system.scenes : [], scNow = amPin && amPin.meta && typeof amPin.meta.scene === 'string' ? amPin.meta.scene : '';   // 1.6.2: the scene's channel on this map
+        if (amPin && amPin.type === 'map' && scSys.length && window.wpCanPersistLocal && window.wpCanPersistLocal()) { html += head('Scene'); scSys.forEach(function(sc, i) { if (sc && typeof sc.label === 'string') html += '<div class="menu-item cm-session" data-act="scch" data-k="' + i + '" title="Rolls read the scene as this channel">' + (sc.key === scNow ? '<i class="wib wi-check"></i> ' : '') + esc(sc.label) + '</div>'; }); if (scNow) html += '<div class="menu-item cm-session" data-act="scend" title="No channel, and every reaction kept on this map goes">End the scene</div>'; }
         if (amPin && amPin.type === 'map') html += '<div class="menu-item cm-session" data-act="pin" title="Pinned maps sit at the top of the Maps list"><i class="wib wi-pin"></i> ' + (isPinned ? 'Unpin this map' : 'Pin this map') + '</div>';
         if (role !== 'host') html += '<div class="menu-item cm-session" data-act="log"><i class="wib wi-scroll"></i> Game Record\u2026</div>';
         html += '<div class="menu-divider"></div>';
@@ -10897,6 +10899,10 @@ function tableMenuParts(e, role) {
                 else if (act === 'combat-next') { var amN = getActiveMap(), fN = amN ? stripFightId(amN.id) : null; if (fN) n.fightStep(fN, 1); }
                 else if (act === 'combat-prev') { var amP = getActiveMap(), fP = amP ? stripFightId(amP.id) : null; if (fP) n.fightStep(fP, -1); }
                 else if (act === 'combat-end') { var amE = getActiveMap(), fE = amE ? stripFightId(amE.id) : null; if (fE) n.fightEnd(fE); }
+                else if (act === 'scch' || act === 'scend') {   // 1.6.2: the scene's channel on this map, or its end
+                    var amS = getActiveMap(), cS = getActiveCampaign(), lS = cS && cS.system && Array.isArray(cS.system.scenes) ? cS.system.scenes : [], kS = act === 'scch' && /^\d{1,2}$/.test(it.dataset.k || '') ? lS[Number(it.dataset.k)] : null;
+                    if (amS) { amS.meta = amS.meta || {}; if (kS && typeof kS.key === 'string') amS.meta.scene = kS.key; else { delete amS.meta.scene; (amS.whiteboard || []).forEach(function(w) { if (w && w.reaction !== undefined) delete w.reaction; }); } if (window.wpStepLog) window.wpStepLog('scene v1', act === 'scch' ? 'channel' : 'end', {}); save(); render(); toast(kS ? 'The scene is ' + kS.label + '.' : 'The scene is over.'); }
+                }
                 else if (act === 'pin') {
                     var campP = getActiveCampaign(), amP = getActiveMap(); if (!campP || !amP) return;
                     campP.pinnedMaps = (Array.isArray(campP.pinnedMaps) ? campP.pinnedMaps : []).filter(function(id) { return campP.items[id]; });

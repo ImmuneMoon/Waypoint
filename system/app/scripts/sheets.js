@@ -9562,6 +9562,7 @@ function rollRow(r) {
     if (isApply) { var ea0 = r.each === 'round' || r.each === 'turn' || r.each === 'turnEnd' ? r.each : r.round === true ? 'round' : ''; top.appendChild(select('sys-roll-each', [['', 'Only when pressed'], ['round', 'Also each round'], ['turn', 'Also at its turn\u2019s start'], ['turnEnd', 'Also at its turn\u2019s end']], ea0, 'Runs during a combat as well: on every new round (every character in it, as parries counted back to 0), or when its character\u2019s turn begins (a bleed, a reaction back); pressed, it runs now')); if (ea0) top.appendChild(select('sys-roll-by', [['', 'automatically'], ['gm', 'when the GM presses it'], ['owner', 'when its player presses it']], r.by === 'gm' || r.by === 'owner' ? r.by : '', 'Automatically, or as a reminder in chat with a Run button: for you, or for the character\u2019s player (yours when they are not at the table, or the action is GM only)')); }   // Stage 6 HUD G10 + turn-based combat T2b
     if (!isApply && !r.init) { var eaR = r.each === 'round' || r.each === 'turn' || r.each === 'turnEnd' ? r.each : ''; top.appendChild(select('sys-roll-each', [['', 'Only when pressed'], ['round', 'Also due each round'], ['turn', 'Also due at its turn\u2019s start'], ['turnEnd', 'Also due at its turn\u2019s end']], eaR, 'Due during a combat as well: a reminder in chat with a Roll button, on every new round or when its character\u2019s turn begins (an HT roll to stay awake, say). It never rolls by itself')); if (eaR) top.appendChild(select('sys-roll-by', [['owner', 'for its player'], ['gm', 'for the GM']], r.by === 'gm' ? 'gm' : 'owner', 'Whose reminder it is: the character\u2019s player (yours when they are not at the table, or the roll is GM only), or yours')); }   // 1.5.9 (book es/et plan 4b): a roll at its turn's start, as a reminder card
     if (!isApply && !r.init && typeof checkLabel === 'function') top.appendChild(checkLabel('sys-roll-rsist', r.resist === true, 'Resists an attempt', 'This roll answers an attempt made on its character. It can read how far the attempt succeeded, to be that much harder.'));   // 1.6.0 (B2)
+    if (!r.init && typeof checkLabel === 'function' && (r.keep === 'scene' || (Array.isArray(draft.scenes) && draft.scenes.length))) top.appendChild(checkLabel('sys-roll-keepscene', r.keep === 'scene', 'Kept for the scene', 'What it comes to stays on the one it was rolled at, for later rolls to read as Target.Reaction, until the scene ends. Such as a reaction rolled once for a meeting'));   // 1.6.2
     if (!r.init && typeof checkLabel === 'function') top.appendChild(checkLabel('sys-roll-anytime', r.free === true, 'Any time', 'Called for off a character\u2019s turn, whatever Off a character\u2019s turn says, as a check you ask for. A roll that resists, the initiative roll, a roll due at a turn or a round and a roll from a card need no tick'));   // 1.6.0
     if (!isApply && typeof resistBySel === 'function') top.appendChild(resistBySel('sys-roll-rsby', r.resistBy, typeof draft !== 'undefined' ? draft : null));   // 1.6.0 (B2)
     if (!isApply && !r.init && typeof areaBox === 'function') top.appendChild(areaBox(r, (draft.rolls || []).filter(function(x) { return x && x.dmg === true && x.id !== r.id; }).map(function(x) { return [x.id, x.label || x.id]; })));   // 1.6.0: a line it hits
@@ -11003,6 +11004,7 @@ function combatBody() {
     postureBox(box, cm);   // conditions C3: the system's own postures
     tp('arcs'); if (typeof arcsBox === 'function') arcsBox(box, cm);   // 1.6.2 (vehicles, fold (b), rebuilt): the system's own arcs
     tp('mapkinds'); if (typeof mapKindsBox === 'function') mapKindsBox(box);   // 1.6.2 (vehicles, fold (g)): the system's map kinds
+    tp('scenes'); if (typeof scenesBox === 'function') scenesBox(box);   // 1.6.2: a scene's channels
     if (window.wpSysUi) window.wpSysUi.combatDrawn(box);   // 1.6.2: into a pane a topic
 }
 // Initiative O2 (docs/TURN_ORDER_PLAN.md; the owner's note: 3d6 systems order by Basic Speed and roll only to settle ties, d20 systems roll and
@@ -11905,6 +11907,23 @@ function arcsBox(box, cm) {
 // each a name, the cell a map of that kind starts at, and the factors formulas read on it. Their own listeners, so no handler of the tab reads them. A
 // new kind's or factor's short name follows its name until the editor is closed, and stays after
 var MAPKIND_UNITS = [['yd', 'yards'], ['ft', 'feet'], ['m', 'metres'], ['km', 'kilometres'], ['mi', 'miles']];
+// 1.6.2 (the owner, by prompt: "The scene carries it"): the channels a scene may be in, each a name whose short name is made once from it
+function scenesBox(box) {
+    var wrap = el('div', 'sys-holds sys-scenes'), list = Array.isArray(draft.scenes) ? draft.scenes : null, SCk = window.wpSystemCore || {}, max = SCk.SCENE_MAX || 8, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
+    var keyFor = function(a, lb) { var k = typeof SCk.arcKey === 'function' ? SCk.arcKey(lb) : '', base = k, n = 2; while (k && (list || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };
+    wrap.appendChild(el('div', 'sys-light-head', 'Scene channels'));
+    wrap.appendChild(el('div', 'sys-note', 'How a scene reaches the one listening, such as In person, Seen, Heard or Written. You pick it from a map\u2019s right-click menu, and a roll reads it. A roll ticked Kept for the scene keeps what it came to on the one it was rolled at, for later rolls.'));
+    (list || []).forEach(function(s, i) {
+        var rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-scene-label field', s.label || '', 'Its name, such as In person', 'In person');
+        nm.addEventListener('input', function() { s.label = nm.value.slice(0, LIMITS.label); if (s._new || !s.key) s.key = keyFor(s, s.label); ch(); }); rw.appendChild(nm);
+        var rm = el('button', 'tool ghost sys-btn sys-scene-rm', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this channel'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.scenes; ch(true); }); rw.appendChild(rm);
+        wrap.appendChild(rw);
+    });
+    var add = el('button', 'tool ghost sys-btn sys-scene-add', '+ Channel'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'A way a scene reaches the one listening, such as Heard only';
+    add.addEventListener('click', function() { if (!Array.isArray(draft.scenes)) draft.scenes = []; list = draft.scenes; if (list.length >= max) return; list.push({ label: '', _new: true }); ch(true); setTimeout(function() { var nb = document.querySelectorAll('#systemModal .sys-scene-label'); if (nb.length) nb[nb.length - 1].focus(); }, 0); });
+    var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
+    box.appendChild(wrap);
+}
 function mapKindsBox(box) {
     var wrap = el('div', 'sys-holds sys-mapkinds'), list = Array.isArray(draft.mapKinds) ? draft.mapKinds : null, SCk = window.wpSystemCore || {}, max = SCk.MAPKIND_MAX || 8, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
     var keyFor = function(arr, a, lb) { var k = typeof SCk.arcKey === 'function' ? SCk.arcKey(lb) : '', base = k, n = 2; while (k && (arr || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };
@@ -14557,6 +14576,7 @@ function onChange(e) {
         else if (c.indexOf('sys-roll-evu') >= 0 || c.indexOf('sys-roll-evrest') >= 0 || c.indexOf('sys-roll-evwait') >= 0 || c.indexOf('sys-roll-ifu') >= 0 || c.indexOf('sys-roll-iffresh') >= 0 || c.indexOf('sys-roll-evask') >= 0 || c.indexOf('sys-roll-evhold') >= 0 || c.indexOf('sys-roll-ifhold') >= 0 || c.indexOf('sys-roll-tnote') >= 0) everyEdit(r, c, t);   // item 20 K5; backlog 152, fold 5: Waits in a fight, In a fight's unit and tick, Ask me first; 1.5.5: Only while its needs hold, in both rows
         else if (c.indexOf('sys-roll-mjdmg') >= 0) { if (t.checked) r.dmgMajor = true; else delete r.dmgMajor; }   // 1.6.0: Always a Major Wound
         else if (c.indexOf('sys-dmg-chk') >= 0) { if (t.checked) r.dmg = true; else { delete r.dmg; delete r.dmgMajor; } markDirty(); renderAll(); return; }   // chat cards: a damage roll
+        else if (c.indexOf('sys-roll-keepscene') >= 0) { if (t.checked) r.keep = 'scene'; else delete r.keep; }   // 1.6.2 Kept for the scene
         else if (c.indexOf('sys-roll-anytime') >= 0) { if (t.checked) r.free = true; else delete r.free; }   // 1.6.0 Any time
         else if (c.indexOf('sys-roll-rsist') >= 0) { if (t.checked) r.resist = true; else delete r.resist; markDirty(); renderAll(); return; }   // 1.6.0 (B2): the Resisted by lists follow
         else if (c.indexOf('sys-roll-rsby') >= 0) { if (t.value) { r.resistBy = t.value; if (Array.isArray(r.resistOr)) { r.resistOr = r.resistOr.filter(function(x) { return x !== t.value; }); if (!r.resistOr.length) delete r.resistOr; } } else { delete r.resistBy; delete r.resistOr; } markDirty(); renderAll(); return; }   // 1.6.0 (B2)   // 1.6.0 (the core's gap 5): Or resisted by follows it

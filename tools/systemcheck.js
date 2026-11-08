@@ -19993,6 +19993,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.2 a kind that goes round armour, with no option of its own (the CORE session\'s jet): a location\'s DR and a layer\'s at read each part by its own Blow.kind, so where they give 0 to the jet on an unsealed wearer it goes round the armour and wears nothing, a sealed wearer\'s armour stops it and wears, and in a blow of jet and burn the jet part goes round while the burn part is stopped and alone wears the coat',
             J(jets) === J([[true, 0, 10, 0], [true, 3, 7, 1], [true, 3, 17, 1]]), J(jets));
     }
+    {   // 1.6.2 Doesn't stack (the campaign build's stims; Ch14: two that raise the same thing give the larger bonus, never the sum), on invented data
+        const J = JSON.stringify, sysSt = cleanSystem({ v: 1, name: 'St', fields: [{ id: 'f_agi', key: 'AGI', label: 'Agility', kind: 'number' }, { id: 'f_fx', key: 'Effects', label: 'Effects', kind: 'effects' }],
+            effects: [{ id: 'e_alac', name: 'Adrenal Alacrity', mods: [{ f: 'f_agi', op: 'add', v: 2, stack: 'stim' }] }, { id: 'e_hyper', name: 'Hyper-Adrenal', mods: [{ f: 'f_agi', op: 'add', v: 4, stack: ' Stim ' }] },
+                { id: 'e_drill', name: 'Drill', mods: [{ f: 'f_agi', op: 'add', v: 1 }] }, { id: 'e_shake', name: 'Shakes', mods: [{ f: 'f_agi', op: 'add', v: -1, stack: 'stim' }, { f: 'f_agi', op: 'add', v: -2, stack: 'stim' }] }, { id: 'e_bad', name: 'Bad', mods: [{ f: 'f_agi', op: 'add', v: 1, stack: '9 nope' }] }] }, { F, gmView: true });
+        const on = ids => ({ id: 'c', values: { f_agi: 10, f_fx: ids.map((id, i) => ({ id: 'x_' + i, ref: id, on: true })) } }), agi = ids => S.makeResolver(sysSt, on(ids), F, null)('AGI');
+        const got = [agi(['e_alac']), agi(['e_hyper']), agi(['e_alac', 'e_hyper']), agi(['e_hyper', 'e_alac']), agi(['e_alac', 'e_hyper', 'e_drill']), agi(['e_shake']), agi(['e_alac', 'e_shake']), agi(['e_bad'])];
+        check('1.6.2 Doesn\'t stack: a change that adds keeps its kind of bonus as a word, trimmed, and none that is no word; of the changes on one figure that share a kind only the largest bonus counts, in either order (Adrenal Alacrity +2 and Hyper-Adrenal +4 give +4), a change with no kind still adds beside it, and penalties of a kind still add',
+            sysSt.effects[1].mods[0].stack === 'Stim' && !('stack' in sysSt.effects[4].mods[0]) && J(got) === J([12, 14, 14, 14, 15, 7, 9, 11]), J([got, sysSt.effects.map(e => e.mods)]));
+    }
     {   // 1.6.2 darkness steps (the CORE session's answer 7): the cleaner and the names
         const J = JSON.stringify, sysDk = cleanSystem({ v: 1, name: 'Dk', fields: [], dark: [{ label: 'Dim', pen: -1 }, { label: 'Pitch black', pen: -8.4 }, { label: 'Dim', pen: 3 }, { label: '' }] }, { F, gmView: true });
         const mapDk = { id: 'm', meta: { gridType: 'square' }, whiteboard: [] }, rcDk = S.rangeCtx(sysDk, mapDk, { id: 't', x: 0, y: 0, w: 50, h: 50 }, { id: 'n', x: 100, y: 0, w: 50, h: 50 }, { F });

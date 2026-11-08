@@ -9638,6 +9638,7 @@ function effectRow(d) {
             var amF = input('sys-fx-amtf field', typeof m.vf === 'string' ? m.vf : '', 'By a formula, in place of the number: the amount it adds or holds the value at, worked out for each character, such as -max(0, -MP) for 1 off each MP below 0. It reads the sheet with no effect applied, rolls no dice, and may not read a GM-only value', 'or by a formula'); amF.maxLength = LIMITS.formula; ln.appendChild(amF); if (typeof m.vf === 'string' && m.vf.trim()) am.disabled = true;
             if (d.val && m.op === 'add') { var pvL = el('label', 'sys-hover'), pvC = el('input'); pvC.type = 'checkbox'; pvC.className = 'sys-fxv-per'; pvC.checked = m.perVal === true; pvL.appendChild(pvC); pvL.appendChild(document.createTextNode(' Times its number')); pvL.title = 'This change is its amount times the effect’s number: Bleeding 3 with −1 here takes 3 off'; ln.appendChild(pvL); }   // 1.6.2
         }   // 1.6.0: Adds, At least or At most; CORE gap 12: by a formula
+        if (m.op === 'add') { var stI = input('sys-fx-stack field', typeof m.stack === 'string' ? m.stack : '', 'Doesn\u2019t stack: a word for its kind of bonus. Of the changes on one figure that share it, only the largest bonus counts, as two stims that raise Agility give the larger, never the sum. A penalty still adds. Empty: it adds as ever', 'Doesn\u2019t stack: kind'); stI.maxLength = 24; ln.appendChild(stI); }   // 1.6.2
         ln.appendChild(btnRow([['fxmoddel', 'Remove this change', '&times;']]));
         mods.appendChild(ln);
     });
@@ -14042,6 +14043,7 @@ function onInput(e) {
         else if (fc.indexOf('sys-fx-endrank') >= 0) { var erV = parseFloat(t.value); if (isFinite(erV)) fxd.endRank = erV; else delete fxd.endRank; }
         else if (fc.indexOf('sys-fx-notes') >= 0) fxd.notes = t.value.slice(0, LIMITS.noteText);
         else if (fc.indexOf('sys-fx-auto') >= 0) { var auV = t.value.slice(0, LIMITS.formula); if (auV.trim()) fxd.auto = auV; else delete fxd.auto; }   // conditions C4: the automatic formula (emptied: the key goes)
+        else if (fc.indexOf('sys-fx-stack') >= 0) { var mlnS = t.closest('.sys-fx-mod'), mmS = mlnS ? (fxd.mods || [])[+mlnS.dataset.mi] : null; if (mmS) { if (t.value.trim()) mmS.stack = t.value.slice(0, 24); else delete mmS.stack; } }   // 1.6.2 Doesn't stack
         else if (fc.indexOf('sys-fx-amtf') >= 0) { var mlnF = t.closest('.sys-fx-mod'), mmF = mlnF ? (fxd.mods || [])[+mlnF.dataset.mi] : null; if (mmF) { var vfV = t.value.slice(0, LIMITS.formula); if (vfV.trim()) { mmF.vf = vfV; mmF.v = 0; } else delete mmF.vf; var amN = mlnF.querySelector('.sys-fx-amt'); if (amN) amN.disabled = !!vfV.trim(); } }   // 1.6.0 (CORE gap 12): the amount by a formula (emptied: the number again)
         else if (fc.indexOf('sys-fx-amt') >= 0) { var mln = t.closest('.sys-fx-mod'), mm = mln ? (fxd.mods || [])[+mln.dataset.mi] : null; if (mm) mm.v = t.value === '' ? 0 : Number(t.value); }
         else if (fc.indexOf('sys-fx-mkey') >= 0) { var kln = t.closest('.sys-fx-mod'), km = kln ? (fxd.mods || [])[+kln.dataset.mi] : null; if (km) km.key = t.value.trim().slice(0, 40); }   // 1.5.8

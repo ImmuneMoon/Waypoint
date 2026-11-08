@@ -22678,6 +22678,26 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && shO.includes("else if (v === 'setoff') { ch.setOff = true;") && (shO.split("'Set off the placed blast nearest it'").length - 1) === 2,
             J([sy.rolls[0].then, pl.rolls[0].then, sy.fields[0].list.rolls[0].then, aOn, aNone, aNoTok, vr.errors]));
     }
+    {   // 1.6.2 (the CORE session's batch 6, 12): a change of a pool or a number may name a link of the system and land on the sheet that link holds
+        const J = v => JSON.stringify(v);
+        const raw = { v: 1, name: 'L', sheet: { sections: [] }, links: [{ id: 'lk_v', kind: 'crew', key: 'Vehicle', label: 'Vehicle' }],
+            rolls: [{ id: 'r_gun', label: 'Gun', formula: '3d6 <= 10', then: [{ f: 'f_pow', formula: '1', link: 'lk_v' }, { f: 'f_pow', formula: '1' }, { f: 'f_pow', formula: '2', link: 'nope' }] }],
+            fields: [{ id: 'f_pow', key: 'Power', label: 'Power', kind: 'resource', maxFormula: '10' }] };
+        const sy = S.cleanSystem(raw, { F, gmView: true });
+        const truck = { id: 'c_v', name: 'Truck', values: { f_pow: { cur: 5 } } }, gun = { id: 'c_g', name: 'Gunner', links: { lk_v: 'c_v' }, values: { f_pow: { cur: 7 } } }, lone = { id: 'c_l', values: {} };
+        const act = { apply: [{ f: 'f_pow', formula: '1', link: 'lk_v' }] };
+        S.setLinkCharSource(id => id === 'c_v' ? truck : null);
+        const aG = S.applyAct(sy, gun, act, S.makeResolver(sy, gun, F), F), aL = S.applyAct(sy, lone, act, S.makeResolver(sy, lone, F), F);
+        S.setLinkCharSource(null); const aN = S.applyAct(sy, gun, act, S.makeResolver(sy, gun, F), F);
+        const ntL = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'latin1'), shL = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8');
+        check('1.6.2 a change of a pool or a number may name a link of the system and land on the sheet that link holds: the cleaner keeps it with its field, a field changed once a sheet; applyAct moves a copy of the linked sheet in its own names and answers what moved by its id, nothing of the user\'s own; with nothing linked there, or the sheet not here, it says so and moves nothing; the host writes it on every road a change takes, a roll bonus\'s cost among them',
+            J(sy.rolls[0].then) === J([{ f: 'f_pow', formula: '1', link: 'lk_v' }, { f: 'f_pow', formula: '1' }])
+            && aG.ok && J(aG.linkValues) === J({ c_v: { f_pow: { cur: 4 } } }) && J(aG.values) === '{}' && aG.lines.some(l => l.n === 'Truck: Power' && l.v === 4) && truck.values.f_pow.cur === 5
+            && aL.ok && !aL.linkValues && aL.lines.some(l => /Nothing is linked there/.test(l.say)) && aN.ok && !aN.linkValues && aN.lines.some(l => /not here/.test(l.say))
+            && ntL.includes('window.wpSheets.linkValuesWrite(resA.linkValues);') && ntL.includes('window.wpSheets.linkValuesWrite(taQ.linkValues)') && ntL.includes('window.wpSheets.linkValuesWrite(taR.linkValues)') && ntL.includes('window.wpSheets.linkValuesWrite(plan.links);')
+            && shL.includes('if (res.linkValues) linkValuesWrite(res.linkValues);') && shL.includes('setLinkCharSource(function(id) {'),
+            J([sy.rolls[0].then, aG, aL, aN]));
+    }
     {   // 1.6.2 (the CORE session's batch 6, 5c): a roll bonus's figure by the level of the row that holds it
         const J = v => JSON.stringify(v);
         const raw = (tiers, v) => ({ v: 1, name: 'T', sheet: { sections: [] }, rolls: [{ id: 'r_x', label: 'Shoot', formula: '3d6 <= 10' }], items: [{ id: 'i_s', name: 'Scope', key: 'Scope', rollSw: [{ name: 'Aim', v: v, tiers: tiers, to: [{ r: 'r_x' }] }] }],

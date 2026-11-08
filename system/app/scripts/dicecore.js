@@ -427,7 +427,7 @@ function cleanRoll(rec) {
     if (typeof rec.card === 'string' && rec.card.trim()) out.card = rec.card.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 80);   // 1.6.2: the card a roll drew as its die, text alone
     if (typeof rec.band === 'string' && rec.band.trim()) out.band = rec.band.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 30);   // 1.6.2: the name of the result band the host found, text alone
     if (rec.dl !== undefined) { var dlc = cleanDiceLook(rec.dl); if (dlc) out.dl = dlc; }   // 1.6.2: the roller's dice look, as the host passed it on
-    if (rec.big === true) out.big = true;   // 1.6.0 (the book's ruling of 2026-10-29): the host's mark of a success that lands as a Big Hit, no critical; anything else is left off
+    if (rec.big === true) out.big = true;   // 1.6.0 (the book's ruling of 2026-10-29): the host's mark of a success that lands as a heavy hit, no critical; anything else is left off
     if (rec.mods !== undefined) { var md = cleanMods(rec.mods); if (md) out.mods = md; }
     if (rec.sw !== undefined) { var swc = cleanSwNames(rec.sw); if (swc) out.sw = swc; }   // 1.6.0: the roll switches it was rolled with, by name (a list that does not clean is left off, the roll kept)   // 1.5.8: what changed the values it reads (a list that does not clean is left off, the roll kept)
     if (rec.refs !== undefined) { var rfc = cleanRefs(rec.refs); if (rfc) out.refs = rfc; }   // 1.6.0 Specialties: the case each reference used
@@ -534,7 +534,7 @@ function cleanDue(rec) {
 }
 // 1.6.0 (B2): why a resist roll is due, in words: whose attempt, and by how much it succeeded
 function resistWhy(rec) { return !rec ? '' : 'resisting ' + (rec.by ? rec.by + '\u2019s attempt' : 'an attempt') + (typeof rec.m === 'number' ? ', made by ' + fmtNum(rec.m) : '') + (typeof rec.kn === 'string' && rec.kn ? ', ' + rec.kn : ''); }
-// 1.6.0 (the by-hand test: a card that read Big Hit (Vitality), a Major Wound): what a due card says of a Major Wound, in the system's own word, and nothing where the roll's own name says it already
+// 1.6.0 (the by-hand test: a card that read a heavy hit's roll as a Major Wound): what a due card says of a Major Wound, in the system's own word, and nothing where the roll's own name says it already
 function dueMajor(rec) {
     var w = rec && typeof rec.mw === 'string' && rec.mw ? rec.mw : 'a Major Wound', bare = w.replace(/^an? /i, '').toLowerCase();
     if (rec && typeof rec.label === 'string' && rec.label.toLowerCase().indexOf(bare) >= 0) return '';
@@ -695,7 +695,7 @@ function tagOf(rec, opts) {
 // 1.6.2: what the table is sent of a roll whose figure is hidden. A card is rebuilt on each machine from its expression, its draws and its names, so a line left
 // off a card hides nothing from a changed app: the copy holds the dice alone (hidExpr, each group by what it rolled, modifiers glued to it being plain
 // numbers) and the host's verdict as a word, hid: 'pass', 'fail', or 'rolled' for a roll that is no check. It is written key by key, so nothing else of the record
-// rides along: no names, target, margin, range, Big Hit or what a value was worked out from. A Malf is said only where this roll jammed (the roll's own natural
+// rides along: no names, target, margin, range, heavy hit or what a value was worked out from. A Malf is said only where this roll jammed (the roll's own natural
 // total, as malfMask gives it). o: { rule, malf (true where it jammed), label (a word in place of the record's, '' for none) }. hidc: a critical
 // that stands on the dice alone (hidCrit): 5, 6, 17 and failing by 10 under 3d6 turn on the target, so they are not said. An expression that does not
 // replay is no dice at all, so a card always stands

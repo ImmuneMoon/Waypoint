@@ -87,7 +87,7 @@ The System editor
   and a card action sit at their own width, and Short names stays put in the
   foot.
 - How it rolls opens on Draws a card first, with When does it jam and the
-  Big Hit after it. The welcome keeps room for Continue a campaign while the
+  heavy hit after it. The welcome keeps room for Continue a campaign while the
   save loads, so its cards stay put.
 - A field's On the sheet is now two groups. How it shows stays open. Units
   and figures stays folded and names what is set in it, such as yd, 1,000s.
@@ -380,7 +380,7 @@ At the table
   with the row's name, as a copy of a sheet the list names or from the
   system's defaults. A sheet traded with its row goes with it to its new
   holder's player, but a character someone plays never moves.
-- An attack that lands as a Big Hit passes it on to the damage roll it calls
+- An attack that lands as a heavy hit passes it on to the damage roll it calls
   for, which is then a Major Wound if any of it gets through, read as
   Blow.big. A Major Wound row's roll can leave out the hit's own effects too.
 - A roll's Calls for can ask for a list's roll on a row: the row that resisted,
@@ -388,7 +388,7 @@ At the table
   is parried by, an energy blade rolls against its own Durability.
 - An Any wound row can also run on a blow that wounds nobody, as armour that
   stops it all, for knockback. A row's roll can read the sheet as it stood at
-  that row, so a shock roll leaves out the Rattled of the same hit.
+  that row, so a shock roll leaves out the Stunned of the same hit.
 - Help draws the System editor's buttons and tabs as they look in the app.
   Press one, and Help steps aside, opens the editor on that tab and lights
   the button; Back to Help returns. A button of the top row's menus opens
@@ -1284,7 +1284,7 @@ Systems, more
 - Any wound's Where, and the rolls a wound posts, read Blow.major: 1 where the
   blow is a Major Wound, by its size or by the roll's mark, else 0.
 - A roll a wound asks for reads the blow and the location hit, as Blow. and
-  Hit., so a Big Hit roll can be -2 on the face. Its failure can cripple
+  Hit., so a heavy hit roll can be -2 on the face. Its failure can cripple
   the location hit, by how far it failed, or by a formula that reads the
   margin, the natural roll and the blow.
 - Each roll one blow asks for reads the sheet as the blow left it, in any
@@ -1299,8 +1299,8 @@ Systems, more
   3 is a critical success and a natural 18 a critical failure. Nothing
   else is a critical. A system may set other numbers, and a roll may
   widen its own where a game allows it.
-- A roll can say what Lands as a Big Hit. A success whose natural roll is
-  at or under it is marked a Big Hit. It is not a critical. Its changes
+- A roll can say what Lands as a heavy hit. A success whose natural roll is
+  at or under it is marked a heavy hit. It is not a critical. Its changes
   read RollBig.
 - A roll can be Resisted by a roll ticked Resists an attempt. When it
   succeeds against your target, the target's player gets that roll as a card
@@ -1808,8 +1808,8 @@ System editor
 - Formulas can read a counter's highest and lowest across a list's rows,
   as Torches.max.Burned.
 - An action or a roll used on someone next to you can read their figures,
-  as On. and a name. So a medpac can say Not on a droid, with its needs
-  not(On.Droid). Used on yourself, it reads your own.
+  as On. and a name. So a medpac can say Not on a robot, with its needs
+  not(On.Robot). Used on yourself, it reads your own.
 - A formula can be rounded by a pick from a list, with no arithmetic to
   write: Rounding normally, down, up, or up only from a point, such as a
   Dodge that drops its decimals unless they are .95 or more, to whole
@@ -1918,7 +1918,7 @@ Small fixes from a long test by hand
   vehicle. A roll can name the stations that may press it, and Only rolls that
   name a station leaves out the rest. Formulas read the sheet that pressed as
   Presser.<name>.
-- A roll with its own critical, fumble or Big Hit range now keeps to it on a
+- A roll with its own critical, fumble or heavy hit range now keeps to it on a
   plain press. Before, a roll with no Then or Needs read the Combat card's.
 - A blast's notice says how many took nothing. It used to say they were too
   far, even for a token close by whose share came to 0.
@@ -2181,17 +2181,17 @@ Explosives
 - With none of these set, blasts work as before.
 
 System editor
-- A row can load a row of another list, as a blaster loads a power pack:
+- A row can load a row of another list, as a gun loads a magazine:
   in the Lists tab, set Loads from to that list, pick the counter that
   holds what is loaded, and the categories it takes. The row's Load
   button takes one unit off its stack and puts what it holds into the
   counter. Swap and Unload put it back with what it has left, onto a
   stack only where it is the same thing in the same state. Formulas read
   Row.loaded and Row.loadmax. Loads only where is a formula a row must
-  meet before it may load, so a sword shows no Load where a blaster does.
+  meet before it may load, so a sword shows no Load where a gun does.
   A counter whose most works out to 0 on a row shows nothing there.
   Matched by names a stat of each list: a row loads only what reads the
-  same figure, so a blaster takes only its own kind of pack.
+  same figure, so a gun takes only its own kind of magazine.
 - Counted once: in the Lists tab, rows whose Group stat reads the same
   figure, not 0, are one thing held two ways. The higher applies, and the
   others give none of their changes. Formulas read Row.once,
@@ -3551,7 +3551,7 @@ Tokens and portals
 
 Sheets from a website
 - A ranged weapon brings its own range: where the Weapons list has Half and
-  MaxRange stats (half and maxrange on the website's keys), a blaster with a
+  MaxRange stats (half and maxrange on the website's keys), a gun with a
   Focusing Emitter or Magnetic Accelerator Coils shows the 1/2D and Max the
   website works out with its fitted parts, not the barrel's printed pair. A
   weapon that prints one figure takes it as its Max and never halves. The
@@ -3562,10 +3562,10 @@ Sheets from a website
   Import the range is part of the weapon's own values in Review, and when a
   part is taken off again the figure is offered back to the entry's.
 - A sheet exported after the website's update of 3 October reads as the
-  website counts it: a power cell loaded in a blaster is part of that
-  blaster and no longer a gear row beside it (one loaded in a suit still
+  website counts it: a power cell loaded in a gun is part of that
+  gun and no longer a gear row beside it (one loaded in a suit still
   is); a magazine weighs and costs its own figures plus the rounds in it; a
-  part marked Destroyed is left out; and an older blaster that carries no
+  part marked Destroyed is left out; and an older gun that carries no
   final cost costs its base cost plus its upgrades, where it read as free.
 - The gauntlet or boot left on a severed limb (the website marks it as
   wreckage) comes across as carried gear with its weight and cost, never as
@@ -4445,7 +4445,7 @@ Items
   Item stats on players' sheets, at the top of the Lists tab, can let
   players change the stats of their own copies; a stat you set holds. Saving
   items that characters carry tells you how far each change reaches
-  ("Blaster: affects 3 characters; 1 has its own Dmg."), and the session log
+  ("Pistol: affects 3 characters; 1 has its own Dmg."), and the session log
   keeps each line under Items.
 - Custom rows: tick Custom rows on a list and players add items of their own
   with + Custom… in its picker: a New item row, its form open for a name, an
@@ -4471,7 +4471,7 @@ Item lists in formulas
 - Any formula can read a list: its totals (Skills.count, Weapons.paid,
   Weapons.Wt, a stat times the quantity, or a column summed), the same over
   the rows switched on (Weapons.on.Wt), or one row by its item's key
-  (Skills.Karate.lvl, Weapons.Blaster.Acc), which also reads an item or
+  (Skills.Karate.lvl, Weapons.Pistol.Acc), which also reads an item or
   library entry the character does not carry. A key no row has reads as not
   carried, a kept curse counts in no total, and whatever reads a GM-only
   value shows players "GM only".

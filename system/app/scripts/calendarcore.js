@@ -311,7 +311,7 @@ function ruleFires(cal, units, rules, charIds, acc, secs, rest, o, need) {
     });
     return out;
 }
-// 1.5.5 (the owner, 2026-10-23, of a droid's draw taken only where it slept at the moment each day began: "everything needs to be accounted for, no
+// 1.5.5 (the owner, 2026-10-23, of a robot's draw taken only where it slept at the moment each day began: "everything needs to be accounted for, no
 // shortcuts"): a time rule's By the clock or In a fight may be ticked Only while its needs hold (every.whileNeeds, inFight.whileNeeds, true only), and
 // that count then adds only the part of a stretch in which the rule's needs held for the character, standing still for the rest: never cleared, as a
 // rest-only count is by activity. The core is pure, so the needs are judged by its caller and handed in as need(charId, rule, fight) (fight: the In a

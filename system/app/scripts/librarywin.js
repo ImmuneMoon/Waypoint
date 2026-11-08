@@ -697,7 +697,7 @@ function affRows(form, i, a) {
     field(form, 'areaAff' + i + 'Vs', n + 'resisted against', typeof a.vs === 'string' ? a.vs : '', { max: 1000, ph: 'e.g. HT-2', title: 'What a character it reaches rolls the Combat tab\u2019s resist roll against, read with their own names. Blank: no affliction' });
     field(form, 'areaAff' + i + 'Fx', n + 'on a failure', typeof a.fx === 'string' ? a.fx : '', { pairs: fxP, title: 'The effect put on a character that fails to resist, one of the system\u2019s effects' });
     field(form, 'areaAff' + i + 'Who', n + 'reaches', a.who === 'all' ? 'all' : '', { pairs: [['', 'Those it hurts'], ['all', 'Everyone in the blast']], title: 'Whom it reaches: those the blast or its fragmentation hurt, or everyone in the blast\u2019s radius' });
-    field(form, 'areaAff' + i + 'Needs', n + 'only where', typeof a.needs === 'string' ? a.needs : '', { max: 1000, ph: 'e.g. not Droid', title: 'A formula of the character it reaches that must hold for it to touch them at all. Blank: everyone it reaches' });
+    field(form, 'areaAff' + i + 'Needs', n + 'only where', typeof a.needs === 'string' ? a.needs : '', { max: 1000, ph: 'e.g. not Robot', title: 'A formula of the character it reaches that must hold for it to touch them at all. Blank: everyone it reaches' });
     field(form, 'areaAff' + i + 'Lasts', n + 'lasts', typeof ls.n === 'string' ? ls.n : '', { max: 1000, ph: 'e.g. 1d6', title: 'How long the effect lasts, a formula that may roll dice. Blank: the effect\u2019s own duration' });
     field(form, 'areaAff' + i + 'Unit', n + 'lasts in', typeof ls.u === 'string' && ls.u ? ls.u : 'minutes', { pairs: uP, title: 'The unit of its Lasts' });
 }

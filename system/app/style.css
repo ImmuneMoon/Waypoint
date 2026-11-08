@@ -2032,7 +2032,7 @@
   #cellLabels { position: absolute; top: 0; left: 0; z-index: 3940; pointer-events: none; display: none; }   /* backlog 34: a hex map's cell labels (whiteboard.js drawCellLabels), over the map's view as the rulers are, and under the fog of war (#fogScreen 3950) as the grid is */
   /* Party strip: the players' characters, top-right under the zoom box */
   #partyStrip {
-    position: absolute; top: 62px; right: 14px; z-index: 8990; display: flex; flex-wrap: wrap; justify-content: flex-end;
+    position: absolute; top: 68px; right: 14px; z-index: 8990;   /* 1.6.2 (the owner, with a picture: the faces touched the zoom bar): 6 px under the zoom box, which is 36 px tall */ display: flex; flex-wrap: wrap; justify-content: flex-end;
     gap: 4px; max-width: 200px; pointer-events: auto;
   }
   #partyStrip:empty { display: none; }
@@ -2047,7 +2047,7 @@
   .party-tok.party-waiting { border-color: var(--gold); }   /* Onboarding F1a: a player waiting for a character */
   .wb-item.wb-waiting { border: 2px dashed var(--gold); overflow: hidden; }
   .wb-item.wb-waiting > .wait-face { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; pointer-events: none; }
-  .join-card { position: absolute; top: 62px; right: 224px; max-width: 300px; z-index: 8991; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 10px 30px 10px 12px; font-size: 12.5px; line-height: 1.45; color: var(--ink); box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
+  .join-card { position: absolute; top: 68px; right: 224px; max-width: 300px; z-index: 8991; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 10px 30px 10px 12px; font-size: 12.5px; line-height: 1.45; color: var(--ink); box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
   .join-card > #joinCardClose { position: absolute; top: 4px; right: 4px; padding: 0 6px; }
   /* Onboarding F1b: faces */
   .wb-item.wb-waiting > .wait-emoji { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; line-height: 1; pointer-events: none; }
@@ -2327,7 +2327,7 @@
      reader and the update banner write their top once, from the row's bottom as it was then: here they stand under the bar whatever they wrote. Never in the
      stream window, which has no bar: every rule here says so */
   body.row-hidden:not(.tour-on):not(.stream-mode) #minimap, body.row-hidden:not(.tour-on):not(.stream-mode) #zoomBox { top: calc(var(--rowbar) + 32px); }
-  body.row-hidden:not(.tour-on):not(.stream-mode) #partyStrip, body.row-hidden:not(.tour-on):not(.stream-mode) #joinCard, body.row-hidden:not(.tour-on):not(.stream-mode) #combatStrip { top: calc(var(--rowbar) + 68px); }
+  body.row-hidden:not(.tour-on):not(.stream-mode) #partyStrip, body.row-hidden:not(.tour-on):not(.stream-mode) #joinCard, body.row-hidden:not(.tour-on):not(.stream-mode) #combatStrip { top: calc(var(--rowbar) + 74px); }
   body.row-hidden:not(.tour-on):not(.stream-mode).no-pointerpos.no-zoomctl #partyStrip { top: calc(var(--rowbar) + 32px); }
   body.row-hidden:not(.tour-on):not(.stream-mode) #plannerWrap { margin-top: 32px; }
   body.row-hidden:not(.tour-on):not(.stream-mode) #pauseBanner { top: calc(var(--rowbar) + 27px); }
@@ -3061,7 +3061,7 @@
   /* Combat: the ring, the turn strip, the roster panel */
   .wb-item.wb-find-lit { outline: 2px solid var(--gold); outline-offset: 3px; z-index: 40 !important; }   /* 1.6.0: a name in the turn strip or the roster under the pointer: its token */
   .wb-item.wb-turn { outline: 3px solid var(--gold); outline-offset: 3px; box-shadow: 0 0 0 7px rgba(224,165,79,0.28), 0 0 18px rgba(224,165,79,0.55) !important; z-index: 40 !important; }
-  #combatStrip { position: absolute; top: 62px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 52px); box-sizing: border-box; flex-wrap: wrap; justify-content: center; z-index: 8990; display: flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid var(--gold); border-radius: 18px; background: var(--panel2); box-shadow: var(--shadow); font-size: 12.5px; white-space: nowrap; pointer-events: auto; }
+  #combatStrip { position: absolute; top: 68px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 52px); box-sizing: border-box; flex-wrap: wrap; justify-content: center; z-index: 8990; display: flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid var(--gold); border-radius: 18px; background: var(--panel2); box-shadow: var(--shadow); font-size: 12.5px; white-space: nowrap; pointer-events: auto; }
   .combat-strip-round { color: var(--gold); font-weight: 700; letter-spacing: .04em; }
   .combat-strip-cur { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--ink); min-width: calc(var(--strip-name, 0ch) + 28px); }
   .combat-strip-cur img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 1px solid var(--gold); }

@@ -5065,7 +5065,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             j(tc(true)) === j(['f_hits:hit', 'f_fp', 'f_stun', 'f_fp:hit', 'f_stun:hit', 'f_hits']) && j(tc(false)) === j(['f_hits:miss', 'f_fp', 'f_stun', 'f_stun:miss', 'f_fp:miss', 'f_hits']) && j(tc(null)) === j(['f_fp', 'f_stun', 'f_hits']) && j(S.thenChanges({ id: 'r_x' }, true)) === '[]');
         const shT = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), hT = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
         check('R1 the editor and sheet (source): a roll row has its + Then… editor (When, target, Subtract | Add | Set to, amount); the change buttons keep their order (a removal that empties the list drops it, every other press saves and redraws); a roll with consequences names itself to the dice path; Help says so',
-            /row\.appendChild\(applyEditor\(r, isApply \? 'apply' : 'then'\)\);/.test(shT) && /select\('sys-apply-when', \[\['', 'Always'\], \['hit', 'On success'\], \['crit', 'On a critical success'\], \['miss', 'On failure'\], \['fumble', 'On a critical failure'\], \['malf', 'On malfunction'\]\]/.test(shT) && /\['sub', 'Subtract'\], \['add', 'Add'\], \['set', 'Set to'\]\], (?:mkF\.length \? markVal\(ch\) : )?ch\.set \? 'set'/.test(shT)   /* 1.6.2: the fill rule's choices in their place (moved on purpose) */
+            /row\.appendChild\(applyEditor\(r, isApply \? 'apply' : 'then'\)\);/.test(shT) && /select\('sys-apply-when', \[\['', 'Always'\], \['hit', 'On success'\], \['crit', 'On a critical success'\], \['miss', 'On failure'\], \['fumble', 'On a critical failure'\], \['malf', 'On malfunction'\]\]/.test(shT) && /\['sub', 'Subtract'\], \['add', 'Add'\], \['set', 'Set to'\]\]\)?, (?:mkF\.length \? markVal\(ch\) : )?(?:\(typeof opVal === 'function' \? opVal\(ch\) : \()?ch\.set \? 'set'/.test(shT)   /* 1.6.2: the fill rule's choices in their place, and Subtract, not a cost beside them (each moved on purpose) */
             && /else if \(act === 'applydel' && aI >= 0 && aI < aArr\.length\) aArr\.splice\(aI, 1\);\n\s*else return;\n\s*if \(aK === 'then' && !aArr\.length\) delete ctx\.r\.then;/.test(shT)
             && /if \(\(Array\.isArray\(r\.then\) && r\.then\.length\) \|\| r\.malf \|\| r\.cost \|\| r\.dmg(?: \|\| r\.init === true)?\) \{ oR = oR \|\| \{\}; oR\.act = r\.id; \} sheetRoll\(e, c\.id, r\.formula, lb, oR, \{ r: r\.id \}\);/.test(shT)
             && /A <b>roll<\/b> can make changes too\. Its <b>\+ Then&hellip;<\/b> changes, up to 120, happen after it is rolled/.test(hT) && /the host rolls the button&rsquo;s own formula, a modifier or advantage from shift-click included\. So a hit cannot be made up\./.test(hT));
@@ -19935,6 +19935,32 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && shS.includes("message: 'Spills into names no other pool of this system, so Save drops it.'") && shS.includes("message: 'It spills below a formula, but none is written, so Save spills it below its least value.'")
             && fs.readFileSync(path.join(app, 'index.html'), 'utf8').includes('<li>A resource can <b>Spill into</b> another pool, as Stamina into Hit Points.')
             && [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, NL)).every(t => { const i = t.indexOf('Systems, more'), k = t.indexOf('- A pool can spill into another pool, such as Stamina into Hit Points.'); return i >= 0 && k > i && k < t.indexOf(NL + NL, i); }), J([cA, cB, cC]));
+    }
+    {   // 1.6.2 Costs more while (a campaign build's ask, the CORE session's reading: every cost, read before it is paid; never damage nor a loss inflicted), on invented data
+        const J = JSON.stringify, sysS = cleanSystem({ v: 1, name: 'Sc', fields: [
+            { id: 'f_fp', key: 'Grit', label: 'Grit', kind: 'resource', maxFormula: '10', min: 0, minNeg: true, vis: 'all', edit: 'owner', surcharge: { 'if': 'Grit <= 0', add: 1 } },
+            { id: 'f_sec', key: 'Hush', label: 'Hush', kind: 'number', vis: 'gm' },
+            { id: 'f_q', key: 'Pluck', label: 'Pluck', kind: 'resource', maxFormula: '10', vis: 'all', surcharge: { 'if': 'Hush > 0', add: 500 } },
+            { id: 'f_z', key: 'Zest', label: 'Zest', kind: 'resource', maxFormula: '10', vis: 'all', surcharge: { add: 3 } }],
+            rolls: [{ id: 'r_cost', label: 'Strain', apply: [{ f: 'f_fp', formula: '2' }] }, { id: 'r_drain', label: 'Drain', apply: [{ f: 'f_fp', formula: '2', loss: true }] }, { id: 'r_set', label: 'Reset', apply: [{ f: 'f_fp', formula: '0', set: true, loss: true }] }, { id: 'r_add', label: 'Rest', apply: [{ f: 'f_fp', formula: '2', add: true, loss: true }] }],
+            combat: { hpResource: 'f_fp', damage: { pool: 'f_fp' } } }, { F, gmView: true });
+        const fO = (sy, id) => sy.fields.filter(f => f.id === id)[0], rO = id => sysS.rolls.filter(r => r.id === id)[0];
+        const ana = cur => ({ id: 'c_a', name: 'Ana', ownerId: 'u_a', values: { f_fp: { cur: cur } } });
+        const run = (id, cur) => { const r = S.applyAct(sysS, ana(cur), rO(id), makeResolver(sysS, ana(cur), F), F, null, null); return [r.ok, r.values.f_fp, r.lines[0] && r.lines[0].d, r.lines[0] && r.lines[0].sur]; };
+        const pv = cleanSystem(sysS, { F, gmView: false });
+        const kept = [J(fO(sysS, 'f_fp').surcharge), J(fO(sysS, 'f_q').surcharge), 'surcharge' in fO(sysS, 'f_z'), 'surcharge' in fO(pv, 'f_q'), J(fO(pv, 'f_fp').surcharge), J(rO('r_drain').apply), J(rO('r_set').apply), J(rO('r_add').apply)];
+        const runs = [run('r_cost', 0), run('r_cost', 2), run('r_cost', 1), run('r_cost', -3), run('r_drain', 0), run('r_set', -2), run('r_add', 0)];
+        const hit = S.damageStep(sysS, ana(0), { amt: 2 }, F);
+        check('1.6.2 Costs more while: the cleaner keeps a pool\'s test and how much more (1 to 99, 1 unless set) and nothing with no test, the same in both views but where the test reads a GM-only value; a change keeps Not a cost (loss) only on a Subtract; while the test holds, read before the cost is paid, a Subtract takes that much more and its line says so (from 0 a cost of 2 pays 3, from 2 or from 1 only its own), a Subtract ticked Not a cost, a Set, an Add and damage never do',
+            J(kept) === J([J({ 'if': 'Grit <= 0', add: 1 }), J({ 'if': 'Hush > 0', add: 99 }), false, false, J({ 'if': 'Grit <= 0', add: 1 }), J([{ f: 'f_fp', formula: '2', loss: true }]), J([{ f: 'f_fp', formula: '0', set: true }]), J([{ f: 'f_fp', formula: '2', add: true }])])
+            && J(runs) === J([[true, { cur: -3 }, -3, 1], [true, { cur: 0 }, -2, undefined], [true, { cur: -1 }, -2, undefined], [true, { cur: -6 }, -3, 1], [true, { cur: -2 }, -2, undefined], [true, { cur: 0 }, 2, undefined], [true, { cur: 2 }, 2, undefined]])
+            && hit.ok && J(hit.values.f_fp) === J({ cur: -2 }),
+            J([kept, runs, hit.values]));
+        const shS = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), fbS = fs.readFileSync(path.join(app, 'scripts', 'formbox.js'), 'utf8'), ixS = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        const ntS = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, NL));
+        check('1.6.2 Costs more while (source): the Fields tab draws it beside Spills into, a form of the character, how much more once a test is written; a change offers Subtract, not a cost where the draft has such a pool or the change says so; Help and both release notes say it',
+            /spillCtl\(flags, f\);   \/\/ 1\.6\.0 Spills into\n\s*surchargeCtl\(flags, f\);/.test(shS.replace(/\r\n/g, NL)) && /'sys-surch-if': 'cond'/.test(fbS) && /\['loss', 'Subtract, not a cost'\]/.test(shS)
+            && ixS.includes('A resource can <b>Cost more while</b>') && ntS.every(t => t.includes('A pool can cost more while a test holds')));
     }
     {   // 1.6.0: a pool down to minus its max (minNeg, asked by a system build), on invented data
         const J = JSON.stringify, base = (o) => ({ v: 1, name: 'Ng', fields: [

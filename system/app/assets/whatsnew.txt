@@ -39,6 +39,8 @@ The System editor
   it, such as a vehicle reading its owner's skill.
 - Loads from and Chambers from can say which rows they take, so a magazine
   in storage is no longer offered when you reload.
+- A pool can cost more while a test holds, such as one more Fatigue on every
+  cost once you are at 0. A drain set as Subtract, not a cost pays only its own.
 - Basic d20 has coins and carried weight. A new character starts with 10
   Gold, and Gold, Silver and Copper make change as you spend. Gear has weights,
   Carried adds them up, and the carrying limit is Strength times 15. Going over

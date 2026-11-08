@@ -4039,6 +4039,11 @@
   .sys-char-row .sys-char-name { width: 200px; }
   .sys-layout-wrap { display: flex; gap: 10px; min-height: 0; flex: 1; }
   .sys-layout-secs { flex: 1; min-width: 0; }
+  .sys-layout-nav { flex: 0 0 132px; }
+  #sysLayoutSecs > .sys-topic-title { flex: none; margin-top: 2px; }
+  #sysLayoutSecs > .sys-topic-line { flex: none; margin: -4px 0 4px; }
+  #sysLayoutSecs > [hidden] { display: none; }
+  .sys-layout-wrap.sys-arrange #sysLayoutNav { display: none; }
   .sys-layout-preview-box { width: 380px; flex: none; display: flex; flex-direction: column; gap: 4px; min-height: 0; }
   .sys-layout-preview-box select { max-width: 200px; padding: 2px 6px; font-size: 11.5px; }
   .sys-layout-preview { overflow: auto; max-height: 52vh; border: 1px solid var(--edge); border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; gap: 10px; background: rgba(0,0,0,0.08); }

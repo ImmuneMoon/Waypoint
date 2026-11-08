@@ -50,7 +50,7 @@ const kids = n => n.childNodes.slice();
     check('a press shows one topic and puts the others away, with nothing drawn again', r1 === true && !paneOf('range').hidden && paneOf('turns').hidden && panes.every(p => box.contains(p)) && kids(nav).find(b => b.dataset.topic === 'range').getAttribute('aria-selected') === 'true');
     const r2 = ui.topicPress('combat', 'toString'), r3 = ui.topicPress('other', 'range'), r4 = ui.topicPress('__proto__', 'range');
     check('a topic that is not there, and a set that is none, change nothing', r2 === false && r3 === false && r4 === false && !paneOf('range').hidden);
-    check('what is in view is kept for this computer, and each step is logged by structure alone', J(JSON.parse(kept.wp_sysTopics)) === J({ combat: 'range', rules: 'budgets' }) && window.steps.every(s => s[0] === 'sysui v1' && !/Range|Damage/.test(J(s[2]))) && window.steps.length === 4, J(window.steps));
+    check('what is in view is kept for this computer, and each step is logged by structure alone', J(JSON.parse(kept.wp_sysTopics)) === J({ combat: 'range', rules: 'budgets', layout: 'sections' }) && window.steps.every(s => s[0] === 'sysui v1' && !/Range|Damage/.test(J(s[2]))) && window.steps.length === 4, J(window.steps));
     ui.rulesDrawn();
     const rb = document.getElementById('sysRulesBox'), rn = document.getElementById('sysRulesNav'), shown = () => kids(rb).filter(x => !x.hidden).map(x => x.id);
     check('the Rules tab has its twelve topics, one at a time, and draws nothing itself', J(kids(rn).map(b => b.dataset.topic)) === J(['budgets', 'env', 'links', 'tables', 'results', 'values', 'tags', 'money', 'decks', 'tests', 'sheets', 'names']) /* 1.6.2 (backlog 147): Name lists (moved on purpose) */ /* 1.6.2 (backlog 59): Tests (moved on purpose) */ /* 1.6.2 (backlog 59 f): Sheets and readers (moved on purpose) */ /* 1.6.2 (vehicles, fold (c)): Marks (moved on purpose) */ && J(shown()) === J(['sysBudgets']));
@@ -76,6 +76,24 @@ const kids = n => n.childNodes.slice();
     const b1 = again.document.getElementById('sysCombatBox'); again.ui.combatDrawn(b1); const b2 = bad.document.getElementById('sysCombatBox'); bad.ui.combatDrawn(b2);
     check('what this computer kept comes back, read as data: a topic of its set, else the first', !kids(b1).find(p => p.dataset.topic === 'senses').hidden && !kids(b2).find(p => p.dataset.topic === 'turns').hidden);
 
+    { // 1.6.2, the Layout tab's parts down its side (the owner, 2026-11-08: "Topics beside, like Combat"): its rows stay in one box
+        const L = page(), lm = L.d.mk, lbox = lm('div', '', null, 'sysLayoutSecs'), lnav = lm('div', '', null, 'sysLayoutNav'); L.modal.appendChild(lnav); L.modal.appendChild(lbox);
+        const hb = lm('div', 'sys-tabmgr sys-hudbox'), tb = lm('div', 'sys-tabmgr'), th = lm('div', 'sys-tabmgr-head'), lk = lm('div', 'sys-tabmgr sys-lookbox'), lh = lm('div', 'sys-tabmgr-head'), idb = lm('div', '', null, 'sysIdentityBox'), bd = lm('div', '', null, 'sysBandBox'), s1 = lm('div', 'sys-row sys-sec'), s2 = lm('div', 'sys-row sys-sec');
+        th.textContent = 'Tabs'; tb.appendChild(th); lh.textContent = 'Sheet look'; lk.appendChild(lh);
+        [hb, tb, lk, idb, bd, s1, s2].forEach(x => lbox.appendChild(x));
+        L.ui.layoutDrawn(lbox);
+        const lk2 = kids(lbox), shownL = () => lk2.filter(x => !x.hidden);
+        check('Layout: each part has its button down the side, Sections first and in view', J(kids(lnav).map(b => b.dataset.topic)) === J(['sections', 'tabs', 'look', 'header', 'band']) && kids(lnav)[0].classList.contains('on'));
+        check('Layout: every row stays a child of the one box, marked with its part; the HUD title and identity rows are the header', [hb, tb, lk, idb, bd, s1, s2].every(x => x.parentNode === lbox) && J([hb, tb, lk, idb, bd, s1, s2].map(x => x.dataset.topic)) === J(['header', 'tabs', 'look', 'header', 'band', 'sections', 'sections']));
+        check('Layout: the sections are the box\'s last rows, so + Section finds the one it made', lbox.lastChild === s2);
+        check('Layout: only the part in view shows, with its title and line before it', shownL().length === 4 && shownL()[0].textContent === 'Sections' && /sys-topic-line/.test(shownL()[1].className) && shownL()[2] === s1);
+        check('Layout: a head that only says the part\'s name stands aside', th.hidden === true && lh.hidden === true);
+        L.ui.topicPress('layout', 'header');
+        check('Layout: a press shows that part alone and is kept for this computer', !hb.hidden && !idb.hidden && s1.hidden && tb.hidden && JSON.parse(L.kept.wp_sysTopics).layout === 'header');
+        lbox.textContent = ''; const s3 = lm('div', 'sys-row sys-sec'), id2 = lm('div', '', null, 'sysIdentityBox'); lbox.appendChild(id2); lbox.appendChild(s3); L.ui.layoutDrawn(lbox);
+        check('Layout: drawn again, the part in view stays', !id2.hidden && s3.hidden);
+        check('Layout: the box is split after every draw and a press of + Section or the automatic layout shows the sections', /window\.wpSysUi\.layoutDrawn\(root\);   \/\/ 1\.6\.2/.test(sh) && /window\.wpSysUi\.topicPress\('layout', 'sections'\)/.test(sh) && /<div id="sysLayoutNav" class="sys-topics sys-layout-nav" role="tablist"/.test(ix) && /\.sys-layout-wrap\.sys-arrange #sysLayoutNav \{ display: none; \}/.test(css));
+    }
     const tabs = (/<div class="sys-tabs">(.*?)<\/div>/.exec(ix) || [])[1] || '', order = (tabs.match(/data-tab="[a-z]+"/g) || []).map(s => s.slice(10, -1));
     check('the tabs as the sheet drew them: Combat and Rules after Effects, each with a tooltip', J(order) === J(['fields', 'rolls', 'items', 'lists', 'effects', 'combat', 'rules', 'layout', 'calendar']) /* 1.6.2 (backlog 59 f): Characters is a window of its own (moved on purpose) */ && (tabs.match(/ title="/g) || []).length === 9, J(order));
     const items = ix.slice(ix.indexOf('<div id="sysItems"'), ix.indexOf('<div id="sysLists"')), lists = ix.slice(ix.indexOf('<div id="sysLists"'), ix.indexOf('<div id="sysEffects"')), combat = ix.slice(ix.indexOf('<div id="sysCombat"'), ix.indexOf('<div id="sysRules"')), rules = ix.slice(ix.indexOf('<div id="sysRules"'), ix.indexOf('<div id="sysLayout"'));

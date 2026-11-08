@@ -11,7 +11,8 @@ var TOPICS = {
         ['damage', 'Damage', 'What a hit does to a character.'], ['cover', 'Cover', 'What walls and low pieces do for those behind them.'], ['blasts', 'Blasts and throws', 'What happens when something is thrown or goes off.'],
         ['range', 'Range', 'What distance does to a roll.'], ['height', 'Height', 'What standing higher or lower does to a roll.'], ['light', 'Light', 'Your game’s dim, dark and light sources.'],
         ['senses', 'Senses', 'What a character knows of the map besides what it sees.'], ['initiative', 'Initiative', 'Who goes first, and how a tie is settled.'], ['outcomes', 'Roll outcomes', 'How a roll against a target reads its dice.'], ['postures', 'Postures', 'How a token can stand.'], ['holds', 'Who holds whom', 'Grabs, pins and those who break free.'], ['bars', 'Token bars', 'Pools shown as a ring around a token.'], ['arcs', 'Arcs', 'The arcs a hit can come from, and a gun can fire into.'], ['mapkinds', 'Map kinds', 'The scales a map can be switched to, and what a rule reads on each.']],
-    rules: [['budgets', 'Point budgets', 'Points a character has and has spent.'], ['env', 'Environment readings', 'What a map gives the characters on it, such as a temperature.'], ['links', 'Linked sheets', 'A rider and a mount, or a crew and a vehicle.'], ['tables', 'Tables', 'Figures a formula reads by a name.'], ['results', 'Result tables', 'A roll that lands on a row of words.'], ['values', 'Shared values', 'A number the whole table shares.'], ['tags', 'Marks', 'A mark one token holds on another.'], ['money', 'Money', 'The currencies money is counted in.'], ['decks', 'Decks and bags', 'A set of things you draw from.'], ['tests', 'Tests', 'The kinds of roll a figure is tested with.'], ['sheets', 'Sheets and readers', 'Ask players for new sheets, and an outside reader\u2019s mark.'], ['names', 'Name lists', 'Names the name button picks from.']]
+    rules: [['budgets', 'Point budgets', 'Points a character has and has spent.'], ['env', 'Environment readings', 'What a map gives the characters on it, such as a temperature.'], ['links', 'Linked sheets', 'A rider and a mount, or a crew and a vehicle.'], ['tables', 'Tables', 'Figures a formula reads by a name.'], ['results', 'Result tables', 'A roll that lands on a row of words.'], ['values', 'Shared values', 'A number the whole table shares.'], ['tags', 'Marks', 'A mark one token holds on another.'], ['money', 'Money', 'The currencies money is counted in.'], ['decks', 'Decks and bags', 'A set of things you draw from.'], ['tests', 'Tests', 'The kinds of roll a figure is tested with.'], ['sheets', 'Sheets and readers', 'Ask players for new sheets, and an outside reader\u2019s mark.'], ['names', 'Name lists', 'Names the name button picks from.']],
+    layout: [['sections', 'Sections', 'The sheet\u2019s sections, and what stands in each.'], ['tabs', 'Tabs', 'A tab strip that groups the sections.'], ['look', 'Sheet look', 'The font, colours, titles and labels of the whole sheet.'], ['header', 'Header', 'What stands under the name.'], ['band', 'Pinned band', 'Figures and rolls kept in view on every tab.']]
 };
 // Which topic a word of the editor's error boxes stands in
 var ERR_TOPIC = { combat: ['combat', 'turns'], initiative: ['combat', 'initiative'], checks: ['combat', 'outcomes'], damage: ['combat', 'damage'], coverhit: ['combat', 'cover'], blastdefend: ['combat', 'blasts'], range: ['combat', 'range'], height: ['combat', 'height'], light: ['combat', 'light'], senses: ['combat', 'senses'], postures: ['combat', 'postures'], holds: ['combat', 'holds'], budgets: ['rules', 'budgets'], env: ['rules', 'env'], links: ['rules', 'links'], tables: ['rules', 'tables'] };
@@ -19,11 +20,11 @@ function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
 function topicIn(set, id) { var l = own(TOPICS, set) ? TOPICS[set] : []; for (var i = 0; i < l.length; i++) if (l[i][0] === id) return true; return false; }
 // The topics in view, as this computer kept them: only a topic of its set
 function topicsRead(store) {
-    var out = { combat: TOPICS.combat[0][0], rules: TOPICS.rules[0][0] };
-    try { var v = JSON.parse(store.getItem('wp_sysTopics') || '{}'); ['combat', 'rules'].forEach(function(s) { if (v && typeof v === 'object' && own(v, s) && topicIn(s, v[s])) out[s] = v[s]; }); } catch (e) {}
+    var out = { combat: TOPICS.combat[0][0], rules: TOPICS.rules[0][0], layout: TOPICS.layout[0][0] };
+    try { var v = JSON.parse(store.getItem('wp_sysTopics') || '{}'); ['combat', 'rules', 'layout'].forEach(function(s) { if (v && typeof v === 'object' && own(v, s) && topicIn(s, v[s])) out[s] = v[s]; }); } catch (e) {}
     return out;
 }
-function topicsKeep(store, now) { try { store.setItem('wp_sysTopics', JSON.stringify({ combat: now.combat, rules: now.rules })); return true; } catch (e) { return false; } }
+function topicsKeep(store, now) { try { store.setItem('wp_sysTopics', JSON.stringify({ combat: now.combat, rules: now.rules, layout: now.layout })); return true; } catch (e) { return false; } }
 function dupHead(p, name) {
     for (var c = p.firstChild; c; c = c.nextSibling) {
         var h = /-head$/.test(c.className || '') ? c : c.firstChild;
@@ -386,7 +387,7 @@ function noteShow(note, b, folded) { note.hidden = !!folded; b.setAttribute('ari
 var store = { getItem: function() { return null; }, setItem: function() {} }; try { if (window.localStorage) store = window.localStorage; } catch (e) {}
 var topicNow = topicsRead(store);
 function byId(id) { return document.getElementById(id); }
-var PANE = { combat: ['sysCombatBox', 'sysCombatNav'], rules: ['sysRulesBox', 'sysRulesNav'] };
+var PANE = { combat: ['sysCombatBox', 'sysCombatNav'], rules: ['sysRulesBox', 'sysRulesNav'], layout: ['sysLayoutSecs', 'sysLayoutNav'] };
 function log(step, facts) { try { if (typeof window.wpStepLog === 'function') window.wpStepLog('sysui v1', step, facts || {}); } catch (e) {} }
 function showTopic(set, id) {
     if (!own(PANE, set) || !topicIn(set, id)) return false;
@@ -400,6 +401,31 @@ function combatDrawn(box) {
     var dm = box.querySelector('.sys-dmgr'); if (dm) tickTable(dm, document);
 }
 function rulesDrawn() { var box = byId('sysRulesBox'), nav = byId('sysRulesNav'); topicsNav(nav, 'rules', document); topicsShow(box, nav, topicNow.rules); }
+// [sysuicheck:layout-start]
+// The Layout tab's parts down its side (the owner, 2026-11-08, by prompt: "Topics beside, like Combat"). Its rows stay where the builder put
+// them, in one box: each says which part it stands in and only the part in view shows, so every handler that reads the box finds its rows as
+// before. A part's title and line go in before its first row. A box head that only says the part's own name stands aside
+function layoutPart(c) {
+    if (c.id === 'sysIdentityBox' || c.id === 'sysLedgerBox' || hasClass(c, 'sys-hudbox')) return 'header';
+    if (c.id === 'sysBandBox') return 'band';
+    if (hasClass(c, 'sys-lookbox')) return 'look';
+    if (hasClass(c, 'sys-tabmgr')) return 'tabs';
+    return 'sections';
+}
+function layoutSplit(box, doc) {
+    var first = {}, kids = [];
+    for (var n = box.firstChild; n; n = n.nextSibling) if (n.nodeType === 1) kids.push(n);
+    kids.forEach(function(k) { var p = layoutPart(k); k.dataset.topic = p; if (!own(first, p)) first[p] = k; });
+    TOPICS.layout.forEach(function(t) {
+        if (!own(first, t[0])) return;
+        var h = doc.createElement('div'), s = doc.createElement('div'); h.className = 'sys-topic-title'; h.textContent = t[1]; h.dataset.topic = t[0]; s.className = 'sys-note sys-topic-line'; s.textContent = t[2]; s.dataset.topic = t[0];
+        box.insertBefore(h, first[t[0]]); box.insertBefore(s, first[t[0]]); dupHead(box, t[1]);
+    });
+    return first;
+}
+// The Layout tab's box once its builder has filled it
+function layoutDrawn(box) { var nav = byId('sysLayoutNav'); topicsNav(nav, 'layout', document); layoutSplit(box, document); topicsShow(box, nav, topicNow.layout); }
+// [sysuicheck:layout-end]
 function marks(errs, warns) { lastErrs = errs; lastWarns = warns; topicMarks(byId('sysCombatNav'), 'combat', errs, warns); topicMarks(byId('sysRulesNav'), 'rules', errs, warns); footSync(); }
 var picks = {}, lastErrs = null, lastWarns = null, host = null, groupsNow = keptGroups(store), groupsTouched = {};   // touched: a group worked in stays open while the editor is, though the row no longer uses it
 function pickState(kind) { return picks[kind] || (picks[kind] = { id: '', at: 0, known: null }); }
@@ -476,6 +502,7 @@ function reach(id, prop) {
     var modal = byId('systemModal'), cells = modal ? modal.querySelectorAll('[data-err-for]') : [], cell = null, i;
     for (i = 0; i < cells.length && !cell; i++) if (cells[i].dataset.errFor === id) cell = cells[i];
     if (!cell) return null;
+    for (var lp = cell; lp && lp !== modal; lp = lp.parentNode) if (lp.parentNode && lp.parentNode.id === 'sysLayoutSecs' && lp.dataset && topicIn('layout', lp.dataset.topic)) { showTopic('layout', lp.dataset.topic); break; }
     var scope = cell.closest('.sys-row') || (hasClass(cell.previousSibling || {}, 'sys-list-card') ? cell.previousSibling : cell.parentNode), box = boxIn(scope, prop), to = box && box.hidden && box.parentNode ? box.parentNode : box || cell;   // a box under a form: its form
     for (var n = to; n && n !== modal; n = n.parentNode) if (n.tagName === 'DETAILS') { n.open = true; if (n.dataset && n.dataset.grp) groupsTouched[n.dataset.grp] = 1; }
     if (to.scrollIntoView) to.scrollIntoView({ block: 'center' });
@@ -514,5 +541,5 @@ function onNameInput(e) {
     var lb = tw.querySelector('.sys-dmgr-ylabel'), ky = tw.querySelector('.sys-dmgr-ykey'); th.textContent = (lb && lb.value) || (ky && ky.value) || 'Type ' + (+tw.dataset.yi + 1);
 }
 function wire() { var m = byId('systemModal'); if (m) { m.addEventListener('keydown', onKey); m.addEventListener('click', onGroupPress); m.addEventListener('click', onErrPress); m.addEventListener('input', onNameInput); m.addEventListener('focusin', onGroupFocus); } Object.keys(PICK).forEach(pickWire); notesWire(); }
-window.wpSysUi = { topicPress: topicPress, combatDrawn: combatDrawn, rulesDrawn: rulesDrawn, marks: marks, pickDraw: pickDraw, pickSet: pickSet, pickReset: pickReset, moveIn: moveIn, errHost: function(h) { errHost = h; }, topicOf: function(id) { return own(ERR_TOPIC, id) ? ERR_TOPIC[id] : /^b_/.test(id) ? ['rules', 'budgets'] : null; }, topicName: function(s, t) { var l = own(TOPICS, s) ? TOPICS[s] : [], i; for (i = 0; i < l.length; i++) if (l[i][0] === t) return l[i][1]; return ''; }, arrange: arrangeOne, arrangeIn: arrangeIn, isPick: function(k) { return own(PICK, k); }, paneOf: function(k) { return own(PICK, k) ? PICK[k].pane : ''; }, host: function(h) { host = h; } };
+window.wpSysUi = { topicPress: topicPress, combatDrawn: combatDrawn, rulesDrawn: rulesDrawn, layoutDrawn: layoutDrawn, marks: marks, pickDraw: pickDraw, pickSet: pickSet, pickReset: pickReset, moveIn: moveIn, errHost: function(h) { errHost = h; }, topicOf: function(id) { return own(ERR_TOPIC, id) ? ERR_TOPIC[id] : /^b_/.test(id) ? ['rules', 'budgets'] : null; }, topicName: function(s, t) { var l = own(TOPICS, s) ? TOPICS[s] : [], i; for (i = 0; i < l.length; i++) if (l[i][0] === t) return l[i][1]; return ''; }, arrange: arrangeOne, arrangeIn: arrangeIn, isPick: function(k) { return own(PICK, k); }, paneOf: function(k) { return own(PICK, k) ? PICK[k].pane : ''; }, host: function(h) { host = h; } };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();

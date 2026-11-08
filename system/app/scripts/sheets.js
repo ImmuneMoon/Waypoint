@@ -2487,16 +2487,16 @@ function renderLayout() {
     var tbAuto = ui('sysLayoutAuto'), tbClear = ui('sysLayoutClear'), tbNote = ui('sysLayoutNote');
     if (tbAuto) { tbAuto.textContent = hudOn ? 'Copy the sheet\u2019s sections' : 'Start from the automatic layout'; tbAuto.title = hudOn ? 'Put a copy of the sheet\u2019s sections (or the automatic layout\u2019s) on the HUD\u2019s first tab, to trim and re-tab' : 'Copy the automatic layout (one section per kind, then the rolls) as a starting point'; }
     if (tbClear) { tbClear.textContent = hudOn ? 'Remove the HUD' : 'Use the automatic layout'; tbClear.title = hudOn ? 'Take the HUD away (its button goes from every sheet and menu; the sheet is untouched)' : 'Remove your layout and let the sheet arrange itself'; }
-    if (tbNote) { if (!tbNote.dataset.sheetText) tbNote.dataset.sheetText = tbNote.textContent; tbNote.textContent = hudOn ? 'The HUD is a second window for each character, with its own tabs, sections, band and ledger. A field can be on the sheet and here. Within the HUD it appears once, but an item list can stand in several places by category. Players get a HUD button once it holds something they can see.' : tbNote.dataset.sheetText; }
+    if (tbNote) { if (!tbNote.dataset.sheetText) tbNote.dataset.sheetText = tbNote.textContent; tbNote.textContent = hudOn ? 'The HUD is a second window for each character, with parts of its own. Players get its button once it holds something they can see.' : tbNote.dataset.sheetText; }
     if (hudOn) {
-        var hudBox = el('div', 'sys-tabmgr sys-hudbox'); hudBox.appendChild(el('div', 'sys-tabmgr-head', 'HUD title (optional)'));
+        var hudBox = el('div', 'sys-tabmgr sys-hudbox'); hudBox.appendChild(el('div', 'sys-tabmgr-head', 'HUD title'));
         hudBox.appendChild(input('sys-hud-title field', layoutRoot().title, 'Shown under the name in the HUD\u2019s head (e.g. Combat HUD)', 'HUD'));
         root.appendChild(hudBox);
     }
     // Tabs (optional, Stage 1): group sections into a tab strip on the sheet. No tabs = one stacked page.
     var tabs = layoutTabs();
     var tabBox = el('div', 'sys-tabmgr');
-    tabBox.appendChild(el('div', 'sys-tabmgr-head', 'Tabs (optional)'));
+    tabBox.appendChild(el('div', 'sys-tabmgr-head', 'Tabs'));
     if (!tabs.length) tabBox.appendChild(el('div', 'sys-hint', 'No tabs — the sections stack as one page. Add a tab to group them into a tab strip on the sheet; each section then picks its tab.'));
     tabs.forEach(function(tb) {
         var tr = el('div', 'sys-row sys-tab'); tr.dataset.tid = tb.id;
@@ -2513,13 +2513,13 @@ function renderLayout() {
     // Sheet look (doc theming, 1.5.0): the whole sheet's own font / colors / background picture, over the campaign default.
     // Wired directly (the layout's delegated handlers key on sections and data-act): each control edits draft.sheetStyle.
     var lookBox = el('div', 'sys-tabmgr sys-lookbox');
-    lookBox.appendChild(el('div', 'sys-tabmgr-head', 'Sheet look (optional)'));
+    lookBox.appendChild(el('div', 'sys-tabmgr-head', 'Sheet look'));
     if (hudOn) lookBox.appendChild(el('div', 'sys-note', 'Shared by the sheet and the HUD (the HUD leaves out sticky titles and the header portrait; its head has its own).'));   // HUD frame HF1
     var look = (draft.sheetStyle && typeof draft.sheetStyle === 'object') ? draft.sheetStyle : null;
     var lookRow = el('div', 'sys-sec-style');
     var FONTS = (window.wpDocRender && window.wpDocRender.DOC_FONTS) || {};
     var fontSel = select('sys-look-font', [['', 'Default font']].concat(Object.keys(FONTS).map(function(k) { return [k, k.charAt(0).toUpperCase() + k.slice(1)]; })), (look && look.font) || '', 'The sheet\'s font, over the campaign default');
-    lookRow.appendChild(fontSel);
+    lookRow.appendChild(capBox(fontSel, 'Font'));
     var mkColor = function(key, title, fallback) { var i = el('input', 'sys-look-color'); i.type = 'color'; i.value = (look && look[key]) || fallback; i.title = title; i.dataset.key = key; return i; };
     lookRow.appendChild(el('span', 'sys-sec-style-lbl', 'Text')); lookRow.appendChild(mkColor('textColor', 'Text color', '#e8e2d0'));
     lookRow.appendChild(el('span', 'sys-sec-style-lbl', 'Panel')); lookRow.appendChild(mkColor('bgColor', 'Panel background color', '#181510'));
@@ -2537,7 +2537,7 @@ function renderLayout() {
     var labelsSel = select('sys-look-labels', [['', 'Plain labels'], ['caps', 'Capital labels'], ['plain', 'Plain labels, the header too']], shape.labels || '', 'Field labels: as they are, small bold capitals like a printed sheet, or plain everywhere, the header’s labels too');
     var inkSel = select('sys-look-labelink', [['', 'Muted labels'], ['text', 'Labels in text colour']], shape.labelInk || '', 'The colour of every label: the muted grey (as now), or the sheet’s own text colour');
     var lsizeSel = select('sys-look-labelsize', [['', 'Label size as now'], ['13', '13 px labels'], ['14', '14 px labels'], ['16', '16 px labels']], shape.labelSize ? String(shape.labelSize) : '', 'How large a label is drawn on the sheet. The HUD keeps its own small labels');
-    shapeRow.appendChild(titlesSel); shapeRow.appendChild(tabsSel); shapeRow.appendChild(labelsSel); shapeRow.appendChild(inkSel); shapeRow.appendChild(lsizeSel);
+    [[titlesSel, 'Section titles'], [tabsSel, 'Tabs'], [labelsSel, 'Labels'], [inkSel, 'Label colour'], [lsizeSel, 'Label size']].forEach(function(p) { shapeRow.appendChild(capBox(p[0], p[1])); });
     shapeRow.appendChild(el('span', 'sys-sec-style-lbl', 'Accent'));
     var accentIn = el('input', 'sys-look-accent'); accentIn.type = 'color'; accentIn.value = shape.accent || themeGold(); accentIn.title = 'The sheet\u2019s accent: section titles, the open tab, the name in the header'; shapeRow.appendChild(accentIn);
     var portLbl = el('label', 'sys-hover'); var portChk = el('input', 'sys-look-portrait'); portChk.type = 'checkbox'; portChk.checked = !!shape.portrait; portLbl.appendChild(portChk); portLbl.appendChild(document.createTextNode(' Portrait & name in the header')); portLbl.title = 'The character\u2019s portrait and name lead the header block, with the identity rows and ledger figures beside the picture'; shapeRow.appendChild(portLbl);
@@ -2552,7 +2552,7 @@ function renderLayout() {
     var stepSel = select('sys-look-steppers', [['', 'Arrows beside'], ['inside', 'Arrows inside']], shape.steppers || '', 'Number boxes: \u2212 and + beside a pool (as now), or small up and down arrows inside the right edge of every number box');
     var valSel = select('sys-look-values', [['', 'Plain results'], ['boxed', 'Boxed results']], shape.values || '', 'Worked-out results in sections: as text (as now), or in a dashed box');
     var rowSel = select('sys-look-rows', [['', 'Plain item rows'], ['cards', 'Item cards']], shape.rows || '', 'Carried items: plain rows (as now), or a small card each');
-    [numSel, bandSel, stepSel, valSel, fxSel, rowSel].forEach(function(s) { detRow.appendChild(s); });
+    [[numSel, 'Numbers'], [bandSel, 'Band'], [stepSel, 'Number boxes'], [valSel, 'Results'], [fxSel, 'Effects'], [rowSel, 'Item rows']].forEach(function(p) { detRow.appendChild(capBox(p[0], p[1])); });
     detRow.appendChild(stickyLbl); lookBox.appendChild(detRow);
     // Stage 6 look fold (L1): a palette — ten colours for every part of the sheet, from a preset or the GM's own swatches
     var pal = paletteOf(shape);
@@ -2680,15 +2680,15 @@ function renderLayout() {
         });
         root.appendChild(box);
     }
-    if (!hudOn) pinBox({ key: 'identity', boxId: 'sysIdentityBox', title: 'Identity rows (optional)', kinds: IDENTITY_KINDS, rolls: false, limit: LIMITS.identity,
+    if (!hudOn) pinBox({ key: 'identity', boxId: 'sysIdentityBox', title: 'Identity rows', kinds: IDENTITY_KINDS, rolls: false, limit: LIMITS.identity,
         hintFull: 'Under the name, in columns: a small label over each value; they scroll away with the sheet, leaving the band and the tabs at the top. Text, select, number and yes/no rows are changed right here by whoever may edit them, so they need no second copy in a section; formulas, skills and resources are read-only here. Players see the same rows.',
         hintEmpty: 'No identity rows \u2014 pick the fields that say who this is (ancestry, class, level, homeworld\u2026) and they read as labelled values under the name, in columns.',
         addLabel: 'Add an identity row\u2026', addTitle: 'A text, select, number or toggle (changed right there) or a formula, skill or resource (read-only) to show under the name', delTitle: 'Take off the identity rows (the field stays wherever else it is)', clearTitle: 'Take every identity row off', capMsg: 'At most ' + LIMITS.identity + ' identity rows.' });
-    pinBox({ key: 'ledger', boxId: 'sysLedgerBox', title: 'Ledger figures (optional)', kinds: LEDGER_KINDS, rolls: false, limit: LIMITS.ledger,
+    pinBox({ key: 'ledger', boxId: 'sysLedgerBox', title: 'Ledger figures', kinds: LEDGER_KINDS, rolls: false, limit: LIMITS.ledger,
         hintFull: 'Figures under the identity rows: a small label over a bold value (a negative reads red). A number is a box whoever may edit it can change right there; formulas, skills and resources are edited in the sections.',
         hintEmpty: 'No ledger \u2014 pick a few numbers (points spent, remaining, a total) and they read as bold figures under the name.',
         addLabel: 'Add a figure\u2026', addTitle: 'A number, formula, skill or resource to show as a figure (a number stays editable there)', delTitle: 'Take off the ledger (the field stays wherever else it is)', clearTitle: 'Take every figure off', capMsg: 'At most ' + LIMITS.ledger + ' ledger figures.' });
-    pinBox({ key: 'band', boxId: 'sysBandBox', title: 'Pinned band (optional)', kinds: BAND_KINDS, rolls: true, limit: LIMITS.band, groups: true,
+    pinBox({ key: 'band', boxId: 'sysBandBox', title: 'Pinned band', kinds: BAND_KINDS, rolls: true, limit: LIMITS.band, groups: true,
         hintFull: 'Shown on every tab, just above the tab strip, and it stays at the top with the strip while the sheet scrolls. A field can be here and in a section too.',
         hintEmpty: 'No band \u2014 pin a few numbers, resources, toggles or rolls and they stay under the name on every tab, above the tab strip.',
         addLabel: 'Pin to the band\u2026', addTitle: 'A number, formula, skill, resource, toggle or roll to keep in view on every tab', delTitle: 'Take off the band (it stays wherever else it is on the sheet)', clearTitle: 'Take everything off the band', capMsg: 'The band holds at most ' + LIMITS.band + ' items.' });
@@ -2789,6 +2789,7 @@ function renderLayout() {
         row.appendChild(addRow);
         root.appendChild(row);
     });
+    if (typeof window !== 'undefined' && window.wpSysUi && window.wpSysUi.layoutDrawn) window.wpSysUi.layoutDrawn(root);   // 1.6.2: its parts down the side, one in view
     renderPreview();
 }
 // what a section's Add list offers, one list for the tab
@@ -2886,6 +2887,7 @@ function onLayoutChange(t) {
 }
 function onLayoutClick(b) {
     if (b.closest && b.closest('#sysLayoutView') && (b.dataset.view === 'sheet' || b.dataset.view === 'hud')) { if (layoutView !== b.dataset.view) { layoutView = b.dataset.view; var pvb = ui('sysLayoutPreview'); if (pvb) delete pvb.dataset.wpTab; renderLayout(); } return true; }   // HUD frame HF1: the Sheet | HUD switch (never marks the draft dirty)
+    if ((b.id === 'sysAddSection' || b.id === 'sysLayoutAuto') && typeof window !== 'undefined' && window.wpSysUi && window.wpSysUi.topicPress) window.wpSysUi.topicPress('layout', 'sections');   // 1.6.2: what they make is in view
     if (b.id === 'sysLayoutAuto' && layoutView === 'hud') {   // HF1: copy the sheet's sections (or the automatic layout's) onto the HUD's first tab — fresh ids, parents remapped, no tab
         var clH = cleanSystem(draft, { F: F(), gmView: true }) || draft, srcS = (clH.sheet && Array.isArray(clH.sheet.sections) && clH.sheet.sections.length) ? clH.sheet.sections : autoLayout(clH).sections;
         var doCopy = function() {

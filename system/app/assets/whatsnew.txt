@@ -23,6 +23,9 @@ Tidier screens
   Ilex, and Paid in place of Clear.
 - The top row keeps the map's whole name when a player joins. The clock and
   the pills go short first.
+- The System editor's Layout tab lists its parts down the left, as Combat
+  does. Sections, Tabs, Sheet look, Header and Pinned band each open on
+  their own, and the preview stays beside them.
 - Every button that cannot be undone wears a red outline, such as Start over
   as a new player and Clear all handouts.
 

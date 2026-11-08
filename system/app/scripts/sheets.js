@@ -1033,6 +1033,7 @@ function rangeFor(c, mapId, map, tok, camp) {
     var cOf = function(t) { return t && typeof t.charId === 'string' && camp && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, t.charId) ? camp.chars[t.charId] : null; };   // 1.6.0: TargetSize, from the target's own character where this screen holds it (the host works a player's roll out from its own)
     var bdS = window.wpFog && typeof window.wpFog.bodiesOnLine === 'function' ? window.wpFog.bodiesOnLine(map, tok, w, typeof drop !== 'undefined' ? drop : null) : null;   // 1.6.2: a body in the way, never one this screen's player cannot see
     var rc = rangeCtx(systemOf(camp), map, tok, w, { F: F(), elev: !!tokenFlags().elevation, posture: !!tokenFlags().posture, groundOf: gOf, charOf: cOf, bodies: bdS }); if (rc) { rc.tid = w.id; rc.mapId = mapId; }   // R3: which target, for the GM's privacy check
+    if (rc && window.wpFog && typeof window.wpFog.targetLight === 'function') rc.light = window.wpFog.targetLight(map, w);   // 1.6.2 (the CORE session, 5a): TargetLight in any roll
     if (rc && window.wpFog && typeof window.wpFog.coverGrade === 'function') { var cvN = window.wpFog.coverGrade(map, camp, tok, w, pc); if (cvN) { rc.cgrade = cvN; rc.cover = cvN === 3 ? 2 : 1; var cpN = typeof window.wpFog.coverPro === 'function' ? window.wpFog.coverPro(map, camp, tok, w) : 0; if (cpN) rc.cpro = cpN; } }   // 1.6.0: TargetCover and TargetCoverGrade, as the ruler reads it
     return rc;
 }

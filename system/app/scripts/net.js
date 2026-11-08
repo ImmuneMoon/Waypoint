@@ -6929,7 +6929,8 @@ function rangeTo(camp, map, mapId, tok, pid) {
         var cOf = function(t) { return t && typeof t.charId === 'string' && camp.chars && own(camp.chars, t.charId) ? camp.chars[t.charId] : null; };   // 1.6.0: TargetSize, from the target's own character
         var bdN = window.wpFog && typeof window.wpFog.bodiesOnLine === 'function' ? window.wpFog.bodiesOnLine(map, tok, w, drop) : null;   // 1.6.2: a body in the way, never one this player's copy drops
         var rc = S.rangeCtx(camp.system, map, tok, w, { F: window.wpFormula, elev: !!el, posture: !vt || !!(vt.rulesOn ? vt.rulesOn('posture') : vt.on('posture')), groundOf: gOf, charOf: cOf, bodies: bdN }); if (rc) { rc.tid = w.id; rc.mapId = mapId; }   // R3: which target
-        var Fgc = window.wpFog; if (rc && Fgc && typeof Fgc.coverGrade === 'function') { var cvN = Fgc.coverGrade(map, camp, tok, w, true); if (cvN) { rc.cgrade = cvN; rc.cover = cvN === 3 ? 2 : 1; var cpN = typeof Fgc.coverPro === 'function' ? Fgc.coverPro(map, camp, tok, w) : 0; if (cpN) rc.cpro = cpN; } }   // 1.6.0: TargetCover and TargetCoverGrade, as the ruler reads it
+        var Fgc = window.wpFog; if (rc && Fgc && typeof Fgc.targetLight === 'function') rc.light = Fgc.targetLight(map, w);   // 1.6.2 (the CORE session, 5a): TargetLight in any roll
+        if (rc && Fgc && typeof Fgc.coverGrade === 'function') { var cvN = Fgc.coverGrade(map, camp, tok, w, true); if (cvN) { rc.cgrade = cvN; rc.cover = cvN === 3 ? 2 : 1; var cpN = typeof Fgc.coverPro === 'function' ? Fgc.coverPro(map, camp, tok, w) : 0; if (cpN) rc.cpro = cpN; } }   // 1.6.0: TargetCover and TargetCoverGrade, as the ruler reads it
         return rc;
     };
     return typeof fogLanded === 'function' ? fogLanded(mapId, judge) : judge();

@@ -1011,6 +1011,13 @@ function bodiesOnLine(map, from, to, skip) {
     return out.sort(function(x, y) { return x.d - y.d; }).map(function(o) { return o.w; });
 }
 // ... and what a check reads of where the creature stands: the light on its cell (0 dark, 1 dim, 2 clear) and the cover between them (coverGrade's own reading)
+// 1.6.2 (the CORE session's batch 6, 5a): the light a target stands in, 0 dark, 1 dim, 2 lit, as the side vision check reads it, for any roll
+function targetLight(map, to) {
+    var C = core(), grid = gridForMap(map); if (!C || !grid || !to) return 2;
+    var lvl = mapLevel(map); if (lvl === null) return 2;
+    var bk = C.cellKey(C.cellOf(to.x + (to.w || 60) / 2, to.y + (to.h || 52) / 2, grid), grid), blk = blockersFor(map, grid), over = !!_blockerOver[map.id], lc = over ? null : litFor(map, grid, blk);
+    return over ? 0 : Math.max(lvl, (lc && lc.lit && lc.lit[bk]) || 0);
+}
 function noticeFacts(map, camp, from, to) {
     var C = core(), grid = gridForMap(map), out = { light: 2, cover: 0 }; if (!C || !grid) return out;
     var cell = function(t) { return C.cellOf(t.x + (t.w || 60) / 2, t.y + (t.h || 52) / 2, grid); }, b = cell(to), bk = C.cellKey(b, grid), lvl = mapLevel(map);
@@ -2404,7 +2411,7 @@ window.wpFogRedraw = redraw;
 setTimeout(sync, 0);
 window.wpFog = {
     // host enforcement (net.js)
-    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, noticeFacts: noticeFacts, coverGrade: coverGrade, coverPro: coverPro, bodiesOnLine: bodiesOnLine, coverObject: coverObject, coverAt: coverAt, blastSeat: blastSeat, flightWall: flightWall, moveBlocked: moveBlocked, arrivalOk: arrivalOk, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
+    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, noticeFacts: noticeFacts, targetLight: targetLight, coverGrade: coverGrade, coverPro: coverPro, bodiesOnLine: bodiesOnLine, coverObject: coverObject, coverAt: coverAt, blastSeat: blastSeat, flightWall: flightWall, moveBlocked: moveBlocked, arrivalOk: arrivalOk, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
     PARTY: PARTY, fogPartyCells: fogPartyCells,   // R2 #14: the stream window's standpoint (the players' tokens together) and the cells it draws by, for its copy (net.js fogPartyCopy)
     // GM tools
     handNote: handNote,   // 1.5.4: what to say when a piece's fog mark cannot show yet (inspector.js, whiteboard.js)

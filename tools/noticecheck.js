@@ -178,9 +178,12 @@ function world(opts) {
     check('a system that sets none keeps none', J(SC.cleanSystem(none, { F, gmView: true })).indexOf('notice') < 0);
     const vr = SC.validateSystem(gmV, F), msgs = (vr.errors || vr || []).map(e => e.message).join(' | ');
     check('its names are known in the check', msgs.indexOf('TargetLight') < 0 && msgs.indexOf('AttemptMargin') < 0, msgs);
-    const elsewhere = JSON.parse(J(gmV)); elsewhere.rolls[0].formula = '3d6 <= TargetLight';
+    const elsewhere = JSON.parse(J(gmV)); elsewhere.rolls[0].formula = '3d6 <= TargetLoud';
     const m2 = (SC.validateSystem(elsewhere, F).errors || []).map(e => e.message).join(' | ');
-    check('and nowhere else', /known only in a side vision check/.test(m2), m2);
+    check('and TargetLoud nowhere else', /known only in a side vision check/.test(m2), m2);
+    const lit = JSON.parse(J(gmV)); lit.rolls[0].formula = '3d6 <= 10 - TargetLight';   // 1.6.2 (the CORE session, batch 6, 5a): TargetLight in any roll, through the range (moved on purpose)
+    const mLit = (SC.validateSystem(lit, F).errors || []).map(e => e.message).join(' | ');
+    check('TargetLight is known in any roll, read from the range as the check reads it', mLit.indexOf('TargetLight') < 0 && read('fog.js').includes('noticeFacts: noticeFacts, targetLight: targetLight,') && read('sheets.js').includes('rc.light = window.wpFog.targetLight(map, w);') && readLat('net.js').includes('rc.light = Fgc.targetLight(map, w);'), mLit);
     const atk = JSON.parse(J(gmV)); atk.rolls[0].formula = '3d6 <= 10 - TargetCover';
     const m2b = (SC.validateSystem(atk, F).errors || []).map(e => e.message).join(' | ');
     check('TargetCover is known in any roll, as RangeMod is', m2b.indexOf('TargetCover') < 0, m2b);

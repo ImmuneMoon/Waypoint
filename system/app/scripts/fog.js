@@ -187,10 +187,10 @@ function nullAreas(map, grid) {   // [{ keys: { cellKey: 1 }, ids }], kept on th
     if (hit && hit.stamp === stamp) return hit.areas;
     var areas = [];
     (map.whiteboard || []).forEach(function(w) {
-        if (!w || w.isChar || w.waiting || w.type === 'light' || w.gmNoteFor || w.nulls === undefined) return;
-        var ids = C.cleanNulls(w.nulls); if (!ids) return;
+        if (!w || w.isChar || w.waiting || w.type === 'light' || w.gmNoteFor || (w.nulls === undefined && w.hazard === undefined)) return;
+        var ids = C.cleanNulls(w.nulls), hzA = C.cleanHazard ? C.cleanHazard(w.hazard) : null; if (!ids && !(hzA && hzA.fx)) return; ids = ids || [];   // 1.6.2: or a hazard's effect while here
         var keys = Object.create(null), fcN = footprintCells(w, grid, C); fcN.forEach(function(c) { keys[C.cellKey(c, grid)] = 1; });
-        var areaN = { keys: keys, ids: ids }, fxN = C.cleanNullFx ? C.cleanNullFx(w.nullFx) : null; if (fxN) areaN.fx = fxN;   // 1.6.0: the effect it puts on (nullFxAt)
+        var areaN = { keys: keys, ids: ids }, fxN = C.cleanNullFx ? C.cleanNullFx(w.nullFx) : null; if (fxN) areaN.fx = fxN; else if (hzA && hzA.fx) areaN.fx = hzA.fx;   // 1.6.0: the effect it puts on (nullFxAt)
         if (fcN.over) areaN.big = { x: w.x, y: w.y, w: w.w, h: w.h, rot: w.rot, type: w.type === 'hexagon' || w.type === 'circle' || w.type === 'diamond' ? w.type : 'rect' };   // too large to list (the owed review, 2026-10-09): its outline is asked for the one cell a token stands in, as its cells would answer
         areas.push(areaN);
     });
@@ -2427,7 +2427,7 @@ window.wpFog = {
     eyesArc: eyesArc,   // the eyes' arc: the arc a token sees through on a map (its Properties say when it is its own)
     fogMarksFor: fogMarksFor, campMarkSenses: campMarkSenses, campNoticeSenses: campNoticeSenses,   // senses S4: a player's marks (the host's, for their copy)
     marksHold: marksHold, marksForget: marksForget, marksStrictOn: marksStrictOn,   // senses S4b: a refresh of what is held, forgetting it, and whether a map plays it
-    nullFxAt: nullFxAt,   // 1.6.0: the effects the null areas over a token put on its character (sheets.js areaFxFollow)
+    nullFxAt: nullFxAt, gridForMap: gridForMap,   // 1.6.2: and a map's lattice, for a hazard's own rows (whiteboard.js)   // 1.6.0: the effects the null areas over a token put on its character (sheets.js areaFxFollow)
     fogOffFor: fogOffFor, nullsAt: nullsAt,   // senses S7a: a player's word of their own tokens' senses a null area switches off, and what is off where a token stands
     seenKind: seenKind, memSeenSig: memSeenSig, memTrace: memTrace, rememberOff: function() { return !rememberOn(activeCamp()); },   // 1.6.0: what a portal's picture of a map may hold on a player's screen (mapshot.js)
     stats: function() { var map = activeMap(); return { on: map ? !!mapFog(map).on : false, light: map ? mapLevel(map) : null, mode: map ? mapFog(map).mode : null, preview: previewMode, brush: brush, fogMode: !!window.isFogMode, role: roleNow() }; }

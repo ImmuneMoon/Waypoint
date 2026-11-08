@@ -3429,6 +3429,65 @@ window.wpFitToGrid = fitToGrid;
       return '';
   }
   // [sinkcheck:doorrow-end]
+  // [fogcheck:hazardrows-start]
+  // 1.6.2 (map hazards; the owner, by prompt: "A GM button on the area", "A Spread button, GM decides", "The area picks a token"). The GM's alone
+  // (never a player's app, its link up or between attempts, never the stream window), on the map on screen. Roll for everyone in it: each character
+  // whose token's centre the piece covers, once, where the hazard's test holds for it (systemcore rollNeedsOk, the sheet's own names), gets a
+  // card for the roll the hazard names (net.postDue, called for by the piece), its player's or the GM's. Spread fire: every painted cell set to
+  // spread grows one cell outward (fogcore spreadCells), each new cell a copy of the cell it came from
+  function hazardGm() { var n = window.wpNet; return !window.wpStream && !(n && (n.foreign || (n.active && n.role === 'client'))) && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()); }
+  function hazardRows(items) {
+      var FC = window.wpFogCore; if (!hazardGm() || !FC || typeof FC.cleanHazard !== 'function') return null;
+      var hz = (Array.isArray(items) ? items : []).filter(function(w) { return !!w && !w.isChar && !w.waiting; }).map(function(w) { return { w: w, h: FC.cleanHazard(w.hazard) }; }).filter(function(x) { return !!x.h; });
+      var roll = hz.filter(function(x) { return !!x.h.roll; }), fire = hz.filter(function(x) { return !!x.h.spread && x.w.fill; }), html = '';
+      if (roll.length) html += '<div class="menu-item cm-hazard-roll" title="Each character standing in it gets a card for its roll"><i class="wib wi-die"></i> Roll for everyone in it</div>';
+      if (fire.length) html += '<div class="menu-item cm-hazard-spread" title="Every cell of fire set to spread grows one cell outward"><i class="wib wi-burst"></i> Spread fire</div>';
+      return html ? { html: html, roll: roll, fire: fire } : null;
+  }
+  function hazardRoll(items, map) {
+      var row = hazardRows(items), FG = window.wpFog, FC = window.wpFogCore, S = window.wpSystemCore, F = window.wpFormula, n = window.wpNet, camp = getActiveCampaign();
+      if (!row || !row.roll.length || !FG || typeof FG.gridForMap !== 'function' || !FC || !S || !camp || !map) return 0;
+      var grid = FG.gridForMap(map), sys = camp.system || {}, done = Object.create(null), sent = 0; if (!grid) return 0;
+      row.roll.forEach(function(x) {
+          var act = (Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return r && r.id === x.h.roll; })[0]; if (!act) return;
+          (map.whiteboard || []).forEach(function(t) {
+              if (!t || !t.isChar || t.waiting || typeof t.charId !== 'string' || done[t.charId + '|' + act.id] || !camp.chars || !Object.prototype.hasOwnProperty.call(camp.chars, t.charId)) return;
+              var cx = t.x + (t.w || 60) / 2, cy = t.y + (t.h || 52) / 2, cell = FC.cellOf(cx, cy, grid), p = FC.cellCenter(cell, grid); if (!FC.itemCovers(x.w, p.x, p.y, grid)) return;
+              var ch = camp.chars[t.charId]; if (x.h['if'] && F && typeof S.rollNeedsOk === 'function' && typeof S.makeResolver === 'function') { var ok = false; try { ok = S.rollNeedsOk({ needs: x.h['if'] }, S.makeResolver(sys, ch, F, null), F) === true; } catch (e) { ok = false; } if (!ok) return; }
+              done[t.charId + '|' + act.id] = 1;
+              if (n && typeof n.postDue === 'function') { n.postDue(ch, act, 'called', 1, !!ch.ownerId && !ch.npc, { by: x.w.name || 'A hazard' }); sent++; }
+          });
+      });
+      if (window.wpStepLog) window.wpStepLog('hazard v1', 'roll', { cards: sent });
+      return sent;
+  }
+  function hazardSpread(map) {
+      var FG = window.wpFog, FC = window.wpFogCore; if (!hazardGm() || !map || !FG || typeof FG.gridForMap !== 'function' || !FC || typeof FC.spreadCells !== 'function') return 0;
+      var grid = FG.gridForMap(map); if (!grid) return 0; var cells = FC.spreadCells(map.whiteboard, grid), made = 0;
+      cells.forEach(function(c) {
+          var box = cellSnap(c.x, c.y), from = c.from, it = { id: 'wb' + uid(), type: box.type, x: box.px, y: box.py, w: box.w, h: box.h, baseW: box.w, baseH: box.h, fill: true };
+          ['z', 'layer', 'color', 'opacity', 'texture', 'texSrc', 'texTile', 'terrain', 'name', 'hidden', 'hazard', 'smoke'].forEach(function(k) { if (from[k] !== undefined) it[k] = JSON.parse(JSON.stringify(from[k])); });
+          map.whiteboard.push(it); made++;
+      });
+      if (window.wpStepLog) window.wpStepLog('hazard v1', 'spread', { cells: made });
+      return made;
+  }
+  // A piece that follows a token (item.follow) stands centred on it, on every map of the campaign on this machine: looked at each half second and
+  // after Properties sets it, written only where it moved, with one save
+  function hazardFollow() {
+      var FC = window.wpFogCore, camp = getActiveCampaign(); if (!hazardGm() || !FC || typeof FC.cleanFollow !== 'function' || !camp || !camp.items) return 0;
+      var moved = 0;
+      Object.keys(camp.items).forEach(function(id) { var m = camp.items[id]; if (!m || m.type !== 'map' || !Array.isArray(m.whiteboard)) return; var byId = null;
+          m.whiteboard.forEach(function(w) { var f = w && !w.isChar ? FC.cleanFollow(w.follow) : null; if (!f) return; if (!byId) { byId = Object.create(null); m.whiteboard.forEach(function(t) { if (t && typeof t.id === 'string') byId[t.id] = t; }); }
+              var t = byId[f]; if (!t || typeof t.x !== 'number' || typeof t.y !== 'number') return; var nx = Math.round(t.x + (t.w || 60) / 2 - (w.w || 0) / 2), ny = Math.round(t.y + (t.h || 52) / 2 - (w.h || 0) / 2);
+              if (Math.abs(nx - w.x) < 1 && Math.abs(ny - w.y) < 1) return; w.x = nx; w.y = ny; moved++; });
+      });
+      if (moved) { save(); render(); if (window.wpFog && window.wpFog.invalidateVision) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } }
+      return moved;
+  }
+  window.wpHazardFollow = hazardFollow;
+  if (typeof window !== 'undefined' && !window.wpStream && typeof setInterval === 'function') setInterval(function() { try { hazardFollow(); } catch (e) { console.error(e); } }, 500);
+  // [fogcheck:hazardrows-end]
   // [sinkcheck:secretrow-start]
   // A secret door's row on the GM's menu (the map builder, fold B5; the owner, by prompt: found by "A row, and opening it"): Reveal secret
   // door where the selection holds one, else Make secret door where it holds a door that may be one (fogcore secretOk). Revealed, the
@@ -11133,6 +11192,8 @@ document.addEventListener('contextmenu', function(e) {
                 if (drRow) html += drRow.html;
                 var scRow = secretRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // the map builder: a secret door's row, Reveal or Make
                 if (scRow) html += scRow.html;
+                var hzRow = typeof hazardRows !== 'function' ? null : hazardRows(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // 1.6.2: a map hazard's rows, Roll for everyone in it and Spread fire
+                if (hzRow) html += hzRow.html;
                 var plRow = portalLockRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), am);   // a portal's own lock: the GM's row, only where the selection holds a portal
                 if (plRow) html += plRow.html;
                 var fhRow = fogHandRows(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // 1.5.4: a piece's fog mark, only where the selection holds a piece that may carry one
@@ -11375,6 +11436,10 @@ document.addEventListener('contextmenu', function(e) {
                     var wentD = doorRowsDo(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), action.includes('cm-door-open') ? 'open' : 'lock');
                     if (wentD) { if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } toast(wentD === 'opened' ? 'Door opened.' : wentD === 'closed' ? 'Door closed.' : wentD === 'locked' ? 'Door locked for players.' : 'Door unlocked for players.'); }
                     if (wentD === 'opened') { var tallyD = { hid: 0 }, saidD = secretOpenedWords(secretOpened(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), tallyD), tallyD.hid); if (saidD) toast(saidD); }   // a secret door that is opened is found: an open door cannot be secret
+                } else if (action.includes('cm-hazard-roll')) {   // 1.6.2: a map hazard's roll, a card to each character standing in it
+                    var hzN = hazardRoll(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), am); toast(hzN ? (hzN === 1 ? 'One card sent.' : hzN + ' cards sent.') : 'Nobody standing in it.');
+                } else if (action.includes('cm-hazard-spread')) {   // 1.6.2: fire that spreads, one cell outward (saved and drawn again below)
+                    var hzS = hazardSpread(am); toast(hzS ? 'The fire spread to ' + hzS + ' cell' + (hzS === 1 ? '' : 's') + '.' : 'Nowhere left for it to spread.');
                 } else if (action.includes('cm-secret-show') || action.includes('cm-secret-make')) {   // the map builder: a secret door revealed, or a door made secret (saved and drawn again below, so the table gets it at once)
                     var wentS = secretRowDo(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));
                     if (wentS) { if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } toast(wentS === 'shown' ? 'Secret door revealed. Your players see it as a door now.' : 'Secret door. Your players see wall here until it is found.'); }

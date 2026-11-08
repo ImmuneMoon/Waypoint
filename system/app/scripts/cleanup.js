@@ -671,6 +671,9 @@ function cleanImportItems(ic, deps) {
             if (w.unsensed !== undefined) { var U = FC && typeof FC.cleanUnsensed === 'function' ? FC.cleanUnsensed(w.unsensed) : null; if (U) w.unsensed = U; else delete w.unsensed; }   // senses S4: the senses that never mark this token
             if (w.nulls !== undefined) { var NU = FC && typeof FC.cleanNulls === 'function' ? FC.cleanNulls(w.nulls) : null; if (NU) w.nulls = NU; else delete w.nulls; }   // senses S7a: the senses a null area switches off
             if (w.nullFx !== undefined) { var NF = w.nulls !== undefined && FC && typeof FC.cleanNullFx === 'function' ? FC.cleanNullFx(w.nullFx) : null; if (NF) w.nullFx = NF; else delete w.nullFx; }   // 1.6.0: the effect it puts on, only beside its senses
+            if (w.hazard !== undefined) { var HZ = FC && typeof FC.cleanHazard === 'function' ? FC.cleanHazard(w.hazard) : null; if (HZ) w.hazard = HZ; else delete w.hazard; }   // 1.6.2: a map hazard, as its cleaner keeps it
+            if (w.follow !== undefined) { var FW = FC && typeof FC.cleanFollow === 'function' ? FC.cleanFollow(w.follow) : null; if (FW) w.follow = FW; else delete w.follow; }
+            if (w.burns !== undefined && w.burns !== true) delete w.burns;
             if (w.smoke !== undefined && w.smoke !== true) delete w.smoke;   // senses S7b: smoke only as true
             if (w.coverAs !== undefined) { var cAsI = FC && typeof FC.cleanCoverAs === 'function' ? FC.cleanCoverAs(w.coverAs) : ''; if (cAsI) w.coverAs = cAsI; else delete w.coverAs; }
             if (w.coverPro !== undefined) { var cPrI = FC && typeof FC.cleanCoverPro === 'function' ? FC.cleanCoverPro(w.coverPro) : 0; if (cPrI) w.coverPro = cPrI; else delete w.coverPro; }   // 1.6.2: a cover piece's Protection, a whole number 1 to 999, none without the cleaner

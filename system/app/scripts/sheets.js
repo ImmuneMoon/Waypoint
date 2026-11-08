@@ -482,7 +482,7 @@ function envFollow(camp) {
 var _afSaid = Object.create(null);
 function areaFxFollow(camp) {
     var sys = camp && camp.system, FG = window.wpFog; if (!sys || !Array.isArray(sys.effects) || !sys.effects.length || !FG || typeof FG.nullFxAt !== 'function' || isClient() || !canWrite() || net() && net().stream) return 0;
-    var items = camp.items && typeof camp.items === 'object' ? camp.items : {}, any = Object.keys(items).some(function(id) { var m = items[id]; return !!m && m.type === 'map' && Array.isArray(m.whiteboard) && m.whiteboard.some(function(w) { return !!w && w.nullFx !== undefined; }); });
+    var items = camp.items && typeof camp.items === 'object' ? camp.items : {}, any = Object.keys(items).some(function(id) { var m = items[id]; return !!m && m.type === 'map' && Array.isArray(m.whiteboard) && m.whiteboard.some(function(w) { return !!w && (w.nullFx !== undefined || (w.hazard && w.hazard.fx)); }); });
     var n = net(), idx = Object.create(null), changed = 0;
     Object.keys(camp.chars || {}).forEach(function(id) {
         var c = camp.chars[id]; if (!c || typeof c !== 'object' || c.making) return;

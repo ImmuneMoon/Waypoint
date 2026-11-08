@@ -1167,7 +1167,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               (w.isChar && !w.waiting && window.wpCanPersistLocal && window.wpCanPersistLocal() ? sensesFieldHtml(w, activeMap) : '')+   // senses S2b: the system's senses, as this token has them
               (w.isChar && !w.waiting && window.wpFog && window.wpFog.canOutline && window.wpFog.canOutline() ? '<div class="field check-row"><input type="checkbox" id="wbSightOutline"' + ((function() { try { return localStorage.getItem('wp_sightOutline') === 'on'; } catch (e) { return false; } })() ? ' checked' : '') + '> <label for="wbSightOutline" title="An outline around the area this token sees, on your screen alone. The same switch as the eye on the bar over a selected piece">Show what it sees</label></div>' : '')+   // 1.6.2: the bar's eye, here too, so nothing is lost with the bar away
               (w.isChar && !w.waiting && window.wpCanPersistLocal && window.wpCanPersistLocal() ? barsFieldHtml(w) : '')+   // backlog 28: its bars
-              (['rect','hexagon','circle','diamond','image'].indexOf(w.type) >= 0 && !w.isChar && !w.waiting && !w.gmNoteFor && window.wpCanPersistLocal && window.wpCanPersistLocal() ? nullsFieldHtml(w) : '')+   // senses S7a: a null area (hidden or not)
+              (['rect','hexagon','circle','diamond','image'].indexOf(w.type) >= 0 && !w.isChar && !w.waiting && !w.gmNoteFor && window.wpCanPersistLocal && window.wpCanPersistLocal() ? nullsFieldHtml(w) + hazardFieldHtml(w) : '')+   // 1.6.2: and a hazard   // senses S7a: a null area (hidden or not)
               '</details>' +
               (w.type==='text' ? '<div class="muted">Tip: Double-click the text box on the canvas to edit its words. The colour above sets the text colour.</div>' : '');
             
@@ -1446,7 +1446,9 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var _el_wbBM = document.getElementById('wbBarsMode');
             if (_el_wbBM) _el_wbBM.addEventListener('change', function() { setTokenBarsMode(w, this.value === 'own'); });   // backlog 28: the system's bars or the token's own
             inspector.querySelectorAll('.wb-tokbar').forEach(function(row) { row.querySelectorAll('select, input').forEach(function(el) { el.addEventListener('change', function() { var pt = /\bwb-tokbar-(pool|name|cur|max|show|color)\b/.exec(this.className || ''); var nm = row.querySelector('.wb-tokbar-name'); if (pt) setTokenBar(w, row.dataset.bi, pt[1], this.value, nm ? nm.value : ''); }); }); });   // backlog 28: one bar's parts (a bar made by its numbers takes the name already typed)
-            var nfEl = inspector.querySelector('#wbNullFx'); if (nfEl) nfEl.addEventListener('change', function() { setItemNullFx(w, this.value); });   // 1.6.0: the effect the area puts on
+            var nfEl = inspector.querySelector('#wbNullFx'); if (nfEl) nfEl.addEventListener('change', function() { setItemNullFx(w, this.value); });
+            ['Fx', 'Roll', 'If', 'Follow', 'Spread'].forEach(function(k) { var hzE = inspector.querySelector('#wbHz' + k); if (hzE) hzE.addEventListener('change', function() { setItemHazard(w, k, this.value); }); });   // 1.6.2: a map hazard
+            var buE = inspector.querySelector('#wbBurns'); if (buE) buE.addEventListener('change', function() { setItemHazard(w, 'Burns', this.checked); });   // 1.6.0: the effect the area puts on
             inspector.querySelectorAll('.wb-null').forEach(function(el) { el.addEventListener('change', function() { setItemNulls(w, this.dataset.ni, this.checked); }); });   // senses S7a: the senses that fail in this area
             var _el_wbBT = document.getElementById('wbBlindTick');
             if (_el_wbBT) _el_wbBT.addEventListener('change', function() { setTokenBlind(w, this.checked); });   // senses S3: the GM's Blind tick
@@ -2005,6 +2007,39 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   }
   // 1.6.0: the effect a null area puts on a character whose token stands under it, picked by its place in the system's list, digits alone. Only beside
   // ticked senses; the GM's, and never on the wire
+  // [sinkcheck:hazardbox-start]
+  // 1.6.2 (map hazards; the owner, by prompt): a piece's hazard in its Properties, the GM's: an effect on whoever stands in it, a roll the menu asks
+  // of everyone in it with a test that narrows it, the token it follows on this map, and on a painted cell how its fire spreads; and on any shape a
+  // Burns tick, the cells fire may spread onto. Picked by their place in a list, digits alone; the test a value. Markup through esc alone
+  function hazardFieldHtml(w) {
+      var camp = getActiveCampaign(), C = window.wpFogCore; if (!camp || !C || typeof C.cleanHazard !== 'function') return '';
+      var hz = C.cleanHazard(w.hazard) || {}, fol = C.cleanFollow(w.follow), sys = camp.system || {}, fxs = Array.isArray(sys.effects) ? sys.effects : [], rls = (Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return r && typeof r.id === 'string'; });
+      var map = getActiveMap(), toks = map && Array.isArray(map.whiteboard) ? map.whiteboard.filter(function(t) { return t && t.isChar && !t.waiting && typeof t.id === 'string' && t.id !== w.id; }) : [];
+      var sel = function(id, label, title, opts, cur) { return '<div class="field"><label for="' + id + '">' + label + '</label><select id="' + id + '" title="' + esc(title) + '"><option value="">None</option>' + opts.map(function(o, i) { return '<option value="' + i + '"' + (o[0] === cur ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></div>'; };
+      var h = '<div class="field"><label>Hazard</label><div class="muted" style="margin:0 0 4px; font-size:10.5px;">Yours alone. It works hidden too.</div></div>';
+      if (fxs.length) h += sel('wbHzFx', 'Effect on whoever is here', 'This effect goes on a character when its token enters, and off when it leaves', fxs.map(function(d) { return [d.id, d.name || 'An effect']; }), hz.fx);
+      if (rls.length) h += sel('wbHzRoll', 'Roll for everyone in it', 'Right-click it for Roll for everyone in it: each character standing here gets a card for this roll', rls.map(function(r) { return [r.id, r.label || 'A roll']; }), hz.roll);
+      if (hz.roll) h += '<div class="field"><label for="wbHzIf">Only those where</label><input id="wbHzIf" class="field" maxlength="1000" value="' + esc(hz['if'] || '') + '" title="A test of each character, such as Droid = 1. Empty: everyone standing here" placeholder="Everyone here"></div>';
+      h += sel('wbHzFollow', 'Follows', 'It moves with this token wherever it goes on this map', toks.map(function(t) { return [t.id, t.name || 'A token']; }), fol);
+      if (w.fill) h += '<div class="field"><label for="wbHzSpread">Spreads</label><select id="wbHzSpread" title="Right-click it for Spread fire: it grows one cell outward"><option value="">Does not spread</option><option value="burns"' + (hz.spread === 'burns' ? ' selected' : '') + '>Onto cells that burn</option><option value="all"' + (hz.spread === 'all' ? ' selected' : '') + '>Everywhere</option></select></div>';
+      h += '<div class="field check-row"><input type="checkbox" id="wbBurns"' + (w.burns === true ? ' checked' : '') + '> <label for="wbBurns" title="Fire set to spread onto cells that burn may spread onto the cells this covers">Burns</label></div>';
+      return h;
+  }
+  function setItemHazard(w, k, v) {
+      var C = window.wpFogCore, camp = getActiveCampaign(); if (!C || !camp) return;
+      var hz = Object.assign({}, C.cleanHazard(w.hazard) || {}), sys = camp.system || {}, pick = function(list) { return typeof v === 'string' && /^\d{1,3}$/.test(v) ? list[Number(v)] : null; };
+      if (k === 'Fx') { var d = pick(Array.isArray(sys.effects) ? sys.effects : []); if (d) hz.fx = d.id; else delete hz.fx; }
+      else if (k === 'Roll') { var r = pick((Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(x) { return x && typeof x.id === 'string'; })); if (r) hz.roll = r.id; else { delete hz.roll; delete hz['if']; } }
+      else if (k === 'If') { if (String(v).trim()) hz['if'] = String(v); else delete hz['if']; }
+      else if (k === 'Spread') { if (v === 'burns' || v === 'all') hz.spread = v; else delete hz.spread; }
+      else if (k === 'Follow') { var map = getActiveMap(), toks = map && Array.isArray(map.whiteboard) ? map.whiteboard.filter(function(t) { return t && t.isChar && !t.waiting && typeof t.id === 'string' && t.id !== w.id; }) : [], t = pick(toks); if (t && C.cleanFollow(t.id)) w.follow = t.id; else delete w.follow; }
+      else if (k === 'Burns') { if (v === true) w.burns = true; else delete w.burns; }
+      if (k !== 'Follow' && k !== 'Burns') { var cl = C.cleanHazard(hz); if (cl) w.hazard = cl; else delete w.hazard; }
+      if (window.wpStepLog) window.wpStepLog('hazard v1', 'set', { what: k.toLowerCase() });
+      save(); render(); renderInspector(); if (window.wpFog && window.wpFog.redraw) window.wpFog.redraw();
+      if (k === 'Follow' && window.wpHazardFollow) window.wpHazardFollow();
+  }
+  // [sinkcheck:hazardbox-end]
   function setItemNullFx(w, ni) {
       var C = window.wpFogCore, camp = getActiveCampaign(); if (!C || !camp) return;
       var list = camp.system && Array.isArray(camp.system.effects) ? camp.system.effects : [], d = typeof ni === 'string' && /^\d{1,3}$/.test(ni) ? list[Number(ni)] : null, id = d && C.cleanNullFx ? C.cleanNullFx(d.id) : null;

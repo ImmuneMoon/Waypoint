@@ -47,6 +47,9 @@ The System editor
 - A system now says how a fight moves the game clock: synced round by round,
   running on as it does outside a fight, or not at all. It also says how a
   campaign's clock starts, which the GM can still change in the Calendar.
+- A piece can be a hazard: an effect on whoever stands in it, a roll you ask of
+  everyone in it from its right-click menu, a token it follows, and fire that
+  spreads a cell at a time when you press Spread fire.
 - Basic d20 has coins and carried weight. A new character starts with 10
   Gold, and Gold, Silver and Copper make change as you spend. Gear has weights,
   Carried adds them up, and the carrying limit is Strength times 15. Going over

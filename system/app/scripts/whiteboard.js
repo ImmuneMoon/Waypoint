@@ -4832,6 +4832,7 @@ window.wpFitToGrid = fitToGrid;
           var nts = opts.goOff ? opts.notes : pre.def && !opts.gmOnly ? pre.def.notes : ''; if (typeof nts === 'string' && nts.trim()) b.notes = nts.trim().slice(0, 800);
           var ico = opts.goOff ? opts.icon : pre.def ? pre.def.icon : ''; if (typeof ico === 'string' && ico) b.icon = ico;
           var adB = opts.goOff ? opts.ad : pre.area && pre.area.ad; if (typeof adB === 'number' && isFinite(adB) && adB > 0) b.ad = adB;
+          var lcB = opts.goOff ? opts.loc : pre.area && pre.area.loc; if (typeof lcB === 'string' && lcB) b.loc = lcB.slice(0, 60);   // 1.6.2 (the CORE session's batch 6, 11): the location it strikes (the host's memory alone)
           var fgB = opts.goOff ? opts.frag : pre.area && pre.area.frag; if (typeof fgB === 'string' && fgB) { b.frag = { expr: fgB.slice(0, 1200), by: typeof opts.charId === 'string' ? opts.charId : '', gm: !!opts.gmOnly }; var fgT = opts.goOff ? opts.fragType : pre.area && pre.area.fragType; if (typeof fgT === 'string' && fgT) b.frag.type = fgT; }   // 1.5.9 (es): its fragmentation, rolled as it goes off (the host's memory alone: broadcastBlast names none of it)
           var afB = opts.goOff ? opts.aff : pre.area && pre.area.aff, BCa = window.wpBlastCore, afC = Array.isArray(afB) && BCa && typeof BCa.cleanAffs === 'function' ? BCa.cleanAffs(afB) : null; if (afC) b.aff = afC;   // 1.5.9 (es): its afflictions, rolled by those it reaches as it goes off (the host's memory alone, as its fragmentation)
           var fsB = opts.goOff ? opts : pre.tr && typeof blastStats === 'function' ? blastStats(getActiveCampaign().system, pre.tr.f, pre.def) : null; if (fsB) { if (typeof fsB.fills === 'number' && fsB.fills > 0) b.fills = fsB.fills; if (fsB.noDrop === true) b.noDrop = true; if (typeof fsB.iscale === 'number' && fsB.iscale > 0) b.iscale = fsB.iscale; }   // 1.6.0: what its list says of it (the host's memory alone, as its fragmentation)
@@ -4977,9 +4978,11 @@ window.wpFitToGrid = fitToGrid;
       }
       return out;
   }
-  function torsoOf(sys, ch) {   // the damage step's default location: the first row of the location list named Torso, else one that holds the word, else the first
+  function torsoOf(sys, ch, want) {   // the damage step's default location: the first row of the location list named Torso, else one that holds the word, else the first. 1.6.2 (11): want, the location a blast names, first: a row of that name or entry key, else one that holds the word
       var S = window.wpSystemCore, d = sys && sys.combat && sys.combat.damage, lf = d && d.locs && S ? S.fieldById(sys, d.locs.list) : null; if (!lf) return '';
       var rows = (ch.values && Array.isArray(ch.values[lf.id]) ? ch.values[lf.id] : []).filter(function(r) { return r && r.hid !== 1; }).map(function(r) { var rd = S.rowDef(sys, r); return { id: S.rowIdOf(r), name: rd && rd.def && typeof rd.def.name === 'string' ? rd.def.name : '' }; }).filter(function(x) { return x.id; });
+      var wl = typeof want === 'string' ? want.trim().toLowerCase() : '', keyOf = function(x) { var rw = (ch.values[lf.id] || []).filter(function(r) { return r && S.rowIdOf(r) === x.id; })[0], rd = rw ? S.rowDef(sys, rw) : null; return rd && rd.def && typeof rd.def.key === 'string' ? rd.def.key.toLowerCase() : ''; };
+      var wHit = wl ? rows.filter(function(x) { return x.name.toLowerCase() === wl || keyOf(x) === wl; })[0] || rows.filter(function(x) { return x.name.toLowerCase().indexOf(wl) >= 0; })[0] : null; if (wHit) return wHit.id;
       var hit = rows.filter(function(x) { return /^torso$/i.test(x.name); })[0] || rows.filter(function(x) { return /torso/i.test(x.name); })[0] || rows[0];
       return hit ? hit.id : '';
   }
@@ -5022,7 +5025,7 @@ window.wpFitToGrid = fitToGrid;
           amt = Math.floor(amt); if (!(amt > 0)) return;
           var vals = null, lines = null;
           if (dstep) {
-              var q = { amt: amt }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch) : ''; if (loc) q.loc = loc; if (tyOk) q.type = ty; var bkF = typeof blastKind === 'function' ? blastKind(sys, rules) : ''; if (bkF) q.kind = bkF; if (fr.ad === true && typeof b.ad === 'number' && b.ad > 0) q.ad = b.ad; if (dice > 0) q.dice = Math.min(100, dice);   // 1.6.0: the dice it rolled, for a figure a die
+              var q = { amt: amt }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch, b.loc) : ''; if (loc) q.loc = loc; if (tyOk) q.type = ty; var bkF = typeof blastKind === 'function' ? blastKind(sys, rules) : ''; if (bkF) q.kind = bkF; if (fr.ad === true && typeof b.ad === 'number' && b.ad > 0) q.ad = b.ad; if (dice > 0) q.dice = Math.min(100, dice);   // 1.6.0: the dice it rolled, for a figure a die
               var st = S.damageStep(sys, ch, q, F, undefined, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return; vals = st.values; lines = st.lines; if (st.info && (st.info.majorRoll || st.info.follows) && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info, st.values);   // 1.6.0 (B3): a Major Wound's roll is posted
           } else if (hpId) {
               var all = S.resolveAll(sys, ch, F), e = all[hpId]; if (!e) return;
@@ -5182,7 +5185,7 @@ window.wpFitToGrid = fitToGrid;
           if (fall && !(dmgC > 0)) { spared++; return; }   // past the falloff's reach: nothing to apply
           var vals = null, lines = null;
           if (step) {   // through the damage step: DR at the default location, the blast's damage type, the pool
-              var q = { amt: Math.floor(dmgC) }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch) : ''; if (loc) q.loc = loc; if (typeOk) q.type = b.dtype; var bkS = typeof blastKind === 'function' ? blastKind(sys, rules) : ''; if (bkS) q.kind = bkS; if (typeof b.ad === 'number' && b.ad > 0) q.ad = b.ad;
+              var q = { amt: Math.floor(dmgC) }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch, b.loc) : ''; if (loc) q.loc = loc; if (typeOk) q.type = b.dtype; var bkS = typeof blastKind === 'function' ? blastKind(sys, rules) : ''; if (bkS) q.kind = bkS; if (typeof b.ad === 'number' && b.ad > 0) q.ad = b.ad;
               var st = S.damageStep(sys, ch, q, F, undefined, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return;
               vals = st.values; lines = st.lines; if (st.info && (st.info.majorRoll || st.info.follows) && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info, st.values);   // 1.6.0 (B3): a Major Wound's roll is posted
           } else {
@@ -5234,7 +5237,7 @@ window.wpFitToGrid = fitToGrid;
       var dmgC = rules && rules.fillCover === 'total' && o.b.fills > 0 ? (o.tier && o.tier.block ? 0 : share) : S.coverDamage ? S.coverDamage(sys, o.tier, share) : share; if (!(dmgC > 0)) return { ok: true, amt: 0 };
       var vals = null, lines = null, st = null;
       if (step) {   // as the blast pass's own shares: DR at the default location, the blast's damage type, its armour divisor
-          var types = Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [], q = { amt: Math.floor(dmgC) }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch) : ''; if (loc) q.loc = loc;
+          var types = Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [], q = { amt: Math.floor(dmgC) }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch, o.b.loc) : ''; if (loc) q.loc = loc;
           if (o.b.dtype && types.some(function(y) { return y && typeof y.key === 'string' && y.key.toLowerCase() === String(o.b.dtype).toLowerCase(); })) q.type = o.b.dtype; var bkO = typeof blastKind === 'function' ? blastKind(sys, rules) : ''; if (bkO) q.kind = bkO; if (typeof o.b.ad === 'number' && o.b.ad > 0) q.ad = o.b.ad;
           st = S.damageStep(sys, ch, q, F, undefined, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return { error: 'Its damage could not be applied.' };
           vals = st.values; lines = st.lines; if (st.info && (st.info.majorRoll || st.info.follows) && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info, st.values);
@@ -5344,11 +5347,11 @@ window.wpFitToGrid = fitToGrid;
           if (pck && !pck.pass && pck.crit === 'fumble') {   // the book: a critical failure sets it off in the planter's cell
               var plT = throwerOf(map, opts.charId), plC = plT ? tokenCentre(plT) : { x: opts.x, y: opts.y };
               if (area.use === true) useOneUp(camp, tr);
-              return placeThrownBlast(Object.assign({ goOff: true, mine: true, x: plC.x, y: plC.y, ft: area.ft, name: opts.name || def.name, by: opts.by || '', charId: opts.charId, damage: def.damage || '', gmOnly: !!opts.gmOnly, dtype: area.type, ad: area.ad, notes: opts.gmOnly ? '' : def.notes, icon: def.icon, frag: area.frag, fragType: area.fragType, aff: area.aff }, typeof blastStats === 'function' ? blastStats(sys, tr.f, def) : null), map);
+              return placeThrownBlast(Object.assign({ goOff: true, mine: true, x: plC.x, y: plC.y, ft: area.ft, name: opts.name || def.name, by: opts.by || '', charId: opts.charId, damage: def.damage || '', gmOnly: !!opts.gmOnly, dtype: area.type, ad: area.ad, loc: area.loc, notes: opts.gmOnly ? '' : def.notes, icon: def.icon, frag: area.frag, fragType: area.fragType, aff: area.aff }, typeof blastStats === 'function' ? blastStats(sys, tr.f, def) : null), map);
           }
           var unarmed = !!(pck && !pck.pass);   // the book: a failure leaves it unarmed, and the planter knows
       }
-      var mine = BC.cleanMine(Object.assign({ ft: area.ft, name: opts.name || def.name, damage: def.damage || '', type: area.type, ad: area.ad, trig: area.trig, charId: opts.charId, fieldId: opts.fieldId, rowId: opts.rowId, by: opts.by, gmOnly: !!opts.gmOnly, notes: opts.gmOnly ? '' : def.notes, unarmed: typeof unarmed === 'boolean' ? unarmed : false, frag: area.frag, fragType: area.fragType, aff: area.aff }, typeof blastStats === 'function' ? blastStats(sys, tr.f, def) : null));   // 1.5.9 (es): and its fragmentation and afflictions
+      var mine = BC.cleanMine(Object.assign({ ft: area.ft, name: opts.name || def.name, damage: def.damage || '', type: area.type, ad: area.ad, loc: area.loc, trig: area.trig, charId: opts.charId, fieldId: opts.fieldId, rowId: opts.rowId, by: opts.by, gmOnly: !!opts.gmOnly, notes: opts.gmOnly ? '' : def.notes, unarmed: typeof unarmed === 'boolean' ? unarmed : false, frag: area.frag, fragType: area.fragType, aff: area.aff }, typeof blastStats === 'function' ? blastStats(sys, tr.f, def) : null));   // 1.5.9 (es): and its fragmentation and afflictions
       if (!mine) return null;
       var amM = getActiveMap(), pxYd = amM && amM.id === map.id ? mapMeasureConfig().cellPx / cellYards() : 50, r = Math.max(10, mine.trig * pxYd);
       var z = { id: 'wb' + uid() + Math.random().toString(36).slice(2, 5), type: 'trigger', shape: 'circle', x: Math.round(opts.x - r), y: Math.round(opts.y - r), w: Math.round(r * 2), h: Math.round(r * 2), color: 'transparent', eventMessage: '', hidden: true, name: (mine.name || 'Mine') + ' (mine)', mine: mine };
@@ -5365,7 +5368,7 @@ window.wpFitToGrid = fitToGrid;
       var at = map.whiteboard.indexOf(zone); if (at < 0) return null;
       var m = zone.mine, cx = (Number(zone.x) || 0) + (Number(zone.w) || 0) / 2, cy = (Number(zone.y) || 0) + (Number(zone.h) || 0) / 2;
       map.whiteboard.splice(at, 1); save(); render();
-      return placeThrownBlast({ goOff: true, mine: true, x: cx, y: cy, ft: m.ft, name: m.name || 'Mine', by: m.by || '', charId: m.charId, damage: m.damage || '', gmOnly: !!m.gmOnly, direct: direct || null, dtype: m.type, ad: m.ad, notes: m.notes, icon: zone.mineIcon, frag: m.frag, fragType: m.fragType, aff: m.aff, fills: m.fills, noDrop: m.noDrop, iscale: m.iscale }, map);
+      return placeThrownBlast({ goOff: true, mine: true, x: cx, y: cy, ft: m.ft, name: m.name || 'Mine', by: m.by || '', charId: m.charId, damage: m.damage || '', gmOnly: !!m.gmOnly, direct: direct || null, dtype: m.type, ad: m.ad, loc: m.loc, notes: m.notes, icon: zone.mineIcon, frag: m.frag, fragType: m.fragType, aff: m.aff, fills: m.fills, noDrop: m.noDrop, iscale: m.iscale }, map);
   }
   // A character token that stepped in (the host's own map: the GM's drag, a player's drop): every mine whose trigger it stands in now and did
   // not stand in where the gesture began goes off, the token struck directly. Never on a player's app or in the stream window
@@ -5449,7 +5452,7 @@ window.wpFitToGrid = fitToGrid;
       var x = Number(opts.x), y = Number(opts.y); if (!isFinite(x) || !isFinite(y)) return null;
       var lr = launchRowOf(camp, opts); if (!lr) { toast('Nothing to put down there: no round fired or chambered on that row has a blast.'); return null; }
       var hasD = Object.prototype.hasOwnProperty.call(opts, 'direct'), aimT = hasD ? null : tokenAtPoint(map, x, y, true), aim = aimT ? tokenCentre(aimT) : { x: x, y: y }, d = lr.def, a = lr.area, gm = d.vis === 'gm' || lr.f.vis === 'gm';   // the character token clicked, else the point; 1.5.9 (es): a miss names its own point and whom it strikes
-      var dir = hasD ? (typeof opts.direct === 'string' ? opts.direct : null) : aimT ? aimT.id : null, po = { goOff: true, launched: true, x: aim.x, y: aim.y, ft: a.ft, name: a.name || d.name || '', by: lr.ch.name || '', charId: opts.charId, fieldId: lr.f.id, rowId: opts.rowId, damage: d.damage || '', gmOnly: gm, direct: dir, dtype: a.type, ad: a.ad, notes: gm ? '' : d.notes, icon: d.icon, frag: a.frag, fragType: a.fragType, aff: a.aff };   // 1.5.9 (es): the round's own fragmentation and afflictions
+      var dir = hasD ? (typeof opts.direct === 'string' ? opts.direct : null) : aimT ? aimT.id : null, po = { goOff: true, launched: true, x: aim.x, y: aim.y, ft: a.ft, name: a.name || d.name || '', by: lr.ch.name || '', charId: opts.charId, fieldId: lr.f.id, rowId: opts.rowId, damage: d.damage || '', gmOnly: gm, direct: dir, dtype: a.type, ad: a.ad, loc: a.loc, notes: gm ? '' : d.notes, icon: d.icon, frag: a.frag, fragType: a.fragType, aff: a.aff };   // 1.5.9 (es): the round's own fragmentation and afflictions
       var lsS = window.wpSystemCore, lsF = lsS && typeof lsS.fieldById === 'function' && lr.f.list.chamber && typeof blastStats === 'function' ? lsS.fieldById(camp.system, lr.f.list.chamber.from) : null; if (lsF) Object.assign(po, blastStats(camp.system, lsF, d));   // 1.6.0: by the list its round comes from
       if (typeof opts.said === 'string' && opts.said) po.said = opts.said; if (opts.fuse === true) po.fuseOk = true;
       var fsL = typeof blastStats === 'function' ? blastStats(camp.system, lr.f, d) : null; if (fsL) { if (typeof fsL.fills === 'number' && fsL.fills > 0) po.fills = fsL.fills; if (fsL.noDrop === true) po.noDrop = true; if (typeof fsL.iscale === 'number' && fsL.iscale > 0) po.iscale = fsL.iscale; }   // 1.6.0: what its list says of it, as a throw's row is read
@@ -5604,7 +5607,7 @@ window.wpFitToGrid = fitToGrid;
   };
   function flyBlast(camp, map, w, at, direct) {   // its item's blast where it stands or at its target
       var it = w.fly.item || {}, a = it.area && typeof it.area === 'object' ? it.area : null, ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, w.fly.by) ? camp.chars[w.fly.by] : null; if (!a) return false;
-      var gm = it.vis === 'gm', po = { goOff: true, launched: true, x: at.x, y: at.y, ft: a.ft, name: a.name || it.name || '', by: ch && ch.name || '', charId: w.fly.by, fieldId: w.fly.f, rowId: w.fly.r, damage: it.damage || '', gmOnly: gm, direct: direct || null, dtype: a.type, ad: a.ad, notes: gm ? '' : it.notes, icon: it.icon, frag: a.frag, fragType: a.fragType, aff: a.aff };
+      var gm = it.vis === 'gm', po = { goOff: true, launched: true, x: at.x, y: at.y, ft: a.ft, name: a.name || it.name || '', by: ch && ch.name || '', charId: w.fly.by, fieldId: w.fly.f, rowId: w.fly.r, damage: it.damage || '', gmOnly: gm, direct: direct || null, dtype: a.type, ad: a.ad, loc: a.loc, notes: gm ? '' : it.notes, icon: it.icon, frag: a.frag, fragType: a.fragType, aff: a.aff };
       placeThrownBlast(po, map); return true;
   }
   function flyArrive(camp, map, w, tgt) {

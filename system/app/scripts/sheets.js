@@ -9715,6 +9715,7 @@ function itemRow(it) {
     if (it.area) {   // 1.5.8 explosives: its blast's damage type, whether going off uses one up, and whether it is placed, not thrown, with its trigger radius
         var dtys = draft.combat && draft.combat.damage && Array.isArray(draft.combat.damage.types) ? draft.combat.damage.types : [];
         if (dtys.length) area.appendChild(select('sys-item-atype', [['', 'Damage type: none']].concat(dtys.filter(function(y) { return y && typeof y.key === 'string'; }).map(function(y) { return [y.key, 'Damage type: ' + (y.label || y.key)]; })), it.area.type || '', 'The damage type of its blast, as the damage step reads it'));
+        area.appendChild(input('sys-item-aloc field', typeof it.area.loc === 'string' ? it.area.loc : '', 'The hit location its blast strikes, by the name of a location, such as Legs for a mine underfoot. Blank: the usual one', 'Strikes at'));   // 1.6.2 (the CORE session, 11)
         area.appendChild(numField('sys-item-aad', it.area.ad || '', 'Its armour divisor: DR is divided by it (2 for a (2) after the damage). Blank for none', 'divisor', '0.5'));
         area.appendChild(checkLabel('sys-item-ause', it.area.use === true, 'Uses one up', 'Going off takes one off the row it was thrown or placed from, and the row goes at none'));
         area.appendChild(checkLabel('sys-item-aplace', it.area.place === true, 'Placed, not thrown', 'A mine: its button places it on the map, hidden from players. It goes off only when a character steps into it, or by your hand'));
@@ -13893,6 +13894,7 @@ function onInput(e) {
         if (ic.indexOf('sys-item-name') >= 0) it.name = t.value.slice(0, LIMITS.itemName);
         else if (ic.indexOf('sys-item-cat') >= 0) it.category = t.value.slice(0, LIMITS.category);
         else if (ic.indexOf('sys-item-ft') >= 0) { if (it.area) it.area.ft = t.value === '' ? 0 : Number(t.value); }
+        else if (ic.indexOf('sys-item-aloc') >= 0) { if (it.area) { if (t.value.trim()) it.area.loc = t.value.slice(0, 60); else delete it.area.loc; } }   // 1.6.2 (11)
         else if (ic.indexOf('sys-item-aad') >= 0) { if (it.area) { var adI = Number(t.value); if (t.value !== '' && isFinite(adI) && adI > 0) it.area.ad = adI; else delete it.area.ad; } }   // 1.5.8 explosives
         else if (ic.indexOf('sys-item-atrig') >= 0) { if (it.area) { var tgv = Number(t.value); if (t.value !== '' && isFinite(tgv) && tgv > 0) it.area.trig = tgv; else delete it.area.trig; } }   // 1.5.8 explosives
         else if (/(^| )sys-fly-(speed|rounds|hp|pro|size)( |$)/.test(ic)) { if (!it.flies || typeof it.flies !== 'object') return; var flK = /sys-fly-(speed|rounds|hp|pro|size)/.exec(ic)[1]; if (flK === 'speed') it.flies.speed = String(t.value).slice(0, LIMITS.formula); else { var flN = Number(t.value); if (t.value !== '' && isFinite(flN)) it.flies[flK] = flN; else delete it.flies[flK]; } }   // 1.6.2 (vehicles, fold (d)): Save cleans them

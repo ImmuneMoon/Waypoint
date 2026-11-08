@@ -181,6 +181,7 @@ export function entryFromForm(f) {
         if (f.areaPlace === 'yes') ar.place = true;
         var tg = nb(f.areaTrig); if (tg !== '') ar.trig = tg;
         var dv = nb(f.areaAd); if (dv !== '') ar.ad = dv;
+        var lcF = s(f.areaLoc).trim(); if (lcF) ar.loc = lcF;   // 1.6.2 (11): the location its blast strikes
         var fl = s(f.areaFlight).trim(); if (fl) ar.flight = fl;   // 1.5.9 (es): how a launched round lands on a miss (the cleaner keeps scatter or line, never beside Placed)
         var fg = s(f.areaFrag).trim(); if (fg) { ar.frag = fg; var fgt = s(f.areaFragType).trim(); if (fgt) ar.fragType = fgt; }   // 1.5.9 (es): its fragmentation and that fragmentation's type (the cleaner keeps them in the GM's copy alone)
         var afs = (Array.isArray(f.areaAffs) ? f.areaAffs : []).slice(0, 2).map(function(a) {   // 1.5.9 (es): its afflictions, each where it says what it is resisted against (the cleaner keeps them in the GM's copy alone)

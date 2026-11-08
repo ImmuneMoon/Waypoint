@@ -153,6 +153,7 @@ function cleanMine(m) {   // 1.5.9 (es): and its fragmentation (frag, a formula'
     var by = text(m.by, 240); if (by) out.by = by;
     if (m.gmOnly === true) out.gmOnly = true;
     if (m.unarmed === true) out.unarmed = true;   // planted with a failed roll: it lies there and never goes off by a step (its planter knows)
+    var lcM = text(m.loc, 60); if (lcM) out.loc = lcM;   // 1.6.2 (11): the location it strikes
     if (fin(m.ad) && m.ad > 0 && m.ad !== 1) out.ad = Math.max(0.1, Math.min(100, Math.round(m.ad * 10) / 10));
     var nt = text(m.notes, 800); if (nt) out.notes = nt;
     var fg = text(m.frag, 1200); if (fg) { out.frag = fg; if (typeof m.fragType === 'string' && MINE_TYPE.test(m.fragType)) out.fragType = m.fragType; }   // 1.5.9 (es): its fragmentation, rolled when it goes off

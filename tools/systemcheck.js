@@ -14695,6 +14695,20 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                     && fbAd.includes("'sys-dmgr-ladby': 'amt',") && S.nameWord(s1, 'Divisor') === 'the blow\u2019s armour divisor',
                     j([thr(sN), thr(s1), thr(sH), thr(s1, wornD(2)), thr(sZ), thr(sBad), s1.combat.damage.layers[0], S.nameWord(s1, 'Divisor')]));
             }
+            {   // 1.6.2 (the CORE session's batch 6, 11): an item's blast may strike a named location; and (asked by the CORE session) a light nobody measured reads lit
+                const wbL = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n'), tA = wbL.indexOf('  function torsoOf(sys, ch, want) {'), tZ = wbL.indexOf('\n  }\n', tA) + 4;
+                const torsoOf = new Function('window', wbL.slice(tA, tZ) + '\nreturn torsoOf;')({ wpSystemCore: S });
+                const chL = { id: 'c_1', values: { f_locs: [{ id: 'w_body', defId: 'i_body', qty: 1 }, { id: 'w_head', defId: 'i_head', qty: 1 }, { id: 'w_eye', defId: 'i_eye', qty: 1 }] } };
+                const arL = S.cleanSystem(Object.assign(mkD(), { items: mkD().items.concat([{ id: 'i_mine', name: 'Mine', area: { ft: 6, loc: '  Head  ' } }]) }), { F, gmView: true }).items.filter(x => x.id === 'i_mine')[0];
+                const BCl = require(path.join(__dirname, '..', 'system', 'app', 'scripts', 'blastcore.js'));
+                const lr = (rg) => S.makeResolver(sysW, { id: 'c_1', values: {} }, F, rg === undefined ? {} : S.withRange({}, rg))('TargetLight');
+                check('1.6.2 an item\'s blast may name the hit location it strikes (Strikes at): the cleaner keeps it as a short name, a mine keeps it, the blast carries it on every way it goes off, and its shares, its fragmentation and an owed roll strike a row of that name or entry key, else one that holds the word, else the usual one; and TargetLight reads 2, lit, where nothing measured it (no target, or a range with no light), never dark',
+                    torsoOf(sysD, chL, 'head') === 'w_head' && torsoOf(sysD, chL, 'Ey') === 'w_eye' && torsoOf(sysD, chL, 'Legs') === 'w_body' && torsoOf(sysD, chL) === 'w_body'
+                    && arL && arL.area.loc === 'Head' && BCl.cleanMine({ ft: 6, loc: 'Legs' }).loc === 'Legs' && !('loc' in BCl.cleanMine({ ft: 6 }))
+                    && wbL.includes("var lcB = opts.goOff ? opts.loc : pre.area && pre.area.loc;") && (wbL.split('torsoOf(sys, ch, b.loc)').length - 1) === 2 && wbL.includes('torsoOf(sys, ch, o.b.loc)') && (wbL.split('loc: area.loc,').length - 1) === 2 && wbL.includes('loc: m.loc,') && (wbL.split('loc: a.loc,').length - 1) === 2
+                    && lr() === 2 && lr({ mod: 0, dist: 3 }) === 2 && lr({ mod: 0, dist: 3, light: 0 }) === 0 && lr({ mod: 0, dist: 3, light: 1 }) === 1,
+                    j([torsoOf(sysD, chL, 'head'), torsoOf(sysD, chL, 'Ey'), torsoOf(sysD, chL, 'Legs'), arL && arL.area, lr(), lr({ mod: 0, dist: 3 }), lr({ mod: 0, dist: 3, light: 0 })]));
+            }
             const hW0 = sweepW(), hW1 = sweepW({ part2: null }), hW2 = sweepW({ part2: 'x' });
             {   // 1.6.2 (the CORE session's batch 6, 13): the arc of the target's facing the attacker stands in, on the attack and through the damage card
                 const sA = mkW(); const rawA = JSON.parse(j(sA)); rawA.combat.arcs = [{ label: 'Front', f: -60, t: 60 }, { label: 'Rear', f: 120, t: -120 }]; rawA.combat.damage.onWound = [{ if: 'Blow.arc.rear = 1', roll: 'r_wk' }];

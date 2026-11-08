@@ -250,8 +250,19 @@ function focusKey(b) {
 }
 // backlog 217: the bar on one line where it fits; where it does not, the trackers stand on a line of their own under the bar's controls
 function fitBar(box) {
-    if (!box || !box.classList || !box.classList.contains('trk-bar')) return; box.classList.remove('trk-two');
-    if (box.querySelector('.trk-list') && box.scrollWidth > box.clientWidth + 1) box.classList.add('trk-two');
+    if (!box || !box.classList || !box.classList.contains('trk-bar')) return; box.classList.remove('trk-two'); if (box.style) box.style.width = '';
+    if (box.querySelector('.trk-list') && box.scrollWidth > box.clientWidth + 1) { box.classList.add('trk-two'); twoWide(box); }
+}
+// The owner, 2026-11-08: "okay lets fix this gap at some point". On two lines the bar is only as wide as its controls or its trackers, whichever
+// is wider, up to the room it has: a flex box that wraps would otherwise take all the room, and a lone small tracker left a wide empty gap
+function twoWide(box) {
+    var head = 0, pills = 0, list = null, i, k, kids = box.children || [];
+    for (i = 0; i < kids.length; i++) { k = kids[i]; if (k.classList && k.classList.contains('trk-list')) list = k; else head += k.offsetWidth || 0; }
+    if (!list) return;
+    var ls = typeof getComputedStyle === 'function' ? getComputedStyle(list) : null, gap = ls ? parseFloat(ls.columnGap) || 0 : 0, pad = ls ? (parseFloat(ls.paddingLeft) || 0) + (parseFloat(ls.paddingRight) || 0) : 0;
+    var ps = list.children || []; for (i = 0; i < ps.length; i++) pills += (ps[i].offsetWidth || 0) + (i ? gap : 0);
+    var edge = (box.offsetWidth || 0) - (box.clientWidth || 0), want = Math.ceil(Math.max(head, pills + pad) + edge + 1);
+    if (want > 0 && want < (box.offsetWidth || 0)) box.style.width = want + 'px';
 }
 function draw(force) {
     var box = strip(), T = TK(); if (!box || !T) return;

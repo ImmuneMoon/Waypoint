@@ -17146,7 +17146,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0 Counts by the game clock, the GM\'s machine (net.js rowSpans, run for real): every character\'s span on its rows, stored; sent and redrawn only where a count moved (a part of a step is saved alone); a count down at 0 told to the GM and its own player alone ("Bread on Pat: Spoiled."), and a step line in the log; calendar.js ownTime hands it every stretch, a fight\'s rounds too, with a step on the campaign\'s own calendar',
             J(afterHalf) === J([1, 1, 1]) && J(afterPart) === J([1, 1, 2]) && deltas.length === 2 && J(deltas[0]) === J(['c_t', ['f_food']])
             && J(told.filter(x => /Bread/.test(x[1]))) === J([['p1', 'Bread on Pat: Spoiled.'], ['gm', 'Bread on Pat: Spoiled.']]) && J(logs) === J([['rowtimer v1', 'ended', { rows: 2, lists: 1, secs: 172800, sent: true }]])
-            && caT.includes("        if (n && typeof n.rowSpans === 'function') { try { n.rowSpans(spans, function(p) { return everySecs(sysCal(), sysUnits(sys), p); }, g.kind === 'fight'); } catch (e) { console.error(e); } }")   /* 1.6.2: and whether the stretch is a fight's (moved on purpose) */
+            && caT.includes("        if (n && typeof n.rowSpans === 'function' && g.inOnly !== true) { try { n.rowSpans(spans, function(p) { return everySecs(sysCal(), sysUnits(sys), p); }, g.kind === 'fight'); } catch (e) { console.error(e); } }") && caT.includes("if (n && typeof n.rowSpans === 'function' && g.inOnly !== true) { try {")   /* 1.6.2: and whether the stretch is a fight's, and never a fight's rounds that move no clock (moved on purpose) */
             && caT.indexOf("n.rowSpans(spans") > caT.indexOf("if (g.kind !== 'fight' && n && typeof n.fxSpans === 'function')"),
             J([afterHalf, afterPart, deltas, told, logs]));
         const lcT = shT.slice(shT.indexOf('function listCard('), shT.indexOf('function renderCombat('));
@@ -19961,6 +19961,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.2 Costs more while (source): the Fields tab draws it beside Spills into, a form of the character, how much more once a test is written; a change offers Subtract, not a cost where the draft has such a pool or the change says so; Help and both release notes say it',
             /spillCtl\(flags, f\);   \/\/ 1\.6\.0 Spills into\n\s*surchargeCtl\(flags, f\);/.test(shS.replace(/\r\n/g, NL)) && /'sys-surch-if': 'cond'/.test(fbS) && /\['loss', 'Subtract, not a cost'\]/.test(shS)
             && ixS.includes('A resource can <b>Cost more while</b>') && ntS.every(t => t.includes('A pool can cost more while a test holds')));
+    }
+    {   // 1.6.2 Fight time and the clock's start, the system's (the owner, by prompt: "A system choice of three", "System sets it, GM can change")
+        const J = JSON.stringify, tOf = t => cleanSystem({ v: 1, name: 'T', fields: [], combat: { turn: t } }, { F, gmView: true }), pv = t => cleanSystem({ v: 1, name: 'T', fields: [], combat: { turn: t } }, { F, gmView: false });
+        const a = tOf({ secs: 6, clock: 'runs', live: 'held', rate: 5 }), b = tOf({ secs: 6, clock: 'apart', rate: 10 }), c = tOf({ secs: 6, clock: 'sideways', live: 'maybe', rate: 3 }), d = pv({ secs: 6, clock: 'runs', rate: 60 });
+        const turns = [a, b, c, d].map(s => J(s.combat && s.combat.turn));
+        const modes = [S.fightClock(a), S.fightClock(b), S.fightClock(c), S.fightClock(null), S.fightClock({})], starts = [a, b, c, null].map(s => J(S.clockStart(s)));
+        const Cc = await import(url('calendarcore.js')), cks = [Cc.cleanClock({ t: 5, hold: false, rate: 1 }), Cc.cleanClock({ t: 5, hold: true, rate: 5 }), Cc.cleanClock({ t: 5, hold: 'no', rate: 3 })].map(x => J(x));
+        check('1.6.2 Fight time: the cleaner keeps how a fight moves the clock (runs or apart, absent synced) and how a campaign\'s clock starts (held, and a speed of 2, 5, 10 or 60), the same in both views and nothing else; fightClock and clockStart read them; a campaign keeps the GM\'s own choice either way (held or running, real time too), so a system\'s start can be overruled',
+            J(turns) === J([J({ secs: 6, clock: 'runs', live: 'held', rate: 5 }), J({ secs: 6, clock: 'apart', rate: 10 }), J({ secs: 6 }), J({ secs: 6, clock: 'runs', rate: 60 })])
+            && J(modes) === J(['runs', 'apart', 'sync', 'sync', 'sync']) && J(starts) === J([J({ held: true, rate: 5 }), J({ held: false, rate: 10 }), J({ held: false, rate: 1 }), J({ held: false, rate: 1 })])
+            && J(cks) === J([J({ t: 5, hold: false, rate: 1 }), J({ t: 5, hold: true, rate: 5 }), J({ t: 5 })]), J([turns, modes, starts, cks]));
+        const shT = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), caT = fs.readFileSync(path.join(app, 'scripts', 'calendar.js'), 'utf8'), ixT = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), ntT = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, NL));
+        check('1.6.2 Fight time (source): the Combat tab\'s Turns box has A fight and the clock, The clock out of a fight and its speed; the Calendar reads the system\'s start under the GM\'s own choice, runs on in a fight where the system says so, and lets the GM move it while fights run unless they are synced; Help and both release notes say it',
+            /labeledSelect\('sys-turn-clock', 'A fight and the clock'/.test(shT) && /labeledSelect\('sys-turn-live', 'The clock out of a fight'/.test(shT) && /'sys-turn-rate'/.test(shT)
+            && /function liveHold\(ck\)/.test(caT) && /fightMode\(\) !== 'runs'\) return 'fight'/.test(caT) && /ordersRun\(\) && fightMode\(\) === 'sync'\) \{ toast\(fightHolds\(camp\)\)/.test(caT)
+            && ixT.includes('<b>A fight and the clock</b>') && ntT.every(t => t.includes('A system now says how a fight moves the game clock')));
     }
     {   // 1.6.2 bleeding as rows (the owner, by prompt: "A wound adds a row", "Every N, and a clock out of a fight"; the CORE session: each wound counted, tagged by where it started), on invented data
         const J = JSON.stringify, sysB = cleanSystem({ v: 1, name: 'Bl', fields: [

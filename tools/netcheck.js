@@ -6011,7 +6011,7 @@ pendingChecks.push((async () => {
     const calJs = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'calendar.js'), 'utf8').replace(/\r\n/g, '\n');
     const calLine = k => { const i = calJs.indexOf(k); if (i < 0 || calJs.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once in calendar.js'); return calJs.slice(i, calJs.indexOf('\n', i)); };
     const lhA = calJs.indexOf('function liveHeld(camp) {'), lhS = calJs.slice(lhA, calJs.indexOf('\n}\n', lhA)) + '\n}\n';
-    const liveHeldOf = n => new Function('window', 'cleanClock', "'use strict';\n" + ['function net() {', 'function isPlayer() {', 'function clockOn() {', 'function clockOf(camp) {'].map(calLine).join('\n') + '\n' + lhS + '\nreturn liveHeld;')(
+    const liveHeldOf = n => new Function('window', 'cleanClock', "'use strict';\n" + ['function net() {', 'function isPlayer() {', 'function clockOn() {', 'function clockOf(camp) {', 'function sysClockStart() {', 'function fightMode() {', 'function liveHold(ck) {'].map(calLine).join('\n') + '\n' + lhS + '\nreturn liveHeld;')(
         { wpNet: n, wpVtt: { on: k => k === 'calendar' } }, Cx.cleanClock);
     const sysF = Sx.cleanSystem({ v: 1, name: 'F', fields: [{ id: 'f_fx', key: 'Effects', kind: 'effects' }], rolls: [], effects: [{ id: 'e_c', name: 'Charge', dur: '10 turns', mods: [] }], combat: { turn: { acts: [{ key: 'Action', n: 1 }] } } }, { F: Fx, gmView: true });
     const mkW = o => {
@@ -18555,7 +18555,7 @@ pendingChecks.push((async () => {
     const mkT = o => {
         o = o || {};
         const out = { toasts: [], logs: [], runs: [], errs: [], saves: 0, views: 0, notes: [] };
-        const camp = { id: 'k', clock: { t: 43200 }, system: { fields: [{ id: 'f_fx', key: 'Effects', kind: 'effects' }], effects: [{ id: 'e_c', name: 'Charge', dur: '30 seconds', mods: [] }], combat: { turn: { secs: o.rs || 1 } }, rolls: o.rolls || [{ id: 'r_tick', label: 'Tick', apply: [], inFight: { n: 1, u: 'round' } }] },
+        const camp = { id: 'k', clock: { t: 43200 }, system: { fields: [{ id: 'f_fx', key: 'Effects', kind: 'effects' }], effects: [{ id: 'e_c', name: 'Charge', dur: '30 seconds', mods: [] }], combat: { turn: Object.assign({ secs: o.rs || 1 }, o.clock ? { clock: o.clock } : {}) }, rolls: o.rolls || [{ id: 'r_tick', label: 'Tick', apply: [], inFight: { n: 1, u: 'round' } }] },
             items: { mDocks: { id: 'mDocks', type: 'map', meta: { title: 'Docks' }, whiteboard: [tok('t_kael', 'c_kael', 'u_a'), tok('t_u7', 'c_u7'), tok('t_crate', 'c_crate', null, { isChar: false })] },
                 mBridge: { id: 'mBridge', type: 'map', meta: { title: 'Bridge' }, whiteboard: [tok('t_sela', 'c_sela', 'u_b'), tok('t_u9', 'c_u9')] } },
             chars: { c_kael: { id: 'c_kael', name: 'Kael', ownerId: 'u_a', values: {} }, c_u7: { id: 'c_u7', name: 'Unit 7', npc: true, values: {} }, c_crate: { id: 'c_crate', name: 'Crate', npc: true, values: fxv(10) },
@@ -18571,7 +18571,7 @@ pendingChecks.push((async () => {
         const cal = new Function('document', 'window', 'getActiveCampaign', 'save', 'saveView', 'toast', 'roundSecs', 'cleanCalendar', 'cleanClock', 'cleanAcc', 'ruleFires', 'livedSpans', 'freshAcc', 'tCmp', 'tSpanMs', 'dateOf', 'timeOf', 'periodDays', 'dayLength', 'fmtDate', 'fmtWhen', 'fmtSpan', 'CAL_LIMITS', 'net', 'sysNow',
             "'use strict';\n" + calSrc + '\nreturn { ownTime: ownTime, second: second, fightBegan: fightBegan, moveTo: moveTo, st: function() { return { pend: pend, pendQ: pendQ }; }, memSt: function() { return memT; } };')(
             { getElementById: () => null }, win, () => camp, () => out.saves++, () => out.views++, t => out.toasts.push(t), Sx.roundSecs, Cx.cleanCalendar, Cx.cleanClock, Cx.cleanAcc, Cx.ruleFires, Cx.livedSpans, Cx.freshAcc, Cx.tCmp, Cx.tSpanMs, Cx.dateOf, Cx.timeOf, Cx.periodDays, Cx.dayLength, Cx.fmtDate, Cx.fmtWhen, Cx.fmtSpan, Cx.CAL_LIMITS, () => net, () => camp.system);
-        win.wpCalendar = cal;
+        win.wpCalendar = cal; if (o.clock) win.wpSystemCore = Sx;   // 1.6.2 Fight time: calendar.js reads the system's choice through it
         return { net, camp, api, cal, out, conns, win };
     };
     const docks = rows => ({ mapId: 'mDocks', round: 1, turn: 0, rows }), bridge = rows => ({ mapId: 'mBridge', round: 1, turn: 0, rows });
@@ -18584,6 +18584,13 @@ pendingChecks.push((async () => {
     check('152 fold 4 the owner\'s example (net.js and calendar.js, run for real): a fight begun at 12:00:00 with no fight on starts at the clock; each round it closes adds the round\'s length to its own time and moves the clock with it, 12:00:01 at round 2 and 12:00:02 at round 3, a turn within a round nothing; ended in round 3, the round it ends in counts and the clock goes on from 12:00:03; each round closed runs the In a fight rule for everyone in it, the NPC too, handed its round and its words',
         J(a0) === J([43200, J({ s: 43200, ms: 0 }), J({ frame: 'clock', s: 43200 })]) && J(a1) === J([43200, 43201, 2]) && J(a2) === J([43202, 3, 1])
         && J(a3) === J([43203, null, 'null', [[['c_kael:r_tick:x:1', 'c_u7:r_tick:x:1'], 'Round 1 on Docks', { round: 1 }], [['c_kael:r_tick:x:1', 'c_u7:r_tick:x:1'], 'Round 2 on Docks', { round: 2 }], [['c_kael:r_tick:x:1', 'c_u7:r_tick:x:1'], 'Round 3 on Docks', { round: 3 }]], []]), J([a0, a1, a2, a3]));
+    // 1.6.2 Fight time, the system's (the owner, by prompt: "A system choice of three"): the clock runs on, or the date never moves
+    const ftOf = mode => { const R = mkT({ clock: mode, rolls: [{ id: 'r_tick', label: 'Tick', apply: [], inFight: { n: 1, u: 'round' } }, { id: 'r_drain', label: 'Drain', apply: [], every: { n: 2, u: 'Sec' } }] }); R.camp.system.combat.turn.units = [{ key: 'Sec', secs: 1 }];
+        const f = R.net.fightSet(null, docks([row('t_kael', 'Kael'), row('t_u7', 'Unit 7')])); for (let i = 0; i < 5; i++) R.net.fightStep(f, 1); R.net.fightSet(f, null);
+        return [R.camp.clock.t, R.net.second, J(R.camp.clock.lived || null), J(R.camp.clock.acc || null), R.out.runs, R.out.errs]; };
+    const ftR = ftOf('runs'), ftA = ftOf('apart'), ftRuns = [[['c_kael:r_tick:x:1', 'c_u7:r_tick:x:1'], 'Round 1 on Docks', { round: 1 }], [['c_kael:r_tick:x:1', 'c_u7:r_tick:x:1'], 'Round 2 on Docks', { round: 2 }], [['c_kael:r_tick:x:1', 'c_u7:r_tick:x:1'], 'Round 3 on Docks', { round: 3 }]];
+    check('1.6.2 Fight time (net.js ordersMoved and calendar.js ownTime, run for real): where the system says the clock runs on, or that a fight never moves the date, three rounds and an end move no clock, keep no second and touch no character\'s own time; each round still runs the In a fight rule for everyone in it, and a By the clock rule counts nothing from the rounds (the clock counts it)',
+        J(ftR) === J([43200, null, 'null', 'null', ftRuns, []]) && J(ftA) === J(ftR), J([ftR, ftA]));
     // ten rounds of 0.1 s move the clock one second, exactly
     const B = mkT({ rs: 0.1 }), fB = B.net.fightSet(null, docks([row('t_kael', 'Kael')])), bClock = []; for (let i = 0; i < 10; i++) { B.net.fightStep(fB, 1); bClock.push(B.camp.clock.t); }
     check('152 fold 4 ten rounds of 0.1 s move the clock one second, exactly: the fight\'s own time is kept to the millisecond and the clock is its floor, where each round moved the clock by its length floored to nothing',

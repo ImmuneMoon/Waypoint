@@ -249,8 +249,8 @@ function fmtSpan(cal, secs) {
 function cleanClock(v) {
     if (!isObj(v)) return null;
     var o = { t: clampT(v.t) }, seen = Object.create(null), ns = []; if (v.hide === true) o.hide = true;
-    if (v.hold === true) o.hold = true;   // 1.5.4, the running clock: only the GM's hold is stored (absent: it runs while a session is open)
-    if (typeof v.rate === 'number' && v.rate !== 1 && LIMITS.rates.indexOf(v.rate) >= 0) o.rate = v.rate;   // and only a speed other than real time
+    if (v.hold === true || v.hold === false) o.hold = v.hold;   // 1.5.4, the running clock; 1.6.2: the GM's choice either way, absent the system's start (calendar.js liveHold)
+    if (typeof v.rate === 'number' && LIMITS.rates.indexOf(v.rate) >= 0) o.rate = v.rate;   // and its speed, real time too, absent the system's start
     (Array.isArray(v.notes) ? v.notes : []).forEach(function(n) {
         if (ns.length >= LIMITS.notes || !isObj(n) || typeof n.id !== 'string' || !NOTE_ID.test(n.id) || seen[n.id] === 1) return;
         var day = whole(n.day, 0, LIMITS.time), tx = cutName(n.text, LIMITS.noteChars); if (day === null || !tx) return;

@@ -86,7 +86,7 @@ function notesOf(ck) { return ck && Array.isArray(ck.notes) ? ck.notes : []; }
 function noteDays(notes) { var m = Object.create(null); notes.forEach(function(n) { m[n.day] = (m[n.day] || 0) + 1; }); return m; }
 function newNoteId() { var s = ''; while (s.length < 8) s += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(Math.random() * 36)); return 'n_' + s; }
 function notesReached(notes, t0, t1, dl) { if (!(t1 > t0) || !(dl > 0)) return []; var d0 = Math.floor(t0 / dl), d1 = Math.floor(t1 / dl); return notes.filter(function(n) { return n.day > d0 && n.day <= d1; }); }
-function winBaseOf(camp, ck, cal) { return camp.id + '|' + (ck.hide ? 1 : 0) + '|' + (ck.hold ? 1 : 0) + '|' + liveRate(ck) + '|' + (isPlayer() ? '' : liveHeld(camp)) + '|' + (pend ? 1 : 0) + '|' + JSON.stringify(notesOf(ck)) + '|' + JSON.stringify(cleanCalendar(cal)); }   // all the window shows but the time of day
+function winBaseOf(camp, ck, cal) { return camp.id + '|' + (ck.hide ? 1 : 0) + '|' + (liveHold(ck) ? 1 : 0) + '|' + liveRate(ck) + '|' + (isPlayer() ? '' : liveHeld(camp)) + '|' + (pend ? 1 : 0) + '|' + JSON.stringify(notesOf(ck)) + '|' + JSON.stringify(cleanCalendar(cal)); }   // all the window shows but the time of day
 function winSigOf(camp, ck, cal) { return winBaseOf(camp, ck, cal) + '|' + ck.t; }
 // Item 20 K5 (the owner's answers of 2026-09-30): the time rules — rolls and apply actions that also run every so often by this clock. Rest adds
 // up per character and rule, activity breaks it (calendarcore ruleFires); the steps and any amount run them as Rest or Active, a Set forward
@@ -150,7 +150,7 @@ function ownTime(groups) {   // the one counter: each group's spans, once, to th
         if (!Object.keys(spans).length) return;
         g.held = needsAt(camp, sys, g, spans);   // 1.5.5: the needs of the rules ticked Only while its needs hold, judged as the stretch is counted, before its timed effects run
         if (g.kind !== 'fight' && n && typeof n.fxSpans === 'function') { try { n.fxSpans(spans, g.walk === true); } catch (e) { console.error(e); } }
-        if (n && typeof n.rowSpans === 'function') { try { n.rowSpans(spans, function(p) { return everySecs(sysCal(), sysUnits(sys), p); }, g.kind === 'fight'); } catch (e) { console.error(e); } }   // 1.6.0 Counts by the game clock: a row's timed counters live every stretch, a fight's rounds too   // section 6: outside a fight its timed effects follow its own time; in one, its turns. walk: those who walk into a fight live the gap before it
+        if (n && typeof n.rowSpans === 'function' && g.inOnly !== true) { try { n.rowSpans(spans, function(p) { return everySecs(sysCal(), sysUnits(sys), p); }, g.kind === 'fight'); } catch (e) { console.error(e); } }   // 1.6.0 Counts by the game clock: a row's timed counters live every stretch, a fight's rounds too   // section 6: outside a fight its timed effects follow its own time; in one, its turns. walk: those who walk into a fight live the gap before it
         if (groupRules(camp, sys, g, spans)) made = true;
     });
     if (marked && frameOf() === 'clock') saveView();   // a fight that runs ahead moves no clock: its people's marks are written quietly
@@ -167,7 +167,7 @@ function ownTime(groups) {   // the one counter: each group's spans, once, to th
 // only: a stretch that waited, counted now for the rules it asked for alone
 function groupRules(camp, sys, g, spans, only) {
     var mode = timeMode(camp), fight = g.kind === 'fight', cal = clockOn(); if (!sys || mode === 'off' || tablePaused() || (!fight && !cal)) return false;
-    var rules = clockRules(sys); if (!cal) rules = rules.filter(function(r) { return !!r.inFight; }).map(function(r) { var m = { id: r.id, label: r.label, inFight: r.inFight }; if (r.ask === true) m.ask = true; return m; });   // By the clock needs the Calendar, as it always has
+    var rules = clockRules(sys); if (!cal || (fight && g.inOnly === true)) rules = rules.filter(function(r) { return !!r.inFight; }).map(function(r) { var m = { id: r.id, label: r.label, inFight: r.inFight }; if (r.ask === true) m.ask = true; return m; });   // By the clock needs the Calendar, as it always has
     if (!rules.length || !Object.keys(spans).length) return false;
     var asks = function(r) { return g.ask === true || (mode === 'confirm' && !fight) || r.ask === true; };
     var now = only ? [] : rules.filter(function(r) { return !asks(r); }), later = only ? rules.filter(function(r) { return only === true || only.indexOf(r.id) >= 0; }) : rules.filter(asks);
@@ -708,14 +708,18 @@ function renderWin() {
 // counts it and, when a rule comes due, marks the chip and says so once, never opening the window under the GM's hands
 // [calendarcheck:live-start]
 var LIVE_GAP = 120000, LIVE_EVERY = 5000, liveAt = 0, liveMs = 0, liveBankAt = 0, livePend = 0, liveWas = null, liveSaid = false;
-function liveRate(ck) { return ck && typeof ck.rate === 'number' && CAL_LIMITS.rates.indexOf(ck.rate) > 0 ? ck.rate : 1; }
+// 1.6.2: the system's start for the running clock (systemcore clockStart), and how a fight moves it (fightClock); with none at hand, as before
+function sysClockStart() { var S = typeof window !== 'undefined' ? window.wpSystemCore : null, sys = null; try { sys = typeof sysNow === 'function' ? sysNow() : null; } catch (e) { sys = null; } return S && typeof S.clockStart === 'function' ? S.clockStart(sys) : { held: false, rate: 1 }; }
+function fightMode() { var S = typeof window !== 'undefined' ? window.wpSystemCore : null, sys = null; try { sys = typeof sysNow === 'function' ? sysNow() : null; } catch (e) { sys = null; } return S && typeof S.fightClock === 'function' ? S.fightClock(sys) : 'sync'; }
+function liveRate(ck) { return ck && typeof ck.rate === 'number' && CAL_LIMITS.rates.indexOf(ck.rate) >= 0 ? ck.rate : sysClockStart().rate; }   // the GM's speed, else the system's
+function liveHold(ck) { return !!ck && (ck.hold === true || (ck.hold !== false && sysClockStart().held)); }   // the GM's hold either way, else the system's start
 function liveHeld(camp) {   // '' while the clock runs by itself, else why it does not: off, hold, solo, paused, fight
     var n = net(), ck = clockOf(camp);
     if (!camp || isPlayer() || !clockOn()) return 'off';   // clockOn: the Calendar is on, and this is not the stream window
-    if (ck && ck.hold === true) return 'hold';
+    if (liveHold(ck)) return 'hold';
     if (!(n && n.active && n.role === 'host')) return 'solo';
     if (n.paused) return 'paused';
-    if (n.combats && typeof n.combats === 'object' && Object.keys(n.combats).some(function(k) { return !!n.combats[k]; })) return 'fight';
+    if (n.combats && typeof n.combats === 'object' && Object.keys(n.combats).some(function(k) { return !!n.combats[k]; }) && fightMode() !== 'runs') return 'fight';   // 1.6.2: a system whose clock runs on in a fight
     return '';
 }
 function liveWords(why, rate) {
@@ -747,7 +751,7 @@ function setShowCal(k) {
 }
 // [calendarcheck:othercals-end]
 function liveRow(body, camp, ck) {   // the GM's window: Runs / Held, the speed, and what the clock is doing now
-    var held = ck.hold === true, rate = liveRate(ck), row = cel('div', 'cal-live');
+    var held = liveHold(ck), rate = liveRate(ck), row = cel('div', 'cal-live');
     row.appendChild(cel('span', 'sys-num-cap', 'The clock'));
     [['run', '\u25b6 Runs', 'The clock runs by itself while a session is open: it waits while the table is paused and while a fight is on'], ['hold', '\u275A\u275A Held', 'The clock moves only by your steps and by a fight\u2019s rounds']].forEach(function(k) {
         var b = cbtn('cal-live-btn' + ((k[0] === 'hold') === held ? ' cal-kind-on' : ''), k[1], k[2], 'callive'); b.dataset.live = k[0]; row.appendChild(b);
@@ -761,8 +765,8 @@ function liveRow(body, camp, ck) {   // the GM's window: Runs / Held, the speed,
 }
 function setHold(hold) {
     var camp = getActiveCampaign(); if (!camp || isPlayer()) return false;
-    var ck = clockOf(camp) || { t: 0 }; if ((ck.hold === true) === (hold === true)) return false;
-    var nc = Object.assign({}, ck); if (hold === true) nc.hold = true; else delete nc.hold; camp.clock = nc;
+    var ck = clockOf(camp) || { t: 0 }; if (liveHold(ck) === (hold === true)) return false;
+    var nc = Object.assign({}, ck); if ((hold === true) === sysClockStart().held) delete nc.hold; else nc.hold = hold === true; camp.clock = nc;   // 1.6.2: kept only where it is not the system's start
     liveAt = 0; liveMs = 0;
     if (net() && net().logEvent) net().logEvent('time', hold === true ? 'The clock is held' : 'The clock runs by itself again');
     save(); refresh(); return true;
@@ -770,7 +774,7 @@ function setHold(hold) {
 function setRate(r) {
     var camp = getActiveCampaign(); if (!camp || isPlayer() || CAL_LIMITS.rates.indexOf(r) < 0) return false;
     var ck = clockOf(camp) || { t: 0 }; if (liveRate(ck) === r) return false;
-    var nc = Object.assign({}, ck); if (r === 1) delete nc.rate; else nc.rate = r; camp.clock = nc;
+    var nc = Object.assign({}, ck); if (r === sysClockStart().rate) delete nc.rate; else nc.rate = r; camp.clock = nc;
     save(); refresh(); return true;
 }
 function liveTick(now) {   // one look at the wall clock, about once a second on the GM's machine
@@ -859,7 +863,7 @@ function onWinClick(e) {
     if (act === 'callive') { setHold(b.dataset.live === 'hold'); return; }   // 1.5.4: Runs / Held
     if (act === 'calpendapply') { pendDone(true); return; }
     if (act === 'calpendskip') { pendDone(false); return; }
-    if ((act === 'calstep' || act === 'calany' || (act === 'calset' && pick !== null)) && ordersRun()) { toast(fightHolds(camp)); return; }   // 152: while a fight runs the clock follows it; nothing is greyed (159), a press says why
+    if ((act === 'calstep' || act === 'calany' || (act === 'calset' && pick !== null)) && ordersRun() && fightMode() === 'sync') { toast(fightHolds(camp)); return; }   // 1.6.2: only where a fight moves the clock   // 152: while a fight runs the clock follows it; nothing is greyed (159), a press says why
     if (act === 'calstep') { moveBy(Number(b.dataset.secs), restMode); return; }
     if (act === 'caladdnote' && pick !== null) { var nt = q('cal-note-new'), nv = q('cal-note-newvis'), txt = nt ? String(nt.value || '').trim() : ''; if (!txt) { toast('Type the note first.'); return; } addNote(pick, txt, !!(nv && nv.checked === true)); return; }
     if (act === 'calnotedel') { delNote(b.dataset.note); return; }

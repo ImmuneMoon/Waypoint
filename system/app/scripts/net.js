@@ -6538,7 +6538,16 @@ function ordersMoved(why, o) {
     if (net.role !== 'host') return false;
     o = o && typeof o === 'object' ? o : {};
     var CC = timeCore(), camp = campNow(), w = typeof window !== 'undefined' ? window : null, cal = w && w.wpCalendar ? w.wpCalendar : null, ids = fightIds();
-    if (CC && camp) {
+    var fmS = typeof SC === 'function' ? SC() : null, fm = fmS && typeof fmS.fightClock === 'function' && camp ? fmS.fightClock(camp.system) : 'sync';
+    if (CC && camp && fm !== 'sync') {   // 1.6.2 Fight time, the system's: the clock runs on, or the date never moves. No second; a fight's rounds count for In a fight
+        // rules alone (inOnly), each fighter a round's length, and touch no character's own time, which the clock keeps
+        var gsN = (Array.isArray(o.groups) ? o.groups : []).filter(function(g) { return !!g && g.kind === 'fight' && Array.isArray(g.ids) && g.ids.length > 0; }).map(function(g) { var sp = {}, sc = Math.max(0, CC.tSpanMs(g.t0, g.t1) / 1000); g.ids.forEach(function(id) { sp[id] = sc; }); return Object.assign({}, g, { spans: sp, secs: sc, inOnly: true }); });
+        if (cal) {
+            try { if (Array.isArray(o.fresh) && o.fresh.length && typeof cal.fightBegan === 'function') cal.fightBegan(o.fresh); } catch (e) { console.error(e); }
+            try { if (gsN.length && typeof cal.ownTime === 'function') cal.ownTime(gsN); } catch (e) { console.error(e); }
+        }
+        net.second = null;
+    } else if (CC && camp) {
         var least = null; ids.forEach(function(k) { var a = fightAtOf(net.combats[k], camp); if (least === null || CC.tCmp(a, least) < 0) least = a; });
         var s0 = secondNow(camp), s1 = least ? CC.tFloor(least) : o.last ? CC.tFloor(o.last) : s0, back = s1 < s0 && o.back === true;
         if (s1 < s0 && !back) s1 = s0;   // the second goes back only for a correction

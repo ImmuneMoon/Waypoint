@@ -44,6 +44,9 @@ The System editor
 - A wound can add a row standing where it struck, such as a bleeding wound,
   and Keeps paying can pay every other round, at a turn's end, or by the
   minute outside a fight.
+- A system now says how a fight moves the game clock: synced round by round,
+  running on as it does outside a fight, or not at all. It also says how a
+  campaign's clock starts, which the GM can still change in the Calendar.
 - Basic d20 has coins and carried weight. A new character starts with 10
   Gold, and Gold, Silver and Copper make change as you spend. Gear has weights,
   Carried adds them up, and the carrying limit is Strength times 15. Going over

@@ -2775,11 +2775,34 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             // and at HF4a: a deliberate change, the tour's HUD Checks section draws as inline rows (the automatic layout's hash is unchanged);
             // and at HF4b: a deliberate change, the tour's HUD Condition section carries Reset all (the automatic layout's hash is unchanged);
             // and at lighting L6: a deliberate change, the tour's system names dim and dark and carries a Torch and a Brazier (the automatic layout's hash is unchanged);
-            // and at senses S8: a deliberate change (the owner's answer "Hearing + smoke demo"), the tour's system carries a Hearing mark sense (the automatic layout's hash is unchanged)
-            tutorial: ['b6f9ba31d0f9e49e476e3260919a01798085fe9de92a0971d3c1b778a1cf13fc', '937660fa2c7339f7da1c89bc656470373874e9f6d7e60245a320e8aeb3810661', 'ca140918d060af6f2949d30e7ba68e3b559fa4142b5101ee8ab04f34b7306e41']
+            // and at senses S8: a deliberate change (the owner's answer "Hearing + smoke demo"), the tour's system carries a Hearing mark sense (the automatic layout's hash is unchanged);
+            // and at 1.6.2: a deliberate change (the owner, 2026-11-08: "2d6 + a stat", "Might, Agility, Grit"), the tour's own generic rules (the automatic layout's hash is unchanged)
+            tutorial: ['aa1a44b5707bd6e56a0854d7e8a8182df569b96d460ea4943cc9a3d9422d9521', '808de93ca741f45979a4a087f4ac44ae31107f23a07bd5ab7a6f51e8ad7d74bf', 'ca140918d060af6f2949d30e7ba68e3b559fa4142b5101ee8ab04f34b7306e41']
         };
         const absent = [['d20', preset('d20')], ['3d6', preset('3d6')], ['tutorial', tutorialSystem()]].map(([n, raw]) => { const gm = cleanSystem(raw, { F, gmView: true }), pv = cleanSystem(raw, { F, gmView: false }); return [n, [H(gm), H(pv), H(S.autoLayout(gm))], gm]; });
         check('look L1: the bundled presets and the tutorial\'s system clean byte-for-byte as before the look fold (GM view, players\' view, automatic layout), with no look key', absent.every(([n, h, gm]) => j(h) === j(PRE[n]) && !(gm.sheet && gm.sheet.look && gm.sheet.look.palette)), j(absent.map(([n, h]) => [n, h.map((x, i) => x === PRE[n][i])])));
+        {   // 1.6.2 (the owner, 2026-11-08): the Tutorial's own generic rules, 2d6 and a stat, and an older Tutorial swapped once whatever it held ("swap regardless, this is alpha")
+            const NL1 = '\n', varLine = n => { const i = tutSrc.indexOf('var ' + n + ' = '); return tutSrc.slice(i, tutSrc.indexOf(NL1, i)); };
+            const TR = new Function('createNewDoc', 'withoutHistory', [varLine('TUT_OLD_FIELDS'), varLine('TUT_OLD_TEXTS')].concat(['tutorialPostures', 'tutorialEffects', 'tutorialHud', 'tutorialSenses', 'tutorialSystem', 'tutorialRuleFields', 'tutorialRolls', 'tutorialHandbookPage', 'ensureTutorialRules'].map(fnSrc)).join(NL1) + NL1 + 'return { sys: tutorialSystem, rules: ensureTutorialRules, book: tutorialHandbookPage };')(t => ({ id: 'd_new', type: 'doc', name: t, blocks: [] }), (it, fn) => fn());
+            const sysN = TR.sys(), words = JSON.stringify(sysN) + JSON.stringify(TR.book());
+            const gmN = cleanSystem(sysN, { F, gmView: true }), errN = S.validateSystem(gmN, F).errors;
+            const oldSys = { v: 1, name: 'Tutorial rules', fields: [{ id: 'f_tut_str', key: 'STR', label: 'Strength', kind: 'number', def: 10 }, { id: 'f_tut_sword', key: 'Skill.Sword', label: 'Sword', kind: 'skill', base: 'STRmod', roll: 'd20 + Skill.Sword' }, { id: 'f_mine', key: 'Mine', label: 'Mine', kind: 'number' }],
+                rolls: [{ id: 'r_tut_atk', label: 'Attack (sword)', formula: 'd20 + Skill.Sword', vis: 'all' }, { id: 'r_mine', label: 'Mine', formula: '1d6' }], effects: [{ id: 'e_tut_poison', name: 'Poisoned', mods: [{ f: 'f_tut_str', op: 'add', v: -2 }] }] };
+            const old = { system: oldSys, chars: { c_tut_bren: { id: 'c_tut_bren', values: { f_tut_str: 14, f_tut_sword: 3, f_tut_hp: { cur: 9 } } } },
+                items: { map_tut_inn: { id: 'map_tut_inn', whiteboard: [{ id: 'tut_wb_a', charStats: 'Fighter.' }, { id: 'tut_wb_b', charStats: 'Wizard. Mine now' }], rooms: [{ notes: "The ledger names the Emporium's buyer. Locked (DC 12)." }], links: [['a', 'b', '', { notes: 'Hidden unless a captured raider talks or the party tracks a patrol (Survival 14).' }]] },
+                    doc_tut_handbook: { id: 'doc_tut_handbook', blocks: [{ id: 'b_tut_t1', content: '<p><b>Inspiration</b> is spent, never banked: use it on the roll you earned it for or lose it at the end of the scene.</p><p>A natural 20 on a save also shrugs off one lingering effect of your choice.</p>' }] } } };
+            TR.rules(old);
+            const fk = id => (old.system.fields.find(f => f.id === id) || {}).key;
+            check('1.6.2 the Tutorial\'s own rules: 2d6 and a stat of 0 to 5 (Might, Agility, Grit, Blades, Defence, Move, Calling), nothing another game names (no STR, DEX, CON, AC, hit points, d20, a modifier, Fighter, Wizard, a DC, Inspiration, a natural 20 or passive Perception), cleaning with no fault; an older Tutorial takes them once whatever it held, its own field and roll kept, Bren his new figures, and the demo\'s words where they are as seeded',
+                errN.length === 0 && !/\bSTR\b|\bDEX\b|\bCON\b|\bAC\b|d20|STRmod|Fighter|Wizard|\bDC\b|Inspiration|natural 20|Perception|Armour class|Hit points/.test(words)
+                && j(sysN.fields.slice(0, 8).map(f => f.key)) === j(['Might', 'Agility', 'Grit', 'Calling', 'Move', 'Health', 'Defence', 'Blades']) && sysN.rolls.every(r => /^2d6 \+ /.test(r.formula))
+                && fk('f_tut_str') === 'Might' && fk('f_tut_sword') === 'Blades' && fk('f_mine') === 'Mine' && fk('f_tut_ac') === 'Defence' && old.system.rolls.find(r => r.id === 'r_tut_atk').formula === '2d6 + Blades' && !!old.system.rolls.find(r => r.id === 'r_mine')
+                && old.system.effects[0].mods[0].v === -1 && j(old.chars.c_tut_bren.values) === j({ f_tut_str: 3, f_tut_sword: 2, f_tut_hp: { cur: 11 }, f_tut_dex: 2, f_tut_con: 2 })
+                && old.items.map_tut_inn.whiteboard[0].charStats === 'Sellsword.' && old.items.map_tut_inn.whiteboard[1].charStats === 'Wizard. Mine now' && /a roll of 10 to pick/.test(old.items.map_tut_inn.rooms[0].notes) && /a hard tracking roll/.test(old.items.map_tut_inn.links[0][3].notes)
+                && /<b>Luck<\/b>/.test(old.items.doc_tut_handbook.blocks[0].content)
+                && /if \(!\(camp\.tutorialRules >= 1\)\) \{ if \(typeof ensureTutorialRules === 'function'\) ensureTutorialRules\(camp\); camp\.tutorialRules = 1; \}/.test(tutSrc) && /camp\.tutorialRules = 1;   \/\/ 1\.6\.2: built with/.test(tutSrc),
+                j([errN, words.match(/\bSTR\b|d20|Fighter|Wizard|\bDC\b|Inspiration/), old]));
+        }
         {
             const tGm = absent[2][2], tPv = cleanSystem(tutorialSystem(), { F, gmView: false }), tRaw = tutorialSystem().combat.light;
             check('lighting L6: the Tutorial\'s system keeps its light rules as written in both views — the names of dim and dark, a Torch players may pick and a Brazier they may not',

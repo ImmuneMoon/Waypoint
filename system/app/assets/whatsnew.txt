@@ -7,6 +7,12 @@ Tokens
   picture centred, and Frame picture still changes it. The token creator and
   the Image Library say the size a token's picture is best at.
 
+The tutorial
+- The tutorial has rules of its own now, so nothing in it reads like another
+  game. Bren rolls 2d6 plus Might, Agility, Grit or Blades, stats run from 0
+  to 5, and his wounds come off Health. A Tutorial you already have switches the next time you start the
+  tour, and Bren gets his new numbers.
+
 The System editor
 - Basic d20 has coins and carried weight. A new character starts with 10
   Gold, and Gold, Silver and Copper make change as you spend. Gear has weights,

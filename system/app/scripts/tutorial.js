@@ -66,17 +66,22 @@ function ensureTutorialPostures(camp) {
     if (!sys.combat || typeof sys.combat !== 'object') sys.combat = {};
     if (!(Array.isArray(sys.combat.postures) && sys.combat.postures.length >= 2)) sys.combat.postures = tutorialPostures();
 }
+/* The Tutorial's own rules (1.6.2; the owner, 2026-11-08, by prompt: "2d6 + a stat", "Might, Agility, Grit"): a generic ruleset of Waypoint's
+   own, so nothing reads as another game's. Rolls are 2d6 and a small stat, 0 to 5. The ids stay those of the rules before, so the tour, the
+   layout and Bren's tokens find them; ensureTutorialRules swaps an older Tutorial's rules once, where nobody changed them */
+function tutorialRuleFields() { return tutorialSystem().fields.filter(function(f) { return Object.prototype.hasOwnProperty.call(TUT_OLD_FIELDS, f.id); }); }
+function tutorialRolls() { return tutorialSystem().rolls; }
 function tutorialSystem() {
     return { v: 1, name: 'Tutorial rules', preset: '', updated: 1,
         fields: [
-            { id: 'f_tut_str', key: 'STR', label: 'Strength', kind: 'number', def: 10, min: 1, max: 20, step: 1, edit: 'owner', vis: 'all', hover: false, roll: 'd20 + STRmod' },
-            { id: 'f_tut_dex', key: 'DEX', label: 'Dexterity', kind: 'number', def: 10, min: 1, max: 20, step: 1, edit: 'owner', vis: 'all', hover: false },
-            { id: 'f_tut_con', key: 'CON', label: 'Constitution', kind: 'number', def: 10, min: 1, max: 20, step: 1, edit: 'owner', vis: 'all', hover: false },
-            { id: 'f_tut_class', key: 'Class', label: 'Class', kind: 'text', def: 'Fighter', max: 60, edit: 'owner', vis: 'all', hover: false },   // an identity row for the header block (Stage 5d)
-            { id: 'f_tut_strmod', key: 'STRmod', label: 'STR modifier', kind: 'formula', formula: 'floor((STR - 10) / 2)', vis: 'all', hover: false },
-            { id: 'f_tut_hp', key: 'HP', label: 'Hit points', kind: 'resource', maxFormula: '10 + CON', def: 'max', min: 0, edit: 'owner', vis: 'all', hover: true },
-            { id: 'f_tut_ac', key: 'AC', label: 'Armour class', kind: 'formula', formula: '10 + floor((DEX - 10) / 2)', vis: 'all', hover: true },
-            { id: 'f_tut_sword', key: 'Skill.Sword', label: 'Sword', kind: 'skill', base: 'STRmod', def: 0, min: 0, max: 10, step: 1, edit: 'owner', vis: 'all', hover: false, roll: 'd20 + Skill.Sword' },
+            { id: 'f_tut_str', key: 'Might', label: 'Might', kind: 'number', def: 1, min: 0, max: 5, step: 1, edit: 'owner', vis: 'all', hover: false, roll: '2d6 + Might' },
+            { id: 'f_tut_dex', key: 'Agility', label: 'Agility', kind: 'number', def: 1, min: 0, max: 5, step: 1, edit: 'owner', vis: 'all', hover: false, roll: '2d6 + Agility' },
+            { id: 'f_tut_con', key: 'Grit', label: 'Grit', kind: 'number', def: 1, min: 0, max: 5, step: 1, edit: 'owner', vis: 'all', hover: false, roll: '2d6 + Grit' },
+            { id: 'f_tut_class', key: 'Calling', label: 'Calling', kind: 'text', def: 'Sellsword', max: 60, edit: 'owner', vis: 'all', hover: false },   // an identity row for the header block (Stage 5d)
+            { id: 'f_tut_strmod', key: 'Move', label: 'Move (yards)', kind: 'formula', formula: '4 + Agility', vis: 'all', hover: false },
+            { id: 'f_tut_hp', key: 'Health', label: 'Health', kind: 'resource', maxFormula: '10 + Grit * 2', def: 'max', min: 0, edit: 'owner', vis: 'all', hover: true },
+            { id: 'f_tut_ac', key: 'Defence', label: 'Defence', kind: 'formula', formula: '7 + Agility', vis: 'all', hover: true },
+            { id: 'f_tut_sword', key: 'Blades', label: 'Blades', kind: 'skill', base: 'Might', def: 0, min: 0, max: 5, step: 1, edit: 'owner', vis: 'all', hover: false, roll: '2d6 + Blades' },
             { id: 'f_tut_sight', key: 'Sight', label: 'Sight (yards)', kind: 'number', def: 6, min: 0, max: 120, step: 1, edit: 'owner', vis: 'all', hover: false },
             { id: 'f_tut_prone', key: 'Prone', label: 'Prone', kind: 'toggle', def: false, edit: 'owner', vis: 'all', hover: true },
             { id: 'f_tut_notes', key: 'Notes', label: 'Notes', kind: 'notes', edit: 'owner', vis: 'all', hover: false },
@@ -84,7 +89,7 @@ function tutorialSystem() {
             { id: 'f_tut_kit', key: 'Kit', label: 'Kit', kind: 'item-list', edit: 'owner', vis: 'all', hover: false },
             { id: 'f_tut_fx', key: 'Effects', label: 'Effects', kind: 'effects', edit: 'owner', vis: 'all', hover: true }   // status effects (5h)
         ],
-        rolls: [{ id: 'r_tut_init', label: 'Initiative', formula: 'd20 + floor((DEX - 10) / 2)', vis: 'all', init: true }, { id: 'r_tut_atk', label: 'Attack (sword)', formula: 'd20 + Skill.Sword', vis: 'all' }],
+        rolls: [{ id: 'r_tut_init', label: 'Initiative', formula: '2d6 + Agility', vis: 'all', init: true }, { id: 'r_tut_atk', label: 'Attack (blade)', formula: '2d6 + Blades', vis: 'all' }],
         items: [{ id: 'i_tut_firepot', name: 'Firepot', category: 'Thrown', icon: '🔥', notes: 'A thrown clay pot of alchemist\'s fire.', vis: 'all', area: { ft: 10, shape: 'circle', name: 'Firepot' }, damage: '2d6', cost: '', throwSkill: '' }],
         effects: tutorialEffects(),
         combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: 'f_tut_hp', postures: tutorialPostures(), light: { names: { dim: 'Dim light', dark: 'Darkness' }, presets: [{ name: 'Torch', bright: 3, dim: 7, pick: true }, { name: 'Brazier', bright: 2, dim: 4 }] }, senses: tutorialSenses() },   // lighting (L6): what the rules call a dim and a dark place, and two lights in yards — the torch one a player may pick; senses (S8): Hearing
@@ -95,14 +100,14 @@ function tutorialHud() {
     return { title: 'Combat HUD', tabs: [{ id: 't_tut_hact', label: 'Actions', icon: 'icon:dice' }, { id: 't_tut_hstat', label: 'Status', icon: 'icon:heart-pulse' }], band: [{ id: 'f_tut_hp' }, { id: 'f_tut_ac' }, { id: 'f_tut_prone' }],
         sections: [{ id: 's_tut_hchk', title: 'Checks', tab: 't_tut_hact', cols: 1, inline: true, fields: [{ id: 'f_tut_str', w: 1 }, { id: 'f_tut_sword', w: 1 }, { roll: 'r_tut_atk', w: 1 }] }, { id: 's_tut_hfx', title: 'Condition', tab: 't_tut_hstat', cols: 1, resetAll: true, fields: [{ id: 'f_tut_hp', w: 1 }, { id: 'f_tut_fx', w: 'row' }] }] };
 }
-// status effects (5h): Blessed (+1 to the Sword total) and Poisoned (−2 STR, so everything built on STR follows)
+// status effects (5h): Blessed (+1 to Blades) and Poisoned (−1 Might, so everything built on Might follows)
 function tutorialEffects() {
     return [{ id: 'e_tut_bless', name: 'Blessed', icon: '\u2728', tone: 'buff', dur: 'until dawn', notes: 'A priest\u2019s blessing on the blade.', vis: 'all', mods: [{ f: 'f_tut_sword', op: 'add', v: 1 }] },
-            { id: 'e_tut_poison', name: 'Poisoned', icon: '\uD83E\uDD22', tone: 'debuff', dur: 'an hour', notes: 'Raider\u2019s dart poison.', vis: 'all', mods: [{ f: 'f_tut_str', op: 'add', v: -2 }] }];
+            { id: 'e_tut_poison', name: 'Poisoned', icon: '\uD83E\uDD22', tone: 'debuff', dur: 'an hour', notes: 'Raider\u2019s dart poison.', vis: 'all', mods: [{ f: 'f_tut_str', op: 'add', v: -1 }] }];
 }
 function tutorialCharacter(A) {
     return { id: 'c_tut_bren', name: 'Bren of Hollowvale', ownerId: '', portrait: A + 'bren_sq.jpg', npc: false, updated: 1,
-        values: { f_tut_str: 14, f_tut_dex: 12, f_tut_con: 13, f_tut_hp: { cur: 9 }, f_tut_sword: 3, f_tut_sight: 6, f_tut_fx: [{ id: 'x_tut_bless', ref: 'e_tut_bless', on: true }], f_tut_notes: 'Shield and a short temper. Owes Paethorin for the door.', f_tut_gm: 'Secretly the heir of Hollowvale; the raiders know.', f_tut_kit: [{ defId: 'i_tut_firepot', qty: 1 }] } };
+        values: { f_tut_str: 3, f_tut_dex: 2, f_tut_con: 2, f_tut_hp: { cur: 11 }, f_tut_sword: 2, f_tut_sight: 6, f_tut_fx: [{ id: 'x_tut_bless', ref: 'e_tut_bless', on: true }], f_tut_notes: 'Shield and a short temper. Owes Paethorin for the door.', f_tut_gm: 'Secretly the heir of Hollowvale; the raiders know.', f_tut_kit: [{ defId: 'i_tut_firepot', qty: 1 }] } };
 }
 // Bren's tokens on every map point at the character (one HP total across maps); idempotent, so an older Tutorial campaign gains it too
 function ensureTutorialSheet(camp) {
@@ -125,7 +130,7 @@ function ensureTutorialSheet(camp) {
         var tsh = camp.system.sheet;
         if (tsh && typeof tsh === 'object' && !Array.isArray(tsh.band) && !(Array.isArray(tsh.sections) && tsh.sections.length) && !(Array.isArray(tsh.tabs) && tsh.tabs.length)) { tsh.band = [{ id: 'f_tut_hp' }, { id: 'f_tut_ac' }, { id: 'f_tut_prone' }, { roll: 'r_tut_init' }]; changed = true; }
         // the header block (Stage 5d): Bren's Class field, then identity rows + ledger figures — seeded onto an untouched layout only, with its own guard
-        if (Array.isArray(camp.system.fields) && !camp.system.fields.some(function(f) { return f && f.id === 'f_tut_class'; })) { camp.system.fields.push({ id: 'f_tut_class', key: 'Class', label: 'Class', kind: 'text', def: 'Fighter', max: 60, edit: 'owner', vis: 'all', hover: false }); changed = true; }
+        if (Array.isArray(camp.system.fields) && !camp.system.fields.some(function(f) { return f && f.id === 'f_tut_class'; })) { camp.system.fields.push(tutorialSystem().fields.filter(function(f) { return f.id === 'f_tut_class'; })[0]); changed = true; }
         if (tsh && typeof tsh === 'object' && !Array.isArray(tsh.identity) && !Array.isArray(tsh.ledger) && !(Array.isArray(tsh.sections) && tsh.sections.length) && !(Array.isArray(tsh.tabs) && tsh.tabs.length)) { tsh.identity = [{ id: 'f_tut_class' }]; tsh.ledger = [{ id: 'f_tut_strmod' }, { id: 'f_tut_sight' }]; changed = true; }
         if (tsh && typeof tsh === 'object' && JSON.stringify(tsh.identity) === JSON.stringify([{ id: 'f_tut_class' }, { id: 'f_tut_str' }, { id: 'f_tut_dex' }, { id: 'f_tut_con' }])) { tsh.identity = [{ id: 'f_tut_class' }]; changed = true; }   // Stage 6: the header now edits its rows in place — the abilities stay tiles, Class moves up
         // the HUD (Stage 6 HUD frame): seeded onto an untouched layout only (no HUD, sections or tabs of the owner's own), with its own guard
@@ -153,6 +158,7 @@ function buildTutorialCampaign() {
     var A = TUTORIAL_ART_URL;                       // copies of the shipped art in the saves folder (see installTutorialArt)
     var camp = createNewCampaign(TUTORIAL_NAME);
     camp.id = TUTORIAL_CAMP_ID;
+    camp.tutorialRules = 1;   // 1.6.2: built with the Tutorial's own rules
     camp.tutorialSeed = 2;   // HUD frame (HF4a, HF4b): the seed migrations this build already carries (ensureTutorialSheet runs each once, on an older tutorial)
     camp.vtt = tutorialVtt();   // every VTT feature on: the tour points at chips and the minimap, so they must render
     camp.fog = { fields: { sight: 'f_tut_sight' }, defaults: { sight: 3 } };   // fog of war (1.5.0): Bren's Sight field drives vision; 3 yd default for a token with no character
@@ -184,7 +190,7 @@ function buildTutorialCampaign() {
     ];
     realm.links = [
         ['tut_r_eldara', 'tut_r_hills', 'route', { label: "Two days' ride", notes: 'Caravan road. A raid on a 1–2 each day.' }],
-        ['tut_r_hills', 'tut_r_hideout', 'secret', { label: 'Goat path', notes: 'Hidden unless a captured raider talks or the party tracks a patrol (Survival 14).' }],
+        ['tut_r_hills', 'tut_r_hideout', 'secret', { label: 'Goat path', notes: 'Hidden unless a captured raider talks or the party tracks a patrol (a hard tracking roll).' }],
         ['tut_r_hideout', 'tut_r_fort', 'oneway', { label: 'Downriver', notes: 'The raiders flee to the fort by raft; the way back is on foot.' }],
         ['tut_r_eldara', 'tut_r_fort', '', { label: 'Old road' }]
     ];
@@ -230,9 +236,9 @@ function buildTutorialCampaign() {
         district('tut_wb_d_inn', 'tut_inn', 250, 900, 160, 110),
         { id: 'tut_wb_citylabel', type: 'text', x: O, y: O - 60, w: 640, h: 40, color: 'transparent', text: '<b>Eldara</b> (no grid) \u2014 tokens go wherever you drop them; hover a district for its room', fontSize: 14, layer: 'front' },
         // Free placement: no cell to seat in, so any size and any spot works
-        pic('bren_sq.jpg', { id: 'tut_wb_bren6', x: O + 330, y: O + 880, w: 44, h: 44, charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Fighter. On a gridless map a token is any size you like \u2014 these are 44 px.', layer: 'middle' }),
+        pic('bren_sq.jpg', { id: 'tut_wb_bren6', x: O + 330, y: O + 880, w: 44, h: 44, charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Sellsword. On a gridless map a token is any size you like \u2014 these are 44 px.', layer: 'middle' }),
         pic('tharic_sq.jpg', { id: 'tut_wb_tharic6', x: O + 372, y: O + 896, w: 44, h: 44, charName: 'Tharic Ironfist', name: 'Tharic', charStats: 'Knight.', layer: 'middle' }),
-        pic('sage_sq.jpg', { id: 'tut_wb_sage6', x: O + 350, y: O + 936, w: 44, h: 44, charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Wizard.', layer: 'middle' }),
+        pic('sage_sq.jpg', { id: 'tut_wb_sage6', x: O + 350, y: O + 936, w: 44, h: 44, charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Scholar.', layer: 'middle' }),
         pic('liriel_sq.jpg', { id: 'tut_wb_liriel', x: O + 690, y: O + 560, w: 44, h: 44, charName: 'Liriel Aurethiel', name: 'Liriel', charStats: 'Emporium keeper. NPC, out on the market street.', layer: 'middle', charRef: 'tut_c_liriel' })
     ];
 
@@ -252,9 +258,9 @@ function buildTutorialCampaign() {
         { id: 'tut_wb_innmap', type: 'image', src: A + 'map_inn.jpg', x: IX, y: IY, w: 1198, h: 1089, color: 'transparent', layer: 'back', locked: true, name: 'The Inn' },
         { id: 'tut_wb_innfloor', type: 'rect', x: 15000, y: 15000, w: 800, h: 600, color: 'transparent', layer: 'back-mid', nodeId: 'tut_inn_common', name: 'Common room floor', opacity: 0.1, locked: true },   // locked: a piece no one sees, which a drag across the room would move (ensureTutorialFloors)
         { id: 'tut_wb_innlabel', type: 'text', x: 14880, y: 14700, w: 520, h: 40, color: 'transparent', text: '<b>The Inn</b> (square grid) \u2014 square picture tokens, one 50 px cell each', fontSize: 14, layer: 'front' },
-        sqTok(15250, 15400, pic('bren_sq.jpg', { id: 'tut_wb_bren', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Fighter. Shield and a short temper. Your character \u2014 drag me; Snap seats me in a cell.' })),
+        sqTok(15250, 15400, pic('bren_sq.jpg', { id: 'tut_wb_bren', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Sellsword. Shield and a short temper. Your character \u2014 drag me; Snap seats me in a cell.' })),
         sqTok(15300, 15400, pic('tharic_sq.jpg', { id: 'tut_wb_tharic', charName: 'Tharic Ironfist', name: 'Tharic', charStats: 'Knight. Says little, hits hard.' })),
-        sqTok(15250, 15450, pic('sage_sq.jpg', { id: 'tut_wb_sage', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Wizard. Reads everything, including the raiders\' ledger.' })),
+        sqTok(15250, 15450, pic('sage_sq.jpg', { id: 'tut_wb_sage', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Scholar. Reads everything, including the raiders\' ledger.' })),
         sqTok(15350, 14950, pic('innkeeper_sq.jpg', { id: 'tut_wb_innkeeper', charName: 'Paethorin Baethelor', name: 'Paethorin', charStats: 'Innkeeper. An NPC token behind the bar.', charRef: 'tut_c_innkeeper' })),
         sqTok(15450, 14950, pic('chef_sq.jpg', { id: 'tut_wb_chef', charName: 'Nessa', name: 'Nessa', charStats: 'Wood-elf cook. An NPC token: only the GM moves it.', charRef: 'tut_c_chef' })),
         { id: 'tut_wb_inndoor', type: 'trigger', x: 15450, y: 15750, w: 50, h: 50, color: 'transparent', eventMessage: 'The door bangs open. A caravan driver stumbles in, bleeding: \u201cRaiders. On the hill road.\u201d', name: 'The door' }
@@ -268,7 +274,7 @@ function buildTutorialCampaign() {
     ground.cats = { room: { label: 'Room', color: '#e0a54f' }, danger: { label: 'Danger', color: '#d9534f' } };
     ground.rooms = [
         { id: 'tut_g_guard', name: 'Guard room', cat: 'danger', x: 14900, y: 15000, notes: 'Grukk\'s desk and two guards. The ledger is in the office behind.', characters: [] },
-        { id: 'tut_g_office', name: 'Office', cat: 'room', x: 15150, y: 14800, notes: 'The ledger names the Emporium\'s buyer. Locked (DC 12).', characters: [] },
+        { id: 'tut_g_office', name: 'Office', cat: 'room', x: 15150, y: 14800, notes: 'The ledger names the Emporium\'s buyer. Locked: a roll of 10 to pick.', characters: [] },
         { id: 'tut_g_armory', name: 'Armory', cat: 'room', x: 14800, y: 15300, notes: 'Elion\'s axes. He will want them back.', characters: [] },
         { id: 'tut_g_cell', name: 'Jail cell', cat: 'room', x: 14800, y: 14800, notes: 'A caravan guard, alive, if the party is quick.', characters: [] }
     ];
@@ -282,10 +288,10 @@ function buildTutorialCampaign() {
         hexTok(O + 560, O + 300, pic('minotaur_soldier_hex.png', { id: 'tut_wb_horn', charName: 'Horn', name: 'Horn', charStats: 'Minotaur guard. Hidden from players until they open the door.', hidden: true })),
         hexTok(O + 300, O + 600, pic('bren_hex.png', { id: 'tut_wb_bren2', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Your character, in hex form for a hex map.' })),
         hexTok(O + 360, O + 640, pic('tharic_hex.png', { id: 'tut_wb_tharic2', charName: 'Tharic Ironfist', name: 'Tharic', charStats: 'Knight.' })),
-        hexTok(O + 300, O + 690, pic('sage_hex.png', { id: 'tut_wb_sage2', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Wizard.' })),
+        hexTok(O + 300, O + 690, pic('sage_hex.png', { id: 'tut_wb_sage2', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Scholar.' })),
         stairs(O + 935, O + 760, 'map_tut_basement', false, 'Stairs down'),
         stairs(O + 700, O + 420, 'map_tut_top', true, 'Stairs up'),
-        hexTok(O + 480, O + 300, { id: 'tut_wb_officedoor', type: 'trigger', shape: 'hexagon', color: 'transparent', eventMessage: 'The office door is locked. Grukk\'s ledger is inside \u2014 DC 12 to pick it, or ask Grukk nicely.', name: 'Office door' })
+        hexTok(O + 480, O + 300, { id: 'tut_wb_officedoor', type: 'trigger', shape: 'hexagon', color: 'transparent', eventMessage: 'The office door is locked. Grukk\'s ledger is inside \u2014 a roll of 10 to pick it, or ask Grukk nicely.', name: 'Office door' })
     ];
 
     var basement = createNewMap('Hideout \u2014 Basement');
@@ -366,9 +372,9 @@ function buildTutorialCampaign() {
         hexTok(15240, 15000, pic('king_hex.png', { id: 'tut_wb_king', charName: 'King Thalindor Starseeker', name: 'King Thalindor', charStats: 'On the dais: Elevation +1. An NPC \u2014 the GM moves him.', charRef: 'tut_c_king', elevation: 1 })),
         hexTok(15240, 14900, pic('golems_hex.png', { id: 'tut_wb_warden1', charName: 'Warden', name: 'Warden', charStats: 'Elven golem. Does not move unless the king does.', elevation: 1 })),
         hexTok(15240, 15100, pic('golems_hex.png', { id: 'tut_wb_warden2', charName: 'Second Warden', name: 'Second Warden', charStats: 'Elven golem.', elevation: 1 })),
-        hexTok(14700, 14950, pic('bren_hex.png', { id: 'tut_wb_bren3', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Fighter.' })),
+        hexTok(14700, 14950, pic('bren_hex.png', { id: 'tut_wb_bren3', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Sellsword.' })),
         hexTok(14700, 15050, pic('tharic_hex.png', { id: 'tut_wb_tharic3', charName: 'Tharic Ironfist', name: 'Tharic', charStats: 'Knight.' })),
-        hexTok(14760, 15000, pic('sage_hex.png', { id: 'tut_wb_sage3', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Wizard.' })),
+        hexTok(14760, 15000, pic('sage_hex.png', { id: 'tut_wb_sage3', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Scholar.' })),
         hexTok(15100, 15000, { id: 'tut_wb_thsteps', type: 'trigger', shape: 'hexagon', color: 'transparent', eventMessage: 'The Wardens turn their heads as one. \u201cKneel,\u201d says nobody, and everyone does.', name: 'Dais steps' })
     ];
 
@@ -389,8 +395,8 @@ function buildTutorialCampaign() {
         { id: 'tut_wb_tec1', type: 'circle', x: 14750, y: 14800, w: 30, h: 30, color: '#e0a54f', layer: 'back-mid', name: 'Candle stand', opacity: 0.7 },
         { id: 'tut_wb_tec2', type: 'circle', x: 14750, y: 15170, w: 30, h: 30, color: '#e0a54f', layer: 'back-mid', name: 'Candle stand', opacity: 0.7 },
         sqTok(15150, 14950, pic('priestess_sq.jpg', { id: 'tut_wb_priestess', charName: 'High Priestess Elandra Moonshadow', name: 'Elandra Moonshadow', charStats: 'High Priestess. NPC.', charRef: 'tut_c_priestess' })),
-        sqTok(14800, 15000, pic('bren_sq.jpg', { id: 'tut_wb_bren4', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Fighter.' })),
-        sqTok(14850, 15000, pic('sage_sq.jpg', { id: 'tut_wb_sage4', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Wizard. Two Elandras in one room \u2014 charName tells them apart.' }))
+        sqTok(14800, 15000, pic('bren_sq.jpg', { id: 'tut_wb_bren4', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Sellsword.' })),
+        sqTok(14850, 15000, pic('sage_sq.jpg', { id: 'tut_wb_sage4', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Scholar. Two Elandras in one room \u2014 charName tells them apart.' }))
     ];
 
     /* ---- The forge ---- */
@@ -436,9 +442,9 @@ function buildTutorialCampaign() {
         hexTok(15210, 14832, pic('minotaur_archer_hex.png', { id: 'tut_wb_hrarcher', charName: 'Rock archer', name: 'Rock archer', charStats: 'On the rock above the bend: Elevation +2. Hidden until the first arrow.', elevation: 2, hidden: true })),
         hexTok(15330, 15140, pic('orc_hex.png', { id: 'tut_wb_hrgrukk', charName: 'Grukk', name: 'Grukk', charStats: 'Leads the ambush in person. Hidden in the trees.', hidden: true, charRef: 'tut_c_grukk' })),
         hexTok(15390, 15190, pic('minotaur_soldier_hex.png', { id: 'tut_wb_hrhorn', charName: 'Horn', name: 'Horn', charStats: 'Hidden in the trees.', hidden: true })),
-        hexTok(14700, 15000, pic('bren_hex.png', { id: 'tut_wb_bren5', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Fighter, wet to the knee.' })),
+        hexTok(14700, 15000, pic('bren_hex.png', { id: 'tut_wb_bren5', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Sellsword, wet to the knee.' })),
         hexTok(14760, 15030, pic('tharic_hex.png', { id: 'tut_wb_tharic5', charName: 'Tharic Ironfist', name: 'Tharic', charStats: 'Knight.' })),
-        hexTok(14700, 15060, pic('sage_hex.png', { id: 'tut_wb_sage5', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Wizard.' })),
+        hexTok(14700, 15060, pic('sage_hex.png', { id: 'tut_wb_sage5', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Scholar.' })),
         hexTok(15100, 15000, { id: 'tut_wb_hrambush', type: 'trigger', shape: 'hexagon', color: 'transparent', eventMessage: 'An arrow from the rock above. Grukk and Horn come out of the trees. Reveal the three hidden tokens (select each \u2192 Visible to players) and start combat from the right-click menu.', name: 'Ambush point' })
     ];
 
@@ -456,7 +462,7 @@ function buildTutorialCampaign() {
         { type: 'h1', title: 'Session 1 \u2014 The Hill Road', sub: 'A one-evening tutorial adventure' },
         { type: 'lede', content: 'Raiders are bleeding the caravans between Eldara and the hills. King Thalindor wants it stopped before harvest; the party starts at The Inn, where a wounded driver names the hill road.' },
         { type: 'h2', title: 'Beats' },
-        { type: 'node', title: 'The driver at the inn', tag: 'social', must: 'The party learns where the raiders strike.', cols: ['Check', 'DC', 'On success'], rows: [{ col1: 'Medicine', col2: '10', col3: 'He lives and describes the goat path.' }, { col1: 'Insight', col2: '13', col3: 'He is hiding that he sold the route.' }] },
+        { type: 'node', title: 'The driver at the inn', tag: 'social', must: 'The party learns where the raiders strike.', cols: ['Check', 'Target', 'On success'], rows: [{ col1: 'Tend his wounds', col2: '8', col3: 'He lives and describes the goat path.' }, { col1: 'Read him', col2: '10', col3: 'He is hiding that he sold the route.' }] },
         { type: 'node', title: 'The hideout', tag: 'combat', must: 'Grukk\'s ledger changes hands.', cols: ['Where', 'Who', 'Note'], rows: [{ col1: 'Ground floor', col2: 'Grukk, Horn', col3: 'Horn is hidden behind the guard-room door.' }, { col1: 'Top floor', col2: 'Two archers', col3: 'Elevation +4 \u2014 use the ruler for the 3D figure.' }, { col1: 'Basement', col2: 'Vault slime', col3: 'Only if they open the vault.' }] },
         { type: 'callout', content: 'Planners are yours alone \u2014 players never receive them, so put the twist (the Emporium buyer) here, not in a room name.' },
         { type: 'h2', title: 'If they chase the raiders' },
@@ -534,8 +540,8 @@ function tutorialHandbookPage() {
         { id: 'b_tut_h1', type: 'h1', title: 'House rules', sub: 'What the table agreed on' },
         { id: 'b_tut_lede', type: 'lede', content: 'A handbook page is for the things every player should be able to look up mid-game: rules, a quick reference, the setting primer. Players read it from their own Handbook tree while the map keeps running.' },
         { id: 'b_tut_h2', type: 'h2', title: 'At the table' },
-        { id: 'b_tut_t1', type: 'text', content: '<p><b>Inspiration</b> is spent, never banked: use it on the roll you earned it for or lose it at the end of the scene.</p><p>A natural 20 on a save also shrugs off one lingering effect of your choice.</p>' },
-        { id: 'b_tut_tbl', type: 'table', title: 'Travel pace', cols: ['Pace', 'Per hour', 'Effect'], rows: [{ col1: 'Fast', col2: '4 miles', col3: '\u22125 to passive Perception' }, { col1: 'Normal', col2: '3 miles', col3: '\u2014' }, { col1: 'Slow', col2: '2 miles', col3: 'Able to use stealth' }] },
+        { id: 'b_tut_t1', type: 'text', content: '<p><b>Luck</b> is spent, never banked: use it on the roll you earned it for or lose it at the end of the scene.</p><p>A double six also shrugs off one lingering effect of your choice.</p>' },
+        { id: 'b_tut_tbl', type: 'table', title: 'Travel pace', cols: ['Pace', 'Per hour', 'Effect'], rows: [{ col1: 'Fast', col2: '4 miles', col3: '\u22122 to notice things' }, { col1: 'Normal', col2: '3 miles', col3: '\u2014' }, { col1: 'Slow', col2: '2 miles', col3: 'Able to sneak' }] },
         { id: 'b_tut_call', type: 'callout', content: 'Only pages left on <b>Players can read</b> reach the table. Try the switch in the toolbar: this page vanishes from every player at once, and comes back when you turn it on again.' }
     ];
     return book;
@@ -595,6 +601,43 @@ function ensureTutorialFloors(camp) {
         if (w && w.locked !== true) withoutHistory(m, function() { w.locked = true; });
     });
 }
+// The ids of the fields the Tutorial's own rules give (1.6.2), and the demo's words as they were seeded before it
+var TUT_OLD_FIELDS = { f_tut_str: 1, f_tut_dex: 1, f_tut_con: 1, f_tut_class: 1, f_tut_strmod: 1, f_tut_hp: 1, f_tut_ac: 1, f_tut_sword: 1 };
+var TUT_OLD_TEXTS = [['Fighter. On a gridless map a token is any size you like \u2014 these are 44 px.', 'Sellsword. On a gridless map a token is any size you like \u2014 these are 44 px.'], ['Fighter. Shield and a short temper. Your character \u2014 drag me; Snap seats me in a cell.', 'Sellsword. Shield and a short temper. Your character \u2014 drag me; Snap seats me in a cell.'], ['Fighter, wet to the knee.', 'Sellsword, wet to the knee.'], ['Wizard. Reads everything, including the raiders\' ledger.', 'Scholar. Reads everything, including the raiders\' ledger.'], ['Wizard. Two Elandras in one room \u2014 charName tells them apart.', 'Scholar. Two Elandras in one room \u2014 charName tells them apart.'], ['The ledger names the Emporium\'s buyer. Locked (DC 12).', 'The ledger names the Emporium\'s buyer. Locked: a roll of 10 to pick.'], ['The office door is locked. Grukk\'s ledger is inside \u2014 DC 12 to pick it, or ask Grukk nicely.', 'The office door is locked. Grukk\'s ledger is inside \u2014 a roll of 10 to pick it, or ask Grukk nicely.'], ['Hidden unless a captured raider talks or the party tracks a patrol (Survival 14).', 'Hidden unless a captured raider talks or the party tracks a patrol (a hard tracking roll).'], ['Fighter.', 'Sellsword.'], ['Wizard.', 'Scholar.']];
+/* The Tutorial's own rules (1.6.2), once (camp.tutorialRules 1): an older Tutorial takes the new rules and Bren his new figures, whatever it held
+   (the owner, 2026-11-08: "swap regardless, this is alpha, people expect changes"). A field or roll of the GM's own is kept. The demo's words
+   change only where they are as they were seeded. No step of the GM's undo */
+function ensureTutorialRules(camp) {
+    if (!camp || typeof camp !== 'object') return;
+    var sys = camp.system;
+    if (sys && typeof sys === 'object') {
+        var nf = tutorialRuleFields(), nr = tutorialRolls(), byId = function(list, id) { return (list || []).filter(function(x) { return x && x.id === id; })[0]; };
+        if (!Array.isArray(sys.fields)) sys.fields = [];
+        nf.forEach(function(n) { var i = sys.fields.findIndex(function(f) { return f && f.id === n.id; }); if (i >= 0) sys.fields[i] = n; else sys.fields.push(n); });
+        if (!Array.isArray(sys.rolls)) sys.rolls = [];
+        nr.forEach(function(n) { var i = sys.rolls.findIndex(function(r) { return r && r.id === n.id; }); if (i >= 0) sys.rolls[i] = n; else sys.rolls.push(n); });
+        if (Array.isArray(sys.effects)) tutorialEffects().forEach(function(n) { var i = sys.effects.findIndex(function(e) { return e && e.id === n.id; }); if (i >= 0) sys.effects[i] = n; });
+        if (!byId(sys.effects, 'e_tut_poison') && Array.isArray(sys.effects)) sys.effects.push(byId(tutorialEffects(), 'e_tut_poison'));
+    }
+    var bv = camp.chars && camp.chars.c_tut_bren && camp.chars.c_tut_bren.values;
+    if (bv && typeof bv === 'object') { bv.f_tut_str = 3; bv.f_tut_dex = 2; bv.f_tut_con = 2; bv.f_tut_sword = 2; bv.f_tut_hp = { cur: 11 }; }
+    // the demo's words, each only as it was seeded
+    var swap = function(o, k) { if (!o || typeof o[k] !== 'string') return; TUT_OLD_TEXTS.forEach(function(t) { if (o[k] === t[0]) o[k] = t[1]; }); };
+    Object.keys(camp.items || {}).forEach(function(id) {
+        var it = camp.items[id]; if (!it || typeof it !== 'object' || id.indexOf('_tut_') < 0) return;
+        withoutHistory(it, function() {
+            (Array.isArray(it.whiteboard) ? it.whiteboard : []).forEach(function(w) { swap(w, 'charStats'); swap(w, 'eventMessage'); });
+            (Array.isArray(it.rooms) ? it.rooms : []).forEach(function(r) { swap(r, 'notes'); });
+            (Array.isArray(it.links) ? it.links : []).forEach(function(l) { if (Array.isArray(l)) swap(l[3], 'notes'); else swap(l, 'notes'); });
+            (Array.isArray(it.blocks) ? it.blocks : []).forEach(function(b) {
+                if (!b || typeof b !== 'object') return;
+                if (b.type === 'node' && JSON.stringify(b.cols) === JSON.stringify(['Check', 'DC', 'On success']) && Array.isArray(b.rows) && b.rows.length === 2 && b.rows[0] && b.rows[0].col1 === 'Medicine' && b.rows[0].col2 === '10' && b.rows[1] && b.rows[1].col1 === 'Insight' && b.rows[1].col2 === '13') { b.cols = ['Check', 'Target', 'On success']; b.rows[0].col1 = 'Tend his wounds'; b.rows[0].col2 = '8'; b.rows[1].col1 = 'Read him'; b.rows[1].col2 = '10'; }
+                if (b.id === 'b_tut_t1' && typeof b.content === 'string' && b.content.indexOf('<b>Inspiration</b> is spent') === 3) b.content = tutorialHandbookPage().blocks.filter(function(x) { return x.id === 'b_tut_t1'; })[0].content;
+                if (b.id === 'b_tut_tbl' && Array.isArray(b.rows) && b.rows[0] && b.rows[0].col3 === '\u22125 to passive Perception') b.rows = tutorialHandbookPage().blocks.filter(function(x) { return x.id === 'b_tut_tbl'; })[0].rows;
+            });
+        });
+    });
+}
 // Creates the Tutorial campaign (or rebuilds it when asked) and makes it active
 function ensureTutorialCampaign(rebuild) {
     var camp = tutorialCampaign();
@@ -620,6 +663,7 @@ function ensureTutorialCampaign(rebuild) {
     if (window.wpVtt && !window.wpVtt.locked()) camp.vtt = tutorialVtt();   // an older or flat-default copy: the tour never teaches chips that do not draw
     if (!(camp.tutorialFloors >= 1)) { ensureTutorialFloors(camp); camp.tutorialFloors = 1; }   // 1.5.4, once: the two floors no one sees are locked
     if (!(camp.tutorialPostures >= 1)) { ensureTutorialPostures(camp); camp.tutorialPostures = 1; }   // 1.6.0, once: its own postures, now that no list is a default
+    if (!(camp.tutorialRules >= 1)) { if (typeof ensureTutorialRules === 'function') ensureTutorialRules(camp); camp.tutorialRules = 1; }   // 1.6.2, once: the Tutorial's own rules, where nobody changed the old ones
     state.appState.activeCampaignId = TUTORIAL_CAMP_ID;
     state.selId = null; state.selWbId = null; state.selWbIds = []; state.linkStart = null;
     updateCampaignSelect(); updateSidebarNav(); render(); save(true);
@@ -818,7 +862,7 @@ var STEPS = [
       help: ['mp-gm', 'Host a session'],
       before: function() { if (window.wpSheets) window.wpSheets.closeSheet(); } },
     { target: '#diceBtn', title: 'Dice',
-      html: 'Roll from <b>Table Chat</b>: type <b>/roll 2d6 + 3</b>, or open this roller. At a table the GM&rsquo;s machine makes every roll, and everyone sees the same card. <b>Private</b> keeps a roll between you and the GM. Pick a <b>character</b> in the roller and names like <b>STR</b> come from its sheet. <b>Shift-click</b> a sheet&rsquo;s roll button for a bonus or a penalty before the roll.',
+      html: 'Roll from <b>Table Chat</b>: type <b>/roll 2d6 + 3</b>, or open this roller. At a table the GM&rsquo;s machine makes every roll, and everyone sees the same card. <b>Private</b> keeps a roll between you and the GM. Pick a <b>character</b> in the roller and names like <b>Might</b> come from its sheet. <b>Shift-click</b> a sheet&rsquo;s roll button for a bonus or a penalty before the roll.',
       help: ['dice', 'Rolling at the table'],
       before: function() { if (window.wpChat && window.wpChat.openPanel) window.wpChat.openPanel(); } },   // the chat's own opener: closed or put away with another view, it comes up here (1.5.4)
     { target: '#settingsBtn', title: 'Settings',
@@ -1295,4 +1339,4 @@ function tourPending() { var seen = false; try { seen = localStorage.getItem('wp
 })();
 // [tutorialcheck:autostart-end]
 
-window.wpTutorial = { start: startTour, fresh: saveIsFresh, pending: tourPending, end: endTour, pause: pauseTour, resume: resumeTour, at: tourAt, blocks: tourBlocks, steps: STEPS, version: TUTORIAL_VERSION, ensure: ensureTutorialCampaign, discard: discardTutorialCampaign, build: buildTutorialCampaign, system: tutorialSystem, ensureSheet: ensureTutorialSheet };
+window.wpTutorial = { start: startTour, fresh: saveIsFresh, pending: tourPending, end: endTour, pause: pauseTour, resume: resumeTour, at: tourAt, blocks: tourBlocks, steps: STEPS, version: TUTORIAL_VERSION, ensure: ensureTutorialCampaign, discard: discardTutorialCampaign, build: buildTutorialCampaign, system: tutorialSystem, ensureSheet: ensureTutorialSheet, ensureRules: ensureTutorialRules };

@@ -9614,6 +9614,7 @@ function swBox(h) {
         var ln = el('div', 'sys-fx-mod sys-sw'); ln.dataset.si = String(si);
         ln.appendChild(input('sys-sw-name field', typeof s.name === 'string' ? s.name : '', 'Its name in the roll\u2019s \u00b1 window and on the card, such as Aimed shot', 'Name'));
         ln.appendChild(numInput('sys-sw-v', typeof s.v === 'number' ? s.v : '', 'How much it helps the roll, as the \u00b1 window\u2019s modifier does. A negative one hinders. Whole, 1 to 99 either way, or 0 where it adds dice alone', '1'));
+        if ((draft.items || []).indexOf(h) >= 0) ln.appendChild(input('sys-sw-tiers field', typeof s.tiers === 'string' ? s.tiers : typeof modTiersText === 'function' ? modTiersText(s.tiers) : '', 'Its figure by the level of the row that holds it, such as 1: +1, 3: +2. Below the first level it is the figure beside. Blank: the same at every level', 'By level'));   // 1.6.2 (the CORE session, 5c)
         ln.appendChild(input('sys-sw-d field', typeof s.d === 'string' ? s.d : '', 'Dice it adds to the roll, such as +1d6 or +1d6 \u2212 1d4: up to 4, each up to 20 dice. They add to the total and never make a critical. Blank: none', 'Dice it adds'));   // 1.6.2
         var pyO = [['', 'No cost']].concat((Array.isArray(draft.rolls) ? draft.rolls : []).filter(function(r) { return !!r && Array.isArray(r.apply) && typeof r.id === 'string'; }).map(function(r) { return [r.id, 'Costs: ' + (r.label || 'Apply')]; })); if (typeof s.pay === 'string' && s.pay && !pyO.some(function(o) { return o[0] === s.pay; })) pyO.push([s.pay, 'Costs: an action that is gone']); ln.appendChild(select('sys-sw-pay', pyO, typeof s.pay === 'string' ? s.pay : '', 'What ticking it spends: one of the system\u2019s actions, run as the roll is made. A roll it cannot pay for is refused'));
         (Array.isArray(s.to) ? s.to : []).forEach(function(t, ti) {
@@ -9659,6 +9660,7 @@ function onSwInput(t) {
     var L = swLine(t, swHolder(t)); if (!L) return true;
     if (/(^| )sys-sw-name( |$)/.test(c)) L.s.name = String(t.value).slice(0, LIMITS.label);
     else if (/(^| )sys-sw-v( |$)/.test(c)) { var n = parseFloat(t.value); if (isFinite(n)) L.s.v = n; else delete L.s.v; }
+    else if (/(^| )sys-sw-tiers( |$)/.test(c)) { if (t.value.trim()) L.s.tiers = t.value.slice(0, 400); else delete L.s.tiers; }   // 1.6.2 (5c): kept as typed, read by the cleaner
     else if (/(^| )sys-sw-d( |$)/.test(c)) { var dv = String(t.value).slice(0, 80); if (dv.trim()) L.s.d = dv; else delete L.s.d; }   // 1.6.2
     else { var tw = t.closest('.sys-sw-to'), tt = tw && Array.isArray(L.s.to) ? L.s.to[+tw.dataset.ti] : null; if (tt && typeof tt === 'object') { var k = String(t.value).trim().slice(0, LIMITS.key); if (k) tt.key = k; else delete tt.key; } }
     markDirty(); swSaysAt(t, L.s); return true;

@@ -10049,7 +10049,7 @@ function cleanRollSw(v, kinds) {
     if (!Array.isArray(v)) return null; var outS = [];
     v.forEach(function(s) {
         if (outS.length >= LIMITS.rollSw || !isObj(s)) return;
-        var nm = cutText(s.name, LIMITS.label), n = typeof s.v === 'number' && fin(s.v) ? Math.round(s.v) : 0, dz = swDice(s.d) || ''; if (!nm || (!n && !dz) || n < -99 || n > 99) return;   // 1.6.2: d, dice it adds, beside or in place of its figure
+        var nm = cutText(s.name, LIMITS.label), n = typeof s.v === 'number' && fin(s.v) ? Math.round(s.v) : 0, dz = swDice(s.d) || '', swT = s.tiers !== undefined ? cleanModTiers(s.tiers) : undefined; if (!nm || (!n && !dz && !swT) || n < -99 || n > 99) return;   // 1.6.2 (the CORE session's batch 6, 5c): tiers, its figure by the row's level   // 1.6.2: d, dice it adds, beside or in place of its figure
         var to = [], seen = map();
         (Array.isArray(s.to) ? s.to : []).forEach(function(t) {
             if (to.length >= LIMITS.swTo || !isObj(t)) return; var x = null;
@@ -10058,7 +10058,7 @@ function cleanRollSw(v, kinds) {
             else if (typeof t.l === 'string' && FIELD_ID.test(t.l)) { if (!kinds || kinds[t.l] === 'item-list') { x = { l: t.l }; var k = cleanItemKey(t.key); if (k) x.key = k; var rl = cutText(t.roll, LIMITS.label); if (rl) x.roll = rl; } }   // 1.6.0: roll, one list roll by its label
             if (!x) return; var sk = JSON.stringify(x).toLowerCase(); if (seen[sk]) return; seen[sk] = 1; to.push(x);
         });
-        if (to.length) { var swO = { name: nm, v: n, to: to }; if (dz) swO.d = dz; if (typeof s.pay === 'string' && ROLL_ID.test(s.pay)) swO.pay = s.pay; outS.push(swO); }   // 1.6.2 (G6): pay, a system action run as it is ticked
+        if (to.length) { var swO = { name: nm, v: n, to: to }; if (dz) swO.d = dz; if (swT) swO.tiers = swT; if (typeof s.pay === 'string' && ROLL_ID.test(s.pay)) swO.pay = s.pay; outS.push(swO); }   // 1.6.2 (G6): pay, a system action run as it is ticked
     });
     return outS.length ? outS : null;
 }
@@ -10067,7 +10067,8 @@ function cleanRollSw(v, kinds) {
 // holder ('<list>|<row>' or '<effects list>|<effect>'), i: its place there, name, v, to, gm: a GM-only holder }
 function rollSwitchesAll(sys, char, F) {
     var outA = [], lib = null, seenRef = map(), gate = null, Fg = F || (_gateF ? _gateF() : null); if (!isObj(sys) || !Array.isArray(sys.fields) || !isObj(char) || !isObj(char.values)) return outA;
-    var push = function(s, d) { (Array.isArray(d.rollSw) ? d.rollSw : []).forEach(function(w, i) { if (isObj(w) && typeof w.name === 'string' && typeof w.v === 'number' && Array.isArray(w.to)) outA.push(Object.assign({ s: s, i: i, name: w.name, v: w.v, to: w.to, gm: d.vis === 'gm' }, typeof w.pay === 'string' ? { pay: w.pay } : null, typeof w.d === 'string' && w.d ? { d: w.d } : null)); }); };
+    var push = function(s, d, sp, lv) { (Array.isArray(d.rollSw) ? d.rollSw : []).forEach(function(w, i) { var wv = isObj(w) && Array.isArray(w.tiers) && w.tiers.length && typeof w.v === 'number' ? Math.max(-99, Math.min(99, Math.round(modAt({ op: 'add', v: w.v, tiers: w.tiers }, sp, lv).v))) : isObj(w) ? w.v : 0; if (isObj(w) && Array.isArray(w.tiers) && !wv && !(typeof w.d === 'string' && w.d)) return;   // 1.6.2 (5c): its figure at the row's level; one that is 0 there and adds no dice offers nothing
+        if (isObj(w) && typeof w.name === 'string' && typeof w.v === 'number' && Array.isArray(w.to)) outA.push(Object.assign({ s: s, i: i, name: w.name, v: wv, to: w.to, gm: d.vis === 'gm' }, typeof w.pay === 'string' ? { pay: w.pay } : null, typeof w.d === 'string' && w.d ? { d: w.d } : null)); }); };
     sys.fields.forEach(function(f) {
         if (!isObj(f) || typeof f.id !== 'string' || !hasOwn(char.values, f.id) || !Array.isArray(char.values[f.id])) return; var rows = char.values[f.id];
         if (f.kind === 'effects') rows.forEach(function(r) {
@@ -10080,7 +10081,7 @@ function rollSwitchesAll(sys, char, F) {
             if (!isObj(d) || !Array.isArray(d.rollSw)) return;
             if (d.modsOn === true && spec && isObj(spec.on) && !rowOn(spec, r)) return;
             if (spec && typeof spec.modsIf === 'string' && spec.modsIf && Fg) { if (!gate) gate = fxGate(sys, char, Fg); if (!gate(f, r)) return; }   // 1.6.2: a row its list's Changes apply where holds off offers no bonus, as it gives no change
-            push(f.id + '|' + r.id, d);
+            push(f.id + '|' + r.id, d, spec, rowLvl(spec, r, d));
         }); }
     });
     return outA;

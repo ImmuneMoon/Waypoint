@@ -22562,6 +22562,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             none === 0 && yes === 1 && other === 0 && noTok === 0 && ownF === 7 && thrown === 0 && !S.validateSystem(sys, F).errors.length
             && ntM.includes('function movedNow(tokId) {') && ntM.includes('Sm.setMovedSource(movedNow);'), J([none, yes, other, noTok, ownF, thrown, S.validateSystem(sys, F).errors]));
     }
+    {   // 1.6.2 (the CORE session's batch 6, 5c): a roll bonus's figure by the level of the row that holds it
+        const J = v => JSON.stringify(v);
+        const raw = (tiers, v) => ({ v: 1, name: 'T', sheet: { sections: [] }, rolls: [{ id: 'r_x', label: 'Shoot', formula: '3d6 <= 10' }], items: [{ id: 'i_s', name: 'Scope', key: 'Scope', rollSw: [{ name: 'Aim', v: v, tiers: tiers, to: [{ r: 'r_x' }] }] }],
+            fields: [{ id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', list: { lvl: { min: 1, max: 9 } } }] });
+        const sy = S.cleanSystem(raw('2: +2, 4: +3', 1), { F, gmView: true }), sy0 = S.cleanSystem(raw('2: 2', 0), { F, gmView: true }), syN = S.cleanSystem(raw(undefined, 1), { F, gmView: true });
+        const at = (sys, lv) => S.rollSwitches(sys, { id: 'c', values: { f_g: [{ id: 'w_1', defId: 'i_s', qty: 1, lvl: lv }] } }, { r: 'r_x' }).map(w => w.v);
+        check('1.6.2 a roll bonus may carry tiers (By level, as an item\'s change does): its figure is the highest tier at or below the holding row\'s level, the figure beside below the first; one that is 0 there and adds no dice offers nothing; with none, as before',
+            J(sy.items[0].rollSw[0].tiers) === J([{ at: 2, v: 2 }, { at: 4, v: 3 }]) && J(at(sy, 1)) === J([1]) && J(at(sy, 3)) === J([2]) && J(at(sy, 5)) === J([3])
+            && J(at(sy0, 1)) === '[]' && J(at(sy0, 2)) === J([2]) && !('tiers' in syN.items[0].rollSw[0]) && J(at(syN, 7)) === J([1]), J([sy.items[0].rollSw, at(sy, 1), at(sy, 3), at(sy, 5), at(sy0, 1), at(sy0, 2)]));
+    }
     {   // 1.6.2, found by the owner: a picture fitted to the grid, dragged with the magnet's item snapping on, stuck half a cell off on release
         const dmF = fs.readFileSync(path.join(app, 'scripts', 'datamap.js'), 'utf8');
         check('a piece fitted to the grid lands in its cells at the release whatever it glued to while dragged (found by the owner: "it would stick in between cells vertically instead of inside of one, centered"): the release rounds a fitted piece\'s corner to the lattice on both axes, and only a piece that is not fitted keeps an axis it glued to a neighbour',

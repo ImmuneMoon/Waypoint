@@ -601,6 +601,8 @@ Writing planners and pages
 - Any roll can read the light its target stands in, as the side vision check
   does: 0 dark, 1 dim, 2 lit. A roll can also read whether the token has
   moved on its turn in a fight, so moving can spoil an aim.
+- An item's roll bonus can help by its row's level, such as +1 at level 1
+  and +2 from level 3.
 - An effect can do something once when it ends: changes to a pool or a number,
   switching an effect, or a roll asked of the character. It runs when the
   effect runs out, and, where ticked, when it is switched off by hand too.

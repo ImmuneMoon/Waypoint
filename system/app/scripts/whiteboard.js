@@ -5372,6 +5372,19 @@ window.wpFitToGrid = fitToGrid;
   }
   // A character token that stepped in (the host's own map: the GM's drag, a player's drop): every mine whose trigger it stands in now and did
   // not stand in where the gesture began goes off, the token struck directly. Never on a player's app or in the stream window
+  // 1.6.2 (the CORE session's batch 6, 10): a roll's or an action's Set off: the placed blast nearest the token it is used from, within 2 yards of
+  // its centre, goes off as one stepped on does (armed or not), the token struck directly. The host's own copy alone; how many went off
+  window.wpSetOffNear = function(list) {
+      if (window.wpStream || (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') || !Array.isArray(list)) return 0;
+      var camp = getActiveCampaign(), n = 0; if (!camp || !camp.items) return 0;
+      list.slice(0, 8).forEach(function(q) {
+          var map = q && typeof q.map === 'string' && Object.prototype.hasOwnProperty.call(camp.items, q.map) ? camp.items[q.map] : null, tok = map && Array.isArray(map.whiteboard) ? map.whiteboard.filter(function(w) { return w && w.id === q.from; })[0] : null; if (!tok) return;
+          var c = tokenCentre(tok), best = null, bd = 2.0001;
+          map.whiteboard.forEach(function(z) { if (!z || z.type !== 'trigger' || !z.mine || typeof z.mine !== 'object') return; var d = yardsOn(map, c, { x: (Number(z.x) || 0) + (Number(z.w) || 0) / 2, y: (Number(z.y) || 0) + (Number(z.h) || 0) / 2 }); if (typeof d === 'number' && d < bd) { bd = d; best = z; } });
+          if (!best) return; n++; toast((tok.charName || tok.name || 'A character') + ' sets off ' + (best.mine.name || 'a mine') + '.'); mineOff(map, best, tok.id);
+      });
+      return n;
+  };
   window.wpMineCheck = function(map, tok, from) {
       var BC = window.wpBlastCore; if (!BC || !map || !tok || !tok.isChar || tok.waiting || window.wpStream) return 0;
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') return 0;

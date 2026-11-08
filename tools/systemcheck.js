@@ -15741,7 +15741,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         // the System editor's box and what is said of it
         const shN = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), ixN = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n'), gdN = fs.readFileSync(path.join(__dirname, '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8'), ntN = [path.join(__dirname, '..', 'WHATSNEW.txt'), path.join(app, 'assets', 'whatsnew.txt')].map(p => fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n'));
         check('1.6.0 Fire\'s How many and a chamber of 32 are wired and said: a Then that fires has the box, its handler and the words for what Save drops; another target takes n away; the editor offers Holds to 32; the host posts a card for a burst in both places; Help, the guide and both 1.6.0 notes',
-            shN.includes("if (ch.fire === true || ch.feed === true) { var fnI = input('sys-list-applyfiren field', typeof ch.n === 'string' ? ch.n : '',") && shN.includes("else if (lcc.indexOf('sys-list-applyfiren') >= 0) {") && shN.includes("How many is no formula Save can keep, so Save drops it and the row fires one.") && shN.includes("['f', 'c', 'fire', 'feed', 'launch', 'n', 'off', 'fx', 'on', 'q', 's', 'list', 'money', 'mark', 'tag', 'shake', 'rand', 'test', 'offToo', 'next'].forEach(function(k) { delete ch[k]; });") && shN.includes('for (var hc = 1; hc <= (CHAMBER_CAP || 320); hc++)')
+            shN.includes("if (ch.fire === true || ch.feed === true) { var fnI = input('sys-list-applyfiren field', typeof ch.n === 'string' ? ch.n : '',") && shN.includes("else if (lcc.indexOf('sys-list-applyfiren') >= 0) {") && shN.includes("How many is no formula Save can keep, so Save drops it and the row fires one.") && shN.includes("['f', 'c', 'fire', 'feed', 'launch', 'setOff', 'n', 'off', 'fx', 'on', 'q', 's', 'list', 'money', 'mark', 'tag', 'shake', 'rand', 'test', 'offToo', 'next'].forEach(function(k) { delete ch[k]; });") && shN.includes('for (var hc = 1; hc <= (CHAMBER_CAP || 320); hc++)')
             && netR.includes("if (taQ && taQ.ok && (taQ.burst || taQ.paid || (taQ.drew && taQ.lines.some(function(l) { return !!l.roll; }))) && typeof postApply === 'function'") && netR.includes("if (taR && taR.ok && (taR.burst || taR.paid || (taR.drew && taR.lines.some(function(l) { return !!l.roll; }))) && typeof net.postApplyCard === 'function') {")
             && ixN.includes('Fire has a <b>How many</b> box for a burst') && ixN.includes('A row holds 320 at most.') && ixN.includes('After a burst the round last fired is the last one that went') && gdN.includes('"cap": how many rounds it holds, 1 to 32') && gdN.includes('an "n" (How many:')
             && ntN.every(t => t.indexOf('- Fire has a How many box') > 0 && t.indexOf('- Fire has a How many box') < t.indexOf('WAYPOINT 1.5.') && t.indexOf('chamber now holds up to 32 rounds') > 0));
@@ -22658,6 +22658,25 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && wbS.includes("l === 'blastscale' ? (typeof b.iscale === 'number' && b.iscale > 0 ? b.iscale : 1) : l === 'blastdice' ? (window.wpBlastCore && window.wpBlastCore.diceCount ? window.wpBlastCore.diceCount(b.dmgExpr || '') : 0) :")
             && (wbS.split("l === 'blastscale' ? (typeof b.iscale === 'number' && b.iscale > 0 ? b.iscale : 1)").length - 1) === 2,
             J([ok.combat, eOk, eBad]));
+    }
+    {   // 1.6.2 (the CORE session's batch 6, 10): a roll's Then or an action may set off the placed blast nearest the token it is used from
+        const J = v => JSON.stringify(v);
+        const raw = { v: 1, name: 'M', sheet: { sections: [] }, rolls: [{ id: 'r_dis', label: 'Disarm', formula: '3d6 <= 10', then: [{ when: 'fumble', setOff: true }, { when: 'fumble', setOff: true }] }],
+            fields: [{ id: 'f_k', key: 'Kit', label: 'Kit', kind: 'item-list', list: { rolls: [{ label: 'Fiddle', formula: '3d6 <= 9', then: [{ when: 'miss', setOff: true }] }] } }] };
+        const sy = S.cleanSystem(raw, { F, gmView: true }), pl = S.cleanSystem(raw, { F, gmView: false }), vr = S.validateSystem(sy, F);
+        const got = []; S.setSetOffSink(list => { got.push(list); return 1; });
+        const ch = { id: 'c_1', values: {} }, act = { apply: [{ setOff: true }] };
+        const aOn = S.applyAct(sy, ch, act, S.makeResolver(sy, ch, F), F, { self: 'w_1', selfMap: 'm_1' });
+        S.setSetOffSink(() => 0); const aNone = S.applyAct(sy, ch, act, S.makeResolver(sy, ch, F), F, { self: 'w_1', selfMap: 'm_1' });
+        const aNoTok = S.applyAct(sy, ch, act, S.makeResolver(sy, ch, F), F, {}); S.setSetOffSink(null);
+        const wbO = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8'), shO = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8');
+        check('1.6.2 a roll\'s Then or an action may set off the placed blast nearest the token it is used from (within 2 yards, armed or not): the cleaner keeps it once a when, on a system roll and a list\'s, in both views; applyAct hands it to the host\'s sink once the rest stands and says what came of it; with no token on the map nothing goes off; the validator asks no amount; the board, the sink and the editors are there',
+            J(sy.rolls[0].then) === J([{ setOff: true, when: 'fumble' }]) && J(pl.rolls[0].then) === J([{ setOff: true, when: 'fumble' }]) && J(sy.fields[0].list.rolls[0].then) === J([{ setOff: true, when: 'miss' }])
+            && aOn.ok && aOn.setOff === 1 && J(got) === J([[{ by: 'c_1', from: 'w_1', map: 'm_1' }]]) && aOn.lines.some(l => l.say === 'Set off.')
+            && aNone.ok && aNone.setOff === 0 && aNone.lines.some(l => /None lies within 2 yards/.test(l.say)) && aNoTok.ok && aNoTok.lines.some(l => /No token on the map/.test(l.say))
+            && !vr.errors.length && wbO.includes('window.wpSetOffNear = function(list) {') && shO.includes("setSetOffSink(function(list) { return typeof window.wpSetOffNear === 'function' ? window.wpSetOffNear(list) : 0; });")
+            && shO.includes("else if (v === 'setoff') { ch.setOff = true;") && (shO.split("'Set off the placed blast nearest it'").length - 1) === 2,
+            J([sy.rolls[0].then, pl.rolls[0].then, sy.fields[0].list.rolls[0].then, aOn, aNone, aNoTok, vr.errors]));
     }
     {   // 1.6.2 (the CORE session's batch 6, 5c): a roll bonus's figure by the level of the row that holds it
         const J = v => JSON.stringify(v);

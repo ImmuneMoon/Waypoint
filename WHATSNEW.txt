@@ -617,6 +617,8 @@ Writing planners and pages
   what the hand that was hit held.
 - A blast's radius and its fragmentation's reach can read the weapon's own
   scale, and the radius the dice it rolls, so big guns reach further.
+- A roll or an action can set off the placed blast nearest the token, so a
+  bad slip while disarming a mine sets it off.
 - An effect can do something once when it ends: changes to a pool or a number,
   switching an effect, or a roll asked of the character. It runs when the
   effect runs out, and, where ticked, when it is switched off by hand too.

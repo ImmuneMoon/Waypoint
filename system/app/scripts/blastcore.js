@@ -139,6 +139,16 @@ function firstBox(a, b, boxes, after) {
 // that placed it and the row, its maker's name, whether it is the GM's alone, and the item's notes. Anything else is no key; null where no
 // blast is left
 var MINE_ID = /^c_[A-Za-z0-9_]{1,24}$/, MINE_FIELD = /^[A-Za-z0-9_]{1,64}$/, MINE_ROW = /^w_[A-Za-z0-9_]{1,24}$/, MINE_TYPE = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;
+// 1.6.2: the cloud a blast leaves, as systemcore cleanCloud keeps it (its formula as plain text here: none with a control character or past 1000 characters)
+function cleanCloud(v) {
+    if (!isObj(v)) return null; var o = {}, n = typeof v.n === 'string' && !/[\u0000-\u001f\u007f]/.test(v.n) && v.n.trim().length <= 1000 ? v.n.trim() : '';
+    if (n) { o.n = n; o.u = typeof v.u === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(v.u) ? v.u : 'turns'; }
+    if (fin(v.r) && v.r > 0) o.r = Math.max(0.5, Math.min(1000, Math.round(v.r * 10) / 10));
+    if (v.smoke === true) o.smoke = true;
+    if (typeof v.fx === 'string' && /^e_[A-Za-z0-9_]{1,24}$/.test(v.fx)) o.fx = v.fx;
+    if (typeof v.roll === 'string' && /^r_[A-Za-z0-9_]{1,24}$/.test(v.roll)) o.roll = v.roll;
+    return o;
+}
 function cleanMine(m) {   // 1.5.9 (es): and its fragmentation (frag, a formula's text) with that fragmentation's type (fragType, a key, only beside frag)
     if (!isObj(m)) return null;
     var ft = fin(m.ft) ? Math.round(m.ft) : 0; if (!(ft >= 1)) return null;
@@ -158,6 +168,7 @@ function cleanMine(m) {   // 1.5.9 (es): and its fragmentation (frag, a formula'
     var nt = text(m.notes, 800); if (nt) out.notes = nt;
     var fg = text(m.frag, 1200); if (fg) { out.frag = fg; if (typeof m.fragType === 'string' && MINE_TYPE.test(m.fragType)) out.fragType = m.fragType; }   // 1.5.9 (es): its fragmentation, rolled when it goes off
     var af = cleanAffs(m.aff); if (af) out.aff = af;   // 1.5.9 (es): and its afflictions
+    var cl = cleanCloud(m.cloud); if (cl) out.cloud = cl;   // 1.6.2: and the cloud it leaves
     if (fin(m.fills) && m.fills > 0) out.fills = Math.min(10000, m.fills); if (m.noDrop === true) out.noDrop = true; if (fin(m.iscale) && m.iscale > 0 && m.iscale !== 1) out.iscale = Math.min(1000, m.iscale);   // 1.6.2 (the core's gap 213): BlastScale too   // 1.6.0: BlastFills and BlastNoDrop, read from its row as it is placed
     return out;
 }
@@ -276,6 +287,6 @@ function flyStep(o) {
 }
 // the line a thing in flight is launched on: from where it is launched toward its target, a unit step a pixel; null where the two are one place
 function flyLine(from, to) { if (!isObj(from) || !isObj(to) || !fin(from.x) || !fin(from.y) || !fin(to.x) || !fin(to.y)) return null; var dx = to.x - from.x, dy = to.y - from.y, len = Math.hypot(dx, dy); return len > 1e-6 ? { ox: from.x, oy: from.y, dx: dx / len, dy: dy / len, k: 0 } : null; }
-var API = { flyStep: flyStep, flyLine: flyLine, FLY_MAX: FLY_MAX, envRead: envRead, lineTargets: lineTargets, towardPoint: towardPoint, diceAt: diceAt, VERSION: VERSION, SCATTER_WAYS: SCATTER_WAYS, SCATTER_TURN: SCATTER_TURN, SCATTER_WAYS6: SCATTER_WAYS6, SCATTER_TURN6: SCATTER_TURN6, diceCount: diceCount, fallShare: fallShare, throwOutcome: throwOutcome, scatterPoint: scatterPoint, bookScatterYd: bookScatterYd, missOf: missOf, flightEnd: flightEnd, firstBox: firstBox, fragTargets: fragTargets, cleanAffs: cleanAffs, affTargets: affTargets, cleanMine: cleanMine, inTrigger: inTrigger, STAND_INS: STAND_INS };
+var API = { flyStep: flyStep, flyLine: flyLine, FLY_MAX: FLY_MAX, envRead: envRead, lineTargets: lineTargets, towardPoint: towardPoint, diceAt: diceAt, VERSION: VERSION, SCATTER_WAYS: SCATTER_WAYS, SCATTER_TURN: SCATTER_TURN, SCATTER_WAYS6: SCATTER_WAYS6, SCATTER_TURN6: SCATTER_TURN6, diceCount: diceCount, fallShare: fallShare, throwOutcome: throwOutcome, scatterPoint: scatterPoint, bookScatterYd: bookScatterYd, missOf: missOf, flightEnd: flightEnd, firstBox: firstBox, fragTargets: fragTargets, cleanAffs: cleanAffs, affTargets: affTargets, cleanCloud: cleanCloud, cleanMine: cleanMine, inTrigger: inTrigger, STAND_INS: STAND_INS };
 if (typeof window !== 'undefined') window.wpBlastCore = API;
-export { flyStep, flyLine, FLY_MAX, envRead, lineTargets, towardPoint, diceAt, VERSION, SCATTER_WAYS, SCATTER_TURN, SCATTER_WAYS6, SCATTER_TURN6, diceCount, fallShare, throwOutcome, scatterPoint, bookScatterYd, missOf, flightEnd, firstBox, fragTargets, cleanAffs, affTargets, cleanMine, inTrigger, STAND_INS };
+export { flyStep, flyLine, FLY_MAX, envRead, lineTargets, towardPoint, diceAt, VERSION, SCATTER_WAYS, SCATTER_TURN, SCATTER_WAYS6, SCATTER_TURN6, diceCount, fallShare, throwOutcome, scatterPoint, bookScatterYd, missOf, flightEnd, firstBox, fragTargets, cleanAffs, affTargets, cleanCloud, cleanMine, inTrigger, STAND_INS };

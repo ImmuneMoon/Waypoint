@@ -808,7 +808,8 @@ function moveTo(t1, why, live, own, how) {   // live (1.5.4): the clock ran by i
     if (why && net() && net().logEvent) net().logEvent('time', why + ' \u2014 now ' + fmtWhen(cal, t1));
     hits.forEach(function(n) { if (net() && net().logEvent) net().logEvent('time', 'Note reached \u2014 ' + fmtDate(cal, n.day * dayLength(cal)) + ': ' + n.text); });
     if (hits.length) toast(hits.length === 1 ? 'Today: ' + hits[0].text : hits.length + ' dated notes reached: ' + hits.slice(0, 3).map(function(n) { return n.text; }).join('; ') + (hits.length > 3 ? '; \u2026' : ''));
-    if (g) { try { ownTime([g]); } catch (e) { console.error(e); } }   // K4, K5: each character's span of it, once, to its timed effects and its time rules; a rule that fails never keeps the move from being saved and told
+    if (g) { try { ownTime([g]); } catch (e) { console.error(e); } }
+    if (gone > 0 && own !== true && typeof window !== 'undefined' && typeof window.wpCloudTime === 'function') { try { window.wpCloudTime(gone); } catch (e) { console.error(e); } }   // 1.6.2: a cloud counts game time where no fight runs   // K4, K5: each character's span of it, once, to its timed effects and its time rules; a rule that fails never keeps the move from being saved and told
     if (live === true) { if (net() && net().syncClock) net().syncClock(); saveView(); } else save();
     refresh(live === true); return true;
 }

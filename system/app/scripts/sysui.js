@@ -174,7 +174,7 @@ var GROUPS = {
         ['grants', 'Rows it grants', 0, ['sys-grant-box']],
         ['sw', 'Roll bonuses', 0, ['sys-sw-box']],
         ['keep', 'Taking it off', 0, ['sys-item-rmmode', 'sys-item-rmtext', 'sys-item-eqmode', 'sys-item-eqtext']],
-        ['blast', 'Blast', 0, ['sys-item-area', 'sys-item-affs', 'sys-fly']]] },
+        ['blast', 'Blast', 0, ['sys-item-area', 'sys-item-affs', 'sys-cloud', 'sys-fly']]] },
     lists: { split: ['sys-flags', 'sys-list-cols'], head: ['sys-list-title'], list: [
         ['holds', 'What it holds', 1, ['sys-list-cats', 'sys-starts']],
         ['rows', 'What a row may be', 1, ['sys-list-multi', 'sys-list-noqty', 'sys-list-custom', 'sys-ownsw', 'sys-list-graise', 'sys-list-sheets', 'sys-list-sheettpl', 'sys-list-sheeton', 'sys-list-hand', 'sys-list-handgm']],   // 1.6.2 (the owner: "Three groups"): the list's ticks by what they are for

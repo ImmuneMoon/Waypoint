@@ -20035,6 +20035,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && vAd.length === 1 && vAd[0].id === 'r_p' && /Resists an attempt/.test(vAd[0].message) && S.readsAttempt('AttackerDarkPen', F) === true
             && /attacker stands/.test(wordA) && J(offA).indexOf('AttackerDarkPen') >= 0, J([rgA, RAd('AttackerDark'), vAd, wordA, offA]));
     }
+    {   // 1.6.2 a cloud an explosive leaves: the cleaner in both views, blastcore's copy of it and the validator
+        const J = JSON.stringify, BCc = await import(url('blastcore.js'));
+        const raw = { v: 1, name: 'C', fields: [], effects: [{ id: 'e_cough', name: 'Coughing' }], rolls: [{ id: 'r_ht', label: 'HT', formula: '3d6 <= 10' }], items: [{ id: 'i_s', name: 'Smoke', area: { ft: 15, shape: 'circle', cloud: { n: '1d6+2', u: 'turns', r: 3.04, smoke: true, fx: 'e_cough', roll: 'r_ht', junk: 1 } } }, { id: 'i_g', name: 'Gone', area: { ft: 15, shape: 'circle', cloud: { n: '2', u: 'fortnights', fx: 'e_none', roll: 'r_none' } } }, { id: 'i_e', name: 'Haze', area: { ft: 15, shape: 'circle', cloud: {} } }] };
+        const gmC = cleanSystem(raw, { F, gmView: true }), plC = cleanSystem(raw, { F, gmView: false }), vC = S.validateSystem(gmC, F);
+        const seeds = [null, 'x', [], {}, { n: 5 }, { n: ' 2 ', u: 'hours', r: -1, smoke: 'yes' }, { n: 'a\u0001b', u: '9x', r: 2000, fx: 'bad', roll: 'r_ok' }, { u: 'turns' }], same = seeds.every(v => J(S.cleanCloud(v)) === J(BCc.cleanCloud(v)));
+        check('1.6.2 a cloud an explosive leaves (cleanCloud): how long a formula with its unit (rounds by default), its radius held to 0.5 to 1000 yards by the tenth, smoke only as true, an effect and a roll by their ids, nothing else; an empty one is a cloud that stays; kept in the GM\'s view alone; blastcore keeps it the same way on a mine; the validator says a unit, an effect or a roll that is not there',
+            J(gmC.items[0].area.cloud) === J({ n: '1d6+2', u: 'turns', r: 3, smoke: true, fx: 'e_cough', roll: 'r_ht' }) && J(gmC.items[2].area.cloud) === J({}) && !('cloud' in plC.items[0].area) && same
+            && J(S.cleanCloud({ n: ' 2 ', u: 'hours', r: -1, smoke: 'yes' })) === J({ n: '2', u: 'hours' }) && vC.warnings.filter(w => w.id === 'i_g' && w.prop === 'cloud').length === 3 && !vC.warnings.some(w => w.id === 'i_s' && w.prop === 'cloud'),
+            J([gmC.items.map(i => i.area.cloud), plC.items[0].area, vC.warnings.filter(w => w.prop === 'cloud')]));
+    }
     {   // 1.6.2 scene context (the owner, by prompt: "The scene carries it", "A Scene row on the map's menu", "A roll ticked Kept for the scene"), on invented data
         const J = JSON.stringify, sysSc = cleanSystem({ v: 1, name: 'Sc', fields: [{ id: 'f_wits', key: 'Wits', label: 'Wits', kind: 'number' }],
             scenes: [{ label: 'In person' }, { label: 'Heard only' }, { label: 'In person' }, { label: '' }, { key: '9bad', label: 'Written' }],

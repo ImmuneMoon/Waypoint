@@ -5298,6 +5298,29 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             wbH.includes("var grid = genGridFor(kind, map); if (!grid) return no;") && wbH.includes("pc = GC.dungeonPieces(dg, gox || goy ? genBare(grid) : grid, at.x - gox, at.y - goy);") && wbH.includes("if (GL && GL.type === kind) return GL;"));
     }
 
+    {   // 1.6.2 a cloud an explosive leaves (whiteboard.js, its cloud slice, run for real with the real fogcore and systemcore)
+        const wbC = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
+        const Sc = await import(url('systemcore.js')), Fm = await import(url('formula.js'));
+        const sl = wbC.slice(wbC.indexOf('  // [buildcheck:cloud-start]'), wbC.indexOf('  // [buildcheck:cloud-end]'));
+        const camp = { system: { combat: { turn: { secs: 6 } } }, items: {} }, mapA = { id: 'mA', whiteboard: [] }, mapB = { id: 'mB', whiteboard: [] }; camp.items.mA = mapA; camp.items.mB = mapB;
+        const said = [], logs = []; let saves = 0, renders = 0, fightOn = { mB: 1 };
+        const win = { wpFogCore: F, wpSystemCore: Sc, wpFormula: Fm, wpNet: { active: true, role: 'host', fightsOn: id => fightOn[id] ? [{}] : [] }, wpStepLog: (a, b, c) => logs.push(b) };
+        const api = new Function('window', 'getActiveCampaign', 'getActiveMap', 'mapMeasureConfig', 'cellYards', 'blastRadiusYd', 'uid', 'save', 'render', 'toast', sl + '\nreturn { cloudLay, cloudsTick };')(win, () => camp, () => mapA, () => ({ cellPx: 50 }), () => 1, b => b.ft / 3, () => 'x', () => { saves++; }, () => { renders++; }, t => said.push(t));
+        const z1 = api.cloudLay({ x: 300, y: 200, ft: 15, name: 'Smoke grenade', cloud: { n: '3', u: 'turns', smoke: true, fx: 'e_cough', roll: 'r_ht' } }, mapA);
+        const z2 = api.cloudLay({ x: 100, y: 100, ft: 6, name: 'Gas', cloud: { n: '2', u: 'minutes', r: 2 } }, mapB);
+        const z3 = api.cloudLay({ x: 0, y: 0, ft: 6, name: 'Haze', cloud: {} }, mapA), z4 = api.cloudLay({ x: 0, y: 0, ft: 6, cloud: null }, mapA);
+        const laid = JSON.parse(j([z1 && [z1.type, z1.x, z1.y, z1.w, z1.smoke, z1.hazard, z1.cloud, z1.name], z2 && [z2.w, z2.cloud, z2.smoke, z2.hazard], z3 && z3.cloud, z4]));
+        const r1 = win.wpCloudRound('mA'), left1 = z1.cloud.s, r2 = win.wpCloudRound('mA'), r3 = win.wpCloudRound('mA'), gone1 = mapA.whiteboard.indexOf(z1) < 0 && mapA.whiteboard.indexOf(z3) >= 0;
+        const t1 = win.wpCloudTime(600), onB = mapB.whiteboard.indexOf(z2) >= 0 && z2.cloud.s === 120; fightOn = {}; const t2 = win.wpCloudTime(60), t3 = win.wpCloudTime(60), goneB = mapB.whiteboard.indexOf(z2) < 0;
+        win.wpNet.role = 'client'; const cl = win.wpCloudRound('mA') === 0 && win.wpCloudTime(999) === 0 && api.cloudLay({ x: 0, y: 0, ft: 6, cloud: {} }, mapA) === null;
+        check('1.6.2 a cloud an explosive leaves (cloudLay, run for real): a circle centred where it went off, the blast\'s radius or its own in yards, smoke where it says, a hazard\'s effect while in it and its roll (the real fogcore cleanHazard), how long worked out into game seconds by the unit (3 rounds of 6 s, 2 minutes), one with no Lasts staying until cleared; a round first reached on its map takes a round off and the third clears it, said; the clock moving on counts only on maps where no fight runs; a player\'s app lays and counts nothing',
+            j(laid) === j([['circle', 50, -50, 500, true, { fx: 'e_cough', roll: 'r_ht' }, { s: 18 }, 'Smoke grenade cloud'], [200, { s: 120 }, undefined, undefined], {}, null])
+            && r1 === 0 && left1 === 12 && r2 === 0 && r3 === 1 && gone1 && said.indexOf('Smoke grenade cloud clears.') >= 0 && t1 === 0 && onB && t2 === 0 && t3 === 1 && goneB && cl && logs.filter(x => x === 'laid').length === 3, j([laid, r1, left1, r2, r3, gone1, t1, onB, t2, t3, goneB, cl, said, logs]));
+        const pins = wbC.includes('if (b && b.cloud && typeof cloudLay === \'function\') cloudLay(b, mapIn);') && (wbC.match(/cloud: (area|m|a)\.cloud/g) || []).length === 5
+            && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'latin1').includes("window.wpCloudRound(mapId);") && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'calendar.js'), 'utf8').includes('window.wpCloudTime(gone);') && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'latin1').split('delete w.darkStep; delete w.cloud;').length === 3 && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'blastcore.js'), 'utf8').includes('cleanCloud: cleanCloud,');   // window.wpBlastCore carries it (found live)
+        check('1.6.2 the cloud is laid where every blast goes off (resolveThrow), handed on by a throw, a mine, a mine set off, a launched round and a thing in flight, and counted by a round of the fight on its map and by the game clock (pinned)', pins);
+    }
+
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

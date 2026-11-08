@@ -9842,6 +9842,7 @@ function itemRow(it) {
     if (typeof swBox === 'function') row.appendChild(swBox(it));   // 1.6.0: its roll bonuses (asked through typeof: a suite slices this row alone)
     if (typeof fliesBox === 'function') row.appendChild(fliesBox(it));   // 1.6.2 (vehicles, fold (d)): what it is once launched
     if (it.area) row.appendChild(affBox(it));   // 1.5.9 (es): its blast's afflictions
+    if (it.area && typeof cloudBox === 'function') row.appendChild(cloudBox(it));   // 1.6.2: the cloud it leaves
     var err = errorCell(it.id); err.dataset.errFor = it.id; row.appendChild(err);
     return row;
 }
@@ -9871,6 +9872,26 @@ function affBox(it) {
         var er = el('div', 'sys-err sys-item-afferr'); er.dataset.ai = String(ai); er.textContent = affSays(a); box.appendChild(er);
     });
     if (affs.length < (LIMITS.areaAffs || 2)) { var add = el('button', 'tool ghost sys-btn', '+ Affliction'); add.dataset.act = 'affadd'; add.title = effs.length ? 'A resist roll each character it reaches makes, and an effect put on at a failure' : 'Add an effect in the Effects tab first'; if (!effs.length) add.disabled = true; box.appendChild(add); }
+    return box;
+}
+// 1.6.2 (the owner, 2026-11-08): the cloud an explosive leaves where it goes off: how long, in rounds of a fight or the game's time, its radius,
+// smoke, an effect while in it and a roll the GM's button makes for everyone in it. Save cleans it (systemcore cleanCloud)
+function cloudBox(it) {
+    var box = el('div', 'sys-cloud'), cl = it.area && it.area.cloud && typeof it.area.cloud === 'object' ? it.area.cloud : null;
+    box.appendChild(checkLabel('sys-cloud-on', !!cl, 'Leaves a cloud', 'Where it goes off it leaves a cloud on the map, a round area that stays put. In a fight it counts rounds of that fight, out of one the game\u2019s time'));
+    if (!cl) return box;
+    var tu = draft.combat && draft.combat.turn && Array.isArray(draft.combat.turn.units) ? draft.combat.turn.units.filter(function(u) { return u && typeof u.key === 'string'; }) : [];
+    var nIn = input('sys-cloud-n field', typeof cl.n === 'string' ? cl.n : '', 'How long it stays, a formula that may roll dice, such as 3 or 1d6+2. Blank: until you clear it', 'Lasts (optional)'); nIn.maxLength = LIMITS.formula; box.appendChild(nIn);
+    var uO = [['turns', 'rounds']].concat(AFF_UNITS_ED.filter(function(o) { return o[0] !== 'turns'; }), tu.map(function(u) { return [u.key, u.label || u.key]; })); if (typeof cl.u === 'string' && cl.u && !uO.some(function(o) { return o[0] === cl.u; })) uO.push([cl.u, cl.u]);
+    box.appendChild(select('sys-cloud-u', uO, typeof cl.u === 'string' && cl.u ? cl.u : 'turns', 'The unit of its Lasts. Rounds count the fight on its map, and the game\u2019s time out of one'));
+    box.appendChild(numField('sys-cloud-r', cl.r || '', 'Its radius in yards. Blank: the blast\u2019s own', 'cloud yd', '0.5'));
+    box.appendChild(checkLabel('sys-cloud-smoke', cl.smoke === true, 'Smoke', 'It blocks sight as smoke does, for the eyes and every sense that does not see through smoke'));
+    var effs = (draft.effects || []).filter(function(d) { return d && typeof d.id === 'string'; }), fxO = [['', 'While in it: no effect']].concat(effs.map(function(d) { return [d.id, 'While in it: ' + (d.name || d.id)]; }));
+    if (typeof cl.fx === 'string' && cl.fx && !effs.some(function(d) { return d.id === cl.fx; })) fxO.push([cl.fx, 'While in it: an effect that is gone']);
+    box.appendChild(select('sys-cloud-fx', fxO, typeof cl.fx === 'string' ? cl.fx : '', 'An effect put on whoever stands in it, and taken off as they leave'));
+    var rl = (Array.isArray(draft.rolls) ? draft.rolls : []).filter(function(r) { return r && typeof r.id === 'string' && typeof r.formula === 'string' && !Array.isArray(r.apply); }).map(function(r) { return [r.id, 'Roll for those in it: ' + (r.label || 'a roll')]; });
+    if (typeof cl.roll === 'string' && cl.roll && !rl.some(function(o) { return o[0] === cl.roll; })) rl.push([cl.roll, 'Roll for those in it: a roll that is gone']);
+    box.appendChild(select('sys-cloud-roll', [['', 'No roll for those in it']].concat(rl), typeof cl.roll === 'string' ? cl.roll : '', 'A roll its right-click menu makes for everyone standing in it, as a hazard\u2019s'));
     return box;
 }
 function affSays(a) {   // what Save does with one affliction: '' where it keeps it whole
@@ -14076,6 +14097,7 @@ function onInput(e) {
         else if (ic.indexOf('sys-item-aloc') >= 0) { if (it.area) { if (t.value.trim()) it.area.loc = t.value.slice(0, 60); else delete it.area.loc; } }   // 1.6.2 (11)
         else if (ic.indexOf('sys-item-aad') >= 0) { if (it.area) { var adI = Number(t.value); if (t.value !== '' && isFinite(adI) && adI > 0) it.area.ad = adI; else delete it.area.ad; } }   // 1.5.8 explosives
         else if (ic.indexOf('sys-item-atrig') >= 0) { if (it.area) { var tgv = Number(t.value); if (t.value !== '' && isFinite(tgv) && tgv > 0) it.area.trig = tgv; else delete it.area.trig; } }   // 1.5.8 explosives
+        else if (/(^| )sys-cloud-(n|r)( |$)/.test(ic)) { var clI = it.area && it.area.cloud && typeof it.area.cloud === 'object' ? it.area.cloud : null; if (!clI) return; if (/sys-cloud-n/.test(ic)) { var clN = String(t.value).slice(0, LIMITS.formula); if (clN.trim()) { clI.n = clN; if (!clI.u) clI.u = 'turns'; } else delete clI.n; } else { var clR = Number(t.value); if (t.value !== '' && isFinite(clR) && clR > 0) clI.r = clR; else delete clI.r; } }   // 1.6.2: the cloud it leaves (Save cleans it)
         else if (/(^| )sys-fly-(speed|rounds|hp|pro|size)( |$)/.test(ic)) { if (!it.flies || typeof it.flies !== 'object') return; var flK = /sys-fly-(speed|rounds|hp|pro|size)/.exec(ic)[1]; if (flK === 'speed') it.flies.speed = String(t.value).slice(0, LIMITS.formula); else { var flN = Number(t.value); if (t.value !== '' && isFinite(flN)) it.flies[flK] = flN; else delete it.flies[flK]; } }   // 1.6.2 (vehicles, fold (d)): Save cleans them
         else if (ic.indexOf('sys-item-damage') >= 0) it.damage = t.value;
         else if (/(^| )sys-item-afrag( |$)/.test(ic)) { if (!it.area) return; if (t.value.trim()) it.area.frag = t.value.slice(0, LIMITS.formula); else { delete it.area.frag; delete it.area.fragType; } }   // 1.5.9 (es): its fragmentation (Save cleans it, the validator reads it)
@@ -14397,6 +14419,9 @@ function onChange(e) {
             else if (afC.a.lasts && typeof afC.a.lasts === 'object') afC.a.lasts.u = vC.slice(0, 24);
             affSaysAt(t, iit, afC.a); markDirty(); patchErrors(); return;
         }
+        if (c.indexOf('sys-cloud-on') >= 0) { if (!iit.area) return; if (t.checked) iit.area.cloud = iit.area.cloud && typeof iit.area.cloud === 'object' ? iit.area.cloud : {}; else delete iit.area.cloud; markDirty(); renderAll(); return; }   // 1.6.2: the cloud it leaves
+        if (c.indexOf('sys-cloud-smoke') >= 0) { if (!iit.area || !iit.area.cloud) return; if (t.checked) iit.area.cloud.smoke = true; else delete iit.area.cloud.smoke; markDirty(); patchErrors(); return; }
+        if (/(^| )sys-cloud-(u|fx|roll)( |$)/.test(c)) { if (!iit.area || !iit.area.cloud) return; var clS = /sys-cloud-(u|fx|roll)/.exec(c)[1], clV = String(t.value || ''); if (clV) iit.area.cloud[clS] = clV; else delete iit.area.cloud[clS]; markDirty(); patchErrors(); return; }
         if (c.indexOf('sys-fly-on') >= 0) { if (t.checked) iit.flies = iit.flies && typeof iit.flies === 'object' ? iit.flies : { speed: '1', rounds: 1, hp: 1 }; else delete iit.flies; markDirty(); renderAll(); return; }   // 1.6.2 (vehicles, fold (d))
         if (/(^| )sys-fly-(path|roll|end)( |$)/.test(c)) { if (!iit.flies || typeof iit.flies !== 'object') return; var flS = /sys-fly-(path|roll|end)/.exec(c)[1], flV = String(t.value || ''); if (flV) iit.flies[flS] = flV; else delete iit.flies[flS]; markDirty(); patchErrors(); return; }
         if (c.indexOf('sys-item-aflight') >= 0) { if (iit.area) { if (t.value === 'scatter' || t.value === 'line') iit.area.flight = t.value; else delete iit.area.flight; } markDirty(); patchErrors(); return; }   // 1.5.9 (es)

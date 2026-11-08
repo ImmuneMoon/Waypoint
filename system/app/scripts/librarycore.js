@@ -191,6 +191,7 @@ export function entryFromForm(f) {
             return o;
         }).filter(Boolean);
         if (afs.length) ar.aff = afs;
+        if (s(f.areaCloud).trim() === 'yes') { var co = {}, cn = s(f.areaCloudN).trim(), cr = nb(f.areaCloudR); if (cn) { co.n = cn; co.u = s(f.areaCloudU).trim() || 'turns'; } if (cr !== '') co.r = cr; if (f.areaCloudSmoke === 'yes') co.smoke = true; var cfx = s(f.areaCloudFx).trim(), crl = s(f.areaCloudRoll).trim(); if (cfx) co.fx = cfx; if (crl) co.roll = crl; ar.cloud = co; }   // 1.6.2: the cloud it leaves (the cleaner keeps it in the GM's copy alone)
     }
     var fsp = s(f.flySpeed).trim(); if (fsp) { var fn = function(v) { v = s(v).trim(); return /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : undefined; }, fo = { speed: fsp, rounds: fn(f.flyRounds), hp: fn(f.flyHp), pro: fn(f.flyPro), size: fn(f.flySize) }; if (f.flyPath === 'line') fo.path = 'line'; if (s(f.flyRoll).trim()) fo.roll = s(f.flyRoll).trim(); if (f.flyEnd === 'off') fo.end = 'off'; Object.keys(fo).forEach(function(k) { if (fo[k] === undefined) delete fo[k]; }); out.flies = fo; }   // 1.6.2 (vehicles, fold (d)): what it is once launched (the cleaner, cleanFlies, judges it)
     if (f.again === 'name') out.again = 'name';   // 1.6.0: held again under another name

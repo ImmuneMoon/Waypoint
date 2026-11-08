@@ -200,6 +200,7 @@ var GROUPS = {
         ['changes', 'What it changes', 1, ['sys-fx-target', 'act:fxmodadd']],
         ['time', 'How long it lasts', 1, ['sys-fx-dur', 'sys-fx-agbox', 'sys-fx-endsbox', 'sys-fx-egbox', 'sys-fx-autorow', 'sys-fx-endrow']],   // 1.6.2: and When it ends
         ['val', 'Its number', 0, ['sys-fxv-box']],
+        ['cover', 'Cover it gives', 0, ['sys-fx-coverbox']],   // 1.6.2
         ['who', 'Who sees it', 1, ['sys-fx-vis', 'sys-fx-notes']],
         ['posture', 'Posture', 0, ['sys-fx-posture', 'sys-fx-postureback', 'sys-fx-keepbox']],
         ['sw', 'Roll bonuses', 0, ['sys-sw-box']]] }

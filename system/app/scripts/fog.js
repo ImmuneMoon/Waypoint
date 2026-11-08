@@ -983,8 +983,23 @@ function coverGrade(map, camp, from, to, shown) {
     if (!map || !from || !to || !coverOn(camp && camp.system)) return 0;
     var at = function(t) { return { x: t.x + (t.w || 60) / 2, y: t.y + (t.h || 52) / 2 }; }, a = at(from), b = at(to);
     var tier = coverBetween(a.x, a.y, b.x, b.y, tokHeight(from, map, shown === true), tokHeight(to, map, shown === true), map, camp);
-    return !tier ? 0 : tier.block ? 3 : tier.name === 'Three-quarters cover' ? 2 : 1;
+    var gM = !tier ? 0 : tier.block ? 3 : tier.name === 'Three-quarters cover' ? 2 : 1, gS = typeof selfCover === 'function' ? selfCover(map, camp, from, to) : 0;   // 1.6.2: and the cover its own effects and posture give it, the better of the two
+    return gS > gM ? gS : gM;
 }
+// [fogcheck:selfcover-start]
+// 1.6.2 (the owner, by prompt: "An effect or posture gives cover"): the cover a token gives itself, by the posture it stands in (never the first)
+// and each effect of the library on for its character that players may see (systemcore cleanSelfCover): the best grade among them, one set
+// Against attacks from further away counting only where the attacker's token is not next to it (fogcore nearTokens). 0 for none
+function selfCover(map, camp, from, to) {
+    var S = typeof window !== 'undefined' ? window.wpSystemCore : null, sys = camp && camp.system; if (!S || !sys || !to || typeof to !== 'object') return 0;
+    var far = null, isFar = function() { if (far === null) { var C = core(), grid = gridForMap(map); far = !(C && grid && typeof C.nearTokens === 'function' && C.nearTokens(from, to, grid)); } return far; };
+    var best = 0, take = function(cv) { if (!cv || typeof cv !== 'object' || (cv.g !== 1 && cv.g !== 2 && cv.g !== 3) || cv.g <= best) return; if (cv.vs === 'far' && !isFar()) return; best = cv.g; };
+    if (typeof S.postureAt === 'function' && typeof to.posture === 'string' && to.posture) { var pa = S.postureAt(sys, to.posture); if (pa && pa.i > 0 && pa.p) take(pa.p.cover); }
+    var ch = typeof to.charId === 'string' && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, to.charId) ? camp.chars[to.charId] : null;
+    if (ch && typeof S.fxOnIds === 'function' && Array.isArray(sys.effects) && sys.effects.some(function(d) { return !!d && !!d.cover; })) { var on = S.fxOnIds(sys, ch, typeof window !== 'undefined' ? window.wpFormula : null); sys.effects.forEach(function(d) { if (d && d.cover && d.vis !== 'gm' && on[d.id]) take(d.cover); }); }
+    return best;
+}
+// [fogcheck:selfcover-end]
 // 1.6.2: what TargetCoverPro reads from one token to another: the highest Protection among the cover pieces on the line, as the ruler's lines find
 // them; 0 with none, with cover off or no map. The two places that read the range ask it only where the target has cover (TargetCoverGrade above 0)
 function coverPro(map, camp, from, to) {

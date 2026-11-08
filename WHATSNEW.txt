@@ -50,6 +50,8 @@ The System editor
 - A piece can be a hazard: an effect on whoever stands in it, a roll you ask of
   everyone in it from its right-click menu, a token it follows, and fire that
   spreads a cell at a time when you press Spread fire.
+- An effect or a posture can give cover, such as a shield wall or ducking, and
+  the better of it and the map's own cover counts.
 - Basic d20 has coins and carried weight. A new character starts with 10
   Gold, and Gold, Silver and Copper make change as you spend. Gear has weights,
   Carried adds them up, and the carrying limit is Strength times 15. Going over

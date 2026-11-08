@@ -2202,6 +2202,7 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
             (Array.isArray(l.wears) ? l.wears : []).forEach(function(k) { var n = dmgStatOk(fl, l.list, k); if (n && ws.indexOf(n) < 0 && ws.length < DMG_LIM.wears) ws.push(n); });
             if (ws.length && pk && l.whole !== true) { lo.wears = ws; lo.pick = pk; }
             LAYER_WEAR.forEach(function(k) { var wt = cleanFormulaText(l[k]); if (wt) lo[k] = wt; });   // 1.6.0: what a hit wears, by formula (layerStep)
+            var adB = cleanFormulaText(l.adBy); if (adB) lo.adBy = adB;   // 1.6.2 (the CORE session's batch 6, 9): its own divisor (adSplit)
             if (isObj(l.typed)) { var tyS = dmgStatOk(fl, l.list, l.typed.stat), tyP = cleanFormulaText(l.typed.plus), tyN = l.typed.stat === undefined || l.typed.stat === ''; if (tyP && (tyS || tyN)) lo.typed = tyS ? { stat: tyS, plus: tyP } : { plus: tyP }; }   // 1.6.0: Type named by, a stat and a formula; or the formula alone, which reads Blow.type for each part, so one row can stand against a family of types
             if (l.anyRow === true) lo.anyRow = true;   // 1.6.0: Every row, switched on or not (a location's switch may be the GM's own)
             if (l.whole === true) { lo.whole = true; if (l.anyPool === true) lo.anyPool = true; }   // 1.6.0: Every location, one figure and one wear stat (layerCap), and Any pool: a part wears it whichever pool it took
@@ -2425,6 +2426,28 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
         });
         return add;
     };
+    // 1.6.2 (the CORE session's batch 6, 9): a layer may say its own divisor (adBy, a formula reading Divisor, the blow's armour divisor, and what its wear
+    // formulas read). The share of the location's DR its rows give there, each row's figure less its wear, comes out of the DR and is divided by that
+    // divisor; the rest by the blow's. So 1 ignores the divisor and Divisor / 2 halves it. The location's DR is taken to hold that figure, as it does
+    // where it reads the armour worn. A share never passes what DR is left. With no such layer the DR is divided as it always was
+    var adSplit = function(P, Rp, pv, dr) {
+        var lyA = (rules.layers || []).filter(function(ly) { return typeof ly.adBy === 'string' && ly.adBy; });
+        if (!lyA.length || !lrow || !Rp) return Math.floor(dr / P.ad);
+        var left = dr, eff = 0, place = typeAt(P.ty);
+        lyA.forEach(function(ly) {
+            var f = fieldById(sys, ly.list), src = f && f.list && char.values && Array.isArray(char.values[f.id]) ? char.values[f.id] : null; if (!src) return;
+            var hasOn = isObj(f.list.on) && ly.anyRow !== true, bw = Object.assign({}, blow0, { type: place }); if (P.kd) bw.kind = kindAt(P.kd);
+            src.forEach(function(row) {
+                if (left <= 0 || !isObj(row) || row.hid === 1 || (hasOn && row.on !== true)) return;
+                var rid = rowIdOf(row), rv = rid ? Rp.row(f.id, rid) : null; if (!rv) return;
+                var both = function(l, text) { if (/^hit\./.test(l)) return pv ? pv(l.replace(/^hit\./, 'row.'), text) : 0; return rv(l, text); }, listed = Math.floor(num(ev(ly.at, both))); if (listed <= 0) return;
+                var w = num(R.stat(f, row, wearKey(ly, both))), share = Math.min(left, Math.max(0, listed - w)); if (share <= 0) return;
+                var lv = layerVars(listed, w, bw, both, layerCap(ly, listed, w, ev, both, bw)), dv = num(ev(ly.adBy, function(l, text) { return l === 'divisor' ? P.ad : lv(l, text); }));
+                if (!(dv > 0)) dv = P.ad; dv = clampNum(dv, 0.1, 100); eff += share / dv; left -= share;
+            });
+        });
+        return eff ? Math.floor(eff + left / P.ad + 1e-9) : Math.floor(left / P.ad);
+    };
     if (!inp.only) {
         var mainP = rules.pool || sys.combat.hpResource;
         var partStep = function(P) {   // 1.6.0 (B3): one part of the blow, through its own type's DR and figures, taken off separately: { eff, through, wound, dieAdd, line } or { fail }
@@ -2432,7 +2455,7 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
             var Rp = lrow ? partR(P, blow0) : null, pv = Rp ? Rp.row(lf.id, inp.loc) : null, gp = Rp ? getBy(Rp) : get;   // 1.6.0: this part's own reading of the location
             if (lrow && !(ty && ty.noDr)) { if (rules.locs.dr) dr = gp(lf, lrow, rules.locs.dr); (ty && ty.plus ? ty.plus : []).forEach(function(k) { dr += gp(lf, lrow, k); }); if (dice && ty && ty.dieDr) dr += dice * ty.dieDr; dr += typedAdd(P, Rp, pv); }   // 1.6.0: and its DR a die, for this blow   // 1.6.0: and what the layers add against its type
             if (err) return { fail: { ok: false, reason: 'error', message: 'The DR there could not be worked out: ' + err } };
-            dr = Math.max(0, dr); var eff = Math.floor(dr / P.ad), through = Math.max(0, amt - eff);
+            dr = Math.max(0, dr); var eff = adSplit(P, Rp, pv, dr), through = Math.max(0, amt - eff);   // 1.6.2 (9): a layer with its own divisor divides its own share
             var lmv = lrow && P.pool === mainP && rules.locs.mult && pv ? num(ev(rules.locs.mult, pv)) : 0;
             if (lmv > 0) mult = clampNum(lmv, 0, DMG_LIM.mult);   // the location's own multiplier (the skull's x4) before a type's vital one
             else if (lrow && ty && ty.vital > 0 && rules.locs.vital && pv && yes(ev(rules.locs.vital, pv))) mult = ty.vital;
@@ -11623,7 +11646,7 @@ var NAME_WORDS = Object.freeze(Object.assign(Object.create(null), {
     'blow.dmg': 'the damage rolled', 'blow.through': 'the damage past DR', 'blow.wound': 'the wound it dealt', 'blow.type': 'the damage type', 'blow.cuts': 'whether the blow cuts', 'blow.major': 'whether it is a Major Wound', 'blow.big': 'whether the attack landed as a heavy hit', 'blow.kind': 'the kind of blow',
     'blow.type2': 'the second part\u2019s damage type', 'blow.wound2': 'the second part\u2019s wound', 'blow.kind2': 'the second part\u2019s kind', 'blow.type3': 'the third part\u2019s damage type', 'blow.wound3': 'the third part\u2019s wound', 'blow.kind3': 'the third part\u2019s kind', 'blow.type4': 'the fourth part\u2019s damage type', 'blow.wound4': 'the fourth part\u2019s wound', 'blow.kind4': 'the fourth part\u2019s kind', 'blow.type5': 'the fifth part\u2019s damage type', 'blow.wound5': 'the fifth part\u2019s wound', 'blow.kind5': 'the fifth part\u2019s kind',
     blastdistance: 'the distance from the blast', blastdice: 'the dice of the blast', blastdamage: 'the damage of the blast', direct: 'whether it was struck directly', centre: 'whether it stands at the centre', blastfills: 'how much of the area it fills', blastradius: 'the item\u2019s own radius, in yards', mapcell: 'one cell of the map', hitscale: 'the scale of the one it hits', blastnodrop: 'whether its damage keeps its strength', blastscale: 'the scale of the item that went off', fragdice: 'the fragmentation dice', throwskill: 'the skill it is thrown with', throwdistance: 'the distance of the throw', margin: 'how far it failed by', distance: 'the distance',
-    listed: 'its listed figure', worn: 'what is worn off it', todestroy: 'the wear that destroys it'
+    listed: 'its listed figure', worn: 'what is worn off it', todestroy: 'the wear that destroys it', divisor: 'the blow\u2019s armour divisor'
 }));
 var ROW_SAYS = Object.freeze(Object.assign(Object.create(null), {
     count: 'how many of this row', qty: 'this row\u2019s quantity', on: 'whether this row is on', has: 'whether this row is held', lvl: 'this row\u2019s level', paid: 'what this row cost', loaded: 'what this row has loaded', loadmax: 'the most this row can load', chambered: 'how many rounds this row has chambered', setall: 'whether this row\u2019s whole set is on', parts: 'how many parts this row holds', again: 'whether this row is held under another name', needsmet: 'whether this row\u2019s needs are met', startlvl: 'the level this row started at', bursthits: 'the hits of this burst', side: 'this row\u2019s side', subject: 'this row\u2019s subject', fitted: 'whether this row is fitted', pastslot: 'whether this row stands past what its host holds', once: 'whether this row counts', oncecost: 'what this row costs', oncefree: 'what this row gives free', paysback: 'whether this row pays back', granted: 'whether this row was granted', made: 'whether this row was made here'

@@ -14683,6 +14683,18 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const sweepW = extra => { const res = []; for (const amt of [0, 1, 4, 8, 14, 20, 35]) for (const type of [undefined, 'cut', 'heat', 'stun', 'ion', 'pierce', 'nope']) for (const loc of [undefined, 'w_body', 'w_head', 'w_eye']) for (const v of [{}, { ad: 2 }, { dice: 3 }, { major: true }, { weapon: 'w_blade' }, { weapon: 'w_blade', only: true }, { w: 6 }, { droid: 1 }]) {
                 const inp = { amt }; if (type) inp.type = type; if (loc) inp.loc = loc; ['ad', 'dice', 'major', 'weapon', 'only'].forEach(k => { if (v[k] !== undefined) inp[k] = v[k]; }); if (extra) Object.assign(inp, extra);
                 res.push(DS(sysW, chW(v.w, v.droid), inp, F, null, { now: 5, inCombat: false })); } return require('crypto').createHash('sha256').update(JSON.stringify(res)).digest('hex'); };
+            {   // 1.6.2 (the CORE session's batch 6, 9): a layer's own armour divisor, on the share of the DR its rows give there
+                const sAd = by => { const r = mkD(); if (by !== undefined) r.combat.damage.layers[0].adBy = by; return cleanSystem(r, { F, gmView: true }); };
+                const thr = (sy, c) => { const r = DS(sy, c || chD(), { amt: 8, type: 'pierce', loc: 'w_body', ad: 3 }, F); return r.ok ? r.info.through : 'x'; };
+                const sN = sAd(), s1 = sAd('1'), sH = sAd('Divisor / 2'), sZ = sAd('0'), sBad = sAd('Nope +');
+                const shAd = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8'), fbAd = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'formbox.js'), 'utf8');
+                check('1.6.2 a layer may say its own divisor: the share of the DR its rows give where the blow struck (each row\'s figure less its wear) is divided by it, the rest by the blow\'s; 1 ignores the divisor, Divisor / 2 halves it; a worn row gives only what is left; a figure of 0 or less, or a formula that does not read, is the blow\'s own; a layer with none divides as it always did; the box, its handler, its form and what Save says',
+                    thr(sN) === 6 && thr(s1) === 2 && thr(sH) === 4 && thr(s1, wornD(2)) === 4 && thr(sZ) === 6 && thr(sBad) === 6
+                    && s1.combat.damage.layers[0].adBy === '1' && !('adBy' in sN.combat.damage.layers[0])
+                    && shAd.includes("input('sys-dmgr-ladby field', dbxStr(l.adBy),") && shAd.includes("dbxSet(lA, 'adBy', txt.trim() ? txt : '');") && shAd.includes("['adBy', 'Its own divisor']")
+                    && fbAd.includes("'sys-dmgr-ladby': 'amt',") && S.nameWord(s1, 'Divisor') === 'the blow\u2019s armour divisor',
+                    j([thr(sN), thr(s1), thr(sH), thr(s1, wornD(2)), thr(sZ), thr(sBad), s1.combat.damage.layers[0], S.nameWord(s1, 'Divisor')]));
+            }
             const hW0 = sweepW(), hW1 = sweepW({ part2: null }), hW2 = sweepW({ part2: 'x' });
             {   // 1.6.2 (the CORE session's batch 6, 13): the arc of the target's facing the attacker stands in, on the attack and through the damage card
                 const sA = mkW(); const rawA = JSON.parse(j(sA)); rawA.combat.arcs = [{ label: 'Front', f: -60, t: 60 }, { label: 'Rear', f: 120, t: -120 }]; rawA.combat.damage.onWound = [{ if: 'Blow.arc.rear = 1', roll: 'r_wk' }];

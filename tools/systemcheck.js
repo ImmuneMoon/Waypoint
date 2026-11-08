@@ -22630,6 +22630,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && ntR.includes("var rfA = attRowFigs(camp, fromCh, rowRef);"),
             J([figs, noRow, none, parV(figs), vr.errors, S.gmOnlyNames(sy, [{ name: 'Attempter.Row.secret' }]), S.nameWord(sy, 'Attempter.Row.pen'), S.readsOf(sy, { roll: sy.rolls[0] })]));
     }
+    {   // 1.6.2 (the CORE session's batch 6, 3): an every-row change may say Only rows where, a test of each row that may read the location a blow struck
+        const J = v => JSON.stringify(v);
+        const raw = { v: 1, name: 'H', sheet: { sections: [] }, rolls: [{ id: 'r_grip', label: 'Grip', formula: '3d6 <= 10', then: [{ when: 'miss', list: 'f_g', s: 'held', formula: '0', set: true, rows: 'Row.hand = Hit.hand' }] }, { id: 'r_bad', label: 'Bad', formula: '3d6 <= 10', then: [{ list: 'f_g', s: 'held', formula: '0', set: true, rows: 'Row.nope = 1' }] }],
+            fields: [{ id: 'f_l', key: 'Locs', label: 'Locations', kind: 'item-list', list: { stats: [{ key: 'hand', label: 'Hand' }] } }, { id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', list: { stats: [{ key: 'hand', label: 'Hand' }, { key: 'held', label: 'Held' }] } }],
+            items: [{ id: 'i_lh', name: 'Left hand', stats: { hand: 1 } }, { id: 'i_rh', name: 'Right hand', stats: { hand: 2 } }, { id: 'i_sw', name: 'Sword', stats: { hand: 2, held: 1 } }, { id: 'i_sh', name: 'Shield', stats: { hand: 1, held: 1 } }] };
+        const sy = S.cleanSystem(raw, { F, gmView: true }), ch = { id: 'c_1', values: { f_l: [{ id: 'w_lh', defId: 'i_lh', qty: 1 }, { id: 'w_rh', defId: 'i_rh', qty: 1 }], f_g: [{ id: 'w_sw', defId: 'i_sw', qty: 1 }, { id: 'w_sh', defId: 'i_sh', qty: 1 }] } };
+        const then = sy.rolls[0].then.map(c => Object.assign({}, c, { when: undefined })), act = { apply: then };
+        const run = hitRow => S.applyAct(sy, ch, act, S.makeResolver(sy, ch, F, S.withBlow({}, { wound: 3, hit: { f: 'f_l', r: hitRow } })), F);
+        const heldOf = (r, id) => { const w = (r.values.f_g || ch.values.f_g).filter(x => x.id === id)[0]; return w && w.ov && w.ov.stats ? w.ov.stats.held : 1; };
+        const aR = run('w_rh'), aL = run('w_lh'), vr = S.validateSystem(sy, F);
+        check('1.6.2 a change on every row of a list may say Only rows where, a test of each row read with its own names and the roll\'s, which may read the location a blow struck (Hit.*): a row it does not hold for is passed over, so a failed grip drops what the hand that was hit held and nothing else; the cleaner keeps it, the validator reads it with the list\'s names, and the box, its handler and its form are there',
+            sy.rolls[0].then[0].rows === 'Row.hand = Hit.hand' && aR.ok && heldOf(aR, 'w_sw') === 0 && heldOf(aR, 'w_sh') === 1 && aL.ok && heldOf(aL, 'w_sw') === 1 && heldOf(aL, 'w_sh') === 0
+            && vr.errors.some(e => e.id === 'r_bad' && /\.rows$/.test(e.prop))
+            && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').includes("input('sys-apply-rows field'") && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'formbox.js'), 'utf8').includes("'sys-apply-rows': 'cond',"),
+            J([sy.rolls[0].then, aR, aL, vr.errors]));
+    }
     {   // 1.6.2 (the CORE session's batch 6, 5c): a roll bonus's figure by the level of the row that holds it
         const J = v => JSON.stringify(v);
         const raw = (tiers, v) => ({ v: 1, name: 'T', sheet: { sections: [] }, rolls: [{ id: 'r_x', label: 'Shoot', formula: '3d6 <= 10' }], items: [{ id: 'i_s', name: 'Scope', key: 'Scope', rollSw: [{ name: 'Aim', v: v, tiers: tiers, to: [{ r: 'r_x' }] }] }],

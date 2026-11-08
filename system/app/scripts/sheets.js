@@ -9357,6 +9357,7 @@ function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's chan
         var fm = input('sys-apply-formula field', typeof ch.formula === 'string' ? ch.formula : '', 'The amount, worked out when pressed: no dice unless Rolled is ticked (3, FPCost, max(0, Incoming - DR)); below 0 counts as 0', 'Amount'); fm.maxLength = LIMITS.formula; rw.appendChild(fm);
         var rlL = el('label', 'sys-hover'), rlC = el('input'); rlC.type = 'checkbox'; rlC.className = 'sys-apply-rolled'; rlC.checked = ch.roll === true; rlL.appendChild(rlC); rlL.appendChild(el('span', null, ' Rolled')); rlL.title = 'Rolled: the amount may roll dice, such as 1d6. The host rolls it each time, and the card shows the dice'; rw.appendChild(rlL);   // 1.5.9 (book es/et plan, section 0)
         }
+        if (typeof ch.list === 'string') { var rwsI = input('sys-apply-rows field', typeof ch.rows === 'string' ? ch.rows : '', 'Only rows where: a test of each row, which may read the location a blow struck, such as Row.Hand = Hit.Hand. Empty: every row', 'Only rows where'); rwsI.maxLength = LIMITS.formula; rw.appendChild(rwsI); }   // 1.6.2 (the CORE session, 3)
         if (typeof ch.fx === 'string' && ch.on !== false && typeof fxHolds === 'function' && fxHolds(ch.fx)) { var fxnI = input('sys-apply-fxn field', typeof ch.n === 'string' ? ch.n : '', 'The number the effect goes on with, as Bleeding 3. Empty: its own start. Added again while it is on, the effect\u2019s rule says what happens', 'With number'); fxnI.maxLength = LIMITS.formula; rw.appendChild(fxnI); }   // 1.6.2: an effect that holds a number
         [['applyup', '\u25b2', 'Move up'], ['applydown', '\u25bc', 'Move down'], ['applydel', '\u00d7', 'Remove this change']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
         box.appendChild(rw);
@@ -14088,6 +14089,7 @@ function onInput(e) {
         else return;
     } else if (r) {
         if (c.indexOf('sys-apply-if') >= 0) { var chW = applyChangeOf(t, r); if (!chW) return; if (t.value.trim()) chW.if = t.value.slice(0, LIMITS.formula); else delete chW.if; }
+        if (c.indexOf('sys-apply-rows') >= 0) { var chR = applyChangeOf(t, r); if (!chR) return; if (t.value.trim()) chR.rows = t.value.slice(0, LIMITS.formula); else delete chR.rows; }   // 1.6.2 (3)
         else if (c.indexOf('sys-apply-fxn') >= 0) { var chN = applyChangeOf(t, r); if (!chN) return; var fxnV = t.value.slice(0, LIMITS.formula); if (fxnV.trim()) chN.n = fxnV; else delete chN.n; }   // 1.6.2: With number
         else if (c.indexOf('sys-apply-formula') >= 0) { var chI = applyChangeOf(t, r); if (!chI) return; chI.formula = t.value.slice(0, LIMITS.formula); }   // Stage 6 HUD H7: a change's amount
         else if (c.indexOf('sys-label') >= 0) r.label = t.value.slice(0, LIMITS.label);

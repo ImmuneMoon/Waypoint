@@ -1033,6 +1033,22 @@ function targetLight(map, to) {
     var bk = C.cellKey(C.cellOf(to.x + (to.w || 60) / 2, to.y + (to.h || 52) / 2, grid), grid), blk = blockersFor(map, grid), over = !!_blockerOver[map.id], lc = over ? null : litFor(map, grid, blk);
     return over ? 0 : Math.max(lvl, (lc && lc.lit && lc.lit[bk]) || 0);
 }
+// [fogcheck:darkat-start]
+// 1.6.2 (the CORE session's answer 7): the darkness step at a token's place: null where the system names no steps; { i: 0, pen: 0 } where a light
+// lights its cell (a light's radius makes its cells lit, whatever the step); else the step of the last shape whose darkStep covers its cell (the
+// topmost), else the map's own (meta.dark), else lit. i is the step's place, 1 the lightest
+function darkAt(map, camp, to) {
+    var steps = camp && camp.system && Array.isArray(camp.system.dark) ? camp.system.dark : null, C = core(), grid = map ? gridForMap(map) : null; if (!steps || !steps.length || !to || !map) return null;
+    var find = function(k) { for (var i = 0; i < steps.length; i++) if (steps[i] && typeof k === 'string' && String(steps[i].key).toLowerCase() === k.toLowerCase()) return { i: i + 1, pen: typeof steps[i].pen === 'number' ? steps[i].pen : 0 }; return null; }, lit = { i: 0, pen: 0 };
+    if (C && grid) {
+        var cell = C.cellOf(to.x + (to.w || 60) / 2, to.y + (to.h || 52) / 2, grid), bk = C.cellKey(cell, grid), p = C.cellCenter(cell, grid);
+        try { var blk = blockersFor(map, grid), lc = _blockerOver[map.id] ? null : litFor(map, grid, blk); if (lc && lc.lit && lc.lit[bk] > 0) return lit; } catch (e) { /* a light that cannot be worked out lights nothing */ }
+        var wb = Array.isArray(map.whiteboard) ? map.whiteboard : [];
+        for (var j = wb.length - 1; j >= 0; j--) { var w = wb[j]; if (!w || w.isChar || w.waiting || w.gmNoteFor || w.type === 'light' || typeof w.darkStep !== 'string') continue; var st = find(w.darkStep); if (st && C.itemCovers(w, p.x, p.y, grid)) return st; }
+    }
+    return (map.meta && find(map.meta.dark)) || lit;
+}
+// [fogcheck:darkat-end]
 function noticeFacts(map, camp, from, to) {
     var C = core(), grid = gridForMap(map), out = { light: 2, cover: 0 }; if (!C || !grid) return out;
     var cell = function(t) { return C.cellOf(t.x + (t.w || 60) / 2, t.y + (t.h || 52) / 2, grid); }, b = cell(to), bk = C.cellKey(b, grid), lvl = mapLevel(map);
@@ -2442,7 +2458,7 @@ window.wpFog = {
     eyesArc: eyesArc,   // the eyes' arc: the arc a token sees through on a map (its Properties say when it is its own)
     fogMarksFor: fogMarksFor, campMarkSenses: campMarkSenses, campNoticeSenses: campNoticeSenses,   // senses S4: a player's marks (the host's, for their copy)
     marksHold: marksHold, marksForget: marksForget, marksStrictOn: marksStrictOn,   // senses S4b: a refresh of what is held, forgetting it, and whether a map plays it
-    nullFxAt: nullFxAt, gridForMap: gridForMap,   // 1.6.2: and a map's lattice, for a hazard's own rows (whiteboard.js)   // 1.6.0: the effects the null areas over a token put on its character (sheets.js areaFxFollow)
+    nullFxAt: nullFxAt, gridForMap: gridForMap, darkAt: darkAt,   // 1.6.2: the darkness step at a token's place   // 1.6.2: and a map's lattice, for a hazard's own rows (whiteboard.js)   // 1.6.0: the effects the null areas over a token put on its character (sheets.js areaFxFollow)
     fogOffFor: fogOffFor, nullsAt: nullsAt,   // senses S7a: a player's word of their own tokens' senses a null area switches off, and what is off where a token stands
     seenKind: seenKind, memSeenSig: memSeenSig, memTrace: memTrace, rememberOff: function() { return !rememberOn(activeCamp()); },   // 1.6.0: what a portal's picture of a map may hold on a player's screen (mapshot.js)
     stats: function() { var map = activeMap(); return { on: map ? !!mapFog(map).on : false, light: map ? mapLevel(map) : null, mode: map ? mapFog(map).mode : null, preview: previewMode, brush: brush, fogMode: !!window.isFogMode, role: roleNow() }; }

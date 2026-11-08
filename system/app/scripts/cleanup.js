@@ -674,6 +674,7 @@ function cleanImportItems(ic, deps) {
             if (w.hazard !== undefined) { var HZ = FC && typeof FC.cleanHazard === 'function' ? FC.cleanHazard(w.hazard) : null; if (HZ) w.hazard = HZ; else delete w.hazard; }   // 1.6.2: a map hazard, as its cleaner keeps it
             if (w.follow !== undefined) { var FW = FC && typeof FC.cleanFollow === 'function' ? FC.cleanFollow(w.follow) : null; if (FW) w.follow = FW; else delete w.follow; }
             if (w.burns !== undefined && w.burns !== true) delete w.burns;
+            if (w.darkStep !== undefined && !(typeof w.darkStep === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(w.darkStep))) delete w.darkStep;   // 1.6.2: a shape's darkness step
             if (w.reaction !== undefined) { if (typeof w.reaction === 'number' && isFinite(w.reaction)) w.reaction = Math.max(-9999, Math.min(9999, Math.round(w.reaction))); else delete w.reaction; }   // 1.6.2: a reaction kept for the scene
             if (w.smoke !== undefined && w.smoke !== true) delete w.smoke;   // senses S7b: smoke only as true
             if (w.coverAs !== undefined) { var cAsI = FC && typeof FC.cleanCoverAs === 'function' ? FC.cleanCoverAs(w.coverAs) : ''; if (cAsI) w.coverAs = cAsI; else delete w.coverAs; }

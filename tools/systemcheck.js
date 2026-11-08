@@ -19993,6 +19993,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.2 a kind that goes round armour, with no option of its own (the CORE session\'s jet): a location\'s DR and a layer\'s at read each part by its own Blow.kind, so where they give 0 to the jet on an unsealed wearer it goes round the armour and wears nothing, a sealed wearer\'s armour stops it and wears, and in a blow of jet and burn the jet part goes round while the burn part is stopped and alone wears the coat',
             J(jets) === J([[true, 0, 10, 0], [true, 3, 7, 1], [true, 3, 17, 1]]), J(jets));
     }
+    {   // 1.6.2 darkness steps (the CORE session's answer 7): the cleaner and the names
+        const J = JSON.stringify, sysDk = cleanSystem({ v: 1, name: 'Dk', fields: [], dark: [{ label: 'Dim', pen: -1 }, { label: 'Pitch black', pen: -8.4 }, { label: 'Dim', pen: 3 }, { label: '' }] }, { F, gmView: true });
+        const mapDk = { id: 'm', meta: { gridType: 'square' }, whiteboard: [] }, rcDk = S.rangeCtx(sysDk, mapDk, { id: 't', x: 0, y: 0, w: 50, h: 50 }, { id: 'n', x: 100, y: 0, w: 50, h: 50 }, { F });
+        if (rcDk) { rcDk.dk = 2; rcDk.dkp = -8; }
+        const Rd = S.makeResolver(sysDk, { id: 'c', values: {} }, F, S.withRange(S.tokenCtx(mapDk, { id: 't', x: 0, y: 0, w: 50, h: 50 }, {}), rcDk)), R0d = S.makeResolver(sysDk, { id: 'c', values: {} }, F, null);
+        const vDk = S.validateSystem(cleanSystem({ v: 1, name: 'V', fields: [], rolls: [{ id: 'r_a', label: 'A', formula: '3d6 + TargetDarkPen + TargetDark' }] }, { F, gmView: true }), F).errors;
+        check('1.6.2 darkness steps: the system\'s steps keep a name, a short name made once from it and a whole penalty, each once, the same in both views; TargetDark and TargetDarkPen read the step at the target through the range, 0 with no target; the validator knows both',
+            J(sysDk.dark) === J([{ key: 'Dim', label: 'Dim', pen: -1 }, { key: 'PitchBlack', label: 'Pitch black', pen: -8 }]) && J(cleanSystem(sysDk, { F, gmView: false }).dark) === J(sysDk.dark)
+            && Rd('TargetDark') === 2 && Rd('TargetDarkPen') === -8 && R0d('TargetDarkPen') === 0 && vDk.length === 0, J([sysDk.dark, Rd('TargetDark'), Rd('TargetDarkPen'), vDk]));
+    }
     {   // 1.6.2 scene context (the owner, by prompt: "The scene carries it", "A Scene row on the map's menu", "A roll ticked Kept for the scene"), on invented data
         const J = JSON.stringify, sysSc = cleanSystem({ v: 1, name: 'Sc', fields: [{ id: 'f_wits', key: 'Wits', label: 'Wits', kind: 'number' }],
             scenes: [{ label: 'In person' }, { label: 'Heard only' }, { label: 'In person' }, { label: '' }, { key: '9bad', label: 'Written' }],

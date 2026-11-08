@@ -1449,7 +1449,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             inspector.querySelectorAll('.wb-tokbar').forEach(function(row) { row.querySelectorAll('select, input').forEach(function(el) { el.addEventListener('change', function() { var pt = /\bwb-tokbar-(pool|name|cur|max|show|color)\b/.exec(this.className || ''); var nm = row.querySelector('.wb-tokbar-name'); if (pt) setTokenBar(w, row.dataset.bi, pt[1], this.value, nm ? nm.value : ''); }); }); });   // backlog 28: one bar's parts (a bar made by its numbers takes the name already typed)
             var nfEl = inspector.querySelector('#wbNullFx'); if (nfEl) nfEl.addEventListener('change', function() { setItemNullFx(w, this.value); });
             var rcEl = inspector.querySelector('#wbReaction'); if (rcEl) rcEl.addEventListener('change', function() { var v = this.value.trim() === '' ? NaN : Number(this.value); if (isFinite(v)) w.reaction = Math.max(-9999, Math.min(9999, Math.round(v))); else delete w.reaction; save(); renderInspector(); });   // 1.6.2
-            ['Fx', 'Roll', 'If', 'Follow', 'Spread'].forEach(function(k) { var hzE = inspector.querySelector('#wbHz' + k); if (hzE) hzE.addEventListener('change', function() { setItemHazard(w, k, this.value); }); });   // 1.6.2: a map hazard
+            ['Fx', 'Roll', 'If', 'Follow', 'Spread', 'Dark'].forEach(function(k) { var hzE = inspector.querySelector('#wbHz' + k); if (hzE) hzE.addEventListener('change', function() { setItemHazard(w, k, this.value); }); });   // 1.6.2: a map hazard
             var buE = inspector.querySelector('#wbBurns'); if (buE) buE.addEventListener('change', function() { setItemHazard(w, 'Burns', this.checked); });   // 1.6.0: the effect the area puts on
             inspector.querySelectorAll('.wb-null').forEach(function(el) { el.addEventListener('change', function() { setItemNulls(w, this.dataset.ni, this.checked); }); });   // senses S7a: the senses that fail in this area
             var _el_wbBT = document.getElementById('wbBlindTick');
@@ -2023,6 +2023,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       if (rls.length) h += sel('wbHzRoll', 'Roll for everyone in it', 'Right-click it for Roll for everyone in it: each character standing here gets a card for this roll', rls.map(function(r) { return [r.id, r.label || 'A roll']; }), hz.roll);
       if (hz.roll) h += '<div class="field"><label for="wbHzIf">Only those where</label><input id="wbHzIf" class="field" maxlength="1000" value="' + esc(hz['if'] || '') + '" title="A test of each character, such as Droid = 1. Empty: everyone standing here" placeholder="Everyone here"></div>';
       h += sel('wbHzFollow', 'Follows', 'It moves with this token wherever it goes on this map', toks.map(function(t) { return [t.id, t.name || 'A token']; }), fol);
+      var dkL = Array.isArray(sys.dark) ? sys.dark : []; if (dkL.length) h += sel('wbHzDark', 'Darkness here', 'The cells it covers are at this step, whatever the map says. A light still lights them', dkL.map(function(d) { return [d.key, d.label || 'A step']; }), typeof w.darkStep === 'string' ? (dkL.filter(function(d) { return d.key.toLowerCase() === w.darkStep.toLowerCase(); })[0] || {}).key : null);   // 1.6.2
       if (w.fill) h += '<div class="field"><label for="wbHzSpread">Spreads</label><select id="wbHzSpread" title="Right-click it for Spread fire: it grows one cell outward"><option value="">Does not spread</option><option value="burns"' + (hz.spread === 'burns' ? ' selected' : '') + '>Onto cells that burn</option><option value="all"' + (hz.spread === 'all' ? ' selected' : '') + '>Everywhere</option></select></div>';
       h += '<div class="field check-row"><input type="checkbox" id="wbBurns"' + (w.burns === true ? ' checked' : '') + '> <label for="wbBurns" title="Fire set to spread onto cells that burn may spread onto the cells this covers">Burns</label></div>';
       return h;
@@ -2036,7 +2037,8 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       else if (k === 'Spread') { if (v === 'burns' || v === 'all') hz.spread = v; else delete hz.spread; }
       else if (k === 'Follow') { var map = getActiveMap(), toks = map && Array.isArray(map.whiteboard) ? map.whiteboard.filter(function(t) { return t && t.isChar && !t.waiting && typeof t.id === 'string' && t.id !== w.id; }) : [], t = pick(toks); if (t && C.cleanFollow(t.id)) w.follow = t.id; else delete w.follow; }
       else if (k === 'Burns') { if (v === true) w.burns = true; else delete w.burns; }
-      if (k !== 'Follow' && k !== 'Burns') { var cl = C.cleanHazard(hz); if (cl) w.hazard = cl; else delete w.hazard; }
+      else if (k === 'Dark') { var dk = pick(Array.isArray(sys.dark) ? sys.dark : []); if (dk) w.darkStep = dk.key; else delete w.darkStep; }   // 1.6.2: a shape's own darkness step
+      if (k !== 'Follow' && k !== 'Burns' && k !== 'Dark') { var cl = C.cleanHazard(hz); if (cl) w.hazard = cl; else delete w.hazard; }
       if (window.wpStepLog) window.wpStepLog('hazard v1', 'set', { what: k.toLowerCase() });
       save(); render(); renderInspector(); if (window.wpFog && window.wpFog.redraw) window.wpFog.redraw();
       if (k === 'Follow' && window.wpHazardFollow) window.wpHazardFollow();

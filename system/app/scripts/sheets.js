@@ -1033,7 +1033,8 @@ function rangeFor(c, mapId, map, tok, camp) {
     var cOf = function(t) { return t && typeof t.charId === 'string' && camp && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, t.charId) ? camp.chars[t.charId] : null; };   // 1.6.0: TargetSize, from the target's own character where this screen holds it (the host works a player's roll out from its own)
     var bdS = window.wpFog && typeof window.wpFog.bodiesOnLine === 'function' ? window.wpFog.bodiesOnLine(map, tok, w, typeof drop !== 'undefined' ? drop : null) : null;   // 1.6.2: a body in the way, never one this screen's player cannot see
     var rc = rangeCtx(systemOf(camp), map, tok, w, { F: F(), elev: !!tokenFlags().elevation, posture: !!tokenFlags().posture, groundOf: gOf, charOf: cOf, bodies: bdS }); if (rc) { rc.tid = w.id; rc.mapId = mapId; }   // R3: which target, for the GM's privacy check
-    if (rc && window.wpFog && typeof window.wpFog.targetLight === 'function') rc.light = window.wpFog.targetLight(map, w);   // 1.6.2 (the CORE session, 5a): TargetLight in any roll
+    if (rc && window.wpFog && typeof window.wpFog.targetLight === 'function') rc.light = window.wpFog.targetLight(map, w);
+    if (rc && window.wpFog && typeof window.wpFog.darkAt === 'function') { var dkA = window.wpFog.darkAt(map, camp, w); if (dkA) { rc.dk = dkA.i; rc.dkp = dkA.pen; } }   // 1.6.2: the darkness step at the target   // 1.6.2 (the CORE session, 5a): TargetLight in any roll
     if (rc && window.wpFog && typeof window.wpFog.coverGrade === 'function') { var cvN = window.wpFog.coverGrade(map, camp, tok, w, pc); if (cvN) { rc.cgrade = cvN; rc.cover = cvN === 3 ? 2 : 1; var cpN = typeof window.wpFog.coverPro === 'function' ? window.wpFog.coverPro(map, camp, tok, w) : 0; if (cpN) rc.cpro = cpN; } }   // 1.6.0: TargetCover and TargetCoverGrade, as the ruler reads it
     return rc;
 }
@@ -10996,7 +10997,7 @@ function combatBody() {
     tp('holds'); if (typeof holdsBox === 'function') holdsBox(box, cm); tp('range');   // 1.6.0 Who holds whom
     rangeBox(box, cm); tp('height');   // range penalties R1: the system's range rule
     heightBox(box, cm); tp('light');   // item 19 H2: the system's height modifier
-    lightBox(box, cm); tp('senses');   // lighting L4: the system's light rules
+    lightBox(box, cm); if (typeof darkBox === 'function') darkBox(box); tp('senses');   // lighting L4: the system's light rules; 1.6.2: and darkness steps
     sensesBox(box, cm); tp('damage');   // senses S2a: the system's senses
     damageBox(box, cm); tp('turns');   // 1.5.6: the damage step's rules, before the turns
     turnBox(box, cm); tp('initiative');   // turn-based combat T1: the system's turn rules
@@ -11908,6 +11909,24 @@ function arcsBox(box, cm) {
 // new kind's or factor's short name follows its name until the editor is closed, and stays after
 var MAPKIND_UNITS = [['yd', 'yards'], ['ft', 'feet'], ['m', 'metres'], ['km', 'kilometres'], ['mi', 'miles']];
 // 1.6.2 (the owner, by prompt: "The scene carries it"): the channels a scene may be in, each a name whose short name is made once from it
+// 1.6.2 (the CORE session's answer 7): darkness steps past lit, each a name and its penalty, lightest first
+function darkBox(box) {
+    var wrap = el('div', 'sys-holds sys-dark'), list = Array.isArray(draft.dark) ? draft.dark : null, SCk = window.wpSystemCore || {}, max = SCk.DARK_MAX || 8, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
+    var keyFor = function(a, lb) { var k = typeof SCk.arcKey === 'function' ? SCk.arcKey(lb) : '', base = k, n = 2; while (k && (list || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };
+    wrap.appendChild(el('div', 'sys-light-head', 'Darkness steps'));
+    wrap.appendChild(el('div', 'sys-note', 'Steps of darkness past lit, lightest first, each with its penalty. You set a map\u2019s step from its right-click menu, and a shape can set its own. A cell a light lights is lit. A roll reads the target\u2019s step as TargetDarkPen.'));
+    (list || []).forEach(function(s, i) {
+        var rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-dark-label field', s.label || '', 'Its name, such as A moonless night', 'Dark');
+        nm.addEventListener('input', function() { s.label = nm.value.slice(0, LIMITS.label); if (s._new || !s.key) s.key = keyFor(s, s.label); ch(); }); rw.appendChild(nm);
+        var pn = el('input', 'field sys-num sys-dark-pen'); pn.type = 'number'; pn.step = '1'; pn.value = typeof s.pen === 'number' ? String(s.pen) : '0'; pn.title = 'Its penalty, such as -2'; pn.addEventListener('input', function() { var v = Number(pn.value); s.pen = isFinite(v) ? Math.round(v) : 0; ch(); }); rw.appendChild(pn);
+        var rm = el('button', 'tool ghost sys-btn sys-dark-rm', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this step'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.dark; ch(true); }); rw.appendChild(rm);
+        wrap.appendChild(rw);
+    });
+    var add = el('button', 'tool ghost sys-btn sys-dark-add', '+ Step'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'A step of darkness, darker than the one before';
+    add.addEventListener('click', function() { if (!Array.isArray(draft.dark)) draft.dark = []; list = draft.dark; if (list.length >= max) return; list.push({ label: '', pen: 0, _new: true }); ch(true); setTimeout(function() { var nb = document.querySelectorAll('#systemModal .sys-dark-label'); if (nb.length) nb[nb.length - 1].focus(); }, 0); });
+    var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
+    box.appendChild(wrap);
+}
 function scenesBox(box) {
     var wrap = el('div', 'sys-holds sys-scenes'), list = Array.isArray(draft.scenes) ? draft.scenes : null, SCk = window.wpSystemCore || {}, max = SCk.SCENE_MAX || 8, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
     var keyFor = function(a, lb) { var k = typeof SCk.arcKey === 'function' ? SCk.arcKey(lb) : '', base = k, n = 2; while (k && (list || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };

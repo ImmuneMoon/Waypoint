@@ -2758,7 +2758,7 @@ function renderLayout() {
             pr.appendChild(el('span', 'sys-pl-name', text));
             if (pl.kind === 'heading') pr.appendChild(input('sys-pl-text field', pl.text, 'The heading\'s text', 'Heading text'));
             if (pl.kind === 'roller') { pr.appendChild(input('sys-pl-text field', pl.text, 'Its name on the roll\u2019s card (blank: Custom roll; the viewer can type their own)', 'Custom roll')); pr.appendChild(input('sys-pl-rformula field', pl.formula, 'The formula its box starts with (the viewer can change it)', '2d6 + 3')); }   // Stage 6 HUD H9
-            if (pl.kind === 'text') { var rta = el('textarea', 'sys-pl-rtext field'); rta.value = pl.text || ''; rta.rows = 4; rta.maxLength = LIMITS.ruleText; rta.placeholder = 'The rules, as plain text (line breaks kept)'; rta.title = 'Shown as written, up to ' + LIMITS.ruleText + ' characters; players see it too'; rta.spellcheck = true; pr.appendChild(rta); }   // Stage 6 HUD H11
+            if (pl.kind === 'text') { var rta = el('textarea', 'sys-pl-rtext field'); rta.value = pl.text || ''; rta.rows = 4; rta.maxLength = LIMITS.ruleText; rta.placeholder = 'The rules, as plain text. Line breaks are kept.'; rta.title = 'Shown as written, up to ' + LIMITS.ruleText + ' characters; players see it too'; rta.spellcheck = true; pr.appendChild(rta); }   // Stage 6 HUD H11
             if (pl.kind === 'pin') {   // Stage 6: which group it pins, and an optional label (blank = "Pin <group>")
                 pr.appendChild(select('sys-pl-group', grpList.map(function(g) { return [g.id, g.label || 'Group']; }), pl.g || '', 'The band group this button pins'));
                 var pgl = grpList.find(function(g) { return g.id === pl.g; }); pr.appendChild(input('sys-pl-text field', pl.text, 'The button\u2019s label (blank = \u201cPin\u201d and the group\u2019s name)', pgl ? 'Pin ' + (pgl.label || 'Group') : 'Label (optional)'));
@@ -4999,9 +4999,9 @@ function fxPillText(m, labels) { var nm = labels[m.f] || '?'; if (m.op === 'on')
 function effectForm(f, c, sys, onClose) {
     var form = el('div', 'sheet-fx-form');
     var st = _fxForm || { name: '', tone: '', dur: '', lines: null };
-    var nameI = el('input', 'field sheet-fx-fname'); nameI.type = 'text'; nameI.placeholder = 'Name (Blessed, Shaken\u2026)'; nameI.maxLength = 60; nameI.value = st.name || '';
+    var nameI = el('input', 'field sheet-fx-fname'); nameI.type = 'text'; nameI.placeholder = 'Name, such as Blessed'; nameI.maxLength = 60; nameI.value = st.name || '';
     var toneS = el('select', 'field sheet-fx-ftone'); [['', 'Neutral'], ['buff', 'Buff'], ['debuff', 'Debuff']].forEach(function(o) { toneS.appendChild(opt(o[0], o[1])); }); toneS.value = st.tone || '';
-    var durI = el('input', 'field sheet-fx-fdur'); durI.type = 'text'; durI.placeholder = 'Duration (3 rounds)'; durI.maxLength = 40; durI.value = st.dur || '';
+    var durI = el('input', 'field sheet-fx-fdur'); durI.type = 'text'; durI.placeholder = 'Duration, such as 3 rounds'; durI.maxLength = 40; durI.value = st.dur || '';
     var keep = function() { if (!_fxForm) return; _fxForm.name = nameI.value; _fxForm.tone = toneS.value; _fxForm.dur = durI.value; _fxForm.lines = Array.prototype.map.call(form.querySelectorAll('.sheet-fx-fline'), function(ln) { return [ln.querySelector('.sheet-fx-ftarget').value, ln.querySelector('.sheet-fx-famt').value]; }); };
     form.addEventListener('input', keep); form.addEventListener('change', keep);
     form.appendChild(nameI); form.appendChild(toneS); form.appendChild(durI);

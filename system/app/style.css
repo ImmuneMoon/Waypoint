@@ -4193,7 +4193,7 @@
   .sheet-item-sheetpic { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; flex: none; }
   .sheet-item-sheetname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sheet-item-sheetmenu { font-size: 11px; padding: 1px 6px; min-height: 0; }
-  .sheet-split { font-size: 11px; padding: 0 6px; }   /* 1.6.0, backlog 180 R11 */
+  .sheet-split, .sheet-pm.sheet-split { font-size: 11px; padding: 0 6px; }   /* 1.6.0, backlog 180 R11; the viewing of 2026-11-09: a word, so never the glyph size of the − and + it stands beside */
   .sheet-parts { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 2px 0 6px 18px; }   /* 1.6.0 R14: a row's parts, as pills under it */
   .sheet-part { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--edge); background: var(--panel2); border-radius: 12px; padding: 1px 4px 1px 9px; }
   .sheet-part .sheet-chip { margin-left: 0; }

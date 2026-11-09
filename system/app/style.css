@@ -71,6 +71,8 @@
     overflow:hidden;
   }
   .app{display:flex;flex-direction:column;height:100vh}
+  /* the viewing of 2026-11-09 (the owner, by prompt: "One font (Recommended)"): a button, a list and a text box take the app’s font, never the browser’s own Arial; any rule that names a font of its own still wins */
+  button, input, select, textarea { font-family: inherit; }
 
   /* ---- header / toolbar ---- */
   header{

@@ -1343,10 +1343,10 @@ function cleanBodyCover(v, F) { return F ? blastFormula(v, F, BODY_NAMES, false)
 function bodyCover(sys, to, opts) {
     var cv = isObj(sys) && isObj(sys.combat) && isObj(sys.combat.cover) ? sys.combat.cover : null;
     if (!cv || cv.on !== true || typeof cv.body !== 'string' || !cv.body || !isObj(opts) || !opts.F || typeof opts.F.evaluate !== 'function' || !Array.isArray(opts.bodies) || !opts.bodies.length) return null;
-    var ts = targetSizeOf(sys, to, opts), best = null;
+    var bf = isObj(sys.combat) && typeof sys.combat.bodySize === 'string' ? sys.combat.bodySize : '', ts = targetSizeOf(sys, to, opts, bf), best = null;   // 1.6.2: its own field where the Combat tab names one
     opts.bodies.slice(0, 40).forEach(function(b) {
         if (!isObj(b) || typeof b.id !== 'string') return;
-        var bs = targetSizeOf(sys, b, opts), r = null;
+        var bs = targetSizeOf(sys, b, opts, bf), r = null;
         try { r = opts.F.evaluate(cv.body, { vars: function(n) { var l = lower(n); return l === 'targetsize' ? ts : l === 'bodysize' ? bs : undefined; } }); } catch (e) { r = null; }
         var v = r && r.ok && typeof r.value === 'number' && fin(r.value) ? Math.max(0, Math.min(99, Math.floor(r.value))) : 0;
         if (v > 0 && (!best || v > best.n)) best = { n: v, tok: b.id };
@@ -3591,6 +3591,7 @@ function cleanCombat(c, resIds, fieldIds, secretIds, F, viewKinds, pl, fl) {   /
     var sn = cleanSenses(c.senses, fieldIds, secretIds, pl !== true, F); if (sn) out.senses = sn;   // senses S1: the system's senses (absent: none)
     var rg = cleanRangeRules(c.range, F); if (rg) out.range = rg;   // range penalties R1: the system's range rule (absent: none)
     if (c.targetSize !== undefined) { var tsz = senseField({ field: c.targetSize }, SENSE_RANGE_KINDS, fieldIds, secretIds); if (tsz) out.targetSize = tsz; }   // 1.6.0 (the v2 combat module): the field of a target's sheet TargetSize reads, a number its viewer can read truthfully, the same in both views
+    if (c.bodySize !== undefined) { var bsz = senseField({ field: c.bodySize }, SENSE_RANGE_KINDS, fieldIds, secretIds); if (bsz) out.bodySize = bsz; }   // 1.6.2 (asked by a campaign's build: a body in the way judged by steps where an attack reads doublings): the field A body in the way reads as TargetSize and BodySize, judged as targetSize is; absent, it reads targetSize
     if (Array.isArray(c.targetReads)) { var trd = []; c.targetReads.slice(0, TARGET_READS * 4).forEach(function(x) { if (trd.length >= TARGET_READS) return; var t1 = senseField({ field: x }, SENSE_RANGE_KINDS, fieldIds, secretIds); if (t1 && trd.indexOf(t1) < 0) trd.push(t1); }); if (trd.length) out.targetReads = trd; }   // 1.6.0: and the others a roll reads as Target.<key>, each judged the same way
     if (typeof c.targetHit === 'string' && FIELD_ID.test(c.targetHit) && isObj(fieldIds) && hasOwn(fieldIds, c.targetHit) && fieldIds[c.targetHit] === 'item-list') out.targetHit = c.targetHit;   // 1.6.0 (B5): the item list of a target's sheet whose rows are its hit locations, read as Target.Hit.<name>, the same in both views
     if (c.hideResist === true) out.hideResist = true;   // 1.6.2: Hide what a defence needs, true only, the same in both views
@@ -5218,7 +5219,7 @@ function cleanSystem(sys, opts) {
     if (effs.length) out.effects = effs;
     effs.forEach(function(d) { if (Array.isArray(d.end)) { d.end = d.end.filter(function(c) { return typeof c.fx !== 'string' || seenFx[c.fx] === 1; }); if (!d.end.length) delete d.end; } if (typeof d.endRoll === 'string' && rollIds[d.endRoll] !== 1) delete d.endRoll; if (d.endOff && !d.end && !d.endRoll) delete d.endOff; });   // 1.6.2: an effect's end switches an effect and asks a roll of this system
     out.items.concat(core).forEach(function(it) { var ar = it && it.area; if (!ar || !Array.isArray(ar.aff)) return; ar.aff = ar.aff.filter(function(a) { return seenFx[a.fx] === 1; }); if (!ar.aff.length) delete ar.aff; });   // 1.5.9 (es): an affliction whose effect this view does not hold goes (the GM's view alone holds any)
-    var gmF = isObj(sys.combat) && (sys.combat.senses !== undefined || sys.combat.targetSize !== undefined || sys.combat.targetReads !== undefined || sys.combat.targetHit !== undefined) ? gmViewFields(sys, F) : null, gmKinds = map(), secret = null;   // senses S1: judged on the fields as the GM's view has them, in both views (1.6.0: TargetSize's field too)
+    var gmF = isObj(sys.combat) && (sys.combat.senses !== undefined || sys.combat.targetSize !== undefined || sys.combat.bodySize !== undefined || sys.combat.targetReads !== undefined || sys.combat.targetHit !== undefined) ? gmViewFields(sys, F) : null, gmKinds = map(), secret = null;   // senses S1: judged on the fields as the GM's view has them, in both views (1.6.0: TargetSize's field too)
     if (gmF) { gmF.forEach(function(f) { gmKinds[f.id] = f.kind; }); secret = secretFieldIds({ fields: gmF, items: sys.items, core: sys.core, tables: sys.tables, values: sys.values, decks: sys.decks, effects: sys.effects }, F); }
     (isObj(sys.combat) && isObj(sys.combat.senses) && Array.isArray(sys.combat.senses.list) ? sys.combat.senses.list : []).forEach(function(s) { var t = isObj(s) && isObj(s.notice) && isObj(s.notice.stealth) ? s.notice.stealth.r : null; if (typeof t === 'string') out.rolls.forEach(function(r) { if (r.id === t) r.named = true; }); });   // 1.6.0
     if (gmView && isObj(sys.combat) && isObj(sys.combat.holds)) holdsNamed(sys.combat.holds, out.rolls, out.fields);   // 1.6.0 Who holds whom
@@ -9915,8 +9916,8 @@ function rangeCtx(sys, mp, from, to, opts) {
 // Combat tab names (combat.targetSize), worked out on the target's character as its sheet works it out; 0 with no such field, no character
 // behind the token (opts.charOf, the caller's own lookup: the host holds every character, a player's app only its own), or a value that is no
 // number. Held to within 1000 either way
-function targetSizeOf(sys, to, opts) {
-    var fid = sys && isObj(sys.combat) && typeof sys.combat.targetSize === 'string' ? sys.combat.targetSize : ''; if (!fid || !isObj(opts) || typeof opts.charOf !== 'function' || !opts.F) return 0;
+function targetSizeOf(sys, to, opts, own) {   // own (1.6.2): another field of the Combat tab's to read the same way, A body in the way's
+    var fid = typeof own === 'string' && own ? own : sys && isObj(sys.combat) && typeof sys.combat.targetSize === 'string' ? sys.combat.targetSize : ''; if (!fid || !isObj(opts) || typeof opts.charOf !== 'function' || !opts.F) return 0;
     var f = fieldById(sys, fid), tc = null; try { tc = opts.charOf(to); } catch (e) { tc = null; } if (!f || !isObj(tc)) return 0;
     var v = null; try { v = makeResolver(sys, tc, opts.F)(lower(f.key)); } catch (e) { v = null; }
     return typeof v === 'number' && fin(v) ? Math.max(-1000, Math.min(1000, v)) : 0;

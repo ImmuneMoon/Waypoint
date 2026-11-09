@@ -8895,6 +8895,10 @@ function refreshErrors() {
         if (!rKept) rErr.push({ message: 'Range: add a step, or Save drops the rule.' });
     }
     (draft.combat && Array.isArray(draft.combat.targetReads) ? draft.combat.targetReads : []).forEach(function(id, i) { var f0 = (draft.fields || []).find(function(f) { return f && f.id === id; }); if (i >= 6) { if (i === 6) rErr.push({ message: 'A roll also reads of its target: six at most, so Save drops the rest.' }); } else if (!f0 || ['number', 'formula', 'skill', 'resource'].indexOf(f0.kind) < 0) rErr.push({ message: 'A roll also reads of its target: "' + String(id).slice(0, 40) + '" is no number field, so Save drops it.' }); });   // 1.6.0
+    var bszE = draft.combat && typeof draft.combat.bodySize === 'string' ? draft.combat.bodySize : '';   // 1.6.2: A body in the way's own field, judged as Target size is
+    if (bszE) { var bszF = (draft.fields || []).find(function(f) { return f && f.id === bszE; }), bszSec = null; try { bszSec = typeof secretFieldIds === 'function' ? secretFieldIds({ fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables }, F()) : null; } catch (e) { bszSec = null; }
+        if (!bszF || ['number', 'formula', 'skill', 'resource'].indexOf(bszF.kind) < 0) rErr.push({ message: 'A body in the way reads: that field is gone or is no number, so Save drops it.' });
+        else if (bszSec && Object.prototype.hasOwnProperty.call(bszSec, bszE)) rErr.push({ message: 'A body in the way reads: players cannot read that field, or it is worked out from one they cannot, so Save drops it.' }); }
     var tszE = draft.combat && typeof draft.combat.targetSize === 'string' ? draft.combat.targetSize : '';   // 1.6.0: TargetSize's field, judged as the cleaner judges it (a number its viewer can read truthfully)
     if (tszE) {
         var tszF = (draft.fields || []).find(function(f) { return f && f.id === tszE; }), tszSec = null; try { tszSec = typeof secretFieldIds === 'function' ? secretFieldIds({ fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables }, F()) : null; } catch (e) { tszSec = null; }
@@ -12812,6 +12816,8 @@ function rangeBox(box, cm) {
         var szs = (draft.fields || []).filter(function(f) { return f && typeof f.id === 'string' && (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource'); }).map(function(f) { return [f.id, f.label || f.key || f.id]; });
         var cur = typeof cm.targetSize === 'string' ? cm.targetSize : '', ro = [['', 'None']].concat(szs); if (cur && !szs.some(function(o) { return o[0] === cur; })) ro.push([cur, 'One that is gone']);
         var rz = el('div', 'sys-flags sys-range-sizerow'); rz.appendChild(labeledSelect('sys-range-size', 'Target size reads', ro, cur, 'A number of the target\u2019s sheet that a roll can read, as it reads the distance. A field players cannot read Save drops.'));
+        var curB = typeof cm.bodySize === 'string' ? cm.bodySize : '', roB = [['', 'As Target size']].concat(szs); if (curB && !szs.some(function(o) { return o[0] === curB; })) roB.push([curB, 'One that is gone']);   // 1.6.2: the size A body in the way judges by, where it is not the one an attack reads
+        rz.appendChild(labeledSelect('sys-range-bodysize', 'A body in the way reads', roB, curB, 'The number of each sheet that A body in the way reads as TargetSize and BodySize, such as a size in steps where an attack reads doublings. As Target size: the same field. A field players cannot read Save drops.'));
         wrap.appendChild(rz);
         var rdW = el('div', 'sys-flags sys-range-readsrow'), rdL = el('label', 'sys-combat-item'); rdL.appendChild(el('span', 'sys-num-cap', 'A roll also reads of its target'));
         var rdI = input('sys-targetreads field', (Array.isArray(cm.targetReads) ? cm.targetReads : []).map(function(id) { var f0 = (draft.fields || []).find(function(f) { return f && f.id === id; }); return f0 ? f0.key : id; }).join(', '), 'The short names of up to 6 number fields of the target\u2019s sheet, separated by commas. A field players cannot read Save drops.', 'Maneuver');
@@ -12885,6 +12891,7 @@ function onRangeInput(t) {
 }
 function onRangeChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-range-') < 0) return false;
+    if (c.indexOf('sys-range-bodysize') >= 0) { var cmB = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); if (typeof t.value === 'string' && t.value) cmB.bodySize = t.value; else delete cmB.bodySize; markDirty(); patchErrors(); return true; }   // 1.6.2
     if (c.indexOf('sys-range-size') >= 0) { var cmZ = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); if (typeof t.value === 'string' && t.value) cmZ.targetSize = t.value; else delete cmZ.targetSize; markDirty(); patchErrors(); return true; }   // 1.6.0: TargetSize's field
     if (c.indexOf('sys-range-hit') >= 0) { var cmH = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); if (typeof t.value === 'string' && t.value) cmH.targetHit = t.value; else delete cmH.targetHit; markDirty(); patchErrors(); return true; }   // 1.6.0 (B5): the list of hit locations
     if (c.indexOf('sys-range-by') < 0 && c.indexOf('sys-range-unit') < 0) return true;   // the boxes' change events (their input events did the work)

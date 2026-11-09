@@ -96,6 +96,9 @@ The System editor
   plan holds, so a player never sees the GM's screens for a moment.
 - Formulas have log(x, base), so a size can be worked out from a height by
   doublings, and the form builder offers it as a step.
+- A body in the way can judge size by a field of its own, so cover can count
+  steps while an attack counts doublings.
+- The Multiplayer window has Open stream window too.
 - An effect's bonus can say it doesn't stack with others of its kind, so two
   stims that raise the same thing give the larger, never the sum.
 - Laid from can go by category: a part of quantity 2 lays a right and a left

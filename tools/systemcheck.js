@@ -22142,6 +22142,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && S.bodyCover(Object.assign({}, sB, { combat: Object.assign({}, sB.combat, { cover: { on: false, style: 'graded', body: fBody } }) }), tokB('c_t'), oB(['c_big'])) === null
                 && rcB.body === 4 && rcB.bodyTok === 't_c_big' && rB('BC') === 4 && rB.bodyRead() === true && /body in the way/.test(S.nameWord(sB, 'TargetBodyCover')), j([sB.combat.cover, bc(['c_one']), rcB]));
         }
+        {   // 1.6.2 A body in the way reads (asked by a campaign's build: an attack reads doublings, a body in the way steps), on invented data
+            const fSt = 'if(BodySize >= TargetSize - 1, 4, if(BodySize >= TargetSize - 4, 2, 0))';
+            const sS = cleanSystem({ v: 1, name: 'N', fields: [{ id: 'f_dbl', key: 'Doublings', label: 'Doublings', kind: 'number' }, { id: 'f_st', key: 'Steps', label: 'Steps', kind: 'number' }, { id: 'f_gm', key: 'Hid', label: 'Hid', kind: 'number', vis: 'gm' }], rolls: [], combat: { targetSize: 'f_dbl', bodySize: 'f_st', cover: { on: true, style: 'graded', body: fSt } } }, { F, gmView: true });
+            const sSp = cleanSystem(sS, { F, gmView: false }), gone = cleanSystem({ v: 1, name: 'N', fields: [{ id: 'f_gm', key: 'Hid', label: 'Hid', kind: 'number', vis: 'gm' }], rolls: [], combat: { bodySize: 'f_gm' } }, { F, gmView: true });
+            const chS = { c_t: { id: 'c_t', values: { f_dbl: 0, f_st: 0 } }, c_a: { id: 'c_a', values: { f_dbl: 0, f_st: -3 } }, c_b: { id: 'c_b', values: { f_dbl: 0, f_st: -6 } } };
+            const tokS = id => ({ id: 't_' + id, charId: id, x: 0, y: 0, w: 60, h: 52 }), oS = bodies => ({ F, charOf: t => chS[t.charId] || null, bodies: bodies.map(tokS) });
+            const noOwn = Object.assign({}, sS, { combat: Object.assign({}, sS.combat) }); delete noOwn.combat.bodySize;
+            check('1.6.2 A body in the way reads its own field where the Combat tab names one, kept as Target size is in both views and dropped where players cannot read it; a body three steps smaller hides 2 and six steps smaller nothing, where the same bodies by doublings (all 0) would each hide 4; with none it reads Target size as before',
+                sS.combat.bodySize === 'f_st' && sSp.combat.bodySize === 'f_st' && !('bodySize' in (gone.combat || {})) && j(S.bodyCover(sS, tokS('c_t'), oS(['c_a']))) === j({ n: 2, tok: 't_c_a' }) && S.bodyCover(sS, tokS('c_t'), oS(['c_b'])) === null
+                && j(S.bodyCover(noOwn, tokS('c_t'), oS(['c_b']))) === j({ n: 4, tok: 't_c_b' }), j([sS.combat, S.bodyCover(sS, tokS('c_t'), oS(['c_a'])), gone.combat]));
+        }
         {   // 1.6.2: TargetCoverPro, the Protection of the cover on the line, rides with the range as TargetCoverGrade does
             const sPr = cleanSystem({ v: 1, name: 'N', fields: [{ id: 'f_pro', key: 'Pro', label: 'Pro', kind: 'formula', formula: 'TargetCoverPro' }], rolls: [] }, { F, gmView: true }), cPr = { id: 'c_p', name: 'Kael', values: {} };
             const withPr = makeResolver(sPr, cPr, F, S.withRange({ facing: 0 }, { mod: 0, dist: 3, cgrade: 1, cover: 1, cpro: 4 })), noPr = makeResolver(sPr, cPr, F, S.withRange({ facing: 0 }, { mod: 0, dist: 3, cgrade: 1, cover: 1 })), noRg = makeResolver(sPr, cPr, F);

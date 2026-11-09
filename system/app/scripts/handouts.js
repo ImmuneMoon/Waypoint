@@ -876,6 +876,8 @@ function journalFilter() {
         sec.classList.toggle('as-tab', sec === sc.pers && !every);
         sec.style.display = sc.shown(sec) && (any || sec === sc.at) ? '' : 'none';   // the journal shown keeps its head and its tabs when a search finds nothing in it
     });
+    var clrF = ui('journalClearBtn'), secF = sc.pers || sc.at, nF = secF ? secF.querySelectorAll('.journal-entry').length : 0;   // the viewing of 2026-11-09: Clear journal greys out where the journal shown holds nothing, with its reason
+    if (clrF) { clrF.disabled = !nF; clrF.title = nF ? 'Empty the journal shown on this computer. It asks first. Senders keep their copies.' : 'Nothing in this journal to clear'; }
 }
 // [sinkcheck:journalfilter-end]
 var _jSearch = ui('journalSearch');

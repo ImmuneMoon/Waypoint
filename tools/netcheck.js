@@ -12573,6 +12573,11 @@ pendingChecks.push((async () => {
     const rN2 = runN({ type: 'clock', campId: 'k_1', clock: { t: 90, notes: 'x' } });
     check('item 20 K3 a player\'s app keeps the notes a host sends (the clockmsg branch, run for real) as cleaned text in day order — an id of the pattern, a whole day, its text one line — never a vis or anything else; notes that are no list are none',
         j(rN) === j({ t: 90, notes: [{ id: 'n_dddddddd', day: 1, text: '<img src=x onerror=alert(1)>' }, { id: 'n_bbbbbbbb', day: 2, text: 'Market day' }] }) && j(rN2) === j({ t: 90 }), j([rN, rN2]));
+    const campE = { id: 'k_1', vtt: { cal: true }, clock: { t: 60, cal: 1, notes: [{ id: 'n_eeeeeeee', day: 5, text: 'Fair', vis: 'all', yearly: true }], eras: [{ id: 'e_aaaaaaaa', name: 'Secret age', from: 1, color: '#112233' }, { id: 'e_bbbbbbbb', name: 'Age of Ash', from: 2, to: 9, color: '#AABBCC', vis: 'all' }] } };
+    const oE = clockOutN(campE), rE = runN({ type: 'clock', campId: 'k_1', clock: Object.assign({}, oE, { eras: oE.eras.concat([{ id: 'e_cccccccc', name: 'Hostile', from: 1, color: 'url(x)', vis: 'all', x: 1 }]) }) });
+    check('166 b a yearly note and the eras players may see on the wire (clockOut and the clockmsg branch, run for real): the note keeps yearly; only an era shown to players is sent, as its id, name, years and colour, never its vis; a player\'s app keeps them cleaned again (a colour that is no #rrggbb the gold, no vis, nothing else) and the calendar the top row shows',
+        j(oE) === j({ t: 60, notes: [{ id: 'n_eeeeeeee', day: 5, text: 'Fair', yearly: true }], eras: [{ id: 'e_bbbbbbbb', name: 'Age of Ash', from: 2, to: 9, color: '#aabbcc' }], cal: 1 }) && !/Secret/.test(j(oE))
+        && j(rE) === j({ t: 60, notes: [{ id: 'n_eeeeeeee', day: 5, text: 'Fair', yearly: true }], eras: [{ id: 'e_bbbbbbbb', name: 'Age of Ash', from: 2, to: 9, color: '#aabbcc' }, { id: 'e_cccccccc', name: 'Hostile', from: 1, color: '#c9a227' }], cal: 1 }), j([oE, rE]));
 })());
 // 205 follow-up (3): an upkeep paid by the clock (net.rowSpans with the real systemcore) is said through net.timeCard, both run for real: the GM's
 // whole line and its player's the rows they may see, with no figure that would tell of one they may not; an NPC's to the GM alone

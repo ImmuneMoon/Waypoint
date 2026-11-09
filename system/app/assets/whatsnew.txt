@@ -771,6 +771,12 @@ Writing planners and pages
   with + Another calendar on the Calendar tab and say where its count stands
   on day 1. The Calendar window shows the day in each, and The top row shows
   picks the one the top row uses, for you and your players.
+- A dated note can come back every year. Tick Every year on a birthday or a
+  festival and it shows on that day each year, in Coming up and in the
+  reminders. A leap-day note waits for the next leap year.
+- Eras name spans of years, such as the Age of Ash or a long war. Set them at
+  the foot of the Calendar window with a name, the years and a colour. The
+  date shows its era, and the Timeline heads each era's notes with it.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

@@ -8,7 +8,7 @@
 import { getActiveCampaign } from './models.js';
 import { save, saveView, toast } from './io.js';
 import { roundSecs, needsHeld, chainsShallow, setDateSource } from './systemcore.js';
-import { viewCal, calNamesOf, fmtIn, fmtDateIn, cleanCalendar, cleanClock, cleanAcc, ruleFires, everySecs, fightSecs, livedSpans, freshAcc, tCmp, tSpanMs, dateOf, timeOf, periodDays, dayLength, fmtDate, fmtWhen, fmtSpan, CAL_LIMITS, moonPhases, seasonOf, PHASES } from './calendarcore.js';
+import { cleanEras, eraOf, noteNext, noteOn, viewCal, calNamesOf, fmtIn, fmtDateIn, cleanCalendar, cleanClock, cleanAcc, ruleFires, everySecs, fightSecs, livedSpans, freshAcc, tCmp, tSpanMs, dateOf, timeOf, periodDays, dayLength, fmtDate, fmtWhen, fmtSpan, CAL_LIMITS, moonPhases, seasonOf, PHASES } from './calendarcore.js';
 
 function net() { return window.wpNet || null; }
 function sysNow() { var sh = window.wpSheets; return sh && sh.systemOf ? sh.systemOf() : null; }
@@ -61,6 +61,7 @@ function gridOf(cal, v, t, pk, nd) {
         out.title = cc.periods[v.period].name + ', ' + dd.year + (cc.era ? ' ' + cc.era : '');
     }
     if (wk.length) { out.cols = wk.length; out.heads = wk.slice(); for (var i = dateOf(cc, d0 * dl).weekday; i > 0; i--) out.cells.push(null); }
+    if (typeof nd === 'function') nd = nd(d0, len);   // 1.6.2 (backlog 166 b): the notes of the days in view, yearly ones on each day they fall on
     for (var k = 0; k < len; k++) { var c = { day: d0 + k, n: typeof v.page === 'number' ? d0 + k + 1 : k + 1 }; if (d0 + k === today) c.today = true; if (d0 + k === pk) c.picked = true; if (nd && nd[d0 + k]) c.notes = nd[d0 + k]; if ((cc.moons || []).length) c.moons = moonPhases(cc, (d0 + k) * dl); out.cells.push(c); }   // 1.6.2 (backlog 147): each moon's phase that day
     return out;
 }
@@ -83,10 +84,13 @@ function unitsOf(cal, sys) {
 // Item 20 K3: the clock's dated notes (in day order: cleanClock keeps them so), how many each day holds, the next ones, a new note's id,
 // and the notes a move of the clock reaches: those whose day it steps into, forward only (moving back and on again reaches them again)
 function notesOf(ck) { return ck && Array.isArray(ck.notes) ? ck.notes : []; }
-function noteDays(notes) { var m = Object.create(null); notes.forEach(function(n) { m[n.day] = (m[n.day] || 0) + 1; }); return m; }
+function noteDays(notes, cal, d0, d1) { var m = Object.create(null), yr = typeof d0 === 'number' && typeof d1 === 'number'; notes.forEach(function(n) {   // 1.6.2 (backlog 166 b): with a range, a yearly note on each day it falls on there
+    if (!yr || n.yearly !== true) { m[n.day] = (m[n.day] || 0) + 1; return; }
+    for (var D = noteNext(cal, n, d0), k = 0; D >= 0 && D <= d1 && k < 400; D = noteNext(cal, n, D + 1), k++) m[D] = (m[D] || 0) + 1;
+}); return m; }
 function newNoteId() { var s = ''; while (s.length < 8) s += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(Math.random() * 36)); return 'n_' + s; }
-function notesReached(notes, t0, t1, dl) { if (!(t1 > t0) || !(dl > 0)) return []; var d0 = Math.floor(t0 / dl), d1 = Math.floor(t1 / dl); return notes.filter(function(n) { return n.day > d0 && n.day <= d1; }); }
-function winBaseOf(camp, ck, cal) { return camp.id + '|' + (ck.hide ? 1 : 0) + '|' + (liveHold(ck) ? 1 : 0) + '|' + liveRate(ck) + '|' + (isPlayer() ? '' : liveHeld(camp)) + '|' + (pend ? 1 : 0) + '|' + JSON.stringify(notesOf(ck)) + '|' + JSON.stringify(cleanCalendar(cal)); }   // all the window shows but the time of day
+function notesReached(notes, t0, t1, dl, cal) { if (!(t1 > t0) || !(dl > 0)) return []; var d0 = Math.floor(t0 / dl), d1 = Math.floor(t1 / dl); return notes.filter(function(n) { if (n.yearly === true && cal) { var D = noteNext(cal, n, d0 + 1); return D > d0 && D <= d1; } return n.day > d0 && n.day <= d1; }); }   // 1.6.2 (backlog 166 b): a yearly note on any day it falls on
+function winBaseOf(camp, ck, cal) { return camp.id + '|' + (ck.hide ? 1 : 0) + '|' + (liveHold(ck) ? 1 : 0) + '|' + liveRate(ck) + '|' + (isPlayer() ? '' : liveHeld(camp)) + '|' + (pend ? 1 : 0) + '|' + JSON.stringify(notesOf(ck)) + '|' + JSON.stringify(ck.eras || null) + '|' + JSON.stringify(cleanCalendar(cal)); }   // all the window shows but the time of day
 function winSigOf(camp, ck, cal) { return winBaseOf(camp, ck, cal) + '|' + ck.t; }
 // Item 20 K5 (the owner's answers of 2026-09-30): the time rules — rolls and apply actions that also run every so often by this clock. Rest adds
 // up per character and rule, activity breaks it (calendarcore ruleFires); the steps and any amount run them as Rest or Active, a Set forward
@@ -560,26 +564,29 @@ function pendDone(apply) {
     renderWin(); refresh(); return true;
 }
 function comingUp(body, cal, notes, today, gm) {   // the next five notes from today on (a player's app holds only those it may see)
-    var next = notes.filter(function(n) { return n.day >= today; }).slice(0, 5); if (!next.length) return;
+    var next = notes.map(function(n, i) { return { n: n, d: noteNext(cal, n, today), i: i }; }).filter(function(x) { return x.d >= 0; }).sort(function(a, b) { return a.d - b.d || a.i - b.i; }).slice(0, 5); if (!next.length) return;   // 1.6.2 (backlog 166 b): a yearly note by the next day it falls on
     var box = cel('div', 'cal-coming'); box.appendChild(cel('div', 'sys-num-cap', 'Coming up'));
-    next.forEach(function(n) {   // the date on a line of its own, and a long note held to two lines with its whole words on the tooltip (the owner: "the text below the calendar for events needs a better layout")
+    next.forEach(function(x) { var n = x.n;   // the date on a line of its own, and a long note held to two lines with its whole words on the tooltip (the owner: "the text below the calendar for events needs a better layout")
         var row = cel('div', 'cal-coming-row'), txt = cel('span', 'cal-coming-txt', n.text); txt.title = n.text;
-        row.appendChild(cel('span', 'cal-coming-date', fmtDate(cal, n.day * dayLength(cal)) + ': ')); row.appendChild(txt);
+        row.appendChild(cel('span', 'cal-coming-date', fmtDate(cal, x.d * dayLength(cal)) + (n.yearly === true ? ', every year' : '') + ': ')); row.appendChild(txt);
         if (gm && n.vis !== 'all') row.appendChild(cel('span', 'cal-coming-only', ' (you only)'));
         box.appendChild(row);
     });
     body.appendChild(box);
 }
 function dayNotes(body, cal, notes, day, gm) {   // the picked day's notes: the GM's to add, show to players or remove; a player's to read
-    var box = cel('div', 'cal-notes'), mine = notes.filter(function(n) { return n.day === day; });
+    var box = cel('div', 'cal-notes'), mine = notes.filter(function(n) { return n.day === day || (n.yearly === true && noteOn(cal, n, day)); });   // 1.6.2 (backlog 166 b): a yearly note on each day it falls on
     box.appendChild(cel('div', 'sys-num-cap', 'Notes on ' + fmtDate(cal, day * dayLength(cal))));
     if (!mine.length && !gm) box.appendChild(cel('div', 'sys-note', 'No notes on this day.'));
     mine.forEach(function(n) {
         var row = cel('div', 'cal-note'); row.dataset.note = n.id; row.appendChild(cel('span', 'cal-note-txt', n.text));
+        if (n.yearly === true && n.day !== day) row.appendChild(cel('span', 'cal-note-real', 'Every year since ' + fmtDate(cal, n.day * dayLength(cal))));
         if (gm && realWords(n.at)) row.appendChild(cel('span', 'cal-note-real', 'Written ' + realWords(n.at)));   // 1.6.2: the real date, the GM's alone
         if (gm) {
             var l = cel('label', 'cal-tick'), c = cel('input', 'cal-note-vis'); c.type = 'checkbox'; c.checked = n.vis === 'all'; c.dataset.note = n.id; c.title = 'Players see this note on the calendar';
             l.appendChild(c); l.appendChild(document.createTextNode(' Players see it')); row.appendChild(l);
+            var ly = cel('label', 'cal-tick'), cy = cel('input', 'cal-note-yearly'); cy.type = 'checkbox'; cy.checked = n.yearly === true; cy.dataset.note = n.id; cy.title = 'This note comes back on the same day every year';
+            ly.appendChild(cy); ly.appendChild(document.createTextNode(' Every year')); row.appendChild(ly);
             var x = cbtn('cal-note-del', '\u00d7', 'Remove this note', 'calnotedel'); x.dataset.note = n.id; row.appendChild(x);
         }
         box.appendChild(row);
@@ -587,6 +594,7 @@ function dayNotes(body, cal, notes, day, gm) {   // the picked day's notes: the 
     if (gm) {
         var add = cel('div', 'cal-note-add'), inp = cel('input', 'field cal-note-new'); inp.type = 'text'; inp.maxLength = CAL_LIMITS.noteChars; inp.placeholder = 'A note for this day'; inp.title = 'A deadline, a festival, an event: you are reminded when the clock reaches this day'; add.appendChild(inp);
         var l2 = cel('label', 'cal-tick'), c2 = cel('input', 'cal-note-newvis'); c2.type = 'checkbox'; c2.title = 'Players see this note on the calendar'; l2.appendChild(c2); l2.appendChild(document.createTextNode(' Players see it')); add.appendChild(l2);
+        var l3 = cel('label', 'cal-tick'), c3 = cel('input', 'cal-note-newyearly'); c3.type = 'checkbox'; c3.title = 'A festival or a birthday: the note comes back on the same day every year'; l3.appendChild(c3); l3.appendChild(document.createTextNode(' Every year')); add.appendChild(l3);
         add.appendChild(cbtn('cal-note-go', 'Add a note', 'Add this note to the day', 'caladdnote'));
         box.appendChild(add);
     }
@@ -618,15 +626,17 @@ var calTab = 'month';   // the window's two tabs: the month grid, or the timelin
 // The real moment a note was written, in this computer's own words, the GM's alone
 function realWords(at) { if (!(typeof at === 'number' && at > 0)) return ''; try { return new Date(at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); } catch (e) { return ''; } }
 // The timeline: every dated note in date order, today marked between the past and what is coming, the past dimmed. A press opens its day
-function timeline(body, cal, notes, today, gm) {
-    var box = cel('div', 'cal-tl'), dl = dayLength(cal), marked = false;
+function timeline(body, cal, notes, today, gm, eras) {
+    var box = cel('div', 'cal-tl'), dl = dayLength(cal), marked = false, lastEra = '';
     if (!notes.length) { box.appendChild(cel('div', 'sys-note', gm ? 'No dated notes yet. Pick a day on the month and add one.' : 'No dated notes you can see.')); body.appendChild(box); return; }
     var mark = function() { if (marked) return; marked = true; box.appendChild(cel('div', 'cal-tl-today', 'Today, ' + fmtDate(cal, today * dl))); };
     notes.forEach(function(n) {
         if (n.day >= today) mark();
+        var en = eras && typeof eraOf === 'function' ? eraOf(cal, eras, dateOf(cal, n.day * dl).year) : null; if (en && en.id !== lastEra) box.appendChild(eraTag(en, 'cal-tl-era')); lastEra = en ? en.id : '';   // 1.6.2 (backlog 166 b)
         var row = cbtn('cal-tl-row' + (n.day < today ? ' cal-tl-past' : '') + (n.day === today ? ' cal-tl-now' : ''), '', 'Open this day on the month', 'caltlday'); row.dataset.day = String(n.day);
         row.appendChild(cel('span', 'cal-tl-date', fmtDate(cal, n.day * dl)));
         row.appendChild(cel('span', 'cal-tl-txt', n.text));
+        if (n.yearly === true) row.appendChild(cel('span', 'cal-tl-meta', 'Every year'));
         if (gm) { var rw = realWords(n.at), meta = (n.vis === 'all' ? '' : 'You only') + (rw ? (n.vis === 'all' ? '' : '. ') + 'Written ' + rw : ''); if (meta) row.appendChild(cel('span', 'cal-tl-meta', meta)); }
         box.appendChild(row);
     });
@@ -634,6 +644,54 @@ function timeline(body, cal, notes, today, gm) {
     body.appendChild(box);
 }
 // [calendarcheck:sky-end]
+// [calendarcheck:eras-start]
+// 1.6.2 (backlog 166 b): an era's name with its colour beside it; the colour is cleanEras' #rrggbb alone
+function eraTag(e, cls) { var s = cel('span', 'cal-era' + (cls ? ' ' + cls : '')), dot = cel('span', 'cal-era-dot'); dot.style.background = /^#[0-9a-f]{6}$/.test(e.color) ? e.color : '#c9a227'; s.appendChild(dot); s.appendChild(document.createTextNode(e.name)); s.title = e.name + (typeof e.to === 'number' ? ', ' + e.from + ' to ' + e.to : ', from ' + e.from); return s; }
+// The GM's eras: a row each to name it, its years, its colour and whether players see it, then a row to add one
+function erasBox(body, cal, eras) {
+    var box = cel('div', 'cal-eras'); box.appendChild(cel('div', 'sys-num-cap', 'Eras'));
+    if (!(cleanCalendar(cal) || {}).periods) { box.appendChild(cel('div', 'sys-note', 'Eras need a calendar with years.')); body.appendChild(box); return; }
+    var num = function(cls, v, tip, ph) { var n = cel('input', 'field ' + cls); n.type = 'number'; n.step = '1'; if (typeof v === 'number') n.value = String(v); n.title = tip; if (ph) n.placeholder = ph; return n; };
+    (eras || []).forEach(function(e) {
+        var row = cel('div', 'cal-era-row'); row.dataset.era = e.id;
+        var nm = cel('input', 'field cal-era-name'); nm.type = 'text'; nm.maxLength = CAL_LIMITS.name; nm.value = e.name; nm.title = 'The era\u2019s name'; nm.dataset.era = e.id; row.appendChild(nm);
+        var f = num('cal-era-from', e.from, 'The year it begins'); f.dataset.era = e.id; row.appendChild(f); row.appendChild(cel('span', 'cal-colon', 'to'));
+        var t = num('cal-era-to', e.to, 'The year it ends. Empty: it goes on', 'Goes on'); t.dataset.era = e.id; row.appendChild(t);
+        var c = cel('input', 'cal-era-color'); c.type = 'color'; c.value = e.color; c.title = 'Its colour'; c.dataset.era = e.id; row.appendChild(c);
+        var l = cel('label', 'cal-tick'), v = cel('input', 'cal-era-vis'); v.type = 'checkbox'; v.checked = e.vis === 'all'; v.dataset.era = e.id; v.title = 'Players see this era beside the date'; l.appendChild(v); l.appendChild(document.createTextNode(' Players see it')); row.appendChild(l);
+        var x = cbtn('cal-era-del', '\u00d7', 'Remove this era', 'caleradel'); x.dataset.era = e.id; row.appendChild(x);
+        box.appendChild(row);
+    });
+    var add = cel('div', 'cal-era-row cal-era-add'), an = cel('input', 'field cal-era-newname'); an.type = 'text'; an.maxLength = CAL_LIMITS.name; an.placeholder = 'A new era'; an.title = 'A named span of years, shown beside the date'; add.appendChild(an);
+    add.appendChild(num('cal-era-newfrom', null, 'The year it begins', 'From')); add.appendChild(cel('span', 'cal-colon', 'to')); add.appendChild(num('cal-era-newto', null, 'The year it ends. Empty: it goes on', 'Goes on'));
+    add.appendChild(cbtn('cal-era-go', 'Add an era', 'Add this era', 'caleraadd'));
+    box.appendChild(add); body.appendChild(box);
+}
+function editEras(fn) {
+    var camp = getActiveCampaign(); if (!camp || isPlayer()) return false;
+    var ck = clockOf(camp) || { t: 0 }, list = (ck.eras || []).map(function(e) { return Object.assign({}, e); }); if (fn(list) === false) return false;
+    camp.clock = cleanClock(Object.assign({}, ck, { eras: list })) || { t: ck.t };
+    save(); refresh(); return true;
+}
+function newEraId() { var a = 'abcdefghijklmnopqrstuvwxyz0123456789', s = 'e_'; for (var i = 0; i < 8; i++) s += a[Math.floor(Math.random() * a.length)]; return s; }
+function addEra(name, from, to) {
+    var nm = typeof name === 'string' ? name.trim() : ''; if (!nm) { toast('Type the era\u2019s name first.'); return false; }
+    if (!(typeof from === 'number' && isFinite(from) && Math.floor(from) === from)) { toast('Type the year it begins.'); return false; }
+    return editEras(function(list) { if (list.length >= CAL_LIMITS.eras) { toast('At most ' + CAL_LIMITS.eras + ' eras.'); return false; } var e = { id: newEraId(), name: nm, from: from }; if (typeof to === 'number' && isFinite(to) && Math.floor(to) === to) e.to = to; list.push(e); });
+}
+function eraSet(id, key, val) {
+    return editEras(function(list) {
+        var e = list.filter(function(x) { return x.id === id; })[0]; if (!e) return false;
+        if (key === 'name') { var nm = typeof val === 'string' ? val.trim() : ''; if (!nm) { toast('An era needs a name.'); return false; } e.name = nm; }
+        else if (key === 'from') { if (!(typeof val === 'number' && isFinite(val) && Math.floor(val) === val)) { toast('Type the year it begins.'); return false; } e.from = val; }
+        else if (key === 'to') { if (val === null) delete e.to; else if (typeof val === 'number' && isFinite(val) && Math.floor(val) === val) e.to = val; else return false; }
+        else if (key === 'color') e.color = val;
+        else if (key === 'vis') { if (val === true) e.vis = 'all'; else delete e.vis; }
+        else if (key === 'del') { list.splice(list.indexOf(e), 1); }
+        else return false;
+    });
+}
+// [calendarcheck:eras-end]
 function renderWin() {
     var body = document.getElementById('calendarBody'), camp = getActiveCampaign(); if (!body) return;
     if (!shown(camp)) { closeWin(); return; }
@@ -643,18 +701,18 @@ function renderWin() {
     if (!view) view = viewOf(cal, t);
     winSig = winSigOf(camp, ck, cal); winBase = winBaseOf(camp, ck, cal); winDay = Math.floor(t / dl);
     body.textContent = '';
-    body.appendChild(cel('div', 'cal-now', fmtWhen(cal, t, now.s !== 0)));
+    var nowL = cel('div', 'cal-now', fmtWhen(cal, t, now.s !== 0)), eraN = eraOf(cal, ck.eras, now.year); if (eraN) { nowL.appendChild(document.createTextNode(' ')); nowL.appendChild(eraTag(eraN)); } body.appendChild(nowL);   // 1.6.2 (backlog 166 b): the era the date falls in
     otherCals(body, cal, ck, t, gm);   // 1.6.2 (backlog 60): the same day in each other calendar
     var sky = skyWords(cal, t); if (sky) body.appendChild(cel('div', 'cal-sky', sky));   // 1.6.2 (backlog 147): the season and each moon's phase
     if (gm && pend) pendPanel(body, cal);   // K5: what the time rules have due, first
     if (gm) liveRow(body, camp, ck);   // 1.5.4: the clock runs by itself, or is held
-    var notes = notesOf(ck), g = gridOf(cal, view, t, pick, noteDays(notes)), nav = cel('div', 'cal-nav');
+    var notes = notesOf(ck), g = gridOf(cal, view, t, pick, function(d0, len) { return noteDays(notes, cal, d0, d0 + len - 1); }), nav = cel('div', 'cal-nav');
     var tabs = cel('div', 'cal-tabs'); tabs.role = 'tablist';   // 1.6.2 (backlog 147): Month and Timeline
     [['month', 'Month', 'The month as a grid of days'], ['timeline', 'Timeline', 'Every dated note in date order']].forEach(function(tb) { var b = cbtn('cal-tab' + (calTab === tb[0] ? ' cal-tab-on' : ''), tb[1], tb[2], 'caltab'); b.dataset.tab = tb[0]; b.role = 'tab'; b.ariaSelected = calTab === tb[0] ? 'true' : 'false'; tabs.appendChild(b); });
     body.appendChild(tabs);
-    if (calTab === 'timeline') timeline(body, cal, notes, now.day, gm);
+    if (calTab === 'timeline') timeline(body, cal, notes, now.day, gm, ck.eras);
     else {
-    nav.appendChild(cbtn('cal-prev', '\u25c0', 'The period before', 'calprev')); nav.appendChild(cel('span', 'cal-title', g.title)); nav.appendChild(cbtn('cal-next', '\u25b6', 'The period after', 'calnext'));
+    nav.appendChild(cbtn('cal-prev', '\u25c0', 'The period before', 'calprev')); var ttl = cel('span', 'cal-title', g.title), vEra = view && typeof view.yi === 'number' ? eraOf(cal, ck.eras, dateOf(cal, (timeOf(cal, { yi: view.yi, period: view.period, pday: 1 }) || 0)).year) : null; if (vEra) { ttl.appendChild(document.createTextNode(' ')); ttl.appendChild(eraTag(vEra)); } nav.appendChild(ttl); nav.appendChild(cbtn('cal-next', '\u25b6', 'The period after', 'calnext'));
     nav.appendChild(cbtn('cal-back', 'Today', 'Back to the period the clock is in', 'caltoday'));
     body.appendChild(nav);
     var grid = cel('div', 'cal-grid'); grid.style.gridTemplateColumns = 'repeat(' + g.cols + ', minmax(0, 1fr))';
@@ -682,6 +740,7 @@ function renderWin() {
     }
     body.appendChild(pr);
     if (pick !== null) dayNotes(body, cal, notes, pick, true);
+    erasBox(body, cal, ck.eras);   // 1.6.2 (backlog 166 b)
     var kd = cel('div', 'cal-kind'); kd.appendChild(cel('span', 'sys-num-cap', 'Time passes as'));
     [['active', 'Active', 'Activity: the time rules that run any time'], ['rest', 'Rest', 'Rest: every time rule, and a rule during rest only counts it']].forEach(function(k) { var b = cbtn('cal-kind-btn' + ((k[0] === 'rest') === restMode ? ' cal-kind-on' : ''), k[1], k[2], 'calkind'); b.dataset.kind = k[0]; kd.appendChild(b); });
     if (restMode) kd.appendChild(cel('span', 'sys-note cal-kind-note', 'Rules for rest count while you step this way.'));   // 159: the steps say it (the owner by prompt: "The steps say it (Recommended)")
@@ -801,7 +860,7 @@ function moveTo(t1, why, live, own, how) {   // live (1.5.4): the clock ran by i
     var camp = getActiveCampaign(); if (!camp || isPlayer() || typeof t1 !== 'number' || !isFinite(t1)) return false;
     var ck = clockOf(camp) || { t: 0 }, cal = sysCal(); t1 = Math.max(0, Math.min(CAL_LIMITS.time, Math.floor(t1)));
     if (t1 === ck.t) return false;
-    var hits = notesReached(notesOf(ck), ck.t, t1, dayLength(cal)), gone = t1 - ck.t, g = null;   // K3: the dated notes this move reaches, told to the GM
+    var hits = notesReached(notesOf(ck), ck.t, t1, dayLength(cal), cal), gone = t1 - ck.t, g = null;   // K3: the dated notes this move reaches, told to the GM
     if (gone > 0 && own !== true) { g = { kind: 'clock', ids: charIdsOf(camp), t0: ck.t, t1: t1, secs: gone, rest: !!(how && how.rest === true), ask: !!(how && how.ask === true), live: live === true }; g.spans = spansOf(camp, g); ck = clockOf(camp) || ck; }   // 152: each character's own time
     var nc = Object.assign({}, ck, { t: t1 }); if (gone < 0) nc.top = ck.top || { s: ck.t, ms: 0 };   // 152: a step back keeps the highest second reached
     camp.clock = cleanClock(nc) || { t: t1 };
@@ -820,11 +879,12 @@ function editNotes(fn) {
     camp.clock = cleanClock(Object.assign({}, ck, { notes: list })) || { t: ck.t };
     save(); refresh(); return true;
 }
-function addNote(day, text, shown) {
+function addNote(day, text, shown, yearly) {
     var tx = typeof text === 'string' ? text.trim() : ''; if (!(typeof day === 'number' && day >= 0 && Math.floor(day) === day) || !tx) return false;
-    return editNotes(function(list) { if (list.length >= CAL_LIMITS.notes) { toast('At most ' + CAL_LIMITS.notes + ' notes.'); return false; } var n = { id: newNoteId(), day: day, text: tx, at: Date.now() }; if (shown) n.vis = 'all'; list.push(n); });   // 1.6.2 (backlog 147): the real moment it was written, the GM's own
+    return editNotes(function(list) { if (list.length >= CAL_LIMITS.notes) { toast('At most ' + CAL_LIMITS.notes + ' notes.'); return false; } var n = { id: newNoteId(), day: day, text: tx, at: Date.now() }; if (shown) n.vis = 'all'; if (yearly === true) n.yearly = true; list.push(n); });   // 1.6.2 (backlog 147): the real moment it was written, the GM's own
 }
 function noteVis(id, shown) { return editNotes(function(list) { var n = list.filter(function(x) { return x.id === id; })[0]; if (!n) return false; if (shown) n.vis = 'all'; else delete n.vis; }); }
+function noteYearly(id, on) { return editNotes(function(list) { var n = list.filter(function(x) { return x.id === id; })[0]; if (!n) return false; if (on) n.yearly = true; else delete n.yearly; }); }   // 1.6.2 (backlog 166 b)
 function delNote(id) { return editNotes(function(list) { var i = -1; list.forEach(function(x, k) { if (x.id === id) i = k; }); if (i < 0) return false; list.splice(i, 1); }); }
 function moveBy(secs, rest) { var camp = getActiveCampaign(), cal = sysCal(); if (typeof secs !== 'number' || !isFinite(secs) || !secs) return false; return moveTo(tOf(camp) + secs, (secs > 0 ? 'Moved on ' : 'Moved back ') + fmtSpan(cal, secs), false, false, { rest: rest === true }); }
 function setHidden(hide) {
@@ -866,7 +926,9 @@ function onWinClick(e) {
     if (act === 'calpendskip') { pendDone(false); return; }
     if ((act === 'calstep' || act === 'calany' || (act === 'calset' && pick !== null)) && ordersRun() && fightMode() === 'sync') { toast(fightHolds(camp)); return; }   // 1.6.2: only where a fight moves the clock   // 152: while a fight runs the clock follows it; nothing is greyed (159), a press says why
     if (act === 'calstep') { moveBy(Number(b.dataset.secs), restMode); return; }
-    if (act === 'caladdnote' && pick !== null) { var nt = q('cal-note-new'), nv = q('cal-note-newvis'), txt = nt ? String(nt.value || '').trim() : ''; if (!txt) { toast('Type the note first.'); return; } addNote(pick, txt, !!(nv && nv.checked === true)); return; }
+    if (act === 'caladdnote' && pick !== null) { var nt = q('cal-note-new'), nv = q('cal-note-newvis'), ny = q('cal-note-newyearly'), txt = nt ? String(nt.value || '').trim() : ''; if (!txt) { toast('Type the note first.'); return; } addNote(pick, txt, !!(nv && nv.checked === true), !!(ny && ny.checked === true)); return; }
+    if (act === 'caleraadd') { var ea = q('cal-era-newname'), ef = q('cal-era-newfrom'), et = q('cal-era-newto'), fv = ef && String(ef.value).trim() !== '' ? Number(ef.value) : NaN, tv = et && String(et.value).trim() !== '' ? Number(et.value) : null; addEra(ea ? String(ea.value || '') : '', fv, tv); return; }   // 1.6.2 (backlog 166 b)
+    if (act === 'caleradel') { eraSet(b.dataset.era, 'del'); return; }
     if (act === 'calnotedel') { delNote(b.dataset.note); return; }
     if (act === 'calany') {
         var ni = q('cal-any-n'), ui = q('cal-any-u'), n = ni ? Number(ni.value) : NaN, u = ui ? unitsOf(cal, sysNow()).filter(function(x) { return x.id === ui.value; })[0] : null;
@@ -885,6 +947,12 @@ function onWinChange(e) {
     else if (tg.classList.contains('cal-live-rate')) { if (!isPlayer()) setRate(Number(tg.value)); }
     else if (tg.classList.contains('cal-show-sel')) { if (!isPlayer()) setShowCal(Number(tg.value)); }   // 1.6.2 (backlog 60)   // 1.5.4: the running clock's speed
     else if (tg.classList.contains('cal-note-vis') && tg.dataset) noteVis(tg.dataset.note, tg.checked === true);   // K3
+    else if (tg.classList.contains('cal-note-yearly') && tg.dataset) { if (!isPlayer()) noteYearly(tg.dataset.note, tg.checked === true); }   // 1.6.2 (backlog 166 b)
+    else if (tg.dataset && typeof tg.dataset.era === 'string' && !isPlayer()) {   // 1.6.2 (backlog 166 b): an era's own boxes
+        var ek = tg.classList.contains('cal-era-name') ? 'name' : tg.classList.contains('cal-era-from') ? 'from' : tg.classList.contains('cal-era-to') ? 'to' : tg.classList.contains('cal-era-color') ? 'color' : tg.classList.contains('cal-era-vis') ? 'vis' : '';
+        var ev = ek === 'vis' ? tg.checked === true : ek === 'from' ? (String(tg.value).trim() === '' ? NaN : Number(tg.value)) : ek === 'to' ? (String(tg.value).trim() === '' ? null : Number(tg.value)) : String(tg.value || '');
+        if (ek && !eraSet(tg.dataset.era, ek, ev)) renderWin();
+    }
     else if (tg.classList.contains('cal-pend-tick') && tg.dataset && pend && typeof tg.dataset.char === 'string' && Object.prototype.hasOwnProperty.call(pend.on, tg.dataset.char)) pend.on[tg.dataset.char] = tg.checked === true;   // K5
     else if (tg.classList.contains('cal-pend-run') && tg.dataset && typeof tg.dataset.char === 'string') { if (!setRulesRun(tg.dataset.char, tg.checked === true)) tg.checked = rulesRun(tg.dataset.char) === true; }   // 152 fold 4b: the Rules run switch, put back where it was not kept
 }

@@ -17,6 +17,7 @@ var LIMITS = Object.freeze({
     leaps: 8, leapTurns: 12,            // 1.6.2 (backlog 60): more leap rules, and the periods one rule's days take turns through
     others: 4, otherAt: 1e9,            // ... and other calendars over the same days, and how many days in each one's own count world day 1 falls
     notes: 500, noteChars: 400,         // item 20 K3: a clock's dated notes, and a note's text (code points, one line)
+    eras: 24,                           // 1.6.2 (backlog 166 b): a campaign's eras, named spans of years with a colour
     rates: Object.freeze([1, 2, 5, 10, 60]),   // 1.5.4: how fast a clock may run by itself, times real time (1 is the absent default)
     moons: 4, cycle: 10000,             // 1.6.2 (backlog 147): a calendar's moons, and the days of a moon's cycle at most
     seasons: 12,                        // ... and its seasons
@@ -24,6 +25,8 @@ var LIMITS = Object.freeze({
 });
 var DAY = Object.freeze({ hours: 24, minutes: 60, seconds: 60 });   // a day's shape when the calendar says nothing
 var NOTE_ID = /^n_[a-z0-9]{8}$/;   // item 20 K3: a dated note's id
+var ERA_ID = /^e_[a-z0-9]{8}$/;   // 1.6.2 (backlog 166 b): an era's id
+var ERA_COLOR = '#c9a227';   // an era whose colour cannot be read
 var ACC_ID = /^[a-z]_[A-Za-z0-9_]{1,24}$/;   // K5: a character's or a rule's id (c_..., r_...): never a prototype's name
 var CTRL_RE_G = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g;
 
@@ -241,7 +244,7 @@ function fmtSpan(cal, secs) {
 
 // Item 20 K2: a campaign's clock (camp.clock), cleaned: { t (world time, a whole number of seconds from 0 to 10^15; absent or no number: 0),
 // hide? (true only: the GM keeps the date from players), notes? (K3: dated notes, each { id: n_ and 8 of a-z 0-9, once; day: the day it
-// falls on, days from day 1 counted from 0; text: one line, 400 code points; vis: 'all' only, players see it, absent: the GM's alone }, at
+// falls on, days from day 1 counted from 0; text: one line, 400 code points; vis: 'all' only, players see it, absent: the GM's alone; yearly: true only, 1.6.2, repeats every year }, at
 // most 500, in day order, a note with no day or no text dropped) }. Backlog 152 (the fight clock), the GM's own and never sent (net.js clockOut
 // builds only t and notes): top? (the highest second reached, a time pair, kept only while it is past t: after a step back), lived? (each
 // character's own time past the clock's, as cleanLived keeps it, only above top or t), rulesOff? (the NPCs whose time rules do not run by
@@ -254,9 +257,10 @@ function cleanClock(v) {
     (Array.isArray(v.notes) ? v.notes : []).forEach(function(n) {
         if (ns.length >= LIMITS.notes || !isObj(n) || typeof n.id !== 'string' || !NOTE_ID.test(n.id) || seen[n.id] === 1) return;
         var day = whole(n.day, 0, LIMITS.time), tx = cutName(n.text, LIMITS.noteChars); if (day === null || !tx) return;
-        seen[n.id] = 1; var nn = { id: n.id, day: day, text: tx }; if (n.vis === 'all') nn.vis = 'all'; var wr = whole(n.at, 0, MS_MAX); if (wr !== null) nn.at = wr; ns.push(nn);   // 1.6.2 (backlog 147): the real moment it was written, in milliseconds, the GM's own
+        seen[n.id] = 1; var nn = { id: n.id, day: day, text: tx }; if (n.vis === 'all') nn.vis = 'all'; if (n.yearly === true) nn.yearly = true; var wr = whole(n.at, 0, MS_MAX); if (wr !== null) nn.at = wr; ns.push(nn);   // 1.6.2 (backlog 147): the real moment it was written, in milliseconds, the GM's own
     });
     if (ns.length) o.notes = ns.map(function(n, i) { return [n, i]; }).sort(function(a, b) { return a[0].day - b[0].day || a[1] - b[1]; }).map(function(x) { return x[0]; });
+    var er = cleanEras(v.eras); if (er) o.eras = er;   // 1.6.2 (backlog 166 b): the campaign's eras
     var acc = cleanAcc(v.acc); if (acc) o.acc = acc;   // K5: what each character's time rules have counted (the GM's own; never sent)
     var top = cleanTime(v.top); if (top && tCmp(top, o.t) > 0) o.top = top;   // 152: the highest second reached, while the clock is under it
     var lv = cleanLived(v.lived, o.top || o.t); if (lv) o.lived = lv;   // 152: each character's own time past the clock's
@@ -264,6 +268,50 @@ function cleanClock(v) {
     var sc = whole(v.cal, 1, LIMITS.others); if (sc !== null) o.cal = sc;   // 1.6.2 (backlog 60): the other calendar the top row shows (absent: the main one)
     return o;
 }
+// 1.6.2 (backlog 166 b; the owner, 2026-11-09, by prompt: eras are set in the Calendar window, each campaign's own): a campaign's eras, each
+// { id: e_ and 8 of a-z 0-9, once; name: one line, 40 code points; from: the year it begins, as the calendar numbers it; to?: the year it ends
+// (absent: still going); color: #rrggbb (one that cannot be read the gold); vis: 'all' only, players see it }, at most 24, in the order written.
+// An era with no name or no year of its start is dropped. None: null
+function cleanEras(v) {
+    if (!Array.isArray(v)) return null;
+    var out = [], seen = Object.create(null);
+    v.slice(0, LIMITS.eras * 4).forEach(function(e) {
+        if (out.length >= LIMITS.eras || !isObj(e) || typeof e.id !== 'string' || !ERA_ID.test(e.id) || seen[e.id] === 1) return;
+        var nm = cutName(e.name, LIMITS.name), fr = whole(e.from, -LIMITS.otherAt, LIMITS.otherAt), to = whole(e.to, -LIMITS.otherAt, LIMITS.otherAt); if (!nm || fr === null) return;
+        seen[e.id] = 1; var c = typeof e.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(e.color) ? e.color.toLowerCase() : ERA_COLOR;
+        var o = { id: e.id, name: nm, from: fr }; if (to !== null) o.to = to; o.color = c; if (e.vis === 'all') o.vis = 'all'; out.push(o);
+    });
+    return out.length ? out : null;
+}
+// The era a year falls in, by the calendar's own count (so a calendar whose years count down reads it the same way): of those that hold it, the one
+// that began latest. An era with no end holds every year from its start on. A calendar with no periods has no years: null
+function eraOf(cal, eras, year) {
+    var sh = shape(cal); if (!sh.ps.length || typeof year !== 'number' || !isFinite(year)) return null;
+    var yi = yearIndex(sh, year), best = null, bestA = -Infinity;
+    (Array.isArray(eras) ? eras : []).forEach(function(e) {
+        if (!isObj(e) || typeof e.from !== 'number') return;
+        var a = yearIndex(sh, e.from), b = typeof e.to === 'number' ? yearIndex(sh, e.to) : Infinity, lo = Math.min(a, b), hi = Math.max(a, b);
+        if (yi >= lo && yi <= hi && a > bestA) { best = e; bestA = a; }
+    });
+    return best;
+}
+// The first day, from day 'from' on, a dated note falls on: its own day, or for one that repeats every year the same day of the same period in a
+// later year (a day a period holds only in a leap year comes only in a leap year). Days from day 1 counted from 0; -1 for none
+function noteNext(cal, n, from) {
+    if (!isObj(n) || typeof n.day !== 'number' || !isFinite(n.day)) return -1;
+    from = typeof from === 'number' && isFinite(from) ? Math.max(0, Math.floor(from)) : 0;
+    if (n.day >= from) return n.day; if (n.yearly !== true) return -1;
+    var sh = shape(cal); if (!sh.ps.length) return -1;
+    var nd = dateOf(cal, n.day * sh.dayLen), fy = dateOf(cal, from * sh.dayLen).yi;
+    for (var yi = Math.max(nd.yi, fy); yi <= fy + LIMITS.leapEvery + 1; yi++) {
+        if (nd.pday > plen(sh, yi, nd.period)) continue;
+        var D = daysBefore(sh, yi); for (var i = 0; i < nd.period; i++) D += plen(sh, yi, i); D += nd.pday - 1;
+        if (D >= from && D * sh.dayLen <= LIMITS.time) return D;
+        if (D * sh.dayLen > LIMITS.time) return -1;
+    }
+    return -1;
+}
+function noteOn(cal, n, day) { return typeof day === 'number' && noteNext(cal, n, day) === day; }
 // Item 20 K5: what each character's time rules have counted towards their next firing — { charId: { ruleId: seconds } }, ids by pattern, seconds
 // from 0 below the limit, at most 1000 characters of 100 counts (backlog 152: a rule's By the clock count, r_ and its id's tail, and its In a fight
 // count, x_ and the same tail, so 50 rules make up to 100); none: null
@@ -467,6 +515,6 @@ function preset(id) {
 
 // Names another module can import beside its own LIMITS and helpers (sheets.js)
 var CAL_LIMITS = LIMITS, calPreset = preset;
-var API = { viewCal: viewCal, calNamesOf: calNamesOf, fmtIn: fmtIn, fmtDateIn: fmtDateIn, PHASES: PHASES, MOON_KEYS: MOON_KEYS, moonPhases: moonPhases, seasonOf: seasonOf, VERSION: VERSION, LIMITS: LIMITS, DAY: DAY, PRESETS: PRESETS, cleanCalendar: cleanCalendar, cleanClock: cleanClock, cleanAcc: cleanAcc, everySecs: everySecs, ruleFires: ruleFires, cleanTime: cleanTime, tAdd: tAdd, tCmp: tCmp, tFloor: tFloor, tSpanMs: tSpanMs, cleanLived: cleanLived, cleanRulesOff: cleanRulesOff, livedSpans: livedSpans, fightSecs: fightSecs, freshAcc: freshAcc, dateOf: dateOf, dateNames: dateNames, cleanDateFig: cleanDateFig, timeOf: timeOf, periodDays: periodDays, yearDays: yearDays, dayLength: dayLength, fmtDate: fmtDate, fmtTime: fmtTime, fmtWhen: fmtWhen, fmtSpan: fmtSpan, preset: preset };
+var API = { cleanEras: cleanEras, eraOf: eraOf, noteNext: noteNext, noteOn: noteOn, viewCal: viewCal, calNamesOf: calNamesOf, fmtIn: fmtIn, fmtDateIn: fmtDateIn, PHASES: PHASES, MOON_KEYS: MOON_KEYS, moonPhases: moonPhases, seasonOf: seasonOf, VERSION: VERSION, LIMITS: LIMITS, DAY: DAY, PRESETS: PRESETS, cleanCalendar: cleanCalendar, cleanClock: cleanClock, cleanAcc: cleanAcc, everySecs: everySecs, ruleFires: ruleFires, cleanTime: cleanTime, tAdd: tAdd, tCmp: tCmp, tFloor: tFloor, tSpanMs: tSpanMs, cleanLived: cleanLived, cleanRulesOff: cleanRulesOff, livedSpans: livedSpans, fightSecs: fightSecs, freshAcc: freshAcc, dateOf: dateOf, dateNames: dateNames, cleanDateFig: cleanDateFig, timeOf: timeOf, periodDays: periodDays, yearDays: yearDays, dayLength: dayLength, fmtDate: fmtDate, fmtTime: fmtTime, fmtWhen: fmtWhen, fmtSpan: fmtSpan, preset: preset };
 if (typeof window !== 'undefined') window.wpCalendarCore = API;
-export { viewCal, calNamesOf, fmtIn, fmtDateIn, PHASES, MOON_KEYS, moonPhases, seasonOf, dateNames, cleanDateFig, VERSION, LIMITS, CAL_LIMITS, calPreset, DAY, PRESETS, cleanCalendar, cleanClock, cleanAcc, everySecs, ruleFires, cleanTime, tAdd, tCmp, tFloor, tSpanMs, cleanLived, cleanRulesOff, livedSpans, fightSecs, freshAcc, dateOf, timeOf, periodDays, yearDays, dayLength, fmtDate, fmtTime, fmtWhen, fmtSpan, preset };
+export { cleanEras, eraOf, noteNext, noteOn, viewCal, calNamesOf, fmtIn, fmtDateIn, PHASES, MOON_KEYS, moonPhases, seasonOf, dateNames, cleanDateFig, VERSION, LIMITS, CAL_LIMITS, calPreset, DAY, PRESETS, cleanCalendar, cleanClock, cleanAcc, everySecs, ruleFires, cleanTime, tAdd, tCmp, tFloor, tSpanMs, cleanLived, cleanRulesOff, livedSpans, fightSecs, freshAcc, dateOf, timeOf, periodDays, yearDays, dayLength, fmtDate, fmtTime, fmtWhen, fmtSpan, preset };

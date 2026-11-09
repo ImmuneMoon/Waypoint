@@ -25,8 +25,8 @@ function kindOf(inp) {
 }
 // [formcheck:boxes-end]
 // [formcheck:words-start]
-var OPS = [['+', 'Add'], ['-', 'Subtract'], ['*', 'Times'], ['/', 'Divide by'], ['^', 'To the power of'], ['floor', 'Round down'], ['ceil', 'Round up'], ['round', 'Round'], ['trunc', 'Drop the fraction'], ['abs', 'Make it positive'], ['neg', 'Flip the sign'], ['sqrt', 'Square root'], ['least', 'At least'], ['most', 'At most'], ['clamp', 'Held between']];
-var TAKES = { '+': 1, '-': 1, '*': 1, '/': 1, '^': 1, least: 1, most: 1, clamp: 1 };
+var OPS = [['+', 'Add'], ['-', 'Subtract'], ['*', 'Times'], ['/', 'Divide by'], ['^', 'To the power of'], ['floor', 'Round down'], ['ceil', 'Round up'], ['round', 'Round'], ['trunc', 'Drop the fraction'], ['abs', 'Make it positive'], ['neg', 'Flip the sign'], ['sqrt', 'Square root'], ['log', 'Logarithm, base'], ['least', 'At least'], ['most', 'At most'], ['clamp', 'Held between']];
+var TAKES = { '+': 1, '-': 1, '*': 1, '/': 1, '^': 1, log: 1, least: 1, most: 1, clamp: 1 };
 var TESTS = [['>=', 'is at least'], ['<=', 'is at most'], ['>', 'is over'], ['<', 'is under'], ['=', 'is'], ['!=', 'is not']];
 var CHECKS = [['', 'No test'], ['<=', 'the roll is at most'], ['>=', 'the roll is at least'], ['<', 'the roll is under'], ['>', 'the roll is over'], ['=', 'the roll is exactly'], ['!=', 'the roll is not']];
 var KEEPS = [['', 'Keep all'], ['kh', 'Keep the highest'], ['kl', 'Keep the lowest'], ['dh', 'Drop the highest'], ['dl', 'Drop the lowest']];

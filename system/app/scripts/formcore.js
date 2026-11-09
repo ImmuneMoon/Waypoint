@@ -82,6 +82,7 @@ function stepsInto(n, c, out) {   // left to right, each step on the answer so f
         var a = n.args;
         if (ROUND1[n.name] && a.length === 1) { stepsInto(a[0], c, out); out.push({ op: n.name }); return; }
         if (n.name === 'round' && a.length <= 2) { stepsInto(a[0], c, out); out.push(a.length === 2 ? { op: 'round', v: valOf(a[1], c) } : { op: 'round' }); return; }
+        if (n.name === 'log' && a.length === 2) { stepsInto(a[0], c, out); out.push({ op: 'log', v: valOf(a[1], c) }); return; }   // 1.6.2: log(x, base) reads as x, its logarithm to that base
         if ((n.name === 'max' || n.name === 'min') && a.length === 2) { var sw = a[0].t === 'num' && a[1].t !== 'num'; stepsInto(a[sw ? 1 : 0], c, out); out.push({ op: n.name === 'max' ? 'least' : 'most', v: valOf(a[sw ? 0 : 1], c) }); return; }   // max(1, Skill) reads as Skill, at least 1
         if (n.name === 'clamp') { stepsInto(a[0], c, out); out.push({ op: 'clamp', v: valOf(a[1], c), w: valOf(a[2], c) }); return; }
     }
@@ -144,6 +145,7 @@ function stepOn(t, st) {
     if (o === 'neg' || o === 'pos') return { s: (o === 'neg' ? '-' : '+') + (t.lv < LV.atom ? '(' + t.s + ')' : t.s), lv: LV.unary };
     if (ROUND1[o]) return { s: o + '(' + t.s + ')', lv: LV.atom };
     if (o === 'round') return { s: 'round(' + t.s + (x ? ', ' + x.s : '') + ')', lv: LV.atom };
+    if (o === 'log') return { s: 'log(' + t.s + ', ' + x.s + ')', lv: LV.atom };
     if (o === 'least') return { s: 'max(' + t.s + ', ' + x.s + ')', lv: LV.atom };
     if (o === 'most') return { s: 'min(' + t.s + ', ' + x.s + ')', lv: LV.atom };
     if (o === 'clamp') return { s: 'clamp(' + t.s + ', ' + x.s + ', ' + valText(st.w).s + ')', lv: LV.atom };
@@ -224,6 +226,7 @@ function stepSays(st, say) {
     if (STEP_WORDS[o]) return STEP_WORDS[o] + ' ' + valSays(st.v, say);
     if (ROUND_WORDS[o]) return ROUND_WORDS[o];
     if (o === 'round') return st.v ? 'rounded to ' + valSays(st.v, say) + ' places' : 'rounded';
+    if (o === 'log') return 'its logarithm to the base ' + valSays(st.v, say);
     if (o === 'least') return 'at least ' + valSays(st.v, say);
     if (o === 'most') return 'at most ' + valSays(st.v, say);
     if (o === 'clamp') return 'held between ' + valSays(st.v, say) + ' and ' + valSays(st.w, say);

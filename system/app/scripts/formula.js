@@ -191,7 +191,8 @@ function lex(src) {
 /* ---------- functions ---------- */
 var FUNCS = table({
     floor: { min: 1, max: 1 }, ceil: { min: 1, max: 1 }, trunc: { min: 1, max: 1 }, round: { min: 1, max: 2 },
-    abs: { min: 1, max: 1 }, sqrt: { min: 1, max: 1 }, min: { min: 1, max: Infinity }, max: { min: 1, max: Infinity },
+    abs: { min: 1, max: 1 }, sqrt: { min: 1, max: 1 }, log: { min: 2, max: 2 },   /* 1.6.2 (asked by a campaign's build, a size scale by halvings and doublings): log(x, base) */
+    min: { min: 1, max: Infinity }, max: { min: 1, max: Infinity },
     clamp: { min: 3, max: 3 }, mod: { min: 2, max: 2 }, 'if': { min: 3, max: 3 }, and: { min: 1, max: Infinity }, or: { min: 1, max: Infinity },
     has: { min: 2, max: 2 },   // 1.6.0: has(set, n), a set of places (a list switch's over) holds place n, 1 to 16
     // 1.6.2: with(dice, ..., result) rolls dice to read and answers its last part; the rest read a group of dice named with @, and roll nothing
@@ -770,6 +771,7 @@ function callFn(node, c) {
         case 'trunc': return Math.trunc(arg(0));
         case 'abs': return Math.abs(arg(0));
         case 'round': { x = arg(0); var d = a.length > 1 ? arg(1) : 0; return finite(roundTo(x, d), node.pos, node.len); }
+        case 'log': { x = arg(0); var lb = arg(1); if (!(x > 0)) fail('log of a number that is not above 0 (' + fmt(x) + ').', a[0].pos, a[0].len); if (!(lb > 0) || lb === 1) fail('log needs a base above 0 that is not 1 (' + fmt(lb) + ').', a[1].pos, a[1].len); return finite(Math.log(x) / Math.log(lb), node.pos, node.len); }
         case 'sqrt': { x = arg(0); if (x < 0) fail('sqrt of a negative number (' + fmt(x) + ').', a[0].pos, a[0].len); return Math.sqrt(x); }
         case 'min': case 'max': { x = arg(0); for (i = 1; i < a.length; i++) { var y = arg(i); x = name === 'min' ? Math.min(x, y) : Math.max(x, y); } return x; }
         case 'clamp': { x = arg(0); var lo = arg(1), hi = arg(2); if (lo > hi) fail('clamp: the low bound (' + fmt(lo) + ') is above the high bound (' + fmt(hi) + ').', a[1].pos, a[1].len); return Math.min(hi, Math.max(lo, x)); }

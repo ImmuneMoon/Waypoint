@@ -110,6 +110,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('clamp', val('clamp(5, 1, 3)') === 3 && val('clamp(-5, 1, 3)') === 1 && val('clamp(2, 1, 3)') === 2);
     check('min / max variadic', val('min(3, 1, 2)') === 1 && val('max(3, 1, 2)') === 3 && val('max(4)') === 4);
     check('floor / ceil / trunc / abs / sqrt', val('floor(-1.5)') === -2 && val('ceil(-1.5)') === -1 && val('trunc(-1.5)') === -1 && val('abs(-2)') === 2 && val('sqrt(16)') === 4);
+    check('1.6.2 log(x, base), asked by a campaign\'s build for a size scale by doublings: log(8, 2) is 3, log(1000, 10) is 3, 400 * log(12 / 6, 2) is 400; round goes half away from zero, -2.5 to -3', val('log(8, 2)') === 3 && Math.abs(val('log(1000, 10)') - 3) < 1e-12 && val('400 * log(12 / 6, 2)') === 400 && val('round(-2.5)') === -3 && val('round(2.5)') === 3);
+    E('log of 0', 'log(0, 2)', 'log of a number that is not above 0 (0).', 4, 1);
+    E('log to the base 1', 'log(8, 1)', 'log needs a base above 0 that is not 1 (1).', 7, 1);
     check('0^0 = 1', val('0^0') === 1);
     check('division gives decimals', val('7 / 2') === 3.5);
     E('division by zero', '10 / 0', 'Division by zero.', 3, 1);

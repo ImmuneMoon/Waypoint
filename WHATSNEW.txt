@@ -75,6 +75,8 @@ The System editor
   time it opens.
 - Laid from never gives two rows one name, and a rule can have its own sides,
   stop its sides at another rule's count, and share a row with other rules.
+- A fight's turn strip now stands below the trackers bar, so a tall bar of
+  trackers no longer covers it.
 - An effect's bonus can say it doesn't stack with others of its kind, so two
   stims that raise the same thing give the larger, never the sum.
 - Laid from can go by category: a part of quantity 2 lays a right and a left

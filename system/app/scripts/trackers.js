@@ -88,7 +88,7 @@ var _menu = '', _form = null, _sig = '';
 function strip() { return document.getElementById('trkStrip'); }
 // The strip's place read from the page, set as two properties the style sheet reads (--trkleft, --trkwide); the stream window keeps its own
 function place(box) {
-    box = box || strip(); if (!box || box.style.display === 'none') return;
+    box = box || strip(); var hostB = box && box.parentElement; if (!box || box.style.display === 'none') { if (hostB && hostB.style) hostB.style.removeProperty('--trkbot'); return; }   // the viewing of 2026-11-09: where the bar ends, so the fight's turn strip stands below it and never under it
     var n = net(); if (n && n.stream) { box.style.removeProperty('--trkleft'); box.style.removeProperty('--trkwide'); return; }
     var area = box.offsetParent, mm = document.getElementById('minimap'); if (!area) return;
     var mmOn = !!mm && mm.parentElement === box.parentElement && mm.offsetParent !== null, cs = mm ? window.getComputedStyle(mm) : null;
@@ -98,6 +98,7 @@ function place(box) {
     var p = placeOf(mmAt, others, area.clientWidth), L = p.left + 'px', W = p.wide + 'px';
     if (box.style.getPropertyValue('--trkleft') !== L) box.style.setProperty('--trkleft', L);
     if (box.style.getPropertyValue('--trkwide') !== W) box.style.setProperty('--trkwide', W);
+    var B = (box.offsetTop + box.offsetHeight) + 'px'; if (hostB && hostB.style && hostB.style.getPropertyValue('--trkbot') !== B) hostB.style.setProperty('--trkbot', B);
 }
 function panel() { return document.getElementById('trkPanel'); }
 function menuEl() { return document.getElementById('trkMenu'); }

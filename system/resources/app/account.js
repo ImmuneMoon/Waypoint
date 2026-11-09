@@ -4,7 +4,8 @@
 //
 // Only this server ever talks to the website: the page's script policy names no outside address, and the install's key never leaves
 // this machine's saves folder (saves/account.json) or reaches the page. The page asks its own routes:
-//   POST   /api/account/link   { name }          -> { userCode, url, interval, expiresIn }   a device code begun on the site
+//   POST   /api/account/link   { name? }         -> { userCode, url, interval, expiresIn }   a device code begun on the site, named by name or
+//                                                   else by this computer's own system name
 //   DELETE /api/account/link                     -> { ok: true }   the wait for that code ended here (Stop): a later read finds none
 //   POST   /api/account/poll                     -> { state: pending | denied | expired | approved | none }
 //   GET    /api/account                          -> { linked: false, pending? } | { linked: true, email, playerId, played, colour?, offline? }
@@ -12,13 +13,16 @@
 //   POST   /api/account/prefs  { updated, prefs } -> { ok: true }
 //   POST   /api/account/adopt  { updated, prefs } -> { updated, prefs } | 409 { error: 'played' }
 //   DELETE /api/account                          -> { ok: true }   unlinked here whether or not the site could be told
+//   POST   /api/account/name   { name }          -> { name } | 409 { error: 'taken' } | 429 { error: 'slow' } | 400 { error: 'empty' }   this computer's name
+//                                                   on the account (1.6.2; the owner, 2026-11-09: each computer named in the app's settings)
 // Every answer the site gives is read as data: only the fields named here, each by its own rule.
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const SITE = 'https://waypointvtt.com';   // the apex: www answers with a 301, and a redirected POST becomes a GET
-const ACCOUNT_ROUTES = ['/api/account', '/api/account/link', '/api/account/poll', '/api/account/prefs', '/api/account/adopt'];
+const ACCOUNT_ROUTES = ['/api/account', '/api/account/link', '/api/account/poll', '/api/account/prefs', '/api/account/adopt', '/api/account/name'];
 const KEY_RE = /^wpk_[0-9a-f]{16}_[A-Za-z0-9_-]{43}$/, KEYID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const CODE_RE = /^[BCDFGHJKLMNPQRSTVWXZ2-9]{4}-[BCDFGHJKLMNPQRSTVWXZ2-9]{4}$/, DEVICE_RE = /^[A-Za-z0-9_-]{16,200}$/;
 const PREF_KEYS = ['wp_profile', 'wp_tableKeys', 'wp_gmPins', 'wp_gmRooms'];   // what the account keeps: who you are at a table, never wp_hostId
@@ -38,10 +42,12 @@ function cleanPrefs(raw) {
     const up = typeof raw.updated === 'number' && isFinite(raw.updated) && raw.updated > 0 ? Math.floor(raw.updated) : 0;
     return { updated: up, prefs: out };
 }
+function cleanName(v) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60).trim() : ''; }
 function cleanAccount(a) {
     if (!isObj(a)) return null;
     const out = { email: cut(a.email, 254), playerId: typeof a.playerId === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(a.playerId) ? a.playerId : '', played: a.played === true };
     if (typeof a.colour === 'string' && /^#[0-9a-fA-F]{6}$/.test(a.colour)) out.colour = a.colour.toLowerCase();
+    const nm = cleanName(a.name); if (nm) out.name = nm;   // this computer's name on the account, where the site says it
     return out;
 }
 
@@ -49,6 +55,7 @@ function makeHandler(cfg) {
     const file = path.join(cfg.savesDir, 'account.json'), base = cfg.base || SITE, version = cfg.version || '';
     const doFetch = cfg.fetch || (typeof fetch === 'function' ? fetch : null), now = cfg.now || Date.now, log = cfg.log || function() {};
     let pending = null;   // the device code being linked: this server's memory alone
+    const hostName = () => { try { return typeof cfg.hostname === 'string' ? cfg.hostname : os.hostname(); } catch (e) { return ''; } };   // 1.6.2 (the owner, 2026-11-09): a computer links under its own system name
     const keyOf = () => { try { const j = JSON.parse(fs.readFileSync(file, 'utf8')); return isObj(j) && KEY_RE.test(j.key) ? j : null; } catch (e) { return null; } };
     const keep = (rec) => { const tmp = file + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(rec, null, 1), 'utf8'); fs.renameSync(tmp, file); };
     const drop = () => { try { fs.unlinkSync(file); } catch (e) {} };
@@ -73,11 +80,11 @@ function makeHandler(cfg) {
         const p = url.pathname, m = req.method;
         (async () => {
             if (p === '/api/account/link' && m === 'POST') return body(req, res, async (j) => {
-                const r = await site('POST', '/api/link/start', { name: cut(j.name, 60) || 'Waypoint', version });
+                const asked = cleanName(j.name) || cleanName(hostName()) || 'Waypoint', r = await site('POST', '/api/link/start', { name: asked, version });
                 if (r.status === 429) { log('link start: too many'); return send(res, 429, { error: 'slow' }); }
                 const o = r.json; if (r.status !== 200 || !isObj(o) || !DEVICE_RE.test(o.deviceCode) || !CODE_RE.test(o.userCode)) { log('link start failed ' + r.status); return send(res, 502, { error: r.status ? 'site' : 'offline' }); }
                 const interval = Math.max(5, Math.min(60, Math.floor(Number(o.interval) || 5))), expiresIn = Math.max(30, Math.min(1800, Math.floor(Number(o.expiresIn) || 600)));
-                pending = { deviceCode: o.deviceCode, userCode: o.userCode, interval, until: now() + expiresIn * 1000, at: 0 };
+                pending = { deviceCode: o.deviceCode, userCode: o.userCode, interval, until: now() + expiresIn * 1000, at: 0, name: asked };
                 log('link started');
                 send(res, 200, { userCode: o.userCode, url: base + '/link?code=' + encodeURIComponent(o.userCode), interval, expiresIn });
             });
@@ -91,7 +98,7 @@ function makeHandler(cfg) {
                 if (r.status === 429 || r.status === 0) return send(res, 200, { state: 'pending', slow: true });
                 const o = isObj(r.json) ? r.json : {};
                 if (o.state === 'approved' && KEY_RE.test(o.key)) {
-                    try { keep({ key: o.key, keyId: KEYID_RE.test(o.keyId) ? o.keyId : '', linkedAt: now() }); } catch (e) { log('link: key not kept'); return send(res, 500, { error: 'write failed' }); }
+                    try { keep({ key: o.key, keyId: KEYID_RE.test(o.keyId) ? o.keyId : '', linkedAt: now(), name: pending.name || '' }); } catch (e) { log('link: key not kept'); return send(res, 500, { error: 'write failed' }); }
                     pending = null; log('linked'); return send(res, 200, { state: 'approved' });
                 }
                 if (o.state === 'denied' || o.state === 'expired') { pending = null; log('link ' + o.state); return send(res, 200, { state: o.state }); }
@@ -101,8 +108,10 @@ function makeHandler(cfg) {
                 const k = keyOf(); if (!k) return send(res, 200, pending && now() <= pending.until ? { linked: false, pending: { userCode: pending.userCode, url: base + '/link?code=' + encodeURIComponent(pending.userCode) } } : { linked: false });
                 const r = await site('GET', '/api/install/account', undefined, k.key);
                 if (r.status === 401) return gone(res);
-                const a = r.status === 200 ? cleanAccount(r.json) : null;
-                return send(res, 200, a ? Object.assign({ linked: true }, a) : { linked: true, offline: true });
+                const a = r.status === 200 ? cleanAccount(r.json) : null, had = cleanName(k.name);
+                if (a && a.name && a.name !== had) { try { keep(Object.assign({}, k, { name: a.name })); } catch (e) {} }   // a rename on the account page
+                const nm = a && a.name ? a.name : had;
+                return send(res, 200, a ? Object.assign({ linked: true }, a, nm ? { name: nm } : {}) : Object.assign({ linked: true, offline: true }, had ? { name: had } : {}));
             }
             if (p === '/api/account' && m === 'DELETE') {
                 const k = keyOf(); pending = null;
@@ -126,9 +135,21 @@ function makeHandler(cfg) {
                 if (r.status === 204 || r.status === 200) return send(res, 200, { ok: true });
                 log('sync ' + r.status); send(res, 502, { error: r.status ? 'site' : 'offline' });
             });
+            if (p === '/api/account/name' && m === 'POST') return body(req, res, async (j) => {   // this computer's name on the account: the site keeps one name a computer, no two alike
+                const k = keyOf(); if (!k) return send(res, 409, { error: 'unlinked' });
+                const want = cleanName(j.name); if (!want) return send(res, 400, { error: 'empty' });
+                const r = await site('POST', '/api/install/name', { name: want }, k.key);
+                if (r.status === 401) return gone(res);
+                if (r.status === 409) { log('rename: taken'); return send(res, 409, { error: 'taken' }); }
+                if (r.status === 429) { log('rename: too many'); return send(res, 429, { error: 'slow' }); }
+                const got = r.status === 200 && isObj(r.json) ? cleanName(r.json.name) : '';
+                if (!got) { log('rename ' + r.status); return send(res, 502, { error: r.status ? 'site' : 'offline' }); }
+                try { keep(Object.assign({}, k, { name: got })); } catch (e) {}
+                log('renamed'); send(res, 200, { name: got });   // what the site kept, never what was typed
+            });
             send(res, 404, { error: 'not found' });
         })().catch(() => { try { send(res, 500, { error: 'failed' }); } catch (e) {} });
     };
 }
 
-module.exports = { SITE, ACCOUNT_ROUTES, PREF_KEYS, siteBase, cleanPrefs, cleanAccount, makeHandler };
+module.exports = { SITE, ACCOUNT_ROUTES, PREF_KEYS, siteBase, cleanPrefs, cleanAccount, cleanName, makeHandler };

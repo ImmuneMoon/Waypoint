@@ -352,6 +352,7 @@
                                   <li>Keep the file and the code private: they let someone join as you.</li>
                                   <li>Your own table, if you host one, stays as it is. Your players still know it.</li>
                                   <li><b>Link to my account</b> links this computer to your account on the Waypoint website. Sign in on the page it opens and check the code. Then your profile follows you to every computer you link.</li>
+                                  <li>A linked computer has a name of its own on your account, at first its own system name. Type another under <b>This computer&rsquo;s name</b> and press Rename. No two of your computers share a name.</li>
                                   <li>The first computer you link gives the account its player. A computer that has played nowhere takes the account&rsquo;s. Where both have played, you are asked which to keep.</li>
                               </ul></li>
                           <li><b>Cloud saves</b>, in your profile, keeps your save on the Waypoint website once this computer is linked to your account.<ul><li>Tick <b>Keep my save in the cloud</b>. Waypoint then syncs when it closes, ten minutes after a change, and when you take a snapshot.</li><li>A computer with no save yet takes the cloud&rsquo;s. Where this computer and the cloud both changed, you are asked which to keep, and the other stays in the cloud&rsquo;s history.</li><li>Your save stays on this computer as always. Taking the cloud&rsquo;s first copies your save to the backups folder.</li></ul></li>
@@ -4462,6 +4463,11 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div class="set-field-label">Your Waypoint account</div>
                 <div id="setAcctLine" class="set-acct-line" aria-live="polite">Link this computer to your account on the Waypoint website, and your profile follows you to every computer you link.</div>
                 <div id="setAcctCode" class="set-acct-code" hidden><span>Your code</span> <b id="setAcctCodeText"></b></div>
+                <div id="setAcctNameRow" class="set-acct-name" hidden>
+                    <label class="set-field-label" for="setAcctName" style="margin-top:8px;">This computer&rsquo;s name</label>
+                    <div style="display:flex; gap:6px;"><input type="text" id="setAcctName" class="field" maxlength="60" style="flex:1;" title="The name your account knows this computer by"><button class="tool ghost" id="setAcctNameBtn" type="button" title="Gives this computer the name typed beside it, on your account">Rename</button></div>
+                    <div class="set-line">Each computer on your account has a name of its own. Cloud saves say which computer a save came from by it.</div>
+                </div>
                 <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
                     <button class="tool ghost" id="setAcctLinkBtn" type="button" style="flex:1;" title="Opens the Waypoint website, where you sign in and say yes to this computer">Link to my account&hellip;</button>
                     <button class="tool ghost" id="setAcctOpenBtn" type="button" style="flex:1;" title="Opens the website's page for this code again" hidden>Open the page again</button>

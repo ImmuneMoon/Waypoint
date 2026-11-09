@@ -1327,6 +1327,23 @@ function acctDraw(st) {
         : st && st.err ? 'The website cannot be reached just now. Try again later.' : 'Link this computer to your account on the Waypoint website, and your profile follows you to every computer you link.';
     if (code) code.hidden = !waiting; if (ct) ct.textContent = waiting ? st.code : '';
     if (link) link.hidden = waiting || linked; if (open) open.hidden = !waiting; if (stop) stop.hidden = !waiting; if (un) un.hidden = !linked;
+    var nr = ui('setAcctNameRow'), ni = ui('setAcctName'); if (nr) nr.hidden = !linked;   // 1.6.2: this computer's name on the account, read from the account
+    if (ni && linked && typeof st.name === 'string' && st.name && document.activeElement !== ni) ni.value = st.name;
+}
+// Rename this computer: the site keeps one name a computer, so what it answers is what is shown, and a name another computer has is said
+function acctRename() {
+    var ni = ui('setAcctName'), btn = ui('setAcctNameBtn'); if (!ni) return;
+    var want = String(ni.value || '').replace(/\s+/g, ' ').trim(); if (!want) { toast('Type a name for this computer first.'); return; }
+    if (btn) btn.disabled = true;
+    acctApi('POST', '/api/account/name', { name: want }).then(function(r) {
+        if (btn) btn.disabled = false;
+        if (r.status === 200 && typeof r.json.name === 'string') { ni.value = r.json.name; acctStep('renamed', {}); toast('This computer is now called ' + r.json.name + ' on your account.'); return; }
+        acctStep('rename-failed', { status: r.status });
+        if (r.status === 409 && r.json.error === 'taken') { toast('You already have a computer called ' + want + '. Pick another name.'); return; }
+        if (r.status === 429) { toast('That is a lot of renames. Wait a while and try again.'); return; }
+        if (r.status === 200 && r.json.gone) { acctRefresh(); toast('This computer is no longer linked to your account.'); return; }
+        toast('The website cannot be reached just now. Try again later.');
+    });
 }
 function acctRefresh() {
     return acctApi('GET', '/api/account').then(function(r) {
@@ -1401,8 +1418,7 @@ function acctPoll(interval) {
 function acctOpenPage() { if (ACCT.url) { try { window.open(ACCT.url, '_blank', 'noopener'); } catch (e) {} } }
 function acctLink() {
     if (profBusy()) return;
-    var name = ''; try { var p = JSON.parse(localStorage.getItem('wp_profile') || 'null'); name = p && typeof p.name === 'string' ? p.name : ''; } catch (e) {}
-    acctApi('POST', '/api/account/link', { name: (name ? name + '\u2019s ' : '') + 'Waypoint' }).then(function(r) {
+    acctApi('POST', '/api/account/link', {}).then(function(r) {   // 1.6.2: the shell names the computer by its own system name, which you may change once it is linked
         if (r.status !== 200 || typeof r.json.userCode !== 'string' || typeof r.json.url !== 'string') { toast(r.status === 429 ? 'Wait a few minutes before you try to link again.' : 'The website cannot be reached just now. Try again later.'); acctStep('start-failed', { status: r.status }); return; }
         ACCT.url = r.json.url; ACCT.code = r.json.userCode; ACCT.stopped = ''; acctStopPoll(); acctDraw({ code: r.json.userCode }); acctOpenPage(); acctStep('started', {});
         acctPoll(r.json.interval);
@@ -1426,6 +1442,7 @@ function acctWire() {
     if (link) link.addEventListener('click', acctLink);
     if (open) open.addEventListener('click', acctOpenPage);
     if (stop) stop.addEventListener('click', acctStop);
+    var nb = ui('setAcctNameBtn'), nin = ui('setAcctName'); if (nb) nb.addEventListener('click', acctRename); if (nin) nin.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); acctRename(); } });
     if (un) un.addEventListener('click', function() {
         import('./dialogs.js').then(function(d) { d.showConfirm('Unlink this computer from your account? Your profile here stays as it is, and the account keeps its own copy.', function(yes) { if (yes === true) acctUnlink('asked'); }, { yes: 'Unlink' }); });
     });

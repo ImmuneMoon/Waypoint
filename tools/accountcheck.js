@@ -36,8 +36,8 @@ function call(h, method, p, body) {
         check('siteBase: the apex alone, or a local test site named by WAYPOINT_SITE (http on localhost or 127.0.0.1 with a port), never any other address',
             A.SITE === 'https://waypointvtt.com' && A.siteBase({}) === A.SITE && A.siteBase({ WAYPOINT_SITE: 'http://localhost:3002' }) === 'http://localhost:3002' && A.siteBase({ WAYPOINT_SITE: 'http://127.0.0.1:3002' }) === 'http://127.0.0.1:3002'
             && ['https://evil.example', 'http://localhost', 'http://localhost:3002/', 'http://www.waypointvtt.com', 'https://localhost:3002', 'http://localhost.evil.example:3002'].every(o => A.siteBase({ WAYPOINT_SITE: o }) === A.SITE));
-        check('the routes are the page\'s own five, and what an account keeps is the profile pack\'s four stores, never wp_hostId',
-            J(A.ACCOUNT_ROUTES) === J(['/api/account', '/api/account/link', '/api/account/poll', '/api/account/prefs', '/api/account/adopt']) && J(A.PREF_KEYS) === J(['wp_profile', 'wp_tableKeys', 'wp_gmPins', 'wp_gmRooms']));
+        check('the routes are the page\'s own six (1.6.2: the computer\'s name the last), and what an account keeps is the profile pack\'s four stores, never wp_hostId',
+            J(A.ACCOUNT_ROUTES) === J(['/api/account', '/api/account/link', '/api/account/poll', '/api/account/prefs', '/api/account/adopt', '/api/account/name']) && J(A.PREF_KEYS) === J(['wp_profile', 'wp_tableKeys', 'wp_gmPins', 'wp_gmRooms']));
         const cp = A.cleanPrefs({ updated: 12.7, prefs: { wp_profile: '{"id":"p_a"}', wp_hostId: 'u_x', wp_theme: 'dark', wp_tableKeys: 5, __proto__: { wp_gmPins: 'x' } } });
         check('cleanPrefs keeps only the four stores as strings, a whole positive time, and nothing a prototype holds; cleanAccount keeps a mail, a player id by its pattern, played only as true and a colour as #rrggbb',
             J(cp) === J({ updated: 12, prefs: { wp_profile: '{"id":"p_a"}' } }) && A.cleanPrefs(null) === null && A.cleanPrefs({ prefs: 'x' }) === null
@@ -71,7 +71,31 @@ function call(h, method, p, body) {
         S.answer['GET /api/install/account'] = { status: 200, json: { email: 'kael@example.test', playerId: 'p_kael', played: false, colour: '#5976cf', key: 'leak' } };
         const ac = await call(h, 'GET', '/api/account'), acCall = S.calls[S.calls.length - 1];
         check('the account: asked with the key as a bearer and answered with the cleaned fields alone, nothing of the key',
-            J(ac.json) === J({ linked: true, email: 'kael@example.test', playerId: 'p_kael', played: false, colour: '#5976cf' }) && acCall.auth === 'Bearer ' + KEY && !ac.text.includes('wpk_') && !ac.text.includes('leak'), J([ac, acCall]));
+            J(ac.json) === J({ linked: true, email: 'kael@example.test', playerId: 'p_kael', played: false, colour: '#5976cf', name: S.calls[0].body.name }) && acCall.auth === 'Bearer ' + KEY && !ac.text.includes('wpk_') && !ac.text.includes('leak'), J([ac, acCall]));
+        {   // 1.6.2 (the owner, 2026-11-09: each computer named in the app's settings): this computer's name on the account
+            check('cleanName is the site\'s own rule: control and direction characters out, spaces as one, trimmed, at most 60; and a link keeps the name it asked for with the key, which the account then answers where the site says none',
+                A.cleanName('  Ren\u0007\u202e  desk \n top ') === 'Ren desk top' && A.cleanName('x'.repeat(80)).length === 60 && A.cleanName(7) === '' && A.cleanName(' \u200f ') === ''
+                && kept.name === S.calls[0].body.name && kept.name.length === 60, J([kept.name, A.cleanName('  Ren\u0007\u202e  desk \n top ')]));
+            S.answer['GET /api/install/account'] = { status: 200, json: { email: 'kael@example.test', playerId: 'p_kael', played: false, name: ' Ren\u2019s  laptop ' } };
+            const an = await call(h, 'GET', '/api/account'), keptN = JSON.parse(fs.readFileSync(file, 'utf8'));
+            check('where the site says this computer\'s name, the account answers it and keeps it here too, so a rename on the account page is shown',
+                an.json.name === 'Ren\u2019s laptop' && keptN.name === 'Ren\u2019s laptop' && keptN.key === KEY, J([an.json, keptN.name]));
+            S.answer['POST /api/install/name'] = b => ({ status: 200, json: { name: '  ' + b.name + '  ' } });
+            const n0 = S.calls.length, ok = await call(h, 'POST', '/api/account/name', { name: '  Study\u0000  PC ' }), nCall = S.calls[n0], keptR = JSON.parse(fs.readFileSync(file, 'utf8'));
+            const n1 = S.calls.length, empty = await call(h, 'POST', '/api/account/name', { name: ' \u202e ' }), n2 = S.calls.length;
+            S.answer['POST /api/install/name'] = { status: 409, json: { error: 'taken' } }; const taken = await call(h, 'POST', '/api/account/name', { name: 'Taken' });
+            S.answer['POST /api/install/name'] = { status: 429, json: { error: 'too many' } }; const many = await call(h, 'POST', '/api/account/name', { name: 'Other' });
+            S.answer['POST /api/install/name'] = { status: 200, json: { name: '' } }; const blank = await call(h, 'POST', '/api/account/name', { name: 'Other' });
+            check('a rename sends the cleaned name with the key and answers the name the site kept, cleaned, and keeps it here; an empty name is refused here and asks the site nothing; taken is 409, too many is slow (429), and an answer with no name is the site\'s fault (502), the name kept as it was',
+                ok.status === 200 && J(ok.json) === J({ name: 'Study PC' }) && nCall.p === '/api/install/name' && nCall.m === 'POST' && J(nCall.body) === J({ name: 'Study PC' }) && nCall.auth === 'Bearer ' + KEY && keptR.name === 'Study PC' && keptR.key === KEY
+                && empty.status === 400 && empty.json.error === 'empty' && n2 === n1 && taken.status === 409 && taken.json.error === 'taken' && many.status === 429 && many.json.error === 'slow'
+                && blank.status === 502 && JSON.parse(fs.readFileSync(file, 'utf8')).name === 'Study PC', J([ok, nCall, empty, taken, many, blank]));
+            const S3 = siteStub(), mk = hn => A.makeHandler({ savesDir: saves, base: 'http://localhost:3002', version: '1.6.2', fetch: S3.fetch, now, readBody, bodyCap: 65536, log: () => {}, hostname: hn });
+            S3.answer['POST /api/link/start'] = { status: 429 };
+            await call(mk(' GARAGE-PC\u0007 '), 'POST', '/api/account/link', {}); await call(mk(''), 'POST', '/api/account/link', {}); await call(mk('GARAGE-PC'), 'POST', '/api/account/link', { name: 'Den' });
+            check('a link the page names nothing for goes to the site under this computer\'s own system name, cleaned (the owner, 2026-11-09: a computer\'s name defaults to the system name), Waypoint where it has none, and a name handed in still wins',
+                J(S3.calls.map(c => c.body.name)) === J(['GARAGE-PC', 'Waypoint', 'Den']), J(S3.calls.map(c => c.body)));
+        }
         S.answer['POST /api/install/adopt'] = { status: 409, json: { error: 'played' } };
         const ad = await call(h, 'POST', '/api/account/adopt', { updated: 5, prefs: { wp_profile: '{"id":"p_a"}', wp_hostId: 'u_x' } }), adCall = S.calls[S.calls.length - 1];
         S.answer['POST /api/install/prefs'] = { status: 204 };
@@ -84,12 +108,12 @@ function call(h, method, p, body) {
         const off = await call(h, 'GET', '/api/account');
         S.answer['GET /api/install/account'] = { status: 401, json: { error: 'unlinked' } };
         const g401 = await call(h, 'GET', '/api/account');
-        check('a site that cannot be reached leaves the link as it is (offline); a key the site no longer knows (401) is let go here: the file goes',
-            J(off.json) === J({ linked: true, offline: true }) && fs.existsSync(path.join(saves, 'account.json')) === false && J(g401.json) === J({ linked: false, gone: true }), J([off.json, g401.json]));
+        check('a site that cannot be reached leaves the link as it is (offline), with the name kept here; a key the site no longer knows (401) is let go here: the file goes',
+            J(off.json) === J({ linked: true, offline: true, name: 'Study PC' }) && fs.existsSync(path.join(saves, 'account.json')) === false && J(g401.json) === J({ linked: false, gone: true }), J([off.json, g401.json]));
         fs.writeFileSync(file, J({ key: KEY })); S.answer['DELETE /api/install'] = { throw: true };
         const del = await call(h, 'DELETE', '/api/account');
         check('unlink: the site is told where it can be, and this computer is unlinked whether or not it could be; a route asked with no key is refused, never sent with none',
-            J(del.json) === J({ ok: true }) && !fs.existsSync(file) && (await call(h, 'GET', '/api/account/prefs')).status === 409 && (await call(h, 'POST', '/api/account/adopt', { prefs: {} })).status === 409, J(del));
+            J(del.json) === J({ ok: true }) && !fs.existsSync(file) && (await call(h, 'GET', '/api/account/prefs')).status === 409 && (await call(h, 'POST', '/api/account/adopt', { prefs: {} })).status === 409 && (await call(h, 'POST', '/api/account/name', { name: 'X' })).status === 409, J(del));
         S.answer['POST /api/link/start'] = { status: 200, json: { deviceCode: 'short', userCode: 'AAAA-AAAA' } };
         const bad = await call(h, 'POST', '/api/account/link', {}); S.answer['POST /api/link/start'] = { status: 429 };
         const slow = await call(h, 'POST', '/api/account/link', {});

@@ -4640,6 +4640,8 @@
   .sheet-rf-back { padding: 0 5px; height: 22px; flex: none; }
   /* 1.6.0, the map environment's tool: its options, and its layer over the board while it is in hand (the GM's alone) */
   .env-menu { min-width: 280px; }
+  #envMenu:has(> #envNone:not([hidden])) > :not(#envNone) { display: none; }   /* the viewing of 2026-11-09: where the system names no reading, the options say only how to add one, since nothing can be painted */
+  #envMenu > #envNone:not([hidden]) { max-width: 280px; }
   .env-menu .env-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12.5px; }
   .env-menu .env-row input.field { width: 72px; padding: 2px 6px; font-size: 12px; }
   .env-menu .env-unit { margin-left: 4px; color: var(--dim); font-size: 11.5px; }

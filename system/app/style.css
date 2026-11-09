@@ -2773,7 +2773,8 @@
   #settingsModal button.set-sw.tool[aria-checked="true"] { background: var(--gold); }
   #settingsModal button.set-sw.tool[aria-checked="true"]::after { left: 18px; background: #1b1b22; }
   #settingsModal button.set-sw.tool:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-  #settingsModal input[type=checkbox] { width: 16px; height: 16px; flex: 0 0 auto; accent-color: var(--gold); cursor: pointer; }   /* the viewing of 2026-11-09: a tick of Settings wears the gold every other tick of the app wears */
+  #settingsModal input[type=checkbox] { width: 16px; height: 16px; flex: 0 0 auto; accent-color: var(--gold); cursor: pointer; }
+  :where(input[type=checkbox], input[type=radio]) { accent-color: var(--gold); }   /* the viewing of 2026-11-09: every tick and choice of the app wears the one accent, at no specificity, so a rule of its own (a sheet's palette) still wins */   /* the viewing of 2026-11-09: a tick of Settings wears the gold every other tick of the app wears */
   #settingsModal button.set-sw.tool:hover { box-shadow: 0 0 0 2px rgba(224,165,79,0.25); }
   #settingsModal :is(.set-sw-row, .set-devmode) { display: grid; grid-template-columns: minmax(0, 1fr) 46px 46px; align-items: center; column-gap: 0; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 0 !important; }
   #settingsModal :is(.set-sw-row, .set-devmode) > * { grid-column: 1 / -1; }

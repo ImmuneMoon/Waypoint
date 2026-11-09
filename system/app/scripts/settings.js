@@ -1332,17 +1332,19 @@ function acctDraw(st) {
 }
 // Rename this computer: the site keeps one name a computer, so what it answers is what is shown, and a name another computer has is said
 function acctRename() {
-    var ni = ui('setAcctName'), btn = ui('setAcctNameBtn'); if (!ni) return;
-    var want = String(ni.value || '').replace(/\s+/g, ' ').trim(); if (!want) { toast('Type a name for this computer first.'); return; }
+    var ni = ui('setAcctName'), btn = ui('setAcctNameBtn'), say = ui('setAcctNameSay'); if (!ni) return;   // what came of it is said under the box: a notice would lie under the window's backdrop
+    var tell = function(w) { if (say) say.textContent = w; else toast(w); };
+    var want = String(ni.value || '').replace(/\s+/g, ' ').trim(); if (!want) { tell('Type a name for this computer first.'); return; }
+    tell('');
     if (btn) btn.disabled = true;
     acctApi('POST', '/api/account/name', { name: want }).then(function(r) {
         if (btn) btn.disabled = false;
-        if (r.status === 200 && typeof r.json.name === 'string') { ni.value = r.json.name; acctStep('renamed', {}); toast('This computer is now called ' + r.json.name + ' on your account.'); return; }
+        if (r.status === 200 && typeof r.json.name === 'string') { ni.value = r.json.name; acctStep('renamed', {}); tell('This computer is now called ' + r.json.name + ' on your account.'); return; }
         acctStep('rename-failed', { status: r.status });
-        if (r.status === 409 && r.json.error === 'taken') { toast('You already have a computer called ' + want + '. Pick another name.'); return; }
-        if (r.status === 429) { toast('That is a lot of renames. Wait a while and try again.'); return; }
-        if (r.status === 200 && r.json.gone) { acctRefresh(); toast('This computer is no longer linked to your account.'); return; }
-        toast('The website cannot be reached just now. Try again later.');
+        if (r.status === 409 && r.json.error === 'taken') { tell('You already have a computer called ' + want + '. Pick another name.'); return; }
+        if (r.status === 429) { tell('That is a lot of renames. Wait a while and try again.'); return; }
+        if (r.status === 200 && r.json.gone) { acctRefresh(); tell('This computer is no longer linked to your account.'); return; }
+        tell('The website cannot be reached just now. Try again later.');
     });
 }
 function acctRefresh() {
@@ -1443,6 +1445,8 @@ function acctWire() {
     if (open) open.addEventListener('click', acctOpenPage);
     if (stop) stop.addEventListener('click', acctStop);
     var nb = ui('setAcctNameBtn'), nin = ui('setAcctName'); if (nb) nb.addEventListener('click', acctRename); if (nin) nin.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); acctRename(); } });
+    var pm = ui('profileModal');   // the account is read again each time the Profile window opens: a computer may be renamed on the account page meanwhile
+    if (pm && typeof MutationObserver === 'function') { var pmWas = false; new MutationObserver(function() { var up = pm.style.display !== 'none' && pm.style.display !== ''; if (up && !pmWas && !ACCT.poll) acctRefresh(); pmWas = up; }).observe(pm, { attributes: true, attributeFilter: ['style'] }); }
     if (un) un.addEventListener('click', function() {
         import('./dialogs.js').then(function(d) { d.showConfirm('Unlink this computer from your account? Your profile here stays as it is, and the account keeps its own copy.', function(yes) { if (yes === true) acctUnlink('asked'); }, { yes: 'Unlink' }); });
     });

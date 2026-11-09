@@ -496,6 +496,11 @@ function receive(list, at) {
         }
     }
     setInterval(tick, 1000);
+    // the viewing of 2026-11-09 (the owner: the turn strip lay under the trackers for a moment after the left panel opened or closed): the bar is placed again
+    // the frame the map's area, the bar or the minimap changes size, not at the next tick, so the turn strip below it follows at once
+    var _placeAsk = 0, placeSoon = function() { if (_placeAsk) return; _placeAsk = window.requestAnimationFrame(function() { _placeAsk = 0; place(); }); };
+    if (typeof window.ResizeObserver === 'function') { try { var roT = new window.ResizeObserver(placeSoon), b0 = strip(), mm0 = document.getElementById('minimap'); if (b0) { roT.observe(b0); if (b0.parentElement) roT.observe(b0.parentElement); } if (mm0) roT.observe(mm0); } catch (e) { console.error(e); } }
+    window.addEventListener('resize', placeSoon);
     setTimeout(function() { draw(true); }, 0);
 })();
 window.wpTrackers = { valuesMoved: valuesMoved, draw: draw, receive: receive, renderLine: renderLine, open: openForm, close: closeForm, closeMenu: closeMenu, list: shownList, place: place, on: featOn, players: playersOf, hidden: hiddenNow, setHidden: setHidden };

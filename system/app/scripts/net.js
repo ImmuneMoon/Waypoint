@@ -12586,6 +12586,8 @@ function fightsRead(raw, camp) {   // what the save holds, as data: { list, on }
         if (Array.isArray(k.seq) && k.seq.length && k.seq.length <= 2000) { var sqK = k.seq.filter(function(x) { return typeof x === 'string'; }); if (sqK.length === k.seq.length) f.seq = sqK; }   // 1.6.2 (G10): the round's order of turns comes back with its fight
         ['et', 'th', 'turned', 'fxEnded', 'ck0'].forEach(function(key) { if (k[key] && typeof k[key] === 'object') f[key] = fightMarks(k[key]); });
         if (Array.isArray(k.hl)) { var hlK = holdsRead(k.hl, rows); if (hlK.length) f.hl = hlK; }   // 1.6.0 Who holds whom
+        var dK = k.dec && typeof k.dec === 'object' ? k.dec : null;   // the viewing of 2026-11-09 (the owner, by prompt: "Save it with the fight (Recommended)"): a round's open declaration comes back with its lines
+        if (dK && dK.open === 1 && dK.round === f.round && (typeof declareRule !== 'function' || declareRule(camp))) { var dL = Object.create(null), lnK = dK.lines && typeof dK.lines === 'object' ? dK.lines : {}; rows.forEach(function(r) { var t = typeof r.id === 'string' && Object.prototype.hasOwnProperty.call(lnK, r.id) && typeof lnK[r.id] === 'string' ? lnK[r.id].replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').trim().slice(0, 200) : ''; if (t) dL[r.id] = t; }); f.dec = { round: f.round, lines: dL, open: 1 }; }
         if (Array.isArray(k.ps)) f.ps = fightIdsIn(k.ps);
         if (Array.isArray(k.pp)) f.pp = k.pp.slice(-10).map(fightIdsIn);
         var at = CC && k.at ? CC.cleanTime(k.at) : null; if (at) f.at = at;

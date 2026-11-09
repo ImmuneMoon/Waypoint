@@ -1258,7 +1258,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                     var a=state.linkStart, b=el.dataset.id; state.linkStart=null;
                     var existing = activeMap.links.findIndex(l=> (l[0]===a&&l[1]===b)||(l[0]===b&&l[1]===a));
                     if(existing>=0) { activeMap.links.splice(existing,1); import('./io.js').then(m=>m.toast('Link removed.')); }
-                    else { activeMap.links.push(state.linkType ? [a, b, state.linkType] : [a, b]); state.selLink = activeMap.links.length - 1; if (window.wpSyncRightPanel) setTimeout(window.wpSyncRightPanel, 0); import('./io.js').then(m=>m.toast((LINK_TYPES[state.linkType || ''] || LINK_TYPES['']).label + ' link added \u2014 label it in Properties.')); }
+                    else { activeMap.links.push(state.linkType ? [a, b, state.linkType] : [a, b]); state.selLink = activeMap.links.length - 1; if (window.wpSyncRightPanel) setTimeout(window.wpSyncRightPanel, 0); import('./io.js').then(m=>m.toast((LINK_TYPES[state.linkType || ''] || LINK_TYPES['']).label + ' link added. Label it in Properties.')); }
                     render(); save();
                 }
               } else {

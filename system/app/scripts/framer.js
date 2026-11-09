@@ -72,7 +72,7 @@ function open(source, opts, cb) {
     if (source && typeof source === 'object' && typeof source.size === 'number' && typeof source.type === 'string') {   // a File or a Blob
         if (source.type.indexOf('image/') !== 0) { toast('That file is not an image.'); return false; }
         var cap = typeof opts.maxInput === 'number' && opts.maxInput > 0 ? opts.maxInput : MAX_INPUT;
-        if (source.size > cap) { toast('Image is too large — please pick one under ' + Math.round(cap / 1048576) + ' MB.'); return false; }
+        if (source.size > cap) { toast('Image is too large. Please pick one under ' + Math.round(cap / 1048576) + ' MB.'); return false; }
         url = URL.createObjectURL(source); own = true;
     } else if (typeof source === 'string') {
         var ref = picRef(source); if (!ref) { toast('That picture cannot be framed.'); return false; }
@@ -138,7 +138,7 @@ function finish() {
             if (e.fill) { c2 = document.createElement('canvas'); c2.width = side; c2.height = side; var x2 = c2.getContext('2d'); x2.fillStyle = '#1e1c28'; x2.fillRect(0, 0, side, side); x2.drawImage(cv, 0, 0); }
             data = firstFit([{ type: e.type, data: e.q ? c2.toDataURL(e.type, e.q) : c2.toDataURL(e.type) }], s.opts.max);
         }
-        if (!data) { toast('Could not shrink that picture enough — try a simpler one.'); return; }
+        if (!data) { toast('Could not shrink that picture enough. Try a simpler one.'); return; }
         res.data = data; done();
     } catch (er) { s.busy = false; toast('That picture cannot be framed here.'); }   // a picture the canvas may not read back
 }

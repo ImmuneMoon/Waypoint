@@ -615,7 +615,7 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
                       linkedTokens(c, activeMap).forEach(function(t) { if (t.type !== 'image') { t.type = 'image'; t.color = 'transparent'; } t.src = data.url; if (window.wpSystemCore && window.wpSystemCore.shapeStandIn && window.wpSystemCore.shapeStandIn(t, activeMap)) { if (window.wpSeatCell) window.wpSeatCell(t, activeMap); else if (window.wpSeatHex) window.wpSeatHex(t, activeMap); } });
                       var frT = rect && rs[1] && rs[1].url && window.wpSystemCore && window.wpSystemCore.cleanFrame ? window.wpSystemCore.cleanFrame({ src: rs[1].url, x: rect.x, y: rect.y, s: rect.s, of: data.url }) : null;
                       linkedTokens(c, activeMap).forEach(function(t) { if (frT) t.frame = Object.assign({}, frT); else delete t.frame; });   // the kept original (GM-only, never on the wire)
-                      save(); render(); toast('Portrait set' + (linkedTokens(c, activeMap).length ? ' — the token now wears it.' : '.'));
+                      save(); render(); toast('Portrait set' + (linkedTokens(c, activeMap).length ? '. The token now wears it.' : '.'));
 
                   })
 
@@ -822,7 +822,7 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
               var n = 0;
               Object.keys((campL && campL.catLibrary) || {}).forEach(function(id) { if (addLibToMap(id)) n++; });
               save(); renderInspector(); renderDataMap();
-              toast(n ? 'Added ' + n + ' categor' + (n === 1 ? 'y' : 'ies') + ' from the library.' : 'Nothing to add — this map already has them all.');
+              toast(n ? 'Added ' + n + ' categor' + (n === 1 ? 'y' : 'ies') + ' from the library.' : 'Nothing to add. This map already has them all.');
           });
           var _catLibSaveAll = document.getElementById('catLibSaveAll');
           if (_catLibSaveAll) _catLibSaveAll.addEventListener('click', function() {
@@ -1265,12 +1265,12 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 if (this.value) w.targetMapId = this.value; else { delete w.targetMapId; delete w.portalIcon; }
                 portalLockTidy(w, activeMap);   // no longer a portal: its lock goes with it
                 save(); render();
-                if (w.targetMapId) import('./io.js').then(function(io) { io.toast('Portal set — double-click it (or drop a player token on it) to travel.'); });
+                if (w.targetMapId) import('./io.js').then(function(io) { io.toast('Portal set. Double-click it, or drop a player token on it, to travel.'); });
             });
             var _el_wbPortalIcon = document.getElementById('wbPortalIcon');
             if (_el_wbPortalIcon) _el_wbPortalIcon.addEventListener('change', function() { w.portalIcon = this.value; save(); render(); });
             var _el_wbTrapPortal = document.getElementById('wbTrapPortal');
-            if (_el_wbTrapPortal) _el_wbTrapPortal.addEventListener('change', function() { if (this.checked) w.trap = true; else delete w.trap; save(); render(); import('./io.js').then(function(io) { io.toast(w.trap ? 'Armed as a trap — it fires while hidden.' : 'No longer a trap — hidden means inert again.'); }); });
+            if (_el_wbTrapPortal) _el_wbTrapPortal.addEventListener('change', function() { if (this.checked) w.trap = true; else delete w.trap; save(); render(); import('./io.js').then(function(io) { io.toast(w.trap ? 'Armed as a trap. It fires while hidden.' : 'No longer a trap. Hidden means inert again.'); }); });
             var _el_wbPagePin = document.getElementById('wbPagePin');   // 1.5.4: a pin: the id of a page that is there, or no key
             if (_el_wbPagePin) _el_wbPagePin.addEventListener('change', function() { setItemPagePin(w, this.value); });
             var _el_wbPagePinAt = document.getElementById('wbPagePinAt');   // 1.6.0: where on its page the pin opens
@@ -1308,7 +1308,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                     if (v === '__new') {
                         if (w.hidden) { this.value = ''; import('./io.js').then(function(m) { m.toast('Show the token first: a roster entry\'s name is sent to players, and this token is hidden from them.'); }); return; }   // hidden pieces: never through the picker either
                         var room = (w.nodeId && (activeMap.rooms || []).find(function(x) { return x.id === w.nodeId; })) || (activeMap.rooms || [])[0];
-                        if (!room) { import('./io.js').then(function(m) { m.toast('This map has no room to hold a character — add one on the Data Map first.'); }); this.value = ''; return; }
+                        if (!room) { import('./io.js').then(function(m) { m.toast('This map has no room to hold a character. Add one on the Data Map first.'); }); this.value = ''; return; }
                         room.characters = room.characters || [];
                         var nc = { id: uid(), name: w.charName || w.name || 'New Character', info: '' };
                         room.characters.push(nc); w.charRef = nc.id;
@@ -1341,7 +1341,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                             campO.players[this.value].charName = w.charName; delete campO.players[this.value].charMade;   // the GM's binding (Onboarding F3b: it may take the GM's tokens by name again)
                         }
                     } else { var wasO = w.ownerId; delete w.ownerId; if (wasO && !linkedO && campO && window.wpSheets && window.wpSheets.unbindName) window.wpSheets.unbindName(campO, wasO, w.charName || ''); }   // taken back: the name binding goes once they hold no other copy of it
-                    save(); toast(this.value ? 'Token assigned — this player now plays ' + (w.charName || 'this character') + ' everywhere.' : 'Token set to GM control.');
+                    save(); toast(this.value ? 'Token assigned. This player now plays ' + (w.charName || 'this character') + ' everywhere.' : 'Token set to GM control.');
                     if (window.wpSheets && w.charId) window.wpSheets.ownerFromToken(w);   // the character follows, and every token of it
                     else if (this.value && window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.reconcilePresence && Object.values(window.wpNet.roster || {}).some(p => p && p.id === this.value && p.location === activeMap.id)) window.wpNet.reconcilePresence(this.value, {});   // Onboarding F1a: a token given on the map they are on: their waiting token gives way
                 });
@@ -2425,7 +2425,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
           r.targetMapId = nm.id;
           if (!r.icon) r.icon = 'Door';
           save(); updateSidebarNav(); render();
-          toast('Created map “' + title + '” from the image — this node now leads to it. Double-click to visit.');
+          toast('Created map “' + title + '” from the image. This node now leads to it. Double-click to visit.');
       };
       im.onerror = function() { /* image unreadable: keep the node picture, no map */ };
       im.src = url;

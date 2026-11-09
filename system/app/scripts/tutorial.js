@@ -1173,7 +1173,7 @@ function pauseTour() {
 }
 function resumeTour() {
     if (!tour.active || !tour.paused) return;
-    if (!canPersistLocal()) { toast('The tutorial runs on your own campaigns — leave the session first.'); return; }
+    if (!canPersistLocal()) { toast('The tutorial runs on your own campaigns. Leave the session first.'); return; }
     guardSwitch(hosting() && state.appState.activeCampaignId !== TUTORIAL_CAMP_ID, function() {   // the step opens the Tutorial campaign again
         if (state.appState.activeCampaignId !== TUTORIAL_CAMP_ID || !tutorialCampaign()) ensureTutorialCampaign(false);
         tour.paused = false;
@@ -1186,7 +1186,7 @@ function resumeTour() {
 
 function startTour(at) {
     var start = (typeof at === 'number' && at > 0 && at < STEPS.length) ? at : 0;   // Help can start at a section, or resume where a tour ended
-    if (!canPersistLocal()) { toast('The tutorial runs on your own campaigns — leave the session first.'); return; }
+    if (!canPersistLocal()) { toast('The tutorial runs on your own campaigns. Leave the session first.'); return; }
     guardSwitch(hosting() && state.appState.activeCampaignId !== TUTORIAL_CAMP_ID, function() {   // the tour opens the Tutorial campaign
         ensureDom();
         ensureTutorialCampaign(false);   // starting at a section needs the demo campaign present (Welcome usually does this first)

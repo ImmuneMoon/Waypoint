@@ -858,7 +858,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
                   var dj = entries.find(function(en) { return en.name === 'data.json'; });
                   if (!dj) {
                       if (window.wpDocImport && window.wpDocImport.detectBundle(entries)) { window.wpDocImport.importFile(file); return; }   // a .md with its pictures
-                      toast('This zip has no data.json — not a Waypoint export.'); return;
+                      toast('This zip has no data.json. Not a Waypoint export.'); return;
                   }
                   if (dj.size > 512 * 1024 * 1024) { toast('This zip\'s data.json is too large to read.'); return; }
                   var djText = new TextDecoder().decode(await dj.bytes());
@@ -926,7 +926,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
       Object.keys(cls.tiers).forEach(function(id) { if (cls.tiers[id] === 'CERTAIN') { delete camps[id]; skipped++; } });
 
-      if (skipped === total) { toast('That file is a view of someone else\'s table, not a campaign — nothing was brought in from it.'); return false; }
+      if (skipped === total) { toast('That file is a view of someone else\'s table, not a campaign. Nothing was brought in from it.'); return false; }
 
       if (skipped) toast(skipped + ' campaign(s) in that file were a view of someone else\'s table and were left out.');
 
@@ -956,7 +956,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
               // A file that carries the origin marker anywhere is a player's view of a GM's table, not a campaign: refused whole
               // by design (a snapshot marks every campaign); screenImport below judges the unmarked rest campaign by campaign
-              if (data._foreign || Object.values(data.campaigns || {}).some(function(c) { return c && c._foreign; })) { toast('That file is a view of someone else\'s table, not a campaign — nothing was brought in from it.'); return; }
+              if (data._foreign || Object.values(data.campaigns || {}).some(function(c) { return c && c._foreign; })) { toast('That file is a view of someone else\'s table, not a campaign. Nothing was brought in from it.'); return; }
 
               if (data.maps && !data.campaigns) {
 

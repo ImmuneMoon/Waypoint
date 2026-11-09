@@ -3081,7 +3081,7 @@ function mutations(tpl) {
     {   // a portal's own lock: the host's refusal is said in the app's own fixed words, whatever rides beside the reason
         resetClient(); resetRec();
         await fireClient('host', 'travelDenied', 'reason portal with host text beside it', { type: 'travelDenied', reason: 'portal', map: CANARY, text: CANARY, portal: CANARY });
-        check('client: a travelDenied of reason "portal" is said in the app\'s own fixed words — nothing of the message in them', rec.toasts.some(t => t === 'That way is locked — the GM will unlock it when the time comes.') && !rec.toasts.some(t => t.indexOf(CANARY) >= 0), rec.toasts.slice(0, 3));
+        check('client: a travelDenied of reason "portal" is said in the app\'s own fixed words — nothing of the message in them', rec.toasts.some(t => t === 'That way is locked. The GM will unlock it when the time comes.') && !rec.toasts.some(t => t.indexOf(CANARY) >= 0), rec.toasts.slice(0, 3));
         resetClient();
     }
     /* ---------- fold B5: a secret door (the map builder), on the player's app. The real host's secret door is held as the wall it was sent as,

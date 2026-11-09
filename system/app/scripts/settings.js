@@ -17,7 +17,7 @@ function getProfile() {
 }
 function saveProfile(p) {
     try { localStorage.setItem('wp_profile', JSON.stringify(p)); } catch (e) {
-        toast('Could not save profile — picture may be too large.');
+        toast('Could not save the profile. The picture may be too large.');
     }
 }
 
@@ -31,7 +31,7 @@ var AVATAR_MAX_STORED = 100 * 1024;
 
 function processAvatar(file, cb, opts) {
     if (!file || !file.type || file.type.indexOf('image/') !== 0) { toast('That file is not an image.'); return; }
-    if (file.size > AVATAR_MAX_INPUT) { toast('Image is too large — please pick one under 8 MB.'); return; }
+    if (file.size > AVATAR_MAX_INPUT) { toast('Image is too large. Please pick one under 8 MB.'); return; }
     opts = opts || {};
     if (window.wpFrame && window.wpFrame.open) {   // the token creator (owner, 2026-09-27): they choose the part that shows (OK untouched keeps the middle, as below)
         window.wpFrame.open(file, { px: opts.px || AVATAR_PX, as: 'data', max: opts.max || AVATAR_MAX_STORED, title: opts.title || 'Frame your picture', guide: opts.guide || null }, function(res) { if (res && res.data) cb(res.data); });
@@ -50,7 +50,7 @@ function processAvatar(file, cb, opts) {
         cv.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, AVATAR_PX, AVATAR_PX);
         var data = cv.toDataURL('image/png');
         if (data.length > AVATAR_MAX_STORED) data = cv.toDataURL('image/jpeg', 0.85);
-        if (data.length > AVATAR_MAX_STORED) { toast('Could not shrink that image enough — try a simpler one.'); return; }
+        if (data.length > AVATAR_MAX_STORED) { toast('Could not shrink that image enough. Try a simpler one.'); return; }
         cb(data);
     };
     img.onerror = function() { URL.revokeObjectURL(url); toast('Could not read that image.'); };
@@ -157,7 +157,7 @@ if (_avFile) _avFile.addEventListener('change', function() {
         p.avatar = data;
         saveProfile(p);
         renderAvatarPreview();
-        toast('Picture saved — it shows at the next table you join or host.');
+        toast('Picture saved. It shows at the next table you join or host.');
     });
 });
 // The join panel's little avatar opens the same picker, and both previews
@@ -195,7 +195,7 @@ document.querySelectorAll('.set-unit-btn').forEach(function(b) {
 var _streamBtn = ui('setStreamBtn');
 if (_streamBtn) _streamBtn.addEventListener('click', function() {
     var w = window.open(location.origin + '/?stream=1', 'waypointStream', 'width=1280,height=720');
-    if (!w) { toast('Could not open the window — allow pop-ups for Waypoint.'); return; }
+    if (!w) { toast('Could not open the window. Allow pop-ups for Waypoint.'); return; }
     toast('Stream window opened. Share that window in Discord/OBS; use its map picker to focus a map.');
 });
 // [videocheck:streamholdset-start]
@@ -317,7 +317,7 @@ function saveTurnFields() {
 }
 ['setTurnUrls', 'setTurnUser', 'setTurnPass'].forEach(function(id) {
     var el = ui(id); if (!el) return;
-    el.addEventListener('change', function() { saveTurnFields(); if (window.wpNet && window.wpNet.active) toast('Relay saved \u2014 applies the next time you host or join.'); });
+    el.addEventListener('change', function() { saveTurnFields(); if (window.wpNet && window.wpNet.active) toast('Relay saved. Applies the next time you host or join.'); });
     el.addEventListener('keydown', function(e) { e.stopPropagation(); });
 });
 var _turnTest = ui('setTurnTestBtn');
@@ -341,7 +341,7 @@ var _turnClear = ui('setTurnClearBtn');
 if (_turnClear) _turnClear.addEventListener('click', function() {
     ['setTurnUrls', 'setTurnUser', 'setTurnPass'].forEach(function(id) { var el = ui(id); if (el) el.value = ''; });
     try { localStorage.setItem('wp_relayOnly', '0'); } catch (e) {}   // the mode that depends on the relay goes with it
-    saveTurnFields(); syncPanel(); toast('Relay removed \u2014 direct connections only.');
+    saveTurnFields(); syncPanel(); toast('Relay removed. Direct connections only.');
 });
 loadTurnFields();
 
@@ -351,7 +351,7 @@ if (_relayBtn) _relayBtn.addEventListener('click', function() {
     var on = localStorage.getItem('wp_relayOnly') === '1';
     localStorage.setItem('wp_relayOnly', on ? '0' : '1');
     syncPanel();
-    if (window.wpNet && window.wpNet.active) toast(on ? 'Relay-only off — applies the next time you host or join.' : 'Relay-only on — applies the next time you host or join.');
+    if (window.wpNet && window.wpNet.active) toast(on ? 'Relay-only off. It applies the next time you host or join.' : 'Relay-only on. It applies the next time you host or join.');
     else toast(on ? 'Connections go direct first again.' : 'All multiplayer traffic will go through the relay.');
 });
 
@@ -552,7 +552,7 @@ vttFeatures().forEach(function(f) {
             var off = !v.localOff(f.id);
             if (!v.setLocal(f.id, off)) return;
             syncPanel();
-            toast(shortLabel(f) + (off ? ' off for you at this table \u2014 your own settings are unchanged.' : ' back on for you at this table.'));
+            toast(shortLabel(f) + (off ? ' off for you at this table. Your own settings are unchanged.' : ' back on for you at this table.'));
             return;
         }
         if (v.locked()) return;
@@ -624,7 +624,7 @@ if (_vttMaster) _vttMaster.addEventListener('click', function() {
     var on = v.campaignMaster();
     if (!v.setMaster(!on)) return;
     syncPanel();
-    toast(on ? 'VTT integration off for this campaign \u2014 plain whiteboard. Your per-feature choices are kept.' : 'VTT integration on for this campaign.');
+    toast(on ? 'VTT integration off for this campaign. Plain whiteboard. Your per-feature choices are kept.' : 'VTT integration on for this campaign.');
 });
 var _vttGlobalMaster = ui('setVttGlobalMasterBtn');
 if (_vttGlobalMaster) _vttGlobalMaster.addEventListener('click', function() {
@@ -677,7 +677,7 @@ function setDevMode(on) {
     if (!on && window.wpDevConsole) window.wpDevConsole.close();   // turning it off: close the console if it is open (the shell closes the developer tools)
     syncPanel();
     try { sessionStorage.setItem('wp_devmodeNote', want); } catch (e) {}   // said again once the page is back
-    toast(on ? 'Developer mode is on — Waypoint reloads to finish switching it on.' : 'Developer mode is off — Waypoint reloads to finish switching it off.');
+    toast(on ? 'Developer mode is on. Waypoint reloads to finish switching it on.' : 'Developer mode is off. Waypoint reloads to finish switching it off.');
     devModeReload();
 }
 var _dcBtn = ui('setDevConsoleBtn'), _dcAsking = false;
@@ -699,7 +699,7 @@ if (_dcBtn) _dcBtn.addEventListener('click', function() {
 (function() {
     var note = null, now = null;
     try { note = sessionStorage.getItem('wp_devmodeNote'); sessionStorage.removeItem('wp_devmodeNote'); now = localStorage.getItem('wp_devconsole'); } catch (e) { note = null; }
-    if (note === 'on' && now === 'on') setTimeout(function() { toast('Developer mode on — press ~ for the console (type /help inside); in the installed app Ctrl+Shift+I opens the developer tools.'); }, 800);
+    if (note === 'on' && now === 'on') setTimeout(function() { toast('Developer mode on. Press ~ for the console (type /help inside); in the installed app Ctrl+Shift+I opens the developer tools.'); }, 800);
     else if (note === 'off' && now !== 'on') setTimeout(function() { toast('Developer mode off.'); }, 800);
 })();
 // [servercheck:devmode-end]
@@ -754,7 +754,7 @@ var _snapNow = ui('setSnapNowBtn');
 if (_snapNow) _snapNow.addEventListener('click', async function() {
     try {
         var r = await fetch('/api/backup-now', { method: 'POST' });
-        if (r.status === 404) { var jx = await r.json().catch(function() { return {}; }); toast(jx.error === 'no save yet' ? 'Nothing saved yet to snapshot.' : 'Snapshots need the current installer — see Updates.'); return; }
+        if (r.status === 404) { var jx = await r.json().catch(function() { return {}; }); toast(jx.error === 'no save yet' ? 'Nothing saved yet to snapshot.' : 'Snapshots need the current installer. See Updates.'); return; }
         if (!r.ok) throw new Error();
         toast('Snapshot taken. It stays until you delete it.');
         loadSnapshots();
@@ -777,16 +777,16 @@ if (_snapList) _snapList.addEventListener('click', async function(e) {
         return;
     }
     if (e.target.closest('.snap-restore')) {
-        if (window.wpNet && (window.wpNet.active || window.wpNet.foreign)) { toast('End or leave the session first — a restore replaces the whole save.'); return; }
+        if (window.wpNet && (window.wpNet.active || window.wpNet.foreign)) { toast('End or leave the session first. A restore replaces the whole save.'); return; }
         d.showConfirm('Restore the save from ' + when + '? Every campaign goes back to how it was then. The save as it is now is snapshotted first, then Waypoint reloads.', async function(yes) {
             if (!yes) return;   // only a yes replaces the save
             try {
                 var r = await fetch('/api/restore-backup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: file }) });
                 if (!r.ok) throw new Error();
                 window.__wpNoSave = true;   // nothing in memory may overwrite the restored file
-                toast('Restored — reloading.');
+                toast('Restored. Reloading.');
                 setTimeout(function() { location.reload(); }, 400);
-            } catch (err) { toast('Restore failed — the save was not changed.'); }
+            } catch (err) { toast('Restore failed. The save was not changed.'); }
         });
     }
 });
@@ -807,7 +807,7 @@ if (_prefs) _prefs.addEventListener('click', function() {
     document.documentElement.style.removeProperty('--leftw');
     document.documentElement.style.removeProperty('--rightw');
     if (window.wpVtt) window.wpVtt.changed('reset');   // the VTT default is back to the 1.4.6 keys, then on; campaigns carry their own and are untouched
-    toast('Preferences reset — restart Waypoint to apply everything.');
+    toast('Preferences reset. Restart Waypoint to apply everything.');
 });
 
 renderAvatarPreview();   // the join panel's avatar shows from first open
@@ -957,7 +957,7 @@ function runHotUpdate() {
             btns.forEach(function(b) { if (b) b.disabled = true; }); wcStrip();
             fetch('/api/update-apply', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(r) {
                 if (!r.ok) throw new Error(r.error || 'update failed');
-                toast('Updated to ' + r.version + ' — reloading… If you had a Stream window open, close and reopen it.' + (typeof r.privateNote === 'string' ? ' ' + r.privateNote.slice(0, 200) : ''));   // the shell's own words when the outside sheet reader could not be carried
+                toast('Updated to ' + r.version + '. Reloading… If you had a Stream window open, close and reopen it.' + (typeof r.privateNote === 'string' ? ' ' + r.privateNote.slice(0, 200) : ''));   // the shell's own words when the outside sheet reader could not be carried
                 try { new BroadcastChannel('waypoint').postMessage({ type: 'reload' }); } catch (e) {}   // a stream window on the new code reloads itself
                 setTimeout(function() { location.reload(); }, 900);
             }).catch(function(e) { btns.forEach(function(b) { if (b) b.disabled = false; }); wcStrip(); toast('Update failed: ' + (e.message || e)); });
@@ -979,7 +979,7 @@ function runRestore() {
             fetch('/api/update-rollback', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(r) {
                 if (!r || r.ok !== true) throw new Error((r && typeof r.error === 'string' && r.error) || 'nothing was restored');
                 var v = cleanVer(r.version);
-                toast('Restored ' + (v ? 'Waypoint Alpha ' + v : 'the previous version') + ' — reloading… If you had a Stream window open, close and reopen it.' + (typeof r.privateNote === 'string' ? ' ' + r.privateNote.slice(0, 200) : ''));
+                toast('Restored ' + (v ? 'Waypoint Alpha ' + v : 'the previous version') + '. Reloading… If you had a Stream window open, close and reopen it.' + (typeof r.privateNote === 'string' ? ' ' + r.privateNote.slice(0, 200) : ''));
                 try { new BroadcastChannel('waypoint').postMessage({ type: 'reload' }); } catch (e) {}   // a stream window reloads itself onto the restored code
                 setTimeout(function() { location.reload(); }, 900);
             }).catch(function(e) { if (b) b.disabled = false; toast('Could not restore the previous version: ' + String(e && e.message || e).slice(0, 200)); });

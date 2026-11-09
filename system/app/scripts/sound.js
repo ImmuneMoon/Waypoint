@@ -415,7 +415,7 @@ function uploadFiles(files) {
             return window.wpUploadBlob('audio/' + safeId(camp.id), f.name.replace(/[\/\\?#%]/g, '_').slice(0, 120), f).then(function(url) {
                 var e = { id: uid(), name: f.name.replace(/^[a-z0-9]{8}_/, '').replace(/\.[^.]+$/, '').slice(0, LIMITS.name) || 'Sound', path: url, kind: p.dur > LIMITS.cueSec ? 'loop' : 'cue', gain: 1, size: f.size, dur: Math.round(p.dur * 10) / 10 };
                 campListW(camp).push(e); used += f.size; done++;
-                if (/\.mp3$/i.test(f.name) && e.kind === 'loop') toast('"' + e.name + '" is an MP3 loop: MP3 cannot loop without a tiny click at the seam — OGG loops cleanly.');
+                if (/\.mp3$/i.test(f.name) && e.kind === 'loop') toast('"' + e.name + '" is an MP3 loop: MP3 cannot loop without a tiny click at the seam. OGG loops cleanly.');
                 next();
             });
         }).catch(function(err) { refused.push(f.name + ' (' + (err.message || 'upload failed') + ')'); next(); });

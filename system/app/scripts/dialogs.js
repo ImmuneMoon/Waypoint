@@ -596,7 +596,7 @@ if(_el_ctxNewChildItem) _el_ctxNewChildItem.addEventListener('click', function()
           camp.activeItemId = parent.id;
           state.selId = null; state.selWbId = null; state.linkStart = null;
           updateSidebarNav(); render(); save(true);
-          toast('\u201c' + title + '\u201d now holds \u201c' + (child.meta.title || (child.type === 'doc' ? 'the page' : isPl ? 'the planner' : 'the map')) + '\u201d' + (isPl ? '.' : ' \u2014 the node on its data map is a portal into it.'));
+          toast('\u201c' + title + '\u201d now holds \u201c' + (child.meta.title || (child.type === 'doc' ? 'the page' : isPl ? 'the planner' : 'the map')) + '\u201d' + (isPl ? '.' : '. The node on its data map is a portal into it.'));
       });
   });
 

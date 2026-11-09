@@ -331,7 +331,7 @@ function terrainFor(map, grid) {
         var fcT = footprintCells(w, grid, C); if (fcT.over) { over = true; return; }
         fcT.forEach(function(c) { var k = C.cellKey(c, grid); set = set || Object.create(null); if (!set[k]) { if (++n > cap) over = true; set[k] = t; } else if (t > set[k]) set[k] = t; });
     });
-    if (over) { set = null; if (!_terrWarned[map.id] && !isClientView()) { _terrWarned[map.id] = 1; toast('Too much difficult terrain on this map — none of it counts here.'); } }
+    if (over) { set = null; if (!_terrWarned[map.id] && !isClientView()) { _terrWarned[map.id] = 1; toast('Too much difficult terrain on this map. None of it counts here.'); } }
     else _terrWarned[map.id] = 0;
     _terrStamp[map.id] = stamp; _terrCache[map.id] = set;
     return set;
@@ -350,7 +350,7 @@ function smokeFor(map, grid) {   // { cellKey: 1 } or null, kept on the map's sa
         var fcS = footprintCells(w, grid, C); if (fcS.over) { over = true; return; }
         fcS.forEach(function(c) { var k = C.cellKey(c, grid); set = set || Object.create(null); if (!set[k]) { set[k] = 1; if (++n > cap) over = true; } });
     });
-    if (over) { set = null; if (!_smokeWarned[map.id] && !isClientView()) { _smokeWarned[map.id] = 1; toast('Too much smoke on this map — smoke is not hiding anything here.'); } }
+    if (over) { set = null; if (!_smokeWarned[map.id] && !isClientView()) { _smokeWarned[map.id] = 1; toast('Too much smoke on this map. Smoke is not hiding anything here.'); } }
     else _smokeWarned[map.id] = 0;
     var sig = set ? Object.keys(set).sort().join(';') : '';
     if (_smokeSig[map.id] !== sig) { _smokeSig[map.id] = sig; _smokeVer[map.id] = (_smokeVer[map.id] || 0) + 1; delete _smokeUnion[map.id]; }
@@ -382,7 +382,7 @@ function blockersFor(map, grid) {
         var cells = footprintCells(w, grid, C); if (cells.over) { over = true; break; }   // too large to list: over the cap by itself
         for (var j = 0; j < cells.length; j++) { var k = C.cellKey(cells[j], grid); if (!set[k]) { set[k] = 1; if (++n > C.LIMITS.blockerCells) { over = true; break; } } }
     }
-    if (over && !_blockerWarned[map.id]) { _blockerWarned[map.id] = 1; toast('Too many sight-blockers on this map — vision is not being blocked here.'); }
+    if (over && !_blockerWarned[map.id]) { _blockerWarned[map.id] = 1; toast('Too many sight-blockers on this map. Vision is not being blocked here.'); }
     if (!over) _blockerWarned[map.id] = 0;
     var result = (over || (n === 0 && !segs.length)) ? null : C.withWalls(set, segs, grid);   // over cap or none → no occlusion (fail open); item 18 W2: the lines' walls on the set
     _blockerOver[map.id] = over;   // lighting review: over the cap no wall blocks, so no light may be judged through them (the map reads by sight only)
@@ -679,7 +679,7 @@ function moveSetFor(map, grid, walls) {
         for (var j = 0; j < cells.length; j++) { k = C.cellKey(cells[j], grid); if (!set[k]) { set[k] = 1; if (++n > cap) { over = true; break; } } }
     }
     var res = walls;
-    if (over) { if (!_moveWarned[map.id] && !isClientView()) { _moveWarned[map.id] = 1; toast('Too many barriers on this map — they are not stopping tokens here.'); } }
+    if (over) { if (!_moveWarned[map.id] && !isClientView()) { _moveWarned[map.id] = 1; toast('Too many barriers on this map. They are not stopping tokens here.'); } }
     else {
         _moveWarned[map.id] = 0; C.copyWalls(walls, set); res = C.withWalls(set, segs, grid);
         if (big && _moveBig[map.id] !== big && !isClientView()) toast((big === 1 ? 'A barrier on this map is' : big + ' barriers on this map are') + ' too large to stop tokens.' + (bars.length > big ? ' The other barriers still do.' : ''));   // said once for each count
@@ -770,7 +770,7 @@ function lightSources(map, grid, blk, skip) {   // skip: ids left out (L3: the i
         out.push({ cell: cell, bright: L.bright > 0 ? C.unitCells(L.bright, L.unit, per) : -1, dim: C.unitCells(L.dim, L.unit, per) });   // bright -1: a dim-only light; L4: the radii in the light's own unit
     }
     if (!skip) _lightsOver[map.id] = out.length > C.LIMITS.lights;
-    if (out.length > C.LIMITS.lights) { if (!_lightsWarned[map.id] && isGmView()) { _lightsWarned[map.id] = 1; toast('Too many light sources on this map — it reads dark until there are fewer.'); } return []; }
+    if (out.length > C.LIMITS.lights) { if (!_lightsWarned[map.id] && isGmView()) { _lightsWarned[map.id] = 1; toast('Too many light sources on this map. It reads dark until there are fewer.'); } return []; }
     _lightsWarned[map.id] = 0;
     return out;
 }
@@ -787,7 +787,7 @@ function litFor(map, grid, blk) {
     var mc = _litCache[map.id]; if (mc && mc.sig === sig) return mc;
     var lit = src.length ? C.litLevels(src, grid, blk) : Object.create(null);
     if (lit && fl) fl.forEach(function(e) { var k = C.cellKey(e, grid); if (!(lit[k] >= e.t)) lit[k] = e.t; });
-    if (!lit) { if (!_visitsWarned[map.id] && isGmView()) { _visitsWarned[map.id] = 1; toast('These lights reach too far to work out together — the map reads dark until there are fewer or smaller ones.'); } }
+    if (!lit) { if (!_visitsWarned[map.id] && isGmView()) { _visitsWarned[map.id] = 1; toast('These lights reach too far to work out together. The map reads dark until there are fewer or smaller ones.'); } }
     else _visitsWarned[map.id] = 0;
     mc = _litCache[map.id] = { sig: sig, lit: lit || Object.create(null), ver: ((mc && mc.ver) || 0) + 1, capped: !lit };
     return mc;
@@ -2105,7 +2105,7 @@ function paintGrid() {   // the map and grid a stroke paints on, or null (said w
     if (!isGmView() || !canWrite()) return null;
     var map = activeMap(), C = core(); if (!map || !C) return null;
     var grid = gridForMap(map);
-    if (!grid) { toast('This is a gridless map — choose a measurement grid in the fog menu first.'); return null; }
+    if (!grid) { toast('This is a gridless map. Choose a measurement grid in the fog menu first.'); return null; }
     return { map: map, grid: grid, C: C, cw: grid.type === 'square' ? grid.size : 1.5 * grid.s, ch: grid.type === 'square' ? grid.size : grid.h };
 }
 function paintDo(g, cells, opposite) {
@@ -2315,7 +2315,7 @@ var LIGHT_SAID = {
         var mf = mapFog(map); mf.on = on.checked;
         if (mf.on && ((map.meta && map.meta.gridType) || 'off') === 'off' && !mf.cell) mf.cell = { grid: 'square', len: 60 };
         save(); syncMenu(); redraw();
-        toast(mf.on ? 'Fog on for this map.' : 'Fog off for this map — the whole map shows.');
+        toast(mf.on ? 'Fog on for this map.' : 'Fog off for this map. The whole map shows.');
     });
     var fhide = ui('fogHideMine');   // 1.5.4: "Hide the fog on my screen" — the GM's own drawing alone, kept on this machine
     if (fhide) fhide.addEventListener('change', function() {
@@ -2411,7 +2411,7 @@ var LIGHT_SAID = {
     var rev = ui('fogRevealAll');
     if (rev) rev.addEventListener('click', function() { var map = activeMap(); if (!map) return; var mfR = mapFog(map); mfR.mode = 'reveal'; mfR.epoch = (mfR.epoch || 0) + 1; save(); syncMenu(); redraw(); toast('Whole map revealed. Paint or pick a preview to fog again.'); });   // senses S6: a new epoch empties every player's memory of it
     var cov = ui('fogCoverAll');
-    if (cov) cov.addEventListener('click', function() { var map = activeMap(); if (!map) return; var mfC = mapFog(map); mfC.mode = 'cover'; mfC.epoch = (mfC.epoch || 0) + 1; save(); syncMenu(); redraw(); toast('Whole map covered — only cells you reveal by hand show.'); });   // senses S6: a new epoch empties every player's memory of it
+    if (cov) cov.addEventListener('click', function() { var map = activeMap(); if (!map) return; var mfC = mapFog(map); mfC.mode = 'cover'; mfC.epoch = (mfC.epoch || 0) + 1; save(); syncMenu(); redraw(); toast('Whole map covered. Only cells you reveal by hand show.'); });   // senses S6: a new epoch empties every player's memory of it
     var prev = ui('fogPreview');
     if (prev) prev.addEventListener('change', function() { previewMode = prev.value || 'off'; redraw(); });
     FOG_FOLDS.forEach(function(id) { var fb = ui(id); if (fb) fb.addEventListener('click', function() { foldPress(id); }); });   // 1.5.4: the menu's three folds

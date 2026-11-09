@@ -3258,7 +3258,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     WK.api.onPress({ target: xB[0] }); const afterX = [WK.api.listOf('k1').map(n => n.m), WK.P.doc.activeElement && WK.P.doc.activeElement.attrs['data-note-x'] === xB[1].attrs['data-note-x']];
     const offB = WK.P.walk(list, k => k.attrs['data-note-off'] !== undefined, [])[0]; WK.api.onPress({ target: offB }); const afterOff = WK.api.waiting().length;
     {   // 1.6.2 (the owner, 2026-11-05: "Warnings first, rest folded"): a fight's turn notices are one line, opened by a press
-        const FW = world({}), fwords = ['Saved the map', "Combat! Kael's turn.", "Bo's turn.", "Kael's turn \u2014 round 2.", 'Combat is over.', "Combat! Bo's turn.", "Kael's turn.", 'Note B'];
+        const FW = world({}), fwords = ['Saved the map', "Combat! Kael's turn.", "Bo's turn.", "Kael's turn. Round 2.", 'Combat is over.', "Combat! Bo's turn.", "Kael's turn.", 'Note B'];
         fwords.forEach((m, i) => FW.api.add(m, 100000 + i * 10000));
         const runs = FW.api.foldRuns(FW.api.listOf('k1')).map(g => g.map(n => n.m)), cls = () => FW.P.reg.notesList.children.map(r => r.className);
         FW.P.reg.notesMenu.hidden = false; FW.api.draw(); const c1 = cls();
@@ -3267,7 +3267,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         const xs = FW.P.walk(FW.P.reg.notesList, k => !!k.attrs && Object.prototype.hasOwnProperty.call(k.attrs, 'data-note-xs'), []);
         FW.api.onPress({ target: xs[1] }); const left = FW.api.listOf('k1').map(n => n.m);
         check('the bell folds a fight\'s turn notices into one line (1.6.2, the owner: "Warnings first, rest folded"; notices.js run for real): a run from its Combat! to its Combat is over. is one fold, two fights two folds, every other notice a line of its own; a press on the fold opens its notices under it and keeps the focus on it; its x deletes that fight\'s notices and nothing else; a word that is no turn notice never folds',
-            J(runs) === J([['Note B'], ["Kael's turn.", "Combat! Bo's turn."], ['Combat is over.', "Kael's turn \u2014 round 2.", "Bo's turn.", "Combat! Kael's turn."], ['Saved the map']])
+            J(runs) === J([['Note B'], ["Kael's turn.", "Combat! Bo's turn."], ['Combat is over.', "Kael's turn. Round 2.", "Bo's turn.", "Combat! Kael's turn."], ['Saved the map']])
             && J(c1) === J(['rm-label notes-sec', 'notes-item', 'notes-item notes-fold', 'notes-item notes-fold', 'notes-item'])
             && J(c2) === J(['rm-label notes-sec', 'notes-item', 'notes-item notes-fold', 'notes-item notes-fold', 'notes-item notes-sub', 'notes-item notes-sub', 'notes-item notes-sub', 'notes-item notes-sub', 'notes-item'])
             && open2 === 'false' && typeof fo2 === 'string' && J(left) === J(['Note B', "Kael's turn.", "Combat! Bo's turn.", 'Saved the map'])
@@ -3286,7 +3286,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
             J(wf) === J(['Told by its caller', 'Saving failed. The campaign is not reaching the disk.'])
             && J(runs.map(g => [g[0].m, g.length, !!g.same])) === J([['Hosting resumed.', 3, true], ['Plain words', 1, false], ['A critical failure: 3 on the dice.', 1, false], ['Saved the map', 1, false]])
             && vc[0].indexOf('Waiting for you') > 0 && vc[1].split(':')[0] === 'notes-item notes-warn' && vc[2].split(':')[0] === 'notes-item notes-warn' && vc[3].indexOf('Earlier') > 0
-            && vc[4].split(':')[0] === 'notes-item notes-fold' && vc[4].indexOf('Said 3 times') > 0 && vc.length === 8
+            && vc[4].split(':')[0] === 'notes-item notes-rep' && vc[4].indexOf('\u00d73') > 0 && vc.length === 8   // the viewing of 2026-11-09: one row and a count badge (moved on purpose)
             && J(vc2.filter(c => c === 'notes-item notes-sub').length) === '3' && keptW === 2 && J(backW) === J(['Told by its caller', 'Saving failed. The campaign is not reaching the disk.'])
             && FV.api.add('Could not save that picture.', 400000) && FV.api.listOf('k1')[0].w === 1 && !FV.api.add('That picture cannot be used.', 410000).w,
             J([wf, runs.map(g => [g[0].m, g.length]), vc, vc2, keptW, backW]));

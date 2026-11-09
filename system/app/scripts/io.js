@@ -174,8 +174,8 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
         });
 
         if (!c.activeItemId || !c.items[c.activeItemId]) {
-            c.activeItemId = Object.keys(c.items)[0] || null;
-            fix('activeItemId repaired');
+            var aiFirst = Object.keys(c.items)[0] || null;   // a campaign with no item keeps null: only a real change is a repair, or every load of it upgrades the save again
+            if (c.activeItemId !== aiFirst) { c.activeItemId = aiFirst; fix('activeItemId repaired'); }
         }
 
         // VTT features (1.4.9): a save from before them gets its per-campaign set once, from the default
@@ -2228,7 +2228,7 @@ export function toast(msg, lv) {
 
 }
 
-// Every module's local toast() shim delegates to window.appToast — hook it up here.
+// Every module's local toast() shim delegates to window.appToast. Hook it up here.
 
 window.appToast = toast;
 
@@ -2250,7 +2250,7 @@ export function toastAction(msg, label, fn, ms) {
 window.wpReloadFromDisk = function() {
     var n = window.wpNet;
     if (n && n.active && n.role === 'client') { toast('Not while you\'re at someone else\'s table.'); return false; }   // still joined: your own save would replace the table
-    if (n && n.active && n.role === 'host') { toast('Not while you\'re hosting \u2014 end the session first.'); return false; }   // the load's normaliser and cleanup would run under the live table
+    if (n && n.active && n.role === 'host') { toast('Not while you\'re hosting. End the session first.'); return false; }   // the load's normaliser and cleanup would run under the live table
     clearTimeout(saveTimeout); load(); return true;
 };
 

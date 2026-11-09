@@ -3184,7 +3184,7 @@ if (_el_docPlayersBtn) _el_docPlayersBtn.addEventListener('click', function() {
     if (off) am.meta.players = false; else am.meta.players = true;
     var campD = getActiveCampaign();
     save(true); updateSidebarNav(); renderPlanner();   // hosting: the save takes the page, and every page under it, from the players or sends it (net.js pagesSync)
-    toast(off ? 'GM only — players no longer receive this page.' : 'Players can read this page.');
+    toast(off ? 'GM only. Players no longer receive this page.' : 'Players can read this page.');
 });
 if(_el_renderPlannerBtn) _el_renderPlannerBtn.addEventListener('click', function() {
     plannerFullscreen = !plannerFullscreen;

@@ -148,7 +148,7 @@ function whenWords(at, now) {   // the time today, else the day and the time
     return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate() ? hm : d.getDate() + ' ' + MONTHS[d.getMonth()] + ', ' + hm;
 }
 // 1.6.2: a turn or round notice of a fight (net.js says "Kael's turn.", "Kael's turn \u2014 round 3.", "Combat! Kael's turn." and "Combat is over.")
-var TURN_RE = /^(Combat! )?[^\n]{1,120}'s turn( \u2014 round \d+)?\.$|^Combat is over\.$/, _fold = Object.create(null);
+var TURN_RE = /^(Combat! )?[^\n]{1,120}'s turn( \u2014 round \d+|\. Round \d+)?\.$|^Combat is over\.$/, _fold = Object.create(null);
 function turnNote(m) { return typeof m === 'string' && TURN_RE.test(m); }
 // The list, newest first, as runs: a fight's turn notices one run (from its Combat! to its Combat is over.); the same words said again one run
 // where the newest of them stands (1.6.2: Hosting resumed at every reload), marked same; every other notice a run of its own
@@ -195,7 +195,13 @@ function draw() {
     }
     var runsOf = function(list, warn) { foldRuns(list).forEach(function(g) {
             if (g.length < 2) { var r0 = noteRow(g[0], now); if (warn) r0.className += ' notes-warn'; box.appendChild(r0); return; }
-            var fk = g[g.length - 1].i, open = _fold[fk] === true, row = mk('div', 'notes-item notes-fold' + (warn ? ' notes-warn' : '')), said = g.same ? g.reduce(function(s, n) { return s + (n.n > 1 ? n.n : 1); }, 0) : 0;   // known by its oldest notice, which stays as the fight goes on
+            var fk = g[g.length - 1].i, open = _fold[fk] === true, said = g.same ? g.reduce(function(s, n) { return s + (n.n > 1 ? n.n : 1); }, 0) : 0, row = mk('div', 'notes-item ' + (said ? 'notes-rep' : 'notes-fold') + (warn ? ' notes-warn' : ''));   // known by its oldest notice, which stays as the fight goes on
+            if (said) {   // the viewing of 2026-11-09 (the owner, by prompt: "One row, a count badge"): the words, the time and a count that opens each time, the x at the right, as any notice stands
+                var lr = mk('span', 'notes-txt', g[0].m), wr = mk('span', 'notes-when', whenWords(g[0].at, now)), cb = mkBtn('tool ghost notes-count', '\u00d7' + said, (open ? 'Hide' : 'Show') + ' each of the ' + said + ' times it was said', true);
+                cb.setAttribute('data-note-fold', fk); cb.setAttribute('aria-expanded', open ? 'true' : 'false'); wr.appendChild(cb); lr.appendChild(wr); row.appendChild(lr);
+                var xr = mkBtn('tool ghost notes-x', '\u00d7', 'Delete these ' + g.length + ' notices', true); xr.setAttribute('data-note-xs', g.map(function(n) { return n.i; }).join(' ')); xr.setAttribute('aria-label', 'Delete these notices'); xr.setAttribute('data-note-stop', ''); row.appendChild(xr);
+                box.appendChild(row); if (open) g.forEach(function(n) { box.appendChild(noteRow(n, now, true)); }); return;
+            }
             var fb = said ? mkBtn('tool ghost notes-foldbtn', (open ? '\u25be ' : '\u25b8 ') + 'Said ' + said + ' times', open ? 'Hide each time it was said' : 'Show each time it was said', true)
                 : mkBtn('tool ghost notes-foldbtn', (open ? '\u25be ' : '\u25b8 ') + 'A fight: ' + g.length + ' turn notices', open ? 'Hide this fight\u2019s turn notices' : 'Show this fight\u2019s turn notices', true);
             fb.setAttribute('data-note-fold', fk); fb.setAttribute('aria-expanded', open ? 'true' : 'false'); row.appendChild(fb);
@@ -248,7 +254,7 @@ function onPress(e) {
         return;
     }
     var fo = at('[data-note-fold]'), xs = at('[data-note-xs]');
-    if (fo) { var fk = fo.getAttribute('data-note-fold'); if (_fold[fk] === true) delete _fold[fk]; else _fold[fk] = true; draw(); var back = stops().filter(function(s) { return s.parentNode && s.parentNode.firstChild && s.parentNode.firstChild.getAttribute && s.parentNode.firstChild.getAttribute('data-note-fold') === fk; })[0]; back = back ? back.parentNode.firstChild : null; if (back && typeof back.focus === 'function') back.focus(); return; }   // 1.6.2: a fight's turn notices, opened or folded
+    if (fo) { var fk = fo.getAttribute('data-note-fold'); if (_fold[fk] === true) delete _fold[fk]; else _fold[fk] = true; draw(); var back = null, seek = function(n) { if (back || !n) return; if (n.getAttribute && n.getAttribute('data-note-fold') === fk) { back = n; return; } Array.prototype.forEach.call(n.children || [], seek); }; seek(document.getElementById('notesList')); if (back && typeof back.focus === 'function') back.focus(); return; }   // 1.6.2: a fight's turn notices, opened or folded
     if (xs) { var posX = stops().indexOf(xs), ids = xs.getAttribute('data-note-xs').split(' '), cid = campId(), lx = listOf(cid), n0 = lx.length; for (var q = lx.length - 1; q >= 0; q--) if (ids.indexOf(lx[q].i) >= 0) lx.splice(q, 1); if (lx.length !== n0) { saveSoon(cid); sync(); } focusAt(posX); return; }
     if (!off && !x) return;
     var pos = stops().indexOf(off || x);

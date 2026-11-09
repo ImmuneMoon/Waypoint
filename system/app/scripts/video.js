@@ -200,12 +200,12 @@ function startShowing() {
     if (!hosting() || !n.videoShow) { toast('Host a table first: then your players can be shown it.'); renderTable(true); return; }
     if (typeof el.captureStream !== 'function') { toast('This app cannot show a video to players from here.'); return; }
     if (el.error) { toast('This file cannot be played, so it cannot be shown.'); return; }
-    if (el.readyState < 1) { toast('The video is still loading — try again in a moment.'); return; }
+    if (el.readyState < 1) { toast('The video is still loading. Try again in a moment.'); return; }
     if (el.ended) { try { el.currentTime = 0; } catch (e) {} }   // at its end there is nothing to send: back to the start
     var pids = audienceOf(aud, tablePlayers(n));
     if (pids && !pids.length) { toast('Tick at least one player, or Everyone.'); return; }
     var cap = null; try { cap = el.captureStream(); } catch (e) { cap = null; }
-    if (!cap || !cap.getVideoTracks().length) { stopTracks(cap); toast('This video cannot be shown from here yet — press play once, then Show to players.'); return; }
+    if (!cap || !cap.getVideoTracks().length) { stopTracks(cap); toast('This video cannot be shown from here yet. Press play once, then Show to players.'); return; }
     var who = n.videoShow(cap, v.name, pids, el.videoWidth, el.videoHeight);
     if (!who) { stopTracks(cap); toast('It could not be shown: is the table still up?'); return; }
     live = { id: v.id, cap: cap };

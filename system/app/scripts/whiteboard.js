@@ -1589,7 +1589,7 @@ function fitWouldChange(its) {
 }
 function fitToGrid(its) {
     var g = state.gridType;
-    if (!g || g === 'off') { toast('Turn on a grid first (square or hex) — the grid button in the toolbar.'); return; }
+    if (!g || g === 'off') { toast('Turn on a square or hex grid first, with the grid button in the toolbar.'); return; }
     var n = 0;
     its.forEach(function(it) {
         if (it.locked || it.type === 'path') return;
@@ -1955,7 +1955,7 @@ window.wpFitToGrid = fitToGrid;
               var markThem = its.some(function(i) { return !i.fogged; });
               its.forEach(function(i) { if (markThem) i.fogged = true; else delete i.fogged; });
               if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
-              import('./io.js').then(function(m) { m.toast(markThem ? 'Marked as a play area — with fog on, only marked items are fogged.' : 'No longer a play area.'); });
+              import('./io.js').then(function(m) { m.toast(markThem ? 'Marked as a play area. With fog on, only marked items are fogged.' : 'No longer a play area.'); });
           } else if (act === 'up' || act === 'down') {
               its.forEach(function(i) {
                   var idx = LAYERS.indexOf(i.layer || 'middle');
@@ -2978,7 +2978,7 @@ window.wpFitToGrid = fitToGrid;
           var prof = n.getProfile ? n.getProfile() : {};
           showPrompt('A name for your token', (prof && typeof prof.name === 'string' && prof.name) || '', function(nm) {
               if (nm === null || nm === undefined) return;
-              var r = n.charToken(String(nm), function(a) { toast(a.error || (a.charId ? 'You play at once \u2014 its sheet is yours to fill in when you like (press Done when it is finished).' : 'You play at once with your own token.')); });
+              var r = n.charToken(String(nm), function(a) { toast(a.error || (a.charId ? 'You play at once. Its sheet is yours to fill in when you like (press Done when it is finished).' : 'You play at once with your own token.')); });
               if (r && r.error) toast(r.error);
           }, { name: 'person' });
       }
@@ -3069,7 +3069,7 @@ window.wpFitToGrid = fitToGrid;
           state.viewMode = 'visual'; render();
           if (window.appRestoreCamera) window.appRestoreCamera();
           save();
-          toast(pl.name + ' is on this map but has no token yet \u2014 give them one from a character token\'s Properties.');
+          toast(pl.name + ' is on this map but has no token yet. Give them one from a character token\'s Properties.');
           return;
       }
       var nowG = wlG ? null : charNow(camp, key), loc = wlG || nowG.loc;
@@ -3276,7 +3276,7 @@ window.wpFitToGrid = fitToGrid;
           else if (act === 'summonAll') { window.wpNet.summonAll(); }
           else if (act === 'summonAllHere') { var amA = getActiveMap(); if (amA && amA.type === 'map' && window.wpNet.summonAllToMap) window.wpNet.summonAllToMap(amA.id); }
           else if (act === 'waitHide') { var cWt = getActiveCampaign(), tWt = cWt && window.wpSystemCore && window.wpSystemCore.waitingTokensOf ? window.wpSystemCore.waitingTokensOf(cWt, key.slice(2))[0] : null; if (tWt && window.wpNet.hideWaiting) window.wpNet.hideWaiting(key.slice(2), !tWt.w.hidden); }   // Onboarding F1a
-          else if (act === 'waitRemove') { if (window.wpNet.removeWaiting && window.wpNet.removeWaiting(key.slice(2))) toast('Waiting token removed for this session \u2014 Give a character\u2026 still works.'); }
+          else if (act === 'waitRemove') { if (window.wpNet.removeWaiting && window.wpNet.removeWaiting(key.slice(2))) toast('Waiting token removed for this session. Give a character\u2026 still works.'); }
           else if (act === 'clearTarget') { if (window.wpNet.clearTargetOf) window.wpNet.clearTargetOf(key.slice(2)); }   // 1.5.9: the host's alone (clearTargetOf answers nothing elsewhere)
           else if (act === 'pausePlayer') { if (window.wpNet.pausePlayer) window.wpNet.pausePlayer(key.slice(2), true); }
           else if (act === 'unpausePlayer') { if (window.wpNet.pausePlayer) window.wpNet.pausePlayer(key.slice(2), false); }
@@ -6347,7 +6347,7 @@ window.wpFitToGrid = fitToGrid;
           abs.forEach(function(p) { if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0]; if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1]; });
           walls.push({ abs: abs, sw: sw });
       });
-      if (!walls.length) { toast('Draw some lines first — flood-fill needs an outline to fill inside.'); return; }
+      if (!walls.length) { toast('Draw some lines first. Flood-fill needs an outline to fill inside.'); return; }
       var PAD = 30;
       minX -= PAD; minY -= PAD; maxX += PAD; maxY += PAD;
       if (x < minX || x > maxX || y < minY || y > maxY) { toast('Click inside your drawn lines to flood-fill.'); return; }
@@ -6385,7 +6385,7 @@ window.wpFitToGrid = fitToGrid;
           if (cyp > 0 && !visited[u] && !wall(u)) { visited[u] = 1; stack[sp++] = u; }
           if (cyp < ch - 1 && !visited[d] && !wall(d)) { visited[d] = 1; stack[sp++] = d; }
       }
-      if (touchedEdge) { toast('That space isn\'t fully enclosed by your lines — close the gaps and try again.'); return; }
+      if (touchedEdge) { toast('That space isn\'t fully enclosed by your lines. Close the gaps and try again.'); return; }
       if (state.gridType === 'hex' || state.gridType === 'square') {
           // GRID ON — fill whole cells whose centre lands in the flooded region (stays aligned with tokens + measurement).
           // Sample the bbox finer than any cell so none is skipped.
@@ -6406,7 +6406,7 @@ window.wpFitToGrid = fitToGrid;
       }
       // GRID OFF — fill the enclosed area as one smooth freeform region: trace the flooded outline into a filled shape.
       var loopPx = traceRegionOutline(visited, cw, ch);
-      if (!loopPx || loopPx.length < 3) { toast('Couldn\'t trace that area — try a cleaner outline.'); return; }
+      if (!loopPx || loopPx.length < 3) { toast('Couldn\'t trace that area. Try a cleaner outline.'); return; }
       var toBoard = function(p) { return [minX + (p[0] + 0.5) / S, minY + (p[1] + 0.5) / S]; };   // pixel centre → board coords
       var loopBd = loopPx.map(toBoard);
       // Simplify tolerance in board px — but never coarser than ~1/3 the region's own thickness, so a thin channel survives.
@@ -6417,7 +6417,7 @@ window.wpFitToGrid = fitToGrid;
       if (thin < eps * 3) eps = Math.max(0.4, thin / 3);
       var simp = rdpSimplify(loopBd, eps), epsN = eps;
       while (simp.length > 6000 && epsN < 1e5) { epsN *= 2; simp = rdpSimplify(loopBd, epsN); }   // actually enforce the vertex ceiling
-      if (simp.length < 3) { toast('Couldn\'t trace that area — try a cleaner outline.'); return; }
+      if (simp.length < 3) { toast('Couldn\'t trace that area. Try a cleaner outline.'); return; }
       var ox = Infinity, oy = Infinity, mx = -Infinity, my = -Infinity;
       simp.forEach(function(p) { if (p[0] < ox) ox = p[0]; if (p[0] > mx) mx = p[0]; if (p[1] < oy) oy = p[1]; if (p[1] > my) my = p[1]; });
       var rw = Math.max(10, mx - ox), rh = Math.max(10, my - oy);
@@ -7151,7 +7151,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
                                   var goneSet = {}; gone.forEach(function(p) { goneSet[p] = 1; });
                                   _imgLibCache = (_imgLibCache || []).filter(function(im) { return !goneSet[im.path]; });
                                   gone.forEach(function(p) { catStores().forEach(function(s) { if (s.c.by[p]) delete s.c.by[p]; }); }); imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
-                                  toast(oldCore ? 'Deleting pictures needs the 1.4.6 core \u2014 run the installer from Settings \u2192 Updates and about.' : 'Deleted ' + gone.length + ' picture file' + (gone.length === 1 ? '' : 's') + '.' + (keptN ? ' ' + keptNote : ''));
+                                  toast(oldCore ? 'Deleting pictures needs the 1.4.6 core. Run the installer from Settings \u2192 Updates and about.' : 'Deleted ' + gone.length + ' picture file' + (gone.length === 1 ? '' : 's') + '.' + (keptN ? ' ' + keptNote : ''));
                                   return;
                               }
                               var batch = files.slice(i, i + 4); i += 4;
@@ -7373,7 +7373,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       state.selWbId = ids[0]; state.selWbIds = ids;
       _imgLibSel = {}; _imgLibPicker = null; _imgLibStash = null;
       closeImgPreview(); document.getElementById('imgLibModal').style.display = 'none';
-      import('./io.js').then(function(m) { m.save(true); render(); m.toast(ids.length + ' pictures placed in a block \u2014 they are selected, drag to move them together.'); });
+      import('./io.js').then(function(m) { m.save(true); render(); m.toast(ids.length + ' pictures placed in a block. They are selected, drag to move them together.'); });
   }
 
   // Import Character (#importCharBtn) is an outside sheet reader's own: its page code shows the row and wires it (it is hidden in the page)
@@ -7569,7 +7569,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
                   closeImgPreview(); renderImgLib(document.getElementById('imgLibSearch').value);
                   toast('Deleted ' + name + '.');
               }).catch(function(e) {
-                  toast(e && e.message === 'old-core' ? 'Deleting pictures needs the 1.4.6 core — run the installer from Settings \u2192 Updates and about.' : 'Could not delete that picture.');
+                  toast(e && e.message === 'old-core' ? 'Deleting pictures needs the 1.4.6 core. Run the installer from Settings \u2192 Updates and about.' : 'Could not delete that picture.');
               });
           });
       });
@@ -8461,7 +8461,7 @@ document.querySelectorAll('.shape-size-btn').forEach(function(b) {
         e.stopPropagation();
         try { localStorage.setItem('wp_shapeSize', this.dataset.shapesize); } catch (err) {}
         syncShapeSizeButtons();
-        toast(this.dataset.shapesize === 'cell' ? 'New shapes arrive one grid cell in size.' : 'New shapes are free-sized — click for the default, drag for an exact box.');
+        toast(this.dataset.shapesize === 'cell' ? 'New shapes arrive one grid cell in size.' : 'New shapes are free-sized. Click for the default, drag for an exact box.');
     });
 });
 syncShapeSizeButtons();
@@ -8517,7 +8517,7 @@ window.wpPlaceCommit = function(px, py, pw, ph, sx, sy) {
             var cz = PL && PL.type === 'square' ? PL.size : 50, cx0 = PL && PL.ox || 0, cy0 = PL && PL.oy || 0; ci.x = Math.round((ci.x - cx0) / cz) * cz + cx0; ci.y = Math.round((ci.y - cy0) / cz) * cz + cy0; save(); render();
         }
     } else if (isHexItem && hexGrid && !dragged) snapNewHexItem();
-    if (type === 'trigger') toast(isHexItem ? 'Hex trigger added — it fills one grid cell; write its Event Message in Properties.' : 'Trigger zone added — write its Event Message in the Properties panel.');
+    if (type === 'trigger') toast(isHexItem ? 'Hex trigger added. It fills one grid cell. Write its Event Message in Properties.' : 'Trigger zone added. Write its Event Message in the Properties panel.');
     if (type === 'text') {
         var el = state.wbEls[state.selWbId];
         if (el && el.classList.contains('text')) { try { el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); } catch(_) {} }
@@ -10951,7 +10951,7 @@ function tableMenuParts(e, role) {
                     campP.pinnedMaps = (Array.isArray(campP.pinnedMaps) ? campP.pinnedMaps : []).filter(function(id) { return campP.items[id]; });
                     var atP = campP.pinnedMaps.indexOf(amP.id);
                     if (atP >= 0) campP.pinnedMaps.splice(atP, 1); else campP.pinnedMaps.push(amP.id);
-                    import('./io.js').then(function(m) { m.save(true); m.toast(atP >= 0 ? 'Unpinned.' : 'Pinned — it sits at the top of the Maps list now.'); });
+                    import('./io.js').then(function(m) { m.save(true); m.toast(atP >= 0 ? 'Unpinned.' : 'Pinned. It sits at the top of the Maps list now.'); });
                     import('./sidebar.js').then(function(m) { m.updateSidebarNav(); });
                 }
                 else if (act === 'setups') { var suM = getActiveMap(); if (suM && window.wpSetups) window.wpSetups.open(suM.id); }   // backlog 31

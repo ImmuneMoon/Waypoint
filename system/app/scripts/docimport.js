@@ -163,7 +163,7 @@ async function doImport() {
     rowsEl.forEach(function(r) { var i = +r.dataset.i; keep[i] = r.querySelector('.dimp-keep').checked; var s = r.querySelector('.dimp-type'); if (s) types[i] = s.value; });
     var p = pending.parsed, blocks = [], indexMap = {};
     p.blocks.forEach(function(b, i) { if (!keep[i]) return; indexMap[i] = blocks.length; blocks.push(types[i] ? retype(b, types[i]) : Object.assign({}, b)); });
-    if (!blocks.length) { toast('Every block is unticked — nothing to import.'); return; }
+    if (!blocks.length) { toast('Every block is unticked. Nothing to import.'); return; }
     // the target item (a new one is built now so the uploads know its folder; it enters the campaign only after they finish)
     var item, isNew = target !== 'append';
     if (isNew) {
@@ -194,7 +194,7 @@ async function doImport() {
     else { item.blocks = (item.blocks || []).concat(blocks); }
     closeDialog();
     save(true); updateSidebarNav(); render();
-    toast((isNew ? 'Imported “' + (item.meta.title || '') + '”' : 'Imported ' + blocks.length + ' block' + (blocks.length === 1 ? '' : 's')) + (failed ? ' — ' + failed + ' picture' + (failed === 1 ? '' : 's') + ' could not be uploaded.' : '.'));
+    toast((isNew ? 'Imported “' + (item.meta.title || '') + '”' : 'Imported ' + blocks.length + ' block' + (blocks.length === 1 ? '' : 's')) + (failed ? '. ' + failed + ' picture' + (failed === 1 ? '' : 's') + ' could not be uploaded.' : '.'));
 }
 
 /* ---------- export ---------- */

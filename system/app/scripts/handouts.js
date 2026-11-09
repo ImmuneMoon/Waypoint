@@ -260,10 +260,10 @@ function handoutBudget(msg) {
     var n = tB !== null ? tB.length : ((msg && msg.data && msg.data.byteLength) || (msg && typeof msg.text === 'string' ? msg.text.length : 0) || 0);   // a text page is charged the words that are kept, whatever else the message carries: bytes beside them are never stored and must not stand in for them
     var Lb = msg && msg.look !== undefined && typeof window !== 'undefined' && window.wpLook && typeof window.wpLook.recShapeOk === 'function' ? window.wpLook : null; if (Lb && tB !== null && Lb.recShapeOk(msg.look)) { var lkB = Lb.cleanRec(msg.look, tB, Lb.RULES.NOTE); if (lkB) n += Lb.lookWeight(lkB); }   // item 35: a page's look counts with its words, AS CLEANED for the text as kept: that is what is stored, and it can be far heavier than the look as it arrived
     if (msg && typeof msg.sharedBy === 'string' && msg.sharedBy) {
-        if (_shCount >= 200 || _shBytes + n > 100 * 1024 * 1024) { if (!_shSaid) { _shSaid = true; toast('Players are sharing more than this session can hold — the rest are skipped.'); } return false; }
+        if (_shCount >= 200 || _shBytes + n > 100 * 1024 * 1024) { if (!_shSaid) { _shSaid = true; toast('Players are sharing more than this session can hold. The rest are skipped.'); } return false; }
         _shCount++; _shBytes += n; return true;
     }
-    if (_hoCount >= 1000 || _hoBytes + n > 500 * 1024 * 1024) { if (!_hoSaid) { _hoSaid = true; toast('The GM is sending more handouts than this session can hold — the rest are skipped.'); } return false; }
+    if (_hoCount >= 1000 || _hoBytes + n > 500 * 1024 * 1024) { if (!_hoSaid) { _hoSaid = true; toast('The GM is sending more handouts than this session can hold. The rest are skipped.'); } return false; }
     _hoCount++; _hoBytes += n; return true;
 }
 // [scenecheck:in-start]
@@ -348,7 +348,7 @@ async function receiveHandout(msg) {
     badge(unseen + 1);
     if (sc.scene) { if (sceneLive(id, sg)) sceneShow({ title: title, caption: caption, src: src, fresh: true, entry: { campId: campId, id: shownId }, from: cameFrom(msg), scene: true, hold: sc.hold, sceneId: id }); return; }
     if (handoutPopup()) showHandout({ title: title, caption: caption, src: src, fresh: true, entry: { campId: campId, id: shownId }, from: cameFrom(msg) });
-    else toast((msg.sharedBy ? msg.sharedBy + ' shared' : 'New handout') + ': "' + (title || 'Handout') + '" — in your Journal.');
+    else toast((msg.sharedBy ? msg.sharedBy + ' shared' : 'New handout') + ': "' + (title || 'Handout') + '" is in your Journal.');
 }
 async function receiveTextHandout(msg, campId, id) {
     var title = String(msg.title || 'Handout').slice(0, 120), caption = String(msg.caption || '').slice(0, 4000);
@@ -390,7 +390,7 @@ async function receiveTextHandout(msg, campId, id) {
     badge(unseen + 1);
     var fresh = { title: title, caption: caption, text: text, fresh: true, entry: { campId: campId, id: shownId }, from: cameFrom(msg) }; if (look) fresh.look = look;
     if (handoutPopup()) showHandout(fresh);
-    else toast((msg.sharedBy ? msg.sharedBy + ' shared' : 'New handout') + ': "' + (title || 'Handout') + '" — in your Journal.');
+    else toast((msg.sharedBy ? msg.sharedBy + ' shared' : 'New handout') + ': "' + (title || 'Handout') + '" is in your Journal.');
 }
 window.wpJournalReceive = receiveHandout;
 // [netcheck:journal-end]
@@ -1314,7 +1314,7 @@ if (_pickGrid) _pickGrid.addEventListener('click', function(e) {
     save(true);
     ui('handoutPick').style.display = 'none';
     renderHandouts();
-    toast('Handout added — give it a title and a caption, then show it.');
+    toast('Handout added. Give it a title and a caption, then show it.');
 });
 // New text handout: a title and a body
 var _newTextBtn = ui('handoutNewTextBtn');
@@ -1383,7 +1383,7 @@ if (_hList) {
             if (val === '*') {                       // the whole table: now (if connected) and to each as they join
                 h.autoOnJoin = true; save(true);
                 if (net.active && net.role === 'host') net.revealHandout(h.id, null);
-                else toast('“' + (h.title || 'This handout') + '” will go to every player — anyone connected now, and each player as they join.');
+                else toast('“' + (h.title || 'This handout') + '” goes to every player connected now, and to each player as they join.');
             } else {
                 var connected = net.active && net.role === 'host' && Object.keys(net.roster || {}).some(function(k) { return net.roster[k] && net.roster[k].id === val; });
                 if (connected) {                      // deliver right away
@@ -1391,7 +1391,7 @@ if (_hList) {
                 } else {                              // offline: queue it for their next join
                     h.giveTo = h.giveTo || {}; h.giveTo[val] = Date.now(); save(true);
                     var pg = (camp.players || {})[val] || {};
-                    toast('Queued “' + (h.title || 'handout') + '” for ' + (playsOf(camp, val, pg) || pg.name || 'that player') + ' — they get it the next time they connect.');
+                    toast('Queued “' + (h.title || 'handout') + '” for ' + (playsOf(camp, val, pg) || pg.name || 'that player') + '. They get it the next time they connect.');
                 }
             }
             renderHandouts();

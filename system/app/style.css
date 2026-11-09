@@ -153,6 +153,7 @@
   .imglib-how[hidden] { display: none; }   /* 1.6.2: what went wrong, on top under what waits */
   .notes-warn .notes-txt::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--danger, #d9534f); margin-right: 6px; vertical-align: 1px; }   /* 1.6.2: a fight's turn notices, one line */
   .notes-foldbtn { flex: 0 0 100%; text-align: left; font-size: 11.5px; padding: 1px 4px; }
+  .notes-count { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 9px; border: 1px solid var(--edge); font-size: 10.5px; line-height: 16px; color: var(--gold); vertical-align: 0; }   /* the viewing of 2026-11-09: a notice said again, its count beside its time */
   .notes-item.notes-sub { padding-left: 20px; background: rgba(255,255,255,0.02); }
   .notes-when { display: block; color: var(--dim); font-size: 10.5px; }
   .notes-go, .notes-alt, .notes-x, .notes-clear { flex: 0 0 auto; padding: 1px 7px; font-size: 11.5px; }

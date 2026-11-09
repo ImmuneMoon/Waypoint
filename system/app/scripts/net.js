@@ -561,7 +561,7 @@ function backlogSweep() {
     net.conns.slice().forEach(function(c) {
         if (!c || !c.open || connBacklog(c) <= BACKLOG_DEAD) return;
         var p = own(net.roster, c.peer) ? net.roster[c.peer] : null;
-        if (p) toast((p.name || 'A player') + ' is not keeping up with the table \u2014 dropped. They can join again.');
+        if (p) toast((p.name || 'A player') + ' is not keeping up with the table. Dropped. They can join again.');
         try { c.close(); } catch (e) {}   // the close handler removes them from the roster
     });
 }
@@ -623,7 +623,7 @@ function hbTick() {
             var age = now - lastSeen[c.peer];
             var p = net.roster[c.peer];
             if (age > HB_DEAD && !(holdUntil[c.peer] > now)) {   // F2b: a player who said they would freeze (a print dialog) is waited for
-                if (p) toast((p.name || 'A player') + ' stopped responding — dropped.');
+                if (p) toast((p.name || 'A player') + ' stopped responding and was dropped.');
                 try { c.close(); } catch (e) {}   // the close handler removes them from the roster
             } else if (age > HB_STALE) {
                 stale++;
@@ -642,7 +642,7 @@ function hbTick() {
         if (age0 > HB_DEAD && !(hostHoldUntil > now)) {   // F2b: nor is a GM who said so
             setIndicator('bad', 'lost the GM — reconnecting');
             setStatus('No response from the GM for ' + Math.round(age0 / 1000) + 's — reconnecting…');
-            toast('No response from the GM — reconnecting…');
+            toast('No response from the GM. Reconnecting…');
             hostLastSeen = now;
             try { if (c0) c0.close(); } catch (e) {}   // its close handler starts the reconnect loop
             setTimeout(function() { if (net.active && net.role === 'client' && !reconn.pending) scheduleReconnect(); }, 1500);
@@ -4421,7 +4421,7 @@ if (_travelLockBtn) _travelLockBtn.addEventListener('click', function() {
     if (!net.active || net.role !== 'host') return;
     setTravelLockLocal(!net.travelLocked);
     broadcast({ type: 'travelLock', on: net.travelLocked }, null);
-    toast(net.travelLocked ? 'Travel locked — players stay on their maps. The table is still live.' : 'Travel allowed again.');
+    toast(net.travelLocked ? 'Travel locked. Players stay on their maps. The table is still live.' : 'Travel allowed again.');
     logEvent('table', net.travelLocked ? 'Travel between maps locked' : 'Travel between maps allowed');
 });
 var _travelDenyLast = {};
@@ -4430,7 +4430,7 @@ if (_pauseBtn) _pauseBtn.addEventListener('click', function() {
     if (!net.active || net.role !== 'host') return;
     setPausedLocal(!net.paused);
     broadcast({ type: 'pause', on: net.paused }, null);
-    toast(net.paused ? 'Table paused — players are frozen (chat stays open).' : 'Table resumed.');
+    toast(net.paused ? 'Table paused. Players are frozen, and chat stays open.' : 'Table resumed.');
     logEvent('table', net.paused ? 'Table paused' : 'Table resumed');
 });
 // The header pause button (host-only, both views) drives the same table toggle as #netPauseBtn.
@@ -4732,7 +4732,7 @@ function offlinePlayerTravel(item, map) {
     if (net.active && net.role === 'host') [map, dest].forEach(function(m) { net.broadcastItemFiltered(camp.id, m.id); });
     if (window.appRender) window.appRender();
     var who = (camp.players || {})[item.ownerId], nm = item.charName || (who && who.name) || 'The character';
-    toast(nm + ' goes through to ' + ((dest.meta || {}).title || 'the next map') + (placed ? ' — their token waits there.' : ' — their token there stays where it was.'));
+    toast(nm + ' goes through to ' + ((dest.meta || {}).title || 'the next map') + (placed ? '. Their token waits there.' : '. Their token there stays where it was.'));
     return true;
 }
 // An NPC token dropped on a portal moves to the destination map (it has no per-map copies)
@@ -4776,7 +4776,7 @@ function npcTravel(item, map) {
     if (net.active && net.role === 'host') [map, dest].forEach(function(m) { net.broadcastItemFiltered(camp.id, m.id); });
     if (window.appRender) window.appRender();
     var hidThere = !!there.hidden;
-    toast((key || 'The character') + ' goes through to ' + ((dest.meta || {}).title || 'the next map') + (placed ? (hidThere ? ' — a token is placed there, hidden as this one was' : ' — a token is placed there') : (hidThere ? ' — the token there stays hidden' : ' — the token there is shown')) + '; the one here is hidden from players.');
+    toast((key || 'The character') + ' goes through to ' + ((dest.meta || {}).title || 'the next map') + (placed ? (hidThere ? '. A token is placed there, hidden as this one was' : '. A token is placed there') : (hidThere ? '. The token there stays hidden' : '. The token there is shown')) + '; the one here is hidden from players.');
     return true;
 }
 // [netcheck:pos-start]
@@ -5267,7 +5267,7 @@ net.notepadToggle = function() {
         });
     } else {
         net.notepad.on = true;
-        broadcast(notepadMsg(), null); renderNotepad(); toast('Table notepad open — everyone sees it.');
+        broadcast(notepadMsg(), null); renderNotepad(); toast('Table notepad open. Everyone sees it.');
         logEvent('table', 'Table notepad opened');
         var ta = ui('notepadText'); if (ta) setTimeout(function() { ta.focus(); }, 50);
     }
@@ -5304,7 +5304,7 @@ net.notepadInput = function(text) {   // the pad changed under the GM's hand: it
         if (window.wpJournalAddNote) window.wpJournalAddNote(meta, 'Table notes — ' + new Date().toLocaleDateString(), text, meta && meta.look);   // with its look: the GM's own as it would be sent, a player's as the host sent it. The Journal cleans it again for the text it stores
     });
     var pb = ui('netNotepadBtn'); if (pb) pb.addEventListener('click', function() {
-        if (!(net.active && net.role === 'host')) { toast('Host a session first — the notepad is for the table.'); return; }
+        if (!(net.active && net.role === 'host')) { toast('Host a session first. The notepad is for the table.'); return; }
         ui('netModal').style.display = 'none'; net.notepadToggle();
     });
     // drag the pad around by its header (position kept for this session only)
@@ -5376,7 +5376,7 @@ function applyNotepad(m) {
     // item 35: the look the GM gave the pad, cleaned HERE for the text as kept, by the rule of the pad (no link, a size, one of Waypoint's own fonts). Only what the cleaner gives is kept
     var LKn = typeof window !== 'undefined' && window.wpLook && typeof window.wpLook.cleanRec === 'function' && window.wpLook.RULES ? window.wpLook : null, lkN = LKn && net.notepad.on ? LKn.cleanRec(m.look, net.notepad.text, LKn.RULES.PAD) : undefined;
     if (lkN) net.notepad.look = lkN;
-    if (net.notepad.on && !was) toast('The GM opened a table notepad — you can save it to your Journal any time.');
+    if (net.notepad.on && !was) toast('The GM opened a table notepad. You can save it to your Journal any time.');
     else if (!net.notepad.on && was) toast('The GM put the table notepad away.');
     renderNotepad();
 }
@@ -6607,7 +6607,7 @@ function fightSet(fid, combat) {
         if (had && chosenRule()) chosenMark(f);   // initiative O5: each row's mark of having gone, by its id, the row on turn none
         if (!had || had.round !== f.round) roundChanged(mapId, f);   // G10: the first round (a roster edit keeps its round)
         if (!had) { net.fightOn = fid; logEvent('table', 'Combat started on ' + mapTitleOf(mapId) + ': ' + f.rows.map(function(r) { return r.name; }).join(', ')); }   // a new fight is the one played
-        toast(had ? 'Combat roster updated.' : 'Combat started on ' + mapTitleOf(mapId) + ' — ' + (f.rows[f.turn] || f.rows[0]).name + ' goes first.');
+        toast(had ? 'Combat roster updated.' : 'Combat started on ' + mapTitleOf(mapId) + '. ' + (f.rows[f.turn] || f.rows[0]).name + ' goes first.');
     } else if (!combat) combatOver(fid, had);   // End: the one way a fight ends (fold 0), which the session's end and a deleted map share
     else return null;
     broadcastCombats(); combatRefresh();
@@ -6676,7 +6676,7 @@ function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 
     if (S5) { var atP = pkRow ? c.rows.indexOf(pkRow) : -1; if (atP >= 0) { c.turn = atP; t = atP; } chosenMark(c); }   // initiative O5: the new round opened by the one picked, and each row's mark of having gone   // initiative O4: a new round's order (rolled again, by side), the first time the fight reaches it
     if (c.round !== r0) roundChanged(mapId, c);   // G10
     var tg = c.round !== r0 && a0 ? fightTurned(campS, c, a0, r0) : null;   // fold 4: its own time moves by the round's length (a step back, back)
-    toast((c.rows[t].name || 'Someone') + "'s turn" + ((S5 || seqR || ckR ? c.round > r0 : t === 0 && dir > 0) ? ' — round ' + c.round : '') + '.');
+    toast((c.rows[t].name || 'Someone') + "'s turn" + ((S5 || seqR || ckR ? c.round > r0 : t === 0 && dir > 0) ? '. Round ' + c.round : '') + '.');
     if (S5 && typeof pick === 'string') logEvent('table', (by === 'player' ? (pkFrom && pkFrom.name) || 'Someone' : 'The GM') + ' picked ' + (c.rows[t].name || 'someone') + ' to go ' + (c.round > r0 ? 'first in round ' + c.round : 'next') + ' on ' + mapTitleOf(mapId));   // initiative O5: a pick, in the Game Record
     broadcastCombats(); combatRefresh();
     if (c.round !== r0 || c.turn !== t0 || (seqR && c.sq !== at0) || (ckR && dir > 0)) turnStarted(mapId, c);   // T2b: whoever's turn it now is (nothing when a step back at the first turn moves nothing), after the broadcast
@@ -6767,7 +6767,7 @@ function fightMineKey(cs, camp, mid) {
 function combatToasts(before, after) {
     var camp = getActiveCampaign(), mid = camp && camp.activeItemId, kB = fightMineKey(before, camp, mid), kA = fightMineKey(after, camp, mid);
     var cA = kA !== null ? after[kA] : null, cB = kA !== null && before && Object.prototype.hasOwnProperty.call(before, kA) ? before[kA] : null;
-    if (cA && (!cB || cB.turn !== cA.turn || cB.round !== cA.round)) toast((cB ? '' : 'Combat! ') + (cA.rows[cA.turn] || {}).name + "'s turn" + ((chosenRule() ? !!cB && cB.round < cA.round : cA.round > 1 && cA.turn === 0) ? ' — round ' + cA.round : '') + '.');
+    if (cA && (!cB || cB.turn !== cA.turn || cB.round !== cA.round)) toast((cB ? '' : 'Combat! ') + (cA.rows[cA.turn] || {}).name + "'s turn" + ((chosenRule() ? !!cB && cB.round < cA.round : cA.round > 1 && cA.turn === 0) ? '. Round ' + cA.round : '') + '.');
     else if (kB !== null && !Object.prototype.hasOwnProperty.call(after, kB)) toast('Combat is over.');
 }
 // [netcheck:orders-end]
@@ -7672,7 +7672,7 @@ function admitPlayer(conn, prof, provenKey) {
         var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, hits: true, paused: net.paused, drawShow: true, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id, prof.location), fights: true, looks: true, rowText: true, notepad: notepadMsg() }; if (sheetFilesHere()) snap.sheetFiles = true; var soSnap = typeof sheetOutsHere === 'function' ? sheetOutsHere() : []; if (soSnap.length) snap.sheetOut = soSnap; gmSignSnap(snap, conn); };   // sheetFiles (2026-10-18): this host reads a sheet file made elsewhere (an outside reader of the GM's own), true only   // (signed with the GM's key when this player's app sent its nonce: gmSignSnap)
         if (typeof fogLanded === 'function') fogLanded(null, mkSnap); else mkSnap();   // fold M4: judged with every open drag at its start
         conn.send(snap); snapOk = true;
-    } catch (e) { sendFailed(e, 'snapshot'); toast('Could not send the campaign to ' + (prof.name || 'the player') + ' \u2014 something in it cannot be sent (the console has the details).'); if (typeof mapForgetConn === 'function') mapForgetConn(conn.peer); }
+    } catch (e) { sendFailed(e, 'snapshot'); toast('Could not send the campaign to ' + (prof.name || 'the player') + '. Something in it cannot be sent (the console has the details).'); if (typeof mapForgetConn === 'function') mapForgetConn(conn.peer); }
     if (snapOk && typeof fogSeedSnapshot === 'function') fogSeedSnapshot(conn, snap);   // fold M5: what each of its fogged maps holds
     if (snapOk && typeof combatsSentSeed === 'function') combatsSentSeed(conn, snap.combats);   // fold 2's review: the fights it holds now
     if (snapOk && typeof hidNoteAll === 'function') hidNoteAll();   // hidden pieces: the drawings of theirs the GM hid, which this copy lacks
@@ -7904,7 +7904,7 @@ function processNextApproval() {
             var recS = campQ.players[pid] || {}, nmS = String(recS.name || 'a player'), Sp = typeof SC === 'function' ? SC() : null, plays = Sp && Sp.playsAs ? Sp.playsAs(campQ, pid) : '';
             approvalOpen = false;
             if (!net.active || net.role !== 'host') return;
-            if (!next.conn.open) { pickLog('same-failed', { at: 'dropped' }); toast(who + ' had already dropped — you will be asked again when they come back.'); processNextApproval(); return; }
+            if (!next.conn.open) { pickLog('same-failed', { at: 'dropped' }); toast(who + ' had already dropped. You will be asked again when they come back.'); processNextApproval(); return; }
             var campT = getActiveCampaign(), mv = campT ? takeOver(campT, pid, next.prof.id, pk.moves()) : false;
             if (mv) { toast(who + ' takes over from ' + nmS + (plays && mv.bound ? ', playing ' + plays : '') + '. ' + movedSay(mv, nmS)); if (typeof logEvent === 'function') logEvent('player', who + ' took over from ' + nmS + ': ' + movedLog(mv, nmS)); pickLog('same-done', movedFacts(mv)); }
             else pickLog('same-failed', { at: 'record' });
@@ -7919,7 +7919,7 @@ function processNextApproval() {
         if (!net.active || net.role !== 'host') return;
         if (yes) {
             if (next.conn.open) admitPlayer(next.conn, next.prof);
-            else toast((next.prof.name || 'That player') + ' had already dropped — you will be asked again when they come back.');   // security (2026-10-01): a yes is for the connection that asked; a later hello claiming that id (anyone can) is a new request, never let straight in
+            else toast((next.prof.name || 'That player') + ' had already dropped. You will be asked again when they come back.');   // security (2026-10-01): a yes is for the connection that asked; a later hello claiming that id (anyone can) is a new request, never let straight in
         } else {
             bannedIds[next.prof.id] = true;   // no re-prompt spam this session
             denyJoin(next.conn, 'The GM declined your request to join.');
@@ -8229,14 +8229,14 @@ function handleMessage(msg, conn) {
             if (!theirV || versionCmp(theirV, APP_VERSION) < 0) {
                 try { conn.send({ type: 'denied', reason: updateMessage(theirV, APP_VERSION), update: true, v: APP_VERSION }); } catch (e) { sendFailed(e); }   // v: the host's version, so the player's app can say the notice in its own words
                 setTimeout(function() { try { conn.close(); } catch (e) {} }, 400);
-                toast((prof.name || 'A player') + ' tried to join on Waypoint ' + (theirV || 'older than 1.1.2') + ' — turned away to update.');
+                toast((prof.name || 'A player') + ' tried to join on Waypoint ' + (theirV || 'older than 1.1.2') + ' and was turned away to update.');
                 return;
             }
             if (versionCmp(theirV, APP_VERSION) > 0 && !own(newerSeen, theirV)) {
                 // The GM is the one behind: let the player in and tell the GM plainly — once per newer version per session, and never
                 // as a dialog (a dialog here would land on top of a pending Allow/Deny)
                 newerSeen[theirV] = true;
-                toast((prof.name || 'A player') + ' is joining on Waypoint ' + theirV + ' — newer than your ' + APP_VERSION + '. Update when this session is over: Settings ▸ Check for updates.');
+                toast((prof.name || 'A player') + ' is joining on Waypoint ' + theirV + '. That is newer than your ' + APP_VERSION + '. Update when this session is over: Settings ▸ Check for updates.');
                 logEvent('session', (prof.name || 'A player') + ' joined on a newer Waypoint (' + theirV + ' vs ' + APP_VERSION + ') — update after the session');
             }
         }
@@ -8469,10 +8469,10 @@ function handleMessage(msg, conn) {
         toast(msg.on ? 'The GM has locked travel between maps for now.' : 'Travel between maps is open again.');
     } else if (msg.type === 'travelDenied' && net.role === 'client') {
         if (!fromHost(conn)) return;
-        if (msg.reason === 'closed') toast((msg.map ? String(msg.map).slice(0, 120) : 'That map') + " isn't open yet — the GM will let you through when it's time.");
-        else if (msg.reason === 'here') toast('This map is locked — nobody leaves it until the GM opens it.');   // the map they stand on is locked for players (closed both ways): fixed words
-        else if (msg.reason === 'portal') toast('That way is locked — the GM will unlock it when the time comes.');   // a portal's own lock: fixed words, nothing of the message in them
-        else toast('Travel between maps is locked right now — the GM will open it when the time comes.');
+        if (msg.reason === 'closed') toast((msg.map ? String(msg.map).slice(0, 120) : 'That map') + " isn't open yet. The GM will let you through when it's time.");
+        else if (msg.reason === 'here') toast('This map is locked. Nobody leaves it until the GM opens it.');   // the map they stand on is locked for players (closed both ways): fixed words
+        else if (msg.reason === 'portal') toast('That way is locked. The GM will unlock it when the time comes.');   // a portal's own lock: fixed words, nothing of the message in them
+        else toast('Travel between maps is locked right now. The GM will open it when the time comes.');
     } else if (msg.type === 'travel' && net.role === 'host') {
         // [netcheck:travelmsg-start]
         if (net.paused || peerPaused(conn.peer)) return;   // frozen table (or this player is paused): no travel
@@ -8605,7 +8605,7 @@ function handleMessage(msg, conn) {
         setStatus('Session ended by the GM.');
         var nm = ui('netModal');
         if (nm) nm.style.display = 'flex';
-        toast(typeof webJoinOnly === 'function' && webJoinOnly() ? 'The GM ended the session.' : 'The GM ended the session — restoring your own campaign.');   // 1.5.5: a website's plan that joins tables alone has no campaign of the player's own to come back (webmode.js)
+        toast(typeof webJoinOnly === 'function' && webJoinOnly() ? 'The GM ended the session.' : 'The GM ended the session. Restoring your own campaign.');   // 1.5.5: a website's plan that joins tables alone has no campaign of the player's own to come back (webmode.js)
         // [netcheck:end-end]
     } else if (msg.type === 'char-upload-ans' && net.role === 'client') {   // Stage 6 U2: the host's answer to our upload
         if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_uploadPending, msg.rid)) return;
@@ -9028,7 +9028,7 @@ function handleMessage(msg, conn) {
             if (SHf && SHf.charChanged) SHf.charChanged(qu.charId);
             saveRemoteSoon();
             var tF = (profU.name || 'A player') + ' filled ' + (chU.name || 'their character') + ' from a file (' + rF.done + (rF.done === 1 ? ' part' : ' parts') + (leftF ? ', ' + leftF + ' left out' : '') + ')';
-            toast(tF + ' \u2014 you review it when they press Done.'); logEvent('char', tF);
+            toast(tF + '. You review it when they press Done.'); logEvent('char', tF);
             ansU({ n: 0, auto: rF.done, left: leftF });
             return;
         }
@@ -9525,7 +9525,7 @@ function handleMessage(msg, conn) {
             else { delete chD.unlocked; chD.review = 1; chD.updated = Date.now(); save(true); net.syncChar(chD.id); }
         } finally { net.applyingRemote = wasRD; }
         var tD = (prD.name || 'A player') + (stD === 'making' ? ' finished making ' : ' finished the sheet of ') + chD.name + (clD.length ? ' (the name is also ' + clD.map(function(k) { return CLW[k]; }).join(' and ') + ')' : '');
-        toast(tD + ' \u2014 review it on its sheet.'); logEvent('char', tD); if (window.wpSheets && window.wpSheets.approveNote) window.wpSheets.approveNote(chD.id, tD + '.', 'sheet');   // 1.5.5: a card that opens its sheet
+        toast(tD + '. Review it on its sheet.'); logEvent('char', tD); if (window.wpSheets && window.wpSheets.approveNote) window.wpSheets.approveNote(chD.id, tD + '.', 'sheet');   // 1.5.5: a card that opens its sheet
         ansD(stD === 'making' && !playD ? { ok: true, kept: true } : { ok: true });   // kept: the character the GM gave them stays in play
         if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(chD.id);
         if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();
@@ -9585,7 +9585,7 @@ function handleMessage(msg, conn) {
             if (window.wpHistFlush) window.wpHistFlush();
             var wasRJ = net.applyingRemote; net.applyingRemote = true;
             try { window.wpSheets.giveCharacter(prJ.id, chJ.id, { play: true, pic: true }); } finally { net.applyingRemote = wasRJ; }
-            toast(tJ + ' \u2014 review it on its sheet.'); logEvent('char', tJ);
+            toast(tJ + '. Review it on its sheet.'); logEvent('char', tJ);
             ansJ({ ok: true, charId: chJ.id });
             if (window.wpSheets.charChanged) window.wpSheets.charChanged(chJ.id);
             if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();
@@ -10187,7 +10187,7 @@ function scheduleReconnect() {
     reconn.tries++;
     setIndicator('warn', 'reconnecting to the GM (attempt ' + reconn.tries + ' of ' + RECONNECT_TRIES + ')');
     setStatus('Connection lost — reconnecting (attempt ' + reconn.tries + ' of ' + RECONNECT_TRIES + ')… If the GM restarts Waypoint and hosts again, you will reattach automatically.');
-    if (reconn.tries === 1) toast('Connection lost — reconnecting… (keeps trying for a few minutes)');
+    if (reconn.tries === 1) toast('Connection lost. Reconnecting, for a few minutes if need be…');
     reconn.timer = setTimeout(function() { joinSession(reconn.code, reconn.name, true); }, reconn.tries === 1 ? 1200 : 2500);
 }
 
@@ -10329,7 +10329,7 @@ function wireConn(conn) {
         if (net.role === 'host' && window.wpVoice) { try { window.wpVoice.connGone(conn.peer); } catch (e) {} }   // voice chat: and its voice link, gone from everyone else's voice
         renderRoster();
         if (net.role === 'host') {
-            if (p) toast((p.name || 'A player') + ' left' + (p.location ? ' — their character stays on ' + (((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title + '.' : '.'));
+            if (p) toast((p.name || 'A player') + ' left' + (p.location ? '. Their character stays on ' + (((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title + '.' : '.'));
             if (p) logEvent('player', (p.name || 'A player') + ' left' + (p.location ? ' (on ' + ((((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title || p.location) + ')' : ''), { w: p.name || 'A player', x: 'Left the table', d: typeof playsOf === 'function' ? playsOf(p.id).replace(/^Plays/, 'Played') : '' });
             if (p) startWaitGrace(p.id);   // Onboarding F1a: their waiting token goes if they are not back in three minutes
             if (p && net.targets[p.id] && !net.conns.some(function(c2) { return c2.peer !== conn.peer && c2.open && net.roster[c2.peer] && net.roster[c2.peer].id === p.id; })) { delete net.targets[p.id]; render(); broadcastTargets(); }   // 1.6.2: a reload's new connection may land before the old one is seen to close, and then the pointer is the new one's. fold M0: each player the pointers they may see (a fogged table), never all of them
@@ -10554,7 +10554,7 @@ function startHosting(forceFresh) {
         // the campaign on screen is a GM's: hand it back before anything can be hosted from it
         leaveSession(true);
         setStatus('Restoring your own campaign…');
-        toast('That was the GM\'s campaign — restoring your own. Press Host again in a moment.');
+        toast('That was the GM\'s campaign. Restoring your own. Press Host again in a moment.');
         load();
         return;
     }
@@ -10592,7 +10592,7 @@ function startHosting(forceFresh) {
         rememberHostCode(code);
         if (opened) {   // registered again after the link to the signalling service dropped: the table never stopped
             setStatus(codeLine());
-            if (taken) { taken = false; toast('Your room code is yours again \u2014 new players can join.'); logEvent('table', 'Room code free again \u2014 new players can join'); }   // a 'table' line: the log reads a 'session' line that is no start as the session's end
+            if (taken) { taken = false; toast('Your room code is yours again. New players can join.'); logEvent('table', 'Room code free again \u2014 new players can join'); }   // a 'table' line: the log reads a 'session' line that is no start as the session's end
             return;
         }
         opened = true;
@@ -10649,8 +10649,8 @@ function startHosting(forceFresh) {
                 return;
             }
             forgetHostCode();
-            if (resumed) toast('Your last room code could not be resumed — starting with a new code. Players will need the new one.');
-            else toast('Code collision — trying another code.');
+            if (resumed) toast('Your last room code could not be resumed. Starting with a new code. Players will need the new one.');
+            else toast('Code collision. Trying another code.');
             setTimeout(function() { startHosting(true); }, 300);
             return;
         }
@@ -10725,7 +10725,7 @@ function joinSession(code, name, isRetry, probe) {
             if (rfJ) setStatus(rfJ.late ? HOST_LATE + ' You have not joined.' : SNAP_REFUSED + ' You have not joined.' + (rfJ.offer ? ' Join again to be asked whether to trust this table\u2019s GM.' : ''));
             else setStatus(why + ' This usually means your connection is behind carrier-grade NAT and the table needs a relay server: ask the GM to set one under Settings \u25B8 Relay server, then try again.');
             if (net.fromWelcome) { if (window.wpJoinFailed) window.wpJoinFailed(); }   // joined from the welcome screen: the error shows there; re-enable its Join button
-            else { toast(rfJ ? 'You have not joined \u2014 see the Multiplayer panel.' : 'Could not reach the GM\'s table \u2014 see the Multiplayer panel.'); var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'flex'; }
+            else { toast(rfJ ? 'You have not joined. See the Multiplayer panel.' : 'Could not reach the GM\'s table. See the Multiplayer panel.'); var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'flex'; }
             if (net.foreign && !window.wpStream) load();   // a previous table is still on screen: bring the own campaign back
             if (rfJ) snapAsk(code, name);
         }
@@ -10818,7 +10818,7 @@ function leaveSession(silent) {
         net.stageOverride = null;
         net.stageMode = null; net.stageFallback = null; net.stagePicked = {};   // the next session starts from the defaults again
         setStatus('Not in a session.');
-        toast(wasClient ? (typeof webJoinOnly === 'function' && webJoinOnly() ? 'You left the session.' : 'Left the session — restoring your own campaign.') : wasHost ? 'Session ended for everyone — the room code is retired.' + (fightsOver ? (fightsOver === 1 ? ' The fight ended too.' : ' The ' + fightsOver + ' fights ended too.') : '') : 'Left the session.');
+        toast(wasClient ? (typeof webJoinOnly === 'function' && webJoinOnly() ? 'You left the session.' : 'Left the session. Restoring your own campaign.') : wasHost ? 'Session ended for everyone. The room code is retired.' + (fightsOver ? (fightsOver === 1 ? ' The fight ended too.' : ' The ' + fightsOver + ' fights ended too.') : '') : 'Left the session.');
         if (wasHost) { if (typeof window !== 'undefined' && window.wpRecord) window.wpRecord.end(); logEvent('session', 'Session ended'); net.applyingRemote = true; save(true); net.applyingRemote = false; }
         if ((wasClient || net.foreign) && !window.wpStream) load();   // foreign without a live link (a failed re-join) still leaves this way
     }
@@ -12388,7 +12388,7 @@ function forgetPlayer(camp, fid) {
         mkIds().forEach(function(k) { delete camp.chars[k]; net.syncCharGone(k, fid); });
         save();
         var keptC = SC() && SC().playableChars ? SC().playableChars(camp, fid).length : 0;   // Onboarding F0: their characters stay theirs until the GM unassigns them
-        toast(nm + ' forgotten — they\'ll need approval to join again.' + (keptC ? ' Their character' + (keptC === 1 ? ' stays' : 's stay') + ' assigned: unassign ' + (keptC === 1 ? 'it' : 'them') + ' in System \u25B8 Characters if they aren\u2019t coming back.' : ''));
+        toast(nm + ' forgotten. They\'ll need approval to join again.' + (keptC ? ' Their character' + (keptC === 1 ? ' stays' : 's stay') + ' assigned: unassign ' + (keptC === 1 ? 'it' : 'them') + ' in System \u25B8 Characters if they aren\u2019t coming back.' : ''));
         renderPlayersPanel();
     });
 }
@@ -12480,7 +12480,7 @@ function ensureNamed() {
     var typed = (el && el.value || '').trim();
     if (typed) { setProfileName(typed); return true; }
     if ((getProfile().name || '').trim()) return true;
-    toast('Enter your name first — that is how players know you at the table.');
+    toast('Enter your name first. That is how players know you at the table.');
     if (el && el.offsetParent !== null) el.focus();
     else if (window.wpOpenSettings) window.wpOpenSettings('profile', 'setNameInput');
     return false;
@@ -12652,7 +12652,7 @@ setTimeout(function() {
             if (j && j.code) {
                 var ci = ui('netCodeInput'), ni = ui('netNameInput'), pi = ui('netJoinPassInput');
                 if (ci) ci.value = j.code; if (ni && j.name) ni.value = j.name; if (pi) pi.value = j.pass || '';
-                toast('Refreshed — rejoining the table…');
+                toast('Refreshed. Rejoining the table…');
                 if (typeof webJoinOnly === 'function' && webJoinOnly()) net.fromWelcome = true;   // 1.5.5: on a website whose plan joins tables alone the welcome's Join a game is up, and what the rejoin says goes to its line
                 joinSession(j.code, j.name);
                 if (j.point && typeof j.point.id === 'string' && typeof j.point.mapId === 'string') net._pointBack = { id: j.point.id, mapId: j.point.mapId };
@@ -12660,7 +12660,7 @@ setTimeout(function() {
             }
         } catch (e) {}
     } else if (rh) {
-        toast('Refreshed — resuming your table with the same room code…');
+        toast('Refreshed. Resuming your table with the same room code…');
         startHosting(false);
     }
     });
@@ -12804,7 +12804,7 @@ net.syncSessionButtons = syncSessionButtons;
 (function() {
     var b = ui('netCombatBtn'); if (!b) return;
     b.addEventListener('click', function() {
-        if (!(net.active && net.role === 'host')) { toast('Host a session first — combat runs at the table.'); return; }
+        if (!(net.active && net.role === 'host')) { toast('Host a session first. Combat runs at the table.'); return; }
         var camp = getActiveCampaign(), am = camp && camp.items[camp.activeItemId];
         if (!am || am.type !== 'map') { toast('Open the play map the fight is on first.'); return; }
         ui('netModal').style.display = 'none';
@@ -12844,7 +12844,7 @@ net.bringPlayerHere = function(pid, wbX, wbY) {
     else if (src.op === 'adopt' || (src.op === 'link' && src.here)) { tok = src.tok; tok.ownerId = pid; if (src.charId) tok.charId = src.charId; }
     else if (src.op === 'clone' || src.op === 'link') { tok = JSON.parse(JSON.stringify(src.tok)); tok.id = 'wb' + Math.random().toString(36).slice(2, 10); delete tok.threats; tok.ownerId = pid; if (src.charId) tok.charId = src.charId; map.whiteboard.push(tok); copied = true; }   // 5h: threat marks belong to the map they were set on
     else if (src.op === 'spawn' && (camp && camp.chars && typeof src.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, src.charId) ? camp.chars[src.charId] : null)) { tok = tokenFromChar((camp && camp.chars && typeof src.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, src.charId) ? camp.chars[src.charId] : null), pid); map.whiteboard.push(tok); copied = true; }
-    if (!tok) { toast('No token for ' + name + ' yet \u2014 give them a character (System \u25B8 Characters) or a token (its Properties \u25B8 Player Owner).'); return false; }
+    if (!tok) { toast('No token for ' + name + ' yet. Give them a character (System \u25B8 Characters) or a token (its Properties \u25B8 Player Owner).'); return false; }
     if (copied && S.shapeStandIn) S.shapeStandIn(tok, map);   // grid-shaped tokens: a new token or a copy takes this map's cell shape
     tok.x = wbX - (tok.w || 60) / 2; tok.y = wbY - (tok.h || 52) / 2;
     delete tok.hidden;

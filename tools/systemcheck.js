@@ -3,6 +3,7 @@
    keys, cleaners, the GM-view stripping, the validator (carets, loops, dice in definitions), the resolver, the
    per-recipient view, edits, the auto layout and the hook an outside sheet reader registers through.
    Usage: node tools/systemcheck.js   (exit 1 on any failure) */
+function css0911() { return require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8'); }   // the viewing of 2026-11-09: the HUD fits what it holds
 'use strict';
 const path = require('path'), fs = require('fs');
 const NL = String.fromCharCode(10);
@@ -3217,7 +3218,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /\[id\$="Modal"\], #sheetPanel, \.hud-panel, #soundPanel,/.test(wb2));
         const iBlk2 = css2.indexOf('/* ---- Stage 6 HUD frame:'), blk = css2.slice(iBlk2);
         check('HUD frame HF2a: the window\'s CSS lives in the HUD block (after the look fold\'s): the panel, the grip strip, the twins of the sheet panel\'s field rules, the palette on its head, GM-only fields hidden from players as on the sheet; the glyph files exist',
-            iBlk2 > 0 && /\.hud-panel \{ position: fixed;[^}]*width: 470px;[^}]*height: min\(760px, calc\(100vh - 140px\)\);/.test(blk) && /\.hud-foot:empty \{ display: none; \}/.test(blk) && /body\.net-client \.hud-panel \.sheet-gm \{ display: none; \}/.test(blk)
+            iBlk2 > 0 && /\.hud-panel \{ position: fixed;[^}]*width: 470px;[^}]*max-height: min\(760px, calc\(100vh - 140px\)\);/.test(blk) && /\.hud-panel\[style\*="height"\] \{ max-height: none; \}/.test(css0911()) && /\.hud-panel:not\(\[style\*="height"\]\) > \.hud-body:has\(\+ \.hud-foot:not\(:empty\)\) \{ flex-basis: auto; \}/.test(css0911()) && /\.hud-foot:empty \{ display: none; \}/.test(blk) && /body\.net-client \.hud-panel \.sheet-gm \{ display: none; \}/.test(blk)
             && /\.hud-panel input\.field, \.hud-panel select\.field, \.hud-panel textarea\.field \{ padding: 3px 6px; font-size: 12\.5px; \}/.test(blk) && /\.hud-panel\.sheet-paletted \.hud-name \{ color: var\(--sheet-primary\); \}/.test(blk)
             && ['wave-square'].every(g => fs.existsSync(path.join(app, 'assets', 'icons', 'fa', 'solid', g + '.svg')) && blk.indexOf('assets/icons/fa/solid/' + g + '.svg') > 0) && !/Stage 6 look fold \(L/.test(blk)
             && /\.hud-ico-user \{ -webkit-mask-image: url\("data:image\/svg\+xml,%3Csvg xmlns='http:\/\/www\.w3\.org\/2000\/svg' viewBox='8 16 84 84'%3E%3Ccircle cx='50' cy='40' r='24'\/%3E%3Cpath d='M24 70 L76 70 L92 100 L8 100 Z'\/%3E%3C\/svg%3E"\); mask-image: url\("data:image\/svg\+xml,/.test(blk));   // the sheet button: the default avatar's figure (owner, 2026-09-26)

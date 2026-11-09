@@ -5281,7 +5281,7 @@
   .sys-layout-preview-hud { max-width: 470px; }
   /* HF2a: the HUD window — its own chrome after the reference's HUD (a card-coloured head with a square portrait and the name in the primary
      colour, compact sections), in the sheet's palette; the twins of the #sheetPanel rules the section renderer relies on */
-  .hud-panel { position: fixed; top: 120px; left: 0; width: 470px; max-width: 96vw; height: min(760px, calc(100vh - 140px)); z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); color: var(--ink); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  .hud-panel { position: fixed; top: 120px; left: 0; width: 470px; max-width: 96vw; max-height: min(760px, calc(100vh - 140px)); z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); color: var(--ink); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   .hud-panel.sheet-sized { max-height: none; }
   .hud-head { display: flex; align-items: center; gap: 9px; padding: 9px 10px 8px 12px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; flex: none; }
   .hud-head .notepad-btn { display: inline-flex; align-items: center; justify-content: center; }
@@ -5407,6 +5407,9 @@
      over its scrollbar). In a short window the open drawer gives way, not the panel's clip: the body keeps a floor and every card stays in
      reach (the list shrinks and scrolls); at the usual heights it opens exactly as the reference's */
   .hud-body:has(+ .hud-foot:not(:empty)) { margin-bottom: 0; flex-basis: 0; min-height: 4.5rem; }
+  /* the viewing of 2026-11-09: a HUD is as tall as what it holds, up to the height it always had; one given a height (its corner grip, or held to the room) keeps it */
+  .hud-panel[style*="height"] { max-height: none; }
+  .hud-panel:not([style*="height"]) > .hud-body:has(+ .hud-foot:not(:empty)) { flex-basis: auto; }
   .hud-foot:has(> .hud-hist-list) { padding-bottom: 12px; }
   .hud-hist-bar { flex: none; height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 18px 0 10px; }
   .hud-hist-toggle { flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; text-align: left; }

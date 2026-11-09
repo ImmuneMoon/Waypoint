@@ -63,6 +63,10 @@ The System editor
   HP can fall to the largest stim still working.
 - A rule of Laid from can number what it lays, as Right Arm 1, Left Arm 1,
   Right Arm 2, and test each row it takes.
+- A blade or a shield that parries a missile can take the blow. Its Dur stops
+  that much, and only the rest hits the one holding it.
+- A vehicle's crew can act in the vehicle's turn with no tokens of their own,
+  each with their own action a round.
 - An effect's bonus can say it doesn't stack with others of its kind, so two
   stims that raise the same thing give the larger, never the sum.
 - Laid from can go by category: a part of quantity 2 lays a right and a left

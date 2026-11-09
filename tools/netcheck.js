@@ -20094,6 +20094,28 @@ Promise.all(pendingChecks).then(() => {   // the async checks land before the su
             && flat6.includes("var cardNQ = cardQ && cardQ.done ? cardQ.done() : ''; cardQ = null;") && flat6.includes('if (cardNQ) recQ.card = cardNQ;') && flat6.includes("var cardR = entR && typeof entR.drawFirst === 'string' && typeof drawForRoll === 'function' ? drawForRoll(campR, entR.drawFirst, entR.drawN) : null;")
             && flat6.includes("var cardNR = cardR && cardR.done ? cardR.done() : '';") && flat6.includes('if (cardNR) rec.card = cardNR;') && flat6.split('return cardR && cardR.undo && cardR.undo(), {').length === 7, '');
     }
+    {   // 1.6.2 (CORE Ch14 and Ch19): a parry that takes the blow, and crew who act in the vehicle's turn (net.js thru and crewturn slices, run for real)
+        const own = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k), said = [], logs = [];
+        const SCx = { rowIdOf: r => r.id, rowDef: (sys, r) => ({ def: sys.items.filter(i => i.id === r.defId)[0] }) };   // the two the note asks
+        const thS = src.slice(src.indexOf('// [netcheck:thru-start]'), src.indexOf('// [netcheck:thru-end]')), netT = {};
+        const thA = new Function('net', 'SC', 'logEvent', 'toast', thS + '\nreturn { thruNote };')(netT, () => SCx, t => logs.push(t), t => said.push(t));
+        const sysT = { fields: [{ id: 'f_arms', kind: 'item-list', list: { rolls: [{ label: 'Parry', formula: '3d6 <= 10', resist: true, thru: true }, { label: 'Dodge', formula: '3d6 <= 10', resist: true }] } }], items: [{ id: 'i_b', name: 'Blade' }] };
+        const chT = { id: 'c_t', name: 'Tess', values: { f_arms: [{ id: 'w_b', defId: 'i_b', qty: 1 }] } }, campT = { system: sysT };
+        const n1 = thA.thruNote(campT, chT, { f: 'f_arms', r: 'w_b', i: 0 }), got = netT.thruOf('c_t'), n2 = thA.thruNote(campT, { id: 'c_u', values: chT.values }, { f: 'f_arms', r: 'w_b', i: 1 }), none = netT.thruOf('c_u');
+        check('1.6.2 a parry on a row ticked Takes the blow on this row: the host notes which row took it, net.thruOf names it for the Take damage window, and the GM is told by name; a roll not ticked notes nothing',
+            n1 === true && got === 'w_b' && n2 === false && none === null && said.length === 1 && /Tess took the blow on Blade/.test(said[0]) && logs.length === 1, JSON.stringify([n1, got, n2, none, said]));
+        const ctS = src.slice(src.indexOf('// [netcheck:crewturn-start]'), src.indexOf('// [netcheck:crewturn-end]')), netC = { combats: { f1: { id: 'f1' } } }, inFight = { c_v: 'f1' };
+        const ctA = new Function('net', 'own', 'orderOfIn', ctS + '\nreturn { crewVeh, crewVehFight, crewOfVeh };')(netC, own, (camp, id) => inFight[id] || null);
+        const campC = { system: { links: [{ id: 'k_crew', kind: 'crew', vturn: true }, { id: 'k_old', kind: 'crew' }] }, chars: { c_v: { id: 'c_v' }, c_p: { id: 'c_p', links: { k_crew: 'c_v' } }, c_g: { id: 'c_g', links: { k_old: 'c_v' } }, c_t: { id: 'c_t', links: { k_crew: 'c_v' } } } };
+        inFight.c_t = 'f2';
+        const v1 = ctA.crewVeh(campC, 'c_p'), v2 = ctA.crewVeh(campC, 'c_g'), v3 = ctA.crewVeh(campC, 'c_t'), fg = ctA.crewVehFight(campC, 'c_p'), crew = ctA.crewOfVeh(campC, 'c_v');
+        delete inFight.c_v; const v4 = ctA.crewVeh(campC, 'c_p');
+        check('1.6.2 a crew member with no fight of their own, at a Crew link ticked Crew act in the vehicle\'s turn, is judged by the vehicle in its fight; a link not ticked, a crew member with a fight of their own and a vehicle in no fight give none',
+            v1 === 'c_v' && v2 === null && v3 === null && fg === netC.combats.f1 && JSON.stringify(crew) === JSON.stringify(['c_p']) && v4 === null, JSON.stringify([v1, v2, v3, crew, v4]));
+        check('1.6.2 the hooks: Off a character\'s turn asks the vehicle\'s turn for its crew, a press spends the crew member\'s own action in the vehicle\'s fight, their actions come back at its turn\'s start and go at a fight\'s end, and a player\'s damage message carries thru',
+            src.includes("if (!fid && typeof crewVeh === 'function') { var cvO = crewVeh(camp, charId); if (cvO) return offTurnOf(camp, cvO); }") && src.includes("var cbS = actsCombat(camp, charId, pr) || (typeof crewVehFight === 'function' ? crewVehFight(camp, charId) : null); if (!a || !cbS) return '';")
+            && src.includes("if (typeof crewOfVeh === 'function') crewOfVeh(camp, w.charId).forEach(function(cid) { delete net.turnSpent[cid];") && src.includes("'weapon', 'only', 'thru', 'part2'") && src.includes("if (pass === true && ch && typeof thruNote === 'function') thruNote(camp, ch, row);"));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

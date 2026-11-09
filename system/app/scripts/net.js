@@ -3744,7 +3744,7 @@ net.charDamage = function(charId, q) {
     var c = (camp && camp.chars && typeof charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, charId) ? camp.chars[charId] : null); if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
     if (Object.keys(_charPending).some(function(k) { return _charPending[k].apply && _charPending[k].charId === charId; })) return { error: 'Waiting for the GM to apply the last one.' };
     var rid = 'd' + Math.random().toString(36).slice(2, 10), qq = q && typeof q === 'object' ? q : {}, req = { type: 'char-damage', rid: rid, charId: charId, amt: qq.amt };   // the damage type rides as dtype: type is the message's own
-    if (qq.type !== undefined) req.dtype = qq.type; if (qq.kind !== undefined) req.dkind = qq.kind; ['loc', 'ad', 'dice', 'tb', 'weapon', 'only', 'part2', 'part3', 'part4', 'part5', 'hits'].forEach(function(k) { if (qq[k] !== undefined) req[k] = qq[k]; });   // 1.6.0: dice, the dice the blow rolled, and the blow's added parts
+    if (qq.type !== undefined) req.dtype = qq.type; if (qq.kind !== undefined) req.dkind = qq.kind; ['loc', 'ad', 'dice', 'tb', 'weapon', 'only', 'thru', 'part2', 'part3', 'part4', 'part5', 'hits'].forEach(function(k) { if (qq[k] !== undefined) req[k] = qq[k]; });   // 1.6.2: thru, what is over a held weapon's Dur goes on   // 1.6.0: dice, the dice the blow rolled, and the blow's added parts
     if (!S.cleanCharDamage || !S.cleanCharDamage(req)) return { error: 'Check the damage and its type.' };
     _charPending[rid] = { charId: charId, apply: true, batch: [], timer: setTimeout(function() { charPendingDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
     try { net.conns[0].send(req); } catch (e) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; return { error: 'Could not reach the GM.' }; }
@@ -5873,8 +5873,7 @@ function runGate(camp, charId, cost, conn, who, look, pr) {   // a press that co
 function actSpend(camp, charId, pr, cost, conn, who, look, k) {   // look, only as true: says what would be refused and spends nothing. k (1.6.2, G10): how many of it, 2 or more, else one
     var rg = cost ? runGate(camp, charId, cost, conn, who, look, pr) : null; if (rg !== null) return rg;   // 1.6.0 A move by giving up an action
     if (!cost || moveMode(camp, 'acts') === 'off') return '';
-    var a = null; actsOf(camp).forEach(function(x) { if (!a && x && x.key === cost) a = x; }); if (!a || !actsCombat(camp, charId, pr)) return '';
-    var cbS = actsCombat(camp, charId, pr);
+    var a = null; actsOf(camp).forEach(function(x) { if (!a && x && x.key === cost) a = x; }); var cbS = actsCombat(camp, charId, pr) || (typeof crewVehFight === 'function' ? crewVehFight(camp, charId) : null); if (!a || !cbS) return '';   // 1.6.2: a crew member in the vehicle's fight
     if (!net.turnMax[charId]) { var mpS = camp.items && own(camp.items, pr.location) ? camp.items[pr.location] : null, SS = SC(), twS = SS && mpS ? SS.charTokenOn(mpS, charId, pr.id, { strict: true }) : null, chS = camp.chars && own(camp.chars, charId) ? camp.chars[charId] : null; net.turnMax[charId] = actsMaxOf(camp, chS, mpS, twS, cbS); }   // 192: a press before its first turn: its counts worked out now
     var sp = net.turnSpent[charId] || (net.turnSpent[charId] = {}), used = sp[a.key] || 0, lbl = a.label || a.key, n = actMax(charId, a), kn = typeof k === 'number' && k >= 2 ? k : 1, noneW = used >= n || kn === 1 ? 'No ' + lbl + ' left this turn.' : 'This takes ' + kn + ' of ' + lbl + ', and ' + (n - used) + ' left this turn.';
     if (look === true) return used + kn > n && moveMode(camp, 'acts') === 'refuse' ? noneW : '';
@@ -5891,11 +5890,12 @@ function turnActsStart(mapId, c) {   // the character whose turn begins has its 
     if (!w || typeof w.charId !== 'string') return;
     if (c.seq && typeof seqOcc === 'function' && seqOcc(c, c.sq) > 0) { var svA = severalRule(camp); if (svA && svA.acts === 'round') return; }   // 1.6.2 (G10): Actions, Once a round
     delete net.turnSpent[w.charId]; net.turnMax[w.charId] = actsMaxOf(camp, camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null, map, w, c); if (window.wpVtt && window.wpVtt.on('turns')) actsTell(camp, w.charId);   // 192: its counts for this turn
+    if (typeof crewOfVeh === 'function') crewOfVeh(camp, w.charId).forEach(function(cid) { delete net.turnSpent[cid]; net.turnMax[cid] = actsMaxOf(camp, camp.chars[cid], map, null, c); if (window.wpVtt && window.wpVtt.on('turns')) actsTell(camp, cid); });   // 1.6.2: its crew's come back with it
 }
 function turnActsEnd(mapId, had) {   // a combat ended: its characters' counts go (their sheets stop greying)
     var camp = getActiveCampaign(); if (!had || !camp || !actsOf(camp).length) return;
     var map = camp.items && own(camp.items, mapId) ? camp.items[mapId] : null; if (!map || !Array.isArray(had.rows) || !Array.isArray(map.whiteboard)) return;
-    had.rows.forEach(function(r) { var w = r && r.tokId ? map.whiteboard.find(function(x) { return x && x.id === r.tokId; }) : null; if (w && typeof w.charId === 'string') { delete net.turnSpent[w.charId]; delete net.turnMax[w.charId]; actsTell(camp, w.charId, true); } });
+    had.rows.forEach(function(r) { var w = r && r.tokId ? map.whiteboard.find(function(x) { return x && x.id === r.tokId; }) : null; if (w && typeof w.charId === 'string') { delete net.turnSpent[w.charId]; delete net.turnMax[w.charId]; actsTell(camp, w.charId, true); if (camp.chars) Object.keys(camp.chars).forEach(function(cid) { var cx = camp.chars[cid]; if (cid !== w.charId && cx && cx.links && typeof cx.links === 'object' && Object.keys(cx.links).some(function(lk) { return cx.links[lk] === w.charId; }) && net.turnSpent[cid]) { delete net.turnSpent[cid]; delete net.turnMax[cid]; actsTell(camp, cid, true); } }); } });   // 1.6.2: and its crew's
 }
 // [netcheck:turnacts-end]
 // [netcheck:fxtime-start]
@@ -11439,8 +11439,23 @@ function attemptByIf(camp, text, row, ch, tc) {
     try { v = S.makeResolver(camp.system, ch, Fc, tc || null); if (row && typeof row.f === 'string' && typeof row.r === 'string') v = v.row(row.f, row.r, typeof row.lv === 'number' ? row.lv : undefined); } catch (e) { v = null; }
     return typeof v === 'function' && S.rollNeedsOk({ needs: text }, v, Fc);
 }
+// [netcheck:thru-start] 1.6.2 (CORE Ch14; the owner, by prompt: "On the parry roll"): a list's roll ticked Takes the blow on this row that resists an
+// attempt: the host keeps which row took it, for two minutes, in its memory alone, and the Take damage window on this machine names that row and
+// ticks What is over its Dur goes on (sheets.js takeDamage through net.thruOf). The GM is told
+var _thru = Object.create(null);
+function thruNote(camp, ch, row) {
+    if (!camp || !camp.system || !ch || typeof ch.id !== 'string' || !row || typeof row.f !== 'string' || typeof row.r !== 'string' || typeof row.i !== 'number') return false;
+    var f = (Array.isArray(camp.system.fields) ? camp.system.fields : []).filter(function(x) { return x && x.id === row.f; })[0], rr = f && f.list && Array.isArray(f.list.rolls) ? f.list.rolls[row.i] : null; if (!rr || rr.thru !== true) return false;
+    var S = SC(), rw = (ch.values && Array.isArray(ch.values[f.id]) ? ch.values[f.id] : []).filter(function(r) { return S && S.rowIdOf(r) === row.r; })[0], rd = rw && S ? S.rowDef(camp.system, rw) : null, nm = rd && rd.def && rd.def.name ? String(rd.def.name).slice(0, 60) : 'a row';
+    _thru[ch.id] = { r: row.r, at: Date.now() };
+    var words = String(ch.name || 'A character').slice(0, 60) + ' took the blow on ' + nm + '. Apply its damage from Take damage: what is over its Dur goes on.';
+    if (typeof logEvent === 'function') logEvent('table', words); if (typeof toast === 'function') toast(words); return true;
+}
+net.thruOf = function(charId) { var t = typeof charId === 'string' && _thru[charId] ? _thru[charId] : null; return t && Date.now() - t.at < 120000 ? t.r : null; };
+// [netcheck:thru-end]
 function attemptCalled(camp, rec, act, row, pass, ch, priv, tc) {   // the target's roll against an attempt came in; tc: that roll's token context
     if (rec && rec.fw && (pass === true || pass === false)) { var fwA = rec.fw; rec.fw = null; if (typeof window !== 'undefined' && typeof window.wpFlyLand === 'function') window.wpFlyLand(fwA, pass); if (rec.htAtt && typeof net.dueRolled === 'function') net.dueRolled(rec.htAtt); }   // 1.6.2 (the core's gap 214): a thing in flight lands where its target fails to resist, and is avoided where it resists
+    if (pass === true && ch && typeof thruNote === 'function') thruNote(camp, ch, row);   // 1.6.2: a parry on a row ticked Takes the blow on this row
     if (!rec || pass !== true || !Array.isArray(rec.calls) || !ch) return;
     var ref = row && typeof row.f === 'string' && typeof row.i === 'number' ? row.f + '#' + row.i : act;
     rec.calls.forEach(function(c) {
@@ -12489,10 +12504,25 @@ if (_leaveBtn) _leaveBtn.addEventListener('click', function() { net.leaveSession
 // press always goes through, and the GM is told. What is called for is systemcore offTurnFree's, and a card's press answers a record the host holds, so
 // it passes too. A row holding its turn may act, which is a held action's way through. A move is the turn rules' own to judge (moveMode)
 var _offSaid = Object.create(null);
+// [netcheck:crewturn-start] 1.6.2 (CORE Ch19: "The crew act in the vehicle's slot"; the owner, by prompt: "A tick on the Crew link"): a crew member
+// with no fight of their own, linked by a Crew link ticked Crew act in the vehicle's turn to a vehicle that is in a fight: the vehicle, whose turn
+// judges theirs (offTurnOf), in whose fight their own actions count (actSpend), and at whose turn's start they come back (turnActsStart)
+function crewVeh(camp, charId) {
+    var sys = camp && camp.system, ch = camp && camp.chars && own(camp.chars, charId) ? camp.chars[charId] : null; if (!sys || !ch || !ch.links || typeof ch.links !== 'object' || orderOfIn(camp, charId)) return null;
+    var out = null; (Array.isArray(sys.links) ? sys.links : []).forEach(function(k) { var v = k && k.kind === 'crew' && k.vturn === true && typeof k.id === 'string' && own(ch.links, k.id) ? ch.links[k.id] : null; if (!out && typeof v === 'string' && v !== charId && own(camp.chars, v) && orderOfIn(camp, v)) out = v; });
+    return out;
+}
+function crewVehFight(camp, charId) { var v = crewVeh(camp, charId), fid = v ? orderOfIn(camp, v) : null; return fid && net.combats && own(net.combats, fid) ? net.combats[fid] : null; }
+function crewOfVeh(camp, vehId) {   // the crew sheets that act in this vehicle's turn
+    var out = []; if (!camp || !camp.chars || typeof vehId !== 'string') return out;
+    Object.keys(camp.chars).forEach(function(cid) { if (cid !== vehId && crewVeh(camp, cid) === vehId) out.push(cid); });
+    return out;
+}
+// [netcheck:crewturn-end]
 function offTurnOf(camp, charId) {   // the system's word where this character is in a fight and it is not their turn, else ''
     var sys = camp && camp.system, tn = sys && sys.combat && sys.combat.turn, md = tn ? tn.off : ''; if (md !== 'refuse' && md !== 'warn') return '';
     if (window.wpVtt && !window.wpVtt.on('turns')) return '';
-    var fid = orderOfIn(camp, charId), c = fid ? net.combats[fid] : null, mp = c && own(camp.items, c.mapId) ? camp.items[c.mapId] : null; if (!c || !mp) return '';
+    var fid = orderOfIn(camp, charId), c = fid ? net.combats[fid] : null, mp = c && own(camp.items, c.mapId) ? camp.items[c.mapId] : null; if (!fid && typeof crewVeh === 'function') { var cvO = crewVeh(camp, charId); if (cvO) return offTurnOf(camp, cvO); } if (!c || !mp) return '';   // 1.6.2: a crew member by the vehicle's turn
     var mine = function(r) { return !!r && typeof r.tokId === 'string' && mp.whiteboard.some(function(w) { return !!w && w.id === r.tokId && !!w.isChar && w.charId === charId; }); };
     if (mine(c.rows[c.turn]) || c.rows.some(function(r) { return mine(r) && (r.held === 1 || r.sf === 1); })) return '';   // 1.6.0: or one set off from a hold, until the turn moves
     return md;

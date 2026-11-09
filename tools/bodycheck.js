@@ -212,7 +212,7 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         const cP = { id: 'c_a', values: { f_t: [{ id: 'w_t', defId: 'i_t', qty: 1 }], f_w: [{ id: 'w_w', defId: 'i_w', qty: 1 }] } }, sayP = S.standFitSays(SYSP, cP, SYSP.fields[1], cP.values.f_w[0], SYSP.fields[0], cP.values.f_t[0], F, {});
         check('fold 5: what the menu asks is the one judge, which says why a row does not fit there', sayP.tell === 'No.', J(sayP));
         check('Put here goes through the row’s own change, a player greyed and the GM only told, and a closed list chooses nothing at a key step', shP.includes("commitItem(c, f3, { op: 'place', rowId: v.slice(at + 1), at: tile, back: uid('w_') });") && shP.includes("if (no && !gm) { o.disabled = true; o.title = no; }") && shP.includes("sel.dataset.part = 'tput-' + tile;") && /function tilePut[\s\S]{0,900}wpTexList\.keys\(sel\)/.test(shP));
-        check('it stands aside on a locked sheet', /function tilePut\(dr, f, c, sysI, tile, boxed\) \{\n    if \(_lockNow \|\| !_fxLive/.test(shP));
+        check('the viewing of 2026-11-09 (the owner, by prompt: "Works while locked (Recommended)"): putting a row at a tile is play, so Put here and the list\'s Where this row stands are offered on a locked sheet as a switch is, and stand aside only where nothing may be used', /function tilePut\(dr, f, c, sysI, tile, boxed\) \{\n    if \(!_fxLive \|\| !_tileHere/.test(shP) && shP.includes('standCtl(entry, c, f, spec, editable && !hudRow && !opnR, sysI, res)') && shP.includes('standCtl(entry, c, f, spec, editable && !hudRow, sysI, res)'));
     }
     /* ---- fold 6: the drawings ---- */
     {

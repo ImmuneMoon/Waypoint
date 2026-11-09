@@ -198,6 +198,8 @@ if (_streamBtn) _streamBtn.addEventListener('click', function() {
     if (!w) { toast('Could not open the window. Allow pop-ups for Waypoint.'); return; }
     toast('Stream window opened. Share that window in Discord/OBS; use its map picker to focus a map.');
 });
+var _netStreamBtn = ui('netStreamBtn');   // the viewing of 2026-11-09 (the owner: "it can be in the multiplayer menu too"): the Multiplayer window's button presses the one above
+if (_netStreamBtn) _netStreamBtn.addEventListener('click', function() { if (_streamBtn) _streamBtn.click(); });
 // [videocheck:streamholdset-start]
 // Backlog 34, the Hold switch (the owner, by prompt: "Both, picked each time"): Live, Freeze the picture or Cover with a card, told to the
 // stream window over BroadcastChannel and answered when it asks; this window's memory alone, Live again whenever the app starts. Only the

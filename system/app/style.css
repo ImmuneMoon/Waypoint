@@ -5547,6 +5547,12 @@
 .help-chip-off { opacity: .5; cursor: default; }
 .help-chip-in > .menu-item, .help-chip-in > .rm-row { display: inline-flex !important; align-items: center; gap: 6px; background: var(--panel, #1e1f26) !important; color: var(--text, #e9e9f0) !important; border: 0 !important; border-radius: 4px; padding: 1px 8px !important; font: inherit; white-space: nowrap; width: auto !important; }   /* 1.6.2: a menu's row copied out of its menu keeps the menu's look, which its own rules give it only inside the top row */
 .help-chip-in > .menu-item .ico, .help-chip-in > .rm-row .ico { width: 16px; height: 16px; }
+/* the viewing of 2026-11-09: a welcome card Help names stands in its sentence as one row, its icon and its name, never the card at full size */
+.help-chip-in > .wc-card { display: inline-flex !important; flex-direction: row !important; align-items: center; gap: 6px !important; padding: 1px 8px !important; min-height: 0 !important; width: auto !important; text-align: left; }
+.help-chip-in > .wc-card > small { display: none !important; }
+.help-chip-in > .wc-card > .wc-ic { width: 16px !important; height: 16px !important; font-size: 14px !important; }
+.help-chip-in > .wc-card > .wc-ic img, .help-chip-in > .wc-card > .wc-ic svg { width: 16px !important; height: 16px !important; }
+.help-chip-in > .wc-card > b { font-size: inherit !important; }
 .help-found { outline: 2px solid var(--gold) !important; outline-offset: 2px; box-shadow: 0 0 0 6px rgba(212, 175, 55, .35) !important; }
 .help-back { position: fixed; right: 16px; bottom: 16px; z-index: 100001; }
 .help-back[hidden] { display: none; }

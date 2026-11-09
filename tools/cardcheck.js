@@ -110,6 +110,7 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
     check('the card says it plainly', dc.includes("'Pending. Nothing has landed yet.'"));
     check('and a held card keeps Table Chat up for its roller and the GM, so its buttons stay in reach (found by pressing it)', /function waits\(m\) \{[\s\S]{0,160}m\.due[\s\S]{0,200}m\.roll\.pend/.test(dc));
     check('Help, the key, both notes and CI say it', /<b>On the card<\/b> lets a roller change a roll/.test(ix) && /<b>On the card<\/b><small>/.test(ix) && /can offer things to do before it lands/.test(readRoot('WHATSNEW.txt')) && /can offer things to do before it lands/.test(read('assets/whatsnew.txt')) && /node tools\/cardcheck\.js/.test(ci));
+    check('the viewing of 2026-11-09: one point to spend is said as one point, and a word the system names is said as it names it', dc.includes("rec.pts.n + ' ' + String(rec.pts.w || (rec.pts.n === 1 ? 'point' : 'points')) + ' to spend'"));
     check('a box of the card’s is a form, so nobody types a name', /'sys-card-n': 'amt', 'sys-card-needs': 'cond'/.test(read('scripts/formbox.js')));
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });

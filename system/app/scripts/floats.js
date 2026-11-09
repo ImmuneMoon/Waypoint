@@ -175,7 +175,9 @@ function spotArea() {
     return { l: 0, t: hd ? Math.max(0, hd.bottom) : 0, r: window.innerWidth, b: window.innerHeight };
 }
 // For a module that places a box itself (a HUD, a player's page reader): the clear place nearest want, or null
-function spotFind(want, up, el) { return spotFor(want, spotKeep(el), spotArea(), up === true); }
+// The viewing of 2026-11-09: where no place clears what a box leaves clear besides the bars (Table Chat and an open sheet in a narrow window), it stands clear of the
+// bars at least, which always stand over it, rather than at its corner under the column at the map's edge
+function spotFind(want, up, el) { var a = spotArea(), p = spotFor(want, spotKeep(el), a, up === true); if (!p && el && Object.prototype.hasOwnProperty.call(SPOT_ALSO, el.id)) p = spotFor(want, spotKeep(null), a, up === true); return p; }
 // A box of the list put clear, where it stands at its own default place or where this put it last. Its default is read with the place
 // this gave it taken off. A box that stands on its bottom edge (Table Chat) keeps standing on it, and one that would be taller than the
 // room left is held to it (its max-height), unless the user gave it a size. Answers whether it was moved

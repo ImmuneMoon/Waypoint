@@ -337,6 +337,14 @@ function spotPage() {
     const r1 = [P.at(ch), P.at(vd), P.at(fx), P.at(sh), P.at(np)];
     check('the window changes size: once a frame, every box this put clear is put clear again for the new window (Table Chat above a toolbar that now wraps, the video, Effects), and a box the user moved or the module placed is left as it is while it stands inside the window (1.6.0)',
         queued === 1 && J(r1) === J(['||20px|302px|403px||', '|145px|99px|||460px|500px', '|120px|18px||||', '349px|145px|auto||||', '40px|300px|auto||||']), J([queued, r1]));
+    {   // the viewing of 2026-11-09: Table Chat with an open sheet in a narrow window found no place clear of both and stood at its corner, under the column at the map's edge
+        const Q = spotPage(), sq = Q.box.sheetPanel; sq.style.display = 'flex'; sq.style.left = '0px'; sq.style.top = '0px'; sq.style.right = 'auto'; sq.style.width = (Q.VW - 300) + 'px';
+        const ov = (p, k) => !!p && p.l < k.r && k.l < p.l + 320 && p.t < k.b && k.t < p.t + p.h;
+        const pc = Q.api.spotFind(WANT(Q.VW - 340, Q.VH - 440, 320, 420), true, Q.box.chatPanel), pd = Q.api.spotFind(WANT(Q.VW - 340, Q.VH - 440, 320, 420), true, Q.box.docPanel);
+        sq.style.width = '300px'; const pw = Q.api.spotFind(WANT(Q.VW - 340, Q.VH - 440, 320, 420), true, Q.box.chatPanel);
+        check('the viewing of 2026-11-09: where no place clears both an open sheet and the bars, Table Chat stands clear of the bars at least (the column at the map\'s edge, the toolbar, the strip), never at its corner under them (spotFind, run for real); where a place clears the sheet too it takes that one, and a box with nothing beside the bars to clear is placed as before',
+            !!pc && !ov(pc, Q.keep.wbEdgeTools) && !ov(pc, Q.keep.wbFloatingToolbar) && !ov(pc, Q.keep.combatStrip) && J(pd) === J(Q.api.spotFind(WANT(Q.VW - 340, Q.VH - 440, 320, 420), true, null)) && !!pw && !(pw.l < 300 + 8), J([pc, pd, pw]));
+    }
     {   // the live test, 2026-10-30: a sheet opened before the fight started stood over the turn strip
         const F4 = spotPage(), stripMo = F4.mos[F4.mos.length - 2], strip = F4.keep.combatStrip; F4.keep.combatStrip = null;
         const shF = F4.open('sheetPanel'), top0 = F4.at(shF), nb = F4.open('notepadPanel'); nb.style.left = '300px'; nb.style.top = '110px'; nb.style.right = 'auto'; F4.tell(nb); const nb0 = F4.at(nb);

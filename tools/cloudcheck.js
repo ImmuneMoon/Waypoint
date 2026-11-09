@@ -24,13 +24,13 @@ function makeSite() {
         }
         if ((opt.headers || {}).Authorization !== 'Bearer ' + KEY) return reply(401, { error: 'unlinked' });
         const hd = head();
-        if (u.pathname === '/api/cloud' && m === 'GET') return reply(200, { plan: S.plan, readOnly: S.readOnly, quota: S.quota, used: 10, head: hd ? { rev: hd.rev, at: 1, by: hd.device, data: hd.data, size: 1 } : null });
+        if (u.pathname === '/api/cloud' && m === 'GET') return reply(200, { plan: S.plan, readOnly: S.readOnly, quota: S.quota, used: 10, head: hd ? { rev: hd.rev, at: 1, by: hd.device, name: 'Kitchen PC\n', data: hd.data, size: 1 } : null });
         if (u.pathname === '/api/cloud/prepare' && S.fail.daily) return reply(429, { error: 'daily-upload', resetsAt: S.fail.daily });
         if (u.pathname === '/api/cloud/fetch' && S.fail.monthly) return reply(429, { error: 'monthly-download', resetsAt: S.fail.monthly });
         if (u.pathname === '/api/cloud/prepare') return reply(200, { missing: body.files.filter(f => !S.blobs[f.hash]).map(f => ({ hash: f.hash, url: BASE + '/blob/' + f.hash, headers: { 'Content-Type': 'application/octet-stream', 'x-goog-content-length-range': f.size + ',' + f.size, Host: 'evil' }, expires: 1 })) });
         if (u.pathname === '/api/cloud/commit') {
             if (S.readOnly) return reply(402, { error: 'plan' });
-            if ((body.base || null) !== (hd ? hd.rev : null)) return reply(409, { error: 'conflict', head: { rev: hd.rev, at: 1, by: hd.device } });
+            if ((body.base || null) !== (hd ? hd.rev : null)) return reply(409, { error: 'conflict', head: { rev: hd.rev, at: 1, by: hd.device, name: 'Kitchen PC\n' } });
             const missing = [body.data].concat(Object.values(body.files)).filter(h => !S.blobs[h]);
             if (missing.length || S.fail.miss) { S.fail.miss = false; if (missing.length) return reply(422, { error: 'missing', hashes: missing }); }
             const v = { rev: S.versions.length + 1, data: body.data, files: body.files, device: body.device, kept: !!body.keep }; S.versions.push(v); S.commits.push(body); return reply(200, { rev: v.rev });
@@ -86,7 +86,7 @@ const mk = (dir, S, now) => CS.makeHandler({ savesDir: dir, base: BASE, fetch: S
 
     S.other({ 'data.json': '{"v":3}', 'images/m1/a.png': 'PNG-A' }); fs.writeFileSync(path.join(dir, 'data.json'), '{"v":"mine"}');
     const cf = await H.sync('page', false), st = JSON.parse(await route(H, 'GET', '/api/cloud'));
-    check('both changed: a conflict, the head named, and the state says so to the page without the key', cf.did === 'conflict' && cf.head.rev === 4 && st.conflict && st.conflict.head.rev === 4 && !JSON.stringify(st).includes(KEY), J([cf, st]));
+    check('both changed: a conflict, the head named, and the state says so to the page without the key', cf.did === 'conflict' && cf.head.rev === 4 && cf.head.name === 'Kitchen PC' && st.conflict && st.conflict.head.rev === 4 && !JSON.stringify(st).includes(KEY), J([cf, st]));
     const rm = JSON.parse(await route(H, 'POST', '/api/cloud/resolve', { use: 'mine' }));
     check('Keep this computer\'s: its save is committed over the cloud\'s head (base the head), and the cloud\'s head stays a version', rm.did === 'pushed' && rm.rev === 5 && S.commits[2].base === 4 && S.versions.length === 5, J(rm));
 
@@ -147,6 +147,7 @@ const mk = (dir, S, now) => CS.makeHandler({ savesDir: dir, base: BASE, fetch: S
             && W.usageWords({ linked: true, on: true, used: 2 * 1024 * 1024, quota: 5 * 1024 * 1024 * 1024 }) === '2 MB of 5 GB used.' && W.usageWords({ linked: true, on: false, used: 1, quota: 5 }) === '' && W.sizeWords(10) === '1 KB' && /uploads are used up[^]* It starts again at /.test(W.stateWords({ linked: true, on: true, status: 'error', error: 'daily', resetsAt: Date.UTC(2026, 10, 8) })) && /downloads are used up/.test(W.stateWords({ linked: true, on: true, status: 'error', error: 'monthly' })) && W.fromWords('waypoint-7f101e919d32') === 'another computer' && W.fromWords('Browser') === 'the website in a browser' && W.fromWords(undefined) === 'another computer'
             && ['cloudPart', 'cloudOn', 'cloudStatus', 'cloudUsage', 'cloudSyncNow'].every(id => ixS.split('id="' + id + '"').length === 2) && ixS.includes('<script type="module" src="scripts/cellsize.js"></script>\n<script type="module" src="scripts/cloudui.js"></script>')
             && stS.includes("if (window.wpCloud && typeof window.wpCloud.backup === 'function') window.wpCloud.backup();") && uiS.includes("{ yes: 'Keep this computer\u2019s', alt: 'Use the cloud\u2019s', noEnter: true, noEscape: true }")
+            && W.fromWords('dev_x', 'Kitchen PC') === 'Kitchen PC' && W.fromWords('dev_x', '  ') === 'another computer' && W.fromWords('Browser') === 'the website in a browser' && uiS.includes('fromWords(head && head.by, head && head.name)')
             && ixS.includes('<b>Cloud saves</b>') && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').includes('Keep my')));
     }
     const mainS = fs.readFileSync(path.join(__dirname, '..', 'system', 'resources', 'app', 'main.js'), 'utf8'), devS = fs.readFileSync(path.join(__dirname, 'dev-server.js'), 'utf8');

@@ -35,7 +35,7 @@ function stateWords(s) {
 // When an allowance is renewed, in this computer's own time
 function whenWords(ms) { var d = new Date(ms); return 'at ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' on ' + d.toLocaleDateString(); }
 // Which computer a version came from, in words: an install's device id is no name (found live, 2026-11-07), the website's own is the browser
-function fromWords(by) { return by === 'Browser' ? 'the website in a browser' : 'another computer'; }
+function fromWords(by, name) { if (typeof name === 'string' && name.trim()) return name.trim().slice(0, 80); return by === 'Browser' ? 'the website in a browser' : 'another computer'; }   // the site's own name for where it was saved, where it sends one (Website Alpha 1.0.11)
 function usageWords(s) { return s && s.linked && s.on && s.quota > 0 ? sizeWords(s.used) + ' of ' + sizeWords(s.quota) + ' used.' : ''; }
 // [cloudcheck:words-end]
 function render() {
@@ -59,7 +59,7 @@ async function after(r) {
 }
 function ask(head) {
     var when = head && head.at ? new Date(head.at).toLocaleString() : 'another time';
-    showConfirm('Your save changed on this computer and in the cloud (saved from ' + fromWords(head && head.by) + ', ' + when + '). Which do you keep? The other stays in the cloud’s history.', async function(a) {
+    showConfirm('Your save changed on this computer and in the cloud (saved from ' + fromWords(head && head.by, head && head.name) + ', ' + when + '). Which do you keep? The other stays in the cloud’s history.', async function(a) {
         var use = a === 'alt' ? 'cloud' : a ? 'mine' : '';
         if (!use) { await refresh(); return; }
         log('resolve', { use: use });

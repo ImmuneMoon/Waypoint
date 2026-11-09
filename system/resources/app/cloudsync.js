@@ -43,7 +43,9 @@ function cleanManifest(m) {
 }
 function cleanHead(h) {
     if (!isObj(h) || !Number.isInteger(h.rev) || h.rev < 1) return null;
-    return { rev: h.rev, at: fin(h.at) ? h.at : 0, by: typeof h.by === 'string' ? h.by.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 80) : '', size: fin(h.size) && h.size >= 0 ? h.size : 0 };
+    const o = { rev: h.rev, at: fin(h.at) ? h.at : 0, by: typeof h.by === 'string' ? h.by.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 80) : '', size: fin(h.size) && h.size >= 0 ? h.size : 0 };
+    const nm = typeof h.name === 'string' ? h.name.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 80) : ''; if (nm) o.name = nm;   // Website Alpha 1.0.11: where a version was saved, as a person reads it
+    return o;
 }
 function cleanCloud(j) {
     if (!isObj(j)) return null;

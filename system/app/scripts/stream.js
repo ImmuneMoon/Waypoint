@@ -41,7 +41,7 @@ if (on) {
         if (charSel.dataset.sig === sig) return;
         charSel.dataset.sig = sig;
         var html = '<option value="">No one</option>';
-        list.forEach(function(c) { html += '<option value="' + esc(c.key) + '"' + (c.key === charFocus ? ' selected' : '') + '>' + (c.name + ' (' + c.map + ')').replace(/[<>&]/g, '') + '</option>'; });
+        list.forEach(function(c) { html += '<option value="' + esc(c.key) + '"' + (c.key === charFocus ? ' selected' : '') + '>' + (c.name + ', on ' + c.map).replace(/[<>&]/g, '') + '</option>'; });
         charSel.innerHTML = html;
         if (sel) { sel.disabled = !!charFocus; sel.title = charFocus ? 'The map follows the focused character; clear "Focus on" to pick a map' : 'Follow the GM\'s current map, or focus one map until you change it'; }
     }
@@ -80,7 +80,7 @@ if (on) {
         var sig = maps.map(function(m) { return m.id + ':' + (m.meta && m.meta.title || ''); }).join('|') + '#' + focus;
         if (sel.dataset.sig === sig) return;
         sel.dataset.sig = sig;
-        var html = '<option value="">Follow the GM (current map)</option>';
+        var html = '<option value="">The map the GM is on</option>';
         maps.sort(function(a, b) { return String(a.meta && a.meta.title || '').localeCompare(String(b.meta && b.meta.title || '')); });
         maps.forEach(function(m) { html += '<option value="' + esc(m.id) + '"' + (m.id === focus ? ' selected' : '') + '>' + String(m.meta && m.meta.title || m.id).replace(/[<>&]/g, '') + '</option>'; });
         sel.innerHTML = html;

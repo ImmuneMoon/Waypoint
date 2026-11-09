@@ -17,7 +17,7 @@ function draw(box, n, c, map, host) {
     box.textContent = ''; var ins = inOf(c, host), total = host ? c.rows.length : c.dec.n, mine = mineOf(c, map, host, n.myId), seen = host && rulesSeen();
     box.appendChild(el('div', 'dc-head', host ? 'Declaring: ' + ins.length + ' of ' + total + ' in' : mine.length && mine.every(function(r) { return ins.indexOf(r.id) >= 0; }) ? 'Declared. Waiting for the others.' : 'Say what you mean to do.'));   // a player is told no count: it could tell them of someone they cannot see
     mine.forEach(function(r) {
-        var row = el('div', 'dc-row'), put = el('input', 'field dc-line'), go = el('button', 'tool dc-send', ins.indexOf(r.id) >= 0 ? 'Change' : 'Send'); put.type = 'text'; put.maxLength = 200; put.placeholder = 'What ' + (r.name || 'they') + ' means to do'; go.type = 'button';
+        var row = el('div', 'dc-row'), put = el('input', 'field dc-line'), go = el('button', 'tool dc-send', ins.indexOf(r.id) >= 0 ? 'Change' : 'Send'); put.type = 'text'; put.maxLength = 200; put.placeholder = 'What they mean to do'; put.title = 'What ' + (r.name || 'they') + ' means to do'; go.type = 'button';
         var kS = c.id + '|' + c.round + '|' + r.id; put.value = host ? (own(c.dec.lines, r.id) ? c.dec.lines[r.id] : '') : own(_said, kS) ? _said[kS] : '';
         var send = function() { var w = n.declareIn(c.id, r.id, put.value); if (w) toast(w); else _said[kS] = put.value; if (document.activeElement === put) put.blur(); }; go.addEventListener('click', send); put.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); send(); } e.stopPropagation(); });
         row.appendChild(el('span', 'dc-name', r.name || 'Someone')); row.appendChild(put); row.appendChild(go); box.appendChild(row);

@@ -73,6 +73,8 @@ The System editor
   Upper Deck." in place of a dash.
 - A campaign with no maps or pages no longer says its save was upgraded every
   time it opens.
+- Laid from never gives two rows one name, and a rule can have its own sides,
+  stop its sides at another rule's count, and share a row with other rules.
 - An effect's bonus can say it doesn't stack with others of its kind, so two
   stims that raise the same thing give the larger, never the sum.
 - Laid from can go by category: a part of quantity 2 lays a right and a left

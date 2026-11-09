@@ -6657,7 +6657,7 @@ function rowFacts(o, e, spec) {
     var slF = lvlNum(e.sl); if (slF !== undefined && typeof e.sl === 'number') o.sl = isObj(spec) && isObj(spec.lvl) ? lvlClamp(spec.lvl, slF) : slF;   // 1.6.0: the level it started at (Row.startlvl; applyRowOp stamps it where its list keeps the starting level, as a level is kept)
     if (e.mk === 1) o.mk = 1;   // 1.6.0 (v2, B5): added while its character was in the making (applyRowOp stamps it; nothing on the wire names it)
     if (e.ag === 1 && e.lnk === 1) o.ag = 1;   // 193: an owner's inline copy held again under a name (only there: the host reads its own row)
-    if (isObj(spec) && isObj(spec.lay) && typeof e.lf === 'string' && (ROW_ID.test(e.lf) || /^k:[0-9]{1,2}$/.test(e.lf) || (/#[1-8]$/.test(e.lf) && ROW_ID.test(e.lf.slice(0, -2))))) o.lf = e.lf;   // 1.6.2 Laid from: the row that laid it, by its id (laySync); by category, a unit of it (#n) or a rule's one row between them (k:n)
+    if (isObj(spec) && isObj(spec.lay) && typeof e.lf === 'string' && (ROW_ID.test(e.lf) || /^k:[0-9]{1,2}$/.test(e.lf) || (/#[1-8]$/.test(e.lf) && ROW_ID.test(e.lf.slice(0, -2))) || (function(m) { return !!m && ROW_ID.test(m[1]); })(/^(.+)@[0-9]{1,2}(#[1-8])?$/.exec(e.lf)))) o.lf = e.lf;   // 1.6.2 Laid from: the row that laid it, by its id (laySync); by category, a unit of it (#n) or a rule's one row between them (k:n)
     if (typeof e.opn === 'string' && ROW_ID.test(e.opn)) o.opn = e.opn;   // 1.5.8: a row another row opens (openSync), by that row's id   // F4c1: what one cost when it was added (kept while the list has no price, as a level is)
     if (burstList(spec)) { var buF = cleanBu(e.bu); if (buF) o.bu = buF; }   // 1.6.0: its last burst, the host's own record, on a list whose rolls name one
     if (isObj(spec) && (isObj(spec.look) || spec.workLog === true)) rowLookInto(o, e, spec);   // 1.6.0, backlog 206: its look and its work log, where its list keeps them (the one cleaner)
@@ -7427,9 +7427,10 @@ function cleanLay(v, out) {
     if (st.length) o.stats = st;
     if (Array.isArray(v.rules)) { var rl = []; v.rules.slice(0, LAY_RULES * 2).forEach(function(x) {   // 1.6.2 (the owner, by prompt: "Three options on Laid from"): rules by the source row's category
         if (rl.length >= LAY_RULES || !isObj(x)) return; var cs = (Array.isArray(x.cats) ? x.cats : typeof x.cats === 'string' ? x.cats.split(',') : []).map(function(c) { return typeof c === 'string' ? c.trim().slice(0, 40) : ''; }).filter(Boolean).slice(0, 8); if (!cs.length) return;
-        var ru = { cats: cs, each: x.each === 'unit' || x.each === 'kind' ? x.each : 'row' }, rn = typeof x.name === 'string' ? x.name.replace(CTRL_RE_G, ' ').trim().slice(0, LIMITS.itemName) : ''; if (rn) ru.name = rn; var rif = typeof x['if'] === 'string' ? cleanFormulaText(x['if']) : ''; if (rif) ru['if'] = rif; rl.push(ru);   // 1.6.2 (asked by a campaign's build): a rule's own Only where, a test of the source row
+        var ru = { cats: cs, each: x.each === 'unit' || x.each === 'kind' ? x.each : 'row' }, rn = typeof x.name === 'string' ? x.name.replace(CTRL_RE_G, ' ').trim().slice(0, LIMITS.itemName) : ''; if (rn) ru.name = rn; var rif = typeof x['if'] === 'string' ? cleanFormulaText(x['if']) : ''; if (rif) ru['if'] = rif; if (Array.isArray(x.sides)) ru.sides = x.sides.filter(function(n) { return typeof n === 'number' && fin(n); }).map(function(n) { return Math.max(-99, Math.min(99, Math.round(n))); }).slice(0, 8); if (typeof x.upTo === 'number' && fin(x.upTo) && x.upTo >= 0 && x.upTo < LAY_RULES && Math.floor(x.upTo) === x.upTo) { ru.upTo = x.upTo; var rst = typeof x.rest === 'string' ? x.rest.replace(CTRL_RE_G, ' ').trim().slice(0, LIMITS.itemName) : ''; if (rst) ru.rest = rst; } rl.push(ru);   // 1.6.2 (asked by a campaign's build): a rule's own Only where, a test of the source row
     }); if (rl.length) o.rules = rl; }
     var sdS = typeof v.side === 'string' ? statDefOf(out, v.side) : null; if (sdS) o.side = sdS.key;
+    if (v.all === true && Array.isArray(o.rules)) o.all = true;   // 1.6.2: Each rule that takes a category lays
     if (Array.isArray(v.sides)) { var sds = v.sides.filter(function(n) { return typeof n === 'number' && fin(n); }).map(function(n) { return Math.max(-99, Math.min(99, Math.round(n))); }).slice(0, 8); if (sds.length) o.sides = sds; }
     return o;
 }
@@ -7457,20 +7458,34 @@ function laySync(sys, char, F, keep) {
     sys.fields.forEach(function(f) {
         if (!isObj(f) || f.kind !== 'item-list' || !isObj(f.list) || !isObj(f.list.lay)) return;
         var lay = f.list.lay, sf = fieldById(sys, lay.from); if (!sf || sf.kind !== 'item-list' || sf.id === f.id) return;
-        var want = [], kinds = map(), nums = map(), nOf = function(ri, fig) { var k = ri + '|' + fig; nums[k] = (nums[k] || 0) + 1; return nums[k]; };
+        var want = [], kinds = map(), nums = map(), nOf = function(k) { nums[k] = (nums[k] || 0) + 1; return nums[k]; }, units = map(), order = [];   // units: each rule's units in the order taken, laid once every rule's are known (Sided only as many as reads another rule's count)
+        var ruleOk = function(ru, r) { if (!ru['if']) return true; if (!F || typeof F.evaluate !== 'function') return false; if (!base) base = makeResolver(sys, char, F, { noFx: true, reuse: false }); try { return base.needsOk(sf, r, ru['if']) === true; } catch (e) { return false; } };
         (Array.isArray(char.values[sf.id]) ? char.values[sf.id] : []).forEach(function(r) {
             if (!isObj(r) || r.hid === 1 || typeof r.lf === 'string') return;
             if (lay['if']) { if (!F || typeof F.evaluate !== 'function') return; if (!base) base = makeResolver(sys, char, F, { noFx: true, reuse: false }); var ok = false; try { ok = base.needsOk(sf, r, lay['if']) === true; } catch (e) { ok = false; } if (!ok) return; }
             var w = layWant(sys, sf, r, lay); if (!w || typeof w.src !== 'string') return;
             if (!Array.isArray(lay.rules) || !lay.rules.length) { want.push(w); return; }
-            var rdL = rowDef(sys, r), catL = rdL && isObj(rdL.def) && typeof rdL.def.category === 'string' ? lower(rdL.def.category.trim()) : '', ri = -1;   // 1.6.2: the first rule that takes its category
-            lay.rules.forEach(function(x, i) { if (ri < 0 && isObj(x) && Array.isArray(x.cats) && x.cats.some(function(c) { return lower(c) === catL; })) ri = i; }); if (ri < 0) return;
-            var ru = lay.rules[ri];
-            if (ru['if']) { if (!F || typeof F.evaluate !== 'function') return; if (!base) base = makeResolver(sys, char, F, { noFx: true, reuse: false }); var okR = false; try { okR = base.needsOk(sf, r, ru['if']) === true; } catch (e) { okR = false; } if (!okR) return; }   // 1.6.2: the rule's own Only where
-            if (ru.each === 'kind') { if (kinds[ri]) return; kinds[ri] = 1; want.push(layRuleWant(w, 'k:' + ri, ru, 0, lay, f.list, 1)); return; }   // Once a kind: one row between them, while any is there
-            if (ru.each === 'unit') { var nU = Math.max(1, Math.min(8, Math.round(typeof r.qty === 'number' && fin(r.qty) ? r.qty : 1))); for (var u = 0; u < nU; u++) { var fgU = Array.isArray(lay.sides) && u < lay.sides.length ? lay.sides[u] : 0; want.push(layRuleWant(w, w.src + '#' + (u + 1), ru, fgU, lay, f.list, nOf(ri, fgU))); } return; }   // One row a unit, its side in order
-            want.push(layRuleWant(w, w.src, ru, 0, lay, f.list, nOf(ri, 0)));
+            var rdL = rowDef(sys, r), catL = rdL && isObj(rdL.def) && typeof rdL.def.category === 'string' ? lower(rdL.def.category.trim()) : '', ris = [];   // 1.6.2: the first rule that takes its category, or each one under Each rule that takes it lays
+            lay.rules.forEach(function(x, i) { if ((lay.all === true || !ris.length) && isObj(x) && Array.isArray(x.cats) && x.cats.some(function(c) { return lower(c) === catL; })) ris.push(i); });
+            ris.forEach(function(ri) {
+                var ru = lay.rules[ri], sb = lay.all === true ? w.src + '@' + ri : w.src; if (!ruleOk(ru, r)) return;   // 1.6.2: the rule's own Only where; under Each rule a row's rows are told apart by their rule
+                var u0 = units[ri] || (units[ri] = []); if (!u0.length) order.push(ri);
+                if (ru.each === 'kind') { if (kinds[ri]) return; kinds[ri] = 1; u0.push({ w: w, src: 'k:' + ri, kind: true }); return; }   // Once a kind: one row between them, while any is there
+                if (ru.each === 'unit') { var nU = Math.max(1, Math.min(8, Math.round(typeof r.qty === 'number' && fin(r.qty) ? r.qty : 1))); for (var u = 0; u < nU; u++) u0.push({ w: w, src: sb + '#' + (u + 1), u: u }); return; }   // One row a unit
+                u0.push({ w: w, src: sb, u: 0, row: true });
+            });
         });
+        order.forEach(function(ri) {   // each rule's units, now that every rule's count is known: its side, its name, its number
+            var ru = lay.rules[ri], us = units[ri], own = Array.isArray(ru.sides), cap = typeof ru.upTo === 'number' && ru.upTo !== ri && Array.isArray(units[ru.upTo]) ? units[ru.upTo].length : (typeof ru.upTo === 'number' ? 0 : -1);
+            us.forEach(function(x, k) {
+                if (x.kind) { want.push(layRuleWant(x.w, x.src, ru, 0, lay, f.list, 1)); return; }
+                if (cap >= 0 && k >= cap) { want.push(layRuleWant(x.w, x.src, { name: typeof ru.rest === 'string' && ru.rest ? ru.rest : ru.name }, 0, lay, f.list, nOf(ri + '|rest'))); return; }   // 1.6.2: past another rule's count, the rest with no side under a second name
+                var fg = own ? (ru.sides.length ? ru.sides[k % ru.sides.length] : 0) : (!x.row && Array.isArray(lay.sides) && x.u < lay.sides.length ? lay.sides[x.u] : 0);   // 1.6.2: a rule's own sides repeat across its units; the list's go by the unit's place in its row, as before
+                want.push(layRuleWant(x.w, x.src, ru, fg, lay, f.list, nOf(ri + '|' + fg)));
+            });
+        });
+        var nameN = map(), nameK = map(); want.forEach(function(w) { var kk = lower(String(w.name).trim()); nameN[kk] = (nameN[kk] || 0) + 1; });   // 1.6.2: two rows the list lays never share a name: where they would, each gets its number, in the order laid
+        want.forEach(function(w) { var kk = lower(String(w.name).trim()); if (nameN[kk] > 1) { nameK[kk] = (nameK[kk] || 0) + 1; w.name = cutText(w.name + ' ' + nameK[kk], LIMITS.itemName); } });
         var did = false, list = (Array.isArray(char.values[f.id]) ? char.values[f.id] : []).filter(function(r) {
             if (!isObj(r) || typeof r.lf !== 'string') return true;
             if (want.some(function(w) { return w.src === r.lf; })) return true;

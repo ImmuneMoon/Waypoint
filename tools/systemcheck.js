@@ -20025,6 +20025,28 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.2 Laid from: {n} in a rule\'s name is the row\'s number among the rows that rule lays on that side (Right Arm 1, Left Arm 1, then Arm 1 to 3 past the sides), and a rule\'s own Only where, a test of the source row, lays nothing for a row where it fails (the Glove); the cleaner keeps it and the validator reads it as the list\'s',
             J(nms) === J(['Right Arm 1', 'Left Arm 1', 'Arm 1', 'Arm 2', 'Arm 3', 'Hand 1', 'Hand 2']) && sysN.fields[1].list.lay.rules[1]['if'] === 'Row.opens > 0' && vN.length === 0, J([nms, sysN.fields[1].list.lay, vN]));
     }
+    {   // 1.6.2 Laid from, four more (asked by a campaign's build: a droid's locations from its parts), on invented data
+        const J = JSON.stringify, sysD = cleanSystem({ v: 1, name: 'Ld', fields: [
+            { id: 'f_parts', key: 'Parts', label: 'Parts', kind: 'item-list', list: { cats: ['Chassis', 'Head', 'Sensor', 'Arm', 'Leg', 'Motive', 'Utility'], stats: [{ key: 'hlo', label: 'Holds' }, { key: 'bhead', label: 'Built-in head' }] } },
+            { id: 'f_locs', key: 'Locs', label: 'Locations', kind: 'item-list', list: { stats: [{ key: 'side', label: 'Side', labels: ['None', 'Left', 'Right'] }, { key: 'dmg', label: 'Damage' }], lay: { from: 'f_parts', side: 'side', all: true, rules: [
+                { cats: ['Chassis'], name: 'Torso' }, { cats: ['Head'], name: 'Head' }, { cats: ['Head', 'Sensor'], name: 'Face', each: 'kind' },
+                { cats: ['Arm'], name: '{side} Arm', each: 'unit', sides: [2, 1] }, { cats: ['Leg'], name: '{side} Leg', each: 'unit', sides: [2, 1] },
+                { cats: ['Motive'], name: '{side} Foot', each: 'unit', sides: [2, 1], upTo: 4, rest: 'Motive System {n}' }, { cats: ['Utility'], name: 'Utility Mount', each: 'unit', sides: [], 'if': 'Row.hlo > 0' },
+                { cats: ['Chassis'], name: 'Head', 'if': 'Row.bhead > 0' }] } } }],
+            items: [{ id: 'i_ch', name: 'Chassis', category: 'Chassis' }, { id: 'i_bh', name: 'Dome Chassis', category: 'Chassis', stats: { bhead: 1 } }, { id: 'i_hd', name: 'Head', category: 'Head' }, { id: 'i_arm', name: 'Arm', category: 'Arm' }, { id: 'i_leg', name: 'Strut', category: 'Leg' },
+                { id: 'i_tr', name: 'Tread', category: 'Motive' }, { id: 'i_um', name: 'Tool Mount', category: 'Utility', stats: { hlo: 1 } }, { id: 'i_ep', name: 'Expanded Housing', category: 'Utility', stats: { hlo: 0 } }] }, { F, gmView: true });
+        const t3 = { id: 'c_t', values: { f_parts: [{ id: 'w_ch', defId: 'i_ch', qty: 1 }, { id: 'w_hd', defId: 'i_hd', qty: 1 }, { id: 'w_arm', defId: 'i_arm', qty: 3 }, { id: 'w_leg', defId: 'i_leg', qty: 2 }, { id: 'w_tr', defId: 'i_tr', qty: 4 }, { id: 'w_um', defId: 'i_um', qty: 2 }, { id: 'w_ep', defId: 'i_ep', qty: 1 }], f_locs: [] } };
+        S.laySync(sysD, t3, F, {}); const t3n = t3.values.f_locs.map(r => [r.def.name, r.def.stats ? r.def.stats.side || 0 : 0]);
+        const ge = { id: 'c_g', values: { f_parts: [{ id: 'w_bh', defId: 'i_bh', qty: 1 }, { id: 'w_arm', defId: 'i_arm', qty: 2 }], f_locs: [] } }; S.laySync(sysD, ge, F, {}); const ge1 = ge.values.f_locs.map(r => r.def.name + '|' + r.lf);
+        const right = ge.values.f_locs.filter(r => r.lf === 'w_arm@3#1')[0]; right.def = Object.assign({}, right.def, { stats: Object.assign({}, right.def.stats, { dmg: 4 }) });
+        ge.values.f_parts[1].qty = 3; S.laySync(sysD, ge, F, {}); const ge2 = ge.values.f_locs.map(r => r.def.name + '|' + r.lf), right2 = ge.values.f_locs.filter(r => r.lf === 'w_arm@3#1')[0];
+        check('1.6.2 Laid from: two laid rows never share a name, each numbered where they would (Right Arm 1 and 2, Utility Mount 1 and 2, a lone Right Arm unnumbered); a rule\'s own sides repeat over its units, and None lays no side; Sided only as many as another rule lays (two Struts make Right Foot and Left Foot, the other treads Motive System 1 and 2 with no side); Each rule that takes it lays (a head lays Head and Face, a chassis with a built-in head a Head), each by its own Only where (an Expanded Housing lays nothing); a renamed row keeps its source and its damage',
+            J(t3n) === J([['Torso', 0], ['Head', 0], ['Face', 0], ['Right Arm 1', 2], ['Left Arm', 1], ['Right Arm 2', 2], ['Right Leg', 2], ['Left Leg', 1], ['Right Foot', 2], ['Left Foot', 1], ['Motive System 1', 0], ['Motive System 2', 0], ['Utility Mount 1', 0], ['Utility Mount 2', 0]])
+            && ge1.some(x => /^Head\|w_bh@7$/.test(x)) && ge1.some(x => /^Right Arm\|/.test(x)) && !ge1.some(x => /Right Arm 1/.test(x))
+            && ge2.some(x => /^Right Arm 1\|/.test(x)) && ge2.some(x => /^Right Arm 2\|/.test(x)) && right2 && right2.def.name === 'Right Arm 1' && right2.def.stats.dmg === 4
+            && J(sysD.fields[1].list.lay.rules[5]) === J({ cats: ['Motive'], each: 'unit', name: '{side} Foot', sides: [2, 1], upTo: 4, rest: 'Motive System {n}' }) && sysD.fields[1].list.lay.all === true && J(sysD.fields[1].list.lay.rules[6].sides) === '[]',
+            J([t3n, ge1, ge2, sysD.fields[1].list.lay.rules[5]]));
+    }
     {   // 1.6.2 Fx.<effect>.on and .n (asked by a campaign's build: temporary HP that falls to the largest stim still on), on invented data
         const J = JSON.stringify, sysF = cleanSystem({ v: 1, name: 'Fx', fields: [{ id: 'f_fx', key: 'Fx1', label: 'Effects', kind: 'effects' }, { id: 'f_t', key: 'Temp', label: 'Temp', kind: 'formula', formula: 'max(if(Fx.e_a.on, 3, 0), if(Fx.e_b.on, 9, 0)) + Fx.e_b.n' }],
             effects: [{ id: 'e_a', name: 'Stim A' }, { id: 'e_b', name: 'Stim B', val: { start: 2 } }, { id: 'e_g', name: 'Secret', vis: 'gm' }] }, { F, gmView: true });

@@ -1243,6 +1243,10 @@ function canOpen(charId) {
     if (isClient()) return !!(c.ownerId && c.ownerId === myId());
     return !window.wpStream;
 }
+function headSlim(p, b) {   // the viewing of 2026-11-09: the panel's bars fold once the sheet is scrolled, and come back at its top
+    if (!p || !b) return; var y = b.scrollTop, on = p.classList.contains('sheet-slim');
+    if (!on && y > 40 && b.scrollHeight - b.clientHeight > 160) p.classList.add('sheet-slim'); else if (on && y <= 4) p.classList.remove('sheet-slim');
+}
 function openSheet(charId) {
     if (!canOpen(charId)) { toast(featureOn() ? 'That sheet is not yours to open.' : 'Character sheets are off here.'); return; }
     if (!systemOf(getActiveCampaign())) {   // 1.6.2 (found building a system by hand): a sheet with nothing to show says why, where it used to close without a word
@@ -1257,7 +1261,7 @@ function openSheet(charId) {
     p.style.display = 'flex'; if (window.wpFloats) window.wpFloats.reveal(p);   // 1.5.4 (floats.js): asked for here, so it shows on this view
     placeSheet(); raisePanel(p); renderSheet();
 }
-function closeSheet() { closeDownloadMenu(); sheetOpen = null; _sheetEdit = null; if (typeof _asPlayer !== 'undefined') _asPlayer = null; var p = ui('sheetPanel'); if (p) p.style.display = 'none'; if (typeof sbxFlush === 'function') sbxFlush(); if (typeof closeLoadMenu === 'function') closeLoadMenu(); }   // (item 35: what was being typed in it is stored, and the run of typing ends)
+function closeSheet() { closeDownloadMenu(); sheetOpen = null; _sheetEdit = null; var pS = ui('sheetPanel'); if (pS) pS.classList.remove('sheet-slim'); if (typeof _asPlayer !== 'undefined') _asPlayer = null; var p = ui('sheetPanel'); if (p) p.style.display = 'none'; if (typeof sbxFlush === 'function') sbxFlush(); if (typeof closeLoadMenu === 'function') closeLoadMenu(); }   // (item 35: what was being typed in it is stored, and the run of typing ends)
 function placeSheet() { var p = ui('sheetPanel'); if (!p) return; try { var pos = JSON.parse(pref('wp_sheetPanel', 'null')); if (pos && isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 160, pos.x)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 80, pos.y)) + 'px'; p.style.right = 'auto'; } if (pos && isFinite(pos.w) && isFinite(pos.h)) sizePanel(p, pos.w, pos.h); } catch (e) {} if (window.wpFloats && window.wpFloats.fit) window.wpFloats.fit(p); }   // found by hand: another sheet opened in a box already up came back to a stored place past the window's edge, and the box's own fit runs only as it comes up
 // Fold B: the panel's own size (its corner grip), clamped to the window; the saved record keeps the position and the size together
 function sizePanel(p, w, h) { var r = p.getBoundingClientRect(); w = Math.max(360, Math.min(window.innerWidth - Math.max(0, r.left) - 8, Math.round(w))); h = Math.max(240, Math.min(window.innerHeight - Math.max(0, r.top) - 8, Math.round(h))); p.style.width = w + 'px'; p.style.height = h + 'px'; p.classList.add('sheet-sized'); }   // clamped to the room left of/below where the panel is, so the grip and the last rows stay on screen
@@ -14991,6 +14995,10 @@ function importFile(file) {
         grip.addEventListener('pointermove', function(e) { if (!rz || (e.clientX === rz.x && e.clientY === rz.y)) return; rz.moved = true; sizePanel(p, rz.w + e.clientX - rz.x, rz.h + e.clientY - rz.y); var sb = ui('sheetBody'); if (sb) syncFramePad(sb); });
         grip.addEventListener('pointerup', function() { if (!rz) return; var moved = rz.moved; rz = null; if (!moved) return; var r = p.getBoundingClientRect(), o = panelPref(); o.x = Math.round(r.left); o.y = Math.round(r.top); o.w = Math.round(r.width); o.h = Math.round(r.height); setPref('wp_sheetPanel', JSON.stringify(o)); });
         grip.addEventListener('dblclick', function() { p.style.width = ''; p.style.height = ''; p.classList.remove('sheet-sized'); var o = panelPref(); delete o.w; delete o.h; setPref('wp_sheetPanel', JSON.stringify(o)); var sb = ui('sheetBody'); if (sb) syncFramePad(sb); });
+    // the viewing of 2026-11-09 (the owner, by prompt: "Shrink as you scroll (Recommended)"): once the sheet is scrolled, the bars under the head fold away
+    // (the look, budgets, debts and links) and the head keeps one row where it fits; back at the top they come back. Only where the sheet runs well past the panel,
+    // so folding them can never bring the sheet back to its top and unfold them again
+    var sbS = ui('sheetBody'); if (sbS) sbS.addEventListener('scroll', function() { headSlim(p, sbS); }, { passive: true });
     }
 })();
 function sync() {

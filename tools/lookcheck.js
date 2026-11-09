@@ -3924,5 +3924,15 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         && cssT.includes('#sheetMoreMenu > #sheetDelete { order: 9;') && noBack.every(id => new RegExp('class="[^"]*\\bno-back\\b[^"]*" id="' + id + '"').test(ixT) || (id === 'netEndBtn' && ixT.includes('no-back" id="netEndBtn"')) || (id === 'journalClearBtn' && ixT.includes('id="journalClearBtn" class="tool ghost danger no-back')))
         && !/>Color</.test(ixT.replace('<li>Colour, and layer up and down.</li>', '')));
 }
+{   // the viewing of 2026-11-09 (the owner, by prompt: "Shrink as you scroll (Recommended)"): a scrolled sheet folds the bars under its head
+    const shH = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8'), cssH = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8').replace(/\r\n/g, '\n');
+    const hA = shH.indexOf('function headSlim(p, b) {'), headSlim = new Function(shH.slice(hA, shH.indexOf('\n}', hA) + 2) + '\nreturn headSlim;')();
+    const cl = () => { const set = new Set(); return { contains: k => set.has(k), add: k => set.add(k), remove: k => set.delete(k) }; };
+    const P = { classList: cl() }, run = (y, sh, ch) => { headSlim(P, { scrollTop: y, scrollHeight: sh, clientHeight: ch }); return P.classList.contains('sheet-slim'); };
+    const r = [run(20, 2000, 600), run(41, 2000, 600), run(10, 2000, 600), run(4, 2000, 600), run(41, 700, 600), run(300, 700, 600)];
+    check('the viewing of 2026-11-09: a sheet scrolled past 40 px folds the bars under its head and keeps it folded until it is back at its top, never where the sheet runs only a little past the panel (headSlim, run for real); the style sheet folds the look, budgets, debts, links, the player line and the picture, and lets the head keep one row; the panel\'s body listens and a closed sheet unfolds',
+        JSON.stringify(r) === JSON.stringify([false, true, true, false, false, false]) && cssH.includes('#sheetPanel.sheet-slim > #sheetPlook, #sheetPanel.sheet-slim > #sheetBudgets, #sheetPanel.sheet-slim > #sheetDebts, #sheetPanel.sheet-slim > #sheetLinks, #sheetPanel.sheet-slim #sheetSub, #sheetPanel.sheet-slim #sheetPortrait { display: none !important; }') && cssH.includes('#sheetPanel.sheet-slim #sheetHead::after { display: none; }')
+        && shH.includes("sbS.addEventListener('scroll', function() { headSlim(p, sbS); }, { passive: true });") && /function closeSheet\(\) \{[^\n]*pS\.classList\.remove\('sheet-slim'\)/.test(shH), JSON.stringify(r));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

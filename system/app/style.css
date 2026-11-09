@@ -4112,6 +4112,10 @@
      ellipsis, and a row wraps where a narrow sheet has more than fits. A row with nothing in it takes no room */
   #sheetHead { display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
   #sheetHead::after { content: ''; order: 1; flex: 0 0 100%; height: 0; }
+  /* the viewing of 2026-11-09 (the owner, by prompt: "Shrink as you scroll (Recommended)"): a scrolled sheet folds the bars under its head, and the head keeps one row where it fits */
+  #sheetPanel.sheet-slim > #sheetPlook, #sheetPanel.sheet-slim > #sheetBudgets, #sheetPanel.sheet-slim > #sheetDebts, #sheetPanel.sheet-slim > #sheetLinks, #sheetPanel.sheet-slim #sheetSub, #sheetPanel.sheet-slim #sheetPortrait { display: none !important; }
+  #sheetPanel.sheet-slim #sheetHead::after { display: none; }
+  #sheetPanel.sheet-slim #sheetHead > .notepad-btn { margin-top: 0; }
   #sheetHead > .notepad-btn { order: 2; margin-top: 5px; }
   #sheetHead > #sheetHud, #sheetHead > #sheetPop, #sheetHead > #sheetClose { order: 0; margin-top: 0; }
   #sheetHead > #sheetDownload { margin-left: auto; }

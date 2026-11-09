@@ -94,6 +94,7 @@ function webSettle(answer) {
                 cl.toggle('web-join', _known.mode === 'join-only'); cl.toggle('web', _known.mode === 'web');
                 for (var i = 0; i < WEB_CAN.length; i++) cl.toggle('web-no-' + WEB_CAN[i], no.indexOf('web-no-' + WEB_CAN[i]) >= 0);
             }
+            if (typeof document !== 'undefined' && document.documentElement && document.documentElement.classList) document.documentElement.classList.remove('web-wait');   // boottheme.js kept the app out of sight until now
         } catch (e) {}
     }
     return _known;

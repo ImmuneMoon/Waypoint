@@ -3267,7 +3267,13 @@
   #soundInd .snd-bars i:nth-child(2) { animation-delay: .3s; }
   #soundInd .snd-bars i:nth-child(3) { animation-delay: .6s; }
   @keyframes sndbar { 0%, 100% { height: 3px; } 50% { height: 8px; } }
-  #soundInd.muted, #soundInd.sound-off { opacity: .45; }
+  /* a website's page until webmode.js has judged the site's answer (boottheme.js): the app out of sight, the join page beside it shown */
+  html.web-wait body > .app { visibility: hidden !important; }
+  #soundInd.sound-off { opacity: .45; }
+  /* the viewing of 2026-11-09 (the owner, by prompt: "A (Recommended)"): muted, Sound effects and Music wear a muted drawing in the row and in its tray, in place of a word or dimming */
+  .ico.ico-muted { display: none; }
+  #soundInd.muted:not(.off-mine) > .ico:not(.ico-muted), #musicInd.muted:not(.off-mine) > .ico:not(.ico-muted), #rowTray .rm-row.is-muted > .ico:not(.ico-muted) { display: none; }
+  #soundInd.muted:not(.off-mine) > .ico.ico-muted, #musicInd.muted:not(.off-mine) > .ico.ico-muted, #rowTray .rm-row.is-muted > .ico.ico-muted { display: inline; }
   #soundInd.gate { animation: sndpulse 1.2s ease-in-out infinite; }
   @keyframes sndpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(212,175,55,0); } 50% { box-shadow: 0 0 0 4px rgba(212,175,55,.45); } }
   #soundPop { position: fixed; z-index: 100001; width: 240px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); padding: 8px 10px; font-size: 12px; color: var(--ink); }

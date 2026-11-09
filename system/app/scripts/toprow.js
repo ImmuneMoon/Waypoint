@@ -155,8 +155,8 @@ function markSync() {
     Array.prototype.forEach.call(document.querySelectorAll('#rowTray [data-state]'), function(s) {
         var row = s.parentNode, c = row && row.getAttribute ? document.getElementById(row.getAttribute('data-press')) : null, cl = c && c.classList;
         var mine = !!cl && cl.contains('off-mine'), off = !!cl && cl.contains('sound-off'), mute = !!cl && cl.contains('muted');
-        s.textContent = mine ? 'Off for you' : off ? 'Off' : mute ? 'Muted' : '';
-        if (row && row.classList) { row.classList.toggle('off-mine', mine); row.classList.toggle('dim', !mine && (off || mute)); }
+        s.textContent = mine ? 'Off for you' : off ? 'Off' : '';   // the viewing of 2026-11-09: muted is said by the muted drawing, as the row says it
+        if (row && row.classList) { row.classList.toggle('off-mine', mine); row.classList.toggle('dim', !mine && off); row.classList.toggle('is-muted', !mine && !off && mute); }
     });
     var mb = menuBtn('rowTray'); if (mb) mb.classList.toggle('marked', any);
     return any;

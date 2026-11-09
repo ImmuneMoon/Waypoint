@@ -90,6 +90,10 @@ The System editor
 - A Laid from rule can give a lone unit a side of its own, so one leg is a
   Center Leg. The Decks window's close button wears the app's look, and its
   Shuffle the discard in greys out when nothing is discarded.
+- Muted, Sound effects and Music change their icon, in the row and in the tray
+  of icons that do not fit it, in place of a word.
+- In a browser, the app stays out of sight until Waypoint has read what your
+  plan holds, so a player never sees the GM's screens for a moment.
 - An effect's bonus can say it doesn't stack with others of its kind, so two
   stims that raise the same thing give the larger, never the sum.
 - Laid from can go by category: a part of quantity 2 lays a right and a left

@@ -190,7 +190,7 @@ var GROUPS = {
         ['tiles', 'Tiles', 0, ['sys-list-tileside', 'sys-list-tiletop', 'sys-list-tiledraw', 'sys-list-tilemake', 'sys-tboxes', 'sys-tstates']],
         ['badges', 'Badges', 0, ['sys-badges']],
         ['loads', 'Loads, feeds and chambers', 0, ['sys-list-load', 'sys-list-feed', 'sys-list-feedadd', 'sys-list-chamber']],
-        ['specs', 'Specialties', 0, ['sys-list-specs', 'sys-list-specof', 'sys-list-speccover', 'sys-list-specby', 'sys-list-specfall', 'sys-list-specnever', 'sys-list-specpen', 'sys-list-specsum', 'sys-list-specdflt']],
+        ['specs', 'Specialties', 0, ['sys-list-specs', 'sys-list-specof', 'sys-list-speccover', 'sys-list-specapart', 'sys-list-specby', 'sys-list-specfall', 'sys-list-specnever', 'sys-list-specpen', 'sys-list-specsum', 'sys-list-specdflt']],
         ['once', 'Counted once', 0, ['sys-list-once', 'sys-list-oncenote']],
         ['look', 'Look and work log', 0, ['sys-list-rowlook', 'sys-list-lkmain', 'sys-list-lkby', 'sys-list-worklog']],
         ['other', 'Other rules', 0, ['sys-list-layfrom', 'sys-list-layif', 'sys-list-laystat', 'sys-list-lockif', 'sys-list-lockcell', 'sys-list-locksays', 'sys-list-modsif', 'sys-list-subject', 'sys-list-sjif', 'sys-list-throwif', 'sys-list-throwsays', 'sys-list-sets', 'sys-list-placeby', 'sys-list-onrm', 'sys-list-layrcats', 'sys-list-layrname', 'sys-list-layreach', 'sys-list-layrdel', 'sys-list-layradd', 'sys-list-layside', 'sys-list-laysides']],

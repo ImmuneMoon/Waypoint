@@ -4405,10 +4405,10 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
         // a column, the Fallback a sibling specialty is read at; dflt: a column, the untrained figure. Each as the list spells it, the same in
         // both views; one that names nothing here is left off
         var spNv = typeof v.specs.never === 'string' ? lower(v.specs.never.trim()) : '', spPn = typeof v.specs.pen === 'string' ? lower(v.specs.pen.trim()) : '', spN = '', spP = '';   // round four: never, where the parent cannot be tried untrained; pen, the untrained penalty a card says
-        var spCv = typeof v.specs.cover === 'string' ? lower(v.specs.cover.trim()) : '', spC = '', spOf = typeof v.specs.of === 'string' ? lower(v.specs.of.trim()) : '', spO = '', spS = {}, spBy = typeof v.specs.by === 'string' ? lower(v.specs.by.trim()) : '', spFa = typeof v.specs.fall === 'string' ? lower(v.specs.fall.trim()) : '', spDf = typeof v.specs.dflt === 'string' ? lower(v.specs.dflt.trim()) : '', spB = '', spF = '', spD = '';
-        (out.stats || []).forEach(function(s) { if (!spC && spCv && s.kind !== 'pick' && Array.isArray(s.labels) && s.labels.length && lower(s.key) === spCv) spC = s.key; if (!spO && spOf && s.kind === 'pick' && lower(s.key) === spOf) spO = s.key; if (!spB && spBy && s.kind === 'pick' && lower(s.key) === spBy) spB = s.key; if (!spF && spFa && s.kind !== 'pick' && lower(s.key) === spFa) spF = s.key; if (!spN && spNv && s.kind !== 'pick' && lower(s.key) === spNv) spN = s.key; if (!spP && spPn && s.kind !== 'pick' && lower(s.key) === spPn) spP = s.key; });
+        var spCv = typeof v.specs.cover === 'string' ? lower(v.specs.cover.trim()) : '', spC = '', spAp = typeof v.specs.apart === 'string' ? lower(v.specs.apart.trim()) : '', spA = '', spOf = typeof v.specs.of === 'string' ? lower(v.specs.of.trim()) : '', spO = '', spS = {}, spBy = typeof v.specs.by === 'string' ? lower(v.specs.by.trim()) : '', spFa = typeof v.specs.fall === 'string' ? lower(v.specs.fall.trim()) : '', spDf = typeof v.specs.dflt === 'string' ? lower(v.specs.dflt.trim()) : '', spB = '', spF = '', spD = '';
+        (out.stats || []).forEach(function(s) { if (!spC && spCv && s.kind !== 'pick' && Array.isArray(s.labels) && s.labels.length && lower(s.key) === spCv) spC = s.key; if (!spA && spAp && s.kind !== 'pick' && Array.isArray(s.labels) && s.labels.length && lower(s.key) === spAp) spA = s.key; if (!spO && spOf && s.kind === 'pick' && lower(s.key) === spOf) spO = s.key; if (!spB && spBy && s.kind === 'pick' && lower(s.key) === spBy) spB = s.key; if (!spF && spFa && s.kind !== 'pick' && lower(s.key) === spFa) spF = s.key; if (!spN && spNv && s.kind !== 'pick' && lower(s.key) === spNv) spN = s.key; if (!spP && spPn && s.kind !== 'pick' && lower(s.key) === spPn) spP = s.key; });
         (out.cols || []).forEach(function(c) { if (!spF && spFa && lower(c.key) === spFa) spF = c.key; if (!spD && spDf && lower(c.key) === spDf) spD = c.key; if (!spN && spNv && lower(c.key) === spNv) spN = c.key; if (!spP && spPn && lower(c.key) === spPn) spP = c.key; });
-        if (spB) spS.by = spB; if (spO) spS.of = spO; if (spC) spS.cover = spC; if (spF) spS.fall = spF; if (spD) spS.dflt = spD; if (spN) spS.never = spN; if (spP) spS.pen = spP; if (v.specs.sum === true) spS.sum = true;   // gap 20: Subject reads Add the rows, true only, the same in both views
+        if (spB) spS.by = spB; if (spO) spS.of = spO; if (spC) spS.cover = spC; if (spA) spS.apart = spA; if (spF) spS.fall = spF; if (spD) spS.dflt = spD; if (spN) spS.never = spN; if (spP) spS.pen = spP; if (v.specs.sum === true) spS.sum = true;   // gap 20: Subject reads Add the rows, true only, the same in both views
         out.specs = spS;
     }
     if (isObj(v.load) && out.counters) {   // 1.5.8 Loads from: a row of this list loads one unit of a row of another item list (from, a field id; cleanSystem keeps it only where that is another item list with a level); ct, one of this list's counters, holds what the loaded row has left; cats, the categories of that list it takes (none: any row). The same in both views
@@ -10669,6 +10669,14 @@ function specContains(name, kq) {
     for (var i = 0; i < w.length; i++) { var run = ''; for (var j = i; j < w.length && run.length < kq.length; j++) { run += w[j]; if (run === kq) return true; } }
     return false;
 }
+// 1.6.2 (asked by a campaign's build, 2026-11-09: Science: Beskar and Science: Phrik neither give nor take a fallback): whether a specialty stands
+// apart, by the list's Apart stat read on the PARENT's entry d, a number with value names read as a set, as Covers is. sq: the specialty squashed
+function specApartRow(spec, d, sq) {
+    var ak = isObj(spec) && isObj(spec.specs) ? spec.specs.apart : '', st = null, at = -1; if (!ak || !sq || !isObj(d)) return false;
+    (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (!st && isObj(s) && lower(s.key) === lower(ak)) st = s; }); if (!st || !Array.isArray(st.labels)) return false;
+    st.labels.forEach(function(lb, i) { if (at < 0 && specSquash(lb) === sq) at = i; }); if (at < 0 || at >= OVER_PLACES) return false;
+    return ((overSet(rowStat(spec, d, st.key)) >> at) & 1) === 1;
+}
 // Whether a row covers a subject through its list's Covers stat, a number with value names read as a set (as has() reads one)
 function specCoversRow(spec, d, sq) {
     var ck = isObj(spec) && isObj(spec.specs) ? spec.specs.cover : '', st = null, at = -1; if (!ck || !sq) return false;
@@ -11251,6 +11259,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (!nw && !(three ? (w === 'on' || w === 'has' || L.st[w]) : w === 'has')) return undefined;   // round three: <List>.<Parent>.<Spec>.has, whether that specialty is held
         if (l in cache) return cache[l];   // a loop through it is caught on the column it reads (colVal's own chain)
         var sp = L.spec.specs, pq = specSquash(pk), sq = three ? '' : specSquash(sk), cats = L.spec && Array.isArray(L.spec.cats) ? L.spec.cats : null, hit = null, hits = [], near = null, alt = null, con = null, num = function(v) { return v === true ? 1 : typeof v === 'number' && fin(v) ? v : 0; };
+        var apP = !three && sp.apart ? findRow(L, pk) : null, apD = apP && isObj(apP.d) ? apP.d : null, apart = function(s) { return !!apD && !!s && specApartRow(L.spec, apD, s); }, apQ = apart(sq);   // 1.6.2 Stands apart: read on the parent's entry; such a specialty neither takes a sibling's fallback nor gives one
         for (var i = 0; i < L.rows.length; i++) {
             var x = L.rows[i], d = x.d; if (!isObj(d) || (d.vis === 'gm' && !(gmKeyed(L, pk) && (!cats || catIn(cats, d.category))))) continue;
             var bn = specBase(sys, x.r, d), si = specInfo(L.spec, d, bn), byKey = typeof d.key === 'string' && lower(d.key) === pk;
@@ -11259,7 +11268,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
             var v = rowVal(L, x, w); if (isObj(v) && v.error) return v;
             var one = { x: x, v: num(v), raw: v, bn: bn };
             if (three) { if (byKey) { if (!hit || one.v > hit.v) hit = one; } else if (hasW) { if (!con || one.v > con.v) con = one; } else if (!alt || one.v > alt.v) alt = one; }
-            else if (sq && (si.s === sq || specCovers(L, x, sq))) { hits.push(one); if (!hit || one.v > hit.v) hit = one; } else if (!near || one.v > near.v) near = one;
+            else if (sq && (si.s === sq || specCovers(L, x, sq))) { hits.push(one); if (!hit || one.v > hit.v) hit = one; } else if (!apQ && !apart(si.s) && (!near || one.v > near.v)) near = one;
         }
         if (!three && w === 'has') { cache[l] = !!hit; return cache[l]; }   // held or covered, never by a sibling or untrained
         // gap 20 (the core, from the owner): Subject reads Add the rows (specs.sum), every row held for the subject or covering it added up, as
@@ -11268,7 +11277,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (three && !alt && con) alt = con;   // a name that holds the key only where none is it
         var c = hit ? 1 : (three ? alt : near) ? (three ? 1 : 2) : 3, use = hit || (three ? alt : near), fv = 0, uw = w;
         if (c === 2 && sp.fall) { var fp = findRow(L, pk), fr = rowVal(L, fp && isObj(fp.d) ? fp : near.x, lower(sp.fall)); if (isObj(fr) && fr.error) return fr; fv = num(fr); }
-        if (c === 3) { var px = findRow(L, pk); if (sp.dflt && !three) uw = lower(sp.dflt); var pv = rowVal(L, px, uw); if (isObj(pv) && pv.error) return pv; use = { x: px, v: num(pv), raw: pv }; if (!px.virt) c = 1; }
+        if (c === 3) { var px = findRow(L, pk); if (sp.dflt && !three) uw = lower(sp.dflt); if (!px.virt && apD && !hit) px = { r: { defId: px.r.defId, qty: 0 }, d: apD, id: 'k:' + pk, virt: true }; var pv = rowVal(L, px, uw); if (isObj(pv) && pv.error) return pv; use = { x: px, v: num(pv), raw: pv }; if (!px.virt) c = 1; }   // 1.6.2 Stands apart: another specialty of the parent is held, and none of it may stand in
         if (c === 3 && nw && sp.never) { var nvR = rowVal(L, use.x, lower(sp.never)); if (isObj(nvR) && nvR.error) return nvR; if (nvR === true || (typeof nvR === 'number' && fin(nvR) && nvR !== 0)) return { error: { message: ((isObj(use.x.d) && typeof use.x.d.name === 'string' && use.x.d.name) || (typeof name === 'string' && name.split('.')[1]) || pk) + ' cannot be tried untrained.', pos: 0, len: 0 } }; }   // round four: Never untrained, no figure and no roll
         if (c === 3 && nw && sp.pen) { var pnR = rowVal(L, use.x, lower(sp.pen)); if (isObj(pnR) && pnR.error) return pnR; fv = 0; use.pen = num(pnR); }   // round four: the untrained penalty its card says, never added
         var out = three ? use.raw : use.v + fv; if (typeof out === 'number') { if (out > 1e15) out = 1e15; else if (out < -1e15) out = -1e15; }

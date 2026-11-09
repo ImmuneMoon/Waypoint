@@ -21039,7 +21039,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const rfRun = rfA > 0 ? new Function('el', dkP.slice(rfA, rfZ + 2) + '\nreturn refsInto;')(mkEl) : null, rfBox = mkEl('div', 'w'); if (rfRun) { rfRun(rfBox, [{ s: 'as <b>Blade</b>', c: 1 }, { c: 2 }]); rfRun(rfBox, null); }
         check('1.6.0 Specialties in the app: the Lists tab\'s Specialties tick, its Specialty from, Fallback and Untrained menus and what Save drops; the card draws each case as text nodes under the dice (dice.js refsInto, run on a stand-in), the host and the GM\'s own roll ask rollRefs as they ask rollMods; the Lists key, Help, both release notes and the integration notes say it',
             shP.includes("fl.appendChild(checkLabel('sys-list-specs', spcOn, 'Specialties',") && shP.includes("sbS = el('select', 'sys-list-specby')") && shP.includes("sfS = el('select', 'sys-list-specfall')") && shP.includes("sdS = el('select', 'sys-list-specdflt')")
-            && shP.includes("else if (c.indexOf('sys-list-specs') >= 0) { if (t.checked) lsc.specs =") && shP.includes("['by', 'Specialty from names no choice stat of this list'], ['of', 'Parent from names no choice stat of this list'], ['cover', 'Covers names no number stat with value names of this list'], ['never', 'Never untrained names no number stat or column of this list'], ['pen', 'Untrained shows names no number stat or column of this list'], ['fall', 'Fallback names no number stat or column of this list'], ['dflt', 'Untrained names no column of this list']")
+            && shP.includes("else if (c.indexOf('sys-list-specs') >= 0) { if (t.checked) lsc.specs =") && shP.includes("['by', 'Specialty from names no choice stat of this list'], ['of', 'Parent from names no choice stat of this list'], ['cover', 'Covers names no number stat with value names of this list'], ['apart', 'Stands apart names no number stat with value names of this list'], ['never', 'Never untrained names no number stat or column of this list'], ['pen', 'Untrained shows names no number stat or column of this list'], ['fall', 'Fallback names no number stat or column of this list'], ['dflt', 'Untrained names no column of this list']")
             && !!rfRun && rfBox.kids.length === 1 && rfBox.kids[0].c === 'chat-mods chat-refs' && rfBox.kids[0].kids.length === 1 && rfBox.kids[0].kids[0].text === 'as <b>Blade</b>' && !/innerHTML/.test(dkP.slice(rfA, rfZ)) && dkP.includes("if (typeof refsInto === 'function') refsInto(wrap, rec.refs);")
             && ixP.includes('<b>Specialties</b><small>Each row is a specialty of a parent, and a roll can ask for the best row of one.</small>') && ixP.includes('<li><b>Specialties</b> lets a list hold each skill&rsquo;s specialties,') && ixP.includes('A roll&rsquo;s card says which one a specialty read,')
             && wnP.includes("- A list can hold each skill's specialties. Tick Specialties in the Lists") && wnP2.includes("- A list can hold each skill's specialties. Tick Specialties in the Lists") && ciP.includes('**Specialties (1.6.0):** an item list may carry `"specs": { "by"?, "of"?, "fall"?, "dflt"? }`'),
@@ -21181,6 +21181,24 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             partP === 'value: ' + NO && partKept === J(null) && partG === 'ok told: ' + NO && hostP === 'value: ' + NO && hostOk === 'ok' && J(own) === J(['ok', 'value: Own scope does not fit Sling: it needs Row.Grip <= Host.Grip.']) && none === 'ok'
             && typeof S.fitAgain === 'function',
             J([partP, partG, hostP, hostOk, own, none]));
+    }
+    {   // 1.6.2 Stands apart (asked by a campaign's build: two specialties of one parent neither give nor take a fallback), on invented data
+        const J = JSON.stringify;
+        const rawA = specs => ({ v: 1, name: 'A', rolls: [], fields: [
+            { id: 'f_wit', key: 'Wit', label: 'Wit', kind: 'number', def: 10, vis: 'all' },
+            { id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', vis: 'all', edit: 'owner', list: Object.assign({ cats: ['Skill'], noQty: true, multi: true, lvl: { label: 'Level', min: 0, max: 20, def: 1 },
+                stats: [{ key: 'fbk', label: 'Fallback' }, { key: 'aprt', label: 'Apart', labels: ['Glimmer', 'Dusk'] }],
+                cols: [{ key: 'Target', label: 'Target', formula: 'if(Row.has, Row.lvl + Wit, Wit - 5)' }] }, specs ? { specs: specs } : {}) }],
+            items: [{ id: 'i_lore', key: 'Lore', name: 'Lore', category: 'Skill', vis: 'all', again: 'name', stats: { fbk: -2, aprt: 3 } }] });
+        const gA = cleanSystem(rawA({ fall: 'fbk', apart: 'aprt' }), { F, gmView: true }), pA = cleanSystem(gA, { F, gmView: false }), nA = cleanSystem(rawA({ fall: 'fbk' }), { F, gmView: true });
+        const chA = rows => ({ id: 'c_a', name: 'Ada', ownerId: 'u_p', npc: false, values: { f_wit: 10, f_sk: rows } });
+        const row = (id, sub, lvl) => ({ id: id, defId: 'i_lore', qty: 1, lvl: lvl, ov: { name: 'Lore (' + sub + ')' } });
+        const RA = (sys, rows) => makeResolver(sys, cleanChar(chA(rows), sys, { state: 'gm' }), F);
+        const herbs = [row('w_h', 'Herbs', 6)], glim = [row('w_g', 'Glimmer', 6)];
+        const a = [RA(gA, herbs)('Skills.Lore.Glimmer.Target'), RA(gA, herbs)('Skills.Lore.Stars.Target'), RA(gA, glim)('Skills.Lore.Herbs.Target'), RA(gA, glim)('Skills.Lore.Glimmer.Target'), RA(gA, glim)('Skills.Lore.Dusk.Target'), RA(nA, herbs)('Skills.Lore.Glimmer.Target'), RA(pA, herbs)('Skills.Lore.Glimmer.Target')];
+        check('1.6.2 Stands apart: the list\'s Apart stat, read on the parent\'s entry as a set of its value names, kept as Covers is in both views; a specialty it names takes no sibling\'s fallback (Lore (Herbs) at 6 held, Lore: Glimmer reads untrained, 5, where Lore: Stars reads Herbs less 2, 14) and gives none (Glimmer held, Herbs and Dusk read untrained, 5; Glimmer itself 16); a list with no Apart reads as before (Glimmer from Herbs, 14)',
+            J(a) === J([5, 14, 5, 16, 5, 14, 5]) && gA.fields[1].list.specs.apart === 'aprt' && pA.fields[1].list.specs.apart === 'aprt' && !('apart' in nA.fields[1].list.specs)
+            && J(cleanSystem(rawA({ fall: 'fbk', apart: 'fbk' }), { F, gmView: true }).fields[1].list.specs) === J({ fall: 'fbk' }), J(a));
     }
     {   // 1.6.0 Specialties, round four: a name that holds the key, Never untrained, the untrained penalty on the card, a need on a subject, and Fits where after the host's own act
         const J = JSON.stringify;

@@ -87,6 +87,9 @@ The System editor
   as a switch does.
 - A HUD is as tall as what it holds, so one with a few fields no longer opens
   with a tall empty gap.
+- A Laid from rule can give a lone unit a side of its own, so one leg is a
+  Center Leg. The Decks window's close button wears the app's look, and its
+  Shuffle the discard in greys out when nothing is discarded.
 - An effect's bonus can say it doesn't stack with others of its kind, so two
   stims that raise the same thing give the larger, never the sum.
 - Laid from can go by category: a part of quantity 2 lays a right and a left

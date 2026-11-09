@@ -20048,6 +20048,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && J(sysD.fields[1].list.lay.rules[5]) === J({ cats: ['Motive'], each: 'unit', name: '{side} Foot', sides: [2, 1], upTo: 4, rest: 'Motive System {n}' }) && sysD.fields[1].list.lay.all === true && J(sysD.fields[1].list.lay.rules[6].sides) === '[]',
             J([t3n, ge1, ge2, sysD.fields[1].list.lay.rules[5]]));
     }
+    {   // 1.6.2 Laid from, Alone (asked by a campaign's build: one strut and one pad on a droid are its Center Leg and Center Foot), on invented data
+        const J = JSON.stringify, sysL = cleanSystem({ v: 1, name: 'Lo', fields: [
+            { id: 'f_parts', key: 'Parts', label: 'Parts', kind: 'item-list', list: { cats: ['Leg', 'Motive'], stats: [] } },
+            { id: 'f_locs', key: 'Locs', label: 'Locations', kind: 'item-list', list: { stats: [{ key: 'side', label: 'Side', labels: ['None', 'Left', 'Right', 'Center'] }], lay: { from: 'f_parts', side: 'side', rules: [
+                { cats: ['Leg'], name: '{side} Leg', each: 'unit', sides: [2, 1], lone: 3 }, { cats: ['Motive'], name: '{side} Foot', each: 'unit', sides: [2, 1], upTo: 0, rest: 'Motive System {n}', lone: 3 },
+                { cats: ['Leg'], name: 'Odd', each: 'kind', lone: 3 }, { cats: ['Leg'], name: 'Bad', lone: 0 }, { cats: ['Leg'], name: 'Half', lone: 1.5 }] } } }],
+            items: [{ id: 'i_leg', name: 'Strut', category: 'Leg' }, { id: 'i_pad', name: 'Pad', category: 'Motive' }] }, { F, gmView: true });
+        const lay = (legs, pads) => { const c = { id: 'c', values: { f_parts: [{ id: 'w_leg', defId: 'i_leg', qty: legs }, { id: 'w_pad', defId: 'i_pad', qty: pads }], f_locs: [] } }; S.laySync(sysL, c, F, {}); return c.values.f_locs.map(r => [r.def.name, r.def.stats ? r.def.stats.side || 0 : 0]); };
+        const one = lay(1, 1), two = lay(2, 2), padsMore = lay(1, 3), rs = sysL.fields[1].list.lay.rules;
+        check('1.6.2 Laid from, Alone: where a rule lays only one unit with a side, that one takes the rule\'s lone side (one strut and one pad lay Center Leg and Center Foot, the foot sided as many as the legs); two of each take the rule\'s own sides as before; past the count the rest take no side; the cleaner keeps a whole side from 1 and never on a rule that lays one row a kind',
+            J(one) === J([['Center Leg', 3], ['Center Foot', 3]]) && J(two) === J([['Right Leg', 2], ['Left Leg', 1], ['Right Foot', 2], ['Left Foot', 1]]) && J(padsMore) === J([['Center Leg', 3], ['Center Foot', 3], ['Motive System 1', 0], ['Motive System 2', 0]])
+            && rs[0].lone === 3 && rs[1].lone === 3 && !('lone' in rs[2]) && !('lone' in rs[3]) && !('lone' in rs[4]), J([one, two, padsMore, rs]));
+    }
     {   // 1.6.2 Fx.<effect>.on and .n (asked by a campaign's build: temporary HP that falls to the largest stim still on), on invented data
         const J = JSON.stringify, sysF = cleanSystem({ v: 1, name: 'Fx', fields: [{ id: 'f_fx', key: 'Fx1', label: 'Effects', kind: 'effects' }, { id: 'f_t', key: 'Temp', label: 'Temp', kind: 'formula', formula: 'max(if(Fx.e_a.on, 3, 0), if(Fx.e_b.on, 9, 0)) + Fx.e_b.n' }],
             effects: [{ id: 'e_a', name: 'Stim A' }, { id: 'e_b', name: 'Stim B', val: { start: 2 } }, { id: 'e_g', name: 'Secret', vis: 'gm' }] }, { F, gmView: true });

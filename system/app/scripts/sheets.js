@@ -9613,8 +9613,8 @@ function charRow(c, camp) {
     var top = el('div', 'sys-row-main');
     var nm = input('sys-char-name field', c.name, 'The character\'s name', 'Name'); top.appendChild(nm);
     if (typeof window !== 'undefined' && window.wpNames) top.appendChild(window.wpNames.button('person', nm));   // 1.6.2 (backlog 147): the name button
-    var pn = playerNames(camp), ownOpts = [['', '— unassigned —']].concat(Object.keys(pn).map(function(pid) { return [pid, pn[pid]]; }));
-    if (c.ownerId && !Object.prototype.hasOwnProperty.call(pn, c.ownerId)) ownOpts.push([c.ownerId, c.ownerId + ' (forgotten player)']);   // so unassigning them is a real change
+    var pn = playerNames(camp), ownOpts = [['', 'No player']].concat(Object.keys(pn).map(function(pid) { return [pid, pn[pid]]; }));
+    if (c.ownerId && !Object.prototype.hasOwnProperty.call(pn, c.ownerId)) ownOpts.push([c.ownerId, 'A forgotten player, ' + c.ownerId]);   // so unassigning them is a real change
     var owner = select('sys-char-owner', ownOpts, c.ownerId || '', 'The player who plays this character (their token moves and their sheet edits)'); owner.disabled = !!c.npc; top.appendChild(owner);
     var active = c.ownerId && !c.npc ? activeCharOf(camp, c.ownerId).id : null, several = !!c.ownerId && !c.npc && playableChars(camp, c.ownerId).length > 1;
     if (several) { var plL = el('label', 'sys-hover sys-char-playsl'); var pl = el('input'); pl.type = 'radio'; pl.name = 'sys-plays-' + c.ownerId; pl.className = 'sys-char-plays'; pl.checked = active === c.id; plL.appendChild(pl); plL.appendChild(document.createTextNode(' In play')); plL.title = 'The character this player plays now: their token follows them from map to map. Their other characters are kept: the sheets stay theirs, and you move those tokens.'; top.appendChild(plL); }
@@ -9625,7 +9625,7 @@ function charRow(c, camp) {
     top.appendChild(btnRow([['delchar', 'Delete this character (tokens keep their name, lose the link)', '&times;']]));
     row.appendChild(top);
     var tokens = 0; Object.values(camp.items || {}).forEach(function(m) { if (m && m.type === 'map') (m.whiteboard || []).forEach(function(w) { if (w && w.charId === c.id) tokens++; }); });
-    row.appendChild(el('div', 'sys-note', (c.making === 1 ? 'Still being made by its player \u00b7 ' : '') + (tokens ? tokens + ' token' + (tokens === 1 ? '' : 's') + ' on the maps' : 'No token yet: pick this character in a token\'s Properties, or drop it from the Cast') + (c.ownerId ? ' · played by ' + (pn[c.ownerId] || c.ownerId) + (several ? (active === c.id ? ' (in play)' : ' (kept: you move its tokens)') : '') : c.npc ? ' · NPC' : ' · unassigned (players cannot see it until a player is set)') + (c.making === 1 ? ' · being made by its player (theirs alone until Done)' : c.unlocked === 1 ? ' · unlocked for its player' : '') + (c.review === 1 ? ' · new: review it on its sheet' : '')));
+    row.appendChild(el('div', 'sys-note', (c.making === 1 ? 'Still being made by its player \u00b7 ' : '') + (tokens ? tokens + ' token' + (tokens === 1 ? '' : 's') + ' on the maps' : 'No token yet: pick this character in a token\'s Properties, or drop it from the Cast') + (c.ownerId ? ' · played by ' + (pn[c.ownerId] || c.ownerId) + (several ? (active === c.id ? ' · in play' : ' · kept, so you move its tokens') : '') : c.npc ? ' · NPC' : ' · no player yet, so no player sees it') + (c.making === 1 ? ' · being made by its player, theirs alone until Done' : c.unlocked === 1 ? ' · unlocked for its player' : '') + (c.review === 1 ? ' · new: review it on its sheet' : '')));
     return row;
 }
 // 5h: one library effect in the editor: name, icon, tone, duration note, its changes (a field and an amount, or a toggle switched on),

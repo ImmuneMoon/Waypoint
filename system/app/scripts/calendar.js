@@ -376,7 +376,7 @@ function listUp(camp, g, fires, asked) {   // fires for the GM to answer: a list
     pend = { secs: g.secs, rest: !!g.rest, fires: fires, acc: asked ? asked.acc : null, keys: asked ? asked.keys : [], ids: asked ? asked.ids : [], on: on, camp: camp.id };
     if (g.live === true) pend.live = true; if (g.kind !== 'clock') pend.words = groupWords(g);
     if (typeof window !== 'undefined' && window.wpNotices) window.wpNotices.wait('time', 'Time rules are due: ' + pendWords(sysCal()) + '.', 'time', null);   // 160: in the bell's list until it is answered
-    if ((g.live === true || ordersRun()) && !winOpen()) { refresh(); toast('Time rules are due: click the date in the header to apply or skip them.'); return true; }   // never a window opened under the GM's hands, nor while a fight runs
+    if ((g.live === true || ordersRun()) && !winOpen()) { refresh(); toast('Time rules are due: press the date in the top row to apply or skip them.'); return true; }   // never a window opened under the GM's hands, nor while a fight runs
     if (!winOpen()) openWin(); else renderWin();
     return true;
 }
@@ -789,7 +789,7 @@ function liveTick(now) {   // one look at the wall clock, about once a second on
     var off = ck.t % S, mins = Math.floor((liveMs / 1000 + off) / S); if (mins < 1) return false;
     var secs = mins * S - off; liveMs -= secs * 1000; liveBankAt = now;
     if (!moveTo(ck.t + secs, null, true)) return false;   // live time is Active time (moveTo counts it: run at once under Run at once, counted and asked about under Ask me, nothing under Off)
-    if (!liveSaid) { liveSaid = true; toast('The game clock runs by itself while your table is open. Click the date in the header to hold it or change its speed.'); }
+    if (!liveSaid) { liveSaid = true; toast('The game clock runs by itself while your table is open. Press the date in the top row to hold it or change its speed.'); }
     return true;
 }
 // [calendarcheck:live-end]

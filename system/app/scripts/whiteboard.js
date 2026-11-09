@@ -10657,13 +10657,18 @@ function renderCombatStrip() {
     if (typeof stripGap === 'function') stripGap();
 }
 // [lookcheck:stripgap-start]
-// The live test, 2026-10-30: with Properties open in a narrow window the turn strip ran into the party strip. It steps left to keep a gap, and where the map has no room for that, down under the party strip
+// The live test, 2026-10-30: with Properties open in a narrow window the turn strip ran into the party strip. It steps left to keep a gap, and where the map has no room for that, down under the party strip.
+// The viewing of 2026-11-09: it keeps the same gap from the minimap on its left, stepping right, and down under whichever it meets where it cannot fit between them
 function stripGap() {
-    var strip = document.getElementById('combatStrip'), party = document.getElementById('partyStrip'), main = document.getElementById('main'); if (!strip || !party || !main) return false;
+    var strip = document.getElementById('combatStrip'), party = document.getElementById('partyStrip'), main = document.getElementById('main'), mm = document.getElementById('minimap'); if (!strip || !main) return false;
     strip.style.marginLeft = ''; strip.style.marginTop = '';
-    var s = strip.getBoundingClientRect(), p = party.getBoundingClientRect(), G = 12, over = s.right + G - p.left, room = s.left - main.getBoundingClientRect().left - 44;   // 44: past the left ruler
-    if (!(s.width > 0 && p.width > 0) || over <= 0 || s.top >= p.bottom || p.top >= s.bottom) return false;
-    if (over <= room) strip.style.marginLeft = -Math.ceil(over) + 'px'; else strip.style.marginTop = Math.ceil(p.bottom + G - s.top) + 'px';
+    var s = strip.getBoundingClientRect(), mr = main.getBoundingClientRect(), G = 12; if (!(s.width > 0)) return false;
+    var line = function(r) { return !!r && r.width > 0 && s.top < r.bottom && r.top < s.bottom; }, p = party ? party.getBoundingClientRect() : null, m = mm ? mm.getBoundingClientRect() : null, pOn = line(p), mOn = line(m);
+    var lo = mOn ? m.right + G : mr.left + 44, hi = pOn ? p.left - G : mr.right, dx = 0;   // 44: past the left ruler
+    if (s.right > hi) dx = hi - s.right; if (s.left + dx < lo) dx = lo - s.left;
+    if (!dx) return false;
+    if (s.left + dx >= lo && s.right + dx <= hi) strip.style.marginLeft = (dx < 0 ? -Math.ceil(-dx) : Math.ceil(dx)) + 'px';
+    else strip.style.marginTop = Math.ceil(Math.max(pOn && s.right > hi ? p.bottom : 0, mOn && s.left < lo ? m.bottom : 0, s.top) + G - s.top) + 'px';
     return true;
 }
 // [lookcheck:stripgap-end]
@@ -10683,7 +10688,7 @@ function findLitWire(box) {
 (function wireCombatStrip() {
     var strip = document.getElementById('combatStrip'); if (!strip) return;
     if (typeof findLitWire === 'function') findLitWire(strip);
-    if (typeof ResizeObserver === 'function') { var gapRo = new ResizeObserver(stripGap); ['main', 'partyStrip'].forEach(function(id) { var e = document.getElementById(id); if (e) gapRo.observe(e); }); }   // the map's room changed, or the party's
+    if (typeof ResizeObserver === 'function') { var gapRo = new ResizeObserver(stripGap); ['main', 'partyStrip', 'minimap'].forEach(function(id) { var e = document.getElementById(id); if (e) gapRo.observe(e); }); }   // the map's room changed, or the party's
     strip.addEventListener('pointerdown', function(e) { e.stopPropagation(); });
     strip.addEventListener('click', function(e) {
         var fb = e.target.closest && e.target.closest('.combat-find');
@@ -11180,7 +11185,7 @@ document.addEventListener('contextmenu', function(e) {
                     return it && !it.locked;
                 });
                 // the piece's own lock, worded as what it does; the padlock shows how the piece stands, as the toolbar's does (a door's lock for players is a row of its own: doorRows)
-                html += '<div class="menu-item cm-lock" title="' + (anyUnlocked ? 'It stays where it is: no drag and no resize until you unlock it, and a player&rsquo;s token is frozen for its player too. On a door this is not the lock of the door itself.' : 'It can be dragged and resized again.') + '">' + (anyUnlocked ? '<i class="wib wi-unlock"></i> Lock in place' : '<i class="wib wi-lock"></i> Unlock (free to move)') + '</div>';
+                html += '<div class="menu-item cm-lock" title="' + (anyUnlocked ? 'It stays where it is: no drag and no resize until you unlock it, and a player&rsquo;s token is frozen for its player too. On a door this is not the lock of the door itself.' : 'It can be dragged and resized again.') + '">' + (anyUnlocked ? '<i class="wib wi-unlock"></i> Lock in place' : '<i class="wib wi-lock"></i> Unlock so it can move') + '</div>';
                 html += '<div class="menu-item cm-dup"><i class="wib wi-dup"></i> Duplicate</div>';
                 html += '<div class="menu-item cm-del" style="color:var(--danger)">Delete</div>';
                 html += '<div class="menu-divider"></div>';

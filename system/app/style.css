@@ -5057,6 +5057,7 @@
   #fxBody .journal-from.armed { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
   #fxBody .fx-line { font-size: 10.5px; color: var(--dim); margin: -2px 0 6px; line-height: 1.35; }   /* 1.6.2: what a row does and who sees it */
   .sys-cal-ladd { align-self: flex-start; }   /* 1.6.2 (backlog 60): + Leap rule as wide as its words */
+  .sys-trade-hagrow { margin: 0 0 4px 22px; }   /* the viewing of 2026-11-09: Traders haggle's settings sit under their tick */
   #fxBody .fx-savedgrp { display: inline-flex; align-items: stretch; }   /* 1.6.2 (backlog 81): a saved effect and its delete */
   #fxBody .fx-savedgrp .fx-saved-btn { border-top-right-radius: 0; border-bottom-right-radius: 0; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #fxBody .fx-saved-del { padding: 3px 6px; border-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; color: var(--dim); }

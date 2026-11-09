@@ -11449,7 +11449,7 @@ function renderCurrencies() {
         hgRolls.forEach(function(r) { var o = el('option', null, r.label || 'A roll'); o.value = r.id; if (r.id === hgD.roll) o.selected = true; hgS.appendChild(o); }); hgS.title = 'The roll both sides make. A merchant may be given a figure to haggle at in the trade window';
         hgS.addEventListener('change', function() { hgD.roll = hgS.value; ch(); }); hgSt.addEventListener('input', function() { var n = Number(hgSt.value); if (isFinite(n) && n > 0) hgD.step = n; ch(); }); hgM.addEventListener('input', function() { var n = Number(hgM.value); if (isFinite(n) && n > 0) hgD.most = n; ch(); });
         var cap = function(txt, x, after) { var l = el('label', 'sys-check'); l.appendChild(document.createTextNode(txt + ' ')); l.appendChild(x); if (after) l.appendChild(document.createTextNode(' ' + after)); return l; };
-        [cap('Roll', hgS), cap('Each point moves', hgSt, '%'), cap('At most', hgM, '%')].forEach(function(x) { hgW.appendChild(x); }); wrap.appendChild(hgW);
+        [cap('Haggle roll', hgS), cap('Each point moves', hgSt, '%'), cap('At most', hgM, '%')].forEach(function(x) { hgW.appendChild(x); }); hgW.classList.add('sys-trade-hagrow'); if (htL.parentNode === wrap) wrap.insertBefore(hgW, htL); else wrap.appendChild(hgW);   // the viewing of 2026-11-09: under its own tick, with a name
     }
     box.appendChild(wrap);
 }

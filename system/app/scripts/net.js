@@ -10493,6 +10493,10 @@ function hostToken() {
     }).catch(function() { return null; });
 }
 net.signalHost = signalHost;
+// a room not found while this app looks on Waypoint's own server: the GM may still be on the public one (the coordinator, 2026-11-10: once the
+// website switches it on, a browser player reaches only our server, so a desktop GM needs the tick too)
+var SIGNAL_MISS = ' The GM may be on the public server. Ask them to tick Own signalling server in Settings, under Multiplayer, and host again.';
+function signalMiss() { return signalHost() ? SIGNAL_MISS : ''; }
 // [netcheck:signal-end]
 net.rtcConfig = function() { return peerOpts().config; };   // voice chat (voice.js): its links take the table's own ICE servers and relay rule
 /* Try the configured relay: gather with relay-only ICE and see whether a relay candidate
@@ -10782,7 +10786,7 @@ function joinSession(code, name, isRetry, probe) {
             if (!_joinTrust.refused && typeof rejoinKeep === 'function' && rejoinKeep()) return;
             var rfJ = _joinTrust.refused;   // security (2026-10-01): a table answered at this code, but not as the GM this app knows: that is what is said (in the app's own words), not the network advice
             if (rfJ) setStatus(rfJ.late ? HOST_LATE + ' You have not joined.' : SNAP_REFUSED + ' You have not joined.' + (rfJ.offer ? ' Join again to be asked whether to trust this table\u2019s GM.' : ''));
-            else setStatus(why + ' This usually means your connection is behind carrier-grade NAT and the table needs a relay server: ask the GM to set one under Settings \u25B8 Relay server, then try again.');
+            else setStatus(why + (typeof signalMiss === 'function' && signalMiss() ? signalMiss() : ' This usually means your connection is behind carrier-grade NAT and the table needs a relay server: ask the GM to set one under Settings \u25B8 Relay server, then try again.'));
             if (net.fromWelcome) { if (window.wpJoinFailed) window.wpJoinFailed(); }   // joined from the welcome screen: the error shows there; re-enable its Join button
             else { toast(rfJ ? 'You have not joined. See the Multiplayer panel.' : 'Could not reach the GM\'s table. See the Multiplayer panel.'); var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'flex'; }
             if (net.foreign && !window.wpStream) load();   // a previous table is still on screen: bring the own campaign back
@@ -10821,9 +10825,10 @@ function joinSession(code, name, isRetry, probe) {
         }
         if (_joinTrust.refused && nextGen && net.peer === peer && !net.active) { nextGen(); return; }   // security (2026-10-01): after a host this app refused, a generation that is not there is passed over at once (its seven seconds are for a host that may yet answer)
         if (!net.active && typeof rejoinKeep === 'function' && rejoinKeep()) { try { peer.destroy(); } catch (e) {} return; }
-        setStatus('Connection error: ' + err.type);
+        var missJ = err.type === 'peer-unavailable' && typeof signalMiss === 'function' ? signalMiss() : '';
+        setStatus('Connection error: ' + err.type + '.' + missJ);
         if (net.fromWelcome && window.wpJoinFailed) window.wpJoinFailed();   // re-enable the welcome Join button (the error shows on that screen)
-        toast('Could not reach that room (' + err.type + ').');
+        toast('Could not reach that room (' + err.type + ').' + missJ);
         // Only when the join itself failed: a signalling hiccup mid-game also lands here, with the table still live
         if (!net.active && net.foreign && !window.wpStream) load();   // a previous table is still on screen: bring the own campaign back
     });

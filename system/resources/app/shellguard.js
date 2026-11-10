@@ -95,11 +95,21 @@ function micOnly(details) {
 // On only when the mirrored settings file says exactly wp_devconsole: 'on' (the page's own switch, Settings > Advanced).
 // A missing or unreadable file, or any other value, is off.
 function devModeOf(prefsFile) {
+    const p = prefsOf(prefsFile);
+    return !!p && Object.prototype.hasOwnProperty.call(p, 'wp_devconsole') && p.wp_devconsole === 'on';
+}
+// The mirrored settings file's prefs, the module's one read of a file: a plain object, or null for a missing, unreadable or odd file
+function prefsOf(prefsFile) {
     try {
         const j = JSON.parse(fs.readFileSync(prefsFile, 'utf8'));
-        return !!j && typeof j === 'object' && !!j.prefs && typeof j.prefs === 'object' && !Array.isArray(j.prefs)
-            && Object.prototype.hasOwnProperty.call(j.prefs, 'wp_devconsole') && j.prefs.wp_devconsole === 'on';
-    } catch (e) { return false; }
+        return !!j && typeof j === 'object' && !!j.prefs && typeof j.prefs === 'object' && !Array.isArray(j.prefs) ? j.prefs : null;
+    } catch (e) { return null; }
+}
+// 1.6.2 (backlog 166 c): the text size the page's Settings keeps for this computer (wp_textSize: '90', '110', '125' or '150'), as a zoom factor;
+// a missing or unreadable file, or any other value, is 1
+function zoomOf(prefsFile) {
+    const p = prefsOf(prefsFile), v = p && Object.prototype.hasOwnProperty.call(p, 'wp_textSize') ? p.wp_textSize : null;
+    return v === '90' ? 0.9 : v === '110' ? 1.1 : v === '125' ? 1.25 : v === '150' ? 1.5 : 1;
 }
 // Waypoint's own application menu, in place of the runtime's default one (whose Help entries open the runtime's web pages):
 // a short View menu, so Ctrl+R, Ctrl+0 / + / - and F11 keep working, and Developer tools only while Developer mode is on.
@@ -204,7 +214,8 @@ function install(electron, opts) {
     const app = electron.app, session = electron.session, shell = electron.shell, Menu = electron.Menu;
     const port = opts.port, own = ownOrigin(port), icon = opts.icon;
     const all = new Set();
-    let dev = devModeOf(opts.prefsFile);
+    let dev = devModeOf(opts.prefsFile), zoom = zoomOf(opts.prefsFile);
+    const setZoom = (wc) => { try { let at = String(wc.getURL() || ''); if (at.indexOf('devtools://') !== 0 && !wc.isDestroyed()) wc.setZoomFactor(zoom); } catch (e) { /* gone meanwhile */ } };   // 1.6.2: the text size, on every window of the app's own
 
     const openWebLink = (url) => { const link = webLinkOk(port, url); if (link) { try { shell.openExternal(link); } catch (e) { /* nothing opened */ } } };
     const urlOf = (details, url) => (details && typeof details.url === 'string' && details.url) || (typeof url === 'string' ? url : '');
@@ -214,6 +225,7 @@ function install(electron, opts) {
     app.on('web-contents-created', (event, wc) => {
         all.add(wc);
         wc.on('destroyed', () => { all.delete(wc); });
+        wc.on('did-finish-load', () => { setZoom(wc); });
         // a new window: one of the app's own, or nothing — a web link goes to the system browser instead
         wc.setWindowOpenHandler((details) => {
             const url = urlOf(details);
@@ -260,7 +272,7 @@ function install(electron, opts) {
     return {
         own: own,
         devMode: () => dev,
-        refresh: () => { const was = dev; dev = devModeOf(opts.prefsFile); if (dev !== was) setMenu(); if (!dev) closeTools(); return dev; }
+        refresh: () => { const was = dev; dev = devModeOf(opts.prefsFile); if (dev !== was) setMenu(); if (!dev) closeTools(); const z = zoomOf(opts.prefsFile); if (z !== zoom) { zoom = z; all.forEach(setZoom); } return dev; }
     };
 }
 
@@ -304,4 +316,4 @@ function scratchSystemDir(ownSystem, named) {
 }
 
 module.exports = { ownOrigin, isOwn, childWindowOk, childWindowOptions, webLinkOk, releaseLink, PERMS_ASK, PERMS_CHECK, permOk,
-    devModeOf, menuTemplate, devToolsKey, editMenuTemplate, SIGNAL_HOST, pagePolicy, pageHeaders, savesType, install, listenLoopback, scratchSystemDir };
+    devModeOf, zoomOf, menuTemplate, devToolsKey, editMenuTemplate, SIGNAL_HOST, pagePolicy, pageHeaders, savesType, install, listenLoopback, scratchSystemDir };

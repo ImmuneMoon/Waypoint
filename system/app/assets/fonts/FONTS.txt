@@ -128,3 +128,8 @@ Noto Sans Runic
   File:      notosansrunic/NotoSansRunic-Regular.ttf
   Licence:   SIL Open Font License 1.1, notosansrunic/OFL.txt
   Copyright 2022 The Noto Project Authors (https://github.com/notofonts/runic)
+
+Atkinson Hyperlegible
+  File:      atkinsonhyperlegible/AtkinsonHyperlegible-Regular.ttf
+  Licence:   SIL Open Font License 1.1, atkinsonhyperlegible/OFL.txt
+  Copyright 2020 Braille Institute of America, Inc.

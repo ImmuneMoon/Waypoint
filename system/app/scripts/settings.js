@@ -255,6 +255,16 @@ if (_d3Sel) { try { _d3Sel.value = _d3Of(localStorage.getItem('wp_dice3d')); } c
 // 1.6.2: which players come first among a map's faces in the Maps list (wp_presOrder: 'first', else newest first), read by sidebar.js
 var _presSel = ui('setPresOrder');
 if (_presSel) { try { _presSel.value = localStorage.getItem('wp_presOrder') === 'first' ? 'first' : 'new'; } catch (e) { _presSel.value = 'new'; } _presSel.addEventListener('change', function() { try { if (_presSel.value === 'first') localStorage.setItem('wp_presOrder', 'first'); else localStorage.removeItem('wp_presOrder'); } catch (e) {} if (window.appRender) window.appRender(); }); }
+// 1.6.2 (backlog 166 c; the owner, by prompt: "Everything, like a zoom", and "Atkinson Hyperlegible"): the text size, this computer's own
+// (wp_textSize: 90, 110, 125 or 150, none for 100), which the desktop app's shell reads from the settings file (shellguard zoomOf) and draws as
+// the page's own zoom; and the easy-read font (wp_easyFont: '1'), the body's one word easy-font. Each is pushed to the settings file at once
+function textSizeOf(v) { var s = String(v); return ['90', '110', '125', '150'].indexOf(s) >= 0 ? s : '100'; }
+function easyFontApply(on) { if (document.body) document.body.classList.toggle('easy-font', on === true); }
+var _tsSel = ui('setTextSize'), _efBox = ui('setEasyFont'), _ef0 = false;
+try { _ef0 = localStorage.getItem('wp_easyFont') === '1'; } catch (e) {}
+easyFontApply(_ef0);
+if (_tsSel) { try { _tsSel.value = textSizeOf(localStorage.getItem('wp_textSize')); } catch (e) { _tsSel.value = '100'; } _tsSel.addEventListener('change', function() { var v = textSizeOf(_tsSel.value); try { if (v === '100') localStorage.removeItem('wp_textSize'); else localStorage.setItem('wp_textSize', v); } catch (e) {} if (window.wpPrefsPush) window.wpPrefsPush(); if (typeof window.wpStepLog === 'function') window.wpStepLog('textsize v1', 'set', { size: Number(v) }); }); }
+if (_efBox) { _efBox.checked = _ef0; _efBox.addEventListener('change', function() { var on = _efBox.checked === true; try { if (on) localStorage.setItem('wp_easyFont', '1'); else localStorage.removeItem('wp_easyFont'); } catch (e) {} easyFontApply(on); if (window.wpPrefsPush) window.wpPrefsPush(); }); }
 var _hidSel = ui('setHiddenLook'), _hid0 = 'fade';
 try { _hid0 = hiddenLookOf(localStorage.getItem('wp_hiddenLook')); } catch (e) {}
 hiddenLookApply(_hid0);

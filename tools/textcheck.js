@@ -59,7 +59,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     {
         const { FONTS, MAX_FONT, fontKnown, cleanFont, fontCss } = TF;
         check('fonts: the list is frozen in shape: [name, generic, group] each, every name once, plain characters only, groups in runs (a group is never begun twice)',
-            Array.isArray(FONTS) && FONTS.length === 23 && FONTS.every(f => Array.isArray(f) && f.length === 3 && /^[A-Za-z0-9][A-Za-z0-9 ]*$/.test(f[0]) && f[0].length <= MAX_FONT) && new Set(FONTS.map(f => f[0].toLowerCase())).size === 23
+            Array.isArray(FONTS) && FONTS.length === 24 && FONTS.every(f => Array.isArray(f) && f.length === 3 && /^[A-Za-z0-9][A-Za-z0-9 ]*$/.test(f[0]) && f[0].length <= MAX_FONT) && new Set(FONTS.map(f => f[0].toLowerCase())).size === 24
             && FONTS.map(f => f[2]).filter((g, i, a) => i === 0 || a[i - 1] !== g).length === new Set(FONTS.map(f => f[2])).size, J(FONTS.map(f => f[2])));
         check('fontKnown: the list\'s own spelling of a font it holds, asked without regard to case or the spaces around it; nothing for a name it lacks, a name a prototype holds, or anything that is no text',
             fontKnown('Cinzel') === 'Cinzel' && fontKnown('  cinzel ') === 'Cinzel' && fontKnown('IM FELL ENGLISH') === 'IM Fell English' && fontKnown('Georgia') === '' && fontKnown('') === '' && fontKnown('   ') === ''

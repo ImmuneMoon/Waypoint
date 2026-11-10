@@ -6,6 +6,7 @@
   @font-face { font-family: "Lora"; font-style: normal; font-weight: 400 700; font-display: swap; src: url("assets/fonts/lora/Lora-wght.ttf") format("truetype"); }
   @font-face { font-family: "Crimson Text"; font-style: normal; font-weight: 400; font-display: swap; src: url("assets/fonts/crimsontext/CrimsonText-Regular.ttf") format("truetype"); }
   @font-face { font-family: "Comic Neue"; font-style: normal; font-weight: 400; font-display: swap; src: url("assets/fonts/comicneue/ComicNeue-Regular.ttf") format("truetype"); }
+  @font-face { font-family: "Atkinson Hyperlegible"; font-style: normal; font-weight: 400; font-display: swap; src: url("assets/fonts/atkinsonhyperlegible/AtkinsonHyperlegible-Regular.ttf") format("truetype"); }
   @font-face { font-family: "Cinzel"; font-style: normal; font-weight: 400 900; font-display: swap; src: url("assets/fonts/cinzel/Cinzel-wght.ttf") format("truetype"); }
   @font-face { font-family: "IM Fell English"; font-style: normal; font-weight: 400; font-display: swap; src: url("assets/fonts/imfellenglish/IMFeENrm28P.ttf") format("truetype"); }
   @font-face { font-family: "Almendra"; font-style: normal; font-weight: 400; font-display: swap; src: url("assets/fonts/almendra/Almendra-Regular.ttf") format("truetype"); }
@@ -73,6 +74,7 @@
   .app{display:flex;flex-direction:column;height:100vh}
   /* the viewing of 2026-11-09 (the owner, by prompt: "One font (Recommended)"): a button, a list and a text box take the app’s font, never the browser’s own Arial; any rule that names a font of its own still wins */
   button, input, select, textarea { font-family: inherit; }
+  body.easy-font { font-family: "Atkinson Hyperlegible", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }   /* 1.6.2 (backlog 166 c): Settings' Easy-read font, this computer's own; a text with a font of its own keeps it */
 
   /* ---- header / toolbar ---- */
   header{

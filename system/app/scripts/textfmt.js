@@ -95,7 +95,7 @@ var LOOKS = ['size', 'color', 'b', 'i', 'u', 'st', 'link'];   // a look's keys, 
 // Waypoint's own typefaces: [name, generic, group]. One entry a family; tools/systemcheck.js holds each to its file, its licence text and
 // its @font-face rule. Inter is the one the sheet looks already carried.
 var FONTS = [
-    ['Inter', 'sans-serif', 'Reading'], ['Lora', 'serif', 'Reading'], ['Crimson Text', 'serif', 'Reading'], ['Comic Neue', 'sans-serif', 'Reading'],
+    ['Inter', 'sans-serif', 'Reading'], ['Lora', 'serif', 'Reading'], ['Crimson Text', 'serif', 'Reading'], ['Comic Neue', 'sans-serif', 'Reading'], ['Atkinson Hyperlegible', 'sans-serif', 'Reading'],
     ['Cinzel', 'serif', 'Old and fantasy'], ['IM Fell English', 'serif', 'Old and fantasy'], ['Almendra', 'serif', 'Old and fantasy'], ['MedievalSharp', 'serif', 'Old and fantasy'],
     ['Uncial Antiqua', 'serif', 'Old and fantasy'], ['UnifrakturCook', 'serif', 'Old and fantasy'], ['Pirata One', 'serif', 'Old and fantasy'],
     ['Caveat', 'cursive', 'Handwriting'], ['Great Vibes', 'cursive', 'Handwriting'],

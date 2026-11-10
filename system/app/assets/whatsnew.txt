@@ -783,6 +783,11 @@ Writing planners and pages
 - A planner card can start a sound, a song, a playlist or a saved effect. Pick
   one under Plays and the card gets a Play button, so the tavern music is one
   press away when the party walks in.
+- Text size in Settings draws all of Waypoint from 90 to 150 percent, words,
+  buttons and windows together, so nothing overlaps. The map keeps its own zoom.
+- Easy-read font in Settings switches Waypoint's own words to Atkinson
+  Hyperlegible, which the Braille Institute made so letters are hard to mix up.
+  It joins every Font list too.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

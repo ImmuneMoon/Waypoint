@@ -107,6 +107,7 @@
 <script type="module" src="scripts/blastcore.js"></script>
 <script type="module" src="scripts/tutorial.js"></script>
 <script type="module" src="scripts/names.js"></script>
+<script type="module" src="scripts/storyview.js"></script>
 <script type="module" src="scripts/campquest.js"></script>
 <script type="module" src="scripts/campsafecore.js"></script>
 <script type="module" src="scripts/campsafe.js"></script>
@@ -138,6 +139,7 @@
           <button class="rm-row" id="systemBtn" title="System &mdash; this campaign&rsquo;s attributes, formulas and rolls (character sheets)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM9 8h6M9 12h6M9 16h4"/></svg><span>System</span><small>Sheets and rolls</small></button>
           <button class="rm-row" id="libraryCampBtn" title="The campaign&rsquo;s library: packs of entries by the thousand, with a search"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h4.5v16H4zM8.5 7H13v13H8.5zM14.6 6.2L18.9 5l3.6 14.2-4.3 1.2z"/></svg><span>Library&hellip;</span></button>
           <button class="rm-row" id="campQuestBtn" title="Answer a few short questions to write a planner called Campaign outline"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8.5L18 7v13.5H6zM10 10v6l5-3z"/></svg><span>Plan with questions&hellip;</span></button>
+          <button class="rm-row" id="storyCampBtn" title="The Story view: your planners as arcs and their scene cards as beats"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8.5L18 7v13.5H6zM10 10v6l5-3z"/></svg><span>Story view</span></button>
           <div class="rm-rule"></div>
           <button class="rm-row" id="pointsCampBtn" title="Restore points: make one, or roll this campaign back to one"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 7.5V12l-3 2.2"/></svg><span>Restore points&hellip;</span></button>
           <button class="rm-row" id="trialCampBtn" title="Try something out. End it to keep the changes or put the campaign back"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M17.6 2.8v4.2h-4.2"/></svg><span>Trial run&hellip;</span></button>
@@ -1230,6 +1232,9 @@
                                   <li><b>Recent</b> holds the last pages you opened on this computer.</li>
                                   <li>A click on a row opens the page over the map. <kbd>Ctrl</kbd>+click opens it in a window of its own, and so does the row&rsquo;s window button. <kbd>Alt</kbd>+click opens the page itself, to edit.</li>
                                   <li><b>Find a page</b> opens quick-jump.</li>
+                                  <li><b data-ctl="#storyCampBtn">Story view</b> lays your planners out as the story. Each planner is an arc, a planner nested under another stands under it, and its scene cards are its beats in order.</li>
+                                  <li>A beat is coloured as Played, Tonight or Ahead, and its three small buttons set it. Click a beat to open its planner there.</li>
+                                  <li>Drag a beat to move it in its planner, or press <kbd>Alt</kbd> and an arrow key. It opens from the Pages shelf and from the campaign menu.</li>
                                   <li>The shelf is yours alone. Players never get the list of pinned pages.</li>
                               </ul>
                           </li>
@@ -5034,6 +5039,12 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <!-- Table trackers (1.6.0, backlog 29): a tracker's menu beside its name and its form (trackers.js) -->
 <div id="trkMenu" class="trk-menu" role="menu" aria-label="Tracker" style="display:none;"></div>
 <div id="declareBox" style="display:none;" role="region" aria-label="Declaring"></div>
+<!-- The Story view (1.6.2, backlog 166 h): storyview.js draws its body with elements and text nodes -->
+<div id="storyPanel" style="display:none;" role="dialog" aria-label="Story">
+    <div id="storyHead"><span class="notepad-title"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8.5L18 7v13.5H6zM10 10v6l5-3z"/></svg> Story</span><span id="storySum" class="sv-sum"></span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="storyClose" title="Close the Story view">&times;</button></div>
+    <div class="sv-help">Each planner is an arc and its scene cards are its beats. Click a beat to open it. Drag a beat, or press Alt and an arrow key, to move it in its planner.</div>
+    <div id="storyBody"></div>
+</div>
 <div id="deckPanel" style="display:none;" role="dialog" aria-label="Decks">
     <div id="deckHead"><span class="notepad-title"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 5h7.8A1.6 1.6 0 0 1 18 6.6v11.8a1.6 1.6 0 0 1-1.6 1.6H8.6A1.6 1.6 0 0 1 7 18.4V6.6A1.6 1.6 0 0 1 8.6 5zM4.5 8.2v9.6a1.6 1.6 0 0 0 .9 1.4M12.5 9.2l2.3 3.3-2.3 3.3-2.3-3.3z"/></svg> Decks</span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="deckCloseBtn" title="Close Decks">&times;</button></div>
     <div id="deckBody"></div>

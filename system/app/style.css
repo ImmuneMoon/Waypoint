@@ -1487,6 +1487,8 @@
   .page-shelf .ps-pin.on, #docPanelPin.on { filter: none; opacity: 1; }
   .page-shelf .ps-empty, .page-shelf .ps-note { font-size: 11px; color: var(--dim); line-height: 1.45; padding: 6px; }
   .page-shelf .ps-foot { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--edge); margin-top: 6px; padding-top: 8px; }
+  .page-shelf .ps-story { display: block; width: 100%; text-align: left; background: none; border: 1px solid var(--edge); border-radius: 6px; color: var(--gold); font: inherit; font-size: 12px; padding: 6px 8px; margin-top: 6px; cursor: pointer; }   /* 1.6.2 (backlog 166 h) */
+  .page-shelf .ps-story:hover, .page-shelf .ps-story:focus-visible { background: var(--panel); border-color: var(--gold); }
   .page-shelf .ps-find { flex: 1; text-align: left; background: none; border: 1px solid var(--edge); border-radius: 6px; color: var(--ink); font: inherit; font-size: 12px; padding: 6px 8px; cursor: pointer; }
   .page-shelf .ps-key { font-size: 10.5px; color: var(--dim); border: 1px solid var(--edge); border-radius: 4px; padding: 1px 5px; }
   
@@ -3149,6 +3151,24 @@
   #layersPanel { position: fixed; right: 18px; top: 120px; width: 320px; max-width: calc(100vw - 24px); max-height: 70vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }   /* 1.6.2, backlog 217: Layers */
   #layersHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
   #layersHead .notepad-btn { padding: 1px 7px; font-size: 11px; } #layersHead .ly-map { color: var(--dim); font-size: 12px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* 1.6.2 (backlog 166 h): the Story view */
+  #storyPanel { position: fixed; left: max(12px, calc(50% - 360px)); top: 90px; width: min(720px, calc(100vw - 24px)); max-height: 72vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  #storyHead { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
+  #storyHead .notepad-btn { padding: 1px 7px; font-size: 11px; } .sv-sum { color: var(--dim); font-size: 12px; }
+  .sv-help { font-size: 11px; color: var(--dim); padding: 6px 10px 0; }
+  #storyBody { padding: 8px 10px 12px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+  .sv-empty, .sv-none { color: var(--dim); font-size: 12px; font-style: italic; }
+  .sv-arc-title { background: none; border: 0; padding: 0; color: var(--gold); font-weight: 700; font-size: 13px; cursor: pointer; text-align: left; }
+  .sv-arc-title:hover { text-decoration: underline; }
+  .sv-beats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
+  .sv-beat { display: flex; flex-direction: column; gap: 3px; min-width: 130px; max-width: 200px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--edge); border-left-width: 4px; background: var(--panel); cursor: grab; }
+  .sv-beat.sv-played { border-left-color: var(--dim); opacity: 0.75; } .sv-beat.sv-tonight { border-left-color: #e8a33d; } .sv-beat.sv-ahead { border-left-color: #5cb87a; }
+  .sv-beat.sv-dragging { opacity: 0.4; } .sv-beat.sv-drop-l { box-shadow: inset 3px 0 0 var(--gold); } .sv-beat.sv-drop-r { box-shadow: inset -3px 0 0 var(--gold); }
+  .sv-beat-name { background: none; border: 0; padding: 0; color: var(--ink); font-size: 12.5px; font-weight: 600; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+  .sv-beat-name:hover { text-decoration: underline; }
+  .sv-beat-tag { font-size: 10.5px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.04em; }
+  .sv-sess { display: flex; gap: 3px; } .sv-s { font-size: 10.5px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--edge); background: transparent; color: var(--dim); cursor: pointer; }
+  .sv-s.on { background: var(--gold); color: #1b1b1b; border-color: var(--gold); }
   #layersList { padding: 8px 10px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 5px; }
   #layersList .element-list-item.el-d1 { margin-left: 16px; } #layersList .element-list-item.el-d2 { margin-left: 32px; }
   .element-group { display: flex; align-items: center; gap: 4px; padding: 2px 0; color: var(--dim); font-size: 12px; } .element-group .el-gname { cursor: pointer; } .element-group .el-gname:hover { color: var(--ink); text-decoration: underline; }

@@ -261,3 +261,6 @@ jobs:
       - name: campquestcheck, a campaign started from questions (the outline it writes, read by the real page code)
         if: ${{ !cancelled() }}
         run: node tools/campquestcheck.js
+      - name: storycheck, the Story view (arcs and beats from the planners, a beat moved inside its planner)
+        if: ${{ !cancelled() }}
+        run: node tools/storycheck.js

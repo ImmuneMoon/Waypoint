@@ -801,6 +801,10 @@ Writing planners and pages
   answers become a planner called Campaign outline, the beats scene cards
   marked Ahead. Skip writes nothing, and Plan with questions in the campaign
   menu opens them later.
+- The Story view shows your planners as arcs and their scene cards as beats,
+  coloured Played, Tonight or Ahead. Mark a beat from there, drag it to a
+  new place in its planner, or click it to open the planner at that card.
+  Open it from the Pages shelf or the campaign menu.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

@@ -219,7 +219,9 @@ function shelfDraw(menu, m) {
     sec('Next scene', m.next, false); sec('Pinned', m.pinned, true); sec('Recent', m.recent, true);
     if (!any) menu.appendChild(shelfEl('div', 'ps-empty', 'No pages here yet. Pin a planner or a handbook page from its right-click menu in the left panel, or find one below.'));
     var foot = shelfEl('div', 'ps-foot'), find = shelfEl('button', 'ps-find', 'Find a page…'); find.type = 'button';
-    foot.appendChild(find); foot.appendChild(shelfEl('span', 'ps-key', 'Ctrl+K')); menu.appendChild(foot);
+    foot.appendChild(find); foot.appendChild(shelfEl('span', 'ps-key', 'Ctrl+K'));
+    if (typeof window !== 'undefined' && window.wpStory && typeof window.wpStory.may === 'function' && window.wpStory.may()) { var sv = shelfEl('button', 'ps-story', 'Story view: arcs and beats'); sv.type = 'button'; sv.title = 'Your planners as arcs and their scene cards as beats'; menu.appendChild(sv); }   // 1.6.2 (backlog 166 h), a line of its own: the column at the map's edge stands over the foot's right end
+    menu.appendChild(foot);
     menu.appendChild(shelfEl('div', 'ps-note', 'A click opens a page over the map. Ctrl+click opens a new window. Alt+click opens the page itself.'));
 }
 // [shelfcheck:draw-end]
@@ -508,6 +510,7 @@ function shelfWire() {
             var t = e.target, at = function(sel) { return t && t.closest ? t.closest(sel) : null; }, row = at('.ps-row'), id = row ? row.dataset.id : '';
             var land = row && row.dataset.at ? { at: row.dataset.at } : null;   // a row of Here or Around opens at its node, by either press
             if (at('.ps-find')) { shelfClose(); if (window.wpCmdkOpen) window.wpCmdkOpen(); return; }
+            if (at('.ps-story')) { shelfClose(); if (window.wpStory) window.wpStory.open(); return; }
             if (!id) return;
             if (at('.ps-pin')) { pinPage(id); return; }
             if (at('.ps-win')) { shelfClose(); openPage(id, 'window', land); return; }

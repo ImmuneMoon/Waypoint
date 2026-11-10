@@ -107,6 +107,7 @@
 <script type="module" src="scripts/blastcore.js"></script>
 <script type="module" src="scripts/tutorial.js"></script>
 <script type="module" src="scripts/names.js"></script>
+<script type="module" src="scripts/campquest.js"></script>
 <script type="module" src="scripts/campsafecore.js"></script>
 <script type="module" src="scripts/campsafe.js"></script>
 <script type="module" src="scripts/devconsole.js"></script>
@@ -136,6 +137,7 @@
           <button class="rm-row" id="renameCampBtn" title="Rename Campaign"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4l5 5L9 19.5 3.5 21 5 15.5 14.5 4zM12.5 6l5 5"/></svg><span>Rename</span></button>
           <button class="rm-row" id="systemBtn" title="System &mdash; this campaign&rsquo;s attributes, formulas and rolls (character sheets)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM9 8h6M9 12h6M9 16h4"/></svg><span>System</span><small>Sheets and rolls</small></button>
           <button class="rm-row" id="libraryCampBtn" title="The campaign&rsquo;s library: packs of entries by the thousand, with a search"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h4.5v16H4zM8.5 7H13v13H8.5zM14.6 6.2L18.9 5l3.6 14.2-4.3 1.2z"/></svg><span>Library&hellip;</span></button>
+          <button class="rm-row" id="campQuestBtn" title="Answer a few short questions to write a planner called Campaign outline"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8.5L18 7v13.5H6zM10 10v6l5-3z"/></svg><span>Plan with questions&hellip;</span></button>
           <div class="rm-rule"></div>
           <button class="rm-row" id="pointsCampBtn" title="Restore points: make one, or roll this campaign back to one"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 7.5V12l-3 2.2"/></svg><span>Restore points&hellip;</span></button>
           <button class="rm-row" id="trialCampBtn" title="Try something out. End it to keep the changes or put the campaign back"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M17.6 2.8v4.2h-4.2"/></svg><span>Trial run&hellip;</span></button>
@@ -525,6 +527,8 @@
                                   <li>A test copy shares the pictures and sounds of the original and starts with an empty Journal.</li>
                                   <li><b>New campaign</b> asks whether to start with a copy of the system of one of your campaigns. Its library packs come too, and its handbook pages unless you untick them.</li>
                                   <li>Maps, planners and characters stay behind, and after that the two campaigns change apart.</li>
+                                  <li><b data-ctl="#campQuestBtn">Plan with questions</b> asks a few short questions and writes a planner called Campaign outline. A new campaign offers them as soon as it is made. Skip writes nothing and keeps what you typed.</li>
+                                  <li>Each answer goes under its own heading. A question you leave empty stays as a grey prompt to fill in later. The five beats become scene cards marked Ahead.</li>
                                   <li>A roll back waits until you end your table. Each step is written to <b>saves/error.log</b>.</li>
                               </ul>
                           </li>
@@ -5343,6 +5347,41 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div class="menu-item ctx-map-only" id="ctxUnlockNest" style="padding:8px 16px; cursor:pointer;" title="Open this map and every map nested under it to players again."><i class="wib wi-unlock"></i> Unlock this and every map under it</div>
     <div class="menu-divider" style="height:1px; background:var(--border); margin:4px 0;"></div>
     <div class="menu-item danger" id="ctxDeleteItem" style="padding:8px 16px; cursor:pointer; color:var(--red);">Delete</div>
+</div>
+
+<!-- Start a campaign with questions (1.6.2, backlog 166 e): campquest.js. Fixed words; the answers become one planner, Campaign outline -->
+<div id="campQuestModal" class="gen-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="cqTitle">
+    <div class="gen-box cq-box">
+        <h3 id="cqTitle">Plan <span id="cqCampName">this campaign</span> with questions</h3>
+        <div class="gen-line">Answer what you like. Short is fine. A question you leave empty stays in the outline as a prompt to fill in later.</div>
+        <div class="gen-line cq-step" id="cqStepWord" aria-live="polite">Step 1 of 2: the spine</div>
+        <div class="cq-step-body" id="cqStep1">
+            <label class="cq-q" for="cqS0"><span class="cq-head">The idea</span><span class="cq-ask">What is the campaign about, in a sentence or two?</span></label>
+            <textarea id="cqS0" data-cq="spine" rows="2" maxlength="2000" spellcheck="true"></textarea>
+            <label class="cq-q" for="cqS1"><span class="cq-head">The mood</span><span class="cq-ask">What should it feel like at the table? Name a genre, a theme or a mood.</span></label>
+            <textarea id="cqS1" data-cq="spine" rows="2" maxlength="2000" spellcheck="true"></textarea>
+            <label class="cq-q" for="cqS2"><span class="cq-head">The world now</span><span class="cq-ask">How do things stand when the story begins?</span></label>
+            <textarea id="cqS2" data-cq="spine" rows="2" maxlength="2000" spellcheck="true"></textarea>
+            <label class="cq-q" for="cqS3"><span class="cq-head">The main threat</span><span class="cq-ask">Who or what stands against the heroes? What do they want, why, and by when?</span></label>
+            <textarea id="cqS3" data-cq="spine" rows="2" maxlength="2000" spellcheck="true"></textarea>
+            <label class="cq-q" for="cqS4"><span class="cq-head">How it might end</span><span class="cq-ask">How might it all end?</span></label>
+            <textarea id="cqS4" data-cq="spine" rows="2" maxlength="2000" spellcheck="true"></textarea>
+        </div>
+        <div class="cq-step-body" id="cqStep2" hidden>
+            <div class="gen-line">Each beat becomes a scene card marked Ahead. Mark the one you play next as Tonight.</div>
+            <label class="cq-q" for="cqB0"><span class="cq-head">The start</span><span class="cq-ask">How does it begin?</span></label>
+            <input type="text" id="cqB0" data-cq="beat" maxlength="120" autocomplete="off">
+            <label class="cq-q" for="cqB1"><span class="cq-head">What leads on</span><span class="cq-ask">What happens after the start?</span></label>
+            <input type="text" id="cqB1" data-cq="beat" maxlength="120" autocomplete="off">
+            <label class="cq-q" for="cqB2"><span class="cq-head">The turning point</span><span class="cq-ask">What changes everything?</span></label>
+            <input type="text" id="cqB2" data-cq="beat" maxlength="120" autocomplete="off">
+            <label class="cq-q" for="cqB3"><span class="cq-head">What leads to the end</span><span class="cq-ask">What happens after the turning point?</span></label>
+            <input type="text" id="cqB3" data-cq="beat" maxlength="120" autocomplete="off">
+            <label class="cq-q" for="cqB4"><span class="cq-head">The end</span><span class="cq-ask">How does it end?</span></label>
+            <input type="text" id="cqB4" data-cq="beat" maxlength="120" autocomplete="off">
+        </div>
+        <div class="gen-foot"><button type="button" class="tool ghost" id="cqSkip" title="Close and write nothing. What you typed is kept until you make the outline.">Skip</button><button type="button" class="tool ghost" id="cqBack" hidden>Back</button><button type="button" class="tool" id="cqNext">Next</button><button type="button" class="tool" id="cqGo" hidden title="Write a planner called Campaign outline from your answers">Make outline</button></div>
+    </div>
 </div>
 
 <!-- Developer console — in Developer mode (Settings ▸ Advanced) press ~ to drop it down; type JS (page globals in scope) and Enter to run. See scripts/devconsole.js -->

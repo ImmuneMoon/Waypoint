@@ -796,6 +796,11 @@ Writing planners and pages
   table notepad to mention a page, a map, a room or a character. It reads
   as a chip in its current name, so a rename never leaves it stale, and a
   click opens it.
+- A new campaign can start from a few short questions: the idea, the mood,
+  the world now, the main threat and how it might end, then five beats. Your
+  answers become a planner called Campaign outline, the beats scene cards
+  marked Ahead. Skip writes nothing, and Plan with questions in the campaign
+  menu opens them later.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

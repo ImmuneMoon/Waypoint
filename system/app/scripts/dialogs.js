@@ -408,6 +408,7 @@ if(_el_newCampBtn) _el_newCampBtn.addEventListener('click', function() {
                   updateCampaignSelect(); updateSidebarNav(); render(); save(true);
 
                   if (newCamp.library && window.wpLibrary && window.wpLibrary.load) window.wpLibrary.load(newCamp);
+                  if (window.wpCampQuest && typeof window.wpCampQuest.offer === 'function') window.wpCampQuest.offer(newCamp.id);   // 1.6.2 (backlog 166 e): a few short questions, with Skip
 
               };
 

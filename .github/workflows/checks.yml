@@ -258,3 +258,6 @@ jobs:
       - name: updatercheck — signed updates, the way back, the core updating itself, the key tool and the core's record (run on scratch installs; nothing downloaded is ever started)
         if: ${{ !cancelled() }}
         run: node tools/updatercheck.js
+      - name: campquestcheck, a campaign started from questions (the outline it writes, read by the real page code)
+        if: ${{ !cancelled() }}
+        run: node tools/campquestcheck.js

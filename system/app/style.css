@@ -1929,6 +1929,14 @@
   #genMap { flex: 1 1 auto; min-width: 0; }
   #genSeedNew { padding: 3px 10px; margin: 0; }
   .gen-line { font-size: 11px; color: var(--dim); line-height: 1.4; margin: 4px 0; }
+  /* 1.6.2 (backlog 166 e): Start a campaign with questions */
+  .cq-box { width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; }
+  .cq-step { color: var(--gold); font-weight: 600; margin-top: 8px; }
+  .cq-step-body[hidden] { display: none; }
+  .cq-q { display: block; margin: 10px 0 3px; }
+  .cq-head { display: block; font-size: 13px; color: var(--ink); font-weight: 600; }
+  .cq-ask { display: block; font-size: 11.5px; color: var(--dim); }
+  .cq-box textarea, .cq-box input[type="text"] { width: 100%; box-sizing: border-box; }
   /* a scene (backlog 181): the GM's box, and the handout window a scene opens in, bigger */
   .scene-box { width: 460px; }
   .scene-head { display: flex; align-items: center; gap: 8px; }

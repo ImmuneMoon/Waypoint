@@ -251,8 +251,11 @@ function fmtHtml(text, fmt, put) {
         out += css ? '<span style="' + css + '">' + inner(r.t) + '</span>' : inner(r.t);
     });
     if (open) out += '</a>';
+    out = fontWrap(f, out);   // 1.6.2 (44 (d)): the whole field's font
     return size ? '<span style="font-size:' + size + ';">' + out + '</span>' : out;
 }
+// a field's own font around what it draws: one of Waypoint's own, as fontCss writes its family, escaped for the attribute
+function fontWrap(f, out) { var fc = f && f.font ? fontCss(f.font) : ''; return fc ? '<span style="font-family:' + esc(fc) + ';">' + out + '</span>' : out; }
 // A field that reads typed markup — a planner's titles, node fields and cells, which have always gone through the page sanitiser, so a typed
 // <b>, <br> or &mdash; reads as markup. The WHOLE field is sanitised once, exactly as it is with no format, and the format's runs are laid
 // over its text by their offsets in what was typed: a run that begins or ends inside the typed markup changes nothing about how that markup
@@ -277,6 +280,7 @@ function fmtRich(text, fmt) {
         if (i < end) pieces.push([tx.slice(i - off), '', '']);   // past the last run (a text longer than the sanitiser reads is cut there)
         return pieces;
     } });
+    out = fontWrap(f, out);   // 1.6.2 (44 (d)): the whole field's font
     return size ? '<span style="font-size:' + size + ';">' + out + '</span>' : out;
 }
 // Where a block keeps the format of each of its plain fields (beside the value, so moving a row or a node moves its look with it):

@@ -345,11 +345,17 @@ function build(base, ivs) {
     return (out.size || out.color || out.b || out.i || out.u || out.st || out.link || out.spans) ? out : undefined;
 }
 
+// 1.6.2 (backlog 44 (d); the owner, by prompt: "Yes, whole field"): a planner's or a page's plain field may name one of Waypoint's own fonts for the
+// WHOLE field, as font, the record's last key. Only a font of the list, by its spelling; it never sits on a part. Every edit keeps it (cleanFmt,
+// apply, clear, respan), a change { font } sets or takes it off, and a format with no font is key for key what it was. A sheet's text and a note
+// keep their font apart from the format (lookcore drops this key)
+function fontOfFmt(fmt) { return isObj(fmt) ? fontKnown(fmt.font) : ''; }
+function fontKeep(out, src) { var f = fontOfFmt(src); if (!f) return out; var o = isObj(out) ? out : {}; o.font = f; return o; }
 function cleanFmt(fmt, text) {
     if (!isObj(fmt)) return undefined;
     text = txt(text);
     var base = readBase(fmt), ivs = flatten(text, base, readSpans(fmt, text));
-    return build(fitBase(base, ivs), ivs);
+    return fontKeep(build(fitBase(base, ivs), ivs), fmt);
 }
 
 function runsOf(text, fmt) {
@@ -362,7 +368,8 @@ function runsOf(text, fmt) {
 // a cleaned look's keys copied onto o (only the ones that are set)
 function lookInto(o, from) { LOOKS.forEach(function(k) { if (from[k]) o[k] = from[k]; }); return o; }
 
-function respan(oldText, newText, fmt, caret, apart) {
+function respan(oldText, newText, fmt, caret, apart) { return fontKeep(respanLook(oldText, newText, fmt, caret, apart), fmt); }
+function respanLook(oldText, newText, fmt, caret, apart) {
     oldText = txt(oldText); newText = txt(newText);
     var f = cleanFmt(fmt, oldText);
     if (!f) return undefined;
@@ -427,6 +434,10 @@ function opened(fmt, text, s, e) {
 }
 
 function apply(fmt, text, s, e, change) {
+    if (isObj(change) && own(change, 'font')) { var cf = cleanFmt(fmt, text), nf = {}; if (cf) Object.keys(cf).forEach(function(k) { if (k !== 'font') nf[k] = cf[k]; }); var fk = fontKnown(change.font); if (fk) nf.font = fk; return Object.keys(nf).length ? nf : undefined; }   // 1.6.2 (44 (d)): the whole field's font
+    return fontKeep(applyLook(fmt, text, s, e, change), fmt);
+}
+function applyLook(fmt, text, s, e, change) {
     text = txt(text);
     var o = opened(fmt, text, s, e), base = o.base;
     change = isObj(change) ? change : {};
@@ -453,7 +464,8 @@ function apply(fmt, text, s, e, change) {
     return build(fitBase(base, o.ivs), o.ivs);
 }
 
-function clear(fmt, text, s, e) {
+function clear(fmt, text, s, e) { return fontKeep(clearLook(fmt, text, s, e), fmt); }   // 1.6.2 (44 (d)): Clear takes the looks, the field keeps its font
+function clearLook(fmt, text, s, e) {
     text = txt(text);
     var o = opened(fmt, text, s, e);
     if (o.all) return undefined;

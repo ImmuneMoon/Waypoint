@@ -741,8 +741,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function tsPaint(box, fld, multi) {
       var shown = typeof box._tsText === 'string' ? box._tsText : '', stored = fld.text(), fmt = fld.fmt();
       if (fmt !== undefined && shown !== stored) fmt = TF.respan(stored, shown, fmt, undefined, true);
+      tsFontOn(box, fmt);
       return tsDraw(box, shown, fmt, multi);
   }
+  // 1.6.2 (backlog 44 (d)): a planner's field wears its own font, the whole field's (a host's field has its own, tsxFontOn)
+  function tsFontOn(box, fmt) { if (!box || !box.style || tsHostOf(box)) return; var f = fmt && typeof fmt === 'object' && typeof fmt.font === 'string' ? TF.fontCss(fmt.font) : ''; if (box._tsFont !== f) { box._tsFont = f; box.style.fontFamily = f; } }
+  // which of a planner's fields take a font: every plain field but a flowchart's labels, which the diagram draws
+  function tsFontField(d) { return !!d && d.k !== 'x' && d.k !== 'node' && d.k !== 'edge'; }
+  function tsFontBar(E, fld, sel) { var on = !!fld && !!sel && tsFontField(sel.d); if (E.fontLab.hidden === on) E.fontLab.hidden = !on; if (on) { var fv = (fld.fmt() || {}).font || ''; if (E.font.value !== fv) E.font.value = fv; } }
   // The markup of an EMPTY box (renderPlanner writes the editor as one string): its classes, its place, its placeholder — never the field's
   // text, which tsFill draws. A placeholder is shown by the style sheet while the box holds nothing, and is no part of the text.
   function tsBoxHtml(cls, ph, data, style, multi, extra) {
@@ -1240,6 +1246,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // host takes a font for that field and the field can hold one; a name that is not of the list changes nothing
   function tsxFont(name, from) {
       if (tsState.comp) return false;
+      var selP = tsState.sel; if (selP && selP.d && tsFontField(selP.d)) { var kp = typeof name === 'string' && name ? TF.fontKnown(name) : ''; if (name && !kp) { tsRefresh(); return false; } return tsPress({ font: kp || null }, from); }   // 1.6.2 (44 (d)): a planner's own field, one step as a press is
       var box = tsState.box, am = tsBlocksOf(box), sel = tsTarget();
       var hx = am && sel && sel.d.k === 'x' ? tsHostBy(sel.d.h) : null, fld = hx ? tsField(null, sel.d) : null;
       if (!fld || !fld.setFont || !hx.fonts(sel.d.key)) { tsState.run = null; tsRefresh(); return false; }
@@ -1297,9 +1304,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (lab && lab.title !== words) lab.title = words;
       if (noSize) { E.size.disabled = true; E.size.value = ''; }
       if (noLink) { E.link.disabled = true; if (E.pageBtn) E.pageBtn.disabled = true; E.linkLab.classList.add('off'); E.linkLab.title = TS_LINK_NOT; if (document.activeElement !== E.link) { E.link.value = ''; E.link.placeholder = 'https://…'; } }
-      var fonts = !!hx && typeof fld.setFont === 'function' && hx.fonts(sel.d.key);
+      var pFont = !hx && tsFontField(sel.d);   // 1.6.2 (44 (d)): a planner's own field
+      var fonts = pFont || (!!hx && typeof fld.setFont === 'function' && hx.fonts(sel.d.key));
       if (E.fontLab.hidden === fonts) E.fontLab.hidden = !fonts;
-      if (fonts) { var fv = fld.font(); if (E.font.value !== fv) E.font.value = fv; }
+      if (fonts) { var fv = pFont ? ((fld.fmt() || {}).font || '') : fld.font(); if (E.font.value !== fv) E.font.value = fv; }
   }
   // A host's boxes wired on the elements they live under. keydown is taken in the CAPTURE phase: a panel of the app's may stop a key and close
   // on Escape in its own listener, and the box's Escape (which only puts the bar away) and its undo chord come first
@@ -1409,7 +1417,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (whole ? now === fld.link() : JSON.stringify(now) === JSON.stringify(TF.cleanFmt(was, text))) { tsRefresh(); return false; }   // nothing to change: no step
       var kept = !!(from && tsState.key && document.activeElement === from);   // the keyboard is on this control: it keeps the focus
       var left = !!(from && from === tsState.els.link && document.activeElement !== from);   // the link box was left for somewhere else (its change came as it lost the focus): the focus stays where it went
-      var runOn = kept && from === tsState.els.size ? JSON.stringify([sel.d, sel.s, sel.e]) : null;
+      var runOn = kept && (from === tsState.els.size || from === tsState.els.font) ? JSON.stringify([from === tsState.els.font ? 'font' : 'size', sel.d, sel.s, sel.e]) : null;   // 1.6.2: the Font list stepped through by its arrows is one step, as the Size list is
       if (runOn && tsState.run === runOn) stepFold();   // the Size list stepped through by its arrow keys: every size on the way is applied, the run of them is one undo step (io.js)
       else stepBoundary();   // typing still on its way is its own step; this press is one step of its own
       tsState.run = runOn;
@@ -1504,6 +1512,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       E.clear.disabled = off || !st.any;
       E.symBtn.disabled = off;
       if (tsHosts.length) tsxRefresh(E, fld, sel);   // a host's field: Size and Link only where its host takes them
+      else tsFontBar(E, fld, sel);   // 1.6.2 (44 (d)): with no host at all, a planner's own field still offers its font
   }
   // Build the bar (elements, text nodes and values only) inside the editor panel and wire its controls. host: the panel that scrolls
   // (#plannerEditorWrap); syms: the symbol tray's [character, name] list (the text blocks' own).

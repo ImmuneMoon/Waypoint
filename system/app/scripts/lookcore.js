@@ -114,7 +114,7 @@ function fieldLook(fmt, text, rule) {
     // a link is kept while the field has room for it: at most LINKS of them, and LINK_CHARS characters of address in all
     var takes = function(link) { return R.link || (R.mention && !!mentionLink(link)); };   // a place that takes no link may still take a mention (the pad)
     var room = function(link) { if (typeof link !== 'string' || !link || !takes(link) || n >= LINKS || chars + link.length > LINK_CHARS) return false; n++; chars += link.length; return true; };
-    for (k in f) if (own(f, k) && k !== 'spans' && !(k === 'size' && !R.size) && !(k === 'link' && !takes(f[k]))) out[k] = f[k];   // (a link that is the whole field's is one link of at most MAX_LINK characters, and no part has another: always within both bounds)
+    for (k in f) if (own(f, k) && k !== 'spans' && k !== 'font' && !(k === 'size' && !R.size) && !(k === 'link' && !takes(f[k]))) out[k] = f[k];   // (a link that is the whole field's is one link of at most MAX_LINK characters, and no part has another: always within both bounds)
     // one address over touching parts of several looks is ONE link (a reader draws it as one): it is counted once, and kept whole or dropped whole
     var pe = -1, pl = '', pk = false;
     if (Array.isArray(f.spans)) out.spans = f.spans.map(function(sp) {

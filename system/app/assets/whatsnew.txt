@@ -908,6 +908,8 @@ System editor
 - A campaign's default look can pick one of Waypoint's own fonts, and the
   whole app is drawn in it at your table. App font in Settings lets each
   player pick their own instead.
+- A planner's or a page's title, cell or card line can take one of
+  Waypoint's own fonts from the bar's Font list.
 
 Fitted parts
 - Holds by kind may read a formula in place of a stat, such as the most any

@@ -1573,7 +1573,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const p0 = mkPage({ map: mapOf(B0()) }).wire().rebuild(); p0.tsState.els.size.focus(); const escNone = p0.dom.fire(p0.tsState.els.size, 'keydown', keyEv({ key: 'Escape' }));
         check('keyboard (into the bar and back): Alt+F10 in a box goes into its bar (the first control); Tab and Shift+Tab move along the bar and wrap round, never out of it; a control pressed from the keyboard keeps the focus — so B and then a colour need no going back — and acts on the box\'s remembered selection; Escape (and Enter in the Size list) goes back to the box with its selection as it was; with the tray open Tab reaches the symbols, and a symbol typed from there leaves the tray open and the focus on it; with no box to go back to Escape is left alone',
             J(in1) === J([true, true, true, false]) && t1.defaultPrevented && on1 && on2 && wrap && wrap2 && J(kept) === J([true, J({ spans: [{ s: 0, e: 3, b: true, i: true, u: true }, { s: 4, e: 8, b: true }] }), '[4,8]']) && J(kept2) === J([true, J({ spans: [{ s: 0, e: 3, b: true, i: true, u: true }, { s: 4, e: 8, color: GREEN, b: true }] })])
-            && J(backTo) === J([true, true, '[4,8]']) && ent.defaultPrevented && entBack && order === 17 + SYMS.length && inTray && J(sym) === J(['The → Road', true, true, '[5,5]']) && escNone.defaultPrevented === false, [in1, on1, on2, wrap, wrap2, kept, kept2, backTo, entBack, order, inTray, sym]);
+            && J(backTo) === J([true, true, '[4,8]']) && ent.defaultPrevented && entBack && order === 18 + SYMS.length /* 1.6.2 (44 (d)): the Font list in a planner field's bar, moved on purpose */ && inTray && J(sym) === J(['The → Road', true, true, '[5,5]']) && escNone.defaultPrevented === false, [in1, on1, on2, wrap, wrap2, kept, kept2, backTo, entBack, order, inTray, sym]);
 
         // what it names, as text
         const names = [], say = d => { pk.focus(pk.tsBox(d), 0); names.push(K.root.attrs['aria-label'].replace('Text style — ', '')); };
@@ -1914,8 +1914,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const nf = mkHost(); nf.host.fonts = () => true; const nfb = nf.box('notes', true); nf.pg.focus(nfb, 1); const noSetter = [nf.E.fontLab.hidden, nf.pg.tsOrder().indexOf(nf.E.font), nf.pg.tsxFont('Lora'), nfb.style.fontFamily || ''];
             // a host that answers oddly about fonts gets the cautious reading
             const oddHost = ['yes', 1, {}, null].map(v => { const q = fonted(); q.host.fonts = () => v; const b = q.box('notes', true); q.pg.focus(b, 1); return q.E.fontLab.hidden; });
-            // the planner's own boxes: put away, never in the keyboard's order, and its steps key for key what they were
-            const p0 = mkPage({ map: mapOf(B0()) }).wire().rebuild(), pb = p0.tsBox({ idx: 0, k: 'title' }); p0.focus(pb, 1); const onPlanner = [p0.tsState.els.fontLab.hidden, p0.tsOrder().indexOf(p0.tsState.els.font), p0.tsxFont('Lora')];
+            // the planner's own boxes: since 1.6.2 (backlog 44 (d), the owner: "Yes, whole field") the list shows for a planner's plain field, sets the
+            // whole field's font in its format as one step, and the box wears it (moved on purpose)
+            const p0 = mkPage({ map: mapOf(B0()) }).wire().rebuild(), pb = p0.tsBox({ idx: 0, k: 'title' }); p0.focus(pb, 1); const onPlanner = [p0.tsState.els.fontLab.hidden, p0.tsOrder().indexOf(p0.tsState.els.font) > 0, p0.tsxFont('Lora'), pb.style.fontFamily === fontCss('Lora')];
             // the keyboard: the list takes the focus, Enter and Escape there go back to the box
             pg.focus(nb, 3); E.font.focus(); const kd = pg.dom.fire(E.font, 'keydown', keyEv({ key: 'Enter' })); const keys = [pg.dom.page.active === nb];
             // a press waits for a composition's end; the field's own setter takes only a font of the list; the mouse may open the list (a button's press is kept from taking the focus)
@@ -1940,7 +1941,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && J(cleared) === J([true, false, '', '', true, 'Cinzel'])
                 && J(mixed) === J(['onex\ntwo', 'Almendra', true, 'onex\ntwo', 'Cinzel', true, 'one\ntwo', 'Cinzel'])
                 && J(offField) === J([false, 'Lora', '[]', true, -1]) && J(hostile) === J(['', '', false]) && odd.every(x => x === '|') && J(noSetter) === J([true, -1, false, '']) && oddHost.every(x => x === true)
-                && J(onPlanner) === J([true, -1, false]) && J(keys) === J([true]) && J(extra) === J([false, false, 'Lora', false, true, true])
+                && J(onPlanner) === J([false, true, true, true]) && J(keys) === J([true]) && J(extra) === J([false, false, 'Lora', false, true, true])
                 && J(tenth) === J([['Almendra', true, true, false, '', false, true, 'Almendra'], [true, 'Cinzel', true, false], ['onexy\ntwo', 'onex\ntwo|Lora', 'onex\ntwo|', 'one\ntwo|'], [true, 'Lora'], [100, 'Almendra']]),
                 [built, drawn0, onName, onNotes, picked, undone, refused, cleared, mixed, offField, hostile, odd, noSetter, oddHost, onPlanner, keys, tenth]);
             // the eleventh review. A run that comes back to where it began (a list stepped down and up again) leaves no step, and what the run
@@ -3044,6 +3045,18 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const padL = LKc.fieldLook(fm, 'Meet at Hill', PADc), padW = LKc.fieldLook({ link: 'https://a.example/' }, 'Meet at Hill', PADc), padM = LKc.fieldLook({ link: H }, 'Meet', PADc), rec = LKc.makeRec(fm, '', 'Meet at Hill', PADc);
         check('166 f, fold 3, the table notepad: its rule takes no link but a mention, which leads nowhere outside the app; a web link in it is dropped whole and the words stay, for a part and for the whole pad alike, and its word on links stays no, so a typed address there is never a link',
             J(padL) === J({ spans: [{ s: 0, e: 4, link: H }] }) && padW === undefined && J(padM) === J({ link: H }) && J(rec.fmt) === J({ spans: [{ s: 0, e: 4, link: H }] }) && LKc.ruleLinks(PADc) === false && J(LKc.fieldLook(fm, 'Meet at Hill', LKc.RULES.LINE)) === J(fm), J([padL, padW, padM]));
+    }
+    {   // 1.6.2 (backlog 44 (d); the owner, by prompt: "Yes, whole field"): a planner's or a page's plain field names a font for the whole field
+        const TFf = await import(modUrl('textfmt.js') + '?font'), DRf = await import(modUrl('docrender.js') + '?font'), LKf = await import(modUrl('lookcore.js') + '?font'), J2 = JSON.stringify, T = 'Old road';
+        const bold = { spans: [{ s: 0, e: 3, b: true }] }, withF = TFf.apply(bold, T, 0, 0, { font: 'cinzel' }), onlyF = TFf.apply(undefined, T, 0, 0, { font: 'Lora' }), offF = TFf.apply(withF, T, 0, 0, { font: null }), badF = TFf.apply(bold, T, 0, 0, { font: 'Comic Sans MS' });
+        const keptB = TFf.apply(withF, T, 4, 8, { i: true }), cleared = TFf.clear(withF, T, 0, 8), typed = TFf.respan(T, 'Old roads', withF, 9), replaced = TFf.respan(T, 'New', withF, 3);
+        const cleanBad = TFf.cleanFmt({ font: 'x";color:red', spans: [] }, T), noFont = TFf.cleanFmt(bold, T), html = DRf.fmtHtml(T, withF), rich = DRf.fmtRich(T, onlyF), sheet = LKf.fieldLook(withF, T, LKf.RULES.LINE);
+        check('44 (d) a field\'s own font (textfmt apply, clear, respan and cleanFmt, docrender fmtHtml and fmtRich, lookcore fieldLook, run for real): a change { font } sets one of Waypoint\'s own by its spelling for the whole field as the record\'s last key, or takes it off, and refuses any other; a bold, a Clear, typing and a whole field replaced keep it; a format with no font is key for key what it was; a page and a planner draw it around the field through fontCss, escaped; a sheet\'s or a note\'s look keeps no font of the format\'s',
+            J2(withF) === J2({ spans: [{ s: 0, e: 3, b: true }], font: 'Cinzel' }) && J2(onlyF) === J2({ font: 'Lora' }) && J2(offF) === J2(bold) && J2(badF) === J2(bold)
+            && keptB.font === 'Cinzel' && keptB.spans.length === 2 && J2(cleared) === J2({ font: 'Cinzel' }) && typed.font === 'Cinzel' && replaced && replaced.font === 'Cinzel'
+            && (cleanBad === undefined || !('font' in cleanBad)) && J2(noFont) === J2(bold) && /^<span style="font-family:&quot;Cinzel&quot;, serif;"><span style="font-weight:bold;?">Old<\/span> road<\/span>$/.test(html) === true
+            && /^<span style="font-family:&quot;Lora&quot;, serif;">Old road<\/span>$/.test(rich) && !(sheet && 'font' in sheet),
+            J2([withF, onlyF, offF, keptB, cleared, typed, replaced, html, rich, sheet]));
     }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

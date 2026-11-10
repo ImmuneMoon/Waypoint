@@ -42,7 +42,7 @@ New versions install over old ones. Saves and settings are kept, and older saves
 
 Requirements: Windows 10 or 11. An internet connection is needed for multiplayer only.
 
-**What the app does not do.** No account is needed and there are no ads. The app collects nothing about how you use it. Your campaigns are files on your own computer, in the saves folder. Linking a Waypoint website account is your choice, in Settings.
+**What the app does not do.** No account is needed and there are no ads. The app collects nothing about how you use it. Your campaigns are files on your own computer, in the saves folder. Linking a Waypoint website account is your choice, in Settings. No AI runs inside the app either, so your notes and maps never go to one.
 
 **Joining a table.** Get the room code from your GM, open Waypoint, click the globe button, type your name and the code, and press Join. No account is needed. The in-app Help (the question-mark button) has a full tutorial for playing at a hosted table.
 

@@ -3029,7 +3029,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && J(runsSrc.match(/setAttribute\('([a-z]+)'/g)) === J(["setAttribute('href'", "setAttribute('target'", "setAttribute('rel'"]) && /el\.style\.fontFamily = r && r\.font \? fontCss\(r\.font\) : '';/.test(runsSrc) && /if \(o\.ask === true\) el\.dataset\.ask = '1'; else delete el\.dataset\.ask;/.test(runsSrc)
                 && /\nif \(typeof window !== 'undefined'\) window\.wpTextRead = \{ fill: fillRuns \};\n/.test(read('linkgate.js').replace(/\r\n/g, '\n')) && /\n    var ask = !!a\.closest\('\[data-ask\]'\);[^\n]*\n    var v = a\.closest\(ZONE_VIEWER\);\n/.test(gateSrc) && /c\.own = !ask && d\.linksOwn === '1';/.test(gateSrc) && /\n    if \(ask\) return c;\n    if \(a\.closest\(ZONE_APP\)\)/.test(gateSrc) && gateSrc.split("closest('[data-ask]')").length === 2
                 && /typed = o\.typed === true && ruleLinks\(o\.rule\);/.test(runsSrc) && runsSrc.split('linkParts(t)').length === 2 && !/fillLinked\(span/.test(runsSrc)
-                && J((read('linkgate.js').match(/^import [^\n]*$/gm) || []).map(s => s.trim())) === J(["import { cleanLink, linkParts } from './textfmt.js';", "import { showConfirm } from './dialogs.js';", "import { runsOf, SIZE_EM, fontCss } from './textfmt.js';", "import { cleanRec, ruleLinks } from './lookcore.js';", "import { pageLink } from './textfmt.js';   // 1.5.6: a link to a page of the campaign"])
+                && J((read('linkgate.js').match(/^import [^\n]*$/gm) || []).map(s => s.trim())) === J(["import { cleanLink, linkParts } from './textfmt.js';", "import { showConfirm } from './dialogs.js';", "import { runsOf, SIZE_EM, fontCss } from './textfmt.js';", "import { cleanRec, ruleLinks } from './lookcore.js';", "import { pageLink, mentionLink } from './textfmt.js';   // 1.5.6: a link to a page of the campaign; 1.6.2, a mention"])
                 && /\n  \.wp-run-read \{ white-space: pre-wrap; overflow-wrap: anywhere; \}\n/.test(read('../style.css').replace(/\r\n/g, '\n')));
             // item 35, fold 3a: a player's table notepad drawn from a hostile host's message (net.js sliced by its padbox markers and run for real
             // with the REAL reader beside it, on the page of plain objects, which refuses markup)
@@ -5310,7 +5310,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             G.peekOf(w3, link('#wp:page:p1:b_d', page)) === 'Page: Plan \u203a b_d' && G.peekOf(w3, link('#wp:page:p9', page)) === 'A page that is not here' && G.peekOf(w3, link('#wp:page:p1', editBox)) === '');
         const lgAll = read('linkgate.js').replace(/\r\n/g, '\n');
         check('1.5.6 page links (wired): the right button is heard once on the document in the capture phase beside the gate, and the module imports the reading from textfmt.js',
-            lgAll.includes("    doc.addEventListener('contextmenu', pageMenu(win), true);") && lgAll.includes("import { pageLink } from './textfmt.js';"));
+            lgAll.includes("    doc.addEventListener('contextmenu', pageMenu(win), true);") && lgAll.includes("import { pageLink, mentionLink } from './textfmt.js';"));
     }
 
     {   // 1.5.8: where a page link may open (linkgate.js sliced by its linkgate, linkpeek, linkmenu and linkpop markers and run for real on tools/boxdom.js,

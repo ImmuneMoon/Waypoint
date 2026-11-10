@@ -168,6 +168,7 @@ function foldClear(blk) {
 // every block a folded heading puts away is marked hidden. Run again it changes nothing
 function foldApply(root) {
     if (!root || !root.classList) return;
+    if (typeof window !== 'undefined' && window.wpPageShelf && typeof window.wpPageShelf.mentionPaint === 'function') { try { window.wpPageShelf.mentionPaint(root); } catch (e) {} }   // 1.6.2 (backlog 166 f): mentions in their names now
     var page = foldParts(root), shut = foldGet(root), n = page.blocks.length, part = [], hidden = [], under = 0, i;
     page.parts.forEach(function(p) { part[p.at] = p; });
     for (i = 0; i < n; i++) {

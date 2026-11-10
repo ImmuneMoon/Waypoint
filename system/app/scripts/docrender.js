@@ -140,7 +140,7 @@ function safeHref(v) {
     if (v == null) return null;
     v = decodeEntities(v).trim();
     if (/[\u0000-\u001f\u007f\s]/.test(v) || v.length > 2000) return null;
-    return /^https?:\/\/.+/i.test(v) || /^#wp:page:[A-Za-z0-9_-]{1,80}(?::[A-Za-z0-9_-]{1,64})?$/.test(v) ? v : null;   // 1.5.6: or a page link (textfmt.js pageLink)
+    return /^https?:\/\/.+/i.test(v) || /^#wp:(?:page|@:(?:page|map|char)):[A-Za-z0-9_-]{1,80}(?::[A-Za-z0-9_-]{1,64})?$/.test(v) ? v : null;   // 1.5.6: or a page link (textfmt.js pageLink); 1.6.2, or a mention (mentionLink)
 }
 // What every link is written with — a text block's typed one and a styled field's (fmtHtml, fmtRich) alike
 function aAttrs(href) { return ' href="' + esc(href) + '" target="_blank" rel="noopener noreferrer"'; }

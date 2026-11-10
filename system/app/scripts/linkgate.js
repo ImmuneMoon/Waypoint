@@ -50,7 +50,7 @@ import { cleanLink, linkParts } from './textfmt.js';
 import { showConfirm } from './dialogs.js';
 import { runsOf, SIZE_EM, fontCss } from './textfmt.js';
 import { cleanRec, ruleLinks } from './lookcore.js';
-import { pageLink } from './textfmt.js';   // 1.5.6: a link to a page of the campaign
+import { pageLink, mentionLink } from './textfmt.js';   // 1.5.6: a link to a page of the campaign; 1.6.2, a mention
 
 // [sinkcheck:linkgate-start]
 var LINK_TARGET = '_blank', LINK_REL = 'noopener noreferrer';   // what the page sanitiser writes on every link (docrender.js aAttrs)
@@ -142,11 +142,19 @@ function pageGo(win, pg, way, e, a) {
     try { var sh = w.wpPageShelf; sh.linkGo(pg.id, pg.at || '', way || (win.wpPopout ? 'window' : sh.wayNow(e))); } catch (err) { return false; }
     return true;
 }
+// 1.6.2 (backlog 166 f): a mention. A page opens as a page link does; a map or a character is the main window's to open (pageshelf.js mentionGo)
+function mentionGo(win, mn, way, e, a) {
+    if (!mn) return false;
+    if (mn.kind === 'page') return pageGo(win, { id: mn.id, at: mn.at }, way, e, a);
+    var d = win && win.document, b = d && d.body; if (b && b.classList && b.classList.contains('stream-mode')) return false;
+    var w = pageHost(win); if (!w || typeof w.wpPageShelf.mentionGo !== 'function') return false;
+    try { w.wpPageShelf.mentionGo(mn.kind, mn.id, mn.at); return true; } catch (err) { return false; }
+}
 // 1.5.8: the right button on a page link shows where it may open (its own slice, below); with no menu to be had, a window of its own as before
 function pageMenu(win) {
     return function(e) {
         var a = linkAt(e.target); if (!a) return;
-        var pg = typeof pageLink === 'function' ? pageLink(cleanLink(linkOf(a))) : null; if (!pg) return;
+        var lk = cleanLink(linkOf(a)), mnP = typeof mentionLink === 'function' ? mentionLink(lk) : null, pg = typeof pageLink === 'function' ? pageLink(lk) : null; if (!pg && mnP && mnP.kind === 'page') pg = { id: mnP.id, at: mnP.at }; if (!pg) return;   // 1.6.2: a page's mention as a page link
         var c = linkWhere(a, win); if (c.editing !== false || c.held === true) return;
         e.preventDefault(); e.stopPropagation();
         var d = win && win.document, b = d && d.body;
@@ -183,6 +191,8 @@ function linkGate(win, doc, ask) {
         var c = linkWhere(a, win); c.link = cleanLink(raw);
         var pg = typeof pageLink === 'function' ? pageLink(c.link) : null;   // 1.5.6: a link to a page of the campaign opens it, with no question; the middle button, a window of its own
         if (pg) { if (c.editing === false && c.held !== true) pageGo(win, pg, e.type === 'auxclick' ? 'window' : '', e, a); return; }
+        var mn = typeof mentionLink === 'function' ? mentionLink(c.link) : null;   // 1.6.2 (backlog 166 f): a mention opens what it names, with no question
+        if (mn) { if (c.editing === false && c.held !== true) mentionGo(win, mn, e.type === 'auxclick' ? 'window' : '', e, a); return; }
         var v = linkVerdict(c), url = v === 'none' ? null : readUrl(c.link);
         if (!url) return;   // no link, a link in a box that is being edited, or an address the parser cannot read: nothing opens
         var link = c.link;
@@ -280,6 +290,13 @@ function peekOf(win, a) {   // the address to show for a link, '' for none
         var w = typeof pageHost === 'function' ? pageHost(win) : null, words = '';
         try { words = w ? String(w.wpPageShelf.linkWords(pg.id, pg.at) || '') : ''; } catch (e) { words = ''; }
         return words ? peekText('Page: ' + words) : 'A page that is not here';
+    }
+    var mnK = typeof mentionLink === 'function' ? mentionLink(c.link) : null;   // 1.6.2 (backlog 166 f): a mention says what it names
+    if (mnK) {
+        if (c.editing !== false || c.held === true) return '';
+        var wm = typeof pageHost === 'function' ? pageHost(win) : null, mw = '';
+        try { mw = wm && typeof wm.wpPageShelf.mentionWords === 'function' ? String(wm.wpPageShelf.mentionWords(mnK.kind, mnK.id, mnK.at) || '') : ''; } catch (e) { mw = ''; }
+        return mw ? peekText(mw) : 'Not in this campaign';
     }
     if (linkVerdict(c) === 'none') return '';
     var url = readUrl(c.link); return url ? peekText(url.href) : '';

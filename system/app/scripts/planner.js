@@ -1637,7 +1637,50 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       window.addEventListener('resize', tsPlace);
   }
   // For the planner's undo (io.js): the selection of a box, and a selection put back where a step noted it
+  // [textcheck:mention-start]
+  // 1.6.2 (backlog 166 f): an @-mention written into a box (mention.js finds the words and the pick). A box that takes links takes one: a planner's
+  // field but a flowchart's label (whose link is the node's), a host's field its host lets hold a link, a text block that has its Link control. The
+  // typed @ and its words become the name and a space, the name linked to the mention's address: in a field by the box's own edit and the Link
+  // box's own press, in a text block by its own link setter. mentionAt: where the caret stands, in the box's own character offsets
+  function mentionCan(el) {
+      if (!el || !el.classList) return false;
+      if (el.classList.contains('rte-body')) return !!rteLinkBox(el);
+      if (!el.classList.contains('ts-box')) return false;
+      var d = tsDesc(el); if (!d || tsIsLabel(d)) return false;
+      if (d.k === 'x') { var hx = tsHostBy(d.h); return !!hx && hx.links(d.key); }
+      return true;
+  }
+  function mentionAt(el) {
+      if (!el || !el.classList) return -1;
+      if (el.classList.contains('rte-body')) { var r = rteSel(el); return r ? r[1] : -1; }
+      var s = tsSelOf(el); return s ? s.e : -1;
+  }
+  function mentionPut(el, from, to, name, href) {
+      href = TF.cleanLink(href); name = String(name == null ? '' : name).replace(/[\r\n]/g, ' ');
+      if (!mentionCan(el) || !href || !TF.mentionLink(href) || !name || !(from >= 0 && to >= from)) return false;
+      if (el.classList.contains('rte-body')) {
+          var xs = rteTexts(el), x = xs.filter(function(t) { return t.a <= from && to <= t.a + t.n.nodeValue.length; })[0]; if (!x) return false;
+          var v = x.n.nodeValue; if (v.slice(from - x.a, to - x.a).charAt(0) !== '@') return false;
+          stepBoundary();
+          x.n.nodeValue = v.slice(0, from - x.a) + name + '\u00a0' + v.slice(to - x.a);
+          rteLinkSet(el, from, from + name.length, href);
+          rteSelect(el, [from + name.length + 1, from + name.length + 1]);
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el._wpNativeDirty = false;   // nodes made behind the browser's own text undo: Ctrl+Z is the planner's history
+          stepBoundary();
+          return true;
+      }
+      var text = typeof el._tsText === 'string' ? el._tsText : '', ins = name + ' ', at = from + ins.length;
+      if (to > text.length || text.charAt(from) !== '@') return false;
+      if (!tsCommit(el, text.slice(0, from) + ins + text.slice(to), at, at, 'insertText', { s: to, e: to }, true)) return false;
+      tsState.box = el; tsSelect(el, from, from + name.length);
+      tsPress({ link: href });
+      tsSelect(el, at, at); tsNote(el);
+      return true;
+  }
+  // [textcheck:mention-end]
   window.wpTextBox = {
+      mentionCan: mentionCan, mentionAt: mentionAt, mention: mentionPut,   // 1.6.2 (backlog 166 f)
       selOf: function(box) { var s = box && box.classList && box.classList.contains('ts-box') ? tsSelOf(box) : null; return s ? { s: s.s, e: s.e } : null; },
       select: function(box, s, e) { return !!box && tsSelect(box, s, e); },
       restore: function(sel) {

@@ -138,7 +138,7 @@ function cleanLink(v) {
     if (typeof v !== 'string') return '';
     v = v.trim();
     if (/[\u0000-\u001f\u007f\s]/.test(v) || v.length > MAX_LINK) return '';
-    return /^https?:\/\/.+/i.test(v) || /^#wp:page:[A-Za-z0-9_-]{1,80}(?::[A-Za-z0-9_-]{1,64})?$/.test(v) ? v : '';
+    return /^https?:\/\/.+/i.test(v) || /^#wp:(?:page|@:(?:page|map|char)):[A-Za-z0-9_-]{1,80}(?::[A-Za-z0-9_-]{1,64})?$/.test(v) ? v : '';
 }
 // [textcheck:linkrule-end]
 // 1.5.6: a link to a page of the campaign, or to a section of it, is the one address that is no web address: #wp:page:<page's id>, or
@@ -146,6 +146,14 @@ function cleanLink(v) {
 function pageLink(v) {
     var m = typeof v === 'string' ? /^#wp:page:([A-Za-z0-9_-]{1,80})(?::([A-Za-z0-9_-]{1,64}))?$/.exec(v.trim()) : null;
     return m ? { id: m[1], at: m[2] || '' } : null;
+}
+// 1.6.2 (backlog 166 f; the owner, by prompt: pages, maps, characters and a map's rooms, a chip that follows the new name, a press that opens it):
+// a mention, the one address of its own form, #wp:@:<kind>:<id> or #wp:@:<kind>:<id>:<at>, kind page (at a section), map (at a room) or char.
+// It leads nowhere outside the app, so it is never asked about (linkgate.js), and a read view draws it in the thing's current name
+// (pageshelf.js mentionPaint). { kind, id, at } or null
+function mentionLink(v) {
+    var m = typeof v === 'string' ? /^#wp:@:(page|map|char):([A-Za-z0-9_-]{1,80})(?::([A-Za-z0-9_-]{1,64}))?$/.exec(v.trim()) : null;
+    return m ? { kind: m[1], id: m[2], at: m[1] === 'char' ? '' : (m[3] || '') } : null;
 }
 // What a typed address becomes — the ONE reading, for every box an address is typed into (the Link box of the bar on a planner field's
 // box, and of a text block's own bar). Trimmed. An address typed without its scheme ("example.com/page") is taken as the secure web
@@ -446,4 +454,4 @@ function stateAt(fmt, text, s, e) {
 
 var API = { VERSION: VERSION, MAX_SPANS: MAX_SPANS, MAX_RAW: MAX_RAW, MAX_LINK: MAX_LINK, SIZES: SIZES.slice(), SIZE_EM: SIZE_EM, SIZE_NAMES: SIZE_NAMES, PALETTE: PALETTE, FONTS: FONTS, MAX_FONT: MAX_FONT, fontKnown: fontKnown, cleanFont: cleanFont, fontCss: fontCss, cleanFmt: cleanFmt, cleanLink: cleanLink, pageLink: pageLink, typedLink: typedLink, linkParts: linkParts, MAX_TEXT_LINKS: MAX_TEXT_LINKS, runsOf: runsOf, respan: respan, apply: apply, clear: clear, stateAt: stateAt };
 if (typeof window !== 'undefined') window.wpTextFmt = API;
-export { VERSION, MAX_SPANS, MAX_RAW, MAX_LINK, MAX_TEXT_LINKS, SIZES, SIZE_EM, SIZE_NAMES, PALETTE, FONTS, MAX_FONT, fontKnown, cleanFont, fontCss, cleanFmt, cleanLink, pageLink, typedLink, linkParts, runsOf, respan, apply, clear, stateAt };
+export { VERSION, MAX_SPANS, MAX_RAW, MAX_LINK, MAX_TEXT_LINKS, SIZES, SIZE_EM, SIZE_NAMES, PALETTE, FONTS, MAX_FONT, fontKnown, cleanFont, fontCss, cleanFmt, cleanLink, pageLink, mentionLink, typedLink, linkParts, runsOf, respan, apply, clear, stateAt };

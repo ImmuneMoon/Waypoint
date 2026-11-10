@@ -70,7 +70,7 @@ const W = new Function(waySrc + '\nreturn { way: pageWay, pageOf: pageOf };')();
         && /\nfunction pageOpened\(id\) \{ recentNote\(id\); panelSync\(\); \}\n/.test(ps) && /\n    var camp = getActiveCampaign\(\); if \(camp && pageOf\(camp, camp\.activeItemId\)\) recentNote\(camp\.activeItemId\);\n    if \(shelfIsOpen\(\) && viewNow\(\) !== 'play'\) shelfClose\(\);/.test(ps)
         && /\nfunction shelfClose\(\) \{ var m = shelfMenu\(\); if \(m && m\.classList\.contains\('show'\)\) \{ m\.classList\.remove\('show'\); m\.textContent = ''; \} \}/.test(ps)
         && /\n    shelfDraw\(menu, shelfModel\(camp, map && map\.type === 'map' \? map\.id : '', camp && typeof camp\.id === 'string' \? recentRead\(camp\) : \[\]\)\);\n/.test(ps)
-        && !/innerHTML|insertAdjacentHTML|window\.open\(|eval\(|new Function/.test(ps) && J(ps.match(/^import [^\n]*$/gm)) === J(["import { state } from './state.js';", "import { getActiveCampaign, getActiveMap } from './models.js';", "import { save, toast } from './io.js';", "import { updateSidebarNav } from './sidebar.js';"]), J(ps.match(/^import [^\n]*$/gm)));
+        && !/innerHTML|insertAdjacentHTML|window\.open\(|eval\(|new Function/.test(ps) && J(ps.match(/^import [^\n]*$/gm)) === J(["import { state } from './state.js';", "import { getActiveCampaign, getActiveMap } from './models.js';", "import { save, toast } from './io.js';", "import { updateSidebarNav, navigateToMap } from './sidebar.js';"]), J(ps.match(/^import [^\n]*$/gm)));
 }
 
 /* ---------- opening it at a place (1.5.4, PLANNER_ORG_DESIGN 4.1; the owner, 2026-10-16: "Landing now, rest after Sunday") ---------- */
@@ -1583,6 +1583,36 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && keysP.includes('<li>The &times; beside a key takes it off. <b>Restore default keys</b> gives every command the key it came with.</li>') && keysP.includes('<li>Your keys are kept on this computer. A key never works while you type in a box, or while a window or a question is up.</li>')
         && start.includes('<li>You can give it another key in Settings, under Keys.</li>')
         && wn.every(t => count(t, "- Keys of your own: Settings has a Keys group, with a row for each tool\n  and command. Press a key box, then the key you want. A key another\n  command or the app already uses is refused, and you are told what\n  has it.\n") === 1 && count(t, "- The tools come with keys: S Select, H Pan, P Pen, E Eraser, M Ruler\n  and R Radius. A key takes the tool, and a second press puts it away.\n  No key works while you type in a box.\n") === 1));
+}
+
+/* ---------- 1.6.2 (backlog 166 f): @-mentions ---------- */
+{
+    const toasts = [], went = [], sheets = [], camp = { id: 'k', items: { p1: { id: 'p1', type: 'planner', meta: { title: 'Act one' }, blocks: [] }, d1: { id: 'd1', type: 'doc', meta: { title: 'Rules' }, blocks: [] }, m1: { id: 'm1', type: 'map', meta: { title: 'Hill Road' }, rooms: [{ id: 'r1', name: 'The ford' }, { id: 'bad id', name: 'X' }] } }, chars: { c1: { id: 'c1', name: 'Bren' }, c2: { id: 'c2', name: 'Grukk', npc: true } } };
+    const win = { wpNet: null, wpSheets: { openSheet: id => sheets.push(id) } };
+    const MS = new Function('getActiveCampaign', 'toast', 'navigateToMap', 'window', 'linkGo', waySrc + '\n' + shelfSrc + '\nvar LINK_ID = /^[A-Za-z0-9_-]{1,80}$/;\n' + sliceOf(ps, 'mention') + '\nreturn { mentionName, mentionWords, mentionGo, mentionPaint };')(() => camp, t => toasts.push(t), (id, at) => { went.push([id, at]); return true; }, win, (id, at, way) => { went.push(['page', id, at]); return 'panel'; });
+    check('166 f a mention names what it names now (mentionName, mentionWords, run for real): a page by its title; a map by its title and a room it still has; a character by its name; what is not here, or an id that is no plain id, nothing',
+        MS.mentionName(camp, 'page', 'p1', '') === 'Act one' && MS.mentionName(camp, 'map', 'm1', 'r1') === 'Hill Road \u203a The ford' && MS.mentionName(camp, 'map', 'm1', 'gone') === 'Hill Road' && MS.mentionName(camp, 'char', 'c1', '') === 'Bren'
+        && MS.mentionName(camp, 'char', 'c9', '') === '' && MS.mentionName(camp, 'map', 'p1', '') === '' && MS.mentionName(camp, 'page', 'a b', '') === '' && MS.mentionName(camp, 'page', '__proto__', '') === '' && MS.mentionWords('char', 'c2', '') === 'Character: Grukk' && MS.mentionWords('map', 'm9', '') === '');
+    MS.mentionGo('map', 'm1', 'r1'); MS.mentionGo('char', 'c1', ''); MS.mentionGo('page', 'd1', ''); MS.mentionGo('char', 'c9', ''); win.wpNet = { active: true, role: 'client' }; MS.mentionGo('map', 'm1', '');
+    check('166 f a press opens what a mention names (mentionGo, run for real): a map gone to at its room, a sheet opened, a page as a page link opens; one not here said; a player is told only the GM moves them between maps',
+        J(went) === J([['m1', 'r1'], ['page', 'd1', '']]) && J(sheets) === J(['c1']) && J(toasts) === J(['That character is not in this campaign.', 'Only the GM moves you to another map.']), J([went, sheets, toasts]));
+    win.wpNet = null;
+    const mk = (href, text, editing) => ({ text: text, cls: new Set(), at: {}, getAttribute: k => (k === 'href' ? href : null), setAttribute(k, v) { this.at[k] = v; }, closest: q => (editing ? {} : null), classList: { add(...c) { c.forEach(x => this._s.add(x)); }, toggle(c, on) { if (on) this._s.add(c); else this._s.delete(c); }, _s: null }, get textContent() { return this.text; }, set textContent(v) { this.text = v; } });
+    const As = [mk('#wp:@:map:m1:r1', 'old name'), mk('#wp:@:char:c9', 'Old friend'), mk('#wp:@:page:p1', 'typed'), mk('#wp:@:page:p1', 'in a box', true), mk('#wp:@:bogus:x', 'odd')]; As.forEach(a => { a.classList._s = a.cls; });
+    const nP = MS.mentionPaint({ querySelectorAll: q => (q === 'a[href^="#wp:@:"]' ? As : []) });
+    check('166 f a read view draws each mention as a chip in its current name (mentionPaint, run for real): renamed things follow, one not here keeps its words marked gone, a box being edited is left alone, an address that is no mention left alone',
+        nP === 3 && As[0].text === 'Hill Road \u203a The ford' && As[0].cls.has('wp-mention') && !As[0].cls.has('wp-mention-gone') && As[0].at['data-kind'] === 'map' && As[1].text === 'Old friend' && As[1].cls.has('wp-mention-gone') && As[2].text === 'Act one' && As[3].text === 'in a box' && As[3].cls.size === 0 && As[4].cls.size === 0, J(As.map(a => [a.text, [...a.cls]])));
+    // the picker's own half, mention.js sliced by its markers and run for real
+    const mj = read('scripts/mention.js'), PK = new Function(sliceOf(mj, 'mentionpick') + '\nreturn { mentionAll, mentionFind, mentionQuery };')();
+    const allM = PK.mentionAll(camp), hiF = PK.mentionFind(camp, 'Hi').map(x => x.label), frd = PK.mentionFind(camp, 'ford').map(x => x.href);
+    check('166 f the list a typed @ opens (mentionAll, mentionFind, mentionQuery, run for real): pages and planners, maps and their named rooms, characters and NPCs, each with its mention\u2019s address; a name that begins with the words first, then one with a word that does; the words after an @ at a word\u2019s start only',
+        J(allM.map(x => [x.word, x.label, x.href])) === J([['Planner', 'Act one', '#wp:@:page:p1'], ['Page', 'Rules', '#wp:@:page:d1'], ['Map', 'Hill Road', '#wp:@:map:m1'], ['Room', 'Hill Road \u203a The ford', '#wp:@:map:m1:r1'], ['Character', 'Bren', '#wp:@:char:c1'], ['NPC', 'Grukk', '#wp:@:char:c2']])
+        && J(hiF) === J(['Hill Road', 'Hill Road \u203a The ford']) && J(frd) === J(['#wp:@:map:m1:r1']) && PK.mentionFind(camp, '').length === 6 && PK.mentionFind(null, 'x').length === 0
+        && PK.mentionQuery('See @Hil') === 'Hil' && PK.mentionQuery('@') === '' && PK.mentionQuery('(@Br') === 'Br' && PK.mentionQuery('mail@host') === null && PK.mentionQuery('@a b') === null && PK.mentionQuery('') === null, J([allM, hiF, frd]));
+    const plM = read('scripts/planner.js'), lgM = read('scripts/linkgate.js'), escM = read('scripts/esckey.js');
+    check('166 f wired (pinned): the editors write a mention (mentionCan, mentionAt, mention published on wpTextBox), a press goes through the link gate with no question, every read view paints its mentions before its folds, the list is heard first by Escape\u2019s own-menu rule, the module loaded after the shelf; Help says it',
+        plM.includes('mentionCan: mentionCan, mentionAt: mentionAt, mention: mentionPut,') && lgM.includes("if (mn) { if (c.editing === false && c.held !== true) mentionGo(win, mn, e.type === 'auxclick' ? 'window' : '', e, a); return; }") && read('scripts/pagenav.js').includes("window.wpPageShelf.mentionPaint(root); } catch (e) {} }")
+        && escM.includes('#mentionMenu:not([hidden])') && ix.includes('<script type="module" src="scripts/pageshelf.js"></script>\n<script type="module" src="scripts/mention.js"></script>') && ix.includes('<b>@-mentions.</b>'));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

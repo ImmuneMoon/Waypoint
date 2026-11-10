@@ -142,8 +142,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('cleanLink is the page sanitiser\'s rule (one corpus, ' + corpus.length + ' addresses — schemes in every case, white space and control characters anywhere, entities, quotes, over-long ones): for every one, the core and the sanitiser\'s <a href> agree on whether it is a link (' + kept + ' are, ' + refused + ' are not) and on the address kept',
             !bad && kept > 300 && refused > 1500, bad || { kept, refused });
         check('cleanLink (the two statements of the rule, pinned): the sanitiser\'s safeHref and the core\'s cleanLink test the same two patterns and the same length — a change to one must be made to the other',
-            drSrc.indexOf('if (/[\\u0000-\\u001f\\u007f\\s]/.test(v) || v.length > 2000) return null;') > 0 && drSrc.indexOf('return /^https?:\\/\\/.+/i.test(v) || /^#wp:page:[A-Za-z0-9_-]{1,80}(?::[A-Za-z0-9_-]{1,64})?$/.test(v) ? v : null;') > 0 && /v = decodeEntities\(v\)\.trim\(\);/.test(drSrc)
-            && tfRule.indexOf('if (/[\\u0000-\\u001f\\u007f\\s]/.test(v) || v.length > MAX_LINK) return \'\';') > 0 && tfRule.indexOf('return /^https?:\\/\\/.+/i.test(v) || /^#wp:page:[A-Za-z0-9_-]{1,80}(?::[A-Za-z0-9_-]{1,64})?$/.test(v) ? v : \'\';') > 0 && tfRule.indexOf('v = v.trim();') > 0 && /var MAX_LINK = 2000;/.test(read('textfmt.js')));
+            drSrc.indexOf('if (/[\\u0000-\\u001f\\u007f\\s]/.test(v) || v.length > 2000) return null;') > 0 && drSrc.indexOf('return /^https?:\\/\\/.+/i.test(v) || /^#wp:(?:page|@:(?:page|map|char)):[A-Za-z0-9_-]{1,80}(?::[A-Za-z0-9_-]{1,64})?$/.test(v) ? v : null;') > 0 && /v = decodeEntities\(v\)\.trim\(\);/.test(drSrc)
+            && tfRule.indexOf('if (/[\\u0000-\\u001f\\u007f\\s]/.test(v) || v.length > MAX_LINK) return \'\';') > 0 && tfRule.indexOf('return /^https?:\\/\\/.+/i.test(v) || /^#wp:(?:page|@:(?:page|map|char)):[A-Za-z0-9_-]{1,80}(?::[A-Za-z0-9_-]{1,64})?$/.test(v) ? v : \'\';') > 0 && tfRule.indexOf('v = v.trim();') > 0 && /var MAX_LINK = 2000;/.test(read('textfmt.js')));
     }
     check('cleanFmt: a link that is not allowed is dropped and the text keeps the rest of its look — on the base and on a span; an over-long one too; a kept one is stored trimmed',
         LINK_NO.concat(['https://' + 'a'.repeat(1993)]).every(v => J(cleanFmt({ b: true, link: v, spans: [{ s: 0, e: 2, color: RED, link: v }] }, 'text')) === J({ b: true, spans: [{ s: 0, e: 2, color: RED }] }) && cleanFmt({ link: v, spans: [{ s: 0, e: 2, link: v }] }, 'text') === undefined)
@@ -3025,6 +3025,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && pl.includes("return w ? 'page ' + w : 'a page that is not here';") && /\.pagelinks \{ position: fixed;/.test(rd('system/app/style.css')));
     }
 
+    {   /* 1.6.2 (backlog 166 f): a mention is a link of its own form */
+        const TFm = await import(modUrl('textfmt.js'));
+        const ok = ['#wp:@:page:p1', '#wp:@:page:p1:b_2', '#wp:@:map:m_1:r1', '#wp:@:char:c1'], bad = ['#wp:@:char:c1:x2', '#wp:@:sheet:c1', '#wp:@:page:', '#wp:@:page:a b', '#wp:@page:p1', 'javascript:x', '#wp:@:map:' + 'x'.repeat(81)];
+        check('166 f mentionLink: #wp:@: and a page (at a section), a map (at a room) or a character, by a plain id; cleanLink keeps exactly those beside the web and page links, and a character takes no part',
+            J(ok.map(TFm.mentionLink)) === J([{ kind: 'page', id: 'p1', at: '' }, { kind: 'page', id: 'p1', at: 'b_2' }, { kind: 'map', id: 'm_1', at: 'r1' }, { kind: 'char', id: 'c1', at: '' }]) && ok.every(v => TFm.cleanLink(v) === v)
+            && TFm.mentionLink('#wp:@:char:c1:x2').at === '' && bad.slice(1).every(v => TFm.mentionLink(v) === null) && ['#wp:@:sheet:c1', '#wp:@page:p1', 'javascript:x'].every(v => TFm.cleanLink(v) === '') && TFm.mentionLink(null) === null);
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

@@ -18,7 +18,7 @@
 import { state } from './state.js';
 import { getActiveCampaign, getActiveMap } from './models.js';
 import { save, toast } from './io.js';
-import { updateSidebarNav } from './sidebar.js';
+import { updateSidebarNav, navigateToMap } from './sidebar.js';
 
 // [shelfcheck:way-start]
 // Where a page opens: 'panel' (over the map), 'window' (a window of its own) or 'go' (the page itself, where it is edited).
@@ -298,6 +298,46 @@ function linkWords(camp, id, at) {
     var t = pageTitle(it), s = at ? linkSecs(it).filter(function(x) { return x.at === at; })[0] : null;
     return s ? t + ' \u203a ' + s.title : t;
 }
+// [shelfcheck:mention-start]
+// 1.6.2 (backlog 166 f): a mention's name now, '' for one that is not here: a page by its title, a map by its title and the room it names where it
+// still has it, a character by its name. A read view draws a mention in it (mentionPaint); a press opens it (mentionGo)
+function mentionName(camp, kind, id, at) {
+    if (!camp || typeof id !== 'string' || !LINK_ID.test(id)) return '';
+    if (kind === 'page') { var pg = pageOf(camp, id); return pg ? pageTitle(pg) : ''; }
+    if (kind === 'map') {
+        var mp = camp.items && Object.prototype.hasOwnProperty.call(camp.items, id) ? camp.items[id] : null; if (!mp || mp.type !== 'map') return '';
+        var t = shelfText(mp.meta && mp.meta.title, 80) || 'A map', rm = at && Array.isArray(mp.rooms) ? mp.rooms.filter(function(r) { return r && r.id === at; })[0] : null;
+        return rm && shelfText(rm.name, 80) ? t + ' › ' + shelfText(rm.name, 80) : t;
+    }
+    if (kind === 'char') { var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, id) ? camp.chars[id] : null; return ch ? shelfText(ch.name, 80) || 'A character' : ''; }
+    return '';
+}
+function mentionWords(kind, id, at) { var n = mentionName(getActiveCampaign(), kind, id, at); return n ? (kind === 'page' ? 'Page: ' : kind === 'map' ? 'Map: ' : 'Character: ') + n : ''; }
+var MENTION_GONE = { map: 'That map is not in this campaign.', char: 'That character is not in this campaign.' };
+function mentionGo(kind, id, at) {
+    var camp = getActiveCampaign();
+    if (kind === 'page') return linkGo(id, at, '');
+    if (!mentionName(camp, kind, id, at)) { toast(MENTION_GONE[kind] || 'That is not in this campaign.'); return false; }
+    if (kind === 'map') { var n = window.wpNet; if (n && n.active && n.role === 'client') { toast('Only the GM moves you to another map.'); return false; } return navigateToMap(id, at || null) !== false; }
+    if (kind === 'char') { if (window.wpSheets && typeof window.wpSheets.openSheet === 'function') { window.wpSheets.openSheet(id); return true; } return false; }
+    return false;
+}
+// Every mention in a read view drawn in the current name of what it names, as a chip; one that is not here keeps its words, struck. A box being
+// edited is never touched, since its words are the field's own
+function mentionPaint(root) {
+    if (!root || typeof root.querySelectorAll !== 'function') return 0;
+    var camp = getActiveCampaign(), n = 0;
+    Array.prototype.forEach.call(root.querySelectorAll('a[href^="#wp:@:"]'), function(a) {
+        if (a.closest && a.closest('[contenteditable="true"], [contenteditable="plaintext-only"], .ts-box')) return;
+        var m = /^#wp:@:(page|map|char):([A-Za-z0-9_-]{1,80})(?::([A-Za-z0-9_-]{1,64}))?$/.exec(String(a.getAttribute('href') || '')); if (!m) return;
+        var nm = mentionName(camp, m[1], m[2], m[1] === 'char' ? '' : (m[3] || ''));
+        a.classList.add('wp-mention'); a.classList.toggle('wp-mention-gone', !nm); a.setAttribute('data-kind', m[1]);
+        if (nm && a.textContent !== nm) a.textContent = nm;
+        n++;
+    });
+    return n;
+}
+// [shelfcheck:mention-end]
 // A press on a page link: opened by openPage's own ways, at its section where it names one; a page that is not here is said
 function linkGo(id, at, way) {
     var camp = getActiveCampaign(), n = window.wpNet, gone = n && n.foreign ? LINK_HID : LINK_GONE;
@@ -495,3 +535,5 @@ window.wpPageShelf.mapPinAtSet = mapPinAtSet;
 window.wpPageShelf.mapPinPeek = mapPinPeek;
 // 1.6.2, backlog 166 d: what the play map's Next scene row asks, the planner and tonight's scene it opens at
 window.wpPageShelf.nextScene = function() { return nextSceneOf(getActiveCampaign()); };
+// 1.6.2, backlog 166 f: a mention's press, its words and its paint, which linkgate.js and pagenav.js ask
+window.wpPageShelf.mentionGo = mentionGo; window.wpPageShelf.mentionWords = mentionWords; window.wpPageShelf.mentionPaint = mentionPaint;

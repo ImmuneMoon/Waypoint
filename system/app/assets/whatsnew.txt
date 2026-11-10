@@ -899,6 +899,9 @@ System editor
   words, and Read more opens its handbook page.
 - A section can carry a first-use hint, one line under its title. Each
   player hides it with its x, and Settings brings hints back.
+- A system written in metric can use m, cm, kg, km or m/s, and a player set
+  to Imperial sees 5 m (5.5 yd). Where a system counts in feet, heights
+  show in feet.
 
 Fitted parts
 - Holds by kind may read a formula in place of a stat, such as the most any

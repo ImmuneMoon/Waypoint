@@ -274,9 +274,15 @@ function cleanNum(v, dflt) { v = Number(v); return fin(v) ? v : dflt; }
 // measure reads under Metric (unitShow: beside its figure as before, swap for the metric figure in its place, bare for the book's figure with
 // no word under Imperial, as the website shows a Move); a field's decimals and thousands (decMin, decMax, group: Basic Lift 32.0 lbs, a total
 // 1,234.57 lbs); a caption's {formula|unit}; and a list stat's or column's unit, converted as a field's is
-var FIELD_MEASURE = Object.freeze(Object.assign(Object.create(null), { yd: 'yd', yds: 'yd', ft: 'ft', 'in': 'in', lb: 'lb', lbs: 'lb', mi: 'mi', 'yd/s': 'yd/s' }));
+var FIELD_MEASURE = Object.freeze(Object.assign(Object.create(null), { yd: 'yd', yds: 'yd', ft: 'ft', 'in': 'in', lb: 'lb', lbs: 'lb', mi: 'mi', 'yd/s': 'yd/s', m: 'm', cm: 'cm', kg: 'kg', km: 'km', 'm/s': 'm/s' }));   // 1.6.2 (backlog 164 (f)): a metric book's own measures too
 // A measure in metric: what one of it is, and the metric word (the exact international definitions, as the website's display-units.ts)
-var MEASURES = Object.freeze(Object.assign(Object.create(null), { yd: Object.freeze({ per: 0.9144, word: 'm' }), ft: Object.freeze({ per: 0.3048, word: 'm' }), 'in': Object.freeze({ per: 2.54, word: 'cm' }), lb: Object.freeze({ per: 0.45359237, word: 'kg' }), mi: Object.freeze({ per: 1.609344, word: 'km' }), 'yd/s': Object.freeze({ per: 0.9144, word: 'm/s' }) }));
+var MEASURES = Object.freeze(Object.assign(Object.create(null), { yd: Object.freeze({ per: 0.9144, word: 'm' }), ft: Object.freeze({ per: 0.3048, word: 'm' }), 'in': Object.freeze({ per: 2.54, word: 'cm' }), lb: Object.freeze({ per: 0.45359237, word: 'kg' }), mi: Object.freeze({ per: 1.609344, word: 'km' }), 'yd/s': Object.freeze({ per: 0.9144, word: 'm/s' }),
+    // 1.6.2 (backlog 164 (f); the owner, by prompt: "Both ways"): a metric book's measures, turned the other way, into Imperial, under the
+    // viewer's Imperial setting (imp: true). A metre is read as yards, as the ruler reads a distance; a centimetre as inches
+    m: Object.freeze({ per: 1 / 0.9144, word: 'yd', imp: true }), cm: Object.freeze({ per: 1 / 2.54, word: 'in', imp: true }), kg: Object.freeze({ per: 1 / 0.45359237, word: 'lb', imp: true }), km: Object.freeze({ per: 1 / 1.609344, word: 'mi', imp: true }), 'm/s': Object.freeze({ per: 1 / 0.9144, word: 'yd/s', imp: true }) }));
+// Whether a measure is turned for the viewer: a book's imperial measure under Metric (metric only as true), a book's metric one under Imperial
+// (metric only as false, so a caller that names no setting, as a teammate's hover lines, keeps the book's own figure). The one judge
+function measureTurns(m, metric) { var x = typeof m === 'string' && Object.prototype.hasOwnProperty.call(MEASURES, m) ? MEASURES[m] : null; return !!x && (x.imp === true ? metric === false : metric === true); }
 var MEASURE_KINDS = Object.freeze(Object.assign(Object.create(null), { number: 1, formula: 1, skill: 1, resource: 1 }));
 // A field's display unit, by its unit's words and its kind: yd, ft, in, lb, mi or yd/s for a number, a formula, a skill or a pool; height or
 // weight for a text field; '' for anything else (a unit such as pts is shown as it is, in both settings)
@@ -377,8 +383,8 @@ function metricOf(unit, value, shown) { var n = metricNum(unit, value, shown); r
 // " (6.4 m)"; a pool's two figures as one, " (4.6/9.1 m)"; else ''. value / shown: the figure drawn before the unit and its text. The words
 // after a box the viewer types in: a box holds the book's figure, so this is its one form whatever the field's unitShow says
 function unitTail(f, value, shown, metric, max, shownMax) {
-    if (metric !== true || !isObj(f)) return '';
-    var u = cleanFieldUnit(f.unit, f.kind); if (!u || u === 'height' || u === 'weight') return '';
+    if (!isObj(f)) return '';
+    var u = cleanFieldUnit(f.unit, f.kind); if (!u || u === 'height' || u === 'weight' || !measureTurns(u, metric)) return '';
     if (f.kind === 'resource') { var a = metricNum(u, value, shown), b = metricNum(u, max, shownMax); return a && b ? ' (' + a + '/' + b + ' ' + MEASURES[u].word + ')' : ''; }
     var t = metricOf(u, value, shown); return t ? ' (' + t + ')' : '';
 }
@@ -393,7 +399,7 @@ function measureWords(unit, how, kind, value, shown, metric, fmt) {
     if (!u) return t;
     if (!m || m === 'height' || m === 'weight') return t + ' ' + u;
     var hw = how === 'swap' || how === 'bare' ? how : '';
-    if (metric !== true) return hw === 'bare' ? t : t + ' ' + u;
+    if (!measureTurns(m, metric)) return hw === 'bare' ? t : t + ' ' + u;
     var n = metricNum(m, value, shown, fmt);
     if (!n) return hw === 'bare' ? t : t + ' ' + u;
     return hw ? n + ' ' + MEASURES[m].word : t + ' ' + u + ' (' + n + ' ' + MEASURES[m].word + ')';
@@ -421,7 +427,7 @@ function listWords(x, value, shown, metric, asShown) {
 // editor reads a unit by this alone, so what it says Save does is what Save does
 function unitOf(v, col) { return col === true ? cutText(v, LIMITS.unit) : cutPoints(v, LIMITS.unit, ' '); }
 // The unit a column's head names: its words as written, or the metric word where the figures under it read in metric (swap and bare)
-function unitHead(unit, how, metric) { var m = typeof unit === 'string' ? cleanFieldUnit(unit, 'number') : ''; return metric === true && m && (how === 'swap' || how === 'bare') ? MEASURES[m].word : (typeof unit === 'string' ? unit : ''); }
+function unitHead(unit, how, metric) { var m = typeof unit === 'string' ? cleanFieldUnit(unit, 'number') : ''; return m && measureTurns(m, metric) && (how === 'swap' || how === 'bare') ? MEASURES[m].word : (typeof unit === 'string' ? unit : ''); }
 // A height or a weight written as text, read in ONE place as the website reads one (lib/display-units.ts readHeightText and readWeightText):
 // the sheet's display of a height (heightWords) and an outside sheet reader (readerKit) both ask readMeasure. A half is folded
 // (curly quote marks straight, lower case) and read by the forms of its kind: a height's feet from centimetres, metres, inches, or feet with
@@ -11594,7 +11600,7 @@ function capExpr(s) {
 // website writes a limit of its encumbrance table; a signed figure keeps its plus. shown: the figure as the caption writes it
 function capWords(unit, v, shown, signed, metric) {
     var m = cleanFieldUnit(unit, 'number');
-    if (metric === true && m) { var n = metricNum(m, v, String(shown).replace(/^\+/, '')); if (n) return (signed && Number(n) > 0 ? '+' : '') + n + ' ' + MEASURES[m].word; }
+    if (m && measureTurns(m, metric)) { var n = metricNum(m, v, String(shown).replace(/^\+/, '')); if (n) return (signed && Number(n) > 0 ? '+' : '') + n + ' ' + MEASURES[m].word; }
     return shown + ' ' + unit;
 }
 // HUD frame (HF5a, H3): a roll's label may show values like a caption. What players see of a label that names a GM-only value: its plain

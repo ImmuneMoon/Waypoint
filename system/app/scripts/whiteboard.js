@@ -57,9 +57,12 @@ function setTokenPosture(it, v) {   // conditions C3: a posture of the system's 
 // metres — and always kept in yards, as a token's elevation is. Plain text: callers escape it
 var YD_M = 0.9144;
 function metricOn() { return state.measureUnit === 'metric'; }
-function lenUnit() { return metricOn() ? 'm' : 'yd'; }
-function ydOut(yd) { var v = Number(yd); if (!isFinite(v)) v = 0; return metricOn() ? v * YD_M : v; }   // yards, as the viewer reads them
-function ydIn(v) { var n = Number(v); return !isFinite(n) ? NaN : metricOn() ? n / YD_M : n; }   // what the viewer typed, in yards
+// 1.6.2 (backlog 164 (g); the owner, by prompt: "Both ways"): a system whose own distance unit is feet (its Combat tab's unit) shows a height in
+// feet to a viewer set to Imperial; a metre system, and Metric, in metres as before. Still kept in yards
+function ftOn() { if (metricOn()) return false; var s = typeof postureSys === 'function' ? postureSys() : null; return !!(s && s.combat && s.combat.unit === 'ft'); }
+function lenUnit() { return metricOn() ? 'm' : ftOn() ? 'ft' : 'yd'; }
+function ydOut(yd) { var v = Number(yd); if (!isFinite(v)) v = 0; return metricOn() ? v * YD_M : ftOn() ? v * 3 : v; }   // yards, as the viewer reads them
+function ydIn(v) { var n = Number(v); return !isFinite(n) ? NaN : metricOn() ? n / YD_M : ftOn() ? n / 3 : n; }   // what the viewer typed, in yards
 function fmtLen(yd) { return String(Math.round(ydOut(yd) * 10) / 10) + ' ' + lenUnit(); }
 function fmtElev(e) { e = ydOut(e); return (e > 0 ? '+' : e < 0 ? '\u2212' : '') + (Math.round(Math.abs(e) * 10) / 10); }   // signed, in the viewer's unit (the caller adds lenUnit())
 // A height box and its step (the read-only check of 2026-10-17: in Metric a step was one metre, 1.1 yd, so a height of whole yards, which is
@@ -67,8 +70,8 @@ function fmtElev(e) { e = ydOut(e); return (e > 0 ? '+' : e < 0 ? '\u2212' : '')
 // height to a tenth of a yard, or in Metric to the centimetre, so what it shows comes back as the very tenth of a yard it was. A box with
 // arrows of its own steps from the figure it shows, so that figure is its step base too (boxHeight). Numbers and plain text
 function ydBox(yd) { var v = ydOut(yd); return metricOn() ? Math.round(v * 100) / 100 : Math.round(v * 10) / 10; }
-function ydStep() { return metricOn() ? YD_M : 1; }
-function stepWords(d) { return (d < 0 ? 'Down' : 'Up') + ' one yard' + (metricOn() ? ' (0.91 m)' : ''); }
+function ydStep() { return metricOn() ? YD_M : ftOn() ? 3 : 1; }
+function stepWords(d) { return (d < 0 ? 'Down' : 'Up') + ' one yard' + (metricOn() ? ' (0.91 m)' : ftOn() ? ' (3 ft)' : ''); }
 function boxHeight(box, yd) { if (!box) return; var s = String(ydBox(yd)); box.step = String(ydStep()); box.defaultValue = s; box.value = s; }
 // [systemcheck:lenunit-end]
 // [systemcheck:postranged-start]

@@ -882,6 +882,12 @@ System editor
 - A roll or an action can switch every row of a list off or on, such as every
   Crippled location. Run it when hit points cross back up to full, and a
   crippled limb works again by itself, while one lost for good stays.
+- holds(Cultures, Culture) asks whether a list holds a row named by a field's
+  words, so "your culture is on the sheet" is a test, not a tick.
+- A Crew link's station can say how many seats it has, such as one Pilot. A
+  player can't take a seat past it; you can, and you're told.
+- An item's change can be a formula that reads its own row, so a cloak can
+  add 2 to Dodge for each level it has.
 
 Fitted parts
 - Holds by kind may read a formula in place of a stat, such as the most any

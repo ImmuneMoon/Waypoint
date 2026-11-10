@@ -392,6 +392,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /is\(Class \("Star  Pilot"\), "a"\)/.test(ev('is(Class, "a")', { vars: v }).breakdown.text || ''), JSON.stringify([p1.words, p2.words, ev('is(Class, "a")', { vars: v }).breakdown]));
     }
 
+    {   // 1.6.2 (backlog 164 i): holds(List, Field)
+        const asked = [], vars = (n, t) => { asked.push(n); return n === 'culture' ? 'Mandal' : n.indexOf('cultures#h:') === 0 ? n === 'cultures#h:mandal' : n === 'cultures' ? 0 : undefined; }, val = s => { const r = ev(s, { vars }); return r.ok ? r.value : 'ERR ' + r.error.message; };
+        const p = F.parse('holds(Cultures, Culture) and Lvl > 1');
+        check('holds(List, Field) asks the list\'s resolver for <list>#h:<the words>, and a list or words it is handed wrong say how to write it',
+            val('holds(Cultures, Culture)') === true && val('holds(Cultures, "Zabrak")') === false && asked.includes('cultures#h:mandal')
+            && /reads a list first/.test(val('holds(2, Culture)')) && /reads a list, then the words/.test(val('holds(Cultures)')) && /from a field, or words in quotes/.test(val('holds(Cultures, 3)')) && /a list and one set of words/.test(val('holds(Cultures, "a", "b")'))
+            && JSON.stringify(p.lists) === JSON.stringify(['Cultures']) && JSON.stringify(p.words) === JSON.stringify(['Culture']), JSON.stringify([asked, p.lists, p.words]));
+    }
+
     /* ---- group 11b: publication under a window ---- */
     global.window = {};
     const F2 = await import(url + '?x');

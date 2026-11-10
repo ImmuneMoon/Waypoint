@@ -17224,8 +17224,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const own = S.charFor(Object.assign(chV(3, []), { values: { f_mp: { cur: 3 }, f_fx: [{ id: 'x_h', ref: 'e_hid' }] } }), pV, 'u_v', { lib: Object.fromEntries(gV.effects.map(e => [e.id, e])) });
         const adP = S.applyEffectOp(gV, chV(3, []), 'f_fx', { op: 'adhoc', row: { id: 'x_9', name: 'Mine', mods: [{ f: 'f_agi', op: 'add', vf: 'MP' }] } }, F, { player: true, view: pV });
         const adG = S.applyEffectOp(gV, chV(3, []), 'f_fx', { op: 'adhoc', row: { id: 'x_9', name: 'Mine', mods: [{ f: 'f_agi', op: 'add', vf: 'MP' }] } }, F, {});
-        check('CORE gap 12: what Save drops of a change by a formula, in both views alike: one that rolls dice, reads a GM-only value or does not parse (the plain change beside them stays); an item\'s change is never by a formula; a GM-only effect\'s change reaches its player inline with its formula, and reads there as on the GM\'s sheet (MP 3 - 1: Agility 12); a player\'s own ad hoc effect changes by plain numbers (refused), the GM\'s may be by a formula',
-            J(modsOf(gV, 'e_bad')) === J([{ f: 'f_agi', op: 'add', v: 1 }]) && J(modsOf(pV, 'e_bad')) === J([{ f: 'f_agi', op: 'add', v: 1 }]) && J(gV.items[0].mods) === J([{ f: 'f_agi', op: 'add', v: 1 }])
+        check('CORE gap 12: what Save drops of a change by a formula, in both views alike: one that rolls dice, reads a GM-only value or does not parse (the plain change beside them stays); an item\'s change may be by a formula since 1.6.2 (205, moved on purpose); a GM-only effect\'s change reaches its player inline with its formula, and reads there as on the GM\'s sheet (MP 3 - 1: Agility 12); a player\'s own ad hoc effect changes by plain numbers (refused), the GM\'s may be by a formula',
+            J(modsOf(gV, 'e_bad')) === J([{ f: 'f_agi', op: 'add', v: 1 }]) && J(modsOf(pV, 'e_bad')) === J([{ f: 'f_agi', op: 'add', v: 1 }]) && J(gV.items[0].mods) === J([{ f: 'f_agi', op: 'add', v: 0, vf: 'MP' }, { f: 'f_agi', op: 'add', v: 1 }])
             && J(own.values.f_fx[0].mods) === J([{ f: 'f_agi', op: 'add', v: 0, vf: 'MP - 1' }]) && ag(pV, own) === 12 && ag(gV, Object.assign(chV(3, []), { values: { f_mp: { cur: 3 }, f_fx: [{ id: 'x_h', ref: 'e_hid' }] } })) === 12
             && !adP.ok && adP.reason === 'value' && adG.ok && J(adG.value[0].mods) === J([{ f: 'f_agi', op: 'add', v: 0, vf: 'MP' }]),
             J([modsOf(gV, 'e_bad'), gV.items[0].mods, own.values.f_fx, ag(pV, own), adP, adG.value]));
@@ -23162,6 +23162,41 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && J(msgs) === J(['Pick the pool or number this changes.', 'Missing formula'])
             && Array.isArray(hit) && hit.length === 1 && (!none || none.length === 0) && (!down || down.length === 0),
             J([offR, onR.lines, badR, msgs, hit, none, down]));
+    }
+    {   // 1.6.2 (backlog 164 i; the owner, by prompt: "Name or entry key"): holds(List, Field), a list holds a row named by a field's words
+        const J = JSON.stringify, sH = cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_c', key: 'Culture', kind: 'text' }, { id: 'f_l', key: 'Cultures', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'x' }] } },
+            { id: 'f_ok', key: 'Ok', kind: 'formula', formula: 'holds(Cultures, Culture) + holds(Cultures, "zabrak  clans") * 10 + holds(Cultures, "nope") * 100' }, { id: 'f_bad', key: 'Bad', kind: 'formula', formula: 'Cultures + 1' }],
+            items: [{ id: 'i_a', key: 'ZabrakClans', name: 'Zabrak Clans' }, { id: 'i_b', key: 'Mand', name: 'Mandal' }, { id: 'i_c', key: 'Hutt', name: 'Hutt Space' }] }, { F, gmView: true });
+        const ch = (txt, rows) => S.cleanChar({ id: 'c_1', name: 'A', values: { f_c: txt, f_l: rows } }, sH), ok = (txt, rows) => S.makeResolver(sH, ch(txt, rows), F)('Ok');
+        const both = [{ id: 'w_1', defId: 'i_a', qty: 1 }, { id: 'w_2', defId: 'i_b', qty: 1 }], kept = [{ id: 'w_3', defId: 'i_c', qty: 1, hid: 1 }], again = [{ id: 'w_4', defId: 'i_c', qty: 1, ov: { name: 'Mandal' } }];
+        const v = S.validateSystem(sH, F), msgs = v.errors.map(e => e.message);
+        check('164 i holds(List, Field) (the engine, the resolver and the validator run for real): 1 where a row of the list is named by the field\'s words, ignoring case, spaces and marks, or where its entry\'s key reads as them; words in quotes work too; a row kept from its player never counts; a copy held again counts by its own name; an empty text holds nothing; the list named only there is no number the validator refuses, while a list read as a figure still is',
+            ok('mandal', both) === 11 && ok('MAND', both) === 11 && ok('Hutt Space', both) === 10 && ok('Hutt Space', kept) === 0 && ok('mandal', again) === 1 && ok('', both) === 10
+            && msgs.length === 1 && /"Cultures" is a list, not a number/.test(msgs[0]),
+            J([ok('mandal', both), ok('MAND', both), ok('Hutt Space', kept), ok('mandal', again), ok('', both), msgs]));
+    }
+    {   // 1.6.2 (backlog 205; the owner, by prompt: "Player refused, GM told"): a seat limit a station of a Crew link
+        const J = JSON.stringify, sL = cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_x', key: 'X', kind: 'number' }], links: [{ id: 'lk_crew', key: 'Vehicle', label: 'Vehicle', kind: 'crew', edit: 'owner', stations: ['Pilot', 'Gunner'], most: 2, seats: { pilot: 1, Gunner: 2, Cook: 3, Nav: 0 } }] }, { F, gmView: true });
+        const chs = () => ({ c_v: { id: 'c_v', name: 'Ship', ownerId: 'u_b' }, c_a: { id: 'c_a', name: 'A', ownerId: 'u_b', links: { lk_crew: 'c_v' }, stn: { lk_crew: 'Pilot' } }, c_b: { id: 'c_b', name: 'B', ownerId: 'u_b' }, c_o: { id: 'c_o', name: 'Other', ownerId: 'u_b' } });
+        const L = (cs, c, o, to) => S.linkSet(sL, cs, cs[c], 'lk_crew', to || 'c_v', o), cs1 = chs();
+        const pR = L(cs1, 'c_b', { player: true, pid: 'u_b', stn: 'Pilot' }), gR = L(cs1, 'c_b', { stn: 'Pilot' }), gun = L(cs1, 'c_b', { player: true, pid: 'u_b', stn: 'Gunner' }), self = L(cs1, 'c_a', { player: true, pid: 'u_b', stn: 'Pilot' });
+        const two = L(cs1, 'c_b', { player: true, pid: 'u_b', stn: ['Pilot', 'Gunner'] }), other = L(cs1, 'c_b', { player: true, pid: 'u_b', stn: 'Pilot' }, 'c_o'), none = L(cs1, 'c_b', { player: true, pid: 'u_b' });
+        check('205 a seat limit a station (cleanLinks and linkSet run for real): Seats are kept a station as the station is spelled, 1 to 99, for its own stations alone; a player taking a station whose seats are filled on that very vehicle is refused in words that name it, the GM\'s own link goes through and is told, another station or another vehicle is free, a sheet already there is never counted against itself, and a crew member with no station takes no seat',
+            J(sL.links[0].seats) === J({ Pilot: 1, Gunner: 2 }) && !pR.ok && pR.msg === 'Pilot on Ship seats 1 and has someone there.' && gR.ok && gR.seatSays === pR.msg
+            && gun.ok && !gun.seatSays && self.ok && !self.seatSays && !two.ok && other.ok && none.ok,
+            J([sL.links[0].seats, pR, gR, gun, self, two, other, none]));
+    }
+    {   // 1.6.2 (backlog 205; the owner, by prompt: "Character and row"): an item's change sized by a formula, reading the character and its own row
+        const J = JSON.stringify, mk = gm => cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_dg', key: 'Dodge', kind: 'number', def: 5 }, { id: 'f_sec', key: 'Sec', kind: 'number', vis: 'gm', def: 4 }, { id: 'f_l', key: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { lvl: { label: 'Level', min: 0, max: 9 }, stats: [{ key: 'grip' }, { key: 'hid2', vis: 'gm' }] } }],
+            items: [{ id: 'i_a', name: 'Cloak', mods: [{ f: 'f_dg', op: 'add', vf: 'Row.lvl * 2 + Row.grip', lvl: true, v: 9 }], stats: { grip: 1 } }, { id: 'i_c', name: 'Cap', mods: [{ f: 'f_dg', op: 'min', vf: 'Dodge + 1' }] },
+                { id: 'i_b', name: 'Bad', mods: [{ f: 'f_dg', op: 'add', vf: 'Sec' }, { f: 'f_dg', op: 'add', vf: 'Row.hid2' }, { f: 'f_dg', op: 'add', vf: '1d6' }, { f: 'f_dg', op: 'add', vf: 'max(' }, { f: 'f_dg', op: 'add', v: 1 }] }] }, { F, gmView: gm });
+        const G = mk(true), P = mk(false), its = s => J(s.items.map(i => [i.id, i.mods])), ch = rows => S.cleanChar({ id: 'c_1', name: 'A', ownerId: 'u_a', values: { f_l: rows } }, G), dg = (s, c) => S.makeResolver(s, c, F)('Dodge');
+        const c3 = ch([{ id: 'w_1', defId: 'i_a', qty: 1, lvl: 3 }]), c1 = ch([{ id: 'w_1', defId: 'i_a', qty: 1, lvl: 1 }]), cap = ch([{ id: 'w_1', defId: 'i_a', qty: 1, lvl: 3 }, { id: 'w_2', defId: 'i_c', qty: 1 }]);
+        const un = S.unseenMods(S.cleanChar({ id: 'c_1', name: 'A', ownerId: 'u_a', values: { f_l: [{ id: 'w_1', defId: 'i_a', qty: 1, lvl: 3, hid: 1 }] } }, G, { state: 'host' }), P, G, F);
+        check('205 an item\'s change sized by a formula (cleanItemMod, fxIndex, unseenMods and cleanSystem run for real): the formula takes the number\'s place and per level goes beside it; it reads the character and the item\'s own row (a cloak at level 3 with grip 1 adds 7, at level 1 adds 3), with no change applied, so a ceiling of Dodge + 1 reads Dodge before any change; one that reads a GM-only value or a GM-only stat of its row, rolls dice or does not parse goes, in both views alike, the plain change beside them staying; a row kept from its player still gives its owner the figure, worked out on the host as a number',
+            its(G) === its(P) && its(G) === J([['i_a', [{ f: 'f_dg', op: 'add', v: 0, vf: 'Row.lvl * 2 + Row.grip' }]], ['i_c', [{ f: 'f_dg', op: 'min', v: 0, vf: 'Dodge + 1' }]], ['i_b', [{ f: 'f_dg', op: 'add', v: 1 }]]])
+            && dg(G, c3) === 12 && dg(G, c1) === 8 && dg(G, cap) === 6 && J(un) === J([{ f: 'f_dg', op: 'add', v: 7 }]),
+            J([its(G), dg(G, c3), dg(G, c1), dg(G, cap), un]));
     }
     {   // 1.6.2 (backlog 167 D; the owner, by prompt: "Also contains"): a formula tests the words a field holds
         const J = JSON.stringify, sD = cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_c', key: 'Class', kind: 'text' }, { id: 'f_r', key: 'Rank', kind: 'select', options: ['Ace', 'Rookie'] }, { id: 'f_gr', key: 'Grade', kind: 'number', labels: ['Low', 'Mid', 'High'] },

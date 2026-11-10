@@ -325,9 +325,13 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
         check('167 D a test of words is offered what has words and nothing else: a text, a choice and a number with value names, and in a list\'s box its row\'s choices; a box with names of its own offers none; the menu then holds the fields alone, with no number or dice beside them; the validator takes every one',
             J(top) === J(['Class', 'Rank', 'Grade']) && J(row) === J(['Row.Kind', 'Row.Make', 'Class', 'Rank', 'Grade']) && only.length === 0
             && J(mW.map(g => g.head)) === J(['This character']) && bad.length === 0, J([top, row, mW, bad]));
+        const h1 = C.readCond('holds(Cultures, Culture)'), h2 = C.readCond('holds(Cultures, "Zabrak") and Lvl > 1');
+        check('164 i the form reads holds() as a test of words, a field or words in quotes naming a row of a list, writes it back and says it',
+            J(h1.cond.tests[0]) === J({ words: { how: 'holds', lst: 'Cultures', name: 'Culture', list: [] } }) && C.writeCond(h1.cond) === 'holds(Cultures, Culture)' && C.saysCond(h1.cond, {}) === 'Culture names a row of Cultures'
+            && C.writeCond(h2.cond) === 'holds(Cultures, "Zabrak") and Lvl > 1' && /^\u201cZabrak\u201d names a row of Cultures/.test(C.saysCond(h2.cond, {})), J([h1, h2]));
         const fbs = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'formbox.js'), 'utf8'), css = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8');
         check('167 D the form\'s row for it: a field picked by name, is one of or contains, and the words in a box styled as the form\'s own; + Compare words stands under the tests only where something has words',
-            fbs.includes("var WORDS_HOW = [['is', 'is one of'], ['contains', 'contains']];") && fbs.includes("if (t.words) wordsTestInto(row, t.words, pi);") && fbs.includes("'+ Compare words'") && /\.fb-wordlist \{[^}]*background: var\(--panel\)/.test(css));
+            fbs.includes("var WORDS_HOW = [['is', 'is one of'], ['contains', 'contains'], ['holds', 'names a row of']];") && fbs.includes("if (t.words) wordsTestInto(row, t.words, pi);") && fbs.includes("'+ Compare words'") && /\.fb-wordlist \{[^}]*background: var\(--panel\)/.test(css));
     }
 
     summed = true;

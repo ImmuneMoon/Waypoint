@@ -6225,6 +6225,7 @@ function setLink(cid, linkId, to, stn) {   // stn (1.6.0, CORE gap 16): a statio
     if (!res.ok) { lg('refused', { reason: res.reason }); toast(res.msg || 'That link is not allowed.'); renderViews(cid); return; }
     if (res.links) c.links = res.links; else delete c.links;
     if (res.stn) c.stn = res.stn; else delete c.stn;   // 1.6.0 (CORE gap 16)
+    if (res.seatSays) { toast(res.seatSays + ' Your own link goes through all the same.'); lg('seats', { over: 1 }); }   // 1.6.2 (205): past a station's seats, the GM's own hand goes through and is told
     lg('done', { on: to ? 1 : 0 });
     afterCharChange(c, true);
     [was, to].forEach(function(id) { if (id && id !== cid) renderViews(id); });   // the linked sheets' Rider and Crew rows
@@ -7843,6 +7844,7 @@ function formCtx(inp) {
     if (cl && cl.contains('sys-list-layrif')) { var lyR0 = fieldOf(inp.dataset ? inp.dataset.rl : ''); return { list: lyR0 && lyR0.list ? lyR0.list : undefined, subject: 'A row of ' + (lyR0 && lyR0.label ? lyR0.label : 'the list it lays from') }; }   // 1.6.2: a rule's own Only where, the same rows
     if (cl && cl.contains('sys-list-layif')) { var lyF0 = fieldOf(inp.dataset ? inp.dataset.rl : ''); return { list: lyF0 && lyF0.list ? lyF0.list : undefined, subject: 'A row of ' + (lyF0 && lyF0.label ? lyF0.label : 'the list it lays from') }; }   // 1.6.2 Laid from's Only where: the rows of the list it lays from
     if (cl && (cl.contains('sys-rnd-test') || cl.contains('sys-rnd-next'))) { var rlF = fieldOf(inp.dataset ? inp.dataset.rl : ''); return { list: rlF && rlF.list ? rlF.list : undefined, subject: 'A row picked at random' }; }   // 1.6.2 (fold (f))
+    if (cl && cl.contains('sys-item-mamtf')) { var irw = inp.closest ? inp.closest('.sys-row') : null, iid = irw && irw.dataset ? (irw.dataset.iid || irw.dataset.id || '') : '', itF = (Array.isArray(draft.items) ? draft.items : []).filter(function(x) { return x && x.id === iid; })[0], cat = itF && typeof itF.category === 'string' ? itF.category.toLowerCase() : ''; var ilF = (Array.isArray(draft.fields) ? draft.fields : []).filter(function(x) { return x && x.kind === 'item-list' && x.list && (!Array.isArray(x.list.cats) || !x.list.cats.length || x.list.cats.some(function(k) { return String(k).toLowerCase() === cat; })); })[0]; return { list: ilF ? ilF.list : undefined, subject: itF ? itF.name || '' : '' }; }   // 1.6.2 (205): an item's change by a formula reads its row, on the list its category stands on
     if (dmg) return { blow: true, more: more || undefined, list: formRowList(inp) };
     if (more) return { more: more };
     var rw = inp && inp.closest ? inp.closest('.sys-row') : null, id = rw && rw.dataset ? rw.dataset.id : '', r = null, cs = inp && inp.classList;
@@ -7883,7 +7885,7 @@ function formTrial(d, ctx) {
 function formSource(inp) {
     var cF = draft ? null : getActiveCampaign(), d = draft || (cF ? systemOf(cF) : null); if (!d) return null;
     var ctx = inp && /^libF_/.test(inp.id || '') ? {} : formCtx(inp);
-    return { subject: ctx.subject || '', trial: formTrial(d, ctx), get groups() { return readsOf(d, ctx); }, get wgroups() { return readsOf(d, Object.assign({}, ctx, { words: true })); }, word: function(s) { return nameWord(d, s, ctx.list); } };   // wgroups (167 D): what a test of words may read
+    return { subject: ctx.subject || '', trial: formTrial(d, ctx), get groups() { return readsOf(d, ctx); }, get wgroups() { return readsOf(d, Object.assign({}, ctx, { words: true })); }, get wlists() { return Array.isArray(ctx.only) ? [] : (d.fields || []).filter(function(f) { return f && f.kind === 'item-list' && typeof f.key === 'string' && f.key && f.key.indexOf('.') < 0; }).map(function(f) { return [f.key, f.label || f.key]; }); }, word: function(s) { return nameWord(d, s, ctx.list); } };   // wgroups (167 D): what a test of words may read
 }
 // [formcheck:source-end]
 var _formOn = false;
@@ -9109,6 +9111,23 @@ function refreshErrors() {
             if (mv) errorsById[d.id] = (errorsById[d.id] || []).concat([mv]);
         });
     });
+    // 1.6.2 (205): what Save drops of an item's change by a formula, under the item's row, as the cleaner reads it (its row's own names by the GM-only stats)
+    (draft.items || []).forEach(function(it) {
+        if (!it || typeof it !== 'object' || typeof it.id !== 'string' || !Array.isArray(it.mods)) return;
+        it.mods.forEach(function(m, mi) {
+            if (!m || typeof m !== 'object' || m.op === 'on' || typeof m.vf !== 'string' || !m.vf.trim()) return;
+            var t2 = m.vf.trim(), pv2 = F() ? F().parse(t2) : null, hd2 = 'Change ' + (mi + 1) + ', by a formula: ', mv2 = null;
+            if (!pv2 || !pv2.ok) mv2 = { message: hd2 + (pv2 && pv2.error && pv2.error.message ? pv2.error.message : 'the formula cannot be read.') + ' Save drops the change.' };
+            else if (rfDice(pv2.ast && pv2.ast.body)) mv2 = { message: hd2 + 'the formula cannot roll dice: Save drops the change.' };
+            else {
+                auSys = auSys || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables };
+                var gmI = gmDerivedNames(auSys, F(), (Array.isArray(pv2.names) ? pv2.names : []).filter(function(n) { return !/^row\./i.test(String(n)); }));
+                var gsI = (draft.fields || []).some(function(f) { return f && f.kind === 'item-list' && f.list && Array.isArray(f.list.stats) && f.list.stats.some(function(st) { return st && st.vis === 'gm' && (pv2.names || []).some(function(n) { return String(n).toLowerCase() === 'row.' + String(st.key || '').toLowerCase(); }); }); });
+                if (gmI.length || gsI) mv2 = { message: hd2 + 'it reads ' + (gmI.length ? gmI[0] : 'a GM-only stat of its row') + ', which players cannot read: Save drops the change, so the GM\u2019s sheet and its player\u2019s agree.' };
+            }
+            if (mv2) errorsById[it.id] = (errorsById[it.id] || []).concat([mv2]);
+        });
+    });
     // conditions C3: what Save drops or changes of the postures, under the Combat tab's Postures box — read as systemcore cleanPostures reads
     var psE = draft.combat && Array.isArray(draft.combat.postures) ? draft.combat.postures : null, pErr = [], pKept = 0, pSeen = Object.create(null), kindsP = Object.create(null);
     if (psE && psE.length) {
@@ -9933,7 +9952,7 @@ function itemModsBox(it, anyL, anyO) {
         if (!opts.some(function(o) { return o[0] === val; })) opts.unshift([val, '(a field that is gone or changed kind)']);
         ln.appendChild(select('sys-item-mtarget', opts, val, 'What this change affects'));
         if (val.slice(-4) === '|row') rowAimInto(ln, draft, m, 'sys-item-', mi);   // 1.5.8
-        if (m.op !== 'on') { ln.appendChild(modHowSel('sys-item-mhow', m.op)); var am = numInput('sys-item-mamt', m.v, 'How much it adds (negative to take away), or the figure it holds the value at'); am.step = 'any'; ln.appendChild(am); if (anyL) { ln.appendChild(checkLabel('sys-item-mlvl', m.lvl === true, 'per level', 'Times the row\u2019s level (a trait at level 3: three times)')); ln.appendChild(input('sys-item-mtiers field', modTiersText(m.tiers), 'A figure for each level, such as 1: +2, 2: 0. Each holds from its level up, and below the first the amount beside it counts. It takes the place of per level. Blank: the same figure at every level', 'Figure by level (optional)')); } }
+        if (m.op !== 'on') { ln.appendChild(modHowSel('sys-item-mhow', m.op)); var am = numInput('sys-item-mamt', m.v, 'How much it adds (negative to take away), or the figure it holds the value at'); am.step = 'any'; ln.appendChild(am); var amIF = input('sys-item-mamtf field', typeof m.vf === 'string' ? m.vf : '', 'By a formula, in place of the number: worked out for each character carrying it, reading the character and this item\u2019s own row, such as its level. It reads the sheet with no change applied, and rolls no dice', 'By a formula'); amIF.maxLength = LIMITS.formula; if (typeof m.vf === 'string' && m.vf) am.disabled = true; ln.appendChild(amIF); /* 1.6.2 (205) */ if (anyL) { ln.appendChild(checkLabel('sys-item-mlvl', m.lvl === true, 'per level', 'Times the row\u2019s level (a trait at level 3: three times)')); ln.appendChild(input('sys-item-mtiers field', modTiersText(m.tiers), 'A figure for each level, such as 1: +2, 2: 0. Each holds from its level up, and below the first the amount beside it counts. It takes the place of per level. Blank: the same figure at every level', 'Figure by level (optional)')); } }
         ln.appendChild(btnRow([['itemmoddel', 'Remove this change', '&times;']]));
         box.appendChild(ln);
     });
@@ -11729,6 +11748,7 @@ function renderLinks() {
             rw.appendChild(checkLabel('sys-link-vturn', k.vturn === true, 'Crew act in the vehicle\u2019s turn', 'A crew member with no token in a fight counts as in the vehicle\u2019s fight. A press of theirs is judged by the vehicle\u2019s turn and spends their own action, and their actions come back as the vehicle\u2019s turn begins'));   // 1.6.2
             if (k.press === true) rw.appendChild(checkLabel('sys-link-pressnamed', k.pressNamed === true, 'Only rolls that name a station', 'Every sheet shares the system\u2019s rolls. Ticked, a crew member gets only the rolls that name a station in the Rolls tab, and no other roll can be pressed'));
             var sl = el('label', 'sys-combat-item'); sl.appendChild(el('span', 'sys-num-cap', 'Stations')); var si = input('sys-link-stations field', Array.isArray(k.stations) ? k.stations.join(', ') : '', 'Where a crew member may sit, separated by commas, each a key: Pilot, Gunner, Engineer. A crew sheet picks one beside its vehicle, and a skill counts at a station only for those there. At most 8 (systemcore LINK_STATIONS)', 'Pilot, Gunner'); si.maxLength = 240; sl.appendChild(si); rw.appendChild(sl);
+            (Array.isArray(k.stations) ? k.stations : []).forEach(function(stS) { if (typeof stS !== 'string' || !stS) return; var stL = el('label', 'sys-combat-item'); stL.appendChild(el('span', 'sys-num-cap', 'Seats at ' + stS)); var stI = el('input', 'field sys-link-seat'); stI.type = 'number'; stI.min = '1'; stI.max = '99'; stI.step = '1'; stI.dataset.st = stS; var stV = k.seats && typeof k.seats === 'object' ? k.seats[stS] : undefined; stI.value = typeof stV === 'number' ? String(stV) : ''; stI.placeholder = 'Any'; stI.title = 'How many crew sheets may sit at ' + stS + ' at once. Empty: any number. A player cannot take a seat past it; you may, and are told'; stL.appendChild(stI); rw.appendChild(stL); });   // 1.6.2 (205): a seat limit a station
         }
         if ((k.kind === 'crew' || k.kind === 'mount') && typeof k.group === 'string' && k.group.trim()) {   // the core handbook session's ask 6 (2026-10-29): figures each sheet of the group works out, read as <group>.max|min|sum.<key>
             var gkW = k.group.trim(), figsW = Array.isArray(k.figs) ? k.figs : [];
@@ -11756,6 +11776,7 @@ function onLinkInput(t) {
     else if (c.indexOf('sys-link-group') >= 0) { var gv = t.value.slice(0, LIMITS.key); if (gv.trim()) k.group = gv; else delete k.group; }   // 1.6.0 (CORE gap 16)
     else if (c.indexOf('sys-link-most') >= 0) { var mv = Number(t.value); if (String(t.value).trim() && isFinite(mv) && Math.round(mv) >= 2) k.most = Math.min(4, Math.round(mv)); else delete k.most; }   // 1.6.0: stations one crew member may hold
     else if (c.indexOf('sys-link-stations') >= 0) { var sv = t.value.split(',').map(function(x) { return x.trim(); }).filter(Boolean); if (sv.length) k.stations = sv; else delete k.stations; }
+    else if (c.indexOf('sys-link-seat') >= 0) { var seK = String(t.dataset.st || ''), seV = Number(t.value); if (!seK) return true; if (!k.seats || typeof k.seats !== 'object') k.seats = {}; if (String(t.value).trim() && isFinite(seV) && Math.floor(seV) >= 1) k.seats[seK] = Math.min(99, Math.floor(seV)); else delete k.seats[seK]; if (!Object.keys(k.seats).length) delete k.seats; }   // 1.6.2 (205)
     else if (c.indexOf('sys-link-fkey') >= 0 || c.indexOf('sys-link-fform') >= 0) { var fiI = +t.dataset.fi, xF = Array.isArray(k.figs) && fiI >= 0 && fiI < k.figs.length && k.figs[fiI] && typeof k.figs[fiI] === 'object' ? k.figs[fiI] : null; if (!xF) return true; if (c.indexOf('sys-link-fkey') >= 0) xF.key = t.value.slice(0, LIMITS.key); else xF.formula = t.value.slice(0, LIMITS.formula); }   // the core handbook session's ask 6
     else return true;
     markDirty(); patchErrors(); return true;
@@ -11765,6 +11786,7 @@ function onLinkChange(t) {
     if (c.indexOf('sys-link-press') >= 0 && c.indexOf('sys-link-pressnamed') < 0) { var rwP = t.closest('.sys-link-row'), arrP = linkDraft(), kP = rwP && arrP[+rwP.dataset.ki] && typeof arrP[+rwP.dataset.ki] === 'object' ? arrP[+rwP.dataset.ki] : null; if (kP) { if (t.checked) kP.press = true; else { delete kP.press; delete kP.pressNamed; } markDirty(); renderLinks(); patchErrors(); } return true; }   // 1.6.0
     if (c.indexOf('sys-link-vturn') >= 0) { var rwV = t.closest('.sys-link-row'), arrV = linkDraft(), kV = rwV && arrV[+rwV.dataset.ki] && typeof arrV[+rwV.dataset.ki] === 'object' ? arrV[+rwV.dataset.ki] : null; if (kV) { if (t.checked) kV.vturn = true; else delete kV.vturn; markDirty(); patchErrors(); } return true; }   // 1.6.2
     if (c.indexOf('sys-link-pressnamed') >= 0) { var rwN = t.closest('.sys-link-row'), arrN = linkDraft(), kN = rwN && arrN[+rwN.dataset.ki] && typeof arrN[+rwN.dataset.ki] === 'object' ? arrN[+rwN.dataset.ki] : null; if (kN) { if (t.checked) kN.pressNamed = true; else delete kN.pressNamed; markDirty(); patchErrors(); } return true; }
+    if (c.indexOf('sys-link-stations') >= 0) { markDirty(); renderLinks(); patchErrors(); return true; }   // 1.6.2 (205): a seats box a station follows
     if (c.indexOf('sys-link-kind') < 0 && c.indexOf('sys-link-edit') < 0) return true;   // the boxes' change events (their input events did the work)
     var rw = t.closest('.sys-link-row'), i = rw ? +rw.dataset.ki : -1, arr = linkDraft(), k = arr[i] && typeof arr[i] === 'object' ? arr[i] : null; if (!k) return true;
     if (c.indexOf('sys-link-kind') >= 0) { k.kind = t.value === 'crew' ? 'crew' : 'mount'; markDirty(); renderLinks(); patchErrors(); return true; }   // 1.6.0 (CORE gap 16): a Crew link's own boxes follow
@@ -14230,6 +14252,7 @@ function onInput(e) {
         else if (/(^| )sys-grant-sval( |$)/.test(ic)) { var glV = t.closest('.sys-grant'), slV = t.closest('.sys-grant-sline'), gV = glV && Array.isArray(it.grants) ? it.grants[+glV.dataset.gi] : null, skV = slV ? slV.dataset.sk : ''; if (!gV || !gV.stats || !skV || (t.validity && t.validity.badInput)) return; var vV = Number(t.value); gV.stats[skV] = String(t.value).trim() === '' || !isFinite(vV) ? 0 : vV; }
         else if (/(^| )sys-grant-spec( |$)/.test(ic)) { var glS = t.closest('.sys-grant'), gS = glS && Array.isArray(it.grants) ? it.grants[+glS.dataset.gi] : null; if (!gS) return; var sV = String(t.value || '').trim(); if (sV) gS.spec = sV.slice(0, 60); else delete gS.spec; }   // 1.6.0 Specialties: a grant's specifier
         else if (/(^| )sys-grant-(qty|from|lvl)( |$)/.test(ic)) { var glI = t.closest('.sys-grant'), gI = glI && Array.isArray(it.grants) ? it.grants[+glI.dataset.gi] : null; if (!gI || (t.validity && t.validity.badInput)) return; var nG = Number(t.value), kG = /sys-grant-qty/.test(ic) ? 'qty' : /sys-grant-lvl/.test(ic) ? 'lvl' : 'from'; if (String(t.value).trim() === '' || !isFinite(nG)) delete gI[kG]; else gI[kG] = nG; }   // 1.6.0 (v2, B4)
+        else if (ic.indexOf('sys-item-mamtf') >= 0) { var imfl = t.closest('.sys-item-mod'), imf = imfl ? (it.mods || [])[+imfl.dataset.mi] : null; if (imf) { var ivF = t.value.slice(0, LIMITS.formula); if (ivF.trim()) { imf.vf = ivF; imf.v = 0; delete imf.lvl; delete imf.tiers; } else delete imf.vf; var imN = imfl.querySelector('.sys-item-mamt'); if (imN) imN.disabled = !!ivF.trim(); } }   // 1.6.2 (205): the amount by a formula (emptied: the number again)
         else if (ic.indexOf('sys-item-mamt') >= 0) { var iml = t.closest('.sys-item-mod'), imm = iml ? (it.mods || [])[+iml.dataset.mi] : null; if (imm) imm.v = t.value === '' ? 0 : Number(t.value); }
         else if (ic.indexOf('sys-item-mtiers') >= 0) { var itr = t.closest('.sys-item-mod'), itm0 = itr ? (it.mods || [])[+itr.dataset.mi] : null; if (itm0) { if (String(t.value).trim() === '') delete itm0.tiers; else itm0.tiers = t.value.slice(0, 400); } }   // 1.6.0 By level, as typed
         else if (ic.indexOf('sys-item-mkey') >= 0) { var ikl = t.closest('.sys-item-mod'), ikm = ikl ? (it.mods || [])[+ikl.dataset.mi] : null; if (ikm) ikm.key = t.value.trim().slice(0, 40); }   // 1.5.8   // F6

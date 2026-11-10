@@ -204,9 +204,10 @@ var FUNCS = table({
     // 1.6.2: with(dice, ..., result) rolls dice to read and answers its last part; the rest read a group of dice named with @, and roll nothing
     'with': { min: 2, max: 9 }, count: { min: 1, max: 1 }, high: { min: 1, max: 1 }, low: { min: 1, max: 1 }, nth: { min: 2, max: 2 }, best: { min: 2, max: 2 }, worst: { min: 2, max: 2 },
     sets: { min: 1, max: 1 }, setface: { min: 1, max: 1 }, pairs: { min: 1, max: 1 }, total: { min: 1, max: 1 }, digit: { min: 2, max: 2 },
-    is: { min: 2, max: 9 }, contains: { min: 2, max: 2 }   // 1.6.2 (167 D): is(Field, "words", ...) and contains(Field, "words"), 1 or 0, ignoring case
+    is: { min: 2, max: 9 }, contains: { min: 2, max: 2 },   // 1.6.2 (167 D): is(Field, "words", ...) and contains(Field, "words"), 1 or 0, ignoring case
+    holds: { min: 2, max: 2 }   // 1.6.2 (164 i): holds(List, Field), 1 where a row of the list is named by the field's words, or its entry's key is
 });
-var WORDS_FN = table({ is: 1, contains: 1 });
+var WORDS_FN = table({ is: 1, contains: 1, holds: 1 });
 function wordsKey(s) { return String(s).trim().toLowerCase().replace(/\s+/g, ' '); }
 var DREADS = table({ count: 1, high: 1, low: 1, nth: 1, best: 1, worst: 1, sets: 1, setface: 1, pairs: 1, total: 1 });
 function groupArg(name, a) { return a && a.t === 'name' && !a.paren ? a : name === 'count' && a && a.t === 'cmp' && a.l && a.l.t === 'name' && !a.l.paren ? a.l : null; }
@@ -394,6 +395,7 @@ Parser.prototype.call = function(nameTok, pos) {
 };
 // 1.6.2 (167 D): is() and contains() read a field's words first, then words in quotes and nothing else
 Parser.prototype.wordsCall = function(nameTok, pos, f) {
+    if (nameTok.v === 'holds') return this.holdsCall(nameTok, pos);
     var open = this.next(), how = nameTok.text + '(Class, "Pilot")', args = []; this.enter(open);
     if (this.isOp(')')) fail(nameTok.text + ' reads a field\u2019s words, as in ' + how + '.', nameTok.pos, nameTok.len);
     var first = this.expr();
@@ -410,6 +412,19 @@ Parser.prototype.wordsCall = function(nameTok, pos, f) {
     if (args.length < 2) fail(nameTok.text + ' compares words in quotes, as in ' + how + '.', node.pos, node.len);
     if (args.length > f.max) fail(nameTok.v === 'contains' ? 'contains looks for one set of words.' : 'is compares ' + (f.max - 1) + ' sets of words at most.', node.pos, node.len);
     return node;
+};
+// 1.6.2 (164 i): holds(List, Field) or holds(List, "words"): a list by its name, then the words a row must be named by
+Parser.prototype.holdsCall = function(nameTok, pos) {
+    var open = this.next(), how = nameTok.text + '(Cultures, Culture)'; this.enter(open);
+    var first = this.isOp(')') ? null : this.expr();
+    if (!first || first.t !== 'name' || first.paren) fail(nameTok.text + ' reads a list first, as in ' + how + '.', first ? first.pos : nameTok.pos, first ? first.len : nameTok.len);
+    if (!this.isOp(',')) fail(nameTok.text + ' reads a list, then the words a row is named by, as in ' + how + '.', first.pos, first.len);
+    this.next(); var w = this.peek(), second;
+    if (w.t === 'str') { if (!w.v.trim()) fail('Words in quotes hold something to compare.', w.pos, w.len); this.next(); second = { t: 'str', v: w.v, text: w.text, pos: w.pos, len: w.len }; }
+    else { second = this.expr(); if (second.t !== 'name' || second.paren) fail(nameTok.text + ' reads the words a row is named by from a field, or words in quotes, as in ' + how + '.', second.pos, second.len); }
+    if (this.isOp(',')) fail(nameTok.text + ' takes a list and one set of words.', this.peek().pos, 1);
+    this.expectClose(open); this.leave();
+    return this.finish({ t: 'call', name: 'holds', text: nameTok.text, args: [first, second], words: true, holds: true }, pos);
 };
 // 1.6.2: a modifier's figure, a formula of its own in the same text, so that an error points at it. It rolls no dice: a roll has one set of dice
 function rollsDice(n) {
@@ -465,16 +480,17 @@ function collectNames(node, out, seen) {
 }
 
 // 1.6.2 (167 D): which names are read as words (the first part of is() or contains()) and which as figures
-function wordNames(node, wd, pl) {
+function wordNames(node, wd, pl, ls) {
     if (!node || typeof node !== 'object') return;
     if (node.t === 'name') { pl[node.v] = true; return; }
+    if (node.t === 'call' && node.holds) { if (ls) ls[node.args[0].v] = true; if (node.args[1] && node.args[1].t === 'name') wd[node.args[1].v] = true; return; }   // 164 i
     if (node.t === 'call' && node.words) { if (node.args[0] && node.args[0].t === 'name') wd[node.args[0].v] = true; return; }
-    if (node.t === 'dice') { wordNames(node.count, wd, pl); if (node.faces !== 'F') wordNames(node.faces, wd, pl); [node.keep, node.reroll, node.explode, node.cs].forEach(function(m) { if (m && m.expr) wordNames(m.expr, wd, pl); }); return; }
-    if (node.items) for (var i = 0; i < node.items.length; i++) wordNames(node.items[i].node || node.items[i], wd, pl);
-    if (node.args) for (var a = 0; a < node.args.length; a++) wordNames(node.args[a], wd, pl);
-    if (node.a) wordNames(node.a, wd, pl);
-    if (node.l) { wordNames(node.l, wd, pl); wordNames(node.r, wd, pl); }
-    if (node.body) wordNames(node.body, wd, pl);
+    if (node.t === 'dice') { wordNames(node.count, wd, pl, ls); if (node.faces !== 'F') wordNames(node.faces, wd, pl, ls); [node.keep, node.reroll, node.explode, node.cs].forEach(function(m) { if (m && m.expr) wordNames(m.expr, wd, pl, ls); }); return; }
+    if (node.items) for (var i = 0; i < node.items.length; i++) wordNames(node.items[i].node || node.items[i], wd, pl, ls);
+    if (node.args) for (var a = 0; a < node.args.length; a++) wordNames(node.args[a], wd, pl, ls);
+    if (node.a) wordNames(node.a, wd, pl, ls);
+    if (node.l) { wordNames(node.l, wd, pl, ls); wordNames(node.r, wd, pl, ls); }
+    if (node.body) wordNames(node.body, wd, pl, ls);
 }
 // 1.6.2: the groups of dice a formula names, and those it reads
 function diceGroups(node, made, read) {
@@ -498,8 +514,8 @@ function parse(text) {
         if (t.t !== 'eof') { if (t.t === 'op' && t.v === ')') fail('Unexpected ")".', t.pos, 1); fail('Unexpected ' + q(t.text) + '.', t.pos, t.len || 1); }
         var ast = { t: 'root', body: body, top: topOf(body), src: text, pos: 0, len: text.length }, names = [], made = [], read = [];
         collectNames(body, names, Object.create(null)); diceGroups(body, made, read);
-        var wd = Object.create(null), pl = Object.create(null); wordNames(body, wd, pl);
-        return { ok: true, ast: ast, names: names, groups: made, reads: read, words: names.filter(function(nm) { var l = nm.toLowerCase(); return wd[l] && !pl[l]; }) };
+        var wd = Object.create(null), pl = Object.create(null), ls = Object.create(null); wordNames(body, wd, pl, ls);
+        return { ok: true, ast: ast, names: names, groups: made, reads: read, words: names.filter(function(nm) { var l = nm.toLowerCase(); return wd[l] && !pl[l] && !ls[l]; }), lists: names.filter(function(nm) { var l = nm.toLowerCase(); return ls[l] && !pl[l] && !wd[l]; }) };
     } catch (e) {
         if (e instanceof FormulaError) return { ok: false, error: { message: e.message, pos: e.pos, len: e.len } };
         return { ok: false, error: { message: 'The formula could not be evaluated.', pos: 0, len: 0 } };
@@ -815,6 +831,12 @@ function callFn(node, c) {
     var a = node.args, name = node.name, x, i;
     function arg(k) { return num(ev(a[k], c)); }
     if (DREADS[name]) return readGroup(node, c);
+    if (node.holds) {   // 1.6.2 (164 i): the list's resolver answers <list>#h:<words>, true where a row is named so; with none at hand, no row
+        var hw = a[1].t === 'str' ? a[1].v : wordsOf(a[1], c), hv = typeof c.vars === 'function' ? c.vars(a[0].v + '#h:' + wordsKey(hw), a[0].text) : undefined;
+        if (hv && typeof hv === 'object' && hv.error) fail(a[0].text + ': ' + String(hv.error.message || 'could not be evaluated'), a[0].pos, a[0].len);
+        if (hv === undefined && typeof c.vars === 'function') { var hk = c.vars(a[0].v, a[0].text); if (hk === undefined) fail('Unknown list ' + q(a[0].text) + '.', a[0].pos, a[0].len); }
+        return hv === true || hv === 1;
+    }
     if (node.words) {   // 1.6.2 (167 D): ignoring case and the spaces around and between words
         var wk = wordsKey(wordsOf(a[0], c));
         if (name === 'contains') return wk.indexOf(wordsKey(a[1].v)) >= 0;

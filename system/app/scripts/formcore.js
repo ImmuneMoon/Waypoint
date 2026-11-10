@@ -49,6 +49,7 @@ function condOf(n, c) {
     return { any: false, tests: [testOf(n, c)] };
 }
 function testOf(n, c) {
+    if (n.t === 'call' && n.holds) return { words: { how: 'holds', lst: n.args[0].text, name: n.args[1].t === 'name' ? n.args[1].text : '', list: n.args[1].t === 'str' ? [n.args[1].v] : [] } };   // 1.6.2 (164 i): a list holds a row named by a field, or by words
     if (n.t === 'call' && n.words) return { words: { how: n.name === 'contains' ? 'contains' : 'is', name: n.args[0].text, list: n.args.slice(1).map(function(a) { return a.v; }) } };   // 1.6.2 (167 D)
     if (n.t === 'cmp') return { l: formOf(n.l, c), op: n.op, r: formOf(n.r, c) };
     if (n.t === 'and' || n.t === 'or') return { group: condOf(n, c) };
@@ -163,7 +164,7 @@ function formText(f) {
 }
 // 1.6.2 (167 D): words in quotes hold no quote and no line break
 function wordQ(w) { return '"' + String(w === undefined || w === null ? '' : w).replace(/["\u201c\u201d\r\n]/g, ' ').trim() + '"'; }
-function wordsText(w) { var l = (Array.isArray(w.list) ? w.list : []).slice(0, w.how === 'contains' ? 1 : 8); if (!l.length) l = ['']; return { s: (w.how === 'contains' ? 'contains' : 'is') + '(' + (w.name || '') + ', ' + l.map(wordQ).join(', ') + ')', lv: LV.atom }; }
+function wordsText(w) { if (w.how === 'holds') return { s: 'holds(' + (w.lst || '') + ', ' + (w.name ? w.name : wordQ((Array.isArray(w.list) ? w.list : [])[0])) + ')', lv: LV.atom }; var l = (Array.isArray(w.list) ? w.list : []).slice(0, w.how === 'contains' ? 1 : 8); if (!l.length) l = ['']; return { s: (w.how === 'contains' ? 'contains' : 'is') + '(' + (w.name || '') + ', ' + l.map(wordQ).join(', ') + ')', lv: LV.atom }; }
 function testText(t) {
     if (t.words) return wordsText(t.words);
     if (t.group) return condText(t.group);
@@ -246,6 +247,7 @@ function formSays(f, say) {
     return out;
 }
 function testSays(t, say) {
+    if (t.words && t.words.how === 'holds') return (t.words.name ? nameSays(t.words.name, say) : '\u201c' + ((t.words.list || [])[0] || '') + '\u201d') + ' names a row of ' + nameSays(t.words.lst || '', say);   // 1.6.2 (164 i)
     if (t.words) { var wl = (Array.isArray(t.words.list) ? t.words.list : []).map(function(w) { return '\u201c' + w + '\u201d'; }), wn = nameSays(t.words.name || '', say); return t.words.how === 'contains' ? wn + ' contains ' + (wl[0] || '\u201c\u201d') : wl.length > 1 ? wn + ' is one of ' + wl.join(', ') : wn + ' is ' + (wl[0] || '\u201c\u201d'); }   // 1.6.2 (167 D)
     if (t.group) return condSays(t.group, say);
     if (t.val) return formSays(t.val, say);

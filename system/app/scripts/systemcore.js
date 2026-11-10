@@ -5152,6 +5152,10 @@ function cleanSystem(sys, opts) {
         var sysAu = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables, values: sys.values, decks: sys.decks, effects: sys.effects };
         effs.forEach(function(d) { if (typeof d.auto !== 'string') return; var pa = F.parse(d.auto), nm = pa && pa.ok && Array.isArray(pa.names) ? pa.names : null; if (!nm || gmDerivedNames(sysAu, F, nm).length) delete d.auto; });
     }
+    if (F && typeof F.parse === 'function' && out.items.concat(core).some(function(it) { return isObj(it) && Array.isArray(it.mods) && it.mods.some(function(m) { return isObj(m) && typeof m.vf === 'string'; }); })) {   // 1.6.2 (205): an item's change by a formula, judged as an effect's is, its row's own names by the GM-only stats
+        var sysIv = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables, values: sys.values, decks: sys.decks, effects: sys.effects }, gsIv = gmStatKeys(sys), ixIv = keyIndexOf(sys);
+        out.items.concat(core).forEach(function(it) { if (!isObj(it) || !Array.isArray(it.mods)) return; it.mods = it.mods.filter(function(m) { if (!isObj(m) || typeof m.vf !== 'string') return true; var pv = F.parse(m.vf); if (!(pv && pv.ok && pv.ast && !hasDice(pv.ast.body) && Array.isArray(pv.names))) return false; var plain = pv.names.filter(function(n) { return !ROW_NAME.test(String(n)); }); return !gmDerivedNames(sysIv, F, plain).length && !pv.names.some(function(n) { return gmStatRead(gsIv, ixIv, lower(n)); }); }); if (!it.mods.length) delete it.mods; });
+    }
     if (effs.some(function(d) { return d.mods.some(function(m) { return typeof m.vf === 'string'; }); })) {   // 1.6.0 (CORE gap 12): a change by a formula that does not parse, rolls dice or reads a GM-only value at any depth goes, judged over the GM's view, in both views alike (its player's sheet and the GM's agree)
         var sysVf = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables, values: sys.values, decks: sys.decks, effects: sys.effects };
         effs.forEach(function(d) { d.mods = d.mods.filter(function(m) { if (typeof m.vf !== 'string') return true; var pv = F.parse(m.vf); return !!(pv && pv.ok && pv.ast && !hasDice(pv.ast.body) && Array.isArray(pv.names) && !gmDerivedNames(sysVf, F, pv.names).length); }); });
@@ -8795,11 +8799,14 @@ function onceIn(sys, spec, rows) {   // a stored list's groups as its changes ar
 // item change applied (a resolver of the same context with noFx, made once a resolver and only when a change asks), so it never loops. It
 // rolls no dice; a value that is no number reads 0; the amount is held within LIMITS.effectAmount
 function fxVf(sys, char, F, ropts) {
-    var base = null;
-    return function(text) {
+    var base = null, hidR = map();   // hidR: a resolver a row kept from its player (hid) reads its own names through, that row shown, made once a row
+    return function(text, rf, row) {   // rf, row (1.6.2, 205): an item's change on that row of that list reads the row's own names (Row.*) too
         if (!F || typeof text !== 'string' || !text) return 0;
         if (!base) base = makeResolver(sys, char, F, Object.assign({}, isObj(ropts) ? ropts : {}, { noFx: true, reuse: false }));
-        var r = null; try { r = F.evaluate(text, { vars: base, random: noDice }); } catch (e) { r = null; }
+        var vv = base; if (isObj(rf) && isObj(row) && typeof base.row === 'function') { var rvV = null, ridV = rowIdOf(row); try { rvV = ridV ? base.row(rf.id, ridV) : null; } catch (e) { rvV = null; }
+            if (typeof rvV !== 'function' && ridV && row.hid === 1 && isObj(char) && isObj(char.values)) { var hk = rf.id + '|' + ridV; if (!hidR[hk]) { var hc = Object.assign({}, char, { values: Object.assign({}, char.values) }); hc.values[rf.id] = (Array.isArray(char.values[rf.id]) ? char.values[rf.id] : []).map(function(x) { if (x !== row) return x; var y = Object.assign({}, x); delete y.hid; return y; }); hidR[hk] = makeResolver(sys, hc, F, Object.assign({}, isObj(ropts) ? ropts : {}, { noFx: true, reuse: false })); } try { rvV = hidR[hk].row(rf.id, ridV); } catch (e) { rvV = null; } }   // a curse kept on, or a row kept from its player: its own names all the same
+            if (typeof rvV === 'function') vv = function(l, t) { return ROW_NAME.test(String(l)) ? rvV(l, t) : base(l, t); }; }
+        var r = null; try { r = F.evaluate(text, { vars: vv, random: noDice }); } catch (e) { r = null; }
         var x = r && r.ok ? (typeof r.value === 'boolean' ? (r.value ? 1 : 0) : r.value) : 0;
         return typeof x === 'number' && isFinite(x) ? Math.max(-LIMITS.effectAmount, Math.min(LIMITS.effectAmount, x)) : 0;
     };
@@ -8873,12 +8880,12 @@ function allRowOk(sysG, F, f, text) {
 function fxIndex(sys, char, stance, autos, vfOf, gateOf) {   // gateOf (1.6.0, fxGate): whether a row of a list with Changes apply where gives its changes (none: every row does)   // vfOf (1.6.0, fxVf): a change's formula to its amount (none: such a change adds 0)   // conditions C3: stance (stanceCtx) — the posture the token takes, from the system's own list; C4: autos (autoEffectsOn) — the automatic effects on
     var idx = null, lib = null, byId = map(), seenRef = map();   // a library effect counts once per character, whichever list holds it
     (sys && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(x) { if (isObj(x) && typeof x.id === 'string') byId[x.id] = x; });
-    var put = function(m, name, gm, mult) {   // one change onto the field it names (checked against that field's kind), with its source for the breakdown
+    var put = function(m, name, gm, mult, rf, row) {   // one change onto the field it names (rf, row: the item's list and row, 1.6.2, for a change by a formula) (checked against that field's kind), with its source for the breakdown
         var tf = isObj(m) ? byId[m.f] : null; if (!tf) return;
         if (m.op === 'on') { if (tf.kind !== 'toggle') return; }
         else if (m.op === 'add' || MOD_LIM[m.op]) { if (typeof m.v !== 'number' || !isFinite(m.v)) return; if (tf.kind === 'item-list' ? m.part === 'max' || !rowModAim(m) : m.part === 'max' ? tf.kind !== 'resource' : !(tf.kind === 'number' || tf.kind === 'skill' || tf.kind === 'formula')) return; }
         else return;
-        var mv = typeof m.vf === 'string' && m.vf ? (typeof vfOf === 'function' ? vfOf(m.vf) : 0) : m.v;   // 1.6.0: a change by a formula
+        var mv = typeof m.vf === 'string' && m.vf ? (typeof vfOf === 'function' ? vfOf(m.vf, rf, row) : 0) : m.v;   // 1.6.0: a change by a formula
         var v = m.op === 'add' ? mv * mult : MOD_LIM[m.op] ? mv : 0, key = tf.kind === 'item-list' ? rowModSlot(tf.key, m.key, m.col) : lower(tf.key) + (m.part === 'max' ? '.max' : '');
         idx = idx || map(); var slot = idx[key] || (idx[key] = { add: 0, on: false, src: [] });
         var sk = m.op === 'add' && v > 0 && typeof m.stack === 'string' && m.stack ? lower(m.stack) : '';   // 1.6.2 Doesn't stack: the largest bonus of its kind counts
@@ -8915,7 +8922,7 @@ function fxIndex(sys, char, stance, autos, vfOf, gateOf) {   // gateOf (1.6.0, f
             if (d.modsOn === true && spec && isObj(spec.on) && !rowOn(spec, r)) return;
             if (spec && typeof spec.modsIf === 'string' && spec.modsIf && typeof gateOf === 'function' && !gateOf(f, r)) return;   // 1.6.0 Changes apply where: a row where the list's gate does not hold gives none of its changes
             var lv = rowLvl(spec, r, d); lv = typeof lv === 'number' && isFinite(lv) ? lv : 0;
-            d.mods.forEach(function(m) { var mt = modAt(m, spec, lv); put(mt, d.name || 'Item', d.vis === 'gm', isObj(mt) && mt.lvl === true ? lv : 1); });   // 1.6.0 By level: the figure of its tier
+            d.mods.forEach(function(m) { var mt = modAt(m, spec, lv); put(mt, d.name || 'Item', d.vis === 'gm', isObj(mt) && mt.lvl === true ? lv : 1, f, r); });   // 1.6.0 By level: the figure of its tier; 1.6.2 (205): its row, for a change by a formula
         });
     });
     (char && Array.isArray(char.unseen) ? char.unseen : []).forEach(function(m) { put(m, 'An unseen effect', false, 1); });
@@ -8926,11 +8933,13 @@ function fxIndex(sys, char, stance, autos, vfOf, gateOf) {   // gateOf (1.6.0, f
 // the resolver skips a field that is not there); lvl: true multiplies it by the row's level. At most LIMITS.effectMods; none: null
 function cleanItemMod(m, kinds) {
     if (!isObj(m) || typeof m.f !== 'string' || !FIELD_ID.test(m.f)) return null;
+    var vfI = m.op !== 'on' && m.tiers === undefined ? cleanFormulaText(m.vf) : null; if (vfI) m = Object.assign({}, m, { v: 0 });   // 1.6.2 (205; the owner, by prompt: "Character and row"): a change sized by a formula, as an effect's
     var tr = m.op === 'on' ? undefined : cleanModTiers(m.tiers); if (tr && typeof m.v !== 'number') m = Object.assign({}, m, { v: 0 });   // 1.6.0 By level: a change that names its figures needs no figure of its own
     var mo = MOD_LIM[m.op] ? m.op : 'add', c = kinds ? cleanMod(m, kinds) : m.op === 'on' ? { f: m.f, op: 'on' } : (m.op === 'add' || MOD_LIM[m.op]) && typeof m.v === 'number' && isFinite(m.v) && Math.abs(m.v) <= LIMITS.effectAmount ? (m.part === 'max' ? { f: m.f, op: mo, v: m.v, part: 'max' } : rowModAim(m) ? { f: m.f, op: mo, v: m.v, key: m.key, col: m.col } : m.key !== undefined || m.col !== undefined ? null : { f: m.f, op: mo, v: m.v }) : null;   // 1.5.8: an aim at a row that is no aim is no change
     if (c && c.op === 'add' && m.lvl === true && !tr) c.lvl = true;
     if (c && c.op === 'add' && !c.stack) { var stI = cleanStack(m.stack); if (stI) c.stack = stI; }   // 1.6.2 Doesn't stack
     if (c && tr) c.tiers = tr;   // 1.6.0 By level, in the place of per level
+    if (c && vfI && c.op !== 'on') { c.vf = vfI; c.v = 0; delete c.lvl; }   // 1.6.2 (205): the formula reads Row.lvl itself, so no per level beside it
     return c;
 }
 function cleanItemMods(v, kinds) { var out = []; (Array.isArray(v) ? v : []).forEach(function(m) { if (out.length >= LIMITS.effectMods) return; var c = cleanItemMod(m, kinds); if (c) out.push(c); }); return out.length ? out : null; }
@@ -8950,7 +8959,7 @@ function rowSwOn(pd, src, view) {
 // lists the view leaves out; without it only the view's are read). null when there is nothing
 function unseenMods(c, view, full, F) {   // F (1.6.0): the engine for a list's Changes apply where (else the one registered, setGateEngine)
     if (!isObj(c) || !isObj(c.values) || !isObj(view)) return null;
-    var sysF = isObj(full) ? full : view, vk = fieldKinds(view), agg = map(), order = [], gate = null, Fg = F || (_gateF ? _gateF() : null);
+    var sysF = isObj(full) ? full : view, vk = fieldKinds(view), agg = map(), order = [], gate = null, Fg = F || (_gateF ? _gateF() : null), vfU = null;
     (Array.isArray(sysF.fields) ? sysF.fields : []).forEach(function(f) {
         if (!isObj(f) || f.kind !== 'item-list') return;
         var rows = Array.isArray(c.values[f.id]) ? c.values[f.id] : null; if (!rows) return;
@@ -8964,6 +8973,7 @@ function unseenMods(c, view, full, F) {   // F (1.6.0): the engine for a list's 
             if (spec && typeof spec.modsIf === 'string' && spec.modsIf) { if (!gate) gate = fxGate(sysF, c, Fg); if (!gate(f, r)) return; }   // 1.6.0 Changes apply where, judged as the host's own sheet judges it
             var lv = rowLvl(spec, r, d); lv = typeof lv === 'number' && isFinite(lv) ? lv : 0;
             d.mods.forEach(function(m) {
+                if (isObj(m) && typeof m.vf === 'string' && m.vf) { if (!vfU) vfU = fxVf(sysF, c, Fg); var vfN = vfU(m.vf, f, r); m = Object.assign({}, m, { v: vfN }); delete m.vf; }   // 1.6.2 (205): a change by a formula, as a number
                 var cm = isObj(m) && vk[m.f] ? cleanMod(modAt(m, spec, lv), vk) : null; if (!cm) return;   // 1.6.0 By level: the figure of its tier
                 var key = cm.f + '|' + cm.op + '|' + (cm.part || '') + '|' + (cm.key || '') + '|' + (cm.col || '');
                 if (!agg[key]) { agg[key] = { f: cm.f, op: cm.op }; if (cm.op === 'add') agg[key].v = 0; else if (MOD_LIM[cm.op]) agg[key].v = cm.v; if (cm.part) agg[key].part = cm.part; if (cm.key) { agg[key].key = cm.key; agg[key].col = cm.col; } order.push(key); }
@@ -9005,6 +9015,7 @@ function cleanLinks(raw, F) {
         }
         if (k.kind === 'crew') {
             if (Array.isArray(k.stations)) { var stS = [], stM = map(); k.stations.slice(0, LINK_STATIONS * 4).forEach(function(s) { var t = typeof s === 'string' ? s.trim() : ''; if (stS.length >= LINK_STATIONS || !STATION_KEY.test(t) || CREW_WORDS[lower(t)] || stM[lower(t)]) return; stM[lower(t)] = 1; stS.push(t); }); if (stS.length) lo.stations = stS; }
+            if (lo.stations && isObj(k.seats)) { var seS = {}, seN = 0; lo.stations.forEach(function(s) { var sv = null; Object.keys(k.seats).forEach(function(x) { if (sv === null && lower(x) === lower(s)) sv = k.seats[x]; }); if (typeof sv === 'number' && fin(sv) && Math.floor(sv) >= 1) { seS[s] = Math.min(99, Math.floor(sv)); seN++; } }); if (seN) lo.seats = seS; }   // 1.6.2 (205; the owner, by prompt: "Player refused, GM told"): at most this many sheets at a station, keyed as the station is spelled
             if (lo.stations && typeof k.most === 'number' && fin(k.most)) { var moS = Math.min(STATION_MOST, lo.stations.length, Math.floor(k.most)); if (moS >= 2) lo.most = moS; }   // 1.6.0 (the core's ruling: one hand may cover a second station): how many stations one crew sheet may hold at once (absent: one)
         }
         if (k.kind === 'crew' && k.vturn === true) lo.vturn = true;   // 1.6.2 (CORE Ch19, the owner by prompt: "A tick on the Crew link"): its crew act in the vehicle's turn, with no token of their own (net.js crewVeh)
@@ -9282,7 +9293,21 @@ function linkSet(sys, chars, c, linkId, toId, opts) {
         var stMost = typeof k.most === 'number' ? k.most : 1; if (stG.length > stMost) return { ok: false, reason: 'value', msg: stMost === 1 ? 'One station at a time on ' + k.label + '.' : 'At most ' + stMost + ' stations at a time on ' + k.label + '.' };
         if (stG.length) stN[linkId] = stG.length === 1 ? stG[0] : stG;
     } else { var stK = stationsIn(k, stC[linkId]); if (stK.length) stN[linkId] = stK.length === 1 ? stK[0] : stK; }
+    var full = seatsFull(k, chars, c.id, linkId, toId, stationsIn(k, stN[linkId]));   // 1.6.2 (205): a station's seats
+    if (full) { var seW = full.station + ' on ' + (t.name || 'that sheet') + ' seats ' + full.seats + (full.seats === 1 ? ' and has someone there.' : ' and they are taken.'); if (opts.player) return { ok: false, reason: 'value', msg: seW }; return stOut({ ok: true, links: next, seatSays: seW }); }
     return stOut({ ok: true, links: next });
+}
+// 1.6.2 (205; the owner, by prompt: "Player refused, GM told"): the first station of these whose seats the other sheets linked to that very
+// sheet already fill, { station, seats }, or null. A sheet already there is never counted against itself
+function seatsFull(k, chars, selfId, linkId, toId, stations) {
+    if (!isObj(k) || !isObj(k.seats) || !isObj(chars) || !Array.isArray(stations) || !stations.length) return null;
+    var hit = null;
+    stations.forEach(function(s) {
+        if (hit || typeof k.seats[s] !== 'number') return; var n = 0;
+        Object.keys(chars).forEach(function(cid) { var x = chars[cid]; if (cid === selfId || !isObj(x) || x.partial === true || !isObj(x.links) || x.links[linkId] !== toId) return; if (stationsIn(k, isObj(x.stn) ? x.stn[linkId] : null).indexOf(s) >= 0) n++; });
+        if (n >= k.seats[s]) hit = { station: s, seats: k.seats[s] };
+    });
+    return hit;
 }
 // Who links to a character, for its sheet: [{ link, by: [{ id, name }] }] in the system's order (a Mount's rider, a vehicle's crew)
 function linkedFrom(sys, chars, id) {
@@ -11424,6 +11449,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     function fn(name, nt) {   // nt: the name as written, where the engine hands it (only a Specialties reference reads it)
         var l = lower(name);
         if (l.length > 2 && l.slice(-2) === '#w') { var tw = tableWord(l.slice(0, -2), null, null); return isObj(tw) || (typeof tw === 'string' && tw) ? tw : undefined; }   // 1.6.2 (167 D): the words is() and contains() read
+        var hAt = l.indexOf('#h:'); if (hAt > 0) { var hF = ix[l.slice(0, hAt)]; if (!hF || hF.kind !== 'item-list') return undefined; var hW = specSquash(l.slice(hAt + 3)); return !!hW && listCtx(hF).rows.some(function(x) { var d = x.d; return !!d && (specSquash(isObj(x.r) && isObj(x.r.ov) && typeof x.r.ov.name === 'string' && x.r.ov.name ? x.r.ov.name : typeof d.name === 'string' ? d.name : '') === hW || (typeof d.key === 'string' && specSquash(d.key) === hW)); }); }   // 1.6.2 (164 i; the owner, by prompt: "Name or entry key"): holds(List, Field), a row named by those words, or its entry's key is, a row kept from its player never
         if (l in cache) return cache[l];
         var field = ix[l], suffix = null;
         if (!field && l.indexOf('.') > 0) { var lnv = listName(l, name, nt); if (lnv !== undefined) return lnv; }   // Stage 6 F5a1: a carried list's totals and addressed rows (after the exact key, before the suffixes)
@@ -12156,7 +12182,7 @@ function readsOf(sys, ctx) {
 }
 // [formcheck:namewords-end]
 // 1.6.2 (167 D): a text or a choice field may be named where a formula reads it only as words, by is() or contains()
-function wordsOk(p, n, tg) { return isObj(tg) && (tg.kind === 'text' || tg.kind === 'select') && isObj(p) && Array.isArray(p.words) && p.words.some(function(w) { return lower(w) === lower(n); }); }
+function wordsOk(p, n, tg) { if (isObj(tg) && tg.kind === 'item-list' && isObj(p) && Array.isArray(p.lists) && p.lists.some(function(w) { return lower(w) === lower(n); })) return true; return isObj(tg) && (tg.kind === 'text' || tg.kind === 'select') && isObj(p) && Array.isArray(p.words) && p.words.some(function(w) { return lower(w) === lower(n); }); }   // 164 i: a list holds() reads
 function validateSystem(sys, F) {
     var errors = [], warnings = [], badgeNow = false, standAsk = false;   // 193: Row.needsMet is known in a badge's Shown where alone
     if (!sys || !F) return { ok: false, errors: [{ message: 'No system.' }], warnings: warnings };

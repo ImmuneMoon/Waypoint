@@ -7509,6 +7509,7 @@ function mkSend(type, m, done) {
 }
 net.charMake = function(name, done) { return mkSend('char-make', { name: cleanCharName(name) }, done); };
 net.charLook = function(charId, look, done) { var S = SC(), lk = look === null ? null : S && typeof S.cleanPlook === 'function' ? S.cleanPlook(look) : null; if (look !== null && !lk) return { error: 'That look cannot be used.' }; return mkSend('char-plook', { charId: String(charId), look: lk }, done); };   // 1.6.2, backlog 35: a player's look for their own character, or null to clear it
+net.charCat = function(charId, cat, done) { var ct = typeof cat === 'string' && (cat === '' || cat === '-' || /^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(cat)) ? cat : null; if (ct === null) return { error: 'That is not a category.' }; return mkSend('char-name', { charId: String(charId), cat: ct }, done); };   // 1.6.2 (218, fold 2)
 net.charName = function(charId, name, done) { var nm = cleanCharName(name); if (!nm) return { error: 'That name cannot be used.' }; return mkSend('char-name', { charId: String(charId), name: nm }, done); };
 net.charDone = function(charId, done) { return mkSend('char-done', { charId: String(charId) }, done); };
 net.charDelete = function(charId, done) { return mkSend('char-delete', { charId: String(charId) }, done); };
@@ -9482,6 +9483,14 @@ function handleMessage(msg, conn) {
         var campN = getActiveCampaign(), chN = campN && campN.chars && typeof msg.charId === 'string' && own(campN.chars, msg.charId) ? campN.chars[msg.charId] : null;
         if (!chN) { ansN({ reason: 'missing' }); return; }
         if (chN.npc || chN.ownerId !== prN.id) { ansN({ reason: 'owner' }); return; }
+        if (msg.cat !== undefined) {   // 1.6.2 (218, fold 2): its owner files it in a category of the Characters list, or in none ('-'), or back to its rules ('')
+            var ccN = campN.system && Array.isArray(campN.system.charCats) ? campN.system.charCats : [], catN = typeof msg.cat === 'string' ? msg.cat : null;
+            if (catN === null || (catN !== '' && catN !== '-' && !ccN.some(function(x) { return x && x.key === catN; }))) { ansN({ reason: 'bad' }); return; }
+            if (!allow('charname', { perMs: 1000, burst: 3, windowMs: 10000, table: 60 }, conn.peer)) { ansN({ reason: 'slow' }); return; }
+            if (catN) chN.cat = catN; else delete chN.cat; chN.updated = Date.now(); saveRemoteSoon(); sendCharTo(prN.id, chN.id); ansN({ ok: true });
+            if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(chN.id);
+            return;
+        }
         if (chN.making !== 1) { ansN({ reason: 'notmaking' }); return; }
         var nmN = cleanCharName(msg.name); if (!nmN) { ansN({ reason: 'bad' }); return; }
         if (!allow('charname', { perMs: 1000, burst: 3, windowMs: 10000, table: 60 }, conn.peer)) { ansN({ reason: 'slow' }); return; }

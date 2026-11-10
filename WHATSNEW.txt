@@ -891,6 +891,9 @@ System editor
 - A cart can pick its team from your saved sheets. Its sheet shows + Crew...,
   which lists the sheets that may pull it, such as beasts that can be
   harnessed, and Show all says why the others can't.
+- The Characters list can keep your beasts apart. A system names categories
+  such as Beasts, a sheet lands in one by itself, and File under... on its
+  right-click menu moves it.
 
 Fitted parts
 - Holds by kind may read a formula in place of a stat, such as the most any

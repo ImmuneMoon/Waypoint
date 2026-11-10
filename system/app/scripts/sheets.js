@@ -30,7 +30,7 @@ import { partsTree } from './systemcore.js';   // 205 follow-up (2): the removal
 import { upChanges, revIdle } from './systemcore.js';   // 1.6.0: what a Review entry can apply, and when it asks nothing
 import { lvlOnlyRead, lvlOnlyText, lvlOnlyOn, lvlOnlyHas, lvlOnlyList, lvlOnlySays, modTiersRead, modTiersText, modAt } from './systemcore.js';   // 1.6.0: Levels it may be, and a change's figures By level
 import { upkeepLines } from './systemcore.js';   // 205 follow-up (3): a turn's or a round's upkeep said on a card
-import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT, setGateEngine, stationFit, crewHost } from './systemcore.js';
+import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT, setGateEngine, stationFit, crewHost, charCatOf, CHAR_CATS } from './systemcore.js';
 import { rowSheetSet, sheetFromRow, rowSheetsDrop, sheetRows, setTagSource, setTagSink, setLaunchSink, setSetOffSink, setLinkCharSource } from './systemcore.js';   // 1.6.2 (vehicles, fold (a)): Rows are sheets; fold (c): marks   // 1.6.0: linked sheets
 import { ROW_LOOK, WORK_KINDS, cleanRowLook, rowLookShown, finishWords, workWords } from './systemcore.js';   // 1.6.0, backlog 206: a row's look and its work log
 import { setCrewSource } from './systemcore.js';   // 1.6.0 (CORE gap 16): a vehicle's crew as a group
@@ -6220,6 +6220,18 @@ function linkBar(box, sys, c, camp, locked) {
     });
     return n > 0;
 }
+// 1.6.2 (218, fold 2): a sheet filed in a category of the Characters list ('' back to its rules, '-' in none): the GM's own hand here, a
+// player's own sheet through the host
+function charCatSet(cid, cat) {
+    var camp = getActiveCampaign(), c = charById(cid, camp); if (!c) return;
+    if (isClient()) { var nc = net(), rc = nc && nc.charCat ? nc.charCat(cid, cat, function(a) { if (a && a.reason) toast(a.reason === 'owner' ? 'Only its owner or the GM files that sheet.' : 'That category could not be set.'); }) : { error: 'Not at a table.' }; if (rc && rc.error) toast(rc.error); return; }
+    if (!canWrite()) return;
+    if (cat) c.cat = cat; else delete c.cat;
+    if (window.wpStepLog) window.wpStepLog('charcat v1', 'set', { cat: cat ? 1 : 0 });
+    afterCharChange(c, true);
+    if (window.wpCharList && window.wpCharList.sync) window.wpCharList.sync();
+}
+function charCatNow(c) { var camp = getActiveCampaign(), sys = systemOf(camp); return sys && c ? charCatOf(sys, c, F()) : ''; }
 // [systemcheck:crewpick-start]
 // 1.6.2 (218): the vehicle's + Crew… menu: a station, then the sheets that may sit there, each by its name; Show all lists the rest, each saying why
 // not in the system's own words, greyed for a player (the host refuses it) and pressable for the GM (who is told). A pick links that sheet to this one
@@ -11606,6 +11618,33 @@ function renderTables() {
     var err = errorCell('tables'); err.dataset.errFor = 'tables'; wrap.appendChild(err);
     box.appendChild(wrap);
 }
+// [systemcheck:charcats-start]
+// 1.6.2 (218, fold 2; the owner, by prompt: "System names, owner or GM moves"): the Characters list's categories, on the Rules tab: a name, and a
+// rule that files a sheet there by itself (a form). Listeners of their own, so the editor's dispatchers never read it
+function charCatsDraft() { if (!Array.isArray(draft.charCats)) draft.charCats = []; return draft.charCats; }
+function renderCharCats() {
+    var box = ui('sysCharCats'); if (!box || !draft) return; box.textContent = '';
+    var arr = Array.isArray(draft.charCats) ? draft.charCats : [], wrap = el('div', 'sys-budgets sys-charcats');
+    wrap.appendChild(el('div', 'sys-light-head', 'Sheet categories'));
+    wrap.appendChild(el('div', 'sys-note', 'Folders in the Characters list, such as Beasts or Vehicles. A sheet goes in the first whose rule it meets, and its owner or you can file it elsewhere from its right-click menu. With none, the list is as it always was.'));
+    arr.forEach(function(x0, i) {
+        var x = x0 && typeof x0 === 'object' ? x0 : {}, row = el('div', 'sys-flags sys-cc'); row.dataset.ci = String(i);
+        var nl = el('label', 'sys-combat-item'); nl.appendChild(el('span', 'sys-num-cap', 'Name')); var nm = input('sys-cc-label field', typeof x.label === 'string' ? x.label : '', 'The folder\u2019s name in the Characters list, such as Beasts', 'Name'); nm.maxLength = 60; nl.appendChild(nm); row.appendChild(nl);
+        var fl = el('label', 'sys-combat-item'); fl.appendChild(el('span', 'sys-num-cap', 'Files a sheet by itself where')); var fi = input('sys-cc-if field', typeof x['if'] === 'string' ? x['if'] : '', 'A sheet that meets this goes in this folder by itself, unless it was filed elsewhere by hand. Empty: only by hand', 'Only by hand'); fi.maxLength = LIMITS.formula; fl.appendChild(fi); row.appendChild(fl);
+        row.appendChild(tableBtn('\u00d7', 'ccdel', 'Remove this category')); wrap.appendChild(row);
+    });
+    var ad = tableBtn('+ Category', 'ccadd', arr.length >= CHAR_CATS ? 'At most ' + CHAR_CATS : 'A folder in the Characters list'); ad.disabled = arr.length >= CHAR_CATS; wrap.appendChild(ad);
+    box.appendChild(wrap);
+    if (!box._ccWired) { box._ccWired = true;
+        box.addEventListener('input', function(e) { var tg = e.target, rw = tg.closest ? tg.closest('.sys-cc') : null, x = rw ? charCatsDraft()[+rw.dataset.ci] : null; if (!x) return; e.stopPropagation();
+            if (tg.classList.contains('sys-cc-label')) x.label = tg.value.slice(0, 60); else if (tg.classList.contains('sys-cc-if')) { var v = tg.value.slice(0, LIMITS.formula); if (v.trim()) x['if'] = v; else delete x['if']; } else return; markDirty(); });
+        box.addEventListener('change', function(e) { if (e.target && e.target.closest && e.target.closest('.sys-cc')) e.stopPropagation(); });
+        box.addEventListener('click', function(e) { var b = e.target && e.target.closest ? e.target.closest('button') : null; if (!b || (b.dataset.act !== 'ccadd' && b.dataset.act !== 'ccdel')) return; e.stopPropagation(); var a2 = charCatsDraft();
+            if (b.dataset.act === 'ccadd') { if (a2.length < CHAR_CATS) a2.push({ label: '' }); } else { var rw2 = b.closest('.sys-cc'), i2 = rw2 ? +rw2.dataset.ci : -1; if (i2 >= 0) a2.splice(i2, 1); }
+            if (!a2.length) delete draft.charCats; markDirty(); renderCharCats(); });
+    }
+}
+// [systemcheck:charcats-end]
 // [systemcheck:namelists-start]
 // 1.6.2 (backlog 147; the owner: "Lists, else a maker (Recommended)"): the name button's lists, on the Rules tab. A list is a name, a kind and its names,
 // one a line, with Who reads it; the box has listeners of its own, so the editor's dispatchers never read it
@@ -13986,6 +14025,7 @@ function renderAll() {
     if (tab === 'rules') renderEnv();   // 1.6.0: the Environment readings box
     if (tab === 'rules') renderTables();   // 1.6.0: the Tables box
     if (tab === 'rules') renderNames();   // 1.6.2 (backlog 147): the Name lists box
+    if (tab === 'rules' && typeof renderCharCats === 'function') renderCharCats();   // 1.6.2 (218, fold 2): the Sheet categories box
     if (tab === 'rules') renderResults();   // 1.6.2 (G7)
     if (tab === 'rules') renderValues();   // 1.6.2 (G8)
     if (tab === 'rules') renderTests();   // 1.6.2 (backlog 59)
@@ -15370,7 +15410,7 @@ function dmgPartPre(mk) { if (!dmgObj(mk) || typeof mk.amt !== 'number' || !isFi
 function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient() && canWrite(); }   // the cards' Apply to target: the GM's own machine
 // [systemcheck:dmgwin-end]
 function nameWordNow(n) { var c = getActiveCampaign(), s = c ? systemOf(c) : null; return nameWord(s, n); }   // 1.6.2: a name in words, for a card
-window.wpSheets = { bellNote: bellNote, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, linkValuesWrite: linkValuesWrite, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, fxEndSeed: function() { return fxEndSeed(getActiveCampaign()); }, fxRanOut: fxRanOut, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+window.wpSheets = { bellNote: bellNote, charCatSet: charCatSet, charCatNow: charCatNow, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, linkValuesWrite: linkValuesWrite, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, fxEndSeed: function() { return fxEndSeed(getActiveCampaign()); }, fxRanOut: fxRanOut, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame, openChars: openChars, closeChars: closeChars,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,

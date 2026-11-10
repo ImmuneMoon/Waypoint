@@ -23163,6 +23163,21 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && Array.isArray(hit) && hit.length === 1 && (!none || none.length === 0) && (!down || down.length === 0),
             J([offR, onR.lines, badR, msgs, hit, none, down]));
     }
+    {   // 1.6.2 (backlog 218, fold 2; the owner, by prompt: "System names, owner or GM moves"): sheet categories in the Characters list
+        const J = JSON.stringify, mk = gm => cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_h', key: 'Harnessable', kind: 'number' }, { id: 'f_s', key: 'Sec', kind: 'number', vis: 'gm' }],
+            charCats: [{ label: 'Beasts', 'if': 'Harnessable > 0' }, { label: 'Beasts' }, { label: 'Secret things', 'if': 'Sec > 0' }, { label: '' }, { label: 'Rolled', 'if': '1d6' }] }, { F, gmView: gm });
+        const G = mk(true), P = mk(false), cc = G.charCats, ch = (v, cat) => S.cleanChar(Object.assign({ id: 'c_1', name: 'A', values: v }, cat !== undefined ? { cat: cat } : {}), G);
+        const of = (v, cat) => S.charCatOf(G, ch(v, cat), F), bad = S.cleanChar({ id: 'c_2', name: 'B', cat: 'no spaces!' }, G);
+        const clS = fs.readFileSync(path.join(app, 'scripts', 'charlist.js'), 'utf8').replace(/\r\n/g, '\n'), la = clS.indexOf('// [lookcheck:charlist-start]'), lz = clS.indexOf('// [lookcheck:charlist-end]');
+        const CL = new Function(clS.slice(la, lz) + '\nreturn { charRowsOf: charRowsOf };')(), chars = { c_ox: { id: 'c_ox', name: 'Ox', npc: true }, c_kael: { id: 'c_kael', name: 'Kael', ownerId: 'u_k' }, c_rex: { id: 'c_rex', name: 'Rex', ownerId: 'u_k' } };
+        const rows = CL.charRowsOf(chars, { u_k: 'Kim' }, '', id => (id === 'c_ox' || id === 'c_rex' ? cc[0].key : ''), cc), none = CL.charRowsOf(chars, { u_k: 'Kim' }, '');
+        check('218 fold 2 sheet categories (cleanCharCats, charCatOf, cleanChar and the Characters list\'s rows run for real): up to eight named folders, each a key made once from its name and never shown, a second of one name told apart, an empty name none; a rule that rolls dice or reads a GM-only value gone, alike in both views; a sheet filed by hand stands there, one filed in none in none, else the first whose rule it meets; a key that is not one is dropped from a sheet; the list stands such sheets in their category\'s fold, out of Players and NPCs, and a system with none lists exactly as before',
+            J(cc.map(x => [x.key, x.label, x['if'] || ''])) === J([['Beasts', 'Beasts', 'Harnessable > 0'], ['Beasts2', 'Beasts', ''], ['Secretthings', 'Secret things', ''], ['Rolled', 'Rolled', '']]) && J(P.charCats) === J(cc)
+            && of({ f_h: 2 }) === 'Beasts' && of({ f_h: 0 }) === '' && of({ f_h: 2 }, 'Beasts2') === 'Beasts2' && of({ f_h: 2 }, '-') === '' && of({ f_h: 0 }, 'Gone') === '' && bad.cat === undefined && ch({}, '-').cat === '-'
+            && J(rows.cats.map(x => [x.key, x.rows.map(r => r.name)])) === J([['Beasts', ['Ox', 'Rex']]]) && J(rows.players.map(r => r.name)) === J(['Kael']) && rows.npcs.length === 0
+            && none.cats === undefined && J(none.players.map(r => r.name)) === J(['Kael', 'Rex']) && J(none.npcs.map(r => r.name)) === J(['Ox']),
+            J([cc, P.charCats, rows, none]));
+    }
     {   // 1.6.2 (backlog 218, fold 1; the owner, by prompt: "A rule, with Show all", "A tick on the link"): who may sit at a station, and which sheets are crewed
         const J = JSON.stringify, mk = gm => cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_h', key: 'Harnessable', kind: 'number' }, { id: 'f_v', key: 'IsVehicle', kind: 'toggle' }, { id: 'f_s', key: 'Sec', kind: 'number', vis: 'gm' }],
             links: [{ id: 'lk_crew', key: 'Cart', label: 'Cart', kind: 'crew', edit: 'owner', stations: ['Driver', 'Team', 'Box'], veh: 'IsVehicle', fit: { team: { 'if': 'Harnessable > 0', says: 'Only a beast that can be harnessed pulls the cart.' }, Box: { 'if': 'Sec > 1' }, Driver: { 'if': '1d6' }, Nope: { 'if': '1' } } }] }, { F, gmView: gm });

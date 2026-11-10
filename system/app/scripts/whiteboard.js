@@ -10860,8 +10860,8 @@ function tableMenuParts(e, role) {
     if (role === 'client') {
         html += head('Session') + '<div class="menu-item cm-session" data-act="leave" style="color:var(--danger)">Leave session</div>';
     } else {
-        var nextScene = camp ? Object.values(camp.items).find(function(it) { return it.type === 'planner' && it.meta && it.meta.status === 'next'; }) : null;
-        if (nextScene) html += '<div class="menu-item cm-session" data-act="scene" data-id="' + esc(nextScene.id) + '" title="The planner marked Next. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the planner itself.">&#9654; Next scene: ' + esc(nextScene.meta.title || 'planner') + '</div><div class="menu-divider"></div>';
+        var nxW = window.wpPageShelf && typeof window.wpPageShelf.nextScene === 'function' ? window.wpPageShelf.nextScene() : null, nextScene = nxW && camp && camp.items[nxW.id] ? camp.items[nxW.id] : (camp ? Object.values(camp.items).find(function(it) { return it.type === 'planner' && it.meta && it.meta.status === 'next'; }) : null);   // 1.6.2 (backlog 166 d): at tonight's scene
+        if (nextScene) html += '<div class="menu-item cm-session" data-act="scene" data-id="' + esc(nextScene.id) + '"' + (nxW && nxW.at && nxW.id === nextScene.id && /^[A-Za-z0-9_-]{1,64}$/.test(nxW.at) ? ' data-at="' + esc(nxW.at) + '"' : '') + ' title="The planner marked Next. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the planner itself.">&#9654; Next scene: ' + esc(nextScene.meta.title || 'planner') + '</div><div class="menu-divider"></div>';
         var scnPg = window.wpPageShelf && typeof window.wpPageShelf.scenePage === 'function' ? window.wpPageShelf.scenePage() : null;   // 1.6.0 (pageshelf.js): the map's scene page, opened by the one rule as Next scene is
         if (scnPg) html += '<div class="menu-item cm-session" data-act="scene" data-id="' + esc(scnPg.id) + '" title="This map\'s scene page. Shift+P opens it too. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself."><i class="wib wi-mask"></i> Scene page: ' + esc(scnPg.title) + '</div>';
         var amPin = getActiveMap(), isPinned = !!(camp && amPin && Array.isArray(camp.pinnedMaps) && camp.pinnedMaps.indexOf(amPin.id) >= 0);
@@ -10960,7 +10960,7 @@ function tableMenuParts(e, role) {
                     import('./sidebar.js').then(function(m) { m.updateSidebarNav(); });
                 }
                 else if (act === 'setups') { var suM = getActiveMap(); if (suM && window.wpSetups) window.wpSetups.open(suM.id); }   // backlog 31
-                else if (act === 'scene') { if (window.wpPageShelf) window.wpPageShelf.open(it.dataset.id, window.wpPageShelf.wayNow(ce)); }   // 1.5.4 (pageshelf.js): over the map by a plain click, as every page asked for from the play map
+                else if (act === 'scene') { if (window.wpPageShelf) window.wpPageShelf.open(it.dataset.id, window.wpPageShelf.wayNow(ce), it.dataset.at ? { at: it.dataset.at } : undefined); }   // 1.5.4 (pageshelf.js): over the map by a plain click, as every page asked for from the play map
                 else if (act === 'bring') n.bringPlayerHere(it.dataset.pid, pt.x, pt.y);
                 else if (act === 'travel') n.toggleTravelLock();
                 else if (act === 'pause') n.togglePause();

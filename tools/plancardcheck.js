@@ -66,6 +66,24 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     const old = M.markdownToBlocks('# Plan\n\n### Scene: The docks\n**Tag:** Stealth\n**Must resolve:** Who?\n', { kind: 'planner' }).blocks.filter(b => b.type === 'node');
     check('... a file from before cards reads as it always did: a scene with no mode', old.length === 1 && !('mode' in old[0]) && old[0].tag === 'Stealth' && old[0].must === 'Who?', J(old));
 
+    // 1.6.2 (backlog 166 d): a scene's session
+    check('a scene\u2019s session (cleanWhen, sessionOf, setSession): Ahead or Tonight only on a scene, Played its own tick, never two at once; a card that is no scene has none',
+        J(C.WHEN) === J(['ahead', 'tonight']) && C.cleanWhen('tonight', 'scene') === 'tonight' && C.cleanWhen('ahead', { type: 'node' }) === 'ahead' && C.cleanWhen('tonight', 'clue') === undefined && C.cleanWhen('Tonight', 'scene') === undefined && C.cleanWhen('played', 'scene') === undefined && C.cleanWhen(1, 'scene') === undefined
+        && C.sessionOf({ type: 'node', when: 'tonight' }) === 'tonight' && C.sessionOf({ type: 'node', done: true, when: 'tonight' }) === 'played' && C.sessionOf({ type: 'node', mode: 'clue', when: 'tonight' }) === '' && C.sessionOf({ type: 'text', when: 'ahead' }) === '' && C.sessionOf(null) === ''
+        && J(C.setSession({ type: 'node', done: true }, 'tonight')) === J({ type: 'node', when: 'tonight' }) && J(C.setSession({ type: 'node', when: 'ahead' }, 'played')) === J({ type: 'node', done: true }) && J(C.setSession({ type: 'node', when: 'ahead' }, '')) === J({ type: 'node' }) && J(C.setSession({ type: 'node', mode: 'clue', done: true }, 'tonight')) === J({ type: 'node', mode: 'clue' }));
+    const s1 = { type: 'node', when: 'tonight' }, s2 = { type: 'node', done: true, when: 'ahead' }, s3 = { type: 'node', mode: 'person', when: 'tonight' }, s4 = { type: 'node', when: 'later' }; [s1, s2, s3, s4].forEach(b => C.cleanCard(b));
+    check('a node cleaned keeps a scene\u2019s session only as one of the two words, never beside Played and never on another kind', J([s1, s2, s3, s4]) === J([{ type: 'node', when: 'tonight' }, { type: 'node', done: true }, { type: 'node', mode: 'person' }, { type: 'node' }]), J([s1, s2, s3, s4]));
+    const planS = { type: 'planner', meta: { title: 'S' }, blocks: [{ id: 'b1', type: 'h1', title: 'S' }, { id: 'b2', type: 'node', title: 'The heist', when: 'tonight', cols: [], rows: [] }, { id: 'b3', type: 'node', title: 'The escape', when: 'ahead', cols: [], rows: [] }, { id: 'b4', type: 'node', title: 'The job', done: true, cols: [], rows: [] }] };
+    const mdS = M.docToMarkdown(planS, {}).text, backS = M.markdownToBlocks(mdS, { kind: 'planner' }).blocks.filter(b => b.type === 'node');
+    const handS = M.markdownToBlocks('# P\n\n### Clue: Ash\n**Session:** Tonight\n\n### Scene: Odd\n**Session:** Someday\n\n### Scene: Both\n**Played:** yes\n**Session:** Ahead\n', { kind: 'planner' }).blocks.filter(b => b.type === 'node');
+    check('Markdown: a scene writes its session as Session: Tonight or Ahead and reads it back; Played stays its tick; a session on a clue, a word it does not know and one beside Played are passed over',
+        mdS.includes('### Scene: The heist\n**Session:** Tonight\n') && mdS.includes('### Scene: The escape\n**Session:** Ahead\n') && mdS.includes('### Scene: The job\n**Played:** yes\n')
+        && J(backS.map(b => [b.title, b.when, b.done])) === J([['The heist', 'tonight', undefined], ['The escape', 'ahead', undefined], ['The job', undefined, true]]) && J(handS.map(b => [b.when, b.done])) === J([[undefined, undefined], [undefined, undefined], [undefined, true]]), J([mdS, backS, handS]));
+    const plR = read('scripts/planner.js'), ixR = read('index.html'), csR = read('style.css');
+    check('wired (pinned): the editor offers a scene its Session list in place of the Played tick, a clue keeps Found; the preview colours Tonight and Ahead and says them; Help says it',
+        plR.includes("(kd.key === 'scene' ? ' <label class=\"b-when-l\"") && plR.includes("(kd.tick && kd.key !== 'scene' ? ' <label class=\"b-done-l\"") && plR.includes("CC.setSession(bb, this.value); save(); renderPlannerPreview();") && plR.includes("<span class=\"card-tick card-tick-tonight\">Tonight</span>")
+        && /\.doc-view \.node\.card-tonight \{ box-shadow: inset 3px 0 0 var\(--gold\); \}/.test(csR) && /\.doc-view \.node\.card-ahead \{ box-shadow: inset 3px 0 0 var\(--blue\); \}/.test(csR) && ixR.includes('A scene card has a <b>Session</b> list: <b>Ahead</b>, <b>Tonight</b> or <b>Played</b>'));
+
     // the import cleaner
     const file = () => ({ chars: { c_1: { id: 'c_1', name: 'Mira' } }, items: { p1: { id: 'p1', type: 'planner', meta: { title: 'P' }, blocks: [
         { id: 'b1', type: 'node', mode: 'person', title: 'Mira', aka: ['Fox', 'fox', 5], sheet: 'c_1', done: true },

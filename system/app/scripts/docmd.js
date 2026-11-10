@@ -606,11 +606,12 @@ function markdownToBlocks(text, opts) {
         }
         // scene-node field lines (planner) right under "### Scene:"
         if (scene && kind === 'planner') {
-            var fld = /^\*\*(tag|role|area|must resolve|must|wants|when they arrive|points to|also known as|played|found):?\*\*:?\s*(.*)$/i.exec(line) || /^(map)\s*:\s*(.*)$/i.exec(line);
+            var fld = /^\*\*(tag|role|area|must resolve|must|wants|when they arrive|points to|also known as|played|found|session):?\*\*:?\s*(.*)$/i.exec(line) || /^(map)\s*:\s*(.*)$/i.exec(line);
             if (fld) {
                 var key = fld[1].toLowerCase(), vf = fieldOf(fld[2]), val = vf.text;
                 if (key === 'role' || key === 'area') key = 'tag'; else if (key === 'wants' || key === 'when they arrive' || key === 'points to') key = 'must';   // a card's own words for its tag and its lead line
                 if (key === 'also known as') { var akaI = CC.cleanAka(val); if (akaI) scene.aka = akaI; i++; continue; }
+                if (key === 'session') { var wvI = val.trim().toLowerCase(); if (CC.cleanWhen(wvI, CC.cardKind(scene)) && scene.done !== true) scene.when = wvI; i++; continue; }   // 1.6.2 (backlog 166 d)
                 if (key === 'played' || key === 'found') { if (/^(yes|true|x)$/i.test(val.trim()) && CC.kindOf(scene).tick.toLowerCase() === key) scene.done = true; i++; continue; }
                 if (key === 'tag') { scene.tag = val; setFmt(scene, 'tag', vf.fmt); }
                 else if (key === 'map') {
@@ -784,6 +785,7 @@ function docToMarkdown(item, opts) {
                 L.push('### ' + kdM.word + ': ' + fieldText(b, 'title', IN_SCENE));
                 if (akaM) L.push('**Also known as:** ' + IN_LINE.put(akaM.join(', '), true));
                 if (b.done === true && kdM.tick) L.push('**' + kdM.tick + ':** yes');
+                else if (CC.cleanWhen(b.when, CC.cardKind(b))) L.push('**Session:** ' + (b.when === 'tonight' ? 'Tonight' : 'Ahead'));   // 1.6.2 (backlog 166 d)
                 if (b.tag) L.push('**' + kdM.tag + ':** ' + fieldText(b, 'tag', IN_LINE));
                 if (b.must) L.push('**' + kdM.must + ':** ' + fieldText(b, 'must', IN_LINE));
                 if (b.linkMapId && items[b.linkMapId]) { var mp = items[b.linkMapId], rm = b.linkRoomId && (mp.rooms || []).find(function(r) { return r.id === b.linkRoomId; }); L.push('Map: ' + ((mp.meta && mp.meta.title) || mp.id) + (rm ? ' / ' + (rm.name || rm.id) : '')); }

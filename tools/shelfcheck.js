@@ -65,7 +65,7 @@ const W = new Function(waySrc + '\nreturn { way: pageWay, pageOf: pageOf };')();
     check('at someone else\'s table a handbook page is read in the reader whatever way is asked, never opened to edit and never in a window, and a planner is not opened at all',
         fDoc.every(r => r.how === 'reader' && J(r.read) === J(['d1']) && kept(r) && r.opened.length === 0 && r.popped.length === 0) && fPlan.every(r => r.how === '' && kept(r) && r.read.length === 0 && r.opened.length === 0 && r.popped.length === 0), J([fDoc.map(r => r.how), fPlan.map(r => r.how)]));
     check('the module publishes the rule, the rule for the view on screen, the opener and the shelf\'s few calls, and wires the shelf once; the view is asked of the one place that knows it (floats.js), and nothing in the module draws markup or opens a window by itself',
-        /\nwindow\.wpPageShelf = \{ way: pageWay, wayNow: function\(ev\) \{ return pageWay\(viewNow\(\), ev\); \}, open: openPage, isPinned: isPinned, pinLabel: pinLabel, pin: pinPage, opened: pageOpened, noteActive: noteActive, close: shelfClose, mapPin: mapPin, mapPinField: mapPinField, mapPinSet: mapPinSet,\n    linkGo: linkGo, linkChoices: function\(\) \{ return linkChoices\(getActiveCampaign\(\)\); \}, linkWords: function\(id, at\) \{ return linkWords\(getActiveCampaign\(\), id, at\); \} \};\nshelfWire\(\);\n\/\/ 1\.6\.0, a map's scene page: what Properties, the map's right-click menu and the Scene page command \(commands\.js\) ask\nwindow\.wpPageShelf\.scenePageField = [^\n]*\n(?:\/\/ 1\.6\.0, [^\n]*\nwindow\.wpPageShelf\.[^\n]*\n)*$/.test(ps)   /* 1.6.0: a map's scene page after the wiring (moved on purpose) */
+        /\nwindow\.wpPageShelf = \{ way: pageWay, wayNow: function\(ev\) \{ return pageWay\(viewNow\(\), ev\); \}, open: openPage, isPinned: isPinned, pinLabel: pinLabel, pin: pinPage, opened: pageOpened, noteActive: noteActive, close: shelfClose, mapPin: mapPin, mapPinField: mapPinField, mapPinSet: mapPinSet,\n    linkGo: linkGo, linkChoices: function\(\) \{ return linkChoices\(getActiveCampaign\(\)\); \}, linkWords: function\(id, at\) \{ return linkWords\(getActiveCampaign\(\), id, at\); \} \};\nshelfWire\(\);\n\/\/ 1\.6\.0, a map's scene page: what Properties, the map's right-click menu and the Scene page command \(commands\.js\) ask\nwindow\.wpPageShelf\.scenePageField = [^\n]*\n(?:\/\/ 1\.6\.[0-9], [^\n]*\nwindow\.wpPageShelf\.[^\n]*\n)*$/.test(ps)   /* 1.6.0: a map's scene page after the wiring (moved on purpose); 1.6.2 (166 d) the Next scene's landing too */
         && /\nfunction viewNow\(\) \{ var fl = window\.wpFloats; return fl && fl\.view \? fl\.view\(\) : ''; \}\n/.test(ps)
         && /\nfunction pageOpened\(id\) \{ recentNote\(id\); panelSync\(\); \}\n/.test(ps) && /\n    var camp = getActiveCampaign\(\); if \(camp && pageOf\(camp, camp\.activeItemId\)\) recentNote\(camp\.activeItemId\);\n    if \(shelfIsOpen\(\) && viewNow\(\) !== 'play'\) shelfClose\(\);/.test(ps)
         && /\nfunction shelfClose\(\) \{ var m = shelfMenu\(\); if \(m && m\.classList\.contains\('show'\)\) \{ m\.classList\.remove\('show'\); m\.textContent = ''; \} \}/.test(ps)
@@ -136,7 +136,7 @@ const syncPromise = () => {
 
 /* ---------- the session shelf: what it holds ---------- */
 const shelfSrc = sliceOf(ps, 'shelf');
-const S = new Function(waySrc + '\n' + shelfSrc + '\nreturn { SHELF: SHELF, shelfText: shelfText, pageTitle: pageTitle, pinnedOf: pinnedOf, pinToggle: pinToggle, recentClean: recentClean, recentAdd: recentAdd, mapChain: mapChain, pagesFor: pagesFor, natCmp: natCmp, shelfModel: shelfModel };')();
+const S = new Function(waySrc + '\n' + shelfSrc + '\nreturn { SHELF: SHELF, shelfText: shelfText, pageTitle: pageTitle, pinnedOf: pinnedOf, pinToggle: pinToggle, recentClean: recentClean, recentAdd: recentAdd, mapChain: mapChain, pagesFor: pagesFor, natCmp: natCmp, shelfModel: shelfModel, tonightOf: tonightOf, nextSceneOf: nextSceneOf };')();
 // A campaign: a bar in a city in a world, two planners that play in the bar (one of them marked Next), one for the city, and loose pages
 const mkCamp = () => ({ id: 'c1', items: {
     m_world: { type: 'map', meta: { title: 'World' } },
@@ -218,6 +218,18 @@ const mkCamp = () => ({ id: 'c1', items: {
     for (let i = 0; i < 6; i++) chainC.items['c' + i] = { type: 'planner', meta: { title: 'City ' + i }, blocks: [{ type: 'node', title: 'n', linkMapId: 'm_city' }] };
     chainC.pinnedPages = ['c5']; const chm = S.shelfModel(chainC, 'm_bar', ['p_city', 'c0']);   // ten here, two rows left for the map around it: City 0 and City 1
     const pinTwice = mkCamp(); pinTwice.items.m_bar.whiteboard = [{ id: 'w1', type: 'rect', page: 'p_bar' }, { id: 'w2', type: 'rect', page: 'd_rules' }, { id: 'w3', type: 'rect', page: 'd_rules' }]; const ptm = S.shelfModel(pinTwice, 'm_bar', []);
+    {   /* 1.6.2 (backlog 166 d): Next scene opens at the scene marked Tonight */
+        const tc = { id: 'k', items: {
+            p_a: { id: 'p_a', type: 'planner', meta: { title: 'Act one' }, blocks: [{ id: 'n1', type: 'node', title: 'Old', when: 'tonight', done: true }, { id: 'n2', type: 'node', title: '<b>The heist</b>', when: 'tonight' }] },
+            p_b: { id: 'p_b', type: 'planner', meta: { title: 'Act two', status: 'next' }, blocks: [{ id: 'n3', type: 'node', mode: 'clue', title: 'A clue', when: 'tonight' }, { id: 'n4', type: 'node', title: 'The escape', when: 'tonight' }] },
+            p_c: { id: 'p_c', type: 'planner', meta: { title: 'Act three' }, blocks: [{ id: 'bad id!', type: 'node', title: 'Odd', when: 'tonight' }] } } };
+        const nxA = S.nextSceneOf(tc), tc2 = JSON.parse(JSON.stringify(tc)); delete tc2.items.p_b.meta.status; const nxB = S.nextSceneOf(tc2);
+        const tc3 = JSON.parse(JSON.stringify(tc)); tc3.items.p_b.blocks = []; const nxC = S.nextSceneOf(tc3);
+        const tc4 = { id: 'k', items: { p_c: tc.items.p_c } }, nxD = S.nextSceneOf(tc4), mS = S.shelfModel(tc, '', []);
+        check('166 d Next scene opens at the scene marked Tonight (nextSceneOf, shelfModel, run for real): the planner marked Next at its Tonight scene; with none marked Next the planner that holds one; a Next planner with none opens at the top; a played scene, a clue and a node with no sound id are no landing; the shelf\u2019s row says the scene and opens at it',
+            J(nxA) === J({ id: 'p_b', node: 'The escape', at: 'n4' }) && J(nxB) === J({ id: 'p_a', node: 'The heist', at: 'n2' }) && J(nxC) === J({ id: 'p_b' }) && J(nxD) === J({ id: 'p_c', node: 'Odd' }) && S.nextSceneOf(null) === null && S.nextSceneOf({ id: 'k', items: {} }) === null
+            && J(mS.next) === J([{ id: 'p_b', title: 'Act two', kind: 'planner', sub: 'Tonight: The escape', pinned: false, next: true, at: 'n4' }]), J([nxA, nxB, nxC, nxD, mS.next]));
+    }
     check('a page past the shelf\'s 12 rows (the owed review of 2026-10-09; shelfModel, run for real): the maps still take 12 rows at most, and a page cut there is free for the rest of the shelf, so a pinned one stands under Pinned and one opened lately under Recent, each once; a page that is kept keeps its one place; along the maps a map is nested in, the same; a page that plays here and is pinned to a piece here, or to two pieces, stands once',
         cm.where.length === 1 && cm.where[0].rows.length === 12 && !ids(cm.where[0].rows).includes('b10') && !ids(cm.where[0].rows).includes('b11') && J(ids(cm.pinned)) === J(['b11']) && J(ids(cm.recent)) === J(['b10'])
         && chm.where.length === 2 && chm.where[0].rows.length === 10 && J(ids(chm.where[1].rows)) === J(['c0', 'c1']) && J(ids(chm.pinned)) === J(['c5']) && J(ids(chm.recent)) === J(['p_city'])
@@ -673,7 +685,7 @@ const drawSrc = sliceOf(ps, 'draw');
 /* ---------- the play map's Next scene row ---------- */
 {
     check('Next scene, on the play map\'s right-click menu, opens by the same rule and decides nothing itself: a plain click over the map, Ctrl a window, Alt the planner; its tooltip says so',
-        count(wb, "else if (act === 'scene') { if (window.wpPageShelf) window.wpPageShelf.open(it.dataset.id, window.wpPageShelf.wayNow(ce)); }") === 1 && !/act === 'scene'\) \{[^\n]*activeItemId/.test(wb)
+        count(wb, "else if (act === 'scene') { if (window.wpPageShelf) window.wpPageShelf.open(it.dataset.id, window.wpPageShelf.wayNow(ce), it.dataset.at ? { at: it.dataset.at } : undefined); }") === 1 && !/act === 'scene'\) \{[^\n]*activeItemId/.test(wb)
         && count(wb, 'title="The planner marked Next. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the planner itself.">&#9654; Next scene: ') === 1 && /it\.addEventListener\('click', function\(ce\) \{/.test(wb));
 }
 
@@ -1120,7 +1132,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && count(cmS, "}).concat([CMD_LAST, CMD_SCENE], CMD_MOVE, CMD_TOKEN, CMD_WINDOWS.map(") === 1
         && count(wb, "        var scnPg = window.wpPageShelf && typeof window.wpPageShelf.scenePage === 'function' ? window.wpPageShelf.scenePage() : null;") === 1
         && count(wb, "        if (scnPg) html += '<div class=\"menu-item cm-session\" data-act=\"scene\" data-id=\"' + esc(scnPg.id) + '\" title=\"This map\\'s scene page. Shift+P opens it too. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.\"><i class=\"wib wi-mask\"><\/i> Scene page: ' + esc(scnPg.title) + '</div>';") === 1
-        && count(wb, "                else if (act === 'scene') { if (window.wpPageShelf) window.wpPageShelf.open(it.dataset.id, window.wpPageShelf.wayNow(ce)); }") === 1);
+        && count(wb, "                else if (act === 'scene') { if (window.wpPageShelf) window.wpPageShelf.open(it.dataset.id, window.wpPageShelf.wayNow(ce), it.dataset.at ? { at: it.dataset.at } : undefined); }") === 1);
 }
 {
     // Properties (inspector.js): the map's Scene page row and its setter

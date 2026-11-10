@@ -777,6 +777,9 @@ Writing planners and pages
 - Eras name spans of years, such as the Age of Ash or a long war. Set them at
   the foot of the Calendar window with a name, the years and a colour. The
   date shows its era, and the Timeline heads each era's notes with it.
+- A scene card has a Session list: Ahead, Tonight or Played, each in its own
+  colour. Next scene on the play map and in the Pages shelf opens the planner
+  right at the scene marked Tonight.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

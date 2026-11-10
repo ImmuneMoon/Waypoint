@@ -2569,8 +2569,12 @@
   .doc-view .node h3 { margin: 0 0 3px; font-size: 18px; color: var(--ink); }
   .doc-view .node h3 > .wib { color: var(--gold); vertical-align: -2px; }   /* backlog 107 step 3: a person, place or clue card's drawing before its name */
   .doc-view .node .card-tick { font-size: 11px; color: var(--green, #6fbf73); border: 1px solid currentColor; border-radius: 20px; padding: 2px 9px; margin-left: 9px; vertical-align: 3px; font-weight: 500; }
+  .doc-view .node .card-tick.card-tick-tonight { color: var(--gold); }   /* 1.6.2 (backlog 166 d): a scene's session, Played green, Tonight gold, Ahead blue */
+  .doc-view .node .card-tick.card-tick-ahead { color: var(--blue); }
+  .doc-view .node.card-tonight { box-shadow: inset 3px 0 0 var(--gold); }
+  .doc-view .node.card-ahead { box-shadow: inset 3px 0 0 var(--blue); }
   .doc-view .node .card-aka, .doc-view .node .card-sheet { color: var(--dim); margin: 2px 0 6px; font-size: 13px; }
-  .b-done-l { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; font-size: 12px; color: var(--dim); }
+  .b-done-l, .b-when-l { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; font-size: 12px; color: var(--dim); }
   .doc-view .node h3 .tag { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold); border-radius: 20px; padding: 2px 9px; margin-left: 9px; vertical-align: middle; }
   .doc-view .must { color: var(--dim); margin: 2px 0 10px; font-size: 14px; }
   .doc-view .must b { color: var(--ink); }

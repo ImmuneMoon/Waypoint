@@ -148,6 +148,26 @@ function scenePagePut(camp, map, id) {
     if (!meta || meta.scenePage === undefined) return '';
     delete meta.scenePage; return 'cleared';
 }
+// 1.6.2 (backlog 166 d): the scene marked Tonight, as { id: its planner, at: the node's block id, node: its title }: in the planner marked Next
+// first, else the first planner that has one; null for none. A node with no sound block id is no landing, its planner still opens
+function tonightOf(camp) {
+    if (!camp || !camp.items) return null;
+    var ids = Object.keys(camp.items).filter(function(id) { var it = camp.items[id]; return !!it && it.type === 'planner' && Array.isArray(it.blocks); });
+    ids.sort(function(a, b) { var na = camp.items[a].meta && camp.items[a].meta.status === 'next' ? 0 : 1, nb = camp.items[b].meta && camp.items[b].meta.status === 'next' ? 0 : 1; return na - nb; });
+    for (var k = 0; k < ids.length; k++) {
+        var bl = camp.items[ids[k]].blocks;
+        for (var i = 0; i < bl.length && i < 4000; i++) { var b = bl[i]; if (b && b.type === 'node' && ['person', 'place', 'clue', 'table'].indexOf(b.mode) < 0 && b.done !== true && b.when === 'tonight') { var o = { id: ids[k], node: shelfText(b.title, 80) }; if (typeof b.id === 'string' && LAND_AT.test(b.id)) o.at = b.id; return o; } }
+    }
+    return null;
+}
+// What the Next scene rows open: the planner marked Next, at its scene marked Tonight where it has one; with none marked Next, the planner whose
+// scene is marked Tonight. { id, at?, node? } or null
+function nextSceneOf(camp) {
+    if (!camp || !camp.items) return null;
+    var nextId = Object.keys(camp.items).filter(function(id) { var it = camp.items[id]; return !!it && it.type === 'planner' && !!it.meta && it.meta.status === 'next'; })[0] || '', tn = tonightOf(camp);
+    if (nextId) return tn && tn.id === nextId ? tn : { id: nextId };
+    return tn;
+}
 // What the shelf shows, in order: the planners of the map on screen (and the pages pinned to its pieces) and those of the maps it is nested
 // in, the planner marked Next, the pinned pages, the last ones opened. A page stands once, in the first place it belongs; its row says
 // whether it is pinned and whether it is Next
@@ -155,7 +175,7 @@ function shelfModel(camp, mapId, recentRaw) {
     var m = { where: [], next: [], pinned: [], recent: [] }; if (!camp || !camp.items) return m;
     var seen = Object.create(null), take = function(id) { if (seen[id]) return false; seen[id] = 1; return true; };
     var pins = pinnedOf(camp), pinned = Object.create(null); pins.forEach(function(id) { pinned[id] = 1; });
-    var nextId = Object.keys(camp.items).filter(function(id) { var it = camp.items[id]; return !!it && it.type === 'planner' && !!it.meta && it.meta.status === 'next'; })[0] || '';
+    var nxS = nextSceneOf(camp), nextId = nxS ? nxS.id : '';   // 1.6.2 (backlog 166 d): the planner marked Next, or the one whose scene is Tonight
     var row = function(id, sub, at) { var it = camp.items[id], o = { id: id, title: pageTitle(it), kind: it.type, sub: sub || '', pinned: !!pinned[id], next: id === nextId }; if (at) o.at = at; return o; };   // at: the node a planner of this map opens at (Here and Around)
     var room = SHELF.here;
     mapChain(camp, mapId).forEach(function(mid, k) {
@@ -168,7 +188,7 @@ function shelfModel(camp, mapId, recentRaw) {
         rows = rows.slice(0, room); rows.forEach(function(r) { seen[r.id] = 1; });   // the owed review, 2026-10-09: a row is seen once it is KEPT. Marked before the cut, a page past the limit stood nowhere on the shelf, pinned or not
         if (rows.length) { m.where.push({ map: mid, title: pageTitle(camp.items[mid]), here: k === 0, rows: rows }); room -= rows.length; }
     });
-    if (nextId && take(nextId)) m.next.push(row(nextId));
+    if (nextId && take(nextId)) m.next.push(row(nextId, nxS.node ? 'Tonight: ' + nxS.node : '', nxS.at));   // at tonight's scene
     pins.forEach(function(id) { if (take(id)) m.pinned.push(row(id)); });
     recentClean(camp, recentRaw).forEach(function(id) { if (take(id)) m.recent.push(row(id)); });
     return m;
@@ -473,3 +493,5 @@ window.wpPageShelf.scenePageField = scenePageField; window.wpPageShelf.scenePage
 window.wpPageShelf.mapPinAtSet = mapPinAtSet;
 // 1.6.0, the hover preview of a pin
 window.wpPageShelf.mapPinPeek = mapPinPeek;
+// 1.6.2, backlog 166 d: what the play map's Next scene row asks, the planner and tonight's scene it opens at
+window.wpPageShelf.nextScene = function() { return nextSceneOf(getActiveCampaign()); };

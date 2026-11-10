@@ -324,15 +324,15 @@ function mentionGo(kind, id, at) {
 }
 // Every mention in a read view drawn in the current name of what it names, as a chip; one that is not here keeps its words, struck. A box being
 // edited is never touched, since its words are the field's own
-function mentionPaint(root) {
+function mentionPaint(root, soft, keep) {
     if (!root || typeof root.querySelectorAll !== 'function') return 0;
-    var camp = getActiveCampaign(), n = 0;
+    var camp = getActiveCampaign(), n = 0, sure = !!camp && soft !== true;   // soft: a window that may hold no campaign, or another's: nothing is said to be gone
     Array.prototype.forEach.call(root.querySelectorAll('a[href^="#wp:@:"]'), function(a) {
-        if (a.closest && a.closest('[contenteditable="true"], [contenteditable="plaintext-only"], .ts-box')) return;
+        var ed = a.closest ? a.closest('[contenteditable="true"], [contenteditable="plaintext-only"], .ts-box') : null; if (ed && !(ed.hasAttribute && ed.hasAttribute('data-reads'))) return;
         var m = /^#wp:@:(page|map|char):([A-Za-z0-9_-]{1,80})(?::([A-Za-z0-9_-]{1,64}))?$/.exec(String(a.getAttribute('href') || '')); if (!m) return;
         var nm = mentionName(camp, m[1], m[2], m[1] === 'char' ? '' : (m[3] || ''));
-        a.classList.add('wp-mention'); a.classList.toggle('wp-mention-gone', !nm); a.setAttribute('data-kind', m[1]);
-        if (nm && a.textContent !== nm) a.textContent = nm;
+        a.classList.add('wp-mention'); a.classList.toggle('wp-mention-gone', !nm && sure); a.setAttribute('data-kind', m[1]);
+        if (nm && keep !== true && a.textContent !== nm) a.textContent = nm;   // keep: the words stay as written (a box that counts its own words)
         n++;
     });
     return n;

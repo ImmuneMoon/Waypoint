@@ -1307,8 +1307,9 @@
                                   <li><b>Back and Forward.</b> After you follow a page link, the left arrow beside <b>Outline</b> takes you back to the page and the very spot you clicked it from. The right arrow goes forward again. <kbd>Alt</kbd>+<kbd>Left</kbd> and <kbd>Alt</kbd>+<kbd>Right</kbd> do the same while you are in that page. Each place a page is read keeps its own way back.</li>
                                   <li>Right-click a page link to choose where it opens: here, in a new window or in the panel over the map. While the pointer rests on a page link, a small button beside it opens the page in a new window.</li>
                                   <li>A player follows a page link only to a page you share with them.</li>
-                                  <li><b>@-mentions.</b> Type <kbd>@</kbd> and a few letters in a text block, a card&rsquo;s field or a Journal note. A list of pages, maps, rooms and characters narrows as you type. Pick one with <kbd>Enter</kbd> or a click.</li>
+                                  <li><b>@-mentions.</b> Type <kbd>@</kbd> and a few letters in a text block, a card&rsquo;s field, a Journal note, Table Chat or the table notepad. A list of pages, maps, rooms and characters narrows as you type. Pick one with <kbd>Enter</kbd> or a click.</li>
                                   <li>A mention reads as a chip in the thing&rsquo;s current name, so it follows a rename. One whose thing was deleted is struck through.</li>
+                                  <li>In Table Chat a chip names the thing as each reader&rsquo;s own campaign names it. On the table notepad a chip keeps the words the GM typed.</li>
                                   <li>A click on a chip opens a page, goes to a map at its room, or opens a character&rsquo;s sheet. A player is never moved to a map by a chip.</li>
                                   <li>A flowchart label cannot hold a link, but a flowchart <b>node</b> can. Click into a node&rsquo;s label and the Link box links the <b>whole node</b>. Type the address and press <kbd>Enter</kbd>, whatever is selected in the label. An empty box takes the link off.</li>
                                   <li>The linked node&rsquo;s label is underlined in the chart and a click on the node opens the address. In your own preview it opens directly. There a drag still moves the node and its corner handle still resizes it, and only a plain click opens the link. On a player&rsquo;s screen it opens only after asking.</li>
@@ -5308,7 +5309,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div style="padding:8px; border-top:1px solid var(--edge); display:flex; flex-direction:column; gap:6px;">
         <select id="chatTo" style="display:none; width:100%; box-sizing:border-box;"><option value="">Everyone</option></select>
         <div style="display:flex; gap:6px;">
-            <input type="text" id="chatInput" placeholder="Message, or /roll 2d6 + 3" style="flex:1; box-sizing:border-box;">
+            <input type="text" id="chatInput" data-mentions placeholder="Message, or /roll 2d6 + 3, or @ to mention" style="flex:1; box-sizing:border-box;">
             <button class="tool ghost icon" id="diceBtn" title="Roll dice &mdash; or type /roll 2d6 + 3 in the box" aria-label="Roll dice"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z"/><path class="ico-pip" d="M8.5 8.5h0M12 12h0M15.5 15.5h0"/></svg></button>
             <button class="tool" id="chatSendBtn">Send</button>
         </div>

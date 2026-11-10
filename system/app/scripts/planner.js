@@ -1216,7 +1216,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function tsxPress(change, from, am, sel, box) {
       var hx = tsHostBy(sel.d.h), fld = tsField(null, sel.d); if (!hx || !fld) { tsState.run = null; tsRefresh(); return false; }
       var plain = change !== 'clear';
-      if ((plain && tsOwn(change, 'link') && !hx.links(sel.d.key)) || (plain && tsOwn(change, 'size') && !hx.sizes(sel.d.key))) { tsRefresh(); return false; }
+      if ((plain && tsOwn(change, 'link') && !hx.links(sel.d.key) && !(hx.mentions(sel.d.key) && TF.mentionLink(change.link))) || (plain && tsOwn(change, 'size') && !hx.sizes(sel.d.key))) { tsRefresh(); return false; }
       var was = tsxNow(fld), text = was.text;
       var next = change === 'clear' ? TF.clear(fld.fmt(), text, sel.s, sel.e) : TF.apply(fld.fmt(), text, sel.s, sel.e, change);
       if (JSON.stringify(next) === JSON.stringify(TF.cleanFmt(fld.fmt(), text))) { tsRefresh(); return false; }   // nothing to change: no step
@@ -1324,7 +1324,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       tsHosts.forEach(function(h) { others = others.concat(h.roots); });
       for (var ri = 0; ri < roots.length; ri++) { if (others.some(function(o) { return near(o, roots[ri]); })) return false; others.push(roots[ri]); }
       var ask = function(name, none) { return function(a, b) { try { return typeof rec[name] === 'function' ? rec[name](a, b) : none; } catch (err) { if (typeof console !== 'undefined' && console.error) console.error(err); return none; } }; };
-      var q = { field: ask('field', null), doc: ask('doc', ''), name: ask('name', ''), links: ask('links', false), sizes: ask('sizes', false), fonts: ask('fonts', false), barHost: ask('barHost', null), barArea: ask('barArea', null), barBy: ask('barBy', null), barUnder: ask('barUnder', false), changed: ask('changed', null), left: ask('left', null) };
+      var q = { field: ask('field', null), doc: ask('doc', ''), name: ask('name', ''), links: ask('links', false), mentions: ask('mentions', false), sizes: ask('sizes', false), fonts: ask('fonts', false), barHost: ask('barHost', null), barArea: ask('barArea', null), barBy: ask('barBy', null), barUnder: ask('barUnder', false), changed: ask('changed', null), left: ask('left', null) };
       var hx = {
           id: rec.id, roots: roots,
           // a host's field as the box reads it: its text a string or nothing, its format an object or none. What it holds is the host's, and may come from a file
@@ -1337,6 +1337,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           doc: function() { var v = q.doc(); return typeof v === 'string' ? v : ''; },
           name: function(key) { var v = q.name(key); return typeof v === 'string' ? v.slice(0, 80) : ''; },
           links: function(key) { return q.links(key) === true; },
+          mentions: function(key) { return q.mentions(key) === true; },   // 1.6.2 (166 f): a place that takes no link may take a mention (the table notepad)
           sizes: function(key) { return q.sizes(key) === true; },
           fonts: function(key) { return q.fonts(key) === true; },
           barHost: function(box) { return q.barHost(box) || null; },
@@ -1647,7 +1648,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (el.classList.contains('rte-body')) return !!rteLinkBox(el);
       if (!el.classList.contains('ts-box')) return false;
       var d = tsDesc(el); if (!d || tsIsLabel(d)) return false;
-      if (d.k === 'x') { var hx = tsHostBy(d.h); return !!hx && hx.links(d.key); }
+      if (d.k === 'x') { var hx = tsHostBy(d.h); return !!hx && (hx.links(d.key) || hx.mentions(d.key)); }
       return true;
   }
   function mentionAt(el) {

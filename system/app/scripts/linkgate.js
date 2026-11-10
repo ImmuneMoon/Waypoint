@@ -76,7 +76,7 @@ function atTable(win) {
 //   that is known — the GM, or a player's name as the Journal shows it;  player: atTable.
 function linkWhere(a, win) {
     var c = { editing: false, held: !!(a.hasAttribute && a.hasAttribute('data-held')), zone: 'other', own: false, gm: false, who: '', player: atTable(win) };
-    for (var n = a; n; n = n.parentNode) if (n.isContentEditable === true) { c.editing = true; break; }
+    if (!(a.closest && a.closest('[data-reads]'))) for (var n = a; n; n = n.parentNode) if (n.isContentEditable === true) { c.editing = true; break; }   // 1.6.2: a box editable for its caret alone (data-reads: a player's notepad) is read, not edited
     var ask = !!a.closest('[data-ask]');   // a text that may be someone else's, drawn by the reader with the word that it asks (fillRuns): no place it stands in makes its links open directly, the viewer's own entry included
     var v = a.closest(ZONE_VIEWER);
     if (v) {

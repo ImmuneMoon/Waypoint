@@ -42,7 +42,7 @@
      lookWeight(rec)               the size, for a budget, of a record cleanRec or makeRec GAVE: its strings as JSON writes them, 64 for the record and 64 a part.
                                    Never the measure of a record as it arrived: clean first, then weigh. */
 'use strict';
-import { cleanFmt, fontKnown, MAX_RAW, MAX_LINK, MAX_FONT } from './textfmt.js';
+import { cleanFmt, fontKnown, MAX_RAW, MAX_LINK, MAX_FONT, mentionLink } from './textfmt.js';
 
 // [textcheck:lookcore-start]
 var LINKS = 20;            // linked parts a field keeps
@@ -52,7 +52,7 @@ var RULES = {
     LINE: { size: false, link: true, font: false, multi: false, max: 0 },        // a sheet's one-line text: no size (the owner, 2026-10-09: "No size there")
     NOTES: { size: true, link: true, font: false, multi: true, max: 0 },         // a sheet's notes
     NOTE: { size: true, link: true, font: true, multi: true, max: 60000 },       // a Journal note of your own
-    PAD: { size: true, link: false, font: true, multi: true, max: 20000 }        // the table notepad: read by everyone at the table, so no link
+    PAD: { size: true, link: false, mention: true, font: true, multi: true, max: 20000 }   // the table notepad: read by everyone at the table, so no link but a mention (1.6.2, backlog 166 f), which leads nowhere outside the app
 };
 Object.keys(RULES).forEach(function(k) { Object.freeze(RULES[k]); }); Object.freeze(RULES);   // a rule is a fact of the app: no caller changes one
 var FMT_KEYS = ['size', 'color', 'b', 'i', 'u', 'st', 'link', 'spans'], SPAN_KEYS = ['s', 'e', 'size', 'color', 'b', 'i', 'u', 'st', 'link'], REC_KEYS = ['fmt', 'font', 'sig'];
@@ -74,7 +74,7 @@ function keysOk(o, allowed, list) {
 // what a rule takes, read with care: only true is a yes, and a rule that is no object takes nothing
 function ruleOf(rule) {
     var r = plain(rule) ? rule : {}, m = typeof r.max === 'number' && isFinite(r.max) && r.max > 0 ? Math.floor(r.max) : 0;
-    return { size: r.size === true, link: r.link === true, font: r.font === true, multi: r.multi === true, max: m };
+    return { size: r.size === true, link: r.link === true, mention: r.mention === true, font: r.font === true, multi: r.multi === true, max: m };
 }
 
 // Whether a place's rule takes links at all, for a reader that draws typed addresses as links (linkgate.js fillRuns)
@@ -112,8 +112,9 @@ function fieldLook(fmt, text, rule) {
     if (!f) return undefined;
     var out = {}, n = 0, chars = 0, k;
     // a link is kept while the field has room for it: at most LINKS of them, and LINK_CHARS characters of address in all
-    var room = function(link) { if (!R.link || typeof link !== 'string' || !link || n >= LINKS || chars + link.length > LINK_CHARS) return false; n++; chars += link.length; return true; };
-    for (k in f) if (own(f, k) && k !== 'spans' && !(k === 'size' && !R.size) && !(k === 'link' && !R.link)) out[k] = f[k];   // (a link that is the whole field's is one link of at most MAX_LINK characters, and no part has another: always within both bounds)
+    var takes = function(link) { return R.link || (R.mention && !!mentionLink(link)); };   // a place that takes no link may still take a mention (the pad)
+    var room = function(link) { if (typeof link !== 'string' || !link || !takes(link) || n >= LINKS || chars + link.length > LINK_CHARS) return false; n++; chars += link.length; return true; };
+    for (k in f) if (own(f, k) && k !== 'spans' && !(k === 'size' && !R.size) && !(k === 'link' && !takes(f[k]))) out[k] = f[k];   // (a link that is the whole field's is one link of at most MAX_LINK characters, and no part has another: always within both bounds)
     // one address over touching parts of several looks is ONE link (a reader draws it as one): it is counted once, and kept whole or dropped whole
     var pe = -1, pl = '', pk = false;
     if (Array.isArray(f.spans)) out.spans = f.spans.map(function(sp) {

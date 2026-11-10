@@ -59,18 +59,48 @@ function draw() {
 }
 function place() {
     var m = st.menu; if (!m || m.hidden) return;
-    var r = null; try { var gs = window.getSelection(); if (gs && gs.rangeCount) { var rg = gs.getRangeAt(0).cloneRange(); rg.collapse(true); var rs = rg.getClientRects(); r = rs && rs.length ? rs[0] : rg.getBoundingClientRect(); } } catch (e) { r = null; }
+    var r = null; if (!plainBox(st.el)) try { var gs = window.getSelection(); if (gs && gs.rangeCount) { var rg = gs.getRangeAt(0).cloneRange(); rg.collapse(true); var rs = rg.getClientRects(); r = rs && rs.length ? rs[0] : rg.getBoundingClientRect(); } } catch (e) { r = null; }
     if (!r || (!r.left && !r.top)) r = st.el.getBoundingClientRect();
     var w = m.offsetWidth || 260, h = m.offsetHeight || 200, vw = window.innerWidth || 1200, vh = window.innerHeight || 800;
     var x = Math.max(8, Math.min(vw - w - 8, r.left)), y = r.bottom + 4 + h > vh - 8 ? Math.max(8, r.top - h - 4) : r.bottom + 4;
     m.style.left = Math.round(x) + 'px'; m.style.top = Math.round(y) + 'px';
 }
+// [shelfcheck:mentionplain-start]
+// A plain box (an input or a textarea marked data-mentions: Table Chat's) keeps what was picked on itself, { label, href } in order, and hands
+// it on with its words when they are sent: mentionTake finds each pick's words in the text as sent, in order and apart, and gives the stretches
+// (textfmt cleanMentions cleans them again on every machine). A pick whose words were since typed over is no mention
+function plainBox(t) { return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') && t.hasAttribute && t.hasAttribute('data-mentions') ? t : null; }
+function mentionTake(picks, text) {
+    var out = [], used = [], s = String(text == null ? '' : text);
+    (Array.isArray(picks) ? picks : []).slice(0, 40).forEach(function(p) {
+        var w = p && typeof p.label === 'string' ? p.label : '', h = p && typeof p.href === 'string' ? p.href : ''; if (!w || !h) return;
+        for (var i = s.indexOf(w); i >= 0; i = s.indexOf(w, i + 1)) {
+            var e = i + w.length; if (used.some(function(u) { return i < u[1] && e > u[0]; })) continue;
+            used.push([i, e]); out.push({ s: i, e: e, h: h }); return;
+        }
+    });
+    return out.sort(function(a, b) { return a.s - b.s; }).slice(0, 20);
+}
+function plainPut(el, from, to, label, href) {
+    var v = String(el.value || ''); if (from < 0 || to > v.length || from > to) return false;
+    el.value = v.slice(0, from) + label + ' ' + v.slice(to);
+    var c = from + label.length + 1; try { el.setSelectionRange(c, c); } catch (e) {}
+    (el._wpMen = Array.isArray(el._wpMen) ? el._wpMen : []).push({ label: label, href: href }); if (el._wpMen.length > 40) el._wpMen.shift();
+    return true;
+}
+// [shelfcheck:mentionplain-end]
 function boxOf(t) {
+    var pb = plainBox(t); if (pb) return pb;
     var el = t && t.closest ? t.closest('.ts-box, .rte-body') : null, tb = window.wpTextBox;
     return el && tb && typeof tb.mentionCan === 'function' && tb.mentionCan(el) ? el : null;
 }
 function onInput(e) {
     var el = boxOf(e.target); if (!el) { if (st.el) close(); return; }
+    if (el === plainBox(el)) {
+        var a = el.selectionStart, b = el.selectionEnd, qp = a === b && typeof a === 'number' ? mentionQuery(String(el.value || '').slice(0, a)) : null;
+        if (qp === null) { close(); return; }
+        st.el = el; st.q = qp; st.rows = mentionFind(getActiveCampaign(), qp); st.i = 0; draw(); place(); return;
+    }
     var gs = window.getSelection ? window.getSelection() : null, n = gs && gs.isCollapsed ? gs.anchorNode : null;
     var q = n && n.nodeType === 3 && el.contains(n) ? mentionQuery(n.nodeValue.slice(0, gs.anchorOffset)) : null;
     if (q === null) { close(); return; }
@@ -78,6 +108,11 @@ function onInput(e) {
 }
 function pick() {
     var el = st.el, r = st.rows[st.i], q = st.q, tb = window.wpTextBox; close();
+    if (el && r && plainBox(el)) {
+        var at = el.selectionStart, okP = typeof at === 'number' && at >= q.length + 1 && plainPut(el, at - q.length - 1, at, r.label, r.href);
+        if (typeof window.wpStepLog === 'function') window.wpStepLog('mention v1', okP ? 'put' : 'refused', { kind: r.kind, box: 'plain' });
+        return okP;
+    }
     if (!el || !r || !tb || typeof tb.mentionAt !== 'function') return false;
     var at = tb.mentionAt(el); if (!(at >= q.length + 1)) return false;
     var ok = tb.mention(el, at - q.length - 1, at, r.label, r.href);
@@ -100,5 +135,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     document.addEventListener('focusout', function() { setTimeout(function() { if (st.el && document.activeElement !== st.el) close(); }, 0); });
     window.addEventListener('resize', close);
 }
-window.wpMention = { all: mentionAll, find: mentionFind, query: mentionQuery, close: close };
+// The mentions a plain box holds for the words it now sends, and the box's picks let go of (a sent line starts afresh)
+function take(el, text) { var out = el ? mentionTake(el._wpMen, text) : []; if (el) el._wpMen = []; return out; }
+window.wpMention = { all: mentionAll, find: mentionFind, query: mentionQuery, take: take, close: close };
 export { mentionAll, mentionFind, mentionQuery };

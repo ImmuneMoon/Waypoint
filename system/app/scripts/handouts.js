@@ -422,6 +422,8 @@ function showHandout(h) {
     var rdL = linked && tx && h.look && typeof window.wpTextRead === 'object' && window.wpTextRead && typeof window.wpTextRead.fill === 'function' && window.wpLook && window.wpLook.RULES ? window.wpTextRead : null;
     if (rdL) { rdL.fill(tx, h.text || '', h.look, document, { rule: window.wpLook.RULES.NOTE, typed: true }); tx.style.display = h.text ? 'block' : 'none'; }
     else if (tx) { if (tx.style.fontFamily) tx.style.fontFamily = ''; if (linked) fillLinked(tx, h.text || '', document); else tx.textContent = h.text || ''; tx.style.display = h.text ? 'block' : 'none'; }
+    var PSv = rdL && window.wpPageShelf && typeof window.wpPageShelf.mentionPaint === 'function' ? window.wpPageShelf : null;   // 1.6.2 (166 f): a mention as a chip in its current name; the Journal holds notes of other campaigns, so none is said to be gone
+    if (PSv) { try { PSv.mentionPaint(tx, true); } catch (e) {} }
     var cp = ui('handoutCaption');
     if (linked) fillLinked(cp, h.caption || '', document); else cp.textContent = h.caption || '';
     cp.style.display = h.caption ? 'block' : 'none';

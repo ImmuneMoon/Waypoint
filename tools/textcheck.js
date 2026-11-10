@@ -600,7 +600,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         let LK = null, lkErr = null; try { LK = await import(modUrl('lookcore.js')); } catch (e) { lkErr = e; }
         const lkSrc = read('lookcore.js'), imports = (lkSrc.match(/^\s*import\s[^\n]*$/gm) || []).map(s => s.trim());
         check('lookcore.js loads in Node with no window: a pure module that imports textfmt.js and nothing else, with no DOM and no state of a page',
-            !!LK && !lkErr && J(imports) === J(["import { cleanFmt, fontKnown, MAX_RAW, MAX_LINK, MAX_FONT } from './textfmt.js';"]) && !/\bdocument\b|\blocalStorage\b|\bfetch\(/.test(lkSrc.replace(/\/\*[\s\S]*?\*\//, '')) && /\nif \(typeof window !== 'undefined'\) window\.wpLook = API;\n/.test(lkSrc.replace(/\r\n/g, '\n')), lkErr ? String(lkErr) : imports);
+            !!LK && !lkErr && J(imports) === J(["import { cleanFmt, fontKnown, MAX_RAW, MAX_LINK, MAX_FONT, mentionLink } from './textfmt.js';"]) && !/\bdocument\b|\blocalStorage\b|\bfetch\(/.test(lkSrc.replace(/\/\*[\s\S]*?\*\//, '')) && /\nif \(typeof window !== 'undefined'\) window\.wpLook = API;\n/.test(lkSrc.replace(/\r\n/g, '\n')), lkErr ? String(lkErr) : imports);
         if (LK) {
             const { RULES, LINKS, LINK_CHARS, textSig, lookShapeOk, recShapeOk, fieldLook, cleanRec, makeRec, lookWeight, ruleLinks } = LK;
             // --- the signature
@@ -663,7 +663,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && J(makeRec({ b: true }, '', atMax, RULES.PAD)) === J({ fmt: { b: true }, sig: textSig(atMax) }) && makeRec({ b: true }, '', overMax, RULES.PAD) === undefined && cleanRec({ fmt: { b: true }, sig: textSig(overMax) }, overMax, RULES.PAD) === undefined && makeRec({ b: true }, '', 7, RULES.NOTE) === undefined && cleanRec(rec, null, RULES.NOTE) === undefined
                 && makeRec(undefined, '', TX, RULES.NOTE) === undefined && makeRec({ color: 'red' }, 'Arial', TX, RULES.NOTE) === undefined
                 && lookWeight(rec) >= J(rec).length && lookWeight(recLine) >= J(recLine).length && lookWeight(null) === 0 && lookWeight(fontOnly) === 64 + (3 + 6 + sig.length) + (4 + 6 + 4) && lookWeight(fontOnly) >= J(fontOnly).length && lookWeight(worst && { fmt: worst, sig: 'x' }) < 70000 && lookWeight(worst && { fmt: worst, sig: 'x' }) >= J({ fmt: worst, sig: 'x' }).length
-                && Object.isFrozen(RULES) && Object.keys(RULES).every(k => Object.isFrozen(RULES[k])) && J(RULES) === J({ LINE: { size: false, link: true, font: false, multi: false, max: 0 }, NOTES: { size: true, link: true, font: false, multi: true, max: 0 }, NOTE: { size: true, link: true, font: true, multi: true, max: 60000 }, PAD: { size: true, link: false, font: true, multi: true, max: 20000 } }),
+                && Object.isFrozen(RULES) && Object.keys(RULES).every(k => Object.isFrozen(RULES[k])) && J(RULES) === J({ LINE: { size: false, link: true, font: false, multi: false, max: 0 }, NOTES: { size: true, link: true, font: false, multi: true, max: 0 }, NOTE: { size: true, link: true, font: true, multi: true, max: 60000 }, PAD: { size: true, link: false, mention: true, font: true, multi: true, max: 20000 } }),
                 [rec, recLine, fontOnly, stale, sameLen, asLine, lookWeight(rec)]);
             // --- what the review of the module found (2026-10-10)
             // the table's connection packs text as UTF-8: half a character with no other half arrives as the replacement character, and both ends must sign alike
@@ -3031,6 +3031,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('166 f mentionLink: #wp:@: and a page (at a section), a map (at a room) or a character, by a plain id; cleanLink keeps exactly those beside the web and page links, and a character takes no part',
             J(ok.map(TFm.mentionLink)) === J([{ kind: 'page', id: 'p1', at: '' }, { kind: 'page', id: 'p1', at: 'b_2' }, { kind: 'map', id: 'm_1', at: 'r1' }, { kind: 'char', id: 'c1', at: '' }]) && ok.every(v => TFm.cleanLink(v) === v)
             && TFm.mentionLink('#wp:@:char:c1:x2').at === '' && bad.slice(1).every(v => TFm.mentionLink(v) === null) && ['#wp:@:sheet:c1', '#wp:@page:p1', 'javascript:x'].every(v => TFm.cleanLink(v) === '') && TFm.mentionLink(null) === null);
+    }
+    {   /* 1.6.2 (backlog 166 f, fold 3): a chat line's mentions, and the table notepad's */
+        const TFc = await import(modUrl('textfmt.js')), LKc = await import(modUrl('lookcore.js')), T = 'Meet at Hill Road with Bren \ud83d\ude00 now', H = '#wp:@:map:m1';
+        const ok = TFc.cleanMentions([{ s: 8, e: 17, h: H }, { s: 23, e: 27, h: '#wp:@:char:c1' }], T);
+        const bad = [[{ s: 8, e: 17, h: 'https://a.example/' }], [{ s: 8, e: 99, h: H }], [{ s: -1, e: 3, h: H }], [{ s: 3, e: 3, h: H }], [{ s: 1.5, e: 3, h: H }], [{ s: '1', e: 3, h: H }], [{ s: 29, e: 31, h: H }], [{ s: 28, e: 29, h: H }], [{ s: 1, e: 2, h: ' ' + H }], [null, 'x', [1]]].map(l => TFc.cleanMentions(l, T));
+        const many = TFc.cleanMentions(Array.from({ length: 30 }, (x, i) => ({ s: i, e: i + 1, h: H })), T), over = TFc.cleanMentions([{ s: 0, e: 10, h: H }, { s: 5, e: 12, h: H }, { s: 12, e: 14, h: H }], T);
+        check('166 f, fold 3, cleanMentions: a chat line\u2019s mentions kept only as whole stretches inside its words, in order and apart, never cutting a character of two halves, each a mention by mentionLink, 20 at most; anything else none, and a line with none no key at all',
+            J(ok) === J([{ s: 8, e: 17, h: H }, { s: 23, e: 27, h: '#wp:@:char:c1' }]) && bad.every(v => v === undefined) && many.length === 20 && J(over) === J([{ s: 0, e: 10, h: H }, { s: 12, e: 14, h: H }])
+            && TFc.cleanMentions(undefined, T) === undefined && TFc.cleanMentions([{ s: 0, e: 1, h: H }], '') === undefined && TFc.cleanMentions({ s: 0, e: 1, h: H }, T) === undefined && TFc.MAX_MENTIONS === 20, J([ok, bad, over]));
+        const PADc = LKc.RULES.PAD, fm = { spans: [{ s: 0, e: 4, link: H }, { s: 5, e: 8, link: 'https://a.example/' }] };
+        const padL = LKc.fieldLook(fm, 'Meet at Hill', PADc), padW = LKc.fieldLook({ link: 'https://a.example/' }, 'Meet at Hill', PADc), padM = LKc.fieldLook({ link: H }, 'Meet', PADc), rec = LKc.makeRec(fm, '', 'Meet at Hill', PADc);
+        check('166 f, fold 3, the table notepad: its rule takes no link but a mention, which leads nowhere outside the app; a web link in it is dropped whole and the words stay, for a part and for the whole pad alike, and its word on links stays no, so a typed address there is never a link',
+            J(padL) === J({ spans: [{ s: 0, e: 4, link: H }] }) && padW === undefined && J(padM) === J({ link: H }) && J(rec.fmt) === J({ spans: [{ s: 0, e: 4, link: H }] }) && LKc.ruleLinks(PADc) === false && J(LKc.fieldLook(fm, 'Meet at Hill', LKc.RULES.LINE)) === J(fm), J([padL, padW, padM]));
     }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

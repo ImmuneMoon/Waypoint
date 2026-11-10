@@ -792,9 +792,10 @@ Writing planners and pages
   editor, such as On foot at 3 miles an hour, and tick Ruler shows travel time
   on a map kind. Start the ruler on a ship and it uses the ship's own Speed.
   Rulers placed end to start make a route, and the last leg says its total.
-- Type @ in a planner, a handbook page or a Journal note to mention a page, a
-  map, a room or a character. It reads as a chip in its current name, so a
-  rename never leaves it stale, and a click opens it.
+- Type @ in a planner, a handbook page, a Journal note, Table Chat or the
+  table notepad to mention a page, a map, a room or a character. It reads
+  as a chip in its current name, so a rename never leaves it stale, and a
+  click opens it.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

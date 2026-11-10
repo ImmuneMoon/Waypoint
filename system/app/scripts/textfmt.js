@@ -155,6 +155,23 @@ function mentionLink(v) {
     var m = typeof v === 'string' ? /^#wp:@:(page|map|char):([A-Za-z0-9_-]{1,80})(?::([A-Za-z0-9_-]{1,64}))?$/.exec(v.trim()) : null;
     return m ? { kind: m[1], id: m[2], at: m[1] === 'char' ? '' : (m[3] || '') } : null;
 }
+// 1.6.2 (backlog 166 f, fold 3): the mentions of a plain text, as a chat line carries them beside its words: [{ s, e, h }], a stretch of the text
+// and the mention it names. Kept only as whole stretches inside the text, in order, apart, never cutting a character of two code units, each a
+// mention by mentionLink; MAX_MENTIONS at most. undefined for none, so a line with none keeps the keys it always had
+var MAX_MENTIONS = 20;
+function cleanMentions(list, text) {
+    text = txt(text); if (!Array.isArray(list) || !text) return undefined;
+    var low = function(i) { var c = text.charCodeAt(i); return c >= 0xdc00 && c <= 0xdfff; };
+    var out = [], end = 0;
+    list.slice(0, MAX_MENTIONS * 4).forEach(function(m) {
+        if (out.length >= MAX_MENTIONS || !m || typeof m !== 'object' || Array.isArray(m)) return;
+        var s = m.s, e = m.e, h = typeof m.h === 'string' ? m.h : '';
+        if (typeof s !== 'number' || typeof e !== 'number' || Math.floor(s) !== s || Math.floor(e) !== e || s < end || e <= s || e > text.length) return;
+        if (low(s) || (e < text.length && low(e)) || !mentionLink(h) || h !== h.trim()) return;
+        out.push({ s: s, e: e, h: h }); end = e;
+    });
+    return out.length ? out : undefined;
+}
 // What a typed address becomes — the ONE reading, for every box an address is typed into (the Link box of the bar on a planner field's
 // box, and of a text block's own bar). Trimmed. An address typed without its scheme ("example.com/page") is taken as the secure web
 // scheme — one with a port too ("example.com:8080/page", "localhost:3000": a first word followed by one to five digits and then the end,
@@ -452,6 +469,6 @@ function stateAt(fmt, text, s, e) {
     return { b: all('b'), i: all('i'), u: all('u'), st: all('st'), color: one('color'), size: one('size'), link: one('link'), any: !!f };
 }
 
-var API = { VERSION: VERSION, MAX_SPANS: MAX_SPANS, MAX_RAW: MAX_RAW, MAX_LINK: MAX_LINK, SIZES: SIZES.slice(), SIZE_EM: SIZE_EM, SIZE_NAMES: SIZE_NAMES, PALETTE: PALETTE, FONTS: FONTS, MAX_FONT: MAX_FONT, fontKnown: fontKnown, cleanFont: cleanFont, fontCss: fontCss, cleanFmt: cleanFmt, cleanLink: cleanLink, pageLink: pageLink, typedLink: typedLink, linkParts: linkParts, MAX_TEXT_LINKS: MAX_TEXT_LINKS, runsOf: runsOf, respan: respan, apply: apply, clear: clear, stateAt: stateAt };
+var API = { VERSION: VERSION, MAX_SPANS: MAX_SPANS, MAX_RAW: MAX_RAW, MAX_LINK: MAX_LINK, SIZES: SIZES.slice(), SIZE_EM: SIZE_EM, SIZE_NAMES: SIZE_NAMES, PALETTE: PALETTE, FONTS: FONTS, MAX_FONT: MAX_FONT, fontKnown: fontKnown, cleanFont: cleanFont, fontCss: fontCss, cleanFmt: cleanFmt, cleanLink: cleanLink, pageLink: pageLink, mentionLink: mentionLink, cleanMentions: cleanMentions, MAX_MENTIONS: MAX_MENTIONS, typedLink: typedLink, linkParts: linkParts, MAX_TEXT_LINKS: MAX_TEXT_LINKS, runsOf: runsOf, respan: respan, apply: apply, clear: clear, stateAt: stateAt };
 if (typeof window !== 'undefined') window.wpTextFmt = API;
-export { VERSION, MAX_SPANS, MAX_RAW, MAX_LINK, MAX_TEXT_LINKS, SIZES, SIZE_EM, SIZE_NAMES, PALETTE, FONTS, MAX_FONT, fontKnown, cleanFont, fontCss, cleanFmt, cleanLink, pageLink, mentionLink, typedLink, linkParts, runsOf, respan, apply, clear, stateAt };
+export { VERSION, MAX_SPANS, MAX_RAW, MAX_LINK, MAX_TEXT_LINKS, SIZES, SIZE_EM, SIZE_NAMES, PALETTE, FONTS, MAX_FONT, fontKnown, cleanFont, fontCss, cleanFmt, cleanLink, pageLink, mentionLink, cleanMentions, MAX_MENTIONS, typedLink, linkParts, runsOf, respan, apply, clear, stateAt };

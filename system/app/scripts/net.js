@@ -5104,7 +5104,7 @@ function padOn() {
     if (_pad.on) return _pad.on === 1;
     var w = padBox(), p = ui('notepadPanel'); if (!w || !padCore() || !p) return false;
     var yes = function() { return true; }, no = function() { return false; }, panel = function() { return p; };
-    _pad.on = w.host({ id: 'pad', roots: [p], doc: function() { return 'pad'; }, field: padField, name: function() { return 'Table notepad'; }, links: no, sizes: yes, fonts: yes, barHost: panel, barBy: panel, barUnder: yes, changed: function() { net.notepadInput(); }, left: function() {} }) ? 1 : 2;
+    _pad.on = w.host({ id: 'pad', roots: [p], doc: function() { return 'pad'; }, field: padField, name: function() { return 'Table notepad'; }, links: no, mentions: yes, sizes: yes, fonts: yes, barHost: panel, barBy: panel, barUnder: yes, changed: function() { net.notepadInput(); }, left: function() {} }) ? 1 : 2;
     return _pad.on === 1;
 }
 // A place in the drawn text as a count of characters, and back: the reader draws every character of the text once, in order, in text nodes
@@ -5171,6 +5171,8 @@ function padDraw(el, text, look) {
     var rd = typeof window !== 'undefined' && window.wpTextRead && typeof window.wpTextRead.fill === 'function' ? window.wpTextRead : null, L = padCore();
     if (rd && L) rd.fill(el, text, look, document, { rule: L.RULES.PAD, typed: false });
     else { if (el.style) el.style.fontFamily = ''; el.textContent = text; }
+    var PSp = typeof window !== 'undefined' && window ? window.wpPageShelf : null;   // 1.6.2 (166 f): a mention as a chip; its words kept, since a selection here is counted in the pad's own words
+    if (PSp && typeof PSp.mentionPaint === 'function') { try { PSp.mentionPaint(el, false, true); } catch (e) {} }
     if (text.charAt(text.length - 1) === '\n') el.appendChild(document.createElement('br'));   // a last line break opens a line only when something stands on it: the line the GM just opened shows, as it does in the GM's own box
 }
 // A reading pad follows the pad's text and look. Drawn only when either changed; a selection in it moves with its words (padMoved), keeps
@@ -5197,7 +5199,7 @@ function padDress(el, host) {
     if (want === 'write') { el.removeAttribute('aria-readonly'); w.dress(el, { key: 'pad', multi: true, placeholder: PAD_WRITE, label: 'Table notepad' }); }
     else {
         el.classList.remove('ts-box'); el.classList.remove('ts-multi'); if (el.dataset) delete el.dataset.tsk;
-        el.setAttribute('contenteditable', 'true'); el.setAttribute('role', 'textbox'); el.setAttribute('aria-multiline', 'true'); el.setAttribute('aria-readonly', 'true');
+        el.setAttribute('contenteditable', 'true'); el.setAttribute('role', 'textbox'); el.setAttribute('aria-multiline', 'true'); el.setAttribute('aria-readonly', 'true'); el.setAttribute('data-reads', '');   // data-reads: editable for its caret alone, so a mention in it is pressed as a link (the link gate reads it as read, not edited)
         el.setAttribute('aria-label', 'Table notepad'); el.setAttribute('spellcheck', 'false'); el.setAttribute('data-placeholder', host ? PAD_WRITE : PAD_READ);
     }
     _pad.mode = want; el._padMode = want;
@@ -10089,8 +10091,10 @@ function handleMessage(msg, conn) {
             if (typeof msg.text !== 'string') return;
             if (!allow('chat', { perMs: 150, burst: 20, windowMs: 10000, table: 2000 }, conn.peer)) return;
             var pc = net.roster[conn.peer];
+            var menIn = msg.men;
             msg = { type: 'chat', scope: 'global', from: { id: pc.id, name: pc.name || 'Player' }, text: msg.text.slice(0, 2000), ts: Date.now() };
             if (pc.color) msg.from.color = pc.color;
+            var menH = typeof chatMen === 'function' ? chatMen(menIn, msg.text) : undefined; if (menH) msg.men = menH;   // 1.6.2 (166 f): its mentions, kept only as stretches of the words relayed
             pushChat(msg);
             broadcast(msg, conn);
             logEvent('chat', (msg.from.name || 'Player') + ': ' + String(msg.text || '').slice(0, 300), { w: msg.from.name || 'Player', x: 'Said in chat', d: String(msg.text || '').slice(0, 300) });
@@ -10100,6 +10104,7 @@ function handleMessage(msg, conn) {
             var fromH = { id: String(msg.from.id || '').slice(0, 60), name: String(msg.from.name || '').slice(0, 60), gm: msg.from.gm === true };
             if (safeColor(msg.from.color)) fromH.color = msg.from.color;
             var lineH = { type: 'chat', scope: msg.scope === 'whisper' ? 'whisper' : 'global', from: fromH, text: msg.text.slice(0, 2000), ts: Number(msg.ts) || Date.now(), toName: typeof msg.toName === 'string' ? msg.toName.slice(0, 60) : '' };
+            var menC = typeof chatMen === 'function' ? chatMen(msg.men, lineH.text) : undefined; if (menC) lineH.men = menC;   // cleaned again here: a host's word is never taken as it came
             if (msg.kind === 'time' && lineH.scope === 'whisper' && fromH.gm && typeof timeNote === 'function') timeNote(lineH); else pushChat(lineH);   // 1.5.6: a time rule's note, as this player chose
         }
         // [netcheck:chat-end]
@@ -10126,7 +10131,7 @@ function handleMessage(msg, conn) {
                 return;
             }
             var k = (m.ts || 0) + '|' + m.from.id + '|' + m.text;
-            if (!have[k]) { have[k] = true; chatLog.push({ from: { id: String(m.from.id || ''), name: String(m.from.name || '').slice(0, 60), gm: !!m.from.gm }, text: String(m.text).slice(0, 2000), scope: 'global', ts: m.ts || Date.now() }); added++; }
+            if (!have[k]) { have[k] = true; var hl = { from: { id: String(m.from.id || ''), name: String(m.from.name || '').slice(0, 60), gm: !!m.from.gm }, text: String(m.text).slice(0, 2000), scope: 'global', ts: m.ts || Date.now() }, hmn = typeof chatMen === 'function' ? chatMen(m.men, hl.text) : undefined; if (hmn) hl.men = hmn; chatLog.push(hl); added++; }
         });
         chatLog.sort(function(a, b) { return (a.ts || 0) - (b.ts || 0); });
         while (chatLog.length > 200) chatLog.shift();
@@ -12111,6 +12116,23 @@ function chatTime(ts) {
     var d = new Date(ts);
     return (d.getHours() < 10 ? '0' : '') + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes();
 }
+// [netcheck:chatmen-start]
+// 1.6.2 (backlog 166 f, fold 3; the owner, by prompt: mentions "Also chat and notepad"): a chat line's mentions ride beside its words as stretches
+// { s, e, h } (textfmt cleanMentions, asked by the host before it relays and by every app as it takes a line). Drawn as the words with each
+// stretch an <a> of the mention's own address, then painted as a chip in its current name (pageshelf mentionPaint): elements and text nodes only
+function chatMen(list, text) { var TFm = typeof window !== 'undefined' && window ? window.wpTextFmt : null; return TFm && typeof TFm.cleanMentions === 'function' ? TFm.cleanMentions(list, text) : undefined; }
+function chatTextInto(tx, text, men) {
+    var ms = chatMen(men, text); if (!ms) { tx.textContent = text; return; }
+    var pos = 0;
+    ms.forEach(function(mm) {
+        if (mm.s > pos) tx.appendChild(document.createTextNode(text.slice(pos, mm.s)));
+        var a = document.createElement('a'); a.setAttribute('href', mm.h); a.textContent = text.slice(mm.s, mm.e); tx.appendChild(a); pos = mm.e;
+    });
+    if (pos < text.length) tx.appendChild(document.createTextNode(text.slice(pos)));
+    var PSm = typeof window !== 'undefined' && window ? window.wpPageShelf : null;
+    if (PSm && typeof PSm.mentionPaint === 'function') { try { PSm.mentionPaint(tx, !!window.wpPopout); } catch (e) {} }   // a window of its own may hold no campaign: there a mention is never said to be gone
+}
+// [netcheck:chatmen-end]
 function chatEntryNode(m) {   // one text entry, built from nodes: nothing from the wire is ever parsed as HTML
     var whisper = m.scope === 'whisper', wrap = document.createElement('div');
     wrap.style.cssText = whisper ? 'margin-bottom:7px; border-left:2px solid var(--violet); padding-left:7px; font-style:italic;' : 'margin-bottom:7px;';
@@ -12119,7 +12141,7 @@ function chatEntryNode(m) {   // one text entry, built from nodes: nothing from 
     if (whisper) { var t = document.createElement('span'); t.className = 'chat-tag'; t.textContent = 'whisper'; wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(t); }
     var tm = document.createElement('span'); tm.className = 'chat-time'; tm.textContent = chatTime(m.ts); wrap.appendChild(tm);
     wrap.appendChild(document.createElement('br'));
-    var tx = document.createElement('span'); tx.className = 'chat-text'; tx.textContent = String(m.text || ''); wrap.appendChild(tx);
+    var tx = document.createElement('span'); tx.className = 'chat-text'; chatTextInto(tx, String(m.text || ''), m.men); wrap.appendChild(tx);
     if (typeof window !== 'undefined' && window.wpInlineDice && typeof window.wpInlineDice.apply === 'function') window.wpInlineDice.apply(tx);   // 1.6.0, backlog 27: a dice formula in a message a roll button
     return wrap;
 }
@@ -12175,7 +12197,7 @@ if (_chatBC) _chatBC.addEventListener('message', function(e) {
         if (d.type === 'chatSync') { chatLog = Array.isArray(d.log) ? d.log : []; _cardLook = d.look || null; renderChat(); }   // the main window's card colours (checked again in cardLookNow)
     } else {
         if (d.type === 'chatReq') broadcastChatSync();
-        else if (d.type === 'chatSend') { var ci = ui('chatInput'); if (ci) { ci.value = String(d.text || ''); sendChat(); } }
+        else if (d.type === 'chatSend') { var ci = ui('chatInput'); if (ci) { ci.value = String(d.text || ''); sendChat(Array.isArray(d.men) ? d.men : []); } }
         else if (d.type === 'dock' && d.kind === 'chat') { var cp = ui('chatPanel'); if (cp && chatHidden(cp)) { var cb = ui('chatBtn'); if (cb) cb.click(); else cp.style.display = 'flex'; } }
     }
 });
@@ -12243,17 +12265,19 @@ function refreshChatRecipients() {
     }).join('');
     sel.value = cur;
 }
-function sendChat() {
+function sendChat(menFrom) {
     var input = ui('chatInput');
     var text = (input.value || '').trim();
     if (!text) return;
-    if (window.wpPopout) { try { if (_chatBC) _chatBC.postMessage({ type: 'chatSend', text: text }); } catch (e) {} input.value = ''; return; }   // the pop-out has no session — relay to the main window, which sends and mirrors the result back
+    var WMn = window.wpMention, menT = Array.isArray(menFrom) ? menFrom : WMn && typeof WMn.take === 'function' ? WMn.take(input, text) : [];   // 1.6.2 (166 f): what was picked from the @ list, as stretches of these words (a pop-out's come with its words)
+    if (window.wpPopout) { try { if (_chatBC) _chatBC.postMessage({ type: 'chatSend', text: text, men: menT }); } catch (e) {} input.value = ''; return; }   // the pop-out has no session — relay to the main window, which sends and mirrors the result back
     var cmd = DC() ? DC().parseCommand(text) : null;   // /roll, /r, /gmroll, /gr work with or without a session
     if (cmd) { input.value = ''; var rr = window.wpDice ? window.wpDice.roll(cmd.expr, { priv: cmd.cmd === 'gmroll', source: 'chat' }) : net.diceRoll(cmd.expr, { priv: cmd.cmd === 'gmroll' }); if (rr.error) toast(rr.error); return; }
     if (!net.active) { toast('Chat needs an active multiplayer session.'); return; }
     input.value = '';
     var me = getProfile();
     var msg = { type: 'chat', scope: 'global', from: { id: net.myId, name: me.name || (net.role === 'host' ? 'GM' : 'Player'), gm: net.role === 'host' }, text: text, ts: Date.now() };
+    var menS = chatMen(menT, text); if (menS) msg.men = menS;
     if (net.role === 'host') {
         var toKey = ui('chatTo') ? ui('chatTo').value : '';
         if (toKey) {

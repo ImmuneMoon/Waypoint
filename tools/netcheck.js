@@ -19899,6 +19899,26 @@ pendingChecks.push((async () => {
             && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'datamap.js'), 'utf8').includes('window.wpNet.holdsMoved(am, item,'));
     }
 })()); }
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const J = JSON.stringify;
+    {   // 1.6.2 (backlog 166 f, fold 3): a chat line's mentions (net.js chatmen slice, run for real with the real textfmt)
+        const TFn = await import(url('textfmt.js')), painted = [];
+        const node = tag => ({ tag, kids: [], at: {}, appendChild(k) { this.kids.push(k); return k; }, setAttribute(k, v) { this.at[k] = v; }, set textContent(v) { this.kids = [{ nodeType: 3, nodeValue: String(v) }]; }, get textContent() { return this.kids.map(k => k.nodeValue !== undefined ? k.nodeValue : k.textContent).join(''); } });
+        const doc = { createElement: node, createTextNode: v => ({ nodeType: 3, nodeValue: v }) }, win = { wpTextFmt: TFn, wpPageShelf: { mentionPaint: (el, soft) => painted.push(soft) }, wpPopout: false };
+        const cmS = src.slice(src.indexOf('// [netcheck:chatmen-start]'), src.indexOf('// [netcheck:chatmen-end]'));
+        const CM = new Function('window', 'document', cmS + '\nreturn { chatMen, chatTextInto };')(win, doc);
+        const T = 'Meet at Hill Road, <b>Bren</b>', tx1 = node('span'), tx2 = node('span'), tx3 = node('span');
+        CM.chatTextInto(tx1, T, [{ s: 8, e: 17, h: '#wp:@:map:m1' }, { s: 19, e: 30, h: 'javascript:x' }]); CM.chatTextInto(tx2, T, undefined); CM.chatTextInto(tx3, T, [{ s: 19, e: 99, h: '#wp:@:char:c1' }]);
+        const shape = t => t.kids.map(k => k.tag ? ['a', k.at.href, k.textContent] : k.nodeValue);
+        check('166 f, fold 3, a chat line\u2019s mentions drawn (chatTextInto, run for real): the words as text nodes and each stretch an <a> of the mention\u2019s own address with its words as text, painted as a chip; a stretch that is no mention, or outside the words, leaves them plain text, never markup',
+            J(shape(tx1)) === J(['Meet at ', ['a', '#wp:@:map:m1', 'Hill Road'], ', <b>Bren</b>']) && J(shape(tx2)) === J([T]) && J(shape(tx3)) === J([T]) && J(painted) === J([false]), J([shape(tx1), shape(tx2), shape(tx3), painted]));
+        check('166 f, fold 3, on the wire (pinned): a player\u2019s mentions are cleaned by the host against the very words it relays, cleaned again by a player\u2019s app from the synced host and in the join\u2019s history, carried by a pop-out with its words, and sent only as stretches; Table Chat\u2019s box is marked for the @ list',
+            src.includes("var menH = typeof chatMen === 'function' ? chatMen(menIn, msg.text) : undefined; if (menH) msg.men = menH;") && src.includes("var menC = typeof chatMen === 'function' ? chatMen(msg.men, lineH.text) : undefined; if (menC) lineH.men = menC;")
+            && src.includes("hmn = typeof chatMen === 'function' ? chatMen(m.men, hl.text) : undefined; if (hmn) hl.men = hmn;") && src.includes("postMessage({ type: 'chatSend', text: text, men: menT })") && src.includes("sendChat(Array.isArray(d.men) ? d.men : [])")
+            && src.includes("var menS = chatMen(menT, text); if (menS) msg.men = menS;") && src.includes("links: no, mentions: yes, sizes: yes,") && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').includes('<input type="text" id="chatInput" data-mentions '));
+    }
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     /* ---- 1.5.4: the follow ruling (the owner, 2026-10-04): nobody follows the GM around unless the table is set to ---- */
     {

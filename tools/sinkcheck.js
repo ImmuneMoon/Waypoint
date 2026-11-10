@@ -168,7 +168,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             JSON.stringify(msgs.slice(0, 3)) === JSON.stringify([{ type: 'goto', camp: 'c1', map: 'm1', room: 'r1' }, { type: 'goto', camp: 'c 1', map: 'm1', room: '' }, { type: 'goto', camp: 'c%201', map: 'm1', room: '' }]) && msgs.slice(3).every(v => v === null)
             && oks.every(v => v === true) && noes.every(v => v === false) && ({}).map === undefined
             && plR.includes("  var _qsP = new URLSearchParams(location.search), _isPopP = _qsP.has('popout'), _isStreamP = _qsP.has('stream');") && plR.includes("  if (_isPopP) document.addEventListener('click', function(e) {") && plR.includes("var a = e.target && e.target.closest ? e.target.closest('#popoutBody .pv-link') : null; if (!a) return;")
-            && plR.includes("  else if (!_isStreamP) { try { new BroadcastChannel('waypoint').addEventListener('message', function(e) { if (pvGotoOk(e.data, getActiveCampaign())) navigateToMap(e.data.map, e.data.room || null); }); } catch (e) {} }"), JSON.stringify([msgs, oks, noes]));
+            && plR.includes("  else if (!_isStreamP) { try { new BroadcastChannel('waypoint').addEventListener('message', function(e) { if (pvGotoOk(e.data, getActiveCampaign())) navigateToMap(e.data.map, e.data.room || null); else if (pvCueOk(e.data, getActiveCampaign())) cuePlay(e.data.k, e.data.id); }); } catch (e) {} }"), JSON.stringify([msgs, oks, noes]));   /* 1.6.2 (166 g) a card's Play button from a window of its own, moved on purpose */
     }
 
     /* ---- a landing read from a window's own address (1.5.4; docs/PLANNER_ORG_DESIGN.md 4.1): words are a search and never markup, an id never a selector ---- */

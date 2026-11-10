@@ -84,6 +84,35 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         plR.includes("(kd.key === 'scene' ? ' <label class=\"b-when-l\"") && plR.includes("(kd.tick && kd.key !== 'scene' ? ' <label class=\"b-done-l\"") && plR.includes("CC.setSession(bb, this.value); save(); renderPlannerPreview();") && plR.includes("<span class=\"card-tick card-tick-tonight\">Tonight</span>")
         && /\.doc-view \.node\.card-tonight \{ box-shadow: inset 3px 0 0 var\(--gold\); \}/.test(csR) && /\.doc-view \.node\.card-ahead \{ box-shadow: inset 3px 0 0 var\(--blue\); \}/.test(csR) && ixR.includes('A scene card has a <b>Session</b> list: <b>Ahead</b>, <b>Tonight</b> or <b>Played</b>'));
 
+    // 1.6.2 (backlog 166 g): a card's cue
+    check('a card\u2019s cue (cleanCue): a sound, a song, a playlist or a saved effect by a plain id, on any card but a plain table; anything else none',
+        J(C.CUE_K) === J(['s', 'm', 'p', 'f']) && J(C.cleanCue({ k: 's', id: 'snd_1', x: 1 }, 'scene')) === J({ k: 's', id: 'snd_1' }) && J(C.cleanCue({ k: 'f', id: 'se_ab' }, 'place')) === J({ k: 'f', id: 'se_ab' })
+        && C.cleanCue({ k: 'm', id: 't1' }, 'table') === undefined && C.cleanCue({ k: 'x', id: 't1' }, 'scene') === undefined && C.cleanCue({ k: 'p', id: 'a b' }, 'scene') === undefined && C.cleanCue({ k: 'p', id: '' }, 'scene') === undefined && C.cleanCue('s:x', 'scene') === undefined && C.cleanCue(null, 'scene') === undefined);
+    const q1 = { type: 'node', cue: { k: 'p', id: 'pl_1', junk: '<b>' } }, q2 = { type: 'node', mode: 'table', cue: { k: 's', id: 's1' } }, q3 = { type: 'node', mode: 'clue', cue: { k: 'z', id: 's1' } }; [q1, q2, q3].forEach(b => C.cleanCard(b));
+    check('a node cleaned keeps its cue only as its two keys, never on a plain table', J([q1, q2, q3]) === J([{ type: 'node', cue: { k: 'p', id: 'pl_1' } }, { type: 'node', mode: 'table' }, { type: 'node', mode: 'clue' }]), J([q1, q2, q3]));
+    {   // the planner's own half, sliced by its plancardcheck cue markers and run for real
+        const src = read('scripts/planner.js'), a = src.indexOf('// [plancardcheck:cue-start]'), b = src.indexOf('// [plancardcheck:cue-end]');
+        const calls = [], win = { wpSound: { entries: () => [{ id: 's_rain', name: 'Rain <b>', kind: 'loop' }, { id: 'bad id', name: 'x' }], play: id => { calls.push(['s', id]); return id === 's_rain'; } }, wpMusic: { play: o => calls.push(['m', o]) }, wpFx: { saved: () => [{ id: 'se_fog', name: 'Fog bank' }], startSaved: id => { calls.push(['f', id]); return id === 'se_fog'; } } };
+        const camp = { id: 'k1', music: { tracks: [{ id: 't_1', name: 'Tavern' }], playlists: [{ id: 'p_1', name: 'Battle', tracks: [] }] } };
+        const P = new Function('window', 'getActiveCampaign', 'esc', 'URLSearchParams', src.slice(a, b) + '\nreturn { cueLists, cueName, cueOptions, cuePlay, pvCueMsg, pvCueOk };')(win, () => camp, s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'), URLSearchParams);
+        const L = P.cueLists(camp), opt = P.cueOptions({ k: 'p', id: 'p_1' }), gone = P.cueOptions({ k: 'f', id: 'se_gone' });
+        check('166 g the lists a cue picks from (cueLists, cueOptions, run for real): the Sound panel\u2019s sounds, the campaign\u2019s songs and playlists and its saved effects, a plain id each; the options grouped and escaped, the card\u2019s own picked, one no longer there said as not found',
+            J(L.s.map(x => x.id)) === J(['s_rain']) && J(L.m.map(x => x.id)) === J(['t_1']) && J(L.p.map(x => x.id)) === J(['p_1']) && J(L.f.map(x => x.id)) === J(['se_fog'])
+            && opt.includes('<option value="">Nothing</option>') && opt.includes('<optgroup label="Sounds"><option value="s:s_rain">Rain &lt;b&gt;</option></optgroup>') && opt.includes('<option value="p:p_1" selected>Battle</option>') && !opt.includes('Not found')
+            && gone.includes('<option value="f:se_gone" selected>Not found in this campaign</option>') && P.cueName({ k: 'm', id: 't_1' }, camp) === 'Tavern' && P.cueName({ k: 'm', id: 'nope' }, camp) === '', J([L, opt, gone]));
+        const r = [P.cuePlay('s', 's_rain'), P.cuePlay('m', 't_1'), P.cuePlay('p', 'p_1'), P.cuePlay('f', 'se_fog'), P.cuePlay('f', 'se_gone'), P.cuePlay('s', 'a b'), P.cuePlay('z', 's_rain')];
+        check('166 g a press starts it by the panel that owns it (cuePlay, run for real): a sound by the Sound panel\u2019s play, a song and a playlist by the Music panel\u2019s, a saved effect by the Effects panel\u2019s; an id that is no plain id or a kind it does not know starts nothing',
+            J(r) === J([true, true, true, true, false, false, false]) && J(calls) === J([['s', 's_rain'], ['m', { kind: 'track', id: 't_1' }], ['m', { kind: 'playlist', id: 'p_1' }], ['f', 'se_fog'], ['f', 'se_gone']]), J([r, calls]));
+        const msg = P.pvCueMsg('?popout=doc%3Ak1%2Fplan_1', { dataset: { k: 'p', id: 'p_1' } });
+        check('166 g from a window of its own the press goes to the main window, which starts it only for the campaign it has open (pvCueMsg, pvCueOk)',
+            J(msg) === J({ type: 'cue', camp: 'k1', k: 'p', id: 'p_1' }) && P.pvCueOk(msg, camp) === true && P.pvCueOk(Object.assign({}, msg, { camp: 'k2' }), camp) === false && P.pvCueOk(Object.assign({}, msg, { k: 'x' }), camp) === false
+            && P.pvCueMsg('?popout=sheet%3Ac1', { dataset: { k: 'p', id: 'p_1' } }) === null && P.pvCueMsg('?popout=doc%3Ak1%2Fp', { dataset: { k: 'q', id: 'x' } }) === null, J(msg));
+        const plC = read('scripts/planner.js'), ixC = read('index.html');
+        check('166 g wired (pinned): the editor\u2019s Plays list under a card\u2019s map, the preview\u2019s Play button, the press in the preview, the panel over the map and a window of its own; Help says it',
+            plC.includes('<div class="fc-opts" style="margin-bottom:10px;"><label>Plays <select class="b-cue"') && plC.includes('class="tool ghost pv-cue" data-k="') && plC.includes("_el_plannerPreviewEl.addEventListener('click', pvCueGo);") && plC.includes("_el_docPanelBodyEl.addEventListener('click', pvCueGo);")
+            && plC.includes('else if (pvCueOk(e.data, getActiveCampaign())) cuePlay(e.data.k, e.data.id);') && ixC.includes('<b>Plays</b>'));
+    }
+
     // the import cleaner
     const file = () => ({ chars: { c_1: { id: 'c_1', name: 'Mira' } }, items: { p1: { id: 'p1', type: 'planner', meta: { title: 'P' }, blocks: [
         { id: 'b1', type: 'node', mode: 'person', title: 'Mira', aka: ['Fox', 'fox', 5], sheet: 'c_1', done: true },

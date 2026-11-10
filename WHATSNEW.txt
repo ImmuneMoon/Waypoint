@@ -780,6 +780,9 @@ Writing planners and pages
 - A scene card has a Session list: Ahead, Tonight or Played, each in its own
   colour. Next scene on the play map and in the Pages shelf opens the planner
   right at the scene marked Tonight.
+- A planner card can start a sound, a song, a playlist or a saved effect. Pick
+  one under Plays and the card gets a Play button, so the tavern music is one
+  press away when the party walks in.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

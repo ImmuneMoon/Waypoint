@@ -1802,6 +1802,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   if (linkedMap) html += '<label>Room <select class="b-linkroom" data-idx="'+idx+'" title="Land in this room"><option value="">(map as a whole)</option>' + (linkedMap.rooms || []).map(function(r) { return '<option value="'+esc(r.id)+'"'+(b.linkRoomId === r.id ? ' selected' : '')+'>'+esc(r.name || r.id)+'</option>'; }).join('') + '</select></label>';
                   html += '</div>';
               }
+              if (b.type === 'node' && !plain) html += '<div class="fc-opts" style="margin-bottom:10px;"><label>Plays <select class="b-cue" data-idx="'+idx+'" title="A sound, a song, a playlist or a saved effect. The card gets a Play button that starts it for the table.">' + cueOptions(b.cue) + '</select></label></div>';   // 1.6.2 (backlog 166 g)
               var colNames = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plain ? ['Item', 'Detail', 'Notes'] : kd.cols.slice());
               if (!b.rows) b.rows = [];
               html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + [1,2,3,4,5,6,7,8].map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label><span style="color:var(--dim); font-size:11px;">Headers below, then one line of boxes per row.</span></div>';
@@ -1957,6 +1958,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           var bb = activeMap.blocks[this.dataset.idx], a = CC.cleanAka(this.value); if (!bb) return;
           if (a) bb.aka = a; else delete bb.aka; this.value = CC.akaText(bb.aka);
           save(true); renderPlannerPreview();
+      }));
+      Array.from(blockContainer.querySelectorAll('.b-cue')).forEach(el => el.addEventListener('change', function() {   // 1.6.2 (backlog 166 g): what the card's Play button starts
+          var am = getActiveMap(), bb = am && Array.isArray(am.blocks) ? am.blocks[Number(this.dataset.idx)] : null; if (!bb) return;
+          var m = /^([smpf]):(.+)$/.exec(this.value || ''), cu = m ? CC.cleanCue({ k: m[1], id: m[2] }, CC.cardKind(bb)) : undefined; if (cu) bb.cue = cu; else delete bb.cue;
+          save(); renderPlannerPreview();
       }));
       Array.from(blockContainer.querySelectorAll('.b-when')).forEach(el => el.addEventListener('change', function() {   // 1.6.2 (backlog 166 d): a scene's session
           var am = getActiveMap(), bb = am && Array.isArray(am.blocks) ? am.blocks[Number(this.dataset.idx)] : null; if (!bb) return;
@@ -2944,6 +2950,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if (akaP) html += '<p class="card-aka"><b>Also known as:</b> ' + esc(akaP.join(', ')) + '</p>';
               if (!plainPv && kdP.sheet && typeof b.sheet === 'string' && camp && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, b.sheet) && camp.chars[b.sheet]) html += '<p class="card-sheet"><b>Sheet:</b> ' + esc(String(camp.chars[b.sheet].name || '')) + '</p>';
               if (!plainPv && b.must) html += '<p class="must"><b>' + esc(kdP.must) + ':</b> ' + fmtRich(b.must, fieldFmt(b, 'must')) + '</p>';
+              var cueP = !plainPv && ccP && ccP.cleanCue ? ccP.cleanCue(b.cue, ccP.cardKind(b)) : undefined;   // 1.6.2 (backlog 166 g): its Play button
+              if (cueP) { var cueN = cueName(cueP, camp); html += '<p class="pv-linkrow"><button type="button" class="tool ghost pv-cue" data-k="' + cueP.k + '" data-id="' + esc(cueP.id) + '"' + (cueN ? ' title="Start it for the table"' : ' disabled title="It is no longer in this campaign"') + '><i class="wib wi-play"></i> ' + (cueN ? 'Play ' + esc(cueN) : 'Play: not found') + '</button></p>'; }
               if (!plainPv && b.linkMapId) {
                   var mapP = camp && camp.items && typeof b.linkMapId === 'string' && Object.prototype.hasOwnProperty.call(camp.items, b.linkMapId) ? camp.items[b.linkMapId] : null;
                   if (mapP && typeof mapP === 'object') {
@@ -3218,6 +3226,49 @@ if(_el_renderPlannerBtn) _el_renderPlannerBtn.addEventListener('click', function
   if (_el_plannerPreviewEl) _el_plannerPreviewEl.addEventListener('click', pvLinkGo);
   var _el_docPanelBodyEl = document.getElementById('docPanelBody');
   if (_el_docPanelBodyEl) _el_docPanelBodyEl.addEventListener('click', pvLinkGo);
+  // [plancardcheck:cue-start]
+  // 1.6.2 (backlog 166 g): what a card's Play button starts. The sounds of the Sound panel, the songs and playlists of the campaign's music and
+  // its saved effects, read where they live; a name is text for an option or the button, escaped by the caller
+  function cueLists(camp) {
+      var snd = window.wpSound && typeof window.wpSound.entries === 'function' ? window.wpSound.entries() : [], mu = camp && camp.music && typeof camp.music === 'object' ? camp.music : {}, fx = window.wpFx && typeof window.wpFx.saved === 'function' ? window.wpFx.saved() : [];
+      var ok = function(x) { return !!x && typeof x.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(x.id) && typeof x.name === 'string'; };
+      return { s: (Array.isArray(snd) ? snd : []).filter(ok), m: (Array.isArray(mu.tracks) ? mu.tracks : []).filter(ok), p: (Array.isArray(mu.playlists) ? mu.playlists : []).filter(ok), f: (Array.isArray(fx) ? fx : []).filter(ok) };
+  }
+  function cueName(cu, camp) { if (!cu) return ''; var l = cueLists(camp)[cu.k] || [], x = l.filter(function(e) { return e.id === cu.id; })[0]; return x ? x.name : ''; }
+  function cueOptions(cur) {
+      var camp = getActiveCampaign(), L = cueLists(camp), selV = cur && typeof cur === 'object' ? cur.k + ':' + cur.id : '', found = !selV, out = '<option value="">Nothing</option>';
+      [['s', 'Sounds'], ['m', 'Songs'], ['p', 'Playlists'], ['f', 'Saved effects']].forEach(function(g) {
+          if (!L[g[0]].length) return; out += '<optgroup label="' + g[1] + '">';
+          L[g[0]].forEach(function(e) { var v = g[0] + ':' + e.id; if (v === selV) found = true; out += '<option value="' + esc(v) + '"' + (v === selV ? ' selected' : '') + '>' + esc(e.name) + '</option>'; });
+          out += '</optgroup>';
+      });
+      if (!found) out += '<option value="' + esc(selV) + '" selected>Not found in this campaign</option>';
+      return out;
+  }
+  // The press: a sound by the Sound panel's own play (the table hears it where this app hosts), a song or a playlist by the Music panel's, a saved
+  // effect by the Effects panel's. Answers whether it started
+  function cuePlay(k, id) {
+      if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) return false;
+      if (k === 's') return !!(window.wpSound && window.wpSound.play(id));
+      if (k === 'm' || k === 'p') { if (!window.wpMusic) return false; window.wpMusic.play({ kind: k === 'm' ? 'track' : 'playlist', id: id }); return true; }
+      if (k === 'f') return !!(window.wpFx && window.wpFx.startSaved(id));
+      return false;
+  }
+  // From a window of its own the press reaches the main window, as a map link does: the campaign the window shows, the cue, on the app's channel
+  function pvCueMsg(search, b) {
+      var spec = new URLSearchParams(search || '').get('popout') || '', m = /^doc:([^/]+)\//.exec(spec), ds = b && b.dataset ? b.dataset : null;
+      if (!m || !ds || ['s', 'm', 'p', 'f'].indexOf(ds.k) < 0 || typeof ds.id !== 'string' || !ds.id) return null;
+      return { type: 'cue', camp: m[1], k: ds.k, id: ds.id };
+  }
+  function pvCueOk(d, camp) { return !!d && typeof d === 'object' && d.type === 'cue' && !!camp && typeof camp.id === 'string' && d.camp === camp.id && ['s', 'm', 'p', 'f'].indexOf(d.k) >= 0 && typeof d.id === 'string'; }
+  // [plancardcheck:cue-end]
+  var pvCueGo = function(e) {
+      var b = e.target.closest && e.target.closest('.pv-cue'); if (!b || b.disabled) return;
+      e.preventDefault(); e.stopPropagation();
+      if (!cuePlay(b.dataset.k, b.dataset.id)) toast('That could not start. It may be switched off in Settings.');
+  };
+  if (_el_plannerPreviewEl) _el_plannerPreviewEl.addEventListener('click', pvCueGo);
+  if (_el_docPanelBodyEl) _el_docPanelBodyEl.addEventListener('click', pvCueGo);
   // [sinkcheck:pvgoto-start]
   // what a window of its own posts for a map link: null unless the window shows a page of a campaign and the link names a map. The
   // campaign is read from the window's own address as popout.js reads it (the query's value, decoded once by the browser)
@@ -3235,13 +3286,18 @@ if(_el_renderPlannerBtn) _el_renderPlannerBtn.addEventListener('click', function
   }
   // [sinkcheck:pvgoto-end]
   var _qsP = new URLSearchParams(location.search), _isPopP = _qsP.has('popout'), _isStreamP = _qsP.has('stream');
+  if (_isPopP) document.addEventListener('click', function(e) {   // 1.6.2 (backlog 166 g): a card's Play button, to the main window
+      var cb = e.target && e.target.closest ? e.target.closest('#popoutBody .pv-cue') : null; if (!cb || cb.disabled) return;
+      e.preventDefault(); var cm = pvCueMsg(location.search, cb); if (!cm) return;
+      try { new BroadcastChannel('waypoint').postMessage(cm); } catch (err) {}
+  });
   if (_isPopP) document.addEventListener('click', function(e) {
       var a = e.target && e.target.closest ? e.target.closest('#popoutBody .pv-link') : null; if (!a) return;
       e.preventDefault();
       var msg = pvGotoMsg(location.search, a); if (!msg) return;
       try { new BroadcastChannel('waypoint').postMessage(msg); } catch (err) {}
   });
-  else if (!_isStreamP) { try { new BroadcastChannel('waypoint').addEventListener('message', function(e) { if (pvGotoOk(e.data, getActiveCampaign())) navigateToMap(e.data.map, e.data.room || null); }); } catch (e) {} }
+  else if (!_isStreamP) { try { new BroadcastChannel('waypoint').addEventListener('message', function(e) { if (pvGotoOk(e.data, getActiveCampaign())) navigateToMap(e.data.map, e.data.room || null); else if (pvCueOk(e.data, getActiveCampaign())) cuePlay(e.data.k, e.data.id); }); } catch (e) {} }
   // Page layout by hand (pages only): drag a picture in the preview to nudge it (dx / dy), drag its
   // bottom-right corner to resize it (the width snaps to the select's steps). One save at pointerup is
   // one undo step per drag; io.js's capture listener closes any typing chunk at the pointerdown.

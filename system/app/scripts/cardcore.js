@@ -81,6 +81,10 @@ function cardKindOf(k) { return typeof k === 'string' ? k : cardKind(k); }
 function sessionOf(b) { if (!b || typeof b !== 'object' || b.type !== 'node' || cardKind(b) !== 'scene') return ''; return b.done === true ? 'played' : cleanWhen(b.when, 'scene') || ''; }
 // Sets a scene's session in place: 'played' is the tick, 'tonight' and 'ahead' the word, anything else neither
 function setSession(b, s) { if (!b || typeof b !== 'object') return b; delete b.when; delete b.done; if (cardKind(b) !== 'scene') return b; if (s === 'played') b.done = true; else if (WHEN.indexOf(s) >= 0) b.when = s; return b; }
+// 1.6.2 (backlog 166 g; the owner, 2026-11-09, by prompt: "Sound, music or effect"): what a card's Play button starts for the table, { k, id }:
+// k 's' a sound of the Sound panel, 'm' a song, 'p' a playlist, 'f' a saved effect; id a plain id. Never on a plain table
+var CUE_K = Object.freeze(['s', 'm', 'p', 'f']), CUE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+function cleanCue(v, kind) { if (cardKindOf(kind) === 'table' || !v || typeof v !== 'object' || CUE_K.indexOf(v.k) < 0 || typeof v.id !== 'string' || !CUE_ID.test(v.id)) return undefined; return { k: v.k, id: v.id }; }
 // A person's sheet: a plain id, and where the characters are handed in, one of them
 var SHEET_ID = /^[A-Za-z0-9_-]{1,64}$/;
 function cleanSheet(v, chars) {
@@ -97,13 +101,14 @@ function cleanCard(b, chars) {
     var a = cleanAka(b.aka); if (a && k !== 'table') b.aka = a; else delete b.aka;
     if (cleanDone(b.done, k)) b.done = true; else delete b.done;
     var wn = b.done === true ? undefined : cleanWhen(b.when, k); if (wn) b.when = wn; else delete b.when;   // 1.6.2 (backlog 166 d)
+    var cu = cleanCue(b.cue, k); if (cu) b.cue = cu; else delete b.cue;   // 1.6.2 (backlog 166 g)
     var s = k === 'person' ? cleanSheet(b.sheet, chars) : undefined; if (s) b.sheet = s; else delete b.sheet;
     return b;
 }
 // The default columns of a node with none of its own
 function defaultCols(b) { return kindOf(b).cols.slice(); }
 
-var api = { VERSION: VERSION, AKA_MAX: AKA_MAX, AKA_CHARS: AKA_CHARS, KINDS: KINDS, ORDER: ORDER, MODES: MODES, cleanMode: cleanMode, cardKind: cardKind, kindOf: kindOf, kindBy: kindBy, cleanName: cleanName, cleanAka: cleanAka, akaFrom: akaFrom, akaText: akaText, cardNames: cardNames, cleanDone: cleanDone, WHEN: WHEN, cleanWhen: cleanWhen, sessionOf: sessionOf, setSession: setSession, cleanSheet: cleanSheet, cleanCard: cleanCard, defaultCols: defaultCols };
+var api = { VERSION: VERSION, AKA_MAX: AKA_MAX, AKA_CHARS: AKA_CHARS, KINDS: KINDS, ORDER: ORDER, MODES: MODES, cleanMode: cleanMode, cardKind: cardKind, kindOf: kindOf, kindBy: kindBy, cleanName: cleanName, cleanAka: cleanAka, akaFrom: akaFrom, akaText: akaText, cardNames: cardNames, cleanDone: cleanDone, WHEN: WHEN, cleanWhen: cleanWhen, CUE_K: CUE_K, cleanCue: cleanCue, sessionOf: sessionOf, setSession: setSession, cleanSheet: cleanSheet, cleanCard: cleanCard, defaultCols: defaultCols };
 if (typeof window !== 'undefined') window.wpCardCore = api;
 
-export { WHEN, cleanWhen, sessionOf, setSession, VERSION, AKA_MAX, AKA_CHARS, KINDS, ORDER, MODES, cleanMode, cardKind, kindOf, kindBy, cleanName, cleanAka, akaFrom, akaText, cardNames, cleanDone, cleanSheet, cleanCard, defaultCols };
+export { CUE_K, cleanCue, WHEN, cleanWhen, sessionOf, setSession, VERSION, AKA_MAX, AKA_CHARS, KINDS, ORDER, MODES, cleanMode, cardKind, kindOf, kindBy, cleanName, cleanAka, akaFrom, akaText, cardNames, cleanDone, cleanSheet, cleanCard, defaultCols };

@@ -348,6 +348,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (window.wpSheets && window.wpSheets.fxEndSeed) window.wpSheets.fxEndSeed();   // 1.6.2: and the effects that run something as they end
       if (window.wpSheets && window.wpSheets.postureSeed) window.wpSheets.postureSeed();   // the review of fold 6b: and the effects that set a posture, so the first change after a load lays a token down
       if (window.wpAppFont) window.wpAppFont.sync();   // 1.6.2 (backlog 44 (c)): the app font, by the campaign on screen
+      if (window.wpRenderCombatStrip) window.wpRenderCombatStrip();   // 1.6.2 (found in passing): the turn strip on every view, so another campaign opened on a planner or a page puts away the last one's fight (it writes only what changed)
       if (window.wpCharList) window.wpCharList.sync();   // the left panel's Characters section (charlist.js): every change of a character ends in a redraw, and the list is drawn again only when it changed
       if (window.wpNotices) window.wpNotices.sync();   // 1.5.5: the bell's number, for the campaign on screen (notices.js)
       if (window.wpPills) window.wpPills.sync();   // and its state pills (pills.js): the view, the map on screen

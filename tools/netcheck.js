@@ -14044,6 +14044,28 @@ pendingChecks.push((async () => {
             && /'room code': 'The code your GM sent you\./.test(tipsSrc) && !/Send this to your players/.test(tipsSrc) && /<label class="wc-field" data-tip-up="1"><span>Room code<\/span>/.test(html) && /title="Send this to your players\.[^"]*">Room code<\/div>/.test(html), J([je0, je1, jeB.n, jeSt]));
     }
 
+    /* ---- 1.6.2 (backlog 220): the app's own signalling server, built dark ---- */
+    {
+        const sgSrc = sl('signal'), rlSrc = sl('relay'), hp2 = sl('hostpeer'), store = {}, ls = { getItem: k => (k in store ? store[k] : null) };
+        const mk = (answer, web, fetchFn) => { const w = { wpWebMode: { answer: Promise.resolve(answer), web: () => web } }; return new Function('window', 'localStorage', 'fetch', 'net', sgSrc + '\nreturn { signalHost, signalOn, signalWeb, hostToken, plan: SIGNAL_PLAN, tok: function() { return _hostTok; } };')(w, ls, fetchFn || (() => Promise.reject(new Error('no'))), {}); };
+        const resp = (status, body) => () => Promise.resolve({ status, ok: status >= 200 && status < 300, json: () => Promise.resolve(body) });
+        const off = mk(null, false), webOn = mk({ web: { plan: 'gm', can: ['join', 'host'], signal: { host: 'signal.waypointvtt.com' } } }, true, resp(200, { token: 'wph1.abc.def', expires: 1 })), webOther = mk({ web: { signal: { host: 'evil.example.com' } } }, true);
+        await Promise.resolve(); await Promise.resolve();
+        const o0 = { config: { iceServers: [] } }, r = {};
+        r.off = [off.signalHost(), off.signalOn(o0) === o0, off.signalWeb()];
+        r.web = [webOn.signalHost(), JSON.stringify(webOn.signalOn(o0)), JSON.stringify(webOn.signalOn(o0, 'wph1.abc.def')), webOn.signalWeb()];
+        r.other = [webOther.signalHost()];
+        store.wp_signalOwn = '1'; r.pref = [off.signalHost(), off.signalWeb()]; delete store.wp_signalOwn;
+        r.tok = await webOn.hostToken(); r.plan = await mk(null, true, resp(403, { error: 'plan' })).hostToken(); r.bad = await mk(null, true, resp(200, { token: '<script>' })).hostToken(); r.down = await mk(null, true).hostToken(); r.err = await mk(null, true, resp(500, {})).hostToken();
+        const N = src;
+        check('1.6.2 (backlog 220) the app\'s own signalling server, built dark (net.js signal sliced and run for real): off by default every Peer gets the options it always had; the play host\'s web.signal naming signal.waypointvtt.com, or this computer\'s Own signalling server ticked, turns it on for a host and a joiner alike, any other host named is nothing; it merges the server, port 443, path /, secure and key waypoint, a host\'s token its key, the ICE config kept; a browser asks the site for a host token, a 403 being the plan\'s answer, and anything else that is no token none; startHosting asks for one before a Peer is made and makes no Peer without one, a refused key ends the try in plain words and takes no next generation, and the hourly drop is said only where re-registering takes longer than a few seconds',
+            J(r.off) === J(['', true, false]) && r.web[0] === 'signal.waypointvtt.com' && r.web[1] === J({ host: 'signal.waypointvtt.com', port: 443, path: '/', secure: true, key: 'waypoint', config: { iceServers: [] } }) && JSON.parse(r.web[2]).key === 'wph1.abc.def' && r.web[3] === true
+            && J(r.other) === J(['']) && J(r.pref) === J(['signal.waypointvtt.com', false]) && J(r.tok) === J({ token: 'wph1.abc.def' }) && J(r.plan) === J({ plan: true }) && r.bad === null && r.down === null && r.err === null
+            && /return typeof signalOn === 'function' \? signalOn\(o, key\) : o;/.test(rlSrc) && N.includes("if (typeof signalWeb === 'function' && signalWeb() && !_hostTok) {") && N.includes("_hostTok = r.token; try { startHosting(forceFresh); } finally { _hostTok = null; }")
+            && /type === 'invalid-key' && !opened\) \{[^\n]*closing = true;[^\n]*return; \}/.test(hp2) && /sayDrop\(codeLine\(\) \+ ' \\u2014 the link that lets new players find you dropped;/.test(hp2) && webOn.plan === 'This plan joins tables. Hosting in the browser needs a GM plan.',
+            J(r));
+    }
+
     /* ---- T2 (TRANSPORT-2): a room id taken by someone else never ends a live table ---- */
     {
         const hpSrc = sl('hostpeer');
@@ -14442,7 +14464,7 @@ pendingChecks.push((async () => {
         check('transport T6 (the host\'s handler, run for real with the real shape check and guard): a thing that is no connection (what the library builds from a prototype\'s name), a connection in another encoding and one whose transport cannot be guarded are closed and never listed, recorded or wired — nothing throws; the library\'s own binary connection is listed, recorded, guarded and wired',
             hdErr === '' && hd.e === '' && J(hd.listed) === J(['kay']) && J(hd.meta) === J(['kay']) && J(hd.wired) === J(['kay']) && hd.jsonClosed === 1 && hd.noClassShut === true && hd.guarded === true, J([hdErr, hd]));
         check('transport T6 (wired): the gate goes on the host\'s peer as soon as it is made, before anything is listened to, and on a player\'s peer for the room and generation it dials',
-            /var peer = new Peer\(roomPeerId\(code, gen\), peerOpts\(\)\);\n\s*sigGate\(peer, true, roomPeerId\(code, gen\)\);/.test(src) && /\n    var gen = isRetry \? [^\n]*\n\s*sigGate\(peer, false, roomPeerId\(code, gen\)\);/.test(src));
+            /var peer = new Peer\(roomPeerId\(code, gen\), peerOpts\(_hostTok \|\| undefined\)\);[^\n]*\n\s*sigGate\(peer, true, roomPeerId\(code, gen\)\);/.test(src)   /* 1.6.2 (backlog 220): a browser's host token as its key, moved on purpose */ && /\n    var gen = isRetry \? [^\n]*\n\s*sigGate\(peer, false, roomPeerId\(code, gen\)\);/.test(src));
     }
 
     /* ---- T7 (TRANSPORT-4, SERVER-9, FILESYSTEM-12): the key proof bound to the encrypted channel ---- */
@@ -15233,7 +15255,7 @@ pendingChecks.push((async () => {
             /conn\.wpCn = newKey\(\); conn\.wpRetry = !!isRetry;/.test(src) && /var gen = isRetry \? genNotRefused\(code, retryGen\(reconn\.gen, reconn\.tries, ROOM_GENS\), ROOM_GENS, roomPeerId\) : probe;/.test(src) && /version: APP_VERSION, cn: conn\.wpCn \}\);[^\n]*before the first heartbeat/.test(src) && /if \(validCn\(conn\.wpCn\)\) helloA\.cn = conn\.wpCn;/.test(src),
             /var wasRetry = reconn\.pending;\n\s*conn\.wpBefore = wasRetry \? \{ tries: reconn\.tries, gen: reconn\.gen \} : null;[^\n]*\n\s*cancelReconnect\(\);/.test(src) && /if \(!isRetry && !probe\) joinTrustReset\(\);/.test(src),
             /nextGen = conn\.wpNext = function\(\) \{[^\n]*\n\s*clearTimeout\(joinTimer\);\n\s*if \(net\.peer !== peer\) return;\n\s*net\.active = false;\n\s*try \{ peer\.destroy\(\); \} catch \(e\) \{\}\n\s*if \(probe \+ 1 < ROOM_GENS\) \{ joinSession\(code, name, false, probe \+ 1\); return; \}\n\s*joinFailed\(''\);/.test(src) && /if \(rfJ\) snapAsk\(code, name\);/.test(src) && /if \(rfJ\) setStatus\(rfJ\.late \? HOST_LATE \+ ' You have not joined\.' : SNAP_REFUSED \+ ' You have not joined\.'/.test(src),
-            /gmSignArm\(\);[^\n]*\n\s*var peer = new Peer\(roomPeerId\(code, gen\), peerOpts\(\)\);/.test(src),
+            /gmSignArm\(\);[^\n]*\n\s*var peer = new Peer\(roomPeerId\(code, gen\), peerOpts\(_hostTok \|\| undefined\)\);/.test(src),   /* 1.6.2 (backlog 220), moved on purpose */
             /rec\.key = \(provenKey && rec\.key === provenKey\) \? rec\.key : gmFreshKey\(conn\);/.test(src) && /notepad: notepadMsg\(\) \}; if \(sheetFilesHere\(\)\) snap\.sheetFiles = true; var soSnap = [^\n]*?snap\.sheetOut = soSnap; gmSignSnap\(snap, conn\); \};/.test(src),
             /if \(!cm\.signed && validCn\(msg\.cn\)\) cm\.signed = gmPresign\(cm, msg\.cn, keyed0 \? rec0\.key : '', conn\);/.test(src) && /hmacHex\(key0, fp0 \? authData\(nonce0, net\.roomPeer, fp0\[0\], fp0\[1\]\) : null\)\.then\(function\(want\) \{ return Promise\.all\(\[cm\.hail, cm\.signed\]\)\.then\(function\(\) \{ return want; \}\); \}\)\.then\(function\(want\) \{/.test(src),
             /<li><b>Your GM, and no one else:<\/b> the first time you join a table your app remembers its GM&rsquo;s key[\s\S]{0,400}?You are asked once whether to trust the table that answered[\s\S]{0,1500}?<li>This protection begins with the first table your GM hosts on this version\.<\/li>/.test(htmlS) && /<li><b>Your table is signed:<\/b>[^\n]*\s*<ul>\s*<li>It proves itself to a returning player&rsquo;s app as soon as that app says hello[^\n]*<\/li>\s*<li><b>Settings &#9656; Reset multiplayer identity<\/b> makes a new key with your new identity\. To your players&rsquo; apps your table is then a new GM&rsquo;s\.<\/li>/.test(htmlS)

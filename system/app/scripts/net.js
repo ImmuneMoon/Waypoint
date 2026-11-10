@@ -10456,12 +10456,44 @@ function relayActive() { return relayOnly() && !!turnConfig(); }
 net.relayActive = relayActive;
 function relayNote() { return relayActive() ? ' (relay-only connections)' : relayOnly() ? ' (Firewall-friendly connections is on, but no relay server is set on this computer: connecting directly)' : ''; }
 function relayWarn() { if (relayOnly() && !relayActive()) toast('Firewall-friendly connections is on, but no relay server is set on this computer, so you are connecting directly. Set one under Settings \u25B8 Relay server, or switch the option off there.'); }
-function peerOpts() {
-    var t = turnConfig();
-    if (relayOnly() && t) return { config: { iceServers: [t], iceTransportPolicy: 'relay' } };   // relay-only: the relay alone
-    return { config: { iceServers: iceServers() } };   // relay-only means nothing without a relay
+function peerOpts(key) {
+    var t = turnConfig(), o;
+    if (relayOnly() && t) o = { config: { iceServers: [t], iceTransportPolicy: 'relay' } };   // relay-only: the relay alone
+    else o = { config: { iceServers: iceServers() } };   // relay-only means nothing without a relay
+    return typeof signalOn === 'function' ? signalOn(o, key) : o;   // 1.6.2 (backlog 220): the app's own signalling server, while it is switched on
 }
 // [netcheck:relay-end]
+// [netcheck:signal-start]
+// 1.6.2 (backlog 220; the owner, by prompt: "Yes, after the fonts", and of the switch "by the website and a settings
+// option"): the app's own signalling server, built dark. signalHost is the one judge of which server a Peer dials, for a host and a joiner alike,
+// with nothing taken from a room code and no fallback either way: the app's own while the play host's GET /api/version names it (web.signal
+// { host }, read from webmode.js's one answer) or this computer's Own signalling server is ticked (wp_signalOwn, '1'); else the public server, as
+// before. In a browser (webmode.js says the page is a website's) hosting first asks the site for a host token, a new one for each Peer: the key
+// that Peer registers its room with. A desktop's key is waypoint
+var SIGNAL_OWN = 'signal.waypointvtt.com', SIGNAL_PLAN = 'This plan joins tables. Hosting in the browser needs a GM plan.', _sigWeb = null, _hostTok = null;
+if (typeof window !== 'undefined' && window.wpWebMode && window.wpWebMode.answer && typeof window.wpWebMode.answer.then === 'function') window.wpWebMode.answer.then(function(a) { _sigWeb = a; }, function() {});
+function signalHost() {
+    var a = _sigWeb, w = a && typeof a === 'object' && a.web && typeof a.web === 'object' ? a.web : null;
+    if (w && w.signal && typeof w.signal === 'object' && w.signal.host === SIGNAL_OWN) return SIGNAL_OWN;
+    var on = false; try { on = localStorage.getItem('wp_signalOwn') === '1'; } catch (e) {}
+    return on ? SIGNAL_OWN : '';
+}
+function signalOn(o, key) {
+    var h = signalHost(); if (!h) return o;
+    var r = { host: h, port: 443, path: '/', secure: true, key: typeof key === 'string' && key ? key : 'waypoint' };
+    Object.keys(o).forEach(function(k) { r[k] = o[k]; });
+    return r;
+}
+function signalWeb() { var W = typeof window !== 'undefined' ? window.wpWebMode : null; return !!signalHost() && !!(W && typeof W.web === 'function' && W.web()); }
+function hostToken() {
+    if (typeof fetch !== 'function') return Promise.resolve(null);
+    return fetch('/api/host-token', { method: 'POST', credentials: 'same-origin', cache: 'no-store' }).then(function(r) {
+        if (r.status === 403) return { plan: true };
+        return r.ok ? r.json().then(function(j) { return j && typeof j.token === 'string' && /^wph1\.[A-Za-z0-9_.\-]{1,4000}$/.test(j.token) ? { token: j.token } : null; }, function() { return null; }) : null;
+    }).catch(function() { return null; });
+}
+net.signalHost = signalHost;
+// [netcheck:signal-end]
 net.rtcConfig = function() { return peerOpts().config; };   // voice chat (voice.js): its links take the table's own ICE servers and relay rule
 /* Try the configured relay: gather with relay-only ICE and see whether a relay candidate
    arrives. Resolves { ok, detail }. Used by the Test button in Settings. */
@@ -10564,6 +10596,15 @@ function startHosting(forceFresh) {
     diceSessionReset(true);   // and from an empty chat: the last table's lines never reach the next one
     if (typeof tradeForget === 'function') tradeForget();   // 1.5.6: a new table starts with no trade
     if (peerLibMissing()) return;
+    if (typeof signalWeb === 'function' && signalWeb() && !_hostTok) {   // 1.6.2 (backlog 220): a browser hosts on the app's own server with a host token, a new one each try; with none, nothing is hosted
+        setStatus('Asking the website to host\u2026');
+        hostToken().then(function(r) {
+            if (!r) { setStatus('Could not reach the website to host. Nothing was hosted.'); toast('Could not reach the website to host. Nothing was hosted.'); return; }
+            if (r.plan) { setStatus(SIGNAL_PLAN); toast(SIGNAL_PLAN); return; }
+            _hostTok = r.token; try { startHosting(forceFresh); } finally { _hostTok = null; }
+        });
+        return;
+    }
     if (forceFresh) net._hostGen = 0;
     cancelReconnect();   // a pending retry would otherwise tear the new host down and rejoin the old table
     if (net.foreign) {
@@ -10580,7 +10621,7 @@ function startHosting(forceFresh) {
     var code = resumed || makeCode();
     var gen = resumed ? net._hostGen : 0;
     gmSignArm();   // security (2026-10-01): this GM's signing key, read or made the first time, before anyone can connect
-    var peer = new Peer(roomPeerId(code, gen), peerOpts());
+    var peer = new Peer(roomPeerId(code, gen), peerOpts(_hostTok || undefined));   // 1.6.2: a browser's host token as its key, on the app's own server
     sigGate(peer, true, roomPeerId(code, gen));   // transport: every signalling message is judged before the library acts on it
     net.peer = peer; net.role = 'host'; net.code = code; net.roomPeer = roomPeerId(code, gen);   // the room id players dial: what a player's proof of their table key is checked over
     net._lastStanceSig = null;   // the first save after hosting starts sends the ceiling
@@ -10602,6 +10643,7 @@ function startHosting(forceFresh) {
     // (leaveSession nulls net.peer before it destroys it) is never registered again.
     var opened = false, taken = false, closing = false, rereg = 0, reregTimer = null;
     var codeLine = function() { return 'Hosting \u2014 room code: ' + showCode(code); };
+    var sayDrop = function(text) { if (!(typeof signalHost === 'function' && signalHost())) { setStatus(text); return; } setTimeout(function() { if (!closing && net.peer === peer && peer.disconnected) setStatus(text); }, 5000); };   // 1.6.2 (backlog 220): the app's own server closes its socket about each hour and the table takes it back: said only where that takes longer than a few seconds
     peer.on('open', function() {
         if (net.peer !== peer) return;
         rereg = 0;
@@ -10670,8 +10712,9 @@ function startHosting(forceFresh) {
             setTimeout(function() { startHosting(true); }, 300);
             return;
         }
+        if (type === 'invalid-key' && !opened) { var planW = typeof SIGNAL_PLAN === 'string' ? SIGNAL_PLAN : 'This plan joins tables.'; closing = true; try { peer.destroy(); } catch (e) {} setStatus(planW); toast(planW); return; }   // 1.6.2 (backlog 220): the app's own server refused this host's key; no next generation
         if (opened) {   // a live table: the room code stays in the status line — a stranger's bad dial is nothing of the GM's, and a dropped signalling link is said beside the code
-            if (type === 'network' || type === 'server-error' || type === 'socket-error' || type === 'socket-closed') setStatus(codeLine() + ' \u2014 the link that lets new players find you dropped; reconnecting. Players at the table are not affected.');
+            if (type === 'network' || type === 'server-error' || type === 'socket-error' || type === 'socket-closed') sayDrop(codeLine() + ' \u2014 the link that lets new players find you dropped; reconnecting. Players at the table are not affected.');
             return;
         }
         setStatus('Host error: ' + type);

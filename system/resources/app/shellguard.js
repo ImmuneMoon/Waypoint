@@ -173,6 +173,10 @@ function editMenuTemplate(params) {
 // Developer mode (the person at this machine switched it on, after a warning) adds one thing and nothing else: text run as
 // code, which is what the in-app console does. dev counts only as exactly true.
 const SIGNAL_HOST = '0.peerjs.com';
+// 1.6.2 (backlog 220; the owner, by prompt: "Yes, after the fonts", switched on "by the website and a settings option"): the app's own signalling
+// server, allowed beside the public one so that turning it on needs no new release. Off by default: the app dials it only while the play host's
+// /api/version names it (web.signal) or Settings' Own signalling server is ticked. Once it is live a later release names it alone
+const SIGNAL_OWN = 'signal.waypointvtt.com';
 function pagePolicy(dev) {
     return [
         "default-src 'self'",
@@ -181,7 +185,7 @@ function pagePolicy(dev) {
         "img-src 'self' data: blob:",
         "media-src 'self' data: blob:",
         "font-src 'self'",
-        "connect-src 'self' data: blob: https://" + SIGNAL_HOST + ' wss://' + SIGNAL_HOST,
+        "connect-src 'self' data: blob: https://" + SIGNAL_HOST + ' wss://' + SIGNAL_HOST + ' https://' + SIGNAL_OWN + ' wss://' + SIGNAL_OWN,
         "worker-src 'none'",
         "frame-src 'none'",
         "object-src 'none'",
@@ -316,4 +320,4 @@ function scratchSystemDir(ownSystem, named) {
 }
 
 module.exports = { ownOrigin, isOwn, childWindowOk, childWindowOptions, webLinkOk, releaseLink, PERMS_ASK, PERMS_CHECK, permOk,
-    devModeOf, zoomOf, menuTemplate, devToolsKey, editMenuTemplate, SIGNAL_HOST, pagePolicy, pageHeaders, savesType, install, listenLoopback, scratchSystemDir };
+    devModeOf, zoomOf, menuTemplate, devToolsKey, editMenuTemplate, SIGNAL_HOST, SIGNAL_OWN, pagePolicy, pageHeaders, savesType, install, listenLoopback, scratchSystemDir };

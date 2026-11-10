@@ -535,6 +535,9 @@ Settings
   with your profile as your keys do.
 - A list that is drawn again when you press in it keeps its place: Build's
   materials, Keys, the NPCs under Characters, the bell and the Image Library.
+- Settings has Own signalling server, under Multiplayer. It finds tables
+  through Waypoint's own server in place of the public one. It stays off
+  until that server is ready, and the GM and every player tick it alike.
 
 System editor
 - A list can lock chosen parts of its rows while a test of the character holds:

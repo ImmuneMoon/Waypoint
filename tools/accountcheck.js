@@ -125,8 +125,8 @@ function call(h, method, p, body) {
     /* ---- both servers route the account alike, and only the shell's own module talks to the site ---- */
     {
         const main = fs.readFileSync(path.join(ROOT, 'system', 'resources', 'app', 'main.js'), 'utf8'), dev = fs.readFileSync(path.join(ROOT, 'tools', 'dev-server.js'), 'utf8');
-        const appDir = path.join(ROOT, 'system', 'app', 'scripts'), pageNamesSite = fs.readdirSync(appDir).filter(f => /\.js$/.test(f)).filter(f => /waypointvtt\.com/.test(fs.readFileSync(path.join(appDir, f), 'utf8')));
-        check('both servers hand the five routes to account.js\'s handler, made with the site\'s address from siteBase, and no page script names the site (the page asks its own server alone)',
+        const appDir = path.join(ROOT, 'system', 'app', 'scripts'), pageNamesSite = fs.readdirSync(appDir).filter(f => /\.js$/.test(f)).filter(f => /waypointvtt\.com/.test(fs.readFileSync(path.join(appDir, f), 'utf8').split('signal.waypointvtt.com').join('')));   /* 1.6.2 (backlog 220): the signalling server is the peer server Peer dials, never the site's API, and the page policy names it alone */
+        check('both servers hand the five routes to account.js\'s handler, made with the site\'s address from siteBase, and no page script names the site but its signalling server (the page asks its own server alone)',
             /if \(account\.ACCOUNT_ROUTES\.includes\(url\.pathname\)\) \{ accountHandler\(req, res, url\); return; \}/.test(main) && /if \(account\.ACCOUNT_ROUTES\.includes\(url\.pathname\)\) \{ accountHandler\(req, res, url\); return; \}/.test(dev)
             && /account\.makeHandler\(\{ savesDir, base: account\.siteBase\(process\.env\)/.test(main) && /account\.makeHandler\(\{ savesDir, base: account\.siteBase\(process\.env\)/.test(dev) && pageNamesSite.length === 0, J(pageNamesSite));
     }

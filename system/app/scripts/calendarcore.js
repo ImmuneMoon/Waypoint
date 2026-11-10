@@ -268,6 +268,7 @@ function cleanClock(v) {
     var off = cleanRulesOff(v.rulesOff); if (off) o.rulesOff = off;   // 152: the NPCs whose time rules the GM switched off
     var sc = whole(v.cal, 1, LIMITS.others); if (sc !== null) o.cal = sc;
     var rsO = cleanRestOn(v.rest); if (rsO) o.rest = rsO;   // 1.6.2 (backlog 138 (j) fold R2): the rest that is on
+    var rrO = cleanRestRecs(v.rests); if (rrO) o.rests = rrO;   // fold R3: the record of each rest
     var pl = cleanPlayed(v.played); if (pl) o.played = pl;   // 1.6.2 (backlog 166 h): the sessions played, for the timeline   // 1.6.2 (backlog 60): the other calendar the top row shows (absent: the main one)
     return o;
 }
@@ -278,9 +279,33 @@ function cleanRestOn(v) {
     if (!isObj(v)) return null; var name = cutName(v.name, 60); if (!name) return null;
     var o = { name: name }; if (typeof v.rid === 'string' && /^rs_[a-z0-9]{1,24}$/.test(v.rid)) o.rid = v.rid;
     var f = whole(v.from, 0, LIMITS.time); if (f !== null) o.from = f; var t = whole(v.to, 0, LIMITS.time); if (t !== null && (f === null || t >= f)) o.to = t;
-    if (isObj(v.who)) { var w = Object.create(null), n = 0; Object.keys(v.who).forEach(function(k) { if (n >= 500 || !/^[A-Za-z0-9_-]{1,64}$/.test(k)) return; if (v.who[k] === 'rest' || v.who[k] === 'awake') { w[k] = v.who[k]; n++; } }); o.who = Object.assign({}, w); }
+    var w = cleanRestWho(v.who); if (w) o.who = w;
+    var nt = cleanRestNotes(v.notes); if (nt) o.notes = nt; if (v.vis === 'all') o.vis = 'all';   // fold R3: what happened during the rest, and whether players see it
     return o;
 }
+function cleanRestWho(v) { if (!isObj(v)) return null; var w = Object.create(null), n = 0; Object.keys(v).forEach(function(k) { if (n >= 500 || !/^[A-Za-z0-9_-]{1,64}$/.test(k)) return; if (v[k] === 'rest' || v[k] === 'awake') { w[k] = v[k]; n++; } }); return Object.assign({}, w); }
+// Notes on several lines, at most 2000 characters, kept whole, a control character but the line break written as a space
+function cleanRestNotes(v) { if (typeof v !== 'string') return ''; return Array.from(v.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, ' ')).slice(0, 2000).join('').trim(); }
+// 1.6.2 (backlog 138 (j), docs/REST_DESIGN.md fold R3; the owner, 2026-10-16: "the calendar can auto record when rests happen and the gm can add notes on
+// what happened during the rest too"): the calendar's record of each rest, camp.clock.rests, the GM's own: { id: rr_, rid?, name, from, to, how: 'call' |
+// 'skip', n? (how many times a skip held the rest), who?, notes?, vis? 'all' }, in the order written, the newest 500 kept. A record keeps its own name,
+// so a rest renamed or gone keeps it. cleanRestLog is what a player is sent: { id, name, from, to, notes? }, the newest 200, notes only as the host sends them
+var REST_RECS = 500, REST_LOG = 200;
+function cleanRestRecs(v) {
+    if (!Array.isArray(v)) return null; var out = [], seen = Object.create(null);
+    v.slice(-REST_RECS * 2).forEach(function(r) {
+        if (!isObj(r) || typeof r.id !== 'string' || !/^rr_[a-z0-9]{1,24}$/.test(r.id) || seen[r.id]) return;
+        var name = cutName(r.name, 60), f = whole(r.from, 0, LIMITS.time), t = whole(r.to, 0, LIMITS.time); if (!name || f === null || t === null || t < f) return;
+        seen[r.id] = 1; var o = { id: r.id }; if (typeof r.rid === 'string' && /^rs_[a-z0-9]{1,24}$/.test(r.rid)) o.rid = r.rid;
+        o.name = name; o.from = f; o.to = t; o.how = r.how === 'skip' ? 'skip' : 'call';
+        var n = whole(r.n, 1, 500); if (o.how === 'skip' && n !== null) o.n = n;
+        var w = cleanRestWho(r.who); if (w && Object.keys(w).length) o.who = w;
+        var nt = cleanRestNotes(r.notes); if (nt) o.notes = nt; if (r.vis === 'all') o.vis = 'all';
+        out.push(o);
+    });
+    out = out.slice(-REST_RECS); return out.length ? out : null;
+}
+function cleanRestLog(v) { return (cleanRestRecs(v) || []).slice(-REST_LOG).map(function(r) { var o = { id: r.id, name: r.name, from: r.from, to: r.to }; if (r.notes) o.notes = r.notes; return o; }); }
 // 1.6.2 (backlog 166 h; the owner, 2026-11-10, by prompt: "Also the sessions played"): each session played, { t: where the clock stood as it
 // began, in world seconds; at?: the real moment, the GM's alone }, in the order played, the newest LIMITS.played kept. None: null
 function cleanPlayed(v) {
@@ -537,6 +562,6 @@ function preset(id) {
 
 // Names another module can import beside its own LIMITS and helpers (sheets.js)
 var CAL_LIMITS = LIMITS, calPreset = preset;
-var API = { cleanRestOn: cleanRestOn, cleanPlayed: cleanPlayed, cleanEras: cleanEras, eraOf: eraOf, noteNext: noteNext, noteOn: noteOn, viewCal: viewCal, calNamesOf: calNamesOf, fmtIn: fmtIn, fmtDateIn: fmtDateIn, PHASES: PHASES, MOON_KEYS: MOON_KEYS, moonPhases: moonPhases, seasonOf: seasonOf, VERSION: VERSION, LIMITS: LIMITS, DAY: DAY, PRESETS: PRESETS, cleanCalendar: cleanCalendar, cleanClock: cleanClock, cleanAcc: cleanAcc, everySecs: everySecs, ruleFires: ruleFires, cleanTime: cleanTime, tAdd: tAdd, tCmp: tCmp, tFloor: tFloor, tSpanMs: tSpanMs, cleanLived: cleanLived, cleanRulesOff: cleanRulesOff, livedSpans: livedSpans, fightSecs: fightSecs, freshAcc: freshAcc, dateOf: dateOf, dateNames: dateNames, cleanDateFig: cleanDateFig, timeOf: timeOf, periodDays: periodDays, yearDays: yearDays, dayLength: dayLength, fmtDate: fmtDate, fmtTime: fmtTime, fmtWhen: fmtWhen, fmtSpan: fmtSpan, preset: preset };
+var API = { cleanRestRecs: cleanRestRecs, cleanRestLog: cleanRestLog, cleanRestNotes: cleanRestNotes, REST_RECS: REST_RECS, REST_LOG: REST_LOG, cleanRestOn: cleanRestOn, cleanPlayed: cleanPlayed, cleanEras: cleanEras, eraOf: eraOf, noteNext: noteNext, noteOn: noteOn, viewCal: viewCal, calNamesOf: calNamesOf, fmtIn: fmtIn, fmtDateIn: fmtDateIn, PHASES: PHASES, MOON_KEYS: MOON_KEYS, moonPhases: moonPhases, seasonOf: seasonOf, VERSION: VERSION, LIMITS: LIMITS, DAY: DAY, PRESETS: PRESETS, cleanCalendar: cleanCalendar, cleanClock: cleanClock, cleanAcc: cleanAcc, everySecs: everySecs, ruleFires: ruleFires, cleanTime: cleanTime, tAdd: tAdd, tCmp: tCmp, tFloor: tFloor, tSpanMs: tSpanMs, cleanLived: cleanLived, cleanRulesOff: cleanRulesOff, livedSpans: livedSpans, fightSecs: fightSecs, freshAcc: freshAcc, dateOf: dateOf, dateNames: dateNames, cleanDateFig: cleanDateFig, timeOf: timeOf, periodDays: periodDays, yearDays: yearDays, dayLength: dayLength, fmtDate: fmtDate, fmtTime: fmtTime, fmtWhen: fmtWhen, fmtSpan: fmtSpan, preset: preset };
 if (typeof window !== 'undefined') window.wpCalendarCore = API;
-export { cleanRestOn, cleanPlayed, cleanEras, eraOf, noteNext, noteOn, viewCal, calNamesOf, fmtIn, fmtDateIn, PHASES, MOON_KEYS, moonPhases, seasonOf, dateNames, cleanDateFig, VERSION, LIMITS, CAL_LIMITS, calPreset, DAY, PRESETS, cleanCalendar, cleanClock, cleanAcc, everySecs, ruleFires, cleanTime, tAdd, tCmp, tFloor, tSpanMs, cleanLived, cleanRulesOff, livedSpans, fightSecs, freshAcc, dateOf, timeOf, periodDays, yearDays, dayLength, fmtDate, fmtTime, fmtWhen, fmtSpan, preset };
+export { cleanRestRecs, cleanRestLog, cleanRestNotes, REST_RECS, REST_LOG, cleanRestOn, cleanPlayed, cleanEras, eraOf, noteNext, noteOn, viewCal, calNamesOf, fmtIn, fmtDateIn, PHASES, MOON_KEYS, moonPhases, seasonOf, dateNames, cleanDateFig, VERSION, LIMITS, CAL_LIMITS, calPreset, DAY, PRESETS, cleanCalendar, cleanClock, cleanAcc, everySecs, ruleFires, cleanTime, tAdd, tCmp, tFloor, tSpanMs, cleanLived, cleanRulesOff, livedSpans, fightSecs, freshAcc, dateOf, timeOf, periodDays, yearDays, dayLength, fmtDate, fmtTime, fmtWhen, fmtSpan, preset };

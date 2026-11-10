@@ -3619,7 +3619,13 @@
   .cal-pick input[type=number] { width: 64px; }
   .cal-any input.cal-any-n { width: 100px; }
   .cal-tick { display: inline-flex; align-items: center; gap: 4px; }
-  .cal-day.cal-has-note { box-shadow: inset 0 -3px 0 var(--gold); }   /* item 20 K3: a day that holds a note */
+  .cal-day.cal-has-note { box-shadow: inset 0 -3px 0 var(--gold); }
+  .cal-day.cal-has-rest { border-top: 3px solid #5fc4b8; }   /* backlog 138 (j) fold R3: a day a rest spans */
+  .cal-rrs { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
+  .cal-rr { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; border: 1px solid var(--edge); border-radius: 8px; }
+  .cal-rr .cal-rr-del { align-self: flex-start; }
+  .cal-rr-txt { white-space: pre-wrap; }
+  .cal-rest-notes, .cal-rr-notes { resize: vertical; }   /* item 20 K3: a day that holds a note */
   /* 1.6.2 (backlog 147): the season and the moons under the date, a moon's phase drawn on each day and New or Full on its day, and the timeline */
   .cal-sky { font-size: 12px; color: var(--dim); margin-top: -4px; }
   .cal-tabs { display: flex; gap: 4px; }

@@ -1304,6 +1304,7 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
         // its own sight the same way the host does (character sheets already travel per recipient above)
         if (camp.id === c.activeCampaignId && window.wpFogCore) camp.fog = window.wpFogCore.cleanCampFog(camp.fog);
         else delete camp.fog;
+        var rlS = camp.id === c.activeCampaignId && typeof restLogOut === 'function' ? restLogOut(camp) : null; if (rlS && rlS.length) camp.restLog = rlS; else delete camp.restLog;   // 138 (j) fold R3: the records of rests players may see
         var ckS = camp.id === c.activeCampaignId && typeof clockOut === 'function' ? clockOut(camp) : null; if (ckS) { camp.clock = ckS; delete camp.dateFig; } else { delete camp.clock; var fgS = camp.id === c.activeCampaignId && typeof dateFigOut === 'function' ? dateFigOut(camp) : null; if (fgS) camp.dateFig = fgS; else delete camp.dateFig; }   // 1.6.0: the date's numbers alone where no clock goes   // item 20 K2: the hosted campaign's clock, its time alone, while players may see it
         Object.keys(camp.items).forEach(function(id) {
             var orig = camp.items[id];
@@ -2424,7 +2425,7 @@ net.onLocalSave = function() {
         net.syncLibrary();   // and the library players may look through (Stage 6 library L3), the same way
         net.syncNewPlayers(); // and the rules for players without a character (Onboarding F1a), the same way
         net.syncCampFog();  // and its fog defaults (an empty map's fog, the default sight), the same way
-        net.syncClock();    // and its clock (item 20 K2), the same way
+        net.syncClock(); if (typeof net.syncRestLog === 'function') net.syncRestLog();    // and its clock (item 20 K2), the same way, and the records of rests players may see (138 (j) fold R3)
         if (typeof pagesSync === 'function') pagesSync();   // 1.5.6: and which pages players may read: a page that is kept from them now goes, one shown now comes (before the item, so a page shown now is not sent twice)
         if (patch) net.sendItem(patch.campId, patch.itemId);
         if (net.syncMapStubs) net.syncMapStubs();   // possession: a map renamed, re-nested or moved in the Maps list reaches the connections holding only its stub, as its stub
@@ -3102,6 +3103,16 @@ function clockOut(camp) { var CCo = window.wpCalendarCore; if (!camp || !CCo || 
 // 1.6.0 (the owner, by prompt: "The real date everywhere"): while players are sent no clock, a system whose formulas read the date sends them its
 // five numbers alone (calendarcore dateNames), so a formula reads the real date on their sheet as on the GM's
 function dateFigOut(camp) { var CCo = window.wpCalendarCore, SCo = window.wpSystemCore; if (!camp || !camp.system || !CCo || !CCo.dateNames || !CCo.cleanClock || !SCo || !SCo.dateReads || !SCo.dateReads(camp.system)) return null; var ck = CCo.cleanClock(camp.clock); return ck ? CCo.dateNames(camp.system.calendar || null, ck.t) : null; }
+// 1.6.2 (backlog 138 (j) fold R3): the calendar's records of rests that players may see, in a message of their own (the clock's goes out every live minute):
+// each a name and its times, its notes only where the GM ticked them, the newest 200; none while the Calendar is off or the GM keeps the date
+function restLogOut(camp) { var CCo = window.wpCalendarCore; if (!camp || !CCo || !CCo.cleanRestRecs || !clockOut(camp)) return null; var ck = CCo.cleanClock(camp.clock) || {}, rs = (ck.rests || []).slice(-200).map(function(r) { var o = { id: r.id, name: r.name, from: r.from, to: r.to }; if (r.vis === 'all' && r.notes) o.notes = r.notes; return o; }); return rs; }
+net.syncRestLog = function() {
+    if (!net.active || net.role !== 'host') return;
+    var camp = getActiveCampaign(); if (!camp) return;
+    var msg = { type: 'restlog', campId: camp.id, list: restLogOut(camp) || [] }, s = msg.campId + '\n' + JSON.stringify(msg.list);
+    if (s === net._lastRestSig) return; net._lastRestSig = s;
+    net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
+};
 net.clockMessage = function() { var camp = getActiveCampaign(); if (!camp) return null; var m = { type: 'clock', campId: camp.id, clock: clockOut(camp) }; if (m.clock === null) { var fg = dateFigOut(camp); if (fg) m.date = fg; } return m; };
 net.syncClock = function() {
     if (!net.active || net.role !== 'host') return;
@@ -9343,6 +9354,15 @@ function handleMessage(msg, conn) {
         var fgIn = !ckIn && CCk.cleanDateFig ? CCk.cleanDateFig(msg.date) : null; if (fgIn) campCk.dateFig = fgIn; else delete campCk.dateFig;   // 1.6.0: the date's numbers alone, while no clock is sent
         if (window.wpCalendar) window.wpCalendar.refresh();
         // [netcheck:clockmsg-end]
+    } else if (msg.type === 'restlog' && net.role === 'client') {
+        // [netcheck:restlog-start]
+        // 1.6.2 (backlog 138 (j) fold R3): the records of rests players may see, from the synced host only, for the campaign on screen, cleaned again
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
+        var campRl = campOf(msg.campId), CCr = window.wpCalendarCore; if (!campRl || !CCr || !CCr.cleanRestLog) return;
+        var rlIn = CCr.cleanRestLog(msg.list); if (rlIn.length) campRl.restLog = rlIn; else delete campRl.restLog;
+        if (window.wpCalendar) window.wpCalendar.refresh();
+        // [netcheck:restlog-end]
     } else if (msg.type === 'decks' && net.role === 'client') {
         // 1.6.2 (G9): how many are left, from the synced host only, for the campaign on screen, each cleaned against the deck as this app holds it
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;

@@ -6,8 +6,10 @@
    Calendar feature's own per-player switch). Every text reaches the page as a text node or a value. Design of record:
    docs/CALENDAR_PLAN.md. */
 import { getActiveCampaign } from './models.js';
+import { showConfirm } from './dialogs.js';   // backlog 138 (j) fold R3: a record is removed after a question
 import { save, saveView, toast } from './io.js';
 import { roundSecs, needsHeld, chainsShallow, setDateSource } from './systemcore.js';
+import { cleanRestLog } from './calendarcore.js';   // backlog 138 (j) fold R3
 import { cleanEras, eraOf, noteNext, noteOn, viewCal, calNamesOf, fmtIn, fmtDateIn, cleanCalendar, cleanClock, cleanAcc, ruleFires, everySecs, fightSecs, livedSpans, freshAcc, tCmp, tSpanMs, dateOf, timeOf, periodDays, dayLength, fmtDate, fmtWhen, fmtSpan, CAL_LIMITS, moonPhases, seasonOf, PHASES } from './calendarcore.js';
 
 function net() { return window.wpNet || null; }
@@ -733,7 +735,7 @@ function restStart() {
 }
 function restEnd() {
     var camp = getActiveCampaign(), ck = clockOf(camp), on = restNow(camp); if (!camp || isPlayer() || !on) return false;
-    var nc = Object.assign({}, ck); delete nc.rest; camp.clock = cleanClock(nc) || { t: ck.t };
+    var nc = Object.assign({}, ck); delete nc.rest; nc.rests = (ck.rests || []).concat([restRecFor(on, ck.t)]); camp.clock = cleanClock(nc) || { t: ck.t };   // fold R3: the calendar's record of it
     var nn = net(); if (nn && nn.logEvent) nn.logEvent('time', 'Rest ended \u2014 ' + on.name + ' \u2014 now ' + fmtWhen(sysCal(), ck.t));
     save(); if (nn && typeof nn.restLine === 'function') nn.restLine('The rest is over.'); refresh(); return true;
 }
@@ -746,6 +748,8 @@ function restPanel(body, cal, camp, sys) {
         if (typeof on.from === 'number' && typeof on.to === 'number') box.appendChild(cel('div', 'sys-note', 'Called at ' + fmtWhen(cal, on.from) + '. The clock stands at ' + fmtWhen(cal, on.to) + ' and waits until you end the rest.'));
         var rN = restNames(camp, on.who, 'rest'), aN = restNames(camp, on.who, 'awake');
         if (rN.length) box.appendChild(cel('div', 'sys-note', 'Resting: ' + rN.join(', ') + '.')); if (aN.length) box.appendChild(cel('div', 'sys-note', 'Awake: ' + aN.join(', ') + '.'));
+        var tn = cel('textarea', 'field cal-rest-notes'); tn.rows = 2; tn.maxLength = 2000; tn.value = on.notes || ''; tn.placeholder = 'What happened during the rest'; tn.title = 'Your notes on this rest. The calendar keeps them with its record'; box.appendChild(tn);   // fold R3
+        var tl = cel('label', 'cal-tick'), tc = cel('input', 'cal-rest-vis'); tc.type = 'checkbox'; tc.checked = on.vis === 'all'; tc.title = 'Players see these notes on the calendar'; tl.appendChild(tc); tl.appendChild(document.createTextNode(' Players see these notes')); box.appendChild(tl);
         var bar = cel('div', 'cal-rest-bar'); bar.appendChild(cbtn('cal-rest-end', 'End the rest', 'The rest is over: the clock runs again from where it stands, and the table is told', 'restend')); box.appendChild(bar);
         body.appendChild(box); return;
     }
@@ -771,6 +775,46 @@ function restPanel(body, cal, camp, sys) {
     body.appendChild(rr); body.appendChild(cel('div', 'sys-note cal-rest-note', why ? why + '.' : 'The clock jumps the rest\u2019s length, then waits until you end the rest.'));
 }
 // [calendarcheck:restcall-end]
+// [calendarcheck:restrec-start]
+// 1.6.2 (backlog 138 (j), docs/REST_DESIGN.md fold R3; the owner, 2026-10-16: "the calendar can auto record when rests happen and the gm can add notes on
+// what happened during the rest too"): the calendar writes each rest by itself, a called one as it ends and a skip that held a rest by name for at
+// least its length, into camp.clock.rests. A day a rest spans wears a teal line; a picked day lists its rests, with the GM's notes and whether players
+// see them. A player reads the records the host sends (camp.restLog: names and times, and notes only where the GM ticked them)
+function newRestRecId() { return 'rr_' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
+function restRecs(camp) { if (isPlayer()) return typeof cleanRestLog === 'function' ? cleanRestLog(camp && camp.restLog) : []; var ck = clockOf(camp); return ck && Array.isArray(ck.rests) ? ck.rests : []; }
+function restRecFor(on, t) { var r = { id: newRestRecId(), name: on.name, from: typeof on.from === 'number' ? on.from : t, to: t, how: 'call' }; if (on.rid) r.rid = on.rid; if (on.who && Object.keys(on.who).length) r.who = on.who; if (on.notes) r.notes = on.notes; if (on.vis === 'all') r.vis = 'all'; return r; }
+function restSkipRec(skip, t0, t1, lenS) { var n = Math.min(500, Math.floor((t1 - t0) / lenS)), r = { id: newRestRecId(), rid: skip.id, name: skip.name, from: t0, to: t1, how: 'skip' }; if (n > 1) r.n = n; return r; }
+function restDays(camp, dl) {   // [first day, last day] of each rest the calendar holds, and of the one that is on
+    var out = restRecs(camp).map(function(r) { return [Math.floor(r.from / dl), Math.floor(r.to / dl)]; }), on = isPlayer() ? null : restNow(camp);
+    if (on && typeof on.from === 'number') out.push([Math.floor(on.from / dl), Math.floor(tOf(camp) / dl)]);
+    return out;
+}
+function editRests(fn) {
+    var camp = getActiveCampaign(); if (!camp || isPlayer()) return false;
+    var ck = clockOf(camp) || { t: 0 }, nc = Object.assign({}, ck), list = (ck.rests || []).map(function(r) { return Object.assign({}, r); }), on = ck.rest ? Object.assign({}, ck.rest) : null;
+    if (fn(list, on) === false) return false;
+    nc.rests = list; if (on) nc.rest = on; camp.clock = cleanClock(nc) || { t: ck.t };
+    save(); refresh(); return true;
+}
+function restDayList(body, cal, camp, day, gm) {
+    var dl = dayLength(cal), mine = restRecs(camp).filter(function(r) { return Math.floor(r.from / dl) <= day && day <= Math.floor(r.to / dl); }); if (!mine.length) return;
+    var box = cel('div', 'cal-rrs'); box.appendChild(cel('div', 'sys-num-cap', 'Rests'));
+    mine.forEach(function(r) {
+        var row = cel('div', 'cal-rr'); row.dataset.rr = r.id;
+        var hd = cel('div', 'cal-rest-head'); hd.appendChild(cel('span', 'wib wi-bed')); hd.appendChild(document.createTextNode(r.name)); row.appendChild(hd);
+        row.appendChild(cel('div', 'sys-note', 'From ' + fmtWhen(cal, r.from) + ' to ' + fmtWhen(cal, r.to) + (r.how === 'skip' ? ', from a skip' + (r.n ? ', ' + r.n + ' times' : '') : '') + '.'));
+        if (gm) {
+            var rn = restNames(camp, r.who, 'rest'), an = restNames(camp, r.who, 'awake');
+            if (rn.length) row.appendChild(cel('div', 'sys-note', 'Rested: ' + rn.join(', ') + '.')); if (an.length) row.appendChild(cel('div', 'sys-note', 'Awake: ' + an.join(', ') + '.'));
+            var ta = cel('textarea', 'field cal-rr-notes'); ta.rows = 2; ta.maxLength = 2000; ta.value = r.notes || ''; ta.placeholder = 'What happened during the rest'; ta.title = 'Your notes on this rest, at most 2000 characters'; ta.dataset.rr = r.id; row.appendChild(ta);
+            var l = cel('label', 'cal-tick'), c = cel('input', 'cal-rr-vis'); c.type = 'checkbox'; c.checked = r.vis === 'all'; c.dataset.rr = r.id; c.title = 'Players see these notes on the calendar'; l.appendChild(c); l.appendChild(document.createTextNode(' Players see these notes')); row.appendChild(l);
+            var del = cbtn('cal-rr-del', 'Remove', 'Remove this record of the rest, with its notes', 'calrrdel'); del.dataset.rr = r.id; row.appendChild(del);
+        } else if (r.notes) row.appendChild(cel('div', 'cal-rr-txt', r.notes));
+        box.appendChild(row);
+    });
+    body.appendChild(box);
+}
+// [calendarcheck:restrec-end]
 function renderWin() {
     var body = document.getElementById('calendarBody'), camp = getActiveCampaign(); if (!body) return;
     if (!shown(camp)) { closeWin(); return; }
@@ -797,16 +841,17 @@ function renderWin() {
     body.appendChild(nav);
     var grid = cel('div', 'cal-grid'); grid.style.gridTemplateColumns = 'repeat(' + g.cols + ', minmax(0, 1fr))';
     g.heads.forEach(function(h) { var hd = cel('div', 'cal-head', Array.from(h).slice(0, 3).join('')); hd.title = h; grid.appendChild(hd); });
+    var rdS = typeof restDays === 'function' ? restDays(camp, dl) : [];   // fold R3: the days a rest spans
     g.cells.forEach(function(c) {
         if (!c) { grid.appendChild(cel('div', 'cal-blank')); return; }
-        var b = cel('button', 'cal-day' + (c.today ? ' cal-is-today' : '') + (c.picked ? ' cal-is-picked' : '') + (c.notes ? ' cal-has-note' : '') + (c.moons && c.moons.length ? ' cal-has-moon' : ''), String(c.n)); b.type = 'button'; b.dataset.day = String(c.day); b.title = fmtDate(cal, c.day * dl) + (c.today ? ' (today)' : '') + (c.moons && c.moons.length ? '. ' + moonWords(c.moons) : '') + (c.notes ? ' \u2014 ' + c.notes + ' note' + (c.notes === 1 ? '' : 's') : '');
+        var b = cel('button', 'cal-day' + (rdS.some(function(x) { return x[0] <= c.day && c.day <= x[1]; }) ? ' cal-has-rest' : '') + (c.today ? ' cal-is-today' : '') + (c.picked ? ' cal-is-picked' : '') + (c.notes ? ' cal-has-note' : '') + (c.moons && c.moons.length ? ' cal-has-moon' : ''), String(c.n)); b.type = 'button'; b.dataset.day = String(c.day); b.title = fmtDate(cal, c.day * dl) + (c.today ? ' (today)' : '') + (c.moons && c.moons.length ? '. ' + moonWords(c.moons) : '') + (c.notes ? ' \u2014 ' + c.notes + ' note' + (c.notes === 1 ? '' : 's') : '');
         dayFace(b, c);   // 1.6.2: the moon's phase drawn, and New or Full on its day
         grid.appendChild(b);
     });
     body.appendChild(grid);
     comingUp(body, cal, notes, now.day, gm);
     }
-    if (!gm) { if (pick !== null) dayNotes(body, cal, notes, pick, false); body.appendChild(cbtn('cal-hideme', 'Hide the clock for me', 'Takes the clock out of your header at this table; Settings \u25b8 This campaign brings it back', 'calhideme')); return; }
+    if (!gm) { if (pick !== null) { dayNotes(body, cal, notes, pick, false); if (typeof restDayList === 'function') restDayList(body, cal, camp, pick, false); } body.appendChild(cbtn('cal-hideme', 'Hide the clock for me', 'Takes the clock out of your header at this table; Settings \u25b8 This campaign brings it back', 'calhideme')); return; }
     var pr = cel('div', 'cal-pick');
     if (pick === null) pr.appendChild(cel('span', 'sys-note', 'Pick a day. Then set the clock to it, or add a note to it.'));
     else {
@@ -819,7 +864,7 @@ function renderWin() {
         var setB = cbtn('cal-set', 'Set the clock', 'The clock goes to this day at this time; later, you are asked whether the time rules run for the time skipped', 'calset'); pr.appendChild(setB);
     }
     body.appendChild(pr);
-    if (pick !== null) dayNotes(body, cal, notes, pick, true);
+    if (pick !== null) { dayNotes(body, cal, notes, pick, true); if (typeof restDayList === 'function') restDayList(body, cal, camp, pick, true); }
     erasBox(body, cal, ck.eras);   // 1.6.2 (backlog 166 b)
     var kd = cel('div', 'cal-kind'); kd.appendChild(cel('span', 'sys-num-cap', 'Time passes as'));
     var rsW = restsOf(sys), defK = restDefault(sys), rN = restByPick(sys, restPick), onW = typeof restNow === 'function' ? restNow(camp) : null;   // backlog 138 (j) fold R1: a system with rests has one list, opening on its default
@@ -958,7 +1003,8 @@ function moveTo(t1, why, live, own, how) {   // live (1.5.4): the clock ran by i
         gs.forEach(function(g) { g.spans = spansOf(camp, g); ck = clockOf(camp) || ck; });
     }
     var nc = Object.assign({}, ck, { t: t1 }); if (gone < 0) nc.top = ck.top || { s: ck.t, ms: 0 };   // 152: a step back keeps the highest second reached
-    if (how && how.restOn) nc.rest = how.restOn; else if (nc.rest && gone > 0) nc.rest = Object.assign({}, nc.rest, { to: t1 });   // fold R2: the rest called, or a step that adds to it
+    if (how && how.restOn) nc.rest = how.restOn; else if (nc.rest && gone > 0) nc.rest = Object.assign({}, nc.rest, { to: t1 });
+    if (how && how.skip && how.skip.len && gone > 0 && !ck.rest && typeof restSkipRec === 'function') { var lenS = everySecs(cal, sysUnits(sysNow()), how.skip.len); if (lenS > 0 && gone >= lenS) nc.rests = (ck.rests || []).concat([restSkipRec(how.skip, ck.t, t1, lenS)]); }   // fold R3: a skip that held a rest by name for its length   // fold R2: the rest called, or a step that adds to it
     camp.clock = cleanClock(nc) || { t: t1 };
     if (why && net() && net().logEvent) net().logEvent('time', why + ' \u2014 now ' + fmtWhen(cal, t1));
     hits.forEach(function(n) { if (net() && net().logEvent) net().logEvent('time', 'Note reached \u2014 ' + fmtDate(cal, n.day * dayLength(cal)) + ': ' + n.text); });
@@ -982,7 +1028,7 @@ function addNote(day, text, shown, yearly) {
 function noteVis(id, shown) { return editNotes(function(list) { var n = list.filter(function(x) { return x.id === id; })[0]; if (!n) return false; if (shown) n.vis = 'all'; else delete n.vis; }); }
 function noteYearly(id, on) { return editNotes(function(list) { var n = list.filter(function(x) { return x.id === id; })[0]; if (!n) return false; if (on) n.yearly = true; else delete n.yearly; }); }   // 1.6.2 (backlog 166 b)
 function delNote(id) { return editNotes(function(list) { var i = -1; list.forEach(function(x, k) { if (x.id === id) i = k; }); if (i < 0) return false; list.splice(i, 1); }); }
-function moveBy(secs, rest) { var camp = getActiveCampaign(), cal = sysCal(); if (typeof secs !== 'number' || !isFinite(secs) || !secs) return false; return moveTo(tOf(camp) + secs, (secs > 0 ? 'Moved on ' : 'Moved back ') + fmtSpan(cal, secs), false, false, { rest: rest === true }); }
+function moveBy(secs, rest, skip) { var camp = getActiveCampaign(), cal = sysCal(); if (typeof secs !== 'number' || !isFinite(secs) || !secs) return false; if (skip) return moveTo(tOf(camp) + secs, (secs > 0 ? 'Moved on ' : 'Moved back ') + fmtSpan(cal, secs) + ' as ' + skip.name, false, false, { rest: rest === true, skip: skip }); return moveTo(tOf(camp) + secs, (secs > 0 ? 'Moved on ' : 'Moved back ') + fmtSpan(cal, secs), false, false, { rest: rest === true }); }
 function setHidden(hide) {
     var camp = getActiveCampaign(); if (!camp || isPlayer()) return false;
     var ck = clockOf(camp) || { t: 0 }; if (!!ck.hide === !!hide) return false;
@@ -1022,11 +1068,12 @@ function onWinClick(e) {
     if (act === 'reststart') { restStart(); renderWin(); return; }
     if (act === 'restcancel') { restCall = null; renderWin(); return; }
     if (act === 'restend') { restEnd(); renderWin(); return; }
+    if (act === 'calrrdel') { var rrD = String(b.dataset.rr || ''), rrR = restRecs(camp).filter(function(x) { return x.id === rrD; })[0]; if (!rrR) return; (typeof showConfirm === 'function' ? showConfirm : function(q, f) { f(true); })('Remove the record of ' + rrR.name + '? Its notes go with it.', function(yes) { if (yes) editRests(function(list) { var i = -1; list.forEach(function(x, k) { if (x.id === rrD) i = k; }); if (i < 0) return false; list.splice(i, 1); }); }); return; }   // fold R3
     if (act === 'calset' && restNow(camp)) { toast('End the rest first.'); return; }
     if (act === 'calpendapply') { pendDone(true); return; }
     if (act === 'calpendskip') { pendDone(false); return; }
     if ((act === 'calstep' || act === 'calany' || (act === 'calset' && pick !== null)) && ordersRun() && fightMode() === 'sync') { toast(fightHolds(camp)); return; }   // 1.6.2: only where a fight moves the clock   // 152: while a fight runs the clock follows it; nothing is greyed (159), a press says why
-    if (act === 'calstep') { moveBy(Number(b.dataset.secs), restMode); return; }
+    if (act === 'calstep') { moveBy(Number(b.dataset.secs), restMode, restByPick(sysNow(), restPick)); return; }
     if (act === 'caladdnote' && pick !== null) { var nt = q('cal-note-new'), nv = q('cal-note-newvis'), ny = q('cal-note-newyearly'), txt = nt ? String(nt.value || '').trim() : ''; if (!txt) { toast('Type the note first.'); return; } addNote(pick, txt, !!(nv && nv.checked === true), !!(ny && ny.checked === true)); return; }
     if (act === 'caleraadd') { var ea = q('cal-era-newname'), ef = q('cal-era-newfrom'), et = q('cal-era-newto'), fv = ef && String(ef.value).trim() !== '' ? Number(ef.value) : NaN, tv = et && String(et.value).trim() !== '' ? Number(et.value) : null; addEra(ea ? String(ea.value || '') : '', fv, tv); return; }   // 1.6.2 (backlog 166 b)
     if (act === 'caleradel') { eraSet(b.dataset.era, 'del'); return; }
@@ -1034,18 +1081,20 @@ function onWinClick(e) {
     if (act === 'calany') {
         var ni = q('cal-any-n'), ui = q('cal-any-u'), n = ni ? Number(ni.value) : NaN, u = ui ? unitsOf(cal, sysNow()).filter(function(x) { return x.id === ui.value; })[0] : null;
         if (!u || !(String(ni.value).trim() !== '' && isFinite(n)) || !n) { toast('Type an amount: below 0 moves the clock back.'); return; }
-        moveBy(Math.round(n * u.secs), restMode); return;
+        moveBy(Math.round(n * u.secs), restMode, restByPick(sysNow(), restPick)); return;
     }
     if (act === 'calset' && pick !== null) {
         var cc = cleanCalendar(cal) || {}, H = cc.hours || 24, M = cc.minutes || 60, S = cc.seconds || 60, hi = q('cal-set-h'), mi = q('cal-set-m'), h = hi ? Number(hi.value) : 0, m = mi ? Number(mi.value) : 0;
         if (!(h >= 0 && h < H && Math.floor(h) === h && m >= 0 && m < M && Math.floor(m) === m)) { toast('The hour is 0 to ' + (H - 1) + ' and the minute 0 to ' + (M - 1) + '.'); return; }
-        var t1 = pick * dayLength(cal) + (h * M + m) * S; if (moveTo(t1, 'Set', false, false, { rest: restMode, ask: true })) { view = viewOf(cal, t1); pick = null; renderWin(); }   // K5: a Set forward asks (the GM's choice), whatever the table's mode
+        var t1 = pick * dayLength(cal) + (h * M + m) * S; if (moveTo(t1, 'Set', false, false, { rest: restMode, ask: true, skip: restByPick(sysNow(), restPick) })) { view = viewOf(cal, t1); pick = null; renderWin(); }   // K5: a Set forward asks (the GM's choice), whatever the table's mode
     }
 }
 function onWinChange(e) {
     var tg = e.target; if (!tg || !tg.classList) return;
     if (tg.classList.contains('cal-hide')) setHidden(tg.checked !== true);
     else if (tg.classList.contains('cal-live-rate')) { if (!isPlayer()) setRate(Number(tg.value)); }
+    else if ((tg.classList.contains('cal-rr-notes') || tg.classList.contains('cal-rr-vis')) && tg.dataset && !isPlayer()) { var rrI = String(tg.dataset.rr || ''), isN = tg.classList.contains('cal-rr-notes'); editRests(function(list) { var x = list.filter(function(y) { return y.id === rrI; })[0]; if (!x) return false; if (isN) { if (String(tg.value).trim()) x.notes = String(tg.value); else delete x.notes; } else if (tg.checked) x.vis = 'all'; else delete x.vis; }); }   // fold R3: a record's notes
+    else if ((tg.classList.contains('cal-rest-notes') || tg.classList.contains('cal-rest-vis')) && !isPlayer()) { var isN2 = tg.classList.contains('cal-rest-notes'); editRests(function(list, on) { if (!on) return false; if (isN2) { if (String(tg.value).trim()) on.notes = String(tg.value); else delete on.notes; } else if (tg.checked) on.vis = 'all'; else delete on.vis; }); }   // fold R3: the open rest's notes
     else if (restCall && tg.classList.contains('cal-restcall-n')) { var rnN = Number(tg.value); if (Math.floor(rnN) === rnN && rnN >= 1 && rnN <= 1000) restCall.n = rnN; renderWin(); }   // backlog 138 (j) fold R2: the call box
     else if (restCall && tg.classList.contains('cal-restcall-u')) { restCall.u = String(tg.value); renderWin(); }
     else if (restCall && tg.classList.contains('cal-restcall-who') && tg.dataset && typeof tg.dataset.char === 'string' && Object.prototype.hasOwnProperty.call(restCall.who, tg.dataset.char)) restCall.who[tg.dataset.char] = tg.value === 'rest' || tg.value === 'awake' ? tg.value : 'none';

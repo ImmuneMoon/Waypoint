@@ -10703,7 +10703,7 @@ function renderCombatStrip() {
     var n = window.wpNet, am = getActiveMap();
     if (n && !n.active && !n.solo && typeof n.soloHost === 'function' && n.soloOk && n.soloOk()) { var cmS = getActiveCampaign(); if (cmS && cmS.fights && typeof cmS.fights === 'object') n.soloHost(); }   // 1.6.2: a fight this campaign kept, back with no table open
     var fidS = n && (n.active || n.solo) && am && am.type === 'map' && state.viewMode === 'visual' ? stripFightId(am.id) : null, c = fidS ? n.combats[fidS] : null;
-    if (!c) { strip.innerHTML = ''; strip.wpDrawn = ''; strip.style.display = 'none'; if (typeof stripGap === 'function') stripGap(); if (typeof window !== 'undefined' && window.wpPills) window.wpPills.sync(); return; }   // backlog 219: the Round pill comes back as the strip goes
+    if (!c) { strip.innerHTML = ''; strip.wpDrawn = ''; strip.style.display = 'none'; if (typeof stripMenu === 'function') stripMenu(strip, false); if (typeof stripInBar === 'function') stripInBar(); if (typeof window !== 'undefined' && window.wpPills) window.wpPills.sync(); return; }   // backlog 219: the bar lets the fight go, and the Round pill comes back
     var idsS = fightsHere(am.id), atS = idsS.indexOf(fidS);
     var cur = c.rows[c.turn] || {}, nxt = c.rows[(c.turn + 1) % c.rows.length] || {};
     var host = n.role === 'host', mine = !host && n.myTurnTok ? n.myTurnTok() : null;   // turn-based combat T2: the player on turn ends it here
@@ -10740,36 +10740,78 @@ function renderCombatStrip() {
         + pickH
         + (chS ? '' : (host || mine ? '<button class="combat-strip-btn" data-act="hold" title="' + (holdNm ? 'Hold this turn and say what sets it off: play moves on, and it lasts to this character&rsquo;s next turn' : 'Hold this turn: play moves on. ' + (holdStay ? 'They act while held, and Done ends the hold.' : 'Act later puts them right after whoever is acting.') + (holdNext ? ' The hold lasts to their next turn.' : ' A hold not used by the round&rsquo;s end is lost.')) + '">Hold</button>' : '') + heldH)
         + (host ? '<button class="combat-strip-btn" data-act="next" title="Next turn">&#9654;</button><button class="combat-strip-btn" data-act="edit" title="Combat roster"><i class="wib wi-pen"></i></button><button class="combat-strip-btn danger" data-act="end" title="End combat">&times;</button>' : '');
-    // backlog 219 (the owner, 2026-11-10, by prompt: "below the trackers (still in the bar) and only appear when needed"): the strip keeps the round, the arrows,
-    // whose turn it is and who is next; the rest stands behind its last button, opened on this screen alone. A player on their own turn keeps their move and actions in sight
-    var moreOn = /combat-strip-(side|move|acts|held|picks)|data-act="(pickopen|hold|edit|end)"/.test(html), moreOpen = moreOn && strip.wpMoreOpen === fidS;
-    if (moreOn) html += '<button class="combat-strip-btn combat-strip-morebtn" data-act="more" aria-expanded="' + (moreOpen ? 'true' : 'false') + '" title="' + (moreOpen ? 'Show less of the fight' : 'Show the rest of the fight: what is left of the turn' + (host ? ', Hold, the roster and End combat' : mine ? ' and Hold' : '')) + '">&#8943;</button>';
-    if (strip.classList) { strip.classList[moreOpen ? 'add' : 'remove']('more-open'); strip.classList[mine ? 'add' : 'remove']('is-mine'); }
+    // backlog 219 (the owner, 2026-11-10, by prompt, from the sheet docs/sheets/fight-in-bar-sheet.html: "A. A segment of the row"): the fight is a part of the trackers
+    // bar's own row (trackers.js draws it there) and keeps the round, the arrows and whose turn it is; the rest is a menu under its last button, this screen's alone.
+    // A player on their own turn keeps their move, actions and End turn in sight, and the stream window shows who is next and has no menu
+    var moreOn = !(typeof window !== 'undefined' && window.wpStream) && (/combat-strip-(side|held|picks|next)|data-act="(pickopen|hold|edit|end|act)"/.test(html) || (!mine && /combat-strip-(move|acts)/.test(html))), moreOpen = moreOn && strip.wpMoreOpen === fidS;
+    if (moreOn) html += '<button class="combat-strip-btn combat-strip-morebtn" data-act="more" aria-haspopup="true" aria-expanded="' + (moreOpen ? 'true' : 'false') + '" title="The rest of the fight: who is next' + (host ? ', what is left of the turn, Hold, the roster and End combat' : mine ? ' and Hold' : '') + '">&#8943;</button>';
+    if (strip.classList) strip.classList[mine ? 'add' : 'remove']('is-mine');
     if (strip.wpDrawn !== html) { strip.innerHTML = html; strip.wpDrawn = html; }
-    if (typeof stripGap === 'function') stripGap();
+    if (typeof stripInBar === 'function') stripInBar();
+    if (typeof stripMenu === 'function') stripMenu(strip, moreOpen);
     if (typeof window !== 'undefined' && window.wpPills) window.wpPills.sync();   // backlog 219: the Round pill hides while the strip shows
 }
-// [lookcheck:stripgap-start]
-// Backlog 219 (the owner, 2026-11-10, by prompt: "below the trackers (still in the bar) and only appear when needed"): the turn strip stands under the trackers bar, joined to it,
-// and where the bar is not there, in the bar's own place beside the minimap. It ends before the zoom box, the party strip or a player's join card on its line, and wraps there.
-// Before, it stood in the middle of the map and stepped aside from the minimap and the party strip, and where it fitted between neither it dropped over the map (the owner, 2026-11-10)
-function stripGap() {
-    var strip = document.getElementById('combatStrip'), trk = document.getElementById('trkStrip'), main = document.getElementById('main'), mm = document.getElementById('minimap'); if (!strip || !main) return false;
-    strip.style.marginLeft = ''; strip.style.marginTop = '';
-    var s = strip.getBoundingClientRect(), G = 12; if (!(s.width > 0)) { if (trk && trk.classList) trk.classList.remove('trk-joined'); return false; }
-    var area = strip.offsetParent || main, ar = area.getBoundingClientRect(), t = trk ? trk.getBoundingClientRect() : null, tOn = !!t && t.width > 0 && t.height > 0, m = mm ? mm.getBoundingClientRect() : null, mOn = !!m && m.width > 0 && m.height > 0;
-    var cs = trk && typeof getComputedStyle === 'function' ? getComputedStyle(trk) : null, top0 = cs ? parseFloat(cs.top) : NaN;
-    var left = tOn ? t.left - ar.left : mOn ? m.right - ar.left + 8 : 44, top = tOn ? t.bottom - ar.top - 1 : (top0 === top0 ? top0 : 26);   // 8: the trackers bar's own gap from the minimap; 44: past the left ruler
-    var right = ar.width - 8;
-    ['zoomBox', 'partyStrip', 'joinCard'].forEach(function(id) { var e = document.getElementById(id), r = e ? e.getBoundingClientRect() : null; if (r && r.width > 0 && r.left - ar.left > left && r.top - ar.top < top + s.height && r.bottom - ar.top > top) right = Math.min(right, r.left - ar.left - G); });
-    var L = Math.round(left) + 'px', T = Math.round(top) + 'px', M = Math.max(180, Math.floor(right - left)) + 'px';
-    if (strip.style.left !== L) strip.style.left = L; if (strip.style.top !== T) strip.style.top = T; if (strip.style.maxWidth !== M) strip.style.maxWidth = M;
-    if (strip.classList) strip.classList[tOn ? 'add' : 'remove']('fight-joined'); if (trk && trk.classList) trk.classList[tOn ? 'add' : 'remove']('trk-joined');
-    return true;
+// [lookcheck:fightmenu-start]
+// Backlog 219 (the owner, 2026-11-10, by prompt: "A. A segment of the row"): the bar is trackers.js's, which puts the fight in its row; told at every drawing of the strip
+function stripInBar() { var t = typeof window !== 'undefined' ? window.wpTrackers : null; if (t && typeof t.draw === 'function') t.draw(); }
+// The fight's menu under its last button: what the bar's row leaves out, in the strip's own order. A word is a line of text; a button is a row that presses the strip's own
+// button, so every press goes through the strip's one listener. The bar hides what overflows it, so the menu stands in the page, placed under the button
+var STRIP_KEEP = ['combat-strip-round', 'combat-strip-switch', 'combat-strip-cur', 'combat-strip-endturn', 'combat-strip-morebtn'];
+function stripKept(el, mine) {
+    var k = el && el.classList; if (!k) return true;
+    if (STRIP_KEEP.some(function(c) { return k.contains(c); })) return true;
+    if (el.dataset && (el.dataset.act === 'prev' || el.dataset.act === 'next')) return true;
+    return !!mine && (k.contains('combat-strip-move') || k.contains('combat-strip-acts'));
 }
-// [lookcheck:stripgap-end]
+function stripMenuRows(strip) {
+    var out = [], mine = !!(strip.classList && strip.classList.contains('is-mine')), held = '';
+    var word = function(el) { var t = String(el.textContent || '').replace(/\s+/g, ' ').trim(); if (el.classList.contains('combat-strip-next')) t = t.replace(/^next /, 'Next: '); return t; };
+    var row = function(b) {
+        var act = b.dataset ? b.dataset.act : '', t = String(b.textContent || '').trim();
+        if (act === 'edit') return { b: b, text: 'Combat roster…' };
+        if (act === 'end') return { b: b, text: 'End combat', red: true };
+        if (act === 'act') return { b: b, text: (t || 'Act') + (held ? ': ' + held : '') };
+        return { b: b, text: t };
+    };
+    Array.prototype.forEach.call(strip.children || [], function(el) {
+        if (stripKept(el, mine)) return;
+        if (el.classList.contains('combat-strip-held')) { held = word(el).replace(/^held |^acts now /, ''); out.push({ text: word(el) }); return; }
+        if (el.classList.contains('combat-strip-picks')) { Array.prototype.forEach.call(el.querySelectorAll('.combat-strip-btn'), function(b) { out.push(row(b)); }); return; }
+        if (el.tagName === 'BUTTON') { out.push(row(el)); return; }
+        var w = word(el); if (w) out.push({ text: w });
+    });
+    return out;
+}
+function stripMenu(strip, open) {
+    var m = document.getElementById('fightMenu');
+    if (!open) { if (m) m.hidden = true; return; }
+    if (!m) {
+        m = document.createElement('div'); m.id = 'fightMenu'; m.className = 'fight-menu'; m.setAttribute('role', 'menu'); m.hidden = true; document.body.appendChild(m);
+        m.addEventListener('pointerdown', function(e) { e.stopPropagation(); });
+        m.addEventListener('click', function(e) {
+            var r = e.target.closest && e.target.closest('.fight-menu-row'); if (!r || !r.wpPress) return;
+            e.stopPropagation(); var sp = document.getElementById('combatStrip');
+            if (sp && r.wpPress.dataset.act !== 'pickopen') sp.wpMoreOpen = null;   // a row that acts puts the menu away; Pick next opens its list in it
+            r.wpPress.click();
+            if (sp && sp.wpMoreOpen == null) renderCombatStrip();
+        });
+    }
+    m.textContent = ''; var heads = true;
+    stripMenuRows(strip).forEach(function(r) {
+        if (!r.b) { var h = document.createElement('div'); h.className = 'fight-menu-word'; h.textContent = r.text; m.appendChild(h); return; }
+        if (heads) { heads = false; if (m.firstChild) m.appendChild(document.createElement('hr')); }
+        if (r.red && m.lastChild && m.lastChild.tagName !== 'HR') m.appendChild(document.createElement('hr'));
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'fight-menu-row' + (r.red ? ' red' : ''); b.setAttribute('role', 'menuitem'); b.textContent = r.text; b.wpPress = r.b; m.appendChild(b);
+    });
+    m.hidden = false;
+    var mb = strip.querySelector ? strip.querySelector('.combat-strip-morebtn') : null, br = mb ? mb.getBoundingClientRect() : null;
+    if (br) { var w = m.offsetWidth || 180, L = Math.max(8, Math.min(br.left, window.innerWidth - w - 8)); m.style.left = Math.round(L) + 'px'; m.style.top = Math.round(br.bottom + 6) + 'px'; }
+}
+function stripMenuOff() { var sp = document.getElementById('combatStrip'); if (sp && sp.wpMoreOpen) { sp.wpMoreOpen = null; renderCombatStrip(); } }
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('pointerdown', function(e) { var m = document.getElementById('fightMenu'); if (!m || m.hidden) return; var t = e.target; if (m.contains(t) || (t.closest && t.closest('.combat-strip-morebtn'))) return; stripMenuOff(); }, true);
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('keydown', function(e) { var m = document.getElementById('fightMenu'); if (e.key !== 'Escape' || !m || m.hidden) return; e.preventDefault(); e.stopPropagation(); stripMenuOff(); var sp = document.getElementById('combatStrip'), mb = sp && sp.querySelector('.combat-strip-morebtn'); if (mb) mb.focus(); });
+// [lookcheck:fightmenu-end]
 window.wpRenderCombatStrip = renderCombatStrip;
-window.wpStripGap = stripGap;   // backlog 219: trackers.js asks it once the bar is placed, so the strip under it follows at once
 // 1.6.0 (the owner, by prompt: "Light it on hover"): the pointer or the keyboard's focus on a name lights its token on this screen, so that tokens of one name can be told apart. Nothing is stored or sent
 var _litEl = null;
 function findLit(tokId) {
@@ -10785,7 +10827,6 @@ function findLitWire(box) {
 (function wireCombatStrip() {
     var strip = document.getElementById('combatStrip'); if (!strip) return;
     if (typeof findLitWire === 'function') findLitWire(strip);
-    if (typeof ResizeObserver === 'function') { var gapRo = new ResizeObserver(stripGap); ['main', 'partyStrip', 'minimap', 'trkStrip', 'zoomBox'].forEach(function(id) { var e = document.getElementById(id); if (e) gapRo.observe(e); }); }   // the map's room changed, or the party's
     strip.addEventListener('pointerdown', function(e) { e.stopPropagation(); });
     strip.addEventListener('click', function(e) {
         var fb = e.target.closest && e.target.closest('.combat-find');

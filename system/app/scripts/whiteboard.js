@@ -4195,6 +4195,29 @@ window.wpFitToGrid = fitToGrid;
       if (!sc || !sc.gridCells || (dg !== 'one' && dg !== 'alt') || state.gridType !== 'square') return null;
       var px = mapMeasureConfig().cellPx; return sc.gridCells((m.x2 - m.x1) / px, (m.y2 - m.y1) / px, dg);
   }
+  // [vehiclecheck:travel-start]
+  // 1.6.2 (backlog 166 a): how long the trip along a ruler takes on a map whose kind ticks Ruler shows travel time (systemcore travelOf), in the
+  // calendar's own units. A ruler placed where another ends is a leg of one route, and the route's last leg says its total too. A ruler started
+  // on a token whose sheet this screen holds reads that sheet's own speed first. Plain text, which the caller escapes
+  function travelSecsOf(sys) {
+      var CC = window.wpCalendarCore, cal = sys && sys.calendar ? sys.calendar : null, cc = CC && CC.cleanCalendar ? (CC.cleanCalendar(cal) || {}) : {}, S = cc.seconds || 60, M = cc.minutes || 60, SCt = window.wpSystemCore;
+      return { round: SCt && typeof SCt.roundSecs === 'function' ? SCt.roundSecs(sys) : 6, minute: S, hour: M * S, day: CC && CC.dayLength ? CC.dayLength(cal) : 86400 };
+  }
+  function travelWords(sys, secs) {
+      var CC = window.wpCalendarCore, u = travelSecsOf(sys), step = secs >= u.day ? u.hour : secs >= u.minute ? u.minute : 1, r = Math.max(step, Math.round(secs / step) * step);
+      return CC && CC.fmtSpan ? CC.fmtSpan(sys && sys.calendar ? sys.calendar : null, r) : Math.round(r) + ' seconds';
+  }
+  function rulerRoute(all, m) { var route = [m], cur = m, guard = 0; while (guard++ < 50) { var c0 = cur, prev = all.filter(function(o) { return o !== c0 && route.indexOf(o) < 0 && Math.hypot(o.x2 - c0.x1, o.y2 - c0.y1) <= 8; })[0]; if (!prev) break; route.unshift(prev); cur = prev; } return route; }
+  function rulerTravel(map, m, all) {
+      var SCt = window.wpSystemCore, sys = window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null, kind = map && map.meta && typeof map.meta.kind === 'string' ? map.meta.kind : '';
+      if (!SCt || typeof SCt.travelOf !== 'function' || !sys || !kind) return [];
+      var route = rulerRoute(all, m), last = !all.some(function(o) { return o !== m && route.indexOf(o) < 0 && Math.hypot(o.x1 - m.x2, o.y1 - m.y2) <= 8; }), tot = 0;
+      route.forEach(function(r) { tot += boardYards(r.x1, r.y1, r.x2, r.y2); });
+      var t0 = tokenAtPoint(map, route[0].x1, route[0].y1), camp = getActiveCampaign(), ch = t0 && typeof t0.charId === 'string' && camp && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, t0.charId) ? camp.chars[t0.charId] : null;
+      var secs = travelSecsOf(sys), legs = SCt.travelOf(sys, kind, boardYards(m.x1, m.y1, m.x2, m.y2), ch, window.wpFormula, secs), tots = route.length > 1 && last ? SCt.travelOf(sys, kind, tot, ch, window.wpFormula, secs) : null, who = ch && typeof ch.name === 'string' ? ch.name : '';
+      return legs.map(function(x) { var t = tots ? tots.filter(function(y) { return y.key === x.key; })[0] : null; return x.label + (x.own && who ? ' (' + who + ')' : '') + ': ' + travelWords(sys, x.secs) + (t ? ', route ' + travelWords(sys, t.secs) : ''); });
+  }
+  // [vehiclecheck:travel-end]
   // [fogcheck:rulercost-start]
   // Difficult terrain T2: what a move along the ruler costs when it steps into difficult terrain, in the map's cells and unit, counted as a
   // turn's move counts it (fog.js moveCost, the system's diagonal rule); '' when it costs no more than its length, or off a square or hex grid
@@ -4280,6 +4303,8 @@ window.wpFitToGrid = fitToGrid;
           if (mcR) html += '<text x="' + (mx + 8) + '" y="' + (_covY + (labCov ? 19 : 0) + (litR ? 19 : 0) + (rgR ? 19 : 0)) + '">' + esc(mcR) + '</text>';
           var hgR = bothTok ? heightSeen(tA, tB, amR) : null;   // item 19 H2: the height modifier between the two tokens, as a roll reads it
           if (hgR) html += rulerHeightText(mx + 8, _covY + (labCov ? 19 : 0) + (litR ? 19 : 0) + (rgR ? 19 : 0) + (mcR ? 19 : 0), hgR);
+          var tvY = _covY + (labCov ? 19 : 0) + (litR ? 19 : 0) + (rgR ? 19 : 0) + (mcR ? 19 : 0) + (hgR ? 19 : 0);   // 1.6.2 (backlog 166 a): how long the trip takes
+          rulerTravel(amR, m, all).forEach(function(s, k) { html += '<text x="' + (mx + 8) + '" y="' + (tvY + k * 19) + '">' + esc(s) + '</text>'; });
           html += '</g>';
 
       });

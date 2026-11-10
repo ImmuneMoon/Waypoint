@@ -11070,7 +11070,7 @@ function combatBody() {
     initBox(box, cm); tp('postures');   // initiative O2: how ties of initiative break
     postureBox(box, cm);   // conditions C3: the system's own postures
     tp('arcs'); if (typeof arcsBox === 'function') arcsBox(box, cm);   // 1.6.2 (vehicles, fold (b), rebuilt): the system's own arcs
-    tp('mapkinds'); if (typeof mapKindsBox === 'function') mapKindsBox(box);   // 1.6.2 (vehicles, fold (g)): the system's map kinds
+    tp('mapkinds'); if (typeof mapKindsBox === 'function') mapKindsBox(box); if (typeof travelBox === 'function') travelBox(box);   // 1.6.2 (backlog 166 a): the travel modes beside the map kinds   // 1.6.2 (vehicles, fold (g)): the system's map kinds
     tp('scenes'); if (typeof scenesBox === 'function') scenesBox(box);   // 1.6.2: a scene's channels
     if (window.wpSysUi) window.wpSysUi.combatDrawn(box);   // 1.6.2: into a pane a topic
 }
@@ -12023,6 +12023,7 @@ function mapKindsBox(box) {
         pi.addEventListener('input', function() { var v = pi.value === '' ? NaN : Number(pi.value); if (isFinite(v) && v > 0) { k.scale = Object.assign({ unit: 'yd' }, k.scale || {}, { per: v }); } else delete k.scale; ch(); });
         pw.appendChild(document.createTextNode('A cell is ')); pw.appendChild(pi); pw.title = 'The cell a map starts at when it is switched to this kind. Empty: the map keeps its own'; rw.appendChild(pw);
         var us = select('sys-mk-unit', MAPKIND_UNITS, sc && sc.unit ? sc.unit : 'yd', 'The unit of that cell'); us.addEventListener('change', function(e) { e.stopPropagation(); if (k.scale) k.scale.unit = us.value; ch(); }); rw.appendChild(us);
+        var tw = el('label', 'sys-check'), tc = el('input', 'sys-mk-travel'); tc.type = 'checkbox'; tc.checked = k.travel === true; tc.addEventListener('change', function(e) { e.stopPropagation(); if (tc.checked) k.travel = true; else delete k.travel; ch(); }); tw.appendChild(tc); tw.appendChild(document.createTextNode(' Ruler shows travel time')); tw.title = 'On a map of this kind the ruler says how long the trip takes by each travel mode'; rw.appendChild(tw);   // 1.6.2 (backlog 166 a)
         var rm = el('button', 'tool ghost sys-btn sys-mk-rm', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this map kind'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.mapKinds; ch(true); }); rw.appendChild(rm);
         card.appendChild(rw);
         var fs = Array.isArray(k.factors) ? k.factors : null;
@@ -12043,6 +12044,34 @@ function mapKindsBox(box) {
     var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
     box.appendChild(wrap);
 }
+// [vehiclecheck:travelbox-start]
+// 1.6.2 (backlog 166 a): the travel modes. A row each: its name, its speed, the unit and the time it counts in, and a sheet's own number field
+// read in its place where the ruler starts on a token; then + Travel mode. Names as values and text nodes only
+var TRAVEL_PERS = [['round', 'a round'], ['minute', 'a minute'], ['hour', 'an hour'], ['day', 'a day']];
+function travelBox(box) {
+    var wrap = el('div', 'sys-holds sys-travel'), list = Array.isArray(draft.travel) ? draft.travel : null, SCk = window.wpSystemCore || {}, max = SCk.TRAVEL_MAX || 8, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
+    var keyFor = function(a, lb) { var k = typeof SCk.arcKey === 'function' ? SCk.arcKey(lb) : '', base = k, n = 2; while (k && (list || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };
+    var nums = (draft.fields || []).filter(function(f) { return f && (f.kind === 'number' || f.kind === 'formula'); });
+    wrap.appendChild(el('div', 'sys-light-head', 'Travel modes'));
+    wrap.appendChild(el('div', 'sys-note', 'Such as On foot at 3 miles an hour, or By ship at 100 miles a day. On a map whose kind ticks Ruler shows travel time, the ruler says how long the trip takes by each. A mode may read a number on the sheet instead, so a ruler started on a vehicle or a mount uses its own Speed.'));
+    (list || []).forEach(function(m, i) {
+        var rw = el('div', 'sys-flags sys-arcrow sys-tv-row'), nm = input('sys-tv-label field', m.label || '', 'Its name, such as On foot', 'On foot');
+        nm.addEventListener('input', function() { m.label = nm.value.slice(0, LIMITS.label); if (m._new || !m.key) m.key = keyFor(m, m.label); ch(); }); rw.appendChild(nm);
+        var nw = el('label', 'sys-check'), ni = el('input', 'field sys-num sys-tv-n'); ni.type = 'number'; ni.min = '0'; ni.step = 'any'; if (typeof m.n === 'number') ni.value = String(m.n); ni.title = 'How far it goes, in the unit beside it';
+        ni.addEventListener('input', function() { var v = ni.value === '' ? NaN : Number(ni.value); if (isFinite(v) && v > 0) m.n = v; else delete m.n; ch(); }); nw.appendChild(document.createTextNode('Speed ')); nw.appendChild(ni); rw.appendChild(nw);
+        var us = select('sys-tv-u', MAPKIND_UNITS, m.u || 'mi', 'The unit of its speed'); us.addEventListener('change', function(e) { e.stopPropagation(); m.u = us.value; ch(); }); rw.appendChild(us);
+        var ts = select('sys-tv-t', TRAVEL_PERS, m.t || 'hour', 'The time its speed counts in'); ts.addEventListener('change', function(e) { e.stopPropagation(); m.t = ts.value; ch(); }); rw.appendChild(document.createTextNode(' each ')); rw.appendChild(ts);
+        var fw = el('label', 'sys-check'), fs = select('sys-tv-f', [['', 'None']].concat(nums.map(function(f) { return [f.id, typeof fieldWord === 'function' ? fieldWord(f) : (f.label || f.key)]; })), m.f || '', 'A number on the sheet read as this speed where the ruler starts on a token, such as a vehicle\u2019s Speed. The speed beside it stands where none can be read');
+        fs.addEventListener('change', function(e) { e.stopPropagation(); if (fs.value) m.f = fs.value; else delete m.f; ch(); }); fw.appendChild(document.createTextNode('Or the sheet\u2019s ')); fw.appendChild(fs); rw.appendChild(fw);
+        var rm = el('button', 'tool ghost sys-btn sys-tv-rm', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this travel mode'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.travel; ch(true); }); rw.appendChild(rm);
+        wrap.appendChild(rw);
+    });
+    var add = el('button', 'tool ghost sys-btn sys-tv-add', '+ Travel mode'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'A way of travelling, such as On foot, Mounted or By ship';
+    add.addEventListener('click', function() { if (!Array.isArray(draft.travel)) draft.travel = []; list = draft.travel; if (list.length >= max) return; list.push({ label: '', u: 'mi', t: 'hour', _new: true }); ch(true); setTimeout(function() { var nb = document.querySelectorAll('#systemModal .sys-tv-label'); if (nb.length) nb[nb.length - 1].focus(); }, 0); });
+    var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
+    box.appendChild(wrap);
+}
+// [vehiclecheck:travelbox-end]
 function postureBox(box, cm) {
     var arr = Array.isArray(cm.postures) ? cm.postures : [], wrap = el('div', 'sys-postures'), targets = fxTargets(draft);
     wrap.appendChild(el('div', 'sys-light-head', 'Postures'));

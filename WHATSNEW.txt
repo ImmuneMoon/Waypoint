@@ -788,6 +788,10 @@ Writing planners and pages
 - Easy-read font in Settings switches Waypoint's own words to Atkinson
   Hyperlegible, which the Braille Institute made so letters are hard to mix up.
   It joins every Font list too.
+- The ruler can say how long a trip takes. Name travel modes in the System
+  editor, such as On foot at 3 miles an hour, and tick Ruler shows travel time
+  on a map kind. Start the ruler on a ship and it uses the ship's own Speed.
+  Rulers placed end to start make a route, and the last leg says its total.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

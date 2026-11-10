@@ -611,6 +611,37 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
     check('Help says map kinds, in plain words', /<b>Map kinds<\/b>/.test(help) && /<b>Map kind<\/b>/.test(help));
     check('both release notes say map kinds', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /A map can now be switched to a scale the system names/.test(readRoot(p))));
     check('both release notes say it', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /A system can now name its own arcs/.test(readRoot(p)) && /Rows are sheets/.test(readRoot(p)) && /A token can hold a mark on another/.test(readRoot(p)) && /A mark can end by itself/.test(readRoot(p))));
+    {   /* ---- 1.6.2 (backlog 166 a; the owner, by prompt: "Modes and the token", "Map kinds pick"): travel time on the ruler ---- */
+        const CCt = await import(url.pathToFileURL(app('scripts/calendarcore.js')).href);
+        const flT = [{ id: 'f_spd', key: 'Speed', label: 'Speed', kind: 'number', vis: 'all' }, { id: 'f_sec', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm' }, { id: 'f_t', key: 'Note', label: 'Note', kind: 'text', vis: 'all' }];
+        const tvIn = [{ label: 'On foot', n: 3, u: 'mi', t: 'hour', x: '<b>' }, { label: 'Vehicle', f: 'f_spd', n: 10, u: 'mi', t: 'hour' }, { label: 'Text', f: 'f_t' }, { label: 'On foot', n: 2 }, { label: '', n: 2 }, { label: 'Odd', n: 5, u: 'zz', t: 'week' }, { label: 'Nil', n: -1 }, { label: 'Hidden', f: 'f_sec' }, null, 'x'];
+        const tvC = S.cleanTravel(tvIn, flT);
+        check('166 a travel modes (cleanTravel): a short name made once from its name, a speed above 0 and/or a number field of the sheet, a unit (ft, yd, m, mi, km; else miles) each round, minute, hour or day (else hour); one with no speed it can read, no name or a name twice dropped; at most 8',
+            J(tvC) === J([{ key: 'OnFoot', label: 'On foot', n: 3, u: 'mi', t: 'hour' }, { key: 'Vehicle', label: 'Vehicle', n: 10, f: 'f_spd', u: 'mi', t: 'hour' }, { key: 'Odd', label: 'Odd', n: 5, u: 'mi', t: 'hour' }, { key: 'Hidden', label: 'Hidden', f: 'f_sec', u: 'mi', t: 'hour' }])
+            && S.cleanTravel(Array.from({ length: 20 }, (_, i) => ({ label: 'M' + i, n: 1 })), flT).length === 8 && S.cleanTravel([], flT) === null && S.cleanTravel('x', flT) === null, J(tvC));
+        const sysT = { v: 1, name: 'T', fields: flT, travel: tvIn, mapKinds: [{ label: 'World', travel: true }, { label: 'Town', travel: 'yes' }] };
+        const gmT = S.cleanSystem(sysT, { F, gmView: true }), plT = S.cleanSystem(sysT, { F, gmView: false });
+        check('166 a a map kind keeps Ruler shows travel time only as true; the players\u2019 view keeps the travel modes but for a field it lacks, so a mode that read only a GM-only field is gone',
+            gmT.mapKinds[0].travel === true && !('travel' in gmT.mapKinds[1]) && J(gmT.travel.map(m => m.key)) === J(['OnFoot', 'Vehicle', 'Odd', 'Hidden']) && J(plT.travel.map(m => m.key)) === J(['OnFoot', 'Vehicle', 'Odd']) && J(plT.mapKinds) === J(gmT.mapKinds), J([gmT.travel, plT.travel]));
+        const secsT = { round: 6, minute: 60, hour: 3600, day: 86400 }, chT = { id: 'c_v', name: 'Skiff', values: { f_spd: 30 } };
+        const a1 = S.travelOf(gmT, 'world', 1760 * 6, null, F, secsT), a2 = S.travelOf(gmT, 'world', 1760 * 6, chT, F, secsT), a3 = S.travelOf(gmT, 'town', 1760 * 6, chT, F, secsT), a4 = S.travelOf(gmT, 'world', 0, null, F, secsT), a5 = S.travelOf(gmT, 'world', 1760 * 6, { id: 'c_x', values: { f_spd: 0 } }, F, secsT);
+        check('166 a how long each mode takes (travelOf): 6 miles on foot at 3 an hour is 2 hours; a mode that reads the sheet\u2019s own Speed uses it where the ruler starts on that sheet, marked own and named first, and its own speed beside it otherwise; a kind not ticked, no length or a speed of 0 on the sheet gives what is left',
+            J(a1.map(x => [x.key, Math.round(x.secs), x.own])) === J([['OnFoot', 7200, false], ['Vehicle', 2160, false], ['Odd', 4320, false]]) && J(a2.map(x => [x.key, Math.round(x.secs), x.own])) === J([['Vehicle', 720, true], ['OnFoot', 7200, false], ['Odd', 4320, false]])
+            && a3.length === 0 && a4.length === 0 && J(a5.map(x => x.key)) === J(['OnFoot', 'Vehicle', 'Odd']) && a5[1].own === false, J([a1, a2, a5]));
+        // the ruler's lines, whiteboard.js sliced by its travel markers and run for real
+        const wbT = read('scripts/whiteboard.js'), slTv = wbT.slice(wbT.indexOf('// [vehiclecheck:travel-start]'), wbT.indexOf('// [vehiclecheck:travel-end]'));
+        const tok = { id: 't1', charId: 'c_v', x: 0, y: 0 }, campT = { chars: { c_v: chT } }, winT = { wpSystemCore: S, wpCalendarCore: CCt, wpFormula: F, wpSheets: { systemOf: () => gmT } };
+        const RT = new Function('window', 'getActiveCampaign', 'tokenAtPoint', 'boardYards', slTv + '\nreturn { rulerTravel, rulerRoute, travelWords };')(winT, () => campT, (map, x, y) => (x === 0 && y === 0 ? tok : null), (ax, ay, bx, by) => Math.hypot(bx - ax, by - ay) / 50 * 1760);
+        const mapW = { meta: { kind: 'world' } }, r1 = { x1: 0, y1: 0, x2: 150, y2: 0 }, r2 = { x1: 152, y1: 3, x2: 152, y2: 103 }, solo = { x1: 500, y1: 500, x2: 600, y2: 500 }, allT = [r1, r2, solo];
+        const l1 = RT.rulerTravel(mapW, r1, allT), l2 = RT.rulerTravel(mapW, r2, allT), lS = RT.rulerTravel(mapW, solo, allT), lN = RT.rulerTravel({ meta: {} }, solo, allT);
+        check('166 a the ruler (rulerTravel, run for real): a line a mode in the calendar\u2019s words, the sheet\u2019s own speed first and named for the token the route starts on; a ruler placed where another ends is a leg, and the route\u2019s last leg says the whole route; a ruler that starts on no token reads the modes\u2019 own speeds; a map with no kind says nothing',
+            J(l1) === J(['Vehicle (Skiff): 6 minutes', 'On foot: 1 hour', 'Odd: 36 minutes']) && J(l2) === J(['Vehicle (Skiff): 4 minutes, route 10 minutes', 'On foot: 40 minutes, route 1 hour, 40 minutes', 'Odd: 24 minutes, route 1 hour'])
+            && J(lS) === J(['On foot: 40 minutes', 'Vehicle: 12 minutes', 'Odd: 24 minutes']) && J(lN) === J([]) && RT.travelWords(gmT, 3 * 86400 + 4000) === '3 days, 1 hour', J([l1, l2, lS]));
+        const shT = read('scripts/sheets.js'), ixT = read('index.html');
+        check('166 a wired (pinned): the map kind\u2019s tick and the travel modes box beside the map kinds, its rows a name, a speed, a unit, a time and a sheet\u2019s own number; the ruler draws each line as text under the others; Help says it',
+            shT.includes("tc = el('input', 'sys-mk-travel')") && shT.includes("mapKindsBox(box); if (typeof travelBox === 'function') travelBox(box);") && ['sys-tv-label', 'sys-tv-n', 'sys-tv-u', 'sys-tv-t', 'sys-tv-f', 'sys-tv-rm', 'sys-tv-add'].every(c => shT.includes("'" + c) || shT.includes(' ' + c + "'"))
+            && wbT.includes("rulerTravel(amR, m, all).forEach(function(s, k) { html += '<text x=\"' + (mx + 8) + '\" y=\"' + (tvY + k * 19) + '\">' + esc(s) + '</text>'; });") && ixT.includes('<b>Ruler shows travel time</b>') && ixT.includes('<b>Travel modes</b>'));
+    }
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });
 process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never finished'); process.exitCode = 1; } });

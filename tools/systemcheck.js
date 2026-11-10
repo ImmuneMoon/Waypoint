@@ -23163,6 +23163,25 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && Array.isArray(hit) && hit.length === 1 && (!none || none.length === 0) && (!down || down.length === 0),
             J([offR, onR.lines, badR, msgs, hit, none, down]));
     }
+    {   // 1.6.2 (backlog 218, fold 4; the owner, by prompt: "Under the section title"): a section's first-use hint
+        const J = JSON.stringify, sec = (h, id) => ({ id: id || 's_a', title: 'Core', fields: [], hint: h });
+        const G = cleanSystem({ v: 1, name: 'T', fields: [], sheet: { sections: [sec('  Tick a beast\nto harness it.  '), sec('', 's_b'), sec('x'.repeat(400), 's_c')] } }, { F, gmView: true }), P = cleanSystem({ v: 1, name: 'T', fields: [], sheet: { sections: [sec('Tick it.')] } }, { F, gmView: false });
+        const shF = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), ha = shF.indexOf('// [systemcheck:hint-start]'), hz = shF.indexOf('// [systemcheck:hint-end]');
+        const Dm = require('./boxdom.js').makeDom(), doc = Dm.document, store = {}, ls = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } }, drawn = [];
+        const mk = (t, c, x) => { const e = doc.createElement(t); if (c) e.className = c; if (x !== undefined && x !== null) e.appendChild(doc.createTextNode(String(x))); return e; };
+        const H = new Function('el', 'input', 'document', 'localStorage', 'getActiveCampaign', 'renderViews', 'toast', shF.slice(ha, hz) + '\nreturn { hintNode: hintNode, hintKey: hintKey, hintsSeen: hintsSeen, hintHide: hintHide, hintsReset: hintsReset, hintBox: hintBox };')(
+            mk, (c, v) => { const i = mk('input', c); i.value = v; return i; }, doc, ls, () => ({ id: 'camp_1' }), () => drawn.push(1), () => {});
+        const S1 = { id: 's_a', hint: 'Tick a beast.' }, host = mk('details'), n1 = H.hintNode(S1); host.appendChild(mk('summary', null, 'Core')); host.appendChild(n1);
+        Dm.fire(n1.querySelector('.sheet-hint-x'), 'click'); const hid = host.childNodes.length === 1 && H.hintNode(S1) === null && H.hintNode(S1, true) !== null, newWords = H.hintNode({ id: 's_a', hint: 'Tick a beast, then Pull.' }) !== null;
+        for (let i = 0; i < 405; i++) H.hintHide('k' + i); const kept = Object.keys(H.hintsSeen()), lastKept = kept.indexOf('k404') >= 0 && kept.indexOf('k0') < 0;
+        H.hintsReset(); const reset = store.wp_hintsSeen === undefined && drawn.length === 1 && H.hintNode(S1) !== null;
+        store.wp_hintsSeen = '[1,2]'; const junk = J(H.hintsSeen()) === '{}'; store.wp_hintsSeen = '{"a":1,"b":2}'; const onlyOnes = J(H.hintsSeen()) === '{"a":1}';
+        const sD = { id: 's_x' }, hb = H.hintBox(sD), hi = hb.querySelector('.sys-sec-hint'); hi.value = 'One line.'; Dm.fire(hi, 'input'); const typed = sD.hint === 'One line.'; hi.value = '   '; Dm.fire(hi, 'input');
+        check('218 fold 4 a section\'s first-use hint (cleanSections, and the sheet\'s hint and the System editor\'s box run for real on a page of plain objects that refuses markup): one line of up to 300 characters, the same in both views, none for blanks; drawn under the title as words and an x, which hides it on this computer under the campaign, the section and its words, so new words show again; the Layout preview shows it always; the newest 400 hidden kept; Show sheet hints again forgets them all and draws the sheets again; a store that is junk read as nothing hidden; the box writes the section\'s hint and blanks take it off',
+            G.sheet.sections[0].hint === 'Tick a beast to harness it.' && G.sheet.sections[1].hint === undefined && G.sheet.sections[2].hint.length === 300 && P.sheet.sections[0].hint === 'Tick it.'
+            && n1.attrs.role === 'note' && n1.childNodes[0].textContent === 'Tick a beast.' && hid && newWords && lastKept && kept.length === 400 && reset && junk && onlyOnes && typed && sD.hint === undefined,
+            J([G.sheet.sections.map(s => s.hint), hid, newWords, kept.length, reset, typed]));
+    }
     {   // 1.6.2 (backlog 218, fold 3; the owner, by prompt: a small (i) button, since "a tooltip would become bloated", on "Fields and rolls", "List stats and columns", "Effects and conditions" and "Sections and links")
         const J = JSON.stringify, gx = { says: 'How much it pulls.\nZero: none.', page: 'p_gm' }, ox = { says: 'Seen', page: 'p_open' };
         const raw = { v: 1, name: 'T', fields: [{ id: 'f_a', key: 'Str', label: 'Str', kind: 'number', explain: gx }, { id: 'f_f', key: 'Twice', label: 'Twice', kind: 'formula', formula: 'Str * 2', explain: { says: 'Twice Str.' } },

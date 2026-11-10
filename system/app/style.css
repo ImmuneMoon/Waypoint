@@ -5411,6 +5411,13 @@
   .sheet-explain-more { font-size: 12px; color: var(--muted); }
   .sheet-explain-page { align-self: flex-start; }
   #sheetPrint .sheet-explain { display: none; }
+  .sheet-hint { display: flex; align-items: flex-start; gap: 6px; margin: 2px 0 6px; padding: 5px 6px 5px 9px; border-left: 2px solid var(--gold); background: rgba(212, 175, 55, 0.07); border-radius: 0 6px 6px 0; font-size: 12.5px; line-height: 1.4; color: var(--text); }
+  .sheet-hint-text { flex: 1 1 auto; }
+  .sheet-hint-x { flex: 0 0 auto; padding: 0 6px; min-height: 0; line-height: 18px; }
+  #sheetPrint .sheet-hint { display: none; }
+  @media print { .sheet-hint { display: none; } }
+  .sys-sec-hintrow { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+  .sys-sec-hintrow .sys-sec-hint { flex: 1 1 auto; }
   .sys-explain { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; flex-basis: 100%; }
   .sys-explain .sys-explain-add { align-self: flex-start; }
   .sys-explain-says { width: 100%; min-height: 44px; resize: vertical; }

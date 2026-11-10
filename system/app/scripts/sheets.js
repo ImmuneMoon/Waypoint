@@ -325,6 +325,41 @@ function explainOpen(anchor, ex, c, more) {
     var fb = null; Array.prototype.forEach.call(pop.querySelectorAll('button'), function(x) { if (!fb && !x.disabled) fb = x; }); try { (fb || pop).focus(); } catch (er) {}
 }
 // [systemcheck:explain-end]
+// [systemcheck:hint-start] 1.6.2 (backlog 218 fold 4; the owner, by prompt: "Under the section title"): a section's first-use hint, the system's one
+// line under its title until the reader hides it with its x. What is hidden is this computer's, kept under wp_hintsSeen by the campaign, the
+// section and the hint's own words, so a hint the GM changes shows again; the newest 400 are kept. The Layout preview always shows it. Settings'
+// Show sheet hints again forgets them all
+var HINTS_KEEP = 400;
+function hintKey(sec) {
+    var camp = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, t = String(sec && sec.hint || ''), h = 2166136261;
+    for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    return String(camp && camp.id || '-') + ':' + String(sec && sec.id || '') + ':' + h.toString(36);
+}
+function hintsSeen() { try { var v = JSON.parse(localStorage.getItem('wp_hintsSeen') || '{}'), o = {}; if (v && typeof v === 'object' && !Array.isArray(v)) Object.keys(v).forEach(function(k) { if (v[k] === 1 && k.length <= 200) o[k] = 1; }); return o; } catch (e) { return {}; } }
+function hintHide(k) {
+    var s = hintsSeen(); delete s[k]; s[k] = 1; var ks = Object.keys(s); ks.slice(0, Math.max(0, ks.length - HINTS_KEEP)).forEach(function(x) { delete s[x]; });
+    try { localStorage.setItem('wp_hintsSeen', JSON.stringify(s)); return true; } catch (e) { return false; }
+}
+function hintsReset() { try { localStorage.removeItem('wp_hintsSeen'); } catch (e) {} if (typeof renderViews === 'function') renderViews(); }
+function hintNode(sec, preview) {
+    if (!sec || typeof sec.hint !== 'string' || !sec.hint) return null; var k = hintKey(sec); if (preview !== true && hintsSeen()[k] === 1) return null;
+    var d = el('div', 'sheet-hint'); d.setAttribute('role', 'note'); d.appendChild(el('span', 'sheet-hint-text', sec.hint));
+    var x = el('button', 'tool ghost sheet-hint-x', '\u00d7'); x.type = 'button'; x.title = 'Hide this hint on this computer. Settings can show hints again'; x.setAttribute('aria-label', 'Hide this hint');
+    if (preview === true) x.disabled = true;
+    x.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); hintHide(k); var host = d.parentNode; if (host) host.removeChild(d); var to = host && host.querySelector ? host.querySelector('summary, button, input, select, textarea') : null; try { if (to) to.focus(); } catch (er) {} });
+    d.appendChild(x); return d;
+}
+// the System editor's box for it, on a section's row: listeners of its own and a class no handler reads
+function hintBox(sec) {
+    var l = el('label', 'sys-combat-item sys-sec-hintrow'); l.appendChild(el('span', 'sys-num-cap', 'First-use hint'));
+    var i = input('sys-sec-hint field', typeof sec.hint === 'string' ? sec.hint : '', 'One line under the section\u2019s title on the sheet. Each reader hides it with its x, on their own computer', 'Such as: tick a beast to harness it');
+    i.maxLength = typeof LIMITS === 'object' && LIMITS && LIMITS.hint ? LIMITS.hint : 300;
+    i.addEventListener('input', function(e) { e.stopPropagation(); var v = i.value.slice(0, i.maxLength); if (v.trim()) sec.hint = v; else delete sec.hint; if (typeof markDirty === 'function') markDirty(); });
+    i.addEventListener('change', function(e) { e.stopPropagation(); });
+    l.appendChild(i); return l;
+}
+(function() { var hb = typeof document !== 'undefined' && document.getElementById ? document.getElementById('setHintsBtn') : null; if (hb) hb.addEventListener('click', function() { hintsReset(); if (typeof toast === 'function') toast('Sheet hints show again.'); }); })();
+// [systemcheck:hint-end]
 // [[id, label]] for the campaign's handbook pages (title order, GM-only marked) — the Layout tab's page pickers; an unknown current
 // id stays selectable as "(page not found)" so a system imported from another campaign can be re-pointed rather than silently lost
 function pageOptions(cur, none) {
@@ -1344,7 +1379,7 @@ function hideFigPress() {
     afterCharChange(c, true); if (window.wpStepLog) window.wpStepLog('hidefig v1', 'tick', { on: c.hideFig === true }); return true;
 }
 // [systemcheck:hidefig-end]
-function asPlayerFree(t) { return !!(t && t.closest && t.closest('summary, .sheet-tab, .sheet-item-opener, .sheet-explain')); }
+function asPlayerFree(t) { return !!(t && t.closest && t.closest('summary, .sheet-tab, .sheet-item-opener, .sheet-explain, .sheet-hint-x')); }
 function asPlayerGuard(e) {
     if (!_asPlayer || asPlayerFree(e.target)) return;
     if (e.type === 'keydown') { var tg = e.target && e.target.tagName, nav = e.key === 'Tab' || e.key === 'Escape' || e.key === 'PageUp' || e.key === 'PageDown' || e.key === 'Home' || e.key === 'End'; if (nav || (e.key !== 'Enter' && e.key !== ' ' && tg !== 'INPUT' && tg !== 'SELECT' && tg !== 'TEXTAREA' && !(e.target && e.target.isContentEditable))) return; }
@@ -2300,6 +2335,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
             if (rsCh) head.appendChild(rsCh);
             s.appendChild(head);
         }
+        if (!printV && sec.hint && typeof hintNode === 'function') { var hintN = hintNode(sec, previewV); if (hintN) s.appendChild(hintN); }   // 1.6.2 (backlog 218 fold 4): its first-use hint
         var grid = el('div', 'sheet-grid'); grid.style.gridTemplateColumns = 'repeat(' + Math.max(1, Math.min(4, sec.cols || 1)) + ', minmax(0, 1fr))';
         (sec.fields || []).forEach(function(pl, pli) {
             var plOff = !!pl.showIf && !showsIf(pl.showIf, all.vars, F());   // C8: a placement's own show-if
@@ -2828,6 +2864,7 @@ function renderLayout() {
         var addRow = el('div', 'sys-row-main sys-pl-addrow');
         addRow.appendChild(lazySelect('sys-pl-add', addOpts, '', 'A field not yet on the sheet, a roll button, a heading, a divider, the portrait, a facing dial, a stance control or a handbook link'));
         row.appendChild(addRow);
+        if (typeof hintBox === 'function') row.appendChild(hintBox(sec));   // 1.6.2 (backlog 218 fold 4)
         if (typeof explainBox === 'function') row.appendChild(explainBox(sec));   // 1.6.2 (backlog 218 fold 3)
         root.appendChild(row);
     });

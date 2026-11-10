@@ -51,7 +51,7 @@ var LIMITS = Object.freeze({
     makingMax: 12,   // Onboarding F3: characters in the making at one table at once (each a player's own, on the GM's disk)
     core: 10000, coreBytes: 2560 * 1024,       // Stage 6 library L1d: library entries a formula addresses by key, copied into the system
     items: 2000, carried: 1500, charRows: 30000, category: 40, maxBlastFt: 3000, maxQty: 999,   // item library (Stage 5); Stage 6: 150 rows a list (a big sheet's skills)
-    rmMsg: 400, noteText: 1000, explain: 600, needsWords: 200, undoMs: 10000, undoGraceMs: 15000,   // Stage 6: a bound or cursed item's message; a pickup's Undo (the host allows a little longer: the round trip)
+    rmMsg: 400, noteText: 1000, explain: 600, hint: 300, needsWords: 200, undoMs: 10000, undoGraceMs: 15000,   // Stage 6: a bound or cursed item's message; a pickup's Undo (the host allows a little longer: the round trip)
     listCats: 200, rowNote: 200, lvlAbs: 1e6, lvlCaps: 40, lvlOnly: 240, modTiers: 160,     // Stage 6 F4b: a list's categories, a row's note, the size of a row level; 1.6.0: a level's caps (At most at a level), an entry's Levels it may be and a change's figures By level
     placeCats: 80,                           // 1.5.5: the categories one placement of an item list shows (a list placed once a category)
     rollSw: 40, swTo: 80,                    // 1.6.0: the roll switches one item or effect offers (a bonus ticked in a roll's ± window), and the rolls one names
@@ -4947,6 +4947,7 @@ function cleanSections(list, ctx) {
         var sif = cleanFormulaText(s.showIf); if (sif) sec.showIf = sif;   // Stage 6 HUD C8: shown only while this formula is true
         if (s.inline === true) sec.inline = true;   // HUD frame (HF4a, H2): each field on one line (label and value, its Roll on the right)
         var exSc = cleanExplain(s.explain); if (exSc) sec.explain = exSc;   // 1.6.2 (backlog 218 fold 3): what it means, behind an (i) in its title
+        var hnt = cutText(s.hint, LIMITS.hint); if (hnt) sec.hint = hnt;   // 1.6.2 (backlog 218 fold 4): a first-use hint, one line under its title (the same in both views)
         if (s.beside === true) sec.beside = true;   // 1.6.2, backlog 171 (b): stands on the row of the section drawn before it (true only)
         if (s.resetAll === true) { sec.resetAll = true; var rtx = cutText(s.resetText, LIMITS.label); if (rtx) sec.resetText = rtx; }   // HUD frame (HF4b, H13): a Reset all button in the header (its own words, e.g. Long rest)
         (Array.isArray(s.fields) ? s.fields : []).forEach(function(p) {

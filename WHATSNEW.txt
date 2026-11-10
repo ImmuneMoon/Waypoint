@@ -897,6 +897,8 @@ System editor
 - A sheet can say what a thing means. A small round i beside a field, a
   roll, a list's stat, an effect, a section or a link opens a line of your
   words, and Read more opens its handbook page.
+- A section can carry a first-use hint, one line under its title. Each
+  player hides it with its x, and Settings brings hints back.
 
 Fitted parts
 - Holds by kind may read a formula in place of a stat, such as the most any

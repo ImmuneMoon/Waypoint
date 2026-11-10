@@ -10699,12 +10699,11 @@ window.wpMoveTip = function(item, mapId, ox, oy, cx, cy) {
     _moveTipEl.style.left = Math.round(cx + 18) + 'px'; _moveTipEl.style.top = Math.round(cy + 18) + 'px'; _moveTipEl.style.display = 'block';
 };
 function renderCombatStrip() {
-    if (typeof window !== 'undefined' && window.wpPills) window.wpPills.sync();   // the top row's Round pill (pills.js) says the same fight
     var strip = document.getElementById('combatStrip'); if (!strip) return;
     var n = window.wpNet, am = getActiveMap();
     if (n && !n.active && !n.solo && typeof n.soloHost === 'function' && n.soloOk && n.soloOk()) { var cmS = getActiveCampaign(); if (cmS && cmS.fights && typeof cmS.fights === 'object') n.soloHost(); }   // 1.6.2: a fight this campaign kept, back with no table open
     var fidS = n && (n.active || n.solo) && am && am.type === 'map' && state.viewMode === 'visual' ? stripFightId(am.id) : null, c = fidS ? n.combats[fidS] : null;
-    if (!c) { strip.innerHTML = ''; strip.wpDrawn = ''; strip.style.display = 'none'; return; }
+    if (!c) { strip.innerHTML = ''; strip.wpDrawn = ''; strip.style.display = 'none'; if (typeof stripGap === 'function') stripGap(); if (typeof window !== 'undefined' && window.wpPills) window.wpPills.sync(); return; }   // backlog 219: the Round pill comes back as the strip goes
     var idsS = fightsHere(am.id), atS = idsS.indexOf(fidS);
     var cur = c.rows[c.turn] || {}, nxt = c.rows[(c.turn + 1) % c.rows.length] || {};
     var host = n.role === 'host', mine = !host && n.myTurnTok ? n.myTurnTok() : null;   // turn-based combat T2: the player on turn ends it here
@@ -10741,26 +10740,36 @@ function renderCombatStrip() {
         + pickH
         + (chS ? '' : (host || mine ? '<button class="combat-strip-btn" data-act="hold" title="' + (holdNm ? 'Hold this turn and say what sets it off: play moves on, and it lasts to this character&rsquo;s next turn' : 'Hold this turn: play moves on. ' + (holdStay ? 'They act while held, and Done ends the hold.' : 'Act later puts them right after whoever is acting.') + (holdNext ? ' The hold lasts to their next turn.' : ' A hold not used by the round&rsquo;s end is lost.')) + '">Hold</button>' : '') + heldH)
         + (host ? '<button class="combat-strip-btn" data-act="next" title="Next turn">&#9654;</button><button class="combat-strip-btn" data-act="edit" title="Combat roster"><i class="wib wi-pen"></i></button><button class="combat-strip-btn danger" data-act="end" title="End combat">&times;</button>' : '');
+    // backlog 219 (the owner, 2026-11-10, by prompt: "below the trackers (still in the bar) and only appear when needed"): the strip keeps the round, the arrows,
+    // whose turn it is and who is next; the rest stands behind its last button, opened on this screen alone. A player on their own turn keeps their move and actions in sight
+    var moreOn = /combat-strip-(side|move|acts|held|picks)|data-act="(pickopen|hold|edit|end)"/.test(html), moreOpen = moreOn && strip.wpMoreOpen === fidS;
+    if (moreOn) html += '<button class="combat-strip-btn combat-strip-morebtn" data-act="more" aria-expanded="' + (moreOpen ? 'true' : 'false') + '" title="' + (moreOpen ? 'Show less of the fight' : 'Show the rest of the fight: what is left of the turn' + (host ? ', Hold, the roster and End combat' : mine ? ' and Hold' : '')) + '">&#8943;</button>';
+    if (strip.classList) { strip.classList[moreOpen ? 'add' : 'remove']('more-open'); strip.classList[mine ? 'add' : 'remove']('is-mine'); }
     if (strip.wpDrawn !== html) { strip.innerHTML = html; strip.wpDrawn = html; }
     if (typeof stripGap === 'function') stripGap();
+    if (typeof window !== 'undefined' && window.wpPills) window.wpPills.sync();   // backlog 219: the Round pill hides while the strip shows
 }
 // [lookcheck:stripgap-start]
-// The live test, 2026-10-30: with Properties open in a narrow window the turn strip ran into the party strip. It steps left to keep a gap, and where the map has no room for that, down under the party strip.
-// The viewing of 2026-11-09: it keeps the same gap from the minimap on its left, stepping right, and down under whichever it meets where it cannot fit between them
+// Backlog 219 (the owner, 2026-11-10, by prompt: "below the trackers (still in the bar) and only appear when needed"): the turn strip stands under the trackers bar, joined to it,
+// and where the bar is not there, in the bar's own place beside the minimap. It ends before the zoom box, the party strip or a player's join card on its line, and wraps there.
+// Before, it stood in the middle of the map and stepped aside from the minimap and the party strip, and where it fitted between neither it dropped over the map (the owner, 2026-11-10)
 function stripGap() {
-    var strip = document.getElementById('combatStrip'), party = document.getElementById('partyStrip'), main = document.getElementById('main'), mm = document.getElementById('minimap'); if (!strip || !main) return false;
+    var strip = document.getElementById('combatStrip'), trk = document.getElementById('trkStrip'), main = document.getElementById('main'), mm = document.getElementById('minimap'); if (!strip || !main) return false;
     strip.style.marginLeft = ''; strip.style.marginTop = '';
-    var s = strip.getBoundingClientRect(), mr = main.getBoundingClientRect(), G = 12; if (!(s.width > 0)) return false;
-    var line = function(r) { return !!r && r.width > 0 && s.top < r.bottom && r.top < s.bottom; }, p = party ? party.getBoundingClientRect() : null, m = mm ? mm.getBoundingClientRect() : null, pOn = line(p), mOn = line(m);
-    var lo = mOn ? m.right + G : mr.left + 44, hi = pOn ? p.left - G : mr.right, dx = 0;   // 44: past the left ruler
-    if (s.right > hi) dx = hi - s.right; if (s.left + dx < lo) dx = lo - s.left;
-    if (!dx) return false;
-    if (s.left + dx >= lo && s.right + dx <= hi) strip.style.marginLeft = (dx < 0 ? -Math.ceil(-dx) : Math.ceil(dx)) + 'px';
-    else strip.style.marginTop = Math.ceil(Math.max(pOn && s.right > hi ? p.bottom : 0, mOn && s.left < lo ? m.bottom : 0, s.top) + G - s.top) + 'px';
+    var s = strip.getBoundingClientRect(), G = 12; if (!(s.width > 0)) { if (trk && trk.classList) trk.classList.remove('trk-joined'); return false; }
+    var area = strip.offsetParent || main, ar = area.getBoundingClientRect(), t = trk ? trk.getBoundingClientRect() : null, tOn = !!t && t.width > 0 && t.height > 0, m = mm ? mm.getBoundingClientRect() : null, mOn = !!m && m.width > 0 && m.height > 0;
+    var cs = trk && typeof getComputedStyle === 'function' ? getComputedStyle(trk) : null, top0 = cs ? parseFloat(cs.top) : NaN;
+    var left = tOn ? t.left - ar.left : mOn ? m.right - ar.left + 8 : 44, top = tOn ? t.bottom - ar.top - 1 : (top0 === top0 ? top0 : 26);   // 8: the trackers bar's own gap from the minimap; 44: past the left ruler
+    var right = ar.width - 8;
+    ['zoomBox', 'partyStrip', 'joinCard'].forEach(function(id) { var e = document.getElementById(id), r = e ? e.getBoundingClientRect() : null; if (r && r.width > 0 && r.left - ar.left > left && r.top - ar.top < top + s.height && r.bottom - ar.top > top) right = Math.min(right, r.left - ar.left - G); });
+    var L = Math.round(left) + 'px', T = Math.round(top) + 'px', M = Math.max(180, Math.floor(right - left)) + 'px';
+    if (strip.style.left !== L) strip.style.left = L; if (strip.style.top !== T) strip.style.top = T; if (strip.style.maxWidth !== M) strip.style.maxWidth = M;
+    if (strip.classList) strip.classList[tOn ? 'add' : 'remove']('fight-joined'); if (trk && trk.classList) trk.classList[tOn ? 'add' : 'remove']('trk-joined');
     return true;
 }
 // [lookcheck:stripgap-end]
 window.wpRenderCombatStrip = renderCombatStrip;
+window.wpStripGap = stripGap;   // backlog 219: trackers.js asks it once the bar is placed, so the strip under it follows at once
 // 1.6.0 (the owner, by prompt: "Light it on hover"): the pointer or the keyboard's focus on a name lights its token on this screen, so that tokens of one name can be told apart. Nothing is stored or sent
 var _litEl = null;
 function findLit(tokId) {
@@ -10776,7 +10785,7 @@ function findLitWire(box) {
 (function wireCombatStrip() {
     var strip = document.getElementById('combatStrip'); if (!strip) return;
     if (typeof findLitWire === 'function') findLitWire(strip);
-    if (typeof ResizeObserver === 'function') { var gapRo = new ResizeObserver(stripGap); ['main', 'partyStrip', 'minimap'].forEach(function(id) { var e = document.getElementById(id); if (e) gapRo.observe(e); }); }   // the map's room changed, or the party's
+    if (typeof ResizeObserver === 'function') { var gapRo = new ResizeObserver(stripGap); ['main', 'partyStrip', 'minimap', 'trkStrip', 'zoomBox'].forEach(function(id) { var e = document.getElementById(id); if (e) gapRo.observe(e); }); }   // the map's room changed, or the party's
     strip.addEventListener('pointerdown', function(e) { e.stopPropagation(); });
     strip.addEventListener('click', function(e) {
         var fb = e.target.closest && e.target.closest('.combat-find');
@@ -10784,6 +10793,7 @@ function findLitWire(box) {
         var b = e.target.closest && e.target.closest('.combat-strip-btn'); if (!b) return;
         e.stopPropagation();
         var n = window.wpNet, am = getActiveMap();
+        if (b.dataset.act === 'more') { var fidM = am ? stripFightId(am.id) : null; strip.wpMoreOpen = strip.wpMoreOpen === fidM ? null : fidM; renderCombatStrip(); return; }   // backlog 219: the rest of the strip, on this screen alone
         if (b.dataset.act === 'switch') { if (am && stripSwitch(am.id)) renderCombatStrip(); return; }   // fold 2: the next fight on this map, on this screen alone
         if (b.dataset.act === 'pickopen') { var fidO = am ? stripFightId(am.id) : null; strip.wpPickOpen = strip.wpPickOpen === fidO ? null : fidO; renderCombatStrip(); return; }   // initiative O5: the list of those who may go next, on this screen alone
         if (b.dataset.act === 'pick') {   // initiative O5: the GM's pick goes at once (the host judges it); a player's ends their own turn with it

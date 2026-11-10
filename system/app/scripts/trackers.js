@@ -94,11 +94,12 @@ function place(box) {
     var mmOn = !!mm && mm.parentElement === box.parentElement && mm.offsetParent !== null, cs = mm ? window.getComputedStyle(mm) : null;
     var mmAt = mmOn ? { shown: true, left: mm.offsetLeft, width: mm.offsetWidth } : { shown: false, left: cs ? parseFloat(cs.left) || 0 : 0 };
     var row = box.offsetTop + 30, others = [];
-    ['zoomBox', 'partyStrip', 'joinCard', 'combatStrip'].forEach(function(id) { var e = document.getElementById(id); if (e && e.parentElement === box.parentElement && e.offsetParent !== null && e.offsetTop < row && e.offsetWidth > 0) others.push({ left: e.offsetLeft }); });
+    ['zoomBox', 'partyStrip', 'joinCard'].forEach(function(id) { var e = document.getElementById(id); if (e && e.parentElement === box.parentElement && e.offsetParent !== null && e.offsetTop < row && e.offsetWidth > 0) others.push({ left: e.offsetLeft }); });
     var p = placeOf(mmAt, others, area.clientWidth), L = p.left + 'px', W = p.wide + 'px';
     if (box.style.getPropertyValue('--trkleft') !== L) box.style.setProperty('--trkleft', L);
     if (box.style.getPropertyValue('--trkwide') !== W) box.style.setProperty('--trkwide', W);
     var B = (box.offsetTop + box.offsetHeight) + 'px'; if (hostB && hostB.style && hostB.style.getPropertyValue('--trkbot') !== B) hostB.style.setProperty('--trkbot', B);
+    if (typeof window.wpStripGap === 'function') window.wpStripGap();   // backlog 219: the turn strip stands under the bar
 }
 function panel() { return document.getElementById('trkPanel'); }
 function menuEl() { return document.getElementById('trkMenu'); }

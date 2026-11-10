@@ -535,6 +535,10 @@ Settings
   with your profile as your keys do.
 - A list that is drawn again when you press in it keeps its place: Build's
   materials, Keys, the NPCs under Characters, the bell and the Image Library.
+- The turn strip stands under the trackers bar now, joined to it, and only
+  while a fight runs. It shows the round, whose turn it is and who is next,
+  and the rest is behind its ... button. It no longer drops over the map in a
+  narrow window, and the Round pill in the top row steps aside while it shows.
 - Settings has Own signalling server, under Multiplayer. It finds tables
   through Waypoint's own server in place of the public one. It stays off
   until that server is ready, and the GM and every player tick it alike.

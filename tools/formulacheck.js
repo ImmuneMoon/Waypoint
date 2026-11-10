@@ -377,6 +377,21 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('a name is the last suffix, so a modifier after it is refused, and a term with no name and a field called count read as they did', !F.parse('5d10@p!').ok && F.parse('5d10cs>=7@p').ok && v('2d6', [3, 2]) === 5 && v('count', [], { vars: { count: 4 } }) === 4 && v('count + 1', [], { vars: { count: 4 } }) === 5, j(F.parse('5d10@p!')));
     }
 
+    /* ---- 1.6.2 (backlog 167 D; the owner, by prompt: "Also contains"): is() and contains() test words ---- */
+    {
+        const v = { Class: 'Star  Pilot', Lvl: 3, Ok: true }, val = s => { const r = ev(s, { vars: v }); return r.ok ? r.value : 'ERR ' + r.error.message; };
+        check('is() matches any of its words, ignoring case and the spaces around and between words; contains() looks for words anywhere; a number and a yes or no read as their figure',
+            val('is(Class, "star pilot", "medic")') === true && val('is(Class, "Pilot")') === false && val('contains(Class, "PILO")') === true && val('contains(Class, "ace")') === false
+            && val('is(Lvl, "3")') === true && val('is(Ok, "1")') === true && val('contains(Class, \u201cpilot\u201d) + 1') === 2 && val('not is(Class, "a")') === true);
+        check('words in quotes stand only inside is() and contains(), and each fault says how to write it',
+            /read only by is\(\) and contains\(\)/.test(val('"a" + 1')) && /a field\u2019s words first/.test(val('is(2, "a")')) && /compares words in quotes/.test(val('is(Class, 3)')) && /compares words in quotes/.test(val('is(Class)'))
+            && /closing quote/.test(val('is(Class, "a)')) && /hold something/.test(val('is(Class, "  ")')) && /one set of words/.test(val('contains(Class, "a", "b")')) && /Unknown name "Klass"/.test(val('is(Klass, "a")')));
+        const p1 = F.parse('is(Class, "a") and Lvl > 2'), p2 = F.parse('is(Class, "a") + Class');
+        check('a parse names the names read only as words, so a builder may let a text through there and nowhere else; the card shows the words read',
+            JSON.stringify(p1.words) === JSON.stringify(['Class']) && JSON.stringify(p2.words) === '[]' && p1.names.indexOf('Class') >= 0
+            && /is\(Class \("Star  Pilot"\), "a"\)/.test(ev('is(Class, "a")', { vars: v }).breakdown.text || ''), JSON.stringify([p1.words, p2.words, ev('is(Class, "a")', { vars: v }).breakdown]));
+    }
+
     /* ---- group 11b: publication under a window ---- */
     global.window = {};
     const F2 = await import(url + '?x');

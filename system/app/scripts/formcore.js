@@ -21,7 +21,8 @@
      fn   { name, args }  any other function, each argument a form
      with { dice, last }  dice rolled to read, then what is read
      text { s }           anything else, kept whole
-   A condition is { any, tests: [test, ...], not? }, each test { l, op, r } (forms), { val } (a form), or { group } (a condition). */
+   A condition is { any, tests: [test, ...], not? }, each test { l, op, r } (forms), { val } (a form), { group } (a condition), or
+   { words: { how, name, list } } (1.6.2, 167 D: is(Name, "a", "b") or contains(Name, "a"), the field's words against these). */
 import { parse as parseF, evaluate as evalF } from './formula.js';
 
 var LV = { or: 1, and: 2, not: 3, cmp: 4, sum: 5, prod: 6, pow: 7, unary: 8, atom: 9 };
@@ -48,6 +49,7 @@ function condOf(n, c) {
     return { any: false, tests: [testOf(n, c)] };
 }
 function testOf(n, c) {
+    if (n.t === 'call' && n.words) return { words: { how: n.name === 'contains' ? 'contains' : 'is', name: n.args[0].text, list: n.args.slice(1).map(function(a) { return a.v; }) } };   // 1.6.2 (167 D)
     if (n.t === 'cmp') return { l: formOf(n.l, c), op: n.op, r: formOf(n.r, c) };
     if (n.t === 'and' || n.t === 'or') return { group: condOf(n, c) };
     if (n.t === 'not') { var g = condOf(n.a, c); g.not = n.n; return { group: g }; }
@@ -62,6 +64,7 @@ function valOf(n, c) {   // a node as one value
         case 'dice': return diceVal(n, c);
         case 'cmp': case 'and': case 'or': case 'not': return { k: 'test', cond: condOf(n, c) };
         case 'call':
+            if (n.words) return { k: 'test', cond: { any: false, tests: [testOf(n, c)] } };   // 1.6.2 (167 D): a test of words, as a value
             if (n.name === 'if' && n.args.length === 3) return { k: 'if', c: condOf(n.args[0], c), a: formOf(n.args[1], c), b: formOf(n.args[2], c) };
             if (n.name === 'with') return { k: 'with', dice: n.args.slice(0, -1).map(function(a) { return formOf(a, c); }), last: formOf(n.args[n.args.length - 1], c) };
             return { k: 'fn', name: n.name, args: n.args.map(function(a) { return formOf(a, c); }) };
@@ -158,7 +161,11 @@ function formText(f) {
     if (f.check) { var r = formText(f.check.r); return { s: paren(t, LV.sum) + ' ' + f.check.op + ' ' + paren(r, LV.sum), lv: LV.cmp }; }
     return t;
 }
+// 1.6.2 (167 D): words in quotes hold no quote and no line break
+function wordQ(w) { return '"' + String(w === undefined || w === null ? '' : w).replace(/["\u201c\u201d\r\n]/g, ' ').trim() + '"'; }
+function wordsText(w) { var l = (Array.isArray(w.list) ? w.list : []).slice(0, w.how === 'contains' ? 1 : 8); if (!l.length) l = ['']; return { s: (w.how === 'contains' ? 'contains' : 'is') + '(' + (w.name || '') + ', ' + l.map(wordQ).join(', ') + ')', lv: LV.atom }; }
 function testText(t) {
+    if (t.words) return wordsText(t.words);
     if (t.group) return condText(t.group);
     if (t.val) return formText(t.val);
     var l = formText(t.l), r = formText(t.r);
@@ -239,6 +246,7 @@ function formSays(f, say) {
     return out;
 }
 function testSays(t, say) {
+    if (t.words) { var wl = (Array.isArray(t.words.list) ? t.words.list : []).map(function(w) { return '\u201c' + w + '\u201d'; }), wn = nameSays(t.words.name || '', say); return t.words.how === 'contains' ? wn + ' contains ' + (wl[0] || '\u201c\u201d') : wl.length > 1 ? wn + ' is one of ' + wl.join(', ') : wn + ' is ' + (wl[0] || '\u201c\u201d'); }   // 1.6.2 (167 D)
     if (t.group) return condSays(t.group, say);
     if (t.val) return formSays(t.val, say);
     return formSays(t.l, say) + ' ' + (CMP_WORDS[t.op] || t.op) + ' ' + formSays(t.r, say);

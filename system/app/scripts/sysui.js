@@ -181,7 +181,7 @@ var GROUPS = {
         ['rowlook', 'How it looks', 0, ['sys-list-open', 'sys-list-edge', 'sys-list-groupby', 'sys-list-menus', 'sys-list-boxes']],
         ['rowrules', 'Rules', 0, ['sys-list-trade', 'sys-list-togm', 'sys-traderules']],
         ['level', 'Level', 1, ['sys-list-lvl', 'sys-list-lcaps']],
-        ['on', 'Switch', 1, ['sys-list-on', 'sys-list-upkeep']],
+        ['on', 'Switch', 1, ['sys-list-on', 'sys-list-upkeep', 'sys-list-swc']],
         ['stats', 'Stats', 1, ['sys-list-stats']],
         ['cols', 'Columns', 0, ['sys-list-col', 'sys-list-coladd']],
         ['cts', 'Counters', 0, ['sys-list-ct', 'sys-list-ctadd']],

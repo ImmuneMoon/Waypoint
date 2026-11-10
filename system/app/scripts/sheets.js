@@ -3025,7 +3025,7 @@ function needName(sys, id, gm) {   // gm: the GM's own sheet, which names every 
     return null;
 }
 function cantTake(sys, c, it) {
-    if (!it || !c || ((!Array.isArray(it.needs) || !it.needs.length) && (typeof it.needsIf !== 'string' || !it.needsIf))) return '';
+    if (!it || !c || it.needsWarn === true || ((!Array.isArray(it.needs) || !it.needs.length) && (typeof it.needsIf !== 'string' || !it.needsIf))) return '';   // 1.6.2 (167 C): needs that only warn grey nothing
     var nm = needsMet(sys, c, it, true, typeof F === 'function' ? F() : null); if (nm.ok) return '';
     return needsSays(it, nm.missing, function(id) { return needName(sys, id); });
 }
@@ -7883,7 +7883,7 @@ function formTrial(d, ctx) {
 function formSource(inp) {
     var cF = draft ? null : getActiveCampaign(), d = draft || (cF ? systemOf(cF) : null); if (!d) return null;
     var ctx = inp && /^libF_/.test(inp.id || '') ? {} : formCtx(inp);
-    return { subject: ctx.subject || '', trial: formTrial(d, ctx), get groups() { return readsOf(d, ctx); }, word: function(s) { return nameWord(d, s, ctx.list); } };
+    return { subject: ctx.subject || '', trial: formTrial(d, ctx), get groups() { return readsOf(d, ctx); }, get wgroups() { return readsOf(d, Object.assign({}, ctx, { words: true })); }, word: function(s) { return nameWord(d, s, ctx.list); } };   // wgroups (167 D): what a test of words may read
 }
 // [formcheck:source-end]
 var _formOn = false;
@@ -8634,6 +8634,7 @@ function refreshErrors() {
             if (typeof chr.reach === 'string' && chr.reach.trim() && typeof cleanReach === 'function' && !cleanReach(chr.reach, F())) errs.push({ message: 'Flies at most does not read as a formula with no dice. Save drops it.' });   // 1.5.9 (es), as the cleaner reads it
         }
         if (typeof onRemoveSays === 'function') onRemoveSays(sp, draft.fields, F()).forEach(function(m) { errs.push({ message: m }); });   // 1.6.0: When a row is taken off, as the cleaner reads it
+        if (typeof switchChangesSays === 'function') switchChangesSays(sp, draft.fields, F()).forEach(function(m) { errs.push({ message: m }); });   // 1.6.2 (167 B): a switch's changes, as the cleaner reads them
         if (typeof gmStatSays === 'function') { var gsS = gmStatSays(f, draft.fields); gsS.errs.forEach(function(m) { errs.push({ message: m }); }); gsS.warns.forEach(function(m) { (warningsById['list:' + f.id] = warningsById['list:' + f.id] || []).push({ message: m }); }); }   // 1.6.0: a GM-only stat
         (Array.isArray(sp.rolls) ? sp.rolls : []).forEach(function(rr) { var xc = rr && rr.cross && typeof rr.cross === 'object' && typeof rr.cross.ct === 'string' ? rr.cross.ct.toLowerCase() : ''; if (xc && (Array.isArray(rr.apply) ? rr.apply : Array.isArray(rr.then) ? rr.then : []).some(function(ch) { return !!ch && typeof ch === 'object' && typeof ch.c === 'string' && ch.c.toLowerCase() === xc; })) (warningsById['list:' + f.id] = warningsById['list:' + f.id] || []).push({ message: 'When a value crosses: its own changes move the value it watches, so a run can set off another, at most 3 in a row.' }); });   // 1.6.0: a row's crossing that moves its own counter
         keptBy[f.id] = mine;
@@ -10269,6 +10270,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     card.appendChild(orow);
     if (sw && typeof upkeepBox === 'function') upkeepBox(card, sp);   // 1.6.0 (CORE gap 13) (a suite's slice of the card holds no box)
     if (typeof onRemoveBox === 'function') onRemoveBox(card, sp);   // 1.6.0: When a row is taken off
+    if (sw && typeof switchChangesBox === 'function') { switchChangesBox(card, sp, 'switchOn'); switchChangesBox(card, sp, 'switchOff'); }   // 1.6.2 (167 B): When switched on, When switched off
     // Stage 6 F4c1: the list's stats — a number every item of it carries (Acc, Wt, Cost), ten at most — and the one that is its price
     var sts = Array.isArray(sp.stats) ? sp.stats : [], sb = el('div', 'sys-list-stats');
     sb.appendChild(el('span', 'sys-num-cap', 'Stats'));
@@ -11924,6 +11926,50 @@ function gmStatSays(f, fields) {
     return { errs: errs, warns: warns };
 }
 // [sinkcheck:onremovebox-end]
+// [systemcheck:switchchanges-start]
+// 1.6.2 (167 B; the owner, by prompt: "On and off, and from a file too"): When switched on and When switched off, on a list with a switch: a line
+// a change as On removal's (a field, how, a formula of the row), one more empty line while there is room. Values and text only. Save cleans
+// them (systemcore cleanOnRemove), and the host runs them as a row's switch turns (switchRun)
+var SW_WORDS = { switchOn: ['When a row is switched on', 'The field this moves when a row of this list is switched on, by anyone in play or by a character file. Nothing runs while a character is being made'], switchOff: ['When a row is switched off', 'The field this moves when a row of this list is switched off, by anyone in play, by One at a time or by a character file. Nothing runs while a character is being made'] };
+function switchChangesBox(card, sp, key) {
+    var arr = Array.isArray(sp[key]) ? sp[key] : [], rw = el('div', 'sys-list-swc'), wd = SW_WORDS[key]; if (!wd) return;
+    rw.appendChild(el('div', 'sys-light-head', wd[0]));
+    var sl = function(cls, os, cur, title, i) { var s = el('select', cls); os.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (o[0] === cur) op.selected = true; s.appendChild(op); }); s.value = cur; s.title = title; s.dataset.oi = String(i); s.dataset.sw = key; return s; };
+    var tgts = (draft.fields || []).filter(function(f) { return f && typeof f.id === 'string' && (f.kind === 'resource' || f.kind === 'number' || f.kind === 'toggle'); }).map(function(f) { return [f.id, f.label || f.key || f.id]; });
+    for (var i = 0; i < arr.length + 1 && i < LIMITS.onRemove; i++) {
+        var c = arr[i] && typeof arr[i] === 'object' ? arr[i] : null, cf = c && typeof c.f === 'string' ? c.f : '', ln = el('div', 'sys-flags');
+        var os = [['', 'No change']].concat(tgts); if (cf && !tgts.some(function(o) { return o[0] === cf; })) os.push([cf, '(a field that is gone)']);
+        ln.appendChild(sl('sys-list-swcf', os, cf, wd[1], i));
+        if (c) {
+            ln.appendChild(sl('sys-list-swch', [['add', 'Add'], ['sub', 'Subtract'], ['set', 'Set to']], c.set === true ? 'set' : c.add === true ? 'add' : 'sub', 'What the figure does to the field', i));
+            var am = input('sys-list-swcamt field', typeof c.formula === 'string' ? c.formula : '', 'A formula of the row, such as Row.qty. No dice. Each line reads the sheet as the line before left it, so a field may be named twice', 'The figure (e.g. 1)'); am.maxLength = LIMITS.formula; am.dataset.oi = String(i); am.dataset.sw = key; ln.appendChild(am);
+        }
+        rw.appendChild(ln);
+    }
+    card.appendChild(rw);
+}
+function switchChangesChange(lsc, t, c) {
+    var key = t.dataset.sw === 'switchOff' ? 'switchOff' : 'switchOn', i = +t.dataset.oi, arr = Array.isArray(lsc[key]) ? lsc[key] : (lsc[key] = []);
+    if (c.indexOf('sys-list-swcf') >= 0) { if (t.value) { if (arr[i] && typeof arr[i] === 'object') arr[i].f = String(t.value).slice(0, 64); else arr.push({ f: String(t.value).slice(0, 64), formula: '', add: true }); } else arr.splice(i, 1); }
+    else if (c.indexOf('sys-list-swch') >= 0 && arr[i] && typeof arr[i] === 'object') { delete arr[i].add; delete arr[i].set; if (t.value === 'add') arr[i].add = true; else if (t.value === 'set') arr[i].set = true; }
+    if (!arr.length) delete lsc[key];
+}
+// What Save does with each line, as the cleaner reads it
+function switchChangesSays(sp, fields, Fe) {
+    var out = [], ok = { resource: 1, number: 1, toggle: 1 }; if (typeof cleanOnRemove !== 'function') return out;
+    ['switchOn', 'switchOff'].forEach(function(key) {
+        var arr = Array.isArray(sp[key]) ? sp[key] : []; if (!arr.length) return;
+        if (!sp.on || typeof sp.on !== 'object') { out.push(SW_WORDS[key][0] + ': the list has no switch. Save drops these lines.'); return; }
+        arr.forEach(function(c, i) {
+            var f = c && typeof c === 'object' ? (fields || []).filter(function(x) { return x && x.id === c.f; })[0] : null, n = SW_WORDS[key][0] + ', line ' + (i + 1) + ': ';
+            if (i >= LIMITS.onRemove) out.push(n + 'a list keeps ' + LIMITS.onRemove + ' lines. Save drops the rest.');
+            else if (!f || ok[f.kind] !== 1) out.push(n + 'it names no pool, number or toggle. Save drops it.');
+            else if (!cleanOnRemove([c], Fe)) out.push(n + 'its figure does not read as a formula with no dice. Save drops it.');
+        });
+    });
+    return out;
+}
+// [systemcheck:switchchanges-end]
 function upkeepChange(lsc, t, c) {
     if (c.indexOf('sys-list-upon') >= 0) { if (t.checked) { var p0 = (draft.fields || []).filter(function(f) { return f && f.kind === 'resource' && typeof f.id === 'string'; })[0]; lsc.upkeep = { pool: p0 ? p0.id : '', amt: '1', each: 'turn' }; } else delete lsc.upkeep; return; }
     var up = lsc.upkeep && typeof lsc.upkeep === 'object' && !Array.isArray(lsc.upkeep) ? lsc.upkeep : null; if (!up) return;
@@ -14234,6 +14280,7 @@ function onInput(e) {
             else if (lcc.indexOf('sys-list-feedto') >= 0) { if (t.value.trim()) fdI.to = t.value.trim(); else delete fdI.to; }
         }
         else if (lcc.indexOf('sys-list-loadby') >= 0) { if (!lsp.load || typeof lsp.load !== 'object') return; if (t.value.trim()) lsp.load.by = t.value.trim(); else delete lsp.load.by; }   // 1.5.8 Matched by (Save keeps the pair only where both name a stat)
+        else if (lcc.indexOf('sys-list-swcamt') >= 0) { var swKa = t.dataset.sw === 'switchOff' ? 'switchOff' : 'switchOn', swA = Array.isArray(lsp[swKa]) ? lsp[swKa][+t.dataset.oi] : null; if (swA && typeof swA === 'object') swA.formula = t.value.slice(0, LIMITS.formula); }   // 1.6.2 (167 B): a switch's changes
         else if (lcc.indexOf('sys-list-ormamt') >= 0) { var ormA = Array.isArray(lsp.onRemove) ? lsp.onRemove[+t.dataset.oi] : null; if (ormA && typeof ormA === 'object') ormA.formula = t.value.slice(0, LIMITS.formula); }   // 1.6.0: When a row is taken off
         else if (lcc.indexOf('sys-list-upamt') >= 0) { if (lsp.upkeep && typeof lsp.upkeep === 'object') lsp.upkeep.amt = t.value.slice(0, LIMITS.formula); }   // 1.6.0 (CORE gap 13): what a row pays
         else if (lcc.indexOf('sys-list-upn') >= 0) { if (!lsp.upkeep || typeof lsp.upkeep !== 'object') return; var upn = Number(t.value); lsp.upkeep.per = Object.assign({ u: 'min' }, lsp.upkeep.per); if (String(t.value).trim() && isFinite(upn)) lsp.upkeep.per.n = Math.round(upn); }
@@ -14566,6 +14613,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-hason') >= 0) { if (t.checked) lsc.on = { label: 'On' }; else delete lsc.on; }
         else if (c.indexOf('sys-list-ondef') >= 0) { if (lsc.on && typeof lsc.on === 'object') { if (t.checked) lsc.on.def = true; else delete lsc.on.def; } }
         else if (c.indexOf('sys-list-ormf') >= 0 || c.indexOf('sys-list-ormh') >= 0) onRemoveChange(lsc, t, c);   // 1.6.0: When a row is taken off
+        else if (c.indexOf('sys-list-swcf') >= 0 || c.indexOf('sys-list-swch') >= 0) switchChangesChange(lsc, t, c);   // 1.6.2 (167 B): a switch's changes
         else if (c.indexOf('sys-list-upon') >= 0 || c.indexOf('sys-list-uppool') >= 0 || c.indexOf('sys-list-upeach') >= 0 || c.indexOf('sys-list-upu') >= 0 || c.indexOf('sys-list-upstop') >= 0 || c.indexOf('sys-list-upct') >= 0 || c.indexOf('sys-list-upby') >= 0 || c.indexOf('sys-list-upevery') >= 0 || c.indexOf('sys-list-upout') >= 0) upkeepChange(lsc, t, c);   // 1.6.0 (CORE gap 13): Keeps paying
         else if (c.indexOf('sys-list-onone') >= 0) { if (lsc.on && typeof lsc.on === 'object') { if (t.checked) lsc.on.one = true; else { delete lsc.on.one; delete lsc.on.per; delete lsc.on.over; } } }   // 1.5.4 One at a time
         else if (c.indexOf('sys-list-ctroll') >= 0) { var ctr2 = t.closest('.sys-list-ct'), ctD2 = ctr2 && Array.isArray(lsc.counters) ? lsc.counters[+ctr2.dataset.ti] : null; if (!ctD2 || typeof ctD2 !== 'object') return; if (t.checked) ctD2.roll = true; else delete ctD2.roll; }   // 1.5.7: Set by rolls only

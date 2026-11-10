@@ -133,7 +133,8 @@ function cantText(x) {
     var nw = S && S.needsSays ? S.needsSays(e, miss, function(id) { for (var i = 0; i < st.all.length; i++) if (st.all[i].e.id === id) return st.all[i].e.name; return null; }) : 'Your character does not meet what that needs.';
     return fw ? nw + ' ' + fw : nw;
 }
-function cant(x) { return !st.opts.gm && (missOf(x).length > 0 || !!fitOf(x)); }   // the GM may always give it: their picker only says so
+function cant(x) { return !st.opts.gm && ((missOf(x).length > 0 && !warnOf(x)) || !!fitOf(x)); }
+function warnOf(x) { var e = x && !x.hdr && st ? st.full[x.e.id] || x.e : null; return !!e && e.needsWarn === true; }   // 1.6.2 (167 C): an entry whose needs only warn may still be taken, its words said   // the GM may always give it: their picker only says so
 function draw() {
     if (!st) return; var list = st.els.list, sp = st.els.spacer, top = list.scrollTop, h = list.clientHeight || 300;
     sp.textContent = '';

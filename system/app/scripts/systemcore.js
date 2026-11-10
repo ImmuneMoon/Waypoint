@@ -1313,6 +1313,7 @@ function cleanItemDef(it, F, gmView, keys, picks, kinds) {   // kinds (F6): the 
     if (it.again === 'name') out.again = 'name';   // 1.6.0: a list that holds it once may hold it again as another row, each copy under a name of its own (applyRowOp's add with a name)   // 1.5.8: the entries this one opens on another list while its row is on, each from a level (openSync)
     var igr = cleanGrants(it.grants, kinds, out.id); if (igr) out.grants = igr;   // 1.6.0 (v2, B4): the rows a row of it grants on a list, each from a level of its own
     var ilo = cleanLvlOnly(it.lvlOnly); if (ilo) out.lvlOnly = ilo;   // 1.6.0: Levels it may be, the same in both views; before its needs, which stay the last keys
+    if (it.needsWarn === true && (cleanNeeds(it.needs) || needRule(it.needsIf, F) || (!gmView && it.needsHid === true))) out.needsWarn = true;   // 1.6.2 (167 C; the owner, by prompt: "On each entry"): its needs warn and let a player through, never refuse. Before the needs keys, which stay the last
     // 126b: its needs, the LAST keys of a definition and always in this order (hideNeeds writes them again the same way): a players' view cleaned again reads, and hashes, the same
     var ind = cleanNeeds(it.needs); if (ind) out.needs = ind;   // 126b: what a character must carry before it may take this one, in both views (a player's picker says why)
     var inr = needRule(it.needsIf, F); if (inr) out.needsIf = inr;   // ... its rule, a formula that must be true for the character (a players' view that could not work it out does not hold it: hideNeeds)
@@ -4498,6 +4499,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
         if (oby && ork) { var oo = { by: oby, rank: ork }, oc = onum(v.once.cost) || ocol(v.once.cost), ofr = onum(v.once.free) || ocol(v.once.free); if (oc) oo.cost = oc; if (ofr) oo.free = ofr; if (v.once.across === true && out.specs) oo.across = true; out.once = oo; }   // 1.6.0 Across specialties, true only and only on a list with Specialties: the group leaves the specialty out
     }
     if (gmView) { var ormK = cleanOnRemove(v.onRemove, F); if (ormK) out.onRemove = ormK; }   // 1.6.0: When a row is taken off, the host's alone
+    if (gmView && isObj(out.on)) { var swOn = cleanOnRemove(v.switchOn, F), swOff = cleanOnRemove(v.switchOff, F); if (swOn) out.switchOn = swOn; if (swOff) out.switchOff = swOff; }   // 1.6.2 (167 B; the owner, by prompt: "On and off, and from a file too"): When switched on and When switched off, a list with a switch alone, the host's alone
     if (gmView && out.on && isObj(v.upkeep)) { var upk = cleanUpkeep(v.upkeep, F); if (upk && typeof v.upkeep.ct === 'string') { var upC = (out.counters || []).filter(function(t) { return lower(t.key) === lower(v.upkeep.ct.trim()); })[0]; if (upC) upk.ct = upC.key; } if (upk && typeof v.upkeep.eachBy === 'string') { var upE = (out.stats || []).filter(function(s) { return lower(s.key) === lower(v.upkeep.eachBy.trim()) && s.set !== true && (s.kind === 'pick' ? Array.isArray(s.opts) && s.opts.length > 0 : Array.isArray(s.labels) && s.labels.length > 0); })[0]; if (upE) upk.eachBy = upE.key; else if (upk.each !== 'clock') delete upk.per; } if (upk) out.upkeep = upk; }   // the core handbook session's ask 5: and the choice stat whose value says when a row pays (its spelling; none: as before)   // 1.6.0 (CORE gap 13): ... and the counter of the list each payment adds 1 to (its spelling; none of the list: none)   // 1.6.0 (CORE gap 13): what a row switched on keeps paying, the GM's view alone
     if (Array.isArray(v.rolls)) {   // F5b: its rolls — a button on each row, the formula worked out with the row's names (Row.*; dice allowed), LIMITS.rowRolls at most
         var rls = [];
@@ -5058,7 +5060,8 @@ function cleanSystem(sys, opts) {
         });
         if (keptC.length) f.list.parts.caps = keptC; else delete f.list.parts.caps;
     });
-    var ormF = map(); out.fields.forEach(function(f) { if (APPLY_KINDS[f.kind] === 1) ormF[f.id] = 1; }); out.fields.forEach(function(f) { if (f.kind !== 'item-list' || !isObj(f.list) || !Array.isArray(f.list.onRemove)) return; var ormL = f.list.onRemove.filter(function(c) { return ormF[c.f] === 1; }); if (ormL.length) f.list.onRemove = ormL; else delete f.list.onRemove; });   // 1.6.0: a change moves a pool, a number or a toggle of this view
+    var ormF = map(); out.fields.forEach(function(f) { if (APPLY_KINDS[f.kind] === 1) ormF[f.id] = 1; }); out.fields.forEach(function(f) { if (f.kind !== 'item-list' || !isObj(f.list) || !Array.isArray(f.list.onRemove)) return; var ormL = f.list.onRemove.filter(function(c) { return ormF[c.f] === 1; }); if (ormL.length) f.list.onRemove = ormL; else delete f.list.onRemove; });
+    out.fields.forEach(function(f) { if (f.kind !== 'item-list' || !isObj(f.list)) return; ['switchOn', 'switchOff'].forEach(function(k) { if (!Array.isArray(f.list[k])) return; var swL = f.list[k].filter(function(c) { return ormF[c.f] === 1; }); if (swL.length) f.list[k] = swL; else delete f.list[k]; }); });   // 1.6.2 (167 B): the same for a switch's changes   // 1.6.0: a change moves a pool, a number or a toggle of this view
     var upRs = map(); out.fields.forEach(function(f) { if (f.kind === 'resource') upRs[f.id] = 1; }); out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.upkeep) && upRs[f.list.upkeep.pool] !== 1) delete f.list.upkeep; });   // 1.6.0 (CORE gap 13): an upkeep comes off a pool of this view   // 1.6.0 R14: parts from an item list of this view, this very list too
     if (gmView) oneSpelling(out.fields);   // Stage 6 F4c1 (critic 2): one spelling per stat key, the first list's in field order
     if (gmStK) out.fields.forEach(function(f) { if (!isObj(f.list)) return; [f.list.load, f.list.chamber].concat(Array.isArray(f.list.feeds) ? f.list.feeds : []).forEach(function(x) { if (isObj(x) && typeof x.to === 'string' && gmStK[lower(x.to)] === 1) { delete x.by; delete x.to; } }); });   // 1.6.0: a match to a GM-only stat of the list it loads from
@@ -6608,7 +6611,7 @@ function cleanRow(e, items, spec, srcSpec, chSpec, fdSpecs) {   // spec (F4b): t
     var cs = rowStats(e.def.stats, spec); if (cs) d.stats = cs; else delete d.stats;   // F4c1: a custom or inline copy carries its list's stats only
     if (e.lnk === 1) { var swR = cleanRollSw(e.def.rollSw); if (swR) { if (e.def.modsOn === true) d.modsOn = true; d.rollSw = swR; } }   // 1.6.2: an owner's inline copy keeps its entry's roll bonuses (rowSwOn), by their shape
     if (e.lnk === 1) rowText(d, e.def); else ownLong(d, e.def);   // 1.5.4: an owner's inline copy keeps the entry's long text, cleaned again (the host sends it for an entry players may see); 1.5.5 (155): a row of the character's own keeps its own
-    var c = { id: id, qty: qty }; rowFacts(c, e, spec); c.def = d; if (e.lnk !== 1) ownTextLooks(c, e, d); if (e.lnk === 1) { c.lnk = 1; if (typeof e.src === 'string' && ITEM_ID.test(e.src)) { c.src = e.src; var cnR = cleanNeeds(e.needs, true); if (cnR) c.needs = cnR; var crR = cleanFormulaText(e.needsIf); if (crR) { c.needsIf = crR; var cfR = typeof e.needsFrom === 'number' ? lvlNum(e.needsFrom) : undefined; if (cfR !== undefined) c.needsFrom = cfR; } } } else { if (e.own === 1) c.own = 1; if (e.hid === 1) c.hid = 1; if (e.keptOn === 1 && c.on === true) c.keptOn = 1; } return withFl(withRd(withLd(c, e, items, spec, srcSpec), e, items, spec, chSpec), e, items, spec, fdSpecs);   // F4c3: own (a row its owner made), never on an inline copy
+    var c = { id: id, qty: qty }; rowFacts(c, e, spec); c.def = d; if (e.lnk !== 1) ownTextLooks(c, e, d); if (e.lnk === 1) { c.lnk = 1; if (typeof e.src === 'string' && ITEM_ID.test(e.src)) { c.src = e.src; var cnR = cleanNeeds(e.needs, true); if (cnR) c.needs = cnR; var crR = cleanFormulaText(e.needsIf); if (crR) { c.needsIf = crR; var cfR = typeof e.needsFrom === 'number' ? lvlNum(e.needsFrom) : undefined; if (cfR !== undefined) c.needsFrom = cfR; } if (e.needsWarn === true && (c.needs || c.needsIf)) c.needsWarn = true; } } else { if (e.own === 1) c.own = 1; if (e.hid === 1) c.hid = 1; if (e.keptOn === 1 && c.on === true) c.keptOn = 1; } return withFl(withRd(withLd(c, e, items, spec, srcSpec), e, items, spec, chSpec), e, items, spec, fdSpecs);   // F4c3: own (a row its owner made), never on an inline copy
 }
 // Stage 6 F4b: a row's facts, after its quantity — the level on the list's terms (as stored while the list has none), the switch, the note.
 // keptOn (after them, the GM's machine only): the owner switched a curse-on-contact item off and the GM keeps it on
@@ -7389,7 +7392,8 @@ function projectRows(rows, view, lib, spec, ruleShown) {   // ruleShown (126b): 
                     rnP.forEach(function(n) { var x = typeof lib === 'function' ? lib(n.id) : (lib && Object.prototype.hasOwnProperty.call(lib, n.id)) ? lib[n.id] : null, nm = isObj(x) && typeof x.name === 'string' ? cutText(x.name, LIMITS.itemName) : ''; if (nm) n.name = nm; });
                     io.needs = rnP;
                 }
-                var rjP = typeof ruleShown === 'function' ? ruleShown : _ruleJudge; if (typeof le.needsIf === 'string' && le.needsIf && typeof rjP === 'function' && rjP(le.needsIf) === true) { io.needsIf = le.needsIf; var lfP = typeof le.needsFrom === 'number' ? lvlNum(le.needsFrom) : undefined; if (lfP !== undefined) io.needsFrom = lfP; }   // ... and its rule, where a player's own app could work it out
+                var rjP = typeof ruleShown === 'function' ? ruleShown : _ruleJudge; if (typeof le.needsIf === 'string' && le.needsIf && typeof rjP === 'function' && rjP(le.needsIf) === true) { io.needsIf = le.needsIf; var lfP = typeof le.needsFrom === 'number' ? lvlNum(le.needsFrom) : undefined; if (lfP !== undefined) io.needsFrom = lfP; }
+                if (le.needsWarn === true && (io.needs || io.needsIf)) io.needsWarn = true;   // 1.6.2 (167 C): its needs only warn   // ... and its rule, where a player's own app could work it out
             }
             out.push(ldP(io, r)); return;
         }
@@ -7610,7 +7614,8 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
             var nmR = needsMet(sys, char, ent, opts.copy === true, F, null, spec && isObj(spec.lvl) ? lvlStart(spec, ent) : undefined);   // copy: a player's own app, judging its copy of the character. At the level the new row starts at
             var pvE = nmR.ok ? null : opts.copy === true ? ent : (itemDef(opts.view || null, q.defId) || (typeof opts.libPl === 'function' ? opts.libPl(q.defId) : null));   // the entry as players read it: a rule they may not read is never said
             var missR = nmR.ok ? [] : nmR.missing.map(function(n) { return isObj(n) && n.rule !== undefined && !(isObj(pvE) && pvE.needsIf === n.rule) ? { rule: true } : n; });
-            if (!nmR.ok) return { ok: false, reason: 'needs', msg: needsSays(ent, missR, function(id) { var d2 = itemDef(sys, id); if (d2) return valueOpts(opts.view || null).items[id] === 1 ? d2.name : null; var l2 = typeof opts.lib === 'function' ? opts.lib(id) : null; return isObj(l2) && l2.vis !== 'gm' ? l2.name : null; }) };
+            if (!nmR.ok && ent.needsWarn === true) extra.needsWarn = needsSays(ent, missR, function(id) { var d2 = itemDef(sys, id); if (d2) return valueOpts(opts.view || null).items[id] === 1 ? d2.name : null; var l2 = typeof opts.lib === 'function' ? opts.lib(id) : null; return isObj(l2) && l2.vis !== 'gm' ? l2.name : null; });   // 1.6.2 (167 C): an entry whose needs only warn lets the pick through, in the same words
+            else if (!nmR.ok) return { ok: false, reason: 'needs', msg: needsSays(ent, missR, function(id) { var d2 = itemDef(sys, id); if (d2) return valueOpts(opts.view || null).items[id] === 1 ? d2.name : null; var l2 = typeof opts.lib === 'function' ? opts.lib(id) : null; return isObj(l2) && l2.vis !== 'gm' ? l2.name : null; }) };
         }
         var partIn = '';   // 1.6.0 R14: a part, added to its host (a row of a list whose parts come from this one), of a category it takes
         if (q.in !== undefined) { if (typeof q.in !== 'string' || !ROW_ID.test(q.in)) return { ok: false, reason: 'value' }; var phA = partHost(sys, char, f.id, q.in, !!opts.player); if (!phA) return { ok: false, reason: 'missing' }; var ptcA = phA.f.list.parts.cats; if (Array.isArray(ptcA) && ptcA.length && !catIn(ptcA, ent.category)) return { ok: false, reason: 'missing' }; partIn = q.in; }
@@ -7754,7 +7759,8 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
                 if (nmL && !nmL.ok) {
                     var pvL = opts.copy === true ? entL : idL ? (itemDef(opts.view || null, idL) || (typeof opts.libPl === 'function' ? opts.libPl(idL) : null)) : null;   // the entry as players read it: a rule they may not read is never said
                     var missL = nmL.missing.map(function(n) { return isObj(n) && n.rule !== undefined && !(isObj(pvL) && pvL.needsIf === n.rule) ? { rule: true } : n; });
-                    return { ok: false, reason: 'needs', msg: needsSays(entL, missL, function(id) { if (opts.copy === true) { var own = (Array.isArray(entL.needs) ? entL.needs : []).filter(function(n) { return isObj(n) && n.id === id && typeof n.name === 'string'; })[0]; if (own) return own.name; } var d3 = itemDef(sys, id); if (d3) return valueOpts(opts.view || null).items[id] === 1 ? d3.name : null; var l3 = typeof opts.lib === 'function' ? opts.lib(id) : null; return isObj(l3) && l3.vis !== 'gm' ? l3.name : null; }) };
+                    if (entL.needsWarn === true) extra.needsWarn = needsSays(entL, missL, function(id) { if (opts.copy === true) { var ownW = (Array.isArray(entL.needs) ? entL.needs : []).filter(function(n) { return isObj(n) && n.id === id && typeof n.name === 'string'; })[0]; if (ownW) return ownW.name; } var dW = itemDef(sys, id); if (dW) return valueOpts(opts.view || null).items[id] === 1 ? dW.name : null; var lW = typeof opts.lib === 'function' ? opts.lib(id) : null; return isObj(lW) && lW.vis !== 'gm' ? lW.name : null; });   // 1.6.2 (167 C): a raise past needs that only warn goes through, in the same words
+                    else return { ok: false, reason: 'needs', msg: needsSays(entL, missL, function(id) { if (opts.copy === true) { var own = (Array.isArray(entL.needs) ? entL.needs : []).filter(function(n) { return isObj(n) && n.id === id && typeof n.name === 'string'; })[0]; if (own) return own.name; } var d3 = itemDef(sys, id); if (d3) return valueOpts(opts.view || null).items[id] === 1 ? d3.name : null; var l3 = typeof opts.lib === 'function' ? opts.lib(id) : null; return isObj(l3) && l3.vis !== 'gm' ? l3.name : null; }) };
                 }
             }
             if (fx.note !== undefined) { if (typeof fx.note !== 'string') return { ok: false, reason: 'value' }; var nn = cutText(fx.note, LIMITS.rowNote); if (nn) rw.note = nn; else delete rw.note; }
@@ -7863,6 +7869,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         if (!grW.end(vo)) return { ok: false, reason: 'value' };
     }
     if (typeof rmRun === 'object' && rmRun) { extra.also = Object.assign({}, extra.also, rmRun.vals); extra.rmBack = rmRun.back; }   // 1.6.0: as one change with the removal
+    if (opts.copy !== true && !(char && (char.making === 1 || char.making === true)) && spec && (Array.isArray(spec.switchOn) || Array.isArray(spec.switchOff))) { var swR = switchRun(sys, char, f, src, list, F); if (swR) extra.also = Object.assign({}, extra.also, swR); }   // 1.6.2 (167 B): as one change with the switch
     if (grOn && q.op === 'restore' && isObj(q.rmBack)) { var rmBk = onRemoveBack(sys, char, q.rmBack, vo); if (Object.keys(rmBk).length) extra.also = Object.assign({}, extra.also, rmBk); }   // ... and its Undo, from what the caller kept, never a player's word
     var value = raw ? list : cleanValue(f, list, vo); if (value === undefined) return { ok: false, reason: 'value' };
     var out = { ok: true, value: value }; Object.keys(extra).forEach(function(k) { out[k] = extra[k]; });
@@ -11156,7 +11163,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     }
     function rowVars(L, x) {   // a column's names: Row.* reads this row, every other name the resolver (one cache)
         if (x.rv) return x.rv;
-        var v = function(name, nt) { var l = lower(name); if (l === 'target.inarc' && L.spec && isObj(L.spec.arc) && !ix.target && !lkx.target) { rangeRead = true; var rgA = ropts && isObj(ropts.range) ? ropts.range : null; return rgA && fin(rgA.rb) ? arcIn(L.spec, x.d, rgA.rb, isObj(sys) && isObj(sys.combat) ? sys.combat.arcs : null) : 0; } if (l.slice(0, 3) === 'at.' && !ix.at && !lkx.at && L.spec && isObj(L.spec.stand) && !x.virt) { var plA = standAll().at[x.id], TA = tileListOf(L.spec), tA = plA && plA.r && TA ? tileRow(TA, plA.r) : null; return tA ? rowVal(TA, tA, l.slice(3)) : 0; } if (l.slice(0, 5) === 'here.' && !ix.here && !lkx.here && !x.virt && isTileList(L)) { var hA = hereVal(x, l.slice(5)); if (hA !== undefined) return hA; } if (tbOn && l.slice(0, 6) === 'table.' && !ix[l]) { var tb0 = tableVal(l, L, x); if (tb0 !== undefined) return tb0; } if (l.slice(0, 5) === 'host.' && !ix.host && !lkx.host) { var hv = hostVal(L, x, l.slice(5)); if (hv !== undefined) return hv; } if (l.slice(0, 4) === 'row.') { var w = l.slice(4); if (w === 'parts' || w.slice(0, 6) === 'parts.') return partsVal(L, x, w === 'parts' ? '' : w.slice(6)); if (w.indexOf('.') < 0) return rowVal(L, x, w); var av = atVal(L, x, w); if (av === undefined) av = upVal(L, x, w); if (av === undefined) av = sheetVal(L, x, w); if (av === undefined) av = roundVal(L, x, w); return av !== undefined ? av : feedVal(L, x, w); } return fn(name, nt); };
+        var v = function(name, nt) { var l = lower(name); if (l.length > 2 && l.slice(-2) === '#w') { var rw = tableWord(l.slice(0, -2), L, x); return isObj(rw) || (typeof rw === 'string' && rw) ? rw : fn(l, nt); }   /* 1.6.2 (167 D): a row's choice as words */ if (l === 'target.inarc' && L.spec && isObj(L.spec.arc) && !ix.target && !lkx.target) { rangeRead = true; var rgA = ropts && isObj(ropts.range) ? ropts.range : null; return rgA && fin(rgA.rb) ? arcIn(L.spec, x.d, rgA.rb, isObj(sys) && isObj(sys.combat) ? sys.combat.arcs : null) : 0; } if (l.slice(0, 3) === 'at.' && !ix.at && !lkx.at && L.spec && isObj(L.spec.stand) && !x.virt) { var plA = standAll().at[x.id], TA = tileListOf(L.spec), tA = plA && plA.r && TA ? tileRow(TA, plA.r) : null; return tA ? rowVal(TA, tA, l.slice(3)) : 0; } if (l.slice(0, 5) === 'here.' && !ix.here && !lkx.here && !x.virt && isTileList(L)) { var hA = hereVal(x, l.slice(5)); if (hA !== undefined) return hA; } if (tbOn && l.slice(0, 6) === 'table.' && !ix[l]) { var tb0 = tableVal(l, L, x); if (tb0 !== undefined) return tb0; } if (l.slice(0, 5) === 'host.' && !ix.host && !lkx.host) { var hv = hostVal(L, x, l.slice(5)); if (hv !== undefined) return hv; } if (l.slice(0, 4) === 'row.') { var w = l.slice(4); if (w === 'parts' || w.slice(0, 6) === 'parts.') return partsVal(L, x, w === 'parts' ? '' : w.slice(6)); if (w.indexOf('.') < 0) return rowVal(L, x, w); var av = atVal(L, x, w); if (av === undefined) av = upVal(L, x, w); if (av === undefined) av = sheetVal(L, x, w); if (av === undefined) av = roundVal(L, x, w); return av !== undefined ? av : feedVal(L, x, w); } return fn(name, nt); };
         v.refs = function(names) { return refsOut(refUp(names, L, x)); };   // 1.6.0 Specialties: the cases a roll's names used, for its card
         v.detail = function(name) { var l = lower(name); if (l.slice(0, 4) === 'row.' && l.indexOf('.', 4) < 0) return detail[lower(L.f.key) + '#' + x.id + '.' + l.slice(4)] || null; return detail[l] || null; };   // 1.5.8: a row's own column under its own key
         v.burst = function() { return !x.virt && isObj(x.r) && isObj(x.r.bu) ? x.r.bu : null; };   // 1.6.0: its last burst (hitVars)
@@ -11387,6 +11394,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     }
     function fn(name, nt) {   // nt: the name as written, where the engine hands it (only a Specialties reference reads it)
         var l = lower(name);
+        if (l.length > 2 && l.slice(-2) === '#w') { var tw = tableWord(l.slice(0, -2), null, null); return isObj(tw) || (typeof tw === 'string' && tw) ? tw : undefined; }   // 1.6.2 (167 D): the words is() and contains() read
         if (l in cache) return cache[l];
         var field = ix[l], suffix = null;
         if (!field && l.indexOf('.') > 0) { var lnv = listName(l, name, nt); if (lnv !== undefined) return lnv; }   // Stage 6 F5a1: a carried list's totals and addressed rows (after the exact key, before the suffixes)
@@ -12036,10 +12044,23 @@ function plainMessage(sys, text) {
 // which rolls the damage step posts, so which read the blow: the validator's blowRolls
 function blowRollIds(sys) { var o = map(), d = isObj(sys.combat) && isObj(sys.combat.damage) ? sys.combat.damage : null; if (d) { (Array.isArray(d.onMajor) ? d.onMajor : [d.onMajor]).concat(Array.isArray(d.onWound) ? d.onWound : []).forEach(function(w) { if (isObj(w) && typeof w.roll === 'string') o[w.roll] = 1; }); } return o; }
 // the groups of what a box may read: { name, items: [{ label, s }] }. ctx.roll the roll or action it belongs to, ctx.then a box of its Then
+// 1.6.2 (167 D): the names whose words a test may read: a text, a choice, a number with value names; in a list's box its row's choices too
+function wordsReads(sys, ctx, ix, W) {
+    var out = [], me = [], rw = [];
+    sys.fields.forEach(function(f) { if (isObj(f) && typeof f.key === 'string' && f.key && f.key.indexOf('.') < 0 && (f.kind === 'text' || f.kind === 'select' || ((f.kind === 'number' || f.kind === 'formula') && Array.isArray(f.labels) && f.labels.length))) me.push(f.key); });
+    if (isObj(ctx.list) && !ix.row) {
+        (Array.isArray(ctx.list.stats) ? ctx.list.stats : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string' && x.key && ((x.kind === 'pick' && Array.isArray(x.opts) && x.opts.length) || (x.kind !== 'pick' && Array.isArray(x.labels) && x.labels.length))) rw.push('Row.' + x.key); });
+        (Array.isArray(ctx.list.cols) ? ctx.list.cols : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string' && x.key && Array.isArray(x.labels) && x.labels.length) rw.push('Row.' + x.key); });
+    }
+    if (rw.length) out.push({ name: 'This row', items: rw.map(W) });
+    if (me.length) out.push({ name: 'This character', items: me.map(W) });
+    return out;
+}
 function readsOf(sys, ctx) {
     var out = []; if (!isObj(sys) || !Array.isArray(sys.fields)) return out;
     ctx = isObj(ctx) ? ctx : {}; var ix = keyIndexOf(sys), r = isObj(ctx.roll) ? ctx.roll : null, W = function(s) { return { label: capWord(nameWord(sys, s, ctx.list)), s: s }; };
-    if (Array.isArray(ctx.only)) return [{ name: 'What this can read', items: ctx.only.map(W) }];   // a box with names of its own and no other
+    if (Array.isArray(ctx.only)) return ctx.words ? [] : [{ name: 'What this can read', items: ctx.only.map(W) }];   // a box with names of its own and no other
+    if (ctx.words === true) return wordsReads(sys, ctx, ix, W);   // 1.6.2 (167 D): what is() and contains() may read
     var free = function(n) { var h = lower(n.split('.')[0]); return !ix[lower(n)] && !ix[h]; }, group = function(name, names) { var its = names.filter(Boolean).map(W); if (its.length) out.push({ name: name, items: its }); };
     var me = [], lists = [];
     sys.fields.forEach(function(f) {
@@ -12105,6 +12126,8 @@ function readsOf(sys, ctx) {
     return out;
 }
 // [formcheck:namewords-end]
+// 1.6.2 (167 D): a text or a choice field may be named where a formula reads it only as words, by is() or contains()
+function wordsOk(p, n, tg) { return isObj(tg) && (tg.kind === 'text' || tg.kind === 'select') && isObj(p) && Array.isArray(p.words) && p.words.some(function(w) { return lower(w) === lower(n); }); }
 function validateSystem(sys, F) {
     var errors = [], warnings = [], badgeNow = false, standAsk = false;   // 193: Row.needsMet is known in a badge's Shown where alone
     if (!sys || !F) return { ok: false, errors: [{ message: 'No system.' }], warnings: warnings };
@@ -12384,7 +12407,7 @@ function validateSystem(sys, F) {
             if (target && target.extWord) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '": the highest and the lowest read a number stat, a column or a counter of ' + (target.list.label || target.list.key) + ', not ' + n.split('.').pop() + '.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // 1.5.4
             if (isRollProp(prop) && n.length > 64) { errors.push({ id: owner.id, prop: prop, message: 'A roll carries names of 64 characters at most: "' + n + '" has ' + n.length + '.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // F5a1 (critic 8): the dice path refuses a longer one
             if (!target) { var s = suggest(n, keys); errors.push({ id: owner.id, prop: prop, message: 'Unknown name "' + n + '"' + (s ? ' — did you mean "' + s + '"?' : ''), pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
-            if (!NUMERIC[target.kind]) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is ' + (target.kind === 'notes' ? 'a notes field' : (target.kind === 'effects' || target.kind === 'item-list') ? 'a list' : 'text') + ', not a number.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
+            if (!NUMERIC[target.kind] && !wordsOk(p, n, target)) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is ' + (target.kind === 'notes' ? 'a notes field' : (target.kind === 'effects' || target.kind === 'item-list') ? 'a list' : 'text') + ', not a number.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
             if (target.list) {   // F5a1: what a list name reads
                 if (target.onTotal && !(isObj(target.list.list) && isObj(target.list.list.on))) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" counts rows switched on, but ' + (target.list.label || target.list.key) + ' has no switch, so it reads as none.' });
                 if (target.addr) { var tc = isObj(target.list.list) && Array.isArray(target.list.list.cats) && target.list.list.cats.length ? target.list.list.cats : null, has = (Array.isArray(sys.items) ? sys.items : []).concat(Array.isArray(sys.core) ? sys.core : []).some(function(it) { return isObj(it) && typeof it.key === 'string' && lower(it.key) === target.addr && (!tc || catIn(tc, it.category)); }); if (!has) warnings.push({ id: owner.id, prop: prop, message: 'No item in ' + (target.list.label || target.list.key) + ' has the key "' + n.split('.')[1] + '"' + (target.spec ? '. "' + n + '" then finds only rows whose own name says it, and with none it reads as not carried.' : ': it reads as not carried until a row its player can see has it.') }); }
@@ -12526,6 +12549,7 @@ function validateSystem(sys, F) {
         if (!says.some(Boolean)) warnings.push({ id: f.id, prop: 'list.upby', message: 'Keeps paying: none of ' + (st && st.label ? st.label : up.eachBy) + '\u2019s values says turn, round or clock, so every row pays as set.' });
         else if (says.indexOf('clock') >= 0 && !isObj(up.per)) warnings.push({ id: f.id, prop: 'list.upby', message: 'Keeps paying: a row whose ' + (st && st.label ? st.label : up.eachBy) + ' says clock pays nothing until Every is set.' });
     });
+    sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list)) ['switchOn', 'switchOff'].forEach(function(k) { if (Array.isArray(f.list[k])) f.list[k].forEach(function(c, i) { if (isObj(c) && typeof c.formula === 'string' && c.formula) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#' + (k === 'switchOn' ? 'swon' : 'swoff') + i }, 'list.swc', c.formula, false, f.vis, f); }); }); });   // 1.6.2 (167 B): a switch's changes (no dice, Row.* known)
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && Array.isArray(f.list.onRemove)) f.list.onRemove.forEach(function(c, i) { if (isObj(c) && typeof c.formula === 'string' && c.formula) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#onrm' + i }, 'list.onrm', c.formula, false, f.vis, f); }); });   // 1.6.0: When a row is taken off (no dice, Row.* known)
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.upkeep) && typeof f.list.upkeep.amt === 'string' && f.list.upkeep.amt) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#upkeep' }, 'list.upamt', f.list.upkeep.amt, false, f.vis, f); });   // 1.6.0 (CORE gap 13): an upkeep's amount (no dice, Row.* known)
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.on) && typeof f.list.on.showIf === 'string' && f.list.on.showIf) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#onshow' }, 'list.onshow', f.list.on.showIf, false, f.vis, f); });   // 1.6.0: where a row's switch is shown (no dice, Row.* known)   // 1.5.8: what a row's switch needs (no dice, Row.* known)
@@ -12740,7 +12764,7 @@ function validateSystem(sys, F) {
                 p.names.forEach(function(nm) {
                     var tg = known[lower(nm)] || listT(nm);
                     if (!tg) warnings.push({ id: s.id, prop: prop, message: 'Show if: unknown name "' + nm + '", so it shows.' });
-                    else if (!NUMERIC[tg.kind]) warnings.push({ id: s.id, prop: prop, message: 'Show if: "' + nm + '" is not a number, so it shows.' });
+                    else if (!NUMERIC[tg.kind] && !wordsOk(p, nm, tg)) warnings.push({ id: s.id, prop: prop, message: 'Show if: "' + nm + '" is not a number, so it shows.' });
                     else if (tg.vis === 'gm' || gmP[tg.id] === 1 || tg.gmKey) warnings.push({ id: s.id, prop: prop, message: 'Show if: "' + nm + '" is GM only, so players always see it.' });
                 });
             };
@@ -12939,6 +12963,27 @@ function onRemoveRun(sys, char, f, rid, F) {   // { vals: { fieldId: value }, ba
         Object.keys(done.values).forEach(function(k) { var fk = fieldById(sys, k); if (k === f.id || !fk) return; if (!back[k]) back[k] = { b: JSON.parse(JSON.stringify(storedOf(fk, work))) }; work.values[k] = done.values[k]; vals[k] = done.values[k]; back[k].a = JSON.parse(JSON.stringify(done.values[k])); });
     });
     return Object.keys(vals).length ? { vals: vals, back: back } : null;
+}
+// 1.6.2 (167 B; the owner, by prompt: "On and off, and from a file too"): what a list's switch runs as a row's switch turns. Each row whose switch
+// a row operation turned on or off runs the list's When switched on or When switched off, in the order the rows stand, on the machine that owns
+// the character (never a player's own app, which waits for its host), never while the character is being made. A file that switches rows in
+// play runs them too. Each line reads the row's Row.* and the sheet as the line before left it; one that cannot be worked out is passed over
+// and the switch still turns. { fieldId: value } of what moved, or null
+function switchRun(sys, char, f, before, after, F) {
+    var spec = isObj(f.list) ? f.list : null; if (!spec || !F || !isObj(char) || (!Array.isArray(spec.switchOn) && !Array.isArray(spec.switchOff))) return null;
+    var was = map(); (Array.isArray(before) ? before : []).forEach(function(r) { var id = rowIdOf(r); if (id) was[id] = rowOn(spec, r); });
+    var turned = []; (Array.isArray(after) ? after : []).forEach(function(r) { var id = rowIdOf(r); if (!id || !(id in was)) return; var now = rowOn(spec, r); if (now !== was[id]) turned.push({ id: id, on: now }); });
+    if (!turned.length) return null;
+    var vals0 = Object.assign({}, char.values || {}); vals0[f.id] = after;
+    var work = Object.assign({}, char, { values: JSON.parse(JSON.stringify(vals0)) }), vals = {};
+    turned.forEach(function(t) {
+        (t.on ? spec.switchOn : spec.switchOff || []).forEach(function(c) {
+            var rv = null, done = null; try { rv = makeResolver(sys, work, F).row(f.id, t.id); } catch (e) { rv = null; } if (typeof rv !== 'function') return;
+            try { done = applyAct(sys, work, { label: t.on ? 'Switched on' : 'Switched off', apply: [c] }, rv, F, null, { f: f.id, r: t.id }, true); } catch (e) { done = null; } if (!done || !done.ok) return;
+            Object.keys(done.values).forEach(function(k) { if (k === f.id || !fieldById(sys, k)) return; work.values[k] = done.values[k]; vals[k] = done.values[k]; });
+        });
+    });
+    return Object.keys(vals).length ? vals : null;
 }
 function onRemoveBack(sys, char, back, vo) {   // the Undo: a field as the removal left it goes back to what it held, one moved since by what the removal moved it
     var out = {}, num = function(v) { return typeof v === 'number' && fin(v) ? v : isObj(v) && typeof v.cur === 'number' && fin(v.cur) ? v.cur : null; };

@@ -162,6 +162,12 @@ function lex(src) {
             else toks.push({ t: 'name', v: lower, text: name, pos: i, len: name.length });
             i += name.length; continue;
         }
+        if (ch === '"' || ch === '\u201c' || ch === '\u201d') {   // 1.6.2 (167 D): words in quotes, read only by is() and contains()
+            var qe = i + 1; while (qe < n && src[qe] !== '"' && src[qe] !== '\u201c' && src[qe] !== '\u201d' && src[qe] !== '\n') qe++;
+            if (qe >= n || src[qe] === '\n') fail('Words in quotes need a closing quote.', i, 1);
+            if (qe - i - 1 > 200) fail('Words in quotes are 200 characters at most.', i, qe - i + 1);
+            toks.push({ t: 'str', v: src.slice(i + 1, qe), text: src.slice(i, qe + 1), pos: i, len: qe - i + 1 }); i = qe + 1; continue;
+        }
         if ((mm = at(RE_OP, i))) {
             var op = canonOp(mm[0]);
             if (op === '(') { frames.push({ dice: false }); toks.push({ t: 'op', v: '(', text: '(', pos: i, len: 1 }); i++; continue; }
@@ -197,8 +203,11 @@ var FUNCS = table({
     has: { min: 2, max: 2 },   // 1.6.0: has(set, n), a set of places (a list switch's over) holds place n, 1 to 16
     // 1.6.2: with(dice, ..., result) rolls dice to read and answers its last part; the rest read a group of dice named with @, and roll nothing
     'with': { min: 2, max: 9 }, count: { min: 1, max: 1 }, high: { min: 1, max: 1 }, low: { min: 1, max: 1 }, nth: { min: 2, max: 2 }, best: { min: 2, max: 2 }, worst: { min: 2, max: 2 },
-    sets: { min: 1, max: 1 }, setface: { min: 1, max: 1 }, pairs: { min: 1, max: 1 }, total: { min: 1, max: 1 }, digit: { min: 2, max: 2 }
+    sets: { min: 1, max: 1 }, setface: { min: 1, max: 1 }, pairs: { min: 1, max: 1 }, total: { min: 1, max: 1 }, digit: { min: 2, max: 2 },
+    is: { min: 2, max: 9 }, contains: { min: 2, max: 2 }   // 1.6.2 (167 D): is(Field, "words", ...) and contains(Field, "words"), 1 or 0, ignoring case
 });
+var WORDS_FN = table({ is: 1, contains: 1 });
+function wordsKey(s) { return String(s).trim().toLowerCase().replace(/\s+/g, ' '); }
 var DREADS = table({ count: 1, high: 1, low: 1, nth: 1, best: 1, worst: 1, sets: 1, setface: 1, pairs: 1, total: 1 });
 function groupArg(name, a) { return a && a.t === 'name' && !a.paren ? a : name === 'count' && a && a.t === 'cmp' && a.l && a.l.t === 'name' && !a.l.paren ? a.l : null; }
 function topOf(n) { while (n && n.t === 'call' && n.name === 'with') n = n.args[n.args.length - 1]; return n; }   // what a roll's check is judged on, past any with()
@@ -335,6 +344,7 @@ Parser.prototype.atom = function() {
         if (t.t === 'word') fail('Something is missing before ' + q(t.text) + '.', t.pos, t.len);
         return this.finish({ t: 'name', v: t.v, text: t.text }, pos);
     }
+    if (t.t === 'str') fail('Words in quotes are read only by is() and contains(), as in is(Class, "Pilot").', t.pos, t.len);
     if (t.t === 'op' && t.v === '(') {
         this.next(); this.enter(t);
         node = this.expr(); this.expectClose(t);
@@ -365,6 +375,7 @@ Parser.prototype.expectClose = function(openTok) {
 Parser.prototype.call = function(nameTok, pos) {
     var f = FUNCS[nameTok.v];
     if (!f) { var s = suggest(nameTok.text, Object.keys(FUNCS)); fail('Unknown function ' + q(nameTok.text) + (s ? ' — did you mean ' + q(s) + '?' : '.'), nameTok.pos, nameTok.len); }
+    if (WORDS_FN[nameTok.v]) return this.wordsCall(nameTok, pos, f);
     var open = this.next(); this.enter(open);
     var args = [];
     if (this.isOp(')')) this.next();
@@ -379,6 +390,25 @@ Parser.prototype.call = function(nameTok, pos) {
     var node = this.finish({ t: 'call', name: nameTok.v, text: nameTok.text, args: args }, pos);
     if (args.length < f.min || args.length > f.max) fail(arityText(nameTok.text, f) + ', got ' + args.length + '.', node.pos, node.len);
     if (DREADS[node.name]) { var ga = groupArg(node.name, args[0]); if (!ga) fail(nameTok.text + ' reads dice named with @, as in ' + nameTok.text + '(pool).', node.pos, node.len); node.group = ga.v; node.groupText = ga.text; }
+    return node;
+};
+// 1.6.2 (167 D): is() and contains() read a field's words first, then words in quotes and nothing else
+Parser.prototype.wordsCall = function(nameTok, pos, f) {
+    var open = this.next(), how = nameTok.text + '(Class, "Pilot")', args = []; this.enter(open);
+    if (this.isOp(')')) fail(nameTok.text + ' reads a field\u2019s words, as in ' + how + '.', nameTok.pos, nameTok.len);
+    var first = this.expr();
+    if (first.t !== 'name' || first.paren) fail(nameTok.text + ' reads a field\u2019s words first, as in ' + how + '.', first.pos, first.len);
+    args.push(first);
+    while (this.isOp(',')) {
+        this.next(); var w = this.peek();
+        if (w.t !== 'str') fail(nameTok.text + ' compares words in quotes, as in ' + how + '.', w.pos, w.len || 1);
+        if (!w.v.trim()) fail('Words in quotes hold something to compare.', w.pos, w.len);
+        this.next(); args.push({ t: 'str', v: w.v, text: w.text, pos: w.pos, len: w.len });
+    }
+    this.expectClose(open); this.leave();
+    var node = this.finish({ t: 'call', name: nameTok.v, text: nameTok.text, args: args, words: true }, pos);
+    if (args.length < 2) fail(nameTok.text + ' compares words in quotes, as in ' + how + '.', node.pos, node.len);
+    if (args.length > f.max) fail(nameTok.v === 'contains' ? 'contains looks for one set of words.' : 'is compares ' + (f.max - 1) + ' sets of words at most.', node.pos, node.len);
     return node;
 };
 // 1.6.2: a modifier's figure, a formula of its own in the same text, so that an error points at it. It rolls no dice: a roll has one set of dice
@@ -434,6 +464,18 @@ function collectNames(node, out, seen) {
     if (node.body) collectNames(node.body, out, seen);
 }
 
+// 1.6.2 (167 D): which names are read as words (the first part of is() or contains()) and which as figures
+function wordNames(node, wd, pl) {
+    if (!node || typeof node !== 'object') return;
+    if (node.t === 'name') { pl[node.v] = true; return; }
+    if (node.t === 'call' && node.words) { if (node.args[0] && node.args[0].t === 'name') wd[node.args[0].v] = true; return; }
+    if (node.t === 'dice') { wordNames(node.count, wd, pl); if (node.faces !== 'F') wordNames(node.faces, wd, pl); [node.keep, node.reroll, node.explode, node.cs].forEach(function(m) { if (m && m.expr) wordNames(m.expr, wd, pl); }); return; }
+    if (node.items) for (var i = 0; i < node.items.length; i++) wordNames(node.items[i].node || node.items[i], wd, pl);
+    if (node.args) for (var a = 0; a < node.args.length; a++) wordNames(node.args[a], wd, pl);
+    if (node.a) wordNames(node.a, wd, pl);
+    if (node.l) { wordNames(node.l, wd, pl); wordNames(node.r, wd, pl); }
+    if (node.body) wordNames(node.body, wd, pl);
+}
 // 1.6.2: the groups of dice a formula names, and those it reads
 function diceGroups(node, made, read) {
     if (!node || typeof node !== 'object') return;
@@ -456,7 +498,8 @@ function parse(text) {
         if (t.t !== 'eof') { if (t.t === 'op' && t.v === ')') fail('Unexpected ")".', t.pos, 1); fail('Unexpected ' + q(t.text) + '.', t.pos, t.len || 1); }
         var ast = { t: 'root', body: body, top: topOf(body), src: text, pos: 0, len: text.length }, names = [], made = [], read = [];
         collectNames(body, names, Object.create(null)); diceGroups(body, made, read);
-        return { ok: true, ast: ast, names: names, groups: made, reads: read };
+        var wd = Object.create(null), pl = Object.create(null); wordNames(body, wd, pl);
+        return { ok: true, ast: ast, names: names, groups: made, reads: read, words: names.filter(function(nm) { var l = nm.toLowerCase(); return wd[l] && !pl[l]; }) };
     } catch (e) {
         if (e instanceof FormulaError) return { ok: false, error: { message: e.message, pos: e.pos, len: e.len } };
         return { ok: false, error: { message: 'The formula could not be evaluated.', pos: 0, len: 0 } };
@@ -575,6 +618,21 @@ function resolveName(node, c) {
     return val;
 }
 
+// 1.6.2 (167 D): the words a name holds: what its resolver answers for <name>#w (a choice's label, a stat's value name), else its own value as text
+function wordsOf(node, c) {
+    var w, val, found;
+    if (typeof c.vars === 'function') { w = c.vars(node.v + '#w', node.text); if (w && typeof w === 'object' && w.error) fail(node.text + ': ' + String(w.error.message || 'could not be evaluated'), node.pos, node.len); }
+    if (typeof w !== 'string' || w === '') {
+        if (typeof c.vars === 'function') { val = c.vars(node.v, node.text); found = val !== undefined; }
+        else if (c.vars && typeof c.vars === 'object') { var r = lookupObject(c.vars, node.v); found = r.found && r.value !== undefined; val = r.value; }
+        else found = false;
+        if (!found) { var cands = c.known || (c.vars && typeof c.vars === 'object' ? objectNames(c.vars) : null), s = suggest(node.text, cands); fail('Unknown name ' + q(node.text) + (s ? ' \u2014 did you mean ' + q(s) + '?' : '.'), node.pos, node.len); }
+        if (val && typeof val === 'object' && val.error) fail(node.text + ': ' + String(val.error.message || 'could not be evaluated'), node.pos, node.len);
+        w = typeof val === 'string' ? val : typeof val === 'number' && isFinite(val) ? fmt(val) : typeof val === 'boolean' ? (val ? '1' : '0') : '';
+    }
+    c.recs.set(node, { words: w });
+    return w;
+}
 function figureOf(m, c) {   // 1.6.2: a modifier's figure, read as the dice are rolled, and it names what it read as any formula does
     var v = num(ev(m.expr, c)); if (!isInt(v)) fail('A dice modifier\u2019s figure must be a whole number, got ' + fmt(v) + '.', m.pos, m.len);
     return v;
@@ -757,6 +815,12 @@ function callFn(node, c) {
     var a = node.args, name = node.name, x, i;
     function arg(k) { return num(ev(a[k], c)); }
     if (DREADS[name]) return readGroup(node, c);
+    if (node.words) {   // 1.6.2 (167 D): ignoring case and the spaces around and between words
+        var wk = wordsKey(wordsOf(a[0], c));
+        if (name === 'contains') return wk.indexOf(wordsKey(a[1].v)) >= 0;
+        for (i = 1; i < a.length; i++) if (wk === wordsKey(a[i].v)) return true;
+        return false;
+    }
     switch (name) {
         case 'with': { c.aside++; for (i = 0; i < a.length - 1; i++) ev(a[i], c); c.aside--; return ev(a[a.length - 1], c); }
         case 'digit': { x = arg(0); var pl = arg(1); if (!isInt(pl) || pl < 1 || pl > 15) fail('digit: a place is a whole number from 1 to 15.', a[1].pos, a[1].len); return Math.floor(Math.abs(x) / Math.pow(10, pl - 1)) % 10; }
@@ -815,7 +879,8 @@ function render(node, c, out) {                       // appends strings and { d
     switch (node.t) {
         case 'num': out.push(fmt(node.v)); break;
         case 'bool': out.push(node.v ? 'true' : 'false'); break;
-        case 'name': out.push(node.text); if (r) out.push(' (' + fmt(r.value) + ')'); break;
+        case 'name': out.push(node.text); if (r) out.push(' (' + (typeof r.words === 'string' ? '"' + r.words + '"' : fmt(r.value)) + ')'); break;
+        case 'str': out.push(node.text); break;
         case 'dice': out.push(node.text); if (r && c.dice[r.dice].count > 0) { out.push(' ['); out.push({ d: r.dice }); out.push(']'); } break;
         case 'neg': case 'pos': {
             out.push(node.t === 'neg' ? '-' : '+');

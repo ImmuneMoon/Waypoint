@@ -869,6 +869,16 @@ System editor
 - A weapon's Dur formula can read the blow that hit it, as a layer's wear can.
 - Counted once: Given free can name a column now, as Full price can, so a row
   another row granted can say what it gives free.
+- A list's switch can move fields as it turns. Switch on a scope and Aim goes
+  up by the scope's own Pow, switch it off and it comes back down. It runs for
+  you, for players and for a character file, but not while a character is
+  being made.
+- An entry's needs can warn instead of refuse. Set When it isn't met to Warn
+  and a player may take it anyway: they see what it needs, and you get a
+  notice saying who took it.
+- A formula can test words. is(Class, "Pilot", "Medic") is 1 when the Class
+  field says either, whatever the case, and contains(Class, "pilot") looks for
+  the word anywhere. In a form, + Compare words picks the field and the words.
 
 Fitted parts
 - Holds by kind may read a formula in place of a stat, such as the most any

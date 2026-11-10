@@ -308,6 +308,28 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
         check('the short forms stand out of sight until a tick of this computer shows them, and each control stays in the page', ['sys-list-statkey', 'sys-list-colkey', 'sys-list-ctkey', 'sys-dmgr-ykey', 'sys-dmgr-kkey', 'sys-item-key', 'sys-tbl-ckey'].every(k => css.includes('#systemModal:not(.sys-show-keys) .' + k)) && ['sys-env-key', 'sys-tbl-key', 'sys-link-key', 'sys-key'].every(k => css.includes('label:has(> .' + k + ')')) && page.includes('id="sysShowKeys"') && shK.includes("input('sys-list-statkey field'"));
     }
 
+    {   // 1.6.2 (backlog 167 D; the owner, by prompt: "Also contains"): a test of the words a field holds, in the form
+        const SCw = await import(url('systemcore.js')), J = JSON.stringify;
+        const rt = s => { const r = C.readCond(s); return r.ok ? [J(r.cond.tests[0]), C.writeCond(r.cond), C.saysCond(r.cond, { name: n => n === 'Class' ? 'Class' : n })] : ['', r.error.message, '']; };
+        const a = rt('is(Class, "Star Pilot", "Ace")'), b = rt('contains(Class, "pil")'), c = rt('Lvl >= 2 and is(Class, "Medic")'), d = C.read('if(is(Class, "a"), 2, 3)');
+        const made = C.writeCond({ any: false, tests: [{ words: { how: 'is', name: 'Class', list: ['Say "hi"', 'x\ny'] } }] }), madeOk = F.parse(made).ok, empty = F.parse(C.writeCond({ any: false, tests: [{ words: { how: 'contains', name: 'Class', list: [] } }] })).ok;
+        check('167 D the form reads a test of words and writes it back as it was, says it in words, and writes words in quotes with no quote or line break in them; a test with no words is no formula, so its box says so',
+            a[0] === J({ words: { how: 'is', name: 'Class', list: ['Star Pilot', 'Ace'] } }) && a[1] === 'is(Class, "Star Pilot", "Ace")' && a[2] === 'Class is one of \u201cStar Pilot\u201d, \u201cAce\u201d'
+            && b[1] === 'contains(Class, "pil")' && b[2] === 'Class contains \u201cpil\u201d' && c[1] === 'Lvl >= 2 and is(Class, "Medic")' && C.write(d.form) === 'if(is(Class, "a"), 2, 3)'
+            && made === 'is(Class, "Say  hi", "x y")' && madeOk && !empty, J([a, b, c, made, empty]));
+        const ws = SCw.cleanSystem({ v: 1, name: 'W', fields: [{ id: 'f_c', key: 'Class', kind: 'text' }, { id: 'f_r', key: 'Rank', kind: 'select', options: ['Ace', 'Rookie'] }, { id: 'f_g', key: 'Grade', kind: 'number', labels: ['Low', 'High'] }, { id: 'f_n', key: 'Lvl', kind: 'number' },
+            { id: 'f_w', key: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Kind', labels: ['Blade'] }, { key: 'Wt' }, { key: 'Make', kind: 'pick', opts: [{ label: 'Steel', name: 'Steel' }] }] } }] }, { F, gmView: true });
+        const flat = g => g.reduce((x, y) => x.concat(y.items.map(i => i.s)), []), top = flat(SCw.readsOf(ws, { words: true })), row = flat(SCw.readsOf(ws, { words: true, list: ws.fields[4].list })), only = SCw.readsOf(ws, { words: true, only: ['Distance'] });
+        const mW = B.menuRows('', { groups: [{ name: 'x', items: [{ label: 'Lvl', s: 'Lvl' }] }], wgroups: [{ name: 'This character', items: [{ label: 'Class', s: 'Class' }] }] }, false, true);
+        const bad = top.concat(row).filter(n => SCw.validateSystem(Object.assign({}, ws, { fields: ws.fields.concat([{ id: 'f_t', key: 'T', label: 'T', kind: 'formula', formula: 'is(' + n + ', "a")' }]) }), F).errors.length && !/^Row\./.test(n));
+        check('167 D a test of words is offered what has words and nothing else: a text, a choice and a number with value names, and in a list\'s box its row\'s choices; a box with names of its own offers none; the menu then holds the fields alone, with no number or dice beside them; the validator takes every one',
+            J(top) === J(['Class', 'Rank', 'Grade']) && J(row) === J(['Row.Kind', 'Row.Make', 'Class', 'Rank', 'Grade']) && only.length === 0
+            && J(mW.map(g => g.head)) === J(['This character']) && bad.length === 0, J([top, row, mW, bad]));
+        const fbs = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'formbox.js'), 'utf8'), css = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8');
+        check('167 D the form\'s row for it: a field picked by name, is one of or contains, and the words in a box styled as the form\'s own; + Compare words stands under the tests only where something has words',
+            fbs.includes("var WORDS_HOW = [['is', 'is one of'], ['contains', 'contains']];") && fbs.includes("if (t.words) wordsTestInto(row, t.words, pi);") && fbs.includes("'+ Compare words'") && /\.fb-wordlist \{[^}]*background: var\(--panel\)/.test(css));
+    }
+
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exitCode = 1;

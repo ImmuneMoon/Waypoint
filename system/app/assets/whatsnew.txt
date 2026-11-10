@@ -805,6 +805,10 @@ Writing planners and pages
   coloured Played, Tonight or Ahead. Mark a beat from there, drag it to a
   new place in its planner, or click it to open the planner at that card.
   Open it from the Pages shelf or the campaign menu.
+- The Calendar's Timeline tab now has a ribbon of your eras, dated notes,
+  the sessions played and where the clock stands. Scroll to zoom from
+  centuries down to days, and press a mark to open its day. Timeline in the
+  campaign menu opens it in a window over the map.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

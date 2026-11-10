@@ -42,7 +42,7 @@ function start(camp, room, resumed) {
     R.sess = had ? keep : newId(); R.camp = camp.id; R.q = []; R.lines = []; R.chars = Object.create(null); R.board = Object.create(null);
     try { sessionStorage.setItem('wp_recSess', R.sess); } catch (e) {}
     if (had) push({ t: Date.now(), k: 'table', g: gameNow(), x: 'Waypoint reloaded', d: 'The table came back with room ' + room });
-    else push({ t: Date.now(), k: 'open', g: gameNow(), room: room });
+    else { push({ t: Date.now(), k: 'open', g: gameNow(), room: room }); try { if (window.wpCalendar && typeof window.wpCalendar.sessionBegan === 'function') window.wpCalendar.sessionBegan(camp); } catch (e) {} }   // 1.6.2 (backlog 166 h): the timeline's mark for it
     Object.keys(camp.chars || {}).forEach(function(id) { R.chars[id] = snap(camp.chars[id]); });
     Object.keys(camp.items || {}).forEach(function(id) { var m = camp.items[id]; if (m && m.type === 'map' && Array.isArray(m.whiteboard)) R.board[id] = pieces(m); });
     clearInterval(R.t); clearInterval(R.beat); R.t = setInterval(tick, FLUSH_MS * 4); R.beat = 0;

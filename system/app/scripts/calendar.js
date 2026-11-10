@@ -627,6 +627,8 @@ var calTab = 'month';   // the window's two tabs: the month grid, or the timelin
 function realWords(at) { if (!(typeof at === 'number' && at > 0)) return ''; try { return new Date(at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); } catch (e) { return ''; } }
 // The timeline: every dated note in date order, today marked between the past and what is coming, the past dimmed. A press opens its day
 function timeline(body, cal, notes, today, gm, eras) {
+    var rb = cel('div', 'cal-ribbon'); body.appendChild(rb);   // 1.6.2 (backlog 166 h): the ribbon of eras, notes, sessions and now, above the list
+    if (typeof window !== 'undefined' && window.wpTimeline && typeof window.wpTimeline.draw === 'function') { try { window.wpTimeline.draw(rb, cal, clockOf(getActiveCampaign()), openDay); } catch (e) {} }
     var box = cel('div', 'cal-tl'), dl = dayLength(cal), marked = false, lastEra = '';
     if (!notes.length) { box.appendChild(cel('div', 'sys-note', gm ? 'No dated notes yet. Pick a day on the month and add one.' : 'No dated notes you can see.')); body.appendChild(box); return; }
     var mark = function() { if (marked) return; marked = true; box.appendChild(cel('div', 'cal-tl-today', 'Today, ' + fmtDate(cal, today * dl))); };
@@ -957,6 +959,29 @@ function onWinChange(e) {
     else if (tg.classList.contains('cal-pend-run') && tg.dataset && typeof tg.dataset.char === 'string') { if (!setRulesRun(tg.dataset.char, tg.checked === true)) tg.checked = rulesRun(tg.dataset.char) === true; }   // 152 fold 4b: the Rules run switch, put back where it was not kept
 }
 // [sinkcheck:calendarwin-end]
+// [calendarcheck:played-start]
+// 1.6.2 (backlog 166 h; the owner, 2026-11-10, by prompt: "Also the sessions played"): a session that begins notes where the clock stands, so
+// the timeline marks it. The GM's machine alone, with the Calendar on; one at the same moment as the last is no new one. Saved quietly
+function sessionBegan(camp) {
+    if (!camp || isPlayer() || !clockOn() || (window.wpVtt && window.wpVtt.campaignOn && !window.wpVtt.campaignOn('calendar', camp))) return false;
+    var ck = clockOf(camp) || { t: 0 }, pl = Array.isArray(ck.played) ? ck.played.slice() : [], last = pl[pl.length - 1];
+    if (last && last.t === ck.t) return false;
+    pl.push({ t: ck.t, at: Date.now() });
+    var nc = Object.assign({}, ck, { played: pl }), cl = cleanClock(nc); if (!cl) return false;
+    camp.clock = cl; save(true);
+    if (typeof window.wpStepLog === 'function') window.wpStepLog('timeline v1', 'session', { n: (cl.played || []).length });
+    return true;
+}
+// What the timeline window reads: the calendar and the clock as this screen holds them, or null where the Calendar is not shown
+function timeData() { var camp = getActiveCampaign(); return shown(camp) ? { cal: sysCal(), ck: clockOf(camp) || { t: 0 } } : null; }
+// A day opened in the Calendar window, on the month with that day picked
+function openDay(day) {
+    var camp = getActiveCampaign(), cal = sysCal(); if (!shown(camp) || typeof day !== 'number' || day < 0 || Math.floor(day) !== day) return false;
+    var m = document.getElementById('calendarModal'); if (!m) return false;
+    if (camp.id !== winCamp) { winCamp = camp.id; pendFor(camp); }
+    calTab = 'month'; pick = day; view = viewOf(cal, day * dayLength(cal)); m.style.display = 'flex'; renderWin(); return true;
+}
+// [calendarcheck:played-end]
 function openWin() { var m = document.getElementById('calendarModal'); if (!m || !shown(getActiveCampaign())) return; view = null; pick = null; m.style.display = 'flex'; renderWin(); }
 function closeWin() { var m = document.getElementById('calendarModal'); if (m) m.style.display = 'none'; }
 function winOpen() { var m = document.getElementById('calendarModal'); return !!m && m.style.display !== 'none'; }
@@ -965,6 +990,7 @@ function winOpen() { var m = document.getElementById('calendarModal'); return !!
 function refresh(live) {   // live (1.5.4): the clock ran by itself, or a host's word of it arrived
     var chip = document.getElementById('clockChip'); if (!chip) return;
     var camp = getActiveCampaign(), on = shown(camp); chip.style.display = on ? '' : 'none';
+    if (window.wpTimeline && typeof window.wpTimeline.refresh === 'function') { try { window.wpTimeline.refresh(); } catch (e) {} }   // 1.6.2 (backlog 166 h): its window follows the clock
     if (!on) { if (winOpen()) closeWin(); return; }
     var cal = sysCal(), ck = clockOf(camp) || { t: 0 }, txt = chip.querySelector('.clock-txt'), words = fmtIn(cal, ck.cal, ck.t);   // 1.6.2 (backlog 60): in the calendar the GM picked
     if (txt && txt.textContent !== words) txt.textContent = words;
@@ -1024,5 +1050,5 @@ function dateNow() {
 function dateNamesOf(camp, t) { var CCx = window.wpCalendarCore; return CCx && CCx.dateNames ? CCx.dateNames(camp.system && camp.system.calendar ? camp.system.calendar : null, t) : null; }
 setDateSource(dateNow);
 function words() { var camp = getActiveCampaign(), ck = clockOf(camp); if (!ck || (window.wpVtt && !window.wpVtt.on('calendar'))) return ''; return fmtWhen(sysCal(), ck.t); }   // 1.6.0: the game's time in words, for the game record
-window.wpCalendar = { words: words, refresh: refresh, ownTime: ownTime, second: second, fightBegan: fightBegan, open: openWin, close: closeWin, moveTo: moveTo, rulesRun: rulesRun, setRulesRun: setRulesRun };
+window.wpCalendar = { sessionBegan: sessionBegan, timeData: timeData, openDay: openDay, words: words, refresh: refresh, ownTime: ownTime, second: second, fightBegan: fightBegan, open: openWin, close: closeWin, moveTo: moveTo, rulesRun: rulesRun, setRulesRun: setRulesRun };
 export { refresh, ownTime, second, fightBegan, openWin, closeWin, moveTo, rulesRun, setRulesRun };

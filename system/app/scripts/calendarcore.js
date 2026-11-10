@@ -18,6 +18,7 @@ var LIMITS = Object.freeze({
     others: 4, otherAt: 1e9,            // ... and other calendars over the same days, and how many days in each one's own count world day 1 falls
     notes: 500, noteChars: 400,         // item 20 K3: a clock's dated notes, and a note's text (code points, one line)
     eras: 24,                           // 1.6.2 (backlog 166 b): a campaign's eras, named spans of years with a colour
+    played: 500,                        // 1.6.2 (backlog 166 h): the sessions played, each where the clock stood as it began
     rates: Object.freeze([1, 2, 5, 10, 60]),   // 1.5.4: how fast a clock may run by itself, times real time (1 is the absent default)
     moons: 4, cycle: 10000,             // 1.6.2 (backlog 147): a calendar's moons, and the days of a moon's cycle at most
     seasons: 12,                        // ... and its seasons
@@ -265,8 +266,18 @@ function cleanClock(v) {
     var top = cleanTime(v.top); if (top && tCmp(top, o.t) > 0) o.top = top;   // 152: the highest second reached, while the clock is under it
     var lv = cleanLived(v.lived, o.top || o.t); if (lv) o.lived = lv;   // 152: each character's own time past the clock's
     var off = cleanRulesOff(v.rulesOff); if (off) o.rulesOff = off;   // 152: the NPCs whose time rules the GM switched off
-    var sc = whole(v.cal, 1, LIMITS.others); if (sc !== null) o.cal = sc;   // 1.6.2 (backlog 60): the other calendar the top row shows (absent: the main one)
+    var sc = whole(v.cal, 1, LIMITS.others); if (sc !== null) o.cal = sc;
+    var pl = cleanPlayed(v.played); if (pl) o.played = pl;   // 1.6.2 (backlog 166 h): the sessions played, for the timeline   // 1.6.2 (backlog 60): the other calendar the top row shows (absent: the main one)
     return o;
+}
+// 1.6.2 (backlog 166 h; the owner, 2026-11-10, by prompt: "Also the sessions played"): each session played, { t: where the clock stood as it
+// began, in world seconds; at?: the real moment, the GM's alone }, in the order played, the newest LIMITS.played kept. None: null
+function cleanPlayed(v) {
+    if (!Array.isArray(v)) return null;
+    var out = [];
+    v.slice(-LIMITS.played * 2).forEach(function(p) { if (!isObj(p)) return; var t = whole(p.t, 0, LIMITS.time); if (t === null) return; var o = { t: t }, at = whole(p.at, 0, MS_MAX); if (at !== null) o.at = at; out.push(o); });
+    out = out.slice(-LIMITS.played);
+    return out.length ? out : null;
 }
 // 1.6.2 (backlog 166 b; the owner, 2026-11-09, by prompt: eras are set in the Calendar window, each campaign's own): a campaign's eras, each
 // { id: e_ and 8 of a-z 0-9, once; name: one line, 40 code points; from: the year it begins, as the calendar numbers it; to?: the year it ends
@@ -515,6 +526,6 @@ function preset(id) {
 
 // Names another module can import beside its own LIMITS and helpers (sheets.js)
 var CAL_LIMITS = LIMITS, calPreset = preset;
-var API = { cleanEras: cleanEras, eraOf: eraOf, noteNext: noteNext, noteOn: noteOn, viewCal: viewCal, calNamesOf: calNamesOf, fmtIn: fmtIn, fmtDateIn: fmtDateIn, PHASES: PHASES, MOON_KEYS: MOON_KEYS, moonPhases: moonPhases, seasonOf: seasonOf, VERSION: VERSION, LIMITS: LIMITS, DAY: DAY, PRESETS: PRESETS, cleanCalendar: cleanCalendar, cleanClock: cleanClock, cleanAcc: cleanAcc, everySecs: everySecs, ruleFires: ruleFires, cleanTime: cleanTime, tAdd: tAdd, tCmp: tCmp, tFloor: tFloor, tSpanMs: tSpanMs, cleanLived: cleanLived, cleanRulesOff: cleanRulesOff, livedSpans: livedSpans, fightSecs: fightSecs, freshAcc: freshAcc, dateOf: dateOf, dateNames: dateNames, cleanDateFig: cleanDateFig, timeOf: timeOf, periodDays: periodDays, yearDays: yearDays, dayLength: dayLength, fmtDate: fmtDate, fmtTime: fmtTime, fmtWhen: fmtWhen, fmtSpan: fmtSpan, preset: preset };
+var API = { cleanPlayed: cleanPlayed, cleanEras: cleanEras, eraOf: eraOf, noteNext: noteNext, noteOn: noteOn, viewCal: viewCal, calNamesOf: calNamesOf, fmtIn: fmtIn, fmtDateIn: fmtDateIn, PHASES: PHASES, MOON_KEYS: MOON_KEYS, moonPhases: moonPhases, seasonOf: seasonOf, VERSION: VERSION, LIMITS: LIMITS, DAY: DAY, PRESETS: PRESETS, cleanCalendar: cleanCalendar, cleanClock: cleanClock, cleanAcc: cleanAcc, everySecs: everySecs, ruleFires: ruleFires, cleanTime: cleanTime, tAdd: tAdd, tCmp: tCmp, tFloor: tFloor, tSpanMs: tSpanMs, cleanLived: cleanLived, cleanRulesOff: cleanRulesOff, livedSpans: livedSpans, fightSecs: fightSecs, freshAcc: freshAcc, dateOf: dateOf, dateNames: dateNames, cleanDateFig: cleanDateFig, timeOf: timeOf, periodDays: periodDays, yearDays: yearDays, dayLength: dayLength, fmtDate: fmtDate, fmtTime: fmtTime, fmtWhen: fmtWhen, fmtSpan: fmtSpan, preset: preset };
 if (typeof window !== 'undefined') window.wpCalendarCore = API;
-export { cleanEras, eraOf, noteNext, noteOn, viewCal, calNamesOf, fmtIn, fmtDateIn, PHASES, MOON_KEYS, moonPhases, seasonOf, dateNames, cleanDateFig, VERSION, LIMITS, CAL_LIMITS, calPreset, DAY, PRESETS, cleanCalendar, cleanClock, cleanAcc, everySecs, ruleFires, cleanTime, tAdd, tCmp, tFloor, tSpanMs, cleanLived, cleanRulesOff, livedSpans, fightSecs, freshAcc, dateOf, timeOf, periodDays, yearDays, dayLength, fmtDate, fmtTime, fmtWhen, fmtSpan, preset };
+export { cleanPlayed, cleanEras, eraOf, noteNext, noteOn, viewCal, calNamesOf, fmtIn, fmtDateIn, PHASES, MOON_KEYS, moonPhases, seasonOf, dateNames, cleanDateFig, VERSION, LIMITS, CAL_LIMITS, calPreset, DAY, PRESETS, cleanCalendar, cleanClock, cleanAcc, everySecs, ruleFires, cleanTime, tAdd, tCmp, tFloor, tSpanMs, cleanLived, cleanRulesOff, livedSpans, fightSecs, freshAcc, dateOf, timeOf, periodDays, yearDays, dayLength, fmtDate, fmtTime, fmtWhen, fmtSpan, preset };

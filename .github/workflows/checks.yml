@@ -264,3 +264,6 @@ jobs:
       - name: storycheck, the Story view (arcs and beats from the planners, a beat moved inside its planner)
         if: ${{ !cancelled() }}
         run: node tools/storycheck.js
+      - name: timelinecheck, the timeline ribbon (eras, dated notes, sessions played, its zoom)
+        if: ${{ !cancelled() }}
+        run: node tools/timelinecheck.js

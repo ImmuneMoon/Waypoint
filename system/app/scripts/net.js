@@ -8788,7 +8788,7 @@ function handleMessage(msg, conn) {
             if (window.wpSheets) window.wpSheets.charChanged(qk.charId);
             return;
         }
-        var resK = Sk.linkSet(campK.system, campK.chars, chK, qk.linkId, qk.to, qk.stn !== undefined ? { player: true, pid: profK.id, stn: qk.stn } : { player: true, pid: profK.id });   // 1.6.0 (CORE gap 16): and its station
+        var resK = Sk.linkSet(campK.system, campK.chars, chK, qk.linkId, qk.to, qk.stn !== undefined ? { player: true, pid: profK.id, stn: qk.stn, F: window.wpFormula } : { player: true, pid: profK.id, F: window.wpFormula });   // 1.6.0 (CORE gap 16): and its station
         if (!resK.ok) { denyK('error', resK.msg); return; }
         if (resK.links) chK.links = resK.links; else delete chK.links;
         if (resK.stn) chK.stn = resK.stn; else delete chK.stn;

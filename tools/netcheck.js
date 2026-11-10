@@ -19425,7 +19425,7 @@ pendingChecks.push((async () => {
     Sx.setLinkSource(null);
     check('1.6.0 linked sheets (source): every way a character change leaves the host reaches linkTell through typeof (syncChar and syncCharDelta), the copy an owner is sent and the join snapshot carry the figures, and the host\'s branch judges by linkSet alone',
         (src.match(/if \(typeof linkTell === 'function'\) linkTell\(id\);/g) || []).length === 2 && (src.match(/\(typeof withLinkFigs === 'function' \? withLinkFigs : function\(v0\) \{ return v0; \}\)\(withHoverLines\(/g) || []).length === 2
-        && (src.match(/linkSet\(/g) || []).length === 1 && lkS.indexOf("Sk.linkSet(campK.system, campK.chars, chK, qk.linkId, qk.to, qk.stn !== undefined ? { player: true, pid: profK.id, stn: qk.stn } : { player: true, pid: profK.id })") > lkS.indexOf("denyK('owner')"));   // CORE gap 16 (a deliberate change of this pin): and the station the player picked
+        && (src.match(/linkSet\(/g) || []).length === 1 && lkS.indexOf("Sk.linkSet(campK.system, campK.chars, chK, qk.linkId, qk.to, qk.stn !== undefined ? { player: true, pid: profK.id, stn: qk.stn, F: window.wpFormula } : { player: true, pid: profK.id, F: window.wpFormula })") > lkS.indexOf("denyK('owner')"));   // CORE gap 16, and 1.6.2 (218) the engine for a station's filter (each a deliberate change of this pin): and the station the player picked
     // 1.6.2 (vehicles, fold (a)): a row of a player's own character joined to a sheet of their own, or a new sheet made from it, through the same
     // char-link branch, run for real; the figures the owner's copy carries, and that copy sent again once the joined sheet moves (sheetTell)
     {

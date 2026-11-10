@@ -5411,6 +5411,12 @@
   .sheet-dl-s, .sheet-dl-note { font-size: 11px; color: var(--dim); }
   .sheet-dl-gm { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 6px 8px 2px; margin-top: 2px; border-top: 1px solid var(--edge); cursor: pointer; }
   .sheet-dl-note { padding: 6px 8px 2px; margin-top: 2px; border-top: 1px solid var(--edge); }
+  .sheet-crew-pop { max-height: min(420px, calc(100vh - 16px)); overflow-y: auto; min-width: 220px; }   /* 1.6.2 (218): + Crew…, who sits where */
+  .sheet-crew-head { display: flex; align-items: center; gap: 8px; padding: 4px 6px 6px; border-bottom: 1px solid var(--edge); margin-bottom: 4px; }
+  .sheet-crew-head .sheet-crew-stn { flex: 1 1 auto; min-width: 0; }
+  .sheet-crew-all { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--dim); white-space: nowrap; cursor: pointer; }
+  .sheet-crew-nofit .sheet-dl-t { color: var(--dim); }
+  .sheet-crew-nofit:disabled { cursor: not-allowed; opacity: 0.75; }
   /* Onboarding F2b: a sheet printed as it shows — built off screen, shown only while printing (the page's own content hidden); the panel's twins */
   #sheetPrint { position: absolute; left: -30000px; top: 0; visibility: hidden; pointer-events: none; background: transparent; color: var(--ink); font-size: 13px; }   /* laid out off screen, so its pictures and glyphs load before the print */
   #sheetPrint .sheet-hdr-val { white-space: pre-wrap; overflow: visible; text-overflow: clip; }   /* a read-only header value in full (a tooltip on screen) */

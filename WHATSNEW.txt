@@ -888,6 +888,9 @@ System editor
   player can't take a seat past it; you can, and you're told.
 - An item's change can be a formula that reads its own row, so a cloak can
   add 2 to Dodge for each level it has.
+- A cart can pick its team from your saved sheets. Its sheet shows + Crew...,
+  which lists the sheets that may pull it, such as beasts that can be
+  harnessed, and Show all says why the others can't.
 
 Fitted parts
 - Holds by kind may read a formula in place of a stat, such as the most any

@@ -23163,6 +23163,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && Array.isArray(hit) && hit.length === 1 && (!none || none.length === 0) && (!down || down.length === 0),
             J([offR, onR.lines, badR, msgs, hit, none, down]));
     }
+    {   // 1.6.2 (backlog 218, fold 1; the owner, by prompt: "A rule, with Show all", "A tick on the link"): who may sit at a station, and which sheets are crewed
+        const J = JSON.stringify, mk = gm => cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_h', key: 'Harnessable', kind: 'number' }, { id: 'f_v', key: 'IsVehicle', kind: 'toggle' }, { id: 'f_s', key: 'Sec', kind: 'number', vis: 'gm' }],
+            links: [{ id: 'lk_crew', key: 'Cart', label: 'Cart', kind: 'crew', edit: 'owner', stations: ['Driver', 'Team', 'Box'], veh: 'IsVehicle', fit: { team: { 'if': 'Harnessable > 0', says: 'Only a beast that can be harnessed pulls the cart.' }, Box: { 'if': 'Sec > 1' }, Driver: { 'if': '1d6' }, Nope: { 'if': '1' } } }] }, { F, gmView: gm });
+        const G = mk(true), P = mk(false), k = G.links[0];
+        const chs = () => ({ c_v: { id: 'c_v', name: 'Cart', ownerId: 'u_b', values: { f_v: true } }, c_d: { id: 'c_d', name: 'Dog', ownerId: 'u_b', values: { f_h: 0 } }, c_o: { id: 'c_o', name: 'Ox', ownerId: 'u_b', values: { f_h: 2 } } }), cs = chs();
+        const L = (c, o) => S.linkSet(G, cs, cs[c], 'lk_crew', 'c_v', Object.assign({ F }, o)), dP = L('c_d', { player: true, pid: 'u_b', stn: 'Team' }), oP = L('c_o', { player: true, pid: 'u_b', stn: 'Team' }), dG = L('c_d', { stn: 'Team' }), dN = L('c_d', { player: true, pid: 'u_b', stn: 'Driver' });
+        const shF = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), ca = shF.indexOf('// [systemcheck:crewpick-start]'), cz = shF.indexOf('// [systemcheck:crewpick-end]');
+        const camp = { chars: chs() }, list = Object.values(camp.chars).map(x => ({ id: x.id, name: x.name, ownerId: x.ownerId })), mkC = cl => new Function('charList', 'charById', 'myId', 'isClient', 'stationFit', 'F', shF.slice(ca, cz) + '\nreturn crewCandidates;')(() => list, id => camp.chars[id], () => 'u_b', () => cl, S.stationFit, () => F);
+        const nm = a => a.map(o => o.name + (o.why ? '!' : '')).join(','), pc = mkC(true), team = pc(G, k, camp.chars.c_v, camp, 'Team', false), teamAll = pc(G, k, camp.chars.c_v, camp, 'Team', true), drv = pc(G, k, camp.chars.c_v, camp, 'Driver', false);
+        check('218 fold 1 a station names who may sit there, and a link which sheets it crews (cleanLinks, stationFit, crewHost, linkSet and the + Crew menu\'s list run for real): each kept as a formula with no dice and words, for its own stations, alike in both views, one that reads a GM-only value or rolls dice gone; a player seating a sheet that fails is refused in the system\'s words, your own link goes through and is told; Crewed sheets are where marks the cart alone; the menu lists the sheets that fit, Show all lists the rest saying why, never the cart itself',
+            J(k.fit) === J({ Team: { 'if': 'Harnessable > 0', says: 'Only a beast that can be harnessed pulls the cart.' } }) && J(P.links[0].fit) === J(k.fit) && k.veh === 'IsVehicle' && P.links[0].veh === 'IsVehicle'
+            && !dP.ok && dP.msg === 'Only a beast that can be harnessed pulls the cart.' && oP.ok && dG.ok && dG.fitSays === dP.msg && dN.ok && !dN.fitSays
+            && S.crewHost(G, k, cs.c_v, F) === true && S.crewHost(G, k, cs.c_o, F) === false && S.stationFit(G, k, 'Box', cs.c_d, F) === ''
+            && nm(team) === 'Ox' && nm(teamAll) === 'Dog!,Ox' && nm(drv) === 'Dog,Ox' && teamAll[0].why === dP.msg,
+            J([k, dP, dG, nm(team), nm(teamAll), nm(drv)]));
+    }
     {   // 1.6.2 (backlog 164 i; the owner, by prompt: "Name or entry key"): holds(List, Field), a list holds a row named by a field's words
         const J = JSON.stringify, sH = cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_c', key: 'Culture', kind: 'text' }, { id: 'f_l', key: 'Cultures', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'x' }] } },
             { id: 'f_ok', key: 'Ok', kind: 'formula', formula: 'holds(Cultures, Culture) + holds(Cultures, "zabrak  clans") * 10 + holds(Cultures, "nope") * 100' }, { id: 'f_bad', key: 'Bad', kind: 'formula', formula: 'Cultures + 1' }],

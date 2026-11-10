@@ -151,7 +151,8 @@ var GROUPS = {
         ['figs', 'Units and figures', 0, ['sys-unit', 'sys-unit-text', 'sys-metricshow', 'sys-dec', 'sys-group-chk', 'sys-sign-chk', 'sys-caption'], null, 'say'],   // 1.6.2 (the owner, by prompt: "Split in two"): folded, its heading saying what is set
         ['rules', 'Rolls and rules', 0, ['sys-fieldtest', 'sys-roll', 'sys-fielddie', 'sys-vnames', 'sys-ovr-value', 'sys-ovr-when', 'sys-spill-*', 'sys-surch-*']],
         ['auto', 'Worked out and filled', 0, ['sys-wout-box']],   // 1.6.2 (auto apply)
-        ['round', 'Rounding', 0, ['sys-round', 'sys-roundto', 'sys-roundat']]] },
+        ['round', 'Rounding', 0, ['sys-round', 'sys-roundto', 'sys-roundat']],
+        ['explain', 'What it means', 0, ['sys-explain']]] },   // 1.6.2 (backlog 218 fold 3)
     rolls: { split: ['sys-row-main'], head: ['sys-label', 'sys-roll-kind', 'sys-formula', 'sys-btns'], list: [
         ['how', 'How it rolls', 1, ['sys-roll-drawfirst', 'sys-drawnrow', 'sys-roll-drawn', 'sys-roll-malf', 'sys-roll-critat', 'sys-roll-fumbleat', 'sys-roll-bigat', 'sys-init-chk', 'sys-roll-anytime', 'sys-roll-keepscene']],
         ['look', 'Who sees it and how it looks', 1, ['sys-vis', 'sys-roll-togm', 'sys-roll-tone', 'snd-on-btn', 'sys-roll-die', 'sys-roll-icon', 'sys-glyph-btn']],
@@ -165,7 +166,8 @@ var GROUPS = {
         ['help', 'Help from others', 0, ['sys-help']],
         ['calls', 'Calls for', 0, ['sys-calls']],
         ['bands', 'Result bands', 0, ['sys-bands']],
-        ['then', 'What it changes', 1, ['sys-apply']]] },
+        ['then', 'What it changes', 1, ['sys-apply']],
+        ['explain', 'What it means', 0, ['sys-explain']]] },   // 1.6.2 (backlog 218 fold 3)
     items: { split: ['sys-row-main', 'sys-flags'], head: ['sys-item-name', 'sys-item-cat', 'sys-btns'], list: [
         ['what', 'What it is', 1, ['sys-item-damage', 'sys-item-cost', 'sys-item-throw', 'sys-item-key', 'sys-item-lvl', 'sys-item-only', 'sys-item-again', 'sys-item-notes']],
         ['look', 'Who sees it and how it looks', 1, ['sys-item-vis', 'sys-item-icon', 'sys-glyph-btn']],
@@ -203,7 +205,8 @@ var GROUPS = {
         ['cover', 'Cover it gives', 0, ['sys-fx-coverbox']],   // 1.6.2
         ['who', 'Who sees it', 1, ['sys-fx-vis', 'sys-fx-notes']],
         ['posture', 'Posture', 0, ['sys-fx-posture', 'sys-fx-postureback', 'sys-fx-keepbox']],
-        ['sw', 'Roll bonuses', 0, ['sys-sw-box']]] }
+        ['sw', 'Roll bonuses', 0, ['sys-sw-box']],
+        ['explain', 'What it means', 0, ['sys-explain']]] }   // 1.6.2 (backlog 218 fold 3)
 };
 var VALUE_TITLE = { toggle: 'The switch', text: 'The text', notes: 'The text', select: 'The options', 'item-list': 'The list', effects: 'The list' };
 // Every class in a piece, and each button's action as act:name

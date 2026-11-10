@@ -290,6 +290,41 @@ function linkNode(pl, c) {
     b.addEventListener('click', function(e) { e.preventDefault(); if (b.closest('#systemModal')) return; openPageFor(c, pl.page); });
     var box = el('div', 'sheet-field sheet-kind-link'); box.appendChild(b); return box;
 }
+// [systemcheck:explain-start] 1.6.2 (backlog 218 fold 3; the owner, by prompt: a small (i) button, "a tooltip would become bloated"): what a field,
+// a roll, a list's stat or column, an effect, a section or a link means, in the system's own words, behind a small (i) beside its name. Shown only
+// where the system wrote one. A press opens the shared pop: the words as text, the working of a figure where one is handed in, and the handbook
+// page that says more where this screen may open it. A span with the role of a button, so that a label it stands in names no control of its own
+function explainBtn(ex, c, more) {
+    if (!ex || typeof ex !== 'object' || (!ex.says && !ex.page)) return null;
+    var b = el('span', 'sheet-explain', 'i'); b.setAttribute('role', 'button'); b.tabIndex = 0; b.title = 'What this means'; b.setAttribute('aria-label', 'What this means'); b.setAttribute('aria-haspopup', 'dialog');
+    var go = function(e) { e.preventDefault(); e.stopPropagation(); explainOpen(b, ex, c, more); };
+    b.addEventListener('click', go);
+    b.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') go(e); });
+    b.addEventListener('mousedown', function(e) { e.stopPropagation(); });   // a section's title folds at a press, a row's name opens its details
+    return b;
+}
+function explainTo(node, ex, c, more) { var b = node ? explainBtn(ex, c, more) : null; if (b) node.appendChild(b); return b; }
+function explainOpen(anchor, ex, c, more) {
+    if (_ldPop) { var was = _ldPop._anchor === anchor; closeLoadMenu(); if (was) return; }
+    var pop = el('div', 'sheet-dl-pop sheet-explain-pop'); pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'What this means'); pop._anchor = anchor; pop.tabIndex = -1;
+    if (ex.says) pop.appendChild(el('div', 'sheet-explain-says', ex.says));
+    if (typeof more === 'string' && more) pop.appendChild(el('div', 'sheet-explain-more', more));
+    var ref = ex.page && typeof pageRef === 'function' ? pageRef(ex.page) : null, inEd = !!(anchor.closest && anchor.closest('#systemModal'));
+    if (ref) {
+        var pb = el('button', 'tool sheet-dl-item sheet-explain-page', 'Read more: ' + ref.title + (ref.gmOnly ? ' (GM only)' : '')); pb.type = 'button';
+        if (inEd) { pb.disabled = true; pb.title = 'Opens from the sheet itself, not the Layout preview'; }
+        pb.addEventListener('click', function(e) { e.preventDefault(); closeLoadMenu(); if (inEd) return; if (c && typeof openPageFor === 'function') openPageFor(c, ex.page); else openPage(ex.page); });
+        pop.appendChild(pb);
+    }
+    if (!pop.childNodes.length) return;
+    pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+    pop.addEventListener('keydown', function(e) { e.stopPropagation(); });
+    document.body.appendChild(pop); _ldPop = pop;
+    var r0 = anchor.getBoundingClientRect(), ph = pop.offsetHeight || 120; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r0.left)) + 'px'; pop.style.top = Math.max(8, r0.bottom + 6 + ph > window.innerHeight ? r0.top - 6 - ph : r0.bottom + 6) + 'px';
+    document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
+    var fb = null; Array.prototype.forEach.call(pop.querySelectorAll('button'), function(x) { if (!fb && !x.disabled) fb = x; }); try { (fb || pop).focus(); } catch (er) {}
+}
+// [systemcheck:explain-end]
 // [[id, label]] for the campaign's handbook pages (title order, GM-only marked) — the Layout tab's page pickers; an unknown current
 // id stays selectable as "(page not found)" so a system imported from another campaign can be re-pointed rather than silently lost
 function pageOptions(cur, none) {
@@ -1309,7 +1344,7 @@ function hideFigPress() {
     afterCharChange(c, true); if (window.wpStepLog) window.wpStepLog('hidefig v1', 'tick', { on: c.hideFig === true }); return true;
 }
 // [systemcheck:hidefig-end]
-function asPlayerFree(t) { return !!(t && t.closest && t.closest('summary, .sheet-tab, .sheet-item-opener')); }
+function asPlayerFree(t) { return !!(t && t.closest && t.closest('summary, .sheet-tab, .sheet-item-opener, .sheet-explain')); }
 function asPlayerGuard(e) {
     if (!_asPlayer || asPlayerFree(e.target)) return;
     if (e.type === 'keydown') { var tg = e.target && e.target.tagName, nav = e.key === 'Tab' || e.key === 'Escape' || e.key === 'PageUp' || e.key === 'PageDown' || e.key === 'Home' || e.key === 'End'; if (nav || (e.key !== 'Enter' && e.key !== ' ' && tg !== 'INPUT' && tg !== 'SELECT' && tg !== 'TEXTAREA' && !(e.target && e.target.isContentEditable))) return; }
@@ -2252,11 +2287,12 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
         var chipNode = sec.chip ? pageChip(sec.chip, c) : null;   // Stage 5f: a handbook chip
         var pinCh = !printV && sec.pin && Object.prototype.hasOwnProperty.call(grpById, sec.pin) ? pinChip(grpById[sec.pin], pctx) : null;   // Stage 6: a band group's Pin in the header
         var rsCh = !printV && sec.resetAll === true ? resetChip(sec, pctx) : null;   // HUD frame (HF4b): its Reset all
-        if (sec.title || sec.icon || metaText || collap || chipNode || pinCh || rsCh || cntN !== null) {   // a collapsible section always needs a summary to toggle from
+        if (sec.title || sec.icon || metaText || collap || chipNode || pinCh || rsCh || cntN !== null || (sec.explain && !printV)) {   // a collapsible section always needs a summary to toggle from
             var head = el(collap ? 'summary' : 'div', 'sheet-sec-title');
             if (sec.icon) head.appendChild(iconNode(sec.icon, 'sheet-sec-icon'));   // Stage 5g (Stage 6: or a bundled glyph)
             var nameSpan = el('span', 'sheet-sec-name', sec.title || ''); if (sec.style && sec.style.accent) nameSpan.style.color = sec.style.accent;
             if (cntN !== null) nameSpan.appendChild(el('span', 'sheet-sec-count', '(' + cntN + ')'));   // R9: Melee Technique (3)
+            if (!printV && sec.explain && typeof explainTo === 'function') explainTo(nameSpan, sec.explain, c);   // 1.6.2 (backlog 218 fold 3): its (i), right after the title
             head.appendChild(nameSpan);
             if (metaText) head.appendChild(el('span', 'sheet-sec-meta', metaText));
             if (chipNode) head.appendChild(chipNode);
@@ -2792,6 +2828,7 @@ function renderLayout() {
         var addRow = el('div', 'sys-row-main sys-pl-addrow');
         addRow.appendChild(lazySelect('sys-pl-add', addOpts, '', 'A field not yet on the sheet, a roll button, a heading, a divider, the portrait, a facing dial, a stance control or a handbook link'));
         row.appendChild(addRow);
+        if (typeof explainBox === 'function') row.appendChild(explainBox(sec));   // 1.6.2 (backlog 218 fold 3)
         root.appendChild(row);
     });
     if (typeof window !== 'undefined' && window.wpSysUi && window.wpSysUi.layoutDrawn) window.wpSysUi.layoutDrawn(root);   // 1.6.2: its parts down the side, one in view
@@ -3757,14 +3794,15 @@ function headUnit(x) { return typeof unitHeadNow === 'function' ? unitHeadNow(x.
 // [systemcheck:rowboxes-start] 1.6.0 R3 (backlog 180; the owner, by prompt: "A. A list ticks it", "A. Stats, columns and Paid", "A. In the box and on the
 // chip"): a row's figures as small boxes in its details, each its label above its figure, and a column an effect changed marked as a field is
 function cellMark(cfx, i, cell) { var d = Array.isArray(cfx) ? cfx[i] : null; if (!d || !cell || cell.error || typeof fxMark !== 'function') return null; return fxMark({ value: cell.value, base: d.base, mods: d.mods, via: d.via }); }
-function figBox(label, text, tone, more) {
-    var b = el('span', 'sheet-item-box'); b.appendChild(el('small', null, label)); var v = el('b', 'sheet-item-boxv');
+function figLab(label, ex) { var sm = el('small', null, label); if (ex && typeof explainTo === 'function') explainTo(sm, ex, null); return sm; }   // 1.6.2 (backlog 218 fold 3): a figure's label, with its (i)
+function figBox(label, text, tone, more, ex) {
+    var b = el('span', 'sheet-item-box'); b.appendChild(figLab(label, ex)); var v = el('b', 'sheet-item-boxv');
     if (tone) v.appendChild(el('span', 'sheet-badge sheet-tone-' + tone, text)); else v.appendChild(document.createTextNode(text));
     (Array.isArray(more) ? more : []).forEach(function(m) { if (m) v.appendChild(m); }); b.appendChild(v); return b;
 }
 function statBoxes(entry, def, spec, ovc) {   // every stat that is not Hidden, then Paid: the details line's figures, as boxes
     var g = el('div', 'sheet-item-boxes');
-    (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s.hide === true) return; var sv = rowStat(spec, def, s.key), mnB = typeof _rowMenu === 'function' ? _rowMenu(s, sv) : null; if (mnB) { var bxB = el('label', 'sheet-item-box'), vbB = el('b', 'sheet-item-boxv'); bxB.appendChild(el('small', null, s.label)); vbB.appendChild(mnB); var dtB = statDot(s, spec, ovc); if (dtB) vbB.appendChild(dtB); bxB.appendChild(vbB); g.appendChild(bxB); return; } g.appendChild(figBox(s.label, statShown(s, sv), typeof nameTone === 'function' ? nameTone(s, sv) : '', [statDot(s, spec, ovc)])); });
+    (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s.hide === true) return; var sv = rowStat(spec, def, s.key), mnB = typeof _rowMenu === 'function' ? _rowMenu(s, sv) : null; if (mnB) { var bxB = el('label', 'sheet-item-box'), vbB = el('b', 'sheet-item-boxv'); bxB.appendChild(figLab(s.label, s.explain)); vbB.appendChild(mnB); var dtB = statDot(s, spec, ovc); if (dtB) vbB.appendChild(dtB); bxB.appendChild(vbB); g.appendChild(bxB); return; } g.appendChild(figBox(s.label, statShown(s, sv), typeof nameTone === 'function' ? nameTone(s, sv) : '', [statDot(s, spec, ovc)], s.explain)); });
     if (spec.price) g.appendChild(figBox('Paid', statFmt(rowPaid(spec, entry, def)), '', []));
     return g.childNodes.length ? g : null;
 }
@@ -3772,7 +3810,7 @@ function colBoxes(host, spec, cells, cfx) {   // the columns placed in the detai
     if (!cells || !Array.isArray(spec.cols)) return;
     spec.cols.forEach(function(cc, i) { var v = cells[i]; if (!v || !(typeof partHere === 'function' ? partHere(cc, 'details', false) : cc.place === 'details')) return;
         var tx = v.error ? '\u2014' : (typeof colShown === 'function' ? colShown(cc, v) : v.text) + (typeof plusText === 'function' ? plusText(v) : ''), tn = !v.error && typeof nameTone === 'function' ? nameTone(cc, v.value) : '';
-        var bx = figBox(cc.label, tx, tn, [cellMark(cfx, i, v)]); if (v.error) bx.title = v.error; host.appendChild(bx); });
+        var bx = figBox(cc.label, tx, tn, [cellMark(cfx, i, v)], cc.explain); if (v.error) bx.title = v.error; host.appendChild(bx); });
 }
 // [systemcheck:rowboxes-end]
 // [systemcheck:rowswitch-start] 1.6.0 R6 and R7 (backlog 180; the owner, by prompt: "A. Button, filled while on", "B. An icon from the set", "B. In a small
@@ -4391,8 +4429,8 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
     var table = el('table', 'sheet-itemtable'), thead = el('thead'), htr = el('tr');
     htr.appendChild(el('th', 'sheet-itcol-name', 'Item'));
     cols.forEach(function(col) { htr.appendChild(el('th', 'sheet-itcol-' + col, ITEM_COL_LABEL[col] || col)); });
-    shownSt.forEach(function(s) { htr.appendChild(el('th', 'sheet-itcol-stat', s.label + (s.unit ? ' (' + headUnit(s) + ')' : ''))); });   // 1.5.4: a stat's unit, as a column's
-    shownCl.forEach(function(x) { htr.appendChild(el('th', 'sheet-itcol-col', x.c.label + (x.c.unit ? ' (' + headUnit(x.c) + ')' : ''))); });   // F5a1
+    shownSt.forEach(function(s) { var thS = el('th', 'sheet-itcol-stat', s.label + (s.unit ? ' (' + headUnit(s) + ')' : '')); if (s.explain && typeof explainTo === 'function') explainTo(thS, s.explain, null); htr.appendChild(thS); });   // 1.5.4: a stat's unit, as a column's; 1.6.2 (backlog 218 fold 3): its (i)
+    shownCl.forEach(function(x) { var thC = el('th', 'sheet-itcol-col', x.c.label + (x.c.unit ? ' (' + headUnit(x.c) + ')' : '')); if (x.c.explain && typeof explainTo === 'function') explainTo(thC, x.c.explain, null); htr.appendChild(thC); });   // F5a1
     if (hasL) htr.appendChild(el('th', 'sheet-itcol-lvl', spec.lvl.label));
     if (hasO) htr.appendChild(el('th', 'sheet-itcol-on', spec.on.label));
     if (hasQ) htr.appendChild(el('th', 'sheet-itcol-qty', 'Qty'));
@@ -4905,6 +4943,7 @@ function autoFxInto(wrap, f, c, rows, sys, labels) {
         var line = el('div', 'sheet-fx sheet-fx-auto' + (d.tone === 'buff' || d.tone === 'debuff' ? ' sheet-fx-' + d.tone : ''));
         if (d.icon) line.appendChild(iconNode(d.icon, 'sheet-fx-icon'));
         var nm = el('span', 'sheet-fx-name', d.name || 'Effect'); if (d.notes) nm.title = d.notes; line.appendChild(nm);
+        if (d.explain && typeof explainTo === 'function') explainTo(line, d.explain, typeof c === 'undefined' ? null : c);   // 1.6.2 (backlog 218 fold 3)
         var tg = el('span', 'sheet-fx-autotag', 'Automatic'); tg.title = 'On while ' + d.auto; line.appendChild(tg);
         var mods = (d.mods || []).map(function(m) { return fxChangeText(m, labels); }); if (mods.length) line.appendChild(el('div', 'sheet-fx-mods', mods.join(' \u00b7 ')));
         wrap.appendChild(line);
@@ -4929,6 +4968,7 @@ function effectsInto(wrap, f, c, rows, sys, editable, edit) {   // edit (the she
         line.appendChild(sw);
         if (d.icon) line.appendChild(iconNode(d.icon, 'sheet-fx-icon'));
         var nm = typeof fxNameNode === 'function' ? fxNameNode(c, f, r, d, mk) : el('span', 'sheet-fx-name', d.name || 'Effect'); if (d.notes) nm.title = d.notes; line.appendChild(nm);
+        if (d.explain && typeof explainTo === 'function') explainTo(line, d.explain, c);   // 1.6.2 (backlog 218 fold 3)
         var fvN = typeof fxValNode === 'function' ? fxValNode(c, f, r, d, editable) : null; if (fvN) line.appendChild(fvN);   // 1.6.2: its number
         if (d.tone === 'buff' || d.tone === 'debuff') line.appendChild(el('span', 'sheet-fx-tone', d.tone === 'buff' ? 'Buff' : 'Debuff'));
         if (d.dur) line.appendChild(el('span', 'sheet-fx-dur', d.dur));
@@ -4962,6 +5002,7 @@ function fxCard(line, sw, r, d, f, c, labels, editable, sys, mk) {   // sys (T5a
     var head = el('div', 'sheet-fx-head'); head.appendChild(sw);
     if (d.icon) head.appendChild(iconNode(d.icon, 'sheet-fx-icon'));
     head.appendChild(typeof fxNameNode === 'function' ? fxNameNode(c, f, r, d, mk) : el('span', 'sheet-fx-name', d.name || 'Effect'));
+    if (d.explain && typeof explainTo === 'function') explainTo(head, d.explain, c);   // 1.6.2 (backlog 218 fold 3)
     var fvC = typeof fxValNode === 'function' ? fxValNode(c, f, r, d, editable) : null; if (fvC) head.appendChild(fvC);   // 1.6.2: its number
     var meta = el('span', 'sheet-fx-meta');
     if (d.tone === 'buff' || d.tone === 'debuff') meta.appendChild(el('span', 'sheet-fx-tone', d.tone === 'buff' ? 'Buff' : 'Debuff'));
@@ -5177,6 +5218,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
     if (f.tile) box.classList.add('sheet-tile');   // Stage 3: compact stat tile (value big, label small)
     if (f.vis === 'gm') box.classList.add('sheet-gm');
     var lab = el('label', 'sheet-label', f.label); lab.title = f.vis === 'gm' ? 'Only the GM sees this' : ''; box.appendChild(lab);
+    if (f.explain && typeof explainTo === 'function') explainTo(lab, f.explain, c, f.kind === 'formula' && typeof formulaSays === 'function' ? formulaSays(sysArg, f.formula) : '');   // 1.6.2 (backlog 218 fold 3): its (i)
     if (f.roll) { var rb = el('button', 'tool ghost sheet-field-roll', typeof dieFor === 'function' ? undefined : String.fromCharCode(55356, 57266)); if (typeof dieFor === 'function') rb.appendChild(dieFor(f.rollDie, f.roll)); rb.title = 'Roll ' + (f.label || f.key) + ' · shift-click to add a modifier'; rb.disabled = !canRoll(c); var goF = function(e) { sheetRoll(e, c.id, f.roll, f.label || f.key, f.vis === 'gm' ? { gmOnly: true } : undefined, { f: f.id }); }; rb.addEventListener('click', goF); lab.appendChild(rb); var pmF = typeof rollModBtn === 'function' ? rollModBtn(rb, goF, typeof swCount === 'function' ? swCount(c, { f: f.id }) : 0) : null; if (pmF) lab.appendChild(pmF); }   // the field's own roll (1.5.0); a GM-only field's stays the GM's
     var editable = gm || (own && f.vis === 'all' && (f.edit === 'owner' || c.making === 1 || c.unlocked === 1));
     var lk = typeof lockedNow === 'function' && lockedNow(), use = editable && (typeof fieldOpen !== 'function' || fieldOpen(f));   // the sheet's lock: this field's own control in the view being drawn (locked, only what changes in play). Asked through typeof: a harness that slices this function alone draws it unlocked
@@ -5788,6 +5830,7 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
     b.addEventListener('click', goN);
     var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b);
     var pm = typeof rollModBtn === 'function' ? rollModBtn(b, goN, typeof swCount === 'function' ? swCount(c, { r: r.id }) : 0) : null; if (pm) { box.appendChild(pm); box.classList.add('sheet-roll-pair'); }   // 1.5.9: its ±, pressed as the roll is
+    if (r.explain && typeof explainTo === 'function' && explainTo(box, r.explain, c)) box.classList.add('sheet-roll-explained');   // 1.6.2 (backlog 218 fold 3): its (i)
     return box;
 }
 // A roll from this character's sheet: the dice feature on, and for a player their own character
@@ -5822,7 +5865,7 @@ function applyNode(r, c, sys, vars) {
         var goA = function(ans) { if ((r.to === 'near' || r.to === 'target') && typeof allyPick === 'function') { allyPick(b, cN, r.to === 'target', function(on) { applyAction(r, cN, lb, undefined, on || undefined, undefined, ans); }); return; } applyAction(r, cN, lb, undefined, undefined, undefined, ans); };   // 1.5.9 (book es/et plan, section 3): whom it is for first, where someone stands next to it
         if (Array.isArray(r.asks) && r.asks.length) askThen(r, cN, b, null, null, goA); else goA();   // 1.6.2: what it asks first
     });
-    var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b); return box;
+    var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b); if (r.explain && typeof explainTo === 'function' && explainTo(box, r.explain, c)) box.classList.add('sheet-roll-explained'); return box;
 }
 // Stage 6 HUD H7: an apply action pressed — a player asks the host (the new values come back as its delta, the card as its record); the GM
 // works it out here with the saved system (the sheet's own resolver, token and round included), stores it as ONE change (one Revert brings
@@ -6177,9 +6220,10 @@ function linkBar(box, sys, c, camp, locked) {
         var may = !locked && !c.partial && (gm ? canWrite() : (isClient() && own && (k.edit === 'owner' || c.making === 1 || c.unlocked === 1)));
         if (!cur && !may) return;
         var row = el('div', 'sheet-lk'); row.appendChild(el('span', 'sheet-lk-name', k.label));
+        if (k.explain && typeof explainTo === 'function') explainTo(row, k.explain, c);   // 1.6.2 (backlog 218 fold 3)
         if (may) {
             var s = el('select', 'field sheet-select sheet-lk-pick'), list = charList(camp).filter(function(x) { return x.id !== c.id && !x.partial && (gm || x.ownerId === myId()); });
-            s.title = k.kind === 'mount' ? 'The mount this character rides. Its formulas read the mount\u2019s figures as ' + k.key + '.<name>' : 'The vehicle this character crews. Its formulas read the vehicle\u2019s figures as ' + k.key + '.<name>';
+            s.title = k.kind === 'mount' ? 'The mount this character rides. The sheet reads the mount\u2019s figures while it is picked' : 'The vehicle this character crews. The sheet reads the vehicle\u2019s figures while it is picked';   // 1.6.2: in words, never a short name
             s.appendChild(opt('', 'None', !cur));
             if (cur && !list.some(function(x) { return x.id === cur; })) s.appendChild(opt(cur, tName, true));
             list.forEach(function(x) { s.appendChild(opt(x.id, x.name, x.id === cur)); });
@@ -7979,6 +8023,30 @@ function close(force) {
     if (window.wpArrange && window.wpArrange.on()) window.wpArrange.set(false);
     m.style.display = 'none'; draft = null; _starterPacks = null;
 }
+// [systemcheck:explainbox-start] 1.6.2 (backlog 218 fold 3): the System editor's What it means, on a field, a roll, a list's stat and column, an effect,
+// a section and a link: the words behind the sheet's (i), and a handbook page that says more. Edited in place on the object it is handed, with listeners
+// of its own and class names no handler reads; nothing set shows one button, so a row stays short
+function explainBox(obj) {
+    var box = el('div', 'sys-explain'), cap = typeof LIMITS === 'object' && LIMITS && LIMITS.explain ? LIMITS.explain : 600;
+    var draw = function(open) {
+        box.textContent = ''; var ex = obj && obj.explain && typeof obj.explain === 'object' ? obj.explain : null;
+        if (!ex && !open) {
+            var ad = el('button', 'tool ghost sys-btn sys-explain-add', '+ What it means'); ad.type = 'button'; ad.title = 'Words the sheet shows behind a small (i) beside it, and a handbook page that says more';
+            ad.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); draw(true); var t = box.querySelector('textarea'); try { if (t) t.focus(); } catch (er) {} });
+            box.appendChild(ad); return;
+        }
+        box.appendChild(el('span', 'sys-num-cap', 'What it means'));
+        var ta = el('textarea', 'field sys-explain-says'); ta.rows = 2; ta.maxLength = cap; ta.value = ex && typeof ex.says === 'string' ? ex.says : ''; ta.placeholder = 'Shown behind a small (i) beside it on the sheet'; ta.title = 'Plain words: what it is and how it is used. Players read it where they see the thing';
+        var pg = ex && typeof ex.page === 'string' ? ex.page : '', ps = select('sys-explain-page', typeof pageOptions === 'function' ? pageOptions(pg, 'No page') : [['', 'No page']], pg, 'A handbook page the (i) opens to say more. A page players may not read is left off their sheet');
+        var put = function() { var says = ta.value.slice(0, cap), p = ps.value; if (!says.trim() && !p) delete obj.explain; else { obj.explain = {}; if (says.trim()) obj.explain.says = says; if (p) obj.explain.page = p; } if (typeof markDirty === 'function') markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+        ta.addEventListener('input', put); ps.addEventListener('change', put);
+        var pl = el('label', 'sys-combat-item sys-explain-pagerow'); pl.appendChild(el('span', 'sys-num-cap', 'Read more on')); pl.appendChild(ps);
+        box.appendChild(ta); box.appendChild(pl);
+    };
+    ['input', 'change', 'click'].forEach(function(t) { box.addEventListener(t, function(e) { e.stopPropagation(); }); });   // its own: no handler of a tab reads it
+    draw(false); return box;
+}
+// [systemcheck:explainbox-end]
 // [systemcheck:altbox-start]
 // 1.6.0: other names for a list roll, an action or a counter (alt: [{ if, label }]), edited in place on the draft object it is handed: a name and a
 // formula a pair, + Other name and \u00d7, ALT_MAX at most. Its own listeners, and class names no handler of the Lists tab reads (sys-alt-*)
@@ -9455,6 +9523,7 @@ function fieldRow(f) {
         if (f.min === undefined || f.max === undefined) srow.appendChild(el('span', 'sys-note', 'Needs a min and a max to show as a slider; until then it is a plain number box (the labels and colours are kept).'));
         row.appendChild(srow);
     }
+    if (typeof explainBox === 'function') row.appendChild(explainBox(f));   // 1.6.2 (backlog 218 fold 3)
     var err = errorCell(f.id); err.dataset.errFor = f.id; row.appendChild(err);
     return row;
 }
@@ -9691,6 +9760,7 @@ function rollRow(r) {
     if (typeof callsBox === 'function') row.appendChild(callsBox(r, typeof draft !== 'undefined' ? draft : null, isApply));   // 1.6.0: Calls for
     if (!isApply && typeof bandBox === 'function') row.appendChild(bandBox(function() { return r.bands; }, function(l) { if (l) r.bands = l; else delete r.bands; }, true, function() { renderAll(); }));   // 1.6.2: result bands
     row.appendChild(applyEditor(r, isApply ? 'apply' : 'then'));   // R1: a roll's consequences under it
+    if (typeof explainBox === 'function') row.appendChild(explainBox(r));   // 1.6.2 (backlog 218 fold 3)
     var err = errorCell(r.id); err.dataset.errFor = r.id; row.appendChild(err);
     return row;
 }
@@ -9764,6 +9834,7 @@ function effectRow(d) {
     row.appendChild(top); row.appendChild(mods); if (typeof swBox === 'function') row.appendChild(swBox(d)); row.appendChild(flags);
     var auR = el('div', 'sys-flags sys-fx-autorow'), auI = input('sys-fx-auto field', typeof d.auto === 'string' ? d.auto : '', 'A formula: while it is true, or a number other than 0, the effect is on by itself for every character, as HP <= 0 turns on Unconscious. It reads the character\u2019s own values with the effects applied by hand (never another automatic effect, and a token\u2019s names read 0). Only a visible effect reading only what players can read applies itself', 'Applies itself when\u2026 (e.g. HP <= 0)'); auI.maxLength = LIMITS.formula; auR.appendChild(auI); row.appendChild(auR);   // conditions C4
     row.appendChild(fxEndBox(d));   // 1.6.2 (the CORE session): what happens when it ends
+    if (typeof explainBox === 'function') row.appendChild(explainBox(d));   // 1.6.2 (backlog 218 fold 3)
     var auE = errorCell(d.id); auE.dataset.errFor = d.id; row.appendChild(auE);
     return row;
 }
@@ -10382,6 +10453,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         if (s.kind === 'pick' || (Array.isArray(s.labels) && s.labels.length)) sr.appendChild(checkLabel('sys-list-statown', s.own === true, 'Player sets this', 'Its owner may set this on their own row, and nothing else of the row. Never on a GM-only or Hidden stat'));
         sr.appendChild(checkLabel('sys-list-stathide', s.hide === true, 'Hidden', 'A figure the row only works with, such as a cost per level. It is never shown on a row or in its details. Formulas still read it, and the row\u2019s pencil still shows it. It is no secret: use a GM-only list for that'));
         [['statup', '▲', 'Move up'], ['statdown', '▼', 'Move down'], ['statdel', '×', 'Remove this stat (Save drops its values)']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; sr.appendChild(bb); });
+        if (typeof explainBox === 'function') sr.appendChild(explainBox(s));   // 1.6.2 (backlog 218 fold 3)
         sb.appendChild(sr);
     });
     var sadd = el('button', 'tool ghost sys-btn sys-list-statadd', '+ Stat'); sadd.dataset.act = 'statadd'; sadd.disabled = sts.length >= LIMITS.listStats; sadd.title = sadd.disabled ? 'At most ' + LIMITS.listStats + ' stats a list' : 'A number each item of this list carries (Acc, Wt, Cost), set on the item in Items'; sb.appendChild(sadd);
@@ -10406,6 +10478,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         cr.appendChild(input('sys-list-colshow field', typeof cc.showIf === 'string' ? cc.showIf : '', 'On which rows it shows. Formulas read it on every row', 'Every row'));
         if (typeof toneRow === 'function') { var ctR = toneRow(cc); if (ctR) cr.appendChild(ctR); }   // 1.6.0 R5
         [['colup', '\u25b2', 'Move up'], ['coldown', '\u25bc', 'Move down'], ['coldel', '\u00d7', 'Remove this column']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; cr.appendChild(bb); });
+        if (typeof explainBox === 'function') cr.appendChild(explainBox(cc));   // 1.6.2 (backlog 218 fold 3)
         cb2.appendChild(cr);
     });
     var cadd = el('button', 'tool ghost sys-btn sys-list-coladd', '+ Column'); cadd.dataset.act = 'coladd'; cadd.disabled = cls.length >= LIMITS.listCols; cadd.title = cadd.disabled ? 'At most ' + LIMITS.listCols + ' columns a list' : 'A formula worked out for each row (a skill\u2019s cost from its level, a weapon\u2019s to-hit)'; cb2.appendChild(cadd);
@@ -11853,6 +11926,7 @@ function renderLinks() {
             var fa = el('button', 'tool ghost sys-btn', '+ Figure'); fa.dataset.act = 'lkfadd'; fa.disabled = figsW.length >= 4; fa.title = fa.disabled ? 'At most 4 figures a link' : 'A figure each sheet of the ' + (k.kind === 'mount' ? 'riders' : 'crew') + ' works out, so that the best, the least or the total of it can be read'; rw.appendChild(fa);
         }
         [['up', '\u25B2', 'Move up'], ['down', '\u25BC', 'Move down'], ['del', '\u00D7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'lk' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        if (typeof explainBox === 'function') rw.appendChild(explainBox(k));   // 1.6.2 (backlog 218 fold 3)
         wrap.appendChild(rw);
     });
     var ad = el('button', 'tool ghost sys-btn sys-bud-add', '+ Link'); ad.dataset.act = 'lkadd'; ad.disabled = arr.length >= LIMITS.links; ad.title = ad.disabled ? 'At most ' + LIMITS.links : 'A link to another sheet: a mount, or a vehicle and its crew'; wrap.appendChild(ad);

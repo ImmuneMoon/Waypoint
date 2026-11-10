@@ -894,6 +894,9 @@ System editor
 - The Characters list can keep your beasts apart. A system names categories
   such as Beasts, a sheet lands in one by itself, and File under... on its
   right-click menu moves it.
+- A sheet can say what a thing means. A small round i beside a field, a
+  roll, a list's stat, an effect, a section or a link opens a line of your
+  words, and Read more opens its handbook page.
 
 Fitted parts
 - Holds by kind may read a formula in place of a stat, such as the most any

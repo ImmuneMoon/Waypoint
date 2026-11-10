@@ -705,6 +705,72 @@ function pickIsRest(sys, k) { if (k === 'rest') return true; var r = restByPick(
 function restPickSet(sys, k) { restPick = k === 'rest' || restByPick(sys, k) ? k : 'active'; restMode = pickIsRest(sys, restPick); }
 function restLenWords(cal, sys, r) { var s = r && r.len ? everySecs(cal, sysUnits(sys), r.len) : 0; return s > 0 ? fmtSpan(cal, s) : ''; }
 // [calendarcheck:restpick-end]
+// [calendarcheck:restcall-start]
+// 1.6.2 (backlog 138 (j), docs/REST_DESIGN.md fold R2; the owner, 2026-10-16, by prompt: "At the start (Recommended)"): a rest you call. Its call box
+// (restCall, this screen's alone) says how long it lasts and who rests; Start the rest moves the clock its length in one save, counting it as rest for those
+// who rest and as activity for those awake (moveTo's how.who), and keeps the rest on the clock (camp.clock.rest), which then waits until you end it
+// (liveHeld 'rest'). A step while it is on adds to it; a step back and Set the clock wait. The table is told at the start and at the end
+var restCall = null, restTold = Object.create(null);
+function restNow(camp) { var ck = clockOf(camp); return ck && ck.rest && typeof ck.rest.name === 'string' ? ck.rest : null; }
+function restWait(camp) {   // why Call a rest waits, in words, or '' where a rest may be called
+    if (restNow(camp)) return 'A rest is on: end it first';
+    if (ordersRun()) return 'End the fight to call a rest';
+    var n = net(); if (n && n.active && n.role === 'host' && n.paused) return 'Resume the table first';
+    if (pend) return 'Answer the time rules that wait first';
+    return '';
+}
+function restWho(camp) { var o = {}; charIdsOf(camp).forEach(function(id) { o[id] = isPc(camp.chars[id]) ? 'rest' : 'none'; }); return o; }
+function restOpen(rid) { var camp = getActiveCampaign(), r = restByPick(sysNow(), rid); if (!camp || isPlayer() || !r || restWait(camp)) return false; restCall = { rid: r.id, n: r.len.n, u: r.len.u, who: restWho(camp) }; return true; }
+function restStart() {
+    var camp = getActiveCampaign(), sys = sysNow(), cal = sysCal(), rc = restCall, r = rc ? restByPick(sys, rc.rid) : null; if (!camp || isPlayer() || !r) return false;
+    var why = restWait(camp); if (why) { toast(why + '.'); return false; }
+    var len = everySecs(cal, sysUnits(sys), { n: rc.n, u: rc.u }); if (!(len > 0)) { toast('Set how long the rest lasts.'); return false; }
+    var t0 = tOf(camp), who = {}; Object.keys(rc.who).forEach(function(k) { if (rc.who[k] === 'rest' || rc.who[k] === 'awake') who[k] = rc.who[k]; });
+    restCall = null; restTold[camp.id] = true;
+    if (!moveTo(t0 + len, 'Rest called \u2014 ' + r.name, false, false, { who: who, restOn: { rid: r.id, name: r.name, from: t0, to: t0 + len, who: who } })) return false;
+    var nn = net(); if (nn && typeof nn.restLine === 'function') nn.restLine('The party rests: ' + r.name + '.');
+    return true;
+}
+function restEnd() {
+    var camp = getActiveCampaign(), ck = clockOf(camp), on = restNow(camp); if (!camp || isPlayer() || !on) return false;
+    var nc = Object.assign({}, ck); delete nc.rest; camp.clock = cleanClock(nc) || { t: ck.t };
+    var nn = net(); if (nn && nn.logEvent) nn.logEvent('time', 'Rest ended \u2014 ' + on.name + ' \u2014 now ' + fmtWhen(sysCal(), ck.t));
+    save(); if (nn && typeof nn.restLine === 'function') nn.restLine('The rest is over.'); refresh(); return true;
+}
+function restNames(camp, who, kind) { var out = []; Object.keys(who || {}).forEach(function(k) { if (who[k] === kind && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, k)) { var ch = camp.chars[k]; out.push(ch && typeof ch.name === 'string' && ch.name ? ch.name : 'A character'); } }); return out; }
+function restUnitOpts(sys) { var us = [['min', 'minutes'], ['hour', 'hours'], ['day', 'days'], ['week', 'weeks']]; sysUnits(sys).forEach(function(u) { if (u && typeof u.key === 'string' && u.key && u.key.toLowerCase() !== 'round') us.push([u.key, typeof u.label === 'string' && u.label.trim() ? u.label.trim() : u.key]); }); return us; }
+function restPanel(body, cal, camp, sys) {
+    var on = restNow(camp), rs = restsOf(sys);
+    if (on) {
+        var box = cel('div', 'cal-rest cal-rest-on'), hd = cel('div', 'cal-rest-head'); hd.appendChild(cel('span', 'wib wi-bed')); hd.appendChild(document.createTextNode('Resting: ' + on.name)); box.appendChild(hd);
+        if (typeof on.from === 'number' && typeof on.to === 'number') box.appendChild(cel('div', 'sys-note', 'Called at ' + fmtWhen(cal, on.from) + '. The clock stands at ' + fmtWhen(cal, on.to) + ' and waits until you end the rest.'));
+        var rN = restNames(camp, on.who, 'rest'), aN = restNames(camp, on.who, 'awake');
+        if (rN.length) box.appendChild(cel('div', 'sys-note', 'Resting: ' + rN.join(', ') + '.')); if (aN.length) box.appendChild(cel('div', 'sys-note', 'Awake: ' + aN.join(', ') + '.'));
+        var bar = cel('div', 'cal-rest-bar'); bar.appendChild(cbtn('cal-rest-end', 'End the rest', 'The rest is over: the clock runs again from where it stands, and the table is told', 'restend')); box.appendChild(bar);
+        body.appendChild(box); return;
+    }
+    if (!rs.length) return;
+    if (restCall && !restByPick(sys, restCall.rid)) restCall = null;
+    if (restCall) {
+        var r = restByPick(sys, restCall.rid), cb = cel('div', 'cal-rest cal-rest-callbox'), len = everySecs(cal, sysUnits(sys), { n: restCall.n, u: restCall.u }), t0 = tOf(camp);
+        var ch = cel('div', 'cal-rest-head'); ch.appendChild(cel('span', 'wib wi-bed')); ch.appendChild(document.createTextNode('Call ' + r.name)); cb.appendChild(ch);
+        cb.appendChild(cel('div', 'sys-note cal-rest-span', len > 0 ? 'From ' + fmtWhen(cal, t0) + ' to ' + fmtWhen(cal, t0 + len) + '.' : 'Set how long it lasts.'));
+        var lr = cel('div', 'cal-rest-len'); lr.appendChild(cel('span', 'sys-num-cap', 'Lasts'));
+        var ni = cel('input', 'field cal-restcall-n'); ni.type = 'number'; ni.min = '1'; ni.max = '1000'; ni.step = '1'; ni.value = String(restCall.n); ni.title = 'How long this rest lasts, for this call only'; lr.appendChild(ni);
+        var us = cel('select', 'field cal-restcall-u'); us.title = 'Its unit'; restUnitOpts(sys).forEach(function(o) { var op = cel('option', '', o[1]); op.value = o[0]; us.appendChild(op); }); us.value = restCall.u; lr.appendChild(us); cb.appendChild(lr);
+        cb.appendChild(cel('div', 'sys-num-cap cal-rest-whocap', 'Who rests'));
+        var row = function(into, id) { var c = camp.chars[id], w = cel('label', 'cal-rest-who'); w.appendChild(cel('span', 'cal-rest-whoname', c && typeof c.name === 'string' && c.name ? c.name : 'A character')); var sl = cel('select', 'field cal-restcall-who'); sl.dataset.char = id; sl.title = 'Rests: its time counts as rest. Awake: it counts as activity. Not counted: nothing runs for it'; [['rest', 'Rests'], ['awake', 'Awake'], ['none', 'Not counted']].forEach(function(o) { var op = cel('option', '', o[1]); op.value = o[0]; sl.appendChild(op); }); sl.value = restCall.who[id] || 'none'; w.appendChild(sl); into.appendChild(w); };
+        var ids = charIdsOf(camp), pcs = ids.filter(function(id) { return isPc(camp.chars[id]); }), npcs = ids.filter(function(id) { return !isPc(camp.chars[id]); });
+        pcs.forEach(function(id) { row(cb, id); }); if (!pcs.length) cb.appendChild(cel('div', 'sys-note', 'No player has a character here yet.'));
+        if (npcs.length) { var nd = cel('details', 'cal-rest-npcs'); nd.appendChild(cel('summary', '', 'NPCs (' + npcs.length + ')')); npcs.forEach(function(id) { row(nd, id); }); cb.appendChild(nd); }
+        var bb = cel('div', 'cal-rest-bar'); bb.appendChild(cbtn('cal-rest-start', 'Start the rest', 'The clock jumps the rest\u2019s length, the time rules count it for who rests, and the clock waits until you end the rest', 'reststart')); bb.appendChild(cbtn('cal-rest-cancel', 'Cancel', 'Call no rest', 'restcancel')); cb.appendChild(bb);
+        body.appendChild(cb); return;
+    }
+    var why = restWait(camp), rr = cel('div', 'cal-rest cal-rest-row'); rr.appendChild(cel('span', 'sys-num-cap', 'Call a rest'));
+    rs.forEach(function(r) { var lw = restLenWords(cal, sys, r), b = cbtn('cal-rest-call', r.name + (lw ? ' \u00b7 ' + lw : ''), why ? why : 'Call ' + r.name + ': the clock jumps ' + (lw || 'its length') + ', then waits until you end the rest', 'restcall'); b.dataset.rid = r.id; b.disabled = !!why; rr.appendChild(b); });
+    body.appendChild(rr); body.appendChild(cel('div', 'sys-note cal-rest-note', why ? why + '.' : 'The clock jumps the rest\u2019s length, then waits until you end the rest.'));
+}
+// [calendarcheck:restcall-end]
 function renderWin() {
     var body = document.getElementById('calendarBody'), camp = getActiveCampaign(); if (!body) return;
     if (!shown(camp)) { closeWin(); return; }
@@ -718,6 +784,7 @@ function renderWin() {
     otherCals(body, cal, ck, t, gm);   // 1.6.2 (backlog 60): the same day in each other calendar
     var sky = skyWords(cal, t); if (sky) body.appendChild(cel('div', 'cal-sky', sky));   // 1.6.2 (backlog 147): the season and each moon's phase
     if (gm && pend) pendPanel(body, cal);   // K5: what the time rules have due, first
+    if (gm && typeof restPanel === 'function') restPanel(body, cal, camp, sys); else if (!gm && typeof restNow === 'function' && restNow(camp)) body.appendChild(cel('div', 'cal-rest cal-rest-pl', 'The party is resting: ' + restNow(camp).name + '. The GM ends the rest.'));   // backlog 138 (j) fold R2
     if (gm) liveRow(body, camp, ck);   // 1.5.4: the clock runs by itself, or is held
     var notes = notesOf(ck), g = gridOf(cal, view, t, pick, function(d0, len) { return noteDays(notes, cal, d0, d0 + len - 1); }), nav = cel('div', 'cal-nav');
     var tabs = cel('div', 'cal-tabs'); tabs.role = 'tablist';   // 1.6.2 (backlog 147): Month and Timeline
@@ -755,14 +822,15 @@ function renderWin() {
     if (pick !== null) dayNotes(body, cal, notes, pick, true);
     erasBox(body, cal, ck.eras);   // 1.6.2 (backlog 166 b)
     var kd = cel('div', 'cal-kind'); kd.appendChild(cel('span', 'sys-num-cap', 'Time passes as'));
-    var rsW = restsOf(sys), defK = restDefault(sys), rN = restByPick(sys, restPick);   // backlog 138 (j) fold R1: a system with rests has one list, opening on its default
-    if (rsW.length) {
+    var rsW = restsOf(sys), defK = restDefault(sys), rN = restByPick(sys, restPick), onW = typeof restNow === 'function' ? restNow(camp) : null;   // backlog 138 (j) fold R1: a system with rests has one list, opening on its default
+    if (onW) { rN = null; kd.appendChild(cel('span', 'sys-note cal-kind-note', 'Steps add to ' + onW.name + ' while the rest is on: rest time for those resting, activity for those awake.')); }   // fold R2: fixed while a rest is on
+    else if (rsW.length) {
         var ks = cel('select', 'field cal-kind-sel'); ks.title = 'What the time you move on counts as. It opens on your default each time the window opens';
         [['active', 'Active: no rest'], ['rest', 'Rest: rest time only']].concat(rsW.map(function(r) { var lw = restLenWords(cal, sys, r); return [r.id, r.name + (lw ? ', ' + lw : '')]; })).forEach(function(o) { var op = cel('option', '', o[1] + (o[0] === defK ? ' (your default)' : '')); op.value = o[0]; ks.appendChild(op); });
         ks.value = restPick; kd.appendChild(ks);
     } else [['active', 'Active', 'Activity: the time rules that run any time'], ['rest', 'Rest', 'Rest: every time rule, and a rule during rest only counts it']].forEach(function(k) { var b = cbtn('cal-kind-btn' + ((k[0] === 'rest') === restMode ? ' cal-kind-on' : ''), k[1], k[2] + (k[0] === defK ? '. Your default' : ''), 'calkind'); b.dataset.kind = k[0]; kd.appendChild(b); });
     if (rN) kd.appendChild(cel('span', 'sys-note cal-kind-note', rN.time === false ? 'Steps count as ' + rN.name + ', which counts as activity.' : 'Steps count as ' + rN.name + ': rest time for the time rules.'));
-    else if (restMode) kd.appendChild(cel('span', 'sys-note cal-kind-note', 'Rules for rest count while you step this way.'));   // 159: the steps say it (the owner by prompt: "The steps say it (Recommended)")
+    else if (restMode && !onW) kd.appendChild(cel('span', 'sys-note cal-kind-note', 'Rules for rest count while you step this way.'));   // 159: the steps say it (the owner by prompt: "The steps say it (Recommended)")
     body.appendChild(kd);
     var st = cel('div', 'cal-steps'), ofR = restMode ? ' of rest' : ''; st.appendChild(cel('span', 'sys-num-cap', 'Move time on'));
     stepsOf(cal).forEach(function(s) { var b = cbtn('cal-step', s.label + ofR, 'Move the clock on ' + fmtSpan(cal, s.secs) + ofR, 'calstep'); b.dataset.secs = String(s.secs); st.appendChild(b); });
@@ -794,6 +862,7 @@ function liveHold(ck) { return !!ck && (ck.hold === true || (ck.hold !== false &
 function liveHeld(camp) {   // '' while the clock runs by itself, else why it does not: off, hold, solo, paused, fight
     var n = net(), ck = clockOf(camp);
     if (!camp || isPlayer() || !clockOn()) return 'off';   // clockOn: the Calendar is on, and this is not the stream window
+    if (typeof restNow === 'function' && restNow(camp)) return 'rest';   // backlog 138 (j) fold R2: it waits while the party rests
     if (liveHold(ck)) return 'hold';
     if (!(n && n.active && n.role === 'host')) return 'solo';
     if (n.paused) return 'paused';
@@ -803,6 +872,7 @@ function liveHeld(camp) {   // '' while the clock runs by itself, else why it do
 function liveWords(why, rate) {
     if (why === '') return rate === 1 ? 'Running in real time while your table is open.' : 'Running at \u00d7' + rate + ' while your table is open: ' + rate + ' seconds of the game to each second at the table.';
     if (why === 'hold') return 'Held: the clock moves only by your steps and by a fight\u2019s rounds.';
+    if (why === 'rest') return 'Waiting: the party is resting. It runs again when you end the rest.';
     if (why === 'solo') return 'It runs by itself while you host a session: no table is open now.';
     if (why === 'paused') return 'Waiting: the table is paused.';
     if (why === 'fight') return 'Waiting: a fight is on. The clock follows the fight furthest behind.';
@@ -879,14 +949,21 @@ function moveTo(t1, why, live, own, how) {   // live (1.5.4): the clock ran by i
     var camp = getActiveCampaign(); if (!camp || isPlayer() || typeof t1 !== 'number' || !isFinite(t1)) return false;
     var ck = clockOf(camp) || { t: 0 }, cal = sysCal(); t1 = Math.max(0, Math.min(CAL_LIMITS.time, Math.floor(t1)));
     if (t1 === ck.t) return false;
-    var hits = notesReached(notesOf(ck), ck.t, t1, dayLength(cal), cal), gone = t1 - ck.t, g = null;   // K3: the dated notes this move reaches, told to the GM
-    if (gone > 0 && own !== true) { g = { kind: 'clock', ids: charIdsOf(camp), t0: ck.t, t1: t1, secs: gone, rest: !!(how && how.rest === true), ask: !!(how && how.ask === true), live: live === true }; g.spans = spansOf(camp, g); ck = clockOf(camp) || ck; }   // 152: each character's own time
+    if (ck.rest && t1 < ck.t) { toast('End the rest first.'); return false; }   // backlog 138 (j) fold R2: no step back while a rest is on
+    var hits = notesReached(notesOf(ck), ck.t, t1, dayLength(cal), cal), gone = t1 - ck.t, gs = [];   // K3: the dated notes this move reaches, told to the GM
+    if (gone > 0 && own !== true) {   // 152: each character's own time; backlog 138 (j) fold R2: a rest's who rests counts as rest, who is awake as activity, and nobody else
+        var whoM = how && how.who && typeof how.who === 'object' ? how.who : ck.rest && ck.rest.who ? ck.rest.who : null, mk = function(ids, rest) { return { kind: 'clock', ids: ids, t0: ck.t, t1: t1, secs: gone, rest: rest, ask: !!(how && how.ask === true), live: live === true }; };
+        if (whoM) [['rest', true], ['awake', false]].forEach(function(p) { var ids = charIdsOf(camp).filter(function(id) { return whoM[id] === p[0]; }); if (ids.length) gs.push(mk(ids, p[1])); });
+        else gs.push(mk(charIdsOf(camp), !!(how && how.rest === true)));
+        gs.forEach(function(g) { g.spans = spansOf(camp, g); ck = clockOf(camp) || ck; });
+    }
     var nc = Object.assign({}, ck, { t: t1 }); if (gone < 0) nc.top = ck.top || { s: ck.t, ms: 0 };   // 152: a step back keeps the highest second reached
+    if (how && how.restOn) nc.rest = how.restOn; else if (nc.rest && gone > 0) nc.rest = Object.assign({}, nc.rest, { to: t1 });   // fold R2: the rest called, or a step that adds to it
     camp.clock = cleanClock(nc) || { t: t1 };
     if (why && net() && net().logEvent) net().logEvent('time', why + ' \u2014 now ' + fmtWhen(cal, t1));
     hits.forEach(function(n) { if (net() && net().logEvent) net().logEvent('time', 'Note reached \u2014 ' + fmtDate(cal, n.day * dayLength(cal)) + ': ' + n.text); });
     if (hits.length) toast(hits.length === 1 ? 'Today: ' + hits[0].text : hits.length + ' dated notes reached: ' + hits.slice(0, 3).map(function(n) { return n.text; }).join('; ') + (hits.length > 3 ? '; \u2026' : ''));
-    if (g) { try { ownTime([g]); } catch (e) { console.error(e); } }
+    if (gs.length) { try { ownTime(gs); } catch (e) { console.error(e); } }
     if (gone > 0 && own !== true && typeof window !== 'undefined' && typeof window.wpCloudTime === 'function') { try { window.wpCloudTime(gone); } catch (e) { console.error(e); } }   // 1.6.2: a cloud counts game time where no fight runs   // K4, K5: each character's span of it, once, to its timed effects and its time rules; a rule that fails never keeps the move from being saved and told
     if (live === true) { if (net() && net().syncClock) net().syncClock(); saveView(); } else save();
     refresh(live === true); return true;
@@ -941,6 +1018,11 @@ function onWinClick(e) {
     var body = document.getElementById('calendarBody'), q = function(c) { return body ? body.querySelector('.' + c) : null; };
     if (act === 'calkind') { if (b.dataset.kind === 'rest' && ordersRun()) { restPickSet(sysNow(), 'active'); toast('A fight is running: time passes as Active until it ends.'); renderWin(); return; } restPickSet(sysNow(), b.dataset.kind === 'rest' ? 'rest' : 'active'); renderWin(); return; }   // K5; 1.5.7: no Rest while a fight runs
     if (act === 'callive') { setHold(b.dataset.live === 'hold'); return; }   // 1.5.4: Runs / Held
+    if (act === 'restcall') { if (restOpen(String(b.dataset.rid || ''))) renderWin(); else { var rwW = restWait(camp); if (rwW) toast(rwW + '.'); } return; }   // backlog 138 (j) fold R2
+    if (act === 'reststart') { restStart(); renderWin(); return; }
+    if (act === 'restcancel') { restCall = null; renderWin(); return; }
+    if (act === 'restend') { restEnd(); renderWin(); return; }
+    if (act === 'calset' && restNow(camp)) { toast('End the rest first.'); return; }
     if (act === 'calpendapply') { pendDone(true); return; }
     if (act === 'calpendskip') { pendDone(false); return; }
     if ((act === 'calstep' || act === 'calany' || (act === 'calset' && pick !== null)) && ordersRun() && fightMode() === 'sync') { toast(fightHolds(camp)); return; }   // 1.6.2: only where a fight moves the clock   // 152: while a fight runs the clock follows it; nothing is greyed (159), a press says why
@@ -964,6 +1046,9 @@ function onWinChange(e) {
     var tg = e.target; if (!tg || !tg.classList) return;
     if (tg.classList.contains('cal-hide')) setHidden(tg.checked !== true);
     else if (tg.classList.contains('cal-live-rate')) { if (!isPlayer()) setRate(Number(tg.value)); }
+    else if (restCall && tg.classList.contains('cal-restcall-n')) { var rnN = Number(tg.value); if (Math.floor(rnN) === rnN && rnN >= 1 && rnN <= 1000) restCall.n = rnN; renderWin(); }   // backlog 138 (j) fold R2: the call box
+    else if (restCall && tg.classList.contains('cal-restcall-u')) { restCall.u = String(tg.value); renderWin(); }
+    else if (restCall && tg.classList.contains('cal-restcall-who') && tg.dataset && typeof tg.dataset.char === 'string' && Object.prototype.hasOwnProperty.call(restCall.who, tg.dataset.char)) restCall.who[tg.dataset.char] = tg.value === 'rest' || tg.value === 'awake' ? tg.value : 'none';
     else if (tg.classList.contains('cal-kind-sel')) { if (!isPlayer()) { var sysK = sysNow(), kv = String(tg.value || 'active'); if (kv !== 'active' && pickIsRest(sysK, kv) && ordersRun()) { restPickSet(sysK, 'active'); toast('A fight is running: time passes as Active until it ends.'); } else restPickSet(sysK, kv); renderWin(); } }   // backlog 138 (j) fold R1
     else if (tg.classList.contains('cal-show-sel')) { if (!isPlayer()) setShowCal(Number(tg.value)); }   // 1.6.2 (backlog 60)   // 1.5.4: the running clock's speed
     else if (tg.classList.contains('cal-note-vis') && tg.dataset) noteVis(tg.dataset.note, tg.checked === true);   // K3
@@ -1015,6 +1100,9 @@ function refresh(live) {   // live (1.5.4): the clock ran by itself, or a host's
     var off = !isPlayer() && !!ck.hide; chip.classList.toggle('clock-private', off);
     var why = isPlayer() ? 'off' : liveHeld(camp), run = chip.querySelector('.clock-run'), mark = why === '' ? '\u25b6' : why === 'hold' || why === 'paused' || why === 'fight' ? '\u275A\u275A' : '';   // 1.5.4: the GM sees whether the clock is running
     if (run && run.textContent !== mark) run.textContent = mark;
+    var resting = typeof restNow === 'function' && !!restNow(camp); chip.classList.toggle('clock-resting', resting); if (run) { run.classList.toggle('wib', resting); run.classList.toggle('wi-bed', resting); }   // backlog 138 (j) fold R2: the bed, for the GM and a player
+    if (resting && !isPlayer() && !restTold[camp.id]) { restTold[camp.id] = true; toast('A rest is still on: ' + restNow(camp).name + '. The clock waits until you end it.'); }
+    if (window.wpPills && typeof window.wpPills.sync === 'function') { try { window.wpPills.sync(); } catch (e) {} }
     pendFor(camp);
     chip.classList.toggle('clock-due', !isPlayer() && !!pend);   // time rules wait for the GM's word
     var tip = isPlayer() ? 'The date and time at this table \u2014 click for the calendar' : 'The campaign\u2019s date and time' + (off ? ' (players do not see it)' : '') + (why === '' ? ', running' : why === 'hold' ? ', held' : why === 'paused' || why === 'fight' ? ', waiting' : '') + (pend ? ' \u2014 time rules are due' : '') + ' \u2014 click for the calendar';
@@ -1068,5 +1156,5 @@ function dateNow() {
 function dateNamesOf(camp, t) { var CCx = window.wpCalendarCore; return CCx && CCx.dateNames ? CCx.dateNames(camp.system && camp.system.calendar ? camp.system.calendar : null, t) : null; }
 setDateSource(dateNow);
 function words() { var camp = getActiveCampaign(), ck = clockOf(camp); if (!ck || (window.wpVtt && !window.wpVtt.on('calendar'))) return ''; return fmtWhen(sysCal(), ck.t); }   // 1.6.0: the game's time in words, for the game record
-window.wpCalendar = { sessionBegan: sessionBegan, timeData: timeData, openDay: openDay, words: words, refresh: refresh, ownTime: ownTime, second: second, fightBegan: fightBegan, open: openWin, close: closeWin, moveTo: moveTo, rulesRun: rulesRun, setRulesRun: setRulesRun };
+window.wpCalendar = { restName: function() { var r = restNow(getActiveCampaign()); return r ? r.name : ''; }, sessionBegan: sessionBegan, timeData: timeData, openDay: openDay, words: words, refresh: refresh, ownTime: ownTime, second: second, fightBegan: fightBegan, open: openWin, close: closeWin, moveTo: moveTo, rulesRun: rulesRun, setRulesRun: setRulesRun };
 export { refresh, ownTime, second, fightBegan, openWin, closeWin, moveTo, rulesRun, setRulesRun };

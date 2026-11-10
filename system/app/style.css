@@ -277,6 +277,7 @@
   .wi-scope { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12.5l13-6 1.8 4-13 6zM9.5 15L7 21M10.5 14.5l3 6.5M17 6.5l3-1.4 1.8 4-3 1.4'/%3E%3C/svg%3E"); }
   .wi-sun { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2.5V5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3L7 7M17 17l1.7 1.7M18.7 5.3L17 7M7 17l-1.7 1.7'/%3E%3C/svg%3E"); }
   .wi-moon { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z'/%3E%3C/svg%3E"); }
+  .wi-bed { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 5.5v13M3 15h18M21 18.5V13a2.5 2.5 0 0 0-2.5-2.5H11V15M7.5 12.6a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z'/%3E%3C/svg%3E"); }   /* backlog 138 (j) fold R2: a rest, the drawing the owner picked on 2026-10-16 ("A bed") */
   .wi-fight { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7.5 9.5h13v6c0 3-2.4 5-6.5 6.5-4.1-1.5-6.5-3.5-6.5-6.5zM21.5 2.5l-7 7M7.6 16.4l-2.1 2.1M2.8 15.8l5.4 5.4M5.5 18.5l-3 3'/%3E%3C/svg%3E"); }
   .wi-note { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12.5 20.5H4v-17h11.5L20 8v2.5M15.5 3.5V8H20M8 8.5h4M8 12.5h5.5M20 12l2 2-7.5 7.5-2.8.8.8-2.8z'/%3E%3C/svg%3E"); }
   .wi-palette { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3.5a8.5 8.5 0 1 0 0 17c1.4 0 2-1 2-2s-.8-1.6-.8-2.6c0-1.1.9-2 2-2H18c1.9 0 3-1.4 3-3 0-4-4-7.4-9-7.4zM7.5 11.5h.01M9.5 7.5h.01M14.5 7.5h.01'/%3E%3C/svg%3E"); }
@@ -3106,6 +3107,17 @@
   .sys-rest-preview { color: #5fc4b8; }
   .sys-rest-add { align-self: flex-start; }
   .cal-kind-sel { max-width: 260px; }
+  .cal-rest { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
+  .cal-rest-on, .cal-rest-callbox { flex-direction: column; align-items: stretch; padding: 8px 10px; border: 1px solid #5fc4b8; border-radius: 8px; background: rgba(95,196,184,.08); }
+  .cal-rest-head { display: flex; align-items: center; gap: 6px; font-weight: 600; color: #5fc4b8; }
+  .cal-rest-bar, .cal-rest-len { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .cal-rest .field { width: auto; margin: 0; }
+  .cal-rest .cal-restcall-n { width: 64px; }
+  .cal-rest-who select.field { flex: 0 0 140px; }
+  .cal-rest-who { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .cal-rest-whoname { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cal-rest-pl { color: #5fc4b8; }
+  .cal-rest-call:disabled { opacity: .55; }
   /* backlog 219 (the owner, 2026-11-10, by prompt, from docs/sheets/fight-in-bar-sheet.html: "A. A segment of the row"): trackers.js puts the strip in the trackers bar's own row,
      where the bar's rules give it its line and its height. It keeps the round, the arrows and whose turn it is; the rest is the menu under its last button (whiteboard.js stripMenu) */
   #trkStrip #combatStrip { position: static; top: auto; left: auto; transform: none; width: auto; max-width: none; flex-wrap: nowrap; gap: 8px; padding: 0 10px; font-size: 12.5px; }

@@ -267,7 +267,18 @@ function cleanClock(v) {
     var lv = cleanLived(v.lived, o.top || o.t); if (lv) o.lived = lv;   // 152: each character's own time past the clock's
     var off = cleanRulesOff(v.rulesOff); if (off) o.rulesOff = off;   // 152: the NPCs whose time rules the GM switched off
     var sc = whole(v.cal, 1, LIMITS.others); if (sc !== null) o.cal = sc;
+    var rsO = cleanRestOn(v.rest); if (rsO) o.rest = rsO;   // 1.6.2 (backlog 138 (j) fold R2): the rest that is on
     var pl = cleanPlayed(v.played); if (pl) o.played = pl;   // 1.6.2 (backlog 166 h): the sessions played, for the timeline   // 1.6.2 (backlog 60): the other calendar the top row shows (absent: the main one)
+    return o;
+}
+// 1.6.2 (backlog 138 (j), docs/REST_DESIGN.md fold R2): the rest that is on, { rid?, name, from?, to?, who? }: its name always (what a player is sent),
+// and on the GM's machine the rest's id, where the clock stood when it was called and where it stands now, and who rests or is awake by character id
+// (one not named is not counted). null where there is none
+function cleanRestOn(v) {
+    if (!isObj(v)) return null; var name = cutName(v.name, 60); if (!name) return null;
+    var o = { name: name }; if (typeof v.rid === 'string' && /^rs_[a-z0-9]{1,24}$/.test(v.rid)) o.rid = v.rid;
+    var f = whole(v.from, 0, LIMITS.time); if (f !== null) o.from = f; var t = whole(v.to, 0, LIMITS.time); if (t !== null && (f === null || t >= f)) o.to = t;
+    if (isObj(v.who)) { var w = Object.create(null), n = 0; Object.keys(v.who).forEach(function(k) { if (n >= 500 || !/^[A-Za-z0-9_-]{1,64}$/.test(k)) return; if (v.who[k] === 'rest' || v.who[k] === 'awake') { w[k] = v.who[k]; n++; } }); o.who = Object.assign({}, w); }
     return o;
 }
 // 1.6.2 (backlog 166 h; the owner, 2026-11-10, by prompt: "Also the sessions played"): each session played, { t: where the clock stood as it
@@ -526,6 +537,6 @@ function preset(id) {
 
 // Names another module can import beside its own LIMITS and helpers (sheets.js)
 var CAL_LIMITS = LIMITS, calPreset = preset;
-var API = { cleanPlayed: cleanPlayed, cleanEras: cleanEras, eraOf: eraOf, noteNext: noteNext, noteOn: noteOn, viewCal: viewCal, calNamesOf: calNamesOf, fmtIn: fmtIn, fmtDateIn: fmtDateIn, PHASES: PHASES, MOON_KEYS: MOON_KEYS, moonPhases: moonPhases, seasonOf: seasonOf, VERSION: VERSION, LIMITS: LIMITS, DAY: DAY, PRESETS: PRESETS, cleanCalendar: cleanCalendar, cleanClock: cleanClock, cleanAcc: cleanAcc, everySecs: everySecs, ruleFires: ruleFires, cleanTime: cleanTime, tAdd: tAdd, tCmp: tCmp, tFloor: tFloor, tSpanMs: tSpanMs, cleanLived: cleanLived, cleanRulesOff: cleanRulesOff, livedSpans: livedSpans, fightSecs: fightSecs, freshAcc: freshAcc, dateOf: dateOf, dateNames: dateNames, cleanDateFig: cleanDateFig, timeOf: timeOf, periodDays: periodDays, yearDays: yearDays, dayLength: dayLength, fmtDate: fmtDate, fmtTime: fmtTime, fmtWhen: fmtWhen, fmtSpan: fmtSpan, preset: preset };
+var API = { cleanRestOn: cleanRestOn, cleanPlayed: cleanPlayed, cleanEras: cleanEras, eraOf: eraOf, noteNext: noteNext, noteOn: noteOn, viewCal: viewCal, calNamesOf: calNamesOf, fmtIn: fmtIn, fmtDateIn: fmtDateIn, PHASES: PHASES, MOON_KEYS: MOON_KEYS, moonPhases: moonPhases, seasonOf: seasonOf, VERSION: VERSION, LIMITS: LIMITS, DAY: DAY, PRESETS: PRESETS, cleanCalendar: cleanCalendar, cleanClock: cleanClock, cleanAcc: cleanAcc, everySecs: everySecs, ruleFires: ruleFires, cleanTime: cleanTime, tAdd: tAdd, tCmp: tCmp, tFloor: tFloor, tSpanMs: tSpanMs, cleanLived: cleanLived, cleanRulesOff: cleanRulesOff, livedSpans: livedSpans, fightSecs: fightSecs, freshAcc: freshAcc, dateOf: dateOf, dateNames: dateNames, cleanDateFig: cleanDateFig, timeOf: timeOf, periodDays: periodDays, yearDays: yearDays, dayLength: dayLength, fmtDate: fmtDate, fmtTime: fmtTime, fmtWhen: fmtWhen, fmtSpan: fmtSpan, preset: preset };
 if (typeof window !== 'undefined') window.wpCalendarCore = API;
-export { cleanPlayed, cleanEras, eraOf, noteNext, noteOn, viewCal, calNamesOf, fmtIn, fmtDateIn, PHASES, MOON_KEYS, moonPhases, seasonOf, dateNames, cleanDateFig, VERSION, LIMITS, CAL_LIMITS, calPreset, DAY, PRESETS, cleanCalendar, cleanClock, cleanAcc, everySecs, ruleFires, cleanTime, tAdd, tCmp, tFloor, tSpanMs, cleanLived, cleanRulesOff, livedSpans, fightSecs, freshAcc, dateOf, timeOf, periodDays, yearDays, dayLength, fmtDate, fmtTime, fmtWhen, fmtSpan, preset };
+export { cleanRestOn, cleanPlayed, cleanEras, eraOf, noteNext, noteOn, viewCal, calNamesOf, fmtIn, fmtDateIn, PHASES, MOON_KEYS, moonPhases, seasonOf, dateNames, cleanDateFig, VERSION, LIMITS, CAL_LIMITS, calPreset, DAY, PRESETS, cleanCalendar, cleanClock, cleanAcc, everySecs, ruleFires, cleanTime, tAdd, tCmp, tFloor, tSpanMs, cleanLived, cleanRulesOff, livedSpans, fightSecs, freshAcc, dateOf, timeOf, periodDays, yearDays, dayLength, fmtDate, fmtTime, fmtWhen, fmtSpan, preset };

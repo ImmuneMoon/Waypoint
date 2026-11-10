@@ -3098,7 +3098,7 @@ net.syncSenses = function() {
 // once per change, cleaned again on arrival: its time alone, and (K3) the dated notes players may see. While the Calendar feature is off or the GM keeps the date from players the
 // message carries null and a player's app drops its clock. A host has NO branch for 'clock'
 net._lastClockSig = null;
-function clockOut(camp) { var CCo = window.wpCalendarCore; if (!camp || !CCo || !CCo.cleanClock || !window.wpVtt || !window.wpVtt.campaignOn('calendar', camp)) return null; var ck = CCo.cleanClock(camp.clock) || { t: 0 }; if (ck.hide) return null; var o = { t: ck.t }, ns = (ck.notes || []).filter(function(n) { return n.vis === 'all'; }).map(function(n) { var x = { id: n.id, day: n.day, text: n.text }; if (n.yearly === true) x.yearly = true; return x; }); if (ns.length) o.notes = ns; var es = (ck.eras || []).filter(function(e) { return e.vis === 'all'; }).map(function(e) { var x = { id: e.id, name: e.name, from: e.from }; if (typeof e.to === 'number') x.to = e.to; x.color = e.color; return x; }); if (es.length) o.eras = es; if (ck.cal) o.cal = ck.cal; if (ck.played) o.played = ck.played.map(function(p) { return { t: p.t }; }); return o; }   // 1.6.2 (backlog 166 h): the sessions played, by where the clock stood, never the real date; K3: the notes players may see, never a GM-only one; 1.6.2 (backlog 60): and the calendar the top row shows
+function clockOut(camp) { var CCo = window.wpCalendarCore; if (!camp || !CCo || !CCo.cleanClock || !window.wpVtt || !window.wpVtt.campaignOn('calendar', camp)) return null; var ck = CCo.cleanClock(camp.clock) || { t: 0 }; if (ck.hide) return null; var o = { t: ck.t }, ns = (ck.notes || []).filter(function(n) { return n.vis === 'all'; }).map(function(n) { var x = { id: n.id, day: n.day, text: n.text }; if (n.yearly === true) x.yearly = true; return x; }); if (ns.length) o.notes = ns; var es = (ck.eras || []).filter(function(e) { return e.vis === 'all'; }).map(function(e) { var x = { id: e.id, name: e.name, from: e.from }; if (typeof e.to === 'number') x.to = e.to; x.color = e.color; return x; }); if (es.length) o.eras = es; if (ck.cal) o.cal = ck.cal; if (ck.played) o.played = ck.played.map(function(p) { return { t: p.t }; }); if (ck.rest) o.rest = { name: ck.rest.name }; return o; }   // 1.6.2 (backlog 166 h): the sessions played, by where the clock stood, never the real date; K3: the notes players may see, never a GM-only one; 1.6.2 (backlog 60): and the calendar the top row shows
 // 1.6.0 (the owner, by prompt: "The real date everywhere"): while players are sent no clock, a system whose formulas read the date sends them its
 // five numbers alone (calendarcore dateNames), so a formula reads the real date on their sheet as on the GM's
 function dateFigOut(camp) { var CCo = window.wpCalendarCore, SCo = window.wpSystemCore; if (!camp || !camp.system || !CCo || !CCo.dateNames || !CCo.cleanClock || !SCo || !SCo.dateReads || !SCo.dateReads(camp.system)) return null; var ck = CCo.cleanClock(camp.clock); return ck ? CCo.dateNames(camp.system.calendar || null, ck.t) : null; }
@@ -5977,6 +5977,12 @@ net.nameLine = function(text) {
     if (net.stream || typeof text !== 'string' || !text) return false;
     pushChat({ type: 'chat', scope: 'whisper', from: { id: 'names', name: 'Name' }, text: text.slice(0, 60), ts: Date.now(), trk: true });
     return true;
+};
+// 1.6.2 (backlog 138 (j) fold R2): a rest called and ended is told to the table as a line of the host's own; nothing a player sends calls or ends one
+net.restLine = function(text) {
+    if (!net.active || net.role !== 'host' || net.stream || typeof text !== 'string' || !text) return false;
+    var msgR = { type: 'chat', scope: 'global', from: { id: net.myId, name: 'Rest', gm: true }, text: text.slice(0, 200), ts: Date.now() };
+    broadcast(msgR); pushChat(msgR); return true;
 };
 net.trackerLine = function(text) {
     if (net.stream || typeof text !== 'string' || !text) return false;
@@ -9332,7 +9338,8 @@ function handleMessage(msg, conn) {
         var campCk = campOf(msg.campId), CCk = window.wpCalendarCore; if (!campCk || !CCk || !CCk.cleanClock) return;
         var ckIn = msg.clock === null ? null : CCk.cleanClock(msg.clock);
         if (ckIn) { var ckKeep = { t: ckIn.t }; if (ckIn.notes) ckKeep.notes = ckIn.notes.map(function(n) { var x = { id: n.id, day: n.day, text: n.text }; if (n.yearly === true) x.yearly = true; return x; }); if (ckIn.eras) ckKeep.eras = ckIn.eras.map(function(e) { var x = { id: e.id, name: e.name, from: e.from }; if (typeof e.to === 'number') x.to = e.to; x.color = e.color; return x; }); if (ckIn.cal) ckKeep.cal = ckIn.cal; campCk.clock = ckKeep; } else delete campCk.clock;   // K3: its notes as text, never a vis
-        if (ckIn && ckIn.played && campCk.clock) campCk.clock.played = ckIn.played.map(function(p) { return { t: p.t }; });   // 1.6.2 (backlog 166 h): the sessions played, by where the clock stood alone
+        if (ckIn && ckIn.played && campCk.clock) campCk.clock.played = ckIn.played.map(function(p) { return { t: p.t }; });
+        if (ckIn && ckIn.rest && campCk.clock) campCk.clock.rest = { name: ckIn.rest.name };   // backlog 138 (j) fold R2: the rest's name alone   // 1.6.2 (backlog 166 h): the sessions played, by where the clock stood alone
         var fgIn = !ckIn && CCk.cleanDateFig ? CCk.cleanDateFig(msg.date) : null; if (fgIn) campCk.dateFig = fgIn; else delete campCk.dateFig;   // 1.6.0: the date's numbers alone, while no clock is sent
         if (window.wpCalendar) window.wpCalendar.refresh();
         // [netcheck:clockmsg-end]

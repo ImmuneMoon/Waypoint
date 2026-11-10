@@ -1470,7 +1470,7 @@ function sheetLook(camp, sys) {
 }
 function applySheetLookTo(node, style) {
     node.style.fontFamily = ''; node.style.color = ''; node.style.backgroundColor = '';   // reset first so turning a look off restores the app style
-    if (style) { var DF = (window.wpDocRender && window.wpDocRender.DOC_FONTS) || {}; if (style.font && DF[style.font]) node.style.fontFamily = DF[style.font]; if (style.textColor) node.style.color = style.textColor; if (style.bgColor) node.style.backgroundColor = style.bgColor; }
+    if (style) { var DF = (window.wpDocRender && window.wpDocRender.DOC_FONTS) || {}; var dfcS = window.wpDocRender && window.wpDocRender.docFontCss ? window.wpDocRender.docFontCss(style.font) : (style.font && DF[style.font]) || ''; if (dfcS) node.style.fontFamily = dfcS; if (style.textColor) node.style.color = style.textColor; if (style.bgColor) node.style.backgroundColor = style.bgColor; }
     // Stage 5g: the header block and the frame are opaque panels over the body. They wear the look's colours only as a PAIR (a text
     // colour AND a panel colour, plus a muted ink mixed from the two for labels); a look with just one of them leaves both panels in the
     // app theme's own colours, as before — a text colour alone over the app panel (or theme text over a look panel) could be unreadable
@@ -2595,7 +2595,7 @@ function renderLayout() {
     var look = (draft.sheetStyle && typeof draft.sheetStyle === 'object') ? draft.sheetStyle : null;
     var lookRow = el('div', 'sys-sec-style');
     var FONTS = (window.wpDocRender && window.wpDocRender.DOC_FONTS) || {};
-    var fontSel = select('sys-look-font', [['', 'Default font']].concat(Object.keys(FONTS).map(function(k) { return [k, k.charAt(0).toUpperCase() + k.slice(1)]; })), (look && look.font) || '', 'The sheet\'s font, over the campaign default');
+    var fontSel = select('sys-look-font', [['', 'Default font']].concat((window.wpDocRender && window.wpDocRender.docFontOptions ? window.wpDocRender.docFontOptions(look && look.font) : Object.keys(FONTS).map(function(k) { return [k, k]; })).map(function(o) { return [o[0], o[1]]; })), (look && look.font) || '', 'The sheet\'s font, over the campaign default. Waypoint\'s own fonts, so every player sees the same');
     lookRow.appendChild(capBox(fontSel, 'Font'));
     var mkColor = function(key, title, fallback) { var i = el('input', 'sys-look-color'); i.type = 'color'; i.value = (look && look[key]) || fallback; i.title = title; i.dataset.key = key; return i; };
     lookRow.appendChild(el('span', 'sys-sec-style-lbl', 'Text')); lookRow.appendChild(mkColor('textColor', 'Text colour', '#e8e2d0'));

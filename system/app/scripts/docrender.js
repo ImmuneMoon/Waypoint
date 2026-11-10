@@ -33,7 +33,7 @@
                              or '' (an id or an address the rule refuses); readLinkLine(line) reads exactly that line back.
    Sizes: LIMITS below. Block ids: every block carries one ('b_…'); cleanDoc re-mints duplicates. */
 'use strict';
-import { cleanFmt, cleanLink, runsOf, SIZE_EM } from './textfmt.js';
+import { cleanFmt, cleanLink, runsOf, SIZE_EM, FONTS as TF_FONTS, fontKnown, fontCss } from './textfmt.js';
 import { cssColor } from './safecore.js';
 
 var VERSION = '1.5.0';
@@ -747,10 +747,20 @@ function safeHex(v) { return (typeof v === 'string' && /^#(?:[0-9a-fA-F]{3}|[0-9
 // (https:, data:, javascript:) or a protocol-relative //host — so a hostile host can never make a player's
 // browser fetch a URL of its choosing.
 function safeImgRef(v) { return (typeof v === 'string' && v && v.length <= 400 && !/[\x00-\x1f\\<>]/.test(v) && !/(^|\/)\.\.(\/|$)/.test(v) && !/%2e/i.test(v) && !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(v) && v.indexOf('//') !== 0) ? v : ''; }
+// 1.6.2 (backlog 44 (c); the owner: "waypoint comes with it's own fonts"): a style's font is one of Waypoint's own by its name, or one of the
+// older names above, which a style saved before keeps. docFontCss is the one reading of it; docFontOptions the one list a picker offers:
+// Waypoint's own in their groups, and an older name only where it is the one in use
+function docFontName(v) { if (typeof v !== 'string') return ''; if (Object.prototype.hasOwnProperty.call(DOC_FONTS, v)) return v; return fontKnown(v) || ''; }
+function docFontCss(v) { var n = docFontName(v); return !n ? '' : Object.prototype.hasOwnProperty.call(DOC_FONTS, n) ? DOC_FONTS[n] : fontCss(n); }
+function docFontOptions(cur) {
+    var out = TF_FONTS.map(function(f) { return [f[0], f[0], f[2]]; });
+    if (typeof cur === 'string' && Object.prototype.hasOwnProperty.call(DOC_FONTS, cur)) out.unshift([cur, cur.charAt(0).toUpperCase() + cur.slice(1) + ', of this computer', '']);
+    return out;
+}
 function cleanDocStyle(s) {
     if (!s || typeof s !== 'object') return null;
     var out = {};
-    if (typeof s.font === 'string' && Object.prototype.hasOwnProperty.call(DOC_FONTS, s.font)) out.font = s.font;
+    var dfn = docFontName(s.font); if (dfn) out.font = dfn;
     var tc = safeHex(s.textColor); if (tc) out.textColor = tc;
     var bc = safeHex(s.bgColor); if (bc) out.bgColor = bc;
     var bi = safeImgRef(s.bgImage); if (bi) out.bgImage = bi;
@@ -784,7 +794,7 @@ function docBgImage(style, srcOf) {
 function docStyleCss(style, srcOf) {
     style = cleanDocStyle(style); if (!style) return '';
     var css = '';
-    if (style.font && DOC_FONTS[style.font]) css += 'font-family:' + DOC_FONTS[style.font] + ';';
+    var dfc = docFontCss(style.font); if (dfc) css += 'font-family:' + dfc + ';';
     if (style.textColor) css += 'color:' + style.textColor + ';';
     if (style.bgColor) css += 'background-color:' + style.bgColor + ';';
     var bg = docBgImage(style, srcOf); if (bg) css += 'background-image:' + bg + ';background-size:cover;background-position:center;';
@@ -980,6 +990,6 @@ function pageHid(items, id) {
     return false;
 }
 
-var API = { VERSION: VERSION, pageHid: pageHid, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, mermaidPre: mermaidPre, diagramLink: diagramLink, linkLine: linkLine, readLinkLine: readLinkLine, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
+var API = { docFontName: docFontName, docFontCss: docFontCss, docFontOptions: docFontOptions, VERSION: VERSION, pageHid: pageHid, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, mermaidPre: mermaidPre, diagramLink: diagramLink, linkLine: linkLine, readLinkLine: readLinkLine, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
 if (typeof window !== 'undefined') window.wpDocRender = API;
-export { VERSION, pageHid, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, mermaidPre, diagramLink, linkLine, readLinkLine, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };
+export { docFontName, docFontCss, docFontOptions, VERSION, pageHid, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, mermaidPre, diagramLink, linkLine, readLinkLine, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };

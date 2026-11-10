@@ -270,6 +270,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('render: two-column section wraps the picture and the prose and closes before the next h1', /<div class="doc-section doc-cols-2"><div class="pv-blk" data-blk="1"><figure class="doc-img planner-img fl-right" style="width:33%;">[\s\S]*<p>body<\/p><\/div><\/div><div class="doc-clear"><\/div><div class="pv-blk" data-blk="3"><h1>Next<\/h1>/.test(two), two);
         check('DOC_BLOCKS roster', DOC_BLOCKS.join(',') === 'h1,h2,h3,text,lede,oneline,callout,flare,image,table,rule,diagram,flowchart');
         /* ---- document appearance (cleanDocStyle / docStyleCss): a curated, injection-proof styling layer ---- */
+        {   // 1.6.2 (backlog 44 (c); the owner: "waypoint comes with it's own fonts"): a look's font may be one of Waypoint's own, by the list's spelling
+            const J = JSON.stringify, cs = cleanDocStyle({ font: ' cinzel ' }), csOld = cleanDocStyle({ font: 'serif' }), csBad = cleanDocStyle({ font: 'Arial' }), csEvil = cleanDocStyle({ font: 'Cinzel";}body{x' });
+            const css = docStyleCss({ font: 'Cinzel' }), cssOld = docStyleCss({ font: 'serif' }), opts = D.docFontOptions('serif'), opts2 = D.docFontOptions('Cinzel');
+            check('a document look\'s font (cleanDocStyle, docFontCss, docFontOptions, 44 (c)): one of Waypoint\'s own is kept under the list\'s spelling and drawn through its own family, an older name keeps its old family, a font of the computer and anything that could end a declaration is none; the pickers offer Waypoint\'s own in their groups, and an older name only while it is the one in use',
+                J(cs) === J({ font: 'Cinzel' }) && J(csOld) === J({ font: 'serif' }) && csBad === null && csEvil === null && /font-family:"Cinzel", serif;/.test(css) && cssOld.indexOf('Georgia') >= 0
+                && opts[0][0] === 'serif' && /of this computer/.test(opts[0][1]) && opts2[0][0] === 'Inter' && opts2.some(o => o[0] === 'Cinzel' && o[2] === 'Old and fantasy') && !opts2.some(o => o[0] === 'serif'),
+                J([cs, csOld, csBad, css, opts2.slice(0, 2)]));
+        }
         check('cleanDocStyle: keeps a known font, hex colours, a clean image ref', JSON.stringify(cleanDocStyle({ font: 'serif', textColor: '#ABC', bgColor: '#11223344', bgImage: 'saves/p/a.png' })) === '{"font":"serif","textColor":"#ABC","bgColor":"#11223344","bgImage":"saves/p/a.png"}');
         check('Stage 6: Inter is a document font (bundled), and cleanDocStyle keeps it', typeof DOC_FONTS.inter === 'string' && /^Inter,/.test(DOC_FONTS.inter) && cleanDocStyle({ font: 'inter' }).font === 'inter');
         check('cleanDocStyle: drops an unknown font, a non-hex colour, an image ref with an angle bracket', cleanDocStyle({ font: 'evil;}', textColor: 'red;}x{', bgColor: 'rgb(1,2,3)', bgImage: 'a<b' }) === null);

@@ -4,6 +4,7 @@
 
 import { state } from './state.js';
 import { toast } from './io.js';
+import { FONTS as TF_FONTS, fontKnown as tfKnown, fontCss as tfCss } from './textfmt.js';   // 1.6.2 (backlog 44 (c)): the app font
 import './profilecore.js';   // 1.6.0: a profile carried to another computer (window.wpProfileCore)
 
 function ui(id) { return document.getElementById(id); }
@@ -265,7 +266,29 @@ var _tsSel = ui('setTextSize'), _efBox = ui('setEasyFont'), _ef0 = false;
 try { _ef0 = localStorage.getItem('wp_easyFont') === '1'; } catch (e) {}
 easyFontApply(_ef0);
 if (_tsSel) { try { _tsSel.value = textSizeOf(localStorage.getItem('wp_textSize')); } catch (e) { _tsSel.value = '100'; } _tsSel.addEventListener('change', function() { var v = textSizeOf(_tsSel.value); try { if (v === '100') localStorage.removeItem('wp_textSize'); else localStorage.setItem('wp_textSize', v); } catch (e) {} if (window.wpPrefsPush) window.wpPrefsPush(); if (typeof window.wpStepLog === 'function') window.wpStepLog('textsize v1', 'set', { size: Number(v) }); }); }
-if (_efBox) { _efBox.checked = _ef0; _efBox.addEventListener('change', function() { var on = _efBox.checked === true; try { if (on) localStorage.setItem('wp_easyFont', '1'); else localStorage.removeItem('wp_easyFont'); } catch (e) {} easyFontApply(on); if (window.wpPrefsPush) window.wpPrefsPush(); }); }
+// [lookcheck:appfont-start] 1.6.2 (backlog 44 (c); the owner, by prompt: "each persons own, defaulting to the selected campaign styles which default to
+// waypoint's if there are none set"): the font Waypoint's own words are drawn in on this computer. wp_appFont: '' the campaign's (its default look's
+// font, camp.docStyle.font, where that is one of Waypoint's own), 'waypoint' Waypoint's own, or a font of the list by name. Easy-read font wins
+// while ticked. Set on the body as one inline family, taken off where nothing is picked; asked again at every redraw, so the campaign on screen rules
+function appFontPick(v) { return v === 'waypoint' ? 'waypoint' : (tfKnown(v) || ''); }
+function appFontOf(pick, campFont, easy) { if (easy === true) return ''; var p = appFontPick(pick); if (p === 'waypoint') return ''; if (p) return p; return tfKnown(campFont) || ''; }
+var _afLast = null;
+function appFontSync() {
+    var pick = '', easy = false, camp = null; try { pick = localStorage.getItem('wp_appFont') || ''; easy = localStorage.getItem('wp_easyFont') === '1'; } catch (e) {}
+    try { var as = state.appState; camp = as && as.campaigns ? as.campaigns[as.activeCampaignId] : null; } catch (e) {}
+    var f = appFontOf(pick, camp && camp.docStyle ? camp.docStyle.font : '', easy), css = f ? tfCss(f) : '';
+    if (css === _afLast || !document.body) return css; _afLast = css; document.body.style.fontFamily = css; return css;
+}
+window.wpAppFont = { sync: appFontSync, of: appFontOf };
+var _afSel = ui('setAppFont');
+if (_afSel) {
+    var _afPrev = null; TF_FONTS.forEach(function(f) { if (f[2] !== _afPrev) { var g = document.createElement('optgroup'); g.label = f[2]; _afSel.appendChild(g); _afPrev = f[2]; } var o = document.createElement('option'); o.value = f[0]; o.textContent = f[0]; _afSel.lastChild.appendChild(o); });
+    try { _afSel.value = appFontPick(localStorage.getItem('wp_appFont') || ''); } catch (e) {}
+    _afSel.addEventListener('change', function() { var v = appFontPick(_afSel.value); try { if (v) localStorage.setItem('wp_appFont', v); else localStorage.removeItem('wp_appFont'); } catch (e) {} appFontSync(); if (window.wpPrefsPush) window.wpPrefsPush(); });
+}
+appFontSync();
+// [lookcheck:appfont-end]
+if (_efBox) { _efBox.checked = _ef0; _efBox.addEventListener('change', function() { var on = _efBox.checked === true; try { if (on) localStorage.setItem('wp_easyFont', '1'); else localStorage.removeItem('wp_easyFont'); } catch (e) {} easyFontApply(on); appFontSync(); if (window.wpPrefsPush) window.wpPrefsPush(); }); }
 var _hidSel = ui('setHiddenLook'), _hid0 = 'fade';
 try { _hid0 = hiddenLookOf(localStorage.getItem('wp_hiddenLook')); } catch (e) {}
 hiddenLookApply(_hid0);

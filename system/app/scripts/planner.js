@@ -3183,7 +3183,9 @@ function openAppearanceMenu(anchor) {
     var stC = cleanDocStyle(st) || {}, cdC = cleanDocStyle(cd) || {};   // what the menu shows is what renders: hex colours, a picture that is the app's own (a file from elsewhere may carry anything)
     var effImg = stC.bgImage || cdC.bgImage || '';   // this page's image, else the campaign default
     var dimVal = (typeof stC.bgDim === 'number') ? stC.bgDim : (typeof cdC.bgDim === 'number') ? cdC.bgDim : 40;
-    var fontOpts = '<option value="">Default</option>' + Object.keys(FONTS).map(function(k) { return '<option value="' + k + '"' + (st.font === k ? ' selected' : '') + '>' + k.charAt(0).toUpperCase() + k.slice(1) + '</option>'; }).join('');
+    var fontOpts = '<option value="">Default</option>', fgPrev = null;   // 1.6.2 (backlog 44 (c)): Waypoint's own fonts, in their groups
+    (DR.docFontOptions ? DR.docFontOptions(st.font) : Object.keys(FONTS).map(function(k) { return [k, k, '']; })).forEach(function(o) { if (o[2] !== fgPrev) { if (fgPrev) fontOpts += '</optgroup>'; if (o[2]) fontOpts += '<optgroup label="' + esc(o[2]) + '">'; fgPrev = o[2] || ''; } fontOpts += '<option value="' + esc(o[0]) + '"' + (st.font === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; });
+    if (fgPrev) fontOpts += '</optgroup>';
     var m = document.createElement('div'); m.id = 'docAppearanceMenu'; m.className = 'doc-appearance-menu';
     m.innerHTML =
         '<div class="dam-head">Appearance &mdash; this ' + kind + '</div>' +

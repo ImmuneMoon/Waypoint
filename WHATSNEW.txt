@@ -905,6 +905,9 @@ System editor
 - Drag a picture out of the Image Library onto the map and it lands where
   you let go. Add a folder... brings in a whole folder of pictures, each
   tagged with its folder's name.
+- A campaign's default look can pick one of Waypoint's own fonts, and the
+  whole app is drawn in it at your table. App font in Settings lets each
+  player pick their own instead.
 
 Fitted parts
 - Holds by kind may read a formula in place of a stat, such as the most any

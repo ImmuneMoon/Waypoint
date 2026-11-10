@@ -7297,6 +7297,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       grid.innerHTML = (showGroups ? groupsLibraryHtml(filter) : '') + (grid.dataset.cast ? castLibraryHtml(filter) : '') + html || '<div style="color:var(--dim); padding:20px; text-align:center;">' + empty + '</div>';
       var label = !_imgLibCat || _imgLibCat === '__bymap', hint = _imgLibPicker ? 'Ctrl-click to pick it to bring in' : 'right-click to tag it; Ctrl-click to pick several';
       Array.prototype.forEach.call(grid.querySelectorAll('.img-lib-cell[data-src]'), function(cell) { TagCore.cellTags(document, cell, imgCatsOf(cell.dataset.src), label, hint); });
+      libDragCells(grid);   // 1.6.2 (backlog 41 (a)): dragged onto the map
       renderImgSelBar();
   }
   // Multi-pick: Ctrl-click toggles a picture, Shift-click picks the run from the last one, Ctrl+A picks the view
@@ -7466,6 +7467,29 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           renderImgLib(document.getElementById('imgLibSearch').value);
       });
   }
+  // [lookcheck:libfolder-start] 1.6.2 (backlog 41 (b); the owner, by prompt: "Copied, tagged by folder", "Each folder's own name"): every picture of a
+  // folder of this computer copied into the campaign, as Add pictures copies one, and tagged in this campaign with the name of the folder it was
+  // in, a folder inside it by its own name. LIB_FOLDER pictures at most a time; a name the tag rule refuses tags nothing
+  var LIB_FOLDER = 200;
+  function folderTagOf(rel) { var parts = String(rel || '').split(/[\\/]/).filter(Boolean); return parts.length >= 2 ? (TagCore.tagName ? TagCore.tagName(parts[parts.length - 2]) : '') : ''; }
+  var _el_imgLibAddDir = document.getElementById('imgLibAddDirBtn'), _el_imgLibAddDirIn = document.getElementById('imgLibAddDir');
+  if (_el_imgLibAddDir && _el_imgLibAddDirIn) {
+      _el_imgLibAddDir.addEventListener('click', function() { if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; } _el_imgLibAddDirIn.value = ''; _el_imgLibAddDirIn.click(); });
+      _el_imgLibAddDirIn.addEventListener('change', async function() {
+          var camp = getActiveCampaign(), dir = imgAddFolder(camp), all = Array.prototype.slice.call(this.files || []).filter(function(f) { return f && typeof f.type === 'string' && f.type.indexOf('image/') === 0; });
+          if (!all.length) { toast('That folder holds no pictures.'); return; } if (!dir) { toast('Make a map first: a picture is kept with one of the campaign\'s maps.'); return; }
+          var fl = all.slice(0, LIB_FOLDER), ok = 0, bad = 0, byTag = {}; toast('Adding ' + fl.length + (fl.length === 1 ? ' picture\u2026' : ' pictures\u2026'));
+          for (var i = 0; i < fl.length; i++) { try { var url = await uploadBlob(dir, fl[i].name, fl[i]); ok++; var tg = folderTagOf(fl[i].webkitRelativePath); if (tg) (byTag[tg] = byTag[tg] || []).push(url); } catch (e) { bad++; } }
+          var tags = Object.keys(byTag); tags.forEach(function(t) { window.wpImgCatEnsure(t, byTag[t], false, camp.id); }); if (tags.length) imgCatsSave();
+          var said = (ok === 1 ? 'Added 1 picture' : 'Added ' + ok + ' pictures') + (tags.length ? ', tagged ' + (tags.length <= 3 ? tags.join(', ') : tags.length + ' ways') : '') + '.';
+          if (all.length > fl.length) said += ' The first ' + LIB_FOLDER + ' were added; add the rest from a smaller folder.';
+          if (bad) said += ' ' + bad + (bad === 1 ? ' picture' : ' pictures') + ' could not be added.';
+          toast(said, bad || all.length > fl.length ? 'warn' : undefined);
+          try { _imgLibCache = await (await fetch('/api/list-images')).json(); } catch (e) {} _imgIndex = null; _imgLibScope = 'camp';
+          renderImgLib(document.getElementById('imgLibSearch').value);
+      });
+  }
+  // [lookcheck:libfolder-end]
   var _el_imgLibClose = document.getElementById('imgLibCloseBtn');
 
   if (_el_imgLibClose) _el_imgLibClose.addEventListener('click', function() {
@@ -7478,6 +7502,24 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   if (_el_imgLibSearch) _el_imgLibSearch.addEventListener('input', function() { renderImgLib(this.value); });
 
   var _el_imgLibGrid = document.getElementById('imgLibGrid');
+  // [lookcheck:libdrag-start] 1.6.2 (backlog 41 (a); the owner, by prompt: "optional in a setting between the two"): a picture dragged out of the
+  // library's grid lands on the play map where it is let go, as Add to map places one. While it is dragged the library lets the drop through to
+  // the map, and where Settings' Dragging from the Image Library says Steps aside it fades too (wp_libDrag, this computer's). Never while the
+  // library is picking a picture for something else or bringing pictures in, and never off a play map
+  function libDragOk() { var am = getActiveMap(); return !_imgLibPick && !_imgLibPicker && state.viewMode === 'visual' && !!am && am.type === 'map'; }
+  function libDragAside() { try { return localStorage.getItem('wp_libDrag') === 'aside'; } catch (e) { return false; } }
+  function libDragCells(grid) { var ok = libDragOk(); Array.prototype.forEach.call(grid.querySelectorAll('.img-lib-cell[data-src]'), function(cell) { cell.draggable = ok; if (ok) cell.title = (cell.title ? cell.title + '. ' : '') + 'Drag it onto the map'; }); }
+  function libDragEnd() { var m = document.getElementById('imgLibModal'); if (m) { m.classList.remove('lib-drag'); m.classList.remove('lib-aside'); } }
+  if (_el_imgLibGrid) {
+      _el_imgLibGrid.addEventListener('dragstart', function(e) {
+          var cell = e.target && e.target.closest ? e.target.closest('.img-lib-cell[data-src]') : null;
+          if (!cell) return; if (!cell.draggable || !libDragOk()) { e.preventDefault(); return; }
+          try { e.dataTransfer.setData('application/x-wp-picture', cell.dataset.src); e.dataTransfer.effectAllowed = 'copy'; } catch (er) {}
+          var aside = libDragAside(); setTimeout(function() { var m = document.getElementById('imgLibModal'); if (m) { m.classList.add('lib-drag'); if (aside) m.classList.add('lib-aside'); } }, 0);   // after the drag has begun: a change to its source in dragstart can stop it
+      });
+      _el_imgLibGrid.addEventListener('dragend', libDragEnd);
+  }
+  // [lookcheck:libdrag-end]
   // The copies box beside the Campaign Cast heading
   if (_el_imgLibGrid) _el_imgLibGrid.addEventListener('input', function(e) { var b = e.target.closest('.cast-batch'); if (b && b.value >= 1 && b.value <= 50) setCastBatch(b.value); });
   if (_el_imgLibGrid) _el_imgLibGrid.addEventListener('change', function(e) { var b = e.target.closest('.cast-batch'); if (b) b.value = setCastBatch(b.value); });
@@ -7730,13 +7772,14 @@ if(_el_clearWbBtn) _el_clearWbBtn.addEventListener('click', function() {
 
       if(state.viewMode !== 'visual') return;
 
+      var wpPic = ''; try { wpPic = e.dataTransfer.getData('application/x-wp-picture') || ''; } catch (er) {}
+      if (wpPic) { libDropAt(wpPic, e); return; }   // 1.6.2 (backlog 41 (a)): a picture from the Image Library
+
       var f = e.dataTransfer.files[0];
 
       if(f) {
 
-          var cx = (wbWrap.scrollLeft + e.clientX - wbWrap.getBoundingClientRect().left) / state.zoomLevel - 150;
-
-          var cy = (wbWrap.scrollTop + e.clientY - wbWrap.getBoundingClientRect().top) / state.zoomLevel - 150;
+          var dr = wbWrap.getBoundingClientRect(), cx = wbX(e.clientX, e.clientY, dr, wbWrap) - 150, cy = wbY(e.clientX, e.clientY, dr, wbWrap) - 150;   // 1.6.2: through the board's one reading of a pointer
 
           uploadImageFile(f, Math.max(10, Math.round(cx)), Math.max(10, Math.round(cy)));
 
@@ -7745,6 +7788,23 @@ if(_el_clearWbBtn) _el_clearWbBtn.addEventListener('click', function() {
   });
 
 
+
+  // [lookcheck:libdrop-start] 1.6.2 (backlog 41 (a)): a picture dragged from the Image Library, placed where it is let go: a picture of this
+  // computer's own saves or the app's own, 300 px as Add to map makes one, its corner on the lattice where Snap is on and the map is square
+  function libDropAt(src, e) {
+      if (typeof libDragEnd === 'function') libDragEnd();
+      if (typeof src !== 'string' || src.length > 400 || !/^\/(saves\/images|assets)\//.test(src) || /[\u0000-\u001f\u007f]|\.\.\//.test(src)) return;
+      var am = getActiveMap(); if (!am || am.type !== 'map' || state.viewMode !== 'visual') { toast('Open a play map first.'); return; }
+      if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; }
+      var r = wbWrap.getBoundingClientRect(), x = wbX(e.clientX, e.clientY, r, wbWrap) - 150, y = wbY(e.clientX, e.clientY, r, wbWrap) - 150;
+      var GS = window.wpSnapOn && window.wpSnapOn() && window.wpLatticeOf ? window.wpLatticeOf(am) : null;
+      if (GS && GS.type === 'square' && GS.size > 0) { var ox = GS.ox || 0, oy = GS.oy || 0; x = Math.round((x - ox) / GS.size) * GS.size + ox; y = Math.round((y - oy) / GS.size) * GS.size + oy; }
+      var it = Object.assign({ id: 'wb' + uid(), type: 'image', x: Math.max(10, Math.round(x)), y: Math.max(10, Math.round(y)), w: 300, h: 300, z: 10, src: src, color: 'transparent' }, newOpacityProps());
+      am.whiteboard = am.whiteboard || []; am.whiteboard.push(it);
+      state.selWbId = it.id; state.selWbIds = [];
+      save(); render(); toast('Picture placed.');
+  }
+  // [lookcheck:libdrop-end]
 
   /* ---------- Global Tools ---------- */
 

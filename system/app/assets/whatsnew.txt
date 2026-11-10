@@ -902,6 +902,9 @@ System editor
 - A system written in metric can use m, cm, kg, km or m/s, and a player set
   to Imperial sees 5 m (5.5 yd). Where a system counts in feet, heights
   show in feet.
+- Drag a picture out of the Image Library onto the map and it lands where
+  you let go. Add a folder... brings in a whole folder of pictures, each
+  tagged with its folder's name.
 
 Fitted parts
 - Holds by kind may read a formula in place of a stat, such as the most any

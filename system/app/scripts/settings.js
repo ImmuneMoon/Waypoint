@@ -248,6 +248,7 @@ var _cwSel = ui('setCompassWords'); if (_cwSel) { try { _cwSel.value = localStor
 var _wmSel = ui('setWallMarks'), _wm0 = 'hover';
 try { _wm0 = wallMarkOf(localStorage.getItem('wp_wallMarks')); } catch (e) {}
 wallMarkApply(_wm0);
+var _ldSel = ui('setLibDrag'); if (_ldSel) { try { _ldSel.value = localStorage.getItem('wp_libDrag') === 'aside' ? 'aside' : 'stay'; } catch (e) {} _ldSel.addEventListener('change', function() { try { localStorage.setItem('wp_libDrag', _ldSel.value === 'aside' ? 'aside' : 'stay'); } catch (e) {} }); }   // 1.6.2 (backlog 41 (a)): Dragging from the Image Library
 if (_wmSel) { _wmSel.value = _wm0; _wmSel.addEventListener('change', function() { var v = wallMarkOf(_wmSel.value); try { localStorage.setItem('wp_wallMarks', v); } catch (e) {} wallMarkApply(v); }); }
 // 1.6.2, backlog 212: where this computer shows the dice of a roll tumbling (wp_dice3d: card, the default, map or off), which dice3d.js reads at each roll
 var _d3Sel = ui('setDiceShow'), _d3Of = function(v) { return v === 'map' || v === 'off' ? v : 'card'; };

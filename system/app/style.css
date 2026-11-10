@@ -5411,6 +5411,11 @@
   .sheet-explain-more { font-size: 12px; color: var(--muted); }
   .sheet-explain-page { align-self: flex-start; }
   #sheetPrint .sheet-explain { display: none; }
+  /* 1.6.2 (backlog 41 (a)): the Image Library while a picture is dragged out of it: the drop goes through to the map, and Steps aside fades it */
+  #imgLibModal.lib-drag, #imgLibModal.lib-drag * { pointer-events: none !important; }
+  #imgLibModal.lib-drag { background: transparent !important; }
+  #imgLibModal.lib-drag.lib-aside > * { opacity: 0.12; transition: opacity 120ms ease; }
+  .img-lib-cell[draggable="true"] { cursor: grab; }
   .sheet-hint { display: flex; align-items: flex-start; gap: 6px; margin: 2px 0 6px; padding: 5px 6px 5px 9px; border-left: 2px solid var(--gold); background: rgba(212, 175, 55, 0.07); border-radius: 0 6px 6px 0; font-size: 12.5px; line-height: 1.4; color: var(--text); }
   .sheet-hint-text { flex: 1 1 auto; }
   .sheet-hint-x { flex: 0 0 auto; padding: 0 6px; min-height: 0; line-height: 18px; }

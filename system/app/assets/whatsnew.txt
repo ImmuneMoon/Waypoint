@@ -879,6 +879,9 @@ System editor
 - A formula can test words. is(Class, "Pilot", "Medic") is 1 when the Class
   field says either, whatever the case, and contains(Class, "pilot") looks for
   the word anywhere. In a form, + Compare words picks the field and the words.
+- A roll or an action can switch every row of a list off or on, such as every
+  Crippled location. Run it when hit points cross back up to full, and a
+  crippled limb works again by itself, while one lost for good stays.
 
 Fitted parts
 - Holds by kind may read a formula in place of a stat, such as the most any

@@ -1610,9 +1610,9 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && J(hiF) === J(['Hill Road', 'Hill Road \u203a The ford']) && J(frd) === J(['#wp:@:map:m1:r1']) && PK.mentionFind(camp, '').length === 6 && PK.mentionFind(null, 'x').length === 0
         && PK.mentionQuery('See @Hil') === 'Hil' && PK.mentionQuery('@') === '' && PK.mentionQuery('(@Br') === 'Br' && PK.mentionQuery('mail@host') === null && PK.mentionQuery('@a b') === null && PK.mentionQuery('') === null, J([allM, hiF, frd]));
     const plM = read('scripts/planner.js'), lgM = read('scripts/linkgate.js'), escM = read('scripts/esckey.js');
-    check('166 f wired (pinned): the editors write a mention (mentionCan, mentionAt, mention published on wpTextBox), a press goes through the link gate with no question, every read view paints its mentions before its folds, the list is heard first by Escape\u2019s own-menu rule, the module loaded after the shelf; Help says it',
+    check('166 f wired (pinned): the editors write a mention (mentionCan, mentionAt, mention published on wpTextBox), a press goes through the link gate with no question, every read view paints its mentions before its folds, the list is heard first by Escape\u2019s own-menu rule, the module loaded after the time panel; Help says it',
         plM.includes('mentionCan: mentionCan, mentionAt: mentionAt, mention: mentionPut,') && lgM.includes("if (mn) { if (c.editing === false && c.held !== true) mentionGo(win, mn, e.type === 'auxclick' ? 'window' : '', e, a); return; }") && read('scripts/pagenav.js').includes("window.wpPageShelf.mentionPaint(root); } catch (e) {} }")
-        && escM.includes('#mentionMenu:not([hidden])') && ix.includes('<script type="module" src="scripts/pageshelf.js"></script>\n<script type="module" src="scripts/mention.js"></script>') && ix.includes('<b>@-mentions.</b>'));
+        && escM.includes('#mentionMenu:not([hidden])') && ix.includes('<script type="module" src="scripts/timepanel.js"></script>\n<script type="module" src="scripts/mention.js"></script>') && ix.includes('<b>@-mentions.</b>'));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

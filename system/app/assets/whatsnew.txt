@@ -32,6 +32,10 @@ Tidier screens
   as a new player and Clear all handouts.
 
 The System editor
+- Rests: set up your game's own rests under the calendar in the System
+  editor, such as a short rest or a full night, each with a name and a length.
+  The Calendar window lists them under Time passes as and opens on the one you
+  pick as your default. Calling a rest and the camp itself come next.
 - A sheet reader can now fill a vehicle's own sheet from the same file as
   its owner. The Review shows each sheet's changes under its own name, and
   Apply makes the sheet where the row has none yet.

@@ -3096,6 +3096,16 @@
   .wb-item.wb-turn { outline: 3px solid var(--gold); outline-offset: 3px; box-shadow: 0 0 0 7px rgba(224,165,79,0.28), 0 0 18px rgba(224,165,79,0.55) !important; z-index: 40 !important; }
   #combatStrip { position: absolute; top: 26px; left: 44px; transform: none; width: max-content; max-width: calc(100% - 52px); box-sizing: border-box; flex-wrap: wrap; justify-content: flex-start; z-index: 8990; display: flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid var(--gold); border-radius: 18px; background: var(--panel2); box-shadow: var(--shadow); font-size: 12.5px; white-space: nowrap; pointer-events: auto; }
   .combat-strip-round { color: var(--gold); font-weight: 700; letter-spacing: .04em; }
+  /* backlog 138 (j) fold R1: the System editor's Rests box under the calendar, and the Calendar window's one list where a system has rests */
+  .sys-rests { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--edge); display: flex; flex-direction: column; gap: 8px; }
+  .sys-rest-card { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border: 1px solid var(--edge); border-radius: 8px; background: var(--panel); }
+  .sys-rest-row { align-items: flex-end; }
+  .sys-rest-row input.sys-rest-name { flex: 1 1 160px; min-width: 0; width: auto; }
+  .sys-rest-len { display: flex; gap: 6px; align-items: center; }
+  .sys-rest-len .sys-rest-n { width: 64px; }
+  .sys-rest-preview { color: #5fc4b8; }
+  .sys-rest-add { align-self: flex-start; }
+  .cal-kind-sel { max-width: 260px; }
   /* backlog 219 (the owner, 2026-11-10, by prompt, from docs/sheets/fight-in-bar-sheet.html: "A. A segment of the row"): trackers.js puts the strip in the trackers bar's own row,
      where the bar's rules give it its line and its height. It keeps the round, the arrows and whose turn it is; the rest is the menu under its last button (whiteboard.js stripMenu) */
   #trkStrip #combatStrip { position: static; top: auto; left: auto; transform: none; width: auto; max-width: none; flex-wrap: nowrap; gap: 8px; padding: 0 10px; font-size: 12.5px; }

@@ -23301,6 +23301,27 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && v.errors.length === 1 && /"Class" is text, not a number/.test(v.errors[0].message) && !/Show if/.test(msgs) && none.f_ok.value === 0,
             J([a.f_ok, a.f_w.cells, v.errors, v.warnings, none.f_ok]));
     }
+    {   // 1.6.2 (backlog 138 (j), docs/REST_DESIGN.md fold R1; the owner, 2026-10-16, by prompt): the system's rests, the GM's alone
+        const J = JSON.stringify, rs = [{ id: 'rs_a', name: ' A full night ', len: { n: 8, u: 'hour' } }, { id: 'rs_a', name: 'Twice', len: { n: 1, u: 'hour' } }, { id: 'rs_w', name: 'Watch', len: { n: 2, u: 'Watch' }, time: false },
+            { id: 'rs_x', name: '', len: { n: 1, u: 'hour' } }, { id: 'bad', name: 'Bad id', len: { n: 1, u: 'hour' } }, { id: 'rs_r', name: 'Rounds', len: { n: 3, u: 'round' } }, { id: 'rs_n', name: 'Half', len: { n: 1.5, u: 'hour' } }, { id: 'rs_m', name: 'Long', len: { n: 1001, u: 'day' } }, { id: 'rs_t', name: 'True', len: { n: 1, u: 'week' }, time: true }];
+        const kept = S.cleanRests(rs, ['Watch']), noUnit = S.cleanRests(rs, []), many = S.cleanRests(Array.from({ length: 12 }, (_, k) => ({ id: 'rs_' + k, name: 'R' + k, len: { n: 1, u: 'min' } })), []);
+        const skips = [S.cleanRestSkip('rest', kept), S.cleanRestSkip('rs_w', kept), S.cleanRestSkip('rs_gone', kept), S.cleanRestSkip('', kept), S.cleanRestSkip(3, kept)];
+        const base = { v: 1, name: 'T', fields: [{ id: 'f_h', key: 'HP', kind: 'number', def: 1 }], rests: rs, restSkip: 'rs_a' };
+        const gm = cleanSystem(base, { F, gmView: true }), pl = cleanSystem(base, { F, gmView: false }), none = cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_h', key: 'HP', kind: 'number', def: 1 }] }, { F, gmView: true });
+        check('backlog 138 (j) fold R1: cleanRests keeps up to 8 rests, each an id rs_ once, a name, a whole length of 1 to 1000 in minutes, hours, days, weeks or one of the system\'s own time units (never a round), and time only as false; cleanRestSkip keeps rest or a kept rest\'s id; the GM\'s view keeps both after the calendar, a players\' view neither, and a system with none has no key',
+            J(kept) === J([{ id: 'rs_a', name: 'A full night', len: { n: 8, u: 'hour' } }, { id: 'rs_w', name: 'Watch', len: { n: 2, u: 'Watch' }, time: false }, { id: 'rs_t', name: 'True', len: { n: 1, u: 'week' } }]) && J(noUnit.map(r => r.id)) === J(['rs_a', 'rs_t']) && many.length === S.REST_MAX && S.REST_MAX === 8
+            && J(skips) === J(['rest', 'rs_w', '', '', '']) && J(gm.rests.map(r => r.id)) === J(['rs_a', 'rs_t']) && gm.restSkip === 'rs_a' && !('rests' in pl) && !('restSkip' in pl) && !('rests' in none) && !('restSkip' in none)
+            && Object.keys(gm).indexOf('rests') === Object.keys(gm).indexOf('restSkip') - 1, J([kept, skips, gm.rests, gm.restSkip, Object.keys(pl)]));
+        const shR = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), ra = shR.indexOf('// [systemcheck:restsbox-start]'), rb = shR.indexOf('// [systemcheck:restsbox-end]');
+        const C2 = await import(url('calendarcore.js'));
+        const box = ra > 0 && rb > ra ? new Function('cleanCalendar', 'everySecs', 'fmtSpan', 'REST_MAX', shR.slice(ra, rb) + '\nreturn { restUnits, restPreview, restSays };')(C2.cleanCalendar, C2.everySecs, C2.fmtSpan, S.REST_MAX) : null;
+        const sysB = { combat: { turn: { units: [{ key: 'Watch', label: 'Watches', secs: 7200 }, { key: 'round', label: 'Round', secs: 6 }] } }, rolls: [{ label: 'Quiet rest', every: { n: 10, u: 'min', rest: true } }, { label: 'Any time', every: { n: 1, u: 'hour' } }, { label: 'Tiny', every: { n: 1, u: 'min' } }, { label: 'No clock' }],
+            rests: [{ id: 'rs_a', name: 'A full night', len: { n: 8, u: 'hour' } }, { id: 'rs_b', name: '', len: { n: 1, u: 'hour' } }, { id: 'rs_c', name: 'Odd', len: { n: 0, u: 'hour' } }, { id: 'rs_d', name: 'Gone', len: { n: 1, u: 'fortnight' } }, { id: 'rs_w', name: 'On watch', len: { n: 1, u: 'Watch' }, time: false }], restSkip: 'rs_b' };
+        const units = box ? box.restUnits(sysB).map(u => u[0]) : null, pv = box ? [box.restPreview(sysB, sysB.rests[0]), box.restPreview(sysB, sysB.rests[4]), box.restPreview({}, sysB.rests[0])] : null, says = box ? box.restSays(sysB) : null;
+        check('backlog 138 (j) fold R1: the Rests box (sheets.js restsbox, run for real) offers minutes, hours, days, weeks and the system\'s own time units but a round; its preview counts what the time rules By the clock give in its length from nothing, 500 at most, a rest whose time is activity leaving the rest-only rules out; what Save drops is said in words, the default too',
+            J(units) === J(['min', 'hour', 'day', 'week', 'Watch']) && pv[0] === 'In 8 hours of rest, each who rests gets: Quiet rest \u00d748, Any time \u00d78, Tiny \u00d7480.' && pv[1] === 'Its 2 hours count as activity: Any time \u00d72, Tiny \u00d7120.' && pv[2] === 'In 8 hours of rest no time rule runs. Rules are set By the clock on the Rolls tab.'
+            && J(says) === J(['Rest 2: it needs a name. Until it has one, Save drops it.', 'Odd: Lasts takes a whole number from 1 to 1000. Save drops it.', 'Gone: its unit is not one of the system\u2019s time units now. Save drops it.', 'A time skip counts as names a rest Save drops, so the Calendar window opens on Active.']), J([units, pv, says]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

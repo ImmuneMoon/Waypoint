@@ -7,6 +7,7 @@ import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast, toastAction } from './io.js';
 import { autoFills, autoStore } from './systemcore.js';   // 1.6.2 (auto apply)
+import { REST_MAX } from './systemcore.js';   // 1.6.2 (backlog 138 (j) fold R1)
 import { laySync } from './systemcore.js';   // 1.6.2 Laid from: rows another list's rows lay, kept in step beside openSync
 import { picRef, cssColor } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
@@ -49,7 +50,7 @@ import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from 
 import { FEEDS_MAX, feedOf, feedSpec, feedCt, feedCount, feedStack, feedLive } from './systemcore.js';   // 1.6.0 Feeds
 import { lvlsFromBox, lvlsToText, rowLibJudge, entryFromRow, packsForRow } from './librarycore.js';
 import { dieNode, DIE_LABELS } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
-import { cleanCalendar, fmtWhen, fmtDate, timeOf, dateOf, dayLength, calPreset, CAL_LIMITS } from './calendarcore.js';
+import { cleanCalendar, fmtWhen, fmtDate, fmtSpan, timeOf, dateOf, dayLength, calPreset, everySecs, CAL_LIMITS } from './calendarcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -13350,7 +13351,7 @@ function calSums(cal) {   // [the year's length in words, day 1 and a year on as
     return [base + ' days a year' + (lp ? ' (' + (base + lp) + ' in a leap year)' : rls.length > 1 ? ' (longer in its leap years)' : '') + ': ' + ms + ' month' + (ms === 1 ? '' : 's') + (ex ? ' and ' + ex + ' period' + (ex === 1 ? '' : 's') + ' outside the month count' : '') + '.',
         (_calK ? 'World day 1 reads: ' + fmtDate(cc, otherAt(cal) * dayLength(cc)) + '.' : 'Day 1 reads: ' + fmtWhen(cc, 0) + (y2 !== null ? '. A year on: ' + fmtDate(cc, y2) : '') + '.')];
 }
-function renderCalendar() { var box = ui('sysCalendar'); if (!box) return; var st = box.scrollTop; box.textContent = ''; calendarBox(box, calOf()); box.scrollTop = st; }   // the pane scrolls: a redraw keeps its place
+function renderCalendar() { var box = ui('sysCalendar'); if (!box) return; var st = box.scrollTop; box.textContent = ''; calendarBox(box, calOf()); if (typeof restsBox === 'function') box.appendChild(restsBox()); box.scrollTop = st; }   // the pane scrolls: a redraw keeps its place
 function calendarBox(box, cal) {
     var wrap = el('div', 'sys-cal');
     wrap.appendChild(el('div', 'sys-light-head', 'Calendar'));
@@ -13630,6 +13631,100 @@ function calendarClick(b) {
     markDirty(); renderAll(); return true;
 }
 // [sinkcheck:calendarbox-end]
+// [systemcheck:restsbox-start]
+// 1.6.2 (backlog 138 (j), docs/REST_DESIGN.md fold R1; the owner, 2026-10-16, by prompt: rests "set per system per campaign", a skip as a rest "Your default,
+// changeable"): the system's rests under the calendar (draft.rests, draft.restSkip; systemcore cleanRests keeps them in the GM's view alone). Each a name,
+// a length and whether its time counts as rest; the Calendar window offers each when the clock moves on, and opens on the default. Every text is a value or
+// a text node, the box has listeners of its own, and what Save drops is said under it as the cleaner reads it
+function restUnits(sys) {
+    var us = [['min', 'Minutes'], ['hour', 'Hours'], ['day', 'Days'], ['week', 'Weeks']], tu = sys && sys.combat && sys.combat.turn && Array.isArray(sys.combat.turn.units) ? sys.combat.turn.units : [];
+    tu.forEach(function(u) { if (u && typeof u.key === 'string' && u.key && u.key.toLowerCase() !== 'round') us.push([u.key, typeof u.label === 'string' && u.label.trim() ? u.label.trim() : u.key]); });
+    return us;
+}
+function restNewId(rs) { var id; do { id = 'rs_' + Math.random().toString(36).slice(2, 10).replace(/[^a-z0-9]/g, '') + 'r'; } while (rs.some(function(r) { return r && r.id === id; })); return id; }
+// What a rest of that length gives, from the time rules By the clock as Save keeps them, counted from nothing (a count already under way may add one more)
+function restPreview(sys, r) {
+    if (!r || !r.len) return '';
+    var cal = cleanCalendar(sys && sys.calendar), tu = sys && sys.combat && sys.combat.turn && Array.isArray(sys.combat.turn.units) ? sys.combat.turn.units : [], len = everySecs(cal, tu, r.len); if (!(len > 0)) return '';
+    var lw = fmtSpan(cal, len), runs = [];
+    (Array.isArray(sys && sys.rolls) ? sys.rolls : []).forEach(function(x) {
+        if (!x || !x.every || typeof x.every !== 'object') return; if (r.time === false && x.every.rest === true) return;
+        var per = everySecs(cal, tu, x.every); if (!(per > 0)) return; var n = Math.min(500, Math.floor(len / per)); if (n > 0) runs.push((typeof x.label === 'string' && x.label.trim() ? x.label.trim() : 'A time rule') + ' \u00d7' + n);
+    });
+    if (r.time === false) return 'Its ' + lw + ' count as activity' + (runs.length ? ': ' + runs.join(', ') + '.' : '. No time rule runs in that time.');
+    return runs.length ? 'In ' + lw + ' of rest, each who rests gets: ' + runs.join(', ') + '.' : 'In ' + lw + ' of rest no time rule runs. Rules are set By the clock on the Rolls tab.';
+}
+function restSays(sys) {
+    var out = [], rs = Array.isArray(sys && sys.rests) ? sys.rests : [], kept = 0, ids = Object.create(null), us = Object.create(null);
+    restUnits(sys).forEach(function(u) { us[u[0].toLowerCase()] = 1; });
+    rs.forEach(function(r, i) {
+        if (!r || typeof r !== 'object') return; var nm = typeof r.name === 'string' && r.name.trim() ? r.name.trim() : 'Rest ' + (i + 1);
+        if (kept >= REST_MAX) { out.push(nm + ': at most ' + REST_MAX + ' rests. Save drops it.'); return; }
+        if (!(typeof r.name === 'string' && r.name.trim())) { out.push(nm + ': it needs a name. Until it has one, Save drops it.'); return; }
+        var L = r.len && typeof r.len === 'object' ? r.len : {}, n = L.n;
+        if (!(typeof n === 'number' && Math.floor(n) === n && n >= 1 && n <= 1000)) { out.push(nm + ': Lasts takes a whole number from 1 to 1000. Save drops it.'); return; }
+        if (!(typeof L.u === 'string' && us[L.u.toLowerCase()])) { out.push(nm + ': its unit is not one of the system\u2019s time units now. Save drops it.'); return; }
+        kept++; ids[r.id] = 1;
+    });
+    if (typeof sys.restSkip === 'string' && sys.restSkip && sys.restSkip !== 'rest' && !ids[sys.restSkip]) out.push('A time skip counts as names a rest Save drops, so the Calendar window opens on Active.');
+    return out;
+}
+function restsBox() {
+    var wrap = el('div', 'sys-rests');
+    var draw = function() {
+        wrap.textContent = ''; var sys = draft || {}, rs = Array.isArray(sys.rests) ? sys.rests : [];
+        wrap.appendChild(el('div', 'sys-light-head', 'Rests'));
+        wrap.appendChild(el('div', 'sys-note', 'A rest is a way time can pass, such as a short rest or a full night. You pick it in the Calendar window when you move time on, and its time counts as rest for the time rules.'));
+        var opts = [['', 'Active: no rest'], ['rest', 'Rest: rest time only']].concat(rs.filter(function(r) { return r && typeof r.id === 'string'; }).map(function(r) { return [r.id, typeof r.name === 'string' && r.name.trim() ? r.name.trim() : 'A rest with no name']; }));
+        var cur = typeof sys.restSkip === 'string' ? sys.restSkip : '';
+        wrap.appendChild(labeledSelect('sys-rest-skip', 'A time skip counts as', opts, cur, 'What the Calendar window starts on each time it opens. You can change it there for each skip.'));
+        wrap.appendChild(el('div', 'sys-note', 'What the Calendar window starts on before each skip. You can change it there.'));
+        rs.forEach(function(r0, i) {
+            var r = r0 && typeof r0 === 'object' ? r0 : {}, L = r.len && typeof r.len === 'object' ? r.len : {}, cd = el('div', 'sys-rest-card'); cd.dataset.ri = String(i);
+            var row = el('div', 'sys-flags sys-rest-row');
+            var nm = input('sys-rest-name field', typeof r.name === 'string' ? r.name : '', 'The rest\u2019s name, as the Calendar window lists it', 'Name'); nm.maxLength = 60; row.appendChild(nm);
+            var ln = el('label', 'sys-num'); ln.appendChild(el('span', 'sys-num-cap', 'Lasts'));
+            var lnB = el('span', 'sys-rest-len'), n = el('input', 'field sys-rest-n'); n.type = 'number'; n.min = '1'; n.max = '1000'; n.step = '1'; n.value = typeof L.n === 'number' && isFinite(L.n) ? String(L.n) : ''; n.title = 'How long it lasts: a whole number from 1 to 1000'; lnB.appendChild(n);
+            var uo = restUnits(sys), uv = typeof L.u === 'string' ? L.u : 'hour'; if (!uo.some(function(o) { return o[0] === uv; })) uo.push([uv, uv + ' (not a unit now)']);
+            lnB.appendChild(select('sys-rest-u', uo, uv, 'Its unit: minutes, hours, days, weeks or one of the system\u2019s own time units')); ln.appendChild(lnB); row.appendChild(ln);
+            var tl = el('label', 'sys-cal-tick'), tc = el('input', 'sys-rest-time'); tc.type = 'checkbox'; tc.checked = r.time !== false; tc.title = 'Its time counts as rest for the time rules, as a step set to Rest does. Unticked, it counts as activity';
+            tl.appendChild(tc); tl.appendChild(document.createTextNode(' Counts as rest time')); row.appendChild(tl);
+            [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.type = 'button'; bb.dataset.act = 'rest' + bd[0]; bb.title = bd[2]; row.appendChild(bb); });
+            cd.appendChild(row);
+            var pv = restPreview(sys, r); if (pv) cd.appendChild(el('div', 'sys-note sys-rest-preview', pv));
+            wrap.appendChild(cd);
+        });
+        var ad = el('button', 'tool ghost sys-btn sys-rest-add', '+ Rest'); ad.type = 'button'; ad.dataset.act = 'restadd'; ad.disabled = rs.length >= REST_MAX; ad.title = ad.disabled ? 'At most ' + REST_MAX + ' rests' : 'A rest with a name and a length, offered in the Calendar window'; wrap.appendChild(ad);
+        restSays(sys).forEach(function(t) { wrap.appendChild(el('div', 'sys-err-line sys-rest-err', t)); });
+    };
+    var at = function(e) { var c = e.target && e.target.closest ? e.target.closest('.sys-rest-card') : null, i = c ? Number(c.dataset.ri) : -1, rs = Array.isArray(draft.rests) ? draft.rests : null; return rs && i >= 0 && rs[i] && typeof rs[i] === 'object' ? { rs: rs, i: i, r: rs[i] } : null; };
+    var done = function(redraw) { if (typeof markDirty === 'function') markDirty(); if (typeof patchErrors === 'function') patchErrors(); if (redraw) draw(); };
+    wrap.addEventListener('input', function(e) {
+        e.stopPropagation(); var a = at(e), t = e.target; if (!a || !t || !t.classList) return;
+        if (t.classList.contains('sys-rest-name')) { a.r.name = String(t.value).slice(0, 60); done(false); }
+        else if (t.classList.contains('sys-rest-n')) { if (!a.r.len || typeof a.r.len !== 'object') a.r.len = {}; a.r.len.n = String(t.value).trim() === '' ? NaN : Number(t.value); done(false); }
+    });
+    wrap.addEventListener('change', function(e) {
+        e.stopPropagation(); var t = e.target; if (!t || !t.classList) return;
+        if (t.classList.contains('sys-rest-skip')) { if (t.value) draft.restSkip = String(t.value); else delete draft.restSkip; done(true); return; }
+        var a = at(e); if (!a) return;
+        if (t.classList.contains('sys-rest-u')) { if (!a.r.len || typeof a.r.len !== 'object') a.r.len = {}; a.r.len.u = String(t.value); }
+        else if (t.classList.contains('sys-rest-time')) { if (t.checked) delete a.r.time; else a.r.time = false; }
+        done(true);
+    });
+    wrap.addEventListener('click', function(e) {
+        var b = e.target && e.target.closest ? e.target.closest('button') : null; if (!b || !b.dataset || !/^rest/.test(b.dataset.act || '')) return; e.stopPropagation(); e.preventDefault();
+        var act = b.dataset.act;
+        if (act === 'restadd') { if (!Array.isArray(draft.rests)) draft.rests = []; if (draft.rests.length < REST_MAX) draft.rests.push({ id: restNewId(draft.rests), name: '', len: { n: 8, u: 'hour' } }); done(true); var ns = wrap.querySelectorAll('.sys-rest-name'); try { if (ns.length) ns[ns.length - 1].focus(); } catch (er) {} return; }
+        var a = at(e); if (!a) return;
+        if (act === 'restdel') { a.rs.splice(a.i, 1); if (draft.restSkip === a.r.id) delete draft.restSkip; if (!a.rs.length) delete draft.rests; }
+        else if (act === 'restup' && a.i > 0) { a.rs.splice(a.i - 1, 0, a.rs.splice(a.i, 1)[0]); }
+        else if (act === 'restdown' && a.i < a.rs.length - 1) { a.rs.splice(a.i + 1, 0, a.rs.splice(a.i, 1)[0]); }
+        done(true);
+    });
+    draw(); return wrap;
+}
+// [systemcheck:restsbox-end]
 // Senses S2a: the system's senses on the Combat tab (docs/SENSES_PLAN.md 4.3) — each a name, where its range comes from (a field of the
 // character, or a number every character has), what it counts in (never a silent yards: a new row takes the system's first light's unit,
 // else the last picked here, else it waits for one and Save leaves it out), whether walls stop it, whether it sees all round and whether it

@@ -13,7 +13,7 @@ import { cleanEras, eraOf, noteNext, noteOn, viewCal, calNamesOf, fmtIn, fmtDate
 function net() { return window.wpNet || null; }
 function sysNow() { var sh = window.wpSheets; return sh && sh.systemOf ? sh.systemOf() : null; }
 // [sinkcheck:calendarwin-start]
-var restMode = false, pend = null, pendQ = [];   // item 20 K5: time moved on as Rest (else Active), the time rules waiting for the GM's word; 159: time moved on while a list waited
+var restMode = false, restPick = 'active', pend = null, pendQ = [];   // item 20 K5: time moved on as Rest (else Active), the time rules waiting for the GM's word; 159: time moved on while a list waited
 // What waits belongs to the campaign it was counted in (the owed review, 2026-10-09): a list of time rules due and the live time counted behind
 // it carried into the next campaign opened, whose own rules then ran for hours that never passed there. Asked before either is read or added to
 // (152 fold 4: a fight's rounds no longer wait for its end, so nothing of them waits here). With another campaign on screen they are PUT ASIDE for their own, and are back when it is: letting them
@@ -694,10 +694,21 @@ function eraSet(id, key, val) {
     });
 }
 // [calendarcheck:eras-end]
+// [calendarcheck:restpick-start]
+// 1.6.2 (backlog 138 (j), docs/REST_DESIGN.md fold R1; the owner, 2026-10-16, by prompt: a skip as a rest "Your default, changeable (Recommended)"): what
+// time passes as when the clock moves on, restPick: 'active', 'rest' (rest time only) or one of the system's rests by its id, whose time counts as rest
+// unless it says otherwise. It opens on the system's default (restSkip) each time the window opens, and a pick holds while the window is open
+function restsOf(sys) { return sys && Array.isArray(sys.rests) ? sys.rests.filter(function(r) { return !!r && typeof r.id === 'string' && typeof r.name === 'string'; }) : []; }
+function restByPick(sys, k) { var f = null; restsOf(sys).forEach(function(r) { if (!f && r.id === k) f = r; }); return f; }
+function restDefault(sys) { var d = sys && typeof sys.restSkip === 'string' ? sys.restSkip : ''; return d === 'rest' ? 'rest' : restByPick(sys, d) ? d : 'active'; }
+function pickIsRest(sys, k) { if (k === 'rest') return true; var r = restByPick(sys, k); return !!r && r.time !== false; }
+function restPickSet(sys, k) { restPick = k === 'rest' || restByPick(sys, k) ? k : 'active'; restMode = pickIsRest(sys, restPick); }
+function restLenWords(cal, sys, r) { var s = r && r.len ? everySecs(cal, sysUnits(sys), r.len) : 0; return s > 0 ? fmtSpan(cal, s) : ''; }
+// [calendarcheck:restpick-end]
 function renderWin() {
     var body = document.getElementById('calendarBody'), camp = getActiveCampaign(); if (!body) return;
     if (!shown(camp)) { closeWin(); return; }
-    if (restMode && ordersRun()) restMode = false;   // 1.5.7: a fight is activity, so the window shows Active while one runs
+    if ((restMode || restPick !== 'active') && ordersRun()) restPickSet(sysNow(), 'active');   // 1.5.7: a fight is activity, so the window shows Active while one runs
     var cal = sysCal(), ck = clockOf(camp) || { t: 0 }, t = ck.t, gm = !isPlayer(), sys = sysNow(), dl = dayLength(cal), now = dateOf(cal, t);
     if (camp.id !== winCamp) { view = null; pick = null; winCamp = camp.id; pendFor(camp); }   // another campaign on screen: its own calendar, from the clock
     if (!view) view = viewOf(cal, t);
@@ -744,8 +755,14 @@ function renderWin() {
     if (pick !== null) dayNotes(body, cal, notes, pick, true);
     erasBox(body, cal, ck.eras);   // 1.6.2 (backlog 166 b)
     var kd = cel('div', 'cal-kind'); kd.appendChild(cel('span', 'sys-num-cap', 'Time passes as'));
-    [['active', 'Active', 'Activity: the time rules that run any time'], ['rest', 'Rest', 'Rest: every time rule, and a rule during rest only counts it']].forEach(function(k) { var b = cbtn('cal-kind-btn' + ((k[0] === 'rest') === restMode ? ' cal-kind-on' : ''), k[1], k[2], 'calkind'); b.dataset.kind = k[0]; kd.appendChild(b); });
-    if (restMode) kd.appendChild(cel('span', 'sys-note cal-kind-note', 'Rules for rest count while you step this way.'));   // 159: the steps say it (the owner by prompt: "The steps say it (Recommended)")
+    var rsW = restsOf(sys), defK = restDefault(sys), rN = restByPick(sys, restPick);   // backlog 138 (j) fold R1: a system with rests has one list, opening on its default
+    if (rsW.length) {
+        var ks = cel('select', 'field cal-kind-sel'); ks.title = 'What the time you move on counts as. It opens on your default each time the window opens';
+        [['active', 'Active: no rest'], ['rest', 'Rest: rest time only']].concat(rsW.map(function(r) { var lw = restLenWords(cal, sys, r); return [r.id, r.name + (lw ? ', ' + lw : '')]; })).forEach(function(o) { var op = cel('option', '', o[1] + (o[0] === defK ? ' (your default)' : '')); op.value = o[0]; ks.appendChild(op); });
+        ks.value = restPick; kd.appendChild(ks);
+    } else [['active', 'Active', 'Activity: the time rules that run any time'], ['rest', 'Rest', 'Rest: every time rule, and a rule during rest only counts it']].forEach(function(k) { var b = cbtn('cal-kind-btn' + ((k[0] === 'rest') === restMode ? ' cal-kind-on' : ''), k[1], k[2] + (k[0] === defK ? '. Your default' : ''), 'calkind'); b.dataset.kind = k[0]; kd.appendChild(b); });
+    if (rN) kd.appendChild(cel('span', 'sys-note cal-kind-note', rN.time === false ? 'Steps count as ' + rN.name + ', which counts as activity.' : 'Steps count as ' + rN.name + ': rest time for the time rules.'));
+    else if (restMode) kd.appendChild(cel('span', 'sys-note cal-kind-note', 'Rules for rest count while you step this way.'));   // 159: the steps say it (the owner by prompt: "The steps say it (Recommended)")
     body.appendChild(kd);
     var st = cel('div', 'cal-steps'), ofR = restMode ? ' of rest' : ''; st.appendChild(cel('span', 'sys-num-cap', 'Move time on'));
     stepsOf(cal).forEach(function(s) { var b = cbtn('cal-step', s.label + ofR, 'Move the clock on ' + fmtSpan(cal, s.secs) + ofR, 'calstep'); b.dataset.secs = String(s.secs); st.appendChild(b); });
@@ -922,7 +939,7 @@ function onWinClick(e) {
     if (act === 'caltlday') { var td = Number(b.dataset.day); if (td >= 0 && Math.floor(td) === td) { calTab = 'month'; pick = td; view = viewOf(cal, td * dayLength(cal)); renderWin(); } return; }   // a timeline row opens its day on the month
     if (isPlayer()) { if (act === 'calhideme' && window.wpVtt && window.wpVtt.setLocal('calendar', true)) { closeWin(); toast('The clock is hidden for you. Settings \u25b8 This campaign brings it back.'); } return; }
     var body = document.getElementById('calendarBody'), q = function(c) { return body ? body.querySelector('.' + c) : null; };
-    if (act === 'calkind') { if (b.dataset.kind === 'rest' && ordersRun()) { restMode = false; toast('A fight is running: time passes as Active until it ends.'); renderWin(); return; } restMode = b.dataset.kind === 'rest'; renderWin(); return; }   // K5; 1.5.7: no Rest while a fight runs
+    if (act === 'calkind') { if (b.dataset.kind === 'rest' && ordersRun()) { restPickSet(sysNow(), 'active'); toast('A fight is running: time passes as Active until it ends.'); renderWin(); return; } restPickSet(sysNow(), b.dataset.kind === 'rest' ? 'rest' : 'active'); renderWin(); return; }   // K5; 1.5.7: no Rest while a fight runs
     if (act === 'callive') { setHold(b.dataset.live === 'hold'); return; }   // 1.5.4: Runs / Held
     if (act === 'calpendapply') { pendDone(true); return; }
     if (act === 'calpendskip') { pendDone(false); return; }
@@ -947,6 +964,7 @@ function onWinChange(e) {
     var tg = e.target; if (!tg || !tg.classList) return;
     if (tg.classList.contains('cal-hide')) setHidden(tg.checked !== true);
     else if (tg.classList.contains('cal-live-rate')) { if (!isPlayer()) setRate(Number(tg.value)); }
+    else if (tg.classList.contains('cal-kind-sel')) { if (!isPlayer()) { var sysK = sysNow(), kv = String(tg.value || 'active'); if (kv !== 'active' && pickIsRest(sysK, kv) && ordersRun()) { restPickSet(sysK, 'active'); toast('A fight is running: time passes as Active until it ends.'); } else restPickSet(sysK, kv); renderWin(); } }   // backlog 138 (j) fold R1
     else if (tg.classList.contains('cal-show-sel')) { if (!isPlayer()) setShowCal(Number(tg.value)); }   // 1.6.2 (backlog 60)   // 1.5.4: the running clock's speed
     else if (tg.classList.contains('cal-note-vis') && tg.dataset) noteVis(tg.dataset.note, tg.checked === true);   // K3
     else if (tg.classList.contains('cal-note-yearly') && tg.dataset) { if (!isPlayer()) noteYearly(tg.dataset.note, tg.checked === true); }   // 1.6.2 (backlog 166 b)
@@ -982,7 +1000,7 @@ function openDay(day) {
     calTab = 'month'; pick = day; view = viewOf(cal, day * dayLength(cal)); m.style.display = 'flex'; renderWin(); return true;
 }
 // [calendarcheck:played-end]
-function openWin() { var m = document.getElementById('calendarModal'); if (!m || !shown(getActiveCampaign())) return; view = null; pick = null; m.style.display = 'flex'; renderWin(); }
+function openWin() { var m = document.getElementById('calendarModal'); if (!m || !shown(getActiveCampaign())) return; view = null; pick = null; if (typeof restPickSet === 'function') { var sysO = sysNow(); restPickSet(sysO, restDefault(sysO)); } m.style.display = 'flex'; renderWin(); }   // backlog 138 (j) fold R1: it opens on the system's default
 function closeWin() { var m = document.getElementById('calendarModal'); if (m) m.style.display = 'none'; }
 function winOpen() { var m = document.getElementById('calendarModal'); return !!m && m.style.display !== 'none'; }
 // The header's chip (every render): the date and time, for the GM with a mark while players do not see it; the open window redrawn

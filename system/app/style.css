@@ -878,6 +878,9 @@
   #pageNavMenu { position: fixed; z-index: 99996; min-width: 180px; max-width: min(380px, 92vw); max-height: 60vh; overflow: auto; background: var(--panel2); border: 1px solid var(--gold); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); padding: 4px 0; }
   #pageNavMenu .pagenav-row { display: block; width: 100%; background: none; border: none; color: var(--ink); padding: 6px 14px; text-align: left; cursor: pointer; font-size: 13px; font-family: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #pageNavMenu .pagenav-row:hover, #pageNavMenu .pagenav-row:focus-visible { background: var(--blue); color: #fff; outline: none; }
+  #pageNavMenu .pagenav-parts { display: grid; grid-template-columns: minmax(0, 1fr) 30px; align-items: center; }
+  #pageNavMenu .pagenav-win { width: 26px; height: 24px; padding: 0; background: none; border: 0; border-radius: 4px; color: var(--dim); cursor: pointer; }
+  #pageNavMenu .pagenav-win:hover, #pageNavMenu .pagenav-win:focus-visible { color: var(--gold); background: var(--bg2); outline: none; }
   #pageNavMenu .pagenav-lv1 { font-weight: 700; }
   #pageNavMenu .pagenav-lv2 { padding-left: 26px; }
   #pageNavMenu .pagenav-lv3 { padding-left: 40px; font-size: 12.5px; color: var(--dim); }
@@ -1103,6 +1106,10 @@
   #popoutBar #popoutTitle { flex: 1; min-width: 0; font-weight: 600; color: var(--gold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #popoutBar #popoutDock, #popoutBar #popoutOutline { flex: none; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; color: var(--ink); padding: 5px 12px; cursor: pointer; font-size: 12px; }
   #popoutBar #popoutDock:hover, #popoutBar #popoutOutline:hover { border-color: var(--gold); }
+  #popoutBar #popoutWhole { flex: none; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; color: var(--ink); padding: 5px 12px; cursor: pointer; font-size: 12px; }
+  #popoutBar #popoutWhole:hover { border-color: var(--gold); }
+  #popoutBar:has(#popoutWhole) { flex-wrap: wrap; row-gap: 6px; }   /* a part's window: its title says the page and the part, and takes a line of its own before it is cut to nothing */
+  #popoutBar:has(#popoutWhole) #popoutTitle { flex-basis: 180px; }
   #popoutBar .pagenav-hist { flex: none; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; color: var(--ink); padding: 4px 10px; cursor: pointer; font-size: 13px; }
   #popoutBar .pagenav-hist:hover:not(:disabled) { border-color: var(--gold); }
   .pagenav-hist:disabled { opacity: 0.4; cursor: default; }   /* 1.5.8: Back and Forward with nowhere to go (pagenav.js) */

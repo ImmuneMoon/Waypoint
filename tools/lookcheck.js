@@ -2985,14 +2985,14 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
 // says what it does in its tooltip; the Find box names its keys there, Ctrl+F among them. None of them may go without the owner's word
 {
     const po = read('scripts/popout.js'), pn = read('scripts/pagenav.js');
-    const BAR = ['popoutBar', 'popoutTitle', 'popoutFindRow', 'popoutFind', 'popoutFindCount', 'popoutFindPrev', 'popoutFindNext', 'popoutDock', 'popoutBody'];
+    const BAR = ['popoutBar', 'popoutTitle', 'popoutFindRow', 'popoutFind', 'popoutFindCount', 'popoutFindPrev', 'popoutFindNext', 'popoutWhole', 'popoutDock', 'popoutBody'];   // 1.6.2: Whole page, written for a part's window alone
     const a = po.indexOf("    wrap.innerHTML = '<div id=\"popoutBar\">"), z = po.indexOf("\n    document.body.appendChild(wrap);", a), bar = a > 0 && z > a ? po.slice(a, z) : '';
     const order = (bar.match(/ id="([A-Za-z]+)"/g) || []).map(m => m.slice(5, -1)), once = BAR.filter(id => count(po, ' id="' + id + '"') !== 1);
     const tip = id => { const m = new RegExp('<(?:button|input) id="' + id + '"[^>]* title="([^"]+)"').exec(bar); return m ? m[1] : ''; };
-    check('nothing is removed from a page\'s window of its own: popout.js writes its bar\'s nine parts once each and in their order (the title, the Find row with its box, count, previous and next, Dock back, and the page\'s body), pagenav.js its Outline button once, and each control says what it does in its tooltip, the Find box its keys, Ctrl+F among them',
+    check('nothing is removed from a page\'s window of its own: popout.js writes its bar\'s ten parts once each and in their order (the title, the Find row with its box, count, previous and next, Whole page for a part\'s window, Dock back, and the page\'s body), pagenav.js its Outline button once, and each control says what it does in its tooltip, the Find box its keys, Ctrl+F among them',
         bar.length > 500 && J(order) === J(BAR) && once.length === 0 && count(pn, "pb.id = 'popoutOutline';") === 1 && /pb\.id = 'popoutOutline'; pb\.type = 'button'; pb\.title = 'Outline: [^']+';/.test(pn)
         && tip('popoutFind') === 'Find words on this page. Enter goes to the next match and Shift+Enter to the one before. Esc clears. Ctrl+F takes you here.'
-        && tip('popoutFindPrev') === 'Previous match (Shift+Enter)' && tip('popoutFindNext') === 'Next match (Enter)' && tip('popoutDock') === 'Put this back into a floating panel in the main window', J([order, once, ['popoutFind', 'popoutFindPrev', 'popoutFindNext', 'popoutDock'].map(tip)]));
+        && tip('popoutFindPrev') === 'Previous match (Shift+Enter)' && tip('popoutFindNext') === 'Next match (Enter)' && tip('popoutDock') === 'Put this back into a floating panel in the main window' && tip('popoutWhole') === 'Show the whole page in this window, at this part', J([order, once, ['popoutFind', 'popoutFindPrev', 'popoutFindNext', 'popoutDock'].map(tip)]));
 }
 
 /* ---------- the board's small things of 2026-10-17 (found live in the hunt of that day) ---------- */

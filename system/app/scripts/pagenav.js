@@ -73,7 +73,12 @@ function navKeyFor(rootId) {
     else if (rootId === 'docReaderBody') id = typeof window.wpDocReaderOpenId === 'function' ? window.wpDocReaderOpenId() : '';
     return cid && typeof id === 'string' && id ? cid + '/' + id : '';
 }
-function foldPage(root) { var k = ''; try { k = navKeyFor(root && root.id); } catch (e) { k = ''; } return typeof k === 'string' && k ? foldHash(k) : ''; }
+// 1.6.2: a part's window keeps folds of its own (popout.js wpPopoutFoldKey: the page and the part). It shows a part of the page alone, and a
+// fold set there under the page's own key would let go of every fold of the rest of the page, in every window
+function foldPage(root) {
+    var k = ''; try { k = root && root.id === 'popoutBody' && typeof window !== 'undefined' && typeof window.wpPopoutFoldKey === 'string' && window.wpPopoutFoldKey ? window.wpPopoutFoldKey : navKeyFor(root && root.id); } catch (e) { k = ''; }
+    return typeof k === 'string' && k ? foldHash(k) : '';
+}
 // what this computer keeps, read as what of it is sound: { v: 1, seq, pages: { page: { t, m: [mark] } } }. Anything else in it is passed over.
 // It throws where there is no storage to read (a private window): the caller's to catch, so that nothing is then written over what is kept
 function foldRead() {
@@ -163,13 +168,28 @@ function foldClear(blk) {
     ['pv-fold-head', 'pv-fold-body', 'pv-fold-shut', 'pv-fold-hid'].forEach(function(c) { blk.classList.remove(c); });
     if (blk.dataset) { delete blk.dataset.fold; delete blk.dataset.foldHint; }
 }
+// 1.6.2 (docs/PLANNER_ORG_DESIGN.md 6.1): a part of a page in a window of its own, a section with what stands under it or any other block by
+// itself. Offered where the page is the GM's own in the app's own window: the planner's own view and the panel over the map. The shelf opens
+// it (pageshelf.js openPart), by the id of the block a drawn box carries the number of
+function partsOn(root) {
+    if (!root || (root.id !== 'plannerPreview' && root.id !== 'docPanelBody') || typeof window === 'undefined') return false;
+    var PS = window.wpPageShelf; try { return !!PS && typeof PS.openPart === 'function' && typeof PS.partMay === 'function' && PS.partMay() === true; } catch (e) { return false; }
+}
+function partOpen(root, bi) {
+    if (!partsOn(root)) return '';
+    var k = ''; try { k = navKeyFor(root.id); } catch (e) { k = ''; }
+    var sl = typeof k === 'string' ? k.indexOf('/') : -1, id = sl >= 0 ? k.slice(sl + 1) : '', camp = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null;
+    var it = id && camp && camp.items && Object.prototype.hasOwnProperty.call(camp.items, id) ? camp.items[id] : null; if (!it || typeof it !== 'object') return '';
+    var b = Array.isArray(it.blocks) && /^\d{1,6}$/.test(String(bi)) ? it.blocks[+bi] : null;
+    return window.wpPageShelf.openPart(id, b && typeof b === 'object' && typeof b.id === 'string' ? b.id : '') || '';
+}
 // Draws the folds of the page a place shows, from what is remembered: each part that folds gets its arrow (a button, the block's first
 // child, made once: the style sheet floats it into the margin, so no block has to be positioned for it), a folded part its word, and
 // every block a folded heading puts away is marked hidden. Run again it changes nothing
 function foldApply(root) {
     if (!root || !root.classList) return;
     if (typeof window !== 'undefined' && window.wpPageShelf && typeof window.wpPageShelf.mentionPaint === 'function') { try { window.wpPageShelf.mentionPaint(root); } catch (e) {} }   // 1.6.2 (backlog 166 f): mentions in their names now
-    var page = foldParts(root), shut = foldGet(root), n = page.blocks.length, part = [], hidden = [], under = 0, i;
+    var page = foldParts(root), shut = foldGet(root), n = page.blocks.length, part = [], hidden = [], under = 0, i, win = typeof partsOn === 'function' && partsOn(root);
     page.parts.forEach(function(p) { part[p.at] = p; });
     for (i = 0; i < n; i++) {
         var lv = page.levels[i], p = part[i];
@@ -185,7 +205,7 @@ function foldApply(root) {
         blk.classList.toggle('pv-fold-head', head); blk.classList.toggle('pv-fold-body', !head); blk.classList.toggle('pv-fold-shut', isShut); blk.classList.toggle('pv-fold-hid', hidden[i]);
         blk.dataset.fold = q.mark;
         if (isShut) blk.dataset.foldHint = head ? q.holds + (q.holds === 1 ? ' part folded' : ' parts folded') : foldCut(q.words, 80); else delete blk.dataset.foldHint;
-        btn.dataset.tip = say; btn.removeAttribute('title'); btn.setAttribute('aria-label', say); btn.setAttribute('aria-expanded', isShut ? 'false' : 'true');
+        btn.dataset.tip = win ? say + '. Ctrl+click opens it in a window of its own.' : say; btn.removeAttribute('title'); btn.setAttribute('aria-label', say); btn.setAttribute('aria-expanded', isShut ? 'false' : 'true');
         if (head) btn.removeAttribute('tabindex'); else btn.setAttribute('tabindex', '-1');   // the keyboard steps through the sections' arrows, not every block's
     }
     namesDraw(root, page, shut);   // 1.6.2 (backlog 107 (a)): Names only on each row of cards
@@ -436,6 +456,8 @@ function navMenuEl() {
     var m = document.createElement('div'); m.id = 'pageNavMenu'; m.setAttribute('role', 'menu'); m.style.display = 'none';
     (document.getElementById('popoutWrap') || document.body).appendChild(m);   // a window of its own hides everything outside its own wrap
     m.addEventListener('click', function(e) {
+        var win = e.target && e.target.closest ? e.target.closest('.pagenav-win') : null;
+        if (win) { var rootW = _navRoot, biW = win.dataset.blk; navClose(false); if (rootW && typeof partOpen === 'function') partOpen(rootW, biW); return; }   // 1.6.2: that part in a window of its own
         var act = e.target && e.target.closest ? e.target.closest('.pagenav-act') : null, row = act ? null : (e.target && e.target.closest ? e.target.closest('.pagenav-row') : null); if (!act && !row) return;
         var root = _navRoot; navClose(false); if (!root) return;
         navHand(root);
@@ -445,13 +467,18 @@ function navMenuEl() {
         navGo(now.el);
     });
     m.addEventListener('keydown', function(e) {
-        var rows = Array.prototype.slice.call(m.querySelectorAll('.pagenav-row, .pagenav-act')), at = rows.indexOf(document.activeElement), to = -1;   // the headings, then Fold all and Open all
+        var cur = document.activeElement, onWin = !!cur && navHas(cur, 'pagenav-win');   // 1.6.2: a row's window button stands beside it: Right goes to it and Left back, Up and Down go on from its row
+        if (!e.ctrlKey && !e.metaKey && !e.altKey && typeof e.key === 'string' && e.key !== ' ' && (e.key.length === 1 || e.key === 'Delete' || e.key === 'Backspace')) e.stopPropagation();   // a letter is a command's key and Delete acts on the map's selection: neither is heard past the menu
+        if (e.key === 'ArrowRight' && !onWin && cur && cur.nextSibling && navHas(cur.nextSibling, 'pagenav-win')) { e.preventDefault(); e.stopPropagation(); cur.nextSibling.focus(); return; }
+        if (e.key === 'ArrowLeft' && onWin && cur.previousSibling) { e.preventDefault(); e.stopPropagation(); cur.previousSibling.focus(); return; }
+        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { if (m.contains(cur)) e.stopPropagation(); return; }   // with nowhere to go the key is still the menu's: the page reads an arrow as moving what is selected on the map
+        var rows = Array.prototype.slice.call(m.querySelectorAll('.pagenav-row, .pagenav-act')), at = rows.indexOf(onWin ? cur.previousSibling : cur), to = -1;   // the headings, then Fold all and Open all
         if (e.key === 'ArrowDown') to = at < 0 || at === rows.length - 1 ? 0 : at + 1;
         else if (e.key === 'ArrowUp') to = at <= 0 ? rows.length - 1 : at - 1;
         else if (e.key === 'Home') to = 0;
         else if (e.key === 'End') to = rows.length - 1;
         if (to < 0 || !rows[to]) return;
-        e.preventDefault(); rows[to].focus();
+        e.preventDefault(); e.stopPropagation(); rows[to].focus();   // 1.6.2 (the review of a part's window): taken here and heard no further, as the row's own menus keep their keys
     });
     return (_navMenu = m);
 }
@@ -464,12 +491,17 @@ function navClose(refocus) {
 }
 // the rows: a button each, its class by the heading's level, its words a text node; then, where the page has a part that folds, a foot
 // with Fold all and Open all
-function navFill(m, list, folds, cards, toc) {   // cards: the page holds a row of cards, so the foot also offers Cards to names; toc: true or false where the page has Contents to show or put away
+function navFill(m, list, folds, cards, toc, parts) {   // cards: the page holds a row of cards, so the foot also offers Cards to names; toc: true or false where the page has Contents to show or put away
     while (m.firstChild) m.removeChild(m.firstChild);
     if (!list.length) { var none = document.createElement('div'); none.className = 'pagenav-none'; none.appendChild(document.createTextNode('This page has no headings.')); m.appendChild(none); }
+    var box = m; if (parts === true && list.length) { box = document.createElement('div'); box.className = 'pagenav-parts'; m.appendChild(box); }   // 1.6.2: two columns, a row and its window button
     list.forEach(function(h) {
         var b = document.createElement('button'); b.type = 'button'; b.className = 'pagenav-row pagenav-lv' + h.level; b.dataset.blk = h.bi; b.setAttribute('role', 'menuitem');
-        b.appendChild(document.createTextNode(h.text)); m.appendChild(b);
+        b.appendChild(document.createTextNode(h.text)); box.appendChild(b);
+        if (parts === true) {   // 1.6.2: each heading's own window button right after its row, where a part may open in a window of its own
+            var w = document.createElement('button'); w.type = 'button'; w.className = 'pagenav-win wib wi-dup'; w.dataset.blk = h.bi; w.setAttribute('role', 'menuitem');
+            w.setAttribute('aria-label', 'Open ' + h.text + ' in a window of its own'); w.title = 'Open this part alone in a window of its own'; box.appendChild(w);
+        }
     });
     if (!folds) return;
     var foot = document.createElement('div'); foot.className = 'pagenav-foot';
@@ -478,7 +510,7 @@ function navFill(m, list, folds, cards, toc) {   // cards: the page holds a row 
     m.appendChild(foot);
 }
 function navOpen(btn, root, byKey) {
-    var m = navMenuEl(); navFill(m, navOutline(root), foldParts(root).parts.length > 0, namesAny(root), tocModel(root).length >= TOC_MIN ? !tocOff() : undefined);
+    var m = navMenuEl(); navFill(m, navOutline(root), foldParts(root).parts.length > 0, namesAny(root), tocModel(root).length >= TOC_MIN ? !tocOff() : undefined, typeof partsOn === 'function' && partsOn(root));
     _navFrom = btn; _navRoot = root; btn.setAttribute('aria-expanded', 'true');
     m.style.left = '0px'; m.style.top = '0px'; m.style.display = 'block';
     var r = btn.getBoundingClientRect(), vw = window.innerWidth || 0, vh = window.innerHeight || 0, w = m.offsetWidth || 0, h = m.offsetHeight || 0;
@@ -504,6 +536,7 @@ function navWire() {
         // the folds of the page drawn here: an arrow pressed, and the page drawn again (its box is filled anew each time)
         root.addEventListener('click', function(e) {
             var t = e.target, a = t && t.closest ? t.closest('.pv-fold-btn') : null, blk = a ? a.closest('.pv-blk') : null;
+            if (a && blk && (e.ctrlKey || e.metaKey) && typeof partsOn === 'function' && partsOn(root)) { e.preventDefault(); e.stopPropagation(); partOpen(root, blk.dataset.blk); return; }   // 1.6.2: Ctrl+click on an arrow opens that part in a window of its own
             var nb = !a && t && t.closest ? t.closest('.pv-names-btn') : null; if (nb) { e.preventDefault(); e.stopPropagation(); namesToggle(root, nb); return; }   // Names only, or Open cards, on a row of cards
             if (!blk && t && t.closest && !t.closest('a, button, input, select, textarea')) { var s = t.closest('.pv-blk'); if (s && s.classList.contains('pv-fold-shut')) blk = s; }   // an arrow; or a folded part, pressed anywhere but on a link or a control in it
             if (!blk) return;
@@ -668,9 +701,12 @@ function histPage(root) {
     var s = typeof k === 'string' ? k.indexOf('/') : -1; return s >= 0 ? k.slice(s + 1) : '';
 }
 // where a place stands: its page, where it is scrolled to and how tall it is, and the block at the top with how far into it the view begins
+// 1.6.2: the part a window of its own shows alone ('' for a whole page and for every other place), as popout.js says it
+function histPart(root) { try { return root && root.id === 'popoutBody' && typeof window !== 'undefined' && typeof window.wpPopoutPart === 'string' ? window.wpPopoutPart : ''; } catch (e) { return ''; } }
 function histHere(root) {
     var id = histPage(root); if (!id || !root) return null;
     var box = histBoxOf(root), e = { id: id, top: Math.max(0, Math.round(+box.scrollTop || 0)), h: Math.round(+box.scrollHeight || 0), blk: '', off: 0 };
+    var pt = histPart(root); if (pt) e.part = pt;   // its block numbers are the part's own, so Back must show the part again before it scrolls
     try {
         var br = box.getBoundingClientRect(), list = navBlocks(root);
         for (var i = 0; i < list.length; i++) {
@@ -693,10 +729,10 @@ function histPut(root, e) {
 }
 // a page opened in a place, by that place's own way: the planner's own view and the panel through the shelf (which says when a page is not
 // here), a player's reader and a window of its own by their own. land: { at } or null. Answers whether it opened
-function histOpen(root, id, land) {
+function histOpen(root, id, land, part) {
     var w = typeof window !== 'undefined' ? window : null, rid = root && root.id, sh = w && w.wpPageShelf;
     try {
-        if (rid === 'popoutBody') return !!(w && typeof w.wpPopoutGo === 'function' && w.wpPopoutGo(id, land));
+        if (rid === 'popoutBody') return !!(w && typeof w.wpPopoutGo === 'function' && (part ? w.wpPopoutGo(id, land, part) : w.wpPopoutGo(id, land)));
         if (rid === 'docReaderBody' && w && typeof w.wpOpenDoc === 'function' && (land ? w.wpOpenDoc(id, land) : w.wpOpenDoc(id))) return true;
         if (!sh || typeof sh.linkGo !== 'function') return false;
         return !!sh.linkGo(id, land && land.at ? land.at : '', rid === 'docPanelBody' ? 'panel' : 'go');
@@ -709,7 +745,7 @@ function histRestore(root, h, gen, e) {
     try { hand = dp && typeof dp.hand === 'function' ? dp.hand(box) : null; } catch (err) { hand = null; }
     HIST_WAIT.forEach(function(ms, k) {
         setTimeout(function() {
-            if (h.gen !== gen || histPage(root) !== e.id) return;
+            if (h.gen !== gen || histPage(root) !== e.id || histPart(root) !== (e.part || '')) return;   // 1.6.2: nor once a window shows another part of the page, or the whole of it (the entry's block is counted in its own part)
             if (k === 0) mark = hand ? hand.mark() : null; else if (hand && hand.since(mark)) return;   // the mark is taken once the press that asked has been heard
             histPut(root, e);
         }, ms);
@@ -728,7 +764,7 @@ function histStep(root, dir) {
     if (!root) return false;
     var h = histOf(root.id), cur = histHere(root), e = histTake(h, dir, cur); if (!e) { histSync(); return false; }
     var gen = ++h.gen;
-    if (histPage(root) !== e.id && !histOpen(root, e.id, null)) {
+    if ((histPage(root) !== e.id || histPart(root) !== (e.part || '')) && !histOpen(root, e.id, null, e.part || '')) {
         var other = dir < 0 ? h.fwd : h.back; if (cur && other[other.length - 1] === cur) other.pop();
         histSync(); return false;
     }

@@ -16,7 +16,9 @@ function popPlace(a) {
     a = typeof a === 'string' ? a : '';
     var s1 = a.indexOf('/'), rest = s1 >= 0 ? a.slice(s1 + 1) : a, s2 = rest.indexOf('/'), item = s2 >= 0 ? rest.slice(0, s2) : rest, tail = s2 >= 0 ? rest.slice(s2 + 1) : '';
     var land = tail.indexOf('at:') === 0 ? { at: tail.slice(3) } : tail.indexOf('q:') === 0 ? { q: tail.slice(2) } : null;
-    return { camp: s1 >= 0 ? a.slice(0, s1) : '', head: s1 >= 0 ? a.slice(0, s1 + 1) : '', item: item, rest: rest, land: land };
+    var out = { camp: s1 >= 0 ? a.slice(0, s1) : '', head: s1 >= 0 ? a.slice(0, s1 + 1) : '', item: item, rest: rest, land: land };
+    if (!land && tail.indexOf('part:') === 0 && /^[A-Za-z0-9_-]{1,64}$/.test(tail.slice(5))) out.part = tail.slice(5);   // 1.6.2: a part of the page shown alone (popPart)
+    return out;
 }
 // the page the window shows: the item its address names; where that is no page of the campaign, the address names no landing and the whole of
 // what follows the campaign is a page (an id with a slash in it, as an address made before 1.5.4 was read), that page
@@ -31,6 +33,29 @@ function popLandNow(pl, nav, body, it, finder, box, again) {
     var L = nav && typeof nav.landOf === 'function' ? nav.landOf(pl.land) : null; if (!L) return false;
     if (L.q && finder) { if (!again && box) box.value = L.q; return finder.land(again ? finder.words() : L.q, again); }
     return typeof nav.land === 'function' ? nav.land(body, it, L, again) : false;
+}
+// 1.6.2 (docs/PLANNER_ORG_DESIGN.md 6.1): a part of a page shown alone in its window. The block of that id: a heading with what stands under
+// it, down to the next heading of its level or a higher one (as a fold reads a section), and any other block by itself. { blocks, name },
+// or null where the page holds no such block. Of two blocks of a file that share an id the first is the part. The name is the block's
+// title as words: its typed tags left out and the few entities a title may hold read once
+function popPart(it, id) {
+    var bl = it && Array.isArray(it.blocks) ? it.blocks : [], at = -1, i;
+    if (typeof id !== 'string' || !id) return null;
+    for (i = 0; i < bl.length && at < 0; i++) if (bl[i] && typeof bl[i] === 'object' && bl[i].id === id) at = i;
+    if (at < 0) return null;
+    // a Raw HTML block that opens with a heading is drawn, folded and listed as that heading, so it is one here too
+    // The page reads a drawn block's first ELEMENT, so words and comments before the heading are passed over here too. [tag, level, its words]
+    var rawH = function(b) {
+        if (b.type !== 'raw' || typeof b.content !== 'string') return null;
+        var c = b.content.slice(0, 1200).replace(/^(?:[^<]|<!--[\s\S]*?-->)*/, ''), m = /^<h([123])(?:\s[^<>]*)?>/i.exec(c); if (!m) return null;
+        var rest = c.slice(m[0].length), end = rest.search(new RegExp('</h' + m[1] + '\\s*>', 'i'));
+        return [m[0], m[1], end >= 0 ? rest.slice(0, end) : rest.slice(0, 300)];
+    };
+    var lv = function(b) { if (!b || typeof b !== 'object' || typeof b.type !== 'string') return 0; var m = /^h([123])$/.exec(b.type) || rawH(b); return m ? +m[1] : 0; }, mine = lv(bl[at]), end = at + 1;
+    if (mine) while (end < bl.length && !(lv(bl[end]) && lv(bl[end]) <= mine)) end++;
+    var raw0 = rawH(bl[at]), t = typeof bl[at].title === 'string' ? bl[at].title.slice(0, 2000) : raw0 ? raw0[2] : '', ent = { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'", nbsp: ' ' };
+    t = t.replace(/<\/?[a-zA-Z!?][^<>]*>/g, '').replace(/&(amp|lt|gt|quot|#39|nbsp);/g, function(all, k) { return ent[k]; }).replace(/\s+/g, ' ').trim();
+    return { blocks: bl.slice(at, end), name: Array.from(t).slice(0, 80).join('') };
 }
 // [textcheck:popland-end]
 
@@ -50,11 +75,14 @@ if (spec) {
     wrap.innerHTML = '<div id="popoutBar"><span id="popoutTitle"></span>'
         + (kind === 'doc' ? '<span id="popoutFindRow"><input id="popoutFind" type="text" placeholder="Find on this page&hellip;" autocomplete="off" spellcheck="false" title="Find words on this page. Enter goes to the next match and Shift+Enter to the one before. Esc clears. Ctrl+F takes you here.">'
             + '<span id="popoutFindCount" class="docpanel-count"></span><button id="popoutFindPrev" type="button" aria-label="Previous match" title="Previous match (Shift+Enter)">&#9650;</button><button id="popoutFindNext" type="button" aria-label="Next match" title="Next match (Enter)">&#9660;</button></span>' : '')
+        + (kind === 'doc' && pp.part ? '<button id="popoutWhole" type="button" title="Show the whole page in this window, at this part">Whole page</button>' : '')
         + '<button id="popoutDock" title="Put this back into a floating panel in the main window">⤡ Dock back in the app</button></div>'
         + '<div id="popoutBody"></div>';
     document.body.appendChild(wrap);
     var body = wrap.querySelector('#popoutBody');
     var titleEl = wrap.querySelector('#popoutTitle');
+    var wholeBtn = document.getElementById('popoutWhole');   // 1.6.2: a part's window shows the whole page at that part when asked (popGo), and is then a page's window
+    if (wholeBtn) wholeBtn.addEventListener('click', function() { var at = pp.part; if (at) popGo(itemNow, { at: at }); });
 
     // 1.5.4: a page's window has a Find of its own: wpDocPanel's highlighter on this window's page, kept through the page's redraws. Enter and
     // Shift+Enter go to the next and the previous match, Esc clears it, Ctrl+F (Cmd+F) takes the box
@@ -112,11 +140,20 @@ if (spec) {
         body.classList.add('doc-view');
         var itemId = itemNow = popItem(pp, camp.items); window.wpPopoutKey = pp.head + itemId;
         var it = camp.items && camp.items[itemId];
+        if (!it || (it.type !== 'doc' && it.type !== 'planner')) { window.wpPopoutPart = ''; window.wpPopoutFoldKey = ''; }   // a page that is gone shows no part
         if (!it || (it.type !== 'doc' && it.type !== 'planner')) { if (lastSig !== ' GONE') { lastSig = ' GONE'; msg('This page is no longer in the campaign.'); document.title = 'Waypoint — (removed)'; } return; }
         var title = (it.meta && it.meta.title) || it.name || 'Page';
-        var sig = title + ' ' + JSON.stringify(it.blocks || []) + ' ' + JSON.stringify((it.meta && it.meta.style) || null) + ' ' + JSON.stringify(camp.docStyle || null);
+        // 1.6.2: a part alone is the page with that part's blocks and nothing else, drawn by the page's own renderers, so it follows its edits
+        var partId = itemId === pp.item && typeof pp.part === 'string' ? pp.part : '';   // a page whose own id ends as a part's address would is that page, whole
+        var part = partId ? popPart(it, partId) : null, shown = part && part.name ? title + ' \u203a ' + part.name : title;
+        if (wholeBtn) wholeBtn.style.display = partId ? '' : 'none';
+        window.wpPopoutPart = part ? partId : '';   // what pagenav.js reads: the part a place's history names, and the key the part's own folds are kept under
+        window.wpPopoutFoldKey = part ? pp.head + itemId + '/part:' + partId : '';
+        if (partId && !part) { if (lastSig !== '\x00NOPART') { lastSig = '\x00NOPART'; msg('This part is no longer on the page. Whole page shows what is there now.'); document.title = 'Waypoint \u2014 ' + title; if (titleEl) titleEl.textContent = title; } return; }
+        if (part) it = Object.assign({}, it, { blocks: part.blocks });
+        var sig = (part ? 'part' : '') + title + ' ' + JSON.stringify(it.blocks || []) + ' ' + JSON.stringify((it.meta && it.meta.style) || null) + ' ' + JSON.stringify(camp.docStyle || null);
         if (sig === lastSig) return; lastSig = sig;
-        document.title = 'Waypoint — ' + title; if (titleEl) titleEl.textContent = title;
+        document.title = 'Waypoint — ' + shown; if (titleEl) titleEl.textContent = shown;
         var DR = window.wpDocRender; if (!DR || !DR.renderDoc) return;
         setMermaidStrict();
         var keep = body.scrollTop;
@@ -133,10 +170,12 @@ if (spec) {
     // 1.5.8: a page link followed in this window opens its page here (pagenav.js histFollow, and Back and Forward): the window shows that page of
     // its campaign from its next drawing, at the top or where the link lands, its folds and Dock back following it; the landing is cleaned by
     // pagenav.js. The window keeps its address and its name: docpanel.js popOut alone writes a window's address. Answers whether it was taken
-    function popGo(id, land) {
+    function popGo(id, land, part) {
         if (kind !== 'doc' || typeof id !== 'string' || !id) return false;
         var nav = window.wpPageNav, L = nav && typeof nav.landOf === 'function' ? nav.landOf(land) : null;
         pp = { camp: pp.camp, head: pp.head, item: id, rest: id, land: L };
+        if (!L && typeof part === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(part)) pp.part = part;   // 1.6.2: Back to a part this window showed (pagenav.js histStep)
+        window.wpPopoutPart = pp.part || '';   // said at once, with the page: the history reads both before the next drawing (the fold key waits for that drawing, which it belongs to)
         itemNow = id; window.wpPopoutKey = pp.head + id; landed = false; lastSig = ''; landPend = null; body.scrollTop = 0;
         if (finder && findBox.value) { findBox.value = ''; finder.clear(); }
         tick();

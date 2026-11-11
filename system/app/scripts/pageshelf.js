@@ -268,6 +268,16 @@ function openPage(id, way, land) {
     if (to && typeof window.wpPlannerLand === 'function') window.wpPlannerLand(id, to);   // the page itself lands once it is drawn (planner.js)
     return 'go';
 }
+// A part of a page in a window of its own (1.6.2, docs/PLANNER_ORG_DESIGN.md 6.1): a card, or a section with what stands under it, by its
+// block's id. The page panel's own popOut makes the window. With no id a landing takes, or where no window came up, the page opens by its
+// own ways at that place. Never at someone else's table, where no planner is and a page is only read
+function openPart(id, at) {
+    var camp = getActiveCampaign(), it = pageOf(camp, id); if (!it) return '';
+    var n = window.wpNet, dp = window.wpDocPanel; if (n && n.foreign) return '';
+    var part = typeof at === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(at) ? at : '';
+    if (part && id.indexOf('/') < 0 && dp && typeof dp.popOut === 'function' && dp.popOut(id, null, part)) return 'part';   // a page whose own id holds a slash (a file's) opens whole, at the part: a window reads its address by its slashes
+    return part && id.indexOf('/') < 0 ? openPage(id, 'window', { at: part }) : openPage(id, 'window');   // such a page opens at its top: a window cannot read a landing after an id with a slash either
+}
 // [shelfcheck:open-end]
 
 // [shelfcheck:pagelink-start]
@@ -771,5 +781,7 @@ window.wpPageShelf.mentionGo = mentionGo; window.wpPageShelf.mentionWords = ment
 window.wpPageShelf.namedIn = function(names, self) { return namedIn(getActiveCampaign(), names, self); }; namedWire();
 // 1.6.2, backlog 107 (a): the person card that names a token's sheet, for the board's hover card, and its kept list let go
 window.wpPageShelf.sheetCard = function(w) { return mapPinGm() ? sheetCardFor(getActiveCampaign(), w) : null; }; window.wpPageShelf.sheetDrop = sheetCardsDrop;
+// 1.6.2, a part of a page in a window of its own: its opener, and whether this screen may open one (the GM's, in the app's own window)
+window.wpPageShelf.openPart = openPart; window.wpPageShelf.partMay = function() { return mapPinGm(); };
 // 1.6.2, backlog 107 (a): what the Prep column asks, the shelf's own model, its row, the pinned pages and a block's words
 window.wpPageShelf.model = function(mapId) { var c = getActiveCampaign(); return shelfModel(c, typeof mapId === 'string' ? mapId : '', c && typeof c.id === 'string' ? recentRead(c) : []); }; window.wpPageShelf.row = shelfRow; window.wpPageShelf.pinned = function() { var c = getActiveCampaign(); return c ? pinnedOf(c) : []; }; window.wpPageShelf.words = function(b) { return b && typeof b === 'object' ? namedFold(namedText(b).split(NAMED_BRK).join(' ')) : ''; };

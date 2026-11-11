@@ -486,6 +486,17 @@ const J = JSON.stringify, count = (s, f) => s.split(f).length - 1;
         && [fs.readFileSync(path.join(root, '..', '..', 'WHATSNEW.txt'), 'utf8'), read('assets/whatsnew.txt')].every(t => t.replace(/\r\n/g, '\n').includes("- A token whose sheet a Person card names wears that card's mark on your\n  screen.") && t.replace(/\r\n/g, '\n').includes('- Make a card, under People here in Prep, makes a Person card for a token\n  or a room\'s character in the planner you pick.')));
     }
 
+    {   // 1.6.2 (docs/PLANNER_ORG_DESIGN.md 6.1): a card's window button opens the card alone in a window of its own
+        const runAt = (ds, way, o) => { const got = [], PSo = { wayNow: () => 'panel', open: (id, w, land) => { got.push(['open', id, w, land ? land.at : '']); return o && o.ret || w; } }; if (!(o && o.noPart)) PSo.openPart = (id, at) => { got.push(['part', id, at]); return o && o.ret || 'part'; };
+            new Function('window', 'log', 'panelClear', 'setTimeout', cut('openat') + '\nreturn openAt;')({ wpPageShelf: PSo }, (step, f) => { got.push([step, J(f)]); }, () => { got.push(['clear']); }, f => { f(); })({ dataset: ds }, {}, way); return got; };
+        const ats = [runAt({ pl: 'p1', at: 'b_1', i: '2' }, 'part'), runAt({ pl: 'p1', i: '2' }, 'part'), runAt({ pl: 'p1', at: 'b_1', i: '2' }, 'part', { noPart: true }), runAt({ pl: 'p1', at: 'b_1', i: '2' }, 'part', { ret: 'panel' }), runAt({ pl: 'p1', at: 'b_1', i: '2' }, 'window'), runAt({ pl: 'p1', at: 'b_1', i: '2' }), runAt({ at: 'b_1' }, 'part')];
+        const cM0 = calls.length, winBtn = doc.createElement('button'); winBtn.className = 'prep-fb prep-win wib wi-dup'; winBtn.dataset.pl = 'p1'; winBtn.dataset.at = 'b_pl'; press({ target: winBtn });
+        check('1.6.2 a card\'s window button opens the card alone in a window of its own (prep.js openAt, run for real): the shelf is asked for the part by the card\'s planner and block; a card with no block id, and a shelf that opens no parts, open the planner\'s own window; where the part fell back to the panel the panel is moved clear of the column; every other press opens by the rule as before; the button says so',
+            J(ats) === J([[['part', 'p1', 'b_1'], ['open-card', J({ way: 'part', at: 1 })]], [['open', 'p1', 'window', ''], ['open-card', J({ way: 'window', at: 0 })]], [['open', 'p1', 'window', ''], ['open-card', J({ way: 'window', at: 1 })]], [['part', 'p1', 'b_1'], ['open-card', J({ way: 'panel', at: 1 })], ['clear']],
+                [['open', 'p1', 'window', 'b_1'], ['open-card', J({ way: 'window', at: 1 })]], [['open', 'p1', 'panel', 'b_1'], ['open-card', J({ way: 'panel', at: 1 })], ['clear']], []])
+            && J(calls.slice(cM0)) === J([['card', 'b_pl', 'part']]) && src.includes("'Open this card alone in a window of its own'), c); win.setAttribute('aria-label', 'Open this card in a window of its own');"), J([ats, calls.slice(cM0)]));
+    }
+
     /* ---- the wiring, pinned ---- */
     const ix = read('index.html'), mainS = read('scripts/main.js'), ps = read('scripts/pageshelf.js'), cm = read('scripts/commands.js'), fl = read('scripts/floats.js'), ek = read('scripts/esckey.js'), css = read('style.css'), tu = read('scripts/tutorial.js');
     const col = ix.slice(ix.indexOf('<aside id="prepCol"'), ix.indexOf('</aside>', ix.indexOf('<aside id="prepCol"')));

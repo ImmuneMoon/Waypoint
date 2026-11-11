@@ -436,9 +436,16 @@ function popLand(land) {
     var L = null; try { var nav = window.wpPageNav; L = nav && typeof nav.landOf === 'function' ? nav.landOf(land) : null; } catch (e) { L = null; }
     return !L ? '' : L.q ? '/q:' + encodeURIComponent(L.q) : '/at:' + encodeURIComponent(L.at);
 }
-function popOut(id, land) {
+// 1.6.2 (docs/PLANNER_ORG_DESIGN.md 6.1): part, a block's id, opens that part of the page alone (a card, or a section with what stands under
+// it): /part:<block id> after the item, inside the same doc: part of the address, in a window named for the page AND the part, so several
+// parts of one planner stand side by side and one part never opens twice. An id that is no block id opens the page as before, and so does
+// a page whose own id holds a slash (only a file makes one): the window reads its address by its slashes. The size asked is a page's own:
+// the desktop shell gives every pop-out one size whatever is asked (shellguard.js childWindowOptions)
+var POP_PART = /^[A-Za-z0-9_-]{1,64}$/;
+function popOut(id, land, part) {
     var camp = activeCamp(); if (!camp || typeof camp.id !== 'string' || typeof id !== 'string' || !id) return false;
-    var made = null; try { made = window.open(location.origin + '/?popout=doc:' + encodeURIComponent(camp.id) + '/' + encodeURIComponent(id) + popLand(land), 'wpPopout_' + id, 'width=820,height=1000'); } catch (e) { made = null; }
+    var p = typeof part === 'string' && POP_PART.test(part) && id.indexOf('/') < 0 ? part : '';
+    var made = null; try { made = window.open(location.origin + '/?popout=doc:' + encodeURIComponent(camp.id) + '/' + encodeURIComponent(id) + (p ? '/part:' + p : popLand(land)), 'wpPopout_' + id + (p ? '_part_' + p : ''), 'width=820,height=1000'); } catch (e) { made = null; }
     if (!made) return false;   // the owed review, 2026-10-09: no window came up (refused or blocked). The caller falls back to the panel, and no tab is closed for a window that is not there
     if (window.wpPageShelf && window.wpPageShelf.opened) window.wpPageShelf.opened(id);   // 1.5.4 (pageshelf.js): one of the last pages opened
     return true;

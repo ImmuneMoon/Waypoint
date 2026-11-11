@@ -296,7 +296,7 @@ function prepCardEl(camp, c, open, pinnedPl, wide) {
     }
     var foot = prepEl('div', 'prep-foot'), op = prepRef(prepBtn('prep-fb prep-open', '', 'Open the planner at this card. Over the map by a click, Ctrl+click a new window, Alt+click the page itself.'), c);
     op.appendChild(prepEl('i', 'wib wi-page')); op.appendChild(document.createTextNode(' Open in page')); foot.appendChild(op);
-    var win = prepRef(prepBtn('prep-fb prep-win wib wi-dup', '', 'Open its planner in a window of its own, at this card'), c); win.setAttribute('aria-label', 'Open in a window of its own'); foot.appendChild(win);
+    var win = prepRef(prepBtn('prep-fb prep-win wib wi-dup', '', 'Open this card alone in a window of its own'), c); win.setAttribute('aria-label', 'Open this card in a window of its own'); foot.appendChild(win);
     var pin = prepRef(prepBtn('prep-fb prep-pin wib wi-pin' + (pinnedPl ? ' on' : ''), '', pinnedPl ? 'Its planner is pinned for the session. Press to unpin.' : 'Pin its planner for the session'), c); pin.setAttribute('aria-pressed', pinnedPl ? 'true' : 'false'); pin.setAttribute('aria-label', 'Pin its planner'); foot.appendChild(pin);
     if ((c.kind === 'person' || c.kind === 'place') && c.at) {
         var mi = prepBtn('prep-fb pv-ment', '', 'The pages and scenes that name this card. Press one to open it there.'); mi.dataset.page = c.pl; mi.dataset.at = c.at; mi.dataset.say = 'Mentioned in\u2026';
@@ -564,13 +564,16 @@ function setOpen(on, via) {
     return true;
 }
 function toggle(via) { return setOpen(!shownNow(), via); }
+// [prepcheck:openat-start]
 // A card's planner and block from the control pressed
 function refOf(el) { var d = el.dataset || {}, i = Number(d.i); return { pl: d.pl || '', at: d.at || '', i: i === i && i >= 0 ? Math.round(i) : -1 }; }
 function openAt(el, e, way) {
     var PS = window.wpPageShelf, r = refOf(el); if (!PS || !r.pl) return;
-    var got = PS.open(r.pl, way || PS.wayNow(e), r.at ? { at: r.at } : undefined); log('open-card', { way: got || '', at: r.at ? 1 : 0 });
+    var got = way === 'part' ? (r.at && typeof PS.openPart === 'function' ? PS.openPart(r.pl, r.at) : PS.open(r.pl, 'window')) : PS.open(r.pl, way || PS.wayNow(e), r.at ? { at: r.at } : undefined);   // part: the card alone in a window of its own
+    log('open-card', { way: got || '', at: r.at ? 1 : 0 });
     if (got === 'panel') setTimeout(panelClear, 0);
 }
+// [prepcheck:openat-end]
 // The page panel opens where it was last left on this map. One left where the column now stands is moved beside the column, where the window
 // has the room for it: a card opened from the column is never opened under the column's own edge
 function panelClear() {
@@ -761,7 +764,7 @@ function press(e) {
     if ((el = at('.prep-fold'))) { var k = el.dataset.sec; if (PREP_SECS.indexOf(k) >= 0) { if (st.shut[k] === 1) delete st.shut[k]; else st.shut[k] = 1; keep(); draw(true); } return; }
     if ((el = at('.prep-tick')) || (el = at('.prep-sn'))) { tick(el); return; }
     if ((el = at('.prep-card-h'))) { var card = el.closest('.prep-card'), key = el.dataset.key; st.cards[key] = !!(card && card.classList.contains('shut')); draw(true); return; }
-    if ((el = at('.prep-win'))) { openAt(el, e, 'window'); return; }
+    if ((el = at('.prep-win'))) { openAt(el, e, 'part'); return; }
     if ((el = at('.prep-pin'))) { if (PS && el.dataset.pl) { PS.pin(el.dataset.pl); draw(true); } return; }
     if ((el = at('.prep-open')) || (el = at('.prep-step')) || (el = at('.prep-clue')) || (el = at('.prep-chip'))) { openAt(el, e); return; }
     if ((el = at('.prep-findtok'))) { findTok(el.dataset.tok); return; }

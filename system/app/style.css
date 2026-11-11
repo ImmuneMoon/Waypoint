@@ -894,6 +894,7 @@
      drawn. An open block is never positioned (a positioned block would be painted after the blocks before it, and its background over a picture floated
      beside it): the arrow is the block's first child, floated into the margin with a margin box of no width and no height, so it moves and clears nothing.
      What is put away keeps its width (no display: none), so a chart drawn while it is folded is laid out as it will be shown. */
+  .pv-names-btn { display: none; }
   .pv-fold-btn { display: none; }
   @media screen {
     .pv-folds .pv-fold-btn { display: block; float: left; width: 16px; height: 18px; margin: 3px 1px -21px -17px; padding: 0; border: 0; background: none; color: var(--dim); font-size: 11px; line-height: 18px; text-align: center; cursor: pointer; opacity: .3; }
@@ -909,6 +910,9 @@
     .pv-folds .pv-blk.pv-fold-hid { height: 0; overflow: hidden; visibility: hidden; margin: 0; padding: 0; }
     .pv-folds .pv-blk.pv-fold-hid > .pv-fold-btn { visibility: hidden; }
     .pv-folds .pv-blk.pv-fold-hid::after { content: none; }
+    .pv-folds .pv-names-btn { display: block; grid-column: 1 / -1; justify-self: end; height: 20px; margin: -2px 0 2px; padding: 0 8px; border: 1px solid var(--edge); border-radius: 5px; background: none; color: var(--dim); font: inherit; font-size: 11px; line-height: 18px; cursor: pointer; }
+    .pv-folds .pv-names-btn::before { content: attr(data-say); }
+    .pv-folds .pv-names-btn:hover, .pv-folds .pv-names-btn:focus-visible { color: var(--ink); border-color: var(--gold); outline: none; }
     .pv-folds .pv-cards > .pv-blk.pv-fold-hid { position: absolute; left: 0; width: 100%; }   /* put away inside a row of cards: out of the row, or it would keep its cell and leave a gap; it keeps its width, as every part put away does */
   }
   #plannerPreview .pv-blk, #plannerPreview .pv-blk :is(h1, h2, h3) { scroll-margin-top: var(--pv-top, 58px); }   /* a block a landing brings to the top, and a heading the Outline jumps to, land under the planner's sticky bar, never behind it: pagenav.js navBarSet writes the bar's own height and the gap under it, kept current as the bar wraps (backlog 143); 58px where no bar is measured */

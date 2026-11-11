@@ -848,6 +848,9 @@ Writing planners and pages
   heading set Blocks under it to Cards and pick Small, Medium or Large. As
   many cards stand in a row as there is room for. Text and charts keep the
   whole row, and Wide card gives one card the row too.
+- Names only, at the top right of a section of cards, folds its cards to
+  their names, so five people are five lines. Open cards opens them again,
+  and Cards to names in the Outline menu does it for the whole page.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

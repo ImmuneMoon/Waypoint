@@ -188,10 +188,55 @@ function foldApply(root) {
         btn.dataset.tip = say; btn.removeAttribute('title'); btn.setAttribute('aria-label', say); btn.setAttribute('aria-expanded', isShut ? 'false' : 'true');
         if (head) btn.removeAttribute('tabindex'); else btn.setAttribute('tabindex', '-1');   // the keyboard steps through the sections' arrows, not every block's
     }
+    namesDraw(root, page, shut);   // 1.6.2 (backlog 107 (a)): Names only on each row of cards
     root.classList.add('pv-folds');
     if (typeof window !== 'undefined' && window.wpInlineDice && typeof window.wpInlineDice.apply === 'function') window.wpInlineDice.apply(root);   // 1.6.0, backlog 27: a dice formula in the page a roll button
     if (typeof tableFit === 'function') tableFit(root);   // 1.6.2, backlog 107 (a): a table with less room than its columns need reads a row at a time
 }
+// Names only (1.6.2, backlog 107 (a); docs/PLANNER_ORG_DESIGN.md 4.7). A section whose blocks stand as cards (a .pv-cards row, planner.js) gets one
+// button at the row's top right: Names only folds every card of that section to its name, so five people are five lines, and it then reads
+// Open cards, which opens them. A card folded so is an ordinary folded part: the same mark, the same store, its arrow and a press on it open it,
+// and Find and the Outline open it as they open any fold. Nothing new is kept. The button is the row's own child and no block of the page, so the
+// Outline and the folds pass over it, and it is taken off with the folds before the page's markup is read for an export
+function namesWraps(root) { var out = []; (function walk(n) { for (var i = 0; n && n.childNodes && i < n.childNodes.length; i++) { var k = n.childNodes[i]; if (k.nodeType !== 1) continue; if (navHas(k, 'pv-cards')) out.push(k); else if (!navHas(k, 'pv-blk')) walk(k); } })(root); return out; }
+// the marks of the cards a row holds: its own blocks that fold and are cards. A block that takes the whole row is none (text, a chart), but
+// for a card ticked Wide card, which is still a card: its first element is the card's own box
+function namesMarks(page, wrap) {
+    var part = [], out = []; page.parts.forEach(function(p) { part[p.at] = p; });
+    page.blocks.forEach(function(b, i) { var k = navFirstEl(b); if (b.parentNode === wrap && (!navHas(b, 'pv-wide') || (k && navHas(k, 'node'))) && part[i] && part[i].kind === 'body') out.push(part[i].mark); });
+    return out;
+}
+function namesBtnOf(wrap) { var k = wrap ? wrap.childNodes : null; for (var i = 0; k && i < k.length; i++) if (k[i].nodeType === 1 && navHas(k[i], 'pv-names-btn')) return k[i]; return null; }
+function namesShown(wrap) { var k = wrap.childNodes; for (var i = 0; i < k.length; i++) if (k[i].nodeType === 1 && navHas(k[i], 'pv-blk') && !navHas(k[i], 'pv-fold-hid')) return true; return false; }   // false while its section is folded
+function namesDraw(root, page, shut) {
+    namesWraps(root).forEach(function(w) {
+        var marks = namesMarks(page, w), btn = namesBtnOf(w);
+        if (!marks.length || !namesShown(w)) { if (btn) w.removeChild(btn); return; }
+        var all = marks.every(function(m) { return shut[m] === 1; }), say = all ? 'Open cards' : 'Names only';
+        // Its words are an attribute the style sheet prints, as a folded part's word is, never a text node: the page's Find walks every text node of
+        // the page, and would count the button's own words as a hit and wrap part of them in a mark
+        if (!btn) { btn = document.createElement('button'); btn.type = 'button'; btn.className = 'pv-names-btn'; w.insertBefore(btn, w.firstChild); }
+        if (btn.dataset.say !== say) { btn.dataset.say = say; btn.setAttribute('aria-label', say); }
+        btn.dataset.tip = all ? 'Open every card of this section' : 'Fold every card of this section to its name'; btn.removeAttribute('title'); btn.setAttribute('aria-pressed', all ? 'true' : 'false');
+    });
+}
+function namesToggle(root, btn) {
+    var w = btn ? btn.parentNode : null; if (!root || !w || !navHas(w, 'pv-cards')) return false;
+    var marks = namesMarks(foldParts(root), w); if (!marks.length) return false;
+    var shut = foldGet(root), all = marks.every(function(m) { return shut[m] === 1; });
+    marks.forEach(function(m) { if (all) delete shut[m]; else shut[m] = 1; });
+    foldSet(root, shut); return true;
+}
+// every card of the page to its name (the Outline menu's Cards to names); how many cards it reached
+function namesAll(root) {
+    var page = foldParts(root), shut = foldGet(root), n = 0;
+    namesWraps(root).forEach(function(w) { namesMarks(page, w).forEach(function(m) { shut[m] = 1; n++; }); });
+    if (n) foldSet(root, shut);
+    return n;
+}
+// true where some row of the page holds a card that folds: what the Outline menu's Cards to names needs
+function namesAny(root) { var page = foldParts(root); return namesWraps(root).some(function(w) { return namesMarks(page, w).length > 0; }); }
+function namesClear(root) { namesWraps(root).forEach(function(w) { var b = namesBtnOf(w); if (b) w.removeChild(b); }); }
 // Sets what is folded on the page a place shows: kept, drawn there, and drawn in every other place of this window that shows the same page.
 // A mark that is on no part of the page as it is drawn there is let go: its part was changed or taken away
 function foldSet(root, map) {
@@ -232,7 +277,7 @@ function foldReveal(root, el, own) {
     return changed;
 }
 // the page as it was drawn: every arrow, class and word of the folds taken off (before the page's markup is read for an export)
-function foldStrip(root) { if (!root) return; navBlocks(root).forEach(foldClear); if (root.classList) root.classList.remove('pv-folds'); if (typeof tableUnfit === 'function') tableUnfit(root); if (typeof window !== 'undefined' && window.wpInlineDice && typeof window.wpInlineDice.strip === 'function') window.wpInlineDice.strip(root); }
+function foldStrip(root) { if (!root) return; navBlocks(root).forEach(foldClear); namesClear(root); if (root.classList) root.classList.remove('pv-folds'); if (typeof tableUnfit === 'function') tableUnfit(root); if (typeof window !== 'undefined' && window.wpInlineDice && typeof window.wpInlineDice.strip === 'function') window.wpInlineDice.strip(root); }
 // [pagecheck:fold-end]
 
 // [pagecheck:tfit-start]
@@ -393,7 +438,7 @@ function navMenuEl() {
         var act = e.target && e.target.closest ? e.target.closest('.pagenav-act') : null, row = act ? null : (e.target && e.target.closest ? e.target.closest('.pagenav-row') : null); if (!act && !row) return;
         var root = _navRoot; navClose(false); if (!root) return;
         navHand(root);
-        if (act) { foldAll(root, act.dataset.act === 'foldall'); return; }
+        if (act) { if (act.dataset.act === 'namesall') namesAll(root); else foldAll(root, act.dataset.act === 'foldall'); return; }
         var bi = row.dataset.blk, find = function() { return navOutline(root).filter(function(h) { return h.bi === bi; })[0]; }, now = find(); if (!now) return;   // read again: the page may have been drawn again since
         if (foldReveal(root, now.el, true)) now = find() || now;   // a heading that was put away is brought out, and its own section opened
         navGo(now.el);
@@ -418,7 +463,7 @@ function navClose(refocus) {
 }
 // the rows: a button each, its class by the heading's level, its words a text node; then, where the page has a part that folds, a foot
 // with Fold all and Open all
-function navFill(m, list, folds) {
+function navFill(m, list, folds, cards) {   // cards: the page holds a row of cards, so the foot also offers Cards to names
     while (m.firstChild) m.removeChild(m.firstChild);
     if (!list.length) { var none = document.createElement('div'); none.className = 'pagenav-none'; none.appendChild(document.createTextNode('This page has no headings.')); m.appendChild(none); }
     list.forEach(function(h) {
@@ -427,11 +472,11 @@ function navFill(m, list, folds) {
     });
     if (!folds) return;
     var foot = document.createElement('div'); foot.className = 'pagenav-foot';
-    [['foldall', 'Fold all'], ['openall', 'Open all']].forEach(function(a) { var b = document.createElement('button'); b.type = 'button'; b.className = 'pagenav-act'; b.dataset.act = a[0]; b.setAttribute('role', 'menuitem'); b.appendChild(document.createTextNode(a[1])); foot.appendChild(b); });
+    [['foldall', 'Fold all'], ['openall', 'Open all']].concat(cards === true ? [['namesall', 'Cards to names']] : []).forEach(function(a) { var b = document.createElement('button'); b.type = 'button'; b.className = 'pagenav-act'; b.dataset.act = a[0]; b.setAttribute('role', 'menuitem'); b.appendChild(document.createTextNode(a[1])); foot.appendChild(b); });
     m.appendChild(foot);
 }
 function navOpen(btn, root, byKey) {
-    var m = navMenuEl(); navFill(m, navOutline(root), foldParts(root).parts.length > 0);
+    var m = navMenuEl(); navFill(m, navOutline(root), foldParts(root).parts.length > 0, namesAny(root));
     _navFrom = btn; _navRoot = root; btn.setAttribute('aria-expanded', 'true');
     m.style.left = '0px'; m.style.top = '0px'; m.style.display = 'block';
     var r = btn.getBoundingClientRect(), vw = window.innerWidth || 0, vh = window.innerHeight || 0, w = m.offsetWidth || 0, h = m.offsetHeight || 0;
@@ -457,6 +502,7 @@ function navWire() {
         // the folds of the page drawn here: an arrow pressed, and the page drawn again (its box is filled anew each time)
         root.addEventListener('click', function(e) {
             var t = e.target, a = t && t.closest ? t.closest('.pv-fold-btn') : null, blk = a ? a.closest('.pv-blk') : null;
+            var nb = !a && t && t.closest ? t.closest('.pv-names-btn') : null; if (nb) { e.preventDefault(); e.stopPropagation(); namesToggle(root, nb); return; }   // Names only, or Open cards, on a row of cards
             if (!blk && t && t.closest && !t.closest('a, button, input, select, textarea')) { var s = t.closest('.pv-blk'); if (s && s.classList.contains('pv-fold-shut')) blk = s; }   // an arrow; or a folded part, pressed anywhere but on a link or a control in it
             if (!blk) return;
             e.preventDefault(); e.stopPropagation(); foldToggle(root, blk);

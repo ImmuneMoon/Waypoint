@@ -1035,6 +1035,41 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && wn.every(t => t.includes("- A planner's section can lay its cards side by side. On the section\n") && t.indexOf("- A planner's section can lay its cards") < t.indexOf('WAYPOINT 1.6.1')), J([widths, gap, widths.map(w => fits(980, w)), widths.map(w => fits(392, w))]));
     }
 
+    /* ---- Names only (1.6.2, backlog 107 (a); docs/PLANNER_ORG_DESIGN.md 4.7) ---- */
+    {
+        const N = mkNav(), rt = N.el.plannerPreview, D = N.dom, el = (tag, cls, kids) => mk(D, tag, cls, kids), bk = (i, kids, wide) => { const b = blk(D, i, kids); if (wide) b.className = 'pv-blk pv-wide'; return b; };
+        const card = (i, name, wide) => bk(i, [el('div', 'node', [el('h3', '', [name]), el('p', '', ['Wants something.'])])], wide);
+        const build = () => { while (rt.firstChild) rt.removeChild(rt.firstChild);
+            const wrapA = el('div', 'pv-cards pv-cards-medium', [bk(2, [el('p', '', ['Read this aloud.'])], true), card(3, 'Kael'), card(4, 'Mira'), card(5, 'Big one', true), bk(6, [el('figure', 'planner-img', [])], true)]);
+            const wrapB = el('div', 'pv-cards pv-cards-small', [bk(9, [el('p', '', ['Only words here.'])], true)]);
+            rt.appendChild(el('div', 'wrap', [bk(0, [el('h1', '', ['Session'])]), bk(1, [el('h2', '', ['People'])]), wrapA, bk(7, [el('h2', '', ['After'])]), bk(8, [el('h2', '', ['Words'])]), wrapB])); return [wrapA, wrapB]; };
+        const serN = n => n.nodeType === 3 ? '#' + n.nodeValue : n.nodeName + '.' + n.className + J(n.attrs) + J(n.dataset) + '[' + n.childNodes.map(serN).join('|') + ']';
+        const [wA, wB] = build(), drawn = serN(rt), outl0 = J(N.api.foldParts(rt).parts.map(p => p.at + p.kind + p.mark));
+        N.api.navWire(); N.api.foldApply(rt);
+        const nb = () => wA.childNodes.filter(c => c.nodeType === 1 && c.className === 'pv-names-btn'), b0 = nb()[0], first = [nb().length, wA.childNodes[0] === b0, b0 && b0.nodeName, b0 && b0.type, b0 && b0.dataset.say + '|' + b0.getAttribute('aria-label') + '|' + b0.childNodes.length + '|' + b0.textContent, b0 && b0.getAttribute('aria-pressed'), b0 && b0.dataset.tip, wB.childNodes.filter(c => c.className === 'pv-names-btn').length];
+        const sameParts = J(N.api.foldParts(rt).parts.map(p => p.at + p.kind + p.mark)) === outl0, shutOf = () => blocks(rt).map((b, i) => (b.classList.contains('pv-fold-shut') ? b.dataset.blk : '')).filter(Boolean).join();
+        D.fire(b0, 'click'); const named = [shutOf(), nb()[0] === b0, b0.dataset.say, b0.getAttribute('aria-pressed'), b0.dataset.tip, Object.keys(N.kept().pages).length];
+        D.fire(b0, 'click'); const opened = [shutOf(), b0.dataset.say + '|' + b0.getAttribute('aria-label'), b0.getAttribute('aria-pressed')];
+        N.api.foldToggle(rt, blocks(rt)[3]); const one = [shutOf(), nb()[0].dataset.say]; D.fire(nb()[0], 'click'); const rest = [shutOf(), nb()[0].dataset.say];
+        D.fire(nb()[0], 'click'); N.api.foldToggle(rt, blocks(rt)[1]); const secShut = [nb().length, blocks(rt)[1].classList.contains('pv-fold-shut')]; N.api.foldToggle(rt, blocks(rt)[1]); const secOpen = [nb().length, nb()[0] && nb()[0].dataset.say];
+        const ob = N.el.plannerOutlineBtn; N.press(ob, true); const foot = N.api.menu().querySelectorAll('.pagenav-act').map(a => a.dataset.act + '|' + a.textContent), all = N.api.menu().querySelectorAll('.pagenav-act').filter(a => a.dataset.act === 'namesall')[0];
+        D.fire(all, 'click'); const allDone = [shutOf(), nb()[0].dataset.say, N.api.navIsOpen()];
+        const pageText = rt.textContent, noWords = !/Names only|Open cards/.test(pageText);   // the page's Find walks its text nodes: the button's words are none of them
+        N.api.foldStrip(rt); const bare = [serN(rt) === drawn, nb().length];
+        const P = mkNav(); P.page(P.el.plannerPreview, [{ tag: 'h1', text: 'T' }, { tag: 'h2', text: 'A' }, { text: 'words' }]); P.api.navWire(); P.api.foldApply(P.el.plannerPreview); P.press(P.el.plannerOutlineBtn, true); const plainFoot = P.api.menu().querySelectorAll('.pagenav-act').map(a => a.dataset.act).join();
+        const W = mkNav(), rw = W.el.plannerPreview; rw.appendChild(mk(W.dom, 'div', 'wrap', [blk(W.dom, 0, [mk(W.dom, 'h2', '', ['Words'])]), mk(W.dom, 'div', 'pv-cards pv-cards-small', [(() => { const b = blk(W.dom, 1, [mk(W.dom, 'p', '', ['Only words here.'])]); b.className = 'pv-blk pv-wide'; return b; })()])]));
+        W.api.navWire(); W.api.foldApply(rw); W.press(W.el.plannerOutlineBtn, true); const wordsFoot = W.api.menu().querySelectorAll('.pagenav-act').map(a => a.dataset.act).join();
+        check('Names only, run for real on a page with a row of cards: the row gets one button as its first child, which is no block of the page, so the parts that fold and their marks are as without it. A press folds every card of that row to its name, a card ticked Wide card among them, and never the text or the picture that take the whole row; the same button then reads Open cards and a press opens them. With one card folded it still reads Names only and folds the rest. While the section itself is folded the button is gone, and it is back when the section opens. A row that holds no card has no button. The button holds no text node: its words are an attribute the style sheet prints, so the page\'s Find, which walks every text node, never meets them. The Outline menu\'s foot offers Cards to names on a page that holds a card in a row and on no other, a page whose only row holds text among them, and it folds every card. Taken off for an export the page is exactly as drawn',
+            J(first) === J([1, true, 'BUTTON', 'button', 'Names only|Names only|0|', 'false', 'Fold every card of this section to its name', 0]) && sameParts && J(named) === J(['3,4,5', true, 'Open cards', 'true', 'Open every card of this section', 1]) && J(opened) === J(['', 'Names only|Names only', 'false'])
+            && J(one) === J(['3', 'Names only']) && J(rest) === J(['3,4,5', 'Open cards']) && J(secShut) === J([0, true]) && J(secOpen) === J([1, 'Names only']) && J(foot) === J(['foldall|Fold all', 'openall|Open all', 'namesall|Cards to names'])
+            && J(allDone) === J(['3,4,5', 'Open cards', false]) && noWords && J(bare) === '[true,0]' && plainFoot === 'foldall,openall' && wordsFoot === 'foldall,openall', J([first, sameParts, named, opened, one, rest, secShut, secOpen, foot, allDone, bare, plainFoot]));
+        const cssN = read('style.css'), ixN = read('index.html'), wnN = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), read('assets/whatsnew.txt')].map(s => s.replace(/\r\n/g, '\n'));
+        check('Names only, styled and said: the button shows only on a page the folds have marked and on screen, at the right end of its row of cards; Help and both release notes say it',
+            cssN.includes('\n  .pv-names-btn { display: none; }\n  .pv-fold-btn { display: none; }\n  @media screen {\n') && cssN.includes('    .pv-folds .pv-names-btn { display: block; grid-column: 1 / -1; justify-self: end;') && cssN.includes('    .pv-folds .pv-names-btn::before { content: attr(data-say); }\n')
+            && src.includes("var nb = !a && t && t.closest ? t.closest('.pv-names-btn') : null; if (nb) { e.preventDefault(); e.stopPropagation(); namesToggle(root, nb); return; }")
+            && ixN.includes('<li><b>Names only</b>: a section of cards has a small <b>Names only</b> button at its top right.') && wnN.every(t => t.includes('- Names only, at the top right of a section of cards, folds its cards to\n') && t.indexOf('- Names only, at the top right') < t.indexOf('WAYPOINT 1.6.1')));
+    }
+
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

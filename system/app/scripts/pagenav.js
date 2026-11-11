@@ -190,6 +190,7 @@ function foldApply(root) {
     }
     root.classList.add('pv-folds');
     if (typeof window !== 'undefined' && window.wpInlineDice && typeof window.wpInlineDice.apply === 'function') window.wpInlineDice.apply(root);   // 1.6.0, backlog 27: a dice formula in the page a roll button
+    if (typeof tableFit === 'function') tableFit(root);   // 1.6.2, backlog 107 (a): a table with less room than its columns need reads a row at a time
 }
 // Sets what is folded on the page a place shows: kept, drawn there, and drawn in every other place of this window that shows the same page.
 // A mark that is on no part of the page as it is drawn there is let go: its part was changed or taken away
@@ -231,8 +232,55 @@ function foldReveal(root, el, own) {
     return changed;
 }
 // the page as it was drawn: every arrow, class and word of the folds taken off (before the page's markup is read for an export)
-function foldStrip(root) { if (!root) return; navBlocks(root).forEach(foldClear); if (root.classList) root.classList.remove('pv-folds'); if (typeof window !== 'undefined' && window.wpInlineDice && typeof window.wpInlineDice.strip === 'function') window.wpInlineDice.strip(root); }
+function foldStrip(root) { if (!root) return; navBlocks(root).forEach(foldClear); if (root.classList) root.classList.remove('pv-folds'); if (typeof tableUnfit === 'function') tableUnfit(root); if (typeof window !== 'undefined' && window.wpInlineDice && typeof window.wpInlineDice.strip === 'function') window.wpInlineDice.strip(root); }
 // [pagecheck:fold-end]
+
+// [pagecheck:tfit-start]
+// Tables that fit (1.6.2, backlog 107 (a); docs/PLANNER_ORG_DESIGN.md 4.2). Where a table has less room than its columns need, each row reads as
+// one small block: its first cell in bold, then each other cell after its column's name. In a wide place it is the table it always was. Drawing
+// only, and screen only: nothing is stored, the page's own markup is as its renderer wrote it but for one class on the table and one attribute a
+// cell (the column's name, which a style sheet prints, as a folded part's word is), and both are taken off before the markup is read for an export.
+// The rule is the room the table's own box has and how many columns it has, never what the table measures once it is stacked, so it cannot flip.
+// Only the app's own two tables are fitted, a card's and a page's table block: a table the GM wrote as Raw HTML is left as written.
+var TFIT_COL = 125, TFIT_MIN = 3, TFIT_WORDS = 60;
+function tfitStacks(avail, cols) { return typeof avail === 'number' && avail > 0 && typeof cols === 'number' && cols >= TFIT_MIN && avail < cols * TFIT_COL; }
+function tfitOurs(t) { var p = t && t.parentNode, c = p && p.classList; return !!c && (c.contains('node') || c.contains('doc-tablewrap')); }
+function tfitFloats(t) { var c = t.parentNode.classList; return c.contains('fl-left') || c.contains('fl-right'); }   // a floated table takes the width it needs: stacked it would grow to the page's
+function tfitKids(el, name) { var out = [], k = el && el.childNodes ? el.childNodes : []; for (var i = 0; i < k.length; i++) if (k[i] && k[i].nodeType === 1 && String(k[i].nodeName).toUpperCase() === name) out.push(k[i]); return out; }
+function tfitCut(s) { var a = Array.from(String(s == null ? '' : s).replace(/\s+/g, ' ').trim()); return a.length > TFIT_WORDS ? a.slice(0, TFIT_WORDS).join('').trim() + '\u2026' : a.join(''); }
+// the names of a table's columns, from its heading row; null where it has none (a table with no headings is never stacked: its cells would have no names)
+function tfitHeads(t) { var hd = tfitKids(t, 'THEAD')[0], tr = hd ? tfitKids(hd, 'TR')[0] : null, th = tr ? tfitKids(tr, 'TH') : []; return th.length ? th.map(function(h) { return tfitCut(h.textContent); }) : null; }
+function tfitCells(t) { var rows = []; tfitKids(t, 'TBODY').forEach(function(b) { tfitKids(b, 'TR').forEach(function(r) { rows.push(tfitKids(r, 'TD')); }); }); return rows; }
+function tfitClear(t) {
+    if (!t || !t.classList || !t.classList.contains('pv-tstack')) return false;
+    t.classList.remove('pv-tstack'); tfitCells(t).forEach(function(r) { r.forEach(function(td) { td.removeAttribute('data-col'); }); }); return true;
+}
+function tfitOne(t, widthOf) {
+    var heads = tfitOurs(t) ? tfitHeads(t) : null; if (!heads || tfitFloats(t)) return tfitClear(t);
+    var avail = widthOf(t); if (!(avail > 0)) return false;   // a place that is not laid out (put away, or not yet shown) is left as it stands
+    if (!tfitStacks(avail, heads.length)) return tfitClear(t);
+    var moved = !t.classList.contains('pv-tstack'); if (moved) t.classList.add('pv-tstack');
+    tfitCells(t).forEach(function(r) { r.forEach(function(td, i) { var w = i > 0 && heads[i] ? heads[i] : ''; if (w) { if (td.getAttribute('data-col') !== w) td.setAttribute('data-col', w); } else if (td.getAttribute('data-col') !== null) td.removeAttribute('data-col'); }); });
+    return moved;
+}
+function tfitWidth(t) { var p = t.parentNode; return p && typeof p.clientWidth === 'number' ? p.clientWidth : 0; }
+function tableFit(root, widthOf) {
+    if (!root || typeof root.querySelectorAll !== 'function') return 0;
+    var w = typeof widthOf === 'function' ? widthOf : tfitWidth, n = 0, ts = root.querySelectorAll('table');
+    for (var i = 0; i < ts.length; i++) if (tfitOne(ts[i], w)) n++;
+    return n;
+}
+// the page as it was drawn: no table stacked, no cell named
+function tableUnfit(root) { if (!root || typeof root.querySelectorAll !== 'function') return; var ts = root.querySelectorAll('table'); for (var i = 0; i < ts.length; i++) tfitClear(ts[i]); }
+// A place's tables are fitted again when its box changes width (a window made narrower, the left panel docked, the panel over the map resized). The
+// word comes a moment later and only for another width, so that a table stacked here never answers its own change of height
+function tfitWatch(root, Obs, later) {
+    if (!root || typeof Obs !== 'function') return null;
+    var last = root.clientWidth, due = false, wait = typeof later === 'function' ? later : function(fn) { setTimeout(fn, 60); };
+    var o = new Obs(function() { var w = root.clientWidth; if (w === last || due) return; due = true; wait(function() { due = false; last = root.clientWidth; try { tableFit(root); } catch (e) {} }); });
+    o.observe(root); return o;
+}
+// [pagecheck:tfit-end]
 
 // [pagecheck:land-start]
 // Landing (1.5.4; the owner, 2026-10-16, by prompt: "Landing now, rest after Sunday (Recommended)"). Every way of opening a page can open it
@@ -415,6 +463,7 @@ function navWire() {
         });
         root.addEventListener('dblclick', function(e) { if (e.target && e.target.closest && e.target.closest('.pv-fold-btn')) e.stopPropagation(); }, true);   // a quick second press on an arrow is no double-click on the block
         if (typeof window.MutationObserver === 'function') new window.MutationObserver(function() { foldApply(root); }).observe(root, { childList: true });
+        if (typeof tfitWatch === 'function') tfitWatch(root, window.ResizeObserver);   // its tables fitted again when the place changes width
         foldApply(root);
     });
     // another window of this app folded or opened something: what this one shows follows (one page has one set of folds on this computer)

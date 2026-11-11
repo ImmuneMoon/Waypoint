@@ -840,6 +840,10 @@ Writing planners and pages
   the sessions played and where the clock stands. Scroll to zoom from
   centuries down to days, and press a mark to open its day. Timeline in the
   campaign menu opens it in a window over the map.
+- A table in a narrow place now reads a row at a time. Each row is a small
+  block with its first cell in bold and the column's name before each other
+  cell. You see it in the panel over the map and in a narrow window, and a
+  wide place keeps the table.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

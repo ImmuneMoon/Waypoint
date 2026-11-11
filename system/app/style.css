@@ -2628,6 +2628,21 @@
   .doc-view td { padding: 10px 12px; border-top: 1px solid var(--edge); vertical-align: top; }
   .doc-view .doc-table th, .doc-view .doc-table td { white-space: pre-line; }   /* a cell's own line breaks are drawn (a Markdown file brings them); runs of spaces still fold */
   .doc-view td:first-child { font-weight: 600; color: var(--ink); }
+  /* Tables that fit (1.6.2, backlog 107 (a); pagenav.js tableFit): where a table has less room than its columns need, each row is one small block,
+     its first cell in bold and each other cell after its column's name, which the cell carries as data-col. Screen only: paper keeps the table.
+     The table is a flow root, as a table is, so it never runs under a picture floated beside it */
+  @media screen {
+    .doc-view table.pv-tstack { display: flow-root; background: none; box-shadow: none; border-radius: 0; overflow: visible; }
+    .doc-view table.pv-tstack thead { display: none; }
+    .doc-view table.pv-tstack thead:has(mark) { display: block; margin: 0 0 6px; }   /* a word Find lit in a column's name: the names show as one line, so the hit can be seen and scrolled to */
+    .doc-view table.pv-tstack thead:has(mark) tr { display: flex; flex-wrap: wrap; gap: 2px 12px; background: none; border: 0; padding: 0 2px; margin: 0; }
+    .doc-view table.pv-tstack thead:has(mark) th { display: block; background: none; padding: 0; }
+    .doc-view table.pv-tstack tbody { display: block; }
+    .doc-view table.pv-tstack tr { display: block; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; padding: 7px 11px; margin: 0 0 6px; }
+    .doc-view table.pv-tstack td { display: block; border: 0; padding: 2px 0; overflow-wrap: anywhere; }
+    .doc-view table.pv-tstack td:empty { display: none; }
+    .doc-view table.pv-tstack td[data-col]::before { content: attr(data-col); display: inline-block; margin-right: 8px; color: var(--gold); font-size: 11px; font-weight: 400; letter-spacing: .8px; text-transform: uppercase; }
+  }
   .doc-view .flare { background: var(--panel); border: 1px solid var(--edge); border-left: 3px solid var(--violet); border-radius: 7px; padding: 10px 13px; margin-top: 10px; font-size: 13.5px; color: var(--dim); }
   .doc-view .flare b { color: var(--ink); }
   .doc-view .callout { border-left: 3px solid var(--gold); background: var(--panel2); padding: 11px 15px; border-radius: 0 8px 8px 0; color: var(--dim); margin-top: 14px; font-style: italic; }

@@ -916,6 +916,68 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && wnH.every(t => t.includes('- Back and Forward: after you follow a link to another page or to a\n') && t.indexOf('- Back and Forward: after') < t.indexOf('WAYPOINT 1.5.7')) && wnH[0].slice(0, wnH[0].indexOf('WAYPOINT 1.5.7')) === wnH[1].slice(0, wnH[1].indexOf('WAYPOINT 1.5.7')));
     }
 
+    /* ---- tables that fit (1.6.2, backlog 107 (a); docs/PLANNER_ORG_DESIGN.md 4.2) ---- */
+    {
+        const TF = new Function('setTimeout', "'use strict';\n" + slice('tfit') + '\nreturn { TFIT_COL: TFIT_COL, TFIT_MIN: TFIT_MIN, tfitStacks: tfitStacks, tfitHeads: tfitHeads, tableFit: tableFit, tableUnfit: tableUnfit, tfitWatch: tfitWatch };')(() => { throw new Error('a timer of the page'); });
+        const S = TF.tfitStacks;
+        check('tables that fit, the rule: a table stacks where its box has less than 125 px a column, from three columns up. Two columns always fit, and a box that has no width, as a place that is put away, decides nothing',
+            TF.TFIT_COL === 125 && TF.TFIT_MIN === 3 && S(374, 3) === true && S(375, 3) === false && S(499, 4) === true && S(500, 4) === false && S(749, 6) === true && S(750, 6) === false && S(100, 2) === false && S(1, 1) === false
+            && S(0, 4) === false && S(-5, 4) === false && S(NaN, 4) === false && S('300', 4) === false && S(300, '4') === false && S(undefined, 4) === false);
+        const d = makeDom(), sliceOf = (file, a, b) => { const s = read(file), i = s.indexOf(a), k = s.indexOf(b); if (i < 0 || k < i) throw new Error('pagecheck: ' + a + ' is not in ' + file); return s.slice(i + a.length, k); };
+        const plannerPreviewHtml = new Function('esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef', 'fmtHtml', 'fmtRich', 'fieldFmt', 'colFmtOf', 'cellFmtOf', 'mermaidPre',
+            sliceOf('scripts/planner.js', '// [sinkcheck:planner-preview-start]', '// [sinkcheck:planner-preview-end]') + '\nreturn plannerPreviewHtml;')(SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef, DR.fmtHtml, DR.fmtRich, DR.fieldFmt, DR.colFmtOf, DR.cellFmtOf, DR.mermaidPre);
+        const HOSTILE = '<img src=x onerror=alert(1)> & "quoted"', LONG = 'A column whose name runs on and on past what a small block has room to print before its cell';
+        const plan = { id: 'p1', type: 'planner', blocks: [{ type: 'h1', title: 'Session 1' },
+            { type: 'node', title: 'The inn', rows: [{ col1: 'Ask', col2: 'Why', col3: '', col4: 'Next' }, { col1: 'Wait', col2: 'Dusk', col3: '2', col4: '' }] },
+            { type: 'node', mode: 'table', title: 'Prices', cols: ['Item', 'Cost'], rows: [{ col1: 'Ale', col2: '2' }] },
+            { type: 'node', mode: 'table', cols: ['Name', 'Wants', 'Says'], rows: [{ col1: 'Bren', col2: 'Coin', col3: 'Little' }] }] };
+        const doc = DR.cleanDoc({ id: 'd1', type: 'doc', meta: { title: 'Rules' }, blocks: [{ type: 'h1', title: 'House rules' },
+            { type: 'table', title: 'Travel', cols: ['Pace', HOSTILE, LONG, 'Notes'], rows: [['Fast', '4 miles', '30 miles', ''], ['Slow', '2 miles', '18 miles', 'Stealth']] },
+            { type: 'table', cols: [], rows: [['a', 'b', 'c', 'd']] },
+            { type: 'table', cols: ['A', 'B', 'C', 'D'], rows: [['1', '2', '3', '4']], layout: { float: 'left' } },
+            { type: 'table', cols: ['A', 'B'], rows: [['1', '2']] }] });
+        const pT = toTree(d, plannerPreviewHtml(plan, { id: 'c1', items: {} })), dT = toTree(d, DR.renderDoc(doc, {}));
+        const ser = n => n.nodeType === 3 ? '#' + n.nodeValue : n.nodeName + '.' + n.className + J(n.attrs) + J(n.dataset) + '[' + n.childNodes.map(ser).join('|') + ']';
+        const tabs = t => t.querySelectorAll('table'), st = t => tabs(t).map(x => (x.classList.contains('pv-tstack') ? 1 : 0)).join(''), cells = x => x.querySelectorAll('td').map(c => c.getAttribute('data-col'));
+        const p0 = ser(pT), d0 = ser(dT), txt0 = pT.textContent + dT.textContent, shape = [tabs(pT).length, tabs(dT).length, tabs(dT).map(x => x.parentNode.className).join('|'), tabs(pT).map(x => x.parentNode.className).join('|')];
+        let W = 360; const w = () => W;
+        const n1 = [TF.tableFit(pT, w), TF.tableFit(dT, w)], s1 = [st(pT), st(dT)], heads = TF.tfitHeads(tabs(pT)[0]), c1 = [cells(tabs(pT)[0]), cells(tabs(pT)[2]), cells(tabs(dT)[0])], txt1 = pT.textContent + dT.textContent;
+        const again = [TF.tableFit(pT, w), TF.tableFit(dT, w), ser(pT) !== p0, ser(dT) !== d0];
+        W = 0; const away = [TF.tableFit(pT, w), TF.tableFit(dT, w), st(pT), st(dT)];
+        W = 400; const mid = [TF.tableFit(pT, w), st(pT), cells(tabs(pT)[2]).join()];   // three columns have room at 400, four do not
+        W = 900; const wide = [TF.tableFit(pT, w), TF.tableFit(dT, w), ser(pT) === p0, ser(dT) === d0];
+        W = 360; TF.tableFit(pT, w); TF.tableFit(dT, w); TF.tableUnfit(pT); TF.tableUnfit(dT); const bare = [ser(pT) === p0, ser(dT) === d0]; TF.tableUnfit(pT); const twice = ser(pT) === p0;
+        check('tables that fit, over what the two real renderers draw (a card with its four columns, a plain table of two and of three, a page table of four, one with no headings, one set beside the text and one of two): at 360 px the tables of three and four columns are stacked and no other, each cell but the first carries its column\'s name as the attribute data-col, and no word of the page changes. A heading that is markup in a file reaches the attribute as the characters it holds, and a long one is cut at 60 characters. Fitted again nothing changes. A place with no width is left as it stands. At 400 px the table of three is a table again, at 900 px every table is, and the tree is then exactly as it was drawn, as it is after the fit is taken off for an export',
+            J(shape) === J([3, 4, 'node plain-table doc-tablewrap|node plain-table doc-tablewrap|node plain-table doc-tablewrap fl-left|node plain-table doc-tablewrap', 'node|node plain-table|node plain-table']) && J(n1) === '[2,1]' && J(s1) === J(['101', '1000']) && heads.length === 4
+            && J(c1[0]) === J([null, heads[1], heads[2], heads[3], null, heads[1], heads[2], heads[3]]) && J(c1[1]) === J([null, 'Wants', 'Says'])
+            && J(c1[2]) === J([null, HOSTILE, Array.from(LONG).slice(0, 60).join('').trim() + '\u2026', 'Notes', null, HOSTILE, Array.from(LONG).slice(0, 60).join('').trim() + '\u2026', 'Notes']) && txt1 === txt0
+            && J(again) === '[0,0,true,true]' && J(away) === J([0, 0, '101', '1000']) && J(mid) === J([1, '100', ',,']) && J(wide) === '[1,1,true,true]' && J(bare) === '[true,true]' && twice === true,
+            J([shape, n1, s1, heads, c1, txt1 === txt0, again, away, mid, wide, bare, twice]));
+        // a table that is not the app's own, the default measure, and the watch
+        const cell = (tag, t) => mk(d, tag, '', [t]), raw = mk(d, 'div', 'pv-blk', [mk(d, 'div', 'raw-html', [mk(d, 'table', '', [mk(d, 'thead', '', [mk(d, 'tr', '', ['A', 'B', 'C', 'D'].map(t => cell('th', t)))]), mk(d, 'tbody', '', [mk(d, 'tr', '', ['1', '2', '3', '4'].map(t => cell('td', t)))])])])]);
+        const rawN = TF.tableFit(raw, () => 200), rawSt = st(raw);
+        const own = mk(d, 'div', 'pv-blk', [mk(d, 'div', 'node', [mk(d, 'table', '', [mk(d, 'thead', '', [mk(d, 'tr', '', ['A', 'B', 'C'].map(t => cell('th', t)))]), mk(d, 'tbody', '', [mk(d, 'tr', '', ['1', '2', '3'].map(t => cell('td', t)))])])])]);
+        own.querySelectorAll('.node')[0].clientWidth = 300; const ownN = TF.tableFit(own), ownSt = st(own); own.querySelectorAll('.node')[0].clientWidth = 380; const ownBack = [TF.tableFit(own), st(own)];
+        const junk = [TF.tableFit(null), TF.tableFit({}), TF.tableUnfit(null), TF.tableUnfit({})];
+        let cb = null; const seen = [], later = [], rootW = { clientWidth: 500, asked: 0, querySelectorAll() { this.asked++; return []; } };
+        function Obs(f) { cb = f; this.observe = el => { seen.push(el); }; }
+        const o = TF.tfitWatch(rootW, Obs, fn => { later.push(fn); }); cb(); const same = [later.length, rootW.asked];
+        rootW.clientWidth = 400; cb(); cb(); const moved = [later.length, rootW.asked]; later[0](); const ran = rootW.asked; cb(); const quiet = later.length; rootW.clientWidth = 300; cb(); const next = later.length;
+        check('tables that fit, the rest: a table that is not the app\'s own, as one in a Raw HTML block, is never stacked. With no measure handed in the room is the width of the box the table stands in. Junk fits nothing and throws nothing. A place is watched with one observer: the same width says nothing, another width fits its tables once, a moment later, however often it is told meanwhile, and with no observer nothing is watched',
+            rawN === 0 && rawSt === '0' && ownN === 1 && ownSt === '1' && J(ownBack) === J([1, '0']) && J(junk) === J([0, 0, undefined, undefined]) && !!o && seen.length === 1 && seen[0] === rootW && J(same) === '[0,0]' && J(moved) === '[1,0]' && ran === 1 && quiet === 1 && next === 2
+            && TF.tfitWatch(rootW, undefined) === null && TF.tfitWatch(null, Obs) === null, J([rawN, rawSt, ownN, ownSt, ownBack, junk, seen.length, same, moved, ran, quiet, next]));
+        // wired, styled and said
+        const css = read('style.css'), a = css.indexOf('  /* Tables that fit (1.6.2, backlog 107 (a); pagenav.js tableFit)'), z = css.indexOf('\n  }\n', a), tcss = a < 0 || z < a ? '' : css.slice(a, z);
+        const ixT = read('index.html'), wnT = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), read('assets/whatsnew.txt')].map(s => s.replace(/\r\n/g, '\n'));
+        check('tables that fit, wired, styled and said: the folds\' draw fits the tables last and the strip for an export takes the fit off, each asked through typeof so that a suite that runs the folds alone is as it was. Each place is watched for its width. The rules stand in one screen-only block, so paper keeps the table: the table stays a flow root, so it keeps clear of a picture floated beside it, the heading row is put away but for one that holds a word Find lit, a row is a block, an empty cell is put away and a cell prints its column\'s name from data-col. No rule outside that block names the class. The slice writes no markup and stores nothing. Help and both release notes say it',
+            /\n    if \(typeof tableFit === 'function'\) tableFit\(root\);[^\n]*\n\}\n/.test(src) && /function foldStrip\(root\) \{[^\n]*if \(typeof tableUnfit === 'function'\) tableUnfit\(root\); if \(typeof window !== 'undefined' && window\.wpInlineDice/.test(src)
+            && src.includes("        if (typeof tfitWatch === 'function') tfitWatch(root, window.ResizeObserver);") && !/innerHTML|insertAdjacentHTML|localStorage|createElement/.test(slice('tfit'))
+            && tcss.includes('\n  @media screen {\n    .doc-view table.pv-tstack { display: flow-root;') && tcss.includes('    .doc-view table.pv-tstack thead:has(mark) { display: block;') && tcss.includes('    .doc-view table.pv-tstack thead { display: none; }\n') && tcss.includes('    .doc-view table.pv-tstack tr { display: block;')
+            && tcss.includes('    .doc-view table.pv-tstack td:empty { display: none; }\n') && tcss.includes('    .doc-view table.pv-tstack td[data-col]::before { content: attr(data-col);') && (css.replace(tcss, '').match(/pv-tstack/g) || []).length === 0
+            && ixT.includes('<li><b>Tables that fit</b>: where a table has less room than its columns need, each row reads as one small block.') && wnT.every(t => t.includes('- A table in a narrow place now reads a row at a time. Each row is a small\n') && t.indexOf('- A table in a narrow place') < t.indexOf('WAYPOINT 1.6.1')),
+            J([tcss.length, (css.replace(tcss, '').match(/pv-tstack/g) || []).length]));
+    }
+
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

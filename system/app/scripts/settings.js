@@ -244,6 +244,25 @@ function hiddenLookApply(v) { try { document.body.classList.toggle('hid-none', h
 function wallMarkOf(v) { return v === 'always' || v === 'never' ? v : 'hover'; }
 function wallMarkApply(v) { var w = wallMarkOf(v); try { document.body.classList.toggle('wallmk-always', w === 'always'); document.body.classList.toggle('wallmk-never', w === 'never'); } catch (e) {} }
 // [lookcheck:wallmarks-end]
+// [lookcheck:showblocks-start]
+// 1.6.2 (the owner, 2026-11-11, by prompt: "Hover, selected, or a switch (Recommended)", "Everything that blocks"): the GM's edges on walls, barriers
+// and doors are quiet at rest, and the View menu's tick Show what blocks lights every one. This computer's own, wp_showBlocks, on only as 'on'.
+// The style sheet reads the body's blocks-quiet, which is there unless the tick is on
+function showBlocksOn(store) { try { return store.getItem('wp_showBlocks') === 'on'; } catch (e) { return false; } }
+function showBlocksApply(doc, store) {
+    var on = showBlocksOn(store), b = doc.getElementById('wbShowBlocksBtn');
+    if (doc.body && doc.body.classList) doc.body.classList.toggle('blocks-quiet', !on);
+    if (b) { b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); }
+    return on;
+}
+function showBlocksSet(doc, store, on) { try { if (on === true) store.setItem('wp_showBlocks', 'on'); else store.removeItem('wp_showBlocks'); } catch (e) {} return showBlocksApply(doc, store); }
+function showBlocksPress(doc, store, say) { var on = showBlocksSet(doc, store, !showBlocksOn(store)); say(on ? 'Walls, barriers and doors are lit.' : 'Walls, barriers and doors show their edge under the pointer or when selected.'); return on; }
+// [lookcheck:showblocks-end]
+showBlocksApply(document, localStorage);
+function showBlocksToggle() { return showBlocksPress(document, localStorage, toast); }
+window.wpShowBlocks = { on: function() { return showBlocksOn(localStorage); }, toggle: showBlocksToggle, sync: function() { return showBlocksApply(document, localStorage); } };
+var _sbBtn = ui('wbShowBlocksBtn'); if (_sbBtn) _sbBtn.addEventListener('click', showBlocksToggle);
+window.addEventListener('storage', function(e) { if (e && e.key === 'wp_showBlocks') showBlocksApply(document, localStorage); });   // another window of this computer ticked it
 // 1.6.2, backlog 82 (the owner, by prompt: "Both"): the compass's words on this screen, wp_compassWords, read by compass.js; shown unless off
 var _cwSel = ui('setCompassWords'); if (_cwSel) { try { _cwSel.value = localStorage.getItem('wp_compassWords') === 'off' ? 'off' : 'on'; } catch (e) { _cwSel.value = 'on'; } _cwSel.addEventListener('change', function() { try { localStorage.setItem('wp_compassWords', _cwSel.value === 'off' ? 'off' : 'on'); } catch (e) {} if (window.render) window.render(); else if (window.appRender) window.appRender(); }); }
 var _wmSel = ui('setWallMarks'), _wm0 = 'hover';
@@ -842,6 +861,7 @@ if (_prefs) _prefs.addEventListener('click', function() {
     if (window.wpPrefsPush) window.wpPrefsPush();   // the saves folder's preferences.json follows
     applyGridOpacity();
     if (window.wpApplyCorner) window.wpApplyCorner();   // 107: the zoom buttons and the pointer location are back at once
+    showBlocksApply(document, localStorage);   // and what blocks is quiet again, its tick with it: no storage event comes in the window that made the change
     document.documentElement.style.removeProperty('--leftw');
     document.documentElement.style.removeProperty('--rightw');
     if (window.wpVtt) window.wpVtt.changed('reset');   // the VTT default is back to the 1.4.6 keys, then on; campaigns carry their own and are untouched

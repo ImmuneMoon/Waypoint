@@ -1353,12 +1353,12 @@
   .floating-toolbar .build-shapes { flex-wrap: wrap; max-width: 260px; }
   .floating-toolbar .build-shape-btn .ico { width: 14px; height: 14px; }
   /* The lists and the cost boxes of the Fill and Build menus wear the app's own dark box, as the toolbar's other lists do (the owner, 2026-10-10: "lets style these dropdowns") */
-  :is(#fillTexture, #buildTexture, #buildCorridorW, #fillTerrainCost, #buildTerrainCost) { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; padding: 3px 4px; color-scheme: dark; outline: none; }
-  :is(#fillTexture, #buildTexture, #buildCorridorW, #fillTerrainCost, #buildTerrainCost):hover { border-color: var(--dim); }
-  :is(#fillTexture, #buildTexture, #buildCorridorW, #fillTerrainCost, #buildTerrainCost):focus { border-color: var(--gold); }
-  :is(#fillTexture, #buildTexture, #buildCorridorW, #fillTerrainCost, #buildTerrainCost):disabled { opacity: 0.5; cursor: default; }
-  :is(#fillTexture, #buildTexture, #buildCorridorW) { cursor: pointer; }
-  :is(#fillTexture, #buildTexture, #buildCorridorW) option { background: var(--panel); color: var(--ink); }
+  :is(#fillTexture, #buildTexture, #buildCorridorW, #fillTerrainCost, #buildTerrainCost, #fillTerrainKind) { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; padding: 3px 4px; color-scheme: dark; outline: none; }
+  :is(#fillTexture, #buildTexture, #buildCorridorW, #fillTerrainCost, #buildTerrainCost, #fillTerrainKind):hover { border-color: var(--dim); }
+  :is(#fillTexture, #buildTexture, #buildCorridorW, #fillTerrainCost, #buildTerrainCost, #fillTerrainKind):focus { border-color: var(--gold); }
+  :is(#fillTexture, #buildTexture, #buildCorridorW, #fillTerrainCost, #buildTerrainCost, #fillTerrainKind):disabled { opacity: 0.5; cursor: default; }
+  :is(#fillTexture, #buildTexture, #buildCorridorW, #fillTerrainKind) { cursor: pointer; }
+  :is(#fillTexture, #buildTexture, #buildCorridorW, #fillTerrainKind) option { background: var(--panel); color: var(--ink); }
   .floating-toolbar .build-line { font-size: 10.5px; line-height: 1.35; color: var(--dim); padding: 2px 8px 4px; max-width: 260px; white-space: normal; }
   .wb-build-poly { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 120; }
   .wb-build-poly svg { overflow: visible; }
@@ -5991,6 +5991,8 @@
 /* 1.6.2 (vehicles, fold (b), rebuilt): the Combat tab's Arcs, a name and its degrees on one row */
 .sys-arcrow { align-items: center; flex-wrap: wrap; }
 .sys-arcrow .sys-arc-label { flex: 0 1 14em; width: auto; min-width: 8em; }
+.sys-arcrow .sys-tkind-label { flex: 0 1 14em; width: auto; min-width: 8em; }
+.sys-tkindrow .sys-tkind-says { flex: 0 1 auto; margin: 0; }   /* beside the row's controls, so the row keeps its height when the words go */
 /* 1.6.2 (vehicles, fold (g)): a map kind a card, its factors a row each; the pill beside the map's name */
 .sys-mapkind { border: 1px solid var(--edge); border-radius: 6px; padding: 6px 8px; margin: 6px 0; display: flex; flex-direction: column; gap: 4px; }
 .sys-arcrow .sys-mk-label, .sys-arcrow .sys-mk-flabel { flex: 0 1 14em; width: auto; min-width: 8em; }

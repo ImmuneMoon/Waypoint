@@ -1388,6 +1388,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var _el_wbTerrain = document.getElementById('wbTerrain'), _el_wbTerrainCost = document.getElementById('wbTerrainCost');   // difficult terrain T1: its cost, 2-10, or no key
             if (_el_wbTerrain) _el_wbTerrain.addEventListener('change', function() { setItemTerrain(w, this.checked, _el_wbTerrainCost ? _el_wbTerrainCost.value : 2); });
             if (_el_wbTerrainCost) _el_wbTerrainCost.addEventListener('change', function() { setItemTerrain(w, true, this.value); });
+            var _el_wbTerrainKind = document.getElementById('wbTerrainKind'); if (_el_wbTerrainKind) _el_wbTerrainKind.addEventListener('change', function() { setItemTerrain(w, true, _el_wbTerrainCost ? _el_wbTerrainCost.value : 2, this.value); });   // 1.6.2 (backlog 57): a kind by name
             var _el_wbTexture = document.getElementById('wbTexture');   // the map builder: a piece's texture
             if (_el_wbTexture) _el_wbTexture.addEventListener('change', function() { setItemTexture(w, this.value); });
             if (_el_wbTexture && window.wpTexList && typeof window.wpTexList.keys === 'function') window.wpTexList.keys(_el_wbTexture);   // its last rows act at a choice, never at a key step
@@ -2062,14 +2063,22 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   // [sinkcheck:terrainfield-start]
   // Difficult terrain T1: a shape's Properties row — its tick and its cost (item.terrain, 2-10, as fogcore cleanTerrain keeps it; the box
   // shows 2 while unticked), and the GM's change of either
+  // 1.6.2 (backlog 57; the owner, 2026-11-11, by prompt: "Both"): where the system names kinds of terrain a Kind of terrain list stands under the
+  // tick, the kinds by name (escaped) and Another cost. A piece that names a kind shows the cost the kind has now, its box greyed. The pick is
+  // written only as a kind the system has (item.terrainKind beside the cost), and another cost or an unticked row takes the kind off
+  function terrainKindsNow() { try { var S = window.wpSystemCore, c = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null; return S && S.terrainKinds && c ? S.terrainKinds(c.system) : []; } catch (e) { return []; } }
   function terrainFieldHtml(w) {
       var C = window.wpFogCore, t = C && C.cleanTerrain ? C.cleanTerrain(w.terrain) : null;
-      return '<div class="field check-row"><input type="checkbox" id="wbTerrain" ' + (t ? 'checked' : '') + '> <label for="wbTerrain">Difficult terrain</label> &times;<input type="number" id="wbTerrainCost" min="2" max="10" step="1" value="' + (t || 2) + '" style="width:48px; margin-left:4px;"' + (t ? '' : ' disabled') + ' title="What moving into it costs: this many times as much"></div>'
+      var ks = typeof esc === 'function' ? terrainKindsNow() : [], kk = t && C && C.cleanTerrainKind ? C.cleanTerrainKind(w.terrainKind) : null, kd = kk ? ks.filter(function(k) { return k.key.toLowerCase() === kk.toLowerCase(); })[0] || null : null;
+      if (kd) t = kd.cost;
+      return '<div class="field check-row"><input type="checkbox" id="wbTerrain" ' + (t ? 'checked' : '') + '> <label for="wbTerrain">Difficult terrain</label> &times;<input type="number" id="wbTerrainCost" min="2" max="10" step="1" value="' + (t || 2) + '" style="width:48px; margin-left:4px;"' + (t && !kd ? '' : ' disabled') + ' title="What moving into it costs: this many times as much"></div>'
+          + (ks.length ? '<div class="field"><label for="wbTerrainKind">Kind of terrain</label><select id="wbTerrainKind"' + (t ? '' : ' disabled') + ' title="A kind of terrain your system names, at its cost. The cost of a kind is set in the System editor.">' + ks.map(function(k) { return '<option value="' + esc(k.key) + '"' + (kd && kd.key === k.key ? ' selected' : '') + '>' + esc(k.label) + ' &times;' + Number(k.cost) + '</option>'; }).join('') + '<option value=""' + (kd ? '' : ' selected') + '>Another cost</option></select></div>' : '')
           + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Moving into it costs this many times as much (2 to 10).</div>';
   }
-  function setItemTerrain(w, on, v) {
+  function setItemTerrain(w, on, v, kind) {
       var C = window.wpFogCore, t = (C && C.cleanTerrain ? C.cleanTerrain(Number(v)) : null) || 2;
-      if (on === true) w.terrain = t; else delete w.terrain;
+      var kd = on === true && typeof kind === 'string' && kind ? terrainKindsNow().filter(function(k) { return k.key === kind; })[0] || null : null;
+      if (on === true) { w.terrain = kd ? kd.cost : t; if (kd) w.terrainKind = kd.key; else delete w.terrainKind; } else { delete w.terrain; delete w.terrainKind; }
       save(); render(); renderInspector();
   }
   // [sinkcheck:terrainfield-end]

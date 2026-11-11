@@ -8625,6 +8625,8 @@ function saveDraft() {
     var dropped = draft.fields.length - clean.fields.length;
     clean.updated = Date.now();
     var prevSys = camp.system, orphaned = orphanRows(prevSys, clean, camp.chars || {});   // Stage 6 F4a: a copy of a deleted entry keeps it (before the re-check drops unknown rows)
+    var terrMaps = typeof terrainSettleAll === 'function' ? terrainSettleAll(camp, prevSys, clean) : [];   // 1.6.2 (backlog 57): pieces of a kind that was re-costed or removed, before the save
+    if (terrMaps.length && window.wpHistBarrier) window.wpHistBarrier(terrMaps);   // an undo on one of those maps never brings a cost or a kind from before this Save back
     if (rnS) renamesOnChars(camp.chars || {}, rnS);   // 1.6.2: before the re-check, which would drop a list field's old option and a station's old name
     camp.system = clean;
     reCleanChars(camp, clean);   // Stage 6: before the save and the sync (syncSystem re-sends every character after the system)
@@ -8637,6 +8639,7 @@ function saveDraft() {
     starterSaved();   // 1.6.2: a starter's own packs, now that its system is the campaign's
     var n = net(); if (n && n.syncSystem) n.syncSystem();
     if (n && n.active && n.role === 'host' && n.sensesMoved) n.sensesMoved(null);   // Senses S0: a formula or a default only the GM sees may feed Sight, and moves neither view of the system
+    if (n && n.active && n.role === 'host' && n.sendItem) terrMaps.forEach(function(id) { n.sendItem(camp.id, id); });   // 1.6.2 (backlog 57): the maps whose pieces were settled, after the system that names the kinds
     if (n && n.active && n.role === 'host' && n.syncChars && gmFacing(prevSys) !== gmFacing(clean)) n.syncChars();   // Stage 6 F4a: an edit to a GM-only item or effect changes what its owner holds inline (the players' view alone would not resend it)
     var rnW = rnS ? renamesSay(rnS) : []; if (nR && nR.logEvent) rnW.forEach(function(l) { nR.logEvent('items', l); });
     var v = validateSystem(clean, F()), goneS = typeof goneRefs === 'function' ? goneRefs(clean, typeof refKeys === 'function' ? refKeys(clean) : null) : [];   // 1.6.2 (backlog 208): what still names something that is gone is said at Save too
@@ -11351,6 +11354,7 @@ function combatBody() {
     tp('arcs'); if (typeof arcsBox === 'function') arcsBox(box, cm);   // 1.6.2 (vehicles, fold (b), rebuilt): the system's own arcs
     tp('mapkinds'); if (typeof mapKindsBox === 'function') mapKindsBox(box); if (typeof travelBox === 'function') travelBox(box);   // 1.6.2 (backlog 166 a): the travel modes beside the map kinds   // 1.6.2 (vehicles, fold (g)): the system's map kinds
     tp('scenes'); if (typeof scenesBox === 'function') scenesBox(box);   // 1.6.2: a scene's channels
+    tp('terrain'); if (typeof terrainBox === 'function') terrainBox(box, cm);   // 1.6.2 (backlog 57): the system's kinds of terrain
     if (window.wpSysUi) window.wpSysUi.combatDrawn(box);   // 1.6.2: into a pane a topic
 }
 // Initiative O2 (docs/TURN_ORDER_PLAN.md; the owner's note: 3d6 systems order by Basic Speed and roll only to settle ties, d20 systems roll and
@@ -12327,6 +12331,41 @@ function arcsBox(box, cm) {
     });
     var add = el('button', 'tool ghost sys-btn sys-arc-add', '+ Arc'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'An arc a hit can come from or a gun can fire into';
     add.addEventListener('click', function() { if (!Array.isArray(cm.arcs)) cm.arcs = []; list = cm.arcs; if (list.length >= max) return; list.push({ label: '', f: -60, t: 60, _new: true }); ch(true); });
+    var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
+    box.appendChild(wrap);
+}
+// 1.6.2 (backlog 57): Save settles the campaign's maps where the kinds changed (fogcore terrainSettle): a piece of a kind takes the kind's cost as its
+// own stored cost, and a piece whose kind is gone keeps the cost that kind last had and names none. Answers the ids of the maps that changed, which
+// saveDraft sends to the table after the system
+function terrainSettleAll(camp, prevSys, nextSys) {
+    var S = window.wpSystemCore, C = window.wpFogCore, ids = []; if (!S || !S.terrainCosts || !C || !C.terrainSettle || !camp || !camp.items || typeof camp.items !== 'object') return ids;
+    var pk = S.terrainCosts(prevSys), nk = S.terrainCosts(nextSys); if (JSON.stringify(pk) === JSON.stringify(nk)) return ids;
+    Object.keys(camp.items).forEach(function(id) { var it = camp.items[id]; if (it && it.type === 'map' && Array.isArray(it.whiteboard) && C.terrainSettle(it.whiteboard, pk, nk) > 0) ids.push(id); });
+    return ids;
+}
+// 1.6.2 (backlog 57; the owner, 2026-11-11, by prompt: "Both"): the Combat tab's Terrain, the system's own kinds of difficult ground, each a name and
+// what moving into it costs (2 to 10). Its own listeners, so no handler of the tab reads them. A new kind's short name follows its name until the
+// editor is closed, and stays after, so the pieces that name it keep it through a rename. A row with no name says that Save drops it
+function terrainBox(box, cm) {
+    var wrap = el('div', 'sys-holds sys-tkindbox'), list = Array.isArray(cm.terrain) ? cm.terrain : null, SCt = window.wpSystemCore || {}, max = SCt.TERRAIN_MAX || 48, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
+    var keyFor = function(a, lb) { var k = (typeof SCt.arcKey === 'function' ? SCt.arcKey(lb) : '') || (String(lb || '').trim() ? 'Kind' : ''), base = k, n = 2; while (k && (list || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };   // a name in another script still gets a short name
+    wrap.appendChild(el('div', 'sys-light-head', 'Kinds of terrain'));
+    wrap.appendChild(el('div', 'sys-note', 'Name the ground that slows movement in your game, such as Mud or Rubble, and what moving into each costs. The Fill menu and a shape\u2019s Properties then offer them by name. Change a cost here and every piece of that kind follows.'));
+    (list || []).forEach(function(a, i) {
+        var rw = el('div', 'sys-flags sys-arcrow sys-tkindrow'), nm = input('sys-tkind-label field', a.label || '', 'Its name, such as Mud or Rubble', 'Mud'), says = el('span', 'sys-note sys-tkind-says');
+        var say = function() { says.textContent = String(a.label || '').trim() ? '' : 'Needs a name, or Save drops it.'; };
+        nm.maxLength = LIMITS.label;
+        nm.addEventListener('input', function() { a.label = nm.value.slice(0, LIMITS.label); if (a._new || !a.key) a.key = keyFor(a, a.label); say(); ch(); });
+        rw.appendChild(nm);
+        var w = el('label', 'sys-check'), ip = el('input', 'field sys-num sys-tkind-cost'); ip.type = 'number'; ip.min = '2'; ip.max = '10'; ip.step = '1'; ip.value = String(typeof a.cost === 'number' && isFinite(a.cost) ? a.cost : 2);
+        ip.addEventListener('change', function() { var v = Math.round(Number(ip.value)); a.cost = isFinite(v) ? Math.max(2, Math.min(10, v)) : 2; ip.value = String(a.cost); ch(); });
+        w.appendChild(document.createTextNode('Costs \u00d7 ')); w.appendChild(ip); w.title = 'What moving into it costs: this many times as much, 2 to 10'; rw.appendChild(w);
+        var rm = el('button', 'tool ghost sys-btn sys-tkind-rm', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this kind. Pieces that name it keep the cost they had'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete cm.terrain; ch(true); }); rw.appendChild(rm);
+        rw.appendChild(says); say();
+        wrap.appendChild(rw);
+    });
+    var add = el('button', 'tool ghost sys-btn sys-tkind-add', '+ Kind of terrain'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'A kind of ground that costs more to move into, picked by name in the Fill menu and in a shape\u2019s Properties';
+    add.addEventListener('click', function() { if (!Array.isArray(cm.terrain)) cm.terrain = []; list = cm.terrain; if (list.length >= max) return; list.push({ label: '', cost: 2, _new: true }); ch(true); });
     var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
     box.appendChild(wrap);
 }

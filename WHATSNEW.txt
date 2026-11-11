@@ -53,6 +53,11 @@ Tidier screens
   as a new player and Clear all handouts.
 
 The System editor
+- Kinds of terrain: name the ground that slows movement in your game on the
+  Combat tab under Terrain, such as Mud at x2 or Rubble at x3. The fill menu
+  and a shape's Properties then list them by name. Change a kind's cost and
+  every piece of that kind follows. The fill menu also remembers its terrain
+  for each campaign now.
 - An effect can say which rest ends it. Its Ends with list in the System
   editor picks one of your rests, or No rest, and its Duration is then not
   read for that. Until now a Duration that only mentioned a rest ended with

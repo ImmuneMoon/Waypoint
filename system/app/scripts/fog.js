@@ -316,15 +316,18 @@ function eligibleBlocker(w) {
 // Difficult terrain T2: the map's difficult cells, { cellKey: cost } (the highest cost of the shown pieces over each cell) or null, kept on
 // the map's save stamp and grid. A piece counts as Smoke's would be read: one of the four shapes (a painted cell is one), never hidden, a
 // token, a waiting token or a GM-note card, a turned one by its outline (1.6.0, 18a); its cost as fogcore cleanTerrain keeps it. Under the walls' cap, judged
-// on a piece's box first: over it no terrain counts (the same answer on every side), and the GM is told once
+// on a piece's box first: over it no terrain counts (the same answer on every side), and the GM is told once. 1.6.2 (backlog 57): a piece that
+// names a kind of terrain costs what the system's kind costs now (fogcore terrainOf, the campaign's kinds from systemcore terrainCosts, the same
+// in both views), so the kinds are part of what the set is kept by
 var _terrCache = Object.create(null), _terrStamp = Object.create(null), _terrWarned = Object.create(null);
 function terrainFor(map, grid) {
     if (!map || !grid) return null;
-    var stamp = ((map.meta && map.meta.updated) || 0) + '|' + grid.type + ':' + (grid.size || grid.s);
+    var St = typeof window !== 'undefined' && window ? window.wpSystemCore : null, campT = typeof activeCamp === 'function' ? activeCamp() : null, kinds = St && St.terrainCosts && campT ? St.terrainCosts(campT.system) : null;
+    var stamp = ((map.meta && map.meta.updated) || 0) + '|' + grid.type + ':' + (grid.size || grid.s) + (kinds && Object.keys(kinds).length ? '|' + JSON.stringify(kinds) : '');
     if (_terrStamp[map.id] === stamp) return _terrCache[map.id];
     var C = core(), set = null, n = 0, over = false, cap = C.LIMITS.blockerCells, cw = grid.type === 'square' ? grid.size : 1.5 * grid.s, ch = grid.type === 'square' ? grid.size : grid.h;
     (map.whiteboard || []).forEach(function(w) {
-        var t = w && C.cleanTerrain ? C.cleanTerrain(w.terrain) : null;
+        var t = !w ? null : C.terrainOf ? C.terrainOf(w, kinds) : C.cleanTerrain ? C.cleanTerrain(w.terrain) : null;
         if (over || !t || w.hidden || w.isChar || w.waiting || w.gmNoteFor || ['rect', 'hexagon', 'circle', 'diamond'].indexOf(w.type) < 0) return;
         var bw = Math.abs(Number(w.w) || 0), bh = Math.abs(Number(w.h) || 0);
         if (!isFinite(bw) || !isFinite(bh) || (bw / cw + 2) * (bh / ch + 2) > cap) { over = true; return; }

@@ -463,6 +463,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
       if (window.wpRenderCombatStrip) window.wpRenderCombatStrip();
       if (window.wpEnvTool && window.wpEnvTool.draw) window.wpEnvTool.draw();   // 1.6.0: the Environment tool's layer, while it is in hand
       if (window.wpFogRedraw) window.wpFogRedraw();   // keep the fog overlay live whenever a fog map is on screen (any tool, during drags)
+      if (window.wpFillMenuSync) window.wpFillMenuSync();   // 1.6.2 (backlog 57): the Fill options, while they are up, follow the campaign and its kinds of terrain
 
       var activeMap = getActiveMap();
 
@@ -3472,7 +3473,7 @@ window.wpFitToGrid = fitToGrid;
       var grid = FG.gridForMap(map); if (!grid) return 0; var cells = FC.spreadCells(map.whiteboard, grid), made = 0;
       cells.forEach(function(c) {
           var box = cellSnap(c.x, c.y), from = c.from, it = { id: 'wb' + uid(), type: box.type, x: box.px, y: box.py, w: box.w, h: box.h, baseW: box.w, baseH: box.h, fill: true };
-          ['z', 'layer', 'color', 'opacity', 'texture', 'texSrc', 'texTile', 'terrain', 'name', 'hidden', 'hazard', 'smoke'].forEach(function(k) { if (from[k] !== undefined) it[k] = JSON.parse(JSON.stringify(from[k])); });
+          ['z', 'layer', 'color', 'opacity', 'texture', 'texSrc', 'texTile', 'terrain', 'terrainKind', 'name', 'hidden', 'hazard', 'smoke'].forEach(function(k) { if (from[k] !== undefined) it[k] = JSON.parse(JSON.stringify(from[k])); });
           map.whiteboard.push(it); made++;
       });
       if (window.wpStepLog) window.wpStepLog('hazard v1', 'spread', { cells: made });
@@ -6126,24 +6127,75 @@ window.wpFitToGrid = fitToGrid;
   try { state.fillTerrain = Number(localStorage.getItem('wp_fillTerrain')) || 0; } catch (e) { state.fillTerrain = 0; }   // difficult terrain T1: the fill menu's cost (cleaned where it is used), or 0
   var _fci0 = document.getElementById('fillColorInput'); if (_fci0 && /^#[0-9a-f]{6}$/i.test(state.fillColor || '')) _fci0.value = state.fillColor;
   // [fogcheck:fillmenu-start]
+  // 1.6.2 (backlog 57; the owner, 2026-11-11, by prompt: "Both"): where the system names kinds of terrain the menu lists them by name beside the
+  // cost, and what the menu last had is each campaign's own on this computer (wp_fillTerrainBy: { campaign id: { c: the cost, or 0 while
+  // unticked; k: the kind } }, the newest 40, read back as data). A campaign with none yet starts from what this computer last had
+  // (wp_fillTerrain), with no kind. A kind is painted at the cost the system gives it now
+  var _fillCamp = null, _fillFresh = false;
+  function fillCampNow() { try { var c = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null; return c && typeof c.id === 'string' && c.id ? c : null; } catch (e) { return null; } }
+  function fillKinds() { var S = window.wpSystemCore, c = fillCampNow(); return S && S.terrainKinds && c ? S.terrainKinds(c.system) : []; }
+  function fillKindNow() { var k = typeof state.fillTerrainKind === 'string' ? state.fillTerrainKind.toLowerCase() : ''; return k ? fillKinds().filter(function(x) { return x.key.toLowerCase() === k; })[0] || null : null; }
+  function fillTerrainBy() {
+      var o = Object.create(null), FC = window.wpFogCore, raw = null;
+      try { raw = JSON.parse(localStorage.getItem('wp_fillTerrainBy') || 'null'); } catch (e) { raw = null; }
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return o;
+      Object.keys(raw).slice(-40).forEach(function(id) { var q = raw[id]; if (!q || typeof q !== 'object' || Array.isArray(q) || id.length > 80) return; o[id] = { c: (FC && FC.cleanTerrain ? FC.cleanTerrain(q.c) : null) || 0, k: (FC && FC.cleanTerrainKind ? FC.cleanTerrainKind(q.k) : null) || '' }; });
+      return o;
+  }
+  function fillTerrainKeep() {
+      var c = fillCampNow(); if (!c) return;
+      var by = fillTerrainBy(), keep = Object.create(null); delete by[c.id];
+      Object.keys(by).slice(-39).forEach(function(id) { keep[id] = by[id]; });
+      keep[c.id] = { c: Number(state.fillTerrain) || 0, k: typeof state.fillTerrainKind === 'string' ? state.fillTerrainKind : '' };
+      _fillFresh = false;
+      try { localStorage.setItem('wp_fillTerrainBy', JSON.stringify(keep)); } catch (e) {}
+  }
+  // The menu's terrain as the campaign on screen last had it (read once a campaign), a kind at the cost it has now. own, only as true: the
+  // campaign's menu is in use (its options are up, or a cell is being painted), and a campaign with nothing kept then keeps what it started
+  // from as its own, so that a change made in another campaign later does not move it
+  function fillTerrainNow(own) {
+      var c = fillCampNow();
+      if (c && c.id !== _fillCamp) { _fillCamp = c.id; var by = fillTerrainBy(), q = Object.prototype.hasOwnProperty.call(by, c.id) ? by[c.id] : null; if (q) { state.fillTerrain = q.c; state.fillTerrainKind = q.k; _fillFresh = false; } else { state.fillTerrainKind = ''; _fillFresh = true; } }
+      var kd = fillKindNow();
+      if (kd) { if (state.fillTerrain) state.fillTerrain = kd.cost; } else if (state.fillTerrainKind && c) state.fillTerrainKind = '';
+      if (own === true && _fillFresh && c) fillTerrainKeep();
+  }
+  function fillKindList(sel, kinds, kd, on) {   // the kinds as option elements with text, made again only when they changed
+      var sig = kinds.map(function(k) { return k.key + '\u0001' + k.label + '\u0001' + k.cost; }).join('\u0002');
+      if (sel._wpSig !== sig) {
+          sel._wpSig = sig; while (sel.firstChild) sel.removeChild(sel.firstChild);
+          kinds.forEach(function(k) { var o = document.createElement('option'); o.value = k.key; o.textContent = k.label + ' \u00d7' + k.cost; sel.appendChild(o); });
+          var oc = document.createElement('option'); oc.value = ''; oc.textContent = 'Another cost'; sel.appendChild(oc);
+      }
+      sel.hidden = !kinds.length; sel.value = kd ? kd.key : ''; sel.disabled = !on;
+  }
   function syncFillMenu() {
       document.querySelectorAll('#fillColorRow .draw-swatch[data-color]').forEach(function(sw) { sw.classList.toggle('active', sw.dataset.color.toLowerCase() === (state.fillColor || '').toLowerCase()); });
       var cs = document.querySelector('#fillColorRow .draw-swatch.custom'); if (cs) { var preset = document.querySelector('#fillColorRow .draw-swatch[data-color].active'); cs.classList.toggle('active', !preset); cs.style.background = preset ? '' : state.fillColor; }
       var _fi = document.getElementById('fillColorIndicator'); if (_fi) _fi.style.background = state.fillColor;
-      var _ftc = document.getElementById('fillTerrainChk'), _ftn = document.getElementById('fillTerrainCost');   // difficult terrain T1
-      var _FCs = window.wpFogCore, _ftv = _FCs && _FCs.cleanTerrain ? _FCs.cleanTerrain(state.fillTerrain) : null;
+      var _fmN = document.getElementById('fillMenu'); fillTerrainNow(!!(_fmN && _fmN.classList && _fmN.classList.contains('show')));
+      var _ftc = document.getElementById('fillTerrainChk'), _ftn = document.getElementById('fillTerrainCost'), _fsel = document.getElementById('fillTerrainKind');   // difficult terrain T1
+      var _FCs = window.wpFogCore, _ftv = _FCs && _FCs.cleanTerrain ? _FCs.cleanTerrain(state.fillTerrain) : null, _kd = fillKindNow();
       if (_ftc) _ftc.checked = !!_ftv;
-      if (_ftn) { if (_ftv) _ftn.value = _ftv; _ftn.disabled = !_ftv; }
+      if (_fsel) fillKindList(_fsel, fillKinds(), _kd, !!_ftv);
+      var _fkr = document.getElementById('fillTerrainKindRow'); if (_fkr) _fkr.hidden = !_fsel || !!_fsel.hidden;   // the list has a row of its own, put away where the system names no kind
+      if (_ftn) { if (document.activeElement !== _ftn) { if (_kd) _ftn.value = _kd.cost; else if (_ftv) _ftn.value = _ftv; } _ftn.disabled = !_ftv || !!_kd; }   // never over a cost being typed: a redraw may ask this while the box has the focus
   }
-  function fillTerrainSet() {   // difficult terrain T1: the fill menu's tick and cost, kept on this machine (the cost, or 0 while unticked)
-      var chk = document.getElementById('fillTerrainChk'), box = document.getElementById('fillTerrainCost'), FC = window.wpFogCore;
-      var n = (box && FC && FC.cleanTerrain ? FC.cleanTerrain(Number(box.value)) : null) || 2;
+  function fillTerrainSet() {   // difficult terrain T1: the fill menu's tick, its kind and its cost, kept on this machine (the cost, or 0 while unticked)
+      var chk = document.getElementById('fillTerrainChk'), box = document.getElementById('fillTerrainCost'), sel = document.getElementById('fillTerrainKind'), FC = window.wpFogCore;
+      var kd = sel && !sel.hidden && sel.value ? fillKinds().filter(function(k) { return k.key === sel.value; })[0] || null : null;
+      var n = kd ? kd.cost : (box && FC && FC.cleanTerrain ? FC.cleanTerrain(Number(box.value)) : null) || 2;
       if (box) box.value = n;
-      state.fillTerrain = chk && chk.checked ? n : 0;
+      state.fillTerrain = chk && chk.checked ? n : 0; state.fillTerrainKind = kd ? kd.key : '';
       try { localStorage.setItem('wp_fillTerrain', String(state.fillTerrain)); } catch (e) {}
+      fillTerrainKeep();
       syncFillMenu();
   }
-  ['fillTerrainChk', 'fillTerrainCost'].forEach(function(id) { var e0 = document.getElementById(id); if (e0) e0.addEventListener('change', fillTerrainSet); });
+  ['fillTerrainChk', 'fillTerrainCost', 'fillTerrainKind'].forEach(function(id) { var e0 = document.getElementById(id); if (e0) e0.addEventListener('change', fillTerrainSet); });
+  // Options stay up at a press elsewhere, so the board's redraw asks this: with the Fill options up the menu is read again, since another campaign
+  // may be on screen or the System editor's Save may have changed the kinds under it (the review of 2026-11-11: it showed one terrain and painted another)
+  function fillMenuFollow() { var m = document.getElementById('fillMenu'); if (m && m.classList && m.classList.contains('show')) syncFillMenu(); }
+  if (typeof window !== 'undefined' && window) window.wpFillMenuSync = fillMenuFollow;
   // [fogcheck:fillmenu-end]
   // [sinkcheck:texopts-start]
   // The map builder (fold B1): a Texture list's rows are the app's own names, as option values and text nodes, with Plain color for none.
@@ -6250,10 +6302,15 @@ window.wpFitToGrid = fitToGrid;
   }
   // [fogcheck:fillcell-start]
   // Difficult terrain T1: the fill menu's cost on a cell it paints, new or painted over (true when that changed it); 0 leaves a cell's cost as it was
+  // 1.6.2 (backlog 57): where the menu holds a kind of terrain the cell names it, at the cost the kind has now; another cost names none
   function fillTerrainTo(item) {
+      if (typeof fillTerrainNow === 'function') fillTerrainNow(true);
       var FC = window.wpFogCore, t = FC && FC.cleanTerrain ? FC.cleanTerrain(state.fillTerrain) : null;
-      if (!t || item.terrain === t) return false;
-      item.terrain = t; return true;
+      if (!t) return false;
+      var kd = typeof fillKindNow === 'function' ? fillKindNow() : null, k = kd ? kd.key : null;
+      if (kd) t = kd.cost;
+      if (item.terrain === t && (typeof item.terrainKind === 'string' ? item.terrainKind : null) === k) return false;
+      item.terrain = t; if (k) item.terrainKind = k; else delete item.terrainKind; return true;
   }
   // The map builder: the fill menu's texture on a cell it paints, new or painted over (true when that changed it). A name of the app's own
   // list, Plain color, which takes a texture off, or (fold B3) one of the campaign's own pictures with its repeat, which takes the pattern's
@@ -9021,7 +9078,7 @@ window.wpDoorCut = doorCut;
 function buildLay(map, boxes, props, more, walls) {
     var BC = buildCore(); if (!BC || !props) return;
     if (!boxes.length) { toast('Nothing to lay there.'); return; }
-    var room = BUILD_MAX - map.whiteboard.length, laid = 0, wall = false, full = false, keys = ['color', 'layer', 'name', 'texture', 'texSrc', 'texTile', 'blocksSight', 'sightType', 'barrier', 'cover', 'terrain', 'secret', 'seenColor', 'seenTexture', 'seenWidth', 'seenOpacity', 'seenTip'];   // a piece laid again in place wears the new material and nothing of the old: a picture it wore goes with its pattern
+    var room = BUILD_MAX - map.whiteboard.length, laid = 0, wall = false, full = false, keys = ['color', 'layer', 'name', 'texture', 'texSrc', 'texTile', 'blocksSight', 'sightType', 'barrier', 'cover', 'terrain', 'terrainKind', 'secret', 'seenColor', 'seenTexture', 'seenWidth', 'seenOpacity', 'seenTip'];   // a piece laid again in place wears the new material and nothing of the old: a picture it wore goes with its pattern
     for (var i = 0; i < boxes.length; i++) {
         var b = boxes[i], item = Object.assign({ id: 'wb' + uid(), type: b.type, x: b.x, y: b.y, w: b.w, h: b.h, z: 10 }, newOpacityProps(), props);
         if (b.pts) { item.pts = b.pts; item.baseW = b.baseW; item.baseH = b.baseH; item.tip = 'fill'; }

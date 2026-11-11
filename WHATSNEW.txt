@@ -46,6 +46,8 @@ The System editor
 - A rest can take the party to a map, such as the ship or an inn. The
   players at the table go, anyone who joins during the rest lands there,
   and NPCs go where you tick them. Ending the rest takes everyone back.
+- A rest can end the effects that last until it. An effect whose Duration
+  says Until a long rest comes off when you call Long rest.
 - A sheet reader can now fill a vehicle's own sheet from the same file as
   its owner. The Review shows each sheet's changes under its own name, and
   Apply makes the sheet where the row has none yet.

@@ -13670,6 +13670,11 @@ function restDoOpts(sys, ds) {
     restSecs(sys).forEach(function(s) { if (!has('reset', s.id)) out.push(['reset:' + s.id, restDoWord(sys, { k: 'reset', id: s.id })]); });
     return out;
 }
+function restEndsWords(sys, r) {   // fold R6: which of the library's effects this rest ends, by their Duration notes
+    var S = window.wpSystemCore, nm = typeof r.name === 'string' ? r.name.trim() : '', hit = [];
+    if (nm && S && typeof S.durNamesRest === 'function') (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (d && S.durNamesRest(d.dur, nm)) hit.push(typeof d.name === 'string' && d.name.trim() ? d.name.trim() : 'An effect'); });
+    return hit.length ? 'It ends ' + hit.join(', ') + ', and any effect made on the spot whose Duration names ' + nm + '.' : 'No effect\u2019s Duration names ' + (nm || 'this rest') + ' yet. Write Until ' + (nm || 'its name') + ' there, on the Effects tab.';
+}
 function restSays(sys) {
     var out = [], rs = Array.isArray(sys && sys.rests) ? sys.rests : [], kept = 0, ids = Object.create(null), us = Object.create(null);
     restUnits(sys).forEach(function(u) { us[u[0].toLowerCase()] = 1; });
@@ -13716,6 +13721,8 @@ function restsBox() {
             ds.forEach(function(d, j) { var ch = el('span', 'sys-rest-chip'); ch.appendChild(document.createTextNode(restDoWord(sys, d))); var x = el('button', 'tool ghost sys-btn sys-rest-chipx', '\u00d7'); x.type = 'button'; x.dataset.act = 'restdox'; x.dataset.dj = String(j); x.title = 'Take this off the list'; ch.appendChild(x); dw.appendChild(ch); });
             if (ds.length < REST_DOES_N) { var ao = restDoOpts(sys, ds); if (ao.length > 1) dw.appendChild(select('sys-rest-doadd', ao, '', 'Add a roll or action run for each who rests, a pool filled to its most, or a section\u2019s Reset all')); }
             cd.appendChild(dw);
+            var el6 = el('label', 'sys-cal-tick'), ec6 = el('input', 'sys-rest-ends'); ec6.type = 'checkbox'; ec6.checked = r.ends === true; ec6.title = 'Each who rests loses every effect whose Duration note names this rest, such as Until a long rest'; el6.appendChild(ec6); el6.appendChild(document.createTextNode(' Ends effects that last until this rest')); cd.appendChild(el6);   // fold R6
+            if (r.ends === true) cd.appendChild(el('div', 'sys-note sys-rest-endsfx', restEndsWords(sys, r)));
             var pv = restPreview(sys, r); if (pv) cd.appendChild(el('div', 'sys-note sys-rest-preview', pv));
             wrap.appendChild(cd);
         });
@@ -13736,6 +13743,7 @@ function restsBox() {
         if (t.classList.contains('sys-rest-doadd')) { var mv = /^(roll|pool|reset):(.+)$/.exec(String(t.value || '')); if (!mv) return; if (!Array.isArray(a.r.does)) a.r.does = []; if (a.r.does.length < REST_DOES_N && !a.r.does.some(function(d) { return d && d.k === mv[1] && d.id === mv[2]; })) a.r.does.push({ k: mv[1], id: mv[2] }); done(true); return; }   // fold R4
         if (t.classList.contains('sys-rest-u')) { if (!a.r.len || typeof a.r.len !== 'object') a.r.len = {}; a.r.len.u = String(t.value); }
         else if (t.classList.contains('sys-rest-time')) { if (t.checked) delete a.r.time; else a.r.time = false; }
+        else if (t.classList.contains('sys-rest-ends')) { if (t.checked) a.r.ends = true; else delete a.r.ends; }   // fold R6
         done(true);
     });
     wrap.addEventListener('click', function(e) {
@@ -13753,8 +13761,8 @@ function restsBox() {
 }
 // fold R4: a rest's list run for those who rest, on the machine that owns the campaign: pools filled and sections reset as one change a character
 // (commitMany, as Reset all does), then each roll or action run as the GM's own press, times over for a skip that held the rest that many times (20 at most)
-function restDoes(ids, does, times) {
-    var camp = getActiveCampaign(), sys = camp && camp.system; if (!sys || !Array.isArray(does) || !does.length || !Array.isArray(ids)) return 0;
+function restDoes(ids, does, times, rest) {
+    var camp = getActiveCampaign(), sys = camp && camp.system, ends = !!rest && rest.ends === true; does = Array.isArray(does) ? does : []; if (!sys || (!does.length && !ends) || !Array.isArray(ids)) return 0;
     var n = Math.max(1, Math.min(20, Math.floor(typeof times === 'number' && isFinite(times) ? times : 1))), done = 0, S = window.wpSystemCore;
     ids.forEach(function(id) {
         var c = charById(id, camp); if (!c) return; var vals = [];
@@ -13763,6 +13771,7 @@ function restDoes(ids, does, times) {
             if (d.k === 'pool' && S && typeof S.makeResolver === 'function') { var f = (sys.fields || []).filter(function(x) { return x && x.id === d.id && x.kind === 'resource'; })[0]; if (!f) return; var mx = S.makeResolver(sys, c, F())(f.key + '.max'); if (typeof mx === 'number' && isFinite(mx)) vals.push({ fieldId: f.id, value: mx }); }
             else if (d.k === 'reset' && S && typeof S.resetTargets === 'function') { var sc = (sys.sheet && Array.isArray(sys.sheet.sections) ? sys.sheet.sections : []).filter(function(x) { return x && x.id === d.id; })[0]; if (sc) S.resetTargets(sys, c, sc, F(), { gm: true }).targets.forEach(function(t) { if (!vals.some(function(v) { return v.fieldId === t.fieldId; })) vals.push({ fieldId: t.fieldId, value: t.value }); }); }
         });
+        if (ends && S && typeof S.restEndsFx === 'function') S.restEndsFx(sys, c, rest).vals.forEach(function(v) { if (!vals.some(function(x) { return x.fieldId === v.fieldId; })) vals.push(v); });   // fold R6: effects that last until this rest come off, once, in the same change
         if (vals.length) { commitMany(c, vals); done++; }
         does.forEach(function(d) {
             if (!d || d.k !== 'roll') return; var r = (sys.rolls || []).filter(function(x) { return x && x.id === d.id; })[0]; if (!r) return;

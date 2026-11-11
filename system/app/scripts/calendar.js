@@ -734,7 +734,7 @@ function restStart() {
     if (!moveTo(t0 + len, 'Rest called \u2014 ' + r.name, false, false, { who: who, restOn: restOn, restMap: restMapOf(camp, rc.map) ? { map: rc.map, go: !!rc.go } : null })) return false;
     if (goM) { try { restGo(camp, goM, hereM ? hereM.id : '', rc.npcs); } catch (e) { console.error(e); } }
     var nn = net(); if (nn && typeof nn.restLine === 'function') nn.restLine('The party rests: ' + r.name + '.');
-    var rIds = Object.keys(who).filter(function(k) { return who[k] === 'rest'; }); if (Array.isArray(r.does) && r.does.length && rIds.length && window.wpSheets && typeof window.wpSheets.restDoes === 'function') { try { window.wpSheets.restDoes(rIds, r.does, 1); } catch (e) { console.error(e); } }   // fold R4: what it does at once, for those who rest
+    var rIds = Object.keys(who).filter(function(k) { return who[k] === 'rest'; }); if (((Array.isArray(r.does) && r.does.length) || r.ends === true) && rIds.length && window.wpSheets && typeof window.wpSheets.restDoes === 'function') { try { window.wpSheets.restDoes(rIds, r.does || [], 1, r); } catch (e) { console.error(e); } }   // fold R4: what it does at once, for those who rest
     return true;
 }
 function restEnd() {
@@ -1077,7 +1077,7 @@ function moveTo(t1, why, live, own, how) {   // live (1.5.4): the clock ran by i
     if (how && how.restOn) nc.rest = how.restOn; else if (nc.rest && gone > 0) nc.rest = Object.assign({}, nc.rest, { to: t1 });
     if (how && how.restMap) nc.restMap = how.restMap;   // fold R5: the campaign's rest map, as the call box left it
     var skipDo = null;
-    if (how && how.skip && how.skip.len && gone > 0 && !ck.rest && typeof restSkipRec === 'function') { var lenS = everySecs(cal, sysUnits(sysNow()), how.skip.len); if (lenS > 0 && gone >= lenS) { nc.rests = (ck.rests || []).concat([restSkipRec(how.skip, ck.t, t1, lenS)]); if (Array.isArray(how.skip.does) && how.skip.does.length) skipDo = { does: how.skip.does, n: Math.floor(gone / lenS) }; } }   // fold R4: and its list, once each whole length, for the players' characters   // fold R3: a skip that held a rest by name for its length   // fold R2: the rest called, or a step that adds to it
+    if (how && how.skip && how.skip.len && gone > 0 && !ck.rest && typeof restSkipRec === 'function') { var lenS = everySecs(cal, sysUnits(sysNow()), how.skip.len); if (lenS > 0 && gone >= lenS) { nc.rests = (ck.rests || []).concat([restSkipRec(how.skip, ck.t, t1, lenS)]); if ((Array.isArray(how.skip.does) && how.skip.does.length) || how.skip.ends === true) skipDo = { does: how.skip.does || [], n: Math.floor(gone / lenS), rest: how.skip }; } }   // fold R4: and its list, once each whole length, for the players' characters   // fold R3: a skip that held a rest by name for its length   // fold R2: the rest called, or a step that adds to it
     camp.clock = cleanClock(nc) || { t: t1 };
     if (why && net() && net().logEvent) net().logEvent('time', why + ' \u2014 now ' + fmtWhen(cal, t1));
     hits.forEach(function(n) { if (net() && net().logEvent) net().logEvent('time', 'Note reached \u2014 ' + fmtDate(cal, n.day * dayLength(cal)) + ': ' + n.text); });
@@ -1085,7 +1085,7 @@ function moveTo(t1, why, live, own, how) {   // live (1.5.4): the clock ran by i
     if (gs.length) { try { ownTime(gs); } catch (e) { console.error(e); } }
     if (gone > 0 && own !== true && typeof window !== 'undefined' && typeof window.wpCloudTime === 'function') { try { window.wpCloudTime(gone); } catch (e) { console.error(e); } }   // 1.6.2: a cloud counts game time where no fight runs   // K4, K5: each character's span of it, once, to its timed effects and its time rules; a rule that fails never keeps the move from being saved and told
     if (live === true) { if (net() && net().syncClock) net().syncClock(); saveView(); } else save();
-    if (skipDo && window.wpSheets && typeof window.wpSheets.restDoes === 'function') { try { window.wpSheets.restDoes(charIdsOf(camp).filter(function(id) { return isPc(camp.chars[id]); }), skipDo.does, skipDo.n); } catch (e) { console.error(e); } }
+    if (skipDo && window.wpSheets && typeof window.wpSheets.restDoes === 'function') { try { window.wpSheets.restDoes(charIdsOf(camp).filter(function(id) { return isPc(camp.chars[id]); }), skipDo.does, skipDo.n, skipDo.rest); } catch (e) { console.error(e); } }
     refresh(live === true); return true;
 }
 // K3: the GM's edits to the notes — cleaned as a load reads them, saved, the window redrawn

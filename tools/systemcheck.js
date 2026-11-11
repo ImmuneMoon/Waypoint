@@ -23345,6 +23345,26 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && ran === 3 && ranBig === 1 && big === 20 && box.restDoWord(sysD, { k: 'reset', id: 's_1' }) === 'Reset Long rest' && box.restDoWord(sysD, { k: 'pool', id: 'zz' }) === 'Fill a pool that is gone'
             && J(says) === J(['Night: Tick also runs By the clock, so this rest runs it twice. Save keeps it.', 'Night: a roll on its list is gone. Save drops it.', 'Night: a section on its list is gone or resets nothing. Save drops it.']), J([opts, calls, ran, ranBig, big, says]));
     }
+    {   // 1.6.2 (backlog 138 (j), docs/REST_DESIGN.md fold R6): effects that last until a rest come off when it is called
+        const J = JSON.stringify;
+        const names = [['Until a long rest', 'Long rest'], ['until the next LONG-rest!', 'Long rest'], ['Until a full night', 'A full night'], ['Until the next full night', 'A full night'], ['Until a short or long rest', 'Short rest'], ['3 turns', 'Long rest'], ['Until a longer rest', 'Long rest'], ['', 'Long rest'], ['Until a long rest', ''], ['Until a long rest', 'The']].map(p => S.durNamesRest(p[0], p[1]));
+        const sys = { fields: [{ id: 'f_fx', key: 'Fx', kind: 'effects' }, { id: 'f_fx2', key: 'Fx2', kind: 'effects' }, { id: 'f_hp', key: 'HP', kind: 'resource' }], effects: [{ id: 'fx_bless', name: 'Bless', dur: 'Until a long rest' }, { id: 'fx_rage', name: 'Rage', dur: '1 minute' }, { id: 'fx_tired', name: 'Tired', dur: 'until your next Long Rest' }] };
+        const ch = { id: 'c1', values: { f_fx: [{ id: 'r1', ref: 'fx_bless', on: true }, { id: 'r2', ref: 'fx_rage', on: true }, { id: 'r3', name: 'Ward', dur: 'until a long rest', on: false }], f_fx2: [{ id: 'r4', ref: 'fx_rage', on: true }], f_hp: { cur: 3 } } };
+        const out = S.restEndsFx(sys, ch, { name: 'Long rest', ends: true }), none = [S.restEndsFx(sys, ch, { name: 'Long rest' }), S.restEndsFx(sys, ch, { name: 'Long rest', ends: 1 }), S.restEndsFx(null, ch, { name: 'Long rest', ends: true })];
+        const cl = cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_hp', key: 'HP', kind: 'resource', max: 10, vis: 'all' }], rests: [{ id: 'rs_a', name: 'Night', len: { n: 8, u: 'hour' }, ends: true }, { id: 'rs_b', name: 'Nap', len: { n: 1, u: 'hour' }, ends: 'yes' }] }, { F, gmView: true });
+        check('backlog 138 (j) fold R6: a rest ticked Ends effects that last until this rest (ends, kept only as true) takes off every effect whose Duration note names it, a library effect by its own note and one made on the spot by its row\'s, on or off, from every effects list, read as words ignoring case and what is no letter or digit, the rest\'s first a, an or the left out; a note that names another rest or a longer word is left; a rest not ticked ends nothing; the character is never changed',
+            J(names) === J([true, true, true, true, false, false, false, false, false, false]) && J(out.vals) === J([{ fieldId: 'f_fx', value: [{ id: 'r2', ref: 'fx_rage', on: true }] }]) && J(out.names) === J(['Bless', 'Ward'])
+            && none.every(n => n.vals.length === 0) && ch.values.f_fx.length === 3 && cl.rests[0].ends === true && !('ends' in cl.rests[1]), J([names, out, cl.rests]));
+        const shR = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), ra = shR.indexOf('// [systemcheck:restsbox-start]'), rb = shR.indexOf('// [systemcheck:restsbox-end]');
+        const calls = [], campE = { system: sys, chars: { c1: ch } };
+        const box = new Function('cleanCalendar', 'everySecs', 'fmtSpan', 'REST_MAX', 'getActiveCampaign', 'charById', 'commitMany', 'applyAction', 'F', 'window', shR.slice(ra, rb) + '\nreturn { restDoes, restEndsWords };')(null, () => 0, () => '', 8, () => campE, (id, c) => c.chars[id] || null,
+            (c, v) => calls.push([c.id, J(v)]), () => {}, () => null, { wpSystemCore: S });
+        const ran = box.restDoes(['c1'], [], 3, { name: 'Long rest', ends: true }), ranNo = box.restDoes(['c1'], [], 1, { name: 'Long rest' });
+        const w1 = box.restEndsWords(sys, { name: 'Long rest' }), w2 = box.restEndsWords(sys, { name: 'Short rest' });
+        check('backlog 138 (j) fold R6 (sheets.js restsbox, run for real): a rest with nothing on its list but the tick still ends its effects, once however many times a skip held it, as one change a character beside its pools and resets; the Rests box names the library\'s effects it ends, or says how to name one',
+            ran === 1 && ranNo === 0 && J(calls) === J([['c1', J([{ fieldId: 'f_fx', value: [{ id: 'r2', ref: 'fx_rage', on: true }] }])]])
+            && w1 === 'It ends Bless, Tired, and any effect made on the spot whose Duration names Long rest.' && w2 === 'No effect’s Duration names Short rest yet. Write Until Short rest there, on the Effects tab.', J([ran, ranNo, calls, w1, w2]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

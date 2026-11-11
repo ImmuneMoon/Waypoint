@@ -1633,6 +1633,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li><b>Stream window shows</b> in Settings holds it while you set things up. Frozen picture keeps what it shows until you pick Live. Cover card shows the campaign&rsquo;s name and Back soon. It is Live again whenever Waypoint starts.</li>
                                   <li><b>Stream window grid</b> draws the grid there as your screen does, faint or not at all. Your own screen keeps its grid.</li>
                                   <li>Its corner menu follows your map, focuses one map, or focuses one of the players' characters. Focused on a character it switches maps with them and stays centred at 150%.</li>
+                                  <li><b>While you are off the map</b>, in its corner, has it follow a player&rsquo;s character while your main window is on a page, a planner or the Data Map. It starts after the wait you pick, from 15 seconds to 5 minutes. It works while Focus on is No one.</li>
+                                  <li>Pick one character to follow that one the whole time. Pick <b>Follow someone at random</b> to have it move on to another character after the same wait. In a fight it follows the player&rsquo;s character whose turn it is. Back on the play map, it shows what it showed before.</li>
                                   <li>During a fight its bar shows the round and whose turn it is, where the party can see that token. Every character token there has its name under it.</li>
                               </ul>
                           </li>
@@ -4349,6 +4351,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <select id="streamFocus" title="Follow the GM's current map, or focus one map until you change it"></select>
     <label for="streamChar">Focus on</label>
     <select id="streamChar" title="Follow one character: the view switches to the map they are on and stays centred on them at 150%"></select>
+    <label for="streamIdle">While you are off the map</label>
+    <select id="streamIdle" title="What this window does while your main window is on a page, a planner or the Data Map, and Focus on is No one. It can follow one player's character you choose, or someone at random, moving on to another after the same wait. In a fight it follows the player's character whose turn it is. Back on the play map it shows what it showed before"></select>
+    <select id="streamIdleSecs" title="How long you are off the play map before it starts, and how long it stays on each character"></select>
+    <span id="streamIdleNow" class="stream-fight" hidden title="Whom this window follows while you are off the play map"></span>
     <span id="streamFight" class="stream-fight" hidden title="The fight on the map shown: its round, and whose turn it is where the party can see that token"></span>
     <button class="tool ghost" id="streamHideBtn" title="Hide this bar (move the mouse to the top-left corner to bring it back)"><i class="wib wi-close"></i></button>
 </div>

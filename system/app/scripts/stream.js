@@ -17,7 +17,57 @@ import { esc } from './safecore.js';
 // for nothing once it has
 function streamWebJoin() { var W = typeof window !== 'undefined' ? window.wpWebMode : null; return !!(W && typeof W.joinOnly === 'function' && (W.joinOnly() === true || (typeof W.has === 'function' && W.web() === true && W.has('host') === false))); }   // 1.6.2: nor a GM's page whose plan does not host
 // [netcheck:streamweb-end]
+// [videocheck:streamidle-start]
+// 1.6.2 (the owner, 2026-11-10: "the stream map could have a feature where if the gm isnt interacting with it, it could pick a PC at random after a
+// idle timeframe and follow them", "with a setting to turn that on an off", "and have it deliberately pick someone the GM chooses ahead of time
+// additionally as an option"; by prompt, idle is "when not in the map in the GM screen, whether thats in a handbook, or planner, or datamap, etc", the
+// wait is picked from a list, it moves on "unless set to one character", and the setting lives in the stream window's corner). The main window says
+// which view the GM is on over BroadcastChannel ('gm-view': play, data, page or none; gmViewWire), and the stream window, with Focus on set to No one,
+// follows a player's character once the GM has been off the play map for the wait: the one chosen, else in a fight the player's character whose
+// turn it is, else one at random, moving on to another after the same wait. Back on the play map the stream shows what it showed, where it was.
+// Another window's word is read as one of three names and anything else is the play map's, so with no word nothing is ever followed
+var IDLE_SECS = [15, 30, 60, 120, 300];
+function gmViewOf(v) { return v === 'data' || v === 'page' || v === 'play' ? v : ''; }
+function idleCfg(mode, secs) { return { mode: mode === 'rand' ? 'rand' : typeof mode === 'string' && mode.slice(0, 2) === 'o:' && mode.length > 2 && mode.length <= 90 ? mode : '', secs: IDLE_SECS.indexOf(Number(secs)) >= 0 ? Number(secs) : 30 }; }
+function idleStep(st, now, view, keys, cfg, rnd, turn) {
+    st = st && typeof st === 'object' ? st : {};
+    if (!cfg || !cfg.mode || !(view === 'data' || view === 'page') || !Array.isArray(keys)) return { since: 0, key: '', at: 0 };
+    var since = st.since > 0 ? st.since : now, wait = cfg.secs * 1000;
+    if (now - since < wait || !keys.length) return { since: since, key: '', at: 0 };
+    var hold = function(k) { return { since: since, key: k, at: st.key === k && st.at > 0 ? st.at : now }; };
+    if (cfg.mode !== 'rand' && keys.indexOf(cfg.mode) >= 0) return hold(cfg.mode);   // the one the GM chose, for as long as it is there
+    if (typeof turn === 'string' && turn && keys.indexOf(turn) >= 0) return hold(turn);   // in a fight, the player's character whose turn it is
+    if (st.key && keys.indexOf(st.key) >= 0 && now - st.at < wait) return { since: since, key: st.key, at: st.at };
+    var pool = keys.length > 1 ? keys.filter(function(k) { return k !== st.key; }) : keys, i = Math.floor((typeof rnd === 'function' ? rnd() : 0) * pool.length); if (!(i >= 0 && i < pool.length)) i = 0;
+    return { since: since, key: pool[i], at: now };
+}
+// The player's character whose turn it is, from the GM's own save: the fight played first, then the others, a token that carries a player's id and
+// is not hidden. '' where no fight has one on turn
+function idleTurnKey(raw) {
+    var fs0 = raw && raw.fights && typeof raw.fights === 'object' ? raw.fights : null, fl = fs0 && fs0.list && typeof fs0.list === 'object' && !Array.isArray(fs0.list) ? fs0.list : null, items = raw && raw.items && typeof raw.items === 'object' ? raw.items : null;
+    if (!fl || !items) return '';
+    var ids = Object.keys(fl), at = typeof fs0.on === 'string' ? ids.indexOf(fs0.on) : -1; if (at > 0) { ids.splice(at, 1); ids.unshift(fs0.on); }
+    for (var i = 0; i < ids.length && i < 50; i++) {
+        var f = fl[ids[i]]; if (!f || typeof f !== 'object' || !Array.isArray(f.rows) || typeof f.mapId !== 'string') continue;
+        var r = typeof f.turn === 'number' && Math.floor(f.turn) === f.turn && f.turn >= 0 ? f.rows[f.turn] : null, m = Object.prototype.hasOwnProperty.call(items, f.mapId) ? items[f.mapId] : null;
+        var tok = r && typeof r.tokId === 'string' && m && Array.isArray(m.whiteboard) ? m.whiteboard.filter(function(w) { return !!w && w.id === r.tokId && w.isChar && !w.hidden; })[0] : null;
+        if (tok && typeof tok.ownerId === 'string' && tok.ownerId) return 'o:' + tok.ownerId;
+    }
+    return '';
+}
+// The main window's half: it says its view when it changes, and when a stream window asks
+function gmViewWire(w, Chan, every) {
+    if (!w || typeof Chan !== 'function' || typeof every !== 'function') return null;
+    var ch; try { ch = new Chan('waypoint'); } catch (e) { return null; }
+    var last = null, now = function() { var F = w.wpFloats; return gmViewOf(F && typeof F.view === 'function' ? F.view() : ''); };
+    var post = function(force) { var v = now(); if (!force && v === last) return v; last = v; try { ch.postMessage({ type: 'gm-view', view: v }); } catch (e) {} return v; };
+    ch.addEventListener('message', function(e) { if (e && e.data && e.data.type === 'gm-view-query') post(true); });
+    every(function() { post(false); }, 1000); post(false);
+    return post;
+}
+// [videocheck:streamidle-end]
 const on = new URLSearchParams(location.search).get('stream') === '1' && !streamWebJoin();
+if (!on && !new URLSearchParams(location.search).get('popout') && typeof BroadcastChannel === 'function') gmViewWire(window, BroadcastChannel, setInterval);   // the main window alone: a window of its own has no view to say
 if (on) {
     window.wpStream = true;
     document.body.classList.add('stream-mode', 'net-client');
@@ -53,6 +103,28 @@ if (on) {
     function setCharFocus(key) { charFocus = ownKey(key); lastCam = ''; try { localStorage.setItem('wp_streamChar', charFocus); } catch (e) {} tick(); }
     if (charSel) charSel.addEventListener('change', function() { setCharFocus(charSel.value); });
     window.wpStreamFocusChar = setCharFocus;   // the party strip's click lands here in the stream window
+    // 1.6.2, the idle follow: its setting and wait are this computer's, set in this window's corner
+    var idleMode = '', idleSecs = 30, idleSt = { since: 0, key: '', at: 0 }, gmView = '', idleBack = null, idleWas = '';
+    try { var icf = idleCfg(localStorage.getItem('wp_streamIdle'), localStorage.getItem('wp_streamIdleSecs')); idleMode = icf.mode; idleSecs = icf.secs; } catch (e) {}
+    var idleSel = document.getElementById('streamIdle'), idleSecSel = document.getElementById('streamIdleSecs'), idleNow = document.getElementById('streamIdleNow');
+    function idleSet(mode, secs) { var c = idleCfg(mode, secs); idleMode = c.mode; idleSecs = c.secs; idleSt = { since: 0, key: '', at: 0 }; try { localStorage.setItem('wp_streamIdle', idleMode); localStorage.setItem('wp_streamIdleSecs', String(idleSecs)); } catch (e) {} if (idleSel) idleSel.dataset.sig = ''; tick(); }
+    function refreshIdle(list, following) {
+        if (!idleSel || !idleSecSel) return;
+        var sig = list.map(function(c) { return c.key + ':' + c.name; }).join('|') + '#' + idleMode + '#' + idleSecs;
+        if (idleSel.dataset.sig !== sig) {
+            idleSel.dataset.sig = sig; idleSel.textContent = '';
+            var opt = function(into, v, t) { var o = document.createElement('option'); o.value = v; o.textContent = t; into.appendChild(o); };
+            opt(idleSel, '', 'Stay as it is'); opt(idleSel, 'rand', 'Follow someone at random');
+            list.forEach(function(c) { opt(idleSel, c.key, 'Follow ' + c.name); });
+            if (idleMode && idleMode !== 'rand' && !list.some(function(c) { return c.key === idleMode; })) opt(idleSel, idleMode, 'Follow the one you chose, who is not on a map now');
+            idleSel.value = idleMode;
+            idleSecSel.textContent = ''; [[15, 'after 15 seconds'], [30, 'after 30 seconds'], [60, 'after 1 minute'], [120, 'after 2 minutes'], [300, 'after 5 minutes']].forEach(function(p) { opt(idleSecSel, String(p[0]), p[1]); });
+            idleSecSel.value = String(idleSecs); idleSecSel.disabled = !idleMode;
+        }
+        if (idleNow) { var who = following ? list.filter(function(c) { return c.key === following; })[0] : null, tx = who ? 'Following ' + who.name + ' while you are off the map' : ''; if (idleNow.textContent !== tx) idleNow.textContent = tx; idleNow.hidden = !tx; }
+    }
+    if (idleSel) idleSel.addEventListener('change', function() { idleSet(idleSel.value, idleSecs); });
+    if (idleSecSel) idleSecSel.addEventListener('change', function() { idleSet(idleMode, idleSecSel.value); });
     var bar = document.getElementById('streamBar'), sel = document.getElementById('streamFocus'), hideBtn = document.getElementById('streamHideBtn');
     if (bar) bar.style.display = 'flex';
     var lastKey = '';
@@ -103,7 +175,12 @@ if (on) {
         campName = String(camp && camp.name || '').slice(0, 80);   // backlog 34: the name a cover card shows, as text
         var gmItem = camp.items[camp.activeItemId];
         net.streamWhere = seenBy[campId] || Object.create(null);
-        var loc = charFocus && charFocus.charAt(0) === 'o' ? (window.wpCharNow ? window.wpCharNow(camp, charFocus).loc : locateCharacter(camp, charFocus)) : null;   // R2 #14: a player's character alone is followed, on the map that player is on
+        var pcs = characterList(camp, true, null, whoOf(camp));
+        idleSt = charFocus ? { since: 0, key: '', at: 0 } : idleStep(idleSt, Date.now(), gmView, pcs.map(function(c) { return c.key; }), idleCfg(idleMode, idleSecs), Math.random, idleTurnKey(rawTk && rawTk.id === campId ? rawTk : null));   // 1.6.2: with Focus on set to No one, whom the idle follow is on
+        var followKey = charFocus || ownKey(idleSt.key), idleEnded = !!idleWas && !idleSt.key;
+        if (!idleWas && idleSt.key) { var bm = lastKey.split('/')[1], bi = bm && state.appState.campaigns && state.appState.campaigns[campId] && state.appState.campaigns[campId].items ? state.appState.campaigns[campId].items[bm] : null; idleBack = bi && bi.meta ? { map: bm, x: bi.meta.lastWbX, y: bi.meta.lastWbY, z: bi.meta.lastWbZoom } : null; }   // where this window stood before it began to follow
+        idleWas = idleSt.key;
+        var loc = followKey && followKey.charAt(0) === 'o' ? (window.wpCharNow ? window.wpCharNow(camp, followKey).loc : locateCharacter(camp, followKey)) : null;   // R2 #14: a player's character alone is followed, on the map that player is on
         var want = loc ? loc.map.id
                  : (focus && camp.items[focus] && camp.items[focus].type === 'map') ? focus
                  : (gmItem && gmItem.type === 'map') ? camp.activeItemId
@@ -116,6 +193,8 @@ if (on) {
         if (prev && prev.meta && camp.items[want].meta) {
             ['lastWbX', 'lastWbY', 'lastWbZoom'].forEach(function(k) { if (prev.meta[k] != null) camp.items[want].meta[k] = prev.meta[k]; });
         }
+        var camBack = false;   // 1.6.2: the idle follow is over: this window's camera goes back where it stood
+        if (idleEnded) { lastCam = ''; if (idleBack && idleBack.map === want && camp.items[want].meta && idleBack.x != null && idleBack.y != null) { camp.items[want].meta.lastWbX = idleBack.x; camp.items[want].meta.lastWbY = idleBack.y; if (idleBack.z != null) camp.items[want].meta.lastWbZoom = idleBack.z; camBack = true; } idleBack = null; }
         var key = campId + '/' + want;
         net.applyingRemote = true;
         clean.activeCampaignId = campId;
@@ -135,10 +214,11 @@ if (on) {
             lastCam = camKey;
         } else {
             if (key !== lastKey) { lastKey = key; net.applyStage({ campId: campId, itemId: want }); }
-            else if (window.appRender) window.appRender();
+            else { if (window.appRender) window.appRender(); if (camBack && window.appRestoreCamera) window.appRestoreCamera(); }
         }
         refreshSelect(camp);
         refreshCharSelect(camp);
+        refreshIdle(pcs, idleSt.key);
         streamTrackers(rawTk && rawTk.id === campId ? rawTk : null, want, Date.now());
         var sfW = document.getElementById('streamFight'), sfT = streamFightWords(rawTk && rawTk.id === campId ? rawTk : null, want, camp.items[want]);   // 1.6.2 (the owner: "Round, turn and names")
         if (sfW) { if (sfW.textContent !== sfT) sfW.textContent = sfT; sfW.hidden = !sfT; }
@@ -147,7 +227,8 @@ if (on) {
     try {
         var hChan = new BroadcastChannel('waypoint');
         hChan.addEventListener('message', function(e) { if (e.data && e.data.type === 'stream-hold') holdApply(e.data.mode, document, function() { tick(); try { hChan.postMessage({ type: 'video-stage-query' }); hChan.postMessage({ type: 'scene-stage-query' }); } catch (er) {} }); });
-        hChan.postMessage({ type: 'stream-hold-query' });
+        hChan.addEventListener('message', function(e) { if (e.data && e.data.type === 'gm-view') gmView = gmViewOf(e.data.view); });   // 1.6.2: which view the GM is on, for the idle follow
+        hChan.postMessage({ type: 'stream-hold-query' }); hChan.postMessage({ type: 'gm-view-query' });
     } catch (e) {}
     setTimeout(tick, 400);
     setInterval(tick, 1000);

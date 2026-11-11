@@ -978,6 +978,8 @@
   #streamNames { position: absolute; inset: 0; pointer-events: none; z-index: 15985; }
   #streamNames .stream-name { position: absolute; transform: translateX(-50%); font-size: 12px; line-height: 1.2; padding: 1px 6px; border-radius: 4px; background: rgba(0,0,0,0.65); color: #fff; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
   #streamBar select { font-size: 12px; max-width: 320px; }
+  #streamBar { flex-wrap: wrap; max-width: calc(100vw - 16px); row-gap: 4px; }   /* 1.6.2: the idle follow's two lists: the bar wraps in a narrow window */
+  #streamBar #streamIdle { max-width: 220px; } #streamBar #streamIdleSecs { max-width: 140px; }
   #streamBar select:disabled { opacity: 0.45; }
   #streamBar .stream-dot { width: 8px; height: 8px; border-radius: 50%; background: #e0524f; box-shadow: 0 0 6px #e0524f; animation: netPulse 1.4s ease-in-out infinite; }
   #streamBar .tool { padding: 2px 7px; font-size: 11px; }

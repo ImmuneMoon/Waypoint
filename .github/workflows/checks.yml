@@ -267,3 +267,6 @@ jobs:
       - name: timelinecheck, the timeline ribbon (eras, dated notes, sessions played, its zoom)
         if: ${{ !cancelled() }}
         run: node tools/timelinecheck.js
+      - name: prepcheck, the Prep column (the cards for the map on screen, Find a card, the column drawn)
+        if: ${{ !cancelled() }}
+        run: node tools/prepcheck.js

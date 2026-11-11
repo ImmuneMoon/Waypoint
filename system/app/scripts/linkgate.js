@@ -57,7 +57,7 @@ var LINK_TARGET = '_blank', LINK_REL = 'noopener noreferrer';   // what the page
 var LINK_ASK = 'Open this link in your web browser?';
 var ZONE_VIEWER = '#handoutModal';                                              // the handout viewer: the Journal says whose the entry is
 var ZONE_APP = '#helpModal, #aboutModal, #settingsModal';                      // the app's own words
-var ZONE_PAGE = '#plannerPreview, #docReaderBody, #docPanelBody, #popoutBody';  // where a planner or a page is drawn to be read
+var ZONE_PAGE = '#plannerPreview, #docReaderBody, #docPanelBody, #popoutBody, #prepBody';  // where a planner or a page is drawn to be read
 
 // Is this app a player at someone's table? true, false — or null where that cannot be told (the answer is then "ask"). A pop-out window
 // holds no session of its own: it is asked of the window that opened it.

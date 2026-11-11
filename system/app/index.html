@@ -109,6 +109,7 @@
 <script type="module" src="scripts/names.js"></script>
 <script type="module" src="scripts/timeline.js"></script>
 <script type="module" src="scripts/storyview.js"></script>
+<script type="module" src="scripts/prep.js"></script>
 <script type="module" src="scripts/campquest.js"></script>
 <script type="module" src="scripts/campsafecore.js"></script>
 <script type="module" src="scripts/campsafe.js"></script>
@@ -1277,6 +1278,18 @@
                                   <li>This works over the map, in a window of its own, on the page itself and in a player&rsquo;s reader.</li>
                                   <li>A page in a window of its own has a <b>Find</b> box too. <kbd>Ctrl</kbd>+<kbd>F</kbd> takes you to it.</li>
                               </ul>
+                          </li>
+                          <li><b>Prep</b> is a column beside the play map that keeps tonight&rsquo;s cards in sight. Open it with the <b>Prep</b> button at the top of the left rail, with <kbd>G</kbd>, or from the top of the Pages menu. The map moves over, and the column stays until you close it.
+                            <ul>
+                              <li><b>Tonight</b> lists the scene cards of the planner marked Next, under its lead text. With none marked Next it takes the planner that holds a scene set to Tonight. Press a scene to open the planner there. Press its number to tick it as played, and press it again to take the tick off.</li>
+                              <li>The <b>Here</b> part shows the place and scene cards whose Map is the map on screen. Press a card&rsquo;s name to open or fold it. A page pinned to a piece of this map stands under them.</li>
+                              <li><b>People here</b> shows person cards whose Where is this map, then the tokens on it that are no player&rsquo;s, then the characters its rooms list. A token whose sheet a person card names shows what that person wants.</li>
+                              <li><b>Clues</b> lists the clue cards of tonight&rsquo;s planner, of your pinned planners and of this map. Tick one when the players find it. Press the tick again to take it off.</li>
+                              <li><b>Around this map</b>, Pinned and Recent list pages as the Pages shelf does. Pinned holds every page you pinned.</li>
+                              <li><b>Find a card</b> lists every card of your planners that holds the words you type.</li>
+                              <li><b>Hold</b> keeps the column on one map while you look at another. Drag the column&rsquo;s right edge to make it wider or narrower.</li>
+                              <li>Prep is yours alone. It shows on the play map of your own campaign, and players never see it.</li>
+                            </ul>
                           </li>
                           <li>The panel over the map holds several pages at once. Open a second page and each one gets a <b>tab</b> under the panel&rsquo;s head.
                               <ul>
@@ -3343,6 +3356,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 
   <div class="layout-wrapper">
     <nav id="leftRail" aria-label="The left panel, folded" hidden>
+      <button class="rail-btn gm-only" id="railPrep" aria-pressed="false" title="Prep. Tonight&rsquo;s cards beside the map. G opens it too."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5h17v14h-17zM9.5 5v14M5.6 8.8h1.8M5.6 12h1.8M5.6 15.2h1.8"/></svg></button>
       <button class="rail-btn" id="railHandbook" data-rail="handbook" aria-expanded="false" title="Handbook. Opens the left panel at its pages."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5c-2-1.3-4.6-1.8-8-1.5v13c3.4-.3 6 .2 8 1.5 2-1.3 4.6-1.8 8-1.5V5c-3.4-.3-6 .2-8 1.5zM12 6.5v13"/></svg></button>
       <button class="rail-btn gm-only" id="railPlanners" data-rail="planners" aria-expanded="false" title="Planners. Opens the left panel at your planners."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8.5L18 7v13.5H6zM10 10v6l5-3z"/></svg></button>
       <button class="rail-btn gm-only" id="railMaps" data-rail="maps" aria-expanded="false" title="Maps. Opens the left panel at the maps."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5l5.5-2 6 2 5.5-2v13l-5.5 2-6-2-5.5 2zM9 4.5v13M15 6.5v13"/></svg></button>
@@ -3375,6 +3389,14 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         </div>
     </div>
     <div id="leftGrip" title="Drag to resize the panel"></div>
+    <aside id="prepCol" aria-label="Prep" hidden>
+      <div class="prep-head">
+        <div class="prep-h1"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5l5.5-2 6 2 5.5-2v13l-5.5 2-6-2-5.5 2zM9 4.5v13M15 6.5v13"/></svg><div class="prep-place"><b id="prepMap"></b><small id="prepSub">Prep</small></div><button class="prep-ib" id="prepHoldBtn" type="button" aria-pressed="false" aria-label="Hold on this map" title="Hold on this map. The column stays on it while you look at another."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 3.5h7M10 3.5v5l-3.2 4.5h10.4L14 8.5v-5M12 13v7.5"/></svg></button><button class="prep-ib" id="prepCloseBtn" type="button" aria-label="Close Prep" title="Close. G opens it again."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+        <label class="prep-find"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.4 15.4l5.1 5.1"/></svg><input id="prepFind" type="text" placeholder="Find a card: a name or a word" aria-label="Find a card" autocomplete="off" spellcheck="false" maxlength="80"><span class="prep-k" title="Quick-jump still finds everything">Ctrl+K finds all</span></label>
+      </div>
+      <div id="prepBody"></div>
+      <div id="prepGrip" title="Drag to resize the column"></div>
+    </aside>
 
     <div id="main" class="main">
       <div id="dataFloatingToolbar" class="floating-toolbar">

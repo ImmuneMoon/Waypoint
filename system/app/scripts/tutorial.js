@@ -800,7 +800,7 @@ var STEPS = [
       help: ['whiteboard', 'Image Library'],
       before: function() { openItem('map_tut_inn'); goView('visual'); var am = document.getElementById('addMenu'); if (am) am.classList.add('show'); } },   // the library lives in the Add flyout now — open it so the step points at it
     { section: 'Planners & handbook', target: '#plannerNavList', title: 'Planners',
-      html: 'Pages for session plans, encounter tables and flowcharts. They nest and re-order like maps. <b>Session 1</b> is marked as the <b>next scene</b>, so it shows up in the play map&rsquo;s right-click menu during a game. Planners are yours alone: players never receive them.',
+      html: 'Pages for session plans, encounter tables and flowcharts. They nest and re-order like maps. <b>Session 1</b> is marked as the <b>next scene</b>, so it shows up in the play map&rsquo;s right-click menu during a game. Planners are yours alone: players never receive them. On the play map, <b>Prep</b> keeps tonight&rsquo;s cards beside the map.',
       help: ['planners', 'Building pages'],
       before: function() { openItem('plan_tut_session1'); } },
     { target: '#plannerTools', title: 'Writing a planner',

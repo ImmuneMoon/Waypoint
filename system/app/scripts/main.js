@@ -213,6 +213,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // #noMapState, whose New map button is the left panel's. The left panel, the boxes and the row follow as with a map
   function renderNoMap() {
       var bc = document.getElementById('mapBreadcrumb'); if (bc) bc.style.display = 'none';
+      if (window.wpPrep) window.wpPrep.sync();   // the Prep column stands outside the map's area: with no map it is put away by its own word
       if (window.wpLeftRail) window.wpLeftRail.sync();
       if (window.wpRowHide) window.wpRowHide.fit();
       if (window.wpFloats) window.wpFloats.sync();
@@ -287,6 +288,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       document.getElementById('sidebar').style.display = isPlanner ? 'none' : 'flex'; document.getElementById('sidebar').classList.toggle('no-elements', state.viewMode === 'visual');   // 1.6.2, backlog 217: on the play map the pieces are in Layers, and the panel is Properties alone
 
       document.getElementById('toggleRightBtn').style.display = isPlanner ? 'none' : 'flex';
+      if (window.wpPrep) window.wpPrep.sync();   // 1.6.2 (prep.js): the Prep column shows on the play map alone, and takes its room before anything measures the map's
       if (window.wpLeftRail) window.wpLeftRail.sync();   // the left panel folds to its rail on the play map (leftrail.js), before the bar measures the room the map has
       if (window.wpRowHide) window.wpRowHide.fit();   // where the map's area begins, for a hidden row's tab and bar (rowhide.js): one redraw can move both of the area's edges and leave its size as it was
       if (window.wpFitBar) window.wpFitBar();   // 107: the bar never runs off the map (it tightens, then wraps). Asked once the panes are switched: it measures the room the map has

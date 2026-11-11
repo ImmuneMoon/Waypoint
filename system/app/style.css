@@ -894,6 +894,91 @@
      drawn. An open block is never positioned (a positioned block would be painted after the blocks before it, and its background over a picture floated
      beside it): the arrow is the block's first child, floated into the margin with a margin box of no width and no height, so it moves and clears nothing.
      What is put away keeps its width (no display: none), so a chart drawn while it is folded is laid out as it will be shown. */
+  /* The Prep column (1.6.2, backlog 107 (a); prep.js): docked between the left panel and the map, the GM's alone, on the play map. It takes
+     its room by its own width, so the map's area shrinks and nothing of the map's own boxes is moved by a rule */
+  #prepCol { flex: 0 0 var(--prepw, 320px); width: var(--prepw, 320px); max-width: 60vw; min-width: 0; box-sizing: border-box; position: relative; display: flex; flex-direction: column; background: var(--bg2); border-right: 1px solid var(--edge); font-size: 12.5px; }
+  #prepCol[hidden], body.stream-mode #prepCol, body.net-client #prepCol, body.popout-mode #prepCol { display: none !important; }
+  .prep-head { padding: 8px 9px 8px 16px; border-bottom: 1px solid var(--edge); display: flex; flex-direction: column; gap: 7px; }
+  .prep-h1 { display: flex; align-items: center; gap: 7px; }
+  .prep-h1 > .ico { color: var(--gold); flex: none; }
+  .prep-place { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .prep-place b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .prep-place small { font-size: 10.5px; color: var(--dim); }
+  .prep-ib { width: 26px; height: 26px; flex: none; padding: 0; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--dim); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+  .prep-ib:hover, .prep-ib:focus-visible { background: var(--panel); border-color: var(--edge); color: var(--ink); outline: none; }
+  .prep-ib.on { color: var(--gold); border-color: var(--gold); }
+  .prep-ib .ico { width: 14px; height: 14px; }
+  .prep-find { display: flex; align-items: center; gap: 6px; border: 1px solid var(--edge); border-radius: 6px; background: var(--panel); padding: 3px 8px; color: var(--dim); cursor: text; }
+  .prep-find:focus-within { border-color: var(--gold); }
+  .prep-find .ico { width: 13px; height: 13px; flex: none; }
+  .prep-find input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--ink); font: inherit; font-size: 12px; padding: 3px 0; }
+  .prep-find input::placeholder { color: var(--dim); }
+  .prep-k { flex: none; font-size: 10px; border: 1px solid var(--edge); border-radius: 4px; padding: 0 5px; white-space: nowrap; }
+  #prepBody { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 8px 30px 16px; }
+  #prepGrip { position: absolute; top: 0; right: -3px; bottom: 0; width: 6px; cursor: col-resize; z-index: 2; touch-action: none; }
+  /* the left panel's fold arrow, seated at the column's left edge while the column shows (prep.js arrowSeat), since the left panel then ends
+     there and the map's area begins a column further right. Slim, in the margin the column keeps at its left for it, and whole under the pointer */
+  #prepCol > .pane-toggle.left { width: 12px; font-size: 8px; }
+  #prepCol > .pane-toggle.left:hover { width: 18px; font-size: 11px; }
+  .prep-pages { margin-top: 4px; }
+  #prepGrip:hover, #prepGrip.dragging { background: var(--gold); opacity: .5; }
+  .prep-sec { margin-top: 6px; }
+  .prep-fold { display: flex; align-items: baseline; gap: 6px; width: 100%; background: none; border: 0; border-radius: 4px; padding: 4px 2px; color: var(--dim); font: inherit; font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; cursor: pointer; text-align: left; }
+  .prep-fold:hover, .prep-fold:focus-visible { color: var(--ink); outline: none; background: var(--panel); }
+  .prep-fold small { margin-left: auto; text-transform: none; letter-spacing: 0; font-size: 11px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%; }
+  .prep-fa::before { content: '\25be'; color: var(--gold); font-size: 9px; }
+  [aria-expanded="false"] > .prep-fa::before { content: '\25b8'; }
+  .prep-none { margin: 4px 2px 6px; color: var(--dim); font-size: 11.5px; line-height: 1.45; }
+  .prep-leadline { margin: 2px 0 6px; font-size: 11.5px; background: var(--panel); border: 1px solid var(--edge); border-left: 3px solid var(--gold); border-radius: 6px; padding: 5px 8px; line-height: 1.45; }
+  .prep-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .prep-steps li { display: flex; align-items: center; gap: 6px; border-radius: 6px; }
+  .prep-steps li.now { background: var(--panel2); box-shadow: inset 2px 0 0 var(--gold); }
+  .prep-sn { flex: none; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--edge); background: var(--panel); color: var(--dim); font: inherit; font-size: 10px; line-height: 1; cursor: pointer; padding: 0; margin-left: 4px; }
+  .prep-sn:hover, .prep-sn:focus-visible, .prep-tick:hover, .prep-tick:focus-visible { border-color: var(--gold); outline: none; }
+  .prep-sn.on, .prep-tick.on { background: var(--green, #5cb87a); border-color: transparent; color: #10151a; }
+  .prep-sn.on::before, .prep-tick.on::before { content: '\2713'; }
+  .prep-step, .prep-clue { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; background: none; border: 0; color: var(--ink); font: inherit; font-size: 12px; text-align: left; padding: 4px 6px 4px 0; cursor: pointer; }
+  .prep-step-t, .prep-clue-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .prep-step small, .prep-clue small { margin-left: auto; color: var(--dim); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50%; }
+  .prep-steps li.now .prep-step small { color: var(--gold); }
+  .prep-steps li.done .prep-step-t { color: var(--dim); }
+  .prep-step:hover .prep-step-t, .prep-step:focus-visible .prep-step-t, .prep-clue:hover .prep-clue-t, .prep-clue:focus-visible .prep-clue-t { text-decoration: underline; }
+  .prep-step:focus-visible, .prep-clue:focus-visible { outline: none; }
+  .prep-card { background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; padding: 5px 8px 6px; margin: 4px 0 6px; }
+  .prep-card.here { box-shadow: inset 3px 0 0 var(--gold); }
+  .prep-card-top { display: flex; align-items: center; gap: 6px; }
+  .prep-card-h { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; background: none; border: 0; border-radius: 4px; padding: 2px 0; color: var(--ink); font: inherit; font-size: 12.5px; font-weight: 600; text-align: left; cursor: pointer; }
+  .prep-card-h:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
+  .prep-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .prep-card.done .prep-t { color: var(--dim); }
+  .prep-tag, .prep-when { flex: none; font-size: 9.5px; font-weight: 400; text-transform: uppercase; letter-spacing: .05em; color: var(--gold); border: 1px solid var(--gold); border-radius: 20px; padding: 0 6px; }
+  .prep-when-ahead { color: var(--dim); border-color: var(--edge); }
+  .prep-tick { flex: none; width: 16px; height: 16px; border: 1px solid var(--dim); border-radius: 4px; background: none; color: #10151a; font: inherit; font-size: 11px; line-height: 1; padding: 0; cursor: pointer; }
+  .prep-lead, .prep-aka, .prep-more { margin: 4px 0 0; font-size: 11.5px; color: var(--dim); line-height: 1.45; overflow-wrap: anywhere; }
+  .prep-lead b { color: var(--ink); }
+  .prep-srow { border-top: 1px solid var(--edge); margin-top: 5px; padding-top: 4px; font-size: 11.5px; line-height: 1.45; overflow-wrap: anywhere; }
+  .prep-srow > b { display: block; }
+  .prep-srow > i { font-style: normal; font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); margin-right: 4px; }
+  .prep-srow > span { margin-right: 6px; }
+  .prep-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; border-top: 1px solid var(--edge); margin-top: 7px; padding-top: 5px; }
+  .prep-fb, .prep-all { background: none; border: 1px solid transparent; border-radius: 6px; color: var(--dim); font: inherit; font-size: 11px; padding: 3px 6px; cursor: pointer; white-space: nowrap; }
+  .prep-fb:hover, .prep-fb:focus-visible, .prep-all:hover, .prep-all:focus-visible { background: var(--bg2); border-color: var(--edge); color: var(--ink); outline: none; }
+  .prep-pin { filter: grayscale(1); opacity: .5; }
+  .prep-pin.on { filter: none; opacity: 1; }
+  .prep-sp { flex: 1; }
+  .prep-from { color: var(--dim); font-size: 10.5px; opacity: .8; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .prep-pp { display: flex; align-items: center; gap: 7px; padding: 5px 6px; margin: 3px 0; border-radius: 6px; background: var(--panel); border: 1px solid var(--edge); }
+  .prep-pp.hid { opacity: .75; border-style: dashed; }
+  .prep-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .prep-nm { font-weight: 600; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .prep-nm small { font-weight: 400; color: var(--dim); margin-left: 6px; font-size: 10.5px; }
+  .prep-ln { font-size: 11px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .prep-chip { flex: none; font: inherit; font-size: 10.5px; border: 1px solid var(--gold); color: var(--gold); background: none; border-radius: 5px; padding: 1px 6px; cursor: pointer; }
+  .prep-chip:hover, .prep-chip:focus-visible { background: var(--bg2); outline: none; }
+  .prep-cl { display: flex; align-items: center; gap: 7px; padding-left: 2px; }
+  .prep-cl.found .prep-clue-t { text-decoration: line-through; color: var(--dim); }
+  .page-shelf .ps-prep { display: block; width: 100%; text-align: left; background: none; border: 1px solid var(--edge); border-radius: 6px; color: var(--gold); font: inherit; font-size: 12px; padding: 6px 8px; margin-bottom: 4px; cursor: pointer; }
+  .page-shelf .ps-prep:hover, .page-shelf .ps-prep:focus-visible { background: var(--panel); border-color: var(--gold); outline: none; }
   /* Mentioned in (1.6.2, backlog 107 (a); pageshelf.js namedOpen): the menu under a person's or a place's Mentioned in button. A window of its own shows no such button */
   #namedInMenu { position: fixed; z-index: 99996; min-width: 220px; max-width: min(360px, 92vw); max-height: 50vh; overflow: auto; padding: 5px; background: var(--panel); border: 1px solid var(--gold); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
   #namedInMenu .nin-head { padding: 3px 8px 5px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }

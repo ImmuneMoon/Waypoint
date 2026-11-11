@@ -345,6 +345,15 @@ function spotPage() {
         check('the viewing of 2026-11-09: where no place clears both an open sheet and the bars, Table Chat stands clear of the bars at least (the column at the map\'s edge, the toolbar, the strip), never at its corner under them (spotFind, run for real); where a place clears the sheet too it takes that one, and a box with nothing beside the bars to clear is placed as before',
             !!pc && !ov(pc, Q.keep.wbEdgeTools) && !ov(pc, Q.keep.wbFloatingToolbar) && !ov(pc, Q.keep.combatStrip) && J(pd) === J(Q.api.spotFind(WANT(Q.VW - 340, Q.VH - 440, 320, 420), true, null)) && !!pw && !(pw.l < 300 + 8), J([pc, pd, pw]));
     }
+    {   // 1.6.2 (the review of the Prep column): the column is the left edge of the room a box is placed in, never a rectangle to keep clear
+        const Q = spotPage(), colAt = right => ({ hidden: false, getBoundingClientRect: () => ({ left: 34, top: Q.header, right: right, bottom: Q.VH, width: right - 34, height: Q.VH - Q.header }) });
+        const w0 = WANT(60, 200, 320, 300), w1 = WANT(Q.VW - 478, 120, 460, 697), none = [Q.api.spotFind(w0, false, null), Q.api.spotFind(w1, false, null)];
+        Q.box.prepCol = colAt(354); const beside = [Q.api.spotFind(w0, false, null), Q.api.spotFind(w1, false, null)];
+        Q.box.prepCol = colAt(Q.VW - 400); const narrow = Q.api.spotFind(w1, false, null), small = Q.api.spotFind(w0, false, null);   // 460 wide does not fit right of it; 320 does
+        Q.box.prepCol = Object.assign(colAt(354), { hidden: true }); const away = Q.api.spotFind(w0, false, null);
+        check('1.6.2 the Prep column beside the map is the left edge of the room a box is placed in (spotFind, run for real): a box whose default place lies under the column opens right of it, a gap clear, and one that stands clear of it anyway is placed as with no column; a box wider than the room right of the column is placed as with no column, never left with no place at all; a column that is put away counts for nothing',
+            !!none[0] && none[0].l < 354 && !!beside[0] && beside[0].l === 354 + 8 && J(beside[1]) === J(none[1]) && !!narrow && J(narrow) === J(none[1]) && !!small && small.l === Q.VW - 400 + 8 && J(away) === J(none[0]), J([none, beside, narrow, small, away]));
+    }
     {   // the live test, 2026-10-30: a sheet opened before the fight started stood over the turn strip
         const F4 = spotPage(), stripMo = F4.mos[F4.mos.length - 2], strip = F4.keep.combatStrip; F4.keep.combatStrip = null;
         const shF = F4.open('sheetPanel'), top0 = F4.at(shF), nb = F4.open('notepadPanel'); nb.style.left = '300px'; nb.style.top = '110px'; nb.style.right = 'auto'; F4.tell(nb); const nb0 = F4.at(nb);

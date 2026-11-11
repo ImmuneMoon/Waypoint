@@ -3597,7 +3597,7 @@ window.wpFitToGrid = fitToGrid;
       if (!state.selWbId && !(state.selWbIds && state.selWbIds.length)) return;
       var t = e.target;
       if (!t || !t.closest) return;
-      if (t.closest('#whiteboardWrap, #sidebar, #selToolbar, #contextMenu, .floating-toolbar, .shape-menu, .dropdown, .menu-item, [id$="Modal"], #sheetPanel, .hud-panel, #soundPanel, #dicePanel, #cmdkModal, #combatStrip, #docPanel, #musicPanel, #videoPanel, #fxPanel, #notepadPanel, #chatPanel, input, select, textarea, [contenteditable="true"]')) return;   // 1.5.6 (the sweep of 2026-10-17, seen live): every floating box keeps the selection, as the sheet and Sound do
+      if (t.closest('#whiteboardWrap, #sidebar, #selToolbar, #contextMenu, .floating-toolbar, .shape-menu, .dropdown, .menu-item, [id$="Modal"], #sheetPanel, .hud-panel, #soundPanel, #dicePanel, #cmdkModal, #combatStrip, #docPanel, #prepCol, #musicPanel, #videoPanel, #fxPanel, #notepadPanel, #chatPanel, input, select, textarea, [contenteditable="true"]')) return;   // 1.5.6 (the sweep of 2026-10-17, seen live): every floating box keeps the selection, as the sheet and Sound do
       state.selWbId = null; state.selWbIds = [];
       if (window.appRender) window.appRender();
   }, true);

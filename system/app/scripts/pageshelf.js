@@ -214,6 +214,7 @@ function shelfRow(r, marked) {   // marked: the planner marked Next wears its ma
 }
 function shelfDraw(menu, m) {
     menu.textContent = '';
+    if (typeof window !== 'undefined' && window.wpPrep && typeof window.wpPrep.may === 'function' && window.wpPrep.may()) { var pr = shelfEl('button', 'ps-prep', 'Prep: tonight\u2019s cards beside the map'); pr.type = 'button'; pr.title = 'Opens the Prep column. G opens it too.'; menu.appendChild(pr); }   // 1.6.2 (backlog 107 (a)): the one new row, at the menu's top
     var any = false, sec = function(label, rows, marked) { if (!rows.length) return; any = true; menu.appendChild(shelfEl('div', 'ps-head', label)); rows.forEach(function(r) { menu.appendChild(shelfRow(r, marked)); }); };
     m.where.forEach(function(g) { sec((g.here ? 'Here: ' : 'Around: ') + g.title, g.rows, true); });
     sec('Next scene', m.next, false); sec('Pinned', m.pinned, true); sec('Recent', m.recent, true);
@@ -420,13 +421,13 @@ var NAMED_RUNS = '\\p{scx=Han}\\p{scx=Hiragana}\\p{scx=Katakana}\\p{scx=Hangul}\
 var NAMED_BRK = '\u0001';
 // A tag that ends a line of words is a break; any other tag (bold, a colour, a link) reads as nothing, so a word styled in part stays one word
 var NAMED_BLOCKTAG = /^(?:p|div|br|li|ul|ol|h[1-6]|tr|td|th|table|thead|tbody|blockquote|pre|hr|section|article|dd|dt|dl)$/;
-var NAMED_ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', shy: '', rsquo: "'", lsquo: "'", rdquo: '"', ldquo: '"', ndash: '–', mdash: '—', hellip: '…', oslash: 'ø', aelig: 'æ', oelig: 'œ', szlig: 'ß', middot: '·' };
+var NAMED_ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', shy: '', rsquo: "'", lsquo: "'", rdquo: '"', ldquo: '"', ndash: '\u2013', mdash: '\u2014', hellip: '\u2026', oslash: '\u00f8', aelig: '\u00e6', oelig: '\u0153', szlig: '\u00df', middot: '\u00b7' };
 function namedEnt(all, k) {
     if (k.charAt(0) === '#') { var hex = /^#x/i.test(k), c = parseInt(k.slice(hex ? 2 : 1), hex ? 16 : 10); try { return c > 0 && c <= 0x10ffff ? String.fromCodePoint(c) : ' '; } catch (e) { return ' '; } }
     var low = k.toLowerCase(); if (Object.prototype.hasOwnProperty.call(NAMED_ENT, low)) return NAMED_ENT[low];
     var m = /^([a-z])(?:acute|grave|circ|uml|tilde|cedil|ring|caron)$/i.exec(k); return m ? m[1] : ' ';   // an accented letter is found as its letter: the accents are folded away anyway
 }
-function namedFold(s) { var t = String(s == null ? '' : s); try { t = t.normalize('NFD').replace(/[̀-ͯ]/g, ''); } catch (e) {} return t.toLowerCase().replace(/[‘’ʼ]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, ' ').trim(); }
+function namedFold(s) { var t = String(s == null ? '' : s); try { t = t.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) {} return t.toLowerCase().replace(/[\u2018\u2019\u02bc]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/\s+/g, ' ').trim(); }
 // A field's words, with its markup taken off and its entities read, in one pass: every < is looked at once, so a field of any shape costs its
 // length. A < opens a tag only where a letter, a / and a letter, or a ! follows it directly, as the page's own reader has it: any other < is a
 // character of the words ("DC < 15")
@@ -700,6 +701,7 @@ function shelfWire() {
             var land = row && row.dataset.at ? { at: row.dataset.at } : null;   // a row of Here or Around opens at its node, by either press
             if (at('.ps-find')) { shelfClose(); if (window.wpCmdkOpen) window.wpCmdkOpen(); return; }
             if (at('.ps-story')) { shelfClose(); if (window.wpStory) window.wpStory.open(); return; }
+            if (at('.ps-prep')) { shelfClose(); if (window.wpPrep) window.wpPrep.open('pages'); return; }
             if (!id) return;
             if (at('.ps-pin')) { pinPage(id); return; }
             if (at('.ps-win')) { shelfClose(); openPage(id, 'window', land); return; }
@@ -731,3 +733,5 @@ window.wpPageShelf.nextScene = function() { return nextSceneOf(getActiveCampaign
 window.wpPageShelf.mentionGo = mentionGo; window.wpPageShelf.mentionWords = mentionWords; window.wpPageShelf.mentionPaint = mentionPaint;
 // 1.6.2, backlog 107 (a): Mentioned in, the pages that name a person's or a place's card, and the press of its button
 window.wpPageShelf.namedIn = function(names, self) { return namedIn(getActiveCampaign(), names, self); }; namedWire();
+// 1.6.2, backlog 107 (a): what the Prep column asks, the shelf's own model, its row, the pinned pages and a block's words
+window.wpPageShelf.model = function(mapId) { var c = getActiveCampaign(); return shelfModel(c, typeof mapId === 'string' ? mapId : '', c && typeof c.id === 'string' ? recentRead(c) : []); }; window.wpPageShelf.row = shelfRow; window.wpPageShelf.pinned = function() { var c = getActiveCampaign(); return c ? pinnedOf(c) : []; }; window.wpPageShelf.words = function(b) { return b && typeof b === 'object' ? namedFold(namedText(b).split(NAMED_BRK).join(' ')) : ''; };

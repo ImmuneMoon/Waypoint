@@ -858,6 +858,10 @@ Writing planners and pages
 - Mentioned in: a Person card and a Place card end in a Mentioned in
   button. It lists the pages and planners that name the card somewhere
   else, and a press on one opens it at that place.
+- Prep is a new column beside the play map. It keeps tonight's scene
+  cards, the cards and people of the map on screen and your clues in
+  sight. Open it from the top of the left rail, with G, or from the top of
+  the Pages menu. Tick a scene as played or a clue as found right there.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

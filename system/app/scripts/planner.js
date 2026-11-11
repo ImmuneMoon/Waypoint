@@ -304,7 +304,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (!anchor) { for (var k = _pg.open + 1; k < am.blocks.length && !anchor; k++) anchor = pgFace(E.pv, k); }
       var pr = E.pw.getBoundingClientRect(), r = (anchor || E.pv).getBoundingClientRect(), base = E.pw.scrollTop - pr.top;
       var top = anchor ? (face && under ? r.bottom + 6 : r.top) : r.bottom;
-      form.style.top = Math.round(top + base) + 'px'; form.style.left = Math.round(r.left - pr.left) + 'px'; form.style.width = Math.round(Math.max(300, r.width)) + 'px';
+      var fw = Math.round(Math.max(300, r.width)), fl = Math.round(r.left - pr.left), pvr = E.pv.getBoundingClientRect(), flMax = Math.round(pvr.right - pr.left) - fw;
+      if (fl > flMax) fl = Math.max(Math.round(pvr.left - pr.left), flMax);   // 1.6.2 (backlog 107 (a)): a card in a right-hand column of a row of cards is narrower than the form, which then stays inside the page
+      form.style.top = Math.round(top + base) + 'px'; form.style.left = fl + 'px'; form.style.width = fw + 'px';
       var h = form.offsetHeight;
       if (face && !under) { face.classList.add('pg-room', 'pg-hid'); face.style.minHeight = h + 'px'; }
       else if (face) { face.classList.add('pg-room'); face.style.marginBottom = (h + 14) + 'px'; }
@@ -327,6 +329,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var was = _pg.open; _pg.open = -1; if (_pg.ro) { _pg.ro.disconnect(); _pg.ro = null; } pgPlace();
       if (back && was >= 0) { var f = pgFace(document.getElementById('plannerPreview'), was); if (f && f.focus) { try { f.focus({ preventScroll: true }); } catch (e) {} } }
   }
+  // [pagecheck:pgadd-start]
   function pgAfterDraw() {   // after each draw of the page: every block may be pressed or reached by Tab, a + stands before each, and the open form is laid again
       var E = pgEls(); if (!E.pv) return;
       if (pgOn()) {
@@ -334,13 +337,19 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           Array.prototype.forEach.call(faces, function(f) {
               f.tabIndex = 0; f.setAttribute('aria-label', 'Edit this block');
               var b = document.createElement('button'); b.type = 'button'; b.className = 'pg-add'; b.setAttribute('data-at', f.getAttribute('data-blk')); b.title = 'Add a block here'; b.setAttribute('aria-label', 'Add a block here');
-              f.parentNode.insertBefore(b, f); last = f;
+              // 1.6.2 (backlog 107 (a)): in a row of cards the + of a card goes inside the card, as its last child, where the style sheet sets it on the card's
+              // top edge. Before the card it would be an item of the row and take a cell of its own. As the last child it is never the block's first element,
+              // which the Outline and the folds read. A block that takes the whole row keeps its + before it, as every block outside a row of cards does
+              var inRow = !!(f.parentNode.classList && f.parentNode.classList.contains('pv-cards')) && !f.classList.contains('pv-wide');
+              if (inRow) f.appendChild(b); else f.parentNode.insertBefore(b, f);
+              last = f;
           });
           var am = getActiveMap(), end = document.createElement('button'); end.type = 'button'; end.className = 'pg-add pg-add-end'; end.setAttribute('data-at', String(am && am.blocks ? am.blocks.length : 0)); end.title = 'Add a block at the end'; end.setAttribute('aria-label', 'Add a block at the end');
           E.pv.appendChild(end);
       }
       pgPlace();
   }
+  // [pagecheck:pgadd-end]
   function pgWire() {
       var E = pgEls(); if (!E.pv || E.pv._pgWired) return; E.pv._pgWired = true;
       E.pv.addEventListener('click', function(e) {
@@ -1793,8 +1802,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var html = '';
 
       var secCols = 1;   // the column count of the section a block sits in (its layout row depends on it)
+      var secCards = '';
       activeMap.blocks.forEach(function(b, idx) {
           if (b.type === 'h1') secCols = 1; else if (b.type === 'h2') secCols = Math.max(1, Math.min(3, Math.round(Number(b.cols) || 1)));
+          if (b.type === 'h1') secCards = ''; else if (b.type === 'h2') secCards = !isDocEd && CC.cleanCards(b.cards) || '';   // 1.6.2 (backlog 107 (a)): the card size of the section a block sits in
 
           html += pbeAddHtml(idx);   // a + between any two blocks (backlog 171)
           html += '<div class="planner-block-edit" data-idx="'+idx+'">';
@@ -1814,6 +1825,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           } else if (b.type === 'h2' || b.type === 'h3') {
 
               html += pbeCap(b.type === 'h3' ? 'Sub-heading' : 'Section heading') + tsBoxHtml('field b-title', b.type === 'h3' ? 'Sub-heading' : 'Section heading', 'data-idx="'+idx+'"', 'width:100%;');
+              if (!isDocEd && b.type === 'h2') html += '<div class="fc-opts" style="margin-top:6px;"><label title="How the blocks under this section stand, up to the next section or title. As cards they sit side by side, as many in a row as there is room for. Text and charts still take the whole row.">Blocks under it <select class="b-h2cards" data-idx="'+idx+'"><option value=""' + (secCards ? '' : ' selected') + '>One column</option><option value="cards"' + (secCards ? ' selected' : '') + '>Cards</option></select></label>' + (secCards ? '<label title="How wide one card is. A smaller size puts more cards in a row.">Card size <select class="b-h2size" data-idx="'+idx+'">' + CC.CARD_SIZES.map(function(z) { return '<option value="' + z + '"' + (secCards === z ? ' selected' : '') + '>' + z.charAt(0).toUpperCase() + z.slice(1) + '</option>'; }).join('') + '</select></label>' : '') + '</div>';
               if (isDocEd && b.type === 'h2') html += '<div class="fc-opts" style="margin-top:6px;"><label title="Everything under this section, up to the next section or title, flows in this many columns">Columns <select class="b-h2cols" data-idx="'+idx+'">' + [1, 2, 3].map(function(n) { return '<option value="' + n + '"' + (secCols === n ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></label></div>';
 
           } else if (b.type === 'oneline' || b.type === 'lede' || b.type === 'text' || b.type === 'callout' || b.type === 'flare') {
@@ -1943,6 +1955,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           }
 
           if (isDocEd && LAYOUT_TYPES[b.type]) html += layoutRowHtml(idx, b, secCols);
+          if (!isDocEd && secCards && CC.wideMay(b)) html += '<div class="fc-opts" style="margin-top:6px;"><label class="b-wide-l" title="This one takes the whole row of its section, beside no other card"><input type="checkbox" class="b-wide" data-idx="'+idx+'"' + (CC.wideOn(b) ? ' checked' : '') + '> Wide card</label></div>';
           html += '</div>';
 
       });
@@ -1983,6 +1996,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       Array.from(blockContainer.querySelectorAll('.b-lay-f')).forEach(el => el.addEventListener('change', function() { layOf(this).layout.float = this.value; save(true); renderPlannerPreview(); }));
       Array.from(blockContainer.querySelectorAll('.b-lay-dx, .b-lay-dy')).forEach(el => el.addEventListener('input', function() { var bb = layOf(this); bb.layout[this.classList.contains('b-lay-dx') ? 'dx' : 'dy'] = Math.max(-200, Math.min(200, Math.round(+this.value || 0))); save(false); renderPlannerPreview(); }));
       Array.from(blockContainer.querySelectorAll('.b-lay-span')).forEach(el => el.addEventListener('change', function() { var bb = layOf(this); bb.layout.span = this.checked; if (this.checked) bb.layout.float = 'none'; save(true); renderPlanner(); }));
+      // 1.6.2 (backlog 107 (a)): a section's blocks as cards, their size, and a card that takes the whole row
+      Array.from(blockContainer.querySelectorAll('.b-h2cards')).forEach(el => el.addEventListener('change', function() { var bb = activeMap.blocks[this.dataset.idx]; if (!bb) return; if (this.value === 'cards') bb.cards = CC.cleanCards(bb.cards) || 'medium'; else delete bb.cards; save(true); renderPlanner(); }));
+      Array.from(blockContainer.querySelectorAll('.b-h2size')).forEach(el => el.addEventListener('change', function() { var bb = activeMap.blocks[this.dataset.idx]; if (!bb) return; bb.cards = CC.cleanCards(this.value) || 'medium'; save(true); renderPlanner(); }));
+      Array.from(blockContainer.querySelectorAll('.b-wide')).forEach(el => el.addEventListener('change', function() { var bb = activeMap.blocks[this.dataset.idx]; if (!bb) return; CC.wideSet(bb, this.checked); save(true); renderPlanner(); }));
       Array.from(blockContainer.querySelectorAll('.b-h2cols')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].cols = Math.max(1, Math.min(3, parseInt(this.value, 10) || 1)); save(true); renderPlanner(); }));
       Array.from(blockContainer.querySelectorAll('.b-linkmap')).forEach(el => el.addEventListener('change', function() {
           var bb = activeMap.blocks[this.dataset.idx];
@@ -2971,9 +2988,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var _pCss = docStyleCss(mergeDocStyle(camp && camp.docStyle, activeMap.meta && activeMap.meta.style));
       var html = '<div class="wrap"' + (_pCss ? ' style="' + _pCss + '"' : '') + '>';
       if (blocks.length === 0) html += typeof empty === 'string' ? empty : '<div style="color:var(--dim); font-style:italic; text-align:center; padding-top: 100px;">This is the live preview pane.<br><br>Add blocks in the editor on the left to start building your document.</div>';
+      var ccS = typeof CC === 'object' && CC && typeof CC.cleanCards === 'function' ? CC : null, cardsOn = '';   // 1.6.2 (backlog 107 (a)): the size of the card section the walk is in, '' in none
       blocks.forEach(function(b, _bi) {
           if (!b || typeof b !== 'object') return;
-          html += '<div class="pv-blk" data-blk="' + _bi + '">';
+          if (cardsOn && (b.type === 'h1' || b.type === 'h2')) { html += '</div>'; cardsOn = ''; }   // a section of cards runs to the next section or title
+          if (cardsOn && ccS.cardWide(b)) html += '<div class="pv-blk pv-wide" data-blk="' + _bi + '">';   // in a section of cards: a block that takes the whole row
+          else html += '<div class="pv-blk" data-blk="' + _bi + '">';
           if (b.type === 'h1') {
               html += '<h1>' + fmtRich(b.title || '', fieldFmt(b, 'title')) + (b.sub ? '<span class="sub">' + fmtRich(b.sub, fieldFmt(b, 'sub')) + '</span>' : '') + '</h1>';
           } else if (b.type === 'h2') {
@@ -3028,7 +3048,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               html += '<div class="diagram fc-box" data-fc="' + _bi + '" style="' + boxStyle + '"><pre class="mermaid">' + esc(stripMermaidLinks(m, true)) + '</pre></div>';   // as a page renders it: labels are text, mermaid decodes them
           }
           html += '</div>';
+          if (b.type === 'h2' && ccS) { var cardsZ = ccS.cleanCards(b.cards); if (cardsZ) { html += '<div class="pv-cards pv-cards-' + cardsZ + '">'; cardsOn = cardsZ; } }   // the class is one of three fixed words, never the stored text
       });
+      if (cardsOn) html += '</div>';
       return html + '</div>';
   }
   // [sinkcheck:planner-preview-end]

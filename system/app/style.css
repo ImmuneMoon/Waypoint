@@ -909,6 +909,7 @@
     .pv-folds .pv-blk.pv-fold-hid { height: 0; overflow: hidden; visibility: hidden; margin: 0; padding: 0; }
     .pv-folds .pv-blk.pv-fold-hid > .pv-fold-btn { visibility: hidden; }
     .pv-folds .pv-blk.pv-fold-hid::after { content: none; }
+    .pv-folds .pv-cards > .pv-blk.pv-fold-hid { position: absolute; left: 0; width: 100%; }   /* put away inside a row of cards: out of the row, or it would keep its cell and leave a gap; it keeps its width, as every part put away does */
   }
   #plannerPreview .pv-blk, #plannerPreview .pv-blk :is(h1, h2, h3) { scroll-margin-top: var(--pv-top, 58px); }   /* a block a landing brings to the top, and a heading the Outline jumps to, land under the planner's sticky bar, never behind it: pagenav.js navBarSet writes the bar's own height and the gap under it, kept current as the bar wraps (backlog 143); 58px where no bar is measured */
   #docPanelResults { flex: none; max-height: 46%; overflow: auto; border-bottom: 1px solid var(--edge); background: var(--panel); }
@@ -2619,7 +2620,7 @@
   .doc-view .node.card-tonight { box-shadow: inset 3px 0 0 var(--gold); }
   .doc-view .node.card-ahead { box-shadow: inset 3px 0 0 var(--blue); }
   .doc-view .node .card-aka, .doc-view .node .card-sheet { color: var(--dim); margin: 2px 0 6px; font-size: 13px; }
-  .b-done-l, .b-when-l { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; font-size: 12px; color: var(--dim); }
+  .b-done-l, .b-when-l, .b-wide-l { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; font-size: 12px; color: var(--dim); }
   .doc-view .node h3 .tag { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold); border-radius: 20px; padding: 2px 9px; margin-left: 9px; vertical-align: middle; }
   .doc-view .must { color: var(--dim); margin: 2px 0 10px; font-size: 14px; }
   .doc-view .must b { color: var(--ink); }
@@ -2628,6 +2629,24 @@
   .doc-view td { padding: 10px 12px; border-top: 1px solid var(--edge); vertical-align: top; }
   .doc-view .doc-table th, .doc-view .doc-table td { white-space: pre-line; }   /* a cell's own line breaks are drawn (a Markdown file brings them); runs of spaces still fold */
   .doc-view td:first-child { font-weight: 600; color: var(--ink); }
+  /* Cards side by side (1.6.2, backlog 107 (a); planner.js plannerPreviewHtml, cardcore.js cleanCards): the blocks under a section heading set to
+     Cards stand in a grid, as many in a row as the place has room for. On a 1020 px page that is five Small, three Medium or two Large, and in the
+     440 px panel over the map two Small or one. A block that is no card, and a card ticked Wide card, takes the whole row. The gap between
+     columns leaves room for a card's fold arrow, which sits in its left margin as every block's does. Paper keeps the cards, none split over a page */
+  .doc-view .pv-cards { display: grid; gap: 2px 20px; align-items: start; position: relative; }
+  .doc-view .pv-cards-small { grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); }
+  .doc-view .pv-cards-medium { grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); }
+  .doc-view .pv-cards-large { grid-template-columns: repeat(auto-fill, minmax(min(100%, 450px), 1fr)); }
+  .doc-view .pv-cards > .pv-blk { min-width: 0; }
+  .doc-view .pv-cards > .pv-wide { grid-column: 1 / -1; }
+  .doc-view .pv-cards > .pv-blk > .node { margin: 8px 0 6px; padding: 10px 14px 12px; background: var(--panel); border: 1px solid var(--edge); border-radius: 9px; }   /* a card in a row of cards wears a frame, so each reads as one thing */
+  .doc-view .pv-cards > .pv-blk > .node > :first-child { margin-top: 0; }
+  .doc-view .pv-cards > .pv-blk > .node > :last-child { margin-bottom: 0; }
+  @media print { .doc-view .pv-cards > .pv-blk { break-inside: avoid; } }
+  /* the page editor's + in a row of cards (planner.js pgAfterDraw): before a block that takes the whole row it spans the row, and a card's own stands inside the card on its top edge */
+  .doc-view .pv-cards > .pg-add { grid-column: 1 / -1; }
+  .pbe-page .pv-cards > .pv-blk:where(:not(.pv-wide)) { position: relative; padding-top: 12px; }   /* :where keeps this under the folds' own rule for a part put away in a row of cards, which takes it out of the row */
+  .doc-view .pv-cards > .pv-blk > .pg-add { position: absolute; left: 0; top: 0; }
   /* Tables that fit (1.6.2, backlog 107 (a); pagenav.js tableFit): where a table has less room than its columns need, each row is one small block,
      its first cell in bold and each other cell after its column's name, which the cell carries as data-col. Screen only: paper keeps the table.
      The table is a flow root, as a table is, so it never runs under a picture floated beside it */
@@ -2641,6 +2660,7 @@
     .doc-view table.pv-tstack tr { display: block; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; padding: 7px 11px; margin: 0 0 6px; }
     .doc-view table.pv-tstack td { display: block; border: 0; padding: 2px 0; overflow-wrap: anywhere; }
     .doc-view table.pv-tstack td:empty { display: none; }
+    .doc-view .pv-cards > .pv-blk > .node table.pv-tstack tr { background: var(--panel2); }   /* inside a card's frame, which wears the panel's own colour */
     .doc-view table.pv-tstack td[data-col]::before { content: attr(data-col); display: inline-block; margin-right: 8px; color: var(--gold); font-size: 11px; font-weight: 400; letter-spacing: .8px; text-transform: uppercase; }
   }
   .doc-view .flare { background: var(--panel); border: 1px solid var(--edge); border-left: 3px solid var(--violet); border-radius: 7px; padding: 10px 13px; margin-top: 10px; font-size: 13.5px; color: var(--dim); }

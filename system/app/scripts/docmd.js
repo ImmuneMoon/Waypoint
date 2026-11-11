@@ -9,7 +9,8 @@
 
    The dialect (also Help ▸ Handbook ▸ Import and export, and TEMPLATE below):
      front matter title / subtitle / status (planners) / players (pages); the first `#` is the title
-     (an italic-only line right under it the subtitle), later `#` and every `##` a section (`{cols=2}`
+     (an italic-only line right under it the subtitle), later `#` and every `##` a section (in a planner `{cards=medium}` sets its
+     blocks as cards, and `{wide}` after a card's heading or alone above a plain table is a Wide card; `{cols=2}`
      tail = columns on a page), `###` a sub-heading on a page — in a planner `### Scene:` opens a
      scene node (with `**Tag:**`, `**Must resolve:**`, `Map: title / room` lines and a table under it)
      and other `###` become a bold lead line; paragraphs, lists, `**b**` `*i*` `~~s~~` `<u>` `code`
@@ -36,6 +37,10 @@ var LIMITS = { text: 2 * 1024 * 1024, blocks: 500, picture: 8 * 1024 * 1024, col
 var PLANNER_BLOCKS = ['h1', 'h2', 'lede', 'oneline', 'text', 'flare', 'callout', 'node', 'image', 'diagram', 'flowchart'];   // raw is never created by an import
 var PROSE = { lede: 1, oneline: 1, flare: 1, callout: 1 };
 var ATTR_KEYS = { cols: 1, width: 1, float: 1, dx: 1, dy: 1, span: 1 };
+var SECTION_ATTRS = { cards: 1 }, CARD_ATTRS = { wide: 1 };   // 1.6.2 (backlog 107 (a)): a planner's section heading alone knows cards and a card's heading alone wide, so every other "Title {wide}" keeps its braces as before
+var CARD_HEAD = /^(?:scene|person|place|clue):\s*/i;
+// the keys a planner's heading reads from its braces beyond a page's: none for its title, cards for a section, wide for a card
+function headAttrs(kind, level, first, text) { return kind !== 'planner' || (level === 1 && first) ? null : level <= 2 ? SECTION_ATTRS : level === 3 && CARD_HEAD.test(text) ? CARD_ATTRS : null; }
 
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function uid() { return 'b_' + Math.random().toString(36).slice(2, 8); }
@@ -44,18 +49,21 @@ function unent(s) { return String(s).replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, fu
 
 /* ---------- attribute tails: {width=50 float=left} on a heading or a picture ---------- */
 // Parsed only when every key is known; otherwise the braces stay part of the text ("Formulas {advanced}").
-function parseAttrs(tail) {
+function parseAttrs(tail, more) {
     var m = /^\s*\{([^{}]*)\}\s*$/.exec(tail || ''); if (!m) return null;
     var out = {}, ok = true;
-    m[1].trim().split(/\s+/).filter(Boolean).forEach(function(kv) { var p = kv.split('='), k = p[0].toLowerCase(); if (!ATTR_KEYS[k]) { ok = false; return; } out[k] = p.length > 1 ? p.slice(1).join('=') : 'true'; });
+    m[1].trim().split(/\s+/).filter(Boolean).forEach(function(kv) { var p = kv.split('='), k = p[0].toLowerCase(); if (!(ATTR_KEYS[k] || (more && more[k] === 1))) { ok = false; return; } out[k] = p.length > 1 ? p.slice(1).join('=') : 'true'; });
     return ok && Object.keys(out).length ? out : null;
 }
-function splitAttrTail(text) {   // "Title {cols=2}" → { text: 'Title', attrs: {cols:'2'} }; unknown keys keep the braces
+function splitAttrTail(text, more) {   // "Title {cols=2}" → { text: 'Title', attrs: {cols:'2'} }; unknown keys keep the braces
     var m = /^(.*?)\s*(\{[^{}]*\})\s*$/.exec(text || '');
-    if (!m) return { text: text, attrs: null };
-    var a = parseAttrs(m[2]);
+    if (!m || /\\$/.test(m[1])) return { text: text, attrs: null };   // an escaped brace, as tailGuard writes a title that really ends in braces, is no tail
+    var a = parseAttrs(m[2], more);
     return a ? { text: m[1], attrs: a } : { text: text, attrs: null };
 }
+// A heading's words as they are written: where they end in braces the reader would take for its own keys, the brace is escaped, so a title
+// such as "Vault {wide}" reads back whole (the inline reader takes the backslash off)
+function tailGuard(text, more) { text = String(text == null ? '' : text); if (!splitAttrTail(text, more).attrs) return text; var k = text.lastIndexOf('{'); return text.slice(0, k) + '\\' + text.slice(k); }
 function layoutFromAttrs(a) {
     if (!a) return null;
     var l = {};
@@ -467,6 +475,14 @@ function flowchartToMermaid(b) {
 // A span that holds nothing — one a file opens on a line of its own, leaves open, or closes on a later line: a span lives inside one
 // paragraph — is dropped, the white space it held kept (so it leaves no empty paragraph behind and no empty tag in a block)
 function dropEmptySpans(html) { var prev; do { prev = html; html = html.replace(/<span[^>]*>(\s*)<\/span>/g, '$1'); } while (html !== prev); return html; }
+// true where a table starts at line k, or a table's bold title with its table right under it: what a {wide} line may stand above
+function wideTableAt(lines, k) {
+    var tab = function(j) { return j < lines.length && /\|/.test(lines[j]) && isTableSep(lines[j + 1]); };
+    if (tab(k)) return true;
+    if (!/^\s*(\*\*|__)(.+?)\1\s*$/.test(lines[k] || '')) return false;
+    var j = k + 1; while (j < lines.length && !lines[j].trim()) j++;
+    return tab(j);
+}
 function isBlockStart(line, next) {
     return /^(```+|~~~+)/.test(line) || /^:::\s*(lede|oneline|flare|callout)\s*$/i.test(line) || /^#{1,6}\s/.test(line) || /^(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line) || /^>/.test(line) || LIST_RE.test(line) || (/\|/.test(line) && isTableSep(next)) || !!picLine(line);
 }
@@ -474,7 +490,7 @@ function isBlockStart(line, next) {
 function markdownToBlocks(text, opts) {
     opts = opts || {};
     var kind = opts.kind === 'planner' ? 'planner' : 'doc', items = opts.items || {};
-    var notes = [], meta = {}, blocks = [], images = [], run = [], scene = null, pendingTitle = null, sawH1 = false, h1Block = null;
+    var notes = [], meta = {}, blocks = [], images = [], run = [], scene = null, pendingTitle = null, pendingWide = false, sawH1 = false, h1Block = null;
     var ctx = { inlineImages: [] };
     text = String(text || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
     if (text.length > LIMITS.text) { text = text.slice(0, LIMITS.text); notes.push('The file is longer than 2 MB; the rest was left out.'); }
@@ -511,7 +527,7 @@ function markdownToBlocks(text, opts) {
         setFmt(b, 'caption', capF.fmt);
         var lay = layoutFromAttrs(attrs);
         if (kind === 'doc') { if (lay) b.layout = lay; }
-        else if (lay) { if (lay.width) b.width = lay.width; if (lay.float === 'left' || lay.float === 'right') b.align = lay.float; }
+        else if (lay) { if (lay.width) b.width = lay.width; if (lay.float === 'left' || lay.float === 'right') b.align = lay.float; if (lay.span === true) CC.wideSet(b, true); }
         push(b);
         images.push({ index: blocks.length - 1, kind: /^data:/i.test(target) ? 'data' : 'file', value: target, name: /^data:/i.test(target) ? '' : target.split(/[\\/]/).pop() });
         if (wasInline) notes.push('Picture "' + (caption || b.src || target.slice(0, 40)) + '" was inside a paragraph; it became its own block after it.');
@@ -539,6 +555,8 @@ function markdownToBlocks(text, opts) {
         if (scene && kind === 'planner') { scene.cols = cols; scene.rows = objRows; if (colFmt.length) scene.colFmt = colFmt; else delete scene.colFmt; scene = null; return; }
         flushRun();
         var tb = kind === 'planner' ? push({ type: 'node', mode: 'table', title: title || '', cols: cols, rows: objRows }) : push({ type: 'table', title: title || '', cols: cols, rows: objRows });
+        if (pendingWide && kind === 'planner') CC.wideSet(tb, true);
+        pendingWide = false;
         if (colFmt.length) tb.colFmt = colFmt;
         if (title) setFmt(tb, 'title', fm.title);
     }
@@ -556,8 +574,8 @@ function markdownToBlocks(text, opts) {
         if (!line.trim()) { i++; continue; }
         var h = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
         if (h) {
-            var level = h[1].length, ht = splitAttrTail(h[2]), hf = fieldOf(ht.text), title = hf.text;
-            flushRun(); scene = null; pendingTitle = null;
+            var level = h[1].length, ht = splitAttrTail(h[2], headAttrs(kind, level, !sawH1, h[2])), hf = fieldOf(ht.text), title = hf.text;
+            flushRun(); scene = null; pendingTitle = null; pendingWide = false;
             if (level === 1 && !sawH1) {
                 sawH1 = true; h1Block = push({ type: 'h1', title: title, sub: meta.subtitle || '' }); setFmt(h1Block, 'title', hf.fmt);
                 if (!meta.title) meta.title = title;
@@ -565,12 +583,14 @@ function markdownToBlocks(text, opts) {
                 if (sm) { var sf = fieldOf(sm[2]); if (!h1Block.sub) h1Block.sub = sf.text; if (sf.text === h1Block.sub) setFmt(h1Block, 'sub', sf.fmt); i++; }   // its format, where the line is the subtitle
             } else if (level <= 2) {
                 var h2 = push({ type: 'h2', title: title }); setFmt(h2, 'title', hf.fmt);
+                if (kind === 'planner' && ht.attrs && ht.attrs.cards !== undefined) { var cz = CC.cleanCards(String(ht.attrs.cards).toLowerCase()); if (cz) h2.cards = cz; else notes.push('Section "' + title + '": cards must be small, medium or large.'); }   // 1.6.2 (backlog 107 (a))
                 if (kind === 'doc' && ht.attrs && ht.attrs.cols) { var cn = parseInt(ht.attrs.cols, 10); if (cn >= 1 && cn <= 3) h2.cols = cn; else notes.push('Section "' + title + '": columns must be 1–3.'); }
             } else if (level === 3 && kind === 'planner' && /^(?:scene|person|place|clue):\s*/i.test(title)) {   // a card by its kind: Scene, Person, Place or Clue
                 var sceneRaw = /^(scene|person|place|clue):\s*/i.exec(ht.text), sceneF = sceneRaw ? fieldOf(ht.text.slice(sceneRaw[0].length)) : null, sceneT = title.replace(/^(?:scene|person|place|clue):\s*/i, '');
                 var sceneK = (/^(scene|person|place|clue):/i.exec(title) || ['', 'scene'])[1].toLowerCase();
                 scene = push(sceneK === 'scene' ? { type: 'node', title: sceneT, tag: '', must: '', cols: [], rows: [] } : { type: 'node', mode: sceneK, title: sceneT, tag: '', must: '', cols: [], rows: [] });
                 if (sceneF && sceneF.text === sceneT) setFmt(scene, 'title', sceneF.fmt);   // the title after "Scene:", its format with it
+                if (ht.attrs && ht.attrs.wide !== undefined && !/^(false|no|0)$/i.test(ht.attrs.wide)) CC.wideSet(scene, true);   // a Wide card
             } else if (level === 3 && kind === 'doc') {
                 setFmt(push({ type: 'h3', title: title }), 'title', hf.fmt);
             } else {
@@ -629,8 +649,10 @@ function markdownToBlocks(text, opts) {
         if (!pb.length) { i++; continue; }
         var boldOnly = pb.length === 1 && /^\s*(\*\*|__)(.+?)\1\s*$/.exec(pb[0]);
         var nextNonBlank = i; while (nextNonBlank < lines.length && !lines[nextNonBlank].trim()) nextNonBlank++;
-        if (boldOnly && nextNonBlank < lines.length && /\|/.test(lines[nextNonBlank]) && isTableSep(lines[nextNonBlank + 1])) { pendingTitle = fieldOf(boldOnly[2]); continue; }   // the table's title
-        scene = null;
+        // 1.6.2 (backlog 107 (a)): a line that holds {wide} alone, right before a plain table of a planner, makes that table a Wide card
+        if (kind === 'planner' && pb.length === 1 && /^\s*\{wide\}\s*$/i.test(pb[0]) && nextNonBlank < lines.length && wideTableAt(lines, nextNonBlank)) { pendingWide = true; scene = null; continue; }   // a table of its own, never the rows of the card above it
+        if (boldOnly && nextNonBlank < lines.length && /\|/.test(lines[nextNonBlank]) && isTableSep(lines[nextNonBlank + 1])) { pendingTitle = fieldOf(boldOnly[2]); scene = null; continue; }   // the table's title. A titled table is a table of its own: a card's own rows have no title (found 2026-11-11: it became the rows of a card above it that had none, and its title was lost)
+        scene = null; pendingWide = false;
         run.push('<p>' + paraHtml(pb, ctx) + '</p>');
         flushInlineImages();
     }
@@ -645,7 +667,7 @@ function markdownToBlocks(text, opts) {
 // separator (:), a number list (1. → 1\.). Each reads back exactly as written (inline() unescapes \ before # + - . ) |, and &#58; is a colon;
 // a backslash before a digit or a colon it would keep)
 function mdEscapeMarks(s) { return String(s).replace(/([\\*_`~\[\]<>])/g, '\\$1').replace(/&(?=#?[A-Za-z0-9]+;)/g, '&amp;'); }
-function mdEscapeLineStart(s) { return String(s).replace(/^(\s*)([#+\-|])/, '$1\\$2').replace(/^(\s*):/, '$1&#58;').replace(/^(\s*)(\d+)([.)])(\s|$)/, '$1$2\\$3$4'); }
+function mdEscapeLineStart(s) { return String(s).replace(/^(\s*)\{(?=wide\}\s*$)/i, '$1\\{').replace(/^(\s*)([#+\-|])/, '$1\\$2').replace(/^(\s*):/, '$1&#58;').replace(/^(\s*)(\d+)([.)])(\s|$)/, '$1$2\\$3$4'); }
 function mdEscapeText(s) { return mdEscapeLineStart(mdEscapeMarks(s)); }
 // A text block's colour / size span as the sanitiser's one form, written anew from its two values ('' for any other span)
 function spanTag(attrs) {
@@ -760,10 +782,10 @@ function docToMarkdown(item, opts) {
         if (!b || typeof b !== 'object') return;
         switch (b.type) {
             case 'h1':
-                if (sawH1) { L.push('## ' + fieldText(b, 'title', IN_LINE), ''); break; }
-                sawH1 = true; L.push('# ' + fieldText(b, 'title', IN_LINE)); if (b.sub) L.push('*' + fieldText(b, 'sub', IN_ITALIC) + '*'); L.push(''); break;
-            case 'h2': L.push('## ' + fieldText(b, 'title', IN_LINE) + (kind === 'doc' && b.cols > 1 ? ' {cols=' + Math.min(3, b.cols) + '}' : ''), ''); break;
-            case 'h3': L.push('### ' + fieldText(b, 'title', IN_LINE), ''); break;
+                if (sawH1) { L.push('## ' + tailGuard(fieldText(b, 'title', IN_LINE), headAttrs(kind, 2, false, '')), ''); break; }
+                sawH1 = true; L.push('# ' + tailGuard(fieldText(b, 'title', IN_LINE), null)); if (b.sub) L.push('*' + fieldText(b, 'sub', IN_ITALIC) + '*'); L.push(''); break;
+            case 'h2': L.push('## ' + tailGuard(fieldText(b, 'title', IN_LINE), headAttrs(kind, 2, false, '')) + (kind === 'doc' && b.cols > 1 ? ' {cols=' + Math.min(3, b.cols) + '}' : '') + (kind !== 'doc' && CC.cleanCards(b.cards) ? ' {cards=' + CC.cleanCards(b.cards) + '}' : ''), ''); break;
+            case 'h3': L.push('### ' + tailGuard(fieldText(b, 'title', IN_LINE), null), ''); break;
             case 'text': L.push(proseMd(sanitizeHtml(b.content || ''), 'text', kind), ''); break;
             case 'lede': case 'oneline': case 'flare': case 'callout': L.push.apply(L, proseLines(b.type, proseMd(sanitizeHtml(b.content || ''), b.type, kind))); L.push(''); break;
             case 'image': {
@@ -775,14 +797,14 @@ function docToMarkdown(item, opts) {
                     if (!images.some(function(im) { return im.path === b.src; })) images.push({ path: b.src, name: name });
                     ref = 'images/' + item.id + '/' + name;
                 }
-                var lay = kind === 'doc' ? b.layout : (b.width && b.width !== 100 || (b.align && b.align !== 'center') ? { width: b.width, float: b.align === 'left' || b.align === 'right' ? b.align : 'none' } : null);
+                var lay = kind === 'doc' ? b.layout : (b.width && b.width !== 100 || (b.align && b.align !== 'center') || CC.wideOn(b) ? { width: b.width, float: b.align === 'left' || b.align === 'right' ? b.align : 'none', span: CC.wideOn(b) } : null);
                 L.push('![' + fieldText(b, 'caption', IN_CAPTION) + '](' + ref + ')' + layoutTail(lay), ''); break;
             }
             case 'table': L.push(tableMd(b.title, b.cols, b.rows, b), ''); break;
             case 'node':
-                if (b.mode === 'table') { L.push(tableMd(b.title, b.cols, b.rows, b), ''); break; }
+                if (b.mode === 'table') { if (kind !== 'doc' && CC.wideOn(b)) L.push('{wide}', ''); L.push(tableMd(b.title, b.cols, b.rows, b), ''); break; }
                 var kdM = CC.kindOf(b), akaM = CC.cleanAka(b.aka);   // backlog 107 step 3 and 147
-                L.push('### ' + kdM.word + ': ' + fieldText(b, 'title', IN_SCENE));
+                L.push('### ' + kdM.word + ': ' + tailGuard(fieldText(b, 'title', IN_SCENE), kind !== 'doc' ? CARD_ATTRS : null) + (kind !== 'doc' && CC.wideOn(b) ? ' {wide}' : ''));
                 if (akaM) L.push('**Also known as:** ' + IN_LINE.put(akaM.join(', '), true));
                 if (b.done === true && kdM.tick) L.push('**' + kdM.tick + ':** yes');
                 else if (CC.cleanWhen(b.when, CC.cardKind(b))) L.push('**Session:** ' + (b.when === 'tonight' ? 'Tonight' : 'Ahead'));   // 1.6.2 (backlog 166 d)

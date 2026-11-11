@@ -105,10 +105,28 @@ function cleanCard(b, chars) {
     var s = k === 'person' ? cleanSheet(b.sheet, chars) : undefined; if (s) b.sheet = s; else delete b.sheet;
     return b;
 }
+// Cards side by side (1.6.2, backlog 107 (a); docs/PLANNER_ORG_DESIGN.md 4.6). A section heading of a planner may say cards, one of three
+// sizes: the blocks under it, up to the next section or title, then sit side by side, as many in a row as the place has room for. A card,
+// a note and a picture are cards there. Text, a chart and Raw HTML take the whole row, and so does a card or a picture ticked Wide card,
+// which is the page's own key layout.span, only as true. Opt-in: a planner with neither key is stored and drawn as it always was.
+var CARD_SIZES = ['small', 'medium', 'large'], CARD_BLOCKS = { node: 1, callout: 1, flare: 1, image: 1 }, WIDE_BLOCKS = { node: 1, image: 1 };
+function cleanCards(v) { return typeof v === 'string' && CARD_SIZES.indexOf(v) >= 0 ? v : undefined; }
+function wideMay(b) { return !!b && typeof b === 'object' && WIDE_BLOCKS[b.type] === 1; }   // a block that may be ticked Wide card
+function wideOn(b) { return wideMay(b) && !!b.layout && typeof b.layout === 'object' && b.layout.span === true; }
+function wideSet(b, on) {
+    if (!wideMay(b)) return b;
+    if (on === true) b.layout = Object.assign({}, b.layout && typeof b.layout === 'object' && !Array.isArray(b.layout) ? b.layout : {}, { span: true });
+    else if (b.layout && typeof b.layout === 'object') { delete b.layout.span; if (!Object.keys(b.layout).length) delete b.layout; }
+    return b;
+}
+// in a card section: true for a block that takes the whole row
+function cardWide(b) { return !b || typeof b !== 'object' || CARD_BLOCKS[b.type] !== 1 || wideOn(b); }
+// a section heading's cards key, cleaned in place: one of the three sizes, on a section heading alone
+function cleanSection(b) { if (!b || typeof b !== 'object') return b; var c = b.type === 'h2' ? cleanCards(b.cards) : undefined; if (c) b.cards = c; else delete b.cards; return b; }
 // The default columns of a node with none of its own
 function defaultCols(b) { return kindOf(b).cols.slice(); }
 
-var api = { VERSION: VERSION, AKA_MAX: AKA_MAX, AKA_CHARS: AKA_CHARS, KINDS: KINDS, ORDER: ORDER, MODES: MODES, cleanMode: cleanMode, cardKind: cardKind, kindOf: kindOf, kindBy: kindBy, cleanName: cleanName, cleanAka: cleanAka, akaFrom: akaFrom, akaText: akaText, cardNames: cardNames, cleanDone: cleanDone, WHEN: WHEN, cleanWhen: cleanWhen, CUE_K: CUE_K, cleanCue: cleanCue, sessionOf: sessionOf, setSession: setSession, cleanSheet: cleanSheet, cleanCard: cleanCard, defaultCols: defaultCols };
+var api = { VERSION: VERSION, AKA_MAX: AKA_MAX, AKA_CHARS: AKA_CHARS, KINDS: KINDS, ORDER: ORDER, MODES: MODES, cleanMode: cleanMode, cardKind: cardKind, kindOf: kindOf, kindBy: kindBy, cleanName: cleanName, cleanAka: cleanAka, akaFrom: akaFrom, akaText: akaText, cardNames: cardNames, cleanDone: cleanDone, WHEN: WHEN, cleanWhen: cleanWhen, CUE_K: CUE_K, cleanCue: cleanCue, sessionOf: sessionOf, setSession: setSession, CARD_SIZES: CARD_SIZES, cleanCards: cleanCards, wideMay: wideMay, wideOn: wideOn, wideSet: wideSet, cardWide: cardWide, cleanSection: cleanSection, cleanSheet: cleanSheet, cleanCard: cleanCard, defaultCols: defaultCols };
 if (typeof window !== 'undefined') window.wpCardCore = api;
 
-export { CUE_K, cleanCue, WHEN, cleanWhen, sessionOf, setSession, VERSION, AKA_MAX, AKA_CHARS, KINDS, ORDER, MODES, cleanMode, cardKind, kindOf, kindBy, cleanName, cleanAka, akaFrom, akaText, cardNames, cleanDone, cleanSheet, cleanCard, defaultCols };
+export { CARD_SIZES, cleanCards, wideMay, wideOn, wideSet, cardWide, cleanSection, CUE_K, cleanCue, WHEN, cleanWhen, sessionOf, setSession, VERSION, AKA_MAX, AKA_CHARS, KINDS, ORDER, MODES, cleanMode, cardKind, kindOf, kindBy, cleanName, cleanAka, akaFrom, akaText, cardNames, cleanDone, cleanSheet, cleanCard, defaultCols };

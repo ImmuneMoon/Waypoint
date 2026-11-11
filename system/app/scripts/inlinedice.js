@@ -65,7 +65,8 @@ function list(box, text) {
 // The card's label: the nearest heading above the button in a drawn page, else the words of its line, cut to 60
 function labelOf(btn) {
     var blk = btn.closest ? btn.closest('.pv-blk') : null;
-    for (var b = blk; b; b = b.previousElementSibling) { var h = b.matches && b.matches('h1, h2, h3') ? b : b.querySelector ? b.querySelector('h1, h2, h3') : null; if (h && (h.textContent || '').trim()) return h.textContent.trim().slice(0, 60); }
+    var up = function(n) { var p = n.previousElementSibling, w = n.parentNode; return p || (w && w.classList && w.classList.contains('pv-cards') ? w.previousElementSibling : null); };   // 1.6.2: out of a row of cards, to its section heading before it
+    for (var b = blk; b; b = up(b)) { var h = b.matches && b.matches('h1, h2, h3') ? b : b.querySelector ? b.querySelector('h1, h2, h3') : null; if (h && (h.textContent || '').trim()) return h.textContent.trim().slice(0, 60); }
     var line = btn.closest ? btn.closest('p, li, td, th, .pv-blk, .gm-dice, div') : null, w = line ? String(line.textContent || '').replace(/\s+/g, ' ').trim() : '';
     return (w || btn.textContent || '').slice(0, 60);
 }

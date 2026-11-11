@@ -624,6 +624,10 @@ function cleanImportItems(ic, deps) {
             if (b.type === 'diagram') b.content = DR && DR.stripMermaidLinks ? DR.stripMermaidLinks(String(b.content || '')) : '';
             // text style: the look of a block's plain fields (stored beside their text) is cleaned against that text as the app reads it
             // (docrender cleanBlockFmts -> textfmt cleanFmt); with no cleaner on hand no format comes in
+            if (b.cards !== undefined) {   // 1.6.2 (backlog 107 (a)): a section's cards, one of the three sizes on a section heading; gone with no cleaner at hand
+                var CDs = deps && deps.CARD && typeof deps.CARD.cleanSection === 'function' ? deps.CARD : null;
+                if (CDs) CDs.cleanSection(b); else delete b.cards;
+            }
             if (b.type === 'node') {   // backlog 107 step 3 and 147: a card's kind, other names, tick and sheet as the card core keeps them (deps.CARD = cardcore.js)
                 var CDd = deps && deps.CARD && typeof deps.CARD.cleanCard === 'function' ? deps.CARD : null;
                 if (CDd) CDd.cleanCard(b, isObj(ic.chars) ? ic.chars : null);

@@ -844,6 +844,10 @@ Writing planners and pages
   block with its first cell in bold and the column's name before each other
   cell. You see it in the panel over the map and in a narrow window, and a
   wide place keeps the table.
+- A planner's section can lay its cards side by side. On the section
+  heading set Blocks under it to Cards and pick Small, Medium or Large. As
+  many cards stand in a row as there is room for. Text and charts keep the
+  whole row, and Wide card gives one card the row too.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

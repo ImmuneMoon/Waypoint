@@ -730,11 +730,12 @@ function restStart() {
     var t0 = tOf(camp), who = {}; Object.keys(rc.who).forEach(function(k) { if (rc.who[k] === 'rest' || rc.who[k] === 'awake') who[k] = rc.who[k]; });
     var goM = rc.go && rc.map ? restMapOf(camp, rc.map) : null, hereM = restMapOf(camp, camp.activeItemId), restOn = { rid: r.id, name: r.name, from: t0, to: t0 + len, who: who };   // fold R5: the rest map, if ticked
     if (goM) { restOn.map = goM.id; if (hereM && hereM.id !== goM.id) restOn.gm = hereM.id; }
-    restCall = null; restTold[camp.id] = true;
+    restCall = null; restTold[camp.id] = true; var snapR = typeof restSnap === 'function' ? restSnap(camp) : null;   // the early end: everything as it stood before the start
     if (!moveTo(t0 + len, 'Rest called \u2014 ' + r.name, false, false, { who: who, restOn: restOn, restMap: restMapOf(camp, rc.map) ? { map: rc.map, go: !!rc.go } : null })) return false;
     if (goM) { try { restGo(camp, goM, hereM ? hereM.id : '', rc.npcs); } catch (e) { console.error(e); } }
     var nn = net(); if (nn && typeof nn.restLine === 'function') nn.restLine('The party rests: ' + r.name + '.');
     var rIds = Object.keys(who).filter(function(k) { return who[k] === 'rest'; }); if (((Array.isArray(r.does) && r.does.length) || r.ends === true) && rIds.length && window.wpSheets && typeof window.wpSheets.restDoes === 'function') { try { window.wpSheets.restDoes(rIds, r.does || [], 1, r); } catch (e) { console.error(e); } }   // fold R4: what it does at once, for those who rest
+    if (snapR && typeof restUndoKeep === 'function') { try { restUndoKeep(camp, snapR, len); } catch (e) { console.error(e); } }   // the early end: what the start gave, kept on the rest
     return true;
 }
 function restEnd() {
@@ -756,6 +757,7 @@ function restPanel(body, cal, camp, sys) {
         if (rN.length) box.appendChild(cel('div', 'sys-note', 'Resting: ' + rN.join(', ') + '.')); if (aN.length) box.appendChild(cel('div', 'sys-note', 'Awake: ' + aN.join(', ') + '.'));
         var tn = cel('textarea', 'field cal-rest-notes'); tn.rows = 2; tn.maxLength = 2000; tn.value = on.notes || ''; tn.placeholder = 'What happened during the rest'; tn.title = 'Your notes on this rest. The calendar keeps them with its record'; box.appendChild(tn);   // fold R3
         var tl = cel('label', 'cal-tick'), tc = cel('input', 'cal-rest-vis'); tc.type = 'checkbox'; tc.checked = on.vis === 'all'; tc.title = 'Players see these notes on the calendar'; tl.appendChild(tc); tl.appendChild(document.createTextNode(' Players see these notes')); box.appendChild(tl);
+        if (typeof restCutBox === 'function') restCutBox(box, camp, on);   // the early end
         if (on.map) restBackBox(box, camp, on);   // fold R5
         var bar = cel('div', 'cal-rest-bar'); bar.appendChild(cbtn('cal-rest-end', 'End the rest', 'The rest is over: the clock runs again from where it stands, and the table is told', 'restend')); box.appendChild(bar);
         body.appendChild(box); return;
@@ -843,6 +845,71 @@ function restBackBox(box, camp, on) {
     box.appendChild(cel('div', 'sys-note cal-rest-backwho', restBackWords(camp, on)));
 }
 // [calendarcheck:restmap-end]
+// [calendarcheck:restcut-start]
+// 1.6.2 (backlog 138 (j), docs/REST_DESIGN.md, the owner's round three, 2026-10-16, by prompt: "Recount and take back (Recommended)": ending early asks
+// how long the party really rested, gives only what those hours reach at each threshold, takes back what the start gave beyond that, sets the clock back
+// to that hour, and keeps time short of a threshold counted toward it). Start the rest keeps what it changed (restSnap before, restUndoKeep after). The
+// end box's The rest was cut short, after [n] [unit] takes back what the start gave (sheets.js restTakeBack: a value as the start left it goes back, a
+// number moved since loses only the start's own move, anything else changed since stays and is named), puts the clock and its counts back where the
+// rest began, and moves it on the time really rested as rest for who rested, so the time rules give what that time reaches and keep the rest of it
+// counted. The rest's own list and the effects it ended came with the start and are taken back with it: a rest cut short has not reached its end
+var restCut = { on: false, n: 1, u: 'hour' };
+function restJ(v) { return v === undefined ? '\u0000' : JSON.stringify(v); }
+function restSnap(camp) {
+    var ck = clockOf(camp) || {}, cl = {}; ['acc', 'top', 'lived'].forEach(function(k) { if (ck[k] !== undefined) cl[k] = JSON.parse(JSON.stringify(ck[k])); });
+    var vals = {}; charIdsOf(camp).forEach(function(id) { var c = camp.chars[id]; vals[id] = c && c.values && typeof c.values === 'object' ? JSON.parse(JSON.stringify(c.values)) : {}; });
+    return { clock: cl, vals: vals };
+}
+function restUndoOf(camp, snap, len) {   // what changed between the snapshot and now, by character and field
+    var chars = {}, has = Object.prototype.hasOwnProperty;
+    charIdsOf(camp).forEach(function(id) {
+        var b = snap.vals[id] || {}, c = camp.chars[id], a = c && c.values && typeof c.values === 'object' ? c.values : {}, d = {}, n = 0;
+        Object.keys(b).concat(Object.keys(a)).forEach(function(fid) { if (has.call(d, fid)) return; var bv = has.call(b, fid) ? b[fid] : undefined, av = has.call(a, fid) ? a[fid] : undefined; if (restJ(bv) === restJ(av)) return; var e = {}; if (bv !== undefined) e.b = bv; if (av !== undefined) e.a = JSON.parse(JSON.stringify(av)); d[fid] = e; n++; });
+        if (n) chars[id] = d;
+    });
+    return { len: len, clock: snap.clock, chars: chars };
+}
+function restUndoKeep(camp, snap, len) {
+    var on = restNow(camp); if (!on) return false;
+    camp.clock = cleanClock(Object.assign({}, clockOf(camp), { rest: Object.assign({}, on, { undo: restUndoOf(camp, snap, len) }) })) || camp.clock;
+    var nn = net(); if (nn) nn.applyingRemote = true; save(true); if (nn) nn.applyingRemote = false;   // the GM's own, never sent, outside your undo
+    return !!(restNow(camp) && restNow(camp).undo);
+}
+function restCutWhy(camp, on) {   // why this rest cannot be cut short, in words, or ''
+    if (!on || !on.undo) return 'This rest cannot be cut short: it was called before Waypoint kept what a rest gives, or what it gave was too much to keep.';
+    if (typeof on.from !== 'number' || typeof on.to !== 'number' || on.to - on.from !== on.undo.len) return 'You moved the clock on during this rest, so it cannot be cut short.';
+    return '';
+}
+function restCutSecs(sys) { return everySecs(sysCal(), sysUnits(sys), { n: restCut.n, u: restCut.u }); }
+function restCutBox(box, camp, on) {
+    var why = restCutWhy(camp, on); if (why) { box.appendChild(cel('div', 'sys-note cal-rest-cutwhy', why)); return; }
+    var row = cel('div', 'cal-rest-go'), l = cel('label', 'cal-tick'), c = cel('input', 'cal-rest-cut'); c.type = 'checkbox'; c.checked = !!restCut.on; c.title = 'The party rested less than the whole rest. Only that time counts, and what the start gave beyond it is taken back'; l.appendChild(c); l.appendChild(document.createTextNode(' The rest was cut short, after')); row.appendChild(l);
+    var ni = cel('input', 'field cal-restcut-n'); ni.type = 'number'; ni.min = '1'; ni.max = '1000'; ni.step = '1'; ni.value = String(restCut.n); ni.disabled = !restCut.on; ni.title = 'How long the party really rested'; row.appendChild(ni);
+    var us = cel('select', 'field cal-restcut-u'); us.title = 'Its unit'; restUnitOpts(sysNow()).forEach(function(o) { var op = cel('option', '', o[1]); op.value = o[0]; us.appendChild(op); }); us.value = restCut.u; us.disabled = !restCut.on; row.appendChild(us); box.appendChild(row);
+    if (!restCut.on) return;
+    var s = restCutSecs(sysNow()), len = on.undo.len;
+    box.appendChild(cel('div', 'sys-note cal-rest-cutline', !(s > 0) ? 'Set how long the party really rested.' : s >= len ? 'That is the whole rest or more, so it ends as a whole rest.' : 'Only what ' + fmtSpan(sysCal(), s) + ' reaches is given. What the start gave beyond it is taken back, the rest\u2019s own list and the effects it ended among them, and the clock goes back to ' + fmtWhen(sysCal(), on.from + s) + '.'));
+}
+function restEndEarly() {
+    var camp = getActiveCampaign(), on = restNow(camp); if (!camp || isPlayer() || !on) return false;
+    var why = restCutWhy(camp, on); if (why) { toast(why); return false; }
+    if (pend) { toast('Answer the time rules that wait first.'); return false; }
+    if (ordersRun()) { toast('End the fight to cut the rest short.'); return false; }
+    var s = restCutSecs(sysNow()); if (!(s > 0)) { toast('Set how long the party really rested.'); return false; }
+    if (s >= on.undo.len) { restCut = { on: false, n: 1, u: 'hour' }; return restEnd(); }
+    var tb = window.wpSheets && typeof window.wpSheets.restTakeBack === 'function' ? window.wpSheets.restTakeBack(on.undo.chars) : { back: 0, kept: [] };
+    var ck = clockOf(camp) || { t: on.to }, nc = Object.assign({}, ck, { t: on.from }); delete nc.rest; ['acc', 'top', 'lived'].forEach(function(k) { if (on.undo.clock && on.undo.clock[k] !== undefined) nc[k] = on.undo.clock[k]; else delete nc[k]; });
+    camp.clock = cleanClock(nc) || { t: on.from };
+    moveTo(on.from + s, 'Rest cut short \u2014 ' + on.name, false, false, { who: on.who || {} });   // the time really rested, as rest for who rested and activity for who was awake
+    var ck2 = clockOf(camp) || { t: on.from + s }, rec = restRecFor(on, ck2.t); rec.cut = true;
+    camp.clock = cleanClock(Object.assign({}, ck2, { rests: (ck2.rests || []).concat([rec]) })) || ck2;
+    var nn = net(); if (nn && nn.logEvent) nn.logEvent('time', 'Rest cut short \u2014 ' + on.name + ' \u2014 after ' + fmtSpan(sysCal(), s) + ', now ' + fmtWhen(sysCal(), ck2.t));
+    save(); if (nn && typeof nn.restLine === 'function') nn.restLine('The rest is over, cut short after ' + fmtSpan(sysCal(), s) + '.');
+    var goBack = restBackOn; restBackOn = true; restCut = { on: false, n: 1, u: 'hour' }; if (on.map && goBack) { try { restReturn(camp, on); } catch (e) { console.error(e); } }
+    if (tb.kept && tb.kept.length) toast('Changed during the rest, so what the start gave stays: ' + tb.kept.slice(0, 4).join('; ') + (tb.kept.length > 4 ? '; \u2026' : '') + '.');
+    refresh(); return true;
+}
+// [calendarcheck:restcut-end]
 // your own screen goes with the party (sidebar.js's navigateToMap, loaded on its first use)
 function restNav(id) { import('./sidebar.js').then(function(m) { if (m && typeof m.navigateToMap === 'function') m.navigateToMap(id); }).catch(function(e) { console.error(e); }); }
 // [calendarcheck:restrec-start]
@@ -872,7 +939,7 @@ function restDayList(body, cal, camp, day, gm) {
     mine.forEach(function(r) {
         var row = cel('div', 'cal-rr'); row.dataset.rr = r.id;
         var hd = cel('div', 'cal-rest-head'); hd.appendChild(cel('span', 'wib wi-bed')); hd.appendChild(document.createTextNode(r.name)); row.appendChild(hd);
-        row.appendChild(cel('div', 'sys-note', 'From ' + fmtWhen(cal, r.from) + ' to ' + fmtWhen(cal, r.to) + (r.how === 'skip' ? ', from a skip' + (r.n ? ', ' + r.n + ' times' : '') : '') + '.'));
+        row.appendChild(cel('div', 'sys-note', 'From ' + fmtWhen(cal, r.from) + ' to ' + fmtWhen(cal, r.to) + (r.how === 'skip' ? ', from a skip' + (r.n ? ', ' + r.n + ' times' : '') : '') + (r.cut ? ', cut short' : '') + '.'));
         if (gm) {
             var rn = restNames(camp, r.who, 'rest'), an = restNames(camp, r.who, 'awake');
             if (rn.length) row.appendChild(cel('div', 'sys-note', 'Rested: ' + rn.join(', ') + '.')); if (an.length) row.appendChild(cel('div', 'sys-note', 'Awake: ' + an.join(', ') + '.'));
@@ -1141,7 +1208,7 @@ function onWinClick(e) {
     if (act === 'restcall') { if (restOpen(String(b.dataset.rid || ''))) renderWin(); else { var rwW = restWait(camp); if (rwW) toast(rwW + '.'); } return; }   // backlog 138 (j) fold R2
     if (act === 'reststart') { restStart(); renderWin(); return; }
     if (act === 'restcancel') { restCall = null; renderWin(); return; }
-    if (act === 'restend') { restEnd(); renderWin(); return; }
+    if (act === 'restend') { if (restCut.on && typeof restEndEarly === 'function') restEndEarly(); else restEnd(); renderWin(); return; }   // the early end, where ticked
     if (act === 'calrrdel') { var rrD = String(b.dataset.rr || ''), rrR = restRecs(camp).filter(function(x) { return x.id === rrD; })[0]; if (!rrR) return; (typeof showConfirm === 'function' ? showConfirm : function(q, f) { f(true); })('Remove the record of ' + rrR.name + '? Its notes go with it.', function(yes) { if (yes) editRests(function(list) { var i = -1; list.forEach(function(x, k) { if (x.id === rrD) i = k; }); if (i < 0) return false; list.splice(i, 1); }); }); return; }   // fold R3
     if (act === 'calset' && restNow(camp)) { toast('End the rest first.'); return; }
     if (act === 'calpendapply') { pendDone(true); return; }
@@ -1175,6 +1242,9 @@ function onWinChange(e) {
     else if (restCall && tg.classList.contains('cal-restcall-map')) { if (restMapOf(getActiveCampaign(), String(tg.value))) restCall.map = String(tg.value); renderWin(); }
     else if (restCall && tg.classList.contains('cal-restcall-npc') && tg.dataset && typeof tg.dataset.tok === 'string') { if (tg.checked) restCall.npcs[tg.dataset.tok] = true; else delete restCall.npcs[tg.dataset.tok]; }
     else if (tg.classList.contains('cal-rest-back')) restBackOn = !!tg.checked;
+    else if (tg.classList.contains('cal-rest-cut')) { restCut.on = !!tg.checked; renderWin(); }   // the early end
+    else if (tg.classList.contains('cal-restcut-n')) { var rcN = Number(tg.value); if (Math.floor(rcN) === rcN && rcN >= 1 && rcN <= 1000) restCut.n = rcN; renderWin(); }
+    else if (tg.classList.contains('cal-restcut-u')) { restCut.u = String(tg.value); renderWin(); }
     else if (restCall && tg.classList.contains('cal-restcall-who') && tg.dataset && typeof tg.dataset.char === 'string' && Object.prototype.hasOwnProperty.call(restCall.who, tg.dataset.char)) restCall.who[tg.dataset.char] = tg.value === 'rest' || tg.value === 'awake' ? tg.value : 'none';
     else if (tg.classList.contains('cal-kind-sel')) { if (!isPlayer()) { var sysK = sysNow(), kv = String(tg.value || 'active'); if (kv !== 'active' && pickIsRest(sysK, kv) && ordersRun()) { restPickSet(sysK, 'active'); toast('A fight is running: time passes as Active until it ends.'); } else restPickSet(sysK, kv); renderWin(); } }   // backlog 138 (j) fold R1
     else if (tg.classList.contains('cal-show-sel')) { if (!isPlayer()) setShowCal(Number(tg.value)); }   // 1.6.2 (backlog 60)   // 1.5.4: the running clock's speed

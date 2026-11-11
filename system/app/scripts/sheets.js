@@ -13786,6 +13786,30 @@ function restDoes(ids, does, times, rest) {
     });
     return done;
 }
+// the early end (the owner's round three, "Recount and take back"): what the start of a rest gave, taken back, character by character. A value that still
+// stands as the start left it goes back to what it was; a number (a pool's current among them) moved since loses only the start's own move; anything else
+// changed since stays as it is and is named. Written as it was kept, an effects list among them, in one change a character with one Revert
+function restTakeBack(diffs) {
+    var camp = getActiveCampaign(), sys = camp && camp.system, out = { back: 0, kept: [] }, has = Object.prototype.hasOwnProperty; if (!sys || !diffs || typeof diffs !== 'object') return out;
+    var J = function(v) { return v === undefined ? '\u0000' : JSON.stringify(v); }, num = function(v) { return typeof v === 'number' && isFinite(v) ? v : v && typeof v === 'object' && !Array.isArray(v) && typeof v.cur === 'number' && isFinite(v.cur) ? v.cur : null; };
+    var fname = function(fid) { var f = (sys.fields || []).filter(function(x) { return x && x.id === fid; })[0]; return f && typeof (f.label || f.key) === 'string' && String(f.label || f.key).trim() ? String(f.label || f.key).trim() : 'a field'; };
+    Object.keys(diffs).forEach(function(cid) {
+        var c = charById(cid, camp), df = diffs[cid]; if (!c || !df || typeof df !== 'object') return;
+        var vals = Object.assign({}, c.values || {}), d = {}, prev = {}, keptF = [];
+        Object.keys(df).forEach(function(fid) {
+            var e = df[fid]; if (!e || typeof e !== 'object' || !(sys.fields || []).some(function(x) { return x && x.id === fid; })) return;
+            var b = has.call(e, 'b') ? e.b : undefined, a = has.call(e, 'a') ? e.a : undefined, cur = has.call(vals, fid) ? vals[fid] : undefined, nv;
+            if (J(cur) === J(a)) nv = b;
+            else { var nb = num(b), na = num(a), ncu = num(cur); if (nb === null || na === null || ncu === null) { keptF.push(fname(fid)); return; } nv = cur && typeof cur === 'object' ? Object.assign({}, cur, { cur: ncu - (na - nb) }) : ncu - (na - nb); }
+            prev[fid] = cur === undefined ? undefined : clone(cur); if (nv === undefined) delete vals[fid]; else vals[fid] = clone(nv); d[fid] = nv === undefined ? null : nv;
+        });
+        if (keptF.length) out.kept.push((typeof c.name === 'string' && c.name ? c.name : 'A character') + ', ' + keptF.join(', '));
+        var ks = Object.keys(d); if (!ks.length) return;
+        var ex = null; ks.slice(1).forEach(function(k) { (ex = ex || {})[k] = prev[k]; }); lastChange = { charId: c.id, fieldId: ks[0], prev: prev[ks[0]], extra: ex };
+        c.values = vals; afterCharChange(c, false, d); out.back++;
+    });
+    return out;
+}
 // [systemcheck:restsbox-end]
 // Senses S2a: the system's senses on the Combat tab (docs/SENSES_PLAN.md 4.3) — each a name, where its range comes from (a field of the
 // character, or a number every character has), what it counts in (never a silent yards: a new row takes the system's first light's unit,
@@ -15678,7 +15702,7 @@ function dmgPartPre(mk) { if (!dmgObj(mk) || typeof mk.amt !== 'number' || !isFi
 function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient() && canWrite(); }   // the cards' Apply to target: the GM's own machine
 // [systemcheck:dmgwin-end]
 function nameWordNow(n) { var c = getActiveCampaign(), s = c ? systemOf(c) : null; return nameWord(s, n); }   // 1.6.2: a name in words, for a card
-window.wpSheets = { bellNote: bellNote, restDoes: restDoes, charCatSet: charCatSet, charCatNow: charCatNow, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, linkValuesWrite: linkValuesWrite, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, fxEndSeed: function() { return fxEndSeed(getActiveCampaign()); }, fxRanOut: fxRanOut, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+window.wpSheets = { bellNote: bellNote, restDoes: restDoes, restTakeBack: restTakeBack, charCatSet: charCatSet, charCatNow: charCatNow, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, linkValuesWrite: linkValuesWrite, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, fxEndSeed: function() { return fxEndSeed(getActiveCampaign()); }, fxRanOut: fxRanOut, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame, openChars: openChars, closeChars: closeChars,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,

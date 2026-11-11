@@ -23365,6 +23365,18 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             ran === 1 && ranNo === 0 && J(calls) === J([['after', 'c1', J({ f_fx: [{ id: 'x_r2', ref: 'e_rage', on: true }] })]]) && J(campE.chars.c1.values.f_fx) === J([{ id: 'x_r2', ref: 'e_rage', on: true }]) && lc.fieldId === 'f_fx' && lc.prev.length === 3
             && w1 === 'It ends Bless, Tired, and any effect made on the spot whose Duration names Long rest.' && w2 === 'No effect’s Duration names Short rest yet. Write Until Short rest there, on the Effects tab.', J([ran, ranNo, calls, w1, w2]));
     }
+    {   // 1.6.2 (backlog 138 (j), the owner's round three: "Recount and take back"): what the start of a rest gave, taken back
+        const J = JSON.stringify, shR = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), ra = shR.indexOf('// [systemcheck:restsbox-start]'), rb = shR.indexOf('// [systemcheck:restsbox-end]');
+        const sys = { fields: [{ id: 'f_hp', key: 'HP', label: 'Hit points', kind: 'resource' }, { id: 'f_fx', key: 'Fx', kind: 'effects' }, { id: 'f_note', key: 'Note', label: 'Notes', kind: 'text' }, { id: 'f_n', key: 'N', kind: 'number' }, { id: 'f_ep', key: 'EP', kind: 'resource' }] };
+        const campT = { system: sys, chars: { c1: { id: 'c1', name: 'Ava', values: { f_hp: { cur: 7 }, f_fx: [{ id: 'x_2' }], f_note: 'changed', f_n: 4 } }, c2: { id: 'c2', name: 'Bo', values: { f_ep: 5 } } } };
+        const after = [];
+        const box = new Function('cleanCalendar', 'everySecs', 'fmtSpan', 'REST_MAX', 'getActiveCampaign', 'charById', 'commitMany', 'applyAction', 'F', 'window', 'clone', 'afterCharChange', 'lastChange', shR.slice(ra, rb) + '\nreturn { restTakeBack, last: () => lastChange };')(null, () => 0, () => '', 8, () => campT, (id, c) => c.chars[id] || null,
+            () => { throw new Error('no commitMany here'); }, () => {}, () => null, {}, (v) => JSON.parse(J(v)), (c, a, d) => after.push([c.id, J(d)]), null);
+        const out = box.restTakeBack({ c1: { f_hp: { b: { cur: 2 }, a: { cur: 10 } }, f_fx: { b: [{ id: 'x_1' }, { id: 'x_2' }], a: [{ id: 'x_2' }] }, f_note: { b: 'before', a: 'start' }, f_n: { a: 4 }, f_gone: { b: 1 } }, c2: { f_ep: { a: 5 } }, c9: { f_hp: { b: 1 } } });
+        check('the early end (sheets.js restTakeBack, run for real): a value that stands as the start left it goes back to what it was, an effects list among them, or to none; a number moved since loses only the start own move; anything else changed since stays and is named; a field the system no longer has, or a character that is gone, is passed over; one change a character with one Revert',
+            out.back === 2 && J(out.kept) === J(['Ava, Notes']) && J(campT.chars.c1.values) === J({ f_hp: { cur: -1 }, f_fx: [{ id: 'x_1' }, { id: 'x_2' }], f_note: 'changed' }) && J(campT.chars.c2.values) === J({})
+            && J(after) === J([['c1', J({ f_hp: { cur: -1 }, f_fx: [{ id: 'x_1' }, { id: 'x_2' }], f_n: null })], ['c2', J({ f_ep: null })]]) && box.last().fieldId === 'f_ep', J([out, campT.chars, after]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

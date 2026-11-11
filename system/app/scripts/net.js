@@ -2323,6 +2323,7 @@ net.sendItem = function(campId, itemId, onlyConn, exceptConn, at) {   // fold M1
     var ak = typeof withAck === 'function' ? withAck : function(m) { return m; };   // 14c: how far each connection's copy goes (a harness without it sends as before)
     if (it.type === 'map' && typeof tokBarsSoon === 'function') tokBarsSoon();   // backlog 28: a token's own bars changed with the map
     if (typeof hidNote === 'function') hidNote(it);   // hidden pieces: a player's drawing the GM hid, noted for each of their connections before the copy without it goes
+    if (it.type === 'map' && typeof assetHideSoon === 'function') assetHideSoon();   // security: a picture only a piece no longer sent carries is forgotten once the map has gone out
     // fog of war (1.5.0 FV2): a fogged map is sent per recipient — the heavy map is cloned once (sanitizeItem), then a
     // cheap shallow copy drops each player's unseen creatures. No shared delta while fog is on (baselines differ per peer).
     if (mapFogged(it)) {
@@ -2359,6 +2360,7 @@ net.broadcastItemFiltered = function(campId, itemId) {
     if (it.type === 'map' && typeof tokBarsSoon === 'function') tokBarsSoon();   // backlog 28: as sendItem
     if (typeof window !== 'undefined' && window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(itemId);   // Senses S0: a map sent this way was changed as a remote change (a traveller arrived or left, a waiting token placed, a light switched): who sees what on it is judged afresh
     if (typeof hidNote === 'function') hidNote(it);   // hidden pieces: as sendItem
+    if (it.type === 'map' && typeof assetHideSoon === 'function') assetHideSoon();   // security: as sendItem
     if (it.type === 'map' && typeof mapStubSend === 'function' && typeof mapHeld === 'function') mapStubSend(mapStubMsg(campId, itemId, it));   // possession: a connection holding this map's stub (a lock changed, say) gets the stub afresh — its name and its lock, nothing of what is on it (never one arriving on it now: the whole map follows)
     if (!mapFogged(it)) { var clean = sanitizeItem(it); if (!clean) return; if (typeof fogForgetMap === 'function') fogForgetMap(itemId); var bm = { type: 'item', campId: campId, itemId: itemId, item: clean }; if (typeof ackSend === 'function') ackSend(bm, it.type === 'map' && typeof mapHeld === 'function' ? itemId : null); else broadcast(bm, null); _lastSent[itemId] = JSON.parse(JSON.stringify(clean)); return; }   // possession: a map to the connections holding it whole, a page to every admitted one   // the table now holds this: the next delta is worked out from it (a light switched off here and on again by the GM was the same as the older baseline, and never went out)
     delete _lastSent[itemId];   // a fogged map has no shared baseline (as sendItem)
@@ -10930,20 +10932,23 @@ var assetWaiters = Object.create(null);  // path -> { promise, resolve, reject, 
 // file, a Journal, a name guessed or worked out) is answered as a file that is not there, and never read. An asset answer is left out: it
 // names the path the player asked for, the player's own word. Text a player wrote (a chat line, a name, a sheet value) never lands under
 // these keys — the patch gate takes geometry and strokes, a share travels as bytes, a sheet file's portrait is dropped — so nothing a player
-// says can make a path askable. Forgotten with the connection and at a new table.
+// says can make a path askable. Forgotten with the connection and at a new table, and a path only a piece no longer sent carries once its map has gone out (assetHideSweep, below).
 var assetRefs = Object.create(null);   // host: peer -> the paths that connection was sent (decoded canonical form -> 1)
 var ASSET_KEYS = Object.create(null); ASSET_KEYS.src = ASSET_KEYS.image = ASSET_KEYS.portrait = ASSET_KEYS.bgImage = ASSET_KEYS.path = ASSET_KEYS.texSrc = 1;   // a board item's or a page block's src, a room's image, a character's portrait, a page's or sheet's bgImage, a sound's or song's path, a piece's picture fill
 function assetKeyOf(raw) { var p = assetPathOk(raw); if (!p) return ''; try { return decodeURIComponent(p); } catch (e) { return p; } }   // the form a request is compared in: the canonical path, decoded — the same file however it was spelt
 function htmlAttr(s) { return s.replace(/&(?:(amp|quot|apos|lt|gt|nbsp)|#(\d{1,7})|#[xX]([0-9a-fA-F]{1,6}));/g, function(m, n, d, h) { if (n) return { amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', nbsp: '\u00a0' }[n]; var c = parseInt(d || h, d ? 10 : 16); return c > 0 && c <= 0x10ffff ? String.fromCodePoint(c) : m; }); }   // an attribute's value as the browser reads it: the entities the text tool's serialisation writes (&, ", a no-break space) and the named or numeric ones pasted markup may carry
-function assetNote(peer, msg) {
-    if (!msg || typeof msg !== 'object' || msg.type === 'asset' || msg.type === 'asset-part') return;
-    var set = assetRefs[peer] || (assetRefs[peer] = Object.create(null)), put = function(raw) { var k = assetKeyOf(raw); if (k) set[k] = 1; };
+function assetWalk(msg, put) {   // every path under a key a player's app reads a picture or sound from, as written
     (function walk(v, d) {
         if (d > 40 || v === null || typeof v !== 'object' || ArrayBuffer.isView(v) || v instanceof ArrayBuffer) return;
         if (Array.isArray(v)) { for (var i = 0; i < v.length; i++) walk(v[i], d + 1); return; }
         if (v.type === 'text' && typeof v.id === 'string' && typeof v.text === 'string') { var re = /\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)')/g, m; while ((m = re.exec(v.text)) !== null) put(htmlAttr(m[1] !== undefined ? m[1] : m[2])); }   // a text item's pictures, as a player's app reads them off its img tags (whiteboard.js fixEmbeddedImgs), however the markup quotes or encodes them
         var ks = Object.keys(v); for (var k = 0; k < ks.length; k++) { var x = v[ks[k]]; if (typeof x === 'string') { if (ASSET_KEYS[ks[k]] === 1) put(x); } else walk(x, d + 1); }
     })(msg, 0);
+}
+function assetNote(peer, msg) {
+    if (!msg || typeof msg !== 'object' || msg.type === 'asset' || msg.type === 'asset-part') return;
+    var set = assetRefs[peer] || (assetRefs[peer] = Object.create(null));
+    assetWalk(msg, function(raw) { var k = assetKeyOf(raw); if (k) set[k] = 1; });
 }
 function assetNoteSends(conn) { var send = conn.send; conn.send = function() { try { assetNote(conn.peer, arguments[0]); } catch (e) {} return send.apply(conn, arguments); }; }   // host: the one funnel every message to that connection passes
 function assetSent(peer, dec) { var set = assetRefs[peer]; return !!set && set[dec] === 1; }
@@ -11061,6 +11066,47 @@ function handleAssetRequest(msg, conn) {
     }).catch(function() { answerAsset(conn, msg.path, 'missing'); });
 }
 // [netcheck:assetreq-end]
+// [netcheck:assethide-start]
+// Security (1.6.2, the leftover of backlog 24, listed open in docs/SECURITY_PROGRAMME.md): the record above was never taken back, so a picture sent
+// while its piece was shown could still be pulled after the GM hid the piece. Once a map has gone out (net.sendItem and net.broadcastItemFiltered
+// ask assetHideSoon, so what is shown again has been noted again first), the host forgets, for every connection, each path that only a piece it no
+// longer sends still carries: a hidden piece, a GM note card, and a secret door's own picture (wireWbItem is the one judge of what a piece sends).
+// A path anything a player may hold still carries is kept: a piece that is sent, the rest of a map, a page, a player's character, and what else the
+// campaign holds but for what is the GM's alone (a planner, an NPC's sheet, the map objects, the encounter groups). The record is only ever made
+// smaller here, and only for such a path, so no picture a player may still be shown is refused
+var _assetHideT = null, ASSET_GM_KEYS = { items: 1, chars: 1, objects: 1, groups: 1, soundOn: 1, players: 1, uploads: 1, imageCats: 1, buildPins: 1 };
+function assetHidePlan(camp) {
+    var known = Object.create(null), any = false, out = [];
+    Object.keys(assetRefs).forEach(function(p) { var s = assetRefs[p]; for (var k in s) { known[k] = 1; any = true; } });
+    if (!any || !camp || typeof camp !== 'object' || !camp.items || typeof camp.items !== 'object') return out;
+    var items = Object.keys(camp.items).map(function(k) { return camp.items[k]; }).filter(function(it) { return it && typeof it === 'object'; });
+    var cand = Object.create(null), nc = 0;   // what a piece that may not be sent carries, of what some connection was sent
+    items.forEach(function(m) { if (m.type === 'planner' || !Array.isArray(m.whiteboard)) return; m.whiteboard.forEach(function(w) { if (!w || typeof w !== 'object' || !(w.hidden || w.gmNoteFor || w.secret)) return; assetWalk(w, function(raw) { var k = assetKeyOf(raw); if (k && known[k] === 1 && cand[k] !== 1) { cand[k] = 1; nc++; } }); }); });
+    if (!nc) return out;
+    var shown = Object.create(null), put = function(raw) { var k = assetKeyOf(raw); if (k && cand[k] === 1) shown[k] = 1; };
+    items.forEach(function(m) {
+        if (m.type === 'planner') return;   // a planner never leaves this machine
+        if (Array.isArray(m.whiteboard)) m.whiteboard.forEach(function(w) { if (!w || typeof w !== 'object') return; var wire; try { wire = wireWbItem(w, false); } catch (e) { wire = w; } if (wire) assetWalk(wire, put); });   // a piece that cannot be judged counts as sent
+        var rest = Object.assign({}, m); delete rest.whiteboard; assetWalk(rest, put);
+    });
+    if (camp.chars && typeof camp.chars === 'object') Object.keys(camp.chars).forEach(function(id) { var c = camp.chars[id]; if (c && typeof c === 'object' && c.npc !== true && typeof c.ownerId === 'string' && c.ownerId) assetWalk(c, put); });   // an NPC's sheet is never sent
+    var restC = {}; Object.keys(camp).forEach(function(k) { if (ASSET_GM_KEYS[k] !== 1) restC[k] = camp[k]; });
+    if (restC.system && typeof restC.system === 'object') { restC.system = Object.assign({}, restC.system); delete restC.system.objects; }
+    assetWalk(restC, put);
+    Object.keys(cand).forEach(function(k) { if (shown[k] !== 1) out.push(k); });
+    return out;
+}
+function assetHideSweep() {
+    if (!(net.active && net.role === 'host')) return 0;
+    var camp = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, gone = assetHidePlan(camp); if (!gone.length) return 0;
+    Object.keys(assetRefs).forEach(function(p) { var s = assetRefs[p]; gone.forEach(function(k) { delete s[k]; }); });
+    return gone.length;
+}
+function assetHideSoon() {
+    if (_assetHideT || !(net.active && net.role === 'host')) return;
+    _assetHideT = setTimeout(function() { _assetHideT = null; try { assetHideSweep(); } catch (e) { console.error(e); } }, 400);
+}
+// [netcheck:assethide-end]
 
 // A sound file from the host, for sound.js: one request, answered in parts (or with an error) and reassembled here.
 // sound.js serialises its requests; the host allows one in flight per peer anyway. Rejects: offline, bad path, too-big, busy, missing, timeout, left.

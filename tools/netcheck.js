@@ -13499,6 +13499,40 @@ pendingChecks.push((async () => {
     check('asset gate (assetreq): wired — the host wraps each accepted connection\'s send before it is listened to, forgets the record with the connection and at a new table, and asset-req is a host-only branch',
         /_connMeta\[conn\.peer\] = \{ openedAt: Date\.now\(\), hellos: 0 \};\s*assetNoteSends\(conn\);[^\n]*\n\s*wireConn\(conn\);/.test(src) && /delete assetInflight\[conn\.peer\]; delete assetRefs\[conn\.peer\];/.test(src)
         && /assetInflight = \{\}; assetRefs = Object\.create\(null\);/.test(src) && /msg\.type === 'asset-req' && net\.role === 'host'/.test(src));
+    {   // 1.6.2 security (the leftover of backlog 24): the asset gate forgets a picture that only a piece no longer sent carries
+        const J = JSON.stringify, FCa = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fogcore.js')).split(String.fromCharCode(92)).join('/'));
+        const P = n => '/saves/images/m1/' + n + '.png', timers = [], fetched = [];
+        const net = { active: true, role: 'host', conns: [], stream: false }; let camp = null;
+        const fetchS = u => { fetched.push(String(u)); return Promise.resolve({ ok: true, headers: { get: h => h === 'content-length' ? '5' : null }, body: { cancel() {} }, arrayBuffer: () => Promise.resolve(new Uint8Array(5).buffer) }); };
+        const mk = () => new Function('net', 'location', 'sendFailed', 'allow', 'fetch', 'setTimeout', 'getActiveCampaign', 'window', 'console',
+            between('// [netcheck:assetreq-start]', '// [netcheck:assetreq-end]', 'assetreq') + '\n' + between('// [netcheck:assethide-start]', '// [netcheck:assethide-end]', 'assethide') + '\n' + siSrc()
+            + '\nreturn { assetNoteSends, handleAssetRequest, assetHidePlan, assetHideSweep, assetHideSoon, refs: function(p) { return Object.keys(assetRefs[p] || {}).sort(); } };')(net, { origin: 'http://localhost:3999' }, e => { throw e; }, () => true, fetchS, (fn, ms) => { timers.push([fn, ms]); return timers.length; }, () => camp, { wpFogCore: FCa }, console);
+        let touched = 0; const idle = mk(), none = idle.assetHidePlan({ get items() { touched++; return {}; } });
+        const api = mk(), conn = peer => { const c = { peer, open: true, sent: [], send: m => { c.sent.push(m); } }; api.assetNoteSends(c); return c; };
+        const tok = (id, src) => ({ id, type: 'image', isChar: true, x: 0, y: 0, w: 60, h: 52, src });
+        const door = { id: 'd1', type: 'rect', x: 100, y: 0, w: 50, h: 50, blocksSight: true, sightType: 'door', color: '#553311', texSrc: P('door') };
+        const wb = [tok('tA', P('shown')), tok('tH', P('hid')), tok('g1', P('gob')), tok('g2', P('gob')), tok('tK', P('plan')), tok('tN', P('npc')), tok('tP', P('pc')), tok('tPg', P('page')), tok('tGr', P('grp')), door, { id: 'n1', type: 'text', gmNoteFor: 'tA', src: P('note') }];
+        camp = { id: 'c1', items: { m1: { id: 'm1', type: 'map', meta: {}, whiteboard: wb, rooms: [] }, pl: { id: 'pl', type: 'planner', blocks: [{ type: 'image', src: P('plan') }] }, pg: { id: 'pg', type: 'page', blocks: [{ type: 'image', src: P('page') }] } },
+            chars: { c_npc: { id: 'c_npc', npc: true, portrait: P('npc') }, c_pc: { id: 'c_pc', ownerId: 'u_ava', portrait: P('pc') } }, groups: [{ pieces: [{ src: P('grp') }] }], system: { objects: [{ src: P('grp') }] } };
+        const A = conn('pA'), B = conn('pB'), all = { type: 'item', campId: 'c1', itemId: 'm1', item: { type: 'map', whiteboard: wb.filter(w => !w.gmNoteFor).map(w => JSON.parse(J(w))) } };
+        A.send(all); B.send(all); A.send({ type: 'chars', chars: { c_pc: { id: 'c_pc', portrait: P('pc') } } }); A.send({ type: 'item', item: { type: 'page', blocks: [{ type: 'image', src: P('page') }] } });
+        const before = api.refs('pA'), plan0 = api.assetHidePlan(camp);
+        ['tH', 'g1', 'tK', 'tN', 'tP', 'tPg', 'tGr'].forEach(id => { wb.find(w => w.id === id).hidden = true; }); door.secret = true;
+        const plan = api.assetHidePlan(camp).sort(), held = api.refs('pA').length;
+        api.assetHideSoon(); api.assetHideSoon(); const armed = timers.length, wait = timers[0] && timers[0][1]; timers[0][0](); api.assetHideSoon(); const armedAgain = timers.length;
+        const afterA = api.refs('pA'), afterB = api.refs('pB');
+        const ask = async (c, pth) => { const n = c.sent.length, f0 = fetched.length; api.handleAssetRequest({ type: 'asset-req', path: pth }, c); await new Promise(r => setTimeout(r, 40)); return c.sent.slice(n).map(m => m.type === 'asset' ? (m.error ? 'refused:' + m.error : 'asset') : m.type).join() + '|' + (fetched.length - f0); };
+        const askHid = await ask(A, P('hid')), askGob = await ask(A, P('gob')), askDoor = await ask(B, P('door'));
+        wb.find(w => w.id === 'tH').hidden = false; A.send({ type: 'item', campId: 'c1', itemId: 'm1', item: { type: 'map', whiteboard: [JSON.parse(J(wb.find(w => w.id === 'tH')))] } }); const swept2 = api.assetHideSweep(), askShown = await ask(A, P('hid'));
+        net.role = 'client'; const cliSweep = api.assetHideSweep(); const tN0 = timers.length; api.assetHideSoon(); const cliArm = timers.length - tN0; net.role = 'host';
+        const gone = [P('door'), P('grp'), P('hid'), P('npc'), P('plan')];
+        check('security (1.6.2, the leftover of backlog 24): the asset gate forgets a picture that only a piece no longer sent carries. While every piece is shown nothing is forgotten; once pieces are hidden and a door made secret, the paths only they carry go from every connection (a hidden token, a secret door\'s own picture, and a hidden token whose picture is otherwise only in a planner, an NPC\'s sheet or the GM\'s groups and map objects), while a path a shown piece, a page or a player\'s character still carries is kept; a forgotten picture is answered as not there with nothing fetched, a kept one is served, and one shown again is served again; one timer of 400 ms a batch of maps; nothing is walked while no connection was sent anything; a player\'s app sweeps nothing',
+            J(none) === '[]' && touched === 0 && before.length === 9 && J(plan0) === '[]' && held === 9 && J(plan) === J(gone) && armed === 1 && wait === 400 && armedAgain === 2
+            && J(afterA) === J([P('gob'), P('page'), P('pc'), P('shown')]) && J(afterB) === J([P('gob'), P('page'), P('pc'), P('shown')])
+            && askHid === 'refused:missing|0' && askGob === 'asset|1' && askDoor === 'refused:missing|0' && swept2 === 0 && askShown === 'asset|1' && cliSweep === 0 && cliArm === 0, J([none, touched, before, plan0, plan, armed, wait, afterA, afterB, askHid, askGob, askDoor, swept2, askShown, cliSweep, cliArm]));
+        check('security (1.6.2), the wiring: both funnels a map goes out by ask the sweep after the hidden drawings are noted, each through typeof',
+            src.includes("    if (it.type === 'map' && typeof assetHideSoon === 'function') assetHideSoon();   // security: a picture only a piece no longer sent carries is forgotten once the map has gone out") && src.includes("    if (it.type === 'map' && typeof assetHideSoon === 'function') assetHideSoon();   // security: as sendItem"), '');
+    }
 })());
 // per-player map possession (security, the owner's ruling of 2026-10-01): a player's app holds only the maps they have reached. Run for real in the
 // one-module world (the real sanitizeAppState, sendItem, broadcastItemFiltered, itemGone, pushItems, summonPlayerToMap, stageConn, hostTravel, the

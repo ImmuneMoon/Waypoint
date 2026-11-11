@@ -1339,7 +1339,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const HOSTILE = '<img src=x onerror=alert(1)><script>evil()</script><a href="javascript:x">link</a><svg onload=y>';
             const got = PK({ blocks: [{ type: 'text', content: HOSTILE }, { type: 'h2', title: HOSTILE }, { type: 'raw', content: HOSTILE }] }, '', []);
             check('a pin\'s hover preview (pageshelf.js peekLines, run for real): no tag of a page\'s markup survives into its lines, and the lines reach the page only through the mark\'s dataset.tip, which the app\'s tooltip writes with textContent; the module and the mark draw no markup',
-                got.every(l => !/[<>]/.test(l)) && got.length === 2 && !/innerHTML|insertAdjacentHTML|outerHTML/.test(pk) && /b\.dataset\.tip = pagePinTip\(b\.dataset\.name, b\.dataset\.sec \|\| '', typeof peek === 'string' \? peek : ''\);/.test(wbL)
+                got.every(l => !/[<>]/.test(l)) && got.length === 2 && !/innerHTML|insertAdjacentHTML|outerHTML/.test(pk) && /b\.dataset\.tip = pagePinTip\(b\.dataset\.name, b\.dataset\.sec \|\| '', typeof peek === 'string' \? peek : '', b\.dataset\.card === '1'\);/.test(wbL)
                 && /t\.textContent = text;/.test(tipSrc) && !/innerHTML/.test(tipSrc), JSON.stringify(got));
         }
         // the Combat tab's Light box (sheets.js lightBox), run for real on a page that records every node and any use of innerHTML

@@ -63,9 +63,17 @@ function akaFrom(s) { return typeof s === 'string' ? s.split(/[,;]/) : []; }
 // The names as the box shows them
 function akaText(v) { var a = cleanAka(v); return a ? a.join(', ') : ''; }
 // Every name a card goes by, its title first
+// A title as the words the page shows for it: its typed tags left out (a < opens a tag only before a letter, a /, a ! or a ?, so "DC < 15"
+// keeps its words) and the few entities a title may hold read as their characters, each once
+var TITLE_ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", '#39': "'", nbsp: ' ', '#160': ' ' };
+function titleWords(s) {
+    if (typeof s !== 'string') return '';
+    var t = s.indexOf('<') < 0 ? s : s.replace(/<\/?[a-zA-Z!?][^<>]*>/g, '');
+    return t.indexOf('&') < 0 ? t : t.replace(/&(amp|lt|gt|quot|apos|#39|nbsp|#160);/gi, function(all, k) { return TITLE_ENT[k.toLowerCase()]; });
+}
 function cardNames(b) {
     if (!b || typeof b !== 'object') return [];
-    var out = [], t = cleanName(typeof b.title === 'string' ? b.title.replace(/<[^>]*>/g, '') : '');
+    var out = [], t = cleanName(titleWords(b.title));
     if (t) out.push(t);
     (cleanAka(b.aka) || []).forEach(function(n) { if (out.every(function(o) { return o.toLowerCase() !== n.toLowerCase(); })) out.push(n); });
     return out;

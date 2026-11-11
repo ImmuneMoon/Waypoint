@@ -651,6 +651,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                       var ttName = document.createElement('div'); ttName.className = 'rn'; ttName.textContent = cname; if (window.wpPlook) window.wpPlook.dress(ttName, window.wpPlook.ofTok(wItem)); ttRoot.appendChild(ttName);
                       var ttStats = document.createElement('div'); ttStats.className = 'rc'; ttStats.style.cssText = 'color:var(--ink); font-size:11px; white-space:pre-wrap; text-transform:none; letter-spacing:0;'; ttStats.textContent = cstats.length > 400 ? cstats.slice(0, 400) + '…' : cstats; ttRoot.appendChild(ttStats);   // prose, not a label: no uppercase; capped for the hover peek (full text lives in the roster / Properties)
                       if (!isClientC && wItem.gmInfo) { var gmTxt = String(wItem.gmInfo); var ttGm = document.createElement('div'); ttGm.className = 'rc'; ttGm.style.cssText = 'color:var(--gold); font-size:11px; white-space:pre-wrap; margin-top:4px; border-top:1px solid var(--edge); padding-top:3px; text-transform:none; letter-spacing:0;'; ttGm.textContent = gmTxt.length > 300 ? gmTxt.slice(0, 300) + '…' : gmTxt; ttRoot.appendChild(ttGm); }   // per-token GM note / dialogue (GM only; stripped on the wire), capped
+                      var cardLn = !isClientC && typeof pageCardLine === 'function' ? pageCardLine(wItem) : ''; if (cardLn) { var ttCard = document.createElement('div'); ttCard.className = 'rc tt-card'; ttCard.style.cssText = 'color:var(--gold); font-size:11px; white-space:pre-wrap; margin-top:4px; text-transform:none; letter-spacing:0;'; ttCard.textContent = cardLn; ttRoot.appendChild(ttCard); }   // 1.6.2: the person card that names its sheet (GM only, worked out on this screen, never sent)
                       var sheetLines = window.wpSheets ? window.wpSheets.hoverLinesForToken(wItem) : [];
                       if (sheetLines.length) { var ttSheet = document.createElement('div'); ttSheet.className = 'rc'; ttSheet.style.cssText = 'color:var(--ink); font-size:11px;'; ttSheet.textContent = sheetLines.join(' · '); ttRoot.appendChild(ttSheet); }
                       if (stanceBits.length) { var ttStance = document.createElement('div'); ttStance.className = 'rc'; ttStance.style.cssText = 'color:var(--gold); font-size:11px;'; ttStance.textContent = stanceBits.join(' · '); ttRoot.appendChild(ttStance); }
@@ -3597,7 +3598,7 @@ window.wpFitToGrid = fitToGrid;
       if (!state.selWbId && !(state.selWbIds && state.selWbIds.length)) return;
       var t = e.target;
       if (!t || !t.closest) return;
-      if (t.closest('#whiteboardWrap, #sidebar, #selToolbar, #contextMenu, .floating-toolbar, .shape-menu, .dropdown, .menu-item, [id$="Modal"], #sheetPanel, .hud-panel, #soundPanel, #dicePanel, #cmdkModal, #combatStrip, #docPanel, #prepCol, #musicPanel, #videoPanel, #fxPanel, #notepadPanel, #chatPanel, input, select, textarea, [contenteditable="true"]')) return;   // 1.5.6 (the sweep of 2026-10-17, seen live): every floating box keeps the selection, as the sheet and Sound do
+      if (t.closest('#whiteboardWrap, #sidebar, #selToolbar, #contextMenu, .floating-toolbar, .shape-menu, .dropdown, .menu-item, [id$="Modal"], #sheetPanel, .hud-panel, #soundPanel, #dicePanel, #cmdkModal, #combatStrip, #docPanel, #prepCol, #musicPanel, #videoPanel, #fxPanel, #notepadPanel, #chatPanel, #prepMakeMenu, #namedInMenu, input, select, textarea, [contenteditable="true"]')) return;   // 1.5.6 (the sweep of 2026-10-17, seen live): every floating box keeps the selection, as the sheet and Sound do
       state.selWbId = null; state.selWbIds = [];
       if (window.appRender) window.appRender();
   }, true);
@@ -3968,24 +3969,42 @@ window.wpFitToGrid = fitToGrid;
   function pagePinLand(at) { return typeof at === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(at) ? { at: at } : null; }
   // A pin's tooltip: the page, the part it names, the first lines of the page where they were read (1.6.0) and what a press does. Plain
   // text, read by the app's tooltip as text (tooltips.js writes textContent; its box keeps the line breaks)
-  function pagePinTip(name, sec, peek) { return 'Opens ' + name + (sec ? ' at ' + sec : '') + '.' + (typeof peek === 'string' && peek ? '\n\n' + peek + '\n\n' : ' ') + 'A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.'; }
+  function pagePinTip(name, sec, peek, card) {
+      if (card === true) return (sec ? 'Its card: ' + sec + ', in ' + name : 'Its card is in ' + name) + '.' + (typeof peek === 'string' && peek ? '\n\n' + peek + '\n\n' : ' ') + 'A click opens the card in Prep where it is listed, else over the map. Ctrl+click opens a new window. Alt+click opens the page itself.';   // 1.6.2: a token whose sheet a person card names
+      return 'Opens ' + name + (sec ? ' at ' + sec : '') + '.' + (typeof peek === 'string' && peek ? '\n\n' + peek + '\n\n' : ' ') + 'A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.';
+  }
+  // 1.6.2 (backlog 107 (a), step 5): what the hover card of a token says of the person card that names its sheet, in the GM's part: what they
+  // want, and how many answers the card holds. Plain text for a text node
+  function pageCardLine(item) {
+      var PS = window.wpPageShelf, sc = PS && typeof PS.sheetCard === 'function' ? PS.sheetCard(item) : null; if (!sc) return '';
+      var n = typeof sc.says === 'number' && sc.says > 0 ? Math.round(sc.says) : 0;
+      return [sc.wants ? 'Wants: ' + sc.wants : '', 'Card: ' + (n ? n + (n === 1 ? ' answer' : ' answers') : 'no answers yet') + ', in ' + sc.pl].filter(Boolean).join(String.fromCharCode(10));
+  }
   // The mark: a small button at the piece's corner. A press on it is no press on the piece: nothing is selected or dragged, and the page opens by the one rule
   function pagePinMark() {
       var b = document.createElement('button'); b.type = 'button'; b.className = 'wb-pin';
       ['pointerdown', 'mousedown', 'dblclick'].forEach(function(ev) { b.addEventListener(ev, function(e) { e.stopPropagation(); }); });
-      b.addEventListener('click', function(e) { e.stopPropagation(); e.preventDefault(); var PS = window.wpPageShelf, land = pagePinLand(b.dataset.at); if (PS && b.dataset.page) { if (land) PS.open(b.dataset.page, PS.wayNow(e), land); else PS.open(b.dataset.page, PS.wayNow(e)); } });
+      b.addEventListener('click', function(e) { e.stopPropagation(); e.preventDefault(); var PS = window.wpPageShelf, PR = window.wpPrep, land = pagePinLand(b.dataset.at);
+          if (b.dataset.card === '1' && land && PR && typeof PR.card === 'function' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && PR.card(b.dataset.page, land.at) === true) return;   // 1.6.2: a card's mark opens the card in the Prep column where the column lists it
+          if (PS && b.dataset.page) { if (land) PS.open(b.dataset.page, PS.wayNow(e), land); else PS.open(b.dataset.page, PS.wayNow(e)); } });
       b.addEventListener('pointerenter', function() {   // 1.6.0: resting on the mark shows the first lines of its page, read as it stands now, as text alone
           var PS = window.wpPageShelf, peek = PS && typeof PS.mapPinPeek === 'function' && b.dataset.page ? PS.mapPinPeek(b.dataset.page, b.dataset.at || '') : '';
-          if (b.dataset.name) b.dataset.tip = pagePinTip(b.dataset.name, b.dataset.sec || '', typeof peek === 'string' ? peek : '');
+          if (b.dataset.name) b.dataset.tip = pagePinTip(b.dataset.name, b.dataset.sec || '', typeof peek === 'string' ? peek : '', b.dataset.card === '1');
       });
       return b;
   }
   function pagePinSync(el, item, hidden) {
-      var mark = el.querySelector(':scope > .wb-pin'), pin = hidden ? null : pagePinOf(item);
+      var mark = el.querySelector(':scope > .wb-pin'), pin = hidden ? null : pagePinOf(item);   // (a card's mark wears wb-pin too)
       if (!pin) { if (mark) mark.remove(); return; }
       if (!mark) { mark = pagePinMark(); el.appendChild(mark); }
-      if (mark.dataset.page !== pin.id || mark.dataset.name !== pin.title || (mark.dataset.at || '') !== (pin.at || '') || (mark.dataset.sec || '') !== (pin.sec || '')) {
-          mark.dataset.page = pin.id; mark.dataset.name = pin.title; mark.dataset.tip = pagePinTip(pin.title, pin.sec || ''); mark.setAttribute('aria-label', 'Open ' + pin.title + (pin.sec ? ' at ' + pin.sec : ''));
+      var card = pin.card === true;   // 1.6.2: the mark of a person card that names this token's sheet: the card's own drawing, in a child, in place of the page's
+      if (mark.dataset.page !== pin.id || mark.dataset.name !== pin.title || (mark.dataset.at || '') !== (pin.at || '') || (mark.dataset.sec || '') !== (pin.sec || '') || (mark.dataset.card === '1') !== card) {
+          if (card !== (mark.dataset.card === '1')) {
+              mark.className = card ? 'wb-pin wb-pin-card' : 'wb-pin'; if (card) mark.dataset.card = '1'; else delete mark.dataset.card;
+              while (mark.firstChild) mark.removeChild(mark.firstChild);
+              if (card) { var ic = document.createElement('i'); ic.className = 'wib wi-person'; mark.appendChild(ic); }
+          }
+          mark.dataset.page = pin.id; mark.dataset.name = pin.title; mark.dataset.tip = pagePinTip(pin.title, pin.sec || '', '', card); mark.setAttribute('aria-label', card ? 'Open the card' + (pin.sec ? ' of ' + pin.sec : '') + ', in ' + pin.title : 'Open ' + pin.title + (pin.sec ? ' at ' + pin.sec : ''));
           if (pin.at) { mark.dataset.at = pin.at; mark.dataset.sec = pin.sec || ''; } else { delete mark.dataset.at; delete mark.dataset.sec; }   // 1.6.0: the part of the page the pin names
       }
   }

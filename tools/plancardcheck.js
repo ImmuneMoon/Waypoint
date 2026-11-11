@@ -34,6 +34,9 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         many.length === 12 && long[0].length === 80 && J(odd) === J(['a b', 'c d', 'x'.repeat(79)]), J([many.length, long[0].length, odd]));
     check('a card\'s names are its title, its markup left out, and then each other name not the same as one before it',
         J(C.cardNames({ title: '<b>Mira</b> Holt', aka: ['Fox', 'MIRA HOLT', 'Old one'] })) === J(['Mira Holt', 'Fox', 'Old one']) && J(C.cardNames({ title: '', aka: ['Only'] })) === J(['Only']) && J(C.cardNames(null)) === '[]');
+    check('a card\'s name is the words the page shows for its title: a < that opens no tag is a character of the name, and the entities a title may hold are read as their characters, each once',
+        J([{ title: 'R&amp;D Tech' }, { title: 'Guard <2>' }, { title: 'a &lt;b> c' }, { title: 'x &amp;lt; y' }, { title: 'Tom &amp; <i>Jerry</i>&nbsp;Co' }, { title: 'heir <?php x ?> two' }, { title: 'DC < 15 &copy;' }, { title: 5 }].map(b => C.cardNames(b)[0]))
+        === J(['R&D Tech', 'Guard <2>', 'a <b> c', 'x &lt; y', 'Tom & Jerry Co', 'heir two', 'DC < 15 &copy;', undefined]));
     // the tick and the sheet
     check('Played or Found is true only, and only on a kind that has the tick; a person\'s sheet is a plain id, and one of the characters where they are handed in',
         C.cleanDone(true, 'scene') === true && C.cleanDone(true, 'clue') === true && C.cleanDone(true, 'person') === undefined && C.cleanDone('true', 'scene') === undefined && C.cleanDone(1, 'clue') === undefined

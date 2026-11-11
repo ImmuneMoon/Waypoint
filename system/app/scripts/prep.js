@@ -20,13 +20,13 @@
    The column is made with createElement and text nodes. A card's own fields are drawn through the planner's field renderer (docrender.js
    fmtRich, the page sanitiser's output), which is the one place markup is written here, in prepRich. It draws node blocks only. */
 import { state } from './state.js';
-import { getActiveCampaign, getActiveMap } from './models.js';
+import { uid, getActiveCampaign, getActiveMap } from './models.js';
 import { save, toast } from './io.js';
 import { navigateToMap } from './sidebar.js';
 import * as CC from './cardcore.js';
 
 // [prepcheck:core-start]
-var PREP = { w: 320, wMin: 240, wMax: 560, spread: 1060, spreadGap: 120, fitPad: 220, fitMin: 0.2, here: 40, people: 40, fold: 8, clues: 40, find: 30, rows: 12, scenes: 60, text: 300 };
+var PREP = { plans: 200, w: 320, wMin: 240, wMax: 560, spread: 1060, spreadGap: 120, fitPad: 220, fitMin: 0.2, here: 40, people: 40, fold: 8, clues: 40, find: 30, rows: 12, scenes: 60, text: 300 };
 var PREP_ID = /^[A-Za-z0-9_-]{1,64}$/;
 // A field as one line of plain words: its markup taken off (a tag that ends a line reads as a space, any other as nothing), the few entities
 // an editor writes read, cut by whole characters. A < that opens no tag is a character of the words. A tag is read up to its own > and never
@@ -39,6 +39,9 @@ function prepPlain(v, n) {
     s = s.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
     return Array.from(s).slice(0, n > 0 ? n : PREP.text).join('');
 }
+// A name or a note that is plain text already (a token's name and its GM note, a sheet's name, a room's character): its characters as they
+// are, on one line. Nothing of it is markup, so a < or an & in it is a character of the words
+function prepWords(v, n) { if (typeof v !== 'string' || !v) return ''; var s = (v.length > 4000 ? v.slice(0, 4000) : v).replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim(); return Array.from(s).slice(0, n > 0 ? n : PREP.text).join(''); }
 function prepFold(s) { var t = String(s == null ? '' : s); try { t = t.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) {} return t.toLowerCase().replace(/\s+/g, ' ').trim(); }
 function prepOwn(o, k) { return !!o && typeof o === 'object' && typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : null; }
 function prepTitle(it, word) { return prepPlain(it && it.meta && it.meta.title, 80) || word; }
@@ -70,13 +73,15 @@ function prepFirstSays(b) {
     var r = Array.isArray(b.rows) ? b.rows[0] : null; if (!r || typeof r !== 'object') return '';
     var q = prepPlain(r.col1, 80), a = prepPlain(r.col2, 160); return q && a ? q + ': ' + a : (a || q);
 }
+// A token's name: its own, else its sheet's. A name is compared at 80 characters wherever one is (a row, a card's title, a table's cell)
+function prepTokName(w, ch) { return prepWords(w.charName || w.name, 80) || (ch && typeof ch === 'object' ? prepWords(ch.name, 80) : ''); }
 // The tokens of a map that are no player's, by name: { folded name: [token ids] }. A scene card's table is read against it
 function prepTokNames(map, chars) {
     var by = Object.create(null);
     (map && Array.isArray(map.whiteboard) ? map.whiteboard : []).forEach(function(w) {
         if (!w || typeof w !== 'object' || !w.isChar || w.waiting || w.gmNoteFor || w.ownerId || typeof w.id !== 'string') return;
         var ch = typeof w.charId === 'string' ? prepOwn(chars, w.charId) : null; if (ch && ch.ownerId) return;
-        var n = prepFold(prepPlain(w.charName || w.name, 80)); if (!n) return;
+        var n = prepFold(prepTokName(w, ch)); if (!n) return;
         (by[n] = by[n] || []).push(w.id);
     });
     return by;
@@ -106,7 +111,7 @@ function prepModel(camp, mapId, o) {
     if (!nextId && o && typeof o.keep === 'string' && o.keep && planners.indexOf(o.keep) >= 0) nextId = o.keep;
     if (!nextId) nextId = planners.filter(function(id) { return camp.items[id].blocks.some(function(b) { return prepIsCard(b) && CC.cardKind(b) === 'scene' && CC.sessionOf(b) === 'tonight'; }); })[0] || '';
     var pinned = Object.create(null); (o && Array.isArray(o.pinned) ? o.pinned : []).forEach(function(id) { if (typeof id === 'string') pinned[id] = 1; });
-    var bySheet = Object.create(null), persons = [], places = [], scenes = [], clues = [], tokBy = prepTokNames(map, camp.chars && typeof camp.chars === 'object' ? camp.chars : null);
+    var bySheet = Object.create(null), byName = Object.create(null), persons = [], places = [], scenes = [], clues = [], tokBy = prepTokNames(map, camp.chars && typeof camp.chars === 'object' ? camp.chars : null);
     planners.forEach(function(pid) {
         var it = camp.items[pid], title = prepTitle(it, 'Planner'), isNext = pid === nextId, tn = isNext ? { id: pid, title: title, lead: prepLead(it), scenes: [] } : null;
         it.blocks.forEach(function(b, i) {
@@ -119,7 +124,10 @@ function prepModel(camp, mapId, o) {
                 if (here) scenes.push(c);
             } else if (c.kind === 'place') { if (here) places.push(c); }
             else if (c.kind === 'person') {
-                if (here) persons.push(c);
+                if (here) {   // a card here speaks for a room's character of its name, and for a token of its name where it can be the same one (below)
+                    persons.push(c);
+                    [prepPlain(b.title, 80)].concat((CC.cleanAka(b.aka) || []).map(function(a) { return prepWords(a, 80); })).forEach(function(nm) { var k = prepFold(nm); if (k) (byName[k] = byName[k] || []).push({ c: c, sheet: typeof b.sheet === 'string' ? b.sheet : '' }); });
+                }
                 if (typeof b.sheet === 'string' && b.sheet && (!bySheet[b.sheet] || (here && !bySheet[b.sheet].c.here))) bySheet[b.sheet] = { c: c, wants: prepPlain(b.must, 160), says: prepFirstSays(b) };
             } else if (c.kind === 'clue') { if (isNext || pinned[pid] || here) { c.to = prepPlain(b.must, 120); clues.push(c); } }
         });
@@ -132,30 +140,33 @@ function prepModel(camp, mapId, o) {
     var listed = Object.create(null); persons.forEach(function(c) { listed[c.pl + '/' + c.i] = 1; });
     var groups = Object.create(null), order = [], refs = Object.create(null), names = Object.create(null), chars = camp.chars && typeof camp.chars === 'object' ? camp.chars : null;
     // a player's character is no one to prep: its token is passed over, and its name is one a room's list is not asked for either
-    if (chars) Object.keys(chars).forEach(function(id) { var pc = chars[id]; if (pc && typeof pc === 'object' && pc.ownerId && typeof pc.name === 'string') { var pn = prepFold(prepPlain(pc.name, 80)); if (pn) names[pn] = 1; } });
+    if (chars) Object.keys(chars).forEach(function(id) { var pc = chars[id]; if (pc && typeof pc === 'object' && pc.ownerId && typeof pc.name === 'string') { var pn = prepFold(prepWords(pc.name, 80)); if (pn) names[pn] = 1; } });
     (map && Array.isArray(map.whiteboard) ? map.whiteboard : []).forEach(function(w) {
         if (!w || typeof w !== 'object' || !w.isChar || w.waiting || w.gmNoteFor || typeof w.id !== 'string') return;
         var sheet = typeof w.charId === 'string' ? w.charId : '', ch = sheet ? prepOwn(chars, sheet) : null;
-        if (w.ownerId || (ch && ch.ownerId)) { var own = prepFold(prepPlain(w.charName || w.name, 80)); if (own) names[own] = 1; if (typeof w.charRef === 'string') refs[w.charRef] = 1; return; }
+        if (w.ownerId || (ch && ch.ownerId)) { var own = prepFold(prepWords(w.charName || w.name, 80)); if (own) names[own] = 1; if (typeof w.charRef === 'string') refs[w.charRef] = 1; return; }
         if (typeof w.charRef === 'string') refs[w.charRef] = 1;
-        var name = prepPlain(w.charName || w.name, 80) || 'Unnamed', key = sheet + ' ' + prepFold(name), note = typeof w.gmInfo === 'string' ? prepPlain(w.gmInfo.split(/\r?\n/)[0], 160) : '';
-        if (!groups[key]) { groups[key] = { name: name, sheet: sheet, n: 0, hid: 0, tok: w.id, note: '' }; order.push(key); names[prepFold(name)] = 1; }
+        var named = prepTokName(w, ch), name = named || 'Unnamed', key = sheet + ' ' + prepFold(name), note = typeof w.gmInfo === 'string' ? prepWords(w.gmInfo.split(/\r?\n/)[0], 160) : '';
+        if (!groups[key]) { groups[key] = { name: name, anon: !named, sheet: sheet, n: 0, hid: 0, tok: w.id, note: '' }; order.push(key); names[prepFold(name)] = 1; }
         var g = groups[key]; g.n++; if (w.hidden) g.hid++; if (!g.note && note) g.note = note;
     });
     var rows = [];
     order.forEach(function(key) {
         var g = groups[key], hit = g.sheet ? bySheet[g.sheet] : null;
+        // no card names its sheet: the person card here that goes by its name, where that card names no sheet or this very one. A card that names
+        // another sheet is another one of that name (two Guards), and a token with no name of its own goes by no name
+        if (!hit && !g.anon) { var byN = (byName[prepFold(g.name)] || []).filter(function(x) { return !x.sheet || x.sheet === g.sheet; })[0]; if (byN) hit = { c: byN.c, wants: '', says: '' }; }
         if (hit && listed[hit.c.pl + '/' + hit.c.i]) return;   // its card stands above already
         if (hit) rows.push({ t: 'tok', name: g.name, n: g.n, small: hit.c.tag || 'has a card', line: hit.wants ? 'Wants: ' + hit.wants : '', line2: hit.says, tok: g.tok, hid: g.hid === g.n, card: { pl: hit.c.pl, at: hit.c.at, i: hit.c.i } });
-        else rows.push({ t: 'tok', name: g.name, n: g.n, small: g.hid === g.n ? 'hidden' : (g.n > 1 ? 'tokens' : 'token'), line: g.note ? 'GM note: ' + g.note : '', line2: '', tok: g.tok, hid: g.hid === g.n });
+        else rows.push({ t: 'tok', name: g.name, n: g.n, small: g.hid === g.n ? 'hidden' : (g.n > 1 ? 'tokens' : 'token'), line: g.note ? 'GM note: ' + g.note : '', line2: '', tok: g.tok, hid: g.hid === g.n, make: !g.anon || !!(g.sheet && prepOwn(chars, g.sheet)) });   // make: no card names it yet, and a card made from it can be told as its own (by its name, or by its sheet)
     });
     (map && Array.isArray(map.rooms) ? map.rooms : []).forEach(function(rm) {
         if (!rm || typeof rm !== 'object' || !Array.isArray(rm.characters)) return;
         rm.characters.forEach(function(e) {
             if (!e || typeof e !== 'object' || (typeof e.id === 'string' && refs[e.id])) return;
-            var name = prepPlain(e.name, 80); if (!name || names[prepFold(name)]) return;
+            var name = prepWords(e.name, 80); if (!name || names[prepFold(name)] || byName[prepFold(name)]) return;   // a token's, a player's, or a person card's here
             names[prepFold(name)] = 1;
-            rows.push({ t: 'room', name: name, n: 1, small: prepPlain(rm.name, 40) || 'the room', line: typeof e.info === 'string' ? prepPlain(e.info.split(/\r?\n/)[0], 160) : '', line2: '' });
+            rows.push({ t: 'room', name: name, n: 1, small: prepWords(rm.name, 40) || 'the room', line: typeof e.info === 'string' ? prepWords(e.info.split(/\r?\n/)[0], 160) : '', line2: '', make: true });
         });
     });
     m.rows = rows.slice(0, PREP.people);
@@ -177,6 +188,30 @@ function prepFind(camp, q, words, mapId) {
             out.push(c);
         });
     });
+    return out;
+}
+// Make a card: the person card a token or a room's character becomes. Its name and its note are words, and a card's field reads typed
+// markup, so a < that would open a tag and an & that would open an entity are written as the characters they are; any other text is kept
+// as typed. src: { name, note, sheet, map }; id: the new block's id. The note, where there is one, is the card's
+// first row, under Note
+function prepEsc(v, n) { var s = String(v == null ? '' : v).replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim(); s = Array.from(s).slice(0, n > 0 ? n : PREP.text).join(''); return s.replace(/&(?=[a-zA-Z#])/g, '&amp;').replace(/<(?=[a-zA-Z\/!?])/g, '&lt;'); }
+function prepNewCard(src, id) {
+    var o = src && typeof src === 'object' ? src : {}, name = prepEsc(typeof o.name === 'string' ? o.name : '', 120) || 'Unnamed', note = typeof o.note === 'string' ? prepEsc(o.note.split(/\r?\n/).slice(0, 3).join(' '), PREP.text) : '';
+    var b = { id: id, type: 'node', mode: 'person', title: name };
+    if (typeof o.map === 'string' && o.map && o.map.length <= 200) b.linkMapId = o.map;   // the map's own key in the campaign, as it is: the card is one of that map's only by that very key
+    if (typeof o.sheet === 'string' && PREP_ID.test(o.sheet)) b.sheet = o.sheet;
+    b.rows = note ? [{ col1: 'Note', col2: note, col3: '' }] : [];
+    return b;
+}
+// The planners a card may be made in, in the order offered: tonight's, the pinned ones, those that already hold a card of this map, then
+// the rest by name. { id, title, why } each, PREP.plans at most (the menu says how many it left out)
+function prepPlannersFor(camp, m, pinned) {
+    if (!camp || !camp.items || typeof camp.items !== 'object') return [];
+    var ids = prepPlanners(camp), seen = Object.create(null), out = [], put = function(id, why) { if (typeof id !== 'string' || seen[id] || ids.indexOf(id) < 0 || out.length >= PREP.plans) return; seen[id] = 1; out.push({ id: id, title: prepTitle(camp.items[id], 'Planner'), why: why }); };
+    if (m && m.tonight) put(m.tonight.id, 'tonight');
+    (Array.isArray(pinned) ? pinned : []).forEach(function(id) { put(id, 'pinned'); });
+    if (m) (m.here || []).concat(m.people || []).forEach(function(c) { put(c.pl, 'plays here'); });
+    ids.slice().sort(function(a, b) { var x = prepFold(prepTitle(camp.items[a], 'Planner')), y = prepFold(prepTitle(camp.items[b], 'Planner')); return x < y ? -1 : x > y ? 1 : 0; }).forEach(function(id) { put(id, ''); });
     return out;
 }
 // What is kept for this computer, read back as data: { open, w, shut: { section: 1 } }
@@ -339,6 +374,7 @@ function prepDraw(root, camp, m, st, x) {
             if (r.line) tx.appendChild(prepEl('span', 'prep-ln', r.line)); if (r.line2) tx.appendChild(prepEl('span', 'prep-ln', r.line2));
             pp.appendChild(tx);
             if (r.card) { var cb = prepBtn('prep-chip', 'Card', 'Open this person\u2019s card'); cb.dataset.pl = r.card.pl; cb.dataset.i = String(r.card.i); if (r.card.at) cb.dataset.at = r.card.at; pp.appendChild(cb); }
+            if (r.make === true) { var mk = prepBtn('prep-chip prep-make', 'Make a card', 'Make a person card for ' + r.name + ' in a planner you pick, with this name and note'); mk.dataset.t = r.t; mk.dataset.name = r.name; if (r.tok) mk.dataset.tok = r.tok; mk.setAttribute('aria-haspopup', 'menu'); pp.appendChild(mk); }
             if (r.tok) { var fb = prepBtn('prep-ib prep-findtok wib wi-marker', '', 'Find on the map'); fb.setAttribute('aria-label', 'Find ' + r.name + ' on the map'); fb.dataset.tok = r.tok; pp.appendChild(fb); }
             box.appendChild(pp);
         });
@@ -583,6 +619,116 @@ function findTok(id) {
     if (window.appRender) window.appRender();
     if (window.appRestoreCamera) window.appRestoreCamera();
 }
+// [prepcheck:card-start]
+// A card's mark on a token was pressed (whiteboard.js): where the column shows and lists that card, the card is opened there, its section
+// unfolded, brought into view and lit for a moment. Answers whether it did, so the mark opens the page over the map otherwise
+function showCard(pl, at) {
+    if (!shownNow() || typeof pl !== 'string' || typeof at !== 'string' || !at) return false;
+    var camp = getActiveCampaign(), E = els(); if (!camp || !E.body) return false;
+    var PS = window.wpPageShelf, m = prepModel(camp, mapNow(camp), { pinned: PS && typeof PS.pinned === 'function' ? PS.pinned() : [] });
+    var inPeople = m.people.filter(function(c) { return c.pl === pl && c.at === at; })[0], inHere = inPeople ? null : m.here.filter(function(c) { return c.pl === pl && c.at === at; })[0], c = inPeople || inHere;
+    if (!c) return false;
+    st.cards[prepKey(c)] = true; delete st.shut[inPeople ? 'people' : 'here']; st.q = ''; if (E.find) E.find.value = '';
+    keep(); log('show-card', { sec: inPeople ? 'people' : 'here' }); draw(true);
+    var key = prepKey(c), el = Array.prototype.filter.call(E.body.querySelectorAll('.prep-card'), function(x) { return x.dataset && x.dataset.key === key; })[0];
+    if (el) { try { el.scrollIntoView({ block: 'nearest' }); } catch (e) {} el.classList.add('prep-lit'); setTimeout(function() { el.classList.remove('prep-lit'); }, 1600); }
+    return true;
+}
+// [prepcheck:card-end]
+// [prepcheck:make-start]
+// Make a card: the token or the room's character a row is about, found again in the campaign as it stands, by the row's kind and name
+function makeSrc(camp, mapId, d) {
+    var map = prepOwn(camp.items, mapId); if (!map || typeof map !== 'object' || map.type !== 'map' || !d) return null;
+    if (d.t === 'tok') {
+        var w = (Array.isArray(map.whiteboard) ? map.whiteboard : []).filter(function(x) { return !!x && typeof x === 'object' && x.id === d.tok && !!x.isChar && !x.waiting && !x.gmNoteFor; })[0]; if (!w) return null;
+        var chars = camp.chars && typeof camp.chars === 'object' ? camp.chars : null, ch = typeof w.charId === 'string' ? prepOwn(chars, w.charId) : null; if (w.ownerId || (ch && ch.ownerId)) return null;
+        // the note is the one its row shows: this token's, else the first among the tokens of the same sheet and name, which stand as one row
+        var all = map.whiteboard, sh = typeof w.charId === 'string' ? w.charId : '', nmOf = function(x) { return prepFold(prepTokName(x, typeof x.charId === 'string' ? prepOwn(chars, x.charId) : null) || 'Unnamed'); }, nm = nmOf(w), note = '';
+        for (var k = -1; k < all.length && !note; k++) { var x = k < 0 ? w : all[k]; if (x && typeof x === 'object' && x.isChar && !x.waiting && !x.gmNoteFor && !x.ownerId && (typeof x.charId === 'string' ? x.charId : '') === sh && typeof x.gmInfo === 'string' && x.gmInfo.trim() && nmOf(x) === nm) note = x.gmInfo; }
+        return { name: prepTokName(w, ch) || 'Unnamed', note: note, sheet: ch ? w.charId : '', map: mapId };
+    }
+    var hit = null, want = prepFold(d.name);
+    (Array.isArray(map.rooms) ? map.rooms : []).forEach(function(rm) { if (hit || !rm || typeof rm !== 'object' || !Array.isArray(rm.characters)) return; rm.characters.forEach(function(e) { if (!hit && e && typeof e === 'object' && prepFold(prepWords(e.name, 80)) === want) hit = e; }); });
+    return hit ? { name: prepWords(hit.name, 80), note: typeof hit.info === 'string' ? hit.info : '', sheet: '', map: mapId } : null;
+}
+// The card is added at the end of the planner picked, as one change of that planner with one save: a step of that planner's own undo. The
+// column then shows it open under People here, since its Where is this map
+function makeCard(plId, d) {
+    var camp = getActiveCampaign(), mapId = camp ? mapNow(camp) : '', it = camp ? prepOwn(camp.items, plId) : null, src = camp ? makeSrc(camp, mapId, d) : null;
+    if (!it || typeof it !== 'object' || it.type !== 'planner' || !Array.isArray(it.blocks)) { toast('That planner is no longer here.'); draw(true); makeFocus('prep-make', function(e) { return makeIs(e, d); }); return false; }
+    if (!src) { toast('That one is no longer on this map.'); draw(true); return false; }   // its row went with it
+    var b = prepNewCard(src, 'b_' + uid()); it.blocks.push(b);
+    it.meta = it.meta && typeof it.meta === 'object' ? it.meta : {}; it.meta.updated = Date.now();
+    st.cards[plId + '/' + b.id] = true; delete st.shut.people;
+    var PS = window.wpPageShelf; if (PS && typeof PS.sheetDrop === 'function') PS.sheetDrop();   // the board's marks are worked out again at once
+    save(true); log('make-card', { from: d.t === 'tok' ? 'token' : 'room', sheet: b.sheet ? 1 : 0, note: b.rows.length });
+    toast('Card made for ' + src.name + ' in ' + prepTitle(it, 'Planner') + '. It is open under People here.');
+    if (typeof window.appRender === 'function') window.appRender();
+    draw(false);   // the column as it now is, whatever the page's own redraw did
+    var key = plId + '/' + b.id; makeFocus('prep-card-h', function(e) { return e.dataset.key === key; });   // the menu that held the focus is gone: the new card takes it, so no key falls to the map
+    return true;
+}
+// The focus handed to a control of the column as drawn now, found by its class and a test: the keyboard goes on from what was just done
+function makeIs(e, d) { return !!d && e.dataset.t === d.t && (d.t === 'tok' ? e.dataset.tok === d.tok : e.dataset.name === d.name); }
+function makeFocus(cls, test) {
+    var E = els(), all = E && E.body ? E.body.querySelectorAll('.' + cls) : [], hit = null;
+    for (var k = 0; k < all.length && !hit; k++) if (all[k].dataset && test(all[k])) hit = all[k];
+    if (hit && typeof hit.focus === 'function') { try { hit.focus(); } catch (e) {} }
+    return !!hit;
+}
+// The menu of planners a card may be made in: one row a planner, under the button pressed. It holds the focus and its own keys
+var _mk = { el: null, btn: null, d: null };
+function makeClose(back) { var mn = _mk.el, b = _mk.btn; _mk = { el: null, btn: null, d: null }; if (mn && mn.parentNode) mn.parentNode.removeChild(mn); if (b) { b.setAttribute('aria-expanded', 'false'); if (back === true && typeof b.focus === 'function' && b.isConnected !== false) { try { b.focus({ preventScroll: true }); } catch (e) {} } } }
+function makeOpen(btn) {
+    var camp = getActiveCampaign(); if (!camp || !btn) return false;
+    if (_mk.btn === btn) { makeClose(true); return false; }
+    makeClose(false);
+    var PS = window.wpPageShelf, pins = PS && typeof PS.pinned === 'function' ? PS.pinned() : [], list = prepPlannersFor(camp, prepModel(camp, mapNow(camp), { pinned: pins }), pins);
+    var mn = prepEl('div', 'prep-make-menu'); mn.id = 'prepMakeMenu'; mn.tabIndex = -1; mn.setAttribute('role', 'menu'); mn.setAttribute('aria-label', 'Make the card in');   // it can hold the focus itself: with no row, or after a press on its heading, its keys are still its own
+    mn.appendChild(prepEl('div', 'prep-mk-head', 'Make the card in'));
+    if (!list.length) mn.appendChild(prepEl('div', 'prep-mk-none', 'There is no planner yet. Add one in the left panel first.'));
+    list.forEach(function(p) { var rw = prepBtn('prep-mk-row', '', ''); rw.setAttribute('role', 'menuitem'); rw.dataset.pl = p.id; rw.appendChild(prepEl('span', 'prep-mk-t', p.title)); if (p.why) rw.appendChild(prepEl('small', '', p.why)); mn.appendChild(rw); });
+    var left0 = prepPlanners(camp).length - list.length; if (left0 > 0) mn.appendChild(prepEl('div', 'prep-mk-none', left0 + ' more ' + (left0 === 1 ? 'is' : 'are') + ' not listed. Pin a planner to list it near the top.'));
+    document.body.appendChild(mn);
+    var rc = btn.getBoundingClientRect(), mw = mn.offsetWidth || 240, mh = mn.offsetHeight || 0, left = Math.max(6, Math.min(rc.left, window.innerWidth - mw - 6)), top = rc.bottom + 4; if (top + mh > window.innerHeight - 6) top = Math.max(6, rc.top - mh - 4);
+    mn.style.left = Math.round(left) + 'px'; mn.style.top = Math.round(top) + 'px';
+    _mk = { el: mn, btn: btn, d: { t: btn.dataset.t === 'tok' ? 'tok' : 'room', name: btn.dataset.name || '', tok: btn.dataset.tok || '' } };
+    btn.setAttribute('aria-expanded', 'true');
+    mn.addEventListener('click', function(e) { var rw = e.target && e.target.closest ? e.target.closest('.prep-mk-row') : null; if (rw) makePick(rw); });
+    mn.addEventListener('keydown', makeKey); mn.addEventListener('keyup', makeKeyUp);
+    var first = mn.querySelector('.prep-mk-row') || mn; try { first.focus({ preventScroll: true }); } catch (e) {}
+    return true;
+}
+// The menu's keys: every plain key stops here (the page reads the arrows and Delete as acting on the map's selection, and a letter as a
+// command's key). The arrows, Home and End move among the rows, a letter goes to the next row that begins with it, Escape puts it away
+function makeKey(e) {
+    if (!_mk.el || e.ctrlKey || e.metaKey || e.altKey || e.key === 'Tab') return;
+    var rows = Array.prototype.slice.call(_mk.el.querySelectorAll('.prep-mk-row')), at = rows.indexOf(document.activeElement), go = -1;
+    // Enter picks a row as the key is let go, and only where it went down on that row: a key still held from the press that opened the menu
+    // picks nothing, and no held Enter is left to press the card that takes the focus next. Space is the row's own press, at its release
+    if (e.key === 'Enter') { e.stopPropagation(); e.preventDefault(); if (!e.repeat) _mk.enter = document.activeElement; return; }
+    if (e.key === ' ') { e.stopPropagation(); if (e.repeat) e.preventDefault(); return; }
+    e.stopPropagation(); e.preventDefault();
+    if (e.key === 'Escape') { makeClose(true); return; }
+    if (e.key === 'ArrowDown') go = at < rows.length - 1 ? at + 1 : 0; else if (e.key === 'ArrowUp') go = at > 0 ? at - 1 : rows.length - 1; else if (e.key === 'Home') go = 0; else if (e.key === 'End') go = rows.length - 1;
+    else if (typeof e.key === 'string' && e.key.length === 1) { var ch = prepFold(e.key); for (var k = 1; k <= rows.length && go < 0; k++) { var j = (Math.max(at, -1) + k) % rows.length; if (prepFold(rows[j].textContent).indexOf(ch) === 0) go = j; } }
+    if (go >= 0 && rows[go]) { try { rows[go].focus(); } catch (err) {} }   // the menu scrolls to the row, which its own scroll does not put away
+}
+function makePick(rw) { var d = _mk.d, pl = rw.dataset.pl; makeClose(false); makeCard(pl, d); }
+function makeKeyUp(e) {
+    if (!_mk.el || e.key !== 'Enter') return;
+    var rw = _mk.enter; _mk.enter = null;
+    if (rw && rw === document.activeElement && rw.classList && rw.classList.contains('prep-mk-row')) { e.stopPropagation(); makePick(rw); }
+}
+// The menu is put away by a press outside it, when the focus leaves it, when what holds its button scrolls (the button moves from under it)
+// and when the window changes size
+function makeWatch(doc, win) {
+    doc.addEventListener('pointerdown', function(e) { if (_mk.el && !(e.target && _mk.el.contains(e.target)) && !(_mk.btn && _mk.btn.contains(e.target))) makeClose(false); }, true);
+    doc.addEventListener('focusin', function(e) { if (_mk.el && !(e.target && _mk.el.contains(e.target)) && e.target !== _mk.btn) makeClose(false); });
+    doc.addEventListener('scroll', function(e) { var t = e.target; if (_mk.el && _mk.btn && t && typeof t.contains === 'function' && t.contains(_mk.btn)) makeClose(false); }, true);
+    win.addEventListener('resize', function() { if (_mk.el) makeClose(false); });
+}
+// [prepcheck:make-end]
 // [prepcheck:fight-start]
 // The tokens a scene card's table names on the column's map: selected, or selected and brought into view (find). Found again in the
 // campaign as it stands, by the card's block and the map's tokens now
@@ -611,6 +757,7 @@ function fightToks(el, find) {
 function press(e) {
     var t = e.target, at = function(sel) { return t && t.closest ? t.closest(sel) : null; }, el, PS = window.wpPageShelf;
     var lk = at('a'); if (lk && typeof lk.getAttribute === 'function' && lk.getAttribute('href')) return;   // a link in a card's own field is the link gate's press, and folds or opens nothing here
+    if ((el = at('.prep-make'))) { makeOpen(el); return; }   // before the Card chip below, whose class it shares
     if ((el = at('.prep-fold'))) { var k = el.dataset.sec; if (PREP_SECS.indexOf(k) >= 0) { if (st.shut[k] === 1) delete st.shut[k]; else st.shut[k] = 1; keep(); draw(true); } return; }
     if ((el = at('.prep-tick')) || (el = at('.prep-sn'))) { tick(el); return; }
     if ((el = at('.prep-card-h'))) { var card = el.closest('.prep-card'), key = el.dataset.key; st.cards[key] = !!(card && card.classList.contains('shut')); draw(true); return; }
@@ -636,6 +783,7 @@ function wire() {
     E.body.addEventListener('click', press);
     if (E.rail) E.rail.addEventListener('click', function() { toggle('rail'); });
     var close = document.getElementById('prepCloseBtn'); if (close) close.addEventListener('click', function() { setOpen(false, 'close'); });
+    makeWatch(document, window);   // what puts the menu of planners away
     E.col.addEventListener('pointerdown', boxNote, true); E.col.addEventListener('keydown', boxNote, true);   // what box was used last as the column is used: Escape asks over()
     if (E.spread) E.spread.addEventListener('click', function() { setSpread(!spreadNow(), 'button'); });
     window.addEventListener('resize', function() { if (_was && st.spread) sync(); });   // spread wide, the column's width follows the window
@@ -673,5 +821,5 @@ function wire() {
     document.addEventListener('click', function() { if (!_was) return; clearTimeout(_soon); _soon = setTimeout(function() { if (_was) draw(false); }, 90); }, true);
 }
 window.wpPrep = { sync: sync, may: prepMay, can: prepCan, shown: shownNow, open: function(via) { return setOpen(true, via); }, close: function(via) { return setOpen(false, via); }, toggle: toggle,
-    spread: spreadNow, over: boxOver, unspread: function(via) { return setSpread(false, via || 'esc'); }, spreadToggle: function(via) { return setSpread(!spreadNow(), via); } };
+    spread: spreadNow, over: boxOver, card: showCard, unspread: function(via) { return setSpread(false, via || 'esc'); }, spreadToggle: function(via) { return setSpread(!spreadNow(), via); } };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function() { wire(); sync(); }); else { wire(); sync(); }

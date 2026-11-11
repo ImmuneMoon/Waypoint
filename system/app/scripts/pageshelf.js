@@ -465,11 +465,12 @@ function namedText(b) {
 // The names to look for: [{ re, say }], each once whatever its case or accents, thirteen at most (a card's name and its twelve other names). A
 // name of fewer than three letters finds nothing: it would be found inside everything. It is a whole word: no letter or digit stands right
 // before or after it, unless the name's own edge or its neighbour is of a script written with no spaces
-function namedNames(names) {
+function namedNames(names, plain) {
     var seen = {}, out = [];
     (Array.isArray(names) ? names : [names]).forEach(function(raw) {
         if (typeof raw !== 'string' || out.length >= NAMED_NAMES) return;
-        var say = namedSay(raw), f = namedFold(say), cs = Array.from(f), len = cs.length; try { len = Array.from(f.normalize('NFC')).length; } catch (e) {}
+        // plain: a name read as words already (a card's names from the card core), which is not read as markup a second time
+        var say = plain === true ? raw.replace(/\s+/g, ' ').trim().slice(0, 400) : namedSay(raw), f = namedFold(say), cs = Array.from(f), len = cs.length; try { len = Array.from(f.normalize('NFC')).length; } catch (e) {}
         if (!f || Object.prototype.hasOwnProperty.call(seen, f) || len < (NAMED_RUN.test(f) ? 2 : NAMED_MIN)) return;
         seen[f] = 1;
         var before = NAMED_RUN.test(cs[0]) ? '' : '(^|[^' + NAMED_WORD + ']|(?<=[' + NAMED_RUNS + ']))', after = NAMED_RUN.test(cs[cs.length - 1]) ? '' : '($|[^' + NAMED_WORD + ']|(?=[' + NAMED_RUNS + ']))';
@@ -480,8 +481,8 @@ function namedNames(names) {
 // [{ id, type, title, at, where, n, q }]: each page or planner that names one of the names, with the first block that does (its id, the card or
 // the section it stands in, and the name found there) and how many of its blocks do. self: { id, at, i } the card asking, which is passed over,
 // by its place in its page where that is known, since two blocks of a file may share an id
-function namedIn(camp, names, self) {
-    var list = namedNames(names); if (!camp || !camp.items || typeof camp.items !== 'object' || !list.length) return [];
+function namedIn(camp, names, self, plain) {
+    var list = namedNames(names, plain); if (!camp || !camp.items || typeof camp.items !== 'object' || !list.length) return [];
     var out = [], si = self && typeof self.i === 'number' && self.i >= 0 ? self.i : -1;
     Object.keys(camp.items).forEach(function(id) {
         var it = pageOf(camp, id); if (!it || !Array.isArray(it.blocks)) return;
@@ -508,7 +509,7 @@ function namedCard(camp, pageId, at, bi) {
     for (var k = 0; k < bl.length && i < 0; k++) if (bl[k] && typeof bl[k] === 'object' && bl[k].id === at) i = k;
     var b = i < 0 ? null : bl[i]; if (!b || b.type !== 'node') return null;
     var cc = window.wpCardCore, names = cc && typeof cc.cardNames === 'function' ? cc.cardNames(b) : [b.title];
-    return { names: (Array.isArray(names) ? names : []).filter(function(x) { return typeof x === 'string'; }), self: { id: pageId, at: at, i: i } };
+    return { names: (Array.isArray(names) ? names : []).filter(function(x) { return typeof x === 'string'; }), plain: !!(cc && typeof cc.cardNames === 'function'), self: { id: pageId, at: at, i: i } };
 }
 var _named = null;   // the menu while it is up: { el, from, page, at, bi, q }
 // A button's place in its page as its drawn block says it, or -1
@@ -575,7 +576,7 @@ function namedPress(btn) {
     if (_named && namedIs(_named, btn)) { namedClose(true); return null; }
     var n = window.wpNet; if (n && n.foreign) return null;   // someone else's table holds no planner
     var camp = getActiveCampaign(), card = namedCard(camp, btn.dataset.page, btn.dataset.at, namedBi(btn)); if (!card || !card.names.length) return null;
-    return namedOpen(btn, namedIn(camp, card.names, card.self), namedSay(card.names[0]));
+    return namedOpen(btn, namedIn(camp, card.names, card.self, card.plain), card.plain ? card.names[0] : namedSay(card.names[0]));
 }
 function namedWire() {
     var qs = new URLSearchParams(location.search); if (qs.has('popout') || qs.has('stream')) return;   // the main window's own: a window of its own shows the page, never this button
@@ -620,9 +621,44 @@ function pinPage(id) {
 // [shelfcheck:mappin-start]
 // Whose screen sees and sets pins: the GM's own. Never a player's app, the stream window or a window of its own
 function mapPinGm() { var n = window.wpNet; return !(window.wpStream || window.wpPopout || (n && (n.foreign || (n.active && n.role === 'client')))); }
-// The page a piece opens, for the board: its id and its name, or null
+// 1.6.2 (backlog 107 (a), docs/PLANNER_ORG_DESIGN.md 4.5): a person card's Sheet names a character sheet, and every token of that sheet
+// wears the card's mark on the GM's screen. It is worked out here from the planners as they stand: nothing is set on a token and nothing is
+// sent. The person cards that name a sheet, by sheet, are built once and kept for a moment, since the board asks for every token at a draw
+var SHEET_MS = 400, _sheetIx = { camp: null, at: 0, by: null };
+// A card's own field as one line of words, its typed markup left out and its entities read (a name Make a card wrote holds &amp; for an &)
+function sheetSay(s, max) { return shelfLine(typeof namedSay === 'function' ? namedSay(typeof s === 'string' ? s : '') : shelfText(s), max); }
+function sheetCards(camp) {
+    var now = Date.now();
+    if (_sheetIx.by && _sheetIx.camp === camp && now - _sheetIx.at >= 0 && now - _sheetIx.at < SHEET_MS) return _sheetIx.by;
+    var by = Object.create(null);
+    Object.keys(camp.items).forEach(function(id) {
+        var it = camp.items[id]; if (!it || typeof it !== 'object' || it.type !== 'planner' || !Array.isArray(it.blocks)) return;
+        for (var i = 0; i < it.blocks.length && i < 4000; i++) {
+            var b = it.blocks[i]; if (!b || typeof b !== 'object' || b.type !== 'node' || b.mode !== 'person' || typeof b.sheet !== 'string' || !PIN_ID.test(b.sheet)) continue;
+            var says = Array.isArray(b.rows) ? b.rows.filter(function(rw) { return !!rw && typeof rw === 'object' && ((typeof rw.col1 === 'string' && !!rw.col1) || (typeof rw.col2 === 'string' && !!rw.col2)); }).length : 0;
+            (by[b.sheet] = by[b.sheet] || []).push({ id: id, i: i, at: typeof b.id === 'string' && LAND_AT.test(b.id) ? b.id : '', map: typeof b.linkMapId === 'string' ? b.linkMapId : '', title: sheetSay(b.title, 80) || 'Person', pl: pageTitle(it), wants: sheetSay(b.must, 160), says: says });
+        }
+    });
+    _sheetIx = { camp: camp, at: now, by: by };
+    return by;
+}
+function sheetCardsDrop() { _sheetIx = { camp: null, at: 0, by: null }; }
+// The person card that names a sheet: the one whose Where is that map where several do, else the first. { id, i, at, map, title, pl, wants, says }
+function sheetCardOf(camp, sheetId, mapId) {
+    if (!camp || !camp.items || typeof camp.items !== 'object' || typeof sheetId !== 'string' || !PIN_ID.test(sheetId)) return null;
+    var l = sheetCards(camp)[sheetId]; if (!Array.isArray(l) || !l.length) return null;
+    return l.filter(function(c) { return typeof mapId === 'string' && !!mapId && c.map === mapId; })[0] || l[0];
+}
+// The card of a token: a character token that is no waiting one and no GM note card, by its sheet
+function sheetCardFor(camp, w) {
+    if (!camp || !w || typeof w !== 'object' || !w.isChar || w.waiting || w.gmNoteFor || typeof w.charId !== 'string') return null;
+    return sheetCardOf(camp, w.charId, typeof camp.activeItemId === 'string' ? camp.activeItemId : '');
+}
+// The page a piece opens, for the board: its id and its name, or null. A token with no pin of its own whose sheet a person card names
+// opens that card: its planner at the card, marked card
 function mapPin(w) {
-    var camp = mapPinGm() ? getActiveCampaign() : null, it = camp ? mapPinOf(camp, w) : null; if (!it) return null;
+    var camp = mapPinGm() ? getActiveCampaign() : null, it = camp ? mapPinOf(camp, w) : null;
+    if (!it) { var sc = camp ? sheetCardFor(camp, w) : null; if (!sc) return null; var rc = { id: sc.id, title: sc.pl, card: true }; if (sc.at) { rc.at = sc.at; rc.sec = sc.title; } return rc; }
     var r = { id: w.page, title: pageTitle(it) }, s = w.pageAt !== undefined ? mapPinAtOf(camp, w) : null;   // 1.6.0: and the part it names, where it names one its page has
     if (s) { r.at = s.at; r.sec = s.title; }
     return r;
@@ -733,5 +769,7 @@ window.wpPageShelf.nextScene = function() { return nextSceneOf(getActiveCampaign
 window.wpPageShelf.mentionGo = mentionGo; window.wpPageShelf.mentionWords = mentionWords; window.wpPageShelf.mentionPaint = mentionPaint;
 // 1.6.2, backlog 107 (a): Mentioned in, the pages that name a person's or a place's card, and the press of its button
 window.wpPageShelf.namedIn = function(names, self) { return namedIn(getActiveCampaign(), names, self); }; namedWire();
+// 1.6.2, backlog 107 (a): the person card that names a token's sheet, for the board's hover card, and its kept list let go
+window.wpPageShelf.sheetCard = function(w) { return mapPinGm() ? sheetCardFor(getActiveCampaign(), w) : null; }; window.wpPageShelf.sheetDrop = sheetCardsDrop;
 // 1.6.2, backlog 107 (a): what the Prep column asks, the shelf's own model, its row, the pinned pages and a block's words
 window.wpPageShelf.model = function(mapId) { var c = getActiveCampaign(); return shelfModel(c, typeof mapId === 'string' ? mapId : '', c && typeof c.id === 'string' ? recentRead(c) : []); }; window.wpPageShelf.row = shelfRow; window.wpPageShelf.pinned = function() { var c = getActiveCampaign(); return c ? pinnedOf(c) : []; }; window.wpPageShelf.words = function(b) { return b && typeof b === 'object' ? namedFold(namedText(b).split(NAMED_BRK).join(' ')) : ''; };

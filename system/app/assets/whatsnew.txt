@@ -866,6 +866,11 @@ Writing planners and pages
   Press the Spread button in its head, or Shift+G. Esc puts it back.
 - A scene card whose table names tokens on this map offers Select them
   and Find.
+- A token whose sheet a Person card names wears that card's mark on your
+  screen. Press it to open the card. Its hover card says what the person
+  wants.
+- Make a card, under People here in Prep, makes a Person card for a token
+  or a room's character in the planner you pick.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

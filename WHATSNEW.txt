@@ -874,6 +874,7 @@ Writing planners and pages
 - A part of a planner opens alone in a window of its own. In the Outline,
   press the window button beside a heading. Ctrl+click on a fold arrow
   does the same, and so does the window button on a card in Prep.
+  It is a small window, so several can stand beside the map.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

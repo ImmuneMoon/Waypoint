@@ -37,9 +37,13 @@ function childWindowOk(own, url) {
     return !!u && u.origin === own && !u.username && !u.password && u.pathname === '/' && u.hash === '' && CHILD_QUERY.test(u.search);
 }
 // What an allowed child window looks like: the main window's look, no menu bar; a pop-out is a reading column, the stream window landscape.
+// 1.6.2: a part of a page shown alone (the page's address with /part:<block id> after the item, which docpanel.js popOut writes) is a
+// smaller box, so a card or a section stands beside the map and several stand side by side. The address is judged by childWindowOk as
+// every pop-out's is; this only picks its size
+const PART_QUERY = /^\?popout=doc:[^&#]*\/part:[A-Za-z0-9_-]{1,64}$/;
 function childWindowOptions(url, icon) {
-    const u = parseUrl(url), portrait = !!u && /^\?popout=/.test(u.search);
-    return { autoHideMenuBar: true, icon: icon, width: portrait ? 840 : 1280, height: portrait ? 1000 : 720, backgroundColor: '#15151c' };
+    const u = parseUrl(url), portrait = !!u && /^\?popout=/.test(u.search), part = portrait && PART_QUERY.test(u.search);
+    return { autoHideMenuBar: true, icon: icon, width: part ? 640 : portrait ? 840 : 1280, height: part ? 760 : portrait ? 1000 : 720, backgroundColor: '#15151c' };
 }
 
 // A link that may go to the system browser: a web page or a mail address, never a file, a program or a custom protocol —

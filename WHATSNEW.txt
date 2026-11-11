@@ -851,6 +851,10 @@ Writing planners and pages
 - Names only, at the top right of a section of cards, folds its cards to
   their names, so five people are five lines. Open cards opens them again,
   and Cards to names in the Outline menu does it for the whole page.
+- Contents: a page with two sections or more shows them as a row of chips
+  above it, the one in view in gold. Press a chip to go there. On a wide
+  window the planner's own view lists each section's cards beside the page.
+  Untick Contents in the Outline menu to put it away.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

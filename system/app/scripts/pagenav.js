@@ -192,6 +192,7 @@ function foldApply(root) {
     root.classList.add('pv-folds');
     if (typeof window !== 'undefined' && window.wpInlineDice && typeof window.wpInlineDice.apply === 'function') window.wpInlineDice.apply(root);   // 1.6.0, backlog 27: a dice formula in the page a roll button
     if (typeof tableFit === 'function') tableFit(root);   // 1.6.2, backlog 107 (a): a table with less room than its columns need reads a row at a time
+    if (typeof tocDraw === 'function') tocDraw(root);   // 1.6.2, backlog 107 (a): Contents, the page's sections beside or above it
 }
 // Names only (1.6.2, backlog 107 (a); docs/PLANNER_ORG_DESIGN.md 4.7). A section whose blocks stand as cards (a .pv-cards row, planner.js) gets one
 // button at the row's top right: Names only folds every card of that section to its name, so five people are five lines, and it then reads
@@ -322,7 +323,7 @@ function tableUnfit(root) { if (!root || typeof root.querySelectorAll !== 'funct
 function tfitWatch(root, Obs, later) {
     if (!root || typeof Obs !== 'function') return null;
     var last = root.clientWidth, due = false, wait = typeof later === 'function' ? later : function(fn) { setTimeout(fn, 60); };
-    var o = new Obs(function() { var w = root.clientWidth; if (w === last || due) return; due = true; wait(function() { due = false; last = root.clientWidth; try { tableFit(root); } catch (e) {} }); });
+    var o = new Obs(function() { var w = root.clientWidth; if (w === last || due) return; due = true; wait(function() { due = false; last = root.clientWidth; try { tableFit(root); if (typeof tocDraw === 'function') tocDraw(root); } catch (e) {} }); });
     o.observe(root); return o;
 }
 // [pagecheck:tfit-end]
@@ -438,7 +439,7 @@ function navMenuEl() {
         var act = e.target && e.target.closest ? e.target.closest('.pagenav-act') : null, row = act ? null : (e.target && e.target.closest ? e.target.closest('.pagenav-row') : null); if (!act && !row) return;
         var root = _navRoot; navClose(false); if (!root) return;
         navHand(root);
-        if (act) { if (act.dataset.act === 'namesall') namesAll(root); else foldAll(root, act.dataset.act === 'foldall'); return; }
+        if (act) { if (act.dataset.act === 'toc') tocSet(tocOff()); else if (act.dataset.act === 'namesall') namesAll(root); else foldAll(root, act.dataset.act === 'foldall'); return; }
         var bi = row.dataset.blk, find = function() { return navOutline(root).filter(function(h) { return h.bi === bi; })[0]; }, now = find(); if (!now) return;   // read again: the page may have been drawn again since
         if (foldReveal(root, now.el, true)) now = find() || now;   // a heading that was put away is brought out, and its own section opened
         navGo(now.el);
@@ -463,7 +464,7 @@ function navClose(refocus) {
 }
 // the rows: a button each, its class by the heading's level, its words a text node; then, where the page has a part that folds, a foot
 // with Fold all and Open all
-function navFill(m, list, folds, cards) {   // cards: the page holds a row of cards, so the foot also offers Cards to names
+function navFill(m, list, folds, cards, toc) {   // cards: the page holds a row of cards, so the foot also offers Cards to names; toc: true or false where the page has Contents to show or put away
     while (m.firstChild) m.removeChild(m.firstChild);
     if (!list.length) { var none = document.createElement('div'); none.className = 'pagenav-none'; none.appendChild(document.createTextNode('This page has no headings.')); m.appendChild(none); }
     list.forEach(function(h) {
@@ -473,10 +474,11 @@ function navFill(m, list, folds, cards) {   // cards: the page holds a row of ca
     if (!folds) return;
     var foot = document.createElement('div'); foot.className = 'pagenav-foot';
     [['foldall', 'Fold all'], ['openall', 'Open all']].concat(cards === true ? [['namesall', 'Cards to names']] : []).forEach(function(a) { var b = document.createElement('button'); b.type = 'button'; b.className = 'pagenav-act'; b.dataset.act = a[0]; b.setAttribute('role', 'menuitem'); b.appendChild(document.createTextNode(a[1])); foot.appendChild(b); });
+    if (toc === true || toc === false) { var tb = document.createElement('button'); tb.type = 'button'; tb.className = 'pagenav-act pagenav-tick' + (toc ? ' on' : ''); tb.dataset.act = 'toc'; tb.setAttribute('role', 'menuitemcheckbox'); tb.setAttribute('aria-checked', toc ? 'true' : 'false'); tb.appendChild(document.createTextNode('Contents')); foot.appendChild(tb); }
     m.appendChild(foot);
 }
 function navOpen(btn, root, byKey) {
-    var m = navMenuEl(); navFill(m, navOutline(root), foldParts(root).parts.length > 0, namesAny(root));
+    var m = navMenuEl(); navFill(m, navOutline(root), foldParts(root).parts.length > 0, namesAny(root), tocModel(root).length >= TOC_MIN ? !tocOff() : undefined);
     _navFrom = btn; _navRoot = root; btn.setAttribute('aria-expanded', 'true');
     m.style.left = '0px'; m.style.top = '0px'; m.style.display = 'block';
     var r = btn.getBoundingClientRect(), vw = window.innerWidth || 0, vh = window.innerHeight || 0, w = m.offsetWidth || 0, h = m.offsetHeight || 0;
@@ -514,7 +516,7 @@ function navWire() {
     });
     // another window of this app folded or opened something: what this one shows follows (one page has one set of folds on this computer)
     if (typeof window.addEventListener === 'function') window.addEventListener('storage', function(e) {
-        if (e && e.key !== null && e.key !== FOLD_STORE) return;
+        if (e && e.key !== null && e.key !== FOLD_STORE && !(typeof TOC_STORE === 'string' && e.key === TOC_STORE)) return;   // the folds, or Contents shown or put away: every place draws both again
         NAV_PLACES.forEach(function(p) { var r = document.getElementById(p[1]); if (r) foldApply(r); });
     });
     document.addEventListener('pointerdown', function(e) {
@@ -530,6 +532,111 @@ function navWire() {
 }
 // the place a drawn element belongs to (its box), or null
 function navRootOf(el) { for (var i = 0; el && el.closest && i < NAV_PLACES.length; i++) { var r = el.closest('#' + NAV_PLACES[i][1]); if (r) return r; } return null; }
+// Contents (1.6.2, backlog 107 (a); docs/PLANNER_ORG_DESIGN.md 4.7). Where a drawn page has two sections or more, each place shows them as a
+// strip of chips, one a section with how many cards it holds, the section in view in gold; a press goes there and opens its fold, as a row of
+// the Outline does. In the planner's own view the strip stands in the bar that stays at the top of the page, and where the window leaves room
+// beside the page it is a column in that margin instead, which lists every card by name under its section. In the other places it stands
+// between the place's head and the box the page scrolls in. It is this module's own element OUTSIDE the box the page is drawn in, so the
+// page's Find, its exports and its redraws never meet it. Nothing of the page is stored: only whether Contents is shown, for this computer.
+var TOC_STORE = 'wp_pageToc', TOC_MIN = 2, TOC_ROOM = 236, TOC_LINE = 60, TOC_ICO = { person: 'wi-person', place: 'wi-marker', clue: 'wi-clue' };
+function tocOff() { try { return window.localStorage.getItem(TOC_STORE) === 'off'; } catch (e) { return false; } }
+function tocKind(node) { var m = /(?:^| )card-(person|place|clue)(?: |$)/.exec(typeof node.className === 'string' ? node.className : ''); return m ? m[1] : 'scene'; }
+// the sections of a drawn page and the cards under each: [{ text, bi, n, cards: [{ text, bi, kind }] }]. A section is a heading of the first
+// or second level, but for the page's own title, its first; a card is a titled card under it, never a plain table. What stands before the
+// first section belongs to none
+function tocModel(root) {
+    var out = [], cur = null, title = false;
+    navBlocks(root).forEach(function(b) {
+        var h = navHead(b), bi = b.dataset && typeof b.dataset.blk === 'string' ? b.dataset.blk : '', text = h ? navText(h.el) : ''; if (!h || !text || !bi) return;
+        var k = navFirstEl(b), box = !!k && k.nodeName === 'DIV' && navHas(k, 'node'), card = box && !navHas(k, 'plain-table');
+        if (!box && h.level <= 2) { if (h.level === 1 && !title) { title = true; return; } cur = { text: text, bi: bi, n: 0, cards: [] }; out.push(cur); return; }
+        if (card && cur) { cur.n++; cur.cards.push({ text: text, bi: bi, kind: tocKind(k) }); }
+    });
+    return out;
+}
+function tocBar(root) { return root && root.id === 'plannerPreview' ? document.getElementById('plannerFindBar') : null; }   // the planner's own view: its bar stays at the top of the page it scrolls
+function tocScroller(root) { return root && root.id === 'plannerPreview' ? root.parentNode : root; }
+// the room beside the page, on one side, in the box it scrolls in
+function tocRoom(root) { var sc = root.parentNode, page = navFirstEl(root), a = sc ? sc.clientWidth : 0, b = page ? page.clientWidth : 0; return a > 0 && b > 0 ? (a - b) / 2 : 0; }
+function tocFill(el, list) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+    var head = document.createElement('div'); head.className = 'pv-toc-head'; head.appendChild(document.createTextNode('Contents')); el.appendChild(head);
+    list.forEach(function(s) {
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'pv-toc-sec'; b.dataset.blk = s.bi; b.appendChild(document.createTextNode(s.text));
+        if (s.n) { var n = document.createElement('small'); n.appendChild(document.createTextNode(String(s.n))); b.appendChild(n); }
+        el.appendChild(b);
+        s.cards.forEach(function(c) {
+            var cb = document.createElement('button'); cb.type = 'button'; cb.className = 'pv-toc-card'; cb.dataset.blk = c.bi;
+            if (Object.prototype.hasOwnProperty.call(TOC_ICO, c.kind)) { var i = document.createElement('i'); i.className = 'wib ' + TOC_ICO[c.kind]; cb.appendChild(i); }
+            cb.appendChild(document.createTextNode(c.text)); el.appendChild(cb);
+        });
+    });
+}
+// where it stands: in the planner's bar as a strip, or before the page as a column where the margin has room; elsewhere before the page's box
+function tocPlace(root, el) {
+    var bar = tocBar(root), col = !!bar && tocRoom(root) >= TOC_ROOM, home = bar && !col ? bar : root.parentNode, before = bar && !col ? null : root;
+    if (el.parentNode !== home || (before && el.nextSibling !== before)) home.insertBefore(el, before);
+    el.classList.toggle('pv-toc-col', col);
+    el.style.top = col && bar.getBoundingClientRect ? Math.ceil(bar.getBoundingClientRect().height + 10) + 'px' : '';   // the column stays under the bar
+}
+// the section in view: the last one whose heading has reached the top of the box (under the planner's bar, which stands over it), the first
+// before any has. At the page's end, where it can scroll no further, the last section whose heading is in sight at all
+function tocNow(root) {
+    var el = root ? root._wpToc : null; if (!el || !el.parentNode) return '';
+    var sc = tocScroller(root), sr = sc && sc.getBoundingClientRect ? sc.getBoundingClientRect() : { top: 0, bottom: 0 }, top = sr.top, bar = tocBar(root), at = Object.create(null), cur = '', first = '';
+    var line = (bar && bar.getBoundingClientRect ? Math.max(0, bar.getBoundingClientRect().bottom - top) : 0) + TOC_LINE;
+    var end = !!sc && sc.scrollTop > 0 && sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 2, low = end ? sr.bottom - top - 20 : line;
+    navBlocks(root).forEach(function(b) { if (b.dataset && typeof b.dataset.blk === 'string') at[b.dataset.blk] = b; });
+    var secs = el.querySelectorAll('.pv-toc-sec');
+    for (var i = 0; i < secs.length; i++) { var bi = secs[i].dataset.blk, blk = at[bi]; if (!blk) continue; if (navHas(blk, 'pv-fold-hid')) continue; if (!first) first = bi; if (blk.getBoundingClientRect().top - top <= low) cur = bi; }   // one put away by a folded section above it is in view only as part of that section
+    cur = cur || first;
+    for (var j = 0; j < secs.length; j++) {
+        var on = secs[j].dataset.blk === cur, was = secs[j].classList.contains('on');
+        if (was !== on) secs[j].classList.toggle('on', on);
+        if (on) secs[j].setAttribute('aria-current', 'true'); else secs[j].removeAttribute('aria-current');
+        if (on && !was && !el.classList.contains('pv-toc-col')) tocSee(el, secs[j]);
+    }
+    return cur;
+}
+// the strip moved sideways, by its own scroll alone, until a chip is in sight (never scrollIntoView, which would move the page too)
+function tocSee(el, chip) {
+    var a = chip.offsetLeft, b = a + chip.offsetWidth, l = el.scrollLeft, w = el.clientWidth; if (!(w > 0) || typeof a !== 'number' || !(chip.offsetWidth > 0)) return;
+    if (a - 8 < l) el.scrollLeft = Math.max(0, a - 8); else if (b + 8 > l + w) el.scrollLeft = b + 8 - w;
+}
+// the column's place under the planner's bar, written again whenever that bar is measured (it grows when its tools wrap or the text bar joins it)
+function tocTop(doc) {
+    var pv = doc && typeof doc.getElementById === 'function' ? doc.getElementById('plannerPreview') : null, el = pv ? pv._wpToc : null, bar = pv ? tocBar(pv) : null;
+    if (el && el.parentNode && el.classList.contains('pv-toc-col') && bar && bar.getBoundingClientRect) el.style.top = Math.ceil(bar.getBoundingClientRect().height + 10) + 'px';
+}
+function tocNowSoon(root) { if (!root || root._wpTocT) return; root._wpTocT = setTimeout(function() { root._wpTocT = 0; tocNow(root); }, 80); }
+function tocPress(root, e) {
+    var b = e.target && e.target.closest ? e.target.closest('[data-blk]') : null; if (!b) return;
+    var bi = b.dataset.blk, find = function() { return navOutline(root).filter(function(h) { return h.bi === bi; })[0]; }, now = find(); if (!now) return;   // read again: the page may have been drawn again since
+    navHand(root);
+    if (foldReveal(root, now.el, true)) now = find() || now;
+    navGo(now.el); tocNowSoon(root);
+}
+function tocDraw(root) {
+    if (!root || !root.parentNode || typeof root.parentNode.insertBefore !== 'function') return null;
+    var el = root._wpToc || null, list = tocOff() ? [] : tocModel(root);
+    if (root.id === 'plannerPreview' && !tocBar(root)) return el && el.parentNode ? el : null;   // its bar is off the page for a moment, as while a picture of the page is made: Contents is left where it stands, in that bar or beside the page
+    if (list.length < TOC_MIN) { if (el && el.parentNode) el.parentNode.removeChild(el); return null; }
+    if (!el) {
+        el = document.createElement('nav'); el.className = 'pv-toc'; el.setAttribute('aria-label', 'Contents'); el.setAttribute('data-html2canvas-ignore', 'true'); root._wpToc = el;   // never in a picture of the page (Save as Image)
+        el.addEventListener('wheel', function(e) { if (el.classList.contains('pv-toc-col') || !e.deltaY || el.scrollWidth <= el.clientWidth) return; el.scrollLeft += e.deltaY; e.preventDefault(); }, { passive: false });   // the strip has no scroll bar: the wheel moves it sideways
+        el.addEventListener('click', function(e) { tocPress(root, e); });
+        var sc = tocScroller(root); if (sc && !sc._wpTocScroll && typeof sc.addEventListener === 'function') { sc._wpTocScroll = true; sc.addEventListener('scroll', function() { tocNowSoon(root); }, { passive: true }); }
+    }
+    var sig = JSON.stringify(list.map(function(s) { return [s.text, s.bi, s.cards.map(function(c) { return [c.text, c.bi, c.kind]; })]; }));
+    if (el._wpSig !== sig) { el._wpSig = sig; tocFill(el, list); }
+    tocPlace(root, el); tocNow(root);
+    return el;
+}
+// Contents shown or put away, for this computer, in every place of this window
+function tocSet(on) {
+    try { if (on) window.localStorage.removeItem(TOC_STORE); else window.localStorage.setItem(TOC_STORE, 'off'); } catch (e) {}
+    NAV_PLACES.forEach(function(p) { var r = document.getElementById(p[1]); if (r) tocDraw(r); });
+}
 // [pagecheck:menu-end]
 
 // [pagecheck:hist-start]
@@ -697,7 +804,7 @@ function navBarSet(doc) {
 // kept current whenever the bar changes size (a wider or narrower view, the editor shown or put away, a page with other buttons, the view put
 // away), or with no observer at hand at every change of the window's size. Answers whether there is a bar to follow
 function navBarWire(doc, Obs) {
-    var bar = doc && typeof doc.getElementById === 'function' ? doc.getElementById(NAV_BAR[0]) : null, go = function() { navBarSet(doc); };
+    var bar = doc && typeof doc.getElementById === 'function' ? doc.getElementById(NAV_BAR[0]) : null, go = function() { navBarSet(doc); if (typeof tocTop === 'function') tocTop(doc); };
     if (!bar) return false;
     if (typeof Obs === 'function') new Obs(go).observe(bar);
     else if (doc.defaultView && typeof doc.defaultView.addEventListener === 'function') doc.defaultView.addEventListener('resize', go);

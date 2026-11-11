@@ -894,6 +894,30 @@
      drawn. An open block is never positioned (a positioned block would be painted after the blocks before it, and its background over a picture floated
      beside it): the arrow is the block's first child, floated into the margin with a margin box of no width and no height, so it moves and clears nothing.
      What is put away keeps its width (no display: none), so a chart drawn while it is folded is laid out as it will be shown. */
+  /* Contents (1.6.2, backlog 107 (a); pagenav.js tocDraw): the sections of the page a place shows, as a strip of chips above it, or in the planner's own
+     view, where the window leaves room beside the page, as a column in that margin with every card by name. Screen only */
+  .pv-toc { display: none; }
+  @media screen {
+    .pv-toc { display: flex; flex: none; align-items: center; gap: 5px; width: 100%; min-width: 0; box-sizing: border-box; overflow-x: auto; scrollbar-width: none; padding: 5px 12px 6px; border-bottom: 1px solid var(--edge); }
+    #plannerFindBar > .pv-toc { padding: 4px 0 0; border-bottom: 0; }
+    .pv-toc-head { display: none; }
+    .pv-toc button { flex: none; border: 1px solid var(--edge); border-radius: 11px; background: none; color: var(--dim); font: inherit; font-size: 11px; line-height: 16px; padding: 1px 9px; white-space: nowrap; cursor: pointer; }
+    .pv-toc button small { margin-left: 5px; color: var(--faint); }
+    .pv-toc button:hover, .pv-toc button:focus-visible { color: var(--ink); border-color: var(--gold); outline: none; }
+    .pv-toc button.on { color: var(--gold); border-color: var(--gold); }
+    .pv-toc .pv-toc-card { display: none; }
+    .pv-toc.pv-toc-col { display: block; position: sticky; float: left; width: 190px; max-height: calc(100vh - 190px); overflow: auto; padding: 2px 8px 10px 0; border-bottom: 0; z-index: 1; }
+    .pv-toc.pv-toc-col + #plannerPreview { display: flow-root; }   /* the page keeps its own floats and clears to itself: a multi-column section's clear would otherwise clear the column and leave a gap */
+    .pv-toc-col .pv-toc-head { display: block; margin: 0 0 4px 4px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+    .pv-toc-col button { display: flex; align-items: center; gap: 5px; width: 100%; border: 0; border-radius: 4px; padding: 2px 4px; text-align: left; white-space: normal; font-size: 11.5px; }
+    .pv-toc-col .pv-toc-sec { margin-top: 8px; color: var(--ink); font-weight: 600; }
+    .pv-toc-col .pv-toc-sec small { margin-left: auto; font-weight: 400; }
+    .pv-toc-col .pv-toc-card { display: flex; padding-left: 14px; }
+    .pv-toc-col .pv-toc-card .wib { flex: none; width: 11px; height: 11px; }
+    .pv-toc-col button.on { color: var(--gold); }
+    #pageNavMenu .pagenav-tick::before { content: ''; display: inline-block; width: 9px; height: 9px; margin-right: 6px; border: 1px solid var(--dim); border-radius: 2px; vertical-align: -1px; }
+    #pageNavMenu .pagenav-tick.on::before { background: var(--gold); border-color: var(--gold); }
+  }
   .pv-names-btn { display: none; }
   .pv-fold-btn { display: none; }
   @media screen {

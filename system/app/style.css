@@ -894,6 +894,21 @@
      drawn. An open block is never positioned (a positioned block would be painted after the blocks before it, and its background over a picture floated
      beside it): the arrow is the block's first child, floated into the margin with a margin box of no width and no height, so it moves and clears nothing.
      What is put away keeps its width (no display: none), so a chart drawn while it is folded is laid out as it will be shown. */
+  /* Mentioned in (1.6.2, backlog 107 (a); pageshelf.js namedOpen): the menu under a person's or a place's Mentioned in button. A window of its own shows no such button */
+  #namedInMenu { position: fixed; z-index: 99996; min-width: 220px; max-width: min(360px, 92vw); max-height: 50vh; overflow: auto; padding: 5px; background: var(--panel); border: 1px solid var(--gold); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+  #namedInMenu .nin-head { padding: 3px 8px 5px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+  #namedInMenu .nin-none { padding: 4px 8px; font-size: 12.5px; color: var(--dim); }
+  #namedInMenu .nin-row { display: flex; flex-direction: column; gap: 1px; width: 100%; padding: 5px 8px; border: 0; border-radius: 5px; background: none; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+  #namedInMenu .nin-row small { color: var(--dim); font-size: 11px; }
+  #namedInMenu .nin-row:hover, #namedInMenu .nin-row:focus-visible { background: rgba(224,165,79,0.14); outline: none; }
+  /* The button's row shows only where its press is heard: the planner's own view and the panel over the map, in the app's own window, on screen. An exported page, a
+     picture of the page, paper and a window of its own never show it. Its words are an attribute this sheet prints, so the page's Find never counts them */
+  .pv-ment-row { display: none; }
+  .doc-view .pv-cards > .pv-blk > .node > :nth-last-child(2):has(+ .pv-ment-row) { margin-bottom: 0; }   /* in a row of cards the card's last line keeps no gap under it, with the button's row shown or put away */
+  @media screen {
+    body:not(.popout-mode):not(.stream-mode) #plannerPreview .pv-ment-row, body:not(.popout-mode):not(.stream-mode) #docPanelBody .pv-ment-row { display: block; }
+    .pv-ment::before { content: attr(data-say); }
+  }
   /* Contents (1.6.2, backlog 107 (a); pagenav.js tocDraw): the sections of the page a place shows, as a strip of chips above it, or in the planner's own
      view, where the window leaves room beside the page, as a column in that margin with every card by name. Screen only */
   .pv-toc { display: none; }

@@ -855,6 +855,9 @@ Writing planners and pages
   above it, the one in view in gold. Press a chip to go there. On a wide
   window the planner's own view lists each section's cards beside the page.
   Untick Contents in the Outline menu to put it away.
+- Mentioned in: a Person card and a Place card end in a Mentioned in
+  button. It lists the pages and planners that name the card somewhere
+  else, and a press on one opens it at that place.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

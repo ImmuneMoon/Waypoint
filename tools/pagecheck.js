@@ -1036,6 +1036,42 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && wn.every(t => t.includes("- A planner's section can lay its cards side by side. On the section\n") && t.indexOf("- A planner's section can lay its cards") < t.indexOf('WAYPOINT 1.6.1')), J([widths, gap, widths.map(w => fits(980, w)), widths.map(w => fits(392, w))]));
     }
 
+    /* ---- the page editor's open form belongs to its page (1.6.2, found by hand) ---- */
+    {
+        const plS = read('scripts/planner.js'), a = plS.indexOf('// [pagecheck:pgitem-start]'), z = plS.indexOf('// [pagecheck:pgitem-end]');
+        const st = { am: { id: 'p1' } }, ro = { n: 0, disconnect() { this.n++; } }, pg = { open: 2, item: 'p1', ro: null };
+        const F = new Function('_pg', 'getActiveMap', plS.slice(a, z) + '\nreturn { pgOwn: pgOwn, pgItemNow: pgItemNow };')(pg, () => st.am);
+        F.pgOwn(); const same = pg.open;
+        st.am = { id: 'p2' }; pg.ro = ro; F.pgOwn(); const other = [pg.open, pg.ro, ro.n];
+        pg.open = 1; pg.item = 'p2'; st.am = null; F.pgOwn(); const none = pg.open;
+        const old = { open: 3, ro: null }; new Function('_pg', 'getActiveMap', plS.slice(a, z) + '\nreturn pgOwn;')(old, () => ({ id: 'p9' }))();
+        check('the page editor\'s open form belongs to the page it was opened on: with that page on screen it stays open, with another page or none it is put away and its observer let go, so the block at the same place of another page never comes up open; a form opened by a path that named no page is left as it was; opening notes the page, and placing and reopening ask first',
+            a > 0 && z > a && same === 2 && J(other) === J([-1, null, 1]) && none === -1 && old.open === 3
+            && plS.includes("      _pg.open = Math.round(Number(i)); _pg.item = pgItemNow(); pgPlace();\n") && plS.includes("  function pgPlace() {   // the open form over (or under) its drawn block, the page making room for it\n      pgOwn();\n") && plS.includes("  function pgReopen() { pgOwn(); if (!pgOn() || _pg.open < 0) return;"), J([same, other, none, old.open]));
+    }
+
+    /* ---- Mentioned in (1.6.2, backlog 107 (a); docs/PLANNER_ORG_DESIGN.md 4.9): the button the preview draws ---- */
+    {
+        const CCm = await import(modUrl('cardcore.js'));
+        const d = makeDom(), sliceOf = (file, a, b) => { const s = read(file), i = s.indexOf(a), k = s.indexOf(b); if (i < 0 || k < i) throw new Error('pagecheck: ' + a + ' is not in ' + file); return s.slice(i + a.length, k); };
+        const pvSrc = sliceOf('scripts/planner.js', '// [sinkcheck:planner-preview-start]', '// [sinkcheck:planner-preview-end]') + '\nreturn plannerPreviewHtml;';
+        const NAMES = ['esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef', 'fmtHtml', 'fmtRich', 'fieldFmt', 'colFmtOf', 'cellFmtOf', 'mermaidPre'];
+        const ARGS = [SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef, DR.fmtHtml, DR.fmtRich, DR.fieldFmt, DR.colFmtOf, DR.cellFmtOf, DR.mermaidPre];
+        const withCC = new Function(...NAMES, 'CC', pvSrc)(...ARGS, CCm), noCC = new Function(...NAMES, pvSrc)(...ARGS);
+        const HOST = 'b"><img src=x onerror=alert(1)>';
+        const mk = ids => [{ type: 'h1', title: 'Session' }, { type: 'node', mode: 'person', title: 'Kael' }, { type: 'node', mode: 'place', title: 'The <b>ford</b>' }, { type: 'node', mode: 'clue', title: 'Ash' }, { type: 'node', title: 'The gate' },
+            { type: 'node', mode: 'table', title: 'Prices', cols: ['Item'], rows: [{ col1: 'Ale' }] }, { type: 'node', mode: 'person', title: '' }, { type: 'node', mode: 'person', title: 'Mira' }].map((b, i) => ids ? Object.assign({ id: i === 7 ? HOST : 'b_' + i }, b) : b);
+        const withIds = { id: 'p"1', type: 'planner', blocks: mk(true) }, noIds = { id: 'p"1', type: 'planner', blocks: mk(false) }, camp = { id: 'c1', items: {} };
+        const hI = withCC(withIds, camp), hN = withCC(noIds, camp), hO = noCC(withIds, camp), tI = toTree(d, hI), tN = toTree(d, hN);
+        const btns = tI.querySelectorAll('.pv-ment'), got = btns.map(b => [b.closest('.pv-blk').dataset.blk, b.dataset.page, b.dataset.at, b.dataset.say, b.childNodes.length, b.getAttribute('aria-label'), b.parentNode.className, b.parentNode.dataset['html2canvas-ignore']]);
+        const NV = new Function('document', 'window', slice('outline') + slice('fold') + 'return { foldParts: foldParts, navOutline: navOutline };')({}, {});
+        const marks = t => J(NV.foldParts(t).parts.map(p => p.at + ' ' + p.kind + ' ' + p.mark)), outl = t => J(NV.navOutline(t).map(o => o.level + ' ' + o.bi + ' ' + o.text));
+        check('Mentioned in, over what the real renderer draws (planner.js plannerPreviewHtml with the real card core): a person and a place card with a name and an id of its own end in one button that names its planner and its block, both as escaped attributes, and holds no text node, its words an attribute the style sheet prints; a clue, a scene, a plain table, a card with no name, a card with no id and a planner drawn with no card core get none; the Outline and every fold mark are the same with the button as without it',
+            J(got) === J([['1', 'p"1', 'b_1', 'Mentioned in\u2026', 0, 'Mentioned in', 'pv-linkrow pv-ment-row', 'true'], ['2', 'p"1', 'b_2', 'Mentioned in\u2026', 0, 'Mentioned in', 'pv-linkrow pv-ment-row', 'true'], ['7', 'p"1', HOST, 'Mentioned in\u2026', 0, 'Mentioned in', 'pv-linkrow pv-ment-row', 'true']])
+            && tI.querySelectorAll('img').length === 0 && !hN.includes('pv-ment') && !hO.includes('pv-ment') && marks(tI) === marks(tN) && outl(tI) === outl(tN)
+            && hI.split('pv-ment-row').length - 1 === 3, J([got, marks(tI) === marks(tN), hO.includes('pv-ment')]));
+    }
+
     /* ---- Names only (1.6.2, backlog 107 (a); docs/PLANNER_ORG_DESIGN.md 4.7) ---- */
     {
         const N = mkNav(), rt = N.el.plannerPreview, D = N.dom, el = (tag, cls, kids) => mk(D, tag, cls, kids), bk = (i, kids, wide) => { const b = blk(D, i, kids); if (wide) b.className = 'pv-blk pv-wide'; return b; };

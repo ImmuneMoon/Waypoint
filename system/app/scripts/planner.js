@@ -284,7 +284,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       return Object.keys(b).some(function(k) { return !/^(type|id|style|fmt|fmts|colFmt|align|layout|color|src|look|width|height|link|linkMapId|at|blk|kind|cls|size|font)$/.test(k) && blockWords(b[k], (d || 0) + 1); }); }
   // ...and its Undo, while the planner is the one on screen: the block back where it stood, else at the end
   function blockBack(map, at, b) { if (!map || !Array.isArray(map.blocks) || map.blocks.indexOf(b) >= 0 || getActiveMap() !== map) return false; var i = Math.max(0, Math.min(at, map.blocks.length)); map.blocks.splice(i, 0, b); if (_pg.open >= i) _pg.open++; save(true); renderPlanner(); pgReopen(); return true; }
-  function pgReopen() { if (!pgOn() || _pg.open < 0) return; var ed = document.getElementById('plannerEditorWrap'), form = ed ? ed.querySelector('.planner-block-edit[data-idx="' + _pg.open + '"]') : null; if (_pg.ro) { _pg.ro.disconnect(); _pg.ro = null; } if (form && typeof ResizeObserver === 'function') { _pg.ro = new ResizeObserver(pgPlaceSoon); _pg.ro.observe(form); } pgPlace(); }
+  function pgReopen() { pgOwn(); if (!pgOn() || _pg.open < 0) return; var ed = document.getElementById('plannerEditorWrap'), form = ed ? ed.querySelector('.planner-block-edit[data-idx="' + _pg.open + '"]') : null; if (_pg.ro) { _pg.ro.disconnect(); _pg.ro = null; } if (form && typeof ResizeObserver === 'function') { _pg.ro = new ResizeObserver(pgPlaceSoon); _pg.ro.observe(form); } pgPlace(); }
   function pbeToolBack(i, cls) {
       var ed = document.getElementById('plannerEditorWrap'), form = ed ? ed.querySelector('.planner-block-edit[data-idx="' + i + '"]') : null, tools = form ? Array.prototype.slice.call(form.querySelectorAll('.block-tools button')) : [];
       var b = tools.filter(function(t) { return t.classList.contains(cls); })[0];
@@ -292,7 +292,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (b) { try { b.focus({ preventScroll: true }); } catch (e) {} }
   }
   function pgFace(pv, i) { return pv ? pv.querySelector('.pv-blk[data-blk="' + i + '"]') : null; }
+  // [pagecheck:pgitem-start]
+  // The open form belongs to the page it was opened on (1.6.2, found by hand): with another page on screen no form is open, where before the form of the
+  // block at the same place in the list came up on the page gone to
+  function pgItemNow() { var am = getActiveMap(); return am && typeof am.id === 'string' ? am.id : ''; }
+  function pgOwn() { if (_pg.open >= 0 && _pg.item !== undefined && _pg.item !== pgItemNow()) { _pg.open = -1; if (_pg.ro) { _pg.ro.disconnect(); _pg.ro = null; } } }
+  // [pagecheck:pgitem-end]
   function pgPlace() {   // the open form over (or under) its drawn block, the page making room for it
+      pgOwn();
       var E = pgEls(); if (!E.ed || !E.pv) return;
       Array.prototype.forEach.call(E.pv.querySelectorAll('.pg-room'), function(f) { f.classList.remove('pg-room', 'pg-hid'); f.style.minHeight = ''; f.style.marginBottom = ''; f.style.marginTop = ''; });
       var forms = E.ed.querySelectorAll('.planner-block-edit');
@@ -320,7 +327,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       try { form.scrollIntoView({ block: 'nearest' }); } catch (e) {}
   }
   function pgOpen(i) {
-      _pg.open = Math.round(Number(i)); pgPlace();
+      _pg.open = Math.round(Number(i)); _pg.item = pgItemNow(); pgPlace();
       var ed = document.getElementById('plannerEditorWrap'), form = ed ? ed.querySelector('.planner-block-edit[data-idx="' + _pg.open + '"]') : null;
       if (form && typeof ResizeObserver === 'function') { if (_pg.ro) _pg.ro.disconnect(); _pg.ro = new ResizeObserver(pgPlaceSoon); _pg.ro.observe(form); }
       pgFocus(_pg.open);
@@ -3040,6 +3047,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   });
                   html += '</tbody></table>';
               }
+              // 1.6.2 (backlog 107 (a), Mentioned in): a person and a place say where else they are named (pageshelf.js namedPress). The ids are this planner's own, escaped.
+              // The button holds no text node: its words are an attribute the style sheet prints, so the page's Find and a landing at words never read them
+              if (!plainPv && (kdP.key === 'person' || kdP.key === 'place') && b.title && typeof b.id === 'string' && typeof activeMap.id === 'string') html += '<p class="pv-linkrow pv-ment-row" data-html2canvas-ignore="true"><button type="button" class="tool ghost pv-ment" data-page="' + esc(activeMap.id) + '" data-at="' + esc(b.id) + '" data-say="Mentioned in&hellip;" aria-label="Mentioned in" aria-haspopup="menu" aria-expanded="false" title="The pages and scenes that name this card. Press one to open it there."></button></p>';
               html += '</div>';
           } else if (b.type === 'flowchart') {
               var m = compileFlowchart(b);   // docrender.js: one compiler for planners and pages

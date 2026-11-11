@@ -406,6 +406,195 @@ function peekLines(it, at, names) {
 // [shelfcheck:peek-end]
 
 /* ---------- pins ---------- */
+// [shelfcheck:namedin-start]
+// Mentioned in (1.6.2, backlog 107 (a); docs/PLANNER_ORG_DESIGN.md 4.9). A person or a place card shows where else it is named: the pages and
+// planners of the campaign whose words hold the card's name, or one of its other names, as a whole word, each one press away and opened at the
+// block that names it. It is found by reading the campaign as it stands when asked. Nothing is stored and no link is kept: it answers "where
+// did I write about her" with no link data at all. The GM's alone, on this computer's own campaign: planners never travel
+var NAMED_MIN = 3, NAMED_MAX = 40, NAMED_NAMES = 13, NAMED_FIELD = 200000, NAMED_ID = /^[A-Za-z0-9_-]{1,64}$/, NAMED_WORD = '\\p{L}\\p{N}';
+// Scripts in which a name stands against its neighbours with no space: there a name needs no gap on that side, and two characters are a whole
+// name. Read by a character's script extensions, so a kana's voicing mark and the long-vowel mark count, which a name folded apart may end in
+var NAMED_RUNS = '\\p{scx=Han}\\p{scx=Hiragana}\\p{scx=Katakana}\\p{scx=Hangul}\\p{scx=Thai}\\p{scx=Lao}\\p{scx=Khmer}\\p{scx=Myanmar}', NAMED_RUN = new RegExp('[' + NAMED_RUNS + ']', 'u');
+// The break between two fields, two paragraphs or two lines: a character no name holds (cardcore's cleanName takes it out), so a name is never
+// found across one
+var NAMED_BRK = '\u0001';
+// A tag that ends a line of words is a break; any other tag (bold, a colour, a link) reads as nothing, so a word styled in part stays one word
+var NAMED_BLOCKTAG = /^(?:p|div|br|li|ul|ol|h[1-6]|tr|td|th|table|thead|tbody|blockquote|pre|hr|section|article|dd|dt|dl)$/;
+var NAMED_ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', shy: '', rsquo: "'", lsquo: "'", rdquo: '"', ldquo: '"', ndash: '–', mdash: '—', hellip: '…', oslash: 'ø', aelig: 'æ', oelig: 'œ', szlig: 'ß', middot: '·' };
+function namedEnt(all, k) {
+    if (k.charAt(0) === '#') { var hex = /^#x/i.test(k), c = parseInt(k.slice(hex ? 2 : 1), hex ? 16 : 10); try { return c > 0 && c <= 0x10ffff ? String.fromCodePoint(c) : ' '; } catch (e) { return ' '; } }
+    var low = k.toLowerCase(); if (Object.prototype.hasOwnProperty.call(NAMED_ENT, low)) return NAMED_ENT[low];
+    var m = /^([a-z])(?:acute|grave|circ|uml|tilde|cedil|ring|caron)$/i.exec(k); return m ? m[1] : ' ';   // an accented letter is found as its letter: the accents are folded away anyway
+}
+function namedFold(s) { var t = String(s == null ? '' : s); try { t = t.normalize('NFD').replace(/[̀-ͯ]/g, ''); } catch (e) {} return t.toLowerCase().replace(/[‘’ʼ]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, ' ').trim(); }
+// A field's words, with its markup taken off and its entities read, in one pass: every < is looked at once, so a field of any shape costs its
+// length. A < opens a tag only where a letter, a / and a letter, or a ! follows it directly, as the page's own reader has it: any other < is a
+// character of the words ("DC < 15")
+function namedPlain(s) {
+    if (typeof s !== 'string' || !s) return '';
+    if (s.length > NAMED_FIELD) s = s.slice(0, NAMED_FIELD);
+    var out = s;
+    if (s.indexOf('<') >= 0) {
+        out = '';
+        for (var i = 0;;) {
+            var lt = s.indexOf('<', i); if (lt < 0) { out += s.slice(i); break; }
+            var m = /^<(?:\/?([a-zA-Z][a-zA-Z0-9]*)|!)/.exec(s.substr(lt, 24));
+            if (!m) { out += s.slice(i, lt + 1); i = lt + 1; continue; }
+            var gt = s.indexOf('>', lt + 1); if (gt < 0) { out += s.slice(i); break; }   // a tag that never ends: the rest is words
+            out += s.slice(i, lt) + (m[1] && !NAMED_BLOCKTAG.test(m[1].toLowerCase()) ? '' : NAMED_BRK);
+            i = gt + 1;
+        }
+    }
+    return out.indexOf('&') < 0 ? out : out.replace(/&(#x[0-9a-f]{1,6}|#[0-9]{1,7}|[a-z][a-z0-9]{1,9});/gi, namedEnt);
+}
+// A plain field (a title, a cell, a caption, a label): a line break typed in it is a break too, as the page draws it. In a text block a line
+// break of the source is white space, so those are read by namedPlain alone
+function namedLine(s) { var t = namedPlain(s); return /[\r\n]/.test(t) ? t.replace(/[\r\n]+/g, NAMED_BRK) : t; }
+function namedSay(s) { return namedPlain(s).split(NAMED_BRK).join(' ').replace(/\s+/g, ' ').trim(); }   // a title or a name as one line of words
+// The words of one block, field by field: its title, tag and lead line, its text, its table's headings and cells, a picture's caption, a chart's
+// labels and its arrows'
+function namedText(b) {
+    var out = [namedLine(b.title), namedLine(b.sub), namedLine(b.tag), namedLine(b.must), namedPlain(b.content), namedLine(b.caption), namedLine(b.alt)];
+    if (Array.isArray(b.aka)) b.aka.slice(0, 40).forEach(function(a) { out.push(namedLine(a)); });
+    if (Array.isArray(b.cols)) b.cols.slice(0, 60).forEach(function(c) { out.push(namedLine(c)); });
+    if (Array.isArray(b.rows)) b.rows.slice(0, 500).forEach(function(r) { if (Array.isArray(r)) r.slice(0, 60).forEach(function(c) { out.push(namedLine(c)); }); else if (r && typeof r === 'object') Object.keys(r).slice(0, 60).forEach(function(k) { if (/^col\d+$/.test(k)) out.push(namedLine(r[k])); }); });
+    [b.nodes, b.edges].forEach(function(l) { if (Array.isArray(l)) l.slice(0, 200).forEach(function(n) { if (n && typeof n === 'object') out.push(namedLine(n.text)); }); });
+    return out.filter(Boolean).join(NAMED_BRK);
+}
+// The names to look for: [{ re, say }], each once whatever its case or accents, thirteen at most (a card's name and its twelve other names). A
+// name of fewer than three letters finds nothing: it would be found inside everything. It is a whole word: no letter or digit stands right
+// before or after it, unless the name's own edge or its neighbour is of a script written with no spaces
+function namedNames(names) {
+    var seen = {}, out = [];
+    (Array.isArray(names) ? names : [names]).forEach(function(raw) {
+        if (typeof raw !== 'string' || out.length >= NAMED_NAMES) return;
+        var say = namedSay(raw), f = namedFold(say), cs = Array.from(f), len = cs.length; try { len = Array.from(f.normalize('NFC')).length; } catch (e) {}
+        if (!f || Object.prototype.hasOwnProperty.call(seen, f) || len < (NAMED_RUN.test(f) ? 2 : NAMED_MIN)) return;
+        seen[f] = 1;
+        var before = NAMED_RUN.test(cs[0]) ? '' : '(^|[^' + NAMED_WORD + ']|(?<=[' + NAMED_RUNS + ']))', after = NAMED_RUN.test(cs[cs.length - 1]) ? '' : '($|[^' + NAMED_WORD + ']|(?=[' + NAMED_RUNS + ']))';
+        out.push({ re: new RegExp(before + f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + after, 'u'), say: say });
+    });
+    return out;
+}
+// [{ id, type, title, at, where, n, q }]: each page or planner that names one of the names, with the first block that does (its id, the card or
+// the section it stands in, and the name found there) and how many of its blocks do. self: { id, at, i } the card asking, which is passed over,
+// by its place in its page where that is known, since two blocks of a file may share an id
+function namedIn(camp, names, self) {
+    var list = namedNames(names); if (!camp || !camp.items || typeof camp.items !== 'object' || !list.length) return [];
+    var out = [], si = self && typeof self.i === 'number' && self.i >= 0 ? self.i : -1;
+    Object.keys(camp.items).forEach(function(id) {
+        var it = pageOf(camp, id); if (!it || !Array.isArray(it.blocks)) return;
+        var first = null, n = 0, head = '', mine = !!self && self.id === id;
+        it.blocks.forEach(function(b, bi) {
+            if (!b || typeof b !== 'object') return;
+            if (b.type === 'h1' || b.type === 'h2') head = namedSay(b.title);
+            if (mine && (si >= 0 ? bi === si : typeof self.at === 'string' && b.id === self.at)) return;
+            var t = namedFold(namedText(b)), hit = null; for (var k = 0; k < list.length && !hit; k++) if (list[k].re.test(t)) hit = list[k];
+            if (!hit) return;
+            n++;
+            if (!first) first = { at: typeof b.id === 'string' && NAMED_ID.test(b.id) ? b.id : '', where: (b.type === 'node' && namedSay(b.title)) || head, q: hit.say };
+        });
+        if (first) out.push({ id: id, type: it.type, title: String((it.meta && it.meta.title) || (it.type === 'planner' ? 'Planner' : 'Page')), at: first.at, where: first.where, n: n, q: first.q });
+    });
+    out.sort(function(a, b) { return natCmp(a.title, b.title) || natCmp(a.id, b.id); });
+    return out.slice(0, NAMED_MAX);
+}
+// The card a Mentioned in button stands on: { names, self }, or null where it is no card of the campaign on screen. bi: the place the drawn
+// block says it has in its page, taken where the block there has that id, so the second of two blocks that share an id is itself
+function namedCard(camp, pageId, at, bi) {
+    var it = pageOf(camp, pageId), bl = it && Array.isArray(it.blocks) ? it.blocks : null; if (!bl || typeof at !== 'string') return null;
+    var i = typeof bi === 'number' && bi >= 0 && bl[bi] && typeof bl[bi] === 'object' && bl[bi].id === at ? bi : -1;
+    for (var k = 0; k < bl.length && i < 0; k++) if (bl[k] && typeof bl[k] === 'object' && bl[k].id === at) i = k;
+    var b = i < 0 ? null : bl[i]; if (!b || b.type !== 'node') return null;
+    var cc = window.wpCardCore, names = cc && typeof cc.cardNames === 'function' ? cc.cardNames(b) : [b.title];
+    return { names: (Array.isArray(names) ? names : []).filter(function(x) { return typeof x === 'string'; }), self: { id: pageId, at: at, i: i } };
+}
+var _named = null;   // the menu while it is up: { el, from, page, at, bi, q }
+// A button's place in its page as its drawn block says it, or -1
+function namedBi(btn) { var blk = btn && btn.closest ? btn.closest('.pv-blk') : null, n = blk && blk.dataset ? Number(blk.dataset.blk) : NaN; return n === n && n >= 0 ? Math.round(n) : -1; }
+// Whether a button is the one the menu came from. A page drawn again makes its buttons anew, so the button is known by what it names, never by the element alone
+function namedIs(st, btn) { return !!st && !!btn && (btn === st.from || (!!btn.dataset && btn.dataset.page === st.page && btn.dataset.at === st.at && namedBi(btn) === st.bi)); }
+function namedLive(st) {
+    if (st.from && st.from.isConnected !== false) return st.from;
+    var all = document.querySelectorAll('.pv-ment'); for (var i = 0; i < all.length; i++) if (namedIs(st, all[i])) return all[i];
+    return null;
+}
+function namedClose(refocus) {
+    var m = _named; _named = null; if (!m) return;
+    if (m.el.parentNode) m.el.parentNode.removeChild(m.el);
+    var from = namedLive(m);
+    if (from) { from.setAttribute('aria-expanded', 'false'); if (refocus && from.focus) { try { from.focus({ preventScroll: true }); } catch (e) {} } }
+}
+// The menu under the button: one row a page, its name and where on it, as text nodes; a row opens the page at the block that names the card
+function namedOpen(btn, rows, name) {
+    namedClose(false);
+    var m = document.createElement('div'); m.id = 'namedInMenu'; m.setAttribute('role', 'menu'); m.setAttribute('aria-label', 'Mentioned in');
+    var hd = document.createElement('div'); hd.className = rows.length ? 'nin-head' : 'nin-none'; hd.appendChild(document.createTextNode(rows.length ? 'Mentioned in' : 'Nothing else names ' + name + '.')); m.appendChild(hd);
+    rows.forEach(function(r) {
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'nin-row'; b.setAttribute('role', 'menuitem'); b.dataset.id = r.id; if (r.at) b.dataset.at = r.at; if (r.q) b.dataset.q = r.q;
+        var t = document.createElement('span'); t.className = 'nin-title'; t.appendChild(document.createTextNode(r.title)); b.appendChild(t);
+        var w = (r.where && r.where !== r.title ? r.where : '') + (r.n > 1 ? (r.where && r.where !== r.title ? ', and ' : '') + (r.n - 1) + ' more ' + (r.n === 2 ? 'place' : 'places') : '');
+        if (w) { var sm = document.createElement('small'); sm.appendChild(document.createTextNode(w)); b.appendChild(sm); }
+        m.appendChild(b);
+    });
+    var st = { el: m, from: btn, page: btn.dataset ? btn.dataset.page : '', at: btn.dataset ? btn.dataset.at : '', bi: namedBi(btn), q: name };
+    m.tabIndex = -1;
+    m.addEventListener('keydown', namedKey);
+    m.addEventListener('focusout', function(e) { var to = e.relatedTarget; if (_named === st && !(to && (m.contains(to) || namedIs(st, to)))) namedClose(false); });
+    document.body.appendChild(m);
+    var r = btn.getBoundingClientRect(), vw = window.innerWidth || 0, vh = window.innerHeight || 0, w = m.offsetWidth || 0, h = m.offsetHeight || 0;
+    var x = Math.max(6, Math.min(r.left, vw - w - 6)), y = r.bottom + 4; if (y + h > vh - 6) y = Math.max(6, r.top - h - 4);
+    m.style.left = x + 'px'; m.style.top = y + 'px';
+    btn.setAttribute('aria-expanded', 'true'); _named = st;
+    var first = m.querySelector('.nin-row') || m; if (first.focus) { try { first.focus({ preventScroll: true }); } catch (e) {} }
+    return m;
+}
+// The menu's own keys, heard on the menu, which holds the focus while it is up. Escape puts it away and hands the focus back; the arrows, Home
+// and End go through its rows; a letter goes to the next row that begins with it. Every plain key stops here, with rows or with none: the page
+// reads the arrows, Delete and Backspace as moving or deleting what is selected on the map, and a letter as a command's key or as a move the
+// player set. Tab and a key held with Ctrl, Alt or the command key go on as they were
+function namedKey(e) {
+    if (!_named) return;
+    var k = e.key;
+    if (k === 'Escape') { e.preventDefault(); e.stopPropagation(); namedClose(true); return; }
+    if (e.ctrlKey || e.altKey || e.metaKey || k === 'Tab') return;
+    e.stopPropagation();
+    var rows = Array.prototype.slice.call(_named.el.querySelectorAll('.nin-row')), at = rows.indexOf(document.activeElement);
+    if (k === 'ArrowDown' || k === 'ArrowUp' || k === 'Home' || k === 'End') {
+        e.preventDefault(); if (!rows.length) return;
+        rows[k === 'Home' ? 0 : k === 'End' ? rows.length - 1 : k === 'ArrowDown' ? (at + 1) % rows.length : (at <= 0 ? rows.length - 1 : at - 1)].focus();
+    } else if (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'Delete' || k === 'Backspace') e.preventDefault();
+    else if (typeof k === 'string' && k !== ' ' && Array.from(k).length === 1) {
+        var c = namedFold(k);
+        for (var j = 1; c && j <= rows.length; j++) { var row = rows[(Math.max(at, -1) + j) % rows.length]; if (namedFold(row.textContent).indexOf(c) === 0) { row.focus(); break; } }
+    }
+}
+// a press on a card's Mentioned in button: the menu, or put away when it is up from that very button
+function namedPress(btn) {
+    if (_named && namedIs(_named, btn)) { namedClose(true); return null; }
+    var n = window.wpNet; if (n && n.foreign) return null;   // someone else's table holds no planner
+    var camp = getActiveCampaign(), card = namedCard(camp, btn.dataset.page, btn.dataset.at, namedBi(btn)); if (!card || !card.names.length) return null;
+    return namedOpen(btn, namedIn(camp, card.names, card.self), namedSay(card.names[0]));
+}
+function namedWire() {
+    var qs = new URLSearchParams(location.search); if (qs.has('popout') || qs.has('stream')) return;   // the main window's own: a window of its own shows the page, never this button
+    document.addEventListener('click', function(e) {
+        var t = e.target, b = t && t.closest ? t.closest('.pv-ment') : null;
+        if (b) { e.preventDefault(); e.stopPropagation(); namedPress(b); return; }
+        var row = _named && t && t.closest ? t.closest('.nin-row') : null; if (!row || !_named.el.contains(row)) return;
+        e.preventDefault(); e.stopPropagation();
+        var id = row.dataset.id, at = row.dataset.at, q = row.dataset.q || _named.q; namedClose(false);
+        openPage(id, pageWay(viewNow(), e), at ? { at: at } : { q: q });
+    }, true);
+    // a quick second press on the button puts its menu away: it is no double-click on the card, which in the Read view would leave it for the editor
+    document.addEventListener('dblclick', function(e) { if (e.target && e.target.closest && e.target.closest('.pv-ment')) e.stopPropagation(); }, true);
+    document.addEventListener('pointerdown', function(e) { if (_named && !(e.target && e.target.closest && e.target.closest('#namedInMenu, .pv-ment'))) namedClose(false); }, true);
+    // the menu stands at a fixed place under its button: a page that scrolls under it, and a window that changes size, put it away. Its own scroll leaves it
+    document.addEventListener('scroll', function(e) { if (_named && !(e.target && e.target.nodeType === 1 && _named.el.contains(e.target))) namedClose(false); }, true);
+    window.addEventListener('resize', function() { if (_named) namedClose(false); });
+}
+// [shelfcheck:namedin-end]
+
 // [shelfcheck:pins-start]
 function isPinned(id) { var camp = getActiveCampaign(); return !!camp && pinnedOf(camp).indexOf(id) >= 0; }
 function pinLabel(id) { return isPinned(id) ? 'Unpin from the session' : 'Pin for the session'; }
@@ -540,3 +729,5 @@ window.wpPageShelf.mapPinPeek = mapPinPeek;
 window.wpPageShelf.nextScene = function() { return nextSceneOf(getActiveCampaign()); };
 // 1.6.2, backlog 166 f: a mention's press, its words and its paint, which linkgate.js and pagenav.js ask
 window.wpPageShelf.mentionGo = mentionGo; window.wpPageShelf.mentionWords = mentionWords; window.wpPageShelf.mentionPaint = mentionPaint;
+// 1.6.2, backlog 107 (a): Mentioned in, the pages that name a person's or a place's card, and the press of its button
+window.wpPageShelf.namedIn = function(names, self) { return namedIn(getActiveCampaign(), names, self); }; namedWire();

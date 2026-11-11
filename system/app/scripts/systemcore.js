@@ -9462,13 +9462,21 @@ function cleanRests(v, unitKeys, refs) {
 // the next full night" names A full night, its first a, an or the left out. The note is read as words, ignoring case and what is no letter or digit.
 // restEndsFx is pure: it answers the new value of each effects list it changes, and the names of the effects it took off
 function restFold(s) { return ' ' + String(typeof s === 'string' ? s : '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim() + ' '; }
-function durNamesRest(dur, name) { var n = restFold(name).replace(/^ (a|an|the) /, ' '); return n.trim() !== '' && restFold(dur).indexOf(n) >= 0; }
+function restNameKey(name) { return restFold(name).replace(/^ (a|an|the) /, ' '); }
+// others: the names of the system's rests. Where the note holds a longer rest's name that ends in or holds this one's ("Until a long rest" for a rest
+// named Rest), the note names the longer rest and not this one (the review of 2026-11-10: a one-hour Rest ended what lasts until a long rest)
+function durNamesRest(dur, name, others) {
+    var n = restNameKey(name); if (n.trim() === '') return false; var d = restFold(dur);
+    (Array.isArray(others) ? others : []).map(restNameKey).filter(function(o) { return o.length > n.length && o.indexOf(n) >= 0; }).sort(function(a, b) { return b.length - a.length; }).forEach(function(o) { d = d.split(o).join(' \u0000 '); });
+    return d.indexOf(n) >= 0;
+}
 function restEndsFx(sys, char, rest) {
     var out = { vals: [], names: [], rows: [] }; if (!isObj(sys) || !isObj(char) || !isObj(rest) || rest.ends !== true || typeof rest.name !== 'string') return out;
     var defs = map(); (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (isObj(d) && typeof d.id === 'string') defs[d.id] = d; });
+    var others = (Array.isArray(sys.rests) ? sys.rests : []).map(function(r) { return isObj(r) && typeof r.name === 'string' ? r.name : ''; });
     (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) {
         if (!isObj(f) || f.kind !== 'effects' || typeof f.id !== 'string') return; var cur = isObj(char.values) && Array.isArray(char.values[f.id]) ? char.values[f.id] : null; if (!cur) return;
-        var keep = cur.filter(function(r) { if (!isObj(r)) return true; var d = typeof r.ref === 'string' ? defs[r.ref] : null; if (!durNamesRest(d ? d.dur : r.dur, rest.name)) return true; out.names.push(str((d ? d.name : r.name), LIMITS.name) || 'An effect'); out.rows.push({ f: f.id, id: r.id }); return false; });
+        var keep = cur.filter(function(r) { if (!isObj(r)) return true; var d = typeof r.ref === 'string' ? defs[r.ref] : null; if (!durNamesRest(d ? d.dur : r.dur, rest.name, others)) return true; out.names.push(str((d ? d.name : r.name), LIMITS.name) || 'An effect'); out.rows.push({ f: f.id, id: r.id }); return false; });
         if (keep.length !== cur.length) out.vals.push({ fieldId: f.id, value: JSON.parse(JSON.stringify(keep)) });
     });
     return out;
@@ -13294,7 +13302,7 @@ function applyEffectOp(sys, char, fieldId, q, F, opts) {
     var value = cleanValue(f, list, vo); if (value === undefined) return { ok: false, reason: 'value' };
     var clamp = null;
     if (F) {   // a max this change lowered: a current value above it comes down with it — a whole number, at least the field's min
-        var after = { id: char.id, values: Object.assign({}, char.values || {}) }; after.values[fieldId] = value;
+        var after = Object.assign({}, char, { values: Object.assign({}, char.values || {}) }); after.values[fieldId] = value;   // the whole character, as the most before is judged on it (the review of 2026-11-10: stripped to its values, a most that reads its links, its station or its making mark was judged lower after, and a pool was brought down for an effect that never touched it)
         var rv = makeResolver(sys, after, F), rb = makeResolver(sys, char, F);
         sys.fields.forEach(function(rf) {
             if (rf.kind !== 'resource') return;

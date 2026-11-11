@@ -5,7 +5,7 @@
    the engine formula.js. Design of record: docs/SHEET_BUILDER_PLAN.md. */
 import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
-import { save, toast, toastAction } from './io.js';
+import { save, toast, toastAction, pressHold, keepPlace } from './io.js';
 import { autoFills, autoStore } from './systemcore.js';   // 1.6.2 (auto apply)
 import { REST_MAX } from './systemcore.js';   // 1.6.2 (backlog 138 (j) fold R1)
 import { laySync } from './systemcore.js';   // 1.6.2 Laid from: rows another list's rows lay, kept in step beside openSync
@@ -481,6 +481,12 @@ function newCharacter(o) {
 // A new sheet made by the GM from the left panel's Characters section (charlist.js): a player's character or, with npc true, an NPC, as the GM
 // answered there; born unassigned, saved and told to the table as any change is
 function addCharacter(name, npc) { if (isClient() || !canWrite()) return null; var c = newCharacter({ name: name, npc: npc === true }); if (c) { afterCharChange(c, true); renderAll(); } return c; }
+// A correction is no event (the review of 2026-11-10): while a rest cut short takes back what its start gave, the followers that RUN something when a
+// value moves (a crossing's roll, an effect's end, a tile's state) only note what they see, so a pool put back under a step rolls no death check again.
+// A posture still follows, since it only puts a token back as its effects stand
+var _followQuiet = 0;
+function followQuiet(on) { _followQuiet = Math.max(0, _followQuiet + (on ? 1 : -1)); }
+function followIsQuiet() { return _followQuiet > 0; }
 function afterCharChange(c, whole, values) {
     var camp = getActiveCampaign(); if (!camp) return; if (typeof openSync === 'function' && !isClient() && camp.system) { var opA = openSync(camp.system, c); if (opA.length && values && typeof values === 'object') opA.forEach(function(fid) { values[fid] = c.values[fid]; }); } if (typeof laySync === 'function' && !isClient() && camp.system) { var lyA = laySync(camp.system, c, F(), layKeep(c.id)); if (lyA.length && values && typeof values === 'object') lyA.forEach(function(fid) { values[fid] = c.values[fid]; }); }   // 1.5.8 and 1.6.2 Laid from: the rows other rows open, and the rows another list's rows lay, kept in step before the save and the sync
     c.updated = Date.now();
@@ -650,7 +656,7 @@ function crossFollow(c, camp) {
             for (var j = 0; j < (x.r.cross.one ? 1 : hit.length); j++) runs.push({ r: x.r, at: { f: x.f, r: row.id, i: x.i }, cx: { step: x.r.cross.one ? hit[hit.length - 1] : hit[j], n: hit.length } });
         });
     });
-    if (!runs.length) return 0;
+    if (!runs.length || (typeof followIsQuiet === 'function' && followIsQuiet())) return 0;
     if (_crossDepth >= 3) { toast('A crossing set off another too many times in one change. The rest did not run.'); return 0; }
     if (runs.length > 8) { toast('One change crossed more steps than run at once. Only the first 8 ran.'); runs = runs.slice(0, 8); }
     var n = net(), off = window.wpCalendar && typeof window.wpCalendar.rulesRun === 'function' && window.wpCalendar.rulesRun(c.id) === false;
@@ -695,7 +701,7 @@ function tileThenWords(sys, c, x) {
 }
 function tileFollow(c, camp) {
     if (!c || typeof c.id !== 'string' || !camp || !camp.system || !tileSys(camp.system) || !crossOk() || typeof tileThenRuns !== 'function') return 0;
-    var sys = camp.system, k = (camp.id || '') + '|' + c.id, o = tileThenRuns(sys, c, F(), tokenCtxFor(c.id, camp), _tileSeen[k] || {}); _tileSeen[k] = o.now; _tileNoted[k] = 1; if (!o.runs.length) return 0;
+    var sys = camp.system, k = (camp.id || '') + '|' + c.id, o = tileThenRuns(sys, c, F(), tokenCtxFor(c.id, camp), _tileSeen[k] || {}); _tileSeen[k] = o.now; _tileNoted[k] = 1; if (!o.runs.length || (typeof followIsQuiet === 'function' && followIsQuiet())) return 0;
     if (_tileDepth >= 3 || (window.wpCalendar && typeof window.wpCalendar.rulesRun === 'function' && window.wpCalendar.rulesRun(c.id) === false)) return 0;
     var n = net(), done = 0, says = []; _tileDepth++;
     try {
@@ -781,7 +787,7 @@ function fxEndFollow(c, camp) {
         if (!ran && d.endOff !== true) return;
         runs.push({ d: d, v: ran ? out[d.id].v : was[d.id] });
     });
-    if (!runs.length) return 0;
+    if (!runs.length || (typeof followIsQuiet === 'function' && followIsQuiet())) return 0;
     if (_fxEndDepth >= 3) { toast('An effect\u2019s end set off another too many times in one change. The rest did not run.'); return 0; }
     _fxEndDepth++;
     try { runs.forEach(function(x) { fxEndRun(c, camp, x.d, x.v); }); } finally { _fxEndDepth--; }
@@ -13672,7 +13678,8 @@ function restDoOpts(sys, ds) {
 }
 function restEndsWords(sys, r) {   // fold R6: which of the library's effects this rest ends, by their Duration notes
     var S = window.wpSystemCore, nm = typeof r.name === 'string' ? r.name.trim() : '', hit = [];
-    if (nm && S && typeof S.durNamesRest === 'function') (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (d && S.durNamesRest(d.dur, nm)) hit.push(typeof d.name === 'string' && d.name.trim() ? d.name.trim() : 'An effect'); });
+    var others = (Array.isArray(sys.rests) ? sys.rests : []).map(function(x) { return x && typeof x.name === 'string' ? x.name : ''; });
+    if (nm && S && typeof S.durNamesRest === 'function') (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (d && S.durNamesRest(d.dur, nm, others)) hit.push(typeof d.name === 'string' && d.name.trim() ? d.name.trim() : 'An effect'); });
     return hit.length ? 'It ends ' + hit.join(', ') + ', and any effect made on the spot whose Duration names ' + nm + '.' : 'No effect\u2019s Duration names ' + (nm || 'this rest') + ' yet. Write Until ' + (nm || 'its name') + ' there, on the Effects tab.';
 }
 function restSays(sys) {
@@ -13690,7 +13697,7 @@ function restSays(sys) {
     if (typeof sys.restSkip === 'string' && sys.restSkip && sys.restSkip !== 'rest' && !ids[sys.restSkip]) out.push('A time skip counts as names a rest Save drops, so the Calendar window opens on Active.');
     rs.forEach(function(r, i) {   // fold R4: a roll both on a rest's list and By the clock during rest runs twice (kept, as warned)
         if (!r || typeof r !== 'object' || !Array.isArray(r.does)) return; var nm = typeof r.name === 'string' && r.name.trim() ? r.name.trim() : 'Rest ' + (i + 1);
-        r.does.forEach(function(d) { if (!d) return; if (d.k === 'roll') { var x = (sys.rolls || []).filter(function(y) { return y && y.id === d.id; })[0]; if (!x) out.push(nm + ': a roll on its list is gone. Save drops it.'); else if (x.every && typeof x.every === 'object' && r.time !== false) out.push(nm + ': ' + restDoWord(sys, d).replace(/^(Roll|Run) /, '') + ' also runs By the clock, so this rest runs it twice. Save keeps it.'); } else if (d.k === 'pool' && !(sys.fields || []).some(function(f) { return f && f.id === d.id && f.kind === 'resource'; })) out.push(nm + ': a pool on its list is gone. Save drops it.'); else if (d.k === 'reset' && !restSecs(sys).some(function(s) { return s.id === d.id; })) out.push(nm + ': a section on its list is gone or resets nothing. Save drops it.'); });
+        r.does.forEach(function(d) { if (!d) return; if (d.k === 'roll') { var x = (sys.rolls || []).filter(function(y) { return y && y.id === d.id; })[0]; if (!x) out.push(nm + ': a roll on its list is gone. Save drops it.'); else if (x.every && typeof x.every === 'object' && r.time !== false) out.push(nm + ': ' + restDoWord(sys, d).replace(/^(Roll|Run) /, '') + ' also runs By the clock, so this rest runs it twice. Save keeps it.'); } else if (d.k === 'pool' && !(sys.fields || []).some(function(f) { return f && f.id === d.id && f.kind === 'resource'; })) out.push(nm + ': a pool on its list is gone. Save drops it.'); else if (d.k === 'reset' && !restSecs(sys).some(function(s) { return s.id === d.id; })) out.push((sys.sheet && Array.isArray(sys.sheet.sections) ? sys.sheet.sections : []).some(function(s) { return s && s.id === d.id; }) ? nm + ': a section on its list holds no pool or counter now, so resetting it does nothing. Save keeps it.' : nm + ': a section on its list is gone. Save drops it.'); });
     });
     return out;
 }
@@ -13730,7 +13737,8 @@ function restsBox() {
         restSays(sys).forEach(function(t) { wrap.appendChild(el('div', 'sys-err-line sys-rest-err', t)); });
     };
     var at = function(e) { var c = e.target && e.target.closest ? e.target.closest('.sys-rest-card') : null, i = c ? Number(c.dataset.ri) : -1, rs = Array.isArray(draft.rests) ? draft.rests : null; return rs && i >= 0 && rs[i] && typeof rs[i] === 'object' ? { rs: rs, i: i, r: rs[i] } : null; };
-    var done = function(redraw) { if (typeof markDirty === 'function') markDirty(); if (typeof patchErrors === 'function') patchErrors(); if (redraw) draw(); };
+    var hold = typeof pressHold === 'function' && typeof window !== 'undefined' && window && typeof window.addEventListener === 'function' ? pressHold(wrap, window) : null;   // a name or a number left by a press on another control: the press lands first (io.js pressHold)
+    var done = function(redraw) { if (typeof markDirty === 'function') markDirty(); if (typeof patchErrors === 'function') patchErrors(); if (!redraw) return; var again = function() { if (typeof keepPlace === 'function') keepPlace(wrap, draw); else draw(); }; if (hold && hold.busy()) hold.then(again); else again(); };   // drawn again with the focus given back to the control that held it (io.js keepPlace): a box clicked into straight after a name was typed keeps the cursor
     wrap.addEventListener('input', function(e) {
         e.stopPropagation(); var a = at(e), t = e.target; if (!a || !t || !t.classList) return;
         if (t.classList.contains('sys-rest-name')) { a.r.name = String(t.value).slice(0, 60); done(false); }
@@ -13759,26 +13767,48 @@ function restsBox() {
     });
     draw(); return wrap;
 }
-// fold R4: a rest's list run for those who rest, on the machine that owns the campaign: pools filled and sections reset as one change a character
-// (commitMany, as Reset all does), then each roll or action run as the GM's own press, times over for a skip that held the rest that many times (20 at most)
+// fold R4: a rest's list run for those who rest, on the machine that owns the campaign. ONE change a character with one Revert (the review of
+// 2026-11-10): the effects that end with the rest come off (fold R6, each through the effects list's own remove, on the whole character, so a pool's
+// most is judged with its links and station), then the sections are reset, then the pools are filled, each judged on the working copy as the step
+// before left it, so a pool whose most reads a counter the rest resets is filled to its new most. A pool that already READS its most is not written
+// (so one with nothing stored that starts at its most stays so, and one that starts at a number is filled). A reset runs what typing that figure
+// fills, as Reset all does. The one Revert holds the last character's change. Then each roll or action is run as the GM's own press, times over
+// for a skip that held the rest that many times (20 at most)
 function restDoes(ids, does, times, rest) {
     var camp = getActiveCampaign(), sys = camp && camp.system, ends = !!rest && rest.ends === true; does = Array.isArray(does) ? does : []; if (!sys || (!does.length && !ends) || !Array.isArray(ids)) return 0;
-    var n = Math.max(1, Math.min(20, Math.floor(typeof times === 'number' && isFinite(times) ? times : 1))), done = 0, S = window.wpSystemCore;
+    var n = Math.max(1, Math.min(20, Math.floor(typeof times === 'number' && isFinite(times) ? times : 1))), done = 0, S = window.wpSystemCore, has = Object.prototype.hasOwnProperty;
     ids.forEach(function(id) {
-        var c = charById(id, camp); if (!c) return; var vals = [];
-        if (ends && S && typeof S.restEndsFx === 'function' && typeof S.applyEffectOp === 'function') {   // fold R6: effects that last until this rest come off, once, each through the effects list's own remove, a pool whose most it lowered brought down with it
-            var work = { id: c.id, values: clone(c.values || {}) }, dE = {}, prevE = {};
-            S.restEndsFx(sys, c, rest).rows.forEach(function(rw) { var rs = S.applyEffectOp(sys, work, rw.f, { op: 'remove', rowId: rw.id }, F()); if (!rs || !rs.ok) return; [rw.f].concat(rs.clamp ? Object.keys(rs.clamp) : []).forEach(function(k) { if (!Object.prototype.hasOwnProperty.call(prevE, k)) prevE[k] = c.values && Object.prototype.hasOwnProperty.call(c.values, k) ? clone(c.values[k]) : undefined; }); work.values[rw.f] = rs.value; dE[rw.f] = rs.value; if (rs.clamp) Object.keys(rs.clamp).forEach(function(k) { work.values[k] = rs.clamp[k]; dE[k] = rs.clamp[k]; }); });
-            var kE = Object.keys(dE); if (kE.length) { var exE = null; kE.slice(1).forEach(function(k) { (exE = exE || {})[k] = prevE[k]; }); lastChange = { charId: c.id, fieldId: kE[0], prev: prevE[kE[0]], extra: exE }; c.values = work.values; afterCharChange(c, false, dE); done++; c = charById(id, camp) || c; }
-        }
-        does.forEach(function(d) {
-            if (!d) return;
-            if (d.k === 'pool' && S && typeof S.makeResolver === 'function') { var f = (sys.fields || []).filter(function(x) { return x && x.id === d.id && x.kind === 'resource'; })[0]; if (!f) return; var mx = S.makeResolver(sys, c, F())(f.key + '.max'); if (typeof mx === 'number' && isFinite(mx)) vals.push({ fieldId: f.id, value: mx }); }
-            else if (d.k === 'reset' && S && typeof S.resetTargets === 'function') { var sc = (sys.sheet && Array.isArray(sys.sheet.sections) ? sys.sheet.sections : []).filter(function(x) { return x && x.id === d.id; })[0]; if (sc) S.resetTargets(sys, c, sc, F(), { gm: true }).targets.forEach(function(t) { if (!vals.some(function(v) { return v.fieldId === t.fieldId; })) vals.push({ fieldId: t.fieldId, value: t.value }); }); }
+        var c = charById(id, camp); if (!c) return;
+        var work = Object.assign({}, c, { values: clone(c.values || {}) }), d = {}, prev = {}, order = [], af0 = c.af ? clone(c.af) : null; if (c.af) work.af = clone(c.af);
+        var seen = function(k) { if (has.call(prev, k)) return; prev[k] = c.values && has.call(c.values, k) ? clone(c.values[k]) : undefined; order.push(k); };
+        var put = function(fid, value) {
+            if (!S || typeof S.applyEdit !== 'function') return; var rs = S.applyEdit(sys, work, fid, value, F(), {}); if (!rs || !rs.ok || rs.clear) return;
+            var fl = typeof S.autoFills === 'function' ? S.autoFills(sys, work, fid, rs.value, F()) : {};   // what typing that figure fills, as the section's own Reset all fills it (commitMany)
+            seen(fid); Object.keys(fl).forEach(seen);
+            if (typeof S.autoStore === 'function') S.autoStore(work, fid, rs.value, fl); else { work.values[fid] = rs.value; Object.keys(fl).forEach(function(k) { work.values[k] = fl[k]; }); }
+            d[fid] = rs.value; Object.keys(fl).forEach(function(k) { d[k] = fl[k]; });
+        };
+        if (ends && S && typeof S.restEndsFx === 'function' && typeof S.applyEffectOp === 'function') S.restEndsFx(sys, work, rest).rows.forEach(function(rw) {
+            var rs = S.applyEffectOp(sys, work, rw.f, { op: 'remove', rowId: rw.id }, F()); if (!rs || !rs.ok) return;
+            seen(rw.f); work.values[rw.f] = rs.value; d[rw.f] = rs.value; if (rs.clamp) Object.keys(rs.clamp).forEach(function(k) { seen(k); work.values[k] = rs.clamp[k]; d[k] = rs.clamp[k]; });
         });
-        if (vals.length) { commitMany(c, vals); done++; }
-        does.forEach(function(d) {
-            if (!d || d.k !== 'roll') return; var r = (sys.rolls || []).filter(function(x) { return x && x.id === d.id; })[0]; if (!r) return;
+        does.forEach(function(x) {   // the sections first, whatever the list's order
+            if (!x || x.k !== 'reset' || !S || typeof S.resetTargets !== 'function') return; var sc = (sys.sheet && Array.isArray(sys.sheet.sections) ? sys.sheet.sections : []).filter(function(y) { return y && y.id === x.id; })[0]; if (!sc) return;
+            S.resetTargets(sys, work, sc, F(), { gm: true }).targets.forEach(function(t) { put(t.fieldId, t.value); });
+        });
+        does.forEach(function(x) {   // then the pools, against the counters as reset
+            if (!x || x.k !== 'pool' || !S || typeof S.makeResolver !== 'function') return; var f = (sys.fields || []).filter(function(y) { return y && y.id === x.id && y.kind === 'resource'; })[0]; if (!f) return;
+            var Rp = S.makeResolver(sys, work, F()), mx = Rp(f.key + '.max'), cu = Rp(f.key);   // what the pool READS now: one with nothing stored reads its starting value, which is its most only where it starts there
+            if (typeof mx === 'number' && isFinite(mx) && typeof cu === 'number' && isFinite(cu) && mx !== cu) put(f.id, mx);
+        });
+        if (order.length) {
+            var ex = null; order.slice(1).forEach(function(k) { (ex = ex || {})[k] = prev[k]; }); lastChange = { charId: c.id, fieldId: order[0], prev: prev[order[0]], extra: ex, af: af0 };
+            var bNote = typeof budgetNote === 'function' ? budgetNote : null; if (bNote) bNote(sys, c, d);   // 126: the GM's notice, as commitMany asked it when a rest went through it
+            c.values = work.values; if (work.af && Object.keys(work.af).length) c.af = work.af; else delete c.af;
+            afterCharChange(c, false, d); done++;
+        }
+        does.forEach(function(x) {
+            if (!x || x.k !== 'roll') return; var r = (sys.rolls || []).filter(function(y) { return y && y.id === x.id; })[0]; if (!r) return;
             var lb = String(r.label || (Array.isArray(r.apply) ? 'Apply' : 'Roll')).split('{')[0].trim() || 'Roll';
             for (var k = 0; k < n; k++) { var cN = charById(id, camp); if (!cN) return; if (Array.isArray(r.apply)) applyAction(r, cN, lb); else if (window.wpDice && window.wpDice.rollFor) window.wpDice.rollFor(cN.id, r.formula, lb, r.vis === 'gm' ? { act: r.id, gmOnly: true } : { act: r.id }); }
             done++;
@@ -13787,27 +13817,52 @@ function restDoes(ids, does, times, rest) {
     return done;
 }
 // the early end (the owner's round three, "Recount and take back"): what the start of a rest gave, taken back, character by character. A value that still
-// stands as the start left it goes back to what it was; a number (a pool's current among them) moved since loses only the start's own move; anything else
-// changed since stays as it is and is named. Written as it was kept, an effects list among them, in one change a character with one Revert
+// stands as the start left it goes back to what it was; a number (a pool's current among them) moved since loses only the start's own move; a list of
+// rows (an effects list, an inventory) is taken back ROW BY ROW, so a row the start changed and nobody touched since goes back though another row was
+// added meanwhile, a row the start took off comes back, and a row the start added goes; anything else changed since stays as it is and is named.
+// Each value is cleaned as any value is on its way in (the kept diff is data from the save), a pool held to its least value and its most. It is a
+// correction: the followers that run something only note (followQuiet). A character that fails is counted and the others go on
 function restTakeBack(diffs) {
-    var camp = getActiveCampaign(), sys = camp && camp.system, out = { back: 0, kept: [] }, has = Object.prototype.hasOwnProperty; if (!sys || !diffs || typeof diffs !== 'object') return out;
+    var camp = getActiveCampaign(), sys = camp && camp.system, out = { back: 0, kept: [], failed: 0 }, has = Object.prototype.hasOwnProperty, S = window.wpSystemCore; if (!sys || !diffs || typeof diffs !== 'object') return out;
     var J = function(v) { return v === undefined ? '\u0000' : JSON.stringify(v); }, num = function(v) { return typeof v === 'number' && isFinite(v) ? v : v && typeof v === 'object' && !Array.isArray(v) && typeof v.cur === 'number' && isFinite(v.cur) ? v.cur : null; };
-    var fname = function(fid) { var f = (sys.fields || []).filter(function(x) { return x && x.id === fid; })[0]; return f && typeof (f.label || f.key) === 'string' && String(f.label || f.key).trim() ? String(f.label || f.key).trim() : 'a field'; };
-    Object.keys(diffs).forEach(function(cid) {
-        var c = charById(cid, camp), df = diffs[cid]; if (!c || !df || typeof df !== 'object') return;
-        var vals = Object.assign({}, c.values || {}), d = {}, prev = {}, keptF = [];
-        Object.keys(df).forEach(function(fid) {
-            var e = df[fid]; if (!e || typeof e !== 'object' || !(sys.fields || []).some(function(x) { return x && x.id === fid; })) return;
-            var b = has.call(e, 'b') ? e.b : undefined, a = has.call(e, 'a') ? e.a : undefined, cur = has.call(vals, fid) ? vals[fid] : undefined, nv;
-            if (J(cur) === J(a)) nv = b;
-            else { var nb = num(b), na = num(a), ncu = num(cur); if (nb === null || na === null || ncu === null) { keptF.push(fname(fid)); return; } nv = cur && typeof cur === 'object' ? Object.assign({}, cur, { cur: ncu - (na - nb) }) : ncu - (na - nb); }
-            prev[fid] = cur === undefined ? undefined : clone(cur); if (nv === undefined) delete vals[fid]; else vals[fid] = clone(nv); d[fid] = nv === undefined ? null : nv;
+    var fname = function(f) { return f && typeof (f.label || f.key) === 'string' && String(f.label || f.key).trim() ? String(f.label || f.key).trim() : 'a field'; };
+    var rowsOk = function(v) { return Array.isArray(v) && v.every(function(r) { return !!r && typeof r === 'object' && !Array.isArray(r) && typeof r.id === 'string'; }); };
+    var byId = function(v) { var m = Object.create(null); v.forEach(function(r) { m[r.id] = r; }); return m; };
+    var vo = S && typeof S.valueOpts === 'function' ? S.valueOpts(sys) : null;
+    if (typeof followQuiet === 'function') followQuiet(true);
+    try {
+        Object.keys(diffs).forEach(function(cid) {
+            try {
+                var c = charById(cid, camp), df = diffs[cid]; if (!c || !df || typeof df !== 'object') return;
+                var vals = Object.assign({}, c.values || {}), d = {}, prev = {}, keptF = [];
+                var kindOf = function(fid) { var f0 = (sys.fields || []).filter(function(x) { return x && x.id === fid; })[0]; return f0 ? f0.kind : ''; };
+                Object.keys(df).sort(function(x, y) { return (kindOf(x) === 'resource' ? 1 : 0) - (kindOf(y) === 'resource' ? 1 : 0); }).forEach(function(fid) {   // the pools last: each is held to the most that the values ALREADY taken back give (an effect that raised it is back by then), whatever order the values were stored in
+                    var e = df[fid], f = (sys.fields || []).filter(function(x) { return x && x.id === fid; })[0]; if (!e || typeof e !== 'object' || !f) return;
+                    var b = has.call(e, 'b') ? e.b : undefined, a = has.call(e, 'a') ? e.a : undefined, cur = has.call(vals, fid) ? vals[fid] : undefined, nv, part = false;
+                    if (J(cur) === J(a)) nv = b;
+                    else if (rowsOk(cur) && rowsOk(a) && rowsOk(b)) {
+                        var ai = byId(a), bi = byId(b), here = Object.create(null), rows = [];
+                        cur.forEach(function(r) { here[r.id] = 1; var ra = ai[r.id], rb = bi[r.id]; if (ra && J(ra) === J(r)) { if (rb) rows.push(clone(rb)); return; } rows.push(r); if (ra && !(rb && J(ra) === J(rb))) part = true; });
+                        b.forEach(function(rb, i) { if (!ai[rb.id] && !here[rb.id]) rows.splice(Math.min(i, rows.length), 0, clone(rb)); });
+                        nv = rows;
+                    }
+                    else { var nb = num(b), na = num(a), ncu = num(cur); if (nb === null || na === null || ncu === null) { keptF.push(fname(f)); return; } nv = cur && typeof cur === 'object' ? Object.assign({}, cur, { cur: ncu - (na - nb) }) : ncu - (na - nb); }
+                    if (nv !== undefined) {
+                        if (!S || typeof S.cleanValue !== 'function') { keptF.push(fname(f)); return; }   // with no cleaner at hand nothing is written
+                        var o2 = vo; if (f.kind === 'resource' && typeof S.makeResolver === 'function') { var mx = S.makeResolver(sys, Object.assign({}, c, { values: vals }), F())(f.key + '.max'); o2 = Object.assign({}, vo || {}, typeof mx === 'number' && isFinite(mx) ? { max: mx } : {}); }
+                        nv = S.cleanValue(f, nv, o2 || undefined); if (nv === undefined) { keptF.push(fname(f)); return; }
+                    }
+                    if (part) keptF.push(fname(f));
+                    if (J(nv) === J(cur)) return;
+                    prev[fid] = cur === undefined ? undefined : clone(cur); if (nv === undefined) delete vals[fid]; else vals[fid] = clone(nv); d[fid] = nv === undefined ? null : nv;
+                });
+                if (keptF.length) out.kept.push((typeof c.name === 'string' && c.name ? c.name : 'A character') + ', ' + keptF.join(', '));
+                var ks = Object.keys(d); if (!ks.length) return;
+                var ex = null; ks.slice(1).forEach(function(k) { (ex = ex || {})[k] = prev[k]; }); lastChange = { charId: c.id, fieldId: ks[0], prev: prev[ks[0]], extra: ex };
+                c.values = vals; afterCharChange(c, false, d); out.back++;
+            } catch (er) { out.failed++; if (typeof window !== 'undefined' && window && typeof window.wpStepLog === 'function') window.wpStepLog('rest v1', 'takeback-fail', { err: String((er && er.message) || er).slice(0, 80) }); }
         });
-        if (keptF.length) out.kept.push((typeof c.name === 'string' && c.name ? c.name : 'A character') + ', ' + keptF.join(', '));
-        var ks = Object.keys(d); if (!ks.length) return;
-        var ex = null; ks.slice(1).forEach(function(k) { (ex = ex || {})[k] = prev[k]; }); lastChange = { charId: c.id, fieldId: ks[0], prev: prev[ks[0]], extra: ex };
-        c.values = vals; afterCharChange(c, false, d); out.back++;
-    });
+    } finally { if (typeof followQuiet === 'function') followQuiet(false); }
     return out;
 }
 // [systemcheck:restsbox-end]

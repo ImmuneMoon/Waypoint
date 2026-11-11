@@ -55,13 +55,19 @@ function idleTurnKey(raw) {
     }
     return '';
 }
-// The main window's half: it says its view when it changes, and when a stream window asks
-function gmViewWire(w, Chan, every) {
+// The main window's half: it says its view when it changes, when a stream window asks, every GM_VIEW_BEAT while nothing changes, and says none
+// as it goes away. The review of 2026-11-10: with no heartbeat a main window that closed or crashed while off the play map left the stream window
+// following for good. The stream window lets a word older than GM_VIEW_STALE go (gmViewFresh): long enough for a browser that holds a hidden
+// tab's timers back to once a minute
+var GM_VIEW_BEAT = 5000, GM_VIEW_STALE = 75000;
+function gmViewFresh(view, at, now) { return typeof at === 'number' && typeof now === 'number' && now - at >= 0 && now - at <= GM_VIEW_STALE ? gmViewOf(view) : ''; }
+function gmViewWire(w, Chan, every, clock) {
     if (!w || typeof Chan !== 'function' || typeof every !== 'function') return null;
     var ch; try { ch = new Chan('waypoint'); } catch (e) { return null; }
-    var last = null, now = function() { var F = w.wpFloats; return gmViewOf(F && typeof F.view === 'function' ? F.view() : ''); };
-    var post = function(force) { var v = now(); if (!force && v === last) return v; last = v; try { ch.postMessage({ type: 'gm-view', view: v }); } catch (e) {} return v; };
+    var last = null, at = 0, time = typeof clock === 'function' ? clock : function() { return Date.now(); }, now = function() { var F = w.wpFloats; return gmViewOf(F && typeof F.view === 'function' ? F.view() : ''); };
+    var post = function(force) { var v = now(), t = time(); if (!force && v === last && t - at < GM_VIEW_BEAT) return v; last = v; at = t; try { ch.postMessage({ type: 'gm-view', view: v }); } catch (e) {} return v; };
     ch.addEventListener('message', function(e) { if (e && e.data && e.data.type === 'gm-view-query') post(true); });
+    if (typeof w.addEventListener === 'function') w.addEventListener('pagehide', function() { last = null; try { ch.postMessage({ type: 'gm-view', view: '' }); } catch (e) {} });
     every(function() { post(false); }, 1000); post(false);
     return post;
 }
@@ -104,7 +110,7 @@ if (on) {
     if (charSel) charSel.addEventListener('change', function() { setCharFocus(charSel.value); });
     window.wpStreamFocusChar = setCharFocus;   // the party strip's click lands here in the stream window
     // 1.6.2, the idle follow: its setting and wait are this computer's, set in this window's corner
-    var idleMode = '', idleSecs = 30, idleSt = { since: 0, key: '', at: 0 }, gmView = '', idleBack = null, idleWas = '';
+    var idleMode = '', idleSecs = 30, idleSt = { since: 0, key: '', at: 0 }, gmView = '', gmViewAt = 0, idleBack = null, idleWas = '';
     try { var icf = idleCfg(localStorage.getItem('wp_streamIdle'), localStorage.getItem('wp_streamIdleSecs')); idleMode = icf.mode; idleSecs = icf.secs; } catch (e) {}
     var idleSel = document.getElementById('streamIdle'), idleSecSel = document.getElementById('streamIdleSecs'), idleNow = document.getElementById('streamIdleNow');
     function idleSet(mode, secs) { var c = idleCfg(mode, secs); idleMode = c.mode; idleSecs = c.secs; idleSt = { since: 0, key: '', at: 0 }; try { localStorage.setItem('wp_streamIdle', idleMode); localStorage.setItem('wp_streamIdleSecs', String(idleSecs)); } catch (e) {} if (idleSel) idleSel.dataset.sig = ''; tick(); }
@@ -158,8 +164,16 @@ if (on) {
         sel.innerHTML = html;
     }
     if (sel) sel.addEventListener('change', function() { focus = sel.value; charFocus = ''; lastCam = ''; try { localStorage.setItem('wp_streamFocus', focus); localStorage.setItem('wp_streamChar', ''); } catch (e) {} tick(); });
-    if (hideBtn && bar) hideBtn.addEventListener('click', function() { bar.classList.add('hidden'); });
-    document.addEventListener('mousemove', function(e) { if (bar && bar.classList.contains('hidden') && e.clientX < 60 && e.clientY < 60) bar.classList.remove('hidden'); });
+    // 1.6.2 (the owner, 2026-11-10: "it should have a dedicated button you press to expand it like the others do in the playmap", then "the button can be
+    // an arrow next to the showing indicator"): the arrow beside the live dot folds the bar to the dot and the arrow, and the same arrow opens it
+    // again. It came back only when the pointer happened over the corner, which nothing on screen said
+    function barFold(away) {
+        if (!bar) return; bar.classList.toggle('folded', !!away); if (!hideBtn) return;
+        var words = away ? 'Show the stream bar' : 'Fold this bar away. The arrow stays here to bring it back';
+        hideBtn.setAttribute('aria-expanded', away ? 'false' : 'true'); hideBtn.setAttribute('aria-label', away ? 'Show the stream bar' : 'Fold this bar away');
+        if (hideBtn.dataset && hideBtn.dataset.tip !== undefined) hideBtn.dataset.tip = words; else hideBtn.title = words;   // a tooltip set while the page runs goes where the tooltips read it
+    }
+    if (hideBtn && bar) hideBtn.addEventListener('click', function() { barFold(!bar.classList.contains('folded')); });
 
     async function tick() {
         if (streamWebJoin()) return;   // 1.5.5: nothing is asked of a website that joins tables alone
@@ -173,17 +187,29 @@ if (on) {
         var campId = clean.activeCampaignId && clean.campaigns[clean.activeCampaignId] ? clean.activeCampaignId : Object.keys(clean.campaigns)[0];
         var camp = clean.campaigns[campId];
         campName = String(camp && camp.name || '').slice(0, 80);   // backlog 34: the name a cover card shows, as text
-        var gmItem = camp.items[camp.activeItemId];
+        // The review of 2026-11-10: the copy for players names its FIRST map as the open item wherever the GM's own item is a page or a planner
+        // (net.js sanitizeAppState), so "the GM is on a map" is read from the save itself. While the GM reads a page this window stays on the map
+        // it was showing: it jumped to the campaign's first map, which also lost the place the idle follow gives back
+        var rawCp = data.campaigns && Object.prototype.hasOwnProperty.call(data.campaigns, campId) ? data.campaigns[campId] : null, rawAct = rawCp && rawCp.items && typeof rawCp.activeItemId === 'string' && Object.prototype.hasOwnProperty.call(rawCp.items, rawCp.activeItemId) ? rawCp.items[rawCp.activeItemId] : null;
+        var gmMap = rawAct && rawAct.type === 'map' && camp.items[rawCp.activeItemId] && camp.items[rawCp.activeItemId].type === 'map' ? rawCp.activeItemId : '';
         net.streamWhere = seenBy[campId] || Object.create(null);
         var pcs = characterList(camp, true, null, whoOf(camp));
-        idleSt = charFocus ? { since: 0, key: '', at: 0 } : idleStep(idleSt, Date.now(), gmView, pcs.map(function(c) { return c.key; }), idleCfg(idleMode, idleSecs), Math.random, idleTurnKey(rawTk && rawTk.id === campId ? rawTk : null));   // 1.6.2: with Focus on set to No one, whom the idle follow is on
-        var followKey = charFocus || ownKey(idleSt.key), idleEnded = !!idleWas && !idleSt.key;
+        // The review of 2026-11-10. A kept Focus on that names nobody on a map now (the bar then reads No one) holds nothing, so the follow is not
+        // blocked by it. While Showing is pinned to one map the follow keeps to that map: it moves among the characters there, and never takes the
+        // window to another map. The main window's word counts only while it is fresh
+        var focusOn = !!charFocus && pcs.some(function(c) { return c.key === charFocus; });
+        var pinMap = !focusOn && focus && camp.items[focus] && camp.items[focus].type === 'map' ? focus : '';
+        idleSt = focusOn ? { since: 0, key: '', at: 0 } : idleStep(idleSt, Date.now(), gmViewFresh(gmView, gmViewAt, Date.now()), pcs.filter(function(c) { return !pinMap || c.mapId === pinMap; }).map(function(c) { return c.key; }), idleCfg(idleMode, idleSecs), Math.random, idleTurnKey(rawTk && rawTk.id === campId ? rawTk : null));   // 1.6.2: with Focus on set to No one, whom the idle follow is on
+        var followKey = (focusOn ? charFocus : '') || ownKey(idleSt.key), idleEnded = !!idleWas && !idleSt.key;
         if (!idleWas && idleSt.key) { var bm = lastKey.split('/')[1], bi = bm && state.appState.campaigns && state.appState.campaigns[campId] && state.appState.campaigns[campId].items ? state.appState.campaigns[campId].items[bm] : null; idleBack = bi && bi.meta ? { map: bm, x: bi.meta.lastWbX, y: bi.meta.lastWbY, z: bi.meta.lastWbZoom } : null; }   // where this window stood before it began to follow
         idleWas = idleSt.key;
         var loc = followKey && followKey.charAt(0) === 'o' ? (window.wpCharNow ? window.wpCharNow(camp, followKey).loc : locateCharacter(camp, followKey)) : null;   // R2 #14: a player's character alone is followed, on the map that player is on
+        if (pinMap && loc && loc.map.id !== pinMap) { var lp = locateCharacter(camp, followKey, pinMap); loc = lp && lp.map && lp.map.id === pinMap ? lp : null; }   // a player with a token on two maps and no known place: the token on the pinned map, or nobody
+        var backMap = !loc && !idleSt.key && idleBack && camp.items[idleBack.map] && camp.items[idleBack.map].type === 'map' ? idleBack.map : '';   // the follow is over and the GM's own item is no map yet: the map this window stood on, never the followed character's
         var want = loc ? loc.map.id
                  : (focus && camp.items[focus] && camp.items[focus].type === 'map') ? focus
-                 : (gmItem && gmItem.type === 'map') ? camp.activeItemId
+                 : gmMap ? gmMap
+                 : backMap ? backMap
                  : (lastKey.split('/')[1] && camp.items[lastKey.split('/')[1]]) ? lastKey.split('/')[1]
                  : (Object.values(camp.items).find(function(i) { return i.type === 'map'; }) || {}).id;
         if (!want) return;
@@ -194,7 +220,12 @@ if (on) {
             ['lastWbX', 'lastWbY', 'lastWbZoom'].forEach(function(k) { if (prev.meta[k] != null) camp.items[want].meta[k] = prev.meta[k]; });
         }
         var camBack = false;   // 1.6.2: the idle follow is over: this window's camera goes back where it stood
-        if (idleEnded) { lastCam = ''; if (idleBack && idleBack.map === want && camp.items[want].meta && idleBack.x != null && idleBack.y != null) { camp.items[want].meta.lastWbX = idleBack.x; camp.items[want].meta.lastWbY = idleBack.y; if (idleBack.z != null) camp.items[want].meta.lastWbZoom = idleBack.z; camBack = true; } idleBack = null; }
+        if (idleEnded) lastCam = '';
+        if (idleBack && !idleSt.key && !loc && idleBack.map === want) {   // kept until this window shows that map again (the review of 2026-11-10: it was dropped in the tick the follow ended, whichever map that tick showed)
+            var mB = camp.items[want]; mB.meta = mB.meta || {};
+            if (idleBack.x != null && idleBack.y != null) { mB.meta.lastWbX = idleBack.x; mB.meta.lastWbY = idleBack.y; if (idleBack.z != null) mB.meta.lastWbZoom = idleBack.z; camBack = true; }
+            idleBack = null;
+        }
         var key = campId + '/' + want;
         net.applyingRemote = true;
         clean.activeCampaignId = campId;
@@ -218,6 +249,7 @@ if (on) {
         }
         refreshSelect(camp);
         refreshCharSelect(camp);
+        if (sel && charFocus && !focusOn && sel.disabled) { sel.disabled = false; sel.title = 'Follow the GM\'s current map, or focus one map until you change it'; }   // a kept focus that holds nothing does not hold the map list either
         refreshIdle(pcs, idleSt.key);
         streamTrackers(rawTk && rawTk.id === campId ? rawTk : null, want, Date.now());
         var sfW = document.getElementById('streamFight'), sfT = streamFightWords(rawTk && rawTk.id === campId ? rawTk : null, want, camp.items[want]);   // 1.6.2 (the owner: "Round, turn and names")
@@ -227,7 +259,7 @@ if (on) {
     try {
         var hChan = new BroadcastChannel('waypoint');
         hChan.addEventListener('message', function(e) { if (e.data && e.data.type === 'stream-hold') holdApply(e.data.mode, document, function() { tick(); try { hChan.postMessage({ type: 'video-stage-query' }); hChan.postMessage({ type: 'scene-stage-query' }); } catch (er) {} }); });
-        hChan.addEventListener('message', function(e) { if (e.data && e.data.type === 'gm-view') gmView = gmViewOf(e.data.view); });   // 1.6.2: which view the GM is on, for the idle follow
+        hChan.addEventListener('message', function(e) { if (e.data && e.data.type === 'gm-view') { gmView = gmViewOf(e.data.view); gmViewAt = Date.now(); } });   // 1.6.2: which view the GM is on, for the idle follow
         hChan.postMessage({ type: 'stream-hold-query' }); hChan.postMessage({ type: 'gm-view-query' });
     } catch (e) {}
     setTimeout(tick, 400);

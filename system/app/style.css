@@ -961,11 +961,18 @@
      each caption and its lists are one group, a list is the app's own (the Multiplayer window's: its gold arrow, gold at hover
      and focus), and what the window says of itself (the fight, whom it follows) is a pill */
   #streamBar {
-    position: fixed; top: 8px; left: 8px; z-index: 100000; display: flex; align-items: center; gap: 6px 16px;
-    padding: 6px 6px 6px 12px; background: var(--deep); border: 1px solid #333; border-radius: 12px;
+    position: fixed; top: 8px; left: 8px; z-index: 100000; display: flex; align-items: center; gap: 6px 14px;
+    padding: 6px 12px 6px 12px; background: var(--deep); border: 1px solid #333; border-radius: 12px;
     font-size: 12px; color: var(--ink); box-shadow: 0 8px 24px rgba(0,0,0,0.6); transition: opacity .25s;
   }
-  #streamBar.hidden { opacity: 0; pointer-events: none; }
+  /* 1.6.2 (the owner, 2026-11-10: "it should have a dedicated button you press to expand it like the others do in the playmap", then "the button can be
+     an arrow next to the showing indicator"): the arrow beside the live dot folds the bar to the dot and the arrow, and opens it again. Folded, it is
+     faint until the pointer or the keyboard reaches it, since this window is what an audience watches */
+  #streamBar.folded { padding: 4px 4px 4px 10px; gap: 6px; opacity: 0.45; }
+  #streamBar.folded:hover, #streamBar.folded:focus-within { opacity: 1; }
+  #streamBar.folded .stream-grp, #streamBar.folded .stream-fight { display: none; }
+  #streamBar #streamHideBtn .ico { width: 14px; height: 14px; transform: rotate(90deg); transition: transform .15s; }
+  #streamBar.folded #streamHideBtn .ico { transform: rotate(-90deg); }
   #streamVideo { position: fixed; inset: 0; z-index: 99990; background: #000; display: flex; align-items: center; justify-content: center; }
   #streamVideo video { width: 100%; height: 100%; object-fit: contain; background: #000; }
   #streamCover { position: fixed; inset: 0; z-index: 99995; background: var(--bg); color: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }   /* backlog 34: the stream's cover card */
@@ -994,7 +1001,7 @@
   #streamBar select:disabled { opacity: 0.45; cursor: default; }
   #streamBar .stream-dot { width: 8px; height: 8px; border-radius: 50%; background: #e0524f; box-shadow: 0 0 6px #e0524f; animation: netPulse 1.4s ease-in-out infinite; }
   #streamBar .stream-dot { flex: none; }
-  #streamBar .tool { flex: none; width: 28px; height: 28px; padding: 0; margin-left: auto; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 11px; color: var(--dim); }
+  #streamBar .tool { flex: none; width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 11px; color: var(--dim); }
   #streamBar .tool:hover, #streamBar .tool:focus-visible { color: var(--ink); background: var(--panel2); outline: none; }
   
   #globalResizeHandle {
@@ -3283,7 +3290,7 @@
   .chat-trun-open { padding: 1px 8px; font-size: 12px; }
   /* 1.6.0, backlog 29: the table trackers' strip, a tracker's menu and its form (trackers.js) */
   #trkStrip { position: absolute; top: 26px; left: var(--trkleft, 232px); z-index: 8990; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: min(620px, var(--trkwide, calc(100% - 330px))); pointer-events: auto; }   /* trackers.js place: beside the minimap or in its place, clear of the zoom box */
-  body.stream-mode #trkStrip { top: 10px; left: 14px; }
+  body.stream-mode #trkStrip { top: 10px; left: 84px; }   /* clear of the stream bar folded to its dot and arrow (the bar opened lies over it, as before) */
   body.row-hidden:not(.tour-on):not(.stream-mode) #trkStrip { top: calc(var(--rowbar) + 32px); }
   body.row-hidden:not(.tour-on):not(.stream-mode) #combatStrip { top: max(calc(var(--rowbar) + 74px), calc(var(--trkbot, 0px) + 6px)); }   /* the viewing of 2026-11-09: below the trackers bar */
   #trkStrip .trk-pill { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; box-sizing: border-box; padding: 2px 6px 2px 7px; border: 1px solid var(--edge); border-radius: 13px; background: var(--panel2); color: var(--ink); box-shadow: 0 2px 6px rgba(0,0,0,0.35); font: inherit; font-size: 12px; white-space: nowrap; }

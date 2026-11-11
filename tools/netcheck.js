@@ -13502,11 +13502,11 @@ pendingChecks.push((async () => {
     {   // 1.6.2 security (the leftover of backlog 24): the asset gate forgets a picture that only a piece no longer sent carries
         const J = JSON.stringify, FCa = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fogcore.js')).split(String.fromCharCode(92)).join('/'));
         const P = n => '/saves/images/m1/' + n + '.png', timers = [], fetched = [];
-        const net = { active: true, role: 'host', conns: [], stream: false }; let camp = null;
+        const net = { active: true, role: 'host', conns: [], stream: false }, winA = { wpFogCore: FCa }; let camp = null;
         const fetchS = u => { fetched.push(String(u)); return Promise.resolve({ ok: true, headers: { get: h => h === 'content-length' ? '5' : null }, body: { cancel() {} }, arrayBuffer: () => Promise.resolve(new Uint8Array(5).buffer) }); };
         const mk = () => new Function('net', 'location', 'sendFailed', 'allow', 'fetch', 'setTimeout', 'getActiveCampaign', 'window', 'console',
             between('// [netcheck:assetreq-start]', '// [netcheck:assetreq-end]', 'assetreq') + '\n' + between('// [netcheck:assethide-start]', '// [netcheck:assethide-end]', 'assethide') + '\n' + siSrc()
-            + '\nreturn { assetNoteSends, handleAssetRequest, assetHidePlan, assetHideSweep, assetHideSoon, refs: function(p) { return Object.keys(assetRefs[p] || {}).sort(); } };')(net, { origin: 'http://localhost:3999' }, e => { throw e; }, () => true, fetchS, (fn, ms) => { timers.push([fn, ms]); return timers.length; }, () => camp, { wpFogCore: FCa }, console);
+            + '\nreturn { assetNoteSends, handleAssetRequest, assetHidePlan, assetHideSweep, assetHideSoon, refs: function(p) { return Object.keys(assetRefs[p] || {}).sort(); } };')(net, { origin: 'http://localhost:3999' }, e => { throw e; }, () => true, fetchS, (fn, ms) => { timers.push([fn, ms]); return timers.length; }, () => camp, winA, console);
         let touched = 0; const idle = mk(), none = idle.assetHidePlan({ get items() { touched++; return {}; } });
         const api = mk(), conn = peer => { const c = { peer, open: true, sent: [], send: m => { c.sent.push(m); } }; api.assetNoteSends(c); return c; };
         const tok = (id, src) => ({ id, type: 'image', isChar: true, x: 0, y: 0, w: 60, h: 52, src });
@@ -13530,6 +13530,43 @@ pendingChecks.push((async () => {
             J(none) === '[]' && touched === 0 && before.length === 9 && J(plan0) === '[]' && held === 9 && J(plan) === J(gone) && armed === 1 && wait === 400 && armedAgain === 2
             && J(afterA) === J([P('gob'), P('page'), P('pc'), P('shown')]) && J(afterB) === J([P('gob'), P('page'), P('pc'), P('shown')])
             && askHid === 'refused:missing|0' && askGob === 'asset|1' && askDoor === 'refused:missing|0' && swept2 === 0 && askShown === 'asset|1' && cliSweep === 0 && cliArm === 0, J([none, touched, before, plan0, plan, armed, wait, afterA, afterB, askHid, askGob, askDoor, swept2, askShown, cliSweep, cliArm]));
+        {   // the review of 2026-11-10: only what a player is really sent keeps a path askable, and the sweep costs next to nothing while a path is still shown
+            const DRa = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'docrender.js')).split(String.fromCharCode(92)).join('/'));
+            winA.wpDocRender = DRa.default && DRa.default.cleanDoc ? DRa.default : DRa;   // the real page cleaner behind the real sanitizeItem
+            const realNow = Date.now; let ahead = 0; Date.now = () => realNow() + ahead;
+            try {
+            const api2 = mk(), c2 = peer => { const c = { peer, open: true, sent: [], send: m => { c.sent.push(m); } }; api2.assetNoteSends(c); return c; };
+            const names = ['control', 'ogre', 'spy', 'ambush', 'assassin', 'gmpage', 'pcorig', 'song', 'look', 'fighter', 'page2'], wb2 = names.map((n, i) => tok('t' + i, P(n)));
+            wb2.push(Object.assign(tok('tF', P('face')), { frame: { src: P('orig') }, sheet: { portrait: P('orig') } }), tok('tO', P('orig')));   // a shown token's kept original and attached sheet are the GM's
+            let metaReads2 = 0;
+            camp = { id: 'c1', items: { m1: { id: 'm1', type: 'map', meta: { setups: [{ pieces: [{ src: P('ambush') }] }] }, whiteboard: wb2, rooms: [] }, m2: { id: 'm2', type: 'map', whiteboard: [], rooms: [], get meta() { metaReads2++; return {}; } },
+                    d1: { id: 'd1', type: 'doc', meta: { title: 'Secret', players: false }, blocks: [{ id: 'b1', type: 'image', src: P('gmpage') }] }, d2: { id: 'd2', type: 'doc', meta: { title: 'Open' }, blocks: [{ id: 'b1', type: 'image', src: P('page2') }] } },
+                chars: { c_pc: { id: 'c_pc', ownerId: 'u_ava', portrait: P('face'), frame: { src: P('pcorig') } } },
+                cast: [{ src: P('ogre') }], handouts: [{ image: P('spy') }], fights: { list: { f_1: { rows: [{ src: P('assassin') }] } } }, music: { tracks: [{ path: P('song') }] }, docStyle: { bgImage: P('look') }, pictures: [{ path: P('control') }], videos: [{ path: P('control') }] };
+            net.combats = { f_1: { mapId: 'm1', rows: [{ id: 'r1', name: 'Duelist', tokId: 't9', src: P('fighter') }] } };   // a running fight: its row goes to every player who saw it, also once its token is hidden
+            const docKept = !!api2 && !!winA.wpDocRender.cleanDoc(camp.items.d2), A2 = c2('pA'); A2.send({ type: 'item', campId: 'c1', itemId: 'm1', item: { type: 'map', whiteboard: wb2.map(w => ({ id: w.id, type: w.type, src: w.src })) } });
+            const held2 = api2.refs('pA').length; names.forEach((n, i) => { wb2[i].hidden = true; }); wb2[wb2.length - 1].hidden = true;
+            const plan2 = api2.assetHidePlan(camp).sort(), swept2b = api2.assetHideSweep(), left2 = api2.refs('pA'), reads1 = metaReads2;   // the sweep forgets what is gone: only the path a page still carries is a candidate from here on
+            const planAgain = api2.assetHidePlan(camp).sort(), reads2 = metaReads2; ahead = 31000; const planLater = api2.assetHidePlan(camp).sort(), reads3 = metaReads2;
+            const ask2 = async pth => { const n = A2.sent.length, f0 = fetched.length; api2.handleAssetRequest({ type: 'asset-req', path: pth }, A2); await new Promise(r => setTimeout(r, 40)); return A2.sent.slice(n).map(m => m.type === 'asset' ? (m.error ? 'refused:' + m.error : 'asset') : m.type).join() + '|' + (fetched.length - f0); };
+            const asks2 = []; for (const n of ['ogre', 'spy', 'ambush', 'assassin', 'gmpage', 'orig', 'pcorig', 'fighter', 'page2', 'face']) asks2.push(n + ' ' + await ask2(P(n)));
+            delete net.combats;
+            // the cost: a path a shown piece still carries is found among the pieces, and no item is copied for it
+            const api3 = mk(), A3 = (() => { const c = { peer: 'pA', open: true, sent: [], send: m => { c.sent.push(m); } }; api3.assetNoteSends(c); return c; })(); let metaReads = 0;
+            const g1 = tok('g1', P('gob')), g2 = tok('g2', P('gob'));
+            camp = { id: 'c1', items: { m1: { id: 'm1', type: 'map', meta: {}, whiteboard: [g1, g2], rooms: [] }, m2: { id: 'm2', type: 'map', whiteboard: [], rooms: [], get meta() { metaReads++; return {}; } } } };
+            A3.send({ type: 'item', item: { type: 'map', whiteboard: [{ id: 'g1', src: P('gob') }] } }); g1.hidden = true;
+            const planKept = api3.assetHidePlan(camp), readsKept = metaReads; g2.hidden = true;
+            const planGone = api3.assetHidePlan(camp), readsGone = metaReads; api3.assetHideSweep(); const readsSwept = metaReads, planAfter = api3.assetHidePlan(camp), readsAfter = metaReads;
+            const hideSrc = between('// [netcheck:assethide-start]', '// [netcheck:assethide-end]', 'assethide');
+            const GONE = ['ambush', 'assassin', 'control', 'gmpage', 'ogre', 'orig', 'pcorig', 'spy'].map(P);
+            check('security (the review of 2026-11-10): a hidden piece\'s picture is forgotten though the campaign\'s cast, a handout, a map\'s saved set-up, the saved copy of a fight, the picture and video libraries or a page players may not read (the real page cleaner) still hold its path, since none of those reaches a player as a path (a token dropped from the cast kept its picture askable for good), and so is a path only a shown token\'s kept original or attached sheet, or the kept original of a player\'s portrait, holds; a path a running fight\'s row, a page players may read, the music or the look of the pages carries is kept, and a shown token\'s own picture is still served; a path a shown piece still carries is found among the pieces with no item copied; what the items\' own copies carry is remembered for half a minute, so that pass is not made again at every map that goes out; a path nothing carries is walked for once and is then no candidate again; the sweep never calls wireWbItem, which would record what each token was last sent with',
+                docKept && held2 === 13 && J(plan2) === J(GONE) && J(planAgain) === '[]' && reads1 > 0 && reads2 === reads1 && J(planLater) === '[]' && reads3 > reads2 && swept2b === 8 && J(left2) === J(['face', 'fighter', 'look', 'page2', 'song'].map(P))
+                && J(asks2) === J(['ogre refused:missing|0', 'spy refused:missing|0', 'ambush refused:missing|0', 'assassin refused:missing|0', 'gmpage refused:missing|0', 'orig refused:missing|0', 'pcorig refused:missing|0', 'fighter asset|1', 'page2 asset|1', 'face asset|1'])
+                && J(planKept) === '[]' && readsKept === 0 && J(planGone) === J([P('gob')]) && readsGone > 0 && J(planAfter) === '[]' && readsAfter === readsSwept
+                && !/wireWbItem\(/.test(hideSrc) && hideSrc.includes("ASSET_KEEP_MS = 30000, ASSET_SENT_KEYS = { system: 1, docStyle: 1, sounds: 1, music: 1 }"), J([docKept, held2, plan2, planAgain, reads1, reads2, reads3, swept2b, left2, asks2, planKept, readsKept, planGone, readsGone, readsSwept, planAfter, readsAfter]));
+            } finally { Date.now = realNow; delete winA.wpDocRender; delete net.combats; }
+        }
         check('security (1.6.2), the wiring: both funnels a map goes out by ask the sweep after the hidden drawings are noted, each through typeof',
             src.includes("    if (it.type === 'map' && typeof assetHideSoon === 'function') assetHideSoon();   // security: a picture only a piece no longer sent carries is forgotten once the map has gone out") && src.includes("    if (it.type === 'map' && typeof assetHideSoon === 'function') assetHideSoon();   // security: as sendItem"), '');
     }

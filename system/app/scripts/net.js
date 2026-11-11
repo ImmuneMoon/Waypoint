@@ -11070,29 +11070,51 @@ function handleAssetRequest(msg, conn) {
 // Security (1.6.2, the leftover of backlog 24, listed open in docs/SECURITY_PROGRAMME.md): the record above was never taken back, so a picture sent
 // while its piece was shown could still be pulled after the GM hid the piece. Once a map has gone out (net.sendItem and net.broadcastItemFiltered
 // ask assetHideSoon, so what is shown again has been noted again first), the host forgets, for every connection, each path that only a piece it no
-// longer sends still carries: a hidden piece, a GM note card, and a secret door's own picture (wireWbItem is the one judge of what a piece sends).
-// A path anything a player may hold still carries is kept: a piece that is sent, the rest of a map, a page, a player's character, and what else the
-// campaign holds but for what is the GM's alone (a planner, an NPC's sheet, the map objects, the encounter groups). The record is only ever made
-// smaller here, and only for such a path, so no picture a player may still be shown is refused
-var _assetHideT = null, ASSET_GM_KEYS = { items: 1, chars: 1, objects: 1, groups: 1, soundOn: 1, players: 1, uploads: 1, imageCats: 1, buildPins: 1 };
+// longer sends still carries: a hidden piece, a GM note card, and a secret door's own picture.
+// A path is KEPT only where something a player is really sent still carries it (the review of 2026-11-10: the first cut kept whatever any store
+// of the campaign held, and the cast, a map's saved set-ups, a handout, a running fight's rows and a GM-only page are never sent as a path, so a
+// token dropped from the cast kept its picture askable for good). What is sent with a path in it is named here and nowhere else:
+//   - a piece that is sent (assetPiece: shown, no GM note, no secret door, less what wireWbItem takes off it), read as it stands. No copy of a
+//     map is made and wireWbItem is never called, since it works out and RECORDS what each token was last sent with (its effects, bars and look);
+//   - a player's character, less the kept original of its portrait, which never leaves this machine (an NPC's sheet is never sent);
+//   - a running fight's rows, which carry their token's picture to every player who saw the row, also once the token is hidden (combatRowOut);
+//   - the campaign's own stores in ASSET_SENT_KEYS: its system but the map objects, the look of its pages, its sounds and its music.
+//     A new store of the campaign that reaches a player with a path in it joins that list, or a hidden piece's picture that it shares is refused
+//     until the store is sent again (the safe side for a gate);
+//   - the rest of each item as sanitizeItem sends it, the one judge: a map without its pieces, a page players may read, never a planner.
+// The walk stops as soon as every candidate was found sent, and the costly part (the items' own copies) runs only for a path no piece, character,
+// fight or store still carries. A path it finds there (a room's or a page's own picture, shared with a hidden piece) stays a candidate, so what
+// that pass found is kept for ASSET_KEEP_MS and the pass is not made again for it at every map that goes out. The record is only ever made smaller here
+var _assetHideT = null, _assetKept = Object.create(null), _assetKeptAt = 0, ASSET_KEEP_MS = 30000, ASSET_SENT_KEYS = { system: 1, docStyle: 1, sounds: 1, music: 1 }, ASSET_GM_PIECE = ['sheet', 'gmInfo', 'frame', 'fx', 'bars', 'mine', 'fly', 'hazard', 'follow', 'burns', 'reaction', 'cloud', 'nullFx'];
+function assetSecret(w) { var FC = typeof window === 'object' && window ? window.wpFogCore : null; if (FC && typeof FC.secretOn === 'function') return !!FC.secretOn(w); return w.secret === true && (w.blocksSight === true || w.barrier === true) && w.sightType === 'door' && w.type !== 'image' && w.type !== 'text' && !w.isChar && !w.waiting; }
+function assetUnsent(w) { return !!(w.hidden || w.gmNoteFor || assetSecret(w)); }   // a piece none of whose pictures goes on the wire
+function assetPiece(w) {   // a sent piece as far as its pictures go: what wireWbItem takes off it is the GM's and carries no path a player gets
+    if (!w || typeof w !== 'object' || assetUnsent(w)) return null;
+    for (var i = 0; i < ASSET_GM_PIECE.length; i++) if (w[ASSET_GM_PIECE[i]] !== undefined) { var c = Object.assign({}, w); ASSET_GM_PIECE.forEach(function(k) { delete c[k]; }); return c; }
+    return w;
+}
 function assetHidePlan(camp) {
     var known = Object.create(null), any = false, out = [];
     Object.keys(assetRefs).forEach(function(p) { var s = assetRefs[p]; for (var k in s) { known[k] = 1; any = true; } });
     if (!any || !camp || typeof camp !== 'object' || !camp.items || typeof camp.items !== 'object') return out;
     var items = Object.keys(camp.items).map(function(k) { return camp.items[k]; }).filter(function(it) { return it && typeof it === 'object'; });
-    var cand = Object.create(null), nc = 0;   // what a piece that may not be sent carries, of what some connection was sent
-    items.forEach(function(m) { if (m.type === 'planner' || !Array.isArray(m.whiteboard)) return; m.whiteboard.forEach(function(w) { if (!w || typeof w !== 'object' || !(w.hidden || w.gmNoteFor || w.secret)) return; assetWalk(w, function(raw) { var k = assetKeyOf(raw); if (k && known[k] === 1 && cand[k] !== 1) { cand[k] = 1; nc++; } }); }); });
+    var cand = Object.create(null), nc = 0;   // what a piece that is not sent carries, of what some connection was sent
+    items.forEach(function(m) { if (m.type === 'planner' || !Array.isArray(m.whiteboard)) return; m.whiteboard.forEach(function(w) { if (!w || typeof w !== 'object' || !assetUnsent(w)) return; assetWalk(w, function(raw) { var k = assetKeyOf(raw); if (k && known[k] === 1 && cand[k] !== 1) { cand[k] = 1; nc++; } }); }); });
     if (!nc) return out;
-    var shown = Object.create(null), put = function(raw) { var k = assetKeyOf(raw); if (k && cand[k] === 1) shown[k] = 1; };
-    items.forEach(function(m) {
-        if (m.type === 'planner') return;   // a planner never leaves this machine
-        if (Array.isArray(m.whiteboard)) m.whiteboard.forEach(function(w) { if (!w || typeof w !== 'object') return; var wire; try { wire = wireWbItem(w, false); } catch (e) { wire = w; } if (wire) assetWalk(wire, put); });   // a piece that cannot be judged counts as sent
-        var rest = Object.assign({}, m); delete rest.whiteboard; assetWalk(rest, put);
-    });
-    if (camp.chars && typeof camp.chars === 'object') Object.keys(camp.chars).forEach(function(id) { var c = camp.chars[id]; if (c && typeof c === 'object' && c.npc !== true && typeof c.ownerId === 'string' && c.ownerId) assetWalk(c, put); });   // an NPC's sheet is never sent
-    var restC = {}; Object.keys(camp).forEach(function(k) { if (ASSET_GM_KEYS[k] !== 1) restC[k] = camp[k]; });
-    if (restC.system && typeof restC.system === 'object') { restC.system = Object.assign({}, restC.system); delete restC.system.objects; }
-    assetWalk(restC, put);
+    var left = nc, shown = Object.create(null), put = function(raw) { var k = assetKeyOf(raw); if (k && cand[k] === 1 && shown[k] !== 1) { shown[k] = 1; left--; } };
+    for (var i = 0; i < items.length && left > 0; i++) { var m = items[i]; if (m.type === 'planner' || !Array.isArray(m.whiteboard)) continue; for (var j = 0; j < m.whiteboard.length && left > 0; j++) { var pc = assetPiece(m.whiteboard[j]); if (pc) assetWalk(pc, put); } }
+    if (left > 0 && camp.chars && typeof camp.chars === 'object') Object.keys(camp.chars).forEach(function(id) { var c = camp.chars[id]; if (!(left > 0 && c && typeof c === 'object' && c.npc !== true && typeof c.ownerId === 'string' && c.ownerId)) return; if (c.frame !== undefined) { c = Object.assign({}, c); delete c.frame; } assetWalk(c, put); });
+    if (left > 0 && net.combats && typeof net.combats === 'object') assetWalk(net.combats, put);
+    Object.keys(ASSET_SENT_KEYS).forEach(function(k) { if (left <= 0 || !Object.prototype.hasOwnProperty.call(camp, k)) return; var v = camp[k]; if (k === 'system' && v && typeof v === 'object') { v = Object.assign({}, v); delete v.objects; } assetWalk(v, put); });
+    if (left > 0) {
+        var nowA = Date.now(); if (!(nowA - _assetKeptAt >= 0 && nowA - _assetKeptAt <= ASSET_KEEP_MS)) _assetKept = Object.create(null);
+        Object.keys(cand).forEach(function(k) { if (shown[k] !== 1 && _assetKept[k] === 1) { shown[k] = 1; left--; } });   // what the items' own copies carried a moment ago
+        if (left > 0) {
+            var before = Object.create(null); Object.keys(shown).forEach(function(k) { before[k] = 1; });
+            for (var q = 0; q < items.length && left > 0; q++) { var it = items[q], wire = null; if (it.type === 'planner') continue; try { wire = sanitizeItem(Array.isArray(it.whiteboard) ? Object.assign({}, it, { whiteboard: [] }) : it); } catch (e) { wire = null; } if (wire) assetWalk(wire, put); }   // an item that cannot be judged is not sent either
+            Object.keys(shown).forEach(function(k) { if (before[k] !== 1) _assetKept[k] = 1; }); _assetKeptAt = nowA;
+        }
+    }
     Object.keys(cand).forEach(function(k) { if (shown[k] !== 1) out.push(k); });
     return out;
 }
@@ -12940,9 +12962,11 @@ net.restCarry = function(fromId, ids, toId, at) {
 };
 function restLanding(prof, land) {
     var camp = getActiveCampaign(), on = camp && camp.clock && camp.clock.rest; if (!on || typeof on !== 'object' || !restMapOk(camp, on.map) || !prof || !validProfileId(prof.id)) return land;
+    var follows = !!land && land.detached === false, pinned = follows && validKey(net.stageOverride) && !!restMapOk(camp, net.stageOverride);
+    if (follows && !pinned) return land;   // the review of 2026-11-10: under Follow me a joiner follows the GM, as the rest of the table does, and stays with them when they move on. A table pinned to a map was summoned to the rest map and left attached, so its joiner goes there too, attached alike
     var was = land && land.stage ? land.stage.itemId : null;
     if (!(on.back && Object.prototype.hasOwnProperty.call(on.back, prof.id)) && was !== on.map && restMapOk(camp, was)) { on.back = Object.assign({}, on.back || {}); on.back[prof.id] = was; }   // saved with the admission's own save
-    return { stage: { campId: camp.id, itemId: on.map }, detached: true };
+    return { stage: { campId: camp.id, itemId: on.map }, detached: !follows };
 }
 // [netcheck:restmap-end]
 net.summonPlayer = function(peerKey) {

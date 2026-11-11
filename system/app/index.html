@@ -1145,7 +1145,8 @@
                                   <li>The players at the table go there, and so does anyone who joins during the rest. NPC tokens on the map you are on go only where you tick them. Your own screen goes too.</li>
                                   <li>When you end the rest, <b>Take the party back to where they were</b> sends each one back, and an NPC to its own place. A map since deleted or locked for players counts as gone, and that one stays.</li>
                                   <li>To end a rest early, tick <b>The rest was cut short, after</b> and say how long the party really rested. What the start gave is taken back, and the clock goes back to that hour and moves on only that time. The time rules give what that time reaches, and time short of a threshold stays counted toward it.</li>
-                                  <li>A value that changed during the rest keeps that change. A number loses only what the start added. Anything else that changed stays as it is, and you are told which. A rest you moved the clock on during cannot be cut short.</li>
+                                  <li>A value that changed during the rest keeps that change. A number loses only what the start added. Anything else that changed stays as it is, and you are told which. A rest you moved the clock on during cannot be cut short. Resume a paused table before you cut a rest short.</li>
+                                  <li>Effects and items are taken back one at a time. A timer the rest ran down goes back though you added another effect meanwhile. Time rules you applied by hand during the rest are taken back too.</li>
                                   <li>Each who rests gets what the rest does at once. A skip that holds the rest does it for the players&rsquo; characters once for each whole length, a roll or an action at most 20 times.</li>
                                   <li>While the party rests, a step adds to the rest, and the clock cannot go back. A rest stays on when you close Waypoint. Undo takes the clock and the characters back but tells nobody.</li>
                                   <li>A rest cannot be called while a fight runs, while the table is paused or while time rules wait for your answer.</li>
@@ -1634,6 +1635,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li><b>Stream window grid</b> draws the grid there as your screen does, faint or not at all. Your own screen keeps its grid.</li>
                                   <li>Its corner menu follows your map, focuses one map, or focuses one of the players' characters. Focused on a character it switches maps with them and stays centred at 150%.</li>
                                   <li><b>While you are off the map</b>, in its corner, has it follow a player&rsquo;s character while your main window is on a page, a planner or the Data Map. It starts after the wait you pick, from 15 seconds to 5 minutes. It works while Focus on is No one.</li>
+                                  <li>If Showing is set to one map, it stays on that map and follows the characters there. It stops by itself when your main window is closed.</li>
+                                  <li>The arrow beside the red dot folds the bar away. Press it again to bring the bar back.</li>
                                   <li>Pick one character to follow that one the whole time. Pick <b>Follow someone at random</b> to have it move on to another character after the same wait. In a fight it follows the player&rsquo;s character whose turn it is. Back on the play map, it shows what it showed before.</li>
                                   <li>During a fight its bar shows the round and whose turn it is, where the party can see that token. Every character token there has its name under it.</li>
                               </ul>
@@ -2204,6 +2207,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li><b>Rests</b> under the calendar are ways time can pass, such as a short rest or a full night. Each has a name, a length and <b>Counts as rest time</b>. Under each, a line says what your time rules give in that time.</li>
                                   <li><b>When called, it also</b> adds to a rest what it does at once for each who rests: a roll or an action run, a pool filled to its most, or a section&rsquo;s Reset all. A roll that also runs By the clock is said to run twice.</li>
                                   <li><b>Ends effects that last until this rest</b> takes off, from each who rests, every effect whose Duration names the rest. Write Until a long rest on an effect to end it with a rest called Long rest. The line under the tick names the effects it ends.</li>
+                                  <li>Where one rest&rsquo;s name ends another&rsquo;s, the longer name wins. Until a long rest is ended by Long rest and not by a rest called Rest. Any note that names the rest ends with it, so leave the name out of a note that should not.</li>
                                   <li><b>A time skip counts as</b> picks what the Calendar window starts on: Active, Rest, or one of your rests. You can change it there for each skip. A system with no rests is as it was. Players never see your rests.</li>
                                   <li><b>+ Another calendar</b> counts the same days another way, as another people would. It has its own periods, week, years and leap rules, and the main calendar&rsquo;s day. The strip at the top of the tab picks which calendar you edit. <b>World day 1 falls on</b> says where its count stands on the main calendar&rsquo;s day 1.</li>
                               </ul>
@@ -4347,6 +4351,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <div id="sceneMenu" class="shape-menu" role="menu" style="display:none; position:fixed; flex-direction:column; min-width:180px; z-index:100001;"><button type="button" class="wb-tool-btn party-menu-item" role="menuitem" title="Show this picture big to everyone or to some players at your table"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.5M17 4l-1.5 2.5"/></svg> Show as a scene&hellip;</button></div>
 <div id="streamBar" style="display:none;">
     <span class="stream-dot" title="Live: this window mirrors your table from the party's standpoint &mdash; what the players' tokens see together"></span>
+    <button class="tool ghost" id="streamHideBtn" title="Fold this bar away. The arrow stays here to bring it back" aria-label="Fold this bar away" aria-expanded="true"><svg class="ico ico-down" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6"/></svg></button>
     <span class="stream-grp"><label for="streamFocus">Showing</label>
     <select id="streamFocus" title="Follow the GM's current map, or focus one map until you change it"></select></span>
     <span class="stream-grp"><label for="streamChar">Focus on</label>
@@ -4356,7 +4361,6 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <select id="streamIdleSecs" title="How long you are off the play map before it starts, and how long it stays on each character"></select></span>
     <span id="streamIdleNow" class="stream-fight" hidden title="Whom this window follows while you are off the play map"></span>
     <span id="streamFight" class="stream-fight" hidden title="The fight on the map shown: its round, and whose turn it is where the party can see that token"></span>
-    <button class="tool ghost" id="streamHideBtn" title="Hide this bar. Move the mouse to the top left corner to bring it back" aria-label="Hide this bar"><i class="wib wi-close"></i></button>
 </div>
 <div id="travelLockBanner" style="display:none; position:fixed; top:64px; left:50%; transform:translateX(-50%); z-index:5000; background:var(--panel2); border:1px solid var(--gold); color:var(--ink); padding:5px 12px; border-radius:6px; font-size:12px; box-shadow:var(--shadow);"><i class="wib wi-lock"></i> Travel between maps is locked by the GM</div>
 <div id="pauseBanner" class="wib wi-pause">The GM has paused the table &mdash; chat is still open</div>

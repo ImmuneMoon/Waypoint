@@ -54,6 +54,8 @@ The System editor
 - The stream window can follow a player's character while you are off
   the play map, in a planner or a page. Pick one character or someone at
   random, and how long it waits, in the stream window's corner.
+- The stream window's bar matches the rest of the app. The arrow beside
+  its red dot folds it away, and the same arrow brings it back.
 - A sheet reader can now fill a vehicle's own sheet from the same file as
   its owner. The Review shows each sheet's changes under its own name, and
   Apply makes the sheet where the row has none yet.

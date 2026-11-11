@@ -556,13 +556,14 @@ function pendDone(apply) {
     var p = pend, cal = sysCal(); pend = null;
     if (typeof window !== 'undefined' && window.wpNotices) window.wpNotices.done('time');   // 160
     var camp = getActiveCampaign(); if (!camp || camp.id !== p.camp) { renderWin(); return false; }
-    var backs = [];
+    var backs = [], onU = apply && typeof restNow === 'function' ? restNow(camp) : null, snapU = onU && onU.undo && typeof restSnap === 'function' ? restSnap(camp) : null;   // the review of 2026-11-10: what a list applied during a rest gives is part of what the rest gave
     if (apply) { var go = p.fires.filter(function(f) { return p.on[f.c] === true; }); if (go.length && window.wpSheets && window.wpSheets.runTimeRules) window.wpSheets.runTimeRules(go, p.words || spanWords(cal, p.secs, p.rest, p.live), undefined, backTo(backs)); }
     keepAsked(camp, p);   // 152: only the counts of the rules this list asked for: a count another rule made since stays
     var sysD = sysNow();
     heldBack(camp, sysD, backs, false);   // 1.5.5's review: a run its needs held back gives its time back, on the count as the list kept it, or spends it after another count's run in this Apply (heldBack)
     if (livePend > 0) { var lp = livePend; livePend = 0; groupRules(camp, sysD, { kind: 'clock', secs: lp, rest: false, live: true }, evenSpans(camp, lp), true); }   // 1.5.4: the time that passed while this list waited (the clock running)
     while (!pend && pendQ.length) { var qd = pendQ.shift(); groupRules(camp, sysD, qGroup(qd), qd.c && typeof qd.c === 'object' ? qd.c : evenSpans(camp, qd.s), Array.isArray(qd.k) ? qd.k : true); }   // 159: then the time moved on meanwhile, in order, until a stretch makes rules due again
+    if (snapU && typeof restUndoAdd === 'function') { try { restUndoAdd(camp, snapU); } catch (e) { console.error(e); } }
     renderWin(); refresh(); return true;
 }
 function comingUp(body, cal, notes, today, gm) {   // the next five notes from today on (a player's app holds only those it may see)
@@ -875,6 +876,30 @@ function restUndoKeep(camp, snap, len) {
     var nn = net(); if (nn) nn.applyingRemote = true; save(true); if (nn) nn.applyingRemote = false;   // the GM's own, never sent, outside your undo
     return !!(restNow(camp) && restNow(camp).undo);
 }
+// The review of 2026-11-10: time rules that waited for the GM's word at the start (Time rules set to Ask me, a rule ticked Ask me first, an NPC whose
+// rules are off) give what they give only at Apply, after the start's own snapshot. What that Apply changed joins what the rest gave, so a rest cut
+// short takes it back too and the recount lists it again: a number keeps the sum of both moves, a value nobody changed in between runs from the first
+// before to the last after, and anything else keeps the later part alone
+function restUndoAdd(camp, snap) {
+    var on = restNow(camp); if (!on || !on.undo) return false;
+    var more = restUndoOf(camp, snap, on.undo.len).chars, chars = JSON.parse(JSON.stringify(on.undo.chars || {})), has = Object.prototype.hasOwnProperty, n = 0;
+    var num = function(v) { return typeof v === 'number' && isFinite(v) ? v : v && typeof v === 'object' && !Array.isArray(v) && typeof v.cur === 'number' && isFinite(v.cur) ? v.cur : null; };
+    Object.keys(more).forEach(function(cid) {
+        var mc = more[cid], oc = has.call(chars, cid) && chars[cid] && typeof chars[cid] === 'object' ? chars[cid] : (chars[cid] = {});
+        Object.keys(mc).forEach(function(fid) {
+            var m = mc[fid], o = has.call(oc, fid) ? oc[fid] : null; n++;
+            if (!o || typeof o !== 'object') { oc[fid] = m; return; }
+            var ob = num(o.b), oa = num(o.a), mb = num(m.b), ma = num(m.a);
+            if (ob !== null && oa !== null && mb !== null && ma !== null) { var nb = ob + (mb - oa); oc[fid] = { b: o.b && typeof o.b === 'object' ? Object.assign({}, o.b, { cur: nb }) : nb, a: m.a }; return; }
+            if (restJ(has.call(m, 'b') ? m.b : undefined) === restJ(has.call(o, 'a') ? o.a : undefined)) { var e = {}; if (has.call(o, 'b')) e.b = o.b; if (has.call(m, 'a')) e.a = m.a; oc[fid] = e; return; }
+            oc[fid] = m;
+        });
+    });
+    if (!n) return false;
+    camp.clock = cleanClock(Object.assign({}, clockOf(camp), { rest: Object.assign({}, on, { undo: Object.assign({}, on.undo, { chars: chars }) }) })) || camp.clock;
+    var nn = net(); if (nn) nn.applyingRemote = true; save(true); if (nn) nn.applyingRemote = false;
+    return true;
+}
 function restCutWhy(camp, on) {   // why this rest cannot be cut short, in words, or ''
     if (!on || !on.undo) return 'This rest cannot be cut short: it was called before Waypoint kept what a rest gives, or what it gave was too much to keep.';
     if (typeof on.from !== 'number' || typeof on.to !== 'number' || on.to - on.from !== on.undo.len) return 'You moved the clock on during this rest, so it cannot be cut short.';
@@ -882,7 +907,7 @@ function restCutWhy(camp, on) {   // why this rest cannot be cut short, in words
 }
 function restCutSecs(sys) { return everySecs(sysCal(), sysUnits(sys), { n: restCut.n, u: restCut.u }); }
 function restCutBox(box, camp, on) {
-    var why = restCutWhy(camp, on); if (why) { box.appendChild(cel('div', 'sys-note cal-rest-cutwhy', why)); return; }
+    var why = restCutWhy(camp, on); if (why) { restCut.on = false; box.appendChild(cel('div', 'sys-note cal-rest-cutwhy', why)); return; }   // the tick is no longer drawn, so it no longer holds: End the rest ends it whole
     var row = cel('div', 'cal-rest-go'), l = cel('label', 'cal-tick'), c = cel('input', 'cal-rest-cut'); c.type = 'checkbox'; c.checked = !!restCut.on; c.title = 'The party rested less than the whole rest. Only that time counts, and what the start gave beyond it is taken back'; l.appendChild(c); l.appendChild(document.createTextNode(' The rest was cut short, after')); row.appendChild(l);
     var ni = cel('input', 'field cal-restcut-n'); ni.type = 'number'; ni.min = '1'; ni.max = '1000'; ni.step = '1'; ni.value = String(restCut.n); ni.disabled = !restCut.on; ni.title = 'How long the party really rested'; row.appendChild(ni);
     var us = cel('select', 'field cal-restcut-u'); us.title = 'Its unit'; restUnitOpts(sysNow()).forEach(function(o) { var op = cel('option', '', o[1]); op.value = o[0]; us.appendChild(op); }); us.value = restCut.u; us.disabled = !restCut.on; row.appendChild(us); box.appendChild(row);
@@ -895,17 +920,32 @@ function restEndEarly() {
     var why = restCutWhy(camp, on); if (why) { toast(why); return false; }
     if (pend) { toast('Answer the time rules that wait first.'); return false; }
     if (ordersRun()) { toast('End the fight to cut the rest short.'); return false; }
+    if (tablePaused()) { toast('Resume the table first.'); return false; }   // the review of 2026-11-10: a paused table counts no time, so the time rested would give nothing
     var s = restCutSecs(sysNow()); if (!(s > 0)) { toast('Set how long the party really rested.'); return false; }
     if (s >= on.undo.len) { restCut = { on: false, n: 1, u: 'hour' }; return restEnd(); }
-    var tb = window.wpSheets && typeof window.wpSheets.restTakeBack === 'function' ? window.wpSheets.restTakeBack(on.undo.chars) : { back: 0, kept: [] };
-    var ck = clockOf(camp) || { t: on.to }, nc = Object.assign({}, ck, { t: on.from }); delete nc.rest; ['acc', 'top', 'lived'].forEach(function(k) { if (on.undo.clock && on.undo.clock[k] !== undefined) nc[k] = on.undo.clock[k]; else delete nc[k]; });
-    camp.clock = cleanClock(nc) || { t: on.from };
-    moveTo(on.from + s, 'Rest cut short \u2014 ' + on.name, false, false, { who: on.who || {} });   // the time really rested, as rest for who rested and activity for who was awake
-    var ck2 = clockOf(camp) || { t: on.from + s }, rec = restRecFor(on, ck2.t); rec.cut = true;
-    camp.clock = cleanClock(Object.assign({}, ck2, { rests: (ck2.rests || []).concat([rec]) })) || ck2;
-    var nn = net(); if (nn && nn.logEvent) nn.logEvent('time', 'Rest cut short \u2014 ' + on.name + ' \u2014 after ' + fmtSpan(sysCal(), s) + ', now ' + fmtWhen(sysCal(), ck2.t));
+    // What the start gave is taken off the rest BEFORE it is taken back (the review of 2026-11-10): whatever fails after this, a second press finds
+    // nothing to take back again, and the rest then ends as a whole rest does
+    var undo = on.undo, nn = net(), bare = Object.assign({}, on); delete bare.undo;
+    camp.clock = cleanClock(Object.assign({}, clockOf(camp) || { t: on.to }, { rest: bare })) || camp.clock;
+    if (nn) nn.applyingRemote = true; save(true); if (nn) nn.applyingRemote = false;
+    var tb = { back: 0, kept: [], failed: 0 };
+    try { if (window.wpSheets && typeof window.wpSheets.restTakeBack === 'function') tb = window.wpSheets.restTakeBack(undo.chars) || tb; } catch (e) { console.error(e); tb.failed = (tb.failed || 0) + 1; }
+    var moved = false;
+    try {
+        var ck = clockOf(camp) || { t: on.to }, nc = Object.assign({}, ck, { t: on.from }); delete nc.rest; ['acc', 'top', 'lived'].forEach(function(k) { if (undo.clock && undo.clock[k] !== undefined) nc[k] = undo.clock[k]; else delete nc[k]; });
+        camp.clock = cleanClock(nc) || { t: on.from };
+        moved = !!moveTo(on.from + s, 'Rest cut short \u2014 ' + on.name, false, false, { who: on.who || {} });   // the time really rested, as rest for who rested and activity for who was awake
+    } catch (e) { console.error(e); }
+    var ck1 = clockOf(camp) || { t: on.from }, n1 = Object.assign({}, ck1); delete n1.rest; if (!moved) n1.t = on.from + s;   // whatever happened, the rest is over and the clock stands where the party stopped resting
+    var rec = restRecFor(on, n1.t); rec.cut = true; n1.rests = (ck1.rests || []).concat([rec]);
+    camp.clock = cleanClock(n1) || { t: n1.t };
+    var ck2 = clockOf(camp) || { t: on.from + s };
+    if (nn && nn.logEvent) nn.logEvent('time', 'Rest cut short \u2014 ' + on.name + ' \u2014 after ' + fmtSpan(sysCal(), s) + ', now ' + fmtWhen(sysCal(), ck2.t));
+    if (typeof window !== 'undefined' && typeof window.wpStepLog === 'function') window.wpStepLog('rest v1', 'cut', { back: tb.back || 0, kept: (tb.kept || []).length, failed: tb.failed || 0, moved: moved ? 1 : 0 });
     save(); if (nn && typeof nn.restLine === 'function') nn.restLine('The rest is over, cut short after ' + fmtSpan(sysCal(), s) + '.');
     var goBack = restBackOn; restBackOn = true; restCut = { on: false, n: 1, u: 'hour' }; if (on.map && goBack) { try { restReturn(camp, on); } catch (e) { console.error(e); } }
+    if (tb.failed) toast('The rest ended, but what its start gave could not be taken back on ' + tb.failed + (tb.failed === 1 ? ' character' : ' characters') + '. Check their sheets.');
+    else if (!moved) toast('The rest ended, but the time rested could not be counted by the time rules.');
     if (tb.kept && tb.kept.length) toast('Changed during the rest, so what the start gave stays: ' + tb.kept.slice(0, 4).join('; ') + (tb.kept.length > 4 ? '; \u2026' : '') + '.');
     refresh(); return true;
 }
@@ -1208,7 +1248,7 @@ function onWinClick(e) {
     if (act === 'restcall') { if (restOpen(String(b.dataset.rid || ''))) renderWin(); else { var rwW = restWait(camp); if (rwW) toast(rwW + '.'); } return; }   // backlog 138 (j) fold R2
     if (act === 'reststart') { restStart(); renderWin(); return; }
     if (act === 'restcancel') { restCall = null; renderWin(); return; }
-    if (act === 'restend') { if (restCut.on && typeof restEndEarly === 'function') restEndEarly(); else restEnd(); renderWin(); return; }   // the early end, where ticked
+    if (act === 'restend') { var onE = restNow(camp); if (restCut.on && typeof restEndEarly === 'function' && !(typeof restCutWhy === 'function' && restCutWhy(camp, onE))) restEndEarly(); else { restCut.on = false; restEnd(); } renderWin(); return; }   // the early end, where ticked and still possible (the review of 2026-11-10: a rest that could no longer be cut short could not be ended at all)
     if (act === 'calrrdel') { var rrD = String(b.dataset.rr || ''), rrR = restRecs(camp).filter(function(x) { return x.id === rrD; })[0]; if (!rrR) return; (typeof showConfirm === 'function' ? showConfirm : function(q, f) { f(true); })('Remove the record of ' + rrR.name + '? Its notes go with it.', function(yes) { if (yes) editRests(function(list) { var i = -1; list.forEach(function(x, k) { if (x.id === rrD) i = k; }); if (i < 0) return false; list.splice(i, 1); }); }); return; }   // fold R3
     if (act === 'calset' && restNow(camp)) { toast('End the rest first.'); return; }
     if (act === 'calpendapply') { pendDone(true); return; }

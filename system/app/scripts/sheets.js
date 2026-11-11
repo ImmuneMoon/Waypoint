@@ -13654,6 +13654,22 @@ function restPreview(sys, r) {
     if (r.time === false) return 'Its ' + lw + ' count as activity' + (runs.length ? ': ' + runs.join(', ') + '.' : '. No time rule runs in that time.');
     return runs.length ? 'In ' + lw + ' of rest, each who rests gets: ' + runs.join(', ') + '.' : 'In ' + lw + ' of rest no time rule runs. Rules are set By the clock on the Rolls tab.';
 }
+// fold R4: what a rest's list can name, and each named in words
+var REST_DOES_N = 8;
+function restSecs(sys) { return (sys && sys.sheet && Array.isArray(sys.sheet.sections) ? sys.sheet.sections : []).filter(function(s) { return s && typeof s.id === 'string' && Array.isArray(s.fields) && s.fields.some(function(pl) { var f = pl && (sys.fields || []).filter(function(x) { return x && x.id === pl.id; })[0]; return !!f && (f.kind === 'resource' || f.counter === true); }); }); }
+function restDoWord(sys, d) {
+    var nm = function(x, fb) { return x && typeof (x.label || x.title || x.key) === 'string' && String(x.label || x.title || x.key).trim() ? String(x.label || x.title || x.key).trim() : fb; };
+    if (d.k === 'roll') { var r = (sys.rolls || []).filter(function(x) { return x && x.id === d.id; })[0]; return (r && Array.isArray(r.apply) ? 'Run ' : 'Roll ') + nm(r, 'a roll that is gone'); }
+    if (d.k === 'pool') return 'Fill ' + nm((sys.fields || []).filter(function(x) { return x && x.id === d.id; })[0], 'a pool that is gone');
+    return 'Reset ' + nm((sys.sheet && Array.isArray(sys.sheet.sections) ? sys.sheet.sections : []).filter(function(x) { return x && x.id === d.id; })[0], 'a section that is gone');
+}
+function restDoOpts(sys, ds) {
+    var has = function(k, id) { return ds.some(function(d) { return d && d.k === k && d.id === id; }); }, out = [['', 'Add\u2026']];
+    (sys.rolls || []).forEach(function(r) { if (r && typeof r.id === 'string' && r.init !== true && !has('roll', r.id)) out.push(['roll:' + r.id, restDoWord(sys, { k: 'roll', id: r.id })]); });
+    (sys.fields || []).forEach(function(f) { if (f && f.kind === 'resource' && typeof f.id === 'string' && !has('pool', f.id)) out.push(['pool:' + f.id, restDoWord(sys, { k: 'pool', id: f.id })]); });
+    restSecs(sys).forEach(function(s) { if (!has('reset', s.id)) out.push(['reset:' + s.id, restDoWord(sys, { k: 'reset', id: s.id })]); });
+    return out;
+}
 function restSays(sys) {
     var out = [], rs = Array.isArray(sys && sys.rests) ? sys.rests : [], kept = 0, ids = Object.create(null), us = Object.create(null);
     restUnits(sys).forEach(function(u) { us[u[0].toLowerCase()] = 1; });
@@ -13667,6 +13683,10 @@ function restSays(sys) {
         kept++; ids[r.id] = 1;
     });
     if (typeof sys.restSkip === 'string' && sys.restSkip && sys.restSkip !== 'rest' && !ids[sys.restSkip]) out.push('A time skip counts as names a rest Save drops, so the Calendar window opens on Active.');
+    rs.forEach(function(r, i) {   // fold R4: a roll both on a rest's list and By the clock during rest runs twice (kept, as warned)
+        if (!r || typeof r !== 'object' || !Array.isArray(r.does)) return; var nm = typeof r.name === 'string' && r.name.trim() ? r.name.trim() : 'Rest ' + (i + 1);
+        r.does.forEach(function(d) { if (!d) return; if (d.k === 'roll') { var x = (sys.rolls || []).filter(function(y) { return y && y.id === d.id; })[0]; if (!x) out.push(nm + ': a roll on its list is gone. Save drops it.'); else if (x.every && typeof x.every === 'object' && r.time !== false) out.push(nm + ': ' + restDoWord(sys, d).replace(/^(Roll|Run) /, '') + ' also runs By the clock, so this rest runs it twice. Save keeps it.'); } else if (d.k === 'pool' && !(sys.fields || []).some(function(f) { return f && f.id === d.id && f.kind === 'resource'; })) out.push(nm + ': a pool on its list is gone. Save drops it.'); else if (d.k === 'reset' && !restSecs(sys).some(function(s) { return s.id === d.id; })) out.push(nm + ': a section on its list is gone or resets nothing. Save drops it.'); });
+    });
     return out;
 }
 function restsBox() {
@@ -13691,6 +13711,11 @@ function restsBox() {
             tl.appendChild(tc); tl.appendChild(document.createTextNode(' Counts as rest time')); row.appendChild(tl);
             [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.type = 'button'; bb.dataset.act = 'rest' + bd[0]; bb.title = bd[2]; row.appendChild(bb); });
             cd.appendChild(row);
+            var dw = el('div', 'sys-flags sys-rest-does'); dw.appendChild(el('span', 'sys-num-cap', 'When called, it also'));   // fold R4
+            var ds = Array.isArray(r.does) ? r.does : [];
+            ds.forEach(function(d, j) { var ch = el('span', 'sys-rest-chip'); ch.appendChild(document.createTextNode(restDoWord(sys, d))); var x = el('button', 'tool ghost sys-btn sys-rest-chipx', '\u00d7'); x.type = 'button'; x.dataset.act = 'restdox'; x.dataset.dj = String(j); x.title = 'Take this off the list'; ch.appendChild(x); dw.appendChild(ch); });
+            if (ds.length < REST_DOES_N) { var ao = restDoOpts(sys, ds); if (ao.length > 1) dw.appendChild(select('sys-rest-doadd', ao, '', 'Add a roll or action run for each who rests, a pool filled to its most, or a section\u2019s Reset all')); }
+            cd.appendChild(dw);
             var pv = restPreview(sys, r); if (pv) cd.appendChild(el('div', 'sys-note sys-rest-preview', pv));
             wrap.appendChild(cd);
         });
@@ -13708,6 +13733,7 @@ function restsBox() {
         e.stopPropagation(); var t = e.target; if (!t || !t.classList) return;
         if (t.classList.contains('sys-rest-skip')) { if (t.value) draft.restSkip = String(t.value); else delete draft.restSkip; done(true); return; }
         var a = at(e); if (!a) return;
+        if (t.classList.contains('sys-rest-doadd')) { var mv = /^(roll|pool|reset):(.+)$/.exec(String(t.value || '')); if (!mv) return; if (!Array.isArray(a.r.does)) a.r.does = []; if (a.r.does.length < REST_DOES_N && !a.r.does.some(function(d) { return d && d.k === mv[1] && d.id === mv[2]; })) a.r.does.push({ k: mv[1], id: mv[2] }); done(true); return; }   // fold R4
         if (t.classList.contains('sys-rest-u')) { if (!a.r.len || typeof a.r.len !== 'object') a.r.len = {}; a.r.len.u = String(t.value); }
         else if (t.classList.contains('sys-rest-time')) { if (t.checked) delete a.r.time; else a.r.time = false; }
         done(true);
@@ -13717,12 +13743,35 @@ function restsBox() {
         var act = b.dataset.act;
         if (act === 'restadd') { if (!Array.isArray(draft.rests)) draft.rests = []; if (draft.rests.length < REST_MAX) draft.rests.push({ id: restNewId(draft.rests), name: '', len: { n: 8, u: 'hour' } }); done(true); var ns = wrap.querySelectorAll('.sys-rest-name'); try { if (ns.length) ns[ns.length - 1].focus(); } catch (er) {} return; }
         var a = at(e); if (!a) return;
-        if (act === 'restdel') { a.rs.splice(a.i, 1); if (draft.restSkip === a.r.id) delete draft.restSkip; if (!a.rs.length) delete draft.rests; }
+        if (act === 'restdox') { var dj = Number(b.dataset.dj); if (Array.isArray(a.r.does) && dj >= 0) { a.r.does.splice(dj, 1); if (!a.r.does.length) delete a.r.does; } }   // fold R4
+        else if (act === 'restdel') { a.rs.splice(a.i, 1); if (draft.restSkip === a.r.id) delete draft.restSkip; if (!a.rs.length) delete draft.rests; }
         else if (act === 'restup' && a.i > 0) { a.rs.splice(a.i - 1, 0, a.rs.splice(a.i, 1)[0]); }
         else if (act === 'restdown' && a.i < a.rs.length - 1) { a.rs.splice(a.i + 1, 0, a.rs.splice(a.i, 1)[0]); }
         done(true);
     });
     draw(); return wrap;
+}
+// fold R4: a rest's list run for those who rest, on the machine that owns the campaign: pools filled and sections reset as one change a character
+// (commitMany, as Reset all does), then each roll or action run as the GM's own press, times over for a skip that held the rest that many times (20 at most)
+function restDoes(ids, does, times) {
+    var camp = getActiveCampaign(), sys = camp && camp.system; if (!sys || !Array.isArray(does) || !does.length || !Array.isArray(ids)) return 0;
+    var n = Math.max(1, Math.min(20, Math.floor(typeof times === 'number' && isFinite(times) ? times : 1))), done = 0, S = window.wpSystemCore;
+    ids.forEach(function(id) {
+        var c = charById(id, camp); if (!c) return; var vals = [];
+        does.forEach(function(d) {
+            if (!d) return;
+            if (d.k === 'pool' && S && typeof S.makeResolver === 'function') { var f = (sys.fields || []).filter(function(x) { return x && x.id === d.id && x.kind === 'resource'; })[0]; if (!f) return; var mx = S.makeResolver(sys, c, F())(f.key + '.max'); if (typeof mx === 'number' && isFinite(mx)) vals.push({ fieldId: f.id, value: mx }); }
+            else if (d.k === 'reset' && S && typeof S.resetTargets === 'function') { var sc = (sys.sheet && Array.isArray(sys.sheet.sections) ? sys.sheet.sections : []).filter(function(x) { return x && x.id === d.id; })[0]; if (sc) S.resetTargets(sys, c, sc, F(), { gm: true }).targets.forEach(function(t) { if (!vals.some(function(v) { return v.fieldId === t.fieldId; })) vals.push({ fieldId: t.fieldId, value: t.value }); }); }
+        });
+        if (vals.length) { commitMany(c, vals); done++; }
+        does.forEach(function(d) {
+            if (!d || d.k !== 'roll') return; var r = (sys.rolls || []).filter(function(x) { return x && x.id === d.id; })[0]; if (!r) return;
+            var lb = String(r.label || (Array.isArray(r.apply) ? 'Apply' : 'Roll')).split('{')[0].trim() || 'Roll';
+            for (var k = 0; k < n; k++) { var cN = charById(id, camp); if (!cN) return; if (Array.isArray(r.apply)) applyAction(r, cN, lb); else if (window.wpDice && window.wpDice.rollFor) window.wpDice.rollFor(cN.id, r.formula, lb, r.vis === 'gm' ? { act: r.id, gmOnly: true } : { act: r.id }); }
+            done++;
+        });
+    });
+    return done;
 }
 // [systemcheck:restsbox-end]
 // Senses S2a: the system's senses on the Combat tab (docs/SENSES_PLAN.md 4.3) — each a name, where its range comes from (a field of the
@@ -15616,7 +15665,7 @@ function dmgPartPre(mk) { if (!dmgObj(mk) || typeof mk.amt !== 'number' || !isFi
 function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient() && canWrite(); }   // the cards' Apply to target: the GM's own machine
 // [systemcheck:dmgwin-end]
 function nameWordNow(n) { var c = getActiveCampaign(), s = c ? systemOf(c) : null; return nameWord(s, n); }   // 1.6.2: a name in words, for a card
-window.wpSheets = { bellNote: bellNote, charCatSet: charCatSet, charCatNow: charCatNow, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, linkValuesWrite: linkValuesWrite, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, fxEndSeed: function() { return fxEndSeed(getActiveCampaign()); }, fxRanOut: fxRanOut, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+window.wpSheets = { bellNote: bellNote, restDoes: restDoes, charCatSet: charCatSet, charCatNow: charCatNow, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, linkValuesWrite: linkValuesWrite, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, fxEndSeed: function() { return fxEndSeed(getActiveCampaign()); }, fxRanOut: fxRanOut, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame, openChars: openChars, closeChars: closeChars,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,

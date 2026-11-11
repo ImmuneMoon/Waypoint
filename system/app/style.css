@@ -3106,6 +3106,9 @@
   .sys-rest-len .sys-rest-n { width: 64px; }
   .sys-rest-preview { color: #5fc4b8; }
   .sys-rest-add { align-self: flex-start; }
+  .sys-rest-does { align-items: center; gap: 6px; }
+  .sys-rest-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 4px 1px 8px; border: 1px solid var(--edge); border-radius: 10px; font-size: 12px; }
+  .sys-rest-doadd { max-width: 220px; }
   .cal-kind-sel { max-width: 260px; }
   .cal-rest { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
   .cal-rest-on, .cal-rest-callbox { flex-direction: column; align-items: stretch; padding: 8px 10px; border: 1px solid #5fc4b8; border-radius: 8px; background: rgba(95,196,184,.08); }

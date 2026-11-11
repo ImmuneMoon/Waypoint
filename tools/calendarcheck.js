@@ -1399,8 +1399,14 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         check('backlog 138 (j) fold R3 (calendar.js restrec, run for real): a called rest\'s record carries its name, where it began and where the clock stood at its end, who rested and its notes; a skip held a rest as many whole times as fit, said only past one; the days a rest spans are its first and last, the open rest\'s up to the clock; a player reads the records the host sent, never the GM\'s own; a skip and a called rest are recorded where they end (pinned), a record is removed after a question, and players are sent their records in a message of their own',
             !!rec && /^rr_[a-z0-9]+$/.test(rec.id) && J(Object.assign({}, rec, { id: 'x' })) === J({ id: 'x', name: 'Nap', from: 100, to: 400, how: 'call', rid: 'rs_x', who: { c_1: 'rest' }, notes: 'n', vis: 'all' }) && skip[0].n === 3 && !('n' in skip[1]) && skip[1].how === 'skip'
             && J(days) === J([[1, 1], [2, 2]]) && J(pl) === J([{ id: 'rr_z', name: 'Z', from: 0, to: 1, notes: 'hi' }])
-            && cj.includes("nc.rests = (ck.rests || []).concat([restRecFor(on, ck.t)]);") && cj.includes("if (lenS > 0 && gone >= lenS) nc.rests = (ck.rests || []).concat([restSkipRec(how.skip, ck.t, t1, lenS)]);") && cj.includes("('Remove the record of ' + rrR.name + '? Its notes go with it.'")
+            && cj.includes("nc.rests = (ck.rests || []).concat([restRecFor(on, ck.t)]);") && cj.includes("if (lenS > 0 && gone >= lenS) { nc.rests = (ck.rests || []).concat([restSkipRec(how.skip, ck.t, t1, lenS)]);") /* fold R4: its list after it (moved on purpose) */ && cj.includes("('Remove the record of ' + rrR.name + '? Its notes go with it.'")
             && read('system/app/scripts/net.js').includes("var msg = { type: 'restlog', campId: camp.id, list: restLogOut(camp) || [] }") && read('system/app/scripts/net.js').includes("var rlIn = CCr.cleanRestLog(msg.list); if (rlIn.length) campRl.restLog = rlIn; else delete campRl.restLog;"), J([rec, skip, days, pl]));
+    }
+    {   // 1.6.2 (backlog 138 (j), docs/REST_DESIGN.md fold R4): what a rest does at once
+        const cj = read('system/app/scripts/calendar.js');
+        check('backlog 138 (j) fold R4 wired: a called rest runs its list once for those who rest, after the table is told; a skip that held a rest by name runs it once each whole length for the players\' characters, after the save',
+            cj.includes("var rIds = Object.keys(who).filter(function(k) { return who[k] === 'rest'; }); if (Array.isArray(r.does) && r.does.length && rIds.length && window.wpSheets && typeof window.wpSheets.restDoes === 'function') { try { window.wpSheets.restDoes(rIds, r.does, 1); }")
+            && cj.includes("skipDo = { does: how.skip.does, n: Math.floor(gone / lenS) };") && cj.includes("if (skipDo && window.wpSheets && typeof window.wpSheets.restDoes === 'function') { try { window.wpSheets.restDoes(charIdsOf(camp).filter(function(id) { return isPc(camp.chars[id]); }), skipDo.does, skipDo.n); }"));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

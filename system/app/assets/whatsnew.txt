@@ -40,6 +40,9 @@ The System editor
   rest too, and the window opens on the one you pick as your default.
 - The calendar keeps a record of each rest, with a teal line on the days it
   spans. Write what happened during it, and tick a box to let players read it.
+- A rest can do things at once for each who rests: fill a pool, reset a
+  section, or run a roll or an action, such as a long rest that fills Hit
+  points.
 - A sheet reader can now fill a vehicle's own sheet from the same file as
   its owner. The Review shows each sheet's changes under its own name, and
   Apply makes the sheet where the row has none yet.

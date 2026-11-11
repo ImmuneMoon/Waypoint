@@ -121,7 +121,7 @@ if (on) {
             idleSecSel.textContent = ''; [[15, 'after 15 seconds'], [30, 'after 30 seconds'], [60, 'after 1 minute'], [120, 'after 2 minutes'], [300, 'after 5 minutes']].forEach(function(p) { opt(idleSecSel, String(p[0]), p[1]); });
             idleSecSel.value = String(idleSecs); idleSecSel.disabled = !idleMode;
         }
-        if (idleNow) { var who = following ? list.filter(function(c) { return c.key === following; })[0] : null, tx = who ? 'Following ' + who.name + ' while you are off the map' : ''; if (idleNow.textContent !== tx) idleNow.textContent = tx; idleNow.hidden = !tx; }
+        if (idleNow) { var who = following ? list.filter(function(c) { return c.key === following; })[0] : null, tx = who ? 'Following ' + who.name : ''; if (idleNow.textContent !== tx) idleNow.textContent = tx; idleNow.hidden = !tx; }
     }
     if (idleSel) idleSel.addEventListener('change', function() { idleSet(idleSel.value, idleSecs); });
     if (idleSecSel) idleSecSel.addEventListener('change', function() { idleSet(idleMode, idleSecSel.value); });

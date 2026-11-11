@@ -4347,16 +4347,16 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <div id="sceneMenu" class="shape-menu" role="menu" style="display:none; position:fixed; flex-direction:column; min-width:180px; z-index:100001;"><button type="button" class="wb-tool-btn party-menu-item" role="menuitem" title="Show this picture big to everyone or to some players at your table"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.5M17 4l-1.5 2.5"/></svg> Show as a scene&hellip;</button></div>
 <div id="streamBar" style="display:none;">
     <span class="stream-dot" title="Live: this window mirrors your table from the party's standpoint &mdash; what the players' tokens see together"></span>
-    <label for="streamFocus">Showing</label>
-    <select id="streamFocus" title="Follow the GM's current map, or focus one map until you change it"></select>
-    <label for="streamChar">Focus on</label>
-    <select id="streamChar" title="Follow one character: the view switches to the map they are on and stays centred on them at 150%"></select>
-    <label for="streamIdle">While you are off the map</label>
+    <span class="stream-grp"><label for="streamFocus">Showing</label>
+    <select id="streamFocus" title="Follow the GM's current map, or focus one map until you change it"></select></span>
+    <span class="stream-grp"><label for="streamChar">Focus on</label>
+    <select id="streamChar" title="Follow one character: the view switches to the map they are on and stays centred on them at 150%"></select></span>
+    <span class="stream-grp"><label for="streamIdle">While you are off the map</label>
     <select id="streamIdle" title="What this window does while your main window is on a page, a planner or the Data Map, and Focus on is No one. It can follow one player's character you choose, or someone at random, moving on to another after the same wait. In a fight it follows the player's character whose turn it is. Back on the play map it shows what it showed before"></select>
-    <select id="streamIdleSecs" title="How long you are off the play map before it starts, and how long it stays on each character"></select>
+    <select id="streamIdleSecs" title="How long you are off the play map before it starts, and how long it stays on each character"></select></span>
     <span id="streamIdleNow" class="stream-fight" hidden title="Whom this window follows while you are off the play map"></span>
     <span id="streamFight" class="stream-fight" hidden title="The fight on the map shown: its round, and whose turn it is where the party can see that token"></span>
-    <button class="tool ghost" id="streamHideBtn" title="Hide this bar (move the mouse to the top-left corner to bring it back)"><i class="wib wi-close"></i></button>
+    <button class="tool ghost" id="streamHideBtn" title="Hide this bar. Move the mouse to the top left corner to bring it back" aria-label="Hide this bar"><i class="wib wi-close"></i></button>
 </div>
 <div id="travelLockBanner" style="display:none; position:fixed; top:64px; left:50%; transform:translateX(-50%); z-index:5000; background:var(--panel2); border:1px solid var(--gold); color:var(--ink); padding:5px 12px; border-radius:6px; font-size:12px; box-shadow:var(--shadow);"><i class="wib wi-lock"></i> Travel between maps is locked by the GM</div>
 <div id="pauseBanner" class="wib wi-pause">The GM has paused the table &mdash; chat is still open</div>

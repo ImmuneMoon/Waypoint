@@ -957,10 +957,13 @@
   #popoutBody { flex: 1; overflow: auto; }
   #popoutBody.doc-view { max-width: 880px; margin: 0 auto; padding: 28px 34px 90px; width: 100%; }
   #popoutBody .popout-msg { color: var(--dim); font-style: italic; text-align: center; padding-top: 120px; }
+  /* 1.6.2 (the owner, 2026-11-10: "lets style the stream window inputs and other UI"): the stream window's bar wears the map toolbar's ground, edge and shadow,
+     each caption and its lists are one group, a list is the app's own (the Multiplayer window's: its gold arrow, gold at hover
+     and focus), and what the window says of itself (the fight, whom it follows) is a pill */
   #streamBar {
-    position: fixed; top: 8px; left: 8px; z-index: 100000; display: flex; align-items: center; gap: 8px;
-    padding: 6px 8px 6px 10px; background: rgba(21,21,28,0.88); border: 1px solid var(--edge); border-radius: 8px;
-    font-size: 12px; color: var(--ink); backdrop-filter: blur(4px); transition: opacity .25s;
+    position: fixed; top: 8px; left: 8px; z-index: 100000; display: flex; align-items: center; gap: 6px 16px;
+    padding: 6px 6px 6px 12px; background: var(--deep); border: 1px solid #333; border-radius: 12px;
+    font-size: 12px; color: var(--ink); box-shadow: 0 8px 24px rgba(0,0,0,0.6); transition: opacity .25s;
   }
   #streamBar.hidden { opacity: 0; pointer-events: none; }
   #streamVideo { position: fixed; inset: 0; z-index: 99990; background: #000; display: flex; align-items: center; justify-content: center; }
@@ -973,16 +976,26 @@
   #streamSceneTitle { color: var(--gold); font-size: 22px; font-weight: 600; text-shadow: 0 1px 3px #000; }
   #streamSceneCap { color: var(--ink); font-size: 15px; max-width: 80vw; text-align: center; white-space: pre-wrap; text-shadow: 0 1px 3px #000; }
   #streamVideoCap { position: absolute; left: 12px; bottom: 10px; font-size: 13px; color: rgba(233,233,240,0.75); text-shadow: 0 1px 3px #000; pointer-events: none; }
-  #streamBar label { color: var(--dim); }
-  #streamBar .stream-fight { color: var(--gold); font-weight: 600; white-space: nowrap; }   /* 1.6.2 (the owner: "Round, turn and names") */
+  #streamBar .stream-grp { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  #streamBar label { color: var(--dim); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+  #streamBar .stream-fight { color: var(--gold); font-weight: 600; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; padding: 3px 10px; border: 1px solid var(--gold); border-radius: 12px; background: rgba(224,165,79,0.08); }   /* 1.6.2 (the owner: "Round, turn and names") */
+  #streamBar .stream-fight[hidden] { display: none; }
   #streamNames { position: absolute; inset: 0; pointer-events: none; z-index: 15985; }
   #streamNames .stream-name { position: absolute; transform: translateX(-50%); font-size: 12px; line-height: 1.2; padding: 1px 6px; border-radius: 4px; background: rgba(0,0,0,0.65); color: #fff; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
-  #streamBar select { font-size: 12px; max-width: 320px; }
-  #streamBar { flex-wrap: wrap; max-width: calc(100vw - 16px); row-gap: 4px; }   /* 1.6.2: the idle follow's two lists: the bar wraps in a narrow window */
-  #streamBar #streamIdle { max-width: 220px; } #streamBar #streamIdleSecs { max-width: 140px; }
-  #streamBar select:disabled { opacity: 0.45; }
+  #streamBar select {
+    appearance: none; -webkit-appearance: none; height: 28px; box-sizing: border-box; padding: 0 26px 0 9px; font: inherit; font-size: 12px; max-width: 240px; text-overflow: ellipsis; color-scheme: dark;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23e0a54f' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 9px center; transition: border-color .15s, box-shadow .15s;
+  }
+  #streamBar select:hover:not(:disabled) { border-color: var(--gold); }
+  #streamBar select:focus-visible { box-shadow: 0 0 0 2px rgba(224,165,79,0.25); }
+  #streamBar { flex-wrap: wrap; max-width: calc(100vw - 16px); box-sizing: border-box; }   /* 1.6.2: the idle follow's two lists: the bar wraps in a narrow window */
+  #streamBar #streamIdle { max-width: 220px; } #streamBar #streamIdleSecs { max-width: 150px; }
+  #streamBar select:disabled { opacity: 0.45; cursor: default; }
   #streamBar .stream-dot { width: 8px; height: 8px; border-radius: 50%; background: #e0524f; box-shadow: 0 0 6px #e0524f; animation: netPulse 1.4s ease-in-out infinite; }
-  #streamBar .tool { padding: 2px 7px; font-size: 11px; }
+  #streamBar .stream-dot { flex: none; }
+  #streamBar .tool { flex: none; width: 28px; height: 28px; padding: 0; margin-left: auto; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 11px; color: var(--dim); }
+  #streamBar .tool:hover, #streamBar .tool:focus-visible { color: var(--ink); background: var(--panel2); outline: none; }
   
   #globalResizeHandle {
       position: absolute; width: 14px; height: 14px; background: var(--gold);
@@ -2191,7 +2204,8 @@
   .handout-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
   .handout-actions .tool { padding: 4px 10px; font-size: 12px; }
   .handout-actions .handout-give { font-size: 12px; padding: 4px 8px; height: 28px; max-width: 220px; color-scheme: dark; }
-  .handout-actions .handout-give, #streamBar select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; min-width: 0; cursor: pointer; }
+  .handout-actions .handout-give { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; min-width: 0; cursor: pointer; }
+  #streamBar select { background-color: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; min-width: 0; cursor: pointer; }
   .handout-actions .handout-give:hover { border-color: var(--gold); }
   .handout-actions .handout-give:focus, #streamBar select:focus { outline: none; border-color: var(--gold); }
   .handout-actions .handout-give option, #streamBar select option { background: var(--panel); color: var(--ink); }

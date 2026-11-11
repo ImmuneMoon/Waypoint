@@ -1314,6 +1314,60 @@ function endTurn() { var n = net(), r = n && n.turnEnd ? n.turnEnd() : { error: 
 /* ---------- the sheet panel ---------- */
 var sheetOpen = null, lastChange = null;
 function lastChangePeek() { return lastChange; }   // the change Revert would take back, as the sheet's text box reads it
+// [systemcheck:restrev-start]
+// 1.6.2 (the owner, 2026-11-11, by prompt: "Each sheet its own (Recommended)"): after a rest, Revert on each rested character's sheet takes back what
+// the rest gave that ONE character. restDoes hands over one record a character (restRevKeep), and they hold only while the last change is still the
+// one the rest left (key): any change made since is the change Revert takes back, as ever, and the rest's records are then let go.
+// Reverting one leaves the others: the last change becomes one of the records still kept
+var _restRev = null;   // { key: the last change as the rest left it, by: { charId: record }, at: { charId: { fieldId: the value once the rest was through, as text } } }
+// what a value held, as text. A list of rows is read with each row's running clocks left out (an effect's timer t, a counter's and an upkeep's part of a
+// step, tt and ut): the game clock ticks them by itself, and a tick is no change anyone made (the checker of 2026-11-11: an hour after a rest, Revert
+// left the whole effects list as changed)
+function restAtOf(v) {
+    if (v === undefined) return 'u';
+    if (Array.isArray(v)) return JSON.stringify(v.map(function(x) { if (!x || typeof x !== 'object' || Array.isArray(x) || !('t' in x || 'tt' in x || 'ut' in x)) return x; var o = {}; Object.keys(x).forEach(function(k) { if (k !== 't' && k !== 'tt' && k !== 'ut') o[k] = x[k]; }); return o; }));
+    return JSON.stringify(v);
+}
+function restRevLive() { return !!_restRev && !!lastChange && _restRev.key === lastChange; }
+function revOf(charId) {   // the change Revert takes back on that character's sheet, or none
+    if (lastChange && lastChange.charId === charId) return lastChange;
+    return restRevLive() && typeof charId === 'string' && Object.prototype.hasOwnProperty.call(_restRev.by, charId) ? _restRev.by[charId] : null;
+}
+function restRevKeep(recs, ats) {   // asked by restDoes once it is through: by character id, each the very object the last change was when that character was done, and what its fields then held
+    var by = Object.create(null), at = Object.create(null), n = 0; Object.keys(recs && typeof recs === 'object' ? recs : {}).forEach(function(id) { if (recs[id] && typeof recs[id] === 'object' && recs[id].charId === id) { by[id] = recs[id]; if (ats && ats[id] && typeof ats[id] === 'object') at[id] = ats[id]; n++; } });
+    _restRev = n && lastChange ? { key: lastChange, by: by, at: at } : null;
+}
+// The review of 2026-11-11: a change that assigns no last change (a player's own edit on the host, a time rule, a roll's own changes) does not let the
+// records go, so a record is taken back field by field: a field that no longer holds what the rest left it holding was changed since, and is LEFT as
+// it is and named. rec: the record; at: what each field held; values: the character's values now. Answers { rec: the part to take back, or null, left: [field ids] }
+// Where a LIST is left (an effects list whose rows really changed), the record's pools are left with it: a pool's most may rest on an effect of that
+// list, and its value from before the rest could stand above the most it has without that effect. The marks of what typing filled (af) go back only
+// for the fields taken back (afNow: the marks as they stand), so a figure typed since keeps its own
+function restRevFit(rec, at, values, afNow) {
+    if (!rec || !at || typeof at !== 'object') return { rec: rec, left: [] };
+    var has = Object.prototype.hasOwnProperty, v = values && typeof values === 'object' ? values : {}, ks = [rec.fieldId].concat(rec.extra && typeof rec.extra === 'object' ? Object.keys(rec.extra) : []), keep = [], left = [];
+    var cur = function(k) { return has.call(v, k) ? v[k] : undefined; }, pool = function(x) { return !!x && typeof x === 'object' && !Array.isArray(x) && typeof x.cur === 'number'; };
+    ks.forEach(function(k) { if (has.call(at, k) && at[k] !== restAtOf(cur(k))) left.push(k); else keep.push(k); });
+    if (left.some(function(k) { return Array.isArray(cur(k)); })) { keep = keep.filter(function(k) { if (!pool(cur(k))) return true; left.push(k); return false; }); }
+    if (!left.length) return { rec: rec, left: left }; if (!keep.length) return { rec: null, left: left };
+    var was = function(k) { return k === rec.fieldId ? rec.prev : rec.extra[k]; }, o = { charId: rec.charId, fieldId: keep[0], prev: was(keep[0]), extra: null };
+    keep.slice(1).forEach(function(k) { (o.extra = o.extra || {})[k] = was(k); }); if (rec.also) o.also = rec.also;
+    if (rec.af !== undefined) { var m = afNow && typeof afNow === 'object' ? Object.assign({}, afNow) : {}; keep.forEach(function(k) { if (rec.af && typeof rec.af === 'object' && has.call(rec.af, k)) m[k] = rec.af[k]; else delete m[k]; }); o.af = Object.keys(m).length ? m : null; }
+    return { rec: o, left: left };
+}
+// A follower of the revert (a value falling back past a line that runs an action) may leave a last change of its own: the records still kept follow it,
+// as restDoes joins such a change, or one sheet's Revert would let every other sheet's go
+function restRevRekey(was) { if (_restRev && lastChange && was && lastChange !== was && _restRev.key === was) _restRev.key = lastChange; }
+function restRevTake(openId) {   // what Revert takes back on the open sheet after a rest, and what the last change is once it has: { rec, next }, or null where the rest's records do not hold
+    if (!restRevLive() || typeof openId !== 'string' || !openId) return null;
+    var mine = Object.prototype.hasOwnProperty.call(_restRev.by, openId) ? _restRev.by[openId] : null, rec = mine || (lastChange.charId === openId ? lastChange : null); if (!rec) return null;
+    if (mine) delete _restRev.by[openId];
+    var left = Object.keys(_restRev.by), next = rec === lastChange ? (left.length ? _restRev.by[left[left.length - 1]] : null) : lastChange;
+    var at = mine && _restRev.at && Object.prototype.hasOwnProperty.call(_restRev.at, openId) ? _restRev.at[openId] : null; if (mine && _restRev.at) delete _restRev.at[openId];
+    if (left.length && next) _restRev.key = next; else _restRev = null;
+    return { rec: rec, next: next, rest: !!mine, at: at };
+}
+// [systemcheck:restrev-end]
 function canOpen(charId) {
     if (!featureOn()) return false;
     var c = charById(charId); if (!c) return false;
@@ -1416,7 +1470,7 @@ function renderSheet() {
     if (gm && Array.isArray(c.shareWith) && c.shareWith.length) sub.textContent += ' · shared with ' + c.shareWith.length;   // 1.6.2 (G8)
     var giveS = gm && !c.partial && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && !window.wpStream && !!window.wpCharList; if (sub.classList) sub.classList.toggle('sheet-sub-give', giveS); if (sub.setAttribute) { if (giveS) { sub.setAttribute('role', 'button'); sub.tabIndex = 0; sub.title = 'Press to give this character to a player'; } else { sub.removeAttribute('role'); sub.removeAttribute('tabindex'); sub.removeAttribute('title'); } }   // 1.6.0: who has it is said here, so it is changed here
     // Onboarding F3: its state
-    var revert = ui('sheetRevert'); if (revert) revert.style.display = gm && lastChange && lastChange.charId === c.id ? '' : 'none';
+    var revert = ui('sheetRevert'); if (revert) revert.style.display = gm && (typeof revOf === 'function' ? revOf(c.id) : lastChange && lastChange.charId === c.id) ? '' : 'none';   // 1.6.2: after a rest, each rested character's sheet has its own
     var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; var pickL = gm ? charList(camp) : charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }); if (gm || pickL.length > 1) { pickL.forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : '') + (x.making === 1 ? ' (being made)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
     var upB = ui('sheetUpload'); if (upB) { var upOn = gm ? canWrite() && !c.partial : isClient() && own && !c.partial && (c.making !== 1 || fillOk()), rdG = upOn && gm ? gmReader() : null, outF = !gm && sheetFilesOk(); upB.style.display = upOn ? '' : 'none'; upB.title = gm ? 'Upload: pick a Waypoint character file (.wpchar.json)' + (rdG ? ' or a ' + rdG.name + ' file' : '') + '. You review what changes before anything is applied' : c.making === 1 ? 'Upload: fill this character from a file, your own sheet download (.wpchar.json)' + (outF ? ', or a sheet file your GM\u2019s Waypoint reads' : '') : 'Upload: send a Waypoint character file (.wpchar.json)' + (outF ? ', or a sheet file your GM\u2019s Waypoint reads,' : '') + ' to your GM, who approves what changes'; }   // 1.6.0: always on the sheet, for the GM on any character and for a player on their own; while making, where the table lets a file fill it
@@ -6983,24 +7037,35 @@ function ownerSeesSame(camp, sys, a, b, fid) {
     return JSON.stringify(projectRows(Array.isArray(a) ? a : [], pv, lib, sp)) === JSON.stringify(projectRows(Array.isArray(b) ? b : [], pv, lib, sp));   // F4c1 (critic 1): damage, cost and locks never
 }
 function revertLast() {
+    var rr = typeof restRevTake === 'function' && typeof sheetOpen !== 'undefined' && !isClient() ? restRevTake(sheetOpen) : null, after = rr ? rr.next : null;   // 1.6.2: after a rest the open sheet takes back its own character's part, and the others keep theirs
+    if (rr) lastChange = rr.rec; else if (typeof restRevLive === 'function' && restRevLive()) return;   // while the rest's records hold, a sheet the rest gave nothing takes nothing back, and never another sheet's part
     if (!lastChange || isClient()) return;
-    var camp = getActiveCampaign(), c = charById(lastChange.charId, camp); if (!c) { lastChange = null; return; }
+    var camp = getActiveCampaign(), c = charById(lastChange.charId, camp); if (!c) { lastChange = after; return; }
+    var leftR = [];   // 1.6.2: of a rest's record, the fields changed since the rest are left as they are, and named
+    if (rr && rr.rest && typeof restRevFit === 'function') { var ftR = restRevFit(lastChange, rr.at, c.values, c.af); leftR = ftR.left; if (!ftR.rec) { lastChange = after; toast('Nothing was put back: ' + restLeftWords(systemOf(camp), leftR) + '.'); if (typeof renderSheet === 'function') renderSheet(); return; } lastChange = ftR.rec; }
     var d = {}, fidR = lastChange.fieldId, sysR = systemOf(camp), fR = sysR ? fieldById(sysR, fidR) : null, curR = c.values && Object.prototype.hasOwnProperty.call(c.values, fidR) ? clone(c.values[fidR]) : undefined;
     if (lastChange.prev === undefined) { delete c.values[lastChange.fieldId]; d[lastChange.fieldId] = null; }
     else { c.values[lastChange.fieldId] = lastChange.prev; d[lastChange.fieldId] = lastChange.prev; }
     if (lastChange.extra) Object.keys(lastChange.extra).forEach(function(fid) { var pv = lastChange.extra[fid]; if (pv === undefined) { delete c.values[fid]; d[fid] = null; } else { c.values[fid] = pv; d[fid] = pv; } });   // 5h: a pool an effect's end brought down
     if (fR && fR.kind === 'item-list' && ownerSeesSame(camp, sysR, curR, lastChange.prev, fidR)) delete d[fidR];   // F4b review: taking back a change its owner never held (a kept curse, a kept-on switch) tells them nothing
     if (lastChange.af !== undefined) { if (lastChange.af) c.af = lastChange.af; else delete c.af; }   // 1.6.2 (auto apply): the marks as they were
-    var also = lastChange.also || null;
-    lastChange = null;
+    var also = lastChange.also || null, backR = rr && rr.rest ? [lastChange.fieldId].concat(lastChange.extra ? Object.keys(lastChange.extra) : []) : null;
+    lastChange = after;
+    if (backR && typeof window !== 'undefined' && window.wpCalendar && typeof window.wpCalendar.restReverted === 'function') { try { window.wpCalendar.restReverted(c.id, backR); } catch (e) { console.error(e); } }   // a rest cut short afterwards never takes the same gift back twice
     afterCharChange(c, d[Object.keys(d)[0]] === null, d);
+    if (rr && typeof restRevRekey === 'function') restRevRekey(after);
     var c2 = also ? charById(also.charId, camp) : null;   // 1.6.0 (the review of 96e39ae6): a press used on another moved both sheets, and one Revert takes both back
     if (c2) {
         var d2 = {}, back = function(fid, pv) { if (pv === undefined) { delete c2.values[fid]; d2[fid] = null; } else { c2.values[fid] = pv; d2[fid] = pv; } };
         c2.values = c2.values || {}; back(also.fieldId, also.prev); if (also.extra) Object.keys(also.extra).forEach(function(fid) { back(fid, also.extra[fid]); });
         afterCharChange(c2, d2[Object.keys(d2)[0]] === null, d2);
+        if (rr && typeof restRevRekey === 'function') restRevRekey(after);
     }
-    toast('Reverted.');
+    toast(leftR.length ? 'Reverted. ' + restLeftWords(systemOf(camp), leftR) + '.' : 'Reverted.');
+}
+function restLeftWords(sys, ids) {   // "Hit Points changed since the rest and was left as it is"
+    var nm = (Array.isArray(ids) ? ids : []).map(function(id) { var f = sys ? fieldById(sys, id) : null, w = f && typeof (f.label || f.key) === 'string' ? String(f.label || f.key).trim() : ''; return w || 'A value'; });
+    return nm.join(', ') + ' changed since the rest and ' + (nm.length === 1 ? 'was' : 'were') + ' left as ' + (nm.length === 1 ? 'it is' : 'they are');
 }
 /* ---------- Onboarding F1c: a character's own picture ---------- */
 // The picture of a character comes from a plan (net.js charFacePlan): a picture is saved into the campaign's pictures — a PNG made from the
@@ -9286,6 +9351,13 @@ function refreshErrors() {
             if (mv) errorsById[d.id] = (errorsById[d.id] || []).concat([mv]);
         });
     });
+    // 1.6.2 (the review of an effect's Ends with): a pick whose rest Save does not keep (a rest removed, or one Save drops: no name, a length of nothing, a
+    // unit it cannot count in). Save takes the pick off, and the effect is then read by its Duration again, which is said here, as the cleaner reads it
+    (draft.effects || []).forEach(function(d) {
+        if (!d || typeof d !== 'object' || typeof d.id !== 'string' || typeof d.endsRest !== 'string' || !d.endsRest || d.endsRest === '-') return;
+        if (clean && Array.isArray(clean.rests) && clean.rests.some(function(x) { return !!x && x.id === d.endsRest; })) return;
+        errorsById[d.id] = (errorsById[d.id] || []).concat([{ message: 'Ends with: Save does not keep that rest, so it takes this pick off and the effect is read by its Duration again.' }]);
+    });
     // 1.6.2 (205): what Save drops of an item's change by a formula, under the item's row, as the cleaner reads it (its row's own names by the GM-only stats)
     (draft.items || []).forEach(function(it) {
         if (!it || typeof it !== 'object' || typeof it.id !== 'string' || !Array.isArray(it.mods)) return;
@@ -9867,6 +9939,9 @@ function effectRow(d) {
     }
     flags.appendChild(fvW);
     var enW = el('span', 'sys-hover sys-fx-endsbox', 'Counts at: '); enW.appendChild(select('sys-fx-ends', [['', 'Its turn\u2019s start'], ['turnEnd', 'Its turn\u2019s end']], d.ends === 'turnEnd' ? 'turnEnd' : '', 'When a fight takes a turn off its time. At its turn\u2019s end, an effect of 1 turn lasts through its character\u2019s whole next turn, and one put on during a turn lasts through the turn after')); flags.appendChild(enW);   // 1.6.0
+    var rsL = (Array.isArray(draft.rests) ? draft.rests : []).filter(function(x) { return !!x && typeof x.id === 'string' && typeof x.name === 'string' && !!x.name.trim(); }).map(function(x) { return [x.id, x.name.trim()]; });   // 1.6.2 (the owner: "A list on the effect"): the rest that ends it, where the system has rests
+    if (typeof d.endsRest === 'string' && d.endsRest && d.endsRest !== '-' && !rsL.some(function(o) { return o[0] === d.endsRest; })) rsL.push([d.endsRest, 'A rest that is gone']);
+    if (rsL.length || d.endsRest === '-') { var erW = el('span', 'sys-hover sys-fx-restbox', 'Ends with: '); erW.appendChild(select('sys-fx-rest', [['', 'What its Duration says'], ['-', 'No rest']].concat(rsL), typeof d.endsRest === 'string' ? d.endsRest : '', 'The rest that ends this effect for each who rests. Pick a rest and only that rest ends it. No rest: no rest ends it. Either way its Duration is not read for this. What its Duration says: a rest ends it where the Duration names that rest, such as Until a long rest')); flags.appendChild(erW); }
     var egW = el('span', 'sys-hover sys-fx-egbox', 'Shares an end: '); egW.appendChild(input('sys-fx-endgroup field', d.endGroup, 'A short word. Effects with the same word end together: when one comes on, an effect of a higher rank that would end sooner takes the later end. Letters, digits, hyphens and underscores', 'none'));
     if (typeof d.endGroup === 'string' && d.endGroup) { egW.appendChild(document.createTextNode(' Rank: ')); egW.appendChild(numInput('sys-fx-endrank field', d.endRank, 'Higher is heavier. Empty counts as 1')); }
     flags.appendChild(egW);   // 1.6.0
@@ -13676,11 +13751,12 @@ function restDoOpts(sys, ds) {
     restSecs(sys).forEach(function(s) { if (!has('reset', s.id)) out.push(['reset:' + s.id, restDoWord(sys, { k: 'reset', id: s.id })]); });
     return out;
 }
-function restEndsWords(sys, r) {   // fold R6: which of the library's effects this rest ends, by their Duration notes
+function restEndsWords(sys, r) {   // fold R6: which of the library's effects this rest ends, by each one's Ends with pick, else by its Duration note (systemcore fxEndsWith, the one judge)
     var S = window.wpSystemCore, nm = typeof r.name === 'string' ? r.name.trim() : '', hit = [];
     var others = (Array.isArray(sys.rests) ? sys.rests : []).map(function(x) { return x && typeof x.name === 'string' ? x.name : ''; });
-    if (nm && S && typeof S.durNamesRest === 'function') (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (d && S.durNamesRest(d.dur, nm, others)) hit.push(typeof d.name === 'string' && d.name.trim() ? d.name.trim() : 'An effect'); });
-    return hit.length ? 'It ends ' + hit.join(', ') + ', and any effect made on the spot whose Duration names ' + nm + '.' : 'No effect\u2019s Duration names ' + (nm || 'this rest') + ' yet. Write Until ' + (nm || 'its name') + ' there, on the Effects tab.';
+    var ends = S && typeof S.fxEndsWith === 'function' ? function(d) { return S.fxEndsWith(d, null, r, others); } : S && typeof S.durNamesRest === 'function' ? function(d) { return S.durNamesRest(d.dur, nm, others); } : null;
+    if (nm && ends) (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (d && ends(d)) hit.push(typeof d.name === 'string' && d.name.trim() ? d.name.trim() : 'An effect'); });
+    return hit.length ? 'It ends ' + hit.join(', ') + ', and any effect made on the spot whose Duration names ' + nm + '.' : 'No effect ends with ' + (nm || 'this rest') + ' yet. Pick it under Ends with on an effect, or write Until ' + (nm || 'its name') + ' in its Duration.';
 }
 function restSays(sys) {
     var out = [], rs = Array.isArray(sys && sys.rests) ? sys.rests : [], kept = 0, ids = Object.create(null), us = Object.create(null);
@@ -13728,7 +13804,7 @@ function restsBox() {
             ds.forEach(function(d, j) { var ch = el('span', 'sys-rest-chip'); ch.appendChild(document.createTextNode(restDoWord(sys, d))); var x = el('button', 'tool ghost sys-btn sys-rest-chipx', '\u00d7'); x.type = 'button'; x.dataset.act = 'restdox'; x.dataset.dj = String(j); x.title = 'Take this off the list'; ch.appendChild(x); dw.appendChild(ch); });
             if (ds.length < REST_DOES_N) { var ao = restDoOpts(sys, ds); if (ao.length > 1) dw.appendChild(select('sys-rest-doadd', ao, '', 'Add a roll or action run for each who rests, a pool filled to its most, or a section\u2019s Reset all')); }
             cd.appendChild(dw);
-            var el6 = el('label', 'sys-cal-tick'), ec6 = el('input', 'sys-rest-ends'); ec6.type = 'checkbox'; ec6.checked = r.ends === true; ec6.title = 'Each who rests loses every effect whose Duration note names this rest, such as Until a long rest'; el6.appendChild(ec6); el6.appendChild(document.createTextNode(' Ends effects that last until this rest')); cd.appendChild(el6);   // fold R6
+            var el6 = el('label', 'sys-cal-tick'), ec6 = el('input', 'sys-rest-ends'); ec6.type = 'checkbox'; ec6.checked = r.ends === true; ec6.title = 'Each who rests loses every effect that picks this rest under Ends with, and every other effect whose Duration note names this rest, such as Until a long rest'; el6.appendChild(ec6); el6.appendChild(document.createTextNode(' Ends effects that last until this rest')); cd.appendChild(el6);   // fold R6
             if (r.ends === true) cd.appendChild(el('div', 'sys-note sys-rest-endsfx', restEndsWords(sys, r)));
             var pv = restPreview(sys, r); if (pv) cd.appendChild(el('div', 'sys-note sys-rest-preview', pv));
             wrap.appendChild(cd);
@@ -13772,13 +13848,24 @@ function restsBox() {
 // most is judged with its links and station), then the sections are reset, then the pools are filled, each judged on the working copy as the step
 // before left it, so a pool whose most reads a counter the rest resets is filled to its new most. A pool that already READS its most is not written
 // (so one with nothing stored that starts at its most stays so, and one that starts at a number is filled). A reset runs what typing that figure
-// fills, as Reset all does. The one Revert holds the last character's change. Then each roll or action is run as the GM's own press, times over
-// for a skip that held the rest that many times (20 at most)
+// fills, as Reset all does. Then each roll or action is run as the GM's own press, times over for a skip that held the rest that many times (20 at
+// most). Each character has ONE record of what the rest gave it (1.6.2, the owner: "Each sheet its own"): what an action of the list changed by
+// applyAction is joined to it (restRecJoin: a field's value before is the earliest seen), and the records are handed to restRevKeep, so that
+// Revert on each rested character's sheet takes back that character's part. What a roll's own Then moves is not in it
+function restRecJoin(rec, lc, charId) {   // the record of one character's rest, with a later change of that character joined: [the record, or one made of the change]
+    if (!lc || typeof lc !== 'object' || lc === rec || lc.charId !== charId || typeof lc.fieldId !== 'string') return rec;
+    var has = Object.prototype.hasOwnProperty, ks = [lc.fieldId].concat(lc.extra && typeof lc.extra === 'object' ? Object.keys(lc.extra) : []), was = function(k) { return k === lc.fieldId ? lc.prev : lc.extra[k]; };
+    if (!rec) { rec = { charId: charId, fieldId: lc.fieldId, prev: lc.prev, extra: null }; if (lc.af !== undefined) rec.af = lc.af; ks = ks.slice(1).concat([lc.fieldId]); }
+    ks.forEach(function(k) { if (k === rec.fieldId || (rec.extra && has.call(rec.extra, k))) return; (rec.extra = rec.extra || {})[k] = was(k); });
+    if (lc.also && !rec.also) rec.also = lc.also;
+    return rec;
+}
 function restDoes(ids, does, times, rest) {
     var camp = getActiveCampaign(), sys = camp && camp.system, ends = !!rest && rest.ends === true; does = Array.isArray(does) ? does : []; if (!sys || (!does.length && !ends) || !Array.isArray(ids)) return 0;
-    var n = Math.max(1, Math.min(20, Math.floor(typeof times === 'number' && isFinite(times) ? times : 1))), done = 0, S = window.wpSystemCore, has = Object.prototype.hasOwnProperty;
+    var n = Math.max(1, Math.min(20, Math.floor(typeof times === 'number' && isFinite(times) ? times : 1))), done = 0, S = window.wpSystemCore, has = Object.prototype.hasOwnProperty, recs = {}, ats = {};
     ids.forEach(function(id) {
         var c = charById(id, camp); if (!c) return;
+        var rec = null, was = lastChange, join = function() { if (lastChange !== was && lastChange !== rec) rec = restRecJoin(rec, lastChange, id); if (rec) lastChange = rec; was = lastChange; };   // whatever changed this character since is joined to its one record
         var work = Object.assign({}, c, { values: clone(c.values || {}) }), d = {}, prev = {}, order = [], af0 = c.af ? clone(c.af) : null; if (c.af) work.af = clone(c.af);
         var seen = function(k) { if (has.call(prev, k)) return; prev[k] = c.values && has.call(c.values, k) ? clone(c.values[k]) : undefined; order.push(k); };
         var put = function(fid, value) {
@@ -13802,18 +13889,20 @@ function restDoes(ids, does, times, rest) {
             if (typeof mx === 'number' && isFinite(mx) && typeof cu === 'number' && isFinite(cu) && mx !== cu) put(f.id, mx);
         });
         if (order.length) {
-            var ex = null; order.slice(1).forEach(function(k) { (ex = ex || {})[k] = prev[k]; }); lastChange = { charId: c.id, fieldId: order[0], prev: prev[order[0]], extra: ex, af: af0 };
+            var ex = null; order.slice(1).forEach(function(k) { (ex = ex || {})[k] = prev[k]; }); lastChange = rec = { charId: c.id, fieldId: order[0], prev: prev[order[0]], extra: ex, af: af0 }; was = lastChange;
             var bNote = typeof budgetNote === 'function' ? budgetNote : null; if (bNote) bNote(sys, c, d);   // 126: the GM's notice, as commitMany asked it when a rest went through it
             c.values = work.values; if (work.af && Object.keys(work.af).length) c.af = work.af; else delete c.af;
-            afterCharChange(c, false, d); done++;
+            afterCharChange(c, false, d); done++; join();
         }
         does.forEach(function(x) {
             if (!x || x.k !== 'roll') return; var r = (sys.rolls || []).filter(function(y) { return y && y.id === x.id; })[0]; if (!r) return;
             var lb = String(r.label || (Array.isArray(r.apply) ? 'Apply' : 'Roll')).split('{')[0].trim() || 'Roll';
-            for (var k = 0; k < n; k++) { var cN = charById(id, camp); if (!cN) return; if (Array.isArray(r.apply)) applyAction(r, cN, lb); else if (window.wpDice && window.wpDice.rollFor) window.wpDice.rollFor(cN.id, r.formula, lb, r.vis === 'gm' ? { act: r.id, gmOnly: true } : { act: r.id }); }
+            for (var k = 0; k < n; k++) { var cN = charById(id, camp); if (!cN) return; if (Array.isArray(r.apply)) { applyAction(r, cN, lb); join(); } else if (window.wpDice && window.wpDice.rollFor) window.wpDice.rollFor(cN.id, r.formula, lb, r.vis === 'gm' ? { act: r.id, gmOnly: true } : { act: r.id }); }
             done++;
         });
+        join(); if (rec) { recs[id] = rec; var cE = charById(id, camp), atE = {}; if (cE && typeof restAtOf === 'function') { [rec.fieldId].concat(rec.extra ? Object.keys(rec.extra) : []).forEach(function(k) { atE[k] = restAtOf(cE.values && has.call(cE.values, k) ? cE.values[k] : undefined); }); ats[id] = atE; } }
     });
+    if (typeof restRevKeep === 'function') restRevKeep(recs, ats);   // one Revert a rested character's sheet
     return done;
 }
 // the early end (the owner's round three, "Recount and take back"): what the start of a rest gave, taken back, character by character. A value that still
@@ -14934,6 +15023,13 @@ function onChange(e) {
     if (c.indexOf('sys-listrules-stats') >= 0 || c.indexOf('sys-listrules-upload') >= 0) { var lr = Object.assign({}, draft.listRules || {}); if (c.indexOf('sys-listrules-stats') >= 0) { delete lr.ownerStats; delete lr.statsAsk; if (t.value === 'owner') lr.ownerStats = true; else if (t.value === 'ask') lr.statsAsk = true; } else { if (t.value === 'facts') lr.uploadFacts = true; else delete lr.uploadFacts; } if (Object.keys(lr).length) draft.listRules = lr; else delete draft.listRules; markDirty(); patchErrors(); return; }   // Stage 6: settings A and B   // Stage 6 F4c2: Setting A
     var fxc = fxOfRow(t);   // 5h: a library effect's selects
     if (fxc) {
+        if (c.indexOf('sys-fx-rest') >= 0) {   // 1.6.2: the rest that ends it. A pick ticks that rest's Ends effects, without which it would end nothing, and says so
+            if (t.value) fxc.endsRest = t.value; else delete fxc.endsRest;
+            Array.prototype.slice.call(t.options || []).forEach(function(o) { if (o.value !== t.value && o.textContent === 'A rest that is gone') t.removeChild(o); });   // a rest that is gone is not offered again
+            var rsP = t.value && t.value !== '-' ? (Array.isArray(draft.rests) ? draft.rests : []).filter(function(x) { return !!x && x.id === t.value; })[0] : null;
+            if (rsP && rsP.ends !== true) { rsP.ends = true; toast((String(rsP.name || '').trim() || 'That rest') + ' now ends the effects that last until it.'); }
+            markDirty(); patchErrors(); return;
+        }
         if (c.indexOf('sys-fx-endroll') >= 0) { if (t.value) fxc.endRoll = t.value; else delete fxc.endRoll; markDirty(); patchErrors(); return; }   // 1.6.2: an effect's end
         if (c.indexOf('sys-fx-endoff') >= 0) { if (t.checked) fxc.endOff = true; else delete fxc.endOff; markDirty(); return; }
         if (t.closest && t.closest('.sys-fx-endrow')) {

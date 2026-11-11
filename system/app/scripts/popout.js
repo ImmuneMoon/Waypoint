@@ -44,10 +44,11 @@ function popPart(it, id) {
     for (i = 0; i < bl.length && at < 0; i++) if (bl[i] && typeof bl[i] === 'object' && bl[i].id === id) at = i;
     if (at < 0) return null;
     // a Raw HTML block that opens with a heading is drawn, folded and listed as that heading, so it is one here too
-    // The page reads a drawn block's first ELEMENT, so words and comments before the heading are passed over here too. [tag, level, its words]
+    // The page reads a drawn block's first ELEMENT, so words and comments before the heading are passed over here too, and so is a "<" that opens
+    // no tag (a < b, 2 <3, x<=y: a browser reads one as a word unless a letter, a /, a ! or a ? follows it). [tag, level, its words]
     var rawH = function(b) {
         if (b.type !== 'raw' || typeof b.content !== 'string') return null;
-        var c = b.content.slice(0, 1200).replace(/^(?:[^<]|<!--[\s\S]*?-->)*/, ''), m = /^<h([123])(?:\s[^<>]*)?>/i.exec(c); if (!m) return null;
+        var c = b.content.slice(0, 1200).replace(/^(?:[^<]|<!--[\s\S]*?-->|<(?![a-zA-Z\/!?]))*/, ''), m = /^<h([123])(?:\s[^<>]*)?>/i.exec(c); if (!m) return null;
         var rest = c.slice(m[0].length), end = rest.search(new RegExp('</h' + m[1] + '\\s*>', 'i'));
         return [m[0], m[1], end >= 0 ? rest.slice(0, end) : rest.slice(0, 300)];
     };

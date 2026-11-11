@@ -12,7 +12,7 @@
      (an italic-only line right under it the subtitle), later `#` and every `##` a section (in a planner `{cards=medium}` sets its
      blocks as cards, and `{wide}` after a card's heading or alone above a plain table is a Wide card; `{cols=2}`
      tail = columns on a page), `###` a sub-heading on a page — in a planner `### Scene:` opens a
-     scene node (with `**Tag:**`, `**Must resolve:**`, `Map: title / room` lines and a table under it)
+     scene node (with `**Tag:**`, `**Must resolve:**`, `Map: title / room` lines and a table right under them, no blank line between)
      and other `###` become a bold lead line; paragraphs, lists, `**b**` `*i*` `~~s~~` `<u>` `code`
      `[t](https://…)` form one text block per run; `> quote` = callout, `> [!lede|oneline|flare|callout]`
      and `::: type … :::` pick the prose block; pipe tables (first row headers, at most 8 columns,
@@ -490,7 +490,7 @@ function isBlockStart(line, next) {
 function markdownToBlocks(text, opts) {
     opts = opts || {};
     var kind = opts.kind === 'planner' ? 'planner' : 'doc', items = opts.items || {};
-    var notes = [], meta = {}, blocks = [], images = [], run = [], scene = null, pendingTitle = null, pendingWide = false, sawH1 = false, h1Block = null;
+    var notes = [], meta = {}, blocks = [], images = [], run = [], scene = null, sceneGap = false, pendingTitle = null, pendingWide = false, sawH1 = false, h1Block = null;
     var ctx = { inlineImages: [] };
     text = String(text || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
     if (text.length > LIMITS.text) { text = text.slice(0, LIMITS.text); notes.push('The file is longer than 2 MB; the rest was left out.'); }
@@ -552,7 +552,11 @@ function markdownToBlocks(text, opts) {
         });
         var colFmt = cols.map(function(c, k) { return cf[k] || null; });   // parallel to cols: null for a plain head, no trailing nulls
         while (colFmt.length && !colFmt[colFmt.length - 1]) colFmt.pop();
-        if (scene && kind === 'planner') { scene.cols = cols; scene.rows = objRows; if (colFmt.length) scene.colFmt = colFmt; else delete scene.colFmt; scene = null; return; }
+        // 1.6.2 (the owner, 2026-11-11, by prompt: "Blank line ends the card (Recommended)"): a table right under a card's heading or its lines is the card's
+        // own rows, as the export writes them. A table after a blank line is a table of its own (sceneGap): an untitled table after a card that has
+        // no rows used to be read back as that card's rows
+        if (scene && kind === 'planner' && !sceneGap) { scene.cols = cols; scene.rows = objRows; if (colFmt.length) scene.colFmt = colFmt; else delete scene.colFmt; scene = null; return; }
+        scene = null;
         flushRun();
         var tb = kind === 'planner' ? push({ type: 'node', mode: 'table', title: title || '', cols: cols, rows: objRows }) : push({ type: 'table', title: title || '', cols: cols, rows: objRows });
         if (pendingWide && kind === 'planner') CC.wideSet(tb, true);
@@ -571,7 +575,7 @@ function markdownToBlocks(text, opts) {
         }
         var cf = /^:::\s*(lede|oneline|flare|callout)\s*$/i.exec(line);
         if (cf) { var cb = []; i++; while (i < lines.length && !/^:::\s*$/.test(lines[i])) { cb.push(lines[i]); i++; } i++; flushRun(); scene = null; push({ type: cf[1].toLowerCase(), content: dropEmptySpans(sanitizeHtml(paraHtml(cb.filter(function(x) { return x.trim(); }), ctx))) }); flushInlineImages(); continue; }
-        if (!line.trim()) { i++; continue; }
+        if (!line.trim()) { if (scene) sceneGap = true; i++; continue; }
         var h = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
         if (h) {
             var level = h[1].length, ht = splitAttrTail(h[2], headAttrs(kind, level, !sawH1, h[2])), hf = fieldOf(ht.text), title = hf.text;
@@ -588,7 +592,7 @@ function markdownToBlocks(text, opts) {
             } else if (level === 3 && kind === 'planner' && /^(?:scene|person|place|clue):\s*/i.test(title)) {   // a card by its kind: Scene, Person, Place or Clue
                 var sceneRaw = /^(scene|person|place|clue):\s*/i.exec(ht.text), sceneF = sceneRaw ? fieldOf(ht.text.slice(sceneRaw[0].length)) : null, sceneT = title.replace(/^(?:scene|person|place|clue):\s*/i, '');
                 var sceneK = (/^(scene|person|place|clue):/i.exec(title) || ['', 'scene'])[1].toLowerCase();
-                scene = push(sceneK === 'scene' ? { type: 'node', title: sceneT, tag: '', must: '', cols: [], rows: [] } : { type: 'node', mode: sceneK, title: sceneT, tag: '', must: '', cols: [], rows: [] });
+                scene = push(sceneK === 'scene' ? { type: 'node', title: sceneT, tag: '', must: '', cols: [], rows: [] } : { type: 'node', mode: sceneK, title: sceneT, tag: '', must: '', cols: [], rows: [] }); sceneGap = false;
                 if (sceneF && sceneF.text === sceneT) setFmt(scene, 'title', sceneF.fmt);   // the title after "Scene:", its format with it
                 if (ht.attrs && ht.attrs.wide !== undefined && !/^(false|no|0)$/i.test(ht.attrs.wide)) CC.wideSet(scene, true);   // a Wide card
             } else if (level === 3 && kind === 'doc') {
@@ -628,6 +632,7 @@ function markdownToBlocks(text, opts) {
         if (scene && kind === 'planner') {
             var fld = /^\*\*(tag|role|area|must resolve|must|wants|when they arrive|points to|also known as|played|found|session):?\*\*:?\s*(.*)$/i.exec(line) || /^(map)\s*:\s*(.*)$/i.exec(line);
             if (fld) {
+                sceneGap = false;   // a line of the card's own: a table right under it is still the card's
                 var key = fld[1].toLowerCase(), vf = fieldOf(fld[2]), val = vf.text;
                 if (key === 'role' || key === 'area') key = 'tag'; else if (key === 'wants' || key === 'when they arrive' || key === 'points to') key = 'must';   // a card's own words for its tag and its lead line
                 if (key === 'also known as') { var akaI = CC.cleanAka(val); if (akaI) scene.aka = akaI; i++; continue; }
@@ -804,6 +809,9 @@ function docToMarkdown(item, opts) {
             case 'node':
                 if (b.mode === 'table') { if (kind !== 'doc' && CC.wideOn(b)) L.push('{wide}', ''); L.push(tableMd(b.title, b.cols, b.rows, b), ''); break; }
                 var kdM = CC.kindOf(b), akaM = CC.cleanAka(b.aka);   // backlog 107 step 3 and 147
+                // 1.6.2: each of a card's lines is ONE line. A title, a tag or a map's name that held a line break (only a file makes one) wrote a blank line
+                // into the card, and a blank line before the card's own table now ends the card (markdownToBlocks sceneGap), so its rows would be lost
+                var cardLn = function(x) { return String(x).replace(/\s*[\r\n]+\s*/g, ' ').replace(/^\s+|\s+$/g, ''); }, cardAt = L.length;
                 L.push('### ' + kdM.word + ': ' + tailGuard(fieldText(b, 'title', IN_SCENE), kind !== 'doc' ? CARD_ATTRS : null) + (kind !== 'doc' && CC.wideOn(b) ? ' {wide}' : ''));
                 if (akaM) L.push('**Also known as:** ' + IN_LINE.put(akaM.join(', '), true));
                 if (b.done === true && kdM.tick) L.push('**' + kdM.tick + ':** yes');
@@ -811,6 +819,7 @@ function docToMarkdown(item, opts) {
                 if (b.tag) L.push('**' + kdM.tag + ':** ' + fieldText(b, 'tag', IN_LINE));
                 if (b.must) L.push('**' + kdM.must + ':** ' + fieldText(b, 'must', IN_LINE));
                 if (b.linkMapId && items[b.linkMapId]) { var mp = items[b.linkMapId], rm = b.linkRoomId && (mp.rooms || []).find(function(r) { return r.id === b.linkRoomId; }); L.push('Map: ' + ((mp.meta && mp.meta.title) || mp.id) + (rm ? ' / ' + (rm.name || rm.id) : '')); }
+                for (var cK = cardAt; cK < L.length; cK++) L[cK] = cardLn(L[cK]);
                 if ((b.cols && b.cols.length) || (b.rows && b.rows.length)) L.push(tableMd('', b.cols && b.cols.length ? b.cols : kdM.cols.slice(), b.rows, b));
                 L.push(''); break;
             case 'rule': L.push('---', ''); break;

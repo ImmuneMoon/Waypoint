@@ -35,6 +35,9 @@ Tidier screens
   still opens its box, and an open minimap that would reach the zoom box
   stands under it. The party's portraits overlap there and show four. Rest
   the pointer on them to see them all.
+- In a Markdown file a blank line before a table now ends the card above
+  it, so a plain table after a card with no rows stays a table of its own.
+  A table right under a card's lines is still that card's rows.
 - A sheet's second row keeps Edit sheet and As player. Upload, Unlock for
   player, Arrange, Download and Delete moved into a menu behind a ... button.
 - A debt from a trade now says what it is: I owe you, Owes 3 to Quartermaster
@@ -50,6 +53,14 @@ Tidier screens
   as a new player and Clear all handouts.
 
 The System editor
+- An effect can say which rest ends it. Its Ends with list in the System
+  editor picks one of your rests, or No rest, and its Duration is then not
+  read for that. Until now a Duration that only mentioned a rest ended with
+  it.
+- After a rest, Revert on each rested character's sheet takes back what the
+  rest gave that one character. It used to take back the last character's
+  alone. A value changed since the rest is left as it is. What a roll of
+  the rest changed elsewhere stays too.
 - Rests: set up your game's own rests under the calendar in the System
   editor, such as a short rest or a full night, each with a name and a length.
   In the Calendar window, Call a rest moves the clock on the rest's length at

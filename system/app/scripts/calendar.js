@@ -900,6 +900,24 @@ function restUndoAdd(camp, snap) {
     var nn = net(); if (nn) nn.applyingRemote = true; save(true); if (nn) nn.applyingRemote = false;
     return true;
 }
+// The review of 2026-11-11: a rested character's sheet took its own part of the rest back by Revert (sheets.js revertLast). What the rest keeps for
+// those fields now runs to the value as it stands, so a rest cut short afterwards takes back only what is still given, and never the same gift twice
+// (restTakeBack read a number already put back as a number moved since, and took the start's move off it again)
+function restReverted(camp, charId, fields) {
+    var on = camp ? restNow(camp) : null; if (!on || !on.undo || !on.undo.chars || typeof on.undo.chars !== 'object' || typeof charId !== 'string' || !Array.isArray(fields)) return false;
+    var has = Object.prototype.hasOwnProperty, chars = JSON.parse(JSON.stringify(on.undo.chars)), oc = has.call(chars, charId) ? chars[charId] : null, c = camp.chars && has.call(camp.chars, charId) ? camp.chars[charId] : null, n = 0;
+    if (!oc || typeof oc !== 'object' || !c) return false;
+    fields.forEach(function(fid) {
+        if (typeof fid !== 'string' || !has.call(oc, fid) || !oc[fid] || typeof oc[fid] !== 'object') return;
+        var e = oc[fid], cur = c.values && has.call(c.values, fid) ? c.values[fid] : undefined; n++;
+        if (restJ(has.call(e, 'b') ? e.b : undefined) === restJ(cur)) { delete oc[fid]; return; }   // back where it began: nothing of it is left to take back
+        if (cur === undefined) delete e.a; else e.a = JSON.parse(JSON.stringify(cur));
+    });
+    if (!n) return false; if (!Object.keys(oc).length) delete chars[charId];
+    camp.clock = cleanClock(Object.assign({}, clockOf(camp), { rest: Object.assign({}, on, { undo: Object.assign({}, on.undo, { chars: chars }) }) })) || camp.clock;
+    var nn = net(); if (nn) nn.applyingRemote = true; save(true); if (nn) nn.applyingRemote = false;   // the GM's own, never sent, outside your undo
+    return true;
+}
 function restCutWhy(camp, on) {   // why this rest cannot be cut short, in words, or ''
     if (!on || !on.undo) return 'This rest cannot be cut short: it was called before Waypoint kept what a rest gives, or what it gave was too much to keep.';
     if (typeof on.from !== 'number' || typeof on.to !== 'number' || on.to - on.from !== on.undo.len) return 'You moved the clock on during this rest, so it cannot be cut short.';
@@ -1393,5 +1411,5 @@ function dateNow() {
 function dateNamesOf(camp, t) { var CCx = window.wpCalendarCore; return CCx && CCx.dateNames ? CCx.dateNames(camp.system && camp.system.calendar ? camp.system.calendar : null, t) : null; }
 setDateSource(dateNow);
 function words() { var camp = getActiveCampaign(), ck = clockOf(camp); if (!ck || (window.wpVtt && !window.wpVtt.on('calendar'))) return ''; return fmtWhen(sysCal(), ck.t); }   // 1.6.0: the game's time in words, for the game record
-window.wpCalendar = { restName: function() { var r = restNow(getActiveCampaign()); return r ? r.name : ''; }, sessionBegan: sessionBegan, timeData: timeData, openDay: openDay, words: words, refresh: refresh, ownTime: ownTime, second: second, fightBegan: fightBegan, open: openWin, close: closeWin, moveTo: moveTo, rulesRun: rulesRun, setRulesRun: setRulesRun };
+window.wpCalendar = { restReverted: function(charId, fields) { return restReverted(getActiveCampaign(), charId, fields); }, restName: function() { var r = restNow(getActiveCampaign()); return r ? r.name : ''; }, sessionBegan: sessionBegan, timeData: timeData, openDay: openDay, words: words, refresh: refresh, ownTime: ownTime, second: second, fightBegan: fightBegan, open: openWin, close: closeWin, moveTo: moveTo, rulesRun: rulesRun, setRulesRun: setRulesRun };
 export { refresh, ownTime, second, fightBegan, openWin, closeWin, moveTo, rulesRun, setRulesRun };

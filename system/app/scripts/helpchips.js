@@ -101,7 +101,7 @@ function chipMenus(doc, el) {
 // the button that opens a part, never a chip's copy of it in Help (fold 3: Join a table is both)
 function chipOpener(doc, id) { var all = doc.querySelectorAll('[aria-controls="' + id + '"]'), help = chipHelpBox(doc); for (var i = 0; i < all.length; i++) if (!(help && help.contains(all[i]))) return all[i]; return null; }
 function chipShut(box) { return !!box && (box.hidden === true || (box.style && box.style.display === 'none') || (!!box.classList && box.classList.contains('shape-menu') && !box.classList.contains('show'))); }   // fold 4: a tool's options are open while they show
-// fold 4: the button that opens a tool's options on the map's toolbars: the small arrow beside it, else the button that only opens a menu
+// fold 4: the button that opens a tool's options on the map's toolbars: its small arrow (a mark in the tool's corner since 1.6.2), else the button that only opens a menu
 function chipBarOpener(n) {
     if (!n || !n.classList || !n.classList.contains('shape-menu')) return null; var p = n.parentNode; if (!p || !p.classList || !p.classList.contains('tool-pair')) return null;
     var kids = p.children || [], first = null; for (var i = 0; i < kids.length; i++) { var k = kids[i]; if (k === n || !k.classList) continue; if (k.classList.contains('tool-chev')) return k; if (!first && k.tagName === 'BUTTON') first = k; }

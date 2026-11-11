@@ -22,11 +22,16 @@ Tidier screens
   also while a token you have selected stands beside it. A door's lock and
   hatching show the same way. Tick Show what blocks in the View menu to
   light every one. Players' screens are as they were.
+- A tool's options open from a small mark in the corner of its button now,
+  where an arrow used to hang beside it. The toolbar is shorter for it, and
+  a lit button stands clean. Select and Pan switch by the same mark.
+- The pointer location wears its own drawing, a pointer beside a crosshair,
+  so it no longer looks like the Select tool.
 - The trackers bar is never covered on a small window. Where the row beside
   the minimap has no room for it, the bar stands a row lower, under the zoom
   box, and its counters keep their buttons.
 - Where the map has little room, the pointer location's numbers and the
-  minimap fold by themselves and come back when there is room. Either arrow
+  minimap fold by themselves and come back when there is room. Either button
   still opens its box, and an open minimap that would reach the zoom box
   stands under it. The party's portraits overlap there and show four. Rest
   the pointer on them to see them all.

@@ -69,16 +69,55 @@ function fromForm(d, mapId, unitSecs) {
     }
     return T.cleanTracker(t, {});
 }
-// Where the strip stands (the follow-up of 2026-10-29): right of the minimap with a gap, or where the minimap stands when it is folded to its
-// nub (right of the nub) or switched off (at its left); it ends a gap before the first thing that stands in its row at the map's top right
-// (the zoom box, or the party strip in its place when the zoom box is put away). mm: { shown, left, width }; others: [{ left }] of what
-// stands in the row; wide: the map area's width. Whole pixels; never narrower than one pill
-var PLACE_GAP = 8, PLACE_MIN = 120;
-function placeOf(mm, others, wide) {
+// Where the bar stands (the follow-up of 2026-10-29, and the owner, 2026-11-11, of a narrow map area where the bar lay under the zoom box:
+// "letting it get covered by other elements isnt a good solution"). The boxes at the top of the map's area (the minimap, the zoom box, the
+// party strip, a player's join card) are rectangles the bar keeps a gap from. It takes the first stretch of its row that holds it: right of
+// the minimap and up to the zoom box where there is room. Where no stretch of the row is wide enough it goes down a row, under the lowest
+// edge that stood in its way, and asks again, so it is never laid under another box and never cut short of its own parts.
+// obs: [{ left, top, right, bottom }]; base: the left it takes where nothing stands; wide: the area's width; top: its row by the style
+// sheet; m: what it holds, { row, tight, pills, pad, edge, gap } (barNeed, barTall). Whole pixels: { left, wide, top }
+var PLACE_CAP = 620;   // the bar is never wider than this (style.css, the bar's max-width): a longer stretch holds no more of it
+var PLACE_GAP = 8, PLACE_MIN = 120, PLACE_LINE = 28, PLACE_ONE = 34, PLACE_LIST = 37, PLACE_MORE = 30, PLACE_ROWS = 8;   // the bar's heights as the style sheet draws them: its row alone, one line with trackers, the trackers' first line under the row, each further line
+function barNum(v) { return typeof v === 'number' && isFinite(v) && v > 0 ? v : 0; }
+function barPills(m) { return m && Array.isArray(m.pills) ? m.pills.map(barNum).filter(function(v) { return v > 0; }).slice(0, 60) : []; }
+// The least width the bar takes: its own row with the word Trackers put away, or its widest tracker, whichever is wider
+function barNeed(m) {
+    var ps = barPills(m), most = 0; ps.forEach(function(p) { if (p > most) most = p; });
+    return Math.max(PLACE_MIN, Math.ceil(Math.max(barNum(m && m.tight), most ? most + barNum(m && m.pad) : 0) + barNum(m && m.edge)) + 1);   // and a pixel over: the page's widths are rounded, and a stretch exactly as wide as the sum could still wrap
+}
+// How tall the bar stands at a width: one line where its row and its trackers fit side by side, else its row and the trackers under it,
+// line by line. Worked out from the widths and never read back from the page, so a place never depends on the place before it
+function barTall(w, m) {
+    var ps = barPills(m), gap = barNum(m && m.gap), pad = barNum(m && m.pad), edge = barNum(m && m.edge), sum = 0;
+    ps.forEach(function(p, i) { sum += p + (i ? gap : 0); });
+    if (!ps.length) return PLACE_LINE;
+    var room = Math.min(barNum(w), PLACE_CAP) - edge, rowNow = barNum(m && m.row) > room ? barNum(m && m.tight) : barNum(m && m.row);   // fitBar's own rule: the word Trackers steps aside where the row is wider than the bar's inside
+    if (rowNow + sum + pad <= room) return PLACE_ONE;
+    var inner = Math.max(1, room - pad), lines = 1, x = 0;
+    ps.forEach(function(p) { if (x > 0 && x + gap + p > inner) { lines++; x = p; } else x += (x > 0 ? gap : 0) + p; });
+    return PLACE_LINE + PLACE_LIST + (lines - 1) * PLACE_MORE;
+}
+function placeRows(obs, base, wide, top, m) {
     var num = function(v) { return typeof v === 'number' && isFinite(v) ? v : 0; };
-    var left = mm && mm.shown === true ? num(mm.left) + num(mm.width) + PLACE_GAP : num(mm && mm.left), right = num(wide);
-    (Array.isArray(others) ? others : []).forEach(function(o) { var l = o && num(o.left); if (o && l > left && l < right) right = l; });
-    return { left: Math.round(left), wide: Math.max(PLACE_MIN, Math.round(right - PLACE_GAP - left)) };
+    var list = (Array.isArray(obs) ? obs : []).slice(0, 40).map(function(o) { return o ? { left: num(o.left), right: num(o.right), top: num(o.top), bottom: num(o.bottom) } : null; }).filter(function(o) { return !!o && o.right > o.left && o.bottom > o.top; });
+    var end = num(wide) - PLACE_GAP, need = Math.min(barNeed(m), PLACE_CAP), t = num(top), start = num(base), best = null, i, k;   // a bar that needs more than the style sheet ever draws of it is held by any stretch that gives it all of that: it keeps its row
+    var stretch = function(at, tall) {   // the first stretch of the row at "at" that holds the bar over "tall" px, and the widest one where none does
+        var band = list.filter(function(o) { return o.top < at + tall && o.bottom + PLACE_GAP > at; }).sort(function(a, b) { return a.left - b.left; }), x = start, got = null, most = null;
+        var take = function(to) { var w = to - x, c = Math.min(w, PLACE_CAP); if (w > 0 && (!most || c > most.cap)) most = { left: x, wide: w, cap: c }; if (!got && c >= need) got = { left: x, wide: w }; };   // the widest is judged by what the bar can use of it
+        band.forEach(function(o) { take(o.left - PLACE_GAP); if (o.right + PLACE_GAP > x) x = o.right + PLACE_GAP; });
+        take(end);
+        return { got: got, most: most, band: band };
+    };
+    for (i = 0; i < PLACE_ROWS; i++) {
+        var tall = PLACE_LINE, st = null;
+        for (k = 0; k < 4; k++) { st = stretch(t, tall); if (!st.got) break; var h = barTall(st.got.wide, m); if (h <= tall) break; tall = h; }   // a narrower stretch stands taller, and a taller bar may meet more: asked until it holds
+        if (st.got) return { left: Math.round(st.got.left), wide: Math.round(st.got.wide), top: Math.round(t) };
+        if (st.most && (!best || st.most.cap > best.cap)) best = { left: st.most.left, wide: st.most.wide, cap: st.most.cap, top: t };
+        var next = Infinity; st.band.forEach(function(o) { if (o.bottom + PLACE_GAP > t && o.bottom + PLACE_GAP < next) next = o.bottom + PLACE_GAP; });
+        if (!(next < Infinity)) break;
+        t = next;
+    }
+    return best ? { left: Math.round(best.left), wide: Math.max(PLACE_MIN, Math.round(best.wide)), top: Math.round(best.top) } : { left: Math.round(start), wide: PLACE_MIN, top: Math.round(num(top)) };
 }
 // [trackcheck:core-end]
 
@@ -90,18 +129,35 @@ function strip() { return document.getElementById('trkStrip'); }
 // while a fight shows on the map on screen; the bar then shows for a player with no trackers too, holding the fight alone. Kept by reference, since a drawing of the bar empties it
 var _fseg = null;
 function fightSeg() { if (!_fseg) _fseg = document.getElementById('combatStrip'); return _fseg; }
-// The strip's place read from the page, set as two properties the style sheet reads (--trkleft, --trkwide); the stream window keeps its own
+// What the bar holds, measured from the page for placeRows: its own row, that row as a tight bar draws it, and each tracker. Both rows are
+// measured with the class put on and taken off for the moment, never read from the class the bar happens to wear: a tight bar hides the word
+// Trackers and lets a fight's name take only its own width, so a row read as it stood gave another need after each fitting, and the bar went
+// back and forth between two places (the review of 2026-11-11). The class is put back as it was
+function barParts(box) {
+    var list = box.querySelector('.trk-list'), ps = list ? list.children || [] : [], pills = [], i, cl = box.classList, was = cl.contains('trk-tight');
+    cl.remove('trk-tight'); var row = rowWide(box); cl.add('trk-tight'); var tight = rowWide(box); if (!was) cl.remove('trk-tight');
+    for (i = 0; i < ps.length; i++) if (ps[i].offsetWidth > 0) pills.push(ps[i].offsetWidth);
+    var ls = list && typeof getComputedStyle === 'function' ? getComputedStyle(list) : null;
+    return { row: row, tight: Math.min(tight, row), pills: pills, pad: ls ? (parseFloat(ls.paddingLeft) || 0) + (parseFloat(ls.paddingRight) || 0) + 1 : 17, gap: ls ? parseFloat(ls.columnGap) || 0 : 6, edge: Math.max(0, (box.offsetWidth || 0) - (box.clientWidth || 0)) };
+}
+// The bar's place read from the page: its left and its room as two properties the style sheet reads (--trkleft, --trkwide), and its top
+// written on the bar only where it stands a row lower than the style sheet puts it; the stream window keeps its own
 function place(box) {
     box = box || strip(); var hostB = box && box.parentElement; if (!box || box.style.display === 'none') { if (hostB && hostB.style) hostB.style.removeProperty('--trkbot'); return; }   // the viewing of 2026-11-09: where the bar ends, so the fight's turn strip stands below it and never under it
-    var n = net(); if (n && n.stream) { box.style.removeProperty('--trkleft'); box.style.removeProperty('--trkwide'); return; }
+    var n = net(); if (n && n.stream) { box.style.removeProperty('--trkleft'); box.style.removeProperty('--trkwide'); if (box.style.top) box.style.top = ''; return; }
     var area = box.offsetParent, mm = document.getElementById('minimap'); if (!area) return;
+    var party = document.getElementById('partyStrip');   // the party's faces spread out under the pointer on a narrow area: the bar keeps its place meanwhile
+    if (party && box.style.getPropertyValue('--trkleft') && document.body.classList.contains('area-narrow') && typeof party.matches === 'function' && party.matches(':hover, :focus-within')) return;
     var mmOn = !!mm && mm.parentElement === box.parentElement && mm.offsetParent !== null, cs = mm ? window.getComputedStyle(mm) : null;
-    var mmAt = mmOn ? { shown: true, left: mm.offsetLeft, width: mm.offsetWidth } : { shown: false, left: cs ? parseFloat(cs.left) || 0 : 0 };
-    var row = box.offsetTop + 30, others = [];
-    ['zoomBox', 'partyStrip', 'joinCard'].forEach(function(id) { var e = document.getElementById(id); if (e && e.parentElement === box.parentElement && e.offsetParent !== null && e.offsetTop < row && e.offsetWidth > 0) others.push({ left: e.offsetLeft }); });
-    var p = placeOf(mmAt, others, area.clientWidth), L = p.left + 'px', W = p.wide + 'px';
+    var was = box.style.top; if (was) box.style.top = '';   // the row the style sheet gives it, which follows a hidden top row
+    var top0 = box.offsetTop, obs = [], rect = function(e) { return { left: e.offsetLeft, top: e.offsetTop, right: e.offsetLeft + e.offsetWidth, bottom: e.offsetTop + e.offsetHeight }; };
+    if (mmOn) obs.push(rect(mm));
+    ['zoomBox', 'partyStrip', 'joinCard'].forEach(function(id) { var e = document.getElementById(id); if (e && e.parentElement === box.parentElement && e.offsetParent !== null && e.offsetWidth > 0) obs.push(rect(e)); });
+    var base = mmOn ? mm.offsetLeft : (cs ? parseFloat(cs.left) || 0 : 0);
+    var p = placeRows(obs, base, area.clientWidth, top0, barParts(box)), L = p.left + 'px', W = p.wide + 'px', T = p.top !== top0 ? p.top + 'px' : '';
     if (box.style.getPropertyValue('--trkleft') !== L) box.style.setProperty('--trkleft', L);
     if (box.style.getPropertyValue('--trkwide') !== W) box.style.setProperty('--trkwide', W);
+    if (box.style.top !== T) box.style.top = T;
     var B = (box.offsetTop + box.offsetHeight) + 'px'; if (hostB && hostB.style && hostB.style.getPropertyValue('--trkbot') !== B) hostB.style.setProperty('--trkbot', B);
 }
 function panel() { return document.getElementById('trkPanel'); }
@@ -256,8 +312,8 @@ function focusKey(b) {
 // backlog 217: the bar on one line where it fits; where it does not, the trackers stand on a line of their own under the bar's controls
 function fitBar(box) {
     if (!box || !box.classList || !box.classList.contains('trk-bar')) return; box.classList.remove('trk-two'); box.classList.remove('trk-tight'); if (box.style) box.style.width = '';
+    if (rowWide(box) > box.clientWidth) box.classList.add('trk-tight');   // backlog 219: with no room for the bar's own row the word Trackers steps aside, and a fight's name takes only its own width; since 2026-11-11 with or without a fight, so the row's parts never wrap (asked first: a tight row may then hold the trackers beside it)
     if (box.querySelector('.trk-list') && box.scrollWidth > box.clientWidth + 1) box.classList.add('trk-two');
-    if (box.querySelector('#combatStrip') && rowWide(box) > box.clientWidth + 1) box.classList.add('trk-tight');   // backlog 219: with a fight in the row and no room, the word Trackers steps aside and the fight's name takes only its own width
     if (box.classList.contains('trk-two')) twoWide(box);
 }
 // backlog 219: how wide the bar's own row is, its trackers left out
@@ -295,6 +351,7 @@ function draw(force) {
             if (gm) { var a = btn('trk-pill trk-add', '+ Add', 'Add a counter, a countdown or a clock to this map or every map'); a.id = 'trkAdd'; if (ownList(camp).length >= T.LIMITS.list) a.disabled = true; box.appendChild(a); }
             if (gm) { var hN = T.cleanHide(camp.trkHide).length, wb = btn('trk-btn trk-who', hN ? 'Who sees · ' + hN + ' hidden' : 'Who sees', 'Keep the trackers from chosen players'); wb.id = 'trkWho'; wb.setAttribute('aria-haspopup', 'true'); box.appendChild(wb); }
         }
+        place(box);   // again with what it now holds: the room it needs is its own parts'
         fitBar(box);
         if (had) { var back = box.querySelector(had); if (back) back.focus(); }
         return;
@@ -507,10 +564,10 @@ function receive(list, at) {
     setInterval(tick, 1000);
     // the viewing of 2026-11-09 (the owner: the turn strip lay under the trackers for a moment after the left panel opened or closed): the bar is placed again
     // the frame the map's area, the bar or the minimap changes size, not at the next tick, so the turn strip below it follows at once
-    var _placeAsk = 0, placeSoon = function() { if (_placeAsk) return; _placeAsk = window.requestAnimationFrame(function() { _placeAsk = 0; place(); }); };
-    if (typeof window.ResizeObserver === 'function') { try { var roT = new window.ResizeObserver(placeSoon), b0 = strip(), mm0 = document.getElementById('minimap'); if (b0) { roT.observe(b0); if (b0.parentElement) roT.observe(b0.parentElement); } if (mm0) roT.observe(mm0); } catch (e) { console.error(e); } }
+    var _placeAsk = 0, placeSoon = function() { if (_placeAsk) return; _placeAsk = window.requestAnimationFrame(function() { _placeAsk = 0; place(); fitBar(strip()); }); };
+    if (typeof window.ResizeObserver === 'function') { try { var roT = new window.ResizeObserver(placeSoon), b0 = strip(), mm0 = document.getElementById('minimap'); if (b0) { roT.observe(b0); if (b0.parentElement) roT.observe(b0.parentElement); } if (mm0) roT.observe(mm0); ['zoomBox', 'partyStrip'].forEach(function(id) { var e0 = document.getElementById(id); if (e0) roT.observe(e0); }); } catch (e) { console.error(e); } }
     window.addEventListener('resize', placeSoon);
     setTimeout(function() { draw(true); }, 0);
 })();
 window.wpTrackers = { valuesMoved: valuesMoved, draw: draw, receive: receive, renderLine: renderLine, open: openForm, close: closeForm, closeMenu: closeMenu, list: shownList, place: place, on: featOn, players: playersOf, hidden: hiddenNow, setHidden: setHidden };
-export { atTable, gmHand, mapsOf, localCopy, newlyDone, fromForm, playersOf, placeOf };
+export { atTable, gmHand, mapsOf, localCopy, newlyDone, fromForm, playersOf, placeRows, barNeed, barTall };

@@ -2893,6 +2893,7 @@ window.wpFitToGrid = fitToGrid;
      Click one to jump to that character: their map (if different), centred on them at 150%. */
   var FOCUS_ZOOM = 1.5;
   function wbHashHue(s) { var h = 0, t = String(s); for (var i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return ((h % 360) + 360) % 360; }   // a stable per-key hue for the no-picture silhouette default
+  var PARTY_SHOWN = 4;   // as the Maps list's faces (sidebar.js PRES_SHOWN)
   function renderPartyStrip() {
       if (window.wpJoinCard) window.wpJoinCard.check();   // Onboarding F1a: a player's join card follows their waiting token
       var strip = document.getElementById('partyStrip'); if (!strip) return;
@@ -2931,6 +2932,7 @@ window.wpFitToGrid = fitToGrid;
       var sig = list.map(function(c) { return c.key + (c.flag ? '~' + c.flag + '~' + c.flagName : '') + (c.waiting ? '~w' : '') + (c.emoji ? '~' + c.emoji : '') + '|' + c.name + '|' + c.mapId + '|' + (c.src ? c.src.length + c.src.slice(-16) : '') + '|' + (atTable ? (present[c.ownerId] ? 1 : 0) : 2) + '|' + (window.wpSheets && c.tokId ? window.wpSheets.hoverLinesForTokenId(camp, c.tokId).join(',') : '') + '|' + (hosting && c.ownerId && window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(c.ownerId) ? 'P' : ''); }).join(';') + '#' + am.id;
       if (strip.dataset.sig === sig) return;
       strip.dataset.sig = sig;
+      if (list.length > PARTY_SHOWN) strip.dataset.more = String(list.length - PARTY_SHOWN); else delete strip.dataset.more;   // on a narrow map area the style sheet shows four faces and this count, and all of them under the pointer
       strip.innerHTML = list.map(function(c) {
           var here = c.mapId === am.id;
           var away = atTable && c.ownerId && !present[c.ownerId];

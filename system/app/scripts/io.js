@@ -493,6 +493,12 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
   // toolbar's trash among them), never the page itself, the board or a box that is no field
   function bkspHeld(el) { return !!(el && el.nodeType === 1 && typeof el.closest === 'function' && el.closest('button, a[href], [role="button"]')); }
   // [cleanupcheck:bkspheld-end]
+  // [shelfcheck:menuheld-start]
+  // 1.6.2: a menu that holds the focus keeps its own keys. The arrows walk its rows, and neither they nor Delete nor Backspace reach what is
+  // selected on the map behind it (found on the Outline menu, whose arrows moved a selected token; every menu now, by its role). Only a menu
+  // that shows holds them: the focus can still rest on a row of a menu that was put away, since the board keeps a click from moving the focus
+  function menuHeld(el) { var m = el && el.nodeType === 1 && typeof el.closest === 'function' ? el.closest('[role="menu"], [role="listbox"]') : null; return !!(m && (typeof m.getClientRects !== 'function' || m.getClientRects().length > 0)); }
+  // [shelfcheck:menuheld-end]
   function canPersistLocal() {
       var n = window.wpNet, W = window.wpWebMode;
       if (W && typeof W.joinOnly === 'function' && W.joinOnly() === true) return false;   // 1.5.5: a website's plan that joins tables alone keeps nothing of the player's (webmode.js): the site answers a save with 403
@@ -1592,6 +1598,8 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
 
       }
 
+      if (menuHeld(t)) return;   // 1.6.2: the arrows, Delete and Backspace are a menu's own while it holds the focus
+
       // Arrow keys nudge the selection (Shift = 10px steps)
       var ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
@@ -2162,12 +2170,26 @@ window.wpHist = { refs: function(s) { s = String(s || ''); if (!s) return false;
 // A box that draws itself again when a field says its change loses the press that made the field say it: the field speaks as the pointer goes down, the
 // row is drawn anew and the pointer comes up on another element, so no click comes (found live, 2026-10-30: a tick in the fight's roster, Confirm in a
 // trade). pressHold(el, win) answers a hold: busy() while a press that began in el is down, then(fn) runs fn once it has ended, after its click
+// 1.6.2: a window hears the end of a press through ONE pair of listeners, however many holds were made (a box that is drawn anew at each
+// draw asks for a hold each time, and each used to add its own pair for good). A hold is known to its window only while its press is down,
+// and a box asked twice gets the hold it had. The two maps are made at the first ask and are given no value here: a module this one imports
+// wires its box while this one is still loading, before a value written on this line would be there, and that value would then wipe the maps
+var _holdWins, _holdEls;
 export function pressHold(el, win) {
+    if (!_holdWins) { _holdWins = new WeakMap(); _holdEls = new WeakMap(); }
+    var had = _holdEls.get(el); if (had && had.win === win) return had.hold;
+    var reg = _holdWins.get(win);
+    if (!reg) {
+        reg = { downs: [] }; _holdWins.set(win, reg);
+        var endAll = function() { var ds = reg.downs; reg.downs = []; ds.forEach(function(e) { e(); }); };
+        win.addEventListener('pointerup', endAll, true); win.addEventListener('pointercancel', endAll, true);
+    }
     var down = false, todo = null;
     var end = function() { if (!down) return; down = false; win.setTimeout(function() { var f = todo; todo = null; if (f) f(); }, 0); };
-    el.addEventListener('pointerdown', function() { down = true; });
-    win.addEventListener('pointerup', end, true); win.addEventListener('pointercancel', end, true);
-    return { busy: function() { return down; }, then: function(fn) { todo = fn; } };
+    el.addEventListener('pointerdown', function() { if (!down) reg.downs.push(end); down = true; });
+    var hold = { busy: function() { return down; }, then: function(fn) { todo = fn; } };
+    _holdEls.set(el, { win: win, hold: hold });
+    return hold;
 }
 // [lookcheck:presshold-end]
 // [lookcheck:keepplace-start]

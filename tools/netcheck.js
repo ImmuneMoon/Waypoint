@@ -8298,7 +8298,7 @@ pendingChecks.push((async () => {
             const dRd = (dec, extra) => mkW(campF()).api.read({ list: { f_aaaaaaa1: fight(Object.assign({ dec }, extra || {})) } }, campF()).list.f_aaaaaaa1.dec;
             const dOld = dRd({ round: 2, lines: { r1: 'x' }, open: 1 }), dShut = dRd({ round: 3, lines: {}, open: 0 }), dHost = dRd({ round: 3, lines: { r1: 'Fires\n\u0007 twice', r2: 7, r9: 'Not here', __proto__: 'no' }, open: 1 }), dLong = dRd({ round: 3, lines: { r1: 'y'.repeat(500) }, open: 1 });
             check('the viewing of 2026-11-09 (the owner, by prompt: "Save it with the fight (Recommended)"): a round\'s open declaration is kept with its fight and comes back with its lines, who is in and the round it is for; one for a round the fight has gone past and one already shown read as nothing; a line read as text with no control character, 200 at most, only for a row the fight still holds',
-                nDB === 1 && !!dB && dB.open === 1 && dB.round === 3 && j(dB.lines) === j({ r1: 'Charges', r2: 'Holds' }) && Object.getPrototypeOf(dB.lines) === null && dOld === undefined && dShut === undefined && j(dHost.lines) === j({ r1: 'Fires  twice' }) && dLong.lines.r1.length === 200, j([dB, dOld, dShut, dHost, dLong && dLong.lines.r1.length]));
+                nDB === 1 && !!dB && dB.open === 1 && dB.round === 3 && j(dB.lines) === j({ r1: 'Charges', r2: 'Holds' }) && Object.getPrototypeOf(dB.lines) === null && dOld === undefined && dShut === undefined && j(dHost.lines) === j({ r1: 'Fires  twice' }) && dLong.lines.r1.length === 200, j([dB, dOld, dShut, dHost, dLong && dLong.lines && dLong.lines.r1 && dLong.lines.r1.length, { back: nDB, bare: !!dB && !!dB.lines && Object.getPrototypeOf(dB.lines) === null, old: typeof dOld, shut: typeof dShut }]));   // the last part names what did not hold. This check was seen failing once (2026-11-10) with every figure before it as expected, in a run of 1637 checks; the review of 2026-11-11 found 1637 to be the whole count of the file as it stood the day before, so that run was most likely of an older file, and 60 runs under load since have not failed
             check('1.6.0 what a fight aims at, the wiring: a change of the pointers is kept with the fight as they are sent', /function broadcastTargets\(\) \{\s+var camp = getActiveCampaign\(\);\s+if \(typeof fightsKeepSoon === 'function'\) fightsKeepSoon\(\);/.test(src), '');
             {   // 1.6.0 Table Chat moves by its header (the chatdrag slice run for real on a page of plain objects)
                 const cdA = src.indexOf('// [netcheck:chatdrag-start]'), cdB = src.indexOf('// [netcheck:chatdrag-end]'), hs = {}, caught = [], fired = [];
@@ -13504,9 +13504,12 @@ pendingChecks.push((async () => {
         const P = n => '/saves/images/m1/' + n + '.png', timers = [], fetched = [];
         const net = { active: true, role: 'host', conns: [], stream: false }, winA = { wpFogCore: FCa }; let camp = null;
         const fetchS = u => { fetched.push(String(u)); return Promise.resolve({ ok: true, headers: { get: h => h === 'content-length' ? '5' : null }, body: { cancel() {} }, arrayBuffer: () => Promise.resolve(new Uint8Array(5).buffer) }); };
-        const mk = () => new Function('net', 'location', 'sendFailed', 'allow', 'fetch', 'setTimeout', 'getActiveCampaign', 'window', 'console',
+        // mk(clock): the slices read the time through a Date of their own where one is handed in, so a test that moves the clock moves it for these
+        // slices alone. The whole process's Date.now was once moved 31 s ahead across this block's awaits, and the security S block's waits, which
+        // run meanwhile and end on the real clock, were then judged before their verdict was in on a slow machine (the review of 2026-11-11)
+        const mk = clock => new Function('net', 'location', 'sendFailed', 'allow', 'fetch', 'setTimeout', 'getActiveCampaign', 'window', 'console', 'Date',
             between('// [netcheck:assetreq-start]', '// [netcheck:assetreq-end]', 'assetreq') + '\n' + between('// [netcheck:assethide-start]', '// [netcheck:assethide-end]', 'assethide') + '\n' + siSrc()
-            + '\nreturn { assetNoteSends, handleAssetRequest, assetHidePlan, assetHideSweep, assetHideSoon, refs: function(p) { return Object.keys(assetRefs[p] || {}).sort(); } };')(net, { origin: 'http://localhost:3999' }, e => { throw e; }, () => true, fetchS, (fn, ms) => { timers.push([fn, ms]); return timers.length; }, () => camp, winA, console);
+            + '\nreturn { assetNoteSends, handleAssetRequest, assetHidePlan, assetHideSweep, assetHideSoon, refs: function(p) { return Object.keys(assetRefs[p] || {}).sort(); } };')(net, { origin: 'http://localhost:3999' }, e => { throw e; }, () => true, fetchS, (fn, ms) => { timers.push([fn, ms]); return timers.length; }, () => camp, winA, console, clock || Date);
         let touched = 0; const idle = mk(), none = idle.assetHidePlan({ get items() { touched++; return {}; } });
         const api = mk(), conn = peer => { const c = { peer, open: true, sent: [], send: m => { c.sent.push(m); } }; api.assetNoteSends(c); return c; };
         const tok = (id, src) => ({ id, type: 'image', isChar: true, x: 0, y: 0, w: 60, h: 52, src });
@@ -13533,9 +13536,9 @@ pendingChecks.push((async () => {
         {   // the review of 2026-11-10: only what a player is really sent keeps a path askable, and the sweep costs next to nothing while a path is still shown
             const DRa = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'docrender.js')).split(String.fromCharCode(92)).join('/'));
             winA.wpDocRender = DRa.default && DRa.default.cleanDoc ? DRa.default : DRa;   // the real page cleaner behind the real sanitizeItem
-            const realNow = Date.now; let ahead = 0; Date.now = () => realNow() + ahead;
+            let ahead = 0; const clockA = { now: () => Date.now() + ahead };   // the slices' own clock: never the process's
             try {
-            const api2 = mk(), c2 = peer => { const c = { peer, open: true, sent: [], send: m => { c.sent.push(m); } }; api2.assetNoteSends(c); return c; };
+            const api2 = mk(clockA), c2 = peer => { const c = { peer, open: true, sent: [], send: m => { c.sent.push(m); } }; api2.assetNoteSends(c); return c; };
             const names = ['control', 'ogre', 'spy', 'ambush', 'assassin', 'gmpage', 'pcorig', 'song', 'look', 'fighter', 'page2'], wb2 = names.map((n, i) => tok('t' + i, P(n)));
             wb2.push(Object.assign(tok('tF', P('face')), { frame: { src: P('orig') }, sheet: { portrait: P('orig') } }), tok('tO', P('orig')));   // a shown token's kept original and attached sheet are the GM's
             let metaReads2 = 0;
@@ -13565,7 +13568,7 @@ pendingChecks.push((async () => {
                 && J(asks2) === J(['ogre refused:missing|0', 'spy refused:missing|0', 'ambush refused:missing|0', 'assassin refused:missing|0', 'gmpage refused:missing|0', 'orig refused:missing|0', 'pcorig refused:missing|0', 'fighter asset|1', 'page2 asset|1', 'face asset|1'])
                 && J(planKept) === '[]' && readsKept === 0 && J(planGone) === J([P('gob')]) && readsGone > 0 && J(planAfter) === '[]' && readsAfter === readsSwept
                 && !/wireWbItem\(/.test(hideSrc) && hideSrc.includes("ASSET_KEEP_MS = 30000, ASSET_SENT_KEYS = { system: 1, docStyle: 1, sounds: 1, music: 1 }"), J([docKept, held2, plan2, planAgain, reads1, reads2, reads3, swept2b, left2, asks2, planKept, readsKept, planGone, readsGone, readsSwept, planAfter, readsAfter]));
-            } finally { Date.now = realNow; delete winA.wpDocRender; delete net.combats; }
+            } finally { delete winA.wpDocRender; delete net.combats; }
         }
         check('security (1.6.2), the wiring: both funnels a map goes out by ask the sweep after the hidden drawings are noted, each through typeof',
             src.includes("    if (it.type === 'map' && typeof assetHideSoon === 'function') assetHideSoon();   // security: a picture only a piece no longer sent carries is forgotten once the map has gone out") && src.includes("    if (it.type === 'map' && typeof assetHideSoon === 'function') assetHideSoon();   // security: as sendItem"), '');

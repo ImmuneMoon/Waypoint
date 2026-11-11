@@ -1607,6 +1607,7 @@
   #minimapToggle:hover { color: var(--gold); border-color: var(--gold); }
   #minimap.mm-collapsed canvas { display: none; }
   #minimap.mm-collapsed { padding: 10px 12px; }
+  body.mm-under #minimap { top: 70px; }   /* main.js cornerFit: an open minimap that would reach the zoom box stands under it (26 + the box's 36 + 8) */
   /* Rest-state fade: the expanded minimap dims so it never opaquely hides the top-left
      content under it; hovering (or click-dragging the viewport on it) brings it fully back.
      The collapsed nub stays solid so it's still easy to find. Touch devices (no hover) sit
@@ -2253,6 +2254,20 @@
     gap: 4px; max-width: 200px; pointer-events: auto;
   }
   #partyStrip:empty { display: none; }
+  /* 1.6.2 (the owner, 2026-11-11, of a narrow map area: "we could treat the player icons like how they are on the sidebar in map selections where they slightly overlap and dont show them all unless focused on", "when in small screens"): main.js narrowSync writes area-narrow, whiteboard.js renderPartyStrip says how many stand past the fourth. Under the pointer or the keyboard's focus the strip is as it always was */
+  body.area-narrow:not(.stream-mode) #partyStrip > .party-tok { position: relative; transition: margin-left .14s ease, width .14s ease, border-width .14s ease, opacity .14s ease, transform .12s; }
+  body.area-narrow:not(.stream-mode) #partyStrip:not(:hover):not(:focus-within) > .party-tok + .party-tok { margin-left: -15px; }   /* 11 px of overlap, and the strip's own 4 px gap taken back */
+  body.area-narrow:not(.stream-mode) #partyStrip > .party-tok:nth-child(1) { z-index: 4; }   /* the first on top, under the pointer too: the order must not turn round while the faces still overlap, or a click finds the face behind */
+  body.area-narrow:not(.stream-mode) #partyStrip > .party-tok:nth-child(2) { z-index: 3; }
+  body.area-narrow:not(.stream-mode) #partyStrip > .party-tok:nth-child(3) { z-index: 2; }
+  body.area-narrow:not(.stream-mode) #partyStrip:not(:hover):not(:focus-within) > .party-tok:nth-child(n+5) { width: 0; margin-left: -4px; border-width: 0; opacity: 0; pointer-events: none; }
+  body.area-narrow:not(.stream-mode) #partyStrip[data-more]::after { content: '+' attr(data-more); align-self: center; box-sizing: border-box; max-width: 44px; overflow: hidden; white-space: nowrap; padding: 0 6px; height: 20px; line-height: 18px; border: 1px solid var(--edge); border-radius: 10px; background: var(--panel); color: var(--dim); font-size: 11px; font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,0.5); transition: max-width .14s ease, padding .14s ease, border-width .14s ease, margin-left .14s ease, opacity .14s ease; }
+  /* the count goes as the faces come, after the same rest: gone at once, it let the faces slide over by its own width under the pointer (the checker of 2026-11-11) */
+  body.area-narrow:not(.stream-mode) #partyStrip[data-more]:hover::after, body.area-narrow:not(.stream-mode) #partyStrip[data-more]:focus-within::after { max-width: 0; padding: 0; border-width: 0; margin-left: -4px; opacity: 0; transition-delay: .35s; }
+  /* the faces spread only once the pointer has rested on the strip (the review of 2026-11-11): spread at once, the face under the pointer moved away and a quick click or a tap found its neighbour */
+  body.area-narrow:not(.stream-mode) #partyStrip:hover > .party-tok, body.area-narrow:not(.stream-mode) #partyStrip:focus-within > .party-tok { transition-delay: .35s, .35s, .35s, .35s, 0s; }
+  @media (prefers-reduced-motion: reduce) { body.area-narrow:not(.stream-mode) #partyStrip > .party-tok, body.area-narrow:not(.stream-mode) #partyStrip[data-more]::after { transition-duration: 0s; } }
+  body.area-narrow:not(.stream-mode) #partyStrip:hover, body.area-narrow:not(.stream-mode) #partyStrip:focus-within { z-index: 8991; }   /* spread out, over the trackers bar for the moment */
   .party-tok {
     width: 30px; height: 30px; border-radius: 50%; object-fit: cover; box-sizing: border-box; cursor: pointer;
     border: 2px solid var(--edge); background: var(--panel); box-shadow: 0 2px 6px rgba(0,0,0,0.5); opacity: 0.8; transition: transform .12s, opacity .12s;
@@ -2545,6 +2560,7 @@
      reader and the update banner write their top once, from the row's bottom as it was then: here they stand under the bar whatever they wrote. Never in the
      stream window, which has no bar: every rule here says so */
   body.row-hidden:not(.tour-on):not(.stream-mode) #minimap, body.row-hidden:not(.tour-on):not(.stream-mode) #zoomBox { top: calc(var(--rowbar) + 32px); }
+  body.row-hidden:not(.tour-on):not(.stream-mode).mm-under #minimap { top: calc(var(--rowbar) + 76px); }   /* and under the zoom box there too */
   body.row-hidden:not(.tour-on):not(.stream-mode) #partyStrip, body.row-hidden:not(.tour-on):not(.stream-mode) #joinCard, body.row-hidden:not(.tour-on):not(.stream-mode) #combatStrip { top: calc(var(--rowbar) + 74px); }
   body.row-hidden:not(.tour-on):not(.stream-mode).no-pointerpos.no-zoomctl #partyStrip { top: calc(var(--rowbar) + 32px); }
   body.row-hidden:not(.tour-on):not(.stream-mode) #plannerWrap { margin-top: 32px; }

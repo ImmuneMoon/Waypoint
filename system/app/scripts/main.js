@@ -110,11 +110,55 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
     var box = doc.getElementById('zoomBox'), btn = doc.getElementById('cursorPosBtn'); if (!box || !btn) return false;
     var kept = false; try { kept = store.getItem('wp_posFold') === '1'; } catch (e) {}
     posFoldSet(box, btn, kept);
-    btn.addEventListener('click', function(e) { e.stopPropagation(); var f = !box.classList.contains('pos-fold'); posFoldSet(box, btn, f); try { if (f) store.setItem('wp_posFold', '1'); else store.removeItem('wp_posFold'); } catch (err) {} });
+    btn.addEventListener('click', function(e) { e.stopPropagation(); var f = !box.classList.contains('pos-fold'); posFoldSet(box, btn, f); if (doc.body && doc.body.classList && doc.body.classList.contains('area-narrow')) return;   // on a narrow map area a press is for the moment (narrowSync): the kept choice stands
+      try { if (f) store.setItem('wp_posFold', '1'); else store.removeItem('wp_posFold'); } catch (err) {} });
     return true;
   }
   // [lookcheck:posfold-end]
   try { posFoldWire(document, window.localStorage); } catch (e) {}
+  // [lookcheck:narrow-start]
+  // The owner, 2026-11-11, of a narrow map area where the minimap, the trackers and the zoom box ran into each other: "we can auto close the mouse
+  // tracker on small screens", and "same for the map, we can auto close that too if it helps, but the design should still be robust enough to
+  // handle the open elements without overlapping". While the map's area is narrower than AREA_NARROW the pointer location's numbers and the minimap
+  // fold away by themselves, and each comes back as it was left once there is room. Nothing is kept for it: this computer's two choices (wp_posFold,
+  // wp_minimap) stand as they are. Only the moment the area turns narrow or wide folds or unfolds anything, so a press of either arrow while the
+  // area is narrow opens that box and it stays open. Such a press is for the moment: the two click handlers keep nothing while the body wears
+  // area-narrow, so a box folded again by hand there still comes back as it was kept once there is room. And an open minimap that would reach the zoom box stands under it (cornerFit). The body
+  // wears area-narrow meanwhile, under which the style sheet overlaps the party's faces ("we could treat the player icons like how they are on
+  // the sidebar in map selections where they slightly overlap and dont show them all unless focused on", "when in small screens")
+  var AREA_NARROW = 700;
+  function areaNarrow(w) { return typeof w === 'number' && w > 0 && w < AREA_NARROW; }
+  function mmFoldSet(box, tog, fold) { if (!box) return; box.classList.toggle('mm-collapsed', !!fold); if (tog) tog.textContent = fold ? '▴' : '▾'; }
+  function narrowSync(doc, store, win, st) {
+    var area = doc.getElementById('main'), w = area ? area.clientWidth : 0; if (!(w > 0)) return false;   // an area that is put away says nothing
+    var on = areaNarrow(w); if (doc.body && doc.body.classList) doc.body.classList.toggle('area-narrow', on);   // the style sheet reads it too: the party's faces overlap there
+    if (st.on === on) return false;
+    var first = st.on === null; st.on = on; if (first && !on) return false;   // a wide area at the start: both stand as they were wired
+    var kept = function(k, v) { try { return store.getItem(k) === v; } catch (e) { return false; } };
+    posFoldSet(doc.getElementById('zoomBox'), doc.getElementById('cursorPosBtn'), on || kept('wp_posFold', '1'));
+    mmFoldSet(doc.getElementById('minimap'), doc.getElementById('minimapToggle'), on || kept('wp_minimap', 'closed'));
+    if (typeof win.renderMinimap === 'function') win.renderMinimap();
+    if (win.wpTrackers && typeof win.wpTrackers.place === 'function') win.wpTrackers.place();
+    return true;
+  }
+  function cornerFit(doc, win) {
+    var mm = doc.getElementById('minimap'), z = doc.getElementById('zoomBox'), b = doc.body; if (!mm || !z || !b) return false;
+    var both = mm.offsetParent !== null && z.offsetParent !== null && mm.offsetParent === z.offsetParent;
+    var hit = both && mm.offsetLeft + mm.offsetWidth + 8 > z.offsetLeft, had = b.classList.contains('mm-under');
+    if (hit === had) return false;
+    b.classList.toggle('mm-under', hit);
+    if (win.wpTrackers && typeof win.wpTrackers.place === 'function') win.wpTrackers.place();
+    return true;
+  }
+  // [lookcheck:narrow-end]
+  var _narrow = { on: null };
+  function narrowNow() { try { narrowSync(document, window.localStorage, window, _narrow); cornerFit(document, window); } catch (e) { console.error(e); } }
+  window.wpAreaNarrow = narrowNow;
+  (function narrowWire() {
+    narrowNow();
+    if (typeof ResizeObserver !== 'function') { window.addEventListener('resize', narrowNow); return; }
+    var ro = new ResizeObserver(narrowNow); ['main', 'zoomBox', 'minimap'].forEach(function(id) { var e = document.getElementById(id); if (e) ro.observe(e); });
+  })();
 
   var _el_zoomInBtn = document.getElementById('zoomInBtn');
 
@@ -1318,6 +1362,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         var show = !rulersOff && activeMap && activeMap.type === 'map' && (state.viewMode === 'data' || state.viewMode === 'visual');
         [top, left, xm, ym].forEach(function(el) { if(el) el.style.display = show ? 'block' : 'none'; });
         document.body.classList.toggle('no-rulers', !show);
+        if (typeof window.wpAreaNarrow === 'function') window.wpAreaNarrow();   // the minimap moves with the rulers and changes no size: the corner is asked again (cornerFit)
         if(!show) { if (typeof renderMinimap === 'function') renderMinimap(); return; }
         var wrap = state.viewMode === 'data' ? document.getElementById('canvasWrap') : document.getElementById('whiteboardWrap');
         if(!wrap || wrap.clientWidth === 0) return;
@@ -1460,7 +1505,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         if (localStorage.getItem('wp_minimap') === 'closed') box.classList.add('mm-collapsed');
         if (tog) tog.addEventListener('click', function() {
             box.classList.toggle('mm-collapsed');
-            localStorage.setItem('wp_minimap', box.classList.contains('mm-collapsed') ? 'closed' : 'open');
+            if (!document.body.classList.contains('area-narrow')) localStorage.setItem('wp_minimap', box.classList.contains('mm-collapsed') ? 'closed' : 'open');   // on a narrow map area a press is for the moment (narrowSync): the kept choice stands
             this.textContent = box.classList.contains('mm-collapsed') ? '▴' : '▾';
             renderMinimap();
             if (window.wpTrackers && window.wpTrackers.place) window.wpTrackers.place();   // backlog 29: the trackers' strip slides beside it

@@ -17,6 +17,14 @@ The tutorial
   tour, and Bren gets his new numbers.
 
 Tidier screens
+- The trackers bar is never covered on a small window. Where the row beside
+  the minimap has no room for it, the bar stands a row lower, under the zoom
+  box, and its counters keep their buttons.
+- Where the map has little room, the pointer location's numbers and the
+  minimap fold by themselves and come back when there is room. Either arrow
+  still opens its box, and an open minimap that would reach the zoom box
+  stands under it. The party's portraits overlap there and show four. Rest
+  the pointer on them to see them all.
 - A sheet's second row keeps Edit sheet and As player. Upload, Unlock for
   player, Arrange, Download and Delete moved into a menu behind a ... button.
 - A debt from a trade now says what it is: I owe you, Owes 3 to Quartermaster

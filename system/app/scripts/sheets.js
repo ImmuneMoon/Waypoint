@@ -13766,12 +13766,16 @@ function restDoes(ids, does, times, rest) {
     var n = Math.max(1, Math.min(20, Math.floor(typeof times === 'number' && isFinite(times) ? times : 1))), done = 0, S = window.wpSystemCore;
     ids.forEach(function(id) {
         var c = charById(id, camp); if (!c) return; var vals = [];
+        if (ends && S && typeof S.restEndsFx === 'function' && typeof S.applyEffectOp === 'function') {   // fold R6: effects that last until this rest come off, once, each through the effects list's own remove, a pool whose most it lowered brought down with it
+            var work = { id: c.id, values: clone(c.values || {}) }, dE = {}, prevE = {};
+            S.restEndsFx(sys, c, rest).rows.forEach(function(rw) { var rs = S.applyEffectOp(sys, work, rw.f, { op: 'remove', rowId: rw.id }, F()); if (!rs || !rs.ok) return; [rw.f].concat(rs.clamp ? Object.keys(rs.clamp) : []).forEach(function(k) { if (!Object.prototype.hasOwnProperty.call(prevE, k)) prevE[k] = c.values && Object.prototype.hasOwnProperty.call(c.values, k) ? clone(c.values[k]) : undefined; }); work.values[rw.f] = rs.value; dE[rw.f] = rs.value; if (rs.clamp) Object.keys(rs.clamp).forEach(function(k) { work.values[k] = rs.clamp[k]; dE[k] = rs.clamp[k]; }); });
+            var kE = Object.keys(dE); if (kE.length) { var exE = null; kE.slice(1).forEach(function(k) { (exE = exE || {})[k] = prevE[k]; }); lastChange = { charId: c.id, fieldId: kE[0], prev: prevE[kE[0]], extra: exE }; c.values = work.values; afterCharChange(c, false, dE); done++; c = charById(id, camp) || c; }
+        }
         does.forEach(function(d) {
             if (!d) return;
             if (d.k === 'pool' && S && typeof S.makeResolver === 'function') { var f = (sys.fields || []).filter(function(x) { return x && x.id === d.id && x.kind === 'resource'; })[0]; if (!f) return; var mx = S.makeResolver(sys, c, F())(f.key + '.max'); if (typeof mx === 'number' && isFinite(mx)) vals.push({ fieldId: f.id, value: mx }); }
             else if (d.k === 'reset' && S && typeof S.resetTargets === 'function') { var sc = (sys.sheet && Array.isArray(sys.sheet.sections) ? sys.sheet.sections : []).filter(function(x) { return x && x.id === d.id; })[0]; if (sc) S.resetTargets(sys, c, sc, F(), { gm: true }).targets.forEach(function(t) { if (!vals.some(function(v) { return v.fieldId === t.fieldId; })) vals.push({ fieldId: t.fieldId, value: t.value }); }); }
         });
-        if (ends && S && typeof S.restEndsFx === 'function') S.restEndsFx(sys, c, rest).vals.forEach(function(v) { if (!vals.some(function(x) { return x.fieldId === v.fieldId; })) vals.push(v); });   // fold R6: effects that last until this rest come off, once, in the same change
         if (vals.length) { commitMany(c, vals); done++; }
         does.forEach(function(d) {
             if (!d || d.k !== 'roll') return; var r = (sys.rolls || []).filter(function(x) { return x && x.id === d.id; })[0]; if (!r) return;

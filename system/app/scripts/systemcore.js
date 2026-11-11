@@ -9464,11 +9464,11 @@ function cleanRests(v, unitKeys, refs) {
 function restFold(s) { return ' ' + String(typeof s === 'string' ? s : '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim() + ' '; }
 function durNamesRest(dur, name) { var n = restFold(name).replace(/^ (a|an|the) /, ' '); return n.trim() !== '' && restFold(dur).indexOf(n) >= 0; }
 function restEndsFx(sys, char, rest) {
-    var out = { vals: [], names: [] }; if (!isObj(sys) || !isObj(char) || !isObj(rest) || rest.ends !== true || typeof rest.name !== 'string') return out;
+    var out = { vals: [], names: [], rows: [] }; if (!isObj(sys) || !isObj(char) || !isObj(rest) || rest.ends !== true || typeof rest.name !== 'string') return out;
     var defs = map(); (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (isObj(d) && typeof d.id === 'string') defs[d.id] = d; });
     (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) {
         if (!isObj(f) || f.kind !== 'effects' || typeof f.id !== 'string') return; var cur = isObj(char.values) && Array.isArray(char.values[f.id]) ? char.values[f.id] : null; if (!cur) return;
-        var keep = cur.filter(function(r) { if (!isObj(r)) return true; var d = typeof r.ref === 'string' ? defs[r.ref] : null; if (!durNamesRest(d ? d.dur : r.dur, rest.name)) return true; out.names.push(str((d ? d.name : r.name), LIMITS.name) || 'An effect'); return false; });
+        var keep = cur.filter(function(r) { if (!isObj(r)) return true; var d = typeof r.ref === 'string' ? defs[r.ref] : null; if (!durNamesRest(d ? d.dur : r.dur, rest.name)) return true; out.names.push(str((d ? d.name : r.name), LIMITS.name) || 'An effect'); out.rows.push({ f: f.id, id: r.id }); return false; });
         if (keep.length !== cur.length) out.vals.push({ fieldId: f.id, value: JSON.parse(JSON.stringify(keep)) });
     });
     return out;

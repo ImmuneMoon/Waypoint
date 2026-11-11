@@ -911,6 +911,28 @@ const dice = read('scripts/dice.js');
     // 5. a text box on the map, the floating boxes, a field outside them, the left panel opened from its rail
     {
         const T = page(); const t1 = T.press(T.ids.wbText), tS = [T.ids.wbText.blurs];
+        {   // 1.6.2 (prep.js, Spread): the Prep column spread wide over the map is a thing Escape puts back; docked it is none
+            const spreadPage = (on, also) => { const P = page(); P.mk('prepCol', { z: 8997 }); P.mk('prepFind', { tag: 'input', type: 'text', in: P.ids.prepCol }); P.mk('prepCardBtn', { tag: 'button', in: P.ids.prepCol });
+                P.win.wpPrep = { on: on, spread: () => P.win.wpPrep.on, unspread: via => { P.said.push('prep:' + via); P.win.wpPrep.on = false; } }; if (also) also(P); return P; };
+            const run = (P, t, inner) => { const rr = P.press(P.ids[t], inner ? { inner: inner } : {}); return [rr.stopped, rr.free, rr.mapUse, P.said.slice(), P.win.wpPrep && P.win.wpPrep.on]; };
+            const sp = [run(spreadPage(true), 'toolBtn'), run(spreadPage(true), 'prepCardBtn'), run(spreadPage(false), 'toolBtn'),
+                run(spreadPage(true, P => { show(P, 'docPanel'); }), 'toolBtn'),
+                run(spreadPage(true), 'prepFind', e => { e.preventDefault(); e.stopPropagation(); }), run(spreadPage(true), 'prepFind'),
+                run(spreadPage(true, P => { P.win.wpPrep = { spread: true }; }), 'toolBtn'), run(spreadPage(true, P => { delete P.win.wpPrep; }), 'toolBtn'),
+                run(spreadPage(true, P => { show(P, 'docPanel'); show(P, 'sheetPanel'); }), 'prepCardBtn'), run(spreadPage(true, P => { show(P, 'dicePanel'); }), 'prepFind')];
+            // a box that came up since the column was last used (a page a card opened) goes first; options that stood back under the spread come after it
+            const overCase = (() => { const P = spreadPage(true, Q => { show(Q, 'docPanel'); Q.win.wpFloats.used = Q.ids.docPanel; Q.win.wpPrep.over = () => true; }); const a = run(P, 'prepCardBtn'); P.win.wpPrep.over = () => false; const b = run(P, 'prepCardBtn'); return [a, b]; })();
+            const backCase = (() => { const P = spreadPage(true, Q => { Q.ids.wbFloatingToolbar.cls.add('tb-back'); Q.ids.drawMenu.cls.add('show'); }); const a = run(P, 'prepCardBtn'), m1 = P.ids.drawMenu.cls.has('show'); const b = run(P, 'prepCardBtn'), m2 = P.ids.drawMenu.cls.has('show');
+                const U = spreadPage(true, Q => { Q.ids.drawMenu.cls.add('show'); }); const c = run(U, 'prepCardBtn'), m3 = U.ids.drawMenu.cls.has('show'); return [a, m1, b, m2, c, m3]; })();
+            const kept = (() => { const P = spreadPage(true); P.press(P.ids.prepCardBtn, {}); const Q = page(); show(Q, 'docPanel'); const row = Q.mk('docRowX', { tag: 'button', in: Q.ids.docPanel }); Q.press(row, {}); return [P.ids.prepCardBtn.blurs, P.doc.activeElement === P.ids.prepCardBtn, row.blurs]; })();
+            const twice = (() => { const P = spreadPage(true); const a = P.press(P.ids.toolBtn, {}), b = P.press(P.ids.toolBtn, {}); return [a.free, b.free, P.said.slice()]; })();
+            check('1.6.2 the Prep column spread wide over the map goes back beside the map at Escape, as a box on top is put away (the router, run for real): from the map and from a button of the column, and the key goes no further; docked, the column is no box and the key is free for the map; a page panel over it closes first; in Find a card the box\'s own Escape comes first, and the column goes back only if the box let the key go; a second press is free; a module that does not answer as the column does counts for nothing; with the focus in the spread column it is the thing in use and goes back first, whatever box stands open beside it, and the focus stays where it was, since the column stays on screen, while a box that goes away still gives its focus up; a box that came up since the column was last pressed or keyed, as a page opened from a card, closes before it; a tool\'s options that stood back under the spread wait until it is put back, and options that stand over it close first',
+                J(sp) === J([[true, false, false, ['prep:esc'], false], [true, false, false, ['prep:esc'], false], [false, true, true, [], false], [true, false, false, ['page'], true],
+                    [true, false, false, [], true], [false, false, false, ['prep:esc'], false], [false, true, true, [], undefined], [false, true, true, [], undefined],
+                    [true, false, false, ['prep:esc'], false], [false, false, false, ['prep:esc'], false]]) && J(twice) === J([false, true, ['prep:esc']]) && J(kept) === J([0, true, 1])
+                && J(overCase) === J([[true, false, false, ['page'], true], [true, false, false, ['page', 'prep:esc'], false]])
+                && J(backCase) === J([[true, false, false, ['prep:esc'], false], true, [true, false, false, ['prep:esc'], false], false, [true, false, false, [], true], false]), J([sp, twice, kept, overCase, backCase]));
+        }
         const box = (fn, t, inner) => { const P = page(); fn(P); const r = P.press(P.ids[t], inner ? { inner: inner(P) } : {}); return [r.stopped, r.free, r.mapUse, P.said.slice()]; };
         const f = [
             box(P => { show(P, 'sheetPanel'); show(P, 'dicePanel'); }, 'sheetBtn', P => e => { e.preventDefault(); e.stopPropagation(); P.ids.sheetPanel.style.display = 'none'; P.said.push('sheet'); }),

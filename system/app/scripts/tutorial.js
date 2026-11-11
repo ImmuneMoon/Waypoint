@@ -1076,6 +1076,7 @@ function clearStage(step) {
     if (!hosting() && (state.appState.activeCampaignId !== TUTORIAL_CAMP_ID || !tutorialCampaign())) ensureTutorialCampaign(false);
     openLeft();
     var hm = document.getElementById('helpModal'); if (hm) hm.style.display = 'none';
+    if (window.wpPrep && typeof window.wpPrep.spread === 'function' && window.wpPrep.spread()) window.wpPrep.unspread('tour');   // 1.6.2: the Prep column spread wide lies over the map a step points at
     if (!need.row && window.wpTopRow) window.wpTopRow.close();   // a menu of the top row
     if (!need.settings) closeSettingsForTour();
     if (!need.right) closeRightForTour();

@@ -1931,7 +1931,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && TAB_L === RAIL_W && BAR_XD === RAIL_W && TAB_W === RUL_W && TAB_H === RUL_H && BAR_Y >= RUL_H + 2 && BAR_Y0 >= 2 && BAR_Y0 < RUL_H && BAR_X >= TAB_W + 4
         && PARTY_Y - ZOOM_Y >= ZOOM_TALL + 4 /* 1.6.2 (the owner, with a picture): the faces stood on the zoom bar's edge, held to the box's real height */ && DOWN >= BAR_TALL + 4 && PAGE_Y >= BAR_TALL + 4 && ZOOM_Y === MINI_Y && JOIN_Y === PARTY_Y && FIGHT_Y === TRK_Y && DOWN_P - DOWN === PARTY_Y - ZOOM_Y && DOWN_P0 === DOWN
         && DOWN_B > BAR_TALL && DOWN_B <= DOWN && DOWN_B + BAN_TALL <= DOWN_P && DOWN_G >= BAR_TALL + 4 && DOWN_G <= DOWN && DOWN_G + GATE_TALL <= DOWN_P
-        && gapRules.length === 8 && gapRules.every(r => r.indexOf('  ' + HH + ':not(.stream-mode)') === 0 && r.split(', ').every(sel => sel.indexOf(HH + ':not(.stream-mode)') >= 0 || /^\s*#/.test(sel) === false)) && count(css, HH + ':not(.stream-mode)') === 14 /* 1.6.0, backlog 29: the trackers' strip moves down with the zoom box (moved on purpose); the viewing of 2026-11-09: the turn strip stands below the trackers bar (moved on purpose) */
+        && gapRules.length === 8 && gapRules.every(r => r.indexOf('  ' + HH + ':not(.stream-mode)') === 0 && r.split(', ').every(sel => sel.indexOf(HH + ':not(.stream-mode)') >= 0 || /^\s*#/.test(sel) === false)) && count(css, HH + ':not(.stream-mode)') === 17 /* 1.6.0, backlog 29: the trackers' strip moves down with the zoom box (moved on purpose); the viewing of 2026-11-09: the turn strip stands below the trackers bar (moved on purpose); 1.6.2, the Prep column spread wide: the bar and its tab lie over it and its head starts under the bar, two rules of the Prep block (moved on purpose) */
         && PANEL_Z > 5000 && PANEL_Z < 8990 && !css.includes(':has(#leftRail[hidden]) header') && !css.includes(':has(#leftRail[hidden]) #rowShowTab') && !/#rowShowTab \{[^}]*(left: 50%|translateX)/.test(css)
         && css.includes('\n  #rowShowTab { position: fixed; top: 0; left: var(--mainleft, 34px); z-index: 4031; box-sizing: border-box; width: 36px; height: 18px; padding: 0; border: 1px solid var(--edge); border-top: 0; border-left: 0; border-radius: 0 0 7px 0;'),
         J([RUL_H, RUL_W, RAIL_W, TAB_L, TAB_W, TAB_H, BAR_Y, BAR_Y0, BAR_X, BAR_XD, DOWN, DOWN_P, DOWN_P0, DOWN_B, DOWN_G, ZOOM_Y, MINI_Y, PARTY_Y, JOIN_Y, FIGHT_Y, PAGE_Y, PANEL_Z, TAB_TALL, PILL_TALL, ICON_TALL, BAN_TALL, GATE_TALL, gapRules.length, count(css, HH + ':not(.stream-mode)')]));
@@ -2659,6 +2659,13 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && J(caps.filter(l => l[0] === 'pointerdown').map(l => [l[1] === api.barPress, l[2]])) === J([[true, true]])
         && MO.made.length === 1 && J(MO.made[0].seen.map(([t, o]) => [t.id, o])) === J(['wbFloatingToolbar', 'wbEdgeTools', 'dataFloatingToolbar'].map(id => [id, { subtree: true, attributes: true, attributeFilter: ['class'], attributeOldValue: true }]))
         && code.length > 500 && !/wpStream|wpPopout|net-client|playerScreen|canWrite|classList\.(add|remove|toggle)\('show'/.test(code), err || J([seen, each, none, MO.made.length]));
+    {   // 1.6.2 (prep.js, Spread): the Prep column spread wide over the map is pressed as a window is; docked beside the map it is none
+        const prepC = el('prepCol', ''), prepRow = el('', 'row', prepC), got = [];
+        [prepC, prepRow].forEach(e => { e.contains = n => { for (; n; n = n.parentElement) if (n === e) return true; return false; }; });
+        if (api && boxes) { press(P.bar); got.push(st()); press(prepRow); got.push(st()); prepC.cls.add('spread'); press(prepRow); got.push(st()); press(P.bar); got.push(st()); prepC.cls.delete('spread'); press(prepC); got.push(st()); }
+        check('1.6.2 the Prep column spread wide over the map is pressed as a window is (whiteboard.js barPress, run for real): a press in it puts a bar with an open menu back under it, the menu still open, so a tool\'s options never stay over the cards; docked beside the map a press in it changes nothing, and a press on the bar brings the bar up again',
+            J(got) === J([U, U, B, U, U]), J(got));
+    }
     check('the open menu over the boxes is said: both release notes carry the line under 1.5.4\'s fixes, alike, with the box pressed coming in front of a tool\'s options', wn.every(t => count(t, "- The Pages shelf, and every other menu of the map's tools, opens over\n  the page panel, a sheet, a HUD and Table Chat. The shelf opened under\n  the page panel, so its rows were covered and a press went to the\n  panel. A question, a notice and the tour still come in front of it.\n  A tool's options stay up while you work. Press a window and it comes\n  in front of them, as windows do on a desktop. Open them again, or\n  press the tool bar, and they come in front once more.\n") === 1) && wn[0].indexOf("- The Pages shelf, and every other menu of the map's tools, opens over\n") < wn[0].indexOf('WAYPOINT 1.5.3'));
 }
 
@@ -2759,6 +2766,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
             if (how === 'none') x.style.display = 'none'; if (how === 'hidden') x.hidden = true; if (how === 'away') x.cls.add('wp-away'); return x; };
         const box = mk('docPanel', doc, ''), list = [box].concat((others || []).map((w, i) => mk('win' + i, w[0], w[1])));
         const popEl = new El('div', 'dicePop', 'dice-modpop'); popEl.add(new El('div', 'dicePopRow', 'tool')); lay.set(popEl, pop || FAR);
+        let spBody = null; if (o.spread) { const pc = new El('div', 'prepCol', o.docked ? '' : 'spread'), hd = new El('div', '', 'prep-head'); spBody = new El('div', 'prepBody', ''); P.main.add(pc); pc.add(hd); pc.add(spBody); b.prepCol = pc; lay.set(spBody, o.spread); }   // 1.6.2: the Prep column, spread wide or docked, its body drawn at o.spread
         if (!o.menuFlat) ['drawMenu', 'eraserMenu', 'shapeMenu', 'fogMenu', 'snapMenu'].forEach(id => lay.set(b[id], MENU));
         const within = (root, n) => { for (; n; n = n.parentElement) if (n === root) return true; return false; };
         P.main.all().concat([P.main, popEl, popEl.children[0]]).forEach(e => { e.contains = n => within(e, n);
@@ -2780,7 +2788,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         }
         const down = t => caps.filter(l => l[0] === 'pointerdown').forEach(l => l[1]({ type: 'pointerdown', target: t }));
         const st = () => hand + ' | ' + P.open().join(',') + ' | ' + [P.bar, P.edge].map(x => x.cls.has(api.BAR_BACK) ? 'back' : 'up').join(',') + (popEl.parentElement ? ' | pop' : '');
-        return { P, b, api, err, hits, st, row: box.children[0], win, pt: t => { down(t); P.click(t, { detail: 1 }); }, kb: t => P.click(t, { detail: 0 }), putPop: () => { P.main.add(popEl); } };
+        return { P, b, api, err, hits, st, row: box.children[0], sp: spBody, win, pt: t => { down(t); P.click(t, { detail: 1 }); }, kb: t => P.click(t, { detail: 0 }), putPop: () => { P.main.add(popEl); } };
     }
     // each case: a world, what is pressed, and where things stand after each press that counts
     const run = (args, fn) => { const W = world.apply(null, args); if (!W.api) return 'no slice: ' + W.err; try { return fn(W); } catch (e) { return 'threw: ' + String(e && e.stack || e); } };
@@ -2801,6 +2809,12 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         flat: ['pen | drawMenu | up,back', 'pen |  | up,back'], flatKey: ['pen | drawMenu | up,back | pop', 'pen |  | up,back | pop'],
         menuFlat: [[false, false], 'pen |  | up,back']
     };
+    {   // 1.6.2: the Prep column spread wide is one of the windows that can cover a tool's options (whiteboard.js barWindow and barShowing)
+        const viaSpread = o => run([FAR, [], null, o], W => { const s = []; W.pt(W.b.drawOptBtn); W.pt(W.sp); W.pt(W.b.drawOptBtn); s.push(W.st()); W.pt(W.b.drawOptBtn); s.push(W.st()); return s; });
+        const RS = { over: viaSpread({ spread: OVER }), far: viaSpread({ spread: FAR }), docked: viaSpread({ spread: OVER, docked: true }) };
+        check('1.6.2 the Prep column spread wide covers a tool\'s options as a window does (whiteboard.js barBehind, run for real on pages given rectangles): pressed where its body lies over the options, the first press of the tool\'s small arrow brings them in front and the second closes them; where it lies clear of them the first press closes them; docked beside the map it is no window, a press in it steps nothing back and the arrow closes the options at once',
+            J(RS) === J({ over: ['pen | drawMenu | up,back', 'pen |  | up,back'], far: ['pen |  | up,back', 'pen | drawMenu | up,back'], docked: ['pen |  | up,up', 'pen | drawMenu | up,up'] }), J(RS));
+    }
     check('one press of a tool\'s small arrow brings its options in front only where a window that shows covers them (backlog 143, the review of 2026-10-17; whiteboard.js barBehind run for real on pages of plain objects given rectangles): with the page panel pressed over the options, the first press brings them in front and the second closes them, by the pointer and by a key; with it far off, beside them on any side or with no area, the first press closes them as it did before F2; so it does with a window over them whose display is none, that is hidden, or that is put away for this view; the dice roller\'s pop over them brings them in front, judged by the pointer as it stood at the pointerdown, at which the pop goes; where every rectangle is empty the bar\'s own word stands; and a menu that has no rectangle while a window has one is covered by none',
         J(R) === J(E), J(R));
     // a button that only opens a menu, its arrow, and Snap's arrow

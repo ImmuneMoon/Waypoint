@@ -8370,6 +8370,7 @@ var _barSaw = null;   // the windows that showed at that pointerdown, as barShow
 function barOf(el) { return el && typeof el.closest === 'function' ? el.closest('.floating-toolbar') : null; }
 function barWindow(t) {
     if (t.closest('.dice-modpop')) return true;
+    var pc = t.closest('#prepCol'); if (pc && pc.classList && pc.classList.contains('spread')) return true;   // 1.6.2: the Prep column spread wide over the map is pressed as a window is (prep.js)
     var F = window.wpFloats, bs = F && typeof F.boxes === 'function' ? F.boxes() : [];
     return bs.some(function(b) { return b === t || (typeof b.contains === 'function' && b.contains(t)); });
 }
@@ -8407,6 +8408,8 @@ function barRect(el) {
 function barShowing() {
     var F = window.wpFloats, got = F && typeof F.boxes === 'function' ? F.boxes() : null, bs = got ? Array.prototype.slice.call(got) : [];
     if (typeof document.querySelectorAll === 'function') Array.prototype.forEach.call(document.querySelectorAll('.dice-modpop'), function(p) { bs.push(p); });
+    var pc = typeof document.getElementById === 'function' ? document.getElementById('prepCol') : null;   // 1.6.2: the Prep column spread wide is a window too (barWindow): its head and its body, which lie over the map, since the column's own box is only its docked room
+    if (pc && !pc.hidden && pc.classList && pc.classList.contains('spread')) Array.prototype.forEach.call(pc.children || [], function(ch) { if (ch && (ch.id === 'prepBody' || (ch.classList && ch.classList.contains('prep-head')))) bs.push(ch); });
     return bs.filter(function(b) { return !!b && !(b.style && b.style.display === 'none') && !b.hidden && !(b.classList && b.classList.contains('wp-away')); }).map(barRect);
 }
 // Whether a window seen (barShowing's rectangles) covers el, an open menu. Where nothing can be measured (el and every window with no

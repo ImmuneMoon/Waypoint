@@ -862,6 +862,10 @@ Writing planners and pages
   cards, the cards and people of the map on screen and your clues in
   sight. Open it from the top of the left rail, with G, or from the top of
   the Pages menu. Tick a scene as played or a clue as found right there.
+- Spread lays the Prep column out wide over the map in three columns.
+  Press the Spread button in its head, or Shift+G. Esc puts it back.
+- A scene card whose table names tokens on this map offers Select them
+  and Find.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

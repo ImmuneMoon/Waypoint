@@ -921,6 +921,26 @@
   #prepCol > .pane-toggle.left { width: 12px; font-size: 8px; }
   #prepCol > .pane-toggle.left:hover { width: 18px; font-size: 11px; }
   .prep-pages { margin-top: 4px; }
+  /* Spread (prep.js setSpread): the column keeps its room beside the map, so the map does not move, and its head and body lie wide over the
+     left part of the map: over the map's own strips (8990), the zoom box and the token toolbar, under every floating box and the tool bar at
+     rest. Its sections stand in three columns where the width holds them. Its foot is kept clear of the tool bar, which lies over it */
+  #prepCol.spread { overflow: visible; z-index: 8997; }
+  #prepCol.spread > .prep-head, #prepCol.spread > #prepBody { width: var(--prepwide, 960px); max-width: calc(100vw - 40px); box-sizing: border-box; background: var(--bg2); border-right: 1px solid var(--edge); box-shadow: 10px 0 26px rgba(0, 0, 0, .38); clip-path: inset(0 -40px 0 0); }   /* the shadow falls to the right alone: the body's would lie over the head above it */
+  #prepCol.spread > #prepBody { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 0 18px; align-content: start; align-items: start; padding-bottom: 170px; }   /* the tool bar lies over its foot, three rows tall where the map's area is narrow */
+  #prepCol.spread > #prepBody > .prep-sec { grid-column: 1 / -1; }
+  #prepCol.spread > #prepGrip { display: none; }
+  /* what must lie over a spread column asks the body's word (prep.js sync): the left panel opened from its rail, which stands where the spread
+     begins, and a hidden top row's bar and tab, which float where the map's area begins. The spread's head starts under that bar */
+  body.prep-spread #campaignSidebar.floating { z-index: 8998; }
+  body.row-hidden:not(.tour-on):not(.stream-mode).prep-spread header, body.row-hidden:not(.tour-on):not(.stream-mode).prep-spread #rowShowTab { z-index: 8998; }
+  body.row-hidden:not(.tour-on):not(.stream-mode).prep-spread #prepCol.spread > .prep-head { padding-top: calc(var(--rowbar, 22px) + 38px); }
+  .prep-spc { min-width: 0; }
+  .prep-tbl { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 6px; font-size: 11.5px; line-height: 1.4; }
+  .prep-tbl th { text-align: left; font-weight: 400; font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); padding: 2px 6px 3px 0; }
+  .prep-tbl td { vertical-align: top; padding: 4px 6px 4px 0; border-top: 1px solid var(--edge); overflow-wrap: anywhere; }
+  .prep-tbl td:first-child { font-weight: 600; }
+  .prep-fight { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 4px; border-top: 1px solid var(--edge); margin-top: 7px; padding-top: 5px; font-size: 11px; color: var(--dim); }
+  .prep-fight-n { margin-right: auto; }
   #prepGrip:hover, #prepGrip.dragging { background: var(--gold); opacity: .5; }
   .prep-sec { margin-top: 6px; }
   .prep-fold { display: flex; align-items: baseline; gap: 6px; width: 100%; background: none; border: 0; border-radius: 4px; padding: 4px 2px; color: var(--dim); font: inherit; font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; cursor: pointer; text-align: left; }

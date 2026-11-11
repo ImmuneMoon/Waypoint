@@ -143,6 +143,8 @@ function escInBox(doc, t) {
     escEach(doc.querySelectorAll('#hudLayer .hud-panel'), function(b) { if (escShown(b) && escHas(b, t)) hit = true; });
     return hit;
 }
+// 1.6.2: does the focus stand in the Prep column while it is spread wide over the map (prep.js)
+function escInSpread(doc, win, t) { var pc = doc.getElementById('prepCol'), PR = win.wpPrep; return !!pc && !!PR && typeof PR.spread === 'function' && PR.spread() === true && escHas(pc, t); }
 // 1.6.0: a tool in hand or something armed is the map's own use of the key, and comes before the sheet beside it
 var ESC_MAP_TOOLS = ['drawModeBtn', 'eraserModeBtn', 'fillModeBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'panModeBtn', 'envModeBtn', 'buildModeBtn'];
 function escMapBusy(doc, win) {
@@ -158,6 +160,8 @@ function escPanels(doc, win) {
     if (escShown(pp) && D && typeof D.close === 'function' && typeof D.openId === 'function' && D.openId()) out.push({ el: pp, close: function() { D.close(); } });
     var lp = doc.getElementById('campaignSidebar'), R = win.wpLeftRail;
     if (lp && R && typeof R.mode === 'function' && R.mode() === 'open' && typeof R.away === 'function') out.push({ el: lp, close: function() { R.away(); } });
+    var pc = doc.getElementById('prepCol'), PR = win.wpPrep;   // 1.6.2: the Prep column spread wide over the map goes back beside the map (prep.js); docked, it is no box and Escape leaves it
+    if (pc && PR && typeof PR.spread === 'function' && PR.spread() === true && typeof PR.unspread === 'function') out.push({ el: pc, stay: true, close: function() { PR.unspread('esc'); } });   // stay: the column stays on screen, so the focus in it is left where it is
     return out;
 }
 // What Escape does now: { act: 'aside' | 'close' | 'defer' | 'free', layer }. t: the element the key was pressed in
@@ -174,7 +178,7 @@ function escJudge(doc, win, t) {
     var own = false; escEach(doc.querySelectorAll(ESC_OWN_MENUS), function(m) { if (escShown(m)) own = true; });
     if (own) return { act: 'aside' };
     var menu = escMenus(doc, win)[0];
-    if (menu && menu.back && escInBox(doc, t)) menu = null;   // options that stood back under a box pressed since: that box is on top of them
+    if (menu && menu.back && (escInBox(doc, t) || escInSpread(doc, win, t))) menu = null;   // options that stood back under a box pressed since: that box is on top of them (the Prep column spread wide is one, whiteboard.js barWindow)
     if (menu) return { act: menu.keep && (escHas(menu.el, t) || escHas(menu.also, t)) ? 'defer' : 'close', layer: menu };
     var w = escTop(escWindows(doc), win);
     if (w) return { act: escHas(w.el, t) && (w.own || escKeep(doc, t)) ? 'defer' : 'close', layer: w };
@@ -191,6 +195,9 @@ function escJudge(doc, win, t) {
     for (var f = 0; f < ESC_LAST.length; f++) { var fb = doc.getElementById(ESC_LAST[f]); if (escShown(fb) && escHas(fb, t) && escField(t)) return { act: 'defer', layer: { el: fb } }; }   // one no module closes: its fields keep their own keys
     var panels = escPanels(doc, win), left = panels.filter(function(L) { return L.el.id === 'campaignSidebar'; })[0];
     if (left && escHas(left.el, t)) return { act: 'defer', layer: left };
+    var prep = panels.filter(function(L) { return L.el.id === 'prepCol'; })[0];   // 1.6.2: the focus in the Prep column spread wide: it is the thing in use, whatever box stands open beside it; a field of its own first
+    var over = !!prep && !!win.wpPrep && typeof win.wpPrep.over === 'function' && win.wpPrep.over() === true;   // a box that came up since the column was last pressed or keyed (a page a card opened) is on top of it, and goes first, by the rule below
+    if (prep && escHas(prep.el, t) && !over) return { act: escField(t) || escKeep(doc, t) ? 'defer' : 'close', layer: prep };
     var used = win.wpFloats && typeof win.wpFloats.last === 'function' ? win.wpFloats.last() : null;   // the box last used, of those that show
     var top = panels.concat(lasts).filter(function(L) { return !!used && L.el === used; })[0] || escTop(panels, win), first = escField(t) || escKeep(doc, t);   // a field's own Escape, and a text bar's, come first
     if (top) return { act: first ? 'defer' : 'close', layer: top };
@@ -199,7 +206,7 @@ function escJudge(doc, win, t) {
 // The focus is taken out of what closes, so that a box in it is left as a box is left (what was typed is kept), never hidden with the focus
 function escShut(L) {
     var a = typeof document !== 'undefined' ? document.activeElement : null;
-    if (a && a !== document.body && escHas(L.el, a) && typeof a.blur === 'function') a.blur();
+    if (L.stay !== true && a && a !== document.body && escHas(L.el, a) && typeof a.blur === 'function') a.blur();
     L.close();
 }
 

@@ -10,6 +10,9 @@
      People here   person cards whose Where is this map, then the tokens on it, then the room's characters
      Clues         clue cards of tonight's planner, of the pinned planners and of this map, not found first
      Around this map, Pinned, Recent   the Pages shelf's own lists, drawn by the shelf's own row
+   Spread (its step 8; the owner's picks of 2026-11-11: the drawing "A. Three columns (Recommended)" and Shift+G) lays the same sections out
+   wide over the left part of the map in three columns, The scene, People here, and Clues with Pinned, until Spread again or Esc. There a
+   card's rows are a table again. A scene card whose table names tokens of this map offers Select them and Find, in both.
    It stores nothing in the campaign and sends nothing. Open, its width and its folds are this computer's own (wp_prep). The two ticks it
    offers, Played on a scene and Found on a clue, are the card's own ticks, set as the planner's editor sets them, with one save. A tick is taken back by pressing it
    again, and a scene then gets back the session it had: the play map's own undo holds the map's steps, never a planner's.
@@ -23,7 +26,7 @@ import { navigateToMap } from './sidebar.js';
 import * as CC from './cardcore.js';
 
 // [prepcheck:core-start]
-var PREP = { w: 320, wMin: 240, wMax: 560, here: 40, people: 40, fold: 8, clues: 40, find: 30, rows: 12, scenes: 60, text: 300 };
+var PREP = { w: 320, wMin: 240, wMax: 560, spread: 1060, spreadGap: 120, fitPad: 220, fitMin: 0.2, here: 40, people: 40, fold: 8, clues: 40, find: 30, rows: 12, scenes: 60, text: 300 };
 var PREP_ID = /^[A-Za-z0-9_-]{1,64}$/;
 // A field as one line of plain words: its markup taken off (a tag that ends a line reads as a space, any other as nothing), the few entities
 // an editor writes read, cut by whole characters. A < that opens no tag is a character of the words. A tag is read up to its own > and never
@@ -67,6 +70,29 @@ function prepFirstSays(b) {
     var r = Array.isArray(b.rows) ? b.rows[0] : null; if (!r || typeof r !== 'object') return '';
     var q = prepPlain(r.col1, 80), a = prepPlain(r.col2, 160); return q && a ? q + ': ' + a : (a || q);
 }
+// The tokens of a map that are no player's, by name: { folded name: [token ids] }. A scene card's table is read against it
+function prepTokNames(map, chars) {
+    var by = Object.create(null);
+    (map && Array.isArray(map.whiteboard) ? map.whiteboard : []).forEach(function(w) {
+        if (!w || typeof w !== 'object' || !w.isChar || w.waiting || w.gmNoteFor || w.ownerId || typeof w.id !== 'string') return;
+        var ch = typeof w.charId === 'string' ? prepOwn(chars, w.charId) : null; if (ch && ch.ownerId) return;
+        var n = prepFold(prepPlain(w.charName || w.name, 80)); if (!n) return;
+        (by[n] = by[n] || []).push(w.id);
+    });
+    return by;
+}
+// The tokens a card's table names on that map: each row's first cell read as a name. The whole cell is looked up first, so "Fox 2" names the
+// token Fox 2, and only where no token has that name is a count after it ("Raider x3", after a space) left out. Each token once, in the
+// table's order, 60 at most
+function prepToks(b, by) {
+    var out = [], seen = Object.create(null);
+    (b && Array.isArray(b.rows) ? b.rows : []).slice(0, 200).forEach(function(rw) {
+        if (!rw || typeof rw !== 'object') return;
+        var full = prepFold(prepPlain(rw.col1, 80)), n = full && by && Array.isArray(by[full]) ? full : full.replace(/\s*\u00d7\s*\d+$|\s+x\s*\d+$/, '').trim(), ids = n && by ? by[n] : null;
+        (Array.isArray(ids) ? ids : []).forEach(function(id) { if (!seen[id] && out.length < 60) { seen[id] = 1; out.push(id); } });
+    });
+    return out;
+}
 // What the column shows for one map: { map, tonight, here, people, rows, more, clues }. o.pinned: the ids of the pinned pages (their clues
 // are listed). o.keep: the planner the column kept as tonight's, or none. Nothing here is kept: it is worked out from the campaign each time
 function prepModel(camp, mapId, o) {
@@ -80,7 +106,7 @@ function prepModel(camp, mapId, o) {
     if (!nextId && o && typeof o.keep === 'string' && o.keep && planners.indexOf(o.keep) >= 0) nextId = o.keep;
     if (!nextId) nextId = planners.filter(function(id) { return camp.items[id].blocks.some(function(b) { return prepIsCard(b) && CC.cardKind(b) === 'scene' && CC.sessionOf(b) === 'tonight'; }); })[0] || '';
     var pinned = Object.create(null); (o && Array.isArray(o.pinned) ? o.pinned : []).forEach(function(id) { if (typeof id === 'string') pinned[id] = 1; });
-    var bySheet = Object.create(null), persons = [], places = [], scenes = [], clues = [];
+    var bySheet = Object.create(null), persons = [], places = [], scenes = [], clues = [], tokBy = prepTokNames(map, camp.chars && typeof camp.chars === 'object' ? camp.chars : null);
     planners.forEach(function(pid) {
         var it = camp.items[pid], title = prepTitle(it, 'Planner'), isNext = pid === nextId, tn = isNext ? { id: pid, title: title, lead: prepLead(it), scenes: [] } : null;
         it.blocks.forEach(function(b, i) {
@@ -88,6 +114,7 @@ function prepModel(camp, mapId, o) {
             var c = prepCard(pid, title, b, i), here = !!map && c.map === mapId;
             if (here) c.here = true;
             if (c.kind === 'scene') {
+                if (here) { var nTok = prepToks(b, tokBy).length; if (nTok) c.toks = nTok; }   // a fight card: how many tokens of this map its table names
                 if (tn && tn.scenes.length < PREP.scenes) { var on = c.map ? prepOwn(camp.items, c.map) : null; tn.scenes.push(Object.assign({ where: here ? '' : (on && on.type === 'map' ? prepTitle(on, 'Map') : '') }, c)); }
                 if (here) scenes.push(c);
             } else if (c.kind === 'place') { if (here) places.push(c); }
@@ -135,15 +162,19 @@ function prepModel(camp, mapId, o) {
     return m;
 }
 // Find a card: every card of the campaign's planners whose words hold each word typed. words(b): a block's words, folded (the Pages shelf's
-// own reader, handed in); with none, the card's name, tag and lead line
-function prepFind(camp, q, words) {
+// own reader, handed in); with none, the card's name, tag and lead line. mapId: the column's map, so that a found card that plays on it says so
+function prepFind(camp, q, words, mapId) {
     var want = prepFold(q).split(' ').filter(Boolean).slice(0, 8), out = []; if (!want.length || !camp || !camp.items || typeof camp.items !== 'object') return out;
+    var map = typeof mapId === 'string' && mapId ? prepOwn(camp.items, mapId) : null, tokBy = map && typeof map === 'object' && map.type === 'map' ? prepTokNames(map, camp.chars && typeof camp.chars === 'object' ? camp.chars : null) : null;
     prepPlanners(camp).forEach(function(pid) {
         var it = camp.items[pid], title = prepTitle(it, 'Planner');
         it.blocks.forEach(function(b, i) {
             if (out.length >= PREP.find || !prepIsCard(b)) return;
             var t = typeof words === 'function' ? String(words(b) || '') : prepFold([prepPlain(b.title, 200), prepPlain(b.tag, 80), prepPlain(b.must, 300)].join(' '));
-            if (want.every(function(w) { return t.indexOf(w) >= 0; })) out.push(prepCard(pid, title, b, i));
+            if (!want.every(function(w) { return t.indexOf(w) >= 0; })) return;
+            var c = prepCard(pid, title, b, i);
+            if (tokBy && c.map === mapId) { c.here = true; if (c.kind === 'scene') { var nTok = prepToks(b, tokBy).length; if (nTok) c.toks = nTok; } }   // as the card says under Here
+            out.push(c);
         });
     });
     return out;
@@ -181,8 +212,10 @@ function prepTick(c, word) {
     var t = prepBtn('prep-tick' + (c.done || c.s === 'played' ? ' on' : ''), '', (c.done || c.s === 'played') ? word + '. Press to take the tick off.' : 'Mark as ' + word.toLowerCase());
     t.setAttribute('aria-pressed', c.done || c.s === 'played' ? 'true' : 'false'); t.setAttribute('aria-label', word); return prepRef(t, c);
 }
-// One card: its head (a press opens or folds it), its tick, and when open its lead line, its rows as stacked lines and its foot
-function prepCardEl(camp, c, open, pinnedPl) {
+// One card: its head (a press opens or folds it), its tick, and when open its lead line, its rows and its foot. Its rows are stacked lines
+// in the column and, where the column is spread wide, a table again under its column names. A scene card whose table names tokens of this
+// map says how many and offers Select them and Find
+function prepCardEl(camp, c, open, pinnedPl, wide) {
     var b = prepBlock(camp, c), kd = b ? CC.kindOf(b) : null, card = prepEl('div', 'prep-card' + (c.here ? ' here' : '') + (open ? '' : ' shut') + (c.done || c.s === 'played' ? ' done' : ''));
     card.dataset.key = prepKey(c);
     var head = prepEl('div', 'prep-card-top'), h = prepBtn('prep-card-h', '', open ? 'Fold this card' : 'Open this card'); h.setAttribute('aria-expanded', open ? 'true' : 'false'); h.dataset.key = prepKey(c);
@@ -199,7 +232,16 @@ function prepCardEl(camp, c, open, pinnedPl) {
     if (b.must) { var lead = prepEl('p', 'prep-lead'); lead.appendChild(prepEl('b', '', kd.must + ':')); lead.appendChild(document.createTextNode(' ')); lead.appendChild(prepRich(prepEl('span'), b.must, prepFmt(b, 'must'))); body.appendChild(lead); }
     var aka = CC.cleanAka(b.aka); if (aka) body.appendChild(prepEl('p', 'prep-aka', 'Also known as: ' + aka.join(', ')));
     var rows = Array.isArray(b.rows) ? b.rows : [], cols = Array.isArray(b.cols) && b.cols.length ? b.cols : kd.cols;
-    rows.slice(0, PREP.rows).forEach(function(r, ri) {
+    if (wide === true && rows.length) {
+        var tb = prepEl('table', 'prep-tbl'), hd = prepEl('thead'), hr = prepEl('tr'), bd = prepEl('tbody');
+        cols.forEach(function(cn) { hr.appendChild(prepEl('th', '', prepPlain(cn, 40))); });
+        rows.slice(0, PREP.rows).forEach(function(rw, ri) {
+            if (!rw || typeof rw !== 'object') return;
+            var tr = prepEl('tr'), any = false; cols.forEach(function(cn, ci) { var v = rw['col' + (ci + 1)], td = prepEl('td'); if (typeof v === 'string' && v) { prepRich(td, v, prepCellFmt(b, ri, ci)); any = true; } tr.appendChild(td); });
+            if (any) bd.appendChild(tr);   // a row with no cell is drawn nowhere, as the stacked lines have it
+        });
+        if (bd.childNodes.length) { hd.appendChild(hr); tb.appendChild(hd); tb.appendChild(bd); body.appendChild(tb); }
+    } else rows.slice(0, PREP.rows).forEach(function(r, ri) {
         if (!r || typeof r !== 'object') return;
         var row = prepEl('div', 'prep-srow'), any = false;
         cols.forEach(function(cn, ci) {
@@ -210,6 +252,13 @@ function prepCardEl(camp, c, open, pinnedPl) {
         if (any) body.appendChild(row);
     });
     if (rows.length > PREP.rows) body.appendChild(prepEl('p', 'prep-more', (rows.length - PREP.rows) + ' more rows in the page'));
+    if (c.toks > 0) {
+        var fl = prepEl('div', 'prep-fight'), fa = prepRef(prepBtn('prep-fb prep-findall', '', 'Bring them into view on the map, selected'), c);
+        var fn = prepEl('span', 'prep-fight-n', prepCount(c.toks, 'token', 'tokens') + ' here'); fn.title = 'The tokens on this map that this card names in the first cell of a row'; fl.appendChild(fn);
+        fl.appendChild(prepRef(prepBtn('prep-fb prep-sel', 'Select them', 'Select the tokens on this map that its table names'), c));
+        fa.appendChild(prepEl('i', 'wib wi-marker')); fa.appendChild(document.createTextNode(' Find')); fl.appendChild(fa);
+        body.appendChild(fl);
+    }
     var foot = prepEl('div', 'prep-foot'), op = prepRef(prepBtn('prep-fb prep-open', '', 'Open the planner at this card. Over the map by a click, Ctrl+click a new window, Alt+click the page itself.'), c);
     op.appendChild(prepEl('i', 'wib wi-page')); op.appendChild(document.createTextNode(' Open in page')); foot.appendChild(op);
     var win = prepRef(prepBtn('prep-fb prep-win wib wi-dup', '', 'Open its planner in a window of its own, at this card'), c); win.setAttribute('aria-label', 'Open in a window of its own'); foot.appendChild(win);
@@ -232,11 +281,14 @@ function prepSec(root, key, name, small, shut, fill) {
     return sec;
 }
 function prepCount(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
-// The whole column body. st: { shut, cards, all, q }; x: { pinned: { planner id: 1 }, pinList: the pinned pages' ids in order, shelf: the
+// The whole column body. st: { shut, cards, all, q, spread }; x: { pinned: { planner id: 1 }, pinList: the pinned pages' ids in order, shelf: the
 // Pages shelf's model or null, row: its row drawer or null, found: the cards Find a card found, or null }
 function prepDraw(root, camp, m, st, x) {
     root.textContent = '';
-    var pins = (x && x.pinned) || {}, cardIn = function(box, c, first) { var k = prepKey(c), open = st.cards[k] === undefined ? !!first : st.cards[k] === true; box.appendChild(prepCardEl(camp, c, open, !!pins[c.pl])); };
+    // Spread wide, the sections stand in three columns: the scene (Tonight, Here, Around this map), People here, and Clues with Pinned and
+    // Recent. Every card of Here and of People here is then open until it is folded, and a card's rows are a table
+    var wide = st.spread === true, spc = wide ? [prepEl('div', 'prep-spc'), prepEl('div', 'prep-spc'), prepEl('div', 'prep-spc')] : null, colOf = function(k) { return spc ? spc[k] : root; };
+    var pins = (x && x.pinned) || {}, cardIn = function(box, c, first) { var k = prepKey(c), open = st.cards[k] === undefined ? !!first : st.cards[k] === true; box.appendChild(prepCardEl(camp, c, open, !!pins[c.pl], wide)); };
     if (x && x.found) {
         prepSec(root, 'found', 'Cards that hold the words', prepCount(x.found.length, 'card', 'cards'), false, function(box) {
             if (!x.found.length) box.appendChild(prepEl('p', 'prep-none', 'No card holds those words. Ctrl+K looks in every page.'));
@@ -256,7 +308,7 @@ function prepDraw(root, camp, m, st, x) {
     var pinRows = x && Array.isArray(x.pinList) ? x.pinList.map(function(id) { return typeof id === 'string' ? byId[id] : null; }).filter(Boolean) : ((sh && sh.pinned) || []);
     var pagesIn = function(box, rows) { if (typeof rowOf !== 'function' || !rows.length) return; var pb = prepEl('div', 'page-shelf prep-shelf prep-pages'); rows.forEach(function(rw) { pb.appendChild(rowOf(rw, false)); }); box.appendChild(pb); };
     var tn = m.tonight;
-    prepSec(root, 'tonight', 'Tonight', tn ? tn.title : '', st.shut.tonight === 1, function(box) {
+    prepSec(colOf(0), 'tonight', 'Tonight', tn ? tn.title : '', st.shut.tonight === 1, function(box) {
         if (!tn) { box.appendChild(prepEl('p', 'prep-none', 'No planner is marked Next. Open the planner for tonight and pick Next in its Status list, or set one of its scenes to Tonight.')); return; }
         if (tn.lead) box.appendChild(prepEl('p', 'prep-leadline', tn.lead));
         if (!tn.scenes.length) { box.appendChild(prepEl('p', 'prep-none', 'This planner has no scene card yet.')); pagesIn(box, byId[tn.id] ? [byId[tn.id]] : []); return; }
@@ -271,15 +323,15 @@ function prepDraw(root, camp, m, st, x) {
         pagesIn(box, byId[tn.id] ? [byId[tn.id]] : []);   // the planner itself, as the shelf's own row: over the map, a window of its own, its pin
     });
     var nP = m.here.filter(function(c) { return c.kind === 'place'; }).length, nS = m.here.length - nP;
-    prepSec(root, 'here', 'Here', m.here.length ? [nP ? prepCount(nP, 'place', 'places') : '', nS ? prepCount(nS, 'scene', 'scenes') : ''].filter(Boolean).join(', ') : '', st.shut.here === 1, function(box) {
+    prepSec(colOf(0), 'here', 'Here', m.here.length ? [nP ? prepCount(nP, 'place', 'places') : '', nS ? prepCount(nS, 'scene', 'scenes') : ''].filter(Boolean).join(', ') : '', st.shut.here === 1, function(box) {
         if (!m.here.length && !herePages.length) box.appendChild(prepEl('p', 'prep-none', m.map ? 'No card names this map yet. In a planner, pick this map under Map on a place or a scene card.' : 'No map is on screen.'));
-        m.here.forEach(function(c, k) { cardIn(box, c, k === 0); });
+        m.here.forEach(function(c, k) { cardIn(box, c, wide || k === 0); });
         pagesIn(box, herePages);   // a page pinned to a piece of this map, its scene page, a planner whose node here is no card
     });
     var nPpl = m.people.length + m.rows.length;
-    prepSec(root, 'people', 'People here', nPpl ? String(nPpl) : '', st.shut.people === 1, function(box) {
+    prepSec(colOf(1), 'people', 'People here', nPpl ? String(nPpl) : '', st.shut.people === 1, function(box) {
         if (!nPpl) { box.appendChild(prepEl('p', 'prep-none', 'Nobody yet. A person card whose Where is this map shows here, and so does a token on it.')); return; }
-        m.people.forEach(function(c) { cardIn(box, c, false); });
+        m.people.forEach(function(c) { cardIn(box, c, wide); });
         var show = st.all === true ? m.rows : m.rows.slice(0, Math.max(0, PREP.fold - m.people.length));
         show.forEach(function(r) {
             var pp = prepEl('div', 'prep-pp' + (r.hid ? ' hid' : '')), tx = prepEl('span', 'prep-tx'), nm = prepEl('span', 'prep-nm', r.name + (r.n > 1 ? ' \u00d7' + r.n : ''));
@@ -293,7 +345,7 @@ function prepDraw(root, camp, m, st, x) {
         if (show.length < m.rows.length) { var more = prepBtn('prep-all', 'Show ' + (m.rows.length - show.length) + ' more', 'Show everyone on this map'); box.appendChild(more); }
     });
     var open = m.clues.filter(function(c) { return !c.done; }).length;
-    prepSec(root, 'clues', 'Clues', m.clues.length ? (open ? open + ' not found' : 'all found') : '', st.shut.clues === 1, function(box) {
+    prepSec(colOf(2), 'clues', 'Clues', m.clues.length ? (open ? open + ' not found' : 'all found') : '', st.shut.clues === 1, function(box) {
         if (!m.clues.length) { box.appendChild(prepEl('p', 'prep-none', 'No clue yet. Clue cards of tonight\u2019s planner, of your pinned planners and of this map show here.')); return; }
         m.clues.forEach(function(c) {
             var cl = prepEl('div', 'prep-cl' + (c.done ? ' found' : '')), go = prepRef(prepBtn('prep-clue', '', 'Open the planner at this clue'), c);
@@ -304,23 +356,24 @@ function prepDraw(root, camp, m, st, x) {
     if (sh && typeof rowOf === 'function') {
         var around = []; (sh.where || []).forEach(function(w) { if (w && !w.here) (w.rows || []).forEach(function(r) { around.push(r); }); });
         [['around', 'Around this map', around], ['pinned', 'Pinned', pinRows], ['recent', 'Recent', sh.recent || []]].forEach(function(l) {
-            prepSec(root, l[0], l[1], l[2].length ? String(l[2].length) : '', st.shut[l[0]] === 1, function(box) {
+            prepSec(colOf(l[0] === 'around' ? 0 : 2), l[0], l[1], l[2].length ? String(l[2].length) : '', st.shut[l[0]] === 1, function(box) {
                 box.className += ' page-shelf prep-shelf';
                 if (!l[2].length) box.appendChild(prepEl('p', 'prep-none', l[0] === 'around' ? 'No planner plays on the maps this one is nested in.' : l[0] === 'pinned' ? 'Nothing is pinned. Pin a page from its right-click menu in the left panel.' : 'No page opened yet.'));
                 l[2].forEach(function(r) { box.appendChild(rowOf(r, false)); });
             });
         });
     }
+    if (spc) spc.forEach(function(e) { root.appendChild(e); });
     return root;
 }
 // [prepcheck:draw-end]
 
 /* ---------- the column itself: this computer's state, when it shows, its presses ---------- */
 var STORE = 'wp_prep';
-var st = { open: false, w: PREP.w, shut: Object.assign({}, PREP_SHUT), cards: {}, all: false, q: '', hold: '' }, _sig = '', _was = false, _soon = 0, _findT = 0;
+var st = { open: false, w: PREP.w, shut: Object.assign({}, PREP_SHUT), cards: {}, all: false, q: '', hold: '', spread: false }, _sig = '', _was = false, _soon = 0, _findT = 0;
 var _tn = { camp: '', id: '' };   // the planner the column last showed as tonight's, and the campaign it is of
 function log(step, facts) { try { if (typeof window.wpStepLog === 'function') window.wpStepLog('prep v1', step, facts || {}); } catch (e) {} }
-function els() { return { col: document.getElementById('prepCol'), body: document.getElementById('prepBody'), rail: document.getElementById('railPrep'), map: document.getElementById('prepMap'), sub: document.getElementById('prepSub'), hold: document.getElementById('prepHoldBtn'), find: document.getElementById('prepFind') }; }
+function els() { return { col: document.getElementById('prepCol'), body: document.getElementById('prepBody'), rail: document.getElementById('railPrep'), map: document.getElementById('prepMap'), sub: document.getElementById('prepSub'), hold: document.getElementById('prepHoldBtn'), spread: document.getElementById('prepSpreadBtn'), find: document.getElementById('prepFind') }; }
 function keep() { try { localStorage.setItem(STORE, prepKeep(st)); } catch (e) {} }
 // Whose it is: the GM, on this computer's own campaign, in the app's own window. Planners are nowhere else
 function prepMay() {
@@ -352,10 +405,10 @@ function relaid() {
 var _fq = { key: '', at: 0, list: null };
 // Find a card reads every card of every planner. What it found is kept for a moment, for the same words over the same planners (each by when
 // it was last changed and how many blocks it holds), so a redraw of the page that changed no planner reads nothing again
-function foundNow(camp, q, PS) {
-    var key = q + '\n' + prepPlanners(camp).map(function(id) { var it = camp.items[id]; return id + ':' + ((it.meta && it.meta.updated) || 0) + ':' + it.blocks.length; }).join(','), now = Date.now();
+function foundNow(camp, q, PS, mapId) {
+    var key = q + '\n' + (mapId || '') + '\n' + prepPlanners(camp).map(function(id) { var it = camp.items[id]; return id + ':' + ((it.meta && it.meta.updated) || 0) + ':' + it.blocks.length; }).join(','), now = Date.now();
     if (_fq.list && _fq.key === key && now - _fq.at >= 0 && now - _fq.at < 2500) return _fq.list;
-    _fq = { key: key, at: now, list: prepFind(camp, q, PS && typeof PS.words === 'function' ? PS.words : null) };
+    _fq = { key: key, at: now, list: prepFind(camp, q, PS && typeof PS.words === 'function' ? PS.words : null, mapId) };
     return _fq.list;
 }
 // [prepcheck:found-end]
@@ -373,11 +426,11 @@ function draw(force) {
     var E = els(), camp = getActiveCampaign(); if (!E.col || !E.body || !camp) return;
     var PS = window.wpPageShelf, mapId = mapNow(camp), pinList = PS && typeof PS.pinned === 'function' ? PS.pinned() : [], pinned = {}; pinList.forEach(function(id) { pinned[id] = 1; });
     var keepId = _tn.camp === camp.id && _tn.id && tnKept(camp).indexOf(_tn.id) >= 0 ? _tn.id : '';
-    var m = prepModel(camp, mapId, { pinned: pinList, keep: keepId }), q = st.q.trim(), found = q ? foundNow(camp, q, PS) : null;
+    var m = prepModel(camp, mapId, { pinned: pinList, keep: keepId }), q = st.q.trim(), found = q ? foundNow(camp, q, PS, mapId) : null;
     if (!q) _fq.list = null;
     _tn = { camp: camp.id, id: m.tonight ? m.tonight.id : '' };
     var shelf = PS && typeof PS.model === 'function' ? PS.model(mapId) : null;
-    var sig = JSON.stringify([m, found, shelf, st.shut, st.cards, st.all, q, st.hold, pinList, cardsSig(camp, m, found)]);
+    var sig = JSON.stringify([m, found, shelf, st.shut, st.cards, st.all, q, st.hold, pinList, cardsSig(camp, m, found), st.spread === true]);
     if (!force && sig === _sig) return;
     _sig = sig;
     var keepTop = E.body.scrollTop, focus = focusOf(E.body);
@@ -386,13 +439,13 @@ function draw(force) {
     E.body.scrollTop = keepTop; focusBack(E.body, focus);
     if (E.map) E.map.textContent = m.map ? m.map.title : 'No map';
     if (E.sub) E.sub.textContent = st.hold ? 'Prep \u00b7 held on this map' : 'Prep \u00b7 follows the map';
-    if (E.hold) { E.hold.classList.toggle('on', !!st.hold); E.hold.setAttribute('aria-pressed', st.hold ? 'true' : 'false'); E.hold.title = st.hold ? 'Held on this map. Press to follow the map on screen again.' : 'Hold on this map. The column stays on it while you look at another.'; }
+    if (E.hold) { E.hold.classList.toggle('on', !!st.hold); E.hold.setAttribute('aria-pressed', st.hold ? 'true' : 'false'); tipSet(E.hold, st.hold ? 'Held on this map. Press to follow the map on screen again.' : 'Hold on this map. The column stays on it while you look at another.'); }
 }
 // The open cards are drawn from their blocks, so the column is drawn again when one of those blocks changes
 function cardsSig(camp, m, found) {
     var out = [], take = function(c, first) { var k = prepKey(c), open = st.cards[k] === undefined ? !!first : st.cards[k] === true; if (open) out.push(prepBlock(camp, c)); };
     if (found) found.forEach(function(c) { take(c, found.length === 1); });
-    else { m.here.forEach(function(c, k) { take(c, k === 0); }); m.people.forEach(function(c) { take(c, false); }); }
+    else { var wide = st.spread === true; m.here.forEach(function(c, k) { take(c, wide || k === 0); }); m.people.forEach(function(c) { take(c, wide); }); }
     return out;
 }
 // [prepcheck:focus-start]
@@ -417,6 +470,7 @@ function focusBack(body, f) {
     if (hit) { try { hit.focus({ preventScroll: true }); } catch (err) {} }
 }
 // [prepcheck:focus-end]
+// [prepcheck:sync-start]
 // Asked at every redraw of the page (main.js render), and after a press here: shown or put away, the rail's icon lit, drawn where it changed
 function sync() {
     var E = els(); if (!E.col) return false;
@@ -425,9 +479,46 @@ function sync() {
     arrowSeat(E, on);
     if (E.rail) { E.rail.classList.toggle('on', on); E.rail.setAttribute('aria-pressed', on ? 'true' : 'false'); }
     if (on !== _was) { _was = on; if (!on) { _sig = ''; _fq.list = null; if (E.body) E.body.textContent = ''; } }
+    if (!on || document.body.classList.contains('tour-on')) st.spread = false;   // Spread is for the moment: a column that is put away comes back docked, and the tour's card has the map to itself
+    var wide = on && st.spread === true;
+    E.col.classList.toggle('spread', wide); document.body.classList.toggle('prep-spread', wide);   // the body's word: what must lie over a spread column asks it (the left panel opened from its rail, a hidden top row's bar)
+    if (wide) E.col.style.setProperty('--prepwide', spreadWide(E.col) + 'px');
+    if (E.spread) { E.spread.classList.toggle('on', wide); E.spread.setAttribute('aria-pressed', wide ? 'true' : 'false'); tipSet(E.spread, wide ? 'Spread wide. Press, or Esc, to put the column back beside the map.' : 'Spread. The cards laid out wide over the map, in three columns. Shift+G does it too.'); }
     if (on) { E.col.style.setProperty('--prepw', st.w + 'px'); draw(false); }
     return on;
 }
+// [prepcheck:sync-end]
+// [prepcheck:over-start]
+// The floating box that was used last when the column was last pressed or keyed. A box that came up since (a page opened from a card of the
+// spread column, whose press leaves the focus on the card's button) lies on top of the column, and Escape closes that box first: esckey.js
+// asks over(). A redraw that puts the focus back in the column is no use of it, so only a press and a key are noted
+var _boxWas = null;
+function boxLast() { var F = window.wpFloats; return F && typeof F.last === 'function' ? F.last() || null : null; }
+function boxNote(e) { if (e && e.key === 'Escape') return; _boxWas = boxLast(); }
+function boxOver() { var b = boxLast(); return !!b && b !== _boxWas; }
+// [prepcheck:over-end]
+// [prepcheck:spread-start]
+// A tooltip changed while the page runs goes into data-tip, with the title taken off, and only where its words differ: tooltips.js reads
+// data-tip, and a title written back under a resting pointer would bring the browser's own bubble up beside the app's
+function tipSet(el, words) { if (!el || !el.dataset || el.dataset.tip === words) return; el.dataset.tip = words; if (typeof el.removeAttribute === 'function') el.removeAttribute('title'); }
+// How wide the column lies when it is spread: three columns of cards over the left part of the map, never past the window less a strip of
+// map at its right, and never narrower than the column itself. It is worked out again whenever the column's left edge can have moved: at
+// a redraw of the page, when the window changes size and when the map's area does (the left panel docked or folded by its arrow or grip)
+function spreadWide(col) {
+    var rc = col && typeof col.getBoundingClientRect === 'function' ? col.getBoundingClientRect() : null, left = rc && rc.left > 0 ? rc.left : 0, own = rc && rc.width > 0 ? rc.width : st.w, room = window.innerWidth - left;
+    var wide = Math.max(own, Math.min(PREP.spread, room - PREP.spreadGap));   // never narrower than the column as it stands (its kept width, held to the window by the style sheet)
+    return Math.round(room > own ? Math.min(wide, room) : wide);
+}
+// Spread on or off. Asked for while the column is put away, the column opens first. It is this moment's alone: nothing of it is kept
+function setSpread(on, via) {
+    if (on && !shownNow() && setOpen(true, via === 'key' ? 'spread' : via) !== true) return false;
+    st.spread = !!on && shownNow(); log(st.spread ? 'spread' : 'unspread', { via: via || '' });
+    if (st.spread && window.wpLeftRail && typeof window.wpLeftRail.away === 'function') window.wpLeftRail.away();   // the left panel opened from the rail lies where the spread begins: it is put away, as when the column opens
+    sync();
+    return true;
+}
+function spreadNow() { return st.spread === true && shownNow(); }
+// [prepcheck:spread-end]
 function setOpen(on, via) {
     if (on) { var why = prepCan(); if (why !== true) { toast(why); return false; } }
     st.open = !!on; keep(); log(on ? 'open' : 'close', { via: via || '' });
@@ -484,6 +575,7 @@ function findTok(id) {
     var camp = getActiveCampaign(), mapId = camp ? mapNow(camp) : '', map = camp ? prepOwn(camp.items, mapId) : null, tok = map && Array.isArray(map.whiteboard) ? map.whiteboard.filter(function(w) { return w && w.id === id; })[0] : null;
     if (!tok) { toast('That token is no longer on this map.'); draw(true); return; }
     log('find-token', { hidden: tok.hidden ? 1 : 0 });
+    if (st.spread) setSpread(false, 'find');   // spread wide, the column lies over the map it is about to show
     if (!tok.hidden && camp.activeItemId === mapId && window.wpFocusCharacter) { window.wpFocusCharacter('i:' + id); return; }
     map.meta = map.meta || {}; map.meta.lastWbX = tok.x + (tok.w || 60) / 2; map.meta.lastWbY = tok.y + (tok.h || 52) / 2;
     if (camp.activeItemId !== mapId) navigateToMap(mapId);
@@ -491,6 +583,30 @@ function findTok(id) {
     if (window.appRender) window.appRender();
     if (window.appRestoreCamera) window.appRestoreCamera();
 }
+// [prepcheck:fight-start]
+// The tokens a scene card's table names on the column's map: selected, or selected and brought into view (find). Found again in the
+// campaign as it stands, by the card's block and the map's tokens now
+function fightToks(el, find) {
+    var camp = getActiveCampaign(), rf = refOf(el), b = camp ? prepBlock(camp, { pl: rf.pl, at: rf.at, i: rf.i }) : null, mapId = camp ? mapNow(camp) : '', map = camp ? prepOwn(camp.items, mapId) : null;
+    var ids = b && map ? prepToks(b, prepTokNames(map, camp.chars && typeof camp.chars === 'object' ? camp.chars : null)) : [];
+    if (!ids.length) { toast('None of the tokens its table names are on this map now.'); draw(true); return; }
+    log(find ? 'find-them' : 'select-them', { n: ids.length });
+    if (find) {
+        var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, num = function(v, d) { return typeof v === 'number' && isFinite(v) ? v : d; };
+        map.whiteboard.forEach(function(w) { if (!w || ids.indexOf(w.id) < 0) return; var x = num(w.x, 0), y = num(w.y, 0); x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + num(w.w, 60)); y1 = Math.max(y1, y + num(w.h, 52)); });
+        map.meta = map.meta || {}; map.meta.lastWbX = (x0 + x1) / 2; map.meta.lastWbY = (y0 + y1) / 2;
+        // where they do not all fit the map's area at the zoom the view has, it is zoomed out until they do, and never in
+        var wrap = document.getElementById('whiteboardWrap'), onScreen = camp.activeItemId === mapId && typeof state.zoomLevel === 'number' && state.zoomLevel > 0, zNow = onScreen ? state.zoomLevel : num(map.meta.lastWbZoom, 1), fit = wrap && wrap.clientWidth > 0 && wrap.clientHeight > 0 ? Math.min(wrap.clientWidth / (x1 - x0 + PREP.fitPad), wrap.clientHeight / (y1 - y0 + PREP.fitPad)) : zNow;
+        if (fit < zNow) map.meta.lastWbZoom = Math.min(zNow, Math.max(PREP.fitMin, Math.floor(fit * 20) / 20));   // never above the zoom it has: a view zoomed out past the least step is left as it is
+        else if (onScreen) map.meta.lastWbZoom = zNow;   // the zoom the view has is the zoom the camera is put back at
+        if (st.spread) setSpread(false, 'find');   // spread wide, the column lies over the map it is about to show
+    }
+    if (camp.activeItemId !== mapId) navigateToMap(mapId);
+    state.viewMode = 'visual'; state.selWbIds = ids.slice(); state.selWbId = ids[0];
+    if (window.appRender) window.appRender();
+    if (find && window.appRestoreCamera) window.appRestoreCamera();
+}
+// [prepcheck:fight-end]
 // [prepcheck:press-start]
 function press(e) {
     var t = e.target, at = function(sel) { return t && t.closest ? t.closest(sel) : null; }, el, PS = window.wpPageShelf;
@@ -502,6 +618,8 @@ function press(e) {
     if ((el = at('.prep-pin'))) { if (PS && el.dataset.pl) { PS.pin(el.dataset.pl); draw(true); } return; }
     if ((el = at('.prep-open')) || (el = at('.prep-step')) || (el = at('.prep-clue')) || (el = at('.prep-chip'))) { openAt(el, e); return; }
     if ((el = at('.prep-findtok'))) { findTok(el.dataset.tok); return; }
+    if ((el = at('.prep-sel'))) { fightToks(el, false); return; }
+    if ((el = at('.prep-findall'))) { fightToks(el, true); return; }
     if (at('.prep-all')) { st.all = true; draw(true); return; }
     // the Pages shelf's own rows, drawn here by the shelf's own drawer: the same three presses
     var row = at('.ps-row'), id = row ? row.dataset.id : ''; if (!id || !PS) return;
@@ -518,6 +636,11 @@ function wire() {
     E.body.addEventListener('click', press);
     if (E.rail) E.rail.addEventListener('click', function() { toggle('rail'); });
     var close = document.getElementById('prepCloseBtn'); if (close) close.addEventListener('click', function() { setOpen(false, 'close'); });
+    E.col.addEventListener('pointerdown', boxNote, true); E.col.addEventListener('keydown', boxNote, true);   // what box was used last as the column is used: Escape asks over()
+    if (E.spread) E.spread.addEventListener('click', function() { setSpread(!spreadNow(), 'button'); });
+    window.addEventListener('resize', function() { if (_was && st.spread) sync(); });   // spread wide, the column's width follows the window
+    var mainEl = document.getElementById('main');   // and the map's area: the left panel docked or folded by its arrow or its grip moves the column with no redraw of the page
+    if (mainEl && typeof ResizeObserver === 'function') new ResizeObserver(function() { if (_was && st.spread) sync(); }).observe(mainEl);
     if (E.hold) E.hold.addEventListener('click', function() { var camp = getActiveCampaign(); st.hold = st.hold ? '' : (camp ? mapNow(camp) : ''); log('hold', { on: st.hold ? 1 : 0 }); draw(true); });
     if (E.find) {
         E.find.addEventListener('input', function() { clearTimeout(_findT); _findT = setTimeout(function() { st.q = String(E.find.value || '').slice(0, 80); draw(true); }, 140); });
@@ -549,5 +672,6 @@ function wire() {
     // moment later, and drawn only where something differs
     document.addEventListener('click', function() { if (!_was) return; clearTimeout(_soon); _soon = setTimeout(function() { if (_was) draw(false); }, 90); }, true);
 }
-window.wpPrep = { sync: sync, may: prepMay, can: prepCan, shown: shownNow, open: function(via) { return setOpen(true, via); }, close: function(via) { return setOpen(false, via); }, toggle: toggle };
+window.wpPrep = { sync: sync, may: prepMay, can: prepCan, shown: shownNow, open: function(via) { return setOpen(true, via); }, close: function(via) { return setOpen(false, via); }, toggle: toggle,
+    spread: spreadNow, over: boxOver, unspread: function(via) { return setSpread(false, via || 'esc'); }, spreadToggle: function(via) { return setSpread(!spreadNow(), via); } };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function() { wire(); sync(); }); else { wire(); sync(); }

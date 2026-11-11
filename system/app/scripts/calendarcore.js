@@ -269,6 +269,7 @@ function cleanClock(v) {
     var sc = whole(v.cal, 1, LIMITS.others); if (sc !== null) o.cal = sc;
     var rsO = cleanRestOn(v.rest); if (rsO) o.rest = rsO;   // 1.6.2 (backlog 138 (j) fold R2): the rest that is on
     var rrO = cleanRestRecs(v.rests); if (rrO) o.rests = rrO;   // fold R3: the record of each rest
+    var rmO = cleanRestMap(v.restMap); if (rmO) o.restMap = rmO;   // fold R5: the campaign's one rest map, the GM's own
     var pl = cleanPlayed(v.played); if (pl) o.played = pl;   // 1.6.2 (backlog 166 h): the sessions played, for the timeline   // 1.6.2 (backlog 60): the other calendar the top row shows (absent: the main one)
     return o;
 }
@@ -281,7 +282,20 @@ function cleanRestOn(v) {
     var f = whole(v.from, 0, LIMITS.time); if (f !== null) o.from = f; var t = whole(v.to, 0, LIMITS.time); if (t !== null && (f === null || t >= f)) o.to = t;
     var w = cleanRestWho(v.who); if (w) o.who = w;
     var nt = cleanRestNotes(v.notes); if (nt) o.notes = nt; if (v.vis === 'all') o.vis = 'all';   // fold R3: what happened during the rest, and whether players see it
+    if (restKey(v.map)) { o.map = v.map; if (restKey(v.gm) && v.gm !== v.map) o.gm = v.gm; var bk = cleanRestBack(v.back); if (bk) o.back = bk; var np = cleanRestNpcs(v.npcs); if (np) o.npcs = np; }   // fold R5: where the party went, and where each was
     return o;
+}
+// 1.6.2 (backlog 138 (j), docs/REST_DESIGN.md fold R5; the owner, 2026-10-16, by prompt: "One, changed as you go (Recommended)", and of who goes, "table,
+// late joiners, plus NPCs i pick"): the rest map. The campaign has one, camp.clock.restMap { map, go }, as the GM last left it in the call box. The rest that
+// is on keeps where the party went (map), the GM's own map before it (gm), where each player was (back: profile id -> map id) and each NPC token taken
+// (npcs: [{ tok, from, x, y }]). All of it is the GM's own: none of it is sent
+function restKey(v) { return typeof v === 'string' && v.length <= 160 && /^[A-Za-z0-9_.:-]+$/.test(v) && !(v in Object.prototype); }
+function cleanRestMap(v) { if (!isObj(v) || !restKey(v.map)) return null; var o = { map: v.map }; if (v.go === true) o.go = true; return o; }
+function cleanRestBack(v) { if (!isObj(v)) return null; var o = {}, n = 0; Object.keys(v).forEach(function(k) { if (n < 200 && restKey(k) && k.length <= 80 && restKey(v[k])) { o[k] = v[k]; n++; } }); return n ? o : null; }
+function cleanRestNpcs(v) {
+    if (!Array.isArray(v)) return null; var out = [], seen = Object.create(null);
+    v.slice(0, 200).forEach(function(n) { if (out.length >= 100 || !isObj(n) || !restKey(n.tok) || !restKey(n.from) || seen[n.tok]) return; var x = Number(n.x), y = Number(n.y); if (!isFinite(x) || !isFinite(y) || Math.abs(x) > 1e7 || Math.abs(y) > 1e7) return; seen[n.tok] = 1; out.push({ tok: n.tok, from: n.from, x: x, y: y }); });
+    return out.length ? out : null;
 }
 function cleanRestWho(v) { if (!isObj(v)) return null; var w = Object.create(null), n = 0; Object.keys(v).forEach(function(k) { if (n >= 500 || !/^[A-Za-z0-9_-]{1,64}$/.test(k)) return; if (v[k] === 'rest' || v[k] === 'awake') { w[k] = v[k]; n++; } }); return Object.assign({}, w); }
 // Notes on several lines, at most 2000 characters, kept whole, a control character but the line break written as a space
@@ -301,6 +315,7 @@ function cleanRestRecs(v) {
         var n = whole(r.n, 1, 500); if (o.how === 'skip' && n !== null) o.n = n;
         var w = cleanRestWho(r.who); if (w && Object.keys(w).length) o.who = w;
         var nt = cleanRestNotes(r.notes); if (nt) o.notes = nt; if (r.vis === 'all') o.vis = 'all';
+        if (restKey(r.map)) o.map = r.map;   // fold R5: where the party rested
         out.push(o);
     });
     out = out.slice(-REST_RECS); return out.length ? out : null;
@@ -562,6 +577,6 @@ function preset(id) {
 
 // Names another module can import beside its own LIMITS and helpers (sheets.js)
 var CAL_LIMITS = LIMITS, calPreset = preset;
-var API = { cleanRestRecs: cleanRestRecs, cleanRestLog: cleanRestLog, cleanRestNotes: cleanRestNotes, REST_RECS: REST_RECS, REST_LOG: REST_LOG, cleanRestOn: cleanRestOn, cleanPlayed: cleanPlayed, cleanEras: cleanEras, eraOf: eraOf, noteNext: noteNext, noteOn: noteOn, viewCal: viewCal, calNamesOf: calNamesOf, fmtIn: fmtIn, fmtDateIn: fmtDateIn, PHASES: PHASES, MOON_KEYS: MOON_KEYS, moonPhases: moonPhases, seasonOf: seasonOf, VERSION: VERSION, LIMITS: LIMITS, DAY: DAY, PRESETS: PRESETS, cleanCalendar: cleanCalendar, cleanClock: cleanClock, cleanAcc: cleanAcc, everySecs: everySecs, ruleFires: ruleFires, cleanTime: cleanTime, tAdd: tAdd, tCmp: tCmp, tFloor: tFloor, tSpanMs: tSpanMs, cleanLived: cleanLived, cleanRulesOff: cleanRulesOff, livedSpans: livedSpans, fightSecs: fightSecs, freshAcc: freshAcc, dateOf: dateOf, dateNames: dateNames, cleanDateFig: cleanDateFig, timeOf: timeOf, periodDays: periodDays, yearDays: yearDays, dayLength: dayLength, fmtDate: fmtDate, fmtTime: fmtTime, fmtWhen: fmtWhen, fmtSpan: fmtSpan, preset: preset };
+var API = { cleanRestMap: cleanRestMap, cleanRestBack: cleanRestBack, cleanRestNpcs: cleanRestNpcs, cleanRestRecs: cleanRestRecs, cleanRestLog: cleanRestLog, cleanRestNotes: cleanRestNotes, REST_RECS: REST_RECS, REST_LOG: REST_LOG, cleanRestOn: cleanRestOn, cleanPlayed: cleanPlayed, cleanEras: cleanEras, eraOf: eraOf, noteNext: noteNext, noteOn: noteOn, viewCal: viewCal, calNamesOf: calNamesOf, fmtIn: fmtIn, fmtDateIn: fmtDateIn, PHASES: PHASES, MOON_KEYS: MOON_KEYS, moonPhases: moonPhases, seasonOf: seasonOf, VERSION: VERSION, LIMITS: LIMITS, DAY: DAY, PRESETS: PRESETS, cleanCalendar: cleanCalendar, cleanClock: cleanClock, cleanAcc: cleanAcc, everySecs: everySecs, ruleFires: ruleFires, cleanTime: cleanTime, tAdd: tAdd, tCmp: tCmp, tFloor: tFloor, tSpanMs: tSpanMs, cleanLived: cleanLived, cleanRulesOff: cleanRulesOff, livedSpans: livedSpans, fightSecs: fightSecs, freshAcc: freshAcc, dateOf: dateOf, dateNames: dateNames, cleanDateFig: cleanDateFig, timeOf: timeOf, periodDays: periodDays, yearDays: yearDays, dayLength: dayLength, fmtDate: fmtDate, fmtTime: fmtTime, fmtWhen: fmtWhen, fmtSpan: fmtSpan, preset: preset };
 if (typeof window !== 'undefined') window.wpCalendarCore = API;
-export { cleanRestRecs, cleanRestLog, cleanRestNotes, REST_RECS, REST_LOG, cleanRestOn, cleanPlayed, cleanEras, eraOf, noteNext, noteOn, viewCal, calNamesOf, fmtIn, fmtDateIn, PHASES, MOON_KEYS, moonPhases, seasonOf, dateNames, cleanDateFig, VERSION, LIMITS, CAL_LIMITS, calPreset, DAY, PRESETS, cleanCalendar, cleanClock, cleanAcc, everySecs, ruleFires, cleanTime, tAdd, tCmp, tFloor, tSpanMs, cleanLived, cleanRulesOff, livedSpans, fightSecs, freshAcc, dateOf, timeOf, periodDays, yearDays, dayLength, fmtDate, fmtTime, fmtWhen, fmtSpan, preset };
+export { cleanRestMap, cleanRestBack, cleanRestNpcs, cleanRestRecs, cleanRestLog, cleanRestNotes, REST_RECS, REST_LOG, cleanRestOn, cleanPlayed, cleanEras, eraOf, noteNext, noteOn, viewCal, calNamesOf, fmtIn, fmtDateIn, PHASES, MOON_KEYS, moonPhases, seasonOf, dateNames, cleanDateFig, VERSION, LIMITS, CAL_LIMITS, calPreset, DAY, PRESETS, cleanCalendar, cleanClock, cleanAcc, everySecs, ruleFires, cleanTime, tAdd, tCmp, tFloor, tSpanMs, cleanLived, cleanRulesOff, livedSpans, fightSecs, freshAcc, dateOf, timeOf, periodDays, yearDays, dayLength, fmtDate, fmtTime, fmtWhen, fmtSpan, preset };

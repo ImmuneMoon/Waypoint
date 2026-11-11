@@ -5762,3 +5762,8 @@
   #charsModal #sysChars { display: flex; flex-direction: column; min-height: 0; flex: 1; }
   #charsModal #sysCharRows { overflow-y: auto; min-height: 0; flex: 1; }
 
+
+/* 1.6.2 (backlog 138 (j), fold R5): the rest map in the call box */
+.cal-rest-go { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.cal-rest-go .cal-restcall-map { flex: 1 1 140px; min-width: 120px; width: auto; }
+.cal-rest-npc { display: block; margin: 2px 0 2px 4px; }

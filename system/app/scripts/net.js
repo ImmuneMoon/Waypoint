@@ -7652,6 +7652,7 @@ function admitPlayer(conn, prof, provenKey) {
     if (_waitGrace[prof.id]) { clearTimeout(_waitGrace[prof.id]); delete _waitGrace[prof.id]; }   // Onboarding F1a: back inside the grace, their waiting token is where they left it
     var issuedKey = null;
     var land = landingFor(prof);   // their own last map or the fallback under "Player's last location", else the GM's stage
+    if (typeof restLanding === 'function') land = restLanding(prof, land);   // 1.6.2, rests fold R5: during a rest the party is on its rest map
     prof.location = land.stage ? land.stage.itemId : null;
     prof.detached = land.detached;
     net.roster[conn.peer] = prof;
@@ -12848,6 +12849,56 @@ function followConns(stage) {
     return moved;
 }
 // [netcheck:stage-end]
+// [netcheck:restmap-start]
+// 1.6.2 (backlog 138 (j), docs/REST_DESIGN.md fold R5; the owner, 2026-10-16, by prompt, of who goes: "table, late joiners, plus NPCs i pick"): the rest map.
+// restParty moves the players at the table once, as Summon everyone does with no pin, and answers where each was; restBack sends each to the map they
+// were on, a map since deleted or locked for players counting as gone; restCarry moves NPC tokens from one map to another and answers where each was,
+// written outside your undo as a walk through a portal is; restLanding puts a player who joins during the rest on the rest map and notes where they were.
+// Where each was is kept on the rest, the GM's own: none of it is sent
+function restMapOk(camp, id) { var m = camp && validKey(id) && own(camp.items, id) ? camp.items[id] : null; return m && m.type === 'map' ? m : null; }
+net.restParty = function(mapId) {
+    var back = {}; if (!(net.active && net.role === 'host')) return back;
+    var camp = getActiveCampaign(); if (!restMapOk(camp, mapId)) return back;
+    var stage = { campId: camp.id, itemId: mapId };
+    net.conns.forEach(function(c) { var p = own(net.roster, c.peer) ? net.roster[c.peer] : null; if (!p || !validProfileId(p.id)) return; if (!own(back, p.id) && validKey(p.location) && p.location !== mapId && restMapOk(camp, p.location)) back[p.id] = p.location; summonConn(c, stage); });
+    renderRoster(); broadcastRoster();
+    return back;
+};
+net.restBack = function(back, restId) {
+    var moved = 0; if (!(net.active && net.role === 'host') || !back || typeof back !== 'object') return moved;
+    var camp = getActiveCampaign(); if (!camp) return moved;
+    net.conns.forEach(function(c) { var p = own(net.roster, c.peer) ? net.roster[c.peer] : null; if (!p || !validProfileId(p.id) || !Object.prototype.hasOwnProperty.call(back, p.id)) return; var m = restMapOk(camp, back[p.id]); if (!m || (m.meta && m.meta.playerLock) || p.location === m.id) return; summonConn(c, { campId: camp.id, itemId: m.id }); moved++; });
+    if (moved) { renderRoster(); broadcastRoster(); }
+    return moved;
+};
+net.restCarry = function(fromId, ids, toId, at) {
+    var out = []; if (net.active && net.role === 'client') return out;
+    var camp = getActiveCampaign(), from = restMapOk(camp, fromId), to = restMapOk(camp, toId); if (!from || !to || from === to || !Array.isArray(ids)) return out;
+    if (window.wpHistFlush) window.wpHistFlush();   // pending GM typing becomes its own step before the two maps are written
+    to.whiteboard = to.whiteboard || []; var Sn = SC();
+    ids.slice(0, 100).forEach(function(id) {
+        var i = (from.whiteboard || []).findIndex(function(w) { return w && w.id === id; }); if (i < 0) return;
+        var w = from.whiteboard[i]; if (!w || !w.isChar || w.ownerId || w.waiting) return;
+        var was = { tok: w.id, from: from.id, x: Number(w.x) || 0, y: Number(w.y) || 0 };
+        from.whiteboard.splice(i, 1); delete w.threats;   // 5h: threat marks belong to the map they were set on
+        if (Sn && Sn.shapeStandIn) Sn.shapeStandIn(w, to);
+        var ww = w.w || 60, hh = w.h || 52, p = at && own(at, id) && isFinite(at[id].x) && isFinite(at[id].y) ? freeSpotNear(to, at[id].x + ww / 2, at[id].y + hh / 2, ww, hh, w.id) : spawnSpot(to, null, null, ww, hh, w.id);
+        w.x = p.x; w.y = p.y; to.whiteboard.push(w); out.push(was);
+    });
+    if (!out.length) return out;
+    if (window.wpHistBarrier) window.wpHistBarrier([from.id, to.id]);   // a move between two maps: neither side can be undone past it
+    net.applyingRemote = true; save(true); net.applyingRemote = false;
+    if (net.active && net.role === 'host') [from, to].forEach(function(m) { net.broadcastItemFiltered(camp.id, m.id); });
+    if (window.appRender) window.appRender();
+    return out;
+};
+function restLanding(prof, land) {
+    var camp = getActiveCampaign(), on = camp && camp.clock && camp.clock.rest; if (!on || typeof on !== 'object' || !restMapOk(camp, on.map) || !prof || !validProfileId(prof.id)) return land;
+    var was = land && land.stage ? land.stage.itemId : null;
+    if (!(on.back && Object.prototype.hasOwnProperty.call(on.back, prof.id)) && was !== on.map && restMapOk(camp, was)) { on.back = Object.assign({}, on.back || {}); on.back[prof.id] = was; }   // saved with the admission's own save
+    return { stage: { campId: camp.id, itemId: on.map }, detached: true };
+}
+// [netcheck:restmap-end]
 net.summonPlayer = function(peerKey) {
     if (!net.active || net.role !== 'host') return;
     var stage = currentStage();

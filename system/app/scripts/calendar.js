@@ -722,14 +722,17 @@ function restWait(camp) {   // why Call a rest waits, in words, or '' where a re
     return '';
 }
 function restWho(camp) { var o = {}; charIdsOf(camp).forEach(function(id) { o[id] = isPc(camp.chars[id]) ? 'rest' : 'none'; }); return o; }
-function restOpen(rid) { var camp = getActiveCampaign(), r = restByPick(sysNow(), rid); if (!camp || isPlayer() || !r || restWait(camp)) return false; restCall = { rid: r.id, n: r.len.n, u: r.len.u, who: restWho(camp) }; return true; }
+function restOpen(rid) { var camp = getActiveCampaign(), r = restByPick(sysNow(), rid); if (!camp || isPlayer() || !r || restWait(camp)) return false; restCall = { rid: r.id, n: r.len.n, u: r.len.u, who: restWho(camp) }; restMapCall(camp, restCall); return true; }
 function restStart() {
     var camp = getActiveCampaign(), sys = sysNow(), cal = sysCal(), rc = restCall, r = rc ? restByPick(sys, rc.rid) : null; if (!camp || isPlayer() || !r) return false;
     var why = restWait(camp); if (why) { toast(why + '.'); return false; }
     var len = everySecs(cal, sysUnits(sys), { n: rc.n, u: rc.u }); if (!(len > 0)) { toast('Set how long the rest lasts.'); return false; }
     var t0 = tOf(camp), who = {}; Object.keys(rc.who).forEach(function(k) { if (rc.who[k] === 'rest' || rc.who[k] === 'awake') who[k] = rc.who[k]; });
+    var goM = rc.go && rc.map ? restMapOf(camp, rc.map) : null, hereM = restMapOf(camp, camp.activeItemId), restOn = { rid: r.id, name: r.name, from: t0, to: t0 + len, who: who };   // fold R5: the rest map, if ticked
+    if (goM) { restOn.map = goM.id; if (hereM && hereM.id !== goM.id) restOn.gm = hereM.id; }
     restCall = null; restTold[camp.id] = true;
-    if (!moveTo(t0 + len, 'Rest called \u2014 ' + r.name, false, false, { who: who, restOn: { rid: r.id, name: r.name, from: t0, to: t0 + len, who: who } })) return false;
+    if (!moveTo(t0 + len, 'Rest called \u2014 ' + r.name, false, false, { who: who, restOn: restOn, restMap: restMapOf(camp, rc.map) ? { map: rc.map, go: !!rc.go } : null })) return false;
+    if (goM) { try { restGo(camp, goM, hereM ? hereM.id : '', rc.npcs); } catch (e) { console.error(e); } }
     var nn = net(); if (nn && typeof nn.restLine === 'function') nn.restLine('The party rests: ' + r.name + '.');
     var rIds = Object.keys(who).filter(function(k) { return who[k] === 'rest'; }); if (Array.isArray(r.does) && r.does.length && rIds.length && window.wpSheets && typeof window.wpSheets.restDoes === 'function') { try { window.wpSheets.restDoes(rIds, r.does, 1); } catch (e) { console.error(e); } }   // fold R4: what it does at once, for those who rest
     return true;
@@ -738,7 +741,9 @@ function restEnd() {
     var camp = getActiveCampaign(), ck = clockOf(camp), on = restNow(camp); if (!camp || isPlayer() || !on) return false;
     var nc = Object.assign({}, ck); delete nc.rest; nc.rests = (ck.rests || []).concat([restRecFor(on, ck.t)]); camp.clock = cleanClock(nc) || { t: ck.t };   // fold R3: the calendar's record of it
     var nn = net(); if (nn && nn.logEvent) nn.logEvent('time', 'Rest ended \u2014 ' + on.name + ' \u2014 now ' + fmtWhen(sysCal(), ck.t));
-    save(); if (nn && typeof nn.restLine === 'function') nn.restLine('The rest is over.'); refresh(); return true;
+    save(); if (nn && typeof nn.restLine === 'function') nn.restLine('The rest is over.');
+    var goBack = restBackOn; restBackOn = true; if (on.map && goBack) { try { restReturn(camp, on); } catch (e) { console.error(e); } }   // fold R5: the party goes back where it was
+    refresh(); return true;
 }
 function restNames(camp, who, kind) { var out = []; Object.keys(who || {}).forEach(function(k) { if (who[k] === kind && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, k)) { var ch = camp.chars[k]; out.push(ch && typeof ch.name === 'string' && ch.name ? ch.name : 'A character'); } }); return out; }
 function restUnitOpts(sys) { var us = [['min', 'minutes'], ['hour', 'hours'], ['day', 'days'], ['week', 'weeks']]; sysUnits(sys).forEach(function(u) { if (u && typeof u.key === 'string' && u.key && u.key.toLowerCase() !== 'round') us.push([u.key, typeof u.label === 'string' && u.label.trim() ? u.label.trim() : u.key]); }); return us; }
@@ -751,6 +756,7 @@ function restPanel(body, cal, camp, sys) {
         if (rN.length) box.appendChild(cel('div', 'sys-note', 'Resting: ' + rN.join(', ') + '.')); if (aN.length) box.appendChild(cel('div', 'sys-note', 'Awake: ' + aN.join(', ') + '.'));
         var tn = cel('textarea', 'field cal-rest-notes'); tn.rows = 2; tn.maxLength = 2000; tn.value = on.notes || ''; tn.placeholder = 'What happened during the rest'; tn.title = 'Your notes on this rest. The calendar keeps them with its record'; box.appendChild(tn);   // fold R3
         var tl = cel('label', 'cal-tick'), tc = cel('input', 'cal-rest-vis'); tc.type = 'checkbox'; tc.checked = on.vis === 'all'; tc.title = 'Players see these notes on the calendar'; tl.appendChild(tc); tl.appendChild(document.createTextNode(' Players see these notes')); box.appendChild(tl);
+        if (on.map) restBackBox(box, camp, on);   // fold R5
         var bar = cel('div', 'cal-rest-bar'); bar.appendChild(cbtn('cal-rest-end', 'End the rest', 'The rest is over: the clock runs again from where it stands, and the table is told', 'restend')); box.appendChild(bar);
         body.appendChild(box); return;
     }
@@ -768,6 +774,7 @@ function restPanel(body, cal, camp, sys) {
         var ids = charIdsOf(camp), pcs = ids.filter(function(id) { return isPc(camp.chars[id]); }), npcs = ids.filter(function(id) { return !isPc(camp.chars[id]); });
         pcs.forEach(function(id) { row(cb, id); }); if (!pcs.length) cb.appendChild(cel('div', 'sys-note', 'No player has a character here yet.'));
         if (npcs.length) { var nd = cel('details', 'cal-rest-npcs'); nd.appendChild(cel('summary', '', 'NPCs (' + npcs.length + ')')); npcs.forEach(function(id) { row(nd, id); }); cb.appendChild(nd); }
+        restGoBox(cb, camp, restCall);   // fold R5
         var bb = cel('div', 'cal-rest-bar'); bb.appendChild(cbtn('cal-rest-start', 'Start the rest', 'The clock jumps the rest\u2019s length, the time rules count it for who rests, and the clock waits until you end the rest', 'reststart')); bb.appendChild(cbtn('cal-rest-cancel', 'Cancel', 'Call no rest', 'restcancel')); cb.appendChild(bb);
         body.appendChild(cb); return;
     }
@@ -776,6 +783,68 @@ function restPanel(body, cal, camp, sys) {
     body.appendChild(rr); body.appendChild(cel('div', 'sys-note cal-rest-note', why ? why + '.' : 'The clock jumps the rest\u2019s length, then waits until you end the rest.'));
 }
 // [calendarcheck:restcall-end]
+// [calendarcheck:restmap-start]
+// 1.6.2 (backlog 138 (j), docs/REST_DESIGN.md fold R5; the owner, 2026-10-16, by prompt: "One, changed as you go (Recommended)", and of who goes, "table,
+// late joiners, plus NPCs i pick"): the rest map. The call box offers Take the party to, a tick and a map, as the campaign last left them, and the NPC
+// tokens on the map you are on, each a tick. Start the rest moves the players at the table once, as a summon does with no pin (net.restParty), carries
+// the ticked NPC tokens there (net.restCarry) and takes your own screen with them. A player who joins during the rest lands there (net.js restLanding).
+// End the rest takes each back to the map they were on, a map since deleted or locked for players counting as gone, unless you untick it
+var restBackOn = true;
+function restMapOf(camp, id) { var it = camp && camp.items && typeof id === 'string' && id && Object.prototype.hasOwnProperty.call(camp.items, id) ? camp.items[id] : null; return it && it.type === 'map' ? it : null; }
+function restMapList(camp) { return camp && camp.items ? Object.keys(camp.items).map(function(k) { return camp.items[k]; }).filter(function(it) { return it && it.type === 'map'; }) : []; }
+function restMapFirst(camp) { var ms = restMapList(camp); return ms.filter(function(m) { return m.id !== camp.activeItemId; })[0] || ms[0] || null; }   // a rest map not yet picked: the first that is not the map you are on
+function restMapName(m) { return m && m.meta && typeof m.meta.title === 'string' && m.meta.title.trim() ? m.meta.title.trim() : 'A map'; }
+function restMapCall(camp, rc) { var ck = clockOf(camp), rm = ck && ck.restMap, m = rm ? restMapOf(camp, rm.map) : null; rc.map = m ? m.id : ''; rc.go = !!(m && rm.go); rc.npcs = {}; return rc; }
+function restNpcToks(camp, toId) {   // the NPC tokens on the map you are on, never a player's, a waiting one or one on the rest map itself
+    var here = restMapOf(camp, camp && camp.activeItemId); if (!here || here.id === toId) return [];
+    return (here.whiteboard || []).filter(function(w) { if (!w || !w.isChar || w.waiting || w.ownerId) return false; var ch = typeof w.charId === 'string' && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, w.charId) ? camp.chars[w.charId] : null; return !(ch && isPc(ch)); })
+        .slice(0, 100).map(function(w) { var ch = typeof w.charId === 'string' && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, w.charId) ? camp.chars[w.charId] : null; return { id: w.id, name: (ch && typeof ch.name === 'string' && ch.name) || (typeof w.charName === 'string' && w.charName) || (typeof w.name === 'string' && w.name) || 'A token' }; });
+}
+function restGoBox(cb, camp, rc) {
+    var maps = restMapList(camp); if (!maps.length) return;
+    var gr = cel('div', 'cal-rest-go'), gl = cel('label', 'cal-tick'), gc = cel('input', 'cal-restcall-go'); gc.type = 'checkbox'; gc.checked = !!rc.go; gc.title = 'The players at the table go to this map, and anyone who joins during the rest'; gl.appendChild(gc); gl.appendChild(document.createTextNode(' Take the party to')); gr.appendChild(gl);
+    var ms = cel('select', 'field cal-restcall-map'); ms.title = 'The rest map. The campaign keeps it for the next rest you call'; maps.forEach(function(m) { var op = cel('option', '', restMapName(m)); op.value = m.id; ms.appendChild(op); }); ms.value = restMapOf(camp, rc.map) ? rc.map : restMapFirst(camp).id; ms.disabled = !rc.go; gr.appendChild(ms); cb.appendChild(gr);
+    if (!rc.go) return;
+    var nt = restNpcToks(camp, rc.map);
+    if (nt.length) { cb.appendChild(cel('div', 'sys-num-cap cal-rest-whocap', 'NPCs who go too')); nt.forEach(function(t) { var l = cel('label', 'cal-tick cal-rest-npc'), c = cel('input', 'cal-restcall-npc'); c.type = 'checkbox'; c.dataset.tok = t.id; c.checked = !!rc.npcs[t.id]; c.title = 'This token goes to the rest map, and back at the end'; l.appendChild(c); l.appendChild(document.createTextNode(' ' + t.name)); cb.appendChild(l); }); }
+    cb.appendChild(cel('div', 'sys-note', 'The players at the table go, and anyone who joins during the rest. NPCs go only where ticked, from the map you are on.'));
+}
+function restGo(camp, m, hereId, ticks) {   // after the clock has moved: the party to the rest map, where each was noted on the rest, in a quiet save outside your undo
+    var nn = net(), on = restNow(camp); if (!on) return null;
+    var back = nn && typeof nn.restParty === 'function' ? nn.restParty(m.id) || {} : {};
+    var ids = Object.keys(ticks || {}).filter(function(k) { return ticks[k] === true; });
+    var npcs = hereId && hereId !== m.id && ids.length && nn && typeof nn.restCarry === 'function' ? nn.restCarry(hereId, ids, m.id) || [] : [];
+    var nr = Object.assign({}, restNow(camp)); if (Object.keys(back).length) nr.back = back; if (npcs.length) nr.npcs = npcs;
+    camp.clock = cleanClock(Object.assign({}, clockOf(camp), { rest: nr })) || camp.clock;
+    if (nn) nn.applyingRemote = true; save(true); if (nn) nn.applyingRemote = false;
+    if (hereId !== m.id && typeof restNav === 'function') restNav(m.id);
+    return { back: back, npcs: npcs };
+}
+function restReturn(camp, on) {   // End the rest: each player to the map they were on, each NPC token to its map and place, your own screen back where it was
+    var nn = net(), m = restMapOf(camp, on.map), out = { players: 0, npcs: 0 };
+    if (on.back && nn && typeof nn.restBack === 'function') out.players = nn.restBack(on.back, on.map) || 0;
+    if (m && Array.isArray(on.npcs) && nn && typeof nn.restCarry === 'function') {
+        var by = {}; on.npcs.forEach(function(n) { if (!restMapOf(camp, n.from)) return; (by[n.from] = by[n.from] || []).push(n); });
+        Object.keys(by).forEach(function(f) { var at = {}; by[f].forEach(function(n) { at[n.tok] = { x: n.x, y: n.y }; }); out.npcs += (nn.restCarry(m.id, by[f].map(function(n) { return n.tok; }), f, at) || []).length; });
+    }
+    if (on.gm && restMapOf(camp, on.gm) && camp.activeItemId === on.map && typeof restNav === 'function') restNav(on.gm);
+    return out;
+}
+function restBackWords(camp, on) {   // who goes where, in words
+    var parts = [];
+    Object.keys(on.back || {}).forEach(function(pid) { var rec = camp.players && Object.prototype.hasOwnProperty.call(camp.players, pid) ? camp.players[pid] : null, nm = rec && typeof rec.name === 'string' && rec.name ? rec.name : 'A player', m = restMapOf(camp, on.back[pid]); parts.push(m && !(m.meta && m.meta.playerLock) ? nm + ' to ' + restMapName(m) : nm + ' stays, since that map is gone'); });
+    (on.npcs || []).forEach(function(n) { var m = restMapOf(camp, n.from), w = restMapOf(camp, on.map); var t = w ? (w.whiteboard || []).find(function(x) { return x && x.id === n.tok; }) : null; if (!t) return; var ch = typeof t.charId === 'string' && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, t.charId) ? camp.chars[t.charId] : null, nm = (ch && ch.name) || t.charName || t.name || 'A token'; parts.push(m ? nm + ' to ' + restMapName(m) : nm + ' stays, since that map is gone'); });
+    var gm = on.gm ? restMapOf(camp, on.gm) : null; if (gm) parts.push('you to ' + restMapName(gm));
+    return parts.length ? parts.join(', ') + '.' : 'Nobody was moved there.';
+}
+function restBackBox(box, camp, on) {
+    var m = restMapOf(camp, on.map); box.appendChild(cel('div', 'sys-note', 'The party went to ' + (m ? restMapName(m) : 'a map since deleted') + '.'));
+    var l = cel('label', 'cal-tick'), c = cel('input', 'cal-rest-back'); c.type = 'checkbox'; c.checked = restBackOn; c.title = 'Each goes back to the map they were on when the rest was called'; l.appendChild(c); l.appendChild(document.createTextNode(' Take the party back to where they were')); box.appendChild(l);
+    box.appendChild(cel('div', 'sys-note cal-rest-backwho', restBackWords(camp, on)));
+}
+// [calendarcheck:restmap-end]
+// your own screen goes with the party (sidebar.js's navigateToMap, loaded on its first use)
+function restNav(id) { import('./sidebar.js').then(function(m) { if (m && typeof m.navigateToMap === 'function') m.navigateToMap(id); }).catch(function(e) { console.error(e); }); }
 // [calendarcheck:restrec-start]
 // 1.6.2 (backlog 138 (j), docs/REST_DESIGN.md fold R3; the owner, 2026-10-16: "the calendar can auto record when rests happen and the gm can add notes on
 // what happened during the rest too"): the calendar writes each rest by itself, a called one as it ends and a skip that held a rest by name for at
@@ -783,7 +852,7 @@ function restPanel(body, cal, camp, sys) {
 // see them. A player reads the records the host sends (camp.restLog: names and times, and notes only where the GM ticked them)
 function newRestRecId() { return 'rr_' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
 function restRecs(camp) { if (isPlayer()) return typeof cleanRestLog === 'function' ? cleanRestLog(camp && camp.restLog) : []; var ck = clockOf(camp); return ck && Array.isArray(ck.rests) ? ck.rests : []; }
-function restRecFor(on, t) { var r = { id: newRestRecId(), name: on.name, from: typeof on.from === 'number' ? on.from : t, to: t, how: 'call' }; if (on.rid) r.rid = on.rid; if (on.who && Object.keys(on.who).length) r.who = on.who; if (on.notes) r.notes = on.notes; if (on.vis === 'all') r.vis = 'all'; return r; }
+function restRecFor(on, t) { var r = { id: newRestRecId(), name: on.name, from: typeof on.from === 'number' ? on.from : t, to: t, how: 'call' }; if (on.rid) r.rid = on.rid; if (on.who && Object.keys(on.who).length) r.who = on.who; if (on.notes) r.notes = on.notes; if (on.vis === 'all') r.vis = 'all'; if (on.map) r.map = on.map; return r; }
 function restSkipRec(skip, t0, t1, lenS) { var n = Math.min(500, Math.floor((t1 - t0) / lenS)), r = { id: newRestRecId(), rid: skip.id, name: skip.name, from: t0, to: t1, how: 'skip' }; if (n > 1) r.n = n; return r; }
 function restDays(camp, dl) {   // [first day, last day] of each rest the calendar holds, and of the one that is on
     var out = restRecs(camp).map(function(r) { return [Math.floor(r.from / dl), Math.floor(r.to / dl)]; }), on = isPlayer() ? null : restNow(camp);
@@ -807,6 +876,7 @@ function restDayList(body, cal, camp, day, gm) {
         if (gm) {
             var rn = restNames(camp, r.who, 'rest'), an = restNames(camp, r.who, 'awake');
             if (rn.length) row.appendChild(cel('div', 'sys-note', 'Rested: ' + rn.join(', ') + '.')); if (an.length) row.appendChild(cel('div', 'sys-note', 'Awake: ' + an.join(', ') + '.'));
+            if (r.map && typeof restMapOf === 'function') { var rmD = restMapOf(camp, r.map); row.appendChild(cel('div', 'sys-note', 'At ' + (rmD ? restMapName(rmD) : 'a map since deleted') + '.')); }   // fold R5
             var ta = cel('textarea', 'field cal-rr-notes'); ta.rows = 2; ta.maxLength = 2000; ta.value = r.notes || ''; ta.placeholder = 'What happened during the rest'; ta.title = 'Your notes on this rest, at most 2000 characters'; ta.dataset.rr = r.id; row.appendChild(ta);
             var l = cel('label', 'cal-tick'), c = cel('input', 'cal-rr-vis'); c.type = 'checkbox'; c.checked = r.vis === 'all'; c.dataset.rr = r.id; c.title = 'Players see these notes on the calendar'; l.appendChild(c); l.appendChild(document.createTextNode(' Players see these notes')); row.appendChild(l);
             var del = cbtn('cal-rr-del', 'Remove', 'Remove this record of the rest, with its notes', 'calrrdel'); del.dataset.rr = r.id; row.appendChild(del);
@@ -1005,6 +1075,7 @@ function moveTo(t1, why, live, own, how) {   // live (1.5.4): the clock ran by i
     }
     var nc = Object.assign({}, ck, { t: t1 }); if (gone < 0) nc.top = ck.top || { s: ck.t, ms: 0 };   // 152: a step back keeps the highest second reached
     if (how && how.restOn) nc.rest = how.restOn; else if (nc.rest && gone > 0) nc.rest = Object.assign({}, nc.rest, { to: t1 });
+    if (how && how.restMap) nc.restMap = how.restMap;   // fold R5: the campaign's rest map, as the call box left it
     var skipDo = null;
     if (how && how.skip && how.skip.len && gone > 0 && !ck.rest && typeof restSkipRec === 'function') { var lenS = everySecs(cal, sysUnits(sysNow()), how.skip.len); if (lenS > 0 && gone >= lenS) { nc.rests = (ck.rests || []).concat([restSkipRec(how.skip, ck.t, t1, lenS)]); if (Array.isArray(how.skip.does) && how.skip.does.length) skipDo = { does: how.skip.does, n: Math.floor(gone / lenS) }; } }   // fold R4: and its list, once each whole length, for the players' characters   // fold R3: a skip that held a rest by name for its length   // fold R2: the rest called, or a step that adds to it
     camp.clock = cleanClock(nc) || { t: t1 };
@@ -1100,6 +1171,10 @@ function onWinChange(e) {
     else if ((tg.classList.contains('cal-rest-notes') || tg.classList.contains('cal-rest-vis')) && !isPlayer()) { var isN2 = tg.classList.contains('cal-rest-notes'); editRests(function(list, on) { if (!on) return false; if (isN2) { if (String(tg.value).trim()) on.notes = String(tg.value); else delete on.notes; } else if (tg.checked) on.vis = 'all'; else delete on.vis; }); }   // fold R3: the open rest's notes
     else if (restCall && tg.classList.contains('cal-restcall-n')) { var rnN = Number(tg.value); if (Math.floor(rnN) === rnN && rnN >= 1 && rnN <= 1000) restCall.n = rnN; renderWin(); }   // backlog 138 (j) fold R2: the call box
     else if (restCall && tg.classList.contains('cal-restcall-u')) { restCall.u = String(tg.value); renderWin(); }
+    else if (restCall && tg.classList.contains('cal-restcall-go')) { restCall.go = !!tg.checked; var campG = getActiveCampaign(); if (restCall.go && !restMapOf(campG, restCall.map)) { var rmF = restMapFirst(campG); restCall.map = rmF ? rmF.id : ''; } renderWin(); }   // fold R5: the rest map
+    else if (restCall && tg.classList.contains('cal-restcall-map')) { if (restMapOf(getActiveCampaign(), String(tg.value))) restCall.map = String(tg.value); renderWin(); }
+    else if (restCall && tg.classList.contains('cal-restcall-npc') && tg.dataset && typeof tg.dataset.tok === 'string') { if (tg.checked) restCall.npcs[tg.dataset.tok] = true; else delete restCall.npcs[tg.dataset.tok]; }
+    else if (tg.classList.contains('cal-rest-back')) restBackOn = !!tg.checked;
     else if (restCall && tg.classList.contains('cal-restcall-who') && tg.dataset && typeof tg.dataset.char === 'string' && Object.prototype.hasOwnProperty.call(restCall.who, tg.dataset.char)) restCall.who[tg.dataset.char] = tg.value === 'rest' || tg.value === 'awake' ? tg.value : 'none';
     else if (tg.classList.contains('cal-kind-sel')) { if (!isPlayer()) { var sysK = sysNow(), kv = String(tg.value || 'active'); if (kv !== 'active' && pickIsRest(sysK, kv) && ordersRun()) { restPickSet(sysK, 'active'); toast('A fight is running: time passes as Active until it ends.'); } else restPickSet(sysK, kv); renderWin(); } }   // backlog 138 (j) fold R1
     else if (tg.classList.contains('cal-show-sel')) { if (!isPlayer()) setShowCal(Number(tg.value)); }   // 1.6.2 (backlog 60)   // 1.5.4: the running clock's speed

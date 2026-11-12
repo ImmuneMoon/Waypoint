@@ -316,6 +316,110 @@ function mkDoc() {
         && ins.includes("ordered = window.wpRoomCore.roomsOrdered(items, roomOrd, activeMap.cats)") && ins.includes("html += '<div class=\"el-layer-head\">' + esc(cE && cE.label ? cE.label : 'No category') + '</div>';") && ins.includes("var ns = document.getElementById('elementRoomOrder'); if (ns) ns.focus();"));
 
     /* ---- the styles, Help, the notes ---- */
+    /* ---- fold 3: a room and its place on the play map ---- */
+    {
+        const M = { whiteboard: [
+            { id: 'small', type: 'rect', x: 10, y: 10, w: 20, h: 20, nodeId: 'r1' }, { id: 'big', type: 'rect', x: 0, y: 0, w: 200, h: 100, nodeId: 'r1' },
+            { id: 'tok', isChar: true, x: 0, y: 0, w: 900, h: 900, nodeId: 'r1' }, { id: 'wait', waiting: true, x: 0, y: 0, w: 900, h: 900, nodeId: 'r2' },
+            { id: 'note', gmNoteFor: 'p', x: 0, y: 0, w: 900, h: 900, nodeId: 'r2' }, { id: 'nobox', nodeId: 'r3' }, { id: 'none', x: 0, y: 0, w: 50, h: 50 },
+            { id: 'r4p', x: 5, y: 5, nodeId: 'r4' }, null, 'junk'] };
+        const placed = RC.roomsPlaced(M), room = { id: 'r9', name: 'Old Mill' };
+        const area = RC.roomPlacePiece('area', room, { x: 10.4, y: -3, w: 120.6, h: 80 }), floor = RC.roomPlacePiece('floor', room, { x: 0, y: 0, w: 50, h: 50 }, { color: '#222', texture: 'stone', layer: 'front', nodeId: 'x', type: 'circle' });
+        check('fold 3 (roomcore run for real): a room\'s place is the largest piece of the play map that names it, never a token, a waiting token, a GM note card or a piece with no place on the board; the rooms placed are those that have one, in an object with no prototype; a place drawn is a clear area hidden from players and marked roomArea, or a floor in the floor handed in, its box whole pixels at 0 or more and its name the room\'s; any other kind, a box under 10 px or one that is no number makes none',
+            RC.roomPlaceOf(M, 'r1').id === 'big' && RC.roomPlaceOf(M, 'r2') === null && RC.roomPlaceOf(M, 'r3') === null && RC.roomPlaceOf(M, 'r4').id === 'r4p' && RC.roomPlaceOf(null, 'r1') === null && RC.roomPlaceOf({}, 'r1') === null
+            && J(Object.keys(placed).sort()) === J(['r1', 'r4']) && Object.getPrototypeOf(placed) === null && J(RC.roomsPlaced('x')) === '{}'
+            && J(area) === J({ type: 'rect', x: 10, y: 0, w: 121, h: 80, color: 'transparent', layer: 'back-mid', nodeId: 'r9', name: 'Old Mill', hidden: true, roomArea: true })
+            && J(floor) === J({ color: '#222', texture: 'stone', layer: 'back', nodeId: 'r9', type: 'rect', x: 0, y: 0, w: 50, h: 50, name: 'Old Mill' })
+            && RC.roomPlacePiece('floor', room, { x: 0, y: 0, w: 50, h: 50 }).color === '#3a3a44' && RC.roomPlacePiece('area', { id: 'r', name: '' }, { x: 0, y: 0, w: 50, h: 50 }).name === 'Room'
+            && RC.roomPlacePiece('door', room, { x: 0, y: 0, w: 50, h: 50 }) === null && RC.roomPlacePiece('area', room, { x: 0, y: 0, w: 9, h: 50 }) === null && RC.roomPlacePiece('area', room, { x: 'a', y: 0, w: 50, h: 50 }) === null
+            && RC.roomPlacePiece('area', {}, { x: 0, y: 0, w: 50, h: 50 }) === null && RC.roomPlacePiece('area', room, null) === null, J([area, floor]));
+    }
+    {
+        const wbS = read('scripts/whiteboard.js'), rpS = cut(wbS, 'roomplace', 'whiteboard.js');
+        const mkRP = o => {
+            o = o || {}; const doc = mkDoc(), toasts = [], asks = [], saves = []; let n = 0, renders = 0, viewSet = [];
+            const mv = doc.createElement('button'); mv.classList.add('active'); let mvClicks = 0; mv.click = () => { mvClicks++; }; doc.byId.moveModeBtn = mv;
+            const nb = doc.createElement('button'); nb.classList.add('on'); doc.byId.wbRoomNamesBtn = nb;
+            const store = Object.assign({}, o.store || {}), ls = { getItem: k => Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null, setItem: (k, v) => { store[k] = String(v); } };
+            const am = o.am || { id: 'm1', type: 'map', rooms: [{ id: 'r1', name: 'Old Mill' }], whiteboard: [] }, state = { selWbId: null, selWbIds: [] };
+            const win = { wpRoomCore: RC, wpStream: !!o.stream, wpSetViewMode: v => viewSet.push(v), wpBuildCore: { pieceProps: m => (m === 'floor' ? { color: '#444', texture: 'planks' } : null) } };
+            const api = new Function('window', 'document', 'getActiveMap', 'buildMay', 'toast', 'showConfirm', 'state', 'uid', 'save', 'render', 'wbWrap', 'localStorage', rpS + '\nreturn { step: roomPlaceStep, row: roomShowRow, sync: roomNameSync, places: roomNamePlaces, on: roomNamesOn, ROW: ROOM_SHOW_ROW, LEADS: ROOM_LEADS };')(
+                win, doc, () => (o.noMap ? null : am), () => o.may !== false, m => toasts.push(m), (q, cb, op) => asks.push({ q, cb, op }), state, () => 'u' + (++n), () => saves.push(1), () => { renders++; }, { style: {} }, ls);
+            return { api, win, doc, am, state, toasts, asks, saves, store, nb, get renders() { return renders; }, viewSet, get mvClicks() { return mvClicks; } };
+        };
+        const W = mkRP(), armed = W.win.wpRoomPlace('r1'), P = W.win.wpPlace;
+        W.api.step(P.roomplace, 10, 10, 5, 5); const reArm = W.win.wpPlace && W.win.wpPlace.roomplace === P.roomplace, small = W.asks.length;
+        W.api.step(P.roomplace, 100, 120, 160, 90); const ask = W.asks[0];
+        ask.cb(true); const ar = W.am.whiteboard[0], arSel = W.state.selWbId;
+        W.api.step(P.roomplace, 300, 120, 60, 60); W.asks[1].cb('alt'); const fl = W.am.whiteboard[1];
+        W.api.step(P.roomplace, 300, 120, 60, 60); W.asks[2].cb(false); const kept = W.am.whiteboard.length;
+        W.api.step(P.roomplace, 300, 120, 60, 60); W.am.rooms.length = 0; W.asks[3].cb(true); const gone = W.am.whiteboard.length, goneSaid = W.toasts.slice(-1)[0];
+        check('fold 3, Place it (whiteboard.js roomplace, run for real): it switches to the play map and arms the map\'s next drag for that room; a click or a box under 12 px arms it again and asks nothing; a box asks, its buttons alone, an area only you see or a floor players see; the area is laid hidden and marked, the floor in Build\'s Floor material, each named after the room, selected, one save; Cancel lays nothing, and a room deleted meanwhile lays nothing and says so',
+            armed === true && J(W.viewSet) === J(['visual']) && P.type === 'roomplace' && P.roomplace.roomId === 'r1' && P.roomplace.mapId === 'm1' && reArm && small === 0
+            && ask.q === 'The place of Old Mill: an area only you see, or a floor players see?' && ask.op.yes === 'An area only I see' && ask.op.alt === 'A floor players see' && ask.op.noEnter === true
+            && ar.hidden === true && ar.roomArea === true && ar.nodeId === 'r1' && ar.name === 'Old Mill' && ar.x === 100 && ar.w === 160 && ar.id === 'wbu1' && arSel === ar.id
+            && fl.texture === 'planks' && fl.color === '#444' && fl.layer === 'back' && !fl.hidden && fl.nodeId === 'r1' && kept === 2 && gone === 2 && goneSaid === 'That room is gone. Nothing was placed.' && W.saves.length === 2,
+            J([armed, W.viewSet, reArm, small, W.asks.length, kept, gone, W.saves.length, W.toasts]));
+        const P2 = mkRP({ may: false }), P3 = mkRP({ stream: true }), P4 = mkRP();
+        const noRoom = P4.win.wpRoomPlace('nope'), other = mkRP(); other.win.wpRoomPlace('r1'); const oP = other.win.wpPlace.roomplace; other.am.id = 'm2'; other.api.step(oP, 0, 0, 100, 100);
+        check('fold 3: Place it is the GM\'s own (never on a player\'s app or in the stream window, never for a room that is not there), and a drag that lands on another map lays nothing',
+            P2.win.wpRoomPlace('r1') === false && !P2.win.wpPlace && P3.win.wpRoomPlace('r1') === false && noRoom === false && other.asks.length === 0 && other.toasts.slice(-1)[0] === 'That map is no longer on screen. Nothing was placed.');
+        const Q = mkRP(), linked = { id: 'a', nodeId: 'r1' };
+        check('fold 3, Show on the Data Map (run for real): on the GM\'s menu of one piece whose room is on the Data Map, its words and drawing fixed; never for two pieces, a piece with no room or a room that is gone, on a player\'s app or in the stream window',
+            Q.api.row([linked], Q.am).html === Q.api.ROW && Q.api.ROW.includes('<span>Show on the Data Map<small>Its room, selected.</small></span>') && Q.api.row([linked, linked], Q.am) === null && Q.api.row([{ id: 'b' }], Q.am) === null
+            && Q.api.row([{ id: 'c', nodeId: 'gone' }], Q.am) === null && mkRP({ may: false }).api.row([linked], Q.am) === null && mkRP({ stream: true }).api.row([linked], Q.am) === null && Q.api.row([linked], null) === null);
+        const R = mkRP(), el = R.doc.createElement('div'); el.querySelector = s => { const k = el.children.find(c => c.classList.contains(s.replace(':scope > .', ''))) || null; if (k) k.remove = () => el.removeChild(k); return k; };
+        R.am.whiteboard = [{ id: 'floor', type: 'rect', x: 0, y: 0, w: 300, h: 200, nodeId: 'r1' }, { id: 'mark', type: 'rect', x: 10, y: 10, w: 30, h: 30, nodeId: 'r1' }, { id: 'tok', isChar: true, x: 0, y: 0, w: 999, h: 999, nodeId: 'r1' }, { id: 'tx', type: 'text', x: 0, y: 0, w: 999, h: 999, nodeId: 'r1' }, { id: 'lost', type: 'rect', x: 0, y: 0, w: 5, h: 5, nodeId: 'gone' }];
+        const pl = R.api.places(R.am);
+        R.api.sync(el, { id: 'floor' }, pl); const tag = el.children[0];
+        const t1 = tag && tag.className, w1 = tag && tag.textContent, h1 = tag && tag.attrs['aria-hidden'];
+        R.am.rooms[0].name = '<b>x</b>'; R.api.sync(el, { id: 'floor' }, R.api.places(R.am)); const w2 = el.children[0].textContent;
+        R.api.sync(el, { id: 'floor' }, null); const gone1 = el.children.length;
+        const bare = R.doc.createElement('div'); let asked = 0; bare.querySelector = () => { asked++; return null; }; R.api.sync(bare, { id: 'none' }, pl);
+        const off = mkRP({ store: { wp_roomNames: 'off' } }), gm = mkRP({ may: false }), st = mkRP({ stream: true });
+        R.nb.listeners.click[0].f({}); const offNow = [R.store.wp_roomNames, R.nb.classList.contains('on'), R.nb.attrs['aria-checked'], R.api.places(R.am)]; R.nb.listeners.click[0].f({});
+        check('fold 3, room names (run for real): a room\'s name stands once, on its place, the largest piece that names it, never on a small mark of the same room, a token, a text box or a piece whose room is gone; set as text in a plate hidden from a screen reader; a piece that wears none and never did passes by without a lookup; none with Room names unticked, on a player\'s app or in the stream window; the View tick is this computer\'s, starts ticked and is read once',
+            J(Object.keys(pl)) === J(['floor']) && pl.floor === R.am.rooms[0] && t1 === 'wb-room-name' && w1 === 'Old Mill' && h1 === 'true' && w2 === '<b>x</b>' && gone1 === 0 && asked === 0
+            && off.api.places(off.am) === null && gm.api.places(gm.am) === null && st.api.places(st.am) === null && R.api.places({ rooms: [], whiteboard: [] }) === null
+            && R.api.on() === true && J(offNow) === J(['off', false, 'false', null]) && R.store.wp_roomNames === 'on' && R.nb.classList.contains('on'), J([pl && Object.keys(pl), t1, w1, w2, gone1, asked, offNow]));
+        const L = mkRP({ am: { id: 'm1', type: 'map', rooms: [{ id: 'r1', name: 'Door', targetMapId: 'm2' }], whiteboard: [] } }), lp = L.win.wpRoomPlace('r1');
+        const L2 = mkRP(); L2.win.wpRoomPlace('r1'); const rec = L2.win.wpPlace.roomplace; L2.am.rooms[0].targetMapId = 'm9'; L2.api.step(rec, 0, 0, 100, 100);
+        const L3 = mkRP(); L3.win.wpRoomPlace('r1'); L3.api.step(L3.win.wpPlace.roomplace, 0, 0, 100, 100); L3.am.rooms[0].targetMapId = 'm9'; L3.asks[0].cb('alt');
+        check('the review of fold 3: a room that leads to another map gets no place drawn, since a piece linked to it is a way there and a hidden one a trap tile, refused as Place it is pressed, at the drag and at the answer, in words that say what to do',
+            lp === false && !L.win.wpPlace && L.toasts[0] === L.api.LEADS && L.api.LEADS === 'This room leads to another map, so a piece linked to it is a way there. Link the doorway piece to it in Properties instead.'
+            && L2.asks.length === 0 && L2.toasts.slice(-1)[0] === L2.api.LEADS && L3.am.whiteboard.length === 0 && L3.toasts.slice(-1)[0] === L3.api.LEADS);
+        check('fold 3 is wired (source): the placement hands a drag to roomPlaceStep, the board marks an area and asks for its name plate, the menu offers Show on the Data Map after Make a room for this, and a press on it shows the room',
+            wbS.includes("    if (P.roomplace) { roomPlaceStep(P.roomplace, px, py, pw, ph); return; }") && wbS.includes("el.classList.toggle('wb-room-area', item.roomArea === true && !!item.nodeId && !clientView);")
+            && wbS.includes("          roomNameSync(el, item, rnPlaces);") && wbS.includes("var rnPlaces = typeof roomNamePlaces === 'function' ? roomNamePlaces(activeMap) : null;") && /if \(rmRow\) html \+= rmRow\.html;\n\s*var rsRow = typeof roomShowRow === 'function'/.test(wbS) && wbS.includes("var rsSaid = selectedIds.length === 1 && window.wpRoomShowData ? window.wpRoomShowData(selectedIds[0]) : '';"));
+    }
+    {
+        const dmS = read('scripts/datamap.js'), plS = cut(dmS, 'place', 'datamap.js');
+        const mk = () => { const views = [], st = { selId: 'x', selWbId: null, selWbIds: [] }, am = { id: 'm1', type: 'map', meta: {}, rooms: [{ id: 'r1', x: 100, y: 40 }, { id: 'r2', x: 0, y: 0 }], whiteboard: [{ id: 'p', x: 10, y: 20, w: 200, h: 100, nodeId: 'r1' }, { id: 'q', x: 0, y: 0, w: 10, h: 10 }] }; let renders = 0, cams = 0;
+            const win = { wpSetViewMode: v => views.push(v), appRender: () => { renders++; }, appRestoreCamera: () => { cams++; } };
+            const api = new Function('window', 'getActiveMap', 'state', 'RC', plS + '\nreturn { play: roomShowPlay, data: roomShowData };')(win, () => am, st, RC);
+            return { api, am, st, views, get renders() { return renders; }, get cams() { return cams; } }; };
+        const A = mk(), s1 = A.api.play('r1'), B = mk(), s2 = B.api.play('r2'), C = mk(), s3 = C.api.data('p'), D = mk(), s4 = D.api.data('q');
+        check('fold 3, Show it both ways (datamap.js place, run for real): from a room to its place, the play map with the place selected and in the middle of the view; a room with no place says so and moves nothing; from a piece to its room, the Data Map with the room selected and in the middle; a piece with no room says so',
+            s1 === '' && J(A.views) === J(['visual']) && A.am.meta.lastWbX === 110 && A.am.meta.lastWbY === 70 && A.st.selWbId === 'p' && A.st.selId === null && A.renders === 1 && A.cams === 1
+            && s2 === 'This room has no place on the play map yet. Press Place it to draw one.' && B.views.length === 0
+            && s3 === '' && J(C.views) === J(['data']) && C.am.meta.lastX === 170 && C.am.meta.lastY === 70 && C.st.selId === 'r1' && C.st.selWbId === null
+            && s4 === 'That piece names no room on the Data Map.' && D.views.length === 0, J([s1, s2, s3, s4, A.am.meta, C.am.meta]));
+        check('fold 3, a room with no place (source): the Data Map marks it no-place from roomsPlaced and gives it a No place line with Place it, whose press is no press on the room; the style sheet dashes its edge and shows the line only selected, never on a player\'s app',
+            dmS.includes("var seen={}, placed = RC.roomsPlaced(activeMap);") && dmS.includes("el.classList.toggle('no-place', !placed[r.id]);") && dmS.includes("el.insertAdjacentHTML('beforeend', '<div class=\"rnp\"><span>No place</span><button type=\"button\" class=\"rnp-go\"")
+            && plS.includes("['pointerdown', 'mousedown', 'dblclick'].forEach(function(ev) { b.addEventListener(ev, function(e) { e.stopPropagation(); }); });")
+            && read('style.css').includes('.room.no-place{border-top:1px dashed var(--dim);') && read('style.css').includes('.room.sel.no-place .rnp{display:flex}') && read('style.css').includes('body.net-client .room .rnp{display:none}')
+            && read('style.css').includes('.wb-item.wb-room-area { opacity: 1; outline: none; box-sizing: border-box; border: 2px dashed var(--gold); }') && read('style.css').includes('body.placing #whiteboard .wb-item svg path { pointer-events: none; }') && read('style.css').includes('.wb-item.wb-room-area:not(.sel) { pointer-events: none; }')
+            && read('style.css').includes('.room .rnp{display:none; position:absolute;') && read('style.css').includes('body.net-client .room.no-place{border-top:1px solid var(--edge);'));
+    }
+    {
+        const inS = read('scripts/inspector.js'), prS = cut(inS, 'placerow', 'inspector.js');
+        const mk = (mode) => new Function('window', 'state', 'document', 'toast', prS + '\nreturn { html: roomPlaceRowHtml };')({ wpRoomCore: RC }, { viewMode: mode }, {}, () => {});
+        const am = { whiteboard: [{ id: 'p', x: 0, y: 0, w: 10, h: 10, nodeId: 'r1' }] };
+        const h1 = mk('data').html({ id: 'r1' }, am), h2 = mk('data').html({ id: 'r2', name: '<script>' }, am), h3 = mk('visual').html({ id: 'r1' }, am);
+        check('fold 3, a room\'s Properties (inspector.js placerow, run for real): on the Data Map, Show on the play map for a room with a place and No place yet with Place it for one with none, in fixed words with nothing of the room in the markup; on the play map nothing',
+            h1.includes('id="fRoomShowPlay"') && h1.includes('>Show on the play map</button>') && !h1.includes('fRoomPlace') && h2.includes('No place on the play map yet.') && h2.includes('id="fRoomPlace"') && !h2.includes('script') && h3 === ''
+            && inS.includes("(typeof roomPlaceRowHtml === 'function' ? roomPlaceRowHtml(r, activeMap) : '')+") && inS.includes("if (typeof roomPlaceRowWire === 'function') roomPlaceRowWire(r);"), J([h1, h2, h3]));
+    }
     const css = read('style.css'), ix = read('index.html'), wn = fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wn2 = read('assets/whatsnew.txt');
     check('the styles: the handle on a room\'s right edge shows, and takes a press, only under the pointer or on the room selected, and never in Link Mode, the Pan tool, while a link is dragged or on a joined player\'s app; a room a link is dragged over is lit; the line dragged is dashed gold and takes no press; the name box stands in the name\'s place; the empty map\'s words take no press, so a double-click on them reaches the ground',
         css.includes('.room:hover .rlink, .room.sel .rlink{opacity:1; pointer-events:auto}') && /\.room \.rlink\{[^}]*opacity:0; pointer-events:none;/.test(css) && css.includes('body.linkmode .room .rlink, body.data-pan .room .rlink, body.room-linking .room .rlink, body.net-client .room .rlink{display:none}') && css.includes('.room.room-target{outline:2px dashed var(--gold);') && css.includes('#edges .link-draft{stroke:var(--gold); stroke-width:2; stroke-dasharray:6 4; pointer-events:none}')
@@ -326,6 +430,8 @@ function mkDoc() {
         && ix.includes('Let go on empty ground and a new room is made there, linked, with its name ready to type.') && ix.includes('Double-click anywhere, or press Add Room on the toolbar. Drag from the dot on a room&rsquo;s edge to link it to another.')
         && css.includes('.room.df-dim{opacity:.22}') && css.includes('.room.df-hit{box-shadow:') && css.includes('body.net-client #dataFind, body.stream-mode #dataFind{display:none}')
         && ix.includes('<h4>Finding a room</h4>') && ix.includes('The <b>Find a room</b> box along the top of the Data Map reads each room&rsquo;s name, its notes and who is there.') && ix.includes('A dimmed room still works as any room does.') && ix.includes('The chips show when the rooms are in two categories or more.')
+        && ix.includes('<h4>A room and the play map</h4>') && ix.includes('Select it and it says <b>No place</b>, with <b>Place it</b> beside.') && ix.includes('Untick <b>Room names</b> in the View menu to put them away.')
+        && [wn, wn2].every(t => t.includes('- A room with no place on the play map now has a dashed edge. Select it and') && t.includes('- Fixed: placing a shape or Build\'s pieces over a filled region could drag'))
         && [wn, wn2].every(t => t.includes('- A Find a room box runs along the top of the Data Map. It reads each room\'s') && t.includes('- Quick jump finds a room by the words in its notes or by who is there too.'))
         && [wn, wn2].every(t => /\nThe Data Map\n- A new room comes up with its name ready to type, on the room itself\./.test(t) && t.includes('now stand as a stair, each\n  one in sight.\n') && t.includes('this. The room goes on the Data Map, linked to the piece, and its name is')));
     summed = true;

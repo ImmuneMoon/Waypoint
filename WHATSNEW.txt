@@ -1118,6 +1118,15 @@ The Data Map
   keep them all.
 - Quick jump finds a room by the words in its notes or by who is there too.
 - The list of rooms in the right panel can be ordered by name or by category.
+- A room with no place on the play map now has a dashed edge. Select it and
+  press Place it, drag a box on the play map, and pick an area only you see or
+  a floor your players see.
+- Show on the play map, in a room's Properties, takes you to its place. A
+  piece's right-click has Show on the Data Map for the way back.
+- Each place shows its room's name in its corner, on your screen alone. Room
+  names in the View menu puts them away.
+- Fixed: placing a shape or Build's pieces over a filled region could drag
+  the region instead.
 - A map used to open on whichever face you last left it in. Now Settings,
   under This campaign, has Maps open on, so every map of the campaign can
   open on its Play Map or its Data Map. A map can pick its own with Opens on

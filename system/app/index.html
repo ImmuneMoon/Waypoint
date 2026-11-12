@@ -636,6 +636,18 @@
                               </ul>
                           </li>
                       </ul>
+                      <h4>A room and the play map</h4>
+                      <ul>
+                          <li>A room&rsquo;s <b>place</b> is the piece of the play map that names it. A token standing on it is in the room.
+                              <ul>
+                                  <li>A room with no place has a dashed edge. Select it and it says <b>No place</b>, with <b>Place it</b> beside.</li>
+                                  <li>Place it opens the play map. Drag a box where the room is. Then pick an area only you see, or a floor your players see.</li>
+                                  <li>The area is a clear box hidden from players, with a dashed gold edge on your screen. It takes no press until Show on the play map selects it. The floor is an ordinary floor piece.</li>
+                                  <li>In a room&rsquo;s Properties, <b>Show on the play map</b> takes you to its place. On the play map, a piece&rsquo;s right-click has <b>Show on the Data Map</b>.</li>
+                                  <li>Each place shows its room&rsquo;s name in its corner, on your screen alone. Untick <b>Room names</b> in the View menu to put them away.</li>
+                              </ul>
+                          </li>
+                      </ul>
                       <h4>Connections</h4>
                       <ol>
                           <li>Drag from the <b>small dot</b> on a room&rsquo;s right edge to another room to connect them. The link takes the line type picked in Link Mode&rsquo;s menu.
@@ -3980,6 +3992,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                     <button class="wb-tool-btn view-tick on" id="wbPointerPosBtn" role="menuitemcheckbox" aria-checked="true" title="Where the pointer is on the map, shown at the top right. The same switch as Pointer location in Settings."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Pointer location</button>
                     <button class="wb-tool-btn view-tick" id="wbViewTurnBtn" role="menuitemcheckbox" aria-checked="false" title="The map turns under the token you control, so it stays upright and its heading points up: its facing, or the way it last moved. Your screen alone."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Turn with my token</button>
                     <button class="wb-tool-btn view-tick gm-only" id="wbShowBlocksBtn" role="menuitemcheckbox" aria-checked="false" title="Light up every wall, barrier and door. Unticked, each shows its edge only under the pointer or while selected, so a building reads as one piece. Your screen alone, on every map."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Show what blocks</button>
+                    <button class="wb-tool-btn view-tick on gm-only" id="wbRoomNamesBtn" role="menuitemcheckbox" aria-checked="true" title="The name of each room on its place on the play map, as a small plate at its top left. Your screen alone; players never see them."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Room names</button>
                     <div class="view-gm" id="wbViewAllPart" hidden>
                         <div class="draw-menu-label">Everyone&rsquo;s map</div>
                         <div class="draw-menu-row"><label class="compass-lab" for="wbViewAll">Turned</label><input type="number" id="wbViewAll" min="-180" max="180" step="15" title="How far this map is turned clockwise on every screen at the table, in degrees. 0 leaves north up." style="width:64px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"><span class="compass-unit">degrees</span></div>

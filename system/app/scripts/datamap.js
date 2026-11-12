@@ -74,7 +74,7 @@ import { cssColor } from './safecore.js';   // a category's colour from a file, 
 
     
 
-    var seen={};
+    var seen={}, placed = RC.roomsPlaced(activeMap);   // 1.6.2 (backlog 45, fold 3): the rooms with a place on the play map
 
     activeMap.rooms.forEach(function(r){
 
@@ -88,7 +88,8 @@ import { cssColor } from './safecore.js';   // a category's colour from a file, 
 
         el.className='room'; el.dataset.id=r.id;
 
-        el.innerHTML='<div class="rn"></div><div class="rc"></div><div class="badges"></div><div class="rlink" title="Drag to another room to link them. Let go on empty ground for a new linked room." aria-hidden="true"></div>';   // 1.6.2 (backlog 45): the handle a link is dragged from
+        el.innerHTML='<div class="rn"></div><div class="rc"></div><div class="badges"></div><div class="rlink" title="Drag to another room to link them. Let go on empty ground for a new linked room." aria-hidden="true"></div>';
+        el.insertAdjacentHTML('beforeend', '<div class="rnp"><span>No place</span><button type="button" class="rnp-go" title="Drag a box on the play map where this room is">Place it</button></div>'); roomNpWire(el);   // 1.6.2 (backlog 45, fold 3): Place it; the line before it, the handle a link is dragged from (fold 1)
 
         canvas.appendChild(el);
 
@@ -134,6 +135,7 @@ import { cssColor } from './safecore.js';   // a category's colour from a file, 
       el.classList.toggle('sel', r.id===state.selId);
 
       el.classList.toggle('linkstart', r.id===state.linkStart);
+      el.classList.toggle('no-place', !placed[r.id]);   // a room with no place on the play map: a dashed edge, and selected it offers Place it
 
       
 
@@ -1802,6 +1804,37 @@ import { cssColor } from './safecore.js';   // a category's colour from a file, 
       inp.focus(); if (typeof inp.select === 'function') inp.select();
       return inp;
   }
+  // [roomcheck:place-start]
+  // 1.6.2 (backlog 45, fold 3): Place it on a room with no place. A press on it is no press on the room: nothing is dragged or selected again
+  function roomNpWire(el) {
+      var b = el.querySelector('.rnp-go'); if (!b) return;
+      ['pointerdown', 'mousedown', 'dblclick'].forEach(function(ev) { b.addEventListener(ev, function(e) { e.stopPropagation(); }); });
+      b.addEventListener('click', function(e) { e.stopPropagation(); e.preventDefault(); if (window.wpRoomPlace) window.wpRoomPlace(el.dataset.id); });
+  }
+  // From the Data Map to the play map: the view switched, the room's place selected and in the middle of the view. Answers what was said
+  function roomShowPlay(roomId) {
+      var am = getActiveMap(); if (!am || am.type !== 'map') return '';
+      var room = (am.rooms || []).find(function(r) { return r.id === roomId; }); if (!room) return '';
+      var w = RC.roomPlaceOf(am, roomId); if (!w) return 'This room has no place on the play map yet. Press Place it to draw one.';
+      am.meta = am.meta || {}; am.meta.lastWbX = w.x + (w.w || 100) / 2; am.meta.lastWbY = w.y + (w.h || 100) / 2;
+      if (window.wpSetViewMode) window.wpSetViewMode('visual');
+      state.selId = null; state.selWbId = w.id; state.selWbIds = [w.id];
+      if (window.appRender) window.appRender(); if (window.appRestoreCamera) window.appRestoreCamera();
+      return '';
+  }
+  // From the play map to the Data Map: the piece's room selected and in the middle of the view
+  function roomShowData(pieceId) {
+      var am = getActiveMap(); if (!am || am.type !== 'map') return '';
+      var w = (am.whiteboard || []).find(function(x) { return x.id === pieceId; }), room = w && w.nodeId ? (am.rooms || []).find(function(r) { return r.id === w.nodeId; }) : null;
+      if (!room) return 'That piece names no room on the Data Map.';
+      am.meta = am.meta || {}; am.meta.lastX = (room.x || 0) + 70; am.meta.lastY = (room.y || 0) + 30;
+      if (window.wpSetViewMode) window.wpSetViewMode('data');
+      state.selWbId = null; state.selWbIds = []; state.selId = room.id;
+      if (window.appRender) window.appRender(); if (window.appRestoreCamera) window.appRestoreCamera();
+      return '';
+  }
+  window.wpRoomShowPlay = roomShowPlay; window.wpRoomShowData = roomShowData;
+  // [roomcheck:place-end]
   var _rlink = null;   // the link being dragged from a room's handle: { from, mapId, sx, sy, moved, line }
   function roomLinkStart(id, e) {
       if (_rlink || !roomTool() || !roomMay()) return false;

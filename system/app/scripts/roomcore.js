@@ -136,6 +136,38 @@ function roomsOrdered(rooms, how, cats) {
     return list.map(function(e) { return e.r; });
 }
 
-var API = { ROOM_W: ROOM_W, fold: fold, queryWords: queryWords, jumpMatch: jumpMatch, roomWords: roomWords, roomMatch: roomMatch, roomCatOf: roomCatOf, catsUsed: catsUsed, roomShown: roomShown, roomsOrdered: roomsOrdered, ROOM_H: ROOM_H, NAME_MAX: NAME_MAX, roomNameOf: roomNameOf, freeSpot: freeSpot, newRoom: newRoom, linkAt: linkAt, linkAdd: linkAdd, besideRooms: besideRooms, pieceRoomOk: pieceRoomOk, pieceRoomName: pieceRoomName };
+// ---- fold 3, a room and its place on the play map (the owner, 2026-11-11, by prompt: "Show it, both ways", "Mark rooms with no place",
+// "Draw its place from the room", "Room names as GM labels"; and 2026-11-12, of the look: "A. Dashed edge, a place button", "C. Ask each time",
+// "A. A View tick, on"). A room's place is a piece of its play map that names it (nodeId): never a token, a waiting token or a GM note card,
+// and one with a box. Of several the largest is its place, so a small portal mark inside a room's floor never stands for the room
+function placeOk(w) { return isObj(w) && !w.isChar && !w.waiting && !w.gmNoteFor && typeof w.nodeId === 'string' && w.nodeId !== '' && isFinite(num(w.x, NaN)) && isFinite(num(w.y, NaN)); }
+function roomPlaceOf(map, roomId) {
+    var best = null, area = -1;
+    (isObj(map) && Array.isArray(map.whiteboard) ? map.whiteboard : []).forEach(function(w) {
+        if (!placeOk(w) || w.nodeId !== roomId) return;
+        var a = Math.max(0, num(w.w, 100)) * Math.max(0, num(w.h, 100));
+        if (a > area) { area = a; best = w; }
+    });
+    return best;
+}
+// The rooms of a map that have a place, as an object with no prototype keyed by room id
+function roomsPlaced(map) {
+    var out = Object.create(null);
+    (isObj(map) && Array.isArray(map.whiteboard) ? map.whiteboard : []).forEach(function(w) { if (placeOk(w)) out[w.nodeId] = 1; });
+    return out;
+}
+// The piece a place drawn from a room becomes: 'area', a clear box hidden from players that only the GM sees (roomArea marks it, so the GM's
+// screen outlines it whatever Hidden pieces on my map says), or 'floor', an ordinary floor players see, laid in the floor handed in (Build's
+// Floor material where there is one). Its name is the room's. A box is held to whole pixels of at least 10, at 0 or more. Null for any other kind
+function roomPlacePiece(kind, room, box, floor) {
+    if ((kind !== 'area' && kind !== 'floor') || !isObj(room) || typeof room.id !== 'string' || !isObj(box)) return null;
+    var x = Math.max(0, Math.round(num(box.x, NaN))), y = Math.max(0, Math.round(num(box.y, NaN))), w = Math.round(num(box.w, NaN)), h = Math.round(num(box.h, NaN));
+    if (!isFinite(x) || !isFinite(y) || !isFinite(w) || !isFinite(h) || w < 10 || h < 10) return null;
+    var name = roomNameOf(typeof room.name === 'string' ? room.name : '', 'Room');
+    if (kind === 'area') return { type: 'rect', x: x, y: y, w: w, h: h, color: 'transparent', layer: 'back-mid', nodeId: room.id, name: name, hidden: true, roomArea: true };
+    return Object.assign({ color: '#3a3a44' }, isObj(floor) ? floor : {}, { type: 'rect', x: x, y: y, w: w, h: h, layer: 'back', nodeId: room.id, name: name });
+}
+
+var API = { ROOM_W: ROOM_W, fold: fold, queryWords: queryWords, jumpMatch: jumpMatch, roomWords: roomWords, roomMatch: roomMatch, roomCatOf: roomCatOf, catsUsed: catsUsed, roomShown: roomShown, roomsOrdered: roomsOrdered, ROOM_H: ROOM_H, NAME_MAX: NAME_MAX, roomNameOf: roomNameOf, freeSpot: freeSpot, newRoom: newRoom, linkAt: linkAt, linkAdd: linkAdd, besideRooms: besideRooms, pieceRoomOk: pieceRoomOk, pieceRoomName: pieceRoomName, roomPlaceOf: roomPlaceOf, roomsPlaced: roomsPlaced, roomPlacePiece: roomPlacePiece };
 if (typeof window !== 'undefined') window.wpRoomCore = API;
-export { fold, queryWords, jumpMatch, roomWords, roomMatch, roomCatOf, catsUsed, roomShown, roomsOrdered, ROOM_W, ROOM_H, NAME_MAX, roomNameOf, freeSpot, newRoom, linkAt, linkAdd, besideRooms, pieceRoomOk, pieceRoomName };
+export { fold, queryWords, jumpMatch, roomWords, roomMatch, roomCatOf, catsUsed, roomShown, roomsOrdered, ROOM_W, ROOM_H, NAME_MAX, roomNameOf, freeSpot, newRoom, linkAt, linkAdd, besideRooms, pieceRoomOk, pieceRoomName, roomPlaceOf, roomsPlaced, roomPlacePiece };

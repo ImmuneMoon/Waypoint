@@ -516,6 +516,16 @@
   .room:hover .rlink, .room.sel .rlink{opacity:1; pointer-events:auto}   /* the review: a dot not shown takes no press (a touch has no hover) */
   body.linkmode .room .rlink, body.data-pan .room .rlink, body.room-linking .room .rlink, body.net-client .room .rlink{display:none}
   .room.room-target{outline:2px dashed var(--gold); outline-offset:2px; z-index:4}
+  /* 1.6.2 (backlog 45, fold 3; the owner: "A. Dashed edge, a place button"): a room with no place on the play map has a dashed edge, and selected it says so with Place it */
+  .room.no-place{border-top:1px dashed var(--dim); border-right:1px dashed var(--dim); border-bottom:1px dashed var(--dim)}
+  .room .rnp{display:none; position:absolute; left:-1px; top:calc(100% + 4px); z-index:5; align-items:center; gap:6px; white-space:nowrap; padding:3px 6px 3px 8px; font-size:11px; color:var(--dim); background:var(--panel); border:1px solid var(--edge); border-radius:6px; box-shadow:var(--shadow)}   /* under the box, so a room keeps its height and its links stay put (the review) */
+  .room.sel.no-place .rnp{display:flex}
+  body.net-client .room .rnp{display:none}
+  body.net-client .room.no-place{border-top:1px solid var(--edge); border-right:1px solid var(--edge); border-bottom:1px solid var(--edge)}   /* the GM's own mark: a hidden area is never sent */
+  .room .rnp-go{margin-left:auto; padding:1px 7px; font:inherit; font-size:11px; color:var(--gold); background:transparent; border:1px solid var(--gold); border-radius:4px; cursor:pointer}
+  .room .rnp-go:hover, .room .rnp-go:focus-visible{background:var(--gold); color:var(--deep)}
+  .room-place-row{display:flex; align-items:center; gap:8px}
+  .room-place-row .room-place-none{flex:1; font-size:12px; color:var(--dim)}
   /* 1.6.2 (backlog 45, fold 2): the Find strip along the top of the Data Map, between the minimap and the zoom box (datamap.js dataFindPlace) */
   #dataFind{position:absolute; top:26px; left:8px; right:8px; z-index:8991; display:flex; align-items:center; gap:8px; pointer-events:none}
   #dataFind[hidden]{display:none}
@@ -651,6 +661,7 @@
     #wbViewAllPart { border-top: 1px solid var(--edge); margin-top: 4px; padding-top: 2px; }
     body.view-turned #rulerTop, body.view-turned #rulerLeft, body.view-turned #rulerCursorX, body.view-turned #rulerCursorY { visibility: hidden; }   /* 1.6.2 (backlog 82b): a turned map has no straight edge to number */
     #whiteboard .wb-item > .token-initials, #whiteboard .token-fx .tfx { rotate: calc(var(--lvl-own, 0deg) - var(--view-turn, 0deg)); }   /* the words on the board read level however the map is turned: a token's by its own turn too (view.js --lvl-own) */
+    #whiteboard .wb-item > .wb-room-name { rotate: calc(var(--view-turn, 0deg) * -1); }   /* 1.6.2 (backlog 45, fold 3): a room's name reads level too */
     #streamNames .stream-name { rotate: calc(var(--view-turn, 0deg) * -1); transform-origin: 0 50%; }
     #measureLayer text, #tagLayer text { transform-box: fill-box; transform-origin: center; rotate: calc(var(--view-turn, 0deg) * -1); }
     /* The bar never runs off the map (whiteboard.js fitBar): it tightens, then wraps. Only the bar's own buttons shrink, never a menu's */
@@ -675,6 +686,7 @@
     body.linkmode #canvas { cursor: crosshair; }
     body.placing #whiteboardWrap { cursor: crosshair; }
     body.placing #whiteboard .wb-item { pointer-events: none; }
+    body.placing #whiteboard .wb-item svg path { pointer-events: none; }   /* 1.6.2, found by hand: a filled region's or a flat line's painted body (visiblePainted, for the GM's press) took a placement's drag and was moved */
     /* Rulers hidden: the minimap slides up into the corner they used */
     body.no-rulers #minimap { left: 8px; top: 8px; }
     #selToolbar .st-vis.st-hidden { background: rgba(224,64,64,0.25); color: #ff8a8a; }
@@ -1293,6 +1305,11 @@
      any zoom. The row carries the names as its title. */
   /* 1.5.4 (pageshelf.js): a pin, a piece of the play map that opens a page. Its mark is drawn on the GM's screen alone and keeps its size at any zoom.
      It is centred on the piece's corner (half its size out each way, scaled about its own middle), so it takes a corner of a small token and no more */
+  .wb-item.wb-room-area { opacity: 1; outline: none; box-sizing: border-box; border: 2px dashed var(--gold); }
+  .wb-item.wb-room-area:not(.sel) { pointer-events: none; }
+  .wb-item:is(.hexagon, .diamond) > .wb-room-name { left: 50%; top: 50%; translate: -50% -50%; transform-origin: 50% 50%; }   /* a cut corner would clip it: in the middle there */   /* the review: an area takes no press meant for the floor or picture under it; Show on the play map selects it */   /* 1.6.2 (backlog 45, fold 3): a room's area, hidden from players */
+  body.hid-none .wb-item.wb-hidden-gm.wb-room-area { visibility: visible; }
+  .wb-item > .wb-room-name { position: absolute; left: 4px; top: 4px; z-index: 5; max-width: 220px; padding: 1px 7px; border-radius: 4px; background: rgba(20, 16, 10, 0.82); color: var(--gold); font: 600 12px/1.45 var(--font, Inter, sans-serif); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; transform: scale(var(--wbz, 1)); transform-origin: 0 0; }   /* 1.6.2 (backlog 45, fold 3; the owner: "A. A View tick, on"): its room's name, the GM's alone */
   .wb-item > .wb-pin { position: absolute; right: -11px; top: -11px; z-index: 6; width: 22px; height: 22px; padding: 0; border: 1px solid var(--gold); border-radius: 50%; background: var(--deep); font-size: 11px; line-height: 20px; text-align: center; cursor: pointer; transform: scale(var(--wbz, 1)); transform-origin: 50% 50%; box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
   .wb-item > .wb-pin::before { content: ''; display: inline-block; width: 14px; height: 14px; vertical-align: -3px; background: var(--ink); -webkit-mask: var(--wi) center / contain no-repeat; mask: var(--wi) center / contain no-repeat; }
   .wb-item > .wb-pin:hover::before, .wb-item > .wb-pin:focus-visible::before { background: var(--deep); }
@@ -3037,6 +3054,10 @@
 #contextMenu .menu-item.cm-room-make > * { pointer-events: none; }   /* a click lands on the row itself: the menu reads the class of what was pressed */
 #contextMenu .menu-item.cm-room-make .ico { margin-top: 2px; }
 #contextMenu .menu-item.cm-room-make small { display: block; color: var(--dim); font-size: 11px; }
+#contextMenu .menu-item.cm-room-show { display: flex; align-items: flex-start; gap: 9px; }   /* 1.6.2 (backlog 45, fold 3): Show on the Data Map, drawn as Make a room for this is */
+#contextMenu .menu-item.cm-room-show > * { pointer-events: none; }
+#contextMenu .menu-item.cm-room-show .ico { margin-top: 2px; }
+#contextMenu .menu-item.cm-room-show small { display: block; color: var(--dim); font-size: 11px; }
 #contextMenu .menu-divider + .menu-divider { display: none; }   /* two rules in a row read as one */
 /* a menu taller than the window (placeMenu): compact rows first, then its own scroll */
 #contextMenu.compact .menu-item { padding: 5px 16px; font-size: 13px; }

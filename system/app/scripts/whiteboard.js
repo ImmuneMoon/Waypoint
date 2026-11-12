@@ -494,6 +494,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
       var seen = {};
 
       var selItem = null;
+      var rnPlaces = typeof roomNamePlaces === 'function' ? roomNamePlaces(activeMap) : null;   // 1.6.2 (backlog 45, fold 3): which pieces wear a room's name, once a draw
 
       activeMap.whiteboard.forEach(function(item) {
 
@@ -943,6 +944,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
           var hideFromMe = !!item.hidden && clientView;
 
           el.classList.toggle('wb-hidden-gm', !!item.hidden && !clientView);
+          el.classList.toggle('wb-room-area', item.roomArea === true && !!item.nodeId && !clientView);   // 1.6.2 (backlog 45, fold 3): a room's area only the GM sees
           el.classList.toggle('wb-flat-in', !clientView && typeof item.flatIn === 'string' && activeMap.whiteboard.some(function(f) { return f && f.id === item.flatIn && f.flatPic === true; }));   // 1.6.2, found by hand: a piece drawn into a flattened picture stays out of sight and out of reach on the map, its picture showing it; Layers lists it under the picture
 
           el.classList.toggle('wb-trap', !!item.trap && !!el.dataset.portal && !!item.hidden && !clientView);   // GM-only: an armed hidden trap portal
@@ -1252,6 +1254,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
               if (fxEl.dataset.sig !== fxHtml) { fxEl.dataset.sig = fxHtml; fxEl.innerHTML = fxHtml; }
           } else if (fxEl) fxEl.remove();
           pagePinSync(el, item, hideFromMe);   // 1.5.4 (pageshelf.js): a pin's mark, on the GM's screen alone
+          roomNameSync(el, item, rnPlaces);   // 1.6.2 (backlog 45, fold 3): the room's name on its place, on the GM's screen alone
           var barL = item.isChar && window.wpSheets && window.wpSheets.tokenBars ? window.wpSheets.tokenBars(item, activeMap.id) : [], barEl = el.querySelector(':scope > svg.token-bars');   // backlog 28: its bars, a ring around it
           if (barL.length) {
               var barSig = tokenBarsSig(item, barL);
@@ -8686,6 +8689,7 @@ window.wpPlaceCommit = function(px, py, pw, ph, sx, sy) {
     if (P.build) { wpBuildCommit(P, px, py, pw, ph, sx, sy); return; }
     if (P.align) { alignStep(P.align, sx, sy); return; }   // 1.6.2 (backlog 38): a click of Align its grid
     if (P.trim) { trimStep(P.trim, px, py, pw, ph, sx, sy); return; }
+    if (P.roomplace) { roomPlaceStep(P.roomplace, px, py, pw, ph); return; }   // 1.6.2 (backlog 45, fold 3): a room's place, drawn from the room
     if (P.cellfit) { if (window.wpCellSize && typeof window.wpCellSize.fitStep === 'function') window.wpCellSize.fitStep(P.cellfit, sx, sy); return; }   // 1.6.2 (backlog 38): a click of Fit grid to picture   // 1.6.2 (backlog 37): a click or a drag of Trim to cells   // the map builder: a built piece lands by its own rules (on the lattice, a hexagon a cell) and Build stays in hand
     var props = Object.assign({}, P.props);
     var dragged = pw > 12 && ph > 12;
@@ -9244,6 +9248,100 @@ function pieceRoomMake(am, w) {
     return rm;
 }
 // [roomcheck:pieceroom-end]
+// [roomcheck:roomplace-start]
+// 1.6.2 (backlog 45, fold 3; the owner, 2026-11-11, by prompt: "Draw its place from the room", "Show it, both ways", "Room names as GM labels",
+// and 2026-11-12: "C. Ask each time", "A. A View tick, on"). Place it on a room arms the map's next drag: a box over the room's place, then a
+// question, its buttons alone, whether the place is an area only the GM sees or a floor players see (roomcore roomPlacePiece). One save, so one
+// Undo takes it back. Esc puts the drag down. Never on a player's app or in the stream window (buildMay)
+var ROOM_LEADS = 'This room leads to another map, so a piece linked to it is a way there. Link the doorway piece to it in Properties instead.';
+function roomPlaceArm(rec, say) {
+    var mv = document.getElementById('moveModeBtn');
+    if (mv && (!mv.classList.contains('active') || window.isMeasureMode)) mv.click();
+    window.wpPlace = { type: 'roomplace', props: {}, roomplace: rec };
+    if (wbWrap) wbWrap.style.cursor = 'crosshair';
+    document.body.classList.add('placing');
+    if (say) toast('Drag a box over where ' + rec.name + ' is on the map. Esc cancels.');
+}
+window.wpRoomPlace = function(roomId) {
+    var am = getActiveMap(), room = am && am.type === 'map' ? (am.rooms || []).find(function(r) { return r.id === roomId; }) : null;
+    if (!room || window.wpStream || !buildMay()) return false;
+    if (room.targetMapId) { toast(ROOM_LEADS); return false; }   // the review: every piece linked to such a room is a way to that map, and a hidden one a trap tile, so a place drawn over the whole room would send a token dropped anywhere in it
+    if (window.wpSetViewMode) window.wpSetViewMode('visual');
+    roomPlaceArm({ mapId: am.id, roomId: room.id, name: room.name || 'the room' }, true);
+    return true;
+};
+function roomPlaceStep(rec, px, py, pw, ph) {
+    var am = getActiveMap(), RCw = window.wpRoomCore;
+    if (!RCw || !am || am.id !== rec.mapId) { toast('That map is no longer on screen. Nothing was placed.'); return; }
+    var room = (am.rooms || []).find(function(r) { return r.id === rec.roomId; });
+    if (!room) { toast('That room is gone. Nothing was placed.'); return; }
+    if (room.targetMapId) { toast(ROOM_LEADS); return; }
+    if (!(pw > 12 && ph > 12)) { roomPlaceArm(rec, false); toast('Drag a box over where ' + rec.name + ' is on the map. Esc cancels.'); return; }
+    var box = { x: px, y: py, w: pw, h: ph };
+    showConfirm('The place of ' + (room.name || 'this room') + ': an area only you see, or a floor players see?', function(ans) {
+        if (ans !== true && ans !== 'alt') { toast('Nothing was placed.'); return; }
+        var am2 = getActiveMap(), room2 = am2 && am2.id === rec.mapId ? (am2.rooms || []).find(function(r) { return r.id === rec.roomId; }) : null;
+        if (!room2) { toast('That room is gone. Nothing was placed.'); return; }
+        if (room2.targetMapId) { toast(ROOM_LEADS); return; }
+        var BC = window.wpBuildCore, floor = ans === 'alt' && BC && typeof BC.pieceProps === 'function' ? BC.pieceProps('floor') : null;
+        var pc = RCw.roomPlacePiece(ans === true ? 'area' : 'floor', room2, box, floor); if (!pc) { toast('Nothing was placed.'); return; }
+        if (!Array.isArray(am2.whiteboard)) am2.whiteboard = [];
+        var it = Object.assign({ id: 'wb' + uid(), z: 1 }, pc);
+        am2.whiteboard.push(it);
+        state.selWbId = it.id; state.selWbIds = [it.id];
+        save(); render();
+        toast(ans === true ? 'Placed: an area only you see, for ' + it.name + '. Tokens standing in it are in the room.' : 'Placed: a floor for ' + it.name + ', shown to players.');
+    }, { yes: 'An area only I see', alt: 'A floor players see', noEnter: true });
+}
+// Show on the Data Map, on the GM's menu of ONE piece whose room is on the Data Map
+var ROOM_SHOW_ROW = '<div class="menu-item cm-room-show" title="Switch to the Data Map with this piece\u2019s room selected and in view.">'
+    + '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM18 16.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM8 6.5l8 11"/></svg><span>Show on the Data Map<small>Its room, selected.</small></span></div>';
+function roomShowRow(items, am) {
+    var list = (Array.isArray(items) ? items : []).filter(Boolean);
+    if (window.wpStream || !buildMay() || list.length !== 1 || !list[0].nodeId || !am || !(am.rooms || []).some(function(r) { return r.id === list[0].nodeId; })) return null;
+    return { item: list[0], html: ROOM_SHOW_ROW };
+}
+// Room names on the play map: a plate at the top left of a piece that names a room, on the GM's screen alone, while the View menu's Room names
+// is ticked (this computer's wp_roomNames, ticked to start). The room's name is set as text
+var _roomNames = null;   // the View tick, read from this computer once and kept
+function roomNamesOn() { if (_roomNames === null) { try { _roomNames = localStorage.getItem('wp_roomNames') !== 'off'; } catch (e) { _roomNames = true; } } return _roomNames; }
+// The pieces that wear a name, worked out once a draw: each room's place (roomcore roomPlaceOf's rule, in one pass), never a small mark that also
+// names the room, a text box, a token, a waiting token or a GM note card. Null where no name is drawn at all (unticked, a player's app, the stream window)
+function roomNamePlaces(am) {
+    if (!roomNamesOn() || window.wpStream || !buildMay() || !am || !Array.isArray(am.rooms) || !am.rooms.length || !Array.isArray(am.whiteboard)) return null;
+    var byRoom = Object.create(null), best = Object.create(null), out = Object.create(null);
+    am.rooms.forEach(function(r) { if (r && typeof r.id === 'string') byRoom[r.id] = r; });
+    am.whiteboard.forEach(function(w) {
+        if (!w || !w.nodeId || !byRoom[w.nodeId] || w.isChar || w.waiting || w.gmNoteFor || w.type === 'text' || !isFinite(w.x) || !isFinite(w.y)) return;
+        var a = Math.max(0, typeof w.w === 'number' ? w.w : 100) * Math.max(0, typeof w.h === 'number' ? w.h : 100);
+        if (!best[w.nodeId] || a > best[w.nodeId].a) best[w.nodeId] = { a: a, id: w.id };
+    });
+    Object.keys(best).forEach(function(rid) { out[best[rid].id] = byRoom[rid]; });
+    return out;
+}
+function roomNameSync(el, item, places) {
+    var room = places && item && places[item.id];
+    if (!room && !el._roomName) return;   // the review: thousands of pieces, most naming no room, pass by at once
+    var tag = el.querySelector(':scope > .wb-room-name');
+    if (!room) { if (tag) tag.remove(); el._roomName = false; return; }
+    if (!tag) { tag = document.createElement('div'); tag.className = 'wb-room-name'; tag.setAttribute('aria-hidden', 'true'); el.appendChild(tag); }
+    el._roomName = true;
+    var nm = room.name || '(unnamed)'; if (tag.textContent !== nm) tag.textContent = nm;
+}
+function roomNamesSync() {
+    var b = document.getElementById('wbRoomNamesBtn'), on = roomNamesOn();
+    if (b) { b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); }
+}
+(function() {
+    var b = document.getElementById('wbRoomNamesBtn'); if (!b) return;
+    roomNamesSync();
+    b.addEventListener('click', function() {
+        var on = !roomNamesOn(); _roomNames = on; try { localStorage.setItem('wp_roomNames', on ? 'on' : 'off'); } catch (e) {}
+        roomNamesSync(); render();
+        toast(on ? 'Room names show on the play map, for you alone.' : 'Room names are put away.');
+    });
+})();
+// [roomcheck:roomplace-end]
 function wallsRow(items) {
     var BC = buildCore();
     if (!BC || typeof BC.outlineWalls !== 'function' || window.wpStream || !buildMay()) return null;
@@ -11506,6 +11604,8 @@ document.addEventListener('contextmenu', function(e) {
                 if (mnRow) html += mnRow.html;
                 var rmRow = typeof pieceRoomRow === 'function' ? pieceRoomRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), am) : null;   // 1.6.2 (backlog 45): a room for this piece on the Data Map
                 if (rmRow) html += rmRow.html;
+                var rsRow = typeof roomShowRow === 'function' ? roomShowRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), am) : null;   // 1.6.2 (backlog 45, fold 3): Show on the Data Map
+                if (rsRow) html += rsRow.html;
                 var ppRow = pagePinRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // 1.5.4: a pin's row, where the one piece selected opens a page
                 if (ppRow) html += ppRow.html;
                 var drRow = doorRows(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // a door's own rows: open or close it, lock it for players
@@ -11786,6 +11886,8 @@ document.addEventListener('contextmenu', function(e) {
                     if (window.wpMapShot && window.wpMapShot.flatten) window.wpMapShot.flatten(selectedIds.slice());
                 } else if (action.includes('cm-unflat')) {
                     if (window.wpFlatten && selectedIds.length === 1) window.wpFlatten.undo(am, selectedIds[0]);
+                } else if (action.includes('cm-room-show')) {   // 1.6.2 (backlog 45, fold 3): the piece's room on the Data Map
+                    var rsSaid = selectedIds.length === 1 && window.wpRoomShowData ? window.wpRoomShowData(selectedIds[0]) : ''; if (rsSaid) toast(rsSaid);
                 } else if (action.includes('cm-room-make')) {   // 1.6.2 (backlog 45): a room on the Data Map for the one piece selected (saved and drawn again below: one Undo takes both back), its name ready to type in Properties
                     var rmW = selectedIds.length === 1 ? am.whiteboard.find(function(x) { return x.id === selectedIds[0]; }) : null, rmDo = rmW ? pieceRoomMake(am, rmW) : null;
                     if (rmDo) { toast(rmW.hidden ? 'Room made and linked. Players are sent room names, so give it one they may know.' : 'Room made and linked: ' + rmDo.name + '. Type its name in Properties.'); if (window.wpOpenRightPanel) window.wpOpenRightPanel(); setTimeout(function() { var fN = document.getElementById('fName'); if (fN && typeof fN.focus === 'function') { fN.focus(); if (typeof fN.select === 'function') fN.select(); } }, 0); }

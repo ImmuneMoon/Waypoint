@@ -279,6 +279,7 @@ import { cssColor, num, picRef } from './safecore.js';   // a campaign from a fi
              '<div class="row" style="margin-bottom:13px;"><button class="tool ghost" id="fImgBtn"><i class="wib wi-pic"></i> '+(r.image?'Change Image':'Set Room Image')+'</button>'+(r.image?'<button class="tool ghost danger" id="fImgClearBtn">Remove</button>':'')+'</div>'+
 
              '<div class="field"><label for="fName">Name</label><input id="fName" value="'+esc(r.name)+'"></div>'+
+             (typeof roomPlaceRowHtml === 'function' ? roomPlaceRowHtml(r, activeMap) : '')+
 
              '<div class="field"><label for="fCat">Category</label><select id="fCat" style="border-left: 4px solid '+selColor+'; color: '+selColor+'; font-weight: bold;">'+opts+'</select>'+catEditorHtml+'</div>'+
 
@@ -307,7 +308,23 @@ import { cssColor, num, picRef } from './safecore.js';   // a campaign from a fi
 
 
 
+  // [roomcheck:placerow-start]
+  // 1.6.2 (backlog 45, fold 3): on the Data Map a room's Properties say where its place is on the play map: Show on the play map, or, with
+  // none, No place yet and Place it. Fixed words; nothing of the room in the markup. On the play map the row is left out (the piece is the place)
+  function roomPlaceRowHtml(r, am) {
+      var RCi = window.wpRoomCore; if (!RCi || state.viewMode !== 'data' || !am || !r) return '';
+      return RCi.roomPlaceOf(am, r.id)
+          ? '<div class="field room-place-row"><button type="button" class="tool ghost" id="fRoomShowPlay" title="Switch to the play map with this room\u2019s place selected and in view">Show on the play map</button></div>'
+          : '<div class="field room-place-row"><span class="room-place-none">No place on the play map yet.</span><button type="button" class="tool ghost" id="fRoomPlace" title="Drag a box on the play map where this room is">Place it</button></div>';
+  }
+  function roomPlaceRowWire(r) {
+      var sp = document.getElementById('fRoomShowPlay'), pl = document.getElementById('fRoomPlace');
+      if (sp) sp.addEventListener('click', function() { var said = window.wpRoomShowPlay ? window.wpRoomShowPlay(r.id) : ''; if (said) toast(said); });
+      if (pl) pl.addEventListener('click', function() { if (window.wpRoomPlace) window.wpRoomPlace(r.id); });
+  }
+  // [roomcheck:placerow-end]
   function attachRoomInspectorEvents(r, activeMap) {
+      if (typeof roomPlaceRowWire === 'function') roomPlaceRowWire(r);   // 1.6.2 (backlog 45, fold 3)
 
       var _el_fName = document.getElementById('fName');
 

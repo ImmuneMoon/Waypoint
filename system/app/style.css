@@ -688,7 +688,7 @@
     .floating-toolbar.tb-wrap ~ #wbEdgeTools { bottom: 156px; }   /* the column stands above a bar of up to three rows */
     /* The fog button says this map's own fog state (fog.js btnSync): a ring and ON while its fog is on, whatever tool is in hand */
     #fogModeBtn { position: relative; }
-    #fogModeBtn.fog-on { box-shadow: inset 0 0 0 2px var(--gold); }
+    #fogModeBtn.fog-on::before { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 2px var(--gold); pointer-events: none; -webkit-mask: linear-gradient(to left, transparent 15px, #000 15px), linear-gradient(to top, transparent 15px, #000 15px); mask: linear-gradient(to left, transparent 15px, #000 15px), linear-gradient(to top, transparent 15px, #000 15px); }   /* the ring stops short of the corner its small arrow stands in (the owner, 2026-11-12: "the outline slightly overlaps the arrow button") */
     #fogModeBtn.fog-on::after {
         content: 'ON'; position: absolute; top: -5px; right: -7px; padding: 2px 4px; border-radius: 7px; pointer-events: none;
         background: var(--gold); color: var(--bg); font: 700 8px/1 system-ui, sans-serif; letter-spacing: .05em;

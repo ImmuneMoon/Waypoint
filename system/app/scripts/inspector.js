@@ -1067,8 +1067,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               + '<button class="tool ghost" id="wbDup" title="Make a full copy of this item, settings and data included (Ctrl+D)"><i class="wib wi-dup"></i> Duplicate</button>'
               + '<button class="tool ghost" id="setHomeVisualBtn" title="The map opens centred here"><i class="wib wi-target"></i> Map center here</button>'
               + (state.gridType && state.gridType !== 'off' && w.type !== 'path' ? '<button class="tool ghost" id="wbFitGrid" title="Size to whole grid cells and seat it in the grid">&#8862; Fit to grid cells</button>' : '')
-              + (state.gridType && state.gridType !== 'off' && w.type === 'image' && !w.isChar && !w.waiting ? '<button class="tool ghost" id="wbAlignPic" title="For a map picture with its own grid: click two points of that grid and say how many cells lie between them. The picture is sized and placed so its grid lies on the board\u2019s">Align its grid</button>' : '')
-              + (state.gridType && state.gridType !== 'off' && w.type === 'image' && !w.isChar && !w.waiting ? '<button class="tool ghost" id="wbTrimPic" title="Keep only the cells you pick of this picture: click a cell, or drag over cells, then press Esc. The picture file is not changed">Trim to cells</button>' : '')
+              + (state.gridType && state.gridType !== 'off' && !w.furn && w.type === 'image' && !w.isChar && !w.waiting ? '<button class="tool ghost" id="wbAlignPic" title="For a map picture with its own grid: click two points of that grid and say how many cells lie between them. The picture is sized and placed so its grid lies on the board\u2019s">Align its grid</button>' : '')
+              + (state.gridType && state.gridType !== 'off' && !w.furn && w.type === 'image' && !w.isChar && !w.waiting ? '<button class="tool ghost" id="wbTrimPic" title="Keep only the cells you pick of this picture: click a cell, or drag over cells, then press Esc. The picture file is not changed">Trim to cells</button>' : '')
               + (w.type === 'image' && w.trim ? '<button class="tool ghost" id="wbTrimReset" title="Take the trim off and show the whole picture again">Whole picture</button>' : '')
               + '<button class="tool ghost danger" id="wbDel" title="Delete this piece. Undo brings it back">Delete</button>'
               + '</div>';
@@ -1076,6 +1076,13 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 html += '<button id="ungroupBtn" class="tool ghost danger" style="width:100%; margin-bottom:10px;">Ungroup</button>';
             }
 
+            // [furncheck:insp-start] 1.6.2 (backlog 222): a furnishing's look, picked from the four, and a tint for its main colour
+            var FUi = window.wpFurnCore, fuI = w.type === 'image' && FUi ? FUi.cleanFurn(w.furn) : null;
+            if (fuI) html += '<div class="field insp-furn"><label for="wbFurnEra">' + esc(FUi.furnKind(fuI.k).label) + ', drawn as</label><select id="wbFurnEra">'
+              + FUi.FURN_ERAS.map(function(e) { return '<option value="' + esc(e.id) + '"' + (e.id === fuI.era ? ' selected' : '') + '>' + esc(e.label) + '</option>'; }).join('')
+              + '</select><div class="insp-furn-tint"><label for="wbFurnTint">Tint</label><input type="color" id="wbFurnTint" value="' + esc(fuI.tint || '#8a5a2b') + '"><button class="tool ghost" id="wbFurnNoTint"' + (fuI.tint ? '' : ' disabled') + '>No tint</button></div>'
+              + '<div class="muted">A map object that names this kind gives new ones their rules. This one keeps what it has.</div></div>';
+            // [furncheck:insp-end]
             if (w.type === 'trigger') {
                 html += '<div class="field"><label for="wbEventMsg">Event Message</label><textarea id="wbEventMsg" placeholder="Message when character drops here...">'+esc(w.eventMessage||'')+'</textarea></div>';
                 html += soundOnRow(w);   // 1.6.2
@@ -1315,6 +1322,11 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if(_el_wbNodeLink) _el_wbNodeLink.addEventListener('change', function() {
                 w.nodeId = this.value || null; portalLockTidy(w, activeMap); save(); render();
             });
+            var _el_wbFurnEra = document.getElementById('wbFurnEra'), _el_wbFurnTint = document.getElementById('wbFurnTint'), _el_wbFurnNoTint = document.getElementById('wbFurnNoTint');   // 1.6.2 (backlog 222)
+            var furnSet = function(ch) { var FUh = window.wpFurnCore, cur = FUh ? FUh.cleanFurn(w.furn) : null, nx = cur ? FUh.cleanFurn(Object.assign({}, cur, ch)) : null; if (!nx) return; w.furn = nx; save(); render(); };
+            if (_el_wbFurnEra) _el_wbFurnEra.addEventListener('change', function() { furnSet({ era: this.value }); });
+            if (_el_wbFurnTint) _el_wbFurnTint.addEventListener('change', function() { furnSet({ tint: this.value }); });
+            if (_el_wbFurnNoTint) _el_wbFurnNoTint.addEventListener('click', function() { furnSet({ tint: '' }); });
             var _el_wbAlignPic = document.getElementById('wbAlignPic');   // 1.6.2 (backlog 38)
             if (_el_wbAlignPic) _el_wbAlignPic.addEventListener('click', function() { if (window.wpAlignPic) window.wpAlignPic(w); });
             var _el_wbTrimPic = document.getElementById('wbTrimPic'), _el_wbTrimReset = document.getElementById('wbTrimReset');   // 1.6.2 (backlog 37)

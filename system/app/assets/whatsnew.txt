@@ -1166,6 +1166,12 @@ The Data Map
 - Name a Pickpocket roll under Bodies, and a player can pick the pocket of
   an NPC next to them. The NPC resists by the roll's own Resisted by, and a
   success shows one row at random to take.
+- Furnishings: chairs, chests, beds, tables, lights, plants and more, 21 kinds
+  drawn by Waypoint in four looks, Fantasy, Victorian, Modern and Futuristic.
+  They are on Build's Objects tab. Click one and then the map, or drag it
+  there. A map object can name a kind under Rules for, and a furnishing of
+  that kind takes its cover, size and blocking. A placed one can change its
+  look in its Properties, and take a tint.
 - Fixed: placing a shape or Build's pieces over a filled region could drag
   the region instead.
 - A map used to open on whichever face you last left it in. Now Settings,

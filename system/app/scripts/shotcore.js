@@ -16,6 +16,7 @@ import { cleanTexSrc, cleanTexTile, secretSeen, lineWidth, lineOpacity, lineTip,
 import { cleanTexture, TEX, PIC_CELL, picCell, picUrl } from './buildcore.js';
 import { cssColor, picRef } from './safecore.js';
 import { fontCss } from './textfmt.js';
+import { cleanFurn, furnSrc } from './furncore.js';
 
 var VERSION = 1;
 var CELLS = Object.freeze([50, 70, 100, 140]);   // px a cell in the file; the board itself is 50
@@ -232,6 +233,7 @@ function patternOf(item) {
 }
 // The address a picture piece is loaded from: the app's own paths only (safecore picRef: never a web address), encoded for a request
 function picOf(item) {
+    var fu = item && item.furn ? cleanFurn(item.furn) : null; if (fu) return furnSrc(fu);   // 1.6.2 (backlog 222): a furnishing is the app's own drawing
     var ref = picRef(item.src); if (!ref) return '';
     if (/^(data:|blob:)/i.test(ref)) return ref;
     try { return encodeURI(ref); } catch (e) { return ''; }

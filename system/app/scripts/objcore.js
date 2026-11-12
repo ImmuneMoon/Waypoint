@@ -10,6 +10,7 @@
    The shape has room for what comes later (interactions such as sitting in a chair, a box the GM sets as openable, what a box holds): a later key
    joins cleanObj and objProps, and an object from before it reads as having none. */
 import { cleanTexSrc, cleanCoverPro } from './fogcore.js';
+import { cleanFurn, furnKind, furnSize, furnWords } from './furncore.js';   // 1.6.2 (backlog 222): the furnishing kinds an object may give its rules to
 
 export var OBJ_MAX = 2000;
 var NAME_MAX = 60, CELLS_MAX = 12, ID_RE = /^[A-Za-z0-9_-]{1,40}$/, HEX_RE = /^#[0-9a-fA-F]{6}$/;
@@ -34,6 +35,7 @@ export function cleanObj(o) {
     if (src) out.src = src;
     if (OBJ_GRADES.indexOf(cv) >= 0) out.cover = cv;
     var pro = cleanCoverPro(own(o, 'pro')); if (pro) out.pro = pro;   // 1.6.2: its Protection, read as TargetCoverPro where it stands on the line
+    var fk = own(o, 'furn'); if (typeof fk === 'string' && furnKind(fk)) out.furn = fk;   // 1.6.2 (backlog 222): the furnishing kind it gives its rules to (the owner: "The system says")
     if (own(o, 'sight') === true) out.sight = true; else if (own(o, 'stops') === true) out.stops = true;   // what blocks sight stops tokens already
     if (w > 1) out.w = w;
     if (h > 1) out.h = h;
@@ -65,6 +67,7 @@ export function objType(o) { var c = cleanObj(o); return c && c.src ? 'image' : 
 export function objWords(o) {
     var c = cleanObj(o); if (!c) return '';
     var w = [c.sight ? 'Blocks sight' : c.cover ? GRADE_WORDS[c.cover] : 'No cover'];
+    if (c.furn) w.unshift('Rules for ' + furnKind(c.furn).label);
     if (c.pro) w.push('Protection ' + c.pro);
     if (c.stops) w.push('Stops tokens');
     if ((c.w || 1) > 1 || (c.h || 1) > 1) w.push((c.w || 1) + ' by ' + (c.h || 1) + ' cells');
@@ -86,5 +89,27 @@ export function objTake(list, o, id) {
     return { list: cleanObjects(l), took: true };
 }
 
-var API = { OBJ_MAX: OBJ_MAX, OBJ_GRADES: OBJ_GRADES, cleanObj: cleanObj, cleanObjects: cleanObjects, objProps: objProps, objType: objType, objWords: objWords, objId: objId, objTake: objTake };
+// [furncheck:rules-start]
+// 1.6.2 (backlog 222; the owner, 2026-11-12, by prompt: "The system says"): a furnishing's rules are a map object's that names its kind, the
+// first such in the lists handed in, the system's set before the campaign's own. A pack, and the drawing, never carry rules
+export function furnRule(lists, k) {
+    if (!furnKind(k)) return null;
+    var L = Array.isArray(lists) ? lists : [];
+    for (var i = 0; i < L.length; i++) { var l = cleanObjects(L[i]); for (var j = 0; j < l.length; j++) if (l[j].furn === k) return l[j]; }
+    return null;
+}
+// What a placed furnishing is: a picture piece that keeps its kind, its version and its tint, drawn by every machine from those words. With a
+// rule it takes the rule's own keys (objProps) and the rule's size where the rule names one, else the kind's own. With none it is a plain picture
+// over the map's pictures and under the tokens, with no key of cover, so the system's own rule for pictures says what it gives
+export function furnProps(f, lists, hex) {
+    var c = cleanFurn(f); if (!c) return null;
+    var rule = furnRule(lists, c.k), sz = furnSize(c.k, hex), p = rule ? objProps(rule, hex) : { name: furnWords(c), layer: 'back-mid' };
+    delete p.src; delete p.color;
+    if (!rule || (!(rule.w > 1) && !(rule.h > 1))) { p.w = sz.w; p.h = sz.h; }
+    p.furn = c; p.color = 'transparent'; p.fit = true;   // fit: the box keeps the size it is given, never the drawing's own proportions
+    return p;
+}
+// [furncheck:rules-end]
+
+var API = { OBJ_MAX: OBJ_MAX, OBJ_GRADES: OBJ_GRADES, cleanObj: cleanObj, cleanObjects: cleanObjects, objProps: objProps, objType: objType, objWords: objWords, objId: objId, objTake: objTake, furnRule: furnRule, furnProps: furnProps };
 if (typeof window !== 'undefined') window.wpObjCore = API;

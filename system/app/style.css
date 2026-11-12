@@ -1430,6 +1430,15 @@
   .build-cell:hover .build-pin, .build-pin:focus-visible, .build-pin.on { opacity: 1; }
   .floating-toolbar .build-pin.on { color: var(--gold); }
   .build-none { color: var(--dim); font-size: 11.5px; padding: 6px 2px; }
+  /* 1.6.2 (backlog 222): the furnishings palette on Build's Objects tab, each drawing on a checker so its clear part shows, and a furnishing's look in Properties */
+  .furn-body { margin-top: 4px; }
+  .build-cell .furn-face { display: flex; align-items: center; justify-content: center; background: repeating-conic-gradient(#1c1c24 0 25%, #22222c 0 50%) 0 0 / 12px 12px; border: 1px solid var(--edge); }
+  .furn-face img { max-width: 100%; max-height: 100%; object-fit: contain; pointer-events: none; }
+  .floating-toolbar .furn-tile { position: relative; }
+  .furn-rule { position: absolute; top: 3px; left: 3px; font-size: 9px; line-height: 1; padding: 2px 4px; border-radius: 3px; background: rgba(0,0,0,.65); color: var(--gold); pointer-events: none; }
+  .insp-furn select { width: 100%; }
+  .insp-furn-tint { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .insp-furn-tint input[type="color"] { flex: 0 0 48px; width: 48px; height: 28px; padding: 2px; cursor: pointer; }
   .floating-toolbar .build-shapes { flex-wrap: wrap; max-width: 260px; }
   .floating-toolbar .build-shape-btn .ico { width: 14px; height: 14px; }
   /* The lists and the cost boxes of the Fill and Build menus wear the app's own dark box, as the toolbar's other lists do (the owner, 2026-10-10: "lets style these dropdowns") */

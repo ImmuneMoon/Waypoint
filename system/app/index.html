@@ -96,6 +96,7 @@
 <script type="module" src="scripts/cloudui.js"></script>
 <script type="module" src="scripts/medialimit.js"></script>
 <script type="module" src="scripts/mapobjects.js"></script>
+<script type="module" src="scripts/furnish.js"></script>
 <script type="module" src="scripts/layers.js"></script>
 <script type="module" src="scripts/ilayers.js"></script>
 <script type="module" src="scripts/boxes.js"></script>
@@ -973,6 +974,14 @@
                                   <li>Press <b>Edit</b> to change its name, picture, cover or size. A piece already placed keeps what it had.</li>
                                   <li><b>From a picture</b> makes one from your Image Library. Objects you make stay in this campaign. <b>From another campaign</b> copies one in.</li>
                                   <li><b>Move to the system</b> puts one in the system&rsquo;s own set, so that a system file carries it.</li>
+                              </ul>
+                          </li>
+                          <li><b>Furnishings:</b> chairs, chests, beds, tables, lights and more, drawn by Waypoint in four looks. They are on Build&rsquo;s Objects tab, the GM&rsquo;s alone.
+                              <ul>
+                                  <li>Pick a look, Fantasy, Victorian, Modern or Futuristic. Then click a furnishing and click the map, or drag it onto the map. Any look goes on any map.</li>
+                                  <li>A furnishing takes its rules from a map object that names its kind. Pick the kind under <b>Rules for</b> when you edit the object. The system&rsquo;s objects come first.</li>
+                                  <li>A kind no object names is a plain picture. A tile marked Rules has one.</li>
+                                  <li>In its Properties you can change its look and give it a <b>Tint</b>, so one chair fits many rooms. <b>No tint</b> takes the colour back.</li>
                               </ul>
                           </li>
                           <li><b>Containers:</b> a picture, a shape or a map object can hold items, such as a chest or a crate. Tick <b>Holds items</b> in its Properties. A token, a wall or a door cannot.
@@ -3727,6 +3736,9 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <div class="build-line" id="buildCorridorLine" hidden>With walls lays a wall line along each side. The ends stay open.</div>
                   </div>
                   <button class="wb-tool-btn menu-row" id="buildFlatBtn" title="The selected pieces drawn into one picture, saved with this campaign. The plain pieces are hidden and Unflatten on the picture's right-click puts them back"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5V5h3.5M17.5 5H21v3.5M21 15.5V19h-3.5M6.5 19H3v-3.5M7.5 8.5h9v7h-9zM12 8.5v7M7.5 12h9"/></svg></span><span class="mr-txt">Flatten selection&hellip;<small>Many pieces become one picture.</small></span></button>
+                  <div class="menu-rule"></div>
+                  <div class="draw-menu-label">Furnishings</div>
+                  <div class="build-furn" id="buildFurn"></div>
                   <div class="menu-rule"></div>
                   <div class="draw-menu-label">Map objects</div>
                   <div class="menu-list" id="buildObjRows"></div>

@@ -48,7 +48,8 @@ function store(kind, list) { var c = campNow(); if (!c || !listPut(c, kind, list
 
 function thumb(o) {
     var t = el('span', 'obj-thumb');
-    if (o.src) { var i = el('img'); i.alt = ''; i.src = o.src; t.appendChild(i); } else t.style.background = o.color || '#6b5b45';
+    var FUt = window.wpFurnCore, fsrc = !o.src && o.furn && FUt ? FUt.furnSrc({ k: o.furn, era: FUt.FURN_ERAS[0].id }) : '';   // 1.6.2 (backlog 222): an object that names a furnishing and has no picture shows its drawing
+    if (o.src || fsrc) { var i = el('img'); i.alt = ''; i.src = o.src || fsrc; t.appendChild(i); } else t.style.background = o.color || '#6b5b45';
     return t;
 }
 function formInto(box, o, kind, list) {
@@ -65,6 +66,13 @@ function formInto(box, o, kind, list) {
     pro.dataset.tip = 'How much it stops of a blow that passes through it, where your system reads it in a roll. Empty for none.';
     pro.addEventListener('change', function() { commit({ pro: Number(pro.value) || undefined }); draw(); });
     row('Protection', pro);
+    var FUf = window.wpFurnCore; if (FUf) {   // 1.6.2 (backlog 222): the furnishing kind this object gives its rules to (the owner: "The system says")
+        var fk = el('select'), op0 = el('option', '', 'No furnishing'); op0.value = ''; fk.appendChild(op0);
+        FUf.FURN_KINDS.forEach(function(k) { var op = el('option', '', k.label); op.value = k.key; fk.appendChild(op); });
+        fk.value = o.furn || ''; fk.dataset.tip = 'A furnishing of this kind placed from Build takes this object\u2019s cover, size and blocking. The system\u2019s objects come first.';
+        fk.addEventListener('change', function() { commit({ furn: fk.value || undefined }); draw(); });
+        row('Rules for', fk);
+    }
     var tick = function(label, on, tip, go) { var l = el('label', 'gen-tick'); var c = el('input'); c.type = 'checkbox'; c.checked = on; c.addEventListener('change', function() { go(c.checked); }); l.appendChild(c); l.appendChild(el('span', '', label)); l.dataset.tip = tip; f.appendChild(l); };
     tick('Blocks sight', !!o.sight, 'A wall to sight, tokens and cover.', function(v) { commit({ sight: v || undefined, stops: undefined }); draw(); });
     if (!o.sight) tick('Stops tokens', !!o.stops, 'Tokens cannot cross it. Sight passes.', function(v) { commit({ stops: v || undefined }); draw(); });

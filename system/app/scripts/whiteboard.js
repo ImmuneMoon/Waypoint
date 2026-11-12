@@ -1034,7 +1034,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
               }
 
-              var wantSrc = resolveImg(item.src);
+              var FUd = window.wpFurnCore, fuD = item.furn && FUd ? FUd.cleanFurn(item.furn) : null, wantSrc = fuD ? FUd.furnSrc(fuD) : resolveImg(item.src);   // 1.6.2 (backlog 222): a furnishing is the app's own drawing, from its words
 
               var imEl = el.querySelector('img');
 
@@ -7900,6 +7900,8 @@ if(_el_clearWbBtn) _el_clearWbBtn.addEventListener('click', function() {
 
       var wpPic = ''; try { wpPic = e.dataTransfer.getData('application/x-wp-picture') || ''; } catch (er) {}
       if (wpPic) { libDropAt(wpPic, e); return; }   // 1.6.2 (backlog 41 (a)): a picture from the Image Library
+      var wpFurn = ''; try { wpFurn = e.dataTransfer.getData('application/x-wp-furn') || ''; } catch (er) {}
+      if (wpFurn) { furnDropAt(wpFurn, e); return; }   // 1.6.2 (backlog 222): a furnishing from Build's Objects tab
 
       var f = e.dataTransfer.files[0];
 
@@ -7931,6 +7933,23 @@ if(_el_clearWbBtn) _el_clearWbBtn.addEventListener('click', function() {
       save(); render(); toast('Picture placed.');
   }
   // [lookcheck:libdrop-end]
+  // [furncheck:drop-start] 1.6.2 (backlog 222): a furnishing dragged from Build's Objects tab, its middle where it is let go, with the rules a
+  // map object that names its kind gives it (furnish.js propsOf), seated on the lattice where Snap is on
+  function furnDropAt(str, e) {
+      var FS = window.wpFurnish, F = window.wpFurnCore, f = FS && F ? FS.read(str) : null; if (!f) return;
+      var am = getActiveMap(); if (!am || am.type !== 'map' || state.viewMode !== 'visual') { toast('Open a play map first.'); return; }
+      if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; }
+      var p = FS.propsOf(f); if (!p) return;
+      var r = wbWrap.getBoundingClientRect(), x = wbX(e.clientX, e.clientY, r, wbWrap) - p.w / 2, y = wbY(e.clientX, e.clientY, r, wbWrap) - p.h / 2;
+      var GS = window.wpSnapOn && window.wpSnapOn() && window.wpLatticeOf ? window.wpLatticeOf(am) : null;
+      if (GS && GS.type === 'square' && GS.size > 0) { var ox = GS.ox || 0, oy = GS.oy || 0; x = Math.round((x - ox) / GS.size) * GS.size + ox; y = Math.round((y - oy) / GS.size) * GS.size + oy; }
+      else if (GS && GS.type === 'hex' && typeof snapToHex === 'function') { var hc = snapToHex(x + p.w / 2, y + p.h / 2, 30, 'center'); x = hc.x - p.w / 2; y = hc.y - p.h / 2; }
+      var it = Object.assign({ id: 'wb' + uid(), type: 'image', z: 10 }, newOpacityProps(), p, { x: Math.max(10, Math.round(x)), y: Math.max(10, Math.round(y)) });
+      am.whiteboard = am.whiteboard || []; am.whiteboard.push(it);
+      state.selWbId = it.id; state.selWbIds = [];
+      save(); render(); toast('Placed ' + p.name + '.');
+  }
+  // [furncheck:drop-end]
 
   /* ---------- Global Tools ---------- */
 
@@ -8735,12 +8754,24 @@ window.wpPlaceCommit = function(px, py, pw, ph, sx, sy) {
             var cz = PL && PL.type === 'square' ? PL.size : 50, cx0 = PL && PL.ox || 0, cy0 = PL && PL.oy || 0; ci.x = Math.round((ci.x - cx0) / cz) * cz + cx0; ci.y = Math.round((ci.y - cy0) / cz) * cz + cy0; save(); render();
         }
     } else if (isHexItem && hexGrid && !dragged) snapNewHexItem();
+    if (props.furn && !cell && !dragged) furnSeatNew();   // 1.6.2 (backlog 222)
     if (type === 'trigger') toast(isHexItem ? 'Hex trigger added. It fills one grid cell. Write its Event Message in Properties.' : 'Trigger zone added. Write its Event Message in the Properties panel.');
     if (type === 'text') {
         var el = state.wbEls[state.selWbId];
         if (el && el.classList.contains('text')) { try { el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); } catch(_) {} }
     }
 };
+// [furncheck:seat-start] 1.6.2 (backlog 222): a furnishing placed by a click sits on the lattice where Snap is on, as one dropped from the palette does:
+// its corner on a square grid, its middle in a hex cell. With Snap off, or with no grid, it stays where it was put
+function furnSeatNew() {
+    var am = getActiveMap(), it = am && (am.whiteboard || []).find(function(i) { return i.id === state.selWbId; });
+    var GS = it && window.wpSnapOn && window.wpSnapOn() && window.wpLatticeOf ? window.wpLatticeOf(am) : null; if (!GS) return;
+    if (GS.type === 'square' && GS.size > 0) { var ox = GS.ox || 0, oy = GS.oy || 0; it.x = Math.round((it.x - ox) / GS.size) * GS.size + ox; it.y = Math.round((it.y - oy) / GS.size) * GS.size + oy; }
+    else if (GS.type === 'hex' && typeof snapToHex === 'function') { var hc = snapToHex(it.x + it.w / 2, it.y + it.h / 2, 30, 'center'); it.x = hc.x - it.w / 2; it.y = hc.y - it.h / 2; }
+    else return;
+    save(); render();
+}
+// [furncheck:seat-end]
 function addWbItemAt(type, props, x, y) {
     var item = Object.assign({
         id: 'wb'+uid(), type: type,
@@ -8986,7 +9017,7 @@ function buildTabsWire() {
     var part = 'build';
     Array.prototype.forEach.call(m.children, function(c) {
         if (c === tabs || c.id === 'buildHint') return;
-        if (c.nextElementSibling && c.nextElementSibling.id === 'buildObjRows') part = 'objects';   // the Map objects label begins the Objects tab
+        if (c.nextElementSibling && (c.nextElementSibling.id === 'buildFurn' || c.nextElementSibling.id === 'buildObjRows')) part = 'objects';   // the Furnishings label begins the Objects tab (backlog 222), and Map objects stands in it
         if (c.id === 'buildGenBtn') part = 'generate';
         c.setAttribute('data-bpart', part);
     });

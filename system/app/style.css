@@ -3575,6 +3575,13 @@
   .sv-beat-tag { font-size: 10.5px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.04em; }
   .sv-sess { display: flex; gap: 3px; } .sv-s { font-size: 10.5px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--edge); background: transparent; color: var(--dim); cursor: pointer; }
   .sv-s.on { background: var(--gold); color: #1b1b1b; border-color: var(--gold); }
+  /* 1.6.2 (backlog 43): interaction layers at the top of the Layers window, and their marks on the GM's board */
+  #iLayers { padding: 8px 10px 6px; border-bottom: 1px solid var(--edge); display: flex; flex-direction: column; gap: 3px; }
+  #iLayers .il-head, #iLayers .il-row { display: grid; grid-template-columns: 1fr 52px 52px; align-items: center; gap: 4px; font-size: 12px; }
+  #iLayers .il-head { color: var(--gold); font-size: 11px; font-weight: 600; } #iLayers .il-head .il-col { text-align: center; color: var(--dim); font-weight: 400; }
+  #iLayers .il-tick { justify-self: center; margin: 0; } #iLayers .il-players { margin-top: 6px; } #iLayers .il-say { font-size: 11px; margin-top: 2px; }
+  #whiteboard .wb-item.il-off, #whiteboard .wb-item.il-off * { visibility: hidden !important; }
+  #whiteboard .wb-item.il-through, #whiteboard .wb-item.il-through * { pointer-events: none !important; }
   #layersList { padding: 8px 10px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 5px; }
   #layersList .element-list-item.el-d1 { margin-left: 16px; } #layersList .element-list-item.el-d2 { margin-left: 32px; }
   .element-group { display: flex; align-items: center; gap: 4px; padding: 2px 0; color: var(--dim); font-size: 12px; } .element-group .el-gname { cursor: pointer; } .element-group .el-gname:hover { color: var(--ink); text-decoration: underline; }

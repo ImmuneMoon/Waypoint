@@ -273,3 +273,6 @@ jobs:
       - name: roomcheck, the Data Map rooms (a room added with its name ready, a link dragged from a room, a room made for a play map piece)
         if: ${{ !cancelled() }}
         run: node tools/roomcheck.js
+      - name: ilayerscheck, interaction layers (the kinds a piece belongs to, what this computer keeps, As players see it, the board's marks)
+        if: ${{ !cancelled() }}
+        run: node tools/ilayerscheck.js

@@ -1843,6 +1843,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
               var target = items.find(x => x.id === id);
 
               if(!target) return;
+              if (window.wpILayers && window.wpILayers.offNow && window.wpILayers.offNow(target)) { toast('That piece is out of sight on your screen. Tick its kind under Show on my map to pick it.'); return; }   // backlog 43 (the review): never a piece the GM cannot see
 
               
 

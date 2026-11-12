@@ -1255,6 +1255,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
           } else if (fxEl) fxEl.remove();
           pagePinSync(el, item, hideFromMe);   // 1.5.4 (pageshelf.js): a pin's mark, on the GM's screen alone
           roomNameSync(el, item, rnPlaces);   // 1.6.2 (backlog 45, fold 3): the room's name on its place, on the GM's screen alone
+          if (window.wpILayers) window.wpILayers.mark(el, item, activeMap);   // 1.6.2 (backlog 43): interaction layers, the GM's own screen
           var barL = item.isChar && window.wpSheets && window.wpSheets.tokenBars ? window.wpSheets.tokenBars(item, activeMap.id) : [], barEl = el.querySelector(':scope > svg.token-bars');   // backlog 28: its bars, a ring around it
           if (barL.length) {
               var barSig = tokenBarsSig(item, barL);

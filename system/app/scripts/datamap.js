@@ -774,6 +774,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
       var selected = [], nM = window.wpNet, onlyOwn = !!(nM && nM.active && nM.role === 'client');   // fold M8: a player's marquee takes only what they may move
       activeMap.whiteboard.forEach(function(w) {
           if (onlyOwn && !(w && (w.isChar || w.waiting) && w.ownerId === nM.myId && !w.hidden && !w.locked)) return;
+          if (!onlyOwn && window.wpILayers && window.wpILayers.through(w)) return;   // backlog 43: a marquee passes over a kind that takes no clicks
           var cx = w.x + (w.w || 100) / 2, cy = w.y + (w.h || 100) / 2;
           if (cx >= mx && cx <= mx + mw && cy >= my && cy <= my + mh) selected.push(w.id);
       });
@@ -810,7 +811,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
       if (!map || !Array.isArray(map.whiteboard) || !item || item.isChar || item.waiting || e.shiftKey || e.ctrlKey || e.metaKey) return null;
       var wr = wbWrap.getBoundingClientRect(), px = wbX(e.clientX, e.clientY, wr, wbWrap), py = wbY(e.clientX, e.clientY, wr, wbWrap), tok = null, tz = -Infinity, at = -1;
       map.whiteboard.forEach(function(c, i) {
-          if (!c.isChar || c.locked || c.id === item.id || px < c.x || px > c.x + (c.w || 0) || py < c.y || py > c.y + (c.h || 0)) return;
+          if (!c.isChar || c.locked || c.id === item.id || (typeof window !== 'undefined' && window.wpILayers && window.wpILayers.through(c)) || px < c.x || px > c.x + (c.w || 0) || py < c.y || py > c.y + (c.h || 0)) return;
           var z = handZ(c); if (z > tz || (z === tz && i > at)) { tok = c; tz = z; at = i; }
       });
       return tok;
@@ -857,7 +858,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
       list.forEach(function(c, idx) {
           if (!c || typeof c !== 'object' || c === pressed || c.id === pressed.id) return;
           if ((c.isChar || c.waiting) && !c.locked && px >= c.x && px <= c.x + (c.w || 0) && py >= c.y && py <= c.y + (c.h || 0)) { inTok = true; return; }
-          if (!wallLine(c) || c.locked) return;
+          if (!wallLine(c) || c.locked || (typeof window !== 'undefined' && window.wpILayers && window.wpILayers.through(c))) return;   // backlog 43: a wall set to take no clicks is never picked
           var d = wallGap(c, px, py); if (!(d <= WALL_REACH)) return;
           d = Math.max(0, d);   // on the stroke is on it, however deep
           var z = handZ(c);
@@ -940,6 +941,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
                 var best = null, bestZ = -Infinity, bestIdx = -1;
                 activeMap.whiteboard.forEach(function(cand, idx) {
                     if (cand.locked || cand.id === item.id) return;
+                    if (typeof window !== 'undefined' && window.wpILayers && window.wpILayers.through(cand)) return;   // backlog 43
                     if (asPlayer && !((cand.isChar || cand.waiting) && cand.ownerId === window.wpNet.myId)) return;
                     if (wpx < cand.x || wpx > cand.x + (cand.w || 0) || wpy < cand.y || wpy > cand.y + (cand.h || 0)) return;
                     var cz = handZ(cand);
@@ -987,6 +989,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
             var tok = null, tokZ = -Infinity, tokIdx = -1;
             activeMap.whiteboard.forEach(function(cand, idx) {
                 if (!cand.isChar || cand.locked || cand.id === item.id) return;
+                if (typeof window !== 'undefined' && window.wpILayers && window.wpILayers.through(cand)) return;   // backlog 43
                 if (tpx < cand.x || tpx > cand.x + (cand.w || 0) || tpy < cand.y || tpy > cand.y + (cand.h || 0)) return;
                 var cz = handZ(cand);
                 if (cz > tokZ || (cz === tokZ && idx > tokIdx)) { tok = cand; tokZ = cz; tokIdx = idx; }

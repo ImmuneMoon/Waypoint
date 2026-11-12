@@ -2128,6 +2128,7 @@ function pieceUnder(map, grid, x, y, C) {
     var wb = Array.isArray(map.whiteboard) ? map.whiteboard : [], best = null, bz = -Infinity;
     for (var i = 0; i < wb.length; i++) {
         var w = wb[i]; if (!w || typeof w !== 'object' || w.isChar || w.waiting || w.gmNoteFor || w.fill) continue;
+        if (typeof window !== 'undefined' && window.wpILayers && window.wpILayers.through(w)) continue;   // backlog 43 (the review): a kind that takes no clicks is passed over
         if (w.type !== 'image' && w.type !== 'rect' && w.type !== 'circle' && w.type !== 'hexagon' && w.type !== 'diamond') continue;
         if (C.itemCovers(w, x, y, grid) !== true) continue;
         var lz = typeof w.layer === 'string' && Object.prototype.hasOwnProperty.call(PIECE_LAYER, w.layer) ? PIECE_LAYER[w.layer] : 0;

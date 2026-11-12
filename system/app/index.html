@@ -97,6 +97,7 @@
 <script type="module" src="scripts/medialimit.js"></script>
 <script type="module" src="scripts/mapobjects.js"></script>
 <script type="module" src="scripts/layers.js"></script>
+<script type="module" src="scripts/ilayers.js"></script>
 <script type="module" src="scripts/trade.js"></script>
 <script type="module" src="scripts/keycore.js"></script>
 <script type="module" src="scripts/commands.js"></script>
@@ -887,6 +888,7 @@
                           <li>The bar of buttons over a selected piece folds to one small button with the arrow at its end, and opens again from it. <b>Bar over a selected piece</b> in Settings puts it away altogether. Its commands are on the right-click menu too.</li>
                                   <li><b>Properties</b> floats over the map. Move it by its title, where the piece&rsquo;s kind stands beside the word Properties. A shut fold says what it holds, such as Blocks sight. Where a piece has many folds, <b>Find a setting</b> shows only the settings whose words match.</li>
                                   <li><b>Layers</b> in the toolbar&rsquo;s More menu lists this map&rsquo;s pieces, front to back, in a window titled with the map&rsquo;s name. A group and a flattened picture hold their pieces under them, and fold. Click a piece to find it, and rename, hide or move it up or down a layer there.</li>
+                                  <li>At the top of Layers, <b>Show on my map</b> has a row for trigger zones, portals and doors, walls and barriers, GM notes, lights, room areas and hidden pieces. Untick Shown to put a kind out of sight on your screen, or Clicks to click straight through it to what is under it. <b>As players see it</b> puts every row away at once, and a second press puts back what you had. Your players see and use everything as before.</li>
                                   <li><b>Flatten into one picture</b> draws two pieces or more into one picture saved with this campaign. It is on their right-click, and in Build&rsquo;s options. Players then load one picture, not many. The plain pieces are hidden. Pieces with rules, such as walls, doors and cover, are drawn in and kept as invisible pieces, or left out, as you choose. <b>Unflatten</b> on the picture&rsquo;s right-click puts the pieces back.</li>
                           <li><b>Save to Campaign Cast</b>, on a character token, keeps a copy of it in the campaign&rsquo;s cast. Right-click the play map &#9656; <b><i class="wib wi-starf"></i> Campaign Cast</b> and click a member to place a copy there, or its <b>&times;5</b> for five. The cast is a folder of the Image Library too.</li>
                       </ul>
@@ -5203,6 +5205,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <!-- Layers (1.6.2, backlog 217): this map's pieces, front to back, in a floating window titled with the map's name (layers.js) -->
 <div id="layersPanel" style="display:none;" role="dialog" aria-label="Layers">
     <div id="layersHead"><span class="notepad-title"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5.5h4v4h-4Z M3.5 14.5h4v4h-4Z M10.5 7.5h10 M10.5 16.5h10 M12.5 11.5h8 M12.5 20.5h6"/></svg> Layers</span><span id="layersMap" class="ly-map"></span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="layersClose" title="Close Layers">&times;</button></div>
+    <div id="iLayers" role="group" aria-label="Show on my map"></div>
     <div id="layersList"></div>
 </div>
 <!-- Table trackers (1.6.0, backlog 29): a tracker's menu beside its name and its form (trackers.js) -->

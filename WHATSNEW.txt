@@ -1134,6 +1134,11 @@ The Data Map
   bare count.
 - Find their room, on a character's right-click under Characters, opens the
   Data Map at the room they stand in.
+- The Layers window now starts with Show on my map: trigger zones, portals and
+  doors, walls and barriers, GM notes, lights, room areas and hidden pieces.
+  Untick one to put it out of sight on your screen, or untick its Clicks to
+  click straight through it while you move tokens. As players see it puts them
+  all away at once. Players see and use everything as before.
 - Fixed: placing a shape or Build's pieces over a filled region could drag
   the region instead.
 - A map used to open on whichever face you last left it in. Now Settings,

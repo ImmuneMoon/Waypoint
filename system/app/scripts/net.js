@@ -867,6 +867,7 @@ function wireWbItem(w, cloned) {
     if (tbrW) w.tbr = tbrW;
     if (w.pl !== undefined) delete w.pl; var plW = w.isChar && !w.waiting && typeof plOf === 'function' ? plOf(w) : null; if (plW) w.pl = plW;   // 1.6.2, backlog 35: its character's personal look, worked out afresh (a hidden token is not sent at all)
     delete w.boxed;   // the mark is worked out here and nowhere else (the review)
+    if (w.isChar && !w.waiting && typeof lootOf === 'function' && lootOf(w)) w.boxed = 1;   // fold 3: a body that can be looted wears the chest for players too
     if (w.box !== undefined) { if (typeof w.box === 'string' && /^c_bx[A-Za-z0-9]{4,20}$/.test(w.box)) w.boxed = 1; delete w.box; }   // 1.6.2 (backlog 42): a container's box id is the GM's own; players are told only that it is one
     if (w.mine !== undefined) delete w.mine;   // 1.5.8 explosives: a placed mine's blast (its damage formula, who placed it) is the GM's: a hidden mine is not sent at all, and a shown one goes as a plain trigger zone
     if (w.page !== undefined) delete w.page;   // 1.5.4 (pageshelf.js): a pin, the page a piece opens, is the GM's own link and names a planner: never on the wire
@@ -928,6 +929,20 @@ function plOf(w) {
     return lk;
 }
 function plOn(rec, ch) { var S = SC(), lk = ch && S && typeof S.cleanPlook === 'function' ? S.cleanPlook(ch.plook) : null; if (lk && rec && rec.as) rec.pl = lk; return rec; }   // a card's: the look of the character it names
+// Fold 3: whether a token's body can be looted, as the host judges it now, kept per token so that a change sends its maps (as plMoved does)
+var _lootSig = Object.create(null);
+function lootOf(w) {
+    if (net.role !== 'host' || !w || typeof w !== 'object' || typeof w.id !== 'string') return false;
+    var camp = getActiveCampaign(), BC = window.wpBoxCore, ch = camp && camp.chars && typeof w.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, w.charId) ? camp.chars[w.charId] : null;
+    var on = !!(ch && BC && typeof BC.bodyLootable === 'function' && BC.bodyLootable(camp.system, ch, window.wpFormula)); _lootSig[w.id] = on ? 1 : 0; return on;
+}
+function lootMoved(id) {
+    if (!net.active || net.role !== 'host') return;
+    var camp = getActiveCampaign(); if (!camp || !camp.items) return; var outL = Object.create(null);
+    Object.keys(camp.items).forEach(function(mid) { var m = camp.items[mid]; if (!m || m.type !== 'map' || !Array.isArray(m.whiteboard)) return; m.whiteboard.forEach(function(w) { if (!w || !w.isChar || w.hidden || w.waiting || typeof w.id !== 'string' || _lootSig[w.id] === undefined) return; if (id !== null && id !== undefined && w.charId !== id) return; var was = _lootSig[w.id]; if ((lootOf(w) ? 1 : 0) !== was) outL[mid] = 1; }); });
+    Object.keys(outL).forEach(function(mid) { net.sendItem(camp.id, mid); });
+}
+net.lootMoved = lootMoved;
 function plMoved(id) {
     if (!net.active || net.role !== 'host') return;
     var camp = getActiveCampaign(); if (!camp || !camp.items) return;
@@ -957,6 +972,7 @@ function fxbOf(w) {
 function fxbMoved(id) {
     if (typeof barsMoved === 'function') barsMoved(id);   // backlog 28: the bars on the tokens, at every change the effects are looked at for
     if (typeof plMoved === 'function') plMoved(id);   // 1.6.2, backlog 35: the personal look on the tokens
+    if (typeof lootMoved === 'function') lootMoved(id);   // 1.6.2 (backlog 42, fold 3): a body that comes to be lootable, or stops
     if (!net.active || net.role !== 'host') return;
     var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !S.tokenEffects || !camp.chars) return;
     var moved = Object.create(null), out = Object.create(null);
@@ -4387,9 +4403,16 @@ function boxKey(camp, map, w) { return camp.id + '|' + map.id + '|' + w.id; }
 function boxOfPiece(camp, w) { return camp && w && typeof w.box === 'string' && camp.boxes && Object.prototype.hasOwnProperty.call(camp.boxes, w.box) ? camp.boxes[w.box] : null; }
 // What a player is sent: the container's name and the rows that can be taken (tradeOfferable as the take judges them, so never a GM-only entry,
 // a row kept from players, a curse kept on or a granted row), as boxTiles words them
+// What a piece holds: a container's own store, or (fold 3) a lootable body as { body: its character }. None for anything else
+function boxSrcOf(camp, w) {
+    var BC = window.wpBoxCore; if (!camp || !w || !BC) return null;
+    if (typeof w.box === 'string') { var b = boxOfPiece(camp, w); return b && BC.boxPieceOk(w) ? b : null; }
+    var ch = w.isChar && !w.waiting && typeof w.charId === 'string' && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, w.charId) ? camp.chars[w.charId] : null;
+    return ch && typeof BC.bodyLootable === 'function' && BC.bodyLootable(camp.system, ch, window.wpFormula) ? { body: ch } : null;
+}
 function boxViewMsg(camp, map, w, box) {
-    var BC = window.wpBoxCore, Sv = SC(), tiles = BC ? BC.boxTiles(camp.system, box) : [], can = Object.create(null);
-    if (Sv && typeof Sv.tradeOfferable === 'function' && BC) Sv.tradeOfferable(camp.system, BC.boxChar(box), 'gm').forEach(function(o) { if (!o.no) can[o.fid + '|' + o.rowId] = 1; });
+    var BC = window.wpBoxCore, Sv = SC(), body = box && box.body ? box.body : null, tiles = BC ? BC.boxTiles(camp.system, body ? { values: body.values } : box) : [], can = Object.create(null), nl = body && BC && typeof BC.noLootOf === 'function' ? BC.noLootOf(body) : null;
+    if (Sv && typeof Sv.tradeOfferable === 'function' && BC) Sv.tradeOfferable(camp.system, body || BC.boxChar(box), 'gm').forEach(function(o) { if (!o.no && !(nl && nl[o.rowId])) can[o.fid + '|' + o.rowId] = 1; });   // fold 3: never a row the GM ticked Never looted
     tiles = tiles.filter(function(x) { return can[x.fid + '|' + x.rowId] === 1; });
     return { type: 'box-view', mapId: map.id, itemId: w.id, name: typeof w.name === 'string' ? w.name.slice(0, 120) : '', tiles: tiles.slice(0, 400).map(function(x) { var o = { fid: x.fid, rowId: x.rowId, name: x.name, qty: x.qty, icon: x.icon, notes: x.notes, list: x.list }; if (x.pic) o.pic = x.pic; return o; }) };
 }
@@ -4400,9 +4423,9 @@ function boxSweep() {
     var camp = getActiveCampaign(), BC = window.wpBoxCore; if (!camp || !BC) return;
     Object.keys(_boxViews).forEach(function(k) {
         var v = _boxViews[k], parts = k.split('|'), map = parts[0] === camp.id && camp.items && Object.prototype.hasOwnProperty.call(camp.items, parts[1]) ? camp.items[parts[1]] : null;
-        var w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === parts[2]; }) : null, box = w && !w.hidden ? boxOfPiece(camp, w) : null;
+        var w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === parts[2]; }) : null, box = w && !w.hidden ? boxSrcOf(camp, w) : null;
         var shut = function(peer) { net.conns.forEach(function(c) { if (c.open && c.peer === peer) { try { c.send({ type: 'box-view', mapId: parts[1], itemId: parts[2], gone: true }); } catch (e) { sendFailed(e); } } }); };
-        if (!box || !BC.boxPieceOk(w)) { Object.keys(v.peers).forEach(shut); delete _boxViews[k]; return; }
+        if (!box) { Object.keys(v.peers).forEach(shut); delete _boxViews[k]; return; }   // fold 3: a body no longer lootable closes too
         Object.keys(v.peers).forEach(function(peer) {
             var pr = net.roster[peer], open = net.conns.some(function(c) { return c.open && c.peer === peer; }), tok = (map.whiteboard || []).find(function(x) { return x && x.id === v.peers[peer]; });
             if (!open) { delete v.peers[peer]; return; }
@@ -9504,7 +9527,7 @@ function handleMessage(msg, conn) {
         if (!mapB || mapB.type !== 'map' || mapB.stub === true) return;
         var wB = (mapB.whiteboard || []).find(function(x) { return x && x.id === msg.itemId; });
         if (!wB || wB.hidden || wB.gmNoteFor) return;   // a hidden container answers nothing, as none would
-        var boxB = boxOfPiece(campB, wB); if (!boxB || !BCb.boxPieceOk(wB)) return;
+        var boxB = boxSrcOf(campB, wB); if (!boxB) return; var bodyB = boxB.body || null;   // fold 3: a lootable body is searched as a container is
         var keyB = boxKey(campB, mapB, wB);
         if (msg.op === 'untry') { delete _boxTries[conn.peer]; return; }   // the player's app could not make the roll (the review)
         if (msg.op === 'close') { if (_boxViews[keyB]) { delete _boxViews[keyB].peers[conn.peer]; if (!Object.keys(_boxViews[keyB].peers).length) delete _boxViews[keyB]; } return; }
@@ -9529,21 +9552,23 @@ function handleMessage(msg, conn) {
         }
         if (msg.op !== 'take') return;
         if (BCb.boxLocked && BCb.boxLocked(boxB)) { sayB('locked'); return; }   // fold 2b: nothing is taken from a locked one
-        var Sb = SC(); if (!Sb || typeof Sb.tradeApply !== 'function') return; var sysB = campB.system, stand = BCb.boxChar(boxB), canB = Sb.tradeOfferable(sysB, stand, 'gm').filter(function(o) { return !o.no; }), linesB = [];
+        var Sb = SC(); if (!Sb || typeof Sb.tradeApply !== 'function') return; var sysB = campB.system, stand = bodyB || BCb.boxChar(boxB), nlB = bodyB && typeof BCb.noLootOf === 'function' ? BCb.noLootOf(bodyB) : null, canB = Sb.tradeOfferable(sysB, stand, 'gm').filter(function(o) { return !o.no && !(nlB && nlB[o.rowId]) && (!bodyB || BCb.boxLists(sysB).some(function(f) { return f.id === o.fid; })); }), linesB = [];   // fold 3: a body gives only what its lists ticked Tradable hold, never a row Never looted
         if (msg.all === true) canB.forEach(function(o) { linesB.push({ fid: o.fid, rowId: o.rowId, qty: o.qty }); });
         else { var oB = canB.filter(function(o) { return o.fid === msg.fid && o.rowId === msg.rowId; })[0], qB = typeof msg.qty === 'number' && isFinite(msg.qty) ? Math.floor(msg.qty) : 0; if (oB && qB >= 1) linesB.push({ fid: oB.fid, rowId: oB.rowId, qty: Math.min(qB, oB.qty) }); }
         if (!linesB.length) { sayB('gone'); try { conn.send(boxViewMsg(campB, mapB, wB, boxB)); } catch (e) { sendFailed(e); } return; }
         var befB = Object.assign({}, chB.values || {});   // fold 2c: what the character held, to remember what the take gave
         var resB = Sb.tradeApply(sysB, stand, chB, linesB.slice(0, Sb.TRADE_LINES || 40), [], 'gm', 'gm', {});
         if (!resB.ok) { try { conn.send({ type: 'box-deny', reason: 'value', msg: String(resB.msg || '').slice(0, 200) }); conn.send(boxViewMsg(campB, mapB, wB, boxB)); } catch (e) { sendFailed(e); } return; }
-        var vB = Object.assign({}, boxB.values || {}); Object.keys(resB.valuesA).forEach(function(k) { if (Array.isArray(resB.valuesA[k]) && resB.valuesA[k].length) vB[k] = resB.valuesA[k]; else delete vB[k]; }); boxB.values = vB;
+        if (bodyB) { bodyB.values = bodyB.values || {}; Object.keys(resB.valuesA).forEach(function(k) { bodyB.values[k] = resB.valuesA[k]; }); bodyB.updated = Date.now(); }   // fold 3: off the body's own sheet
+        else { var vB = Object.assign({}, boxB.values || {}); Object.keys(resB.valuesA).forEach(function(k) { if (Array.isArray(resB.valuesA[k]) && resB.valuesA[k].length) vB[k] = resB.valuesA[k]; else delete vB[k]; }); boxB.values = vB; }
         chB.values = chB.values || {}; Object.keys(resB.valuesB).forEach(function(k) { chB.values[k] = resB.valuesB[k]; }); chB.updated = Date.now();
         saveRemoteSoon();
         if (Object.keys(resB.valuesB).length) net.syncCharDelta(chB.id, resB.valuesB);
         if (window.wpSheets) window.wpSheets.charChanged(chB.id);
-        var saidB = (chB.name || 'A character') + ' took ' + (resB.linesA.join(', ') || 'something') + ' from ' + (wB.name || 'a container') + '.';
+        if (bodyB) { if (Object.keys(resB.valuesA).length) net.syncCharDelta(bodyB.id, resB.valuesA); if (window.wpSheets) window.wpSheets.charChanged(bodyB.id); }
+        var saidB = (chB.name || 'A character') + ' took ' + (resB.linesA.join(', ') || 'something') + ' from ' + ((bodyB && bodyB.name) || wB.name || 'a container') + '.';
         var tlB = typeof BCb.takenLines === 'function' ? BCb.takenLines(sysB, befB, resB.valuesB) : [], tidB = '';   // fold 2c: remembered, so the GM may put it back
-        if (tlB.length) { tidB = 't_' + Math.random().toString(36).slice(2, 12).replace(/[^a-z0-9]/g, '') + 'x'; boxB.taken = BCb.cleanTaken([{ id: tidB, at: Date.now(), ch: chB.id, by: chB.name, lines: tlB }].concat(boxB.taken || [])); }
+        if (tlB.length && !bodyB) { tidB = 't_' + Math.random().toString(36).slice(2, 12).replace(/[^a-z0-9]/g, '') + 'x'; boxB.taken = BCb.cleanTaken([{ id: tidB, at: Date.now(), ch: chB.id, by: chB.name, lines: tlB }].concat(boxB.taken || [])); }
         logEvent('items', saidB); if (tidB && window.wpBoxes && typeof window.wpBoxes.tookNote === 'function') window.wpBoxes.tookNote(boxB.id, tidB, saidB); else toast(saidB);
         try { conn.send({ type: 'box-took', lines: resB.linesA.slice(0, 40) }); } catch (e) { sendFailed(e); }
         boxSweep();   // everyone with it open is sent what is left (the review: and judged again)

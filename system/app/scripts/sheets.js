@@ -1428,6 +1428,16 @@ function asPlayerHead(c, gm, seeP, sub, edB, camp) {
 // [systemcheck:hidefig-start]
 // 1.6.2 (the owner, 2026-11-01: "a GM setting that hides the number for a chosen NPC, such as a disguised boss"): a button of the head, on an NPC's sheet and for
 // the GM alone. It writes one key of the character, hideFig, true or none, which net.js reads through systemcore hideFigOn
+// 1.6.2 (backlog 42, fold 3): Can be looted on an NPC, the GM's tick (the character's loot), and Never looted on a row (its noLoot). lootOf
+// answers null where there is no switch: a player's app, a campaign this machine may not write, a sheet with a player, one being made
+function lootOf(charId) { var camp = getActiveCampaign(), c = charById(charId, camp); if (isClient() || !canWrite() || !c || c.partial || c.making === 1 || !(c.npc === true || !c.ownerId)) return null; return c.loot === true; }
+function lootSet(charId, on) { var camp = getActiveCampaign(), c = charById(charId, camp); if (lootOf(charId) === null) return false; if (on) c.loot = true; else delete c.loot; afterCharChange(c, true); if (window.wpStepLog) window.wpStepLog('boxes v1', 'loot', { on: !!on }); return true; }
+function lootMark(box, entry, c, f) {
+    var BC = window.wpBoxCore, sysL = systemOf(getActiveCampaign()); if (!BC || isClient() || !c || !(c.npc === true || !c.ownerId) || !BC.boxLists(sysL).some(function(x) { return x.id === f.id; })) return;
+    var id = rowIdOf(entry), list = Array.isArray(c.noLoot) ? c.noLoot : [], w = el('label', 'sys-check sheet-item-noloot'), cb = el('input'); cb.type = 'checkbox'; cb.checked = list.indexOf(id) >= 0;
+    w.title = 'Ticked, a player searching this body never sees this row'; cb.addEventListener('change', function() { var cur = Array.isArray(c.noLoot) ? c.noLoot.filter(function(x) { return x !== id; }) : []; if (cb.checked) cur.push(id); if (cur.length) c.noLoot = cur; else delete c.noLoot; afterCharChange(c, true); });
+    w.appendChild(cb); w.appendChild(document.createTextNode(' Never looted')); box.appendChild(w);
+}
 function hideFigFits(c, gm) { return !!(gm && c && !c.partial && c.making !== 1 && (c.npc === true || !c.ownerId)) && canWrite(); }
 function hideFigHead(c, gm) {
     var b = ui('sheetHideFig'); if (!b) return; var fits = hideFigFits(c, gm), on = fits && c.hideFig === true;
@@ -3426,6 +3436,7 @@ function noteBits(entry, def, c, f, editable, ovc, sysI, gm, may) {   // ovc (F4
     else if (editable) { var ni = el('input', 'field sheet-item-note'); ni.type = 'text'; ni.dataset.fid = f.id; ni.dataset.part = 'note-' + rowIdOf(entry); ni.maxLength = LIMITS.rowNote; ni.placeholder = 'A note on this one'; ni.value = entry.note || ''; ni.addEventListener('change', function() { commitItem(c, f, { op: 'set', rowId: rowIdOf(entry), facts: { note: ni.value } }); }); box.appendChild(ni); }
     else if (entry.note) box.appendChild(typeof rowRead === 'function' ? rowRead(entry.note, entry.nlk, 'note', 'div', 'sheet-item-rownote') : el('div', 'sheet-item-rownote', entry.note));
     if (spec && (spec.look || spec.workLog === true) && sysI && typeof lookBits === 'function') lookBits(box, entry, c, f, spec, sysI, gm, may);   // 1.6.0, backlog 206
+    if (gm && typeof lootMark === 'function') lootMark(box, entry, c, f);   /* 1.6.2 (backlog 42, fold 3): Never looted, the GM's, on an NPC */
     if (gm && sysI && sysI.trading && sysI.trading.hot === true && typeof hotMark === 'function') hotMark(box, entry, c, f);   // 157 M1j: the GM's Stolen or Illegal mark
     return box.childNodes.length ? box : null;
 }
@@ -11378,6 +11389,7 @@ function combatBody() {
     tp('mapkinds'); if (typeof mapKindsBox === 'function') mapKindsBox(box); if (typeof travelBox === 'function') travelBox(box);   // 1.6.2 (backlog 166 a): the travel modes beside the map kinds   // 1.6.2 (vehicles, fold (g)): the system's map kinds
     tp('scenes'); if (typeof scenesBox === 'function') scenesBox(box);   // 1.6.2: a scene's channels
     tp('terrain'); if (typeof terrainBox === 'function') terrainBox(box, cm);   // 1.6.2 (backlog 57): the system's kinds of terrain
+    tp('bodies'); if (typeof bodiesBox === 'function') bodiesBox(box, cm);   // 1.6.2 (backlog 42, fold 3): when a fallen NPC can be searched
     if (window.wpSysUi) window.wpSysUi.combatDrawn(box);   // 1.6.2: into a pane a topic
 }
 // Initiative O2 (docs/TURN_ORDER_PLAN.md; the owner's note: 3d6 systems order by Basic Speed and roll only to settle ties, d20 systems roll and
@@ -12369,6 +12381,16 @@ function terrainSettleAll(camp, prevSys, nextSys) {
 // 1.6.2 (backlog 57; the owner, 2026-11-11, by prompt: "Both"): the Combat tab's Terrain, the system's own kinds of difficult ground, each a name and
 // what moving into it costs (2 to 10). Its own listeners, so no handler of the tab reads them. A new kind's short name follows its name until the
 // editor is closed, and stays after, so the pieces that name it keep it through a rename. A row with no name says that Save drops it
+// 1.6.2 (backlog 42, fold 3): the Combat tab's Bodies topic. Can be looted where: a test of an NPC's own names, read on the host, that makes a
+// fallen NPC searchable with no tick of the GM's; a form, never typed code
+function bodiesBox(box, cm) {
+    var wrap = el('div', 'sys-holds sys-lootbox'), lt = cm.loot && typeof cm.loot === 'object' ? cm.loot : null;
+    wrap.appendChild(el('div', 'sys-light-head', 'Bodies'));
+    wrap.appendChild(el('div', 'sys-note', 'A fallen NPC can be searched like a container. You tick Can be looted on its token or under Characters, or set a test here. A player next to it takes what its lists ticked Tradable hold.'));
+    var rw = el('div', 'sys-flags'), ip = input('sys-loot-if field', lt && typeof lt['if'] === 'string' ? lt['if'] : '', 'When an NPC can be searched, read on its own sheet', '');
+    ip.addEventListener('input', function(e) { e.stopPropagation(); var v = String(ip.value || '').slice(0, LIMITS.formula); if (v.trim()) cm.loot = { 'if': v }; else delete cm.loot; markDirty(); if (typeof patchErrors === 'function') patchErrors(); });
+    rw.appendChild(ip); wrap.appendChild(rw); box.appendChild(wrap);
+}
 function terrainBox(box, cm) {
     var wrap = el('div', 'sys-holds sys-tkindbox'), list = Array.isArray(cm.terrain) ? cm.terrain : null, SCt = window.wpSystemCore || {}, max = SCt.TERRAIN_MAX || 48, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
     var keyFor = function(a, lb) { var k = (typeof SCt.arcKey === 'function' ? SCt.arcKey(lb) : '') || (String(lb || '').trim() ? 'Kind' : ''), base = k, n = 2; while (k && (list || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };   // a name in another script still gets a short name
@@ -15921,7 +15943,7 @@ function dmgPartPre(mk) { if (!dmgObj(mk) || typeof mk.amt !== 'number' || !isFi
 function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient() && canWrite(); }   // the cards' Apply to target: the GM's own machine
 // [systemcheck:dmgwin-end]
 function nameWordNow(n) { var c = getActiveCampaign(), s = c ? systemOf(c) : null; return nameWord(s, n); }   // 1.6.2: a name in words, for a card
-window.wpSheets = { bellNote: bellNote, restDoes: restDoes, restTakeBack: restTakeBack, charCatSet: charCatSet, charCatNow: charCatNow, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, linkValuesWrite: linkValuesWrite, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, fxEndSeed: function() { return fxEndSeed(getActiveCampaign()); }, fxRanOut: fxRanOut, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+window.wpSheets = { bellNote: bellNote, restDoes: restDoes, restTakeBack: restTakeBack, charCatSet: charCatSet, charCatNow: charCatNow, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, lootOf: lootOf, lootSet: lootSet, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, linkValuesWrite: linkValuesWrite, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, fxEndSeed: function() { return fxEndSeed(getActiveCampaign()); }, fxRanOut: fxRanOut, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame, openChars: openChars, closeChars: closeChars,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,

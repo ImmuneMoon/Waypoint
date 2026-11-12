@@ -213,6 +213,29 @@ const J = JSON.stringify;
             bxM.includes("im.addEventListener('error', function() { picGone(im); });") && bxM.includes("if (e.detail.missing === true) picGone(im); else im.src = n.assetSrc(p);") && bxM.includes("n.assetMissing(pc)) pc = '';")
             && shM.includes("im.addEventListener('error', function() { im.remove(); });") && shM.includes("if (e.detail.missing === true) im.remove(); else im.src = n.assetSrc(p);")
             && ntM.includes("assetGone[msg.path] = 1; try { document.dispatchEvent(new CustomEvent('wp-asset', { detail: { path: msg.path, missing: true } })); } catch (e) {} }") && ntM.includes("net.assetMissing = function(path) { return typeof path === 'string' && assetGone[path] === 1; };"));
+        {   // fold 3a: the core and the pins
+            const sysL = S.cleanSystem({ v: 1, name: 'L', fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'number' }, { id: 'f_inv', key: 'Gear', label: 'Gear', kind: 'item-list', list: { trade: true } }], combat: { loot: { if: 'HP <= 0' } } }, { F, gmView: true });
+            const sysP = S.cleanSystem({ v: 1, name: 'L', fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'number' }], combat: { loot: { if: 'HP <= 0' } } }, { F, gmView: false });
+            const npc = { id: 'c_n', name: 'N', npc: true, values: { f_hp: 0 } }, pc = { id: 'c_p', name: 'P', ownerId: 'u_1', values: { f_hp: 0 } };
+            check('the one judge of a body (bodyLootable): an NPC the GM ticked, or the system’s rule holding on its sheet; never a player’s character, one being made, nor with no engine at hand',
+                BC.bodyLootable(sysL, npc, F) === true && BC.bodyLootable(sysL, Object.assign({}, npc, { values: { f_hp: 4 } }), F) === false && BC.bodyLootable(sysL, Object.assign({}, npc, { values: { f_hp: 4 }, loot: true }), F) === true
+                && BC.bodyLootable(sysL, pc, F) === false && BC.bodyLootable(sysL, Object.assign({}, pc, { loot: true }), F) === false && BC.bodyLootable(sysL, Object.assign({}, npc, { making: 1 }), F) === false && BC.bodyLootable(sysL, npc, null) === false);
+            check('the rule is the GM’s: kept in the GM’s view and never in the players’, and the validator reads it', sysL.combat.loot && sysL.combat.loot.if === 'HP <= 0' && !(sysP.combat && sysP.combat.loot)
+                && S.validateSystem(Object.assign({}, sysL, { combat: { loot: { if: 'Nope +' } } }), F).errors.some(e => e.id === 'combat' && e.prop === 'loot'));
+            const cc = S.cleanChar({ id: 'c_n', name: 'N', npc: true, loot: true, noLoot: ['w_1', 'w_1', 'bad id!', 7] }, sysL, { state: 'host' }), cp = S.cleanChar({ id: 'c_p', name: 'P', ownerId: 'u_1', loot: true, noLoot: ['w_1'] }, sysL, { state: 'host' }), cw = S.cleanChar({ id: 'c_n', name: 'N', npc: true, loot: true, noLoot: ['w_1'] }, sysL, {});
+            check('Can be looted and Never looted are the host’s own on an NPC: kept as true and as row ids each once, never on a player’s character nor on a copy', cc.loot === true && J(cc.noLoot) === J(['w_1']) && cp.loot === undefined && cp.noLoot === undefined && cw.loot === undefined && cw.noLoot === undefined, J([cc, cp, cw]));
+            const ntL = read('scripts/net.js'), wbL = read('scripts/whiteboard.js'), clL = read('scripts/charlist.js'), shL = read('scripts/sheets.js').replace(/\r\n/g, '\n'), fbL = read('scripts/formbox.js'), suL = read('scripts/sysui.js');
+            check('the wire: a lootable body wears the chest for players, judged on the host each time and sent again when it changes, never what it holds',
+                ntL.includes("if (w.isChar && !w.waiting && typeof lootOf === 'function' && lootOf(w)) w.boxed = 1;") && ntL.includes("if (typeof lootMoved === 'function') lootMoved(id);") && ntL.includes("box = w && !w.hidden ? boxSrcOf(camp, w) : null;"));
+            check('the GM ticks Can be looted on the token’s menu and the NPC’s row under Characters, both through the sheet module; Never looted in a row’s details',
+                wbL.includes("html += gmRulesHtml(gmR); var gmL = isWb ? gmLootModel(") && wbL.includes("querySelectorAll('.cm-gm-loot')") && clL.includes("rows.push({ act: 'loot', text: 'Can be looted', tick: loot });") && clL.includes("if (act === 'loot') { if (S2.lootSet && S2.lootOf) S2.lootSet(cid, S2.lootOf(cid) !== true); return; }")
+                && shL.includes("if (gm && typeof lootMark === 'function') lootMark(box, entry, c, f);") && shL.includes("lootOf: lootOf,") && shL.includes("lootSet: lootSet,"));
+            check('a player searches by the chest or by Search the body on the token’s menu; the GM’s chest on a body opens its sheet',
+                wbL.includes("sic.className = 'wib wi-chest'; srow.appendChild(sic); srow.appendChild(document.createTextNode(' Search the body'));") && wbL.includes("if (mark.dataset.body === '1' && typeof B2.bodyOpen === 'function') B2.bodyOpen(id);"));
+            check('the System editor: a Bodies topic on the Combat tab, its test a form', suL.includes("['holds', 'Who holds whom', 'Grabs, pins and those who break free.'], ['bodies', 'Bodies', 'When a fallen NPC can be searched.']") && shL.includes("tp('bodies'); if (typeof bodiesBox === 'function') bodiesBox(box, cm);") && fbL.includes("'sys-loot-if': 'cond'") && fbL.includes("'sys-loot-if': 'Only those you tick'"));
+            const ixL = read('index.html'), wnL = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), waL = read('assets/whatsnew.txt');
+            check('Help and both notes say it', ixL.includes('A fallen NPC can be searched like a container. Tick <b>Can be looted</b>') && ixL.includes('<b>Never looted</b>') && wnL.includes('- A fallen NPC can be searched like a container.') && waL.includes('- A fallen NPC can be searched like a container.'));
+        }
         check('Help says it, in its plain words', ix.includes('<li><b>Containers:</b> a picture, a shape or a map object can hold items') && ix.includes('What it holds stays on your computer until a player opens it. You are told who took what.') && ix.includes('Only lists ticked Tradable that players see can hold them, as a trade moves them.'));
         const wn = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wa = read('assets/whatsnew.txt');
         check('both release notes say it, alike', wn.includes('- A picture, a shape or a map object can now hold items.') && wa.includes('- A picture, a shape or a map object can now hold items.'));
@@ -230,12 +253,36 @@ const J = JSON.stringify;
             const sent = [], told = [], logs = [], toasts = [], conns = [], steps = [];
             const conn = { peer: 'pA', open: true, send: m => sent.push(m) }, other = { peer: 'pB', open: true, send: m => told.push(m) }; conns.push(conn, other);
             const N = { roster: { pA: { id: 'u_p1', location: 'm1' }, pB: { id: 'u_p2', location: 'm1' } }, conns, paused: false, syncCharDelta: (id, v) => steps.push('delta ' + id + ' ' + Object.keys(v).join(',')) };
-            const win = { wpBoxCore: BC, wpSheets: { charChanged: id => steps.push('changed ' + id), playerSystem: c => c.system }, wpBoxes: { redraw: () => steps.push('gm redraw'), tookNote: (bid, tid, said) => steps.push('took ' + bid + ' ' + tid + ' ' + said) }, wpStepLog: (n, s, f) => steps.push(n + ' ' + s + ' ' + JSON.stringify(f)) };
+            const win = { wpFormula: F, wpBoxCore: BC, wpSheets: { charChanged: id => steps.push('changed ' + id), playerSystem: c => c.system }, wpBoxes: { redraw: () => steps.push('gm redraw'), tookNote: (bid, tid, said) => steps.push('took ' + bid + ' ' + tid + ' ' + said) }, wpStepLog: (n, s, f) => steps.push(n + ' ' + s + ' ' + JSON.stringify(f)) };
             const fn = new Function('net', 'window', 'getActiveCampaign', 'allow', 'peerPaused', 'handsTo', 'allyNear', 'SC', 'saveRemoteSoon', 'logEvent', 'toast', 'sendFailed',
                 helpers + '\nreturn { run: function(msg, conn) {\n' + branch + '\n}, views: function() { return _boxViews; }, tries: function() { return _boxTries; }, tryAfter: boxTryAfter, forget: boxForget, forgetConn: boxForgetConn, sweep: boxSweep };');
             const api = fn(N, win, () => camp, () => o.limit !== false, () => !!o.paused, (ch, pid) => !!ch && ch.ownerId === pid, (m, x, y) => o.near !== false && Math.abs((x.x || 0) - (y.x || 0)) < 120 && Math.abs((x.y || 0) - (y.y || 0)) < 120, () => S, () => steps.push('save'), (k, s) => logs.push(s), s => toasts.push(s), () => {});
             return { api, camp, box, sent, told, logs, toasts, steps, conn, other };
         };
+        {   // fold 3a: a fallen NPC searched as a container is (the owner: "A. You mark it; a system may too", Never looted "in its details")
+            const B = mk(); B.camp.chars.c_ogre = { id: 'c_ogre', name: 'Ogre', npc: true, values: { f_inv: [{ id: 'w_o1', defId: 'i_rope', qty: 2 }, { id: 'w_o2', defId: 'i_coin', qty: 1 }] }, noLoot: ['w_o2'] };
+            B.camp.items.m1.whiteboard.push({ id: 'og', type: 'image', name: 'Ogre', isChar: true, charId: 'c_ogre', x: 100, y: 150, w: 50, h: 50 });
+            B.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'og', tok: 'tk' }, B.conn);
+            const none = B.sent.length;
+            B.camp.chars.c_ogre.loot = true;
+            B.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'og', tok: 'tk' }, B.conn);
+            const bv = B.sent[0];
+            check('a body the GM has not marked opens nothing; marked Can be looted, a player next to it is sent what its lists ticked Tradable hold, never a row ticked Never looted, named by the character',
+                none === 0 && bv && bv.type === 'box-view' && bv.name === 'Ogre' && J(bv.tiles.map(x => [x.rowId, x.qty])) === J([['w_o1', 2]]), J(B.sent));
+            B.api.run({ type: 'box', op: 'take', mapId: 'm1', itemId: 'og', tok: 'tk', fid: 'f_inv', rowId: 'w_o2', qty: 1 }, B.conn);
+            const kept = J(B.camp.chars.c_ogre.values.f_inv.map(r => [r.id, r.qty]));
+            B.api.run({ type: 'box', op: 'take', mapId: 'm1', itemId: 'og', tok: 'tk', fid: 'f_inv', rowId: 'w_o1', qty: 1 }, B.conn);
+            check('a take from a body comes off the NPC’s own sheet through the trade’s own rule, stored and sent for both; a row Never looted cannot be taken by naming it; a body keeps no record of takes',
+                kept === J([['w_o1', 2], ['w_o2', 1]]) && J(B.camp.chars.c_ogre.values.f_inv.map(r => [r.id, r.qty])) === J([['w_o1', 1], ['w_o2', 1]]) && B.camp.chars.c_kael.values.f_inv[0].qty === 1
+                && B.steps.includes('delta c_ogre f_inv') && B.steps.includes('changed c_ogre') && B.logs.some(s => s === 'Kael took Rope from Ogre.' || /Kael took Rope( x1)? from Ogre\./.test(s)) && !B.steps.some(s => /^took /.test(s)) && !B.camp.boxes.c_bxchest0001.taken, J([B.camp.chars.c_ogre.values, B.logs, B.steps]));
+            const R = mk(); R.camp.system = S.cleanSystem(Object.assign({}, R.camp.system, { combat: Object.assign({}, R.camp.system.combat || {}, { loot: { if: 'HP <= 0' } }), fields: R.camp.system.fields.concat([{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'number' }]) }), { F, gmView: true });
+            R.camp.chars.c_wolf = { id: 'c_wolf', name: 'Wolf', npc: true, values: { f_hp: 3, f_inv: [{ id: 'w_p', defId: 'i_coin', qty: 1 }] } };
+            R.camp.items.m1.whiteboard.push({ id: 'wf', type: 'image', isChar: true, charId: 'c_wolf', x: 100, y: 150, w: 50, h: 50 });
+            R.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'wf', tok: 'tk' }, R.conn); const alive = R.sent.length;
+            R.camp.chars.c_wolf.values.f_hp = 0; R.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'wf', tok: 'tk' }, R.conn);
+            check('a system’s rule (Bodies, Can be looted where) read on the NPC’s own sheet makes it searchable with no tick: not while its HP is above 0, and once it is 0',
+                alive === 0 && R.sent[0] && R.sent[0].type === 'box-view' && J(R.sent[0].tiles.map(x => x.rowId)) === J(['w_p']), J(R.sent));
+        }
         {   // fold 2b on the host: a locked container shows nothing it holds, its key or a passed roll opens it for everyone
             const L = mk({ lock: { on: true, rolls: ['r_pick'], key: 'i_key' } });
             L.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, L.conn);

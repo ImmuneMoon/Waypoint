@@ -1158,6 +1158,11 @@ The Data Map
   under its tiles, each with Put back, and the notice of a take has it too. It
   moves what they still hold back in, and tells them unless you untick Tell
   the player.
+- A fallen NPC can be searched like a container. Tick Can be looted on its
+  token or under Characters, or let your system say when, under Bodies in the
+  Combat tab. A player next to it presses its chest, or picks Search the body,
+  and takes from its lists ticked Tradable. Rows you tick Never looted stay
+  hidden.
 - Fixed: placing a shape or Build's pieces over a filled region could drag
   the region instead.
 - A map used to open on whichever face you last left it in. Now Settings,

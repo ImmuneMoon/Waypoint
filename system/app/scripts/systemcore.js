@@ -3612,6 +3612,7 @@ function cleanCombat(c, resIds, fieldIds, secretIds, F, viewKinds, pl, fl) {   /
     if (c.bodySize !== undefined) { var bsz = senseField({ field: c.bodySize }, SENSE_RANGE_KINDS, fieldIds, secretIds); if (bsz) out.bodySize = bsz; }   // 1.6.2 (asked by a campaign's build: a body in the way judged by steps where an attack reads doublings): the field A body in the way reads as TargetSize and BodySize, judged as targetSize is; absent, it reads targetSize
     if (Array.isArray(c.targetReads)) { var trd = []; c.targetReads.slice(0, TARGET_READS * 4).forEach(function(x) { if (trd.length >= TARGET_READS) return; var t1 = senseField({ field: x }, SENSE_RANGE_KINDS, fieldIds, secretIds); if (t1 && trd.indexOf(t1) < 0) trd.push(t1); }); if (trd.length) out.targetReads = trd; }   // 1.6.0: and the others a roll reads as Target.<key>, each judged the same way
     if (typeof c.targetHit === 'string' && FIELD_ID.test(c.targetHit) && isObj(fieldIds) && hasOwn(fieldIds, c.targetHit) && fieldIds[c.targetHit] === 'item-list') out.targetHit = c.targetHit;   // 1.6.0 (B5): the item list of a target's sheet whose rows are its hit locations, read as Target.Hit.<name>, the same in both views
+    if (pl !== true && isObj(c.loot)) { var lootIf = cleanFormulaText(c.loot['if']); if (lootIf) out.loot = { 'if': lootIf }; }   // 1.6.2 (backlog 42, fold 3): Can be looted where, read on an NPC's sheet on the host alone
     if (c.hideResist === true) out.hideResist = true;   // 1.6.2: Hide what a defence needs, true only, the same in both views
     var arcsC = cleanArcs(c.arcs); if (arcsC) out.arcs = arcsC;   // 1.6.2 (vehicles, fold (b), rebuilt): the system's own arcs, the same in both views
     var terC = cleanTerrainKinds(c.terrain); if (terC) out.terrain = terC;   // 1.6.2 (backlog 57): the system's kinds of terrain, the same in both views
@@ -5543,6 +5544,7 @@ function cleanChar(c, sys, opts) {
     var dbC = cleanDebts(c.debts); if (dbC) out.debts = dbC;   // 157 M1h: its debts, on the host and on its owner's copy
     if (opts && opts.state === 'host' && c.unique === true && out.npc) out.unique = true;   // backlog 31: a named NPC, the GM's own
     if (opts && opts.state === 'owner' && c.shared === 1) out.shared = 1;
+    if (opts && opts.state === 'host' && (out.npc || !out.ownerId)) { if (c.loot === true) out.loot = true; if (Array.isArray(c.noLoot)) { var nlC = []; c.noLoot.slice(0, 800).forEach(function(id) { if (typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id) && nlC.indexOf(id) < 0 && nlC.length < 400) nlC.push(id); }); if (nlC.length) out.noLoot = nlC; } }   // 1.6.2 (backlog 42, fold 3): Can be looted and the rows Never looted, the GM's own on an NPC
     if (opts && opts.state === 'host' && c.hideFig === true && (out.npc || !out.ownerId)) out.hideFig = true;
     if (opts && opts.state === 'host') { var afC = cleanAf(c.af, out.values, sys); if (afC) out.af = afC; }   // 1.6.2 (auto apply): which figures a fill wrote and nobody has typed since, the host's own
     if (opts && opts.state === 'host' && isObj(c.trader)) { var trC = cleanTrader(c.trader); if (trC) out.trader = trC; }   // 157 M1b: a trader's terms, the GM's alone   // 1.6.2: the GM's tick on an NPC's sheet, true only and the GM's alone: charView writes no such key
@@ -12886,6 +12888,7 @@ function validateSystem(sys, F) {
     });
     rollG = null; nearV = false; crossV = false; resistV = false; askV = null;
     var trn = isObj(sys.combat) && isObj(sys.combat.turn) ? sys.combat.turn : null, actK = map();   // turn-based combat T1: the move (no dice) and what each roll costs
+    if (isObj(sys.combat) && isObj(sys.combat.loot) && typeof sys.combat.loot['if'] === 'string' && sys.combat.loot['if']) checkFormula({ id: 'combat', key: '#loot' }, 'loot', sys.combat.loot['if'], false, 'gm');   // 1.6.2 (backlog 42, fold 3): Can be looted where
     if (trn && trn.move) checkFormula({ id: 'combat', key: '#turn' }, 'turn.move', trn.move, false, 'all');
     if (trn && trn.face) checkFormula({ id: 'combat', key: '#turn' }, 'turn.face', trn.face, false, 'all');   // 1.6.2 (backlog 70): how many facing changes a turn allows (no dice)
     if (trn && trn.run) checkFormula({ id: 'combat', key: '#turn' }, 'turn.run', trn.run, false, 'all');   // 1.6.0: a move by giving up an action

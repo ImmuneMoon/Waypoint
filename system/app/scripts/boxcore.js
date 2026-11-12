@@ -6,7 +6,7 @@
    hold. Only the item lists ticked Tradable that players see may hold a container's items, since a player takes them into the same list of
    their own sheet, as a trade moves a row. */
 
-import { cleanChar, rowDef, rowIdOf, fieldById, cleanPic, rowKeptFrom, tradeOfferable } from './systemcore.js';
+import { cleanChar, rowDef, rowIdOf, fieldById, cleanPic, rowKeptFrom, tradeOfferable, makeResolver } from './systemcore.js';
 
 // [boxcheck:core-start]
 var BOX_ID = /^c_bx[A-Za-z0-9]{4,20}$/, BOX_MAX = 500;
@@ -76,6 +76,18 @@ function putBackPlan(sys, ch, rec) {
     rec.lines.forEach(function(l) { var f = fieldById(sys, l.fid), rows = isObj(ch) && isObj(ch.values) && Array.isArray(ch.values[l.fid]) ? ch.values[l.fid] : [], r = rows.filter(function(x) { return isObj(x) && rowIdOf(x) === l.rowId && x.hid !== 1; })[0]; if (!f || !r) { gone++; return; } var o = offer[l.fid + '|' + l.rowId]; if (!o || o.no || holdsOwn(l.rowId)) { if (!(isObj(r) && typeof r.gr === 'string' && mine[r.gr])) held++; return; } lines.push({ fid: l.fid, rowId: l.rowId, qty: Math.min(l.qty, o.qty || rowQtyIn(f, r)) }); });
     return { lines: lines, gone: gone, held: held };
 }
+// Fold 3 (the owner, 2026-11-12: "A. You mark it; a system may too"): a fallen NPC is searched as a container is. Only a sheet with no player;
+// lootable where the GM ticked Can be looted (the character's loot) or the system's rule holds on its sheet (combat.loot.if, the GM's view
+// alone, a formula of the NPC's own names). The rows the GM ticks Never looted (the character's noLoot, row ids) never show
+function bodyNpc(ch) { return isObj(ch) && ch.making !== 1 && !ch.partial && (ch.npc === true || !(typeof ch.ownerId === 'string' && ch.ownerId)); }
+function bodyLootable(sys, ch, F) {
+    if (!bodyNpc(ch)) return false; if (ch.loot === true) return true;
+    var rule = isObj(sys) && isObj(sys.combat) && isObj(sys.combat.loot) && typeof sys.combat.loot['if'] === 'string' ? sys.combat.loot['if'] : '';
+    if (!rule || !F || typeof F.evaluate !== 'function') return false;
+    var r; try { r = F.evaluate(rule, { vars: makeResolver(sys, ch, F, null), random: function() { return 1; } }); } catch (e) { return false; }
+    return !!(r && r.ok && (r.value === true || (typeof r.value === 'number' && r.value !== 0)));
+}
+function noLootOf(ch) { var m = map(); (isObj(ch) && Array.isArray(ch.noLoot) ? ch.noLoot : []).forEach(function(id) { if (typeof id === 'string') m[id] = 1; }); return m; }
 function cleanBox(raw, sys, id) {
     if (!isObj(raw) || !boxIdOk(id) || (raw.id !== undefined && raw.id !== id)) return null;
     var keep = map(); (isObj(sys) && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (isObj(f) && f.kind === 'item-list' && typeof f.id === 'string') keep[f.id] = 1; });
@@ -145,5 +157,5 @@ function boxesTidy(camp) {
 function boxesOf(store, items) { var out = map(), named = boxesNamed(items); if (isObj(store)) Object.keys(named).forEach(function(id) { if (Object.prototype.hasOwnProperty.call(store, id)) { out[id] = JSON.parse(JSON.stringify(store[id])); delete out[id].taken; delete out[id].tell; } }); return out; }   // a part exported for another campaign carries no record of who took what (the review of fold 2c)
 // [boxcheck:core-end]
 
-if (typeof window !== 'undefined') window.wpBoxCore = { TAKEN_MAX: TAKEN_MAX, cleanTaken: cleanTaken, takenLines: takenLines, putBackPlan: putBackPlan, LOCK_ROLLS: LOCK_ROLLS, lockRollOk: lockRollOk, cleanLock: cleanLock, boxLocked: boxLocked, keyRowOf: keyRowOf, keyName: keyName, BOX_MAX: BOX_MAX, boxPic: boxPic, boxPieceOk: boxPieceOk, boxesNamed: boxesNamed, boxesTidy: boxesTidy, boxesOf: boxesOf, boxLists: boxLists, boxIdOk: boxIdOk, newBoxId: newBoxId, cleanBox: cleanBox, cleanBoxes: cleanBoxes, boxChar: boxChar, boxTiles: boxTiles, boxCount: boxCount, boxOp: boxOp };
-export { TAKEN_MAX, cleanTaken, takenLines, putBackPlan, LOCK_ROLLS, lockRollOk, cleanLock, boxLocked, keyRowOf, keyName, BOX_MAX, boxPic, boxPieceOk, boxesNamed, boxesTidy, boxesOf, boxLists, boxIdOk, newBoxId, cleanBox, cleanBoxes, boxChar, boxTiles, boxCount, boxOp };
+if (typeof window !== 'undefined') window.wpBoxCore = { bodyNpc: bodyNpc, bodyLootable: bodyLootable, noLootOf: noLootOf, TAKEN_MAX: TAKEN_MAX, cleanTaken: cleanTaken, takenLines: takenLines, putBackPlan: putBackPlan, LOCK_ROLLS: LOCK_ROLLS, lockRollOk: lockRollOk, cleanLock: cleanLock, boxLocked: boxLocked, keyRowOf: keyRowOf, keyName: keyName, BOX_MAX: BOX_MAX, boxPic: boxPic, boxPieceOk: boxPieceOk, boxesNamed: boxesNamed, boxesTidy: boxesTidy, boxesOf: boxesOf, boxLists: boxLists, boxIdOk: boxIdOk, newBoxId: newBoxId, cleanBox: cleanBox, cleanBoxes: cleanBoxes, boxChar: boxChar, boxTiles: boxTiles, boxCount: boxCount, boxOp: boxOp };
+export { bodyNpc, bodyLootable, noLootOf, TAKEN_MAX, cleanTaken, takenLines, putBackPlan, LOCK_ROLLS, lockRollOk, cleanLock, boxLocked, keyRowOf, keyName, BOX_MAX, boxPic, boxPieceOk, boxesNamed, boxesTidy, boxesOf, boxLists, boxIdOk, newBoxId, cleanBox, cleanBoxes, boxChar, boxTiles, boxCount, boxOp };

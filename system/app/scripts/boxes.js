@@ -73,6 +73,9 @@ document.addEventListener('wp-asset', function(e) {   // a tile's picture still 
     var p = e.detail && e.detail.path, n = window.wpNet; if (!p || !n || typeof n.assetSrc !== 'function') return;
     document.querySelectorAll('#boxBody img.box-pic[data-pic]').forEach(function(im) { if (im.dataset.pic !== p) return; if (e.detail.missing === true) picGone(im); else im.src = n.assetSrc(p); });
 });
+// Fold 3: a lootable body on the GM's screen (the judge is boxcore's): its mark opens its sheet, where Never looted is ticked
+function bodyHas(item) { var camp = getActiveCampaign(), ch = camp && camp.chars && item && typeof item.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, item.charId) ? camp.chars[item.charId] : null; return !!(gmMay() && item && item.isChar && !item.waiting && ch && BC.bodyLootable(sysOf(camp), ch, F)); }
+function bodyOpen(itemId) { var map = getActiveMap(), w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === itemId; }) : null; if (!w || !bodyHas(w) || !window.wpSheets || typeof window.wpSheets.openSheet !== 'function') return false; window.wpSheets.openSheet(w.charId); step('body-open', {}); return true; }
 function tipOf(t) { return t.name + (t.qty > 1 ? ' ×' + t.qty : '') + (t.list ? '\n' + t.list : '') + (t.notes ? '\n' + t.notes.slice(0, 300) : ''); }
 function change(fid, q, what, back) {
     var camp = getActiveCampaign(), w = piece(), b = boxOf(camp, w); if (!gmMay() || !b) { close(); return; }
@@ -347,7 +350,7 @@ function has(w) { return !!boxOf(getActiveCampaign(), w); }
 // The window follows the app: a piece gone, another map or another campaign closes it; otherwise its name follows the piece's
 function sync() { var p = P(); if (!p || p.style.display === 'none') return; if (_box.player) { var mp = getActiveMap(), n = window.wpNet; if (!mp || mp.id !== _box.mapId || !n || !n.active || n.role !== 'client') close(); return; } if (!piece() || !boxOf(getActiveCampaign(), piece()) || !gmMay()) { close(); return; } var nm = document.getElementById('boxName'), w = piece(); if (nm) nm.textContent = (typeof w.name === 'string' && w.name) ? w.name : 'Container'; }   // never drawn again under a press: only its own changes draw it
 if (typeof window !== 'undefined') {
-    window.wpBoxes = { open: open, close: close, sync: sync, holds: holds, pieceOk: boxPieceOk, gmMay: gmMay, has: has, copyFor: copyFor, ask: ask, view: view, tookNote: tookNote, putBack: putBack, redraw: function() { var p = P(); if (p && p.style.display !== 'none' && !_box.player) draw(); } };
+    window.wpBoxes = { open: open, close: close, sync: sync, holds: holds, pieceOk: boxPieceOk, gmMay: gmMay, has: has, copyFor: copyFor, ask: ask, view: view, bodyHas: bodyHas, bodyOpen: bodyOpen, tookNote: tookNote, putBack: putBack, redraw: function() { var p = P(); if (p && p.style.display !== 'none' && !_box.player) draw(); } };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
 }
 export { open, close, sync, holds, boxPieceOk };

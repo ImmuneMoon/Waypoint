@@ -233,7 +233,7 @@ function patternOf(item) {
 }
 // The address a picture piece is loaded from: the app's own paths only (safecore picRef: never a web address), encoded for a request
 function picOf(item) {
-    var fu = item && item.furn ? cleanFurn(item.furn) : null; if (fu) return furnSrc(fu);   // 1.6.2 (backlog 222): a furnishing is the app's own drawing
+    var fu = item && item.furn && !(item.isChar && item.src) ? cleanFurn(item.furn) : null; if (fu) return furnSrc(fu);   // 1.6.2 (backlog 222): a furnishing is the app's own drawing
     var ref = picRef(item.src); if (!ref) return '';
     if (/^(data:|blob:)/i.test(ref)) return ref;
     try { return encodeURI(ref); } catch (e) { return ''; }

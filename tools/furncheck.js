@@ -61,8 +61,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('a furnishing a map object names takes that object\'s rules: its name, cover and grade, what it stops or blocks, its size where the object names one and the kind\'s own where it does not, on hexagons too',
         pSys.name === 'Iron chest' && pSys.cover === 'yes' && pSys.coverAs === 'threeq' && pSys.barrier === true && pSys.w === 60 && pSys.h === 52 && !pSys.src && pSys.color === 'transparent' && pSys.fit === true && J(pSys.furn) === J({ k: 'chest', era: 'modern' })
         && pBig.w === 150 && pBig.h === 50 && pBig.coverAs === 'half' && pWall.blocksSight === true && pWall.sightType === 'wall' && pWall.w === 100 && pWall.h === 50 && O.furnProps({ k: 'nope', era: 'fantasy' }, [], false) === null, [pSys, pBig, pWall]);
-    check('objcore imports the furnishings core alone beside fogcore and publishes the two', /\nimport \{ cleanFurn, furnKind, furnSize, furnWords \} from '\.\/furncore\.js';/.test(ocSrc) && ocSrc.includes('furnRule: furnRule, furnProps: furnProps };'));
+    check('objcore imports the furnishings core alone beside fogcore and publishes the two', /\nimport \{ cleanFurn, furnKind, furnWords \} from '\.\/furncore\.js';/.test(ocSrc) && ocSrc.includes('furnRule: furnRule, furnProps: furnProps };'));
 
+    // ---- the review of fold 1 ----
+    const untinted = [];
+    FU.FURN_KINDS.forEach(k => ERAS.forEach(e => { if (FU.furnSvg({ k: k.key, era: e, tint: '#123456' }) === FU.furnSvg({ k: k.key, era: e })) untinted.push(k.key + ':' + e); }));
+    check('the review of fold 1: a tint changes every one of the 84 drawings, the seven that ignored it among them', untinted.length === 0, untinted);
+    const cH = O.furnProps({ k: 'table', era: 'modern' }, [], false, { w: 100, h: 100 }), cR = O.furnProps({ k: 'chest', era: 'modern' }, [[{ id: 'r', name: 'Box', furn: 'chest', w: 2 }]], true, { w: 80, h: 70 }), cO = O.objProps({ id: 'a', name: 'Crate', w: 2 }, false, { w: 30, h: 40 });
+    check('the review of fold 1: a furnishing and a map object are sized by the map\'s own cell where it is handed in, the kind\'s cells or the rule\'s, and by 50, or 60 by 52, where none is',
+        cH.w === 200 && cH.h === 100 && cR.w === 160 && cR.h === 70 && cO.w === 60 && cO.h === 40 && O.objProps({ id: 'a', name: 'C' }, true, { w: 0, h: 'x' }).w === 60 && O.furnProps({ k: 'bed', era: 'modern' }, [], false, null).h === 100, [cH, cR, cO]);
+    check('the review of fold 1: the palette sizes by the map\'s own lattice and redraws when a rule is renamed, and an object\'s own row places the furnishing it shows',
+        fnSrc.includes("if (L.type === 'hex' && L.s > 0 && L.h > 0) return { w: 2 * L.s, h: L.h };") && fnSrc.includes("O.furnProps(f, ruleLists(campNow()), state.gridType === 'hex', cellNow())") && fnSrc.includes("return r ? r.id + '=' + r.name : '';")
+        && moSrc.includes("var fu = !o.src && o.furn && FS && C.furnProps ? C.furnProps({ k: o.furn, era: FS.era() }, [[o]], hex, cell) : null;") && moSrc.includes("close(); window.wpArmPlacement(fu ? 'image' : C.objType(o), p, o.name);") && moSrc.includes("save(); rows(); if (window.wpFurnish) window.wpFurnish.draw(); return true; }"));
+    check('the review of fold 1: a character given a picture of its own shows it on the board and in the map\'s picture, the cast keeps a furnishing, and a portal\'s thumbnail follows a look',
+        S.picOf({ type: 'image', isChar: true, src: '/saves/images/a.png', furn: { k: 'sofa', era: 'modern' } }) === '/saves/images/a.png' && S.picOf({ type: 'image', isChar: true, furn: { k: 'sofa', era: 'modern' } }) === FU.furnSrc({ k: 'sofa', era: 'modern' })
+        && wbSrc.includes("furn: (window.wpFurnCore && it.furn ? window.wpFurnCore.cleanFurn(it.furn) : null) || undefined, w: it.w || 60,") && wbSrc.includes("if (c.furn && window.wpFurnCore) { var cf = window.wpFurnCore.cleanFurn(c.furn); if (cf) it.furn = cf; }")
+        && read('scripts/mapshot.js').includes("Array.isArray(it.pts) ? it.pts.length : 0, it.furn || null]; }))"));
     // ---- the palette's judges ----
     const pal = new Function(slice(fnSrc, 'furncheck:pal') + '\nreturn { ruleLists, palModel, eraKept, foldsKept, furnWord, furnRead, tileTip };')();
     const pm = pal.palModel(FU, ''), pmF = pal.palModel(FU, '  CHE '), pmN = pal.palModel(FU, 'zzz');
@@ -82,7 +96,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
 
     // ---- the board: drawn from its words, dropped from the palette ----
     check('the board draws a furnishing from its words, every other picture as before; and the drop takes a furnishing before a file',
-        wbSrc.includes("var FUd = window.wpFurnCore, fuD = item.furn && FUd ? FUd.cleanFurn(item.furn) : null, wantSrc = fuD ? FUd.furnSrc(fuD) : resolveImg(item.src);") && count(wbSrc, 'resolveImg(item.src)') === 1
+        wbSrc.includes("var FUd = window.wpFurnCore, fuD = item.furn && FUd && !(item.isChar && item.src) ? FUd.cleanFurn(item.furn) : null, wantSrc = fuD ? FUd.furnSrc(fuD) : resolveImg(item.src);") && count(wbSrc, 'resolveImg(item.src)') === 1
         && wbSrc.indexOf("if (wpFurn) { furnDropAt(wpFurn, e); return; }") > wbSrc.indexOf("if (wpPic) { libDropAt(wpPic, e); return; }") && wbSrc.indexOf("if (wpFurn) { furnDropAt(wpFurn, e); return; }") < wbSrc.indexOf("var f = e.dataTransfer.files[0];"));
     const dropRun = (o) => {
         const st = { viewMode: o.view || 'visual', selWbId: null, selWbIds: [1] }, am = o.map === undefined ? { type: 'map', whiteboard: [] } : o.map, toasts = [], saved = [];
@@ -136,10 +150,10 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         hA.includes('<label for="wbFurnEra">Chest, drawn as</label>') && (hA.match(/<option /g) || []).length === 4 && hA.includes('<option value="victorian" selected>Victorian</option>') && hA.includes('id="wbFurnTint" value="#112233"')
         && hA.includes('id="wbFurnNoTint">No tint') && hB.includes('id="wbFurnNoTint" disabled>No tint') && hB.includes('value="#8a5a2b"') && hC === '' && hD === '', [hA, hC]);
     check('its handlers set the look and the tint through the core, and a furnishing is offered neither Align its grid nor Trim to cells',
-        insSrc.includes("var furnSet = function(ch) { var FUh = window.wpFurnCore, cur = FUh ? FUh.cleanFurn(w.furn) : null, nx = cur ? FUh.cleanFurn(Object.assign({}, cur, ch)) : null; if (!nx) return; w.furn = nx; save(); render(); };")
+        insSrc.includes("var furnSet = function(ch) { var FUh = window.wpFurnCore, cur = FUh ? FUh.cleanFurn(w.furn) : null, nx = cur ? FUh.cleanFurn(Object.assign({}, cur, ch)) : null; if (!nx) return; if (w.name === FUh.furnWords(cur)) w.name = FUh.furnWords(nx); w.furn = nx; save(); render(); };")
         && insSrc.includes("if (_el_wbFurnNoTint) _el_wbFurnNoTint.addEventListener('click', function() { furnSet({ tint: '' }); });") && count(insSrc, "state.gridType !== 'off' && !w.furn && w.type === 'image' && !w.isChar && !w.waiting ? '<button") === 2);
     check('a map object\'s Edit has Rules for, its kinds by name with No furnishing first, and an object that names one and has no picture shows its drawing',
-        moSrc.includes("row('Rules for', fk);") && moSrc.includes("op0 = el('option', '', 'No furnishing')") && moSrc.includes("commit({ furn: fk.value || undefined })") && moSrc.includes("fsrc = !o.src && o.furn && FUt ? FUt.furnSrc({ k: o.furn, era: FUt.FURN_ERAS[0].id }) : ''"));
+        moSrc.includes("row('Rules for', fk);") && moSrc.includes("op0 = el('option', '', 'No furnishing')") && moSrc.includes("commit({ furn: fk.value || undefined })") && moSrc.includes("fsrc = !o.src && o.furn && FUt ? FUt.furnSrc({ k: o.furn, era: window.wpFurnish ? window.wpFurnish.era() : FUt.FURN_ERAS[0].id }) : ''"));
     check('the page: the palette on the Objects tab before Map objects, its script after the map objects\' own, the core brought by objcore',
         ix.includes('                  <div class="draw-menu-label">Furnishings</div>\n                  <div class="build-furn" id="buildFurn"></div>\n                  <div class="menu-rule"></div>\n                  <div class="draw-menu-label">Map objects</div>\n')
         && ix.includes('<script type="module" src="scripts/mapobjects.js"></script>\n<script type="module" src="scripts/furnish.js"></script>\n') && count(ix, 'id="buildFurn"') === 1 && fnSrc.includes("import './objcore.js';"));

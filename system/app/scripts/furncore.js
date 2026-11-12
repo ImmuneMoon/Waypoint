@@ -120,13 +120,13 @@ var KINDS = [
         if (p.glow) o += R(36, 14, 30, 19, 'none', p.glow, 3, 1.4) + L(40, 20, 60, 20, p.glow, 1, .7) + L(40, 25, 55, 25, p.glow, 1, .7) + C(80, 25, 3, p.glow);
         return o; } },
     { key: 'bookshelf', label: 'Bookshelf', group: 'Tables and shelves', w: 2, h: 1, d: function(p, e) {
-        var o = R(3, 6, 94, 20, e === 'modern' ? (p.tinted ? p.wood : p.metal) : p.dark, p.dark, e === 'futuristic' ? 4 : 1);
+        var o = R(3, 6, 94, 20, p.tinted ? p.wood : e === 'modern' ? p.metal : p.dark, p.dark, e === 'futuristic' ? 4 : 1);
         var x = 6, i = 0; while (x < 92) { var bw = 4 + (i * 7 % 5); if (x + bw > 94) break; o += R(x, 9, bw, 14, p.books[i % p.books.length], '#000000', .5, .6); x += bw + 1; i++; }
         if (p.glow) o += L(6, 24, 94, 24, p.glow, 1.5, .8);
         return o; } },
     { key: 'hearth', label: 'Hearth or stove', group: 'Kitchen and work', w: 2, h: 1, d: function(p, e) {
         var o = '';
-        if (e === 'fantasy') { o += R(5, 4, 90, 26, '#6e6a64', '#36332f', 2); [30, 50, 70].forEach(function(x) { o += L(x, 4, x, 30, '#36332f', 1, .5); }); o += R(30, 14, 40, 16, '#1a120c'); o += C(44, 24, 5, '#ff6a1a') + C(54, 23, 5, '#ff9a2a') + C(50, 26, 3, '#ffd06a'); }
+        if (e === 'fantasy') { o += R(5, 4, 90, 26, p.tinted ? p.wood : '#6e6a64', '#36332f', 2); [30, 50, 70].forEach(function(x) { o += L(x, 4, x, 30, '#36332f', 1, .5); }); o += R(30, 14, 40, 16, '#1a120c'); o += C(44, 24, 5, '#ff6a1a') + C(54, 23, 5, '#ff9a2a') + C(50, 26, 3, '#ffd06a'); }
         if (e === 'victorian') { o += R(18, 5, 64, 34, p.tinted ? p.wood : '#2a2a2e', '#111114', 3); o += C(38, 22, 9, '#3c3c42', '#111114') + C(62, 22, 9, '#3c3c42', '#111114'); o += R(80, 8, 8, 6, p.metal); }
         if (e === 'modern') { o += R(14, 5, 72, 36, p.tinted ? p.wood : '#e8e8ea', '#8a8f96', 3); [[34, 16], [66, 16], [34, 31], [66, 31]].forEach(function(c) { o += C(c[0], c[1], 7, '#2b2f36') + C(c[0], c[1], 3.5, 'none', '#555b63', 1); }); }
         if (e === 'futuristic') { o += R(14, 5, 72, 34, p.wood, p.dark, 6); o += R(22, 12, 34, 20, p.glow, '', 3, 0, .1); o += R(22, 12, 34, 20, 'none', p.glow, 3, 1.2); o += C(70, 22, 6, 'none', p.glow, 2); }
@@ -148,7 +148,7 @@ var KINDS = [
     { key: 'light', label: 'Light', group: 'Lighting', w: 1, h: 1, d: function(p, e) {
         var o = '';
         if (e === 'fantasy') { o += C(25, 25, 15, p.tinted ? p.wood : '#4a4a50', '#222226'); o += C(25, 25, 11, '#2a1a10'); o += C(22, 23, 4, '#ff9a2a') + C(28, 27, 4, '#ff6a1a') + C(26, 21, 3, '#ffd06a'); }
-        if (e === 'victorian') { o += C(25, 25, 9, p.metal, p.dark); [[25, 14], [15, 31], [35, 31]].forEach(function(c) { o += L(25, 25, c[0], c[1], p.metal, 2) + C(c[0], c[1], 3.5, '#f4e2a0', p.dark, 1) + C(c[0], c[1], 1.3, '#ff9a2a'); }); }
+        if (e === 'victorian') { o += C(25, 25, 9, p.tinted ? p.wood : p.metal, p.dark); [[25, 14], [15, 31], [35, 31]].forEach(function(c) { o += L(25, 25, c[0], c[1], p.metal, 2) + C(c[0], c[1], 3.5, '#f4e2a0', p.dark, 1) + C(c[0], c[1], 1.3, '#ff9a2a'); }); }
         if (e === 'modern') { o += C(25, 25, 14, p.tinted ? p.wood : '#f3efe4', '#9a9488'); o += C(25, 25, 5, '#fffbe8', '#9a9488', 1); }
         if (e === 'futuristic') { o += C(25, 25, 16, p.glow + '1a'); o += C(25, 25, 10, p.wood, p.dark); o += C(25, 25, 5, p.glow); }
         return o; } },
@@ -169,7 +169,7 @@ var KINDS = [
         if (p.tinted) stone = p.wood;
         if (e !== 'futuristic') o += R(7, 7, 36, 36, e === 'modern' ? '#b4b8be' : '#5e5b55', '#2e2c28', 2);
         if (e === 'modern') o += PATH('M15 33 L25 14 L35 33 Z', stone, '#6a6e75') + C(25, 27, 4, '#3a7bd5');
-        else if (e === 'futuristic') o += C(25, 25, 15, 'none', p.glow, 1) + E(25, 29, 10, 6, 'none', p.glow) + C(25, 21, 5, 'none', p.glow);
+        else if (e === 'futuristic') o += C(25, 25, 15, p.tinted ? p.wood : 'none', p.glow, 1) + E(25, 29, 10, 6, 'none', p.glow) + C(25, 21, 5, 'none', p.glow);
         else o += E(25, 29, 11, 7, stone, '#2e2c28') + C(25, 21, 6, stone, '#2e2c28');
         return o; } },
     { key: 'sacks', label: 'Sacks and goods', group: 'Decor', w: 1, h: 1, d: function(p, e) {
@@ -183,7 +183,7 @@ var KINDS = [
         if (e === 'fantasy') { o += R(6, 6, 88, 38, p.tinted ? p.wood : '#8a3a2a', '#4a1a12', 2); o += R(11, 11, 78, 28, 'none', '#d8b060', 1, 1.5); [30, 50, 70].forEach(function(c) { o += PATH('M' + (c - 5) + ' 25 L' + c + ' 18 L' + (c + 5) + ' 25 L' + c + ' 32 Z', '#d8b060'); }); for (y = 8; y <= 42; y += 4) o += L(2, y, 6, y, '#d8b060', 1) + L(94, y, 98, y, '#d8b060', 1); }
         if (e === 'victorian') { o += R(4, 6, 92, 38, p.tinted ? p.wood : '#2e3e5a', '#141c2a', 3); o += R(9, 11, 82, 28, 'none', '#c8a564', 2, 1.5); o += E(50, 25, 16, 9, '#5a2a2a', '#c8a564'); }
         if (e === 'modern') { o += R(5, 6, 90, 38, p.tinted ? p.wood : '#9aa2ab', '', 4); o += R(5, 20, 90, 10, '#5c6f86'); }
-        if (e === 'futuristic') { o += R(5, 6, 90, 38, '#141a24', p.glow, 6, 1); for (x = 20; x < 95; x += 15) o += L(x, 8, x, 42, p.glow, .7, .35); o += L(7, 25, 93, 25, p.glow, .7, .35); }
+        if (e === 'futuristic') { o += R(5, 6, 90, 38, p.tinted ? p.wood : '#141a24', p.glow, 6, 1); for (x = 20; x < 95; x += 15) o += L(x, 8, x, 42, p.glow, .7, .35); o += L(7, 25, 93, 25, p.glow, .7, .35); }
         return o; } }
 ];
 var BY_KEY = (function() { var m = Object.create(null); KINDS.forEach(function(k) { m[k.key] = k; }); return m; })();

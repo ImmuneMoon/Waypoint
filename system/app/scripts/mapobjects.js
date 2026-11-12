@@ -44,11 +44,11 @@ function net() { return window.wpNet || null; }
 function campNow() { return getActiveCampaign(); }
 // An object as it stands now: a button of a row held over a field's change (pressHold) still holds the object it was drawn with
 function nowOf(o) { var L = listsOf(campNow(), OC()); return L.sys.concat(L.own).filter(function(x) { return x.id === o.id; })[0] || o; }
-function store(kind, list) { var c = campNow(); if (!c || !listPut(c, kind, list)) return false; save(); rows(); return true; }
+function store(kind, list) { var c = campNow(); if (!c || !listPut(c, kind, list)) return false; save(); rows(); if (window.wpFurnish) window.wpFurnish.draw(); return true; }   // the furnishings palette marks the kinds the objects name
 
 function thumb(o) {
     var t = el('span', 'obj-thumb');
-    var FUt = window.wpFurnCore, fsrc = !o.src && o.furn && FUt ? FUt.furnSrc({ k: o.furn, era: FUt.FURN_ERAS[0].id }) : '';   // 1.6.2 (backlog 222): an object that names a furnishing and has no picture shows its drawing
+    var FUt = window.wpFurnCore, fsrc = !o.src && o.furn && FUt ? FUt.furnSrc({ k: o.furn, era: window.wpFurnish ? window.wpFurnish.era() : FUt.FURN_ERAS[0].id }) : '';   // 1.6.2 (backlog 222): an object that names a furnishing and has no picture shows its drawing
     if (o.src || fsrc) { var i = el('img'); i.alt = ''; i.src = o.src || fsrc; t.appendChild(i); } else t.style.background = o.color || '#6b5b45';
     return t;
 }
@@ -173,9 +173,11 @@ function plain() {
     store('own', L.own.concat([o])); _win.edit = o.id; log('plain', {}); draw();
 }
 function place(o) {
-    var C = OC(), p = C.objProps(o, state.gridType === 'hex');
+    var C = OC(), hex = state.gridType === 'hex', FS = window.wpFurnish, cell = FS ? FS.cell() : null;
+    var fu = !o.src && o.furn && FS && C.furnProps ? C.furnProps({ k: o.furn, era: FS.era() }, [[o]], hex, cell) : null;   // 1.6.2 (backlog 222): an object that names a furnishing and has no picture places the drawing its row shows
+    var p = fu || C.objProps(o, hex, cell);
     if (!p || typeof window.wpArmPlacement !== 'function') return;
-    close(); window.wpArmPlacement(C.objType(o), p, o.name); if (window.wpPlace) window.wpPlace.sized = true; log('place', { kind: C.objType(o) });
+    close(); window.wpArmPlacement(fu ? 'image' : C.objType(o), p, o.name); if (window.wpPlace) window.wpPlace.sized = true; log('place', { kind: C.objType(o) });
 }
 function open() {
     if (!objMay(net(), window)) { toast('Map objects are the GM’s.'); return; }

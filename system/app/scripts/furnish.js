@@ -52,7 +52,13 @@ function load() {
 function keep() { try { localStorage.setItem('wp_furnEra', _p.era); localStorage.setItem('wp_furnFolds', JSON.stringify(_p.open)); } catch (e) {} }
 function campNow() { return getActiveCampaign(); }
 function ruleOf(k) { var O = OC(); return O && O.furnRule ? O.furnRule(ruleLists(campNow()), k) : null; }
-function propsOf(f) { var O = OC(); return O && O.furnProps ? O.furnProps(f, ruleLists(campNow()), state.gridType === 'hex') : null; }
+// One cell of the map on screen, by its own lattice (backlog 38): a hex cell's width and row, a square's side; none where it has no grid
+function cellNow() {
+    var L = typeof window.wpLatticeOf === 'function' ? window.wpLatticeOf() : null; if (!L) return null;
+    if (L.type === 'hex' && L.s > 0 && L.h > 0) return { w: 2 * L.s, h: L.h };
+    return L.type === 'square' && L.size > 0 ? { w: L.size, h: L.size } : null;
+}
+function propsOf(f) { var O = OC(); return O && O.furnProps ? O.furnProps(f, ruleLists(campNow()), state.gridType === 'hex', cellNow()) : null; }
 function place(f) {
     var F = FU(), p = propsOf(f); if (!F || !p || typeof window.wpArmPlacement !== 'function') return;
     window.wpArmPlacement('image', p, F.furnKind(f.k).label.toLowerCase());
@@ -93,7 +99,7 @@ function draw() {
     load();
     if (!box.firstChild) head(F, box);
     _p.chips.forEach(function(c) { c.classList.toggle('on', c.dataset.era === _p.era); });
-    var find = !!_p.find.trim(), rules = F.FURN_KINDS.map(function(k) { var r = ruleOf(k.key); return r ? r.id : ''; }).join(',');
+    var find = !!_p.find.trim(), rules = F.FURN_KINDS.map(function(k) { var r = ruleOf(k.key); return r ? r.id + '=' + r.name : ''; }).join(',');   // a rule renamed redraws the tips that name it
     var sig = [_p.era, _p.find, _p.open.join(','), rules].join('|');
     if (sig === _p.drawn && _p.body.firstChild) return;
     _p.drawn = sig;
@@ -119,4 +125,4 @@ function wire() {
     var tabs = document.getElementById('buildTabs'); if (tabs) tabs.addEventListener('click', draw);
 }
 if (typeof document !== 'undefined') { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire(); }
-window.wpFurnish = { draw: draw, propsOf: propsOf, read: function(s) { var F = FU(); return F ? furnRead(F, s) : null; }, place: place };
+window.wpFurnish = { draw: draw, propsOf: propsOf, read: function(s) { var F = FU(); return F ? furnRead(F, s) : null; }, place: place, cell: cellNow, era: function() { var F = FU(); load(); return F ? eraKept(F, _p.era) : 'fantasy'; } };

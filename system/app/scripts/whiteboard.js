@@ -1034,7 +1034,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
               }
 
-              var FUd = window.wpFurnCore, fuD = item.furn && FUd ? FUd.cleanFurn(item.furn) : null, wantSrc = fuD ? FUd.furnSrc(fuD) : resolveImg(item.src);   // 1.6.2 (backlog 222): a furnishing is the app's own drawing, from its words
+              var FUd = window.wpFurnCore, fuD = item.furn && FUd && !(item.isChar && item.src) ? FUd.cleanFurn(item.furn) : null, wantSrc = fuD ? FUd.furnSrc(fuD) : resolveImg(item.src);   // 1.6.2 (backlog 222): a furnishing is the app's own drawing, from its words
 
               var imEl = el.querySelector('img');
 
@@ -10619,7 +10619,7 @@ function castSave(items) {
     items.forEach(function(it) {
         if (!it || !(it.isChar || it.charName)) return;   // only character tokens belong in the cast
         var cid = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-        cast[cid] = { id: cid, name: it.charName || 'Character', kind: it.type || 'image', src: it.src || '', w: it.w || 60, h: it.h || 52, color: it.color || 'transparent', charStats: it.charStats || '', shape: it.shape || '', savedAt: Date.now() };
+        cast[cid] = { id: cid, name: it.charName || 'Character', kind: it.type || 'image', src: it.src || '', furn: (window.wpFurnCore && it.furn ? window.wpFurnCore.cleanFurn(it.furn) : null) || undefined, w: it.w || 60, h: it.h || 52, color: it.color || 'transparent', charStats: it.charStats || '', shape: it.shape || '', savedAt: Date.now() };
         if (it.charId) cast[cid].charId = it.charId;   // the cast entry remembers the character (a single drop shares its sheet)
         n++;
     });
@@ -10683,6 +10683,7 @@ function castPlace(cid, x, y, count) {
         var col = i % cols, row = Math.floor(i / cols);
         var it = { id: 'wb' + Math.random().toString(36).slice(2, 10), type: c.kind || (c.src ? 'image' : 'circle'), x: x - c.w / 2 + col * (c.w + gap), y: y - c.h / 2 + row * (c.h + gap), w: c.w, h: c.h, z: 10, color: c.color, isChar: true, charName: count > 1 ? c.name + ' ' + (i + 1) : c.name, name: count > 1 ? c.name + ' ' + (i + 1) : c.name, charStats: c.charStats, layer: 'front' };
         if (c.src) it.src = c.src;
+        if (c.furn && window.wpFurnCore) { var cf = window.wpFurnCore.cleanFurn(c.furn); if (cf) it.furn = cf; }   // 1.6.2 (backlog 222): a furnishing saved to the cast
         if (c.shape) it.shape = c.shape;
         if (c.charId && count === 1) it.charId = c.charId;   // one copy of a character shares its sheet; several are separate mooks
         if (window.wpSystemCore && window.wpSystemCore.shapeStandIn) window.wpSystemCore.shapeStandIn(it, am);   // grid-shaped tokens: this map's cell shape

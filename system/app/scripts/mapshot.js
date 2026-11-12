@@ -269,7 +269,7 @@ function picMay(map, gm) {
 }
 // What changes the picture, as one short word: the pieces it draws and what of them is drawn
 function picSig(items) {
-    var s = JSON.stringify(items.map(function(it) { return [it.id, it.type, it.x, it.y, it.w, it.h, it.rot, it.src, it.color, it.fill, it.texture, it.texSrc, it.texTile, it.opacity, it.layer, it.z, it.shape, Array.isArray(it.pts) ? it.pts.length : 0]; })), h = 2166136261;
+    var s = JSON.stringify(items.map(function(it) { return [it.id, it.type, it.x, it.y, it.w, it.h, it.rot, it.src, it.color, it.fill, it.texture, it.texSrc, it.texTile, it.opacity, it.layer, it.z, it.shape, Array.isArray(it.pts) ? it.pts.length : 0, it.furn || null]; })), h = 2166136261;
     for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
     return s.length + ':' + h;
 }

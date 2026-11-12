@@ -1323,7 +1323,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 w.nodeId = this.value || null; portalLockTidy(w, activeMap); save(); render();
             });
             var _el_wbFurnEra = document.getElementById('wbFurnEra'), _el_wbFurnTint = document.getElementById('wbFurnTint'), _el_wbFurnNoTint = document.getElementById('wbFurnNoTint');   // 1.6.2 (backlog 222)
-            var furnSet = function(ch) { var FUh = window.wpFurnCore, cur = FUh ? FUh.cleanFurn(w.furn) : null, nx = cur ? FUh.cleanFurn(Object.assign({}, cur, ch)) : null; if (!nx) return; w.furn = nx; save(); render(); };
+            var furnSet = function(ch) { var FUh = window.wpFurnCore, cur = FUh ? FUh.cleanFurn(w.furn) : null, nx = cur ? FUh.cleanFurn(Object.assign({}, cur, ch)) : null; if (!nx) return; if (w.name === FUh.furnWords(cur)) w.name = FUh.furnWords(nx); w.furn = nx; save(); render(); };   // a name made from the look follows it
             if (_el_wbFurnEra) _el_wbFurnEra.addEventListener('change', function() { furnSet({ era: this.value }); });
             if (_el_wbFurnTint) _el_wbFurnTint.addEventListener('change', function() { furnSet({ tint: this.value }); });
             if (_el_wbFurnNoTint) _el_wbFurnNoTint.addEventListener('click', function() { furnSet({ tint: '' }); });

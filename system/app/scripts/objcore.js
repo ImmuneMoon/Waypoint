@@ -10,7 +10,7 @@
    The shape has room for what comes later (interactions such as sitting in a chair, a box the GM sets as openable, what a box holds): a later key
    joins cleanObj and objProps, and an object from before it reads as having none. */
 import { cleanTexSrc, cleanCoverPro } from './fogcore.js';
-import { cleanFurn, furnKind, furnSize, furnWords } from './furncore.js';   // 1.6.2 (backlog 222): the furnishing kinds an object may give its rules to
+import { cleanFurn, furnKind, furnWords } from './furncore.js';   // 1.6.2 (backlog 222): the furnishing kinds an object may give its rules to
 
 export var OBJ_MAX = 2000;
 var NAME_MAX = 60, CELLS_MAX = 12, ID_RE = /^[A-Za-z0-9_-]{1,40}$/, HEX_RE = /^#[0-9a-fA-F]{6}$/;
@@ -49,11 +49,14 @@ export function cleanObjects(v) {
     for (var i = 0; i < v.length && out.length < OBJ_MAX; i++) { var o = cleanObj(v[i]); if (o && !seen[o.id]) { seen[o.id] = 1; out.push(o); } }
     return out;
 }
-// What a placed object is: an ordinary piece's own keys, by whitelist. One grid cell is 50 px on squares and 60 by 52 on hexagons, as a token's is.
+// What a placed object is: an ordinary piece's own keys, by whitelist. One grid cell is the map's own (cell: { w, h }, from its lattice), else 50 px
+// on squares and 60 by 52 on hexagons, as a token's is.
 // A piece that blocks sight is a wall, which gives total cover by itself; any other gives the grade it says, or none at all where it says none
-export function objProps(o, hex) {
+function cellW(hex, cell) { return cell && typeof cell.w === 'number' && cell.w > 0 ? cell.w : hex ? 60 : 50; }
+function cellH(hex, cell) { return cell && typeof cell.h === 'number' && cell.h > 0 ? cell.h : hex ? 52 : 50; }
+export function objProps(o, hex, cell) {
     var c = cleanObj(o); if (!c) return null;
-    var p = { name: c.name, w: (c.w || 1) * (hex ? 60 : 50), h: (c.h || 1) * (hex ? 52 : 50), layer: 'back-mid' };   // 1.6.2: over the map's own pictures and under the tokens, so a character stands over a crate it stands at (the owner, 2026-11-02: why is this over the character)
+    var p = { name: c.name, w: (c.w || 1) * cellW(hex, cell), h: (c.h || 1) * cellH(hex, cell), layer: 'back-mid' };   // 1.6.2: over the map's own pictures and under the tokens, so a character stands over a crate it stands at (the owner, 2026-11-02: why is this over the character)
     if (c.src) p.src = c.src; else p.color = c.color || LAND_COLOR;
     if (c.pro) p.coverPro = c.pro;
     if (c.sight) { p.blocksSight = true; p.sightType = 'wall'; } else {
@@ -101,11 +104,12 @@ export function furnRule(lists, k) {
 // What a placed furnishing is: a picture piece that keeps its kind, its version and its tint, drawn by every machine from those words. With a
 // rule it takes the rule's own keys (objProps) and the rule's size where the rule names one, else the kind's own. With none it is a plain picture
 // over the map's pictures and under the tokens, with no key of cover, so the system's own rule for pictures says what it gives
-export function furnProps(f, lists, hex) {
+export function furnProps(f, lists, hex, cell) {
     var c = cleanFurn(f); if (!c) return null;
-    var rule = furnRule(lists, c.k), sz = furnSize(c.k, hex), p = rule ? objProps(rule, hex) : { name: furnWords(c), layer: 'back-mid' };
+    var rule = furnRule(lists, c.k), it = furnKind(c.k), p = rule ? objProps(rule, hex, cell) : { name: furnWords(c), layer: 'back-mid' };
     delete p.src; delete p.color;
-    if (!rule || (!(rule.w > 1) && !(rule.h > 1))) { p.w = sz.w; p.h = sz.h; }
+    var cw = rule && (rule.w > 1 || rule.h > 1) ? [rule.w || 1, rule.h || 1] : [it.w, it.h];
+    p.w = cw[0] * cellW(hex, cell); p.h = cw[1] * cellH(hex, cell);   // the map's own cell (backlog 38), so a one-cell chest fills one cell
     p.furn = c; p.color = 'transparent'; p.fit = true;   // fit: the box keeps the size it is given, never the drawing's own proportions
     return p;
 }

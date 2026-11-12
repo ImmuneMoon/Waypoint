@@ -1001,6 +1001,7 @@ function mutations(tpl) {
             'char-style': { type: 'char-style', rid: 'r9', charId: 'c_p1', fieldId: 'f_class', look: { fmt: { b: true }, sig: win.wpLook.textSig('Ranger') } },   // item 35: the look of a text of their own sheet
             'throw-req': { type: 'throw-req', charId: 'c_p1', fieldId: 'f_inv', rowId: 'w_1', mapId: 'm_open', x: 200, y: 200 },
             'door-req': { type: 'door-req', mapId: 'm_open', itemId: 'door1' },
+            'box': { type: 'box', op: 'open', mapId: 'm_open', itemId: 'door1', tok: 'tok_p1' },   // 1.6.2 (backlog 42): a container asked to open; the world holds none, so it answers nothing and changes nothing
             'card-act': { type: 'card-act', id: 'r_nosuchhe', key: 'accept' },   // 1.6.2 (G5): a press on a held roll's card, its roller's alone; none is held here
             'show-ask': { type: 'show-ask', campId: 'c1', itemId: 'm_open', ids: ['stroke_show', 'draw_show', 'stroke_onmap'] },   // 1.6.2: an ask to put a drawing on the map changes nothing by itself
             'door-req-secret': { type: 'door-req', mapId: 'm_open', itemId: 'door_secret' },   // fold B5: a secret door: a door request naming it is answered as a wall's is — with nothing — and changes nothing
@@ -1197,6 +1198,7 @@ function mutations(tpl) {
         'char-effect': o => o.p1.some(m => m.type === 'char-ack') && Array.isArray(campH().chars.c_p1.values.f_fx) && campH().chars.c_p1.values.f_fx.length === 1,
         'char-style': o => !!(campH().chars.c_p1.looks && campH().chars.c_p1.looks.f_class && campH().chars.c_p1.looks.f_class.fmt.b === true) && o.p1.some(m => m.type === 'charstyle-ack') && o.p1.some(m => m.type === 'charStyle') && !o.p2.some(m => m.type === 'charStyle'),
         'door-req': () => tokH('door1').doorOpen === true,
+        'box': o => !o.p1.concat(o.p2 || []).some(m => m.type === 'box-view' || m.type === 'box-took'),
         'door-req-secret': o => JSON.stringify(tokH('door_secret')) === JSON.stringify(pristine.items.m_open.whiteboard.find(w => w.id === 'door_secret')) && !o.p1.concat(o.p2).some(m => m.type === 'door-deny' || m.type === 'item' || m.type === 'itemDelta'),   // fold B5: a secret door: as the GM left it, nobody told a thing
         'door-req-line': o => LINE_DOOR_IDS.every(id => JSON.stringify(tokH(id)) === JSON.stringify(pristine.items.m_open.whiteboard.find(w => w.id === id))) && tokH('door_line').doorLock === true && !o.p1.concat(o.p2).some(m => m.type === 'door-deny' || m.type === 'item' || m.type === 'itemDelta'),   // Match a wall: the three secret doors drawn as lines as the GM left them, nobody told a thing (not even that the one named is locked)
         'char-pic': o => rec.pics.length === 1 && o.p1.some(m => m.type === 'char-pic-ans' && m.ok === true),

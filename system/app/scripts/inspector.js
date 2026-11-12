@@ -2429,7 +2429,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   function boxFieldHtml(w) {
       var B = window.wpBoxes, BC = window.wpBoxCore, camp = getActiveCampaign(); if (!B || !BC || !B.gmMay() || !B.pieceOk(w)) return '';
       var b = camp && camp.boxes && typeof w.box === 'string' && Object.prototype.hasOwnProperty.call(camp.boxes, w.box) ? camp.boxes[w.box] : null, n = b ? BC.boxCount(camp.system, b) : 0;
-      return '<div class="field check-row"><input type="checkbox" id="wbHoldsItems" ' + (b ? 'checked' : '') + '> <label for="wbHoldsItems"><i class="wib wi-lib"></i> Holds items</label></div>'
+      return '<div class="field check-row"><input type="checkbox" id="wbHoldsItems" ' + (b ? 'checked' : '') + '> <label for="wbHoldsItems"><i class="wib wi-chest"></i> Holds items</label></div>'
           + (b ? '<div class="box-field"><span class="muted">' + (n ? n + ' item' + (n === 1 ? '' : 's') : 'Empty') + '</span> <button type="button" class="tool ghost" id="wbOpenBox" title="See and change what it holds">Open contents</button></div>' : '');
   }
   function boxFieldWire(w) {

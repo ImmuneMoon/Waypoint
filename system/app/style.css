@@ -230,6 +230,7 @@
   .wb-item[data-portal-icon="tower"] { --pi: var(--mk-tower); }
   .wb-item[data-portal-icon="camp"] { --pi: var(--mk-camp); }
   .wi-lock { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 11h12v9.5H6zM8.5 11V7.5a3.5 3.5 0 0 1 7 0V11M12 14.5v2.5'/%3E%3C/svg%3E"); }
+  .wi-chest { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 10.5h17v9h-17zM3.5 10.5V9a5 5 0 0 1 5-4.5h7a5 5 0 0 1 5 4.5v1.5M10.5 13h3v3h-3z'/%3E%3C/svg%3E"); }   /* 1.6.2 (backlog 42): a container, the owner's pick of 2026-11-12, A. A chest */
   .wi-unlock { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 11h12v9.5H6zM8.5 11V7.5a3.5 3.5 0 0 1 6.8-1.2M12 14.5v2.5'/%3E%3C/svg%3E"); }
   .wi-hide { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12c2.5-4.5 6-7 10-7s7.5 2.5 10 7c-2.5 4.5-6 7-10 7s-7.5-2.5-10-7zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM4 3.5l16 17'/%3E%3C/svg%3E"); }
   .wi-door { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 21V3.5h12V21M3.5 21h17M14.5 12.5h.01'/%3E%3C/svg%3E"); }
@@ -1331,6 +1332,10 @@
   .wb-item > .wb-pin.wb-pin-card > .wib { color: var(--ink); font-size: 12px; line-height: 20px; }
   .wb-item > .wb-pin.wb-pin-card:hover > .wib, .wb-item > .wb-pin.wb-pin-card:focus-visible > .wib { color: var(--deep); }
   .wb-item > .wb-pin:hover, .wb-item > .wb-pin:focus-visible { background: var(--gold); outline: none; }
+  /* 1.6.2 (backlog 42, fold 2): a container's mark, at the top left of its piece: the GM opens its window, a player asks to open it */
+  .wb-item > .wb-box { position: absolute; left: -11px; top: -11px; z-index: 6; width: 22px; height: 22px; padding: 0; border: 1px solid var(--gold); border-radius: 50%; background: var(--deep); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .wb-item > .wb-box::before { content: ''; width: 14px; height: 14px; background: var(--ink); -webkit-mask: var(--wi) center / contain no-repeat; mask: var(--wi) center / contain no-repeat; }
+  .wb-item > .wb-box:hover, .wb-item > .wb-box:focus-visible { background: var(--gold); outline: none; } .wb-item > .wb-box:hover::before, .wb-item > .wb-box:focus-visible::before { background: var(--deep); }
   .token-fx { position: absolute; left: 2px; top: 2px; z-index: 5; transform: scale(var(--wbz, 1)); transform-origin: 0 0; }
   .token-fx .tfx-row { display: flex; flex-wrap: wrap; gap: 2px; max-width: 70px; }
   .token-fx .tfx { width: 14px; height: 14px; border-radius: 50%; background: rgba(0,0,0,0.82); color: #e9e9f0; box-shadow: 0 0 0 1.5px #9aa0a6; display: inline-flex; align-items: center; justify-content: center; font: 700 9px/1 Inter, sans-serif; overflow: hidden; white-space: nowrap; }

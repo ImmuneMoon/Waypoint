@@ -129,8 +129,8 @@ const J = JSON.stringify;
             wb.includes("function boxOpenRow(items)") && wb.includes("if (bxRow) html += bxRow.html;") && wb.includes("} else if (action.includes('cm-box-open')) {") && wb.includes("window.wpBoxes.open(selectedIds[0]);"));
         check('Show on my map: a Containers row that players see too, so As players see it leaves it as it is',
             il.includes("{ k: 'box', name: 'Containers', seen: true }") && il.includes("if (typeof w.box === 'string' && (typeof hasBox !== 'function' || hasBox(w))) out.push('box');") && il.includes('KINDS.filter(function(x) { return !x.more && !x.seen; })'));
-        check('the wire: what containers hold and a piece\'s box id never leave the host, and a player\'s app keeps none a host names',
-            net.includes('delete camp.boxes;') && net.includes('if (w.box !== undefined) delete w.box;') && net.includes('return cleanWaitingItem(w); delete w.box;'));
+        check('the wire: what containers hold and a piece\'s box id never leave the host, a container wearing only the mark boxed, which a player\'s app keeps only as 1',
+            net.includes('delete camp.boxes;') && net.includes("if (w.box !== undefined) { if (typeof w.box === 'string' && /^c_bx[A-Za-z0-9]{4,20}$/.test(w.box)) w.boxed = 1; delete w.box; }") && net.includes("delete w.box; if (w.boxed !== 1) delete w.boxed;") && net.includes('return cleanWaitingItem(w); delete w.box;'));
         check('a load and an import: the store cleaned by its own cleaner against the campaign\'s system and tidied against its pieces, its core loaded before the first load; a Merge brings a file\'s containers by id; an export of a part carries the containers it names; a file\'s box key kept only as a box id on a piece that is no token',
             io.includes("import './boxcore.js';") && io.includes("BXl.cleanBoxes(c.boxes, c.system)") && io.includes("window.wpBoxCore.boxesTidy(c);") && io.includes("window.wpBoxCore.boxesOf(camp.boxes, items)")
             && read('scripts/main.js').includes("var bxI = window.wpBoxCore.cleanBoxes(ic.boxes, existing.system || ic.system);") && read('scripts/cleanup.js').includes("if (w.box !== undefined && (typeof w.box !== 'string' || !/^c_bx[A-Za-z0-9]{4,20}$/.test(w.box) || w.isChar || w.waiting)) delete w.box;"));
@@ -140,9 +140,82 @@ const J = JSON.stringify;
             /var FLOAT_IDS = \[[^\]]*'boxPanel'/.test(fl) && /var Z_BOXES = \[[^\]]*'boxPanel'/.test(sh) && /var ESC_LAST = \[[^\]]*'boxPanel'/.test(esc) && esc.includes("boxPanel: function(el) { if (!escPress(doc, 'boxClose')) el.style.display = 'none'; },"));
         check('the page: the window with its close, the module after the layers, its styles',
             (ix.match(/id="boxPanel"/g) || []).length === 1 && ix.includes('id="boxClose"') && ix.includes('id="boxBody"') && ix.indexOf('scripts/ilayers.js') < ix.indexOf('scripts/boxes.js') && css.includes('#boxBody .box-grid {') && css.includes('#boxPanel {') && css.includes('#contextMenu .menu-item.cm-box-open > * { pointer-events: none; }'));
-        check('Help says it, in its plain words', ix.includes('<li><b>Containers:</b> a picture, a shape or a map object can hold items') && ix.includes('What a container holds stays on your computer. Players cannot open one yet.') && ix.includes('Only lists ticked Tradable that players see can hold them, as a trade moves them.'));
+        check('Help says it, in its plain words', ix.includes('<li><b>Containers:</b> a picture, a shape or a map object can hold items') && ix.includes('What it holds stays on your computer until a player opens it. You are told who took what.') && ix.includes('Only lists ticked Tradable that players see can hold them, as a trade moves them.'));
         const wn = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wa = read('assets/whatsnew.txt');
         check('both release notes say it, alike', wn.includes('- A picture, a shape or a map object can now hold items.') && wa.includes('- A picture, a shape or a map object can now hold items.'));
+    }
+    /* ---- fold 2: the host's branch, run for real with the real trade rule ---- */
+    {
+        const net = read('scripts/net.js'), bw = (a, z) => { const i = net.indexOf('// [netcheck:' + a + '-start]'), j = net.indexOf('// [netcheck:' + a + '-end]'); if (i < 0 || j < i) throw new Error('slice ' + a); return net.slice(i, j); };
+        const helpers = bw('boxhost'), branch = bw('box');
+        const mk = (o) => {
+            o = o || {};
+            const sysT = S.cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_inv', key: 'Gear', label: 'Gear', kind: 'item-list', list: { trade: true } }], items: [{ id: 'i_rope', key: 'Rope', name: 'Rope' }, { id: 'i_coin', key: 'Coin', name: 'Coin' }] }, { F, gmView: true });
+            const box = { id: 'c_bxchest0001', values: { f_inv: [{ id: 'w_1', defId: 'i_rope', qty: 3 }, { id: 'w_2', defId: 'i_coin', qty: 1 }] } };
+            const camp = { id: 'k1', system: sysT, boxes: { c_bxchest0001: box }, chars: { c_kael: { id: 'c_kael', name: 'Kael', ownerId: 'u_p1', values: {} }, c_ava: { id: 'c_ava', name: 'Ava', ownerId: 'u_p2', values: {} } },
+                items: { m1: { id: 'm1', type: 'map', whiteboard: [{ id: 'chest', type: 'image', name: 'Old chest', x: 100, y: 100, w: 50, h: 50, box: 'c_bxchest0001', hidden: !!o.hidden }, { id: 'tk', type: 'image', isChar: true, charId: 'c_kael', ownerId: 'u_p1', x: 150, y: 100, w: 50, h: 50 }, { id: 'ta', type: 'image', isChar: true, charId: 'c_ava', ownerId: 'u_p2', x: 150, y: 100, w: 50, h: 50 }] } } };
+            const sent = [], told = [], logs = [], toasts = [], conns = [], steps = [];
+            const conn = { peer: 'pA', open: true, send: m => sent.push(m) }, other = { peer: 'pB', open: true, send: m => told.push(m) }; conns.push(conn, other);
+            const N = { roster: { pA: { id: 'u_p1', location: 'm1' }, pB: { id: 'u_p2', location: 'm1' } }, conns, paused: false, syncCharDelta: (id, v) => steps.push('delta ' + id + ' ' + Object.keys(v).join(',')) };
+            const win = { wpBoxCore: BC, wpSheets: { charChanged: id => steps.push('changed ' + id) }, wpBoxes: { redraw: () => steps.push('gm redraw') }, wpStepLog: (n, s, f) => steps.push(n + ' ' + s + ' ' + JSON.stringify(f)) };
+            const fn = new Function('net', 'window', 'getActiveCampaign', 'allow', 'peerPaused', 'handsTo', 'allyNear', 'SC', 'saveRemoteSoon', 'logEvent', 'toast', 'sendFailed',
+                helpers + '\nreturn { run: function(msg, conn) {\n' + branch + '\n}, views: function() { return _boxViews; }, forget: boxForget };');
+            const api = fn(N, win, () => camp, () => o.limit !== false, () => !!o.paused, (ch, pid) => !!ch && ch.ownerId === pid, () => o.near !== false, () => S, () => steps.push('save'), (k, s) => logs.push(s), s => toasts.push(s), () => {});
+            return { api, camp, box, sent, told, logs, toasts, steps, conn, other };
+        };
+        const W = mk();
+        W.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, W.conn);
+        const v = W.sent[0];
+        check('a player opens a container next to a token of theirs (the host\'s branch, run for real): sent its name and tiles alone, the lists players see, no box id; the GM\'s record says who opened it',
+            v && v.type === 'box-view' && v.itemId === 'chest' && v.name === 'Old chest' && JSON.stringify(v.tiles.map(x => [x.rowId, x.name, x.qty])) === JSON.stringify([['w_1', 'Rope', 3], ['w_2', 'Coin', 1]]) && !JSON.stringify(v).includes('c_bx') && W.logs[0] === 'Kael opened Old chest.', JSON.stringify(W.sent));
+        W.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'ta' }, W.other);
+        W.api.run({ type: 'box', op: 'take', mapId: 'm1', itemId: 'chest', tok: 'tk', fid: 'f_inv', rowId: 'w_1', qty: 2 }, W.conn);
+        const took = W.sent.find(m => m.type === 'box-took'), tell = W.told.filter(m => m.type === 'box-view').slice(-1)[0];
+        check('a take of part of a stack: off the container and onto the taker\'s own sheet through the trade\'s own rule, stored, sent and saved; the player told, the GM told who took what, and everyone with it open sent what is left',
+            JSON.stringify(W.box.values.f_inv.map(r => [r.id, r.qty])) === JSON.stringify([['w_1', 1], ['w_2', 1]]) && W.camp.chars.c_kael.values.f_inv.length === 1 && W.camp.chars.c_kael.values.f_inv[0].qty === 2
+            && took && took.lines[0] === 'Rope x2' && W.toasts[0] === 'Kael took Rope x2 from Old chest.' && W.steps.includes('delta c_kael f_inv') && W.steps.includes('changed c_kael') && W.steps.includes('save') && W.steps.includes('gm redraw')
+            && tell && JSON.stringify(tell.tiles.map(x => [x.rowId, x.qty])) === JSON.stringify([['w_1', 1], ['w_2', 1]]), JSON.stringify([W.box.values, W.camp.chars.c_kael.values, took, W.toasts]));
+        W.api.run({ type: 'box', op: 'take', mapId: 'm1', itemId: 'chest', tok: 'ta', all: true }, W.other);
+        W.api.run({ type: 'box', op: 'take', mapId: 'm1', itemId: 'chest', tok: 'tk', fid: 'f_inv', rowId: 'w_2', qty: 1 }, W.conn);
+        check('Take all moves everything still in it, and the last one is taken once: a second player asking for what is gone is told so and sent what is left',
+            !W.box.values.f_inv && W.camp.chars.c_ava.values.f_inv.length === 2 && W.sent.some(m => m.type === 'box-deny' && m.reason === 'gone') && W.sent.slice(-1)[0].type === 'box-view' && W.sent.slice(-1)[0].tiles.length === 0, JSON.stringify([W.box, W.camp.chars.c_ava.values]));
+        const R = (o, msg, c) => { const X = mk(o); X.api.run(Object.assign({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, msg || {}), c === 'B' ? X.other : X.conn); return X; };
+        const far = R({ near: false }), notMine = R({}, { tok: 'ta' }), hid = R({ hidden: true }), paused = R({ paused: true }), stub = R({}, { mapId: 'nope' }), limited = R({ limit: false });
+        check('every step judged: too far, a token not theirs, a hidden container (answered nothing), a paused table, a map that is not there, the limiter; nothing moved and nothing told',
+            far.sent[0].reason === 'far' && notMine.sent[0].reason === 'token' && hid.sent.length === 0 && paused.sent[0].reason === 'paused' && stub.sent.length === 0 && limited.sent.length === 0 && [far, notMine, hid, paused].every(X => X.box.values.f_inv.length === 2 && !X.logs.length),
+            JSON.stringify([far.sent, notMine.sent, hid.sent, paused.sent]));
+        const C = mk(); C.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, C.conn); C.api.run({ type: 'box', op: 'close', mapId: 'm1', itemId: 'chest' }, C.conn);
+        const k = 'k1|m1|chest', closed = C.api.views()[k] && !('pA' in C.api.views()[k]); C.api.forget();
+        check('Close lets the host forget who has it open, and a new table forgets them all', closed && Object.keys(C.api.views()).length === 0 && net.includes("if (typeof boxForget === 'function') boxForget();"));
+        check('the player\'s app takes a view from the synced host alone and never in the stream window, and says a refusal in its own words', net.includes("} else if (msg.type === 'box-view' && net.role === 'client') {") && bw('boxview').includes("if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;") && net.includes("far: 'Move a token of yours next to it to open it.'"));
+    }
+
+    /* ---- fold 2: the player's window, on a page of plain objects ---- */
+    {
+        const src = read('scripts/boxes.js'), a = src.indexOf('// [boxcheck:player-start]'), z = src.indexOf('// [boxcheck:player-end]');
+        const fn = new Function('getActiveMap', 'state', 'toast', 'step', 'window', '_box', src.slice(a, z) + '\nreturn { cleanTiles, tokFor };');
+        const api = fn(() => null, { selWbIds: [] }, () => {}, () => {}, { wpNet: { myId: 'u_p1' } }, {});
+        const ct = api.cleanTiles([{ fid: 'f_inv', rowId: 'w_1', name: 'Rope\u0007<b>', qty: 3, icon: 'icon:check', notes: 'x'.repeat(900) }, { fid: 1, rowId: 'w' }, null, { fid: 'f', rowId: 'w_2', qty: -4 }]);
+        check('the host\'s view cleaned again on the player\'s app: plain words cut to their length, a count a whole number, anything that is no tile left out', ct.length === 2 && ct[0].name === 'Rope <b>' && ct[0].notes.length === 600 && ct[0].qty === 3 && ct[1].qty === 1 && ct[1].name === 'Item', JSON.stringify(ct));
+        const map = { whiteboard: [{ id: 't1', isChar: true, charId: 'c1', ownerId: 'u_p1', x: 500, y: 500, w: 50, h: 50 }, { id: 't2', isChar: true, charId: 'c2', ownerId: 'u_p1', x: 120, y: 100, w: 50, h: 50 }, { id: 't3', isChar: true, charId: 'c3', ownerId: 'u_p2', x: 100, y: 100, w: 50, h: 50 }] };
+        const near = api.tokFor(map, { x: 100, y: 100, w: 50, h: 50 });
+        const fn2 = new Function('getActiveMap', 'state', 'toast', 'step', 'window', '_box', src.slice(a, z) + '\nreturn { tokFor };');
+        const sel = fn2(() => null, { selWbIds: ['t1'] }, () => {}, () => {}, { wpNet: { myId: 'u_p1' } }, {}).tokFor(map, { x: 100, y: 100, w: 50, h: 50 });
+        check('it opens with the selected token of theirs, else the one of theirs nearest the container, never another player\'s', near && near.id === 't2' && sel && sel.id === 't1');
+        check('the window writes no markup, and Take and Take all ask the host, which answers', !/innerHTML/.test(src.slice(a, z)) && src.includes("n.boxAsk('take', _box.mapId, _box.pieceId, Object.assign({ tok: _box.tok }, more))"));
+    }
+    {
+        const wbS = read('scripts/whiteboard.js'), a = wbS.indexOf('// [boxcheck:mark-start]'), z = wbS.indexOf('// [boxcheck:mark-end]');
+        const mkEl = () => { const kids = [], L = {}; const e = { kids, L, dataset: {}, attrs: {}, className: '', type: '', removed: false, appendChild(c) { kids.push(c); c.parent = e; return c; }, querySelector() { return kids.find(c => / wb-box|^wb-box/.test(' ' + c.className) && !c.removed) || null; }, addEventListener(t, f) { (L[t] = L[t] || []).push(f); }, setAttribute(k, v) { e.attrs[k] = v; }, remove() { e.removed = true; } }; return e; };
+        const run = (win, item, hidden) => { const doc = { createElement: () => mkEl() }; const f = new Function('window', 'document', wbS.slice(a, z) + '\nreturn boxMarkSync;')(win, doc); const el = mkEl(); f(el, item, hidden); return el; };
+        const asked = [], opened = [], B = { gmMay: () => true, has: w => w.box === 'c_bxchest0001', open: id => opened.push(id), ask: id => asked.push(id) };
+        const gm = run({ wpBoxes: B }, { id: 'p1', box: 'c_bxchest0001' });
+        const pl = run({ wpBoxes: Object.assign({}, B, { gmMay: () => false }), wpNet: { active: true, role: 'client' } }, { id: 'p2', boxed: 1 });
+        const none = [run({ wpBoxes: B }, { id: 'p3' }), run({ wpBoxes: B, wpStream: true }, { id: 'p1', box: 'c_bxchest0001' }), run({ wpBoxes: B }, { id: 'p1', box: 'c_bxchest0001' }, true), run({ wpBoxes: Object.assign({}, B, { gmMay: () => false }), wpNet: { active: true, role: 'client', stream: true } }, { id: 'p2', boxed: 1 })];
+        gm.kids[0].L.click[0]({ stopPropagation() {}, preventDefault() {} }); pl.kids[0].L.click[0]({ stopPropagation() {}, preventDefault() {} });
+        check('the mark: on the GM\'s screen a container\'s mark opens its window, on a player\'s app a container the host marked asks to open it; none on a piece that is none, in the stream window or on a hidden one; the chest\'s drawing and its words',
+            gm.kids.length === 1 && gm.kids[0].className === 'wb-box wi-chest' && gm.kids[0].dataset.tip === 'Open contents' && pl.kids[0].dataset.tip === 'Open it' && JSON.stringify(opened) === '["p1"]' && JSON.stringify(asked) === '["p2"]' && none.every(e => e.kids.length === 0)
+            && read('style.css').includes('.wi-chest { --wi:') && read('style.css').includes('.wb-item > .wb-box {'), JSON.stringify([opened, asked]));
     }
     summed = true; console.log('\n' + pass + ' passed, ' + fail + ' failed.'); if (fail) process.exitCode = 1;
 })().catch(e => { console.log('FAIL      boxcheck threw: ' + (e && e.stack || e)); summed = true; process.exitCode = 1; });

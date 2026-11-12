@@ -1254,6 +1254,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
               if (fxEl.dataset.sig !== fxHtml) { fxEl.dataset.sig = fxHtml; fxEl.innerHTML = fxHtml; }
           } else if (fxEl) fxEl.remove();
           pagePinSync(el, item, hideFromMe);   // 1.5.4 (pageshelf.js): a pin's mark, on the GM's screen alone
+          boxMarkSync(el, item, hideFromMe);   // 1.6.2 (backlog 42, fold 2): a container's mark, for the GM and for players
           roomNameSync(el, item, rnPlaces);   // 1.6.2 (backlog 45, fold 3): the room's name on its place, on the GM's screen alone
           if (window.wpILayers) window.wpILayers.mark(el, item, activeMap);   // 1.6.2 (backlog 43): interaction layers, the GM's own screen
           var barL = item.isChar && window.wpSheets && window.wpSheets.tokenBars ? window.wpSheets.tokenBars(item, activeMap.id) : [], barEl = el.querySelector(':scope > svg.token-bars');   // backlog 28: its bars, a ring around it
@@ -4024,6 +4025,23 @@ window.wpFitToGrid = fitToGrid;
       });
       return b;
   }
+  // [boxcheck:mark-start]
+  // 1.6.2 (backlog 42, fold 2): a container's mark, a real button at the top left of its piece. On the GM's screen it opens the window; on a
+  // player's app it asks the host to open it with a token of theirs next to it (the piece wears boxed from the host, never its box id). Never
+  // in the stream window
+  function boxMarkSync(el, item, hidden) {
+      var B = window.wpBoxes, n = window.wpNet, mark = el.querySelector(':scope > .wb-box');
+      var gm = !!B && B.gmMay() && typeof item.box === 'string' && B.has(item), pl = !gm && item.boxed === 1 && !!n && n.active && n.role === 'client' && !n.stream;
+      if (hidden || window.wpStream || !(gm || pl)) { if (mark) mark.remove(); return; }
+      if (!mark) {
+          mark = document.createElement('button'); mark.type = 'button'; mark.className = 'wb-box wi-chest';
+          ['pointerdown', 'mousedown', 'dblclick'].forEach(function(ev) { mark.addEventListener(ev, function(e) { e.stopPropagation(); }); });
+          mark.addEventListener('click', function(e) { e.stopPropagation(); e.preventDefault(); var B2 = window.wpBoxes, id = mark.dataset.id; if (!B2 || !id) return; if (B2.gmMay()) B2.open(id); else B2.ask(id); });
+          el.appendChild(mark);
+      }
+      var words = gm ? 'Open contents' : 'Open it'; if (mark.dataset.id !== item.id || mark.dataset.tip !== words) { mark.dataset.id = item.id; mark.dataset.tip = words; mark.setAttribute('aria-label', words); }
+  }
+  // [boxcheck:mark-end]
   function pagePinSync(el, item, hidden) {
       var mark = el.querySelector(':scope > .wb-pin'), pin = hidden ? null : pagePinOf(item);   // (a card's mark wears wb-pin too)
       if (!pin) { if (mark) mark.remove(); return; }
@@ -9296,7 +9314,7 @@ function roomPlaceStep(rec, px, py, pw, ph) {
     }, { yes: 'An area only I see', alt: 'A floor players see', noEnter: true });
 }
 // 1.6.2 (backlog 42): Open contents, on the GM's menu of ONE container
-var BOX_OPEN_ROW = '<div class="menu-item cm-box-open" title="See and change what this container holds."><i class="wib wi-lib"></i><span>Open contents<small>What it holds, as tiles.</small></span></div>';
+var BOX_OPEN_ROW = '<div class="menu-item cm-box-open" title="See and change what this container holds."><i class="wib wi-chest"></i><span>Open contents<small>What it holds, as tiles.</small></span></div>';
 function boxOpenRow(items) { var list = (Array.isArray(items) ? items : []).filter(Boolean), B = window.wpBoxes; if (!B || !B.gmMay() || list.length !== 1 || !B.has(list[0]) || !B.pieceOk(list[0])) return null; return { item: list[0], html: BOX_OPEN_ROW }; }
 // Show on the Data Map, on the GM's menu of ONE piece whose room is on the Data Map
 var ROOM_SHOW_ROW = '<div class="menu-item cm-room-show" title="Switch to the Data Map with this piece\u2019s room selected and in view.">'

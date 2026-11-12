@@ -5,6 +5,7 @@
    GM's alone: never on a player's app, at someone else's table or in the stream window, and nothing of it is sent. Steps log as boxes v1. */
 
 import { getActiveCampaign, getActiveMap } from './models.js';
+import { state } from './state.js';
 import { save, toast } from './io.js';
 import * as BC from './boxcore.js';
 import { applyRowOp, glyphPath, uid } from './systemcore.js';
@@ -47,7 +48,7 @@ function open(pieceId) {
     p.style.display = ''; if (window.wpFloats && typeof window.wpFloats.reveal === 'function') window.wpFloats.reveal(p);
     draw(); step('open', { n: BC.boxCount(sysOf(camp), boxOf(camp, w)) }); return true;
 }
-function close() { var p = P(); if (!p || p.style.display === 'none') return; p.style.display = 'none'; _box = { mapId: null, pieceId: null, sel: null, list: null }; step('close'); }
+function close() { var p = P(); if (!p || p.style.display === 'none') return; if (_box.player && window.wpNet && typeof window.wpNet.boxAsk === 'function') window.wpNet.boxAsk('close', _box.mapId, _box.pieceId, {}); p.style.display = 'none'; _box = { mapId: null, pieceId: null, sel: null, list: null }; step('close'); }
 // The item's icon: one of the app's own glyphs, or the item's own characters, or the first letter of its name
 function iconInto(box, t) {
     var g = typeof t.icon === 'string' && /^icon:/.test(t.icon) ? glyphPath(t.icon) : '';
@@ -64,6 +65,7 @@ function change(fid, q, what, back) {
 // The window is drawn anew at a change: the focus goes back to the control pressed, or the first of those named that is there (the review rule of 1.6.2)
 function refocus(list) { (Array.isArray(list) ? list : []).some(function(s) { var n = document.querySelector('#boxBody ' + s); if (n && !n.disabled && n.focus) { n.focus(); return true; } return false; }); }
 function draw() {
+    if (_box.player) { drawPlayer(); return; }   // fold 2: a player's view of a container, as the host sends it
     var p = P(), camp = getActiveCampaign(), w = piece(), b = boxOf(camp, w), sys = sysOf(camp); if (!p) return;
     if (!b || !gmMay()) { close(); return; }
     var nm = document.getElementById('boxName'); if (nm) nm.textContent = (typeof w.name === 'string' && w.name) ? w.name : 'Container';
@@ -131,6 +133,70 @@ function wire() {
     head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = (e.clientY - drag.dy) + 'px'; p.style.right = 'auto'; });
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function(ev) { head.addEventListener(ev, function() { drag = null; }); });   // a drag ends however the pointer is let go
 }
+// [boxcheck:player-start]
+// Fold 2 (the owner, 2026-11-12: "A. Next to it, a roll if locked", "A. Tiles, like a crate"): a player opens a container by its mark. The press
+// names the token of theirs it is opened with (the selected one, else the one of theirs nearest the container) and asks the host, which
+// judges every step and sends what the container holds as tiles; nothing of it is kept on the player's app beyond the window
+var _ask = null;
+function tokFor(map, w) {
+    var n = window.wpNet, me = n && n.myId ? n.myId : null, sel = state && Array.isArray(state.selWbIds) ? state.selWbIds : [];
+    var mine = (map && Array.isArray(map.whiteboard) ? map.whiteboard : []).filter(function(x) { return x && x.isChar && !x.waiting && !x.hidden && typeof x.charId === 'string' && (!me || x.ownerId === me); });
+    var picked = mine.filter(function(x) { return sel.indexOf(x.id) >= 0; })[0]; if (picked) return picked;
+    var cx = (w.x || 0) + (w.w || 0) / 2, cy = (w.y || 0) + (w.h || 0) / 2, best = null, bd = Infinity;
+    mine.forEach(function(x) { var d = Math.hypot((x.x || 0) + (x.w || 0) / 2 - cx, (x.y || 0) + (x.h || 0) / 2 - cy); if (d < bd) { bd = d; best = x; } });
+    return best;
+}
+function ask(itemId) {
+    var map = getActiveMap(), n = window.wpNet; if (!map || !n || typeof n.boxAsk !== 'function') return;
+    var w = (map.whiteboard || []).find(function(x) { return x && x.id === itemId; }); if (!w) return;
+    var tok = tokFor(map, w); if (!tok) { toast('You need a token of your own on this map to open it.'); return; }
+    _ask = { mapId: map.id, itemId: itemId, tok: tok.id };
+    var r = n.boxAsk('open', map.id, itemId, { tok: tok.id }); if (r && r.error) toast(r.error); step('ask', {});
+}
+// The host's view, cleaned again: tiles of plain words and numbers, 400 at most
+function cleanTiles(raw) {
+    var cut = function(v, n) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, n) : ''; };
+    return (Array.isArray(raw) ? raw.slice(0, 400) : []).map(function(x) { if (!x || typeof x !== 'object' || typeof x.rowId !== 'string' || typeof x.fid !== 'string') return null; var q = Math.floor(Number(x.qty)); return { fid: cut(x.fid, 40), rowId: cut(x.rowId, 40), name: cut(x.name, 240) || 'Item', qty: q >= 1 && q <= 1e6 ? q : 1, icon: cut(x.icon, 40), notes: cut(x.notes, 600), list: cut(x.list, 60) }; }).filter(Boolean);
+}
+function view(msg) {
+    var p = P(), map = getActiveMap(); if (!p || !msg || typeof msg.itemId !== 'string' || typeof msg.mapId !== 'string' || !map || map.id !== msg.mapId) return;
+    var same = _box.player && _box.pieceId === msg.itemId, tok = _ask && _ask.itemId === msg.itemId ? _ask.tok : (same ? _box.tok : null); if (!tok) return;
+    _box = { player: true, mapId: msg.mapId, pieceId: msg.itemId, tok: tok, sel: same ? _box.sel : null, qty: same ? _box.qty : 1, list: null, tiles: cleanTiles(msg.tiles), name: typeof msg.name === 'string' ? msg.name.slice(0, 120) : '' };
+    if (!_box.tiles.some(function(t) { return t.rowId === _box.sel; })) { _box.sel = null; _box.qty = 1; }
+    var was = p.style.display !== 'none'; p.style.display = ''; if (!was && window.wpFloats && typeof window.wpFloats.reveal === 'function') window.wpFloats.reveal(p);
+    var f = document.activeElement, cls = f && p.contains(f) && f.className ? '.' + String(f.className).split(' ')[0] : null;
+    drawPlayer(); if (cls) refocus([cls, '.box-tile', '.box-all']);
+}
+function take(more) { var n = window.wpNet; if (!_box.player || !n || typeof n.boxAsk !== 'function') return; var r = n.boxAsk('take', _box.mapId, _box.pieceId, Object.assign({ tok: _box.tok }, more)); if (r && r.error) toast(r.error); step('take', { all: !!more.all }); }
+function drawPlayer() {
+    var p = P(); if (!p) return; var nm = document.getElementById('boxName'); if (nm) nm.textContent = _box.name || 'Container';
+    var body = document.getElementById('boxBody'); if (!body) return; while (body.firstChild) body.removeChild(body.firstChild);
+    var tiles = _box.tiles || [];
+    if (!tiles.length) { body.appendChild(el('div', 'muted box-say', 'It is empty.')); return; }
+    var grid = el('div', 'box-grid'); grid.setAttribute('role', 'list');
+    tiles.forEach(function(t) {
+        var b2 = el('button', 'box-tile' + (_box.sel === t.rowId ? ' on' : '')); b2.type = 'button'; b2.dataset.row = t.rowId; b2.setAttribute('role', 'listitem');
+        b2.title = tipOf(t); b2.setAttribute('aria-label', t.name + (t.qty > 1 ? ', ' + t.qty : ''));
+        var ic = el('span', 'box-ic'); iconInto(ic, t); b2.appendChild(ic); if (t.qty > 1) b2.appendChild(el('span', 'box-n', t.qty)); b2.appendChild(el('span', 'box-nm', t.name));
+        b2.addEventListener('click', function() { _box.sel = _box.sel === t.rowId ? null : t.rowId; _box.qty = t.qty; drawPlayer(); var n = document.querySelector('#boxBody .box-tile[data-row="' + t.rowId + '"]'); if (n) n.focus(); });
+        grid.appendChild(b2);
+    });
+    body.appendChild(grid);
+    var sel = tiles.filter(function(t) { return t.rowId === _box.sel; })[0];
+    if (sel) {
+        var bar = el('div', 'box-sel'); bar.appendChild(el('b', '', sel.name)); var q = Math.max(1, Math.min(sel.qty, _box.qty | 0 || 1)); _box.qty = q;
+        if (sel.qty > 1) {
+            var mi = el('button', 'tool ghost box-less', '\u2212'); mi.type = 'button'; mi.title = 'Take fewer'; mi.setAttribute('aria-label', 'Take fewer'); mi.disabled = q <= 1; mi.addEventListener('click', function() { _box.qty = q - 1; drawPlayer(); refocus(['.box-less', '.box-more']); });
+            var pl = el('button', 'tool ghost box-more', '+'); pl.type = 'button'; pl.title = 'Take more'; pl.setAttribute('aria-label', 'Take more'); pl.disabled = q >= sel.qty; pl.addEventListener('click', function() { _box.qty = q + 1; drawPlayer(); refocus(['.box-more', '.box-less']); });
+            bar.appendChild(mi); bar.appendChild(el('span', 'box-q', q)); bar.appendChild(pl);
+        }
+        var tk = el('button', 'tool box-take', 'Take'); tk.type = 'button'; tk.title = 'Put it in your own sheet'; tk.addEventListener('click', function() { take({ fid: sel.fid, rowId: sel.rowId, qty: q }); });
+        bar.appendChild(tk); body.appendChild(bar);
+    }
+    var all = el('button', 'tool box-all', 'Take all'); all.type = 'button'; all.title = 'Put everything in it in your own sheet'; all.addEventListener('click', function() { take({ all: true }); });
+    var foot = el('div', 'box-add'); foot.appendChild(all); body.appendChild(foot);
+}
+// [boxcheck:player-end]
 // A copy of a container (Duplicate, a paste) gets a container of its own with a copy of what it holds, or none where the store is full: two
 // pieces never share one (the review)
 function copyFor(it) {
@@ -141,9 +207,9 @@ function copyFor(it) {
 }
 function has(w) { return !!boxOf(getActiveCampaign(), w); }
 // The window follows the app: a piece gone, another map or another campaign closes it; otherwise its name follows the piece's
-function sync() { var p = P(); if (!p || p.style.display === 'none') return; if (!piece() || !boxOf(getActiveCampaign(), piece()) || !gmMay()) { close(); return; } var nm = document.getElementById('boxName'), w = piece(); if (nm) nm.textContent = (typeof w.name === 'string' && w.name) ? w.name : 'Container'; }   // never drawn again under a press: only its own changes draw it
+function sync() { var p = P(); if (!p || p.style.display === 'none') return; if (_box.player) { var mp = getActiveMap(), n = window.wpNet; if (!mp || mp.id !== _box.mapId || !n || !n.active || n.role !== 'client') close(); return; } if (!piece() || !boxOf(getActiveCampaign(), piece()) || !gmMay()) { close(); return; } var nm = document.getElementById('boxName'), w = piece(); if (nm) nm.textContent = (typeof w.name === 'string' && w.name) ? w.name : 'Container'; }   // never drawn again under a press: only its own changes draw it
 if (typeof window !== 'undefined') {
-    window.wpBoxes = { open: open, close: close, sync: sync, holds: holds, pieceOk: boxPieceOk, gmMay: gmMay, has: has, copyFor: copyFor };
+    window.wpBoxes = { open: open, close: close, sync: sync, holds: holds, pieceOk: boxPieceOk, gmMay: gmMay, has: has, copyFor: copyFor, ask: ask, view: view, redraw: function() { var p = P(); if (p && p.style.display !== 'none' && !_box.player) draw(); } };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
 }
 export { open, close, sync, holds, boxPieceOk };

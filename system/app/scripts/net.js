@@ -414,7 +414,7 @@ function sanitizeRichText(html) {
 }
 net.sanitizeRichText = sanitizeRichText;
 // A play map as a client keeps it: text items rebuilt, category colors that are colors, collections bounded.
-function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); delete w.box; delete w.nullFx; delete w.fly; delete w.hazard; delete w.follow; delete w.burns; delete w.reaction; delete w.darkStep; delete w.cloud; for (var gi = 0; gi < 6; gi++) { var gk = ['x', 'y', 'w', 'h', 'rot', 'front'][gi], gv = w[gk], gc = gi < 4 ? 1e7 : 1e6; if (gv === undefined) continue; if (typeof gv !== 'number' || !isFinite(gv)) delete w[gk]; else if (gv > gc) w[gk] = gc; else if (gv < -gc) w[gk] = -gc; } if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.font !== undefined) { var TFf = window.wpTextFmt, fn = TFf && TFf.cleanFont ? TFf.cleanFont(w.font) : undefined; if (fn) w.font = fn; else delete w.font; } if (w.coverAs !== undefined) { var FCha = window.wpFogCore, cHa = FCha && FCha.cleanCoverAs ? FCha.cleanCoverAs(w.coverAs) : ''; if (cHa) w.coverAs = cHa; else delete w.coverAs; } if (w.coverPro !== undefined) { var FChp = window.wpFogCore, cHp = FChp && FChp.cleanCoverPro ? FChp.cleanCoverPro(w.coverPro) : 0; if (cHp) w.coverPro = cHp; else delete w.coverPro; } if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined || w.blind !== undefined) cleanHostTokSenses(w); if (w.fxb !== undefined) cleanHostFxb(w); if (w.tbr !== undefined || w.bars !== undefined) cleanHostBars(w); if (w.pl !== undefined) { var plH = typeof SC === 'function' && SC() && typeof SC().cleanPlook === 'function' ? SC().cleanPlook(w.pl) : null; if (plH) w.pl = plH; else delete w.pl; } if (w.smoke !== undefined && w.smoke !== true) delete w.smoke; if (w.secret !== undefined || w.seenColor !== undefined || w.seenTexture !== undefined || w.seenWidth !== undefined || w.seenOpacity !== undefined || w.seenTip !== undefined) { delete w.secret; delete w.seenColor; delete w.seenTexture; delete w.seenWidth; delete w.seenOpacity; delete w.seenTip; } if (w.mine !== undefined) delete w.mine; if (w.pageAt !== undefined) delete w.pageAt; if (w.page !== undefined) delete w.page; if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand; if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop; if (w.barrier !== undefined && w.barrier !== true) delete w.barrier; if (w.portalLock !== undefined && w.portalLock !== true) delete w.portalLock; if (w.terrain !== undefined) { var FCt = window.wpFogCore, tr = FCt && FCt.cleanTerrain ? FCt.cleanTerrain(w.terrain) : null; if (tr) w.terrain = tr; else delete w.terrain; } if (w.terrainKind !== undefined) { var FCtk = window.wpFogCore, tkH = w.terrain !== undefined && FCtk && FCtk.cleanTerrainKind ? FCtk.cleanTerrainKind(w.terrainKind) : null; if (tkH) w.terrainKind = tkH; else delete w.terrainKind; } if (w.height !== undefined) { var FCh = window.wpFogCore, ht = FCh && FCh.cleanHeight ? FCh.cleanHeight(w.height) : null; if (ht) w.height = ht; else delete w.height; } if (w.toShow !== undefined || w.showFor !== undefined) { var FCsh = window.wpFogCore; if (FCsh && typeof FCsh.keepShow === 'function') FCsh.keepShow(w); else { delete w.toShow; delete w.showFor; } } if (w.trim !== undefined) { var FCtq = window.wpFogCore, trq = FCtq && typeof FCtq.cleanTrim === 'function' && w.type === 'image' && !w.isChar ? FCtq.cleanTrim(w.trim) : null; if (trq) w.trim = trq; else delete w.trim; } if (w.texSrc !== undefined || w.texTile !== undefined) { var FCq = window.wpFogCore, tsi = FCq && typeof FCq.cleanTexSrc === 'function' ? FCq.cleanTexSrc(w.texSrc) : null, tti = tsi && typeof FCq.cleanTexTile === 'function' ? FCq.cleanTexTile(w.texTile) : null; if (tsi) w.texSrc = tsi; else delete w.texSrc; if (tti) w.texTile = tti; else delete w.texTile; } if (w.texture !== undefined) { var FCx = window.wpFogCore, tx = FCx && FCx.cleanTexture ? FCx.cleanTexture(w.texture) : null; if (tx) w.texture = tx; else delete w.texture; } if (w.ground !== undefined) { var FCg = window.wpFogCore, gr = FCg && FCg.cleanGround ? FCg.cleanGround(w.ground) : null; if (gr) w.ground = gr; else delete w.ground; } return w; }   // senses S7b: smoke only as true; see-through barriers (1.5.1): barrier only as true; a portal's own lock: portalLock only as true; difficult terrain T1: its cost, 2-10, or none; item 19 H1: a piece's height, yards; item 19b H5: a piece's ground height, yards (a pit below 0); map builder B1: a piece's texture only as a name of the app's own list (fogcore cleanTexture), none without the cleaner
+function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); delete w.box; if (w.boxed !== 1) delete w.boxed; delete w.nullFx; delete w.fly; delete w.hazard; delete w.follow; delete w.burns; delete w.reaction; delete w.darkStep; delete w.cloud; for (var gi = 0; gi < 6; gi++) { var gk = ['x', 'y', 'w', 'h', 'rot', 'front'][gi], gv = w[gk], gc = gi < 4 ? 1e7 : 1e6; if (gv === undefined) continue; if (typeof gv !== 'number' || !isFinite(gv)) delete w[gk]; else if (gv > gc) w[gk] = gc; else if (gv < -gc) w[gk] = -gc; } if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.font !== undefined) { var TFf = window.wpTextFmt, fn = TFf && TFf.cleanFont ? TFf.cleanFont(w.font) : undefined; if (fn) w.font = fn; else delete w.font; } if (w.coverAs !== undefined) { var FCha = window.wpFogCore, cHa = FCha && FCha.cleanCoverAs ? FCha.cleanCoverAs(w.coverAs) : ''; if (cHa) w.coverAs = cHa; else delete w.coverAs; } if (w.coverPro !== undefined) { var FChp = window.wpFogCore, cHp = FChp && FChp.cleanCoverPro ? FChp.cleanCoverPro(w.coverPro) : 0; if (cHp) w.coverPro = cHp; else delete w.coverPro; } if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined || w.blind !== undefined) cleanHostTokSenses(w); if (w.fxb !== undefined) cleanHostFxb(w); if (w.tbr !== undefined || w.bars !== undefined) cleanHostBars(w); if (w.pl !== undefined) { var plH = typeof SC === 'function' && SC() && typeof SC().cleanPlook === 'function' ? SC().cleanPlook(w.pl) : null; if (plH) w.pl = plH; else delete w.pl; } if (w.smoke !== undefined && w.smoke !== true) delete w.smoke; if (w.secret !== undefined || w.seenColor !== undefined || w.seenTexture !== undefined || w.seenWidth !== undefined || w.seenOpacity !== undefined || w.seenTip !== undefined) { delete w.secret; delete w.seenColor; delete w.seenTexture; delete w.seenWidth; delete w.seenOpacity; delete w.seenTip; } if (w.mine !== undefined) delete w.mine; if (w.pageAt !== undefined) delete w.pageAt; if (w.page !== undefined) delete w.page; if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand; if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop; if (w.barrier !== undefined && w.barrier !== true) delete w.barrier; if (w.portalLock !== undefined && w.portalLock !== true) delete w.portalLock; if (w.terrain !== undefined) { var FCt = window.wpFogCore, tr = FCt && FCt.cleanTerrain ? FCt.cleanTerrain(w.terrain) : null; if (tr) w.terrain = tr; else delete w.terrain; } if (w.terrainKind !== undefined) { var FCtk = window.wpFogCore, tkH = w.terrain !== undefined && FCtk && FCtk.cleanTerrainKind ? FCtk.cleanTerrainKind(w.terrainKind) : null; if (tkH) w.terrainKind = tkH; else delete w.terrainKind; } if (w.height !== undefined) { var FCh = window.wpFogCore, ht = FCh && FCh.cleanHeight ? FCh.cleanHeight(w.height) : null; if (ht) w.height = ht; else delete w.height; } if (w.toShow !== undefined || w.showFor !== undefined) { var FCsh = window.wpFogCore; if (FCsh && typeof FCsh.keepShow === 'function') FCsh.keepShow(w); else { delete w.toShow; delete w.showFor; } } if (w.trim !== undefined) { var FCtq = window.wpFogCore, trq = FCtq && typeof FCtq.cleanTrim === 'function' && w.type === 'image' && !w.isChar ? FCtq.cleanTrim(w.trim) : null; if (trq) w.trim = trq; else delete w.trim; } if (w.texSrc !== undefined || w.texTile !== undefined) { var FCq = window.wpFogCore, tsi = FCq && typeof FCq.cleanTexSrc === 'function' ? FCq.cleanTexSrc(w.texSrc) : null, tti = tsi && typeof FCq.cleanTexTile === 'function' ? FCq.cleanTexTile(w.texTile) : null; if (tsi) w.texSrc = tsi; else delete w.texSrc; if (tti) w.texTile = tti; else delete w.texTile; } if (w.texture !== undefined) { var FCx = window.wpFogCore, tx = FCx && FCx.cleanTexture ? FCx.cleanTexture(w.texture) : null; if (tx) w.texture = tx; else delete w.texture; } if (w.ground !== undefined) { var FCg = window.wpFogCore, gr = FCg && FCg.cleanGround ? FCg.cleanGround(w.ground) : null; if (gr) w.ground = gr; else delete w.ground; } return w; }   // senses S7b: smoke only as true; see-through barriers (1.5.1): barrier only as true; a portal's own lock: portalLock only as true; difficult terrain T1: its cost, 2-10, or none; item 19 H1: a piece's height, yards; item 19b H5: a piece's ground height, yards (a pit below 0); map builder B1: a piece's texture only as a name of the app's own list (fogcore cleanTexture), none without the cleaner
 // Senses S2b: a token's own ranges, kept on a token of this player's alone (the host sends no other), cleaned again; none from a hostile host
 // on anyone else's token, and none with no cleaner on hand. S3: the GM's Blind tick likewise, and only as true
 function cleanHostTokSenses(w) { var FCs = window.wpFogCore, mine = !!w.ownerId && w.ownerId === net.myId, ts = FCs && FCs.cleanTokSenses && mine ? FCs.cleanTokSenses(w.senses) : null; if (ts) w.senses = ts; else delete w.senses; if (!(mine && w.blind === true)) delete w.blind; }
@@ -866,7 +866,7 @@ function wireWbItem(w, cloned) {
     if (w.bars !== undefined || w.tbr !== undefined) { delete w.bars; delete w.tbr; }   // a token's own bars (its own numbers, a GM-only bar among them) are the GM's: the table gets the figures alone
     if (tbrW) w.tbr = tbrW;
     if (w.pl !== undefined) delete w.pl; var plW = w.isChar && !w.waiting && typeof plOf === 'function' ? plOf(w) : null; if (plW) w.pl = plW;   // 1.6.2, backlog 35: its character's personal look, worked out afresh (a hidden token is not sent at all)
-    if (w.box !== undefined) delete w.box;   // 1.6.2 (backlog 42): a container's box id, the GM's own
+    if (w.box !== undefined) { if (typeof w.box === 'string' && /^c_bx[A-Za-z0-9]{4,20}$/.test(w.box)) w.boxed = 1; delete w.box; }   // 1.6.2 (backlog 42): a container's box id is the GM's own; players are told only that it is one
     if (w.mine !== undefined) delete w.mine;   // 1.5.8 explosives: a placed mine's blast (its damage formula, who placed it) is the GM's: a hidden mine is not sent at all, and a shown one goes as a plain trigger zone
     if (w.page !== undefined) delete w.page;   // 1.5.4 (pageshelf.js): a pin, the page a piece opens, is the GM's own link and names a planner: never on the wire
     if (w.pageAt !== undefined) delete w.pageAt;   // 1.6.0 (pageshelf.js): and the part of that page the pin names, the GM's as the pin is
@@ -4365,6 +4365,35 @@ net.doorReq = function(mapId, itemId) {
     try { net.conns[0].send({ type: 'door-req', mapId: mapId, itemId: itemId }); } catch (e) { return { error: 'Could not reach the GM.' }; }
     return { ok: true };
 };
+// [netcheck:boxask-start]
+// 1.6.2 (backlog 42, fold 2): a player opens a container next to a token of theirs, takes from it, or lets it go; the host judges every step
+// and answers with what it holds (no optimistic change on the player's app)
+net.boxAsk = function(op, mapId, itemId, more) {
+    if (!net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
+    if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
+    var m = { type: 'box', op: String(op), mapId: mapId, itemId: itemId }; more = more && typeof more === 'object' ? more : {};
+    ['tok', 'fid', 'rowId'].forEach(function(k) { if (typeof more[k] === 'string') m[k] = more[k]; }); if (typeof more.qty === 'number') m.qty = more.qty; if (more.all === true) m.all = true;
+    try { net.conns[0].send(m); } catch (e) { return { error: 'Could not reach the GM.' }; }
+    return { ok: true };
+};
+// [netcheck:boxask-end]
+// [netcheck:boxhost-start]
+// The host's record of who has a container open: by campaign, map and piece, each player's connection and the token it was opened with.
+// Memory alone, forgotten at a new table; a closed connection is passed over when they are told
+var _boxViews = Object.create(null);
+function boxKey(camp, map, w) { return camp.id + '|' + map.id + '|' + w.id; }
+function boxOfPiece(camp, w) { return camp && w && typeof w.box === 'string' && camp.boxes && Object.prototype.hasOwnProperty.call(camp.boxes, w.box) ? camp.boxes[w.box] : null; }
+// What a player is sent: the container's name and its tiles, the lists it shows alone (boxcore boxTiles: Tradable, seen by players, no row kept out of sight)
+function boxViewMsg(camp, map, w, box) {
+    var BC = window.wpBoxCore, tiles = BC ? BC.boxTiles(camp.system, box) : [];
+    return { type: 'box-view', mapId: map.id, itemId: w.id, name: typeof w.name === 'string' ? w.name.slice(0, 120) : '', tiles: tiles.slice(0, 400).map(function(x) { return { fid: x.fid, rowId: x.rowId, name: x.name, qty: x.qty, icon: x.icon, notes: x.notes, list: x.list }; }) };
+}
+function boxTell(camp, map, w, box) {
+    var k = boxKey(camp, map, w), v = _boxViews[k]; if (!v) return; var m = boxViewMsg(camp, map, w, box);
+    net.conns.forEach(function(c) { if (c.open && Object.prototype.hasOwnProperty.call(v, c.peer)) { try { c.send(m); } catch (e) { sendFailed(e); } } });
+}
+function boxForget() { _boxViews = Object.create(null); }
+// [netcheck:boxhost-end]
 // [netcheck:pending-start]
 function charPendingDone(rid, ok, reason, msg) {
     var p = Object.prototype.hasOwnProperty.call(_charPending, rid) ? _charPending[rid] : null; if (!p) return; clearTimeout(p.timer); delete _charPending[rid];   // own key only: a request id such as "constructor" names nothing
@@ -9403,6 +9432,63 @@ function handleMessage(msg, conn) {
         }
         if (hereDR && window.wpFog) window.wpFog.redraw();                             // refresh the GM's own overlay, only where that map is on screen
         // [netcheck:doorreq-end]
+    } else if (msg.type === 'box' && net.role === 'host') {
+        // [netcheck:box-start]
+        // 1.6.2 (backlog 42, fold 2): a player opens a container, takes from it, or lets it go. Judged on the host's own copy: an admitted player
+        // on that map, a shown container, a character token of theirs next to it. A take moves rows through the trade's own rule (systemcore
+        // tradeApply), so the receiving list's rules and caps hold and the last one is taken once; the GM is told who took what
+        if (typeof msg.mapId !== 'string' || typeof msg.itemId !== 'string' || typeof msg.op !== 'string') return;
+        var prB = net.roster[conn.peer]; if (!prB || !prB.id) return;
+        if (!allow('box', { perMs: 120, burst: 6, windowMs: 3000, table: 200 }, conn.peer)) return;
+        var sayB = function(reason) { try { conn.send({ type: 'box-deny', reason: reason }); } catch (e) { sendFailed(e); } };
+        if (net.paused || peerPaused(conn.peer)) { sayB('paused'); return; }
+        var campB = getActiveCampaign(), BCb = window.wpBoxCore; if (!campB || !BCb) return;
+        var mapB = Object.prototype.hasOwnProperty.call(campB.items || {}, msg.mapId) ? campB.items[msg.mapId] : null;
+        if (!mapB || mapB.type !== 'map' || mapB.stub === true) return;
+        var wB = (mapB.whiteboard || []).find(function(x) { return x && x.id === msg.itemId; });
+        if (!wB || wB.hidden || wB.gmNoteFor) return;   // a hidden container answers nothing, as none would
+        var boxB = boxOfPiece(campB, wB); if (!boxB || !BCb.boxPieceOk(wB)) return;
+        var keyB = boxKey(campB, mapB, wB);
+        if (msg.op === 'close') { if (_boxViews[keyB]) delete _boxViews[keyB][conn.peer]; return; }
+        if (prB.location && prB.location !== mapB.id) { sayB('far'); return; }
+        var tokB = typeof msg.tok === 'string' ? (mapB.whiteboard || []).find(function(x) { return x && x.id === msg.tok; }) : null;
+        var chB = tokB && tokB.isChar && !tokB.waiting && !tokB.hidden && typeof tokB.charId === 'string' && campB.chars && Object.prototype.hasOwnProperty.call(campB.chars, tokB.charId) ? campB.chars[tokB.charId] : null;
+        if (!chB || chB.making || !handsTo(chB, prB.id)) { sayB('token'); return; }
+        if (!allyNear(mapB, tokB, wB, true)) { sayB('far'); return; }
+        if (msg.op === 'open') {
+            (_boxViews[keyB] = _boxViews[keyB] || Object.create(null))[conn.peer] = tokB.id;
+            try { conn.send(boxViewMsg(campB, mapB, wB, boxB)); } catch (e) { sendFailed(e); }
+            logEvent('items', (chB.name || 'A character') + ' opened ' + (wB.name || 'a container') + '.'); return;
+        }
+        if (msg.op !== 'take') return;
+        var Sb = SC(); if (!Sb || typeof Sb.tradeApply !== 'function') return; var sysB = campB.system, stand = BCb.boxChar(boxB), canB = Sb.tradeOfferable(sysB, stand, 'gm').filter(function(o) { return !o.no; }), linesB = [];
+        if (msg.all === true) canB.forEach(function(o) { linesB.push({ fid: o.fid, rowId: o.rowId, qty: o.qty }); });
+        else { var oB = canB.filter(function(o) { return o.fid === msg.fid && o.rowId === msg.rowId; })[0], qB = typeof msg.qty === 'number' && isFinite(msg.qty) ? Math.floor(msg.qty) : 0; if (oB && qB >= 1) linesB.push({ fid: oB.fid, rowId: oB.rowId, qty: Math.min(qB, oB.qty) }); }
+        if (!linesB.length) { sayB('gone'); try { conn.send(boxViewMsg(campB, mapB, wB, boxB)); } catch (e) { sendFailed(e); } return; }
+        var resB = Sb.tradeApply(sysB, stand, chB, linesB.slice(0, Sb.TRADE_LINES || 40), [], 'gm', 'gm', {});
+        if (!resB.ok) { try { conn.send({ type: 'box-deny', reason: 'value', msg: String(resB.msg || '').slice(0, 200) }); conn.send(boxViewMsg(campB, mapB, wB, boxB)); } catch (e) { sendFailed(e); } return; }
+        var vB = Object.assign({}, boxB.values || {}); Object.keys(resB.valuesA).forEach(function(k) { if (Array.isArray(resB.valuesA[k]) && resB.valuesA[k].length) vB[k] = resB.valuesA[k]; else delete vB[k]; }); boxB.values = vB;
+        chB.values = chB.values || {}; Object.keys(resB.valuesB).forEach(function(k) { chB.values[k] = resB.valuesB[k]; }); chB.updated = Date.now();
+        saveRemoteSoon();
+        if (Object.keys(resB.valuesB).length) net.syncCharDelta(chB.id, resB.valuesB);
+        if (window.wpSheets) window.wpSheets.charChanged(chB.id);
+        var saidB = (chB.name || 'A character') + ' took ' + (resB.linesA.join(', ') || 'something') + ' from ' + (wB.name || 'a container') + '.';
+        logEvent('items', saidB); toast(saidB);
+        try { conn.send({ type: 'box-took', lines: resB.linesA.slice(0, 40) }); } catch (e) { sendFailed(e); }
+        boxTell(campB, mapB, wB, boxB);
+        if (window.wpBoxes && typeof window.wpBoxes.redraw === 'function') window.wpBoxes.redraw();
+        if (window.wpStepLog) window.wpStepLog('boxes v1', 'take', { lines: linesB.length, all: msg.all === true });
+        // [netcheck:box-end]
+    } else if (msg.type === 'box-view' && net.role === 'client') {
+        // [netcheck:boxview-start]
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;   // from the synced host alone, never in the stream window
+        if (window.wpBoxes && typeof window.wpBoxes.view === 'function') window.wpBoxes.view(msg);   // cleaned again there
+        // [netcheck:boxview-end]
+    } else if ((msg.type === 'box-deny' || msg.type === 'box-took') && net.role === 'client') {
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        if (msg.type === 'box-took') { var tkL = (Array.isArray(msg.lines) ? msg.lines.slice(0, 40) : []).filter(function(x) { return typeof x === 'string'; }).map(function(x) { return x.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 120); }); toast('You took ' + (tkL.join(', ') || 'it') + '.'); return; }
+        var BOX_SAYS = { far: 'Move a token of yours next to it to open it.', token: 'Open it with a character token of your own.', gone: 'That is no longer in it.', paused: 'The table is paused.' };
+        toast(Object.prototype.hasOwnProperty.call(BOX_SAYS, msg.reason) ? BOX_SAYS[msg.reason] : typeof msg.msg === 'string' && msg.msg ? msg.msg.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 200) : 'You cannot take that now.');
     } else if (msg.type === 'door-deny' && net.role === 'client') {
         toast(msg.reason === 'locked' ? 'The GM has that door locked.' : msg.reason === 'far' ? 'Move a token next to that door to open it.' : 'Cannot open that door right now.');
     } else if (msg.type === 'system' && net.role === 'client') {
@@ -10719,6 +10805,7 @@ function startHosting(forceFresh) {
     net._lastSnapSent = typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true;   // the snap rule: the join snapshot carries Snap as it stands
     diceSessionReset(true);   // and from an empty chat: the last table's lines never reach the next one
     if (typeof tradeForget === 'function') tradeForget();   // 1.5.6: a new table starts with no trade
+    if (typeof boxForget === 'function') boxForget();   // 1.6.2 (backlog 42): and with no container open
     if (peerLibMissing()) return;
     if (typeof signalWeb === 'function' && signalWeb() && !_hostTok) {   // 1.6.2 (backlog 220): a browser hosts on the app's own server with a host token, a new one each try; with none, nothing is hosted
         setStatus('Asking the website to host\u2026');

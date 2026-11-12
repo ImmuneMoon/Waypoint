@@ -1143,8 +1143,9 @@ The Data Map
   everything as before.
 - A picture, a shape or a map object can now hold items. Tick Holds items in
   its Properties, then Open contents shows them as tiles with their icon and
-  count. Put things in from your system or the library. It stays on your
-  computer for now: players open containers in the next step.
+  count. Put things in from your system or the library. A container wears a
+  chest at its corner: a player whose token stands next to it presses it to
+  look inside and takes one, some or all, and you are told who took what.
 - Fixed: placing a shape or Build's pieces over a filled region could drag
   the region instead.
 - A map used to open on whichever face you last left it in. Now Settings,

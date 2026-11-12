@@ -3613,7 +3613,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
 
 {
     // 1.6.0 (the owner, 2026-10-31, on the sheets they passed: the drawings that took the place of the interface's emoji; "when in game it will also be hard to see line drawings of icons on the map, so we need a solution there", the dark plate, and "keep c if we do a light mode": the gold plate in the light theme)
-    const WI_HASH = '95a98a91eab73846542b249a5fab5f9fde872c78c1101b3b0f91d27c3a226e18';   // backlog 138 (j) fold R2: the bed, which the owner picked from the drawn four on 2026-10-16 ("A bed")   // moves only after a new drawing was shown to the owner on a sheet (2026-11-06: a Person card's and a Clue card's, docs/sheets/card-kinds-sheet.html: "the magnifying glass is good")
+    const WI_HASH = 'c29358ecf3e2dad020f78ea2ee384f3a8a62144ad407fed7b3165aae83bb41fd';   // backlog 42, fold 2: the chest, which the owner picked from the drawn three on 2026-11-12 ("A. A chest"); backlog 138 (j) fold R2: the bed, which the owner picked from the drawn four on 2026-10-16 ("A bed")   // moves only after a new drawing was shown to the owner on a sheet (2026-11-06: a Person card's and a Clue card's, docs/sheets/card-kinds-sheet.html: "the magnifying glass is good")
     const wiSet = css.split('\n').filter(l => /^  \.wi-[a-z0-9-]+ \{ --wi: url|^  :root \{ --mk-|^  html\[data-theme="light"\] \{ --mk-/.test(l)).sort().join('\n');
     const wiSrc = [ix].concat(fs.readdirSync(path.join(app, 'scripts')).filter(f => /\.js$/.test(f)).map(f => read('scripts/' + f)));
     const wiUsed = new Set(); wiSrc.forEach(s => { s.replace(/\bwi-([a-z][a-z0-9-]*)\b(?!')/g, (m, n) => { wiUsed.add(n); return m; }); });

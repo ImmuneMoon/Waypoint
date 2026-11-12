@@ -2231,14 +2231,18 @@ function glyphOutside(e) { if (_glyphPop && !_glyphPop.contains(e.target) && !(e
 function rowPicNode(entry, def) {
     var SC = window.wpSystemCore, pc = SC && typeof SC.cleanPic === 'function' ? (SC.cleanPic(entry && entry.pic) || SC.cleanPic(def && def.pic)) : ''; if (!pc) return null;
     var n = window.wpNet, src = n && typeof n.assetSrc === 'function' ? n.assetSrc(pc) : pc; if (src === pc) src = picRef(pc); if (!src) return null;
-    var im = document.createElement('img'); im.className = 'sheet-item-pic'; im.alt = ''; im.src = src; return im;
+    var im = document.createElement('img'); im.className = 'sheet-item-pic'; im.alt = ''; im.src = src; im.dataset.pic = pc; return im;
 }
+if (typeof document !== 'undefined') document.addEventListener('wp-asset', function(e) {   // a row's picture that was still on its way (the review): put in place as it arrives, no redraw
+    var p = e.detail && e.detail.path, n = window.wpNet; if (!p || !n || typeof n.assetSrc !== 'function') return;
+    document.querySelectorAll('img.sheet-item-pic[data-pic]').forEach(function(im) { if (im.dataset.pic === p) im.src = n.assetSrc(p); });
+});
 // The Items tab's Picture: one of the campaign's own pictures from the Image Library, kept in a hidden box the tab's own change reads
 function picPicker(inp) {
     var wrap = el('span', 'sys-pic'), b = el('button', 'tool ghost sys-btn sys-pic-btn'); b.type = 'button'; b.title = 'A picture for this item, from your Image Library. It shows on a container\u2019s tile and on a sheet\u2019s row.';
     var x = el('button', 'tool ghost sys-btn sys-pic-none', '\u00d7'); x.type = 'button'; x.title = 'No picture'; x.setAttribute('aria-label', 'No picture');
     var paint = function() { b.textContent = ''; var v = inp.value; if (v) { var im = document.createElement('img'); im.className = 'sys-pic-cur'; im.alt = ''; im.src = picRef(v); b.appendChild(im); } else b.appendChild(document.createTextNode('Picture')); x.hidden = !v; };
-    var put = function(v) { inp.value = v; inp.dispatchEvent(new Event('change', { bubbles: true })); paint(); };
+    var put = function(v) { inp.value = v; inp.dispatchEvent(new Event('input', { bubbles: true })); paint(); };   // onInput holds its line (the review)
     b.addEventListener('click', function(e) { e.preventDefault(); if (!window.wpPickImage) { toast('The Image Library is not available here.'); return; } window.wpPickImage(function(src) { if (typeof src === 'string' && /^[/]saves[/]images[/]/.test(src)) put(src); }); });
     x.addEventListener('click', function(e) { e.preventDefault(); put(''); });
     paint(); wrap.appendChild(b); wrap.appendChild(x); return wrap;

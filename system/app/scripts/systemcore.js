@@ -2975,7 +2975,7 @@ function tradeApply(sys, a, b, offA, offB, whoA, whoB, into) {   // into { a: { 
             if (err) return; var f = fieldById(sys, m.fid), spec = isObj(f && f.list) ? f.list : {}, list = listOf(s[1], s[2], m.fid), live = function(r) { return isObj(r) && r.hid !== 1 && r.keptOn !== 1; };
             if (m.row) {
                 var mv = m.row, j = -1;
-                if (typeof mv.defId === 'string' && !isObj(mv.ov) && !m.kids.length && typeof mv.sh !== 'string') for (var k = 0; k < list.length; k++) { var r = list[k]; if (live(r) && r.defId === mv.defId && typeof r.sh !== 'string' && !isObj(r.ov) && !(isObj(spec.on) && rowOn(spec, r)) && (r.lvl === mv.lvl) && !isObj(r.ct) && !isObj(r.ld) && !isObj(r.fl) && !Array.isArray(r.rd) && !isObj(r.fd)) { j = k; break; } }   // 1.5.8: never onto a row that holds a loaded copy
+                if (typeof mv.defId === 'string' && !isObj(mv.ov) && !m.kids.length && typeof mv.sh !== 'string') for (var k = 0; k < list.length; k++) { var r = list[k]; if (live(r) && r.defId === mv.defId && typeof r.sh !== 'string' && !isObj(r.ov) && !(isObj(spec.on) && rowOn(spec, r)) && (r.lvl === mv.lvl) && !isObj(r.ct) && !isObj(r.ld) && !isObj(r.fl) && !Array.isArray(r.rd) && !isObj(r.fd) && (r.pic || '') === (mv.pic || '')) { j = k; break; } }   // 1.5.8: never onto a row that holds a loaded copy; 1.6.2: nor one that wears another picture (the review)
                 if (j >= 0 && spec.noQty) { err = 'one'; return; }
                 if (j >= 0 && !isObj(mv.ct) && !isObj(mv.ld) && !isObj(mv.fl) && !Array.isArray(mv.rd) && !isObj(mv.fd)) { list[j].qty = clampNum((list[j].qty | 0) + mv.qty, 1, LIMITS.maxQty); return; }
                 if (spec.noQty && list.some(function(r) { return live(r) && tradeEntry(r, mv); })) { err = 'one'; return; }
@@ -6615,7 +6615,7 @@ function cleanRowDef(d, gmView) {   // an item's definition carried on a row, by
     if (gmView && RM_MODES[d.eq] === 1) { out.eq = d.eq; var eqm = cutText(d.eqMsg, LIMITS.rmMsg); if (eqm) out.eqMsg = eqm; }   // F4b: the equip lock, as secret
     if (gmView || vis === 'all') { var rk = cleanItemKey(d.key); if (rk) out.key = rk; }   // F4b: a GM-only copy's key stays the GM's (critic 2)
     var rl = lvlNum(d.lvl); if (rl !== undefined) out.lvl = rl;
-    var rpd = cleanPic(d.pic); if (rpd) out.pic = rpd;   // 1.6.2 (backlog 42): the entry's own picture, on a snapshot and an owner's inline copy
+    if (gmView || vis === 'all') { var rpd = cleanPic(d.pic); if (rpd) out.pic = rpd; }   // a GM-only copy's picture stays the GM's (the review)   // 1.6.2 (backlog 42): the entry's own picture, on a snapshot and an owner's inline copy
     var rlo = cleanLvlOnly(d.lvlOnly); if (rlo) out.lvlOnly = rlo;   // 1.6.0: Levels it may be, on a snapshot and on an owner's inline copy: their sheet offers those levels and their own app refuses another
     var ds = cleanEntryStats(d.stats, null, 'labels'); if (ds) out.stats = ds;
     var dm = cleanItemMods(d.mods); if (dm) { out.mods = dm; if (d.modsOn === true) out.modsOn = true; }   // F6: its changes by their shape (a projection keeps the viewer's fields only: viewMods)   // F4c1: its stats by the key rule (a snapshot keeps every one; a custom or inline copy's are narrowed to its list's: rowStats)

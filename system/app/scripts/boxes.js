@@ -52,11 +52,24 @@ function open(pieceId) {
 function close() { var p = P(); _ask = null; if (!p || p.style.display === 'none') return; if (_box.player && window.wpNet && typeof window.wpNet.boxAsk === 'function') window.wpNet.boxAsk('close', _box.mapId, _box.pieceId, {}); p.style.display = 'none'; _box = { mapId: null, pieceId: null, sel: null, list: null }; step('close'); }
 // The item's icon: one of the app's own glyphs, or the item's own characters, or the first letter of its name
 function iconInto(box, t) {
-    var pc = cleanPic(t.pic); if (pc) { var n = window.wpNet, src = n && typeof n.assetSrc === 'function' ? n.assetSrc(pc) : pc; if (src === pc) src = picRef(pc); if (src) { var im = document.createElement('img'); im.className = 'box-pic'; im.alt = ''; im.src = src; box.appendChild(im); return; } }   // its own picture: the campaign's, through the host on a player's app
+    var pc = cleanPic(t.pic); if (pc) { var n = window.wpNet, src = n && typeof n.assetSrc === 'function' ? n.assetSrc(pc) : pc; if (src === pc) src = picRef(pc); if (src) { var im = document.createElement('img'); im.className = 'box-pic'; im.alt = ''; im.dataset.pic = pc; im.src = src; box.appendChild(im); return; } }   // its own picture: the campaign's, through the host on a player's app
     var g = typeof t.icon === 'string' && /^icon:/.test(t.icon) ? glyphPath(t.icon) : '';
     if (g) { var NS = 'http://www.w3.org/2000/svg', s = document.createElementNS(NS, 'svg'), pa = document.createElementNS(NS, 'path'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('class', 'box-glyph'); s.setAttribute('aria-hidden', 'true'); pa.setAttribute('d', g); s.appendChild(pa); box.appendChild(s); return; }
     box.appendChild(el('span', 'box-ch', t.icon ? t.icon : (t.name || '?').charAt(0).toUpperCase()));
 }
+// The selected item as a small card (the owner, 2026-11-12, by prompt: "B. A small card for the item"): its picture large, its name and
+// list beside it, the count's stepper at the right, and the actions in a row at its foot. Answers { bar, step, acts }
+function selCard(t) {
+    var bar = el('div', 'box-sel'), top = el('div', 'box-card'), ic = el('span', 'box-ic box-big'), who = el('div', 'box-who');
+    iconInto(ic, t); who.appendChild(el('b', '', t.name)); if (t.list) who.appendChild(el('small', '', t.list));
+    var step = el('span', 'box-step'), acts = el('div', 'box-acts');
+    top.appendChild(ic); top.appendChild(who); top.appendChild(step); bar.appendChild(top); bar.appendChild(acts);
+    return { bar: bar, step: step, acts: acts };
+}
+document.addEventListener('wp-asset', function(e) {   // a tile's picture still on its way on a player's app (the review): put in place as it arrives
+    var p = e.detail && e.detail.path, n = window.wpNet; if (!p || !n || typeof n.assetSrc !== 'function') return;
+    document.querySelectorAll('#boxBody img.box-pic[data-pic]').forEach(function(im) { if (im.dataset.pic === p) im.src = n.assetSrc(p); });
+});
 function tipOf(t) { return t.name + (t.qty > 1 ? ' ×' + t.qty : '') + (t.list ? '\n' + t.list : '') + (t.notes ? '\n' + t.notes.slice(0, 300) : ''); }
 function change(fid, q, what, back) {
     var camp = getActiveCampaign(), w = piece(), b = boxOf(camp, w); if (!gmMay() || !b) { close(); return; }
@@ -94,22 +107,22 @@ function draw() {
     var sel = tiles.filter(function(t) { return t.rowId === _box.sel; })[0];
     if (sel) { var selRow = ((b.values && b.values[sel.fid]) || []).filter(function(x) { return x && x.id === sel.rowId; })[0]; sel.own = !!(selRow && cleanPic(selRow.pic)); }
     if (sel) {
-        var bar = el('div', 'box-sel'); bar.appendChild(el('b', '', sel.name));
+        var card = selCard(sel), bar = card.bar;
         var spec = lists.filter(function(f) { return f.id === sel.fid; })[0], noQty = !!(spec && spec.list && spec.list.noQty);
         if (!noQty) {
             var mi = el('button', 'tool ghost box-less', '−'); mi.type = 'button'; mi.title = 'One fewer'; mi.setAttribute('aria-label', 'One fewer');
             mi.disabled = sel.qty <= 1; mi.addEventListener('click', function() { change(sel.fid, { op: 'setQty', rowId: sel.rowId, qty: sel.qty - 1 }, 'less', ['.box-less', '.box-more']); });
             var pl = el('button', 'tool ghost box-more', '+'); pl.type = 'button'; pl.title = 'One more'; pl.setAttribute('aria-label', 'One more');
             pl.addEventListener('click', function() { change(sel.fid, { op: 'setQty', rowId: sel.rowId, qty: sel.qty + 1 }, 'more', ['.box-more']); });
-            bar.appendChild(mi); bar.appendChild(el('span', 'box-q', sel.qty)); bar.appendChild(pl);
-        }
+            card.step.appendChild(mi); card.step.appendChild(el('span', 'box-q', sel.qty)); card.step.appendChild(pl);
+        } else card.step.remove();
         var pk = el('button', 'tool ghost box-picbtn', 'Picture'); pk.type = 'button'; pk.title = 'A picture for this item in this container. The item keeps it when it is taken.';
         pk.addEventListener('click', function() { if (!window.wpPickImage) { toast('The Image Library is not available here.'); return; } window.wpPickImage(function(src) { if (typeof src !== 'string') return; setPic(sel.fid, sel.rowId, src); }); });
-        bar.appendChild(pk);
-        if (sel.own) { var np = el('button', 'tool ghost box-nopic', 'Item\u2019s picture'); np.type = 'button'; np.title = 'Take this picture off, and show the item\u2019s own again'; np.addEventListener('click', function() { setPic(sel.fid, sel.rowId, ''); }); bar.appendChild(np); }
+        var seg = el('span', 'box-seg'); seg.appendChild(pk); card.acts.appendChild(seg);   // the two picture buttons as one joined pair (the owner, 2026-11-12, of A's layout)
+        if (sel.own) { var np = el('button', 'tool ghost box-nopic', 'Item\u2019s picture'); np.type = 'button'; np.title = 'Take this picture off, and show the item\u2019s own again'; np.addEventListener('click', function() { setPic(sel.fid, sel.rowId, ''); }); seg.appendChild(np); }
         var rm = el('button', 'tool ghost danger box-rm', 'Take out'); rm.type = 'button'; rm.title = 'Take this item out of the container';
         rm.addEventListener('click', function() { _box.sel = null; change(sel.fid, { op: 'remove', rowId: sel.rowId }, 'remove', ['.box-tile', '.box-item', '.box-lib']); });
-        bar.appendChild(rm); body.appendChild(bar);
+        card.acts.appendChild(el('span', 'box-gap')); card.acts.appendChild(rm); body.appendChild(bar);
     }
     // Add: the system's items players may see, and the library where it holds any
     var add = el('div', 'box-add'), fsel = null;
@@ -200,14 +213,14 @@ function drawPlayer() {
     body.appendChild(grid);
     var sel = tiles.filter(function(t) { return t.rowId === _box.sel; })[0];
     if (sel) {
-        var bar = el('div', 'box-sel'); bar.appendChild(el('b', '', sel.name)); var q = Math.max(1, Math.min(sel.qty, _box.qty | 0 || 1)); _box.qty = q;
+        var card = selCard(sel), bar = card.bar; var q = Math.max(1, Math.min(sel.qty, _box.qty | 0 || 1)); _box.qty = q;
         if (sel.qty > 1) {
             var mi = el('button', 'tool ghost box-less', '\u2212'); mi.type = 'button'; mi.title = 'Take fewer'; mi.setAttribute('aria-label', 'Take fewer'); mi.disabled = q <= 1; mi.addEventListener('click', function() { _box.qty = q - 1; drawPlayer(); refocus(['.box-less', '.box-more']); });
             var pl = el('button', 'tool ghost box-more', '+'); pl.type = 'button'; pl.title = 'Take more'; pl.setAttribute('aria-label', 'Take more'); pl.disabled = q >= sel.qty; pl.addEventListener('click', function() { _box.qty = q + 1; drawPlayer(); refocus(['.box-more', '.box-less']); });
-            bar.appendChild(mi); bar.appendChild(el('span', 'box-q', q)); bar.appendChild(pl);
-        }
+            card.step.appendChild(mi); card.step.appendChild(el('span', 'box-q', q)); card.step.appendChild(pl);
+        } else card.step.remove();
         var tk = el('button', 'tool box-take', 'Take'); tk.type = 'button'; tk.title = 'Put it in your own sheet'; tk.addEventListener('click', function() { take({ fid: sel.fid, rowId: sel.rowId, qty: q }); });
-        bar.appendChild(tk); body.appendChild(bar);
+        card.acts.appendChild(el('span', 'box-gap')); card.acts.appendChild(tk); body.appendChild(bar);
     }
     var all = el('button', 'tool box-all', 'Take all'); all.type = 'button'; all.title = 'Put everything in it in your own sheet'; all.addEventListener('click', function() { take({ all: true }); });
     var foot = el('div', 'box-add'); foot.appendChild(all); body.appendChild(foot);

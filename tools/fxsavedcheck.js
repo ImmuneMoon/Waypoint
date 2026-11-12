@@ -169,7 +169,7 @@ const tick = () => new Promise(function(r) { setTimeout(r, 0); });
 
     /* ---- the wire keeps the GM's own ---- */
     const net = fs.readFileSync(path.join(SCRIPTS, 'net.js'), 'latin1');
-    check('net.js: the campaign\'s saved effects never leave the host, and a map\'s own one is among its GM-only meta keys in both lists', /delete camp\.fxSaved;/.test(net) && net.split("'tags', 'fxEffect']").length === 3);
+    check('net.js: the campaign\'s saved effects never leave the host, and a map\'s own one is among its GM-only meta keys in both lists', /delete camp\.fxSaved;/.test(net) && net.split("'tags', 'fxEffect', 'opensOn']").length === 3);   // 1.6.2 (backlog 221): the view a map opens on joins the list (moved on purpose)
     const css = fs.readFileSync(path.join(SCRIPTS, '..', 'style.css'), 'utf8');
     check('style.css: the Layer button, the loops that play and the saved rows have their rules, and the effects panel scrolls', ['.snd-layer', '.snd-lane', '.snd-lvol', '#fxBody .fx-savedgrp', '#fxBody .fx-saved-del'].every(function(s) { return css.indexOf(s) >= 0; }) && /#fxBody \{[^}]*overflow: auto/.test(css));
     const help = fs.readFileSync(path.join(SCRIPTS, '..', 'index.html'), 'utf8');

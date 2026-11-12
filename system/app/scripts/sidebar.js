@@ -230,6 +230,35 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (unnest) unnest.addEventListener('click', function() { go(true, false); });
       var su = document.getElementById('ctxSetups'); if (su) su.addEventListener('click', function() { if (!menu) return; var sid = menu.dataset.id; menu.style.display = 'none'; if (window.wpSetups) window.wpSetups.open(sid); });   // backlog 31: the map's set-ups
   })();
+  // [lookcheck:opensmenu-start]
+  // Right-click → Opens on (1.6.2, backlog 221): the map's own choice of view, read by io.js opensOf. The campaign's choice row names
+  // the view Settings gives the campaign; the row in use is marked on. A map that takes the campaign's keeps no key.
+  var OPENS_WORDS = { visual: 'Play Map', data: 'Data Map', last: 'As last left' };
+  function opensMark(menu, camp, it) {
+      var own = it && it.meta && typeof it.meta === 'object' ? it.meta.opensOn : null;
+      if (own !== 'visual' && own !== 'data' && own !== 'last') own = '';
+      var cv = camp && (camp.opensOn === 'visual' || camp.opensOn === 'data') ? camp.opensOn : 'last';
+      menu.querySelectorAll('.ctx-opens').forEach(function(x) { x.classList.toggle('on', x.dataset.opens === own); });
+      var now = menu.querySelector('.ctx-opens-now'); if (now) now.textContent = '(' + OPENS_WORDS[cv] + ')';
+  }
+  function opensSet(id, v) {
+      var camp = getActiveCampaign(), it = camp && camp.items[id]; if (!it || it.type !== 'map') return;
+      it.meta = it.meta && typeof it.meta === 'object' ? it.meta : {};
+      var was = it.meta.opensOn === 'visual' || it.meta.opensOn === 'data' || it.meta.opensOn === 'last' ? it.meta.opensOn : '';
+      if (v !== 'visual' && v !== 'data' && v !== 'last') v = '';
+      if (v === was) return;
+      if (v) it.meta.opensOn = v; else delete it.meta.opensOn;
+      save(true);
+      var cv = camp.opensOn === 'visual' || camp.opensOn === 'data' ? camp.opensOn : 'last';
+      toast((it.meta.title || 'This map') + (v ? ' opens on ' + (v === 'last' ? 'the view it was last left in.' : 'its ' + OPENS_WORDS[v] + '.') : ' opens on the campaign’s choice, ' + (cv === 'last' ? 'the view it was last left in.' : 'its ' + OPENS_WORDS[cv] + '.')));
+  }
+  (function wireOpensMenu() {
+      var menu = document.getElementById('sidebarContextMenu'); if (!menu) return;
+      menu.querySelectorAll('.ctx-opens').forEach(function(x) {
+          x.addEventListener('click', function() { var id = menu.dataset.id; menu.style.display = 'none'; opensSet(id, this.dataset.opens); });
+      });
+  })();
+  // [lookcheck:opensmenu-end]
   // Right-click → Move Up / Move Down. Wired once to the static menu items; the open handler
   // in updateSidebarNav decides which are shown and greys out the ends of a list.
   (function wireMoveMenu() {
@@ -495,6 +524,7 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
                 var it = activeC && activeC.items[this.dataset.id];
                 var isMapCtx = !!(it && it.type === 'map'), lockedCtx = !!(it && it.meta && it.meta.playerLock);
                 menu.querySelectorAll('.ctx-map-only').forEach(function(x) { x.style.display = isMapCtx ? 'block' : 'none'; });
+                if (isMapCtx) opensMark(menu, activeC, it);   // backlog 221: which view this map opens on
                 var isPlCtx = !!(it && it.type === 'planner'), stCtx = (it && it.meta && it.meta.status) || '';
                 menu.querySelectorAll('.ctx-planner-only').forEach(function(x) { x.style.display = isPlCtx ? 'block' : 'none'; });
                 menu.querySelectorAll('.ctx-status').forEach(function(x) { x.classList.toggle('on', x.dataset.status === stCtx && !!stCtx); if (x.dataset.status === '') x.style.display = isPlCtx && stCtx ? 'block' : 'none'; });

@@ -9428,7 +9428,7 @@ function genGo() {
     genUnfocus('genModal'); genHide();
     if (map === here) save(true);
     else {
-        map.meta.lastView = 'visual';
+        map.meta.lastView = 'visual'; if (typeof window !== 'undefined' && window.wpOpensNext) window.wpOpensNext('visual');   // backlog 221: over Maps open on
         if (!navigateToMap(map.id)) { if (plan.fresh) delete camp.items[map.id]; toast('That map could not be opened. Nothing was changed.'); return false; }
     }
     if (map.whiteboard.length + items.length > BUILD_MAX) { toast('That dungeon could not be laid. Nothing was changed.'); return false; }
@@ -9647,7 +9647,7 @@ function cityGo() {
     genUnfocus('cityModal'); cityHide();
     if (map === here) save(true);
     else {
-        map.meta.lastView = 'visual';
+        map.meta.lastView = 'visual'; if (typeof window !== 'undefined' && window.wpOpensNext) window.wpOpensNext('visual');   // backlog 221: over Maps open on
         if (!navigateToMap(map.id)) { if (plan.fresh) delete camp.items[map.id]; toast('That map could not be opened. Nothing was changed.'); return false; }
     }
     if (map.whiteboard.length + items.length > BUILD_MAX) { toast('That city could not be laid. Nothing was changed.'); return false; }
@@ -9876,7 +9876,7 @@ function worldGo() {
     genUnfocus('worldModal'); worldHide();
     if (map === here) save(true);
     else {
-        map.meta.lastView = 'visual';
+        map.meta.lastView = 'visual'; if (typeof window !== 'undefined' && window.wpOpensNext) window.wpOpensNext('visual');   // backlog 221: over Maps open on
         if (!navigateToMap(map.id)) { if (plan.fresh) delete camp.items[map.id]; toast('That map could not be opened. Nothing was changed.'); return false; }
     }
     if (map.whiteboard.length + items.length > BUILD_MAX) { toast('That world could not be laid. Nothing was changed.'); return false; }

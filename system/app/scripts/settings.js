@@ -591,6 +591,7 @@ function syncVttPanel() {
     var trM = ui('setTimeRulesMode'); if (trM) { var tv0 = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules.time : ''; trM.value = tv0 === 'confirm' || tv0 === 'off' ? tv0 : 'auto'; trM.disabled = !editable; }   // item 20 K5b; 159: Run at once is the default
     var flM = ui('setFillMode'); if (flM) { flM.value = camp && camp.turnRules && camp.turnRules.fill === 'gm' ? 'gm' : 'owner'; flM.disabled = !editable; }
     var taM = ui('setTargetAskMode'); if (taM) { taM.value = camp && camp.turnRules && typeof camp.turnRules === 'object' && camp.turnRules.targetAsk === 'off' ? 'off' : 'ask'; taM.disabled = !editable; }   // the owner's ruling of 2026-10-01
+    var moS = ui('setMapOpens'); if (moS) { moS.value = camp && (camp.opensOn === 'visual' || camp.opensOn === 'data') ? camp.opensOn : ''; moS.disabled = !editable; }   // backlog 221: which view this campaign's maps open on
     var tmS = ui('setTimersMode'); if (tmS) { tmS.value = camp && camp.turnRules && camp.turnRules.timers === 'gm' ? 'gm' : 'owner'; tmS.disabled = !editable; }   // T5b
     [['setMoveMode', 'move'], ['setFaceMode', 'face'], ['setOrderMode', 'order'], ['setActsMode', 'acts']].forEach(function(p) { var s = ui(p[0]); if (!s) return; var tv = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules[p[1]] : ''; s.value = tv === 'warn' || tv === 'off' ? tv : 'refuse'; s.disabled = !editable; });   // T3b
     var wm = ui('setWallsMode'); if (wm) { var tr = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules.walls : ''; wm.value = tr === 'warn' || tr === 'off' ? tr : 'refuse'; wm.disabled = !editable; }   // turn-based combat T3a (D11): the walls' mode
@@ -636,6 +637,14 @@ vttFeatures().forEach(function(f) {
         if (window.wpSave) window.wpSave(true);
         toast(p[2][val === 'refuse' ? 0 : val === 'warn' ? 1 : 2]);
     });
+});
+var _opensSel = ui('setMapOpens');   // backlog 221: the view this campaign's maps open on (camp.opensOn 'visual' | 'data'; none is as last left), read by io.js opensOf
+if (_opensSel) _opensSel.addEventListener('change', function() {
+    var v = window.wpVtt, camp = state.appState.campaigns[state.appState.activeCampaignId]; if (!camp || (v && v.locked())) { syncPanel(); return; }
+    var val = _opensSel.value === 'visual' || _opensSel.value === 'data' ? _opensSel.value : '';
+    if (val) camp.opensOn = val; else delete camp.opensOn;
+    if (window.wpSave) window.wpSave(true);
+    toast(val === 'visual' ? 'Maps open on the Play Map, but for a map that picks its own.' : val === 'data' ? 'Maps open on the Data Map, but for a map that picks its own.' : 'Maps open on the view they were last left in, but for a map that picks its own.');
 });
 var _timersSel = ui('setTimersMode');   // turn-based combat T5b: who may pause, reset or stop a timed effect's countdown
 if (_timersSel) _timersSel.addEventListener('change', function() {

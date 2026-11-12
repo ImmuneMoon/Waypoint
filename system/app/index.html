@@ -466,6 +466,7 @@
                           <li>Right-click <b>Maps</b> in the left sidebar, press <b>+</b> and name it.</li>
                           <li>The <b>Properties</b> sidebar on the right opens when you select a room or an item. It closes when the selection clears. The &#9654; button on its edge opens or closes it by hand.</li>
                           <li>Use the <b>Data Map / Play Map</b> switch at the top to flip between the two faces of the same location.</li>
+                          <li>A map opens on the face it was last left in. <b>Maps open on</b> in Settings, under This campaign, picks the Play Map or the Data Map for every map instead. A map&rsquo;s own right-click in the Maps list has <b>Opens on</b> to pick another for that map. Players always open on the Play Map.</li>
                           <li>Drag one map onto another in the sidebar to nest it inside, as a world holds a city and a city holds a building. A breadcrumb appears up top so you always know where you are.</li>
                           <li>Right-click a map for <b>New Child Map</b> or <b>New Parent Map</b>. A child map is a map inside it. A parent map is a new map that wraps it: the existing map moves under it, and the new map gets a portal node leading in.</li>
                           <li>To <b>re-order</b> maps that share a parent, drop a map on the top or bottom third of another. A gold line shows where it lands. You can also right-click a map and choose <b>&#8593; Move Up</b> or <b>&#8595; Move Down</b>. The moved map brings its nested maps along, and the order is saved with the campaign.</li>
@@ -4772,6 +4773,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div id="setVttLocked" style="display:none; color:var(--dim); font-size:11px; line-height:1.5; margin-bottom:8px;">Waiting to join &mdash; settings are locked.</div>
             <div id="setVttCampBlock">
             <div class="set-field-label" id="setVttCampLabel" style="color:var(--gold); margin-bottom:8px;"><span id="setVttCampWord">This campaign</span> <span id="setVttCampName" class="muted" style="color:var(--ink);"></span></div>
+            <label class="gm-only set-move-mode" style="display:flex; gap:8px; align-items:center; margin-bottom:10px; font-size:12px;" title="The view a map of this campaign opens on: the Play Map, the Data Map, or the one it was last left in. A map may pick another of its own from its right-click in the Maps list. Players always open on the Play Map."><span class="set-name">Maps open on<small>A map may pick its own from its right-click in the Maps list.</small></span> <select id="setMapOpens" class="map-select" style="margin-left:auto;"><option value="">As last left</option><option value="visual">Play Map</option><option value="data">Data Map</option></select></label>
             <div class="set-cols-head" aria-hidden="true"><span></span><span>Here</span><span class="set-new-col">New</span></div>
             <div class="set-sw-row" style="margin-bottom:8px;" id="setVttMasterRow">
                 <div class="set-field-label" style="display:flex; justify-content:space-between;">VTT integration <span id="setVttMasterState" style="color:var(--dim);"></span><span id="setVttGlobalMasterState" class="set-new-state" hidden></span></div>
@@ -5503,6 +5505,12 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div class="menu-item ctx-map-only" id="ctxLockNest" style="padding:8px 16px; cursor:pointer;" title="Lock this map together with every map nested under it — a whole module at once."><i class="wib wi-lock"></i> Lock this and every map under it</div>
     <div class="menu-item ctx-map-only" id="ctxSetups" style="padding:8px 16px; cursor:pointer;" title="Named saves of this map's tokens, fog and lights, restored from a list">Set-ups&hellip;</div>
     <div class="menu-item ctx-map-only" id="ctxUnlockNest" style="padding:8px 16px; cursor:pointer;" title="Open this map and every map nested under it to players again."><i class="wib wi-unlock"></i> Unlock this and every map under it</div>
+    <div class="menu-divider ctx-map-only" style="height:1px; background:var(--border); margin:4px 0;"></div>
+    <div class="menu-label ctx-map-only" id="ctxOpensHead" style="padding:4px 16px 2px; color:var(--dim); font-size:11px;">Opens on</div>
+    <div class="menu-item ctx-map-only ctx-opens" data-opens="" style="padding:8px 16px; cursor:pointer;" title="Open this map on the view Settings names for the campaign">The campaign&rsquo;s choice <span class="ctx-opens-now" style="color:var(--dim); font-size:11px;"></span></div>
+    <div class="menu-item ctx-map-only ctx-opens" data-opens="visual" style="padding:8px 16px; cursor:pointer;" title="Open this map on its Play Map each time">Play Map</div>
+    <div class="menu-item ctx-map-only ctx-opens" data-opens="data" style="padding:8px 16px; cursor:pointer;" title="Open this map on its Data Map each time">Data Map</div>
+    <div class="menu-item ctx-map-only ctx-opens" data-opens="last" style="padding:8px 16px; cursor:pointer;" title="Open this map on the view it was last left in">As last left</div>
     <div class="menu-divider" style="height:1px; background:var(--border); margin:4px 0;"></div>
     <div class="menu-item danger" id="ctxDeleteItem" style="padding:8px 16px; cursor:pointer; color:var(--red);">Delete</div>
 </div>

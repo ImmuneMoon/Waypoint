@@ -282,6 +282,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       // state, and the board's own parts are put away, never left drawn from the campaign before (the owner, by prompt: "An empty screen")
       document.body.classList.toggle('no-map', !activeMap && !!getActiveCampaign());
       if(!activeMap) { renderNoMap(); return; }
+      state.viewMapId = activeMap.id;   // backlog 221: the item on screen, which io.js applyRememberedView reads as the map already open
 
       
 

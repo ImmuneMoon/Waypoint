@@ -1118,6 +1118,10 @@ The Data Map
   keep them all.
 - Quick jump finds a room by the words in its notes or by who is there too.
 - The list of rooms in the right panel can be ordered by name or by category.
+- A map used to open on whichever face you last left it in. Now Settings,
+  under This campaign, has Maps open on, so every map of the campaign can
+  open on its Play Map or its Data Map. A map can pick its own with Opens on
+  in its right-click in the Maps list. Players always open on the Play Map.
 
 WAYPOINT 1.6.1 — What's New
 ============================

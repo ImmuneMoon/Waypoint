@@ -3204,7 +3204,7 @@
   .si-status.si-next { color: var(--green); }   /* green so the "Next scene" arrow doesn't read as the gold nested-item caret (both are the same glyph) */
   .si-status.si-lock { font-size: 10px; opacity: .85; }
   #sidebarContextMenu .menu-item.ctx-map-only, #sidebarContextMenu .menu-item.ctx-planner-only { color: var(--ink); }
-  #sidebarContextMenu .menu-item.ctx-status.on { color: var(--gold); }
+  #sidebarContextMenu .menu-item.ctx-status.on, #sidebarContextMenu .menu-item.ctx-opens.on { color: var(--gold); }   /* 1.6.2 (backlog 221): the view a map opens on, marked as a planner's status is */
   .si-status.si-skipped { opacity: .6; }
   /* Player presence dots on a Maps row (GM view): who is on that map — solid = here now, dim = last seen there */
   .si-presence { flex: 0 0 auto; margin-left: auto; display: inline-flex; align-items: center; gap: 0; padding-left: 6px; cursor: pointer; border-radius: 9px; }

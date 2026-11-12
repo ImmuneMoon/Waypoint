@@ -374,6 +374,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       guardSwitch(function() {
           state.appState.activeCampaignId = pick;
           state.selId = null; state.selWbId = null; state.linkStart = null;
+          if (window.wpApplyRememberedView) window.wpApplyRememberedView('named');   // backlog 221: the view the campaign's open map names
           if (campaignSelect.value !== pick) campaignSelect.value = pick;   // 1.6.2: a switch asked for from code (not the list) still shows the campaign on screen, in the list and the top row
           updateSidebarNav(); render(); save(true);
           if (window.wpTopRow && window.wpTopRow.sync) window.wpTopRow.sync();
@@ -494,6 +495,7 @@ if(_el_newMapSidebarBtn) _el_newMapSidebarBtn.addEventListener('click', function
           camp.items[newMap.id] = newMap;
 
           camp.activeItemId = newMap.id;
+          if (window.wpApplyRememberedView) window.wpApplyRememberedView('named');   // backlog 221: the view this campaign's maps open on
 
           state.selId = null; state.selWbId = null; state.linkStart = null;
 
@@ -595,6 +597,7 @@ if(_el_ctxNewChildItem) _el_ctxNewChildItem.addEventListener('click', function()
           }
           camp.items[parent.id] = parent;
           camp.activeItemId = parent.id;
+          if (parent.type === 'map' && window.wpApplyRememberedView) window.wpApplyRememberedView('named');   // backlog 221
           state.selId = null; state.selWbId = null; state.linkStart = null;
           updateSidebarNav(); render(); save(true);
           toast('\u201c' + title + '\u201d now holds \u201c' + (child.meta.title || (child.type === 'doc' ? 'the page' : isPl ? 'the planner' : 'the map')) + '\u201d' + (isPl ? '.' : '. The node on its data map is a portal into it.'));
@@ -1001,6 +1004,7 @@ export {
                   guardSwitch(function() {
                       state.appState.activeCampaignId = pick;
                       state.selId = null; state.selWbId = null; state.linkStart = null;
+                      if (window.wpApplyRememberedView) window.wpApplyRememberedView('named');   // backlog 221
                       updateCampaignSelect(); updateSidebarNav(); render(); save(true);
                       setTimeout(function() { if (window.appRestoreCamera) window.appRestoreCamera();   /* the old #centerBtn is gone: restore the map's remembered camera */ }, 10);
                   });

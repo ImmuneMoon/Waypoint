@@ -1427,11 +1427,31 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
 
   var _segBtns = modeSelect ? Array.prototype.slice.call(modeSelect.querySelectorAll('.seg-btn')) : [];
 
+  // [lookcheck:opens-start]
+  // Which view a map opens on (1.6.2, backlog 221; the owner, 2026-11-12, by prompt: "B. Campaign, and each map (Recommended)"). A map's own
+  // choice (meta.opensOn: 'visual' the Play Map, 'data' the Data Map, 'last' as last left) wins, else the campaign's (camp.opensOn: 'visual'
+  // or 'data'), else as last left, which is how maps behaved before. Both are read only here and are the GM's own: net.js keeps them off the wire.
+  function opensOf(camp, map) {
+      var m = map && map.meta && typeof map.meta === 'object' ? map.meta.opensOn : null;
+      if (m === 'visual' || m === 'data' || m === 'last') return m;
+      var c = camp && typeof camp === 'object' ? camp.opensOn : null;
+      return c === 'visual' || c === 'data' ? c : 'last';
+  }
+  var _opensNext = null;   // a view a caller names for the next map opened, over every choice (the generators land on the Play Map they laid)
+  function opensNext(v) { _opensNext = v === 'visual' || v === 'data' ? v : null; }
+  function opensTake() { var v = _opensNext; _opensNext = null; return v; }
+  // [lookcheck:opens-end]
+  window.wpOpensOf = opensOf; window.wpOpensNext = opensNext;
   // A map remembers which view it was last shown in; applied whenever that map becomes active
   function applyRememberedView() {
+      var named = arguments[0];   // 'named': only a view the map or the campaign names (a campaign switch, a map just made), never the one it was last left in
       var am = getActiveMap();
       if (!am || am.type !== 'map' || !am.meta) return;
       var v = am.meta.lastView;
+      var o = 'last', again = false;
+      if (typeof opensOf === 'function' && !(window.wpNet && window.wpNet.role === 'client')) { var nx = opensTake(); again = !nx && state.viewMapId === am.id; o = nx || opensOf(getActiveCampaign(), am); }   // a player's app as before; asked through typeof, since a suite runs this function alone. The map on screen is the one render() last drew (main.js viewMapId), whatever path opened it
+      if (o === 'last' && named === 'named') return;
+      if (o !== 'last') { if (again) return; v = o; }   // backlog 221: a view the map or the campaign names, each time the map is opened
       if (v !== 'data' && v !== 'visual' && (state.viewMode === 'data' || state.viewMode === 'visual') && !(window.wpNet && window.wpNet.role === 'client')) { am.meta.lastView = state.viewMode; return; }   // 1.6.0, found by hand: a map reached in Play and never switched had no view to come back to after a reload
       if ((v === 'data' || v === 'visual') && state.viewMode !== v) {
           state.viewMode = v;

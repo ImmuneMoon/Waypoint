@@ -48,7 +48,7 @@ function open(pieceId) {
     p.style.display = ''; if (window.wpFloats && typeof window.wpFloats.reveal === 'function') window.wpFloats.reveal(p);
     draw(); step('open', { n: BC.boxCount(sysOf(camp), boxOf(camp, w)) }); return true;
 }
-function close() { var p = P(); if (!p || p.style.display === 'none') return; if (_box.player && window.wpNet && typeof window.wpNet.boxAsk === 'function') window.wpNet.boxAsk('close', _box.mapId, _box.pieceId, {}); p.style.display = 'none'; _box = { mapId: null, pieceId: null, sel: null, list: null }; step('close'); }
+function close() { var p = P(); _ask = null; if (!p || p.style.display === 'none') return; if (_box.player && window.wpNet && typeof window.wpNet.boxAsk === 'function') window.wpNet.boxAsk('close', _box.mapId, _box.pieceId, {}); p.style.display = 'none'; _box = { mapId: null, pieceId: null, sel: null, list: null }; step('close'); }
 // The item's icon: one of the app's own glyphs, or the item's own characters, or the first letter of its name
 function iconInto(box, t) {
     var g = typeof t.icon === 'string' && /^icon:/.test(t.icon) ? glyphPath(t.icon) : '';
@@ -79,7 +79,7 @@ function draw() {
         var ic = el('span', 'box-ic'); iconInto(ic, t); b2.appendChild(ic);
         if (t.qty > 1) b2.appendChild(el('span', 'box-n', t.qty));
         b2.appendChild(el('span', 'box-nm', t.name));
-        b2.addEventListener('click', function() { _box.sel = _box.sel === t.rowId ? null : t.rowId; draw(); var n = document.querySelector('#boxBody .box-tile[data-row="' + t.rowId + '"]'); if (n) n.focus(); });
+        b2.addEventListener('click', function() { _box.sel = _box.sel === t.rowId ? null : t.rowId; draw(); var n = [].slice.call(document.querySelectorAll('#boxBody .box-tile')).filter(function(x) { return x.dataset.row === t.rowId; })[0]; if (n) n.focus(); });
         grid.appendChild(b2);
     });
     if (!tiles.length) body.appendChild(el('div', 'muted box-say', 'Nothing in it yet.')); else body.appendChild(grid);
@@ -140,7 +140,8 @@ function wire() {
 var _ask = null;
 function tokFor(map, w) {
     var n = window.wpNet, me = n && n.myId ? n.myId : null, sel = state && Array.isArray(state.selWbIds) ? state.selWbIds : [];
-    var mine = (map && Array.isArray(map.whiteboard) ? map.whiteboard : []).filter(function(x) { return x && x.isChar && !x.waiting && !x.hidden && typeof x.charId === 'string' && (!me || x.ownerId === me); });
+    var camp = getActiveCampaign(), chars = camp && camp.chars ? camp.chars : {}, ours = function(x) { if (!me || x.ownerId === me) return true; var c = Object.prototype.hasOwnProperty.call(chars, x.charId) ? chars[x.charId] : null; return !!c && c.shared === 1; };   // a sheet shared with them too (the review)
+    var mine = (map && Array.isArray(map.whiteboard) ? map.whiteboard : []).filter(function(x) { return x && x.isChar && !x.waiting && !x.hidden && typeof x.charId === 'string' && ours(x); });
     var picked = mine.filter(function(x) { return sel.indexOf(x.id) >= 0; })[0]; if (picked) return picked;
     var cx = (w.x || 0) + (w.w || 0) / 2, cy = (w.y || 0) + (w.h || 0) / 2, best = null, bd = Infinity;
     mine.forEach(function(x) { var d = Math.hypot((x.x || 0) + (x.w || 0) / 2 - cx, (x.y || 0) + (x.h || 0) / 2 - cy); if (d < bd) { bd = d; best = x; } });
@@ -160,7 +161,9 @@ function cleanTiles(raw) {
 }
 function view(msg) {
     var p = P(), map = getActiveMap(); if (!p || !msg || typeof msg.itemId !== 'string' || typeof msg.mapId !== 'string' || !map || map.id !== msg.mapId) return;
-    var same = _box.player && _box.pieceId === msg.itemId, tok = _ask && _ask.itemId === msg.itemId ? _ask.tok : (same ? _box.tok : null); if (!tok) return;
+    var shown = p.style.display !== 'none', same = shown && _box.player && _box.pieceId === msg.itemId, tok = _ask && _ask.itemId === msg.itemId ? _ask.tok : (same ? _box.tok : null); if (!tok) return;   // only an ask that waits or the window open on it (the review)
+    if (msg.gone === true) { if (same) { _box.player = false; p.style.display = 'none'; _box = { mapId: null, pieceId: null, sel: null, list: null }; } _ask = null; return; }   // the host closed it: nothing to tell it back
+    _ask = null;
     _box = { player: true, mapId: msg.mapId, pieceId: msg.itemId, tok: tok, sel: same ? _box.sel : null, qty: same ? _box.qty : 1, list: null, tiles: cleanTiles(msg.tiles), name: typeof msg.name === 'string' ? msg.name.slice(0, 120) : '' };
     if (!_box.tiles.some(function(t) { return t.rowId === _box.sel; })) { _box.sel = null; _box.qty = 1; }
     var was = p.style.display !== 'none'; p.style.display = ''; if (!was && window.wpFloats && typeof window.wpFloats.reveal === 'function') window.wpFloats.reveal(p);
@@ -178,7 +181,7 @@ function drawPlayer() {
         var b2 = el('button', 'box-tile' + (_box.sel === t.rowId ? ' on' : '')); b2.type = 'button'; b2.dataset.row = t.rowId; b2.setAttribute('role', 'listitem');
         b2.title = tipOf(t); b2.setAttribute('aria-label', t.name + (t.qty > 1 ? ', ' + t.qty : ''));
         var ic = el('span', 'box-ic'); iconInto(ic, t); b2.appendChild(ic); if (t.qty > 1) b2.appendChild(el('span', 'box-n', t.qty)); b2.appendChild(el('span', 'box-nm', t.name));
-        b2.addEventListener('click', function() { _box.sel = _box.sel === t.rowId ? null : t.rowId; _box.qty = t.qty; drawPlayer(); var n = document.querySelector('#boxBody .box-tile[data-row="' + t.rowId + '"]'); if (n) n.focus(); });
+        b2.addEventListener('click', function() { _box.sel = _box.sel === t.rowId ? null : t.rowId; _box.qty = t.qty; drawPlayer(); var n = [].slice.call(document.querySelectorAll('#boxBody .box-tile')).filter(function(x) { return x.dataset.row === t.rowId; })[0]; if (n) n.focus(); });   // found by comparing, never a selector built from a row id
         grid.appendChild(b2);
     });
     body.appendChild(grid);

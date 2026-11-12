@@ -1333,7 +1333,8 @@
   .wb-item > .wb-pin.wb-pin-card:hover > .wib, .wb-item > .wb-pin.wb-pin-card:focus-visible > .wib { color: var(--deep); }
   .wb-item > .wb-pin:hover, .wb-item > .wb-pin:focus-visible { background: var(--gold); outline: none; }
   /* 1.6.2 (backlog 42, fold 2): a container's mark, at the top left of its piece: the GM opens its window, a player asks to open it */
-  .wb-item > .wb-box { position: absolute; left: -11px; top: -11px; z-index: 6; width: 22px; height: 22px; padding: 0; border: 1px solid var(--gold); border-radius: 50%; background: var(--deep); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .wb-item > .wb-box { position: absolute; left: -11px; top: -11px; z-index: 6; width: 22px; height: 22px; padding: 0; border: 1px solid var(--gold); border-radius: 50%; background: var(--deep); cursor: pointer; display: flex; align-items: center; justify-content: center; transform: scale(var(--wbz, 1)); transform-origin: 50% 50%; box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+  .wb-item.hexagon > .wb-box { left: calc(25% + 2px); top: 2px; } .wb-item.diamond > .wb-box { left: calc(50% - 11px); top: 4px; }   /* inside a clipped outline, where it can be seen and pressed (the review) */
   .wb-item > .wb-box::before { content: ''; width: 14px; height: 14px; background: var(--ink); -webkit-mask: var(--wi) center / contain no-repeat; mask: var(--wi) center / contain no-repeat; }
   .wb-item > .wb-box:hover, .wb-item > .wb-box:focus-visible { background: var(--gold); outline: none; } .wb-item > .wb-box:hover::before, .wb-item > .wb-box:focus-visible::before { background: var(--deep); }
   .token-fx { position: absolute; left: 2px; top: 2px; z-index: 5; transform: scale(var(--wbz, 1)); transform-origin: 0 0; }

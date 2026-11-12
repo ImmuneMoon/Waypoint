@@ -866,6 +866,7 @@ function wireWbItem(w, cloned) {
     if (w.bars !== undefined || w.tbr !== undefined) { delete w.bars; delete w.tbr; }   // a token's own bars (its own numbers, a GM-only bar among them) are the GM's: the table gets the figures alone
     if (tbrW) w.tbr = tbrW;
     if (w.pl !== undefined) delete w.pl; var plW = w.isChar && !w.waiting && typeof plOf === 'function' ? plOf(w) : null; if (plW) w.pl = plW;   // 1.6.2, backlog 35: its character's personal look, worked out afresh (a hidden token is not sent at all)
+    delete w.boxed;   // the mark is worked out here and nowhere else (the review)
     if (w.box !== undefined) { if (typeof w.box === 'string' && /^c_bx[A-Za-z0-9]{4,20}$/.test(w.box)) w.boxed = 1; delete w.box; }   // 1.6.2 (backlog 42): a container's box id is the GM's own; players are told only that it is one
     if (w.mine !== undefined) delete w.mine;   // 1.5.8 explosives: a placed mine's blast (its damage formula, who placed it) is the GM's: a hidden mine is not sent at all, and a shown one goes as a plain trigger zone
     if (w.page !== undefined) delete w.page;   // 1.5.4 (pageshelf.js): a pin, the page a piece opens, is the GM's own link and names a planner: never on the wire
@@ -1464,7 +1465,7 @@ function hidPendOf(peer, mapId) { return typeof peer === 'string' && own(_hidPen
 function hidNamed(peer, mapId, ids) { var p = hidPendOf(peer, mapId); if (p) Object.keys(ids).forEach(function(id) { delete p[id]; }); }
 function hidForgetMap(mapId) { Object.keys(_hidPend).forEach(function(p) { delete _hidPend[p][mapId]; }); }
 // [netcheck:hidpend-end]
-function fogForgetConn(peer) { if (typeof peer === 'string') { delete _fogHeld[peer]; delete _acks[peer]; delete _hidPend[peer]; } if (typeof mapForgetConn === 'function') mapForgetConn(peer); if (typeof combatsSentForget === 'function') combatsSentForget(peer); }   // 14c: and how far its copies go; hidden pieces: and the drawings of theirs the GM hid
+function fogForgetConn(peer) { if (typeof peer === 'string') { delete _fogHeld[peer]; delete _acks[peer]; delete _hidPend[peer]; if (typeof boxForgetConn === 'function') boxForgetConn(peer); } if (typeof mapForgetConn === 'function') mapForgetConn(peer); if (typeof combatsSentForget === 'function') combatsSentForget(peer); }   // 14c: and how far its copies go; hidden pieces: and the drawings of theirs the GM hid
 function fogForgetMap(mapId) { Object.keys(_fogHeld).forEach(function(p) { delete _fogHeld[p][mapId]; }); }
 function fogForgetOne(peer, mapId) { if (typeof peer !== 'string' || typeof mapId !== 'string') return; if (own(_fogHeld, peer)) delete _fogHeld[peer][mapId]; if (own(_hidPend, peer)) delete _hidPend[peer][mapId]; }   // possession (the take-back): one connection's copy of one map is gone — what it held (fold M5) and the drawings of theirs the GM hid on it (the whole copy they get on their return notes those afresh)
 function fogForgetAll() { if (typeof window !== 'undefined' && window.wpNotice) window.wpNotice.forget(); _fogHeld = Object.create(null); _acks = Object.create(null); _hidPend = Object.create(null); if (typeof mapForgetAll === 'function') mapForgetAll(); Object.keys(_fogPend).forEach(function(k) { clearTimeout(_fogPend[k]); }); _fogPend = Object.create(null); _fogCost = Object.create(null); if (typeof combatForget === 'function') combatForget(); }   // a new table: no fight's rows seen
@@ -2423,6 +2424,7 @@ net._itemDelta = itemDelta; net._applyItemDelta = applyItemDelta; net._handleMes
 
 // [netcheck:localsave-start]
 net.onLocalSave = function() {
+    if (net.active && net.role === 'host' && typeof boxSweep === 'function' && Object.keys(_boxViews).length) boxSweep();   // 1.6.2 (backlog 42): who has a container open, judged again at every save of the host's
     if (!net.active || net.applyingRemote) return;
     if (window.wpFog) window.wpFog.invalidateVision();   // fog: a save may have moved tokens or changed fog — recompute vision on the next send
     // R2 security: a player's app waiting for the GM's Allow still shows its own campaign, and one between a reconnect's attempts shows a table no
@@ -4378,21 +4380,41 @@ net.boxAsk = function(op, mapId, itemId, more) {
 };
 // [netcheck:boxask-end]
 // [netcheck:boxhost-start]
-// The host's record of who has a container open: by campaign, map and piece, each player's connection and the token it was opened with.
-// Memory alone, forgotten at a new table; a closed connection is passed over when they are told
+// The host's record of who has a container open: by campaign, map and piece, each player's connection and the token it was opened with, and
+// what they were last sent. Memory alone: forgotten at a new table, a connection's entries dropped when it closes (the review)
 var _boxViews = Object.create(null);
 function boxKey(camp, map, w) { return camp.id + '|' + map.id + '|' + w.id; }
 function boxOfPiece(camp, w) { return camp && w && typeof w.box === 'string' && camp.boxes && Object.prototype.hasOwnProperty.call(camp.boxes, w.box) ? camp.boxes[w.box] : null; }
-// What a player is sent: the container's name and its tiles, the lists it shows alone (boxcore boxTiles: Tradable, seen by players, no row kept out of sight)
+// What a player is sent: the container's name and the rows that can be taken (tradeOfferable as the take judges them, so never a GM-only entry,
+// a row kept from players, a curse kept on or a granted row), as boxTiles words them
 function boxViewMsg(camp, map, w, box) {
-    var BC = window.wpBoxCore, tiles = BC ? BC.boxTiles(camp.system, box) : [];
+    var BC = window.wpBoxCore, Sv = SC(), tiles = BC ? BC.boxTiles(camp.system, box) : [], can = Object.create(null);
+    if (Sv && typeof Sv.tradeOfferable === 'function' && BC) Sv.tradeOfferable(camp.system, BC.boxChar(box), 'gm').forEach(function(o) { if (!o.no) can[o.fid + '|' + o.rowId] = 1; });
+    tiles = tiles.filter(function(x) { return can[x.fid + '|' + x.rowId] === 1; });
     return { type: 'box-view', mapId: map.id, itemId: w.id, name: typeof w.name === 'string' ? w.name.slice(0, 120) : '', tiles: tiles.slice(0, 400).map(function(x) { return { fid: x.fid, rowId: x.rowId, name: x.name, qty: x.qty, icon: x.icon, notes: x.notes, list: x.list }; }) };
 }
-function boxTell(camp, map, w, box) {
-    var k = boxKey(camp, map, w), v = _boxViews[k]; if (!v) return; var m = boxViewMsg(camp, map, w, box);
-    net.conns.forEach(function(c) { if (c.open && Object.prototype.hasOwnProperty.call(v, c.peer)) { try { c.send(m); } catch (e) { sendFailed(e); } } });
+// Everyone with a container open is judged again: a container gone, hidden or no longer one closes their window; a player no longer on that map,
+// whose token went or is no longer next to it, or whose connection closed is let go; the rest are sent what it holds where that changed (a take,
+// the GM's own change). Asked after a take and at every save of the host's
+function boxSweep() {
+    var camp = getActiveCampaign(), BC = window.wpBoxCore; if (!camp || !BC) return;
+    Object.keys(_boxViews).forEach(function(k) {
+        var v = _boxViews[k], parts = k.split('|'), map = parts[0] === camp.id && camp.items && Object.prototype.hasOwnProperty.call(camp.items, parts[1]) ? camp.items[parts[1]] : null;
+        var w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === parts[2]; }) : null, box = w && !w.hidden ? boxOfPiece(camp, w) : null;
+        var shut = function(peer) { net.conns.forEach(function(c) { if (c.open && c.peer === peer) { try { c.send({ type: 'box-view', mapId: parts[1], itemId: parts[2], gone: true }); } catch (e) { sendFailed(e); } } }); };
+        if (!box || !BC.boxPieceOk(w)) { Object.keys(v.peers).forEach(shut); delete _boxViews[k]; return; }
+        Object.keys(v.peers).forEach(function(peer) {
+            var pr = net.roster[peer], open = net.conns.some(function(c) { return c.open && c.peer === peer; }), tok = (map.whiteboard || []).find(function(x) { return x && x.id === v.peers[peer]; });
+            if (!open) { delete v.peers[peer]; return; }
+            if (!pr || (pr.location && pr.location !== map.id) || !tok || tok.hidden || !allyNear(map, tok, w, true)) { shut(peer); delete v.peers[peer]; }
+        });
+        if (!Object.keys(v.peers).length) { delete _boxViews[k]; return; }
+        var m = boxViewMsg(camp, map, w, box), sig = JSON.stringify(m); if (sig === v.sig) return; v.sig = sig;
+        net.conns.forEach(function(c) { if (c.open && Object.prototype.hasOwnProperty.call(v.peers, c.peer)) { try { c.send(m); } catch (e) { sendFailed(e); } } });
+    });
 }
 function boxForget() { _boxViews = Object.create(null); }
+function boxForgetConn(peer) { Object.keys(_boxViews).forEach(function(k) { delete _boxViews[k].peers[peer]; if (!Object.keys(_boxViews[k].peers).length) delete _boxViews[k]; }); }
 // [netcheck:boxhost-end]
 // [netcheck:pending-start]
 function charPendingDone(rid, ok, reason, msg) {
@@ -7008,7 +7030,7 @@ net.aimsOf = function(map, tok, viewer) {
 // the fog, every open drag at its start. { ch, tok } or { error, message }. The GM's press reaches a hidden token too
 function allyNear(map, a, b, shown) {
     var C = window.wpFogCore, S = SC(); if (!C || typeof C.nearTokens !== 'function' || !map || !a || !b) return false;
-    var gt = map.meta && map.meta.gridType, g = gt === 'square' ? C.squareGrid(50) : gt === 'hex' ? C.hexGrid(30, 52) : null;
+    var gt = map.meta && map.meta.gridType, g = typeof C.gridFor === 'function' ? C.gridFor(gt === 'square' || gt === 'hex' ? gt : 'off', null, map.meta && map.meta.cell) : gt === 'square' ? C.squareGrid(50) : gt === 'hex' ? C.hexGrid(30, 52) : null;   // 1.6.2 (the review of containers): the map's own lattice
     var vt = window.wpVtt, el = !vt || (vt.rulesOn ? vt.rulesOn('elevation') : vt.on('elevation')), St = window.wpStance, o = { yardPx: S && typeof S.mapYardPx === 'function' ? S.mapYardPx(map) : 50 };
     if (el && St && typeof St.tokenElevation === 'function') { o.za = Number(St.tokenElevation(a, map, !!shown)) || 0; o.zb = Number(St.tokenElevation(b, map, !!shown)) || 0; }
     return C.nearTokens(a, b, g, o);
@@ -9449,15 +9471,16 @@ function handleMessage(msg, conn) {
         if (!wB || wB.hidden || wB.gmNoteFor) return;   // a hidden container answers nothing, as none would
         var boxB = boxOfPiece(campB, wB); if (!boxB || !BCb.boxPieceOk(wB)) return;
         var keyB = boxKey(campB, mapB, wB);
-        if (msg.op === 'close') { if (_boxViews[keyB]) delete _boxViews[keyB][conn.peer]; return; }
+        if (msg.op === 'close') { if (_boxViews[keyB]) { delete _boxViews[keyB].peers[conn.peer]; if (!Object.keys(_boxViews[keyB].peers).length) delete _boxViews[keyB]; } return; }
         if (prB.location && prB.location !== mapB.id) { sayB('far'); return; }
         var tokB = typeof msg.tok === 'string' ? (mapB.whiteboard || []).find(function(x) { return x && x.id === msg.tok; }) : null;
         var chB = tokB && tokB.isChar && !tokB.waiting && !tokB.hidden && typeof tokB.charId === 'string' && campB.chars && Object.prototype.hasOwnProperty.call(campB.chars, tokB.charId) ? campB.chars[tokB.charId] : null;
         if (!chB || chB.making || !handsTo(chB, prB.id)) { sayB('token'); return; }
         if (!allyNear(mapB, tokB, wB, true)) { sayB('far'); return; }
         if (msg.op === 'open') {
-            (_boxViews[keyB] = _boxViews[keyB] || Object.create(null))[conn.peer] = tokB.id;
-            try { conn.send(boxViewMsg(campB, mapB, wB, boxB)); } catch (e) { sendFailed(e); }
+            var vwB = _boxViews[keyB] = _boxViews[keyB] || { peers: Object.create(null), sig: '' }; vwB.peers[conn.peer] = tokB.id;
+            var mB = boxViewMsg(campB, mapB, wB, boxB); vwB.sig = JSON.stringify(mB);
+            try { conn.send(mB); } catch (e) { sendFailed(e); }
             logEvent('items', (chB.name || 'A character') + ' opened ' + (wB.name || 'a container') + '.'); return;
         }
         if (msg.op !== 'take') return;
@@ -9475,7 +9498,7 @@ function handleMessage(msg, conn) {
         var saidB = (chB.name || 'A character') + ' took ' + (resB.linesA.join(', ') || 'something') + ' from ' + (wB.name || 'a container') + '.';
         logEvent('items', saidB); toast(saidB);
         try { conn.send({ type: 'box-took', lines: resB.linesA.slice(0, 40) }); } catch (e) { sendFailed(e); }
-        boxTell(campB, mapB, wB, boxB);
+        boxSweep();   // everyone with it open is sent what is left (the review: and judged again)
         if (window.wpBoxes && typeof window.wpBoxes.redraw === 'function') window.wpBoxes.redraw();
         if (window.wpStepLog) window.wpStepLog('boxes v1', 'take', { lines: linesB.length, all: msg.all === true });
         // [netcheck:box-end]

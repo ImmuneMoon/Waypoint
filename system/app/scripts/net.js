@@ -1981,6 +1981,16 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
             }
         }
         if (lw.waiting) { if (lw.x !== w.x || lw.y !== w.y) { lw.x = w.x; lw.y = w.y; changed = true; } return; }   // Onboarding F1a: a waiting token only moves — through the same walls rule as a move — never a turn, facing or stance
+        if (lw.isChar && typeof faceJudge === 'function') {   // 1.6.2 (backlog 70): a turn that reaches the host in a map copy is judged as a final's is, from the facing its drag began with where one was open (the host's own followed the drag)
+            var drF = typeof frP === 'object' && frP && typeof frP.rot === 'number' ? frP : lw, fjP = faceJudge(camp, liveItem, msg.itemId, lw, faceDeg(drF), faceDeg(w)), dkF = msg.itemId + '|' + lw.id, seenF = _faceRefused[dkF] === faceDeg(w); delete _faceRefused[dkF];
+            if (fjP && fjP.refuse) {   // the copy's sender always gets the map whole: their put-back may have crossed this very copy and been passed over as older (the review)
+                var wasR = Number(lw.rot) || 0, wasFr = Number(lw.front) || 0; w.rot = Number(drF.rot) || 0; w.front = Number(drF.front) || 0; if (out) out.whole = true;
+                if (!seenF && typeof noteOwner === 'function') noteOwner(profile.id, faceRefusedText(fjP), lw.charId);
+                if ((wasR !== w.rot || wasFr !== w.front) && typeof faceRelay === 'function') faceRelay(camp, liveItem, msg, lw, w, out && out.conn);
+            }
+            else if (fjP) { var ntF = faceCount(lw, fjP); if (typeof noteOwner === 'function') noteOwner(profile.id, ntF, lw.charId); }
+            if (whyP && out && frP && typeof frP.rot === 'number' && ((Number(w.rot) || 0) !== frP.rot || (Number(w.front) || 0) !== (Number(frP.front) || 0))) out.whole = true;   // the check: the put-back told the mover the drag's start facing, and this copy's lands
+        }
         if (lw.x !== w.x || lw.y !== w.y || (lw.rot || 0) !== (w.rot || 0) || (lw.front || 0) !== (w.front || 0)) {
             lw.x = w.x; lw.y = w.y; lw.rot = w.rot || 0; lw.front = w.front || 0;
             changed = true;
@@ -2414,6 +2424,12 @@ net.onLocalSave = function() {
     // R2 security: a player's app waiting for the GM's Allow still shows its own campaign, and one between a reconnect's attempts shows a table no
     // synced host stands behind — nothing of either goes on the wire, and the save leaves no mark (the hash below), so the first save seated goes out
     if (net.role === 'client' && (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer)) return;
+    // 1.6.2 (backlog 70, the review): while a player turns their own token by its arrow or the rotate handle (whiteboard.js turnGesture: the time it
+    // began, 0 when over), their map copy waits for the release. A copy sent mid-turn closes the drag on the host and its turn is counted there, and
+    // the rest of the same gesture again. A gesture older than ten seconds no longer holds anything
+    var tgL = typeof window !== 'undefined' && window ? window.wpTurnGesture : 0;
+    if (net.role === 'client' && typeof tgL === 'number' && tgL > 0 && Date.now() - tgL < 10000) { net._heldSave = true; return; }
+    net._heldSave = false;
     var patch = activeItemPatch();
     if (net.role === 'host') {
         if (typeof window !== 'undefined' && window.wpRecord) { try { window.wpRecord.board(getActiveCampaign(), getActiveMap()); } catch (e) { console.error(e); } }   // 1.6.0: the game record: what the GM's own hand did to the map
@@ -4842,6 +4858,7 @@ function handlePos(msg, conn) {
         }
         if (typeof holdMoveCheck === 'function' && holdMoveCheck(camp, map, w, frW, msg, conn) === 'stop') return;   // 1.6.0 Who holds whom: the held and the pinned, through the fight's move mode
         if (turnLimitCheck(camp, map, w, frW, msg, conn) === 'stop') return;   // T3b: the move limit, while it is their turn
+        var fbW = typeof turnFaceCheck === 'function' && turnFaceCheck(camp, map, w, frW, msg, conn) === 'back';   // 1.6.2 (backlog 70): the facing limit; a refused turn lands as the facing it began with, the move itself standing
         var wasW = { x: w.x, y: w.y, rot: w.rot || 0, front: w.front || 0 };   // where the token stood before this move (a final that leaves it there, with no drag that moved it, is not saved: below)
         if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's move lands
         var skW = window.wpFog && window.wpFog.seenKeyOf ? window.wpFog.seenKeyOf(map, w) : null;   // Senses S0: where the token saw and lit from before this move
@@ -4860,6 +4877,7 @@ function handlePos(msg, conn) {
         broadcastPos(msg, conn, camp, map, w);
         if (!msg.final) { frW.lx = w.x; frW.ly = w.y; frW.lr = w.rot || 0; frW.lf = w.front || 0; frW.at = typeof fogNow === 'function' ? fogNow() : 0; frW.peer = conn.peer; }   // fold M4: where the drag has it now
         if (frW.sk === undefined) frW.sk = skW;   // fold M7: where the drag began to see from (its first accepted move: nothing moved the token before it)
+        if (fbW && conn && conn.open && typeof conn.send === 'function' && typeof withAck === 'function') { try { conn.send(withAck(msg, conn, aIn)); } catch (e) { sendFailed(e); } }   // backlog 70: the turn back, to the mover, as the answer to that very action
         if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(msg.wbId, msg.final);   // 5h Fold 3: a sheet's facing dial follows (in place; a final turn redraws numbers that read it)
         if (msg.final) {
             if (typeof triggerFire === 'function') triggerFire(conn, map, w, frW);   // secrets (R2): a trigger zone's message, to the dropper alone (their copy holds none), as the gesture carries the token in
@@ -4949,6 +4967,50 @@ function turnOrderCheck(camp, map, w, frW, msg, conn) {
     return '';
 }
 // A final that moved nothing (a turn in place, a shuffle inside its own cell) counts nothing and says nothing
+// 1.6.2 (backlog 70; the owner, 2026-11-11, by prompt: "System sets it, table rule (Recommended)"): the facing limit. The system says how many
+// facing changes a turn allows (combat.turn.face, worked out for each character at its turn's start: turnFaceStart), and the host counts the turns
+// of a player's own token on its own turn in a fight, however they are made (the token's arrow, the keys, the sheet's dial). A token's facing is
+// rot + front. One change is one step of the map's grid (a side of a hex, a quarter turn on squares; on a map with no grid a turn of any size),
+// or one turn of any size where the system says so (faceBy 'turn'). The table's mode (camp.turnRules.face): refuse (the default: a turn past
+// what is left goes back, with why), warn (through, a note to them and the GM) or off (not counted). The GM's own turns are never counted, nor
+// a turn outside a fight or off the token's own turn. faceJudge is the one judge, asked by the pos gate at a final and by the map-copy path
+function faceDeg(o) { var d = ((Number(o && o.rot) || 0) + (Number(o && o.front) || 0)) % 360; return d < 0 ? d + 360 : d; }
+function faceSteps(camp, map, a, b) {
+    var d = Math.abs(a - b) % 360; if (d > 180) d = 360 - d; if (!(d > 1e-9)) return 0;   // the same facing sent again is no change; any real turn is at least one, however small, so small turns never add up to a free one (the check)
+    var t = camp && camp.system && camp.system.combat && camp.system.combat.turn, gt = map && map.meta ? map.meta.gridType : '', st = gt === 'hex' ? 60 : gt === 'square' ? 90 : 0;
+    return (t && t.faceBy === 'turn') || !st ? 1 : Math.max(1, Math.ceil(d / st - 0.01));   // part of a step is a whole one (the check): 120 degrees on squares is two
+}
+function facesText(n) { return n + ' facing change' + (n === 1 ? '' : 's'); }
+function faceJudge(camp, map, mapId, w, fromF, toF) {   // null: not counted; else { n, over, refuse, left, st }
+    if (!w || !w.isChar || !net.turnFace) return null;
+    var cb = turnCombatOf(camp, mapId, w); if (!cb) return null;
+    var cur = cb.rows[cb.turn], st = own(net.turnFace, cb.id) ? net.turnFace[cb.id] : null;
+    if (!cur || cur.tokId !== w.id || !st || st.tokId !== w.id || st.rowId !== cur.id || typeof st.allow !== 'number') return null;   // no limit this turn
+    var fm = moveMode(camp, 'face'); if (fm === 'off') return null;
+    var n = faceSteps(camp, map, fromF, toF); if (!n) return null;
+    var over = st.used + n > st.allow;
+    return { n: n, over: over, refuse: over && fm === 'refuse', left: Math.max(0, st.allow - st.used), st: st };
+}
+function faceRefusedText(j) { return 'That is ' + facesText(j.n) + '; you have ' + j.left + ' left: your token turns back.'; }
+function faceCount(w, j) {   // a turn that landed: counted, the GM told where it went past, and what its player is told
+    j.st.used += j.n; var lf = j.st.allow - j.st.used;
+    if (!j.over) return 'Turned: ' + facesText(lf) + ' left.';
+    toast((w.charName || 'A token') + ' turned past its facing changes.'); if (typeof bellOut === 'function') bellOut(w.charId, { title: 'Turn', text: 'Turned past its facing changes.' });
+    return 'That went ' + facesText(-lf) + ' past what your turn allows.';
+}
+var _faceRefused = Object.create(null);   // itemId|wbId -> the facing the pos path just refused (the map copy that follows repeats it: no second note)
+function turnFaceCheck(camp, map, w, frW, msg, conn) {   // at a final: 'back' where the turn is refused (the message then carries the facing the gesture began with)
+    var j = faceJudge(camp, map, msg.itemId, w, faceDeg(frW), faceDeg(msg)); if (!j) return '';
+    if (!msg.final) { if (j.refuse) { msg.rot = Number(w.rot) || 0; msg.front = Number(w.front) || 0; } return ''; }   // mid-drag (the review): a turn past what is left is neither applied nor relayed, as a move past its limit is not, and the token stays where it faces now (the check). Nothing is counted until the release, so a turn within what is left is followed live as a move within its limit is
+    if (!j.refuse) { turnNote(conn, faceCount(w, j), w.charId); return ''; }
+    if (Object.keys(_faceRefused).length > 400) _faceRefused = Object.create(null);
+    _faceRefused[msg.itemId + '|' + w.id] = faceDeg(msg); msg.rot = Number(frW.rot) || 0; msg.front = Number(frW.front) || 0;
+    turnNote(conn, faceRefusedText(j), w.charId); return 'back';
+}
+function faceRelay(camp, map, msg, lw, w, mover) {   // lw: the host's token; w: the copy's, already put back to the facing it goes back to. The review: the host's token followed a drag whose turn a map copy then refuses. Everyone else is shown where it faces now (the copy's delta would not say it: live moves never touch a delta's baseline)
+    var back = { type: 'pos', campId: msg.campId, itemId: msg.itemId, wbId: lw.id, x: Number(w.x) || 0, y: Number(w.y) || 0, rot: Number(w.rot) || 0, front: Number(w.front) || 0, final: true };
+    applyPosToDom(back); broadcastPos(back, mover && mover.open ? mover : null, camp, map, lw);
+}
 function turnLimitCheck(camp, map, w, frW, msg, conn) {
     var cb = turnCombatOf(camp, msg.itemId, w); if (!cb) return '';
     var cur = cb.rows[cb.turn], st = own(net.turnMove, cb.id) ? net.turnMove[cb.id] : null;   // fold 2: the move of that fight's turn
@@ -4994,6 +5056,7 @@ function cellsText(n, map) {   // "6 squares (30 ft)": the map's cells and its o
 function snapBack(camp, map, w, msg, to, mover) {   // the token goes back where its drag began, for everyone (the mover too); mover: the connection whose action this answers
     if (typeof msg.x === 'number') _refusedAt[msg.itemId + '|' + msg.wbId] = msg.x + ',' + msg.y;
     w.x = to.x; w.y = to.y;
+    if (to && typeof to.rot === 'number') { w.rot = to.rot; w.front = Number(to.front) || 0; }   // 1.6.2 (backlog 70, the review): and to the facing its drag began with, as a drag that is swept is: a refused move never leaves the drag's turn standing, uncounted
     if (window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(msg.itemId);   // Senses S0: the drag moved the token on the host as it went: who sees what is judged from where it stands again
     var back = { type: 'pos', campId: msg.campId, itemId: msg.itemId, wbId: msg.wbId, x: to.x, y: to.y, rot: w.rot || 0, front: w.front || 0, final: true };
     var mv = mover && mover.open && typeof mover.send === 'function' && typeof withAck === 'function' ? mover : null;
@@ -5779,8 +5842,30 @@ function fightReachKept(had, f) {   // a roster edit: how far the fight has gone
 // it has gone; its player hears how far. Turn-based combat on, a player's token only (the GM is never limited)
 net.turnMove = {};
 net.turnMoveOwn = Object.create(null);
+// 1.6.2 (backlog 70): how many facing changes this turn allows its token, worked out as its move is: the system's formula over the players' view
+// and the owner's own copy, a whole number 0 to 99. Only a player's own character, with Token facing on. net.turnFace: fight id -> { rowId,
+// tokId, used, allow }, the host's own and never sent, begun again at every start of a turn, and let go with its fight
+net.turnFace = Object.create(null);
+function turnFaceStart(mapId, c) {
+    var fid = c && typeof c.id === 'string' ? c.id : null; if (!fid) return;
+    Object.keys(net.turnFace).forEach(function(k) { if (k === fid || !net.combats || !own(net.combats, k)) delete net.turnFace[k]; });
+    var row = Array.isArray(c.rows) ? c.rows[c.turn] : null, vt = window.wpVtt, rl = function(k) { return !vt || (vt.rulesOn ? vt.rulesOn(k) : vt.on(k)); };
+    if (!row || typeof row.tokId !== 'string' || !vt || !vt.on('turns') || !rl('turning')) return;
+    var camp = getActiveCampaign(), map = camp && camp.items && own(camp.items, mapId) ? camp.items[mapId] : null;
+    var w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === row.tokId; }) : null; if (!w || !w.isChar || !w.ownerId) return;
+    var S = SC(), F = window.wpFormula, ch = camp.chars && typeof w.charId === 'string' && own(camp.chars, w.charId) ? camp.chars[w.charId] : null;
+    if (!S || !F || !camp.system || !ch || ch.npc || ch.ownerId !== w.ownerId || !window.wpSheets) return;
+    var view = window.wpSheets.playerSystem(camp), t = view && view.combat && view.combat.turn; if (!t || !t.face) return;
+    var chv = S.charFor(ch, view, w.ownerId, { lib: fxLib(camp.system), items: itemLib(camp.system), full: camp.system }); if (!chv) return;
+    var tc = S.withRound(S.tokenCtx(map, w, { turning: rl('turning'), posture: rl('posture'), elevation: rl('elevation'), viewer: typeof w.ownerId === 'string' ? w.ownerId : undefined }), c), res = null;
+    try { res = F.evaluate(t.face, { vars: S.makeResolver(view, chv, F, tc), random: function() { throw new Error('dice'); } }); } catch (e) { res = null; }
+    if (!res || !res.ok || typeof res.value !== 'number' || !isFinite(res.value)) return;
+    var st = { rowId: row.id, tokId: w.id, used: 0, allow: Math.max(0, Math.min(99, Math.floor(res.value))) }; net.turnFace[fid] = st;
+    if (moveMode(camp, 'face') !== 'off') noteOwner(w.ownerId, st.allow ? 'You may change facing ' + (st.allow === 1 ? 'once' : st.allow + ' times') + ' this turn.' : 'You may not change facing this turn.', w.charId);
+}
 function turnMoveStart(mapId, c) {
     var fidM = c && typeof c.id === 'string' ? c.id : null; if (fidM) { delete net.turnMove[fidM]; delete net.turnMoveOwn[fidM]; }   // fold 2: per fight (its id), a map may hold two
+    if (typeof turnFaceStart === 'function') { try { turnFaceStart(mapId, c); } catch (e) { console.error(e); } }   // 1.6.2 (backlog 70): and its facing changes
     var row = c && Array.isArray(c.rows) ? c.rows[c.turn] : null; if (!row || typeof row.tokId !== 'string' || !window.wpVtt || !window.wpVtt.on('turns')) return;
     var camp = getActiveCampaign(), map = camp && camp.items && own(camp.items, mapId) ? camp.items[mapId] : null;
     var w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === row.tokId; }) : null; if (!w || !w.isChar || !w.ownerId) return;
@@ -6083,7 +6168,7 @@ function combatOver(fid, had, quiet, title) {   // fold 2: by the fight's own id
     if (had) { try { turnActsEnd(mapId, had); } catch (e) { console.error(e); } }   // T4
     if (had && typeof holdsGone === 'function') { try { holdsGone(campO, had); } catch (e) { console.error(e); } }   // 1.6.0 Who holds whom: every hold in it ends with the fight, its effects with them
     if (had) { logEvent('table', 'Combat ended on ' + nmO + ' after ' + had.round + ' round' + (had.round === 1 ? '' : 's')); if (!quiet) toast('Combat ended on ' + nmO + '.'); }
-    if (typeof fid === 'string') { delete net.combats[fid]; if (net.turnMove) delete net.turnMove[fid]; }   // fold 2: by its id, and its turn's move with it
+    if (typeof fid === 'string') { delete net.combats[fid]; if (net.turnMove) delete net.turnMove[fid]; if (net.turnFace) delete net.turnFace[fid]; }   // fold 2: by its id, and its turn's move with it (backlog 70: and its facing changes)
     if (had && net.fightOn === fid) net.fightOn = typeof fightBehind === 'function' ? fightBehind() : (fightIds()[0] || null);   // fold 4: the Active fight ended: the one furthest behind is played
     if (had && typeof marksEnd === 'function' && !fightsOn(mapId).length) { try { marksEnd(mapId); } catch (e) { console.error(e); } }   // senses S4b: the marks follow every move again, once the map's last fight is over (fold 2)
     if (typeof fid === 'string' && typeof combatForget === 'function') combatForget(fid);   // the fight over: nothing of it seen

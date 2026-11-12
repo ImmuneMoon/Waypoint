@@ -53,6 +53,12 @@ Tidier screens
   as a new player and Clear all handouts.
 
 The System editor
+- A facing limit: the Turns box on the Combat tab has Facing changes per
+  turn, a number or a formula worked out for each character. On its turn a
+  player's token then turns no more often than that. One change is a step
+  of the grid, or a turn of any size, as you pick. Facing limit in Settings
+  is Refuse, Warn or Off, as Move limit is. Your own turns are never
+  counted.
 - Kinds of terrain: name the ground that slows movement in your game on the
   Combat tab under Terrain, such as Mud at x2 or Rubble at x3. The fill menu
   and a shape's Properties then list them by name. Change a kind's cost and

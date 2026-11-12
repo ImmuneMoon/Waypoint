@@ -2349,6 +2349,14 @@ window.wpFitToGrid = fitToGrid;
       return true;
   }
   // [systemcheck:turnable-end]
+  // 1.6.2 (backlog 70, the review): a turn gesture of the viewer's own (the token's arrow, the rotate handle) is open from its press to its
+  // release. window.wpTurnGesture is when it began, 0 when none is open: a player's app holds its map copy meanwhile (net.js onLocalSave), and
+  // an end that sends nothing itself lets a copy that waited go
+  function turnGesture(on) {
+      window.wpTurnGesture = on === true ? Date.now() : 0;
+      if (on === true) return;
+      var n = window.wpNet; if (n && n._heldSave === true && typeof n.onLocalSave === 'function') n.onLocalSave();
+  }
   function attachArrowTurn() {
       var turning = null;
       function boardPt(e) {
@@ -2366,11 +2374,12 @@ window.wpFitToGrid = fitToGrid;
           if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && (window.wpNet.paused || window.wpNet.selfPaused || window.wpNet.selfHeld || item.ownerId !== window.wpNet.myId || item.locked)) return;
           e.preventDefault(); e.stopPropagation();
           turning = { id: item.id, mapId: am.id, sx: e.clientX, sy: e.clientY, moved: false, shift: e.shiftKey };   // fold M8: by id, found again at each write
+          turnGesture(true);
       }, true);
       document.addEventListener('pointermove', function(e) {
           if (!turning) return;
           if (!turning.moved && Math.hypot(e.clientX - turning.sx, e.clientY - turning.sy) < 5) return;
-          var it = ownTokenNow(turning.mapId, turning.id); if (!it) { turning = null; return; }   // no longer theirs to turn: the turn is over
+          var it = ownTokenNow(turning.mapId, turning.id); if (!it) { turning = null; turnGesture(false); return; }   // no longer theirs to turn: the turn is over
           turning.moved = true;
           var p = boardPt(e);
           var cx = it.x + (it.w || 60) / 2, cy = it.y + (it.h || 52) / 2;
@@ -2378,15 +2387,18 @@ window.wpFitToGrid = fitToGrid;
           applyFacing(it, deg, e.shiftKey);
           refreshTokenDom(it);
       });
-      document.addEventListener('pointerup', function(e) {
+      function turnUp(e) {
           if (!turning) return;
           var tn = turning, it = ownTokenNow(tn.mapId, tn.id); turning = null;
-          if (!it) return;   // fold M8: gone, locked or no longer theirs meanwhile: nothing lands
+          if (!it) { turnGesture(false); return; }   // fold M8: gone, locked or no longer theirs meanwhile: nothing lands
+          window.wpTurnGesture = 0;   // the final goes first, then the save's own copy
           if (!tn.moved) window.wpTurnToken(it, tn.shift ? -1 : 1);
           refreshTokenDom(it);
           if (window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(it, true, tn.mapId);
           save(); render();
-      });
+      }
+      document.addEventListener('pointerup', turnUp);
+      document.addEventListener('pointercancel', function(e) { if (!turning) return; if (!turning.moved) { turning = null; turnGesture(false); return; } turnUp(e); });   // backlog 70: a cancelled turn ends as a release does, its final sent; a press that turned nothing turns nothing
   }
   function attachRotateHandle() {
 
@@ -2424,6 +2436,7 @@ window.wpFitToGrid = fitToGrid;
           startAngle = Math.atan2(mouseY - cy, mouseX - cx) * 180 / Math.PI;
 
           startRot = item.rot || 0;
+          turnGesture(true);   // backlog 70: a player's copy waits for the release
 
           
 
@@ -2435,6 +2448,15 @@ window.wpFitToGrid = fitToGrid;
 
       });
       handle.addEventListener('pointercancel', hostGestureEnd); handle.addEventListener('lostpointercapture', hostGestureEnd);   // fold M6
+      function rotCancel() {   // backlog 70: a turn that ends with no release ends as a release does, its final sent, and holds no copy back (after a release it only lets a held copy go)
+          if (isRotating) {
+              isRotating = false;
+              var liveC = item ? ownTokenNow(rotMapId, item.id) : null;
+              if (liveC) { window.wpTurnGesture = 0; if (window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(liveC, true, rotMapId); save(); render(); }
+          }
+          turnGesture(false);
+      }
+      handle.addEventListener('pointercancel', rotCancel); handle.addEventListener('lostpointercapture', rotCancel);
 
       handle.addEventListener('pointermove', function(e) {
 
@@ -2454,7 +2476,7 @@ window.wpFitToGrid = fitToGrid;
 
           
 
-          var liveR = ownTokenNow(rotMapId, item.id); if (!liveR) { isRotating = false; hostGestureEnd(); return; }   // fold M8: no longer theirs to turn
+          var liveR = ownTokenNow(rotMapId, item.id); if (!liveR) { isRotating = false; hostGestureEnd(); turnGesture(false); return; }   // fold M8: no longer theirs to turn
           item = liveR;
           var newRot = Math.round(startRot + diff);
 
@@ -2506,8 +2528,9 @@ window.wpFitToGrid = fitToGrid;
 
           try { handle.releasePointerCapture(e.pointerId); } catch(e){}
 
-          var liveU = ownTokenNow(rotMapId, item.id); if (!liveU) { render(); return; }   // fold M8: nothing lands for a token no longer theirs
+          var liveU = ownTokenNow(rotMapId, item.id); if (!liveU) { turnGesture(false); render(); return; }   // fold M8: nothing lands for a token no longer theirs
           item = liveU;
+          window.wpTurnGesture = 0;   // backlog 70: the final goes first, then the save's own copy
           if (window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(item, true, rotMapId);   // final facing
           save(); render();
 

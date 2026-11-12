@@ -97,7 +97,7 @@ function keyLabel(camp, sys, id) {
 function lockInto(body, camp, b, sys) {
     var lk = b.lock || {}, box = el('div', 'box-lock'), head = el('label', 'box-locktick'), cb = el('input', 'box-lockon'); cb.type = 'checkbox'; cb.checked = lk.on === true;
     cb.addEventListener('change', function() { setLock({ on: cb.checked }, ['.box-lockon']); });
-    head.appendChild(cb); head.appendChild(el('span', 'wib wi-padlock box-lockic')); head.appendChild(el('span', '', 'Locked')); box.appendChild(head);
+    head.appendChild(cb); head.appendChild(el('span', 'wib ' + (lk.on === true ? 'wi-padlock' : 'wi-unlock') + ' box-lockic')); head.appendChild(el('span', '', lk.on === true ? 'Locked' : 'Lock')); box.appendChild(head);
     if (lk.on !== true) { body.appendChild(box); return; }
     var rolls = (Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return BC.lockRollOk(r); }), chosen = Array.isArray(lk.rolls) ? lk.rolls : [];
     var l1 = el('div', 'box-lockline'); l1.appendChild(el('span', 'box-lockcap', 'Opens with'));

@@ -1459,7 +1459,8 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
       }
   }
   window.wpApplyRememberedView = applyRememberedView;
-  window.wpSetViewMode = function(m) { setViewMode(m); };   // 1.6.2 (backlog 45, fold 3): Show on the play map, Show on the Data Map
+  window.wpSetViewMode = function(m) { setViewMode(m); };
+  window.wpViewButtons = function() { _segBtns.forEach(function(b){ b.classList.toggle('active', b.dataset.mode === state.viewMode); }); };   // 1.6.2 (backlog 45, fold 4): a caller that set the view with a landing room shows it   // 1.6.2 (backlog 45, fold 3): Show on the play map, Show on the Data Map
   function setViewMode(mode) {
       if (state.viewMode === mode) return;
       state.viewMode = mode;

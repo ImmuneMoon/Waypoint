@@ -215,7 +215,8 @@ import { cssColor, num, picRef } from './safecore.js';   // a campaign from a fi
 
                  '<div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">' + portrait +
 
-                 '<input type="text" aria-label="Character Name" placeholder="Name" value="'+esc(c.name)+'" data-idx="'+i+'" class="char-name" style="margin-bottom:0; flex:1;"></div>' +
+                 '<input type="text" aria-label="Character Name" placeholder="Name" value="'+esc(typeof entryTied === 'function' && entryTied(c) ? entryTied(c).name || c.name : c.name)+'" data-idx="'+i+'" class="char-name" style="margin-bottom:0; flex:1;"'+(typeof entryTied === 'function' && entryTied(c) ? ' readonly title="Named by its sheet. Pick No sheet to name it yourself."' : '')+'></div>' +
+                 (typeof entrySheetHtml === 'function' ? entrySheetHtml(c, i) : '') +
 
                  '<div class="field"><textarea aria-label="Character Info" placeholder="Info / Background..." data-idx="'+i+'" class="char-info">'+esc(c.info)+'</textarea></div>' +
 
@@ -299,7 +300,9 @@ import { cssColor, num, picRef } from './safecore.js';   // a campaign from a fi
 
              '<div class="divider"></div>' +
 
-             '<h2>Characters <button id="addCharBtn" class="tool ghost" style="padding:2px 6px; float:right;">+ Add</button></h2>' +
+             (typeof roomHereHtml === 'function' ? roomHereHtml(r, activeMap) : '') +
+             '<h2>Expected here <button id="addCharBtn" class="tool ghost" style="padding:2px 6px; float:right;">+ Add</button></h2>' +
+             '<div class="muted room-here-say">Your own list of who belongs here. It stays as you write it.</div>' +
 
              '<div id="charList">' + charHtml + '</div>';
 
@@ -308,6 +311,47 @@ import { cssColor, num, picRef } from './safecore.js';   // a campaign from a fi
 
 
 
+  // [roomcheck:here-start]
+  // 1.6.2 (backlog 45, fold 4; the owner: "A. Here now, then Expected", "A. A Sheet list, name follows"). Here now: the character tokens standing in
+  // the room's place, read from the map each time (roomcore roomsHere), the GM's alone. Each says its name as text, a hidden one says so, and
+  // Show takes the GM to it on the play map; one with a sheet has Sheet... too. Nothing of it is stored
+  function campSheet(id) { var camp = getActiveCampaign(); return camp && camp.chars && typeof id === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, id) ? camp.chars[id] : null; }
+  function entryTied(c) { return c && typeof c.sheet === 'string' && c.sheet ? campSheet(c.sheet) : null; }
+  function roomHereHtml(r, am) {
+      var RCi = window.wpRoomCore; if (!RCi || !r || !am) return '';
+      var here = RCi.roomsHere(am)[r.id] || [], RCp = RCi.roomPlaceOf(am, r.id);
+      var rows = here.map(function(w) {
+          var nm = String(w.charName || w.name || 'Unnamed'), sh = w.charId && campSheet(w.charId);
+          return '<div class="room-here-row"><span class="room-here-name">' + esc(nm) + '</span>' + (w.hidden ? '<span class="muted room-here-hid">hidden</span>' : '')
+              + (sh ? '<button type="button" class="tool ghost room-here-sheet" data-cid="' + esc(w.charId) + '">Sheet&hellip;</button>' : '')
+              + '<button type="button" class="tool ghost room-here-show" data-tok="' + esc(w.id) + '">Show</button></div>';
+      }).join('');
+      var none = !RCp ? 'This room has no place on the play map, so no one can stand in it.' : 'No one stands in this room&rsquo;s place now.';
+      return '<h2>Here now</h2><div class="room-here">' + (rows || '<div class="muted room-here-none">' + none + '</div>') + '</div>';
+  }
+  // An entry's sheet: a list of the campaign's sheets by name, No sheet first, and Sheet... while one is picked
+  function entrySheetHtml(c, i) {
+      var camp = getActiveCampaign(), chars = camp && camp.chars && typeof camp.chars === 'object' ? camp.chars : {};
+      var ids = Object.keys(chars).filter(function(k) { return chars[k] && typeof chars[k] === 'object'; }).sort(function(a, b) { return String(chars[a].name || '').localeCompare(String(chars[b].name || ''), undefined, { sensitivity: 'base' }); });
+      var opts = '<option value="">No sheet</option>' + ids.map(function(k) { return '<option value="' + esc(k) + '"' + (c.sheet === k ? ' selected' : '') + '>' + esc(chars[k].name || 'Unnamed') + '</option>'; }).join('');
+      return '<div class="field row char-sheet-row"><select class="char-sheet" data-idx="' + i + '" aria-label="This entry\u2019s character sheet" title="Tie this entry to a character sheet: it takes the sheet\u2019s name and picture.">' + opts + '</select>'
+          + (entryTied(c) ? '<button type="button" class="tool ghost char-sheet-open" data-idx="' + i + '">Sheet&hellip;</button>' : '') + '</div>';
+  }
+  function roomHereWire(r) {
+      var S = window.wpSheets;
+      document.querySelectorAll('.room-here-show').forEach(function(b) { b.addEventListener('click', function() { var said = window.wpTokShowPlay ? window.wpTokShowPlay(b.dataset.tok) : ''; if (said) toast(said); }); });
+      document.querySelectorAll('.room-here-sheet').forEach(function(b) { b.addEventListener('click', function() { if (S && S.openSheet) S.openSheet(b.dataset.cid); }); });
+      document.querySelectorAll('#charList .char-sheet-open').forEach(function(b) { b.addEventListener('click', function() { var c = r.characters[b.dataset.idx]; if (c && entryTied(c) && S && S.openSheet) S.openSheet(c.sheet); }); });
+      document.querySelectorAll('#charList .char-sheet').forEach(function(sel) { sel.addEventListener('change', function() {
+          var c = r.characters[sel.dataset.idx]; if (!c) return;
+          var sh = sel.value ? campSheet(sel.value) : null;
+          if (sh) { c.sheet = sel.value; c.name = String(sh.name || c.name || ''); if (typeof sh.portrait === 'string' && sh.portrait) c.portrait = sh.portrait; if (typeof linkedTokens === 'function') linkedTokens(c, getActiveMap()).forEach(function(tk) { tk.charName = c.name; tk.name = c.name; }); }   // the review: its tokens take the name too
+          else delete c.sheet;
+          save(); render();
+          toast(sh ? 'This entry is ' + (sh.name || 'that sheet') + ' now, by its sheet.' : 'This entry is your own again. Its name stays as it was.');
+      }); });
+  }
+  // [roomcheck:here-end]
   // [roomcheck:placerow-start]
   // 1.6.2 (backlog 45, fold 3): on the Data Map a room's Properties say where its place is on the play map: Show on the play map, or, with
   // none, No place yet and Place it. Fixed words; nothing of the room in the markup. On the play map the row is left out (the piece is the place)
@@ -325,6 +369,7 @@ import { cssColor, num, picRef } from './safecore.js';   // a campaign from a fi
   // [roomcheck:placerow-end]
   function attachRoomInspectorEvents(r, activeMap) {
       if (typeof roomPlaceRowWire === 'function') roomPlaceRowWire(r);   // 1.6.2 (backlog 45, fold 3)
+      if (typeof roomHereWire === 'function') roomHereWire(r);   // fold 4
 
       var _el_fName = document.getElementById('fName');
 

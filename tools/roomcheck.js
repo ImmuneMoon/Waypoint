@@ -420,6 +420,73 @@ function mkDoc() {
             h1.includes('id="fRoomShowPlay"') && h1.includes('>Show on the play map</button>') && !h1.includes('fRoomPlace') && h2.includes('No place on the play map yet.') && h2.includes('id="fRoomPlace"') && !h2.includes('script') && h3 === ''
             && inS.includes("(typeof roomPlaceRowHtml === 'function' ? roomPlaceRowHtml(r, activeMap) : '')+") && inS.includes("if (typeof roomPlaceRowWire === 'function') roomPlaceRowWire(r);"), J([h1, h2, h3]));
     }
+    /* ---- fold 4: who is in a room ---- */
+    {
+        const M = { id: 'm1', type: 'map', rooms: [{ id: 'hall', name: 'Hall', characters: [{ name: 'Bren', portrait: '/saves/images/b.png' }, { name: 'Old Tam' }, { name: 'x', sheet: 'c9' }, { name: '' }] }, { id: 'pantry', name: 'Pantry' }, { id: 'loft', name: 'Loft', characters: [{ name: 'Wren' }] }],
+            whiteboard: [{ id: 'hallF', type: 'rect', x: 0, y: 0, w: 400, h: 300, nodeId: 'hall' }, { id: 'pan', type: 'rect', x: 50, y: 50, w: 100, h: 100, nodeId: 'pantry' }, { id: 'tokMark', isChar: true, x: 0, y: 0, w: 900, h: 900, nodeId: 'loft' },
+                { id: 't1', isChar: true, charName: 'Bren', charId: 'c1', x: 300, y: 200, w: 50, h: 50, src: '/saves/images/t.png' }, { id: 't2', isChar: true, charName: 'Guard', x: 60, y: 60, w: 50, h: 50, hidden: true },
+                { id: 't3', isChar: true, charName: 'Ghost', waiting: true, x: 10, y: 10, w: 50, h: 50 }, { id: 't4', isChar: true, charName: 'Note', gmNoteFor: 'p', x: 10, y: 10, w: 50, h: 50 }, { id: 't5', isChar: true, charName: 'Out', x: 5000, y: 5000 }, null] };
+        const H = RC.roomsHere(M), sheetOf = id => (id === 'c9' ? { name: 'Sela', portrait: '/saves/images/s.png' } : null);
+        const F = RC.roomFaces(M.rooms[0], H.hall, sheetOf), F2 = RC.roomFaces(M.rooms[1], H.pantry, sheetOf), F3 = RC.roomFaces(M.rooms[2], H.loft, sheetOf);
+        const M2 = { id: 'm2', type: 'map', rooms: [{ id: 'cell', name: 'Cell', characters: [{ name: 'Kael', sheet: 'c7' }] }], whiteboard: [] };
+        const M3 = { id: 'm3', type: 'map', rooms: [{ id: 'yard', name: 'Yard', characters: [{ name: 'MORA ' }] }], whiteboard: [] };
+        const items = { m1: M, m2: M2, m3: M3, pg: { type: 'planner' } };
+        const c1 = RC.charRoomIn(items, 'm2', 'c1', 'Bren'), c7 = RC.charRoomIn(items, 'm1', 'c7', 'Whoever'), cm = RC.charRoomIn(items, 'm1', 'zz', 'mora'), cn = RC.charRoomIn(items, 'm1', 'zz', 'Nobody'), ce = RC.charRoomIn(items, 'm1', 'zz', '');
+        check('fold 4 (roomcore run for real): a character token is in the room whose place holds its centre, the smallest place where several do, never a waiting token, a GM note card or a token outside every place, a hidden one included for the GM; the faces are those here now first, then the expected not already there, an entry tied to a sheet by the sheet\'s name and picture, three at most and how many more; a character\'s room is where a token of its sheet stands, else the room whose entry is tied to its sheet, else one of its name, on the map named first and then the others',
+            J(Object.keys(H).sort()) === J(['hall', 'pantry']) && J(H.hall.map(w => w.id)) === J(['t1']) && J(H.pantry.map(w => w.id)) === J(['t2']) && Object.getPrototypeOf(H) === null && J(RC.roomsHere({})) === '{}'
+            && J(F) === J({ faces: [{ name: 'Bren', pic: '/saves/images/t.png', here: true, hidden: false }, { name: 'Old Tam', pic: '', here: false, hidden: false }, { name: 'Sela', pic: '/saves/images/s.png', here: false, hidden: false }], more: 0 })
+            && J(F2) === J({ faces: [{ name: 'Guard', pic: '', here: true, hidden: true }], more: 0 }) && J(F3) === J({ faces: [{ name: 'Wren', pic: '', here: false, hidden: false }], more: 0 })
+            && RC.roomFaces({ characters: [{ name: 'a' }, { name: 'b' }, { name: 'c' }, { name: 'd' }, { name: 'A' }] }, [], null).more === 1 && RC.entryName({ name: ' Ann ', sheet: 'c9' }, sheetOf) === 'Sela' && RC.entryName({ name: ' Ann ' }, sheetOf) === 'Ann'
+            && c1.map === M && c1.room.id === 'hall' && c1.how === 'here' && c7.map === M2 && c7.room.id === 'cell' && c7.how === 'expected' && cm.map === M3 && cm.room.id === 'yard' && cn === null && ce === null,
+            J([Object.keys(H), F, F2, F3, c1 && c1.how, c7 && c7.how, cm && cm.how]));
+    }
+    {
+        const dmS = read('scripts/datamap.js'), fcS = cut(dmS, 'faces', 'datamap.js'), doc = mkDoc(), box = doc.createElement('div');
+        const draw = new Function('document', 'picRef', fcS + '\nreturn roomFacesDraw;')(doc, v => (typeof v === 'string' && v.indexOf('/saves/') === 0 ? v : ''));
+        draw(box, { faces: [{ name: '<b>Bren</b>', pic: '/saves/images/t.png', here: true }, { name: 'tam', pic: 'https://evil/x.png', here: false }, { name: '', pic: '', here: true, hidden: true }], more: 2 });
+        const st = box.children[0], k = st.children;
+        const box2 = doc.createElement('div'); draw(box2, { faces: [], more: 0 }); draw(box2, null); draw(box, { faces: [{ name: 'Ann' }], more: 0 }); const again = box.children.length;
+        check('fold 4, the faces on a room\'s box (datamap.js faces, run for real): elements and text nodes, a picture only through the app\'s picture rule, else the name\'s first letter; those here now ringed, a hidden one faint; then +N; the names in its tooltip, the expected said so; nothing drawn with no one',
+            st.className === 'room-faces' && k.length === 4 && k[0].className === 'rf rf-here' && k[0].children[0].tagName === 'IMG' && k[0].children[0].src === '/saves/images/t.png' && k[1].className === 'rf' && k[1].children.length === 0 && k[1].textContent === 'T'
+            && k[2].className === 'rf rf-here rf-hidden' && k[2].textContent === '?' && k[3].className === 'rf-more' && k[3].textContent === '+2' && st.dataset.tip === '<b>Bren</b>, tam (expected), , 2 more' && box2.children.length === 0 && again === 1,
+            J([st.className, k.map(x => x.className + ':' + x.textContent), st.dataset.tip]));
+        check('fold 4 is wired (source): the Data Map draws the faces in place of the bare count; a token\'s drop no longer rewrites the typed list, it says the room it came into once; the net keeps an entry\'s sheet off the wire',
+            dmS.includes("roomFacesDraw(el, RC.roomFaces(r, hereAll[r.id], sheetOf));") && !dmS.includes("'<div class=\"badge-char\" title=\"'+r.characters.length") && !dmS.includes('room.characters.push(entry') && dmS.includes('var wasRoom = _tokRoom[item.id]; _tokRoom[item.id] = room.id;')
+            && read('scripts/net.js').includes("        (r.characters || []).forEach(function(c) { delete c.sheet; });")
+            && dmS.includes('wpAutoRoom ? window.wpAutoRoom(item, am, mdR ? { x: mdR.ox, y: mdR.oy } : null) : null;') && read('scripts/net.js').includes('window.wpAutoRoom ? window.wpAutoRoom(w, map, frW) : null;') && dmS.includes('wasRoom = fb ? fb.nodeId : null;')
+            && dmS.includes('if (followed && window.wpCanPersistLocal && window.wpCanPersistLocal()) save(true);') && dmS.includes("!(typeof window !== 'undefined' && window.wpNet && window.wpNet.foreign) ? picRef(x.pic)"));
+    }
+    {
+        const inS = read('scripts/inspector.js'), hS = cut(inS, 'here', 'inspector.js');
+        const camp = { chars: { c1: { name: 'Bren the Miller', portrait: '/saves/images/bm.png' }, c2: { name: 'Ann' } } }, saves = [], toasts = [];
+        const am = { rooms: [{ id: 'r1', name: 'Hall' }], whiteboard: [{ id: 'hallF', type: 'rect', x: 0, y: 0, w: 400, h: 300, nodeId: 'r1' }, { id: 't1', isChar: true, charName: '<i>Bren</i>', charId: 'c1', x: 10, y: 10, w: 50, h: 50 }, { id: 't2', isChar: true, charName: 'Spy', x: 20, y: 20, w: 50, h: 50, hidden: true }] };
+        const doc = mkDoc(), sel = doc.createElement('select'); sel.dataset.idx = '0'; sel.value = 'c1';
+        doc.querySelectorAll = s => (s === '#charList .char-sheet' ? [sel] : []);
+        const r = { id: 'r1', characters: [{ name: 'Old name' }] };
+        const api = new Function('window', 'getActiveCampaign', 'esc', 'toast', 'save', 'render', 'document', hS + '\nreturn { here: roomHereHtml, sheet: entrySheetHtml, wire: roomHereWire, tied: entryTied };')({ wpRoomCore: RC, wpSheets: {} }, () => camp, s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'), m => toasts.push(m), () => saves.push(1), () => {}, doc);
+        const h = api.here(r, am), h0 = api.here({ id: 'r9' }, am), hNo = api.here({ id: 'r1' }, { whiteboard: [{ id: 'hallF', type: 'rect', x: 0, y: 0, w: 400, h: 300, nodeId: 'r1' }] });
+        const s0 = api.sheet(r.characters[0], 0);
+        api.wire(r); sel.listeners.change[0].f({}); const tied = [r.characters[0].sheet, r.characters[0].name, r.characters[0].portrait, api.tied(r.characters[0]).name, toasts.slice(-1)[0]];
+        const s1 = api.sheet(r.characters[0], 0); sel.value = ''; sel.listeners.change[0].f({}); const untied = ['sheet' in r.characters[0], r.characters[0].name, toasts.slice(-1)[0]];
+        check('fold 4, a room\'s Properties (inspector.js here, run for real): Here now lists each character token standing in its place by name as text, a hidden one said so, Show for each and Sheet... where it has one; a room with no place, or no one in it, says so; an entry\'s Sheet list holds the campaign\'s sheets by name, No sheet first; a pick ties it, takes the sheet\'s name and picture and offers Sheet...; No sheet unties it and leaves its name as it was',
+            h.indexOf('<h2>Here now</h2>') === 0 && h.includes('<span class="room-here-name">&lt;i&gt;Bren&lt;/i&gt;</span>') && h.includes('data-cid="c1">Sheet&hellip;</button>') && h.includes('<span class="room-here-name">Spy</span><span class="muted room-here-hid">hidden</span>') && h.includes('data-tok="t2">Show</button>')
+            && h0.includes('This room has no place on the play map, so no one can stand in it.') && hNo.includes('No one stands in this room&rsquo;s place now.')
+            && s0.includes('<option value="">No sheet</option><option value="c2">Ann</option><option value="c1">Bren the Miller</option>') && !s0.includes('char-sheet-open')
+            && J(tied) === J(['c1', 'Bren the Miller', '/saves/images/bm.png', 'Bren the Miller', 'This entry is Bren the Miller now, by its sheet.']) && s1.includes('<option value="c1" selected>') && s1.includes('class="tool ghost char-sheet-open"')
+            && J(untied) === J([false, 'Bren the Miller', 'This entry is your own again. Its name stays as it was.']) && saves.length === 2
+            && inS.includes("(typeof roomHereHtml === 'function' ? roomHereHtml(r, activeMap) : '') +") && inS.includes("'<h2>Expected here <button id=\"addCharBtn\"") && inS.includes(" readonly title=\"Named by its sheet. Pick No sheet to name it yourself.\""),
+            J([h, s0, tied, untied]));
+    }
+    {
+        const clS = read('scripts/charlist.js'), crS = cut(clS, 'charroom', 'charlist.js');
+        const M = { id: 'm1', type: 'map', rooms: [{ id: 'hall', name: 'Hall' }], whiteboard: [{ id: 'f', type: 'rect', x: 0, y: 0, w: 100, h: 100, nodeId: 'hall' }, { id: 't', isChar: true, charId: 'c1', x: 10, y: 10, w: 20, h: 20 }] };
+        const camp = { activeItemId: 'm0', items: { m1: M, m0: { id: 'm0', type: 'map', rooms: [], whiteboard: [] } } }, st = { viewMode: 'visual' }, navs = [], toasts = [];
+        const mk = fg => new Function('getActiveCampaign', 'sheets', 'window', 'foreign', 'toast', 'charText', 'CHAR_NAME', 'state', 'navigateToMap', crS + '\nreturn roomOf;')(() => camp, () => ({ charById: id => (id === 'c1' ? { name: 'Bren' } : id === 'c2' ? { name: 'Nobody' } : null) }), { wpRoomCore: RC }, () => fg, m => toasts.push(m), s => s, 80, st, (m, r) => navs.push([m, r]));
+        mk(false)('c1'); const a1 = [st.viewMode, J(navs), toasts[0]]; mk(false)('c2'); const a2 = toasts[1]; mk(true)('c1'); const a3 = navs.length;
+        check('fold 4, Find their room (charlist.js charroom, run for real): it opens the Data Map at the room the character stands in, landing on the room, and says so; a character in no room is said so; never on a player\'s app; the GM\'s menu row stands after Find on the map',
+            a1[0] === 'data' && a1[1] === J([['m1', 'hall']]) && M.meta.lastView === 'data' && a1[2] === 'Bren is in Hall.' && a2 === 'Nobody is in no room: no token of theirs stands in one, and no room expects them.' && a3 === 1
+            && clS.includes("if (room === true) rows.push({ act: 'room', text: 'Find their room' });") && clS.includes("else if (act === 'room') roomOf(cid);"), J([a1, a2, a3]));
+    }
     const css = read('style.css'), ix = read('index.html'), wn = fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wn2 = read('assets/whatsnew.txt');
     check('the styles: the handle on a room\'s right edge shows, and takes a press, only under the pointer or on the room selected, and never in Link Mode, the Pan tool, while a link is dragged or on a joined player\'s app; a room a link is dragged over is lit; the line dragged is dashed gold and takes no press; the name box stands in the name\'s place; the empty map\'s words take no press, so a double-click on them reaches the ground',
         css.includes('.room:hover .rlink, .room.sel .rlink{opacity:1; pointer-events:auto}') && /\.room \.rlink\{[^}]*opacity:0; pointer-events:none;/.test(css) && css.includes('body.linkmode .room .rlink, body.data-pan .room .rlink, body.room-linking .room .rlink, body.net-client .room .rlink{display:none}') && css.includes('.room.room-target{outline:2px dashed var(--gold);') && css.includes('#edges .link-draft{stroke:var(--gold); stroke-width:2; stroke-dasharray:6 4; pointer-events:none}')
@@ -430,6 +497,8 @@ function mkDoc() {
         && ix.includes('Let go on empty ground and a new room is made there, linked, with its name ready to type.') && ix.includes('Double-click anywhere, or press Add Room on the toolbar. Drag from the dot on a room&rsquo;s edge to link it to another.')
         && css.includes('.room.df-dim{opacity:.22}') && css.includes('.room.df-hit{box-shadow:') && css.includes('body.net-client #dataFind, body.stream-mode #dataFind{display:none}')
         && ix.includes('<h4>Finding a room</h4>') && ix.includes('The <b>Find a room</b> box along the top of the Data Map reads each room&rsquo;s name, its notes and who is there.') && ix.includes('A dimmed room still works as any room does.') && ix.includes('The chips show when the rooms are in two categories or more.')
+        && ix.includes('<h4>Who is in a room</h4>') && ix.includes('Expected here is your own list. It stays as you write it, wherever the tokens go.') && ix.includes('The room&rsquo;s Here now lists it, and a drop says which room it came into.</li>')
+        && [wn, wn2].every(t => t.includes('- A room\'s Properties show Here now, the character tokens standing in its') && t.includes('- Find their room, on a character\'s right-click under Characters, opens the'))
         && ix.includes('<h4>A room and the play map</h4>') && ix.includes('Select it and it says <b>No place</b>, with <b>Place it</b> beside.') && ix.includes('Untick <b>Room names</b> in the View menu to put them away.')
         && [wn, wn2].every(t => t.includes('- A room with no place on the play map now has a dashed edge. Select it and') && t.includes('- Fixed: placing a shape or Build\'s pieces over a filled region could drag'))
         && [wn, wn2].every(t => t.includes('- A Find a room box runs along the top of the Data Map. It reads each room\'s') && t.includes('- Quick jump finds a room by the words in its notes or by who is there too.'))

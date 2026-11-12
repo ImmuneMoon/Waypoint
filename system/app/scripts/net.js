@@ -819,6 +819,7 @@ function sanitizeItem(item) {
         delete r.notes;
         delete r.handoutId;
         (r.characters || []).forEach(function(c) { delete c.info; delete c.ref; });
+        (r.characters || []).forEach(function(c) { delete c.sheet; });   // 1.6.2 (backlog 45, fold 4): the sheet an entry is tied to is the GM's own
     });
     // link labels are visible; link notes are GM prep
     m.links = (m.links || []).map(function(lk) {
@@ -4887,7 +4888,7 @@ function handlePos(msg, conn) {
             if (w.isChar && typeof holdsMoved === 'function') { try { holdsMoved(camp, map, msg.itemId, w, frW); } catch (e) { console.error(e); } }   // 1.6.0 Who holds whom: a drag, a hold left behind
             var sameW = function(o) { return w.x === o.x && w.y === o.y && (w.rot || 0) === o.rot && (w.front || 0) === o.front; };
             var stillW = sameW(wasW) && (loneW || sameW(frW));   // security (2026-10-01): a final that leaves the token as it stood before it and, a drag open, as it stood when the drag began (a drop sent twice, a turn to its own facing, a drag that never moved it) changes nothing on disk and is not saved; a drag that moved it, even back to its start, is (its moves were never saved)
-            var toRoom = window.wpAutoRoom ? window.wpAutoRoom(w, map) : null;
+            var toRoom = window.wpAutoRoom ? window.wpAutoRoom(w, map, frW) : null;   // judged where its drag began
             if (toRoom) toast((w.charName || 'A character') + ' is now in ' + (toRoom.name || 'a room') + '.');
             if (!stillW) saveRemoteSoon();
             if (typeof marksOwnMoved === 'function') marksOwnMoved(msg.itemId, [w], pr.id);   // senses S4b: their own drop on its turn takes their marks afresh

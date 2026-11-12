@@ -79,7 +79,7 @@
         wpApplyGridOpacity: 'Apply the current grid-opacity setting to the board grid.',
         wpApplyRememberedView: "Restore a map's remembered face (Data vs Play) - item.meta.lastView.",
         wpApplyTips: 'Re-attach the fast hover tooltips (scripts/tips.js).',
-        wpAutoRoom: 'Auto-create/seat a room node on the data map (datamap.js).',
+        wpAutoRoom: 'The room a dropped character token came into, for the drop\'s note (datamap.js).',
         wpBlasts: 'Return the circles of the Radius tool and the thrown blasts on the play map. [sandbox hook]',
         wpBuildExport: 'Build an export payload (this map / all maps / campaign / everything) - io.js buildExport.',
         wpCastSaveCharacter: 'Save a character/token into the campaign Cast.',

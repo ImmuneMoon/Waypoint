@@ -1125,6 +1125,15 @@ The Data Map
   piece's right-click has Show on the Data Map for the way back.
 - Each place shows its room's name in its corner, on your screen alone. Room
   names in the View menu puts them away.
+- A room's Properties show Here now, the character tokens standing in its
+  place, and Expected here, your own list. A token dropped in a room no longer
+  rewrites your list.
+- An entry in that list can be tied to a character sheet. It takes the
+  sheet's name and picture, and Sheet... opens it.
+- A room's box shows up to three faces, those here now first, in place of a
+  bare count.
+- Find their room, on a character's right-click under Characters, opens the
+  Data Map at the room they stand in.
 - Fixed: placing a shape or Build's pieces over a filled region could drag
   the region instead.
 - A map used to open on whichever face you last left it in. Now Settings,

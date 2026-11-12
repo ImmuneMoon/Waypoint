@@ -62,7 +62,7 @@ import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, up
 
 import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  renderElementList, esc } from './inspector.js';
 import * as RC from './roomcore.js';   // 1.6.2 (backlog 45): the rooms' pure half
-import { cssColor } from './safecore.js';   // a category's colour from a file, checked
+import { cssColor, picRef } from './safecore.js';   // a category's colour from a file, checked
 
 
 
@@ -75,6 +75,7 @@ import { cssColor } from './safecore.js';   // a category's colour from a file, 
     
 
     var seen={}, placed = RC.roomsPlaced(activeMap);   // 1.6.2 (backlog 45, fold 3): the rooms with a place on the play map
+    var hereAll = RC.roomsHere(activeMap), campF = getActiveCampaign(), followed = false, sheetOf = function(id) { return campF && campF.chars && Object.prototype.hasOwnProperty.call(campF.chars, id) ? campF.chars[id] : null; };   // fold 4: who stands in each room, read from the map
 
     activeMap.rooms.forEach(function(r){
 
@@ -151,15 +152,13 @@ import { cssColor } from './safecore.js';   // a category's colour from a file, 
 
       }
 
-      if(r.characters && r.characters.length > 0) {
-
-          badges.innerHTML += '<div class="badge-char" title="'+r.characters.length+' character(s)">'+r.characters.length+'</div>';
-
-      }
+      (r.characters || []).forEach(function(c) { if (c && c.sheet && sheetOf(c.sheet)) { var sn = RC.entryName(c, sheetOf); if (sn && c.name !== sn) { c.name = sn; followed = true; } } });   // the review: a sheet renamed since, followed by the entry's own name, which players are sent
+      roomFacesDraw(el, RC.roomFaces(r, hereAll[r.id], sheetOf));   // 1.6.2 (backlog 45, fold 4; the owner: "A. Faces, then +N"): who is there, those here now first
 
     });
 
     Object.keys(state.els).forEach(function(id){ if(!seen[id]){ state.els[id].remove(); delete state.els[id]; } });
+    if (followed && window.wpCanPersistLocal && window.wpCanPersistLocal()) save(true);   // fold 4: an entry followed its sheet's new name
 
     
 
@@ -437,11 +436,9 @@ import { cssColor } from './safecore.js';   // a category's colour from a file, 
           return {x: bx, y: by};
       }
   }
-  // Tokens follow their room: when a character token is dropped inside a
-  // whiteboard item that's linked to a room, the character's dossier entry
-  // moves into that room (out of whichever room it was in). Returns the room
-  // when something changed, so callers can announce it.
-  window.wpAutoRoom = function(item, map) {
+  // The room a character token came into when it was dropped inside a piece linked to a room, so a caller can say so. It changes nothing:
+  // since 1.6.2 (backlog 45, fold 4) a room's typed list stays as the GM wrote it, and who stands there is read from the map.
+  window.wpAutoRoom = function(item, map, from) {   // from: { x, y }, where the drag began, where the caller knows it
       if (!item || !item.isChar || !item.charName) return null;
       // Hidden tokens are lurking NPCs staged for a reveal: never let a drag
       // surface them in a room's (player-visible) character list. Revealing the
@@ -457,27 +454,20 @@ import { cssColor } from './safecore.js';   // a category's colour from a file, 
           if (cx < o.x || cx > o.x + ow || cy < o.y || cy > o.y + oh) return;
           if (ow * oh < bestArea) { bestArea = ow * oh; best = o; }
       });
-      if (!best) return null;
+      if (!best) { _tokRoom[item.id] = null; return null; }
       var room = map.rooms.find(function(r) { return r.id === best.nodeId; });
-      if (!room) return null;
-      var key = item.charName.trim().toLowerCase();
-      var entry = null, changed = false;
-      map.rooms.forEach(function(r) {
-          if (!r.characters) return;
-          for (var i = r.characters.length - 1; i >= 0; i--) {
-              var c = r.characters[i];
-              if ((c.name || '').trim().toLowerCase() !== key) continue;
-              if (r.id === room.id) { entry = entry || c; }
-              else { r.characters.splice(i, 1); entry = entry || c; changed = true; }
-          }
-      });
-      room.characters = room.characters || [];
-      if (!room.characters.some(function(c) { return (c.name || '').trim().toLowerCase() === key; })) {
-          room.characters.push(entry || { id: uid(), name: item.charName, info: '' });
-          changed = true;
+      if (!room) { _tokRoom[item.id] = null; return null; }
+      // 1.6.2 (backlog 45, fold 4; the owner: "A. Here now, then Expected"): the typed list is the GM's own, Expected here, and stays as written; who
+      // stands in a room is read from the map (roomcore roomsHere). A drop says the room a token came into, once, from this machine's memory
+      var wasRoom = _tokRoom[item.id]; _tokRoom[item.id] = room.id;
+      if (from && isFinite(from.x) && isFinite(from.y)) {   // the review: judged where the drag began, so the first drop after a load says nothing for a move inside the same room
+          var fx = from.x + (item.w || 100) / 2, fy = from.y + (item.h || 100) / 2, fb = null, fa = Infinity;
+          map.whiteboard.forEach(function(o) { if (o.id === item.id || !o.nodeId) return; var ow = o.w || 100, oh = o.h || 100; if (fx < o.x || fx > o.x + ow || fy < o.y || fy > o.y + oh) return; if (ow * oh < fa) { fa = ow * oh; fb = o; } });
+          wasRoom = fb ? fb.nodeId : null;
       }
-      return changed ? room : null;
+      return wasRoom === room.id ? null : room;
   };
+  var _tokRoom = Object.create(null);   // the room each token was last seen in, this machine's memory alone
 
   // Seat a character token / hex-shaped item into the nearest hex cell by its
   // center, on any map whose grid is hex. Used everywhere a token can land —
@@ -1245,7 +1235,7 @@ import { cssColor } from './safecore.js';   // a category's colour from a file, 
               if (window.wpNet && window.wpNet.holdsMoved && item.isChar) { var mdH = multiDrag.filter(function(m) { return m.item === item; })[0]; try { if (mdH) window.wpNet.holdsMoved(am, item, { x: mdH.ox, y: mdH.oy }); } catch (e) { console.error(e); } }   // 1.6.0 Who holds whom: the GM's own drop drags, or lets go
               // A portal under the token? Travel first, so the room note below only fires when the token actually stays put.
               var traveled = !!(window.wpNet && window.wpNet.tokenDropped && window.wpNet.tokenDropped(item, am, true));   // true: this machine's own hand — on the host, the GM's (a portal locked for players does not stop it); a player's app travels nobody from here
-              var toRoom = window.wpAutoRoom ? window.wpAutoRoom(item, am) : null;
+              var mdR = multiDrag.filter(function(m) { return m.item === item; })[0], toRoom = window.wpAutoRoom ? window.wpAutoRoom(item, am, mdR ? { x: mdR.ox, y: mdR.oy } : null) : null;   // judged where its drag began
               if (toRoom && !traveled) import('./io.js').then(function(m) { m.toast((item.charName || 'Character') + ' is now in ' + (toRoom.name || 'that room') + '.'); });
           }
           multiDrag.forEach(function(md) { texSeatEl(md.el || (state.wbEls && state.wbEls[md.item.id]), md.item.x, md.item.y); });   // the map builder: seated again where the release snapped the pieces
@@ -1804,6 +1794,24 @@ import { cssColor } from './safecore.js';   // a category's colour from a file, 
       inp.focus(); if (typeof inp.select === 'function') inp.select();
       return inp;
   }
+  // [roomcheck:faces-start]
+  function roomFacesDraw(box, f) {   // under the room's name, as the owner's picked mock-up drew it; the box's last strip goes first
+      var old = box && box.querySelector ? box.querySelector('.room-faces') : null; if (old && old.parentNode) old.parentNode.removeChild(old);
+      if (!box || !f || !f.faces || !f.faces.length) return;
+      var strip = document.createElement('div'); strip.className = 'room-faces';
+      var names = [];
+      f.faces.forEach(function(x) {
+          var s = document.createElement('span'); s.className = 'rf' + (x.here ? ' rf-here' : '') + (x.hidden ? ' rf-hidden' : '');
+          var src = typeof picRef === 'function' && !(typeof window !== 'undefined' && window.wpNet && window.wpNet.foreign) ? picRef(x.pic) : '';   // the review: a player's app has no file of the GM's
+          if (src) { var im = document.createElement('img'); im.src = src; im.alt = ''; s.appendChild(im); }
+          else s.textContent = String(x.name || '?').trim().charAt(0).toUpperCase() || '?';
+          strip.appendChild(s); names.push(x.name + (x.here ? '' : ' (expected)'));
+      });
+      if (f.more > 0) { var m = document.createElement('span'); m.className = 'rf-more'; m.textContent = '+' + f.more; strip.appendChild(m); names.push(f.more + ' more'); }
+      strip.dataset.tip = names.join(', ');
+      box.appendChild(strip);
+  }
+  // [roomcheck:faces-end]
   // [roomcheck:place-start]
   // 1.6.2 (backlog 45, fold 3): Place it on a room with no place. A press on it is no press on the room: nothing is dragged or selected again
   function roomNpWire(el) {
@@ -1833,7 +1841,17 @@ import { cssColor } from './safecore.js';   // a category's colour from a file, 
       if (window.appRender) window.appRender(); if (window.appRestoreCamera) window.appRestoreCamera();
       return '';
   }
-  window.wpRoomShowPlay = roomShowPlay; window.wpRoomShowData = roomShowData;
+  // From a room's Here now to the token itself: the play map, the token selected and in the middle
+  function tokShowPlay(tokId) {
+      var am = getActiveMap(); if (!am || am.type !== 'map') return '';
+      var w = (am.whiteboard || []).find(function(x) { return x.id === tokId; }); if (!w) return 'That token is no longer on this map.';
+      am.meta = am.meta || {}; am.meta.lastWbX = w.x + (w.w || 100) / 2; am.meta.lastWbY = w.y + (w.h || 100) / 2;
+      if (window.wpSetViewMode) window.wpSetViewMode('visual');
+      state.selId = null; state.selWbId = w.id; state.selWbIds = [w.id];
+      if (window.appRender) window.appRender(); if (window.appRestoreCamera) window.appRestoreCamera();
+      return '';
+  }
+  window.wpRoomShowPlay = roomShowPlay; window.wpRoomShowData = roomShowData; window.wpTokShowPlay = tokShowPlay;
   // [roomcheck:place-end]
   var _rlink = null;   // the link being dragged from a room's handle: { from, mapId, sx, sy, moved, line }
   function roomLinkStart(id, e) {

@@ -168,6 +168,62 @@ function roomPlacePiece(kind, room, box, floor) {
     return Object.assign({ color: '#3a3a44' }, isObj(floor) ? floor : {}, { type: 'rect', x: x, y: y, w: w, h: h, layer: 'back', nodeId: room.id, name: name });
 }
 
-var API = { ROOM_W: ROOM_W, fold: fold, queryWords: queryWords, jumpMatch: jumpMatch, roomWords: roomWords, roomMatch: roomMatch, roomCatOf: roomCatOf, catsUsed: catsUsed, roomShown: roomShown, roomsOrdered: roomsOrdered, ROOM_H: ROOM_H, NAME_MAX: NAME_MAX, roomNameOf: roomNameOf, freeSpot: freeSpot, newRoom: newRoom, linkAt: linkAt, linkAdd: linkAdd, besideRooms: besideRooms, pieceRoomOk: pieceRoomOk, pieceRoomName: pieceRoomName, roomPlaceOf: roomPlaceOf, roomsPlaced: roomsPlaced, roomPlacePiece: roomPlacePiece };
+// ---- fold 4, who is in a room (the owner, 2026-11-11, by prompt: "Tokens there, typed list kept", "Names or faces on the box", "Find a
+// character's room", "Tie an entry to a sheet"; and 2026-11-12, of the look: "A. Here now, then Expected", "A. Faces, then +N", "A. A Sheet list,
+// name follows"). A token is in the room whose place holds its centre, the smallest place where several do (as net.js roomUnder judges a drop).
+// Nothing of it is stored: Here now is read from the map each time, and the typed list is the GM's own, Expected here
+function roomPlaces(map) {
+    var rooms = Object.create(null), out = [];
+    (isObj(map) && Array.isArray(map.rooms) ? map.rooms : []).forEach(function(r) { if (isObj(r) && typeof r.id === 'string') rooms[r.id] = r; });
+    (isObj(map) && Array.isArray(map.whiteboard) ? map.whiteboard : []).forEach(function(w) {
+        if (!placeOk(w) || !rooms[w.nodeId]) return;
+        var ww = Math.max(0, num(w.w, 100)), hh = Math.max(0, num(w.h, 100));
+        out.push({ x: w.x, y: w.y, w: ww, h: hh, a: ww * hh, room: rooms[w.nodeId] });
+    });
+    return out;
+}
+function placeAt(places, x, y) {
+    var best = null;
+    places.forEach(function(p) { if (x < p.x || x > p.x + p.w || y < p.y || y > p.y + p.h) return; if (!best || p.a < best.a) best = p; });
+    return best ? best.room : null;
+}
+// The character tokens standing in each room, by room id (an object with no prototype); a waiting token or a GM note card is no one
+function roomsHere(map) {
+    var out = Object.create(null), places = roomPlaces(map); if (!places.length) return out;
+    map.whiteboard.forEach(function(w) {
+        if (!isObj(w) || !w.isChar || w.waiting || w.gmNoteFor || !isFinite(num(w.x, NaN)) || !isFinite(num(w.y, NaN))) return;
+        var room = placeAt(places, w.x + num(w.w, 100) / 2, w.y + num(w.h, 100) / 2); if (!room) return;
+        (out[room.id] = out[room.id] || []).push(w);
+    });
+    return out;
+}
+// The name a token or an entry goes by: a token's character name, else its own; an entry tied to a sheet the sheet's (sheetOf answers it), else its own
+function tokName(w) { return String(isObj(w) && (w.charName || w.name) || '').trim(); }
+function entryName(c, sheetOf) { var s = isObj(c) && typeof c.sheet === 'string' && c.sheet && typeof sheetOf === 'function' ? sheetOf(c.sheet) : null; return String(isObj(s) && s.name || isObj(c) && c.name || '').trim(); }
+// The faces a room's box shows: those here now first, then the expected not already there, three at most, and how many more. Each { name, pic,
+// here, hidden }; a picture is handed on as it stands and drawn only through the app's picture rule
+function roomFaces(room, here, sheetOf) {
+    var seen = Object.create(null), all = [];
+    (Array.isArray(here) ? here : []).forEach(function(w) { var n = tokName(w), k = n.toLowerCase(); if (!n || seen[k]) return; seen[k] = 1; all.push({ name: n, pic: typeof w.src === 'string' ? w.src : '', here: true, hidden: !!w.hidden }); });
+    (isObj(room) && Array.isArray(room.characters) ? room.characters : []).forEach(function(c) {
+        var n = entryName(c, sheetOf), k = n.toLowerCase(); if (!n || seen[k]) return; seen[k] = 1;
+        var s = isObj(c) && c.sheet && typeof sheetOf === 'function' ? sheetOf(c.sheet) : null;
+        all.push({ name: n, pic: typeof c.portrait === 'string' && c.portrait ? c.portrait : isObj(s) && typeof s.portrait === 'string' ? s.portrait : '', here: false, hidden: false });
+    });
+    return { faces: all.slice(0, 3), more: Math.max(0, all.length - 3) };
+}
+// Where a character is: on the map handed first, then the campaign's other maps in order; a token of that sheet standing in a room ('here'), else
+// an entry tied to that sheet ('expected'), else an entry of the same name ('expected'). Null where none says so
+function charRoomIn(items, first, charId, name) {
+    var maps = (isObj(items) ? Object.keys(items) : []).map(function(k) { return items[k]; }).filter(function(m) { return isObj(m) && m.type === 'map'; });
+    maps.sort(function(a, b) { return (b.id === first ? 1 : 0) - (a.id === first ? 1 : 0); });
+    var key = String(name || '').trim().toLowerCase(), i, m;
+    for (i = 0; i < maps.length; i++) { m = maps[i]; var hr = roomsHere(m); for (var rid in hr) { if (hr[rid].some(function(w) { return w.charId === charId; })) return { map: m, room: (m.rooms || []).find(function(r) { return r.id === rid; }), how: 'here' }; } }
+    for (i = 0; i < maps.length; i++) { m = maps[i]; var r1 = (Array.isArray(m.rooms) ? m.rooms : []).find(function(r) { return isObj(r) && Array.isArray(r.characters) && r.characters.some(function(c) { return isObj(c) && c.sheet === charId; }); }); if (r1) return { map: m, room: r1, how: 'expected' }; }
+    if (key) for (i = 0; i < maps.length; i++) { m = maps[i]; var r2 = (Array.isArray(m.rooms) ? m.rooms : []).find(function(r) { return isObj(r) && Array.isArray(r.characters) && r.characters.some(function(c) { return isObj(c) && String(c.name || '').trim().toLowerCase() === key; }); }); if (r2) return { map: m, room: r2, how: 'expected' }; }
+    return null;
+}
+
+var API = { ROOM_W: ROOM_W, fold: fold, queryWords: queryWords, jumpMatch: jumpMatch, roomWords: roomWords, roomMatch: roomMatch, roomCatOf: roomCatOf, catsUsed: catsUsed, roomShown: roomShown, roomsOrdered: roomsOrdered, ROOM_H: ROOM_H, NAME_MAX: NAME_MAX, roomNameOf: roomNameOf, freeSpot: freeSpot, newRoom: newRoom, linkAt: linkAt, linkAdd: linkAdd, besideRooms: besideRooms, pieceRoomOk: pieceRoomOk, pieceRoomName: pieceRoomName, roomPlaceOf: roomPlaceOf, roomsPlaced: roomsPlaced, roomPlacePiece: roomPlacePiece, roomsHere: roomsHere, roomFaces: roomFaces, entryName: entryName, charRoomIn: charRoomIn };
 if (typeof window !== 'undefined') window.wpRoomCore = API;
-export { fold, queryWords, jumpMatch, roomWords, roomMatch, roomCatOf, catsUsed, roomShown, roomsOrdered, ROOM_W, ROOM_H, NAME_MAX, roomNameOf, freeSpot, newRoom, linkAt, linkAdd, besideRooms, pieceRoomOk, pieceRoomName, roomPlaceOf, roomsPlaced, roomPlacePiece };
+export { fold, queryWords, jumpMatch, roomWords, roomMatch, roomCatOf, catsUsed, roomShown, roomsOrdered, ROOM_W, ROOM_H, NAME_MAX, roomNameOf, freeSpot, newRoom, linkAt, linkAdd, besideRooms, pieceRoomOk, pieceRoomName, roomPlaceOf, roomsPlaced, roomPlacePiece, roomsHere, roomFaces, entryName, charRoomIn };

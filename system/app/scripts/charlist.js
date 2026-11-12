@@ -102,10 +102,11 @@ function charNoToken(name, waiting, client) { return name + (waiting ? ' has a t
 // The rows of a character's menu, as the owner picked them: Sheet, HUD where the sheet has one, Find on the map, Delete sheet. Backlog 152 fold 4b (the
 // owner's answer 1, 2026-10-19: a Rules run switch on each NPC, "placed somewhere easy to use quickly"): after Find on the map, an NPC's Rules run as a
 // tick row where it has the switch. rules: which way it stands, true or false (calendar.js rulesRun); anything else, no row
-function charMenuRows(hud, del, rules, give, debts, unique, file) {   // debts (157 M1h): the GM's Debts... row; unique (backlog 31): an NPC's Unique tick; file (218 fold 2): File under…
+function charMenuRows(hud, del, rules, give, debts, unique, file, room) {   // room (backlog 45, fold 4): Find their room, the GM's   // debts (157 M1h): the GM's Debts... row; unique (backlog 31): an NPC's Unique tick; file (218 fold 2): File under…
     var rows = [{ act: 'sheet', text: 'Sheet\u2026' }];
     if (hud) rows.push({ act: 'hud', text: 'HUD\u2026' });
     rows.push({ rule: true }, { act: 'find', text: 'Find on the map' });
+    if (room === true) rows.push({ act: 'room', text: 'Find their room' });
     if (file === true) rows.push({ act: 'file', text: 'File under\u2026' });
     if (give === true) rows.push({ act: 'give', text: 'Give to a player\u2026' });
     if (debts === true) rows.push({ act: 'debts', text: 'Debts\u2026' });   // 1.6.0: the GM's, here and on the sheet's own line
@@ -148,6 +149,20 @@ function sync() {
     return show ? count : 0;
 }
 function openOf(id) { var S = sheets(); if (away()) return; if (!S || !S.canOpen || !S.canOpen(id)) { toast('That sheet cannot be opened here.'); return; } S.openSheet(id); }
+// [roomcheck:charroom-start]
+// 1.6.2 (backlog 45, fold 4; the owner: "Find a character's room"): the Data Map at the room a character stands in, else the room that expects it
+// (an entry tied to its sheet, else one of its name), on the map on screen first and then the campaign's others. The room selected and in view
+function roomOf(id) {
+    var camp = getActiveCampaign(), S = sheets(), c = camp && S ? S.charById(id, camp) : null, RCc = window.wpRoomCore; if (!c || !RCc || foreign()) return;
+    var hit = RCc.charRoomIn(camp.items, camp.activeItemId, id, c.name);
+    if (!hit || !hit.room) { toast(charText(c.name, CHAR_NAME) + ' is in no room: no token of theirs stands in one, and no room expects them.'); return; }
+    state.viewMode = 'data';
+    hit.map.meta = hit.map.meta || {}; hit.map.meta.lastView = 'data';
+    navigateToMap(hit.map.id, hit.room.id);
+    if (window.wpViewButtons) window.wpViewButtons();   // the review: the switch shows the Data Map too
+    toast(charText(c.name, CHAR_NAME) + (hit.how === 'here' ? ' is in ' : ' is expected in ') + (hit.room.name || 'a room') + '.');
+}
+// [roomcheck:charroom-end]
 function findOf(id) {
     var camp = getActiveCampaign(), S = sheets(), c = camp && S ? S.charById(id, camp) : null; if (!c) return;
     var hit = charTokenOf(camp.items, id, camp.activeItemId, !foreign());
@@ -202,7 +217,7 @@ function menuFor(id, x, y) {
     // Delete only where the sheet module will take it: a player's own whole sheet while their link is up, the GM's where the campaign can be written
     var client = foreign(), del = client ? !!(linkUp() && c.ownerId && c.ownerId === window.wpNet.myId && !c.partial && c.shared !== 1) : !!(window.wpCanPersistLocal && window.wpCanPersistLocal());
     var Cal = window.wpCalendar, rules = !client && Cal && typeof Cal.rulesRun === 'function' ? Cal.rulesRun(id) : null;   // 152 fold 4b: the GM's alone, and only where calendar.js says the character has the switch
-    charMenuRows(!!(S.hudFor && S.hudFor(id)), del, rules, !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()), !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && typeof S.debtAdd === 'function', !client && c.npc === true && typeof S.uniqueToggle === 'function' && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) ? c.unique === true : null, !!catMayOf(c)).forEach(function(r) {
+    charMenuRows(!!(S.hudFor && S.hudFor(id)), del, rules, !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()), !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && typeof S.debtAdd === 'function', !client && c.npc === true && typeof S.uniqueToggle === 'function' && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) ? c.unique === true : null, !!catMayOf(c), !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal())).forEach(function(r) {
         var d = document.createElement(r.rule ? 'div' : 'button');
         if (r.rule) d.className = 'menu-divider'; else { d.type = 'button'; if (r.red) d.className = 'danger'; d.dataset.act = r.act; d.setAttribute('role', r.tick === true || r.tick === false ? 'menuitemcheckbox' : 'menuitem'); if (r.tick === true || r.tick === false) { d.setAttribute('aria-checked', r.tick ? 'true' : 'false'); d.title = r.act === 'unique' ? 'Ticked, an encounter group placed with this NPC uses this one sheet. Unticked, each placing makes a fresh numbered copy' : 'Ticked, this NPC\u2019s time rules run by themselves as time passes. Unticked, they do not'; } d.appendChild(document.createTextNode((r.tick === true ? '\u2713 ' : '') + r.text)); }
         _menu.appendChild(d);
@@ -238,6 +253,7 @@ function menuPress(e) {
             if (act === 'sheet') openOf(cid);
             else if (act === 'hud') { if (!away() && S2.hudFor(cid)) S2.openHud(cid); }
             else if (act === 'find') findOf(cid);
+            else if (act === 'room') roomOf(cid);   // backlog 45, fold 4
             else if (act === 'delete') { if (S2.askDeleteSheet) S2.askDeleteSheet(cid); }
             else if (act === 'rules') { var C2 = window.wpCalendar, now = !foreign() && C2 && typeof C2.rulesRun === 'function' ? C2.rulesRun(cid) : null; if (typeof now === 'boolean' && typeof C2.setRulesRun === 'function') C2.setRulesRun(cid, !now); }   // 152 fold 4b: the switch the other way, as it stands at the press
 }

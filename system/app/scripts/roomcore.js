@@ -80,6 +80,62 @@ function pieceRoomOk(w, rooms) {
 // sent the map's rooms by name, and the piece itself is sent to no one
 function pieceRoomName(w) { return roomNameOf(isObj(w) && !w.hidden && typeof w.name === 'string' ? w.name : '', 'New room'); }
 
-var API = { ROOM_W: ROOM_W, ROOM_H: ROOM_H, NAME_MAX: NAME_MAX, roomNameOf: roomNameOf, freeSpot: freeSpot, newRoom: newRoom, linkAt: linkAt, linkAdd: linkAdd, besideRooms: besideRooms, pieceRoomOk: pieceRoomOk, pieceRoomName: pieceRoomName };
+// ---- fold 2, finding a room (the owner, 2026-11-11, by prompt: "A Find box that dims the rest", "Category chips", "Quick jump reads more",
+// "Rooms list by name"). Words are compared folded: lower case, accents left out, so Café finds cafe
+function fold(v) { var s = typeof v === 'string' ? v : v == null ? '' : String(v); try { s = s.normalize('NFD'); } catch (e) {} return s.replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+// What a room is found by, folded: its name, its notes, and who is there (each character's name and what the GM wrote of them)
+var _words = typeof WeakMap === 'function' ? new WeakMap() : null;   // a room's folded words, kept until its words change (the review: a drag draws the Data Map at every move)
+function roomWords(r) {
+    if (!isObj(r)) return { name: '', notes: '', who: '' };
+    var who = (Array.isArray(r.characters) ? r.characters : []).filter(isObj).map(function(c) { return (typeof c.name === 'string' ? c.name : '') + ' ' + (typeof c.info === 'string' ? c.info : ''); }).join(' ');
+    var src = String(r.name) + '\u0001' + String(r.notes) + '\u0001' + who, had = _words ? _words.get(r) : null;
+    if (had && had.src === src) return had.w;
+    var w = { name: fold(r.name), notes: fold(r.notes), who: fold(who) };
+    if (_words) _words.set(r, { src: src, w: w });
+    return w;
+}
+function queryWords(q) { return fold(q).split(/\s+/).filter(Boolean).slice(0, 12); }
+// Whether a room is found by what was typed: every word somewhere in its name, its notes or who is there. Answers '' (not found), 'all' (nothing
+// typed), 'name' (every word in its name), 'notes' (in its name and notes) or 'who' (only with who is there)
+function roomMatch(r, q) {
+    var ws = queryWords(q); if (!ws.length) return 'all';
+    var w = roomWords(r), all = w.name + ' ' + w.notes + ' ' + w.who, nn = w.name + ' ' + w.notes;
+    if (!ws.every(function(x) { return all.indexOf(x) >= 0; })) return '';
+    if (ws.every(function(x) { return w.name.indexOf(x) >= 0; })) return 'name';
+    return ws.every(function(x) { return nn.indexOf(x) >= 0; }) ? 'notes' : 'who';
+}
+// Quick jump's reading of a room (main.js cmdkRender), the Find box's own rule: 'name', 'notes', 'who' or '' for no word typed or none found
+function jumpMatch(label, wn, ww, q) {
+    var ws = queryWords(q); if (!ws.length) return '';
+    var nm = fold(label), n2 = typeof wn === 'string' ? wn : '', w2 = typeof ww === 'string' ? ww : '', all = nm + ' ' + n2 + ' ' + w2;
+    if (!ws.every(function(x) { return all.indexOf(x) >= 0; })) return '';
+    if (ws.every(function(x) { return nm.indexOf(x) >= 0; })) return 'name';
+    return ws.every(function(x) { return (nm + ' ' + n2).indexOf(x) >= 0; }) ? 'notes' : 'who';
+}
+// A room's category as the Data Map draws it: its own where the map has it, else the map's first
+function roomCatOf(r, cats) { var keys = isObj(cats) ? Object.keys(cats) : []; return isObj(r) && keys.indexOf(r.cat) >= 0 ? r.cat : (keys[0] || ''); }
+// The categories this map's rooms are in, in the map's own order, each with its label, colour and count; none for a category no room is in
+function catsUsed(rooms, cats) {
+    if (!isObj(cats)) return [];
+    var n = Object.create(null); (Array.isArray(rooms) ? rooms : []).filter(isObj).forEach(function(rm) { var k = roomCatOf(rm, cats); if (k) n[k] = (n[k] || 0) + 1; });
+    return Object.keys(cats).filter(function(k) { return n[k] > 0; }).map(function(k) { var c = isObj(cats[k]) ? cats[k] : {}; return { key: k, label: typeof c.label === 'string' && c.label ? c.label : 'Unnamed', color: typeof c.color === 'string' ? c.color : '', n: n[k] }; });
+}
+// Whether a room stands out (shown) under what was typed and the chips picked, and whether it is a hit of the words. With nothing typed and no
+// chip picked every room is shown and none is a hit
+function roomShown(r, q, picked, cats) {
+    var m = roomMatch(r, q), inCat = !Array.isArray(picked) || !picked.length || picked.indexOf(roomCatOf(r, cats)) >= 0;
+    return { shown: !!m && inCat, hit: !!m && m !== 'all' && inCat };
+}
+// The rooms in an order: 'name' (as a person reads them, 2 before 10, ignoring case), 'cat' (by the map's category order, then name), else as made
+function roomsOrdered(rooms, how, cats) {
+    var list = (Array.isArray(rooms) ? rooms : []).filter(isObj).map(function(rm, i) { return { r: rm, i: i }; });
+    var nm = function(a, b) { var c = String(a.r.name || '').localeCompare(String(b.r.name || ''), undefined, { numeric: true, sensitivity: 'base' }); return c || a.i - b.i; };
+    var keys = isObj(cats) ? Object.keys(cats) : [];
+    if (how === 'name') list.sort(nm);
+    else if (how === 'cat') list.sort(function(a, b) { var d = keys.indexOf(roomCatOf(a.r, cats)) - keys.indexOf(roomCatOf(b.r, cats)); return d || nm(a, b); });
+    return list.map(function(e) { return e.r; });
+}
+
+var API = { ROOM_W: ROOM_W, fold: fold, queryWords: queryWords, jumpMatch: jumpMatch, roomWords: roomWords, roomMatch: roomMatch, roomCatOf: roomCatOf, catsUsed: catsUsed, roomShown: roomShown, roomsOrdered: roomsOrdered, ROOM_H: ROOM_H, NAME_MAX: NAME_MAX, roomNameOf: roomNameOf, freeSpot: freeSpot, newRoom: newRoom, linkAt: linkAt, linkAdd: linkAdd, besideRooms: besideRooms, pieceRoomOk: pieceRoomOk, pieceRoomName: pieceRoomName };
 if (typeof window !== 'undefined') window.wpRoomCore = API;
-export { ROOM_W, ROOM_H, NAME_MAX, roomNameOf, freeSpot, newRoom, linkAt, linkAdd, besideRooms, pieceRoomOk, pieceRoomName };
+export { fold, queryWords, jumpMatch, roomWords, roomMatch, roomCatOf, catsUsed, roomShown, roomsOrdered, ROOM_W, ROOM_H, NAME_MAX, roomNameOf, freeSpot, newRoom, linkAt, linkAdd, besideRooms, pieceRoomOk, pieceRoomName };

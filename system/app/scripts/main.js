@@ -321,6 +321,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       // Main wrappers
 
       document.getElementById('canvasWrap').style.display = (!isPlanner && state.viewMode === 'data') ? 'flex' : 'none';
+      var dataFindEl = document.getElementById('dataFind'); if (dataFindEl && !(!isPlanner && state.viewMode === 'data')) dataFindEl.hidden = true;   // 1.6.2 (backlog 45): the Find strip is the Data Map's alone (datamap.js dataFindSync shows it there)
       var dataEmptyEl = document.getElementById('dataEmpty'); if (dataEmptyEl) dataEmptyEl.hidden = !(!isPlanner && state.viewMode === 'data' && !(Array.isArray(activeMap.rooms) && activeMap.rooms.length));   // 1.6.2: an empty data map says how to begin
 
       document.getElementById('whiteboardWrap').style.display = (!isPlanner && state.viewMode === 'visual') ? 'flex' : 'none';
@@ -1540,7 +1541,8 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
                 var title = (it.meta && it.meta.title) || it.id;
                 _cmdkEntries.push({ kind: it.type, label: title, sub: c.name, campId: c.id, itemId: it.id });
                 if (it.type === 'map') (it.rooms || []).forEach(function(r) {
-                    _cmdkEntries.push({ kind: 'room', label: r.name || r.id, sub: title, campId: c.id, itemId: it.id, roomId: r.id });
+                    var rwQ = window.wpRoomCore && typeof window.wpRoomCore.roomWords === 'function' ? window.wpRoomCore.roomWords(r) : null;   // 1.6.2 (backlog 45): its notes and who is there, folded
+                    _cmdkEntries.push({ kind: 'room', label: r.name || r.id, sub: title, campId: c.id, itemId: it.id, roomId: r.id, wn: rwQ ? rwQ.notes : '', ww: rwQ ? rwQ.who : '' });
                 });
                 // backlog 107 step 3 and 147: a planner's cards by name and by every other name they go by, each opening at its card
                 var CCq = window.wpCardCore;
@@ -1569,6 +1571,11 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
             else if (Array.isArray(en.also) && en.also.some(function(w) { return String(w).indexOf(ql) === 0; })) s = 1;
             else if (Array.isArray(en.aka) && en.aka.some(function(w) { return String(w).toLowerCase().indexOf(ql) !== -1; })) s = en.aka.some(function(w) { return String(w).toLowerCase().indexOf(ql) === 0; }) ? 0 : 1;   // a card by another of its names   // a command's other words (the Ruler is found by measure)
             else if (en.sub.toLowerCase().indexOf(ql) !== -1) s = 2;
+            else if (en.kind === 'room' && window.wpRoomCore && typeof window.wpRoomCore.jumpMatch === 'function') {   // 1.6.2 (backlog 45): a room by the Find box's own rule: every word, accents left out; found by its notes or who is there, said beside it
+                var jm = window.wpRoomCore.jumpMatch(en.label, en.wn, en.ww, ql);
+                if (jm === 'name') s = 1;
+                else if (jm) { scored.push([2, Object.assign({}, en, { sub: en.sub + (jm === 'notes' ? ', in its notes' : ', by who is there') })]); return; }
+            }
             if (s >= 0) scored.push([s, en]);
         });
         scored.sort(function(a, b) { return a[0] - b[0]; });

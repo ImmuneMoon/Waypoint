@@ -62,6 +62,7 @@ import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, up
 
 import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  renderElementList, esc } from './inspector.js';
 import * as RC from './roomcore.js';   // 1.6.2 (backlog 45): the rooms' pure half
+import { cssColor } from './safecore.js';   // a category's colour from a file, checked
 
 
 
@@ -120,7 +121,7 @@ import * as RC from './roomcore.js';   // 1.6.2 (backlog 45): the rooms' pure ha
 
       var defaultCat = Object.keys(activeMap.cats)[0];
 
-      var c=activeMap.cats[r.cat]||activeMap.cats[defaultCat]||{label:'Unknown',color:'#000'};
+      var c=(activeMap.cats && Object.prototype.hasOwnProperty.call(activeMap.cats, RC.roomCatOf(r, activeMap.cats)) ? activeMap.cats[RC.roomCatOf(r, activeMap.cats)] : null)||{label:'Unknown',color:'#000'};   // 1.6.2 (backlog 45): the category by roomcore's one rule, as the chips and the list read it
 
       el.style.left=r.x+'px'; el.style.top=r.y+'px';
 
@@ -187,7 +188,7 @@ import * as RC from './roomcore.js';   // 1.6.2 (backlog 45): the rooms' pure ha
       // A fat invisible twin takes the clicks: click selects the link, right-click opens the quick menu
       var hit=document.createElementNS('http://www.w3.org/2000/svg','line');
       hit.setAttribute('x1',cA.x);hit.setAttribute('y1',cA.y);hit.setAttribute('x2',cB.x);hit.setAttribute('y2',cB.y);
-      hit.setAttribute('class','hit');
+      hit.setAttribute('class','hit'); hit.setAttribute('data-a', lk[0]); hit.setAttribute('data-b', lk[1]);
       hit.addEventListener('click', function(ev){ ev.stopPropagation(); selectLink(i); });
       hit.addEventListener('contextmenu', function(ev){ ev.preventDefault(); ev.stopPropagation(); openEdgeMenu(ev, i); });
       svg.appendChild(hit);
@@ -198,7 +199,7 @@ import * as RC from './roomcore.js';   // 1.6.2 (backlog 45): the rooms' pure ha
       ln.setAttribute('x2',cB.x);ln.setAttribute('y2',cB.y);
 
       var lt = LINK_TYPES[lk[2]] ? (lk[2] || '') : '';
-      ln.setAttribute('class', 'edge' + (lt ? ' ' + lt : '') + (state.selLink === i ? ' sel' : ''));
+      ln.setAttribute('class', 'edge' + (lt ? ' ' + lt : '') + (state.selLink === i ? ' sel' : '')); ln.setAttribute('data-a', lk[0]); ln.setAttribute('data-b', lk[1]);   // 1.6.2 (backlog 45): which rooms it joins, for the Find strip
       if (lt === 'oneway') {   // stop at the card's edge so the arrowhead shows
           ensureArrowMarker(svg);
           var dxA = cB.x - cA.x, dyA = cB.y - cA.y, hwA = b.offsetWidth / 2 + 4, hhA = b.offsetHeight / 2 + 4;
@@ -228,10 +229,11 @@ import * as RC from './roomcore.js';   // 1.6.2 (backlog 45): the rooms' pure ha
       hit.addEventListener('pointerenter', function(){ del.classList.add('near'); });
       hit.addEventListener('pointerleave', function(){ del.classList.remove('near'); });
 
+      del.setAttribute('data-a', lk[0]); del.setAttribute('data-b', lk[1]);
       canvas.appendChild(del);
 
     });
-
+    if (typeof dataFindSync === 'function') dataFindSync();   // 1.6.2 (backlog 45): the Find strip follows every drawing of the Data Map
   }
 
 
@@ -1792,6 +1794,7 @@ import * as RC from './roomcore.js';   // 1.6.2 (backlog 45): the rooms' pure ha
           if (!blur) { render(); return; }
           var rnE = el.querySelector('.rn'); if (rnE && rr) rnE.textContent = rr.name || '(unnamed)';   // the check: never renderDataMap here either, which builds every link again under a press on one
           var fN = document.getElementById('fName'); if (fN && rr && state.selId === id) fN.value = rr.name;
+          if (window.wpDataFind && typeof window.wpDataFind.apply === 'function') window.wpDataFind.apply();   // fold 2: a name typed may now be found (classes only, nothing built again)
       }
       inp.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.isComposing) return; if (e.key === 'Enter') { e.preventDefault(); end(true); } else if (e.key === 'Escape') { e.preventDefault(); end(false); } });   // Enter that ends a composition is the composition's
       inp.addEventListener('blur', function() { if (typeof document.hasFocus === 'function' && !document.hasFocus()) return; end(true, true); });   // the window losing the focus leaves the box open: the focus comes back to it
@@ -1869,6 +1872,119 @@ import * as RC from './roomcore.js';   // 1.6.2 (backlog 45): the rooms' pure ha
   });
   window.wpRoomAdd = { at: roomAddAt, rename: roomRename };
   // [roomcheck:page-end]
+  // [roomcheck:find-start]
+  // 1.6.2 (backlog 45, fold 2; the owner, 2026-11-11, by prompt: "A. Strip along the top (Recommended)", "Dimmed, still usable (Recommended)"):
+  // one strip along the top of the Data Map, the GM's, between the minimap and the zoom box. Its Find box reads each room's name, notes and who is
+  // there (roomcore roomMatch); a chip a category (catsUsed) shows only the rooms of the chips pressed. A room that does not stand out is dimmed and
+  // stays usable, its links fade with it, and a room the words find is lit. Enter goes to the next one found, selects it and centres it. Nothing
+  // of it is stored: the words and the chips are this screen's, let go when another map is on screen
+  var _df = { mapId: null, q: '', picked: [], at: -1, sig: '' };
+  function dataFindMay() { return state.viewMode === 'data' && !window.wpStream && !(window.wpNet && window.wpNet.foreign); }
+  // The strip stands in the row of the minimap and the zoom box, between them, past the left ruler; where that leaves it too little room (a
+  // narrow area, the minimap under the zoom box) it takes a row of its own under the zoom box, as wide as the area (the review: it slid under the
+  // zoom box). Its top row follows the style sheet (26 px, 8 with no rulers, under a hidden top row's bar)
+  var DF_MIN = 220;
+  function dataFindPlace() {
+      var bar = document.getElementById('dataFind'), main = document.getElementById('main'); if (!bar || !main || bar.hidden) return;
+      var body = document.body, mb = main.getBoundingClientRect(), mm = document.getElementById('minimap'), zb = document.getElementById('zoomBox');
+      var base = body && body.classList && body.classList.contains('no-rulers') ? 8 : 44, left = base, right = 8;
+      var box = function(el) { if (!el) return null; var rr = el.getBoundingClientRect(); return rr.width > 0 && rr.height > 0 ? rr : null; };
+      var zr = box(zb), mr = box(mm), row = zr ? zr.top : mb.top + 26;
+      if (mr && Math.abs(mr.top - row) < 20) left = Math.max(left, Math.round(mr.right - mb.left + 8));   // only a minimap in the strip's own row
+      if (zr) right = Math.max(right, Math.round(mb.right - zr.left + 8));
+      bar.style.top = '';
+      if (mb.width - left - right < DF_MIN && (zr || mr)) {   // a row of its own under the zoom box, and under an open minimap that stands in that row (main.js cornerFit's mm-under: the review)
+          var top = (zr || mr).bottom + 8; left = base; right = 8;
+          if (mr && mr.bottom > top - 4 && mr.top < top + 40) {   // an open minimap in that row: beside it where there is room, else under it
+              if (mb.right - mr.right - 16 >= DF_MIN) left = Math.round(mr.right - mb.left + 8); else top = mr.bottom + 8;
+          }
+          bar.style.top = Math.round(top - mb.top) + 'px';
+      }
+      bar.style.left = left + 'px'; bar.style.right = right + 'px';
+      dataFindMore();
+  }
+  function dataFindMore() {   // the chips past the strip's end are faded at its edge, so the GM sees there are more (the review)
+      var ch = document.getElementById('dataFindChips'); if (!ch || !ch.classList) return;
+      ch.classList.toggle('df-more-r', ch.scrollWidth - ch.scrollLeft - ch.clientWidth > 2); ch.classList.toggle('df-more-l', ch.scrollLeft > 2);
+  }
+  function dataFindSync() {
+      var bar = document.getElementById('dataFind'), box = document.getElementById('dataFindBox'), chips = document.getElementById('dataFindChips'), am = getActiveMap();
+      if (!bar || !box || !chips) return;
+      var on = dataFindMay() && !!am && am.type === 'map' && Array.isArray(am.rooms) && am.rooms.length > 0;
+      if (am && am.id !== _df.mapId) { _df = { mapId: am.id, q: '', picked: [], at: -1, sig: '' }; box.value = ''; }
+      var was = bar.hidden; bar.hidden = !on;
+      if (!on) return;
+      var used = RC.catsUsed(am.rooms, am.cats), keys = used.map(function(c) { return c.key; });
+      _df.picked = _df.picked.filter(function(k) { return keys.indexOf(k) >= 0; });
+      var sig = JSON.stringify(used) + '|' + _df.picked.join(',');
+      if (sig !== _df.sig) {   // the chips are made again only when the categories or their counts change
+          _df.sig = sig; chips.textContent = '';
+          if (used.length > 1) used.forEach(function(c) {
+              var b = document.createElement('button'), dot = document.createElement('span'), nm = document.createElement('span'), n = document.createElement('span');
+              b.type = 'button'; b.className = 'df-chip' + (_df.picked.indexOf(c.key) >= 0 ? ' on' : ''); b.dataset.cat = c.key; b.setAttribute('aria-pressed', _df.picked.indexOf(c.key) >= 0 ? 'true' : 'false');
+              b.title = 'Dims every room of another category. Press another chip to keep its rooms too.'; b.setAttribute('aria-label', c.label + ', ' + c.n + (c.n === 1 ? ' room' : ' rooms'));
+              dot.className = 'df-dot'; dot.style.backgroundColor = cssColor(c.color, '#888'); nm.textContent = c.label; n.className = 'df-n'; n.textContent = String(c.n);   // the review: a colour from a file, checked
+              b.appendChild(dot); b.appendChild(nm); b.appendChild(n); chips.appendChild(b);
+          });
+      }
+      dataFindApply();
+      if (was) dataFindPlace();   // its place is measured as it shows, and again when a box beside it changes (observers below), never at each drawing of a drag
+      else dataFindMore();
+  }
+  function dataFindApply() {
+      var am = getActiveMap(), nEl = document.getElementById('dataFindN'); if (!am || !Array.isArray(am.rooms)) return { hits: [] };
+      var busy = !!RC.queryWords(_df.q).length || _df.picked.length > 0, hits = [], shownIds = {};
+      am.rooms.forEach(function(rm) {
+          if (!rm) return;
+          var st = RC.roomShown(rm, _df.q, _df.picked, am.cats), el = state.els && state.els[rm.id];
+          if (st.shown) shownIds[rm.id] = 1;
+          if (st.hit) hits.push(rm);
+          if (el) { el.classList.toggle('df-dim', busy && !st.shown); el.classList.toggle('df-hit', st.hit); }
+      });
+      document.querySelectorAll('#edges [data-a], #canvas .edge-del[data-a]').forEach(function(e) { e.classList.toggle('df-dim', busy && !(shownIds[e.getAttribute('data-a')] && shownIds[e.getAttribute('data-b')])); });
+      if (nEl) { nEl.textContent = RC.queryWords(_df.q).length ? hits.length + ' of ' + am.rooms.length : ''; nEl.setAttribute('aria-label', nEl.textContent ? nEl.textContent + ' rooms found' : ''); }
+      return { hits: hits };
+  }
+  function dataFindNext(back) {   // Enter: the next room found, in reading order, selected and centred
+      var am = getActiveMap(); if (!am) return null;
+      var hits = dataFindApply().hits.slice().sort(function(a, b) { return (a.y - b.y) || (a.x - b.x); }); if (!hits.length) return null;
+      _df.at = _df.at < 0 && back ? hits.length - 1 : (_df.at + (back ? -1 : 1) + hits.length) % hits.length;   // the review: Shift+Enter first goes to the last
+      var rm = hits[_df.at], say = document.getElementById('dataFindSay'); if (say) say.textContent = (rm.name || 'A room') + ', ' + (_df.at + 1) + ' of ' + hits.length;
+      var el = state.els && state.els[rm.id], z = state.zoomLevel || 1;
+      var w = el && el.offsetWidth ? el.offsetWidth : RC.ROOM_W, h = el && el.offsetHeight ? el.offsetHeight : RC.ROOM_H;
+      wrap.scrollLeft = (rm.x + w / 2) * z - wrap.clientWidth / 2; wrap.scrollTop = (rm.y + h / 2) * z - wrap.clientHeight / 2;
+      state.selId = rm.id; state.selLink = null; render();
+      return rm;
+  }
+  (function dataFindWire() {
+      var box = document.getElementById('dataFindBox'), chips = document.getElementById('dataFindChips'), t = 0;
+      if (box) {
+          box.addEventListener('input', function() { clearTimeout(t); t = setTimeout(function() { _df.q = box.value; _df.at = -1; dataFindApply(); }, 120); });
+          box.addEventListener('keydown', function(e) {
+              if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'k') return;   // quick jump opens from here as from any field (the review)
+              e.stopPropagation();   // keys typed here are the box's: never the page's Delete or a command's letter
+              if (e.isComposing) return;
+              if (e.key === 'Enter') { e.preventDefault(); clearTimeout(t); if (box.value !== _df.q) { _df.q = box.value; _df.at = -1; } dataFindNext(e.shiftKey); }   // new words start from their first room (the review)
+              else if (e.key === 'Escape') { e.preventDefault(); if (box.value) { box.value = ''; _df.q = ''; _df.at = -1; dataFindApply(); } else box.blur(); }
+          });
+      }
+      if (chips) chips.addEventListener('click', function(e) {
+          var b = e.target && e.target.closest ? e.target.closest('.df-chip') : null; if (!b) return;
+          var k = b.dataset.cat, i = _df.picked.indexOf(k);
+          if (i >= 0) _df.picked.splice(i, 1); else _df.picked.push(k);
+          _df.at = -1; dataFindSync();
+          var nb = chips.querySelector('.df-chip[data-cat="' + (window.CSS && CSS.escape ? CSS.escape(k) : k) + '"]'); if (nb) nb.focus();   // the chips are made again: the focus stays on the one pressed
+      });
+      if (window.ResizeObserver) { var ro = new ResizeObserver(function() { dataFindPlace(); }); ['minimap', 'zoomBox', 'main'].forEach(function(id) { var el = document.getElementById(id); if (el) ro.observe(el); }); }
+      if (window.MutationObserver && document.body) new MutationObserver(function() { dataFindPlace(); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });   // the minimap moved under the zoom box, the rulers or the top row hidden: a class of the body, with no size changed
+      window.addEventListener('resize', dataFindPlace);
+      if (chips) {
+          chips.addEventListener('wheel', function(e) { if (chips.scrollWidth <= chips.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; chips.scrollLeft += e.deltaY; e.preventDefault(); dataFindMore(); }, { passive: false });   // a mouse wheel moves the chips sideways (the review)
+          chips.addEventListener('scroll', dataFindMore);
+      }
+  })();
+  window.wpDataFind = { sync: dataFindSync, apply: dataFindApply, next: dataFindNext, place: dataFindPlace };
+  // [roomcheck:find-end]
   var _el_addBtn = document.getElementById('addBtn');
 if(_el_addBtn) _el_addBtn.addEventListener('click', function(){
       var cx = (wrap.scrollLeft + wrap.clientWidth/2) / state.zoomLevel - 60;

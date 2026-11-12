@@ -516,6 +516,40 @@
   .room:hover .rlink, .room.sel .rlink{opacity:1; pointer-events:auto}   /* the review: a dot not shown takes no press (a touch has no hover) */
   body.linkmode .room .rlink, body.data-pan .room .rlink, body.room-linking .room .rlink, body.net-client .room .rlink{display:none}
   .room.room-target{outline:2px dashed var(--gold); outline-offset:2px; z-index:4}
+  /* 1.6.2 (backlog 45, fold 2): the Find strip along the top of the Data Map, between the minimap and the zoom box (datamap.js dataFindPlace) */
+  #dataFind{position:absolute; top:26px; left:8px; right:8px; z-index:8991; display:flex; align-items:center; gap:8px; pointer-events:none}
+  #dataFind[hidden]{display:none}
+  body.no-rulers #dataFind{top:8px}
+  #dataFind > *{pointer-events:auto}
+  #dataFind .df-box{display:flex; align-items:center; gap:6px; flex:0 1 240px; min-width:150px; background:var(--deep); border:1px solid var(--edge); border-radius:8px; padding:4px 8px; box-shadow:0 6px 18px rgba(0,0,0,.45); cursor:text}
+  #dataFind .df-box:focus-within{border-color:var(--gold)}
+  #dataFind .df-box .ico{width:15px; height:15px; color:var(--gold); flex:none}
+  #dataFindBox{flex:1; min-width:0; background:transparent; border:0; outline:none; color:var(--ink); font:inherit; font-size:12.5px; padding:2px 0; color-scheme:dark}
+  #dataFindBox::-webkit-search-cancel-button{display:none}   /* Esc clears the box */
+  html[data-theme="light"] #dataFindBox{color-scheme:light}
+  #dataFind .df-say{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
+  #dataFindN{color:var(--dim); font-size:11px; white-space:nowrap}
+  #dataFindChips{display:flex; gap:6px; min-width:0; overflow-x:auto; scrollbar-width:none; padding:2px}
+  #dataFindChips::-webkit-scrollbar{display:none}
+  #dataFindChips.df-more-r{-webkit-mask-image:linear-gradient(90deg, #000 85%, transparent); mask-image:linear-gradient(90deg, #000 85%, transparent)}
+  #dataFindChips.df-more-l{-webkit-mask-image:linear-gradient(90deg, transparent, #000 15%); mask-image:linear-gradient(90deg, transparent, #000 15%)}
+  #dataFindChips.df-more-l.df-more-r{-webkit-mask-image:linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent); mask-image:linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent)}
+  #dataFind .df-chip{display:flex; align-items:center; gap:5px; flex:none; background:var(--deep); border:1px solid var(--edge); border-radius:999px; padding:3px 10px; color:var(--ink); font:inherit; font-size:11.5px; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.35)}
+  #dataFind .df-chip:hover{border-color:#54546a}
+  #dataFind .df-chip.on{border-color:var(--gold); color:var(--gold)}
+  #dataFind .df-dot{width:8px; height:8px; border-radius:50%; flex:none}
+  #dataFind .df-n{color:var(--dim)}
+  .room.df-dim{opacity:.22}
+  .room.df-dim.sel{opacity:.6}   /* the room shown in Properties stays findable */
+  .room.df-dim.renaming{opacity:1}
+  .room.df-hit{box-shadow:0 0 0 2px rgba(224,165,79,.55), 0 0 16px rgba(224,165,79,.5); z-index:3}   /* a glow, never the outline selection and linking wear (the review) */
+  #edges .df-dim, #canvas .edge-del.df-dim{opacity:.18}
+  body.net-client #dataFind, body.stream-mode #dataFind{display:none}
+  /* the rooms list's Order (backlog 45, fold 2), styled as the list's Find box */
+  #elementList .el-order{display:flex; align-items:center; gap:8px; margin:0 0 10px; color:var(--dim); font-size:12px}
+  #elementRoomOrder{flex:1; padding:4px 8px; font:inherit; font-size:12.5px; border:1px solid var(--edge); border-radius:7px; background:var(--panel2); color:var(--ink); color-scheme:dark; cursor:pointer}
+  #elementRoomOrder:focus{outline:none; border-color:var(--gold)}
+  html[data-theme="light"] #elementRoomOrder{color-scheme:light}
   body.room-linking, body.room-linking #canvasWrap, body.room-linking #canvasWrap *{cursor:crosshair !important}
   #edges .link-draft{stroke:var(--gold); stroke-width:2; stroke-dasharray:6 4; pointer-events:none}
   .room.renaming .rn{display:none}
@@ -2590,6 +2624,7 @@
      reader and the update banner write their top once, from the row's bottom as it was then: here they stand under the bar whatever they wrote. Never in the
      stream window, which has no bar: every rule here says so */
   body.row-hidden:not(.tour-on):not(.stream-mode) #minimap, body.row-hidden:not(.tour-on):not(.stream-mode) #zoomBox { top: calc(var(--rowbar) + 32px); }
+  body.row-hidden:not(.tour-on):not(.stream-mode) #dataFind:not([style*="top"]) { top: calc(var(--rowbar) + 32px); }   /* 1.6.2 (backlog 45): the Data Map's Find strip stands in the zoom box's row; on a row of its own it is placed under the zoom box (datamap.js dataFindPlace) */
   body.row-hidden:not(.tour-on):not(.stream-mode).mm-under #minimap { top: calc(var(--rowbar) + 76px); }   /* and under the zoom box there too */
   body.row-hidden:not(.tour-on):not(.stream-mode) #partyStrip, body.row-hidden:not(.tour-on):not(.stream-mode) #joinCard, body.row-hidden:not(.tour-on):not(.stream-mode) #combatStrip { top: calc(var(--rowbar) + 74px); }
   body.row-hidden:not(.tour-on):not(.stream-mode).no-pointerpos.no-zoomctl #partyStrip { top: calc(var(--rowbar) + 32px); }

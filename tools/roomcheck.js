@@ -17,6 +17,7 @@ function mkDoc() {
         const cls = new Set();
         const el = { tagName: String(tag).toUpperCase(), children: [], parentNode: null, listeners: {}, attrs: {}, dataset: {}, style: {}, value: '',
             classList: { add: c => cls.add(c), remove: c => cls.delete(c), contains: c => cls.has(c), toggle: (c, on) => { if (on === undefined ? !cls.has(c) : on) cls.add(c); else cls.delete(c); } },
+            get textContent() { return this._text !== undefined ? this._text : this.children.map(k => k.textContent).join(''); }, set textContent(v) { this.children.length = 0; this._text = String(v); },   // as a browser: setting the text takes the children away
             get className() { return [...cls].join(' '); }, set className(v) { cls.clear(); String(v).split(/\s+/).filter(Boolean).forEach(c => cls.add(c)); },
             addEventListener(t, f, cap) { (this.listeners[t] = this.listeners[t] || []).push({ f, cap: !!cap }); },
             appendChild(c) { if (c.parentNode) c.parentNode.removeChild(c); c.parentNode = this; this.children.push(c); return c; },
@@ -39,7 +40,7 @@ function mkDoc() {
 }
 
 (async () => {
-    const RC = await import(url('roomcore.js'));
+    const RC = await import(url('roomcore.js')), SC = await import(url('safecore.js'));
 
     /* ---- the pure half ---- */
     check('roomcore: a room\'s name from what was typed is one line with no control characters, its spaces made one, trimmed, at most 120 characters with half a character dropped; nothing typed keeps the name it had, and New room where it had none',
@@ -204,6 +205,116 @@ function mkDoc() {
         && wb.includes("if (rmDo) { toast(rmW.hidden ? 'Room made and linked. Players are sent room names, so give it one they may know.' : 'Room made and linked: ' + rmDo.name + '. Type its name in Properties.'); if (window.wpOpenRightPanel) window.wpOpenRightPanel(); setTimeout(function() { var fN = document.getElementById('fName');")
         && dm.includes("if((modeStr === 'data' ? !!(document.body && document.body.classList.contains('data-pan')) : window.isPanMode) || window.wpSpacePan) return;") && dm.includes("(wrapEl === wrap ? document.body.classList.contains('data-pan') : window.isPanMode)"));
 
+    /* ---- fold 2: finding a room ---- */
+    const RMS = [{ id: 'a', x: 0, y: 0, name: 'Old Mill', cat: 'inn', notes: 'A wheel that turns at night.', characters: [{ name: 'Bren', info: 'Miller, owes the guild' }] }, { id: 'b', x: 10, y: 10, name: 'Café Dock', cat: 'dock', notes: '', characters: [] }, { id: 'c', x: 20, y: 20, name: 'Dock 10', cat: 'gone', notes: 'Smugglers', characters: [] }, { id: 'd', x: 30, y: 30, name: 'dock 2', cat: 'dock' }];
+    const CATS = { inn: { label: 'Inns', color: '#4f8fe0' }, dock: { label: 'Docks', color: '#3fb8a0' }, cave: { label: 'Caves', color: '#c46bd6' } };
+    check('fold 2 roomcore: words are compared folded (lower case, accents left out); a room is found when every word is in its name, its notes or who is there, and it says which: name, notes or who; nothing typed finds every room as all',
+        RC.fold('Café ÄBC') === 'cafe abc' && RC.fold(null) === '' && RC.roomMatch(RMS[1], 'cafe') === 'name' && RC.roomMatch(RMS[0], 'mill wheel') === 'notes' && RC.roomMatch(RMS[0], 'MILLER guild') === 'who' && RC.roomMatch(RMS[0], 'mill dock') === '' && RC.roomMatch(RMS[0], '   ') === 'all'
+        && RC.roomMatch(null, 'x') === '' && J(RC.roomWords({ name: 5, characters: [null, { name: 'Ann' }] })) === J({ name: '5', notes: '', who: 'ann ' }) && RC.queryWords('a b c d e f g h i j k l m n').length === 12, J([RC.roomMatch(RMS[0], 'mill wheel'), RC.roomWords(RMS[0])]));
+    check('fold 2 roomcore: a room\'s category is its own where the map has it, else the map\'s first; the categories used come in the map\'s order with label, colour and count, none for a category no room is in; a room stands out under the words and the chips picked, and is a hit only of words',
+        RC.roomCatOf(RMS[2], CATS) === 'inn' && RC.roomCatOf(RMS[1], CATS) === 'dock' && RC.roomCatOf(RMS[0], null) === ''
+        && J(RC.catsUsed(RMS, CATS)) === J([{ key: 'inn', label: 'Inns', color: '#4f8fe0', n: 2 }, { key: 'dock', label: 'Docks', color: '#3fb8a0', n: 2 }]) && J(RC.catsUsed(RMS, null)) === '[]' && RC.catsUsed([{ cat: 'x' }], { x: { label: '' } })[0].label === 'Unnamed'
+        && J(RC.roomShown(RMS[0], '', [], CATS)) === J({ shown: true, hit: false }) && J(RC.roomShown(RMS[0], 'mill', ['dock'], CATS)) === J({ shown: false, hit: false }) && J(RC.roomShown(RMS[1], 'dock', ['dock'], CATS)) === J({ shown: true, hit: true }) && J(RC.roomShown(RMS[0], '', ['inn'], CATS)) === J({ shown: true, hit: false }), J(RC.catsUsed(RMS, CATS)));
+    check('fold 2 roomcore: the rooms ordered as made, by name as a person reads it (2 before 10, case ignored), or by category in the map\'s order and then name; nothing of the list itself changed',
+        J(RC.roomsOrdered(RMS, 'made', CATS).map(x => x.id)) === J(['a', 'b', 'c', 'd']) && J(RC.roomsOrdered(RMS, 'name', CATS).map(x => x.id)) === J(['b', 'd', 'c', 'a']) && J(RC.roomsOrdered(RMS, 'cat', CATS).map(x => x.id)) === J(['c', 'a', 'b', 'd'])
+        && J(RMS.map(x => x.id)) === J(['a', 'b', 'c', 'd']) && J(RC.roomsOrdered(null, 'name')) === '[]', J(RC.roomsOrdered(RMS, 'name', CATS).map(x => x.id)));
+    const findSrc = cut(dm, 'find', 'datamap.js');
+    const mkFind = o => {
+        o = o || {};
+        const doc = mkDoc(), main = doc.createElement('div'), bar = doc.createElement('div'), box = doc.createElement('input'), chips = doc.createElement('div'), nEl = doc.createElement('span'), mm = doc.createElement('div'), zb = doc.createElement('div'), wrap = doc.createElement('div');
+        main.id = 'main'; bar.id = 'dataFind'; bar.hidden = true; box.id = 'dataFindBox'; chips.id = 'dataFindChips'; nEl.id = 'dataFindN'; mm.id = 'minimap'; zb.id = 'zoomBox';
+        Object.assign(doc.byId, { main, dataFind: bar, dataFindBox: box, dataFindChips: chips, dataFindN: nEl, minimap: mm, zoomBox: zb });
+        const mw = o.mainW || 1000, mt = o.miniTop || 66;
+        main.getBoundingClientRect = () => ({ left: 100, top: 40, right: 100 + mw, width: mw, height: 700 });
+        mm.getBoundingClientRect = () => (o.noMini ? { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 } : { left: 144, right: 330, top: mt, bottom: mt + 186, width: 186, height: 186 });
+        zb.getBoundingClientRect = () => ({ left: 100 + mw - 220, right: 100 + mw - 14, top: 66, bottom: 102, width: 206, height: 36 });
+        const say = doc.createElement('span'); say.id = 'dataFindSay'; doc.byId.dataFindSay = say;
+        if (o.noRulers) doc.body.classList.add('no-rulers');
+        chips.querySelector = sel => chips.children.find(c => sel.indexOf('"' + c.dataset.cat + '"') >= 0) || null;
+        const edgeEls = (o.links || []).map(l => { const e = doc.createElement('line'); e.setAttribute('data-a', l[0]); e.setAttribute('data-b', l[1]); return e; });
+        doc.querySelectorAll = () => edgeEls;
+        wrap.scrollLeft = 0; wrap.scrollTop = 0; wrap.clientWidth = 800; wrap.clientHeight = 600;
+        const am = { id: o.mapId || 'm1', type: 'map', cats: o.cats || CATS, rooms: (o.rooms || RMS).map(x => Object.assign({}, x)) };
+        const state = { viewMode: o.view || 'data', zoomLevel: 2, els: {}, selId: null, selLink: 3 };
+        am.rooms.forEach(rm => { const el = doc.createElement('div'); el.classList.add('room'); el.offsetWidth = 120; el.offsetHeight = 50; state.els[rm.id] = el; });
+        const log = { renders: 0 }, timers = [];
+        const win = { wpNet: o.foreign ? { foreign: true } : null, wpStream: !!o.stream, listeners: {}, addEventListener(tp, f) { (this.listeners[tp] = this.listeners[tp] || []).push(f); } };
+        const api = new Function('window', 'document', 'state', 'getActiveMap', 'RC', 'wrap', 'render', 'setTimeout', 'clearTimeout', 'cssColor', findSrc + '\nreturn { sync: dataFindSync, apply: dataFindApply, next: dataFindNext, place: dataFindPlace, st: function() { return _df; } };')(
+            win, doc, state, () => am, RC, wrap, () => { log.renders++; }, f => { timers.push(f); return timers.length; }, () => {}, SC.cssColor);
+        return { doc, bar, box, chips, nEl, say, am, state, log, timers, win, wrap, edgeEls, api };
+    };
+    const F = mkFind({ links: [['a', 'b'], ['b', 'd'], ['c', 'a']] }); F.api.sync();
+    const chipText = F.chips.children.map(c => c.children.map(k => k.textContent).join('|'));
+    check('fold 2 the Find strip (datamap.js, run for real on a page of plain objects): on the Data Map it shows, placed between the minimap and the zoom box, with a chip for each category the rooms use, made by name with its colour (checked: safecore cssColor), label and count as text, and a name a screen reader says',
+        F.bar.hidden === false && F.bar.style.left === '238px' && F.bar.style.right === '228px' && J(chipText) === J(['|Inns|2', '|Docks|2']) && F.chips.children[0].children[0].style.backgroundColor === '#4f8fe0' && F.chips.children[0].attrs['aria-pressed'] === 'false' && F.chips.children[0].attrs['aria-label'] === 'Inns, 2 rooms', J([F.bar.style, chipText]));
+    F.box.value = 'dock'; F.doc.fire(F.box, 'input', {}); F.timers.shift()();
+    const hitIds = F.am.rooms.filter(x => F.state.els[x.id].classList.contains('df-hit')).map(x => x.id), dimIds = F.am.rooms.filter(x => F.state.els[x.id].classList.contains('df-dim')).map(x => x.id), edgeDim = F.edgeEls.map(e => e.classList.contains('df-dim'));
+    check('fold 2 words typed in the box: the rooms found are lit and counted, the rest dimmed, and a link fades unless both its rooms stand out',
+        J(hitIds) === J(['b', 'c', 'd']) && J(dimIds) === J(['a']) && F.nEl.textContent === '3 of 4' && F.nEl.attrs['aria-label'] === '3 of 4 rooms found' && J(edgeDim) === J([true, false, true]), J([hitIds, dimIds, edgeDim, F.nEl.textContent]));
+    const kE1 = F.doc.fire(F.box, 'keydown', { key: 'Enter' }), first = F.state.selId, sl = F.wrap.scrollLeft, st = F.wrap.scrollTop; F.doc.fire(F.box, 'keydown', { key: 'Enter' }); const second = F.state.selId; F.doc.fire(F.box, 'keydown', { key: 'Enter', shiftKey: true }); const back = F.state.selId;   // b at 10, 10: its middle (70, 35) at twice the zoom, less half the map
+    const kIme = F.doc.fire(F.box, 'keydown', { key: 'Enter', isComposing: true }), kDel = F.doc.fire(F.box, 'keydown', { key: 'Delete' });
+    check('fold 2 Enter goes to the next room found in reading order, selects it and centres the view on it, Shift+Enter to the one before; every key stays in the box, and Enter that ends a composition does nothing',
+        kE1.stopped && kE1.prevented && first === 'b' && second === 'c' && back === 'b' && F.state.selLink === null && sl === 70 * 2 - 400 && st === 35 * 2 - 300 && kDel.stopped && !kIme.prevented && F.log.renders === 3 && F.say.textContent === 'Café Dock, 1 of 3', J([first, second, back, sl, st, F.log.renders]));
+    const fEsc = F.doc.fire(F.box, 'keydown', { key: 'Escape' });
+    check('fold 2 Escape in the box clears it, and every room stands as before', fEsc.prevented && F.box.value === '' && F.am.rooms.every(x => !F.state.els[x.id].classList.contains('df-dim') && !F.state.els[x.id].classList.contains('df-hit')) && F.nEl.textContent === '', '');
+    const chipEv = { target: F.chips.children[1] }; F.chips.children[1].closest = () => F.chips.children[1];
+    (F.chips.listeners.click || []).forEach(l => l.f(chipEv));
+    const afterChip = F.am.rooms.filter(x => F.state.els[x.id].classList.contains('df-dim')).map(x => x.id), docksOn = F.chips.children[1].classList.contains('on'), focusOn = F.doc.activeElement === F.chips.children[1];
+    check('fold 2 a chip pressed shows only its category\'s rooms, the rest dimmed and no room lit; it is marked pressed, and the focus stays on it though the chips are made again',
+        J(afterChip) === J(['a', 'c']) && docksOn && F.chips.children[1].attrs['aria-pressed'] === 'true' && focusOn && F.am.rooms.every(x => !F.state.els[x.id].classList.contains('df-hit')), J([afterChip, docksOn, focusOn]));
+    F.am.id = 'm2'; F.api.sync();
+    check('fold 2 another map on screen lets the words and the chips go', F.box.value === '' && F.api.st().picked.length === 0 && F.api.st().mapId === 'm2', J(F.api.st()));
+    const one = mkFind({ cats: { inn: { label: 'Inns' } }, rooms: [{ id: 'x', cat: 'inn' }, { id: 'y', cat: 'inn' }] }); one.api.sync();
+    const none = mkFind({ rooms: [] }); none.api.sync(); const play = mkFind({ view: 'visual' }); play.api.sync(); const fr = mkFind({ foreign: true }); fr.api.sync(); const sw = mkFind({ stream: true }); sw.api.sync(); const nm = mkFind({ noMini: true }); nm.api.sync();
+    check('fold 2 no chips where the rooms are all of one category; the strip is put away with no rooms, on the play map, at someone else\'s table and in the stream window; with the minimap folded away the strip starts past the left ruler',
+        one.bar.hidden === false && one.chips.children.length === 0 && [none, play, fr, sw].every(W => W.bar.hidden === true) && nm.bar.style.left === '44px', J([one.chips.children.length, nm.bar.style.left]));
+    {   // the review of fold 2 (run for real)
+        const G = mkFind(); G.api.sync(); G.box.value = 'dock'; G.doc.fire(G.box, 'keydown', { key: 'Enter', shiftKey: true }); const lastFirst = G.state.selId;
+        G.doc.fire(G.box, 'keydown', { key: 'Enter' }); G.doc.fire(G.box, 'keydown', { key: 'Enter' }); G.box.value = 'mill'; G.doc.fire(G.box, 'keydown', { key: 'Enter' }); const newWords = G.state.selId;
+        G.box.value = 'dock'; G.doc.fire(G.box, 'keydown', { key: 'Enter' }); G.doc.fire(G.box, 'keydown', { key: 'Enter' }); const c1 = G.chips.children[0]; c1.closest = () => c1; (G.chips.listeners.click || []).forEach(l => l.f({ target: c1 })); const atAfterChip = G.api.st().at;
+        const kK = G.doc.fire(G.box, 'keydown', { key: 'k', ctrlKey: true }), kKm = G.doc.fire(G.box, 'keydown', { key: 'K', metaKey: true });
+        check('fold 2 the review: Shift+Enter as the first press goes to the last room found; Enter after new words were typed, before the box\'s wait is over, starts from their first room; a chip pressed starts Enter again from the first; Ctrl+K and the command key\'s K go on to quick jump',
+            lastFirst === 'd' && newWords === 'a' && atAfterChip === -1 && !kK.stopped && !kKm.stopped, J([lastFirst, newWords, atAfterChip]));
+        const hostile = mkFind({ cats: { inn: { label: 'Inns', color: 'url(/saves/x.png)' }, dock: { label: 'Docks', color: 'red; background-image: url(x)' } } }); hostile.api.sync();
+        check('fold 2 the review: a category\'s colour from a file reaches a chip only as safecore cssColor keeps it, so a picture or a second property named in its place draws the plain grey',
+            hostile.chips.children.length === 2 && hostile.chips.children.every(c => c.children[0].style.backgroundColor === '#888') && hostile.chips.children.every(c => c.children[0].style.background === undefined), J(hostile.chips.children.map(c => c.children[0].style)));
+        const narrow = mkFind({ mainW: 480, noMini: true }); narrow.api.sync(); const under = mkFind({ miniTop: 110 }); under.api.sync(); const noRul = mkFind({ noRulers: true, noMini: true }); noRul.api.sync();
+        check('fold 2 the review: where too little room is left between the minimap and the zoom box the strip takes a row of its own under the zoom box, past the left ruler to the area\'s edge; a minimap standing under the zoom box is not in the strip\'s row; with the rulers off it starts at the edge',
+            narrow.bar.style.top === '70px' && narrow.bar.style.left === '44px' && narrow.bar.style.right === '8px' && under.bar.style.top === '' && under.bar.style.left === '44px' && noRul.bar.style.left === '8px', J([narrow.bar.style, under.bar.style, noRul.bar.style]));
+        const besideM = mkFind({ mainW: 520 }); besideM.api.sync(); const mmUnder = mkFind({ mainW: 480, miniTop: 110 }); mmUnder.api.sync(); const roomy = mkFind({ mainW: 520, miniTop: 110 }); roomy.api.sync(); const tight = mkFind({ mainW: 380, miniTop: 110 }); tight.api.sync();
+        check('fold 2 the second look: the strip\'s own row under the zoom box never lies over an open minimap, whether it stands in the zoom box\'s row or under it (main.js cornerFit\'s mm-under): beside it where there is room, else under it; where the strip still fits its own row it stays there, clear of a minimap under the zoom box',
+            roomy.bar.style.top === '' && roomy.bar.style.left === '44px' && besideM.bar.style.top === '70px' && besideM.bar.style.left === '238px' && mmUnder.bar.style.top === '70px' && mmUnder.bar.style.left === '238px' && tight.bar.style.top === '264px' && tight.bar.style.left === '44px' && tight.bar.style.right === '8px', J([besideM.bar.style, mmUnder.bar.style, tight.bar.style]));
+        const rw = { name: 'A', notes: 'b', characters: [] }, w1 = RC.roomWords(rw), w2 = RC.roomWords(rw); rw.notes = 'Smugglers'; const w3 = RC.roomWords(rw);
+        check('fold 2 the review: a room\'s folded words are kept until its words change, so a drag that draws the Data Map at every move folds nothing again',
+            w1 === w2 && w3 !== w1 && w3.notes === 'smugglers', J([w1, w3]));
+        const pc = { constructor: { label: 'Ports', color: '#123456' }, toString: { label: 'Other' } };
+        check('fold 2 the review: a category keyed as a name every object inherits is counted and chipped as any other',
+            J(RC.catsUsed([{ cat: 'constructor' }, { cat: 'toString' }, { cat: 'constructor' }], pc)) === J([{ key: 'constructor', label: 'Ports', color: '#123456', n: 2 }, { key: 'toString', label: 'Other', color: '', n: 1 }]), J(RC.catsUsed([{ cat: 'constructor' }], pc)));
+        check('fold 2 the review: quick jump reads a room by the Find box\'s own rule (jumpMatch): every word, accents left out, in its name, its notes or who is there, and says which',
+            RC.jumpMatch('Café Dock', '', '', 'cafe') === 'name' && RC.jumpMatch('Loft', RC.fold('the smith is old'), '', 'old smith') === 'notes' && RC.jumpMatch('Cellar', '', RC.fold('Bren the miller owes the guild'), 'guild miller') === 'who' && RC.jumpMatch('Loft', 'x', 'y', 'zzz') === '' && RC.jumpMatch('Loft', '', '', '  ') === '', '');
+        const dmr = read('scripts/datamap.js'), ins = read('scripts/inspector.js'), css2 = read('style.css');
+        check('fold 2 the review (source): the Data Map draws a room\'s category by roomcore\'s rule; a rename ended by a press elsewhere, a note typed in Properties and a character\'s words ask the strip again; the strip\'s place follows a class of the body and the chips scroll by the wheel with their edge faded where more lie past it; a hit glows and never wears the outline selection and linking wear; the strip moves under a hidden top row\'s bar; the box\'s own clear mark is put away; the Order list is styled as the list\'s Find box',
+            dmr.includes("RC.roomCatOf(r, activeMap.cats)) ? activeMap.cats[RC.roomCatOf(r, activeMap.cats)] : null)||{label:'Unknown',color:'#000'};") && dmr.includes("if (window.wpDataFind && typeof window.wpDataFind.apply === 'function') window.wpDataFind.apply();   // fold 2: a name typed may now be found")
+            && (ins.match(/if \(window\.wpDataFind && typeof window\.wpDataFind\.apply === 'function'\) window\.wpDataFind\.apply\(\);/g) || []).length === 2 && dmr.includes("new MutationObserver(function() { dataFindPlace(); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });") && dmr.includes("chips.addEventListener('wheel', function(e) {")
+            && css2.includes('.room.df-hit{box-shadow:0 0 0 2px rgba(224,165,79,.55), 0 0 16px rgba(224,165,79,.5); z-index:3}') && !/\.room\.df-hit\{[^}]*outline/.test(css2) && css2.includes('  body.row-hidden:not(.tour-on):not(.stream-mode) #dataFind:not([style*="top"]) { top: calc(var(--rowbar) + 32px); }')
+            && css2.includes('#dataFindBox::-webkit-search-cancel-button{display:none}') && /#elementRoomOrder\{[^}]*background:var\(--panel2\)/.test(css2) && css2.includes('.room.df-dim.sel{opacity:.6}'));
+    }
+    check('fold 2 the wiring (source): the Data Map\'s drawing ends by asking the strip, each link\'s line, wide stroke and chip name the rooms it joins, main.js puts the strip away off the Data Map, Escape in the box is the box\'s own while it holds words, and the page holds the strip with the app\'s own magnifier drawing',
+        dm.includes("    if (typeof dataFindSync === 'function') dataFindSync();") && dm.includes("hit.setAttribute('data-a', lk[0]); hit.setAttribute('data-b', lk[1]);") && dm.includes("ln.setAttribute('data-a', lk[0]); ln.setAttribute('data-b', lk[1]);") && dm.includes("del.setAttribute('data-a', lk[0]); del.setAttribute('data-b', lk[1]);")
+        && read('scripts/main.js').includes("var dataFindEl = document.getElementById('dataFind'); if (dataFindEl && !(!isPlanner && state.viewMode === 'data')) dataFindEl.hidden = true;") && read('scripts/esckey.js').includes("t.id === 'dataFindBox' ||")
+        && read('index.html').includes('<div id="dataFind" role="search" hidden>') && read('index.html').includes('<path d="M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.4 15.4l5.1 5.1"/></svg><input type="search" id="dataFindBox" placeholder="Find a room"'));
+    // quick jump (main.js's cmdkrows slice, run for real) and the rooms list (inspector.js, source)
+    const mj = read('scripts/main.js'), ck = mj.slice(mj.indexOf('// [shelfcheck:cmdkrows-start]'), mj.indexOf('// [shelfcheck:cmdkrows-end]'));
+    const runCk = (entries, q) => { const list = { innerHTML: '' }; const fn = new Function('window', 'document', 'state', 'esc', '_cmdkEntries', 'cmdkHintSync', 'var _cmdkShown, _cmdkIdx;\n' + ck + '\ncmdkRender(' + JSON.stringify(q) + '); return _cmdkShown;'); return fn({ wpRoomCore: RC }, { getElementById: () => list }, { appState: { campaigns: {} } }, x => String(x), entries, () => {}); };
+    const ents = [{ kind: 'room', label: 'Loft', sub: 'Town', wn: RC.fold('A trapdoor to the café'), ww: '' }, { kind: 'room', label: 'Cellar', sub: 'Town', wn: '', ww: RC.fold('Bren the miller, owes the guild') }, { kind: 'room', label: 'Café', sub: 'Inns' }];
+    const q1 = runCk(ents, 'Café'), q2 = runCk(ents, 'guild miller'), q3 = runCk(ents, 'zzz'), q4 = runCk(ents, 'cafe');
+    check('fold 2 quick jump (main.js, run for real): a room is found by every word, accents left out, in its name or, ranked below a name and said beside it, in its notes or by who is there; a word nowhere finds nothing',
+        J(q1.map(e => [e.label, e.sub])) === J([['Café', 'Inns'], ['Loft', 'Town, in its notes']]) && J(q2.map(e => [e.label, e.sub])) === J([['Cellar', 'Town, by who is there']]) && q3.length === 0 && ents[0].sub === 'Town' && J(q4.map(e => [e.label, e.sub])) === J([['Café', 'Inns'], ['Loft', 'Town, in its notes']]), J([q1, q2, q4]));
+    const ins = read('scripts/inspector.js');
+    check('fold 2 the rooms list (source): on the Data Map an Order list of As made, By name and By category, kept on this computer as one of three words and read back so; the rooms come in that order, by category under a heading of each, escaped; the list keeps the focus',
+        ins.includes("function elRoomOrder() { var v = ''; try { v = localStorage.getItem('wp_roomOrder') || ''; } catch (e) {} return v === 'name' || v === 'cat' ? v : 'made'; }") && ins.includes('<select id="elementRoomOrder" aria-label="Order of the rooms">')
+        && ins.includes("ordered = window.wpRoomCore.roomsOrdered(items, roomOrd, activeMap.cats)") && ins.includes("html += '<div class=\"el-layer-head\">' + esc(cE && cE.label ? cE.label : 'No category') + '</div>';") && ins.includes("var ns = document.getElementById('elementRoomOrder'); if (ns) ns.focus();"));
+
     /* ---- the styles, Help, the notes ---- */
     const css = read('style.css'), ix = read('index.html'), wn = fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wn2 = read('assets/whatsnew.txt');
     check('the styles: the handle on a room\'s right edge shows, and takes a press, only under the pointer or on the room selected, and never in Link Mode, the Pan tool, while a link is dragged or on a joined player\'s app; a room a link is dragged over is lit; the line dragged is dashed gold and takes no press; the name box stands in the name\'s place; the empty map\'s words take no press, so a double-click on them reaches the ground',
@@ -213,6 +324,9 @@ function mkDoc() {
         ix.includes('Add Room</b>, or double-click empty ground. A room is one node of the data map.') && ix.includes('<li>The new room comes up with its name ready to type. Press <kbd>Enter</kbd> to keep it, or <kbd>Esc</kbd> to keep New room.</li>')
         && ix.includes('<b>Make a room for this</b> on a piece&rsquo;s right-click menu adds a room to the Data Map and links the piece to it.') && ix.includes('<li>The dot shows when you point at a room or select it.</li>') && ix.includes('Drag from the <b>small dot</b> on a room&rsquo;s right edge to another room to connect them.')
         && ix.includes('Let go on empty ground and a new room is made there, linked, with its name ready to type.') && ix.includes('Double-click anywhere, or press Add Room on the toolbar. Drag from the dot on a room&rsquo;s edge to link it to another.')
+        && css.includes('.room.df-dim{opacity:.22}') && css.includes('.room.df-hit{box-shadow:') && css.includes('body.net-client #dataFind, body.stream-mode #dataFind{display:none}')
+        && ix.includes('<h4>Finding a room</h4>') && ix.includes('The <b>Find a room</b> box along the top of the Data Map reads each room&rsquo;s name, its notes and who is there.') && ix.includes('A dimmed room still works as any room does.') && ix.includes('The chips show when the rooms are in two categories or more.')
+        && [wn, wn2].every(t => t.includes('- A Find a room box runs along the top of the Data Map. It reads each room\'s') && t.includes('- Quick jump finds a room by the words in its notes or by who is there too.'))
         && [wn, wn2].every(t => /\nThe Data Map\n- A new room comes up with its name ready to type, on the room itself\./.test(t) && t.includes('now stand as a stair, each\n  one in sight.\n') && t.includes('this. The room goes on the Data Map, linked to the piece, and its name is')));
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

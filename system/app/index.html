@@ -623,6 +623,18 @@
                           <li>Categories are per-map. Add your own under <b>Categories</b>. Press <i class="wib wi-star"></i> on one, or <b>Save all to library</b>, and any other map can add it from the <b>Category Library</b> with the same name and colour.</li>
                           <li><b>+ Add</b> under <b>Characters</b> also drops a stand-in token on the play map. It shows initials, in the shape of the map&rsquo;s cells. Set a portrait and the token wears it. Rename the character and the token follows.</li>
                       </ol>
+                      <h4>Finding a room</h4>
+                      <ul>
+                          <li>The <b>Find a room</b> box along the top of the Data Map reads each room&rsquo;s name, its notes and who is there.
+                              <ul>
+                                  <li>The rooms it finds are lit, and the rest are dimmed with their links. A dimmed room still works as any room does.</li>
+                                  <li>Press <kbd>Enter</kbd> to go to the next room it found, or <kbd>Shift</kbd>+<kbd>Enter</kbd> for the one before. <kbd>Esc</kbd> clears the box.</li>
+                                  <li>A chip beside it for each category dims every room of another category. Press more than one to keep them all, and press a chip again to let it go. The chips show when the rooms are in two categories or more.</li>
+                                  <li>Quick jump, <kbd>Ctrl</kbd>+<kbd>K</kbd>, finds a room by the words in its notes or by who is there too.</li>
+                                  <li>The list of rooms in the right panel can be ordered by name or by category.</li>
+                              </ul>
+                          </li>
+                      </ul>
                       <h4>Connections</h4>
                       <ol>
                           <li>Drag from the <b>small dot</b> on a room&rsquo;s right edge to another room to connect them. The link takes the line type picked in Link Mode&rsquo;s menu.
@@ -4041,6 +4053,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
           <button class="tool" id="noMapNewBtn" type="button" title="Make this campaign's first map">New map</button>
       </div>
 
+      <div id="dataFind" role="search" hidden>
+          <label class="df-box" title="Find a room by its name, its notes or who is there. Enter goes to the next one."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.4 15.4l5.1 5.1"/></svg><input type="search" id="dataFindBox" placeholder="Find a room" aria-label="Find a room by its name, its notes or who is there" autocomplete="off" spellcheck="false"><span id="dataFindN" aria-live="polite"></span><span id="dataFindSay" class="df-say" aria-live="polite"></span></label>
+          <div id="dataFindChips" role="group" aria-label="Show only the rooms of these categories"></div>
+      </div>
       <div id="dataEmpty" role="status" hidden>
           <div class="nm-title">No rooms on this data map yet.</div>
           <div class="nm-line">Double-click anywhere, or press Add Room on the toolbar. Drag from the dot on a room&rsquo;s edge to link it to another.</div>

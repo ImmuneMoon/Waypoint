@@ -399,7 +399,7 @@ if(_el_fCat) _el_fCat.addEventListener('change',function(){
 
       var _el_fNotes = document.getElementById('fNotes');
 
-if(_el_fNotes) _el_fNotes.addEventListener('input',function(){r.notes=this.value;save();});
+if(_el_fNotes) _el_fNotes.addEventListener('input',function(){r.notes=this.value;save(); if (window.wpDataFind && typeof window.wpDataFind.apply === 'function') window.wpDataFind.apply();});   // 1.6.2 (backlog 45): words in the notes may now be found
       var _el_fHandout = document.getElementById('fHandout');
       if(_el_fHandout) _el_fHandout.addEventListener('change',function(){ if (this.value) r.handoutId = this.value; else delete r.handoutId; save(); });
 
@@ -552,7 +552,7 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
 
       charList.querySelectorAll('.char-info').forEach(function(inp) {
 
-          inp.addEventListener('input', function() { r.characters[this.dataset.idx].info = this.value; save(); });
+          inp.addEventListener('input', function() { r.characters[this.dataset.idx].info = this.value; save(); if (window.wpDataFind && typeof window.wpDataFind.apply === 'function') window.wpDataFind.apply(); });   // 1.6.2 (backlog 45)
 
       });
 
@@ -1580,6 +1580,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
 
   var _lyShut = Object.create(null);   // 1.6.2, backlog 217: the groups and flattened pictures folded in Layers, by id, in memory
+  function elRoomOrder() { var v = ''; try { v = localStorage.getItem('wp_roomOrder') || ''; } catch (e) {} return v === 'name' || v === 'cat' ? v : 'made'; }   // 1.6.2 (backlog 45): read back as one of three words
   function renderElementList() {
 
       var lyEl = state.viewMode === 'visual' && window.wpLayers && window.wpLayers.shown() ? document.getElementById('layersList') : null, listEl = lyEl || document.getElementById('elementList');   // 1.6.2, backlog 217: on the play map, into Layers
@@ -1596,6 +1597,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
       var html = lyEl ? '' : '<h2>' + (state.viewMode==='data' ? 'Data Nodes' : 'Visual Shapes') + '</h2>';
 
       html += '<input type="search" id="elementSearchInput" placeholder="Find a piece" aria-label="Find a piece on this map" />';   // 1.6.2: styled as Properties' Find box (the owner: "this need styles")
+      var roomOrd = state.viewMode === 'data' ? elRoomOrder() : '';   // 1.6.2 (backlog 45): the rooms by name or by category, this computer's
+      if (state.viewMode === 'data') html += '<label class="el-order">Order <select id="elementRoomOrder" aria-label="Order of the rooms"><option value="made"' + (roomOrd === 'made' ? ' selected' : '') + '>As made</option><option value="name"' + (roomOrd === 'name' ? ' selected' : '') + '>By name</option><option value="cat"' + (roomOrd === 'cat' ? ' selected' : '') + '>By category</option></select></label>';   // 1.6.2: styled as Properties' Find box (the owner: "this need styles")
 
       
 
@@ -1621,6 +1624,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
       var LAYER_LABEL = { 'front': 'Front', 'front-mid': 'Front-Mid', 'middle': 'Middle', 'back-mid': 'Back-Mid', 'back': 'Back' };
       var visual = state.viewMode === 'visual';
       var ordered = items.map(function(it, idx) { return { it: it, idx: idx }; });
+      if (!visual && roomOrd !== 'made' && window.wpRoomCore && typeof window.wpRoomCore.roomsOrdered === 'function') ordered = window.wpRoomCore.roomsOrdered(items, roomOrd, activeMap.cats).map(function(it) { return { it: it, idx: items.indexOf(it) }; });
       if (visual) ordered.sort(function(a, b) {
           var la = LAYER_ORDER.indexOf(layerNow(a.it)), lb = LAYER_ORDER.indexOf(layerNow(b.it));   // 1.6.2: the layer a piece is drawn on, as Properties says it (a piece with no layer word, or one the list lacks, read by its z)
           if (la !== lb) return la - lb;
@@ -1650,6 +1654,10 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
           var item = entry.it;
           if (done[item.id] || flatOf(item)) return;   // drawn already, or under its picture
 
+          if (!visual && roomOrd === 'cat' && window.wpRoomCore) {   // 1.6.2 (backlog 45): a heading for each category
+              var ckE = window.wpRoomCore.roomCatOf(item, activeMap.cats);
+              if (ckE !== lastLayer) { var cE = activeMap.cats && activeMap.cats[ckE]; html += '<div class="el-layer-head">' + esc(cE && cE.label ? cE.label : 'No category') + '</div>'; lastLayer = ckE; }
+          }
           if (visual) {
               var lay = layerNow(item);
               if (lay !== lastLayer) {
@@ -1672,6 +1680,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
       listEl.innerHTML = html;
 
+      var ordSel = listEl.querySelector('#elementRoomOrder'); if (ordSel) ordSel.addEventListener('change', function() { try { localStorage.setItem('wp_roomOrder', ordSel.value); } catch (e) {} renderElementList(); var ns = document.getElementById('elementRoomOrder'); if (ns) ns.focus(); });   // 1.6.2 (backlog 45)
       listEl.querySelectorAll('.el-fold').forEach(function(b) { b.addEventListener('click', function(e) { e.stopPropagation(); var g = b.dataset.g; if (_lyShut[g]) delete _lyShut[g]; else _lyShut[g] = 1; renderElementList(); }); });   // 1.6.2, backlog 217: a group or a flattened picture folds
       listEl.querySelectorAll('.el-gname').forEach(function(b) { b.addEventListener('click', function() { var g = b.dataset.g, ids = items.filter(function(x) { return x && x.groupId === g; }).map(function(x) { return x.id; }); if (!ids.length) return; state.selWbIds = ids; state.selWbId = ids[0]; render(); }); });
 

@@ -1110,6 +1110,14 @@ The Data Map
 - On the play map, right-click a floor or a picture and pick Make a room for
   this. The room goes on the Data Map, linked to the piece, and its name is
   ready to type in Properties.
+- A Find a room box runs along the top of the Data Map. It reads each room's
+  name, its notes and who is there, lights what it finds and dims the rest.
+  Enter goes to the next room it found.
+- Beside it is a chip for each category, where a map's rooms are in two or
+  more. Press one and every room of another category dims. Press several to
+  keep them all.
+- Quick jump finds a room by the words in its notes or by who is there too.
+- The list of rooms in the right panel can be ordered by name or by category.
 
 WAYPOINT 1.6.1 — What's New
 ============================

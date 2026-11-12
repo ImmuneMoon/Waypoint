@@ -255,7 +255,7 @@ const J = JSON.stringify;
             const N = { roster: { pA: { id: 'u_p1', location: 'm1' }, pB: { id: 'u_p2', location: 'm1' } }, conns, paused: false, syncCharDelta: (id, v) => steps.push('delta ' + id + ' ' + Object.keys(v).join(',')) };
             const win = { wpFormula: F, wpBoxCore: BC, wpSheets: { charChanged: id => steps.push('changed ' + id), playerSystem: c => c.system }, wpBoxes: { redraw: () => steps.push('gm redraw'), tookNote: (bid, tid, said) => steps.push('took ' + bid + ' ' + tid + ' ' + said) }, wpStepLog: (n, s, f) => steps.push(n + ' ' + s + ' ' + JSON.stringify(f)) };
             const fn = new Function('net', 'window', 'getActiveCampaign', 'allow', 'peerPaused', 'handsTo', 'allyNear', 'SC', 'saveRemoteSoon', 'logEvent', 'toast', 'sendFailed',
-                helpers + '\nreturn { run: function(msg, conn) {\n' + branch + '\n}, views: function() { return _boxViews; }, tries: function() { return _boxTries; }, tryAfter: boxTryAfter, forget: boxForget, forgetConn: boxForgetConn, sweep: boxSweep };');
+                helpers + '\nreturn { run: function(msg, conn) {\n' + branch + '\n}, views: function() { return _boxViews; }, tries: function() { return _boxTries; }, tryAfter: boxTryAfter, stealRolled: stealRolled, steals: function() { return _boxSteal; }, forget: boxForget, forgetConn: boxForgetConn, sweep: boxSweep };');
             const api = fn(N, win, () => camp, () => o.limit !== false, () => !!o.paused, (ch, pid) => !!ch && ch.ownerId === pid, (m, x, y) => o.near !== false && Math.abs((x.x || 0) - (y.x || 0)) < 120 && Math.abs((x.y || 0) - (y.y || 0)) < 120, () => S, () => steps.push('save'), (k, s) => logs.push(s), s => toasts.push(s), () => {});
             return { api, camp, box, sent, told, logs, toasts, steps, conn, other };
         };
@@ -297,6 +297,44 @@ const J = JSON.stringify;
                 ntR.includes("if (!boxSeenBy(campB, mapB, wB, prB.id)) return;") && ntR.includes("!allyNear(map, tok, w, true) || !boxSeenBy(camp, map, w, pr.id)) { shut(peer);") && shR.includes("n.lootMoved(null);   /* the review of fold 3a")
                 && suR.includes("var ERR_TOPIC = { bodies: ['combat', 'bodies'],") && suR.includes("var PROP_BOX = [[/^loot$/, ['sys-loot-if']], ") && shR.includes("var err = errorCell('bodies'); err.dataset.errFor = 'bodies';"));
         }
+        {   // fold 3b: pickpocketing (the owner: "A. Right-click an NPC next to them"; the NPC resists; a success shows one row at random)
+            const P = mk(); P.camp.system.combat = Object.assign({}, P.camp.system.combat || {}, { steal: 'r_pick' });
+            P.camp.chars.c_ogre = { id: 'c_ogre', name: 'Ogre', npc: true, values: { f_inv: [{ id: 'w_o1', defId: 'i_rope', qty: 2 }, { id: 'w_o2', defId: 'i_coin', qty: 1 }, { id: 'w_o3', defId: 'i_key', qty: 1 }] }, noLoot: ['w_o3'] };
+            P.camp.items.m1.whiteboard.push({ id: 'og', type: 'image', name: 'Ogre', isChar: true, charId: 'c_ogre', x: 100, y: 150, w: 50, h: 50 });
+            P.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'og', tok: 'tk' }, P.conn); const shut = P.sent.length;
+            P.api.run({ type: 'box', op: 'steal', mapId: 'm1', itemId: 'og', tok: 'tk' }, P.conn); const go = P.sent[0];
+            P.api.tryAfter(P.conn, 'c_kael', 'r_pick', true, ''); const found = P.sent[1], fr = found && found.tiles && found.tiles[0] ? found.tiles[0].rowId : '';
+            check('a pickpocket asks the host, which answers with the system\u2019s Pickpocket roll; a success it may not resist shows one row at random, never a row Never looted, while an NPC not lootable still opens to nobody',
+                shut === 0 && go && go.type === 'box-steal' && go.go === 'r_pick' && found && found.type === 'box-view' && found.steal === true && found.tiles.length === 1 && ['w_o1', 'w_o2'].indexOf(fr) >= 0 && !!P.api.steals().pA && P.api.steals().pA.rowId === fr && !P.api.tries().pA, J(P.sent));
+            const other = fr === 'w_o1' ? 'w_o2' : 'w_o1', n0 = P.sent.length;
+            P.api.run({ type: 'box', op: 'take', mapId: 'm1', itemId: 'og', tok: 'tk', fid: 'f_inv', rowId: other, qty: 1 }, P.conn);
+            const wrong = P.sent.slice(n0);
+            check('only the row it found can be taken, and asking for another closes the window with nothing else of the NPC shown',
+                J(P.camp.chars.c_ogre.values.f_inv.map(r => [r.id, r.qty])) === J([['w_o1', 2], ['w_o2', 1], ['w_o3', 1]]) && !P.camp.chars.c_kael.values.f_inv && wrong.some(m => m.type === 'box-deny' && m.reason === 'gone') && wrong.some(m => m.type === 'box-view' && m.gone === true) && !wrong.some(m => m.type === 'box-view' && Array.isArray(m.tiles)) && !P.api.steals().pA, J(wrong));
+            P.api.run({ type: 'box', op: 'steal', mapId: 'm1', itemId: 'og', tok: 'tk' }, P.conn); P.api.tryAfter(P.conn, 'c_kael', 'r_pick', true, '');
+            const f2 = P.sent.filter(m => m.type === 'box-view' && m.steal === true).slice(-1)[0], r2 = f2.tiles[0].rowId, n1 = P.sent.length;
+            P.api.run({ type: 'box', op: 'take', mapId: 'm1', itemId: 'og', tok: 'tk', fid: 'f_inv', rowId: r2, qty: 1 }, P.conn);
+            const after = P.sent.slice(n1), ogQ = P.camp.chars.c_ogre.values.f_inv.filter(r => r.id === r2).map(r => r.qty)[0];
+            check('the row it found is taken off the NPC\u2019s own sheet through the trade\u2019s own rule, the GM told it was stolen, and the window closes',
+                P.camp.chars.c_kael.values.f_inv && P.camp.chars.c_kael.values.f_inv.length === 1 && (r2 === 'w_o1' ? ogQ === 1 : ogQ === undefined) && after.some(m => m.type === 'box-took') && after.some(m => m.type === 'box-view' && m.gone === true) && P.logs.some(s => /^Kael stole .+ from Ogre\.$/.test(s)) && P.steps.includes('delta c_ogre f_inv'), J([after, P.logs, P.camp.chars.c_ogre.values]));
+            P.api.run({ type: 'box', op: 'steal', mapId: 'm1', itemId: 'og', tok: 'tk' }, P.conn); P.api.tryAfter(P.conn, 'c_kael', 'r_pick', false, '');
+            const miss = P.sent.slice(-1)[0];
+            const st = { st: { peer: 'pA', mapId: 'm1', itemId: 'og', charId: 'c_kael' } }, st2 = { st: { peer: 'pA', mapId: 'm1', itemId: 'og', charId: 'c_kael' } }, n2 = P.sent.length;
+            P.api.stealRolled(P.camp, false, st); const res1 = P.sent.slice(n2), n3 = P.sent.length; P.api.stealRolled(P.camp, true, st2); const res2 = P.sent.slice(n3);
+            check('a failed pickpocket says so; one the NPC resisted waits for its roll: a failed resist shows the row found, one that succeeds says they were noticed and tells the GM, each once',
+                miss && miss.type === 'box-steal' && miss.say === 'missed' && res1.some(m => m.type === 'box-view' && m.steal === true && m.tiles.length === 1) && res2.length === 1 && res2[0].say === 'caught' && P.logs.includes('Ogre noticed Kael at their pockets.') && st.st === null && st2.st === null, J([miss, res1, res2]));
+            const L = mk(); L.camp.chars.c_ogre = { id: 'c_ogre', name: 'Ogre', npc: true, values: {} }; L.camp.items.m1.whiteboard.push({ id: 'og', type: 'image', isChar: true, charId: 'c_ogre', x: 100, y: 150, w: 50, h: 50 });
+            L.api.run({ type: 'box', op: 'steal', mapId: 'm1', itemId: 'og', tok: 'tk' }, L.conn); const noRoll = L.sent[0];
+            L.camp.system.combat = { steal: 'r_pick' }; L.camp.chars.c_ogre.loot = true; L.api.run({ type: 'box', op: 'steal', mapId: 'm1', itemId: 'og', tok: 'tk' }, L.conn); const looted = L.sent[1];
+            check('no pickpocket where the system names no Pickpocket roll, nor on an NPC that can be searched already', noRoll && noRoll.reason === 'steal' && looted && looted.reason === 'steal', J(L.sent));
+            const sv = S.cleanSystem({ v: 1, name: 'X', fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'number' }], rolls: [{ id: 'r_s', label: 'Pick', formula: '3d6 <= 12' }], combat: { steal: 'r_s' } }, { F, gmView: false }), sg = S.cleanSystem({ v: 1, name: 'X', fields: [], rolls: [], combat: { steal: 'r_none' } }, { F, gmView: true });
+            check('the Pickpocket roll is kept in the players\u2019 view too, since a player presses it, and only where that roll is', sv.combat && sv.combat.steal === 'r_s' && !(sg.combat && sg.combat.steal), J([sv.combat, sg.combat]));
+            const ntP = read('scripts/net.js'), wbP = read('scripts/whiteboard.js'), bxP = read('scripts/boxes.js'), shP = read('scripts/sheets.js').replace(/\r\n/g, '\n');
+            check('the roll is aimed at the NPC by the host however the player\u2019s pointer stands, and a resist\u2019s answer reaches the attempt from both roll paths',
+                ntP.includes("pidQ, stealAim(conn.peer, q, locQ)));   /* fold 3b: a pickpocket's try is aimed at its NPC") && ntP.includes("var t = typeof tid === 'string' && tid ? { id: tid, mapId: mapId } : net.targets") && ntP.includes("blowRecQ, atQ); if (typeof stealRolled === 'function') stealRolled(campQ, pcQ, blowRecQ);") && ntP.includes("blowRecR && blowRecR.st) { var vsR = D.verdictOf(res, ruleR);"));
+            check('the player\u2019s Pickpocket row on an NPC next to them, the mask its drawing, and the Bodies topic\u2019s Pickpocket roll',
+                wbP.includes("prow.className = 'menu-item cm-steal';") && wbP.includes("pic.className = 'wib wi-mask';") && bxP.includes("steal: steal, stealGo: stealGo, stealOn: stealOn,") && shP.includes("sl = el('select', 'sys-steal-roll')") && ntP.includes("if (msg.type === 'box-steal') { if (window.wpBoxes && typeof window.wpBoxes.stealGo === 'function') window.wpBoxes.stealGo(msg); return; }"));
+        }
         {   // fold 2b on the host: a locked container shows nothing it holds, its key or a passed roll opens it for everyone
             const L = mk({ lock: { on: true, rolls: ['r_pick'], key: 'i_key' } });
             L.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, L.conn);
@@ -334,7 +372,7 @@ const J = JSON.stringify;
             check('the ask, run for real: a take carries its count and Take all its word, a try its roll (the review: a comment had swallowed the take\u2019s two)',
                 outA[0].qty === 2 && outA[0].rowId === 'w_1' && outA[1].all === true && outA[2].roll === 'r_pick' && outA[2].op === 'try', J(outA));
             check('the roll lands through the host\u2019s own roll branch, after its Then, and the ask carries the roll a try names',
-                netA.includes("boxTryAfter(conn, q.charId, q.act, mbQ ? false : recQ.body === 1 ? true : vbQ && vbQ.kind === 'check' ? vbQ.pass === true : null);") && netA.indexOf('sceneKeep(campQ, actQ, resQ, tcQ);') < netA.indexOf('boxTryAfter(conn, q.charId'));
+                netA.includes("boxTryAfter(conn, q.charId, q.act, mbQ ? false : recQ.body === 1 ? true : vbQ && vbQ.kind === 'check' ? vbQ.pass === true : null, atQ);") && netA.indexOf('sceneKeep(campQ, actQ, resQ, tcQ);') < netA.indexOf('boxTryAfter(conn, q.charId'));
         }
         {   // fold 2c on the host: a take is remembered on the container, the notice offering Put back
             const P2 = mk(); P2.camp.chars.c_kael.values = { f_inv: [{ id: 'w_r', defId: 'i_rope', qty: 1 }] };

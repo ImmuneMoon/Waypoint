@@ -265,6 +265,25 @@ function ask(itemId) {
     _ask = { mapId: map.id, itemId: itemId, tok: tok.id };
     var r = n.boxAsk('open', map.id, itemId, { tok: tok.id }); if (r && r.error) toast(r.error); step('ask', {});
 }
+// Fold 3b: pickpocketing, from an NPC's right-click menu where the system names a Pickpocket roll. The host answers with that roll, made from
+// the character's own sheet (the host aims it at the NPC); what it finds comes as this window with one row
+function stealOn() { var camp = getActiveCampaign(), n = window.wpNet, s = camp && camp.system && camp.system.combat ? camp.system.combat.steal : null; return typeof s === 'string' && !!s && !!n && n.active && n.role === 'client' && !n.stream; }
+function steal(itemId) {
+    var map = getActiveMap(), n = window.wpNet; if (!map || !n || typeof n.boxAsk !== 'function') return;
+    var w = (map.whiteboard || []).find(function(x) { return x && x.id === itemId; }); if (!w) return;
+    var tok = tokFor(map, w); if (!tok) { toast('You need a token of your own on this map, next to it.'); return; }
+    _ask = { mapId: map.id, itemId: itemId, tok: tok.id };
+    var r = n.boxAsk('steal', map.id, itemId, { tok: tok.id }); if (r && r.error) toast(r.error); step('steal-ask', {});
+}
+var STEAL_SAYS = { missed: 'You came away with nothing.', wait: 'Now they may notice. Their roll comes first.', caught: 'They noticed you.', empty: 'You found nothing to take.' };
+function stealGo(msg) {
+    if (!msg || typeof msg.itemId !== 'string' || typeof msg.mapId !== 'string') return;
+    if (typeof msg.say === 'string') { if (Object.prototype.hasOwnProperty.call(STEAL_SAYS, msg.say)) toast(STEAL_SAYS[msg.say]); if (msg.say !== 'wait' && _ask && _ask.itemId === msg.itemId) _ask = null; step('steal-' + (Object.prototype.hasOwnProperty.call(STEAL_SAYS, msg.say) ? msg.say : 'said'), {}); return; }
+    if (!_ask || _ask.itemId !== msg.itemId || typeof msg.go !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(msg.go)) return;
+    var map = getActiveMap(), tk = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === _ask.tok; }) : null, sh = window.wpSheets, n = window.wpNet;
+    if (!tk || typeof tk.charId !== 'string' || !sh || typeof sh.runDue !== 'function') return;
+    if (sh.runDue(tk.charId, msg.go) === false && n && typeof n.boxAsk === 'function') { n.boxAsk('untry', msg.mapId, msg.itemId, { tok: _ask.tok }); _ask = null; }
+}
 // The host's view, cleaned again: tiles of plain words and numbers, 400 at most
 function cleanTiles(raw) {
     var cut = function(v, n) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, n) : ''; };
@@ -350,7 +369,7 @@ function has(w) { return !!boxOf(getActiveCampaign(), w); }
 // The window follows the app: a piece gone, another map or another campaign closes it; otherwise its name follows the piece's
 function sync() { var p = P(); if (!p || p.style.display === 'none') return; if (_box.player) { var mp = getActiveMap(), n = window.wpNet; if (!mp || mp.id !== _box.mapId || !n || !n.active || n.role !== 'client') close(); return; } if (!piece() || !boxOf(getActiveCampaign(), piece()) || !gmMay()) { close(); return; } var nm = document.getElementById('boxName'), w = piece(); if (nm) nm.textContent = (typeof w.name === 'string' && w.name) ? w.name : 'Container'; }   // never drawn again under a press: only its own changes draw it
 if (typeof window !== 'undefined') {
-    window.wpBoxes = { open: open, close: close, sync: sync, holds: holds, pieceOk: boxPieceOk, gmMay: gmMay, has: has, copyFor: copyFor, ask: ask, view: view, bodyHas: bodyHas, bodyOpen: bodyOpen, tookNote: tookNote, putBack: putBack, redraw: function() { var p = P(); if (p && p.style.display !== 'none' && !_box.player) draw(); } };
+    window.wpBoxes = { open: open, close: close, sync: sync, holds: holds, pieceOk: boxPieceOk, gmMay: gmMay, has: has, copyFor: copyFor, ask: ask, steal: steal, stealGo: stealGo, stealOn: stealOn, view: view, bodyHas: bodyHas, bodyOpen: bodyOpen, tookNote: tookNote, putBack: putBack, redraw: function() { var p = P(); if (p && p.style.display !== 'none' && !_box.player) draw(); } };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
 }
 export { open, close, sync, holds, boxPieceOk };

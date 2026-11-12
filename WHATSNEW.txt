@@ -1163,6 +1163,9 @@ The Data Map
   Combat tab. A player next to it presses its chest, or picks Search the body,
   and takes from its lists ticked Tradable. Rows you tick Never looted stay
   hidden.
+- Name a Pickpocket roll under Bodies, and a player can pick the pocket of
+  an NPC next to them. The NPC resists by the roll's own Resisted by, and a
+  success shows one row at random to take.
 - Fixed: placing a shape or Build's pieces over a filled region could drag
   the region instead.
 - A map used to open on whichever face you last left it in. Now Settings,

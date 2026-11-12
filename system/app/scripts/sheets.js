@@ -12387,10 +12387,15 @@ function terrainSettleAll(camp, prevSys, nextSys) {
 function bodiesBox(box, cm) {
     var wrap = el('div', 'sys-holds sys-lootbox'), lt = cm.loot && typeof cm.loot === 'object' ? cm.loot : null;
     wrap.appendChild(el('div', 'sys-light-head', 'Bodies'));
-    wrap.appendChild(el('div', 'sys-note', 'A fallen NPC can be searched like a container. You tick Can be looted on its token or under Characters, or set a test here. A player next to it takes what its lists ticked Tradable hold.'));
+    wrap.appendChild(el('div', 'sys-note', 'A fallen NPC can be searched like a container. You tick Can be looted on its token or under Characters, or set a test here. A player next to it takes what its lists ticked Tradable hold. Name a Pickpocket roll and a player next to any other NPC may try to pick its pocket. A success shows one row at random.'));
     var rw = el('div', 'sys-flags'), ip = input('sys-loot-if field', lt && typeof lt['if'] === 'string' ? lt['if'] : '', 'When an NPC can be searched, read on its own sheet', '');
     ip.addEventListener('input', function(e) { e.stopPropagation(); var v = String(ip.value || '').slice(0, LIMITS.formula); if (v.trim()) cm.loot = { 'if': v }; else delete cm.loot; markDirty(); if (typeof patchErrors === 'function') patchErrors(); });
-    rw.appendChild(ip); wrap.appendChild(rw); if (typeof errorCell === 'function') { var err = errorCell('bodies'); err.dataset.errFor = 'bodies'; wrap.appendChild(err); } box.appendChild(wrap);
+    rw.appendChild(ip); wrap.appendChild(rw);
+    var srw = el('div', 'sys-flags'), sl = el('select', 'sys-steal-roll'), none = el('option', null, 'No pickpocketing'); none.value = ''; sl.appendChild(none); sl.title = 'The roll a player makes to pick an NPC\u2019s pocket. A success shows them one row at random. Its own Resisted by is the NPC\u2019s roll';
+    (Array.isArray(draft && draft.rolls) ? draft.rolls : []).forEach(function(r) { if (!r || typeof r.id !== 'string') return; var o = el('option', null, r.label || 'A roll'); o.value = r.id; if (cm.steal === r.id) o.selected = true; sl.appendChild(o); });
+    sl.addEventListener('change', function(e) { e.stopPropagation(); if (sl.value) cm.steal = sl.value; else delete cm.steal; markDirty(); });
+    srw.appendChild(el('span', 'sys-note', 'Pickpocket roll')); srw.appendChild(sl); wrap.appendChild(srw);
+    if (typeof errorCell === 'function') { var err = errorCell('bodies'); err.dataset.errFor = 'bodies'; wrap.appendChild(err); } box.appendChild(wrap);
 }
 function terrainBox(box, cm) {
     var wrap = el('div', 'sys-holds sys-tkindbox'), list = Array.isArray(cm.terrain) ? cm.terrain : null, SCt = window.wpSystemCore || {}, max = SCt.TERRAIN_MAX || 48, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };

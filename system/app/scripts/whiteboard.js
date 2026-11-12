@@ -9223,6 +9223,27 @@ function flatRows(items) {
     if (list.length >= 2 && SCf && typeof SCf.shows === 'function' && list.filter(function(w) { return SCf.shows(w, true); }).length >= 2) html += FLAT_ROW;
     return html ? { html: html } : null;
 }
+// [roomcheck:pieceroom-start]
+// 1.6.2 (backlog 45, fold 1; the owner, 2026-11-11, by prompt: "A room from a play map piece"): Make a room for this, on the GM's menu of ONE piece that
+// stands for an area and has no room yet (roomcore pieceRoomOk). It adds a room to this map's Data Map, beside the rooms there, links the piece to it
+// (nodeId) and leaves its name ready to type in Properties. The menu saves and draws once, so one Undo takes both back. Never on a player's app or in
+// the stream window. The row's drawing is the Data Map's Add Room drawing
+var ROOM_ROW = '<div class="menu-item cm-room-make" title="A room on this map\u2019s Data Map, linked to this piece. Its name is ready to type in Properties.">'
+    + '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5v15M4.5 12h15"/></svg><span>Make a room for this<small>Adds it to the Data Map, linked.</small></span></div>';
+function pieceRoomRow(items, am) {
+    var RCw = window.wpRoomCore, list = (Array.isArray(items) ? items : []).filter(Boolean);
+    if (!RCw || window.wpStream || !buildMay() || list.length !== 1 || !RCw.pieceRoomOk(list[0], am && am.rooms)) return null;
+    return { item: list[0], html: ROOM_ROW };
+}
+function pieceRoomMake(am, w) {
+    var RCw = window.wpRoomCore; if (!RCw || !am || am.type !== 'map') return null;
+    if (!Array.isArray(am.rooms)) am.rooms = [];
+    if (!RCw.pieceRoomOk(w, am.rooms)) return null;
+    var p = RCw.besideRooms(am.rooms), rm = RCw.newRoom(uid(), am.rooms, am.cats, p.x, p.y, RCw.pieceRoomName(w));
+    am.rooms.push(rm); w.nodeId = rm.id;
+    return rm;
+}
+// [roomcheck:pieceroom-end]
 function wallsRow(items) {
     var BC = buildCore();
     if (!BC || typeof BC.outlineWalls !== 'function' || window.wpStream || !buildMay()) return null;
@@ -11483,6 +11504,8 @@ document.addEventListener('contextmenu', function(e) {
                 if (swRow) html += swRow.html;
                 var mnRow = mineRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // 1.5.8 explosives: a placed mine set off by hand
                 if (mnRow) html += mnRow.html;
+                var rmRow = typeof pieceRoomRow === 'function' ? pieceRoomRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), am) : null;   // 1.6.2 (backlog 45): a room for this piece on the Data Map
+                if (rmRow) html += rmRow.html;
                 var ppRow = pagePinRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // 1.5.4: a pin's row, where the one piece selected opens a page
                 if (ppRow) html += ppRow.html;
                 var drRow = doorRows(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // a door's own rows: open or close it, lock it for players
@@ -11763,6 +11786,9 @@ document.addEventListener('contextmenu', function(e) {
                     if (window.wpMapShot && window.wpMapShot.flatten) window.wpMapShot.flatten(selectedIds.slice());
                 } else if (action.includes('cm-unflat')) {
                     if (window.wpFlatten && selectedIds.length === 1) window.wpFlatten.undo(am, selectedIds[0]);
+                } else if (action.includes('cm-room-make')) {   // 1.6.2 (backlog 45): a room on the Data Map for the one piece selected (saved and drawn again below: one Undo takes both back), its name ready to type in Properties
+                    var rmW = selectedIds.length === 1 ? am.whiteboard.find(function(x) { return x.id === selectedIds[0]; }) : null, rmDo = rmW ? pieceRoomMake(am, rmW) : null;
+                    if (rmDo) { toast(rmW.hidden ? 'Room made and linked. Players are sent room names, so give it one they may know.' : 'Room made and linked: ' + rmDo.name + '. Type its name in Properties.'); if (window.wpOpenRightPanel) window.wpOpenRightPanel(); setTimeout(function() { var fN = document.getElementById('fName'); if (fN && typeof fN.focus === 'function') { fN.focus(); if (typeof fN.select === 'function') fN.select(); } }, 0); }
                 } else if (action.includes('cm-walls')) {   // the map builder: wall lines around the selected floors (saved and drawn again below: ONE save, so one Undo takes them all back)
                     var saidW = wallsLay(am, selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));
                     if (saidW) toast(saidW);

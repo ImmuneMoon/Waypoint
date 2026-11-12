@@ -511,6 +511,15 @@
   .room.dragging{cursor:grabbing;box-shadow:0 12px 30px rgba(0,0,0,.6);z-index:6}
   .room .rn{font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.28}
   .room .rc{font-size:10px;letter-spacing:.08em;text-transform:uppercase;margin-top:3px;opacity:.8}
+  /* 1.6.2 (backlog 45): the handle a link is dragged from, shown on a room under the pointer or selected; the name typed on the room's own box */
+  .room .rlink{position:absolute; right:-8px; top:50%; width:14px; height:14px; margin-top:-7px; box-sizing:border-box; border-radius:50%; background:var(--panel); border:2px solid var(--gold); cursor:crosshair; opacity:0; pointer-events:none; transition:opacity .12s; z-index:3}
+  .room:hover .rlink, .room.sel .rlink{opacity:1; pointer-events:auto}   /* the review: a dot not shown takes no press (a touch has no hover) */
+  body.linkmode .room .rlink, body.data-pan .room .rlink, body.room-linking .room .rlink, body.net-client .room .rlink{display:none}
+  .room.room-target{outline:2px dashed var(--gold); outline-offset:2px; z-index:4}
+  body.room-linking, body.room-linking #canvasWrap, body.room-linking #canvasWrap *{cursor:crosshair !important}
+  #edges .link-draft{stroke:var(--gold); stroke-width:2; stroke-dasharray:6 4; pointer-events:none}
+  .room.renaming .rn{display:none}
+  .room .rn-edit{cursor:text; display:block; width:100%; min-width:0; box-sizing:border-box; margin:0; padding:1px 4px; font-size:12.5px; font-weight:600; line-height:1.28; color:var(--ink); background:var(--bg); border:1px solid var(--gold); border-radius:4px; outline:none}
   
   .badges { position: absolute; top: -6px; right: -6px; display: flex; gap: 4px; }
   .badge-char { background: var(--blue); color: #fff; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; font-weight: bold; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.5); }
@@ -2989,6 +2998,10 @@
 #contextMenu .menu-item.cm-flatten > *, #contextMenu .menu-item.cm-unflat > * { pointer-events: none; }   /* a click lands on the row itself: the menu reads the class of what was pressed */
 #contextMenu .menu-item.cm-flatten .ico, #contextMenu .menu-item.cm-unflat .ico { margin-top: 2px; }
 #contextMenu .menu-item.cm-flatten small, #contextMenu .menu-item.cm-unflat small { display: block; color: var(--dim); font-size: 11px; }
+#contextMenu .menu-item.cm-room-make { display: flex; align-items: flex-start; gap: 9px; }   /* 1.6.2 (backlog 45): Make a room for this, drawn as Walls around selection is */
+#contextMenu .menu-item.cm-room-make > * { pointer-events: none; }   /* a click lands on the row itself: the menu reads the class of what was pressed */
+#contextMenu .menu-item.cm-room-make .ico { margin-top: 2px; }
+#contextMenu .menu-item.cm-room-make small { display: block; color: var(--dim); font-size: 11px; }
 #contextMenu .menu-divider + .menu-divider { display: none; }   /* two rules in a row read as one */
 /* a menu taller than the window (placeMenu): compact rows first, then its own scroll */
 #contextMenu.compact .menu-item { padding: 5px 16px; font-size: 13px; }

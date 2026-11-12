@@ -61,6 +61,7 @@ import { renderPlanner, renderPlannerPreview } from './planner.js';
 import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, uploadImageFile } from './whiteboard.js';
 
 import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  renderElementList, esc } from './inspector.js';
+import * as RC from './roomcore.js';   // 1.6.2 (backlog 45): the rooms' pure half
 
 
 
@@ -86,7 +87,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
         el.className='room'; el.dataset.id=r.id;
 
-        el.innerHTML='<div class="rn"></div><div class="rc"></div><div class="badges"></div>';
+        el.innerHTML='<div class="rn"></div><div class="rc"></div><div class="badges"></div><div class="rlink" title="Drag to another room to link them. Let go on empty ground for a new linked room." aria-hidden="true"></div>';   // 1.6.2 (backlog 45): the handle a link is dragged from
 
         canvas.appendChild(el);
 
@@ -897,7 +898,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         if(e.button!==undefined && e.button!==0) return;
         if(typeof window.isDrawingMode !== 'undefined' && window.isDrawingMode) return;
         if((window.isEraserMode || window.isMeasureMode || window.isFogMode || window.isFillMode || window.isEnvMode) && modeStr !== 'data') return; // Eraser/measure/fog/fill/environment handle their own input
-        if(window.isPanMode || window.wpSpacePan) return; // hand tool (either view) OR held Space: the wrap pans, items never drag
+        if((modeStr === 'data' ? !!(document.body && document.body.classList.contains('data-pan')) : window.isPanMode) || window.wpSpacePan) return; // hand tool (each view its own: the Data Map's body.data-pan, the play map's flag) OR held Space: the wrap pans, items never drag
         if(e.target.contentEditable === "true") return; // Let user select text
         // if clicking on resize handle native area (bottom right corner approx)
         var rect = el.getBoundingClientRect();
@@ -1317,7 +1318,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           if ((window.isFogMode || window.isFillMode || window.isEnvMode) && wrapEl === wbWrap) return; // fog/fill/environment paint cells themselves — never pan, select or drag
           if ((window.isEraserMode || window.isMeasureMode) && wrapEl === wbWrap && e.button === 0) return; // Eraser/measure handle left-drags themselves
 
-          if (e.button !== 1 && e.target !== wrapEl && e.target.id !== 'canvas' && e.target.id !== 'edges' && e.target.id !== 'whiteboard') { if (!((window.isDrawingMode && wrapEl === wbWrap) || window.isPanMode)) return; }
+          if (e.button !== 1 && e.target !== wrapEl && e.target.id !== 'canvas' && e.target.id !== 'edges' && e.target.id !== 'whiteboard') { if (!((window.isDrawingMode && wrapEl === wbWrap) || (wrapEl === wrap ? document.body.classList.contains('data-pan') : window.isPanMode))) return; }
 
           if (wrapEl === wrap) { state.selId = null; state.selLink = null; state.linkStart = null; }
 
@@ -1746,22 +1747,133 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   /* ---------- Data Map Tools ---------- */
 
-  var _el_addBtn = document.getElementById('addBtn');
-
-if(_el_addBtn) _el_addBtn.addEventListener('click', function(){
-
-      var cx = (wrap.scrollLeft + wrap.clientWidth/2) / state.zoomLevel - 60;
-
-      var cy = (wrap.scrollTop + wrap.clientHeight/2) / state.zoomLevel - 20;
-
-      var am = getActiveMap();
-
-      var defaultCat = Object.keys(am.cats)[0];
-
-      am.rooms.push({id:uid(), name:'New room', cat:defaultCat, x:Math.max(10,Math.round(cx)), y:Math.max(10,Math.round(cy)), notes:'', characters:[]});
-
+  // [roomcheck:page-start]
+  // 1.6.2 (backlog 45, fold 1; the owner, 2026-11-11, by prompt: "Name ready, drag to link (Recommended)", "Double-click adds a room"). A room added
+  // on the Data Map comes up selected with its name ready to type on its own box (roomRename: Enter or leaving keeps what was typed, Escape keeps
+  // the name it had). A drag from the small handle on a room's right edge links it to the room it is let go on, or makes a new linked room where it
+  // is let go on empty ground; a double-click on empty ground adds a room there. Each change is one save, so one Undo takes it back; a name typed
+  // and kept within the half second a save waits joins that step, and one typed later is a step of its own. Only in the Data Map's Select tool, on
+  // the machine that owns the campaign
+  function roomMay() { return !(window.wpCanPersistLocal && !window.wpCanPersistLocal()) && !(window.wpNet && window.wpNet.foreign) && !window.wpStream; }
+  function roomTool() { return !isLinkMode() && !document.body.classList.contains('data-pan') && !window.wpSpacePan && state.viewMode === 'data'; }   // the Data Map's own Pan (body.data-pan), never the play map's flag (the review)
+  function dataPt(e) { var rb = wrap.getBoundingClientRect(); return { x: wbX(e.clientX, e.clientY, rb, wrap), y: wbY(e.clientX, e.clientY, rb, wrap) }; }   // the board's one reading of a pointer
+  function roomOf(am, id) { return am && Array.isArray(am.rooms) ? am.rooms.find(function(x) { return x && x.id === id; }) || null : null; }
+  function roomAddAt(x, y, from) {
+      var am = getActiveMap(); if (!am || am.type !== 'map' || !roomMay()) return null;
+      if (!Array.isArray(am.rooms)) am.rooms = []; if (!Array.isArray(am.links)) am.links = [];
+      var p = { x: x, y: y };
+      if (state.snap) for (var k = 0; k < 40; k++) {   // Snap: the first place on the grid, stepping down and right, that no room stands on (the review: a step of 24 left it off the grid)
+          var q = getSnapCoords(x + k * 24, y + k * 24); if (q.x < 10 || q.y < 10) continue;   // the check: a grid point the room could not stand on
+          p = q; var f = RC.freeSpot(am.rooms, q.x, q.y);
+          if (f.x === Math.round(q.x) && f.y === Math.round(q.y)) break;   // none clear in 40 steps: the last grid point tried
+      }
+      var rm = RC.newRoom(uid(), am.rooms, am.cats, p.x, p.y);
+      am.rooms.push(rm);
+      var lk = from && roomOf(am, from) ? RC.linkAdd(am.links, from, rm.id, state.linkType) : null;
+      state.selId = rm.id; state.selLink = null; state.linkStart = null;
       save(); render();
-
+      roomRename(rm.id);
+      return { room: rm, link: lk };
+  }
+  function roomRename(id) {
+      var el = state.els && state.els[id], am = getActiveMap(), rm = roomOf(am, id);
+      if (!el || !rm || !roomMay()) return null;
+      var had = el.querySelector('.rn-edit'); if (had) { had.focus(); return had; }
+      var inp = document.createElement('input'), mapId = am.id, done = false;
+      inp.type = 'text'; inp.className = 'rn-edit'; inp.value = rm.name || ''; inp.maxLength = RC.NAME_MAX; inp.spellcheck = false; inp.setAttribute('aria-label', 'Room name');
+      el.classList.add('renaming'); var rc = el.querySelector('.rc'); if (rc && rc.parentNode === el) el.insertBefore(inp, rc); else el.appendChild(inp);   // in the name's own place, above the category
+      // blur: a press elsewhere moved the focus. The whole app is not drawn again then (the review): Properties would be rebuilt under the press and
+      // lose it, leaving the focus on the page, where Backspace deletes the room selected. Only the room's box and the name field follow
+      function end(keep, blur) {
+          if (done) return; done = true;
+          el.classList.remove('renaming'); if (inp.parentNode) inp.parentNode.removeChild(inp);
+          var am2 = getActiveMap(), rr = am2 && am2.id === mapId ? roomOf(am2, id) : null;
+          if (keep && rr) { var nm = RC.roomNameOf(inp.value, rr.name); if (nm !== rr.name) { rr.name = nm; save(); } }
+          if (!blur) { render(); return; }
+          var rnE = el.querySelector('.rn'); if (rnE && rr) rnE.textContent = rr.name || '(unnamed)';   // the check: never renderDataMap here either, which builds every link again under a press on one
+          var fN = document.getElementById('fName'); if (fN && rr && state.selId === id) fN.value = rr.name;
+      }
+      inp.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.isComposing) return; if (e.key === 'Enter') { e.preventDefault(); end(true); } else if (e.key === 'Escape') { e.preventDefault(); end(false); } });   // Enter that ends a composition is the composition's
+      inp.addEventListener('blur', function() { if (typeof document.hasFocus === 'function' && !document.hasFocus()) return; end(true, true); });   // the window losing the focus leaves the box open: the focus comes back to it
+      ['pointerdown', 'mousedown', 'click', 'dblclick', 'contextmenu'].forEach(function(ev) { inp.addEventListener(ev, function(e) { e.stopPropagation(); }); });
+      inp.focus(); if (typeof inp.select === 'function') inp.select();
+      return inp;
+  }
+  var _rlink = null;   // the link being dragged from a room's handle: { from, mapId, sx, sy, moved, line }
+  function roomLinkStart(id, e) {
+      if (_rlink || !roomTool() || !roomMay()) return false;
+      var am = getActiveMap(), rm = roomOf(am, id); if (!rm) return false;
+      var el = state.els && state.els[id], cw = el && el.offsetWidth ? el.offsetWidth : RC.ROOM_W, ch = el && el.offsetHeight ? el.offsetHeight : RC.ROOM_H;
+      var ln = document.createElementNS('http://www.w3.org/2000/svg', 'line'), ox = rm.x + cw, oy = rm.y + ch / 2;
+      ln.setAttribute('class', 'link-draft'); ln.setAttribute('x1', ox); ln.setAttribute('y1', oy); ln.setAttribute('x2', ox); ln.setAttribute('y2', oy);
+      _rlink = { from: id, mapId: am.id, sx: e.clientX, sy: e.clientY, moved: false, line: ln };
+      svg.appendChild(ln);
+      document.body.classList.add('room-linking');
+      if (el) el.classList.add('linkstart');
+      return true;
+  }
+  function roomLinkMove(e) {
+      var d = _rlink; if (!d) return;
+      if (e.buttons === 0) { roomLinkEnd(e, true); return; }   // the check: no button held any more, so a release the page never heard let it go
+      if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 6) return;
+      d.moved = true;
+      var p = dataPt(e);
+      if (!d.line.parentNode) svg.appendChild(d.line);   // the board was drawn again meanwhile: the line goes back on it
+      d.line.setAttribute('x2', p.x); d.line.setAttribute('y2', p.y);
+      var t = document.elementFromPoint(e.clientX, e.clientY), over = t && t.closest ? t.closest('#canvas .room') : null;
+      if (over && over.dataset.id === d.from) over = null;
+      if (d.over && d.over !== over) d.over.classList.remove('room-target');
+      if (over) over.classList.add('room-target');
+      d.over = over;
+  }
+  function roomOnLink(t) { var c = !!t && !!t.closest ? t.closest('.edge-del') : null; return !!c && ['near', 'labelled', 'sel'].some(function(k) { return c.classList.contains(k); }); }   // a link's chip in sight (the check: the wide hit stroke along a line, and a chip not shown, are ground)
+  function roomGround(t) { return !!t && !roomOnLink(t) && (t === wrap || t === canvas || t === svg || (!!t.closest && !!t.closest('#canvasWrap') && !t.closest('.room'))); }
+  function roomLinkEnd(e, cancel) {
+      var d = _rlink; if (!d) return ''; _rlink = null;
+      if (d.line.parentNode) d.line.parentNode.removeChild(d.line);
+      if (d.over) d.over.classList.remove('room-target');
+      document.body.classList.remove('room-linking');
+      var am = getActiveMap();
+      if (cancel || !am || am.id !== d.mapId || !roomOf(am, d.from)) { render(); return 'none'; }
+      if (!d.moved) { state.selId = d.from; state.selLink = null; render(); return 'picked'; }   // a press that dragged nothing picks the room, as a click on it does
+      var t = document.elementFromPoint(e.clientX, e.clientY), roomEl = t && t.closest ? t.closest('#canvas .room') : null;
+      if (roomEl && roomEl.dataset.id === d.from) { render(); return 'none'; }
+      if (roomEl && roomOf(am, roomEl.dataset.id)) {
+          if (!Array.isArray(am.links)) am.links = [];
+          var lk = RC.linkAdd(am.links, d.from, roomEl.dataset.id, state.linkType);
+          if (!lk) { render(); return 'none'; }
+          if (lk.had) { selectLink(lk.at); toast('These rooms are already linked.'); return 'had'; }
+          state.selLink = lk.at; state.selId = null; save(); render(); if (window.wpSyncRightPanel) setTimeout(window.wpSyncRightPanel, 0);
+          toast('Rooms linked: ' + (LINK_TYPES[state.linkType] || LINK_TYPES['']).label + '.');
+          return 'linked';
+      }
+      if (roomGround(t)) { var p = dataPt(e); roomAddAt(p.x - RC.ROOM_W / 2, p.y - RC.ROOM_H / 2, d.from); return 'new'; }
+      if (roomOnLink(t)) { render(); toast('Let go on a room to link it, or on empty ground for a new room.'); return 'none'; }
+      render(); return 'none';
+  }
+  canvas.addEventListener('pointerdown', function(e) {   // the capture phase: the room under the handle never starts its own drag
+      var h = e.target && e.target.closest ? e.target.closest('.rlink') : null; if (!h) return;
+      if (e.button !== undefined && e.button !== 0) return;
+      var el = h.closest('.room'); if (!el) return;
+      if (roomLinkStart(el.dataset.id, e)) { e.stopPropagation(); e.preventDefault(); }
+  }, true);
+  document.addEventListener('pointermove', roomLinkMove);
+  document.addEventListener('pointerup', function(e) { if (_rlink) roomLinkEnd(e, false); });
+  document.addEventListener('pointercancel', function(e) { if (_rlink) roomLinkEnd(e, true); });
+  document.addEventListener('keydown', function(e) { if (_rlink && e.key === 'Escape' && (!window.wpEsc || window.wpEsc.free(e))) { e.preventDefault(); roomLinkEnd(e, true); } });
+  window.addEventListener('blur', function() { if (_rlink) roomLinkEnd({ clientX: 0, clientY: 0 }, true); });   // the window lost mid-drag: the release is never heard, so the drag is let go
+  wrap.addEventListener('dblclick', function(e) {
+      var t = e.target; if (!(t === wrap || t === canvas || t === svg) || !roomTool()) return;
+      e.preventDefault();
+      var p = dataPt(e); roomAddAt(p.x - RC.ROOM_W / 2, p.y - RC.ROOM_H / 2);
+  });
+  window.wpRoomAdd = { at: roomAddAt, rename: roomRename };
+  // [roomcheck:page-end]
+  var _el_addBtn = document.getElementById('addBtn');
+if(_el_addBtn) _el_addBtn.addEventListener('click', function(){
+      var cx = (wrap.scrollLeft + wrap.clientWidth/2) / state.zoomLevel - 60;
+      var cy = (wrap.scrollTop + wrap.clientHeight/2) / state.zoomLevel - 20;
+      roomAddAt(cx, cy);   // 1.6.2 (backlog 45): selected, its name ready to type, never on top of the last one
   });
 
   function isLinkMode(){ return document.body.classList.contains('linkmode'); }

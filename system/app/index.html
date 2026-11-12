@@ -610,7 +610,13 @@
                       </ul>
                       <h4>Rooms</h4>
                       <ol>
-                          <li>Click <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5v15M4.5 12h15"/></svg> Add Room</b>, then drag the node where you want it. A room is one node of the data map.</li>
+                          <li>Click <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5v15M4.5 12h15"/></svg> Add Room</b>, or double-click empty ground. A room is one node of the data map.
+                              <ul>
+                                  <li>The new room comes up with its name ready to type. Press <kbd>Enter</kbd> to keep it, or <kbd>Esc</kbd> to keep New room.</li>
+                                  <li>Drag the room where you want it.</li>
+                                  <li>On the play map, <b>Make a room for this</b> on a piece&rsquo;s right-click menu adds a room to the Data Map and links the piece to it. Type its name in Properties.</li>
+                              </ul>
+                          </li>
                           <li>Select it and fill in the right sidebar: name, category colour, notes, and the characters found there.</li>
                           <li><b>Set Room Image</b> does double duty. The picture shows on hover, and Waypoint builds a <b>child map</b> with that image as the scene, linking the node to it as a portal. A node that already leads somewhere just gets the picture.</li>
                           <li><kbd>Double Click</kbd> a map or planner name in the sidebar to rename it.</li>
@@ -619,7 +625,13 @@
                       </ol>
                       <h4>Connections</h4>
                       <ol>
-                          <li>Click <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h6v6H3zM15 14h6v6h-6zM9 10l6 4"/></svg> Link Mode</b>, then click two rooms one after the other to connect them.</li>
+                          <li>Drag from the <b>small dot</b> on a room&rsquo;s right edge to another room to connect them. The link takes the line type picked in Link Mode&rsquo;s menu.
+                              <ul>
+                                  <li>The dot shows when you point at a room or select it.</li>
+                                  <li>Let go on empty ground and a new room is made there, linked, with its name ready to type.</li>
+                                  <li>Or click <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h6v6H3zM15 14h6v6h-6zM9 10l6 4"/></svg> Link Mode</b>, then click two rooms one after the other.</li>
+                              </ul>
+                          </li>
                           <li>Hover over a line and a small chip appears at its middle showing its type. A labelled line keeps its chip, with the label on it.
                               <ul>
                                   <li><b>Click a line or its chip</b> to open it in <b>Properties</b>.</li>
@@ -4031,7 +4043,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 
       <div id="dataEmpty" role="status" hidden>
           <div class="nm-title">No rooms on this data map yet.</div>
-          <div class="nm-line">Press Add Room on the toolbar, then drag the room where you want it. Link Mode joins two rooms.</div>
+          <div class="nm-line">Double-click anywhere, or press Add Room on the toolbar. Drag from the dot on a room&rsquo;s edge to link it to another.</div>
       </div>
       <div id="canvasWrap">
         <div id="canvas">

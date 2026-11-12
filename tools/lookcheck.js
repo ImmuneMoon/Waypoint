@@ -1041,8 +1041,8 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         "<li><b>{dPan} Pan</b>: drag anywhere to move the map itself.",
         "<li><b>{dLink} Link Mode</b> is lit gold while active.",
         "<li><b>{dClear} Clear the board</b> removes every room and link",
-        "<li>Click <b>{dAdd} Add Room</b>, then drag the node",
-        "<li>Click <b>{dLink} Link Mode</b>, then click two rooms"];
+        "<li>Click <b>{dAdd} Add Room</b>, or double-click empty ground.",   // 1.6.2 (backlog 45): moved on purpose
+        "<li>Or click <b>{dLink} Link Mode</b>, then click two rooms"];
     const TOUR_AT = ["fog and {scene} <b>Scene</b>. Centre, the <b>grid</b>", "html: 'Under the {scene} <b>Scene</b> button.", "html: 'Under {scene} <b>Scene</b> too, apart from Sound.", "html: 'Under {scene} <b>Scene</b> too. The {fx} panel fires", "html: 'Under {scene} <b>Scene</b> too: the campaign&rsquo;s", "The {fx} panel&rsquo;s <b>Ping</b> row", "The {fog} button opens the fog menu", "{dLink} <b>Link Mode</b> connects two rooms"];
     const stepsA = tourSrc.indexOf('var STEPS = ['), stepsZ = tourSrc.indexOf('\n];', stepsA), steps = stepsA < 0 || stepsZ < stepsA ? '' : tourSrc.slice(stepsA, stepsZ);
     const badH = HELP_AT.filter(t => count(help, put(t)) !== 1).map(t => t.slice(0, 44)), badT = TOUR_AT.filter(t => count(steps, put(t)) !== 1).map(t => t.slice(0, 44)), lost = Object.keys(K).filter(k => K[k] === '?');

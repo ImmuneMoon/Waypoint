@@ -270,3 +270,6 @@ jobs:
       - name: prepcheck, the Prep column (the cards for the map on screen, Find a card, the column drawn)
         if: ${{ !cancelled() }}
         run: node tools/prepcheck.js
+      - name: roomcheck, the Data Map rooms (a room added with its name ready, a link dragged from a room, a room made for a play map piece)
+        if: ${{ !cancelled() }}
+        run: node tools/roomcheck.js

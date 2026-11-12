@@ -1100,6 +1100,17 @@ Making a catalogue
 - With no pack yet, the Library window offers a short walk through your first
   pack. Press anything else and it stands aside.
 
+The Data Map
+- A new room comes up with its name ready to type, on the room itself. Press
+  Enter to keep it. Rooms added one after another now stand as a stair, each
+  one in sight.
+- Drag from the small dot on a room's edge to another room to link the two.
+  Let go on empty ground and you get a new room there, already linked.
+- Double-click empty ground on the Data Map to add a room there.
+- On the play map, right-click a floor or a picture and pick Make a room for
+  this. The room goes on the Data Map, linked to the piece, and its name is
+  ready to type in Properties.
+
 WAYPOINT 1.6.1 — What's New
 ============================
 

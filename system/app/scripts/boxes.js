@@ -99,7 +99,7 @@ function lockInto(body, camp, b, sys) {
     cb.addEventListener('change', function() { setLock({ on: cb.checked }, ['.box-lockon']); });
     head.appendChild(cb); head.appendChild(el('span', 'wib wi-padlock box-lockic')); head.appendChild(el('span', '', 'Locked')); box.appendChild(head);
     if (lk.on !== true) { body.appendChild(box); return; }
-    var rolls = (Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return r && typeof r.id === 'string' && r.init !== true; }), chosen = Array.isArray(lk.rolls) ? lk.rolls : [];
+    var rolls = (Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return BC.lockRollOk(r); }), chosen = Array.isArray(lk.rolls) ? lk.rolls : [];
     var l1 = el('div', 'box-lockline'); l1.appendChild(el('span', 'box-lockcap', 'Opens with'));
     chosen.forEach(function(id) { var r = rolls.filter(function(x) { return x.id === id; })[0]; if (!r) return; var c = el('span', 'box-chip', String(r.label || 'Roll').split('{')[0].trim() || 'Roll'), x = el('button', 'box-chipx', '\u00d7'); x.type = 'button'; x.title = 'Not with this roll'; x.setAttribute('aria-label', 'Not with ' + (r.label || 'this roll')); x.addEventListener('click', function() { setLock({ rolls: chosen.filter(function(y) { return y !== id; }) }, ['.box-rollsel', '.box-lockon']); }); c.appendChild(x); l1.appendChild(c); });
     var left = rolls.filter(function(r) { return chosen.indexOf(r.id) < 0; });
@@ -226,25 +226,26 @@ function view(msg) {
     var p = P(), map = getActiveMap(); if (!p || !msg || typeof msg.itemId !== 'string' || typeof msg.mapId !== 'string' || !map || map.id !== msg.mapId) return;
     var shown = p.style.display !== 'none', same = shown && _box.player && _box.pieceId === msg.itemId, tok = _ask && _ask.itemId === msg.itemId ? _ask.tok : (same ? _box.tok : null); if (!tok) return;   // only an ask that waits or the window open on it (the review)
     if (msg.gone === true) { if (same) { _box.player = false; p.style.display = 'none'; _box = { mapId: null, pieceId: null, sel: null, list: null }; } _ask = null; return; }   // the host closed it: nothing to tell it back
-    _ask = null;
+    _ask = null; var want = same ? _box.want : null;
     _box = { player: true, mapId: msg.mapId, pieceId: msg.itemId, tok: tok, sel: same ? _box.sel : null, qty: same ? _box.qty : 1, list: null, tiles: cleanTiles(msg.tiles), locked: cleanLocked(msg.locked), name: typeof msg.name === 'string' ? msg.name.slice(0, 120) : '' };
     if (!_box.tiles.some(function(t) { return t.rowId === _box.sel; })) { _box.sel = null; _box.qty = 1; }
     var was = p.style.display !== 'none'; p.style.display = ''; if (!was && window.wpFloats && typeof window.wpFloats.reveal === 'function') window.wpFloats.reveal(p);
     var f = document.activeElement, cls = f && p.contains(f) && f.className ? '.' + String(f.className).split(' ')[0] : null;
     drawPlayer(); if (cls) refocus([cls, '.box-try', '.box-usekey', '.box-tile', '.box-all']);
+    var go = _box.locked && _box.locked.go; if (go && go === want) { var tk = lockTok(), sh = window.wpSheets, n = window.wpNet; if (tk && typeof tk.charId === 'string' && sh && typeof sh.runDue === 'function' && sh.runDue(tk.charId, go) === false && n && typeof n.boxAsk === 'function') n.boxAsk('untry', _box.mapId, _box.pieceId, { tok: _box.tok }); }
 }
 // Fold 2b: locked, the host sends its rolls and the key the character carries, as plain words; a press of a roll names it to the host and
 // then makes that roll from the character's own sheet, which the host judges as any roll; the key asks the host to open it
 function cleanLocked(raw) {
     if (!raw || typeof raw !== 'object') return null; var cut = function(v, n) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, n) : ''; };
     var rolls = (Array.isArray(raw.rolls) ? raw.rolls.slice(0, 12) : []).filter(function(r) { return r && typeof r.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(r.id); }).slice(0, 3).map(function(r) { return { id: r.id, label: cut(r.label, 60) || 'Roll' }; });
-    var out = { rolls: rolls }; var k = cut(raw.key, 80); if (k) out.key = k; if (raw.held === true) out.held = true; return out;
+    var out = { rolls: rolls }; var k = cut(raw.key, 80); if (k) out.key = k; if (raw.held === true) out.held = true; if (typeof raw.go === 'string' && rolls.some(function(r) { return r.id === raw.go; })) out.go = raw.go; return out;
 }
 function lockTok() { var map = getActiveMap(); return map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === _box.tok; }) : null; }
 function tryRoll(id) {
     var n = window.wpNet, tk = lockTok(), sh = window.wpSheets; if (!_box.player || !n || typeof n.boxAsk !== 'function' || !tk || typeof tk.charId !== 'string') return;
     var r = n.boxAsk('try', _box.mapId, _box.pieceId, { tok: _box.tok, roll: id }); if (r && r.error) { toast(r.error); return; }
-    if (sh && typeof sh.runDue === 'function') sh.runDue(tk.charId, id); step('lock-try', {});
+    _box.want = id; step('lock-try', {});   // the roll is made once the host says go (the review): a container opened meanwhile costs no roll
 }
 function useKey() { var n = window.wpNet; if (!_box.player || !n || typeof n.boxAsk !== 'function') return; var r = n.boxAsk('key', _box.mapId, _box.pieceId, { tok: _box.tok }); if (r && r.error) toast(r.error); step('lock-key', {}); }
 function lockedInto(body) {

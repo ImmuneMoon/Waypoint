@@ -4374,7 +4374,7 @@ net.boxAsk = function(op, mapId, itemId, more) {
     if (!net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
     var m = { type: 'box', op: String(op), mapId: mapId, itemId: itemId }; more = more && typeof more === 'object' ? more : {};
-    ['tok', 'fid', 'rowId', 'roll'].forEach(function(k) { if (typeof more[k] === 'string') m[k] = more[k]; });   // fold 2b: roll, the lock's roll a try names if (typeof more.qty === 'number') m.qty = more.qty; if (more.all === true) m.all = true;
+    ['tok', 'fid', 'rowId', 'roll'].forEach(function(k) { if (typeof more[k] === 'string') m[k] = more[k]; }); if (typeof more.qty === 'number') m.qty = more.qty; if (more.all === true) m.all = true;   // fold 2b: roll, the lock's roll a try names
     try { net.conns[0].send(m); } catch (e) { return { error: 'Could not reach the GM.' }; }
     return { ok: true };
 };
@@ -4402,40 +4402,45 @@ function boxSweep() {
         var v = _boxViews[k], parts = k.split('|'), map = parts[0] === camp.id && camp.items && Object.prototype.hasOwnProperty.call(camp.items, parts[1]) ? camp.items[parts[1]] : null;
         var w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === parts[2]; }) : null, box = w && !w.hidden ? boxOfPiece(camp, w) : null;
         var shut = function(peer) { net.conns.forEach(function(c) { if (c.open && c.peer === peer) { try { c.send({ type: 'box-view', mapId: parts[1], itemId: parts[2], gone: true }); } catch (e) { sendFailed(e); } } }); };
-        if (!box || !BC.boxPieceOk(w) || (typeof BC.boxLocked === 'function' && BC.boxLocked(box))) { Object.keys(v.peers).forEach(shut); delete _boxViews[k]; return; }   // fold 2b: locked again by the GM, it closes
+        if (!box || !BC.boxPieceOk(w)) { Object.keys(v.peers).forEach(shut); delete _boxViews[k]; return; }
         Object.keys(v.peers).forEach(function(peer) {
             var pr = net.roster[peer], open = net.conns.some(function(c) { return c.open && c.peer === peer; }), tok = (map.whiteboard || []).find(function(x) { return x && x.id === v.peers[peer]; });
             if (!open) { delete v.peers[peer]; return; }
             if (!pr || (pr.location && pr.location !== map.id) || !tok || tok.hidden || !allyNear(map, tok, w, true)) { shut(peer); delete v.peers[peer]; }
         });
         if (!Object.keys(v.peers).length) { delete _boxViews[k]; return; }
+        if (typeof BC.boxLocked === 'function' && BC.boxLocked(box)) {   // fold 2b (the review): locked, each is shown the padlock, with the key their own character carries; opened, what it holds
+            v.sig = ''; v.lsig = v.lsig || Object.create(null);
+            Object.keys(v.peers).forEach(function(peer) { var tk = (map.whiteboard || []).find(function(x) { return x && x.id === v.peers[peer]; }), ch = tk && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, tk.charId) ? camp.chars[tk.charId] : null, lm = boxLockedMsg(camp, map, w, box, ch, false), ls = JSON.stringify(lm); if (v.lsig[peer] === ls) return; v.lsig[peer] = ls; net.conns.forEach(function(c) { if (c.open && c.peer === peer) { try { c.send(lm); } catch (e) { sendFailed(e); } } }); });
+            return;
+        }
+        v.lsig = null;
         var m = boxViewMsg(camp, map, w, box), sig = JSON.stringify(m); if (sig === v.sig) return; v.sig = sig;
         net.conns.forEach(function(c) { if (c.open && Object.prototype.hasOwnProperty.call(v.peers, c.peer)) { try { c.send(m); } catch (e) { sendFailed(e); } } });
     });
 }
 // What a player is shown of a locked container: its rolls as their own view of the system names them, and their key where the character
 // they opened it with carries it. Nothing it holds. held: the last try failed
-function boxLockedMsg(camp, map, w, box, ch, held) {
+function boxLockedMsg(camp, map, w, box, ch, held, go) {   // go: the roll a try names, which the player's app then makes
     var BC = window.wpBoxCore, lk = box && box.lock ? box.lock : {}, view = window.wpSheets && typeof window.wpSheets.playerSystem === 'function' ? window.wpSheets.playerSystem(camp) : null, rolls = [];
     (Array.isArray(lk.rolls) ? lk.rolls : []).forEach(function(id) { var r = view && Array.isArray(view.rolls) ? view.rolls.filter(function(x) { return x && x.id === id; })[0] : null; if (r) rolls.push({ id: id, label: String(r.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll' }); });
     var m = { type: 'box-view', mapId: map.id, itemId: w.id, name: typeof w.name === 'string' ? w.name.slice(0, 120) : '', locked: { rolls: rolls } };
-    var kr = BC && lk.key && ch ? BC.keyRowOf(ch, lk.key) : null; if (kr) m.locked.key = BC.keyName(camp.system, kr);
-    if (held === true) m.locked.held = true;
+    var kr = BC && lk.key && ch ? BC.keyRowOf(ch, lk.key, camp.system) : null; if (kr) m.locked.key = BC.keyName(camp.system, kr);
+    if (held === true) m.locked.held = true; if (typeof go === 'string' && rolls.some(function(r) { return r.id === go; })) m.locked.go = go;
     return m;
 }
 // A player's try lands: its roll was the one they named, for that character, within two minutes. A pass opens it for everyone (the owner:
 // "A. Open for everyone"); a failure leaves it locked and says so, the roll's own Then and Calls for having run as for any roll
 function boxTryAfter(conn, charId, act, pass) {
-    var t = conn && _boxTries[conn.peer]; if (!t || t.charId !== charId || t.roll !== act) return;
-    delete _boxTries[conn.peer]; if (Date.now() - t.at > 120000) return;
+    var t = conn && _boxTries[conn.peer]; if (!t) return; delete _boxTries[conn.peer];   // spent by the next roll, whatever it is (the review)
+    if (t.charId !== charId || t.roll !== act || Date.now() - t.at > 60000) return;
     var camp = getActiveCampaign(), BC = window.wpBoxCore; if (!camp || !BC || !camp.items || !Object.prototype.hasOwnProperty.call(camp.items, t.mapId)) return;
     var map = camp.items[t.mapId], w = Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === t.itemId; }) : null, box = w && !w.hidden ? boxOfPiece(camp, w) : null;
     if (!box || !BC.boxPieceOk(w) || !BC.boxLocked(box)) return;
     var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, charId) ? camp.chars[charId] : null, send = function(m) { try { conn.send(m); } catch (e) { sendFailed(e); } };
-    if (pass !== true) { send(boxLockedMsg(camp, map, w, box, ch, true)); if (window.wpStepLog) window.wpStepLog('boxes v1', 'lock-held', {}); return; }
-    boxUnlock(camp, map, w, box, ch, 'opened');
-    var k = boxKey(camp, map, w), vw = _boxViews[k] = _boxViews[k] || { peers: Object.create(null), sig: '' }; vw.peers[conn.peer] = t.tok;
-    var m = boxViewMsg(camp, map, w, box); vw.sig = JSON.stringify(m); send(m);
+    var k = boxKey(camp, map, w), vw = _boxViews[k] = _boxViews[k] || { peers: Object.create(null), sig: '' }; vw.peers[conn.peer] = t.tok; vw.lsig = vw.lsig || Object.create(null);
+    if (pass !== true) { vw.lsig[conn.peer] = JSON.stringify(boxLockedMsg(camp, map, w, box, ch, false)); send(boxLockedMsg(camp, map, w, box, ch, true)); if (window.wpStepLog) window.wpStepLog('boxes v1', 'lock-held', {}); return; }
+    boxUnlock(camp, map, w, box, ch, 'opened'); boxSweep();   // everyone with a window on it is sent what it holds (the review)
     if (window.wpStepLog) window.wpStepLog('boxes v1', 'lock-open', { by: 'roll' });
 }
 function boxUnlock(camp, map, w, box, ch, how) {
@@ -9501,6 +9506,7 @@ function handleMessage(msg, conn) {
         if (!wB || wB.hidden || wB.gmNoteFor) return;   // a hidden container answers nothing, as none would
         var boxB = boxOfPiece(campB, wB); if (!boxB || !BCb.boxPieceOk(wB)) return;
         var keyB = boxKey(campB, mapB, wB);
+        if (msg.op === 'untry') { delete _boxTries[conn.peer]; return; }   // the player's app could not make the roll (the review)
         if (msg.op === 'close') { if (_boxViews[keyB]) { delete _boxViews[keyB].peers[conn.peer]; if (!Object.keys(_boxViews[keyB].peers).length) delete _boxViews[keyB]; } return; }
         if (prB.location && prB.location !== mapB.id) { sayB('far'); return; }
         var tokB = typeof msg.tok === 'string' ? (mapB.whiteboard || []).find(function(x) { return x && x.id === msg.tok; }) : null;
@@ -9509,11 +9515,13 @@ function handleMessage(msg, conn) {
         if (!allyNear(mapB, tokB, wB, true)) { sayB('far'); return; }
         if (msg.op === 'open' || msg.op === 'key' || msg.op === 'try') {
             if (BCb.boxLocked && BCb.boxLocked(boxB)) {   // fold 2b: locked, it shows nothing of what it holds; a key it opens with, a roll a try names
-                var krB = boxB.lock.key ? BCb.keyRowOf(chB, boxB.lock.key) : null;
-                if (msg.op === 'try') { var lmB = boxLockedMsg(campB, mapB, wB, boxB, chB, false); if (typeof msg.roll === 'string' && lmB.locked.rolls.some(function(r) { return r.id === msg.roll; })) { _boxTries[conn.peer] = { mapId: mapB.id, itemId: wB.id, roll: msg.roll, charId: chB.id, tok: tokB.id, at: Date.now() }; if (window.wpStepLog) window.wpStepLog('boxes v1', 'lock-try', {}); } return; }
-                if (msg.op !== 'key' || !krB) { try { conn.send(boxLockedMsg(campB, mapB, wB, boxB, chB, false)); } catch (e) { sendFailed(e); } return; }
-                boxUnlock(campB, mapB, wB, boxB, chB, 'unlocked'); if (window.wpStepLog) window.wpStepLog('boxes v1', 'lock-open', { by: 'key' });
+                var vwL = _boxViews[keyB] = _boxViews[keyB] || { peers: Object.create(null), sig: '' }; vwL.peers[conn.peer] = tokB.id; vwL.sig = ''; vwL.lsig = vwL.lsig || Object.create(null);   // a padlock window is followed too (the review)
+                var lmB = boxLockedMsg(campB, mapB, wB, boxB, chB, false), krB = boxB.lock.key ? BCb.keyRowOf(chB, boxB.lock.key, campB.system) : null; vwL.lsig[conn.peer] = JSON.stringify(lmB);
+                if (msg.op === 'try' && typeof msg.roll === 'string' && lmB.locked.rolls.some(function(r) { return r.id === msg.roll; })) { _boxTries[conn.peer] = { mapId: mapB.id, itemId: wB.id, roll: msg.roll, charId: chB.id, tok: tokB.id, at: Date.now() }; lmB = boxLockedMsg(campB, mapB, wB, boxB, chB, false, msg.roll); if (window.wpStepLog) window.wpStepLog('boxes v1', 'lock-try', {}); }   // the player's app rolls once it is told to go
+                else if (msg.op === 'key' && krB) { boxUnlock(campB, mapB, wB, boxB, chB, 'unlocked'); if (window.wpStepLog) window.wpStepLog('boxes v1', 'lock-open', { by: 'key' }); boxSweep(); return; }
+                try { conn.send(lmB); } catch (e) { sendFailed(e); } return;
             }
+            if (msg.op === 'try') delete _boxTries[conn.peer];   // already open: nothing to roll for
             var vwB = _boxViews[keyB] = _boxViews[keyB] || { peers: Object.create(null), sig: '' }; vwB.peers[conn.peer] = tokB.id;
             var mB = boxViewMsg(campB, mapB, wB, boxB); vwB.sig = JSON.stringify(mB);
             try { conn.send(mB); } catch (e) { sendFailed(e); }

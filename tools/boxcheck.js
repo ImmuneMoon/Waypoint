@@ -64,14 +64,16 @@ const J = JSON.stringify;
             && shR.includes("document.querySelectorAll('img.sheet-item-pic[data-pic]')") && bxR.includes("document.querySelectorAll('#boxBody img.box-pic[data-pic]')") && bxR.includes('im.dataset.pic = pc;')
             && netR.includes('? charViewFor(id, c.ownerId) : null; if (cv) { assetWalk(cv, put); return; }') && netR.includes('window.wpSheets.playerSystem(camp) : null; v = Object.assign({}, pv || v);'));
         // fold 2b: the lock (the owner, 2026-11-12: "A. Open for everyone", "A. Yes, a key you name")
-        const sysL = S.cleanSystem({ v: 1, name: 'L', fields: [{ id: 'f_inv', key: 'Gear', label: 'Gear', kind: 'item-list', list: { trade: true } }], rolls: [{ id: 'r_pick', label: 'Pick the lock', formula: '3d6 <= 12' }, { id: 'r_force', label: 'Force it', formula: '3d6 <= 10' }, { id: 'r_a', label: 'A', formula: '1d6' }, { id: 'r_b', label: 'B', formula: '1d6' }, { id: 'r_init', label: 'Init', formula: '1d6', init: true }], items: [{ id: 'i_key', key: 'CellarKey', name: 'Cellar key' }] }, { F, gmView: true });
-        const lk1 = BC.cleanLock({ on: true, rolls: ['r_pick', 'r_pick', 'r_nope', 'r_init', 'r_force', 'r_a', 'r_b'], key: 'i_key' }, sysL), lk2 = BC.cleanLock({ on: 'yes', rolls: [], key: 'bad key!' }, sysL), lk3 = BC.cleanLock({ rolls: ['r_pick'] }, sysL);
+        const sysL = S.cleanSystem({ v: 1, name: 'L', fields: [{ id: 'f_inv', key: 'Gear', label: 'Gear', kind: 'item-list', list: { trade: true } }], rolls: [{ id: 'r_pick', label: 'Pick the lock', formula: '3d6 <= 12' }, { id: 'r_force', label: 'Force it', formula: '3d6 <= 10' }, { id: 'r_a', label: 'A', formula: '1d6' }, { id: 'r_b', label: 'B', formula: '1d6' }, { id: 'r_init', label: 'Init', formula: '1d6', init: true }, { id: 'r_act', label: 'Heal', apply: [{ f: 'f_hp', formula: '1' }] }], items: [{ id: 'i_key', key: 'CellarKey', name: 'Cellar key' }, { id: 'i_sig', key: 'Sigil', name: 'Cultist sigil', vis: 'gm' }] }, { F, gmView: true });
+        sysL.fields.push({ id: 'f_sec', key: 'Secret', label: 'Secret', kind: 'item-list', vis: 'gm', list: {} });
+        const lk1 = BC.cleanLock({ on: true, rolls: ['r_pick', 'r_pick', 'r_nope', 'r_init', 'r_act', 'r_force', 'r_a', 'r_b'], key: 'i_key' }, sysL), lk2 = BC.cleanLock({ on: 'yes', rolls: [], key: 'bad key!' }, sysL), lk3 = BC.cleanLock({ rolls: ['r_pick'] }, sysL);
         const bL = BC.cleanBox({ values: {}, lock: { on: true, rolls: ['r_pick'] } }, sysL, 'c_bxabcd1234');
         const kc = { values: { f_inv: [{ id: 'w_h', defId: 'i_key', qty: 1, hid: 1 }, { id: 'w_0', defId: 'i_key', qty: 0 }, { id: 'w_k', defId: 'i_key', qty: 1 }] } };
-        check('a lock (cleanLock): Locked only as true, up to LOCK_ROLLS of the system\u2019s own rolls once each and never its initiative roll, a key by an id; a lock with nothing left is none; a container keeps it, and its rolls and key stay while it is unlocked',
+        check('a lock (cleanLock): Locked only as true, up to LOCK_ROLLS of the system\u2019s own rolls once each and never its initiative roll nor an apply action (the review), a key by an id; a lock with nothing left is none; a container keeps it, and its rolls and key stay while it is unlocked',
             J(lk1) === J({ on: true, rolls: ['r_pick', 'r_force', 'r_a'], key: 'i_key' }) && lk2 === null && J(lk3) === J({ rolls: ['r_pick'] }) && J(bL.lock) === J({ on: true, rolls: ['r_pick'] }) && BC.boxLocked(bL) && !BC.boxLocked({ lock: lk3 }) && BC.LOCK_ROLLS === 3, J([lk1, lk2, lk3, bL]));
-        check('a key is a row the character carries, never one kept from them nor one of none, named as its sheet names it (keyRowOf, keyName)',
-            BC.keyRowOf(kc, 'i_key').id === 'w_k' && BC.keyRowOf(kc, 'i_rope') === null && BC.keyRowOf({ values: { f_inv: [{ id: 'w_h', defId: 'i_key', qty: 1, hid: 1 }] } }, 'i_key') === null && BC.keyName(sysL, { defId: 'i_key' }) === 'Cellar key' && BC.keyName(sysL, { defId: 'i_key', ov: { name: 'Rusty key' } }) === 'Rusty key');
+        check('a key is a row the character carries in a list they see, never one kept from them (a GM-only list or entry, a kept curse: the review) nor one of none, named as its sheet names it (keyRowOf, keyName)',
+            BC.keyRowOf(kc, 'i_key', sysL).id === 'w_k' && BC.keyRowOf(kc, 'i_rope', sysL) === null && BC.keyRowOf(kc, 'i_key') === null && BC.keyRowOf({ values: { f_inv: [{ id: 'w_h', defId: 'i_key', qty: 1, hid: 1 }] } }, 'i_key', sysL) === null
+            && BC.keyRowOf({ values: { f_sec: [{ id: 'w_s', defId: 'i_key', qty: 1 }] } }, 'i_key', sysL) === null && BC.keyRowOf({ values: { f_inv: [{ id: 'w_s', defId: 'i_sig', qty: 1 }] } }, 'i_sig', sysL) === null && BC.keyRowOf({ values: { f_inv: [{ id: 'w_c', defId: 'i_key', qty: 1, keptOn: 1 }] } }, 'i_key', sysL) === null && BC.keyName(sysL, { defId: 'i_key' }) === 'Cellar key' && BC.keyName(sysL, { defId: 'i_key', ov: { name: 'Rusty key' } }) === 'Rusty key');
         const r1 = BC.boxOp(sys, b, 'f_inv', { op: 'add', defId: 'i_rope', rowId: 'w_8', qty: 2 }, F, S.applyRowOp);
         const r2 = BC.boxOp(sys, { id: 'c_bxabcd1234', values: r1.values }, 'f_inv', { op: 'setQty', rowId: 'w_1', qty: 1 }, F, S.applyRowOp);
         const r3 = BC.boxOp(sys, { id: 'c_bxabcd1234', values: r2.values }, 'f_inv', { op: 'remove', rowId: 'w_2' }, F, S.applyRowOp);
@@ -209,8 +211,8 @@ const J = JSON.stringify;
             L.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, L.conn);
             const lv = L.sent[0];
             L.api.run({ type: 'box', op: 'take', mapId: 'm1', itemId: 'chest', tok: 'tk', all: true }, L.conn);
-            check('locked, a player is sent its rolls by their own view and nothing it holds, no key they do not carry, and is never counted as having it open; nothing is taken from it',
-                lv && lv.type === 'box-view' && J(lv.locked) === J({ rolls: [{ id: 'r_pick', label: 'Pick the lock' }] }) && !('tiles' in lv) && !L.api.views()['k1|m1|chest'] && L.sent[1].type === 'box-deny' && L.sent[1].reason === 'locked' && L.box.values.f_inv[0].qty === 3, J(L.sent));
+            check('locked, a player is sent its rolls by their own view and nothing it holds, no key they do not carry; their padlock window is followed (the review); nothing is taken from it',
+                lv && lv.type === 'box-view' && J(lv.locked) === J({ rolls: [{ id: 'r_pick', label: 'Pick the lock' }] }) && !('tiles' in lv) && L.api.views()['k1|m1|chest'] && L.api.views()['k1|m1|chest'].peers.pA === 'tk' && L.sent[1].type === 'box-deny' && L.sent[1].reason === 'locked' && L.box.values.f_inv[0].qty === 3, J(L.sent));
             const K = mk({ lock: { on: true, rolls: ['r_pick'], key: 'i_key' }, key: true });
             K.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, K.conn);
             const kv = K.sent[0];
@@ -221,19 +223,27 @@ const J = JSON.stringify;
                 kv.locked.key === 'Cellar key' && ko && ko.type === 'box-view' && ko.tiles.length === 2 && J(K.box.lock) === J({ rolls: ['r_pick'], key: 'i_key' }) && K.logs.includes('Kael unlocked Old chest.') && K.toasts.includes('Kael unlocked Old chest.') && K2.box.lock.on === true && !K2.sent[0].tiles, J([kv, ko, K.box.lock, K2.sent]));
             const T = mk({ lock: { on: true, rolls: ['r_pick'] } });
             T.api.run({ type: 'box', op: 'try', mapId: 'm1', itemId: 'chest', tok: 'tk', roll: 'r_nope' }, T.conn); const noTry = !T.api.tries().pA;
-            T.api.run({ type: 'box', op: 'try', mapId: 'm1', itemId: 'chest', tok: 'tk', roll: 'r_pick' }, T.conn); const rec = T.api.tries().pA;
-            T.api.tryAfter(T.conn, 'c_ava', 'r_pick', true); const other = !!T.api.tries().pA && T.box.lock.on === true;
-            T.api.tryAfter(T.conn, 'c_kael', 'r_pick', false); const held = T.sent.slice(-1)[0];
+            T.api.run({ type: 'box', op: 'try', mapId: 'm1', itemId: 'chest', tok: 'tk', roll: 'r_pick' }, T.conn); const rec = T.api.tries().pA, goMsg = T.sent.slice(-1)[0], noGo = T.sent[0];
+            T.api.tryAfter(T.conn, 'c_ava', 'r_pick', true); const other = !T.api.tries().pA && T.box.lock.on === true;   // spent by any roll (the review)
+            T.api.run({ type: 'box', op: 'try', mapId: 'm1', itemId: 'chest', tok: 'tk', roll: 'r_pick' }, T.conn); T.api.tryAfter(T.conn, 'c_kael', 'r_pick', false); const held = T.sent.slice(-1)[0];
+            T.api.run({ type: 'box', op: 'try', mapId: 'm1', itemId: 'chest', tok: 'tk', roll: 'r_pick' }, T.conn); T.api.run({ type: 'box', op: 'untry', mapId: 'm1', itemId: 'chest', tok: 'tk' }, T.conn); const untried = !T.api.tries().pA;
             T.api.run({ type: 'box', op: 'try', mapId: 'm1', itemId: 'chest', tok: 'tk', roll: 'r_pick' }, T.conn); T.api.tryAfter(T.conn, 'c_kael', 'r_pick', true); const opened = T.sent.slice(-1)[0];
-            check('a try is named first and lands with its roll (boxTryAfter): only a roll of the lock, only that character\u2019s roll; a failure says it holds and leaves it locked, a pass opens it for everyone and sends what it holds, counted as open',
-                noTry && rec && rec.roll === 'r_pick' && rec.charId === 'c_kael' && other && held.locked && held.locked.held === true && !T.api.tries().pA && opened.type === 'box-view' && opened.tiles.length === 2 && !T.box.lock.on && T.api.views()['k1|m1|chest'] && T.logs.includes('Kael opened Old chest.'), J([rec, held, opened, T.box.lock]));
-            const Z = mk(); Z.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, Z.conn); Z.box.lock = { on: true }; Z.api.sweep(); const shut = Z.sent.slice(-1)[0];
-            Z.api.run({ type: 'box', op: 'try', mapId: 'm1', itemId: 'chest', tok: 'tk', roll: 'r_pick' }, Z.conn); Z.api.forgetConn('pA');
-            check('locked again by the GM, it closes for whoever had it open; a closed connection\u2019s try is let go',
-                shut.gone === true && !Z.api.views()['k1|m1|chest'] && !Z.api.tries().pA, J(shut));
-            const netA = read('scripts/net.js');
+            check('a try is named first and is answered with the go, the roll then made by the player\u2019s app; it lands with its roll (boxTryAfter), any other roll of theirs spending it (the review), and untry lets it go; a failure says it holds and leaves it locked, a pass opens it for everyone and sends what it holds, counted as open',
+                noTry && !noGo.locked.go && rec && rec.roll === 'r_pick' && rec.charId === 'c_kael' && goMsg.locked.go === 'r_pick' && other && untried && held.locked && held.locked.held === true && !T.api.tries().pA && opened.type === 'box-view' && opened.tiles.length === 2 && !T.box.lock.on && T.api.views()['k1|m1|chest'] && T.logs.includes('Kael opened Old chest.'), J([rec, held, opened, T.box.lock]));
+            const Z = mk(); Z.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, Z.conn); Z.box.lock = { on: true, rolls: ['r_pick'] }; Z.api.sweep(); const shut = Z.sent.slice(-1)[0], nZ = Z.sent.length; Z.api.sweep(); const quietZ = Z.sent.length === nZ;
+            delete Z.box.lock; Z.api.sweep(); const back = Z.sent.slice(-1)[0];
+            const U = mk(); U.api.run({ type: 'box', op: 'try', mapId: 'm1', itemId: 'chest', tok: 'tk', roll: 'r_pick' }, U.conn); const plain = U.sent[0];
+            Z.box.lock = { on: true, rolls: ['r_pick'] }; Z.api.run({ type: 'box', op: 'try', mapId: 'm1', itemId: 'chest', tok: 'tk', roll: 'r_pick' }, Z.conn); Z.api.forgetConn('pA');
+            check('locked again by the GM, whoever has it open is shown the padlock, once; opened again, what it holds (the review); a try at one that is open opens it with no roll; a closed connection\u2019s try is let go',
+                shut.locked && !shut.tiles && quietZ && back.tiles && back.tiles.length === 2 && plain.tiles && !plain.locked && !U.api.tries().pA && !Z.api.tries().pA, J([shut, back, plain]));
+            const netA = read('scripts/net.js'), aA = netA.indexOf('// [netcheck:boxask-start]'), aZ = netA.indexOf('// [netcheck:boxask-end]'), outA = [];
+            const NA = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'h', conns: [{ open: true, peer: 'h', send: m => outA.push(m) }] };
+            new Function('net', netA.slice(aA, aZ))(NA);
+            NA.boxAsk('take', 'm1', 'chest', { tok: 'tk', fid: 'f_inv', rowId: 'w_1', qty: 2 }); NA.boxAsk('take', 'm1', 'chest', { tok: 'tk', all: true }); NA.boxAsk('try', 'm1', 'chest', { tok: 'tk', roll: 'r_pick' });
+            check('the ask, run for real: a take carries its count and Take all its word, a try its roll (the review: a comment had swallowed the take\u2019s two)',
+                outA[0].qty === 2 && outA[0].rowId === 'w_1' && outA[1].all === true && outA[2].roll === 'r_pick' && outA[2].op === 'try', J(outA));
             check('the roll lands through the host\u2019s own roll branch, after its Then, and the ask carries the roll a try names',
-                netA.includes("boxTryAfter(conn, q.charId, q.act, mbQ ? false : recQ.body === 1 ? true : vbQ && vbQ.kind === 'check' ? vbQ.pass === true : null);") && netA.includes("['tok', 'fid', 'rowId', 'roll'].forEach(function(k) { if (typeof more[k] === 'string') m[k] = more[k]; });") && netA.indexOf('sceneKeep(campQ, actQ, resQ, tcQ);') < netA.indexOf('boxTryAfter(conn, q.charId'));
+                netA.includes("boxTryAfter(conn, q.charId, q.act, mbQ ? false : recQ.body === 1 ? true : vbQ && vbQ.kind === 'check' ? vbQ.pass === true : null);") && netA.indexOf('sceneKeep(campQ, actQ, resQ, tcQ);') < netA.indexOf('boxTryAfter(conn, q.charId'));
         }
         const W = mk();
         W.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, W.conn);
@@ -293,7 +303,8 @@ const J = JSON.stringify;
         check('a player\u2019s app keeps a tile\u2019s picture only as the rule keeps it, whatever a host names', J(cp) === J(['/saves/images/rope.png', '']), J(cp));
         const cl = api.cleanLocked({ rolls: [{ id: 'r_pick', label: 'Pick the lock' }, { id: 'bad id!', label: 'x' }, { id: 'r_f', label: 'F'.repeat(90) }, { id: 'r_g' }, { id: 'r_h', label: 'H' }], key: 'Cellar\u0007key', held: 'yes' });
         check('a player\u2019s app keeps a locked view as plain words: three rolls at most with ids that read as ids, labels cut, a key\u2019s name with no control character, held only as true',
-            J(cl) === J({ rolls: [{ id: 'r_pick', label: 'Pick the lock' }, { id: 'r_f', label: 'F'.repeat(60) }, { id: 'r_g', label: 'Roll' }], key: 'Cellar key' }) && api.cleanLocked(null) === null && api.cleanLocked({ held: true }).held === true, J(cl));
+            J(cl) === J({ rolls: [{ id: 'r_pick', label: 'Pick the lock' }, { id: 'r_f', label: 'F'.repeat(60) }, { id: 'r_g', label: 'Roll' }], key: 'Cellar key' }) && api.cleanLocked(null) === null && api.cleanLocked({ held: true }).held === true
+            && api.cleanLocked({ rolls: [{ id: 'r_pick' }], go: 'r_pick' }).go === 'r_pick' && !('go' in api.cleanLocked({ rolls: [{ id: 'r_pick' }], go: 'r_other' })), J(cl));
         check('it opens with the selected token of theirs, else the one of theirs nearest the container, never another player\'s, a sheet shared with them counting as theirs (the review)', near && near.id === 't2' && sel && sel.id === 't1' && shared && shared.id === 't4');
         check('the window writes no markup, and Take and Take all ask the host, which answers', !/innerHTML/.test(src.slice(a, z)) && src.includes("n.boxAsk('take', _box.mapId, _box.pieceId, Object.assign({ tok: _box.tok }, more))"));
     }

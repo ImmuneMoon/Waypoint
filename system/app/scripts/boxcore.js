@@ -6,7 +6,7 @@
    hold. Only the item lists ticked Tradable that players see may hold a container's items, since a player takes them into the same list of
    their own sheet, as a trade moves a row. */
 
-import { cleanChar, rowDef, rowIdOf, fieldById, cleanPic } from './systemcore.js';
+import { cleanChar, rowDef, rowIdOf, fieldById, cleanPic, rowKeptFrom } from './systemcore.js';
 
 // [boxcheck:core-start]
 var BOX_ID = /^c_bx[A-Za-z0-9]{4,20}$/, BOX_MAX = 500;
@@ -25,16 +25,18 @@ function newBoxId(rand, have) { for (var n = 0; n < 50; n++) { var s = ''; for (
 var LOCK_ROLLS = 3, KEY_ID = /^[A-Za-z0-9_-]{1,64}$/;
 function cleanLock(v, sys) {
     if (!isObj(v)) return null;
-    var ids = map(); (isObj(sys) && Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (isObj(r) && typeof r.id === 'string' && r.init !== true) ids[r.id] = 1; });
+    var ids = map(); (isObj(sys) && Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (lockRollOk(r)) ids[r.id] = 1; });
     var rolls = []; (Array.isArray(v.rolls) ? v.rolls.slice(0, 12) : []).forEach(function(id) { if (typeof id === 'string' && ids[id] === 1 && rolls.indexOf(id) < 0 && rolls.length < LOCK_ROLLS) rolls.push(id); });
     var out = {}; if (v.on === true) out.on = true; if (rolls.length) out.rolls = rolls; if (typeof v.key === 'string' && KEY_ID.test(v.key)) out.key = v.key;
     return Object.keys(out).length ? out : null;
 }
+function lockRollOk(r) { return isObj(r) && typeof r.id === 'string' && r.init !== true && typeof r.formula === 'string' && !!r.formula && !Array.isArray(r.apply); }   // a roll, never the initiative roll nor an apply action (the review)
 function boxLocked(box) { return isObj(box) && isObj(box.lock) && box.lock.on === true; }
-// The row of a character's own that is its key: any item list, never a row kept from them
-function keyRowOf(ch, key) {
-    if (!isObj(ch) || !isObj(ch.values) || typeof key !== 'string' || !key) return null; var hit = null;
-    Object.keys(ch.values).some(function(k) { var rows = ch.values[k]; return Array.isArray(rows) && rows.some(function(r) { if (isObj(r) && r.hid !== 1 && r.defId === key && !(Number(r.qty) <= 0)) { hit = r; return true; } return false; }); });
+// The row of a character's own that is its key: an item list players see, never a row kept from them (a GM-only entry, a kept curse:
+// the review), since its name is sent to the player
+function keyRowOf(ch, key, sys) {
+    if (!isObj(ch) || !isObj(ch.values) || typeof key !== 'string' || !key || !isObj(sys)) return null; var hit = null;
+    Object.keys(ch.values).some(function(k) { var f = fieldById(sys, k), rows = ch.values[k]; return !!f && f.kind === 'item-list' && f.vis === 'all' && Array.isArray(rows) && rows.some(function(r) { if (isObj(r) && r.defId === key && !(Number(r.qty) <= 0) && !rowKeptFrom(sys, r)) { hit = r; return true; } return false; }); });
     return hit;
 }
 // What a key is called, as its carrier's sheet names it
@@ -107,5 +109,5 @@ function boxesTidy(camp) {
 function boxesOf(store, items) { var out = map(), named = boxesNamed(items); if (isObj(store)) Object.keys(named).forEach(function(id) { if (Object.prototype.hasOwnProperty.call(store, id)) out[id] = JSON.parse(JSON.stringify(store[id])); }); return out; }
 // [boxcheck:core-end]
 
-if (typeof window !== 'undefined') window.wpBoxCore = { LOCK_ROLLS: LOCK_ROLLS, cleanLock: cleanLock, boxLocked: boxLocked, keyRowOf: keyRowOf, keyName: keyName, BOX_MAX: BOX_MAX, boxPic: boxPic, boxPieceOk: boxPieceOk, boxesNamed: boxesNamed, boxesTidy: boxesTidy, boxesOf: boxesOf, boxLists: boxLists, boxIdOk: boxIdOk, newBoxId: newBoxId, cleanBox: cleanBox, cleanBoxes: cleanBoxes, boxChar: boxChar, boxTiles: boxTiles, boxCount: boxCount, boxOp: boxOp };
-export { LOCK_ROLLS, cleanLock, boxLocked, keyRowOf, keyName, BOX_MAX, boxPic, boxPieceOk, boxesNamed, boxesTidy, boxesOf, boxLists, boxIdOk, newBoxId, cleanBox, cleanBoxes, boxChar, boxTiles, boxCount, boxOp };
+if (typeof window !== 'undefined') window.wpBoxCore = { LOCK_ROLLS: LOCK_ROLLS, lockRollOk: lockRollOk, cleanLock: cleanLock, boxLocked: boxLocked, keyRowOf: keyRowOf, keyName: keyName, BOX_MAX: BOX_MAX, boxPic: boxPic, boxPieceOk: boxPieceOk, boxesNamed: boxesNamed, boxesTidy: boxesTidy, boxesOf: boxesOf, boxLists: boxLists, boxIdOk: boxIdOk, newBoxId: newBoxId, cleanBox: cleanBox, cleanBoxes: cleanBoxes, boxChar: boxChar, boxTiles: boxTiles, boxCount: boxCount, boxOp: boxOp };
+export { LOCK_ROLLS, lockRollOk, cleanLock, boxLocked, keyRowOf, keyName, BOX_MAX, boxPic, boxPieceOk, boxesNamed, boxesTidy, boxesOf, boxLists, boxIdOk, newBoxId, cleanBox, cleanBoxes, boxChar, boxTiles, boxCount, boxOp };

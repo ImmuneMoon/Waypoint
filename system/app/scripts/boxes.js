@@ -275,13 +275,13 @@ function steal(itemId) {
     _ask = { mapId: map.id, itemId: itemId, tok: tok.id };
     var r = n.boxAsk('steal', map.id, itemId, { tok: tok.id }); if (r && r.error) toast(r.error); step('steal-ask', {});
 }
-var STEAL_SAYS = { missed: 'You came away with nothing.', wait: 'Now they may notice. Their roll comes first.', caught: 'They noticed you.', empty: 'You found nothing to take.' };
+var STEAL_SAYS = { lost: 'You lost sight of them.', missed: 'You came away with nothing.', wait: 'Now they may notice. Their roll comes first.', caught: 'They noticed you.', empty: 'You found nothing to take.' };
 function stealGo(msg) {
     if (!msg || typeof msg.itemId !== 'string' || typeof msg.mapId !== 'string') return;
     if (typeof msg.say === 'string') { if (Object.prototype.hasOwnProperty.call(STEAL_SAYS, msg.say)) toast(STEAL_SAYS[msg.say]); if (msg.say !== 'wait' && _ask && _ask.itemId === msg.itemId) _ask = null; step('steal-' + (Object.prototype.hasOwnProperty.call(STEAL_SAYS, msg.say) ? msg.say : 'said'), {}); return; }
     if (!_ask || _ask.itemId !== msg.itemId || typeof msg.go !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(msg.go)) return;
     var map = getActiveMap(), tk = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === _ask.tok; }) : null, sh = window.wpSheets, n = window.wpNet;
-    if (!tk || typeof tk.charId !== 'string' || !sh || typeof sh.runDue !== 'function') return;
+    if (!tk || typeof tk.charId !== 'string' || !sh || typeof sh.runDue !== 'function') { if (n && typeof n.boxAsk === 'function') n.boxAsk('untry', msg.mapId, msg.itemId, { tok: _ask.tok }); _ask = null; return; }   // the review of fold 3b: a try that cannot be rolled is let go
     if (sh.runDue(tk.charId, msg.go) === false && n && typeof n.boxAsk === 'function') { n.boxAsk('untry', msg.mapId, msg.itemId, { tok: _ask.tok }); _ask = null; }
 }
 // The host's view, cleaned again: tiles of plain words and numbers, 400 at most

@@ -4460,8 +4460,10 @@ function boxLockedMsg(camp, map, w, box, ch, held, go) {   // go: the roll a try
 // A player's try lands: its roll was the one they named, for that character, within two minutes. A pass opens it for everyone (the owner:
 // "A. Open for everyone"); a failure leaves it locked and says so, the roll's own Then and Calls for having run as for any roll
 function boxTryAfter(conn, charId, act, pass, att) {   // att (fold 3b): the attempt this roll made, which a pickpocket's success waits on
-    var t = conn && _boxTries[conn.peer]; if (!t) return; delete _boxTries[conn.peer];   // spent by the next roll, whatever it is (the review)
-    if (t.charId !== charId || t.roll !== act || Date.now() - t.at > 60000) return;
+    var t = conn && _boxTries[conn.peer]; if (!t) return;
+    if (t.steal === 1 && t.aimed && (t.roll !== act || t.charId !== charId) && Date.now() - t.aimed <= 900000) return;   // the review of fold 3b: a pickpocket aimed at its NPC waits for its own roll's end (a card held for Accept), not spent by another roll
+    delete _boxTries[conn.peer];   // spent by the next roll, whatever it is (the review)
+    if (t.charId !== charId || t.roll !== act || (t.aimed ? Date.now() - t.aimed > 900000 : Date.now() - t.at > 60000)) return;
     var camp = getActiveCampaign(), BC = window.wpBoxCore; if (!camp || !BC || !camp.items || !Object.prototype.hasOwnProperty.call(camp.items, t.mapId)) return;
     if (t.steal === 1) { stealAfter(camp, conn, t, pass, att); return; }   // fold 3b
     var map = camp.items[t.mapId], w = Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === t.itemId; }) : null, box = w && !w.hidden ? boxOfPiece(camp, w) : null;
@@ -4483,22 +4485,30 @@ function boxUnlock(camp, map, w, box, ch, how) {
 // player one row at random, which they may take, that row alone, for two minutes (_boxSteal)
 function stealSrc(camp, w) { var BC = window.wpBoxCore, ch = w && w.isChar && !w.waiting && typeof w.charId === 'string' && camp && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, w.charId) ? camp.chars[w.charId] : null; return ch && BC && typeof BC.bodyNpc === 'function' && BC.bodyNpc(ch) ? { body: ch } : null; }
 function stealAim(peer, q, mapId) { var t = _boxTries[peer]; return t && t.steal === 1 && q && t.roll === q.act && t.charId === q.charId && t.mapId === mapId && Date.now() - t.at <= 60000 ? t.itemId : null; }
+function stealAimCtx(peer, q, mapId, tc, rangeOf, S) {   // the review of fold 3b: aimed at its NPC, else (out of sight by now) the try ends and the roll has no target, so no other creature answers it
+    var tid = stealAim(peer, q, mapId); if (!tid) return tc;
+    var rc = typeof rangeOf === 'function' ? rangeOf(tid) : null; if (rc && S && typeof S.withRange === 'function') { _boxTries[peer].aimed = Date.now(); return S.withRange(tc, rc); }
+    var t = _boxTries[peer]; delete _boxTries[peer]; stealTo(peer, { type: 'box-steal', mapId: t.mapId, itemId: t.itemId, say: 'lost' });
+    if (tc && typeof tc === 'object' && tc.range) { var o = Object.assign({}, tc); delete o.range; return o; } return tc;
+}
 function stealTo(peer, m) { net.conns.forEach(function(c) { if (c.open && c.peer === peer) { try { c.send(m); } catch (e) { sendFailed(e); } } }); }
 function stealShow(camp, peer, t) {
     var BC = window.wpBoxCore, S = SC(), map = camp && camp.items && Object.prototype.hasOwnProperty.call(camp.items, t.mapId) ? camp.items[t.mapId] : null, w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === t.itemId; }) : null, src = w && !w.hidden ? stealSrc(camp, w) : null;
     if (!src || !BC || !S || typeof S.tradeOfferable !== 'function') return;
+    var tkS = map && typeof t.tok === 'string' ? (map.whiteboard || []).find(function(x) { return x && x.id === t.tok; }) : null, prS = net.roster && net.roster[peer];
+    if (!tkS || tkS.hidden || !prS || !allyNear(map, tkS, w, true) || !boxSeenBy(camp, map, w, prS.id)) { stealTo(peer, { type: 'box-steal', mapId: t.mapId, itemId: t.itemId, say: 'lost' }); return; }   // the review of fold 3b: still next to it and in sight
     var nl = BC.noLootOf(src.body), lists = BC.boxLists(camp.system).map(function(f) { return f.id; });
     var can = S.tradeOfferable(camp.system, src.body, 'gm').filter(function(o) { return !o.no && nl[o.rowId] !== 1 && lists.indexOf(o.fid) >= 0 && BC.bodyOfferOk(camp.system, src.body, o.rowId); });
     if (!can.length) { stealTo(peer, { type: 'box-steal', mapId: t.mapId, itemId: t.itemId, say: 'empty' }); return; }
     var u = new Uint32Array(1); if (typeof crypto !== 'undefined' && crypto && typeof crypto.getRandomValues === 'function') crypto.getRandomValues(u); else u[0] = Math.floor(Math.random() * 4294967296);
-    var pick = can[u[0] % can.length]; _boxSteal[peer] = { mapId: t.mapId, itemId: t.itemId, rowId: pick.rowId, at: Date.now() };
+    var pick = can[u[0] % can.length]; _boxSteal[peer] = { mapId: t.mapId, itemId: t.itemId, rowId: pick.rowId, charId: t.charId, at: Date.now() };
     var m = boxViewMsg(camp, map, w, src); m.tiles = m.tiles.filter(function(x) { return x.rowId === pick.rowId; }); m.steal = true; stealTo(peer, m);
     if (window.wpStepLog) window.wpStepLog('boxes v1', 'steal-found', {});
 }
 function stealAfter(camp, conn, t, pass, att) {
     if (pass !== true) { stealTo(conn.peer, { type: 'box-steal', mapId: t.mapId, itemId: t.itemId, say: 'missed' }); if (window.wpStepLog) window.wpStepLog('boxes v1', 'steal-missed', {}); return; }
     var rec = typeof att === 'string' && att && typeof attemptRec === 'function' ? attemptRec(att) : null;
-    if (rec) { rec.st = { peer: conn.peer, mapId: t.mapId, itemId: t.itemId, charId: t.charId }; stealTo(conn.peer, { type: 'box-steal', mapId: t.mapId, itemId: t.itemId, say: 'wait' }); return; }   // its own roll first, as a grab waits
+    if (rec) { rec.st = { peer: conn.peer, mapId: t.mapId, itemId: t.itemId, charId: t.charId, tok: t.tok }; stealTo(conn.peer, { type: 'box-steal', mapId: t.mapId, itemId: t.itemId, say: 'wait' }); return; }   // its own roll first, as a grab waits
     stealShow(camp, conn.peer, t);
 }
 function stealRolled(camp, pass, was) {   // the NPC's roll against a pickpocket's attempt came in
@@ -9567,7 +9577,7 @@ function handleMessage(msg, conn) {
         if (!wB || wB.hidden || wB.gmNoteFor) return;   // a hidden container answers nothing, as none would
         if (!boxSeenBy(campB, mapB, wB, prB.id)) return;   // the review of fold 3a: a body the player cannot see answers nothing, whether lootable or not
         var boxB = boxSrcOf(campB, wB), lootB = !!boxB, grB = _boxSteal[conn.peer] && _boxSteal[conn.peer].mapId === mapB.id && _boxSteal[conn.peer].itemId === wB.id && Date.now() - _boxSteal[conn.peer].at <= 120000 ? _boxSteal[conn.peer] : null;
-        if (!boxB && (msg.op === 'steal' || (msg.op === 'take' && grB))) boxB = stealSrc(campB, wB);   // fold 3b: an NPC not lootable answers a pickpocket, and a take of what one found
+        if (!boxB && (msg.op === 'steal' || msg.op === 'untry' || (msg.op === 'take' && grB))) boxB = stealSrc(campB, wB);   // fold 3b: an NPC not lootable answers a pickpocket, and a take of what one found
         if (!boxB) return; var bodyB = boxB.body || null, stB = !!(grB && !lootB);   // fold 3: a lootable body is searched as a container is
         var keyB = boxKey(campB, mapB, wB);
         if (msg.op === 'untry') { delete _boxTries[conn.peer]; return; }   // the player's app could not make the roll (the review)
@@ -9576,6 +9586,7 @@ function handleMessage(msg, conn) {
         var tokB = typeof msg.tok === 'string' ? (mapB.whiteboard || []).find(function(x) { return x && x.id === msg.tok; }) : null;
         var chB = tokB && tokB.isChar && !tokB.waiting && !tokB.hidden && typeof tokB.charId === 'string' && campB.chars && Object.prototype.hasOwnProperty.call(campB.chars, tokB.charId) ? campB.chars[tokB.charId] : null;
         if (!chB || chB.making || !handsTo(chB, prB.id)) { sayB('token'); return; }
+        if (stB && grB.charId !== chB.id) { sayB('token'); return; }   // the review of fold 3b: what a pickpocket found is that character's alone to take
         if (!allyNear(mapB, tokB, wB, true)) { sayB('far'); return; }
         if (msg.op === 'steal') {   // fold 3b: the system's Pickpocket roll, on an NPC that is no lootable body
             var srB = campB.system && campB.system.combat && typeof campB.system.combat.steal === 'string' ? campB.system.combat.steal : '';
@@ -10153,7 +10164,7 @@ function handleMessage(msg, conn) {
             var vtQ = window.wpVtt, ruleQ = function(k) { return !vtQ || (vtQ.rulesOn ? vtQ.rulesOn(k) : vtQ.on(k)); };
             tcQ = SQ.tokenCtx(mapQ, SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ), { turning: ruleQ('turning'), posture: ruleQ('posture'), elevation: ruleQ('elevation'), viewer: pidQ });   // facing and stance from the player's own token, on the table's settings (as their sheet reads them)
             tcQ = SQ.withRound(tcQ, mapQ ? net.combatRoundOf(locQ, (SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ) || {}).id) : null);   // fold 2: the fight that holds their token, else the first begun on that map, as their own sheet reads it (net.combatRoundOf)
-            if (typeof rangeTo === 'function' && SQ.withRange) tcQ = SQ.withRange(tcQ, rangeTo(campQ, mapQ, locQ, SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ), pidQ)); if (typeof stealAim === 'function' && typeof rangeTo === 'function' && SQ.withRange && stealAim(conn.peer, q, locQ)) tcQ = SQ.withRange(tcQ, rangeTo(campQ, mapQ, locQ, SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ), pidQ, stealAim(conn.peer, q, locQ)));   /* fold 3b: a pickpocket's try is aimed at its NPC, however their pointer stands */   // range R2: RangeMod and TargetDistance, to their own target as their copy holds it   // HUD frame (HF5b): CombatRound reads the combat on the map they are on (the token context stays null without a token)
+            if (typeof rangeTo === 'function' && SQ.withRange) tcQ = SQ.withRange(tcQ, rangeTo(campQ, mapQ, locQ, SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ), pidQ)); if (typeof stealAimCtx === 'function') tcQ = stealAimCtx(conn.peer, q, locQ, tcQ, function(tid) { return typeof rangeTo === 'function' ? rangeTo(campQ, mapQ, locQ, SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ), pidQ, tid) : null; }, SQ);   /* fold 3b: a pickpocket's try is aimed at its NPC, however their pointer stands */   // range R2: RangeMod and TargetDistance, to their own target as their copy holds it   // HUD frame (HF5b): CombatRound reads the combat on the map they are on (the token context stays null without a token)
             if (pressQ && q.att) delete q.att;
             if (pressQ && SQ.withPresser) tcQ = SQ.withPresser(tcQ, pressQ.link.id, q.by);
             chQ = srcQ; varsQ = SQ.makeResolver(viewQ, chvQ, Fq, tcQ);

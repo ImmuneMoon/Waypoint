@@ -36,6 +36,19 @@ const J = JSON.stringify;
         const tiles = BC.boxTiles(sys, b);
         check('the tiles (boxTiles): each row a player could see in list order, its name, count, icon, notes and list; a row kept out of sight (hid) not shown; the count of what it holds',
             J(tiles.map(t => [t.fid, t.rowId, t.name, t.qty, t.icon, t.notes, t.list])) === J([['f_inv', 'w_1', 'Rope', 3, 'icon:check', 'Fifty feet.', 'Gear'], ['f_inv', 'w_2', 'Odd coin', 1, '', '', 'Gear']]) && BC.boxCount(sys, b) === 4, J(tiles));
+        // the owner, 2026-11-12, of a container's items: "C. Both", a picture on an item or an entry, and a tile's own
+        const picOk = ['/saves/images/rope.png', '/saves/images/props/chest one.webp'].every(v => S.cleanPic(v) === v);
+        const picBad = ['http://x/a.png', '/saves/images/journal/a.png', '/saves/images/video/a.png', '/saves/images/../data.json', '/saves/images/%2e%2e/a.png', '/saves/images/a.txt', '/saves/sounds/a.png', 'data:image/png;base64,AA', '/saves/images/a.png?x', 7, null].every(v => S.cleanPic(v) === '');
+        check('a picture is one of the campaign\u2019s own pictures, by the map fill\u2019s own rule (cleanPic): never a web address, an inline picture, another folder, an escape, a walk or a file that is no picture', picOk && picBad);
+        const sysP = S.cleanSystem({ v: 1, name: 'P', fields: [{ id: 'f_inv', key: 'Gear', label: 'Gear', kind: 'item-list', list: { trade: true } }],
+            items: [{ id: 'i_rope', key: 'Rope', name: 'Rope', pic: '/saves/images/rope.png' }, { id: 'i_bad', key: 'Bad', name: 'Bad', pic: 'http://x/a.png' }] }, { F, gmView: true });
+        const bP = BC.cleanBox({ values: { f_inv: [{ id: 'w_1', defId: 'i_rope', qty: 1 }, { id: 'w_2', defId: 'i_rope', qty: 1, pic: '/saves/images/frayed.png' }, { id: 'w_3', defId: 'i_bad', qty: 1, pic: '/saves/images/../x.png' }] } }, sysP, 'c_bxabcd1234');
+        const tP = BC.boxTiles(sysP, bP).map(x => x.pic || '');
+        check('an item keeps its picture as the rule keeps it, and a tile shows its row\u2019s own picture, else its item\u2019s, else none',
+            sysP.items[0].pic === '/saves/images/rope.png' && !('pic' in sysP.items[1]) && J(tP) === J(['/saves/images/rope.png', '/saves/images/frayed.png', '']), J([sysP.items, tP]));
+        const pp1 = BC.boxPic(sysP, bP, 'f_inv', 'w_1', '/saves/images/own.png'), pp2 = pp1.ok && BC.boxPic(sysP, { values: pp1.values }, 'f_inv', 'w_1', ''), pp3 = BC.boxPic(sysP, bP, 'f_inv', 'w_1', 'http://x/a.png'), pp4 = BC.boxPic(sysP, bP, 'f_inv', 'w_9', '/saves/images/own.png'), pp5 = BC.boxPic(sysP, bP, 'f_nope', 'w_1', '');
+        check('a tile\u2019s own picture (boxPic): set, and taken off so the item\u2019s shows again; a path the rule refuses, a row that is gone and a list that is no container’s each refused with nothing changed',
+            pp1.ok && pp1.values.f_inv[0].pic === '/saves/images/own.png' && pp2.ok && !('pic' in pp2.values.f_inv[0]) && !pp3.ok && pp3.reason === 'pic' && !pp4.ok && pp4.reason === 'gone' && !pp5.ok && pp5.reason === 'list' && !('pic' in bP.values.f_inv[0]), J([pp1.ok, pp2 && pp2.ok, pp3, pp4, pp5]));
         const r1 = BC.boxOp(sys, b, 'f_inv', { op: 'add', defId: 'i_rope', rowId: 'w_8', qty: 2 }, F, S.applyRowOp);
         const r2 = BC.boxOp(sys, { id: 'c_bxabcd1234', values: r1.values }, 'f_inv', { op: 'setQty', rowId: 'w_1', qty: 1 }, F, S.applyRowOp);
         const r3 = BC.boxOp(sys, { id: 'c_bxabcd1234', values: r2.values }, 'f_inv', { op: 'remove', rowId: 'w_2' }, F, S.applyRowOp);
@@ -208,15 +221,17 @@ const J = JSON.stringify;
     /* ---- fold 2: the player's window, on a page of plain objects ---- */
     {
         const src = read('scripts/boxes.js'), a = src.indexOf('// [boxcheck:player-start]'), z = src.indexOf('// [boxcheck:player-end]');
-        const fn = new Function('getActiveMap', 'getActiveCampaign', 'state', 'toast', 'step', 'window', '_box', src.slice(a, z) + '\nreturn { cleanTiles, tokFor };');
-        const api = fn(() => null, () => ({ chars: { c4: { id: 'c4', shared: 1 } } }), { selWbIds: [] }, () => {}, () => {}, { wpNet: { myId: 'u_p1' } }, {});
+        const fn = new Function('getActiveMap', 'getActiveCampaign', 'state', 'toast', 'step', 'window', '_box', 'cleanPic', src.slice(a, z) + '\nreturn { cleanTiles, tokFor };');
+        const api = fn(() => null, () => ({ chars: { c4: { id: 'c4', shared: 1 } } }), { selWbIds: [] }, () => {}, () => {}, { wpNet: { myId: 'u_p1' } }, {}, S.cleanPic);
         const ct = api.cleanTiles([{ fid: 'f_inv', rowId: 'w_1', name: 'Rope\u0007<b>', qty: 3, icon: 'icon:check', notes: 'x'.repeat(900) }, { fid: 1, rowId: 'w' }, null, { fid: 'f', rowId: 'w_2', qty: -4 }]);
         check('the host\'s view cleaned again on the player\'s app: plain words cut to their length, a count a whole number, anything that is no tile left out', ct.length === 2 && ct[0].name === 'Rope <b>' && ct[0].notes.length === 600 && ct[0].qty === 3 && ct[1].qty === 1 && ct[1].name === 'Item', JSON.stringify(ct));
         const map = { whiteboard: [{ id: 't1', isChar: true, charId: 'c1', ownerId: 'u_p1', x: 500, y: 500, w: 50, h: 50 }, { id: 't2', isChar: true, charId: 'c2', ownerId: 'u_p1', x: 120, y: 100, w: 50, h: 50 }, { id: 't3', isChar: true, charId: 'c3', ownerId: 'u_p2', x: 100, y: 100, w: 50, h: 50 }] };
         const near = api.tokFor(map, { x: 100, y: 100, w: 50, h: 50 });
-        const fn2 = new Function('getActiveMap', 'getActiveCampaign', 'state', 'toast', 'step', 'window', '_box', src.slice(a, z) + '\nreturn { tokFor };');
-        const sel = fn2(() => null, () => ({ chars: {} }), { selWbIds: ['t1'] }, () => {}, () => {}, { wpNet: { myId: 'u_p1' } }, {}).tokFor(map, { x: 100, y: 100, w: 50, h: 50 });
+        const fn2 = new Function('getActiveMap', 'getActiveCampaign', 'state', 'toast', 'step', 'window', '_box', 'cleanPic', src.slice(a, z) + '\nreturn { tokFor };');
+        const sel = fn2(() => null, () => ({ chars: {} }), { selWbIds: ['t1'] }, () => {}, () => {}, { wpNet: { myId: 'u_p1' } }, {}, S.cleanPic).tokFor(map, { x: 100, y: 100, w: 50, h: 50 });
         const shared = api.tokFor({ whiteboard: [{ id: 't4', isChar: true, charId: 'c4', ownerId: 'u_p9', x: 100, y: 100, w: 50, h: 50 }, { id: 't5', isChar: true, charId: 'c5', ownerId: 'u_p9', x: 100, y: 100, w: 50, h: 50 }] }, { x: 100, y: 100, w: 50, h: 50 });
+        const cp = api.cleanTiles([{ fid: 'f_inv', rowId: 'w_1', name: 'Rope', qty: 1, pic: '/saves/images/rope.png' }, { fid: 'f_inv', rowId: 'w_2', name: 'Coin', qty: 1, pic: 'http://evil/a.png' }]).map(x => x.pic);
+        check('a player\u2019s app keeps a tile\u2019s picture only as the rule keeps it, whatever a host names', J(cp) === J(['/saves/images/rope.png', '']), J(cp));
         check('it opens with the selected token of theirs, else the one of theirs nearest the container, never another player\'s, a sheet shared with them counting as theirs (the review)', near && near.id === 't2' && sel && sel.id === 't1' && shared && shared.id === 't4');
         check('the window writes no markup, and Take and Take all ask the host, which answers', !/innerHTML/.test(src.slice(a, z)) && src.includes("n.boxAsk('take', _box.mapId, _box.pieceId, Object.assign({ tok: _box.tok }, more))"));
     }

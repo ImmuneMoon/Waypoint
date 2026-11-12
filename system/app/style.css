@@ -3600,10 +3600,13 @@
   #boxBody .box-tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; height: 74px; padding: 6px 4px 4px; background: var(--bg); border: 1px solid var(--edge); border-radius: 7px; color: var(--ink); cursor: pointer; font: inherit; }
   #boxBody .box-tile:hover { border-color: var(--dim); } #boxBody .box-tile.on, #boxBody .box-tile:focus-visible { border-color: var(--gold); outline: none; }
   #boxBody .box-ic { height: 30px; display: flex; align-items: center; justify-content: center; font-size: 22px; line-height: 1; } #boxBody .box-glyph { width: 26px; height: 26px; fill: currentColor; }
-  #boxBody .box-ch { font-weight: 700; color: var(--dim); }
+  #boxBody .box-ch { font-weight: 700; color: var(--dim); } #boxBody .box-pic { width: 40px; height: 40px; object-fit: contain; }
+  .sheet-item-pic { width: 22px; height: 22px; object-fit: contain; border-radius: 4px; vertical-align: middle; margin-right: 5px; flex: 0 0 auto; }   /* 1.6.2 (backlog 42): a row's picture */
+  .sys-pic { display: inline-flex; align-items: center; gap: 2px; } .sys-pic-cur, .lib-pic-cur { width: 22px; height: 22px; object-fit: contain; display: block; } .lib-pic-btn { min-width: 64px; }
   #boxBody .box-n { position: absolute; top: 3px; right: 5px; font-size: 11px; font-weight: 700; color: var(--ink); }
   #boxBody .box-nm { max-width: 100%; font-size: 10.5px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #boxBody .box-sel { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: var(--bg); border-radius: 7px; } #boxBody .box-sel b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } #boxBody .box-q { min-width: 18px; text-align: center; }
+  #boxBody .box-sel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; background: var(--bg); border-radius: 7px; } #boxBody .box-sel b { flex: 1 1 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } #boxBody .box-q { min-width: 18px; text-align: center; }
+  #boxBody .box-sel .tool { padding: 4px 9px; font-size: 12px; } #boxBody .box-sel .box-less, #boxBody .box-sel .box-more { width: 28px; padding: 4px 0; text-align: center; } #boxBody .box-sel .box-rm { margin-left: auto; color: var(--red); }   /* the owner, 2026-11-12: the bar wraps inside the window, its name on a line of its own */
   #boxBody .box-add { display: flex; flex-wrap: wrap; gap: 6px; } #boxBody .box-add select { flex: 1 1 140px; min-width: 0; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; padding: 4px 6px; font: inherit; font-size: 12px; color-scheme: dark; }
   #boxBody .box-say { font-size: 12px; } .box-field { display: flex; align-items: center; gap: 8px; margin: -2px 0 8px 22px; font-size: 12px; }
   #iLayers .il-players { margin-top: 6px; } #iLayers .il-say { font-size: 11px; margin-top: 2px; }

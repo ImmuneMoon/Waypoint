@@ -2227,6 +2227,22 @@ var _glyphPop = null;
 function closeGlyphPicker() { if (_glyphPop) { _glyphPop.remove(); _glyphPop = null; document.removeEventListener('mousedown', glyphOutside, true); } }
 function glyphOutside(e) { if (_glyphPop && !_glyphPop.contains(e.target) && !(e.target.closest && e.target.closest('.sys-glyph-btn'))) closeGlyphPicker(); }
 // The picker's button, right after an icon box: it shows the box's current icon, so it doubles as the preview
+// 1.6.2 (backlog 42): a row's own picture, else its item's: a small picture before its name, the campaign's own (through the host on a player's app)
+function rowPicNode(entry, def) {
+    var SC = window.wpSystemCore, pc = SC && typeof SC.cleanPic === 'function' ? (SC.cleanPic(entry && entry.pic) || SC.cleanPic(def && def.pic)) : ''; if (!pc) return null;
+    var n = window.wpNet, src = n && typeof n.assetSrc === 'function' ? n.assetSrc(pc) : pc; if (src === pc) src = picRef(pc); if (!src) return null;
+    var im = document.createElement('img'); im.className = 'sheet-item-pic'; im.alt = ''; im.src = src; return im;
+}
+// The Items tab's Picture: one of the campaign's own pictures from the Image Library, kept in a hidden box the tab's own change reads
+function picPicker(inp) {
+    var wrap = el('span', 'sys-pic'), b = el('button', 'tool ghost sys-btn sys-pic-btn'); b.type = 'button'; b.title = 'A picture for this item, from your Image Library. It shows on a container\u2019s tile and on a sheet\u2019s row.';
+    var x = el('button', 'tool ghost sys-btn sys-pic-none', '\u00d7'); x.type = 'button'; x.title = 'No picture'; x.setAttribute('aria-label', 'No picture');
+    var paint = function() { b.textContent = ''; var v = inp.value; if (v) { var im = document.createElement('img'); im.className = 'sys-pic-cur'; im.alt = ''; im.src = picRef(v); b.appendChild(im); } else b.appendChild(document.createTextNode('Picture')); x.hidden = !v; };
+    var put = function(v) { inp.value = v; inp.dispatchEvent(new Event('change', { bubbles: true })); paint(); };
+    b.addEventListener('click', function(e) { e.preventDefault(); if (!window.wpPickImage) { toast('The Image Library is not available here.'); return; } window.wpPickImage(function(src) { if (typeof src === 'string' && /^[/]saves[/]images[/]/.test(src)) put(src); }); });
+    x.addEventListener('click', function(e) { e.preventDefault(); put(''); });
+    paint(); wrap.appendChild(b); wrap.appendChild(x); return wrap;
+}
 function glyphButton(inp) {
     var b = el('button', 'tool ghost sys-btn sys-glyph-btn'); b.type = 'button'; b.title = 'Pick an icon (or type an emoji)';
     var paint = function() { b.textContent = ''; var v = inp.value.trim(); b.appendChild(v ? iconNode(v, 'sys-glyph-cur') : el('span', 'sys-glyph-cur', '\u2026')); };
@@ -4107,7 +4123,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         if (typeof rowLibHook === 'function') rowLibHook(line, entry, rd, c, f, spec, gm);   // 1.6.2: Add to the library
         var opSlot = opens ? el('span', 'sheet-item-opslot') : null; if (opSlot) line.appendChild(opSlot);   // the arrow goes here once the row knows whether it has details
         _placeWant = hudRow ? null : 'row';
-        if (def.icon) line.appendChild(iconNode(def.icon, 'sheet-item-icon'));
+        var rpN = typeof rowPicNode === 'function' ? rowPicNode(entry, def) : null; if (rpN) line.appendChild(rpN); else if (def.icon) line.appendChild(iconNode(def.icon, 'sheet-item-icon'));   // 1.6.2 (backlog 42): its picture, else its icon
         var ovc = ovCtx(entry, rd, gm);   // F4c2: what this copy holds of its own (a dot on each)
         var nm = el('span', 'sheet-item-name', def.name); if (entry.mlk && typeof rowReadInto === 'function') rowReadInto(nm, def.name, entry.mlk, 'name'); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + (typeof blastTag === 'function' ? blastTag(def.area.ft) : def.area.ft + ' ft'))); if (def.notes) nm.title = def.name + '\n' + def.notes; ovNameDot(nm, ovc, true); line.appendChild(nm);
         if (spec && spec.look) lookSwatches(line, sysI, c, spec, entry);   // 1.6.0, backlog 206: its swatches beside its name, on the HUD too
@@ -4544,7 +4560,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         if (ei >= nDrawT) return;
         var tr = el('tr', entry.hid === 1 ? 'sheet-item-hid' : null), nameTd = el('td', 'sheet-itcol-name'), opSlotT = opensT ? el('span', 'sheet-item-opslot') : null; if (opSlotT) nameTd.appendChild(opSlotT);
         if (typeof rowLibHook === 'function') rowLibHook(tr, entry, rd, c, f, spec, gm);   // 1.6.2: Add to the library
-        if (def.icon) nameTd.appendChild(iconNode(def.icon, 'sheet-item-icon'));
+        var rpT = typeof rowPicNode === 'function' ? rowPicNode(entry, def) : null; if (rpT) nameTd.appendChild(rpT); else if (def.icon) nameTd.appendChild(iconNode(def.icon, 'sheet-item-icon'));   // 1.6.2 (backlog 42): its picture, else its icon
         nameTd.appendChild(entry.mlk && typeof rowRead === 'function' ? rowRead(def.name, entry.mlk, 'name', 'span', 'sheet-item-tname') : document.createTextNode(def.name));   // item 35, fold 1d: an own row's name with its look
         if (def.area) nameTd.appendChild(el('span', 'sheet-item-area-tag', ' ' + (typeof blastTag === 'function' ? blastTag(def.area.ft) : def.area.ft + ' ft')));
         var ovT = ovCtx(entry, rd, gm); ovNameDot(nameTd, ovT);   // F4c2: a dot when the copy holds values of its own
@@ -10111,6 +10127,7 @@ function itemRow(it) {
     flags.appendChild(input('sys-item-cost field', it.cost, 'Point/credit cost (a formula, no dice) — used by budgets in a later slice', 'Cost (optional)'));
     flags.appendChild(input('sys-item-throw field', it.throwSkill, 'Optional: a field whose roll is posted as the to-hit', 'Throw skill (optional)'));
     var iIcoIn = input('sys-item-icon field', it.icon, 'An emoji or a bundled icon shown on the row', 'Icon'); flags.appendChild(iIcoIn); flags.appendChild(glyphButton(iIcoIn));
+    var iPicIn = el('input', 'sys-item-pic'); iPicIn.type = 'hidden'; iPicIn.value = typeof it.pic === 'string' ? it.pic : ''; flags.appendChild(iPicIn); if (typeof picPicker === 'function') flags.appendChild(picPicker(iPicIn));   // 1.6.2 (backlog 42): its own picture
     flags.appendChild(select('sys-item-vis', [['all', 'Visible to players'], ['gm', 'GM only']], it.vis || 'all', 'GM only: kept out of the players\u2019 list. One you give a character reaches its owner (name, icon, category and notes); its formulas never leave your machine'));
     flags.appendChild(select('sys-item-rmmode', [['', 'A player may remove it'], ['bound', 'Bound: only the GM removes it'], ['curse', 'Curse on contact: you keep it']], it.rm || '', 'When a player removes it from their character. Bound: it stays on their sheet and they see your message. Curse on contact: it leaves their sheet but stays on the character, out of their sight, until you remove it. Players never see this setting.'));   // Stage 6
     var rmIn = input('sys-item-rmtext field', it.rmMsg || '', 'Shown to the player when they try to remove it (optional)', 'Message on removal'); rmIn.maxLength = LIMITS.rmMsg; if (!it.rm) rmIn.style.opacity = '0.5'; flags.appendChild(rmIn);
@@ -14817,6 +14834,7 @@ function onInput(e) {
         }
         else if (ic.indexOf('sys-item-cost') >= 0) it.cost = t.value;
         else if (ic.indexOf('sys-item-throw') >= 0) it.throwSkill = t.value.trim();
+        else if (ic.indexOf('sys-item-pic') >= 0) { if (t.value) it.pic = t.value.slice(0, 320); else delete it.pic; }   // 1.6.2 (backlog 42): Save keeps it only as one of the campaign's pictures
         else if (ic.indexOf('sys-item-icon') >= 0) it.icon = t.value.slice(0, 32);   // Save keeps an emoji's first 8 code points, or a bundled icon's name
         else if (ic.indexOf('sys-item-notes') >= 0) it.notes = t.value.slice(0, LIMITS.noteText);
         else if (ic.indexOf('sys-item-rmtext') >= 0) it.rmMsg = t.value.slice(0, LIMITS.rmMsg);   // Stage 6

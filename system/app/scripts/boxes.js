@@ -8,7 +8,8 @@ import { getActiveCampaign, getActiveMap } from './models.js';
 import { state } from './state.js';
 import { save, toast } from './io.js';
 import * as BC from './boxcore.js';
-import { applyRowOp, glyphPath, uid } from './systemcore.js';
+import { applyRowOp, glyphPath, uid, cleanPic } from './systemcore.js';
+import { picRef } from './safecore.js';
 import * as F from './formula.js';
 
 var _box = { mapId: null, pieceId: null, sel: null, list: null };
@@ -51,6 +52,7 @@ function open(pieceId) {
 function close() { var p = P(); _ask = null; if (!p || p.style.display === 'none') return; if (_box.player && window.wpNet && typeof window.wpNet.boxAsk === 'function') window.wpNet.boxAsk('close', _box.mapId, _box.pieceId, {}); p.style.display = 'none'; _box = { mapId: null, pieceId: null, sel: null, list: null }; step('close'); }
 // The item's icon: one of the app's own glyphs, or the item's own characters, or the first letter of its name
 function iconInto(box, t) {
+    var pc = cleanPic(t.pic); if (pc) { var n = window.wpNet, src = n && typeof n.assetSrc === 'function' ? n.assetSrc(pc) : pc; if (src === pc) src = picRef(pc); if (src) { var im = document.createElement('img'); im.className = 'box-pic'; im.alt = ''; im.src = src; box.appendChild(im); return; } }   // its own picture: the campaign's, through the host on a player's app
     var g = typeof t.icon === 'string' && /^icon:/.test(t.icon) ? glyphPath(t.icon) : '';
     if (g) { var NS = 'http://www.w3.org/2000/svg', s = document.createElementNS(NS, 'svg'), pa = document.createElementNS(NS, 'path'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('class', 'box-glyph'); s.setAttribute('aria-hidden', 'true'); pa.setAttribute('d', g); s.appendChild(pa); box.appendChild(s); return; }
     box.appendChild(el('span', 'box-ch', t.icon ? t.icon : (t.name || '?').charAt(0).toUpperCase()));
@@ -61,6 +63,12 @@ function change(fid, q, what, back) {
     var r = BC.boxOp(sysOf(camp), b, fid, q, F, applyRowOp);
     if (!r.ok) { toast(r.reason === 'full' ? 'That list holds as many rows as it can.' : r.reason === 'gm' ? 'A container holds only what players may see, since they will take it.' : 'That cannot be put in this container.'); step('change-refused', { what: what, reason: r.reason }); return; }
     b.values = r.values; save(); step(what, {}); draw(); if (typeof window.appRender === 'function') window.appRender(); refocus(back);
+}
+// A row's own picture, the GM's: through boxcore boxPic, one save
+function setPic(fid, rowId, path) {
+    var camp = getActiveCampaign(), w = piece(), b = boxOf(camp, w); if (!gmMay() || !b) { close(); return; }
+    var r = BC.boxPic(sysOf(camp), b, fid, rowId, path); if (!r.ok) { toast(r.reason === 'pic' ? 'Pick one of this campaign\u2019s own pictures.' : 'That is no longer in it.'); return; }
+    b.values = r.values; save(); step(path ? 'pic' : 'nopic', {}); draw(); if (typeof window.appRender === 'function') window.appRender(); refocus(['.box-picbtn']);
 }
 // The window is drawn anew at a change: the focus goes back to the control pressed, or the first of those named that is there (the review rule of 1.6.2)
 function refocus(list) { (Array.isArray(list) ? list : []).some(function(s) { var n = document.querySelector('#boxBody ' + s); if (n && !n.disabled && n.focus) { n.focus(); return true; } return false; }); }
@@ -84,6 +92,7 @@ function draw() {
     });
     if (!tiles.length) body.appendChild(el('div', 'muted box-say', 'Nothing in it yet.')); else body.appendChild(grid);
     var sel = tiles.filter(function(t) { return t.rowId === _box.sel; })[0];
+    if (sel) { var selRow = ((b.values && b.values[sel.fid]) || []).filter(function(x) { return x && x.id === sel.rowId; })[0]; sel.own = !!(selRow && cleanPic(selRow.pic)); }
     if (sel) {
         var bar = el('div', 'box-sel'); bar.appendChild(el('b', '', sel.name));
         var spec = lists.filter(function(f) { return f.id === sel.fid; })[0], noQty = !!(spec && spec.list && spec.list.noQty);
@@ -94,6 +103,10 @@ function draw() {
             pl.addEventListener('click', function() { change(sel.fid, { op: 'setQty', rowId: sel.rowId, qty: sel.qty + 1 }, 'more', ['.box-more']); });
             bar.appendChild(mi); bar.appendChild(el('span', 'box-q', sel.qty)); bar.appendChild(pl);
         }
+        var pk = el('button', 'tool ghost box-picbtn', 'Picture'); pk.type = 'button'; pk.title = 'A picture for this item in this container. The item keeps it when it is taken.';
+        pk.addEventListener('click', function() { if (!window.wpPickImage) { toast('The Image Library is not available here.'); return; } window.wpPickImage(function(src) { if (typeof src !== 'string') return; setPic(sel.fid, sel.rowId, src); }); });
+        bar.appendChild(pk);
+        if (sel.own) { var np = el('button', 'tool ghost box-nopic', 'Item\u2019s picture'); np.type = 'button'; np.title = 'Take this picture off, and show the item\u2019s own again'; np.addEventListener('click', function() { setPic(sel.fid, sel.rowId, ''); }); bar.appendChild(np); }
         var rm = el('button', 'tool ghost danger box-rm', 'Take out'); rm.type = 'button'; rm.title = 'Take this item out of the container';
         rm.addEventListener('click', function() { _box.sel = null; change(sel.fid, { op: 'remove', rowId: sel.rowId }, 'remove', ['.box-tile', '.box-item', '.box-lib']); });
         bar.appendChild(rm); body.appendChild(bar);
@@ -157,7 +170,7 @@ function ask(itemId) {
 // The host's view, cleaned again: tiles of plain words and numbers, 400 at most
 function cleanTiles(raw) {
     var cut = function(v, n) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, n) : ''; };
-    return (Array.isArray(raw) ? raw.slice(0, 400) : []).map(function(x) { if (!x || typeof x !== 'object' || typeof x.rowId !== 'string' || typeof x.fid !== 'string') return null; var q = Math.floor(Number(x.qty)); return { fid: cut(x.fid, 40), rowId: cut(x.rowId, 40), name: cut(x.name, 240) || 'Item', qty: q >= 1 && q <= 1e6 ? q : 1, icon: cut(x.icon, 40), notes: cut(x.notes, 600), list: cut(x.list, 60) }; }).filter(Boolean);
+    return (Array.isArray(raw) ? raw.slice(0, 400) : []).map(function(x) { if (!x || typeof x !== 'object' || typeof x.rowId !== 'string' || typeof x.fid !== 'string') return null; var q = Math.floor(Number(x.qty)); return { fid: cut(x.fid, 40), rowId: cut(x.rowId, 40), name: cut(x.name, 240) || 'Item', qty: q >= 1 && q <= 1e6 ? q : 1, icon: cut(x.icon, 40), notes: cut(x.notes, 600), list: cut(x.list, 60), pic: cleanPic(x.pic) }; }).filter(Boolean);
 }
 function view(msg) {
     var p = P(), map = getActiveMap(); if (!p || !msg || typeof msg.itemId !== 'string' || typeof msg.mapId !== 'string' || !map || map.id !== msg.mapId) return;

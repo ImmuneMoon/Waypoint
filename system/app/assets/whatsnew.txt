@@ -1146,6 +1146,9 @@ The Data Map
   count. Put things in from your system or the library. A container wears a
   chest at its corner: a player whose token stands next to it presses it to
   look inside and takes one, some or all, and you are told who took what.
+- An item can have a picture of its own, from your Image Library. Pick it in
+  the Items tab or on a library entry. A container's tile and a sheet's row
+  show it, and a container's row can wear a picture of its own too.
 - Fixed: placing a shape or Build's pieces over a filled region could drag
   the region instead.
 - A map used to open on whichever face you last left it in. Now Settings,

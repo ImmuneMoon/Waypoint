@@ -6,7 +6,7 @@
    hold. Only the item lists ticked Tradable that players see may hold a container's items, since a player takes them into the same list of
    their own sheet, as a trade moves a row. */
 
-import { cleanChar, rowDef, rowIdOf, fieldById } from './systemcore.js';
+import { cleanChar, rowDef, rowIdOf, fieldById, cleanPic } from './systemcore.js';
 
 // [boxcheck:core-start]
 var BOX_ID = /^c_bx[A-Za-z0-9]{4,20}$/, BOX_MAX = 500;
@@ -43,7 +43,7 @@ function boxTiles(sys, box) {
         var rows = box.values[f.id]; if (!Array.isArray(rows)) return;
         rows.forEach(function(r) {
             if (!isObj(r) || r.hid === 1) return; var rd = rowDef(sys, r), d = rd && rd.def ? rd.def : null; if (!d) return;
-            out.push({ fid: f.id, list: f.label || f.key || '', rowId: rowIdOf(r), name: (isObj(r.ov) && typeof r.ov.name === 'string' && r.ov.name) || d.name || 'Item', qty: f.list && f.list.noQty ? 1 : Math.max(1, r.qty | 0), icon: typeof d.icon === 'string' ? d.icon : '', notes: typeof d.notes === 'string' ? d.notes : '', cat: typeof d.category === 'string' ? d.category : '' });
+            out.push({ fid: f.id, list: f.label || f.key || '', rowId: rowIdOf(r), name: (isObj(r.ov) && typeof r.ov.name === 'string' && r.ov.name) || d.name || 'Item', qty: f.list && f.list.noQty ? 1 : Math.max(1, r.qty | 0), icon: typeof d.icon === 'string' ? d.icon : '', notes: typeof d.notes === 'string' ? d.notes : '', cat: typeof d.category === 'string' ? d.category : '', pic: cleanPic(r.pic) || cleanPic(d.pic) });   // the row's own picture, else its item's
         });
     });
     return out;
@@ -59,6 +59,14 @@ function boxOp(sys, box, fid, q, F, applyRowOp) {
     if (isObj(r.also)) Object.keys(r.also).forEach(function(k) { var fa = fieldById(sys, k); if (Array.isArray(r.also[k]) && fa && fa.kind === 'item-list') v[k] = r.also[k]; });
     var out = map(); Object.keys(v).forEach(function(k) { if (Array.isArray(v[k]) && v[k].length) out[k] = v[k]; });
     return { ok: true, values: out };
+}
+// A row's own picture, set by the GM on a container's tile (none takes it off, the item's own showing again). Answers { ok, values }
+function boxPic(sys, box, fid, rowId, path) {
+    var f = fieldById(sys, fid); if (!f || boxLists(sys).indexOf(f) < 0 || !isObj(box) || !isObj(box.values) || !Array.isArray(box.values[fid])) return { ok: false, reason: 'list' };
+    var p = path ? cleanPic(path) : ''; if (path && !p) return { ok: false, reason: 'pic' };
+    var v = JSON.parse(JSON.stringify(box.values)), r = v[fid].filter(function(x) { return isObj(x) && rowIdOf(x) === rowId; })[0]; if (!r) return { ok: false, reason: 'gone' };
+    if (p) r.pic = p; else delete r.pic;
+    return { ok: true, values: v };
 }
 // A piece that may hold items: a picture or a plain shape, a map object among them, never a token, a waiting token, a wall, a door, a painted
 // cell, a text box, a drawing, a trigger zone, a light, a GM note card or a room's area. A piece that only stops movement may (a crate)
@@ -78,5 +86,5 @@ function boxesTidy(camp) {
 function boxesOf(store, items) { var out = map(), named = boxesNamed(items); if (isObj(store)) Object.keys(named).forEach(function(id) { if (Object.prototype.hasOwnProperty.call(store, id)) out[id] = JSON.parse(JSON.stringify(store[id])); }); return out; }
 // [boxcheck:core-end]
 
-if (typeof window !== 'undefined') window.wpBoxCore = { BOX_MAX: BOX_MAX, boxPieceOk: boxPieceOk, boxesNamed: boxesNamed, boxesTidy: boxesTidy, boxesOf: boxesOf, boxLists: boxLists, boxIdOk: boxIdOk, newBoxId: newBoxId, cleanBox: cleanBox, cleanBoxes: cleanBoxes, boxChar: boxChar, boxTiles: boxTiles, boxCount: boxCount, boxOp: boxOp };
-export { BOX_MAX, boxPieceOk, boxesNamed, boxesTidy, boxesOf, boxLists, boxIdOk, newBoxId, cleanBox, cleanBoxes, boxChar, boxTiles, boxCount, boxOp };
+if (typeof window !== 'undefined') window.wpBoxCore = { BOX_MAX: BOX_MAX, boxPic: boxPic, boxPieceOk: boxPieceOk, boxesNamed: boxesNamed, boxesTidy: boxesTidy, boxesOf: boxesOf, boxLists: boxLists, boxIdOk: boxIdOk, newBoxId: newBoxId, cleanBox: cleanBox, cleanBoxes: cleanBoxes, boxChar: boxChar, boxTiles: boxTiles, boxCount: boxCount, boxOp: boxOp };
+export { BOX_MAX, boxPic, boxPieceOk, boxesNamed, boxesTidy, boxesOf, boxLists, boxIdOk, newBoxId, cleanBox, cleanBoxes, boxChar, boxTiles, boxCount, boxOp };

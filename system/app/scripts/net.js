@@ -4391,7 +4391,7 @@ function boxViewMsg(camp, map, w, box) {
     var BC = window.wpBoxCore, Sv = SC(), tiles = BC ? BC.boxTiles(camp.system, box) : [], can = Object.create(null);
     if (Sv && typeof Sv.tradeOfferable === 'function' && BC) Sv.tradeOfferable(camp.system, BC.boxChar(box), 'gm').forEach(function(o) { if (!o.no) can[o.fid + '|' + o.rowId] = 1; });
     tiles = tiles.filter(function(x) { return can[x.fid + '|' + x.rowId] === 1; });
-    return { type: 'box-view', mapId: map.id, itemId: w.id, name: typeof w.name === 'string' ? w.name.slice(0, 120) : '', tiles: tiles.slice(0, 400).map(function(x) { return { fid: x.fid, rowId: x.rowId, name: x.name, qty: x.qty, icon: x.icon, notes: x.notes, list: x.list }; }) };
+    return { type: 'box-view', mapId: map.id, itemId: w.id, name: typeof w.name === 'string' ? w.name.slice(0, 120) : '', tiles: tiles.slice(0, 400).map(function(x) { var o = { fid: x.fid, rowId: x.rowId, name: x.name, qty: x.qty, icon: x.icon, notes: x.notes, list: x.list }; if (x.pic) o.pic = x.pic; return o; }) };
 }
 // Everyone with a container open is judged again: a container gone, hidden or no longer one closes their window; a player no longer on that map,
 // whose token went or is no longer next to it, or whose connection closed is let go; the rest are sent what it holds where that changed (a take,
@@ -11134,7 +11134,7 @@ var assetWaiters = Object.create(null);  // path -> { promise, resolve, reject, 
 // these keys — the patch gate takes geometry and strokes, a share travels as bytes, a sheet file's portrait is dropped — so nothing a player
 // says can make a path askable. Forgotten with the connection and at a new table, and a path only a piece no longer sent carries once its map has gone out (assetHideSweep, below).
 var assetRefs = Object.create(null);   // host: peer -> the paths that connection was sent (decoded canonical form -> 1)
-var ASSET_KEYS = Object.create(null); ASSET_KEYS.src = ASSET_KEYS.image = ASSET_KEYS.portrait = ASSET_KEYS.bgImage = ASSET_KEYS.path = ASSET_KEYS.texSrc = 1;   // a board item's or a page block's src, a room's image, a character's portrait, a page's or sheet's bgImage, a sound's or song's path, a piece's picture fill
+var ASSET_KEYS = Object.create(null); ASSET_KEYS.src = ASSET_KEYS.image = ASSET_KEYS.portrait = ASSET_KEYS.bgImage = ASSET_KEYS.path = ASSET_KEYS.texSrc = ASSET_KEYS.pic = 1;   // a board item's or a page block's src, a room's image, a character's portrait, a page's or sheet's bgImage, a sound's or song's path, a piece's picture fill
 function assetKeyOf(raw) { var p = assetPathOk(raw); if (!p) return ''; try { return decodeURIComponent(p); } catch (e) { return p; } }   // the form a request is compared in: the canonical path, decoded — the same file however it was spelt
 function htmlAttr(s) { return s.replace(/&(?:(amp|quot|apos|lt|gt|nbsp)|#(\d{1,7})|#[xX]([0-9a-fA-F]{1,6}));/g, function(m, n, d, h) { if (n) return { amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', nbsp: '\u00a0' }[n]; var c = parseInt(d || h, d ? 10 : 16); return c > 0 && c <= 0x10ffff ? String.fromCodePoint(c) : m; }); }   // an attribute's value as the browser reads it: the entities the text tool's serialisation writes (&, ", a no-break space) and the named or numeric ones pasted markup may carry
 function assetWalk(msg, put) {   // every path under a key a player's app reads a picture or sound from, as written

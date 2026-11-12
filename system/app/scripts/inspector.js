@@ -1183,6 +1183,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               portalLockFieldHtml(w, activeMap)+   // a portal's own lock: Locked for players, on a piece that is a portal (its own Portal to Map, or its linked node's)
               pagePinFieldHtml(w)+   // 1.5.4: a pin, the page this piece opens (the GM's alone)
               (linkFold ? '</details>' : '') +   // 1.5.6: the end of a character token's Map links
+              (typeof boxFieldHtml === 'function' ? boxFieldHtml(w) : '')+   // 1.6.2 (backlog 42): Holds items
               inspFoldOpen('look', 'Look', 'Colour, size, turn, layer and lock')+   // 1.6.2: the folds
               (w.type !== 'image' && w.type !== 'trigger' && w.type !== 'light' ? '<div class="field"><label>' + (w.type === 'text' ? 'Text Colour' : w.type === 'path' ? 'Pen Colour' : 'Fill Colour') + '</label><div class="color-row">' + ((w.type === 'path' || w.type === 'text') ? penHtml : colorHtml) + '</div></div>' : '') +
               (w.type === 'text' ? textStyleHtml(w) : '') +
@@ -1337,6 +1338,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbPagePin) _el_wbPagePin.addEventListener('change', function() { setItemPagePin(w, this.value); });
             var _el_wbPagePinAt = document.getElementById('wbPagePinAt');   // 1.6.0: where on its page the pin opens
             if (_el_wbPagePinAt) _el_wbPagePinAt.addEventListener('change', function() { setItemPagePinAt(w, this.value); });
+            if (typeof boxFieldWire === 'function') boxFieldWire(w);   // 1.6.2 (backlog 42): Holds items and Open contents
             var _el_wbPortalLock = document.getElementById('wbPortalLock');   // a portal's own lock: true or no key
             if (_el_wbPortalLock) _el_wbPortalLock.addEventListener('change', function() { setItemPortalLock(w, this.checked, activeMap); });
             var _el_wbPortalRoom = document.getElementById('wbPortalRoom');
@@ -2422,6 +2424,20 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       toast(did === 'set' ? 'Shift+P opens this page over the map now. It is yours alone.' : 'This map has no scene page now.');
   }
   // [shelfcheck:scenebox-end]
+  // [boxcheck:field-start]
+  // 1.6.2 (backlog 42, fold 1): a picture, a shape or a map object may hold items (the piece's key box, the GM's own). Fixed words and a count
+  function boxFieldHtml(w) {
+      var B = window.wpBoxes, BC = window.wpBoxCore, camp = getActiveCampaign(); if (!B || !BC || !B.gmMay() || !B.pieceOk(w)) return '';
+      var b = camp && camp.boxes && typeof w.box === 'string' && Object.prototype.hasOwnProperty.call(camp.boxes, w.box) ? camp.boxes[w.box] : null, n = b ? BC.boxCount(camp.system, b) : 0;
+      return '<div class="field check-row"><input type="checkbox" id="wbHoldsItems" ' + (b ? 'checked' : '') + '> <label for="wbHoldsItems"><i class="wib wi-lib"></i> Holds items</label></div>'
+          + (b ? '<div class="box-field"><span class="muted">' + (n ? n + ' item' + (n === 1 ? '' : 's') : 'Empty') + '</span> <button type="button" class="tool ghost" id="wbOpenBox" title="See and change what it holds">Open contents</button></div>' : '');
+  }
+  function boxFieldWire(w) {
+      var t = document.getElementById('wbHoldsItems'), o = document.getElementById('wbOpenBox'), B = window.wpBoxes; if (!B) return;
+      if (t) t.addEventListener('change', function() { var said = B.holds(w, t.checked, function(q, done) { showConfirm(q, function(ok) { done(!!ok); }, { noEnter: true }); }); if (said) toast(said); });
+      if (o) o.addEventListener('click', function() { B.open(w.id); });
+  }
+  // [boxcheck:field-end]
   // [sinkcheck:portallockbox-start]
   // A portal's own lock (the owner, 2026-10-03: "maybe add the ability to lock a portal from the play map"): a portal piece's Locked for
   // players tick — no player travels through it until the GM unlocks it (item.portalLock, true or no key; the host is the judge: net.js

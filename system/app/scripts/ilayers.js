@@ -22,6 +22,7 @@ var KINDS = [
     { k: 'light', name: 'Lights' },
     { k: 'area', name: 'Room areas' },
     { k: 'hidden', name: 'Hidden pieces' },
+    { k: 'box', name: 'Containers', seen: true },
     { k: 'token', name: 'Characters', more: true },
     { k: 'image', name: 'Pictures', more: true },
     { k: 'shape', name: 'Shapes', more: true },
@@ -30,13 +31,13 @@ var KINDS = [
     { k: 'fill', name: 'Painted cells', more: true }
 ];
 var KIND_IDS = KINDS.map(function(x) { return x.k; });
-var MAIN_IDS = KINDS.filter(function(x) { return !x.more; }).map(function(x) { return x.k; });   // the GM's own kinds, which As players see it puts away
+var MAIN_IDS = KINDS.filter(function(x) { return !x.more && !x.seen; }).map(function(x) { return x.k; });   // the GM's own kinds, which As players see it puts away (never Containers, which players see as you do)
 var SHAPES = { rect: 1, square: 1, circle: 1, hexagon: 1, hex: 1, diamond: 1 };
 function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
 // The kinds a piece belongs to: one piece may be several (a hidden trigger zone is a trigger zone and a hidden piece). A door is a portal's row,
 // never a wall's; a token is a character and may be a hidden piece. A piece that is none of the kinds above is the kind of piece it is (a picture,
 // a shape, a drawing, a text box, a painted cell). FC is fogcore (isPortal, isDoor); with none, portals and doors are passed over
-function kindsOf(w, map, FC) {
+function kindsOf(w, map, FC, hasBox) {
     if (!isObj(w)) return [];
     var out = [], tok = !!(w.isChar || w.waiting);
     if (!tok) {
@@ -47,6 +48,7 @@ function kindsOf(w, map, FC) {
         if (w.gmNoteFor) out.push('note');
         if (w.type === 'light') out.push('light');
         if (w.roomArea === true) out.push('area');
+        if (typeof w.box === 'string' && (typeof hasBox !== 'function' || hasBox(w))) out.push('box');   // backlog 42: a container the campaign holds
         if (!out.length) {
             if (w.fill) out.push('fill');
             else if (w.type === 'image') out.push('image');
@@ -70,8 +72,8 @@ function cleanState(raw) {
 }
 function rowOf(st, k) { var v = st && st[k]; return { s: !v || v.s !== false, p: !v || (v.s !== false && v.p !== false) }; }
 // A piece as the GM's screen draws it: off (out of sight) where any of its kinds is out of sight, through (takes no clicks) where any is off or takes none
-function judge(w, map, FC, st) {
-    var ks = kindsOf(w, map, FC), off = false, through = false;
+function judge(w, map, FC, st, hasBox) {
+    var ks = kindsOf(w, map, FC, hasBox), off = false, through = false;
     ks.forEach(function(k) { var r = rowOf(st, k); if (!r.s) off = true; if (!r.p) through = true; });
     return { off: off, through: off || through };
 }
@@ -106,12 +108,13 @@ function activeMap() { return getActiveMap(); }
 // was never marked passes by at once
 function mark(el, w, map) {
     if (!el || !el.classList) return;
-    var j = gmScreen() && Object.keys(kept()).length ? judge(w, map, fc(), kept()) : null;
+    var j = gmScreen() && Object.keys(kept()).length ? judge(w, map, fc(), kept(), hasBox()) : null;
     if (!j && !el._il) return;
     el.classList.toggle('il-off', !!(j && j.off)); el.classList.toggle('il-through', !!(j && j.through)); el._il = !!(j && (j.off || j.through));
 }
 // A piece the pointer passes through, for the board's own picks made by geometry (a wall's line by its stroke, a locked piece handing its press on, a marquee)
-function through(w) { return gmScreen() && Object.keys(kept()).length > 0 && judge(w, activeMap(), fc(), kept()).through; }
+function through(w) { return gmScreen() && Object.keys(kept()).length > 0 && judge(w, activeMap(), fc(), kept(), hasBox()).through; }
+function hasBox() { return window.wpBoxes && typeof window.wpBoxes.has === 'function' ? window.wpBoxes.has : null; }
 function set(k, which, on) {
     if (KIND_IDS.indexOf(k) < 0) return;
     var st = Object.assign(Object.create(null), kept()), r = rowOf(st, k);
@@ -134,7 +137,7 @@ function dropSel() {
     if (state.selWbId && off[state.selWbId]) state.selWbId = ids.length ? ids[ids.length - 1] : null;
 }
 // A piece out of sight on this screen now
-function offNow(w) { return gmScreen() && Object.keys(kept()).length > 0 && judge(w, activeMap(), fc(), kept()).off; }
+function offNow(w) { return gmScreen() && Object.keys(kept()).length > 0 && judge(w, activeMap(), fc(), kept(), hasBox()).off; }
 // The part at the top of the Layers window: a row a kind, its name as text, two ticks; then As players see it. Elements and text nodes alone
 function draw() {
     var box = document.getElementById('iLayers'); if (!box) return;
@@ -168,7 +171,7 @@ function draw() {
     });
     var pv = isPlayersView(st), b = document.createElement('button'); b.type = 'button'; b.className = 'tool ghost il-players' + (pv ? ' on' : '');
     b.textContent = pv ? 'Back to what I had' : 'As players see it';
-    b.title = pv ? 'Put back the rows as they were before As players see it.' : 'Put the kinds above out of sight on your screen, to see the map as players do. Press again to put them back.';
+    b.title = pv ? 'Put back the rows as they were before As players see it.' : 'Put the kinds only you see out of sight on your screen, to see the map as players do. Press again to put them back.';
     b.addEventListener('click', function() { players(); refocus('.il-players'); });
     box.appendChild(b);
     var say = document.createElement('div'); say.className = 'il-say muted'; say.textContent = 'Your screen alone. Players see and use everything as before.'; box.appendChild(say);

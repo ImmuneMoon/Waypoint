@@ -1141,6 +1141,10 @@ The Data Map
   characters, pictures, shapes, drawings, text boxes and painted cells. As
   players see it puts the first rows away at once. Players see and use
   everything as before.
+- A picture, a shape or a map object can now hold items. Tick Holds items in
+  its Properties, then Open contents shows them as tiles with their icon and
+  count. Put things in from your system or the library. It stays on your
+  computer for now: players open containers in the next step.
 - Fixed: placing a shape or Build's pieces over a filled region could drag
   the region instead.
 - A map used to open on whichever face you last left it in. Now Settings,

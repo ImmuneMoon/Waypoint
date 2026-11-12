@@ -1833,6 +1833,7 @@ window.wpFitToGrid = fitToGrid;
           var it = JSON.parse(JSON.stringify(src));
           it.id = 'wb' + uid() + Math.random().toString(36).slice(2, 5);
           delete it.ownerId; delete it.charId; delete it.threats;   // a copy is a new creature, not a second token of the character (5h: nor its threat marks)
+          if (it.box !== undefined) { if (window.wpBoxes && window.wpBoxes.copyFor) window.wpBoxes.copyFor(it); else delete it.box; }   // 1.6.2 (backlog 42): a copied container holds a copy of its own
           if (it.groupId) {
               if (!gidMap[it.groupId]) gidMap[it.groupId] = 'group_' + Date.now() + Math.random().toString(36).slice(2, 6);
               it.groupId = gidMap[it.groupId];
@@ -9294,6 +9295,9 @@ function roomPlaceStep(rec, px, py, pw, ph) {
         toast(ans === true ? 'Placed: an area only you see, for ' + it.name + '. Tokens standing in it are in the room.' : 'Placed: a floor for ' + it.name + ', shown to players.');
     }, { yes: 'An area only I see', alt: 'A floor players see', noEnter: true });
 }
+// 1.6.2 (backlog 42): Open contents, on the GM's menu of ONE container
+var BOX_OPEN_ROW = '<div class="menu-item cm-box-open" title="See and change what this container holds."><i class="wib wi-lib"></i><span>Open contents<small>What it holds, as tiles.</small></span></div>';
+function boxOpenRow(items) { var list = (Array.isArray(items) ? items : []).filter(Boolean), B = window.wpBoxes; if (!B || !B.gmMay() || list.length !== 1 || !B.has(list[0]) || !B.pieceOk(list[0])) return null; return { item: list[0], html: BOX_OPEN_ROW }; }
 // Show on the Data Map, on the GM's menu of ONE piece whose room is on the Data Map
 var ROOM_SHOW_ROW = '<div class="menu-item cm-room-show" title="Switch to the Data Map with this piece\u2019s room selected and in view.">'
     + '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM18 16.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM8 6.5l8 11"/></svg><span>Show on the Data Map<small>Its room, selected.</small></span></div>';
@@ -11607,6 +11611,8 @@ document.addEventListener('contextmenu', function(e) {
                 if (rmRow) html += rmRow.html;
                 var rsRow = typeof roomShowRow === 'function' ? roomShowRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), am) : null;   // 1.6.2 (backlog 45, fold 3): Show on the Data Map
                 if (rsRow) html += rsRow.html;
+                var bxRow = typeof boxOpenRow === 'function' ? boxOpenRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); })) : null;   // 1.6.2 (backlog 42): Open contents
+                if (bxRow) html += bxRow.html;
                 var ppRow = pagePinRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // 1.5.4: a pin's row, where the one piece selected opens a page
                 if (ppRow) html += ppRow.html;
                 var drRow = doorRows(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // a door's own rows: open or close it, lock it for players
@@ -11887,6 +11893,8 @@ document.addEventListener('contextmenu', function(e) {
                     if (window.wpMapShot && window.wpMapShot.flatten) window.wpMapShot.flatten(selectedIds.slice());
                 } else if (action.includes('cm-unflat')) {
                     if (window.wpFlatten && selectedIds.length === 1) window.wpFlatten.undo(am, selectedIds[0]);
+                } else if (action.includes('cm-box-open')) {   // 1.6.2 (backlog 42): what this container holds
+                    if (selectedIds.length === 1 && window.wpBoxes) window.wpBoxes.open(selectedIds[0]);
                 } else if (action.includes('cm-room-show')) {   // 1.6.2 (backlog 45, fold 3): the piece's room on the Data Map
                     var rsSaid = selectedIds.length === 1 && window.wpRoomShowData ? window.wpRoomShowData(selectedIds[0]) : ''; if (rsSaid) toast(rsSaid);
                 } else if (action.includes('cm-room-make')) {   // 1.6.2 (backlog 45): a room on the Data Map for the one piece selected (saved and drawn again below: one Undo takes both back), its name ready to type in Properties

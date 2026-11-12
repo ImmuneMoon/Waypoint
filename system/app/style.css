@@ -3071,6 +3071,10 @@
 #contextMenu .menu-item.cm-room-show > * { pointer-events: none; }
 #contextMenu .menu-item.cm-room-show .ico { margin-top: 2px; }
 #contextMenu .menu-item.cm-room-show small { display: block; color: var(--dim); font-size: 11px; }
+#contextMenu .menu-item.cm-box-open { display: flex; align-items: flex-start; gap: 9px; }   /* 1.6.2 (backlog 42): Open contents, drawn as Show on the Data Map is */
+#contextMenu .menu-item.cm-box-open > * { pointer-events: none; }
+#contextMenu .menu-item.cm-box-open .wib { margin-top: 2px; }
+#contextMenu .menu-item.cm-box-open small { display: block; color: var(--dim); font-size: 11px; }
 #contextMenu .menu-divider + .menu-divider { display: none; }   /* two rules in a row read as one */
 /* a menu taller than the window (placeMenu): compact rows first, then its own scroll */
 #contextMenu.compact .menu-item { padding: 5px 16px; font-size: 13px; }
@@ -3582,6 +3586,20 @@
   #iLayers .il-tick { justify-self: center; margin: 0; width: 15px; height: 15px; accent-color: var(--gold); cursor: pointer; } #iLayers .il-tick:disabled { cursor: default; opacity: .45; }
   #iLayers .il-more { align-self: flex-start; margin: 4px 0 2px; padding: 2px 6px; font-size: 11px; color: var(--dim); } #iLayers .il-more::after { content: ' \25BE'; } #iLayers .il-more[aria-expanded="true"]::after { content: ' \25B4'; } #iLayers .il-more:hover { color: var(--ink); }
   #iLayers .il-more-body { display: flex; flex-direction: column; gap: 3px; } #iLayers .il-more-body[hidden] { display: none; }
+  /* 1.6.2, backlog 42: a container's window, its items as tiles */
+  #boxPanel { position: fixed; right: 360px; top: 140px; width: 340px; max-width: calc(100vw - 24px); max-height: 70vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  #boxHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--edge); cursor: move; } #boxHead .notepad-title { color: var(--gold); font-weight: 600; }
+  #boxBody { padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+  #boxBody .box-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; }
+  #boxBody .box-tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; height: 74px; padding: 6px 4px 4px; background: var(--bg); border: 1px solid var(--edge); border-radius: 7px; color: var(--ink); cursor: pointer; font: inherit; }
+  #boxBody .box-tile:hover { border-color: var(--dim); } #boxBody .box-tile.on, #boxBody .box-tile:focus-visible { border-color: var(--gold); outline: none; }
+  #boxBody .box-ic { height: 30px; display: flex; align-items: center; justify-content: center; font-size: 22px; line-height: 1; } #boxBody .box-glyph { width: 26px; height: 26px; fill: currentColor; }
+  #boxBody .box-ch { font-weight: 700; color: var(--dim); }
+  #boxBody .box-n { position: absolute; top: 3px; right: 5px; font-size: 11px; font-weight: 700; color: var(--ink); }
+  #boxBody .box-nm { max-width: 100%; font-size: 10.5px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #boxBody .box-sel { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: var(--bg); border-radius: 7px; } #boxBody .box-sel b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } #boxBody .box-q { min-width: 18px; text-align: center; }
+  #boxBody .box-add { display: flex; flex-wrap: wrap; gap: 6px; } #boxBody .box-add select { flex: 1 1 140px; min-width: 0; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; padding: 4px 6px; font: inherit; font-size: 12px; color-scheme: dark; }
+  #boxBody .box-say { font-size: 12px; } .box-field { display: flex; align-items: center; gap: 8px; margin: -2px 0 8px 22px; font-size: 12px; }
   #iLayers .il-players { margin-top: 6px; } #iLayers .il-say { font-size: 11px; margin-top: 2px; }
   #whiteboard .wb-item.il-off, #whiteboard .wb-item.il-off * { visibility: hidden !important; }
   #whiteboard .wb-item.il-through, #whiteboard .wb-item.il-through * { pointer-events: none !important; }

@@ -98,6 +98,7 @@
 <script type="module" src="scripts/mapobjects.js"></script>
 <script type="module" src="scripts/layers.js"></script>
 <script type="module" src="scripts/ilayers.js"></script>
+<script type="module" src="scripts/boxes.js"></script>
 <script type="module" src="scripts/trade.js"></script>
 <script type="module" src="scripts/keycore.js"></script>
 <script type="module" src="scripts/commands.js"></script>
@@ -972,6 +973,14 @@
                                   <li>Press <b>Edit</b> to change its name, picture, cover or size. A piece already placed keeps what it had.</li>
                                   <li><b>From a picture</b> makes one from your Image Library. Objects you make stay in this campaign. <b>From another campaign</b> copies one in.</li>
                                   <li><b>Move to the system</b> puts one in the system&rsquo;s own set, so that a system file carries it.</li>
+                              </ul>
+                          </li>
+                          <li><b>Containers:</b> a picture, a shape or a map object can hold items, such as a chest or a crate. Tick <b>Holds items</b> in its Properties. A token, a wall or a door cannot.
+                              <ul>
+                                  <li>Press <b>Open contents</b>, there or on its right-click menu. Each item stands as a tile with its icon and count, and its name and notes show when you point at it.</li>
+                                  <li>Put items in from your system&rsquo;s items or <b>From the library</b>. Select a tile to change its count or take it out.</li>
+                                  <li>Its items keep to the rules of the list they are in. Only lists ticked Tradable that players see can hold them, as a trade moves them.</li>
+                                  <li>What a container holds stays on your computer. Players cannot open one yet.</li>
                               </ul>
                           </li>
                           <li><b>Height in the fog:</b> with <b>Token elevation</b> on and your system&rsquo;s <b>Height and cover</b> rule set to <b>Height clears low cover</b>, the fog hides what that rule hides.
@@ -5207,6 +5216,11 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div id="layersHead"><span class="notepad-title"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5.5h4v4h-4Z M3.5 14.5h4v4h-4Z M10.5 7.5h10 M10.5 16.5h10 M12.5 11.5h8 M12.5 20.5h6"/></svg> Layers</span><span id="layersMap" class="ly-map"></span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="layersClose" title="Close Layers">&times;</button></div>
     <div id="iLayers" role="group" aria-label="Show on my map"></div>
     <div id="layersList"></div>
+</div>
+<!-- Containers (1.6.2, backlog 42): what a container on the map holds, as tiles (boxes.js) -->
+<div id="boxPanel" style="display:none;" role="dialog" aria-label="Container">
+    <div id="boxHead"><span class="notepad-title"><i class="wib wi-lib"></i> <span id="boxName">Container</span></span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="boxClose" title="Close the container">&times;</button></div>
+    <div id="boxBody"></div>
 </div>
 <!-- Table trackers (1.6.0, backlog 29): a tracker's menu beside its name and its form (trackers.js) -->
 <div id="trkMenu" class="trk-menu" role="menu" aria-label="Tracker" style="display:none;"></div>

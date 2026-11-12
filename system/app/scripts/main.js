@@ -257,6 +257,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // #noMapState, whose New map button is the left panel's. The left panel, the boxes and the row follow as with a map
   function renderNoMap() {
       var bc = document.getElementById('mapBreadcrumb'); if (bc) bc.style.display = 'none';
+      if (window.wpBoxes) window.wpBoxes.sync();   // 1.6.2 (backlog 42): a container's window closes with its map
       if (window.wpPrep) window.wpPrep.sync();   // the Prep column stands outside the map's area: with no map it is put away by its own word
       if (window.wpLeftRail) window.wpLeftRail.sync();
       if (window.wpRowHide) window.wpRowHide.fit();
@@ -334,6 +335,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       document.getElementById('sidebar').style.display = isPlanner ? 'none' : 'flex'; document.getElementById('sidebar').classList.toggle('no-elements', state.viewMode === 'visual');   // 1.6.2, backlog 217: on the play map the pieces are in Layers, and the panel is Properties alone
 
       document.getElementById('toggleRightBtn').style.display = isPlanner ? 'none' : 'flex';
+      if (window.wpBoxes) window.wpBoxes.sync();   // 1.6.2 (backlog 42): a container's window follows its piece, its map and its campaign
       if (window.wpPrep) window.wpPrep.sync();   // 1.6.2 (prep.js): the Prep column shows on the play map alone, and takes its room before anything measures the map's
       if (window.wpLeftRail) window.wpLeftRail.sync();   // the left panel folds to its rail on the play map (leftrail.js), before the bar measures the room the map has
       if (window.wpRowHide) window.wpRowHide.fit();   // where the map's area begins, for a hidden row's tab and bar (rowhide.js): one redraw can move both of the area's edges and leave its size as it was
@@ -782,6 +784,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
               ic.sounds.list.forEach(function(sn) { if (!sn || typeof sn !== 'object' || typeof sn.id !== 'string') return; var k = -1; es.list.forEach(function(o, i) { if (o && o.id === sn.id) k = i; }); if (k >= 0) es.list[k] = sn; else es.list.push(sn); });
           }
           // the video library merges by id too (item 21): an imported entry replaces the same id, new ones are added, the whole cleaned
+          if (ic.boxes && typeof ic.boxes === 'object' && window.wpBoxCore) { var bxI = window.wpBoxCore.cleanBoxes(ic.boxes, existing.system || ic.system); existing.boxes = existing.boxes && typeof existing.boxes === 'object' ? existing.boxes : {}; Object.keys(bxI).forEach(function(id) { if (Object.keys(existing.boxes).length < window.wpBoxCore.BOX_MAX || Object.prototype.hasOwnProperty.call(existing.boxes, id)) existing.boxes[id] = bxI[id]; }); }   // 1.6.2 (backlog 42, the review): what the file's containers hold, by id
           if (ic.soundOn !== undefined && window.wpSoundOnCore) { var soM = window.wpSoundOnCore.mergeLines(existing.soundOn, ic.soundOn); if (soM.length) existing.soundOn = soM; else delete existing.soundOn; }   // 1.6.2: the sounds on actions, line by line, as the library above
           if (Array.isArray(ic.videos) && window.wpVideoCore && window.wpVideoCore.mergeVideos) { var vdM = window.wpVideoCore.mergeVideos(existing.videos, ic.videos); if (vdM.length) existing.videos = vdM; else delete existing.videos; }
           // the music library merges by id too: a song or a playlist of the file that this campaign holds is updated, a new one is added

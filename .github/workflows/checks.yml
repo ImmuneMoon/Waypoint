@@ -276,3 +276,6 @@ jobs:
       - name: ilayerscheck, interaction layers (the kinds a piece belongs to, what this computer keeps, As players see it, the board's marks)
         if: ${{ !cancelled() }}
         run: node tools/ilayerscheck.js
+      - name: boxcheck, containers (what a container holds, Holds items, the container window and its wiring)
+        if: ${{ !cancelled() }}
+        run: node tools/boxcheck.js

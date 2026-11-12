@@ -49,7 +49,7 @@ var ESC_WINDOWS = [['helpModal', 'helpCloseBtn'], ['settingsModal', 'settingsClo
 var ESC_BOXES = ['sheetPanel', 'fxPanel', 'videoPanel', 'docPanel', 'dicePanel'];   // floating boxes that answer Escape when the focus is in them (a HUD too)
 // Table Chat, the table notepad, Sound and Music: closed on Escape as a window is, while the focus is in one of them or it is the box last
 // used (the owner, 2026-10-17, by prompt: "Yes, when on top (Recommended)"). One whose module is not there to close it keeps its fields' keys
-var ESC_LAST = ['chatPanel', 'notepadPanel', 'soundPanel', 'musicPanel', 'timePanel', 'deckPanel', 'layersPanel', 'storyPanel', 'timelinePanel', 'trkPanel'];
+var ESC_LAST = ['chatPanel', 'notepadPanel', 'soundPanel', 'musicPanel', 'timePanel', 'deckPanel', 'layersPanel', 'storyPanel', 'timelinePanel', 'boxPanel', 'trkPanel'];
 
 function escEach(list, fn) { if (list) for (var i = 0; i < list.length; i++) fn(list[i]); }
 // Shown: drawn on the page (a box that is put away, or inside one, has no box to draw)
@@ -132,6 +132,7 @@ function escLastBoxes(doc, win) {
         storyPanel: function(el) { if (!escPress(doc, 'storyClose')) el.style.display = 'none'; },
         timelinePanel: function(el) { if (!escPress(doc, 'timelineClose')) el.style.display = 'none'; },   // 1.6.2, backlog 166 h: the timeline by its own close   // 1.6.2, backlog 166 h: the Story view by its own close
         layersPanel: function(el) { if (!escPress(doc, 'layersClose')) el.style.display = 'none'; },   // 1.6.2, backlog 217: Layers by its own close
+        boxPanel: function(el) { if (!escPress(doc, 'boxClose')) el.style.display = 'none'; },   // 1.6.2, backlog 42: a container by its own close
         trkPanel: function(el) { if (!escPress(doc, 'trkCloseBtn')) el.style.display = 'none'; } };   // 1.6.0, backlog 29: a tracker's form by its own close
     ESC_LAST.forEach(function(id) { var el = doc.getElementById(id), fn = shut[id]; if (fn && escShown(el)) out.push({ el: el, close: function() { fn(el); } }); });
     return out;

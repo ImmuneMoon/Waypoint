@@ -52,7 +52,8 @@ function open(pieceId) {
 function close() { var p = P(); _ask = null; if (!p || p.style.display === 'none') return; if (_box.player && window.wpNet && typeof window.wpNet.boxAsk === 'function') window.wpNet.boxAsk('close', _box.mapId, _box.pieceId, {}); p.style.display = 'none'; _box = { mapId: null, pieceId: null, sel: null, list: null }; step('close'); }
 // The item's icon: one of the app's own glyphs, or the item's own characters, or the first letter of its name
 function iconInto(box, t) {
-    var pc = cleanPic(t.pic); if (pc) { var n = window.wpNet, src = n && typeof n.assetSrc === 'function' ? n.assetSrc(pc) : pc; if (src === pc) src = picRef(pc); if (src) { var im = document.createElement('img'); im.className = 'box-pic'; im.alt = ''; im.dataset.pic = pc; im.src = src; box.appendChild(im); return; } }   // its own picture: the campaign's, through the host on a player's app
+    var pc = cleanPic(t.pic), n = window.wpNet; if (pc && n && typeof n.assetMissing === 'function' && n.assetMissing(pc)) pc = '';   // a picture that is not there: its icon, quietly
+    if (pc) { var src = n && typeof n.assetSrc === 'function' ? n.assetSrc(pc) : pc; if (src === pc) src = picRef(pc); if (src) { var im = document.createElement('img'); im.className = 'box-pic'; im.alt = ''; im.dataset.pic = pc; im.dataset.icon = typeof t.icon === 'string' ? t.icon : ''; im.dataset.nm = typeof t.name === 'string' ? t.name : ''; im.addEventListener('error', function() { picGone(im); }); im.src = src; box.appendChild(im); return; } }   // its own picture: the campaign's, through the host on a player's app
     var g = typeof t.icon === 'string' && /^icon:/.test(t.icon) ? glyphPath(t.icon) : '';
     if (g) { var NS = 'http://www.w3.org/2000/svg', s = document.createElementNS(NS, 'svg'), pa = document.createElementNS(NS, 'path'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('class', 'box-glyph'); s.setAttribute('aria-hidden', 'true'); pa.setAttribute('d', g); s.appendChild(pa); box.appendChild(s); return; }
     box.appendChild(el('span', 'box-ch', t.icon ? t.icon : (t.name || '?').charAt(0).toUpperCase()));
@@ -66,9 +67,11 @@ function selCard(t) {
     top.appendChild(ic); top.appendChild(who); top.appendChild(step); bar.appendChild(top); bar.appendChild(acts);
     return { bar: bar, step: step, acts: acts };
 }
-document.addEventListener('wp-asset', function(e) {   // a tile's picture still on its way on a player's app (the review): put in place as it arrives
+// A picture that is not there (a file left behind, or one the host does not have): the item's icon in its place, with no error
+function picGone(im) { var box = im.parentNode; if (!box) return; var t = { icon: im.dataset.icon || '', name: im.dataset.nm || '' }; im.remove(); if (!box.querySelector('.box-glyph, .box-ch, .box-pic')) iconInto(box, t); }
+document.addEventListener('wp-asset', function(e) {   // a tile's picture still on its way on a player's app (the review): put in place as it arrives, or its icon where it is missing
     var p = e.detail && e.detail.path, n = window.wpNet; if (!p || !n || typeof n.assetSrc !== 'function') return;
-    document.querySelectorAll('#boxBody img.box-pic[data-pic]').forEach(function(im) { if (im.dataset.pic === p) im.src = n.assetSrc(p); });
+    document.querySelectorAll('#boxBody img.box-pic[data-pic]').forEach(function(im) { if (im.dataset.pic !== p) return; if (e.detail.missing === true) picGone(im); else im.src = n.assetSrc(p); });
 });
 function tipOf(t) { return t.name + (t.qty > 1 ? ' ×' + t.qty : '') + (t.list ? '\n' + t.list : '') + (t.notes ? '\n' + t.notes.slice(0, 300) : ''); }
 function change(fid, q, what, back) {

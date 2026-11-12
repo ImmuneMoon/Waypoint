@@ -11237,6 +11237,8 @@ function assetMime(path) {
 // Resolve an image path for display. Host/solo: the path itself.
 // Client in a session: cached blob URL, requesting it from the host if new.
 // [netcheck:assetsrc-start]
+var assetGone = Object.create(null);   // 1.6.2: the paths the host answered it does not have (or will not send)
+net.assetMissing = function(path) { return typeof path === 'string' && assetGone[path] === 1; };
 net.assetSrc = function(path) {
     if (!path || net.stream) return path;   // the stream window reads images straight from the local server
     if (!net.foreign) return path;   // R2 security: no snapshot yet (a join waiting for the GM's Allow) — the campaign on screen is this machine's own, its pictures come from its own server, and none of their paths is asked of a host. 1.6.0: this alone says so, since a table's copy stays on screen while its link is down, and its paths name no file here
@@ -11421,7 +11423,7 @@ function handleAssetArrival(msg) {
         delete assetPending[msg.path];
         var tries = (_assetRetries[msg.path] = (_assetRetries[msg.path] || 0) + 1);
         if (msg.error === 'busy' && tries <= 40) setTimeout(function() { if (!assetCache[msg.path]) net.assetSrc(msg.path); }, Math.min(800 * tries, 4000));   // the host was busy: ask again, backing off to 4 s — for some two and a half minutes, so a slow link the host is waiting on (transport: a picture is answered busy while much is still queued for it) does not settle on placeholders
-        else assetCache[msg.path] = ASSET_PLACEHOLDER;   // missing / too big / kept refusing: settle on the placeholder, never ask again this session
+        else { assetCache[msg.path] = ASSET_PLACEHOLDER; assetGone[msg.path] = 1; try { document.dispatchEvent(new CustomEvent('wp-asset', { detail: { path: msg.path, missing: true } })); } catch (e) {} }   // missing / too big / kept refusing: settle on the placeholder, never ask again this session; 1.6.2: said, so a picture that is not there falls back quietly
         return;
     }
     if (typeof msg.path !== 'string' || !msg.data || !own(assetPending, msg.path)) return;   // unsolicited (or a prototype-key path): never cached

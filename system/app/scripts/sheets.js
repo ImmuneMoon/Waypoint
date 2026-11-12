@@ -2230,12 +2230,13 @@ function glyphOutside(e) { if (_glyphPop && !_glyphPop.contains(e.target) && !(e
 // 1.6.2 (backlog 42): a row's own picture, else its item's: a small picture before its name, the campaign's own (through the host on a player's app)
 function rowPicNode(entry, def) {
     var SC = window.wpSystemCore, pc = SC && typeof SC.cleanPic === 'function' ? (SC.cleanPic(entry && entry.pic) || SC.cleanPic(def && def.pic)) : ''; if (!pc) return null;
-    var n = window.wpNet, src = n && typeof n.assetSrc === 'function' ? n.assetSrc(pc) : pc; if (src === pc) src = picRef(pc); if (!src) return null;
-    var im = document.createElement('img'); im.className = 'sheet-item-pic'; im.alt = ''; im.src = src; im.dataset.pic = pc; return im;
+    var n = window.wpNet; if (n && typeof n.assetMissing === 'function' && n.assetMissing(pc)) return null;   // a picture that is not there: the row's icon alone, quietly
+    var src = n && typeof n.assetSrc === 'function' ? n.assetSrc(pc) : pc; if (src === pc) src = picRef(pc); if (!src) return null;
+    var im = document.createElement('img'); im.className = 'sheet-item-pic'; im.alt = ''; im.addEventListener('error', function() { im.remove(); }); im.src = src; im.dataset.pic = pc; return im;
 }
 if (typeof document !== 'undefined') document.addEventListener('wp-asset', function(e) {   // a row's picture that was still on its way (the review): put in place as it arrives, no redraw
     var p = e.detail && e.detail.path, n = window.wpNet; if (!p || !n || typeof n.assetSrc !== 'function') return;
-    document.querySelectorAll('img.sheet-item-pic[data-pic]').forEach(function(im) { if (im.dataset.pic === p) im.src = n.assetSrc(p); });
+    document.querySelectorAll('img.sheet-item-pic[data-pic]').forEach(function(im) { if (im.dataset.pic !== p) return; if (e.detail.missing === true) im.remove(); else im.src = n.assetSrc(p); });
 });
 // The Items tab's Picture: one of the campaign's own pictures from the Image Library, kept in a hidden box the tab's own change reads
 function picPicker(inp) {

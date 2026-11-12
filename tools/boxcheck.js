@@ -63,6 +63,15 @@ const J = JSON.stringify;
             shR.includes("var put = function(v) { inp.value = v; inp.dispatchEvent(new Event('input', { bubbles: true })); paint(); };") && lineAt > oI && lineAt < oC
             && shR.includes("document.querySelectorAll('img.sheet-item-pic[data-pic]')") && bxR.includes("document.querySelectorAll('#boxBody img.box-pic[data-pic]')") && bxR.includes('im.dataset.pic = pc;')
             && netR.includes('? charViewFor(id, c.ownerId) : null; if (cv) { assetWalk(cv, put); return; }') && netR.includes('window.wpSheets.playerSystem(camp) : null; v = Object.assign({}, pv || v);'));
+        // fold 2b: the lock (the owner, 2026-11-12: "A. Open for everyone", "A. Yes, a key you name")
+        const sysL = S.cleanSystem({ v: 1, name: 'L', fields: [{ id: 'f_inv', key: 'Gear', label: 'Gear', kind: 'item-list', list: { trade: true } }], rolls: [{ id: 'r_pick', label: 'Pick the lock', formula: '3d6 <= 12' }, { id: 'r_force', label: 'Force it', formula: '3d6 <= 10' }, { id: 'r_a', label: 'A', formula: '1d6' }, { id: 'r_b', label: 'B', formula: '1d6' }, { id: 'r_init', label: 'Init', formula: '1d6', init: true }], items: [{ id: 'i_key', key: 'CellarKey', name: 'Cellar key' }] }, { F, gmView: true });
+        const lk1 = BC.cleanLock({ on: true, rolls: ['r_pick', 'r_pick', 'r_nope', 'r_init', 'r_force', 'r_a', 'r_b'], key: 'i_key' }, sysL), lk2 = BC.cleanLock({ on: 'yes', rolls: [], key: 'bad key!' }, sysL), lk3 = BC.cleanLock({ rolls: ['r_pick'] }, sysL);
+        const bL = BC.cleanBox({ values: {}, lock: { on: true, rolls: ['r_pick'] } }, sysL, 'c_bxabcd1234');
+        const kc = { values: { f_inv: [{ id: 'w_h', defId: 'i_key', qty: 1, hid: 1 }, { id: 'w_0', defId: 'i_key', qty: 0 }, { id: 'w_k', defId: 'i_key', qty: 1 }] } };
+        check('a lock (cleanLock): Locked only as true, up to LOCK_ROLLS of the system\u2019s own rolls once each and never its initiative roll, a key by an id; a lock with nothing left is none; a container keeps it, and its rolls and key stay while it is unlocked',
+            J(lk1) === J({ on: true, rolls: ['r_pick', 'r_force', 'r_a'], key: 'i_key' }) && lk2 === null && J(lk3) === J({ rolls: ['r_pick'] }) && J(bL.lock) === J({ on: true, rolls: ['r_pick'] }) && BC.boxLocked(bL) && !BC.boxLocked({ lock: lk3 }) && BC.LOCK_ROLLS === 3, J([lk1, lk2, lk3, bL]));
+        check('a key is a row the character carries, never one kept from them nor one of none, named as its sheet names it (keyRowOf, keyName)',
+            BC.keyRowOf(kc, 'i_key').id === 'w_k' && BC.keyRowOf(kc, 'i_rope') === null && BC.keyRowOf({ values: { f_inv: [{ id: 'w_h', defId: 'i_key', qty: 1, hid: 1 }] } }, 'i_key') === null && BC.keyName(sysL, { defId: 'i_key' }) === 'Cellar key' && BC.keyName(sysL, { defId: 'i_key', ov: { name: 'Rusty key' } }) === 'Rusty key');
         const r1 = BC.boxOp(sys, b, 'f_inv', { op: 'add', defId: 'i_rope', rowId: 'w_8', qty: 2 }, F, S.applyRowOp);
         const r2 = BC.boxOp(sys, { id: 'c_bxabcd1234', values: r1.values }, 'f_inv', { op: 'setQty', rowId: 'w_1', qty: 1 }, F, S.applyRowOp);
         const r3 = BC.boxOp(sys, { id: 'c_bxabcd1234', values: r2.values }, 'f_inv', { op: 'remove', rowId: 'w_2' }, F, S.applyRowOp);
@@ -167,6 +176,11 @@ const J = JSON.stringify;
             /var FLOAT_IDS = \[[^\]]*'boxPanel'/.test(fl) && /var Z_BOXES = \[[^\]]*'boxPanel'/.test(sh) && /var ESC_LAST = \[[^\]]*'boxPanel'/.test(esc) && esc.includes("boxPanel: function(el) { if (!escPress(doc, 'boxClose')) el.style.display = 'none'; },"));
         check('the page: the window with its close, the module after the layers, its styles',
             (ix.match(/id="boxPanel"/g) || []).length === 1 && ix.includes('id="boxClose"') && ix.includes('id="boxBody"') && ix.indexOf('scripts/ilayers.js') < ix.indexOf('scripts/boxes.js') && css.includes('#boxBody .box-grid {') && css.includes('#boxPanel {') && css.includes('#contextMenu .menu-item.cm-box-open > * { pointer-events: none; }'));
+        check('fold 2b: the GM\u2019s lock above the tiles and the player\u2019s padlock view, drawn with no markup; the padlock the owner picked; Help and both notes say it',
+            read('scripts/boxes.js').includes('    lockInto(body, camp, b, sys);   // fold 2b') && read('scripts/boxes.js').includes("    if (_box.locked) { lockedInto(body); return; }   // fold 2b") && !/innerHTML|insertAdjacentHTML/.test(read('scripts/boxes.js'))
+            && css.includes("M5.5 11h13a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1V12a1 1 0 0 1 1-1zM8 11V7.5a4 4 0 0 1 8 0V11M12 14.5v2.5") && css.includes('.wi-padlock { --wi:')
+            && ix.includes('Tick <b>Locked</b> in its window to lock it.') && ix.includes('A pass, or the key, opens it for everyone, and Locked comes unticked.')
+            && fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').includes('- A container can be locked.') && read('assets/whatsnew.txt').includes('- A container can be locked.'));
         check('Help says it, in its plain words', ix.includes('<li><b>Containers:</b> a picture, a shape or a map object can hold items') && ix.includes('What it holds stays on your computer until a player opens it. You are told who took what.') && ix.includes('Only lists ticked Tradable that players see can hold them, as a trade moves them.'));
         const wn = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wa = read('assets/whatsnew.txt');
         check('both release notes say it, alike', wn.includes('- A picture, a shape or a map object can now hold items.') && wa.includes('- A picture, a shape or a map object can now hold items.'));
@@ -177,19 +191,50 @@ const J = JSON.stringify;
         const helpers = bw('boxhost'), branch = bw('box');
         const mk = (o) => {
             o = o || {};
-            const sysT = S.cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_inv', key: 'Gear', label: 'Gear', kind: 'item-list', list: { trade: true } }], items: [{ id: 'i_rope', key: 'Rope', name: 'Rope' }, { id: 'i_coin', key: 'Coin', name: 'Coin' }] }, { F, gmView: true });
-            const box = { id: 'c_bxchest0001', values: { f_inv: [{ id: 'w_1', defId: 'i_rope', qty: 3 }, { id: 'w_2', defId: 'i_coin', qty: 1 }] } };
-            const camp = { id: 'k1', system: sysT, boxes: { c_bxchest0001: box }, chars: { c_kael: { id: 'c_kael', name: 'Kael', ownerId: 'u_p1', values: {} }, c_ava: { id: 'c_ava', name: 'Ava', ownerId: 'u_p2', values: {} } },
+            const sysT = S.cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_inv', key: 'Gear', label: 'Gear', kind: 'item-list', list: { trade: true } }], rolls: [{ id: 'r_pick', label: 'Pick the lock', formula: '3d6 <= 12' }], items: [{ id: 'i_rope', key: 'Rope', name: 'Rope' }, { id: 'i_coin', key: 'Coin', name: 'Coin' }, { id: 'i_key', key: 'CellarKey', name: 'Cellar key' }] }, { F, gmView: true });
+            const box = { id: 'c_bxchest0001', values: { f_inv: [{ id: 'w_1', defId: 'i_rope', qty: 3 }, { id: 'w_2', defId: 'i_coin', qty: 1 }] } }; if (o.lock) box.lock = o.lock;
+            const camp = { id: 'k1', system: sysT, boxes: { c_bxchest0001: box }, chars: { c_kael: { id: 'c_kael', name: 'Kael', ownerId: 'u_p1', values: o.key ? { f_inv: [{ id: 'w_k', defId: 'i_key', qty: 1 }] } : {} }, c_ava: { id: 'c_ava', name: 'Ava', ownerId: 'u_p2', values: {} } },
                 items: { m1: { id: 'm1', type: 'map', whiteboard: [{ id: 'chest', type: 'image', name: 'Old chest', x: 100, y: 100, w: 50, h: 50, box: 'c_bxchest0001', hidden: !!o.hidden }, { id: 'tk', type: 'image', isChar: true, charId: 'c_kael', ownerId: 'u_p1', x: 150, y: 100, w: 50, h: 50 }, { id: 'ta', type: 'image', isChar: true, charId: 'c_ava', ownerId: 'u_p2', x: 150, y: 100, w: 50, h: 50 }] } } };
             const sent = [], told = [], logs = [], toasts = [], conns = [], steps = [];
             const conn = { peer: 'pA', open: true, send: m => sent.push(m) }, other = { peer: 'pB', open: true, send: m => told.push(m) }; conns.push(conn, other);
             const N = { roster: { pA: { id: 'u_p1', location: 'm1' }, pB: { id: 'u_p2', location: 'm1' } }, conns, paused: false, syncCharDelta: (id, v) => steps.push('delta ' + id + ' ' + Object.keys(v).join(',')) };
-            const win = { wpBoxCore: BC, wpSheets: { charChanged: id => steps.push('changed ' + id) }, wpBoxes: { redraw: () => steps.push('gm redraw') }, wpStepLog: (n, s, f) => steps.push(n + ' ' + s + ' ' + JSON.stringify(f)) };
+            const win = { wpBoxCore: BC, wpSheets: { charChanged: id => steps.push('changed ' + id), playerSystem: c => c.system }, wpBoxes: { redraw: () => steps.push('gm redraw') }, wpStepLog: (n, s, f) => steps.push(n + ' ' + s + ' ' + JSON.stringify(f)) };
             const fn = new Function('net', 'window', 'getActiveCampaign', 'allow', 'peerPaused', 'handsTo', 'allyNear', 'SC', 'saveRemoteSoon', 'logEvent', 'toast', 'sendFailed',
-                helpers + '\nreturn { run: function(msg, conn) {\n' + branch + '\n}, views: function() { return _boxViews; }, forget: boxForget, forgetConn: boxForgetConn, sweep: boxSweep };');
+                helpers + '\nreturn { run: function(msg, conn) {\n' + branch + '\n}, views: function() { return _boxViews; }, tries: function() { return _boxTries; }, tryAfter: boxTryAfter, forget: boxForget, forgetConn: boxForgetConn, sweep: boxSweep };');
             const api = fn(N, win, () => camp, () => o.limit !== false, () => !!o.paused, (ch, pid) => !!ch && ch.ownerId === pid, (m, x, y) => o.near !== false && Math.abs((x.x || 0) - (y.x || 0)) < 120 && Math.abs((x.y || 0) - (y.y || 0)) < 120, () => S, () => steps.push('save'), (k, s) => logs.push(s), s => toasts.push(s), () => {});
             return { api, camp, box, sent, told, logs, toasts, steps, conn, other };
         };
+        {   // fold 2b on the host: a locked container shows nothing it holds, its key or a passed roll opens it for everyone
+            const L = mk({ lock: { on: true, rolls: ['r_pick'], key: 'i_key' } });
+            L.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, L.conn);
+            const lv = L.sent[0];
+            L.api.run({ type: 'box', op: 'take', mapId: 'm1', itemId: 'chest', tok: 'tk', all: true }, L.conn);
+            check('locked, a player is sent its rolls by their own view and nothing it holds, no key they do not carry, and is never counted as having it open; nothing is taken from it',
+                lv && lv.type === 'box-view' && J(lv.locked) === J({ rolls: [{ id: 'r_pick', label: 'Pick the lock' }] }) && !('tiles' in lv) && !L.api.views()['k1|m1|chest'] && L.sent[1].type === 'box-deny' && L.sent[1].reason === 'locked' && L.box.values.f_inv[0].qty === 3, J(L.sent));
+            const K = mk({ lock: { on: true, rolls: ['r_pick'], key: 'i_key' }, key: true });
+            K.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, K.conn);
+            const kv = K.sent[0];
+            K.api.run({ type: 'box', op: 'key', mapId: 'm1', itemId: 'chest', tok: 'tk' }, K.conn);
+            const ko = K.sent[1];
+            const K2 = mk({ lock: { on: true, rolls: ['r_pick'], key: 'i_key' } }); K2.api.run({ type: 'box', op: 'key', mapId: 'm1', itemId: 'chest', tok: 'tk' }, K2.conn);
+            check('a key the character carries is named to them, and Use opens it for everyone: unlocked with its rolls and key kept, its items sent, the GM told; a key they do not carry opens nothing',
+                kv.locked.key === 'Cellar key' && ko && ko.type === 'box-view' && ko.tiles.length === 2 && J(K.box.lock) === J({ rolls: ['r_pick'], key: 'i_key' }) && K.logs.includes('Kael unlocked Old chest.') && K.toasts.includes('Kael unlocked Old chest.') && K2.box.lock.on === true && !K2.sent[0].tiles, J([kv, ko, K.box.lock, K2.sent]));
+            const T = mk({ lock: { on: true, rolls: ['r_pick'] } });
+            T.api.run({ type: 'box', op: 'try', mapId: 'm1', itemId: 'chest', tok: 'tk', roll: 'r_nope' }, T.conn); const noTry = !T.api.tries().pA;
+            T.api.run({ type: 'box', op: 'try', mapId: 'm1', itemId: 'chest', tok: 'tk', roll: 'r_pick' }, T.conn); const rec = T.api.tries().pA;
+            T.api.tryAfter(T.conn, 'c_ava', 'r_pick', true); const other = !!T.api.tries().pA && T.box.lock.on === true;
+            T.api.tryAfter(T.conn, 'c_kael', 'r_pick', false); const held = T.sent.slice(-1)[0];
+            T.api.run({ type: 'box', op: 'try', mapId: 'm1', itemId: 'chest', tok: 'tk', roll: 'r_pick' }, T.conn); T.api.tryAfter(T.conn, 'c_kael', 'r_pick', true); const opened = T.sent.slice(-1)[0];
+            check('a try is named first and lands with its roll (boxTryAfter): only a roll of the lock, only that character\u2019s roll; a failure says it holds and leaves it locked, a pass opens it for everyone and sends what it holds, counted as open',
+                noTry && rec && rec.roll === 'r_pick' && rec.charId === 'c_kael' && other && held.locked && held.locked.held === true && !T.api.tries().pA && opened.type === 'box-view' && opened.tiles.length === 2 && !T.box.lock.on && T.api.views()['k1|m1|chest'] && T.logs.includes('Kael opened Old chest.'), J([rec, held, opened, T.box.lock]));
+            const Z = mk(); Z.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, Z.conn); Z.box.lock = { on: true }; Z.api.sweep(); const shut = Z.sent.slice(-1)[0];
+            Z.api.run({ type: 'box', op: 'try', mapId: 'm1', itemId: 'chest', tok: 'tk', roll: 'r_pick' }, Z.conn); Z.api.forgetConn('pA');
+            check('locked again by the GM, it closes for whoever had it open; a closed connection\u2019s try is let go',
+                shut.gone === true && !Z.api.views()['k1|m1|chest'] && !Z.api.tries().pA, J(shut));
+            const netA = read('scripts/net.js');
+            check('the roll lands through the host\u2019s own roll branch, after its Then, and the ask carries the roll a try names',
+                netA.includes("boxTryAfter(conn, q.charId, q.act, mbQ ? false : recQ.body === 1 ? true : vbQ && vbQ.kind === 'check' ? vbQ.pass === true : null);") && netA.includes("['tok', 'fid', 'rowId', 'roll'].forEach(function(k) { if (typeof more[k] === 'string') m[k] = more[k]; });") && netA.indexOf('sceneKeep(campQ, actQ, resQ, tcQ);') < netA.indexOf('boxTryAfter(conn, q.charId'));
+        }
         const W = mk();
         W.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, W.conn);
         const v = W.sent[0];
@@ -235,7 +280,7 @@ const J = JSON.stringify;
     /* ---- fold 2: the player's window, on a page of plain objects ---- */
     {
         const src = read('scripts/boxes.js'), a = src.indexOf('// [boxcheck:player-start]'), z = src.indexOf('// [boxcheck:player-end]');
-        const fn = new Function('getActiveMap', 'getActiveCampaign', 'state', 'toast', 'step', 'window', '_box', 'cleanPic', src.slice(a, z) + '\nreturn { cleanTiles, tokFor };');
+        const fn = new Function('getActiveMap', 'getActiveCampaign', 'state', 'toast', 'step', 'window', '_box', 'cleanPic', src.slice(a, z) + '\nreturn { cleanTiles, tokFor, cleanLocked };');
         const api = fn(() => null, () => ({ chars: { c4: { id: 'c4', shared: 1 } } }), { selWbIds: [] }, () => {}, () => {}, { wpNet: { myId: 'u_p1' } }, {}, S.cleanPic);
         const ct = api.cleanTiles([{ fid: 'f_inv', rowId: 'w_1', name: 'Rope\u0007<b>', qty: 3, icon: 'icon:check', notes: 'x'.repeat(900) }, { fid: 1, rowId: 'w' }, null, { fid: 'f', rowId: 'w_2', qty: -4 }]);
         check('the host\'s view cleaned again on the player\'s app: plain words cut to their length, a count a whole number, anything that is no tile left out', ct.length === 2 && ct[0].name === 'Rope <b>' && ct[0].notes.length === 600 && ct[0].qty === 3 && ct[1].qty === 1 && ct[1].name === 'Item', JSON.stringify(ct));
@@ -246,6 +291,9 @@ const J = JSON.stringify;
         const shared = api.tokFor({ whiteboard: [{ id: 't4', isChar: true, charId: 'c4', ownerId: 'u_p9', x: 100, y: 100, w: 50, h: 50 }, { id: 't5', isChar: true, charId: 'c5', ownerId: 'u_p9', x: 100, y: 100, w: 50, h: 50 }] }, { x: 100, y: 100, w: 50, h: 50 });
         const cp = api.cleanTiles([{ fid: 'f_inv', rowId: 'w_1', name: 'Rope', qty: 1, pic: '/saves/images/rope.png' }, { fid: 'f_inv', rowId: 'w_2', name: 'Coin', qty: 1, pic: 'http://evil/a.png' }]).map(x => x.pic);
         check('a player\u2019s app keeps a tile\u2019s picture only as the rule keeps it, whatever a host names', J(cp) === J(['/saves/images/rope.png', '']), J(cp));
+        const cl = api.cleanLocked({ rolls: [{ id: 'r_pick', label: 'Pick the lock' }, { id: 'bad id!', label: 'x' }, { id: 'r_f', label: 'F'.repeat(90) }, { id: 'r_g' }, { id: 'r_h', label: 'H' }], key: 'Cellar\u0007key', held: 'yes' });
+        check('a player\u2019s app keeps a locked view as plain words: three rolls at most with ids that read as ids, labels cut, a key\u2019s name with no control character, held only as true',
+            J(cl) === J({ rolls: [{ id: 'r_pick', label: 'Pick the lock' }, { id: 'r_f', label: 'F'.repeat(60) }, { id: 'r_g', label: 'Roll' }], key: 'Cellar key' }) && api.cleanLocked(null) === null && api.cleanLocked({ held: true }).held === true, J(cl));
         check('it opens with the selected token of theirs, else the one of theirs nearest the container, never another player\'s, a sheet shared with them counting as theirs (the review)', near && near.id === 't2' && sel && sel.id === 't1' && shared && shared.id === 't4');
         check('the window writes no markup, and Take and Take all ask the host, which answers', !/innerHTML/.test(src.slice(a, z)) && src.includes("n.boxAsk('take', _box.mapId, _box.pieceId, Object.assign({ tok: _box.tok }, more))"));
     }

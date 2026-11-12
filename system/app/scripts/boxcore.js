@@ -19,12 +19,33 @@ function boxIdOk(id) { return typeof id === 'string' && BOX_ID.test(id) && !(id 
 function newBoxId(rand, have) { for (var n = 0; n < 50; n++) { var s = ''; for (var i = 0; i < 10; i++) s += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor((rand ? rand() : 0) * 36) % 36); var id = 'c_bx' + s; if (!(have && Object.prototype.hasOwnProperty.call(have, id))) return id; } return null; }
 // One container, cleaned as a sheet with no player would be. Every item list of the system is kept, so a list unticked Tradable for a while
 // loses nothing (the review): only the lists boxLists names are shown and changed. None for what is not one
+// Its lock (fold 2b): { on, rolls, key }. on only as true; rolls the ids of up to LOCK_ROLLS of the system's rolls, never its initiative roll;
+// key the id of an item or a library entry a character may carry. A lock with nothing left is none. Its rolls and key stay while it is
+// unlocked, so locking it again keeps them
+var LOCK_ROLLS = 3, KEY_ID = /^[A-Za-z0-9_-]{1,64}$/;
+function cleanLock(v, sys) {
+    if (!isObj(v)) return null;
+    var ids = map(); (isObj(sys) && Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (isObj(r) && typeof r.id === 'string' && r.init !== true) ids[r.id] = 1; });
+    var rolls = []; (Array.isArray(v.rolls) ? v.rolls.slice(0, 12) : []).forEach(function(id) { if (typeof id === 'string' && ids[id] === 1 && rolls.indexOf(id) < 0 && rolls.length < LOCK_ROLLS) rolls.push(id); });
+    var out = {}; if (v.on === true) out.on = true; if (rolls.length) out.rolls = rolls; if (typeof v.key === 'string' && KEY_ID.test(v.key)) out.key = v.key;
+    return Object.keys(out).length ? out : null;
+}
+function boxLocked(box) { return isObj(box) && isObj(box.lock) && box.lock.on === true; }
+// The row of a character's own that is its key: any item list, never a row kept from them
+function keyRowOf(ch, key) {
+    if (!isObj(ch) || !isObj(ch.values) || typeof key !== 'string' || !key) return null; var hit = null;
+    Object.keys(ch.values).some(function(k) { var rows = ch.values[k]; return Array.isArray(rows) && rows.some(function(r) { if (isObj(r) && r.hid !== 1 && r.defId === key && !(Number(r.qty) <= 0)) { hit = r; return true; } return false; }); });
+    return hit;
+}
+// What a key is called, as its carrier's sheet names it
+function keyName(sys, row) { if (!isObj(row)) return ''; var rd = rowDef(sys, row), d = rd && rd.def ? rd.def : null; return String((isObj(row.ov) && typeof row.ov.name === 'string' && row.ov.name) || (d && d.name) || 'Key').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 80); }
 function cleanBox(raw, sys, id) {
     if (!isObj(raw) || !boxIdOk(id) || (raw.id !== undefined && raw.id !== id)) return null;
     var keep = map(); (isObj(sys) && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (isObj(f) && f.kind === 'item-list' && typeof f.id === 'string') keep[f.id] = 1; });
     var vin = map(); if (isObj(raw.values)) Object.keys(raw.values).forEach(function(k) { if (keep[k] && Array.isArray(raw.values[k])) vin[k] = raw.values[k]; });
     var c = cleanChar({ id: id, name: 'Container', npc: true, values: vin }, sys, { state: 'host' }), out = { id: id, values: {} };
     if (c && isObj(c.values)) Object.keys(c.values).forEach(function(k) { if (keep[k] && Array.isArray(c.values[k]) && c.values[k].length) out.values[k] = c.values[k]; });
+    var lk = cleanLock(raw.lock, sys); if (lk) out.lock = lk;   // fold 2b
     return out;
 }
 // The store: an object with no prototype by box id, BOX_MAX at most. Anything else none
@@ -86,5 +107,5 @@ function boxesTidy(camp) {
 function boxesOf(store, items) { var out = map(), named = boxesNamed(items); if (isObj(store)) Object.keys(named).forEach(function(id) { if (Object.prototype.hasOwnProperty.call(store, id)) out[id] = JSON.parse(JSON.stringify(store[id])); }); return out; }
 // [boxcheck:core-end]
 
-if (typeof window !== 'undefined') window.wpBoxCore = { BOX_MAX: BOX_MAX, boxPic: boxPic, boxPieceOk: boxPieceOk, boxesNamed: boxesNamed, boxesTidy: boxesTidy, boxesOf: boxesOf, boxLists: boxLists, boxIdOk: boxIdOk, newBoxId: newBoxId, cleanBox: cleanBox, cleanBoxes: cleanBoxes, boxChar: boxChar, boxTiles: boxTiles, boxCount: boxCount, boxOp: boxOp };
-export { BOX_MAX, boxPic, boxPieceOk, boxesNamed, boxesTidy, boxesOf, boxLists, boxIdOk, newBoxId, cleanBox, cleanBoxes, boxChar, boxTiles, boxCount, boxOp };
+if (typeof window !== 'undefined') window.wpBoxCore = { LOCK_ROLLS: LOCK_ROLLS, cleanLock: cleanLock, boxLocked: boxLocked, keyRowOf: keyRowOf, keyName: keyName, BOX_MAX: BOX_MAX, boxPic: boxPic, boxPieceOk: boxPieceOk, boxesNamed: boxesNamed, boxesTidy: boxesTidy, boxesOf: boxesOf, boxLists: boxLists, boxIdOk: boxIdOk, newBoxId: newBoxId, cleanBox: cleanBox, cleanBoxes: cleanBoxes, boxChar: boxChar, boxTiles: boxTiles, boxCount: boxCount, boxOp: boxOp };
+export { LOCK_ROLLS, cleanLock, boxLocked, keyRowOf, keyName, BOX_MAX, boxPic, boxPieceOk, boxesNamed, boxesTidy, boxesOf, boxLists, boxIdOk, newBoxId, cleanBox, cleanBoxes, boxChar, boxTiles, boxCount, boxOp };

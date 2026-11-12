@@ -83,6 +83,42 @@ function setPic(fid, rowId, path) {
     var r = BC.boxPic(sysOf(camp), b, fid, rowId, path); if (!r.ok) { toast(r.reason === 'pic' ? 'Pick one of this campaign\u2019s own pictures.' : 'That is no longer in it.'); return; }
     b.values = r.values; save(); step(path ? 'pic' : 'nopic', {}); draw(); if (typeof window.appRender === 'function') window.appRender(); refocus(['.box-picbtn']);
 }
+// Fold 2b (the owner, 2026-11-12: "A. Open for everyone", "A. Yes, a key you name"): the lock, the GM's. Locked, a player next to it sees
+// only its rolls and, where they carry it, its key; a pass or the key opens it for everyone, and Locked comes unticked here
+function setLock(patchL, back) {
+    var camp = getActiveCampaign(), w = piece(), b = boxOf(camp, w); if (!gmMay() || !b) { close(); return; }
+    var lk = BC.cleanLock(Object.assign({}, b.lock || {}, patchL), sysOf(camp)); if (lk) b.lock = lk; else delete b.lock;
+    save(); step('lock', { on: !!(lk && lk.on), rolls: lk && lk.rolls ? lk.rolls.length : 0, key: !!(lk && lk.key) }); draw(); refocus(back);
+}
+function keyLabel(camp, sys, id) {
+    var it = (Array.isArray(sys.items) ? sys.items : []).filter(function(x) { return x && x.id === id; })[0]; if (it) return it.name || 'Key';
+    var LB = window.wpLibrary, e = LB && typeof LB.entryFor === 'function' ? LB.entryFor(id) : null; return e && typeof e.name === 'string' && e.name ? e.name : 'A library entry';
+}
+function lockInto(body, camp, b, sys) {
+    var lk = b.lock || {}, box = el('div', 'box-lock'), head = el('label', 'box-locktick'), cb = el('input', 'box-lockon'); cb.type = 'checkbox'; cb.checked = lk.on === true;
+    cb.addEventListener('change', function() { setLock({ on: cb.checked }, ['.box-lockon']); });
+    head.appendChild(cb); head.appendChild(el('span', 'wib wi-padlock box-lockic')); head.appendChild(el('span', '', 'Locked')); box.appendChild(head);
+    if (lk.on !== true) { body.appendChild(box); return; }
+    var rolls = (Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return r && typeof r.id === 'string' && r.init !== true; }), chosen = Array.isArray(lk.rolls) ? lk.rolls : [];
+    var l1 = el('div', 'box-lockline'); l1.appendChild(el('span', 'box-lockcap', 'Opens with'));
+    chosen.forEach(function(id) { var r = rolls.filter(function(x) { return x.id === id; })[0]; if (!r) return; var c = el('span', 'box-chip', String(r.label || 'Roll').split('{')[0].trim() || 'Roll'), x = el('button', 'box-chipx', '\u00d7'); x.type = 'button'; x.title = 'Not with this roll'; x.setAttribute('aria-label', 'Not with ' + (r.label || 'this roll')); x.addEventListener('click', function() { setLock({ rolls: chosen.filter(function(y) { return y !== id; }) }, ['.box-rollsel', '.box-lockon']); }); c.appendChild(x); l1.appendChild(c); });
+    var left = rolls.filter(function(r) { return chosen.indexOf(r.id) < 0; });
+    if (chosen.length < BC.LOCK_ROLLS && left.length) { var rs = el('select', 'box-rollsel'); rs.title = 'A roll of your system that opens it on a pass'; var o0 = el('option', '', '+ Roll'); o0.value = ''; rs.appendChild(o0); left.forEach(function(r) { var o = el('option', '', String(r.label || 'Roll').split('{')[0].trim() || 'Roll'); o.value = r.id; rs.appendChild(o); }); if (window.wpTexList && typeof window.wpTexList.keys === 'function') window.wpTexList.keys(rs); rs.addEventListener('change', function() { if (rs.value) setLock({ rolls: chosen.concat([rs.value]) }, ['.box-rollsel']); }); l1.appendChild(rs); }
+    if (!rolls.length) l1.appendChild(el('span', 'muted box-locknote', 'Your system has no rolls yet.'));
+    box.appendChild(l1);
+    var l2 = el('div', 'box-lockline'); l2.appendChild(el('span', 'box-lockcap', 'Key'));
+    if (lk.key) { var kc = el('span', 'box-chip', keyLabel(camp, sys, lk.key)), kx = el('button', 'box-chipx', '\u00d7'); kx.type = 'button'; kx.title = 'No key'; kx.setAttribute('aria-label', 'No key'); kx.addEventListener('click', function() { setLock({ key: '' }, ['.box-keysel', '.box-lockon']); }); kc.appendChild(kx); l2.appendChild(kc); }
+    else {
+        var items = (Array.isArray(sys.items) ? sys.items : []).filter(function(it) { return it && typeof it.id === 'string'; }).sort(function(a, z) { return String(a.name).localeCompare(String(z.name)); });
+        if (items.length) { var ks = el('select', 'box-keysel'); ks.title = 'An item that opens it with no roll, for whoever carries it'; var k0 = el('option', '', 'No key'); k0.value = ''; ks.appendChild(k0); items.forEach(function(it) { var o = el('option', '', it.name || 'Item'); o.value = it.id; ks.appendChild(o); }); if (window.wpTexList && typeof window.wpTexList.keys === 'function') window.wpTexList.keys(ks); ks.addEventListener('change', function() { if (ks.value) setLock({ key: ks.value }, ['.box-keysel', '.box-lockon']); }); l2.appendChild(ks); }
+        var LB = window.wpLibrary, LP = window.wpLibPicker;
+        if (LB && LP && typeof LB.size === 'function' && LB.size() > 0 && camp.library) { var kl = el('button', 'tool ghost box-keylib', 'From the library'); kl.type = 'button'; kl.title = 'A library entry as its key'; kl.addEventListener('click', function() { LP.open({ anchor: kl, title: 'Its key', gm: true, noQty: true, source: { packs: function() { return (camp.library && camp.library.packs) || []; }, entries: function(pid) { return LB.entriesOf(pid); } }, onAdd: function(ids) { if (getActiveCampaign() !== camp || !ids || !ids[0]) return; setLock({ key: ids[0] }, ['.box-keylib', '.box-lockon']); } }); }); l2.appendChild(kl); }
+        if (!items.length && !(LB && LB.size && LB.size() > 0)) l2.appendChild(el('span', 'muted box-locknote', 'No items to pick.'));
+    }
+    box.appendChild(l2);
+    box.appendChild(el('div', 'muted box-locknote', chosen.length || lk.key ? 'A pass, or the key, opens it for everyone. A failure runs that roll\u2019s own Then and Calls for.' : 'Pick a roll or a key, or only you can open it.'));
+    body.appendChild(box);
+}
 // The window is drawn anew at a change: the focus goes back to the control pressed, or the first of those named that is there (the review rule of 1.6.2)
 function refocus(list) { (Array.isArray(list) ? list : []).some(function(s) { var n = document.querySelector('#boxBody ' + s); if (n && !n.disabled && n.focus) { n.focus(); return true; } return false; }); }
 function draw() {
@@ -93,6 +129,7 @@ function draw() {
     var body = document.getElementById('boxBody'); if (!body) return; while (body.firstChild) body.removeChild(body.firstChild);
     var tiles = BC.boxTiles(sys, b), lists = BC.boxLists(sys);
     if (!lists.length) { body.appendChild(el('div', 'muted box-say', 'Your system has no list ticked Tradable that players see, so a container has nowhere to keep things. Tick Tradable on a list in the System editor.')); return; }
+    lockInto(body, camp, b, sys);   // fold 2b
     var grid = el('div', 'box-grid'); grid.setAttribute('role', 'list');
     tiles.forEach(function(t) {
         var b2 = el('button', 'box-tile' + (_box.sel === t.rowId ? ' on' : '')); b2.type = 'button'; b2.dataset.row = t.rowId; b2.setAttribute('role', 'listitem');
@@ -190,16 +227,42 @@ function view(msg) {
     var shown = p.style.display !== 'none', same = shown && _box.player && _box.pieceId === msg.itemId, tok = _ask && _ask.itemId === msg.itemId ? _ask.tok : (same ? _box.tok : null); if (!tok) return;   // only an ask that waits or the window open on it (the review)
     if (msg.gone === true) { if (same) { _box.player = false; p.style.display = 'none'; _box = { mapId: null, pieceId: null, sel: null, list: null }; } _ask = null; return; }   // the host closed it: nothing to tell it back
     _ask = null;
-    _box = { player: true, mapId: msg.mapId, pieceId: msg.itemId, tok: tok, sel: same ? _box.sel : null, qty: same ? _box.qty : 1, list: null, tiles: cleanTiles(msg.tiles), name: typeof msg.name === 'string' ? msg.name.slice(0, 120) : '' };
+    _box = { player: true, mapId: msg.mapId, pieceId: msg.itemId, tok: tok, sel: same ? _box.sel : null, qty: same ? _box.qty : 1, list: null, tiles: cleanTiles(msg.tiles), locked: cleanLocked(msg.locked), name: typeof msg.name === 'string' ? msg.name.slice(0, 120) : '' };
     if (!_box.tiles.some(function(t) { return t.rowId === _box.sel; })) { _box.sel = null; _box.qty = 1; }
     var was = p.style.display !== 'none'; p.style.display = ''; if (!was && window.wpFloats && typeof window.wpFloats.reveal === 'function') window.wpFloats.reveal(p);
     var f = document.activeElement, cls = f && p.contains(f) && f.className ? '.' + String(f.className).split(' ')[0] : null;
-    drawPlayer(); if (cls) refocus([cls, '.box-tile', '.box-all']);
+    drawPlayer(); if (cls) refocus([cls, '.box-try', '.box-usekey', '.box-tile', '.box-all']);
+}
+// Fold 2b: locked, the host sends its rolls and the key the character carries, as plain words; a press of a roll names it to the host and
+// then makes that roll from the character's own sheet, which the host judges as any roll; the key asks the host to open it
+function cleanLocked(raw) {
+    if (!raw || typeof raw !== 'object') return null; var cut = function(v, n) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, n) : ''; };
+    var rolls = (Array.isArray(raw.rolls) ? raw.rolls.slice(0, 12) : []).filter(function(r) { return r && typeof r.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(r.id); }).slice(0, 3).map(function(r) { return { id: r.id, label: cut(r.label, 60) || 'Roll' }; });
+    var out = { rolls: rolls }; var k = cut(raw.key, 80); if (k) out.key = k; if (raw.held === true) out.held = true; return out;
+}
+function lockTok() { var map = getActiveMap(); return map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === _box.tok; }) : null; }
+function tryRoll(id) {
+    var n = window.wpNet, tk = lockTok(), sh = window.wpSheets; if (!_box.player || !n || typeof n.boxAsk !== 'function' || !tk || typeof tk.charId !== 'string') return;
+    var r = n.boxAsk('try', _box.mapId, _box.pieceId, { tok: _box.tok, roll: id }); if (r && r.error) { toast(r.error); return; }
+    if (sh && typeof sh.runDue === 'function') sh.runDue(tk.charId, id); step('lock-try', {});
+}
+function useKey() { var n = window.wpNet; if (!_box.player || !n || typeof n.boxAsk !== 'function') return; var r = n.boxAsk('key', _box.mapId, _box.pieceId, { tok: _box.tok }); if (r && r.error) toast(r.error); step('lock-key', {}); }
+function lockedInto(body) {
+    var lk = _box.locked, wrap = el('div', 'box-lockbox'), camp = getActiveCampaign(), tk = lockTok(), ch = tk && camp && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, tk.charId) ? camp.chars[tk.charId] : null;
+    wrap.appendChild(el('span', 'wib wi-padlock box-lockbig'));
+    wrap.appendChild(el('div', 'box-lockwd', lk.held ? 'It holds.' : 'It\u2019s locked.'));
+    var btns = el('div', 'box-lockbtns');
+    lk.rolls.forEach(function(r) { var b = el('button', 'tool box-try', r.label); b.type = 'button'; b.dataset.roll = r.id; b.title = 'Roll ' + r.label + ' to open it'; b.addEventListener('click', function() { tryRoll(r.id); }); btns.appendChild(b); });
+    if (lk.key) { var kb = el('button', 'tool box-usekey', 'Use ' + lk.key); kb.type = 'button'; kb.title = 'Open it with the ' + lk.key + ' you carry'; kb.addEventListener('click', useKey); btns.appendChild(kb); }
+    if (btns.firstChild) wrap.appendChild(btns); else wrap.appendChild(el('div', 'muted box-say', 'Only the GM can open it.'));
+    if (lk.rolls.length && ch) wrap.appendChild(el('div', 'box-lockwho', (ch.name || 'Your character') + ' rolls. Nothing in it shows until it opens.'));
+    body.appendChild(wrap);
 }
 function take(more) { var n = window.wpNet; if (!_box.player || !n || typeof n.boxAsk !== 'function') return; var r = n.boxAsk('take', _box.mapId, _box.pieceId, Object.assign({ tok: _box.tok }, more)); if (r && r.error) toast(r.error); step('take', { all: !!more.all }); }
 function drawPlayer() {
     var p = P(); if (!p) return; var nm = document.getElementById('boxName'); if (nm) nm.textContent = _box.name || 'Container';
     var body = document.getElementById('boxBody'); if (!body) return; while (body.firstChild) body.removeChild(body.firstChild);
+    if (_box.locked) { lockedInto(body); return; }   // fold 2b
     var tiles = _box.tiles || [];
     if (!tiles.length) { body.appendChild(el('div', 'muted box-say', 'It is empty.')); return; }
     var grid = el('div', 'box-grid'); grid.setAttribute('role', 'list');

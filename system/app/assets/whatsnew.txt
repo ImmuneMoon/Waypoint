@@ -1149,6 +1149,11 @@ The Data Map
 - An item can have a picture of its own, from your Image Library. Pick it in
   the Items tab or on a library entry. A container's tile and a sheet's row
   show it, and a container's row can wear a picture of its own too.
+- A container can be locked. Tick Locked in its window and pick up to three of
+  your system's rolls that open it, such as Pick the lock or Force it, and a
+  key if you like. A player next to it sees a padlock and those rolls. A pass,
+  or the key carried, opens it for everyone. A failure runs that roll's own
+  Then and Calls for.
 - Fixed: placing a shape or Build's pieces over a filled region could drag
   the region instead.
 - A map used to open on whichever face you last left it in. Now Settings,

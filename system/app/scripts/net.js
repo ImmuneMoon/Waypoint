@@ -4374,7 +4374,7 @@ net.boxAsk = function(op, mapId, itemId, more) {
     if (!net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
     var m = { type: 'box', op: String(op), mapId: mapId, itemId: itemId }; more = more && typeof more === 'object' ? more : {};
-    ['tok', 'fid', 'rowId'].forEach(function(k) { if (typeof more[k] === 'string') m[k] = more[k]; }); if (typeof more.qty === 'number') m.qty = more.qty; if (more.all === true) m.all = true;
+    ['tok', 'fid', 'rowId', 'roll'].forEach(function(k) { if (typeof more[k] === 'string') m[k] = more[k]; });   // fold 2b: roll, the lock's roll a try names if (typeof more.qty === 'number') m.qty = more.qty; if (more.all === true) m.all = true;
     try { net.conns[0].send(m); } catch (e) { return { error: 'Could not reach the GM.' }; }
     return { ok: true };
 };
@@ -4382,7 +4382,7 @@ net.boxAsk = function(op, mapId, itemId, more) {
 // [netcheck:boxhost-start]
 // The host's record of who has a container open: by campaign, map and piece, each player's connection and the token it was opened with, and
 // what they were last sent. Memory alone: forgotten at a new table, a connection's entries dropped when it closes (the review)
-var _boxViews = Object.create(null);
+var _boxViews = Object.create(null), _boxTries = Object.create(null);   // fold 2b: a player's try at a lock, by connection, until its roll lands
 function boxKey(camp, map, w) { return camp.id + '|' + map.id + '|' + w.id; }
 function boxOfPiece(camp, w) { return camp && w && typeof w.box === 'string' && camp.boxes && Object.prototype.hasOwnProperty.call(camp.boxes, w.box) ? camp.boxes[w.box] : null; }
 // What a player is sent: the container's name and the rows that can be taken (tradeOfferable as the take judges them, so never a GM-only entry,
@@ -4402,7 +4402,7 @@ function boxSweep() {
         var v = _boxViews[k], parts = k.split('|'), map = parts[0] === camp.id && camp.items && Object.prototype.hasOwnProperty.call(camp.items, parts[1]) ? camp.items[parts[1]] : null;
         var w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === parts[2]; }) : null, box = w && !w.hidden ? boxOfPiece(camp, w) : null;
         var shut = function(peer) { net.conns.forEach(function(c) { if (c.open && c.peer === peer) { try { c.send({ type: 'box-view', mapId: parts[1], itemId: parts[2], gone: true }); } catch (e) { sendFailed(e); } } }); };
-        if (!box || !BC.boxPieceOk(w)) { Object.keys(v.peers).forEach(shut); delete _boxViews[k]; return; }
+        if (!box || !BC.boxPieceOk(w) || (typeof BC.boxLocked === 'function' && BC.boxLocked(box))) { Object.keys(v.peers).forEach(shut); delete _boxViews[k]; return; }   // fold 2b: locked again by the GM, it closes
         Object.keys(v.peers).forEach(function(peer) {
             var pr = net.roster[peer], open = net.conns.some(function(c) { return c.open && c.peer === peer; }), tok = (map.whiteboard || []).find(function(x) { return x && x.id === v.peers[peer]; });
             if (!open) { delete v.peers[peer]; return; }
@@ -4413,8 +4413,38 @@ function boxSweep() {
         net.conns.forEach(function(c) { if (c.open && Object.prototype.hasOwnProperty.call(v.peers, c.peer)) { try { c.send(m); } catch (e) { sendFailed(e); } } });
     });
 }
-function boxForget() { _boxViews = Object.create(null); }
-function boxForgetConn(peer) { Object.keys(_boxViews).forEach(function(k) { delete _boxViews[k].peers[peer]; if (!Object.keys(_boxViews[k].peers).length) delete _boxViews[k]; }); }
+// What a player is shown of a locked container: its rolls as their own view of the system names them, and their key where the character
+// they opened it with carries it. Nothing it holds. held: the last try failed
+function boxLockedMsg(camp, map, w, box, ch, held) {
+    var BC = window.wpBoxCore, lk = box && box.lock ? box.lock : {}, view = window.wpSheets && typeof window.wpSheets.playerSystem === 'function' ? window.wpSheets.playerSystem(camp) : null, rolls = [];
+    (Array.isArray(lk.rolls) ? lk.rolls : []).forEach(function(id) { var r = view && Array.isArray(view.rolls) ? view.rolls.filter(function(x) { return x && x.id === id; })[0] : null; if (r) rolls.push({ id: id, label: String(r.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll' }); });
+    var m = { type: 'box-view', mapId: map.id, itemId: w.id, name: typeof w.name === 'string' ? w.name.slice(0, 120) : '', locked: { rolls: rolls } };
+    var kr = BC && lk.key && ch ? BC.keyRowOf(ch, lk.key) : null; if (kr) m.locked.key = BC.keyName(camp.system, kr);
+    if (held === true) m.locked.held = true;
+    return m;
+}
+// A player's try lands: its roll was the one they named, for that character, within two minutes. A pass opens it for everyone (the owner:
+// "A. Open for everyone"); a failure leaves it locked and says so, the roll's own Then and Calls for having run as for any roll
+function boxTryAfter(conn, charId, act, pass) {
+    var t = conn && _boxTries[conn.peer]; if (!t || t.charId !== charId || t.roll !== act) return;
+    delete _boxTries[conn.peer]; if (Date.now() - t.at > 120000) return;
+    var camp = getActiveCampaign(), BC = window.wpBoxCore; if (!camp || !BC || !camp.items || !Object.prototype.hasOwnProperty.call(camp.items, t.mapId)) return;
+    var map = camp.items[t.mapId], w = Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === t.itemId; }) : null, box = w && !w.hidden ? boxOfPiece(camp, w) : null;
+    if (!box || !BC.boxPieceOk(w) || !BC.boxLocked(box)) return;
+    var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, charId) ? camp.chars[charId] : null, send = function(m) { try { conn.send(m); } catch (e) { sendFailed(e); } };
+    if (pass !== true) { send(boxLockedMsg(camp, map, w, box, ch, true)); if (window.wpStepLog) window.wpStepLog('boxes v1', 'lock-held', {}); return; }
+    boxUnlock(camp, map, w, box, ch, 'opened');
+    var k = boxKey(camp, map, w), vw = _boxViews[k] = _boxViews[k] || { peers: Object.create(null), sig: '' }; vw.peers[conn.peer] = t.tok;
+    var m = boxViewMsg(camp, map, w, box); vw.sig = JSON.stringify(m); send(m);
+    if (window.wpStepLog) window.wpStepLog('boxes v1', 'lock-open', { by: 'roll' });
+}
+function boxUnlock(camp, map, w, box, ch, how) {
+    var BC = window.wpBoxCore, lk = Object.assign({}, box.lock); delete lk.on; var cl = BC.cleanLock(lk, camp.system); if (cl) box.lock = cl; else delete box.lock;
+    saveRemoteSoon(); var said = ((ch && ch.name) || 'A character') + ' ' + how + ' ' + ((w && w.name) || 'a container') + '.'; logEvent('items', said); toast(said);
+    if (window.wpBoxes && typeof window.wpBoxes.redraw === 'function') window.wpBoxes.redraw();
+}
+function boxForget() { _boxViews = Object.create(null); _boxTries = Object.create(null); }
+function boxForgetConn(peer) { delete _boxTries[peer]; Object.keys(_boxViews).forEach(function(k) { delete _boxViews[k].peers[peer]; if (!Object.keys(_boxViews[k].peers).length) delete _boxViews[k]; }); }
 // [netcheck:boxhost-end]
 // [netcheck:pending-start]
 function charPendingDone(rid, ok, reason, msg) {
@@ -9477,13 +9507,20 @@ function handleMessage(msg, conn) {
         var chB = tokB && tokB.isChar && !tokB.waiting && !tokB.hidden && typeof tokB.charId === 'string' && campB.chars && Object.prototype.hasOwnProperty.call(campB.chars, tokB.charId) ? campB.chars[tokB.charId] : null;
         if (!chB || chB.making || !handsTo(chB, prB.id)) { sayB('token'); return; }
         if (!allyNear(mapB, tokB, wB, true)) { sayB('far'); return; }
-        if (msg.op === 'open') {
+        if (msg.op === 'open' || msg.op === 'key' || msg.op === 'try') {
+            if (BCb.boxLocked && BCb.boxLocked(boxB)) {   // fold 2b: locked, it shows nothing of what it holds; a key it opens with, a roll a try names
+                var krB = boxB.lock.key ? BCb.keyRowOf(chB, boxB.lock.key) : null;
+                if (msg.op === 'try') { var lmB = boxLockedMsg(campB, mapB, wB, boxB, chB, false); if (typeof msg.roll === 'string' && lmB.locked.rolls.some(function(r) { return r.id === msg.roll; })) { _boxTries[conn.peer] = { mapId: mapB.id, itemId: wB.id, roll: msg.roll, charId: chB.id, tok: tokB.id, at: Date.now() }; if (window.wpStepLog) window.wpStepLog('boxes v1', 'lock-try', {}); } return; }
+                if (msg.op !== 'key' || !krB) { try { conn.send(boxLockedMsg(campB, mapB, wB, boxB, chB, false)); } catch (e) { sendFailed(e); } return; }
+                boxUnlock(campB, mapB, wB, boxB, chB, 'unlocked'); if (window.wpStepLog) window.wpStepLog('boxes v1', 'lock-open', { by: 'key' });
+            }
             var vwB = _boxViews[keyB] = _boxViews[keyB] || { peers: Object.create(null), sig: '' }; vwB.peers[conn.peer] = tokB.id;
             var mB = boxViewMsg(campB, mapB, wB, boxB); vwB.sig = JSON.stringify(mB);
             try { conn.send(mB); } catch (e) { sendFailed(e); }
             logEvent('items', (chB.name || 'A character') + ' opened ' + (wB.name || 'a container') + '.'); return;
         }
         if (msg.op !== 'take') return;
+        if (BCb.boxLocked && BCb.boxLocked(boxB)) { sayB('locked'); return; }   // fold 2b: nothing is taken from a locked one
         var Sb = SC(); if (!Sb || typeof Sb.tradeApply !== 'function') return; var sysB = campB.system, stand = BCb.boxChar(boxB), canB = Sb.tradeOfferable(sysB, stand, 'gm').filter(function(o) { return !o.no; }), linesB = [];
         if (msg.all === true) canB.forEach(function(o) { linesB.push({ fid: o.fid, rowId: o.rowId, qty: o.qty }); });
         else { var oB = canB.filter(function(o) { return o.fid === msg.fid && o.rowId === msg.rowId; })[0], qB = typeof msg.qty === 'number' && isFinite(msg.qty) ? Math.floor(msg.qty) : 0; if (oB && qB >= 1) linesB.push({ fid: oB.fid, rowId: oB.rowId, qty: Math.min(qB, oB.qty) }); }
@@ -9510,7 +9547,7 @@ function handleMessage(msg, conn) {
     } else if ((msg.type === 'box-deny' || msg.type === 'box-took') && net.role === 'client') {
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
         if (msg.type === 'box-took') { var tkL = (Array.isArray(msg.lines) ? msg.lines.slice(0, 40) : []).filter(function(x) { return typeof x === 'string'; }).map(function(x) { return x.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 120); }); toast('You took ' + (tkL.join(', ') || 'it') + '.'); return; }
-        var BOX_SAYS = { far: 'Move a token of yours next to it to open it.', token: 'Open it with a character token of your own.', gone: 'That is no longer in it.', paused: 'The table is paused.' };
+        var BOX_SAYS = { locked: 'It is locked.', far: 'Move a token of yours next to it to open it.', token: 'Open it with a character token of your own.', gone: 'That is no longer in it.', paused: 'The table is paused.' };
         toast(Object.prototype.hasOwnProperty.call(BOX_SAYS, msg.reason) ? BOX_SAYS[msg.reason] : typeof msg.msg === 'string' && msg.msg ? msg.msg.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 200) : 'You cannot take that now.');
     } else if (msg.type === 'door-deny' && net.role === 'client') {
         toast(msg.reason === 'locked' ? 'The GM has that door locked.' : msg.reason === 'far' ? 'Move a token next to that door to open it.' : 'Cannot open that door right now.');
@@ -10172,7 +10209,8 @@ function handleMessage(msg, conn) {
         }
         if (actQ && actQ.blastHit === true && q.row && typeof q.row.f === 'string' && typeof q.row.r === 'string' && tgQ !== 'wait') { var bhM = mfQ !== null && Dq.naturalOf(resQ) >= mfQ, bhV = Dq.verdictOf(resQ, ruleQ), bhT = tcQ && tcQ.range && typeof tcQ.range.tid === 'string' ? tcQ.range : null; if (!bhM && bhV && bhV.kind === 'check') { if ((bhV.pass === true || recQ.body === 1) && bhT && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: q.charId, fieldId: q.row.f, rowId: q.row.r, tid: bhT.tid, mapId: bhT.mapId, margin: bhV.margin, own: true }); else if (bhV.pass === false && recQ.body !== 1 && typeof window.wpLaunchMiss === 'function') window.wpLaunchMiss({ charId: q.charId, fieldId: q.row.f, rowId: q.row.r, tid: bhT ? bhT.tid : '', mapId: bhT ? bhT.mapId : '', margin: bhV.margin, own: true, crit: ((typeof Dq.checkOf === 'function' ? Dq.checkOf(resQ, ruleQ) : null) || bhV).crit === 'fumble' ? 'fumble' : '' }); } }   // 1.6.2 (the CORE session): Bursts at its target, the row's own blast at the target on a hit, by its area's flight on a miss
         if (chQ && actQ && tgQ !== 'wait' && Array.isArray(actQ.thenGm) && actQ.thenGm.length && typeof thenGmRun === 'function') { var mfGQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ, vdGQ = Dq.verdictOf(resQ, ruleQ); thenGmRun(campQ, chQ, q, viewQ, actQ, { cr: typeof SQ.thenCrit === 'function' ? SQ.thenCrit(vdGQ, mfGQ) : '', mf: mfGQ, vd: vdGQ, big: recQ.big === true, res: resQ, band: recQ.band, tc: tcQ, D: Dq, F: Fq, label: recQ.label }); }   // 1.6.2: the Then's steps the players' view could not hold, run here alone, also where it held none of them
-        if (actQ && typeof sceneKeep === 'function') sceneKeep(campQ, actQ, resQ, tcQ);   // 1.6.2 Kept for the scene
+        if (actQ && typeof sceneKeep === 'function') sceneKeep(campQ, actQ, resQ, tcQ);
+        if (chQ && actQ && typeof boxTryAfter === 'function' && typeof _boxTries !== 'undefined' && _boxTries[conn.peer]) { var vbQ = Dq.verdictOf(resQ, ruleQ), mbQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ; boxTryAfter(conn, q.charId, q.act, mbQ ? false : recQ.body === 1 ? true : vbQ && vbQ.kind === 'check' ? vbQ.pass === true : null); }   // 1.6.2 (backlog 42, fold 2b): a try at a container's lock   // 1.6.2 Kept for the scene
         if (chQ && (actQ || blowRecQ) && typeof callsAfter === 'function') { var vcQ = Dq.verdictOf(resQ, ruleQ), pcQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ ? false : recQ.body === 1 ? true : vcQ && vcQ.kind === 'check' ? vcQ.pass === true : null; if (actQ) callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ, typeof onQ !== 'undefined' && onQ ? onQ.ch : chQ, !!recQ.priv, q.row, recQ.big === true); attemptCalled(campQ, blowRecQ, q.act, rowGQ, pcQ, chQ, !!recQ.priv, tcQ); if (typeof holdsRolled === 'function' && typeof SQ.holdRefOf === 'function') holdsRolled(campQ, chQ, actQ, holdRefQ(campQ, q, actQ), pcQ, tcQ, blowRecQ, atQ); }   // 1.6.0: Calls for, with its Then landed; Who holds whom
         if (actQ && actQ.burst && q.row && typeof burstAfter === 'function') burstAfter(campQ, chQ, actQ, q.row, resQ, ruleQ, mfQ !== null && Dq.naturalOf(resQ) >= mfQ, typeof taQ !== 'undefined' ? taQ : null, tcQ, saveRemoteSoon);   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
         };

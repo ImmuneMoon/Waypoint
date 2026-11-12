@@ -8672,6 +8672,7 @@ function saveDraft() {
     var n = net(); if (n && n.syncSystem) n.syncSystem();
     if (n && n.active && n.role === 'host' && n.sensesMoved) n.sensesMoved(null);   // Senses S0: a formula or a default only the GM sees may feed Sight, and moves neither view of the system
     if (n && n.active && n.role === 'host' && n.sendItem) terrMaps.forEach(function(id) { n.sendItem(camp.id, id); });   // 1.6.2 (backlog 57): the maps whose pieces were settled, after the system that names the kinds
+    if (n && n.active && n.role === 'host' && typeof n.lootMoved === 'function' && JSON.stringify((prevSys && prevSys.combat && prevSys.combat.loot) || null) !== JSON.stringify((clean.combat && clean.combat.loot) || null)) n.lootMoved(null);   /* the review of fold 3a: Bodies is the GM's alone, so syncSystem sees no change; every map's chests follow it */
     if (n && n.active && n.role === 'host' && n.syncChars && gmFacing(prevSys) !== gmFacing(clean)) n.syncChars();   // Stage 6 F4a: an edit to a GM-only item or effect changes what its owner holds inline (the players' view alone would not resend it)
     var rnW = rnS ? renamesSay(rnS) : []; if (nR && nR.logEvent) rnW.forEach(function(l) { nR.logEvent('items', l); });
     var v = validateSystem(clean, F()), goneS = typeof goneRefs === 'function' ? goneRefs(clean, typeof refKeys === 'function' ? refKeys(clean) : null) : [];   // 1.6.2 (backlog 208): what still names something that is gone is said at Save too
@@ -12389,7 +12390,7 @@ function bodiesBox(box, cm) {
     wrap.appendChild(el('div', 'sys-note', 'A fallen NPC can be searched like a container. You tick Can be looted on its token or under Characters, or set a test here. A player next to it takes what its lists ticked Tradable hold.'));
     var rw = el('div', 'sys-flags'), ip = input('sys-loot-if field', lt && typeof lt['if'] === 'string' ? lt['if'] : '', 'When an NPC can be searched, read on its own sheet', '');
     ip.addEventListener('input', function(e) { e.stopPropagation(); var v = String(ip.value || '').slice(0, LIMITS.formula); if (v.trim()) cm.loot = { 'if': v }; else delete cm.loot; markDirty(); if (typeof patchErrors === 'function') patchErrors(); });
-    rw.appendChild(ip); wrap.appendChild(rw); box.appendChild(wrap);
+    rw.appendChild(ip); wrap.appendChild(rw); if (typeof errorCell === 'function') { var err = errorCell('bodies'); err.dataset.errFor = 'bodies'; wrap.appendChild(err); } box.appendChild(wrap);
 }
 function terrainBox(box, cm) {
     var wrap = el('div', 'sys-holds sys-tkindbox'), list = Array.isArray(cm.terrain) ? cm.terrain : null, SCt = window.wpSystemCore || {}, max = SCt.TERRAIN_MAX || 48, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };

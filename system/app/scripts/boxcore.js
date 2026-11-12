@@ -6,7 +6,7 @@
    hold. Only the item lists ticked Tradable that players see may hold a container's items, since a player takes them into the same list of
    their own sheet, as a trade moves a row. */
 
-import { cleanChar, rowDef, rowIdOf, fieldById, cleanPic, rowKeptFrom, tradeOfferable, makeResolver } from './systemcore.js';
+import { cleanChar, rowDef, rowIdOf, fieldById, cleanPic, rowKeptFrom, tradeOfferable, makeResolver, tradeCarry } from './systemcore.js';
 
 // [boxcheck:core-start]
 var BOX_ID = /^c_bx[A-Za-z0-9]{4,20}$/, BOX_MAX = 500;
@@ -87,6 +87,13 @@ function bodyLootable(sys, ch, F) {
     var r; try { r = F.evaluate(rule, { vars: makeResolver(sys, ch, F, null), random: function() { return 1; } }); } catch (e) { return false; }
     return !!(r && r.ok && (r.value === true || (typeof r.value === 'number' && r.value !== 0)));
 }
+// The review of fold 3a: a row taken whole takes what hangs on it (the rows it granted, its parts, theirs: systemcore tradeCarry). From a body it
+// may be taken only where none of those is Never looted, kept from players, a GM-only entry or in a list that cannot be looted
+function bodyOfferOk(sys, ch, rowId) {
+    if (!bodyNpc(ch) || typeof rowId !== 'string') return false; var nl = noLootOf(ch), ok = map(); boxLists(sys).forEach(function(f) { ok[f.id] = 1; });
+    if (nl[rowId] === 1) return false;
+    return tradeCarry(sys, ch.values, rowId).every(function(k) { var d = rowDef(sys, k.row), id = rowIdOf(k.row); return ok[k.f] === 1 && nl[id] !== 1 && k.row.hid !== 1 && !!(d && isObj(d.def)) && d.def.vis !== 'gm'; });
+}
 function noLootOf(ch) { var m = map(); (isObj(ch) && Array.isArray(ch.noLoot) ? ch.noLoot : []).forEach(function(id) { if (typeof id === 'string') m[id] = 1; }); return m; }
 function cleanBox(raw, sys, id) {
     if (!isObj(raw) || !boxIdOk(id) || (raw.id !== undefined && raw.id !== id)) return null;
@@ -157,5 +164,5 @@ function boxesTidy(camp) {
 function boxesOf(store, items) { var out = map(), named = boxesNamed(items); if (isObj(store)) Object.keys(named).forEach(function(id) { if (Object.prototype.hasOwnProperty.call(store, id)) { out[id] = JSON.parse(JSON.stringify(store[id])); delete out[id].taken; delete out[id].tell; } }); return out; }   // a part exported for another campaign carries no record of who took what (the review of fold 2c)
 // [boxcheck:core-end]
 
-if (typeof window !== 'undefined') window.wpBoxCore = { bodyNpc: bodyNpc, bodyLootable: bodyLootable, noLootOf: noLootOf, TAKEN_MAX: TAKEN_MAX, cleanTaken: cleanTaken, takenLines: takenLines, putBackPlan: putBackPlan, LOCK_ROLLS: LOCK_ROLLS, lockRollOk: lockRollOk, cleanLock: cleanLock, boxLocked: boxLocked, keyRowOf: keyRowOf, keyName: keyName, BOX_MAX: BOX_MAX, boxPic: boxPic, boxPieceOk: boxPieceOk, boxesNamed: boxesNamed, boxesTidy: boxesTidy, boxesOf: boxesOf, boxLists: boxLists, boxIdOk: boxIdOk, newBoxId: newBoxId, cleanBox: cleanBox, cleanBoxes: cleanBoxes, boxChar: boxChar, boxTiles: boxTiles, boxCount: boxCount, boxOp: boxOp };
-export { bodyNpc, bodyLootable, noLootOf, TAKEN_MAX, cleanTaken, takenLines, putBackPlan, LOCK_ROLLS, lockRollOk, cleanLock, boxLocked, keyRowOf, keyName, BOX_MAX, boxPic, boxPieceOk, boxesNamed, boxesTidy, boxesOf, boxLists, boxIdOk, newBoxId, cleanBox, cleanBoxes, boxChar, boxTiles, boxCount, boxOp };
+if (typeof window !== 'undefined') window.wpBoxCore = { bodyNpc: bodyNpc, bodyLootable: bodyLootable, bodyOfferOk: bodyOfferOk, noLootOf: noLootOf, TAKEN_MAX: TAKEN_MAX, cleanTaken: cleanTaken, takenLines: takenLines, putBackPlan: putBackPlan, LOCK_ROLLS: LOCK_ROLLS, lockRollOk: lockRollOk, cleanLock: cleanLock, boxLocked: boxLocked, keyRowOf: keyRowOf, keyName: keyName, BOX_MAX: BOX_MAX, boxPic: boxPic, boxPieceOk: boxPieceOk, boxesNamed: boxesNamed, boxesTidy: boxesTidy, boxesOf: boxesOf, boxLists: boxLists, boxIdOk: boxIdOk, newBoxId: newBoxId, cleanBox: cleanBox, cleanBoxes: cleanBoxes, boxChar: boxChar, boxTiles: boxTiles, boxCount: boxCount, boxOp: boxOp };
+export { bodyNpc, bodyLootable, bodyOfferOk, noLootOf, TAKEN_MAX, cleanTaken, takenLines, putBackPlan, LOCK_ROLLS, lockRollOk, cleanLock, boxLocked, keyRowOf, keyName, BOX_MAX, boxPic, boxPieceOk, boxesNamed, boxesTidy, boxesOf, boxLists, boxIdOk, newBoxId, cleanBox, cleanBoxes, boxChar, boxTiles, boxCount, boxOp };

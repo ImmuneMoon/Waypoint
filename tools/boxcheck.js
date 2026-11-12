@@ -221,7 +221,7 @@ const J = JSON.stringify;
                 BC.bodyLootable(sysL, npc, F) === true && BC.bodyLootable(sysL, Object.assign({}, npc, { values: { f_hp: 4 } }), F) === false && BC.bodyLootable(sysL, Object.assign({}, npc, { values: { f_hp: 4 }, loot: true }), F) === true
                 && BC.bodyLootable(sysL, pc, F) === false && BC.bodyLootable(sysL, Object.assign({}, pc, { loot: true }), F) === false && BC.bodyLootable(sysL, Object.assign({}, npc, { making: 1 }), F) === false && BC.bodyLootable(sysL, npc, null) === false);
             check('the rule is the GM’s: kept in the GM’s view and never in the players’, and the validator reads it', sysL.combat.loot && sysL.combat.loot.if === 'HP <= 0' && !(sysP.combat && sysP.combat.loot)
-                && S.validateSystem(Object.assign({}, sysL, { combat: { loot: { if: 'Nope +' } } }), F).errors.some(e => e.id === 'combat' && e.prop === 'loot'));
+                && S.validateSystem(Object.assign({}, sysL, { combat: { loot: { if: 'Nope +' } } }), F).errors.some(e => e.id === 'bodies' && e.prop === 'loot'));
             const cc = S.cleanChar({ id: 'c_n', name: 'N', npc: true, loot: true, noLoot: ['w_1', 'w_1', 'bad id!', 7] }, sysL, { state: 'host' }), cp = S.cleanChar({ id: 'c_p', name: 'P', ownerId: 'u_1', loot: true, noLoot: ['w_1'] }, sysL, { state: 'host' }), cw = S.cleanChar({ id: 'c_n', name: 'N', npc: true, loot: true, noLoot: ['w_1'] }, sysL, {});
             check('Can be looted and Never looted are the host’s own on an NPC: kept as true and as row ids each once, never on a player’s character nor on a copy', cc.loot === true && J(cc.noLoot) === J(['w_1']) && cp.loot === undefined && cp.noLoot === undefined && cw.loot === undefined && cw.noLoot === undefined, J([cc, cp, cw]));
             const ntL = read('scripts/net.js'), wbL = read('scripts/whiteboard.js'), clL = read('scripts/charlist.js'), shL = read('scripts/sheets.js').replace(/\r\n/g, '\n'), fbL = read('scripts/formbox.js'), suL = read('scripts/sysui.js');
@@ -282,6 +282,20 @@ const J = JSON.stringify;
             R.camp.chars.c_wolf.values.f_hp = 0; R.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'wf', tok: 'tk' }, R.conn);
             check('a system’s rule (Bodies, Can be looted where) read on the NPC’s own sheet makes it searchable with no tick: not while its HP is above 0, and once it is 0',
                 alive === 0 && R.sent[0] && R.sent[0].type === 'box-view' && J(R.sent[0].tiles.map(x => x.rowId)) === J(['w_p']), J(R.sent));
+        }
+        {   // the review of fold 3a: what goes with a taken row, and a body the player cannot see
+            const K = mk(); K.camp.system = S.cleanSystem(Object.assign({}, K.camp.system, { items: K.camp.system.items.concat([{ id: 'i_belt', key: 'Belt', name: 'Ammo belt' }, { id: 'i_gren', key: 'Gren', name: 'Grenade' }, { id: 'i_gm', key: 'Gm', name: 'Secret part', vis: 'gm' }]) }), { F, gmView: true });
+            K.camp.chars.c_ogre = { id: 'c_ogre', name: 'Ogre', npc: true, loot: true, values: { f_inv: [{ id: 'w_b', defId: 'i_belt', qty: 1 }, { id: 'w_g', defId: 'i_gren', qty: 1, gr: 'w_b' }, { id: 'w_r', defId: 'i_rope', qty: 1 }, { id: 'w_s', defId: 'i_coin', qty: 1 }, { id: 'w_p', defId: 'i_gm', qty: 1, in: 'w_s' }] }, noLoot: ['w_g'] };
+            K.camp.items.m1.whiteboard.push({ id: 'og', type: 'image', name: 'Ogre', isChar: true, charId: 'c_ogre', x: 100, y: 150, w: 50, h: 50 });
+            K.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'og', tok: 'tk' }, K.conn);
+            const kv = K.sent[0]; K.api.run({ type: 'box', op: 'take', mapId: 'm1', itemId: 'og', tok: 'tk', all: true }, K.conn);
+            check('a row that would take with it a row Never looted or a GM-only entry is neither offered nor taken, by its name or by Take all (bodyOfferOk); what nothing hidden hangs on goes',
+                kv && J(kv.tiles.map(x => x.rowId)) === J(['w_r']) && J(K.camp.chars.c_ogre.values.f_inv.map(r => r.id)) === J(['w_b', 'w_g', 'w_s', 'w_p']) && K.camp.chars.c_kael.values.f_inv.length === 1
+                && BC.bodyOfferOk(K.camp.system, K.camp.chars.c_ogre, 'w_r') === true && BC.bodyOfferOk(K.camp.system, K.camp.chars.c_ogre, 'w_b') === false && BC.bodyOfferOk(K.camp.system, K.camp.chars.c_ogre, 'w_s') === false, J([kv, K.camp.chars.c_ogre.values]));
+            const ntR = read('scripts/net.js'), shR = read('scripts/sheets.js').replace(/\r\n/g, '\n'), suR = read('scripts/sysui.js');
+            check('a body the player cannot see answers nothing and an open window on one is closed; a change of the Bodies rule sends every map\u2019s chests again; the rule\u2019s error stands in the Bodies topic',
+                ntR.includes("if (!boxSeenBy(campB, mapB, wB, prB.id)) return;") && ntR.includes("!allyNear(map, tok, w, true) || !boxSeenBy(camp, map, w, pr.id)) { shut(peer);") && shR.includes("n.lootMoved(null);   /* the review of fold 3a")
+                && suR.includes("var ERR_TOPIC = { bodies: ['combat', 'bodies'],") && suR.includes("var PROP_BOX = [[/^loot$/, ['sys-loot-if']], ") && shR.includes("var err = errorCell('bodies'); err.dataset.errFor = 'bodies';"));
         }
         {   // fold 2b on the host: a locked container shows nothing it holds, its key or a passed roll opens it for everyone
             const L = mk({ lock: { on: true, rolls: ['r_pick'], key: 'i_key' } });

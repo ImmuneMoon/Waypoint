@@ -1172,6 +1172,12 @@ The Data Map
   there. A map object can name a kind under Rules for, and a furnishing of
   that kind takes its cover, size and blocking. A placed one can change its
   look in its Properties, and take a tint.
+- A piece's Properties now open from Properties on its right-click menu, or
+  from the sliders on the bar over a selected piece. A double-click no longer
+  opens them. A right-click selects the piece too, so you can see which one
+  its menu is for.
+- Visible to players wears a player with an eye over them, and the eye alone
+  means only what a token sees.
 - Fixed: placing a shape or Build's pieces over a filled region could drag
   the region instead.
 - A map used to open on whichever face you last left it in. Now Settings,

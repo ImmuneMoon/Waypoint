@@ -566,7 +566,7 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
                 menu.querySelectorAll('.ctx-doc-only').forEach(function(x) { x.style.display = isDocCtx ? 'block' : 'none'; });
                 menu.querySelectorAll('.ctx-docwin-only').forEach(function(x) { x.style.display = (isPlCtx || isDocCtx) ? 'block' : 'none'; }); var pinRowS = document.getElementById('ctxPinPage'); if (pinRowS && it && window.wpPageShelf && window.wpPageShelf.pinLabel) pinRowS.textContent = window.wpPageShelf.pinLabel(it.id);   // Open in new window — planners + handbook pages
                 var plBtn = document.getElementById('ctxDocPlayers');
-                if (plBtn && isDocCtx) plBtn.innerHTML = (it.meta && it.meta.players === false) ? '<i class="wib wi-eye"></i> Show to players' : '<i class="wib wi-lock"></i> Hide from players';
+                if (plBtn && isDocCtx) plBtn.innerHTML = (it.meta && it.meta.players === false) ? '<i class="wib wi-seen"></i> Show to players' : '<i class="wib wi-lock"></i> Hide from players';
                 window.wpClampMenu(menu, e.clientX, e.clientY);   // placed once its rows are the item's own: above the pointer when the bottom is near
             });
             el.addEventListener('click', function(e) {

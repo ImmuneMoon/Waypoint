@@ -1056,7 +1056,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               '<div class="field vis-field' + (w.hidden ? ' is-hidden' : '') + '">' +
                 '<label style="display:flex; align-items:center; gap:8px; margin:0; text-transform:none; cursor:pointer;">' +
                   '<input type="checkbox" id="wbVisible" ' + (w.hidden ? '' : 'checked') + '> ' +
-                  '<span>' + (w.hidden ? '<i class="wib wi-hide"></i> <b>Hidden from players</b>' : '<i class="wib wi-eye"></i> <b>Visible to players</b>') + '</span>' +
+                  '<span>' + (w.hidden ? '<i class="wib wi-unseen"></i> <b>Hidden from players</b>' : '<i class="wib wi-seen"></i> <b>Visible to players</b>') + '</span>' +
                 '</label>' +
                 '<div class="muted" style="margin-top:4px;">' + (w.hidden
                   ? 'Players at your table cannot see this. You see it dimmed. Tick the box to reveal it.'
@@ -1712,7 +1712,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
       var rowOf = function(item, deep) {
           var htmlName = esc(elementName(item));
           if (item.locked) htmlName = '<i class="wib wi-lock"></i> ' + htmlName;
-          if (visual && item.hidden) htmlName = '<i class="wib wi-hide"></i> ' + htmlName;
+          if (visual && item.hidden) htmlName = '<i class="wib wi-unseen"></i> ' + htmlName;
           var sel = (state.selWbIds || []).includes(item.id) || state.selWbId === item.id || state.selId === item.id, sh = !!_lyShut[item.id];
           var fold = visual && kids[item.id] ? '<button class="tool ghost el-fold" data-g="' + esc(item.id) + '" aria-expanded="' + (!sh) + '" title="Show or hide the pieces drawn into this picture">' + (sh ? '&#9656;' : '&#9662;') + '</button>' : '';
           return '<div class="element-list-item' + (sel ? ' sel' : '') + (deep ? ' el-child el-d' + deep : '') + '" data-id="' + esc(item.id) + '">' + fold +

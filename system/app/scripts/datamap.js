@@ -1130,9 +1130,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
           if (wallDi) { e.stopImmediatePropagation(); it2 = wallDi; }
           else if (it2.type === 'text' || it2.nodeId || it2.targetMapId) return;   // text boxes edit and portals travel on double-click — leave those to their own handlers
           else { var tokD = typeof tokenUnder === 'function' ? tokenUnder(am2, it2, e) : null; if (tokD) { e.stopImmediatePropagation(); it2 = tokD; } }
-          e.stopPropagation();
-          if (!state.selWbIds || state.selWbIds.length !== 1 || state.selWbIds[0] !== it2.id) { state.selWbIds = [it2.id]; state.selWbId = it2.id; render(); }   // select it, then open Properties
-          if (window.wpOpenRightPanel) window.wpOpenRightPanel();
+          e.stopPropagation();   // 1.6.2 (backlog 229; the owner, by prompt: "Row only, no double-click"): a double-click opens no Properties. The right-click menu and the selection bar do
       });
       el.addEventListener('pointerup',function(e){
         if (window.wpMoveTip) window.wpMoveTip(null);   // 1.5.7: the live move label goes with the drag

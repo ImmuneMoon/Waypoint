@@ -1751,7 +1751,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (plBtnD) {
           plBtnD.style.display = isDocEd ? '' : 'none';
           var onP = !(activeMap.meta && activeMap.meta.players === false);
-          plBtnD.innerHTML = onP ? '<i class="wib wi-eye"></i> Players can read' : '<i class="wib wi-lock"></i> GM only';
+          plBtnD.innerHTML = onP ? '<i class="wib wi-seen"></i> Players can read' : '<i class="wib wi-lock"></i> GM only';
           plBtnD.classList.toggle('on', onP);
           plBtnD.title = onP ? 'Players at your table receive this page and read it from their Handbook. Click to keep it to yourself.' : 'Only you see this page. Click to let players read it.';
       }

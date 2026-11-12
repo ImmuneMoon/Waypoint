@@ -1476,7 +1476,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
       var doorSel = !!(window.wpFogCore && window.wpFogCore.isDoor && its.some(function(i) { return window.wpFogCore.isDoor(i); }));
       lockBtn.title = (anyUnlocked ? 'Not locked in place: it can be dragged and resized. Click to lock it in place' : 'Locked in place: no drag or resize. Click to unlock') + (doorSel ? '. This is not the lock of the door itself: right-click the door for Lock door for players' : '');
       var visBtn = bar.querySelector('.st-vis');
-      visBtn.innerHTML = '<i class="wib wi-' + (anyVisible ? 'eye' : 'hide') + '"></i>';
+      visBtn.innerHTML = '<i class="wib wi-' + (anyVisible ? 'seen' : 'unseen') + '"></i>';   // 1.6.2 (backlog 228): a player with an eye, never the sight button's eye
       visBtn.classList.toggle('st-hidden', !anyVisible);
       visBtn.title = anyVisible ? 'Visible to players — click to hide from them (GM still sees it dimmed)' : 'HIDDEN from players — click to show it to them';
       // Play-area toggle: only for footprint items (images/shapes, not tokens), and only while the fog feature is on for this campaign
@@ -1924,6 +1924,7 @@ window.wpFitToGrid = fitToGrid;
           var its = selToolbarItems();
           if (!its.length) return;
           if (act === 'sheet') { if (its.length === 1 && its[0].charId && window.wpSheets && window.wpSheets.canOpen(its[0].charId)) window.wpSheets.openSheet(its[0].charId); return; }
+          if (act === 'props') { if (window.wpOpenRightPanel) window.wpOpenRightPanel(); return; }   // 1.6.2 (backlog 229; the owner: "there can be a properties option in the item toolbar too")
           if (act === 'sight') { try { localStorage.setItem('wp_sightOutline', sightPref() ? 'off' : 'on'); } catch (e) {} var amS = getActiveMap(); if (amS) updateSelToolbar(amS); return; }
           if (act === 'color') {
               // Second click on the swatch closes the palette
@@ -8099,14 +8100,14 @@ if(_el_toggleLeftBtn) _el_toggleLeftBtn.addEventListener('click', function() {
       var key = window.wpSelKey();
       if (state.rightManualKey !== undefined && state.rightManualKey !== key) state.rightManualKey = undefined;   // selection moved on: automation resumes
       if (state.rightManualKey !== undefined) return;
-      // Properties no longer auto-OPENS on a single click — it opens on DOUBLE-click (wpOpenRightPanel below).
+      // Properties no longer auto-OPENS on a single click. It opens from Properties on the right-click menu and on the selection bar (wpOpenRightPanel below; 1.6.2, backlog 229).
       // A plain click that clears the selection, or moves it to a different item while a double-click panel is open, dismisses that panel.
       if (!key) { if (state.rightAuto || !state.rightEverSynced) { sb.classList.add('collapsed'); state.rightAuto = false; } }
       else if (state.rightAuto && key !== state.rightAutoKey) { sb.classList.add('collapsed'); state.rightAuto = false; }
       state.rightEverSynced = true;
       btn.textContent = sb.classList.contains('collapsed') ? '◀' : '▶';
   };
-  window.wpOpenRightPanel = function() {   // double-click a play-map item: deliberately open Properties for the current selection
+  window.wpOpenRightPanel = function() {   // Properties on a piece's right-click menu or its selection bar: deliberately open Properties for the current selection
       var sb = document.getElementById('sidebar'), btn = document.getElementById('toggleRightBtn');
       if (!sb || !btn || btn.style.display === 'none') return;
       sb.classList.remove('collapsed');
@@ -11568,7 +11569,7 @@ document.addEventListener('contextmenu', function(e) {
         var selectedIds = [];
         if (isWb) {
             selectedIds = state.selWbIds || (state.selWbId ? [state.selWbId] : []);
-            if (targetId && !selectedIds.includes(targetId)) selectedIds = [targetId];   // the menu acts on the item under the pointer without selecting it (no side panel)
+            if (targetId && !selectedIds.includes(targetId)) { selectedIds = [targetId]; state.selWbIds = [targetId]; state.selWbId = targetId; if (window.appRender) window.appRender(); }   // 1.6.2 (the owner, 2026-11-12: "when right clicking something it should highlight like when its clicked to be selected"): a right-click selects what its menu acts on, so it is lit while the menu is up
         } else {
             selectedIds = state.selId ? [state.selId] : [];
             if (targetId && state.selId !== targetId) {
@@ -11603,11 +11604,12 @@ document.addEventListener('contextmenu', function(e) {
             var grpM = isWb ? groupRollModel(am, selectedIds) : null; html += groupRollHtml(grpM);   // 1.6.0 (v2, B7a): Group roll
             if (sheetTop && firstItem.charId && window.wpTrade && window.wpTrade.canAsk) { var trQ = window.wpTrade.canAsk(firstItem, am, selAs); if (trQ) html += '<div class="menu-item cm-trade" title="Open a barter window: each side puts items and money on the table, and both confirm"><i class="wib wi-trade"></i> ' + esc(trQ.label) + '</div>'; }   // 1.5.6 trading: as the one NPC selected
                         if (isWb) {   // 1.6.2 (the owner: "Used rows first"): Hide, Lock, Duplicate and Delete, right after the sheet and the fight rows
+                if (!(window.wpNet && (window.wpNet.foreign || (window.wpNet.active && window.wpNet.role === 'client')))) html += '<div class="menu-item cm-props" title="Open this piece&rsquo;s settings at the right edge of the map"><i class="wib wi-props"></i> Properties</div>';   // 1.6.2 (backlog 229; the owner, by prompt: "Row only, no double-click")
                 var anyVisible = selectedIds.some(function(sid) {
                     var it = am.whiteboard.find(function(x) { return x.id === sid; });
                     return it && !it.hidden;
                 });
-                html += '<div class="menu-item cm-vis">' + (anyVisible ? '<i class="wib wi-hide"></i> Hide from players' : '<i class="wib wi-eye"></i> Show to players') + '</div>';
+                html += '<div class="menu-item cm-vis">' + (anyVisible ? '<i class="wib wi-unseen"></i> Hide from players' : '<i class="wib wi-seen"></i> Show to players') + '</div>';
                 var anyUnlocked = selectedIds.some(function(sid) {
                     var it = am.whiteboard.find(function(x) { return x.id === sid; });
                     return it && !it.locked;
@@ -11800,6 +11802,7 @@ document.addEventListener('contextmenu', function(e) {
 
         cMenu.onclick = function(ce) {
             var action = ce.target.className;
+            if (typeof action === 'string' && isWb && action.includes('cm-props')) { cMenu.style.display = 'none'; if (window.wpOpenRightPanel) window.wpOpenRightPanel(); return; }   // 1.6.2 (backlog 229): the piece the right-click selected
 
             if (typeof action === 'string' && (action.includes('cm-opacity') || action.includes('cm-align-row') || action.includes('align-btn') || action.includes('cm-stance') || action.includes('cm-stackrows'))) return; // control rows keep the menu open
             if (typeof action === 'string' && action.includes('cm-order')) { var stk = cMenu.querySelector('.cm-stackrows'); if (stk) { stk.hidden = !stk.hidden; ce.target.setAttribute('aria-expanded', stk.hidden ? 'false' : 'true'); ce.target.innerHTML = 'Order ' + (stk.hidden ? '&#9656;' : '&#9662;'); placeMenu(cMenu); } return; }   // 1.6.2: Order opens its four rows and keeps the menu up

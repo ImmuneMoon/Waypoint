@@ -6,7 +6,7 @@
    hold. Only the item lists ticked Tradable that players see may hold a container's items, since a player takes them into the same list of
    their own sheet, as a trade moves a row. */
 
-import { cleanChar, rowDef, rowIdOf, fieldById, cleanPic, rowKeptFrom } from './systemcore.js';
+import { cleanChar, rowDef, rowIdOf, fieldById, cleanPic, rowKeptFrom, tradeOfferable } from './systemcore.js';
 
 // [boxcheck:core-start]
 var BOX_ID = /^c_bx[A-Za-z0-9]{4,20}$/, BOX_MAX = 500;
@@ -41,6 +41,41 @@ function keyRowOf(ch, key, sys) {
 }
 // What a key is called, as its carrier's sheet names it
 function keyName(sys, row) { if (!isObj(row)) return ''; var rd = rowDef(sys, row), d = rd && rd.def ? rd.def : null; return String((isObj(row.ov) && typeof row.ov.name === 'string' && row.ov.name) || (d && d.name) || 'Key').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 80); }
+// Fold 2c: the takes a container remembers, the newest first, TAKEN_MAX at most, so the GM may put one back: { id, at, ch, by, lines },
+// each line the row the take landed in on the character (fid, rowId), how many came (qty) and its name. tell false: the GM puts things
+// back without a line to the player (on by default). Never sent: the store is the GM's
+var TAKEN_MAX = 10, TAKE_ID = /^t_[A-Za-z0-9]{4,20}$/, CH_ID = /^[A-Za-z0-9_-]{1,64}$/;
+function txt(v, n) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, n) : ''; }
+function cleanTaken(v) {
+    var out = []; (Array.isArray(v) ? v.slice(0, 40) : []).forEach(function(r) {
+        if (out.length >= TAKEN_MAX || !isObj(r) || typeof r.id !== 'string' || !TAKE_ID.test(r.id) || typeof r.ch !== 'string' || !CH_ID.test(r.ch)) return;
+        var lines = (Array.isArray(r.lines) ? r.lines.slice(0, 40) : []).map(function(l) { if (!isObj(l) || typeof l.fid !== 'string' || typeof l.rowId !== 'string' || !l.fid || !l.rowId) return null; var q = Math.floor(Number(l.qty)); return q >= 1 && q <= 1e6 ? { fid: l.fid.slice(0, 64), rowId: l.rowId.slice(0, 64), qty: q, name: txt(l.name, 120) || 'Item' } : null; }).filter(Boolean);
+        if (!lines.length) return; out.push({ id: r.id, at: typeof r.at === 'number' && isFinite(r.at) && r.at > 0 ? Math.floor(r.at) : 0, ch: r.ch, by: txt(r.by, 80) || 'A character', lines: lines });
+    });
+    return out;
+}
+function rowQtyIn(f, r) { return f && isObj(f.list) && f.list.noQty ? 1 : (Math.floor(Number(r.qty)) >= 1 ? Math.floor(Number(r.qty)) : 1); }
+// What a take gave the character: each row of the lists it changed that is new or holds more than before, by how much
+function takenLines(sys, before, after) {
+    var out = []; if (!isObj(after)) return out;
+    Object.keys(after).forEach(function(fid) {
+        var f = fieldById(sys, fid), was = map(); if (!f || !Array.isArray(after[fid])) return;
+        (isObj(before) && Array.isArray(before[fid]) ? before[fid] : []).forEach(function(r) { if (isObj(r)) was[rowIdOf(r)] = rowQtyIn(f, r); });
+        after[fid].forEach(function(r) { if (!isObj(r) || r.hid === 1) return; var id = rowIdOf(r), d = rowQtyIn(f, r) - (was[id] || 0); if (d < 1) return; var rd = rowDef(sys, r); out.push({ fid: fid, rowId: id, qty: d, name: txt((isObj(r.ov) && typeof r.ov.name === 'string' && r.ov.name) || (rd && rd.def && rd.def.name) || 'Item', 120) }); });
+    });
+    return out.slice(0, 40);
+}
+// What of a take can go back: each line's row on the character as it is now, as much as it still holds and no more than came. Only a row the
+// trade itself would offer from them (the review): a row granted with another goes back with it, and one kept on them stays; nor a row that
+// now holds parts of their own, which would go with it. Answers { lines, gone, held }: the trade's lines, how many lines found nothing left,
+// and how many stay for one of those reasons
+function putBackPlan(sys, ch, rec) {
+    var lines = [], gone = 0, held = 0; if (!isObj(rec) || !Array.isArray(rec.lines)) return { lines: lines, gone: 0, held: 0 };
+    var offer = map(), mine = map(); (typeof tradeOfferable === 'function' && isObj(ch) ? tradeOfferable(sys, ch, 'gm') : []).forEach(function(o) { offer[o.fid + '|' + o.rowId] = o; }); rec.lines.forEach(function(l) { mine[l.rowId] = 1; });
+    var holdsOwn = function(id) { return isObj(ch) && isObj(ch.values) && Object.keys(ch.values).some(function(k) { return Array.isArray(ch.values[k]) && ch.values[k].some(function(x) { return isObj(x) && x.in === id && !mine[rowIdOf(x)]; }); }); };
+    rec.lines.forEach(function(l) { var f = fieldById(sys, l.fid), rows = isObj(ch) && isObj(ch.values) && Array.isArray(ch.values[l.fid]) ? ch.values[l.fid] : [], r = rows.filter(function(x) { return isObj(x) && rowIdOf(x) === l.rowId && x.hid !== 1; })[0]; if (!f || !r) { gone++; return; } var o = offer[l.fid + '|' + l.rowId]; if (!o || o.no || holdsOwn(l.rowId)) { if (!(isObj(r) && typeof r.gr === 'string' && mine[r.gr])) held++; return; } lines.push({ fid: l.fid, rowId: l.rowId, qty: Math.min(l.qty, o.qty || rowQtyIn(f, r)) }); });
+    return { lines: lines, gone: gone, held: held };
+}
 function cleanBox(raw, sys, id) {
     if (!isObj(raw) || !boxIdOk(id) || (raw.id !== undefined && raw.id !== id)) return null;
     var keep = map(); (isObj(sys) && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (isObj(f) && f.kind === 'item-list' && typeof f.id === 'string') keep[f.id] = 1; });
@@ -48,6 +83,7 @@ function cleanBox(raw, sys, id) {
     var c = cleanChar({ id: id, name: 'Container', npc: true, values: vin }, sys, { state: 'host' }), out = { id: id, values: {} };
     if (c && isObj(c.values)) Object.keys(c.values).forEach(function(k) { if (keep[k] && Array.isArray(c.values[k]) && c.values[k].length) out.values[k] = c.values[k]; });
     var lk = cleanLock(raw.lock, sys); if (lk) out.lock = lk;   // fold 2b
+    var tk = cleanTaken(raw.taken); if (tk.length) out.taken = tk; if (raw.tell === false) out.tell = false;   // fold 2c
     return out;
 }
 // The store: an object with no prototype by box id, BOX_MAX at most. Anything else none
@@ -106,8 +142,8 @@ function boxesTidy(camp) {
     return out;
 }
 // What a part of a campaign carries (an export of a map): the containers its pieces name, copied
-function boxesOf(store, items) { var out = map(), named = boxesNamed(items); if (isObj(store)) Object.keys(named).forEach(function(id) { if (Object.prototype.hasOwnProperty.call(store, id)) out[id] = JSON.parse(JSON.stringify(store[id])); }); return out; }
+function boxesOf(store, items) { var out = map(), named = boxesNamed(items); if (isObj(store)) Object.keys(named).forEach(function(id) { if (Object.prototype.hasOwnProperty.call(store, id)) { out[id] = JSON.parse(JSON.stringify(store[id])); delete out[id].taken; delete out[id].tell; } }); return out; }   // a part exported for another campaign carries no record of who took what (the review of fold 2c)
 // [boxcheck:core-end]
 
-if (typeof window !== 'undefined') window.wpBoxCore = { LOCK_ROLLS: LOCK_ROLLS, lockRollOk: lockRollOk, cleanLock: cleanLock, boxLocked: boxLocked, keyRowOf: keyRowOf, keyName: keyName, BOX_MAX: BOX_MAX, boxPic: boxPic, boxPieceOk: boxPieceOk, boxesNamed: boxesNamed, boxesTidy: boxesTidy, boxesOf: boxesOf, boxLists: boxLists, boxIdOk: boxIdOk, newBoxId: newBoxId, cleanBox: cleanBox, cleanBoxes: cleanBoxes, boxChar: boxChar, boxTiles: boxTiles, boxCount: boxCount, boxOp: boxOp };
-export { LOCK_ROLLS, lockRollOk, cleanLock, boxLocked, keyRowOf, keyName, BOX_MAX, boxPic, boxPieceOk, boxesNamed, boxesTidy, boxesOf, boxLists, boxIdOk, newBoxId, cleanBox, cleanBoxes, boxChar, boxTiles, boxCount, boxOp };
+if (typeof window !== 'undefined') window.wpBoxCore = { TAKEN_MAX: TAKEN_MAX, cleanTaken: cleanTaken, takenLines: takenLines, putBackPlan: putBackPlan, LOCK_ROLLS: LOCK_ROLLS, lockRollOk: lockRollOk, cleanLock: cleanLock, boxLocked: boxLocked, keyRowOf: keyRowOf, keyName: keyName, BOX_MAX: BOX_MAX, boxPic: boxPic, boxPieceOk: boxPieceOk, boxesNamed: boxesNamed, boxesTidy: boxesTidy, boxesOf: boxesOf, boxLists: boxLists, boxIdOk: boxIdOk, newBoxId: newBoxId, cleanBox: cleanBox, cleanBoxes: cleanBoxes, boxChar: boxChar, boxTiles: boxTiles, boxCount: boxCount, boxOp: boxOp };
+export { TAKEN_MAX, cleanTaken, takenLines, putBackPlan, LOCK_ROLLS, lockRollOk, cleanLock, boxLocked, keyRowOf, keyName, BOX_MAX, boxPic, boxPieceOk, boxesNamed, boxesTidy, boxesOf, boxLists, boxIdOk, newBoxId, cleanBox, cleanBoxes, boxChar, boxTiles, boxCount, boxOp };

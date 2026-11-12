@@ -9533,6 +9533,7 @@ function handleMessage(msg, conn) {
         if (msg.all === true) canB.forEach(function(o) { linesB.push({ fid: o.fid, rowId: o.rowId, qty: o.qty }); });
         else { var oB = canB.filter(function(o) { return o.fid === msg.fid && o.rowId === msg.rowId; })[0], qB = typeof msg.qty === 'number' && isFinite(msg.qty) ? Math.floor(msg.qty) : 0; if (oB && qB >= 1) linesB.push({ fid: oB.fid, rowId: oB.rowId, qty: Math.min(qB, oB.qty) }); }
         if (!linesB.length) { sayB('gone'); try { conn.send(boxViewMsg(campB, mapB, wB, boxB)); } catch (e) { sendFailed(e); } return; }
+        var befB = Object.assign({}, chB.values || {});   // fold 2c: what the character held, to remember what the take gave
         var resB = Sb.tradeApply(sysB, stand, chB, linesB.slice(0, Sb.TRADE_LINES || 40), [], 'gm', 'gm', {});
         if (!resB.ok) { try { conn.send({ type: 'box-deny', reason: 'value', msg: String(resB.msg || '').slice(0, 200) }); conn.send(boxViewMsg(campB, mapB, wB, boxB)); } catch (e) { sendFailed(e); } return; }
         var vB = Object.assign({}, boxB.values || {}); Object.keys(resB.valuesA).forEach(function(k) { if (Array.isArray(resB.valuesA[k]) && resB.valuesA[k].length) vB[k] = resB.valuesA[k]; else delete vB[k]; }); boxB.values = vB;
@@ -9541,7 +9542,9 @@ function handleMessage(msg, conn) {
         if (Object.keys(resB.valuesB).length) net.syncCharDelta(chB.id, resB.valuesB);
         if (window.wpSheets) window.wpSheets.charChanged(chB.id);
         var saidB = (chB.name || 'A character') + ' took ' + (resB.linesA.join(', ') || 'something') + ' from ' + (wB.name || 'a container') + '.';
-        logEvent('items', saidB); toast(saidB);
+        var tlB = typeof BCb.takenLines === 'function' ? BCb.takenLines(sysB, befB, resB.valuesB) : [], tidB = '';   // fold 2c: remembered, so the GM may put it back
+        if (tlB.length) { tidB = 't_' + Math.random().toString(36).slice(2, 12).replace(/[^a-z0-9]/g, '') + 'x'; boxB.taken = BCb.cleanTaken([{ id: tidB, at: Date.now(), ch: chB.id, by: chB.name, lines: tlB }].concat(boxB.taken || [])); }
+        logEvent('items', saidB); if (tidB && window.wpBoxes && typeof window.wpBoxes.tookNote === 'function') window.wpBoxes.tookNote(boxB.id, tidB, saidB); else toast(saidB);
         try { conn.send({ type: 'box-took', lines: resB.linesA.slice(0, 40) }); } catch (e) { sendFailed(e); }
         boxSweep();   // everyone with it open is sent what is left (the review: and judged again)
         if (window.wpBoxes && typeof window.wpBoxes.redraw === 'function') window.wpBoxes.redraw();

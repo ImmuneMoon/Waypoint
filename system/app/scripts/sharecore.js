@@ -86,6 +86,7 @@ function leaveOut(payload, leave) {
             if (typeof c.activeItemId === 'string' && !own(c.items, c.activeItemId)) { var first = Object.keys(c.items)[0]; if (first) c.activeItemId = first; else delete c.activeItemId; }
         }
         if (has.chars) delete c.chars;
+        if ((has.chars || has.players) && isObj(c.boxes)) Object.keys(c.boxes).forEach(function(id) { if (isObj(c.boxes[id])) { delete c.boxes[id].taken; delete c.boxes[id].tell; } });   // 1.6.2 (backlog 42, the review of fold 2c): a container's takes name characters
         if (has.sounds) { delete c.sounds; delete c.soundOn; }   // 1.6.2: with no sounds, a line would only say that its sound is gone
         if (has.music) delete c.music;
         if (has.videos) delete c.videos;

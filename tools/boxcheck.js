@@ -74,6 +74,29 @@ const J = JSON.stringify;
         check('a key is a row the character carries in a list they see, never one kept from them (a GM-only list or entry, a kept curse: the review) nor one of none, named as its sheet names it (keyRowOf, keyName)',
             BC.keyRowOf(kc, 'i_key', sysL).id === 'w_k' && BC.keyRowOf(kc, 'i_rope', sysL) === null && BC.keyRowOf(kc, 'i_key') === null && BC.keyRowOf({ values: { f_inv: [{ id: 'w_h', defId: 'i_key', qty: 1, hid: 1 }] } }, 'i_key', sysL) === null
             && BC.keyRowOf({ values: { f_sec: [{ id: 'w_s', defId: 'i_key', qty: 1 }] } }, 'i_key', sysL) === null && BC.keyRowOf({ values: { f_inv: [{ id: 'w_s', defId: 'i_sig', qty: 1 }] } }, 'i_sig', sysL) === null && BC.keyRowOf({ values: { f_inv: [{ id: 'w_c', defId: 'i_key', qty: 1, keptOn: 1 }] } }, 'i_key', sysL) === null && BC.keyName(sysL, { defId: 'i_key' }) === 'Cellar key' && BC.keyName(sysL, { defId: 'i_key', ov: { name: 'Rusty key' } }) === 'Rusty key');
+        // fold 2c: the takes a container remembers, and putting one back (the owner, 2026-11-12: "A. Window and notice", Tell the player on by default)
+        const tk = BC.cleanTaken([{ id: 't_abcd1', at: 5, ch: 'c_k', by: 'Kael', lines: [{ fid: 'f_inv', rowId: 'w_1', qty: 2, name: 'Rope' }, { fid: 'f_inv', rowId: 'w_2', qty: 0 }] }, { id: 'bad', ch: 'c_k', lines: [{ fid: 'f', rowId: 'r', qty: 1 }] }, { id: 't_abcd2', ch: 'c k', lines: [{ fid: 'f', rowId: 'r', qty: 1 }] }, { id: 't_abcd3', ch: 'c_k', lines: [] }]);
+        const manyT = BC.cleanTaken(Array.from({ length: 14 }, (_, i) => ({ id: 't_take' + i, ch: 'c_k', lines: [{ fid: 'f_inv', rowId: 'w_1', qty: 1 }] })));
+        const bT = BC.cleanBox({ values: {}, taken: tk, tell: false }, sys, 'c_bxabcd1234'), bT2 = BC.cleanBox({ values: {}, tell: true }, sys, 'c_bxabcd1234');
+        check('the takes it remembers (cleanTaken): each by its id, the character, who, when and the rows it landed in with how many; a line of none or a take with no lines dropped; TAKEN_MAX at most; a container keeps them, and Tell the player only when unticked',
+            J(tk) === J([{ id: 't_abcd1', at: 5, ch: 'c_k', by: 'Kael', lines: [{ fid: 'f_inv', rowId: 'w_1', qty: 2, name: 'Rope' }] }]) && manyT.length === BC.TAKEN_MAX && BC.TAKEN_MAX === 10 && J(bT.taken) === J(tk) && bT.tell === false && !('tell' in bT2) && !('taken' in bT2), J([tk, bT]));
+        const befT = { f_inv: [{ id: 'w_a', defId: 'i_rope', qty: 2 }] }, aftT = { f_inv: [{ id: 'w_a', defId: 'i_rope', qty: 5 }, { id: 'w_b', defId: 'i_coin', qty: 1, ov: { name: 'Odd coin' } }, { id: 'w_c', defId: 'i_rope', qty: 1, hid: 1 }] };
+        const tl = BC.takenLines(sys, befT, aftT);
+        check('what a take gave (takenLines): a stack it joined by how much it grew, a new row whole, by its own name; never a row kept from them',
+            J(tl) === J([{ fid: 'f_inv', rowId: 'w_a', qty: 3, name: 'Rope' }, { fid: 'f_inv', rowId: 'w_b', qty: 1, name: 'Odd coin' }]), J(tl));
+        const pbP = BC.putBackPlan(sys, { values: { f_inv: [{ id: 'w_a', defId: 'i_rope', qty: 1 }] } }, { lines: [{ fid: 'f_inv', rowId: 'w_a', qty: 3 }, { fid: 'f_inv', rowId: 'w_b', qty: 1 }] });
+        check('what of a take can go back (putBackPlan): no more than they still hold of it, and a row that is gone counted as gone',
+            J(pbP) === J({ lines: [{ fid: 'f_inv', rowId: 'w_a', qty: 1 }], gone: 1, held: 0 }), J(pbP));
+        const sysG2 = S.cleanSystem({ v: 1, name: 'G2', fields: [{ id: 'f_inv', key: 'Gear', label: 'Gear', kind: 'item-list', list: { trade: true, parts: { from: 'f_inv' } } }], items: [{ id: 'i_rifle', key: 'Rifle', name: 'Rifle' }, { id: 'i_scope', key: 'Scope', name: 'Scope' }, { id: 'i_belt', key: 'Belt', name: 'Belt' }] }, { F, gmView: true });
+        const chG = { id: 'c_g', values: { f_inv: [{ id: 'w_r', defId: 'i_rifle', qty: 1 }, { id: 'w_s', defId: 'i_scope', qty: 1, in: 'w_r' }, { id: 'w_b', defId: 'i_belt', qty: 1, gr: 'w_x' }, { id: 'w_x', defId: 'i_rope', qty: 1 }] } };
+        const pbG = BC.putBackPlan(sysG2, chG, { lines: [{ fid: 'f_inv', rowId: 'w_r', qty: 1 }, { fid: 'f_inv', rowId: 'w_b', qty: 1 }] });
+        check('what can go back is only what the trade itself would offer from them (the review): a row now holding a part of their own stays, and so does a row kept on them; each said as held',
+            J(pbG.lines) === J([]) && pbG.held === 2 && pbG.gone === 0, J(pbG));
+        const bxO = BC.boxesOf({ c_bxabcd1234: { id: 'c_bxabcd1234', values: {}, taken: tk, tell: false } }, { m1: { whiteboard: [{ id: 'p', box: 'c_bxabcd1234' }] } });
+        const SH = await import(url.pathToFileURL(app('scripts/sharecore.js')).href), shP = { campaigns: { k1: { id: 'k1', chars: {}, boxes: { c_bxabcd1234: { id: 'c_bxabcd1234', values: {}, taken: tk, tell: false } } } } };
+        SH.leaveOut(shP, ['chars']);
+        check('a part exported for another campaign and a campaign shared with its characters or players left out carry no record of who took what (the review)',
+            !('taken' in bxO.c_bxabcd1234) && !('tell' in bxO.c_bxabcd1234) && !('taken' in shP.campaigns.k1.boxes.c_bxabcd1234) && !('tell' in shP.campaigns.k1.boxes.c_bxabcd1234), J([bxO, shP]));
         const r1 = BC.boxOp(sys, b, 'f_inv', { op: 'add', defId: 'i_rope', rowId: 'w_8', qty: 2 }, F, S.applyRowOp);
         const r2 = BC.boxOp(sys, { id: 'c_bxabcd1234', values: r1.values }, 'f_inv', { op: 'setQty', rowId: 'w_1', qty: 1 }, F, S.applyRowOp);
         const r3 = BC.boxOp(sys, { id: 'c_bxabcd1234', values: r2.values }, 'f_inv', { op: 'remove', rowId: 'w_2' }, F, S.applyRowOp);
@@ -183,6 +206,8 @@ const J = JSON.stringify;
             && css.includes("M5.5 11h13a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1V12a1 1 0 0 1 1-1zM8 11V7.5a4 4 0 0 1 8 0V11M12 14.5v2.5") && css.includes('.wi-padlock { --wi:')
             && ix.includes('Tick <b>Locked</b> in its window to lock it.') && ix.includes('A pass, or the key, opens it for everyone, and Locked comes unticked.')
             && fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').includes('- A container can be locked.') && read('assets/whatsnew.txt').includes('- A container can be locked.'));
+        check('fold 2c: Help and both notes say putting back and Tell the player',
+            ix.includes('<b>Put back</b> moves one from the player&rsquo;s sheet back in, as much as they still hold.') && ix.includes('<b>Tell the player</b> says it to them when you put something back.') && fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n').includes('- You can put back what a player took.') && read('assets/whatsnew.txt').includes('- You can put back what a player took.'));
         check('Help says it, in its plain words', ix.includes('<li><b>Containers:</b> a picture, a shape or a map object can hold items') && ix.includes('What it holds stays on your computer until a player opens it. You are told who took what.') && ix.includes('Only lists ticked Tradable that players see can hold them, as a trade moves them.'));
         const wn = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wa = read('assets/whatsnew.txt');
         check('both release notes say it, alike', wn.includes('- A picture, a shape or a map object can now hold items.') && wa.includes('- A picture, a shape or a map object can now hold items.'));
@@ -200,7 +225,7 @@ const J = JSON.stringify;
             const sent = [], told = [], logs = [], toasts = [], conns = [], steps = [];
             const conn = { peer: 'pA', open: true, send: m => sent.push(m) }, other = { peer: 'pB', open: true, send: m => told.push(m) }; conns.push(conn, other);
             const N = { roster: { pA: { id: 'u_p1', location: 'm1' }, pB: { id: 'u_p2', location: 'm1' } }, conns, paused: false, syncCharDelta: (id, v) => steps.push('delta ' + id + ' ' + Object.keys(v).join(',')) };
-            const win = { wpBoxCore: BC, wpSheets: { charChanged: id => steps.push('changed ' + id), playerSystem: c => c.system }, wpBoxes: { redraw: () => steps.push('gm redraw') }, wpStepLog: (n, s, f) => steps.push(n + ' ' + s + ' ' + JSON.stringify(f)) };
+            const win = { wpBoxCore: BC, wpSheets: { charChanged: id => steps.push('changed ' + id), playerSystem: c => c.system }, wpBoxes: { redraw: () => steps.push('gm redraw'), tookNote: (bid, tid, said) => steps.push('took ' + bid + ' ' + tid + ' ' + said) }, wpStepLog: (n, s, f) => steps.push(n + ' ' + s + ' ' + JSON.stringify(f)) };
             const fn = new Function('net', 'window', 'getActiveCampaign', 'allow', 'peerPaused', 'handsTo', 'allyNear', 'SC', 'saveRemoteSoon', 'logEvent', 'toast', 'sendFailed',
                 helpers + '\nreturn { run: function(msg, conn) {\n' + branch + '\n}, views: function() { return _boxViews; }, tries: function() { return _boxTries; }, tryAfter: boxTryAfter, forget: boxForget, forgetConn: boxForgetConn, sweep: boxSweep };');
             const api = fn(N, win, () => camp, () => o.limit !== false, () => !!o.paused, (ch, pid) => !!ch && ch.ownerId === pid, (m, x, y) => o.near !== false && Math.abs((x.x || 0) - (y.x || 0)) < 120 && Math.abs((x.y || 0) - (y.y || 0)) < 120, () => S, () => steps.push('save'), (k, s) => logs.push(s), s => toasts.push(s), () => {});
@@ -245,6 +270,19 @@ const J = JSON.stringify;
             check('the roll lands through the host\u2019s own roll branch, after its Then, and the ask carries the roll a try names',
                 netA.includes("boxTryAfter(conn, q.charId, q.act, mbQ ? false : recQ.body === 1 ? true : vbQ && vbQ.kind === 'check' ? vbQ.pass === true : null);") && netA.indexOf('sceneKeep(campQ, actQ, resQ, tcQ);') < netA.indexOf('boxTryAfter(conn, q.charId'));
         }
+        {   // fold 2c on the host: a take is remembered on the container, the notice offering Put back
+            const P2 = mk(); P2.camp.chars.c_kael.values = { f_inv: [{ id: 'w_r', defId: 'i_rope', qty: 1 }] };
+            P2.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, P2.conn);
+            P2.api.run({ type: 'box', op: 'take', mapId: 'm1', itemId: 'chest', tok: 'tk', fid: 'f_inv', rowId: 'w_1', qty: 2 }, P2.conn);
+            P2.api.run({ type: 'box', op: 'take', mapId: 'm1', itemId: 'chest', tok: 'tk', fid: 'f_inv', rowId: 'w_2', qty: 1 }, P2.conn);
+            const tkn = P2.box.taken || [], note = P2.steps.filter(s => s.indexOf('took ') === 0);
+            check('a take is remembered on the container, the newest first, as the rows it landed in on the character with how many; the GM\u2019s notice of it is the one with Put back',
+                tkn.length === 2 && tkn[0].lines[0].name === 'Coin' && tkn[1].ch === 'c_kael' && tkn[1].by === 'Kael' && J(tkn[1].lines.map(l => [l.rowId, l.qty])) === J([['w_r', 2]]) && /^t_[a-z0-9]+x$/.test(tkn[1].id) && note.length === 2 && note[1].indexOf('took c_bxchest0001 ' + tkn[0].id + ' Kael took Coin') === 0 && !P2.toasts.length, J([tkn, note]));
+            const putS = read('scripts/boxes.js');
+            check('putting back: the window lists the takes with Put back and Tell the player, the take moved back by the trade\u2019s own rule from the character, its line to the player only while Tell the player is ticked; nothing of it on the wire',
+                putS.includes('    takenInto(body, camp, b);   // fold 2c') && putS.includes("var res = tradeApply(sys, ch, BC.boxChar(b), plan.lines, [], 'gm', 'gm', {});") && putS.includes("if (b.tell !== false && n && typeof n.showTell === 'function' && typeof ch.ownerId === 'string' && ch.ownerId) n.showTell(ch.ownerId, 'The GM put ' + words + ' back in ' + name + '.');")
+                && putS.includes("function tookNote(boxId, takeId, said) { toastAction(said, 'Put back', function() { putBack(boxId, takeId); }); }   // the host's branch draws the window again, with no focus moved (the review)") && putS.includes("if (!BC.boxesNamed(camp.items)[boxId]) { toast('That container is no longer on a map, so nothing can go back into it.'); return; }") && read('scripts/net.js').includes('delete camp.boxes;'));
+        }
         const W = mk();
         W.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, W.conn);
         const v = W.sent[0];
@@ -255,7 +293,7 @@ const J = JSON.stringify;
         const took = W.sent.find(m => m.type === 'box-took'), tell = W.told.filter(m => m.type === 'box-view').slice(-1)[0];
         check('a take of part of a stack: off the container and onto the taker\'s own sheet through the trade\'s own rule, stored, sent and saved; the player told, the GM told who took what, and everyone with it open sent what is left',
             JSON.stringify(W.box.values.f_inv.map(r => [r.id, r.qty])) === JSON.stringify([['w_1', 1], ['w_2', 1]]) && W.camp.chars.c_kael.values.f_inv.length === 1 && W.camp.chars.c_kael.values.f_inv[0].qty === 2
-            && took && took.lines[0] === 'Rope x2' && W.toasts[0] === 'Kael took Rope x2 from Old chest.' && W.steps.includes('delta c_kael f_inv') && W.steps.includes('changed c_kael') && W.steps.includes('save') && W.steps.includes('gm redraw')
+            && took && took.lines[0] === 'Rope x2' && W.steps.some(s => /^took c_bxchest0001 t_[a-z0-9]+x Kael took Rope x2 from Old chest.$/.test(s)) && W.steps.includes('delta c_kael f_inv') && W.steps.includes('changed c_kael') && W.steps.includes('save') && W.steps.includes('gm redraw')
             && tell && JSON.stringify(tell.tiles.map(x => [x.rowId, x.qty])) === JSON.stringify([['w_1', 1], ['w_2', 1]]), JSON.stringify([W.box.values, W.camp.chars.c_kael.values, took, W.toasts]));
         W.api.run({ type: 'box', op: 'take', mapId: 'm1', itemId: 'chest', tok: 'ta', all: true }, W.other);
         W.api.run({ type: 'box', op: 'take', mapId: 'm1', itemId: 'chest', tok: 'tk', fid: 'f_inv', rowId: 'w_2', qty: 1 }, W.conn);

@@ -1154,6 +1154,10 @@ The Data Map
   key if you like. A player next to it sees a padlock and those rolls. A pass,
   or the key carried, opens it for everyone. A failure runs that roll's own
   Then and Calls for.
+- You can put back what a player took. A container lists its last ten takes
+  under its tiles, each with Put back, and the notice of a take has it too. It
+  moves what they still hold back in, and tells them unless you untick Tell
+  the player.
 - Fixed: placing a shape or Build's pieces over a filled region could drag
   the region instead.
 - A map used to open on whichever face you last left it in. Now Settings,

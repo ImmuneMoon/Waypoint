@@ -6,9 +6,9 @@
 
 import { getActiveCampaign, getActiveMap } from './models.js';
 import { state } from './state.js';
-import { save, toast } from './io.js';
+import { save, toast, toastAction } from './io.js';
 import * as BC from './boxcore.js';
-import { applyRowOp, glyphPath, uid, cleanPic } from './systemcore.js';
+import { applyRowOp, glyphPath, uid, cleanPic, tradeApply } from './systemcore.js';
 import { picRef } from './safecore.js';
 import * as F from './formula.js';
 
@@ -119,6 +119,47 @@ function lockInto(body, camp, b, sys) {
     box.appendChild(el('div', 'muted box-locknote', chosen.length || lk.key ? 'A pass, or the key, opens it for everyone. A failure runs that roll\u2019s own Then and Calls for.' : 'Pick a roll or a key, or only you can open it.'));
     body.appendChild(box);
 }
+// Fold 2c (the owner, 2026-11-12: "A. Window and notice"): the takes it remembers, each with Put back, and Tell the player, on unless the GM
+// unticks it for this container ("optional between the two for the GM, on by default")
+function agoWords(at) { if (!at) return ''; var m = Math.floor((Date.now() - at) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.floor(m / 60) + ' h ago' : Math.floor(m / 1440) + ' d ago'; }
+function takeWords(r) { return r.lines.map(function(l) { return l.name + (l.qty > 1 ? ' \u00d7' + l.qty : ''); }).join(', '); }
+function takenInto(body, camp, b) {
+    var list = Array.isArray(b.taken) ? b.taken : []; if (!list.length) return;
+    var box = el('div', 'box-taken'), head = el('div', 'box-takenhead'); head.appendChild(el('b', '', 'Taken'));
+    var tl = el('label', 'box-telltick'), tc = el('input', 'box-tell'); tc.type = 'checkbox'; tc.checked = b.tell !== false; tl.title = 'Tell the player when you put something back'; tl.appendChild(tc); tl.appendChild(el('span', '', 'Tell the player'));
+    tc.addEventListener('change', function() { var c2 = getActiveCampaign(), w2 = piece(), b2 = boxOf(c2, w2); if (!gmMay() || !b2) return; if (tc.checked) delete b2.tell; else b2.tell = false; save(); step('tell', { on: tc.checked }); });
+    head.appendChild(tl); box.appendChild(head);
+    list.forEach(function(r) {
+        var ln = el('div', 'box-takenln'), wd = el('span', 'box-takenwd', r.by + ' took ' + takeWords(r)); if (r.at) wd.appendChild(el('small', '', ' \u00b7 ' + agoWords(r.at)));
+        var pb = el('button', 'tool ghost box-putback', 'Put back'); pb.type = 'button'; pb.dataset.take = r.id; pb.title = 'Move it from ' + r.by + '\u2019s sheet back into this container, as much as they still hold';
+        pb.addEventListener('click', function() { putBack(b.id, r.id); });
+        ln.appendChild(wd); ln.appendChild(pb); box.appendChild(ln);
+    });
+    body.appendChild(box);
+}
+// A take put back: the trade's own rule from the character to the container, as much as they still hold, one save; the take leaves the list
+function putBack(boxId, takeId) {
+    var camp = getActiveCampaign(); if (!gmMay() || !camp || !camp.boxes || !Object.prototype.hasOwnProperty.call(camp.boxes, boxId)) return;
+    if (!BC.boxesNamed(camp.items)[boxId]) { toast('That container is no longer on a map, so nothing can go back into it.'); return; }   // the review: a deleted piece's store goes at the next load
+    var b = camp.boxes[boxId], sys = sysOf(camp), rec = (Array.isArray(b.taken) ? b.taken : []).filter(function(r) { return r.id === takeId; })[0]; if (!rec) { toast('That take is no longer listed.'); return; }
+    var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, rec.ch) ? camp.chars[rec.ch] : null, plan = ch ? BC.putBackPlan(sys, ch, rec) : { lines: [], gone: rec.lines.length, held: 0 };
+    var drop = function() { b.taken = b.taken.filter(function(r) { return r.id !== takeId; }); if (!b.taken.length) delete b.taken; };
+    if (!plan.lines.length) { drop(); save(); step('putback', { moved: 0, held: plan.held }); toast(!ch ? 'That character is gone.' : plan.held ? 'What is left of it is kept on ' + (ch.name || 'that sheet') + ', or holds parts of their own, so it stays.' : 'Nothing of it is on ' + (ch.name || 'that sheet') + ' any more.'); redrawGm(); return; }
+    var res = tradeApply(sys, ch, BC.boxChar(b), plan.lines, [], 'gm', 'gm', {}); if (!res || !res.ok) { toast((res && res.msg) || 'It cannot go back.'); step('putback-refused', {}); return; }
+    ch.values = ch.values || {}; Object.keys(res.valuesA).forEach(function(k) { ch.values[k] = res.valuesA[k]; }); ch.updated = Date.now();
+    var v = Object.assign({}, b.values || {}); Object.keys(res.valuesB).forEach(function(k) { if (Array.isArray(res.valuesB[k]) && res.valuesB[k].length) v[k] = res.valuesB[k]; else delete v[k]; }); b.values = v;
+    drop(); save();
+    var n = window.wpNet, words = res.linesA.join(', ') || 'it', name = boxName(camp, boxId);
+    if (n && n.active && n.role === 'host' && typeof n.syncCharDelta === 'function' && Object.keys(res.valuesA).length) n.syncCharDelta(ch.id, res.valuesA);
+    if (window.wpSheets && typeof window.wpSheets.charChanged === 'function') window.wpSheets.charChanged(ch.id);
+    if (b.tell !== false && n && typeof n.showTell === 'function' && typeof ch.ownerId === 'string' && ch.ownerId) n.showTell(ch.ownerId, 'The GM put ' + words + ' back in ' + name + '.');
+    toast('Put ' + words + ' back in ' + name + (plan.gone || plan.held ? '. Some of it is no longer on ' + (ch.name || 'that sheet') + ', or stays with them.' : '.')); step('putback', { moved: plan.lines.length, gone: plan.gone, held: plan.held, told: b.tell !== false });
+    redrawGm(); if (typeof window.appRender === 'function') window.appRender();
+}
+function boxName(camp, boxId) { var found = ''; Object.keys(camp.items || {}).some(function(k) { var m = camp.items[k]; return m && m.type === 'map' && Array.isArray(m.whiteboard) && m.whiteboard.some(function(w) { if (w && w.box === boxId) { found = typeof w.name === 'string' && w.name ? w.name : ''; return true; } return false; }); }); return found || 'the container'; }
+function redrawGm() { var p = P(); if (p && p.style.display !== 'none' && !_box.player) { draw(); refocus(['.box-putback', '.box-tile', '.box-item']); } }
+// The notice of a take, on the GM's machine, with Put back while it shows
+function tookNote(boxId, takeId, said) { toastAction(said, 'Put back', function() { putBack(boxId, takeId); }); }   // the host's branch draws the window again, with no focus moved (the review)
 // The window is drawn anew at a change: the focus goes back to the control pressed, or the first of those named that is there (the review rule of 1.6.2)
 function refocus(list) { (Array.isArray(list) ? list : []).some(function(s) { var n = document.querySelector('#boxBody ' + s); if (n && !n.disabled && n.focus) { n.focus(); return true; } return false; }); }
 function draw() {
@@ -161,6 +202,7 @@ function draw() {
         rm.addEventListener('click', function() { _box.sel = null; change(sel.fid, { op: 'remove', rowId: sel.rowId }, 'remove', ['.box-tile', '.box-item', '.box-lib']); });
         card.acts.appendChild(el('span', 'box-gap')); card.acts.appendChild(rm); body.appendChild(bar);
     }
+    takenInto(body, camp, b);   // fold 2c
     // Add: the system's items players may see, and the library where it holds any
     var add = el('div', 'box-add'), fsel = null;
     if (!lists.some(function(f) { return f.id === _box.list; })) _box.list = lists[0].id;   // the list picked stays picked across a redraw (the review)
@@ -302,7 +344,7 @@ function has(w) { return !!boxOf(getActiveCampaign(), w); }
 // The window follows the app: a piece gone, another map or another campaign closes it; otherwise its name follows the piece's
 function sync() { var p = P(); if (!p || p.style.display === 'none') return; if (_box.player) { var mp = getActiveMap(), n = window.wpNet; if (!mp || mp.id !== _box.mapId || !n || !n.active || n.role !== 'client') close(); return; } if (!piece() || !boxOf(getActiveCampaign(), piece()) || !gmMay()) { close(); return; } var nm = document.getElementById('boxName'), w = piece(); if (nm) nm.textContent = (typeof w.name === 'string' && w.name) ? w.name : 'Container'; }   // never drawn again under a press: only its own changes draw it
 if (typeof window !== 'undefined') {
-    window.wpBoxes = { open: open, close: close, sync: sync, holds: holds, pieceOk: boxPieceOk, gmMay: gmMay, has: has, copyFor: copyFor, ask: ask, view: view, redraw: function() { var p = P(); if (p && p.style.display !== 'none' && !_box.player) draw(); } };
+    window.wpBoxes = { open: open, close: close, sync: sync, holds: holds, pieceOk: boxPieceOk, gmMay: gmMay, has: has, copyFor: copyFor, ask: ask, view: view, tookNote: tookNote, putBack: putBack, redraw: function() { var p = P(); if (p && p.style.display !== 'none' && !_box.player) draw(); } };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
 }
 export { open, close, sync, holds, boxPieceOk };

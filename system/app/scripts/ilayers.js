@@ -4,7 +4,10 @@
    as the GM does, and walls, each a row with two switches on this computer: shown on my map, and takes clicks. Off, a kind is out of sight on
    the GM's own screen; not taking clicks, a press, a hover and a right-click go straight through it to what is under it. Nothing changes for
    players and nothing is stored in the campaign or sent: a hidden kind still works (a trigger still fires, a wall still blocks). As players see
-   it puts every row out of sight at once, and a second press puts back what was there. Containers (backlog 42) join the list when they are built.
+   it puts every row of those kinds out of sight at once, and a second press puts back what was there. Containers (backlog 42) join the list when
+   they are built. Every other kind of piece (characters, pictures, shapes, drawings, text boxes, painted cells) has its row too, under Show more
+   (the owner, 2026-11-12: "everything should be listed, the ones past whats shown being in a show more accordion"); a piece is one of those only
+   where it is none of the kinds above, so a wall drawn with the pen is a wall and never a drawing.
    Steps log as ilayers v1. */
 
 import { getActiveMap } from './models.js';
@@ -18,12 +21,21 @@ var KINDS = [
     { k: 'note', name: 'GM notes' },
     { k: 'light', name: 'Lights' },
     { k: 'area', name: 'Room areas' },
-    { k: 'hidden', name: 'Hidden pieces' }
+    { k: 'hidden', name: 'Hidden pieces' },
+    { k: 'token', name: 'Characters', more: true },
+    { k: 'image', name: 'Pictures', more: true },
+    { k: 'shape', name: 'Shapes', more: true },
+    { k: 'path', name: 'Drawings', more: true },
+    { k: 'text', name: 'Text boxes', more: true },
+    { k: 'fill', name: 'Painted cells', more: true }
 ];
 var KIND_IDS = KINDS.map(function(x) { return x.k; });
+var MAIN_IDS = KINDS.filter(function(x) { return !x.more; }).map(function(x) { return x.k; });   // the GM's own kinds, which As players see it puts away
+var SHAPES = { rect: 1, square: 1, circle: 1, hexagon: 1, hex: 1, diamond: 1 };
 function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
 // The kinds a piece belongs to: one piece may be several (a hidden trigger zone is a trigger zone and a hidden piece). A door is a portal's row,
-// never a wall's; a token is only ever a hidden piece. FC is fogcore (isPortal, isDoor); with none, portals and doors are passed over
+// never a wall's; a token is a character and may be a hidden piece. A piece that is none of the kinds above is the kind of piece it is (a picture,
+// a shape, a drawing, a text box, a painted cell). FC is fogcore (isPortal, isDoor); with none, portals and doors are passed over
 function kindsOf(w, map, FC) {
     if (!isObj(w)) return [];
     var out = [], tok = !!(w.isChar || w.waiting);
@@ -35,7 +47,14 @@ function kindsOf(w, map, FC) {
         if (w.gmNoteFor) out.push('note');
         if (w.type === 'light') out.push('light');
         if (w.roomArea === true) out.push('area');
-    }
+        if (!out.length) {
+            if (w.fill) out.push('fill');
+            else if (w.type === 'image') out.push('image');
+            else if (w.type === 'text') out.push('text');
+            else if (w.type === 'path') out.push('path');
+            else if (SHAPES[w.type]) out.push('shape');
+        }
+    } else out.push('token');
     if (w.hidden) out.push('hidden');
     return out;
 }
@@ -56,16 +75,22 @@ function judge(w, map, FC, st) {
     ks.forEach(function(k) { var r = rowOf(st, k); if (!r.s) off = true; if (!r.p) through = true; });
     return { off: off, through: off || through };
 }
-// As players see it: every row out of sight, keeping what was there to put back; a second press puts it back. Answers { st, prev }
+// As players see it: every row of the GM's own kinds out of sight, keeping what was there to put back; a second press puts it back. The kinds under
+// Show more stay as they are either way. Answers { st, prev }
 function playersView(st, prev) {
-    var all = Object.create(null); KIND_IDS.forEach(function(k) { all[k] = { s: false, p: false }; });
-    if (isPlayersView(st)) return { st: cleanState(prev || {}), prev: null };
-    return { st: all, prev: cleanState(st) };
+    var out = Object.create(null), was = isPlayersView(st), back = cleanState(prev || {});
+    KIND_IDS.forEach(function(k) {
+        var main = MAIN_IDS.indexOf(k) >= 0, r = main ? (was ? rowOf(back, k) : { s: false, p: false }) : rowOf(st, k);
+        out[k] = r;
+    });
+    if (was) return { st: cleanState(out), prev: null };
+    var keep = Object.create(null); MAIN_IDS.forEach(function(k) { keep[k] = rowOf(st, k); });
+    return { st: cleanState(out), prev: cleanState(keep) };
 }
-function isPlayersView(st) { return KIND_IDS.every(function(k) { return !rowOf(st, k).s; }); }
+function isPlayersView(st) { return MAIN_IDS.every(function(k) { return !rowOf(st, k).s; }); }
 // [ilayerscheck:core-end]
 
-var ST_KEY = 'wp_iLayers', PREV_KEY = 'wp_iLayersPrev';
+var ST_KEY = 'wp_iLayers', PREV_KEY = 'wp_iLayersPrev', MORE_KEY = 'wp_iLayersMore';
 function readJ(k) { try { var v = JSON.parse(localStorage.getItem(k) || 'null'); return isObj(v) ? v : null; } catch (e) { return null; } }
 function writeJ(k, v) { try { if (v && Object.keys(v).length) localStorage.setItem(k, JSON.stringify(v)); else localStorage.removeItem(k); } catch (e) {} }
 var _st = null;
@@ -117,7 +142,20 @@ function draw() {
     var st = kept(), head = document.createElement('div'); head.className = 'il-head';
     ['Show on my map', 'Shown', 'Clicks'].forEach(function(t, i) { var s = document.createElement('span'); s.textContent = t; if (i) s.className = 'il-col'; head.appendChild(s); });
     box.appendChild(head);
+    var moreOpen = false; try { moreOpen = localStorage.getItem(MORE_KEY) === '1'; } catch (e) {}
+    if (KINDS.some(function(x) { return x.more && st[x.k]; })) moreOpen = true;   // a fold that holds a row put away is shown open
+    var fold = null, body = null;
     KINDS.forEach(function(x) {
+        if (x.more && !fold) {
+            fold = document.createElement('button'); fold.type = 'button'; fold.className = 'tool ghost il-more';
+            fold.setAttribute('aria-expanded', moreOpen ? 'true' : 'false'); fold.setAttribute('aria-controls', 'iLayersMore');
+            fold.textContent = moreOpen ? 'Show less' : 'Show more';
+            fold.title = 'Characters, pictures, shapes, drawings, text boxes and painted cells.';
+            fold.addEventListener('click', function() { try { if (moreOpen) localStorage.removeItem(MORE_KEY); else localStorage.setItem(MORE_KEY, '1'); } catch (e) {} draw(); refocus('.il-more'); });
+            box.appendChild(fold);
+            body = document.createElement('div'); body.className = 'il-more-body'; body.id = 'iLayersMore'; if (!moreOpen) body.hidden = true;
+            box.appendChild(body);
+        }
         var r = rowOf(st, x.k), row = document.createElement('div'); row.className = 'il-row'; row.dataset.kind = x.k;
         var nm = document.createElement('span'); nm.className = 'il-name'; nm.textContent = x.name; row.appendChild(nm);
         [['s', r.s, 'Shown on my map: ' + x.name], ['p', r.p, 'Takes clicks: ' + x.name + '. Unticked, a click goes straight through to what is under it.']].forEach(function(c) {
@@ -126,11 +164,11 @@ function draw() {
             t.addEventListener('change', function() { set(x.k, c[0], t.checked); refocus('.il-row[data-kind="' + x.k + '"] .il-' + c[0]); });
             row.appendChild(t);
         });
-        box.appendChild(row);
+        (x.more ? body : box).appendChild(row);
     });
     var pv = isPlayersView(st), b = document.createElement('button'); b.type = 'button'; b.className = 'tool ghost il-players' + (pv ? ' on' : '');
     b.textContent = pv ? 'Back to what I had' : 'As players see it';
-    b.title = pv ? 'Put back the rows as they were before As players see it.' : 'Put every row out of sight on your screen, to see the map as players do. Press again to put them back.';
+    b.title = pv ? 'Put back the rows as they were before As players see it.' : 'Put the kinds above out of sight on your screen, to see the map as players do. Press again to put them back.';
     b.addEventListener('click', function() { players(); refocus('.il-players'); });
     box.appendChild(b);
     var say = document.createElement('div'); say.className = 'il-say muted'; say.textContent = 'Your screen alone. Players see and use everything as before.'; box.appendChild(say);
@@ -143,4 +181,4 @@ if (typeof window !== 'undefined') {
     window.addEventListener('storage', function(e) { if (e && e.key === ST_KEY) { _st = null; dropSel(); draw(); if (typeof window.appRender === 'function') window.appRender(); } });   // another window of this computer (the review)
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', draw); else draw();
 }
-export { KINDS, kindsOf, cleanState, judge, playersView, isPlayersView };
+export { KINDS, MAIN_IDS, kindsOf, cleanState, judge, playersView, isPlayersView };

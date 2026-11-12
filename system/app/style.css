@@ -709,7 +709,7 @@
   .element-list-item .el-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .element-list-item button.tool { padding: 1px 5px; margin: 0; font-size: 10px; line-height: 16px; opacity: 0.55; }
   .element-list-item:hover button.tool { opacity: 1; }
-  .element-list-item .el-rename-in { width: 100%; box-sizing: border-box; padding: 2px 4px; font-size: 12px; }
+  .element-list-item .el-rename-in { width: 100%; box-sizing: border-box; padding: 3px 6px; font: inherit; font-size: 12px; background: var(--panel); color: var(--ink); border: 1px solid var(--gold); border-radius: 4px; outline: none; color-scheme: dark; margin: 0; }   /* the app's own box (the owner, 2026-11-12) */
   .el-layer-head { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); padding: 6px 2px 2px; border-bottom: 1px dashed var(--edge); margin-top: 4px; }
   .el-layer-head:first-child { margin-top: 0; }
   /* Pen palette in the inspector: swatches + a custom picker that reads as one more swatch */
@@ -3579,7 +3579,10 @@
   #iLayers { padding: 8px 10px 6px; border-bottom: 1px solid var(--edge); display: flex; flex-direction: column; gap: 3px; }
   #iLayers .il-head, #iLayers .il-row { display: grid; grid-template-columns: 1fr 52px 52px; align-items: center; gap: 4px; font-size: 12px; }
   #iLayers .il-head { color: var(--gold); font-size: 11px; font-weight: 600; } #iLayers .il-head .il-col { text-align: center; color: var(--dim); font-weight: 400; }
-  #iLayers .il-tick { justify-self: center; margin: 0; } #iLayers .il-players { margin-top: 6px; } #iLayers .il-say { font-size: 11px; margin-top: 2px; }
+  #iLayers .il-tick { justify-self: center; margin: 0; width: 15px; height: 15px; accent-color: var(--gold); cursor: pointer; } #iLayers .il-tick:disabled { cursor: default; opacity: .45; }
+  #iLayers .il-more { align-self: flex-start; margin: 4px 0 2px; padding: 2px 6px; font-size: 11px; color: var(--dim); } #iLayers .il-more::after { content: ' \25BE'; } #iLayers .il-more[aria-expanded="true"]::after { content: ' \25B4'; } #iLayers .il-more:hover { color: var(--ink); }
+  #iLayers .il-more-body { display: flex; flex-direction: column; gap: 3px; } #iLayers .il-more-body[hidden] { display: none; }
+  #iLayers .il-players { margin-top: 6px; } #iLayers .il-say { font-size: 11px; margin-top: 2px; }
   #whiteboard .wb-item.il-off, #whiteboard .wb-item.il-off * { visibility: hidden !important; }
   #whiteboard .wb-item.il-through, #whiteboard .wb-item.il-through * { pointer-events: none !important; }
   #layersList { padding: 8px 10px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 5px; }

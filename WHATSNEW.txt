@@ -1137,8 +1137,10 @@ The Data Map
 - The Layers window now starts with Show on my map: trigger zones, portals and
   doors, walls and barriers, GM notes, lights, room areas and hidden pieces.
   Untick one to put it out of sight on your screen, or untick its Clicks to
-  click straight through it while you move tokens. As players see it puts them
-  all away at once. Players see and use everything as before.
+  click straight through it while you move tokens. Show more lists the rest:
+  characters, pictures, shapes, drawings, text boxes and painted cells. As
+  players see it puts the first rows away at once. Players see and use
+  everything as before.
 - Fixed: placing a shape or Build's pieces over a filled region could drag
   the region instead.
 - A map used to open on whichever face you last left it in. Now Settings,

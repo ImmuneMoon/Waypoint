@@ -9601,7 +9601,7 @@ function genNewSeed() { var GC = genCore(); return GC ? GC.seedOf(Math.floor(Mat
 function genForm() {
     var GC = genCore(); if (!GC) return null;
     var val = function(id) { var e = genEl(id); return e ? String(e.value) : ''; }, num = function(id, d) { var s = val(id).trim(), v = Number(s); return s !== '' && isFinite(v) ? v : d; };
-    return GC.cleanGen({ seed: val('genSeed').trim(), w: num('genW', GC.SIZE.w), h: num('genH', GC.SIZE.h), rooms: val('genRooms'), corr: val('genCorr'), doors: val('genDoors'), theme: val('genTheme') });
+    return GC.cleanGen({ seed: val('genSeed').trim(), w: num('genW', GC.SIZE.w), h: num('genH', GC.SIZE.h), rooms: val('genRooms'), corr: val('genCorr'), doors: val('genDoors'), theme: val('genTheme'), furn: val('genFurn') });
 }
 // The two Size boxes written as the sizes that will be used (10 to 60, whole). True when a box read otherwise: what was laid would not
 // have been what the box showed
@@ -9613,7 +9613,7 @@ function genSizes() {
 }
 function genFill(o) {
     var set = function(id, v) { var e = genEl(id); if (e) e.value = String(v); };
-    set('genSeed', o.seed); set('genW', o.w); set('genH', o.h); set('genRooms', o.rooms); set('genCorr', o.corr); set('genDoors', o.doors); set('genTheme', o.theme || 'fantasy');
+    set('genSeed', o.seed); set('genW', o.w); set('genH', o.h); set('genRooms', o.rooms); set('genCorr', o.corr); set('genDoors', o.doors); set('genTheme', o.theme || 'fantasy'); set('genFurn', o.furn || 'few');
 }
 // What Generate would do now: { ok, say } and, where it can be laid, { map (null for a new one), fresh, kind, opts, pieces }
 function genPlan() {
@@ -9632,17 +9632,35 @@ function genPlan() {
     var dg = GC.genDungeon(opts), at = genCorner(map, where === 'here' ? viewCentre() : null, grid, dg.cols, dg.rows), gox = grid.ox || 0, goy = grid.oy || 0, pc = GC.dungeonPieces(dg, gox || goy ? genBare(grid) : grid, at.x - gox, at.y - goy);
     if (gox || goy) [pc.floors, pc.doors, pc.walls].forEach(function(list) { (list || []).forEach(function(b) { if (b && typeof b.x === 'number') b.x += gox; if (b && typeof b.y === 'number') b.y += goy; }); });   // a lattice off the board's 0,0: laid from 0,0 and moved by its origin
     if (!pc.floors.length || !pc.walls.length) return { ok: false, say: 'That dungeon could not be laid out. Try another seed.' };
-    var held = map && Array.isArray(map.whiteboard) ? map.whiteboard.length : 0;
-    if (held + pc.count > BUILD_MAX) return { ok: false, say: genCountWords(pc.count, held) };
-    return { ok: true, say: genCountWords(pc.count, held), map: map, fresh: fresh, kind: kind, opts: opts, pieces: pc };
+    var FG = window.wpFurnGen;   // 1.6.2 (backlog 222): its furnishings, by the same lattice and moved the same way
+    var fu = { list: FG ? FG.roomPieces(FG.roomPlan(dg, opts.furn, grid.type === 'hex'), gox || goy ? genBare(grid) : grid, at.x - gox, at.y - goy) : [], hex: grid.type === 'hex' };
+    fu.list.forEach(function(p) { p.x += gox; p.y += goy; }); fu.cell = fu.hex ? { w: 2 * grid.s, h: grid.h } : { w: grid.size, h: grid.size };
+    var held = map && Array.isArray(map.whiteboard) ? map.whiteboard.length : 0, nAll = pc.count + fu.list.length;
+    if (held + nAll > BUILD_MAX) return { ok: false, say: genCountWords(nAll, held) };
+    return { ok: true, say: genCountWords(nAll, held), map: map, fresh: fresh, kind: kind, opts: opts, pieces: pc, furn: fu };
 }
 // The dungeon's pieces as ordinary items: the very items the Build tool lays for a Floor and draws for a Wall line and a Door line
-function genItems(pc, theme) {
+function genItems(pc, theme, furn) {
     var BC = buildCore(), T = BC ? BC.THEMES[BC.cleanTheme(theme)] : null, fp = T ? BC.pieceProps(T.floor, {}) : null, wp = T ? BC.penPreset(T.wall, {}) : null, dp = T ? BC.penPreset(T.door, {}) : null, out = [];
     if (!fp || !wp || !dp) return out;
     pc.floors.forEach(function(b) { out.push(Object.assign({ id: 'wb' + uid(), type: b.type, x: b.x, y: b.y, w: b.w, h: b.h, z: 10 }, newOpacityProps(), fp)); });
     pc.walls.forEach(function(L) { out.push(buildWallItem(L, wp)); });
     pc.doors.forEach(function(L) { out.push(buildWallItem(L, dp)); });
+    if (typeof genFurnItems === 'function') genFurnItems(furn, theme).forEach(function(it) { out.push(it); });
+    return out;
+}
+// 1.6.2 (backlog 222, fold 5): a generator's furnishings as the pieces Build's Objects tab lays, each in the theme's era and the Looks
+// list's pack where it has that kind, its middle where furngen.js put it, never locked. fu { list: [{ k, x, y, rot }], cell, hex }, the
+// plan's own beside its pieces
+function genFurnItems(fu, theme) {
+    var FN = window.wpFurnish, BC = buildCore(), out = []; if (!FN || !FN.genProps || !BC || !fu || !Array.isArray(fu.list) || !fu.cell) return out;
+    var era = BC.cleanTheme(theme);
+    fu.list.forEach(function(p) {
+        var pr = FN.genProps(p.k, era, fu.hex, fu.cell); if (!pr || !(pr.w > 0) || !(pr.h > 0)) return;
+        var it = Object.assign({ id: 'wb' + uid(), type: 'image', x: Math.round(p.x - pr.w / 2), y: Math.round(p.y - pr.h / 2), z: 10 }, newOpacityProps(), pr);
+        if (p.rot) it.rot = p.rot;
+        out.push(it);
+    });
     return out;
 }
 // The other maps as the list's options, made again only when the list changed, so a pick stands: elements with text, never markup
@@ -9671,7 +9689,7 @@ function genSync() {
     var plan = genPlan();
     if (ct) ct.textContent = plan.say;
     if (go) go.disabled = !plan.ok;
-    if (typeof genPreviewDraw === 'function') genPreviewDraw('genModal', plan.ok ? genItems(plan.pieces, plan.opts ? plan.opts.theme : '') : null);   // 1.6.2: the small preview
+    if (typeof genPreviewDraw === 'function') genPreviewDraw('genModal', plan.ok ? genItems(plan.pieces, plan.opts ? plan.opts.theme : '', plan.furn) : null);   // 1.6.2: the small preview
 }
 function genShow() {
     var m = genEl('genModal'), GC = genCore(), here = getActiveMap(); if (!m || !GC || !buildCore() || !buildMay() || !buildHere() || !here) return false;
@@ -9692,7 +9710,7 @@ function genUnfocus(modalId) { var m = genEl(modalId), a = document.activeElemen
 // What Tab walks through, in the dialog's own order: never a row that is put away nor a control that is out of use
 function genStops() {
     var out = Array.prototype.slice.call(document.querySelectorAll('#genWhere .gen-chip'));
-    ['genMap', 'genName', 'genGrid', 'genW', 'genH', 'genRooms', 'genCorr', 'genDoors', 'genTheme', 'genSeed', 'genSeedNew', 'genCancel', 'genGo'].forEach(function(id) {
+    ['genMap', 'genName', 'genGrid', 'genW', 'genH', 'genRooms', 'genCorr', 'genDoors', 'genTheme', 'genFurn', 'genSeed', 'genSeedNew', 'genCancel', 'genGo'].forEach(function(id) {
         var e = genEl(id), row = id === 'genMap' ? genEl('genMapRow') : id === 'genName' || id === 'genGrid' ? genEl('genNameRow') : null;
         if (e && !e.disabled && !(row && row.hidden)) out.push(e);
     });
@@ -9712,7 +9730,7 @@ function genGo() {
     if (!genShown()) return false;   // only from the dialog as it stands: a second press finds it put away
     if (genSizes()) { genSync(); return false; }   // a size that was not as it will be used is shown first, with its count: the next press lays it
     var plan = genPlan(); if (!plan.ok) { genSync(); return false; }
-    var camp = getActiveCampaign(), here = getActiveMap(), map = plan.map, nmBox = genEl('genName'), items = genItems(plan.pieces, plan.opts ? plan.opts.theme : '');
+    var camp = getActiveCampaign(), here = getActiveMap(), map = plan.map, nmBox = genEl('genName'), items = genItems(plan.pieces, plan.opts ? plan.opts.theme : '', plan.furn);
     if (!items.length) { toast('That dungeon could not be laid. Nothing was changed.'); return false; }
     if (plan.fresh) {
         map = createNewMap(getUniqueItemTitle(genText(nmBox ? nmBox.value : '', 80) || 'Dungeon', null));
@@ -9742,7 +9760,7 @@ function genWire() {
     // the dialog hands the focus back to this row when it is put away: a key still held from the press that put it away presses nothing here
     if (row) row.addEventListener('keydown', function(e) { if (e.repeat === true && (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape')) { e.preventDefault(); e.stopPropagation(); } });   // a held Escape would be Build's own next, and put the tool away
     Array.prototype.forEach.call(document.querySelectorAll('#genWhere .gen-chip'), function(b) { b.addEventListener('click', function() { var w = this.dataset.where; if (GEN_WHERE.indexOf(w) < 0) return; _gen.where = w; genSync(); }); });
-    ['genMap', 'genGrid', 'genRooms', 'genCorr', 'genDoors', 'genTheme'].forEach(function(id) { var e = genEl(id); if (e) e.addEventListener('change', genSync); });
+    ['genMap', 'genGrid', 'genRooms', 'genCorr', 'genDoors', 'genTheme', 'genFurn'].forEach(function(id) { var e = genEl(id); if (e) e.addEventListener('change', genSync); });
     ['genW', 'genH'].forEach(function(id) { var e = genEl(id); if (!e) return; e.addEventListener('input', genSync); e.addEventListener('change', function() { genSizes(); genSync(); }); });   // a size left outside its bounds reads as the size that will be used
     var sb = genEl('genSeed'); if (sb) sb.addEventListener('input', genSync);
     var nw = genEl('genSeedNew'); if (nw) nw.addEventListener('click', function() { var s = genEl('genSeed'); if (s) s.value = genNewSeed(); genSync(); });
@@ -9812,11 +9830,11 @@ function cityGridFor(size) { return size === 'village' ? 'square' : 'off'; }
 function cityForm() {
     var CC = cityCore(); if (!CC) return null;
     var val = function(id) { var e = genEl(id); return e ? String(e.value) : ''; }, fl = genEl('cityFields');
-    return CC.cleanCity({ seed: val('citySeed').trim(), size: val('citySize'), wall: val('cityWall'), water: val('cityWater'), roofs: val('cityRoofs'), fields: !fl || fl.checked !== false, layout: val('cityLayout'), theme: val('cityTheme') });
+    return CC.cleanCity({ seed: val('citySeed').trim(), size: val('citySize'), wall: val('cityWall'), water: val('cityWater'), roofs: val('cityRoofs'), fields: !fl || fl.checked !== false, layout: val('cityLayout'), theme: val('cityTheme'), furn: val('cityFurn') });
 }
 function cityFill(o) {
     var set = function(id, v) { var e = genEl(id); if (e) e.value = String(v); }, fl = genEl('cityFields');
-    set('citySeed', o.seed); set('citySize', o.size); set('cityWall', o.wall); set('cityWater', o.water); set('cityRoofs', o.roofs); set('cityLayout', o.layout || 'winding'); set('cityTheme', o.theme || 'fantasy'); if (fl) fl.checked = o.fields !== false;
+    set('citySeed', o.seed); set('citySize', o.size); set('cityWall', o.wall); set('cityWater', o.water); set('cityRoofs', o.roofs); set('cityLayout', o.layout || 'winding'); set('cityTheme', o.theme || 'fantasy'); set('cityFurn', o.furn || 'few'); if (fl) fl.checked = o.fields !== false;
 }
 // Where a city's top left corner goes, so that its MIDDLE is the middle of the view (`mid`, the screen's own, for the map on screen), else
 // of the map as it was last seen, else of its home. The whole city stays on the board, and a village sits on its lattice of cells
@@ -9842,9 +9860,11 @@ function cityPlan() {
     var plan = CC.genCity(opts), cells = plan.kind === 'cells', w = cells ? plan.cols * CC.CELL : plan.w, h = cells ? plan.rows * CC.CELL : plan.h;
     var at = cityCorner(map, where === 'here' ? viewCentre() : null, w, h, cells ? CC.CELL : 0), pc = CC.cityPieces(plan, at.x, at.y);
     if (!pc.count || !pc.buildings.length) return { ok: false, say: 'That city could not be laid out. Try another seed.' };
-    var held = map && Array.isArray(map.whiteboard) ? map.whiteboard.length : 0;
-    if (held + pc.count > BUILD_MAX) return { ok: false, say: genCountWords(pc.count, held) };
-    return { ok: true, say: genCountWords(pc.count, held), map: map, fresh: fresh, grid: grid, opts: opts, pieces: pc };
+    var FG = window.wpFurnGen;   // 1.6.2 (backlog 222): on its market square and along its streets, a cell of the 50 px lattice a village is laid on
+    var fu = { list: FG ? FG.townPieces(pc, opts.furn, opts.seed, CC.CELL) : [], hex: false, cell: { w: CC.CELL, h: CC.CELL } };
+    var held = map && Array.isArray(map.whiteboard) ? map.whiteboard.length : 0, nAll = pc.count + fu.list.length;
+    if (held + nAll > BUILD_MAX) return { ok: false, say: genCountWords(nAll, held) };
+    return { ok: true, say: genCountWords(nAll, held), map: map, fresh: fresh, grid: grid, opts: opts, pieces: pc, furn: fu };
 }
 // One piece as the item the Build tool lays for its shape: a box, a circle, or a filled region with its points
 function cityPiece(g, props) {
@@ -9854,7 +9874,7 @@ function cityPiece(g, props) {
 }
 // The city's pieces as ordinary items, in the order they are laid: each wears the props of its material, a house its own roof and that
 // roof's color, and a town's wall is the pen's Wall line under the City wall's name and color
-function cityItems(pc, theme) {
+function cityItems(pc, theme, furn) {
     var BC = buildCore(), out = [], grounds = {}; if (!BC || !pc) return out;
     var T = BC.THEMES[BC.cleanTheme(theme)], cw = BC.pieceProps(T.block, {}), pen = BC.penPreset('wall', {}), ok = !!cw && !!pen;
     Object.keys(CITY_MATS).forEach(function(k) { grounds[k] = BC.pieceProps(T[k] || CITY_MATS[k], {}); if (!grounds[k]) ok = false; });
@@ -9864,6 +9884,7 @@ function cityItems(pc, theme) {
     pc.buildings.forEach(function(b) { var p = T.roofs ? BC.pieceProps(T.roofs[b.roof], {}) : BC.pieceProps('building', { texture: b.roof, color: b.color }); if (p) out.push(cityPiece(b.geo, p)); });
     pc.walls.forEach(function(wl) { out.push(wl.line ? buildWallItem(wl.geo, line) : cityPiece(wl.geo, cw)); });
     pc.towers.forEach(function(t) { out.push(cityPiece(t.geo, cw)); });
+    if (typeof genFurnItems === 'function') genFurnItems(furn, theme).forEach(function(it) { out.push(it); });
     return out;
 }
 // The other maps as the list's options, made again only when the list changed, so a pick stands: elements with text, never markup
@@ -9897,7 +9918,7 @@ function citySync() {
     var plan = cityPlan();
     if (ct) ct.textContent = plan.say;
     if (go) go.disabled = !plan.ok;
-    if (typeof genPreviewDraw === 'function') genPreviewDraw('cityModal', plan.ok ? cityItems(plan.pieces, plan.opts.theme) : null);   // 1.6.2: the small preview
+    if (typeof genPreviewDraw === 'function') genPreviewDraw('cityModal', plan.ok ? cityItems(plan.pieces, plan.opts.theme, plan.furn) : null);   // 1.6.2: the small preview
 }
 function cityShow() {
     var m = genEl('cityModal'), CC = cityCore(), here = getActiveMap(); if (!m || !CC || !buildCore() || !buildMay() || !buildHere() || !here) return false;
@@ -9913,7 +9934,7 @@ function cityHide() { var m = genEl('cityModal'); if (!m || m.style.display === 
 // What Tab walks through, in the dialog's own order: never a row that is put away nor a control that is out of use
 function cityStops() {
     var out = Array.prototype.slice.call(document.querySelectorAll('#cityWhere .gen-chip'));
-    ['cityMap', 'cityName', 'cityGrid', 'citySeed', 'citySeedNew', 'citySize', 'cityTheme', 'cityLayout', 'cityWall', 'cityWater', 'cityRoofs', 'cityFields', 'cityCancel', 'cityGo'].forEach(function(id) {
+    ['cityMap', 'cityName', 'cityGrid', 'citySeed', 'citySeedNew', 'citySize', 'cityTheme', 'cityFurn', 'cityLayout', 'cityWall', 'cityWater', 'cityRoofs', 'cityFields', 'cityCancel', 'cityGo'].forEach(function(id) {
         var e = genEl(id), row = id === 'cityMap' ? genEl('cityMapRow') : id === 'cityName' || id === 'cityGrid' ? genEl('cityNameRow') : null;
         if (e && !e.disabled && !(row && row.hidden)) out.push(e);
     });
@@ -9932,7 +9953,7 @@ function cityTab(target, back) {
 function cityGo() {
     if (!cityShown()) return false;   // only from the dialog as it stands: a second press finds it put away
     var plan = cityPlan(); if (!plan.ok) { citySync(); return false; }
-    var camp = getActiveCampaign(), here = getActiveMap(), map = plan.map, nmBox = genEl('cityName'), items = cityItems(plan.pieces, plan.opts.theme), word = cityWord(plan.opts.size);
+    var camp = getActiveCampaign(), here = getActiveMap(), map = plan.map, nmBox = genEl('cityName'), items = cityItems(plan.pieces, plan.opts.theme, plan.furn), word = cityWord(plan.opts.size);
     if (!items.length) { toast('That city could not be laid. Nothing was changed.'); return false; }
     if (plan.fresh) {
         map = createNewMap(getUniqueItemTitle(genText(nmBox ? nmBox.value : '', 80) || word, null));
@@ -9962,7 +9983,7 @@ function cityWire() {
     // the dialog hands the focus back to this row when it is put away: a key still held from the press that put it away presses nothing here
     if (row) row.addEventListener('keydown', function(e) { if (e.repeat === true && (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape')) { e.preventDefault(); e.stopPropagation(); } });   // a held Escape would be Build's own next, and put the tool away
     Array.prototype.forEach.call(document.querySelectorAll('#cityWhere .gen-chip'), function(b) { b.addEventListener('click', function() { var w = this.dataset.where; if (GEN_WHERE.indexOf(w) < 0) return; _city.where = w; citySync(); }); });
-    ['cityMap', 'citySize', 'cityWall', 'cityWater', 'cityRoofs', 'cityFields'].forEach(function(id) { var e = genEl(id); if (e) e.addEventListener('change', citySync); });
+    ['cityMap', 'citySize', 'cityWall', 'cityWater', 'cityRoofs', 'cityFields', 'cityFurn'].forEach(function(id) { var e = genEl(id); if (e) e.addEventListener('change', citySync); });
     var lyE = genEl('cityLayout'); if (lyE) lyE.addEventListener('change', function() { _city.laid = true; citySync(); });
     var thE = genEl('cityTheme'); if (thE) thE.addEventListener('change', function() {   // a modern or a future city starts on a grid with no wall, until the GM says otherwise
         var grid = thE.value === 'modern' || thE.value === 'futuristic', ly = genEl('cityLayout'), wl = genEl('cityWall');

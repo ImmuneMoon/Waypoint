@@ -7,6 +7,7 @@
 import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import './objcore.js';   // brings furncore.js, which sets window.wpFurnCore
+import './furngen.js';   // fold 5: where the generators lay furnishings, window.wpFurnGen
 
 function FU() { return window.wpFurnCore || null; }
 function OC() { return window.wpObjCore || null; }
@@ -91,6 +92,13 @@ function propsOf(f) {
     var pk = f.pack ? packById(f.pack) : null, src = pk ? F.packLook(pk, f.k, f.era) : '';
     return O.furnProps(f, ruleLists(campNow()), state.gridType === 'hex', cellNow(), src);
 }
+// fold 5: a generator's piece of kind k in an era, on a lattice of its own (the map it lands on may not be the one on screen): the Looks
+// list's pack where it has that kind in that era, else Waypoint's own drawing
+function genProps(k, era, hex, cell) {
+    var O = OC(), F = FU(); if (!O || !O.furnProps || !F || !cell) return null;
+    var pk = packById(lookNow()), src = pk ? F.packLook(pk, k, era) : '', f = { k: k, era: era }; if (src) f.pack = pk.id;
+    return O.furnProps(f, ruleLists(campNow()), !!hex, cell, src);
+}
 function place(f) {
     var F = FU(), p = propsOf(f); if (!F || !p || typeof window.wpArmPlacement !== 'function') return;
     window.wpArmPlacement('image', p, F.furnKind(f.k).label.toLowerCase());
@@ -172,4 +180,4 @@ function wire() {
     var tabs = document.getElementById('buildTabs'); if (tabs) tabs.addEventListener('click', draw);
 }
 if (typeof document !== 'undefined') { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire(); }
-window.wpFurnish = { draw: draw, propsOf: propsOf, read: function(s) { var F = FU(); return F ? furnRead(F, s) : null; }, place: place, cell: cellNow, era: function() { var F = FU(); load(); return F ? eraKept(F, _p.era) : 'fantasy'; }, packName: function(id) { var p = packById(id); return p ? p.name : ''; }, look: lookNow, lookSet: function(id) { var v = id && packById(id) ? id : ''; _p.look = v; _p.lookCamp = campId(); lookKeep(v); draw(); }, packs: packsNow };   // fold 4: one Looks choice for furnishings and blocks
+window.wpFurnish = { draw: draw, propsOf: propsOf, read: function(s) { var F = FU(); return F ? furnRead(F, s) : null; }, place: place, genProps: genProps, cell: cellNow, era: function() { var F = FU(); load(); return F ? eraKept(F, _p.era) : 'fantasy'; }, packName: function(id) { var p = packById(id); return p ? p.name : ''; }, look: lookNow, lookSet: function(id) { var v = id && packById(id) ? id : ''; _p.look = v; _p.lookCamp = campId(); lookKeep(v); draw(); }, packs: packsNow };   // fold 4: one Looks choice for furnishings and blocks

@@ -49,6 +49,7 @@ function cleanGen(v) {
     var out = { seed: typeof seed === 'string' && SEED_RE.test(seed) ? seed : '0000-fox', w: whole(own(o, 'w'), SIZE.w), h: whole(own(o, 'h'), SIZE.h),
         rooms: pick(ROOMS, own(o, 'rooms'), 'some'), corr: pick(CORRS, own(o, 'corr'), 'winding'), doors: pick(DOORS, own(o, 'doors'), 'most') }, th = cleanTheme(own(o, 'theme'));
     if (th !== 'fantasy') out.theme = th;   // the pieces' and no part of the seed's text: a seed gives one plan in every theme, and the first theme names nothing
+    var fu = own(o, 'furn'); if (fu === 'none' || fu === 'full') out.furn = fu;   // 1.6.2 (backlog 222): Furnishings, A few when absent; no part of the plan, which furngen.js furnishes
     return out;
 }
 // Chance from the seed alone: a 32-bit hash of the text (FNV-1a) feeds a small generator (mulberry32). The same text, the same numbers

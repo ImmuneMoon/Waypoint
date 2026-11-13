@@ -17137,7 +17137,7 @@ pendingChecks.push((async () => {
         const wbLine = head => { const i = onceN(wbN, head); return wbN.slice(i, wbN.indexOf('\n', i)); };
         let uidN = 0; const stB = { mat: 'floor', shape: 'rect', tex: 'flagstones', pic: '', tile: 1, color: '#5a5663', terrain: 0, corridorW: 1, walls: false };   // the Build tool's own state, as it starts
         const Bt = new Function('buildCore', '_build', 'uid', 'newOpacityProps', 'toast', 'save', 'render', 'window',
-            [wbLine('var BUILD_MAX = '), wbLine('var CITY_GRIDS = '), wbLine('function buildWet(id) {'), wbFn('function buildMaterial(mat) {'), wbFn('function buildProps() {'), wbLine('function buildWallItem(L, pre) {'), wbFn('function buildLay(map, boxes, props, more, walls) {'), wbFn('function cityPiece(g, props) {'), wbFn('function cityItems(pc, theme) {'),
+            [wbLine('var BUILD_MAX = '), wbLine('var CITY_GRIDS = '), wbLine('function buildWet(id) {'), wbFn('function buildMaterial(mat) {'), wbFn('function buildProps() {'), wbLine('function buildWallItem(L, pre) {'), wbFn('function buildLay(map, boxes, props, more, walls) {'), wbFn('function cityPiece(g, props) {'), wbFn('function cityItems(pc, theme, furn) {'),
                 'return { buildMaterial: buildMaterial, buildProps: buildProps, buildLay: buildLay, cityItems: cityItems };'].join('\n'))(() => BCn, stB, () => 'n' + (++uidN), () => ({}), () => {}, () => {}, () => {}, {});
         const penSrc = dmN.slice(onceN(dmN, '// [buildcheck:penpreset-start]'), onceN(dmN, '// [buildcheck:penpreset-end]'));
         const penArmed = wbN.includes('window.wpPenPreset = BC.penPreset(_build.mat, { color: _build.color });');   // what buildArm hands the pen: stroke() below hands it the same

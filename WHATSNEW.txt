@@ -1198,6 +1198,12 @@ The Data Map
   a floor's rules. Each one shows 3 by 3 with its seams in gold, so you can see
   whether it tiles. Pick the pack in the Looks list on Build's Materials tab
   and what you lay wears it. The Fill tool and Properties list its blocks too.
+- The dungeon and city generators can furnish what they lay. A Furnishings
+  list beside Theme says None, A few or Furnished. Each room of a dungeon gets
+  a use, say a study or a shrine, and its pieces stand along the walls with
+  the middle and the doorways clear. A town gets crates, barrels, benches and
+  lights on its market square and along its streets. Each piece wears the
+  Looks list's pack where it has one, and Waypoint's own drawing otherwise.
 - A piece's Properties now open from Properties on its right-click menu, or
   from the sliders on the bar over a selected piece. A double-click no longer
   opens them. A right-click selects the piece too, so you can see which one

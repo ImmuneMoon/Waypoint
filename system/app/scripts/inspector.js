@@ -1723,8 +1723,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
           return '<div class="element-list-item' + (sel ? ' sel' : '') + (deep ? ' el-child el-d' + deep : '') + '" data-id="' + esc(item.id) + '">' + fold +
                   '<div class="el-name" data-id="'+esc(item.id)+'" title="Click to jump to it · double-click to rename">' + htmlName + '</div>' +
                   '<button class="tool ghost el-rename" aria-label="Rename" title="Rename" data-id="'+esc(item.id)+'"><i class="wib wi-pen"></i></button>' +
-                  (visual ? '<button class="tool ghost el-up" aria-label="Move up a layer" title="Move up a layer (toward the front)" data-id="'+esc(item.id)+'">&#9650;</button>' +
-                            '<button class="tool ghost el-down" aria-label="Move down a layer" title="Move down a layer (toward the back)" data-id="'+esc(item.id)+'">&#9660;</button>' : '') +
+                  (visual ? '<span class="ui-seg el-moves"><button class="tool ghost el-up" aria-label="Move up a layer" title="Move up a layer (toward the front)" data-id="'+esc(item.id)+'">&#9650;</button>' +
+                            '<button class="tool ghost el-down" aria-label="Move down a layer" title="Move down a layer (toward the back)" data-id="'+esc(item.id)+'">&#9660;</button></span>' : '') +
                   '<button class="tool ghost danger el-del" aria-label="Delete Element" title="Delete Element" data-id="'+esc(item.id)+'">X</button>' +
                   '</div>';
       };

@@ -111,7 +111,8 @@ function draw() {
     if (list.length > TP_SEEN) { var s = el('select', 'field tp-older'); s.title = 'An earlier run of this session'; s.appendChild(el('option', '', 'Earlier…')); list.slice().reverse().slice(TP_SEEN).forEach(function(r) { var o = el('option', '', chipWords(r)); o.value = r.id; if (r.id === run.id) o.selected = true; s.appendChild(o); }); runs.appendChild(s); }
     body.appendChild(runs);
     var tools = el('div', 'tp-tools'), q = el('input', 'field tp-find'); q.type = 'search'; q.placeholder = 'Find a character or a rule'; q.value = _tp.q; q.setAttribute('aria-label', 'Find a character or a rule'); tools.appendChild(q);
-    [['all', 'All'], ['pl', 'Players'], ['npc', 'NPCs'], ['roll', 'Rolls']].forEach(function(f) { var b = el('button', 'tp-chip' + (_tp.filt === f[0] ? ' on' : ''), f[1]); b.type = 'button'; b.dataset.tpfilt = f[0]; tools.appendChild(b); });
+    var fseg = tools.appendChild(el('span', 'ui-seg tp-filt'));   /* 1.6.2 (backlog 225): the four filters in one frame */
+    [['all', 'All'], ['pl', 'Players'], ['npc', 'NPCs'], ['roll', 'Rolls']].forEach(function(f) { var b = el('button', 'tp-chip' + (_tp.filt === f[0] ? ' on' : ''), f[1]); b.type = 'button'; b.dataset.tpfilt = f[0]; fseg.appendChild(b); });
     body.appendChild(tools);
     var groups = tpView(run, _tp.filt, _tp.q), wrap = el('div', 'tp-list');
     if (!groups.length) wrap.appendChild(el('div', 'tp-empty', 'Nothing in this run matches.'));

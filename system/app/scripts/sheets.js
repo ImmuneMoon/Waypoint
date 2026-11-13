@@ -3566,7 +3566,7 @@ function tileStands(dr, f, c, sysI, tile, res) {
 function tileKept(key) { try { var o = JSON.parse(localStorage.getItem(TILE_SHOW) || '{}'); return o && typeof o === 'object' && (o[key] === 'tiles' || o[key] === 'list') ? o[key] : ''; } catch (e) { return ''; } }
 function tileKeep(key, v) { try { var o = JSON.parse(localStorage.getItem(TILE_SHOW) || '{}'); if (!o || typeof o !== 'object' || Array.isArray(o)) o = {}; o[key] = v; var ks = Object.keys(o); if (ks.length > 200) delete o[ks[0]]; localStorage.setItem(TILE_SHOW, JSON.stringify(o)); } catch (e) {} }
 function tileSwitch(wrap, key, now, f, c) {
-    var bar = el('div', 'body-switch'); [['tiles', 'Tiles'], ['list', 'List']].forEach(function(p) { var b = el('button', 'tool ghost sys-btn' + (now === p[0] ? ' on' : ''), p[1]); b.type = 'button'; b.dataset.fid = f.id; b.dataset.part = 'tsw-' + p[0]; if (now === p[0]) b.ariaPressed = 'true'; b.addEventListener('click', function() { tileKeep(key, p[0]); renderViews(c.id); }); bar.appendChild(b); });
+    var bar = el('div', 'body-switch'), sgV = el('span', 'ui-seg'); [['tiles', 'Tiles'], ['list', 'List']].forEach(function(p) { var b = el('button', 'tool ghost sys-btn' + (now === p[0] ? ' on' : ''), p[1]); b.type = 'button'; b.dataset.fid = f.id; b.dataset.part = 'tsw-' + p[0]; if (now === p[0]) b.ariaPressed = 'true'; b.addEventListener('click', function() { tileKeep(key, p[0]); renderViews(c.id); }); sgV.appendChild(b); }); bar.appendChild(sgV);   // 1.6.2 (backlog 225)
     wrap.appendChild(bar);
 }
 function tileWords(rows, sysI, c, e) {
@@ -3611,7 +3611,7 @@ function tileView(wrap, f, c, rows, sysI, plc, res) {
     holder.classList.add('has-open'); var dr = el('div', 'body-drawer'), head = el('div', 'body-drawer-head'), shut = el('button', 'tool ghost sys-btn', '\u00d7'); shut.type = 'button'; shut.title = 'Close this'; shut.ariaLabel = 'Close this'; shut.dataset.fid = f.id; shut.dataset.part = 'tile-shut';
     shut.addEventListener('click', function() { delete _tileOpen[openKey]; renderViews(c.id); }); head.appendChild(el('span', 'body-drawer-name', openBox ? openBox.label : byId[open].name)); var stO = openBox ? null : tileStateIn(tsp, res, open); if (stO) head.appendChild(el('span', 'body-drawer-state', stO.label)); head.appendChild(shut); dr.appendChild(head); holder.appendChild(dr);
     if (editing && !openBox) {   // 1.6.2 (body fold 7): the same move with no drag
-        var seatT = lay.tiles.filter(function(t) { return t.id === open; })[0], base = seatT ? { c: seatT.c + lay.lo, r: seatT.r } : { c: 0, r: lay.rows }, mvBar = el('div', 'body-switch body-move'); [['\u2190', 'Left', -1, 0], ['\u2191', 'Up', 0, -1], ['\u2193', 'Down', 0, 1], ['\u2192', 'Right', 1, 0]].forEach(function(m) { var q = el('button', 'tool ghost sys-btn', m[0]); q.type = 'button'; q.title = 'Move this tile ' + m[1].toLowerCase(); q.ariaLabel = q.title; q.dataset.fid = f.id; q.dataset.part = 'tile-mv-' + m[1]; q.addEventListener('click', function() { tileMoveTo(c, f, open, { c: Math.max(-20, Math.min(20, base.c + m[2])), r: Math.max(0, Math.min(60, base.r + m[3])) }); }); mvBar.appendChild(q); }); if (byId[open].tp) { var bk = el('button', 'tool ghost sys-btn', 'Back to its place'); bk.type = 'button'; bk.dataset.fid = f.id; bk.dataset.part = 'tile-mv-back'; bk.title = 'It sets itself out by what it hangs from again'; bk.addEventListener('click', function() { tileMoveTo(c, f, open, null); }); mvBar.appendChild(bk); } dr.appendChild(mvBar);
+        var seatT = lay.tiles.filter(function(t) { return t.id === open; })[0], base = seatT ? { c: seatT.c + lay.lo, r: seatT.r } : { c: 0, r: lay.rows }, mvBar = el('div', 'body-switch body-move'), mvSeg = el('span', 'ui-seg'); [['\u2190', 'Left', -1, 0], ['\u2191', 'Up', 0, -1], ['\u2193', 'Down', 0, 1], ['\u2192', 'Right', 1, 0]].forEach(function(m) { var q = el('button', 'tool ghost sys-btn', m[0]); q.type = 'button'; q.title = 'Move this tile ' + m[1].toLowerCase(); q.ariaLabel = q.title; q.dataset.fid = f.id; q.dataset.part = 'tile-mv-' + m[1]; q.addEventListener('click', function() { tileMoveTo(c, f, open, { c: Math.max(-20, Math.min(20, base.c + m[2])), r: Math.max(0, Math.min(60, base.r + m[3])) }); }); mvSeg.appendChild(q); }); mvBar.appendChild(mvSeg); if (byId[open].tp) { var bk = el('button', 'tool ghost sys-btn', 'Back to its place'); bk.type = 'button'; bk.dataset.fid = f.id; bk.dataset.part = 'tile-mv-back'; bk.title = 'It sets itself out by what it hangs from again'; bk.addEventListener('click', function() { tileMoveTo(c, f, open, null); }); mvBar.appendChild(bk); } dr.appendChild(mvBar);
     }
     var rowBox = el('div', 'body-drawer-row'); dr.appendChild(rowBox);
     if (!tileStands(dr, f, c, sysI, open, res)) dr.appendChild(el('div', 'sheet-empty-note', 'Nothing stands here.'));
@@ -3698,7 +3698,7 @@ function openAllBar(openers) {
     var oa = el('button', 'tool ghost sheet-item-openall-b', 'Open all'); oa.type = 'button'; oa.title = 'Show the details of every row of this list';
     var ca = el('button', 'tool ghost sheet-item-openall-b', 'Close all'); ca.type = 'button'; ca.title = 'Hide the details of every row of this list';
     oa.addEventListener('click', function() { all(true); }); ca.addEventListener('click', function() { all(false); });
-    bar.appendChild(oa); bar.appendChild(ca); return bar;
+    var sg = el('span', 'ui-seg'); sg.appendChild(oa); sg.appendChild(ca); bar.appendChild(sg); return bar;   // 1.6.2 (backlog 225): the two in one frame
 }
 // [systemcheck:rowplace-end]
 function noteToggle(line, entry, c, f) {
@@ -4114,7 +4114,7 @@ function setStrip(wrap, c, f, spec, sysI, carried, editable, res) {
             var bOn = el('button', 'tool ghost sheet-set-btn', 'All on'), bOff = el('button', 'tool ghost sheet-set-btn', 'All off');
             bOn.title = 'Switch every row of ' + g.name + ' on'; bOff.title = 'Switch every row of ' + g.name + ' off'; bOn.disabled = g.all; bOff.disabled = g.on === 0;
             bOn.addEventListener('click', function() { go(true); }); bOff.addEventListener('click', function() { go(false); });
-            ln.appendChild(bOn); ln.appendChild(bOff);
+            var sgS = el('span', 'ui-seg sheet-set-seg'); sgS.appendChild(bOn); sgS.appendChild(bOff); ln.appendChild(sgS);   // 1.6.2 (backlog 225): one frame, which wraps as one
         }
         box.appendChild(ln);
     });
@@ -7441,10 +7441,12 @@ function renderStaleBar(c, camp, gm, own) {
     bar.appendChild(el('span', 'sheet-rv-text', gm
         ? (toDo.length ? 'A new sheet for this character waits for your review. Its player is held until you apply it or mark it current.' : ups.length ? 'Its player sent a new sheet and it changes nothing here. Press Mark current and they play again.' : 'This sheet is out of date: the system changed since it was made. Its player is held until a new sheet is approved.')
         : 'This sheet is out of date: your GM changed the game. Send a new sheet for your GM to approve. Until then you can chat and read pages.'));
-    var bt = function(label, title, fn) { var b = el('button', 'tool ghost notepad-btn', label); b.type = 'button'; b.title = title; b.addEventListener('click', fn); bar.appendChild(b); };
+    var bt = function(label, title, fn, into) { var b = el('button', 'tool ghost notepad-btn', label); b.type = 'button'; b.title = title; b.addEventListener('click', fn); (into || bar).appendChild(b); };
     if (gm && canWrite()) {
-        if (toDo.length) bt('Review', 'Open the new sheet its player sent', function() { openReview(c.id, null, toDo[0].id); });
-        bt('Mark current', 'The sheet is fine as it is: its player plays again', function() { markCurrent(c.id); });
+        var sgR = el('span', 'ui-seg sheet-rv-seg');   // 1.6.2 (backlog 225): the two ways to settle it, in one frame
+        if (toDo.length) bt('Review', 'Open the new sheet its player sent', function() { openReview(c.id, null, toDo[0].id); }, sgR);
+        bt('Mark current', 'The sheet is fine as it is: its player plays again', function() { markCurrent(c.id); }, sgR);
+        bar.appendChild(sgR);
         if (typeof staleCount === 'function' && staleCount(camp) > 1) bt('Mark all current', 'Every out-of-date sheet is fine as it is: their players play again', function() { var b = document.getElementById('sysSheetsCurrent'); if (b) b.click(); });   // 1.6.0: found from the sheet that says so, not only in the System editor
     }
     if (mine) bt('Send a new sheet\u2026', 'Pick a character file for your GM to review', function() { importJson(); });
@@ -9610,7 +9612,17 @@ function lazySelect(cls, options, value, title) {
     return s;
 }
 function select(cls, options, value, title) { var s = el('select', cls); options.forEach(function(o) { s.appendChild(opt(o[0], o[1], o[0] === value)); }); if (title) s.title = title; return s; }
-function btnRow(list) { var btns = el('span', 'sys-btns'); list.forEach(function(b) { var x = el('button', 'tool ghost sys-btn'); x.dataset.act = b[0]; x.title = b[1]; x.innerHTML = b[2]; btns.appendChild(x); }); return btns; }
+// 1.6.2 (backlog 225): a row's ▲ ▼ (or ◀ ▶) stand in one frame, a .ui-seg, and its × stays apart. segPut appends a button to a row: a move
+// goes into the frame the move before it opened, anything else onto the row as before. Each button keeps its class, act, title and handler
+var SEG_MOVE = /^[\u25b2\u25bc\u25c0\u25b6]$/;
+function segPut(row, b, move) {
+    if (move === undefined) move = SEG_MOVE.test(String((b && b.textContent) || '').trim());
+    if (!move) { row.appendChild(b); return b; }
+    var last = row.lastChild, seg = last && typeof last.className === 'string' && /(^| )sys-moves( |$)/.test(last.className) ? last : null;
+    if (!seg) { seg = el('span', 'ui-seg sys-moves'); row.appendChild(seg); }
+    seg.appendChild(b); return b;
+}
+function btnRow(list) { var btns = el('span', 'sys-btns'); list.forEach(function(b) { var x = el('button', 'tool ghost sys-btn'); x.dataset.act = b[0]; x.title = b[1]; x.innerHTML = b[2]; segPut(btns, x, /^&#96(50|60|64|54);$/.test(b[2])); }); return btns; }
 function labeledNum(cls, cap, value, title) { var l = el('label', 'sys-combat-item'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(numInput('field ' + cls, value, title)); return l; }   // 1.6.0: a number on the Combat tab, in a list's own frame
 function labeledSelect(cls, cap, options, value, title) { var l = el('label', 'sys-combat-item'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(select(cls, options, value, title)); return l; }
 // Clarity package: every box says what it is, filled or not (a placeholder goes as you type, so a filled box read as nothing: a −50 meant for
@@ -9781,7 +9793,7 @@ function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's chan
         }
         if (typeof ch.list === 'string') { var rwsI = input('sys-apply-rows field', typeof ch.rows === 'string' ? ch.rows : '', 'Only rows where: a test of each row, which may read the location a blow struck, such as Row.Hand = Hit.Hand. Empty: every row', 'Only rows where'); rwsI.maxLength = LIMITS.formula; rw.appendChild(rwsI); }   // 1.6.2 (the CORE session, 3)
         if (typeof ch.fx === 'string' && ch.on !== false && typeof fxHolds === 'function' && fxHolds(ch.fx)) { var fxnI = input('sys-apply-fxn field', typeof ch.n === 'string' ? ch.n : '', 'The number the effect goes on with, as Bleeding 3. Empty: its own start. Added again while it is on, the effect\u2019s rule says what happens', 'With number'); fxnI.maxLength = LIMITS.formula; rw.appendChild(fxnI); }   // 1.6.2: an effect that holds a number
-        [['applyup', '\u25b2', 'Move up'], ['applydown', '\u25bc', 'Move down'], ['applydel', '\u00d7', 'Remove this change']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        [['applyup', '\u25b2', 'Move up'], ['applydown', '\u25bc', 'Move down'], ['applydel', '\u00d7', 'Remove this change']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; (typeof segPut === 'function' ? segPut(rw, bb) : rw.appendChild(bb)); });
         box.appendChild(rw);
     });
     var addB = el('button', 'tool ghost sys-btn sys-apply-add', key === 'then' ? '+ Then\u2026' : key === 'end' ? '+ When it ends' : '+ Change'); addB.dataset.act = 'applyadd'; addB.dataset.k = key; addB.disabled = list.length >= LIMITS.applyChanges; addB.title = addB.disabled ? 'At most ' + LIMITS.applyChanges + ' changes' : key === 'then' ? 'A change this roll makes to the character: always, on success or on failure (a pending hit, spent ammo, a stun cleared)' : 'Another pool or number this button moves (Apply costs: FP and EP together)'; box.appendChild(addB);
@@ -10628,7 +10640,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         sr.appendChild(checkLabel('sys-list-statgm', s.vis === 'gm', 'GM only', 'You set it on a row, and that row\u2019s players never get it. A formula that reads it stays on your side, and a critical range that names it is worked out on your machine'));   // 1.6.0
         if (s.kind === 'pick' || (Array.isArray(s.labels) && s.labels.length)) sr.appendChild(checkLabel('sys-list-statown', s.own === true, 'Player sets this', 'Its owner may set this on their own row, and nothing else of the row. Never on a GM-only or Hidden stat'));
         sr.appendChild(checkLabel('sys-list-stathide', s.hide === true, 'Hidden', 'A figure the row only works with, such as a cost per level. It is never shown on a row or in its details. Formulas still read it, and the row\u2019s pencil still shows it. It is no secret: use a GM-only list for that'));
-        [['statup', '▲', 'Move up'], ['statdown', '▼', 'Move down'], ['statdel', '×', 'Remove this stat (Save drops its values)']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; sr.appendChild(bb); });
+        [['statup', '▲', 'Move up'], ['statdown', '▼', 'Move down'], ['statdel', '×', 'Remove this stat (Save drops its values)']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; (typeof segPut === 'function' ? segPut(sr, bb) : sr.appendChild(bb)); });
         if (typeof explainBox === 'function') sr.appendChild(explainBox(s));   // 1.6.2 (backlog 218 fold 3)
         sb.appendChild(sr);
     });
@@ -10653,7 +10665,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         cr.appendChild(checkLabel('sys-list-colfoot', cc.foot === true, 'Total', 'Its total shows under the list'));
         cr.appendChild(input('sys-list-colshow field', typeof cc.showIf === 'string' ? cc.showIf : '', 'On which rows it shows. Formulas read it on every row', 'Every row'));
         if (typeof toneRow === 'function') { var ctR = toneRow(cc); if (ctR) cr.appendChild(ctR); }   // 1.6.0 R5
-        [['colup', '\u25b2', 'Move up'], ['coldown', '\u25bc', 'Move down'], ['coldel', '\u00d7', 'Remove this column']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; cr.appendChild(bb); });
+        [['colup', '\u25b2', 'Move up'], ['coldown', '\u25bc', 'Move down'], ['coldel', '\u00d7', 'Remove this column']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; (typeof segPut === 'function' ? segPut(cr, bb) : cr.appendChild(bb)); });
         if (typeof explainBox === 'function') cr.appendChild(explainBox(cc));   // 1.6.2 (backlog 218 fold 3)
         cb2.appendChild(cr);
     });
@@ -10701,7 +10713,7 @@ function ctKeySays(sp, F0) {
                 if (tmr.dir !== 'up') { var tew = input('sys-list-ctend field', typeof tmr.end === 'string' ? tmr.end : '', 'What the row shows once the count reaches 0, such as Spoiled. The row stays', 'At 0 it shows (e.g. Spoiled)'); tew.maxLength = LIMITS.label; rw.appendChild(tew); }
             }
         }
-        [['ctup', '\u25b2', 'Move up'], ['ctdown', '\u25bc', 'Move down'], ['ctdel', '\u00d7', 'Remove this counter']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        [['ctup', '\u25b2', 'Move up'], ['ctdown', '\u25bc', 'Move down'], ['ctdel', '\u00d7', 'Remove this counter']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; (typeof segPut === 'function' ? segPut(rw, bb) : rw.appendChild(bb)); });
         cb2.appendChild(rw);
     });
     var tadd = el('button', 'tool ghost sys-btn sys-list-ctadd', '+ Counter'); tadd.dataset.act = 'ctadd'; tadd.disabled = ctsL.length >= LIMITS.rowCounters; tadd.title = tadd.disabled ? 'At most ' + LIMITS.rowCounters + ' counters a list' : 'A number each row keeps and shows with \u2212 and + (a weapon\u2019s Charges, its Hits)'; cb2.appendChild(tadd);
@@ -10808,7 +10820,7 @@ function ctKeySays(sp, F0) {
         if (typeof altBox === 'function') rw.appendChild(altBox(rr, 'Its button reads this name on rows where its test holds, such as Fix malfunction on a jammed row. The first that holds wins.'));   // 1.6.0: its other names
         if (typeof rollExtras === 'function') rollExtras(rw, rr, sp, rApply);   // 1.6.0: its icon, and R7 the figure it shows
         if (typeof window !== 'undefined' && window.wpSoundOn && window.wpSoundOnCore) { var snL = window.wpSoundOn.btn({ k: 'list', f: f.id, i: ri, l: window.wpSoundOnCore.labelOf(rr) }, rApply ? 'A sound on this action' : 'A sound on this roll. The list under the Sound panel can narrow it to one kind of row'); if (snL) rw.appendChild(snL); }   // 1.6.2
-        if (rApply) { cb2.appendChild(rw); var ndA = el('div', 'sys-flags sys-list-needsrow'); ndA.dataset.ri = String(ri); ndA.appendChild(el('span', 'sys-num-cap sys-offered', 'When it can be used')); ndA.appendChild(rsI); var ndAI = input('sys-list-needs field', typeof rr.needs === 'string' ? rr.needs : '', 'Pressed only while this is true for the row (no dice): Row.Charges >= 1, Row.Hits > 0; empty: always', 'Needs (e.g. Row.Charges >= 1)'); ndAI.maxLength = LIMITS.formula; ndA.appendChild(ndAI); var ndAT = input('sys-list-needstext field', typeof rr.needsText === 'string' ? rr.needsText : '', 'What the grayed button says when it cannot be pressed', 'Out of charges'); ndAT.maxLength = LIMITS.needsWords; ndA.appendChild(ndAT); ndA.appendChild(checkLabel('sys-list-hideoff', rr.hideOff === true, 'Hidden until it can be used', 'The button stands on the row only while its needs hold. Off: it stays there, grayed out. Only beside needs')); cb2.appendChild(ndA); var lxA = typeof listCrossRow === 'function' ? listCrossRow(rr, ri, sp.counters) : null; if (lxA) cb2.appendChild(lxA); if (typeof callsBox === 'function') cb2.appendChild(callsBox(rr, typeof draft !== 'undefined' ? draft : null, true)); listApplyEditor(cb2, rr, ri, 'apply', sp, targets); return; }   // 1.6.0: when a row's counter crosses a step
+        if (rApply) { cb2.appendChild(rw); var ndA = el('div', 'sys-flags sys-list-needsrow'); ndA.dataset.ri = String(ri); ndA.appendChild(el('span', 'sys-num-cap sys-offered', 'When it can be used')); ndA.appendChild(rsI); var ndAI = input('sys-list-needs field', typeof rr.needs === 'string' ? rr.needs : '', 'Pressed only while this is true for the row (no dice): Row.Charges >= 1, Row.Hits > 0; empty: always', 'Needs (e.g. Row.Charges >= 1)'); ndAI.maxLength = LIMITS.formula; ndA.appendChild(ndAI); var ndAT = input('sys-list-needstext field', typeof rr.needsText === 'string' ? rr.needsText : '', 'What the grayed button says when it cannot be pressed', 'Out of charges'); ndAT.maxLength = LIMITS.needsWords; ndA.appendChild(ndAT); ndA.appendChild(checkLabel('sys-list-hideoff', rr.hideOff === true, 'Hidden until it can be used', 'The button stands on the row only while its needs hold. Off: it stays there, grayed out. Only beside needs')); cb2.appendChild(ndA); var lxA = typeof listCrossRow === 'function' ? listCrossRow(rr, ri, sp.counters) : null; if (lxA) cb2.appendChild(lxA); if (typeof callsBox === 'function') cb2.appendChild(callsBox(rr, typeof draft !== 'undefined' ? draft : null, true)); listApplyEditor(cb2, rr, ri, 'apply', sp, targets, rw); return; }   // 1.6.0: when a row's counter crosses a step
         if (rr.dmg !== true) { var bsl = el('select', 'sys-list-burst'); bsl.title = 'A burst: Opens a burst is the attack, whose Then fires the shots. A burst\u2019s extra dice is the roll that counts the extra hits, and it rolls once after an attack that hit. Its rules can read the hits landed'; [['', 'No burst'], ['attack', 'Opens a burst'], ['extra', 'A burst\u2019s extra dice']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; bsl.appendChild(op); }); bsl.value = rr.burst === 'attack' || rr.burst === 'extra' ? rr.burst : ''; rw.appendChild(bsl); var bhL = el('label', 'sys-hover'), bhC = el('input'); bhC.type = 'checkbox'; bhC.className = 'sys-list-blasthit'; bhC.checked = rr.blastHit === true; bhL.appendChild(bhC); bhL.appendChild(el('span', null, ' Bursts at its target')); bhL.title = 'On a hit the row\u2019s own blast goes off at its target, and on a miss it lands as its area\u2019s On a miss, launched says. Its blast does the damage, so it is never ticked beside Damage'; rw.appendChild(bhL); }   // 1.6.0 A burst; 1.6.2 (the CORE session): Bursts at its target
         var ltD = typeof draft !== 'undefined' && draft && Array.isArray(draft.tests) ? draft.tests : [];
         if (!rApply && (ltD.length || rr.test)) { var ltT = ltD.filter(function(x) { return x && typeof x.key === 'string'; }), ltF = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s.key === 'string' && s.kind !== 'pick' && s.kind !== 'text'; }).map(function(s) { return [s.key, s.label || 'A stat']; }).concat((Array.isArray(sp.cols) ? sp.cols : []).filter(function(c0) { return c0 && typeof c0.key === 'string'; }).map(function(c0) { return [c0.key, c0.label || 'A column']; }));   // 1.6.2 (backlog 59): it rolls one of the system's tests with a figure of the row
@@ -10825,7 +10837,7 @@ function ctKeySays(sp, F0) {
         if (rr.dmg === true) { var p2L = input('sys-list-rollp2f field', typeof rr.dmg2 === 'string' ? rr.dmg2 : '', 'Second part: damage of another type in the same blow, rolled with it, such as 1d6+1 or Row.burn. Its own DR is taken off, then both parts are one wound: one Major Wound test, one Any wound and one wear. Empty: none', 'Second part'); p2L.maxLength = LIMITS.formula; rw.appendChild(p2L); var p2LT = input('sys-list-rollp2t field', typeof rr.dtype2 === 'string' ? rr.dtype2 : '', 'The second part\u2019s type: a type\u2019s key from the Combat tab, or a formula giving its place in that list, 1 for the first (Row.dt2). Kept only beside a second part', 'Second part type'); p2LT.maxLength = LIMITS.formula; rw.appendChild(p2LT); var p2LA = input('sys-list-rollp2d field', typeof rr.ad2 === 'string' ? rr.ad2 : '', 'The second part\u2019s own armor divisor: a number, or a formula of the row\u2019s names. 1 or empty for none. Kept only beside a second part', 'Second part armor divisor'); p2LA.maxLength = LIMITS.formula; rw.appendChild(p2LA); if (dkLOn || rr.dkind2) { var p2LK = input('sys-list-rollp2k field', typeof rr.dkind2 === 'string' ? rr.dkind2 : '', 'The second part\u2019s kind of blow: a kind\u2019s key from the Combat tab, or a formula giving its place in that list. Empty: the first part\u2019s kind. Kept only beside a second part', 'Second part kind'); p2LK.maxLength = LIMITS.formula; rw.appendChild(p2LK); } [3, 4, 5].forEach(function(k) { var hasK = function(n) { return typeof rr['dmg' + n] === 'string' && !!rr['dmg' + n].trim(); }; if (!hasK(k - 1) && !hasK(k)) return; var nmK = k === 3 ? 'Third' : k === 4 ? 'Fourth' : 'Fifth'; var pkL = input('sys-list-rollp' + k + 'f field', typeof rr['dmg' + k] === 'string' ? rr['dmg' + k] : '', nmK + ' part: damage of another type in the same blow, rolled with it, such as 1d6 or Row.shock. Its own DR is taken off, then every part is one wound. Empty: none', nmK + ' part'); pkL.maxLength = LIMITS.formula; rw.appendChild(pkL); var pkLT = input('sys-list-rollp' + k + 't field', typeof rr['dtype' + k] === 'string' ? rr['dtype' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s type: a type\u2019s key from the Combat tab, or a formula giving its place in that list, 1 for the first. Kept only beside its part', nmK + ' part type'); pkLT.maxLength = LIMITS.formula; rw.appendChild(pkLT); var pkLA = input('sys-list-rollp' + k + 'd field', typeof rr['ad' + k] === 'string' ? rr['ad' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s own armor divisor: a number, or a formula of the row\u2019s names. 1 or empty for none. Kept only beside its part', nmK + ' part armor divisor'); pkLA.maxLength = LIMITS.formula; rw.appendChild(pkLA); if (dkLOn || rr['dkind' + k]) { var pkLK = input('sys-list-rollp' + k + 'k field', typeof rr['dkind' + k] === 'string' ? rr['dkind' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s kind of blow: a kind\u2019s key from the Combat tab, or a formula giving its place in that list. Empty: the first part\u2019s kind. Kept only beside its part', nmK + ' part kind'); pkLK.maxLength = LIMITS.formula; rw.appendChild(pkLK); } }); }   // 1.6.0 (B3): a blow of two damage types counts as one blow; and a third and a fourth part, each shown once the part before it has a formula
         { var tgS = el('select', 'sys-lroll-togm'); tgS.title = 'Goes to the GM: the player sees only that it was sent, and you get the roll privately. Its Then runs at once, or waits for your Apply. The list may send all its rolls'; [['', 'As the list says'], ['run', 'Goes to the GM'], ['wait', 'Goes to the GM, Then waits']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if ((rr.toGm || '') === o[0]) op.selected = true; tgS.appendChild(op); }); rw.appendChild(tgS); }   // HR1
         if (typeof dieSel === 'function') rw.appendChild(dieSel('sys-list-rolldie', rr.die, 'The die its button wears on each row. From its formula: the die it rolls, so 3d6 shows three dice and d20 a d20'));   // 1.5.8, backlog 149
-        [['rollup', '\u25b2', 'Move up'], ['rolldown', '\u25bc', 'Move down'], ['rolldel', '\u00d7', 'Remove this roll']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        [['rollup', '\u25b2', 'Move up'], ['rolldown', '\u25bc', 'Move down'], ['rolldel', '\u00d7', 'Remove this roll']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; (typeof segPut === 'function' ? segPut(rw, bb) : rw.appendChild(bb)); });
         cb2.appendChild(rw);
         var ndRow = el('div', 'sys-flags sys-list-needsrow'); ndRow.dataset.ri = String(ri);   // Stage 6 HUD R2b: what it needs, then its consequences
         ndRow.appendChild(el('span', 'sys-num-cap sys-offered', 'When it can be used')); ndRow.appendChild(rsI);   // 1.6.2: where it stands, then while it may be pressed, together
@@ -11019,10 +11031,10 @@ function priceOptions(sel, sp) {   // F4c1: the Price choices — No price, then
 }
 // Stage 6 HUD H7b: a list roll of the Apply kind — its move/remove buttons, then its changes (as the Rolls tab's, the amount reading Row.*); the
 // selects are built with el only (the Lists card's test slice injects no select helper)
-function listApplyEditor(box, rr, ri, key, sp, targets) {   // key (R2b): 'apply' (an apply action's changes) or 'then' (a roll's consequences, each with its When); sp: the list's options (its counters join the targets); targets: the pools and numbers of the draft (renderLists)
+function listApplyEditor(box, rr, ri, key, sp, targets, row) {   // key (R2b): 'apply' (an apply action's changes) or 'then' (a roll's consequences, each with its When); sp: the list's options (its counters join the targets); targets: the pools and numbers of the draft (renderLists)
     key = key === 'then' ? 'then' : 'apply';
-    var rw0 = box.lastChild;
-    if (key === 'apply') [['rollup', '\u25b2', 'Move up'], ['rolldown', '\u25bc', 'Move down'], ['rolldel', '\u00d7', 'Remove this action']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw0.appendChild(bb); });
+    var rw0 = row || box.lastChild;   // 1.6.2 (backlog 225, its review): the action's own row, never the needs or Calls for box added after it
+    if (key === 'apply') [['rollup', '\u25b2', 'Move up'], ['rolldown', '\u25bc', 'Move down'], ['rolldel', '\u00d7', 'Remove this action']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; (typeof segPut === 'function' ? segPut(rw0, bb) : rw0.appendChild(bb)); });
     targets = Array.isArray(targets) ? targets : []; var list = Array.isArray(rr[key]) ? rr[key] : [], ctrs = sp && Array.isArray(sp.counters) ? sp.counters.filter(function(t) { return t && typeof t.key === 'string' && t.key; }) : [];
     var sel = function(cls, opts, val, title) { var s = el('select', cls); s.title = title; opts.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; s.appendChild(op); }); s.value = val; return s; };
     list.forEach(function(ch0, ai) {
@@ -11049,7 +11061,7 @@ function listApplyEditor(box, rr, ri, key, sp, targets) {   // key (R2b): 'apply
         var fm = input('sys-list-applyformula field', typeof ch.formula === 'string' ? ch.formula : '', 'The amount for the row: no dice unless Rolled is ticked; Row.lvl, Row.<stat>, Row.<column> read the row (Row.FPCost)', 'Amount (Row.FPCost)'); fm.maxLength = LIMITS.formula; rw.appendChild(fm);
         var lrlL = el('label', 'sys-hover'), lrlC = el('input'); lrlC.type = 'checkbox'; lrlC.className = 'sys-list-applyrolled'; lrlC.checked = ch.roll === true; lrlL.appendChild(lrlC); lrlL.appendChild(el('span', null, ' Rolled')); lrlL.title = 'Rolled: the amount may roll dice, such as 1d6. The host rolls it each time, and the card shows the dice'; rw.appendChild(lrlL);   // 1.5.9 (book es/et plan, section 0)
         }
-        [['lapplyup', '\u25b2', 'Move up'], ['lapplydown', '\u25bc', 'Move down'], ['lapplydel', '\u00d7', 'Remove this change']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        [['lapplyup', '\u25b2', 'Move up'], ['lapplydown', '\u25bc', 'Move down'], ['lapplydel', '\u00d7', 'Remove this change']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; (typeof segPut === 'function' ? segPut(rw, bb) : rw.appendChild(bb)); });
         box.appendChild(rw);
     });
     var addB = el('button', 'tool ghost sys-btn sys-list-applyadd', key === 'then' ? '+ Then\u2026' : '+ Change'); addB.dataset.act = 'lapplyadd'; addB.dataset.ri = String(ri); addB.dataset.k = key; addB.disabled = list.length >= LIMITS.applyChanges; addB.title = addB.disabled ? 'At most ' + LIMITS.applyChanges + ' changes an action' : 'Another pool or number this button moves'; box.appendChild(addB);
@@ -11560,7 +11572,7 @@ function renderEnv() {
         var temp = e.unit === 'temp'; rw.appendChild(labeledSelect('sys-env-kind field', 'Kind', ENV_KIND_OPTS, temp ? 'temp' : 'other', 'A temperature is typed in each viewer\u2019s \u00b0F or \u00b0C and stored in \u00b0C'));
         if (!temp) { var u = input('sys-env-unit field', typeof e.unit === 'string' ? e.unit : '', 'Its unit, shown after the figure', 'Unit: g'); u.maxLength = 12; rw.appendChild(u); }
         ENV_BANDS_UI.forEach(function(b) { var l = el('label', 'sys-combat-item sys-bud-f'); l.appendChild(el('span', 'sys-num-cap', ENV_BAND_CAPS[b][0])); var fi = input('sys-env-band field', typeof e[b] === 'string' ? e[b] : '', ENV_BAND_CAPS[b][1], 'None'); fi.dataset.band = b; fi.maxLength = LIMITS.formula; l.appendChild(fi); rw.appendChild(l); });
-        [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'ev' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'ev' + bd[0]; bb.title = bd[2]; (typeof segPut === 'function' ? segPut(rw, bb) : rw.appendChild(bb)); });
         wrap.appendChild(rw);
     });
     var ad = el('button', 'tool ghost sys-btn sys-env-add', '+ Reading'); ad.dataset.act = 'evadd'; ad.disabled = arr.length >= LIMITS.env; ad.title = ad.disabled ? 'At most ' + LIMITS.env : 'A reading a map gives its characters, such as a temperature'; wrap.appendChild(ad);
@@ -11846,7 +11858,7 @@ function renderTables() {
         var k = input('sys-tbl-key field', typeof t.key === 'string' ? t.key : '', 'The table\u2019s key in a formula: a letter, then letters, digits or _', 'Metal'); k.maxLength = 24; cap('Key', k);
         var n = input('sys-tbl-label field', typeof t.label === 'string' ? t.label : '', 'Its name in this box', 'Metals'); n.maxLength = LIMITS.label; cap('Name', n);
         head.appendChild(labeledSelect('sys-tbl-vis field', 'Who reads it', TABLE_VIS_OPTS, t.vis === 'gm' ? 'gm' : '', 'A table for the GM alone never reaches players, and a formula that reads it is GM only too'));
-        [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove this table']].forEach(function(bd) { head.appendChild(tableBtn(bd[1], 'table' + bd[0], bd[2])); });
+        [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove this table']].forEach(function(bd) { var tbB = tableBtn(bd[1], 'table' + bd[0], bd[2]); (typeof segPut === 'function' ? segPut(head, tbB) : head.appendChild(tbB)); });
         blk.appendChild(head);
         var sc = el('div', 'sys-tbl-scroll'), grid = el('table', 'sys-tbl-grid'), hr = el('tr');
         hr.appendChild(el('th', null, 'Row key')); hr.appendChild(el('th', null, 'Row name')); hr.appendChild(el('th', null, 'From')); hr.appendChild(el('th', null, 'To'));   // 1.6.2 (G7): a range a figure finds the row by
@@ -12029,7 +12041,7 @@ function renderBudgets() {
         });
         rw.appendChild(labeledSelect('sys-bud-over field', 'When over', BUDGET_OVER_OPTS, b.over === 'warn' || b.over === 'off' ? b.over : 'refuse', 'What happens when a player’s own change would take their character over this budget. Refuse stops the change. Warn lets it through with a note to them and to you. Only show it does not check'));
         rw.appendChild(labeledSelect('sys-bud-when field', 'Watched', BUDGET_WHEN_OPTS, b.when === 'making' || b.when === 'play' ? b.when : 'always', 'When the budget is watched: always, only while a player is making the character, or only once it is in play'));
-        [['up', '▲', 'Move up'], ['down', '▼', 'Move down'], ['del', '×', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'bd' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        [['up', '▲', 'Move up'], ['down', '▼', 'Move down'], ['del', '×', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'bd' + bd[0]; bb.title = bd[2]; (typeof segPut === 'function' ? segPut(rw, bb) : rw.appendChild(bb)); });
         wrap.appendChild(rw);
         if (typeof b.id === 'string') { var re = errorCell(b.id); re.dataset.errFor = b.id; wrap.appendChild(re); }   // the validator's reading of its two formulas
     });
@@ -12108,7 +12120,7 @@ function renderLinks() {
             });
             var fa = el('button', 'tool ghost sys-btn', '+ Figure'); fa.dataset.act = 'lkfadd'; fa.disabled = figsW.length >= 4; fa.title = fa.disabled ? 'At most 4 figures a link' : 'A figure each sheet of the ' + (k.kind === 'mount' ? 'riders' : 'crew') + ' works out, so that the best, the least or the total of it can be read'; rw.appendChild(fa);
         }
-        [['up', '\u25B2', 'Move up'], ['down', '\u25BC', 'Move down'], ['del', '\u00D7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'lk' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        [['up', '\u25B2', 'Move up'], ['down', '\u25BC', 'Move down'], ['del', '\u00D7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'lk' + bd[0]; bb.title = bd[2]; (typeof segPut === 'function' ? segPut(rw, bb) : rw.appendChild(bb)); });
         if (typeof explainBox === 'function') rw.appendChild(explainBox(k));   // 1.6.2 (backlog 218 fold 3)
         wrap.appendChild(rw);
     });
@@ -12559,7 +12571,7 @@ function postureBox(box, cm) {
         var tg = input('sys-posture-tag field', typeof p.tag === 'string' ? p.tag : '', 'The chip on the token: up to ' + LIMITS.postureTag + ' characters (empty: the name\u2019s first three letters)', 'Tag'); tg.maxLength = 8; top.appendChild(tg);
         if (i > 0) { var sl = el('label', 'sys-hover'), rv = typeof p.ranged === 'number' ? p.ranged : p.small === true ? -2 : '', sc = numInput('sys-posture-ranged field', rv, 'What a foe\u2019s ranged roll against a token in this posture takes, a whole number from \u221220 to 20, shown on the ruler that ends on it and in its tooltip' + (cm.postureOnAttack === true ? ', and a roll can read it' : ', never worked into a roll') + '. Empty: none', '1'); sc.min = '-20'; sc.max = '20'; sc.style.width = '56px'; sl.appendChild(document.createTextNode('Ranged note ')); sl.appendChild(sc); top.appendChild(sl); if (cm.postureOnAttack === true) top.appendChild(checkLabel('sys-posture-aimed', p.aimed === true, 'Hits land as aimed', 'A roll can tell that this posture counts on an attack, a tie with cover included')); }
         if (i > 0) { var pcG = p.cover && typeof p.cover === 'object' && [1, 2, 3].indexOf(p.cover.g) >= 0 ? String(p.cover.g) : '', pcL = el('label', 'sys-hover', 'Gives cover '); pcL.appendChild(select('sys-posture-cover', [['', 'None'], ['1', 'Half'], ['2', 'Three-quarters'], ['3', 'Total']], pcG, 'A token standing so has this cover, as lying behind a low wall gives. The better of this and the map\u2019s own cover counts')); if (pcG) pcL.appendChild(select('sys-posture-covervs', [['', 'against everyone'], ['far', 'against attacks from further away']], p.cover.vs === 'far' ? 'far' : '', 'Against attacks from further away: only from a token not next to it')); top.appendChild(pcL); }   // 1.6.2
-        [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove this posture']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'ps' + bd[0]; bb.title = bd[2]; top.appendChild(bb); });
+        [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove this posture']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'ps' + bd[0]; bb.title = bd[2]; (typeof segPut === 'function' ? segPut(top, bb) : top.appendChild(bb)); });
         row.appendChild(top);
         var nr = el('div', 'sys-flags'), nt = input('sys-posture-notes field', typeof p.notes === 'string' ? p.notes : '', 'Shown under the posture on the sheet\u2019s Stance control', 'Notes'); nt.maxLength = LIMITS.postureNotes; nr.appendChild(nt); row.appendChild(nr);
         if (i > 0) {   // the first takes no changes
@@ -13239,7 +13251,7 @@ function lightBox(box, cm) {
         });
         rw.appendChild(select('sys-light-punit', [['yd', 'yards'], ['ft', 'feet'], ['m', 'meters'], ['cells', 'grid cells']], typeof p.unit === 'string' && Object.prototype.hasOwnProperty.call(LIGHT_UNITS, p.unit) ? p.unit : 'yd', 'What the two radii count in: each map\u2019s scale converts it (a 20 ft torch on 5 ft squares lights 4 squares)'));
         var pk = el('label', 'sys-hover'), pc = el('input', 'sys-light-ppick'); pc.type = 'checkbox'; pc.checked = p.pick === true; pk.appendChild(pc); pk.appendChild(document.createTextNode(' Players may pick')); pk.title = 'Ticked: a player may pick this light for their own token, from its right-click menu (your machine copies it from this list). Unticked: only you set it, in a token\u2019s Properties'; rw.appendChild(pk);
-        [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'lp' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'lp' + bd[0]; bb.title = bd[2]; (typeof segPut === 'function' ? segPut(rw, bb) : rw.appendChild(bb)); });
         wrap.appendChild(rw);
     });
     var ad = el('button', 'tool ghost sys-btn sys-light-add', '+ Light preset'); ad.dataset.act = 'lpadd'; ad.disabled = arr.length >= LIMITS.lightPresets; ad.title = ad.disabled ? 'At most ' + LIMITS.lightPresets : 'A light of your game: a torch, a lantern, a lumen rod'; wrap.appendChild(ad);
@@ -13565,7 +13577,7 @@ function calendarBox(box, cal) {
         rw.appendChild(calNum('sys-cal-pdays', p.days, 'How many days it holds (1 to ' + CAL_LIMITS.periodDays + ')', 1, CAL_LIMITS.periodDays, i === 0 ? 'Days' : ''));
         var xl = el('label', 'sys-cal-tick'), xc = el('input', 'sys-cal-pextra'); xc.type = 'checkbox'; xc.checked = p.extra === true; xc.title = 'Outside the month count: a festival week or a holiday between months, never numbered as a month';
         xl.appendChild(xc); xl.appendChild(document.createTextNode(' Outside the month count')); rw.appendChild(xl);
-        [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'calp' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'calp' + bd[0]; bb.title = bd[2]; (typeof segPut === 'function' ? segPut(rw, bb) : rw.appendChild(bb)); });
         wrap.appendChild(rw);
     });
     var pa = el('button', 'tool ghost sys-btn sys-cal-padd', '+ Period'); pa.dataset.act = 'calpadd'; pa.disabled = ps.length >= CAL_LIMITS.periods; pa.title = pa.disabled ? 'At most ' + CAL_LIMITS.periods : 'A month, a festival week or a holiday, at the end of the year'; wrap.appendChild(pa);
@@ -13574,7 +13586,7 @@ function calendarBox(box, cal) {
     wk.forEach(function(w, i) {
         var rw = el('div', 'sys-flags sys-cal-wrow'); rw.dataset.wi = String(i);
         var wi = input('sys-cal-wname field', typeof w === 'string' ? w : '', 'This weekday\u2019s name', 'Day ' + (i + 1)); wi.maxLength = CAL_LIMITS.name; rw.appendChild(wi);
-        [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'calw' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'calw' + bd[0]; bb.title = bd[2]; (typeof segPut === 'function' ? segPut(rw, bb) : rw.appendChild(bb)); });
         wrap.appendChild(rw);
     });
     var wa = el('button', 'tool ghost sys-btn sys-cal-wadd', '+ Weekday'); wa.dataset.act = 'calwadd'; wa.disabled = wk.length >= CAL_LIMITS.week; wa.title = wa.disabled ? 'At most ' + CAL_LIMITS.week : 'A day of the week, at its end; the week runs on across months and years'; wrap.appendChild(wa);
@@ -13911,7 +13923,7 @@ function restsBox() {
             lnB.appendChild(select('sys-rest-u', uo, uv, 'Its unit: minutes, hours, days, weeks or one of the system\u2019s own time units')); ln.appendChild(lnB); row.appendChild(ln);
             var tl = el('label', 'sys-cal-tick'), tc = el('input', 'sys-rest-time'); tc.type = 'checkbox'; tc.checked = r.time !== false; tc.title = 'Its time counts as rest for the time rules, as a step set to Rest does. Unticked, it counts as activity';
             tl.appendChild(tc); tl.appendChild(document.createTextNode(' Counts as rest time')); row.appendChild(tl);
-            [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.type = 'button'; bb.dataset.act = 'rest' + bd[0]; bb.title = bd[2]; row.appendChild(bb); });
+            [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.type = 'button'; bb.dataset.act = 'rest' + bd[0]; bb.title = bd[2]; (typeof segPut === 'function' ? segPut(row, bb) : row.appendChild(bb)); });
             cd.appendChild(row);
             var dw = el('div', 'sys-flags sys-rest-does'); dw.appendChild(el('span', 'sys-num-cap', 'When called, it also'));   // fold R4
             var ds = Array.isArray(r.does) ? r.does : [];
@@ -14165,7 +14177,7 @@ function sensesBox(box, cm) {
         var offId = s.off && typeof s.off === 'object' && typeof s.off.field === 'string' ? s.off.field : '', oopts = [['', 'Never switched off']].concat(swF.map(function(f) { return [f.id, 'Off while ' + (f.label || f.key)]; }));   // senses S3
         if (offId && !swF.some(function(f) { return f.id === offId; })) oopts.push([offId, 'Off by a field no longer here']);
         rw.appendChild(select('sys-sense-off', oopts, offId, 'A field of the character that switches this sense off while it is ticked or above 0 (Deafened for hearing): toggles first'));
-        [['up', '▲', 'Move up'], ['down', '▼', 'Move down'], ['del', '×', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'sn' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        [['up', '▲', 'Move up'], ['down', '▼', 'Move down'], ['del', '×', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'sn' + bd[0]; bb.title = bd[2]; (typeof segPut === 'function' ? segPut(rw, bb) : rw.appendChild(bb)); });
         wrap.appendChild(rw);
         wrap.appendChild(el('div', 'sys-note sys-sense-says', senseSentence(s, fieldsR, secret)));
         if (s.shows === 'side' && !mark) wrap.appendChild(noticeRow(s, i));   // 1.6.0: it may notice by a roll
@@ -14481,7 +14493,7 @@ function turnBox(box, cm) {
             if (g[0] === 'act') { n.maxLength = LIMITS.formula; n.value = typeof x.nf === 'string' && x.nf ? x.nf : String(typeof x.n === 'number' ? x.n : 1); n.placeholder = '1'; n.title = 'How many a turn allows: a whole number from 1 to 9, or a formula of the character\u2019s names, worked out at their turn\u2019s start, such as 1 + ExtraReady'; }   // 192
             else { n.min = '0'; n.step = 'any'; n.value = typeof x.secs === 'number' ? String(x.secs) : ''; n.placeholder = 'Seconds'; n.title = 'How long one lasts, in seconds (a watch: 14400)'; }
             rw.appendChild(n);
-            [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 't' + g[0] + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+            [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 't' + g[0] + bd[0]; bb.title = bd[2]; (typeof segPut === 'function' ? segPut(rw, bb) : rw.appendChild(bb)); });
             wrap.appendChild(rw);
         });
         var ad = el('button', 'tool ghost sys-btn sys-turn-add', g[0] === 'act' ? '+ Action' : '+ Time unit'); ad.dataset.act = 't' + g[0] + 'add'; ad.disabled = arr.length >= g[3]; ad.title = ad.disabled ? 'At most ' + g[3] : g[0] === 'act' ? 'Something one turn allows (an Action, a Bonus action, a Maneuver)' : 'A time unit of your game, by its length in seconds'; wrap.appendChild(ad);

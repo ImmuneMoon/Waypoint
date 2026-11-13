@@ -114,7 +114,7 @@ function draw(host, cal, ck, pick) {
         });
     };
     var zoom = function(f, at) { host._tl = tlZoom(host._tl, f, at === undefined ? W() / 2 : at, W(), lim()); paint(); };
-    mkb('−', 'Zoom out', function() { zoom(2); }); mkb('+', 'Zoom in', function() { zoom(0.5); });
+    var zs = bar.appendChild(el('span', 'ui-seg tl-zoom')); zs.appendChild(mkb('−', 'Zoom out', function() { zoom(2); })); zs.appendChild(mkb('+', 'Zoom in', function() { zoom(0.5); }));   /* 1.6.2 (backlog 225): zoom out | in in one frame, Now and Everything beside */
     mkb('Now', 'Back to where the clock stands', function() { host._tl = { c: items.today, dpp: host._tl.dpp }; paint(); });
     mkb('Everything', 'Zoom out to show every era, note and session', function() { host._tl = fit(); paint(); });
     bar.appendChild(el('span', 'tl-key', 'Notes ●  Sessions ◆  Now |'));

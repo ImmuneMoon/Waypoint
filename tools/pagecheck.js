@@ -934,7 +934,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         // the buttons
         H.histWire(doc);
         const bk = id => doc.getElementById('pageHistBack_' + id), fw = id => doc.getElementById('pageHistFwd_' + id);
-        const made = ['plannerPreview', 'docPanelBody', 'docReaderBody', 'popoutBody'].map(id => { const a = bk(id), b = fw(id), kids = a && a.parentNode.childNodes; return [!!a && !!b, a && kids.indexOf(a) + 1 === kids.indexOf(b) && kids.indexOf(b) + 1 === kids.indexOf(doc.getElementById(NAVP.filter(p => p[1] === id)[0][0])), a && a.disabled, b && b.disabled, a && a.attrs['aria-label'], b && b.attrs['aria-label'], a && a.childNodes.length === 1 && a.childNodes[0].nodeType === 3]; });
+        /* 1.6.2 (backlog 225): Back and Forward stand in one .ui-seg, which stands right before the Outline button; moved on purpose */
+        const made = ['plannerPreview', 'docPanelBody', 'docReaderBody', 'popoutBody'].map(id => { const a = bk(id), b = fw(id), kids = a && a.parentNode.childNodes, sg = a && a.parentNode, sk = sg && sg.parentNode && sg.parentNode.childNodes; return [!!a && !!b, a && kids.length === 2 && kids.indexOf(a) === 0 && kids.indexOf(b) === 1 && sg.className === 'ui-seg pagenav-hists' && sk.indexOf(sg) + 1 === sk.indexOf(doc.getElementById(NAVP.filter(p => p[1] === id)[0][0])), a && a.disabled, b && b.disabled, a && a.attrs['aria-label'], b && b.attrs['aria-label'], a && a.childNodes.length === 1 && a.childNodes[0].nodeType === 3]; });
         H.histWire(doc);
         check('Back and Forward, the buttons: each place a page is read gets a Back and a Forward button right before its Outline button, named for a screen reader, made by name with one text node each, off while there is nowhere to go, made once however often it is wired',
             made.every(m => J(m) === J([true, true, true, true, 'Back', 'Forward', true])) && doc.body.all().filter(n => /^pageHist/.test(n.id)).length === 8
@@ -992,7 +993,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('Back and Forward, wired and kept to memory: the module wires them once its places and the bar are, and publishes the place of a link, a follow and a step; nothing of a step is stored or sent, and the buttons are made by name with text nodes alone',
             src.includes("    navBarWire(document, window.ResizeObserver);   // backlog 143: a block jumped to in the planner's own view lands clear of its Find bar\n    histWire(document);")
             && src.includes('    window.wpPageNav.placeOf = navRootOf; window.wpPageNav.follow = histFollow; window.wpPageNav.step = histStep;\n')
-            && !/localStorage|sessionStorage|wpNet|innerHTML|insertAdjacentHTML|fetch\(/.test(srcH) && (srcH.match(/createElement\('[a-z]+'\)/g) || []).join() === "createElement('button')");
+            && !/localStorage|sessionStorage|wpNet|innerHTML|insertAdjacentHTML|fetch\(/.test(srcH) && (srcH.match(/createElement\('[a-z]+'\)/g) || []).join() === "createElement('span'),createElement('button')");   /* 1.6.2 (backlog 225): the frame they stand in is made by name too; moved on purpose */
         // said
         const ixH = read('index.html'), wnH = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), read('assets/whatsnew.txt')].map(s => s.replace(/\r\n/g, '\n'));
         check('Back and Forward is said: Help names the arrows beside Outline, the keys and right-clicking a page link, and both release notes carry the same lines under 1.5.8',

@@ -91,6 +91,91 @@ function page() {
     check('every slider of the app takes a typed value: the page\'s ten marked data-typed with their units, music\'s two volumes and its place in a song, a person\'s voice volume, a sheet look\'s Dim; uiparts.js loads with io.js',
         ranges.every(id => new RegExp('id="' + id + '"[^>]*data-typed').test(ix)) && (S('music.js').match(/wpUi\.typed\(/g) || []).length === 3 && S('voice.js').includes("window.wpUi.typed(vol, { unit: '%' })") && S('sheets.js').includes("window.wpUi.typed(dim, { unit: '%', label: 'Dim in percent' })")
         && S('io.js').includes("import './uiparts.js';") && S('trackers.js').includes("document.activeElement.closest('#trkStrip .ui-val')"));
+    // backlog 225, the page's own pairs: related buttons that stand side by side in index.html are one .ui-seg, nothing of theirs changed
+    {
+        const ix2 = read('index.html'), css2 = read('style.css');
+        const seg = (cls, ids) => new RegExp('<span class="' + cls + '"><button[^>]*id="' + ids.join('"[^]*?</button><button[^>]*id="') + '"[^]*?</button></span>').test(ix2);
+        const pairs = [['ui-seg', ['plannerUndoBtn', 'plannerRedoBtn']], ['ui-seg', ['plannerFindPrev', 'plannerFindNext']], ['ui-seg', ['docPanelFindPrev', 'docPanelFindNext']],
+            ['ui-seg', ['dicePaintDraw', 'dicePaintUpload']], ['ui-seg', ['dicePaintThin', 'dicePaintThick']], ['ui-seg ui-seg-wide', ['setProfSaveBtn', 'setProfOpenBtn']], ['ui-seg ui-seg-wide', ['setProfCopyBtn', 'setProfPasteBtn']],
+            ['ui-seg ui-seg-wide', ['setUpdateNowBtn', 'setUpdateInstallerBtn']], ['ui-seg', ['imgLibAddBtn', 'imgLibAddDirBtn']], ['ui-seg ui-seg-col', ['imgLibPreviewAdd', 'imgLibPreviewScene']],
+            ['ui-seg', ['furnPackImportFile', 'furnPackImportFolder']], ['ui-seg', ['furnMakerExportFile', 'furnMakerExportFolder']]];
+        const off = pairs.filter(q => !seg(q[0], q[1])).map(q => q[1][0]);
+        // the review of the pairs: a button with no way back stands apart from the safe one beside it, never joined
+        const apart = [['sceneAgain', 'sceneEnd'], ['sysLayoutAuto', 'sysLayoutClear']].filter(q => seg('ui-seg', q)).map(q => q[0]);
+        check('the review of the pairs: Show it again | Close for everyone and the Layout tab\'s two automatic-layout buttons stand apart, since one of each has no way back', apart.length === 0, J(apart));
+        const qk = ix2.slice(ix2.indexOf('<div class="dice-quick">')).split('</div>')[0];
+        check('the page\'s related buttons are joined (backlog 225): planner Undo | Redo and its Find arrows, the page panel\'s Find arrows, the scene box\'s two, the dice painter\'s Draw | Upload and Thin | Thick, the profile\'s two pairs, Update now | Get installer, the Image Library\'s two adds and its preview\'s two, the furnishing packs\' imports and the maker\'s exports, the Layout tab\'s two automatic layouts; Imperial | Metric fills its row; Host | Join is #netPaneBar itself; the token creator\'s outlines; the roller\'s quick dice d4 to d20, with d100, the coin and the operators outside',
+            off.length === 0 && /<span class="ui-seg ui-seg-wide"><button class="tool ghost set-unit-btn" data-unit="imperial"[^]*?<\/button><button class="tool ghost set-unit-btn" data-unit="metric"[^]*?<\/button><\/span>/.test(ix2)
+            && ix2.includes('<div id="netPaneBar" class="ui-seg ui-seg-wide" role="group"') && /<span class="frame-lbl">Outline<\/span><span class="ui-seg">(<button class="tool ghost frame-shape"[^]*?<\/button>){3}<\/span><\/div>/.test(ix2)
+            && /^<div class="dice-quick"><span class="ui-seg">(<button data-die="d(4|6|8|10|12|20)">[^]*?<\/button>){6}<\/span><button data-die="d100">/.test(qk) && qk.split('<span class="ui-seg">').length === 2 && qk.indexOf('data-op=') > qk.indexOf('</span>')
+            && ix2.includes('</span><input type="file" id="imgLibAddFile" accept="image/*" multiple hidden><input type="file" id="imgLibAddDir" webkitdirectory multiple hidden>'), J(off));
+        check('a seg\'s shared rules (backlog 225): the one that is on is tinted gold inside the frame, a wide seg fills its row with even halves, a column seg stands its buttons in one frame; the quick dice drop their own frames, an empty update seg goes, and the selection\'s four layer buttons are joined in place',
+            css2.includes('  .ui-seg > .tool.on, .ui-seg > .tool.active, .ui-seg > .tool.sel, .ui-seg > .tool[aria-pressed="true"] { background: rgba(227,166,59,.12); color: var(--gold); border-color: var(--edge); }')
+            && css2.includes('  .ui-seg.ui-seg-wide { display: flex; width: 100%; flex: 1 1 auto; box-sizing: border-box; }') && css2.includes('  .ui-seg.ui-seg-wide > * { flex: 1 1 0; min-width: 0; white-space: normal; }')
+            && css2.includes('  .ui-seg.ui-seg-col > * + *, .ui-seg.ui-seg-col > .tool + .tool, .ui-seg.ui-seg-col > button + button { border-left: 0; border-top: 0; box-shadow: 0 -1px 0 var(--edge); }')
+            && css2.includes('  .ui-seg > * + *, .ui-seg > .tool + .tool, .ui-seg > button + button { border-left: 0; box-shadow: -1px 0 0 var(--edge); }') && css2.includes('  .ui-seg.ui-seg-wide > * { flex: 1 1 0; min-width: 0; white-space: normal; }')
+            && css2.includes('  .sheet-paletted .ui-seg > .tool.on { background: var(--gold); color: var(--gold-ink, #1a1a1a); }') && css2.includes('.dp-chips > .tool.dp-chip.on { background: rgba(227,166,59,.12); color: var(--gold); border-color: var(--gold); }')
+            && css2.includes('  .ui-seg:not(:has(> :not(:disabled):not([style*="pointer-events: none"]):not([style*="display: none"]):not([hidden]))) { opacity: .45; }') && css2.includes('  .dice-quick .ui-seg > button { border: 0; border-radius: 0; padding: 2px 6px; }')
+            && css2.includes('  #setUpdateRow > .ui-seg:not(:has(> button:not([style*="none"]))) { display: none; }') && css2.includes('  #multiBringFwdBtn, #multiSendBwdBtn, #multiSendBackBtn { margin-top: -1px; border-top-left-radius: 0; border-top-right-radius: 0; }'));
+    }
+    // backlog 225, the sheets' own pairs (sheets.js): a System editor row's move buttons through segPut, which btnRow and every inline copy ask; a list's
+    // Open all | Close all, a set strip's All on | All off, Tiles | List, the tile drawer's four arrows and the stale bar's Review | Mark current, each one .ui-seg
+    {
+        const sh = read('scripts/sheets.js'), css3 = read('style.css');
+        const a = sh.indexOf('var SEG_MOVE = '), b = sh.indexOf('\n', sh.indexOf('function btnRow(list) {'));
+        const d = page(), mkEl = (tag, cls, text) => { const e = d.createElement(tag); e.className = cls || ''; if (text !== undefined) e.textContent = String(text); Object.defineProperty(e, 'lastChild', { get() { return e.children[e.children.length - 1] || null; } }); return e; };
+        const R = a >= 0 && b > a ? new Function('el', sh.slice(a, b) + '\nreturn { segPut: segPut, btnRow: btnRow };')(mkEl) : null;
+        const kids = n => n.children.map(k => k.tagName === 'SPAN' ? k.className + '[' + k.children.map(x => x.dataset.act).join(',') + ']' : k.dataset.act);
+        const br = R ? R.btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '<i class="wib wi-dup"></i>'], ['del', 'Delete', '&times;']]) : null;
+        const pin = R ? R.btnRow([['pinleft', 'Move left', '&#9664;'], ['pinright', 'Move right', '&#9654;'], ['pindel', 'Take off', '&times;']]) : null;
+        const rw = mkEl('div', 'sys-flags'); if (R) [['statup', '\u25b2'], ['statdown', '\u25bc'], ['statdel', '\u00d7']].forEach(q => { const x = mkEl('button', 'tool ghost sys-btn', q[1]); x.dataset.act = q[0]; R.segPut(rw, x); });
+        const inline = (sh.match(/\(typeof segPut === 'function' \? segPut\((\w+), bb\) : \1\.appendChild\(bb\)\); \}\);/g) || []).length;
+        check('the System editor\'s move buttons are joined (backlog 225): btnRow puts each row\'s \u25b2 \u25bc (a pin\'s \u25c0 \u25b6) in one .ui-seg sys-moves through segPut, its Duplicate and \u00d7 beside it and every act kept; segPut does the same for a row built inline, by the glyph; the 17 inline copies and the tables\' box ask it, and a harness with no segPut appends as before',
+            !!R && J(kids(br)) === J(['ui-seg sys-moves[up,down]', 'dup', 'del']) && br.className === 'sys-btns' && J(kids(pin)) === J(['ui-seg sys-moves[pinleft,pinright]', 'pindel']) && J(kids(rw)) === J(['ui-seg sys-moves[statup,statdown]', 'statdel'])
+            && inline === 17 && sh.includes("var tbB = tableBtn(bd[1], 'table' + bd[0], bd[2]); (typeof segPut === 'function' ? segPut(head, tbB) : head.appendChild(tbB));"), J([R ? kids(br) : null, inline]));
+        check('the sheet\'s own pairs are joined (backlog 225): Open all | Close all (a list and a rich table), All on | All off, Tiles | List with Edit layout beside it, the tile drawer\'s four arrows with Back to its place outside, the stale bar\'s Review | Mark current with Mark all current outside; the pointer shows on a framed button\'s fill',
+            sh.includes("    var sg = el('span', 'ui-seg'); sg.appendChild(oa); sg.appendChild(ca); bar.appendChild(sg); return bar;")
+            && sh.includes("var sgS = el('span', 'ui-seg sheet-set-seg'); sgS.appendChild(bOn); sgS.appendChild(bOff); ln.appendChild(sgS);")
+            && sh.includes("var bar = el('div', 'body-switch'), sgV = el('span', 'ui-seg');") && sh.includes("sgV.appendChild(b); }); bar.appendChild(sgV);")
+            && sh.includes("mvBar = el('div', 'body-switch body-move'), mvSeg = el('span', 'ui-seg');") && sh.includes("mvSeg.appendChild(q); }); mvBar.appendChild(mvSeg); if (byId[open].tp) {")
+            && sh.includes("var sgR = el('span', 'ui-seg sheet-rv-seg');") && sh.includes("function() { markCurrent(c.id); }, sgR);\n        bar.appendChild(sgR);")
+            && css3.includes('  .ui-seg.sys-moves > .sys-btn { padding: 1px 6px; }') && css3.includes('.sheet-rv-seg > .tool:hover:not(:disabled):not(.on) { background: rgba(255,255,255,.06); color: var(--ink); }'));
+    }
+    // backlog 225, the other scripts' pairs: each joined in one .ui-seg where it is built, every class, title, data attribute and handler kept;
+    // a page window's Find arrows joined by the style sheet alone, since popout.js is binary to git
+    {
+        const S2 = f => read('scripts/' + f), c4 = read('style.css');
+        check('pagenav.js (backlog 225): Back and Forward stand in one .ui-seg pagenav-hists, made by name right before each place\'s Outline button and filled in their order; in a page window of its own the bar\'s own frame takes its border and its buttons drop their own',
+            S2('pagenav.js').includes("        var seg = doc.createElement('span'); seg.className = 'ui-seg pagenav-hists'; btn.parentNode.insertBefore(seg, btn);") && S2('pagenav.js').includes("            seg.appendChild(b);\n        });\n    });")
+            && !S2('pagenav.js').includes('btn.parentNode.insertBefore(b, btn);') && c4.includes('  #popoutBar .ui-seg > .pagenav-hist { border: 0; border-radius: 0; }') && c4.includes('  #popoutBar .ui-seg > .pagenav-hist + .pagenav-hist { border-left: 1px solid var(--border); }'));
+        check('inspector.js (backlog 225): a layer\'s \u25b2 \u25bc in the Layers list stand in one .ui-seg el-moves, Rename and Delete outside',
+            /\(visual \? '<span class="ui-seg el-moves"><button class="tool ghost el-up" aria-label="Move up a layer"[^\n]*\n[^\n]*class="tool ghost el-down" aria-label="Move down a layer"[^\n]*&#9660;<\/button><\/span>' : ''\) \+\n\s*'<button class="tool ghost danger el-del"/.test(S2('inspector.js')));
+        check('whiteboard.js (backlog 225): the combat roster\'s \u25b2 \u25bc stand in one .ui-seg combat-moves, the custom row\'s \u00d7 outside; a redraw still finds the focus by class',
+            /\+ '<span class="ui-seg combat-moves"><button class="tool ghost combat-up" title="Move up">&#9650;<\/button><button class="tool ghost combat-down" title="Move down">&#9660;<\/button><\/span>'\n\s*\+ \(r\.custom \? '<button class="tool ghost danger combat-del"/.test(S2('whiteboard.js'))
+            && S2('whiteboard.js').includes("['combat-on', 'combat-init', 'combat-roll', 'combat-up', 'combat-down'].filter(function(c) { return fa.classList.contains(c); })[0]"));
+        check('dice.js (backlog 225): the \u00b1 window\'s Dis | Normal | Adv stand in one wide seg of equal thirds, and its quick chips \u22125 | \u22121 | +1 | +5 in another; the typed counter stays its own',
+            S2('dice.js').includes("var advRow = el('div', 'dice-modadv'), advSeg = advRow.appendChild(el('span', 'ui-seg ui-seg-wide'));") && S2('dice.js').includes('advBtns[m[0]] = b; advSeg.appendChild(b); });')
+            && S2('dice.js').includes("var chips = el('div', 'dice-modpop-chips'), chipSeg = chips.appendChild(el('span', 'ui-seg ui-seg-wide'));") && S2('dice.js').includes('mod = clampMod(mod + q[1]); refresh(); }); chipSeg.appendChild(b); });'));
+        const cS = S2('calendar.js');
+        check('calendar.js (backlog 225): the waiting list\'s Apply and Skip apart (its review), Active | Rest, the steps (a seg that wraps) and the clock\'s Runs | Held each stand in one .ui-seg; the one picked keeps cal-kind-on, tinted inside the frame, and Runs while it waits keeps its dashed look',
+            cS.includes("var pseg = top;   /* 1.6.2 (backlog 225, its review): Skip lets the time pass with no rule run, so it stands apart from Apply, never joined to it */") && cS.includes("    pseg.appendChild(cbtn('cal-pend-apply', 'Apply',") && cS.includes("    pseg.appendChild(cbtn('cal-pend-skip', 'Skip',")
+            && cS.includes("} else { var kseg = kd.appendChild(cel('span', 'ui-seg cal-seg cal-kind-seg'));") && cS.includes("b.dataset.kind = k[0]; kseg.appendChild(b); }); }")
+            && cS.includes("var sseg = st.appendChild(cel('span', 'ui-seg ui-seg-wrap cal-seg cal-step-seg'));") && cS.includes('b.dataset.secs = String(s.secs); sseg.appendChild(b); });')
+            && cS.includes("var lseg = row.appendChild(cel('span', 'ui-seg cal-seg cal-live-seg'));") && cS.includes('b.dataset.live = k[0]; lseg.appendChild(b);')
+            && c4.includes('  .ui-seg > .tool.cal-kind-on { background: rgba(227,166,59,.12); color: var(--gold); border-color: var(--edge); }') && c4.includes('  .ui-seg > .tool.cal-live-wait { outline: 1px dashed var(--gold); outline-offset: -3px; }')
+            && c4.includes('  .ui-seg.ui-seg-wrap > *, .ui-seg.ui-seg-wrap > .tool + .tool { flex: 1 0 auto; border-left: 0; box-shadow: -1px 0 0 var(--edge), 0 -1px 0 var(--edge); }'));
+        check('timeline.js, storyview.js, timepanel.js (backlog 225): the timeline\'s zoom out | in stand in one .ui-seg tl-zoom with Now and Everything beside; a beat\'s Played | Tonight | Ahead is its own group made a seg, the one on tinted; the time panel\'s four filters stand in one rounded seg',
+            S2('timeline.js').includes("var zs = bar.appendChild(el('span', 'ui-seg tl-zoom')); zs.appendChild(mkb('\u2212', 'Zoom out', function() { zoom(2); })); zs.appendChild(mkb('+', 'Zoom in', function() { zoom(0.5); }));")
+            && S2('timeline.js').includes("    mkb('Now', 'Back to where the clock stands',") && S2('storyview.js').includes("var ss = mk('span', 'sv-sess ui-seg'); ss.setAttribute('role', 'group');")
+            && S2('timepanel.js').includes("    var fseg = tools.appendChild(el('span', 'ui-seg tp-filt'));") && S2('timepanel.js').includes('b.dataset.tpfilt = f[0]; fseg.appendChild(b); });')
+            && c4.includes('  .sv-sess.ui-seg > .sv-s.on { background: rgba(227,166,59,.12); color: var(--gold); border-color: var(--edge); }') && c4.includes('  #timePanel .tp-filt.ui-seg > .tp-chip.on { background: rgba(227,166,59,.12); color: var(--gold); }'));
+        check('music.js (backlog 225): previous, play, next and stop stand in one .ui-seg music-trans taking four shares of the row, loop and shuffle apart with their own on look',
+            S2('music.js').includes("    var trans = btns.appendChild(el('span', 'ui-seg music-trans'));") && /trans\.appendChild\(tb\('music-prev [^\n]*\n\s*trans\.appendChild\(tb\('music-play [^\n]*\n\s*trans\.appendChild\(tb\('music-next [^\n]*\n\s*trans\.appendChild\(tb\('music-stop /.test(S2('music.js'))
+            && /btns\.appendChild\(tb\('music-loop /.test(S2('music.js')) && /btns\.appendChild\(tb\('music-shuf /.test(S2('music.js')) && c4.includes('  .music-btns > .music-trans { flex: 4 4 0; display: flex; min-width: 0; }'));
+        check('popout.js by the style sheet alone (backlog 225): a page window\'s Find \u25b2 \u25bc are joined in place, their facing corners square and the second over the first\'s edge; popout.js itself is untouched',
+            c4.includes('  #popoutBar #popoutFindPrev { border-radius: 5px 0 0 5px; }') && c4.includes('  #popoutBar #popoutFindNext { margin-left: -6px; border-radius: 0 5px 5px 0; }')
+            && read('scripts/popout.js').includes('<button id="popoutFindPrev" type="button" aria-label="Previous match" title="Previous match (Shift+Enter)">&#9650;</button><button id="popoutFindNext" type="button"'));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

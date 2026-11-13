@@ -1960,7 +1960,59 @@
   .ui-unit { color: var(--dim); }
   .ui-seg { display: inline-flex; align-items: stretch; flex: 0 0 auto; border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; }
   .ui-seg > .tool, .ui-seg > button { border: 0; border-radius: 0; margin: 0; }
-  .ui-seg > * + *, .ui-seg > .tool + .tool { border-left: 1px solid var(--edge); }
+  .ui-seg > * + *, .ui-seg > .tool + .tool, .ui-seg > button + button { border-left: 0; box-shadow: -1px 0 0 var(--edge); }   /* the line between two parts, drawn just outside the later one: where the first is hidden the frame clips it, so no edge is doubled */
+  /* backlog 225: a choice that is on keeps its mark inside the frame, as a gold tint and not the loose button's fill; a seg that shares a row
+     (Imperial | Metric, Host | Join) fills it, each half as wide; a seg in a column stands its buttons one over another */
+  .ui-seg > .on, .ui-seg > .active, .ui-seg > .sel, .ui-seg > [aria-pressed="true"],
+  .ui-seg > .tool.on, .ui-seg > .tool.active, .ui-seg > .tool.sel, .ui-seg > .tool[aria-pressed="true"] { background: rgba(227,166,59,.12); color: var(--gold); border-color: var(--edge); }
+  .sheet-paletted .ui-seg > .tool.on { background: var(--gold); color: var(--gold-ink, #1a1a1a); }   /* a palette's accent may be dark: the solid on look with its own ink */
+  .ui-seg > button:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+  .ui-seg.ui-seg-wide { display: flex; width: 100%; flex: 1 1 auto; box-sizing: border-box; }
+  .ui-seg.ui-seg-wide > * { flex: 1 1 0; min-width: 0; white-space: normal; }   /* long words go to a second line rather than being cut */
+  .ui-seg > .tool:hover:not(:disabled):not(.on):not(.active):not(.sel):not([aria-pressed="true"]), .ui-seg > button:hover:not(:disabled):not(.on):not(.active):not(.sel):not([aria-pressed="true"]) { background: rgba(127,127,127,.16); color: var(--ink); }   /* a hover every frame shows, on a dark panel and a light one */
+  .ui-seg:not(:has(> :not(:disabled):not([style*="pointer-events: none"]):not([style*="display: none"]):not([hidden]))) { opacity: .45; }   /* a frame whose parts are all off fades with them */
+  .ui-seg.ui-seg-col { display: flex; flex-direction: column; width: 100%; box-sizing: border-box; }
+  .ui-seg.ui-seg-col > * + *, .ui-seg.ui-seg-col > .tool + .tool, .ui-seg.ui-seg-col > button + button { border-left: 0; border-top: 0; box-shadow: 0 -1px 0 var(--edge); }
+  /* backlog 225, the page's own pairs: the roller's quick dice drop their own frames inside the seg and fit its width; Update now and Get
+     installer are each shown or hidden by the script, so the seg goes when neither shows; the selection's four layer buttons are drawn
+     by inspector.js, one under another, so they are joined in place, one frame from Bring to front to Send to back */
+  .dice-quick .ui-seg > button { border: 0; border-radius: 0; padding: 2px 6px; }
+  #setUpdateRow > .ui-seg:not(:has(> button:not([style*="none"]))) { display: none; }
+  #multiBringFrontBtn, #multiBringFwdBtn, #multiSendBwdBtn { margin-bottom: 0 !important; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  #multiBringFwdBtn, #multiSendBwdBtn, #multiSendBackBtn { margin-top: -1px; border-top-left-radius: 0; border-top-right-radius: 0; }
+  #multiBringFrontBtn:hover, #multiBringFwdBtn:hover, #multiSendBwdBtn:hover, #multiSendBackBtn:hover { position: relative; z-index: 1; }
+  /* backlog 225, the sheets' pairs: a System editor row's ▲ ▼ (.sys-moves, its × apart), a list's Open all | Close all, a set's All on |
+     All off, Tiles | List and the tile drawer's four arrows, the stale bar's Review | Mark current. Inside the frame a button has no border of its
+     own, so the pointer shows on its fill */
+  .ui-seg.sys-moves > .sys-btn { padding: 1px 6px; }
+  .ui-seg.sys-moves > .tool:hover:not(:disabled):not(.on), .sheet-item-openall .ui-seg > .tool:hover:not(:disabled):not(.on), .sheet-set-seg > .tool:hover:not(:disabled):not(.on), .body-switch .ui-seg > .tool:hover:not(:disabled):not(.on), .sheet-rv-seg > .tool:hover:not(:disabled):not(.on) { background: rgba(255,255,255,.06); color: var(--ink); }
+  /* backlog 225, the other scripts' pairs: Back | Forward before each Outline button (pagenav.js), a layer's and a roster row's ▲ ▼, the ±
+     window's Dis | Normal | Adv and its quick chips, the Calendar's Apply | Skip, Active | Rest, its steps and Runs | Held, the timeline's zoom, a
+     beat's Played | Tonight | Ahead, the time panel's filters, music's transport; a page window's Find arrows are joined in place, by the style
+     sheet alone, since popout.js is binary to git. A seg's own buttons with no .tool keep the line between them; a seg that wraps draws its lines
+     by shadows, which the frame clips at its edges */
+  .ui-seg.ui-seg-wrap { flex: 0 1 auto; flex-wrap: wrap; min-width: 0; max-width: 100%; box-sizing: border-box; }
+  .ui-seg.ui-seg-wrap > *, .ui-seg.ui-seg-wrap > .tool + .tool { flex: 1 0 auto; border-left: 0; box-shadow: -1px 0 0 var(--edge), 0 -1px 0 var(--edge); }
+  .pagenav-hists > .tool:hover:not(:disabled), .el-moves > .tool:hover, .combat-moves > .tool:hover, .dice-modadv .ui-seg > .tool:hover:not(.on), .dice-modpop-chips .ui-seg > .tool:hover,
+  .cal-seg > .tool:hover:not(:disabled):not(.cal-kind-on), .tl-zoom > .tool:hover, .music-trans > .tool:hover:not(:disabled) { background: rgba(255,255,255,.06); border-color: var(--edge); color: var(--ink); }
+  .ui-seg > .tool.cal-kind-on { background: rgba(227,166,59,.12); color: var(--gold); border-color: var(--edge); }
+  .ui-seg > .tool.cal-live-wait { outline: 1px dashed var(--gold); outline-offset: -3px; }   /* Runs picked while the clock waits keeps its dashed look inside the frame */
+  #popoutBar .ui-seg.pagenav-hists { border-color: var(--border); }
+  #popoutBar .ui-seg > .pagenav-hist { border: 0; border-radius: 0; }
+  #popoutBar .ui-seg > .pagenav-hist + .pagenav-hist { border-left: 1px solid var(--border); }
+  #popoutBar .ui-seg > .pagenav-hist:hover:not(:disabled) { background: rgba(255,255,255,.06); }
+  #popoutBar #popoutFindPrev { border-radius: 5px 0 0 5px; }
+  #popoutBar #popoutFindNext { margin-left: -6px; border-radius: 0 5px 5px 0; }
+  #popoutBar #popoutFindPrev:hover, #popoutBar #popoutFindNext:hover, #popoutBar #popoutFindPrev:focus-visible, #popoutBar #popoutFindNext:focus-visible { position: relative; z-index: 1; }
+  .element-list-item .el-moves.ui-seg, .combat-row .combat-moves.ui-seg { flex: none; }
+  .sv-sess.ui-seg { display: inline-flex; gap: 0; border-radius: 4px; }
+  .sv-sess.ui-seg > .sv-s.on { background: rgba(227,166,59,.12); color: var(--gold); border-color: var(--edge); }
+  #timePanel .tp-filt.ui-seg { border-radius: 12px; }
+  #timePanel .tp-filt.ui-seg > .tp-chip { border: 0; border-radius: 0; }
+  #timePanel .tp-filt.ui-seg > .tp-chip + .tp-chip { border-left: 1px solid var(--edge); }
+  #timePanel .tp-filt.ui-seg > .tp-chip.on { background: rgba(227,166,59,.12); color: var(--gold); }
+  .music-btns > .music-trans { flex: 4 4 0; display: flex; min-width: 0; }
+  .music-trans > .music-tb { flex: 1 1 0; }
   .ui-slide { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); white-space: nowrap; }
   .ui-slide input[type=range] { accent-color: var(--gold); width: 110px; min-width: 60px; flex: 1 1 auto; margin: 0; }
   .ui-slide-wide { display: flex; flex: 1 1 auto; min-width: 0; box-sizing: border-box; }   /* a slider that stood on its own: a line of its own in a block, its share of a row in a row that wraps, its value at its end */
@@ -6307,6 +6359,7 @@
 .dp-head { margin: 6px 0 6px; font-size: 12px; color: var(--ink); }
 .dp-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
 .dp-chip { padding: 3px 9px; font-size: 12px; }
+.dp-chips > .tool.dp-chip.on { background: rgba(227,166,59,.12); color: var(--gold); border-color: var(--gold); }   /* 1.6.2 (backlog 225): one on look beside the joined Thin | Thick */
 .dp-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--edge); font-size: 12px; color: var(--ink); cursor: pointer; }
 .dp-swatch { width: 40px; height: 26px; padding: 0; border: 1px solid var(--edge); border-radius: 5px; background: none; cursor: pointer; flex: 0 0 auto; }
 .dp-preview { display: block; width: 100%; height: 96px; margin: 6px 0 4px; background: var(--panel2); border: 1px solid var(--edge); border-radius: 8px; }

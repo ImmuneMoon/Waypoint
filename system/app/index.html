@@ -4229,8 +4229,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         </div>
         <div id="plannerPreviewWrap" class="doc-view">
           <div id="plannerFindBar"><span id="plannerTools" class="hdr-group" data-label="Planner" style="display:none;">
-      <button class="tool ghost icon" id="plannerUndoBtn" title="Undo (this planner)" style="opacity:0.5; pointer-events:none;">&#8617;</button>
-      <button class="tool ghost icon" id="plannerRedoBtn" title="Redo (this planner)" style="opacity:0.5; pointer-events:none;">&#8618;</button>
+      <span class="ui-seg"><button class="tool ghost icon" id="plannerUndoBtn" title="Undo (this planner)" style="opacity:0.5; pointer-events:none;">&#8617;</button><button class="tool ghost icon" id="plannerRedoBtn" title="Redo (this planner)" style="opacity:0.5; pointer-events:none;">&#8618;</button></span>
       <button class="tool" id="renderPlannerBtn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3l14 9-14 9V3z"/></svg> Render preview </button>
       <span id="plannerModeSeg" class="pg-seg" role="group" aria-label="How the page is shown"><button type="button" class="tool ghost" data-mode="edit" title="Write on the page: press a block to edit it where it stands">Edit</button><button type="button" class="tool ghost" data-mode="read" title="The page as it reads, with nothing to edit">Read</button><button type="button" class="tool ghost" data-mode="side" title="The editor and the page side by side, as before">Side by side</button></span>
       <select id="plannerStatus" class="tool" title="Where this scene stands: Next is the one you play next (it shows in the play-map right-click menu), Played and Skipped are done."><option value="">Status…</option><option value="next">Next</option><option value="played">Played</option><option value="skipped">Skipped</option></select>
@@ -4241,8 +4240,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <button class="tool ghost" id="plannerOutlineBtn" title="Outline: the headings of this page. Click one to jump to it."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M8 12h12M12 18h8"/></svg> Outline</button>
         <input type="search" id="plannerFind" placeholder="Find (Ctrl+F)" autocomplete="off" spellcheck="false">
         <span id="plannerFindCount"></span>
-        <button class="tool ghost icon" id="plannerFindPrev" title="Previous hit (Shift+Enter)">&#9650;</button>
-        <button class="tool ghost icon" id="plannerFindNext" title="Next hit (Enter)">&#9660;</button>
+        <span class="ui-seg"><button class="tool ghost icon" id="plannerFindPrev" title="Previous hit (Shift+Enter)">&#9650;</button><button class="tool ghost icon" id="plannerFindNext" title="Next hit (Enter)">&#9660;</button></span>
       </span></div>
           <div id="plannerPreview"></div>
         </div>
@@ -4447,7 +4445,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div id="netJoinAvatar" title="Your table picture — click to change it">?</div>
             <input type="text" id="netNameInput" placeholder="Your name" style="flex:1; box-sizing:border-box;" title="How everyone at the table knows you. Needed to host and to join.">
         </div>
-        <div id="netPaneBar" role="group" aria-label="Host a table or join one" style="display:flex; gap:8px; margin-bottom:12px;">
+        <div id="netPaneBar" class="ui-seg ui-seg-wide" role="group" aria-label="Host a table or join one" style="margin-bottom:12px;">
             <button class="tool ghost" id="netPaneHostBtn" data-pane="host" aria-expanded="false" aria-controls="netPaneHost" style="flex:1;" title="Run the table from this computer: players connect to you with a room code">Host a table</button>
             <button class="tool ghost" id="netPaneJoinBtn" data-pane="join" aria-expanded="false" aria-controls="netPaneJoin" style="flex:1;" title="Join your GM's table with the room code they sent you">Join a table</button>
         </div>
@@ -4674,12 +4672,12 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div class="dp-head"><span class="set-name"><span>Pattern</span></span></div>
         <div id="dicePaintPats" class="dp-chips" role="group" aria-label="Pattern"></div>
         <div class="dp-head"><span class="set-name"><span>Design</span><small>Your own drawing or picture, on every face behind the number.</small></span></div>
-        <div class="dp-chips"><button type="button" class="tool ghost dp-chip" id="dicePaintDraw" title="Draw a small design of your own">Draw&hellip;</button><button type="button" class="tool ghost dp-chip" id="dicePaintUpload" title="Make a design from a picture on this computer">Upload a picture&hellip;</button><button type="button" class="tool ghost dp-chip" id="dicePaintClear" title="Take the design off your dice" hidden>Remove design</button><input type="file" id="dicePaintFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden></div>
+        <div class="dp-chips"><span class="ui-seg"><button type="button" class="tool ghost dp-chip" id="dicePaintDraw" title="Draw a small design of your own">Draw&hellip;</button><button type="button" class="tool ghost dp-chip" id="dicePaintUpload" title="Make a design from a picture on this computer">Upload a picture&hellip;</button></span><button type="button" class="tool ghost dp-chip" id="dicePaintClear" title="Take the design off your dice" hidden>Remove design</button><input type="file" id="dicePaintFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden></div>
         <div id="dicePaintPad" class="dp-pad" hidden>
             <canvas id="dicePaintCanvas" class="dp-canvas" width="64" height="64" aria-label="Drawing pad"></canvas>
             <div class="dp-padtools">
                 <label class="dp-ink">Color <input type="color" id="dicePaintInk" class="dp-swatch" value="#e8c46a"></label>
-                <div class="dp-chips"><button type="button" class="tool ghost dp-chip on" id="dicePaintThin">Thin</button><button type="button" class="tool ghost dp-chip" id="dicePaintThick">Thick</button><button type="button" class="tool ghost dp-chip" id="dicePaintErase">Eraser</button></div>
+                <div class="dp-chips"><span class="ui-seg"><button type="button" class="tool ghost dp-chip on" id="dicePaintThin">Thin</button><button type="button" class="tool ghost dp-chip" id="dicePaintThick">Thick</button></span><button type="button" class="tool ghost dp-chip" id="dicePaintErase">Eraser</button></div>
                 <div class="dp-chips"><button type="button" class="tool ghost dp-chip" id="dicePaintWipe">Clear</button><button type="button" class="tool dp-chip" id="dicePaintDone">Use this design</button></div>
             </div>
         </div>
@@ -4721,12 +4719,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div class="set-carry" style="margin:12px 0 6px;">
             <div class="set-field-label">On another computer</div>
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                <button class="tool ghost" id="setProfSaveBtn" type="button" style="flex:1;" title="Saves who you are at every table as a file: your name, picture, color, token face and the keys each GM's table knows you by">Save my profile&hellip;</button>
-                <button class="tool ghost" id="setProfOpenBtn" type="button" style="flex:1;" title="Opens a profile file saved on another computer: from then on you join tables as that player">Open a profile&hellip;</button>
+                <span class="ui-seg ui-seg-wide"><button class="tool ghost" id="setProfSaveBtn" type="button" style="flex:1;" title="Saves who you are at every table as a file: your name, picture, color, token face and the keys each GM's table knows you by">Save my profile&hellip;</button><button class="tool ghost" id="setProfOpenBtn" type="button" style="flex:1;" title="Opens a profile file saved on another computer: from then on you join tables as that player">Open a profile&hellip;</button></span>
             </div>
             <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
-                <button class="tool ghost" id="setProfCopyBtn" type="button" style="flex:1;" title="Copies the same profile as one long code, to paste on the other computer">Copy my profile code</button>
-                <button class="tool ghost" id="setProfPasteBtn" type="button" style="flex:1;" title="Pastes a profile code copied on another computer: from then on you join tables as that player">Paste a profile code&hellip;</button>
+                <span class="ui-seg ui-seg-wide"><button class="tool ghost" id="setProfCopyBtn" type="button" style="flex:1;" title="Copies the same profile as one long code, to paste on the other computer">Copy my profile code</button><button class="tool ghost" id="setProfPasteBtn" type="button" style="flex:1;" title="Pastes a profile code copied on another computer: from then on you join tables as that player">Paste a profile code&hellip;</button></span>
             </div>
             <input type="file" id="setProfFile" accept=".json,application/json" title="The profile file to open, saved on your other computer" hidden>
             <div class="set-line">Take your profile to another computer and every table knows you there. Keep the file and the code private: they let someone join as you. Your own table, if you host one, stays as it is.</div>
@@ -4793,8 +4789,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div style="margin-bottom:6px;">
             <div class="set-field-label">Measurement system</div>
             <div style="display:flex; gap:6px;">
-                <button class="tool ghost set-unit-btn" data-unit="imperial" style="flex:1;">Imperial (yd / ft / mi)</button>
-                <button class="tool ghost set-unit-btn" data-unit="metric" style="flex:1;">Metric (m / km)</button>
+                <span class="ui-seg ui-seg-wide"><button class="tool ghost set-unit-btn" data-unit="imperial" style="flex:1;">Imperial (yd / ft / mi)</button><button class="tool ghost set-unit-btn" data-unit="metric" style="flex:1;">Metric (m / km)</button></span>
             </div>
         </div>
         <div class="set-sw-row" style="margin-bottom:8px;">
@@ -5115,8 +5110,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div class="set-field-label" style="margin-top:14px; display:flex; justify-content:space-between;">Updates <span id="setUpdateState" style="color:var(--dim);"></span></div>
             <button class="tool ghost" id="setUpdateCheckBtn" style="width:100%;" title="Look for a newer Waypoint on the releases page">Check for updates</button>
             <div id="setUpdateRow" style="display:none; margin-top:8px; gap:8px;">
-                <button class="tool" id="setUpdateNowBtn" style="flex:1;" title="Download the new version and switch to it — takes a few seconds, then Waypoint reloads">Update now</button>
-                <button class="tool ghost" id="setUpdateInstallerBtn" style="flex:1;" title="This update changes the app's core: download the installer and run it over your copy">Get installer</button>
+                <span class="ui-seg ui-seg-wide"><button class="tool" id="setUpdateNowBtn" style="flex:1;" title="Download the new version and switch to it — takes a few seconds, then Waypoint reloads">Update now</button><button class="tool ghost" id="setUpdateInstallerBtn" style="flex:1;" title="This update changes the app's core: download the installer and run it over your copy">Get installer</button></span>
                 <button class="tool ghost" id="setUpdateNotesBtn" style="padding:4px 10px;" title="Release notes for the new version">Notes</button>
             </div>
             <button class="tool ghost" id="setUpdateRestoreBtn" style="display:none; width:100%; margin-top:8px;" title="Put the app back as it was before the last update, then reload. Your campaigns are not touched, and you can update again afterwards.">Restore the previous version</button>
@@ -5159,7 +5153,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
             <input type="text" id="imgLibSearch" placeholder="Filter by name, map or tag&hellip;" style="flex:1; min-width:0; box-sizing:border-box;">
             <button type="button" class="tool ghost" id="imgLibSelectBtn" aria-pressed="false" title="Pick pictures with a plain click, to tag them or add them all at once. Ctrl-click, Shift-click and Ctrl+A pick too">Select</button>
-            <button type="button" class="tool ghost" id="imgLibAddBtn" title="Add pictures from your computer to this campaign. They wait here until you place them">Add pictures&hellip;</button><input type="file" id="imgLibAddFile" accept="image/*" multiple hidden><button type="button" class="tool ghost" id="imgLibAddDirBtn" title="Add every picture in a folder of your computer to this campaign. Each is tagged with the name of the folder it was in">Add a folder&hellip;</button><input type="file" id="imgLibAddDir" webkitdirectory multiple hidden>
+            <span class="ui-seg"><button type="button" class="tool ghost" id="imgLibAddBtn" title="Add pictures from your computer to this campaign. They wait here until you place them">Add pictures&hellip;</button><button type="button" class="tool ghost" id="imgLibAddDirBtn" title="Add every picture in a folder of your computer to this campaign. Each is tagged with the name of the folder it was in">Add a folder&hellip;</button></span><input type="file" id="imgLibAddFile" accept="image/*" multiple hidden><input type="file" id="imgLibAddDir" webkitdirectory multiple hidden>
             <span id="imgLibSourceWrap" style="display:none; align-items:center; gap:6px;"><label style="font-size:12px; color:var(--dim); display:inline-flex; align-items:center; gap:6px;">From <select id="imgLibSource" class="tool" title="Whose pictures to pick from"></select></label></span>
             <label class="cast-batch-wrap" title="How many copies a picture's &times; button (or Add to map in the preview) places, 1 to 50 &mdash; remembered">Copies <input type="number" id="imgLibCopies" class="cast-batch" min="1" max="50" value="1"></label>
         </div>
@@ -5175,8 +5169,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div class="ilp-side">
                 <div id="imgLibPreviewName" class="ilp-name"></div>
                 <div id="imgLibPreviewMeta" class="ilp-meta"></div>
-                <button class="tool" id="imgLibPreviewAdd">Add to map</button>
-                <button class="tool ghost" id="imgLibPreviewScene" title="Show this picture big to everyone or to some players, without putting it on the map"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.5M17 4l-1.5 2.5"/></svg> Show as a scene&hellip;</button>
+                <span class="ui-seg ui-seg-col"><button class="tool" id="imgLibPreviewAdd">Add to map</button><button class="tool ghost" id="imgLibPreviewScene" title="Show this picture big to everyone or to some players, without putting it on the map"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.5M17 4l-1.5 2.5"/></svg> Show as a scene&hellip;</button></span>
                 <button class="tool ghost" id="imgLibPreviewCat" title="Give this picture a tag (it can wear several)">Tags&hellip;</button>
                 <button class="tool ghost danger no-back" id="imgLibPreviewDel" title="Delete this picture file from your saves folder (asks first, and says where it is used)">Delete picture</button>
                 <button class="tool ghost" id="imgLibPreviewBack">&larr; Back to the library</button>
@@ -5344,8 +5337,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <button class="tool ghost notepad-btn" id="docPanelOutline" title="Outline: the headings of this page. Click one to jump to it.">Outline</button>
         <input id="docPanelSearchInput" type="text" placeholder="Search all pages&hellip;" autocomplete="off" spellcheck="false" title="Search the CONTENT of every page (results below), and highlight matches on this one. Enter / Shift+Enter jump between matches; Esc clears.">
         <span id="docPanelFindCount" class="docpanel-count"></span>
-        <button class="tool ghost notepad-btn" id="docPanelFindPrev" title="Previous match (Shift+Enter)">&#9650;</button>
-        <button class="tool ghost notepad-btn" id="docPanelFindNext" title="Next match (Enter)">&#9660;</button>
+        <span class="ui-seg"><button class="tool ghost notepad-btn" id="docPanelFindPrev" title="Previous match (Shift+Enter)">&#9650;</button><button class="tool ghost notepad-btn" id="docPanelFindNext" title="Next match (Enter)">&#9660;</button></span>
     </div>
     <div id="docPanelResults" style="display:none;"></div>
     <div id="docPanelBody" class="doc-view"></div>
@@ -5355,7 +5347,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div class="frame-box">
         <div class="frame-head"><span id="frameTitle" class="frame-title">Frame the picture</span><button class="tool ghost" id="frameClose" type="button" aria-label="Cancel" title="Cancel (Esc)">&times;</button></div>
         <div id="frameStage" class="frame-stage" title="Drag to move &middot; scroll or pinch to zoom &middot; double-click to center"><img id="frameImg" class="frame-img" alt="" draggable="false"><svg class="frame-guide" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path id="frameDim" class="frame-dim" d=""/><path id="frameEdge" class="frame-edge" d=""/></svg></div>
-        <div class="frame-row"><span class="frame-lbl">Outline</span><button class="tool ghost frame-shape" data-shape="hexagon" type="button" title="What a hex map's token shows of it">Hexagon</button><button class="tool ghost frame-shape" data-shape="rect" type="button" title="What a square map's token shows of it">Square</button><button class="tool ghost frame-shape" data-shape="circle" type="button" title="What a token shows with no grid">Circle</button></div>
+        <div class="frame-row"><span class="frame-lbl">Outline</span><span class="ui-seg"><button class="tool ghost frame-shape" data-shape="hexagon" type="button" title="What a hex map's token shows of it">Hexagon</button><button class="tool ghost frame-shape" data-shape="rect" type="button" title="What a square map's token shows of it">Square</button><button class="tool ghost frame-shape" data-shape="circle" type="button" title="What a token shows with no grid">Circle</button></span></div>
         <div class="frame-row"><label class="frame-lbl" for="frameZoom">Zoom</label><input type="range" id="frameZoom" class="frame-zoom" min="100" max="800" step="1" value="100" aria-label="Zoom" data-typed data-unit="%"><button class="tool ghost" id="frameCentre" type="button" title="Back to the middle, the whole picture">Center</button></div>
         <label class="frame-keep" id="frameKeepRow" style="display:none;"><input type="checkbox" id="frameKeep"> Keep the original (to re-frame it later)</label>
         <p id="frameSize" class="frame-size"></p>
@@ -5526,8 +5518,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <label class="furn-tpl-px" title="How many pixels a cell the template&rsquo;s drawings are made at, and the size the maker suggests">at <input type="number" id="furnTplPx" min="50" max="800" step="10" value="200"> pixels a cell</label>
         </div>
         <div class="obj-formbar">
-            <button type="button" class="tool ghost" id="furnPackImportFile" title="Bring in one .wpfurn file with its pictures inside, or a .zip such as the template filled in">Import a file</button>
-            <button type="button" class="tool ghost" id="furnPackImportFolder" title="Bring in a folder of pictures, each named for its kind and era, such as chest-fantasy.png">Import a folder</button>
+            <span class="ui-seg"><button type="button" class="tool ghost" id="furnPackImportFile" title="Bring in one .wpfurn file with its pictures inside, or a .zip such as the template filled in">Import a file</button><button type="button" class="tool ghost" id="furnPackImportFolder" title="Bring in a folder of pictures, each named for its kind and era, such as chest-fantasy.png">Import a folder</button></span>
             <button type="button" class="tool ghost" id="furnPackFromOther" title="Copy a pack from another of your campaigns">From another campaign</button>
         </div>
         <input type="file" id="furnPackFile" accept=".wpfurn,.zip,application/json,application/zip" hidden>
@@ -5549,8 +5540,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <input type="file" id="furnMakerFile" accept="image/png,image/jpeg,image/webp" hidden>
         <div class="obj-formbar obj-end">
             <button type="button" class="tool" id="furnMakerSave" title="Save the pack to this campaign">Save to this campaign</button>
-            <button type="button" class="tool ghost" id="furnMakerExportFile" title="One .wpfurn file with its pictures inside">Export a file</button>
-            <button type="button" class="tool ghost" id="furnMakerExportFolder" title="A folder of its pictures, each named for what it is">Export a folder</button>
+            <span class="ui-seg"><button type="button" class="tool ghost" id="furnMakerExportFile" title="One .wpfurn file with its pictures inside">Export a file</button><button type="button" class="tool ghost" id="furnMakerExportFolder" title="A folder of its pictures, each named for what it is">Export a folder</button></span>
             <button type="button" class="tool ghost" id="furnMakerClose" title="Close">Close</button>
         </div>
     </div>
@@ -5662,7 +5652,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div class="dice-head"><span class="notepad-title"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z"/><path class="ico-pip" d="M8.5 8.5h0M12 12h0M15.5 15.5h0"/></svg> Roll</span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="dicePaintBtn" title="Paint your dice: the colors and the pattern everyone sees your rolls in">Paint</button><button class="tool ghost notepad-btn" id="diceHelpBtn" title="The dice syntax (Help &#9656; Dice)">?</button><button class="tool ghost notepad-btn" id="diceCloseBtn" title="Close">&times;</button></div>
     <input type="text" id="diceExpr" class="field" placeholder="2d6 + 3" spellcheck="false" autocomplete="off" maxlength="1000" title="Dice to roll, such as 2d6 + 3. Enter rolls, and the up arrow brings back your last rolls.">
     <select id="diceChar" class="field" style="display:none;" title="Roll as this character, so that the roll can read its sheet"></select>
-    <div class="dice-quick"><button data-die="d4"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3L21 19.5H3z"/><path d="M12 3v10.5M3 19.5l9-6 9 6"/></svg>d4</button><button data-die="d6"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z"/><path class="ico-pip" d="M8.5 8.5h0M12 12h0M15.5 15.5h0"/></svg>d6</button><button data-die="d8"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5L20.5 12 12 21.5 3.5 12z"/><path d="M3.5 12l8.5 3.5 8.5-3.5M12 2.5v13"/></svg>d8</button><button data-die="d10"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l8.5 7L12 20l-8.5-9.5z"/><path d="M12 3.5L8.5 12l3.5 2.5 3.5-2.5zM12 14.5V20M3.5 10.5l5 1.5M20.5 10.5l-5 1.5M8.5 12l-.8 3.2M15.5 12l.8 3.2"/></svg>d10</button><button data-die="d12"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l5.29 1.72 3.27 4.5v5.56l-3.27 4.5L12 21l-5.29-1.72-3.27-4.5V9.22l3.27-4.5z"/><path d="M12 7.2l4.57 3.32-1.75 5.36H9.18l-1.75-5.36z"/><path d="M12 7.2V3M16.57 10.52l3.99-1.3M14.82 15.88l2.47 3.4M9.18 15.88l-2.47 3.4M7.43 10.52l-3.99-1.3"/></svg>d12</button><button data-die="d20"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l8.5 4.75v9.5L12 21.5l-8.5-4.75v-9.5z"/><path d="M12 7l5 8.5H7z"/><path d="M12 7V2.5M12 7l-8.5.25M12 7l8.5.25M7 15.5l-3.5 1.25M7 15.5l5 6M17 15.5l3.5 1.25M17 15.5l-5 6M7 15.5L3.5 7.25M17 15.5l3.5-8.25"/></svg>d20</button><button data-die="d100"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z"/><path d="M12 8.6l3.2 2.3-1.2 3.8h-4l-1.2-3.8z"/><path d="M12 8.6V3.3M15.2 10.9l5.3-1.7M14 14.7l3.3 4.5M10 14.7l-3.3 4.5M8.8 10.9l-5.3-1.7"/><path d="M6.4 5.8l2.4 5.1M17.6 5.8l-2.4 5.1M20.9 13.5l-6.9 1.2M3.1 13.5l6.9 1.2M12 20.9v-6.2"/></svg>d100</button><button data-coin="1" title="Flip a coin. The card says heads or tails."><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z"/><path d="M12 6.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z"/></svg>Coin</button><button data-op="+">+</button><button data-op="-">&minus;</button></div>
+    <div class="dice-quick"><span class="ui-seg"><button data-die="d4"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3L21 19.5H3z"/><path d="M12 3v10.5M3 19.5l9-6 9 6"/></svg>d4</button><button data-die="d6"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z"/><path class="ico-pip" d="M8.5 8.5h0M12 12h0M15.5 15.5h0"/></svg>d6</button><button data-die="d8"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5L20.5 12 12 21.5 3.5 12z"/><path d="M3.5 12l8.5 3.5 8.5-3.5M12 2.5v13"/></svg>d8</button><button data-die="d10"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l8.5 7L12 20l-8.5-9.5z"/><path d="M12 3.5L8.5 12l3.5 2.5 3.5-2.5zM12 14.5V20M3.5 10.5l5 1.5M20.5 10.5l-5 1.5M8.5 12l-.8 3.2M15.5 12l.8 3.2"/></svg>d10</button><button data-die="d12"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l5.29 1.72 3.27 4.5v5.56l-3.27 4.5L12 21l-5.29-1.72-3.27-4.5V9.22l3.27-4.5z"/><path d="M12 7.2l4.57 3.32-1.75 5.36H9.18l-1.75-5.36z"/><path d="M12 7.2V3M16.57 10.52l3.99-1.3M14.82 15.88l2.47 3.4M9.18 15.88l-2.47 3.4M7.43 10.52l-3.99-1.3"/></svg>d12</button><button data-die="d20"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l8.5 4.75v9.5L12 21.5l-8.5-4.75v-9.5z"/><path d="M12 7l5 8.5H7z"/><path d="M12 7V2.5M12 7l-8.5.25M12 7l8.5.25M7 15.5l-3.5 1.25M7 15.5l5 6M17 15.5l3.5 1.25M17 15.5l-5 6M7 15.5L3.5 7.25M17 15.5l3.5-8.25"/></svg>d20</button></span><button data-die="d100"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z"/><path d="M12 8.6l3.2 2.3-1.2 3.8h-4l-1.2-3.8z"/><path d="M12 8.6V3.3M15.2 10.9l5.3-1.7M14 14.7l3.3 4.5M10 14.7l-3.3 4.5M8.8 10.9l-5.3-1.7"/><path d="M6.4 5.8l2.4 5.1M17.6 5.8l-2.4 5.1M20.9 13.5l-6.9 1.2M3.1 13.5l6.9 1.2M12 20.9v-6.2"/></svg>d100</button><button data-coin="1" title="Flip a coin. The card says heads or tails."><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z"/><path d="M12 6.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z"/></svg>Coin</button><button data-op="+">+</button><button data-op="-">&minus;</button></div>
     <div id="diceErr" class="dice-err" style="display:none;"></div>
     <div class="dice-row"><label id="dicePrivLbl"><input type="checkbox" id="dicePriv"> <span id="dicePrivText">Private</span></label><label title="Play the bundled Dice cue on this machine on every roll"><input type="checkbox" id="diceSoundChk"> Sound</label><span style="flex:1;"></span><button class="tool ghost" id="diceNameBtn" type="button" title="Make a name for a character or a place, and put it in your chat">Name</button><button class="tool" id="diceRollBtn" title="Roll (Enter)">Roll</button></div>
 </div>

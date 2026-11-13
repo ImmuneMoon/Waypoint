@@ -4986,7 +4986,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         }
         const hA = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
         check('H7b the Lists card (source) and Help: a list roll has Kind: Roll | Apply and, as an apply action, its Needs row (the core handbook session\'s ask (b), moved on purpose) and its own change editor (listApplyEditor, built with el only); Help says a list\'s action works its amount out from the row',
-            /var rApply = Array\.isArray\(rr\.apply\), rk = el\('select', 'sys-list-rollkind'\);/.test(shL) && /if \(rApply\) \{ cb2\.appendChild\(rw\); var ndA = el\('div', 'sys-flags sys-list-needsrow'\);[^\n]*cb2\.appendChild\(ndA\); var lxA = typeof listCrossRow === 'function' \? listCrossRow\(rr, ri, sp\.counters\) : null; if \(lxA\) cb2\.appendChild\(lxA\);[^\n]*listApplyEditor\(cb2, rr, ri, 'apply', sp, targets\); return; \}/.test(shL) && /function listApplyEditor\(box, rr, ri, key, sp, targets\) \{/.test(shL)
+            /var rApply = Array\.isArray\(rr\.apply\), rk = el\('select', 'sys-list-rollkind'\);/.test(shL) && /if \(rApply\) \{ cb2\.appendChild\(rw\); var ndA = el\('div', 'sys-flags sys-list-needsrow'\);[^\n]*cb2\.appendChild\(ndA\); var lxA = typeof listCrossRow === 'function' \? listCrossRow\(rr, ri, sp\.counters\) : null; if \(lxA\) cb2\.appendChild\(lxA\);[^\n]*listApplyEditor\(cb2, rr, ri, 'apply', sp, targets, rw\); return; \}/.test(shL) && /function listApplyEditor\(box, rr, ri, key, sp, targets, row\) \{/.test(shL)
             && /A list&rsquo;s roll can be an <b>apply<\/b> action too/.test(hA));
     }
     /* ---- Stage 6 HUD C8: show-if — a section or a placement shows only while its formula is true (render only, fail open) ---- */
@@ -18685,7 +18685,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         opB.click(); const open1 = [blNote.style.display, opB.ariaExpanded, opB.ariaLabel, opB.className.includes('is-open')];
         byR(bl, 'sheet-item-name')[0].click(); const byName = [blNote.style.display, opB.ariaExpanded];
         const bar = byR(wrapS, 'sheet-item-openall')[0], allOpen = () => notes.map(n => n.style.display);
-        bar.children[0].click(); const afterOpen = allOpen(); bar.children[1].click(); const afterClose = allOpen();
+        const oaSeg = bar.children[0], oaSegOk = bar.children.length === 1 && oaSeg.className === 'ui-seg' && oaSeg.children.length === 2; /* 1.6.2 (backlog 225): the two stand in one .ui-seg, moved on purpose */
+        oaSeg.children[0].click(); const afterOpen = allOpen(); oaSeg.children[1].click(); const afterClose = allOpen();
         const svgOk = opB.children[0].tag === 'svg' && opB.children[0].children[0].attrs.d === 'M6 9.5l6 6 6-6' && opB.children[0].attrs['aria-hidden'] === 'true';
         // the same rows again keep a row opened (the 📝 line's own memory)
         opB.click(); const wrap2 = mkE('div'); WS.itemListInto(wrap2, fG, chR, chR.values.f_g, gR, false, true, true, '', resR); const kept = wrap2.children.filter(n => n.className === 'sheet-item-noteline')[0].style.display; opB.click();
@@ -18720,7 +18721,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             + 'opened by the arrow, by a press on the name and by Open all, closed by Close all, kept across a redraw, with no 📝; the parts In the details stand at the top of the details and nowhere on the row; Hidden is drawn nowhere; '
             + 'the HUD has no details, so there every part not hidden stands on its row with no arrow; a list not ticked draws its 📝 as before; the editor\'s Shows list and its one handler (placeSel, placeSet), the wiring and the styles',
             cleanOk && drawOk && J(closed0) === J(['none', 'false', 'Show details of Blaster', false]) && J(open1) === J(['', 'true', 'Hide details of Blaster', true]) && J(byName) === J(['none', 'false'])
-            && afterOpen.every(d => d === '') && afterClose.every(d => d === 'none') && svgOk && kept === '' && hudOk && plainOk && pureOk && selOk && setOk && wiredOk,
+            && oaSegOk && afterOpen.every(d => d === '') && afterClose.every(d => d === 'none') && svgOk && kept === '' && hudOk && plainOk && pureOk && selOk && setOk && wiredOk,
             J([cleanOk, drawOk, svgOk, kept, hudOk, plainOk, pureOk, selOk, wiredOk, closed0, open1, byName, afterOpen, afterClose, sets, J(lsc), rowTx, partTx, hTx]));
     }
     {   // 1.6.0, backlog 190 (the owner: "a general contingency for if a gm changes their system"; by prompt "Also chat and read pages"): the sheet revision
@@ -18786,10 +18787,10 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             id => (id === 'sheetStaleBar' ? bar : null), mkE, c => (c ? c.system : null), () => upl, () => gmClient, () => writeOk, (a, b, cId) => log.push('review ' + cId), () => log.push('import'), () => campV, id => (campV.chars[id] || null),
             (c, whole) => log.push('after ' + c.id + ' ' + c.sheetRev + ' ' + whole), t => log.push('toast ' + t), () => ({ logEvent: (k, t) => log.push('log ' + t), syncSystem: () => log.push('sync'), uploadDone: (id, a, b) => log.push('done ' + id + ' ' + a + ' ' + b) }), c => c.chars,
             (q, cb, o) => { log.push('ask ' + (o && o.yes)); cb(true); }, () => log.push('save'), () => log.push('renderAll'), () => log.push('renderViews'), { wpSystemCore: S }, null);
-        const labels = () => bar.children.filter(k => k.tag === 'button').map(b => b.textContent);
+        const btnsF = () => bar.children.reduce((a, k) => a.concat(k.tag === 'button' ? [k] : /(^| )ui-seg( |$)/.test(k.className || '') ? k.children.filter(b => b.tag === 'button') : []), []), labels = () => btnsF().map(b => b.textContent); /* 1.6.2 (backlog 225): the two stand in one .ui-seg, moved on purpose */
         campV = { system: gV, chars: { c_k: JSON.parse(J(kael)), c_n: { id: 'c_n', name: 'Npc', npc: true, values: {} } } };
         SB.renderStaleBar(campV.chars.c_k, campV, true, false); const gmL = [bar.style.display, labels()];
-        upl = [{ id: 'up_r', rev: true, changes: [{ id: 'u_0', kind: 'value' }] }, { id: 'up_x', changes: [] }]; SB.renderStaleBar(campV.chars.c_k, campV, true, false); const gmR = labels(); bar.children[1].on.click(); const revLog = log.slice(-1)[0];
+        upl = [{ id: 'up_r', rev: true, changes: [{ id: 'u_0', kind: 'value' }] }, { id: 'up_x', changes: [] }]; SB.renderStaleBar(campV.chars.c_k, campV, true, false); const gmR = labels(), rvSeg = bar.children.filter(k => k.className === 'ui-seg sheet-rv-seg'), rvSegOk = rvSeg.length === 1 && J(rvSeg[0].children.map(b => b.textContent)) === J(['Review', 'Mark current']); btnsF()[0].on.click(); const revLog = log.slice(-1)[0];
         gmClient = true; SB.renderStaleBar(campV.chars.c_k, campV, false, true); const plL = [bar.style.display, labels()]; bar.children[1].on.click(); const impLog = log.slice(-1)[0];
         SB.renderStaleBar(campV.chars.c_k, campV, false, false); const mateL = bar.style.display; gmClient = false;
         SB.renderStaleBar(Object.assign({}, campV.chars.c_k, { sheetRev: 2 }), campV, true, false); const curL = bar.style.display;
@@ -18797,7 +18798,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         campV.chars.c_k.sheetRev = 1; campV.chars.c_m = Object.assign(JSON.parse(J(kael)), { id: 'c_m', name: 'Mira' }); log.length = 0; SB.allSheetsCurrent(); const allOk = campV.chars.c_k.sheetRev === 2 && campV.chars.c_m.sheetRev === 2 && log.filter(x => /^after /.test(x)).length === 2;
         log.length = 0; SB.askNewSheets(); const askOk = campV.system.sheetRev === 3 && log.indexOf('ask Ask for new sheets') === 0 && log.indexOf('sync') > 0 && log.indexOf('save') > 0 && SB.staleCount(campV) === 2;
         writeOk = false; log.length = 0; const noW = SB.markCurrent('c_k') === false && log.length === 0; writeOk = true;
-        const barOk = sbSrc !== '' && gmL[0] === '' && J(gmL[1]) === J(['Mark current']) && J(gmR) === J(['Review', 'Mark current']) && revLog === 'review up_r' && plL[0] === '' && J(plL[1]) === J(['Send a new sheet…']) && impLog === 'import'
+        const barOk = sbSrc !== '' && rvSegOk && gmL[0] === '' && J(gmL[1]) === J(['Mark current']) && J(gmR) === J(['Review', 'Mark current']) && revLog === 'review up_r' && plL[0] === '' && J(plL[1]) === J(['Send a new sheet…']) && impLog === 'import'
             && mateL === 'none' && curL === 'none' && mkOk && allOk && askOk && noW && !/innerHTML/.test(sbSrc);
         // found live, 2026-10-30: a new sheet with nothing to apply is said so and offered as no work; the Review it opens says so; Mark current settles it, and what waits goes at once
         {
@@ -19347,19 +19348,21 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const stSrc = sh15.slice(sh15.indexOf('// [systemcheck:setstrip-start]'), sh15.indexOf('// [systemcheck:setstrip-end]'));
         const mk = (tag, cls, tx) => { const n = { tag, className: cls || '', textContent: tx === undefined ? '' : String(tx), kids: [], title: '', disabled: false, on: {}, appendChild(k) { this.kids.push(k); return k; }, addEventListener(t, fn) { this.on[t] = fn; } }; return n; };
         const commits = [], run = (editable, client, res) => { commits.length = 0; const ST = new Function('el', 'setsOf', 'rowOn', 'rowIdOf', 'commitItem', 'charById', 'isClient', '_fxLive', stSrc + '\nreturn setStrip;')(mk, S.setsOf, S.rowOn, S.rowIdOf, (c, f, q) => commits.push([c.id, f.id, J(q)]), id => ({ id: id + '!' }), () => client, true); const w = mk('div', 'sheet-items'); ST(w, ch15, g15.fields[0], sp15, g15, rows15, editable, res); return w; };
-        const wA = run(true, false, null), box = wA.kids[0], lines = box ? box.kids.map(l => [l.className, l.kids.map(k => k.className + ':' + k.textContent + (k.tag === 'button' ? ':' + k.disabled : ''))]) : null;
+        const flat15 = l => l.kids.reduce((a, k) => a.concat(/(^| )ui-seg( |$)/.test(k.className || '') ? k.kids : [k]), []); /* 1.6.2 (backlog 225): the two stand in one .ui-seg, moved on purpose */
+        const wA = run(true, false, null), box = wA.kids[0], lines = box ? box.kids.map(l => [l.className, flat15(l).map(k => k.className + ':' + k.textContent + (k.tag === 'button' ? ':' + k.disabled : ''))]) : null;
         const drawOk = J(lines) === J([['sheet-set sheet-set-all', ['sheet-set-name:Durasteel Suit', 'sheet-badge sheet-tone-good:Complete', 'sheet-set-sum:2/2 worn', 'tool ghost sheet-set-btn:All on:true', 'tool ghost sheet-set-btn:All off:false']], ['sheet-set', ['sheet-set-name:Scout Gear', 'sheet-set-sum:1/2 worn', 'tool ghost sheet-set-btn:All on:false', 'tool ghost sheet-set-btn:All off:false']]]);
-        box.kids[1].kids[2].on.click(); const onC = commits.slice(); box.kids[0].kids[4].on.click(); const offC = commits.slice();
+        const segs15 = box ? box.kids.every(l => l.kids.filter(k => k.className === 'ui-seg sheet-set-seg' && k.kids.length === 2).length === 1) : false;
+        flat15(box.kids[1])[2].on.click(); const onC = commits.slice(); flat15(box.kids[0])[4].on.click(); const offC = commits.slice();
         const pressOk = J(onC) === J([['c_1!', 'f_w', J({ op: 'set', rowId: 'w_4', facts: { on: true } })]]) && J(offC.slice(1)) === J([['c_1!', 'f_w', J({ op: 'set', rowId: 'w_1', facts: { on: false } })], ['c_1!', 'f_w', J({ op: 'set', rowId: 'w_2', facts: { on: false } })]]);
-        const wP = run(true, true, { onOk: { w_4: false } }); wP.kids[0].kids[1].kids[2].on.click(); const heldC = commits.length;
-        const wS = run(true, false, { onShow: { w_4: false } }); wS.kids[0].kids[1].kids[2].on.click(); const hidC = commits.length;
+        const wP = run(true, true, { onOk: { w_4: false } }); flat15(wP.kids[0].kids[1])[2].on.click(); const heldC = commits.length;
+        const wS = run(true, false, { onShow: { w_4: false } }); flat15(wS.kids[0].kids[1])[2].on.click(); const hidC = commits.length;
         const wR = run(false, false, null), readOnly = wR.kids[0].kids.map(l => l.kids.filter(k => k.tag === 'button').length);
         const ruleOk = heldC === 0 && hidC === 0 && J(readOnly) === J([0, 0]) && run(true, false, null) && (() => { const w = mk('div'); new Function('el', 'setsOf', 'rowOn', 'rowIdOf', 'commitItem', 'charById', 'isClient', '_fxLive', stSrc + '\nreturn setStrip;')(mk, S.setsOf, S.rowOn, S.rowIdOf, () => {}, null, null, true)(w, ch15, g15.fields[1], g15.fields[1].list, g15, rows15, true, null); return w.kids.length === 0; })();
         const wiredOk = sh15.includes("if (typeof setStrip === 'function' && !onOnly && (!catT || catT.home)) setStrip(wrap, c, f, specI, sysI, carried, playOk, e);") && sh15.includes("else if (c.indexOf('sys-list-sets') >= 0) { if (t.value) lsc.sets = t.value; else delete lsc.sets; }") && sh15.includes("el('select', 'sys-list-sets')")
             && sx15.includes("setsOf(sys, spec, vals[f.id])") && sx15.includes("'<p><b>Sets:</b> '");
         check('1.6.0, backlog 180 R15: a list may set its rows in sets by a choice stat (sets, a pick or a number with value names on a list with a switch, spelled as the list spells it, the same in both views and a fixed point); setOf and setsOf count the whole list (a set by name ignoring case, a row the GM keeps from its owner in none, a curse kept on read off); Row.setall is 1 while its whole set is on and is known only to a list that has sets; '
             + 'the strip (setStrip, run for real) draws a line a set above its rows, with Complete, n/m and All on and All off, each pressing the row\'s own switch one row at a time, passing over a row whose switch is not shown or whose needs a player\'s app says fail, no buttons where the switch may not be used, and nothing for a list without sets; the sheet, the Lists tab\'s Sets by and the readable page',
-            cleanOk && setsOk && resOk && valOk && drawOk && pressOk && ruleOk && wiredOk, J([cleanOk, setsOk, resOk, valOk, drawOk, pressOk, ruleOk, wiredOk, shape, lines, onC, offC, heldC, hidC, readOnly]));
+            cleanOk && setsOk && resOk && valOk && drawOk && segs15 && pressOk && ruleOk && wiredOk, J([segs15, cleanOk, setsOk, resOk, valOk, drawOk, pressOk, ruleOk, wiredOk, shape, lines, onC, offC, heldC, hidC, readOnly]));
     }
     {   // 1.6.2 (the owner, by prompt: "Several lists. Parts from becomes ticks"): a gun takes an attachment from one list and a scope from another
         const J = JSON.stringify;

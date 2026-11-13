@@ -524,8 +524,9 @@ function pendWords(cal) { return pend ? (pend.words ? pend.words : pend.live ===
 function pendPanel(body, cal) {   // 159 (the owner by prompt, 2026-10-18: "Every character, buttons on top"; "maybe a PCs and NPCs category, and sort by map location")
     var box = cel('div', 'cal-pend'), camp = getActiveCampaign(), sys = sysNow(), byC = Object.create(null), order = [];
     var top = cel('div', 'cal-pend-bar'); top.appendChild(cel('span', 'cal-pend-head', 'Time rules due \u2014 ' + pendWords(cal)));
-    top.appendChild(cbtn('cal-pend-apply', 'Apply', 'Run the ticked characters\u2019 rules now: the rolls are made for them and each player gets a summary of what moved or was rolled', 'calpendapply'));
-    top.appendChild(cbtn('cal-pend-skip', 'Skip', 'Let this time pass with no rules run', 'calpendskip'));
+    var pseg = top;   /* 1.6.2 (backlog 225, its review): Skip lets the time pass with no rule run, so it stands apart from Apply, never joined to it */
+    pseg.appendChild(cbtn('cal-pend-apply', 'Apply', 'Run the ticked characters\u2019 rules now: the rolls are made for them and each player gets a summary of what moved or was rolled', 'calpendapply'));
+    pseg.appendChild(cbtn('cal-pend-skip', 'Skip', 'Let this time pass with no rules run', 'calpendskip'));
     box.appendChild(top);
     box.appendChild(cel('div', 'sys-note cal-pend-since', sinceWords(cal)));   // empty while nothing more has passed: set in place as the clock runs (sinceSync)
     pend.fires.forEach(function(f) { if (!byC[f.c]) { byC[f.c] = []; order.push(f.c); } byC[f.c].push(f); });
@@ -1069,12 +1070,13 @@ function renderWin() {
         var ks = cel('select', 'field cal-kind-sel'); ks.title = 'What the time you move on counts as. It opens on your default each time the window opens';
         [['active', 'Active: no rest'], ['rest', 'Rest: rest time only']].concat(rsW.map(function(r) { var lw = restLenWords(cal, sys, r); return [r.id, r.name + (lw ? ', ' + lw : '')]; })).forEach(function(o) { var op = cel('option', '', o[1] + (o[0] === defK ? ' (your default)' : '')); op.value = o[0]; ks.appendChild(op); });
         ks.value = restPick; kd.appendChild(ks);
-    } else [['active', 'Active', 'Activity: the time rules that run any time'], ['rest', 'Rest', 'Rest: every time rule, and a rule during rest only counts it']].forEach(function(k) { var b = cbtn('cal-kind-btn' + ((k[0] === 'rest') === restMode ? ' cal-kind-on' : ''), k[1], k[2] + (k[0] === defK ? '. Your default' : ''), 'calkind'); b.dataset.kind = k[0]; kd.appendChild(b); });
+    } else { var kseg = kd.appendChild(cel('span', 'ui-seg cal-seg cal-kind-seg')); [['active', 'Active', 'Activity: the time rules that run any time'], ['rest', 'Rest', 'Rest: every time rule, and a rule during rest only counts it']].forEach(function(k) { var b = cbtn('cal-kind-btn' + ((k[0] === 'rest') === restMode ? ' cal-kind-on' : ''), k[1], k[2] + (k[0] === defK ? '. Your default' : ''), 'calkind'); b.dataset.kind = k[0]; kseg.appendChild(b); }); }   /* 1.6.2 (backlog 225): Active | Rest in one frame */
     if (rN) kd.appendChild(cel('span', 'sys-note cal-kind-note', rN.time === false ? 'Steps count as ' + rN.name + ', which counts as activity.' : 'Steps count as ' + rN.name + ': rest time for the time rules.'));
     else if (restMode && !onW) kd.appendChild(cel('span', 'sys-note cal-kind-note', 'Rules for rest count while you step this way.'));   // 159: the steps say it (the owner by prompt: "The steps say it (Recommended)")
     body.appendChild(kd);
     var st = cel('div', 'cal-steps'), ofR = restMode ? ' of rest' : ''; st.appendChild(cel('span', 'sys-num-cap', 'Move time on'));
-    stepsOf(cal).forEach(function(s) { var b = cbtn('cal-step', s.label + ofR, 'Move the clock on ' + fmtSpan(cal, s.secs) + ofR, 'calstep'); b.dataset.secs = String(s.secs); st.appendChild(b); });
+    var sseg = st.appendChild(cel('span', 'ui-seg ui-seg-wrap cal-seg cal-step-seg'));   /* 1.6.2 (backlog 225): the steps in one frame, which wraps where the window is narrow */
+    stepsOf(cal).forEach(function(s) { var b = cbtn('cal-step', s.label + ofR, 'Move the clock on ' + fmtSpan(cal, s.secs) + ofR, 'calstep'); b.dataset.secs = String(s.secs); sseg.appendChild(b); });
     body.appendChild(st);
     var an = cel('div', 'cal-any'), ai = cel('input', 'field cal-any-n'); ai.type = 'number'; ai.step = 'any'; ai.placeholder = 'Amount'; ai.title = 'How much: below 0 moves the clock back'; an.appendChild(ai);
     var us = cel('select', 'field cal-any-u'); us.title = 'What the amount counts in'; unitsOf(cal, sys).forEach(function(u) { var o = cel('option', '', u.name); o.value = u.id; us.appendChild(o); }); an.appendChild(us);
@@ -1142,8 +1144,9 @@ function setShowCal(k) {
 function liveRow(body, camp, ck) {   // the GM's window: Runs / Held, the speed, and what the clock is doing now
     var held = liveHold(ck), rate = liveRate(ck), row = cel('div', 'cal-live');
     row.appendChild(cel('span', 'sys-num-cap', 'The clock'));
+    var lseg = row.appendChild(cel('span', 'ui-seg cal-seg cal-live-seg'));   /* 1.6.2 (backlog 225): Runs | Held in one frame */
     [['run', '\u25b6 Runs', 'The clock runs by itself while a session is open: it waits while the table is paused and while a fight is on'], ['hold', '\u275A\u275A Held', 'The clock moves only by your steps and by a fight\u2019s rounds']].forEach(function(k) {
-        var b = cbtn('cal-live-btn' + ((k[0] === 'hold') === held ? ' cal-kind-on' : ''), k[1], k[2], 'callive'); b.dataset.live = k[0]; row.appendChild(b);
+        var b = cbtn('cal-live-btn' + ((k[0] === 'hold') === held ? ' cal-kind-on' : ''), k[1], k[2], 'callive'); b.dataset.live = k[0]; lseg.appendChild(b);
         if (k[0] === 'run' && !held && liveHeld(camp) !== '') { b.className += ' cal-live-wait'; b.title = k[2] + '. Picked, but not running now: the line below says why.'; }   // 1.6.2: Runs picked while the clock waits is drawn half lit
     });
     var sel = cel('select', 'field cal-live-rate'); sel.title = 'How fast the clock runs by itself';

@@ -517,10 +517,11 @@ function renderPanel() {
     if (window.wpUi) window.wpUi.typed(bar, { label: 'Where in the song, as minutes and seconds', fmt: window.wpUi.fmtTime, parse: window.wpUi.readTime, hide: t0 });   // the place typed as 1:23
     var btns = el('div', 'music-btns');
     function tb(cls, label, title, fn, on) { var b = el('button', 'tool ghost music-tb ' + cls + (on ? ' on' : ''), label); b.title = title; b.addEventListener('click', fn); return b; }
-    btns.appendChild(tb('music-prev wib wi-prev', '', 'Previous', prev));
-    btns.appendChild(tb('music-play wib wi-' + (cur ? 'pause' : 'play'), '', cur ? 'Pause' : 'Play', togglePlay));
-    btns.appendChild(tb('music-next wib wi-next', '', 'Next', next));
-    btns.appendChild(tb('music-stop wib wi-stop', '', 'Stop', function() { if (isHost() && controlling) { stopLane(0.4); broadcastControl(); } else stop(0.4); }));   // while controlling, Stop = silence the table (paused, still controlled), not release
+    var trans = btns.appendChild(el('span', 'ui-seg music-trans'));   /* 1.6.2 (backlog 225): previous, play, next and stop in one frame; loop and shuffle stay apart */
+    trans.appendChild(tb('music-prev wib wi-prev', '', 'Previous', prev));
+    trans.appendChild(tb('music-play wib wi-' + (cur ? 'pause' : 'play'), '', cur ? 'Pause' : 'Play', togglePlay));
+    trans.appendChild(tb('music-next wib wi-next', '', 'Next', next));
+    trans.appendChild(tb('music-stop wib wi-stop', '', 'Stop', function() { if (isHost() && controlling) { stopLane(0.4); broadcastControl(); } else stop(0.4); }));   // while controlling, Stop = silence the table (paused, still controlled), not release
     var loopLbl = { off: 'off', one: 'one', list: 'list' };
     btns.appendChild(tb('music-loop wib wi-' + (st.loop === 'off' ? 'refresh' : st.loop === 'one' ? 'loop1' : 'loop'), loopLbl[st.loop] || 'list', 'Loop: off / one track / whole list', function() { setLoop(st.loop === 'off' ? 'list' : st.loop === 'list' ? 'one' : 'off'); }, st.loop !== 'off'));
     btns.appendChild(tb('music-shuf wib wi-shuffle', '', 'Shuffle the playlist', function() { setShuffle(!st.shuffle); }, st.shuffle));

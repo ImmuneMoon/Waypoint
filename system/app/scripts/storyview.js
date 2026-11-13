@@ -81,7 +81,7 @@ function draw(focusId) {
             var name = mk('button', 'sv-beat-name', b.title); name.type = 'button'; name.dataset.open = a.id; name.dataset.at = b.id;
             name.title = 'Open at ' + b.title + '. Drag, or Alt and an arrow key, to move it in its planner.'; bt.appendChild(name);
             if (b.tag) bt.appendChild(mk('span', 'sv-beat-tag', b.tag));
-            var ss = mk('span', 'sv-sess'); ss.setAttribute('role', 'group'); ss.setAttribute('aria-label', 'Session');
+            var ss = mk('span', 'sv-sess ui-seg'); ss.setAttribute('role', 'group'); ss.setAttribute('aria-label', 'Session');
             SESS.forEach(function(s) { var sb = mk('button', 'sv-s' + (b.s === s[0] ? ' on' : ''), s[1]); sb.type = 'button'; sb.dataset.sess = s[0]; sb.setAttribute('aria-pressed', b.s === s[0] ? 'true' : 'false'); sb.title = b.s === s[0] ? s[1] + '. Press again to take it off.' : 'Mark it ' + s[1]; ss.appendChild(sb); });
             bt.appendChild(ss); row.appendChild(bt);
         });

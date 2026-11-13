@@ -800,11 +800,12 @@ function histKeyPlace(doc) {
 function histWire(doc) {
     NAV_PLACES.forEach(function(p) {
         var btn = doc.getElementById(p[0]); if (!btn || !btn.parentNode || doc.getElementById('pageHistBack_' + p[1])) return;
+        var seg = doc.createElement('span'); seg.className = 'ui-seg pagenav-hists'; btn.parentNode.insertBefore(seg, btn);   /* 1.6.2 (backlog 225): Back and Forward in one frame, right before the Outline button */
         [['Back', '\u2190', 'Back', 'Back: to where you were before you followed a link on this page (Alt+Left)', -1], ['Fwd', '\u2192', 'Forward', 'Forward: to where you went back from (Alt+Right)', 1]].forEach(function(x) {
             var b = doc.createElement('button'); b.type = 'button'; b.id = 'pageHist' + x[0] + '_' + p[1]; b.className = (btn.className ? btn.className + ' ' : '') + 'pagenav-hist';
             b.title = x[3]; b.setAttribute('aria-label', x[2]); b.disabled = true; b.appendChild(doc.createTextNode(x[1]));
             b.addEventListener('click', function() { var root = doc.getElementById(p[1]); if (root) histStep(root, x[4]); });
-            btn.parentNode.insertBefore(b, btn);
+            seg.appendChild(b);
         });
     });
     doc.addEventListener('pointerdown', function(e) { var r = histPlaceAt(e.target, doc); if (r) _histLast = r.id; }, true);

@@ -437,12 +437,12 @@ function rollWithMod(charId, expr, label, opts, anchor, swRef) {   // swRef (1.6
     }
     function refresh() { swBtns.forEach(function(p) { p[0].classList.toggle('on', !!swOn[p[1]]); p[0].setAttribute('aria-pressed', swOn[p[1]] ? 'true' : 'false'); }); if (numEl.setValue) numEl.setValue(mod); else numEl.textContent = (mod > 0 ? '+' : '') + mod; var r = applied(); prevEl.textContent = prevWords(r.ok ? r.expr : expr); if (canAdv) ['dis', 'normal', 'adv'].forEach(function(m) { advBtns[m].classList.toggle('on', advMode === m); }); }
     if (canAdv) {
-        var advRow = el('div', 'dice-modadv');
-        [['dis', 'Disadvantage', 'Dis'], ['normal', 'Normal', 'Normal'], ['adv', 'Advantage', 'Adv']].forEach(function(m) { var b = el('button', 'tool ghost dice-advbtn', m[2]); b.title = m[1] + ' (roll twice, keep the ' + (m[0] === 'dis' ? 'worse' : m[0] === 'adv' ? 'better' : 'roll as written') + ')'; b.addEventListener('click', function() { advMode = m[0]; refresh(); }); advBtns[m[0]] = b; advRow.appendChild(b); });
+        var advRow = el('div', 'dice-modadv'), advSeg = advRow.appendChild(el('span', 'ui-seg ui-seg-wide'));   /* 1.6.2 (backlog 225): the three in one frame, equal thirds */
+        [['dis', 'Disadvantage', 'Dis'], ['normal', 'Normal', 'Normal'], ['adv', 'Advantage', 'Adv']].forEach(function(m) { var b = el('button', 'tool ghost dice-advbtn', m[2]); b.title = m[1] + ' (roll twice, keep the ' + (m[0] === 'dis' ? 'worse' : m[0] === 'adv' ? 'better' : 'roll as written') + ')'; b.addEventListener('click', function() { advMode = m[0]; refresh(); }); advBtns[m[0]] = b; advSeg.appendChild(b); });
         pop.appendChild(advRow);
     }
-    var chips = el('div', 'dice-modpop-chips');
-    [['−5', -5], ['−1', -1], ['+1', 1], ['+5', 5]].forEach(function(q) { var b = el('button', 'tool ghost dice-modchip', q[0]); b.addEventListener('click', function() { mod = clampMod(mod + q[1]); refresh(); }); chips.appendChild(b); });
+    var chips = el('div', 'dice-modpop-chips'), chipSeg = chips.appendChild(el('span', 'ui-seg ui-seg-wide'));   /* 1.6.2 (backlog 225): the quick chips in one frame */
+    [['−5', -5], ['−1', -1], ['+1', 1], ['+5', 5]].forEach(function(q) { var b = el('button', 'tool ghost dice-modchip', q[0]); b.addEventListener('click', function() { mod = clampMod(mod + q[1]); refresh(); }); chipSeg.appendChild(b); });
     pop.appendChild(chips);
     var numRow = el('div', 'dice-modpop-num');
     var Ud = (typeof window !== 'undefined' && window.wpUi && window.wpUi.step ? window.wpUi : null);   // 1.6.2: the app's own counter, the modifier typed

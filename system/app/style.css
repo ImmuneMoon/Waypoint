@@ -1473,9 +1473,6 @@
   .pw-sep { width: 1px; height: 22px; background: var(--edge); margin: 0 6px; }
   .pw-swatches { display: inline-flex; gap: 4px; flex-wrap: wrap; }
   .pw-opts { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; min-height: 26px; }
-  .pw-slide { font-size: 12px; color: var(--dim); display: inline-flex; gap: 6px; align-items: center; }
-  .pw-slide input[type=range] { accent-color: var(--gold); width: 110px; }
-  .pw-slide span { min-width: 34px; color: var(--ink); }
   .pw-check { font-size: 12px; display: flex; gap: 6px; align-items: flex-start; margin-top: 6px; cursor: pointer; line-height: 16px; }
   .pw-check input[type=checkbox] { width: 16px; height: 16px; margin: 0; flex: 0 0 16px; accent-color: var(--gold); cursor: pointer; }   /* never squeezed by a label that wraps */
   .pw-check[hidden], .pw-font[hidden] { display: none; }
@@ -1492,7 +1489,7 @@
   .pw-trace { opacity: .3; object-fit: fill; }
   .pw-paper.pw-pixels .pw-layer { image-rendering: pixelated; }
   .pw-text { position: absolute; z-index: 2; min-width: 120px; background: rgba(0,0,0,.35); border: 1px dashed var(--gold); padding: 0 2px; outline: none; }
-  .pw-side { width: 200px; flex: none; display: flex; flex-direction: column; }
+  .pw-side { width: 220px; flex: none; display: flex; flex-direction: column; }
   .pw-layers { display: flex; flex-direction: column; gap: 3px; max-height: 190px; overflow-y: auto; }
   .pw-lrow { display: flex; gap: 4px; align-items: center; border: 1px solid var(--edge); border-radius: 4px; padding: 2px; background: var(--panel); }
   .pw-lrow.on { border-color: var(--gold); }
@@ -1503,10 +1500,10 @@
   .pw-lbtns { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
   .pw-lbtns .tool { padding: 3px 7px; font-size: 11.5px; }
   .pw-lop { margin-top: 8px; }
-  .pw-lop input[type=range] { width: 80px; }
+  .pw-lop input[type=range] { width: 60px; }
   .pw-tile { width: 150px; height: 150px; border: 1px solid var(--edge); border-radius: 4px; background: repeating-conic-gradient(#2a2a34 0 25%, #34343e 0 50%) 0 0 / 12px 12px; }
-  .pw-zoom { display: flex; gap: 4px; align-items: center; margin-top: 10px; font-size: 12px; }
-  .pw-zoom .tool { padding: 2px 8px; }
+  .pw-zoom { display: flex; gap: 6px; align-items: center; margin-top: 10px; font-size: 12px; }
+  .pw-zoom > .tool { height: 28px; padding: 0 10px; }
   .pw-line { margin: 8px 0 0; }
   @media (max-width: 760px) { .pw-body { flex-direction: column; } .pw-side { width: auto; } }
   /* fold 3: the pack maker, a grid of every kind and era and the picked one beside it at its real size */
@@ -1941,6 +1938,31 @@
     display: inline-flex; align-items: center; justify-content: center; padding: 0;
   }
   .align-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* 1.6.2: the app's own controls (the owner, 2026-11-13: "lets make good styling a part of the design so we dont have to keep going back and
+     correcting things please", and "any slider, or increment control should allow the typing of values"). A counter is a .ui-step: its − and
+     + and its value in one frame, the value a box you type in. Related buttons are a .ui-seg, joined in one frame. A slider is a .ui-slide,
+     its figure a box you type in. A typed value is a .ui-val, its unit in a .ui-unit. A new control is made from these, never as loose
+     buttons: lookcheck holds every new − / + pair and slider to them, and lists the old ones backlog 225 moves over. */
+  .ui-step { display: inline-flex; align-items: stretch; flex: 0 0 auto; height: 28px; border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; background: var(--panel); box-sizing: border-box; }
+  .ui-step > button { flex: 0 0 28px; width: 28px; height: 100%; padding: 0; margin: 0; border: 0; border-radius: 0; background: transparent; color: var(--dim); font: inherit; font-size: 15px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+  .ui-step > button:hover:not(:disabled) { color: var(--ink); background: rgba(255,255,255,0.06); }
+  .ui-step > button:disabled { opacity: .4; cursor: default; }
+  .ui-step > button:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+  .ui-step:focus-within { border-color: var(--gold); }
+  .ui-step > .ui-val { height: 100%; border: 0; border-left: 1px solid var(--edge); border-right: 1px solid var(--edge); border-radius: 0; background: transparent; }
+  .ui-val { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; height: 26px; padding: 0 6px; gap: 1px; border: 1px solid var(--edge); border-radius: 6px; background: var(--panel); color: var(--ink); font-size: 12.5px; cursor: text; box-sizing: border-box; }
+  .ui-val:focus-within { border-color: var(--gold); }
+  .ui-step > .ui-val:focus-within { border-color: var(--edge); }
+  span.ui-val > input, span.ui-val > input[type="number"] { width: 2.6em; min-width: 0; padding: 0; margin: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: right; outline: none; color-scheme: dark; -moz-appearance: textfield; appearance: textfield; }
+  span.ui-val > input::-webkit-outer-spin-button, span.ui-val > input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  html[data-theme="light"] span.ui-val > input { color-scheme: light; }
+  .ui-unit { color: var(--dim); }
+  .ui-seg { display: inline-flex; align-items: stretch; flex: 0 0 auto; border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; }
+  .ui-seg > .tool, .ui-seg > button { border: 0; border-radius: 0; margin: 0; }
+  .ui-seg > * + *, .ui-seg > .tool + .tool { border-left: 1px solid var(--edge); }
+  .ui-slide { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); white-space: nowrap; }
+  .ui-slide input[type=range] { accent-color: var(--gold); width: 110px; min-width: 60px; flex: 1 1 auto; margin: 0; }
 
   /* Floating mini-toolbar above the whiteboard selection */
   #selToolbar {

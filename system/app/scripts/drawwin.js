@@ -70,7 +70,7 @@ function paper() {
     _p.over.className = 'pw-layer pw-over'; pp.appendChild(_p.over);
     if (_p.textEl) { pp.appendChild(_p.textEl); textPlace(); if (typing) _p.textEl.focus(); }
     drawOver(); layersDraw(); bar(); tileSoon();
-    var zv = $('paintZoomV'); if (zv) zv.textContent = Math.round(z * 100) + '%';
+    numShow('paintZoomN', Math.round(z * 100));
 }
 // What every visible layer makes together, the stroke being drawn among them, onto ctx at scale s
 function compose(g, s, withBuf) {
@@ -306,7 +306,7 @@ function layersDraw() {
         nm.addEventListener('dblclick', function() { rename(row, nm, L); });
         row.appendChild(eye); row.appendChild(nm); box.appendChild(row);
     })(_p.layers[i], i);
-    var L = active(), op = $('paintLayerOp'), ov = $('paintLayerOpV'); if (op && L) { op.value = String(Math.round(L.op * 100)); if (ov) ov.textContent = Math.round(L.op * 100) + '%'; }
+    var L = active(), op = $('paintLayerOp'); if (op && L) { op.value = String(Math.round(L.op * 100)); numShow('paintLayerOpN', Math.round(L.op * 100)); }
     var nL = _p.layers.length;
     ['paintLayerUp', 'paintLayerDown', 'paintLayerMerge', 'paintLayerDel', 'paintLayerAdd'].forEach(function(id) {
         var b = $(id); if (!b) return;
@@ -351,8 +351,7 @@ function bar() {
     var show = function(id, on) { var e = $(id); if (e) e.hidden = !on; };
     show('paintFilledRow', _p.tool === 'rect' || _p.tool === 'circle');
     show('paintFontRow', _p.tool === 'text');
-    var sv = $('paintSizeV'); if (sv) sv.textContent = String(_p.size);
-    var ovv = $('paintOpV'); if (ovv) ovv.textContent = Math.round(_p.op * 100) + '%';
+    numShow('paintSizeN', _p.size); numShow('paintOpN', Math.round(_p.op * 100)); var orr = $('paintOpR'); if (orr && document.activeElement !== orr) orr.value = String(Math.round(_p.op * 100));
     document.querySelectorAll('#paintSwatches .draw-swatch').forEach(function(s) { s.classList.toggle('active', s.dataset.c === _p.color); });
     var ci = $('paintColor'); if (ci && ci.value !== _p.color) ci.value = _p.color;
     var u = $('paintUndo'), r = $('paintRedo'); if (u) u.disabled = !_p.hist.undo.length && !_p.float; if (r) r.disabled = !_p.hist.redo.length || !!_p.float;
@@ -365,6 +364,10 @@ function toolSet(t) {
     if (t === 'pick' && _p.tool !== 'pick') _p.before = _p.tool;
     _p.tool = t; bar(); drawOver(); if (t === 'text') fontWarm();
 }
+// A typed value shows the figure, but never over what is being typed in it
+function numShow(id, v) { var e = $(id); if (e && document.activeElement !== e) e.value = String(v); }
+// A typed figure: a number held to its box's own bounds, or none (the box then shows the figure again)
+function numRead(e) { var v = parseFloat(e && e.value); if (!isFinite(v)) return null; var lo = parseFloat(e.min), hi = parseFloat(e.max); if (isFinite(lo)) v = Math.max(lo, v); if (isFinite(hi)) v = Math.min(hi, v); return v; }
 function setColor(c) { var h = DC().cleanHex(c); if (h && _p) { _p.color = h; bar(); } }
 function stageFocus() { var s = $('paintStage'); if (s) s.focus({ preventScroll: true }); }
 
@@ -500,6 +503,10 @@ function wire() {
     var sw = $('paintSwatches'); if (sw) SWATCHES.forEach(function(c) { var s = el('button', 'draw-swatch'); s.type = 'button'; s.dataset.c = c; s.style.background = c; s.setAttribute('aria-label', 'Color ' + c); s.addEventListener('click', function() { setColor(c); }); sw.appendChild(s); });
     on('paintColor', 'input', function(e) { setColor(e.target.value); });
     on('paintSizeR', 'input', function(e) { sizeSet(parseInt(e.target.value, 10)); });
+    on('paintSizeN', 'change', function(e) { var v = numRead(e.target); if (_p && v !== null) sizeSet(v); else if (_p) bar(); e.target.value = _p ? String(_p.size) : e.target.value; });   // the owner: "any slider, or increment control should allow the typing of values"
+    on('paintOpN', 'change', function(e) { var v = numRead(e.target); if (_p && v !== null) _p.op = DC().cleanOp(v / 100); if (_p) { e.target.value = String(Math.round(_p.op * 100)); bar(); } });
+    on('paintLayerOpN', 'change', function(e) { var L = active(), v = numRead(e.target); if (!L) return; if (v !== null && Math.round(L.op * 100) !== Math.round(v)) { if (_p.float) floatStamp(); push([]); L.op = DC().cleanOp(v / 100); log('layer-op', {}); } e.target.value = String(Math.round(L.op * 100)); paper(); });
+    on('paintZoomN', 'change', function(e) { var v = numRead(e.target); if (_p && v !== null) { _p.zoom = Math.max(0.125, Math.min(8, Math.round(v) / 100)); } if (_p) { e.target.value = String(Math.round(_p.zoom * 100)); paper(); } });
     on('paintOpR', 'input', function(e) { if (_p) { _p.op = DC().cleanOp(parseInt(e.target.value, 10) / 100); bar(); } });
     on('paintFilled', 'change', function(e) { if (_p) _p.filled = !!e.target.checked; });
     on('paintMirror', 'change', function(e) { if (_p) { _p.mirror = !!e.target.checked; log('mirror', { on: _p.mirror ? 1 : 0 }); } });

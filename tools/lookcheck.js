@@ -4166,5 +4166,31 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         && count(wbO, "map.meta.lastView = 'visual'; if (typeof window !== 'undefined' && window.wpOpensNext) window.wpOpensNext('visual');") === 3 && count(dlO, "window.wpApplyRememberedView('named')") === 4,
         J([r1, k1, k2, k3, k4, k5, k6, k7, av]));
 }
+{   // 1.6.2: the app's own controls (the owner, 2026-11-13: "lets make good styling a part of the design so we dont have to keep going back and
+    // correcting things please", and "any slider, or increment control should allow the typing of values")
+    check('the app\'s own controls are in the style sheet: .ui-step (a counter: − value + in one frame), .ui-seg (related buttons joined), .ui-slide (a slider) and .ui-val (a value you type in, its unit in .ui-unit)',
+        ['.ui-step {', '.ui-step > button {', '.ui-step > .ui-val {', '.ui-val {', 'span.ui-val > input, span.ui-val > input[type="number"] {', '.ui-unit {', '.ui-seg {', '.ui-seg > * + *, .ui-seg > .tool + .tool {', '.ui-slide {', '.ui-slide input[type=range] {'].every(s => css.includes('  ' + s)));
+    // The old controls, by name: backlog 225 moves each over, and takes it off the list as it does
+    const OLD_MINUS_HTML = ['data-op="-"'];   // the dice roller's quick −
+    const OLD_MINUS_JS = ['tool ghost box-less', 'tool ghost dice-modpm', 'tool ghost music-slow', 'tool ghost sheet-pm', 'tool ghost sheet-pm sheet-fx-valpm', 'tool ghost sheet-part-pm', 'tool ghost sheet-item-ctb', 'trk-btn'];
+    const OLD_RANGE_HTML = ['drawOpacity', 'eraserSize', 'shapeOpacity', 'gridLabelsOpacity', 'setGridOpacity', 'setOpacity', 'setUndoDepth', 'soundVolume', 'videoVol', 'frameZoom'];
+    const OLD_RANGE_JS = { 'music.js': 3, 'sheets.js': 2, 'voice.js': 1 };
+    const badH = [], reMinus = /<button\b[^>]*>(?:&minus;|\u2212)<\/button>/g; let mm;
+    while ((mm = reMinus.exec(ix))) { const before = ix.slice(Math.max(0, mm.index - 300), mm.index); if (!/<span class="ui-step"[^>]*>\s*$/.test(before) && !OLD_MINUS_HTML.some(s => mm[0].includes(s))) badH.push(mm[0].slice(0, 90)); }
+    const scripts = fs.readdirSync(path.join(app, 'scripts')).filter(f => /\.js$/.test(f)), badJ = [], badR = [];
+    scripts.forEach(f => {
+        const s = read('scripts/' + f), re = /(?:el\('button',\s*|btn\()'([^']*)',\s*'(?:\u2212|\\u2212)'/g; let m;
+        while ((m = re.exec(s))) if (OLD_MINUS_JS.indexOf(m[1]) < 0) badJ.push(f + ': ' + m[1]);
+        const nR = (s.match(/type\s*=\s*'range'/g) || []).length; if (nR > (OLD_RANGE_JS[f] || 0) && !s.includes("'ui-slide'")) badR.push(f + ': ' + nR);
+    });
+    const reR = /<input type="range"[^>]*id="([^"]+)"/g; let rr;
+    while ((rr = reR.exec(ix))) { const lab = ix.lastIndexOf('<label', rr.index), labEnd = ix.lastIndexOf('</label>', rr.index), inSlide = lab > labEnd && /^<label class="ui-slide/.test(ix.slice(lab, lab + 30)); if (!inSlide && OLD_RANGE_HTML.indexOf(rr[1]) < 0) badR.push('index.html: ' + rr[1]); }
+    check('every new counter is a .ui-step and every new slider a .ui-slide with a value you type in: a − button in the page stands first in a .ui-step, a script makes none outside the old ones, and a slider in the page stands in a .ui-slide; the old ones are listed by name for backlog 225 to move over',
+        !badH.length && !badJ.length && !badR.length, J([badH, badJ, badR]));
+    const pS = ix.slice(ix.indexOf('<div id="paintModal"'), ix.indexOf('<!-- Map objects (1.6.0)'));
+    check('the paint window is made of them: Size, Opacity and Layer opacity each a .ui-slide with its typed value, zoom a .ui-step with its typed value beside Fit, Undo | Redo and Up | Down each a .ui-seg',
+        (pS.match(/<label class="ui-slide/g) || []).length === 3 && ['paintSizeN', 'paintOpN', 'paintLayerOpN', 'paintZoomN'].every(id => pS.includes('<span class="ui-val"><input type="number" id="' + id + '"'))
+        && pS.includes('<span class="ui-step" role="group" aria-label="Zoom"><button type="button" id="paintZoomOut"') && (pS.match(/<span class="ui-seg">/g) || []).length === 2 && !/class="pw-slide/.test(pS));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

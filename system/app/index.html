@@ -5575,8 +5575,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <span id="paintSwatches" class="pw-swatches"></span>
         </div>
         <div class="pw-opts">
-            <label class="pw-slide" title="How wide the pen, brush, eraser and lines are, and how large text is. [ and ] change it.">Size <input type="range" id="paintSizeR" min="1" max="200" value="6"><span id="paintSizeV">6</span></label>
-            <label class="pw-slide" title="How solid what you draw is">Opacity <input type="range" id="paintOpR" min="5" max="100" value="100"><span id="paintOpV">100%</span></label>
+            <label class="ui-slide" title="How wide the pen, brush, eraser and lines are, and how large text is. [ and ] change it.">Size <input type="range" id="paintSizeR" min="1" max="200" value="6"><span class="ui-val"><input type="number" id="paintSizeN" min="1" max="200" step="1" value="6" aria-label="Size"></span></label>
+            <label class="ui-slide" title="How solid what you draw is">Opacity <input type="range" id="paintOpR" min="5" max="100" value="100"><span class="ui-val"><input type="number" id="paintOpN" min="5" max="100" step="1" value="100" aria-label="Opacity in percent"><span class="ui-unit">%</span></span></label>
             <label class="pw-check" id="paintFilledRow" hidden><input type="checkbox" id="paintFilled"> Filled</label>
             <label class="pw-font" id="paintFontRow" hidden>Font <select id="paintFont"></select></label>
         </div>
@@ -5587,22 +5587,20 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div id="paintLayers" class="pw-layers" role="group" aria-label="Layers, the top first"></div>
                 <div class="pw-lbtns">
                     <button type="button" class="tool ghost" id="paintLayerAdd" title="A new layer above the one you draw on">+ Layer</button>
-                    <button type="button" class="tool ghost" id="paintLayerUp" title="Move this layer up">Up</button>
-                    <button type="button" class="tool ghost" id="paintLayerDown" title="Move this layer down">Down</button>
+                    <span class="ui-seg"><button type="button" class="tool ghost" id="paintLayerUp" title="Move this layer up">Up</button><button type="button" class="tool ghost" id="paintLayerDown" title="Move this layer down">Down</button></span>
                     <button type="button" class="tool ghost" id="paintLayerMerge" title="Join this layer into the one under it">Merge down</button>
                     <button type="button" class="tool ghost danger" id="paintLayerDel" title="Remove this layer">Delete</button>
                 </div>
-                <label class="pw-slide pw-lop" title="How solid this layer is">Layer opacity <input type="range" id="paintLayerOp" min="0" max="100" value="100"><span id="paintLayerOpV">100%</span></label>
+                <label class="ui-slide pw-lop" title="How solid this layer is">Layer opacity <input type="range" id="paintLayerOp" min="0" max="100" value="100"><span class="ui-val"><input type="number" id="paintLayerOpN" min="0" max="100" step="1" value="100" aria-label="Layer opacity in percent"><span class="ui-unit">%</span></span></label>
                 <div id="paintTileBox" hidden><div class="pw-mini">How it tiles</div><canvas id="paintTile" width="150" height="150" class="pw-tile"></canvas></div>
                 <label class="pw-check" title="What you draw on one side is drawn on the other too"><input type="checkbox" id="paintMirror"> Mirror left and right</label>
                 <label class="pw-check" id="paintTraceRow" title="Waypoint&rsquo;s drawing shows faintly under yours, to trace. It is never part of your picture."><input type="checkbox" id="paintTrace"> Show Waypoint&rsquo;s drawing faintly under it</label>
-                <div class="pw-zoom"><button type="button" class="tool ghost" id="paintZoomOut" title="Smaller (Ctrl and the wheel)">&minus;</button><span id="paintZoomV">100%</span><button type="button" class="tool ghost" id="paintZoomIn" title="Larger (Ctrl and the wheel)">+</button><button type="button" class="tool ghost" id="paintZoomFit" title="As large as fits">Fit</button></div>
+                <div class="pw-zoom"><span class="ui-step" role="group" aria-label="Zoom"><button type="button" id="paintZoomOut" title="Smaller (Ctrl and the wheel)" aria-label="Smaller">&minus;</button><span class="ui-val"><input type="number" id="paintZoomN" min="13" max="800" step="1" value="100" aria-label="Zoom in percent"><span class="ui-unit">%</span></span><button type="button" id="paintZoomIn" title="Larger (Ctrl and the wheel)" aria-label="Larger">+</button></span><button type="button" class="tool ghost" id="paintZoomFit" title="As large as fits">Fit</button></div>
             </div>
         </div>
         <div class="pw-line" id="paintLine"></div>
         <div class="obj-formbar obj-end">
-            <button type="button" class="tool ghost" id="paintUndo" title="Undo (Ctrl+Z)">Undo</button>
-            <button type="button" class="tool ghost" id="paintRedo" title="Redo (Ctrl+Y)">Redo</button>
+            <span class="ui-seg"><button type="button" class="tool ghost" id="paintUndo" title="Undo (Ctrl+Z)">Undo</button><button type="button" class="tool ghost" id="paintRedo" title="Redo (Ctrl+Y)">Redo</button></span>
             <button type="button" class="tool ghost" id="paintClearLayer" title="Take everything off the layer you draw on">Clear layer</button>
             <span class="pw-spring"></span>
             <button type="button" class="tool ghost" id="paintCancel" title="Close without keeping the drawing">Cancel</button>

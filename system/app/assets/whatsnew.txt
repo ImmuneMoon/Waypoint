@@ -1207,6 +1207,11 @@ The Data Map
   behind it, barrels and crates by the house walls, and lights where streets
   meet. Each piece wears the Looks list's pack where it has one, and
   Waypoint's own drawing otherwise.
+- A list's price can now come from one of its columns. Pick the column in
+  Price from, beside Price on the Lists tab. A row then records the price
+  worked out for that row on the sheet that buys or adds it, so a fitted limb
+  can cost more for a larger wearer. Where the column gives no number, the
+  Price stat is used as before.
 - A piece's Properties now open from Properties on its right-click menu, or
   from the sliders on the bar over a selected piece. A double-click no longer
   opens them. A right-click selects the piece too, so you can see which one

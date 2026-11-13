@@ -23614,6 +23614,28 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             shQ.split("(typeof followIsQuiet === 'function' && followIsQuiet())").length - 1 === 3 && shQ.includes('function followQuiet(on) { _followQuiet = Math.max(0, _followQuiet + (on ? 1 : -1)); }') && !/function postureFollow[^\n]*\n[^\n]*followIsQuiet/.test(shQ)
             && shQ.includes("import { save, toast, toastAction, pressHold, keepPlace } from './io.js';") && shQ.includes("? pressHold(wrap, window) : null;") && shQ.includes("if (!redraw) return; var again = function() { if (typeof keepPlace === 'function') keepPlace(wrap, draw); else draw(); }; if (hold && hold.busy()) hold.then(again); else again(); };"), '');
     }
+    {   // 1.6.2, backlog 234 (asked by a build session: a limb priced at its wearer's size): Price from, one of the list's own columns
+        const J = JSON.stringify, cyOf = s => s.fields.find(x => x.id === 'f_cy'), rawP = { v: 1, name: 'P', rolls: [], fields: [
+            { id: 'f_gf', key: 'GearFac', label: 'Gear factor', kind: 'number', vis: 'all', edit: 'owner' },
+            { id: 'f_gm', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm' },
+            { id: 'f_cy', key: 'Cyber', label: 'Cyber', kind: 'item-list', edit: 'owner', vis: 'all', list: { price: 'cr', priceCol: 'limbcr', stats: [{ key: 'cr' }], cols: [{ key: 'LimbCr', label: 'Limb Cr', formula: 'Row.cr * GearFac' }, { key: 'Bad', formula: 'Nope + 1' }, { key: 'Hid', formula: 'Row.cr * Secret' }] } }],
+            items: [{ id: 'i_arm', name: 'Arm', stats: { cr: 1908 } }] };
+        const sysP = cleanSystem(rawP, { F, gmView: true }), spP = cyOf(sysP).list, withCol = k => cleanSystem(Object.assign({}, rawP, { fields: rawP.fields.slice(0, 2).concat([Object.assign({}, rawP.fields[2], { list: Object.assign({}, rawP.fields[2].list, { priceCol: k }) })]) }), { F, gmView: true });
+        const addP = (s, gf, Fx, vals) => { const r = S.applyRowOp(s, { values: Object.assign({ f_gf: gf, f_gm: 3, f_cy: [] }, vals || {}) }, 'f_cy', { op: 'add', defId: 'i_arm', rowId: 'w_a1' }, Fx, {}); return r.ok ? r.value : r; };
+        const merged = addP(sysP, 2, F, { f_cy: [{ id: 'w_a1', defId: 'i_arm', qty: 1, paid: 3816 }] });
+        check('backlog 234: Price from names a column of the list, kept by its own spelling only beside a price stat and only where the list has that column, the same in both views; a row added records that column worked out for itself on the sheet that adds it (gear factor 2: 3816, gear factor 1: the listed 1908), and the price stat where no engine is at hand, the column errors or gives no number, or the players\' view blanks it; a list without it records the stat as before; an add that fills a stack keeps its Paid',
+            spP.priceCol === 'LimbCr' && cyOf(cleanSystem(sysP, { F, gmView: false })).list.priceCol === 'LimbCr'
+            && S.cleanListSpec({ priceCol: 'LimbCr', stats: [{ key: 'cr' }], cols: [{ key: 'LimbCr', formula: '1' }] }, F).priceCol === undefined && cyOf(withCol('Nothing')).list.priceCol === undefined
+            && addP(sysP, 2, F)[0].paid === 3816 && addP(sysP, 1, F)[0].paid === 1908 && addP(sysP, 2, null)[0].paid === 1908 && addP(withCol('Bad'), 2, F)[0].paid === 1908
+            && addP(cleanSystem(withCol('Hid'), { F, gmView: false }), 2, F)[0].paid === 1908 && addP(withCol(''), 2, F)[0].paid === 1908
+            && merged.length === 1 && merged[0].qty === 2 && merged[0].paid === 3816
+            && S.priceColOf(sysP, { values: { f_gf: 1.5 } }, cyOf(sysP), { id: 'w_x', defId: 'i_arm', qty: 1 }, F) === 2862 && S.priceColOf(sysP, null, sysP.fields[0], {}, F) === null,
+            J([spP.priceCol, addP(sysP, 2, F), merged]));
+        const shP = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('backlog 234, the sheet and the editor: a buy\'s or a sale\'s price box reads the column for the row on that sheet; the Lists tab offers Price from beside Price, the Price stat or each column by its name, its own handler',
+            shP.includes("pcv = sp && sp.priceCol && typeof priceColOf === 'function' ? priceColOf(sys, c, f, row, F()) : null;") && shP.includes("unit = priceUnit(sys, sp, row, c, f);") && shP.includes("unit = priceUnit(sys, sp, was, c, f);")
+            && shP.includes("pcs = el('select', 'sys-list-paycol');") && shP.includes("else if (c.indexOf('sys-list-paycol') >= 0) { if (t.value) lsc.priceCol = t.value; else delete lsc.priceCol; }") && shP.includes("st = el('option', null, 'The Price stat');"));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

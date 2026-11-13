@@ -1,7 +1,7 @@
 /* The Story view (1.6.2, backlog 166 h; the owner, 2026-11-10, by prompt: "Story view, then timeline", "Planner = arc, cards = beats", "A window
    from the Pages shelf", "Also reorder"). A floating window over the map, the GM's, that lays the campaign out as its story: each planner an arc
    in the left panel's order, a planner nested under another one step in under it, and each arc's scene cards as its beats in the order they
-   stand, coloured Played, Tonight or Ahead (cardcore sessionOf). A click opens the planner at that card by the page rule (pageshelf.js), a
+   stand, colored Played, Tonight or Ahead (cardcore sessionOf). A click opens the planner at that card by the page rule (pageshelf.js), a
    beat's three small buttons set its session (cardcore setSession), and a beat moves inside its planner by a drag or by Alt and an arrow key.
    Nothing new is stored: a beat is the planner's own scene card, and a change is the planner's own change, saved as one step of the GM's undo.
    Drawn with elements and text nodes only. Steps log as story v1. */

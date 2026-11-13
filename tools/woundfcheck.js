@@ -37,16 +37,16 @@ const imp = p => import('file:///' + path.resolve(app(p)).replace(/\\/g, '/'));
     const own = hit(sysOf({ woundF: 'floor(Blow.through / Tough)' }), { amt: 10, type: 'cut' }), keep = hit(S.cleanSystem(raw({ woundF: 'floor(Blow.through / Tough)', types: [{ key: 'burn', label: 'Burn', mult: 2, byMult: true }] }), { F, gmView: true }), { amt: 10, type: 'burn' });
     check('a type’s own formula takes the system’s place, and a type ticked Its multiplier keeps today’s', own.info.wound === 7 && keep.info.wound === 14, J([own.info, keep.info]));
     const zW = hit(sysOf({ woundF: 'floor(Blow.through / 10)' }), { amt: 10, type: 'bolt' }), zN = hit(sysOf({ woundF: 'floor(Blow.through / 10)', zero: 'none' }), { amt: 10, type: 'bolt' });
-    check('a wound of 0 is no wound: nothing comes off the pool; armour still wears by default, and with A wound of 0 does nothing it does not',
+    check('a wound of 0 is no wound: nothing comes off the pool; armor still wears by default, and with A wound of 0 does nothing it does not',
         zW.ok && zW.info.wound === 0 && !('f_hp' in zW.values) && 'f_gear' in zW.values && zN.ok && zN.info.wound === 0 && !('f_hp' in zN.values) && !('f_gear' in zN.values), J([zW.values, zN.values, zW.info]));
     const wa = hit(sysOf({}), { amt: 10, type: 'bolt' }), wf = hit(sysOf({ woundF: 'floor(Blow.through / Tough)' }), { amt: 10, type: 'bolt' });
-    check('a wound the formula gives wears armour as any wound does', 'f_gear' in wa.values && 'f_gear' in wf.values, J([wa.values.f_gear, wf.values.f_gear]));
+    check('a wound the formula gives wears armor as any wound does', 'f_gear' in wa.values && 'f_gear' in wf.values, J([wa.values.f_gear, wf.values.f_gear]));
     const bad = hit(sysOf({ woundF: 'Blow.through / Nope' }), { amt: 10, type: 'bolt' }), none = hit(sysOf({ woundF: 'floor(Blow.through / Tough)' }), { amt: 2, type: 'bolt' });
     check('a formula that cannot be worked out refuses the hit in words, and a hit stopped wholly asks no formula', !bad.ok && /formula/.test(bad.message) && none.ok && none.info.through === 0 && none.info.wound === 0, J([bad, none.info]));
     // ---- the editor, Help and notes
     const sh = read('scripts/sheets.js');
     check('Taking damage has Wound by and what a wound of 0 does, a type its own Wound by and Its multiplier, with their handlers and forms',
-        sh.includes("input('sys-dmgr-woundf field'") && sh.includes("select('sys-dmgr-zero', [['', 'A wound of 0 still wears armour'], ['none', 'A wound of 0 does nothing']]") && sh.includes("input('sys-dmgr-ywf field'") && sh.includes("dbxTick('sys-dmgr-ybymult'")
+        sh.includes("input('sys-dmgr-woundf field'") && sh.includes("select('sys-dmgr-zero', [['', 'A wound of 0 still wears armor'], ['none', 'A wound of 0 does nothing']]") && sh.includes("input('sys-dmgr-ywf field'") && sh.includes("dbxTick('sys-dmgr-ybymult'")
         && sh.includes("else if (dbxHas(c, 'sys-dmgr-woundf')) { dbxSet(dbxDraft(), 'woundF'") && sh.includes("else if (dbxHas(c, 'sys-dmgr-zero')) { dbxSet(dbxDraft(), 'zero', v); }") && read('scripts/formbox.js').includes("'sys-dmgr-woundf': 'amt', 'sys-dmgr-ywf': 'amt'"));
     const help = read('index.html'), wn = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), wn2 = read('assets/whatsnew.txt');
     check('Help and both release notes say it', help.includes('<li><b>Wound by</b> works a wound out by a formula, for every damage type.') && help.includes('A wound of 0 is no wound.') && wn.includes('- A wound can be worked out by a formula of what got through') && wn2.includes('- A wound can be worked out by a formula of what got through'));

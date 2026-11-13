@@ -371,7 +371,7 @@ function syncButtons() {   // the panel's buttons say what is armed and what run
 // [fxcheck:saved-start]
 // Saved effects (1.6.2, backlog 81 and 99; the owner, 2026-11-07, by prompt: "Save what is running", "In the campaign", "Yes, as music does").
 // What runs is saved by name in the campaign (camp.fxSaved, the GM's alone), read only through fxcore's cleanSaved. Pressing one puts its weather,
-// its colour and its loops on in place of what runs; pressed again while it runs, it stops. A map may name one (meta.fxEffect) to start when the GM
+// its color and its loops on in place of what runs; pressed again while it runs, it stops. A map may name one (meta.fxEffect) to start when the GM
 // opens it, and its loops stop as the GM leaves it
 function savedList() { var c = getActiveCampaign(); return c ? cleanSaved(c.fxSaved) : []; }
 function savedWrite(list) { var c = getActiveCampaign(); if (!c) return; var l = cleanSaved(list); if (l.length) c.fxSaved = l; else delete c.fxSaved; save(); }
@@ -380,13 +380,13 @@ function soundOn() { return !!(window.wpSound && (!window.wpVtt || window.wpVtt.
 function savedId(list) { var id; do { id = 'se_' + Math.random().toString(36).slice(2, 10); } while (list.some(function(s) { return s.id === id; })); return id; }
 function savedWords(st, lp) {   // a name to start from: what runs, in words
     var w = st.weather && PRESETS.find(function(p) { return p.row === 'weather' && p.fx.look === st.weather.look; }), h = st.wash && PRESETS.find(function(p) { return p.fx.kind === 'wash' && p.fx.color === st.wash.color; });
-    var parts = [w ? w.label : '', h ? h.label : st.wash ? 'Colour' : ''].concat(lp.map(function(l) { return l.name; })).filter(Boolean);
+    var parts = [w ? w.label : '', h ? h.label : st.wash ? 'Color' : ''].concat(lp.map(function(l) { return l.name; })).filter(Boolean);
     return (parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1] : parts.join('')).slice(0, SAVED.name);
 }
 function savedSave() {
     if (!canWrite()) return;
     var st = panelState(), lp = loopsNow();
-    if (!st.weather && !st.wash && !lp.length) { toast('Nothing runs to save. Start a weather, a colour or a loop first.'); return; }
+    if (!st.weather && !st.wash && !lp.length) { toast('Nothing runs to save. Start a weather, a color or a loop first.'); return; }
     var list = savedList(); if (list.length >= SAVED.count) { toast('You have ' + SAVED.count + ' saved effects. Delete one first.'); return; }
     showPrompt('Name this effect', savedWords(st, lp), function(name) {
         if (name === null) return;
@@ -442,7 +442,7 @@ function mapMoved(fromId, toId) {
 function savedHtml() {   // the panel's Saved row and This map row, as markup of names through esc
     var list = savedList(), m = getActiveMap(), mine = m && m.meta && typeof m.meta.fxEffect === 'string' ? m.meta.fxEffect : '';
     var line = function(t) { return '<div class="fx-line">' + esc(t) + '</div>'; };
-    var h = '<div class="snd-row fx-saved"><span class="snd-label">Saved</span>' + list.map(function(s) { return '<span class="fx-savedgrp"><button class="journal-from fx-saved-btn" data-sid="' + esc(s.id) + '" title="Puts this on in place of what runs. Press it again to stop it.">' + esc(s.name) + '</button><button class="journal-from fx-saved-del" data-sid="' + esc(s.id) + '" aria-label="Delete ' + esc(s.name) + '" title="Delete this saved effect">&times;</button></span>'; }).join('') + '<button class="journal-from fx-save-btn" title="Keep the weather, the colour and the loops that run now, by a name">Save as an effect</button></div>' + line('Keeps what runs now, the weather, the colour and the loops of Sound, by a name.');
+    var h = '<div class="snd-row fx-saved"><span class="snd-label">Saved</span>' + list.map(function(s) { return '<span class="fx-savedgrp"><button class="journal-from fx-saved-btn" data-sid="' + esc(s.id) + '" title="Puts this on in place of what runs. Press it again to stop it.">' + esc(s.name) + '</button><button class="journal-from fx-saved-del" data-sid="' + esc(s.id) + '" aria-label="Delete ' + esc(s.name) + '" title="Delete this saved effect">&times;</button></span>'; }).join('') + '<button class="journal-from fx-save-btn" title="Keep the weather, the color and the loops that run now, by a name">Save as an effect</button></div>' + line('Keeps what runs now, the weather, the color and the loops of Sound, by a name.');
     if (list.length) h += '<div class="snd-row"><span class="snd-label">This map</span><select id="fxMapEffect" class="field"><option value="">Starts with none</option>' + list.map(function(s) { return '<option value="' + esc(s.id) + '"' + (s.id === mine ? ' selected' : '') + '>Starts with ' + esc(s.name) + '</option>'; }).join('') + '</select></div>' + line('Opening this map starts it. Leaving it stops its loops.');
     return h;
 }
@@ -450,14 +450,14 @@ function savedHtml() {   // the panel's Saved row and This map row, as markup of
 function renderPanel() {
     var body = ui('fxBody'); if (!body) return;
     if (!featureOn()) { body.innerHTML = '<div class="snd-none">Visual effects are off for this campaign — switch them on in <i class="wib wi-cog"></i> Settings &#9656; This campaign.</div>'; return; }
-    var line = function(t) { return '<div class="fx-line">' + esc(t) + '</div>'; };   // 1.6.2: what a row does and who sees it, in one grey line
+    var line = function(t) { return '<div class="fx-line">' + esc(t) + '</div>'; };   // 1.6.2: what a row does and who sees it, in one gray line
     var chip = function(cls, look, label, extra) { return '<button class="journal-from ' + cls + '" data-look="' + esc(look) + '"' + (extra || '') + '>' + esc(label) + '</button>'; };
     var byRow = function(row) { return PRESETS.filter(function(p) { return p.row === row; }); };
     var here = playersHere();
     var html = '';
     if (here >= 0) html += '<div class="fx-here' + (here === 0 ? ' none' : '') + '">' + (here === 0 ? 'No players on this map — they will not see it' : here + ' player' + (here === 1 ? '' : 's') + ' on this map') + '</div>';
     html += savedHtml();
-    html += '<div class="snd-row"><span class="snd-label">Screen</span>' + byRow('screen').map(function(p) { return chip('fx-screen-btn', p.id, p.label, ' data-id="' + p.id + '"' + (p.fx.kind === 'wash' ? ' title="Held until you clear it: press it again, or Clear"' : '')); }).join('') + '</div>' + line('Tints, flashes or shakes the screen for everyone on this map. A colour stays until you clear it.');
+    html += '<div class="snd-row"><span class="snd-label">Screen</span>' + byRow('screen').map(function(p) { return chip('fx-screen-btn', p.id, p.label, ' data-id="' + p.id + '"' + (p.fx.kind === 'wash' ? ' title="Held until you clear it: press it again, or Clear"' : '')); }).join('') + '</div>' + line('Tints, flashes or shakes the screen for everyone on this map. A color stays until you clear it.');
     html += '<div class="snd-row"><span class="snd-label">Burst</span>' + byRow('burst').map(function(p) { return chip('fx-burst-btn', p.fx.look, p.label, ' title="Click, then click the map"'); }).join('') + '</div>' + line('Press one, then the map. Everyone on this map sees it go off there.');
     html += '<div class="snd-row fx-slider"><span class="snd-label"></span><label title="Burst radius">Radius <input type="range" id="fxRadius" min="20" max="1200" value="160"><span id="fxRadiusVal" class="fx-dim"></span></label></div>';
     html += '<div class="snd-row"><span class="snd-label">Ping</span><button class="journal-from fx-burst-btn fx-ping-btn" data-look="ping" title="Click, then click the map: a ring marks that cell for a moment. Alt+click on the map pings at once.">Ping</button><select id="fxPingTo" class="field"></select></div>' + line('A ring on one cell, for everyone on this map or the one player you pick.');   // the list is filled with text nodes (syncPingTo)
@@ -468,7 +468,7 @@ function renderPanel() {
     html += '<div class="snd-row"><span class="snd-label">Banner</span><input type="text" id="fxBanner" class="field" maxlength="120" placeholder="Round 3 &middot; Enter to send" style="flex:1;"></div>' + line('Big words across the screen of everyone on this map. Type, then press Enter.');
     var cues = soundEntries().filter(function(e) { return e.kind === 'cue'; });
     if (cues.length && (!window.wpVtt || window.wpVtt.on('sound'))) html += '<div class="snd-row"><span class="snd-label">Sound with it</span><select id="fxCue" class="field"><option value="">none</option>' + cues.map(function(e) { return '<option value="' + esc(e.id) + '">' + esc(e.name) + '</option>'; }).join('') + '</select></div>';
-    html += '<div class="snd-row fx-foot"><button class="journal-from fx-stop" data-act="stop-wash" title="Clear the colour wash">Clear the colour</button><button class="journal-from fx-stop" data-act="stop-weather" title="Stop the weather">Stop the weather</button></div>';   // 1.6.2: at the foot, and no longer red
+    html += '<div class="snd-row fx-foot"><button class="journal-from fx-stop" data-act="stop-wash" title="Clear the color wash">Clear the color</button><button class="journal-from fx-stop" data-act="stop-weather" title="Stop the weather">Stop the weather</button></div>';   // 1.6.2: at the foot, and no longer red
     body.innerHTML = html;
     syncPingTo();
     syncButtons();

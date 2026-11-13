@@ -105,7 +105,7 @@ if (on) {
     try { focus = localStorage.getItem('wp_streamFocus') || ''; charFocus = ownKey(localStorage.getItem('wp_streamChar')); } catch (e) {}
     var charSel = document.getElementById('streamChar');
     var FOCUS_ZOOM = 1.5;
-    var lastCam = '';   // "mapId:x:y" the view was last centred on, so a still token is not re-centred every tick
+    var lastCam = '';   // "mapId:x:y" the view was last centered on, so a still token is not re-centered every tick
     function setCharFocus(key) { charFocus = ownKey(key); lastCam = ''; try { localStorage.setItem('wp_streamChar', charFocus); } catch (e) {} tick(); }
     if (charSel) charSel.addEventListener('change', function() { setCharFocus(charSel.value); });
     window.wpStreamFocusChar = setCharFocus;   // the party strip's click lands here in the stream window
@@ -235,7 +235,7 @@ if (on) {
         state.selId = null; state.selWbId = null; state.selWbIds = [];
         net.applyingRemote = false;
         if (loc) {
-            // Centre on the character at the focus zoom; only move when they (or the map) moved
+            // Center on the character at the focus zoom; only move when they (or the map) moved
             var cx = loc.tok.x + (loc.tok.w || 60) / 2, cy = loc.tok.y + (loc.tok.h || 52) / 2;
             var camKey = want + ':' + Math.round(cx) + ':' + Math.round(cy);
             var m = camp.items[want]; m.meta = m.meta || {};

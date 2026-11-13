@@ -1,6 +1,6 @@
 /* Handbook pages: the sanitizer, the wire cleaner, the renderer and the flowchart compiler (1.5.0).
    A pure module — no DOM, no state, and only two imports, both pure leaves (textfmt.js: the format of a
-   plain field; safecore.js: a colour that is a colour) — so net.js can clean a page for the wire, the
+   plain field; safecore.js: a color that is a color) — so net.js can clean a page for the wire, the
    GM's preview, the player's reader and the HTML export can render one through the same code, and
    tools/doccheck.js can run the whole thing under Node. Published as window.wpDocRender when a
    window exists (the same guard formula.js uses).
@@ -8,11 +8,11 @@
    The contract every caller relies on:
      sanitizeHtml(html)      the ONLY way rich-text content reaches a screen. Allow-list of tags,
                              two attributes (href on a, http(s) only; style on span, REBUILT from a parsed
-                             colour and a size step, never passed through), text re-escaped, output
-                             re-serialised from a token list (never a slice of the input) and balanced.
+                             color and a size step, never passed through), text re-escaped, output
+                             re-serialized from a token list (never a slice of the input) and balanced.
      fmtHtml(text, fmt, put) a plain field with a format (textfmt.js) as markup: each run's text through put
                              (esc on a page) inside a span whose style is built from the cleaned values only — a
-                             colour, fixed words for weight, slant, underline and strike, a fixed step for its size —
+                             color, fixed words for weight, slant, underline and strike, a fixed step for its size —
                              and a run with a link inside an <a href> written exactly as the sanitiser writes one;
                              with no format, exactly put(text).
      fmtRich(text, fmt)      the same for a field that reads typed markup (a planner's): the whole field through
@@ -62,19 +62,19 @@ function decodeEntities(s) {
    A tokenizer, not a parser: the input is cut at LIMITS.html, split into tags and text, and then
    the output is written from scratch — allowed tags by name only, text re-escaped, one attribute
    (href on a) rebuilt from its decoded value when it is an http(s) URL, and a span's style written
-   anew from the one colour and the one size step read out of it. Nothing from a tag token
+   anew from the one color and the one size step read out of it. Nothing from a tag token
    is ever copied through, which is what makes <scr<script>ipt>, <!-->, unclosed quotes and tags
-   inside <code> inert: they are either a recognised tag (emitted clean) or text (escaped). Tags are
+   inside <code> inert: they are either a recognized tag (emitted clean) or text (escaped). Tags are
    balanced on output with a stack: stray closers are dropped, open tags are closed at the end. */
 var ALLOWED = { p: 1, br: 1, b: 1, strong: 1, i: 1, em: 1, u: 1, s: 1, strike: 1, ul: 1, ol: 1, li: 1, code: 1, pre: 1, a: 1 };
 var VOID = { br: 1 };
 var DROP_CONTENT = { script: 1, style: 1, template: 1, iframe: 1, object: 1, embed: 1, svg: 1, math: 1, noscript: 1, textarea: 1, select: 1, option: 1, button: 1, input: 1, form: 1, frame: 1, frameset: 1, title: 1, head: 1 };
 var AS_P = { div: 1, blockquote: 1, h1: 1, h2: 1, h3: 1, h4: 1, h5: 1, h6: 1, section: 1, article: 1 };   // block containers the RTE or a paste can produce: paragraphs, so line breaks survive
 var LIST = { ul: 1, ol: 1 };
-// A text block's colour and size (1.5.0): <span style="color:#rrggbb;font-size:<step>"> is the ONE form that is ever written, and it is
-// written from the parsed values. What an editing command leaves behind — <font color>, a span whose colour reads rgb(r, g, b) — is read
+// A text block's color and size (1.5.0): <span style="color:#rrggbb;font-size:<step>"> is the ONE form that is ever written, and it is
+// written from the parsed values. What an editing command leaves behind — <font color>, a span whose color reads rgb(r, g, b) — is read
 // into that form; every other property, every other attribute and a value that is neither are dropped; a span left with nothing is
-// just its text. A size step is a share of its parent's size, so a sized span inside a sized span keeps only its colour.
+// just its text. A size step is a share of its parent's size, so a sized span inside a sized span keeps only its color.
 var SIZE_CSS = {}; Object.keys(SIZE_EM).forEach(function(k) { SIZE_CSS[SIZE_EM[k]] = 1; });
 function cssHex(v) {
     v = String(v).trim().toLowerCase();
@@ -95,7 +95,7 @@ function spanLook(t) {
     });
     return { color: color, size: size };
 }
-// On the stack a span is 'span' (a colour), 'span+' (a size, with or without a colour) or '#span' (nothing kept: no tag was written)
+// On the stack a span is 'span' (a color), 'span+' (a size, with or without a color) or '#span' (nothing kept: no tag was written)
 function isSpan(n) { return n === 'span' || n === 'span+' || n === '#span'; }
 function shut(n) { return n === '#span' ? '' : '</' + (n === 'span+' ? 'span' : n) + '>'; }
 
@@ -216,7 +216,7 @@ function sanitize(html, opt) {
     return out;
 }
 function sanitizeHtml(html) { return sanitize(html, null); }
-// The same, less the look: a span or a font is just its text (a published call; a Markdown import keeps the look — docmd.js carries colour
+// The same, less the look: a span or a font is just its text (a published call; a Markdown import keeps the look — docmd.js carries color
 // and size both ways).
 function sanitizeBare(html) { return sanitize(html, { bare: true }); }
 
@@ -224,10 +224,10 @@ function sanitizeBare(html) { return sanitize(html, { bare: true }); }
    A title, a table cell, a caption is plain text with its styling stored beside it. Drawn here: the format is cleaned
    against the text first (a hostile one draws plain), each run's text goes through `put` (esc on a page; the planner's
    preview hands in sanitizeHtml, as it reads its fields), and a run that has a look sits in a span whose style is
-   written from the cleaned values only: a colour through safecore's cssColor, fixed words for weight, slant, underline,
+   written from the cleaned values only: a color through safecore's cssColor, fixed words for weight, slant, underline,
    strike and size. A size is never inside a size: a field of one size has one span around everything (as it always had), and
    where its parts differ each run carries its own. A run with a link sits in an <a> written as the sanitiser writes a text
-   block's (aAttrs), its address through the sanitiser's own rule once more (runHref); neighbours of one link share the <a>.
+   block's (aAttrs), its address through the sanitiser's own rule once more (runHref); neighbors of one link share the <a>.
    With no format the result is exactly put(text): nothing on a page changes until a field is styled. */
 function own(o, k) { return !!o && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k); }
 // sized: the field's one size is written around everything, so no run writes its own
@@ -257,7 +257,7 @@ function fmtHtml(text, fmt, put) {
 // a field's own font around what it draws: one of Waypoint's own, as fontCss writes its family, escaped for the attribute
 function fontWrap(f, out) { var fc = f && f.font ? fontCss(f.font) : ''; return fc ? '<span style="font-family:' + esc(fc) + ';">' + out + '</span>' : out; }
 // A field that reads typed markup — a planner's titles, node fields and cells, which have always gone through the page sanitiser, so a typed
-// <b>, <br> or &mdash; reads as markup. The WHOLE field is sanitised once, exactly as it is with no format, and the format's runs are laid
+// <b>, <br> or &mdash; reads as markup. The WHOLE field is sanitized once, exactly as it is with no format, and the format's runs are laid
 // over its text by their offsets in what was typed: a run that begins or ends inside the typed markup changes nothing about how that markup
 // reads (the bold stays bold, the dash a dash — an entity is one character and takes the look of the run it begins in), and a tag is never
 // made of two runs. A field with a size — its own, or one on any part — keeps no size of a typed span inside it (a size is a share of its
@@ -381,8 +381,8 @@ function proseHtml(content, type) {
 function mmEsc(t) { return String(t || '').replace(/#/g, '#35;').replace(/"/g, '#quot;').replace(/\r?\n/g, '<br>'); }
 function mmText(t) { return '"' + mmEsc(t) + '"'; }
 // A label with a format (textfmt.js): each run inside the plain tags mermaid's own label cleaner keeps (bootdiagram.js: no style attribute,
-// no class of ours needed) — <b>, <i>, <u>, <s>, <font color=rrggbb> (no quote and no # may stand in a mermaid string: a colour without
-// its # reads as the same colour) and <big> / <small> for the size steps (a browser's own 1.2 step, the steps' ratio): around everything
+// no class of ours needed) — <b>, <i>, <u>, <s>, <font color=rrggbb> (no quote and no # may stand in a mermaid string: a color without
+// its # reads as the same color) and <big> / <small> for the size steps (a browser's own 1.2 step, the steps' ratio): around everything
 // where the label has one size, around a run where its parts differ — never one inside another. No link: the label rules forbid href,
 // and a label's format holds none (labelFmt). Mermaid measures the label as it will be drawn, so the box fits it; inline tags add no
 // line break a plain label would not have. Built from the cleaned values only; a label with no format compiles exactly as before.
@@ -724,7 +724,7 @@ function cleanBlock(b, used, ctx) {
     if (LAYOUT_OK[b.type]) { var l = cleanLayout(effectiveLayout(b), { cols: ctx.cols, noFloat: !!NO_FLOAT_IN_COLS[b.type] }); if (l) o.layout = l; }
     return o;
 }
-// opts.keepHidden: keep a page whose players switch is off (the client normalising what it received,
+// opts.keepHidden: keep a page whose players switch is off (the client normalizing what it received,
 // the GM's own preview). Without it a GM-only page is null: nothing leaves the host.
 /* ---------- document appearance (optional per-doc / per-campaign overrides) ----------
    A curated, safe styling layer. Fonts come from a fixed list (never an arbitrary font-family),

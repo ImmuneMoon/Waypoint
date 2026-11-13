@@ -341,7 +341,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             j(hxN) === j(['3d6', '4d6kh3', '2d6', '2d8', '4dF', '0', '1d20']), j(hxN));
         const hrT = (e, dr, o, vars) => { const r = F.evaluate(e, { random: scripted(dr), vars: vars || {} }); return D.hidRoll(rec({ type: 'roll', expr: e, draws: r.draws, names: [{ name: 'Will', value: 12 }, { name: 'AttemptMargin', value: 5 }], mods: [{ n: 'Will', b: 10, a: 12, m: [], w: [] }], refs: [{ s: 'as Parry -2', c: 'x' }], crit: [4, 17], big: true, malf: 17, rid: 'q1', priv: 'gm', sw: [{ n: 'Grip', v: 1 }], as: 'Kael', label: 'Duck', aim: { n: 'Arm', f: [{ k: 'Pen', v: -2 }] }, cov: 'Half cover', pos: { n: 'Flat', by: 'tie' }, dmg: 1, dtype: 'cut', major: 1 }), r, F, o); };
         const hr1 = hrT('3d6 <= Will - AttemptMargin', [2, 3, 4], { rule: 'under3d6' }, { Will: 12, attemptmargin: 5 });
-        check('1.6.2 hidRoll writes its copy key by key: the dice and the host\'s word, who rolled it and how it is labelled, and nothing it read: no names, what changed them, a target, a range, a Big Hit, a Malf that did not jam, where it was aimed, cover or a damage mark',
+        check('1.6.2 hidRoll writes its copy key by key: the dice and the host\'s word, who rolled it and how it is labeled, and nothing it read: no names, what changed them, a target, a range, a Big Hit, a Malf that did not jam, where it was aimed, cover or a damage mark',
             j(Object.keys(hr1).sort()) === j(['as', 'draws', 'expr', 'from', 'hid', 'id', 'label', 'priv', 'rid', 'sw', 'ts', 'type', 'v']) && hr1.expr === '3d6' && j(hr1.draws) === j([2, 3, 4]) && hr1.hid === 'fail' && !/Will|Attempt|needs/.test(j(hr1)), j(hr1));
         const hrCl = cleanRoll(hr1), hrRp = D.replay(hrCl, F, F.VERSION);
         check('1.6.2 that copy passes a player\'s cleaner and replays there, and its card has no check to read a figure from', !!hrCl && hrCl.hid === 'fail' && hrRp.ok && !hrRp.result.breakdown.checks.length && !hrRp.result.breakdown.names.length && !('names' in hrCl) && !('crit' in hrCl) && !('big' in hrCl), j([hrCl, hrRp.ok]));
@@ -368,7 +368,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const hcL = rec({ expr: '3d6', draws: [2, 3, 4], hid: 'pass', hidc: 'crit' }), htx = D.cardText(hcL, roll('3d6', [2, 3, 4]), F, {}), htR = D.cardText(rec({ expr: '2d6', draws: [2, 3], hid: 'rolled' }), roll('2d6', [2, 3]), F, {});
         check('1.6.2 cardText says the host\'s word too, the copy holding no check', /: critical success$/.test(htx) && !/success|failure/.test(htR), j([htx, htR]));
     }
-    /* ---- chat cards (owner 2026-09-27): a damage roll's mark on the record; the colours a card takes from a sheet look; the card itself ---- */
+    /* ---- chat cards (owner 2026-09-27): a damage roll's mark on the record; the colors a card takes from a sheet look; the card itself ---- */
     {
         const j = JSON.stringify;
         const rc0 = rec({ label: 'Hit' }), cd1 = cleanRoll(Object.assign({}, rc0, { dmg: 1 })), cdBad = [2, true, '1', 0, null].map(x => cleanRoll(Object.assign({}, rc0, { dmg: x })));
@@ -376,11 +376,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const pal0 = { text: '#add8e6', muted: '#8C8C8C', panel: '#1a1a1a', card: '#212121', field: '#262626', edge: '#333333', primary: '#ADD8E6', danger: '#cc3333', good: '#4ade80', warn: '#f59e0b' };
         const L1 = D.cardLook({ accent: '#AB94B3', palette: pal0 }), L2 = D.cardLook({ palette: Object.assign({}, pal0, { panel: '#f3ead6', primary: '#7a2e1f' }) }), L3 = D.cardLook({ accent: '#123abc' }), L4 = D.cardLook({ titles: 'accordion' });
         const L5 = D.cardLook({ palette: Object.assign({}, pal0, { good: 'red;background:url(x)' }) }), L6 = D.cardLook({ accent: 'var(--x)' }), L7 = D.cardLook(null), L8 = D.cardLook({ palette: Object.assign({}, pal0, { primary: '#abc' }), accent: '#010203' }), L9 = D.cardLook({ palette: [pal0] });
-        check('Chat cards: cardLook takes a sheet look\'s colours — a whole palette\'s primary, good, danger (as bad), muted and the accent (else the primary), lower-cased, with its panel\'s tone; an accent alone gives the stripe and title; a look with no colour, or a colour that is not #rrggbb (a style, a var, three digits), gives none',
+        check('Chat cards: cardLook takes a sheet look\'s colors — a whole palette\'s primary, good, danger (as bad), muted and the accent (else the primary), lower-cased, with its panel\'s tone; an accent alone gives the stripe and title; a look with no color, or a color that is not #rrggbb (a style, a var, three digits), gives none',
             JSON.stringify(L1) === JSON.stringify({ primary: '#add8e6', good: '#4ade80', bad: '#cc3333', muted: '#8c8c8c', accent: '#ab94b3', tone: 'dark' }) && L2.tone === 'light' && L2.accent === '#7a2e1f' && L2.primary === '#7a2e1f'
             && JSON.stringify(L3) === JSON.stringify({ primary: '#123abc', accent: '#123abc' }) && L4 === null && L5 === null && L6 === null && L7 === null && L9 === null && JSON.stringify(L8) === JSON.stringify({ primary: '#010203', accent: '#010203' }), JSON.stringify([L1, L2, L3, L5, L8]));
         const C1 = D.cleanCardLook(Object.assign(Object.create({ muted: '#000000' }), { primary: '#ABCDEF', good: 'url(x)', bad: '#123456', tone: 'dim', extra: '#111111' })), C2 = D.cleanCardLook({ good: '#123456' }), C3 = D.cleanCardLook('x'), C4 = D.cleanCardLook(L1), C5 = D.cleanCardLook([L1]);
-        check('Chat cards: cleanCardLook (a chat pop-out takes the main window\'s colours) keeps each strict #rrggbb it knows, lower-cased, and a tone of dark or light; nothing without a primary; a look already clean is kept whole',
+        check('Chat cards: cleanCardLook (a chat pop-out takes the main window\'s colors) keeps each strict #rrggbb it knows, lower-cased, and a tone of dark or light; nothing without a primary; a look already clean is kept whole',
             JSON.stringify(C1) === JSON.stringify({ primary: '#abcdef', bad: '#123456' }) && C2 === null && C3 === null && C5 === null && JSON.stringify(C4) === JSON.stringify(L1), JSON.stringify([C1, C2, C4]));
         const dj = require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'scripts', 'dice.js'), 'utf8').replace(/\r\n/g, '\n');
         const rcSrc = dj.slice(dj.indexOf('function renderCard(m) {'), dj.indexOf('// Stage 6 HUD H7: an apply action'));
@@ -453,7 +453,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         {   // 1.6.0 (B3): a damage roll's second part on the host's record (cleanDmg2, cleanRoll): kept only beside dmg 1, text and numbers in their bounds; one that does not clean is left off and the roll kept
             const r2 = cleanRoll(rec({ dmg: 1, dmg2: { t: 4, n: 1, dtype: 'burn', ad: 2 } })), r0 = cleanRoll(rec({ dmg2: { t: 4 } })), rT = cleanRoll(rec({ dmg: 1, dmg2: { t: 0 } }));
             const badD2 = [{ t: -1 }, { t: 1.5 }, { t: 1000001 }, { t: 4, n: 0 }, { t: 4, n: 101 }, { t: 4, dtype: '9x' }, { t: 4, dtype: '<b>' }, { t: 4, ad: 1 }, { t: 4, ad: 0.05 }, { t: 4, ad: 'x' }, [4], 'x', null].map(b => cleanRoll(rec({ dmg: 1, dmg2: b })));
-            check('1.6.0 (B3) cleanRoll keeps a damage roll\'s second part (its total, its dice, its type\'s key, its armour divisor) only beside dmg 1; a malformed one is left off and the roll kept; cleanDmg2 alone',
+            check('1.6.0 (B3) cleanRoll keeps a damage roll\'s second part (its total, its dice, its type\'s key, its armor divisor) only beside dmg 1; a malformed one is left off and the roll kept; cleanDmg2 alone',
                 !!r2 && JSON.stringify(r2.dmg2) === JSON.stringify({ t: 4, n: 1, dtype: 'burn', ad: 2 }) && !!r0 && !('dmg2' in r0) && JSON.stringify(rT.dmg2) === JSON.stringify({ t: 0 })
                 && badD2.every(r => r && r.dmg === 1 && !('dmg2' in r)) && D.cleanDmg2({ t: 3, extra: 1 }).extra === undefined && D.cleanDmg2({}) === null,
                 JSON.stringify([r2, r0, rT, badD2]));
@@ -553,7 +553,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             j(cls(kDC)) === j(['chat-roll', 'card-ok']) && cls(kid(kDC, 'roll-total')).indexOf('roll-ok') >= 0 && cls(kid(kDC, 'roll-total')).indexOf('roll-dmg') < 0 && !!kid(kDC, 'chat-dmg')
             && cls(kPD).indexOf('whisper') >= 0 && cls(kPD).indexOf('card-dmg') >= 0 && !!kid(kPD, 'chat-dmg') && j(cls(kBD)) === j(['chat-roll', 'card-dmg']) && !!kid(kBD, 'roll-bad'), j([cls(kDC), cls(kPD), cls(kBD)]));
         const pG = p => D.cardLook({ palette: Object.assign({}, pal0, { panel: p }) }).tone;
-        check('Chat cards: the tone reads the panel as the sheet does (dark ink reads on it: light) — mid greys either side of the line, a pure red, the channels weighted (orange light, its blue twin dark); a colour only anchored #rrggbb',
+        check('Chat cards: the tone reads the panel as the sheet does (dark ink reads on it: light) — mid grays either side of the line, a pure red, the channels weighted (orange light, its blue twin dark); a color only anchored #rrggbb',
             pG('#606060') === 'dark' && pG('#797979') === 'dark' && pG('#7c7c7c') === 'light' && pG('#ff0000') === 'light' && pG('#ff6e00') === 'light' && pG('#006eff') === 'dark'
             && D.cardLook({ accent: '#123456;x' }) === null && D.cardLook({ accent: 'x#123456' }) === null && D.cleanCardLook({ primary: '#123456)' }) === null, j(['#606060', '#797979', '#7c7c7c', '#ff0000', '#ff6e00', '#006eff'].map(pG)));
         const rlSrc = dj.slice(dj.indexOf('function roll(expr, opts) {'), dj.indexOf('function rollFromPanel()')), seenR = [];

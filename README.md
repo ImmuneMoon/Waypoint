@@ -14,7 +14,7 @@ A portable desktop companion for tabletop RPG campaigns: linked data maps for th
 
 ## What it does
 
-**Data map.** Each map is a set of rooms (nodes) linked by routes, grouped by colour-coded categories, with GM notes, a roster of characters per room, and scene art. Rooms can warp to other maps, so a whole campaign is a tree: a world map, its cities, their buildings, their rooms.
+**Data map.** Each map is a set of rooms (nodes) linked by routes, grouped by color-coded categories, with GM notes, a roster of characters per room, and scene art. Rooms can warp to other maps, so a whole campaign is a tree: a world map, its cities, their buildings, their rooms.
 
 **Play map.** A whiteboard for the same map: a flat-top hex grid (or square, or none) with tokens that seat into cells, drawings, shapes, text, measurement rulers, portals and triggers, and images of any size. Tokens dropped on a room's floor move that character's roster entry with them. Hidden items exist for the GM and are invisible to players until revealed.
 
@@ -34,7 +34,7 @@ Download `Waypoint_Setup.exe` from the latest release and run it. The installer 
 
 ### The Windows warning
 
-Windows may warn that it does not recognise the publisher: Waypoint's installer is not code-signed yet. Only run a `Waypoint_Setup.exe` you downloaded from Waypoint's own releases page, or through the app's own update button; if it came from anywhere else, do not run it.
+Windows may warn that it does not recognize the publisher: Waypoint's installer is not code-signed yet. Only run a `Waypoint_Setup.exe` you downloaded from Waypoint's own releases page, or through the app's own update button; if it came from anywhere else, do not run it.
 
 One-click updates inside the app are signed: your copy takes an update only when its signature checks against the key the installer put there, and **Settings ▸ Updates & about ▸ Restore the previous version** puts the app back as it was before the last update. From 1.5.0 on an update that changes Waypoint's core installs itself the same way: the app downloads the installer, checks its signature, closes, updates and opens again.
 
@@ -111,11 +111,11 @@ The rest of `system/` (the Electron binary, DLLs, locales) and the `saves` folde
 
 `CAMPAIGN_INTEGRATION.md` documents the save schema, the coordinate system, the hex lattice, what multiplayer hides from players, and the conventions the app expects. It is written for anyone generating maps, rosters, and tokens outside the app and merging them in.
 
-## Licence and contact
+## License and contact
 
 See `license.txt` for the terms of use and privacy policy. Questions and problems: fulllioncreativeworks@gmail.com.
 
-Waypoint includes the Inter typeface (SIL Open Font License 1.1, `system/app/assets/fonts/inter/LICENSE`) and Font Awesome Free icons by Fonticons, Inc. (CC BY 4.0, `system/app/assets/icons/fa/LICENSE.txt`). It includes 23 more typefaces for text on maps: Lora, Crimson Text, Comic Neue, Atkinson Hyperlegible, Cinzel, IM Fell English, Almendra, MedievalSharp, Uncial Antiqua, UnifrakturCook, Pirata One, Caveat, Great Vibes, Orbitron, Audiowide, Black Ops One, Share Tech Mono, Cutive Mono, JetBrains Mono, Rye, Bangers, Nosifer and Noto Sans Runic. Each is under the SIL Open Font License 1.1, is carried as its makers published it, and has its licence text with its copyright notice beside it; `system/app/assets/fonts/FONTS.txt` lists them all. It also includes PeerJS, Mermaid and html2canvas (MIT License; each file's licence text is beside it in `system/app/assets/vendor/`).
+Waypoint includes the Inter typeface (SIL Open Font License 1.1, `system/app/assets/fonts/inter/LICENSE`) and Font Awesome Free icons by Fonticons, Inc. (CC BY 4.0, `system/app/assets/icons/fa/LICENSE.txt`). It includes 23 more typefaces for text on maps: Lora, Crimson Text, Comic Neue, Atkinson Hyperlegible, Cinzel, IM Fell English, Almendra, MedievalSharp, Uncial Antiqua, UnifrakturCook, Pirata One, Caveat, Great Vibes, Orbitron, Audiowide, Black Ops One, Share Tech Mono, Cutive Mono, JetBrains Mono, Rye, Bangers, Nosifer and Noto Sans Runic. Each is under the SIL Open Font License 1.1, is carried as its makers published it, and has its license text with its copyright notice beside it; `system/app/assets/fonts/FONTS.txt` lists them all. It also includes PeerJS, Mermaid and html2canvas (MIT License; each file's license text is beside it in `system/app/assets/vendor/`).
 
 ## ☕ Support the Project
 

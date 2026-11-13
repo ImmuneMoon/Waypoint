@@ -129,7 +129,7 @@ function finish() {
         cv.getContext('2d').drawImage(s.img, s.r.x, s.r.y, s.r.s, s.r.s, 0, 0, side, side);
         if (s.opts.as === 'blob') {
             s.busy = true;
-            cv.toBlob(function(b) { s.busy = false; if (st !== s) return; if (!b) { toast('Could not save that picture.'); return; } res.blob = b; done(); }, 'image/png');   // cancelled or re-opened meanwhile: nothing
+            cv.toBlob(function(b) { s.busy = false; if (st !== s) return; if (!b) { toast('Could not save that picture.'); return; } res.blob = b; done(); }, 'image/png');   // canceled or re-opened meanwhile: nothing
             return;
         }
         var data = '';

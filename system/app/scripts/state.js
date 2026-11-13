@@ -71,7 +71,7 @@ window.addEventListener('error', function(e) {
 
     market:   {label:'Market · Lodging',      color:'#5cb87a'},
 
-    harbour:  {label:'Harbour · Docks',       color:'#3fb6a8'},
+    harbour:  {label:'Harbor · Docks',       color:'#3fb6a8'},
 
     custom:   {label:'Custom / Other',        color:'#c9c9d4'}
 

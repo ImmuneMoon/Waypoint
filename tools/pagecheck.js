@@ -684,7 +684,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('the four places a page is read land on one block (the review of step 1, its finding 5): the page itself and a player\'s reader (pagenav.js land), the panel over the map (docpanel.js open, its panelland slice with its own Find, run for real) and a page\'s window (popout.js popLandNow with a Find of its own), each with the module\'s own published wpPageNav, light the same block for every probe — the review\'s own two among them, where the panel and the window used to light the block of their first hit —, the panel and the window focus the first hit in that block and count alike, and words that land nowhere light nothing anywhere',
             J(four) === J(fourWant), J(four.filter((f, i) => J(f) !== J(fourWant[i]))));
         // one block lit, with the module's own published wpPageNav (the maintainer's decision, found live): a page whose third block is a flowchart
-        // labelled "Gold gate" and whose tenth says "Gold glints here.", opened at "gold gate" in the panel over the map (docpanel.js open and
+        // labeled "Gold gate" and whose tenth says "Gold glints here.", opened at "gold gate" in the panel over the map (docpanel.js open and
         // landAgain, their slices run for real) and in a page's window (popout.js popLandNow with a Find of its own): the tenth block is landed on and
         // lit while the chart waits to be drawn; drawn, the search is applied again and the landing made again on the chart's own block, and the light
         // goes from the tenth to the third, so that one block is lit. A wheel on the page meanwhile, and the landing is not made again

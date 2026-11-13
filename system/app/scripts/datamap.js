@@ -62,7 +62,7 @@ import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, up
 
 import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  renderElementList, esc } from './inspector.js';
 import * as RC from './roomcore.js';   // 1.6.2 (backlog 45): the rooms' pure half
-import { cssColor, picRef } from './safecore.js';   // a category's colour from a file, checked
+import { cssColor, picRef } from './safecore.js';   // a category's color from a file, checked
 
 
 
@@ -216,7 +216,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
       var del=document.createElement('div');
 
       var lmeta = linkMeta(lk);
-      del.className='edge-del' + (lt ? ' t-' + lt : '') + (lmeta.label ? ' labelled' : '') + (state.selLink === i ? ' sel' : '');
+      del.className='edge-del' + (lt ? ' t-' + lt : '') + (lmeta.label ? ' labeled' : '') + (state.selLink === i ? ' sel' : '');
       del.textContent = LINK_TYPES[lt].glyph + (lmeta.label ? '\u2002' + lmeta.label : '');
 
       del.style.left=((cA.x+cB.x)/2)+'px'; del.style.top=((cA.y+cB.y)/2)+'px';
@@ -226,7 +226,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
       del.addEventListener('pointerdown', function(ev){ ev.stopPropagation(); });
       del.addEventListener('click', function(ev){ ev.stopPropagation(); selectLink(i); });
       del.addEventListener('contextmenu', function(ev){ ev.preventDefault(); ev.stopPropagation(); openEdgeMenu(ev, i); });
-      // the chip only shows while the line is hovered (a labelled or selected line keeps it)
+      // the chip only shows while the line is hovered (a labeled or selected line keeps it)
       hit.addEventListener('pointerenter', function(){ del.classList.add('near'); });
       hit.addEventListener('pointerleave', function(){ del.classList.remove('near'); });
 
@@ -271,9 +271,9 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
           bar(item.x + item.w - t / 2, item.y, t, item.h);
           if (hOther) bar(hOther.x + hOther.w - t / 2, hOther.y, t, hOther.h);
       }
-      // Glow the neighbour(s) whose size was matched
+      // Glow the neighbor(s) whose size was matched
       [wOther, hOther].forEach(function(o) { var el = o && ((state.wbEls && state.wbEls[o.id]) || document.querySelector('.wb-item[data-id="' + o.id + '"]')); if (el) el.classList.add('size-match'); });
-      // The badge: one line per matched axis, naming the neighbour
+      // The badge: one line per matched axis, naming the neighbor
       var b = document.createElement('div');
       b.className = 'match-badge';
       var lines = [];
@@ -406,7 +406,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
       // Chrome tiles repeated backgrounds at whole pixels, so a fractional tile
       // drifts ~0.04px per row and tokens would sit visibly off-cell mid-canvas.
       // Columns are 1.5s = 45 apart; each column is shifted half a row from the
-      // last. Cell centres: x = 45q + 15, y = 52(r + q/2).
+      // last. Cell centers: x = 45q + 15, y = 52(r + q/2).
       var h = LG && LG.type === 'hex' ? LG.h : 52;
       var offsetX = s / 2 + (LG && LG.type === 'hex' ? LG.ox || 0 : 0);
       var offsetY = LG && LG.type === 'hex' ? LG.oy || 0 : 0;
@@ -488,7 +488,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
       item.x = nx; item.y = ny;
       return true;
   };
-  // Grid-shaped tokens (2026-09-27): seat a token the app places in its cell on either grid — hex through wpSeatHex, a square grid by centring
+  // Grid-shaped tokens (2026-09-27): seat a token the app places in its cell on either grid — hex through wpSeatHex, a square grid by centering
   // it in its 50 px cell (a 50x50 token lands on the lattice). Returns true when the position changed
   window.wpSeatCell = function(item, map) {
       if (!item) return false;
@@ -497,7 +497,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
       if (!g && map === getActiveMap()) g = state.gridType;
       if (g === 'hex') return window.wpSeatHex(item, map);
       if (g !== 'square' || !(item.isChar || item.waiting)) return false;
-      var G = (typeof latticeOf === 'function' ? latticeOf(map) : null) || { type: 'square', size: 50 }, w = item.w || 0, h = item.h || 0, one = Math.max(w, h) <= G.size * 1.28;   // one cell: centred in it; sized up: its corner on the lattice, as a drag release and Fit to grid put it
+      var G = (typeof latticeOf === 'function' ? latticeOf(map) : null) || { type: 'square', size: 50 }, w = item.w || 0, h = item.h || 0, one = Math.max(w, h) <= G.size * 1.28;   // one cell: centered in it; sized up: its corner on the lattice, as a drag release and Fit to grid put it
       var nx = one ? (Math.floor((item.x + w / 2 - (G.ox || 0)) / G.size) * G.size + G.size / 2 + (G.ox || 0) - w / 2) : (Math.round((item.x - (G.ox || 0)) / G.size) * G.size + (G.ox || 0)), ny = one ? (Math.floor((item.y + h / 2 - (G.oy || 0)) / G.size) * G.size + G.size / 2 + (G.oy || 0) - h / 2) : (Math.round((item.y - (G.oy || 0)) / G.size) * G.size + (G.oy || 0));
       if (Math.abs(nx - item.x) < 0.01 && Math.abs(ny - item.y) < 0.01) return false;
       item.x = nx; item.y = ny;
@@ -515,7 +515,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
       return G || (g === 'hex' ? { type: 'hex', s: 30, h: 52 } : { type: 'square', size: 50 });
   }
   window.wpLatticeOf = latticeOf;
-  // The snap rule (the owner, 2026-09-29): Snap decides where a token dropped by hand lands, on every grid — on, in a cell (on hex centred in
+  // The snap rule (the owner, 2026-09-29): Snap decides where a token dropped by hand lands, on every grid — on, in a cell (on hex centered in
   // it, on a square grid on the lattice, with no grid on a dot of the background); off, exactly where it was dropped. A player's drop follows
   // the GM's Snap (net.js sends it to the table: net.tableSnapOn); Snap to other items only is no grid seat. A token fitted to the grid
   // (gridFit) stays fitted, Snap or not; the app's own placements (a waiting token, a portal, a paste) seat as before
@@ -523,7 +523,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
       var N = window.wpNet; if (N && N.active && N.role === 'client') return N.tableSnapOn === true;
       return !!state.snap && state.snapMode !== 'items';
   };
-  // a map with no grid: a one-cell token's centre onto the nearest dot of the background (every 50 px, at 25), a sized-up one's corner on the lattice
+  // a map with no grid: a one-cell token's center onto the nearest dot of the background (every 50 px, at 25), a sized-up one's corner on the lattice
   window.wpSeatDot = function(item) {
       if (!item) return false;
       var w = item.w || 0, h = item.h || 0, one = Math.max(w, h) <= 64;
@@ -547,7 +547,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
       }
       return !force && window.wpSeatDot(item);
   };
-  // A picture or a plain shape the size of ONE hex cell seats in its cell by its centre, as a token does (the owner, 2026-10-03: "images when
+  // A picture or a plain shape the size of ONE hex cell seats in its cell by its center, as a token does (the owner, 2026-10-03: "images when
   // resized to the correct hex size or square size sit slightly off of center in the x axis if theyre not tokens"). Its drop used to put its
   // CORNER on a hex vertex, and a cell's box has no vertex at its corner: the nearest is 15 px along. About one cell: 39 to 64 px each way
   // (three quarters of a cell's height, up to the app's own bound for one cell). A bar or a railing, thinner, and anything larger keep
@@ -611,7 +611,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
 
       if(state.viewMode !== 'visual') return;
 
-      // Position snapping honours the Snap toggle; size matching while resizing
+      // Position snapping honors the Snap toggle; size matching while resizing
       // is always on (it's a soft pause you can push through, never a constraint).
       // …and the snap MODE: item magnetism is off in 'grid' mode
       if(!isResize && (!state.snap || state.snapMode === 'grid')) return;
@@ -766,7 +766,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
 
   /* ---------- drag shared ---------- */
 
-  // Select every item whose CENTRE falls inside the marquee box (world coords). Shared by the empty-board
+  // Select every item whose CENTER falls inside the marquee box (world coords). Shared by the empty-board
   // marquee and the locked-item marquee. A modifier adds to the current selection; an empty sweep clears it.
   function selectItemsInMarquee(mx, my, mw, mh, e) {
       if (!(mw > 5 && mh > 5)) { render(); return; }
@@ -834,7 +834,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
       if (!num(c.x) || !num(c.y) || !num(px) || !num(py)) return Infinity;
       var ww = num(c.w) && c.w > 0 ? c.w : 0, hh = num(c.h) && c.h > 0 ? c.h : 0, bw = num(c.baseW) && c.baseW > 0 ? c.baseW : (ww || 1), bh = num(c.baseH) && c.baseH > 0 ? c.baseH : (hh || 1);
       var sx = ww ? ww / bw : 1, sy = hh ? hh / bh : 1, rot = num(c.rot) ? c.rot % 360 : 0, cx = c.x + ww / 2, cy = c.y + hh / 2;
-      if (rot) { var ra = -rot * Math.PI / 180, co = Math.cos(ra), si = Math.sin(ra), rx = px - cx, ry = py - cy; px = cx + rx * co - ry * si; py = cy + rx * si + ry * co; }   // the board turns a line about its box's centre: the point is turned back
+      if (rot) { var ra = -rot * Math.PI / 180, co = Math.cos(ra), si = Math.sin(ra), rx = px - cx, ry = py - cy; px = cx + rx * co - ry * si; py = cy + rx * si + ry * co; }   // the board turns a line about its box's center: the point is turned back
       var sw = typeof c.strokeWidth === 'number' ? c.strokeWidth : parseFloat(c.strokeWidth), half = Math.min(200, (num(sw) && sw > 0 ? sw : 3) * Math.max(sx, sy) / 2), far = half + WALL_REACH + 1;
       if (ww && hh && (px < c.x - far || px > c.x + ww + far || py < c.y - far || py > c.y + hh + far)) return Infinity;   // a line far from the pointer is passed over by its box alone
       var best = Infinity, prev = null, n = Math.min(c.pts.length, 4000);
@@ -1157,7 +1157,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
         if(moved){
           if (modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && window.wpRegrabDrag) {
               // fold M8: the drop lands on the live map at the pointer's place, whatever copy of the map arrived since the last move. The map
-              // left meanwhile (summoned, travelled): no drop, and the map it began on is asked for whole. The token under the pointer no
+              // left meanwhile (summoned, traveled): no drop, and the map it began on is asked for whole. The token under the pointer no
               // longer theirs: nothing lands and the others go back where they were (the host never moved them); another member no longer
               // theirs is left as the host has it and the rest land
               var campU = getActiveCampaign();
@@ -1181,10 +1181,10 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
               // first): it seats into its cell, every non-hex member (a text box grouped with a teleport
               // point, a floor, a prop) follows by the same correction, and the other hex items seat
               // into their own cells. The group never loosens, whichever member was dragged.
-              var isHexy = function(it) { return it.gridFit || (snapOn && (it.isChar || it.waiting || it.type === 'hexagon' || it.shape === 'hexagon')); };   // gridFit images seat by centre too (forced below)
+              var isHexy = function(it) { return it.gridFit || (snapOn && (it.isChar || it.waiting || it.type === 'hexagon' || it.shape === 'hexagon')); };   // gridFit images seat by center too (forced below)
               var refMd = multiDrag.find(function(md) { return md.item === item && (cellRef || isHexy(item)); }) || multiDrag.find(function(md) { return isHexy(md.item); });
               var seatBefore = { x: refMd.item.x, y: refMd.item.y };
-              window.wpSeatHex(refMd.item, null, true);   // force: a fitted (non-char) image centres on its hex cell too
+              window.wpSeatHex(refMd.item, null, true);   // force: a fitted (non-char) image centers on its hex cell too
               var seatDx = refMd.item.x - seatBefore.x, seatDy = refMd.item.y - seatBefore.y;
               multiDrag.forEach(function(md) {
                   if (md !== refMd) { if (isHexy(md.item)) window.wpSeatHex(md.item, null, true); else { md.item.x += seatDx; md.item.y += seatDy; } }
@@ -1658,7 +1658,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
                   item.ownerId = window.wpNet.myId; item.byPlayer = true;
               }
               // [buildcheck:penpreset-start]
-              // The map builder (fold B1c): a Wall line. The GM's stroke takes the Build tool's preset (its width, square tip, colour, layer and name,
+              // The map builder (fold B1c): a Wall line. The GM's stroke takes the Build tool's preset (its width, square tip, color, layer and name,
               // and blocks sight as a wall or a door) on the machine that owns the campaign only. A player's stroke never does, whatever their window holds
               var PPw = window.wpPenPreset;
               if (PPw && !item.byPlayer && window.wpCanPersistLocal && window.wpCanPersistLocal()) {
@@ -1930,7 +1930,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
   // 1.6.2 (backlog 45, fold 2; the owner, 2026-11-11, by prompt: "A. Strip along the top (Recommended)", "Dimmed, still usable (Recommended)"):
   // one strip along the top of the Data Map, the GM's, between the minimap and the zoom box. Its Find box reads each room's name, notes and who is
   // there (roomcore roomMatch); a chip a category (catsUsed) shows only the rooms of the chips pressed. A room that does not stand out is dimmed and
-  // stays usable, its links fade with it, and a room the words find is lit. Enter goes to the next one found, selects it and centres it. Nothing
+  // stays usable, its links fade with it, and a room the words find is lit. Enter goes to the next one found, selects it and centers it. Nothing
   // of it is stored: the words and the chips are this screen's, let go when another map is on screen
   var _df = { mapId: null, q: '', picked: [], at: -1, sig: '' };
   function dataFindMay() { return state.viewMode === 'data' && !window.wpStream && !(window.wpNet && window.wpNet.foreign); }
@@ -1977,7 +1977,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
               var b = document.createElement('button'), dot = document.createElement('span'), nm = document.createElement('span'), n = document.createElement('span');
               b.type = 'button'; b.className = 'df-chip' + (_df.picked.indexOf(c.key) >= 0 ? ' on' : ''); b.dataset.cat = c.key; b.setAttribute('aria-pressed', _df.picked.indexOf(c.key) >= 0 ? 'true' : 'false');
               b.title = 'Dims every room of another category. Press another chip to keep its rooms too.'; b.setAttribute('aria-label', c.label + ', ' + c.n + (c.n === 1 ? ' room' : ' rooms'));
-              dot.className = 'df-dot'; dot.style.backgroundColor = cssColor(c.color, '#888'); nm.textContent = c.label; n.className = 'df-n'; n.textContent = String(c.n);   // the review: a colour from a file, checked
+              dot.className = 'df-dot'; dot.style.backgroundColor = cssColor(c.color, '#888'); nm.textContent = c.label; n.className = 'df-n'; n.textContent = String(c.n);   // the review: a color from a file, checked
               b.appendChild(dot); b.appendChild(nm); b.appendChild(n); chips.appendChild(b);
           });
       }
@@ -1999,7 +1999,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
       if (nEl) { nEl.textContent = RC.queryWords(_df.q).length ? hits.length + ' of ' + am.rooms.length : ''; nEl.setAttribute('aria-label', nEl.textContent ? nEl.textContent + ' rooms found' : ''); }
       return { hits: hits };
   }
-  function dataFindNext(back) {   // Enter: the next room found, in reading order, selected and centred
+  function dataFindNext(back) {   // Enter: the next room found, in reading order, selected and centered
       var am = getActiveMap(); if (!am) return null;
       var hits = dataFindApply().hits.slice().sort(function(a, b) { return (a.y - b.y) || (a.x - b.x); }); if (!hits.length) return null;
       _df.at = _df.at < 0 && back ? hits.length - 1 : (_df.at + (back ? -1 : 1) + hits.length) % hits.length;   // the review: Shift+Enter first goes to the last

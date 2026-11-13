@@ -364,15 +364,15 @@ function field(form, id, label, value, opts) {
     inp.id = 'libF_' + id; if (opts.title) row.title = opts.title;
     row.appendChild(inp); form.appendChild(row); if (typeof guideTip === 'function') guideTip(form, id); return inp;
 }
-// 1.6.2 (180; the owner: a tone for the list and one a level line, "is both a good idea?"): a colour for each level's tag, over its list's. One list
+// 1.6.2 (180; the owner: a tone for the list and one a level line, "is both a good idea?"): a color for each level's tag, over its list's. One list
 // a level that has a tag, made again as the By level box is typed in; st.lt holds the picks by level, read by readForm
 var TONE_PAIRS = [['', 'As the list sets'], ['good', 'Good (green)'], ['warn', 'Warning (amber)'], ['danger', 'Danger (red)'], ['accent', 'Accent'], ['primary', 'Primary']];
 function lvlToneBox(form, e) {
     var box = el('div', 'lib-lvltones'), area = ui('libF_lvls'); st.lt = {}; (Array.isArray(e.lvls) ? e.lvls : []).forEach(function(r) { if (r && typeof r.tone === 'string') st.lt[r.lvl] = r.tone; });
     var draw = function() {
         box.textContent = ''; var lv = lvlsFromBox(area ? area.value : '', e.lvls).filter(function(r) { return !!r.tag; }); if (!lv.length) return;
-        box.appendChild(el('div', 'lib-fsub', 'Tag colours'));
-        lv.forEach(function(r) { var row = el('label', 'lib-frow'); row.appendChild(el('span', 'lib-flabel', 'Level ' + r.lvl + ' (' + r.tag + ')')); var sl = select(TONE_PAIRS, st.lt[r.lvl] || ''); sl.className = 'field lib-lvltone'; sl.title = 'The colour of this level\u2019s tag on the sheet. As the list sets: the Lists tab\u2019s Level tags\u2019 colour'; sl.addEventListener('change', function() { if (sl.value) st.lt[r.lvl] = sl.value; else delete st.lt[r.lvl]; }); row.appendChild(sl); box.appendChild(row); });
+        box.appendChild(el('div', 'lib-fsub', 'Tag colors'));
+        lv.forEach(function(r) { var row = el('label', 'lib-frow'); row.appendChild(el('span', 'lib-flabel', 'Level ' + r.lvl + ' (' + r.tag + ')')); var sl = select(TONE_PAIRS, st.lt[r.lvl] || ''); sl.className = 'field lib-lvltone'; sl.title = 'The color of this level\u2019s tag on the sheet. As the list sets: the Lists tab\u2019s Level tags\u2019 color'; sl.addEventListener('change', function() { if (sl.value) st.lt[r.lvl] = sl.value; else delete st.lt[r.lvl]; }); row.appendChild(sl); box.appendChild(row); });
     };
     if (area) area.addEventListener('input', draw); draw(); form.appendChild(box);
 }
@@ -440,7 +440,7 @@ function renderForm() {
 function needsBox(form, e) {
     if (st.fnFor !== e.id || !st.fn) { st.fn = clone(Array.isArray(e.needs) ? e.needs : []); st.fnFor = e.id; }
     form.appendChild(el('div', 'lib-fsub', 'What it needs'));
-    form.appendChild(el('div', 'lib-note', 'A player may take this only while their character carries every entry listed here. Their picker greys it out until then and says why. You may always give it.'));
+    form.appendChild(el('div', 'lib-note', 'A player may take this only while their character carries every entry listed here. Their picker grays it out until then and says why. You may always give it.'));
     var box = el('div', 'lib-mods lib-needs'); form.appendChild(box);
     var all = allEntries().concat(sysItems()), nameOf = function(id) { for (var i = 0; i < all.length; i++) if (all[i] && all[i].id === id) return all[i].name; return null; };
     var draw = function() {
@@ -663,11 +663,11 @@ function readForm() {
     var g = function(id) { var n = ui('libF_' + id); return n ? n.value : ''; }, e = current(), stats = {};
     Array.prototype.forEach.call(document.querySelectorAll('#libForm [data-stat]'), function(n) { stats[n.dataset.stat] = n.value; });
     var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), pic: g('pic'), vis: g('vis'), lvl: g('lvl'), lvlOnly: g('lvlOnly'), stats: stats, notes: g('notes'), desc: g('desc'), lvls: g('lvls'), lvlsWas: e.lvls, tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, areaType: g('areaType'), areaUse: g('areaUse'), areaPlace: g('areaPlace'), areaTrig: g('areaTrig'), areaAd: g('areaAd'), areaLoc: g('areaLoc'), areaFlight: g('areaFlight'), areaFrag: g('areaFrag'), areaFragType: g('areaFragType'), areaCloud: g('areaCloud'), areaCloudN: g('areaCloudN'), areaCloudU: g('areaCloudU'), areaCloudR: g('areaCloudR'), areaCloudSmoke: g('areaCloudSmoke'), areaCloudFx: g('areaCloudFx'), areaCloudRoll: g('areaCloudRoll'), flySpeed: g('flySpeed'), flyRounds: g('flyRounds'), flyHp: g('flyHp'), flyPro: g('flyPro'), flySize: g('flySize'), flyPath: g('flyPath'), flyRoll: g('flyRoll'), flyEnd: g('flyEnd'), areaAffs: [0, 1].map(function(i) { return { vs: g('areaAff' + i + 'Vs'), fx: g('areaAff' + i + 'Fx'), who: g('areaAff' + i + 'Who'), needs: g('areaAff' + i + 'Needs'), n: g('areaAff' + i + 'Lasts'), u: g('areaAff' + i + 'Unit') }; }), gmNotes: g('gmNotes'), again: g('again'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg'), rollSw: st.fsFor === e.id && st.fs ? st.fs : e.rollSw, mods: st.fmFor === e.id && st.fm ? st.fm : e.mods, modsOn: ui('libF_modsOn') ? ui('libF_modsOn').checked : e.modsOn === true, opens: st.foFor === e.id && st.fo ? st.fo : e.opens, grants: st.fgFor === e.id && st.fg ? st.fg : e.grants, needs: st.fnFor === e.id && st.fn ? st.fn : e.needs, needsIf: g('needsIf'), needsFrom: g('needsFrom'), needsWarn: g('needsWarn'), needsMsg: g('needsMsg') });
-    if (typed.lvls && st.lt) typed.lvls.forEach(function(r) { if (r.tag && st.lt[r.lvl]) r.tone = st.lt[r.lvl]; else delete r.tone; });   // 1.6.2 (180): each level's tag colour as picked
+    if (typed.lvls && st.lt) typed.lvls.forEach(function(r) { if (r.tag && st.lt[r.lvl]) r.tone = st.lt[r.lvl]; else delete r.tone; });   // 1.6.2 (180): each level's tag color as picked
     var out = clone(e), eqShown = !!ui('libF_eq'); FORM_KEYS.forEach(function(k) { if (eqShown || (k !== 'eq' && k !== 'eqMsg')) delete out[k]; }); return Object.assign(out, typed);   // a switch lock the form does not show (no list has a switch) is kept
 }
 // 1.5.8: an entry's blast extras beside its radius: its damage type (a key of the Combat tab's types, or none), whether going off uses one
-// up, whether it is placed (a mine) and its trigger radius in yards, and its armour divisor. Fixed words, a file's values only as values
+// up, whether it is placed (a mine) and its trigger radius in yards, and its armor divisor. Fixed words, a file's values only as values
 function dmgTypePairs(cur) {
     var c = camp(), d = c && c.system && c.system.combat && c.system.combat.damage, out = [['', 'None']], seen = {};
     ((d && Array.isArray(d.types)) ? d.types : []).forEach(function(y) { if (!y || typeof y.key !== 'string' || seen[y.key]) return; seen[y.key] = 1; out.push([y.key, typeof y.label === 'string' && y.label ? y.label : y.key]); });
@@ -694,7 +694,7 @@ function blastBox(form, a) {
     field(form, 'areaUse', 'Uses one up', a.use === true ? 'yes' : '', { pairs: [['', 'No'], ['yes', 'Yes, going off uses one up']], title: 'Going off uses one up, as a grenade is used up' });
     field(form, 'areaPlace', 'Placed', a.place === true ? 'yes' : '', { pairs: [['', 'Thrown'], ['yes', 'Placed, not thrown']], title: 'Placed, not thrown: a mine. It goes off when a token comes within its trigger radius' });
     field(form, 'areaTrig', 'Trigger radius (yd)', num(a.trig), { max: 6, title: 'For a placed blast only: it goes off when a token comes this many yards from it' });
-    field(form, 'areaAd', 'Armour divisor', num(a.ad), { max: 6, title: 'Armour is divided by this number against its damage. Blank or 1: none' });
+    field(form, 'areaAd', 'Armor divisor', num(a.ad), { max: 6, title: 'Armor is divided by this number against its damage. Blank or 1: none' });
     field(form, 'areaFlight', 'On a miss, launched', a.flight === 'scatter' || a.flight === 'line' ? a.flight : '', { pairs: [['', 'You place it'], ['scatter', 'It scatters, as a throw'], ['line', 'It flies straight']], title: 'How a round fired from a launcher lands when the roll misses. One that scatters lands as a missed throw does. One that flies straight goes off on the first wall or character in its path, or at its farthest' });   // 1.5.9 (es)
     field(form, 'areaFrag', 'Fragmentation', typeof a.frag === 'string' ? a.frag : '', { title: 'Its fragmentation, a dice roll such as 1d6. When the blast goes off the host rolls it for the characters it reaches, as the Combat tab says. Blank: none' });   // 1.5.9 (es)
     field(form, 'areaFragType', 'Fragmentation type', typeof a.fragType === 'string' ? a.fragType : '', { pairs: [['', 'As the Combat tab says']].concat(dmgTypePairs(a.fragType).slice(1)), title: 'The damage type of its fragmentation, one of the Combat tab\u2019s damage types' });
@@ -740,7 +740,7 @@ function blastDrops(raw, c) {
     else {
         if (f.type && !(k && k.type)) out.push('the damage type');
         if (g('areaTrig') && !(k && k.trig)) out.push(f.place === true ? 'the trigger radius, which must be a number above 0' : 'the trigger radius, which needs Placed, not thrown');
-        if (g('areaAd') && !(k && k.ad) && Number(g('areaAd')) !== 1) out.push('the armour divisor, which must be a number above 0');
+        if (g('areaAd') && !(k && k.ad) && Number(g('areaAd')) !== 1) out.push('the armor divisor, which must be a number above 0');
         if (g('areaFlight') && !(k && k.flight)) out.push('how it lands on a miss, which a placed blast never does');   // 1.5.9 (es)
         if (g('areaFrag') && !(k && k.frag)) out.push('the fragmentation, which must be a formula');   // 1.5.9 (es)
         if (g('areaFragType') && !(k && k.fragType)) out.push(g('areaFrag') ? 'the fragmentation type' : 'the fragmentation type, which needs a fragmentation');

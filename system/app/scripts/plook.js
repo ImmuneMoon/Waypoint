@@ -1,8 +1,8 @@
 /* plook.js — 1.6.2, backlog 35, a personal look (the owner, 2026-11-03, by prompt: "name, roll cards, and sheet text", set by "player, or GM,
-   both can clear the other's changes", and "Yes, a VTT feature, on"). A character's name is drawn in a font of Waypoint's own and a colour,
+   both can clear the other's changes", and "Yes, a VTT feature, on"). A character's name is drawn in a font of Waypoint's own and a color,
    wherever it is shown. ONE reader: ofChar(c) for a character, ofTok(w) for a character token, each the cleaned look (systemcore cleanPlook)
    or null, and null while Personal looks is off on this screen. On the GM's Waypoint a token reads its character; on a player's app, its
-   character where the app holds a copy, else the look the host sent on the token (pl). dress(el, look) sets an element's font and colour
+   character where the app holds a copy, else the look the host sent on the token (pl). dress(el, look) sets an element's font and color
    from a look, and clears both for none. Published as window.wpPlook. */
 import { getActiveCampaign } from './models.js';
 
@@ -21,7 +21,7 @@ function dress(el, look) {
     el.style.color = lk && lk.color ? lk.color : '';
     return el;
 }
-// a look as css text for a style attribute (the caller escapes it): the font through fontCss, the colour as cleaned; '' for none
+// a look as css text for a style attribute (the caller escapes it): the font through fontCss, the color as cleaned; '' for none
 function css(look) { var T = typeof window !== 'undefined' ? window.wpTextFmt : null, lk = clean(look); if (!lk) return ''; var s = ''; if (lk.font && T && typeof T.fontCss === 'function') s += 'font-family:' + T.fontCss(lk.font) + ';'; if (lk.color) s += 'color:' + lk.color + ';'; return s; }
 function fontOn(el, look) { if (!el || !el.style) return el; var T = typeof window !== 'undefined' ? window.wpTextFmt : null, lk = clean(look); el.style.fontFamily = lk && lk.font && T && typeof T.fontCss === 'function' ? T.fontCss(lk.font) : ''; return el; }
 function sig(look) { var lk = clean(look); return lk ? (lk.font || '') + '|' + (lk.color || '') : ''; }

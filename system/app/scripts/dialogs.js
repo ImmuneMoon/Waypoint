@@ -380,7 +380,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           if (window.wpTopRow && window.wpTopRow.sync) window.wpTopRow.sync();
           setTimeout(function(){ if (window.appRestoreCamera) window.appRestoreCamera();   /* the old #centerBtn is gone: restore the map's remembered camera */ }, 10);
           if (done) done();
-      }, updateCampaignSelect);   // cancelled: the picker shows the hosted campaign again
+      }, updateCampaignSelect);   // canceled: the picker shows the hosted campaign again
   }
   window.wpOpenCampaign = openCampaign;
   campaignSelect.addEventListener('change', function() { openCampaign(this.value); });

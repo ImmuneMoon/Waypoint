@@ -22,8 +22,8 @@ function make(D) {
     function moves(mapId) { return R.mv[mapId] || (R.mv[mapId] = Object.create(null)); }
     function held(mapId, vId) { var m = R.res[mapId] || (R.res[mapId] = Object.create(null)); return m[vId] || (m[vId] = Object.create(null)); }
 
-    // A check or a sneak's formula is worked out with its character's context, and a context reads what its target is seen as, which is this very judgement.
-    // While one is being worked out a judgement asked for rolls nothing and answers from what is held
+    // A check or a sneak's formula is worked out with its character's context, and a context reads what its target is seen as, which is this very judgment.
+    // While one is being worked out a judgment asked for rolls nothing and answers from what is held
     function quiet(fn) { R.busy = (R.busy || 0) + 1; try { return fn(); } finally { R.busy--; } }
 
     // Whether a creature is sneaking: the formula on its own sheet. Its Stealth roll goes with the mark
@@ -77,7 +77,7 @@ function make(D) {
     // ... which ends with its next turn in a fight, and by the clock out of one (tick)
     function turnStart(mapId, tokId) { if (R.loud[mapId] && R.loud[mapId][tokId]) { delete R.loud[mapId][tokId]; D.arm(mapId); } }
 
-    // A pass of fog.js's judgement for one player on one map: by, each cell only a band sees and who sees it there, [{ t: the viewer's token, ids: its senses }].
+    // A pass of fog.js's judgment for one player on one map: by, each cell only a band sees and who sees it there, [{ t: the viewer's token, ids: its senses }].
     // tick(w): the senses the GM ticked for this token, true for all. Notes who moved, and lets go of what a viewer no longer has in its band
     function pass(map, camp, rid, by, keyOf, ticked, real) {
         if (!D.host() || !camp || !camp.system) return null;

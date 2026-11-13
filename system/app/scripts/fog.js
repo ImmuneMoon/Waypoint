@@ -77,7 +77,7 @@ function campMarkSenses(camp) {
 }
 var GLYPH_K = { sound: 1, tremor: 2, presence: 3, heat: 4 };
 // One token's sight and full senses, in cells, from ONE resolver (its token's context: effects, posture, elevation). Sight: the mapped sheet
-// field via the formula engine, else the campaign default; clamped. Counted in yards unless the campaign says feet, metres or cells
+// field via the formula engine, else the campaign default; clamped. Counted in yards unless the campaign says feet, meters or cells
 // (camp.fog.fields.sightUnit, L4: a d20 game's 60 ft on 5 ft squares is 12 cells). A sense: its number, which every token has, or its field
 // read from the character's sheet only where the token's own player holds that character whole (not an NPC, the character's owner the
 // token's, not a teammate's partial copy), so host and player read it alike; waived: the GM's union of every token reads every sheet. A range
@@ -155,7 +155,7 @@ function tokenSightCells(token, map, camp) { return tokenSenses(token, map, camp
 // place, facing, stance, blind tick and ranges; its character (the object, its values object, its stamp); the system; the campaign's fog
 // settings; the map's stamp and grid; the features that feed a formula; the role. And until anything says a sheet or what is seen changed
 // (sensesForget: the sheet's own two funnels, invalidateVision, invalidateSeen). A second is the longest a result is kept whatever happens,
-// for a change that reaches none of those. ONLY the drawing: a judgement the host makes for a player (fogDropIds, canSeePoint, sightSigFor,
+// for a change that reaches none of those. ONLY the drawing: a judgment the host makes for a player (fogDropIds, canSeePoint, sightSigFor,
 // the marks) is never made inside a frame, so it reads the sheet afresh every time, as before. A kept result is frozen: nothing writes to it
 var SENSES_KEEP_MS = 1000, _sensesDraw = false, _sensesBusy = false, _sensesEpoch = 0, _sensesMemo = typeof WeakMap === 'function' ? new WeakMap() : null;
 function sensesForget() { _sensesEpoch++; }
@@ -179,7 +179,7 @@ function sensesKept(token, map, camp, waived) {   // the kept result while a fra
 }
 // [fogcheck:sensesmemo-end]
 // Senses S7a: null areas — an item that is no token, light or GM-note card and carries nulls (the GM's) switches those senses off for a token
-// whose centre's cell is under it. Read on the host only: a player's copy never carries nulls (a hidden area is dropped from it whole), so an
+// whose center's cell is under it. Read on the host only: a player's copy never carries nulls (a hidden area is dropped from it whole), so an
 // area works hidden too; the host tells a player of their own tokens instead (map.fogOff, on their copy only), which their app reads here
 var _nullCache = Object.create(null);
 function nullAreas(map, grid) {   // [{ keys: { cellKey: 1 }, ids }], kept on the map's save stamp and its grid
@@ -407,7 +407,7 @@ function maskFootprint(w, grid, C) {
     var box = C.cellsUnderRect(cx - bw / 2, cy - bh / 2, bw, bh, grid), cos = Math.cos(-rad), sin = Math.sin(-rad), out = [];
     for (var i = 0; i < box.length; i++) {
         var p = C.cellCenter(box[i], grid), dx = p.x - cx, dy = p.y - cy;
-        var lx = dx * cos - dy * sin + cx, ly = dx * sin + dy * cos + cy;   // rotate the cell centre back into the item's own frame
+        var lx = dx * cos - dy * sin + cx, ly = dx * sin + dy * cos + cy;   // rotate the cell center back into the item's own frame
         if (lx >= w.x && lx <= w.x + ww && ly >= w.y && ly <= w.y + hh) out.push(box[i]);
     }
     return out;
@@ -415,7 +415,7 @@ function maskFootprint(w, grid, C) {
 // ---- fog areas ("play areas"): the cell region fog is CONFINED to, built from board items flagged `fogged` ----
 // A per-item `fogged` flag marks an image/shape as a play area. Fog lives ONLY inside the union of such items'
 // footprints — outside stays lit, so scenes and map art the GM never flagged are never fogged. With NO flagged
-// item on the map, the campaign default decides: 'all' (fog the whole map — the pre-1.5.0 behaviour) or 'none'
+// item on the map, the campaign default decides: 'all' (fog the whole map — the pre-1.5.0 behavior) or 'none'
 // (no fog until an area is marked). Hidden items never contribute: a hidden item is not sent to players at all, so
 // host and client must both ignore them to agree (same rule as the sight-blockers above).
 var _maskCache = Object.create(null), _maskStamp = Object.create(null);
@@ -443,7 +443,7 @@ function inMask(mask, key) { return mask.mode === 'all' ? true : (mask.mode === 
 // grid, reuse the same sight-blocker set fog uses, and map the system-neutral result to this campaign-system's cover
 // tier. Returns { name, block } or null (no grid / same cell / no cover / cover off). Local + advisory: reads state,
 // mutates nothing, sends nothing on the wire; host and client both run the identical fogcore + coverTier.
-function coverBetween(x1, y1, x2, y2, hA, hB, onMap, onCamp) {   // item 19 H1: hA, hB — the heights at the two ends (yards; the first end looks at the second), read by the system's height rule. 1.6.0: onMap, onCamp, a judgement for a roll on a map that may not be on screen (coverGrade)
+function coverBetween(x1, y1, x2, y2, hA, hB, onMap, onCamp) {   // item 19 H1: hA, hB — the heights at the two ends (yards; the first end looks at the second), read by the system's height rule. 1.6.0: onMap, onCamp, a judgment for a roll on a map that may not be on screen (coverGrade)
     var map = onMap || activeMap(), camp = onCamp || activeCamp(), C = core(); if (!map || !C) return null;
     if (!coverOn(camp && camp.system)) return null;                     // cover off (the default): nothing to work out
     var grid = gridForMap(map); if (!grid) return null;                 // gridless with no assigned cell → can't measure cover
@@ -501,7 +501,7 @@ function coverSetsFor(map, grid, blast) {
         }
         var cells = footprintCells(w, grid, C);
         if (cells.over) { if (own) return false; if (role === 'hard') over = true; return true; }   // too large to list: a wall that size is over the cap by itself, a see-over piece gives no cover
-        if (most && role === 'soft' && !cells.length && w.type !== 'path') cells = [C.cellOf(w.x + (w.w || 0) / 2, w.y + (w.h || 0) / 2, grid)];   // 1.6.0: a convex piece that covers no cell's centre fills under half of every cell it touches, so with objects on a small one stands in the cell of its own middle
+        if (most && role === 'soft' && !cells.length && w.type !== 'path') cells = [C.cellOf(w.x + (w.w || 0) / 2, w.y + (w.h || 0) / 2, grid)];   // 1.6.0: a convex piece that covers no cell's center fills under half of every cell it touches, so with objects on a small one stands in the cell of its own middle
         if (own) { var add = 0, fresh = Object.create(null); for (j = 0; j < cells.length; j++) { k = C.cellKey(cells[j], grid); if (!hard[k] && !fresh[k]) { fresh[k] = 1; add++; } } if (nh + add > cap) return false; if (hR < Infinity) lowW = true; }
         for (j = 0; j < cells.length; j++) { k = C.cellKey(cells[j], grid); if (role === 'hard') { if (!(hardH[k] >= hR)) hardH[k] = hR; if (!hard[k]) { hard[k] = 1; if (++nh > cap) { over = true; break; } } } else { if (!soft[k] && ns <= cap) { soft[k] = 1; ns++; } if (soft[k] && !(softH[k] >= hW)) softH[k] = hW; } }
         return true;
@@ -510,7 +510,7 @@ function coverSetsFor(map, grid, blast) {
         if (blast === true && C.blastStopOn(wb[i])) { later.push(wb[i]); continue; }   // a barrier ticked Stops blasts: a wall to a blast, taken last
         var role = C.coverRole(wb[i], most), asG = blast !== true && role === 'soft' && C.coverAsOf ? C.coverAsOf(wb[i], most) : '';
         if (blast !== true && role && C.cleanCoverPro) { var pv = C.cleanCoverPro(wb[i].coverPro); if (pv) proPut(wb[i], pv); }   // 1.6.2: a piece that gives cover may carry Protection, read apart (coverPro)
-        if (asG) {   // 1.6.0: a placed object that says its grade stands apart from the see-over cells, in the cell of its own middle where it covers no cell's centre
+        if (asG) {   // 1.6.0: a placed object that says its grade stands apart from the see-over cells, in the cell of its own middle where it covers no cell's center
             var gc = footprintCells(wb[i], grid, C); if (gc.over) continue;
             if (!gc.length) gc = [C.cellOf(wb[i].x + (wb[i].w || 0) / 2, wb[i].y + (wb[i].h || 0) / 2, grid)];
             gr = gr || Object.create(null); var gs = gr[asG] || (gr[asG] = Object.create(null)); for (var gi = 0; gi < gc.length; gi++) gs[C.cellKey(gc[gi], grid)] = 1;
@@ -571,7 +571,7 @@ function cover3d(cs, grid, ax, ay, zA, bx, by, zB) {
     return n || C.wallsOf(hard) ? { hard: hard, soft: null, all: hard } : null;
 }
 // [fogcheck:heightcover-end]
-// The cover a board point (a blast's centre) has to a token on a map: its system's tier, or null (no grid, cover off, none). Local and advisory on
+// The cover a board point (a blast's center) has to a token on a map: its system's tier, or null (no grid, cover off, none). Local and advisory on
 // every viewer; the host alone turns it into damage (whiteboard.js applyBlastDamage)
 function coverAt(x, y, tok, map, hFrom, hTok) {   // item 19 H1: hFrom, hTok — the blast's height and the token's (yards), read by the system's height rule
     var C = core(), camp = activeCamp(); if (!C || !C.coverFromPoint || !map || !tok) return null;
@@ -581,8 +581,8 @@ function coverAt(x, y, tok, map, hFrom, hTok) {   // item 19 H1: hFrom, hTok —
     var h3 = typeof heightSightOf === 'function' ? heightSightOf(sys) : null;
     if (h3 && h3.mode === '3d') { cs = cover3d(cs, grid, x, y, hNum(hFrom), tok.x + (tok.w || 60) / 2, tok.y + (tok.h || 52) / 2, hNum(hTok)); if (!cs) return null; }   // item 19b H4: a blast has no eye: from its own height to the token's
     else if (heightRuleOf(sys) === 'clears') { cs = heightCover(cs, hFrom, hTok, grid); if (!cs) return null; }
-    // a token over several cells is as exposed as its most exposed cell (the cells whose centres it covers, leaving out any inside a wall
-    // unless all are; its centre's cell when it covers none, or more than 64, a box far bigger ruled out first): a line of effect to any cell
+    // a token over several cells is as exposed as its most exposed cell (the cells whose centers it covers, leaving out any inside a wall
+    // unless all are; its center's cell when it covers none, or more than 64, a box far bigger ruled out first): a line of effect to any cell
     // beats none, then the least coverage
     var w = tok.w || 60, h = tok.h || 52, cw = grid.type === 'square' ? grid.size : grid.s * 1.5, ch = grid.type === 'square' ? grid.size : grid.s * Math.sqrt(3);
     var cells = (w / cw + 2) * (h / ch + 2) > 1024 ? [] : C.cellsUnderRect(tok.x, tok.y, w, h, grid), best = null;
@@ -628,7 +628,7 @@ function moveBlocked(map, w, fx, fy, tx, ty) {
 // token that comes in at (fx, fy), its stored top-left where it arrives (a portal, a landing room, a spot given), be seated at (tx, ty)? Only
 // where it could WALK there (moveBlocked: the walls and the barriers, the very rule a player's move is judged by, so a spot in a wall's cell or
 // beyond a wall is none; a secret door is a wall, an open door is not) and, where the map has a play area (pieces marked fogged, as fogMask
-// reads them), only where the token's centre stands inside it. The one judge net.js freeSpotNear asks of every spot it tries. No grid: any spot
+// reads them), only where the token's center stands inside it. The one judge net.js freeSpotNear asks of every spot it tries. No grid: any spot
 function arrivalOk(map, w, fx, fy, tx, ty) {
     if (!map || map.type !== 'map') return true;
     if (moveBlocked(map, w, fx, fy, tx, ty)) return false;
@@ -700,10 +700,10 @@ function barrierAsk() {
     var grid = gridForMap(map); if (grid) moveSetFor(map, grid, blockersFor(map, grid));
 }
 // Turn-based combat T3b: how far a token's straight move goes, in this map's cells — whole cells on a grid (owner, 2026-10-01: "Moved 2.1
-// squares" for a token standing off the grid was wrong): a hex grid counts hex steps between the token's centre cells; a square grid the
+// squares" for a token standing off the grid was wrong): a hex grid counts hex steps between the token's center cells; a square grid the
 // squares between the cells it stands in, by the system's diagonal rule (systemcore gridCells), each end taken where Snap would seat the
 // token (the lattice corner nearest its own, as a drop lands: datamap wpSeatDrop) so a token off the lattice, or one several squares wide
-// whose centre lies on a line, counts steadily; no grid: the straight distance in 50px cells (as the ruler)
+// whose center lies on a line, counts steadily; no grid: the straight distance in 50px cells (as the ruler)
 // Difficult terrain T2: what it costs, a move stepping into difficult terrain counted at that terrain's cost (moveCost); out.len, when given,
 // the move's own length
 function moveCells(map, w, fx, fy, tx, ty, diag, out) {
@@ -755,7 +755,7 @@ function mapLevel(map) {
     return l === 'dark' ? 0 : l === 'dim' ? 1 : l === 'bright' ? 2 : placedLights(map) ? 0 : 2;
 }
 // Lighting (L2): a map's light sources — every item with a light (a light source the GM placed, a token's own light), not hidden and not switched
-// off; its origin the item's centre cell (in a wall or a closed door: the open cell beside it, so it never lights both sides); radii from yards
+// off; its origin the item's center cell (in a wall or a closed door: the open cell beside it, so it never lights both sides); radii from yards
 // to this map's cells. Over LIMITS.lights sources, none: the map reads dark (the GM is told once)
 var _litCache = Object.create(null), _lightsWarned = Object.create(null), _visitsWarned = Object.create(null), _lightsOver = Object.create(null), _fogLitIds = typeof WeakMap === 'function' ? new WeakMap() : null, _fogLitN = 0, _fogLitLast = Object.create(null), _srcLit = Object.create(null);
 function lightSources(map, grid, blk, skip) {   // skip: ids left out (L3: the items dropped from one player's copy)
@@ -765,7 +765,7 @@ function lightSources(map, grid, blk, skip) {   // skip: ids left out (L3: the i
         if ((skip && skip[w.id]) || w.waiting) continue;   // a waiting token carries no light (its copy on the wire has none)
         var L = C.cleanLight(w.light); if (!L || L.off) continue;
         var cx = w.x + (w.w || 0) / 2, cy = w.y + (w.h || 0) / 2, cell = C.cellOf(cx, cy, grid);
-        if (blk && blk[C.cellKey(cell, grid)]) {   // in a wall or a closed door: the open cell on the side the item sits (centred on the cell: the side it faces, up when unturned)
+        if (blk && blk[C.cellKey(cell, grid)]) {   // in a wall or a closed door: the open cell on the side the item sits (centered on the cell: the side it faces, up when unturned)
             var cc = C.cellCenter(cell, grid), tx = cx, ty = cy;
             if (Math.abs(cx - cc.x) < 1 && Math.abs(cy - cc.y) < 1) { var fb = ((w.rot || 0) + (w.front || 0)) * Math.PI / 180; tx = cx + Math.sin(fb) * 50; ty = cy - Math.cos(fb) * 50; }
             var st = C.openSeat(cx, cy, tx, ty, grid, blk); if (!st) continue; cell = C.cellOf(st.x, st.y, grid);
@@ -981,7 +981,7 @@ function sideJudge(map, camp, ownerId, C) {
 }
 // 1.6.0: whether a piece gives cover here only as a placed object (Properties says so)
 function coverObject(w) { var C = core(), map = activeMap(), camp = activeCamp(), grid = map ? gridForMap(map) : null; return !!(C && grid && w && C.objectOn && w.cover !== 'no' && !w.hidden && !w.isChar && !w.blocksSight && w.cover !== 'yes' && C.objectOn(w, C.coverMost(camp && camp.system, grid))); }
-// 1.6.0: what TargetCoverGrade reads from one token to another on a map, by the system's own grades and the ruler's own reading, heights and all: 0 none, 1 half (or a system's one grade of cover), 2 three-quarters, 3 total. TargetCover is the same reading in three steps (fogcore coverOfGrade). shown: a judgement for a player, which reads no ground piece the GM hid. 0 with cover off or no grid
+// 1.6.0: what TargetCoverGrade reads from one token to another on a map, by the system's own grades and the ruler's own reading, heights and all: 0 none, 1 half (or a system's one grade of cover), 2 three-quarters, 3 total. TargetCover is the same reading in three steps (fogcore coverOfGrade). shown: a judgment for a player, which reads no ground piece the GM hid. 0 with cover off or no grid
 function coverGrade(map, camp, from, to, shown) {
     if (!map || !from || !to || !coverOn(camp && camp.system)) return 0;
     var at = function(t) { return { x: t.x + (t.w || 60) / 2, y: t.y + (t.h || 52) / 2 }; }, a = at(from), b = at(to);
@@ -1157,7 +1157,7 @@ function lightSeen(from, to, map, camp) {
 // no fog is drawn, stay as they were. Heights come from wpStance.tokenElevation(token, map) (a token's own elevation plus the ground it stands
 // on), 0 with Token elevation off. A map with no piece that has a height — and, under "clears", no token off the ground — is not judged at
 // all: exactly the code as it was
-// The owner's ruling of 2026-10-01 ("players see nothing where something is hidden"): a judgement made FOR A PLAYER — what their copy of a map
+// The owner's ruling of 2026-10-01 ("players see nothing where something is hidden"): a judgment made FOR A PLAYER — what their copy of a map
 // holds, the live relay, their marks, the GM's preview of that player, the party's view the stream window draws — reads every height from the
 // pieces players hold only (tokenElevation's third argument, true): a ground piece the GM hid lifts nobody there, so the host rules exactly what
 // the player's own app works out from its copy, which holds no hidden piece. The GM's own overlay ('*', every token) and the light the GM's
@@ -1455,8 +1455,8 @@ function invalidateSeen(mapId, recipientId) {
     if (typeof recipientId === 'string' && recipientId) { delete _keyCache[recipientId + '|' + mapId]; return; }
     Object.keys(_keyCache).forEach(function(k) { var i = k.indexOf('|'); if (i >= 0 && k.slice(i + 1) === mapId) delete _keyCache[k]; });
 }
-// Where a token sees and lights from, as a text the host compares before and after a move: the cell of its centre as a viewer's is read,
-// the cell of its centre as a light's is read, and the way it faces; and its exact place where it carries a light whose cell is a wall's
+// Where a token sees and lights from, as a text the host compares before and after a move: the cell of its center as a viewer's is read,
+// the cell of its center as a light's is read, and the way it faces; and its exact place where it carries a light whose cell is a wall's
 // or a closed door's (that light is seated beside the wall by where the token stands inside the cell). Null where the map has no grid to
 // count by or the place is no number (the host then judges afresh). The same text means the same cells seen and the same cells lit
 function seenKeyOf(map, w) {
@@ -1666,7 +1666,7 @@ function draw() {
     if (!isStreamView() && typeof wallEdged === 'function') tiers = wallEdged(tiers, map, grid);   // the cells a wall runs through (the stream window's come with the host's word)
     var z = state.zoomLevel || 1, sx = wrap.scrollLeft, sy = wrap.scrollTop;
     var turnV = typeof window !== 'undefined' && window.wpView && window.wpView.turned && window.wpView.turned() ? window.wpView : null;   // 1.6.2 (backlog 82b): a view turned with its token
-    var pad = 80 + (grid.type === 'square' ? grid.size * z / 2 : grid.s * z * 1.02) + (turnV ? Math.hypot(W, H) : 0);   // turned, the screen's corners reach cells past its own edges   // keep a cell whose CENTRE is off-view but whose body reaches the viewport (else a sliver of the clip edge stays unfogged at high zoom)
+    var pad = 80 + (grid.type === 'square' ? grid.size * z / 2 : grid.s * z * 1.02) + (turnV ? Math.hypot(W, H) : 0);   // turned, the screen's corners reach cells past its own edges   // keep a cell whose CENTER is off-view but whose body reaches the viewport (else a sliver of the clip edge stays unfogged at high zoom)
     var traceOn = function(cx2, cell) {                            // add one cell's outline to a path (screen space); off-view cells are skipped
         var ctr = C.cellCenter(cell, grid), lx = ctr.x * z - sx, ly = ctr.y * z - sy;
         if (lx < -pad || ly < -pad || lx > W + pad || ly > H + pad) return;
@@ -1744,7 +1744,7 @@ function drawCaptions(ctx, s) {
 // [fogcheck:rulercaps-start]
 // Rulers and shapes over the fog (the owner, 2026-10-17: "Ruler now, rest after", and 2026-10-31: "the tools like rulers should not be blocked by
 // vision cover or anything else"). The board's measure layer lies under this canvas, so a ruler measured into the dark went out of sight. While this
-// overlay draws, on any screen, it draws the whole layer on its own canvas: each line, circle and path where the board has it, in its own colour and
+// overlay draws, on any screen, it draws the whole layer on its own canvas: each line, circle and path where the board has it, in its own color and
 // width, then each word. The body wears fog-caps meanwhile and the style sheet makes the board's own layer invisible, so nothing is drawn twice and it
 // still takes its presses. A frame comes every 60 ms, so what moves follows. Every draw takes the body's word back first and a cleared canvas does too,
 // so the layer is never out of sight on both
@@ -1754,7 +1754,7 @@ function capsShow(on) {
     _capsOn = on; var b = typeof document !== 'undefined' && document ? document.body : null;
     if (b && b.classList) b.classList.toggle('fog-caps', on);
 }
-function capsColour(v, d) { return typeof v === 'string' && /^rgba?\([0-9., ]+\)$/.test(v) ? v : d; }   // a colour as the style sheet worked it out, else the fallback
+function capsColour(v, d) { return typeof v === 'string' && /^rgba?\([0-9., ]+\)$/.test(v) ? v : d; }   // a color as the style sheet worked it out, else the fallback
 function capsPaint(v) { return typeof v === 'string' && /^rgba?\([0-9., ]+\)$/.test(v) && !/^rgba\([^)]*,\s*0(\.0+)?\)$/.test(v) ? v : ''; }   // a paint that shows: never none or a transparent one, as a ruler's fat hit line is (a 0 at the end of rgb() is its blue, not its alpha)
 // Drawings to show (1.6.2): a pen drawing marked to show stands over the fog as the rulers do, and the ground under it stays hidden. The board keeps its
 // element and its presses, and under the same body word the style sheet takes the element's svg out of sight while this canvas draws it. Each by the place
@@ -1820,7 +1820,7 @@ function measureCaps(ctx, s) {
 // [fogcheck:rulercaps-end]
 
 // Senses S4: a player's marks on their fog — each a glyph in its cell told apart by its shape (1 sound: three arcs, 2 tremor: a zigzag, 3 presence: a
-// ring round a dot, 4 heat: a teardrop), in one colour, moving slowly (still under reduced motion; never flashing), never on a cell they see; its fixed
+// ring round a dot, 4 heat: a teardrop), in one color, moving slowly (still under reduced motion; never flashing), never on a cell they see; its fixed
 // word drawn over it while the pointer is on its cell; the count in words ("Heard: 2 · Felt: 1") at the board's bottom left. The marks of a player's
 // own copy, or on the GM's screen those the previewed player gets (the host's own work); none in the GM's own view. Text is canvas text alone
 var MARK_WORD = { 1: 'Heard', 2: 'Felt', 3: 'Sensed', 4: 'Heat' }, _markHover = null;
@@ -2037,7 +2037,7 @@ function outlineEdges(seen) {
             var f = (e + 1) % n, ax, ay, bx, by;
             if (sq) { ax = ctr.x + SQ[e][0] * half; ay = ctr.y + SQ[e][1] * half; bx = ctr.x + SQ[f][0] * half; by = ctr.y + SQ[f][1] * half; }
             else { ax = ctr.x + grid.s * HEX_COS[e]; ay = ctr.y + grid.s * HEX_SIN[e]; bx = ctr.x + grid.s * HEX_COS[f]; by = ctr.y + grid.s * HEX_SIN[f]; }
-            if (seen.keys[C.cellKey(C.cellOf(ax + bx - ctr.x, ay + by - ctr.y, grid), grid)] !== 1) out.push([ax, ay, bx, by]);   // the point is the centre of the cell across this side
+            if (seen.keys[C.cellKey(C.cellOf(ax + bx - ctr.x, ay + by - ctr.y, grid), grid)] !== 1) out.push([ax, ay, bx, by]);   // the point is the center of the cell across this side
         }
     }
     return out;
@@ -2143,7 +2143,7 @@ function paintPiece(x, y, opposite) {
     if (!p) { toast('Whole piece: click a picture or a shape. There is none under the pointer.'); return; }
     var cap = g.C.LIMITS.manual, cells = barBox(p, g.cw, g.ch) <= cap * 8 ? g.C.itemCells(p, g.grid) : null;   // judged on its box before its cells are walked
     if (!cells || (paintHow(opposite) !== 'clear' && cells.length > cap)) { toast('That piece covers more cells than a map keeps by hand (' + cap + '). Mark it instead: right-click it for Under fog or Always revealed.'); return; }
-    if (!cells.length) { toast('That piece covers no cell: a cell counts when its centre lies under the piece.'); return; }
+    if (!cells.length) { toast('That piece covers no cell: a cell counts when its center lies under the piece.'); return; }
     paintDo(g, cells, opposite);
 }
 function paintBox(b) {
@@ -2155,7 +2155,7 @@ function paintBox(b) {
     if (cells.length) paintDo(g, cells, b.opp);
 }
 // A stroke, from the press to the release (whiteboard.js): by cells, every cell the pointer passes; a box, nothing until the release; a
-// whole piece, at the press alone. A stroke that is cancelled (the pointer taken away by the system) paints no box
+// whole piece, at the press alone. A stroke that is canceled (the pointer taken away by the system) paints no box
 function strokeStart(x, y, opposite) {
     _capSaid = false; _box = null;
     if (stroke === 'box') { if (paintGrid()) { _box = { x0: x, y0: y, x1: x, y1: y, opp: !!opposite }; redraw(); } return; }

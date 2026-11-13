@@ -264,8 +264,8 @@ function needOf(g, spans) {
     if (g.gap && typeof g.gap === 'object') return function(c, rl, fx) { var z = hasOwn(g.gap, c) ? g.gap[c] : null, k = key(rl, fx); if (!z || typeof z !== 'object') return 0; if (!hasOwn(z, k) || typeof z[k] !== 'number') return true; return Math.max(0, z[k]); };
     return undefined;
 }
-// What a stretch kept behind a list (queueStretch) carries of needsAt's judgement for the rules asked for: for each character it judged, the seconds each
-// ticked count it judged held. Summed, each part as it was judged, when two stretches run on as one (joinStretch), so it stays exact. null: no judgement
+// What a stretch kept behind a list (queueStretch) carries of needsAt's judgment for the rules asked for: for each character it judged, the seconds each
+// ticked count it judged held. Summed, each part as it was judged, when two stretches run on as one (joinStretch), so it stays exact. null: no judgment
 function gapOf(g, spans, later) {
     if (!g.held || typeof g.held !== 'object') return null;
     var z = {};
@@ -386,7 +386,7 @@ function listUp(camp, g, fires, asked) {   // fires for the GM to answer: a list
     if (!winOpen()) openWin(); else renderWin();
     return true;
 }
-// 159 (the owner, 2026-10-18: the steps were greyed while a list waited, so the clock could not be moved at the table): the steps, Move and
+// 159 (the owner, 2026-10-18: the steps were grayed while a list waited, so the clock could not be moved at the table): the steps, Move and
 // Set never wait. The time they move while a list waits is kept here, in order, and judged once the list is answered (pendDone), as the
 // clock's own running time is (livePend); a stretch like the one before it runs on as one, and at most PEND_Q are kept, the rest joining the last.
 // 152: only the rules asked for are kept (k, where not every rule is), with a fight's kind, round and round's length, its words and each character's
@@ -650,9 +650,9 @@ function timeline(body, cal, notes, today, gm, eras) {
 }
 // [calendarcheck:sky-end]
 // [calendarcheck:eras-start]
-// 1.6.2 (backlog 166 b): an era's name with its colour beside it; the colour is cleanEras' #rrggbb alone
+// 1.6.2 (backlog 166 b): an era's name with its color beside it; the color is cleanEras' #rrggbb alone
 function eraTag(e, cls) { var s = cel('span', 'cal-era' + (cls ? ' ' + cls : '')), dot = cel('span', 'cal-era-dot'); dot.style.background = /^#[0-9a-f]{6}$/.test(e.color) ? e.color : '#c9a227'; s.appendChild(dot); s.appendChild(document.createTextNode(e.name)); s.title = e.name + (typeof e.to === 'number' ? ', ' + e.from + ' to ' + e.to : ', from ' + e.from); return s; }
-// The GM's eras: a row each to name it, its years, its colour and whether players see it, then a row to add one
+// The GM's eras: a row each to name it, its years, its color and whether players see it, then a row to add one
 function erasBox(body, cal, eras) {
     var box = cel('div', 'cal-eras'); box.appendChild(cel('div', 'sys-num-cap', 'Eras'));
     if (!(cleanCalendar(cal) || {}).periods) { box.appendChild(cel('div', 'sys-note', 'Eras need a calendar with years.')); body.appendChild(box); return; }
@@ -662,7 +662,7 @@ function erasBox(body, cal, eras) {
         var nm = cel('input', 'field cal-era-name'); nm.type = 'text'; nm.maxLength = CAL_LIMITS.name; nm.value = e.name; nm.title = 'The era\u2019s name'; nm.dataset.era = e.id; row.appendChild(nm);
         var f = num('cal-era-from', e.from, 'The year it begins'); f.dataset.era = e.id; row.appendChild(f); row.appendChild(cel('span', 'cal-colon', 'to'));
         var t = num('cal-era-to', e.to, 'The year it ends. Empty: it goes on', 'Goes on'); t.dataset.era = e.id; row.appendChild(t);
-        var c = cel('input', 'cal-era-color'); c.type = 'color'; c.value = e.color; c.title = 'Its colour'; c.dataset.era = e.id; row.appendChild(c);
+        var c = cel('input', 'cal-era-color'); c.type = 'color'; c.value = e.color; c.title = 'Its color'; c.dataset.era = e.id; row.appendChild(c);
         var l = cel('label', 'cal-tick'), v = cel('input', 'cal-era-vis'); v.type = 'checkbox'; v.checked = e.vis === 'all'; v.dataset.era = e.id; v.title = 'Players see this era beside the date'; l.appendChild(v); l.appendChild(document.createTextNode(' Players see it')); row.appendChild(l);
         var x = cbtn('cal-era-del', '\u00d7', 'Remove this era', 'caleradel'); x.dataset.era = e.id; row.appendChild(x);
         box.appendChild(row);
@@ -1271,7 +1271,7 @@ function onWinClick(e) {
     if (act === 'calset' && restNow(camp)) { toast('End the rest first.'); return; }
     if (act === 'calpendapply') { pendDone(true); return; }
     if (act === 'calpendskip') { pendDone(false); return; }
-    if ((act === 'calstep' || act === 'calany' || (act === 'calset' && pick !== null)) && ordersRun() && fightMode() === 'sync') { toast(fightHolds(camp)); return; }   // 1.6.2: only where a fight moves the clock   // 152: while a fight runs the clock follows it; nothing is greyed (159), a press says why
+    if ((act === 'calstep' || act === 'calany' || (act === 'calset' && pick !== null)) && ordersRun() && fightMode() === 'sync') { toast(fightHolds(camp)); return; }   // 1.6.2: only where a fight moves the clock   // 152: while a fight runs the clock follows it; nothing is grayed (159), a press says why
     if (act === 'calstep') { moveBy(Number(b.dataset.secs), restMode, restByPick(sysNow(), restPick)); return; }
     if (act === 'caladdnote' && pick !== null) { var nt = q('cal-note-new'), nv = q('cal-note-newvis'), ny = q('cal-note-newyearly'), txt = nt ? String(nt.value || '').trim() : ''; if (!txt) { toast('Type the note first.'); return; } addNote(pick, txt, !!(nv && nv.checked === true), !!(ny && ny.checked === true)); return; }
     if (act === 'caleraadd') { var ea = q('cal-era-newname'), ef = q('cal-era-newfrom'), et = q('cal-era-newto'), fv = ef && String(ef.value).trim() !== '' ? Number(ef.value) : NaN, tv = et && String(et.value).trim() !== '' ? Number(et.value) : null; addEra(ea ? String(ea.value || '') : '', fv, tv); return; }   // 1.6.2 (backlog 166 b)

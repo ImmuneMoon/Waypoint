@@ -17,7 +17,7 @@ var LIMITS = Object.freeze({
     leaps: 8, leapTurns: 12,            // 1.6.2 (backlog 60): more leap rules, and the periods one rule's days take turns through
     others: 4, otherAt: 1e9,            // ... and other calendars over the same days, and how many days in each one's own count world day 1 falls
     notes: 500, noteChars: 400,         // item 20 K3: a clock's dated notes, and a note's text (code points, one line)
-    eras: 24,                           // 1.6.2 (backlog 166 b): a campaign's eras, named spans of years with a colour
+    eras: 24,                           // 1.6.2 (backlog 166 b): a campaign's eras, named spans of years with a color
     played: 500,                        // 1.6.2 (backlog 166 h): the sessions played, each where the clock stood as it began
     rates: Object.freeze([1, 2, 5, 10, 60]),   // 1.5.4: how fast a clock may run by itself, times real time (1 is the absent default)
     moons: 4, cycle: 10000,             // 1.6.2 (backlog 147): a calendar's moons, and the days of a moon's cycle at most
@@ -27,7 +27,7 @@ var LIMITS = Object.freeze({
 var DAY = Object.freeze({ hours: 24, minutes: 60, seconds: 60 });   // a day's shape when the calendar says nothing
 var NOTE_ID = /^n_[a-z0-9]{8}$/;   // item 20 K3: a dated note's id
 var ERA_ID = /^e_[a-z0-9]{8}$/;   // 1.6.2 (backlog 166 b): an era's id
-var ERA_COLOR = '#c9a227';   // an era whose colour cannot be read
+var ERA_COLOR = '#c9a227';   // an era whose color cannot be read
 var ACC_ID = /^[a-z]_[A-Za-z0-9_]{1,24}$/;   // K5: a character's or a rule's id (c_..., r_...): never a prototype's name
 var CTRL_RE_G = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g;
 

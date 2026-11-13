@@ -63,8 +63,8 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
      original into saves/backups on launch, so the pre-migration file survives). */
   var CURRENT_SCHEMA = 2;
 
-  // Nearest flat-top hex cell centre (mirrors snapToHex in datamap.js; s = 30,
-  // 45 px columns, 52 px rows, centres at x = 45q + 15, y = 52(r + q/2)).
+  // Nearest flat-top hex cell center (mirrors snapToHex in datamap.js; s = 30,
+  // 45 px columns, 52 px rows, centers at x = 45q + 15, y = 52(r + q/2)).
   function hexCenterFlat(x, y) {
       var s = 30, h = 52;
       var q = (x - s / 2) / (1.5 * s), r = y / h - q / 2;
@@ -932,7 +932,7 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
 
       var qn = typeof q === 'number' && q > 0 ? q : 0;
 
-      // each question, answered in the player's favour when it cannot be asked or its answer is no answer (no number for when, anything but a
+      // each question, answered in the player's favor when it cannot be asked or its answer is no answer (no number for when, anything but a
 
       // plain no for erased): their erase stays an erase, their drawing stays, their redraw stays
 
@@ -1219,7 +1219,7 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
   // The browser's own undo or redo landed on a styled field's box. Its undo stack is one per document, so a Ctrl+Z left to the browser in a
   // text block (or any field with typing of its own) reaches a box's typing once that field's own has run out. The box cancels it
   // (planner.js tsBefore) and calls this: the planner's history takes ONE step, and the probe waiting for a browser that stays silent is
-  // answered here — no 'input' follows a cancelled edit — so its timer takes no second step. The field that asked is spent, as when the
+  // answered here — no 'input' follows a canceled edit — so its timer takes no second step. The field that asked is spent, as when the
   // browser stays silent: its next Ctrl+Z is the planner's at once (a redo leaves it, as there).
   function boxUndo(dir) {
 
@@ -2069,7 +2069,7 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
       var handle = null;
       if (typeof window.showSaveFilePicker === 'function' && exportMediaBytes(scope, share && share.leave) > EXPORT_BIG) {
           try { handle = await window.showSaveFilePicker({ suggestedName: exportBaseName(scope) + '.zip', types: [{ description: 'Waypoint export', accept: { 'application/zip': ['.zip'] } }] }); }
-          catch (e) { if (e && e.name === 'AbortError') return; handle = null; }   // cancelled: no export; a window that cannot ask: the archive as a download, as ever
+          catch (e) { if (e && e.name === 'AbortError') return; handle = null; }   // canceled: no export; a window that cannot ask: the archive as a download, as ever
       }
       var r = await buildExport(scope, handle, share);
       if (!r) return null;

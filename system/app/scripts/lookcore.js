@@ -124,7 +124,7 @@ function fieldLook(fmt, text, rule) {
         for (j in sp) if (own(sp, j) && !(j === 'size' && !R.size) && !(j === 'link' && !keep)) o[j] = sp[j];
         return o;
     });
-    return cleanFmt(out, text);   // parts that now add nothing are dropped, neighbours of one look merged
+    return cleanFmt(out, text);   // parts that now add nothing are dropped, neighbors of one look merged
 }
 function build(fmt, font, text, R) {
     var f = fieldLook(fmt, text, R), fo = R.font ? fontKnown(font) : '';

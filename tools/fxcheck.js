@@ -20,7 +20,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
 
     /* ---- flash ---- */
     check('flash: default white, ms clamped to the flash range', (() => { const a = cleanFx({ kind: 'flash', mapId: M }); const b = cleanFx({ kind: 'flash', mapId: M, ms: 5000 }); const c = cleanFx({ kind: 'flash', mapId: M, ms: 10 }); return a.color === '#ffffff' && a.ms === 300 && b.ms === 600 && c.ms === 120; })());
-    check('flash: a bad colour is refused, a good one lower-cased', cleanFx({ kind: 'flash', mapId: M, color: 'red' }) === null && cleanFx({ kind: 'flash', mapId: M, color: '#ABCDEF' }).color === '#abcdef' && cleanFx({ kind: 'flash', mapId: M, color: '#fff' }) === null);
+    check('flash: a bad color is refused, a good one lower-cased', cleanFx({ kind: 'flash', mapId: M, color: 'red' }) === null && cleanFx({ kind: 'flash', mapId: M, color: '#ABCDEF' }).color === '#abcdef' && cleanFx({ kind: 'flash', mapId: M, color: '#fff' }) === null);
     check('every kind but stop needs a mapId', cleanFx({ kind: 'flash' }) === null && cleanFx({ kind: 'flash', mapId: '' }) === null && cleanFx({ kind: 'flash', mapId: 'x'.repeat(81) }) === null);
 
     /* ---- shake ---- */
@@ -38,7 +38,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('weather: look required, density clamped', cleanFx({ kind: 'weather', mapId: M, look: 'rain', density: 9 }).density === 1 && cleanFx({ kind: 'weather', mapId: M, look: 'fog' }) === null);
     check('banner: text trimmed, control chars refused, over 60 code points refused', (() => { const a = cleanFx({ kind: 'banner', mapId: M, text: '  Round 3  ' }); const b = cleanFx({ kind: 'banner', mapId: M, text: 'x' + String.fromCharCode(7) }); const c = cleanFx({ kind: 'banner', mapId: M, text: 'x'.repeat(61) }); const d = cleanFx({ kind: 'banner', mapId: M, text: '   ' }); return a.text === 'Round 3' && a.ms === 2500 && b === null && c === null && d === null; })());
     check('banner: 60 astral glyphs (120 UTF-16 units) refused; 30 accepted', cleanFx({ kind: 'banner', mapId: M, text: '\u{1F600}'.repeat(61) }) === null && cleanFx({ kind: 'banner', mapId: M, text: '\u{1F600}'.repeat(30) }) !== null && codePoints('\u{1F600}\u{1F600}') === 2);
-    check('pulse: tok by regex; a bad id refused; colour optional', cleanFx({ kind: 'pulse', mapId: M, tok: 'wbabc123' }).tok === 'wbabc123' && cleanFx({ kind: 'pulse', mapId: M, tok: '../x' }) === null && cleanFx({ kind: 'pulse', mapId: M, tok: 'nope' }) === null);
+    check('pulse: tok by regex; a bad id refused; color optional', cleanFx({ kind: 'pulse', mapId: M, tok: 'wbabc123' }).tok === 'wbabc123' && cleanFx({ kind: 'pulse', mapId: M, tok: '../x' }) === null && cleanFx({ kind: 'pulse', mapId: M, tok: 'nope' }) === null);
 
     /* ---- stop ---- */
     check('stop: no mapId, what defaults to all, bad what -> all', (() => { const a = cleanFx({ kind: 'stop' }); const b = cleanFx({ kind: 'stop', what: 'weather' }); const c = cleanFx({ kind: 'stop', what: 'evil' }); return a.what === 'all' && a.mapId === undefined && b.what === 'weather' && c.what === 'all'; })());
@@ -145,7 +145,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             return W.screen.children.length === 1 && d.className === 'fx-burst fx-ping' && d.style.left === (125 * 2 - 100 - 100) + 'px' && d.style.top === (75 * 2 - 40 - 100) + 'px' && d.style.width === '200px'
                 && d.props['--fx-dur'] === '1600ms' && JSON.stringify(d.children.map(c => c.className)) === JSON.stringify(['fx-ping-ring', 'fx-ping-ring fx-ping-echo', 'fx-ping-dot'])
                 && W.timers.length === 1 && W.timers[0][1] === 1800 && (W.timers[0][0](), W.screen.children.length === 0 && W.livePings().length === 0); })());
-    check('ping (fx.js renderPing, run): under reduced motion a still ring and the dot, no echo; a ring never smaller than 18 px on screen; a colour carried',
+    check('ping (fx.js renderPing, run): under reduced motion a still ring and the dot, no echo; a ring never smaller than 18 px on screen; a color carried',
         (() => { const W = mkRender({ z: 0.1 }); W.renderPing(reduced(P({ color: '#112233' }), true)); const d = W.screen.children[0];
             return d.className === 'fx-burst fx-ping fx-ping-still' && JSON.stringify(d.children.map(c => c.className)) === JSON.stringify(['fx-ping-ring', 'fx-ping-dot']) && d.style.width === '36px' && d.props['--fx-color'] === '#112233'; })());
     check('ping (fx.js renderPing, run): a ninth takes the oldest away (8 drawn at once), one within 200 ms of the last is not drawn, and a ping already gone frees its place',

@@ -1,7 +1,7 @@
 /* The System editor's keys (1.5.4, backlog 107: options that say what they do).
    The owner, of the editor's rows, by prompt: "A key at the top of each tab". A row of the editor is a line of boxes and ticks, and a tick
-   said what it does only in its tooltip. A grey line under every tick would make each row several times taller, so each tab that has rows
-   of ticks has one key instead: a button at the top of the tab opens it, and it names each tick of that tab with one grey line. The rows
+   said what it does only in its tooltip. A gray line under every tick would make each row several times taller, so each tab that has rows
+   of ticks has one key instead: a button at the top of the tab opens it, and it names each tick of that tab with one gray line. The rows
    stay as they are, and every tooltip stays.
 
    The keys are fixed words in the page. This module only opens and closes them, and remembers on this computer which are open

@@ -50,7 +50,7 @@ function diceAt(expr, n, withAdds) {
     return out + src.slice(last);
 }
 // A token's share of a blast by the Combat tab's falloff formula, with its four names: BlastDamage (what was rolled), BlastDistance (yards
-// from the blast's centre, height counted), BlastDice (how many dice the damage rolled) and Direct (1 for the token struck directly, else 0).
+// from the blast's center, height counted), BlastDice (how many dice the damage rolled) and Direct (1 for the token struck directly, else 0).
 // Centre: 1 for a token in the blast's own cell. No dice are ever rolled. A whole number, 0 or more, at most what was rolled; null where the formula cannot be worked out
 // 1.6.2: one Environment reading of a blast's, by its key in any case, 0 where it is not set there
 function envRead(ev, key) { if (!isObj(ev)) return 0; var k = Object.keys(ev).filter(function(x) { return x.toLowerCase() === key; })[0]; return k !== undefined && fin(ev[k]) ? ev[k] : 0; }
@@ -198,7 +198,7 @@ function affTargets(inBlast, hurt, all) {
     return out;
 }
 // 1.5.9 (the book's (es), docs/BOOK_ES_ET_PLAN.md section 2): who takes a blast's fragmentation, and by which roll. rows: [{ id, d }], each
-// character token's id and its yards from the blast's centre, height counted; reach: how far the fragmentation reaches, in yards; o: direct
+// character token's id and its yards from the blast's center, height counted; reach: how far the fragmentation reaches, in yards; o: direct
 // (the token struck directly, or none), own (true: that token takes a hit of its own roll, wherever it stands) and each (true: every token
 // rolls its own). The answer, in the rows' order and each token once: [{ id, own }], own where the token rolls its own, else it takes the one
 // roll the others share. A row that is no token or stands past the reach is left out
@@ -214,7 +214,7 @@ function fragTargets(rows, reach, o) {
     }
     return out;
 }
-// Whether a token stands in a mine's trigger: its centre within the trigger radius of the zone's centre, in yards (yardsBetween: the map's own
+// Whether a token stands in a mine's trigger: its center within the trigger radius of the zone's center, in yards (yardsBetween: the map's own
 // reading of two board points). A token that stood in it where the gesture began sets nothing off: it has to step in
 function inTrigger(zone, tokCentre, yardsBetween) {
     if (!isObj(zone) || !isObj(zone.mine) || !isObj(tokCentre) || typeof yardsBetween !== 'function') return false;
@@ -227,9 +227,9 @@ var STAND_INS = Object.freeze({
     grenade: Object.freeze(['M12 9a6 6 0 1 0 0 12 6 6 0 0 0 0-12z', 'M10 9V6h4v3', 'M14 7l4-3', 'M9.5 13.5h5M9.5 16.5h5']),
     mine: Object.freeze(['M4 15c0-2.5 3.6-4 8-4s8 1.5 8 4-3.6 4-8 4-8-1.5-8-4z', 'M12 11V7', 'M7.5 11.5L6 8.5M16.5 11.5L18 8.5', 'M10 7h4'])
 });
-// 1.6.0 An attack on a line: who stands in it, nearest first. from and aim, board points that say its way; toks, [{ id, x, y, half }], each a token's centre and
+// 1.6.0 An attack on a line: who stands in it, nearest first. from and aim, board points that say its way; toks, [{ id, x, y, half }], each a token's center and
 // how far it reaches past its own cell; o: unit, board pixels a yard; width and reach, yards; stop, the part of the reach a wall lets it go (absent: all).
-// A token seated in a cell is in the line where that cell's centre is under it, so the test is its centre against half the width. Bodies never stop it
+// A token seated in a cell is in the line where that cell's center is under it, so the test is its center against half the width. Bodies never stop it
 function lineTargets(from, aim, toks, o) {
     o = o && typeof o === 'object' ? o : {}; var fin = function(v) { return typeof v === 'number' && isFinite(v); };
     if (!from || !aim || !fin(from.x) || !fin(from.y) || !fin(aim.x) || !fin(aim.y) || !fin(o.unit) || !(o.unit > 0) || !fin(o.width) || !fin(o.reach) || !(o.reach > 0)) return [];
@@ -243,9 +243,9 @@ function lineTargets(from, aim, toks, o) {
 }
 // 1.6.2 (vehicles, fold (d), things in flight; the core's answers D1 to D5): a thing in flight moves a whole number of cells a round, cell by cell on
 // the map's lattice (a hex of 30 px sides and 52 px rows, a square of 50 px, or 50 px steps on a map with no grid), homing (each step to the
-// neighbour nearest the target's cell as it now stands) or straight (along the line it was launched on, kept as { ox, oy, dx, dy, k }). It passes
+// neighbor nearest the target's cell as it now stands) or straight (along the line it was launched on, kept as { ox, oy, dx, dy, k }). It passes
 // over every other token, and arrives the moment it enters the target's cell. flyStep reads nothing but its arguments: { grid, from: {x, y},
-// to: {x, y}, cells, homing, line } -> { x, y, path, arrived, line }, centres in board pixels; null for what is no place
+// to: {x, y}, cells, homing, line } -> { x, y, path, arrived, line }, centers in board pixels; null for what is no place
 var FLY_MAX = 200;
 function hexOf(x, y) { var s = 30, h = 52, q = (x - s / 2) / (1.5 * s), r = y / h - q / 2, rx = Math.round(q), ry = Math.round(r), rz = Math.round(-q - r), dx = Math.abs(rx - q), dy = Math.abs(ry - r), dz = Math.abs(rz - (-q - r)); if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz; return { q: rx, r: ry }; }
 function hexAt(c) { return { x: c.q * 45 + 15, y: (c.r + c.q / 2) * 52 }; }

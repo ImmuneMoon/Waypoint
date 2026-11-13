@@ -1,6 +1,6 @@
 /* A player's profile carried to another computer (1.6.0; the owner, 2026-10-29: "if we need to have a hardened profile section so the app can
    know who is who each time, we should ... unless we can link profiles across apps without needing a site sign in", and by prompt "Both": a
-   file and a code). The profile is who this install joins tables as: wp_profile (its id, name, colour, picture and token face) and what proves
+   file and a code). The profile is who this install joins tables as: wp_profile (its id, name, color, picture and token face) and what proves
    it at each GM's table (wp_tableKeys), with what this app knows of those GMs (wp_gmPins, wp_gmRooms). A pack is that, cleaned whole: opened
    on another computer, every GM's table knows the player at once and the GM is asked nothing. The id this install HOSTS under (wp_hostId)
    and the GM's signing key (wp_gmSign) are never in a pack: they are this install's table, not its player.

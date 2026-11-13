@@ -93,11 +93,11 @@ function rangeToCells(rangeUnits, perCellUnits) {
     var per = fin(perCellUnits) && perCellUnits > 0 ? perCellUnits : 1;
     return clamp(Math.round(rangeUnits / per), 0, LIMITS.rangeCells);
 }
-// Lighting (L4): the units a length may be counted in besides yards (the absent default): feet, metres, or the map's own cells
+// Lighting (L4): the units a length may be counted in besides yards (the absent default): feet, meters, or the map's own cells
 var LENGTH_UNITS = Object.freeze({ ft: 1 / 3, m: 1.09361, cells: 0 });
 function lightUnit(u) { return typeof u === 'string' && Object.prototype.hasOwnProperty.call(LENGTH_UNITS, u) ? u : ''; }
 // A length in its unit → a map's cells, rounded and clamped as rangeToCells. Yards (no unit, or one not known) convert exactly as before;
-// cells count as they are, whatever the map's scale; feet and metres go through the map's yards per cell, to the millionth first (3.5 ft on
+// cells count as they are, whatever the map's scale; feet and meters go through the map's yards per cell, to the millionth first (3.5 ft on
 // 1 ft squares is three cells and a half, so 4, not a hair under it and 3)
 function unitCells(value, unit, perCellYards) {
     if (!fin(value) || value <= 0) return 0;
@@ -116,31 +116,31 @@ function cleanName(v, cap) { if (typeof v !== 'string') return ''; return Array.
 /* ---------- sight-blockers (line-of-sight occlusion, v1: static walls) ----------
    Pure & item-blind: fog.js converts flagged board items to a Set of opaque cell KEYS and passes
    it to visibleCells, so host enforcement and the client overlay run the SAME code and agree. */
-// Cells whose CENTRE lies inside an axis-aligned board rect [x,x+w]x[y,y+h].
+// Cells whose CENTER lies inside an axis-aligned board rect [x,x+w]x[y,y+h].
 // A column of cells at a time (cellsUnderSpan with no span): on hexagons the rows of a column lie half a row lower with each column, so a
 // walk of the corners' whole range of rows took half the box's width squared, which one long thin piece made thousands of millions of steps
 // (the review of 2026-10-09). The cells and their order are as they always were
 function cellsUnderRect(x, y, w, h, grid) { return cellsUnderSpan(x, y, w, h, grid, null); }
-// Point-in-flat-top-hexagon (the board item's box is w wide, h tall, centre cx,cy).
+// Point-in-flat-top-hexagon (the board item's box is w wide, h tall, center cx,cy).
 function pointInFlatHex(px, py, cx, cy, w, h) {
     var s = w / 2, b = h / 2, qx = Math.abs(px - cx), qy = Math.abs(py - cy);
     if (qx > s || qy > b) return false;
     if (qx <= s / 2) return true;
     return qy <= (2 * b / s) * (s - qx) + 1e-9;
 }
-// Cells whose centre lies inside a flat-top hexagon board item (top-left x,y, box w x h).
+// Cells whose center lies inside a flat-top hexagon board item (top-left x,y, box w x h).
 function cellsUnderHex(x, y, w, h, grid) {
     var cx = x + w / 2, cy = y + h / 2, out = [], box = cellsUnderRect(x, y, w, h, grid);
     for (var i = 0; i < box.length; i++) { var p = cellCenter(box[i], grid); if (pointInFlatHex(p.x, p.y, cx, cy, w, h)) out.push(box[i]); }
     return out;
 }
-// Cells whose centre lies inside a circle/ellipse board item (a pillar) — box w x h, centre cx,cy.
+// Cells whose center lies inside a circle/ellipse board item (a pillar) — box w x h, center cx,cy.
 function cellsUnderCircle(x, y, w, h, grid) {
     var cx = x + w / 2, cy = y + h / 2, rx = w / 2 || 1, ry = h / 2 || 1, out = [], box = cellsUnderRect(x, y, w, h, grid);
     for (var i = 0; i < box.length; i++) { var p = cellCenter(box[i], grid), dx = (p.x - cx) / rx, dy = (p.y - cy) / ry; if (dx * dx + dy * dy <= 1 + 1e-9) out.push(box[i]); }
     return out;
 }
-// Cells whose centre lies inside a diamond (rhombus) board item — box w x h, centre cx,cy.
+// Cells whose center lies inside a diamond (rhombus) board item — box w x h, center cx,cy.
 function cellsUnderDiamond(x, y, w, h, grid) {
     var cx = x + w / 2, cy = y + h / 2, rx = w / 2 || 1, ry = h / 2 || 1, out = [], box = cellsUnderRect(x, y, w, h, grid);
     for (var i = 0; i < box.length; i++) { var p = cellCenter(box[i], grid); if (Math.abs(p.x - cx) / rx + Math.abs(p.y - cy) / ry <= 1 + 1e-9) out.push(box[i]); }
@@ -149,8 +149,8 @@ function cellsUnderDiamond(x, y, w, h, grid) {
 // The owed review, 2026-10-09: a turned piece's cells are found a column of cells at a time, so the work follows the piece and not its box (a
 // long thin wall turned across the grid has a box hundreds of times its own cells). cellsUnderSpan lists the cells of a board rect exactly as
 // cellsUnderRect does, in its order and by its test, but walks in each column only the rows `span` leaves: span(px) gives the stretch of y in
-// which the column at x may hold a centre the caller keeps ([lo, hi], or null for none). The rows are widened past the stretch, so a span that
-// leaves no kept centre out loses none. With no span the whole box is walked: cellsUnderRect itself
+// which the column at x may hold a center the caller keeps ([lo, hi], or null for none). The rows are widened past the stretch, so a span that
+// leaves no kept center out loses none. With no span the whole box is walked: cellsUnderRect itself
 function cellsUnderSpan(x, y, w, h, grid, span) {
     var out = [], cs = [cellOf(x, y, grid), cellOf(x + w, y, grid), cellOf(x, y + h, grid), cellOf(x + w, y + h, grid)], sq = grid.type === 'square';
     var a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
@@ -194,7 +194,7 @@ function itemOver(w, grid) {
     return !((bw / cw + 2) * (bh / ch + 2) <= top);
 }
 // Item 18 (the owner's answer, 2026-09-30: a turned shape or an image blocks by its outline, never by pixels): a board piece's cells — those
-// whose centre lies inside its outline, turned by its rot (degrees, about its box's centre, as the board draws it). A painted cell is its one
+// whose center lies inside its outline, turned by its rot (degrees, about its box's center, as the board draws it). A painted cell is its one
 // cell; a circle its ellipse (a true circle turns into itself, so it is read unturned); a hexagon or a diamond its own outline; a rectangle, an
 // image or anything else its box. Unturned: exactly the helpers above
 function itemCells(w, grid) {
@@ -207,7 +207,7 @@ function itemCells(w, grid) {
     var bw = Math.abs(ww * co) + Math.abs(hh * si), bh = Math.abs(ww * si) + Math.abs(hh * co), out = [];
     var box = ww >= 0 && hh >= 0 ? cellsUnderSpan(cx - bw / 2, cy - bh / 2, bw, bh, grid, turnedSpan(cx, cy, co, si, rx, ry)) : cellsUnderRect(cx - bw / 2, cy - bh / 2, bw, bh, grid);   // the turned box's cells, a column at a time for a plain size
     for (var i = 0; i < box.length; i++) {
-        var p = cellCenter(box[i], grid), dx = p.x - cx, dy = p.y - cy, lx = dx * co + dy * si, ly = -dx * si + dy * co;   // the cell centre in the piece's own frame
+        var p = cellCenter(box[i], grid), dx = p.x - cx, dy = p.y - cy, lx = dx * co + dy * si, ly = -dx * si + dy * co;   // the cell center in the piece's own frame
         var inside = kind === 'hex' ? pointInFlatHex(lx, ly, 0, 0, ww, hh) : kind === 'ell' ? (lx / rx) * (lx / rx) + (ly / ry) * (ly / ry) <= 1 + 1e-9
             : kind === 'dia' ? Math.abs(lx) / rx + Math.abs(ly) / ry <= 1 + 1e-9 : Math.abs(lx) <= ww / 2 + 1e-9 && Math.abs(ly) <= hh / 2 + 1e-9;
         if (inside) out.push(box[i]);
@@ -218,8 +218,8 @@ function itemCells(w, grid) {
    A wall is a straight board segment [x1, y1, x2, y2]. A blocker set carries its walls beside its cells in a WeakMap, so every set keeps its
    shape (a plain map of cell keys) and every reader that walks a line — sight, light, cover, movement, marks — tests them through segClear
    (visibleCells through its own quick copy of it). Each wall is registered in the cells of its samples (every quarter cell, both ends) and in
-   their neighbours: a line sampled every half cell always visits a cell a wall it crosses is registered in (two points under 0.375 of a cell
-   apart lie in the same or neighbouring cells, on both grids). A line is stopped where it crosses a wall strictly between its ends (a line
+   their neighbors: a line sampled every half cell always visits a cell a wall it crosses is registered in (two points under 0.375 of a cell
+   apart lie in the same or neighboring cells, on both grids). A line is stopped where it crosses a wall strictly between its ends (a line
    ending on a wall, or starting on one, passes), a wall's own ends included; a line running along a wall passes it */
 var WALLS = typeof WeakMap === 'function' ? new WeakMap() : null;
 function wallIndex(segs, grid) {
@@ -271,7 +271,7 @@ function wallHit(pax, pay, pbx, pby, grid, lists) {
     return false;
 }
 // Item 18 W2: a pen line's board segments — its points (pts, in its own box of baseW x baseH) scaled to its box (w x h) and turned by its rot
-// about the box's centre, as the board draws it; a filled region (tip 'fill') closed, with each of its holes (50 at most). A point that is no
+// about the box's center, as the board draws it; a filled region (tip 'fill') closed, with each of its holes (50 at most). A point that is no
 // pair of numbers is passed over; at most 20000 points a run and LIMITS.wallSegs segments; none for anything but a path
 function pathSegs(w) {
     var out = [];
@@ -292,7 +292,7 @@ function pathSegs(w) {
     if (w.tip === 'fill' && Array.isArray(w.holes)) w.holes.slice(0, 50).forEach(function(h) { if (Array.isArray(h)) run(h, true); });
     return out;
 }
-// ... and the cells its line passes through (a door's neighbours are judged from them, and a click in fog mode finds the door there)
+// ... and the cells its line passes through (a door's neighbors are judged from them, and a click in fog mode finds the door there)
 function pathCells(w, grid) {
     var out = [], seen = Object.create(null); if (!isObj(grid)) return out;
     var step = (grid.type === 'square' ? grid.size : grid.s) / 4, segs = pathSegs(w), used = 0;
@@ -329,14 +329,14 @@ function lineClear(a, b, grid, blockers) {
 }
 
 // A cell a thin wall runs through (the owner, 2026-10-04, of the dark cells along a room's walls: "it doesnt go away when a character is
-// nearby"). A cell is seen by its centre, so the cells of a room whose centres lie just past its wall were never seen from inside it: a bite
-// out of the floor along every wall drawn across the grid. For DRAWING the fog only — what a player is sent is still judged by the centre —
-// a cell that is not seen, beside a seen one, is drawn with it when the first wall on the line between their centres lies in the unseen
+// nearby"). A cell is seen by its center, so the cells of a room whose centers lie just past its wall were never seen from inside it: a bite
+// out of the floor along every wall drawn across the grid. For DRAWING the fog only — what a player is sent is still judged by the center —
+// a cell that is not seen, beside a seen one, is drawn with it when the first wall on the line between their centers lies in the unseen
 // cell's own half: the wall runs through that cell, and the part of it on this side is ground the viewer stands beside. keys: { cell key:
 // tier } (the seen cells); opts.skip: cell keys never added (cut by hand); opts.through: seen cells that lend nothing (seen only by a sense
 // that passes walls). Returns [{ key, cell, tier }], each with the highest tier of the seen cells that lend it, at most LIMITS.cells; none
 // where the set has no thin wall. A solid blocker's own cell is never added and never lends (its near face is seenCells' own business).
-// How far towards the unseen cell's centre the wall must lie: past 0.55 of the way from the seen cell's centre. Measured on six of the owner's
+// How far towards the unseen cell's center the wall must lie: past 0.55 of the way from the seen cell's center. Measured on six of the owner's
 // walled maps (14,000 unseen cells beside walls, each cell's truly visible share sampled at 61 points): at 0.5 a cell is drawn for a strip
 // too thin to see, at 0.65 one cell in eight with a real share seen stays dark; 0.55 leaves 6% of those dark — corners, and cells at the
 // edge of sight round a wall's end, which no wall cuts — and draws the fewest cells of which next to nothing is seen.
@@ -357,9 +357,9 @@ function firstWallAt(ax, ay, bx, by, lists, ka, kb) {   // how far along a -> b 
     }
     return best;
 }
-// The cells of a set that a thin wall cuts, each with the neighbours it shares a side with on whose side part of it lies: the walls' own
-// geometry, so it is worked out once a set (and a grid) and every draw only walks the list. A square cell that no side neighbour lends to
-// (a room's corner, its centre past two walls) takes its corner neighbours by the same rule (1.6.0, 96): the line from such a neighbour
+// The cells of a set that a thin wall cuts, each with the neighbors it shares a side with on whose side part of it lies: the walls' own
+// geometry, so it is worked out once a set (and a grid) and every draw only walks the list. A square cell that no side neighbor lends to
+// (a room's corner, its center past two walls) takes its corner neighbors by the same rule (1.6.0, 96): the line from such a neighbor
 // meets the walls where they turn, well inside this cell
 function wallCutCells(blockers, grid) {
     var wl = wallsOf(blockers); if (!wl) return [];
@@ -436,8 +436,8 @@ function terrainFactor(a, b, grid, terr, diag) {
    agree. coverBetween returns a SYSTEM-NEUTRAL result — { coverage 0..1 (kept < 1), lineOfEffect } — and each
    campaign-system (systemcore coverTier) maps it to its own tiers (half/three-quarters/total in a d20 game, a 3d6-style
    label, etc.). v1 is informational: nothing here changes an authoritative number. */
-// The corners of a cell, each nudged slightly toward its centre so it resolves cleanly into its own cell: a square
-// cell has 4; a flat-top hex has 6 (matching the drawn hex, centre-to-vertex radius = grid.s).
+// The corners of a cell, each nudged slightly toward its center so it resolves cleanly into its own cell: a square
+// cell has 4; a flat-top hex has 6 (matching the drawn hex, center-to-vertex radius = grid.s).
 function cellCorners(cell, grid) {
     var eps = 0.01, ctr = cellCenter(cell, grid), out = [];
     if (grid.type === 'square') {
@@ -452,7 +452,7 @@ function cellCorners(cell, grid) {
 // from each cell's corners trace to the other cell's corners, and take the corner with the FEWEST blocked lines from
 // EITHER side. Returns { lines, blocked, coverage(0..<1), lineOfEffect }. blockers is the fog opaque-cell key set;
 // null/empty → fully clear. coverage stays strictly below 1 so "4/4 corners" reads as heavy-but-partial cover, while
-// TOTAL cover is signalled only by lineOfEffect:false (no clear line from any corner) — the two are never conflated.
+// TOTAL cover is signaled only by lineOfEffect:false (no clear line from any corner) — the two are never conflated.
 // soft (cover follow-ups, owner 2026-09-28): the cells of see-over cover (a crate, a low wall) — they block a line for the coverage count but
 // never the line of effect, so they give half or three-quarters, never total. Absent: exactly as before. all: their union when the caller keeps
 // one (fog.js builds it once per map), else built here
@@ -481,7 +481,7 @@ function coverBetween(aCell, bCell, grid, blockers, soft, all) {
     return out;
 }
 function unionSets(a, b) { if (!b) return a; var u = Object.create(null), k; if (a) for (k in a) u[k] = 1; for (k in b) u[k] = 1; copyWalls(a, u); copyWalls(b, u); return u; }   // item 18 W2: the walls of both
-// Cover follow-ups: the cover a board POINT (a blast's centre) has to a cell — its lines to the cell's corners (4 on a square grid, 6 on a hex),
+// Cover follow-ups: the cover a board POINT (a blast's center) has to a cell — its lines to the cell's corners (4 on a square grid, 6 on a hex),
 // the point's own cell and the target's skipped; the same shape and rules as coverBetween (a point has no corner to choose, so no best side)
 function coverFromPoint(px, py, bCell, grid, blockers, soft, all) {
     var out = { lines: 0, blocked: 0, coverage: 0, lineOfEffect: true };
@@ -497,7 +497,7 @@ function coverFromPoint(px, py, bCell, grid, blockers, soft, all) {
     out.coverage = Math.min(out.blocked / out.lines, 0.999);
     return out;
 }
-// Cover follow-ups (owner 2026-09-28, answer 5): a blast can't go off inside a wall or a closed door (a cell of `blocked`). The centre of the
+// Cover follow-ups (owner 2026-09-28, answer 5): a blast can't go off inside a wall or a closed door (a cell of `blocked`). The center of the
 // open cell in front of it, within four cells of the hit: first one with a clear line to (tx, ty) (the thrower's token, else where the click
 // landed: the thrower's side), then the nearest to the hit, then one facing that way, then the nearest to (tx, ty). A far point counts by its
 // direction (the line is bounded). null when the hit cell is open (nothing to move) or no open cell is that near
@@ -610,8 +610,8 @@ function secretOk(w) { return isDoor(w) && secretKind(w) && !w.isChar && !w.wait
 function secretOn(w) { return isObj(w) && w.secret === true && secretOk(w); }
 function cleanSecret(v) { return v === true; }
 // The look a secret door wears on the players' screens where the GM names none: the Wall material's own (buildcore MATERIALS.wall, which
-// buildcheck holds it to). The GM may name another colour (item.seenColor: #rrggbb) and another pattern (item.seenTexture: a name of the
-// list, or '' for a plain colour), to match a wall of their own. Never a picture: a picture's path sent to the table is a file the host serves
+// buildcheck holds it to). The GM may name another color (item.seenColor: #rrggbb) and another pattern (item.seenTexture: a name of the
+// list, or '' for a plain color), to match a wall of their own. Never a picture: a picture's path sent to the table is a file the host serves
 var SECRET_WALL = Object.freeze({ color: '#3f3b47', texture: 'bricks' });
 function cleanSeenColor(v) { return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : v === 'transparent' ? v : null; }   // or the word transparent: a door matched to a see-through wall is seen as nothing drawn
 function cleanSeenTexture(v) { return v === '' ? '' : cleanTexture(v); }   // a name, '' for none, or null where nothing was named
@@ -660,11 +660,11 @@ function lineFactor(w, seg, tip) {
 function cleanSeenWidth(v) { return fin(v) && v > 0 && v <= 1e15 ? v : null; }
 function cleanSeenOpacity(v) { return fin(v) && v >= 0 && v <= 1 ? v : null; }
 function cleanSeenTip(v) { return v === 'round' || v === 'square' || v === 'flat' ? v : null; }
-// A colour that draws nothing, read as the board's own rule reads the very text (BOARD_COLOR is safecore.js COLOR_RE with its 40
-// characters, and sinkcheck holds the copy to it). A text that rule takes is clear where it is the word transparent, a hex colour
+// A color that draws nothing, read as the board's own rule reads the very text (BOARD_COLOR is safecore.js COLOR_RE with its 40
+// characters, and sinkcheck holds the copy to it). A text that rule takes is clear where it is the word transparent, a hex color
 // whose alpha is 0, or an rgba / hsla of FOUR parts whose alpha is 0 (rgba(255, 0, 0) is plain red). A text it REFUSES (a blank
-// beside the colour, RGBA in capitals, an empty text) draws no fill on a rectangle or a circle, which is clear, and ink on a line
-// or a filled region, which is not; a hexagon and a diamond then show their own ground. A colour that is no text at all (no colour
+// beside the color, RGBA in capitals, an empty text) draws no fill on a rectangle or a circle, which is clear, and ink on a line
+// or a filled region, which is not; a hexagon and a diamond then show their own ground. A color that is no text at all (no color
 // key, null, a number) answers false, though the board draws no fill for it either (a kept limit, 23b). box: true asks for a
 // rectangle or a circle
 var BOARD_COLOR = /^(#[0-9a-fA-F]{3,8}|(rgb|hsl)a?\([\d.,\s%]+\)|[a-zA-Z]{1,20}|var\(--[\w-]+\))$/;
@@ -673,11 +673,11 @@ function clearColor(c, box) {
     if (c.length > 40 || !BOARD_COLOR.test(c)) return box === true;
     return /^transparent$/i.test(c) || /^#(?:[0-9a-fA-F]{3}0|[0-9a-fA-F]{6}00)$/.test(c) || /^(?:rgba|hsla)\(\s*[\d.\s%]+,[\d.\s%]+,[\d.\s%]+,\s*0(?:\.0+)?\s*\)$/.test(c);
 }
-// What the players are shown of a secret door: its colour and its pattern ('' for none). A door that is see-through itself (a clear box
-// over a picture map, with no pattern and no picture of its own) stays clear until the GM names a colour or a pattern for it: there is no
+// What the players are shown of a secret door: its color and its pattern ('' for none). A door that is see-through itself (a clear box
+// over a picture map, with no pattern and no picture of its own) stays clear until the GM names a color or a pattern for it: there is no
 // look of its own to give away, and a brick box over the picture would. A door drawn as a line wears no pattern, whatever nib drew it:
 // Properties offers none for a line, so no wall drawn as a line wears one. It may be matched to a wall line in width, opacity and nib.
-// A filled region (the Fill tip) wears a pattern as a box does. A seen colour that is the word transparent draws nothing, as the
+// A filled region (the Fill tip) wears a pattern as a box does. A seen color that is the word transparent draws nothing, as the
 // see-through wall it was matched to does, unless a pattern is named with it
 function secretLook(w) {
     if (!isObj(w)) return { color: SECRET_WALL.color, texture: SECRET_WALL.texture, clear: false };
@@ -694,7 +694,7 @@ function secretLook(w) {
 // The piece as the players hold it. A secret door: a COPY that is a wall in the look above, with nothing that says door: no door type, never
 // open, locked for no one, no group, no picture fill, and no way through to another map, a room or a landing room there (a secret door that
 // is also a portal is a portal once it is found). It carries NO name: a wall's name is whatever its maker gave it (Build names a piece by
-// its material whatever colour and pattern were picked, the city generator by its own, a wall made by hand has none), so no rule could give
+// its material whatever color and pattern were picked, the city generator by its own, a wall made by hand has none), so no rule could give
 // the copy the name the walls beside it carry. The host sends a plain wall with no name at all (net.js wireWbItem), so a copy and a wall
 // read alike there where they were made alike: the copy keeps every other key of the door's own (its layer, its height, its cover), so a
 // door laid by one tool among walls made by another still differs by what the tools write. So nothing the GM changes on the door's own name, lock or group changes the copy, nor on its look while the door is not see-through (a see-through door's copy stays clear only while the door itself draws nothing). Its keys stand in the door's
@@ -728,7 +728,7 @@ function secretSeen(w) {
 // was a secret door (a tick left on a piece that may not be one goes too, and is no finding)
 function secretReveal(w) { if (!isObj(w) || w.secret === undefined) return false; var was = secretOn(w); delete w.secret; return was; }
 // The wall line a door drawn as a line MEETS, as the look to match the door to (the owner, by prompt: "The door is then seen with the
-// colour, width and opacity of the wall line it meets"). A wall line here is a pen line that players see as a wall: it blocks sight or is
+// color, width and opacity of the wall line it meets"). A wall line here is a pen line that players see as a wall: it blocks sight or is
 // a see-through barrier, and is no door, no token, no waiting token, no GM-note card and not hidden. Pure: it reads the pieces and
 // changes nothing.
 // WHICH WALLS MEET IT. The two lines TOUCH where the gap between them is no more than half of each line's drawn width and MATCH.touch px
@@ -745,7 +745,7 @@ function secretReveal(w) { if (!isObj(w) || w.secret === undefined) return false
 // that end, or nearer (within the widest reach, and no more than a margin farther than the end: the lesser of half the way from that
 // end to the middle and MATCH.reach px): such a wall runs beside the door there. A door whose two ends lie within the lesser of
 // MATCH.reach px and half its own length of each other (a ring) has no two ends: the ends say nothing and no wall is aside. Walls of
-// one look are those DRAWN alike: colour, width, opacity, nib and scale, the colour read in lower case and each number to a
+// one look are those DRAWN alike: color, width, opacity, nib and scale, the color read in lower case and each number to a
 // thousandth, so two walls resized together are one look where they keep the same factors: not across a rounding step of the
 // thousandth, nor where a group made smaller leaves a level wall [k, 1] and an upright one [1, k] (the board's floor of 10 px).
 // (2) A wall that is not ASIDE before one that is. A wall is aside where it runs BESIDE the door (it passes both ends and the middle
@@ -764,7 +764,7 @@ function secretReveal(w) { if (!isObj(w) || w.secret === undefined) return false
 // The pair of stretches that speaks for a wall is, of the pairs within MATCH.touch px of the wall's nearest gap, the one whose runs are
 // most alike, then the nearer, then the door's earliest stretch. It is judged once ALL the wall's stretches are read, so a wall drawn
 // from its other end answers alike but at an exact tie of two of its legs.
-// THE ANSWER. Its colour (a six-digit hex colour, or the word transparent for a wall that draws nothing: the two forms a secret door
+// THE ANSWER. Its color (a six-digit hex color, or the word transparent for a wall that draws nothing: the two forms a secret door
 // may be seen in, else null), its opacity as lineOpacity reads it, and the WIDTH and NIB at which the door's copy is drawn as thick
 // as its wall IS drawn where they meet, since the eye has only that to compare with: the wall's width times its pen's factor along
 // the wall's own leg there (a stretch of half a run or more; a shorter one by the run that spoke for the pair, which beside a
@@ -1038,8 +1038,8 @@ function crossAt(ax, ay, bx, by, s) {
     return t > 1e-9 && t < 1 - 1e-9 && u >= -1e-9 && u <= 1 + 1e-9 ? t : -1;
 }
 // Whether a piece with a height stops the straight line of sight from cell a (the eye at height ha) to cell b (the target at hb). The line as
-// lineClear walks it (centre to centre, every half cell, both end cells skipped: a viewer beside a crate sees out, a target in a piece's own
-// cell is not hidden by it), each cell's piece judged once, at the cell's centre; a thin wall where the line crosses it. rule 'clears': H3's
+// lineClear walks it (center to center, every half cell, both end cells skipped: a viewer beside a crate sees out, a target in a piece's own
+// cell is not hidden by it), each cell's piece judged once, at the cell's center; a thin wall where the line crosses it. rule 'clears': H3's
 // rule; anything else: the true 3D line. A height that is no number reads 0; a piece whose height is no number is no piece
 function heightStops(a, b, grid, ha, hb, hs, rule) {
     if (!isObj(hs) || !isObj(grid) || !isObj(a) || !isObj(b)) return false;
@@ -1075,7 +1075,7 @@ function heightStops(a, b, grid, ha, hb, hs, rule) {
 /* ---------- one viewer's visible cells ----------
    viewer: { x, y, front(deg), range(cells), arc(deg) }. Returns an array of { key, cell }. The vision SHAPE is the
    grid's (square = Euclidean radius disc; hex = the flat-top ring within hex distance), but the ARC is DECOUPLED from
-   the grid type: arc >= 360 = all-around (the default on square); a smaller arc is a facing cone centred on `front`,
+   the grid type: arc >= 360 = all-around (the default on square); a smaller arc is a facing cone centered on `front`,
    honoured on BOTH grids (the default on hex is 180). The viewer's own cell is always included. When arc >= 360 the
    bearing test is skipped, so all-around vision costs exactly what it did before. */
 function visibleCells(viewer, grid, blockers) {
@@ -1095,7 +1095,7 @@ function visibleCells(viewer, grid, blockers) {
     var push = function(cell) { if (out.length >= LIMITS.cells) return; var k = cellKey(cell, grid); if (!seen[k]) { seen[k] = 1; out.push({ key: k, cell: cell }); } };
     push(here);
     if (R <= 0) return out;
-    // the line of sight to each cell, as lineClear walks it (centre to centre, every half cell, both end cells skipped) — over only the blockers
+    // the line of sight to each cell, as lineClear walks it (center to center, every half cell, both end cells skipped) — over only the blockers
     // within R + 2 of the viewer (a segment inside the disc never samples a cell further out) and numeric cell codes, so a lit disc of 60 cells
     // stays quick; the same cells as lineClear over the whole set
     var sqG = grid.type === 'square', OFF = R + 3, STR = 2 * OFF + 1, bset = null;
@@ -1217,7 +1217,7 @@ function cleanHazard(v) {
 // the token a piece follows on its map (item.follow, the GM's): an id by pattern, null for none
 function cleanFollow(v) { return typeof v === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(v) ? v : null; }
 // the cells fire spreads into on one press: every cell next to a painted cell whose hazard spreads (fill, hazard.spread), not burning
-// already, and under 'burns' only where a piece ticked Burns covers its centre. Each once, with the cell it came from; at most 2000
+// already, and under 'burns' only where a piece ticked Burns covers its center. Each once, with the cell it came from; at most 2000
 function spreadCells(wb, grid) {
     var out = []; if (!Array.isArray(wb) || !isObj(grid) || (grid.type !== 'square' && grid.type !== 'hex')) return out;
     var burning = Object.create(null), src = [], fuel = [], seen = Object.create(null);
@@ -1337,7 +1337,7 @@ function regionSegs(w) {
     if (REGION_SEGS) REGION_SEGS.set(w, got);
     return got;
 }
-// Whether a piece's outline covers a board point, read as itemCells reads an outline: a cell is one of a piece's cells exactly when its centre
+// Whether a piece's outline covers a board point, read as itemCells reads an outline: a cell is one of a piece's cells exactly when its center
 // is covered (fogcheck proves the two agree, turned or not, on both grids). A painted cell covers its one cell (with a grid); a filled region
 // its outline less its holes, even-odd as the board draws it; a pen line covers nothing
 function itemCovers(w, px, py, grid) {
@@ -1352,7 +1352,7 @@ function itemCovers(w, px, py, grid) {
     }
     var kind = w.type === 'hexagon' ? 'hex' : w.type === 'circle' ? 'ell' : w.type === 'diamond' ? 'dia' : 'rect', rot = fin(w.rot) ? w.rot % 360 : 0, rx = ww / 2 || 1, ry = hh / 2 || 1;
     if (!rot || (kind === 'ell' && ww === hh)) {
-        if (!(px >= w.x && px <= w.x + ww && py >= w.y && py <= w.y + hh)) return false;   // cellsUnderRect's own test of a cell's centre
+        if (!(px >= w.x && px <= w.x + ww && py >= w.y && py <= w.y + hh)) return false;   // cellsUnderRect's own test of a cell's center
         if (kind === 'hex') return pointInFlatHex(px, py, cx, cy, ww, hh);
         if (kind === 'ell') { var ex = (px - cx) / rx, ey = (py - cy) / ry; return ex * ex + ey * ey <= 1 + 1e-9; }
         if (kind === 'dia') return Math.abs(px - cx) / rx + Math.abs(py - cy) / ry <= 1 + 1e-9;
@@ -1364,7 +1364,7 @@ function itemCovers(w, px, py, grid) {
     return kind === 'hex' ? pointInFlatHex(lx, ly, 0, 0, ww, hh) : kind === 'ell' ? (lx / rx) * (lx / rx) + (ly / ry) * (ly / ry) <= 1 + 1e-9
         : kind === 'dia' ? Math.abs(lx) / rx + Math.abs(ly) / ry <= 1 + 1e-9 : Math.abs(lx) <= ww / 2 + 1e-9 && Math.abs(ly) <= hh / 2 + 1e-9;
 }
-// The ground under a board point of a map's pieces (wb), in yards: the highest ground of the pieces whose outline covers the centre of the
+// The ground under a board point of a map's pieces (wb), in yards: the highest ground of the pieces whose outline covers the center of the
 // point's cell — the cell the cover readers put a token in; with no grid, the point itself — and 0 where none does. A pit alone is below 0;
 // under a hill the hill wins (the owner: where ground pieces overlap the highest wins). shown: only the pieces players hold, never one the GM
 // hid (what a host works out for its players); a player's own copy holds no hidden piece
@@ -1505,14 +1505,14 @@ function cleanFogLit(a) {
     for (var i = 0; i < a.length && out.length < LIMITS.cells; i++) { var e = a[i], c = cleanCell(e); if (c && (e.t === 1 || e.t === 2)) { c.t = e.t; out.push(c); } }
     return out.length ? out : null;
 }
-// A cell's neighbours: 8 on a square grid, 6 on a hex one
+// A cell's neighbors: 8 on a square grid, 6 on a hex one
 function neighbourCells(cell, grid) {
     if (grid.type === 'square') { var sq = []; for (var dc = -1; dc <= 1; dc++) for (var dr = -1; dr <= 1; dr++) if (dc || dr) sq.push({ c: cell.c + dc, r: cell.r + dr }); return sq; }
     return [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]].map(function(d) { return { q: cell.q + d[0], r: cell.r + d[1] }; });
 }
 // 1.5.9 (docs/BOOK_ES_ET_PLAN.md section 3; the book: an item used "to oneself or an adjacent ally"): whether two tokens stand next to each
 // other. On a square grid some cell of a's footprint and some cell of b's are the same or touch, by a side or a corner; on a hex grid the
-// same hex or a neighbour, the book's "adjacent to your hex". A footprint is the cells whose middle lies inside the token's box (itemCells),
+// same hex or a neighbor, the book's "adjacent to your hex". A footprint is the cells whose middle lies inside the token's box (itemCells),
 // or the cell of its middle where its box holds none, so a large token counts by every cell it covers; a token's turn does not move it. With
 // no grid (grid null), the gap between the two boxes is at most a yard: o.yardPx, the board pixels of a yard on that map, 50 where none is
 // given. A token too large to list (NEAR_CELLS) is judged by that gap, a cell wide. o.za and o.zb, the two tokens' heights in yards where
@@ -1604,7 +1604,7 @@ function cleanEnvCells(v) {
     return o;
 }
 // The one judge: what a token reads where it stands, for each reading key handed in: its cell's painted value, else the map's own, else nothing
-// (no key). grid: the map's lattice (gridFor), or none, when only the map's own value counts. The token's centre, as a null area is read
+// (no key). grid: the map's lattice (gridFor), or none, when only the map's own value counts. The token's center, as a null area is read
 function envAt(keys, map, tok, grid) {
     var out = {}, meta = isObj(map) && isObj(map.meta) ? map.meta : null; if (!Array.isArray(keys) || !meta || !isObj(tok)) return out;
     var own = cleanEnvVals(meta.env), cells = isObj(meta.envCells) && !Array.isArray(meta.envCells) ? meta.envCells : null, here = null;
@@ -1633,7 +1633,7 @@ function cleanTrim(v) {
     if (mc) out.cell = mc;
     return out;
 }
-// The board's own lattice for a trim's word, with a hex's corners at half a 52 px row so that neighbours share their edges exactly
+// The board's own lattice for a trim's word, with a hex's corners at half a 52 px row so that neighbors share their edges exactly
 function trimGrid(g, cell) { return gridFor(g === 'hex' ? 'hex' : 'square', null, cell); }
 function trimCorners(cell, grid) {
     if (grid.type === 'square') { var s = grid.size, x = cell.c * s + (grid.ox || 0), y = cell.r * s + (grid.oy || 0); return [[x, y], [x + s, y], [x + s, y + s], [x, y + s]]; }
@@ -1653,7 +1653,7 @@ function trimPolys(t, w, h) {
 function trimPath(t, w, h) {
     return trimPolys(t, w, h).map(function(p) { return 'M' + p.map(function(q) { return q[0] + ' ' + q[1]; }).join('L') + 'Z'; }).join('');
 }
-// A trim moved onto the picture's box as it stands: each kept cell's centre carried with the box and the cell under it taken again, so a
+// A trim moved onto the picture's box as it stands: each kept cell's center carried with the box and the cell under it taken again, so a
 // picture moved or resized since its trim is trimmed again on the lattice where it now lies. g the lattice to pick on now
 function trimRebase(t, x, y, w, h, g, cell) {
     var grid = trimGrid(g, cell), base = { g: g === 'hex' ? 'hex' : 'square', box: [x, y, w, h], cells: [] }, bc = cleanMapCell(cell, base.g);

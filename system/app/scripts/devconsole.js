@@ -64,7 +64,7 @@
         { name: 'wpReloadFromDisk()', short: 're-read data.json from disk, dropping the pending autosave',
           detail: 'Clears the ~500ms autosave debounce, then reloads data.json through the app’s normal load path and\nre-renders. Use it when something outside the app rebuilt the save, so the open tab picks up the new\nfile instead of overwriting it on the next autosave. Any unsaved in-memory edit is discarded.' },
         { name: 'wpFitView(sel)', short: 'zoom + pan to frame everything, or just the selection',
-          detail: 'wpFitView(false)   frame every item on the active map.\nwpFitView(true)    frame only the current selection.\nComputes a fit-zoom (clamped 0.1–4, with an 80-unit margin) then centres. Same as the Fit to content\nmenu item and the Shift+1 shortcut.' },
+          detail: 'wpFitView(false)   frame every item on the active map.\nwpFitView(true)    frame only the current selection.\nComputes a fit-zoom (clamped 0.1–4, with an 80-unit margin) then centers. Same as the Fit to content\nmenu item and the Shift+1 shortcut.' },
         { name: 'wpNet', short: 'the multiplayer object',
           detail: 'wpNet.active   true while you are hosting or joined.\nwpNet.role     "host" | "client".\nAlso holds the P2P internals (peers, snapshot, broadcast helpers). Reading is safe; calling internals\ncan affect a live session, so be careful mid-game.' },
         { name: 'wpAppVersion', short: 'the running app version string',
@@ -125,7 +125,7 @@
         wpJournalReceive: 'Receive a revealed handout into the Journal.',
         wpLinkTypes: 'The data-map link styles - path / route / secret / one-way.',
         wpMeasureKind: "The measure sub-mode - 'ruler' or 'blast'.",
-        wpMermaidConfig: 'The full mermaid config the app initialises with (index.html); securityLevel strict for everyone; handbook.js re-initialises from it.',
+        wpMermaidConfig: 'The full mermaid config the app initializes with (index.html); securityLevel strict for everyone; handbook.js re-initializes from it.',
         wpNewOpacityProps: 'The default opacity props applied to newly placed items.',
         wpOpenDoc: 'Handbook reader: open a page of the campaign on screen in the panel over the map (id). wpCloseDoc() closes it.',
         wpOpenCombat: 'Open the combat / turn-order roster for a map.',
@@ -159,7 +159,7 @@
         wpSoundCore: 'The sound validators and maths (soundcore.js): cleanSoundList, cleanSoundCue, cleanEntry, isUploadPath, mixGain, seamBlend, LIMITS.',
         wpSoundSync: 'Re-check the Sound feature for the campaign or table on screen and stop playback if it is off (called by the VTT toggle fan-out).',
         wpFog: 'Fog of war (fog.js): the GM tools and per-recipient host enforcement. GM side - openMenu / closeMenu, paintAt(x, y, hide), setPreview(id) / preview(), brush(), active(), sync() / redraw(), stats(). Host side - fogDropIds(recipientId, camp, map), canSeePoint(pid, camp, map, x, y), tokenSightCells, invalidateVision: the ids and points net.js uses to drop from a recipient what their tokens cannot see. Senses - tokenSenses(token, map, camp, waived) (a token\'s senses as its map reads them: the full ones, the marks, those held but off with why, and its character\'s own sight arc where the sheet gives one), eyesArc(map, tokenSenses) (the arc a token\'s eyes see through on that map: its own on a facing cone, the map\'s otherwise), campSenses(camp) / campMarkSenses(camp), fogMarksFor(recipientId, camp, map, drop) (the nameless marks one player\'s copy carries), marksHold / marksForget / marksStrictOn (marks held in a fight), fogOffFor(recipientId, camp, map) and nullsAt(map, token) (what a null area switches off). Lighting - lightLevel(map) (0 dark, 1 dim, 2 bright; null with Lighting off), lightCount(map), lightSeen(fromToken, toToken, map, camp) (the light one token sees another in, null when it cannot be judged), fogLitFor(recipientId, camp, map, drop) (the lit cells one player\'s copy lacks: a light on a creature they cannot see). The pure half is fogcore.js (window.wpFogCore).',
-        wpFogCore: 'The fog geometry and validators, pure (scripts/fogcore.js): gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, visibleCells, revealedKeys, pointRevealed, cleanFog, cleanCampFog, plus RULESETS / MODES / LIMITS; senses - markCells (where a mark sense finds creatures, smoke and walls read), cleanTokSenses, cleanUnsensed, cleanNulls, cleanFogMarks, cleanFogOff; cover - coverRole, coverBetween, coverFromPoint, openSeat; lighting - seenCells (a viewer\'s cells, each with its tier), litLevels (what a map\'s light sources light), cleanLight, cleanFogLit, unitCells / lightUnit (yards, feet, metres or cells), cellInArc, cellDist. No state, no DOM; tools/fogcheck.js runs it under Node.',
+        wpFogCore: 'The fog geometry and validators, pure (scripts/fogcore.js): gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, visibleCells, revealedKeys, pointRevealed, cleanFog, cleanCampFog, plus RULESETS / MODES / LIMITS; senses - markCells (where a mark sense finds creatures, smoke and walls read), cleanTokSenses, cleanUnsensed, cleanNulls, cleanFogMarks, cleanFogOff; cover - coverRole, coverBetween, coverFromPoint, openSeat; lighting - seenCells (a viewer\'s cells, each with its tier), litLevels (what a map\'s light sources light), cleanLight, cleanFogLit, unitCells / lightUnit (yards, feet, meters or cells), cellInArc, cellDist. No state, no DOM; tools/fogcheck.js runs it under Node.',
         wpFogSync: 'Re-check the Fog of war feature for the campaign or table on screen: shows or hides the fog tool and repaints (called by the VTT toggle fan-out). wpFogRedraw() just repaints the current fog overlay.',
         wpSpacePan: 'Flag - true while Space is held to pan the board from any tool.',
         wpSpawnTokenForCharacter: 'Drop a play-map token for a character. [sandbox hook]',
@@ -177,7 +177,7 @@
         wpUploadImage: 'Upload an image file into the saves folder.',
         wpVersionReady: 'Promise that resolves with the newest known app version.',
         wpVtt: 'VTT feature settings (vtt.js): on(id) is the one gate; mode(), locked(), campaignOn / setCampaign / setMaster (camp.vtt), globalVtt / setGlobal (the default, wp_vtt_global), localOff / setLocal (off-for-me at a table, wp_vtt_local), ceiling() (the GM\'s flags while joined), hostFlags / hostCamps / hostSig (the wire), pushTo(ids), debug().',
-        wpWithAlpha: 'Apply an alpha to a colour (text / background opacity).',
+        wpWithAlpha: 'Apply an alpha to a color (text / background opacity).',
         wpWithRenderedPlanner: 'Run a callback with a planner fully rendered (used by exports).'
     };
 

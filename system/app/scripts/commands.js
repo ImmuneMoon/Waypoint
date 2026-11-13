@@ -26,7 +26,7 @@ var CMD_TOOLS = [
     ['tool.pan', 'Pan', 'panModeBtn', 'Drag to move the view. Pieces stay put.', ['hand'], '', 'KeyH'],
     ['tool.pen', 'Pen', 'drawModeBtn', 'Draw on the map.', ['draw'], '', 'KeyP'],
     ['tool.eraser', 'Eraser', 'eraserModeBtn', 'Rub out strokes.', ['erase'], '', 'KeyE'],
-    ['tool.fill', 'Fill', 'fillModeBtn', 'Colour grid cells.', ['paint', 'colour'], '', ''],
+    ['tool.fill', 'Fill', 'fillModeBtn', 'Color grid cells.', ['paint', 'color', 'colour'], '', ''],
     ['tool.build', 'Build', 'buildModeBtn', 'Lay floors, walls, doors and water.', ['wall', 'floor'], '', ''],
     ['tool.ruler', 'Ruler', 'measureModeBtn', 'Measure a distance.', ['measure', 'distance'], '', 'KeyM'],
     ['tool.radius', 'Radius', 'blastModeBtn', 'Place a circle, a ring or a cone.', ['blast', 'circle', 'cone'], '', 'KeyR'],
@@ -335,7 +335,7 @@ keysDraw(document);
 
 // [shelfcheck:setrows-start]
 // Settings' options, read from the page as it stands: a group by its heading, an option by its name (a .set-field-label, a label, or a
-// button whose grey line stands under it), each with its own words alone: never the state shown beside it, its grey line, a list's
+// button whose gray line stands under it), each with its own words alone: never the state shown beside it, its gray line, a list's
 // choices or a control's words. An option the page has put away (a GM's on a player's app, a website's plan, a row hidden by its switch)
 // is not found. Of two options of the same words in one place the first is kept
 var SET_SKIP = { SMALL: 1, SELECT: 1, INPUT: 1, BUTTON: 1, OPTION: 1, TEXTAREA: 1 };
@@ -371,7 +371,7 @@ function setRows(doc, win) {
         if (!gname || setHidden(g, top, win)) return;
         add(gname, 'Settings', gkey, g);   // the group itself
         Array.prototype.forEach.call(g.querySelectorAll('.set-field-label, label, button.tool'), function(el) {
-            if (el.tagName === 'BUTTON') { var nx = setNext(el); if (!nx || !nx.classList || !nx.classList.contains('set-line')) return; }   // a button that is an option of its own has its grey line under it
+            if (el.tagName === 'BUTTON') { var nx = setNext(el); if (!nx || !nx.classList || !nx.classList.contains('set-line')) return; }   // a button that is an option of its own has its gray line under it
             if (!setHidden(el, top, win)) add(setName(el), 'Settings ▸ ' + gname, gkey, el);
         });
     });

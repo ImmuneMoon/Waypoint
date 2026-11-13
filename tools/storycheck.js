@@ -26,7 +26,7 @@ const J = JSON.stringify;
     check('166 h a beat moved inside its planner (storyMove, run for real): put before or after another scene card, every other block where it stood; nothing for a card that is no scene, an id not there, the same card, or a move that changes nothing',
         J(mv.map(b => b.id)) === J(['h', 'b3', 'b1', 't', 'b2', 'p', '']) && J(mv2.map(b => b.id)) === J(['h', 't', 'b2', 'p', 'b3', 'b1', '']) && mv.every(b => bl.indexOf(b) >= 0)
         && S.storyMove(bl, 'p', 'b1', false) === null && S.storyMove(bl, 'b1', 'zz', false) === null && S.storyMove(bl, 'b1', 'b1', false) === null && S.storyMove([node('x1', 'A'), node('x2', 'B')], 'x1', 'x2', false) === null && S.storyMove(null, 'b1', 'b2') === null, J(mv && mv.map(b => b.id)));
-    check('166 h a beat’s neighbour for Alt and an arrow key (storyStep): the one before or after it among its planner’s beats, nothing at an end',
+    check('166 h a beat’s neighbor for Alt and an arrow key (storyStep): the one before or after it among its planner’s beats, nothing at an end',
         S.storyStep(m[0].beats, 'b2', -1) === 'b1' && S.storyStep(m[0].beats, 'b2', 1) === 'b3' && S.storyStep(m[0].beats, 'b1', -1) === '' && S.storyStep(m[0].beats, 'b3', 1) === '' && S.storyStep(m[0].beats, 'zz', 1) === '');
     // the wiring
     const ix = read('index.html'), fl = read('scripts/floats.js'), esc = read('scripts/esckey.js'), sh = read('scripts/sheets.js'), ps = read('scripts/pageshelf.js');

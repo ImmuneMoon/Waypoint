@@ -18,7 +18,7 @@ var PAL = {
     futuristic: { wood: '#2e3644', dark: '#10151d', light: '#3e4a5c', metal: '#56657a', accent: '#5fe0ff', cloth: '#28324a', sheet: '#3a4558', glow: '#5fe0ff', books: ['#5fe0ff', '#a06bff', '#5fe0ff', '#ff6bb5', '#5fe0ff'] }
 };
 
-// The few shapes every drawing is made of; numbers and colours come from this file alone (a tint is checked as six hex digits first)
+// The few shapes every drawing is made of; numbers and colors come from this file alone (a tint is checked as six hex digits first)
 function R(x, y, w, h, f, s, rx, sw, op) { return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="' + (rx || 0) + '" fill="' + f + '"' + (s ? ' stroke="' + s + '" stroke-width="' + (sw || 1.5) + '"' : '') + (op ? ' opacity="' + op + '"' : '') + '/>'; }
 function C(x, y, r, f, s, sw) { return '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="' + f + '"' + (s ? ' stroke="' + s + '" stroke-width="' + (sw || 1.5) + '"' : '') + '/>'; }
 function L(x1, y1, x2, y2, s, sw, op) { return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + s + '" stroke-width="' + (sw || 1) + '"' + (op ? ' opacity="' + op + '"' : '') + ' stroke-linecap="round"/>'; }

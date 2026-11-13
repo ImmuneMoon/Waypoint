@@ -8,7 +8,7 @@
      creator, the three generators, Save map as picture), the Image Library's preview and a video filling the window keep their own rules:
      the key is left to them, and nothing else hears it as free (aside);
    - else a right-click menu is put away (close);
-   - else an open menu: of the top row, of a toolbar, the party's, the voice popover, the library's categories, a section's actions, the colour
+   - else an open menu: of the top row, of a toolbar, the party's, the voice popover, the library's categories, a section's actions, the color
      of a selection. The voice popover lets go of a key being picked for push to talk first, and stays up for that press.
      A tool's own options are such a menu (the owner, 2026-10-17, by prompt: "Close the options first (Recommended)"): the first Escape
      closes them and the tool stays in hand, and the next, with nothing open, puts the tool away. A menu whose bar stood back under the
@@ -89,7 +89,7 @@ function escTop(list, win) {
 }
 function escPress(doc, id) { var b = id ? doc.getElementById(id) : null; if (b && typeof b.click === 'function') { b.click(); return true; } return false; }
 // The open menus Escape puts away itself: first the small ones that open over everything (the party's, the voice popover, the library's
-// categories, a section's actions, a selection's colours), then the top row's, then a toolbar's
+// categories, a section's actions, a selection's colors), then the top row's, then a toolbar's
 function escMenus(doc, win) {
     var out = [];
     var pm = doc.getElementById('partyMenu'); if (pm && pm.classList.contains('show') && escShown(pm)) out.push({ el: pm, close: function() { pm.classList.remove('show'); } });

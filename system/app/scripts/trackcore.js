@@ -23,7 +23,7 @@ var LIMITS = Object.freeze({
     hide: 64                // players a campaign keeps the trackers from
 });
 var KINDS = ['count', 'clock', 'timer'];
-// The colours a tracker may wear, by name: a name is all a tracker stores and all the wire carries, so no colour text ever reaches a style
+// The colors a tracker may wear, by name: a name is all a tracker stores and all the wire carries, so no color text ever reaches a style
 var COLORS = Object.freeze({ gold: '#d4a64a', red: '#d9534f', blue: '#5b8fd9', violet: '#a77fd6', green: '#5cb87a', grey: '#9a9688' });
 var COLOR_KEYS = Object.keys(COLORS);
 var ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
@@ -182,7 +182,7 @@ function endLine(t) {
     if (!t) return '';
     return t.kind === 'clock' ? 'The ' + t.name + ' clock is full.' : 'The ' + t.name + ' countdown has run out.';
 }
-// The parts of a clock as the circle draws them: one path a part, from the top clockwise, each { d, on }. r: the radius, c: the centre
+// The parts of a clock as the circle draws them: one path a part, from the top clockwise, each { d, on }. r: the radius, c: the center
 function clockParts(parts, fill, c, r) {
     var n = clampInt(parts, LIMITS.parts[0], LIMITS.parts[1], 4), f = clampInt(fill, 0, n, 0), out = [];
     var pt = function(a) { return (c + r * Math.sin(a)).toFixed(2) + ' ' + (c - r * Math.cos(a)).toFixed(2); };

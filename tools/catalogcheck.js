@@ -1,4 +1,4 @@
-/* Offline check of making a catalogue (1.6.2): a CSV file read as a pack (system/app/scripts/csvcore.js, run for real against the real cleaner and
+/* Offline check of making a catalog (1.6.2): a CSV file read as a pack (system/app/scripts/csvcore.js, run for real against the real cleaner and
    packImportPlan), the Library window's spreadsheet panel, its import and its first-pack guide (librarywin.js sliced by its catalogcheck markers and run
    on a page of plain objects that refuses markup), a row of a sheet taken into the library (librarycore's rules, the sheet's rowlib slice and the
    window's takeEntry), and the page, the styles, Help, the notes and CI.
@@ -371,7 +371,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     check('a row and a table row are hooked, and both forms have the button', sh.split('rowLibHook(line, entry, rd, c, f, spec, gm)').length === 3 && /rowLibHook\(tr, entry, rd, c, f, spec, gm\)/.test(sh) && sh.split('rowLibBtn(head, entry, rd, c, f, spec,').length === 3, sh.split('rowLibHook(line, entry, rd, c, f, spec, gm)').length);
     check('the step log names this feature, in one place in each script', /wpStepLog\('catalog v1', step, o\)/.test(win) && win.split("wpStepLog('catalog v1'").length === 2);
     check('Help says all three under the Library', /<b>Spreadsheet&hellip;<\/b> reads a CSV file/.test(page) && /<b>Add to the library<\/b> makes a row/.test(page) && /short walk through your first pack/.test(page));
-    check('both release notes say it in the 1.6.2 section, under a heading of its own', [w1, w2].every(t => { const a = t.indexOf('WAYPOINT 1.6.2'), b = t.indexOf('WAYPOINT 1.6.1'), c = t.indexOf('Making a catalogue'); return a >= 0 && c > a && c < b && /Add to the library/.test(t.slice(c, b)) && /Spreadsheet/.test(t.slice(c, b)); }));
+    check('both release notes say it in the 1.6.2 section, under a heading of its own', [w1, w2].every(t => { const a = t.indexOf('WAYPOINT 1.6.2'), b = t.indexOf('WAYPOINT 1.6.1'), c = t.indexOf('Making a catalog'); return a >= 0 && c > a && c < b && /Add to the library/.test(t.slice(c, b)) && /Spreadsheet/.test(t.slice(c, b)); }));
     check('CI has this suite\'s step under a plain name', /- name: catalogcheck [^:\n]*\n\s+if: \$\{\{ !cancelled\(\) \}\}\n\s+run: node tools\/catalogcheck\.js/.test(ci.replace(/\r\n/g, NL)));
     check('csvcore is pure: no page, no network, no disk', !/\b(document|window|fetch|localStorage|XMLHttpRequest)\b/.test(read('scripts/csvcore.js').replace(/^\s*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')));
 

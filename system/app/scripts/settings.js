@@ -24,7 +24,7 @@ function saveProfile(p) {
 
 /* ---------- avatar processing ----------
    Any image is accepted up to 8MB, then framed (the token creator, framer.js: the part
-   they choose; the centre when it is missing) and shrunk to a 96px square (opts.px: a character's 256). The stored data URL is capped at ~100KB (a 96px square is far below
+   they choose; the center when it is missing) and shrunk to a 96px square (opts.px: a character's 256). The stored data URL is capped at ~100KB (a 96px square is far below
    that in practice), so profiles stay tiny on the wire. */
 var AVATAR_PX = 96;
 var AVATAR_MAX_INPUT = 8 * 1024 * 1024;
@@ -69,7 +69,7 @@ function renderAvatarPreview() {
         if (!el) return;
         el.textContent = ''; var im = document.createElement('img'); im.alt = ''; im.src = safeAv(p.avatar) ? p.avatar : def; el.appendChild(im); el.style.background = '';   // built as a node
     });
-    if (window.wpFaces) window.wpFaces.paintRows();   // Onboarding F1b: the token face previews follow the picture and colour
+    if (window.wpFaces) window.wpFaces.paintRows();   // Onboarding F1b: the token face previews follow the picture and color
 }
 
 /* ---------- panel sync ---------- */
@@ -145,7 +145,7 @@ if (_nameIn) _nameIn.addEventListener('change', function() {
 var _colIn = ui('setColorInput');
 if (_colIn) _colIn.addEventListener('input', function() { var p = getProfile(); p.color = this.value; saveProfile(p); renderAvatarPreview(); });
 var _colClear = ui('setColorClearBtn');
-if (_colClear) _colClear.addEventListener('click', function() { var p = getProfile(); delete p.color; saveProfile(p); var c = ui('setColorInput'); if (c) c.value = '#7aa7ff'; renderAvatarPreview(); toast('Using an automatic colour.'); });
+if (_colClear) _colClear.addEventListener('click', function() { var p = getProfile(); delete p.color; saveProfile(p); var c = ui('setColorInput'); if (c) c.value = '#7aa7ff'; renderAvatarPreview(); toast('Using an automatic color.'); });
 
 var _avBtn = ui('setAvatarBtn');
 if (_avBtn) _avBtn.addEventListener('click', function() { ui('setAvatarFile').click(); });
@@ -308,8 +308,8 @@ if (_afSel) {
 appFontSync();
 // [lookcheck:appfont-end]
 if (_efBox) { _efBox.checked = _ef0; _efBox.addEventListener('change', function() { var on = _efBox.checked === true; try { if (on) localStorage.setItem('wp_easyFont', '1'); else localStorage.removeItem('wp_easyFont'); } catch (e) {} easyFontApply(on); appFontSync(); if (window.wpPrefsPush) window.wpPrefsPush(); }); }
-var _sigBox = ui('setSignalOwn');   // 1.6.2 (backlog 220): Own signalling server, this computer's, off by default (net.js signalHost reads it at the next host or join)
-if (_sigBox) { try { _sigBox.checked = localStorage.getItem('wp_signalOwn') === '1'; } catch (e) {} _sigBox.addEventListener('change', function() { try { if (_sigBox.checked) localStorage.setItem('wp_signalOwn', '1'); else localStorage.removeItem('wp_signalOwn'); } catch (e) {} toast(_sigBox.checked ? 'Own signalling server is on. It takes effect the next time you host or join.' : 'Back to the public signalling server, the next time you host or join.'); }); }
+var _sigBox = ui('setSignalOwn');   // 1.6.2 (backlog 220): Own signaling server, this computer's, off by default (net.js signalHost reads it at the next host or join)
+if (_sigBox) { try { _sigBox.checked = localStorage.getItem('wp_signalOwn') === '1'; } catch (e) {} _sigBox.addEventListener('change', function() { try { if (_sigBox.checked) localStorage.setItem('wp_signalOwn', '1'); else localStorage.removeItem('wp_signalOwn'); } catch (e) {} toast(_sigBox.checked ? 'Own signaling server is on. It takes effect the next time you host or join.' : 'Back to the public signaling server, the next time you host or join.'); }); }
 // Backlog 231 (the owner, 2026-11-12, by prompt: a map-wide row "and a Settings tick"): a new map's structure locked in place as it is laid,
 // this computer's own (wp_structLock, off only as 'off'), which whiteboard.js structAuto reads
 var _stl = ui('setStructLock');
@@ -512,7 +512,7 @@ var VTT_SAID = {   // the toast after a campaign row moves: [on, off]
     turns: ['Turn-based combat on \u2014 during a combat, the player whose token has the turn ends it.', 'Turn-based combat off for this campaign \u2014 only your Next turn moves the order on.'],
     video: ['Video on \u2014 the Scene menu has the Video panel.', 'Video off for this campaign \u2014 nothing plays; the videos and their files are kept.'],
     trackers: ['Table trackers on.', 'Table trackers off for this campaign \u2014 the strip is gone and players get none. Your trackers are kept.'],
-    plook: ['Personal looks on \u2014 a name shows its own font and colour.', 'Personal looks off for this campaign \u2014 every name is drawn plain. The looks are kept.']   // 1.6.2, backlog 35
+    plook: ['Personal looks on \u2014 a name shows its own font and color.', 'Personal looks off for this campaign \u2014 every name is drawn plain. The looks are kept.']   // 1.6.2, backlog 35
 };
 var VTT_ROLE = {   // what a player's "off for me" does, shown under the row at a table
     dice: 'For you it hides the roller and mutes the dice sound; rolls still show in chat.',
@@ -559,7 +559,7 @@ function syncVttPanel() {
     if (mBtn) mBtn.disabled = !editable;
     var offNote = ui('setVttMasterOffNote');
     if (offNote) { offNote.style.display = master ? 'none' : ''; offNote.textContent = client ? 'The GM runs this table without VTT features.' : 'VTT features are off for this campaign \u2014 plain whiteboard. Your per-feature choices are kept.'; }
-    var rows = ui('setVttRows'); if (rows) { rows.style.display = ''; rows.classList.toggle('set-master-off', !master); }   // 1.6.2, backlog 171: the rows stay, greyed, so the New column can still be set
+    var rows = ui('setVttRows'); if (rows) { rows.style.display = ''; rows.classList.toggle('set-master-off', !master); }   // 1.6.2, backlog 171: the rows stay, grayed, so the New column can still be set
     vttFeatures().forEach(function(f) {
         var row = document.querySelector('.set-vtt-row[data-vtt="' + f.id + '"]'), st = ui('set' + cap(f.id) + 'State'), btn = ui('set' + cap(f.id) + 'Btn');
         if (!row) return;
@@ -1470,7 +1470,7 @@ function acctDecide() {
         // that player, so a second computer joins as the same person; only an account that holds none, or a computer that has played, adopts
         var held = mine ? Promise.resolve(false) : acctApi('GET', '/api/account/prefs').then(function(pr) { return pr.status === 200 && !!pr.json.prefs && typeof pr.json.prefs.wp_profile === 'string' && pr.json.prefs.wp_profile.length > 2; });
         return held.then(function(h) { if (h) { acctStep('decide', { take: 'account' }); return take(); } return acctApi('POST', '/api/account/adopt', acctPrefs()).then(function(ad) {
-            if (ad.status === 200) { acctStep('adopted', {}); return acctTake('adopt', ad.json).then(function() { toast('Linked. Your account now holds the player you are here.'); return acctRefresh(); }); }   // what the site added (a colour) is taken too
+            if (ad.status === 200) { acctStep('adopted', {}); return acctTake('adopt', ad.json).then(function() { toast('Linked. Your account now holds the player you are here.'); return acctRefresh(); }); }   // what the site added (a color) is taken too
             if (ad.status === 409) return both();
             acctStep('adopt-failed', { status: ad.status }); toast('Linked, but your player could not be sent. Try again later.'); return acctRefresh();
         }); });
@@ -1588,14 +1588,14 @@ function profWinClose() { var m = ui('profileModal'); if (m) m.style.display = '
 // Start over as a new player (the owner, 2026-10-29: "keep your table keys with the option to forget all three together, erase your local
 // profile and make a new one (requires re linking to another install, or online profile)"). Never during a table, and asked first with its
 // buttons alone answering (noEnter, noEscape), since it cannot be undone. It forgets the table keys, the GMs' pins and rooms and the record
-// of those tables, makes a new profile with nothing of the old (a new id; no name, picture, colour or token face) and unlinks the website
+// of those tables, makes a new profile with nothing of the old (a new id; no name, picture, color or token face) and unlinks the website
 // account (account.js's unlink: this computer stops following it, and the account keeps its own copy). The id this install hosts under and
 // the GM's signing key stay: they are this install's table, never its player, as a profile opened from a file leaves them; Reset Multiplayer
 // Identity in Settings still changes them. Each step logs as "profile v1"
 var OVER_STORES = ['wp_tableKeys', 'wp_gmPins', 'wp_gmRooms', 'wp_tablesSeen'];
 function profStartOver() {
     if (profBusy()) { profStep('over-busy', {}); return; }
-    var words = 'Start over as a new player? This computer forgets every table that knows you, erases your name, picture, colour and token face, and stops following your Waypoint account. Each GM then sees a new player and is asked to let you in. To be yourself again, open a saved profile, paste a profile code from another computer, or link your account. Your own table, if you host one, stays as it is. This cannot be undone.';
+    var words = 'Start over as a new player? This computer forgets every table that knows you, erases your name, picture, color and token face, and stops following your Waypoint account. Each GM then sees a new player and is asked to let you in. To be yourself again, open a saved profile, paste a profile code from another computer, or link your account. Your own table, if you host one, stays as it is. This cannot be undone.';
     profStep('over-asked', {});
     import('./dialogs.js').then(function(d) {
         d.showConfirm(words, function(yes) {
@@ -1624,7 +1624,7 @@ function profOver() {
 // Your picture follows every change of who you are, from wherever it is written (this window, the welcome's Join screen, the Multiplayer
 // window's name, a profile opened from a file or a code, the account), a moment after it settles; the list follows the tables
 var _meSoon = null;
-// The welcome's Join screen keeps its own name and colour boxes, filled as the welcome opens and saved by each of its buttons (main.js
+// The welcome's Join screen keeps its own name and color boxes, filled as the welcome opens and saved by each of its buttons (main.js
 // saveWcProfile): they follow the profile too, or a change made in this window over the welcome went back at Enter Waypoint (found live)
 function wcFields() {
     var p = getProfile(), n = ui('wcNameInput'), c = ui('wcColorInput');

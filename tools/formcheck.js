@@ -147,7 +147,7 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
     press(bA.querySelector('.fb-cancel'));
     const iO = mkRoll('3d6 <= 12'), bO = openR(iO); press(bO.querySelector('.fb-done'));
     check('a roll opened and left writes nothing', iO.value === '3d6 <= 12', iO.value);
-    check('a box that is no roll says what it asks', j(B.askOf(Object.assign(doc.createElement('input'), { className: 'sys-roll-needs' }))) === j(['When can they use this?', 'The button greys out at other times.']) || B.askOf({ classList: { contains: c => c === 'sys-roll-needs' } })[0] === 'When can they use this?');
+    check('a box that is no roll says what it asks', j(B.askOf(Object.assign(doc.createElement('input'), { className: 'sys-roll-needs' }))) === j(['When can they use this?', 'The button grays out at other times.']) || B.askOf({ classList: { contains: c => c === 'sys-roll-needs' } })[0] === 'When can they use this?');
 
     /* ================= words with figures ================= */
     const ww = ['Attack', 'Attack ({\u00b1Bonus})', '{Might} of {HP.max}', 'Load {Weight|lb}', 'Odd {1 + 2} end', ''];

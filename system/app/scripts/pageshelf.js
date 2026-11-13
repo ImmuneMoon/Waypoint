@@ -423,13 +423,13 @@ function peekLines(it, at, names) {
 // block that names it. It is found by reading the campaign as it stands when asked. Nothing is stored and no link is kept: it answers "where
 // did I write about her" with no link data at all. The GM's alone, on this computer's own campaign: planners never travel
 var NAMED_MIN = 3, NAMED_MAX = 40, NAMED_NAMES = 13, NAMED_FIELD = 200000, NAMED_ID = /^[A-Za-z0-9_-]{1,64}$/, NAMED_WORD = '\\p{L}\\p{N}';
-// Scripts in which a name stands against its neighbours with no space: there a name needs no gap on that side, and two characters are a whole
+// Scripts in which a name stands against its neighbors with no space: there a name needs no gap on that side, and two characters are a whole
 // name. Read by a character's script extensions, so a kana's voicing mark and the long-vowel mark count, which a name folded apart may end in
 var NAMED_RUNS = '\\p{scx=Han}\\p{scx=Hiragana}\\p{scx=Katakana}\\p{scx=Hangul}\\p{scx=Thai}\\p{scx=Lao}\\p{scx=Khmer}\\p{scx=Myanmar}', NAMED_RUN = new RegExp('[' + NAMED_RUNS + ']', 'u');
 // The break between two fields, two paragraphs or two lines: a character no name holds (cardcore's cleanName takes it out), so a name is never
 // found across one
 var NAMED_BRK = '\u0001';
-// A tag that ends a line of words is a break; any other tag (bold, a colour, a link) reads as nothing, so a word styled in part stays one word
+// A tag that ends a line of words is a break; any other tag (bold, a color, a link) reads as nothing, so a word styled in part stays one word
 var NAMED_BLOCKTAG = /^(?:p|div|br|li|ul|ol|h[1-6]|tr|td|th|table|thead|tbody|blockquote|pre|hr|section|article|dd|dt|dl)$/;
 var NAMED_ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', shy: '', rsquo: "'", lsquo: "'", rdquo: '"', ldquo: '"', ndash: '\u2013', mdash: '\u2014', hellip: '\u2026', oslash: '\u00f8', aelig: '\u00e6', oelig: '\u0153', szlig: '\u00df', middot: '\u00b7' };
 function namedEnt(all, k) {
@@ -474,7 +474,7 @@ function namedText(b) {
 }
 // The names to look for: [{ re, say }], each once whatever its case or accents, thirteen at most (a card's name and its twelve other names). A
 // name of fewer than three letters finds nothing: it would be found inside everything. It is a whole word: no letter or digit stands right
-// before or after it, unless the name's own edge or its neighbour is of a script written with no spaces
+// before or after it, unless the name's own edge or its neighbor is of a script written with no spaces
 function namedNames(names, plain) {
     var seen = {}, out = [];
     (Array.isArray(names) ? names : [names]).forEach(function(raw) {
@@ -725,7 +725,7 @@ function noteActive() {
 }
 
 // [shelfcheck:wire-start]
-// 1.5.4: the shelf stands centred on its button, and in a narrow window it ran past the window's edge (found live: 46 px past it at 1000 px,
+// 1.5.4: the shelf stands centered on its button, and in a narrow window it ran past the window's edge (found live: 46 px past it at 1000 px,
 // the rows' pins cut off). Shown, it is moved back inside, 8 px clear of either edge, and again as the window changes size, once the tool
 // bar has been fitted to the new size (whiteboard.js fitBar, which a resize observer runs before the next task)
 function shelfFit(m) {

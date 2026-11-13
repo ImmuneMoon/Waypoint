@@ -80,7 +80,7 @@ function tutorialSystem() {
             { id: 'f_tut_class', key: 'Calling', label: 'Calling', kind: 'text', def: 'Sellsword', max: 60, edit: 'owner', vis: 'all', hover: false },   // an identity row for the header block (Stage 5d)
             { id: 'f_tut_strmod', key: 'Move', label: 'Move (yards)', kind: 'formula', formula: '4 + Agility', vis: 'all', hover: false },
             { id: 'f_tut_hp', key: 'Health', label: 'Health', kind: 'resource', maxFormula: '10 + Grit * 2', def: 'max', min: 0, edit: 'owner', vis: 'all', hover: true },
-            { id: 'f_tut_ac', key: 'Defence', label: 'Defence', kind: 'formula', formula: '7 + Agility', vis: 'all', hover: true },
+            { id: 'f_tut_ac', key: 'Defence', label: 'Defense', kind: 'formula', formula: '7 + Agility', vis: 'all', hover: true },
             { id: 'f_tut_sword', key: 'Blades', label: 'Blades', kind: 'skill', base: 'Might', def: 0, min: 0, max: 5, step: 1, edit: 'owner', vis: 'all', hover: false, roll: '2d6 + Blades' },
             { id: 'f_tut_sight', key: 'Sight', label: 'Sight (yards)', kind: 'number', def: 6, min: 0, max: 120, step: 1, edit: 'owner', vis: 'all', hover: false },
             { id: 'f_tut_prone', key: 'Prone', label: 'Prone', kind: 'toggle', def: false, edit: 'owner', vis: 'all', hover: true },
@@ -162,7 +162,7 @@ function buildTutorialCampaign() {
     camp.tutorialSeed = 2;   // HUD frame (HF4a, HF4b): the seed migrations this build already carries (ensureTutorialSheet runs each once, on an older tutorial)
     camp.vtt = tutorialVtt();   // every VTT feature on: the tour points at chips and the minimap, so they must render
     camp.fog = { fields: { sight: 'f_tut_sight' }, defaults: { sight: 3 } };   // fog of war (1.5.0): Bren's Sight field drives vision; 3 yd default for a token with no character
-    // Hex-cell items sit on the flat-top lattice (cell centres x = 45q + 15, y = 52(r + q/2)); the same
+    // Hex-cell items sit on the flat-top lattice (cell centers x = 45q + 15, y = 52(r + q/2)); the same
     // rounding the app's own seating uses, so nothing needs re-seating on load.
     function hexCentre(x, y) {
         var sz = 30, h = 52, q = (x - sz / 2) / (1.5 * sz), r = y / h - q / 2;
@@ -175,7 +175,7 @@ function buildTutorialCampaign() {
     function sqTok(x, y, props) { return Object.assign({ x: Math.round(x / 50) * 50, y: Math.round(y / 50) * 50, w: 50, h: 50, layer: 'middle' }, props); }
     function pic(file, extra) { return Object.assign({ type: 'image', src: A + file, color: 'transparent', isChar: true }, extra); }
     function stairs(x, y, target, up, label) { return hexTok(x, y, { id: 'tut_wb_' + target.replace('map_tut_', '') + (up ? '_up' : '_down'), type: 'hexagon', color: 'rgba(224,165,79,0.35)', layer: 'back-mid', name: label, targetMapId: target, portalIcon: up ? 'Stairs Up' : 'Stairs Down' }); }
-    var O = 14488;                                 // a 1024 px map placed here is centred on (15000, 15000)
+    var O = 14488;                                 // a 1024 px map placed here is centered on (15000, 15000)
 
     /* ---- Eldara Realm: the top of the tree ---- */
     var realm = createNewMap('Eldara Realm');
@@ -209,7 +209,7 @@ function buildTutorialCampaign() {
     city.meta.homeX = 15000; city.meta.homeY = 15000; city.meta.lastView = 'data'; city.meta.gridType = 'off';
     city.cats = { civic: { label: 'Civic', color: '#e0a54f' }, holy: { label: 'Temple', color: '#b98cff' }, trade: { label: 'Trade', color: '#4db3d3' } };
     city.rooms = [
-        { id: 'tut_palace', name: 'Palace', cat: 'civic', x: 14980, y: 14840, notes: 'The court of King Thalindor sits in the roots of the great tree. He wants the raiders gone before the harvest caravans roll.\nThis room has a scene image and a character with a portrait: hover its play-map shape.', characters: [{ id: 'tut_c_king', name: 'King Thalindor Starseeker', info: 'Patient, proud, and short of soldiers. Pays in favours before gold.', portrait: A + 'king_sq.jpg' }, { id: 'tut_c_golems', name: 'The Wardens', info: 'Two elven golems that never leave the throne room.', portrait: A + 'golems_sq.jpg' }], image: A + 'scene_throne.jpg', targetMapId: 'map_tut_throne', icon: 'Gate' },
+        { id: 'tut_palace', name: 'Palace', cat: 'civic', x: 14980, y: 14840, notes: 'The court of King Thalindor sits in the roots of the great tree. He wants the raiders gone before the harvest caravans roll.\nThis room has a scene image and a character with a portrait: hover its play-map shape.', characters: [{ id: 'tut_c_king', name: 'King Thalindor Starseeker', info: 'Patient, proud, and short of soldiers. Pays in favors before gold.', portrait: A + 'king_sq.jpg' }, { id: 'tut_c_golems', name: 'The Wardens', info: 'Two elven golems that never leave the throne room.', portrait: A + 'golems_sq.jpg' }], image: A + 'scene_throne.jpg', targetMapId: 'map_tut_throne', icon: 'Gate' },
         { id: 'tut_temple', name: 'Temple', cat: 'holy', x: 15300, y: 14840, notes: 'Crystal-lit hall of the Moon. Healing for a donation; blessings for a promise.', characters: [{ id: 'tut_c_priestess', name: 'High Priestess Elandra Moonshadow', info: 'Knows the fort is older than the city and what sleeps under it.', portrait: A + 'priestess_sq.jpg' }], image: A + 'scene_temple.jpg', targetMapId: 'map_tut_temple', icon: 'Door' },
         { id: 'tut_smith', name: 'Blacksmith', cat: 'trade', x: 14800, y: 15220, notes: 'Elion will reforge anything the party brings back from the hideout.', characters: [{ id: 'tut_c_smith', name: 'Master Blacksmith Elion Flameheart', info: 'Grumbles. Sold the raiders their axes without knowing.', portrait: A + 'smith_sq.jpg' }], image: A + 'scene_forge.jpg', targetMapId: 'map_tut_forge', icon: 'Door' },
         { id: 'tut_library', name: 'Library', cat: 'civic', x: 15300, y: 15100, notes: 'Maps of the hills, if anyone asks nicely. Maelis has no portrait: her token shows her initials until you give her one.', characters: [{ id: 'tut_c_maelis', name: 'Archivist Maelis', info: 'Keeps the hill surveys. Will trade a map for the return of an overdue book.' }] },
@@ -702,7 +702,7 @@ function discardTutorialCampaign(done) {
 }
 
 /* ---------- the tour ---------- */
-// Each step: target (selector or null for a centred card), title, html, before() to put the
+// Each step: target (selector or null for a centered card), title, html, before() to put the
 // app in the right state first. Targets are ids from index.html wherever possible.
 function goView(mode) { var b = document.querySelector('#viewModeSelect .seg-btn[data-mode="' + mode + '"]'); if (b && !b.classList.contains('active')) b.click(); }
 // The VTT step spotlights a block inside Settings: open the modal with the group unfolded, and put the group's
@@ -744,7 +744,7 @@ var STEPS = [
       help: ['start', 'What Waypoint is'],
       before: function() { openItem('map_tut_city'); goView('data'); } },
     { section: 'The data map', target: '#dataFloatingToolbar', title: 'Data map tools',
-      html: '<b>Add Room</b> drops a node. <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h6v6H3zM15 14h6v6h-6zM9 10l6 4"/></svg> <b>Link Mode</b> connects two rooms: pick a line type, then click one room and the other. Click a line to open it in <b>Properties</b>. Its label is drawn on the line for players too, and its notes stay with you. Eldara&rsquo;s lines are already labelled, one of each type.',
+      html: '<b>Add Room</b> drops a node. <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h6v6H3zM15 14h6v6h-6zM9 10l6 4"/></svg> <b>Link Mode</b> connects two rooms: pick a line type, then click one room and the other. Click a line to open it in <b>Properties</b>. Its label is drawn on the line for players too, and its notes stay with you. Eldara&rsquo;s lines are already labeled, one of each type.',
       help: ['datamap', 'Connections'],
       before: function() { openItem('map_tut_city'); goView('data'); } },
     { target: '#canvasWrap', title: 'Rooms and portals',
@@ -752,11 +752,11 @@ var STEPS = [
       help: ['datamap', 'Linked maps: doors, stairs and warps'],
       before: function() { openItem('map_tut_city'); goView('data'); } },
     { target: '#sidebar', title: 'The Properties panel',
-      html: 'Whatever you select is edited here. For a room that is its name, colour, scene image, notes and the characters found there. Room notes and character info are <b>never sent to players</b>. The panel opens with a selection and closes when it clears. The arrow on its edge toggles it by hand.',
+      html: 'Whatever you select is edited here. For a room that is its name, color, scene image, notes and the characters found there. Room notes and character info are <b>never sent to players</b>. The panel opens with a selection and closes when it clears. The arrow on its edge toggles it by hand.',
       help: ['datamap', 'Rooms'],
       before: function() { openItem('map_tut_city'); goView('data'); state.selId = 'tut_palace'; render(); if (window.wpSyncRightPanel) window.wpSyncRightPanel(); openRightForTour(); } },
     { section: 'Play map & VTT features', target: '#wbFloatingToolbar', title: 'Play map tools',
-      html: 'Now inside the hideout, on its Play Map. From the left: undo and redo for this map, then move and pan, the pen, eraser and fill. Next come shapes and <b>+ Add</b> for text and pictures, then <b>measure</b>, <b>radius</b>, fog and <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11h18v9H3zM3 11l-.5-3.5 17.5-3 .6 3.4L3 11zM7.5 6.6l1.8 3.3M12.5 5.8l1.8 3.3"/></svg> <b>Scene</b>. Centre, the <b>grid</b> and <b>snap</b> stand at the map&rsquo;s right edge. Hold <kbd>Space</kbd> and drag to pan from any tool.',
+      html: 'Now inside the hideout, on its Play Map. From the left: undo and redo for this map, then move and pan, the pen, eraser and fill. Next come shapes and <b>+ Add</b> for text and pictures, then <b>measure</b>, <b>radius</b>, fog and <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11h18v9H3zM3 11l-.5-3.5 17.5-3 .6 3.4L3 11zM7.5 6.6l1.8 3.3M12.5 5.8l1.8 3.3"/></svg> <b>Scene</b>. Center, the <b>grid</b> and <b>snap</b> stand at the map&rsquo;s right edge. Hold <kbd>Space</kbd> and drag to pan from any tool.',
       help: ['whiteboard', 'Placing things'],
       before: function() { openItem('map_tut_ground'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#soundBtn', title: 'Sound',
@@ -768,7 +768,7 @@ var STEPS = [
       help: ['whiteboard', 'Music'],
       before: function() { openItem('map_tut_ground'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); if (window.wpMusic) window.wpMusic.closePanel(); var m = document.getElementById('sceneFxMenu'); if (m) m.classList.add('show'); } },
     { target: '#fxBtn', title: 'Visual effects',
-      html: 'Under <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11h18v9H3zM3 11l-.5-3.5 17.5-3 .6 3.4L3 11zM7.5 6.6l1.8 3.3M12.5 5.8l1.8 3.3"/></svg> <b>Scene</b> too. The <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3l1.9 5.1L17 10l-5.1 1.9L10 17l-1.9-5.1L3 10l5.1-1.9L10 3zM18 14l.9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9L18 14z"/></svg> panel fires flashes, screen shake, colour washes, bursts, weather and banners. The players on that map see them, and so does the stream window. Pick a burst, then click the map. A lit button is on: press it again to put it away.',
+      html: 'Under <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11h18v9H3zM3 11l-.5-3.5 17.5-3 .6 3.4L3 11zM7.5 6.6l1.8 3.3M12.5 5.8l1.8 3.3"/></svg> <b>Scene</b> too. The <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3l1.9 5.1L17 10l-5.1 1.9L10 17l-1.9-5.1L3 10l5.1-1.9L10 3zM18 14l.9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9L18 14z"/></svg> panel fires flashes, screen shake, color washes, bursts, weather and banners. The players on that map see them, and so does the stream window. Pick a burst, then click the map. A lit button is on: press it again to put it away.',
       help: ['whiteboard', 'Visual effects'],
       before: function() { openItem('map_tut_ground'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); if (window.wpSound) window.wpSound.closePanel(); if (window.wpFx) window.wpFx.closePanel(); var m = document.getElementById('sceneFxMenu'); if (m) m.classList.add('show'); } },   // Visual effects lives in the Scene flyout now
     { target: '#videoBtn', title: 'Video',
@@ -792,7 +792,7 @@ var STEPS = [
       help: ['grids', 'Grids'],
       before: function() { openItem('map_tut_inn'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#whiteboardWrap', title: 'No grid at all',
-      html: '<b>Eldara</b> has no grid. Pictures, shapes and tokens sit wherever you drop them, at any size. That suits region maps, city streets and theatre-of-mind scenes. Rulers still work: set <b>Map Scale</b> in the measure options so distances read right. The tinted district shapes are linked to rooms: hover one for its card.',
+      html: '<b>Eldara</b> has no grid. Pictures, shapes and tokens sit wherever you drop them, at any size. That suits region maps, city streets and theater-of-mind scenes. Rulers still work: set <b>Map Scale</b> in the measure options so distances read right. The tinted district shapes are linked to rooms: hover one for its card.',
       help: ['grids', 'Measuring'],
       before: function() { openItem('map_tut_city'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#imgLibBtn', title: 'The picture library',
@@ -804,7 +804,7 @@ var STEPS = [
       help: ['planners', 'Building pages'],
       before: function() { openItem('plan_tut_session1'); } },
     { target: '#plannerTools', title: 'Writing a planner',
-      html: 'Add blocks from the toolbar: headings, prose, callouts, tables and flowcharts. Click into a title, a table cell or a flowchart label and <b>a bar appears on the box</b> to style it. The <b>&#8617; &#8618;</b> buttons are this planner&rsquo;s own undo and redo. <b>Render</b> shows the finished page, and <b>Export As</b> turns it into an image, a PDF or HTML. The <b><i class="wib wi-palette"></i></b> button sets its font, colours and background.',
+      html: 'Add blocks from the toolbar: headings, prose, callouts, tables and flowcharts. Click into a title, a table cell or a flowchart label and <b>a bar appears on the box</b> to style it. The <b>&#8617; &#8618;</b> buttons are this planner&rsquo;s own undo and redo. <b>Render</b> shows the finished page, and <b>Export As</b> turns it into an image, a PDF or HTML. The <b><i class="wib wi-palette"></i></b> button sets its font, colors and background.',
       help: ['planners', 'Text style'],
       before: function() { openItem('plan_tut_session1'); } },
     { target: '#docNavList', title: 'Handbook',
@@ -830,7 +830,7 @@ var STEPS = [
       help: ['sheets', 'Layout'],
       before: function() { var camp = tutorialCampaign(); if (camp && ensureTutorialSheet(camp)) save(true); if (window.wpSheets) { window.wpSheets.closeSheet(); window.wpSheets.open('layout'); } } },
     { target: '#sysLayoutPreview', title: 'The sheet\u2019s look',
-      html: 'The <b>Sheet look</b> box at the top of Layout dresses the whole sheet, and the preview shows it as you go. A <b>palette</b> recolours every part at once: start from a <b>preset</b> and change any swatch. The box also sets the font, the shape of titles and tabs, and how effects, numbers and items are drawn. Nothing changes until you pick it.',
+      html: 'The <b>Sheet look</b> box at the top of Layout dresses the whole sheet, and the preview shows it as you go. A <b>palette</b> recolors every part at once: start from a <b>preset</b> and change any swatch. The box also sets the font, the shape of titles and tabs, and how effects, numbers and items are drawn. Nothing changes until you pick it.',
       help: ['sheets', 'Sheet look and palette'],
       before: function() { var camp = tutorialCampaign(); if (camp && ensureTutorialSheet(camp)) save(true); if (window.wpSheets) { window.wpSheets.closeSheet(); window.wpSheets.open('layout'); } } },
     { target: '#sysItems', title: 'Items & throwing',
@@ -858,7 +858,7 @@ var STEPS = [
       help: ['sheets', 'The HUD'],
       before: function() { if (window.wpSheets) window.wpSheets.close(true); var camp = tutorialCampaign(); if (camp && ensureTutorialSheet(camp)) save(true); openItem('map_tut_inn'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); if (window.wpSheets) { window.wpSheets.openSheet('c_tut_bren'); if (window.wpSheets.openHud) window.wpSheets.openHud('c_tut_bren'); } } },
     { section: 'Multiplayer & the table', target: '#netBtn', title: 'Multiplayer',
-      html: 'Host a table from here. Players join with a <b>room code</b> and come back to where they were last. They move only their own tokens, and their copy of the campaign leaves out your notes, planners and hidden items. From the same panel you pause, whisper, summon players to a map and run combat. A player who joins with no character gets a <b>waiting token</b> until you give them one. Your name, colour and picture are in <b>Settings &#9656; Profile</b>.',
+      html: 'Host a table from here. Players join with a <b>room code</b> and come back to where they were last. They move only their own tokens, and their copy of the campaign leaves out your notes, planners and hidden items. From the same panel you pause, whisper, summon players to a map and run combat. A player who joins with no character gets a <b>waiting token</b> until you give them one. Your name, color and picture are in <b>Settings &#9656; Profile</b>.',
       help: ['mp-gm', 'Host a session'],
       before: function() { if (window.wpSheets) window.wpSheets.closeSheet(); } },
     { target: '#diceBtn', title: 'Dice',
@@ -880,7 +880,7 @@ var STEPS = [
       html: 'The <b>Tutorial</b> campaign stays in your save so you can keep building on it. Or discard it now. Your other campaigns are untouched either way. Its pictures stay in the Image Library under <b>Shared</b>, with the <b>Default</b> tag, until you delete them there.' }
 ];
 
-// The tour is one flow grouped into labelled sections (a step carries `section` to open one). Used for the card's
+// The tour is one flow grouped into labeled sections (a step carries `section` to open one). Used for the card's
 // progress line and the "jump to a section" menu, so a returning player can skip straight to a feature area.
 function sectionSpans() { var out = []; STEPS.forEach(function(s, i) { if (s.section) out.push({ label: s.section, start: i }); }); return out; }
 function sectionAt(i) { var sp = sectionSpans(), idx = 0; for (var k = 0; k < sp.length; k++) if (sp[k].start <= i) idx = k; return { spans: sp, idx: idx }; }
@@ -1162,7 +1162,7 @@ function show(i, dir) {
 function next(dir) { show(tour.i + dir, dir); }
 
 // Try it yourself: the card, the dimming and the shield go, the app is the user's, and a chip stays to come back by. Resume shows the same
-// step again from its setup, so whatever was opened, closed or travelled to meanwhile, the step reads as it did.
+// step again from its setup, so whatever was opened, closed or traveled to meanwhile, the step reads as it did.
 function pauseTour() {
     if (!tour.active || tour.paused) return;
     var step = STEPS[tour.i];

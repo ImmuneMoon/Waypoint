@@ -135,7 +135,7 @@ function pressOf(sys, press, ch, S, view) {
     if (isObj(def)) { if (typeof def.key === 'string' && def.key) out.key = def.key; if (typeof def.category === 'string' && def.category) out.cat = def.category; }
     return out;
 }
-// The zone a token's move carried it into: the first shown zone that holds its centre, none where it held it when the gesture began. The
+// The zone a token's move carried it into: the first shown zone that holds its center, none where it held it when the gesture began. The
 // test net.js triggerFire runs for a zone's message; a mine is a blast, never a zone
 function zoneOf(map, w, from) {
     if (!isObj(map) || !isObj(w) || !Array.isArray(map.whiteboard)) return null;

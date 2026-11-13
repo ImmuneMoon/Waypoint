@@ -56,8 +56,8 @@ function fitArm(rec) {
     var wrap = el('whiteboardWrap'); if (wrap) wrap.style.cursor = 'crosshair';
     document.body.classList.add('placing');
     var g = gridOf(getActiveMap());
-    toast(rec.step === 1 ? (g === 'hex' ? 'Click the centre of a hex printed on the picture. Esc cancels.' : 'Click a corner where two lines printed on the picture cross. Esc cancels.')
-        : (g === 'hex' ? 'Now click the centre of another hex in the same column, a few hexes up or down. Esc cancels.' : 'Now click another corner a few cells along the same row or column. Esc cancels.'));
+    toast(rec.step === 1 ? (g === 'hex' ? 'Click the center of a hex printed on the picture. Esc cancels.' : 'Click a corner where two lines printed on the picture cross. Esc cancels.')
+        : (g === 'hex' ? 'Now click the center of another hex in the same column, a few hexes up or down. Esc cancels.' : 'Now click another corner a few cells along the same row or column. Esc cancels.'));
 }
 function fitStep(rec, x, y) {
     var m = getActiveMap(), g = gridOf(m); if (!m || !g || m.id !== rec.map) { toast('That map is no longer on screen.'); return; }

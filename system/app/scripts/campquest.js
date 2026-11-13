@@ -1,7 +1,7 @@
 /* Start a campaign with questions (1.6.2, backlog 166 e; the owner, 2026-11-09, by prompt: offered "After naming it", with Skip, and from the
    campaign menu later; "Spine, then beats"; "A planner, beats as scenes"; a question left empty "Keep it as a prompt"). A short run of
    questions writes one planner, Campaign outline: a heading a question with the answer under it, and each beat a scene card marked Ahead. A
-   question left empty keeps its heading with the question in grey under it, and a beat left empty is a card titled with its question, to
+   question left empty keeps its heading with the question in gray under it, and a beat left empty is a card titled with its question, to
    fill in later. Skip writes nothing. What is typed is kept in memory for the campaign until the outline is made, so a dialog closed by
    mistake opens again as it was. Generic words: no game is named. The pure half is the core slice; the dialog is fixed words in the page. */
 import { state } from './state.js';
@@ -40,7 +40,7 @@ function anyAnswer(a) { var c = cleanAnswers(a); return c.spine.concat(c.beats).
 function escHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 // An answer as a text block: a paragraph a stretch between blank lines, a line end a <br>; the words escaped
 function proseOf(text) { return text.split(/\n\s*\n/).map(function(p) { return '<p>' + p.split('\n').map(escHtml).join('<br>') + '</p>'; }).join(''); }
-// A question kept as a prompt: in grey and italic, the sanitiser's own span form, so the editor and every reader keep it
+// A question kept as a prompt: in gray and italic, the sanitiser's own span form, so the editor and every reader keep it
 function promptOf(ask) { return '<p><span style="color:' + PROMPT_INK + '"><i>' + escHtml(ask) + '</i></span></p>'; }
 // The outline's blocks, each with an id from mk(): its title and the campaign's name, a heading a spine question with the answer or the
 // question as a prompt under it, then Beats and a scene card a beat, marked Ahead: titled by the answer, or by its question where empty

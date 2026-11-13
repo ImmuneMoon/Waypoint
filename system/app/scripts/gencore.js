@@ -15,7 +15,7 @@
    corridor's node: that cell is where a door may stand.
 
    On a hex grid the same plan is read with the cells as hexagons, a column of the plan a column of hexagons. A hexagon touches six cells
-   where a square touches four, but two cells of the plan that are not next to each other across a side or a corner are never neighbours as
+   where a square touches four, but two cells of the plan that are not next to each other across a side or a corner are never neighbors as
    hexagons, and solid ground lies a whole cell wide between a room and anything it is not opened to, so nothing joins that the plan keeps
    apart. That holds for two corridor cells too: two that lie corner to corner always have a corridor cell beside them both, but for two
    openings of one room at its corner, which is why a node of a room gives one opening at most. An opening may touch two or three cells of

@@ -26,7 +26,7 @@ function fin(v) { return typeof v === 'number' && isFinite(v); }
 
 var SIZES = Object.freeze(['village', 'town', 'city']), WALLS = Object.freeze(['none', 'gates', 'towers']), WATERS = Object.freeze(['none', 'river', 'coast']);
 var ROOF_NAMES = Object.freeze(['shingles', 'pantiles', 'slates', 'thatch']), ROOFS = Object.freeze(['mixed'].concat(ROOF_NAMES));
-var ROOF_COLOR = Object.freeze({ shingles: '#7a3f33', pantiles: '#a8552f', slates: '#4b5563', thatch: '#b59a55' });   // each roof's own colour, as the city sheet drew them
+var ROOF_COLOR = Object.freeze({ shingles: '#7a3f33', pantiles: '#a8552f', slates: '#4b5563', thatch: '#b59a55' });   // each roof's own color, as the city sheet drew them
 var LAYOUTS = Object.freeze(['winding', 'grid']);   // backlog 23c: the streets of a town or a city: wards around a market, or straight blocks
 var SEED_RE = /^[A-Za-z0-9-]{1,24}$/, CELL = 50;
 function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined; }
@@ -47,7 +47,7 @@ function rngOf(text) {
     return function() { a = (a + 0x6D2B79F5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
 function seedText(o) { return 'city|' + VERSION + '|' + o.seed + '|' + o.size + '|' + o.wall + '|' + o.water + '|' + o.roofs + '|' + (o.fields ? 'f' : '-') + (o.layout === 'grid' && o.size !== 'village' ? '|grid' : ''); }   // a theme is no part of it, and a winding plan's text is what it always was, so every seed goes on giving its city
-// A house's roof: the one picked, or with Mixed mostly its neighbourhood's own and now and then another
+// A house's roof: the one picked, or with Mixed mostly its neighborhood's own and now and then another
 function roofOf(o, rnd, main) { return o.roofs !== 'mixed' ? o.roofs : (rnd() < 0.72 ? main : ROOF_NAMES[Math.floor(rnd() * ROOF_NAMES.length)]); }
 
 /* ---------- a village, on a board of cells ---------- */

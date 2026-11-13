@@ -9,7 +9,7 @@ var ZOOM_MAX = 8;                  // the slider's end (8x the whole-picture squ
 
 function fin(v) { return typeof v === 'number' && isFinite(v); }
 
-// The middle square of a w x h picture — exactly the old automatic centre crop, so OK with no change gives the same picture
+// The middle square of a w x h picture — exactly the old automatic center crop, so OK with no change gives the same picture
 function defaultRect(w, h) { var s = Math.min(w, h); return { x: (w - s) / 2, y: (h - s) / 2, s: s }; }
 function minSide(w, h) { var m = Math.min(w, h); return Math.min(m, Math.max(MIN_SIDE, m / ZOOM_MAX)); }
 // A square kept inside the picture and between the smallest square and the whole short side; anything that is not a number: the middle
@@ -29,7 +29,7 @@ function zoomAt(r, factor, px, py, w, h) {
 }
 // Move the square by (dx, dy) picture pixels (a drag moves the picture the other way: the caller negates)
 function panBy(r, dx, dy, w, h) { var c = clampRect(r, w, h); return clampRect({ x: c.x + (fin(dx) ? dx : 0), y: c.y + (fin(dy) ? dy : 0), s: c.s }, w, h); }
-// The zoom a square stands for (1 = the whole short side), and a square at a zoom about its own centre (the slider)
+// The zoom a square stands for (1 = the whole short side), and a square at a zoom about its own center (the slider)
 function zoomOf(r, w, h) { var c = clampRect(r, w, h); return c.s ? Math.min(w, h) / c.s : 1; }
 function setZoom(r, z, w, h) { var c = clampRect(r, w, h); if (!fin(z) || z <= 0 || !c.s) return c; var s2 = Math.min(w, h) / z; return clampRect({ x: c.x + c.s / 2 - s2 / 2, y: c.y + c.s / 2 - s2 / 2, s: s2 }, w, h); }
 // The side of the saved square: the chosen square's own pixels, at most cap — never enlarged
@@ -60,8 +60,8 @@ function guidePath(shape, bw, bh) {
 // (100 px) about 10%, a touchpad's small steps and pinches (ctrl+wheel) a little each — never more than a notch in one event
 function wheelFactor(dy, mode) { if (!fin(dy) || !dy) return 1; var px = dy * (mode === 1 ? 16 : mode === 2 ? 400 : 1); px = Math.max(-100, Math.min(100, px)); return Math.exp(-px * 0.001); }
 // A stored framing (the GM's kept original: its square), cleaned against the picture's size: numbers only, inside it; else null
-// 1.6.2 (backlog 141; the owner: "Trim and centre (Recommended)"): the square a picture made a token is cut to, in the picture's own pixels.
-// Its see-through border is trimmed, or, where its four corners are all one colour, a border of that colour. The rest is centred in a
+// 1.6.2 (backlog 141; the owner: "Trim and center (Recommended)"): the square a picture made a token is cut to, in the picture's own pixels.
+// Its see-through border is trimmed, or, where its four corners are all one color, a border of that color. The rest is centered in a
 // square, which may reach past the picture: what lies past it stays see-through. px is the RGBA bytes. null where nothing is worth trimming:
 // no border wider than a fiftieth of the shorter side, or a picture that is all border
 function trimRect(px, w, h) {

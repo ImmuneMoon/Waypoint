@@ -25,13 +25,13 @@ var _lastMeasureMapId = null;
 // [fogcheck:ground-start]
 // Item 19b H5 (the owner's answer of 2026-10-01, "Added": ground height): a token's height is its own elevation — what its player or the GM
 // set, "above the ground you stand on" — plus the ground under it: the highest Ground height (item.ground, yards, below 0 for a pit) of the
-// map's pieces whose outline covers the centre of the token's cell (fogcore groundAt: the cells the cover readers use). Given the map, every
+// map's pieces whose outline covers the center of the token's cell (fogcore groundAt: the cells the cover readers use). Given the map, every
 // reader of a height reads the sum through this one function — the chip and the hover card, cover, the ruler's 3D line, a blast, HeightDiff
 // and HeightMod, the fog rules; without a map, the token's own elevation as ever (what the stance rows show and set). shown (true): only the
 // pieces players hold, never one the GM hid — for what a host works out for its players (their roll, a thrown blast's height); a player's own
 // copy holds no hidden piece, so their app reads the ground from what it has
 function tokenElevation(it, map, shown) { var e = Number(it && it.elevation); e = isFinite(e) ? e : 0; return map ? Math.round((e + tokenGround(it, map, shown)) * 100) / 100 : e; }
-function tokenGround(it, map, shown) { return it && typeof it === 'object' ? groundAt(map, it.x + (it.w || 60) / 2, it.y + (it.h || 52) / 2, shown) : 0; }   // the ground under a token's centre
+function tokenGround(it, map, shown) { return it && typeof it === 'object' ? groundAt(map, it.x + (it.w || 60) / 2, it.y + (it.h || 52) / 2, shown) : 0; }   // the ground under a token's center
 function groundAt(map, x, y, shown) {   // the ground under a board point of a map, yards (0: none, no map, no fog core)
     var C = window.wpFogCore; if (!C || !C.groundAt || !C.gridFor || !map || typeof map !== 'object' || !Array.isArray(map.whiteboard)) return 0;
     return C.groundAt(map.whiteboard, x, y, C.gridFor((map.meta && map.meta.gridType) || 'off', map.fog && map.fog.cell, map.meta && map.meta.cell), shown === true);
@@ -54,20 +54,20 @@ function setTokenPosture(it, v) {   // conditions C3: a posture of the system's 
 // [systemcheck:lenunit-start]
 // Item 19 H1 (the owner's words, 2026-09-30: "people should still be able to see the measurement in metric if they have that set as their
 // preferred measuring system"): a height or a short length shown and typed in the viewer's own Settings choice, Imperial or Metric — yards or
-// metres — and always kept in yards, as a token's elevation is. Plain text: callers escape it
+// meters — and always kept in yards, as a token's elevation is. Plain text: callers escape it
 var YD_M = 0.9144;
 function metricOn() { return state.measureUnit === 'metric'; }
 // 1.6.2 (backlog 164 (g); the owner, by prompt: "Both ways"): a system whose own distance unit is feet (its Combat tab's unit) shows a height in
-// feet to a viewer set to Imperial; a metre system, and Metric, in metres as before. Still kept in yards
+// feet to a viewer set to Imperial; a meter system, and Metric, in meters as before. Still kept in yards
 function ftOn() { if (metricOn()) return false; var s = typeof postureSys === 'function' ? postureSys() : null; return !!(s && s.combat && s.combat.unit === 'ft'); }
 function lenUnit() { return metricOn() ? 'm' : ftOn() ? 'ft' : 'yd'; }
 function ydOut(yd) { var v = Number(yd); if (!isFinite(v)) v = 0; return metricOn() ? v * YD_M : ftOn() ? v * 3 : v; }   // yards, as the viewer reads them
 function ydIn(v) { var n = Number(v); return !isFinite(n) ? NaN : metricOn() ? n / YD_M : ftOn() ? n / 3 : n; }   // what the viewer typed, in yards
 function fmtLen(yd) { return String(Math.round(ydOut(yd) * 10) / 10) + ' ' + lenUnit(); }
 function fmtElev(e) { e = ydOut(e); return (e > 0 ? '+' : e < 0 ? '\u2212' : '') + (Math.round(Math.abs(e) * 10) / 10); }   // signed, in the viewer's unit (the caller adds lenUnit())
-// A height box and its step (the read-only check of 2026-10-17: in Metric a step was one metre, 1.1 yd, so a height of whole yards, which is
+// A height box and its step (the read-only check of 2026-10-17: in Metric a step was one meter, 1.1 yd, so a height of whole yards, which is
 // what Height clears low cover counts, was lost at the first press). A step is one yard in both, shown as 0.91 m in Metric. A box shows a
-// height to a tenth of a yard, or in Metric to the centimetre, so what it shows comes back as the very tenth of a yard it was. A box with
+// height to a tenth of a yard, or in Metric to the centimeter, so what it shows comes back as the very tenth of a yard it was. A box with
 // arrows of its own steps from the figure it shows, so that figure is its step base too (boxHeight). Numbers and plain text
 function ydBox(yd) { var v = ydOut(yd); return metricOn() ? Math.round(v * 100) / 100 : Math.round(v * 10) / 10; }
 function ydStep() { return metricOn() ? YD_M : ftOn() ? 3 : 1; }
@@ -170,7 +170,7 @@ function wireStanceMenu(cMenu, items, onChange) {
     function setYd(yd) { var ts = live(); if (!ts) return; ts.forEach(function(t) { setTokenElevation(t, yd); }); if (inp) boxHeight(inp, tokenElevation(ts[0])); onChange(); }   // in yards: the menu's tokens at that height, and the box showing it
     function setAll(v) { setYd(ydIn(v)); }   // item 19 H1: v in the viewer's unit
     Array.prototype.forEach.call(cMenu.querySelectorAll('.stance-elev'), function(b) {
-        b.addEventListener('click', function(ce) { ce.stopPropagation(); var ts = live(); if (ts) setYd(tokenElevation(ts[0]) + parseInt(b.dataset.d, 10)); });   // 1.5.4: one yard in Metric too, where it was one metre (1.1 yd)
+        b.addEventListener('click', function(ce) { ce.stopPropagation(); var ts = live(); if (ts) setYd(tokenElevation(ts[0]) + parseInt(b.dataset.d, 10)); });   // 1.5.4: one yard in Metric too, where it was one meter (1.1 yd)
     });
     if (inp) { inp.addEventListener('click', function(ce) { ce.stopPropagation(); }); inp.addEventListener('change', function() { setAll(this.value); }); }
     var sel = cMenu.querySelector('.stance-post');
@@ -326,7 +326,7 @@ function frameGmPicture(am, ids) {
 // A color at a given opacity, for the text / background opacity sliders. color-mix keeps any
 // CSS color intact (names, var(--ink), rgba); an older engine falls back to a canvas parse.
 function withAlpha(c, a) {
-    c = cssColor(c);   // a colour from a file could be url(…) or a second property: none
+    c = cssColor(c);   // a color from a file could be url(…) or a second property: none
     a = Number(a); if (!isFinite(a) || a >= 1) return c;
     if (!c || c === 'transparent') return c;
     a = Math.max(0, Math.min(1, a));
@@ -400,7 +400,7 @@ function wbPicCellKey(pf) { return pf.cell ? '|' + pf.cell.u + ',' + pf.cell.ox 
 // player's app an SVG picture's address is the whole picture inline, which may be millions of characters
 function wbPicUrlKey(u) { return u.length <= 256 ? u : u.length + '|' + u.slice(0, 64) + u.slice(-64); }
 // A filled region's picture: an svg pattern in the path's own defs (buildcore picPattern), built again only when its picture, its tile, its
-// place, its size or its colour changes. True when the region wears its picture
+// place, its size or its color changes. True when the region wears its picture
 function wbPicPath(svg, pathEl, item, bw, bh, col) {
     var pf = wbPicFill(item), BC = window.wpBuildCore; if (!pf || pf.box || !svg || !pathEl) return false;
     var key = 'pic|' + pf.src + '|' + pf.tile + wbPicCellKey(pf) + '|' + item.x + '|' + item.y + '|' + (item.w || 0) + '|' + (item.h || 0) + '|' + bw + '|' + bh + '|' + col + '|' + wbPicUrlKey(pf.url), defs = svg.querySelector(':scope > defs');
@@ -453,7 +453,7 @@ import { renderDataMap, clearSnaps, drawSnap, doSmartSnapping, attachDrag, attac
 import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  renderElementList, esc } from './inspector.js';
 
 import { cssColor, picRef } from './safecore.js';
-import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Library's tags, cleaned and drawn as text   // a map from a file: colours that are colours, pictures that are the app's own
+import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Library's tags, cleaned and drawn as text   // a map from a file: colors that are colors, pictures that are the app's own
 
 
 
@@ -503,7 +503,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
           var el = state.wbEls[item.id];
           if (el && el.dataset.type && el.dataset.type !== item.type) {
-              // Same id, different kind of item — a player's grey placeholder (a locked rect)
+              // Same id, different kind of item — a player's gray placeholder (a locked rect)
               // becoming the real token when the GM reveals it. Rebuild the box so the new
               // kind's styling applies; otherwise the picture ignores the 'image' sizing rule
               // and draws at its full pixel size inside a rect-styled frame.
@@ -653,7 +653,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                       if (portrait) { var ttImg = document.createElement('img'); ttImg.src = portrait; ttImg.loading = 'lazy'; ttImg.decoding = 'async'; ttImg.style.cssText = 'width:100%; height:90px; object-fit:cover; border-radius:4px; margin-bottom:6px; display:block;'; ttRoot.appendChild(ttImg); }   // fixed height so the card measures the same before/after the image loads (matches the room card)
                       var ttName = document.createElement('div'); ttName.className = 'rn'; ttName.textContent = cname; if (window.wpPlook) window.wpPlook.dress(ttName, window.wpPlook.ofTok(wItem)); ttRoot.appendChild(ttName);
                       var ttStats = document.createElement('div'); ttStats.className = 'rc'; ttStats.style.cssText = 'color:var(--ink); font-size:11px; white-space:pre-wrap; text-transform:none; letter-spacing:0;'; ttStats.textContent = cstats.length > 400 ? cstats.slice(0, 400) + '…' : cstats; ttRoot.appendChild(ttStats);   // prose, not a label: no uppercase; capped for the hover peek (full text lives in the roster / Properties)
-                      if (!isClientC && wItem.gmInfo) { var gmTxt = String(wItem.gmInfo); var ttGm = document.createElement('div'); ttGm.className = 'rc'; ttGm.style.cssText = 'color:var(--gold); font-size:11px; white-space:pre-wrap; margin-top:4px; border-top:1px solid var(--edge); padding-top:3px; text-transform:none; letter-spacing:0;'; ttGm.textContent = gmTxt.length > 300 ? gmTxt.slice(0, 300) + '…' : gmTxt; ttRoot.appendChild(ttGm); }   // per-token GM note / dialogue (GM only; stripped on the wire), capped
+                      if (!isClientC && wItem.gmInfo) { var gmTxt = String(wItem.gmInfo); var ttGm = document.createElement('div'); ttGm.className = 'rc'; ttGm.style.cssText = 'color:var(--gold); font-size:11px; white-space:pre-wrap; margin-top:4px; border-top:1px solid var(--edge); padding-top:3px; text-transform:none; letter-spacing:0;'; ttGm.textContent = gmTxt.length > 300 ? gmTxt.slice(0, 300) + '…' : gmTxt; ttRoot.appendChild(ttGm); }   // per-token GM note / dialog (GM only; stripped on the wire), capped
                       var cardLn = !isClientC && typeof pageCardLine === 'function' ? pageCardLine(wItem) : ''; if (cardLn) { var ttCard = document.createElement('div'); ttCard.className = 'rc tt-card'; ttCard.style.cssText = 'color:var(--gold); font-size:11px; white-space:pre-wrap; margin-top:4px; text-transform:none; letter-spacing:0;'; ttCard.textContent = cardLn; ttRoot.appendChild(ttCard); }   // 1.6.2: the person card that names its sheet (GM only, worked out on this screen, never sent)
                       var sheetLines = window.wpSheets ? window.wpSheets.hoverLinesForToken(wItem) : [];
                       if (sheetLines.length) { var ttSheet = document.createElement('div'); ttSheet.className = 'rc'; ttSheet.style.cssText = 'color:var(--ink); font-size:11px;'; ttSheet.textContent = sheetLines.join(' · '); ttRoot.appendChild(ttSheet); }
@@ -690,7 +690,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                                      '<div class="rn">Text box</div>' +
                                      '<div class="rc" style="color:var(--dim); font-size:11px;">' + wordCount + ' word' + (wordCount === 1 ? '' : 's') +
                                      (wItem.hidden ? ' &middot; hidden from players' : '') + '</div>' +
-                                     (isClient ? '' : '<div class="rc" style="color:var(--gold); font-size:11px;">Double-click to edit &middot; colour swatch sets the text colour</div>') +
+                                     (isClient ? '' : '<div class="rc" style="color:var(--gold); font-size:11px;">Double-click to edit &middot; color swatch sets the text color</div>') +
                                      '</div>';
                       tt.style.display = 'block';
                       return;
@@ -861,12 +861,12 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
           } else {
 
               el.style.boxShadow = '';
-              el.style[el.dataset.tex ? 'backgroundColor' : 'background'] = (item.type === 'path' || item.type === 'image' || item.type === 'text' || item.type === 'trigger') ? 'transparent' : cssColor(item.color);   // a piece that wears a tile takes its colour alone: the shorthand would wipe the tile and have it written again at every draw
+              el.style[el.dataset.tex ? 'backgroundColor' : 'background'] = (item.type === 'path' || item.type === 'image' || item.type === 'text' || item.type === 'trigger') ? 'transparent' : cssColor(item.color);   // a piece that wears a tile takes its color alone: the shorthand would wipe the tile and have it written again at every draw
 
           }
 
           // [sinkcheck:texstyle-start]
-          // The map builder (fold B1): a piece's texture is a name of the app's own list (buildcore.js), drawn over its colour as a repeating tile
+          // The map builder (fold B1): a piece's texture is a name of the app's own list (buildcore.js), drawn over its color as a repeating tile
           // seated on the board's lattice, so pieces side by side read as one surface. On a box shape that is no token. A filled region's is drawn
           // in its own svg below. Anything else (no name, a name the list lacks, another kind of piece) leaves the piece exactly as it was drawn above
           var picT = typeof wbPicFill === 'function' ? wbPicFill(item) : null, BCt = window.wpBuildCore;   // fold B3: one of the campaign's own pictures comes before any pattern
@@ -938,7 +938,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
           el.classList.toggle('gm-note', !!item.gmNoteFor);
 
-          // GM-hidden items: the GM sees them ghosted with an eye badge; a player's app draws a grey cloud box only for the stub an older host (before 1.5.0) still sends — a current host sends nothing of a hidden item
+          // GM-hidden items: the GM sees them ghosted with an eye badge; a player's app draws a gray cloud box only for the stub an older host (before 1.5.0) still sends — a current host sends nothing of a hidden item
 
           var clientView = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
 
@@ -1066,7 +1066,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
           } else if (item.waiting) {
               // [sinkcheck:waitingface-start]
               // Onboarding F1a: a waiting token — the player's own face read live from the table's roster (a picture that passes safeAvatar,
-              // else the silhouette on their colour); it is not a character, so no initials, sheet or hover card
+              // else the silhouette on their color); it is not a character, so no initials, sheet or hover card
               var wRos = window.wpNet ? Object.values(window.wpNet.roster || {}).find(function(p) { return p && p.id === item.ownerId; }) : null;
               var wView = window.wpNet && window.wpNet.faceView ? window.wpNet.faceView(wRos || { face: item.face }, cssColor((wRos && wRos.color) || item.color)) : { img: '' };   // Onboarding F1b: their chosen face (net.js faceView: a bundled picture, an emoji, their picture checked whole, or the silhouette)
               if (wView.emoji) {
@@ -1087,7 +1087,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
               // [sinkcheck:charface-tok-start]
               var cfv = item.face && window.wpNet && window.wpNet.faceView && window.wpNet.cleanFace && window.wpNet.cleanFace(item.face) ? window.wpNet.faceView({ face: item.face }, cssColor(item.color || '#4db3d3')) : null;   // a face the rule refuses: the initials stay   // Onboarding F1c: the character's own face (net.js faceView), in place of initials
               if (cfv && cfv.emoji) { var feS = el.querySelector(':scope > span.token-face'); if (!feS) { el.textContent = ''; feS = document.createElement('span'); feS.className = 'token-initials token-face'; el.appendChild(feS); } if (feS.textContent !== cfv.emoji) feS.textContent = cfv.emoji; el.dataset.ini = 'face'; }   // drawn again whenever it is missing (a rebuilt token) or changed
-              else if (cfv && cfv.img) { var fiI = el.querySelector(':scope > img.token-face-img'); if (!fiI) { el.textContent = ''; fiI = document.createElement('img'); fiI.className = 'token-face-img'; fiI.alt = ''; fiI.draggable = false; el.appendChild(fiI); } if (fiI.getAttribute('src') !== cfv.img) fiI.src = cfv.img; el.dataset.ini = 'face'; }   // compared whole: a new colour is a new picture
+              else if (cfv && cfv.img) { var fiI = el.querySelector(':scope > img.token-face-img'); if (!fiI) { el.textContent = ''; fiI = document.createElement('img'); fiI.className = 'token-face-img'; fiI.alt = ''; fiI.draggable = false; el.appendChild(fiI); } if (fiI.getAttribute('src') !== cfv.img) fiI.src = cfv.img; el.dataset.ini = 'face'; }   // compared whole: a new color is a new picture
               // [sinkcheck:charface-tok-end]
               else {
               // Stand-in token: initials until a portrait arrives
@@ -1149,7 +1149,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
               // [sinkcheck:texpath-start]
               // The map builder (fold B1): a filled region's texture is an svg pattern in the path's own defs, built by createElementNS only (buildcore
               // texPattern), seated on the board's lattice and scaled back by the box over its base size (the svg's viewBox is stretched to the box). It
-              // is built again only when its place, size, name or colour changes. An untextured path keeps no defs and its plain fill
+              // is built again only when its place, size, name or color changes. An untextured path keeps no defs and its plain fill
               var picDone = _sp.fill && typeof wbPicPath === 'function' ? wbPicPath(svg, pathEl, item, bw, bh, _col) : false;   // fold B3: a picture fills the region, with a pattern of its own in the same defs
               var BCp = window.wpBuildCore, texP = !picDone && _sp.fill && BCp && BCp.cleanTexture ? BCp.cleanTexture(item.texture) : null, defsP = svg.querySelector(':scope > defs');
               if (texP) {
@@ -1163,7 +1163,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                           svg.dataset.texKey = texKey; svg.dataset.texId = patP.getAttribute('id');
                       } else { delete svg.dataset.texKey; delete svg.dataset.texId; }
                   }
-                  if (svg.dataset.texId) { pathEl.setAttribute('fill', 'url(#' + svg.dataset.texId + ')'); if (pathEl.style.fill) pathEl.style.fill = ''; }   // a colour set live on the path would hide the pattern
+                  if (svg.dataset.texId) { pathEl.setAttribute('fill', 'url(#' + svg.dataset.texId + ')'); if (pathEl.style.fill) pathEl.style.fill = ''; }   // a color set live on the path would hide the pattern
               } else if (defsP && !picDone) { defsP.remove(); delete svg.dataset.texKey; delete svg.dataset.texId; }
               // [sinkcheck:texpath-end]
 
@@ -1182,7 +1182,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
           var hexSvg = function(cls) { var sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('class', cls); sv.setAttribute('viewBox', '0 0 60 52'); sv.setAttribute('preserveAspectRatio', 'none'); var pg = document.createElementNS('http://www.w3.org/2000/svg', 'polygon'); pg.setAttribute('points', '15,1 45,1 59,26 45,51 15,51 1,26'); sv.appendChild(pg); return sv; };
           if (hexTok) {
               if (!plateEl) { plateEl = hexSvg('tok-plate'); el.insertBefore(plateEl, el.firstChild); }
-              var plateFill = cssColor(item.color); if (plateEl.firstChild.style.fill !== plateFill) plateEl.firstChild.style.fill = plateFill;   // a colour the rule refuses: the plate's own
+              var plateFill = cssColor(item.color); if (plateEl.firstChild.style.fill !== plateFill) plateEl.firstChild.style.fill = plateFill;   // a color the rule refuses: the plate's own
               if (item.waiting) { if (!ringEl) { ringEl = hexSvg('tok-ring'); el.appendChild(ringEl); } }
               else if (ringEl) ringEl.remove();
           } else { if (plateEl) plateEl.remove(); if (ringEl) ringEl.remove(); }
@@ -1196,14 +1196,14 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
           if (item.isChar && stanceOn('turning')) {   // token facing is a per-campaign VTT feature (Settings ▸ This campaign); when off there is no facing wedge
               if (!fw) { fw = document.createElement('div'); fw.className = 'token-front'; fw.innerHTML = '<i></i>'; el.appendChild(fw); }
               // Grids are square or flat-top hex, so the chosen side is always a face:
-              // the arrow points straight across it at the neighbouring cell.
+              // the arrow points straight across it at the neighboring cell.
               fw.style.transform = item.front ? 'rotate(' + item.front + 'deg)' : '';
               // The arrow itself turns the token (click / drag) when you may move it: the GM's selected token, or a player's own token
               // while it is selected (arrowTurnable)
               fw.classList.toggle('turnable', arrowTurnable(item, window.wpNet, state));
           } else if (fw) fw.remove();
           // Target marks: everyone targeting this token, shown as small copies of their own
-          // tokens, centred in a row that wraps into rows and never leaves the token's edges.
+          // tokens, centered in a row that wraps into rows and never leaves the token's edges.
           var tgs = (item.isChar && window.wpNet && window.wpNet.active && window.wpNet.targetersOf) ? window.wpNet.targetersOf(item.id, activeMap.id) : [];
           var marksEl = el.querySelector(':scope > .target-marks');
           if (tgs.length) {
@@ -1509,7 +1509,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
       var colBtn = bar.querySelector('.st-color');
       var kind = selColorKind(its);
       if (colBtn) {
-          colBtn.title = kind === 'text' ? 'Text colour' : kind === 'pen' ? 'Pen colour' : 'Fill colour';
+          colBtn.title = kind === 'text' ? 'Text color' : kind === 'pen' ? 'Pen color' : 'Fill color';
           colBtn.classList.toggle('st-text-color', kind === 'text');
           var chip = colBtn.querySelector('.st-color-chip');
           var cur = its[0] && its[0].color;
@@ -1549,7 +1549,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
   /* Fit to grid: size the selection to whole cells and seat it. Hex maps —
      tokens and hex shapes become exactly one cell; anything else rounds to
-     whole columns/rows of cells and centres on a cell. Square grids — width,
+     whole columns/rows of cells and centers on a cell. Square grids — width,
      height and position round to the 50px lattice. */
   // [lookcheck:fitpic-start]
   // A picture is drawn whole inside its box (object-fit: contain), so a box of other proportions shows it in its middle. Fit to grid sizes a
@@ -1605,7 +1605,7 @@ function fitToGrid(its) {
     var n = 0;
     its.forEach(function(it) {
         if (it.locked || it.type === 'path') return;
-        it.gridFit = true;   // remember it's grid-fitted, so it re-seats to the cell CENTRE on every move (not just this one-shot) — a hex move used to leave it ~half a cell off in x
+        it.gridFit = true;   // remember it's grid-fitted, so it re-seats to the cell CENTER on every move (not just this one-shot) — a hex move used to leave it ~half a cell off in x
         var fitted = fitItemInPlace(it, g);
         var reshaped = !!(window.wpSystemCore && window.wpSystemCore.shapeStandIn && window.wpSystemCore.shapeStandIn(it, getActiveMap()));   // grid-shaped tokens: once fitted, a one-cell token takes the cell's shape too (one press is final)
         if (fitted || reshaped) n++;
@@ -1617,7 +1617,7 @@ function fitToGrid(its) {
 // 1.6.2 (backlog 38; the owner, 2026-11-07, by prompt: "Both": align now, a per-map cell size as a later fold): a map picture with a grid
 // printed on it is sized and placed so that its grid lies on the board's. Two clicks on the picture and how many cells lie between them: the
 // picture is scaled about the first point, the same both ways, so nothing is distorted, and that point is then moved onto the board's
-// lattice, a corner of a square cell or the centre of a hex. The grid itself is never changed. Why a picture cannot be aligned, or ''
+// lattice, a corner of a square cell or the center of a hex. The grid itself is never changed. Why a picture cannot be aligned, or ''
 function alignMay(w, grid) {
     if (!w || typeof w !== 'object' || w.type !== 'image') return 'Pick a map picture first.';
     if (w.isChar || w.waiting) return 'A token is sized by Fit to grid cells, not by a grid on its picture.';
@@ -1639,8 +1639,8 @@ function alignFit(w, a, b, n, step, seat) {
     return { x: r2(a.x + ((Number(w.x) || 0) - a.x) * k + to.x - a.x), y: r2(a.y + ((Number(w.y) || 0) - a.y) * k + to.y - a.y), w: r2(nw), h: r2(nh) };
 }
 function alignWords(grid, step) {
-    if (step === 1) return grid === 'hex' ? 'Click the centre of a hex on the picture. Esc cancels.' : 'Click a corner where two lines of the picture\u2019s grid cross. Esc cancels.';
-    return grid === 'hex' ? 'Now click the centre of another hex in the same column, a few hexes up or down. Esc cancels.' : 'Now click another corner a few cells along the same row or column. Esc cancels.';
+    if (step === 1) return grid === 'hex' ? 'Click the center of a hex on the picture. Esc cancels.' : 'Click a corner where two lines of the picture\u2019s grid cross. Esc cancels.';
+    return grid === 'hex' ? 'Now click the center of another hex in the same column, a few hexes up or down. Esc cancels.' : 'Now click another corner a few cells along the same row or column. Esc cancels.';
 }
 function alignArm(rec) {
     var mv = document.getElementById('moveModeBtn');
@@ -1759,9 +1759,9 @@ function trimDraw(el, imEl, item) {
 }
 // [buildcheck:trimpic-end]
 // [lookcheck:tokfit-start]
-// 1.6.2 (backlog 141; the owner, 2026-11-06, by prompt: "Yes, one cell (Recommended)", "Trim and centre (Recommended)"): a picture ticked
+// 1.6.2 (backlog 141; the owner, 2026-11-06, by prompt: "Yes, one cell (Recommended)", "Trim and center (Recommended)"): a picture ticked
 // Is Character fits one cell of the map's grid and is seated in it, in the very change the tick saves, so Undo puts it back. Then, apart,
-// an empty or see-through border is trimmed and the rest centred in a square (framecore trimRect), saved as a new picture with the
+// an empty or see-through border is trimmed and the rest centered in a square (framecore trimRect), saved as a new picture with the
 // original kept as its frame, so Frame picture still changes it. Only on the machine that owns the campaign. True when it was resized
 function tokenFit(w) {
     var am = getActiveMap(), SC = window.wpSystemCore;
@@ -1789,7 +1789,7 @@ function tokenTrim(mapId, id, was) {
         oc.toBlob(function(blob) {
             if (!blob) return;
             var s0 = Math.min(s1, W, H), fx = Math.max(0, Math.min(W - s0, r.x * kx)), fy = Math.max(0, Math.min(H - s0, r.y * ky));
-            S.applyTokenFrame(mapId, [id], { blob: blob, was: was, frame: { src: was, x: fx, y: fy, s: s0 } }).then(function(ok) { if (ok) toast('Its empty border is trimmed and the picture centred. Frame picture changes it.'); });
+            S.applyTokenFrame(mapId, [id], { blob: blob, was: was, frame: { src: was, x: fx, y: fy, s: s0 } }).then(function(ok) { if (ok) toast('Its empty border is trimmed and the picture centered. Frame picture changes it.'); });
         }, 'image/png');
     };
     img.src = was;
@@ -1868,8 +1868,8 @@ window.wpFitToGrid = fitToGrid;
           var el = state.wbEls[i.id];
           if (!el) return;
           if (i.type === 'text') el.style.color = (v && v !== 'transparent') ? v : '';
-          else if (i.type === 'path') { var p = el.querySelector('svg > path'), pr = i.tip === 'fill' ? el.querySelector('svg > defs > pattern > rect') : null; if (pr) pr.setAttribute('fill', cssColor(v, 'transparent')); else if (p) { if (i.tip === 'fill') p.style.fill = v; else p.style.stroke = v; } }   // its own path, never a pattern's; a textured region: the colour under its pattern
-          else if (i.type !== 'image' && i.type !== 'trigger') el.style.backgroundColor = v;   // the colour alone, so a recolour keeps a piece's texture
+          else if (i.type === 'path') { var p = el.querySelector('svg > path'), pr = i.tip === 'fill' ? el.querySelector('svg > defs > pattern > rect') : null; if (pr) pr.setAttribute('fill', cssColor(v, 'transparent')); else if (p) { if (i.tip === 'fill') p.style.fill = v; else p.style.stroke = v; } }   // its own path, never a pattern's; a textured region: the color under its pattern
+          else if (i.type !== 'image' && i.type !== 'trigger') el.style.backgroundColor = v;   // the color alone, so a recolor keeps a piece's texture
       });
   }
   // The palette matches the selection: text and drawings get the pen inks,
@@ -1878,13 +1878,13 @@ window.wpFitToGrid = fitToGrid;
       var kind = selColorKind(its);
       var cur = (its[0] && its[0].color || '').toLowerCase();
       var sets = kind === 'fill' ? [ST_FILL, ST_PEN] : [ST_PEN];
-      var html = '<div class="stc-title">' + (kind === 'text' ? 'Text colour' : kind === 'pen' ? 'Pen colour' : 'Fill colour') + '</div><div class="stc-grid">';
+      var html = '<div class="stc-title">' + (kind === 'text' ? 'Text color' : kind === 'pen' ? 'Pen color' : 'Fill color') + '</div><div class="stc-grid">';
       sets.forEach(function(set) {
           Object.keys(set).forEach(function(k) {
               html += '<button class="stc-sw' + (k.toLowerCase() === cur ? ' on' : '') + (k === 'transparent' ? ' clear' : '') + '" data-c="' + k + '" title="' + set[k] + '" style="background:' + k + '"></button>';
           });
       });
-      html += '<label class="stc-sw custom" title="Custom colour"><input type="color" value="' + (/^#[0-9a-f]{6}$/i.test(cur) ? cur : '#e9e9f0') + '"></label></div>';
+      html += '<label class="stc-sw custom" title="Custom color"><input type="color" value="' + (/^#[0-9a-f]{6}$/i.test(cur) ? cur : '#e9e9f0') + '"></label></div>';
       pop.innerHTML = html;
       pop.dataset.sel = its.map(function(i) { return i.id; }).join(',');
       pop.querySelectorAll('.stc-sw[data-c]').forEach(function(b) {
@@ -2126,9 +2126,9 @@ window.wpFitToGrid = fitToGrid;
 
 
           // Size matching runs even with the ratio locked: whichever axis pauses
-          // on a neighbour's size, the other follows the ratio.
+          // on a neighbor's size, the other follows the ratio.
           var wBefore = item.w, hBefore = item.h, gS1 = gridStepOn();
-          if (gS1) { var lk1 = (item.lockRatio || e.shiftKey) && startW > 0 && startH > 0 ? { r: fitPicRatio(item) || startW / startH, byH: Math.abs(dx) < Math.abs(dy) } : null, st1 = gridStep(item.w, item.h, gS1, false, lk1); item.w = st1.w; item.h = st1.h; clearSnaps(); }   // Snap on to the grid: whole cells, and no pause at a neighbour's size between them
+          if (gS1) { var lk1 = (item.lockRatio || e.shiftKey) && startW > 0 && startH > 0 ? { r: fitPicRatio(item) || startW / startH, byH: Math.abs(dx) < Math.abs(dy) } : null, st1 = gridStep(item.w, item.h, gS1, false, lk1); item.w = st1.w; item.h = st1.h; clearSnaps(); }   // Snap on to the grid: whole cells, and no pause at a neighbor's size between them
           else {
           doSmartSnapping(item, true);
           if ((item.lockRatio || e.shiftKey) && startW > 0 && startH > 0) {
@@ -2407,7 +2407,7 @@ window.wpFitToGrid = fitToGrid;
           save(); render();
       }
       document.addEventListener('pointerup', turnUp);
-      document.addEventListener('pointercancel', function(e) { if (!turning) return; if (!turning.moved) { turning = null; turnGesture(false); return; } turnUp(e); });   // backlog 70: a cancelled turn ends as a release does, its final sent; a press that turned nothing turns nothing
+      document.addEventListener('pointercancel', function(e) { if (!turning) return; if (!turning.moved) { turning = null; turnGesture(false); return; } turnUp(e); });   // backlog 70: a canceled turn ends as a release does, its final sent; a press that turned nothing turns nothing
   }
   function attachRotateHandle() {
 
@@ -2698,7 +2698,7 @@ window.wpFitToGrid = fitToGrid;
   // [lookcheck:menuinview-start]
   // 1.6.2 (backlog 59 i; the owner: "Find and fix the rest (Recommended)"): a menu of the map's bars is held inside the window sideways, so one whose
   // button stands near an edge is never cut off there (Scene's effects ran 10 px past the right edge at 1024 px). It moves by the translate
-  // property, which adds to the transform a menu is centred by, and is taken off as the menu closes
+  // property, which adds to the transform a menu is centered by, and is taken off as the menu closes
   function menuInView(menu, win) {
       if (!menu || !menu.style || typeof menu.getBoundingClientRect !== 'function') return 0;
       menu.style.translate = '';
@@ -2924,7 +2924,7 @@ window.wpFitToGrid = fitToGrid;
   /* ---- party strip ----
      Every player's character as a small token in the corner of the play map. The ones on the
      map you are viewing are highlighted; while hosting, a player who is not connected is dimmed.
-     Click one to jump to that character: their map (if different), centred on them at 150%. */
+     Click one to jump to that character: their map (if different), centered on them at 150%. */
   var FOCUS_ZOOM = 1.5;
   function wbHashHue(s) { var h = 0, t = String(s); for (var i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return ((h % 360) + 360) % 360; }   // a stable per-key hue for the no-picture silhouette default
   var PARTY_SHOWN = 4;   // as the Maps list's faces (sidebar.js PRES_SHOWN)
@@ -2935,7 +2935,7 @@ window.wpFitToGrid = fitToGrid;
       if (!camp || !am || am.type !== 'map' || state.viewMode !== 'visual') { strip.innerHTML = ''; strip.dataset.sig = ''; return; }
       var list = characterList(camp, true, am.id, function(pid) { return playerNow(camp, pid); }).map(function(c) { return chipPlace(camp, c); });   // a player's chip is the token on the map they are on
       // [sinkcheck:partyface-start]
-      list.forEach(function(c) { if (c.src || !c.face || !window.wpNet || !window.wpNet.faceView || !window.wpNet.cleanFace || !window.wpNet.cleanFace(c.face)) return; var fvT = window.wpNet.faceView({ face: c.face }, cssColor(c.tcolor || '#4db3d3')); if (fvT.emoji) c.emoji = fvT.emoji; else if (fvT.img) { c.src = fvT.img; c.avatar = true; } });   // Onboarding F1c: a character's own face (an emoji, a bundled picture, the default in its token's colour)
+      list.forEach(function(c) { if (c.src || !c.face || !window.wpNet || !window.wpNet.faceView || !window.wpNet.cleanFace || !window.wpNet.cleanFace(c.face)) return; var fvT = window.wpNet.faceView({ face: c.face }, cssColor(c.tcolor || '#4db3d3')); if (fvT.emoji) c.emoji = fvT.emoji; else if (fvT.img) { c.src = fvT.img; c.avatar = true; } });   // Onboarding F1c: a character's own face (an emoji, a bundled picture, the default in its token's color)
       // [sinkcheck:partyface-end]
       var hosting = window.wpNet && window.wpNet.active && window.wpNet.role === 'host';
       var atTable = window.wpNet && window.wpNet.active && (hosting || window.wpNet.role === 'client');   // players see the party too, read-only
@@ -2950,7 +2950,7 @@ window.wpFitToGrid = fitToGrid;
           Object.values(window.wpNet.roster || {}).forEach(function(p) {
               if (!p || !p.id || owned[p.id]) return;
               var avOk = !!(window.wpNet && window.wpNet.safeAvatar && window.wpNet.safeAvatar(p.avatar));   // the whole data URL (net.js)
-              var fvP = window.wpNet && window.wpNet.faceView ? window.wpNet.faceView(p, p.color || '#4db3d3') : null;   // the waiting token's colour when they have none   // Onboarding F1b: their chosen face
+              var fvP = window.wpNet && window.wpNet.faceView ? window.wpNet.faceView(p, p.color || '#4db3d3') : null;   // the waiting token's color when they have none   // Onboarding F1b: their chosen face
               var locMap = p.location && camp.items[p.location];
               list.push({ key: 'p:' + p.id, ownerId: p.id, tokId: null, name: p.name || 'Player', src: fvP ? (fvP.img || null) : (avOk ? p.avatar : null), emoji: fvP && fvP.emoji ? fvP.emoji : null, avatar: true, color: p.color || null, waiting: !!(window.wpSystemCore && window.wpSystemCore.waitingTokensOf && window.wpSystemCore.waitingTokensOf(camp, p.id).length),
                           mapId: p.location || null, map: locMap && locMap.meta && locMap.meta.title || 'no map yet', noToken: true });
@@ -3137,7 +3137,7 @@ window.wpFitToGrid = fitToGrid;
   }
   window.wpFocusCharacter = focusCharacter;
   // 1.6.2 (the owner: a press on a face in a map's hover list jumps to that player on the map they are on): their token on that very map,
-  // the character they play before any other, centred and selected; with none of theirs there, the map, and a word. Never a waiting token
+  // the character they play before any other, centered and selected; with none of theirs there, the map, and a word. Never a waiting token
   function focusPlayerOn(pid, mapId, name) {
       var camp = getActiveCampaign(), m = camp && typeof mapId === 'string' ? camp.items[mapId] : null;
       if (!m || m.type !== 'map' || typeof pid !== 'string' || !pid) return false;
@@ -3474,7 +3474,7 @@ window.wpFitToGrid = fitToGrid;
   // [fogcheck:hazardrows-start]
   // 1.6.2 (map hazards; the owner, by prompt: "A GM button on the area", "A Spread button, GM decides", "The area picks a token"). The GM's alone
   // (never a player's app, its link up or between attempts, never the stream window), on the map on screen. Roll for everyone in it: each character
-  // whose token's centre the piece covers, once, where the hazard's test holds for it (systemcore rollNeedsOk, the sheet's own names), gets a
+  // whose token's center the piece covers, once, where the hazard's test holds for it (systemcore rollNeedsOk, the sheet's own names), gets a
   // card for the roll the hazard names (net.postDue, called for by the piece), its player's or the GM's. Spread fire: every painted cell set to
   // spread grows one cell outward (fogcore spreadCells), each new cell a copy of the cell it came from
   function hazardGm() { var n = window.wpNet; return !window.wpStream && !(n && (n.foreign || (n.active && n.role === 'client'))) && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()); }
@@ -3514,7 +3514,7 @@ window.wpFitToGrid = fitToGrid;
       if (window.wpStepLog) window.wpStepLog('hazard v1', 'spread', { cells: made });
       return made;
   }
-  // A piece that follows a token (item.follow) stands centred on it, on every map of the campaign on this machine: looked at each half second and
+  // A piece that follows a token (item.follow) stands centered on it, on every map of the campaign on this machine: looked at each half second and
   // after Properties sets it, written only where it moved, with one save
   function hazardFollow() {
       var FC = window.wpFogCore, camp = getActiveCampaign(); if (!hazardGm() || !FC || typeof FC.cleanFollow !== 'function' || !camp || !camp.items) return 0;
@@ -3695,7 +3695,7 @@ window.wpFitToGrid = fitToGrid;
       return !!w && typeof w === 'object' && ERASE_BLOCKS.indexOf(w.type) >= 0 && (w.blocksSight === true || w.barrier === true)
           && !w.locked && !w.isChar && !w.waiting && !w.gmNoteFor && !w.fill && !w.targetMapId && !w.nodeId && !w.light && !w.fogHand && !w.page && !w.fogged && !w.nulls;
   }
-  // whether the eraser's circle (radius r about x, y) touches the block as the board draws it: its box turned about its centre, cut to a
+  // whether the eraser's circle (radius r about x, y) touches the block as the board draws it: its box turned about its center, cut to a
   // hexagon or a diamond as the style sheet cuts it, a circle as the ellipse its box holds
   function eraseBlockHit(w, x, y, r) {
       var num = function(v) { return typeof v === 'number' && isFinite(v); };
@@ -3740,7 +3740,7 @@ window.wpFitToGrid = fitToGrid;
   }
 
   // Erase only the SEGMENTS under the pointer: a touched segment is cut out and
-  // its two neighbours keep their endpoints, so a small eraser removes exactly
+  // its two neighbors keep their endpoints, so a small eraser removes exactly
   // one segment. What remains on either side becomes its own path item.
   function eraseWorldPoint(x, y) {
       var m = getActiveMap();
@@ -3757,7 +3757,7 @@ window.wpFitToGrid = fitToGrid;
               if (isRegion) {   // erase the whole region when the eraser is inside it (not in a punched hole), or touches its outline
                   var _rsx = item.w / (item.baseW || item.w || 1), _rsy = item.h / (item.baseH || item.h || 1);
                   var _hx = x, _hy = y;
-                  if (item.rot) {   // render rotates the box about its centre; test in that same (un-rotated) frame
+                  if (item.rot) {   // render rotates the box about its center; test in that same (un-rotated) frame
                       var _ra = -item.rot * Math.PI / 180, _rcos = Math.cos(_ra), _rsin = Math.sin(_ra);
                       var _rcx = item.x + item.w / 2, _rcy = item.y + item.h / 2, _rdx = x - _rcx, _rdy = y - _rcy;
                       _hx = _rcx + _rdx * _rcos - _rdy * _rsin; _hy = _rcy + _rdx * _rsin + _rdy * _rcos;
@@ -3793,7 +3793,7 @@ window.wpFitToGrid = fitToGrid;
           var reach = (state.eraserSize || 6) + (item.strokeWidth || 3) / 2;
           var reachSq = reach * reach;
           var abs = item.pts.map(function(p) { return [item.x + p[0] * sx, item.y + p[1] * sy]; });
-          // a TURNED line (found 2026-10-17): the board turns it about its box's centre, and the eraser cut it where it lay before the turn. The
+          // a TURNED line (found 2026-10-17): the board turns it about its box's center, and the eraser cut it where it lay before the turn. The
           // eraser's place is turned back into the line's own frame and the line cut there, as a filled region is; each piece keeps the turn and
           // the stretch, its box moved so that it is drawn where that part of the line was drawn
           var ex = x, ey = y, turn = +item.rot, tc = 1, ts = 0, ocx = item.x + item.w / 2, ocy = item.y + item.h / 2;
@@ -3851,7 +3851,7 @@ window.wpFitToGrid = fitToGrid;
                   x: minX, y: minY, w: w, h: h, baseW: w / kx, baseH: h / ky,
                   pts: run.map(function(p) { return [(p[0] - minX) / kx, (p[1] - minY) / ky]; })
               });
-              if (turn) {   // turned about its own centre, the piece stands where the line drew it: its centre goes where the line's turn takes it
+              if (turn) {   // turned about its own center, the piece stands where the line drew it: its center goes where the line's turn takes it
                   var dcx = minX + w / 2 - ocx, dcy = minY + h / 2 - ocy;
                   piece.x = minX - (dcx - (dcx * tc - dcy * ts)); piece.y = minY - (dcy - (dcx * ts + dcy * tc));
               }
@@ -4116,10 +4116,10 @@ window.wpFitToGrid = fitToGrid;
   }
   // [lookcheck:badgesay-end]
   // [sinkcheck:tokenbars-start]
-  // Backlog 28 (the owner, 2026-10-29, by prompt: "A ring around it", the numbers on hover, each bar its own colour): a token's bars as a thin ring
-  // just outside its edge, Bar 1 filling the left half from the bottom up and over, Bar 2 the right half from the top down, each its own colour
+  // Backlog 28 (the owner, 2026-10-29, by prompt: "A ring around it", the numbers on hover, each bar its own color): a token's bars as a thin ring
+  // just outside its edge, Bar 1 filling the left half from the bottom up and over, Bar 2 the right half from the top down, each its own color
   // over a dark track, a GM-only bar dashed (the GM's screen alone); turned back against the token's own turn, so Bar 1 stays at the left. Built
-  // of elements and attributes alone: numbers as the cleaners gave them, a colour that is a #rrggbb, the tooltip ("HP 7 / 14") a text
+  // of elements and attributes alone: numbers as the cleaners gave them, a color that is a #rrggbb, the tooltip ("HP 7 / 14") a text
   var BAR_GAP = 6, BAR_SPAN = 168;
   function tokenBarsSig(item, list) { return [+item.w || 60, +item.h || 52, +item.rot || 0].join(',') + '|' + list.map(function(e) { return [e.s, e.v, e.m, e.n, e.c, e.g === 1 ? 1 : 0].join(','); }).join(';'); }
   function tokenBarsSvg(item, list) {
@@ -4224,7 +4224,7 @@ window.wpFitToGrid = fitToGrid;
   // [sinkcheck:tokfxmenu-end]
   // [sinkcheck:rangelabel-start]
   // Range penalties R1 (docs/RANGE_PLAN.md): the modifier the system's range rule gives, on every ruler (range is distance alone) and at each
-  // target mark, from its targeter's token as its cover is. Between two character tokens it is measured centre to centre, with their elevation
+  // target mark, from its targeter's token as its cover is. Between two character tokens it is measured center to center, with their elevation
   // when that feature is on, as a roll will read it (R2). Worked out on this screen from its own copy of the map: nothing on the wire. A number
   // and a unit's short name, never a name from a file
   function rangeSeen(map, a, b, tA, tB) {   // { mod, dist, unit } or null: no rule, no map
@@ -4239,7 +4239,7 @@ window.wpFitToGrid = fitToGrid;
   function rangeWord(rg) { return rangeNamesOn() && typeof rg.band === 'string' && rg.band ? rg.band : rangeModText(rg.mod); }
   var RANGE_UNIT_WORD = { yd: 'yd', ft: 'ft', m: 'm', cells: 'cells' };
   // A target mark's tooltip says the distance in the viewer's own unit (1.5.4, the review of the v1.0.4 merge; docs/V104_PLAN.md gap 2): a rule
-  // that counts in yards or feet reads in metres under Metric, and one in metres reads in yards under Imperial, by the exact definitions, as a
+  // that counts in yards or feet reads in meters under Metric, and one in meters reads in yards under Imperial, by the exact definitions, as a
   // height does; cells as they are, and with no setting at hand the rule's own unit. Only what is said changes: the modifier is the rule's
   function rangeTitle(rg) {
       var u = Object.prototype.hasOwnProperty.call(RANGE_UNIT_WORD, rg.unit) ? RANGE_UNIT_WORD[rg.unit] : 'yd', d = rg.dist, mo = typeof metricOn === 'function' ? metricOn() : null;
@@ -4252,7 +4252,7 @@ window.wpFitToGrid = fitToGrid;
   // [sinkcheck:heightlabel-start]
   // Item 19 H2 (the owner's answer: shown on the ruler and at a target mark): the system's height modifier between two character tokens — the
   // first's height over the second's, as a roll's HeightMod reads it — on the ruler and at each target mark from its targeter's token. Worked
-  // out on this screen; its words a number and the viewer's own unit (yards or metres), never a name from a file
+  // out on this screen; its words a number and the viewer's own unit (yards or meters), never a name from a file
   function heightSeen(tA, tB, map) {   // { mod, diff, unit } or null: no table or formula, no two tokens; map (item 19b H5): each on the ground it stands on there
       var S = window.wpSystemCore, sys = window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null; if (!S || !S.heightOf || !sys || !tA || !tB) return null;
       return S.heightOf(sys, tA, tB, { F: window.wpFormula, elev: stanceOn('elevation'), groundOf: map ? function(t) { return tokenGround(t, map); } : null });
@@ -4690,7 +4690,7 @@ window.wpFitToGrid = fitToGrid;
   // The Radius tool's own numbers and words (1.5.4; the owner, 2026-10-06: "lets make the explosion tool a radius/ diameter tool instead").
   // A circle keeps its RADIUS in yards, whatever was typed. Its size is typed and said in the ruler's unit on that map (by prompt: "The
   // ruler's units"): the map's own unit, turned by the viewer's Imperial or Metric choice as the ruler's label turns it. as says how the
-  // number is read: 'r' from the centre to the edge, 'd' from edge to edge. as is also what is measured (circleKind): beside the two
+  // number is read: 'r' from the center to the edge, 'd' from edge to edge. as is also what is measured (circleKind): beside the two
   // circles, 'ring' (the tokens between an inner distance, inn, and the outer one, yd) and 'cone' (a wedge from the point, yd long, deg
   // degrees wide, turned to dir in radians; 0 points right). A circle may sit on a token (tok: on a shape the token's id, on the shape
   // kept for the next click true): it stands where its token stands and does not count it. The functions down to circlePref are pure.
@@ -4737,10 +4737,10 @@ window.wpFitToGrid = fitToGrid;
   // cone's angle. The item keeps its feet inside: only what is said follows the ruler. Plain text: the caller escapes it. The label on the map
   // draws the two parts apart, since the size alone is drawn over the fog on a player's screen (fog.js measureCaps): blastName, blastSize
   function blastName(b) { return !ownCircle(b) && b && typeof b.name === 'string' && b.name ? b.name : ''; }   // a thrown blast's name; a shape of the tool's own has none
-  // A thrown blast's size is said as the Radius tool says a size, but in metres or kilometres as the sheet says a measure in metric (the review of
+  // A thrown blast's size is said as the Radius tool says a size, but in meters or kilometers as the sheet says a measure in metric (the review of
   // the v1.0.4 merge: a 3 yd blast read 2.74 m beside a field's "3 yd (2.7 m)" and the website's own "3-yard (2.7 m) radius"): systemcore
   // metricOf, the website's rule, over the figure the same map reads under Imperial (iu: yd, ft or mi, the unit rulerImpNow gives; absent,
-  // yards for metres and miles for kilometres), to the decimals that figure shows and one more for a whole one. The tool's own box keeps two
+  // yards for meters and miles for kilometers), to the decimals that figure shows and one more for a whole one. The tool's own box keeps two
   // decimals (2.74 m), since a size typed as it shows must read back. With no system core at hand, as the box shows a size. Plain text
   function blastNum(yd, unit, iu) {
       var u = unitKnown(unit), S = window.wpSystemCore;
@@ -4796,7 +4796,7 @@ window.wpFitToGrid = fitToGrid;
   var circleDir = 0, coneAim = null;   // the way the last cone was turned, and the cone being turned: { b, sx, sy, moved, fresh } (fresh: just placed, not yet said)
   var circleCas = circleKept.as === 'd' ? 'd' : 'r';   // how a circle's number was last read: what Circle goes back to from a ring or a cone
   function rulerUnitNow() { return rulerUnitOf(mapMeasureConfig().unit, state.measureUnit === 'metric'); }   // the unit the ruler reads in on the map on screen
-  function rulerImpNow() { return rulerUnitOf(mapMeasureConfig().unit, false); }   // the unit the same map reads in under Imperial: a thrown blast's metres are turned from it (blastNum)
+  function rulerImpNow() { return rulerUnitOf(mapMeasureConfig().unit, false); }   // the unit the same map reads in under Imperial: a thrown blast's meters are turned from it (blastNum)
   function ownCircle(b) { return !!b && typeof b.yd === 'number' && b.yd > 0; }   // a circle of the Radius tool's own, never a thrown blast
   // What a shape is, for one of the tool's own and for a blast alike. A blast is a circle unless an explosion gave it a shape (the owner, of
   // whether a cone or a ring should explode too: "A cone and a ring, soon"): a ring keeps its inner distance in feet (shape 'ring', inFt), a
@@ -4820,7 +4820,7 @@ window.wpFitToGrid = fitToGrid;
   window.wpCircleFollow = function() { if (blasts.some(function(b) { return typeof b.tok === 'string'; })) renderMeasures(); var amN = getActiveMap(); if (amN && amN.type === 'map') { try { doorNearSync(amN); } catch (e) {} } };   // a token moved with no redraw (a drag under way, a move from the table): a circle on a token goes with it
   function shapeHolds(b, r) {   // is the token of this distance row inside b? A thrown blast and a circle by distance, a ring between its two, a cone within its angle too
       if (b.lost) return false;
-      if (typeof b.tok === 'string' && r.tok && r.tok.id === b.tok) return false;   // the token a circle sits on is its centre, not something inside it
+      if (typeof b.tok === 'string' && r.tok && r.tok.id === b.tok) return false;   // the token a circle sits on is its center, not something inside it
       if (typeof b.spare === 'string' && r.tok && r.tok.id === b.spare) return false;   // an explosion set off from such a circle spares that token still
       if (r.d > blastRadiusYd(b) + 1e-9) return false;
       var k = kindOf(b);   // a blast that an exploded ring or cone left has that shape still
@@ -4873,20 +4873,20 @@ window.wpFitToGrid = fitToGrid;
       blasts.forEach(function(b, i) {
           if (b.lost) return;   // its token is off this screen's copy of the map
           var rYd = blastRadiusYd(b), rPx = rYd * pxPerYd, own = ownCircle(b);   // the tool's own circle and a thrown blast both read in the ruler's unit (blastSize); a thrown blast keeps its item's feet inside
-          var onTok = own && typeof b.tok === 'string';   // on a token: a press at its centre is the token's, so its dot takes none (the style sheet's on-tok)
+          var onTok = own && typeof b.tok === 'string';   // on a token: a press at its center is the token's, so its dot takes none (the style sheet's on-tok)
           html += '<g class="blast' + (own ? ' own' : '') + (onTok ? ' on-tok' : '') + '" data-i="' + i + '"><title>' + (onTok ? 'It moves with its token \u00b7 right-click its edge to remove' : 'Drag to move \u00b7 right-click to remove') + '</title>';
           var kind = kindOf(b), DOT = '<circle class="dot" cx="' + b.x + '" cy="' + b.y + '" r="6"></circle>', GRAB = '<circle class="ring" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle>';
           if (kind === 'cone') html += '<path class="area" d="' + conePath(b.x, b.y, rPx, b.dir, b.deg) + '"></path>' + DOT + (own ? '<circle class="blast-aim" data-i="' + i + '" cx="' + svgNum(b.x + rPx * Math.cos(b.dir || 0)) + '" cy="' + svgNum(b.y + rPx * Math.sin(b.dir || 0)) + '" r="7"><title>Drag to turn the cone</title></circle>' : '');   // a path is numbers only (svgNum); a blast's cone has no handle: it went off as it was aimed
           else if (kind === 'ring' && innerYd(b) > 0) html += '<path class="area" fill-rule="evenodd" d="' + ringPath(b.x, b.y, rPx, innerYd(b) * pxPerYd) + '"></path>' + GRAB + DOT;
           else html += '<circle class="area" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle>' + GRAB + DOT;
-          if (b.thrown) html += standInSvg('grenade', b.x, b.y, b.icon);   // 1.5.8 explosives: its icon at the centre of the blast, the item's own or the stand-in
+          if (b.thrown) html += standInSvg('grenade', b.x, b.y, b.icon);   // 1.5.8 explosives: its icon at the center of the blast, the item's own or the stand-in
           var lblName = blastName(b) ? esc(blastName(b)) + ' \u00b7 ' : '', lblSize = esc(blastSize(b, ru, ri));   // a shape of the tool's own and a thrown blast alike in the ruler's unit (1.5.4), the words blastWords says
           var lbl = lblName + lblSize + (elevOn ? ' \u00b7 at ' + fmtElev(b.elev || 0) + ' ' + lenUnit() : '');   // item 19 H1: a height in the viewer's unit.
           html += '<text x="' + (b.x + 8) + '" y="' + (kind === 'cone' ? b.y - 12 : b.y - rPx - 8) + '">' + lbl + '</text>';   // a cone's words stand at its point: it has no top
           if (!playerScreen() && kind !== 'cone' && kind !== 'ring') html += '<text class="blast-boom" data-i="' + i + '" x="' + (b.x + 8) + '" y="' + (b.y - rPx - 26) + '">Boom</text>';   // fires a burst everyone sees (1.5.0)
           blastDistances(b, map).forEach(function(r) {
               if (!shapeHolds(b, r)) return;
-              var cvB = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, elevOn ? (b.elev || 0) : 0, elevOn ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null;   // cover follow-ups: the cover each token in range has from the blast's centre (local, advisory); item 19 H1: from the blast's height
+              var cvB = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, elevOn ? (b.elev || 0) : 0, elevOn ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null;   // cover follow-ups: the cover each token in range has from the blast's center (local, advisory); item 19 H1: from the blast's height
               html += '<text class="hit" x="' + (r.tok.x + (r.tok.w || 60) / 2) + '" y="' + (r.tok.y - 5) + '" text-anchor="middle">' + esc(rulerLen(r.d, ru)) + (elevOn && r.v ? ' (' + (r.v > 0 ? '\u2191' : '\u2193') + (Math.round(ydOut(Math.abs(r.v)) * 10) / 10) + ')' : '') + (cvB ? ' \u00b7 ' + esc(cvB.name) : '') + '</text>';
           });
           html += '</g>';
@@ -4901,7 +4901,7 @@ window.wpFitToGrid = fitToGrid;
       _blastHitIds.forEach(function(id) { if (state.wbEls[id]) state.wbEls[id].classList.add(hit[id]); });
   }
   window.wpBlastLen = function(ft) { return blastLen(ft, rulerUnitNow(), rulerImpNow()); };   // the sheet's blast tag, in the ruler's unit on the map on screen
-  window.wpRulerUnit = function() { return rulerUnitNow() + '|' + rulerImpNow(); };   // ... and that unit with the one its metres are turned from, so the sheet is drawn again on a map in another unit
+  window.wpRulerUnit = function() { return rulerUnitNow() + '|' + rulerImpNow(); };   // ... and that unit with the one its meters are turned from, so the sheet is drawn again on a map in another unit
   window.wpRefreshBlasts = function() { if (blasts.length || _blastHitIds.length || measures.length) renderMeasures(); };   // and the rulers placed: their words read the tokens they end on (a posture, a height) and the table's switches
   window.wpBlasts = function() { return blasts; };   // sandbox testing hook
   window.wpBlastsShown = function(mapId) { return blasts.filter(function(b) { return !!b.wire && b.wireMap === mapId; }).map(function(b) { return { wire: b.wire, charId: b.wireChar }; }); };   // 1.6.0: what the table was told is standing on that map, for one who comes to it after
@@ -5006,7 +5006,7 @@ window.wpFitToGrid = fitToGrid;
       if (onScreen) { pushBlast(b); renderMeasures(); syncBlastMenu(); }
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) { b.wire = { x: b.x, y: b.y, ft: b.ft, name: opts.gmOnly ? '' : b.name, elev: b.elev, by: b.by }; b.wireMap = map.id; b.wireChar = opts.charId; window.wpNet.broadcastBlast(b.wire, map.id, opts.charId); }   // a GM-only item's blast reaches players unnamed
       var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;
-      var rw = typeof blastSize === 'function' && typeof rulerUnitNow === 'function' ? blastSize({ ft: b.ft }, rulerUnitNow(), typeof rulerImpNow === 'function' ? rulerImpNow() : '') : 'Radius ' + b.ft + ' ft';   // in the ruler's unit, as its label (1.5.4): in metres as the sheet says a measure
+      var rw = typeof blastSize === 'function' && typeof rulerUnitNow === 'function' ? blastSize({ ft: b.ft }, rulerUnitNow(), typeof rulerImpNow === 'function' ? rulerImpNow() : '') : 'Radius ' + b.ft + ' ft';   // in the ruler's unit, as its label (1.5.4): in meters as the sheet says a measure
       toast((opts.goOff ? (b.name || 'A mine') + (pre && pre.fuse ? ' lands' : ' goes off') : (b.by ? b.by + ' throws ' : 'Thrown: ') + (b.name || 'a blast')) + ', ' + rw.charAt(0).toLowerCase() + rw.slice(1) + '. ' + n + ' token' + (n === 1 ? '' : 's') + ' in range.' + (pre ? pre.said : '') + (seatB ? ' It went off in front of the wall or door it hit.' : '') + (onScreen ? '' : (pre && pre.fuse ? ' It is on ' : ' It went off on ') + ((map.meta && map.meta.title) || map.title || 'another map') + '.'));
       if (pre && pre.area && pre.area.use === true && pre.tr && typeof useOneUp === 'function') useOneUp(getActiveCampaign(), pre.tr);
       if (pre && pre.fuse && typeof fuseSet === 'function') { fuseSet(map, b, opts, n); return b; }   // 1.5.8: it goes off at the start of the next turn
@@ -5190,7 +5190,7 @@ window.wpFitToGrid = fitToGrid;
   // frag.direct. Only total cover stops it under frag.cover 'total', where a token partly behind cover takes it all; else the system's cover
   // outcomes, as the blast. Each hit is rolled with the thrower's character (a damage card already applied, kept as private as the item) and
   // goes through the damage step where the system has one, at the default location, by the item's fragmentation type, else the card's, else
-  // the blast's, with no falloff and the item's armour divisor only under frag.ad; else off the damage resource. write: the pass's own writer,
+  // the blast's, with no falloff and the item's armor divisor only under frag.ad; else off the damage resource. write: the pass's own writer,
   // which keeps what each character held first for the Undo. { hit, shielded } or null where the blast carries none
   function fragPass(b, map, camp, sys, hpId, write, mark) {   // mark (1.5.9, afflictions): told who each hit wounded and whom it reached
       var S = window.wpSystemCore, F = window.wpFormula, BC = window.wpBlastCore, fg = b && b.frag && typeof b.frag === 'object' ? b.frag : null;
@@ -5434,7 +5434,7 @@ window.wpFitToGrid = fitToGrid;
       if (fall) { share = BC.fallShare(F, fall, { dmg: share, dist: o.d, dice: BC.diceCount(o.b.dmgExpr || ''), direct: o.dir, centre: o.cen, fills: o.b.fills, noDrop: o.b.noDrop, iscale: o.b.iscale, env: o.b.env, cell: typeof o.b.cell === 'number' ? o.b.cell : 1, scale: S.hitScaleOf ? S.hitScaleOf(sys, ch, F) : 1 }); if (share === null) return { error: 'Its falloff could not be worked out.' }; }
       var dmgC = rules && rules.fillCover === 'total' && o.b.fills > 0 ? (o.tier && o.tier.block ? 0 : share) : S.coverDamage ? S.coverDamage(sys, o.tier, share) : share; if (!(dmgC > 0)) return { ok: true, amt: 0 };
       var vals = null, lines = null, st = null;
-      if (step) {   // as the blast pass's own shares: DR at the default location, the blast's damage type, its armour divisor
+      if (step) {   // as the blast pass's own shares: DR at the default location, the blast's damage type, its armor divisor
           var types = Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [], q = { amt: Math.floor(dmgC) }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch, o.b.loc) : ''; if (loc) q.loc = loc;
           if (o.b.dtype && types.some(function(y) { return y && typeof y.key === 'string' && y.key.toLowerCase() === String(o.b.dtype).toLowerCase(); })) q.type = o.b.dtype; var bkO = typeof blastKind === 'function' ? blastKind(sys, rules) : ''; if (bkO) q.kind = bkO; if (typeof o.b.ad === 'number' && o.b.ad > 0) q.ad = o.b.ad;
           st = S.damageStep(sys, ch, q, F, undefined, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return { error: 'Its damage could not be applied.' };
@@ -5560,7 +5560,7 @@ window.wpFitToGrid = fitToGrid;
       toast(mine.unarmed ? (opts.by || 'The character') + ' places ' + (mine.name || 'a mine') + ' but fails to arm it: it lies there unarmed and goes off only from its right-click menu.' : (opts.by ? opts.by + ' places ' : 'Placed: ') + (mine.name || 'a mine') + '. It is hidden from your players and goes off when a character steps into it, or from its right-click menu.');
       return z;
   }
-  // A mine goes off: its zone is taken off the map and its blast goes off at the zone's centre, by the same path as a throw
+  // A mine goes off: its zone is taken off the map and its blast goes off at the zone's center, by the same path as a throw
   function mineOff(map, zone, direct) {
       if (!map || !zone || !zone.mine || !Array.isArray(map.whiteboard)) return null;
       var at = map.whiteboard.indexOf(zone); if (at < 0) return null;
@@ -5571,7 +5571,7 @@ window.wpFitToGrid = fitToGrid;
   // A character token that stepped in (the host's own map: the GM's drag, a player's drop): every mine whose trigger it stands in now and did
   // not stand in where the gesture began goes off, the token struck directly. Never on a player's app or in the stream window
   // 1.6.2 (the CORE session's batch 6, 10): a roll's or an action's Set off: the placed blast nearest the token it is used from, within 2 yards of
-  // its centre, goes off as one stepped on does (armed or not), the token struck directly. The host's own copy alone; how many went off
+  // its center, goes off as one stepped on does (armed or not), the token struck directly. The host's own copy alone; how many went off
   window.wpSetOffNear = function(list) {
       if (window.wpStream || (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') || !Array.isArray(list)) return 0;
       var camp = getActiveCampaign(), n = 0; if (!camp || !camp.items) return 0;
@@ -5621,9 +5621,9 @@ window.wpFitToGrid = fitToGrid;
   function mineRow(items) {
       var n = window.wpNet; if (window.wpStream || (n && (n.foreign || (n.active && n.role === 'client')))) return null;
       var ms = (Array.isArray(items) ? items : []).filter(function(w) { return !!w && w.type === 'trigger' && w.mine && typeof w.mine === 'object'; });
-      return ms.length ? { items: ms, html: '<div class="menu-item cm-mine-off" title="It goes off at its centre now, as if someone stepped on it."><i class="wib wi-burst"></i> Set off the mine' + (ms.length > 1 ? 's' : '') + '</div>' } : null;
+      return ms.length ? { items: ms, html: '<div class="menu-item cm-mine-off" title="It goes off at its center now, as if someone stepped on it."><i class="wib wi-burst"></i> Set off the mine' + (ms.length > 1 ? 's' : '') + '</div>' } : null;
   }
-  // The stand-in drawings a thrown explosive and a placed mine wear at their centre (blastcore STAND_INS), else the item's own icon where it is
+  // The stand-in drawings a thrown explosive and a placed mine wear at their center (blastcore STAND_INS), else the item's own icon where it is
   // a character (an emoji); a glyph of the bundled set takes the stand-in. Numbers through svgNum, words through esc
   function standInSvg(kind, x, y, icon) {
       var BC = window.wpBlastCore, S = window.wpSystemCore, ic = typeof icon === 'string' && icon && S && S.cleanIcon ? S.cleanIcon(icon) : '';
@@ -5639,7 +5639,7 @@ window.wpFitToGrid = fitToGrid;
   // [systemcheck:launch-start]
   // 1.5.9 Chambers from (the owner, by prompt on 2026-10-25: "A cell and a round", after a sheet website's grenade launchers): a launched round is
   // no throw. Its blast goes off where it is put, with none of a throw's outcomes: no throw roll, no scatter, no drop at the feet, nothing going
-  // off in the hand. It is the round last fired, else the next one (Row.fired), and its damage, type, armour divisor, notes and icon are the
+  // off in the hand. It is the round last fired, else the next one (Row.fired), and its damage, type, armor divisor, notes and icon are the
   // round's own. On a hit the host puts it on the roller's target (net.js, wpLaunchHit); the GM's Launch puts it where the GM clicks (wpArmLaunch),
   // as for a round that misses where its item says nothing. 1.5.9 (the book's (es), docs/BOOK_ES_ET_PLAN.md section 1): a round whose item says
   // how it lands on a miss (its area's flight) is put down by the host on a miss too (wpLaunchMiss): one that scatters lands as a missed throw does,
@@ -5932,8 +5932,8 @@ window.wpFitToGrid = fitToGrid;
   // circle becomes a blast in its place, shown to the table as a thrown blast is, and the damage follows the system's blast setting
   // (combat.blastAuto: full rolls and applies, roll rolls to chat, measure does neither). The type is named on the roll's card and changes no
   // number. It hits the tokens the circle held and no other: the token a circle sat on is spared (spare), and nothing is moved, so a circle
-  // whose centre is in a wall is refused where a throw would go off in front of it. Every refusal is in fixed words. Of the token a circle
-  // sat on the owner said, by prompt: "Ask each time". So the boxes hold a tick, Also hits the token at the centre, shown only for a circle
+  // whose center is in a wall is refused where a throw would go off in front of it. Every refusal is in fixed words. Of the token a circle
+  // sat on the owner said, by prompt: "Ask each time". So the boxes hold a tick, Also hits the token at the center, shown only for a circle
   // on a token and off every time it comes up. Ticked, that one explosion spares nobody
   var EXPLODE_MIN_FT = 1, EXPLODE_MAX_FT = 3000;   // a blast's radius in feet, as placeThrownBlast and a player's app bound it
   function explodeType(v) {   // the damage type as typed: a few plain words on one line, 40 characters at most and never half a character
@@ -5955,7 +5955,7 @@ window.wpFitToGrid = fitToGrid;
       var ft = c.yd * 3, ru = rulerUnitNow();
       if (ft > EXPLODE_MAX_FT) return { why: 'An explosion is at most ' + rulerLen(EXPLODE_MAX_FT / 3, ru) + ' in radius.' };
       if (ft < EXPLODE_MIN_FT) return { why: 'An explosion is at least ' + rulerLen(EXPLODE_MIN_FT / 3, ru) + ' in radius.' };
-      if (window.wpFog && window.wpFog.blastSeat && window.wpFog.blastSeat(map, c.x, c.y, c.x, c.y)) return { why: (shapeOf(c.as) === 'cone' ? 'The point of the cone' : shapeOf(c.as) === 'ring' ? 'The centre of the ring' : 'The centre of the circle') + ' is inside a wall or a closed door. Move it to an open cell first.' };
+      if (window.wpFog && window.wpFog.blastSeat && window.wpFog.blastSeat(map, c.x, c.y, c.x, c.y)) return { why: (shapeOf(c.as) === 'cone' ? 'The point of the cone' : shapeOf(c.as) === 'ring' ? 'The center of the ring' : 'The center of the circle') + ' is inside a wall or a closed door. Move it to an open cell first.' };
       return { c: c, ft: ft };
   }
   function explodeAsk(dmg, type) {   // what Explode would set off with what was typed: { c, ft, expr, type }, or { why }
@@ -5968,7 +5968,7 @@ window.wpFitToGrid = fitToGrid;
       var ty = explodeType(type); if (!ty) return { why: 'Type the damage type. It is a word.' };
       return { c: q.c, ft: q.ft, expr: expr, type: ty };
   }
-  function explodeCircle(dmg, type, hitFor) {   // true: it went off. hitFor: the very circle whose centre token the GM ticked to be hit, else nothing
+  function explodeCircle(dmg, type, hitFor) {   // true: it went off. hitFor: the very circle whose center token the GM ticked to be hit, else nothing
       var q = explodeAsk(dmg, type); if (q.why) { toast(q.why); return false; }
       var map = getActiveMap(), camp = getActiveCampaign(), sys = camp && camp.system, combat = (sys && sys.combat) || {};
       var auto = !sys ? 'roll' : combat.blastAuto === 'roll' || combat.blastAuto === 'measure' ? combat.blastAuto : 'full';   // with no character system there is nothing to apply the damage to
@@ -6007,7 +6007,7 @@ window.wpFitToGrid = fitToGrid;
   // every time they are shown or put away, so what was typed for one explosion is never there for the next
   var _el_exBtn = document.getElementById('blastExplodeBtn'), _el_exForm = document.getElementById('blastExplodeForm'), _el_exDmg = document.getElementById('blastDmg'), _el_exType = document.getElementById('blastDmgType');
   var _el_exHitRow = document.getElementById('blastHitCentreRow'), _el_exHit = document.getElementById('blastHitCentre'), _exHitFor = null;   // the tick, and the circle it is being asked for
-  // The tick under the two boxes: Also hits the token at the centre. It shows only while the boxes are up and the circle that would go off
+  // The tick under the two boxes: Also hits the token at the center. It shows only while the boxes are up and the circle that would go off
   // sits on a token. It is unticked whenever the circle it is asked for changes, so a yes for one circle is never there for another
   function explodeHitRow() {
       if (!_el_exHitRow) return;
@@ -6277,7 +6277,7 @@ window.wpFitToGrid = fitToGrid;
       var BC = window.wpBuildCore; if (!sel || !BC || !Array.isArray(BC.TEXTURES)) return;
       while (sel.firstChild) sel.removeChild(sel.firstChild);
       if (sel.dataset) sel.dataset.pk = texPackSig();
-      var o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Plain colour'; sel.appendChild(o0);
+      var o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Plain color'; sel.appendChild(o0);
       BC.TEXTURES.forEach(function(n) { var o = document.createElement('option'); o.value = n; o.textContent = typeof BC.texName === 'function' ? BC.texName(n) : n.charAt(0).toUpperCase() + n.slice(1); sel.appendChild(o); });
       var can = typeof BC.picName === 'function' && !!(window.wpFogCore && typeof window.wpFogCore.cleanTexSrc === 'function'), src = can ? texPicOf(pic) : '';
       texPackGroups().forEach(function(g) {   // fold 4: each pack's patterns and blocks, the group named for the pack
@@ -6322,7 +6322,7 @@ window.wpFitToGrid = fitToGrid;
           if (typeof this.showPicker === 'function') { try { this.showPicker(); } catch (err) {} }
       });
   }
-  // The Tile size chips of a menu (buttons that each carry data-tile) and the grey line under them, shown only while a picture is the fill
+  // The Tile size chips of a menu (buttons that each carry data-tile) and the gray line under them, shown only while a picture is the fill
   function tileRowSync(rowId, lineId, pic, tile, off) {
       var row = document.getElementById(rowId), line = document.getElementById(lineId), on = !!pic && !off, t = String(texTileOf(tile));
       if (row) { row.hidden = !on; Array.prototype.forEach.call(row.querySelectorAll('[data-tile]'), function(b) { var is = b.dataset.tile === t; b.classList.toggle('on', is); b.setAttribute('aria-pressed', is ? 'true' : 'false'); }); }
@@ -6449,7 +6449,7 @@ window.wpFitToGrid = fitToGrid;
       }
       return inside;
   }
-  // Moore-neighbour boundary trace (8-connected) from a component's top-left-most pixel. solid(x,y) => in-component.
+  // Moore-neighbor boundary trace (8-connected) from a component's top-left-most pixel. solid(x,y) => in-component.
   // Returns an ordered loop of pixel coords, or null. Bounded by maxSteps against a stray loop.
   function mooreTrace(solid, cw, ch, sx, sy) {
       var nb = [[-1, 0], [-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1]];   // clockwise from West
@@ -6478,7 +6478,7 @@ window.wpFitToGrid = fitToGrid;
   }
   /* Enclosed HOLES in the flooded region: pixels that are neither wall, nor flooded (visited), nor reachable
      from the raster border ("outside"). Returns one boundary loop per hole component (an interior island such
-     as a pillar), so the freeform fill can punch them out and match the grid-on cell behaviour. Capped. */
+     as a pillar), so the freeform fill can punch them out and match the grid-on cell behavior. Capped. */
   function traceHoles(vis, isWall, cw, ch) {
       var N = cw * ch, outside = new Uint8Array(N), st = new Int32Array(N), sp = 0;
       var pushOut = function(i) { if (!outside[i] && !isWall(i)) { outside[i] = 1; st[sp++] = i; } };
@@ -6514,7 +6514,7 @@ window.wpFitToGrid = fitToGrid;
   }
   /* Flood-fill inside drawn lines: rasterize this map's pen strokes into an offscreen canvas as walls,
      flood outward from the click, and — if the flood is fully enclosed (never touches the padded edge) —
-     GRID ON: paint every grid cell whose centre lands in the flooded region (grid-aligned);
+     GRID ON: paint every grid cell whose center lands in the flooded region (grid-aligned);
      GRID OFF: trace the flooded outline into one smooth freeform filled region (a tip:'fill' path).
      Grid-aware per the owner's choice; capped both ways. */
   function floodFillWithin(x, y) {
@@ -6569,7 +6569,7 @@ window.wpFitToGrid = fitToGrid;
       }
       if (touchedEdge) { toast('That space isn\'t fully enclosed by your lines. Close the gaps and try again.'); return; }
       if (state.gridType === 'hex' || state.gridType === 'square') {
-          // GRID ON — fill whole cells whose centre lands in the flooded region (stays aligned with tokens + measurement).
+          // GRID ON — fill whole cells whose center lands in the flooded region (stays aligned with tokens + measurement).
           // Sample the bbox finer than any cell so none is skipped.
           var step = 20, seen = {}, added = 0, CAP = 20000;
           for (var yy = minY; yy <= maxY + step && added < CAP; yy += step) {
@@ -6578,7 +6578,7 @@ window.wpFitToGrid = fitToGrid;
                   if (seen[key]) continue; seen[key] = 1;
                   var pxc = Math.round((c.cx - minX) * S), pyc = Math.round((c.cy - minY) * S);
                   if (pxc < 0 || pxc >= cw || pyc < 0 || pyc >= ch) continue;
-                  if (!visited[pyc * cw + pxc]) continue;   // this cell's centre isn't inside the flooded area
+                  if (!visited[pyc * cw + pxc]) continue;   // this cell's center isn't inside the flooded area
                   if (fillCellCore(map, c.cx, c.cy)) added++;
               }
           }
@@ -6589,7 +6589,7 @@ window.wpFitToGrid = fitToGrid;
       // GRID OFF — fill the enclosed area as one smooth freeform region: trace the flooded outline into a filled shape.
       var loopPx = traceRegionOutline(visited, cw, ch);
       if (!loopPx || loopPx.length < 3) { toast('Couldn\'t trace that area. Try a cleaner outline.'); return; }
-      var toBoard = function(p) { return [minX + (p[0] + 0.5) / S, minY + (p[1] + 0.5) / S]; };   // pixel centre → board coords
+      var toBoard = function(p) { return [minX + (p[0] + 0.5) / S, minY + (p[1] + 0.5) / S]; };   // pixel center → board coords
       var loopBd = loopPx.map(toBoard);
       // Simplify tolerance in board px — but never coarser than ~1/3 the region's own thickness, so a thin channel survives.
       var lx0 = Infinity, ly0 = Infinity, lx1 = -Infinity, ly1 = -Infinity;
@@ -6605,7 +6605,7 @@ window.wpFitToGrid = fitToGrid;
       var rw = Math.max(10, mx - ox), rh = Math.max(10, my - oy);
       var toLocal = function(p) { return [+(p[0] - ox).toFixed(2), +(p[1] - oy).toFixed(2)]; };
       var local = simp.map(toLocal);
-      // Punch interior islands (e.g. a pillar drawn inside the room) out of the fill, matching the grid-on cell behaviour.
+      // Punch interior islands (e.g. a pillar drawn inside the room) out of the fill, matching the grid-on cell behavior.
       // Keep ONLY holes that lie inside THIS region's outer contour — other enclosed drawings elsewhere on the map are not ours.
       var holes = [];
       traceHoles(visited, wall, cw, ch).forEach(function(hl) {
@@ -6670,7 +6670,7 @@ window.wpFitToGrid = fitToGrid;
       }
       var nOwn = blasts.filter(function(x) { return ownCircle(x) && !x.lost; }).length;   // the shapes on screen: a circle whose token is gone is not one
       var which = document.getElementById('blastWhich'); if (which) which.textContent = nOwn && !circleKeptPicked ? 'The numbers are those of the last shape you placed. You have ' + nOwn + ' on this map.' : now.tok === true ? 'Click a token on the map to put a circle on it.' : now.as === 'ring' ? 'Click a cell on the map to place a ring.' : now.as === 'cone' ? 'Press a cell on the map and drag to aim the cone.' : 'Click a cell on the map to place a circle.';
-      if (typeof explodeHitRow === 'function') explodeHitRow();   // the Explode boxes ask about the centre token only while the circle that would go off sits on one
+      if (typeof explodeHitRow === 'function') explodeHitRow();   // the Explode boxes ask about the center token only while the circle that would go off sits on one
   }
   function lastOwn() { for (var i = blasts.length - 1; i >= 0; i--) if (ownCircle(blasts[i]) && !blasts[i].lost) return blasts[i]; return null; }   // the last shape of the tool's own that is on screen
   function lastEdit() { return circleKeptPicked ? null : lastOwn(); }   // the shape the options show and change. None while a shape picked with none on screen waits for its click: a circle that came back with its token since is left as it is, and the options go on showing the pick
@@ -7437,7 +7437,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
               _imgLibOrder.push(im.path);
               html += '<div class="img-lib-cell' + (_imgLibSel[im.path] ? ' picked' : '') + '" data-src="' + esc(im.path) + '" data-name="' + esc(im.name) + '">' +
                   '<img src="' + encodeURI(im.path) + '" loading="lazy">' +
-                  '<div class="img-lib-name">' + esc(im.name) + '</div>' + (pickable && !_imgLibPicker ? '<button class="tool ghost img-cell-batch" data-src="' + esc(im.path) + '" title="Drop ' + castBatch() + ' cop' + (castBatch() === 1 ? 'y' : 'ies') + ' at the centre of your view">\u00d7' + castBatch() + '</button>' : '') + '</div>';
+                  '<div class="img-lib-name">' + esc(im.name) + '</div>' + (pickable && !_imgLibPicker ? '<button class="tool ghost img-cell-batch" data-src="' + esc(im.path) + '" title="Drop ' + castBatch() + ' cop' + (castBatch() === 1 ? 'y' : 'ies') + ' at the center of your view">\u00d7' + castBatch() + '</button>' : '') + '</div>';
           });
           html += '</div>';
       });
@@ -7501,7 +7501,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       if (!n || _imgLibPick) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
       var canPlace = state.viewMode === 'visual' && getActiveMap() && getActiveMap().type === 'map';
       bar.innerHTML = '<span style="color:var(--gold);">' + n + ' picked</span>'
-          + '<button class="tool" data-act="add-map" title="Lay them out in a block at the centre of your view"' + (canPlace ? '' : ' disabled title="Open a play map first"') + '>Add ' + n + ' to map</button>'
+          + '<button class="tool" data-act="add-map" title="Lay them out in a block at the center of your view"' + (canPlace ? '' : ' disabled title="Open a play map first"') + '>Add ' + n + ' to map</button>'
           + '<button class="tool ghost" data-act="cat" title="Every tag, marked when all or some of them have it: a click gives it to all, or takes it from all">Tags\u2026</button>'
           + allB + doneB
           + '<button class="tool ghost" data-act="clear">Clear</button>'
@@ -7542,7 +7542,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       Array.prototype.forEach.call(grid.querySelectorAll('.img-lib-cell[data-src]'), function(c) { c.classList.toggle('picked', !!_imgLibSel[c.dataset.src]); });
       renderImgSelBar();
   }
-  // Lay the picked pictures out in a block around the centre of the view, then select the lot
+  // Lay the picked pictures out in a block around the center of the view, then select the lot
   function placeImagesBlock(paths) {
       var am = getActiveMap();
       if (!am || am.type !== 'map' || state.viewMode !== 'visual') { toast('Open a play map first.'); return; }
@@ -8440,7 +8440,7 @@ if(_el_aboutCloseBtn) _el_aboutCloseBtn.addEventListener('click', function() {
       var title = document.getElementById('legalTitle');
       if (!body || !title) return;
       title.textContent = "What's New" + (versionLabel ? ' — Waypoint Alpha ' + versionLabel : '');
-      body.style.textAlign = 'center';   // release notes read centred; Terms/Privacy switch back to left in openLegal
+      body.style.textAlign = 'center';   // release notes read centered; Terms/Privacy switch back to left in openLegal
       body.textContent = 'Loading…';
       document.getElementById('legalModal').style.display = 'flex';
       fetch('assets/whatsnew.txt').then(function(r) { return r.ok ? r.text() : ''; }).then(function(txt) {
@@ -8814,7 +8814,7 @@ function addWbItemAt(type, props, x, y) {
     save(); render();
 }
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && window.wpPlace && !window.wpPlace.build && (!window.wpEsc || window.wpEsc.free(e))) { var trimEnd = !!window.wpPlace.trim; disarmPlacement(); toast(trimEnd ? 'Trim to cells is put down.' : 'Placement cancelled.'); if (trimEnd) render(); }   // a placement that is Build's own is Build's to end (buildKey)
+    if (e.key === 'Escape' && window.wpPlace && !window.wpPlace.build && (!window.wpEsc || window.wpEsc.free(e))) { var trimEnd = !!window.wpPlace.trim; disarmPlacement(); toast(trimEnd ? 'Trim to cells is put down.' : 'Placement canceled.'); if (trimEnd) render(); }   // a placement that is Build's own is Build's to end (buildKey)
 });
 // [buildcheck:buildtool-start]
 // The map builder (fold B1c, backlog 23): the Build tool, the GM's alone. A tool with options, wired like every other (wireTool): its icon
@@ -8844,7 +8844,7 @@ function buildPolyHere() {
     buildPolyEnd();
     return false;
 }
-// A dragged box on a hex grid: the press cell, the cells whose centre the box holds, the release cell, each once and 400 at most
+// A dragged box on a hex grid: the press cell, the cells whose center the box holds, the release cell, each once and 400 at most
 function buildHexBox(BC, C, grid, px, py, pw, ph, sx, sy, mx, my) {
     var box = BC.hexCellsInBox(grid, px, py, pw, ph, 400), list = [C.cellOf(sx, sy, grid)].concat(box && box.cells ? box.cells : [], [C.cellOf(mx, my, grid)]), seen = Object.create(null), out = [];
     for (var i = 0; i < list.length; i++) { var k = C.cellKey(list[i], grid); if (seen[k]) continue; seen[k] = 1; out.push(list[i]); }
@@ -8866,7 +8866,7 @@ function buildLoad() {   // the options' last choices, kept on this computer, ea
     } catch (e) {}
 }
 function buildSave() { try { var kept = { mat: _build.mat, shape: _build.shape, tex: _build.tex, color: _build.color, terrain: _build.terrain, corridorW: _build.corridorW }; if (_build.walls === true) kept.walls = true; if (_build.era) kept.era = _build.era; if (_build.pic) { kept.pic = _build.pic; kept.tile = _build.tile; if (_build.blk) kept.blk = _build.blk; } localStorage.setItem('wp_build', JSON.stringify(kept)); } catch (e) {} }   // With walls is kept only while it is ticked, a picture and its repeat only while one is the fill
-function buildMaterial(mat) {   // a material brings its own texture, colour and terrain; a Wall or a Door is a thin line by default (the owner's answer of 2026-10-01)
+function buildMaterial(mat) {   // a material brings its own texture, color and terrain; a Wall or a Door is a thin line by default (the owner's answer of 2026-10-01)
     var BC = buildCore(), id = BC ? BC.cleanMaterial(mat) : null, M = id ? BC.MATERIALS[id] : null; if (!M) return false;
     _build.mat = id; _build.tex = M.texture; _build.pic = ''; _build.color = M.color; _build.terrain = M.terrain || 0;   // its own pattern takes a picture's place
     _build.blk = ''; var lp = typeof buildLookTex === 'function' ? buildLookTex(M.texture) : null; if (lp) { _build.pic = lp.src; _build.tile = lp.t; }   // fold 4: the pack picked in Looks paints its pattern
@@ -8949,7 +8949,7 @@ function buildTake() {
     state.selWbId = null; state.selWbIds = []; render();
     buildArm();
 }
-// The options from the choices. The material rows are made once, by name: a swatch of the material's own tile, its name, one grey line
+// The options from the choices. The material rows are made once, by name: a swatch of the material's own tile, its name, one gray line
 // The materials, by what a thing is (backlog 23c; the owner, 2026-11-02, of a map that mixes eras: "all of these make it difficult and not user friendly", then by
 // prompt "all 3"). Find goes straight to one, the era chips only filter, Your palette is the campaign's own pins and On this map what the map already uses, and
 // those two stand whatever the filter says. A fold is open as it was left, and with no word yet where the material in hand stands. Every cell is a name and a
@@ -9130,20 +9130,20 @@ function buildTabsWire() {
     });
     buildTabSet(buildTabNow(), false);
 }
-// The texture and the colour fold into one line that says what they are (the owner's pick: "Three tabs", with the look folded)
+// The texture and the color fold into one line that says what they are (the owner's pick: "Three tabs", with the look folded)
 function buildLookOpen() { try { return localStorage.getItem('wp_buildLook') === '1'; } catch (e) { return false; } }
 function buildLookWire() {
     var m = document.getElementById('buildMenu'), tx = document.getElementById('buildTexture'), cr = document.getElementById('buildColorRow'); if (!m || !tx || !cr || m._blook || !tx.parentNode) return; m._blook = true;
     var row = tx.parentNode, lab = row.previousElementSibling, parts = [lab, row, document.getElementById('buildTileRow'), document.getElementById('buildTileLine'), cr.previousElementSibling, cr];
     parts.forEach(function(p) { if (p && p.classList) p.classList.add('build-look-part'); });
-    var b = document.createElement('button'); b.type = 'button'; b.className = 'build-lookfold'; b.id = 'buildLookFold'; b.title = 'The pattern and the colour of what you lay. Press to change them.';
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'build-lookfold'; b.id = 'buildLookFold'; b.title = 'The pattern and the color of what you lay. Press to change them.';
     if (lab && lab.parentNode) lab.parentNode.insertBefore(b, lab);
     b.addEventListener('click', function(ev) { ev.stopPropagation(); var on = !m.classList.contains('look-open'); m.classList.toggle('look-open', on); b.setAttribute('aria-expanded', on ? 'true' : 'false'); try { localStorage.setItem('wp_buildLook', on ? '1' : '0'); } catch (e) {} });
     var on0 = buildLookOpen(); m.classList.toggle('look-open', on0); b.setAttribute('aria-expanded', on0 ? 'true' : 'false');
 }
-function buildLookWords() {   // "Look: Bricks, dark stone": the texture as the list names it, and the colour by its swatch's name
+function buildLookWords() {   // "Look: Bricks, dark stone": the texture as the list names it, and the color by its swatch's name
     var ts = document.getElementById('buildTexture'), o = ts && ts.options && ts.selectedIndex >= 0 ? ts.options[ts.selectedIndex] : null, tex = _build.shape === 'line' ? '' : (o ? String(o.textContent || '') : '');
-    var sw = document.querySelector('#buildColorRow .build-sw.active'), col = sw ? String(sw.getAttribute('title') || '').toLowerCase() : 'your own colour';
+    var sw = document.querySelector('#buildColorRow .build-sw.active'), col = sw ? String(sw.getAttribute('title') || '').toLowerCase() : 'your own color';
     return 'Look: ' + (tex ? tex + ', ' : '') + col;
 }
 function buildPick(change) {   // a choice in the options: kept, shown, and the board armed for it while Build is in hand
@@ -9191,7 +9191,7 @@ function wpBuildCommit(P, px, py, pw, ph, sx, sy) {
 }
 // One wall line as the item the pen's Wall line makes: a path with the line's box and points, then the preset's keys
 // 1.6.2 (the owner: "A small preview"): a generator's plan drawn small, from the very pieces Generate lays: boxes, circles and lines in their
-// own colours, a filled region filled. A colour a canvas cannot read is drawn grey. Nothing is laid and nothing is kept
+// own colors, a filled region filled. A color a canvas cannot read is drawn gray. Nothing is laid and nothing is kept
 function genPreviewColor(c) { return typeof c === 'string' && /^#[0-9a-f]{3,8}$|^rgba?\([\d\s.,%]+\)$/i.test(c.trim()) ? c.trim() : '#8a8a96'; }
 function genPreviewDraw(modalId, items) {
     var cv = document.querySelector('#' + modalId + ' .gen-preview'); if (!cv || typeof cv.getContext !== 'function') return false;
@@ -9218,7 +9218,7 @@ function buildWallItem(L, pre) { return Object.assign({ id: 'wb' + uid(), type: 
 // A door laid on a wall line cuts its doorway (the map builder, fold B5; the owner, 2026-10-10, by prompt: "The door cuts its doorway"). The
 // wall lines the new door line lies along are cut where it lies (buildcore cutWalls), in the save that lays the door, so ONE Undo takes the
 // door and the cut back together. A piece of a cut wall is the wall itself with new geometry and a new id: every other key of it stays (its
-// colour, width, name, layer, height, cover), and it leaves its group, as a piece the eraser cuts does. All or none within what a map
+// color, width, name, layer, height, cover), and it leaves its group, as a piece the eraser cuts does. All or none within what a map
 // holds. Only on a map with a grid, where the pen rides the lattice: a free-hand stroke on a map with none could lie along a wall by
 // accident. The GM's own campaign alone. Answers how many walls were cut
 function doorCut(map, door) {
@@ -9795,7 +9795,7 @@ genWire();
 // "You pick in the dialog"). The row under Generate a dungeon opens one dialog. Its settings go to the pure half (citycore.js), which
 // answers geometry, and what is laid is ORDINARY pieces, each dressed with a material's own props: a field as Grass, a street as Street,
 // water as Water, a bridge as Wood floor, a house as Building under its own roof, a wall and a tower as City wall, and a town's wall as
-// the pen's Wall line in the City wall's colour. Nothing on the map is changed and nothing is derived live. It is laid in one save, so
+// the pen's Wall line in the City wall's color. Nothing on the map is changed and nothing is derived live. It is laid in one save, so
 // one Undo takes it back. The seed and settings are kept on the map (meta.city) for the GM alone, to make it again: net.js never sends
 // them and an import cleans them. The dialog is the GM's (buildMay) and its markup is fixed words in the page: a map's name reaches the
 // list as an option's text, never as markup. It leans on the dungeon dialog's helpers (genEl, genText, genMaps, genCountWords, genNewSeed)
@@ -9853,7 +9853,7 @@ function cityPiece(g, props) {
     return it;
 }
 // The city's pieces as ordinary items, in the order they are laid: each wears the props of its material, a house its own roof and that
-// roof's colour, and a town's wall is the pen's Wall line under the City wall's name and colour
+// roof's color, and a town's wall is the pen's Wall line under the City wall's name and color
 function cityItems(pc, theme) {
     var BC = buildCore(), out = [], grounds = {}; if (!BC || !pc) return out;
     var T = BC.THEMES[BC.cleanTheme(theme)], cw = BC.pieceProps(T.block, {}), pen = BC.penPreset('wall', {}), ok = !!cw && !!pen;
@@ -10023,9 +10023,9 @@ cityWire();
 // The world made for you (the map builder, fold B7; the owner's answers of 2026-10-11 on the world sheet: the land patterns "The four",
 // a generated world "C. A Land list", towns "optional when generating" as "A list, None first", the row's drawing "A. Peaks", and the
 // dialog as the sheet drew it). The row under Generate a city opens one dialog. Its settings go to the pure half (worldcore.js), which
-// answers geometry, and what is laid is ORDINARY pieces: the sea as one box, each stretch of land as one filled region in its own colour
-// and pattern, a river as a line in the water's colour, a town as a small square and its name as a text box the GM can change. Nothing
-// blocks sight or stops a token: a world map is for pointing and travelling. No piece already on the map is changed, but a world laid on a
+// answers geometry, and what is laid is ORDINARY pieces: the sea as one box, each stretch of land as one filled region in its own color
+// and pattern, a river as a line in the water's color, a town as a small square and its name as a text box the GM can change. Nothing
+// blocks sight or stops a token: a world map is for pointing and traveling. No piece already on the map is changed, but a world laid on a
 // map that holds pieces covers them (its sea is one box on the back layer, laid after them), which its line says. Nothing is derived live.
 // It is laid in one save, so one Undo takes it back. The seed and settings are kept on the map (meta.world) for the GM alone, to make it
 // again: net.js never sends them and an import cleans them. The dialog is the GM's (buildMay) and its markup is fixed words in the page:
@@ -10069,8 +10069,8 @@ function worldPlan() {
     if (held + items.length > BUILD_MAX) return { ok: false, say: genCountWords(items.length, held) };
     return { ok: true, say: genCountWords(items.length, held), map: map, fresh: fresh, grid: grid, opts: opts, items: items };
 }
-// The world's pieces as ordinary items, in the order they are laid. Each is made here from the generator's own colours and patterns,
-// asked again: the kind only as a text of the list, a colour only as six hex digits, a pattern only as a name of the list, a town's name
+// The world's pieces as ordinary items, in the order they are laid. Each is made here from the generator's own colors and patterns,
+// asked again: the kind only as a text of the list, a color only as six hex digits, a pattern only as a name of the list, a town's name
 // only as letters, every number of a piece's box a sound one (worldBox), a river's and a region's points sound ones (worldLine), and a
 // stretch of land a filled region and nothing else. A piece that fails is passed over whole. Nothing carries a key that blocks sight,
 // stops a token or costs movement. A world is laid at FULL opacity whatever the GM's New item opacity says: its layers are made to cover
@@ -10336,7 +10336,7 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
       // Dual-stroke: a dark line with a light line offset beside it reads on any backdrop
 
       // 90×52 whole-pixel tile (see snapToHex): fractional tiles drift in Chrome
-      var paths = hexTilePaths();   // 1.5.7: the edges of the tile and of its neighbours that reach into it, once each
+      var paths = hexTilePaths();   // 1.5.7: the edges of the tile and of its neighbors that reach into it, once each
 
       var svg = "<svg xmlns='http://www.w3.org/2000/svg' width='90' height='52' viewBox='0 0 90 52'>" +
 
@@ -10582,7 +10582,7 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
       for (var n = c + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + (n - 1) % 26) + s;
       return s;
   }
-  // The labels for a box of the board (in its own pixels): [{ x, y, t }], x and y the top middle of a label and t its words. Cell centres are
+  // The labels for a box of the board (in its own pixels): [{ x, y, t }], x and y the top middle of a label and t its words. Cell centers are
   // datamap.js snapToHex's own: x = 45q + 15, y = 52r in an even column and 52r + 26 in an odd one. A cell has a label where its column is on
   // the board and its middle below the board's top edge, and the label is listed where its own box (40 wide, from 22 to 12 above the cell's
   // middle) meets the box asked for. null where the box is none, or spans more columns or would hold more labels than max
@@ -10701,9 +10701,9 @@ if(_el_wbSnapBtn) {
     var _dataSnapBtn = document.getElementById('snapBtn');
     if (_dataSnapBtn) _dataSnapBtn.classList.toggle('active', !!state.snap);
     /* Snap has a MODE: what a dragged item aligns to while Snap is on.
-         grid  — cells only (drops seat to the lattice; no magnetism to neighbours)
-         items — neighbours only (edges glue/align; drops stay where the magnet left them)
-         both  — the old behaviour (magnet first, grid takes open-space drops)
+         grid  — cells only (drops seat to the lattice; no magnetism to neighbors)
+         items — neighbors only (edges glue/align; drops stay where the magnet left them)
+         both  — the old behavior (magnet first, grid takes open-space drops)
        Local preference (wp_snapMode). Size-matching on resize is separate and always on. */
     try { var _sm = localStorage.getItem('wp_snapMode'); state.snapMode = (_sm === 'items' || _sm === 'both') ? _sm : 'grid'; } catch(e) { state.snapMode = 'grid'; }
     var _el_snapMenu = document.getElementById('snapMenu');
@@ -10779,7 +10779,7 @@ window.wpCastSaveCharacter = function(c) {
     return true;
 };
 // backlog 31, fold 2: encounter groups. The selected character tokens saved as a named group (camp.groups, the GM's alone); placing one lays them
-// at the centre of the view as saved, each NPC that is not ticked Unique on a fresh copy of its sheet, numbered on
+// at the center of the view as saved, each NPC that is not ticked Unique on a fresh copy of its sheet, numbered on
 function groupsOf(camp) { if (!Array.isArray(camp.groups)) camp.groups = []; return camp.groups; }
 function groupSave(items) {
     var camp = getActiveCampaign(), SU = window.wpSetupCore; if (!camp || !SU) return; var toks = items.filter(function(w) { return w && w.isChar === true && !w.waiting; });
@@ -10813,7 +10813,7 @@ function groupPlace(gid) {
 function groupsLibraryHtml(filter) {
     var camp = getActiveCampaign(); if (!camp || !Array.isArray(camp.groups) || !camp.groups.length) return ''; var q = (filter || '').toLowerCase(), list = camp.groups.filter(function(g) { return g && (!q || String(g.name || '').toLowerCase().indexOf(q) >= 0); });
     if (!list.length) return '';
-    return '<div class="img-lib-folder group-head" style="color:var(--gold);"><span>Groups</span><span class="cast-head-note">\u2014 press one to place it at the centre of your view; NPCs not ticked Unique get fresh sheets</span></div>'
+    return '<div class="img-lib-folder group-head" style="color:var(--gold);"><span>Groups</span><span class="cast-head-note">\u2014 press one to place it at the center of your view; NPCs not ticked Unique get fresh sheets</span></div>'
         + '<div class="group-grid">' + list.map(function(g) { return '<div class="group-cell" data-gid="' + esc(g.id) + '" title="' + esc(g.name) + ' \u2014 press to place it"><span class="group-name">' + esc(g.name) + '</span><small class="group-count">' + g.pieces.length + (g.pieces.length === 1 ? ' token' : ' tokens') + '</small><button class="tool ghost group-del" data-gid="' + esc(g.id) + '" title="Delete this group">&times;</button></div>'; }).join('') + '</div>';
 }
 // [systemcheck:castplace-start]
@@ -10860,7 +10860,7 @@ function castBatch() { var n = 1; try { n = parseInt(localStorage.getItem('wp_ca
 function setCastBatch(v) {
     var n = parseInt(v, 10); if (!(n >= 1 && n <= 50)) return castBatch();
     try { localStorage.setItem('wp_castBatch', String(n)); } catch (e) {}
-    Array.prototype.forEach.call(document.querySelectorAll('.cm-cast-five, .cast-cell-five, .img-cell-batch'), function(b) { b.textContent = '\u00d7' + n; b.title = 'Drop ' + n + ' cop' + (n === 1 ? 'y' : 'ies') + (b.classList.contains('cm-cast-five') ? ' here' : ' at the centre of your view'); });
+    Array.prototype.forEach.call(document.querySelectorAll('.cm-cast-five, .cast-cell-five, .img-cell-batch'), function(b) { b.textContent = '\u00d7' + n; b.title = 'Drop ' + n + ' cop' + (n === 1 ? 'y' : 'ies') + (b.classList.contains('cm-cast-five') ? ' here' : ' at the center of your view'); });
     Array.prototype.forEach.call(document.querySelectorAll('.cast-batch, .cm-batch'), function(i) { if (i.value !== String(n)) i.value = n; });
     var addBtn = document.getElementById('imgLibPreviewAdd'), pvEl = document.getElementById('imgLibPreview');
     if (addBtn && pvEl && pvEl.style.display !== 'none' && !_imgLibPick) addBtn.textContent = n > 1 ? 'Add \u00d7' + n + ' to map' : 'Add to map';
@@ -12084,7 +12084,7 @@ document.addEventListener('contextmenu', function(e) {
                 } else if (action.includes('cm-open-page')) {   // 1.5.4 (pageshelf.js): a pin's page, opened by the one rule (over the map by a plain click)
                     var ppDo = pagePinRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));
                     if (ppDo && window.wpPageShelf) { if (ppDo.at) window.wpPageShelf.open(ppDo.id, window.wpPageShelf.wayNow(ce), { at: ppDo.at }); else window.wpPageShelf.open(ppDo.id, window.wpPageShelf.wayNow(ce)); }   // 1.6.0: at the part the pin names
-                } else if (action.includes('cm-mine-off')) {   // 1.5.8 explosives: each selected mine goes off at its centre (it saves and draws itself)
+                } else if (action.includes('cm-mine-off')) {   // 1.5.8 explosives: each selected mine goes off at its center (it saves and draws itself)
                     var mnDo = mineRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));
                     if (mnDo) mnDo.items.forEach(function(z) { mineOff(am, z, null); });
                 } else if (action.includes('cm-portal-lock')) {   // a portal's own lock: the selected portals locked or unlocked together (saved and drawn again below, so the table gets it at once)

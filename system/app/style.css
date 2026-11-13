@@ -2,7 +2,7 @@
   /* Stage 6 look fold (L2): the bundled Inter typeface (SIL OFL 1.1; assets/fonts/inter/LICENSE), used only where a look picks it */
   @font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("assets/fonts/inter/inter-latin-wght-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
   @font-face { font-family: "Inter"; font-style: italic; font-weight: 100 900; font-display: swap; src: url("assets/fonts/inter/inter-latin-wght-italic.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-  /* Text style in more places (1.5.4): Waypoint's own typefaces, so that a text set in one looks the same on every computer. Each file is as its makers published it, with its licence text beside it (SIL Open Font License 1.1; assets/fonts/FONTS.txt lists them); textfmt.js FONTS names the families. A file is fetched only when a text on screen uses its family. Each family has ONE face, declared as its plain weight (UnifrakturCook's is its makers' bold cut, the only one there is): Bold and italic are drawn from it, so they always show */
+  /* Text style in more places (1.5.4): Waypoint's own typefaces, so that a text set in one looks the same on every computer. Each file is as its makers published it, with its license text beside it (SIL Open Font License 1.1; assets/fonts/FONTS.txt lists them); textfmt.js FONTS names the families. A file is fetched only when a text on screen uses its family. Each family has ONE face, declared as its plain weight (UnifrakturCook's is its makers' bold cut, the only one there is): Bold and italic are drawn from it, so they always show */
   @font-face { font-family: "Lora"; font-style: normal; font-weight: 400 700; font-display: swap; src: url("assets/fonts/lora/Lora-wght.ttf") format("truetype"); }
   @font-face { font-family: "Crimson Text"; font-style: normal; font-weight: 400; font-display: swap; src: url("assets/fonts/crimsontext/CrimsonText-Regular.ttf") format("truetype"); }
   @font-face { font-family: "Comic Neue"; font-style: normal; font-weight: 400; font-display: swap; src: url("assets/fonts/comicneue/ComicNeue-Regular.ttf") format("truetype"); }
@@ -474,7 +474,7 @@
   .tool.ghost{background:transparent}
   .tool:disabled, .tool.ghost:disabled { opacity:.45; cursor:default; }
   .tool:disabled:hover { border-color: var(--edge); color: var(--ink); }
-  /* the × that closes a panel: a square with the glyph dead centre */
+  /* the × that closes a panel: a square with the glyph dead center */
   .tool.modal-close { width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; line-height: 0; border-radius: 7px; flex: 0 0 auto; }
   .tool.modal-close svg { display: block; }
   .tool.modal-close:hover { color: var(--gold); }
@@ -507,7 +507,7 @@
   }
   .edge-del:hover{opacity:1;border-color:var(--gold);color:var(--gold)}
   body.linkmode .edge-del{opacity:1;border-color:var(--blue);color:var(--ink)}
-  /* hidden until the line is hovered; a labelled or selected line keeps its chip, Link Mode shows them all */
+  /* hidden until the line is hovered; a labeled or selected line keeps its chip, Link Mode shows them all */
   body:not(.linkmode) .edge-del:not(.labelled):not(.sel):not(.near):not(:hover){opacity:0}
   .edge-del.near{opacity:1}
   .edge-del.labelled{opacity:.9;color:var(--ink)}
@@ -663,8 +663,8 @@
     .tool-pair > .wb-tool-btn[style*="none"] + .tool-chev { display: none; }   /* an arrow goes with its button: the fog button shows only while the feature is on */
     body.net-client .floating-toolbar .tool-pair:has(> #shapeMenuBtn), body.net-client .floating-toolbar .tool-pair:has(> #addMenuBtn) { display: none !important; }   /* a player has no Shapes, and nothing of Add (its four rows are the GM's): neither pair stands on their bar */
     /* 107, menus by name (the owner: "the options need to be more obvious for what something does"): a choice is a row with its icon, its name,
-       and a grey line where the name is not enough. The choice in use is gold */
-    .floating-toolbar .shape-menu.menu-list { flex-direction: column; align-items: stretch; gap: 2px; min-width: 210px; width: max-content; }   /* max-content: a menu centred from its left edge is otherwise fitted to its narrowest */
+       and a gray line where the name is not enough. The choice in use is gold */
+    .floating-toolbar .shape-menu.menu-list { flex-direction: column; align-items: stretch; gap: 2px; min-width: 210px; width: max-content; }   /* max-content: a menu centered from its left edge is otherwise fitted to its narrowest */
     .wb-tool-btn.menu-row { flex: 0 0 auto; width: 100%; height: auto; border-radius: 6px; font-size: 12px; padding: 7px 10px; justify-content: flex-start; gap: 10px; text-align: left; }
     .wb-tool-btn.menu-row > .mr-ico { flex: 0 0 20px; width: 20px; display: inline-flex; justify-content: center; }
     .wb-tool-btn.menu-row > .mr-ico > .ico { width: 17px; height: 17px; vertical-align: 0; }
@@ -700,7 +700,7 @@
     .floating-toolbar.tb-tight > div > .wb-tool-btn.tool-chev, .floating-toolbar.tb-tight > div > .wb-tool-btn.sel-chev { width: 14px; height: 14px; margin-left: -14px; padding: 0 2px 2px 0; }
     .floating-toolbar.tb-tight > div > .wb-tool-btn.tool-chev > .ico, .floating-toolbar.tb-tight > div > .wb-tool-btn.sel-chev > .ico { width: 7px; height: 7px; }
     .floating-toolbar.tb-tight > .wb-tool-sep { margin: 0 2px; }
-    .floating-toolbar.tb-wrap { flex-wrap: wrap; justify-content: center; row-gap: 2px; width: max-content; max-width: calc(100% - 24px); }   /* max-content: or a box centred from its left edge is fitted to half the map */
+    .floating-toolbar.tb-wrap { flex-wrap: wrap; justify-content: center; row-gap: 2px; width: max-content; max-width: calc(100% - 24px); }   /* max-content: or a box centered from its left edge is fitted to half the map */
     .floating-toolbar.tb-wrap > .wb-tool-sep.tb-brk { flex-basis: 100%; width: auto; height: 0; margin: 0; }   /* a row of the wrapped bar ends here (fitBar picks where): a group is never split */
     .floating-toolbar.tb-wrap ~ #wbEdgeTools { bottom: 156px; }   /* the column stands above a bar of up to three rows */
     /* The fog button says this map's own fog state (fog.js btnSync): a ring and ON while its fog is on, whatever tool is in hand */
@@ -807,7 +807,7 @@
        where the Environment tool's ran 50 px past their own box */
     #envMenu, #measureMenu, #fillMenu, #eraserMenu, #snapMenu, #linkMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; }
     #envMenu > *, #measureMenu > *, #fillMenu > *, #eraserMenu > *, #snapMenu > *, #linkMenu > * { flex-shrink: 0; }
-    .fog-tick { flex-wrap: wrap; }   /* a tick of the fog menu: its name, and under it a grey line that says what it does */
+    .fog-tick { flex-wrap: wrap; }   /* a tick of the fog menu: its name, and under it a gray line that says what it does */
     .fog-tick > small { flex-basis: 100%; padding-left: 21px; color: var(--dim); font-size: 11px; line-height: 1.35; }
     .menu-fold {   /* a fold of a toolbar menu: a line that shows or puts away the part under it */
         display: flex; justify-content: space-between; align-items: center; gap: 6px; width: 100%; margin-top: 2px; padding: 8px 2px 2px;
@@ -823,7 +823,7 @@
     #blastExplodeBtn { color: var(--red); }   /* a blast effect, the GM's: it wears the blast's red, as on the sheet the owner passed */
     #blastExplodeForm { display: flex; flex-direction: column; gap: 6px; }   /* the two boxes Explode asks for, and its two buttons */
     #linkTypeRow { display: flex; flex-direction: column; gap: 2px; }   /* the data map's Link menu: its four line types by name, a row each */
-    #linkMenu { min-width: 280px; }   /* wide enough for a row's grey line to stand on one line */
+    #linkMenu { min-width: 280px; }   /* wide enough for a row's gray line to stand on one line */
     .draw-menu-label {
         font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
         color: var(--dim); text-align: left; padding: 0 2px;
@@ -889,7 +889,7 @@
   /* ---- Per-tool cursors ----
      Each whiteboard tool gets its own pointer, applied to the board AND every
      item on it (items otherwise show their own grab hand), so the cursor always
-     says what a click will do. Hotspots: pen tip, crosshair centre, arrow tip. */
+     says what a click will do. Hotspots: pen tip, crosshair center, arrow tip. */
   :root {
     --cur-pen: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M3 21l3.5-1 11-11-2.5-2.5-11 11z' fill='%23e9e9f0' stroke='%2315151c' stroke-width='1.2'/%3E%3Cpath d='M14.5 6.5l2 2' stroke='%2315151c' stroke-width='1.4'/%3E%3Cpath d='M17.5 3.5l3 3' stroke='%23e0a54f' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E") 2 22, crosshair;
     --cur-measure: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 26 26'%3E%3Cpath d='M13 1v7M13 18v7M1 13h7M18 13h7' stroke='%23e9e9f0' stroke-width='2.4'/%3E%3Cpath d='M13 1v7M13 18v7M1 13h7M18 13h7' stroke='%2315151c' stroke-width='1'/%3E%3Ccircle cx='13' cy='13' r='2' fill='none' stroke='%23e0a54f' stroke-width='1.5'/%3E%3Cpath d='M16 24l7-7 2 2-7 7z' fill='%23e0a54f' stroke='%2315151c' stroke-width='1'/%3E%3C/svg%3E") 13 13, crosshair;
@@ -1298,7 +1298,7 @@
   .wb-item.hexagon { clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); background: var(--faint); }
   .wb-item.hex-trigger { clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
   .wb-item.trigger.trigger-circle { border-radius: 50%; }
-  /* Stand-in character tokens: initials centred in the shape */
+  /* Stand-in character tokens: initials centered in the shape */
   /* Token front-side arrow: a small gold wedge at the "forward" edge. The wrapper
      is turned by item.front (0 top / 90 right / 180 bottom / 270 left). */
   .token-front { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
@@ -1312,7 +1312,7 @@
   .token-front.turnable i:hover { border-bottom-color: #fff; }
   /* Token condition overlays */
   .token-status { position: absolute; inset: 0; pointer-events: none; z-index: 3; display: flex; align-items: center; justify-content: center; }
-  /* Target marks: small copies of each targeter's own token, centred on the target, wrapping into
+  /* Target marks: small copies of each targeter's own token, centered on the target, wrapping into
      rows, clipped to the token so they never spill past its edges. --mark is set per token. */
   .target-marks { position: absolute; inset: 0; z-index: 4; pointer-events: none; overflow: hidden; border-radius: 50%;
     display: flex; flex-wrap: wrap; align-content: center; justify-content: center; gap: 1px; padding: 2px; box-sizing: border-box; }
@@ -1334,7 +1334,7 @@
   /* Conditions C1: a token's effects, small icons at its top left ringed by tone (a GM-only one dashed), counter-scaled so they read at
      any zoom. The row carries the names as its title. */
   /* 1.5.4 (pageshelf.js): a pin, a piece of the play map that opens a page. Its mark is drawn on the GM's screen alone and keeps its size at any zoom.
-     It is centred on the piece's corner (half its size out each way, scaled about its own middle), so it takes a corner of a small token and no more */
+     It is centered on the piece's corner (half its size out each way, scaled about its own middle), so it takes a corner of a small token and no more */
   .wb-item.wb-room-area { opacity: 1; outline: none; box-sizing: border-box; border: 2px dashed var(--gold); }
   .wb-item.wb-room-area:not(.sel) { pointer-events: none; }
   .wb-item:is(.hexagon, .diamond) > .wb-room-name { left: 50%; top: 50%; translate: -50% -50%; transform-origin: 50% 50%; }   /* a cut corner would clip it: in the middle there */   /* the review: an area takes no press meant for the floor or picture under it; Show on the play map selects it */   /* 1.6.2 (backlog 45, fold 3): a room's area, hidden from players */
@@ -1389,7 +1389,7 @@
   .wb-item.trigger.trigger-diamond { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
   .wb-item.star { clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); background: var(--faint); }
   .wb-item.line { background: var(--edge); }
-  /* The map builder (fold B1): a textured piece draws its pattern over its colour. Pieces side by side show no seam and no rounded corner */
+  /* The map builder (fold B1): a textured piece draws its pattern over its color. Pieces side by side show no seam and no rounded corner */
   .wb-item.wb-tex { border: 0; border-radius: 0; background-repeat: repeat; }
   .wb-item.wb-tex.circle { border-radius: 50%; }
   .wb-item.wb-tex.wb-door.wb-door-open:not(.path) { background-image: none !important; }   /* an open door's body is cleared, a textured one's too */
@@ -1626,14 +1626,14 @@
   #measureLayer g.measure:hover circle { fill: var(--red); }
   #measureLayer g.measure:hover text { fill: var(--red); }
   /* Blast templates share the layer: a translucent red disc, its label, and a distance over every token in range */
-  /* Only the ring (a fat invisible stroke), the centre dot and the label take clicks — the
+  /* Only the ring (a fat invisible stroke), the center dot and the label take clicks — the
      disc itself lets tokens under it be clicked and dragged as usual */
   #measureLayer g.blast { pointer-events: none; cursor: move; }
   #measureLayer g.blast circle.area { fill: rgba(217,83,79,0.14); stroke: var(--red); stroke-width: 2; stroke-dasharray: 6 4; }
   #measureLayer g.blast circle.ring { fill: none; stroke: transparent; stroke-width: 14; stroke-dasharray: none; pointer-events: stroke; }
   #measureLayer g.blast circle.dot { fill: var(--red); pointer-events: auto; }
   #measureLayer g.blast text { fill: var(--red); pointer-events: auto; }
-  /* 1.5.8 explosives: the stand-in a thrown explosive wears at the centre of its blast, and a placed mine at its spot (the GM's screen alone), in the toolbar's line style; an item's own icon as its character */
+  /* 1.5.8 explosives: the stand-in a thrown explosive wears at the center of its blast, and a placed mine at its spot (the GM's screen alone), in the toolbar's line style; an item's own icon as its character */
   #measureLayer g.blast-ico path { fill: none; stroke: var(--red); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
   #measureLayer g.mine-ico path { stroke: var(--gold); }
   #measureLayer text.blast-ico-t { font-size: 20px; pointer-events: none; }
@@ -1648,7 +1648,7 @@
   #measureLayer g.blast circle.blast-aim { fill: var(--gold); stroke: var(--bg); stroke-width: 2; pointer-events: auto; cursor: grab; }   /* a cone's handle: drag it to turn the cone */
   #measureLayer g.blast circle.blast-aim:hover { fill: var(--ink); }
   #measureLayer g.blast.on-tok { cursor: default; }   /* a circle on a token is not dragged: it goes where its token goes */
-  #measureLayer g.blast.on-tok circle.dot { pointer-events: none; }   /* and a press at its centre is the token's own */
+  #measureLayer g.blast.on-tok circle.dot { pointer-events: none; }   /* and a press at its center is the token's own */
   /* ---- inspector ---- */
   /* ---- sidebar ---- */
   #sidebar{
@@ -1849,7 +1849,7 @@
   .page-shelf .ps-sub { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dim); font-size: 11px; }
   .page-shelf .ps-win, .page-shelf .ps-pin { flex: none; width: 28px; background: none; border: 1px solid transparent; border-radius: 6px; color: var(--dim); font: inherit; font-size: 12px; cursor: pointer; }
   .page-shelf .ps-open:hover, .page-shelf .ps-open:focus-visible, .page-shelf .ps-win:hover, .page-shelf .ps-win:focus-visible, .page-shelf .ps-pin:hover, .page-shelf .ps-pin:focus-visible, .page-shelf .ps-find:hover, .page-shelf .ps-find:focus-visible { background: var(--panel); border-color: var(--edge); color: var(--ink); outline: none; }
-  .page-shelf .ps-pin, #docPanelPin { filter: grayscale(1); opacity: .45; }   /* a pin that is not set is grey; one that is set shows its colour */
+  .page-shelf .ps-pin, #docPanelPin { filter: grayscale(1); opacity: .45; }   /* a pin that is not set is gray; one that is set shows its color */
   .page-shelf .ps-pin.on, #docPanelPin.on { filter: none; opacity: 1; }
   .page-shelf .ps-empty, .page-shelf .ps-note { font-size: 11px; color: var(--dim); line-height: 1.45; padding: 6px; }
   .page-shelf .ps-foot { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--edge); margin-top: 6px; padding-top: 8px; }
@@ -1864,7 +1864,7 @@
 
   /* "Size matched" pill during resize */
   /* Size-match feedback while resizing: matched edges get a bright bar on both
-     items, the neighbour glows, and the badge names the axis and the neighbour. */
+     items, the neighbor glows, and the badge names the axis and the neighbor. */
   .match-bar { position: absolute; background: var(--gold); box-shadow: 0 0 0 1px var(--bg), 0 0 8px rgba(224,165,79,0.9); z-index: 9999; pointer-events: none; border-radius: 2px; }
   .wb-item.size-match { outline: 3px solid var(--gold) !important; outline-offset: 2px; box-shadow: 0 0 0 6px rgba(224,165,79,0.35), 0 0 18px rgba(224,165,79,0.8) !important; }
   .match-badge .mb-axis { font-size: 10px; letter-spacing: .08em; opacity: .85; }
@@ -1950,7 +1950,7 @@
   .set-section-label { color: var(--gold); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin: 14px 0 8px; border-bottom: 1px solid var(--edge); padding-bottom: 4px; }
   .set-section-label:first-of-type { margin-top: 4px; }
   .set-field-label { color: var(--dim); font-size: 11px; margin-bottom: 4px; }
-  /* 107, options that say what they do (the owner's passed mock-up): a name on every choice, and one grey line where the name is not enough.
+  /* 107, options that say what they do (the owner's passed mock-up): a name on every choice, and one gray line where the name is not enough.
      The tooltip of each stays. A line stands under the name of a row, or under the control of a captioned one */
   .set-name { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   .set-name > small, .set-line { font-size: 10.5px; color: var(--dim); line-height: 1.4; font-weight: 400; }
@@ -1993,7 +1993,7 @@
      stacking context and a containing block, which held the right-click menu and the hover card that stand in it beside the board under every
      bar and box, and took the right-click menu, which is fixed to the window, off its place (backlog 143, the review of 2026-10-17). The board
      is a stacking context already, by its transform, so nothing in it stacks otherwise. The wrap's ground shows through the board, so it is
-     dimmed by the filter's own numbers, written out: saturate(0.65) is 65% the colour and 35% its luminance grey, brightness(0.75) 75% of
+     dimmed by the filter's own numbers, written out: saturate(0.65) is 65% the color and 35% its luminance gray, brightness(0.75) 75% of
      that and 25% black */
   body.net-paused #whiteboard, body.net-paused #canvasWrap { filter: brightness(0.75) saturate(0.65); }
   body.net-paused #whiteboardWrap { background: color-mix(in srgb, color-mix(in srgb, var(--bg2) 65%, rgb(from var(--bg2) calc(0.213 * r + 0.715 * g + 0.072 * b) calc(0.213 * r + 0.715 * g + 0.072 * b) calc(0.213 * r + 0.715 * g + 0.072 * b)) 35%) 75%, black); }
@@ -2434,7 +2434,7 @@
   body.area-narrow:not(.stream-mode) #partyStrip[data-more]::after { content: '+' attr(data-more); align-self: center; box-sizing: border-box; max-width: 44px; overflow: hidden; white-space: nowrap; padding: 0 6px; height: 20px; line-height: 18px; border: 1px solid var(--edge); border-radius: 10px; background: var(--panel); color: var(--dim); font-size: 11px; font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,0.5); transition: max-width .14s ease, padding .14s ease, border-width .14s ease, margin-left .14s ease, opacity .14s ease; }
   /* the count goes as the faces come, after the same rest: gone at once, it let the faces slide over by its own width under the pointer (the checker of 2026-11-11) */
   body.area-narrow:not(.stream-mode) #partyStrip[data-more]:hover::after, body.area-narrow:not(.stream-mode) #partyStrip[data-more]:focus-within::after { max-width: 0; padding: 0; border-width: 0; margin-left: -4px; opacity: 0; transition-delay: .35s; }
-  /* the faces spread only once the pointer has rested on the strip (the review of 2026-11-11): spread at once, the face under the pointer moved away and a quick click or a tap found its neighbour */
+  /* the faces spread only once the pointer has rested on the strip (the review of 2026-11-11): spread at once, the face under the pointer moved away and a quick click or a tap found its neighbor */
   body.area-narrow:not(.stream-mode) #partyStrip:hover > .party-tok, body.area-narrow:not(.stream-mode) #partyStrip:focus-within > .party-tok { transition-delay: .35s, .35s, .35s, .35s, 0s; }
   @media (prefers-reduced-motion: reduce) { body.area-narrow:not(.stream-mode) #partyStrip > .party-tok, body.area-narrow:not(.stream-mode) #partyStrip[data-more]::after { transition-duration: 0s; } }
   body.area-narrow:not(.stream-mode) #partyStrip:hover, body.area-narrow:not(.stream-mode) #partyStrip:focus-within { z-index: 8991; }   /* spread out, over the trackers bar for the moment */
@@ -2478,7 +2478,7 @@
   .wb-item.hexagon.wb-hextok { clip-path: none; background: transparent !important; border: 0; }
   .wb-hextok > .tok-plate, .wb-hextok > .tok-ring { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
   .wb-hextok > .tok-plate polygon { fill: var(--faint); }
-  .wb-item.hexagon.wb-hextok { pointer-events: none; }   /* clicks on the hexagon only, as the clip gave (neighbours' boxes overlap 15 px on a hex grid); the plate takes them */
+  .wb-item.hexagon.wb-hextok { pointer-events: none; }   /* clicks on the hexagon only, as the clip gave (neighbors' boxes overlap 15 px on a hex grid); the plate takes them */
   .wb-hextok > .tok-plate polygon { pointer-events: visiblePainted; }
   body.placing #whiteboard .wb-hextok > .tok-plate polygon { pointer-events: none; }   /* placing a shape passes through tokens, as for every item */
   .wb-hextok > .tok-ring { z-index: 1; }
@@ -2500,7 +2500,7 @@
   .wb-item.image.tok-pic-hexagon > img { clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
   .wb-item.image.tok-pic-rect > img { border-radius: 4px; }
   .wb-item.image.tok-pic-circle > img { border-radius: 50%; }
-  /* 1.6.0 (the owner, 2026-10-31: "making sure all outlines always fit to the visible part of an image"): a mark round a picture or a hexagon token follows what can be seen, never the box. Each mark names its colour once (--edge). A picture draws it round its own pixels, so a clear corner or the bars beside a picture that does not fill its box stay out. A picture cut to a hexagon and a hexagon token draw it on their ring, since a filter on a clipped picture is clipped with it */
+  /* 1.6.0 (the owner, 2026-10-31: "making sure all outlines always fit to the visible part of an image"): a mark round a picture or a hexagon token follows what can be seen, never the box. Each mark names its color once (--edge). A picture draws it round its own pixels, so a clear corner or the bars beside a picture that does not fill its box stay out. A picture cut to a hexagon and a hexagon token draw it on their ring, since a filter on a clipped picture is clipped with it */
   .wb-item:is(.image, .wb-hextok):is(.sel, .wb-hidden-gm, .wb-trap, .wb-blocks-sight, .wb-door, .wb-barrier, .blast-hit, .circle-hit, .wb-turn, .wb-find-lit, .size-match) { outline: none !important; }
   .wb-item:is(.image, .wb-hextok):is(.wb-turn, .wb-find-lit, .size-match) { box-shadow: none !important; }
   .wb-item.wb-hextok:is(.sel, .wb-hidden-gm, .wb-trap, .wb-blocks-sight, .wb-door, .wb-barrier, .blast-hit, .circle-hit, .wb-turn, .wb-find-lit, .size-match) { overflow: visible; }
@@ -2526,7 +2526,7 @@
   body.blocks-quiet:not(.net-client):not(.stream-mode) .wb-item.path.wb-door:not(:hover):not(.sel):not(.wb-door-near) svg path { filter: none; }
   /* under the pointer a line shows its glow and keeps its whole stroke: dashes there would open gaps the pointer falls through, and the line would blink as it moved along (the review of 2026-11-11). Selected, or with the tick on, it is dashed as ever */
   body.blocks-quiet:not(.net-client):not(.stream-mode) .wb-item.path:is(.wb-blocks-sight, .wb-barrier):not(.wb-door):hover:not(.sel) svg path { stroke-dasharray: none; }
-  /* a picture or a hexagon token that is hidden from players, or a trap tile, shows that mark's colour at rest, never the wall's */
+  /* a picture or a hexagon token that is hidden from players, or a trap tile, shows that mark's color at rest, never the wall's */
   body.blocks-quiet:not(.net-client):not(.stream-mode) .wb-item:is(.image, .wb-hextok).wb-hidden-gm:not(.wb-trap):is(.wb-blocks-sight, .wb-door, .wb-barrier):not(.blast-hit):not(.circle-hit):not(.wb-turn):not(.wb-find-lit):not(.size-match):not(:hover):not(.sel):not(.wb-door-near) { --edge: var(--steel); }
   body.blocks-quiet:not(.net-client):not(.stream-mode) .wb-item:is(.image, .wb-hextok).wb-trap:is(.wb-blocks-sight, .wb-door, .wb-barrier):not(.blast-hit):not(.circle-hit):not(.wb-turn):not(.wb-find-lit):not(.size-match):not(:hover):not(.sel):not(.wb-door-near) { --edge: rgba(255,107,107,0.8); }
   /* a door that is a way to another map shows the way's own mark at rest, and its lock: a door's state marks (open, secret, its lock, a barrier door's) name more than the way's rule and would stand in its place (the checker of 2026-11-11) */
@@ -2693,7 +2693,7 @@
   #zoomBox.pos-fold .zoom-posbtn { color: var(--ink); }
   @media (prefers-reduced-motion: reduce) { #cursorPos { transition: none; } }
   .zoom-sep { width: 1px; height: 16px; background: var(--edge); }
-  /* 1.6.2 (auto apply): the small grey word beside a figure worked out or filled, and the faint way back to the worked-out figure */
+  /* 1.6.2 (auto apply): the small gray word beside a figure worked out or filled, and the faint way back to the worked-out figure */
   .sheet-autobits { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; white-space: nowrap; }
   .sheet-auto { font-size: 10px; color: var(--dim); font-style: italic; }
   .sheet-auto-reset { background: transparent; border: none; padding: 0 2px; color: var(--dim); opacity: 0.45; font-size: 12px; line-height: 1; cursor: pointer; }
@@ -2833,7 +2833,7 @@
   #tableWhere, #tableWhereMap { display: none; align-items: center; gap: 6px; min-width: 0; max-width: min(520px, 42vw); overflow: hidden; white-space: nowrap; font-size: 13px; padding: 2px 4px; cursor: default; }
   body.net-client #tableWhere.on, body.net-client #tableWhereMap.on { display: inline-flex; }
   #tableWhereMap { max-width: min(320px, 30vw); }
-  body.net-client #tableWhereMap.on { flex: 1 1 0; justify-content: center; max-width: none; }   /* the map's name centred in its section (owner, 2026-09-26): the box takes the gap up to the right-hand groups */
+  body.net-client #tableWhereMap.on { flex: 1 1 0; justify-content: center; max-width: none; }   /* the map's name centered in its section (owner, 2026-09-26): the box takes the gap up to the right-hand groups */
   body.net-client #tableWhereMap.on + .spacer { display: none; }
   #tableWhere .tw-camp { color: var(--gold); font-weight: bold; max-width: 240px; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
   #tableWhereMap .tw-map { color: var(--ink); font-weight: 600; max-width: 260px; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
@@ -2891,7 +2891,7 @@
   .pbe-kind:hover, .pbe-kind.on { background: rgba(224,165,79,0.14); color: var(--gold); }
   .pbe-none { color: var(--dim); font-size: 12px; padding: 8px 6px; }
   /* 1.6.2, backlog 171: one formatting bar at the top of the editor. Each text block's own bar stays in the page and shows, held over the
-     greyed copy at the top, only while that block is in use */
+     grayed copy at the top, only while that block is in use */
   #plannerEditorWrap .rte > .rte-bar { display: none; }
   #plannerEditorWrap .rte.rte-on > .rte-bar { display: flex; position: fixed; top: var(--pbe-top, 0px); left: var(--pbe-left, 0px); width: var(--pbe-w, 400px); z-index: 60; margin: 0; background: var(--bg2); box-shadow: 0 4px 12px rgba(0,0,0,.35); }
   .pbe-barslot { position: sticky; top: -15px; z-index: 50; margin: -15px -15px 12px; padding: 8px 15px; background: var(--bg2); border-bottom: 1px solid var(--edge); }
@@ -3033,7 +3033,7 @@
     .doc-view table.pv-tstack tr { display: block; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; padding: 7px 11px; margin: 0 0 6px; }
     .doc-view table.pv-tstack td { display: block; border: 0; padding: 2px 0; overflow-wrap: anywhere; }
     .doc-view table.pv-tstack td:empty { display: none; }
-    .doc-view .pv-cards > .pv-blk > .node table.pv-tstack tr { background: var(--panel2); }   /* inside a card's frame, which wears the panel's own colour */
+    .doc-view .pv-cards > .pv-blk > .node table.pv-tstack tr { background: var(--panel2); }   /* inside a card's frame, which wears the panel's own color */
     .doc-view table.pv-tstack td[data-col]::before { content: attr(data-col); display: inline-block; margin-right: 8px; color: var(--gold); font-size: 11px; font-weight: 400; letter-spacing: .8px; text-transform: uppercase; }
   }
   .doc-view .flare { background: var(--panel); border: 1px solid var(--edge); border-left: 3px solid var(--violet); border-radius: 7px; padding: 10px 13px; margin-top: 10px; font-size: 13.5px; color: var(--dim); }
@@ -3105,7 +3105,7 @@
 
 
 
-/* Text-alignment field: two labelled rows on one grid so the buttons align vertically */
+/* Text-alignment field: two labeled rows on one grid so the buttons align vertically */
   .field.text-align .tal-grid { display: grid; grid-template-columns: 74px 1fr; gap: 6px 8px; align-items: center; margin-top: 4px; }
   .field.text-align .tal-cap { color: var(--dim); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; }
   .field.text-align .tal-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
@@ -3149,7 +3149,7 @@
     background: var(--border);
     margin: 4px 0;
 }
-#contextMenu .menu-item.cm-walls { display: flex; align-items: flex-start; gap: 9px; }   /* the map builder's row: a drawing, a name and one grey line */
+#contextMenu .menu-item.cm-walls { display: flex; align-items: flex-start; gap: 9px; }   /* the map builder's row: a drawing, a name and one gray line */
 #contextMenu .menu-item.cm-walls > * { pointer-events: none; }   /* a click lands on the row itself: the menu reads the class of what was pressed */
 #contextMenu .menu-item.cm-walls .ico { margin-top: 2px; }
 #contextMenu .menu-item.cm-walls small { display: block; color: var(--dim); font-size: 11px; }
@@ -3323,7 +3323,7 @@
   .doc-view .node.plain-table { border-left: none; padding-left: 0; background: transparent; }
   .doc-view .node.plain-table h3 { font-size: 15px; }
 
-  /* Header icon groups: a labelled pill per purpose */
+  /* Header icon groups: a labeled pill per purpose */
   .hdr-group { position: relative; display: inline-flex; align-items: center; gap: 2px; padding: 3px 6px 3px 6px; margin-left: 10px; border: 1px solid var(--edge); border-radius: 10px; background: rgba(0,0,0,0.12); }
   .hdr-group::before { content: attr(data-label); position: absolute; top: -7px; left: 8px; padding: 0 4px; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); background: var(--bg2); line-height: 1.2; pointer-events: none; }
   .hdr-group .tool.icon { margin: 0; }
@@ -3598,7 +3598,7 @@
   .combat-find { font: inherit; color: inherit; background: none; border: 0; border-radius: 3px; padding: 0; margin: 0; cursor: pointer; text-decoration: underline dotted; text-decoration-color: var(--dim); text-underline-offset: 3px; }   /* backlog 26: a name on the turn strip or in the roster finds its token on this screen */
   .combat-find:hover, .combat-find:focus-visible { color: var(--gold); text-decoration-color: var(--gold); }
   .combat-find:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
-  #combatModal.combat-peek { background: transparent !important; }   /* a find from the roster: the map shows under it while the ring does (the backdrop's colour is inline) */
+  #combatModal.combat-peek { background: transparent !important; }   /* a find from the roster: the map shows under it while the ring does (the backdrop's color is inline) */
   #combatModal.combat-peek > div { opacity: .1; pointer-events: none; transition: opacity .15s; }
   .combat-row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border: 1px solid var(--edge); border-radius: 6px; background: rgba(0,0,0,0.08); }
   .combat-row.off { opacity: .55; }
@@ -3682,7 +3682,7 @@
   #iLayers .il-more-body { display: flex; flex-direction: column; gap: 3px; } #iLayers .il-more-body[hidden] { display: none; }
   /* 1.6.2, backlog 42: a container's window, its items as tiles */
   #boxPanel { position: fixed; right: 360px; top: 140px; width: 340px; max-width: calc(100vw - 24px); max-height: 70vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
-  #boxHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--edge); cursor: move; } #boxHead .notepad-title { color: var(--gold); font-weight: 600; } #boxHead .notepad-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 26px; height: 26px; padding: 0; line-height: 1; font-size: 14px; }   /* its close, square and centred (the owner, 2026-11-12) */
+  #boxHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--edge); cursor: move; } #boxHead .notepad-title { color: var(--gold); font-weight: 600; } #boxHead .notepad-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 26px; height: 26px; padding: 0; line-height: 1; font-size: 14px; }   /* its close, square and centered (the owner, 2026-11-12) */
   #boxBody { padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
   #boxBody .box-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; }
   #boxBody .box-tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; height: 74px; padding: 6px 4px 4px; background: var(--bg); border: 1px solid var(--edge); border-radius: 7px; color: var(--ink); cursor: pointer; font: inherit; }
@@ -3963,7 +3963,7 @@
   .hdr-clock.hdr-video:not(.active) { background: var(--gold); border-color: var(--gold); color: #1a1408; font-weight: 600; }   /* its panel is closed while the video plays: filled, it wants you */
   .hdr-clock.hdr-video .ico, #reviewChip .ico { width: 12px; height: 12px; flex: none; }
   /* Voice chat (voice.js): the header's Table-group icon and its popover, after Sound's (#soundInd / #soundPop) */
-  /* The mic stays the header's grey; in voice, gold waves ((mic)) stand either side of it, and while you are sending they ripple
+  /* The mic stays the header's gray; in voice, gold waves ((mic)) stand either side of it, and while you are sending they ripple
      outward, inner to outer. A square drawing, the size of the speaker beside it */
   #voiceInd .vc-w { display: none; stroke: var(--gold); stroke-width: 1.5; }
   #voiceInd.in-voice .vc-w { display: inline; opacity: .55; }
@@ -4061,9 +4061,9 @@
   /* lighting L4: the light's name under a targeted token is drawn on the fog's overlay (fog.js drawCaptions), over the fog */
   .chat-dmg { color: var(--card-t-bad, var(--red)); border: 1px solid currentColor; border-radius: 9px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 0 6px; vertical-align: 1px; }   /* chat cards: a damage roll's tag (an outline chip) */
   .chat-time { color: var(--dim); font-size: 10px; float: right; }
-  /* Chat cards (owner 2026-09-27; his reference cards): a 3px stripe down the left edge by outcome — the plain colour, success, failure, damage
+  /* Chat cards (owner 2026-09-27; his reference cards): a 3px stripe down the left edge by outcome — the plain color, success, failure, damage
      (a malfunction too), an apply card muted, a reminder the accent — the roll's name as a bold title; a private card framed in violet. The
-     colours: the system's sheet look (--card-*, set on #chatLog from its palette; the HUD's own palette), else the app's */
+     colors: the system's sheet look (--card-*, set on #chatLog from its palette; the HUD's own palette), else the app's */
   .chat-roll { margin-bottom: 8px; padding: 4px 8px 6px; border: 1px solid var(--edge); border-left: 3px solid var(--card-primary, var(--sheet-primary, var(--sheet-accent, var(--gold)))); border-radius: 6px; background: rgba(0,0,0,0.12); }
   .chat-roll.card-ok { border-left-color: var(--card-good, var(--green)); }
   .chat-roll.card-fail, .chat-roll.card-malf, .chat-roll.card-dmg { border-left-color: var(--card-bad, var(--red)); }
@@ -4071,13 +4071,13 @@
   .chat-roll.chat-due { border-left-color: var(--card-accent, var(--sheet-accent, var(--gold))); }
   .chat-roll.whisper { border-top-color: var(--violet); border-right-color: var(--violet); border-bottom-color: var(--violet); }
   .roll-title { font-size: 13px; font-weight: 700; letter-spacing: .01em; color: var(--card-t-primary, var(--sheet-primary, var(--sheet-accent, var(--gold)))); margin-top: 2px; overflow-wrap: anywhere; }
-  html[data-theme="light"] #chatLog[data-card-tone="dark"], html:not([data-theme="light"]) #chatLog[data-card-tone="light"] { --card-t-primary: initial !important; --card-t-good: initial !important; --card-t-bad: initial !important; }   /* a palette made for the other theme: its stripes stay, its text takes the app's colours */
+  html[data-theme="light"] #chatLog[data-card-tone="dark"], html:not([data-theme="light"]) #chatLog[data-card-tone="light"] { --card-t-primary: initial !important; --card-t-good: initial !important; --card-t-bad: initial !important; }   /* a palette made for the other theme: its stripes stay, its text takes the app's colors */
   .roll-expr { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--ink); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .roll-break { font-size: 11.5px; color: var(--dim); line-height: 1.5; word-break: break-word; }
   .roll-die { color: var(--ink); background: rgba(212,175,55,0.12); border-radius: 3px; padding: 0 3px; }
   .roll-total { font-size: 16px; font-weight: 700; color: var(--card-t-primary, var(--sheet-primary, var(--sheet-accent, var(--gold)))); margin-top: 2px; display: flex; align-items: center; gap: 8px; }
   .roll-total.roll-ok { color: var(--card-t-good, var(--green)); } .roll-total.roll-fail { color: var(--card-t-bad, var(--red)); }
-  .roll-total.roll-dmg { font-size: 18px; color: var(--card-t-bad, var(--red)); }   /* chat cards: a damage roll's total (the reference sheet: 1.15rem, the destructive colour) */
+  .roll-total.roll-dmg { font-size: 18px; color: var(--card-t-bad, var(--red)); }   /* chat cards: a damage roll's total (the reference sheet: 1.15rem, the destructive color) */
   .roll-total.roll-malf { font-style: italic; }
   .sys-turn { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }   /* turn-based combat T1: the Combat tab's turn rules */
   .sys-turn-head { font-weight: 600; }
@@ -4445,7 +4445,7 @@
   .lib-pick-row.on .lib-row-name { color: var(--gold); font-weight: 600; }
   .lib-pick-row.hi { background: rgba(224,165,79,0.16); box-shadow: inset 3px 0 0 var(--gold); }
   .lib-pick-row.once { opacity: .45; cursor: default; }
-  .lib-pick-row.cant { opacity: .5; }   /* 126b: an entry the character may not take yet: greyed, still read in the preview */
+  .lib-pick-row.cant { opacity: .5; }   /* 126b: an entry the character may not take yet: grayed, still read in the preview */
   .lib-pick-need { color: var(--gold); font-size: 11.5px; line-height: 1.4; margin: 4px 0; }
   .lib-need .lib-need-name { flex: 1 1 140px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
   #libraryModal .lib-need .field { flex: 0 0 84px; min-width: 0; }
@@ -4610,7 +4610,7 @@
   #sysCombatBox, #sysListRules { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; padding: 8px 2px 12px; border-bottom: 1px solid var(--edge); margin-bottom: 8px; }
   .sys-combat-item { display: inline-flex; flex-direction: column; gap: 3px; }
   .sys-holds > .sys-combat-item { margin: 0 14px 6px 0; vertical-align: top; }   /* captions that would run together */
-  /* 107, options that say what they do: a grey line under a captioned list of the Combat tab. It takes the width of its list and never widens it */
+  /* 107, options that say what they do: a gray line under a captioned list of the Combat tab. It takes the width of its list and never widens it */
   .sys-combat-item > .sys-line { width: 0; min-width: 100%; font-size: 10.5px; line-height: 1.4; color: var(--dim); }
   .sys-combat-item.sys-combat-wide > .sys-line { width: 300px; min-width: 0; }   /* words longer than their list */
   #sysCombatBox { align-items: flex-start; }   /* a line makes some lists taller than others: they stand in their row by their tops */
@@ -4630,7 +4630,7 @@
   .sys-area { flex: 1 1 100%; border-top: none; padding-top: 0; } .sys-area input.sys-area-width { width: 64px; } .sys-area input.sys-area-reach { flex: 0 1 180px; min-width: 0; font-family: ui-monospace, Consolas, monospace; }
   .sys-cvh-grade { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; align-items: flex-start; } .sys-cvh-row { width: 100%; } .sys-cvh-row input.sys-cvh-from, .sys-cvh-row input.sys-cvh-to { width: 64px; } .sys-cvh-row input.sys-cvh-where { flex: 1 1 180px; min-width: 0; font-family: ui-monospace, Consolas, monospace; }
   .sys-empty { color: var(--dim); font-size: 12px; padding: 14px; text-align: center; }
-  .sys-kind-line { flex-basis: 100%; font-size: 11px; color: var(--dim); margin-top: 2px; }   /* 1.6.2: what a Derived field is, in a grey line */
+  .sys-kind-line { flex-basis: 100%; font-size: 11px; color: var(--dim); margin-top: 2px; }   /* 1.6.2: what a Derived field is, in a gray line */
   .sys-test { display: flex; flex-direction: column; gap: 4px; }
   .sys-test > #sysTestBtn { align-self: flex-start; }   /* 1.6.2 (the builder trial): a button at its own width, as the other add buttons */
   .sys-test-out { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; color: var(--ink); max-height: 120px; overflow: auto; display: flex; flex-wrap: wrap; gap: 2px 16px; }
@@ -4963,16 +4963,16 @@
   #sheetPanel .sheet-hdr-edit input.field, #sysLayoutPreview .sheet-hdr-edit input.field, #popoutBody.sheet-view .sheet-hdr-edit input.field, #sheetPrint .sheet-hdr-edit input.field { font-size: 14px; padding: 4px; }   /* beats the containers' own input.field size */
   .sheet-field .sheet-total.sheet-pos, .sheet-field.sheet-tile.sheet-kind-skill .sheet-total.sheet-pos { color: var(--green); }   /* a skill tile's total outranks the plain tones */
   .sheet-field .sheet-total.sheet-neg, .sheet-field.sheet-tile.sheet-kind-skill .sheet-total.sheet-neg { color: var(--red); }
-  /* inside the head and the frame, theme-coloured text follows the look's pair when one is set (the fallbacks are the old theme values) */
+  /* inside the head and the frame, theme-colored text follows the look's pair when one is set (the fallbacks are the old theme values) */
   .sheet-head .sheet-label, .sheet-frame .sheet-label, .sheet-frame .sheet-total:not(.sheet-pos):not(.sheet-neg):not(.sheet-err), .sheet-head .sheet-hdr-empty, .sheet-head .sheet-unit, .sheet-frame .sheet-unit, .sheet-frame .sheet-tab:not(.active) { color: var(--sheet-dim, var(--dim)); }
   .sheet-frame .sheet-value:not(.sheet-pos):not(.sheet-neg):not(.sheet-err), .sheet-frame .sheet-tab:not(.active):hover { color: var(--sheet-ink, var(--ink)); }
   .sheet-head .tool.ghost, .sheet-frame .tool.ghost, .sheet-head .tool.ghost:hover, .sheet-frame .tool.ghost:hover { color: var(--sheet-ink, var(--ink)); }   /* transparent buttons (the band's − / +, a field's roll die) read on the look's panel */
   .sheet-frame .sheet-slider-ends { color: var(--sheet-dim, var(--dim)); }
-  /* with a look pair and no accent of its own, the accent-coloured bits fall back to the look's ink, not the theme gold (a light look panel) */
+  /* with a look pair and no accent of its own, the accent-colored bits fall back to the look's ink, not the theme gold (a light look panel) */
   .sheet-head .sheet-gm .sheet-label::after, .sheet-frame .sheet-gm .sheet-label::after { color: var(--sheet-accent, var(--sheet-ink, var(--gold))); }
   .sheet-frame .sheet-tabs:not(.sheet-tabs-filled) > .sheet-tab.active { color: var(--sheet-accent, var(--sheet-ink, var(--gold))); border-bottom-color: var(--sheet-accent, var(--sheet-ink, var(--gold))); }
   /* Stage 5g Fold B: capital labels (a look option), the caption line, a pool's icon and reset, the panel's resize grip */
-  /* 1.6.0 (the backlog's sheet look options, (b) and (c)): the header's labels plain, every label in the text colour; the size is in the larger sheet's block below */
+  /* 1.6.0 (the backlog's sheet look options, (b) and (c)): the header's labels plain, every label in the text color; the size is in the larger sheet's block below */
   .sheet-labels-plain .sheet-identity-item .sheet-label, .sheet-labels-plain .sheet-ledger-fig .sheet-label { font-size: 10.5px; text-transform: none; letter-spacing: normal; font-weight: 400; }
   .sheet-labels-ink .sheet-label, .sheet-labels-ink .sheet-head .sheet-label, .sheet-labels-ink .sheet-frame .sheet-label { color: var(--sheet-ink, var(--ink)); }
   .sheet-labels-caps .sheet-field > .sheet-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; white-space: normal; overflow: visible; }   /* wraps, so a field's roll die is never ellipsised away */
@@ -5014,7 +5014,7 @@
   .sheet-eff-up { color: var(--green); }
   .sheet-eff-down { color: var(--red); }
   .sheet-eff-same { color: var(--dim); }
-  /* Stage 5h Fold 3: the facing dial — the token's facing (inner wedges) and threat marks (outer ring, coloured by arc) */
+  /* Stage 5h Fold 3: the facing dial — the token's facing (inner wedges) and threat marks (outer ring, colored by arc) */
   .sheet-dial { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .sheet-dial[hidden] { display: none; }
   /* Stage 6: the token's stance on the sheet */
@@ -5305,7 +5305,7 @@
   .sheet-paletted .sheet-itemtable tbody tr:hover { background: color-mix(in srgb, var(--dim) 12%, transparent); }
   .sheet-paletted input[type=checkbox] { accent-color: var(--sheet-primary); }
   .sys-lookpalette { flex-wrap: wrap; }
-  /* Stage 6 look fold (L2): a bundled glyph is a mask in the text's colour; roll tones; the editor's icon picker */
+  /* Stage 6 look fold (L2): a bundled glyph is a mask in the text's color; roll tones; the editor's icon picker */
   .wp-glyph { display: inline-block; width: 1.15em; height: 1em; flex: none; vertical-align: -0.125em; background-color: currentColor; mask-position: center; mask-size: contain; mask-repeat: no-repeat; -webkit-mask-position: center; -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat; }
   .sheet-roll.sheet-roll-danger { background: var(--red); border-color: var(--red); color: var(--sheet-danger-ink, #fff); font-weight: 600; }
   .sheet-roll.sheet-roll-danger:not(:disabled):hover { background: color-mix(in srgb, var(--red) 88%, #000); border-color: var(--red); color: var(--sheet-danger-ink, #fff); }
@@ -5357,7 +5357,7 @@
   .sheet-steppers-inside .sheet-kind-resource .sheet-total { order: 5; margin-left: 6px; }
   .sheet-steppers-inside .sheet-kind-resource .sheet-total:has(+ .sheet-reset) { margin-right: 28px; }   /* the fill button stands in its right margin, so the two go to a second line together */
   .sheet-steppers-inside .sheet-kind-resource .sheet-reset { order: 6; flex: none; width: 28px; padding: 0; margin-left: -28px; }
-  .sheet-steppers-inside .sheet-tile.sheet-kind-resource .sheet-ctl { justify-content: center; margin: 0 -4px; }   /* a tile centres each line, and its side padding is room for the row */
+  .sheet-steppers-inside .sheet-tile.sheet-kind-resource .sheet-ctl { justify-content: center; margin: 0 -4px; }   /* a tile centers each line, and its side padding is room for the row */
   .sheet-steppers-inside .sheet-numwrap { display: inline-grid; grid-template-columns: auto 18px; grid-template-rows: 14px 14px; }
   .sheet-steppers-inside .sheet-numwrap > input.sheet-num { grid-column: 1; grid-row: 1 / 3; height: 28px; border-radius: 4px 0 0 4px; }
   .sheet-steppers-inside .sheet-steps { display: contents; }
@@ -5375,7 +5375,7 @@
   /* L8: carried items as cards */
   .sheet-rows-cards .sheet-item { border: 1px solid color-mix(in srgb, var(--edge) 70%, transparent); border-radius: 6px; background: rgba(0,0,0,.1); padding: 5px 8px; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
   .sheet-rows-cards .sheet-items { gap: 6px; }
-  /* Stage 6 look fold (L7): a formula as a badge, coloured by its value name; a pool's own colour */
+  /* Stage 6 look fold (L7): a formula as a badge, colored by its value name; a pool's own color */
   .sheet-badge { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 9999px; border: 1px solid color-mix(in srgb, currentColor 30%, transparent); background: color-mix(in srgb, currentColor 10%, transparent); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; line-height: 1.4; color: var(--dim); }
   .sheet-badge.sheet-tone-good { color: var(--green); }
   .sheet-badge.sheet-tone-warn { color: var(--sheet-warn, var(--gold)); }
@@ -5411,7 +5411,7 @@
   .sheet-item.sheet-tint-primary, tr.sheet-tint-primary > td { background: color-mix(in srgb, var(--sheet-primary, var(--sheet-accent, var(--gold))) 10%, transparent); }
   .sheet-item.sheet-tint-primary, tr.sheet-tint-primary > td:first-child { box-shadow: inset 3px 0 0 var(--sheet-primary, var(--sheet-accent, var(--gold))); }
   .sheet-pool-colored:not(.sheet-pool-bandonly) .sheet-pool-icon, .sheet-band .sheet-pool-colored .sheet-pool-icon { color: var(--sheet-pool); }
-  .sheet-pool-colored:not(.sheet-pool-bandonly) .sheet-bar-fill, .sheet-band .sheet-pool-colored .sheet-bar-fill { background: var(--sheet-pool); }   /* 1.6.0: Band only keeps the colour to the pinned band */
+  .sheet-pool-colored:not(.sheet-pool-bandonly) .sheet-bar-fill, .sheet-band .sheet-pool-colored .sheet-bar-fill { background: var(--sheet-pool); }   /* 1.6.0: Band only keeps the color to the pinned band */
   .sheet-band .sheet-pool-colored .sheet-cur { color: var(--sheet-pool); font-weight: 700; }
   .sys-tones-row { flex-wrap: wrap; }
   .sys-tone-lbl { display: inline-flex; align-items: center; gap: 4px; }
@@ -5448,7 +5448,7 @@
   #sheetBody.sheet-sticky-titles, .sys-layout-preview.sheet-sticky-titles, #popoutBody.sheet-view.sheet-sticky-titles { padding-top: 0; }   /* a sticky top counts from the content edge: no strip of content above a stuck title */
   #sheetBody.sheet-sticky-titles > .sheet-section:first-child, .sys-layout-preview.sheet-sticky-titles > .sheet-section:first-child { margin-top: 8px; }
   #popoutBody.sheet-view.sheet-sticky-titles > .sheet-section:first-child { margin-top: 18px; }
-  /* L5: angular tabs — cut-corner tabs sharing the strip; the open one filled in the primary colour, a hovered one in the accent with dark text (as the reference's stylesheet means it) */
+  /* L5: angular tabs — cut-corner tabs sharing the strip; the open one filled in the primary color, a hovered one in the accent with dark text (as the reference's stylesheet means it) */
   .sheet-frame .sheet-tabs.sheet-tabs-angular { flex-wrap: wrap; gap: 2px 0; padding: 4px 4px 0 14px; border-bottom: 1px solid var(--edge); background: color-mix(in srgb, var(--dim) 10%, transparent); }
   .sheet-frame .sheet-tabs.sheet-tabs-angular > .sheet-tab { flex: 1 1 auto; min-width: 0; margin: 0 0 0 -12px; padding: 9px 16px; border: 0; clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%); background: color-mix(in srgb, var(--sheet-card, var(--panel2)) 45%, transparent); color: var(--sheet-ink, var(--ink)); font-weight: 500; font-size: 12.5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sheet-frame .sheet-tabs.sheet-tabs-angular > .sheet-tab:first-child { margin-left: 0; }
@@ -5507,17 +5507,17 @@
   .sys-flags .sys-unit { flex: 0 0 64px; width: 64px; }
   /* a dashboard section (above the tabs on every tab): a rule under it before the frame */
   .sheet-section.sheet-dash { padding-bottom: 6px; border-bottom: 1px solid var(--edge); }
-  /* Stage 5e: a gradient slider — a number with a min and a max shown as a range on a two-colour track (the field's own colours, else
+  /* Stage 5e: a gradient slider — a number with a min and a max shown as a range on a two-color track (the field's own colors, else
      accent → gold) with end labels; the number box stays beside it. The input's own box is the track (appearance none), the thumb a disc. */
   .sheet-slider { display: flex; flex-direction: column; gap: 3px; flex: 1 1 120px; min-width: 80px; }
   .sheet-slider-ends { display: flex; justify-content: space-between; gap: 8px; font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); min-height: 11px; }
   input.sheet-range { -webkit-appearance: none; appearance: none; width: 100%; height: 10px; margin: 0; padding: 0; border-radius: 5px; border: 1px solid var(--edge); background: linear-gradient(90deg, var(--blue), var(--gold)); cursor: pointer; box-sizing: border-box; }
   input.sheet-range:disabled { cursor: default; opacity: .6; }
-  /* The sheet's lock: on a locked sheet, and in the HUD, a stat that needs Edit sheet reads as a value, not as a greyed box. What still works in play keeps its box */
+  /* The sheet's lock: on a locked sheet, and in the HUD, a stat that needs Edit sheet reads as a value, not as a grayed box. What still works in play keeps its box */
   .sheet-locked :is(input.field, select.field, textarea.field):disabled { opacity: 1; color: inherit; -webkit-text-fill-color: currentColor; background: transparent; border-color: transparent; cursor: default; }
   .sheet-locked select.field:disabled { appearance: none; -webkit-appearance: none; background-image: none; }
   .sheet-locked .sheet-step:disabled { visibility: hidden; }   /* the arrows inside a number box: dead while locked, so not drawn (they keep their room: nothing shifts when Edit sheet is pressed) */
-  /* Item 35: a text or notes field read with its look (a locked sheet, the HUD, a window of its own): the box a field has where one is drawn, plain words on a locked sheet as its neighbours are */
+  /* Item 35: a text or notes field read with its look (a locked sheet, the HUD, a window of its own): the box a field has where one is drawn, plain words on a locked sheet as its neighbors are */
   .sheet-read, .sheet-box.ts-box { width: 100%; padding: 3px 6px; font: inherit; font-size: 12.5px; line-height: 1.5; box-sizing: border-box; min-height: calc(1.5em + 8px); }   /* the plain input's own sizes in a sheet: a field keeps its shape when it gains a look and when Edit sheet is pressed */
   .sheet-read { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; cursor: default; }
   .sheet-read.sheet-text { white-space: pre; overflow: hidden; text-overflow: ellipsis; }
@@ -5853,7 +5853,7 @@
   #imgCatMenu .party-menu-item.on { color: var(--gold); }
   #imgCatMenu .party-menu-item.danger { color: var(--red); }
 
-  /* light-mode toolbar glyphs: the play-map and drawing toolbars used a fixed light grey that washes out on a light ground */
+  /* light-mode toolbar glyphs: the play-map and drawing toolbars used a fixed light gray that washes out on a light ground */
   html[data-theme="light"] .wb-tool-btn, html[data-theme="light"] .draw-size-btn, html[data-theme="light"] .draw-style-btn { color: var(--ink); }
   html[data-theme="light"] .wb-tool-btn.active, html[data-theme="light"] .draw-size-btn.active, html[data-theme="light"] .draw-style-btn.active { color: #fff; }
   html[data-theme="light"] .wb-tool-btn.tool-chev, html[data-theme="light"] .wb-tool-btn.sel-chev { color: var(--dim); }   /* the corner marks stay quiet in the light theme too, the one that switches Select and Pan with them */
@@ -5901,8 +5901,8 @@
   .sys-seg .sys-btn:hover { color: var(--ink); }
   .sys-seg .sys-btn.on { background: var(--panel2); color: var(--gold); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
   .sys-layout-preview-hud { max-width: 470px; }
-  /* HF2a: the HUD window — its own chrome after the reference's HUD (a card-coloured head with a square portrait and the name in the primary
-     colour, compact sections), in the sheet's palette; the twins of the #sheetPanel rules the section renderer relies on */
+  /* HF2a: the HUD window — its own chrome after the reference's HUD (a card-colored head with a square portrait and the name in the primary
+     color, compact sections), in the sheet's palette; the twins of the #sheetPanel rules the section renderer relies on */
   .hud-panel { position: fixed; top: 120px; left: 0; width: 470px; max-width: 96vw; max-height: min(760px, calc(100vh - 140px)); z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); color: var(--ink); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   .hud-panel.sheet-sized { max-height: none; }
   .hud-head { display: flex; align-items: center; gap: 9px; padding: 9px 10px 8px 12px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; flex: none; }
@@ -5916,7 +5916,7 @@
   .hud-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 10px 10px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px; font-size: 12.8px; line-height: 1.35; }
   .hud-body:has(> .sheet-frame), .hud-body:has(> .sheet-head:first-child) { padding-top: 0; }
   .hud-body:has(> .sheet-frame) > .sheet-section:first-child { margin-top: 8px; }
-  .hud-body > .sheet-head, .hud-body > .sheet-frame > .sheet-band { background: var(--sheet-bg, rgba(0,0,0,0.12)); }   /* the header's figures sit in the head's colour, as the reference's chips */
+  .hud-body > .sheet-head, .hud-body > .sheet-frame > .sheet-band { background: var(--sheet-bg, rgba(0,0,0,0.12)); }   /* the header's figures sit in the head's color, as the reference's chips */
   .hud-panel input.field, .hud-panel select.field, .hud-panel textarea.field { padding: 3px 6px; font-size: 12.5px; }
   .hud-panel .field { margin-bottom: 0; }
   .hud-panel .sheet-hdr-edit input.field { font-size: 14px; padding: 4px; }
@@ -6174,7 +6174,7 @@
   .sheet-field.sheet-tile .sheet-counter { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 100%; max-width: 74px; }
   .sheet-field.sheet-tile .sheet-counter > input.sheet-num { grid-column: 1 / -1; grid-row: 1; width: 100%; min-width: 0; }
   .sheet-field.sheet-tile .sheet-counter > .sheet-count { width: auto; height: 22px; }
-  /* HF4b (H13): a section's Reset all — the header chip's look; inert (nothing to reset, the Layout preview, a pop-out) it greys out, unlit by hover */
+  /* HF4b (H13): a section's Reset all — the header chip's look; inert (nothing to reset, the Layout preview, a pop-out) it grays out, unlit by hover */
   .sheet-sec-chip.sheet-sec-reset[aria-disabled="true"], .sheet-sec-chip.sheet-sec-reset[aria-disabled="true"]:hover { opacity: .5; cursor: default; border-color: var(--edge); color: var(--dim); }
   .sheet-paletted .sheet-sec-chip.sheet-sec-reset[aria-disabled="true"]:hover { background: color-mix(in srgb, var(--sheet-accent, var(--gold)) 5%, transparent); }   /* the palette's hover tint never lights an inert one */
 

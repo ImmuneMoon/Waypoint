@@ -19,7 +19,7 @@
     { "id": "f_level", "key": "Level", "label": "Level", "kind": "number", "def": 1, "min": 1, "max": 20, "step": 1, "edit": "owner", "vis": "all", "hover": false },
     { "id": "f_prof", "key": "Prof", "label": "Proficiency", "kind": "formula", "formula": "2 + floor((Level - 1) / 4)", "vis": "all", "hover": false },
     { "id": "f_hp", "key": "HP", "label": "Hit points", "kind": "resource", "maxFormula": "(6 + CONmod) * Level", "def": "max", "min": 0, "edit": "owner", "vis": "all", "hover": true },
-    { "id": "f_ac", "key": "AC", "label": "Armour class", "kind": "formula", "formula": "10 + DEXmod", "vis": "all", "hover": true },
+    { "id": "f_ac", "key": "AC", "label": "Armor class", "kind": "formula", "formula": "10 + DEXmod", "vis": "all", "hover": true },
     { "id": "f_speed", "key": "Speed", "label": "Speed", "kind": "number", "def": 30, "min": 0, "max": 120, "step": 5, "edit": "owner", "vis": "all", "hover": false },
     { "id": "f_sk_acro", "key": "Skill.Acrobatics", "label": "Acrobatics", "kind": "skill", "base": "DEXmod", "def": 0, "min": -10, "max": 20, "step": 1, "edit": "owner", "vis": "all", "hover": false, "roll": "d20 + Skill.Acrobatics" },
     { "id": "f_sk_arca", "key": "Skill.Arcana", "label": "Arcana", "kind": "skill", "base": "INTmod", "def": 0, "min": -10, "max": 20, "step": 1, "edit": "owner", "vis": "all", "hover": false, "roll": "d20 + Skill.Arcana" },

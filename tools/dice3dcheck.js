@@ -46,7 +46,7 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
     check('with reduced motion the die is there from the start, already settled', qEq(st.q, land) && st.x === 0 && st.y === 0 && st.h === 0);
     check('a time outside 0 to 1 is held to it', qEq(tb(5).q, land) && J(tb(-1)) === J(tb(0)));
     const L = D.layout(5, 4);
-    check('dice rest in rows, centred, a die and a quarter apart', L.length === 5 && Math.abs(L[0].x + L[2].x) < 1e-9 && L[0].y === L[1].y && L[3].y < L[0].y && J(D.layout(1)) === J([{ x: 0, y: 0 }]));
+    check('dice rest in rows, centered, a die and a quarter apart', L.length === 5 && Math.abs(L[0].x + L[2].x) < 1e-9 && L[0].y === L[1].y && L[3].y < L[0].y && J(D.layout(1)) === J([{ x: 0, y: 0 }]));
     // ---- a roll's dice ----
     const res = { ok: true, breakdown: { dice: [
         { faces: 20, dice: [{ value: 14, kept: true }, { value: 3, kept: false }] },
@@ -66,11 +66,11 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
         return ['# a cube', ...v, ...f.map((x, i) => (names[i] ? 'g ' + names[i] + '\n' : '') + (mats ? 'usemtl ' + mats[i] + '\n' : '') + x[0])].join('\n');
     };
     const ok = D.readObj(cube(['face1', 'face6', 'face2', 'face5', 'face3', 'face4']), 'd6');
-    check('a model file is read: its faces named by group, each face’s direction from its own triangles, its numbers drawn on it where none are modelled', ok && !ok.error && ok.model === true && ok.decal === true && ok.faces.length === 6 && close(ok.faces.find(f => f.n === 1).normal, [0, 0, 1]) && close(ok.faces.find(f => f.n === 4).normal, [0, -1, 0]) && ok.pos.length === 12 * 3 * 3 && ok.pos.every(x => Math.abs(x) <= 1 + 1e-9), J(ok && (ok.error || ok.faces.length)));
+    check('a model file is read: its faces named by group, each face’s direction from its own triangles, its numbers drawn on it where none are modeled', ok && !ok.error && ok.model === true && ok.decal === true && ok.faces.length === 6 && close(ok.faces.find(f => f.n === 1).normal, [0, 0, 1]) && close(ok.faces.find(f => f.n === 4).normal, [0, -1, 0]) && ok.pos.length === 12 * 3 * 3 && ok.pos.every(x => Math.abs(x) <= 1 + 1e-9), J(ok && (ok.error || ok.faces.length)));
     const lw = D.landTurn(ok, 5, 0);
     check('a model lands on its rolled face as a stand-in does', close(D.qRot(lw, ok.faces.find(f => f.n === 5).normal), [0, 0, 1], 1e-9));
     const withNum = D.readObj(cube(['face1', 'face6', 'face2', 'face5', 'face3', 'face4'], ['body', 'edge', 'number', 'Body', 'whatever', 'NUMBER']), 'd6');
-    check('a model’s parts by material (body, edge, number, in any case, anything else the body), and modelled numbers drawn as they are', !withNum.error && withNum.decal === false && J([...new Set(withNum.part)].sort()) === J([0, 1, 2]) && withNum.part.slice(0, 6).every(x => x === 0) && withNum.part.slice(6, 12).every(x => x === 1) && withNum.part.slice(18, 24).every(x => x === 0));
+    check('a model’s parts by material (body, edge, number, in any case, anything else the body), and modeled numbers drawn as they are', !withNum.error && withNum.decal === false && J([...new Set(withNum.part)].sort()) === J([0, 1, 2]) && withNum.part.slice(0, 6).every(x => x === 0) && withNum.part.slice(6, 12).every(x => x === 1) && withNum.part.slice(18, 24).every(x => x === 0));
     check('a model that names no face for a number says which, in words', /no face for 6\. Name each face face1, face2/.test(D.readObj(cube(['face1', 'face2', 'face2', 'face5', 'face3', 'face4']), 'd6').error || ''), J(D.readObj(cube(['face1', 'face2', 'face2', 'face5', 'face3', 'face4']), 'd6')));
     const ten = D.readObj(cube(['face0', 'face6', 'face2', 'face5', 'face3', 'face4']).replace(/face6/, 'face1'), 'd10');
     check('face0 stands for a d10’s ten', !!ten.error && /no face for/.test(ten.error) && !/10/.test(ten.error));
@@ -107,15 +107,15 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
     check('a roll that lands asks the dice first, before the dice sound is judged, and its card carries its id for the dice to find', dj.includes('function landed(m) {\n    if (window.wpDice3d) { try { window.wpDice3d.play(m); } catch (e) {} }') && dj.includes("if (wrap.dataset && typeof rec.id === 'string') wrap.dataset.rid = rec.id;"));
     check('the page loads it after the dice, and Settings keeps the choice for this computer under wp_dice3d', ix.includes('<script type="module" src="scripts/dice.js"></script>\n<script type="module" src="scripts/dice3d.js"></script>') && ix.includes('<select id="setDiceShow"') && stj.includes("localStorage.setItem('wp_dice3d', _d3Of(_d3Sel.value))"));
     const wn = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wa = read('assets/whatsnew.txt');
-    check('Help and both notes say it', ix.includes("<li>The dice tumble on the roll's card and land on the faces it gave. <b>Dice on a roll</b> in Settings shows them over the map instead, or turns them off for you. With Reduce motion they show already landed. <b>Paint your dice</b> in Settings, or Paint on the roller, picks their colours and a pattern. Everyone at the table sees your rolls in that look.</li>") && [wn, wa].every(t => t.includes('Animated dice\n- When a roll lands, its dice tumble on its card in Table Chat and land on the\n')));
+    check('Help and both notes say it', ix.includes("<li>The dice tumble on the roll's card and land on the faces it gave. <b>Dice on a roll</b> in Settings shows them over the map instead, or turns them off for you. With Reduce motion they show already landed. <b>Paint your dice</b> in Settings, or Paint on the roller, picks their colors and a pattern. Everyone at the table sees your rolls in that look.</li>") && [wn, wa].every(t => t.includes('Animated dice\n- When a roll lands, its dice tumble on its card in Table Chat and land on the\n')));
     // ---- fold 3: a look, the painter and the look a roll carries ----
     const DC = await import(url.pathToFileURL(app('scripts/dicecore.js')).href);
     const L0 = DC.cleanDiceLook({ b: '#2B2D38', t: '#4a4d5e', n: '#e8c46a', p: 'marble' });
-    check('a dice look is strict #rrggbb in lower case, a second colour that falls back to the body, edges only where named, and a pattern of the four',
+    check('a dice look is strict #rrggbb in lower case, a second color that falls back to the body, edges only where named, and a pattern of the four',
         J(L0) === J({ b: '#2b2d38', t: '#4a4d5e', n: '#e8c46a', p: 'marble' }) && J(DC.cleanDiceLook({ b: '#111111', n: '#eeeeee' })) === J({ b: '#111111', t: '#111111', n: '#eeeeee', p: 'solid' })
         && DC.cleanDiceLook({ b: '#111111', n: '#eeeeee', e: '#222222' }).e === '#222222' && DC.cleanDiceLook({ b: '#111111', n: '#eeeeee', p: 'plaid' }).p === 'solid' && J(DC.DICE_PATS) === J(['solid', 'marble', 'speckle', 'two']));
     const proto = Object.create({ b: '#111111', n: '#eeeeee' });
-    check('a look with no body or no numbers, a colour in any other form, a list or a look a prototype lends is none',
+    check('a look with no body or no numbers, a color in any other form, a list or a look a prototype lends is none',
         [null, 'x', [], {}, { b: '#111111' }, { n: '#111111' }, { b: 'red', n: '#eeeeee' }, { b: '#111', n: '#eeeeee' }, { b: '#11111g', n: '#eeeeee' }, { b: 'url(x)', n: '#eeeeee' }, proto].every(v => DC.cleanDiceLook(v) === null)
         && DC.cleanDiceLook({ b: '#111111', n: '#eeeeee', t: 'javascript:x' }).t === '#111111' && !('e' in DC.cleanDiceLook({ b: '#111111', n: '#eeeeee', e: 'x' })));
     const rq = DC.cleanRollReq({ rid: 'qabc12345', expr: '2d6', dl: { b: '#2b2d38', n: '#e8c46a', p: 'speckle' } }), rqBad = DC.cleanRollReq({ rid: 'qabc12345', expr: '2d6', dl: { b: 'nope' } });
@@ -127,7 +127,7 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
     check('a roll with no look, or one that does not clean, is drawn in the Waypoint set; a look is named by the set it is, else as your own',
         J(R.lookOf(null)) === J(R.lookOf({ b: 'x' })) && R.lookOf(undefined).b === '#2b2d38' && R.setOf(R.SETS[4]) === 'Tide' && R.setOf(Object.assign({}, R.SETS[4], { n: '#000000' })) === '' && R.setOf(Object.assign({}, R.SETS[1], { e: '#000000' })) === '');
     const sk = R.shadeOf(R.SETS[3], false), sd = R.shadeOf(R.SETS[3], true);
-    check('a die is drawn in the look’s colours and pattern, edges as the body where none are named, and a die the roll dropped darker in every colour',
+    check('a die is drawn in the look’s colors and pattern, edges as the body where none are named, and a die the roll dropped darker in every color',
         sk.pat === 3 && R.shadeOf(R.SETS[0], false).pat === 0 && R.shadeOf(R.SETS[4], false).pat === 1 && R.shadeOf(R.SETS[2], false).pat === 2 && J(sk.edge) === J(sk.body)
         && ['body', 'two', 'edge', 'num'].every(k => sd[k].every((v, i) => Math.abs(v - sk[k][i] * 0.55) < 1e-12)) && Math.abs(sk.body[0] - 0x8a / 255) < 1e-12);
     const nj = fs.readFileSync(app('scripts/net.js'), 'latin1').replace(/\r\n/g, '\n');
@@ -136,11 +136,11 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
         && nj.includes('var dlS = rollLookOwn(); if (dlS) req.dl = dlS;') && nj.includes('if (heldQ) recQ.id = heldQ; if (q.dl) recQ.dl = q.dl;') && nj.includes('if (heldR) rec.id = heldR; if (!o.from) { var dlR = rollLookOwn(); if (dlR) rec.dl = dlR; }')
         && nj.includes('cardHold({ dl: q.dl || null,') && nj.includes('cardHold({ dl: o.from ? null : rollLookOwn(),') && nj.includes('if (o.dl) rec.dl = o.dl; if (o.rid) rec.rid = o.rid;'));
     const esk = read('scripts/esckey.js');
-    check('the painter is a window of the page, opened from Settings and from the roller, its sets and patterns made as buttons with text, its colours four colour boxes, closed by Escape through its own button',
+    check('the painter is a window of the page, opened from Settings and from the roller, its sets and patterns made as buttons with text, its colors four color boxes, closed by Escape through its own button',
         ix.includes('<div id="dicePaintModal"') && ix.includes('id="setDicePaintBtn"') && ix.includes('id="dicePaintBtn"') && ['dicePaintBody', 'dicePaintTwo', 'dicePaintNum', 'dicePaintEdge'].every(id => ix.includes('<input type="color" id="' + id + '"'))
         && ix.includes('<canvas id="dicePaintPreview"') && esk.includes("['dicePaintModal', 'dicePaintCloseBtn']") && r3.includes("b.textContent = st.name;") && r3.includes("b.textContent = pt[1];")
         && r3.includes("['setDicePaintBtn', 'dicePaintBtn'].forEach") && r3.includes("localStorage.setItem('wp_diceLook', JSON.stringify(l))") && r3.includes('look: lookOf(m.roll.dl)'));
-    check('both notes say the painter', [wn, wa].every(t => t.includes('- Paint your dice, in Settings or on the dice roller, picks the colours and\n')));
+    check('both notes say the painter', [wn, wa].every(t => t.includes('- Paint your dice, in Settings or on the dice roller, picks the colors and\n')));
     // ---- the design (the owner, by prompt: "Draw or upload, on each face") ----
     const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
     check('a design is a small PNG as a data address and nothing else: any other kind of picture, a web address, script, a PNG past the size a roll carries, or text that is no PNG is no design',

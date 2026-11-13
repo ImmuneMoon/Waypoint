@@ -114,7 +114,7 @@ function jumpMatch(label, wn, ww, q) {
 }
 // A room's category as the Data Map draws it: its own where the map has it, else the map's first
 function roomCatOf(r, cats) { var keys = isObj(cats) ? Object.keys(cats) : []; return isObj(r) && keys.indexOf(r.cat) >= 0 ? r.cat : (keys[0] || ''); }
-// The categories this map's rooms are in, in the map's own order, each with its label, colour and count; none for a category no room is in
+// The categories this map's rooms are in, in the map's own order, each with its label, color and count; none for a category no room is in
 function catsUsed(rooms, cats) {
     if (!isObj(cats)) return [];
     var n = Object.create(null); (Array.isArray(rooms) ? rooms : []).filter(isObj).forEach(function(rm) { var k = roomCatOf(rm, cats); if (k) n[k] = (n[k] || 0) + 1; });
@@ -170,7 +170,7 @@ function roomPlacePiece(kind, room, box, floor) {
 
 // ---- fold 4, who is in a room (the owner, 2026-11-11, by prompt: "Tokens there, typed list kept", "Names or faces on the box", "Find a
 // character's room", "Tie an entry to a sheet"; and 2026-11-12, of the look: "A. Here now, then Expected", "A. Faces, then +N", "A. A Sheet list,
-// name follows"). A token is in the room whose place holds its centre, the smallest place where several do (as net.js roomUnder judges a drop).
+// name follows"). A token is in the room whose place holds its center, the smallest place where several do (as net.js roomUnder judges a drop).
 // Nothing of it is stored: Here now is read from the map each time, and the typed list is the GM's own, Expected here
 function roomPlaces(map) {
     var rooms = Object.create(null), out = [];

@@ -180,7 +180,7 @@ function isTableSep(line) { return /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|
 /* ---------- text style (1.5.0): a plain field's format, in and out of the dialect ----------
    A title, a cell, a caption, a label is plain text with its format beside it (textfmt.js). In a Markdown file the format is written INTO
    the field's inline text — bold as **…**, italic as *…*, strike-through as ~~…~~, a link as [text](address) (as <b> / <i> / <s> /
-   <a href="…"> where those would not read back, or inside a line that is itself bold or italic syntax), underline as <u>, a colour and a
+   <a href="…"> where those would not read back, or inside a line that is itself bold or italic syntax), underline as <u>, a color and a
    size as the page sanitiser's one span form (the field's own once around everything, a part's around that part) — and read back
    out of it. What is read is only ever what the sanitiser wrote (fmtFromInline), and only where its text is the very text the field is
    given; anything else is the plain text, as before. A look that holds for the whole text is written once, around everything, and comes
@@ -208,7 +208,7 @@ function lookWalk() {
         },
         els: function() { return els; },
         wraps: wraps,
-        // The format: what wraps the whole text is the field's own look (of two colours the inner one stands), every run a span over it — a
+        // The format: what wraps the whole text is the field's own look (of two colors the inner one stands), every run a span over it — a
         // size and a link too: the cleaner makes the one every character has the field's own. Cleaned, so undefined when nothing is left.
         fmt: function(text) {
             if (!n || text.length !== n) return undefined;
@@ -226,7 +226,7 @@ function lookWalk() {
 function unesc(s) { return String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&'); }   // the sanitiser's own escaping, undone
 // fmtFromInline(html) → { text, fmt }: a plain field read from inline HTML. Built on the page sanitiser's output, never on the input: the
 // html goes through sanitizeHtml first and only what that wrote is read — <b> / <strong>, <i> / <em>, <u>, <s> / <strike>, its one span
-// form (a strict colour, a size step: around everything or around a part) and its <a href> (an address the sanitiser let through, then
+// form (a strict color, a size step: around everything or around a part) and its <a href> (an address the sanitiser let through, then
 // the format's own link rule — the same rule — in the cleaner). Whatever else it kept (code, a paragraph, a list) is just its text, and
 // a line break no character. fmt is the cleaner's (textfmt.js cleanFmt): absent when nothing is left.
 function fmtFromInline(html) {
@@ -252,7 +252,7 @@ function fmtFromInline(html) {
     return out;
 }
 // A plain field from the file's inline Markdown: its text exactly as before (the inline HTML less its tags, entities decoded: cells and
-// titles are plain text in the editor's inputs), and the format its bold, italic, underline, strike, links and colour / size
+// titles are plain text in the editor's inputs), and the format its bold, italic, underline, strike, links and color / size
 // spans make — only where the sanitiser's reading of that inline HTML is the very same text (else the field is plain, as before).
 function fieldOf(md) {
     var html = inline(md, { inlineImages: [] }), text = unent(html.replace(/<[^>]+>/g, ''));
@@ -276,8 +276,8 @@ function spanOpen(color, size) {
 // |, a caption's ] and ), a mark) as numeric entities, which the sanitiser reads back as the characters they are
 function hrefAttr(link) { return esc(link).replace(/[|\[\]()*_~`\\]/g, function(c) { return '&#' + c.charCodeAt(0) + ';'; }); }
 // m: which of Markdown's own forms are used — { bi: ** and *, st: ~~, link: [text](address) } — each written as its tag where it is false
-// (<b> <i>, <s>, <a href>). Underline is always <u>; a colour and a size always the one span. A size is never inside a size: the field's
-// own (every character has it) is around everything, a part's around that part. Neighbours of one link share it.
+// (<b> <i>, <s>, <a href>). Underline is always <u>; a color and a size always the one span. A size is never inside a size: the field's
+// own (every character has it) is around everything, a part's around that part. Neighbors of one link share it.
 var TAGS = { bi: false, st: false, link: false };
 var MARKS = [[1, 1, 1], [1, 1, 0], [1, 0, 1], [0, 1, 1], [1, 0, 0], [0, 1, 0], [0, 0, 1]].map(function(x) { return { bi: !!x[0], st: !!x[1], link: !!x[2] }; });   // most of Markdown's own first
 function styledInline(runs, base, put, m) {
@@ -512,7 +512,7 @@ function markdownToBlocks(text, opts) {
     var lines = text.split('\n');
 
     function push(b) { b.id = uid(); blocks.push(b); return b; }
-    // What a file's inline HTML becomes in a text block: the page sanitiser's — its allow-list of tags, and the one span form (a colour, a size step) an export writes
+    // What a file's inline HTML becomes in a text block: the page sanitiser's — its allow-list of tags, and the one span form (a color, a size step) an export writes
     function tidy(html) { return dropEmptySpans(sanitizeHtml(html)).replace(/<p>\s*<\/p>/g, ''); }   // an HTML block inside a paragraph leaves empty pairs behind
     function flushRun() { if (!run.length) return; var html = tidy(run.join('')); run = []; if (html.replace(/<[^>]+>/g, '').trim() || /<pre>/.test(html)) push({ type: 'text', content: html }); }
     function flushInlineImages() { var list = ctx.inlineImages; ctx.inlineImages = []; list.forEach(function(im) { addImage(im.caption, im.dest, im.ref, im.attrs, true); }); }
@@ -674,19 +674,19 @@ function markdownToBlocks(text, opts) {
 function mdEscapeMarks(s) { return String(s).replace(/([\\*_`~\[\]<>])/g, '\\$1').replace(/&(?=#?[A-Za-z0-9]+;)/g, '&amp;'); }
 function mdEscapeLineStart(s) { return String(s).replace(/^(\s*)\{(?=wide\}\s*$)/i, '$1\\{').replace(/^(\s*)([#+\-|])/, '$1\\$2').replace(/^(\s*):/, '$1&#58;').replace(/^(\s*)(\d+)([.)])(\s|$)/, '$1$2\\$3$4'); }
 function mdEscapeText(s) { return mdEscapeLineStart(mdEscapeMarks(s)); }
-// A text block's colour / size span as the sanitiser's one form, written anew from its two values ('' for any other span)
+// A text block's color / size span as the sanitiser's one form, written anew from its two values ('' for any other span)
 function spanTag(attrs) {
     var m = /^\s*style="(?:color:(#[0-9a-f]{6}))?;?(?:font-size:([0-9.]+em))?"\s*$/.exec(attrs || ''), size = m && m[2] && ownKey(SIZE_OF, m[2]) ? m[2] : '';
     return m && (m[1] || size) ? '<span style="' + (m[1] ? 'color:' + m[1] : '') + (m[1] && size ? ';' : '') + (size ? 'font-size:' + size : '') + '">' : '';
 }
-// Sanitized prose HTML back to the dialect (p, br, b/strong, i/em, u, s, ul/ol/li, code, pre, a, and the colour / size span as itself).
+// Sanitized prose HTML back to the dialect (p, br, b/strong, i/em, u, s, ul/ol/li, code, pre, a, and the color / size span as itself).
 // opts.tags === true: bold, italic and strike-through as <b> / <i> / <s> instead of the marks (proseMd: where the marks would not read back).
 // Does [text](address) read back to that very address? The reader takes a destination with balanced parentheses and strips an angle
 // bracket at either end, so an address with a lone ( or ), or one that ends in >, would come back as another address — or as no link.
 function bracketLinkOk(href) { var lk = matchLink('[x](' + href + ')', 0); return !!lk && lk.dest === href && lk.end === href.length + 5 && safeUrl(lk.dest) === href; }
 function htmlToMarkdown(html, opts) {
     var tags = !!opts && opts.tags === true, out = '', hrefs = [], lists = [], inPre = false, inCode = false, re = /<(\/?)([a-z0-9]+)([^>]*)>|([^<]+)/gi, m;
-    // open colour / size spans: written when text follows, closed before a block ends and opened again after it (a span never crosses a paragraph in the file)
+    // open color / size spans: written when text follows, closed before a block ends and opened again after it (a span never crosses a paragraph in the file)
     var spans = [];
     var hold = function() { for (var k = spans.length - 1; k >= 0; k--) if (spans[k].live) { out += '</span>'; spans[k].live = false; } };
     // bold / italic: the mark — or, with opts.tags, the tag; each closes the way it was opened (inside code it is the mark, as ever)
@@ -727,7 +727,7 @@ function htmlToMarkdown(html, opts) {
 function quoteLines(md) { return md.split('\n').map(function(l) { return '> ' + l; }).join('\n'); }
 // A text block's Markdown as its lines in the file; a prose block's (lede, oneline, flare, callout) as its quote
 function proseLines(type, md) { if (type === 'text') return [md]; var l = md.split('\n'); return ['> [!' + type + '] ' + l[0]].concat(l.slice(1).map(function(x) { return '> ' + x; })); }
-// A text or prose block as the dialect's Markdown. Where it holds a colour / size span, Markdown's own bold and italic marks are used only
+// A text or prose block as the dialect's Markdown. Where it holds a color / size span, Markdown's own bold and italic marks are used only
 // where the block reads back as it does with the tags: a mark beside a span's tag can pair up wrongly on the way back in
 // (*<span …>**word**</span>* is read as an italic that ends at the first of the two stars). Else its bold and italic are written as
 // <b> / <i>, which the importer hands to the sanitiser as they are. The same holds with no span at all (a bold part inside an italic is

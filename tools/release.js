@@ -105,7 +105,7 @@ function privateGuard(rootHasPrivate, appHasPrivate, iss) {
 // The installer is compiled from a clean copy of what an install needs, never from this folder. installer.iss packs every file that
 // lies beside it, less its own excludes, and this folder holds more than an install needs: the maintainer's own notes, working copies
 // of the repository, a private folder, and whatever else comes. So the build copies into dist/<version>/stage by name, never by
-// leaving things out: at the top only what an install needs (the launcher, the licence and the notes the installer shows, the README)
+// leaving things out: at the top only what an install needs (the launcher, the license and the notes the installer shows, the README)
 // and installer.iss itself, and the folder system/ whole but for the per-install settings, the updater's own working folders and a
 // private folder. Then it compiles the copy of installer.iss that lies there, as it is. A link or a junction anywhere in what would be
 // copied refuses the build and is named, so nothing outside this folder is ever packed. So does a file of the list that is missing,
@@ -256,7 +256,7 @@ if (SIGNTOOL) {
     console.log('Code-signing the installer (WAYPOINT_SIGNTOOL)...');
     execSync(SIGNTOOL.includes('{file}') ? SIGNTOOL.split('{file}').join(exe) : SIGNTOOL + ' ' + exe, { stdio: 'inherit' });
 } else {
-    console.log('The installer is not code-signed (WAYPOINT_SIGNTOOL is not set): Windows will say it does not recognise the publisher.');
+    console.log('The installer is not code-signed (WAYPOINT_SIGNTOOL is not set): Windows will say it does not recognize the publisher.');
 }
 // 3c. the installer's own signature, over its bytes as they now are (after any code-signing): an install that updates its
 //     own core checks this before it runs the file. The name is part of what is signed, so it never passes for the zip's.

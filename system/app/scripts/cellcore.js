@@ -14,7 +14,7 @@ function cellBox(G) { return G.type === 'square' ? { w: G.size, h: G.size } : { 
 // A piece the cell size moves: a character token, a waiting token, or a piece fitted to the grid. Nothing else (a picture, a drawing, a
 // wall, a text) moves, so the grid can be lined up under a picture
 function cellMoves(w) { return isObj(w) && (w.isChar === true || w.waiting === true || w.gridFit === true) && fin(w.x) && fin(w.y); }
-// A piece on the new lattice: its size by the cells it covered on the old one (one at least), and its centre in the cell under it, or for
+// A piece on the new lattice: its size by the cells it covered on the old one (one at least), and its center in the cell under it, or for
 // a piece of several cells on a square lattice its corner on the nearest line. True when it moved
 function seatOn(w, oldG, newG) {
     var ob = cellBox(oldG), nb = cellBox(newG), ow = fin(w.w) && w.w > 0 ? w.w : ob.w, oh = fin(w.h) && w.h > 0 ? w.h : ob.h;
@@ -29,7 +29,7 @@ function seatOn(w, oldG, newG) {
     w.x = x; w.y = y; w.w = nw; w.h = nh;
     return moved;
 }
-// A list of cells moved from one lattice to the other by each cell's centre, each once
+// A list of cells moved from one lattice to the other by each cell's center, each once
 function rekeyCells(list, oldG, newG) {
     if (!Array.isArray(list)) return list;
     var seen = Object.create(null), out = [];
@@ -68,7 +68,7 @@ function cellChange(map, next, resize) {
     return { changed: true, moved: moved, cell: now };
 }
 // The cell a picture's printed grid gives, from two clicks n cells apart (a, b board points) and the grid type: a square's side is their
-// distance over n with a corner at a; a hex's row is their distance over n down one column with a centre at a. Null where it cannot be read
+// distance over n with a corner at a; a hex's row is their distance over n down one column with a center at a. Null where it cannot be read
 function cellFromClicks(type, a, b, n) {
     if ((type !== 'square' && type !== 'hex') || !isObj(a) || !isObj(b) || !fin(a.x) || !fin(a.y) || !fin(b.x) || !fin(b.y)) return null;
     if (!(n >= 1) || n !== Math.floor(n) || n > 1000) return null;

@@ -508,7 +508,7 @@ function popShow(win, doc, a) {
 // [sinkcheck:runs-start]
 // A text drawn where it is READ, with its look (item 35; lookcore.js). The look is a record that names its text, cleaned here by the rule of
 // the place (opts.rule): a record made for other words, or one that is hostile, draws the text plain. A span for every run, with a strict
-// colour, fixed words for weight, slant, underline and strike, and one of the size steps; a run's link as ONE <a> this makes, with href,
+// color, fixed words for weight, slant, underline and strike, and one of the size steps; a run's link as ONE <a> this makes, with href,
 // target and rel and nothing else, only where the rule takes links (the record came through fieldLook) and the link rule keeps the address
 // as it is. opts.typed: the web addresses typed in the text are links too, where the rule takes links: the very addresses fillLinked finds
 // in the plain text, each whole, whatever looks lie over it; a linked part is never linked twice. opts.ask: the text may be someone else's, so every link in it asks first wherever the element stands (linkWhere reads the mark).

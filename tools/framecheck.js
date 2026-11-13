@@ -1,5 +1,5 @@
 /* Offline check of the token creator's pure core (system/app/scripts/framecore.js): the square a picture is framed to — the middle by
-   default (the old automatic centre crop), always inside the picture, zoomed about a point, moved by a drag — the saved size, the format a
+   default (the old automatic center crop), always inside the picture, zoomed about a point, moved by a drag — the saved size, the format a
    picture is encoded in, the outline guide the grid gives, and a stored framing cleaned. Usage: node tools/framecheck.js (exit 1 on failure) */
 'use strict';
 const path = require('path'), fs = require('fs');
@@ -17,7 +17,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('framecore loads in Node with no window', !!F && !err, err && err.message);
     if (!F) { summed = true; console.log(NL + pass + ' passed, ' + fail + ' failed.'); process.exit(1); }
     const within = (r, w, h) => r.x >= 0 && r.y >= 0 && r.x + r.s <= w + 1e-9 && r.y + r.s <= h + 1e-9;
-    check('the default square is the middle of the picture, its whole short side — exactly the old centre crop (wide, tall, square)',
+    check('the default square is the middle of the picture, its whole short side — exactly the old center crop (wide, tall, square)',
         j(F.defaultRect(400, 200)) === j({ x: 100, y: 0, s: 200 }) && j(F.defaultRect(200, 300)) === j({ x: 0, y: 50, s: 200 }) && j(F.defaultRect(96, 96)) === j({ x: 0, y: 0, s: 96 }) && j(F.defaultRect(101, 50)) === j({ x: 25.5, y: 0, s: 50 }));
     const c1 = F.clampRect({ x: -50, y: 900, s: 5000 }, 400, 200), c2 = F.clampRect({ x: 390, y: 10, s: 1 }, 400, 200), c3 = F.clampRect({ x: 'a', y: NaN, s: Infinity }, 400, 200), c4 = F.clampRect(null, 400, 200), c5 = F.clampRect({ x: 0, y: 0, s: 10 }, 0, 0);
     check('the square always stays inside the picture, no larger than its short side, no smaller than the least square (32 px, or an eighth of a large picture); anything that is not a number is the middle; a picture of no size gives nothing',
@@ -42,9 +42,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         && F.firstFit([{ type: 'image/png', data: big }], 100) === '' && F.firstFit([null, { type: 'image/png' }, 5], 100) === '' && F.firstFit([{ type: 'image/png', data: png }]) === png
         && j(F.ENCODE.map(e => [e.type, e.q || 0, !!e.fill])) === j([['image/png', 0, false], ['image/webp', 0.9, false], ['image/jpeg', 0.85, true]]) && Object.isFrozen(F.ENCODE) && F.ENCODE.every(e => Object.isFrozen(e)));
     const gh = F.guidePath('hexagon', 60, 52), gs = F.guidePath('rect', 50, 50), gc = F.guidePath('circle', 60, 52), gx = F.guidePath('nope', 'a', -1);
-    check('the outline guide over the square (a 100 x 100 box): what a token box shows of a square picture (a wide 60x52 box: a centred band) cut to the grid\'s shape — the hexagon\'s six points, the square\'s whole box, the circle as two arcs; anything else a plain box (a size that is not one: the 60x52 cell)',
+    check('the outline guide over the square (a 100 x 100 box): what a token box shows of a square picture (a wide 60x52 box: a centered band) cut to the grid\'s shape — the hexagon\'s six points, the square\'s whole box, the circle as two arcs; anything else a plain box (a size that is not one: the 60x52 cell)',
         gh === 'M25 6.67L75 6.67L100 50L75 93.33L25 93.33L0 50Z' && gs === 'M0 0H100V100H0Z' && /^M0 50A50 43\.33 0 1 0 100 50A50 43\.33 0 1 0 0 50Z$/.test(gc) && gx === 'M0 6.67H100V93.33H0Z'
-        && F.guidePath('rect', 52, 60) === 'M6.67 0H93.33V100H6.67Z' && F.guidePath('hexagon', 52, 60) === 'M28.33 0L71.67 0L93.33 50L71.67 100L28.33 100L6.67 50Z', j([gh, gs, gc, gx]));   // a tall box: a centred upright band
+        && F.guidePath('rect', 52, 60) === 'M6.67 0H93.33V100H6.67Z' && F.guidePath('hexagon', 52, 60) === 'M28.33 0L71.67 0L93.33 50L71.67 100L28.33 100L6.67 50Z', j([gh, gs, gc, gx]));   // a tall box: a centered upright band
     const css = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
     check('the guide\'s hexagon is the grid\'s own (the same points the map cuts a picture token to)', /\.wb-item\.image\.tok-pic-hexagon > img \{ clip-path: polygon\(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%\); \}/.test(css));
     check('the stage stays square on a short window (it never shrinks in the column; a short window scrolls the box instead), so the preview is what OK saves',
@@ -137,15 +137,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     const kp2 = mkFramer(), kp2Got = []; kp2.api.open(FILE, {}, r => kp2Got.push(r)); kp2.els.frameKeep.checked = true; const kp2Show = kp2.els.frameKeepRow.style.display; kp2.api.finish();
     check('the creator (run for real): "Keep the original" shows only when the caller offers it (as it was set) and is reported only then; the title is text, at most 80 characters',
         kpShow === '' && kpGot[0].keep === true && kp2Show === 'none' && kp2Got[0].keep === false && kpTitle === 80);
-    // 1.6.2 (backlog 141): a picture made a token, trimmed and centred, and the size a token's picture is best at
+    // 1.6.2 (backlog 141): a picture made a token, trimmed and centered, and the size a token's picture is best at
     const pic = (w, h, paint, bg) => { const px = new Uint8ClampedArray(w * h * 4); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = (y * w + x) * 4, c = paint(x, y) || bg || [0, 0, 0, 0]; px[i] = c[0]; px[i + 1] = c[1]; px[i + 2] = c[2]; px[i + 3] = c[3]; } return px; };
     const RED = [200, 20, 20, 255], WHITE = [255, 255, 255, 255];
     const tr1 = F.trimRect(pic(100, 100, (x, y) => x >= 30 && x < 70 && y >= 20 && y < 80 ? RED : null), 100, 100);
     const tr2 = F.trimRect(pic(100, 100, (x, y) => x >= 10 && x < 40 && y >= 10 && y < 40 ? RED : null, WHITE), 100, 100);
     const tr3 = F.trimRect(pic(100, 100, () => RED), 100, 100), tr4 = F.trimRect(pic(100, 100, () => null), 100, 100), tr5 = F.trimRect(pic(100, 100, (x, y) => x >= 1 && y >= 1 && x < 99 && y < 99 ? RED : null), 100, 100);
     const tr6 = F.trimRect(pic(100, 100, (x, y) => (x < 2 && y < 2) ? [0, 0, 255, 255] : x >= 30 && x < 70 ? RED : null, WHITE), 100, 100);
-    check('a picture made a token: its see-through border is trimmed and the rest centred in a square that may reach past it (backlog 141)', j(tr1) === j({ bx: 30, by: 20, bw: 40, bh: 60, s: 60, x: 20, y: 20 }), j(tr1));
-    check('... a border all of the colour of its four corners is trimmed too, and one of mixed corners is not (it may be a photograph)', j(tr2) === j({ bx: 10, by: 10, bw: 30, bh: 30, s: 30, x: 10, y: 10 }) && tr6 === null, j([tr2, tr6]));
+    check('a picture made a token: its see-through border is trimmed and the rest centered in a square that may reach past it (backlog 141)', j(tr1) === j({ bx: 30, by: 20, bw: 40, bh: 60, s: 60, x: 20, y: 20 }), j(tr1));
+    check('... a border all of the color of its four corners is trimmed too, and one of mixed corners is not (it may be a photograph)', j(tr2) === j({ bx: 10, by: 10, bw: 30, bh: 30, s: 30, x: 10, y: 10 }) && tr6 === null, j([tr2, tr6]));
     check('... nothing to trim, a picture that is all border, a border no wider than a fiftieth of its side and bytes that are none give null', tr3 === null && tr4 === null && tr5 === null && F.trimRect(null, 10, 10) === null && F.trimRect(new Uint8ClampedArray(8), 10, 10) === null && F.trimRect(pic(4, 4, () => RED), 4.5, 4) === null, j([tr3, tr4, tr5]));
     check('... the size a token\'s picture is best at, by the map\'s grid, in plain words', /^For a token, a square picture of 256 pixels or more fits best\.$/.test(F.sizeTip('square')) && /hexagon is cut from the middle/.test(F.sizeTip('hex')) && /circle is cut from the middle/.test(F.sizeTip('off')) && /circle/.test(F.sizeTip(undefined)));
     const sz1 = mkFramer({ map: { id: 'm', type: 'map', meta: { gridType: 'hex' } }, w: 400, h: 300 }); sz1.api.open(FILE, {}, () => {}); const sz1T = sz1.els.frameSize.textContent; sz1.api.finish();

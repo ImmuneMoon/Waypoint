@@ -142,7 +142,7 @@ function draw() {
     for (var i = from; i < to; i++) (function(x, i) {
         if (x.hdr) { var hd = el('div', 'lib-pick-hdr', x.hdr); hd.style.top = (i * ROW_H) + 'px'; sp.appendChild(hd); return; }
         var once = isOnce(x), no = !once && cant(x), r = el('button', 'lib-row lib-pick-row' + (i === st.hi ? ' hi' : '') + (st.picked[x.e.id] ? ' on' : '') + (once ? ' once' : '') + (no ? ' cant' : '')); r.type = 'button'; r.style.top = (i * ROW_H) + 'px';
-        if (once) r.title = 'Already on the list'; else if (no) r.title = cantText(x);   // 126b: greyed out, and it says why
+        if (once) r.title = 'Already on the list'; else if (no) r.title = cantText(x);   // 126b: grayed out, and it says why
         r.appendChild(el('span', 'lib-row-ico', x.e.icon && !/^icon:/.test(x.e.icon) ? x.e.icon : ''));
         r.appendChild(el('span', 'lib-row-name', x.e.name));
         if (gmOnly(x)) r.appendChild(el('span', 'sheet-chip sheet-chip-gm', 'GM'));
@@ -194,7 +194,7 @@ function doAdd(stay) {
     var opts = st.opts, packOf = {}; ids.forEach(function(id) { for (var i = 0; i < st.all.length; i++) if (st.all[i].e.id === id) { packOf[id] = st.all[i].p.id; break; } });
     try { opts.onAdd(ids, q, packOf); } catch (e) { console.error(e); }
     if (!stay) { close(); return; }
-    if (opts.once) ids.forEach(function(id) { opts.once[id] = 1; });   // a list that holds each once: what was just added greys out
+    if (opts.once) ids.forEach(function(id) { opts.once[id] = 1; });   // a list that holds each once: what was just added grays out
     st.picked = map(); st.els.hint.textContent = 'Added ' + (ids.length === 1 ? 'one' : ids.length) + '. Enter adds · Shift+Enter adds and stays open';
     if (opts.once) filter(); else { draw(); addLabel(); }
 }

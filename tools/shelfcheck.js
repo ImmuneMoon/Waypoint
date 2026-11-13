@@ -401,7 +401,7 @@ const drawSrc = sliceOf(ps, 'draw');
 /* ---------- the shelf keeps inside the window (1.5.4, backlog 144 (b); found live: 46 px past its right edge in a window 1000 px wide) ---------- */
 {
     const wireSrc = sliceOf(ps, 'wire');
-    // the shelf as a box laid out round its button: centred on it by the style sheet, then moved by its own left margin
+    // the shelf as a box laid out round its button: centered on it by the style sheet, then moved by its own left margin
     const mkMenu = (left, width) => ({ style: { marginLeft: '' }, getBoundingClientRect() { const l = left + (parseFloat(this.style.marginLeft) || 0); return { left: l, right: l + width, top: 300, bottom: 700, width: width, height: 400 }; } });
     const fitWith = (W, left, width) => { const m = mkMenu(left, width); new Function('window', wireSrc + '\nreturn shelfFit;')({ innerWidth: W })(m); return [m.style.marginLeft, Math.round(m.getBoundingClientRect().left), Math.round(m.getBoundingClientRect().right)]; };
     const fits = [fitWith(1000, 716, 330), fitWith(1000, -40, 330), fitWith(1000, 300, 330), fitWith(1000, 662, 330), fitWith(300, 100, 330), fitWith(0, 716, 330)];
@@ -963,7 +963,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
             && ps.includes("window.wpPageShelf.sheetCard = function(w) { return mapPinGm() ? sheetCardFor(getActiveCampaign(), w) : null; }; window.wpPageShelf.sheetDrop = sheetCardsDrop;")
             && /\n\s*\.wb-item > \.wb-pin\.wb-pin-card::before \{ content: none; \}\n\s*\.wb-item > \.wb-pin\.wb-pin-card > \.wib \{ color: var\(--ink\);/.test(read('style.css')), J([L1, L2, L3, L4]));
     }
-    check('the board asks these and nothing else: the mark is synced for every piece as the map is drawn, after its effect icons; the row is built from the selection and its press opens by the rule with the keys held; the mark keeps its size at any zoom and is centred on the piece\'s corner, so it takes a corner of a small token and no more',
+    check('the board asks these and nothing else: the mark is synced for every piece as the map is drawn, after its effect icons; the row is built from the selection and its press opens by the rule with the keys held; the mark keeps its size at any zoom and is centered on the piece\'s corner, so it takes a corner of a small token and no more',
         count(wb, "          } else if (fxEl) fxEl.remove();\n          pagePinSync(el, item, hideFromMe);") === 1
         && count(wb, "                var ppRow = pagePinRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));") === 1 && count(wb, "                if (ppRow) html += ppRow.html;\n                var drRow = doorRows(") === 1
         && count(wb, "                } else if (action.includes('cm-open-page')) {") === 1 && count(wb, "                    if (ppDo && window.wpPageShelf) { if (ppDo.at) window.wpPageShelf.open(ppDo.id, window.wpPageShelf.wayNow(ce), { at: ppDo.at }); else window.wpPageShelf.open(ppDo.id, window.wpPageShelf.wayNow(ce)); }   // 1.6.0: at the part the pin names") === 1   /* 1.6.0: a pin's part (moved on purpose) */
@@ -1407,7 +1407,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     doc.body.appendChild(modal);
     const win = { getComputedStyle: e => ({ display: e.style.display === 'none' || (e.className.split(' ').indexOf('gm-only') >= 0) ? 'none' : 'block' }) };
     const S = new Function(setSrc + '\nreturn { rows: setRows, control: setControl, words: setWords };')(), rows = S.rows(doc, win);
-    check('Settings\' options are read from the page as it stands: a group by its heading, an option by its own words alone (never the state beside it, its grey line, a list\'s choices, a control\'s words or a leading picture), a long name without what its bracket adds, a button only where its grey line stands under it; one put away (a GM\'s on a player\'s app, a hidden row, a hidden group) is not found, and the same words twice in one place are found once',
+    check('Settings\' options are read from the page as it stands: a group by its heading, an option by its own words alone (never the state beside it, its gray line, a list\'s choices, a control\'s words or a leading picture), a long name without what its bracket adds, a button only where its gray line stands under it; one put away (a GM\'s on a player\'s app, a hidden row, a hidden group) is not found, and the same words twice in one place are found once',
         J(rows.map(r => [r.name, r.sub, r.group])) === J([['Table', 'Settings', 'table'], ['Grid opacity', 'Settings \u25b8 Table', 'table'], ['Reduce motion (this machine)', 'Settings \u25b8 Table', 'table'], ['Effect timers', 'Settings \u25b8 Table', 'table'],
             ['Stream window plays the table\'s sound', 'Settings \u25b8 Table', 'table'], ['Reset Panel Layout', 'Settings \u25b8 Table', 'table']]) && S.rows({ getElementById: () => null }, win).length === 0, J(rows.map(r => [r.name, r.sub])));
     check('an option opens at the control it is set with: a name\'s control under it, the box or the list in its label, a button itself, a group by its heading',
@@ -1638,7 +1638,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && cm.includes("heldNow: function() { return hotkeyHeld(document, window, { target: document.activeElement }); },") && cm.includes("var c = cmdById(id), how = via === 'key' || via === 'pad' || via === 'mouse' ? via : 'jump';")   /* 1.6.2: and a mouse press, moved on purpose */ && cm.includes("pad.className = 'tool ghost set-pad';") && cm.includes('window.wpPad.reset();')
         && ix.includes('<li><b>A game controller</b> works once it is plugged in and a button is pressed.') && ix.includes('<li>LB and RB turn the token, A selects the next token of yours, and Y ends your turn.</li>') && /\n\s*\.set-key-row \.set-pad \{ flex: none;/.test(css));
     const sA = ix.indexOf('<details class="set-group" data-group="keys">'), keysHtml = sA > 0 ? ix.slice(sA, ix.indexOf('</details>', sA)) : '';
-    check('Settings has a Keys group of its own after Table: the rows\' list, a grey line that says how, the line that says what was done, read aloud, and Restore Default Keys with its line; the module draws the rows and wires the button, and draws again as Settings opens',
+    check('Settings has a Keys group of its own after Table: the rows\' list, a gray line that says how, the line that says what was done, read aloud, and Restore Default Keys with its line; the module draws the rows and wires the button, and draws again as Settings opens',
         keysHtml.includes('<summary>Keys</summary>') && keysHtml.includes('<div id="setKeysList" class="set-keys"') && keysHtml.includes('<div id="setKeysSay" class="set-keys-say" role="status" aria-live="polite"></div>') && keysHtml.includes('>Restore default keys</button>')
         && ix.indexOf('data-group="screen"') < sA && sA < ix.indexOf('data-group="vtt"')   /* 1.6.2, backlog 171: after On my screen, moved on purpose */ && cm.includes("var reset = document.getElementById('setKeysResetBtn'); if (reset) reset.addEventListener('click', function() { keysReset(document); });")
         && cm.includes("var open = document.getElementById('settingsBtn'); if (open) open.addEventListener('click', function() { keysDraw(document); keysSay(document, ''); });") && /\n\s*\.set-key-row \{ display: flex;/.test(css) && /\n\s*\.set-key\.hk-picking \{/.test(css));
@@ -1708,11 +1708,11 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     const camp = { items: {
         p1: { type: 'planner', meta: { title: 'Act one' }, blocks: [
             { id: 'h_a', type: 'h2', title: 'Opening' },
-            { id: 'b_vey', type: 'node', kind: 'person', title: 'Captain <b>Vey</b>', aka: ['the Harbour Wolf'], must: 'Captain Vey wants the manifest' },
+            { id: 'b_vey', type: 'node', kind: 'person', title: 'Captain <b>Vey</b>', aka: ['the Harbor Wolf'], must: 'Captain Vey wants the manifest' },
             { id: 'b_dock', type: 'node', title: 'The dock', rows: [{ col1: 'Talk', col2: 'CAPTAIN  Vey waits here' }] },
             { id: 'b_x', type: 'text', content: '<p>The captaincy is open. Veyra is not her.</p>' },
             { id: 'h_b', type: 'h2', title: 'Later' },
-            { id: 'bad id', type: 'text', content: 'They call her the harbour wolf.' }] },
+            { id: 'bad id', type: 'text', content: 'They call her the harbor wolf.' }] },
         p2: { type: 'planner', meta: { title: 'Act 10' }, blocks: [{ id: 'b_1', type: 'callout', content: 'Then <i>C\u00e1ptain</i> V\u00e9y returns.' }] },
         p3: { type: 'planner', meta: { title: 'Act 2' }, blocks: [{ id: 'b_f', type: 'flowchart', nodes: [{ id: 'n1', text: 'Meet Captain Vey' }] }, { id: 'b_p', type: 'image', caption: 'Captain Vey, drawn' }] },
         d1: { type: 'doc', meta: { title: 'Rules' }, blocks: [{ id: 'b_r', type: 'table', title: 'Crew', cols: ['Name'], rows: [['captain vey'], ['Mr. (X)']] }] },
@@ -1720,17 +1720,17 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         m1: { type: 'map', meta: { title: 'Captain Vey' }, whiteboard: [] },
         junk: 'Captain Vey'
     } };
-    const A = mkN({ camp }), names = ['Captain Vey', 'the Harbour Wolf'], self = { id: 'p1', at: 'b_vey' };
+    const A = mkN({ camp }), names = ['Captain Vey', 'the Harbor Wolf'], self = { id: 'p1', at: 'b_vey' };
     const found = A.N.namedIn(camp, names, self);
     check('Mentioned in finds the pages and planners that name a card (namedIn, run for real): by its name or another name of it, as a whole word, whatever the case, the accents, the markup around it or the spaces inside it; in a title, a line, a text, a table\'s cells, a caption and a chart\'s label; the card itself is passed over; each page once, with the first block that names it, the card or section that block stands in and how many blocks do; pages in their natural order; a map and what is no page never',
         J(found) === J([{ id: 'p3', type: 'planner', title: 'Act 2', at: 'b_f', where: '', n: 2, q: 'Captain Vey' }, { id: 'p2', type: 'planner', title: 'Act 10', at: 'b_1', where: '', n: 1, q: 'Captain Vey' }, { id: 'p1', type: 'planner', title: 'Act one', at: 'b_dock', where: 'The dock', n: 2, q: 'Captain Vey' }, { id: 'd1', type: 'doc', title: 'Rules', at: 'b_r', where: '', n: 1, q: 'Captain Vey' }]), J(found));
-    const noSelf = A.N.namedIn(camp, names), lit = A.N.namedIn(camp, ['Mr. (X)']), short = A.N.namedIn(camp, ['Al', 'ey', '']), wolf = A.N.namedIn(camp, ['the Harbour Wolf'], self);
+    const noSelf = A.N.namedIn(camp, names), lit = A.N.namedIn(camp, ['Mr. (X)']), short = A.N.namedIn(camp, ['Al', 'ey', '']), wolf = A.N.namedIn(camp, ['the Harbor Wolf'], self);
     const many = { items: {} }; for (let i = 0; i < 60; i++) many.items['p' + i] = { type: 'planner', meta: { title: 'P' + i }, blocks: [{ id: 'b', type: 'text', content: 'Kael was here' }] };
     const cyr = A.N.namedIn({ items: { a: { type: 'doc', meta: { title: 'A' }, blocks: [{ id: 'b1', type: 'text', content: '\u0410\u043d\u043d\u0430\u0431\u0435\u043b\u044c' }, { id: 'b2', type: 'text', content: '\u0410\u043d\u043d\u0430 \u0437\u0434\u0435\u0441\u044c' }] } } }, ['\u0410\u043d\u043d\u0430']);
     let threw = false, odd = []; try { odd = [A.N.namedIn(null, names), A.N.namedIn({}, names), A.N.namedIn({ items: 5 }, names), A.N.namedIn(camp, null), A.N.namedIn(camp, [null, 5, {}]), A.N.namedIn(camp, 'Captain Vey', { id: 5 }), A.N.namedIn({ items: { a: { type: 'doc', blocks: 'x' }, b: { type: 'doc', blocks: [{ type: 'text', content: 5, rows: 'x', cols: 7, nodes: {}, aka: 'Captain Vey' }] } } }, names)].map(x => x.length); } catch (e) { threw = String(e); }
     check('with no card passed over its own block counts; a name with marks a pattern would read is found as written; a name of fewer than three letters finds nothing; a block with an id that is no block id is found and opens by the words; a word inside a longer word of any alphabet is no hit; forty pages at most; a campaign, a name or a block of any shape throws nothing',
         noSelf.filter(r => r.id === 'p1')[0].at === 'b_vey' && noSelf.filter(r => r.id === 'p1')[0].n === 3 && J(lit.map(r => r.id)) === J(['d1']) && short.length === 0
-        && J(wolf) === J([{ id: 'p1', type: 'planner', title: 'Act one', at: '', where: 'Later', n: 1, q: 'the Harbour Wolf' }]) && A.N.namedIn(many, ['Kael']).length === 40 && cyr.length === 1 && cyr[0].at === 'b2' && cyr[0].n === 1
+        && J(wolf) === J([{ id: 'p1', type: 'planner', title: 'Act one', at: '', where: 'Later', n: 1, q: 'the Harbor Wolf' }]) && A.N.namedIn(many, ['Kael']).length === 40 && cyr.length === 1 && cyr[0].at === 'b2' && cyr[0].n === 1
         && threw === false && J(odd) === J([0, 0, 0, 0, 0, 4, 0]), J([noSelf, lit, short, wolf, cyr, threw, odd]));
     // the button's press and the menu, on a page that refuses markup
     const mkBtn = (X, page, at) => { const p = X.doc.createElement('p'); p.className = 'pv-linkrow pv-ment-row'; const b = X.doc.createElement('button'); b.className = 'tool ghost pv-ment'; b.dataset.page = page; b.dataset.at = at; b.rect = { left: 700, top: 560, right: 790, bottom: 584 }; p.appendChild(b); X.doc.body.appendChild(p); return b; };

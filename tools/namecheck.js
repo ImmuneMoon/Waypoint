@@ -17,7 +17,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     const seq = vals => { let i = 0; return () => vals[i++ % vals.length]; };
     // the maker
     const made = N.STYLE_KEYS.map(k => N.makeName(seq([0, 0, 0]), k));
-    check('the maker makes a name in each style from its own pieces, capitalised, first pieces with a zero draw', J(made) === J(['Aelara', 'Bragak', 'Alaric', 'Ashbrook']), J(made));
+    check('the maker makes a name in each style from its own pieces, capitalized, first pieces with a zero draw', J(made) === J(['Aelara', 'Bragak', 'Alaric', 'Ashbrook']), J(made));
     let okAll = true; for (let i = 0; i < 2000; i++) { const r = Math.random, k = N.STYLE_KEYS[i % 4], n = N.makeName(r, k); if (!/^[A-Z][a-z]{2,15}$/.test(n)) { okAll = false; break; } }
     check('... 2,000 made names are each one word of 3 to 16 letters, a capital first', okAll);
     check('... with no style a person kind is one of the three person styles and a place kind the place style; a source that is no function or answers out of range reads 0', /^(Ae|Br|Al)/.test(N.makeName(seq([0.5, 0, 0, 0]), null, 'person')) && N.makeName(seq([0, 0, 0]), null, 'place') === 'Ashbrook' && N.makeName(() => 7, 'soft') === 'Aelara' && N.makeName(() => NaN, 'hard') === 'Bragak' && typeof N.makeName(null, 'old') === 'string');

@@ -25,7 +25,7 @@ var SETS = [
 ];
 var PAT_NUM = { solid: 0, marble: 1, speckle: 2, two: 3 }, DROP = 0.55;
 // the painter's patterns: the stored word, its name and what it does
-var PATS = [['solid', 'Solid', 'One colour.'], ['marble', 'Marbled', 'Swirls of the second colour through the first.'], ['speckle', 'Speckled', 'Small flecks of the second colour.'], ['two', 'Two-tone', 'One colour fading into the second across the die.']];
+var PATS = [['solid', 'Solid', 'One color.'], ['marble', 'Marbled', 'Swirls of the second color through the first.'], ['speckle', 'Speckled', 'Small flecks of the second color.'], ['two', 'Two-tone', 'One color fading into the second across the die.']];
 // a look as it is drawn: a roll's own where it cleans, else the Waypoint set
 function lookOf(v) { var l = cleanDiceLook(v); return l || { b: SETS[0].b, t: SETS[0].t, n: SETS[0].n, p: SETS[0].p }; }
 // a design's place on each face: a quad behind the number, a little closer to the face than it, its corners on the whole picture (a round mask cuts it to a medallion)
@@ -37,10 +37,10 @@ function designMesh(shape) {
     });
     return { pos: pos, nrm: nrm, uv: uv };
 }
-// the ready set a look is, where every colour and the pattern are that set's; '' for a look of your own
+// the ready set a look is, where every color and the pattern are that set's; '' for a look of your own
 function setOf(look) { var l = cleanDiceLook(look); if (!l) return ''; for (var i = 0; i < SETS.length; i++) { var s = SETS[i]; if (l.b === s.b && l.t === s.t && l.n === s.n && l.p === s.p && !l.e && !l.d) return s.name; } return ''; }
 function rgbOf(h) { return [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255]; }
-// the colours a die is drawn in, each darker on a die the roll dropped
+// the colors a die is drawn in, each darker on a die the roll dropped
 function shadeOf(look, dropped) { var l = lookOf(look), k = dropped ? DROP : 1, m = function(h) { return rgbOf(h).map(function(v) { return v * k; }); }; return { body: m(l.b), two: m(l.t), edge: m(l.e || l.b), num: m(l.n), pat: PAT_NUM[l.p] || 0, dim: k }; }
 function modeOf(v) { return v === 'map' || v === 'off' ? v : 'card'; }
 // which rolls tumble: a card with dice it can show, never one sent to the GM unseen, never in a window of its own or the stream window
@@ -97,7 +97,7 @@ function canvasOf() {
 }
 var VS = 'precision mediump float; attribute vec3 aPos; attribute vec3 aNrm; attribute float aPart; attribute vec2 aUv; uniform mat4 uMvp; uniform mat3 uRot;'
     + ' varying vec3 vN; varying vec3 vP; varying float vPart; varying vec2 vUv; void main() { gl_Position = uMvp * vec4(aPos, 1.0); vN = uRot * aNrm; vP = aPos; vPart = aPart; vUv = aUv; }';
-// the patterns, worked out on the die's own surface so that they turn with it: marbled swirls, specks, and a fade from one colour to the other
+// the patterns, worked out on the die's own surface so that they turn with it: marbled swirls, specks, and a fade from one color to the other
 var FS = 'precision mediump float; varying vec3 vN; varying vec3 vP; varying float vPart; varying vec2 vUv; uniform float uTex; uniform sampler2D uAtlas; uniform sampler2D uDesign; uniform float uDim; uniform float uHalo; uniform vec3 uHaloCol; uniform vec3 uBody; uniform vec3 uTwo; uniform vec3 uEdge; uniform vec3 uNum; uniform float uPat; uniform vec3 uLight;'
     + ' float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }'
     + ' vec3 bodyAt(vec3 p) { if (uPat < 0.5) return uBody;'
@@ -212,7 +212,7 @@ function rigFrame(rig) {
     var L = [-0.42, 0.52, 0.74], ll = Math.hypot(L[0], L[1], L[2]);
     gl.uniform3f(gl.getUniformLocation(P, 'uLight'), L[0] / ll, L[1] / ll, L[2] / ll); gl.uniform1i(gl.getUniformLocation(P, 'uAtlas'), 0); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, rig.atlas);
 }
-// one die: its body in the look's colours and pattern, then its numbers
+// one die: its body in the look's colors and pattern, then its numbers
 function dieDraw(rig, b, R, MVP, cols, dTex) {
     var gl = rig.gl, P = rig.prog, un = function(n) { return gl.getUniformLocation(P, n); }, at = function(n) { return gl.getAttribLocation(P, n); };
     var aPos = at('aPos'), aNrm = at('aNrm'), aPart = at('aPart'), aUv = at('aUv');
@@ -222,7 +222,7 @@ function dieDraw(rig, b, R, MVP, cols, dTex) {
     gl.uniform1f(un('uTex'), 0); bind(aPos, b.pos, 3); bind(aNrm, b.nrm, 3); bind(aPart, b.part, 1); if (aUv >= 0) { gl.disableVertexAttribArray(aUv); gl.vertexAttrib2f(aUv, 0, 0); }
     gl.drawArrays(gl.TRIANGLES, 0, b.n);
     if (dTex && b.dsp) { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, dTex); gl.uniform1i(un('uDesign'), 1); gl.uniform1f(un('uDim'), typeof cols.dim === 'number' ? cols.dim : 1); gl.uniform1f(un('uTex'), 2); bind(aPos, b.dsp, 3); bind(aNrm, b.dsn, 3); if (aPart >= 0) { gl.disableVertexAttribArray(aPart); gl.vertexAttrib1f(aPart, 0); } bind(aUv, b.dsu, 2); gl.drawArrays(gl.TRIANGLES, 0, b.dsc); gl.activeTexture(gl.TEXTURE0); }   // the owner's design, behind the number
-    var lum = 0.299 * cols.num[0] + 0.587 * cols.num[1] + 0.114 * cols.num[2]; gl.uniform1f(un('uHalo'), dTex && b.dsp ? 1 : 0); gl.uniform3fv(un('uHaloCol'), lum > 0.4 ? [0.07, 0.07, 0.09] : [0.95, 0.93, 0.9]);   // with a design behind, each number outlined in a colour against its own
+    var lum = 0.299 * cols.num[0] + 0.587 * cols.num[1] + 0.114 * cols.num[2]; gl.uniform1f(un('uHalo'), dTex && b.dsp ? 1 : 0); gl.uniform3fv(un('uHaloCol'), lum > 0.4 ? [0.07, 0.07, 0.09] : [0.95, 0.93, 0.9]);   // with a design behind, each number outlined in a color against its own
     if (b.dpos) { gl.uniform1f(un('uTex'), 1); bind(aPos, b.dpos, 3); bind(aNrm, b.dnrm, 3); if (aPart >= 0) { gl.disableVertexAttribArray(aPart); gl.vertexAttrib1f(aPart, 2); } bind(aUv, b.duv, 2); gl.drawArrays(gl.TRIANGLES, 0, b.dn); }
 }
 function drawGl(cv, sh, t, r, fit) {

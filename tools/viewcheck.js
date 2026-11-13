@@ -115,7 +115,7 @@ const help = ix.slice(ix.indexOf('<h4>Turning with your token</h4>'));
 check('Help says it, and both release notes', ix.includes('<h4>Turning with your token</h4>') && help.includes('<b>Turn with my token</b>')
     && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n').includes('- Turn with my token, in the View menu, turns the map under the token you\n')));
 
-check('folds 3 and 4 are wired: the body says the view is turned and the rulers step aside by visibility alone, the minimap frames and draws the turned screen and a press on it centres a point where the board draws it, a corner compass turns with the map and its rose reads north back with the turn taken off',
+check('folds 3 and 4 are wired: the body says the view is turned and the rulers step aside by visibility alone, the minimap frames and draws the turned screen and a press on it centers a point where the board draws it, a corner compass turns with the map and its rose reads north back with the turn taken off',
     viewSrc.includes("document.body.classList.toggle('view-turned', isTurned());") && read('style.css').includes('body.view-turned #rulerTop, body.view-turned #rulerLeft, body.view-turned #rulerCursorX, body.view-turned #rulerCursorY { visibility: hidden; }')
     && main.includes('window.wpView.screenRect ? window.wpView.screenRect() : null;') && main.includes('wrap.scrollLeft = tv ? tv.x - wrap.clientWidth / 2 : wx * z - wrap.clientWidth / 2;') && viewSrc.includes('window.renderMinimap();')
     && viewSrc.includes("rose.classList.contains('compass-map') || !r ? ''") && read('scripts/compass.js').includes('n = ((Math.round(n - window.wpView.deg()) % 360) + 360) % 360;'));

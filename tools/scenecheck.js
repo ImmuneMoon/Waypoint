@@ -217,7 +217,7 @@ check('the handout a scene is saved as (handouts.js wpHandoutFor): the one named
         fn(); return { camp, out };
     };
     const y = run(3, true), no = run(2, false), none = run(0, true), one = run(1, true);
-    check('the Handouts window\'s Clear all (handouts.js handoutsClearAll, run for real): asked first by count with Enter answering nothing, every handout of the campaign gone with a room\'s handout, saved and drawn once and said; No keeps them all; none to clear said; the button in the window, greyed with nothing to clear',
+    check('the Handouts window\'s Clear all (handouts.js handoutsClearAll, run for real): asked first by count with Enter answering nothing, every handout of the campaign gone with a room\'s handout, saved and drawn once and said; No keeps them all; none to clear said; the button in the window, grayed with nothing to clear',
         J(Object.keys(y.camp.handouts)) === '[]' && y.out.asked.length === 1 && y.out.asked[0][0] === 'Delete all 3 handouts of this campaign? Players keep what they were already shown.' && y.out.asked[0][1].noEnter === true && y.out.asked[0][1].yes === 'Delete all'
         && !('handoutId' in y.camp.items.m1.rooms[0]) && y.camp.items.m1.rooms[1].handoutId === 'other' && J(y.out.barrier) === J([['m1']]) && y.out.saves === 1 && y.out.drawn === 1 && J(y.out.toasts) === J(['All 3 handouts are gone. Players keep what they were already shown.'])
         && Object.keys(no.camp.handouts).length === 2 && no.out.saves === 0 && no.camp.items.m1.rooms[0].handoutId === 'h0'

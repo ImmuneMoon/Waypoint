@@ -145,7 +145,7 @@ function rememberTableSeen(gmId, np) {
     try { localStorage.setItem('wp_tablesSeen', JSON.stringify(s)); } catch (e) {}
 }
 // The key is PROVEN, never sent: the host challenges with a fresh nonce and the player answers with HMAC-SHA256(key, authData(nonce, the room id
-// they dialled)); the host checks it over its own room id. A proof made at another room (a squatted generation of the code, another GM's table
+// they dialed)); the host checks it over its own room id. A proof made at another room (a squatted generation of the code, another GM's table
 // relaying the challenge) or for another nonce never verifies here, and the key itself never travels. Without WebCrypto there is no proof:
 // the host then asks the GM and the player sends none (fail closed).
 // Transport (2026-10-01): the proof is bound to the encrypted channel it travels on as well — the two DTLS certificate fingerprints of this
@@ -244,7 +244,7 @@ function safeAvatar(v) { return typeof v === 'string' && v.length <= 200000 && /
 function cleanRosterName(v) { var s = typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '').trim().slice(0, 40) : ''; return s || 'Player'; }
 // Onboarding F3: a character's name a player chose — the same characters out (control, bidi-override, zero-width), trimmed, at most 60; '' when blank
 function cleanCharName(v) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60).trim() : ''; }
-// Onboarding F1b: a player's token FACE — 'photo' (their profile picture), 'default' (the silhouette on their colour), 'pic:<name>' (one of
+// Onboarding F1b: a player's token FACE — 'photo' (their profile picture), 'default' (the silhouette on their color), 'pic:<name>' (one of
 // the bundled token pictures, by name from this fixed list), or ONE emoji: a pictograph (with its variation selector or skin tone), joined to
 // more only by the zero-width joiner — anything else is refused whole (''), never trimmed: no letters, digits, markup or control characters,
 // no run of several emoji and nothing invisible (a joiner or a selector alone).
@@ -422,7 +422,7 @@ function cleanHostTokSenses(w) { var FCs = window.wpFogCore, mine = !!w.ownerId 
 // app draws (systemcore cleanIcon), a tone of the two words; only on a character token; with no cleaner on hand they do not come in
 function cleanHostFxb(w) { var S = window.wpSystemCore, out = []; if (w.isChar && S && S.cleanIcon && Array.isArray(w.fxb)) w.fxb.slice(0, 8).forEach(function(e) { if (!e || typeof e !== 'object' || typeof e.n !== 'string') return; var n = e.n.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, ' ').trim().slice(0, 60); if (n) out.push({ n: n, i: S.cleanIcon(e.i), t: e.t === 'buff' || e.t === 'debuff' ? e.t : '' }); }); if (out.length) w.fxb = out; else delete w.fxb; }
 // Backlog 28: a token's bars everyone is shown, as the host sent them, cleaned again (systemcore cleanBarFigs: two at most, numbers, a plain
-// label, a colour); only on a token; a token's own list never comes in, and with no cleaner on hand nothing does
+// label, a color); only on a token; a token's own list never comes in, and with no cleaner on hand nothing does
 function cleanHostBars(w) { var S = window.wpSystemCore, tb = w.isChar && !w.waiting && S && S.cleanBarFigs ? S.cleanBarFigs(w.tbr) : []; delete w.bars; if (tb.length) w.tbr = tb; else delete w.tbr; }
 // Backlog 28: the bars of this player's own tokens shown to their owner alone, by map, as the host last said them (tokBars): kept in memory beside
 // the map, never on it and never saved; cleaned again, a token's id as a fogged map's are, at most OWN_BARS_MAX tokens a map, only for a map of
@@ -838,7 +838,7 @@ function wireWbItem(w, cloned) {
     if (!cloned) w = JSON.parse(JSON.stringify(w), wireNum);
     // The map builder, a secret door: the players hold a WALL there until it is found (fogcore secretSeen: no door type, never open, no lock, no
     // group, no name and no picture, in the look the GM named for it or the Wall material's). The door's own look never leaves the host
-    // before that. The tick and the look named for it are the GM's and never travel, on any piece: the colour and the pattern, and for a door
+    // before that. The tick and the look named for it are the GM's and never travel, on any piece: the color and the pattern, and for a door
     // drawn as a line the width, opacity and nib that Match set. With no core at hand a secret door is still sent as a wall
     if (w.secret !== undefined || w.seenColor !== undefined || w.seenTexture !== undefined || w.seenWidth !== undefined || w.seenOpacity !== undefined || w.seenTip !== undefined) {
         var FCs = typeof window === 'object' && window ? window.wpFogCore : null;
@@ -853,7 +853,7 @@ function wireWbItem(w, cloned) {
         }
         delete w.secret; delete w.seenColor; delete w.seenTexture; delete w.seenWidth; delete w.seenOpacity; delete w.seenTip;
     }
-    // attached sheets, the per-token GM note/dialogue AND the token creator's kept original are GM prep (and heavy) — never on the wire
+    // attached sheets, the per-token GM note/dialog AND the token creator's kept original are GM prep (and heavy) — never on the wire
     if (w.sheet || w.gmInfo || w.frame) { delete w.sheet; delete w.gmInfo; delete w.frame; }
     if (w.senses !== undefined || w.blind !== undefined || w.unsensed !== undefined || w.nulls !== undefined) { delete w.senses; delete w.blind; delete w.unsensed; delete w.nulls; }   // S7a: a null area's senses are the GM's   // senses S2b, S3, S4 (unsensed: never on the wire at all): a token's own ranges and the GM's Blind tick are the GM's: only its player's own copy of a fogged map gets them back (fogCopyFor)
     if (w.nullFx !== undefined) delete w.nullFx;
@@ -883,11 +883,11 @@ function wireWbItem(w, cloned) {
     if (w.texSrc !== undefined || w.texTile !== undefined) { var FCp = typeof window === 'object' && window ? window.wpFogCore : null, tso = FCp && typeof FCp.cleanTexSrc === 'function' ? FCp.cleanTexSrc(w.texSrc) : null, tto = tso && typeof FCp.cleanTexTile === 'function' ? FCp.cleanTexTile(w.texTile) : null; if (tso) w.texSrc = tso; else delete w.texSrc; if (tto) w.texTile = tto; else delete w.texTile; }   // fold B3: a picture fill leaves only as a plain path under saves/images and a known tile, none without the cleaners: the asset gate serves what is sent under this key
     // A plain wall leaves in ONE shape (the second and third reviews of fold B5): a secret door's copy is made in that shape, and whatever a
     // wall carries that a copy cannot follow marks the copy as the one wall without it. A wall's NAME is whatever its maker gave it (Build
-    // names a piece by its material whatever colour and pattern were picked, the city generator by its own, a wall made by hand has none).
+    // names a piece by its material whatever color and pattern were picked, the city generator by its own, a wall made by hand has none).
     // Its GROUP is the room it was grouped with, door and all. A wall from a file has no sightType where every wall the app makes has one,
-    // and a hex colour in whatever case the file wrote. A wall that was once a door or a way through may keep what that left behind. So a
+    // and a hex color in whatever case the file wrote. A wall that was once a door or a way through may keep what that left behind. So a
     // plain wall, one that blocks sight or is a see-through barrier, is no door, no token and no waiting token, leads nowhere and is no
-    // picture and no text box, is sent with no name, no group and nothing of a door or of a way through (an empty key of one too), typed wall, its hex colour in
+    // picture and no text box, is sent with no name, no group and nothing of a door or of a way through (an empty key of one too), typed wall, its hex color in
     // lower case. A player's app reads none of those keys on a wall (the pill that names what a resize matched says its kind). A door, a
     // wall that leads somewhere, a picture, a text box and a token keep theirs: a copy is none of those
     if ((w.blocksSight || w.barrier === true) && w.sightType !== 'door' && !w.isChar && !w.waiting && !w.targetMapId && !w.nodeId && w.type !== 'image' && w.type !== 'text') {
@@ -1165,7 +1165,7 @@ function fogCopyFor(clean, camp, map, recipientId) {
 // party perspective"): the stream window's copy of a fogged map of the hosted campaign is the PARTY VIEW, a spectator's standpoint — the creatures no
 // player's own token sees are dropped (wpFog.fogDropIds with its PARTY owner: every token that is a player's, each read as its own player reads it,
 // never an NPC's eyes), every player's token stays, and the cells the players' tokens see together ride on the copy as map.fogParty (fogPartyCells,
-// each with its tier) for the window's fog to draw — the host's own judgement from its own campaign, never one player's own view and never the GM's
+// each with its tier) for the window's fog to draw — the host's own judgment from its own campaign, never one player's own view and never the GM's
 // whole map. Never on a copy made for a player (fogCopyFor) and never on the wire: the stream window reads its copy from this machine alone. With
 // no fog module the copy fails closed: every creature that is no player's goes and nothing is said seen
 function fogPartyCopy(clean, camp, map) {
@@ -1895,7 +1895,7 @@ function applyItem(msg) {
     var camp = campOf(msg.campId);
     if (!camp || !validKey(msg.itemId)) return;
     var incoming = msg.item;
-    if (incoming && incoming.type === 'doc') { incoming = window.wpDocRender ? window.wpDocRender.cleanDoc(incoming, { keepHidden: true }) : null; if (!incoming) return; }   // a page is normalised before it is stored (a hostile host can send shapes, not just markup)
+    if (incoming && incoming.type === 'doc') { incoming = window.wpDocRender ? window.wpDocRender.cleanDoc(incoming, { keepHidden: true }) : null; if (!incoming) return; }   // a page is normalized before it is stored (a hostile host can send shapes, not just markup)
     if (!incoming || typeof incoming !== 'object') return;
     if (incoming.type !== 'map' && incoming.type !== 'doc') return;   // security (2026-10-01): a player's copy holds maps and pages, nothing else a host names (a planner never ships; an unknown kind used to be stored as sent)
     var camWas = incoming.type === 'map' && typeof camOf === 'function' && Object.prototype.hasOwnProperty.call(camp.items, msg.itemId) ? camOf(camp.items[msg.itemId]) : null;   // the camera this app had for the map (none a host names)
@@ -2139,7 +2139,7 @@ function applySnapshot(msg) {
     Object.values(msg.appState.campaigns || {}).forEach(function (c) { c._foreign = mark; });
     state.appState = msg.appState;
     net.foreign = true;   // cleared only when load() brings this machine's own campaign back
-    // handbook pages are normalised before anything renders them, and the active item is a map (never a page: guard 1 client-side)
+    // handbook pages are normalized before anything renders them, and the active item is a map (never a page: guard 1 client-side)
     Object.values(state.appState.campaigns || {}).forEach(function(cS) {
         if (!cS || typeof cS !== 'object') return;
         if (Object.getPrototypeOf(cS) !== Object.prototype) Object.setPrototypeOf(cS, Object.prototype);   // (see above) or the delete below is a no-op for an inherited players map
@@ -2287,7 +2287,7 @@ function applyItemDelta(msg) {
     if (it.type === 'map') cleanHostMap(it);   // whatever the delta touched: text items rebuilt, colors checked, bounded
     if (it.type === 'map' && camWas && typeof camHold === 'function') camHold(it, camWas);
     if (it.type === 'map' && typeof actOver === 'function') actOver(msg.itemId, it, ackIn(msg.ack));   // 14c: what this change lacks of their own actions, written back
-    if (it.type === 'doc') {   // re-normalised after every delta, then the reader (if it shows this page) follows
+    if (it.type === 'doc') {   // re-normalized after every delta, then the reader (if it shows this page) follows
         var cd = window.wpDocRender ? window.wpDocRender.cleanDoc(it, { keepHidden: true }) : null;
         if (cd) camp.items[msg.itemId] = cd; else delete camp.items[msg.itemId];
         try { if (window.wpDocReaderRefresh) window.wpDocReaderRefresh(msg.campId, msg.itemId); } catch (e) {}
@@ -2392,7 +2392,7 @@ net.sendItem = function(campId, itemId, onlyConn, exceptConn, at) {   // fold M1
 net.broadcastItemFiltered = function(campId, itemId) {
     var camp = own(state.appState.campaigns, campId) ? state.appState.campaigns[campId] : null, it = camp && own(camp.items, itemId) ? camp.items[itemId] : null; if (!it) return;   // own keys only, as sendItem
     if (it.type === 'map' && typeof tokBarsSoon === 'function') tokBarsSoon();   // backlog 28: as sendItem
-    if (typeof window !== 'undefined' && window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(itemId);   // Senses S0: a map sent this way was changed as a remote change (a traveller arrived or left, a waiting token placed, a light switched): who sees what on it is judged afresh
+    if (typeof window !== 'undefined' && window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(itemId);   // Senses S0: a map sent this way was changed as a remote change (a traveler arrived or left, a waiting token placed, a light switched): who sees what on it is judged afresh
     if (typeof hidNote === 'function') hidNote(it);   // hidden pieces: as sendItem
     if (it.type === 'map' && typeof assetHideSoon === 'function') assetHideSoon();   // security: as sendItem
     if (it.type === 'map' && typeof mapStubSend === 'function' && typeof mapHeld === 'function') mapStubSend(mapStubMsg(campId, itemId, it));   // possession: a connection holding this map's stub (a lock changed, say) gets the stub afresh — its name and its lock, nothing of what is on it (never one arriving on it now: the whole map follows)
@@ -2662,7 +2662,7 @@ net.resendFogged = function() {
 // (the system, the library, a character deleted). Nothing of a message is read here
 // Where the campaign's Sight is one a player cannot work out for themselves (a GM-only field, or one worked out from a GM-only value) nothing
 // is sent from here: a map arriving would tell them the hidden number had moved, by how much and when. Their copy follows at the next
-// ordinary send of that map, as before this fold (the host's own judgement, the live relay's too, goes by the real sight at once)
+// ordinary send of that map, as before this fold (the host's own judgment, the live relay's too, goes by the real sight at once)
 var _sensesPend = Object.create(null), SENSES_RESEND_MS = 500;
 function sensesPids() { var seen = Object.create(null), out = []; net.conns.forEach(function(c) { var pr = c && c.open ? net.roster[c.peer] : null; if (pr && pr.id && !seen[pr.id]) { seen[pr.id] = 1; out.push(pr.id); } }); return out; }
 // (A Sight its player cannot read is the campaign's default on both sides since the owner's answer of 2026-09-29 — fog.js sightSecret — so a
@@ -2810,7 +2810,7 @@ net.sendMusicControl = function(ctrl) {
 };
 // Campaign videos (1.5.0, item 21 V2): the GM's playing video, live to the table. The picture and its sound go from the host to each
 // player of the showing's audience (every admitted player, or the ticked profiles) over a WebRTC connection of its own, agreed over the
-// table's own data connection — an offer, an answer and their candidates as messages — so nothing of it passes the signalling server and
+// table's own data connection — an offer, an answer and their candidates as messages — so nothing of it passes the signaling server and
 // the words arrive in the order they were said. Of the library and the file only the video's name leaves the host. Nothing comes back but
 // the answer: the host sends, a player receives. Neither side uses a media call: both close any they are offered.
 // [netcheck:videocand-start]
@@ -3520,7 +3520,7 @@ net.syncCharDelta = function(id, values) {   // changed values, filtered to what
 };
 // [netcheck:chardelta-end]
 // [netcheck:charlook-start]
-// Item 35: the LOOK of a character's text value (bold, a colour, a link: systemcore applyStyle, lookcore.js) travels in messages of its own,
+// Item 35: the LOOK of a character's text value (bold, a color, a link: systemcore applyStyle, lookcore.js) travels in messages of its own,
 // so that the edit path is as it always was. A player sends 'char-style' for a text of their own character. The host answers
 // 'charstyle-ack' or 'charstyle-deny' and tells each connection that holds the character whole with 'charStyle'. A look belongs to the very
 // text it was made for (its signature): a text changed by any other writer leaves a look that every reader drops.
@@ -4792,7 +4792,7 @@ function trapToast(traveler, portal, text) {
 // A free top-left for a w×h token near (cx, cy): spiral outwards until it overlaps no other
 // character token (and, when given, stays off the portal's footprint).
 // 1.5.9 (the owner, at the table, 2026-10-25: "sometimes players land outside of a wall and cant get in the play area when teleporting"): a
-// free spot is also one the token could walk to from where it arrives (from, a centre, else (cx, cy)), as fog.js arrivalOk judges it: no wall or barrier
+// free spot is also one the token could walk to from where it arrives (from, a center, else (cx, cy)), as fog.js arrivalOk judges it: no wall or barrier
 // between, not in a wall's cell, inside the map's play area where it has one. Nearest first, as before. Where no spot passes, the token comes in
 // where it arrives, which it can walk off, and never beyond a wall. With no fog module, or none of those on the map, exactly as before
 function freeSpotNear(map, cx, cy, w, h, avoidId, portal, from) {
@@ -4801,7 +4801,7 @@ function freeSpotNear(map, cx, cy, w, h, avoidId, portal, from) {
     var LSQ = sq && typeof window === 'object' && window && window.wpLatticeOf ? window.wpLatticeOf(map) : null, SZ = LSQ && LSQ.size > 0 ? LSQ.size : 50;   // the map's own cell (backlog 38)
     function seated(x, y) {   // where a token placed at (x, y) ends up after seating on this map (a hex cell, a square cell)
         if (sq && LSQ) { var st = { x: x, y: y, w: w, h: h, isChar: true }; if (window.wpSeatCell) window.wpSeatCell(st, map); return { x: st.x, y: st.y }; }   // a map's own cell (backlog 38): datamap's seat on its lattice
-        if (sq) return Math.max(w, h) <= 64 ? { x: Math.floor((x + w / 2) / 50) * 50 + 25 - w / 2, y: Math.floor((y + h / 2) / 50) * 50 + 25 - h / 2 } : { x: Math.round(x / 50) * 50, y: Math.round(y / 50) * 50 };   // one cell: centred; sized up: its corner on the lattice
+        if (sq) return Math.max(w, h) <= 64 ? { x: Math.floor((x + w / 2) / 50) * 50 + 25 - w / 2, y: Math.floor((y + h / 2) / 50) * 50 + 25 - h / 2 } : { x: Math.round(x / 50) * 50, y: Math.round(y / 50) * 50 };   // one cell: centered; sized up: its corner on the lattice
         if (!window.wpSeatHex) return { x: x, y: y };
         var tmp = { x: x, y: y, w: w, h: h, isChar: true };
         window.wpSeatHex(tmp, map);
@@ -4846,8 +4846,8 @@ function portalUnder(item, map) {
         if (o.id === item.id || !(o.nodeId || o.targetMapId) || (o.hidden && !o.trap)) return;   // a hidden TRAP portal still catches a token that lands on it
         if ((typeof window === 'object' && window && window.wpFogCore && typeof window.wpFogCore.secretOn === 'function' ? window.wpFogCore.secretOn(o) : !!o && o.secret === true) && !o.hidden) return;   // a secret door that is also a portal takes nobody through until it is found: to the players it is wall. A HIDDEN piece is no wall to anyone, so a hidden trap tile fires whether or not a tick was left on it
         var ow = o.w || 0, oh = o.h || 0;
-        // resting on the portal: the token's centre inside it, or at least a third of the token overlapping it
-        // (hex seating can park the centre a few pixels outside a tile that is not hex-aligned)
+        // resting on the portal: the token's center inside it, or at least a third of the token overlapping it
+        // (hex seating can park the center a few pixels outside a tile that is not hex-aligned)
         var inside = !(cx < o.x || cx > o.x + ow || cy < o.y || cy > o.y + oh);
         var ovW = Math.min(item.x + iw, o.x + ow) - Math.max(item.x, o.x), ovH = Math.min(item.y + ih, o.y + oh) - Math.max(item.y, o.y);
         var frac = (ovW > 0 && ovH > 0) ? (ovW * ovH) / (iw * ih) : 0;
@@ -5007,7 +5007,7 @@ function handlePos(msg, conn) {
         if (turnOrderCheck(camp, map, w, frW, msg, conn) === 'stop') return;   // T3b: out of turn, first
         // A drop is judged where it will be SEATED (found by review, 2026-10-03). The host seats a final below (the snap rule), and on a square grid
         // the seat is the lattice corner nearest the token's own: a token wider than a cell could be sent to a place clear of a wall, be seated
-        // with its centre in the wall's cell, and leave on the far side with a second drop (a move's start cell never counts). A COPY is seated
+        // with its center in the wall's cell, and leave on the far side with a second drop (a move's start cell never counts). A COPY is seated
         // first and that seat is what the wall rule judges. Mid-drag nothing is seated, so the place sent is judged, as before
         var seatX = msg.x, seatY = msg.y;
         if (msg.final && wlM !== 'off' && window.wpSeatDrop) { var trialW = Object.assign({}, w, { x: msg.x, y: msg.y }); if (window.wpSeatDrop(trialW, map, w.gridFit === true)) { seatX = trialW.x; seatY = trialW.y; } }
@@ -5096,10 +5096,10 @@ function notMineNote(conn, pr, camp, w) {
     _notMineAt[k] = now; turnNote(conn, "That token is the GM's to move now.");
 }
 // Secrets (R2): a trigger zone's message is kept off every copy of the map (wireWbItem), so the host says it to the player whose own token lands
-// in a shown zone — the test the dropper's app ran on its own copy before (datamap.js: the token's centre inside the zone's box, a box 100 by 100
+// in a shown zone — the test the dropper's app ran on its own copy before (datamap.js: the token's center inside the zone's box, a box 100 by 100
 // when unset, the first zone found speaking even with nothing to say), now run here on the host's map, to that connection alone, text only.
 // Said as the gesture carries the token in: a final also ends a turn in place (the facing dial, the rotate handle, an arrow turn) and a shuffle
-// within the zone, and those said nothing before (the dropper's app read only its drag's drop), so a zone that held the token's centre where the
+// within the zone, and those said nothing before (the dropper's app read only its drag's drop), so a zone that held the token's center where the
 // gesture began (from: the drag's record, or the token's place before a lone final) is passed over
 function triggerFire(conn, map, w, from) {
     if (!conn || typeof conn.send !== 'function' || !map || !w || !Array.isArray(map.whiteboard)) return;
@@ -5313,7 +5313,7 @@ var notepadTimer = null;
 // own text box, the pad a HOST of it (window.wpTextBox). The look is the GM's alone until it is sent: _pad.fmt and _pad.font, made into a
 // record for the very text sent, by the rule of the pad (lookcore RULES.PAD: a size and one of Waypoint's own fonts, never a link, since
 // everyone at the table reads it). A player's box only reads: the reader (window.wpTextRead) draws the text with the look the host sent,
-// cleaned again there. It is editable only so that it has a caret, as the read-only box it replaced had: every edit is cancelled.
+// cleaned again there. It is editable only so that it has a caret, as the read-only box it replaced had: every edit is canceled.
 // _pad.on: 0 not asked yet, 1 the pad is a host of the text box, 2 refused. _pad.mode: how the box is dressed now, 'write' or 'read'.
 var _pad = { fmt: undefined, font: '', on: 0, mode: '', gen: 0 };
 var PAD_WRITE = 'Notes for the whole table — everyone sees this as you type. Gone when you put it away or the session ends; anyone can save it to their Journal.', PAD_READ = 'The GM has not written anything yet.';
@@ -5446,7 +5446,7 @@ function padDress(el, host) {
     return want;
 }
 // The pad's own listeners. The GM's typing reaches the pad through the text box module (the pad's host is told of every change). A player's
-// box only reads: every edit is cancelled before it happens, and what cannot be cancelled (a composition) is drawn over at once.
+// box only reads: every edit is canceled before it happens, and what cannot be canceled (a composition) is drawn over at once.
 // A key pressed in the box or on a control of the bar is the pad's alone: the page reads every key that reaches the document (undo,
 // Delete, the arrows). A key on one of the pad's own buttons goes on, as it always did: a question the app asks is answered by keys the
 // document hears, and the focus rests on the button that raised it
@@ -6056,7 +6056,7 @@ function noteOwner(pid, text, cid) { net.conns.forEach(function(c) { if (c.open 
 // Turn-based combat T4 (D4, D5): the actions a turn allows (the System's Combat tab) — a player's press of a roll or an apply action that costs
 // one spends it while their character's token is in a combat on the map they are on (turn-based combat on), on or off its turn (a reaction);
 // each character's counts refill when its turn begins. The campaign's mode: refuse (none left: refused, with why), warn (through, a note to
-// them and the GM), off. The GM's own presses are never limited. Their player hears what is left, and their sheet greys what is spent
+// them and the GM), off. The GM's own presses are never limited. Their player hears what is left, and their sheet grays what is spent
 net.turnSpent = {};   // charId -> { actKey: spent since its last turn began }
 net.turnMax = {};   // 192: charId -> { actKey: how many its turn allows }, worked out at its turn's start (or at its first press before one)
 function actsMaxOf(camp, ch, map, w, c) {   // 192: an action's count for one character: its formula over the players' view and the owner's own copy, as a move is worked out; n where it gives no number
@@ -6083,7 +6083,7 @@ function actsTell(camp, charId, cleared) {   // what is left, to each connection
     var ch = camp && camp.chars && own(camp.chars, charId) ? camp.chars[charId] : null; if (!ch || !ch.ownerId || ch.npc) return;
     if (window.wpRenderCombatStrip) window.wpRenderCombatStrip();   // 1.6.0: the strip says what is left
     var left = cleared ? null : actsLeftOf(camp, charId), md = moveMode(camp, 'acts');
-    var m = { type: 'acts-left', charId: charId, left: left, mode: md === 'warn' || md === 'off' ? md : 'refuse' }, rnT = left ? runOf(charId) : null; if (rnT && rnT.ran === true && moveMode(camp, 'move') !== 'refuse') m.rn = rnT.act;   // 1.6.0: an action gone to a move meets the Move limit, so its button is not greyed by the Actions rule
+    var m = { type: 'acts-left', charId: charId, left: left, mode: md === 'warn' || md === 'off' ? md : 'refuse' }, rnT = left ? runOf(charId) : null; if (rnT && rnT.ran === true && moveMode(camp, 'move') !== 'refuse') m.rn = rnT.act;   // 1.6.0: an action gone to a move meets the Move limit, so its button is not grayed by the Actions rule
     net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === ch.ownerId) { try { c.send(m); } catch (e) { sendFailed(e); } } });
 }
 function actsSendTo(c) {   // 1.6.0: one who comes to the table mid-turn hears what their character has left, as one there hears it when the turn begins
@@ -6156,7 +6156,7 @@ function turnActsStart(mapId, c) {   // the character whose turn begins has its 
     delete net.turnSpent[w.charId]; net.turnMax[w.charId] = actsMaxOf(camp, camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null, map, w, c); if (window.wpVtt && window.wpVtt.on('turns')) actsTell(camp, w.charId);   // 192: its counts for this turn
     if (typeof crewOfVeh === 'function') crewOfVeh(camp, w.charId).forEach(function(cid) { delete net.turnSpent[cid]; net.turnMax[cid] = actsMaxOf(camp, camp.chars[cid], map, null, c); if (window.wpVtt && window.wpVtt.on('turns')) actsTell(camp, cid); });   // 1.6.2: its crew's come back with it
 }
-function turnActsEnd(mapId, had) {   // a combat ended: its characters' counts go (their sheets stop greying)
+function turnActsEnd(mapId, had) {   // a combat ended: its characters' counts go (their sheets stop graying)
     var camp = getActiveCampaign(); if (!had || !camp || !actsOf(camp).length) return;
     var map = camp.items && own(camp.items, mapId) ? camp.items[mapId] : null; if (!map || !Array.isArray(had.rows) || !Array.isArray(map.whiteboard)) return;
     had.rows.forEach(function(r) { var w = r && r.tokId ? map.whiteboard.find(function(x) { return x && x.id === r.tokId; }) : null; if (w && typeof w.charId === 'string') { delete net.turnSpent[w.charId]; delete net.turnMax[w.charId]; actsTell(camp, w.charId, true); if (camp.chars) Object.keys(camp.chars).forEach(function(cid) { var cx = camp.chars[cid]; if (cid !== w.charId && cx && cx.links && typeof cx.links === 'object' && Object.keys(cx.links).some(function(lk) { return cx.links[lk] === w.charId; }) && net.turnSpent[cid]) { delete net.turnSpent[cid]; delete net.turnMax[cid]; actsTell(camp, cid, true); } }); } });   // 1.6.2: and its crew's
@@ -6401,7 +6401,7 @@ function holdDraw(camp, map, mapId, by, on, c) {   // 1.6.2: a grab from a dista
     if (holdsOf(c).some(function(x) { return x.on === on.id && x.by !== by.id; })) return false;
     var w = on.w || 60, h = on.h || 52, bw = by.w || 60, bh = by.h || 52, cx = by.x + bw / 2, cy = by.y + bh / 2, gd = !!(map.meta && map.meta.gridType), d = (Math.max(bw, bh) + Math.max(w, h)) / 2 * (gd ? 0.8 : 1) + (gd ? 0 : 4);
     var at = Math.atan2(on.y + h / 2 - cy, on.x + w / 2 - cx), F = window.wpFog && typeof window.wpFog.arrivalOk === 'function' ? window.wpFog : null, spot = null;
-    var taken = function(p) {   // on a grid by the cell: a hex map's boxes overlap their neighbours'
+    var taken = function(p) {   // on a grid by the cell: a hex map's boxes overlap their neighbors'
         return (map.whiteboard || []).some(function(o) {
             if (!o || o.id === on.id || !(o.isChar || o.waiting)) return false;
             var ow = o.w || 0, oh = o.h || 0;
@@ -7132,7 +7132,7 @@ net.aimsOf = function(map, tok, viewer) {
 // menu of you and the characters next to you with your Target first, and any adjacent character, NPCs included): a roll or an apply action whose
 // Applies to is the user or an adjacent character (to: 'near') may name the token it is used on. allyNear is the one reading of next to, through
 // fogcore nearTokens: the map's own grid (a gridless map by a yard of its scale) and the two heights where Token elevation is on, read from the
-// pieces players hold where shown is true (a judgement made for a player). allyOn is the host's one judge of the token a press names, asked by
+// pieces players hold where shown is true (a judgment made for a player). allyOn is the host's one judge of the token a press names, asked by
 // char-apply, roll-req and the GM's own net.diceRoll before anything is rolled or moved: a character token of the campaign on the map the user's
 // token stands on, not waiting, not the user's own character, next to the user's token; for a player (pid) also shown and kept in their copy by
 // the fog, every open drag at its start. { ch, tok } or { error, message }. The GM's press reaches a hidden token too
@@ -7497,7 +7497,7 @@ function sendMissedHandouts(conn, prof) {
         }, 1500 + i * 400);
     });
 }
-// The room a token is standing in (its centre inside a floor item linked to a room)
+// The room a token is standing in (its center inside a floor item linked to a room)
 function roomUnder(item, map) {
     if (!item || !map || !map.whiteboard) return null;
     var cx = item.x + (item.w || 0) / 2, cy = item.y + (item.h || 0) / 2, best = null, bestArea = Infinity;
@@ -7554,7 +7554,7 @@ function healBindings(camp) {
 }
 // The campaign's sheets feature: off, characters do not drive tokens (every owned one counts as in play; none is made on arrival)
 function sheetsOnFor(camp) { return !window.wpVtt || !window.wpVtt.campaignOn || window.wpVtt.campaignOn('sheets', camp) !== false; }
-// A new token for a character that has none anywhere: its portrait, else a circle in the player's colour (the initials show on it) — its caller
+// A new token for a character that has none anywhere: its portrait, else a circle in the player's color (the initials show on it) — its caller
 // then gives it the map's cell shape (systemcore shapeStandIn)
 function tokenFromChar(ch, pid) {
     var pr = Object.values(net.roster).find(function(p) { return p && p.id === pid; }), col = pr && typeof pr.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(pr.color) ? pr.color : '#4db3d3';
@@ -7563,7 +7563,7 @@ function tokenFromChar(ch, pid) {
     else { var fcT = cleanFace(ch.face); if (fcT) t.face = fcT; }   // Onboarding F1c: the character's own face (a token made after it was chosen wears it too)
     return t;
 }
-// Where a new token goes on a map: beside `near` (a centre) when given, else on the landing room's whiteboard item, else at the map's home;
+// Where a new token goes on a map: beside `near` (a center) when given, else on the landing room's whiteboard item, else at the map's home;
 // then the nearest free spot (never on another token, off the portal it landed by). avoidId: a token that is about to give way (not an obstacle)
 function spawnSpot(map, landRoomId, near, w, h, avoidId) {
     var meta = map.meta || {}, landR = !near && landRoomId && (map.rooms || []).find(function(r) { return r.id === landRoomId; });
@@ -8236,7 +8236,7 @@ function fromHost(conn) { return !!(net.foreign && net.syncedPeer && conn && con
 // Security (2026-10-01): the shape of every message a player's app takes from a host, judged before any branch reads it — no string past
 // WIRE_STR_MAX characters (the app's own largest: a text item's rich text at 200,000, a framed picture at 200,000, an inline picture at 300,000)
 // and nothing nested past WIRE_DEPTH_MAX levels (a campaign's deepest honest structure is under 20). Past either the message is dropped whole, so
-// a copy of the table can always be serialised and holds nothing unbounded. Bytes (a picture's or a sound's) are not walked
+// a copy of the table can always be serialized and holds nothing unbounded. Bytes (a picture's or a sound's) are not walked
 var WIRE_STR_MAX = 400000, WIRE_DEPTH_MAX = 64;
 function wireShapeOk(msg) {
     var stack = [[msg, 1]];
@@ -8252,9 +8252,9 @@ function wireShapeOk(msg) {
 // [netcheck:wireshape-end]
 // [netcheck:fromhost-end]
 // [netcheck:snaptrust-start]
-// (client) Security (2026-10-01): a snapshot is taken only from the host this app dialled, and only as the GM this app knows. Known: the GM id a
+// (client) Security (2026-10-01): a snapshot is taken only from the host this app dialed, and only as the GM this app knows. Known: the GM id a
 // room code belongs to (the one last synced there) and the public key pinned for a GM id (first use, from a signed snapshot, never on an
-// automatic reconnect). A snapshot under a pinned GM id must verify against the pin over this player's own nonce, the room id this app dialled,
+// automatic reconnect). A snapshot under a pinned GM id must verify against the pin over this player's own nonce, the room id this app dialed,
 // the GM id and the table key it hands over; one naming another GM id at a known code is not that code's GM. Refused: nothing synced, nothing
 // applied, no key stored, nothing more read from that host. An automatic reconnect then goes on to the other generations of the code without a
 // word from the host being shown; a join the player began tries the other generations too and, if none is their GM, says so in the app's own
@@ -8306,7 +8306,7 @@ function snapArrived(msg, conn) {   // true: take it now. false: refused, or hel
     var pubS = cleanGmPub(msg.gmPub), sigS = (typeof msg.sig === 'string' && /^[0-9a-f]{128}$/.test(msg.sig)) ? msg.sig : '';
     if (!pubS || !sigS) { pubS = null; sigS = ''; }   // a key with no signature, or a signature with no key, is neither
     var k = hostKnown(conn, gmIdS, pubS), acc = k.acc, pin = k.pin, retry = k.retry;
-    var took = function(pub) { rememberGmRoom(k.code, gmIdS); _joinTrust.refused = null; _joinTrust.accept = null; _joinTrust.said = false; _joinTrust.saidLate = false; _joinTrust.was = { gmId: gmIdS, pub: pub || null }; _joinTrust.bad = Object.create(null); conn.wpHostOk = true; };   // (wpHostOk: this host's word is believed from here — its table was taken by the rules; bad: a table taken ends the reconnect that passed generations over — the next one starts with none refused, so a GM back at one of them is dialled again)
+    var took = function(pub) { rememberGmRoom(k.code, gmIdS); _joinTrust.refused = null; _joinTrust.accept = null; _joinTrust.said = false; _joinTrust.saidLate = false; _joinTrust.was = { gmId: gmIdS, pub: pub || null }; _joinTrust.bad = Object.create(null); conn.wpHostOk = true; };   // (wpHostOk: this host's word is believed from here — its table was taken by the rules; bad: a table taken ends the reconnect that passed generations over — the next one starts with none refused, so a GM back at one of them is dialed again)
     if (acc && !acc.pub) { forgetGmPin(gmIdS); took(null); return true; }   // yes to a table that has no key: what was pinned for that GM id is forgotten
     if (!acc && !k.other && !pin && !pubS) { took(null); return true; }   // a host from before the signing key, and nothing known against it: as before (nothing to pin)
     var bindS = snapBind(conn, false), data = typeof bindS === 'string' ? snapData(validCn(conn.wpCn) ? conn.wpCn : '', conn.peer, gmIdS, typeof msg.key === 'string' ? msg.key : '', bindS) : null;   // (null: this connection's tie cannot be read, so nothing verifies)
@@ -8316,7 +8316,7 @@ function snapArrived(msg, conn) {   // true: take it now. false: refused, or hel
         if (net.role !== 'client' || net.conns[0] !== conn || !conn.open) return;   // the join ended while the signature was checked: nothing applies
         if (!v.ok) { snapRefuse(conn, gmIdS, v.offer); return; }
         if (acc || (!pin && v.okSelf && !retry)) rememberGmPin(gmIdS, pubS);   // the key the player said yes to, proven: pinned in place of the old one — or first use: pinned from a signed snapshot only, and never on an automatic reconnect
-        took(acc ? pubS : pin ? pin : (v.okSelf && !retry) ? pubS : null);   // the key this table was taken under (none for a table with no key, and none learnt on a reconnect)
+        took(acc ? pubS : pin ? pin : (v.okSelf && !retry) ? pubS : null);   // the key this table was taken under (none for a table with no key, and none learned on a reconnect)
         conn.wpSnapOk = msg; wireDeliver(msg, conn);   // back through the snapshot branch, which now takes it
         held.forEach(function(m) { wireDeliver(m, conn); });   // then what the host sent behind it, in order
     }).catch(function(e) { try { console.warn('snapshot check failed', e); } catch (_) {} });
@@ -8351,7 +8351,7 @@ function snapAsk(code, name) {   // at the end of a join the player began, when 
 }
 // The host proves itself EARLY (the owner's ruling of 2026-10-01: "prove it early"). A host on this version answers a hello — after its ban,
 // version and password checks, before any admission — with one signed word, 'gmhello': its GM id, its public key and a signature over hostData
-// (this connection's own nonce, the room dialled, that GM id, the connection's tie). It is judged here by the very rules a snapshot is judged
+// (this connection's own nonce, the room dialed, that GM id, the connection's tie). It is judged here by the very rules a snapshot is judged
 // by (hostKnown, hostRuling) — it pins nothing and stores nothing: it only decides whether this app keeps waiting on this host.
 // When this app HOLDS the host to a GM (hostHeld: a key pinned for the GM this room code belongs to; the player's yes to a key at this code;
 // on an automatic reconnect, the GM and key this session took its table from), a host that has not proven itself HOST_PROOF_MS after the
@@ -8418,7 +8418,7 @@ function hostGone(conn) {
     return true;
 }
 function hostHail(msg, conn) {   // the host's early proof, as it arrives
-    if (!net.conns[0] || conn !== net.conns[0] || net.syncedPeer || conn.wpHailed || conn.wpSnapDead) return;   // from the host this app dialled, before the snapshot, once per connection
+    if (!net.conns[0] || conn !== net.conns[0] || net.syncedPeer || conn.wpHailed || conn.wpSnapDead) return;   // from the host this app dialed, before the snapshot, once per connection
     conn.wpHailed = true;
     var gmIdS = String(msg.gmId || '').slice(0, 80), pubS = cleanGmPub(msg.gmPub), sigS = (typeof msg.sig === 'string' && /^[0-9a-f]{128}$/.test(msg.sig)) ? msg.sig : '';
     if (!pubS || !sigS) { pubS = null; sigS = ''; }   // a key with no signature, or a signature with no key, is neither
@@ -8527,7 +8527,7 @@ function handleMessage(msg, conn) {
         }
         // Identity: a player this campaign knows proves the id is theirs with the table key the host issued them (kept per GM on
         // their machine) — never by sending it. A known id is CHALLENGED with a fresh nonce; the answer is an HMAC-SHA256 proof over
-        // that nonce and the room id the player dialled, checked here over this host's own room id, so a proof relayed through a
+        // that nonce and the room id the player dialed, checked here over this host's own room id, so a proof relayed through a
         // squatted generation of the code or another GM's table never opens this one. A valid proof goes straight in, as a matching
         // key did before. A key sent in clear (a client from before the proof) is ignored. No valid proof — a wrong one, the key
         // itself, no answer — or a stranger, and the GM decides (Allow/Deny, flagged as a known name without its key).
@@ -8560,7 +8560,7 @@ function handleMessage(msg, conn) {
         }
     } else if (msg.type === 'auth' && net.role === 'client') {
         // the host asks this player to prove a known id. The table key it issued (per GM) never travels: the answer is a proof over the host's
-        // nonce and the room id THIS app dialled (conn.peer), which a host relaying another table's challenge cannot turn into a proof for that
+        // nonce and the room id THIS app dialed (conn.peer), which a host relaying another table's challenge cannot turn into a proof for that
         // table. One answer per connection, before the snapshot only; with no key for the GM named — or no usable nonce (a host from before
         // the proof) — a plain hello, and the GM is simply asked.
         if (!net.conns[0] || conn !== net.conns[0] || net.syncedPeer || conn.wpAuthDone) return;
@@ -8579,11 +8579,11 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'wait' && net.role === 'client') {
         setStatus('Connected — waiting for the GM to let you in…');
     } else if (msg.type === 'gmhello' && net.role === 'client') {
-        hostHail(msg, conn);   // security (2026-10-01): the host's early proof — taken from the host this app dialled, before the snapshot, once; judged as a snapshot is, storing nothing
+        hostHail(msg, conn);   // security (2026-10-01): the host's early proof — taken from the host this app dialed, before the snapshot, once; judged as a snapshot is, storing nothing
     } else if ((msg.type === 'denied' || msg.type === 'kicked') && net.role === 'client') {
         if (hostDoubted(conn)) return;   // security (2026-10-01): on an automatic reconnect, a refusal from a host that has not proven itself as the GM this session was with is not believed — the reconnect goes on
         // [netcheck:denied-start]
-        if (net.leaving || (net.conns[0] && conn !== net.conns[0])) return;   // once, and only from the host this app dialled: a host that repeats itself is not followed into dialog after dialog
+        if (net.leaving || (net.conns[0] && conn !== net.conns[0])) return;   // once, and only from the host this app dialed: a host that repeats itself is not followed into dialog after dialog
         net.leaving = true;   // deliberate teardown: no auto-reconnect
         // Security (2026-10-01): an update notice is said in this app's OWN words — the host names only its version — in the status line and the
         // toast, like every other refusal, never in a dialog carrying the host's text (which read as the app's own voice); a reason is plain text, cut
@@ -8597,7 +8597,7 @@ function handleMessage(msg, conn) {
         setTimeout(function() { try { conn.close(); } catch (e) {} }, 400);   // the honest host closes it too, 400 ms after its word; one that keeps the line open is not waited for
         // [netcheck:denied-end]
     } else if (msg.type === 'snapshot' && net.role === 'client') {
-        if (conn.wpSnapOk === msg) conn.wpSnapOk = null; else if (!snapArrived(msg, conn)) return;   // security (2026-10-01): judged first — from the host this app dialled only, and as the GM this app knows (snapArrived); one whose signature was being checked comes back here once it has passed
+        if (conn.wpSnapOk === msg) conn.wpSnapOk = null; else if (!snapArrived(msg, conn)) return;   // security (2026-10-01): judged first — from the host this app dialed only, and as the GM this app knows (snapArrived); one whose signature was being checked comes back here once it has passed
         net.syncedPeer = conn.peer;   // from now on only this host's 'stance' counts (a table-hop or a waiting join hears others)
     if (typeof actForget === 'function') actForget();   // 14c: a whole campaign from the host: nothing of theirs is still on its way
         // [netcheck:snapkey-start]
@@ -8871,7 +8871,7 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'end' && net.role === 'client') {
         if (hostDoubted(conn)) return;   // security (2026-10-01): nor is its word that the session has ended
         // [netcheck:end-start]
-        if (net.leaving || (net.conns[0] && conn !== net.conns[0])) return;   // security (2026-10-01): only the host this app dialled ends the session, once — a stale connection kept wired after a reconnect, or another host, cannot throw a player off the table (as denied and kicked have it)
+        if (net.leaving || (net.conns[0] && conn !== net.conns[0])) return;   // security (2026-10-01): only the host this app dialed ends the session, once — a stale connection kept wired after a reconnect, or another host, cannot throw a player off the table (as denied and kicked have it)
         net.leaving = true;   // deliberate teardown from the GM: no auto-reconnect
         diceSessionReset(true);   // the table is over: its chat and rolls go with it (the teardown below is the silent path)
         setStatus('Session ended by the GM.');
@@ -10249,13 +10249,13 @@ function handleMessage(msg, conn) {
         if (crgQ && chQ && typeof critFromGm === 'function') crgQ = critFromGm(SQ, campQ, chQ, q.act, rowGQ, crgQ, Dq.naturalOf(resQ), Fq, tcQ);   // 1.6.0: a range that reads a GM-only stat, from the GM's view of that one figure
         if (crgQ) recQ.crit = crgQ;
         if (actQ && actQ.bigAt && typeof SQ.bigOf === 'function' && SQ.bigOf(actQ, varsQ, Fq, Dq, resQ, Dq.verdictOf(resQ, Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : '')), mfQ !== null && Dq.naturalOf(resQ) >= mfQ)) recQ.big = true;   // 1.6.0 (the book's ruling of 2026-10-29): a success that lands as a heavy hit, through the roller's view, marked on the record (no critical)   // 1.6.0 (the v2 sort's B1): criticals at fixed rolls, this roll's range through the roller's view (its own formula, else the Combat tab's), on the record every card reads
-        if (actQ && typeof SQ.bandOf === 'function') { var bnQ = SQ.bandOf(campQ.system, actQ, varsQ, Fq, resQ, Dq.verdictOf(resQ, Dq.ruleOf(recQ, campQ.system.combat ? campQ.system.combat.checks : '')), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, recQ.big === true); if (bnQ) recQ.band = bnQ; }   // 1.6.2: a result band, the host's own judgement
+        if (actQ && typeof SQ.bandOf === 'function') { var bnQ = SQ.bandOf(campQ.system, actQ, varsQ, Fq, resQ, Dq.verdictOf(resQ, Dq.ruleOf(recQ, campQ.system.combat ? campQ.system.combat.checks : '')), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, recQ.big === true); if (bnQ) recQ.band = bnQ; }   // 1.6.2: a result band, the host's own judgment
         if (actQ && actQ.dmg === true) recQ.dmg = 1;   // chat cards: a damage roll, from the entry its formula matched (never the player's word)
         if (recQ.dmg === 1 && typeof SQ !== 'undefined' && SQ && typeof SQ.dmgTypeOf === 'function' && campQ && campQ.system) { var dtQ = SQ.dmgTypeOf(campQ.system, actQ, varsQ, Fq); if (dtQ) recQ.dtype = dtQ; } if (recQ.dmg === 1 && actQ && actQ.dmgMajor === true) recQ.major = 1; if (recQ.dmg === 1 && typeof abQ !== 'undefined' && abQ && abQ.big === true) { recQ.major = 1; recQ.blowBig = 1; }   /* 1.6.2: made with a call's record that carries an attack's heavy hit */   // 1.5.7: the damage type the entry names, worked out on the host; 1.6.0: and Always a Major Wound, from the entry
         if (recQ.dmg === 1 && chQ && typeof SQ !== 'undefined' && SQ && SQ.dmgOnSelf) { var fullQ = campQ && campQ.system && Array.isArray(campQ.system.rolls) ? campQ.system.rolls.filter(function(x) { return x && x.id === actQ.id; })[0] : null; if (SQ.dmgOnSelf(fullQ || actQ, q.att)) recQ.dmgOn = chQ.id; }   // 1.6.0: burning and the like: it lands on its own character, not on whoever that character points at
         if (recQ.dmg === 1 && typeof SQ !== 'undefined' && SQ && typeof SQ.dmgKindOf === 'function' && campQ && campQ.system) { var dkQ = SQ.dmgKindOf(campQ.system, actQ, varsQ, Fq); if (dkQ) recQ.dkind = dkQ; }   // 1.6.0: the blow's kind the entry names, worked out on the host through the roller's view; never from the roller's word
         if (recQ.dmg === 1 && typeof recQ.dmgOn !== 'string' && tcQ && tcQ.range && typeof tcQ.range.tb === 'number' && isFinite(tcQ.range.tb)) recQ.tb = tcQ.range.tb;   // 1.6.2 (13): where the roller stands from the target's facing, for Blow.arc.<key>
-        if (recQ.dmg === 1 && typeof SQ !== 'undefined' && SQ && typeof SQ.dmgAdOf === 'function') { var adQ = SQ.dmgAdOf(actQ, varsQ, Fq); if (adQ) recQ.ad = adQ; }   // 1.6.0: the armour divisor its row names, worked out on the host (a player's app keeps no such key)
+        if (recQ.dmg === 1 && typeof SQ !== 'undefined' && SQ && typeof SQ.dmgAdOf === 'function') { var adQ = SQ.dmgAdOf(actQ, varsQ, Fq); if (adQ) recQ.ad = adQ; }   // 1.6.0: the armor divisor its row names, worked out on the host (a player's app keeps no such key)
         if (recQ.dmg === 1 && recQ.major !== 1 && typeof SQ !== 'undefined' && SQ && typeof SQ.dmgMajorOf === 'function' && SQ.dmgMajorOf(actQ, varsQ, Fq)) recQ.major = 1;   // 1.6.0: A Major Wound where, worked out on the host through the roller's view (a list roll's row's names too); never from the roller's word
         if (recQ.dmg === 1 && typeof SQ !== 'undefined' && SQ && typeof SQ.dmgPart2Of === 'function' && campQ && campQ.system) { var p2Q = SQ.dmgPart2Of(campQ.system, actQ, varsQ, Fq); if (p2Q) recQ.dmg2 = p2Q; if (typeof SQ.dmgPartOf === 'function') [3, 4, 5].forEach(function(k) { var pkQ = SQ.dmgPartOf(campQ.system, actQ, varsQ, Fq, undefined, k); if (pkQ) recQ['dmg' + k] = pkQ; }); }   // 1.6.0 (B3): a second part of the blow, of another type, rolled here from the entry through the roller's view (their view drops one read from a GM-only value); never from the roller's word
         if (recQ.dmg === 1 && moQ && moQ.list) recQ.more = moQ.list;   // 1.6.0 A burst: one record, one card
@@ -10386,7 +10386,7 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'acts-left' && net.role === 'client') {
         // [netcheck:actsin-start]
         // Turn-based combat T4: what their character has left of each action this turn — from the synced host only, whole numbers 0 to 9 under
-        // action keys (six at most); null clears it (the combat ended). Their sheet and HUD grey what is spent
+        // action keys (six at most); null clears it (the combat ended). Their sheet and HUD gray what is spent
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || typeof msg.charId !== 'string' || !/^c_[A-Za-z0-9_]{1,24}$/.test(msg.charId)) return;
         net.actsLeft = net.actsLeft || Object.create(null);
         if (msg.left === null) delete net.actsLeft[msg.charId];
@@ -10529,7 +10529,7 @@ function handleMessage(msg, conn) {
 /* ---------- auto-reconnect (client) ----------
    An unexpected drop keeps the room code and retries quietly; only after the
    retries run out (or the GM ends the session) is the local campaign restored. */
-var reconn = { tries: 0, timer: null, code: null, name: null, pending: false, gen: 0 };   // gen: the room generation that last answered, dialled first on a retry
+var reconn = { tries: 0, timer: null, code: null, name: null, pending: false, gen: 0 };   // gen: the room generation that last answered, dialed first on a retry
 
 function cancelReconnect() {
     reconn.pending = false; reconn.tries = 0;
@@ -10763,12 +10763,12 @@ function wireConn(conn) {
 
 /* ---------- host / join / leave ---------- */
 // [netcheck:roomcode-start]
-// A room code is the table's address on the signalling service, and whoever dials it learns this machine's network address before the GM is asked
+// A room code is the table's address on the signaling service, and whoever dials it learns this machine's network address before the GM is asked
 // anything (direct peer to peer cannot hide that; Firewall-friendly connections with a relay shows the relay's instead). So it is long, and drawn
 // from the system's own generator: CODE_LEN characters of a 31-letter alphabet (about 49.5 bits), a byte past the last whole multiple of 31 thrown
 // away so that every letter is as likely as another, and never the page's ordinary random numbers (those also make ids every player is sent).
 // Shown and copied in two groups, XXXXX-XXXXX; typed with or without the hyphen or spaces, in either case. A six-character code (one resumed from
-// the last session, or an older host's) is shown and dialled as it is.
+// the last session, or an older host's) is shown and dialed as it is.
 var CODE_LEN = 10, CODE_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789';
 function makeCode() {
     var c = '', buf = new Uint8Array(32);
@@ -10786,7 +10786,7 @@ net.showCode = showCode; net.typedCode = typedCode;
 // Open Relay (metered.ca) is a long-running free public TURN service; dead or
 // unreachable entries are simply skipped by ICE.
 /* ICE servers. STUN finds each side's public address; a direct path then works for most
-   home networks. Players behind carrier-grade NAT (many mobile and some fibre providers,
+   home networks. Players behind carrier-grade NAT (many mobile and some fiber providers,
    common outside the US/EU) can only connect through a relay (TURN). The free public relay
    Waypoint once used has shut down, so the GM configures their own in Settings ▸ Relay server
    (stored under turn_* keys, which stay on this machine — never mirrored to the saves folder).
@@ -10827,14 +10827,14 @@ function peerOpts(key) {
     var t = turnConfig(), o;
     if (relayOnly() && t) o = { config: { iceServers: [t], iceTransportPolicy: 'relay' } };   // relay-only: the relay alone
     else o = { config: { iceServers: iceServers() } };   // relay-only means nothing without a relay
-    return typeof signalOn === 'function' ? signalOn(o, key) : o;   // 1.6.2 (backlog 220): the app's own signalling server, while it is switched on
+    return typeof signalOn === 'function' ? signalOn(o, key) : o;   // 1.6.2 (backlog 220): the app's own signaling server, while it is switched on
 }
 // [netcheck:relay-end]
 // [netcheck:signal-start]
 // 1.6.2 (backlog 220; the owner, by prompt: "Yes, after the fonts", and of the switch "by the website and a settings
-// option"): the app's own signalling server, built dark. signalHost is the one judge of which server a Peer dials, for a host and a joiner alike,
+// option"): the app's own signaling server, built dark. signalHost is the one judge of which server a Peer dials, for a host and a joiner alike,
 // with nothing taken from a room code and no fallback either way: the app's own while the play host's GET /api/version names it (web.signal
-// { host }, read from webmode.js's one answer) or this computer's Own signalling server is ticked (wp_signalOwn, '1'); else the public server, as
+// { host }, read from webmode.js's one answer) or this computer's Own signaling server is ticked (wp_signalOwn, '1'); else the public server, as
 // before. In a browser (webmode.js says the page is a website's) hosting first asks the site for a host token, a new one for each Peer: the key
 // that Peer registers its room with. A desktop's key is waypoint
 var SIGNAL_OWN = 'signal.waypointvtt.com', SIGNAL_PLAN = 'This plan joins tables. Hosting in the browser needs a GM plan.', _sigWeb = null, _hostTok = null;
@@ -10862,7 +10862,7 @@ function hostToken() {
 net.signalHost = signalHost;
 // a room not found while this app looks on Waypoint's own server: the GM may still be on the public one (the coordinator, 2026-11-10: once the
 // website switches it on, a browser player reaches only our server, so a desktop GM needs the tick too)
-var SIGNAL_MISS = ' The GM may be on the public server. Ask them to tick Own signalling server in Settings, under Multiplayer, and host again.';
+var SIGNAL_MISS = ' The GM may be on the public server. Ask them to tick Own signaling server in Settings, under Multiplayer, and host again.';
 function signalMiss() { return signalHost() ? SIGNAL_MISS : ''; }
 // [netcheck:signal-end]
 net.rtcConfig = function() { return peerOpts().config; };   // voice chat (voice.js): its links take the table's own ICE servers and relay rule
@@ -10909,7 +10909,7 @@ net.recentHostCode = recentHostCode;   // sandbox testing hook
 var ROOM_GENS = 4;
 function roomPeerId(code, gen) { return 'waypoint-' + String(code).toLowerCase() + (gen ? '-r' + gen : ''); }
 // [netcheck:siggate-start]
-// Transport (2026-10-01): the signalling service passes this machine whatever anyone who knows the room id sends it, and the connection library
+// Transport (2026-10-01): the signaling service passes this machine whatever anyone who knows the room id sends it, and the connection library
 // acts on each message at once — it builds a connection and answers every offer (gathering addresses, taking a place on the GM's relay), keeps
 // every answer and candidate for a connection it does not hold with no bound, and takes the connection's class from the dialler's own word. So each
 // message is judged before the library sees it (sigGate wraps the peer's own entry point; sigOk decides, and fails closed):
@@ -10917,7 +10917,7 @@ function roomPeerId(code, gen) { return 'waypoint-' + String(code).toLowerCase()
 //  - an offer passes only on a host, for a connection it does not hold yet, as a data connection in the one encoding every Waypoint asks for, with a
 //    session description of a sane size — and at most SIG_OFFERS in SIG_OFFERS_MS for the whole table (a stranger is nameless before hello), past
 //    which it is dropped before any connection exists: no answer, no address gathered, no place taken on the relay;
-//  - an answer or a candidate passes only for a connection this side holds, and on a player's app only from the room it dialled (an answer never
+//  - an answer or a candidate passes only for a connection this side holds, and on a player's app only from the room it dialed (an answer never
 //    on a host; an offer never on a player); "leave" and "expire" on a player's app only from that room, and "expire" never on a host (it dials no one).
 // Whatever the library throws on a message that passed stays out of the page's error banner.
 var SIG_OFFERS = 20, SIG_OFFERS_MS = 10000, SIG_SDP_MAX = 20000;
@@ -10950,7 +10950,7 @@ function sigGate(peer, isHost, room) {
     peer._handleMessage = function(m) {
         var ok = false; try { ok = sigOk(peer, m, isHost, room, Date.now(), offers) === true; } catch (e) {}
         if (!ok) return;
-        try { return inner.call(peer, m); } catch (e) { try { console.warn('a signalling message failed', m && m.type, e); } catch (_) {} }
+        try { return inner.call(peer, m); } catch (e) { try { console.warn('a signaling message failed', m && m.type, e); } catch (_) {} }
     };
     return true;
 }
@@ -10994,7 +10994,7 @@ function startHosting(forceFresh) {
     var gen = resumed ? net._hostGen : 0;
     gmSignArm();   // security (2026-10-01): this GM's signing key, read or made the first time, before anyone can connect
     var peer = new Peer(roomPeerId(code, gen), peerOpts(_hostTok || undefined));   // 1.6.2: a browser's host token as its key, on the app's own server
-    sigGate(peer, true, roomPeerId(code, gen));   // transport: every signalling message is judged before the library acts on it
+    sigGate(peer, true, roomPeerId(code, gen));   // transport: every signaling message is judged before the library acts on it
     net.peer = peer; net.role = 'host'; net.code = code; net.roomPeer = roomPeerId(code, gen);   // the room id players dial: what a player's proof of their table key is checked over
     net._lastStanceSig = null;   // the first save after hosting starts sends the ceiling
     net._lastSoundSig = null;    // and the sound list
@@ -11008,7 +11008,7 @@ function startHosting(forceFresh) {
     setStatus((resumed ? 'Resuming host with your last room code...' : 'Starting host...') + relayNote());
     relayWarn();   // transport: relay-only switched on with no relay on this machine connects directly — said, never implied otherwise
     // [netcheck:hostpeer-start]
-    // Transport (2026-10-01): a room id is a first-come name on the signalling service. Once this table has OPENED, losing the name — the link to
+    // Transport (2026-10-01): a room id is a first-come name on the signaling service. Once this table has OPENED, losing the name — the link to
     // the service dropped, and someone else registered the id meanwhile — never ends the table: the players' connections do not run through the
     // service, so they are left alone, the GM is told once, and the id is asked for again on a timer that backs off (at once, then 1 s, 2 s, 4 s …
     // 30 s) until it is free. Only a registration that never opened takes the next generation or a new code. A peer this table has let go of
@@ -11020,7 +11020,7 @@ function startHosting(forceFresh) {
         if (net.peer !== peer) return;
         rereg = 0;
         rememberHostCode(code);
-        if (opened) {   // registered again after the link to the signalling service dropped: the table never stopped
+        if (opened) {   // registered again after the link to the signaling service dropped: the table never stopped
             setStatus(codeLine());
             if (taken) { taken = false; toast('Your room code is yours again. New players can join.'); logEvent('table', 'Room code free again \u2014 new players can join'); }   // a 'table' line: the log reads a 'session' line that is no start as the session's end
             return;
@@ -11085,7 +11085,7 @@ function startHosting(forceFresh) {
             return;
         }
         if (type === 'invalid-key' && !opened) { var planW = typeof SIGNAL_PLAN === 'string' ? SIGNAL_PLAN : 'This plan joins tables.'; closing = true; try { peer.destroy(); } catch (e) {} setStatus(planW); toast(planW); return; }   // 1.6.2 (backlog 220): the app's own server refused this host's key; no next generation
-        if (opened) {   // a live table: the room code stays in the status line — a stranger's bad dial is nothing of the GM's, and a dropped signalling link is said beside the code
+        if (opened) {   // a live table: the room code stays in the status line — a stranger's bad dial is nothing of the GM's, and a dropped signaling link is said beside the code
             if (type === 'network' || type === 'server-error' || type === 'socket-error' || type === 'socket-closed') sayDrop(codeLine() + ' \u2014 the link that lets new players find you dropped; reconnecting. Players at the table are not affected.');
             return;
         }
@@ -11128,7 +11128,7 @@ function joinSession(code, name, isRetry, probe) {
     }
     if (!isRetry && !probe) { setStatus('Connecting to ' + showCode(code) + '...'); relayWarn(); }
     var gen = isRetry ? genNotRefused(code, retryGen(reconn.gen, reconn.tries, ROOM_GENS), ROOM_GENS, roomPeerId) : probe;   // a blip reconnects to the generation that last answered at once; a crashed GM's next generation follows in turn
-    sigGate(peer, false, roomPeerId(code, gen));   // transport: a player's peer hears the signalling service and the room it dialled, for the connection it holds — never an offer
+    sigGate(peer, false, roomPeerId(code, gen));   // transport: a player's peer hears the signaling service and the room it dialed, for the connection it holds — never an offer
     peer.on('open', function() {
         var conn = peer.connect(roomPeerId(code, gen), { reliable: true });
         conn.wpCn = newKey(); conn.wpRetry = !!isRetry;   // security (2026-10-01): this connection's own nonce — the snapshot it is given must be signed over it — and whether the player began this join
@@ -11197,7 +11197,7 @@ function joinSession(code, name, isRetry, probe) {
         setStatus('Connection error: ' + err.type + '.' + missJ);
         if (net.fromWelcome && window.wpJoinFailed) window.wpJoinFailed();   // re-enable the welcome Join button (the error shows on that screen)
         toast('Could not reach that room (' + err.type + ').' + missJ);
-        // Only when the join itself failed: a signalling hiccup mid-game also lands here, with the table still live
+        // Only when the join itself failed: a signaling hiccup mid-game also lands here, with the table still live
         if (!net.active && net.foreign && !window.wpStream) load();   // a previous table is still on screen: bring the own campaign back
     });
 }
@@ -11266,14 +11266,14 @@ var assetWaiters = Object.create(null);  // path -> { promise, resolve, reject, 
 // [netcheck:assetreq-start]
 // Security (2026-10-01): a connection may pull only a picture or sound the host SENT IT A REFERENCE TO. Every message to a player passes its
 // connection's send (assetNoteSends wraps it as the host accepts the connection), and the paths under the keys a player's app reads a picture or
-// sound from are noted there, before the message leaves — so a path learnt any other way (a token the GM has since hidden, another campaign's
+// sound from are noted there, before the message leaves — so a path learned any other way (a token the GM has since hidden, another campaign's
 // file, a Journal, a name guessed or worked out) is answered as a file that is not there, and never read. An asset answer is left out: it
 // names the path the player asked for, the player's own word. Text a player wrote (a chat line, a name, a sheet value) never lands under
 // these keys — the patch gate takes geometry and strokes, a share travels as bytes, a sheet file's portrait is dropped — so nothing a player
 // says can make a path askable. Forgotten with the connection and at a new table, and a path only a piece no longer sent carries once its map has gone out (assetHideSweep, below).
 var assetRefs = Object.create(null);   // host: peer -> the paths that connection was sent (decoded canonical form -> 1)
 var ASSET_KEYS = Object.create(null); ASSET_KEYS.src = ASSET_KEYS.image = ASSET_KEYS.portrait = ASSET_KEYS.bgImage = ASSET_KEYS.path = ASSET_KEYS.texSrc = ASSET_KEYS.pic = 1;   // a board item's or a page block's src, a room's image, a character's portrait, a page's or sheet's bgImage, a sound's or song's path, a piece's picture fill
-function assetKeyOf(raw) { var p = assetPathOk(raw); if (!p) return ''; try { return decodeURIComponent(p); } catch (e) { return p; } }   // the form a request is compared in: the canonical path, decoded — the same file however it was spelt
+function assetKeyOf(raw) { var p = assetPathOk(raw); if (!p) return ''; try { return decodeURIComponent(p); } catch (e) { return p; } }   // the form a request is compared in: the canonical path, decoded — the same file however it was spelled
 function htmlAttr(s) { return s.replace(/&(?:(amp|quot|apos|lt|gt|nbsp)|#(\d{1,7})|#[xX]([0-9a-fA-F]{1,6}));/g, function(m, n, d, h) { if (n) return { amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', nbsp: '\u00a0' }[n]; var c = parseInt(d || h, d ? 10 : 16); return c > 0 && c <= 0x10ffff ? String.fromCodePoint(c) : m; }); }   // an attribute's value as the browser reads it: the entities the text tool's serialisation writes (&, ", a no-break space) and the named or numeric ones pasted markup may carry
 function assetWalk(msg, put) {   // every path under a key a player's app reads a picture or sound from, as written
     (function walk(v, d) {
@@ -11361,7 +11361,7 @@ function assetPathOk(raw) {
     var p = u.pathname.replace(/%(?![0-9A-Fa-f]{2})/g, '%25'), dec; try { dec = decodeURIComponent(p); } catch (e) { dec = p; }   // a bad UTF-8 sequence still checks as sent
     if (p.indexOf('/saves/images/') !== 0 || dec.indexOf('/saves/images/') !== 0 || dec.indexOf('..') !== -1 || dec.indexOf('\\') !== -1 || dec.indexOf('\0') !== -1) return '';
     var top = dec.slice(14).split('/').filter(Boolean)[0] || '';   // the first folder under /saves/images/ (an empty segment skipped, as the server's path.join skips it)
-    if (dec.indexOf(':') !== -1 || /^(journal|video)[. ]*$/i.test(top)) return '';   // security (2026-10-01): this machine's own Journal (private shares, notes, other tables' journals) and the video library (a video reaches players as a live stream) are never served to a peer — spelt in any case, with trailing dots or spaces, or as an NTFS stream name, each of which reaches the same folder on disk
+    if (dec.indexOf(':') !== -1 || /^(journal|video)[. ]*$/i.test(top)) return '';   // security (2026-10-01): this machine's own Journal (private shares, notes, other tables' journals) and the video library (a video reaches players as a live stream) are never served to a peer — spelled in any case, with trailing dots or spaces, or as an NTFS stream name, each of which reaches the same folder on disk
     return p;
 }
 net._assetPathOk = assetPathOk;   // exposed for the dev console / checks
@@ -11725,7 +11725,7 @@ function attemptEntry(sys, q, act) {
 // through their own view, as the roll-req branch reads it; the GM's through the system, as net.diceRoll does), at: { map, tok, mapId }, its token
 var ATT_ROWS = 80;
 // 1.6.0 An attempt's kind (attemptKey on the attack, systemcore attemptKeyOf): the stat of the attacker's row, read here off the host's own copy of the row
-// the roll named, and never the attacker's word. A defence whose needs fail for it is not offered: a needs formula is read as the press will read it, a
+// the roll named, and never the attacker's word. A defense whose needs fail for it is not offered: a needs formula is read as the press will read it, a
 // player's through their own view, with the margin and the kind on the target's token context. Only an attack that names a kind is judged so
 function attKindRow(camp, entry, fromCh, rowRef) {   // { f: the list's field, def: the row's definition }, or null
     var S = SC(); if (!S || !camp || !camp.system || !rowRef || typeof rowRef.f !== 'string' || typeof rowRef.r !== 'string' || !fromCh || !fromCh.values || !Array.isArray(fromCh.values[rowRef.f]) || typeof entry.attemptKey !== 'string' || !entry.attemptKey) return null;
@@ -11765,7 +11765,7 @@ function attOffers(camp, tch, toO, r, at) {   // a system roll that resists: whe
     } catch (e) { return false; }
 }
 // [netcheck:critok-start]
-// 1.6.2: whether a defence answers a critical that is not resisted: its Answers a critical where, read on the defender as the host holds it, with the
+// 1.6.2: whether a defense answers a critical that is not resisted: its Answers a critical where, read on the defender as the host holds it, with the
 // attempt's names (AttemptMargin, Attempt.kind, Attempter.<key>). None set, or one that cannot be worked out, answers no
 function attCritOk(camp, tch, r, at) {
     var S = SC(), Fs = window.wpFormula; if (!r || typeof r.critOk !== 'string' || !r.critOk || !S || !Fs) return false;
@@ -11800,7 +11800,7 @@ function attRowAlts(camp, tch, ref, toO, out, at) {
 }
 function attemptMake(camp, entry, vd, malf, range, fromCh, priv, vars, rowRef) {   // vars: the roller's names, which a Calls for that waits for it to be resisted is read with; rowRef: the row a list's roll was made on, where an attempt's kind is read
     var S = SC(); if (!S || !camp || !camp.system || !entry || typeof entry.resistBy !== 'string' || !vd || vd.kind !== 'check' || vd.pass !== true || malf === true) return null;
-    var critOnly = entry.noResistOnCrit === true && typeof S.thenCrit === 'function' && S.thenCrit(vd, malf) === 'crit';   // 1.6.0: a critical success its system does not let be resisted makes no attempt; 1.6.2, but for a defence whose Answers a critical where holds for its defender (below)
+    var critOnly = entry.noResistOnCrit === true && typeof S.thenCrit === 'function' && S.thenCrit(vd, malf) === 'crit';   // 1.6.0: a critical success its system does not let be resisted makes no attempt; 1.6.2, but for a defense whose Answers a critical where holds for its defender (below)
     if (critOnly && !(Array.isArray(camp.system.rolls) ? camp.system.rolls : []).some(function(r) { return r && r.resist === true && typeof r.critOk === 'string' && !!r.critOk; })) return null;
     var rr = null; (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === entry.resistBy && r.resist === true && typeof r.formula === 'string' && !r.apply) rr = r; });
     if (!rr || !range || typeof range.tid !== 'string' || typeof range.mapId !== 'string' || !camp.items || !Object.prototype.hasOwnProperty.call(camp.items, range.mapId)) return null;
@@ -11815,9 +11815,9 @@ function attemptMake(camp, entry, vd, malf, range, fromCh, priv, vars, rowRef) {
     if (range && typeof range.adk === 'number' && isFinite(range.adk)) { rdA = rdA || {}; rdA['@dk'] = range.adk; rdA['@dkp'] = typeof range.adkp === 'number' && isFinite(range.adkp) ? range.adkp : 0; if (kindA) kindA.r = rdA; }   // 1.6.2 (the CORE session's answer 7): the darkness at the attacker's place, which a Defense reads as AttackerDark and AttackerDarkPen
     (Array.isArray(entry.resistOr) ? entry.resistOr : []).forEach(function(oid) { if (typeof oid === 'string' && oid.indexOf('#') > 0) { attRowAlts(camp, tch, oid, toO, rowsA, Object.assign({ map: map, tok: tok, mapId: range.mapId }, kindA)); return; }   // 1.6.0: a list's roll, a button a row
         (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === oid && r.id !== rr.id && r.resist === true && typeof r.formula === 'string' && !r.apply && !(toO && r.vis === 'gm') && alts.indexOf(r) < 0 && alts.length < 3) alts.push(r); }); });
-    var noMain = false, atK = kindOn ? Object.assign({ map: map, tok: tok, mapId: range.mapId }, kindA) : null;   // 1.6.0 An attempt's kind: a defence whose needs fail is not offered, the next that holds standing first
+    var noMain = false, atK = kindOn ? Object.assign({ map: map, tok: tok, mapId: range.mapId }, kindA) : null;   // 1.6.0 An attempt's kind: a defense whose needs fail is not offered, the next that holds standing first
     if (kindOn) { alts = alts.filter(function(r) { return attOffers(camp, tch, toO, r, atK); }); if (!attOffers(camp, tch, toO, rr, atK)) { if (alts.length) rr = alts.shift(); else if (rowsA.length) noMain = true; else { if (window.wpStepLog) window.wpStepLog('attempt v1', 'none offered', { rows: 0 }); return null; } } }
-    if (critOnly) {   // 1.6.2 (the CORE session): a critical that is not resisted is still answered by a defence whose Answers a critical where holds for its defender; a list's row is not offered then
+    if (critOnly) {   // 1.6.2 (the CORE session): a critical that is not resisted is still answered by a defense whose Answers a critical where holds for its defender; a list's row is not offered then
         var atC = atK || Object.assign({ map: map, tok: tok, mapId: range.mapId, m: m }, rdA ? { r: rdA } : {}), cOk = function(r) { return attCritOk(camp, tch, r, atC); };
         alts = alts.filter(cOk); rowsA = [];
         if (noMain || !cOk(rr)) { if (alts.length) { rr = alts.shift(); noMain = false; } else { if (window.wpStepLog) window.wpStepLog('attempt v1', 'crit unanswered', {}); return null; } }
@@ -12017,7 +12017,7 @@ function areaAfter(camp, entry, vd, malf, aim, ch, priv, vars, row, map, tok, fr
 function areaAnswered(camp, hit, pass) { if (window.wpStepLog) window.wpStepLog('line v1', 'answered', { pass: pass === true }); if (pass !== true) areaHit(camp, hit); }
 function areaHit(camp, h) {
     var S = SC(), F = window.wpFormula, sys = camp && camp.system, tc = sys && camp.chars && own(camp.chars, h.to) ? camp.chars[h.to] : null, ch = sys && camp.chars && own(camp.chars, h.by) ? camp.chars[h.by] : null; if (!S || !F || !tc) return;
-    if (typeof h.fx === 'string' && h.fx) {   // on whatever comes of the damage: a hit armour stops whole still sets it
+    if (typeof h.fx === 'string' && h.fx) {   // on whatever comes of the damage: a hit armor stops whole still sets it
         var defs = Array.isArray(sys.effects) ? sys.effects : [], def = defs.filter(function(d) { return d && d.id === h.fx; })[0], lists = (Array.isArray(sys.fields) ? sys.fields : []).filter(function(f) { return f && f.kind === 'effects'; }), fl = lists.filter(function(f) { var l = tc.values ? tc.values[f.id] : null; return Array.isArray(l) && l.some(function(x) { return x && x.ref === h.fx; }); })[0] || lists[0];
         var onB = !!fl && !!tc.values && Array.isArray(tc.values[fl.id]) && tc.values[fl.id].some(function(x) { return !!x && x.ref === h.fx && x.on !== false; }), res = def && fl ? S.applyEffectOp(sys, tc, fl.id, { op: 'add', rowId: 'x_' + Math.random().toString(36).slice(2, 14), ref: h.fx }, F, { now: Date.now(), inCombat: !!(typeof net.charInCombat === 'function' && net.charInCombat(tc.id)) }) : null;
         if (res && res.ok) { var vals = {}; vals[fl.id] = res.value; if (res.clamp) Object.keys(res.clamp).forEach(function(k) { vals[k] = res.clamp[k]; }); tc.values = tc.values || {}; Object.keys(vals).forEach(function(k) { tc.values[k] = vals[k]; }); tc.updated = Date.now(); if (net.active && net.role === 'host' && typeof net.syncCharDelta === 'function') net.syncCharDelta(tc.id, vals); if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(tc.id); if (typeof net.damageCard === 'function') net.damageCard(tc, [(h.gm ? 'A line' : h.label) + ':', (def.vis === 'gm' ? 'An effect' : String(def.name || 'An effect').slice(0, 60)) + (onB && !res.again ? ' is on already.' : ' is on.')]); }
@@ -12449,9 +12449,9 @@ net.diceRoll = function(expr, o) {
     var landR = rec.dmg === 1 && typeof o.landOn === 'string' && campR && campR.chars && own(campR.chars, o.landOn) ? campR.chars[o.landOn] : null;   // who a line hit: the table's copy names them to whoever can see them (sendTableAs)
     if (rec.dmg === 1 && typeof o.landOn === 'string') rec.dmgOn = o.landOn;
     if (rec.dmg === 1 && typeof rec.dmgOn !== 'string' && tcR && tcR.range && typeof tcR.range.tb === 'number' && isFinite(tcR.range.tb)) rec.tb = tcR.range.tb;   // 1.6.2 (13): where the roller stands from the target's facing, for Blow.arc.<key>   // 1.6.0: a token a line hit (this machine's own word)
-    if (rec.dmg === 1 && entR && SR && typeof SR.dmgKindOf === 'function' && campR && campR.system && typeof entR.dkind === 'string' && entR.dkind) { var dkN = o.row && chR && typeof SR.rowRollNames === 'function' ? SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, F.names(entR.dkind), F, uDefR || undefined) : { names: F.names(entR.dkind).map(function(n) { return { name: n }; }) }, dkR = dkN.gm || SR.gmOnlyNames(campR.system, dkN.names).concat(SR.gmDerivedNames(campR.system, F, dkN.names)).length ? '' : SR.dmgKindOf(campR.system, entR, varsR, F); if (dkR) rec.dkind = dkR; }   // 1.6.0: the blow's kind, for Apply to target; never one read from a GM-only value, as the armour divisor, since the record travels to the table
-    if (rec.dmg === 1 && entR && SR && typeof SR.dmgAdOf === 'function' && typeof entR.ad === 'string' && entR.ad) { var adN = o.row && chR && typeof SR.rowRollNames === 'function' ? SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, F.names(entR.ad), F, uDefR || undefined) : { names: F.names(entR.ad).map(function(n) { return { name: n }; }) }, adR = adN.gm || SR.gmOnlyNames(campR.system, adN.names).concat(SR.gmDerivedNames(campR.system, F, adN.names)).length ? 0 : SR.dmgAdOf(entR, varsR, F); if (adR) rec.ad = adR; }   // 1.6.0: the armour divisor its row names, for Apply to target; never one read from a GM-only value, as the record travels to the table
-    if (rec.dmg === 1 && rec.major !== 1 && entR && SR && typeof SR.dmgMajorOf === 'function' && typeof entR.dmgMajorIf === 'string' && entR.dmgMajorIf) { var mjN = o.row && chR && typeof SR.rowRollNames === 'function' ? SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, F.names(entR.dmgMajorIf), F, uDefR || undefined) : { names: F.names(entR.dmgMajorIf).map(function(n) { return { name: n }; }) }; if (!(mjN.gm || SR.gmOnlyNames(campR.system, mjN.names).concat(SR.gmDerivedNames(campR.system, F, mjN.names)).length) && SR.dmgMajorOf(entR, varsR, F)) rec.major = 1; }   // 1.6.0: A Major Wound where, for Apply to target; never from a GM-only value, as the armour divisor, since the record travels to the table
+    if (rec.dmg === 1 && entR && SR && typeof SR.dmgKindOf === 'function' && campR && campR.system && typeof entR.dkind === 'string' && entR.dkind) { var dkN = o.row && chR && typeof SR.rowRollNames === 'function' ? SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, F.names(entR.dkind), F, uDefR || undefined) : { names: F.names(entR.dkind).map(function(n) { return { name: n }; }) }, dkR = dkN.gm || SR.gmOnlyNames(campR.system, dkN.names).concat(SR.gmDerivedNames(campR.system, F, dkN.names)).length ? '' : SR.dmgKindOf(campR.system, entR, varsR, F); if (dkR) rec.dkind = dkR; }   // 1.6.0: the blow's kind, for Apply to target; never one read from a GM-only value, as the armor divisor, since the record travels to the table
+    if (rec.dmg === 1 && entR && SR && typeof SR.dmgAdOf === 'function' && typeof entR.ad === 'string' && entR.ad) { var adN = o.row && chR && typeof SR.rowRollNames === 'function' ? SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, F.names(entR.ad), F, uDefR || undefined) : { names: F.names(entR.ad).map(function(n) { return { name: n }; }) }, adR = adN.gm || SR.gmOnlyNames(campR.system, adN.names).concat(SR.gmDerivedNames(campR.system, F, adN.names)).length ? 0 : SR.dmgAdOf(entR, varsR, F); if (adR) rec.ad = adR; }   // 1.6.0: the armor divisor its row names, for Apply to target; never one read from a GM-only value, as the record travels to the table
+    if (rec.dmg === 1 && rec.major !== 1 && entR && SR && typeof SR.dmgMajorOf === 'function' && typeof entR.dmgMajorIf === 'string' && entR.dmgMajorIf) { var mjN = o.row && chR && typeof SR.rowRollNames === 'function' ? SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, F.names(entR.dmgMajorIf), F, uDefR || undefined) : { names: F.names(entR.dmgMajorIf).map(function(n) { return { name: n }; }) }; if (!(mjN.gm || SR.gmOnlyNames(campR.system, mjN.names).concat(SR.gmDerivedNames(campR.system, F, mjN.names)).length) && SR.dmgMajorOf(entR, varsR, F)) rec.major = 1; }   // 1.6.0: A Major Wound where, for Apply to target; never from a GM-only value, as the armor divisor, since the record travels to the table
     if (rec.dmg === 1 && entR && SR && typeof SR.dmgPart2Of === 'function' && campR && campR.system) { var p2R = SR.dmgPart2Of(campR.system, entR, varsR, F); if (p2R) rec.dmg2 = p2R; if (typeof SR.dmgPartOf === 'function') [3, 4, 5].forEach(function(k) { var pkR = SR.dmgPartOf(campR.system, entR, varsR, F, undefined, k); if (pkR) rec['dmg' + k] = pkR; }); }   // 1.6.0 (B3): a second part of the blow, of another type, rolled from the entry (its card says its amount, so a GM-only one keeps the roll private, below)
     if (rec.dmg === 1 && moR && moR.list) rec.more = moR.list;   // 1.6.0 A burst: one record, one card
     if (rec.dmg === 1 && rnR && rnR[0]) { rec.rno = rnR[0].rno; if (rnR[0].rnd) rec.rnd = rnR[0].rnd; }   // ... which says which round each hit was
@@ -12641,9 +12641,9 @@ function chatEntryNode(m) {   // one text entry, built from nodes: nothing from 
     return wrap;
 }
 // [sinkcheck:cardlook-start]
-// Chat cards (owner 2026-09-27): the viewer's system look colours the cards — its colours as custom properties on #chatLog, checked strict
+// Chat cards (owner 2026-09-27): the viewer's system look colors the cards — its colors as custom properties on #chatLog, checked strict
 // #rrggbb (dicecore cardLook / cleanCardLook); none while character sheets are off or with no look. A chat pop-out takes the main window's
-// (sent with chatSync). data-card-tone: the panel the palette was made for (under the other theme its text drops to the app's colours, CSS)
+// (sent with chatSync). data-card-tone: the panel the palette was made for (under the other theme its text drops to the app's colors, CSS)
 var _cardLook = null, _cardSig = 'null';
 var CARD_VARS = [['primary', '--card-primary', '--card-t-primary'], ['good', '--card-good', '--card-t-good'], ['bad', '--card-bad', '--card-t-bad'], ['muted', '--card-muted', ''], ['accent', '--card-accent', '']];
 function cardLookNow() {
@@ -12689,7 +12689,7 @@ function broadcastChatSync() { if (!_chatBC || window.wpStream) return; try { _c
 if (_chatBC) _chatBC.addEventListener('message', function(e) {
     var d = e.data; if (!d || !d.type || window.wpStream) return;   // the stream window holds no chat of its own: it neither answers nor sends for a pop-out
     if (window.wpPopout) {
-        if (d.type === 'chatSync') { chatLog = Array.isArray(d.log) ? d.log : []; _cardLook = d.look || null; renderChat(); }   // the main window's card colours (checked again in cardLookNow)
+        if (d.type === 'chatSync') { chatLog = Array.isArray(d.log) ? d.log : []; _cardLook = d.look || null; renderChat(); }   // the main window's card colors (checked again in cardLookNow)
     } else {
         if (d.type === 'chatReq') broadcastChatSync();
         else if (d.type === 'chatSend') { var ci = ui('chatInput'); if (ci) { ci.value = String(d.text || ''); sendChat(Array.isArray(d.men) ? d.men : []); } }
@@ -12697,7 +12697,7 @@ if (_chatBC) _chatBC.addEventListener('message', function(e) {
     }
 });
 window.wpChat = { openPanel: function() { var cp = ui('chatPanel'); if (cp && chatHidden(cp)) { var cb = ui('chatBtn'); if (cb) cb.click(); else cp.style.display = 'flex'; } },
-    lookSync: function() { if (window.wpPopout) return; var cl = cardLookNow(), sg = JSON.stringify(cl); if (sg === _cardSig) return; _cardSig = sg; _cardLook = cl; var lg = ui('chatLog'); if (lg) paintCardLook(lg, cl); broadcastChatSync(); } };   // the system or the sheets switch changed: the cards' colours follow (no card rebuilt)
+    lookSync: function() { if (window.wpPopout) return; var cl = cardLookNow(), sg = JSON.stringify(cl); if (sg === _cardSig) return; _cardSig = sg; _cardLook = cl; var lg = ui('chatLog'); if (lg) paintCardLook(lg, cl); broadcastChatSync(); } };   // the system or the sheets switch changed: the cards' colors follow (no card rebuilt)
 // A roll opens Table Chat if it was closed; that auto-open dismisses itself after a few seconds (a fresh roll extends
 // it). If the chat was already open, or the user opens/touches it, it stays — cancelChatDismiss() clears the flag.
 var _chatRollOpened = false, _chatDismissTimer = null;   // false; true: a roll opened it; a view's name: a roll borrowed it for that view while it was up on another (1.5.4)

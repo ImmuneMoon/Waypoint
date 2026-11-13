@@ -8,7 +8,7 @@
 //                                                   else by this computer's own system name
 //   DELETE /api/account/link                     -> { ok: true }   the wait for that code ended here (Stop): a later read finds none
 //   POST   /api/account/poll                     -> { state: pending | denied | expired | approved | none }
-//   GET    /api/account                          -> { linked: false, pending? } | { linked: true, email, playerId, played, colour?, offline? }
+//   GET    /api/account                          -> { linked: false, pending? } | { linked: true, email, playerId, played, color?, offline? }
 //   GET    /api/account/prefs                    -> { updated, prefs }   the account's copy of the profile
 //   POST   /api/account/prefs  { updated, prefs } -> { ok: true }
 //   POST   /api/account/adopt  { updated, prefs } -> { updated, prefs } | 409 { error: 'played' }

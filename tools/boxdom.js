@@ -170,7 +170,7 @@ function makeDom() {
         backspace(box) { return engine.edit(box, 'deleteContentBackward', null); },
         del(box) { return engine.edit(box, 'deleteContentForward', null); },
         enter(box) { return engine.edit(box, 'insertParagraph', null); },
-        // a paste as the page sees it: the paste event with the clipboard's flavours (the engine's own insertion only if nothing cancelled it)
+        // a paste as the page sees it: the paste event with the clipboard's flavours (the engine's own insertion only if nothing canceled it)
         paste(box, flavours) { const cd = { getData: t => (t in flavours ? flavours[t] : '') }; const e = fire(box, 'paste', { clipboardData: cd }); if (e.defaultPrevented) return e; return engine.edit(box, 'insertFromPaste', flavours['text/plain'] || '', { dataTransfer: cd }); },
         copy(box, type) { const got = {}; const e = fire(sel.anchorNode && sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentNode : box, type || 'copy', { clipboardData: { setData: (t, v) => { got[t] = v; } } }); return { e: e, got: got }; },
         // a composition: its text grows in the box (input events on the way), then it ends

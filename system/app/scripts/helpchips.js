@@ -4,7 +4,7 @@
 // control: a tab of the System editor ('sys-tab:<tab>') or a control by its id ('#<id>'). When Help opens, each is drawn as a copy of the control as it
 // looks in the app, made from the real one (its words and its drawing, never its listeners, ids or handlers). Pressing it puts Help aside, opens the
 // window it lives in on its tab, brings it into view and lights it for two seconds, and Back to Help returns to the place Help was left. A control this
-// screen cannot reach (the System editor on a player's app) is drawn greyed and says why. Nothing is stored or sent
+// screen cannot reach (the System editor on a player's app) is drawn grayed and says why. Nothing is stored or sent
 // [helpchipcheck:core-start]
 function chipHelpBox(doc) { return doc.getElementById('helpModal'); }
 // a window a control may live in, the control that opens it, and what a tab of it is called: the System editor for now
@@ -121,7 +121,7 @@ function chipReach(doc, f) {
         if (bar.style && bar.style.display === 'none') return bar.id === 'dataFloatingToolbar' ? 'On the data map' : 'On the play map';
         var chB = chipMenus(doc, f.el), inB = function(x) { return chB.some(function(m) { return m.box === x; }); };
         for (var mi = 0; mi < chB.length; mi++) if ((chB[mi].open.style && chB[mi].open.style.display === 'none') || chB[mi].open.hidden) return 'Not on this screen';
-        for (var nb = f.el; nb && nb !== bar; nb = nb.parentNode) { if (inB(nb) || !CHIP_WHEN[nb.id] || !(nb.hidden === true || (nb.style && nb.style.display === 'none'))) continue; return CHIP_WHEN[nb.id]; }   // a part a menu fills as it opens is judged then, so only a part named as shown at times greys a chip
+        for (var nb = f.el; nb && nb !== bar; nb = nb.parentNode) { if (inB(nb) || !CHIP_WHEN[nb.id] || !(nb.hidden === true || (nb.style && nb.style.display === 'none'))) continue; return CHIP_WHEN[nb.id]; }   // a part a menu fills as it opens is judged then, so only a part named as shown at times grays a chip
         return '';
     }
     if (!f.win) { var st = chipStand(doc, f.el); return st === f.el && !chipMenus(doc, f.el).length && f.el.offsetParent === null && f.el.style.display === 'none' ? 'Not on this screen' : ''; }

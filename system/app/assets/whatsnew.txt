@@ -4,7 +4,7 @@ WAYPOINT 1.6.2 — What's New
 Tokens
 - A picture you tick Is Character fits one cell of the map's grid by itself,
   and Undo puts it back. An empty or see-through border is trimmed and the
-  picture centred, and Frame picture still changes it. The token creator and
+  picture centered, and Frame picture still changes it. The token creator and
   the Image Library say the size a token's picture is best at.
 - Tokens now sit exactly in their hexes and squares at every zoom. The grid
   used to drift a few pixels off them on a scaled display, so I draw its
@@ -47,8 +47,8 @@ Tidier screens
 - The System editor's Layout tab lists its parts down the left, as Combat
   does. Sections, Tabs, Sheet look, Header and Pinned band each open on
   their own, and the preview stays beside them.
-- The app spells it colour everywhere now, from Pen Colour on the toolbar
-  to Plain colour in a Texture list and every line of Help.
+- The app spells it color everywhere now, from Pen Color on the toolbar
+  to Plain color in a Texture list and every line of Help.
 - Every button that cannot be undone wears a red outline, such as Start over
   as a new player and Clear all handouts.
 
@@ -153,7 +153,7 @@ The System editor
   with a tall empty gap.
 - A Laid from rule can give a lone unit a side of its own, so one leg is a
   Center Leg. The Decks window's close button wears the app's look, and its
-  Shuffle the discard in greys out when nothing is discarded.
+  Shuffle the discard in grays out when nothing is discarded.
 - Muted, Sound effects and Music change their icon, in the row and in the tray
   of icons that do not fit it, in place of a word.
 - In a browser, the app stays out of sight until Waypoint has read what your
@@ -212,7 +212,7 @@ The System editor
 - A formula's form offers your tables. Each column comes read by what finds
   its row, such as Hit die in Classes, by Class, so you never type a table's
   name. A new column or row takes its short name from the name you give it.
-- A button greyed out by what it needs tells the GM in words, such as only
+- A button grayed out by what it needs tells the GM in words, such as only
   while First-level slots is at least 1, never as its formula.
 - A roll you named but left with nothing to roll says so under its row, since
   Save leaves it out. It used to go at Save without a word.
@@ -291,7 +291,7 @@ The System editor
   the row, and a formula of the row can read the row it hangs from.
 - A grant can name the row it makes, set its stats and hang it from another
   grant's row, so one entry can lay a whole body down.
-- A list's rows can stand at rows of another list, as armour on the parts of a
+- A list's rows can stand at rows of another list, as armor on the parts of a
   body. A formula reads the place a row stands, and a row of that list reads
   what stands there. Fits where, Reaches and Counts where set the rules.
 - Wall marks stand aside until you point at a wall or select it, and its hover card
@@ -428,7 +428,7 @@ At the table
   where there is one. It is off unless your system sets it.
 - A station nobody holds reads 0, as a skill of 0 does. The roll's card now says
   nobody is there.
-- A roll that resists can keep its figure from the table. Tick Hide what a defence
+- A roll that resists can keep its figure from the table. Tick Hide what a defense
   needs on the Combat tab, or press Hide figures on an NPC's sheet. Where the roll
   reads its attacker, a player's card shows the dice and Success or Failure, and
   your card shows it all. An attack by your own character goes the same way.
@@ -440,9 +440,9 @@ At the table
   set beside the keys, and Settings says which controller is connected, how many
   buttons it has, and whether its layout is the standard one.
 - A character's name can wear a look of its own: a font of Waypoint's own and a
-  colour. Its player sets it under the sheet's head, and the GM on any sheet.
+  color. Its player sets it under the sheet's head, and the GM on any sheet.
   It shows on the sheet, the hover card, the turn order, Characters and the
-  roll cards, which are edged in its colour, and a player's own sheet text is
+  roll cards, which are edged in its color, and a player's own sheet text is
   set in their font.
   Personal looks is a VTT feature, on until the GM switches it off.
 - A Load can wait for a job of its list, so a reload that takes turns loads
@@ -484,7 +484,7 @@ At the table
 - A system can now name its own arcs on the Combat tab, such as Front, Left,
   Right, Rear and Turret, each a range of degrees from a token's facing.
   Arcs may overlap. A rule can ask whether a hit comes from inside an arc,
-  and a list can name the arc each of its rows reaches, so a gun greys out
+  and a list can name the arc each of its rows reaches, so a gun grays out
   where it cannot fire.
 - An item can now fly once launched, as a missile does. A Launch change on a
   list's roll or action puts it on the map as a small token with its own HP,
@@ -504,7 +504,7 @@ At the table
   A rule can read the kind's factors, such as a Speed of 10, which read 1 on a
   map with no kind.
 - A blast's formulas can now read one cell of the map in the system's own
-  distance unit, which the Combat tab sets as yards, feet or metres. They can
+  distance unit, which the Combat tab sets as yards, feet or meters. They can
   also read the scale of the one it hits, from a number field the system
   picks, so a person caught in a ship's blast can take more.
 - A roll's Then or an action can switch off a row picked at random from a
@@ -546,7 +546,7 @@ At the table
 - A roll's Calls for can ask for a list's roll on a row: the row that resisted,
   or, sent to the roller, the attack's own row. So a weapon that parries, or
   is parried by, an energy blade rolls against its own Durability.
-- An Any wound row can also run on a blow that wounds nobody, as armour that
+- An Any wound row can also run on a blow that wounds nobody, as armor that
   stops it all, for knockback. A row's roll can read the sheet as it stood at
   that row, so a shock roll leaves out the Stunned of the same hit.
 - Help draws the System editor's buttons and tabs as they look in the app.
@@ -555,7 +555,7 @@ At the table
   its menu first. So do the buttons Help names in Settings, your profile and
   the Multiplayer window, which opens on the group or part that holds them. A
   button shown only at times, as Pause the table while you host, is drawn
-  greyed and says when. A row of the map's toolbars, such as Reveal all in
+  grayed and says when. A row of the map's toolbars, such as Reveal all in
   the fog menu, opens the tool's options first, and says when the toolbar is
   on another view. A button of the Library window, Map objects, the dice
   roller or the combat roster opens its window first; the roster says that it
@@ -574,7 +574,7 @@ At the table
   the total and never toward a critical.
 - A wound can be worked out by a formula of what got through, for every damage
   type or for one type alone. The system says whether a wound of 0 still wears
-  armour.
+  armor.
 - An effect can hold a number, as Bleeding 3. Its changes can count that many
   times, adding it again adds, keeps the higher or replaces, and it can fall each
   turn or each game minute or hour. At 0 it ends.
@@ -604,7 +604,7 @@ Settings
   the arrows and whose turn it is. The ... button opens a menu with who is
   next, Hold, the roster and End combat. It no longer drops over the map in a
   narrow window, and the Round pill in the top row steps aside while it shows.
-- Settings has Own signalling server, under Multiplayer. It finds tables
+- Settings has Own signaling server, under Multiplayer. It finds tables
   through Waypoint's own server in place of the public one. It stays off
   until that server is ready, and the GM and every player tick it alike.
 
@@ -623,12 +623,12 @@ Build
 - Build's options stand in three tabs. Build holds the materials and the
   shape with one scroll, Objects your map objects, and Generate the dungeon,
   city and world as three cards. Look, under the shape, opens the texture
-  and the colour and says what they are while shut.
+  and the color and says what they are while shut.
 - Your pins and what the map uses stand in one strip, each material once.
   A material's name is never cut by the row under it.
 - On or off is a switch at the right end of its row. In This campaign each
   feature has two: Here for the campaign on screen, and New for a campaign
-  you make later. A feature's own settings stand under it, greyed while it
+  you make later. A feature's own settings stand under it, grayed while it
   is off.
 
 Around the app
@@ -668,7 +668,7 @@ Around the app
 - The Image Library has Add pictures beside its search box. It brings
   pictures in from your computer, and they wait in the library until you place
   them.
-- A sheet's line for its name's font and colour now says Name shown as.
+- A sheet's line for its name's font and color now says Name shown as.
 - The dice roller picks your character whose token stands on your map, where
   you play several, in place of No character.
 - While a question asks whether to end the session for another campaign, the
@@ -681,8 +681,8 @@ Around the app
   dot, beside what waits for you, and its notice on screen wears a red edge.
 - The Calendar's rules are in Help now, and More in Help goes there. A day you
   pick offers Set the clock and Add a note.
-- Visual effects says what each row does in one grey line, and Clear the
-  colour and Stop the weather stand at its foot.
+- Visual effects says what each row does in one gray line, and Clear the
+  color and Stop the weather stand at its foot.
 - The GM's sound card opens the sound effects board.
 - The Library folds the pack's own settings away under Pack settings. Save
   entry, Duplicate and Delete stand at the top of an entry's form, and an
@@ -726,7 +726,7 @@ Writing planners and pages
   each box has its name above it. A flowchart's arrow picks the steps it
   joins by their own words.
 - One formatting bar stands above the blocks and styles the text block
-  you are in. It is greyed until you click into one.
+  you are in. It is grayed until you click into one.
 - A planner's scene node can now be a Person, a Place or a Clue card. Each
   kind names its fields its own way, and switching keeps every field. A
   person card can name its character sheet, and a clue has a Found tick.
@@ -756,7 +756,7 @@ Writing planners and pages
   a window of its own titled with the map's name. A group and a flattened
   picture hold their pieces under them.
 - A map's row in the Maps list shows up to four overlapping faces. Point at
-  them for everyone on that map, and press a name to centre on their token.
+  them for everyone on that map, and press a name to center on their token.
 - The bar over a selected piece folds to one small button, and Settings can
   put it away altogether, so it covers less of the pieces around it.
 - Properties floats over the map in a window you move by its title, and opens
@@ -773,7 +773,7 @@ Writing planners and pages
 - A roll can read which arc of its target the attacker stands in, by the
   arcs the Combat tab names. A damage card carries it, so a wound, a DR or
   a layer can differ for a blow from behind.
-- A layer can take an armour divisor of its own, such as ignoring it or
+- A layer can take an armor divisor of its own, such as ignoring it or
   halving it, on the part of the DR its rows give.
 - An item's blast can strike a named hit location, such as the legs for a
   mine underfoot.
@@ -808,9 +808,9 @@ Writing planners and pages
   their rules, and Unflatten puts the pieces back.
 - A job of a list's roll may be ticked At once out of a fight: out of one its
   first press is its last, and its roll is made then.
-- A defence may answer a critical that is otherwise not resisted: Answers a
+- A defense may answer a critical that is otherwise not resisted: Answers a
   critical where, on a roll that resists, says for whom. A list roll may say
-  its Attempt type, worked out from its row, which a defence reads.
+  its Attempt type, worked out from its row, which a defense reads.
 - Cloud saves say when a day's uploads or a month's downloads on your plan
   are used up, and when they start again.
 - On the website, when a month's downloads are used up, sounds and videos say
@@ -847,10 +847,10 @@ Writing planners and pages
   festival and it shows on that day each year, in Coming up and in the
   reminders. A leap-day note waits for the next leap year.
 - Eras name spans of years, such as the Age of Ash or a long war. Set them at
-  the foot of the Calendar window with a name, the years and a colour. The
+  the foot of the Calendar window with a name, the years and a color. The
   date shows its era, and the Timeline heads each era's notes with it.
 - A scene card has a Session list: Ahead, Tonight or Played, each in its own
-  colour. Next scene on the play map and in the Pages shelf opens the planner
+  color. Next scene on the play map and in the Pages shelf opens the planner
   right at the scene marked Tonight.
 - A planner card can start a sound, a song, a playlist or a saved effect. Pick
   one under Plays and the card gets a Play button, so the tavern music is one
@@ -874,7 +874,7 @@ Writing planners and pages
   marked Ahead. Skip writes nothing, and Plan with questions in the campaign
   menu opens them later.
 - The Story view shows your planners as arcs and their scene cards as beats,
-  coloured Played, Tonight or Ahead. Mark a beat from there, drag it to a
+  colored Played, Tonight or Ahead. Mark a beat from there, drag it to a
   new place in its planner, or click it to open the planner at that card.
   Open it from the Pages shelf or the campaign menu.
 - The Calendar's Timeline tab now has a ribbon of your eras, dated notes,
@@ -917,9 +917,9 @@ Writing planners and pages
   does the same, and so does the window button on a card in Prep.
   It is a small window, so several can stand beside the map.
 
-Level tags in colour
+Level tags in color
 - An entry's By level rows show a small tag beside a level, such as 10 pts.
-  A list can now give every tag a colour, and the Library can give each
+  A list can now give every tag a color, and the Library can give each
   level's tag its own, which wins.
 
 Animated dice
@@ -929,9 +929,9 @@ Animated dice
 - Dice on a roll, in Settings, shows them over the map instead, or turns them
   off. It is your own choice and changes nobody else's screen. With Reduce
   motion the dice show already landed.
-- Paint your dice, in Settings or on the dice roller, picks the colours and
+- Paint your dice, in Settings or on the dice roller, picks the colors and
   the pattern your dice are drawn in. Start from one of eight ready sets, then
-  change any colour. Everyone at the table sees your rolls in your look.
+  change any color. Everyone at the table sees your rolls in your look.
 - Add a design of your own: draw one, or make one from a picture. It goes on
   every face behind the number, and each number gets an outline so it reads.
 - In a sheet's section, a roll keeps its name on one line, shrinking a
@@ -1080,14 +1080,14 @@ Saved effects with sounds
 - Each loop that plays has its own volume and its own stop, under Playing.
   Players hear the layers at those volumes, and so does a player who joins.
 - Save as an effect, in the Effects panel, keeps what runs now by a name: the
-  weather and its density, the colour held on the screen and the loops with
+  weather and its density, the color held on the screen and the loops with
   their volumes. Press it to put it all on, and again to stop it.
 - This map, under the saved effects, picks one that starts when you open the
   map. Leaving the map stops its loops, as a map's music does.
 - Sound with it, in the Effects panel, lists your cues again. It had stopped
   showing.
 
-Making a catalogue
+Making a catalog
 - The Library window has a new button, Spreadsheet... It reads a CSV file, as a
   spreadsheet program saves one. Waypoint matches each column to what an entry
   holds by its heading, and you can change any of them.
@@ -1246,7 +1246,7 @@ Game Record
 
 Drawings in place of emoji
 - Menus, buttons, Help and the sheet now wear Waypoint's own drawings where
-  they wore emoji. They look the same on every computer, in the app's colours.
+  they wore emoji. They look the same on every computer, in the app's colors.
 - A marker on the map wears a plate, so that it stands out on any map art:
   a dark one normally, a gold one in the light theme. Doors, walls, barriers,
   portals, lights, traps and hidden pieces all have one.
@@ -1349,7 +1349,7 @@ Scenes
   your screen does, faint or not at all.
 
 Hidden pieces
-- Settings has Hidden pieces on my map: Faded shows a piece you hid from players see-through, as before, and Invisible leaves it off your screen until you show it. No grey cloud stands in for a hidden piece any more.
+- Settings has Hidden pieces on my map: Faded shows a piece you hid from players see-through, as before, and Invisible leaves it off your screen until you show it. No gray cloud stands in for a hidden piece any more.
 
 Pages on the map
 - A map can have a scene page: the planner or handbook page you want at
@@ -1371,13 +1371,13 @@ Pages on the map
 Your profile
 - Your profile has a window of its own. Your picture at the right of the
   top row opens it, and so do Your profile on the welcome screen and
-  Settings, Profile. It holds your picture, name, colour and token face.
+  Settings, Profile. It holds your picture, name, color and token face.
 - Below them is a short list of the GMs whose tables know you, with when
   you last joined. It is read from this computer, and nothing is sent.
 - Reset Local Preferences, in Settings, keeps the tables that know you,
   as it keeps your name and picture.
 - Start over as a new player, at the bottom of your profile, forgets every
-  table that knows you, erases your name, picture, colour and token face,
+  table that knows you, erases your name, picture, color and token face,
   and unlinks your Waypoint account. You are asked first. To be yourself
   again, open a saved profile, paste a profile code or link your account.
 - The welcome screen says it plainly: no account is needed, there are no
@@ -1433,7 +1433,7 @@ Systems, more
 - A short effect on someone in no fight lasts its rounds. It no longer runs
   out at once while a fight goes on.
 - A wound or a Major Wound follows an effect's When added again.
-- A greyed roll or switch tells a player its own words, never its formula.
+- A grayed roll or switch tells a player its own words, never its formula.
 - A character can be given to a player from its sheet or its row under Characters.
 - A system can call its Major Wound step by its own name.
 - A ruler left on the map no longer takes the press meant for a token under it.
@@ -1442,7 +1442,7 @@ Systems, more
 - A roll made for an NPC shows only to players who can see that NPC. Others
   get no card. A throw or a Defend card leaves that NPC's name off for them.
 - An attack from a list can name a Kind, one number stat of its row. A roll that
-  resists it reads that figure as Attempt.kind, and a defence whose Needs fail for
+  resists it reads that figure as Attempt.kind, and a defense whose Needs fail for
   that kind is not offered on the card.
 - Every roll in a section of a sheet now stands at one height.
 - In the System editor's Layout tab, the GM button puts a part on the GM's sheet
@@ -1466,7 +1466,7 @@ Systems, more
   never did in the app, though the editor let you pick one.
 - A press on the System editor's Layout tab no longer holds the page on a large
   system.
-- A roll or an action can be Hidden until it can be used, in place of greyed out.
+- A roll or an action can be Hidden until it can be used, in place of grayed out.
 - A roll or an action can call for another roll as a card to press: whatever
   comes of it, on a success, on a failure, or when it is resisted, when the card
   goes to the target.
@@ -1489,7 +1489,7 @@ Systems, more
 - A player who reloads while the GM's table cannot be found keeps trying, as
   a dropped connection does, and is not told to set up a relay server.
 - A hexagon token's selection and turn mark follow the hexagon, not a box.
-- A press on a greyed roll or action says what holds it back. Before, it did
+- A press on a grayed roll or action says what holds it back. Before, it did
   nothing you could see.
 - A character given to a player for the first time starts current, so the
   player is not held until you mark it.
@@ -1507,7 +1507,7 @@ Systems, more
 - A system can let placed objects give cover by themselves. On the Combat card,
   with cover on, Placed objects give cover names the largest size that counts, in
   cells across, so a whole-map picture stays the map. A rug or a marking is set
-  to No cover in its Properties. A small piece that covers no cell's centre then
+  to No cover in its Properties. A small piece that covers no cell's center then
   counts in the cell its own middle stands in.
 - A roll can read cover as TargetCover: 0 with none, 1 with some, 2 with no clear
   line, as the ruler reads it to the character's target. TargetCoverGrade reads
@@ -1548,9 +1548,9 @@ Systems, more
 - A weapon list says what a blow must beat, the Dur left or the listed Dur, and
   what a heavy blow does: a condition down, or the Dur left taken to 0.
 - A system holds 200 effects, and an effect's or an entry's notes hold 1,000
-  characters, a caption 400, a greyed button's words 200 and a badge's tip 1,000.
+  characters, a caption 400, a grayed button's words 200 and a badge's tip 1,000.
   A text a limit cuts short is said when the system loads or is imported.
-- The desktop app keeps its pace while its window is minimised or covered, so
+- The desktop app keeps its pace while its window is minimized or covered, so
   a GM who looks at something else no longer loses the table.
 - A token taken out of a fight and added back keeps its initiative and stands
   where that number puts it.
@@ -1668,9 +1668,9 @@ Systems, more
   press rolls once for each hit, on one card with each total on it. Each
   hit reads its own round as Row.fired, in firing order.
 - One Apply to target lands every hit at one location. Each hit is its own
-  blow, and pools move on from hit to hit. Every hit meets the armour as it
+  blow, and pools move on from hit to hit. Every hit meets the armor as it
   was before the burst, the wear comes off once at the end, and a hit the
-  armour stops wears nothing. One Revert takes it all back.
+  armor stops wears nothing. One Revert takes it all back.
 - In a launched burst each round that hits is its own blast at the target,
   going off at once. A round whose extra die failed strays, and so does
   every round past the first of an attack that missed. With A stray round
@@ -1698,7 +1698,7 @@ Systems, more
   on its own, then the blow is one wound: one Major Wound test, one Any
   wound and one wear. The Rolls tab can now set a roll's Damage type too.
 - A blow can have a Third part, a Fourth part and a Fifth part too, each
-  with its own type, and on a list's roll its own armour divisor. Every
+  with its own type, and on a list's roll its own armor divisor. Every
   part counts in the one blow. Each box shows once the part before it has
   a formula.
 - Any wound's Where, and the rolls a wound posts, read Blow.type2 and
@@ -1752,7 +1752,7 @@ Systems, more
 - A damage type can count the dice a blow rolled: DR, a wound, a vital
   wound or wear for each die. A hit location can add a wound for each die
   too. The Take damage window asks for the dice, and a card fills them in.
-- A list's damage roll can name its armour divisor, read from its row,
+- A list's damage roll can name its armor divisor, read from its row,
   such as Row.ap. Apply to target fills it in.
 - What wears can hold eight layers, and a layer can wear another stat by
   where the blow lands.
@@ -1818,7 +1818,7 @@ Systems, more
   fitted to a row, such as Row.Grip <= Host.Grip for a grip or a gauge.
   It reads the part's own names as Row, the row as Host, and the
   character's. A player is refused where it does not hold, in the words
-  under Refused with, and the add list greys that part out. You may fit
+  under Refused with, and the add list grays that part out. You may fit
   it all the same, and you are told.
 - Fits where is judged again when a fitted part or the row it is on
   changes, as when a part's material is changed after it was fitted.
@@ -1858,7 +1858,7 @@ Systems, more
   paid out, and the card says so. With too little held a player's roll lands
   none of its Then. Your own roll takes what is held and tells you.
 - A roll that costs money whatever the dice say no longer rolls for a player
-  who cannot pay. Its button greys out and says why, and nothing is spent.
+  who cannot pay. Its button grays out and says why, and nothing is spent.
   Where the cost hangs on the dice, the row says "You may not be able to pay
   this" before the press. Your own press always goes through and takes what is
   held, and your sheet shows the same words beside the roll.
@@ -1899,10 +1899,10 @@ Systems
 - A badge can show whether a row's entry has what it needs, and any formula of a row can tell a copy held again under its own name.
 - A sheet or its HUD may hold up to 100 sections, where 60 was the most.
 - A system that holds more than Waypoint keeps is never cut down in silence. When it loads or is imported, a notice names what was left out, sections and placements included. The System editor says what stands at its limit.
-- A list can keep its rows in sets, such as a suit of armour: each set shows how many are on, says Complete when all are, and switches on or off at once. A formula reads Row.setall for a set bonus.
+- A list can keep its rows in sets, such as a suit of armor: each set shows how many are on, says Complete when all are, and switches on or off at once. A formula reads Row.setall for a set bonus.
 - The sheet reads larger: its labels, row words, chips and boxes, and a field’s roll and its ± beside its name. The HUD keeps its compact size.
 - A list placed in several places can split them by a choice stat, such as a body slot or a container, in place of categories.
-- A list may give each row a coloured edge that follows its state: its strongest badge's colour, or the accent while switched on.
+- A list may give each row a colored edge that follows its state: its strongest badge's color, or the accent while switched on.
 - A list roll can ask which level to run at, up to the row's own, so a spell of level 3 can be cast at level 1.
 - A list may make its choice stats menus on each row, ticked Choices as menus, for whoever may set them.
 - A stack on a sheet can be split: Split beside its quantity puts some of it in a row of its own.
@@ -1916,7 +1916,7 @@ Systems
 - A list's roll may show its figure in a small box at the end of its button: what a check rolls against, a roll's dice, or a column.
 - Action buttons wear an icon too, a bolt where none is picked, as roll buttons wear their die.
 - Badges on a list's rows. Each is words a row shows only while a formula of the row holds, such as Jammed. It may be a pill after the name or a line under the row, tint its row and pulse.
-- A value name of a list's stat or column may have a colour. The row then shows its label small and the name as a badge.
+- A value name of a list's stat or column may have a color. The row then shows its label small and the name as a badge.
 - A roll with an icon of its own now shows its die too, before the icon.
 - New sheets after a change. When you change the system so that your
   players' sheets no longer fit, press Ask for new sheets in the System
@@ -1939,7 +1939,7 @@ Systems
   row, with the rest one press away. The HUD keeps every part on its row.
 - The remove, edit and notes buttons on a row now have names a screen
   reader says, and a counter's minus and plus are larger.
-- A layer of armour can say by formula what a hit wears: on a Major
+- A layer of armor can say by formula what a hit wears: on a Major
   Wound, and once it is broken there, for a hit and a Major Wound. With
   none it wears 1, or a quarter on a Major Wound, as before. Those
   formulas read the blow too, its damage, type and wound, and wearing
@@ -1981,7 +1981,7 @@ Systems
   press asks for a click on the map, and one roll goes for the whole line. A
   wall stops it and a body does not. Each token in it may resist, or is hit.
   Each hit can roll a damage roll, whose card lands on that token, and can get
-  an effect even where armour stops the damage.
+  an effect even where armor stops the damage.
 - A band's Noticed by can hear a loud roll. Loud by picks a stat of a list, and a
   roll of a row with that stat marks its token loud by the figure, until its next
   turn in a fight and for a few seconds out of one. The check reads it as
@@ -2002,7 +2002,7 @@ Systems
   switched off because its pool ran short says so. A row its player
   cannot see is said to you alone.
 - A list's apply action can need something first, as a list roll can, such
-  as Row.Charges >= 1. Its button greys out, and the table refuses it.
+  as Row.Charges >= 1. Its button grays out, and the table refuses it.
 - A list roll's or action's change can switch its own row off, such as a
   power that ends when its roll fails.
 - A grant can come once a character, such as an implant's mandatory
@@ -2052,7 +2052,7 @@ Systems
 - A list can keep twelve counters on each row, up from eight.
 - A system holds 160 rolls, up from 50, and 600 fields, up from 400. A
   sheet or its HUD holds 800 placements, up from 400. The System
-  editor's + Roll now greys out at the limit and says why, where before
+  editor's + Roll now grays out at the limit and says why, where before
   a roll past it was dropped at Save.
 - A list may have two feeds: things a row loads apart, each with a counter of
   its own, as a weapon takes a cell and a clip. A roll's Then can take a shot
@@ -2081,7 +2081,7 @@ Token bars
 - Show up to two pools of the sheet, such as HP, as a thin ring around
   every character token. Bar 1 is the left half of the ring and Bar 2
   the right. Add token bars on the System editor's Combat card.
-- Each bar has its pool, its colour and who sees it: its owner and the
+- Each bar has its pool, its color and who sees it: its owner and the
   GM, everyone, or the GM only. Hover over a bar to see its numbers.
 - A token's Properties can give it bars of its own. A token with no
   sheet has a name, a Now and a Most for each bar.
@@ -2105,14 +2105,14 @@ Restore points, a trial run and a test copy
 
 Looks and the work log
 - A list can let its rows carry a look: tick Rows carry a look in the
-  System editor's Lists tab. Each row may have up to four colours, a
+  System editor's Lists tab. Each row may have up to four colors, a
   finish such as matte, and markings, overall and part by part.
-- The colours show as small swatches beside the row's name, on the
+- The colors show as small swatches beside the row's name, on the
   sheet and the HUD. The finish, the markings and each part are in the
   row's details, with a Look button that opens a small form.
 - A row with no look of its own shows the look of its main part, a part
   category the list names. Else it shows its material's shade, from a
-  stat the list names, with one colour for each of its values.
+  stat the list names, with one color for each of its values.
 - The row's owner and you may change a look at any time, on any list
   they see. A look never changes a figure.
 - Tick Rows keep a work log and + Work writes down a repair, a fit, a
@@ -2144,9 +2144,9 @@ The top row in a narrow window
 
 System editor
 - The Sheet look box has three more label choices: the header's labels
-  plain too, every label in the sheet's text colour, and a label size of
+  plain too, every label in the sheet's text color, and a label size of
   13, 14 or 16 px. The HUD keeps its own small labels.
-- A pool's colour can be ticked Band only: coloured on the pinned band,
+- A pool's color can be ticked Band only: colored on the pinned band,
   plain in its own section.
 - A dice formula written in text, such as 2d6 + 3, is a button that rolls
   it: in pages and planners as you read them, in Table Chat messages, and
@@ -2214,7 +2214,7 @@ System editor
   in hand.
 - A reading may have warning and danger bands, set in the System editor's
   Lists tab, each a formula of the character's names. Past one the figure
-  on the sheet turns amber or red, and a small thermometer in that colour
+  on the sheet turns amber or red, and a small thermometer in that color
   shows on the token of a character a player plays, for that player and
   you.
 - An item or an effect can offer roll bonuses, each a tick in a roll's
@@ -2304,7 +2304,7 @@ Turn order
 Small fixes from a long test by hand
 - The right-click menu's Opacity slider is gold, like the app's other
   sliders.
-- A greyed row in a right-click menu no longer lights up under the pointer.
+- A grayed row in a right-click menu no longer lights up under the pointer.
 - A tooltip goes as soon as you drag a box by its head.
 - The Join button stays put when the Multiplayer window's status grows to
   two lines.
@@ -2332,7 +2332,7 @@ Small fixes from a long test by hand
 - Esc closes a sheet even when the focus has left it, unless a tool is in
   your hand or something is being placed.
 - The Multiplayer window's close stays in sight as you scroll it.
-- The Give question names the player. The grey line under A trade in a fight
+- The Give question names the player. The gray line under A trade in a fight
   no longer wraps to five lines.
 - The System editor on a large system: a tab draws only its own rows, so a
   press of a tab takes a second or two where it took ten. Long lists fill
@@ -2517,7 +2517,7 @@ Explosives
 - The Combat card says how far fragmentation reaches, its type, and
   whether only full cover stops it. What the rules leave open is its to
   choose too: one roll for everyone or one each, a roll of its own for
-  the target struck directly, and whether an armour divisor counts. A
+  the target struck directly, and whether an armor divisor counts. A
   thrown explosive, a mine and a launched round all carry it, and Undo
   last throw puts it back.
 - An explosive can carry afflictions, two at most. Each says what it is
@@ -2594,7 +2594,7 @@ Explosives
   gives each token its share of a blast, by its distance in yards. The
   direct target and the blast's own cell take the whole roll. Each
   share goes through the damage step with the item's damage type, its
-  armour divisor and the torso, and Undo last throw puts back every
+  armor divisor and the torso, and Undo last throw puts back every
   value it changed. A blast's damage card has Apply to all in the blast.
 - A throw is aimed at a token or a spot and rolls the Combat card's
   Throw roll with the range to the aim. A miss scatters along the line
@@ -2608,7 +2608,7 @@ Explosives
   goes off as it is placed. It goes off when a character steps into its
   trigger radius, or with Set off the mine on the GM's right-click menu.
 - A library entry sets its blast's damage type, Uses one up, Placed, not
-  thrown, its trigger radius and its armour divisor in the Library
+  thrown, its trigger radius and its armor divisor in the Library
   window's form, beside its blast radius. Save says what it could not keep.
 - With none of these set, blasts work as before.
 
@@ -2645,7 +2645,7 @@ System editor
   says so when the row cannot come back because the list changed since.
 - A list's switch can need something before a row is switched on: in the
   Lists tab, give Rows have a switch a Needs to switch on formula, such as
-  Row.Charge > 0, and the words it says. A player's switch is greyed out
+  Row.Charge > 0, and the words it says. A player's switch is grayed out
   and refused with the words while it does not hold. You may still switch
   the row on, and a notice tells you what it needs.
 - A roll's + Then... changes can happen On a critical success or On a
@@ -2816,11 +2816,11 @@ Buying and selling
 Combat
 - Taking damage. A character token's right-click menu has Take damage,
   and a damage roll's card in chat has Apply to target for the GM. A
-  window takes the damage, its type, the location and the armour
+  window takes the damage, its type, the location and the armor
   divisor, and shows what the blow does before you apply it.
 - It takes the location's DR off first, multiplies what gets through by
   the type and the location, and takes it off the right pool. It says a
-  Major Wound and a crippling blow, wears the armour and clothing worn
+  Major Wound and a crippling blow, wears the armor and clothing worn
   there, and can test a weapon's Dur and condition.
 - You set the rules in the System editor's Items tab, in the Combat
   card's new Taking damage box: the pool, the hit locations and their
@@ -3058,7 +3058,7 @@ Multiplayer
   yours from then on. Its player can no longer erase or redraw it, and
   their eraser says why. Untick it to hand the line back.
 - The table notepad takes a look. The GM clicks into it and a bar comes
-  up by it: bold, italic, underline, strike through, a colour, a size
+  up by it: bold, italic, underline, strike through, a color, a size
   and one of Waypoint's fonts for the whole notepad. Every player reads
   it with that look, and Save to my Journal keeps it. A web address in
   the notepad stays plain text.
@@ -3074,8 +3074,8 @@ Multiplayer
   GM's takes only its buttons too.
 
 Character sheets
-- A slider's track can have a middle colour. Pick it beside the low and
-  high colours in the System editor, as an alignment's grey between its
+- A slider's track can have a middle color. Pick it beside the low and
+  high colors in the System editor, as an alignment's gray between its
   two sides. A slider without one is drawn as before.
 - Delete a sheet from the sheet itself: Delete in its head (asked
   first). You may delete any sheet; a player may delete one of their own
@@ -3142,7 +3142,7 @@ Character sheets
   the entries a character must carry before it may take that one,
   each at a level where one matters. It also takes a Rule, a formula
   that must be true for the character, such as ST >= 12. A player's
-  picker greys out what their character may not take yet and says
+  picker grays out what their character may not take yet and says
   why, and your machine judges every pick. You may always give an
   entry yourself. A need players may not see is never named to them.
   A row whose needs stop being met stays on the sheet, marked needs
@@ -3159,7 +3159,7 @@ Character sheets
   column that names none looks as it did.
 - Text style on a sheet. With Edit sheet on, click into a text or notes
   field and a bar comes up on it, as in a planner. Select words and make
-  them bold, italic, underlined, struck through or coloured, or give
+  them bold, italic, underlined, struck through or colored, or give
   them a link. Notes take a size as well. The style is kept with the
   character: its player and you both see it, on the sheet, on the HUD
   and on a printed sheet.
@@ -3188,12 +3188,12 @@ Character sheets
   Weapons.on.min.Acc read only the rows switched on. With no row they
   read 0.
 - A roll or an apply action on the Rolls tab can need something
-  first, as a list's roll can. Its button greys out while it is not
+  first, as a list's roll can. Its button grays out while it is not
   met, and the host refuses a player's press then. By the clock it is
   passed over then, and so is an apply action in a fight.
 - A list's switch can be One at a time. Switching a row on switches
   the others off. Per a stat makes it one for each value of that stat,
-  as one armour on for each location.
+  as one armor on for each location.
 - The boxes of a row on a sheet stay level. A label of two lines used
   to push its box down. It now grows upward. A list in a narrow column
   shows a short choice whole, where Not stunned read Not stunnec.
@@ -3341,7 +3341,7 @@ The play map
   the top bar's. The tool in your hand is gold, and so is a setting
   that is on.
 - The toolbar is laid out anew, and no tool is gone. Undo and redo
-  lead, then the tools in groups. Centre, the grid and snap stand in a
+  lead, then the tools in groups. Center, the grid and snap stand in a
   column at the map's right edge. More, the last button, holds Clear
   board. In a narrow window the bar tightens, then wraps into even
   rows, so no tool is ever cut off.
@@ -3351,7 +3351,7 @@ The play map
   arrow again or take another tool. Snap's icon switches snapping, and
   its arrow opens what it snaps to.
 - The toolbar's menus list each choice by name: Grid, Shapes, Add,
-  Scene and More. A grey line under a name says what the choice does
+  Scene and More. A gray line under a name says what the choice does
   where the name is not enough, and the Grid menu marks the grid in
   use.
 - On the play map, a hex grid can name its cells. Cell labels, in the
@@ -3360,7 +3360,7 @@ The play map
   map, and everyone at the table sees them.
 - The box at the top right of a map wears the toolbar's look. Its
   pointer location and its zoom buttons can each be hidden on their
-  own. Tick them under Show in the centre menu, or press their buttons
+  own. Tick them under Show in the center menu, or press their buttons
   in Settings > Table. The rulers have a tick there too.
 - The blast tool is now the Radius tool, and every player has it. It
   places a circle to measure with, in the ruler's gold. Type its size
@@ -3379,7 +3379,7 @@ The play map
   Nothing is filled in. The blast is shown to everyone on the map, and
   the damage follows the system's blast setting.
 - An explosion set off from a circle on a token spares that token. Tick
-  Also hits the token at the centre in the Explode boxes to hit it too.
+  Also hits the token at the center in the Explode boxes to hit it too.
   The tick is off each time.
 - A ring and a cone of the Radius tool can explode too. A ring hits the
   tokens between its two distances, and a cone the tokens within its
@@ -3395,7 +3395,7 @@ The play map
   runes. They come with the app, so a box looks the same on every
   computer. A box made earlier keeps the font it had until you pick
   another.
-- The Content editor of a text box colours the words you select and
+- The Content editor of a text box colors the words you select and
   sizes them, as a planner's text block does. Ctrl + Z there takes
   back your last change.
 - Pasting into a text box on the map pastes plain words, as the
@@ -3404,11 +3404,11 @@ The play map
   the flat tip, picks it up. Only its thin edge used to. A token that
   stands on it still takes its own click.
 - Textures. A painted cell, a rectangle, a hexagon, a circle, a diamond
-  or a filled area can wear one of eight patterns over its colour:
+  or a filled area can wear one of eight patterns over its color:
   flagstones, bricks, cobbles, planks, stone, hatching, ripples or
   grass. Pick one under Texture in the Fill menu or in a piece's
   Properties. Waypoint draws the patterns itself and seats them on the
-  grid, so pieces side by side read as one surface. Changing the colour
+  grid, so pieces side by side read as one surface. Changing the color
   keeps the pattern, and your players see it as you do. This is the
   first part of the map builder.
 - Build. A new tool on the play map's bar, the GM's, lays a map's
@@ -3559,12 +3559,12 @@ The top bar and the data map
   Its Link menu lists the four line types by name, each with a small
   drawing.
 - Settings says what each option does. An option that only explained
-  itself in a tooltip has a grey line under its name, and every tooltip
+  itself in a tooltip has a gray line under its name, and every tooltip
   is still there.
 - The Multiplayer window does the same. The host's options, Table
   Notepad, Lock Travel, Pause and the room code each have their line.
 - The System editor's Combat card says what its blast, cover and
-  roll settings do, each in a grey line under its list.
+  roll settings do, each in a gray line under its list.
 
 The Journal
 - The Journal shows one campaign at a time. It opens on the campaign on
@@ -3578,7 +3578,7 @@ The Journal
   that belongs to that campaign.
 - A note of your own takes a look. Click into its text and a bar comes
   up, as in a planner: bold, italic, underline, strike through, a
-  colour, a size, a link and a font. The fonts are Waypoint's own, so
+  color, a size, a link and a font. The fonts are Waypoint's own, so
   a note reads the same on every computer. Open shows the note with
   its look.
 - A note of your own that you share arrives with its look. At a table
@@ -3604,9 +3604,9 @@ Fixes
 - An effects burst you armed and did not place is put down when you
   take another tool. A later Escape used to put that tool away.
 - A thrown blast is said in the ruler's unit on that map, as a circle of
-  the Radius tool is: yards on a map in yards, metres under Metric. So
+  the Radius tool is: yards on a map in yards, meters under Metric. So
   are the radius beside an item on the sheet and the notice of a throw.
-  The item keeps its radius in feet. In metres a blast reads as a
+  The item keeps its radius in feet. In meters a blast reads as a
   sheet's measure does, so a 3 yd blast is 2.7 m.
 - On a hex map the ruler counts the hexes between its two ends, as range
   does. It read the straight line, so two hexes along a row read 1.7.
@@ -3614,16 +3614,16 @@ Fixes
   draws the rulers, the height chips and the sheet again at once. They
   went on in the old unit until something else drew them. Every HUD and
   a sheet in a window of its own follow too.
-- A size typed in metres in the Radius tool is taken as the box shows
+- A size typed in meters in the Radius tool is taken as the box shows
   it. 2.74 m, which the box shows for 3 yd, is 3 yd, so a token three
   hexes away is inside. It was 2.9965 yd and left that token out.
 - In Metric the buttons and arrows beside a height step one yard, shown
-  as 0.91 m. They stepped a metre, 1.1 yd, which could change whether a
+  as 0.91 m. They stepped a meter, 1.1 yd, which could change whether a
   token clears low cover. The Elevation row of a sheet and of a HUD now
-  reads in metres under Metric too.
+  reads in meters under Metric too.
 - A piece's Height and Ground height boxes in Properties step half a
   yard in both settings, shown as 0.46 m in Metric. In Metric they
-  stepped half a metre.
+  stepped half a meter.
 - A target mark's range tooltip gives its distance in your choice of
   Imperial or Metric. It said yards under Metric.
 - The Journal's unread count stays in sight while the top row is hidden,
@@ -3673,12 +3673,12 @@ Fixes
   make it. A round or diamond barrier is judged by the cells it covers,
   as a wall is, not by the box around it.
 - Filling a new character from a sheet file: a weapon whose range is
-  the catalogue's own was counted as left out when the list keeps one
+  the catalog's own was counted as left out when the list keeps one
   row for each weapon. Nothing was left out, and it is no longer
   counted. The review of an uploaded sheet no longer offers a change
   that changes nothing, such as 1/2D 625 to 625.
 - On a hex map, a picture or shape the size of one cell sat 15 pixels
-  off centre when Snap dropped it. Its corner went to a corner of the
+  off center when Snap dropped it. Its corner went to a corner of the
   hexagon. It now seats in its cell, as a token does, when you drop it
   and when you resize it to that size.
 - A planner or page with large tables opens quickly in your editor. The
@@ -3693,7 +3693,7 @@ Fixes
   first choice of Preview a player's view Off, whole board. It now
   says what the app does. A wall blocks at any height, unless your
   system's True 3D sightline is on and the wall has a Height. The
-  choice is Off. A token's height reads in yards or metres, as you
+  choice is Off. A token's height reads in yards or meters, as you
   chose under Measuring, where Help said yards only.
 - Help for players said two things that are no longer so. It said
   you follow the GM from map to map. You stay on your map until you
@@ -4001,7 +4001,7 @@ Sheets from a website
   final cost costs its base cost plus its upgrades, where it read as free.
 - The gauntlet or boot left on a severed limb (the website marks it as
   wreckage) comes across as carried gear with its weight and cost, never as
-  armour that can be worn.
+  armor that can be worn.
 
 The tutorial
 - The tour's cards always fit the window: a long step scrolls inside its
@@ -4054,7 +4054,7 @@ WAYPOINT 1.5.0 — What's New
 Play map & settings
 - Drawing: a Flat (chisel) pen now shows its true angled ribbon as you draw,
   matching the finished stroke.
-- Fit to Grid Cells greys out (and says "Already aligned to the grid") when
+- Fit to Grid Cells grays out (and says "Already aligned to the grid") when
   the selection already sits on the grid, so it only lights up when it would
   move something.
 - The grid button has a ◑ shortcut straight to the grid-opacity setting.
@@ -4117,7 +4117,7 @@ Tokens and portals
 - A locked token is frozen for its player too: they can no longer move or
   turn it, change its posture or elevation, or mark threats on it until you
   unlock it, and their app stops offering to.
-- GM note / dialogue, in a character token's Properties, holds private notes
+- GM note / dialog, in a character token's Properties, holds private notes
   and lines to read aloud for that one token. It shows on your hover card
   under the stats and never reaches players.
 - A token's Properties show the Info and Reference of the data-map character
@@ -4241,7 +4241,7 @@ Running the table
 Protecting your table
 - Your table key is never sent again. A player your table already knows is
   asked to prove the key over a one-time challenge bound to the very room
-  they dialled, so a key cannot be collected by another host, by someone
+  they dialed, so a key cannot be collected by another host, by someone
   squatting a later room code, or on the wire. A player whose key does not
   match (a fresh install, or someone else using that name) is put to you
   for Allow/Deny as before. A player's app answers one challenge per
@@ -4545,11 +4545,11 @@ Character sheets: the look
   Effect cards (each status effect a card with a pill per change: +2 ST). On
   the Fields tab a formula can show as a Badge, each value name in its own
   color (Good, Warning, Danger, Accent, Primary), and a resource can have
-  its own color; on the Rolls tab a roll takes a tone (filled, red, grey,
+  its own color; on the Rolls tab a roll takes a tone (filled, red, gray,
   outline) and an icon.
 - Icons: every icon box (a tab, a section, a resource, an effect, an item, a
   roll) takes an emoji or one of 161 bundled icons from the picker beside it
-  (Icons and Emoji tabs, with a search that knows words like spell, armour
+  (Icons and Emoji tabs, with a search that knows words like spell, armor
   or rest), drawn in the sheet's own colors; Inter and the Font Awesome
   Free icons are credited in the About box. None of these options changes a
   sheet until you pick it.
@@ -4669,7 +4669,7 @@ Character sheets: actions and consequences
 Turn-based combat
 - Turns: the Combat card on the System editor's Items tab gains a Turns box.
   Move per turn is a formula worked out for each character (BasicMove,
-  Speed) in feet, yards, metres or grid cells, which each map's scale
+  Speed) in feet, yards, meters or grid cells, which each map's scale
   converts; Diagonals on squares is a straight line, every diagonal 1
   square, or alternating 1–2 (the ruler counts them your way too); A round
   is so many seconds; your own time units (a watch) by their length; and the
@@ -4693,7 +4693,7 @@ Turn-based combat
 - Actions per turn: while their token is in the combat, a player's press of
   a roll or apply action that costs an action spends one, on or off their
   turn (a reaction); their actions come back when their turn begins, they
-  hear what is left, and a spent button greys. Your own presses are never
+  hear what is left, and a spent button grays. Your own presses are never
   limited.
 - Walls stop player tokens, in or out of combat: a player's token cannot
   land in or cross a cell a sight-blocker occupies (a wall, a pillar, a
@@ -4716,7 +4716,7 @@ Turn-based combat
 - Range penalties: the Combat card gains a Range box, your game's penalty
   for distance, by a table (up to 10: -4; past the last row its modifier
   holds; up to 40 rows) or by a formula reading Distance, in yards, feet,
-  metres or grid cells. Every ruler shows the modifier ("Range -4"), and
+  meters or grid cells. Every ruler shows the modifier ("Range -4"), and
   each target mark carries it at its lower corner beside its cover and
   light. A hex grid counts hexes, a square one follows your diagonal rule,
   and between two tokens their heights count while Token elevation is on.
@@ -4788,7 +4788,7 @@ Turn-based combat
   HeightMod and HeightDiff, and the ruler and target marks show it.
 - Heights follow your Imperial or Metric choice: a token's elevation, a
   piece's height, the ruler's 3D line and a blast's labels, in yards or
-  metres.
+  meters.
 - Ground height: a shape, an image or a filled region can be a hill, a
   ledge or a pit. Give it a Ground height in its Properties and a token
   standing on it is that much higher, on top of its own elevation; where
@@ -4846,7 +4846,7 @@ Items
   measure only), who rolls (the owner or the GM), and which resource damage
   subtracts from; a full-auto throw can be undone from the blast menu.
 - The toolbar blast is now a GM quick-tool for an ad-hoc radius; the old
-  fixed explosive presets are gone in favour of your campaign's own items.
+  fixed explosive presets are gone in favor of your campaign's own items.
 - The System editor's Lists tab shapes each Item list field: the categories
   its picker offers, the same item more than once (a skill with two
   specialties), no quantity (skills and powers), a level per row with
@@ -4890,7 +4890,7 @@ Items
   twelve changes (+ Change), as a status effect does: a number, skill or
   formula up or down, a resource's max, a toggle switched on. They count
   once per row, optionally per level (a trait at level 3, three times) and
-  only while switched on (armour while Equipped); every row shows them as
+  only while switched on (armor while Equipped); every row shows them as
   chips, and the value's breakdown names the item. A cursed item a player
   dropped keeps working on them, shown only as "an unseen effect".
 
@@ -4924,7 +4924,7 @@ Item lists in formulas
   and Hits, shown as chips with − and + ("Charges 12/20") and read as
   Row.Charges. A list's roll can move them (Fire: Charges − 1, On success
   Hits + 1) and can need something first (Row.Charges >= 1, "Out of
-  charges"): its button greys with that text, and your machine refuses the
+  charges"): its button grays with that text, and your machine refuses the
   roll.
 
 The library
@@ -4968,7 +4968,7 @@ Sheets from a website
   this sheet (and Copy the sheet's values into the character, to copy again)
   brings the whole dossier across: the player, species, homeworld, levels
   bought, points, credits, alignment and the narrative, and its rows, from
-  skills, advantages and powers to gear, worn armour with its DR per
+  skills, advantages and powers to gear, worn armor with its DR per
   location, weapons, vehicles, cybernetics, hit locations and status
   effects. Each row is matched by name to an item or library entry and kept
   linked (its differences held as that copy's own values), or else made a
@@ -4988,10 +4988,10 @@ Sheets from a website
 Text style in planners and pages
 - Every title, table heading and cell, scene node field, caption and
   flowchart label in the planner and page editor is an editor of its own.
-  The box shows its styling as you type (bold as bold, a colour as that
-  colour, the sizes, underline, strike-through, a link looking like a
+  The box shows its styling as you type (bold as bold, a color as that
+  color, the sizes, underline, strike-through, a link looking like a
   link), and when you click into one a bar appears on it with the
-  controls a text block has: B, I, U, S, the colours, Size, Link, Clear
+  controls a text block has: B, I, U, S, the colors, Size, Link, Clear
   and the Ω symbol tray. Select, then click; the selection stays, so green
   and then bold needs no second selecting. Ctrl+B, Ctrl+I and Ctrl+U work
   in those boxes too.
@@ -5016,7 +5016,7 @@ Text style in planners and pages
   it and the Link box says where it leads. What you type at the end of a
   link is not part of the link.
 - A flowchart label takes underline, strike-through and a size on one of
-  its lines. It cannot hold a link, so the Link box is greyed out there.
+  its lines. It cannot hold a link, so the Link box is grayed out there.
 - Text blocks keep the bar fixed above their box, with the same controls
   and lists.
 - Undo in these boxes is the planner's own: Ctrl+Z and Ctrl+Y (or
@@ -5037,12 +5037,12 @@ Text style in planners and pages
   each line break becomes a space), and a tag you type is just its
   characters in the box.
 - Find in a planner's or a page's preview, and the search of a page
-  opened over the map, find a word you coloured in part and a phrase that
+  opened over the map, find a word you colored in part and a phrase that
   runs across a styled part.
 - Your players see a styled page exactly as you do. Styling is kept in the
   campaign and its export file, and Save Markdown keeps it too: bold,
   italic and strike-through as **, * and ~~, underline as <u>, a link as
-  [text](address), a colour or a size as a small <span> tag around the
+  [text](address), a color or a size as a small <span> tag around the
   text or around just the part that has it (in a flowchart label as <b>,
   <i>, <u>, <s>, <font color> and <big> / <small>), and an import brings
   it back. You can write these by hand; a tag belongs to one paragraph.
@@ -5334,7 +5334,7 @@ Fog of war
   dragging items, not only in fog mode.
 - Sight: a default sight range, and a "sight from" picker that reads each
   character's range from a field on their sheet, falling back to the
-  default. Sight counts in yards, feet, metres or grid cells, and each map's
+  default. Sight counts in yards, feet, meters or grid cells, and each map's
   scale converts it (60 ft on 5 ft squares is 12 squares). Preview any
   player's view from the panel to see the map exactly as they will.
 - Players see an opaque fog over everything their own characters cannot see,
@@ -5372,7 +5372,7 @@ Fog of war
 - Light by your system's rules: the Combat card (the System editor's Items
   tab) has a Light box for what your game calls a dim and a dark place and
   for its light presets (a torch, a lantern), each with its radii in yards,
-  feet, metres or grid cells. A light's Properties offer the presets. Name
+  feet, meters or grid cells. A light's Properties offer the presets. Name
   the levels, wording your penalty into the name, and the ruler between two
   tokens shows the light the far one stands in, and a target mark carries
   it at its corner with the name under the target: on the GM's screen for
@@ -5475,7 +5475,7 @@ Fog of war
   lone player matching a moving mark to a turn in the order; it does not
   hide what players tell each other.
 - Snap decides where a dropped token lands, on every grid. With Snap on it
-  lands in a cell: centred in it on a hex map, on the lattice on a square
+  lands in a cell: centered in it on a hex map, on the lattice on a square
   one, and on a dot of the background on a map with no grid. With Snap off
   it lands exactly where you drop it, hex maps included (before, hex maps
   always seated character tokens). Arrow keys follow it too: with Snap on a
@@ -5580,7 +5580,7 @@ Security
   file, or a host, naming a character by one of JavaScript's built-in names
   (such as "__proto__" or "constructor") finds nothing, so a Full auto blast
   or a character update can no longer write into the app's own objects.
-- Players you have hosted before are recognised by a private table key their
+- Players you have hosted before are recognized by a private table key their
   copy of Waypoint receives when you first let them in, not by the name they
   give; someone using a known name without it waits for you to let them in,
   with a hint saying so. Exported campaigns never carry the keys.
@@ -5700,7 +5700,7 @@ Multiplayer
   something hidden that should count, carry a GM-only library item with
   that key, or use a GM-only list: both hide the number properly.
 - What you hide, players no longer see at all. A hidden item used to show
-  players a grey cloud exactly where it stood, so a hidden creature, a
+  players a gray cloud exactly where it stood, so a hidden creature, a
   secret door or a trap tile gave its place away. Now nothing of it is sent
   to them: no cloud, no outline, none of its moves while you drag it. Show
   to Players brings it back where it is, in its place in the stacking
@@ -5764,7 +5764,7 @@ Sidebar
 - Right-click a map or planner and pick Move Up or Move Down to re-order
   it one step among its siblings — the same ordering as the drag handle,
   now without the drag. Anything nested under the row comes along, and the
-  arrows grey out at the top and bottom of a list.
+  arrows gray out at the top and bottom of a list.
 
 Help
 - The Help window (the ? button) now has a search box at the top: type any
@@ -5923,7 +5923,7 @@ Pictures
 - Copies: a number box beside the Image Library's filter sets how many
   copies a picture's × button drops, 1 to 50, starting at 1; the choice is
   remembered. Every picture cell has the × button on hover (cast members
-  included) and drops the batch in a block at the centre of your view, and
+  included) and drops the batch in a block at the center of your view, and
   the preview's Add to map places the same number.
 - Pick several pictures at once in the Image Library: Ctrl-click cells
   (Shift-click for a run, Ctrl+A for everything shown). A bar at the foot
@@ -5948,7 +5948,7 @@ Text boxes
   Double-click still works in the Select tool.
 - While a text box is being edited the caret can be placed anywhere in it,
   including the space above and below the words, and text can be
-  highlighted; the box goes back to its centred layout when you click away.
+  highlighted; the box goes back to its centered layout when you click away.
 - Text Opacity and Background Opacity are separate sliders in Properties, so
   a box can have solid words on a faint plate (or the other way round). The
   Opacity slider further down still fades the whole box.
@@ -5967,7 +5967,7 @@ Fixes
   same correction, so a text box grouped with a teleport point keeps its
   place beside it no matter which of the two you drag.
 - Switching campaigns from the header dropdown (and some imports) threw
-  an error trying to press a centre button that no longer exists; the map
+  an error trying to press a center button that no longer exists; the map
   now simply opens on its remembered camera.
 
 WAYPOINT 1.4.5 — What's New
@@ -6050,7 +6050,7 @@ Fixes
   or to the left instead of running off screen.
 - The hover card over a token or room on the play map does the same.
 - Light theme: the play-map and drawing toolbar glyphs (undo, grid, shapes,
-  text, arrow) are dark on the light ground instead of washed-out grey.
+  text, arrow) are dark on the light ground instead of washed-out gray.
 - Light theme: the map rulers and the minimap follow the theme too.
 
 WAYPOINT 1.4.1 — What's New
@@ -6207,7 +6207,7 @@ Export
   the one that takes every campaign in the save.
 
 Header
-- The icon row is grouped by purpose, each group a small labelled pill:
+- The icon row is grouped by purpose, each group a small labeled pill:
   Table (multiplayer, chat), Journal (handouts, journal) and App (refresh,
   settings, help, about) and, beside the campaign picker, Campaign (search,
   new, rename, delete). Update, when there is one, stays at the front.
@@ -6233,7 +6233,7 @@ Campaign Cast
 Party strip
 - Bring a player here is on the party strip now: drag a character's icon
   onto the play map to bring them to the drop point, or right-click the icon
-  and choose Bring here for the centre of the view. GM-run characters on the
+  and choose Bring here for the center of the view. GM-run characters on the
   strip move the same way. The per-player list in the canvas right-click
   menu is gone.
 
@@ -6254,8 +6254,8 @@ Fixes
   even when nothing crossed; the crossing runs first now and the room note
   only appears when the token actually stays in that room.
 - A token resting on a portal tile counts as on it when a third of the token
-  overlaps the tile, not only when its exact centre is inside; hex seating
-  could park the centre just outside a tile that is not hex-aligned, and the
+  overlaps the tile, not only when its exact center is inside; hex seating
+  could park the center just outside a tile that is not hex-aligned, and the
   crossing never fired.
 
 WAYPOINT 1.3.4 — What's New
@@ -6317,7 +6317,7 @@ Campaign Cast
   already placed are not affected. The cast is GM data and never reaches
   players. The cast also sits at the top of the image library, so creating a
   token starts with a choice of saved characters: click one to place a copy
-  at the centre of your view, or its ×5 badge for five.
+  at the center of your view, or its ×5 badge for five.
 
 Portals
 - Tokens no longer pile up on a portal. Whoever arrives takes the nearest
@@ -6561,14 +6561,14 @@ Party strip
   a player who is not connected is dimmed, and a connected player who has no
   token yet appears as their table picture (or a chip with their name) with a
   dashed border. Click a token to jump to that
-  character: their map if different, centred on them at 150%. Right-click
+  character: their map if different, centered on them at 150%. Right-click
   one for more: summon that player to the table's map, or summon everyone.
   The stream window has the same strip, where a click focuses the stream on
   them.
 
 Stream window: focus on a character
 - The stream window's corner bar gains "Focus on": pick a character and the
-  view switches to whatever map they are on and stays centred on their token
+  view switches to whatever map they are on and stays centered on their token
   at 150%, following them as they move and travel. Picking a map again clears
   it.
 
@@ -6673,7 +6673,7 @@ Fixes
   copy can restore their own from saves\backups (the dated snapshot from
   before the session) with Waypoint closed.
 - On a player's screen, a token the GM revealed drew its picture at full
-  pixel size (the grey placeholder's frame was reused without the image
+  pixel size (the gray placeholder's frame was reused without the image
   styling). Revealed items now rebuild their frame for their real kind.
 - A token dragged off the window edge could stay "held" and leap to the
   pointer whenever it came near. A drag that loses its pointer (cursor left
@@ -6867,7 +6867,7 @@ Play Map
   only the arrow moves around an upright picture. With no grid they turn
   freely; applying a grid turns every token to its nearest facing. A small
   gold arrow marks each token's front and always points across a cell face
-  at a neighbouring cell; pick which side of the art is the front under
+  at a neighboring cell; pick which side of the art is the front under
   Properties → Front Side. Players can now turn the token assigned to
   them, and the whole table sees it turn live.
 - The hover card over an item sits a little further from the pointer so the
@@ -6883,14 +6883,14 @@ Play Map
   Alive, Incapacitated (red X over the token) or Dead (skull, art darkened).
   The whole table sees it.
 - Size matching while resizing is unmistakable now: when your item pauses
-  at a neighbour's width or height, that neighbour lights up gold, a bright
+  at a neighbor's width or height, that neighbor lights up gold, a bright
   bar runs along the matched edge of both items, and a badge names the axis
-  and the neighbour ("↔ WIDTH 300 = Scene art"). Works with Snap off and with
+  and the neighbor ("↔ WIDTH 300 = Scene art"). Works with Snap off and with
   proportions locked — the other side follows the ratio. The blue guide lines that snaps
   draw were invisible because of a typo; they show again.
 - Snap has a mode now: click the Snap button again for Snap To — Grid (cells
-  only, the most predictable), Items (neighbours only, for tidy rows), or
-  Both (the old behaviour: neighbours first, grid for open-space drops).
+  only, the most predictable), Items (neighbors only, for tidy rows), or
+  Both (the old behavior: neighbors first, grid for open-space drops).
   Default is Grid. Remembered per computer; the menu also turns snapping off.
 - Fit to Grid: the ⊞ button in the selection toolbar (and in Properties)
   sizes the selection to whole grid cells and seats it — tokens and hex
@@ -6971,7 +6971,7 @@ Multiplayer (new)
   direct peer-to-peer between your computers, no accounts, no server.
 - Players follow your map, move only the tokens you assign to them, and
   talk in table chat (with private GM whispers).
-- Hide any item behind a grey cloud until you choose to reveal it. Your
+- Hide any item behind a gray cloud until you choose to reveal it. Your
   planners, room notes, and character dossiers are never sent to players.
 - Split the party through doors and stairs; Summon All brings everyone back.
 - Pause the Table freezes players completely while chat stays open.

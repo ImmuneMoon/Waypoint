@@ -24,7 +24,7 @@ function twChoices(offerable, lines) {
     });
     return out;
 }
-// what you may still put on the table, as your own sheet lists it: each list under its name, a row you cannot take off greyed with its reason (the owner, 2026-10-30:
+// what you may still put on the table, as your own sheet lists it: each list under its name, a row you cannot take off grayed with its reason (the owner, 2026-10-30:
 // "the picker showing your inventory section instead of a dropdown would be a big gain")
 function twInv(doc, name, ch, add) {
     var inv = twEl(doc, 'div', 'trade-inv'), list = null; inv.setAttribute('role', 'group'); inv.setAttribute('aria-label', 'Add from ' + name + '’s sheet');

@@ -452,7 +452,7 @@ function giveCharacter(pid, charId, o) {
     else if (pid && o.play !== false && was && was !== c.id && n && n.logEvent) { var wasC = charById(was, camp); n.logEvent('char', (playerNames(camp)[pid] || 'A player') + ' plays ' + c.name + (wasC ? '; ' + wasC.name + ' is kept' : '')); }   // a switch within one player
     return true;
 }
-// A token's centre when it stands on the map that player is on now (else nothing: it never places a token on a map they are not on)
+// A token's center when it stands on the map that player is on now (else nothing: it never places a token on a map they are not on)
 function spotOnPlayersMap(camp, pid, w) {
     var n = net(), p = n && n.active && n.role === 'host' ? Object.values(n.roster || {}).find(function(x) { return x && x.id === pid; }) : null;
     var m = p && typeof p.location === 'string' && camp.items[p.location]; if (!m || m.type !== 'map' || (m.whiteboard || []).indexOf(w) < 0) return null;
@@ -584,7 +584,7 @@ if (typeof window !== 'undefined' && !window.__wpEnvTick) window.__wpEnvTick = s
 // [systemcheck:envfollow-end]
 // [systemcheck:envband-start]
 // 1.6.0, the map environment, fold 4 (the owner, by prompt: "As drawn"; docs/MAP_ENVIRONMENT_PLAN.md 11): a player sees one figure, their own
-// reading, amber as it nears an extreme and red at one (systemcore envBands, the one judge). envMark colours a reading's field wherever the sheet
+// reading, amber as it nears an extreme and red at one (systemcore envBands, the one judge). envMark colors a reading's field wherever the sheet
 // draws it (the sheet, a print, the HUD), and tokenEnv says what a character token's badge shows: on the GM's screen for a character a player
 // plays, on a player's own app for a character of their own whole copy, never a teammate's, an NPC's or in the stream window; nothing while
 // every reading is comfortable
@@ -1053,7 +1053,7 @@ function stanceSigOf(c, camp) {   // what the stance control shows: its rows, th
 }
 // [systemcheck:sheetelev-start]
 // The Elevation row of the sheet and of a HUD in the viewer's own unit, as the map's own menu has it (whiteboard.js wpStance; the read-only
-// check of 2026-10-17: in Metric the row went on in yards while the map said metres). It is shown and typed in yards or metres and kept in
+// check of 2026-10-17: in Metric the row went on in yards while the map said meters). It is shown and typed in yards or meters and kept in
 // yards, and a step is one yard in both, shown as 0.91 m in Metric. With no stance module at hand the row is in yards, as it was
 function elevUnits() {
     var S = typeof window !== 'undefined' ? window.wpStance : null, ok = !!(S && S.ydBox && S.ydIn && S.ydStep && S.stepWords && S.lenUnit);
@@ -1069,7 +1069,7 @@ function elevUnits() {
 var _rulerUnitAt = '';   // the ruler's unit the views were last drawn in (tokenTurned): another map in another unit draws them again
 function rulerUnitShown() { var f = typeof window !== 'undefined' ? window.wpRulerUnit : null; return typeof f === 'function' ? String(f()) : ''; }
 // An item's blast radius beside it, in the ruler's unit on the map on screen, as the Radius tool says a size (the owner, 2026-10-17, by prompt:
-// "The ruler's unit (Recommended)"): yards on a map in yards, metres under Metric. The item keeps its feet; with no board at hand they are said
+// "The ruler's unit (Recommended)"): yards on a map in yards, meters under Metric. The item keeps its feet; with no board at hand they are said
 function blastTag(ft) { var f = typeof window !== 'undefined' && typeof window.wpBlastLen === 'function' ? window.wpBlastLen(ft) : ''; return typeof f === 'string' && f ? f : ft + ' ft'; }
 function mapOk(m) { return !!(m && m.type === 'map' && Array.isArray(m.whiteboard)); }
 // Which token the dial (and every facing name on the sheet and in rolls) reads:
@@ -1180,7 +1180,7 @@ function facingNode(c, gm) {
     var svg = mk('svg', { viewBox: '0 0 132 132', role: 'group' }, 'sheet-dial-svg');
     for (var i = 0; i < N; i++) (function(i) {
         var b = i * step, a = threatArc(fc, b);
-        // the outer ring: where a threat comes from, coloured by the arc it falls in against the token's facing
+        // the outer ring: where a threat comes from, colored by the arc it falls in against the token's facing
         var seg = mk('path', { d: 'M ' + pt(b - half + 3, 60) + ' A 60 60 0 0 1 ' + pt(b + half - 3, 60) + ' L ' + pt(b + half - 3, 44) + ' A 44 44 0 0 0 ' + pt(b - half + 3, 44) + ' Z', 'data-dk': 'seg' + i },
             'sheet-dial-seg sheet-arc-' + ARC[a] + (marked[i] ? ' sheet-dial-threat' : '') + (aimed[i] ? ' sheet-dial-aim' : '') + (i === active ? ' sheet-dial-active' : ''));
         var what = (i === active ? 'Active threat' : marked[i] ? 'Queued threat' : 'No threat') + ' from side ' + (i + 1) + ' (' + ARC[a] + ')' + (aimed[i] ? ', from a target. It goes when the target is cleared' : '');
@@ -1242,7 +1242,7 @@ function stanceNode(c, gm) {
         var er = el('div', 'sheet-stance-row'); er.appendChild(el('span', 'sheet-label', 'Elevation'));
         var eu = elevUnits(), eShown = String(eu.box(st.elevation));   // 1.5.4: in the viewer's unit, kept in yards
         var em = el('button', 'tool ghost sheet-pm', '\u2212'); em.dataset.dk = 'elevm'; em.title = eu.step(-1); em.disabled = !live;
-        var ei = el('input', 'field sheet-num sheet-cur num-stepped'); ei.type = 'number'; ei.step = String(eu.inc); ei.defaultValue = eShown; ei.value = eShown; ei.dataset.dk = 'elev'; ei.dataset.cur = eShown; ei.disabled = !live; ei.title = 'Height above the ground, in ' + (eu.unit === 'm' ? 'metres' : 'yards');
+        var ei = el('input', 'field sheet-num sheet-cur num-stepped'); ei.type = 'number'; ei.step = String(eu.inc); ei.defaultValue = eShown; ei.value = eShown; ei.dataset.dk = 'elev'; ei.dataset.cur = eShown; ei.disabled = !live; ei.title = 'Height above the ground, in ' + (eu.unit === 'm' ? 'meters' : 'yards');
         var ep = el('button', 'tool ghost sheet-pm', '+'); ep.dataset.dk = 'elevp'; ep.title = eu.step(1); ep.disabled = !live;
         var stepBy = function(d) { var cur = ei.value !== '' && isFinite(Number(ei.value)) ? eu.yd(ei.value) : st.elevation; setSt({ elevation: cur + d }); };   // from what the box shows (a typed 2.5 then + is 3.5); a step is one yard in both
         [em, ep].forEach(function(b) { b.addEventListener('mousedown', function(ev) { ev.preventDefault(); }); });   // the box keeps focus: no blur commit racing the click
@@ -1536,15 +1536,15 @@ function applySheetBg(node, style) {
 function sheetLook(camp, sys) {
     var DR = window.wpDocRender; if (!DR || !DR.cleanDocStyle) return null;
     var st = DR.cleanDocStyle(DR.mergeDocStyle ? DR.mergeDocStyle(camp && camp.docStyle, sys && sys.sheetStyle) : (camp && camp.docStyle));
-    if (st && paletteOf(sys && sys.sheet && sys.sheet.look)) { st = Object.assign({}, st); delete st.textColor; delete st.bgColor; }   // Stage 6: a palette wins over page colours (the font and the picture still apply)
+    if (st && paletteOf(sys && sys.sheet && sys.sheet.look)) { st = Object.assign({}, st); delete st.textColor; delete st.bgColor; }   // Stage 6: a palette wins over page colors (the font and the picture still apply)
     return st;
 }
 function applySheetLookTo(node, style) {
     node.style.fontFamily = ''; node.style.color = ''; node.style.backgroundColor = '';   // reset first so turning a look off restores the app style
     if (style) { var DF = (window.wpDocRender && window.wpDocRender.DOC_FONTS) || {}; var dfcS = window.wpDocRender && window.wpDocRender.docFontCss ? window.wpDocRender.docFontCss(style.font) : (style.font && DF[style.font]) || ''; if (dfcS) node.style.fontFamily = dfcS; if (style.textColor) node.style.color = style.textColor; if (style.bgColor) node.style.backgroundColor = style.bgColor; }
-    // Stage 5g: the header block and the frame are opaque panels over the body. They wear the look's colours only as a PAIR (a text
-    // colour AND a panel colour, plus a muted ink mixed from the two for labels); a look with just one of them leaves both panels in the
-    // app theme's own colours, as before — a text colour alone over the app panel (or theme text over a look panel) could be unreadable
+    // Stage 5g: the header block and the frame are opaque panels over the body. They wear the look's colors only as a PAIR (a text
+    // color AND a panel color, plus a muted ink mixed from the two for labels); a look with just one of them leaves both panels in the
+    // app theme's own colors, as before — a text color alone over the app panel (or theme text over a look panel) could be unreadable
     var HEXC = /^#[0-9a-fA-F]{6}$/, pair = !!(style && HEXC.test(style.textColor || '') && HEXC.test(style.bgColor || ''));
     if (pair) { node.style.setProperty('--sheet-ink', style.textColor); node.style.setProperty('--sheet-bg', style.bgColor); node.style.setProperty('--sheet-dim', 'color-mix(in srgb, ' + style.textColor + ' 62%, ' + style.bgColor + ')'); }
     else { node.style.removeProperty('--sheet-ink'); node.style.removeProperty('--sheet-bg'); node.style.removeProperty('--sheet-dim'); }
@@ -1567,7 +1567,7 @@ function renderSheetInto(container, charId, camp) {
     var raw = systemOf(camp), c0 = charById(charId, camp);
     if (!container || !c0 || !raw || !F()) return null;
     // the pop-out renders the RAW save (popout.js reads /api/data unsanitised): clean the system and the character here, as a load does,
-    // so every sink below (the look's accent, section colours, icons, the portrait) sees validated values
+    // so every sink below (the look's accent, section colors, icons, the portrait) sees validated values
     var sys = cleanSystem(raw, { F: F(), gmView: true }), c = sys ? cleanChar(c0, sys) : null;
     if (!sys || !c) return null;
     _fxLive = false; try { buildSections(container, sys, c, resolveAll(sys, c, F(), tokenCtxFor(c.id, camp)), true, false, function() { renderSheetInto(container, charId, camp); }, { campId: camp.id, view: 'sheet', preview: false }); } finally { _fxLive = true; }   // 5h: a pop-out's effect controls act on nothing
@@ -2052,7 +2052,7 @@ function idnControl(f, c, e, tone) {
     if (f.kind === 'number' && !named) { if (f.unit) wrap.appendChild(el('span', 'sheet-unit', typeof unitText === 'function' ? unitText(f, Number(ctl.value), ctl.value) : f.unit)); if (e && e.mods && e.mods.length) { var fb = fxMark(e); if (fb) { fb.textContent = '\u2192 ' + fmtNum(e.value); wrap.appendChild(fb); } } }   // 5h: the effective value beside the base
     return wrap;
 }
-// Stage 5g: the text colour for a label on a filled accent (the open filled tab) — near-black or white, whichever reads better
+// Stage 5g: the text color for a label on a filled accent (the open filled tab) — near-black or white, whichever reads better
 function accentInk(hex) {
     var lin = function(i) { var v = parseInt(hex.substr(i, 2), 16) / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
     var L = 0.2126 * lin(1) + 0.7152 * lin(3) + 0.0722 * lin(5);
@@ -2062,7 +2062,7 @@ function accentInk(hex) {
 // Stage 6 look fold (L1): a sheet palette remaps the theme's own variables on the sheet (and the panel around it), so every rule
 // that already reads them — labels, values, inputs, edges, buttons, tiles, chips — takes the palette at once; absent, nothing is set
 // and the sheet is exactly the theme's. Re-checked here: the live panel draws the campaign's raw system, so only a whole palette of
-// plain hex colours ever reaches a style property.
+// plain hex colors ever reaches a style property.
 var PAL_VARS = { text: ['--ink', '--text'], muted: ['--dim', '--muted'], panel: ['--panel2', '--surface'], card: ['--sheet-card'], field: ['--panel'], edge: ['--edge', '--border'], primary: ['--sheet-primary'], danger: ['--red', '--danger'], good: ['--green'], warn: ['--sheet-warn'] };
 var PAL_ALL = ['--ink', '--text', '--dim', '--muted', '--panel2', '--surface', '--sheet-card', '--panel', '--edge', '--border', '--sheet-primary', '--sheet-primary-ink', '--red', '--danger', '--sheet-danger-ink', '--green', '--sheet-warn', '--gold', '--gold-ink', '--scroll', '--scroll-hover'];
 function paletteOf(look) {
@@ -2095,13 +2095,13 @@ function applyLook(body, look, vctx) {
     body.classList.toggle('sheet-values-boxed', L.values === 'boxed'); body.classList.toggle('sheet-rows-cards', L.rows === 'cards');
     applyPaletteTo(body, L);
 }
-// Stage 6 look fold: the palette presets in the System editor (never data: picking one writes its colours into the look)
+// Stage 6 look fold: the palette presets in the System editor (never data: picking one writes its colors into the look)
 var LOOK_PRESETS = {
     graphite: { name: 'Graphite', accent: '#ab94b3', font: 'inter', palette: { text: '#add8e6', muted: '#8c8c8c', panel: '#1a1a1a', card: '#212121', field: '#1a1a1a', edge: '#333333', primary: '#add8e6', danger: '#cc3333', good: '#4ade80', warn: '#f59e0b' } },
     parchment: { name: 'Parchment', accent: '#7a2e1f', palette: { text: '#2b2118', muted: '#6b5a48', panel: '#f3ead6', card: '#e8dcc0', field: '#fbf6ea', edge: '#c4b393', primary: '#7a2e1f', danger: '#a3261b', good: '#2f7a3b', warn: '#9a6410' } }
 };
 var PAL_CAPS = { text: 'Text', muted: 'Muted', panel: 'Panel', card: 'Card', field: 'Field', edge: 'Edge', primary: 'Primary', danger: 'Danger', good: 'Good', warn: 'Warning' };
-// Stage 6 look fold (L2): an icon on the sheet — a bundled glyph drawn as a mask in the text's colour (so a palette or a theme colours it),
+// Stage 6 look fold (L2): an icon on the sheet — a bundled glyph drawn as a mask in the text's color (so a palette or a theme colors it),
 // or text (an emoji or a symbol, as always). The URL is built ONLY from glyphPath's answer, a value from the fixed table, never from the
 // stored string. Path-absolute, so the panel, the preview and a pop-out resolve it alike.
 var GLYPH_BASE = '/assets/icons/fa/';
@@ -2114,18 +2114,18 @@ function iconNode(v, cls) {
 function iconText(v) { return glyphPath(v) ? '' : (v || ''); }   // text-only sinks (an <option>): a glyph shows nothing there
 // The System editor's icon picker: two tabs, the bundled icons and common emoji (an emoji is stored as typed, as always)
 var PICKER_HIDE = { 'minus-circle': 1, 'file-magnifying-glass': 1 };   // duplicates of circle-minus and magnifying-glass (still accepted)
-var GLYPH_WORDS = { sword: ['khanda'], blade: ['khanda'], weapon: ['khanda', 'hand-fist', 'crosshairs', 'bomb'], attack: ['hand-fist', 'crosshairs', 'burst'], spell: ['wand-magic-sparkles', 'wand-sparkles', 'scroll', 'hat-wizard', 'hand-sparkles'], magic: ['wand-magic-sparkles', 'wand-sparkles', 'hat-wizard', 'hand-sparkles'], hp: ['heart', 'heart-pulse'], health: ['heart', 'heart-pulse', 'shield-heart', 'stethoscope'], damage: ['burst', 'bomb', 'skull'], armour: ['shield', 'shield-halved'], armor: ['shield', 'shield-halved'], defence: ['shield', 'shield-halved'], defense: ['shield', 'shield-halved'], money: ['coins', 'wallet', 'gem'], gold: ['coins', 'crown'], coin: ['coins'], rest: ['moon', 'bed', 'campground'], sleep: ['bed', 'moon'], speed: ['person-running', 'shoe-prints'], move: ['person-running', 'person-walking', 'shoe-prints'], time: ['hourglass-half', 'clock', 'stopwatch'], duration: ['hourglass-half', 'clock'], dice: ['dice', 'dice-d20', 'dice-d6'], roll: ['dice', 'dice-d20', 'dice-d6'], death: ['skull', 'skull-crossbones'], poison: ['skull-crossbones', 'flask'], potion: ['flask'], alchemy: ['flask'], lore: ['book', 'book-open', 'scroll', 'book-skull'], dungeon: ['dungeon'], beast: ['paw', 'dragon'], animal: ['paw'], nature: ['leaf'], camp: ['campground'], treasure: ['gem', 'coins', 'crown', 'ring'], jewel: ['gem', 'ring'], king: ['crown'], noble: ['crown'], track: ['shoe-prints'], write: ['feather-pointed', 'pen', 'pencil'], quill: ['feather-pointed'], automaton: ['robot', 'microchip'], tech: ['microchip', 'gear'], vehicle: ['car', 'truck', 'rocket', 'ship'], energy: ['bolt'], fatigue: ['bolt'], mind: ['brain'], perception: ['eye'], sight: ['eye', 'glasses'], skill: ['graduation-cap'], weight: ['weight-hanging', 'scale-balanced'], load: ['weight-hanging'], fist: ['hand-fist'], unarmed: ['hand-fist'], target: ['crosshairs', 'bullseye'], aim: ['crosshairs', 'bullseye'], fire: ['fire'], cold: ['temperature-half'], luck: ['star', 'dice'] };
+var GLYPH_WORDS = { sword: ['khanda'], blade: ['khanda'], weapon: ['khanda', 'hand-fist', 'crosshairs', 'bomb'], attack: ['hand-fist', 'crosshairs', 'burst'], spell: ['wand-magic-sparkles', 'wand-sparkles', 'scroll', 'hat-wizard', 'hand-sparkles'], magic: ['wand-magic-sparkles', 'wand-sparkles', 'hat-wizard', 'hand-sparkles'], hp: ['heart', 'heart-pulse'], health: ['heart', 'heart-pulse', 'shield-heart', 'stethoscope'], damage: ['burst', 'bomb', 'skull'], armour: ['shield', 'shield-halved'], armor: ['shield', 'shield-halved'], armor: ['shield', 'shield-halved'], defence: ['shield', 'shield-halved'], defense: ['shield', 'shield-halved'], defense: ['shield', 'shield-halved'], money: ['coins', 'wallet', 'gem'], gold: ['coins', 'crown'], coin: ['coins'], rest: ['moon', 'bed', 'campground'], sleep: ['bed', 'moon'], speed: ['person-running', 'shoe-prints'], move: ['person-running', 'person-walking', 'shoe-prints'], time: ['hourglass-half', 'clock', 'stopwatch'], duration: ['hourglass-half', 'clock'], dice: ['dice', 'dice-d20', 'dice-d6'], roll: ['dice', 'dice-d20', 'dice-d6'], death: ['skull', 'skull-crossbones'], poison: ['skull-crossbones', 'flask'], potion: ['flask'], alchemy: ['flask'], lore: ['book', 'book-open', 'scroll', 'book-skull'], dungeon: ['dungeon'], beast: ['paw', 'dragon'], animal: ['paw'], nature: ['leaf'], camp: ['campground'], treasure: ['gem', 'coins', 'crown', 'ring'], jewel: ['gem', 'ring'], king: ['crown'], noble: ['crown'], track: ['shoe-prints'], write: ['feather-pointed', 'pen', 'pencil'], quill: ['feather-pointed'], automaton: ['robot', 'microchip'], tech: ['microchip', 'gear'], vehicle: ['car', 'truck', 'rocket', 'ship'], energy: ['bolt'], fatigue: ['bolt'], mind: ['brain'], perception: ['eye'], sight: ['eye', 'glasses'], skill: ['graduation-cap'], weight: ['weight-hanging', 'scale-balanced'], load: ['weight-hanging'], fist: ['hand-fist'], unarmed: ['hand-fist'], target: ['crosshairs', 'bullseye'], aim: ['crosshairs', 'bullseye'], fire: ['fire'], cold: ['temperature-half'], luck: ['star', 'dice'] };
 var EMOJI_SET = [
     ['\u2694\uFE0F', 'swords weapon fight attack melee'], ['\uD83D\uDDE1\uFE0F', 'dagger knife blade weapon'], ['\uD83C\uDFF9', 'bow arrow ranged weapon'], ['\uD83E\uDE93', 'axe weapon'], ['\uD83D\uDD28', 'hammer weapon tool'], ['\uD83D\uDD2B', 'pistol blaster gun ranged weapon'],
-    ['\uD83D\uDCA3', 'bomb explosive grenade damage'], ['\uD83D\uDEE1\uFE0F', 'shield armour armor defence defense'], ['\uD83E\uDE96', 'helmet armour armor'], ['\u2764\uFE0F', 'heart hp health life'], ['\uD83D\uDC94', 'broken heart wound injury'], ['\uD83E\uDE78', 'blood bleeding wound'],
+    ['\uD83D\uDCA3', 'bomb explosive grenade damage'], ['\uD83D\uDEE1\uFE0F', 'shield armor armor defense defense'], ['\uD83E\uDE96', 'helmet armor armor'], ['\u2764\uFE0F', 'heart hp health life'], ['\uD83D\uDC94', 'broken heart wound injury'], ['\uD83E\uDE78', 'blood bleeding wound'],
     ['\uD83E\uDE79', 'bandage heal first aid'], ['\uD83D\uDC8A', 'pill medicine drug'], ['\u2695\uFE0F', 'medicine heal medic'], ['\u26A1', 'bolt energy lightning fatigue'], ['\u2728', 'sparkles magic spell'], ['\uD83D\uDD2E', 'crystal ball magic scry divination'],
     ['\uD83E\uDE84', 'wand magic spell'], ['\uD83D\uDCDC', 'scroll spell document lore'], ['\uD83D\uDCD6', 'book lore knowledge'], ['\uD83C\uDFB2', 'dice roll luck'], ['\uD83C\uDFAF', 'target aim bullseye'], ['\uD83E\uDDEA', 'potion flask alchemy'],
     ['\u2620\uFE0F', 'skull crossbones poison death'], ['\uD83D\uDC80', 'skull death undead'], ['\uD83D\uDD25', 'fire burn flame'], ['\u2744\uFE0F', 'ice cold frost'], ['\uD83D\uDCA7', 'water drop'], ['\uD83C\uDF2A\uFE0F', 'wind storm tornado'],
-    ['\uD83C\uDF19', 'moon night rest'], ['\u2600\uFE0F', 'sun day light'], ['\u2B50', 'star favour inspiration'], ['\uD83C\uDF40', 'clover luck'], ['\uD83C\uDF92', 'backpack bag gear inventory'], ['\uD83D\uDCB0', 'money bag gold coins treasure'],
-    ['\uD83E\uDE99', 'coin money'], ['\uD83D\uDC8E', 'gem jewel treasure'], ['\uD83D\uDC51', 'crown king noble'], ['\uD83D\uDC8D', 'ring jewellery jewelry'], ['\uD83D\uDDDD\uFE0F', 'key lock'], ['\uD83D\uDD12', 'lock locked'],
+    ['\uD83C\uDF19', 'moon night rest'], ['\u2600\uFE0F', 'sun day light'], ['\u2B50', 'star favor inspiration'], ['\uD83C\uDF40', 'clover luck'], ['\uD83C\uDF92', 'backpack bag gear inventory'], ['\uD83D\uDCB0', 'money bag gold coins treasure'],
+    ['\uD83E\uDE99', 'coin money'], ['\uD83D\uDC8E', 'gem jewel treasure'], ['\uD83D\uDC51', 'crown king noble'], ['\uD83D\uDC8D', 'ring jewelry jewelry'], ['\uD83D\uDDDD\uFE0F', 'key lock'], ['\uD83D\uDD12', 'lock locked'],
     ['\uD83C\uDFF0', 'castle keep'], ['\u26FA', 'tent camp rest'], ['\uD83D\uDDFA\uFE0F', 'map travel'], ['\uD83E\uDDED', 'compass navigation'], ['\uD83D\uDC09', 'dragon beast'], ['\uD83D\uDC3A', 'wolf beast animal'],
     ['\uD83D\uDC0E', 'horse mount'], ['\uD83E\uDDE0', 'brain mind intelligence'], ['\uD83D\uDC41\uFE0F', 'eye perception sight'], ['\uD83D\uDC42', 'ear hearing'], ['\uD83C\uDFC3', 'runner speed move'], ['\uD83E\uDDB6', 'foot move'],
-    ['\u270A', 'fist punch unarmed'], ['\uD83E\uDD3A', 'fencer fencing'], ['\uD83E\uDDD8', 'meditation focus will'], ['\uD83C\uDFAD', 'masks theatre charisma'], ['\uD83C\uDFB5', 'music song bard'], ['\u2696\uFE0F', 'scales balance law'],
+    ['\u270A', 'fist punch unarmed'], ['\uD83E\uDD3A', 'fencer fencing'], ['\uD83E\uDDD8', 'meditation focus will'], ['\uD83C\uDFAD', 'masks theater charisma'], ['\uD83C\uDFB5', 'music song bard'], ['\u2696\uFE0F', 'scales balance law'],
     ['\u262F\uFE0F', 'balance alignment'], ['\uD83D\uDD6F\uFE0F', 'candle light'], ['\uD83C\uDF56', 'food ration meat'], ['\uD83C\uDF7A', 'drink ale'], ['\u23F3', 'hourglass time duration'], ['\u2699\uFE0F', 'gear settings tech'],
     ['\uD83D\uDD27', 'wrench repair tool'], ['\uD83E\uDD16', 'robot automaton'], ['\uD83D\uDE80', 'rocket ship space'], ['\uD83E\uDDEC', 'dna species biology'], ['\uD83D\uDCCD', 'pin location']
 ];
@@ -2305,7 +2305,7 @@ function glyphPicker(inp, anchor, repaint) {
     document.addEventListener('mousedown', glyphOutside, true);
     try { q.focus(); } catch (er) {}
 }
-// 1.6.0 (the backlog's sheet look options, (b) and (c)): the header's labels plain too, every label in the text colour, a label size of the
+// 1.6.0 (the backlog's sheet look options, (b) and (c)): the header's labels plain too, every label in the text color, a label size of the
 // look's own (the style sheet draws the size on the sheet alone, so the HUD keeps its small labels). A look with none sets no class
 function labelLook(body, look) {
     body.classList.toggle('sheet-labels-plain', look.labels === 'plain');
@@ -2327,7 +2327,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
     _rfClearing = true; try { body.textContent = ''; } finally { _rfClearing = false; }   // F4c2 review: clearing blurs a focused box — its change must not commit half-typed (the form keeps it)
     _fxView = hudV ? 'hud' : 'sheet'; _lockNow = viewLocked(c, vctx);   // ...and a redraw that blur started (another view) leaves this one's view, and its lock, as they were
     if (typeof sbxView === 'function') sbxView(body, vctx);   // item 35: may this view hold text boxes
-    body.classList.toggle('sheet-locked', _lockNow);   // a stat that needs Edit sheet reads as a value, not as a greyed box (style.css)
+    body.classList.toggle('sheet-locked', _lockNow);   // a stat that needs Edit sheet reads as a value, not as a grayed box (style.css)
     var look = (sys.sheet && sys.sheet.look) || {};   // Stage 5g: the sheet's shape — absent = today's look (no class, no variable)
     body.classList.toggle('sheet-titles-headline', look.titles === 'headline');
     body.classList.toggle('sheet-labels-caps', look.labels === 'caps');   // Fold B
@@ -2398,7 +2398,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
         if (arrV) s.dataset.arrSid = sec.id;
         var secKey = (hudV ? 'h:' : '') + sec.id;   // HF1: remembered per view (sheet keys unchanged)
         if (collap) { var secDrawn = (secKey in _secOpen) ? _secOpen[secKey] : (sec.open !== false), secOwn = secDrawn === true; s.open = secDrawn; s.addEventListener('toggle', function () { if (secOwn) { secOwn = false; if (s.open === secDrawn) return; } _secOpen[secKey] = s.open; }); }   // 1.5.5 (the release trace, F4): the toggle the browser fires for the code's own open is not kept, so only the reader's own fold is remembered
-        var stripe = !!(sec.style && sec.style.accent && sec.style.stripe !== false);   // Stage 5g: an accent can colour the title alone
+        var stripe = !!(sec.style && sec.style.accent && sec.style.stripe !== false);   // Stage 5g: an accent can color the title alone
         if (sec.style && (sec.style.bg || sec.style.border || stripe)) {   // Stage 3: per-section colors (padding/radius so the panel reads as a box)
             s.style.padding = '8px 10px'; s.style.borderRadius = '8px';
             if (sec.style.bg) s.style.background = sec.style.bg;
@@ -2536,7 +2536,7 @@ function secRefocus(root, sid, cls) {
 // 1.5.5: a list placed once a category, on the Layout tab, for the sheet and the HUD alike. An item list placed in a section has By category,
 // which opens a row of ticks under it: the list's own categories (those its picker offers, else those of the items, the core entries and,
 // on the GM's machine, the library's, as a row's form offers them) and any the place names already. A category another place of the same
-// list shows is greyed here. What Save keeps of the places is said under each, by the cleaner's own rule (catSplits)
+// list shows is grayed here. What Save keeps of the places is said under each, by the cleaner's own rule (catSplits)
 var _plCatOpen = typeof WeakSet === 'function' ? new WeakSet() : null;
 function placeCatNames(f, sysD) {
     var out = [], seen = Object.create(null), push = function(x) { var t = typeof x === 'string' ? x.trim() : ''; if (!t || seen[t.toLowerCase()]) return; seen[t.toLowerCase()] = 1; out.push(t); };
@@ -2690,8 +2690,8 @@ function renderLayout() {
     var fontSel = select('sys-look-font', [['', 'Default font']].concat((window.wpDocRender && window.wpDocRender.docFontOptions ? window.wpDocRender.docFontOptions(look && look.font) : Object.keys(FONTS).map(function(k) { return [k, k]; })).map(function(o) { return [o[0], o[1]]; })), (look && look.font) || '', 'The sheet\'s font, over the campaign default. Waypoint\'s own fonts, so every player sees the same');
     lookRow.appendChild(capBox(fontSel, 'Font'));
     var mkColor = function(key, title, fallback) { var i = el('input', 'sys-look-color'); i.type = 'color'; i.value = (look && look[key]) || fallback; i.title = title; i.dataset.key = key; return i; };
-    lookRow.appendChild(el('span', 'sys-sec-style-lbl', 'Text')); lookRow.appendChild(mkColor('textColor', 'Text colour', '#e8e2d0'));
-    lookRow.appendChild(el('span', 'sys-sec-style-lbl', 'Panel')); lookRow.appendChild(mkColor('bgColor', 'Panel background colour', '#181510'));
+    lookRow.appendChild(el('span', 'sys-sec-style-lbl', 'Text')); lookRow.appendChild(mkColor('textColor', 'Text color', '#e8e2d0'));
+    lookRow.appendChild(el('span', 'sys-sec-style-lbl', 'Panel')); lookRow.appendChild(mkColor('bgColor', 'Panel background color', '#181510'));
     var pic = el('button', 'tool ghost sys-btn', (look && look.bgImage) ? 'Change picture\u2026' : 'Background picture\u2026'); pic.dataset.look = 'pic'; pic.title = 'A picture from the image library behind the sheet'; lookRow.appendChild(pic);
     if (look && look.bgImage) { lookRow.appendChild(el('span', 'sys-sec-style-lbl', 'Dim')); var dim = el('input', 'sys-look-dim'); dim.type = 'range'; dim.min = 0; dim.max = 90; dim.step = 5; dim.value = typeof look.bgDim === 'number' ? look.bgDim : 40; dim.title = 'Dim the picture so the text stays readable'; lookRow.appendChild(dim); }
     if (look) { var lclr = el('button', 'tool ghost sys-btn sys-sec-styleclr', 'Clear'); lclr.dataset.look = 'clear'; lclr.title = 'Back to the campaign default'; lookRow.appendChild(lclr); }
@@ -2704,9 +2704,9 @@ function renderLayout() {
     var titlesSel = select('sys-look-titles', [['', 'Small titles'], ['headline', 'Headline titles'], ['accordion', 'Accordion titles']], shape.titles || '', 'Section titles: small capitals (as now), bigger headline titles, or accordion titles (a line under each section, a chevron on the ones that fold)');
     var tabsSel = select('sys-look-tabs', [['', 'Underlined tabs'], ['filled', 'Filled tabs'], ['angular', 'Angular tabs']], shape.tabs || '', 'The tab strip: an underline under the open tab (as now), angled tabs with the open one filled in the accent, or angular tabs across the whole strip');
     var labelsSel = select('sys-look-labels', [['', 'Plain labels'], ['caps', 'Capital labels'], ['plain', 'Plain labels, the header too']], shape.labels || '', 'Field labels: as they are, small bold capitals like a printed sheet, or plain everywhere, the header’s labels too');
-    var inkSel = select('sys-look-labelink', [['', 'Muted labels'], ['text', 'Labels in text colour']], shape.labelInk || '', 'The colour of every label: the muted grey (as now), or the sheet’s own text colour');
+    var inkSel = select('sys-look-labelink', [['', 'Muted labels'], ['text', 'Labels in text color']], shape.labelInk || '', 'The color of every label: the muted gray (as now), or the sheet’s own text color');
     var lsizeSel = select('sys-look-labelsize', [['', 'Label size as now'], ['13', '13 px labels'], ['14', '14 px labels'], ['16', '16 px labels']], shape.labelSize ? String(shape.labelSize) : '', 'How large a label is drawn on the sheet. The HUD keeps its own small labels');
-    [[titlesSel, 'Section titles'], [tabsSel, 'Tabs'], [labelsSel, 'Labels'], [inkSel, 'Label colour'], [lsizeSel, 'Label size']].forEach(function(p) { shapeRow.appendChild(capBox(p[0], p[1])); });
+    [[titlesSel, 'Section titles'], [tabsSel, 'Tabs'], [labelsSel, 'Labels'], [inkSel, 'Label color'], [lsizeSel, 'Label size']].forEach(function(p) { shapeRow.appendChild(capBox(p[0], p[1])); });
     shapeRow.appendChild(el('span', 'sys-sec-style-lbl', 'Accent'));
     var accentIn = el('input', 'sys-look-accent'); accentIn.type = 'color'; accentIn.value = shape.accent || themeGold(); accentIn.title = 'The sheet\u2019s accent: section titles, the open tab, the name in the header'; shapeRow.appendChild(accentIn);
     var portLbl = el('label', 'sys-hover'); var portChk = el('input', 'sys-look-portrait'); portChk.type = 'checkbox'; portChk.checked = !!shape.portrait; portLbl.appendChild(portChk); portLbl.appendChild(document.createTextNode(' Portrait & name in the header')); portLbl.title = 'The character\u2019s portrait and name lead the header block, with the identity rows and ledger figures beside the picture'; shapeRow.appendChild(portLbl);
@@ -2723,13 +2723,13 @@ function renderLayout() {
     var rowSel = select('sys-look-rows', [['', 'Plain item rows'], ['cards', 'Item cards']], shape.rows || '', 'Carried items: plain rows (as now), or a small card each');
     [[numSel, 'Numbers'], [bandSel, 'Band'], [stepSel, 'Number boxes'], [valSel, 'Results'], [fxSel, 'Effects'], [rowSel, 'Item rows']].forEach(function(p) { detRow.appendChild(capBox(p[0], p[1])); });
     detRow.appendChild(stickyLbl); lookBox.appendChild(detRow);
-    // Stage 6 look fold (L1): a palette — ten colours for every part of the sheet, from a preset or the GM's own swatches
+    // Stage 6 look fold (L1): a palette — ten colors for every part of the sheet, from a preset or the GM's own swatches
     var pal = paletteOf(shape);
     var presetOf = function(p0) { if (!p0) return ''; var hit = 'custom'; Object.keys(LOOK_PRESETS).forEach(function(pn) { if (hit === 'custom' && PALETTE_KEYS.every(function(k) { return LOOK_PRESETS[pn].palette[k] === p0[k]; })) hit = pn; }); return hit; };
     var curPreset = presetOf(pal), presetOpts = [['', 'No palette']].concat(Object.keys(LOOK_PRESETS).map(function(pn) { return [pn, LOOK_PRESETS[pn].name]; })); if (curPreset === 'custom') presetOpts.push(['custom', 'Custom']);
     var palRow = el('div', 'sys-sec-style sys-lookpalette');
     palRow.appendChild(el('span', 'sys-sec-style-lbl', 'Palette'));
-    var presetSel = select('sys-look-preset', presetOpts, curPreset, 'Colour every part of the sheet at once: pick a preset, then change any swatch'); palRow.appendChild(presetSel);
+    var presetSel = select('sys-look-preset', presetOpts, curPreset, 'Color every part of the sheet at once: pick a preset, then change any swatch'); palRow.appendChild(presetSel);
     if (pal) {
         PALETTE_KEYS.forEach(function(k) {
             var lb = el('label', 'sys-look-palsw'), sw = el('input', 'sys-look-pal'); sw.type = 'color'; sw.value = pal[k]; sw.dataset.key = k; sw.title = PAL_CAPS[k];
@@ -2737,11 +2737,11 @@ function renderLayout() {
             sw.addEventListener('input', function() { setPalette(k, sw.value); });
             sw.addEventListener('change', function() { renderLayout(); });   // the preset select turns to Custom
         });
-        var pclr = el('button', 'tool ghost sys-btn', 'Clear palette'); pclr.title = 'Back to the Text and Panel colours above, and the theme'; pclr.addEventListener('click', function() { setShape('palette', null); renderLayout(); }); palRow.appendChild(pclr);
-        Array.prototype.forEach.call(lookRow.querySelectorAll('.sys-look-color'), function(ci) { ci.disabled = true; ci.title = 'The palette sets the sheet\u2019s colours; clear it to use these'; });
+        var pclr = el('button', 'tool ghost sys-btn', 'Clear palette'); pclr.title = 'Back to the Text and Panel colors above, and the theme'; pclr.addEventListener('click', function() { setShape('palette', null); renderLayout(); }); palRow.appendChild(pclr);
+        Array.prototype.forEach.call(lookRow.querySelectorAll('.sys-look-color'), function(ci) { ci.disabled = true; ci.title = 'The palette sets the sheet\u2019s colors; clear it to use these'; });
     }
     lookBox.appendChild(palRow);
-    lookBox.appendChild(el('div', 'sys-hint', 'A palette colours every part of the sheet at once, in place of the Text and Panel colours above and the campaign\u2019s page colours (the font and picture still apply). Players see the same colours, under either theme.'));
+    lookBox.appendChild(el('div', 'sys-hint', 'A palette colors every part of the sheet at once, in place of the Text and Panel colors above and the campaign\u2019s page colors (the font and picture still apply). Players see the same colors, under either theme.'));
     var setPalette = function(k, v) { if (!/^#[0-9a-fA-F]{6}$/.test(v)) return; var lk = (draft.sheet && draft.sheet.look && typeof draft.sheet.look === 'object') ? draft.sheet.look : {}; var np = Object.assign({}, lk.palette || {}); np[k] = v.toLowerCase(); setShape('palette', np); };
     presetSel.addEventListener('change', function() { var pv = presetSel.value; if (pv === 'custom') return; if (!pv) setShape('palette', null); else { var pr = LOOK_PRESETS[pv]; if (!pr) return; setShape('palette', Object.assign({}, pr.palette)); setShape('accent', pr.accent); if (pr.font) setLook('font', pr.font); } renderLayout(); });
     root.appendChild(lookBox);
@@ -2851,7 +2851,7 @@ function renderLayout() {
     }
     if (!hudOn) pinBox({ key: 'identity', boxId: 'sysIdentityBox', title: 'Identity rows', kinds: IDENTITY_KINDS, rolls: false, limit: LIMITS.identity,
         hintFull: 'Under the name, in columns: a small label over each value; they scroll away with the sheet, leaving the band and the tabs at the top. Text, select, number and yes/no rows are changed right here by whoever may edit them, so they need no second copy in a section; formulas, skills and resources are read-only here. Players see the same rows.',
-        hintEmpty: 'No identity rows yet. Pick the fields that say who this is, such as a class or a level. They read as labelled values under the name.',
+        hintEmpty: 'No identity rows yet. Pick the fields that say who this is, such as a class or a level. They read as labeled values under the name.',
         addLabel: 'Add an identity row\u2026', addTitle: 'A text, select, number or toggle (changed right there) or a formula, skill or resource (read-only) to show under the name', delTitle: 'Take off the identity rows (the field stays wherever else it is)', clearTitle: 'Take every identity row off', capMsg: 'At most ' + LIMITS.identity + ' identity rows.' });
     pinBox({ key: 'ledger', boxId: 'sysLedgerBox', title: 'Ledger figures', kinds: LEDGER_KINDS, rolls: false, limit: LIMITS.ledger,
         hintFull: 'Figures under the identity rows: a small label over a bold value (a negative reads red). A number is a box whoever may edit it can change right there; formulas, skills and resources are edited in the sections.',
@@ -2880,14 +2880,14 @@ function renderLayout() {
         top.appendChild(btnRow([['secup', 'Move this section up', '&#9650;'], ['secdown', 'Move this section down', '&#9660;'], ['secdel', 'Remove this section (its fields go back to the list)', '&times;']]));
         row.appendChild(top);
         var styleRow = el('div', 'sys-sec-style');   // Stage 3: per-section colors
-        styleRow.appendChild(el('span', 'sys-sec-style-lbl', 'Colours'));
+        styleRow.appendChild(el('span', 'sys-sec-style-lbl', 'Colors'));
         [['accent', 'Accent', '#e0a54f'], ['bg', 'Panel', '#20202c'], ['border', 'Border', '#3a3a4a']].forEach(function(sp) {
             var wrap = el('label', 'sys-sec-color'); wrap.appendChild(document.createTextNode(sp[1]));
-            var ci = el('input', 'sys-sec-' + sp[0]); ci.type = 'color'; ci.value = (sec.style && sec.style[sp[0]]) || sp[2]; ci.title = sp[1] + ' colour for this section (drag the section’s Clear to remove)';
+            var ci = el('input', 'sys-sec-' + sp[0]); ci.type = 'color'; ci.value = (sec.style && sec.style[sp[0]]) || sp[2]; ci.title = sp[1] + ' color for this section (drag the section’s Clear to remove)';
             wrap.appendChild(ci); styleRow.appendChild(wrap);
         });
-        if (sec.style && sec.style.accent) { var stl = el('label', 'sys-sec-color'); var stc = el('input', 'sys-sec-stripe'); stc.type = 'checkbox'; stc.checked = sec.style.stripe !== false; stl.appendChild(stc); stl.appendChild(document.createTextNode(' Stripe')); stl.title = 'The accent also draws a stripe down the section\u2019s left edge (off: it colours the title only)'; styleRow.appendChild(stl); }   // Stage 5g
-        if (sec.style) { var clr = el('button', 'tool ghost sys-btn sys-sec-styleclr', 'Clear'); clr.dataset.act = 'secstyleclr'; clr.title = 'Remove this section’s colours'; styleRow.appendChild(clr); }
+        if (sec.style && sec.style.accent) { var stl = el('label', 'sys-sec-color'); var stc = el('input', 'sys-sec-stripe'); stc.type = 'checkbox'; stc.checked = sec.style.stripe !== false; stl.appendChild(stc); stl.appendChild(document.createTextNode(' Stripe')); stl.title = 'The accent also draws a stripe down the section\u2019s left edge (off: it colors the title only)'; styleRow.appendChild(stl); }   // Stage 5g
+        if (sec.style) { var clr = el('button', 'tool ghost sys-btn sys-sec-styleclr', 'Clear'); clr.dataset.act = 'secstyleclr'; clr.title = 'Remove this section’s colors'; styleRow.appendChild(clr); }
         row.appendChild(styleRow);
         var chipOpts = pageOptions(sec.chip || '', 'No chip');
         if (chipOpts.length > 1) {   // Stage 5f: a handbook chip in this section's header (only when the campaign has pages, or one is already set)
@@ -3191,7 +3191,7 @@ function needName(sys, id, gm) {   // gm: the GM's own sheet, which names every 
     return null;
 }
 function cantTake(sys, c, it) {
-    if (!it || !c || it.needsWarn === true || ((!Array.isArray(it.needs) || !it.needs.length) && (typeof it.needsIf !== 'string' || !it.needsIf))) return '';   // 1.6.2 (167 C): needs that only warn grey nothing
+    if (!it || !c || it.needsWarn === true || ((!Array.isArray(it.needs) || !it.needs.length) && (typeof it.needsIf !== 'string' || !it.needsIf))) return '';   // 1.6.2 (167 C): needs that only warn gray nothing
     var nm = needsMet(sys, c, it, true, typeof F === 'function' ? F() : null); if (nm.ok) return '';
     return needsSays(it, nm.missing, function(id) { return needName(sys, id); });
 }
@@ -3339,7 +3339,7 @@ function lvlFit(i, L) {
 function entryLvls(def) { return (def && Array.isArray(def.lvls) ? def.lvls : []).filter(function(r) { return !!r && typeof r === 'object' && typeof r.lvl === 'number' && isFinite(r.lvl); }); }
 function lvlWord(L, n) { var t = lvlText(L, n); return Array.isArray(L.labels) && L.labels.length && t !== fmtNum(n) ? t : (L.label || 'Level') + ' ' + t; }
 function lvlTagOf(lvs, n) { for (var i = 0; i < lvs.length; i++) if (lvs[i].lvl === n) return typeof lvs[i].tag === 'string' ? lvs[i].tag : ''; return ''; }
-// 1.6.2 (180, R5's leftover; the owner: "is both a good idea? id like waypoint to have decent customization"): a By level tag's colour, its own line's, else its list's, else none
+// 1.6.2 (180, R5's leftover; the owner: "is both a good idea? id like waypoint to have decent customization"): a By level tag's color, its own line's, else its list's, else none
 function lvlTagTone(spec, r) { var t = r && typeof r.tone === 'string' ? r.tone : spec && typeof spec.lvlTone === 'string' ? spec.lvlTone : ''; return typeof badgeTone === 'function' ? badgeTone(t) : ''; }
 function lvlFace(node, L, n, tag) { node.appendChild(el('span', 'sheet-item-lvlword', lvlWord(L, n))); if (typeof tag === 'string' && tag) node.appendChild(el('span', 'sheet-item-lvltagbox', tag)); return node; }
 // 1.6.0 Levels it may be: the choices of a row's level menu where its entry names its levels. Those levels alone, each with its By level tag where it has
@@ -3414,7 +3414,7 @@ function onCtl(entry, c, f, spec, editable, labelled, okOn, show) {   // okOn (1
     if (typeof swButton === 'function' && typeof S.offLabel === 'string' && S.offLabel) return swButton(entry, c, f, S, on, editable, okOn);   // 1.6.0 R6: a button with two words
     if (!editable) return on ? el('span', 'sheet-chip sheet-item-onc', labelled ? S.label : '\u2713') : null;
     var cb = el('input', 'sheet-item-on'); cb.type = 'checkbox'; cb.checked = on; cb.title = S.label; cb.dataset.fid = f.id; cb.dataset.part = 'on-' + rowIdOf(entry);
-    if (!on && okOn === false) { var swW = typeof isClient === 'function' && isClient() ? (S.needsText || 'Not now') : typeof rollNeedsSays === 'function' ? rollNeedsSays(S) : 'Not now'; cb.classList.add('sheet-item-onno'); if (typeof isClient === 'function' && isClient()) { cb.disabled = true; cb.title = swW; } else cb.title = swW + ' You may still switch it on.'; }   // 1.5.8: a player's switch greyed out with the words; the GM's says them
+    if (!on && okOn === false) { var swW = typeof isClient === 'function' && isClient() ? (S.needsText || 'Not now') : typeof rollNeedsSays === 'function' ? rollNeedsSays(S) : 'Not now'; cb.classList.add('sheet-item-onno'); if (typeof isClient === 'function' && isClient()) { cb.disabled = true; cb.title = swW; } else cb.title = swW + ' You may still switch it on.'; }   // 1.5.8: a player's switch grayed out with the words; the GM's says them
     cb.addEventListener('change', function() { commitItem(c, f, { op: 'set', rowId: rowIdOf(entry), facts: { on: cb.checked } }); });
     if (!labelled) return cb;
     var l = el('label', 'sheet-item-onl'); l.appendChild(cb); l.appendChild(el('span', 'sheet-item-onn', S.label)); return l;
@@ -3534,7 +3534,7 @@ function tileDrag(stage, b, t, lay, f, c) {
     });
 }
 // 1.6.2 (body fold 4): what stands at or reaches a tile, each list drawn by its own field with no add of its own, so its controls, parts and rights are the list's. A placed row that does not count is shown too, saying so
-// 1.6.2 (body fold 5): + Put here: the rows of every list that stands at these tiles and does not stand here yet, by list, each saying where it stands now. One Fits where refuses is greyed for a player and only marked for the GM, whose hand passes and is told
+// 1.6.2 (body fold 5): + Put here: the rows of every list that stands at these tiles and does not stand here yet, by list, each saying where it stands now. One Fits where refuses is grayed for a player and only marked for the GM, whose hand passes and is told
 // The viewing of 2026-11-09 (the owner, by prompt: "Works while locked (Recommended)"): putting a row at a tile is play, as switching Worn is, so a locked sheet offers it
 function tilePut(dr, f, c, sysI, tile, boxed) {
     if (!_fxLive || !_tileHere || !(_tileHere.gm || _tileHere.own)) return; var gm = !!_tileHere.gm, Fm = typeof F === 'function' ? F() : null, sel = el('select', 'field sheet-item-add body-put'), n = 0, tiles = c.values && Array.isArray(c.values[f.id]) ? c.values[f.id] : [], tRow = tiles.filter(function(r) { return rowIdOf(r) === tile; })[0];
@@ -3707,12 +3707,12 @@ function noteToggle(line, entry, c, f) {
 // 1.6.0, backlog 206 (the owner, 2026-10-29, by prompt: "Swatches on the row", "A Look button in details (Recommended)", "GM only, no refund
 // (Recommended)"): a row's look as small swatches beside its name (the HUD shows them alone), its finish, markings and each part's finish in its
 // details with a Look button that opens a small form there, and its work log under them with + Work, whose fee the host takes from the
-// character's money. A colour reaches a style only as a strict #rrggbb through safecore cssColor; every word is a text node
+// character's money. A color reaches a style only as a strict #rrggbb through safecore cssColor; every word is a text node
 var _lookForm = null, _workForm = null, LOOK_SW_RE = /^#[0-9a-f]{6}$/;   // the form open: { k: charId|fieldId|rowId, view, draft }
-function lookLog(step, facts) { try { if (window.wpStepLog) window.wpStepLog('rowlook v1', step, facts || {}); } catch (e) {} }   // structure only, never a colour or a word
+function lookLog(step, facts) { try { if (window.wpStepLog) window.wpStepLog('rowlook v1', step, facts || {}); } catch (e) {} }   // structure only, never a color or a word
 function lookKey(c, f, entry) { return String(c.id) + '|' + f.id + '|' + rowIdOf(entry); }
 function lookSw(hex) { var h = typeof hex === 'string' && LOOK_SW_RE.test(hex) ? cssColor(hex, '') : ''; if (!h) return null; var s = el('span', 'sheet-look-sw'); s.style.backgroundColor = h; return s; }
-function rowLookSays(sh) { var w = sh && sh.overall ? finishWords(sh.overall, false) : ''; return (sh.from === 'main' ? 'The look of its ' + sh.main : sh.from === 'shade' ? 'Its material\u2019s shade, ' + sh.shade : 'Its look') + (w ? ': ' + w : '') + (sh.tint === 'main' ? '. Its colour is its main part\u2019s' : sh.tint === 'shade' ? '. Its colour is its material\u2019s shade' : ''); }
+function rowLookSays(sh) { var w = sh && sh.overall ? finishWords(sh.overall, false) : ''; return (sh.from === 'main' ? 'The look of its ' + sh.main : sh.from === 'shade' ? 'Its material\u2019s shade, ' + sh.shade : 'Its look') + (w ? ': ' + w : '') + (sh.tint === 'main' ? '. Its color is its main part\u2019s' : sh.tint === 'shade' ? '. Its color is its material\u2019s shade' : ''); }
 function lookSwatches(host, sysI, c, spec, entry) {   // what the row shows (rowLookShown): its own, else its main part's or its material's shade, marked as derived
     var sh = spec && spec.look ? rowLookShown(sysI, c, spec, entry) : null, cs = sh && sh.overall && Array.isArray(sh.overall.colors) ? sh.overall.colors : [];
     if (!cs.length) return null;
@@ -3731,7 +3731,7 @@ function lookBits(box, entry, c, f, spec, sysI, gm, may) {
         if (sh && sh.overall) { var ln = el('div', 'sheet-look-line'); ln.appendChild(el('span', 'sheet-look-cap', sh.from === 'main' ? 'Look of its ' + sh.main : sh.from === 'shade' ? 'Shade of ' + sh.shade : 'Look')); finishInto(ln, sh.overall); lw.appendChild(ln); }
         (sh ? sh.parts : []).forEach(function(p) { if (sh.from === 'main' && String(p.part).toLowerCase() === String(sh.main).toLowerCase()) return; var pl = el('div', 'sheet-look-line sheet-look-part'); pl.appendChild(el('span', 'sheet-look-cap', p.part)); finishInto(pl, p.finish); lw.appendChild(pl); });
         var open = !!(may && _lookForm && _lookForm.k === k && _lookForm.view === vw);
-        if (may && !open) { var lb = el('button', 'tool ghost sys-btn sheet-look-btn', 'Look\u2026'); lb.type = 'button'; lb.dataset.fid = f.id; lb.dataset.part = 'lk-' + rid; lb.title = 'Its colours, finish and markings, and each part\u2019s'; lb.addEventListener('click', function() { _lookForm = { k: k, view: vw, draft: lookDraft(entry.look) }; lookLog('form', { parts: _lookForm.draft.parts.length }); renderViews(c.id); }); lw.appendChild(lb); }
+        if (may && !open) { var lb = el('button', 'tool ghost sys-btn sheet-look-btn', 'Look\u2026'); lb.type = 'button'; lb.dataset.fid = f.id; lb.dataset.part = 'lk-' + rid; lb.title = 'Its colors, finish and markings, and each part\u2019s'; lb.addEventListener('click', function() { _lookForm = { k: k, view: vw, draft: lookDraft(entry.look) }; lookLog('form', { parts: _lookForm.draft.parts.length }); renderViews(c.id); }); lw.appendChild(lb); }
         if (open) lw.appendChild(lookForm(entry, c, f, sysI));
         if (lw.childNodes.length) box.appendChild(lw);
     }
@@ -3772,7 +3772,7 @@ function lookForm(entry, c, f, sysI) {   // its draft lives in _lookForm across 
     }
     return form;
 }
-function finishFields(c, f, fz, pn, rec, names, rm) {   // one finish's boxes: a part's name (a menu of the row's own parts where it has any), up to four colours, the finish word, the markings
+function finishFields(c, f, fz, pn, rec, names, rm) {   // one finish's boxes: a part's name (a menu of the row's own parts where it has any), up to four colors, the finish word, the markings
     var row = el('div', 'sheet-look-ff'), tag = function(ctl, part) { ctl.dataset.fid = f.id; ctl.dataset.part = pn + part; return ctl; };
     if (rec) {
         var known = names.some(function(n) { return n.toLowerCase() === String(rec.part || '').toLowerCase(); });
@@ -3782,11 +3782,11 @@ function finishFields(c, f, fz, pn, rec, names, rm) {   // one finish's boxes: a
     if (!Array.isArray(fz.colors)) fz.colors = [];
     var cw = el('span', 'sheet-look-colors');
     fz.colors.forEach(function(h, i) {
-        var ci = tag(el('input', 'sheet-look-color'), 'c' + i); ci.type = 'color'; ci.value = LOOK_SW_RE.test(String(h).toLowerCase()) ? String(h).toLowerCase() : '#808080'; ci.title = 'A colour'; ci.addEventListener('input', function() { fz.colors[i] = String(ci.value).toLowerCase(); });
-        var cx = tag(el('button', 'wib wi-close tool ghost sheet-look-x'), 'cx' + i); cx.type = 'button'; cx.title = 'Take this colour off'; cx.setAttribute('aria-label', cx.title); cx.addEventListener('click', function() { fz.colors.splice(i, 1); renderViews(c.id); });
+        var ci = tag(el('input', 'sheet-look-color'), 'c' + i); ci.type = 'color'; ci.value = LOOK_SW_RE.test(String(h).toLowerCase()) ? String(h).toLowerCase() : '#808080'; ci.title = 'A color'; ci.addEventListener('input', function() { fz.colors[i] = String(ci.value).toLowerCase(); });
+        var cx = tag(el('button', 'wib wi-close tool ghost sheet-look-x'), 'cx' + i); cx.type = 'button'; cx.title = 'Take this color off'; cx.setAttribute('aria-label', cx.title); cx.addEventListener('click', function() { fz.colors.splice(i, 1); renderViews(c.id); });
         cw.appendChild(ci); cw.appendChild(cx);
     });
-    if (fz.colors.length < ROW_LOOK.colors) { var ca = tag(el('button', 'tool ghost sheet-look-x', '+'), 'ca'); ca.type = 'button'; ca.title = 'Add a colour, up to ' + ROW_LOOK.colors; ca.setAttribute('aria-label', ca.title); ca.addEventListener('click', function() { fz.colors.push('#808080'); renderViews(c.id); }); cw.appendChild(ca); }
+    if (fz.colors.length < ROW_LOOK.colors) { var ca = tag(el('button', 'tool ghost sheet-look-x', '+'), 'ca'); ca.type = 'button'; ca.title = 'Add a color, up to ' + ROW_LOOK.colors; ca.setAttribute('aria-label', ca.title); ca.addEventListener('click', function() { fz.colors.push('#808080'); renderViews(c.id); }); cw.appendChild(ca); }
     row.appendChild(cw);
     var fi = tag(el('input', 'field sheet-look-finish'), 'f'); fi.type = 'text'; fi.maxLength = ROW_LOOK.finish; fi.placeholder = 'Finish: polished, matte, weathered'; fi.value = typeof fz.finish === 'string' ? fz.finish : ''; fi.addEventListener('input', function() { fz.finish = fi.value; }); row.appendChild(fi);
     var mi = tag(el('input', 'field sheet-look-marks'), 'm'); mi.type = 'text'; mi.maxLength = ROW_LOOK.marks; mi.placeholder = 'Markings, patterns, engraving, trim'; mi.value = typeof fz.markings === 'string' ? fz.markings : ''; mi.addEventListener('input', function() { fz.markings = mi.value; }); row.appendChild(mi);
@@ -3813,7 +3813,7 @@ function workForm(entry, c, f, sysI) {   // one line: its kind, by whom, its fee
 }
 // [sinkcheck:rowlook-end]
 // F4b: a list's picker — the items of its categories (every one when it names none), a group per category; on a list with no quantity that
-// holds an item once, one already carried is greyed. Returns how many it offers
+// holds an item once, one already carried is grayed. Returns how many it offers
 // 1.5.5: a list placed once a category opens its pickers on the placement's first category. A list cannot open part way down, so the
 // sheet's own list puts that category's group first, after its first line; the library's picker opens on that category's chip (libpicker
 // opts.cat), which the list it was opened from carries. Nothing else of adding changes
@@ -3983,7 +3983,7 @@ function badgeBits(host, spec, on, tintEl, noLines) {   // answers the lines' bo
 }
 // [systemcheck:rowedge-start] 1.6.0, backlog 180 R16: where the list ticks Edge follows its state, a row's edge takes the tone of the strongest badge it shows
 // (danger, then warn, primary, accent, good; a plain badge none), else the accent while it is switched on and its switch's word stands on the row.
-// Never colour alone: the badge's or the switch's words are beside it. A badge that tints its row has already given it its edge
+// Never color alone: the badge's or the switch's words are beside it. A badge that tints its row has already given it its edge
 var EDGE_RANK = Object.freeze({ danger: 5, warn: 4, primary: 3, accent: 2, good: 1 });
 function rowEdge(el0, spec, on, onNow, onShown) {
     if (!el0 || !spec || spec.edge !== true || / sheet-tint-/.test(' ' + (el0.className || ''))) return '';
@@ -4014,7 +4014,7 @@ function statLineNode(entry, def, spec, ovc) {   // F4c2: the line as text (as b
     return box;
 }
 // F4c1: what one of a row cost — the GM's box (blank: the list price, shown faintly; one set op per change, the host judges it again); text for
-// the owner, and for the GM where nothing can be changed (the Layout preview, a pop-out). labelled: "Paid" before it (a table's header says it)
+// the owner, and for the GM where nothing can be changed (the Layout preview, a pop-out). labeled: "Paid" before it (a table's header says it)
 function paidCtl(entry, def, c, f, spec, editable, gm, labelled) {
     if (!spec.price) return null;
     var lp = Math.max(0, rowStat(spec, def, spec.price)), has = typeof entry.paid === 'number', rid = rowIdOf(entry);
@@ -4073,7 +4073,7 @@ function partPills(wrap, c, f, spec, sysI, entry, chg, dep) {
         var pspec = pf.list || {}, partsL = parts.filter(function(p) { return ((c.values || {})[pf.id] || []).indexOf(p) >= 0; });
         var fit = Object.assign({}, pspec, { cats: Array.isArray(spec.parts.cats) && spec.parts.cats.length ? spec.parts.cats : pspec.cats }), word = (spec.parts.label || 'Part') + (pfs.length > 1 ? ' from ' + (pf.label || pf.key || 'a list') : '');
         var add = el('select', 'field sheet-part-add'); add.appendChild(opt('', '+ ' + word + '\u2026', true)); add.title = 'Add a ' + word.toLowerCase() + ' to ' + ((rowDef(sysI, entry) || {}).def || {}).name; if (window.wpTexList) window.wpTexList.keys(add);   // a key step chooses nothing here: it opens the list, as a Texture list's does
-        var fitOf = isClient() && typeof partFitEntry === 'function' ? function(it) { return partFitEntry(sysI, c, pf.id, hid, it, typeof F === 'function' ? F() : null, true); } : null;   // 1.6.0 Fits where (ask 18): a part a player's host would refuse is greyed out and says why, as cantTake does; the GM's own hand passes and is told
+        var fitOf = isClient() && typeof partFitEntry === 'function' ? function(it) { return partFitEntry(sysI, c, pf.id, hid, it, typeof F === 'function' ? F() : null, true); } : null;   // 1.6.0 Fits where (ask 18): a part a player's host would refuse is grayed out and says why, as cantTake does; the GM's own hand passes and is told
         var nP = typeof pickerInto === 'function' ? pickerInto(add, (sysI && sysI.items) || [], fit, partsL, fitOf) : 0;
         var gmL = !isClient() && !!(window.wpLibPicker && window.wpLibrary && window.wpLibrary.size && window.wpLibrary.size() > 0), plL = false;
         if (isClient() && window.wpLibPicker && window.wpNet && window.wpNet.libManifest) { var lmP = window.wpNet.libManifest(); plL = !!lmP && lmP.packs.some(function(pk) { return pk.count > 0; }); }
@@ -4340,7 +4340,7 @@ function openLoadMenu(anchor, c, f, entry, sf, spec, sys) {
     var first = pop.querySelector('.sheet-dl-item'); try { if (first) first.focus(); } catch (er) {}
 }
 // [catalogcheck:rowlib-start]
-// 1.6.2 (the owner: "its also important for users to have a way to create catalogues if they cant"): a row a character holds made an entry anyone can
+// 1.6.2 (the owner: "its also important for users to have a way to create catalogs if they cant"): a row a character holds made an entry anyone can
 // take. Offered by a right-click on the row and by a button in its form, on the GM's own machine alone, in the sheet itself, for a row librarycore
 // rowLibJudge allows: never a GM-only item, never a plain copy of an entry that is still there. It asks which pack, the list's own first, with a new
 // pack on offer. The row stands as it is: no op turns a row into a copy of an entry, so the sheet says so. The pops are the sheet's own, and every
@@ -4466,7 +4466,7 @@ function chamberCtl(host, entry, c, f, spec, editable, sysI, gm, canThrow, okC) 
     var nx = rd[0] ? rowDef(sys, rd[0]) : null, nxN = nx && nx.def && nx.def.name ? nx.def.name : 'A round';
     var w = el('span', 'sheet-chip sheet-item-load sheet-item-chamber' + (rd.length ? '' : ' sheet-item-load-none')); w.title = rd.length ? 'Next to fire: ' + nxN : 'Nothing chambered from ' + ln; if (w.dataset) w.dataset.chamberRow = rowIdOf(entry);
     w.appendChild(el('span', 'sheet-item-ctl', rd.length + ' of ' + cap + ' chambered'));
-    if (editable && (entry.qty | 0) === 1) {   // 1.6.0 (the live test, 2026-10-30): each button keeps its place: one with nothing to do stands greyed, so a second press lands where the first did
+    if (editable && (entry.qty | 0) === 1) {   // 1.6.0 (the live test, 2026-10-30): each button keeps its place: one with nothing to do stands grayed, so a second press lands where the first did
         if (okC !== false) {
             var full = rd.length >= cap, b = el('button', 'tool ghost sheet-item-ctb sheet-item-chamberb', lb); b.type = 'button'; b.disabled = full; b.title = full ? 'It is full: it holds ' + cap + ' at most' : lb + ': one from ' + ln + ' goes into the chamber. The first one in fires first'; b.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); openChamberMenu(b, c, f, entry, sf, spec, sys); }); w.appendChild(b);
             var fl = el('button', 'tool ghost sheet-item-ctb sheet-item-fillb', 'Fill'); fl.type = 'button'; fl.disabled = full; fl.title = full ? 'It is full: it holds ' + cap + ' at most' : 'Fill it from ' + ln + ' at one press'; fl.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); chamberFill(fl, c, f, entry, sf, spec, sys); }); w.appendChild(fl);
@@ -5244,14 +5244,14 @@ function stepWrap(inp, f, c, editable, flank) {
     return wrap;
 }
 var _stepPend = Object.create(null);   // charId|fieldId -> { from, value, timer }: a counter's (or the arrows') burst in flight
-// Stage 6 look fold (L7): a badge's colour class, looked up from a constant map (never built from a stored string)
+// Stage 6 look fold (L7): a badge's color class, looked up from a constant map (never built from a stored string)
 var TONE_CLASS = Object.freeze({ good: ' sheet-tone-good', warn: ' sheet-tone-warn', danger: ' sheet-tone-danger', accent: ' sheet-tone-accent', primary: ' sheet-tone-primary' });
-// Stage 5g: a value coloured by its sign — only on a field that asks (green above zero, red below; zero and errors stay plain)
+// Stage 5g: a value colored by its sign — only on a field that asks (green above zero, red below; zero and errors stay plain)
 function signTone(f, e) { if (!f.sign || !e || e.error || e.label || typeof e.value !== 'number') return ''; return e.value < 0 ? ' sheet-neg' : e.value > 0 ? ' sheet-pos' : ''; }
 // A field on the sheet: its control, then (Fold B) its caption line — text, with each {formula} worked out for this character, drawn as text
 function fieldNode(f, c, e, gm, own, sysArg, vars, plc) {   // vars: the render's resolver (sections pass it; the band shows no captions); plc (F4b): the placement
     var box = fieldNodeBody(f, c, e, gm, own, sysArg, plc);
-    if (typeof envMark === 'function') envMark(box, f, c, sysArg, vars);   // 1.6.0: a reading's figure in its band's colour
+    if (typeof envMark === 'function') envMark(box, f, c, sysArg, vars);   // 1.6.0: a reading's figure in its band's color
     if (f.caption && sysArg && vars && F()) box.appendChild(captionNode(f.caption, sysArg, c, vars));
     return box;
 }
@@ -5280,7 +5280,7 @@ function formulaSays(sysA, text) {
     if (!r || !r.ok) return '';
     try { var w = FC.says(r.form, { name: function(n) { return nameWord(s, n); } }); return w ? 'Worked out from ' + w : ''; } catch (err) { return ''; }
 }
-// 1.6.2 (found building a system by hand): what a greyed button needs, said to the GM in words, never as its formula; nothing where it cannot be read
+// 1.6.2 (found building a system by hand): what a grayed button needs, said to the GM in words, never as its formula; nothing where it cannot be read
 function needsTip(text) {
     var FC = typeof window !== 'undefined' ? window.wpFormCore : null, r = FC && text ? FC.readCond(String(text)) : null; if (!r || !r.ok) return '';
     try { var sy = systemOf(getActiveCampaign()), w = FC.saysCond(r.cond, { name: function(n) { return nameWord(sy, n); } }); return w ? ' \u2014 only while ' + w : ''; } catch (err) { return ''; }
@@ -5309,7 +5309,7 @@ function trackNode(f, c, e, use, raw) {
     var shape = f.track.shape, each = f.track.each === true, filled = trackFill(f, e, raw), live = !!use && f.kind !== 'formula';
     var on = function(i) { return each ? (filled & (1 << (i - 1))) !== 0 : i <= filled; };
     var wrap = el('div', 'sheet-ctl sheet-trk sheet-trk-' + (each ? 'each' : shape));
-    if (typeof f.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(f.color)) wrap.style.setProperty('--trk', f.color);   // a pool's own colour
+    if (typeof f.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(f.color)) wrap.style.setProperty('--trk', f.color);   // a pool's own color
     var go = function(i) { commit(c, f, trackPress(f, raw, e, i)); };
     var words = each ? (typeof trackWords === 'function' ? trackWords(filled) : '') : f.kind === 'formula' ? (e ? e.text : '') : fmtNum(Math.min(filled, n)) + ' / ' + fmtNum(n);
     if (shape === 'clock') {
@@ -5378,11 +5378,11 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var inp = el('input', 'field sheet-num'); inp.type = 'number'; inp.dataset.fid = f.id; inp.value = raw === undefined || raw === null ? String(e && e.auto && typeof e.value === 'number' ? (typeof e.base === 'number' ? e.base : e.value) : f.def) : String(raw);   // 1.6.2 (auto apply): worked out until typed
         if (f.min !== undefined) inp.min = String(f.min); if (f.max !== undefined) inp.max = String(f.max); inp.step = String(f.step || 1); inp.disabled = !use;
         inp.addEventListener('change', function() { commit(c, f, Number(inp.value)); });
-        if (k === 'number' && f.slider && f.min !== undefined && f.max !== undefined) {   // Stage 5e: a gradient slider — the same number as a range on a two-colour track with end labels
+        if (k === 'number' && f.slider && f.min !== undefined && f.max !== undefined) {   // Stage 5e: a gradient slider — the same number as a range on a two-color track with end labels
             var sw = el('div', 'sheet-slider'); box.classList.add('sheet-has-slider');
             var ends = el('div', 'sheet-slider-ends'); ends.appendChild(el('span', 'sheet-slider-low', f.slider.low || '')); ends.appendChild(el('span', 'sheet-slider-high', f.slider.high || '')); sw.appendChild(ends);
             var rg = el('input', 'sheet-range'); rg.type = 'range'; rg.min = String(f.min); rg.max = String(f.max); rg.step = String(f.step || 1); rg.value = inp.value; rg.disabled = !use; rg.dataset.fid = f.id; rg.dataset.part = 'range';
-            rg.style.background = 'linear-gradient(90deg, ' + (f.slider.lowColor || 'var(--blue)') + ', ' + (f.slider.midColor ? f.slider.midColor + ', ' : '') + (f.slider.highColor || 'var(--gold)') + ')';   // colours are hex-validated by cleanSlider
+            rg.style.background = 'linear-gradient(90deg, ' + (f.slider.lowColor || 'var(--blue)') + ', ' + (f.slider.midColor ? f.slider.midColor + ', ' : '') + (f.slider.highColor || 'var(--gold)') + ')';   // colors are hex-validated by cleanSlider
             rg.title = (f.slider.low || String(f.min)) + ' \u2026 ' + (f.slider.high || String(f.max));   // "Chaos … Order", or "-100 … 100"
             // arrow keys fire a change per step: one commit after the last step, so a player's nudges reach the GM as one edit (inside the
             // host's rate gate) and a drag still commits once on release; an unchanged value is never re-sent
@@ -5391,7 +5391,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
             rg.addEventListener('change', function() { clearTimeout(rgTimer); rgTimer = setTimeout(function() { if (rg.value === rgSent) return; rgSent = rg.value; commit(c, f, Number(rg.value)); }, 200); });
             sw.appendChild(rg); row.appendChild(sw);
         }
-        if (k === 'number') inp.className += signTone(f, { value: Number(inp.value) });   // Stage 5g (a skill colours its total instead); 5h: by the number the box shows
+        if (k === 'number') inp.className += signTone(f, { value: Number(inp.value) });   // Stage 5g (a skill colors its total instead); 5h: by the number the box shows
         var lkS = (sysArg && sysArg.sheet && sysArg.sheet.look) || {};
         if (f.counter) row.appendChild(stepWrap(inp, f, c, use, true));   // HUD frame (HF4a, H8): a counter, minus and plus either side (the cleaner never keeps one with value names or a slider)
         else if (lkS.steppers === 'inside' && !(k === 'number' && f.slider && f.min !== undefined && f.max !== undefined)) row.appendChild(stepWrap(inp, f, c, use));   // Stage 6 look fold (L8)
@@ -5407,7 +5407,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
     if (k === 'resource') {
         var cur = e && typeof e.value === 'number' ? e.value : 0, max = e && typeof e.max === 'number' ? e.max : null;
         var r = el('div', 'sheet-ctl');
-        if (typeof f.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(f.color)) { box.classList.add('sheet-pool-colored'); if (f.colorBand === true) box.classList.add('sheet-pool-bandonly'); box.style.setProperty('--sheet-pool', f.color); }   // Stage 6 look fold (L7): the pool's own colour
+        if (typeof f.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(f.color)) { box.classList.add('sheet-pool-colored'); if (f.colorBand === true) box.classList.add('sheet-pool-bandonly'); box.style.setProperty('--sheet-pool', f.color); }   // Stage 6 look fold (L7): the pool's own color
         if (f.icon) r.appendChild(iconNode(f.icon, 'sheet-pool-icon'));   // Fold B (Stage 6: or a bundled glyph)
         if (f.icon || f.reset) r.classList.add('sheet-ctl-wrap');   // the extra controls wrap to a second line in a narrow cell, never into the next column
         var minus = el('button', 'tool ghost sheet-pm', '−'); minus.dataset.fid = f.id; minus.dataset.part = 'minus'; minus.title = 'One less'; minus.disabled = !use;
@@ -5468,7 +5468,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         if (!gm && window.wpLibPicker && window.wpNet && window.wpNet.libManifest) { var lmP = window.wpNet.libManifest(); libOK = !!lmP && lmP.packs.some(function(p) { return p.count > 0; }); }   // L3b: a player, the packs the host lets them see
         if (editOk && _fxLive && sysI && ((sysI.items && sysI.items.length) || custOK || libOK) && !onOnly) {
             var add = el('select', 'field sheet-item-add'), nPick = -1, vwP = _fxView; add.appendChild(opt('', '+ Add item…', true)); if (window.wpTexList) window.wpTexList.keys(add);   // a key step chooses nothing here: it opens the list, as a Texture list's does
-            var cantI = !gm && typeof cantTake === 'function' ? function(it) { return cantTake(sysI, c, it); } : null;   // 126b: an item this character may not take yet is greyed out for its player and says why; the GM is never stopped
+            var cantI = !gm && typeof cantTake === 'function' ? function(it) { return cantTake(sysI, c, it); } : null;   // 126b: an item this character may not take yet is grayed out for its player and says why; the GM is never stopped
             if (specI) nPick = pickerInto(add, sysI.items || [], specI, carried, cantI);   // F4b: the list's categories, grouped
             else sysI.items.forEach(function(it) { var oI = opt(it.id, (iconText(it.icon) ? iconText(it.icon) + ' ' : '') + it.name + (it.category ? ' — ' + it.category : '')), whyI = cantI ? cantI(it) : ''; if (whyI) { oI.disabled = true; oI.title = whyI; } add.appendChild(oI); });
             if (catAt && typeof catLead === 'function') { catLead(add, catAt); add.dataset.cat = catAt; }   // 1.5.5: a placement by category opens its pickers on its first category
@@ -5506,7 +5506,7 @@ function openLibPickerPlayer(anchor, c, f, spec, partIn, rollOnly) {
     var N = window.wpNet, LP = window.wpLibPicker, camp = getActiveCampaign(), man = N && N.libManifest ? N.libManifest() : null; if (!LP || !camp || !man) return;
     var packs = man.packs.filter(function(p) { return p.count > 0; }), total = packs.reduce(function(n, p) { return n + p.count; }, 0), done = false;
     var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string' && s.hide !== true) labels[s.key] = s.label || s.key; });
-    var asEntry = function(r) { var o = { id: r[0], key: r[1], name: r[2], category: r[3], icon: r[4], tags: r[5] }; if (Array.isArray(r[7])) o.needs = r[7]; if (typeof r[8] === 'string') o.needsIf = r[8]; return o; };   // 126b: a row's needs, so the picker greys it before the entry is opened
+    var asEntry = function(r) { var o = { id: r[0], key: r[1], name: r[2], category: r[3], icon: r[4], tags: r[5] }; if (Array.isArray(r[7])) o.needs = r[7]; if (typeof r[8] === 'string') o.needsIf = r[8]; return o; };   // 126b: a row's needs, so the picker grays it before the entry is opened
     LP = unheldVia(LP, c, f, spec, rollOnly);   // 1.6.0 Rolls unheld entries
     LP.open({ anchor: anchor, cat: typeof catOf === 'function' ? catOf(anchor) : null, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) ? spec.cats : null, once: null, noQty: !!(spec && spec.noQty), labels: labels, gm: false, needs: function(e) { var cpN = getActiveCampaign(), chN = charById(c.id, cpN), syN = systemOf(cpN); return chN && syN ? needsMet(syN, chN, e, true, F()).missing : []; },   // 126b: what their character does not meet, by the needs their copy of the entry names (the host judges the rest)
         fit: partIn && typeof partFitEntry === 'function' ? function(e) { var fuF = N.libEntry(e.id), cpF = getActiveCampaign(), chF = charById(c.id, cpF), syF = systemOf(cpF); return fuF && chF && syF ? partFitEntry(syF, chF, f.id, partIn, fuF, F(), true) : ''; } : null,   // 1.6.0 Fits where (ask 18): judged once the entry has come in full, by their own view (the host judges it again)
@@ -5592,7 +5592,7 @@ function aimNeed(opts) {
     return ent && ent.area && typeof ent.area === 'object' ? String(ent.label || '').split('{')[0].trim().slice(0, 60) : null;
 }
 // [systemcheck:greypress-start]
-// 1.6.0 (the by-hand test: a player's press on a roll that could not be made did nothing they could see): a greyed roll or action takes no click, and
+// 1.6.0 (the by-hand test: a player's press on a roll that could not be made did nothing they could see): a grayed roll or action takes no click, and
 // what held it back stood in its tooltip alone. A press on one says it, the rest of the tooltip, the GM's formula among it, staying in the tooltip
 var GREY_BTN = '.sheet-roll, .sheet-roll-mod, .sheet-item-roll';
 function greyWords(b) {
@@ -5907,7 +5907,7 @@ function labelSecret(sys, vars, text) {
     hit = hit.filter(function(x, i) { return low.indexOf(low[i]) === i; }); return hit.length ? hit.join(', ') : '';
 }
 // [systemcheck:rollhide-start] 1.6.0 (the owner, 2026-10-31, by prompt: "Hide until it applies"): whether a roll ticked Hidden until it can be used
-// stands aside now: its needs do not hold. Needs that read the one it is used on (On.) are not judged here, as its greyed button does not judge them
+// stands aside now: its needs do not hold. Needs that read the one it is used on (On.) are not judged here, as its grayed button does not judge them
 function rollHidden(r, vars) {
     if (!r || r.hideOff !== true || !r.needs || typeof rollNeedsOk !== 'function' || typeof vars !== 'function') return false;
     var near = (r.to === 'near' || r.to === 'target');
@@ -5965,7 +5965,7 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
 }
 // A roll from this character's sheet: the dice feature on, and for a player their own character
 // Turn-based combat T4: why a button that costs an action cannot be pressed now — none of it left this turn, as the host last told this player
-// ('' when it can; a warn table never greys, the note says so). The host judges every press; this only spares the player a refusal
+// ('' when it can; a warn table never grays, the note says so). The host judges every press; this only spares the player a refusal
 function costBlock(c, cost, k) {
     var n = net(), al = cost && c && n && n.actsLeft ? n.actsLeft[c.id] : null, kn = typeof k === 'number' && k >= 2 ? k : 1; if (!al || al.mode !== 'refuse' || typeof al.left[cost] !== 'number' || al.left[cost] >= kn || al.rn === cost) return '';
     var actN = typeof systemOf === 'function' && typeof getActiveCampaign === 'function' ? (((systemOf(getActiveCampaign()) || {}).combat || {}).turn || {}).acts : null, actL = Array.isArray(actN) ? actN.filter(function(a) { return a && a.key === cost; })[0] : null;   // its name, as the host's own refusal says it
@@ -6225,7 +6225,7 @@ function turnEndHook(mapId, combat) { return timedHook(mapId, combat, 'turnEnd')
 function kindSel(rr, sp) {
     var st = (sp && Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s.key === 'string' && s.key && s.kind !== 'pick' && s.set !== true; }), o = [['', 'No kind of attempt']].concat(st.map(function(s) { return [s.key, 'Kind: ' + (s.label || s.key)]; })), cur = typeof rr.attemptKey === 'string' ? rr.attemptKey : '';
     if (cur && !st.some(function(s) { return s.key.toLowerCase() === cur.toLowerCase(); })) o.push([cur, 'Kind: no such number stat']);
-    return select('sys-list-rsak', o, cur, 'The number stat of this row that says what kind of attack it is. Rolls that resist it read that figure as Attempt.kind, 0 with none, in their formula and their Needs. A defence whose Needs fail for it is not offered');
+    return select('sys-list-rsak', o, cur, 'The number stat of this row that says what kind of attack it is. Rolls that resist it read that figure as Attempt.kind, 0 with none, in their formula and their Needs. A defense whose Needs fail for it is not offered');
 }
 function resistBySel(cls, cur, sys) {
     var rs = (sys && Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(x) { return x && typeof x.id === 'string' && x.resist === true && !Array.isArray(x.apply); }).map(function(x) { return [x.id, 'Resisted by: ' + (x.label || 'Roll')]; });
@@ -6408,7 +6408,7 @@ function charCatSet(cid, cat) {
 function charCatNow(c) { var camp = getActiveCampaign(), sys = systemOf(camp); return sys && c ? charCatOf(sys, c, F()) : ''; }
 // [systemcheck:crewpick-start]
 // 1.6.2 (218): the vehicle's + Crew… menu: a station, then the sheets that may sit there, each by its name; Show all lists the rest, each saying why
-// not in the system's own words, greyed for a player (the host refuses it) and pressable for the GM (who is told). A pick links that sheet to this one
+// not in the system's own words, grayed for a player (the host refuses it) and pressable for the GM (who is told). A pick links that sheet to this one
 // at that station, judged as any link is. On the page as the Load menu is: its class, its Escape, a press elsewhere closing it
 function crewCandidates(sys, k, c, camp, st, all) {
     var gm = !isClient(), out = [];
@@ -6717,7 +6717,7 @@ function lookOnPaper(f, c) { return !!f && f.kind === 'text' && lookPaper() && !
 function lookReadRule(f) { var r = lookRule(f); if (!r || !lookPaper()) return r; var o = {}, k; for (k in r) if (Object.prototype.hasOwnProperty.call(r, k)) o[k] = r[k]; o.link = false; return o; }
 // [systemcheck:sheetlook-end]
 // [systemcheck:autobits-start]
-// 1.6.2 (auto apply; the CORE session, 2026-11-04: "the small grey word with the tooltip naming its source, gone once someone types", and of Reset,
+// 1.6.2 (auto apply; the CORE session, 2026-11-04: "the small gray word with the tooltip naming its source, gone once someone types", and of Reset,
 // "keep it out of the way (the field's menu or a small icon), so it doesn't read as a button the player must press"): beside a field worked out until
 // typed, the word worked out; beside one a fill wrote and nobody has typed since, the word filled, its tooltip naming the field it came from; and
 // where a figure was typed into a field that has a worked-out one, a faint icon that sets it back. Nothing is pressed for a figure to apply. Null for none
@@ -6785,7 +6785,7 @@ function unitWordsList() {
     try {
         if (document.getElementById('sysUnitWords')) return 'sysUnitWords';
         var dl = el('datalist'); dl.id = 'sysUnitWords';
-        [['yd', 'yards'], ['ft', 'feet'], ['in', 'inches'], ['lb', 'pounds'], ['mi', 'miles'], ['yd/s', 'yards a second'], ['m', 'metres'], ['cm', 'centimetres'], ['kg', 'kilograms'], ['km', 'kilometres'], ['m/s', 'metres a second']].forEach(function(o) { dl.appendChild(opt(o[0], o[1])); });
+        [['yd', 'yards'], ['ft', 'feet'], ['in', 'inches'], ['lb', 'pounds'], ['mi', 'miles'], ['yd/s', 'yards a second'], ['m', 'meters'], ['cm', 'centimeters'], ['kg', 'kilograms'], ['km', 'kilometers'], ['m/s', 'meters a second']].forEach(function(o) { dl.appendChild(opt(o[0], o[1])); });
         (document.getElementById('systemModal') || document.body).appendChild(dl); return 'sysUnitWords';
     } catch (e) { return ''; }
 }
@@ -6806,7 +6806,7 @@ function decBox(f) {
 }
 // [systemcheck:fieldunit-end]
 // [systemcheck:commitlook-start]
-// Item 35: the look of one text of a character (bold, a colour, a link), set from its sheet. rec: a look record made for the text the sheet
+// Item 35: the look of one text of a character (bold, a color, a link), set from its sheet. rec: a look record made for the text the sheet
 // holds now, or null to take the look off. A player's goes to the host and is laid over at once. The GM's is judged by the very rule the
 // host judges a player's by, stored, saved and told to the table. True when it was taken
 function commitLook(c, f, rec) {
@@ -7335,7 +7335,7 @@ function debtBar(box, c, gm, camp) {
     if (!box) return false; box.textContent = ''; var SD = window.wpSystemCore, list = SD && SD.cleanDebts ? SD.cleanDebts(c.debts) || [] : [], n = window.wpNet, can = !!gm && !!n && typeof n.debtSet === 'function' && n.role !== 'client';
     var said = function(r) { if (r && r.error) toast(r.error); };
     list.forEach(function(d) {
-        var row = el('span', 'sheet-debt' + (d.v > 0 ? ' owes' : ' owed')); row.title = 'A debt between two characters, from a trade or set by the GM. It is on both sheets.';   // 1.6.2 (171's third sitting; the owner, by prompt: "A labelled line (Recommended)"): what it is, said
+        var row = el('span', 'sheet-debt' + (d.v > 0 ? ' owes' : ' owed')); row.title = 'A debt between two characters, from a trade or set by the GM. It is on both sheets.';   // 1.6.2 (171's third sitting; the owner, by prompt: "A labeled line (Recommended)"): what it is, said
         row.appendChild(el('span', 'sheet-debt-lab', 'I owe you'));
         var amt = document.createTextNode(debtNum(Math.abs(d.v)));
         if (can) { amt = el('input', 'field sheet-debt-amt'); amt.type = 'number'; amt.min = '0'; amt.step = 'any'; amt.value = String(Math.abs(d.v)); amt.title = 'How much'; amt.setAttribute('aria-label', 'How much'); amt.addEventListener('change', function() { var x = Number(amt.value); if (!isFinite(x) || x < 0) return; said(n.debtSet(c.id, d.with, d.v > 0 ? x : -x)); }); }
@@ -7356,7 +7356,7 @@ function debtBar(box, c, gm, camp) {
 }
 // [plookcheck:bar-start]
 // 1.6.2, backlog 35, a personal look (the owner, 2026-11-03, by prompt: "player, or GM, both can clear the other's changes"): a line under the
-// sheet's head, its name in a font of Waypoint's own and a colour, for its player (sent to the host, which judges it) and for the GM (here, on any
+// sheet's head, its name in a font of Waypoint's own and a color, for its player (sent to the host, which judges it) and for the GM (here, on any
 // character, NPCs too). Words as text, fonts by the list's own names; off with Personal looks off on this screen
 function lookBar(box, c, gm, own) {
     if (!box) return false; while (box.firstChild) box.removeChild(box.firstChild);
@@ -7365,13 +7365,13 @@ function lookBar(box, c, gm, own) {
     var mine = !gm && !!own && isClient() && !!n && typeof n.charLook === 'function' && c.shared !== 1;
     if (!(gm ? canWrite() : mine)) return false;
     var cur = S.cleanPlook(c.plook) || {}, row = el('span', 'sheet-plook-row');
-    var capP = el('span', 'sheet-plook-cap', 'Name shown as'); capP.title = 'The font and colour this character\u2019s name is shown in, for everyone at the table'; row.appendChild(capP);   // 1.6.2, the viewing: the line says what it sets
+    var capP = el('span', 'sheet-plook-cap', 'Name shown as'); capP.title = 'The font and color this character\u2019s name is shown in, for everyone at the table'; row.appendChild(capP);   // 1.6.2, the viewing: the line says what it sets
     var fs = el('select', 'field sheet-plook-font'); fs.title = 'The font this character\u2019s name is shown in, for everyone at the table'; fs.setAttribute('aria-label', 'Font of the name');
     var o0 = el('option', null, 'Plain'); o0.value = ''; fs.appendChild(o0);
     var groups = []; (T.FONTS || []).forEach(function(f) { if (groups.indexOf(f[2]) < 0) groups.push(f[2]); });
     groups.forEach(function(g) { var og = el('optgroup'); og.label = g; (T.FONTS || []).forEach(function(f) { if (f[2] !== g) return; var o = el('option', null, f[0]); o.value = f[0]; o.style.fontFamily = T.fontCss(f[0]); og.appendChild(o); }); fs.appendChild(og); });
     fs.value = cur.font || ''; if (window.wpTexList && typeof window.wpTexList.keys === 'function') window.wpTexList.keys(fs);   // a key step opens the list, so that stepping past a font sets nothing
-    var cl = el('input', 'sheet-plook-color'); cl.type = 'color'; cl.value = cur.color || '#e0a54f'; cl.title = 'The colour of this character\u2019s name'; cl.setAttribute('aria-label', 'Colour of the name'); if (!cur.color) cl.classList.add('unset');
+    var cl = el('input', 'sheet-plook-color'); cl.type = 'color'; cl.value = cur.color || '#e0a54f'; cl.title = 'The color of this character\u2019s name'; cl.setAttribute('aria-label', 'Color of the name'); if (!cur.color) cl.classList.add('unset');
     var off = el('button', 'tool ghost sheet-plook-clear', 'Clear'); off.type = 'button'; off.title = 'Draw its name plain again, for everyone'; off.disabled = !cur.font && !cur.color;
     var say = el('span', 'sheet-plook-name', c.name || ''); P.dress(say, cur);
     var put = function(look) {
@@ -8071,7 +8071,7 @@ function editResult(rid, ok, reason, msg, op) { if (!ok) toast(reason === 'none'
 /* ---------- the editor: fields, rolls, characters ---------- */
 var draft = null, dirty = false, tab = 'fields', errorsById = {}, warningsById = {}, layoutView = 'sheet';   // layoutView (HUD frame HF1): 'sheet' | 'hud'
 var KIND_LABEL = { number: 'Number', formula: 'Derived', resource: 'Resource', skill: 'Skill', toggle: 'Toggle', text: 'Text', notes: 'Notes', select: 'Select', 'item-list': 'Item list', effects: 'Status effects' };
-var KIND_HELP = { number: 'A stored number (an attribute): default, min, max, step. With a min and a max it can show as a slider on a two-colour track.', formula: 'A figure worked out from others: a modifier, a secondary attribute, a derived stat. Worked out from other fields, never stored and never typed.', resource: 'A current value with a formula for its max (HP): a bar with - and + on the sheet.', skill: 'Stored ranks plus a base formula; its value is ranks + base.', toggle: 'On or off (a condition); true or false in formulas.', text: 'A short text (up to 200 characters); not a number for formulas.', notes: 'A long text; never read by formulas.', select: 'One of a fixed list of options.', 'item-list': 'A list of items the character carries, filled from the Items library on the sheet.', effects: 'The status effects the character carries: added from the Effects library in one click, or made on the spot with their own numbers. Each changes its numbers everywhere they are used.' };
+var KIND_HELP = { number: 'A stored number (an attribute): default, min, max, step. With a min and a max it can show as a slider on a two-color track.', formula: 'A figure worked out from others: a modifier, a secondary attribute, a derived stat. Worked out from other fields, never stored and never typed.', resource: 'A current value with a formula for its max (HP): a bar with - and + on the sheet.', skill: 'Stored ranks plus a base formula; its value is ranks + base.', toggle: 'On or off (a condition); true or false in formulas.', text: 'A short text (up to 200 characters); not a number for formulas.', notes: 'A long text; never read by formulas.', select: 'One of a fixed list of options.', 'item-list': 'A list of items the character carries, filled from the Items library on the sheet.', effects: 'The status effects the character carries: added from the Effects library in one click, or made on the spot with their own numbers. Each changes its numbers everywhere they are used.' };
 // [formcheck:source-start]
 // 1.6.2: what a formula's form may offer, and every name in words, for the box it stands over
 var FORM_ONLY = { 'sys-range-formula': ['Distance'], 'sys-height-formula': ['HeightDiff'], 'sys-combat-bfall': ['BlastDamage', 'BlastDistance', 'BlastDice', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop', 'BlastScale', 'MapCell', 'HitScale'], 'sys-combat-beach': ['BlastDice', 'BlastDistance', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop', 'BlastScale', 'MapCell', 'HitScale'], 'sys-combat-bradius': ['BlastRadius', 'MapCell', 'BlastDice', 'BlastScale'], 'sys-combat-cover-body': ['TargetSize', 'BodySize'], 'sys-combat-bscatter': ['Margin', 'ThrowDistance'], 'sys-combat-bhand': ['Natural'], 'sys-combat-fgreach': ['FragDice', 'BlastDice', 'MapCell', 'BlastScale'] };
@@ -8566,9 +8566,9 @@ function badgeBox(sp) {
             wI.addEventListener('input', function() { set('words', wI.value.slice(0, LIMITS.text)); });
             var iI = input('sys-badge-if field', typeof b.if === 'string' ? b.if : '', 'It shows on a row only while this holds, no dice: Row.jam > 0. Row.<name> reads the row, any other name the character', 'Shown where (Row.jam > 0)'); iI.maxLength = LIMITS.formula;
             iI.addEventListener('input', function() { set('if', iI.value.slice(0, LIMITS.formula)); });
-            var tS = badgeSel('sys-badge-tone', BADGE_TONES, b.tone, 'Its colour. Plain is grey'); tS.addEventListener('change', function(e) { e.stopPropagation(); set('tone', tS.value); });
+            var tS = badgeSel('sys-badge-tone', BADGE_TONES, b.tone, 'Its color. Plain is gray'); tS.addEventListener('change', function(e) { e.stopPropagation(); set('tone', tS.value); });
             var kS = badgeSel('sys-badge-kind', [['', 'Pill'], ['line', 'Line']], b.line === true ? 'line' : '', 'Pill: after the name. Line: a sentence under the row, for a longer warning'); kS.addEventListener('change', function(e) { e.stopPropagation(); set('line', kS.value === 'line'); });
-            var tt = badgeTick('sys-badge-tint', b.tint, 'Tints its row', 'The row takes the badge\u2019s colour as a tint with an edge while it shows. The first badge that tints wins'); tt.cb.addEventListener('change', function(e) { e.stopPropagation(); set('tint', tt.cb.checked); });
+            var tt = badgeTick('sys-badge-tint', b.tint, 'Tints its row', 'The row takes the badge\u2019s color as a tint with an edge while it shows. The first badge that tints wins'); tt.cb.addEventListener('change', function(e) { e.stopPropagation(); set('tint', tt.cb.checked); });
             var pt = badgeTick('sys-badge-pulse', b.pulse, 'Pulses', 'The badge pulses slowly, for a state that needs attention now. It stays still where the computer is set to reduce motion'); pt.cb.addEventListener('change', function(e) { e.stopPropagation(); set('pulse', pt.cb.checked); });
             var pI = input('sys-badge-tip field', typeof b.tip === 'string' ? b.tip : '', 'Words shown when the pointer rests on the badge', 'Tip (optional)'); pI.maxLength = LIMITS.text;
             pI.addEventListener('input', function() { set('tip', pI.value.slice(0, LIMITS.noteText)); });
@@ -8582,11 +8582,11 @@ function badgeBox(sp) {
     draw();
     return box;
 }
-function toneRow(obj) {   // R5: a tone beside each value name of a stat or a column, as a field's Colours row
+function toneRow(obj) {   // R5: a tone beside each value name of a stat or a column, as a field's Colors row
     if (!obj || !Array.isArray(obj.labels) || !obj.labels.some(Boolean)) return null;
-    var row = el('div', 'sys-flags sys-ltone-row'); row.appendChild(el('span', 'sys-num-cap', 'Colours'));
+    var row = el('div', 'sys-flags sys-ltone-row'); row.appendChild(el('span', 'sys-num-cap', 'Colors'));
     obj.labels.forEach(function(nm, ti) { if (!nm || ti >= LIMITS.labels) return; var lab = el('label', 'sys-ltone-lbl'); lab.appendChild(el('span', null, nm + ' '));
-        var s = badgeSel('sys-ltone-sel', BADGE_TONES, Array.isArray(obj.tones) ? obj.tones[ti] : '', 'Its colour on a row when the value is ' + nm + '. With a colour the row shows the label small, then the name as a badge');
+        var s = badgeSel('sys-ltone-sel', BADGE_TONES, Array.isArray(obj.tones) ? obj.tones[ti] : '', 'Its color on a row when the value is ' + nm + '. With a color the row shows the label small, then the name as a badge');
         s.addEventListener('change', function(e) { e.stopPropagation(); var a = Array.isArray(obj.tones) ? obj.tones.slice() : []; while (a.length <= ti) a.push(''); a[ti] = s.value; while (a.length && !a[a.length - 1]) a.pop(); if (a.length) obj.tones = a; else delete obj.tones; markDirty(); if (typeof patchErrors === 'function') patchErrors(); });
         lab.appendChild(s); row.appendChild(lab); });
     return row;
@@ -8827,7 +8827,7 @@ function refreshErrors() {
         var onD = sp.on && typeof sp.on === 'object' && !Array.isArray(sp.on) ? sp.on : null, onPer = onD && typeof onD.per === 'string' ? onD.per.trim() : '';   // 1.5.4 One at a time: a Per stat as Save reads it
         if (onPer && !keptW[onPer.toLowerCase()]) errs.push({ message: 'One at a time goes by "' + onD.per + '", which is no stat of this list. ' + (onD.one === true ? 'Save keeps one row on for the whole list.' : 'Save drops it.') });
         if (onD && typeof onD.needsText === 'string' && onD.needsText.trim() && !(typeof onD.needs === 'string' && onD.needs.trim())) errs.push({ message: 'The switch has words but no Needs to switch on, so Save drops its words.' });   // 1.5.8: as the cleaner reads them (rollNeedsInto keeps the words only beside a formula)
-        (Array.isArray(sp.rolls) ? sp.rolls : []).forEach(function(rr, ri) { if (rr && typeof rr === 'object' && !Array.isArray(rr.apply) && typeof rr.ad === 'string' && rr.ad.trim() && rr.dmg !== true) errs.push({ message: 'Roll ' + (ri + 1) + (typeof rr.label === 'string' && rr.label.trim() ? ', ' + rr.label.trim() : '') + ': an armour divisor needs Damage ticked, so Save drops it.' }); });   // 1.6.0: as the cleaner reads it
+        (Array.isArray(sp.rolls) ? sp.rolls : []).forEach(function(rr, ri) { if (rr && typeof rr === 'object' && !Array.isArray(rr.apply) && typeof rr.ad === 'string' && rr.ad.trim() && rr.dmg !== true) errs.push({ message: 'Roll ' + (ri + 1) + (typeof rr.label === 'string' && rr.label.trim() ? ', ' + rr.label.trim() : '') + ': an armor divisor needs Damage ticked, so Save drops it.' }); });   // 1.6.0: as the cleaner reads it
         if (sp.lvl && typeof sp.lvl === 'object' && Array.isArray(sp.lvl.caps) && typeof cleanListSpec === 'function') {   // 1.6.0 At most at a level, as the cleaner reads it
             var capOne = function(c) { var lk = (cleanListSpec({ lvl: Object.assign({}, sp.lvl, { caps: [c] }) }, true, F()) || {}).lvl; return lk && Array.isArray(lk.caps) ? lk.caps[0] : null; }, capOk = 0;
             sp.lvl.caps.forEach(function(c, ci) { var k = capOne(c); if (!k) { errs.push({ message: 'At most, cap ' + (ci + 1) + ': it needs a number of rows, 0 or more, and a level, so Save drops it.' }); return; } capOk++; if (c.at !== k.at) errs.push({ message: 'At most, cap ' + (ci + 1) + ': ' + c.at + ' is not one of this list\u2019s levels, so Save reads it as ' + k.at + '.' }); else if (c.n !== k.n) errs.push({ message: 'At most, cap ' + (ci + 1) + ': rows are a whole number up to ' + LIMITS.carried + ', so Save keeps ' + k.n + '.' }); });
@@ -9014,12 +9014,12 @@ function refreshErrors() {
         if (!r || typeof r !== 'object' || r.dmg !== true || typeof r.dmgMajorIf !== 'string' || !r.dmgMajorIf.trim()) return;
         var cm = (clean.rolls || []).filter(function(x) { return x && x.id === r.id; })[0]; if (cm && !cm.dmgMajorIf) (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'dmgMajorIf', message: 'This is no formula Save can keep, so Save drops it.' });
     });
-    var p2Says = function(r, cr, push) {   // 1.6.0 (B3): a second part Save cannot keep, and its type or armour divisor where no part is kept
+    var p2Says = function(r, cr, push) {   // 1.6.0 (B3): a second part Save cannot keep, and its type or armor divisor where no part is kept
         if (!r || typeof r !== 'object' || r.dmg !== true || !cr) return;
         var has = function(k) { return typeof r[k] === 'string' && !!r[k].trim(); };
         if (has('hits') && !cr.hits) push('hits', 'This is no formula Save can keep, so Save drops it.');   // 1.6.0 A burst
         if (has('dmg2') && !cr.dmg2) push('dmg2', 'This is no formula Save can keep, so Save drops it.');
-        else if (!has('dmg2') && (has('dtype2') || has('ad2'))) push('dmg2', 'A second part\u2019s type and armour divisor need its formula, so Save drops them.');
+        else if (!has('dmg2') && (has('dtype2') || has('ad2'))) push('dmg2', 'A second part\u2019s type and armor divisor need its formula, so Save drops them.');
         else if (has('dtype2') && cr.dmg2 && !cr.dtype2) push('dmg2', 'Its type is no formula Save can keep, so Save drops it.');
         if (has('dkind') && !cr.dkind) push('dkind', 'This is no formula Save can keep, so Save drops it.');   // 1.6.0: its kind of blow, and each part's
         if (has('dkind2') && !has('dmg2')) push('dkind2', 'A second part\u2019s kind needs its formula, so Save drops it.'); else if (has('dkind2') && cr.dmg2 && !cr.dkind2) push('dkind2', 'This is no formula Save can keep, so Save drops it.');
@@ -9028,7 +9028,7 @@ function refreshErrors() {
             var dk = 'dmg' + k, tk = 'dtype' + k, ak = 'ad' + k, kk = 'dkind' + k, nm = k === 3 ? 'third' : k === 4 ? 'fourth' : 'fifth';
             if (has(kk) && !has(dk)) push(kk, 'A ' + nm + ' part\u2019s kind needs its formula, so Save drops it.'); else if (has(kk) && cr[dk] && !cr[kk]) push(kk, 'This is no formula Save can keep, so Save drops it.');
             if (has(dk) && !cr[dk]) push(dk, 'This is no formula Save can keep, so Save drops it.');
-            else if (!has(dk) && (has(tk) || has(ak))) push(dk, 'A ' + nm + ' part\u2019s type and armour divisor need its formula, so Save drops them.');
+            else if (!has(dk) && (has(tk) || has(ak))) push(dk, 'A ' + nm + ' part\u2019s type and armor divisor need its formula, so Save drops them.');
             else if (has(tk) && cr[dk] && !cr[tk]) push(dk, 'Its type is no formula Save can keep, so Save drops it.');
             if (has(ak) && cr[dk] && !cr[ak]) push(ak, 'This is no formula Save can keep, so Save drops it.');
         });
@@ -9213,7 +9213,7 @@ function refreshErrors() {
     }
     if (hgE && hgE.line3d === true && hgE.eye !== undefined) {   // item 19b H4: the standing height, as the cleaner reads it (yards)
         if (typeof hgE.eye !== 'number' || !isFinite(hgE.eye) || Math.abs(hgE.eye) > 1e15 || !(Math.round(Math.min(hgE.eye, 100) * 100) / 100 > 0)) hErr.push({ message: 'Standing height needs a number above 0: Save drops it, and the eye is at the token\u2019s elevation.' });
-        else if (hgE.eye > 100) hErr.push({ message: 'Standing height: at most 100 yards (91.44 metres), so Save keeps the nearest.' });
+        else if (hgE.eye > 100) hErr.push({ message: 'Standing height: at most 100 yards (91.44 meters), so Save keeps the nearest.' });
     }
     if (hErr.length) errorsById.height = hErr;
     // item 20 K1: what Save drops or changes of the calendar, said under the Calendar tab — each name read by calendarcore cleanCalendar itself
@@ -9495,7 +9495,7 @@ function errorCell(id) {
     if (!cell.childNodes.length) cell.style.display = 'none';
     return cell;
 }
-function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'turn.run') return 'Move by giving up an action: '; if (p === 'turn.face') return 'Facing changes per turn: '; if (p === 'turn.holdLost') return 'An action is lost when: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (p === 'needs') return 'Needs: '; if (/^(?:list\.)?byIf(\.|$)/.test(p || '')) return 'Read on the one who resisted: '; if (p === 'area' || /^list\.area\./.test(p || '')) return ''; if (p === 'hits' || /^list\.hits\./.test(p || '')) return 'Hits it rolls for: '; if (p === 'dmgMajorIf' || /^list\.mjif\./.test(p || '')) return 'A Major Wound where: '; if (p === 'dmg2' || /^list\.dmg2\./.test(p || '')) return 'Second part: '; var pk3 = /^(?:list\.)?(dmg|ad)([345])(\.|$)/.exec(p || ''); if (pk3) return (pk3[2] === '3' ? 'Third' : pk3[2] === '4' ? 'Fourth' : 'Fifth') + ' part' + (pk3[1] === 'ad' ? ' armour divisor' : '') + ': '; if (p === 'ad2' || /^list\.ad2\./.test(p || '')) return 'Second part armour divisor: '; var pkK = /^(?:list\.)?dkind([2345]?)(\.|$)/.exec(p || ''); if (pkK) return (pkK[1] === '' ? 'Kind' : pkK[1] === '2' ? 'Second part kind' : pkK[1] === '3' ? 'Third part kind' : pkK[1] === '4' ? 'Fourth part kind' : 'Fifth part kind') + ': '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; if (p === 'critAt') return 'Critical at: '; if (p === 'fumbleAt') return 'Critical failure at: '; if (p === 'bigAt') return 'Lands as a heavy hit at: '; var words = { maxFormula: 'Its most: ', base: 'Its base: ', key: 'Short name: ', label: 'Its name: ', caption: 'Line under it: ', resistBy: 'Resisted by: ', resistOr: 'Or resisted by: ', asks: 'What it asks: ', calls: 'Calls for: ', lvlOnly: 'Levels it may be: ', mods: 'Changes: ', holds: 'Holds: ', malf: 'Jams at: ', roll: 'Its roll: ', throwSkill: 'Thrown with: ' }; return Object.prototype.hasOwnProperty.call(words, p) ? words[p] : ''; }   // 1.6.2 (found building a system by hand): a part in words, never its short name in the file, and none where it has no word   // Stage 6 HUD H7: an apply action's change by its number
+function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'turn.run') return 'Move by giving up an action: '; if (p === 'turn.face') return 'Facing changes per turn: '; if (p === 'turn.holdLost') return 'An action is lost when: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (p === 'needs') return 'Needs: '; if (/^(?:list\.)?byIf(\.|$)/.test(p || '')) return 'Read on the one who resisted: '; if (p === 'area' || /^list\.area\./.test(p || '')) return ''; if (p === 'hits' || /^list\.hits\./.test(p || '')) return 'Hits it rolls for: '; if (p === 'dmgMajorIf' || /^list\.mjif\./.test(p || '')) return 'A Major Wound where: '; if (p === 'dmg2' || /^list\.dmg2\./.test(p || '')) return 'Second part: '; var pk3 = /^(?:list\.)?(dmg|ad)([345])(\.|$)/.exec(p || ''); if (pk3) return (pk3[2] === '3' ? 'Third' : pk3[2] === '4' ? 'Fourth' : 'Fifth') + ' part' + (pk3[1] === 'ad' ? ' armor divisor' : '') + ': '; if (p === 'ad2' || /^list\.ad2\./.test(p || '')) return 'Second part armor divisor: '; var pkK = /^(?:list\.)?dkind([2345]?)(\.|$)/.exec(p || ''); if (pkK) return (pkK[1] === '' ? 'Kind' : pkK[1] === '2' ? 'Second part kind' : pkK[1] === '3' ? 'Third part kind' : pkK[1] === '4' ? 'Fourth part kind' : 'Fifth part kind') + ': '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; if (p === 'critAt') return 'Critical at: '; if (p === 'fumbleAt') return 'Critical failure at: '; if (p === 'bigAt') return 'Lands as a heavy hit at: '; var words = { maxFormula: 'Its most: ', base: 'Its base: ', key: 'Short name: ', label: 'Its name: ', caption: 'Line under it: ', resistBy: 'Resisted by: ', resistOr: 'Or resisted by: ', asks: 'What it asks: ', calls: 'Calls for: ', lvlOnly: 'Levels it may be: ', mods: 'Changes: ', holds: 'Holds: ', malf: 'Jams at: ', roll: 'Its roll: ', throwSkill: 'Thrown with: ' }; return Object.prototype.hasOwnProperty.call(words, p) ? words[p] : ''; }   // 1.6.2 (found building a system by hand): a part in words, never its short name in the file, and none where it has no word   // Stage 6 HUD H7: an apply action's change by its number
 function formulaTextFor(id, prop) {
     if (id === 'combat' && prop === 'turn.move') return (draft.combat && draft.combat.turn && draft.combat.turn.move) || '';   // turn-based combat T1
     if (id === 'combat' && prop === 'turn.run') return (draft.combat && draft.combat.turn && draft.combat.turn.run) || '';   // 1.6.0
@@ -9600,7 +9600,7 @@ function labeledSelect(cls, cap, options, value, title) { var l = el('label', 's
 function capBox(box, cap) { var l = el('label', 'sys-num sys-cap'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(box); return l; }
 function capInline(box, words) { var l = el('label', 'sys-hover sys-capin'); l.appendChild(document.createTextNode(words)); l.appendChild(box); return l; }
 // [lookcheck:lineunder-start]
-// 107, options that say what they do: one grey line under the captioned list a box was just given. Fixed words, set as text
+// 107, options that say what they do: one gray line under the captioned list a box was just given. Fixed words, set as text
 function lineUnder(box, text) { var l = box && box.lastChild; if (l) l.appendChild(el('small', 'sys-line', text)); }
 // [lookcheck:lineunder-end]
 // 1.6.2, the fill rule: a change of a number shown as boxes marked one by one is a mark, a clear or the next free box up, never a sum
@@ -9625,7 +9625,7 @@ function fieldRow(f) {
     if (f.kind !== 'effects') flags.appendChild(select('sys-vis', [['all', 'Visible to players'], ['gm', 'GM only']], f.vis || 'all', 'GM only: the field and its value never leave your machine'));
     var hov = el('label', 'sys-hover'); var hc = el('input'); hc.type = 'checkbox'; hc.checked = !!f.hover; hc.className = 'sys-hover-chk'; hov.appendChild(hc); hov.appendChild(document.createTextNode(' Hover')); hov.title = 'Show on the token\'s hover card and the party strip'; flags.appendChild(hov);
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') { var tl = el('label', 'sys-hover'); var tc = el('input'); tc.type = 'checkbox'; tc.checked = !!f.tile; tc.className = 'sys-tile-chk'; tl.appendChild(tc); tl.appendChild(document.createTextNode(' Tile')); tl.title = 'Show this field as a stat tile (big value, small label)'; flags.appendChild(tl); }   // Stage 3
-    if (f.kind === 'number' && (!f.counter || f.slider)) { var sl = el('label', 'sys-hover'); var sc = el('input'); sc.type = 'checkbox'; sc.checked = !!f.slider; sc.className = 'sys-slider-chk'; sl.appendChild(sc); sl.appendChild(document.createTextNode(' Slider')); sl.title = 'Show this number as a range on a two-colour track with end labels (needs a min and a max)'; flags.appendChild(sl); }   // Stage 5e (a counter is not a slider: hidden while Counter is on, shown while a slider is set so it can be turned off)
+    if (f.kind === 'number' && (!f.counter || f.slider)) { var sl = el('label', 'sys-hover'); var sc = el('input'); sc.type = 'checkbox'; sc.checked = !!f.slider; sc.className = 'sys-slider-chk'; sl.appendChild(sc); sl.appendChild(document.createTextNode(' Slider')); sl.title = 'Show this number as a range on a two-color track with end labels (needs a min and a max)'; flags.appendChild(sl); }   // Stage 5e (a counter is not a slider: hidden while Counter is on, shown while a slider is set so it can be turned off)
     if ((f.kind === 'number' && !f.slider && !(Array.isArray(f.labels) && f.labels.length)) || f.kind === 'skill') { var cnl = el('label', 'sys-hover'); var cnc = el('input'); cnc.type = 'checkbox'; cnc.checked = !!f.counter; cnc.className = 'sys-counter-chk'; cnl.appendChild(cnc); cnl.appendChild(document.createTextNode(' Counter')); cnl.title = 'Draw \u2212 and + either side of the box (a turn counter, death saves, ammo, slots used)'; flags.appendChild(cnl); }   // HUD frame (HF4a, H8): never with a slider or value names
     if (f.kind === 'resource' || f.kind === 'formula' || (f.kind === 'number' && !f.slider && !(Array.isArray(f.labels) && f.labels.length))) {   // 1.6.2: a track display, and how many marks it draws
         var tkO = [['', 'its box'], ['dots', 'dots'], ['boxes', 'a row of boxes']]; if (f.kind === 'number') tkO.push(['each', 'boxes marked one by one']); tkO.push(['clock', 'a clock in parts']);
@@ -9635,45 +9635,45 @@ function fieldRow(f) {
     if (f.kind !== 'formula') { var lvL = el('label', 'sys-hover sys-live'); lvL.appendChild(document.createTextNode('Locked: ')); var lvS = el('select', 'sys-live-sel'); [['', 'automatic'], ['on', 'stays live'], ['off', 'needs Edit sheet']].forEach(function(o) { lvS.appendChild(opt(o[0], o[1], (f.live === true ? 'on' : f.live === false ? 'off' : '') === o[0])); }); lvL.appendChild(lvS); lvL.title = 'On a locked sheet and in the HUD. Automatic: a pool, a switch, a counter and a number with value names keep working, and everything else needs Edit sheet. Choose here to say otherwise for this field'; flags.appendChild(lvL); }   // the sheet's lock: this field's own word on it
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') { var uIn = input('sys-unit field', f.unit, 'A short unit after the value, on the sheet and in the header (pts, ft, kg). yd, ft, in, lb and mi are imperial measures and m, cm, kg and km metric ones: a viewer set to the other system sees that figure too', 'pts'); flags.appendChild(capInline(uIn, 'Unit: ')); var uLs = typeof unitWordsList === 'function' ? unitWordsList() : ''; if (uLs) uIn.setAttribute('list', uLs); }   // Stage 5g; 1.5.4: the measures offered as a list, any other unit still typed
     if ((f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') && typeof metricSel === 'function') { flags.appendChild(metricSel('sys-metricshow', f.unitShow)); flags.appendChild(decBox(f)); var grl = el('label', 'sys-hover'); var grc = el('input'); grc.type = 'checkbox'; grc.checked = f.group === true; grc.className = 'sys-group-chk'; grl.appendChild(grc); grl.appendChild(document.createTextNode(' 1,000s')); grl.title = 'Group the thousands with commas: 1,234.57'; flags.appendChild(grl); }   // 1.5.4: how a measure reads under Metric, the decimals, the thousands
-    else if (f.kind === 'text') flags.appendChild(select('sys-unit-text', [['', 'Unit: none'], ['height', 'Unit: height'], ['weight', 'Unit: weight']], f.unit === 'height' || f.unit === 'weight' ? f.unit : '', 'Height or weight: the text is read as one. Imperial shows its feet and inches or pounds, Metric its metres or kilograms'));   // 1.5.4
-    if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') { var sgl = el('label', 'sys-hover'); var sgc = el('input'); sgc.type = 'checkbox'; sgc.checked = !!f.sign; sgc.className = 'sys-sign-chk'; sgl.appendChild(sgc); sgl.appendChild(document.createTextNode(' \u00b1 colour')); sgl.title = 'Colour the value by its sign: green above zero, red below (points remaining, a modifier)'; flags.appendChild(sgl); }   // Stage 5g
+    else if (f.kind === 'text') flags.appendChild(select('sys-unit-text', [['', 'Unit: none'], ['height', 'Unit: height'], ['weight', 'Unit: weight']], f.unit === 'height' || f.unit === 'weight' ? f.unit : '', 'Height or weight: the text is read as one. Imperial shows its feet and inches or pounds, Metric its meters or kilograms'));   // 1.5.4
+    if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') { var sgl = el('label', 'sys-hover'); var sgc = el('input'); sgc.type = 'checkbox'; sgc.checked = !!f.sign; sgc.className = 'sys-sign-chk'; sgl.appendChild(sgc); sgl.appendChild(document.createTextNode(' \u00b1 color')); sgl.title = 'Color the value by its sign: green above zero, red below (points remaining, a modifier)'; flags.appendChild(sgl); }   // Stage 5g
     if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list' && f.kind !== 'effects' && ((Array.isArray(draft.tests) && draft.tests.length) || f.test)) flags.appendChild(capInline(select('sys-fieldtest', [['', 'Its own roll']].concat((Array.isArray(draft.tests) ? draft.tests : []).filter(function(x) { return x && typeof x.key === 'string'; }).map(function(x) { return [x.key, x.label || 'A test']; })), f.test || '', 'Which of the system\u2019s tests this field rolls, from the Rules tab, or a roll of its own'), 'Rolls by: '));   // 1.6.2 (backlog 59)
     if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list' && f.kind !== 'effects' && !f.test) { flags.appendChild(capInline(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'optional'), 'Roll: ')); if (typeof dieSel === 'function') flags.appendChild(dieSel('sys-fielddie', f.rollDie, 'The die its roll button wears. From its formula: the die it rolls, so 3d6 shows three dice and d20 a d20. Kept only beside a roll')); }
-    if (f.kind === 'number' || f.kind === 'formula') flags.appendChild(capInline(input('sys-vnames field', (f.labels || []).join(', '),'Names for the values 0, 1, 2\u2026 separated by commas (Not stunned, Physical, Mental): a number becomes a dropdown, a formula shows the name for its value; formulas still read the number. A named value is a word: \u00b1 colour, unit and slider do not apply to it', 'optional'), 'Value names: '));   // Stage 6
+    if (f.kind === 'number' || f.kind === 'formula') flags.appendChild(capInline(input('sys-vnames field', (f.labels || []).join(', '),'Names for the values 0, 1, 2\u2026 separated by commas (Not stunned, Physical, Mental): a number becomes a dropdown, a formula shows the name for its value; formulas still read the number. A named value is a word: \u00b1 color, unit and slider do not apply to it', 'optional'), 'Value names: '));   // Stage 6
     if (f.kind === 'number') { var ovF = f.override && typeof f.override === 'object' ? f.override : {}; flags.appendChild(capInline(input('sys-ovr-value field', ovF.value, 'The number reads this formula instead of what is typed, closed to editing, while the next formula holds: Chassis.Might', 'none'), 'Taken from: ')); if (ovF.value || ovF.when) flags.appendChild(capInline(input('sys-ovr-when field', ovF.when, 'While this holds, no dice: Bodies.count > 0. Otherwise the number is what is typed, as before', 'Bodies.count > 0'), 'while: ')); }   // 205 (6)
     if ((f.kind === 'number' || (f.kind === 'text' && (f.unit === 'height' || f.unit === 'weight'))) && typeof autoBox === 'function') flags.appendChild(autoBox(f));   // 1.6.2 (auto apply): Worked out until typed, Typing it fills
-    if (f.kind === 'formula') { var bgl = el('label', 'sys-hover'), bgc = el('input'); bgc.type = 'checkbox'; bgc.checked = !!f.badge; bgc.className = 'sys-badge-chk'; bgl.appendChild(bgc); bgl.appendChild(document.createTextNode(' Badge')); bgl.title = 'Show the value as a small pill; with value names, each name can have its own colour'; flags.appendChild(bgl); }   // Stage 6 look fold (L7)
+    if (f.kind === 'formula') { var bgl = el('label', 'sys-hover'), bgc = el('input'); bgc.type = 'checkbox'; bgc.checked = !!f.badge; bgc.className = 'sys-badge-chk'; bgl.appendChild(bgc); bgl.appendChild(document.createTextNode(' Badge')); bgl.title = 'Show the value as a small pill; with value names, each name can have its own color'; flags.appendChild(bgl); }   // Stage 6 look fold (L7)
     flags.appendChild(capInline(input('sys-caption field', f.caption, 'A line under the field on the sheet \u2014 {formula} shows a value, {\u00b1formula} the value with its sign (+2), e.g. Base: {ST * 2}', 'optional'), 'Caption: '));   // Fold B; Stage 6: {\u00b1\u2026}
     if (f.kind === 'resource') {   // Fold B: the pool's icon, a fill-to-max button, the bar
         var rIcoIn = input('sys-res-icon field', f.icon, 'An icon before the value \u2014 an emoji or a bundled icon', 'none'); flags.appendChild(capInline(rIcoIn, 'Icon: ')); flags.appendChild(glyphButton(rIcoIn));
         var rsl = el('label', 'sys-hover'); var rsc = el('input'); rsc.type = 'checkbox'; rsc.checked = !!f.reset; rsc.className = 'sys-reset-chk'; rsl.appendChild(rsc); rsl.appendChild(document.createTextNode(' \u21bb Reset')); rsl.title = 'A button that fills the pool back to its max'; flags.appendChild(rsl);
-        var rcl = el('label', 'sys-sec-color'), rci = el('input'); rci.type = 'color'; rci.className = 'sys-res-color'; rci.value = f.color || '#4db3d3'; rci.title = 'The pool\u2019s own colour: its icon, its bar and its value on the band'; rcl.appendChild(el('span', 'sys-sec-style-lbl', 'Colour')); rcl.appendChild(rci); flags.appendChild(rcl);   // L7
-        if (f.color) { var rcc = el('button', 'tool ghost sys-btn', 'No colour'); rcc.dataset.act = 'rescolorclr'; rcc.title = 'Back to the theme\u2019s colours'; flags.appendChild(rcc); }
-        if (f.color) { var cbl = el('label', 'sys-hover'), cbc = el('input'); cbc.type = 'checkbox'; cbc.checked = f.colorBand === true; cbc.className = 'sys-colorband-chk'; cbl.appendChild(cbc); cbl.appendChild(document.createTextNode(' Band only')); cbl.title = 'The colour on the pinned band alone. In its own section the pool is drawn plain'; flags.appendChild(cbl); }   // 1.6.0
+        var rcl = el('label', 'sys-sec-color'), rci = el('input'); rci.type = 'color'; rci.className = 'sys-res-color'; rci.value = f.color || '#4db3d3'; rci.title = 'The pool\u2019s own color: its icon, its bar and its value on the band'; rcl.appendChild(el('span', 'sys-sec-style-lbl', 'Color')); rcl.appendChild(rci); flags.appendChild(rcl);   // L7
+        if (f.color) { var rcc = el('button', 'tool ghost sys-btn', 'No color'); rcc.dataset.act = 'rescolorclr'; rcc.title = 'Back to the theme\u2019s colors'; flags.appendChild(rcc); }
+        if (f.color) { var cbl = el('label', 'sys-hover'), cbc = el('input'); cbc.type = 'checkbox'; cbc.checked = f.colorBand === true; cbc.className = 'sys-colorband-chk'; cbl.appendChild(cbc); cbl.appendChild(document.createTextNode(' Band only')); cbl.title = 'The color on the pinned band alone. In its own section the pool is drawn plain'; flags.appendChild(cbl); }   // 1.6.0
         var bcl = el('label', 'sys-hover'); var bcc = el('input'); bcc.type = 'checkbox'; bcc.checked = f.bar !== false; bcc.className = 'sys-bar-chk'; bcl.appendChild(bcc); bcl.appendChild(document.createTextNode(' Bar')); bcl.title = 'The bar under the value (untick for just the numbers)'; flags.appendChild(bcl);
         spillCtl(flags, f);   // 1.6.0 Spills into
         surchargeCtl(flags, f);   // 1.6.2 Costs more while
     }
     flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '<i class="wib wi-dup"></i>'], ['del', 'Delete this field', '&times;']]));
     row.appendChild(top); row.appendChild(flags);
-    if (f.kind === 'formula' && f.badge && Array.isArray(f.labels) && f.labels.length) {   // Stage 6 look fold (L7): a colour per value name on the badge
-        var trow = el('div', 'sys-sec-style sys-tones-row'); trow.appendChild(el('span', 'sys-sec-style-lbl', 'Colours'));
+    if (f.kind === 'formula' && f.badge && Array.isArray(f.labels) && f.labels.length) {   // Stage 6 look fold (L7): a color per value name on the badge
+        var trow = el('div', 'sys-sec-style sys-tones-row'); trow.appendChild(el('span', 'sys-sec-style-lbl', 'Colors'));
         f.labels.forEach(function(lbN, ti) {
             if (!lbN) return;
             var lab = el('label', 'sys-tone-lbl'); lab.appendChild(el('span', 'sys-sec-style-lbl', lbN));
-            var ts = select('sys-tone-sel', [['', 'Plain'], ['good', 'Good (green)'], ['warn', 'Warning (amber)'], ['danger', 'Danger (red)'], ['accent', 'Accent'], ['primary', 'Primary']], (Array.isArray(f.tones) && f.tones[ti]) || '', 'The badge\u2019s colour when the value is ' + lbN);
+            var ts = select('sys-tone-sel', [['', 'Plain'], ['good', 'Good (green)'], ['warn', 'Warning (amber)'], ['danger', 'Danger (red)'], ['accent', 'Accent'], ['primary', 'Primary']], (Array.isArray(f.tones) && f.tones[ti]) || '', 'The badge\u2019s color when the value is ' + lbN);
             ts.dataset.ti = String(ti); lab.appendChild(ts); trow.appendChild(lab);
         });
         row.appendChild(trow);
     }
-    if (f.kind === 'number' && f.slider) {   // Stage 5e: the slider's end labels and track colours
+    if (f.kind === 'number' && f.slider) {   // Stage 5e: the slider's end labels and track colors
         var srow = el('div', 'sys-sec-style sys-slider-row'); srow.appendChild(el('span', 'sys-sec-style-lbl', 'Slider'));
         srow.appendChild(input('sys-slider-low field', f.slider.low, 'The label at the low end (e.g. Chaos)', 'Low end label'));
         srow.appendChild(input('sys-slider-high field', f.slider.high, 'The label at the high end (e.g. Order)', 'High end label'));
-        var themeHex = function(v, fb) { try { var x = getComputedStyle(document.documentElement).getPropertyValue(v).trim(); return /^#[0-9a-fA-F]{6}$/.test(x) ? x.toLowerCase() : fb; } catch (er) { return fb; } };   // an unset colour draws the theme's own, so the swatch shows that one
-        [['lowColor', 'Low colour', themeHex('--blue', '#4db3d3')], ['midColor', 'Middle colour', '#757575'], ['highColor', 'High colour', themeHex('--gold', '#e0a54f')]].forEach(function(cd) { var lab = el('label', 'sys-sec-color'); var ci = el('input'); ci.type = 'color'; ci.className = 'sys-slider-' + cd[0]; ci.value = f.slider[cd[0]] || cd[2]; ci.title = cd[1] + ' of the track'; lab.appendChild(ci); lab.appendChild(document.createTextNode(' ' + cd[1])); srow.appendChild(lab); });
-        if (f.slider.lowColor || f.slider.midColor || f.slider.highColor) { var slc = el('button', 'tool ghost sys-btn', 'Theme colours'); slc.dataset.act = 'slidercl'; slc.title = 'Back to the theme\u2019s accent and gold'; srow.appendChild(slc); }
-        if (f.min === undefined || f.max === undefined) srow.appendChild(el('span', 'sys-note', 'Needs a min and a max to show as a slider; until then it is a plain number box (the labels and colours are kept).'));
+        var themeHex = function(v, fb) { try { var x = getComputedStyle(document.documentElement).getPropertyValue(v).trim(); return /^#[0-9a-fA-F]{6}$/.test(x) ? x.toLowerCase() : fb; } catch (er) { return fb; } };   // an unset color draws the theme's own, so the swatch shows that one
+        [['lowColor', 'Low color', themeHex('--blue', '#4db3d3')], ['midColor', 'Middle color', '#757575'], ['highColor', 'High color', themeHex('--gold', '#e0a54f')]].forEach(function(cd) { var lab = el('label', 'sys-sec-color'); var ci = el('input'); ci.type = 'color'; ci.className = 'sys-slider-' + cd[0]; ci.value = f.slider[cd[0]] || cd[2]; ci.title = cd[1] + ' of the track'; lab.appendChild(ci); lab.appendChild(document.createTextNode(' ' + cd[1])); srow.appendChild(lab); });
+        if (f.slider.lowColor || f.slider.midColor || f.slider.highColor) { var slc = el('button', 'tool ghost sys-btn', 'Theme colors'); slc.dataset.act = 'slidercl'; slc.title = 'Back to the theme\u2019s accent and gold'; srow.appendChild(slc); }
+        if (f.min === undefined || f.max === undefined) srow.appendChild(el('span', 'sys-note', 'Needs a min and a max to show as a slider; until then it is a plain number box (the labels and colors are kept).'));
         row.appendChild(srow);
     }
     if (typeof explainBox === 'function') row.appendChild(explainBox(f));   // 1.6.2 (backlog 218 fold 3)
@@ -9870,7 +9870,7 @@ function rollRow(r) {
     if (!isApply) { var bgIn = input('sys-roll-bigat field', typeof r.bigAt === 'string' ? r.bigAt : '', 'Lands as a heavy hit: a success whose natural roll, the dice alone, is at or under this is marked a heavy hit. It is no critical. Its Then reads RollBig (no dice; empty: never)', 'Heavy hit at'); bgIn.maxLength = LIMITS.formula; top.appendChild(bgIn); }   // 1.6.0 (the book's ruling of 2026-10-29)
     top.appendChild(select('sys-vis', [['all', 'Visible to players'], ['gm', 'GM only']], r.vis || 'all', 'GM only: players never see this roll'));
     if (!isApply) top.appendChild(select('sys-roll-togm', [['', 'The player sees it'], ['run', 'Goes to the GM'], ['wait', 'Goes to the GM, Then waits']], r.toGm || '', 'Goes to the GM: the player sees only that it was sent, and you get the roll privately. Its Then runs at once, or waits for your Apply'));   // HR1
-    top.appendChild(select('sys-roll-tone', [['', 'Plain button'], ['primary', 'Filled'], ['danger', 'Red'], ['neutral', 'Grey'], ['outline', 'Outline']], r.tone || '', 'How the button looks on the sheet'));   // Stage 6 look fold
+    top.appendChild(select('sys-roll-tone', [['', 'Plain button'], ['primary', 'Filled'], ['danger', 'Red'], ['neutral', 'Gray'], ['outline', 'Outline']], r.tone || '', 'How the button looks on the sheet'));   // Stage 6 look fold
     if (typeof window !== 'undefined' && window.wpSoundOn && r.id) { var snR = window.wpSoundOn.btn({ k: 'roll', r: r.id }, isApply ? 'A sound on this action' : 'A sound on this roll'); if (snR) top.appendChild(snR); }   // 1.6.2: adds to the list under the Sound panel
     if (!isApply && typeof dieSel === 'function') top.appendChild(dieSel('sys-roll-die', r.die, 'The die its button wears on the sheet and the HUD. From its formula: the die it rolls, so 3d6 shows three dice and d20 a d20'));   // 1.5.8, backlog 149
     var actsR = turnActs(); if (actsR.length || r.cost) top.appendChild(select('sys-roll-cost', costOptions(r.cost, actsR), r.cost || '', 'What one press costs in turn-based combat: one of the actions a turn allows (the Combat tab)'));   // turn-based combat T1
@@ -9886,9 +9886,9 @@ function rollRow(r) {
     if (!isApply && typeof resistBySel === 'function') top.appendChild(resistBySel('sys-roll-rsby', r.resistBy, typeof draft !== 'undefined' ? draft : null));   // 1.6.0 (B2)
     if (!isApply && !r.init && typeof areaBox === 'function') top.appendChild(areaBox(r, (draft.rolls || []).filter(function(x) { return x && x.dmg === true && x.id !== r.id; }).map(function(x) { return [x.id, x.label || x.id]; })));   // 1.6.0: a line it hits
     if (!isApply && r.resistBy && typeof resistOrBox === 'function') top.appendChild(resistOrBox('sys-roll-rsor', r.resistBy, r.resistOr, typeof draft !== 'undefined' ? draft : null));   // 1.6.0 (the core's gap 5)
-    if (!isApply && r.resist === true && typeof input === 'function') { var ckI = input('sys-roll-critok field', typeof r.critOk === 'string' ? r.critOk : '', 'Where an attack that is not resisted on a critical is a critical, this defence is still offered while this holds for the one defending, such as Attempt.kind = 2. No dice. Empty: never', 'Answers a critical where'); ckI.maxLength = LIMITS.formula; top.appendChild(ckI); }   // 1.6.2 (the CORE session)
+    if (!isApply && r.resist === true && typeof input === 'function') { var ckI = input('sys-roll-critok field', typeof r.critOk === 'string' ? r.critOk : '', 'Where an attack that is not resisted on a critical is a critical, this defense is still offered while this holds for the one defending, such as Attempt.kind = 2. No dice. Empty: never', 'Answers a critical where'); ckI.maxLength = LIMITS.formula; top.appendChild(ckI); }   // 1.6.2 (the CORE session)
     if (!isApply && r.resistBy && typeof checkLabel === 'function') top.appendChild(checkLabel('sys-roll-rsnocrit', r.noResistOnCrit === true, 'Not resisted on a critical', 'A critical success sends its target nothing to resist. Leave it off where a critical is resisted as any success is'));   // 1.6.0
-    if (!isApply) { var dl = el('label', 'sys-hover'); var dc = el('input'); dc.type = 'checkbox'; dc.className = 'sys-dmg-chk'; dc.checked = r.dmg === true; dl.appendChild(dc); dl.appendChild(document.createTextNode(' Damage')); dl.title = 'A damage roll: its card in Table Chat takes the damage colour, a larger total and a damage tag'; top.appendChild(dl); }   // chat cards (owner 2026-09-27)
+    if (!isApply) { var dl = el('label', 'sys-hover'); var dc = el('input'); dc.type = 'checkbox'; dc.className = 'sys-dmg-chk'; dc.checked = r.dmg === true; dl.appendChild(dc); dl.appendChild(document.createTextNode(' Damage')); dl.title = 'A damage roll: its card in Table Chat takes the damage color, a larger total and a damage tag'; top.appendChild(dl); }   // chat cards (owner 2026-09-27)
     if (!isApply && r.dmg === true && typeof input === 'function') { var htI = input('sys-roll-hits field', typeof r.hits === 'string' ? r.hits : '', 'Hits it rolls for: how many times this damage rolls, on one card with one Apply, such as Row.bursthits. Each hit is its own blow at the same location, and each reads its own round as Row.fired. No dice. Empty: once', 'Hits it rolls for'); htI.maxLength = LIMITS.formula; top.appendChild(htI); }   // 1.6.0 A burst
     if (!isApply && r.dmg === true && typeof input === 'function') { var mjI = input('sys-roll-mjif field', typeof r.dmgMajorIf === 'string' ? r.dmgMajorIf : '', 'A Major Wound where: Apply to target on its card lands the blow as a Major Wound while this formula of the roller\u2019s names is true, such as Edge >= 3. No dice. Always a Major Wound wins', 'A Major Wound where'); mjI.maxLength = LIMITS.formula; top.appendChild(mjI); }   // 1.6.0
     if (!isApply && r.dmg === true && typeof input === 'function') { var dtI = input('sys-roll-dtype field', typeof r.dtype === 'string' ? r.dtype : '', 'A damage roll\u2019s type, filled in when you press Apply to target on its card: a type\u2019s key from the Combat tab (stun), or a formula giving its place in that list, 1 for the first. Kept only on a damage roll', 'Damage type'); dtI.maxLength = LIMITS.formula; top.appendChild(dtI); var dkOn = typeof kindsNamed === 'function' && kindsNamed(); if (dkOn || r.dkind) { var dkI = input('sys-roll-dkind field', typeof r.dkind === 'string' ? r.dkind : '', 'The kind of blow: a kind\u2019s key from the Combat tab, or a formula giving its place in that list, 1 for the first. DR at a location and a layer read it as Blow.kind. Kept only on a damage roll', 'Kind'); dkI.maxLength = LIMITS.formula; top.appendChild(dkI); } var p2I = input('sys-roll-p2f field', typeof r.dmg2 === 'string' ? r.dmg2 : '', 'Second part: damage of another type in the same blow, rolled with it, such as 1d6+1. Its own DR is taken off, then both parts are one wound: one Major Wound test, one Any wound and one wear. Empty: none', 'Second part'); p2I.maxLength = LIMITS.formula; top.appendChild(p2I); var p2T = input('sys-roll-p2t field', typeof r.dtype2 === 'string' ? r.dtype2 : '', 'The second part\u2019s type: a type\u2019s key from the Combat tab, or a formula giving its place in that list, 1 for the first. Kept only beside a second part', 'Second part type'); p2T.maxLength = LIMITS.formula; top.appendChild(p2T); if (dkOn || r.dkind2) { var p2K = input('sys-roll-p2k field', typeof r.dkind2 === 'string' ? r.dkind2 : '', 'The second part\u2019s kind of blow: a kind\u2019s key from the Combat tab, or a formula giving its place in that list. Empty: the first part\u2019s kind. Kept only beside a second part', 'Second part kind'); p2K.maxLength = LIMITS.formula; top.appendChild(p2K); } [3, 4, 5].forEach(function(k) { var hasK = function(n) { return typeof r['dmg' + n] === 'string' && !!r['dmg' + n].trim(); }; if (!hasK(k - 1) && !hasK(k)) return; var nmK = k === 3 ? 'Third' : k === 4 ? 'Fourth' : 'Fifth'; var pkI = input('sys-roll-p' + k + 'f field', typeof r['dmg' + k] === 'string' ? r['dmg' + k] : '', nmK + ' part: damage of another type in the same blow, rolled with it. Its own DR is taken off, then every part is one wound. Empty: none', nmK + ' part'); pkI.maxLength = LIMITS.formula; top.appendChild(pkI); var pkT = input('sys-roll-p' + k + 't field', typeof r['dtype' + k] === 'string' ? r['dtype' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s type: a type\u2019s key from the Combat tab, or a formula giving its place in that list, 1 for the first. Kept only beside its part', nmK + ' part type'); pkT.maxLength = LIMITS.formula; top.appendChild(pkT); if (dkOn || r['dkind' + k]) { var pkK = input('sys-roll-p' + k + 'k field', typeof r['dkind' + k] === 'string' ? r['dkind' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s kind of blow: a kind\u2019s key from the Combat tab, or a formula giving its place in that list. Empty: the first part\u2019s kind. Kept only beside its part', nmK + ' part kind'); pkK.maxLength = LIMITS.formula; top.appendChild(pkK); } }); }   // 1.6.0 (B3): a blow of two damage types counts as one blow; and a third and a fourth part, each shown once the part before it has a formula
@@ -9898,8 +9898,8 @@ function rollRow(r) {
     row.appendChild(top);
     var ndR = el('div', 'sys-flags sys-roll-needsrow');   // 1.5.4: what it needs before it may be used, as a list roll's
     var ndI = input('sys-roll-needs field', typeof r.needs === 'string' ? r.needs : '', (isApply ? 'Pressed' : 'Rolled') + ' only while this formula is true for the character, such as Bleeding > 0. It may not hold dice. Leave it empty to ' + (isApply ? 'press' : 'roll') + ' at any time. By the clock and in a fight it is passed over while it is not met.', 'Needs, such as Bleeding > 0'); ndI.maxLength = LIMITS.formula; ndR.appendChild(ndI);
-    var ndT = input('sys-roll-needstext field', typeof r.needsText === 'string' ? r.needsText : '', 'What the greyed button says when it cannot be used', 'Words for the greyed button'); ndT.maxLength = LIMITS.needsWords; ndR.appendChild(ndT);
-    if (typeof checkLabel === 'function') ndR.appendChild(checkLabel('sys-roll-hideoff', r.hideOff === true, 'Hidden until it can be used', 'The button stands on the sheet only while its needs hold. Off: it stays there, greyed out. Only beside needs'));   // 1.6.0
+    var ndT = input('sys-roll-needstext field', typeof r.needsText === 'string' ? r.needsText : '', 'What the grayed button says when it cannot be used', 'Words for the grayed button'); ndT.maxLength = LIMITS.needsWords; ndR.appendChild(ndT);
+    if (typeof checkLabel === 'function') ndR.appendChild(checkLabel('sys-roll-hideoff', r.hideOff === true, 'Hidden until it can be used', 'The button stands on the sheet only while its needs hold. Off: it stays there, grayed out. Only beside needs'));   // 1.6.0
     row.appendChild(ndR);
     row.appendChild(everyRow(r));   // item 20 K5: by the campaign's clock
     if (!isApply && typeof needsGmBox === 'function') ndR.appendChild(needsGmBox(r));   // 1.6.0
@@ -9944,7 +9944,7 @@ function effectRow(d) {
     var top = el('div', 'sys-row-main');
     var xIcoIn = input('sys-fx-icon field', d.icon, 'An icon (an emoji or a bundled icon)', 'Icon'); top.appendChild(xIcoIn); top.appendChild(glyphButton(xIcoIn));
     top.appendChild(input('sys-fx-name field', d.name, 'The effect\u2019s name on the sheet (Rage, Prone, Blessed\u2026)', 'Name'));
-    top.appendChild(select('sys-fx-tone', [['', 'Neutral'], ['buff', 'Buff'], ['debuff', 'Debuff']], d.tone || '', 'Buff or Debuff (a colour on the sheet)'));
+    top.appendChild(select('sys-fx-tone', [['', 'Neutral'], ['buff', 'Buff'], ['debuff', 'Debuff']], d.tone || '', 'Buff or Debuff (a color on the sheet)'));
     top.appendChild(input('sys-fx-dur field', d.dur, 'How long it lasts: 3 turns, 10 seconds, 1 minute, next turn, or your own unit (2 watches) \u2014 it then runs out by itself (in a combat on its character\u2019s turns, out of one by the clock); any other note (until dawn) you end by hand', 'Duration'));
     var mods = el('div', 'sys-fx-mods'), targets = fxTargets(draft, true);
     (d.mods || []).forEach(function(m, mi) {
@@ -10130,12 +10130,12 @@ function itemRow(it) {
         var dtys = draft.combat && draft.combat.damage && Array.isArray(draft.combat.damage.types) ? draft.combat.damage.types : [];
         if (dtys.length) area.appendChild(select('sys-item-atype', [['', 'Damage type: none']].concat(dtys.filter(function(y) { return y && typeof y.key === 'string'; }).map(function(y) { return [y.key, 'Damage type: ' + (y.label || y.key)]; })), it.area.type || '', 'The damage type of its blast, as the damage step reads it'));
         area.appendChild(input('sys-item-aloc field', typeof it.area.loc === 'string' ? it.area.loc : '', 'The hit location its blast strikes, by the name of a location, such as Legs for a mine underfoot. Blank: the usual one', 'Strikes at'));   // 1.6.2 (the CORE session, 11)
-        area.appendChild(numField('sys-item-aad', it.area.ad || '', 'Its armour divisor: DR is divided by it (2 for a (2) after the damage). Blank for none', 'divisor', '0.5'));
+        area.appendChild(numField('sys-item-aad', it.area.ad || '', 'Its armor divisor: DR is divided by it (2 for a (2) after the damage). Blank for none', 'divisor', '0.5'));
         area.appendChild(checkLabel('sys-item-ause', it.area.use === true, 'Uses one up', 'Going off takes one off the row it was thrown or placed from, and the row goes at none'));
         area.appendChild(checkLabel('sys-item-aplace', it.area.place === true, 'Placed, not thrown', 'A mine: its button places it on the map, hidden from players. It goes off only when a character steps into it, or by your hand'));
         area.appendChild(input('sys-item-afrag field', typeof it.area.frag === 'string' ? it.area.frag : '', 'Its fragmentation, a dice roll such as 1d6. When the blast goes off the host rolls it for the characters it reaches, as the Combat tab says. Blank: none', 'Fragmentation (optional)'));   // 1.5.9 (es)
         if (dtys.length) area.appendChild(select('sys-item-afragtype', [['', 'Fragmentation type: as the Combat tab says']].concat(dtys.filter(function(y) { return y && typeof y.key === 'string'; }).map(function(y) { return [y.key, 'Fragmentation type: ' + (y.label || y.key)]; })), typeof it.area.fragType === 'string' ? it.area.fragType : '', 'The damage type of its fragmentation, as the damage step reads it'));
-        if (it.area.place === true) area.appendChild(numField('sys-item-atrig', it.area.trig || '', 'Trigger radius in yards: a character whose centre comes this near sets it off', 'trigger yd', '0.5'));
+        if (it.area.place === true) area.appendChild(numField('sys-item-atrig', it.area.trig || '', 'Trigger radius in yards: a character whose center comes this near sets it off', 'trigger yd', '0.5'));
         else area.appendChild(select('sys-item-aflight', [['', 'On a miss, launched: you place it'], ['scatter', 'On a miss, launched: it scatters, as a throw'], ['line', 'On a miss, launched: it flies straight']], it.area.flight === 'scatter' || it.area.flight === 'line' ? it.area.flight : '', 'How a round fired from a launcher lands when the roll misses. One that scatters lands as a missed throw does. One that flies straight goes off on the first wall or character in its path, or at its farthest'));   // 1.5.9 (es)
     }
     top.appendChild(area);
@@ -10276,7 +10276,7 @@ function itemStatsBox(it, defs) {
             ctl = el('span', 'sys-places'); var setV = typeof v === 'number' && isFinite(v) ? Math.floor(Math.abs(v)) & 0xFFFF : 0, setL = Array.isArray(s.labels) ? s.labels : [], setN = Math.max(1, Math.min(16, setL.length || 1));
             for (var pbi = 0; pbi < setN; pbi++) { var pbl = el('label', 'sys-hover'), pbc = el('input', 'sys-item-placebit'); pbc.type = 'checkbox'; pbc.checked = ((setV >> pbi) & 1) === 1; pbc.dataset.sk = s.key; pbc.dataset.bit = String(pbi); pbl.appendChild(pbc); pbl.appendChild(document.createTextNode(' ' + (setL[pbi] || 'Place ' + (pbi + 1)))); ctl.appendChild(pbl); }
             ctl.title = s.label + ': the places it takes. Two rows that share a place are never on together';
-        } else if (Array.isArray(s.labels) && s.labels.length) {   // a stat with value names: a dropdown (a value past them stays, greyed)
+        } else if (Array.isArray(s.labels) && s.labels.length) {   // a stat with value names: a dropdown (a value past them stays, grayed)
             ctl = select('sys-item-stat', [['', '—']].concat(s.labels.map(function(n, i) { return [String(i), n || String(i)]; })), typeof v === 'number' ? String(v) : '', s.label);
             if (typeof v === 'number' && !(v >= 0 && v < s.labels.length && Math.floor(v) === v)) { var xo = el('option', null, String(v)); xo.value = String(v); xo.selected = true; xo.disabled = true; ctl.appendChild(xo); }
         } else ctl = numInput('sys-item-stat', typeof v === 'number' ? v : '', s.label + ' (blank: ' + (typeof s.def === 'number' ? s.def : 0) + ')', 'any');
@@ -10483,7 +10483,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         }
     }
     var lkSp = sp.look && typeof sp.look === 'object' ? sp.look : null;   // 1.6.0, backlog 206 (the owner, 2026-10-29, by prompt: "In the list's Look box"): Rows carry a look, then its Main part, Shade by and Shades
-    fl.appendChild(checkLabel('sys-list-rowlook', !!lkSp, 'Rows carry a look', 'Each row may carry up to four colours, a finish and markings, overall and part by part, set by its owner or you at any time. They show as small swatches beside its name. A look never changes a figure'));
+    fl.appendChild(checkLabel('sys-list-rowlook', !!lkSp, 'Rows carry a look', 'Each row may carry up to four colors, a finish and markings, overall and part by part, set by its owner or you at any time. They show as small swatches beside its name. A look never changes a figure'));
     if (lkSp) {
         var lmW = el('label', 'sys-check'), lmI = el('input', 'field sys-list-lkmain'); lmI.type = 'text'; lmI.value = typeof lkSp.main === 'string' ? lkSp.main : ''; lmI.placeholder = 'none'; lmW.appendChild(document.createTextNode('Main part ')); lmW.appendChild(lmI); lmW.title = 'A part category, such as Grip: a row with no look of its own shows the look it gives that part'; fl.appendChild(lmW);
         var lbW = el('label', 'sys-check'), lbS = el('select', 'sys-list-lkby'), lbO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }, lbC = typeof lkSp.by === 'string' ? lkSp.by.toLowerCase() : '', lbHit = false;
@@ -10491,7 +10491,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         (Array.isArray(sp.stats) ? sp.stats : []).forEach(function(st) { if (!st || typeof st.key !== 'string' || !st.key || st.set === true) return; var on = !lbHit && lbC === st.key.toLowerCase(); if (on) lbHit = true; lbS.appendChild(lbO(st.key, st.label || st.key, on)); });
         if (lbC && !lbHit) lbS.appendChild(lbO(lkSp.by, lkSp.by + ' (not a stat of this list)', true));
         lbW.title = 'A stat whose value names the material, such as Material: a row with no look shows that material\u2019s shade'; lbW.appendChild(lbS); fl.appendChild(lbW);
-        if (lbC) { var lsW = el('label', 'sys-check'), lsT = el('textarea', 'field sys-list-lkshades'); lsT.rows = 3; lsT.spellcheck = false; lsT.value = (Array.isArray(lkSp.shades) ? lkSp.shades : []).map(function(x) { return x && typeof x === 'object' ? x.v + ' = ' + x.c : ''; }).filter(Boolean).join('\n'); lsT.placeholder = 'Steel = #8a8f99'; lsW.appendChild(document.createTextNode('Shades ')); lsW.appendChild(lsT); lsW.title = 'One line for each value of that stat: its name, an equals sign, then its colour as #rrggbb'; fl.appendChild(lsW); }
+        if (lbC) { var lsW = el('label', 'sys-check'), lsT = el('textarea', 'field sys-list-lkshades'); lsT.rows = 3; lsT.spellcheck = false; lsT.value = (Array.isArray(lkSp.shades) ? lkSp.shades : []).map(function(x) { return x && typeof x === 'object' ? x.v + ' = ' + x.c : ''; }).filter(Boolean).join('\n'); lsT.placeholder = 'Steel = #8a8f99'; lsW.appendChild(document.createTextNode('Shades ')); lsW.appendChild(lsT); lsW.title = 'One line for each value of that stat: its name, an equals sign, then its color as #rrggbb'; fl.appendChild(lsW); }
     }
     fl.appendChild(checkLabel('sys-list-worklog', sp.workLog === true, 'Rows keep a work log', 'Each row keeps a log of the work done on it: a repair, a fit, a restyle or a build, its owner\u2019s own or hired. A fee is paid from the character\u2019s money where the sheet keeps money. You alone take a line off'));
     if (sp.on && (pbChoices.length || sp.sets)) { var stW = el('label', 'sys-check'), stS = el('select', 'sys-list-sets'), stO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }; stW.appendChild(document.createTextNode('Sets by ')); stS.appendChild(stO('', 'None', !sp.sets)); pbChoices.forEach(function(s) { stS.appendChild(stO(s.key, s.label || s.key, !!sp.sets && String(sp.sets).toLowerCase() === s.key.toLowerCase())); }); stW.title = 'Rows whose stat names the same set are switched on together: the sheet shows each set with All on and All off, and Row.setall reads 1 while the whole set is on'; stW.appendChild(stS); fl.appendChild(stW); }   // 1.6.0, backlog 180 R15
@@ -10526,7 +10526,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     if (sdL.length || sdS) {
         var sdW = el('label', 'sys-check'), sdF = el('select', 'sys-list-standfrom'), sdO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }; sdW.appendChild(document.createTextNode('Rows stand at a row of ')); sdF.appendChild(sdO('', 'No other list', !sdS));
         sdL.forEach(function(x) { sdF.appendChild(sdO(x.id, x.label || x.key || 'A list', !!sdS && sdS.from === x.id)); }); if (sdS && !sdL.some(function(x) { return x.id === sdS.from; })) sdF.appendChild(sdO(sdS.from, 'A list that is gone', true));
-        sdW.title = 'Each row of this list stands at a row of that one, as armour stands on a part of the body. Formulas read the place it stands, and a row of that list reads what stands there'; sdW.appendChild(sdF); fl.appendChild(sdW);
+        sdW.title = 'Each row of this list stands at a row of that one, as armor stands on a part of the body. Formulas read the place it stands, and a row of that list reads what stands there'; sdW.appendChild(sdF); fl.appendChild(sdW);
         if (sdS) {
             var sdT = function(cls, cap, ph, val, tip) { var w = el('label', 'sys-check'), i = el('input', 'field ' + cls); i.type = 'text'; i.value = typeof val === 'string' ? val : ''; i.placeholder = ph; i.spellcheck = false; i.autocomplete = 'off'; w.appendChild(document.createTextNode(cap + ' ')); w.appendChild(i); w.title = tip; fl.appendChild(w); };
             sdT('sys-list-standfits', 'Fits where', 'it fits anywhere', sdS.fits, 'A row may go only where this holds. A player is refused where it does not, and you are told when you move one there yourself. A row with no place stands at the first place this allows');
@@ -10539,7 +10539,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
             var sdTh = typeof standThenBox === 'function' ? standThenBox(sdS, sdF2, sp) : null; if (sdTh) fl.appendChild(sdTh);
         }
     }
-    fl.appendChild(checkLabel('sys-list-edge', sp.edge === true, 'Edge follows its state', 'A row\u2019s left edge takes the colour of its strongest badge, or the accent while it is switched on. Its words always stand beside it'));   // 1.6.0 R16
+    fl.appendChild(checkLabel('sys-list-edge', sp.edge === true, 'Edge follows its state', 'A row\u2019s left edge takes the color of its strongest badge, or the accent while it is switched on. Its words always stand beside it'));   // 1.6.0 R16
     fl.appendChild(checkLabel('sys-list-menus', sp.menus === true, 'Choices as menus', 'A choice stat on a row, or in its boxes, is a menu for whoever may set that copy\u2019s stats: you, or its owner where players set their copies\u2019 stats. Off: its value name'));   // 1.6.0 R10
     fl.appendChild(checkLabel('sys-list-boxes', sp.boxes === true, 'Figures as boxes', 'A row\u2019s details show its figures as small boxes, each its label above its figure: every stat, the columns placed in the details, and Paid. Off: one line, as Acc 2 \u00b7 Wt 1'));   // 1.6.0 R3
     card.appendChild(fl);
@@ -10556,7 +10556,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         lr.appendChild(checkLabel('sys-list-unheldon', typeof sp.unheld === 'string', 'Rolls unheld entries', 'The library picker gets Roll unheld: a roll of this list on an entry the character does not hold, at the Unheld level. You and the character\u2019s owner may roll it'));   // 1.6.0
         if (typeof sp.unheld === 'string') lr.appendChild(input('sys-list-unheldlvl field', sp.unheld, 'The level an entry nobody holds is rolled at: a formula of the entry\u2019s own names, such as Row.Dflt or -5. Row.has reads 0 there', 'Unheld level'));
         lr.appendChild(checkLabel('sys-list-lvlstart', lv.start === true, 'Keeps the starting level', 'Each new row remembers the level it starts at, and its rules can read it. A level changed in play can then be priced, as a drawback bought down. While a character is being made, the start follows the level'));   // 1.6.0
-        if (typeof labeledSelect === 'function') lr.appendChild(labeledSelect('sys-list-lvltone', 'Level tags\u2019 colour', [['', 'Plain'], ['good', 'Good (green)'], ['warn', 'Warning (amber)'], ['danger', 'Danger (red)'], ['accent', 'Accent'], ['primary', 'Primary']], typeof sp.lvlTone === 'string' ? sp.lvlTone : '', 'The colour of the small tag beside each level in an entry\u2019s By level rows. A level line in the Library may set its own.'));   // 1.6.2 (180)
+        if (typeof labeledSelect === 'function') lr.appendChild(labeledSelect('sys-list-lvltone', 'Level tags\u2019 color', [['', 'Plain'], ['good', 'Good (green)'], ['warn', 'Warning (amber)'], ['danger', 'Danger (red)'], ['accent', 'Accent'], ['primary', 'Primary']], typeof sp.lvlTone === 'string' ? sp.lvlTone : '', 'The color of the small tag beside each level in an entry\u2019s By level rows. A level line in the Library may set its own.'));   // 1.6.2 (180)
         lr.appendChild(checkLabel('sys-list-lvlentry', lv.entry === true, 'Levels from the entry', 'A row\u2019s level is a menu of its entry\u2019s own By level rows, each with its words beside it in a box: Level 2 (10 pts). An entry with none keeps the level box'));   // 1.6.0 R8
         if (!(Array.isArray(lv.labels) && lv.labels.length)) lr.appendChild(checkLabel('sys-list-lvlsplit', lv.split === true, 'Split in trades', 'A trade may give part of this figure, as money from a chip. A row of quantity 1 only'));   // 1.5.6 trading: a chip's stored money as its level
     }
@@ -10572,7 +10572,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         var oneOn = sw.one === true || (typeof sw.per === 'string' && !!sw.per) || (typeof sw.over === 'string' && !!sw.over);   // 1.6.0 O1: or where places meet   // 1.5.4 One at a time: switching a row on switches the others off, for the whole list or for each value of a stat
         orow.appendChild(checkLabel('sys-list-onone', oneOn, 'One at a time', 'Only one row is switched on at a time. Switching one on switches the others off. A row you keep on for a curse stays on. While a bound row is on, a player cannot switch another of its group on. A new row that would start on starts off while another is on, and so does a row whose stat moves it into such a group.'));
         if (oneOn) {
-            var opS = el('select', 'sys-list-onper'); opS.title = 'One row on for the whole list, or one for each value of a stat, as one armour on for each location: rows whose stat reads the same value are one group';
+            var opS = el('select', 'sys-list-onper'); opS.title = 'One row on for the whole list, or one for each value of a stat, as one armor on for each location: rows whose stat reads the same value are one group';
             perOptions(opS, sp);
             orow.appendChild(opS);
         }
@@ -10789,21 +10789,21 @@ function ctKeySays(sp, F0) {
         if (typeof altBox === 'function') rw.appendChild(altBox(rr, 'Its button reads this name on rows where its test holds, such as Fix malfunction on a jammed row. The first that holds wins.'));   // 1.6.0: its other names
         if (typeof rollExtras === 'function') rollExtras(rw, rr, sp, rApply);   // 1.6.0: its icon, and R7 the figure it shows
         if (typeof window !== 'undefined' && window.wpSoundOn && window.wpSoundOnCore) { var snL = window.wpSoundOn.btn({ k: 'list', f: f.id, i: ri, l: window.wpSoundOnCore.labelOf(rr) }, rApply ? 'A sound on this action' : 'A sound on this roll. The list under the Sound panel can narrow it to one kind of row'); if (snL) rw.appendChild(snL); }   // 1.6.2
-        if (rApply) { cb2.appendChild(rw); var ndA = el('div', 'sys-flags sys-list-needsrow'); ndA.dataset.ri = String(ri); ndA.appendChild(el('span', 'sys-num-cap sys-offered', 'When it can be used')); ndA.appendChild(rsI); var ndAI = input('sys-list-needs field', typeof rr.needs === 'string' ? rr.needs : '', 'Pressed only while this is true for the row (no dice): Row.Charges >= 1, Row.Hits > 0; empty: always', 'Needs (e.g. Row.Charges >= 1)'); ndAI.maxLength = LIMITS.formula; ndA.appendChild(ndAI); var ndAT = input('sys-list-needstext field', typeof rr.needsText === 'string' ? rr.needsText : '', 'What the greyed button says when it cannot be pressed', 'Out of charges'); ndAT.maxLength = LIMITS.needsWords; ndA.appendChild(ndAT); ndA.appendChild(checkLabel('sys-list-hideoff', rr.hideOff === true, 'Hidden until it can be used', 'The button stands on the row only while its needs hold. Off: it stays there, greyed out. Only beside needs')); cb2.appendChild(ndA); var lxA = typeof listCrossRow === 'function' ? listCrossRow(rr, ri, sp.counters) : null; if (lxA) cb2.appendChild(lxA); if (typeof callsBox === 'function') cb2.appendChild(callsBox(rr, typeof draft !== 'undefined' ? draft : null, true)); listApplyEditor(cb2, rr, ri, 'apply', sp, targets); return; }   // 1.6.0: when a row's counter crosses a step
+        if (rApply) { cb2.appendChild(rw); var ndA = el('div', 'sys-flags sys-list-needsrow'); ndA.dataset.ri = String(ri); ndA.appendChild(el('span', 'sys-num-cap sys-offered', 'When it can be used')); ndA.appendChild(rsI); var ndAI = input('sys-list-needs field', typeof rr.needs === 'string' ? rr.needs : '', 'Pressed only while this is true for the row (no dice): Row.Charges >= 1, Row.Hits > 0; empty: always', 'Needs (e.g. Row.Charges >= 1)'); ndAI.maxLength = LIMITS.formula; ndA.appendChild(ndAI); var ndAT = input('sys-list-needstext field', typeof rr.needsText === 'string' ? rr.needsText : '', 'What the grayed button says when it cannot be pressed', 'Out of charges'); ndAT.maxLength = LIMITS.needsWords; ndA.appendChild(ndAT); ndA.appendChild(checkLabel('sys-list-hideoff', rr.hideOff === true, 'Hidden until it can be used', 'The button stands on the row only while its needs hold. Off: it stays there, grayed out. Only beside needs')); cb2.appendChild(ndA); var lxA = typeof listCrossRow === 'function' ? listCrossRow(rr, ri, sp.counters) : null; if (lxA) cb2.appendChild(lxA); if (typeof callsBox === 'function') cb2.appendChild(callsBox(rr, typeof draft !== 'undefined' ? draft : null, true)); listApplyEditor(cb2, rr, ri, 'apply', sp, targets); return; }   // 1.6.0: when a row's counter crosses a step
         if (rr.dmg !== true) { var bsl = el('select', 'sys-list-burst'); bsl.title = 'A burst: Opens a burst is the attack, whose Then fires the shots. A burst\u2019s extra dice is the roll that counts the extra hits, and it rolls once after an attack that hit. Its rules can read the hits landed'; [['', 'No burst'], ['attack', 'Opens a burst'], ['extra', 'A burst\u2019s extra dice']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; bsl.appendChild(op); }); bsl.value = rr.burst === 'attack' || rr.burst === 'extra' ? rr.burst : ''; rw.appendChild(bsl); var bhL = el('label', 'sys-hover'), bhC = el('input'); bhC.type = 'checkbox'; bhC.className = 'sys-list-blasthit'; bhC.checked = rr.blastHit === true; bhL.appendChild(bhC); bhL.appendChild(el('span', null, ' Bursts at its target')); bhL.title = 'On a hit the row\u2019s own blast goes off at its target, and on a miss it lands as its area\u2019s On a miss, launched says. Its blast does the damage, so it is never ticked beside Damage'; rw.appendChild(bhL); }   // 1.6.0 A burst; 1.6.2 (the CORE session): Bursts at its target
         var ltD = typeof draft !== 'undefined' && draft && Array.isArray(draft.tests) ? draft.tests : [];
         if (!rApply && (ltD.length || rr.test)) { var ltT = ltD.filter(function(x) { return x && typeof x.key === 'string'; }), ltF = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s.key === 'string' && s.kind !== 'pick' && s.kind !== 'text'; }).map(function(s) { return [s.key, s.label || 'A stat']; }).concat((Array.isArray(sp.cols) ? sp.cols : []).filter(function(c0) { return c0 && typeof c0.key === 'string'; }).map(function(c0) { return [c0.key, c0.label || 'A column']; }));   // 1.6.2 (backlog 59): it rolls one of the system's tests with a figure of the row
             rw.appendChild(capInline(select('sys-list-rolltest', [['', 'Its own formula']].concat(ltT.map(function(x) { return [x.key, x.label || 'A test']; })), rr.test || '', 'Which of the system\u2019s tests this roll makes, from the Rules tab, or a formula of its own'), 'Rolls by: '));
             if (rr.test) rw.appendChild(capInline(select('sys-list-rollof', [['', ltF.length ? 'Pick the row\u2019s figure' : 'Give the list a number stat first']].concat(ltF), rr.of || '', 'The figure of the row the test is made with'), 'with ')); }
         var rf = input('sys-list-rollformula field', typeof rr.formula === 'string' ? rr.formula : '', 'Rolled for the row: dice allowed; Row.lvl, Row.<stat>, Row.<column> read the row, any other name the character (3d6 <= Row.Skill, d20 + Row.Hit)', 'Formula (d20 + Row.Hit)'); rf.maxLength = LIMITS.formula; rw.appendChild(rf);
-        rw.appendChild(checkLabel('sys-list-dmg', rr.dmg === true, 'Damage', 'A damage roll: its card in Table Chat takes the damage colour, a larger total and a damage tag'));   // chat cards (owner 2026-09-27)
+        rw.appendChild(checkLabel('sys-list-dmg', rr.dmg === true, 'Damage', 'A damage roll: its card in Table Chat takes the damage color, a larger total and a damage tag'));   // chat cards (owner 2026-09-27)
         if (rr.dmg === true) { var htL = input('sys-list-rollhits field', typeof rr.hits === 'string' ? rr.hits : '', 'Hits it rolls for: how many times this damage rolls, on one card with one Apply, such as Row.bursthits. Each hit is its own blow at the same location, and each reads its own round as Row.fired. No dice. Empty: once', 'Hits it rolls for'); htL.maxLength = LIMITS.formula; rw.appendChild(htL); }   // 1.6.0 A burst
         if (rr.dmg === true) { var mjL = input('sys-list-rollmjif field', typeof rr.dmgMajorIf === 'string' ? rr.dmgMajorIf : '', 'A Major Wound where: Apply to target on its card lands the blow as a Major Wound while this formula is true, read with the row\u2019s names (Row.Edge >= 3) and the character\u2019s. No dice. Always a Major Wound wins', 'A Major Wound where'); mjL.maxLength = LIMITS.formula; rw.appendChild(mjL); }   // 1.6.0
         if (rr.dmg === true) rw.appendChild(checkLabel('sys-list-mjdmg', rr.dmgMajor === true, 'Always a Major Wound', 'Apply to target on its card lands the blow as a Major Wound whatever its size, as a strike that always wounds badly'));   // 1.6.0
         var rdt = input('sys-list-rolldtype field', typeof rr.dtype === 'string' ? rr.dtype : '', 'A damage roll\u2019s type, filled in when you press Apply to target on its card: a type\u2019s key from the Combat tab (stun), or a formula giving its place in that list, 1 for the first (Row.dt). Kept only on a damage roll', 'Damage type'); rdt.maxLength = LIMITS.formula; rw.appendChild(rdt);   // 1.5.7
         var dkLOn = typeof kindsNamed === 'function' && kindsNamed(); if (dkLOn || rr.dkind) { var rdk = input('sys-list-rolldkind field', typeof rr.dkind === 'string' ? rr.dkind : '', 'The kind of blow: a kind\u2019s key from the Combat tab, or a formula giving its place in that list, 1 for the first. DR at a location and a layer read it as Blow.kind. Kept only on a damage roll', 'Kind'); rdk.maxLength = LIMITS.formula; rw.appendChild(rdk); }   // 1.6.0: its kind of blow
-        var rad = input('sys-list-rolldiv field', typeof rr.ad === 'string' ? rr.ad : '', 'A damage roll\u2019s armour divisor, filled in when you press Apply to target on its card: a number, or a formula of the row\u2019s names (Row.ap). 1 or empty for none. Kept only on a damage roll', 'Armour divisor'); rad.maxLength = LIMITS.formula; rw.appendChild(rad);   // 1.6.0
-        if (rr.dmg === true) { var p2L = input('sys-list-rollp2f field', typeof rr.dmg2 === 'string' ? rr.dmg2 : '', 'Second part: damage of another type in the same blow, rolled with it, such as 1d6+1 or Row.burn. Its own DR is taken off, then both parts are one wound: one Major Wound test, one Any wound and one wear. Empty: none', 'Second part'); p2L.maxLength = LIMITS.formula; rw.appendChild(p2L); var p2LT = input('sys-list-rollp2t field', typeof rr.dtype2 === 'string' ? rr.dtype2 : '', 'The second part\u2019s type: a type\u2019s key from the Combat tab, or a formula giving its place in that list, 1 for the first (Row.dt2). Kept only beside a second part', 'Second part type'); p2LT.maxLength = LIMITS.formula; rw.appendChild(p2LT); var p2LA = input('sys-list-rollp2d field', typeof rr.ad2 === 'string' ? rr.ad2 : '', 'The second part\u2019s own armour divisor: a number, or a formula of the row\u2019s names. 1 or empty for none. Kept only beside a second part', 'Second part armour divisor'); p2LA.maxLength = LIMITS.formula; rw.appendChild(p2LA); if (dkLOn || rr.dkind2) { var p2LK = input('sys-list-rollp2k field', typeof rr.dkind2 === 'string' ? rr.dkind2 : '', 'The second part\u2019s kind of blow: a kind\u2019s key from the Combat tab, or a formula giving its place in that list. Empty: the first part\u2019s kind. Kept only beside a second part', 'Second part kind'); p2LK.maxLength = LIMITS.formula; rw.appendChild(p2LK); } [3, 4, 5].forEach(function(k) { var hasK = function(n) { return typeof rr['dmg' + n] === 'string' && !!rr['dmg' + n].trim(); }; if (!hasK(k - 1) && !hasK(k)) return; var nmK = k === 3 ? 'Third' : k === 4 ? 'Fourth' : 'Fifth'; var pkL = input('sys-list-rollp' + k + 'f field', typeof rr['dmg' + k] === 'string' ? rr['dmg' + k] : '', nmK + ' part: damage of another type in the same blow, rolled with it, such as 1d6 or Row.shock. Its own DR is taken off, then every part is one wound. Empty: none', nmK + ' part'); pkL.maxLength = LIMITS.formula; rw.appendChild(pkL); var pkLT = input('sys-list-rollp' + k + 't field', typeof rr['dtype' + k] === 'string' ? rr['dtype' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s type: a type\u2019s key from the Combat tab, or a formula giving its place in that list, 1 for the first. Kept only beside its part', nmK + ' part type'); pkLT.maxLength = LIMITS.formula; rw.appendChild(pkLT); var pkLA = input('sys-list-rollp' + k + 'd field', typeof rr['ad' + k] === 'string' ? rr['ad' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s own armour divisor: a number, or a formula of the row\u2019s names. 1 or empty for none. Kept only beside its part', nmK + ' part armour divisor'); pkLA.maxLength = LIMITS.formula; rw.appendChild(pkLA); if (dkLOn || rr['dkind' + k]) { var pkLK = input('sys-list-rollp' + k + 'k field', typeof rr['dkind' + k] === 'string' ? rr['dkind' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s kind of blow: a kind\u2019s key from the Combat tab, or a formula giving its place in that list. Empty: the first part\u2019s kind. Kept only beside its part', nmK + ' part kind'); pkLK.maxLength = LIMITS.formula; rw.appendChild(pkLK); } }); }   // 1.6.0 (B3): a blow of two damage types counts as one blow; and a third and a fourth part, each shown once the part before it has a formula
+        var rad = input('sys-list-rolldiv field', typeof rr.ad === 'string' ? rr.ad : '', 'A damage roll\u2019s armor divisor, filled in when you press Apply to target on its card: a number, or a formula of the row\u2019s names (Row.ap). 1 or empty for none. Kept only on a damage roll', 'Armor divisor'); rad.maxLength = LIMITS.formula; rw.appendChild(rad);   // 1.6.0
+        if (rr.dmg === true) { var p2L = input('sys-list-rollp2f field', typeof rr.dmg2 === 'string' ? rr.dmg2 : '', 'Second part: damage of another type in the same blow, rolled with it, such as 1d6+1 or Row.burn. Its own DR is taken off, then both parts are one wound: one Major Wound test, one Any wound and one wear. Empty: none', 'Second part'); p2L.maxLength = LIMITS.formula; rw.appendChild(p2L); var p2LT = input('sys-list-rollp2t field', typeof rr.dtype2 === 'string' ? rr.dtype2 : '', 'The second part\u2019s type: a type\u2019s key from the Combat tab, or a formula giving its place in that list, 1 for the first (Row.dt2). Kept only beside a second part', 'Second part type'); p2LT.maxLength = LIMITS.formula; rw.appendChild(p2LT); var p2LA = input('sys-list-rollp2d field', typeof rr.ad2 === 'string' ? rr.ad2 : '', 'The second part\u2019s own armor divisor: a number, or a formula of the row\u2019s names. 1 or empty for none. Kept only beside a second part', 'Second part armor divisor'); p2LA.maxLength = LIMITS.formula; rw.appendChild(p2LA); if (dkLOn || rr.dkind2) { var p2LK = input('sys-list-rollp2k field', typeof rr.dkind2 === 'string' ? rr.dkind2 : '', 'The second part\u2019s kind of blow: a kind\u2019s key from the Combat tab, or a formula giving its place in that list. Empty: the first part\u2019s kind. Kept only beside a second part', 'Second part kind'); p2LK.maxLength = LIMITS.formula; rw.appendChild(p2LK); } [3, 4, 5].forEach(function(k) { var hasK = function(n) { return typeof rr['dmg' + n] === 'string' && !!rr['dmg' + n].trim(); }; if (!hasK(k - 1) && !hasK(k)) return; var nmK = k === 3 ? 'Third' : k === 4 ? 'Fourth' : 'Fifth'; var pkL = input('sys-list-rollp' + k + 'f field', typeof rr['dmg' + k] === 'string' ? rr['dmg' + k] : '', nmK + ' part: damage of another type in the same blow, rolled with it, such as 1d6 or Row.shock. Its own DR is taken off, then every part is one wound. Empty: none', nmK + ' part'); pkL.maxLength = LIMITS.formula; rw.appendChild(pkL); var pkLT = input('sys-list-rollp' + k + 't field', typeof rr['dtype' + k] === 'string' ? rr['dtype' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s type: a type\u2019s key from the Combat tab, or a formula giving its place in that list, 1 for the first. Kept only beside its part', nmK + ' part type'); pkLT.maxLength = LIMITS.formula; rw.appendChild(pkLT); var pkLA = input('sys-list-rollp' + k + 'd field', typeof rr['ad' + k] === 'string' ? rr['ad' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s own armor divisor: a number, or a formula of the row\u2019s names. 1 or empty for none. Kept only beside its part', nmK + ' part armor divisor'); pkLA.maxLength = LIMITS.formula; rw.appendChild(pkLA); if (dkLOn || rr['dkind' + k]) { var pkLK = input('sys-list-rollp' + k + 'k field', typeof rr['dkind' + k] === 'string' ? rr['dkind' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s kind of blow: a kind\u2019s key from the Combat tab, or a formula giving its place in that list. Empty: the first part\u2019s kind. Kept only beside its part', nmK + ' part kind'); pkLK.maxLength = LIMITS.formula; rw.appendChild(pkLK); } }); }   // 1.6.0 (B3): a blow of two damage types counts as one blow; and a third and a fourth part, each shown once the part before it has a formula
         { var tgS = el('select', 'sys-lroll-togm'); tgS.title = 'Goes to the GM: the player sees only that it was sent, and you get the roll privately. Its Then runs at once, or waits for your Apply. The list may send all its rolls'; [['', 'As the list says'], ['run', 'Goes to the GM'], ['wait', 'Goes to the GM, Then waits']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if ((rr.toGm || '') === o[0]) op.selected = true; tgS.appendChild(op); }); rw.appendChild(tgS); }   // HR1
         if (typeof dieSel === 'function') rw.appendChild(dieSel('sys-list-rolldie', rr.die, 'The die its button wears on each row. From its formula: the die it rolls, so 3d6 shows three dice and d20 a d20'));   // 1.5.8, backlog 149
         [['rollup', '\u25b2', 'Move up'], ['rolldown', '\u25bc', 'Move down'], ['rolldel', '\u00d7', 'Remove this roll']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
@@ -10811,8 +10811,8 @@ function ctKeySays(sp, F0) {
         var ndRow = el('div', 'sys-flags sys-list-needsrow'); ndRow.dataset.ri = String(ri);   // Stage 6 HUD R2b: what it needs, then its consequences
         ndRow.appendChild(el('span', 'sys-num-cap sys-offered', 'When it can be used')); ndRow.appendChild(rsI);   // 1.6.2: where it stands, then while it may be pressed, together
         var ndIn = input('sys-list-needs field', typeof rr.needs === 'string' ? rr.needs : '', 'Rolled only while this is true for the row (no dice): Row.Charges >= 1, Row.Hits > 0; empty: always', 'Needs (e.g. Row.Charges >= 1)'); ndIn.maxLength = LIMITS.formula; ndRow.appendChild(ndIn);
-        var ndTx = input('sys-list-needstext field', typeof rr.needsText === 'string' ? rr.needsText : '', 'What the greyed button says when it cannot roll', 'Out of charges'); ndTx.maxLength = LIMITS.needsWords; ndRow.appendChild(ndTx);
-        ndRow.appendChild(checkLabel('sys-list-hideoff', rr.hideOff === true, 'Hidden until it can be used', 'The button stands on the row only while its needs hold. Off: it stays there, greyed out. Only beside needs'));   // 1.6.0
+        var ndTx = input('sys-list-needstext field', typeof rr.needsText === 'string' ? rr.needsText : '', 'What the grayed button says when it cannot roll', 'Out of charges'); ndTx.maxLength = LIMITS.needsWords; ndRow.appendChild(ndTx);
+        ndRow.appendChild(checkLabel('sys-list-hideoff', rr.hideOff === true, 'Hidden until it can be used', 'The button stands on the row only while its needs hold. Off: it stays there, grayed out. Only beside needs'));   // 1.6.0
         var mfL = input('sys-list-malf field', typeof rr.malf === 'string' ? rr.malf : '', 'Malf: a natural total (the dice alone) at or past this malfunctions \u2014 a failure, and its On malfunction changes (no dice; Row.Malf reads the row)', 'Malf (Row.Malf)'); mfL.maxLength = LIMITS.formula; ndRow.appendChild(mfL);   // Stage 6 HUD R3
         if ((typeof draft !== 'undefined' && draft && draft.combat && draft.combat.checks === 'fixed') || rr.critAt || rr.fumbleAt) [['sys-list-critat', 'critAt', 'Critical at: this roll\u2019s own critical success range for the dice alone, read as the Combat tab reads it (no dice; Row.* reads the row; empty: the Combat tab\u2019s)', 'Critical at'], ['sys-list-fumbleat', 'fumbleAt', 'Critical failure at: this roll\u2019s own for the dice alone, read as the Combat tab reads it (no dice; Row.* reads the row; empty: the Combat tab\u2019s)', 'Critical failure at']].forEach(function(g) { var ci = input(g[0] + ' field', typeof rr[g[1]] === 'string' ? rr[g[1]] : '', g[2], g[3]); ci.maxLength = LIMITS.formula; ndRow.appendChild(ci); });   // 1.6.0 (the v2 sort's B1): a technique that widens the range
         var bgL = input('sys-list-bigat field', typeof rr.bigAt === 'string' ? rr.bigAt : '', 'Lands as a heavy hit: a success whose natural roll, the dice alone, is at or under this is marked a heavy hit. It is no critical. Its Then reads RollBig (no dice; Row.* reads the row; empty: never)', 'Heavy hit at'); bgL.maxLength = LIMITS.formula; ndRow.appendChild(bgL);   // 1.6.0 (the book's ruling of 2026-10-29)
@@ -10896,7 +10896,7 @@ function areaBox(r, dmgs) {
     var dOpts = [['', 'No damage roll']].concat(dmgs), cur = a.dmg === undefined ? '' : String(a.dmg); if (cur && !dOpts.some(function(o) { return o[0] === cur; })) dOpts.push([cur, 'A roll no longer ticked Damage']);
     dbxCap(wrap, 'Each hit rolls'); wrap.appendChild(select('sys-area-dmg', dOpts, cur, 'The damage roll rolled for each token hit. Its card lands on that token'));
     var fxs = (draft.effects || []).filter(function(f) { return f && typeof f.id === 'string'; }).map(function(f) { return [f.id, f.name || f.id]; }), fCur = typeof a.fx === 'string' ? a.fx : '', fOpts = [['', 'No effect']].concat(fxs); if (fCur && !fOpts.some(function(o) { return o[0] === fCur; })) fOpts.push([fCur, 'An effect no longer there']);
-    dbxCap(wrap, 'Each hit gets'); wrap.appendChild(select('sys-area-fx', fOpts, fCur, 'An effect put on each token hit, even where its armour stops all the damage'));
+    dbxCap(wrap, 'Each hit gets'); wrap.appendChild(select('sys-area-fx', fOpts, fCur, 'An effect put on each token hit, even where its armor stops all the damage'));
     if (r.resistBy) wrap.appendChild(checkLabel('sys-area-all', r.resistAll === true, 'Each one resists', 'Each token in the line gets the Resisted by roll, with no target mark needed'));
     return wrap;
 }
@@ -11049,7 +11049,7 @@ var FRAG_LISTS = [
     ['cover', 'Fragmentation is stopped by', [['', 'Cover, as the blast'], ['total', 'Only full cover']], 'Only full cover: a character partly behind cover takes all of it.'],
     ['each', 'Fragmentation is rolled', [['', 'Once for every character'], ['each', 'Once for each character']], 'One roll that every character it reaches takes, or a roll of their own.'],
     ['direct', 'The character struck directly', [['', 'Takes the same roll'], ['own', 'Takes a hit of its own roll']], 'A hit of its own: the target struck directly rolls apart from the others.'],
-    ['ad', 'An armour divisor', [['', 'Counts against the blast alone'], ['yes', 'Counts against its fragmentation too']], 'Whether an item\u2019s armour divisor counts against its fragmentation.']
+    ['ad', 'An armor divisor', [['', 'Counts against the blast alone'], ['yes', 'Counts against its fragmentation too']], 'Whether an item\u2019s armor divisor counts against its fragmentation.']
 ];
 var FRAG_REACH_LINE = 'How far fragmentation reaches, in yards. It can read the dice it rolls and the dice of the blast\u2019s own damage. With none, the blast\u2019s own radius. It never reaches less.';
 function fragSays(v) {   // what Save does with Fragmentation reaches: '' where it keeps it
@@ -11059,7 +11059,7 @@ function fragSays(v) {   // what Save does with Fragmentation reaches: '' where 
 function blastSays(k, v) {   // what Save does with one formula: '' where it keeps it
     var SCb = window.wpSystemCore; if (!v || !SCb || typeof SCb.cleanBlastRules !== 'function') return '';
     var o = {}; o[k] = v; var c = SCb.cleanBlastRules(o, F());
-    return c && c[k] ? '' : k === 'each' ? 'Save drops it: it may read only the blast\u2019s dice, its distance and its fill, and whether the hit was direct or at the centre, with no dice.' : k === 'fall' ? 'Save drops it: it may read only the blast\u2019s damage, dice, distance and fill, whether the hit was direct or at the centre, a cell of the map and the scale of the one it hits, with no dice.' : k === 'scatter' ? 'Save drops it: it may read only how far the throw missed and how far it was thrown.' : k === 'hand' ? 'Save drops it: it may read only the roll\u2019s bare total, with no dice.' : k === 'roll' ? 'Save drops it: it does not read as a formula.' : k === 'radius' ? 'Save drops it: it may read only the item\u2019s own radius, a cell of the map and the Environment readings where it goes off, with no dice.' : 'Save drops it: it does not read as a formula with no dice.';
+    return c && c[k] ? '' : k === 'each' ? 'Save drops it: it may read only the blast\u2019s dice, its distance and its fill, and whether the hit was direct or at the center, with no dice.' : k === 'fall' ? 'Save drops it: it may read only the blast\u2019s damage, dice, distance and fill, whether the hit was direct or at the center, a cell of the map and the scale of the one it hits, with no dice.' : k === 'scatter' ? 'Save drops it: it may read only how far the throw missed and how far it was thrown.' : k === 'hand' ? 'Save drops it: it may read only the roll\u2019s bare total, with no dice.' : k === 'roll' ? 'Save drops it: it does not read as a formula.' : k === 'radius' ? 'Save drops it: it may read only the item\u2019s own radius, a cell of the map and the Environment readings where it goes off, with no dice.' : 'Save drops it: it does not read as a formula with no dice.';
 }
 // 1.6.2 (vehicles, fold (e); the owner, by prompt): the system's own distance unit, which one cell of the map is read in (MapCell), and the number
 // field each sheet's scale is, read by a blast as HitScale. Their own listeners, so no handler of the Combat tab reads them
@@ -11067,7 +11067,7 @@ var UNIT_LINE = 'The unit the system\u2019s distances count in. A blast\u2019s f
 var SCALE_LINE = 'A number field each sheet keeps its scale in. A blast\u2019s formulas read the figure of the one it hits, 1 where it has none, so a person in a ship\u2019s blast can take more.';
 function blastScaleInto(box, cm, bl) {
     var said = function(re) { markDirty(); if (typeof patchErrors === 'function') patchErrors(); if (re) renderCombat(); };
-    var uL = labeledSelect('sys-combat-bunit', 'The system\u2019s distances count in', [['', 'Yards'], ['ft', 'Feet'], ['m', 'Metres']], cm.unit === 'ft' || cm.unit === 'm' ? cm.unit : '', UNIT_LINE), uS = uL.querySelector ? uL.querySelector('select') : null;
+    var uL = labeledSelect('sys-combat-bunit', 'The system\u2019s distances count in', [['', 'Yards'], ['ft', 'Feet'], ['m', 'Meters']], cm.unit === 'ft' || cm.unit === 'm' ? cm.unit : '', UNIT_LINE), uS = uL.querySelector ? uL.querySelector('select') : null;
     if (uS) uS.addEventListener('change', function(e) { e.stopPropagation(); if (uS.value === 'ft' || uS.value === 'm') cm.unit = uS.value; else delete cm.unit; said(false); });
     box.appendChild(uL); lineUnder(box, UNIT_LINE);
     var nums = (draft.fields || []).filter(function(f) { return f && typeof f.id === 'string' && (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill'); }), cur = typeof bl.scale === 'string' ? bl.scale : '';
@@ -11365,7 +11365,7 @@ function combatBody() {
     if (cm.cover.on) lineUnder(box, 'This needs Token elevation on. A piece\u2019s height is in its Properties.');
     if (cm.cover.on) {   // cover follow-ups (owner 2026-09-28): what a full-auto blast does behind each grade
         var cgs = cm.cover.style === 'binary' ? [['cover', 'Blast behind cover'], ['total', 'Blast behind total cover']] : [['half', 'Blast behind half cover'], ['threeq', 'Blast behind three-quarters cover'], ['total', 'Blast behind total cover']];
-        cgs.forEach(function(g) { var cur = cm.cover.area && typeof cm.cover.area === 'object' && Object.prototype.hasOwnProperty.call(cm.cover.area, g[0]) ? cm.cover.area[g[0]] : 'full'; var ls = labeledSelect('sys-combat-cover-area', g[1], [['full', 'Full damage'], ['half', 'Half damage'], ['none', 'No damage']], cur === 'half' || cur === 'none' ? cur : 'full', 'With Full auto blasts, what the rolled damage does to a token behind this much cover (measured from the blast\u2019s centre).'); ls.lastChild.dataset.grade = g[0]; box.appendChild(ls); });
+        cgs.forEach(function(g) { var cur = cm.cover.area && typeof cm.cover.area === 'object' && Object.prototype.hasOwnProperty.call(cm.cover.area, g[0]) ? cm.cover.area[g[0]] : 'full'; var ls = labeledSelect('sys-combat-cover-area', g[1], [['full', 'Full damage'], ['half', 'Half damage'], ['none', 'No damage']], cur === 'half' || cur === 'none' ? cur : 'full', 'With Full auto blasts, what the rolled damage does to a token behind this much cover (measured from the blast\u2019s center).'); ls.lastChild.dataset.grade = g[0]; box.appendChild(ls); });
     }
     if (cm.cover.on && typeof coverHitBox === 'function') coverHitBox(box, cm);   // 1.6.0: where a hit behind cover lands
     if (typeof tp === 'function') tp('outcomes');
@@ -11594,7 +11594,7 @@ function envSays(env, fields, F0, gmNames) {   // what Save does with each readi
             if (!pa || !pa.ok) { errs.push({ message: at + (pa && pa.error && pa.error.message ? pa.error.message : 'the formula cannot be read.') + ' Save drops that band.' }); return; }
             if (pa.ast && hasDice(pa.ast.body)) { errs.push({ message: at + 'a band rolls no dice. Save drops that band.' }); return; }
             var gm = typeof gmNames === 'function' ? gmNames(Array.isArray(pa.names) ? pa.names : []) : [];
-            if (gm.length) warns.push({ message: at + 'it reads ' + gm[0] + ', which players cannot read, so their own figure shows no colour for this band.' });
+            if (gm.length) warns.push({ message: at + 'it reads ' + gm[0] + ', which players cannot read, so their own figure shows no color for this band.' });
         });
     });
     return { errs: errs, warns: warns };
@@ -12423,7 +12423,7 @@ function terrainBox(box, cm) {
 // 1.6.2 (vehicles, fold (g); the owner: "a toggle that switches any map to a vehicle map", and the core's answers G1 and G2): the system's map kinds,
 // each a name, the cell a map of that kind starts at, and the factors formulas read on it. Their own listeners, so no handler of the tab reads them. A
 // new kind's or factor's short name follows its name until the editor is closed, and stays after
-var MAPKIND_UNITS = [['yd', 'yards'], ['ft', 'feet'], ['m', 'metres'], ['km', 'kilometres'], ['mi', 'miles']];
+var MAPKIND_UNITS = [['yd', 'yards'], ['ft', 'feet'], ['m', 'meters'], ['km', 'kilometers'], ['mi', 'miles']];
 // 1.6.2 (the owner, by prompt: "The scene carries it"): the channels a scene may be in, each a name whose short name is made once from it
 // 1.6.2 (the CORE session's answer 7): darkness steps past lit, each a name and its penalty, lightest first
 function darkBox(box) {
@@ -12514,7 +12514,7 @@ function travelBox(box) {
         var rm = el('button', 'tool ghost sys-btn sys-tv-rm', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this travel mode'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.travel; ch(true); }); rw.appendChild(rm);
         wrap.appendChild(rw);
     });
-    var add = el('button', 'tool ghost sys-btn sys-tv-add', '+ Travel mode'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'A way of travelling, such as On foot, Mounted or By ship';
+    var add = el('button', 'tool ghost sys-btn sys-tv-add', '+ Travel mode'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'A way of traveling, such as On foot, Mounted or By ship';
     add.addEventListener('click', function() { if (!Array.isArray(draft.travel)) draft.travel = []; list = draft.travel; if (list.length >= max) return; list.push({ label: '', u: 'mi', t: 'hour', _new: true }); ch(true); setTimeout(function() { var nb = document.querySelectorAll('#systemModal .sys-tv-label'); if (nb.length) nb[nb.length - 1].focus(); }, 0); });
     var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
     box.appendChild(wrap);
@@ -12566,7 +12566,7 @@ function postureBox(box, cm) {
 }
 // [sinkcheck:barsbox-start]
 // Backlog 28 (the owner, 2026-10-29, by prompt: the system's bars, a token may change its own): the Combat tab's Token bars box. Bar 1 and Bar 2,
-// each a pool of the sheet, who is shown it and its colour; every character token takes them unless its Properties give it bars of its own. Add
+// each a pool of the sheet, who is shown it and its color; every character token takes them unless its Properties give it bars of its own. Add
 // token bars starts Bar 1 on the pool damage subtracts from. Every text lands as a value or a text node; Save cleans them (systemcore cleanBars)
 function barsBox(box, cm) {
     var S = window.wpSystemCore, words = S && S.BAR_SHOW_WORDS ? S.BAR_SHOW_WORDS : [['owner', 'Its owner and the GM']], cols = S && S.BAR_COLORS ? S.BAR_COLORS : ['#d9534f', '#4f8fd9'];
@@ -12585,7 +12585,7 @@ function barsBox(box, cm) {
         row.appendChild(select('sys-tokbar-pool', opts, b && typeof b.f === 'string' ? b.f : '', 'The pool this bar shows'));
         if (b) {
             row.appendChild(select('sys-tokbar-show', words, typeof b.show === 'string' ? b.show : 'owner', 'Who sees this bar. The GM always does'));
-            var ci = el('input', 'sys-tokbar-color'); ci.type = 'color'; ci.value = typeof b.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(b.color) ? b.color : cols[i]; ci.title = 'This bar\u2019s colour'; row.appendChild(ci);
+            var ci = el('input', 'sys-tokbar-color'); ci.type = 'color'; ci.value = typeof b.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(b.color) ? b.color : cols[i]; ci.title = 'This bar\u2019s color'; row.appendChild(ci);
         }
         wrap.appendChild(row);
     });
@@ -12713,7 +12713,7 @@ var DBX_LIM = typeof DMG_LIM === 'object' ? DMG_LIM : { types: 320, kinds: 80, l
 var CRIP_BY_LINE = 'What the failure writes, instead of how far it failed. It can read how far it failed, the roll\u2019s bare total and the blow. 0 or below writes nothing';   // 1.6.0 (the core's ruling on gap 7)   // systemcore's DMG_LIM: what the cleaner keeps
 // 1.6.0: a damage type's figures a die: its control, its key, its caption, its line, its least and its words
 var DBX_DIE = [
-    ['sys-dmgr-ydiedr', 'dieDr', 'DR', 'Added to the DR at the location for each die the blow rolled, for this blow alone. A minus takes armour off. -10 to 10', -10, 'its DR a die'],
+    ['sys-dmgr-ydiedr', 'dieDr', 'DR', 'Added to the DR at the location for each die the blow rolled, for this blow alone. A minus takes armor off. -10 to 10', -10, 'its DR a die'],
     ['sys-dmgr-ydiew', 'dieWound', 'Wound', 'Added to a wound that gets through, for each die the blow rolled. -10 to 10', -10, 'its wound a die'],
     ['sys-dmgr-ydiev', 'dieVital', 'Vital wound', 'Added to a wound that gets through at a vital location, for each die the blow rolled. -10 to 10', -10, 'its vital wound a die'],
     ['sys-dmgr-ydiewear', 'dieWear', 'Wear', 'Worn off each layer at the location for good, for each die the blow rolled, whether or not it gets through. 0 to 10', 0, 'its wear a die']
@@ -12750,14 +12750,14 @@ function dbxBtn(act, text, title, off) { var b = el('button', 'tool ghost sys-bt
 function damageBox(box, cm) {
     var d = dbxObj(cm.damage) ? cm.damage : {}, pools = dbxPools(), lists = dbxLists(), wrap = el('div', 'sys-dmgr');
     wrap.appendChild(el('div', 'sys-light-head', 'Taking damage'));
-    wrap.appendChild(el('div', 'sys-note', 'How a hit is taken in the Take damage window. It goes through DR at the hit location, comes off a pool, and wears armour and weapons.'));
+    wrap.appendChild(el('div', 'sys-note', 'How a hit is taken in the Take damage window. It goes through DR at the hit location, comes off a pool, and wears armor and weapons.'));
     var r1 = el('div', 'sys-flags sys-dmgr-top');
     dbxCap(r1, 'Wounds come off'); r1.appendChild(select('sys-dmgr-pool', dbxOpts(['', 'The pool Full auto damage comes off'], pools, d.pool), dbxStr(d.pool), 'The pool a wound comes off. Unset, the one Full auto damage is taken from'));
     dbxCap(r1, 'Taken first from'); r1.appendChild(select('sys-dmgr-first', dbxOpts(['', 'Nothing'], (draft.fields || []).filter(function(f) { return f && f.kind === 'number'; }).map(function(f) { return [f.id, f.label || f.key || f.id]; }).concat((draft.effects || []).filter(function(x) { return !!x && typeof x.id === 'string' && !!x.val; }).map(function(x) { return ['fx:' + x.id, (x.name || 'An effect') + ': its number']; })), d.first), dbxStr(d.first),   /* 1.6.2 (the CORE session): or an effect that holds a number, spent first and ending at 0 */ 'A number a wound to that pool comes off first, down to 0, as temporary hit points. The rest goes to the pool. A Major Wound and every rule after it read the whole wound, unless Not a wound is ticked'));   // 1.6.2 (temporary hit points)
     if (d.first) r1.appendChild(dbxTick('sys-dmgr-soak', d.firstSoaks === true, 'Not a wound', 'Ticked: what it takes is no wound. A Major Wound, the rows On a wound and the blow\u2019s wound read only what gets past it, and a blow it takes whole runs none of them. Unticked: they read the whole wound'));   // 1.6.2 (the CORE session)
     dbxCap(r1, 'Major Wound at'); var mj = input('sys-dmgr-major field', dbxStr(d.major), 'A wound this large or larger in one blow is a Major Wound. No dice. It may read the hit location as Hit. and a name, 0 where no location was struck', 'e.g. HP.max / 2'); mj.maxLength = LIMITS.formula; r1.appendChild(mj);
     dbxCap(r1, 'Wound by'); var wfI = input('sys-dmgr-woundf field', dbxStr(d.woundF), 'How large a wound is, worked out from what got through and the character\u2019s sheet, for every damage type. 0 is no wound. Empty: what gets through, times the type\u2019s multiplier', 'What gets through'); wfI.maxLength = LIMITS.formula; r1.appendChild(wfI);   // 1.6.2
-    r1.appendChild(select('sys-dmgr-zero', [['', 'A wound of 0 still wears armour'], ['none', 'A wound of 0 does nothing']], d.zero === 'none' ? 'none' : '', 'When the wound formula gives 0 for damage that got through: armour layers still wear as for a hit, or nothing happens at all'));
+    r1.appendChild(select('sys-dmgr-zero', [['', 'A wound of 0 still wears armor'], ['none', 'A wound of 0 does nothing']], d.zero === 'none' ? 'none' : '', 'When the wound formula gives 0 for damage that got through: armor layers still wear as for a hit, or nothing happens at all'));
     dbxCap(r1, 'Called'); var mjw = input('sys-dmgr-mjword field', dbxStr(d.majorWord), 'What your game calls this step. The damage lines and the Take damage window say it in place of A Major Wound', 'A Major Wound'); mjw.maxLength = LIMITS.label; r1.appendChild(mjw);
     wrap.appendChild(r1);
     {   // 1.6.0 (B3): what a Major Wound does (kept by Save only beside its formula)
@@ -12797,7 +12797,7 @@ function damageBox(box, cm) {
                 dbxCap(rw, 'and writes'); rw.appendChild(select('sys-dmgr-ohstat', dbxOpts(['', 'Nothing'], dbxKeys(owH.list, true), owH.stat), dbxStr(owH.stat), 'A number stat written on every row at the location. Pick nothing to read Held.count alone'));
                 if (owH.stat) { var ohT = input('sys-dmgr-ohto field', dbxStr(owH.to), 'The figure written on each of those rows. It reads what Where reads, the row as Row. and a name, and Held.count', 'to, e.g. if(Blow.major, 2, 1)'); ohT.maxLength = LIMITS.formula; rw.appendChild(ohT); }
             }
-            rw.appendChild(dbxTick('sys-dmgr-oany', w.any === true, 'Also with no wound', 'Ticked: this row also runs on a blow that lands but wounds nobody, as armour that stops the whole injury. Where then reads Blow.dmg, the damage rolled, and Blow.wound is 0. Off: only on a wound'));   // 1.6.2
+            rw.appendChild(dbxTick('sys-dmgr-oany', w.any === true, 'Also with no wound', 'Ticked: this row also runs on a blow that lands but wounds nobody, as armor that stops the whole injury. Where then reads Blow.dmg, the damage rolled, and Blow.wound is 0. Off: only on a wound'));   // 1.6.2
             if (w.roll) rw.appendChild(dbxTick('sys-dmgr-oasat', w.asAt === true, 'Its roll reads the sheet as it was here', 'Ticked: the roll it asks for is worked out on the sheet as it stood when this row was reached, before this row\u2019s effect and any row below it. So a shock roll put above a Stunned row leaves out the Stunned of the same hit. Off: on the sheet as the whole blow left it'));   // 1.6.2
             rw.appendChild(dbxBtn('dmgrodel', '\u00d7', 'Remove this'));
             wrap.appendChild(rw);
@@ -12828,7 +12828,7 @@ function damageBox(box, cm) {
         if (!dbxStr(y.woundF)) a.appendChild(dbxTick('sys-dmgr-ybymult', y.byMult, 'Its multiplier', 'Ticked: this type wounds by its multiplier even where the system has a wound formula'));
         a.appendChild(select('sys-dmgr-ypool', dbxOpts(['', 'The main pool'], pools, y.pool), dbxStr(y.pool), 'The pool this type comes off, where not the main one'));
         a.appendChild(dbxTick('sys-dmgr-ynodr', y.noDr, 'Ignores DR', 'Ticked: DR stops none of it'));
-        a.appendChild(dbxTick('sys-dmgr-ynowear', y.noWear, 'Wears nothing', 'Ticked: it wears no armour'));
+        a.appendChild(dbxTick('sys-dmgr-ynowear', y.noWear, 'Wears nothing', 'Ticked: it wears no armor'));
         a.appendChild(dbxTick('sys-dmgr-ycuts', y.cuts, 'Cuts', 'Ticked: 20 or more over a weapon’s Dur destroys it'));
         a.appendChild(dbxBtn('dmgrydel', '×', 'Remove this type'));
         tw.appendChild(a);
@@ -12844,7 +12844,7 @@ function damageBox(box, cm) {
             var ai = input('sys-dmgr-aif field', dbxStr(al.if), ak ? 'Where the ones above do not hold and this does, the three after it take the place of the type’s own' : 'Where this holds for the character, the three after it take the place of the type’s own', 'e.g. Robot'); ai.maxLength = LIMITS.formula; b.appendChild(ai);
             b.appendChild(select('sys-dmgr-apool', dbxOpts(['', 'The same pool'], pools, al.pool), dbxStr(al.pool), 'The pool it comes off then'));
             dbxCap(b, 'Times'); b.appendChild(dbxNum('sys-dmgr-amult', al.mult, 'Its multiplier then. Unset is the type’s own', ''));
-            b.appendChild(dbxTick('sys-dmgr-anowear', al.noWear, 'Wears nothing', 'Ticked: then it wears no armour'));
+            b.appendChild(dbxTick('sys-dmgr-anowear', al.noWear, 'Wears nothing', 'Ticked: then it wears no armor'));
             if (ak) b.appendChild(dbxBtn('dmgraltdel', '×', 'Remove this alternative'));
             tw.appendChild(b);
         });
@@ -12889,11 +12889,11 @@ function damageBox(box, cm) {
             dbxCap(ww, 'Wears on a Major Wound'); var mw = input('sys-dmgr-lmajw field', dbxStr(l.majorWear), 'What a Major Wound wears off this layer. Empty: a quarter of its figure, rounded up. It reads Row, Hit, Listed (its figure there), Worn (what has worn off), ToDestroy, and the blow: Blow.dmg, Blow.through, Blow.wound, Blow.type and Blow.cuts', 'e.g. ceil(Listed / 4)'); mw.maxLength = LIMITS.formula; ww.appendChild(mw);
             dbxCap(ww, 'Once broken, a hit'); var bw = input('sys-dmgr-lbrkw field', dbxStr(l.brokenWear), 'What an injuring hit wears once this layer is broken there (its figure used up). Empty: 1. ToDestroy destroys the piece', 'e.g. 1'); bw.maxLength = LIMITS.formula; ww.appendChild(bw);
             dbxCap(ww, 'Wears at most'); var wc = input('sys-dmgr-lwcap field', dbxStr(l.wearCap), 'The most wear this layer may hold there, where it is destroyed. Empty: twice its figure, so it wears to minus its figure. It reads what the boxes beside it read', 'e.g. Listed + 2 * Row.Dur'); wc.maxLength = LIMITS.formula; ww.appendChild(wc);
-            dbxCap(ww, 'Its own divisor'); var adw = input('sys-dmgr-ladby field', dbxStr(l.adBy), 'How the blow\u2019s armour divisor applies to what this layer gives the DR where it struck: 1 ignores it, Divisor / 2 halves it. Empty: as the rest of the DR', 'e.g. 1'); adw.maxLength = LIMITS.formula; ww.appendChild(adw);   // 1.6.2 (the CORE session, 9)
+            dbxCap(ww, 'Its own divisor'); var adw = input('sys-dmgr-ladby field', dbxStr(l.adBy), 'How the blow\u2019s armor divisor applies to what this layer gives the DR where it struck: 1 ignores it, Divisor / 2 halves it. Empty: as the rest of the DR', 'e.g. 1'); adw.maxLength = LIMITS.formula; ww.appendChild(adw);   // 1.6.2 (the CORE session, 9)
             dbxCap(ww, 'and a Major Wound'); var bm = input('sys-dmgr-lbrkm field', dbxStr(l.brokenMajorWear), 'What a Major Wound wears once this layer is broken there. Empty: as on a Major Wound above', 'e.g. ceil(Row.Dur / 4)'); bm.maxLength = LIMITS.formula; ww.appendChild(bm);
             ww.appendChild(dbxTick('sys-dmgr-lwhole', l.whole === true, 'Every location', 'Ticked: one figure and one wear stat wherever a blow lands, as a worn field. It wears when a part it stands against takes the main pool, whether or not the damage beat its figure, and a blow with no location wears it too. At its figure it is down, unless Wears at most says otherwise'));   // 1.6.0
             if (l.whole === true) ww.appendChild(dbxTick('sys-dmgr-lpoolany', l.anyPool === true, 'Any pool', 'A part it stands against wears it whichever pool that part took, not only the main pool. A type ticked as wearing nothing still wears nothing'));   // 1.6.0
-            if ((draft.fields || []).some(function(f) { return f && f.id === l.list && dbxObj(f.list) && dbxObj(f.list.on); })) ww.appendChild(dbxTick('sys-dmgr-lany', l.anyRow === true, 'Every row', 'Ticked: this layer wears every row of its list, switched on or not. Off: only the rows switched on, as a worn piece of armour is. For a list whose switch means something else, as a location the GM marks by hand.'));   // 1.6.0
+            if ((draft.fields || []).some(function(f) { return f && f.id === l.list && dbxObj(f.list) && dbxObj(f.list.on); })) ww.appendChild(dbxTick('sys-dmgr-lany', l.anyRow === true, 'Every row', 'Ticked: this layer wears every row of its list, switched on or not. Off: only the rows switched on, as a worn piece of armor is. For a list whose switch means something else, as a location the GM marks by hand.'));   // 1.6.0
             wrap.appendChild(ww);
         }
         if (l.list && nkL.length) {   // 1.6.0: what a row adds against one damage type (systemcore typedAdd)
@@ -12903,7 +12903,7 @@ function damageBox(box, cm) {
             wrap.appendChild(tw);
         }
     });
-    wrap.appendChild(dbxBtn('dmgrladd', '+ Layer', lys.length >= DBX_LIM.layers ? 'At most ' + DBX_LIM.layers : 'Armour or clothing that wears where a hit gets through', lys.length >= DBX_LIM.layers));
+    wrap.appendChild(dbxBtn('dmgrladd', '+ Layer', lys.length >= DBX_LIM.layers ? 'At most ' + DBX_LIM.layers : 'Armor or clothing that wears where a hit gets through', lys.length >= DBX_LIM.layers));
     var wps = Array.isArray(d.weapons) ? d.weapons : [];
     wrap.appendChild(el('span', 'sys-num-cap', 'Weapons a blow tests'));
     wps.forEach(function(w0, i) {
@@ -13213,7 +13213,7 @@ function lightBox(box, cm) {
             var nl = el('label', 'sys-num'); nl.appendChild(el('span', 'sys-num-cap', g[1]));
             var ni = el('input', 'field sys-light-p' + g[0]); ni.type = 'number'; ni.min = '0'; ni.max = '1000'; ni.step = 'any'; ni.value = typeof p[g[0]] === 'number' ? String(p[g[0]]) : ''; ni.title = g[2]; nl.appendChild(ni); rw.appendChild(nl);
         });
-        rw.appendChild(select('sys-light-punit', [['yd', 'yards'], ['ft', 'feet'], ['m', 'metres'], ['cells', 'grid cells']], typeof p.unit === 'string' && Object.prototype.hasOwnProperty.call(LIGHT_UNITS, p.unit) ? p.unit : 'yd', 'What the two radii count in: each map\u2019s scale converts it (a 20 ft torch on 5 ft squares lights 4 squares)'));
+        rw.appendChild(select('sys-light-punit', [['yd', 'yards'], ['ft', 'feet'], ['m', 'meters'], ['cells', 'grid cells']], typeof p.unit === 'string' && Object.prototype.hasOwnProperty.call(LIGHT_UNITS, p.unit) ? p.unit : 'yd', 'What the two radii count in: each map\u2019s scale converts it (a 20 ft torch on 5 ft squares lights 4 squares)'));
         var pk = el('label', 'sys-hover'), pc = el('input', 'sys-light-ppick'); pc.type = 'checkbox'; pc.checked = p.pick === true; pk.appendChild(pc); pk.appendChild(document.createTextNode(' Players may pick')); pk.title = 'Ticked: a player may pick this light for their own token, from its right-click menu (your machine copies it from this list). Unticked: only you set it, in a token\u2019s Properties'; rw.appendChild(pk);
         [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'lp' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
         wrap.appendChild(rw);
@@ -13271,7 +13271,7 @@ function rangeBox(box, cm) {
     wrap.appendChild(el('div', 'sys-note', 'Your game\u2019s range penalty: a modifier by how far the target is. The ruler shows it, and each target mark beside its cover and light. A table gives each distance\u2019s modifier (up to that distance; past the last row, its modifier holds); or work it out from the distance, in the unit picked here.'));
     var r1 = el('div', 'sys-flags sys-range-top');
     r1.appendChild(labeledSelect('sys-range-by', 'Range penalty', [['', 'None'], ['table', 'By a table'], ['formula', 'By a formula']], by, 'None: no range penalty is shown. A table: a modifier for each distance. A formula: a modifier worked out from Distance.'));
-    if (by) r1.appendChild(labeledSelect('sys-range-unit', 'Counts in', [['yd', 'yards'], ['ft', 'feet'], ['m', 'metres'], ['cells', 'grid cells']], typeof rg.unit === 'string' && Object.prototype.hasOwnProperty.call(RANGE_UNITS, rg.unit) ? rg.unit : 'yd', 'What its distances count in: each map\u2019s scale converts it (60 ft on 5 ft squares is 12 squares)'));
+    if (by) r1.appendChild(labeledSelect('sys-range-unit', 'Counts in', [['yd', 'yards'], ['ft', 'feet'], ['m', 'meters'], ['cells', 'grid cells']], typeof rg.unit === 'string' && Object.prototype.hasOwnProperty.call(RANGE_UNITS, rg.unit) ? rg.unit : 'yd', 'What its distances count in: each map\u2019s scale converts it (60 ft on 5 ft squares is 12 squares)'));
     wrap.appendChild(r1);
     if (by === 'formula') {
         var fr = el('div', 'sys-flags sys-range-frow'), fm = input('sys-range-formula field', typeof rg.formula === 'string' ? rg.formula : '', 'The modifier at a distance: Distance is how far the target is, in the unit above; no dice, and no other name', 'Modifier, e.g. -2 * floor(Distance / 30)');
@@ -13317,7 +13317,7 @@ function rangeBox(box, cm) {
         var rh = el('div', 'sys-flags sys-range-aimrow'); rh.appendChild(labeledSelect('sys-range-hit', 'Called shots read', roH, curH, 'A list of the target\u2019s sheet whose rows are its hit locations. The roller picks one of the target\u2019s own rows, and a roll can read that row\u2019s stats and columns.'));
         wrap.appendChild(rh);
     }
-    if (typeof checkLabel === 'function') wrap.appendChild(checkLabel('sys-combat-hideresist', cm.hideResist === true, 'Hide what a defence needs', 'A roll that reads its attacker, how far the attack succeeded or a figure of the attacker\u2019s sheet, goes to the table as its dice and Success or Failure. The figure it needed stays yours. An attack by one of your characters goes the same way, since its margin would give that figure away. Any other roll is as it was. For one NPC, use Hide figures on its sheet'));   // 1.6.2
+    if (typeof checkLabel === 'function') wrap.appendChild(checkLabel('sys-combat-hideresist', cm.hideResist === true, 'Hide what a defense needs', 'A roll that reads its attacker, how far the attack succeeded or a figure of the attacker\u2019s sheet, goes to the table as its dice and Success or Failure. The figure it needed stays yours. An attack by one of your characters goes the same way, since its margin would give that figure away. Any other roll is as it was. For one NPC, use Hide figures on its sheet'));   // 1.6.2
     var err = errorCell('range'); err.dataset.errFor = 'range'; wrap.appendChild(err);
     box.appendChild(wrap);
 }
@@ -13402,7 +13402,7 @@ function rangeClick(b) {
 // [sinkcheck:rangebox-end]
 // Item 19 H2 (the owner's answer, 2026-09-30: a table like the Range box): the Combat tab's Height box — a modifier by how much higher the
 // roller stands than the target (HeightDiff, negative looking up): a table of signed steps (up to that difference; below the first row its
-// modifier, past the last row its modifier) or a formula reading HeightDiff, in yards, feet or metres. Rolls read HeightMod; the ruler and a
+// modifier, past the last row its modifier) or a formula reading HeightDiff, in yards, feet or meters. Rolls read HeightMod; the ruler and a
 // target mark show it. It keeps combat.height's rule (H1) whatever is chosen here. Every text lands as a value or a text node
 // Item 19b H4 (the owner's answer of 2026-10-01): its last row is the True 3D sightline (line3d, true only) and, with it, the Standing height
 // (eye): how far above its elevation a token's eye sits, shown and typed in the viewer's own unit (wpStance), kept in yards. Unticked, the
@@ -13416,7 +13416,7 @@ function heightBox(box, cm) {
     wrap.appendChild(el('div', 'sys-note', 'Your game\u2019s height modifier: by how much higher the roller stands than the target (with Token elevation on). Rolls can read it, and the ruler between two character tokens and each target mark show it. A table gives each difference\u2019s modifier, lowest first: a difference below 0 is looking up (up to that difference; below the first row its modifier, past the last row its modifier); or work it out from the difference.'));
     var r1 = el('div', 'sys-flags sys-height-top');
     r1.appendChild(labeledSelect('sys-height-by', 'Height modifier', [['', 'None'], ['table', 'By a table'], ['formula', 'By a formula']], by, 'None: no height modifier. A table: a modifier for each height difference. A formula: a modifier worked out from HeightDiff.'));
-    if (by) r1.appendChild(labeledSelect('sys-height-unit', 'Counts in', [['yd', 'yards'], ['ft', 'feet'], ['m', 'metres']], typeof hg.unit === 'string' && Object.prototype.hasOwnProperty.call(HEIGHT_UNITS, hg.unit) ? hg.unit : 'yd', 'What its differences count in: a token\u2019s elevation is converted into it'));
+    if (by) r1.appendChild(labeledSelect('sys-height-unit', 'Counts in', [['yd', 'yards'], ['ft', 'feet'], ['m', 'meters']], typeof hg.unit === 'string' && Object.prototype.hasOwnProperty.call(HEIGHT_UNITS, hg.unit) ? hg.unit : 'yd', 'What its differences count in: a token\u2019s elevation is converted into it'));
     wrap.appendChild(r1);
     if (by === 'formula') {
         var fr = el('div', 'sys-flags sys-height-frow'), fm = input('sys-height-formula field', typeof hg.formula === 'string' ? hg.formula : '', 'The modifier at a height difference: HeightDiff is how much higher the roller stands than the target, in the unit above (below 0 looking up); no dice, and no other name', 'Modifier, e.g. floor(HeightDiff / 5)');
@@ -13439,7 +13439,7 @@ function heightBox(box, cm) {
     l3.appendChild(c3); l3.appendChild(document.createTextNode(' True 3D sightline'));
     l3.title = 'With Token elevation on, a piece with a Height (a crate, a low wall, a sight-blocker you gave one) stops a line only where the straight line from the viewer\u2019s eye to the target runs at or below it: in the fog, on the ruler, at target marks and for blasts. A sight-blocker with no Height is full height. It takes the place of Height clears low cover'; r3.appendChild(l3);
     if (on3) {
-        var n3 = el('label', 'sys-num'); n3.appendChild(el('span', 'sys-num-cap', 'Standing height (' + (St && St.lenUnit() === 'm' ? 'metres' : 'yards') + ')')); r3.appendChild(n3);
+        var n3 = el('label', 'sys-num'); n3.appendChild(el('span', 'sys-num-cap', 'Standing height (' + (St && St.lenUnit() === 'm' ? 'meters' : 'yards') + ')')); r3.appendChild(n3);
         var e3 = el('input', 'field sys-height-eye'), ev = typeof hg.eye === 'number' && isFinite(hg.eye) ? hg.eye : null; e3.type = 'number'; e3.min = '0'; e3.step = 'any'; e3.placeholder = 'none';
         e3.value = ev === null ? '' : String(Math.round((St ? St.ydOut(ev) : ev) * 100) / 100);
         e3.title = 'How far above its elevation a token\u2019s eye sits. Blank: the eye is at the token\u2019s elevation. The target is judged at its own elevation'; n3.appendChild(e3);
@@ -14053,7 +14053,7 @@ function restTakeBack(diffs) {
 // The eyes' arc (the owner's ruling of 2026-10-03): under the blind switch, "Sight arc from" names the number or formula field that gives a
 // character's own sight arc in degrees (combat.senses.arc), or the map's arc for none, with its sentence (arcSentence)
 // [sinkcheck:sensesbox-start]
-var _senseUnit = '', SENSE_WORDS = { yd: 'yards', ft: 'feet', m: 'metres', cells: 'grid cells' };
+var _senseUnit = '', SENSE_WORDS = { yd: 'yards', ft: 'feet', m: 'meters', cells: 'grid cells' };
 // senses S4: a mark sense's mark, as its player sees it (the shape the fog draws, and the word shown while the pointer is on it); none: a presence
 var SENSE_GLYPH_SAY = { sound: 'three arcs, “Heard”', tremor: 'a zigzag, “Felt”', presence: 'a ring round a dot, “Sensed”', heat: 'a teardrop, “Heat”' };
 function senseGlyphOf(s) { return typeof s.glyph === 'string' && Object.prototype.hasOwnProperty.call(SENSE_GLYPH_SAY, s.glyph) ? s.glyph : 'presence'; }
@@ -14128,15 +14128,15 @@ function sensesBox(box, cm) {
         if (byField && typeof r.field === 'string' && !fieldsR.some(function(f) { return f.id === r.field; })) ropts.push([r.field, 'From a field no longer here']);
         rw.appendChild(select('sys-sense-from', ropts, byField ? r.field : byEyes ? '#e' : '#n', 'Where its range comes from: a field of the character (worked out for each character, effects and all), one number every character has, or as far as the eyes reach on that map, for a sense that widens what the eyes see'));
         if (!byField && !byEyes) { var nl = el('label', 'sys-num'); nl.appendChild(el('span', 'sys-num-cap', 'Range')); var ni = el('input', 'field sys-sense-n'); ni.type = 'number'; ni.min = '0'; ni.max = '100000'; ni.step = 'any'; ni.value = typeof r.n === 'number' ? String(r.n) : ''; ni.title = 'How far it reaches, for every character (0: no one has it)'; nl.appendChild(ni); rw.appendChild(nl); }
-        if (!byEyes) rw.appendChild(select('sys-sense-unit', (s.unit === '?' ? [['?', '— pick a unit —']] : []).concat([['yd', 'yards'], ['ft', 'feet'], ['m', 'metres'], ['cells', 'grid cells']]), s.unit === '?' ? '?' : (typeof s.unit === 'string' && Object.prototype.hasOwnProperty.call(LIGHT_UNITS, s.unit) ? s.unit : 'yd'), 'What its range counts in: each map’s scale converts it (60 ft on 5 ft squares is 12 squares)'));
+        if (!byEyes) rw.appendChild(select('sys-sense-unit', (s.unit === '?' ? [['?', '— pick a unit —']] : []).concat([['yd', 'yards'], ['ft', 'feet'], ['m', 'meters'], ['cells', 'grid cells']]), s.unit === '?' ? '?' : (typeof s.unit === 'string' && Object.prototype.hasOwnProperty.call(LIGHT_UNITS, s.unit) ? s.unit : 'yd'), 'What its range counts in: each map’s scale converts it (60 ft on 5 ft squares is 12 squares)'));
         [['walls', 'Walls stop it', s.walls !== 'pass', 'Ticked: whatever blocks sight stops it, as it stops the eyes. Unticked: it passes walls'], ['arc', 'All round (ignores facing)', s.arc === 'all', 'Ticked: it sees in every direction, whatever arc its token’s eyes see through'], ['dim', 'What it sees in the dark it sees as dim', s.shows === 'dim', 'Ticked: in the dark it shows cells dim (the dim name shows on the ruler and at a target mark), in light as the light is. Unticked: clear'], ['eyes', 'Uses the eyes (off while blind)', s.eyes === true, 'Ticked: a sense of the eyes, off while the character is blind (darkvision, truesight). Unticked: it works blind (blindsight, a sense of the Ether)'], ['veil', 'Sees through smoke', s.veil === true, 'Ticked: smoke hides nothing from it. Unticked: it does not see into or through smoke (a sense that passes walls always does)']].filter(function(g) { return !((mark || s.shows === 'side') && g[0] === 'dim'); }).forEach(function(g) {   // a mark sees no cells: no dim
             var tl = el('label', 'sys-hover'), tc = el('input', 'sys-sense-tick'); tc.type = 'checkbox'; tc.checked = g[2]; tc.dataset.tick = g[0]; tl.appendChild(tc); tl.appendChild(document.createTextNode(' ' + g[1])); tl.title = g[3]; rw.appendChild(tl);
         });
         if (s.arc !== 'all') {   // 1.6.0: an arc of its own, wider than the eyes' for side vision
             var saF = senseArcOf(s.arc), saId = s.arc && typeof s.arc === 'object' && typeof s.arc.field === 'string' ? s.arc.field : '', sopts = [['', 'The eyes’ arc'], ['#n', 'An arc of its own']].concat(senseArcFields().map(function(f) { return [f.id, 'Arc from ' + (f.label || f.key)]; }));
             if (saId && !saF) sopts.push([saId, 'Arc from a field no longer here']);
-            rw.appendChild(select('sys-sense-arcfrom', sopts, saId || (typeof s.arc === 'number' ? '#n' : ''), 'The arc it looks through, centred on the facing: the eyes’ arc, a number of degrees every character has, or a number or formula field of the character, so a trait can widen it. 360 is all round'));
-            if (typeof s.arc === 'number') { var sal = el('label', 'sys-num'); sal.appendChild(el('span', 'sys-num-cap', 'Degrees')); var sai = el('input', 'field sys-sense-arcn'); sai.type = 'number'; sai.min = '1'; sai.max = '360'; sai.step = '1'; sai.value = s.arc ? String(s.arc) : ''; sai.placeholder = 'Degrees'; sai.title = 'The whole arc in degrees, centred on the facing: half of it each side'; sal.appendChild(sai); rw.appendChild(sal); }
+            rw.appendChild(select('sys-sense-arcfrom', sopts, saId || (typeof s.arc === 'number' ? '#n' : ''), 'The arc it looks through, centered on the facing: the eyes’ arc, a number of degrees every character has, or a number or formula field of the character, so a trait can widen it. 360 is all round'));
+            if (typeof s.arc === 'number') { var sal = el('label', 'sys-num'); sal.appendChild(el('span', 'sys-num-cap', 'Degrees')); var sai = el('input', 'field sys-sense-arcn'); sai.type = 'number'; sai.min = '1'; sai.max = '360'; sai.step = '1'; sai.value = s.arc ? String(s.arc) : ''; sai.placeholder = 'Degrees'; sai.title = 'The whole arc in degrees, centered on the facing: half of it each side'; sal.appendChild(sai); rw.appendChild(sal); }
         }
         var offId = s.off && typeof s.off === 'object' && typeof s.off.field === 'string' ? s.off.field : '', oopts = [['', 'Never switched off']].concat(swF.map(function(f) { return [f.id, 'Off while ' + (f.label || f.key)]; }));   // senses S3
         if (offId && !swF.some(function(f) { return f.id === offId; })) oopts.push([offId, 'Off by a field no longer here']);
@@ -14153,7 +14153,7 @@ function sensesBox(box, cm) {
     var vw = sn.view && typeof sn.view === 'object' ? sn.view : null, vwV = vw && vw.mode === 'arc' ? 'arc' : vw && vw.mode === 'all' ? 'all' : '', vrow = el('div', 'sys-flags');   // 1.6.0: the Vision of a map with none of its own
     vrow.appendChild(el('span', 'sys-num-cap', 'A map with no Vision sees'));
     vrow.appendChild(select('sys-sense-view', [['', 'As its grid does'], ['all', 'All round'], ['arc', 'Through a facing arc']], vwV, 'What a map that has no Vision of its own sees by. As its grid does: all round on squares, a front cone on hexes. A Vision set on the map, or one the campaign keeps for new maps, wins'));
-    if (vwV === 'arc') { var val = el('label', 'sys-num'); val.appendChild(el('span', 'sys-num-cap', 'Degrees')); var vai = el('input', 'field sys-sense-viewarc'); vai.type = 'number'; vai.min = '1'; vai.max = '360'; vai.step = '1'; vai.value = typeof vw.arc === 'number' ? String(vw.arc) : ''; vai.title = 'The whole arc in degrees, centred on the facing'; val.appendChild(vai); vrow.appendChild(val); }
+    if (vwV === 'arc') { var val = el('label', 'sys-num'); val.appendChild(el('span', 'sys-num-cap', 'Degrees')); var vai = el('input', 'field sys-sense-viewarc'); vai.type = 'number'; vai.min = '1'; vai.max = '360'; vai.step = '1'; vai.value = typeof vw.arc === 'number' ? String(vw.arc) : ''; vai.title = 'The whole arc in degrees, centered on the facing'; val.appendChild(vai); vrow.appendChild(val); }
     wrap.appendChild(vrow);
     var blId = sn.blind && typeof sn.blind === 'object' && typeof sn.blind.field === 'string' ? sn.blind.field : '', bopts = [['', 'No blind switch']].concat(swF.map(function(f) { return [f.id, 'Blind while ' + (f.label || f.key)]; }));   // senses S3: the system's blind switch
     if (blId && !swF.some(function(f) { return f.id === blId; })) bopts.push([blId, 'Blind by a field no longer here']);
@@ -14426,7 +14426,7 @@ function turnBox(box, cm) {
     wrap.appendChild(el('div', 'sys-note', 'Your game\u2019s turn, for turn-based combat: how far a character moves, how diagonals count (the ruler follows it), how long a round is, and the actions a turn allows (a roll can cost one).'));
     var r1 = el('div', 'sys-flags sys-turn-row');
     var mv = input('sys-turn-mvf field', typeof tn.move === 'string' ? tn.move : '', 'How far a character moves in one turn, worked out for each character (no dice): BasicMove, Speed, floor(DX / 2); empty: no limit', 'Move per turn (e.g. Speed)'); mv.maxLength = LIMITS.formula; r1.appendChild(mv);
-    r1.appendChild(select('sys-turn-mvu', [['cells', 'grid cells'], ['ft', 'feet'], ['yd', 'yards'], ['m', 'metres']], typeof tn.unit === 'string' && TURN_UNITS[tn.unit] === 1 ? tn.unit : 'cells', 'The unit the move counts in: each map\u2019s scale converts it (30 ft on 5 ft squares is 6 squares; 5 yd on 1 yd hexes is 5 hexes)'));
+    r1.appendChild(select('sys-turn-mvu', [['cells', 'grid cells'], ['ft', 'feet'], ['yd', 'yards'], ['m', 'meters']], typeof tn.unit === 'string' && TURN_UNITS[tn.unit] === 1 ? tn.unit : 'cells', 'The unit the move counts in: each map\u2019s scale converts it (30 ft on 5 ft squares is 6 squares; 5 yd on 1 yd hexes is 5 hexes)'));
     wrap.appendChild(r1);
     var r1r = el('div', 'sys-flags sys-turn-row'), rnB = input('sys-turn-runf field', typeof tn.run === 'string' ? tn.run : '', 'The most a turn may move by giving up the action named beside it, worked out for each character (no dice). While that action is free the map allows this. Moving past Move per turn spends it. Once it is spent the map allows Move per turn alone. Empty: one allowance', 'Move by giving up an action (e.g. Speed * 2)'); rnB.maxLength = LIMITS.formula; r1r.appendChild(rnB);
     r1r.appendChild(select('sys-turn-runact', turnRunOpts(tn), typeof tn.runCost === 'string' ? tn.runCost : '', 'The action that moving further spends, from the actions below. A roll that costs it after that meets the Move limit in Settings'));
@@ -14980,12 +14980,12 @@ function onInput(e) {
             else if (lcc.indexOf('sys-list-rolldkind') >= 0) { var dkv = t.value.slice(0, LIMITS.formula).trim(); if (dkv) rD.dkind = dkv; else delete rD.dkind; }   // 1.6.0: a damage roll's kind of blow
             else if (lcc.indexOf('sys-list-rollhits') >= 0) { var htv = t.value.slice(0, LIMITS.formula).trim(); if (htv) rD.hits = htv; else delete rD.hits; }   // 1.6.0 A burst: Hits it rolls for
             else if (lcc.indexOf('sys-list-rollmjif') >= 0) { var mjv = t.value.slice(0, LIMITS.formula).trim(); if (mjv) rD.dmgMajorIf = mjv; else delete rD.dmgMajorIf; }   // 1.6.0: A Major Wound where
-            else if (lcc.indexOf('sys-list-rolldiv') >= 0) { var adv = t.value.slice(0, LIMITS.formula).trim(); if (adv) rD.ad = adv; else delete rD.ad; }   // 1.6.0: a damage roll's armour divisor
+            else if (lcc.indexOf('sys-list-rolldiv') >= 0) { var adv = t.value.slice(0, LIMITS.formula).trim(); if (adv) rD.ad = adv; else delete rD.ad; }   // 1.6.0: a damage roll's armor divisor
             else if (lcc.indexOf('sys-list-rollp2f') >= 0) { var p2v = t.value.slice(0, LIMITS.formula).trim(); if (p2v) rD.dmg2 = p2v; else delete rD.dmg2; }   // 1.6.0 (B3): a second part of the blow
             else if (lcc.indexOf('sys-list-rollp2t') >= 0) { var p2tv = t.value.slice(0, LIMITS.formula).trim(); if (p2tv) rD.dtype2 = p2tv; else delete rD.dtype2; }   // its type
             else if (lcc.indexOf('sys-list-rollp2k') >= 0) { var p2kv = t.value.slice(0, LIMITS.formula).trim(); if (p2kv) rD.dkind2 = p2kv; else delete rD.dkind2; }   // its own kind
-            else if (lcc.indexOf('sys-list-rollp2d') >= 0) { var p2dv = t.value.slice(0, LIMITS.formula).trim(); if (p2dv) rD.ad2 = p2dv; else delete rD.ad2; }   // its own armour divisor
-            else if (/sys-list-rollp[345][ftdk]/.test(lcc)) { var pkm = /sys-list-rollp([345])([ftdk])/.exec(lcc), pkk = (pkm[2] === 'f' ? 'dmg' : pkm[2] === 't' ? 'dtype' : pkm[2] === 'k' ? 'dkind' : 'ad') + pkm[1], pkv = t.value.slice(0, LIMITS.formula).trim(); if (pkv) rD[pkk] = pkv; else delete rD[pkk]; }   // 1.6.0: a third and a fourth part, its type and its own armour divisor
+            else if (lcc.indexOf('sys-list-rollp2d') >= 0) { var p2dv = t.value.slice(0, LIMITS.formula).trim(); if (p2dv) rD.ad2 = p2dv; else delete rD.ad2; }   // its own armor divisor
+            else if (/sys-list-rollp[345][ftdk]/.test(lcc)) { var pkm = /sys-list-rollp([345])([ftdk])/.exec(lcc), pkk = (pkm[2] === 'f' ? 'dmg' : pkm[2] === 't' ? 'dtype' : pkm[2] === 'k' ? 'dkind' : 'ad') + pkm[1], pkv = t.value.slice(0, LIMITS.formula).trim(); if (pkv) rD[pkk] = pkv; else delete rD[pkk]; }   // 1.6.0: a third and a fourth part, its type and its own armor divisor
             else return;
         }
         else if (lcc.indexOf('sys-list-col') >= 0) {   // Stage 6 F5a1: a column's boxes (Save cleans them)
@@ -15037,7 +15037,7 @@ function onInput(e) {
         else if (c.indexOf('sys-surch-add') >= 0) { if (f.surcharge && typeof f.surcharge === 'object') { var scA = Math.round(Number(t.value)); if (isFinite(scA) && scA >= 1) f.surcharge.add = Math.min(99, scA); else delete f.surcharge.add; } }
         else if (c.indexOf('sys-spill-below') >= 0) { if (f.spill && typeof f.spill === 'object') { if (t.value.trim()) f.spill.below = t.value.slice(0, LIMITS.formula); else delete f.spill.below; } }   // 1.6.0 Spills into: below a formula
         else if (c.indexOf('sys-res-color') >= 0) { if (/^#[0-9a-fA-F]{6}$/.test(t.value)) f.color = t.value.toLowerCase(); }   // Stage 6 look fold (L7)
-        else if (c.indexOf('sys-slider-lowColor') >= 0) { f.slider = f.slider || {}; f.slider.lowColor = t.value; }   // Stage 5e (the colour classes before the label ones: 'sys-slider-low' is a prefix of both)
+        else if (c.indexOf('sys-slider-lowColor') >= 0) { f.slider = f.slider || {}; f.slider.lowColor = t.value; }   // Stage 5e (the color classes before the label ones: 'sys-slider-low' is a prefix of both)
         else if (c.indexOf('sys-slider-highColor') >= 0) { f.slider = f.slider || {}; f.slider.highColor = t.value; }
         else if (c.indexOf('sys-slider-midColor') >= 0) { f.slider = f.slider || {}; f.slider.midColor = t.value; }
         else if (c.indexOf('sys-slider-low') >= 0) { f.slider = f.slider || {}; f.slider.low = t.value; }
@@ -15356,22 +15356,22 @@ function onChange(e) {
         else if (c.indexOf('sys-hover-chk') >= 0) f.hover = t.checked;
         else if (c.indexOf('sys-live-sel') >= 0) { if (t.value === 'on') f.live = true; else if (t.value === 'off') f.live = false; else delete f.live; }   // the sheet's lock
         else if (c.indexOf('sys-tile-chk') >= 0) { if (t.checked) f.tile = true; else delete f.tile; }   // Stage 3: stat-tile display
-        else if (c.indexOf('sys-sign-chk') >= 0) { if (t.checked) f.sign = true; else delete f.sign; }   // Stage 5g: colour by sign
+        else if (c.indexOf('sys-sign-chk') >= 0) { if (t.checked) f.sign = true; else delete f.sign; }   // Stage 5g: color by sign
         else if (c.indexOf('sys-badge-chk') >= 0) { if (t.checked) f.badge = true; else delete f.badge; markDirty(); renderAll(); return; }   // L7: the tones row follows
         else if (t.classList.contains('sys-roundto')) { if (Number(t.value) >= 1) f.roundTo = Number(t.value); else delete f.roundTo; }   // clarity package: the place it rounds to (by the whole class: sys-round is a prefix of it and of sys-roundat)
         else if (t.classList.contains('sys-round')) { if (t.value) f.round = t.value; else { delete f.round; delete f.roundTo; } if (t.value !== 'from') delete f.roundAt; markDirty(); renderAll(); return; }   // ... and how: To and Up from follow
         else if (c.indexOf('sys-tone-sel') >= 0) { var tiN = Number(t.dataset.ti), tArr = Array.isArray(f.tones) ? f.tones.slice() : []; if (isFinite(tiN) && tiN >= 0 && tiN < LIMITS.labels) { while (tArr.length <= tiN) tArr.push(''); tArr[tiN] = t.value; while (tArr.length && !tArr[tArr.length - 1]) tArr.pop(); if (tArr.length) f.tones = tArr; else delete f.tones; } }   // L7
-        else if (c.indexOf('sys-res-color') >= 0) { markDirty(); renderAll(); return; }   // L7: a colour picked — "No colour" appears
+        else if (c.indexOf('sys-res-color') >= 0) { markDirty(); renderAll(); return; }   // L7: a color picked — "No color" appears
         else if (c.indexOf('sys-reset-chk') >= 0) { if (t.checked) f.reset = true; else delete f.reset; }   // Fold B: fill-to-max button
         else if (c.indexOf('sys-bar-chk') >= 0) { if (t.checked) delete f.bar; else f.bar = false; }   // Fold B: the bar (absent = shown)
         else if (c.indexOf('sys-negmin-chk') >= 0) { if (t.checked) { f.minNeg = true; delete f.min; } else delete f.minNeg; markDirty(); renderAll(); return; }   // 1.6.0: down to minus its max (the Min box goes while ticked)
-        else if (c.indexOf('sys-colorband-chk') >= 0) { if (t.checked) f.colorBand = true; else delete f.colorBand; }   // 1.6.0: the pool's colour on the band alone
+        else if (c.indexOf('sys-colorband-chk') >= 0) { if (t.checked) f.colorBand = true; else delete f.colorBand; }   // 1.6.0: the pool's color on the band alone
         else if (c.indexOf('sys-spill-to') >= 0) { if (t.value) f.spill = Object.assign({}, f.spill && typeof f.spill === 'object' ? f.spill : {}, { to: t.value }); else delete f.spill; markDirty(); renderAll(); return; }   // 1.6.0 Spills into: from where follows
         else if (c.indexOf('sys-spill-at') >= 0) { if (f.spill && typeof f.spill === 'object') { if (t.value === 'neg' || t.value === 'f') f.spill.at = t.value; else delete f.spill.at; if (t.value !== 'f') delete f.spill.below; } markDirty(); renderAll(); return; }   // ... and the formula's box
-        else if (c.indexOf('sys-slider-chk') >= 0) { if (t.checked) { f.slider = f.slider || {}; delete f.counter; } else delete f.slider; markDirty(); renderAll(); return; }   // Stage 5e: slider on/off (its row of labels and colours appears)
+        else if (c.indexOf('sys-slider-chk') >= 0) { if (t.checked) { f.slider = f.slider || {}; delete f.counter; } else delete f.slider; markDirty(); renderAll(); return; }   // Stage 5e: slider on/off (its row of labels and colors appears)
         else if (c.indexOf('sys-trackshape') >= 0) { var tkV = t.value, tkOf = f.track && typeof f.track === 'object' ? f.track.of : undefined; if (!tkV) delete f.track; else { f.track = tkV === 'each' ? { shape: 'boxes', each: true } : { shape: tkV }; if (tkOf) f.track.of = tkOf; delete f.counter; } markDirty(); renderAll(); return; }   // 1.6.2: Shows as (a track takes a counter's place)
         else if (c.indexOf('sys-counter-chk') >= 0) { if (t.checked) { f.counter = true; delete f.slider; } else delete f.counter; markDirty(); renderAll(); return; }   // HUD frame (HF4a): counter on/off — a number is a counter or a slider, never both (the other's box hides)
-        else if (c.indexOf('sys-slider-lowColor') >= 0 || c.indexOf('sys-slider-midColor') >= 0 || c.indexOf('sys-slider-highColor') >= 0) { markDirty(); renderAll(); return; }   // a colour picked (the input handler stored it): redraw so "Theme colours" appears
+        else if (c.indexOf('sys-slider-lowColor') >= 0 || c.indexOf('sys-slider-midColor') >= 0 || c.indexOf('sys-slider-highColor') >= 0) { markDirty(); renderAll(); return; }   // a color picked (the input handler stored it): redraw so "Theme colors" appears
         else if (c.indexOf('sys-itbl-on') >= 0) { if (t.checked) f.table = f.table || { columns: ['category'] }; else delete f.table; markDirty(); renderAll(); return; }   // Stage 4: rich item table on/off (seed one column so it renders)
         else if (c.indexOf('sys-itbl-col-') >= 0) { var col = c.slice(c.indexOf('sys-itbl-col-') + 13).split(/\s/)[0]; f.table = f.table || {}; var arr = Array.isArray(f.table.columns) ? f.table.columns : []; if (t.checked) { if (arr.indexOf(col) < 0) arr.push(col); } else arr = arr.filter(function(x) { return x !== col; }); f.table.columns = arr; }
         else if (c.indexOf('sys-itbl-chips') >= 0) { f.table = f.table || {}; if (t.checked) f.table.chips = true; else delete f.table.chips; }
@@ -15598,8 +15598,8 @@ function onClick(e) {
     else if (act === 'down' && i < list.length - 1) { list.splice(i, 1); list.splice(i + 1, 0, item); }
     else if (act === 'dup') { var d = clone(item); d.id = uid(ctx.f ? 'f_' : 'r_'); if (ctx.f) { _keyAuto.add(d); d.key = keyFromLabel(d.label, d) || (d.key ? d.key + '2' : ''); } else if (d.key) d.key = d.key + '2'; list.splice(i + 1, 0, d); }   // 1.6.2: a copied field is a new one, so its short name follows its label as a new field's does
     else if (act === 'del') { list.splice(i, 1); }
-    else if (act === 'slidercl' && item.slider) { delete item.slider.lowColor; delete item.slider.midColor; delete item.slider.highColor; }   // Stage 5e: the track back to the theme's colours
-    else if (act === 'rescolorclr') { delete item.color; delete item.colorBand; }   // Stage 6 look fold (L7): the pool back to the theme's colours
+    else if (act === 'slidercl' && item.slider) { delete item.slider.lowColor; delete item.slider.midColor; delete item.slider.highColor; }   // Stage 5e: the track back to the theme's colors
+    else if (act === 'rescolorclr') { delete item.color; delete item.colorBand; }   // Stage 6 look fold (L7): the pool back to the theme's colors
     else return;
     markDirty(); renderAll();
 }
@@ -15758,7 +15758,7 @@ function sync() {
     var note = ui('sysFeatureNote'); if (note) note.style.display = featureOn() ? 'none' : '';
     if (!featureOn()) { if (sheetOpen) closeSheet(); closeHuds(); }   // HUD frame (HF2a): each view on its own
     else renderViews(null);
-    var chS = window.wpChat; if (chS && chS.lookSync) chS.lookSync();   // chat cards: their colours follow the system's look
+    var chS = window.wpChat; if (chS && chS.lookSync) chS.lookSync();   // chat cards: their colors follow the system's look
 }
 var _lastCamp = null;
 setInterval(function() { var c = getActiveCampaign(), id = c ? c.id : null; if (_lastCamp !== null && id !== _lastCamp) { if (sheetOpen) closeSheet(); closeHuds(); } _lastCamp = id; try { bellFx(null); } catch (e) { console.error(e); } try { renderReviewChip(); } catch (e) { console.error(e); } var chI = window.wpChat; if (chI && chI.lookSync) chI.lookSync(); }, 1000);   // (and the bell's effects feed, for a change no repaint followed)
@@ -15766,7 +15766,7 @@ window.wpSheetsSync = sync;
 setTimeout(sync, 0);
 // [systemcheck:dmgwin-start]
 // 1.5.6, the damage step's window (the owner, 2026-10-24, by prompt: "Everything, weapons too"; of who presses it, 2026-10-14: the GM or that
-// character's player). The damage, its type, the location, the armour divisor and a weapon the blow tests; on the GM's machine a preview of what it
+// character's player). The damage, its type, the location, the armor divisor and a weapon the blow tests; on the GM's machine a preview of what it
 // does, worked out by the very step the press runs (systemcore damageStep). The GM's press stores it as ONE change (Revert takes it all back) and
 // posts what it did to the GM and the character's player; a player's goes to the host, which works it out with the full system. Elements made by
 // name and text nodes only: a character's, a row's and a type's names are set as text
@@ -15818,7 +15818,7 @@ function takeDamage(charId, pre) {
     if (typeof pre.loc === 'string' && locs.some(function(l) { return l.id === pre.loc; })) lsel.value = pre.loc;   // 1.6.0 (B5): where its roll was aimed, a row of this very character
     if (locs.length) row('Location', lsel, 'Where the blow lands. Its DR is taken off first.');
     var ad = el('input', 'dmg-ad'); ad.type = 'number'; ad.min = '0.1'; ad.step = '0.5'; ad.value = typeof pre.ad === 'number' && isFinite(pre.ad) && pre.ad > 0 ? String(pre.ad) : '1';   // 1.6.0: a card's roll may fill it in
-    row('Armour divisor', ad, '1 for none. DR is divided by it.');
+    row('Armor divisor', ad, '1 for none. DR is divided by it.');
     var diceOn = rules.dice === true || (typeof SCd.dmgDiceRead === 'function' && SCd.dmgDiceRead(rules)), dce = el('input', 'dmg-dice'); dce.type = 'number'; dce.min = '0'; dce.max = '100'; dce.step = '1'; dce.value = typeof pre.dice === 'number' && isFinite(pre.dice) && pre.dice > 0 ? String(Math.min(100, Math.floor(pre.dice))) : '';   // 1.6.0: the dice the blow rolled, asked only where the rules read them
     if (diceOn) row('Dice rolled', dce, 'How many dice the damage rolled. Some types and locations count a figure for each.');
     var wps = []; (Array.isArray(rules.weapons) ? rules.weapons : []).forEach(function(w) { wps = wps.concat(dmgRowsOf(sys, c, w.list)); });
@@ -15834,18 +15834,18 @@ function takeDamage(charId, pre) {
     if (p2p) {
         p2amt.type = 'number'; p2amt.min = '0'; p2amt.step = '1'; p2amt.value = String(Math.floor(p2p.amt)); row('Second part', p2amt, 'Damage of another type in the same blow. Its own DR comes off, then both parts are one wound.');
         types.forEach(function(t) { p2sel.appendChild(new Option(t.label, t.key)); }); if (typeof p2p.type === 'string') p2sel.value = p2p.type; if (types.length) row('Second part type', p2sel, 'How the second part wounds.'); if (kinds.length) { kindSel(p2kd, 'As the first part', p2p.kind); row('Second part kind', p2kd, 'What kind of blow this part is.'); }
-        p2ad.type = 'number'; p2ad.min = '0.1'; p2ad.step = '0.5'; p2ad.value = typeof p2p.ad === 'number' && isFinite(p2p.ad) && p2p.ad > 0 ? String(p2p.ad) : '1'; row('Second part armour divisor', p2ad, '1 for none.');
+        p2ad.type = 'number'; p2ad.min = '0.1'; p2ad.step = '0.5'; p2ad.value = typeof p2p.ad === 'number' && isFinite(p2p.ad) && p2p.ad > 0 ? String(p2p.ad) : '1'; row('Second part armor divisor', p2ad, '1 for none.');
     }
     var pkW = [3, 4, 5].map(function(k) {   // 1.6.0: a card's third, fourth and fifth parts, alike
         var pp = dmgObj(pre['part' + k]) && typeof pre['part' + k].amt === 'number' && isFinite(pre['part' + k].amt) && pre['part' + k].amt >= 0 ? pre['part' + k] : null, nm = k === 3 ? 'Third part' : k === 4 ? 'Fourth part' : 'Fifth part', a = el('input', 'dmg-amt' + k), s = el('select', 'dmg-type' + k), d = el('input', 'dmg-ad' + k), kp = el('select', 'dmg-kind' + k);
         if (pp) {
             a.type = 'number'; a.min = '0'; a.step = '1'; a.value = String(Math.floor(pp.amt)); row(nm, a, 'Damage of another type in the same blow. Its own DR comes off, then every part is one wound.');
             types.forEach(function(t) { s.appendChild(new Option(t.label, t.key)); }); if (typeof pp.type === 'string') s.value = pp.type; if (types.length) row(nm + ' type', s, 'How this part wounds.'); if (kinds.length) { kindSel(kp, 'As the first part', pp.kind); row(nm + ' kind', kp, 'What kind of blow this part is.'); }
-            d.type = 'number'; d.min = '0.1'; d.step = '0.5'; d.value = typeof pp.ad === 'number' && isFinite(pp.ad) && pp.ad > 0 ? String(pp.ad) : '1'; row(nm + ' armour divisor', d, '1 for none.');
+            d.type = 'number'; d.min = '0.1'; d.step = '0.5'; d.value = typeof pp.ad === 'number' && isFinite(pp.ad) && pp.ad > 0 ? String(pp.ad) : '1'; row(nm + ' armor divisor', d, '1 for none.');
         }
         return { k: k, p: pp, a: a, s: s, d: d, kp: kp };
     });
-    var hitW = (Array.isArray(pre.hits) ? pre.hits : []).map(function(h, i) { var a = el('input', 'dmg-amth'); a.type = 'number'; a.min = '0'; a.step = '1'; a.value = String(Math.max(0, Math.floor(h.amt))); row('Hit ' + (i + 2), a, i ? '' : 'Each hit is its own blow at this location. Every hit meets the armour as it was, and the wear comes off once at the end.'); return { h: h, a: a }; });   // 1.6.0 A burst: a card's further hits, one Apply
+    var hitW = (Array.isArray(pre.hits) ? pre.hits : []).map(function(h, i) { var a = el('input', 'dmg-amth'); a.type = 'number'; a.min = '0'; a.step = '1'; a.value = String(Math.max(0, Math.floor(h.amt))); row('Hit ' + (i + 2), a, i ? '' : 'Each hit is its own blow at this location. Every hit meets the armor as it was, and the wear comes off once at the end.'); return { h: h, a: a }; });   // 1.6.0 A burst: a card's further hits, one Apply
     var mjt = el('input', 'dmg-major'); mjt.type = 'checkbox'; mjt.checked = pre.major === true;   // 1.6.0: a card of a roll ticked Always a Major Wound
     if (pre.major === true) { var mjl = el('label', 'dmg-tick'); mjl.appendChild(mjt); var mjName = SCd.majorWords ? SCd.majorWords(rules) : 'A Major Wound'; mjl.appendChild(document.createTextNode(' ' + mjName + ' whatever its size')); mjl.title = 'Its roll says this blow is always ' + mjName + '. Untick it to judge the blow by its size'; card.appendChild(mjl); }
     var prev = el('div', 'dmg-preview'); card.appendChild(prev);
@@ -15930,7 +15930,7 @@ function majorFollow(c, info, vals) {
 // A damage roll's card: its total on the character the card names (more.on: the host's word for a roll that lands on its own roller), else on the character its roller targets, else on the one character token selected here
 var _aimNext = '';   // 1.6.0 (B5): the location row a damage roll was aimed at (its card says it just before it asks), taken once by the window it opens
 function aimNext(id) { _aimNext = typeof id === 'string' && /^w_[A-Za-z0-9_]{1,24}$/.test(id) ? id : ''; }
-function damageFromRoll(fromId, total, done, type, more) {   // 1.5.7: done, called once the window applies it; type, the damage type the roll names; more (1.6.0): { dice, ad }, the dice it rolled and the armour divisor its row names
+function damageFromRoll(fromId, total, done, type, more) {   // 1.5.7: done, called once the window applies it; type, the damage type the roll names; more (1.6.0): { dice, ad }, the dice it rolled and the armor divisor its row names
     var n = net(), camp = getActiveCampaign(), onC = dmgObj(more) && typeof more.on === 'string' ? charById(more.on, camp) : null, t = !onC && n && dmgObj(n.targets) && typeof fromId === 'string' && Object.prototype.hasOwnProperty.call(n.targets, fromId) ? n.targets[fromId] : null;
     var mp = t && camp && camp.items && Object.prototype.hasOwnProperty.call(camp.items, t.mapId) ? camp.items[t.mapId] : null, tok = mp && Array.isArray(mp.whiteboard) ? mp.whiteboard.find(function(w) { return w && w.id === t.id; }) : null;
     if (!tok && !onC) { var am = camp && camp.items ? camp.items[camp.activeItemId] : null, sel = state.selWbIds && state.selWbIds.length === 1 ? state.selWbIds[0] : state.selWbId; if (am && Array.isArray(am.whiteboard) && sel) tok = am.whiteboard.find(function(w) { return w && w.id === sel; }); }

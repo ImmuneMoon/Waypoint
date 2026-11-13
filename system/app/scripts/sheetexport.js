@@ -219,7 +219,7 @@ function itemCellText(col, def) {
 }
 
 // Item 35: a text of the sheet written WITH ITS LOOK, where one stands for the very words written: a line as escaped text in the tags the
-// Markdown side reads a look from (b, i, u, s, the sanitiser's one span form for a colour and a size step, a href), kept only where it reads
+// Markdown side reads a look from (b, i, u, s, the sanitiser's one span form for a color and a size step, a href), kept only where it reads
 // back as those words with that look (docmd fmtFromInline); else the line is written plain, as it always was. Notes go line by line: a
 // line's look is the part of the text's look that lies on it. Null: no look to write, the caller writes what it always wrote
 function lineFmt(fmt, a, b) {
@@ -239,7 +239,7 @@ function styledLine(t, fmt) {
         if (r.u === true) x = '<u>' + x + '</u>';
         if (r.st === true) x = '<s>' + x + '</s>';
         if (c || z) x = '<span style="' + (c ? 'color:' + c : '') + (c && z ? ';' : '') + (z ? 'font-size:' + z : '') + '">' + x + '</span>';
-        if (href !== open) { if (open) out += '</a>'; if (href) out += '<a href="' + esc(href) + '">'; open = href; }   // neighbours of one link share it
+        if (href !== open) { if (open) out += '</a>'; if (href) out += '<a href="' + esc(href) + '">'; open = href; }   // neighbors of one link share it
         out += x;
     });
     if (open) out += '</a>';
@@ -326,7 +326,7 @@ function sheetToMarkdown(sys, view, all, opts) {
         B.push({ type: 'table', title: label, cols: cols.map(function(c) { return cell(c.t); }), rows: rows.map(function(r, i) { return cols.map(function(c) { return cell(c.g(r, defs[i])); }); }) });
         var notes = rows.map(function(r, i) { return typeof r.note === 'string' && r.note ? li((defs[i] && defs[i].name) || '?', r.note) : ''; }).filter(Boolean);
         if (notes.length) B.push(textBlock('<ul>' + notes.join('') + '</ul>'));
-        var lookLi = isObj(spec.look) ? rows.map(function(r, i) {   // 1.6.0, backlog 206: each row's look as words, its colours as #rrggbb, and where it comes from when derived
+        var lookLi = isObj(spec.look) ? rows.map(function(r, i) {   // 1.6.0, backlog 206: each row's look as words, its colors as #rrggbb, and where it comes from when derived
             var sh = rowLookShown(sys, { values: vals }, spec, r), w = []; if (!sh) return '';
             var ow = sh.overall ? finishWords(sh.overall, true) : ''; if (ow) w.push(sh.from === 'main' ? 'its ' + sh.main + '\u2019s look, ' + ow : sh.from === 'shade' ? 'its material\u2019s shade, ' + ow : ow);
             sh.parts.forEach(function(p) { if (sh.from === 'main' && String(p.part).toLowerCase() === String(sh.main).toLowerCase()) return; var pw = finishWords(p.finish, true); if (pw) w.push(p.part + ': ' + pw); });

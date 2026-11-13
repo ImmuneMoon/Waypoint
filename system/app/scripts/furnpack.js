@@ -232,9 +232,9 @@ async function pngOf(svgSrc, w, h) {
     var cv = document.createElement('canvas'); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(im, 0, 0, w, h);
     var b = await new Promise(function(r) { cv.toBlob(r, 'image/png'); }); return new Uint8Array(await b.arrayBuffer());
 }
-// Fold 4: a pattern's own colour, the first material that wears it, else a stone grey
+// Fold 4: a pattern's own color, the first material that wears it, else a stone gray
 function texColor(BC, n) { var hit = ''; (BC.MATERIAL_IDS || []).some(function(id) { var M = BC.MATERIALS[id]; if (M && M.texture === n) { hit = M.color; return true; } return false; }); return /^#[0-9a-f]{6}$/i.test(hit) ? hit : '#6b6672'; }
-// One cell of a pattern as Waypoint draws it, px by px: its colour, then its tile repeated as on the map, 50 board pixels a cell
+// One cell of a pattern as Waypoint draws it, px by px: its color, then its tile repeated as on the map, 50 board pixels a cell
 async function texPng(n, px) {
     var BC = window.wpBuildCore, css = BC && BC.TEX_CSS && BC.TEX_CSS[n], T = BC && BC.TEX && BC.TEX[n]; if (!css || !T) return null;
     var m = /^url\("(.*)"\)$/.exec(css.image); if (!m) return null;
@@ -301,7 +301,7 @@ function makerTab(tab) {
     _m.tab = tab; _m.sel = tab === 'blk' ? (mkKeys().indexOf(_m.selB) >= 0 ? _m.selB : mkKeys()[0]) : _m.selF;
     log('maker-tab', { tab: tab }); makerDraw();
 }
-// Waypoint's own swatch of a pattern, as a box of the size asked: its colour under its tile, the tile scaled to the box's cell
+// Waypoint's own swatch of a pattern, as a box of the size asked: its color under its tile, the tile scaled to the box's cell
 function texSwatch(n, size) {
     var BC = window.wpBuildCore, d = el('div', 'fm-swatch'), css = BC && BC.TEX_CSS && BC.TEX_CSS[n], T = BC && BC.TEX && BC.TEX[n];
     d.style.width = d.style.height = size + 'px';

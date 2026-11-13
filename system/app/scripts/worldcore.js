@@ -12,7 +12,7 @@
    its outline following the cells' corners, which chance moves a little so that no coast is a staircase. The kinds are painted in one
    order (land, forest, sand, snow, mountains), so a region needs no hole: what lies inside it is painted over it, and what a stretch
    closes in and is painted before it becomes its own before anything is laid. A river runs from high ground down to the drawn coast
-   as a line. Nothing blocks sight or stops a token: a world map is for pointing and travelling.
+   as a line. Nothing blocks sight or stops a token: a world map is for pointing and traveling.
 
    Only +, -, * and / reach a number that is kept, never a sine or a root: a plan is the same on every machine. */
 'use strict';
@@ -26,7 +26,7 @@ function fin(v) { return typeof v === 'number' && isFinite(v); }
 var LANDS = Object.freeze(['island', 'continent', 'islands']), SIZES = Object.freeze(['small', 'medium', 'large']), AMOUNTS = Object.freeze(['none', 'few', 'some', 'many']);
 var CLIMATES = Object.freeze(['mild', 'cold', 'dry']), TOWNS = Object.freeze(['none', 'marks', 'names']);
 var KINDS = Object.freeze(['land', 'forest', 'sand', 'snow', 'mountains']);   // the order they are painted in: a later kind lies over an earlier one
-// each kind's own colour and pattern, as the world sheet drew them; the sea and plain land wear the Water and the Grass material's
+// each kind's own color and pattern, as the world sheet drew them; the sea and plain land wear the Water and the Grass material's
 var LAND_COLOR = Object.freeze({ sea: '#2e5d86', land: '#4b6b36', forest: '#2f5d3a', sand: '#c9ad6b', snow: '#dfe6ee', mountains: '#6f6a66', river: '#2e5d86', town: '#7a3f33' });
 var LAND_TEXTURE = Object.freeze({ sea: 'ripples', land: 'grass', forest: 'forest', sand: 'sand', snow: 'snow', mountains: 'mountains' });
 var SEED_RE = /^[A-Za-z0-9-]{1,24}$/, CELL = 100, JIT = 34, MAXPTS = 480;

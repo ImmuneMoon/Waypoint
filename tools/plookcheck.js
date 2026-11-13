@@ -14,7 +14,7 @@ function between(src, a, b) { const i = src.indexOf(a), j = src.indexOf(b, i); r
     const S = await imp('scripts/systemcore.js'), T = await imp('scripts/textfmt.js');
     // ---- the cleaner
     const cp = S.cleanPlook;
-    check('a look keeps a font of Waypoint’s own under the list’s spelling and a colour as six hex digits in lower case; anything else of either is no key, and a look with neither is none',
+    check('a look keeps a font of Waypoint’s own under the list’s spelling and a color as six hex digits in lower case; anything else of either is no key, and a look with neither is none',
         J(cp({ font: 'cinzel', color: '#ABCDEF' })) === J({ font: 'Cinzel', color: '#abcdef' }) && J(cp({ font: 'Cinzel', color: '#abc' })) === J({ font: 'Cinzel' }) && J(cp({ color: '#00ff00', font: 'Arial' })) === J({ color: '#00ff00' })
         && cp({ font: 'Arial' }) === null && cp({ color: 'red' }) === null && cp({}) === null && cp(null) === null && cp('Cinzel') === null && cp(['Cinzel']) === null
         && cp({ font: 'Comic Sans MS', color: 'url(x)' }) === null && cp({ font: '"Cinzel"; color: red' }) === null && cp({ font: { toString: () => 'Cinzel' } }) === null
@@ -45,7 +45,7 @@ function between(src, a, b) { const i = src.indexOf(a), j = src.indexOf(b, i); r
         J(P1.ofTok({ isChar: true, charId: 'c_k', pl: { color: '#ffffff' } })) === J({ font: 'Lora', color: '#112233' }) && J(Pn.ofTok({ isChar: true, charId: 'c_k', pl: { color: '#FFFFFF', font: 'x' } })) === J({ color: '#ffffff' })
         && P1.ofTok({ isChar: true, waiting: true, charId: 'c_k' }) === null && P1.ofTok({ isChar: false, charId: 'c_k' }) === null && P0.ofTok({ isChar: true, charId: 'c_k' }) === null && P1.ofTok({ isChar: true, charId: '__proto__', pl: { color: '#000000' } }) !== undefined);
     const el = { style: { fontFamily: 'X', color: 'Y' } }; P1.dress(el, { font: 'Cinzel', color: '#ABCDEF' }); const a1 = J(el.style); P1.dress(el, null); const a2 = J(el.style); P1.dress(el, { font: 'Arial; color: red', color: 'red' }); const a3 = J(el.style);
-    check('dress sets an element’s font through fontCss and its colour as the cleaned colour, and clears both for none or for a look that does not clean',
+    check('dress sets an element’s font through fontCss and its color as the cleaned color, and clears both for none or for a look that does not clean',
         a1 === J({ fontFamily: '"Cinzel", serif', color: '#abcdef' }) && a2 === J({ fontFamily: '', color: '' }) && a3 === J({ fontFamily: '', color: '' }) && P1.dress(null, {}) === null, J([a1, a2, a3]));
     check('sig names a look for a redraw’s comparison, the same for the same look whatever its spelling', P1.sig({ font: 'cinzel', color: '#ABCDEF' }) === P1.sig({ font: 'Cinzel', color: '#abcdef' }) && P1.sig(null) === '' && P1.sig({ font: 'Lora' }) !== P1.sig({ font: 'Cinzel' }));
     // ---- the host's branch for a player's change, run for real
@@ -88,21 +88,21 @@ function between(src, a, b) { const i = src.indexOf(a), j = src.indexOf(b, i); r
     const cr = D.cleanRoll || null;
     if (cr) {
         const k1 = cr(Object.assign({}, base, { as: 'Kessa', pl: { font: 'Cinzel', color: '#ABCDEF' } })), k2 = cr(Object.assign({}, base, { pl: { font: 'Cinzel' } })), k3 = cr(Object.assign({}, base, { as: 'Kessa', pl: { font: 'Cinzel"; x', color: 'red', more: 1 } }));
-        check('a roll card keeps the look of the character it names, cleaned (a font’s plain name, a #rrggbb colour in lower case), and none with no character named or for a look that does not clean',
+        check('a roll card keeps the look of the character it names, cleaned (a font’s plain name, a #rrggbb color in lower case), and none with no character named or for a look that does not clean',
             k1 && J(k1.pl) === J({ font: 'Cinzel', color: '#abcdef' }) && k2 && !('pl' in k2) && k3 && !('pl' in k3), J([k1 && k1.pl, k2 && k2.pl, k3 && k3.pl]));
     } else check('dicecore publishes cleanRoll', false);
     const di = read('scripts/dice.js'), wb = read('scripts/whiteboard.js'), cl = read('scripts/charlist.js'), dc = read('scripts/dicecore.js');
-    check('a card says the name it was made as in that character’s look, edged in its colour, through asTag (the tag as it always was where asTag is not at hand); dicecore cleans the look on a roll, an apply and a due card alike',
+    check('a card says the name it was made as in that character’s look, edged in its color, through asTag (the tag as it always was where asTag is not at hand); dicecore cleans the look on a roll, an apply and a due card alike',
         di.includes("function asTag(word, rec, card) {") && (di.match(/typeof asTag === 'function' \? asTag\('(as|for) ', rec, wrap\)/g) || []).length === 4 /* 1.6.2 Assist: the help card too (moved on purpose) */ && di.includes("card.style.boxShadow = 'inset 0 0 0 1px ' + rec.pl.color;")
         && (dc.match(/var plC = cleanPl\(rec\.pl\); if \(plC && as\) out\.pl = plC;/g) || []).length === 4 /* 1.6.2 Assist: the help card too (moved on purpose) */);
     check('the host names a card’s character with its look where it names it from its record (seven places, a crew press none), through plOn asked by typeof',
         (net.match(/if \(typeof plOn === 'function'\)( && !\(typeof pressQ[^)]*\)\))? plOn\(rec[A-Za-z]*, ch[A-Za-z]*\);|typeof plOn === 'function' && !\(typeof pressQ !== 'undefined' && pressQ\)\) plOn\(recQ, chQ\);/g) || []).length >= 6 && net.includes('function plOn(rec, ch) {'));
-    check('the hover card’s name, a token’s initials (the font alone, so a plate of the same colour never hides them), the turn strip’s and the roster’s names, and the Characters section’s rows wear the look; the section is drawn again when a look changes',
+    check('the hover card’s name, a token’s initials (the font alone, so a plate of the same color never hides them), the turn strip’s and the roster’s names, and the Characters section’s rows wear the look; the section is drawn again when a look changes',
         wb.includes("ttName.textContent = cname; if (window.wpPlook) window.wpPlook.dress(ttName, window.wpPlook.ofTok(wItem));") && (wb.match(/window\.wpPlook\.fontOn\(ini[EL][a-z]*, window\.wpPlook\.ofTok\(item\)\)/g) || []).length === 2
         && wb.includes("var stL = typeof nameCss === 'function' ? nameCss(tokId) : ''; if (stL) t = '<span class=\"plook-name\" style=\"' + esc(stL) + '\">' + t + '</span>';") && wb.includes('function nameCss(tokId) {')
         && cl.includes("window.wpPlook.dress(tN, window.wpPlook.ofCharId(r.id))") && cl.includes("window.wpPlook.sig(window.wpPlook.ofCharId(r.id))"));
     const P2 = mkP(campA, true);
-    check('css gives a look as style text for a name written as markup, the font through fontCss and the colour as cleaned, nothing that could end the attribute (the caller escapes it too); fontOn sets the font alone',
+    check('css gives a look as style text for a name written as markup, the font through fontCss and the color as cleaned, nothing that could end the attribute (the caller escapes it too); fontOn sets the font alone',
         P2.css({ font: 'cinzel', color: '#ABCDEF' }) === 'font-family:"Cinzel", serif;color:#abcdef;' && P2.css(null) === '' && P2.css({ font: 'Arial', color: 'red' }) === ''
         && (() => { const e = { style: { fontFamily: '', color: 'keep' } }; P2.fontOn(e, { font: 'Lora', color: '#000000' }); return e.style.fontFamily === '"Lora", serif' && e.style.color === 'keep'; })());
     const cssT = read('style.css');

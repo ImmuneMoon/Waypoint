@@ -22,7 +22,7 @@ const app = p => path.join(__dirname, '..', 'system', 'app', p), read = p => fs.
         wp_hostId: 'u_host', wp_gmSign: J({ priv: { d: 'x' } })
     };
     const pk = P.packOf(store, rules, 1700000000000);
-    check('a pack from this computer\'s stores: the profile by whitelist (its id, its name with control characters taken out, its colour, its picture and token face only by the app\'s own rules), the table keys that are keys, the GMs\' pins as their four public fields alone, the room codes as the app keeps them; never the host id or the GM\'s signing key',
+    check('a pack from this computer\'s stores: the profile by whitelist (its id, its name with control characters taken out, its color, its picture and token face only by the app\'s own rules), the table keys that are keys, the GMs\' pins as their four public fields alone, the room codes as the app keeps them; never the host id or the GM\'s signing key',
         pk && pk.kind === 'waypoint-profile' && pk.v === 1 && pk.at === 1700000000000 && J(pk.profile) === J({ id: 'u_kael01', name: 'Kael of the Reeds', color: '#a1b2c3', avatar: 'data:image/png;base64,AAAA', face: 'emoji:x' })
         && J(pk.tableKeys) === J({ u_gm1: '0123456789abcdef0123456789abcdef' }) && J(pk.gmPins) === J({ u_gm1: pin('A') }) && J(pk.gmRooms) === J({ c_abcde12345: 'u_gm1' })
         && J(Object.keys(pk)) === J(['kind', 'v', 'at', 'profile', 'tableKeys', 'gmPins', 'gmRooms']) && !J(pk).includes('u_host') && !J(pk).includes('secret') && !J(pk).includes('"d"'), J(pk));
@@ -58,7 +58,7 @@ const app = p => path.join(__dirname, '..', 'system', 'app', p), read = p => fs.
     const sl = st.slice(st.indexOf('// [settings:profcarry-start]'), st.indexOf('// [settings:profcarry-end]'));
     const ids = ['setProfSaveBtn', 'setProfOpenBtn', 'setProfCopyBtn', 'setProfPasteBtn', 'setProfFile'];
     const pw = ix.slice(ix.indexOf('<div id="profileModal"'), ix.indexOf('<div id="settingsModal"'));
-    check('the Profile window holds the four buttons and the file picker once each in the page (in Settings\' Profile group until 1.6.0\'s Profile window, moved on purpose), each saying what it does in its tooltip, with a grey line that says to keep the file and the code private and that your own table stays as it is',
+    check('the Profile window holds the four buttons and the file picker once each in the page (in Settings\' Profile group until 1.6.0\'s Profile window, moved on purpose), each saying what it does in its tooltip, with a gray line that says to keep the file and the code private and that your own table stays as it is',
         ids.every(id => ix.split('id="' + id + '"').length === 2 && pw.includes('id="' + id + '"')) && pw.length > 3000 && ids.every(id => new RegExp('id="' + id + '"[^>]* title="[^"]{30,}"').test(pw))
         && ix.includes('Keep the file and the code private: they let someone join as you. Your own table, if you host one, stays as it is.'), ids.map(id => ix.split('id="' + id + '"').length));
     check('the wiring: settings.js imports the module; nothing changes during a table; opening asks first with the buttons alone; the host id is made from the profile here before anything is written; each write goes through openWrites; the settings file follows; every step logs as profile v1; the core reads no storage and no page',

@@ -71,7 +71,7 @@ const n = api.chipsDraw(d), chips = P.help.querySelectorAll('.help-chip');
 check('Help draws a chip for each mark whose control is in the page, and leaves the bold words where it is not', n === 4 && chips.length === 4 && P.pane.kids[3].textContent === 'Gone' && P.pane.kids[3].querySelector('.help-chip') === null && chips[0].getAttribute('role') === 'button' && chips[0].getAttribute('tabindex') === '0' && chips[0].dataset.tip === 'Show me Rules.' && chips[0].getAttribute('aria-label') === 'Rules', J(chips.map(c => [c.dataset.ctl, c.dataset.tip])));
 check('drawn again, a chip is made again in place, never a second one', api.chipsDraw(d) === 4 && P.help.querySelectorAll('.help-chip').length === 4 && P.pane.kids[0].kids.length === 1);
 const G = page({ gm: false }); api.chipsDraw(G.doc); const gc = G.help.querySelectorAll('.help-chip');
-check('on a player’s screen the chip is drawn greyed, takes no focus and says why', gc.length === 4 && gc.every(c => c.classList.contains('help-chip-off') && c.getAttribute('tabindex') === '-1' && c.getAttribute('aria-disabled') === 'true') && gc[1].dataset.tip === 'Save. The GM’s.');
+check('on a player’s screen the chip is drawn grayed, takes no focus and says why', gc.length === 4 && gc.every(c => c.classList.contains('help-chip-off') && c.getAttribute('tabindex') === '-1' && c.getAttribute('aria-disabled') === 'true') && gc[1].dataset.tip === 'Save. The GM’s.');
 // ---- pressed
 const go1 = api.chipGo(d, 'sys-tab:rules');
 check('pressed, Help steps aside, the window opens by its own button, the tab is pressed, the control is brought into view and lit, and Back to Help is shown',
@@ -113,7 +113,7 @@ function rowPage(opts) {
     const n2 = api.chipsDraw(T.doc), cs = T.help.querySelectorAll('.help-chip');
     check('a chip says itself in Help\u2019s own words, the menu row\u2019s other words left out; a control of the GM\u2019s is in reach for the GM', n2 === 3 && cs[1].dataset.tip === 'Show me More.' && !cs[2].classList.contains('help-chip-off'), JSON.stringify(cs.map(c => c.dataset.tip)));
     const Tp = rowPage({ player: true }); api.chipsDraw(Tp.doc); const cp = Tp.help.querySelectorAll('.help-chip');
-    check('on a player\u2019s app a control of the GM\u2019s is drawn greyed and says so', cp[2].classList.contains('help-chip-off') && cp[2].dataset.tip === 'Snapshot. The GM\u2019s.' && !cp[0].classList.contains('help-chip-off'), JSON.stringify(cp.map(c => c.dataset.tip)));
+    check('on a player\u2019s app a control of the GM\u2019s is drawn grayed and says so', cp[2].classList.contains('help-chip-off') && cp[2].dataset.tip === 'Snapshot. The GM\u2019s.' && !cp[0].classList.contains('help-chip-off'), JSON.stringify(cp.map(c => c.dataset.tip)));
 }
 {
     const W = rowPage(); W.saveAs.appendChild(mk('span', { text: '13 kinds' })); W.help.querySelectorAll('b')[0].textContent = 'Restore points\u2026'; W.help.querySelectorAll('b')[0].setAttribute('data-ctl', '#saveAsBtn');
@@ -135,7 +135,7 @@ function rowPage(opts) {
     const fK = api.chipFind(doc, '#setKeysResetBtn'), fJ = api.chipFind(doc, '#netJoinBtn'), fP = api.chipFind(doc, '#netPauseBtn');
     check('fold 3: a control of Settings or Multiplayer names its window; one in a part a button of the window opens is in reach, and one in a part shown only at times says when', fK.win === 'settingsModal' && fJ.win === 'netModal' && api.chipReach(doc, fK) === '' && api.chipReach(doc, fJ) === '' && api.chipReach(doc, fP) === 'While you host', J([fK.win, fJ.win, api.chipReach(doc, fP)]));
     api.chipsDraw(doc); const cs3 = help.querySelectorAll('.help-chip');
-    check('a chip of a control shown only at times is drawn greyed and says why', cs3[2].classList.contains('help-chip-off') && cs3[2].dataset.tip === 'Pause the table. While you host.' && !cs3[0].classList.contains('help-chip-off'), J(cs3.map(c => c.dataset.tip)));
+    check('a chip of a control shown only at times is drawn grayed and says why', cs3[2].classList.contains('help-chip-off') && cs3[2].dataset.tip === 'Pause the table. While you host.' && !cs3[0].classList.contains('help-chip-off'), J(cs3.map(c => c.dataset.tip)));
     timers.length = 0; const gK = api.chipGo(doc, '#setKeysResetBtn'); const openNow = set.style.display === 'flex' && det.open === false; timers.filter(x => x[1] === 0).forEach(x => x[0]());
     check('pressed, Settings opens at once, and a moment after its group unfolds and the control is brought into view and lit', gK === true && openNow && det.open === true && fK.el.classList.contains('help-found') && fK.el.scrolled === 1);
     timers.length = 0; const gJ = api.chipGo(doc, '#netJoinBtn'); timers.filter(x => x[1] === 0).forEach(x => x[0]());
@@ -169,7 +169,7 @@ check('every mark Help carries is a key of the chips’ own form, and names a bu
     timers.length = 0; const gB = api.chipGo(B.doc, '#fogLightPlace'); timers.filter(x => x[1] === 0).forEach(x => x[0]());
     check('pressed, Help steps aside, the options open by their arrow and the fold by its button, and the row is lit', gB === true && B.help.style.display === 'none' && B.menu.classList.contains('show') && B.body.hidden === false && fL.el.classList.contains('help-found') && fL.el.scrolled === 1);
     const says = (o, k) => api.chipReach(mkBar(o).doc, api.chipFind(mkBar(o).doc, k));
-    check('a row the options fill as they open greys no chip: only a part named as shown at times does', (() => { const C = mkBar({}), row = mk('div', { id: 'fogLightRow', style: { display: 'none' } }); const lp = C.doc.getElementById('fogLightPlace'); C.body.appendChild(row); row.appendChild(lp); return api.chipReach(C.doc, api.chipFind(C.doc, '#fogLightPlace')); })() === '');
+    check('a row the options fill as they open grays no chip: only a part named as shown at times does', (() => { const C = mkBar({}), row = mk('div', { id: 'fogLightRow', style: { display: 'none' } }); const lp = C.doc.getElementById('fogLightPlace'); C.body.appendChild(row); row.appendChild(lp); return api.chipReach(C.doc, api.chipFind(C.doc, '#fogLightPlace')); })() === '');
     check('a chip says why where it cannot reach: the toolbar on another view, a GM\u2019s tool on a player\u2019s app, a tool that does not show, and a row shown only at times',
         says({ barOff: true }, '#fogRevealAll') === 'On the play map' && says({ gm: true, player: true }, '#fogRevealAll') === 'The GM\u2019s' && says({ toolOff: true }, '#fogRevealAll') === '' && says({}, '#drawShowAsk') === 'On a player\u2019s screen'
         && (() => { const C = mkBar({}); C.chev.style.display = 'none'; return api.chipReach(C.doc, api.chipFind(C.doc, '#fogRevealAll')); })() === 'Not on this screen', J([says({ barOff: true }, '#fogRevealAll'), says({ gm: true, player: true }, '#fogRevealAll'), says({ toolOff: true }, '#fogRevealAll'), says({}, '#drawShowAsk')]));

@@ -13,7 +13,7 @@
    - the system browser is sent to this project's own release pages only;
    - the dev server never updates the source tree it runs from;
    - every page of the app is answered with a policy naming what it may run and load: only the app's own files, no script
-     written into the page, nothing from another address but the signalling server a table is brokered through.
+     written into the page, nothing from another address but the signaling server a table is brokered through.
 
    Nothing here reads the network. install() takes the electron module as an argument, so a recording stand-in can be given. */
 'use strict';
@@ -171,15 +171,15 @@ function editMenuTemplate(params) {
 // stream window and a pop-out are the same page). Script comes from the app's own files only: no script written into the
 // page, no handler attribute, no text run as code — so markup that slips past a cleaner stays markup. Styles may be
 // written inline (the app sets them everywhere); pictures, sound and video are the app's own files, data: and blob:; fonts
-// the app's own; a request goes to the app's own server, to data: and blob:, and to the signalling server a table is
+// the app's own; a request goes to the app's own server, to data: and blob:, and to the signaling server a table is
 // brokered through (SIGNAL_HOST: the address the bundled connection library dials — the relay and the peers themselves are
 // not requests of the page). No frame, no plug-in, no <base>, no form target, no worker, and no page may frame the app.
 // Developer mode (the person at this machine switched it on, after a warning) adds one thing and nothing else: text run as
 // code, which is what the in-app console does. dev counts only as exactly true.
 const SIGNAL_HOST = '0.peerjs.com';
-// 1.6.2 (backlog 220; the owner, by prompt: "Yes, after the fonts", switched on "by the website and a settings option"): the app's own signalling
+// 1.6.2 (backlog 220; the owner, by prompt: "Yes, after the fonts", switched on "by the website and a settings option"): the app's own signaling
 // server, allowed beside the public one so that turning it on needs no new release. Off by default: the app dials it only while the play host's
-// /api/version names it (web.signal) or Settings' Own signalling server is ticked. Once it is live a later release names it alone
+// /api/version names it (web.signal) or Settings' Own signaling server is ticked. Once it is live a later release names it alone
 const SIGNAL_OWN = 'signal.waypointvtt.com';
 function pagePolicy(dev) {
     return [

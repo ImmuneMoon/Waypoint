@@ -878,7 +878,7 @@ function journalFilter() {
         sec.classList.toggle('as-tab', sec === sc.pers && !every);
         sec.style.display = sc.shown(sec) && (any || sec === sc.at) ? '' : 'none';   // the journal shown keeps its head and its tabs when a search finds nothing in it
     });
-    var clrF = ui('journalClearBtn'), secF = sc.pers || sc.at, nF = secF ? secF.querySelectorAll('.journal-entry').length : 0;   // the viewing of 2026-11-09: Clear journal greys out where the journal shown holds nothing, with its reason
+    var clrF = ui('journalClearBtn'), secF = sc.pers || sc.at, nF = secF ? secF.querySelectorAll('.journal-entry').length : 0;   // the viewing of 2026-11-09: Clear journal grays out where the journal shown holds nothing, with its reason
     if (clrF) { clrF.disabled = !nF; clrF.title = nF ? 'Empty the journal shown on this computer. It asks first. Senders keep their copies.' : 'Nothing in this journal to clear'; }
 }
 // [sinkcheck:journalfilter-end]
@@ -1194,7 +1194,7 @@ function renderHandouts() {
     var rooms = [];
     Object.values(camp.items).forEach(function(m) { if (m.type !== 'map') return; (m.rooms || []).forEach(function(r) { if (r.handoutId) rooms.push({ hid: r.handoutId, label: (r.name || 'room') + ' · ' + (m.meta && m.meta.title || m.id) }); }); });
     // Give-to targets: only THIS campaign's registered players (camp.players never crosses campaigns),
-    // labelled by the character they play. Connected players get a handout at once; others when they join.
+    // labeled by the character they play. Connected players get a handout at once; others when they join.
     var givePlayers = Object.keys(camp.players || {})
         .filter(function(pid) { return !(camp.bannedPlayers && camp.bannedPlayers[pid]); })
         .map(function(pid) { var p = camp.players[pid] || {}, pa = playsOf(camp, pid, p); return { id: pid, label: pa ? (pa + ' — ' + (p.name || pid)) : (p.name || pid) }; })

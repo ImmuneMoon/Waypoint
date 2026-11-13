@@ -528,7 +528,7 @@ if(_el_exportImgBtn) _el_exportImgBtn.addEventListener('click', function() {
 
       if(isDocLike(activeMap)) {
 
-          target = document.getElementById('plannerPreviewWrap'); opts.onclone = function(d) { Array.prototype.forEach.call(d.querySelectorAll('.diagram'), function(x) { x.style.background = '#fbfbfd'; }); };   // a picture of the page draws a chart's own colours alone, so it stays on its light block
+          target = document.getElementById('plannerPreviewWrap'); opts.onclone = function(d) { Array.prototype.forEach.call(d.querySelectorAll('.diagram'), function(x) { x.style.background = '#fbfbfd'; }); };   // a picture of the page draws a chart's own colors alone, so it stays on its light block
 
       } else {
 
@@ -960,7 +960,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
   });
 
-  // The same judgement the load applies to the save, on a file being imported: a campaign that is certainly a
+  // The same judgment the load applies to the save, on a file being imported: a campaign that is certainly a
   // player's view of someone else's table is left out; one we are not sure about is asked about by name; the
   // cleanup's own keys never come in. Resolves to false when nothing is left to bring in.
   async function screenImport(data) {
@@ -1102,7 +1102,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       var name = (nm && nm.value || '').trim(), patch = { color: (col && col.value) || '' };
       if (name || !(wcProfile().name || '').trim()) patch.name = name;   // an empty box never blanks a stored name (a name is how the table knows you; hosting needs it)
       if (window.wpNet && window.wpNet.setProfile) window.wpNet.setProfile(patch);
-      if (window.wpFaces) window.wpFaces.paintRows();   // Onboarding F1b: the token face preview follows the colour
+      if (window.wpFaces) window.wpFaces.paintRows();   // Onboarding F1b: the token face preview follows the color
   }
   // [tutorialcheck:wclaunch-start]
   // "Show this on launch" is set ONCE from the welcome (the owner's word, 2026-10-01): the select shows there only while the preference has never
@@ -1521,7 +1521,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
             var wx = (e.clientX - r.left - _mm.ox) / _mm.scale;
             var wy = (e.clientY - r.top - _mm.oy) / _mm.scale;
             var wrap = state.viewMode === 'data' ? document.getElementById('canvasWrap') : document.getElementById('whiteboardWrap');
-            var z = state.zoomLevel || 1, tv = state.viewMode !== 'data' && window.wpView && window.wpView.turned && window.wpView.turned() ? window.wpView.screen(wx, wy) : null;   // a turned screen: centre where the board draws that point
+            var z = state.zoomLevel || 1, tv = state.viewMode !== 'data' && window.wpView && window.wpView.turned && window.wpView.turned() ? window.wpView.screen(wx, wy) : null;   // a turned screen: center where the board draws that point
             wrap.scrollLeft = tv ? tv.x - wrap.clientWidth / 2 : wx * z - wrap.clientWidth / 2;
             wrap.scrollTop = tv ? tv.y - wrap.clientHeight / 2 : wy * z - wrap.clientHeight / 2;
         }
@@ -1874,7 +1874,7 @@ window.wpDebug = { getState: function() {
 // Frame the content: walk the bounding box of the active map's items (or just the selection) and set
 // BOTH zoom and pan so the whole box fits the viewport with a margin. "Center on items" only ever panned,
 // so anything larger than the screen still ran off the edges — this is the missing zoom half. Reached from
-// the 🎯 Center menu (Fit to content) and Shift+1. pad is in world units; setZoom re-centres on the OLD view,
+// the 🎯 Center menu (Fit to content) and Shift+1. pad is in world units; setZoom re-centers on the OLD view,
 // so the scroll must be written AFTER it. Same bbox walk and w||100/h||100 fallbacks as Center-on-Items.
 function fitView(selectionOnly) {
     var m = getActiveMap(); if(!m || m.type === 'planner') return;

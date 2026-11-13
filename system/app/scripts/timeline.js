@@ -1,6 +1,6 @@
 /* The timeline ribbon (1.6.2, backlog 166 h; the owner, 2026-11-10, by prompt: "Both" a tab in the Calendar window and a window of its own,
    "Also the sessions played", "Smoothly, centuries to days", "Players see theirs; a press opens"). One ribbon of the campaign's time: its eras
-   as coloured bands, each dated note as a mark at its day (a yearly note at each year it falls in that is in view), a mark where each session
+   as colored bands, each dated note as a mark at its day (a yearly note at each year it falls in that is in view), a mark where each session
    played began, and a line where the clock stands now. The wheel and two buttons zoom about the pointer from centuries down to single days, a
    drag or the arrow keys move along it, and a press on a mark opens its day in the Calendar. It reads the clock as calendar.js hands it over,
    so a player sees the notes and eras the GM lets them see. Nothing of it is stored. Drawn with elements and text nodes alone. Steps log as

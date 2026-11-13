@@ -662,7 +662,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             fs.mkdirSync(path.join(r, 'system', 'app'), { recursive: true });
             fs.writeFileSync(path.join(r, 'system', 'app', 'version.json'), '{"version":"0.0.0"}' + NL); fs.writeFileSync(path.join(r, 'system', 'app', 'index.html'), '<!doctype html>');
             fs.writeFileSync(path.join(r, 'README.md'), 'Current release: **0.0.0**' + NL); fs.writeFileSync(path.join(r, 'WHATSNEW.txt'), 'WAYPOINT 0.0.0' + NL + '====' + NL + NL + '- x' + NL);
-            fs.writeFileSync(path.join(r, 'Waypoint.exe'), 'MZ'); fs.writeFileSync(path.join(r, 'license.txt'), 'the licence' + NL);   // the rest of what the installer's stage takes from the top
+            fs.writeFileSync(path.join(r, 'Waypoint.exe'), 'MZ'); fs.writeFileSync(path.join(r, 'license.txt'), 'the license' + NL);   // the rest of what the installer's stage takes from the top
             return r;
         }
         const keyOf = r => { try { delete require.cache[require.resolve(path.join(r, 'system/resources/app/updatekey.js'))]; return require(path.join(r, 'system/resources/app/updatekey.js')).UPDATE_PUBKEY; } catch (e) { return null; } };
@@ -1287,7 +1287,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             const a = ix.indexOf('<div id="installerModal"'), b = ix.indexOf('<!-- VTT features at a joined table', a), modal = a > 0 && b > a ? ix.slice(a, b) : '';
             const coaching = /Run anyway|More info/i;
             check('the installer dialog no longer tells anyone to click past the Windows warning: it says the installer is not code-signed yet and to run only a Waypoint_Setup.exe downloaded through its own button or from Waypoint\'s own releases page; the other steps stand; settings.js, the README and the install instructions say no such thing either',
-                modal.length > 500 && !coaching.test(modal) && /Windows may warn that it does not recognise the publisher: Waypoint's installer is not code-signed yet\. Only run a <b>Waypoint_Setup\.exe<\/b> you downloaded through this button or from Waypoint's own releases page; if it came from anywhere else, do not run it\./.test(modal)
+                modal.length > 500 && !coaching.test(modal) && /Windows may warn that it does not recognize the publisher: Waypoint's installer is not code-signed yet\. Only run a <b>Waypoint_Setup\.exe<\/b> you downloaded through this button or from Waypoint's own releases page; if it came from anywhere else, do not run it\./.test(modal)
                 && (modal.match(/<li>/g) || []).length === 5 && /close Waypoint<\/b> and run the file/.test(modal) && /Update this copy in place/.test(modal) && !coaching.test(ix) && !coaching.test(st) && !coaching.test(rd) && !coaching.test(first) && first.length > 100
                 && /not code-signed yet/.test(rd) && /do not run it/.test(rd) && /not code-signed yet/.test(first) && /do not run it/.test(first) && /never one from anywhere else/.test(st), j([modal.length, coaching.test(modal), coaching.test(st), coaching.test(rd), coaching.test(first)]));
             const hA = ix.indexOf('id="helpModal"'), hB = ix.indexOf('<!-- An update that needs the installer'), help = hA > 0 && hB > hA ? ix.slice(hA, hB) : '';

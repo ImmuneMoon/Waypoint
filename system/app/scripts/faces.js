@@ -15,7 +15,7 @@ function wpNet() { return window.wpNet || null; }
 function mk(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 // How a face looks for this profile (net.js decides; before it has loaded, the stored picture or the silhouette)
 function viewOf(face, prof) {
-    var n = wpNet(), p = Object.assign({}, prof || {}, { face: face || '' }), col = (prof && typeof prof.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(prof.color)) ? prof.color : '#4db3d3';   // the table's colour for someone with none
+    var n = wpNet(), p = Object.assign({}, prof || {}, { face: face || '' }), col = (prof && typeof prof.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(prof.color)) ? prof.color : '#4db3d3';   // the table's color for someone with none
     if (n && n.faceView) return n.faceView(p, col);
     return { img: window.wpDefaultAvatar ? window.wpDefaultAvatar(col) : '' };
 }

@@ -40,7 +40,7 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
             { id: 'g', kind: 'count', name: 'n'.repeat(90), color: 'url(x)' }
         ];
         const out = T.cleanTrackers(raw, { maps: { m1: 1 } });
-        check('a campaign\'s trackers are cleaned (trackcore cleanTrackers, run for real): an id once and never a prototype\'s name, a known kind, a one-line name cut at 40 (a kind\'s own name when none), a colour from the fixed list by its name alone, vis only as all, nothing else kept',
+        check('a campaign\'s trackers are cleaned (trackcore cleanTrackers, run for real): an id once and never a prototype\'s name, a known kind, a one-line name cut at 40 (a kind\'s own name when none), a color from the fixed list by its name alone, vis only as all, nothing else kept',
             j(out.map(t => t.id)) === j(['a', 'b', 'd', 'e', 'f', 'g']) && out[0].name === 'Fear x' && out[0].color === 'red' && out[0].vis === 'all' && !('junk' in out[0]) && out[0].v === 4
             && out[1].name === 'Countdown' && out[1].color === 'gold' && !('vis' in out[1]) && out[5].name.length === 40 && out[5].color === 'gold', j(out));
         check('a tracker of a map that is gone goes with it; one of a map still there keeps its map; with no list of maps (a player\'s copy) the map is kept as it is',
@@ -198,7 +198,7 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
             && net.includes("pushChat({ type: 'chat', scope: 'whisper', from: { id: 'tracker', name: 'Tracker' }, text: text.slice(0, 200), ts: Date.now(), trk: true });")
             && net.includes("m.trk && window.wpTrackers && window.wpTrackers.renderLine ? window.wpTrackers.renderLine(m) : chatEntryNode(m);") && net.includes("function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !== 'whisper'; })")
             && !/msg\.type === 'trackers' && net\.role === 'host'/.test(net));
-        check('the strip draws with elements and text nodes only: no markup anywhere in trackers.js, a colour only from the fixed list, every step logged',
+        check('the strip draws with elements and text nodes only: no markup anywhere in trackers.js, a color only from the fixed list, every step logged',
             !/innerHTML|outerHTML|insertAdjacentHTML/.test(trJs) && /dot\.style\.background = hex;/.test(trJs) && /hex = T\.COLORS\[t\.color\] \|\| T\.COLORS\.gold/.test(trJs) && ['step', 'start', 'pause', 'reset', 'shown', 'where', 'remove', 'settle', 'add', 'edit', 'end', 'received', 'fold', 'form', 'fail'].every(w => trJs.includes("'" + w + "'")) && trJs.includes("window.wpStepLog('trackers v1', step, facts || {})")
             && css.includes('#trkStrip .trk-pill.trk-done {') && css.includes('#trkPanel {'));
         const help = ix.slice(ix.indexOf('<h4 id="helpTrackers">Table trackers</h4>'), ix.indexOf('<h4>Coordinate rulers &amp; minimap</h4>'));

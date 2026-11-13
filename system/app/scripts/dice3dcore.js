@@ -4,7 +4,7 @@
    page: shapes, a reader for a Wavefront model file (.obj), the turn that lands a face toward the viewer, a tumble that ends exactly on it,
    and which dice a roll's result shows. The roll itself is never made here: the animation only shows what the host made.
    A model file names each face by a group face1, face2 ... (face0 is read as the highest number, as a d10's 0 is 10), and each part by
-   its material: body, edge or number. A model with number material has its numbers modelled; one without has them drawn on its faces.
+   its material: body, edge or number. A model with number material has its numbers modeled; one without has them drawn on its faces.
    Published as window.wpDice3dCore. */
 'use strict';
 
@@ -199,7 +199,7 @@ function tumble(seed, land, x, y, still) {
         return { q: t >= 1 ? land.slice() : q, x: sx + (x - sx) * e, y: sy + (y - sy) * e, h: t >= 1 ? 0 : bounce };
     };
 }
-// where n dice rest, in rows across a space w wide (units of one die across), centred
+// where n dice rest, in rows across a space w wide (units of one die across), centered
 function layout(n, w) {
     var per = Math.max(1, Math.min(n, Math.floor((w || 6) / 1.25))), out = [], rows = Math.ceil(n / per);
     for (var i = 0; i < n; i++) { var row = Math.floor(i / per), col = i % per, inRow = Math.min(per, n - row * per); out.push({ x: (col - (inRow - 1) / 2) * 1.25, y: ((rows - 1) / 2 - row) * 1.25 }); }

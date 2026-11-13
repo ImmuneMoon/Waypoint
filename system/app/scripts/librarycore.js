@@ -162,7 +162,7 @@ export function lvlsToText(lvls) { return (Array.isArray(lvls) ? lvls : []).filt
 export function lvlsFromBox(text, was) {
     var w = Array.isArray(was) && was.length ? was : null, t = String(text == null ? '' : text).replace(/\r\n?/g, '\n');
     if (w && t === lvlsToText(w)) return JSON.parse(JSON.stringify(w));
-    var out = lvlsFromText(t); if (w) out.forEach(function(r) { var o = w.filter(function(x) { return isObj(x) && x.lvl === r.lvl; })[0]; if (o && r.tag && typeof o.tone === 'string') r.tone = o.tone; });   // 1.6.2 (180): a level's tag keeps its colour while its line is typed in
+    var out = lvlsFromText(t); if (w) out.forEach(function(r) { var o = w.filter(function(x) { return isObj(x) && x.lvl === r.lvl; })[0]; if (o && r.tag && typeof o.tone === 'string') r.tone = o.tone; });   // 1.6.2 (180): a level's tag keeps its color while its line is typed in
     return out;
 }
 export function entryFromForm(f) {
@@ -318,7 +318,7 @@ export function packImportPlan(library, targetId, incoming, mode, rnd, used) {
     res.entries.forEach(function(e) { var k = lk(e); if (mine[e.id] && k && keys[k] > 1) res.clash++; });
     return res;
 }
-// 1.6.2 (the owner: "its also important for users to have a way to create catalogues if they cant"): a row a character holds made an entry anyone
+// 1.6.2 (the owner: "its also important for users to have a way to create catalogs if they cant"): a row a character holds made an entry anyone
 // can take. rowLibJudge says why it may not be: 'none' (it has no definition), 'gm' (a GM-only item, or a copy of an entry players may not see, as
 // library.js needShown judges one, which fails closed), 'same' (a plain copy of an entry that is still there, with nothing of its own), '' where it
 // may. A row the GM keeps on its character is judged as any row of its kind. entryFromRow is the definition as the row reads it, its own values
@@ -440,9 +440,9 @@ export function itemsToMove(sys, keepIds, taken, inPack, ctx) {
 }
 // L3's index row (a picker lists thousands of these): [id, key, name, category, icon, tags, hash] from a players'-view entry, and
 // its cleaner (a client takes nothing else from a host). 126b: an entry that needs something players may see has an eighth place, those
-// needs, so a player's picker greys the row before the entry is opened; an entry that needs nothing keeps its row of seven. A client
+// needs, so a player's picker grays the row before the entry is opened; an entry that needs nothing keeps its row of seven. A client
 // takes a row of eight only when that place cleans to at least one need
-export function indexRow(e) { var r = [e.id, e.key || '', e.name, e.category || '', e.icon || '', Array.isArray(e.tags) ? e.tags.slice() : [], entryHash(e)]; if (e.needsWarn === true) return r;   /* 1.6.2 (167 C): needs that only warn grey no picker */ var nd = cleanNeeds(e.needs), rl = typeof e.needsIf === 'string' && e.needsIf && typeof e.needsFrom !== 'number' ? e.needsIf : ''; if (rl) { r.push(nd || null); r.push(rl); } else if (nd) r.push(nd); return r; }   // a ninth place: the entry's rule, after its needs or null
+export function indexRow(e) { var r = [e.id, e.key || '', e.name, e.category || '', e.icon || '', Array.isArray(e.tags) ? e.tags.slice() : [], entryHash(e)]; if (e.needsWarn === true) return r;   /* 1.6.2 (167 C): needs that only warn gray no picker */ var nd = cleanNeeds(e.needs), rl = typeof e.needsIf === 'string' && e.needsIf && typeof e.needsFrom !== 'number' ? e.needsIf : ''; if (rl) { r.push(nd || null); r.push(rl); } else if (nd) r.push(nd); return r; }   // a ninth place: the entry's rule, after its needs or null
 export function cleanIndexRow(r, F) {   // F: the formula engine, for a row of nine (its rule must be a formula with no dice)
     if (!Array.isArray(r) || r.length < 7 || r.length > 9 || typeof r[0] !== 'string' || !ITEM_RE.test(r[0])) return null;
     var key = typeof r[1] === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(r[1]) ? r[1] : '', tags = Array.isArray(r[5]) ? r[5].map(function(t) { return line(t, LIB.tag); }).filter(Boolean).slice(0, LIB.tags) : [];

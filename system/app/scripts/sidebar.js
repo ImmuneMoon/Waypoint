@@ -260,14 +260,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   })();
   // [lookcheck:opensmenu-end]
   // Right-click → Move Up / Move Down. Wired once to the static menu items; the open handler
-  // in updateSidebarNav decides which are shown and greys out the ends of a list.
+  // in updateSidebarNav decides which are shown and grays out the ends of a list.
   (function wireMoveMenu() {
       var up = document.getElementById('ctxMoveUp'), down = document.getElementById('ctxMoveDown'), menu = document.getElementById('sidebarContextMenu');
       function go(dir) {
           return function() {
               if (!menu) return;
               menu.style.display = 'none';   // close on any click, like every other menu item
-              if (this.classList.contains('disabled')) return;   // greyed at the end of a list: no-op
+              if (this.classList.contains('disabled')) return;   // grayed at the end of a list: no-op
               moveItem(menu.dataset.id, dir);
           };
       }
@@ -544,7 +544,7 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
                     childBtn.style.display = isTreeItem(it) ? 'block' : 'none';
                     if (it) childBtn.textContent = it.type === 'planner' ? '+ New Child Planner' : it.type === 'doc' ? '+ New Child Page' : '+ New Child Map';
                 }
-                // Move Up / Move Down: shown for any map or planner, greyed at the ends of its sibling list.
+                // Move Up / Move Down: shown for any map or planner, grayed at the ends of its sibling list.
                 var isOrderable = isTreeItem(it);
                 var moveUp = document.getElementById('ctxMoveUp'), moveDown = document.getElementById('ctxMoveDown');
                 if (moveUp && moveDown) {

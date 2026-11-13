@@ -23,7 +23,7 @@ const J = JSON.stringify;
     // what stands on the ribbon
     const ck = { t: 100 * dl, notes: [{ id: 'n_1', day: 40, text: 'Flood' }, { id: 'n_2', day: 10, text: 'Feast', yearly: true }], eras: [{ id: 'e_aaaaaaaa', name: 'Floods', from: 1, to: 2, color: '#123456' }, { id: 'e_bbbbbbbb', name: 'Now', from: 3, color: 'nope' }], played: [{ t: 50 * dl + dl / 2, at: 7 }] };
     const it = T.tlItems(cal, ck);
-    check('166 h what stands on the ribbon (tlItems, run for real): now as a day, each era from the first day of its first year to the first day of the year after its last (still going with no end), its colour or the gold, the notes and the sessions played as days',
+    check('166 h what stands on the ribbon (tlItems, run for real): now as a day, each era from the first day of its first year to the first day of the year after its last (still going with no end), its color or the gold, the notes and the sessions played as days',
         it.today === 100 && it.eras.length === 2 && it.eras[0].d0 === 0 && it.eras[0].d1 === 2 * yd && it.eras[1].d0 === 2 * yd && it.eras[1].d1 === null && it.eras[0].color === '#123456' && it.eras[1].color === '#c9a227'
         && it.notes.length === 2 && J(it.sessions) === J([{ day: 50.5, at: 7 }]) && T.tlItems(plain, { t: 0, eras: ck.eras }).eras.length === 0, J(it.eras));
     const oc = T.tlOccur(cal, ck.notes, 0, 3 * yd);

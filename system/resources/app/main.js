@@ -359,7 +359,7 @@ const server = http.createServer((req, res) => {
         root = path.join(app.getAppPath(), '..', '..', 'app');
         filePath = path.join(root, p);
     }
-    // Defence in depth (the renderer's asset gate is the first line): whatever the URL parser made of dot segments or
+    // Defense in depth (the renderer's asset gate is the first line): whatever the URL parser made of dot segments or
     // encodings above, the resolved file must sit INSIDE its root (saves/ or the app folder) — anything that escapes is
     // refused, never served.
     root = path.resolve(root); filePath = path.resolve(filePath);
@@ -420,7 +420,7 @@ waitForInstanceLock(8000, function() {
                 // The renderer is a web page and nothing more: no Node, isolated context, OS sandbox. These are
                 // Electron's defaults for a window without a preload, stated here so an Electron upgrade can never
                 // quietly change them — content from another table or an imported file runs with web powers only.
-                // A window that is minimised or covered keeps its timers at full pace: it holds a live table, and a GM's window held back loses its players and turns new ones away.
+                // A window that is minimized or covered keeps its timers at full pace: it holds a live table, and a GM's window held back loses its players and turns new ones away.
                 webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, webviewTag: false, backgroundThrottling: false }
             });
             win.loadURL(`http://localhost:${port}`);

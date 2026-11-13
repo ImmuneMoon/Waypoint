@@ -55,7 +55,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
 
   // Page layout (HANDBOOK_PLAN 2.3): every image, callout, flare, table, diagram and flowchart block on a
-  // page may carry layout { width, float, dx, dy, span }; a Section (H2) carries cols. The editor greys
+  // page may carry layout { width, float, dx, dy, span }; a Section (H2) carries cols. The editor grays
   // what a section forbids (span => no float; a callout or flare inside a multi-column section neither
   // floats nor drops under half the column) and docrender.cleanDoc applies the same rules on the wire.
   var LAYOUT_TYPES = { image: 1, callout: 1, flare: 1, table: 1, diagram: 1, flowchart: 1 };
@@ -206,7 +206,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // [textcheck:pbeadd-end]
   // [textcheck:pbebar-start]
   // One bar at the top (1.6.2, backlog 171; the owner, by prompt: "One bar at the top"). Each text block keeps its own bar in the page, so
-  // what a press does is wired as it always was; only the bar of the block in use shows, held at the top of the editor, over a greyed
+  // what a press does is wired as it always was; only the bar of the block in use shows, held at the top of the editor, over a grayed
   // copy that stands there while no text block is in use
   function pbeBarSlot(wrap) {
       var slot = document.getElementById('pbeBarSlot');
@@ -233,7 +233,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function pbeBarOn(wrap, rte) {
       Array.prototype.forEach.call(wrap.querySelectorAll('.rte.rte-on'), function(o) { if (o !== rte) o.classList.remove('rte-on'); });
       if (rte) { pbeBarPlace(wrap); rte.classList.add('rte-on'); }
-      wrap.classList.toggle('pbe-bar-on', !!rte); if (document.body) document.body.classList.toggle('pbe-bar-on', !!rte);   // the greyed copy steps aside wherever it stands
+      wrap.classList.toggle('pbe-bar-on', !!rte); if (document.body) document.body.classList.toggle('pbe-bar-on', !!rte);   // the grayed copy steps aside wherever it stands
   }
   function pbeBarWire(wrap) {
       if (!wrap || wrap._pbeBar) return; wrap._pbeBar = true;
@@ -489,7 +489,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // in the box after the edit — it tells a run of equal characters where the edit was. inputType: the edit's own kind. The boxes cancel the
   // engine's own undo and redo (a box is drawn by the app, so every Ctrl+Z is the planner's history); should a historyUndo / historyRedo ever
   // arrive all the same, its text is carried with nothing joined. A field that never had a format gets none.
-  // What is typed right after a styled part joins it: its colour, bold, italic, underline, strike and size. A LINK does not grow that way —
+  // What is typed right after a styled part joins it: its color, bold, italic, underline, strike and size. A LINK does not grow that way —
   // typed at a link's end it takes the rest of that part's look and is not linked; typed inside a link it is linked. That one rule is this
   // constant: set it true and a link grows by typing at its end as everything else does.
   var TS_LINK_GROWS = false;
@@ -718,7 +718,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }, true);
   }
   function tsSig(r) { return [r.color, r.b === true ? 1 : 0, r.i === true ? 1 : 0, r.u === true ? 1 : 0, r.st === true ? 1 : 0, r.size, r.link].join('|'); }
-  // One run as an element: its text in a text node, its look through the element's style from the cleaned values only — a strict colour, fixed
+  // One run as an element: its text in a text node, its look through the element's style from the cleaned values only — a strict color, fixed
   // words for weight, slant, underline and strike, one of the four size steps. A linked run looks like a link and is none: a span is not
   // followed, and its address is its title.
   function tsRunEl(r) {
@@ -814,7 +814,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      goes away when the focus leaves both the box and the bar; it shifts nothing, follows its box as the panel scrolls, and points at no box
      once the editor is rebuilt (tsRebuilt). Its controls are a text block's, in a text block's look: B, I, U, S, the ink row with Custom and
      Default, Size, Link, Clear and the symbol tray. A press acts on the selected characters, or on the whole field with nothing selected. The
-     buttons never take the focus (mousedown is swallowed, as the text blocks' bar does it); the Size list, the custom colour and the Link box
+     buttons never take the focus (mousedown is swallowed, as the text blocks' bar does it); the Size list, the custom color and the Link box
      must, so the box's selection is remembered for them and comes back with the focus. A link is a web address typed into the Link box
      (Enter, or leaving the box, sets it; Escape drops what was typed; an empty box takes the link off). A flowchart label never holds one:
      on a NODE's label the Link box links the whole node — the node's own link, whatever is selected in the label, and its title says so —
@@ -1010,14 +1010,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       return tsInsertAt(box, tsIncoming(text, tsMulti(tsDesc(box))), sel.s, sel.e, inputType);
   }
   // Before the engine edits a box. What it would do to the box that the app does itself — a line break, a paste, a drop, its own undo and
-  // redo, its own bold — is cancelled here; a one-line field takes no line break at all.
+  // redo, its own bold — is canceled here; a one-line field takes no line break at all.
   function tsBefore(e) {
       var box = tsBoxOf(e.target); if (!box) return;
       var it = String(e.inputType || '');
       if (tsState.comp) return;   // a composition is the engine's until it ends
       tsState.pre = tsSelOf(box);
       // a host's box keeps steps of its own, never the planner's history. The browser has ONE undo stack a document, so an undo asked for in another field
-      // can land here: it is cancelled and changes nothing in a box that does not have the focus (a planner field that asked takes its own step when the browser stays silent)
+      // can land here: it is canceled and changes nothing in a box that does not have the focus (a planner field that asked takes its own step when the browser stays silent)
       if ((it === 'historyUndo' || it === 'historyRedo') && tsHostOf(box)) { e.preventDefault(); if (document.activeElement === box) tsxUndo(box, it === 'historyUndo' ? 'undo' : 'redo'); return; }
       if (it === 'historyUndo' || it === 'historyRedo') { e.preventDefault(); boxUndo(it === 'historyUndo' ? 'undo' : 'redo'); return; }   // the browser's undo stack is one per document: a Ctrl+Z left to it in another field can land here
       if (it === 'insertParagraph' || it === 'insertLineBreak') { e.preventDefault(); if (tsMulti(tsDesc(box))) tsInsert(box, '\n', it); return; }
@@ -1544,10 +1544,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       E.s = btn('st', 's', 'S', 'Strike through' + TS_SCOPE);
       root.appendChild(mk('span', 'rte-sep'));
       E.swatches = TF.PALETTE.map(function(p) { var sw = mk('button', 'rte-sw', '', p[1] + TS_SCOPE); sw.type = 'button'; sw.tabIndex = -1; sw.dataset.color = p[0]; sw.style.background = p[0]; root.appendChild(sw); return sw; });
-      E.customWrap = mk('label', 'rte-sw rte-custom ts-custom', '', 'Custom colour' + TS_SCOPE);
+      E.customWrap = mk('label', 'rte-sw rte-custom ts-custom', '', 'Custom color' + TS_SCOPE);
       E.custom = mk('input', 'rte-colorpick'); E.custom.type = 'color'; E.custom.value = '#d9534f'; E.custom.tabIndex = -1;
       E.customWrap.appendChild(E.custom); root.appendChild(E.customWrap);
-      E.nocolor = mk('button', 'rte-btn rte-nocolor', 'Default', 'The default colour' + TS_SCOPE); E.nocolor.type = 'button'; E.nocolor.tabIndex = -1; E.nocolor.dataset.ts = 'nocolor';
+      E.nocolor = mk('button', 'rte-btn rte-nocolor', 'Default', 'The default color' + TS_SCOPE); E.nocolor.type = 'button'; E.nocolor.tabIndex = -1; E.nocolor.dataset.ts = 'nocolor';
       root.appendChild(E.nocolor); root.appendChild(mk('span', 'rte-sep'));
       var sizeLab = mk('label', 'ts-sizelab', 'Size ', 'Size' + TS_SCOPE);
       E.size = mk('select', 'rte-size'); E.size.tabIndex = -1;
@@ -1578,7 +1578,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       E.scope = mk('span', 'ts-scope'); root.appendChild(E.scope);
       host.appendChild(root);
       tsState.els = E;
-      // the buttons never take the focus: the box keeps its selection. The size list, the colour picker and the link box must take it; the press then acts on what was remembered
+      // the buttons never take the focus: the box keeps its selection. The size list, the color picker and the link box must take it; the press then acts on what was remembered
       root.addEventListener('mousedown', function(e) { tsState.key = false; var t = e.target; if (t === E.size || t === E.font || t === E.custom || t === E.link || (t && t.tagName === 'OPTION')) { tsTarget(); return; } e.preventDefault(); });
       // the keyboard in the bar: Tab and Shift+Tab move along it; a control pressed from it keeps the focus (tsPress); Escape — and Enter in the
       // Size list — goes back to the box; Enter in the link box sets the link and goes back; Escape there backs out: the box takes the focus, the
@@ -1844,7 +1844,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                     + '<div class="b-img-ctl"><div class="fc-opts">' + (picRef(b.src) && window.wpScene ? '<button class="tool ghost b-img-scene" data-idx="' + idx + '" title="Show this picture big to everyone or to some players at your table">Show as a scene…</button>' : '') + '<button class="tool ghost b-img-pick" data-idx="' + idx + '" title="Pick a picture already in this campaign">Choose from library…</button>'
                     + '<label class="tool ghost b-img-uplabel" title="Upload a picture from your computer">Upload…<input type="file" accept="image/*" class="b-img-upload" data-idx="' + idx + '" style="display:none;"></label>'
                     + (isDocEd ? '' : '<label>Width <select class="b-imgw" data-idx="' + idx + '">' + [25, 33, 50, 66, 75, 100].map(function(w) { return '<option value="' + w + '"' + ((b.width || 100) === w ? ' selected' : '') + '>' + w + '%</option>'; }).join('') + '</select></label>'
-                    + '<label>Align <select class="b-imga" data-idx="' + idx + '">' + [['left', 'Left'], ['center', 'Centre'], ['right', 'Right']].map(function(o) { return '<option value="' + o[0] + '"' + ((b.align || 'center') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>') + '</div>'
+                    + '<label>Align <select class="b-imga" data-idx="' + idx + '">' + [['left', 'Left'], ['center', 'Center'], ['right', 'Right']].map(function(o) { return '<option value="' + o[0] + '"' + ((b.align || 'center') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>') + '</div>'
                     + pbeCap('Caption') + tsBoxHtml('field b-caption', 'Caption (optional)', 'data-idx="' + idx + '"', 'width:100%;') + '</div></div>';
           } else if (b.type === 'raw') {
 
@@ -2192,7 +2192,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // line break. Content that already uses block HTML (<p>, <br>, lists, headings…) is left as is.
   /* ---- rich text editor for text blocks ----
      A formatting bar over a contenteditable box. Buttons apply to the selection, or to what is
-     typed next when nothing is selected (the browser's own toggle behaviour); Ctrl+B/I/U work as
+     typed next when nothing is selected (the browser's own toggle behavior); Ctrl+B/I/U work as
      usual. The block keeps the box's HTML. Old content — raw newlines, or tags typed by hand —
      is shown as it always rendered. */
   // [sinkcheck:rtebar-start]
@@ -2226,16 +2226,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       return sanitizeHtml(b.type === 'text' && body ? '<p>' + body + '</p>' : body);
   }
   // [sinkcheck:rte-end]
-  // Colour and size on the selected text: the app's ink row, then Custom, Default and the size steps — constants from textfmt.js. A planner's and a page's
+  // Color and size on the selected text: the app's ink row, then Custom, Default and the size steps — constants from textfmt.js. A planner's and a page's
   // text blocks write them into their bar before the symbol tray, and since 1.5.4 the play map's text box does too (inspector.js textStyleHtml).
   function rteLookHtml() {
-      return TF.PALETTE.map(function(p) { return '<button type="button" class="rte-sw" data-color="' + esc(p[0]) + '" title="' + esc(p[1]) + ' \u2014 colour the selected text" style="background:' + esc(p[0]) + ';" tabindex="-1"></button>'; }).join('')
-              + '<label class="rte-sw rte-custom" title="Custom colour for the selected text"><input type="color" class="rte-colorpick" value="#d9534f" tabindex="-1"></label>'
-              + '<button type="button" class="rte-btn rte-nocolor" title="The default colour on the selected text" tabindex="-1">Default</button>'
+      return TF.PALETTE.map(function(p) { return '<button type="button" class="rte-sw" data-color="' + esc(p[0]) + '" title="' + esc(p[1]) + ' \u2014 color the selected text" style="background:' + esc(p[0]) + ';" tabindex="-1"></button>'; }).join('')
+              + '<label class="rte-sw rte-custom" title="Custom color for the selected text"><input type="color" class="rte-colorpick" value="#d9534f" tabindex="-1"></label>'
+              + '<button type="button" class="rte-btn rte-nocolor" title="The default color on the selected text" tabindex="-1">Default</button>'
               + '<select class="rte-size" title="Size of the selected text" tabindex="-1"><option value="">Size\u2026</option><option value="default">Default</option>' + TF.SIZES.map(function(s) { return '<option value="' + esc(s) + '">' + esc(TF.SIZE_NAMES[s] || s) + '</option>'; }).join('') + '</select><span class="rte-sep"></span>';
   }
   function rteHtml(idx, b) {
-      // a text block's bar: the shared commands (the list above), the colour and size controls before the symbol tray…
+      // a text block's bar: the shared commands (the list above), the color and size controls before the symbol tray…
       var look = rteLookHtml()
               // …and a Link box (the planner's own): its address is read by textfmt.js typedLink and set by rteLinkDo
               + '<label class="ts-linklab rte-linklab" title="' + esc(RTE_LINK_TITLE) + '">Link <input type="text" class="ts-link rte-link" placeholder="https://\u2026" spellcheck="false" autocomplete="off" aria-label="Link address" tabindex="-1"></label><button type="button" class="rte-btn rte-pagebtn" tabindex="-1" title="Link to a page or a section of one: pick it from the list, or type part of its name to narrow the list.">Page\u2026</button><span class="rte-sep"></span>';
@@ -2259,10 +2259,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   document.addEventListener('pointerdown', function(e) { if (!(e.target.closest && e.target.closest('.rte-symwrap'))) document.querySelectorAll('.rte-symwrap.open').forEach(function(w) { w.classList.remove('open'); }); }, true);
   document.addEventListener('keydown', function(e) { if (e.key === 'Escape') document.querySelectorAll('.rte-symwrap.open').forEach(function(w) { w.classList.remove('open'); }); }, true);
   document.addEventListener('selectionchange', function() {
-      var a = document.activeElement; if (a && a.classList && a.classList.contains('rte-body')) { rteSyncBar(a); rteLinkSync(a); var gs = window.getSelection(); a._wpRange = gs && gs.rangeCount && a.contains(gs.anchorNode) ? gs.getRangeAt(0).cloneRange() : a._wpRange; }   // remembered for the controls that take the focus (the size list, the colour picker)
+      var a = document.activeElement; if (a && a.classList && a.classList.contains('rte-body')) { rteSyncBar(a); rteLinkSync(a); var gs = window.getSelection(); a._wpRange = gs && gs.rangeCount && a.contains(gs.anchorNode) ? gs.getRangeAt(0).cloneRange() : a._wpRange; }   // remembered for the controls that take the focus (the size list, the color picker)
   });
-  /* A text block's colour and size on the selection. The browser's own commands do the cutting (they split what the selection crosses
-     and take a conflicting colour or size off it); what they leave — <font color>, a marker <font size> — is turned into the one form
+  /* A text block's color and size on the selection. The browser's own commands do the cutting (they split what the selection crosses
+     and take a conflicting color or size off it); what they leave — <font color>, a marker <font size> — is turned into the one form
      the page sanitiser writes (docrender sanitizeHtml): <span style="color:#rrggbb"> and <span style="font-size:<step>">. A size is a
      share of its parent's: the command takes a sized span that the selection sits in apart around it, a size inside the selection is
      taken off here, and the sanitiser keeps only the outer size should one ever be left inside another. */
@@ -2296,15 +2296,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       rteExec('foreColor', c || MARK);
       var off = rteOffsets(body);
       var gsC = window.getSelection();
-      if (!off || (gsC && gsC.isCollapsed)) return;   // a caret: the colour is for what is typed next — nothing to turn into spans, and the caret must stay as it is. A selection that holds no characters (an empty line) is no caret: what the command wrapped is tidied below, so the default colour's marker is never left behind
+      if (!off || (gsC && gsC.isCollapsed)) return;   // a caret: the color is for what is typed next — nothing to turn into spans, and the caret must stay as it is. A selection that holds no characters (an empty line) is no caret: what the command wrapped is tidied below, so the default color's marker is never left behind
       Array.from(body.querySelectorAll('font[color]')).forEach(function(f) {
           var col = String(f.getAttribute('color') || '').toLowerCase(), sz = f.getAttribute('size');
-          if (col === MARK) {   // the default colour: whatever the command wrapped loses its colour, and so does anything inside it
+          if (col === MARK) {   // the default color: whatever the command wrapped loses its color, and so does anything inside it
               Array.from(f.querySelectorAll('span, font')).forEach(function(x) { if (x.style) x.style.color = ''; x.removeAttribute('color'); if (rteBare(x)) rteUnwrap(x); });
               f.removeAttribute('color'); if (!f.attributes.length) rteUnwrap(f);
               return;
           }
-          if (sz) return;   // a size marker with a colour: rteSize turns it into a span
+          if (sz) return;   // a size marker with a color: rteSize turns it into a span
           var sp = document.createElement('span'); sp.style.color = col;
           while (f.firstChild) sp.appendChild(f.firstChild);
           f.parentNode.replaceChild(sp, f);
@@ -2329,7 +2329,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function rteLook(body, change) {
       body.focus();
       var gs = window.getSelection();
-      if (body._wpRange && (!gs.rangeCount || !body.contains(gs.anchorNode))) { try { gs.removeAllRanges(); gs.addRange(body._wpRange); } catch (e) {} }   // the size list or the colour picker took the focus
+      if (body._wpRange && (!gs.rangeCount || !body.contains(gs.anchorNode))) { try { gs.removeAllRanges(); gs.addRange(body._wpRange); } catch (e) {} }   // the size list or the color picker took the focus
       var none = !gs.rangeCount || gs.isCollapsed || !body.contains(gs.anchorNode);
       body._wpQuiet = true;   // the commands below fire their own 'input' mid-way: only the finished box is stored
       try {
@@ -2343,7 +2343,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           else return false;
       } finally { body._wpQuiet = false; }
       body.dispatchEvent(new Event('input', { bubbles: true }));
-      if (change !== 'clear' && !(change && (change.b === true || change.i === true || change.u === true || change.st === true))) body._wpNativeDirty = false;   // a colour or a size re-made nodes behind the browser's own text undo: Ctrl+Z goes to the planner's history (io.js fieldUndoChord), which has this press as a step
+      if (change !== 'clear' && !(change && (change.b === true || change.i === true || change.u === true || change.st === true))) body._wpNativeDirty = false;   // a color or a size re-made nodes behind the browser's own text undo: Ctrl+Z goes to the planner's history (io.js fieldUndoChord), which has this press as a step
       return true;
   }
   // [textcheck:rtelink-start]
@@ -2356,7 +2356,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      the caret outside any link it has nothing to act on and says so.
      The block keeps its box's HTML, so a link is an <a> in the box — made here from elements and text nodes, on the selected CHARACTERS:
      the text nodes are cut at the selection's ends, each one inside comes out of the link it was in (that link is cut around it; what lies
-     before and after keeps it) and goes into the new one, and neighbours of one link are joined again. Everything the box holds still
+     before and after keeps it) and goes into the new one, and neighbors of one link are joined again. Everything the box holds still
      reaches the preview, a player and a file only through the page sanitiser, which rebuilds every <a> from its own rule. In the box a link
      looks like one and is never followed (linkgate.js). One press is one undo step of the planner's. */
   var RTE_LINK_NONE = 'Select the text to link first, or put the caret inside a link.';
@@ -2466,7 +2466,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               a.appendChild(p);
           }
       });
-      all().forEach(function(a) {   // neighbours of one link are one link; one left holding no text is none
+      all().forEach(function(a) {   // neighbors of one link are one link; one left holding no text is none
           if (!a.parentNode) return;
           for (var nx = a.nextSibling; nx && nx.nodeType === 1 && rteTag(nx) === 'A' && nx.getAttribute('href') === a.getAttribute('href'); nx = a.nextSibling) { while (nx.firstChild) a.appendChild(nx.firstChild); nx.parentNode.removeChild(nx); }
           if (!rteTexts(a).len) rteDrop(a);
@@ -2556,7 +2556,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           body.addEventListener('focus', function() { rteSyncBar(this); rteLinkSync(this); });
       });
       Array.from(container.querySelectorAll('.rte-bar')).forEach(function(bar) {
-          bar.addEventListener('mousedown', function(e) { if (e.target && e.target.closest && e.target.closest('select, input')) return; e.preventDefault(); });   // keep the selection in the box (the size list and the colour picker must take the focus: the box's selection is remembered for them)
+          bar.addEventListener('mousedown', function(e) { if (e.target && e.target.closest && e.target.closest('select, input')) return; e.preventDefault(); });   // keep the selection in the box (the size list and the color picker must take the focus: the box's selection is remembered for them)
           var pick = bar.querySelector('.rte-colorpick'), sizeSel = bar.querySelector('.rte-size');
           if (pick) pick.addEventListener('change', function() { rteLook(bar.parentNode.querySelector('.rte-body'), { color: this.value }); });
           if (sizeSel) sizeSel.addEventListener('change', function() { var v = this.value; this.value = ''; if (v) rteLook(bar.parentNode.querySelector('.rte-body'), { size: v === 'default' ? null : v }); });
@@ -2626,7 +2626,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      nodes by hand. Nudges are stored on the block as absolute positions (in the SVG's own
      units) together with a signature of the node ids, and thrown away when the set of nodes
      changes, since the chart is laid out afresh then. Edges touching a nudged node are redrawn
-     as straight lines between node centres. */
+     as straight lines between node centers. */
   // [textcheck:fcdrag-start]
   function fcBlockOf(box) { var am = box._fcDoc || getActiveMap(); var i = parseInt(box.dataset.fc, 10); return am && am.blocks ? am.blocks[i] : null; }   // _fcDoc: the reader's page (handbook.js)
   function fcNodeId(g) { return String(g.id || '').replace(/^flowchart-/, '').replace(/-\d+$/, ''); }
@@ -2685,7 +2685,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       try { var bb = sh ? sh.getBBox() : g.getBBox(); return { w: Math.max(4, bb.width / 2 * sc.x), h: Math.max(4, bb.height / 2 * sc.y) }; }
       catch (e) { return { w: 30, h: 20 }; }
   }
-  // Where a line from this node's centre towards (tx,ty) leaves its box
+  // Where a line from this node's center towards (tx,ty) leaves its box
   function fcEdgePoint(g, c, tx, ty) {
       var h = fcHalf(g), dx = tx - c.x, dy = ty - c.y;
       if (!dx && !dy) return c;
@@ -2707,7 +2707,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           var lab = labels[i]; if (lab) lab.setAttribute('transform', 'translate(' + ((a.x + c.x) / 2) + ',' + ((a.y + c.y) / 2) + ')');
       });
   }
-  // Hand-resized nodes: the shape is scaled about the node's centre; the label keeps its size
+  // Hand-resized nodes: the shape is scaled about the node's center; the label keeps its size
   function fcApplySize(g, sx, sy) {
       var sh = fcShape(g); if (!sh) return;
       sh.setAttribute('transform', 'scale(' + sx + ',' + sy + ')');
@@ -2878,8 +2878,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   /* ---- find in planner ----
      Highlights in the rendered preview only (the editor boxes are left alone). The text is read in
      stretches — the text nodes of one run of inline content, joined — so a word drawn as several
-     runs (part of it coloured by the bar on its box) is found whole; each stretch is matched on a
-     normalised copy (lower case, accents stripped) with an index map back to the original, so
+     runs (part of it colored by the bar on its box) is found whole; each stretch is matched on a
+     normalized copy (lower case, accents stripped) with an index map back to the original, so
      "Selfolk" is found by "self" and "Sorrell" by "sorr". The exact phrase wins; with no phrase
      hit, every word is matched at word starts. */
   // [textcheck:find-start]
@@ -2891,7 +2891,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       pfState.hits = []; pfState.cur = -1;
   }
   // Elements whose text runs on with the text around them, so a found text may cross them: the inline tags the page sanitiser writes, and a
-  // span with no class — a run of a styled field (docrender fmtHtml / fmtRich), a text block's colour or size. Anything else — a paragraph, a
+  // span with no class — a run of a styled field (docrender fmtHtml / fmtRich), a text block's color or size. Anything else — a paragraph, a
   // cell, a heading, a line break, a span with a class of the renderer's (a subtitle, a tag) — ends a stretch.
   var PF_INLINE = { SPAN: 1, B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, STRIKE: 1, A: 1, CODE: 1, FONT: 1, BIG: 1, SMALL: 1, MARK: 1 };
   // The preview's text as stretches: each the text nodes of one run of inline content, in document order (nothing of a script, a style or a drawn chart)
@@ -2911,7 +2911,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       walk(root); end();
       return out;
   }
-  // ranges [start,end) in a stretch's joined text for a regex over its normalised form
+  // ranges [start,end) in a stretch's joined text for a regex over its normalized form
   function pfRanges(seg, re) {
       var orig = seg.map(function(n) { return n.nodeValue; }).join(''), map = [], norm = '';
       for (var i = 0; i < orig.length; i++) { var ch = orig[i].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); for (var k = 0; k < ch.length; k++) map.push(i); norm += ch; }
@@ -3221,7 +3221,7 @@ function openAppearanceMenu(anchor) {
     var st = (item.meta && item.meta.style && typeof item.meta.style === 'object') ? item.meta.style : {};
     var cd = (camp.docStyle && typeof camp.docStyle === 'object') ? camp.docStyle : {};
     var kind = item.type === 'doc' ? 'page' : 'planner';
-    var stC = cleanDocStyle(st) || {}, cdC = cleanDocStyle(cd) || {};   // what the menu shows is what renders: hex colours, a picture that is the app's own (a file from elsewhere may carry anything)
+    var stC = cleanDocStyle(st) || {}, cdC = cleanDocStyle(cd) || {};   // what the menu shows is what renders: hex colors, a picture that is the app's own (a file from elsewhere may carry anything)
     var effImg = stC.bgImage || cdC.bgImage || '';   // this page's image, else the campaign default
     var dimVal = (typeof stC.bgDim === 'number') ? stC.bgDim : (typeof cdC.bgDim === 'number') ? cdC.bgDim : 40;
     var fontOpts = '<option value="">Default</option>', fgPrev = null;   // 1.6.2 (backlog 44 (c)): Waypoint's own fonts, in their groups

@@ -24,7 +24,7 @@ const J = JSON.stringify;
     check('166 e the outline (outlineBlocks, run for real): its title and the campaign’s name, a heading a spine question with the answer or the question as a prompt under it, then Beats and five scene cards marked Ahead, every block an id of its own',
         J(types) === J(['h1', 'h2', 'text', 'h2', 'text', 'h2', 'text', 'h2', 'text', 'h2', 'text', 'h2', 'node', 'node', 'node', 'node', 'node']) && bl[0].title === 'Campaign outline' && bl[0].sub === 'Question Trial'
         && J(heads) === J(['The idea', 'The mood', 'The world now', 'The main threat', 'How it might end', 'Beats']) && new Set(ids).size === ids.length && ids.every(i => /^b_k\d+$/.test(i)), J(types));
-    check('166 e an answer is written escaped, a paragraph a stretch between blank lines; a question left empty is kept as a prompt in grey and italic',
+    check('166 e an answer is written escaped, a paragraph a stretch between blank lines; a question left empty is kept as a prompt in gray and italic',
         texts[0].content === '<p>A river &lt;b&gt;town&lt;/b&gt; &amp; a temple.</p><p>Second part</p>' && texts[3].content === '<p>The Abbot</p>'
         && texts[1].content === '<p><span style="color:#8a8f98"><i>What should it feel like at the table? Name a genre, a theme or a mood.</i></span></p>' && texts[4].content === C.promptOf(C.SPINE[4].ask), J(texts));
     check('166 e each beat a scene card marked Ahead, tagged with the beat’s name: titled by the answer, or by its question where it was left empty (the owner: "Keep it as a prompt")',
@@ -35,7 +35,7 @@ const J = JSON.stringify;
     // read by the real page code
     const DR = await import(url('docrender.js')), CC = await import(url('cardcore.js'));
     const san = texts.map(t => DR.sanitizeHtml(t.content)), cards = nodes.map(b => CC.cleanCard(Object.assign({}, b)));
-    check('166 e what it writes reads as written (the real sanitiser and card cleaner): an answer stays escaped text, the prompt keeps its grey and its italic, and every card keeps Ahead',
+    check('166 e what it writes reads as written (the real sanitiser and card cleaner): an answer stays escaped text, the prompt keeps its gray and its italic, and every card keeps Ahead',
         san[0] === texts[0].content && san[1] === texts[1].content && cards.every(c => c.when === 'ahead' && CC.sessionOf(c) === 'ahead'), J(san));
     // the wiring
     const ix = read('index.html'), esc = read('scripts/esckey.js'), dl = read('scripts/dialogs.js');

@@ -5,7 +5,7 @@
    Published as window.wpSafeCore when a window exists.
 
      esc(s)                text, or a double-quoted attribute value: & < > " escaped; null / undefined -> ''.
-     cssColor(v, dflt)     a colour a style may carry: #hex, rgb() / rgba() / hsl() / hsla() of plain numbers, a colour
+     cssColor(v, dflt)     a color a style may carry: #hex, rgb() / rgba() / hsl() / hsla() of plain numbers, a color
                            keyword, var(--name). Anything else (url(), a ';' and a second property, a quote) -> dflt
                            ('' when not given).
      num(v, dflt, lo, hi)  a finite number, clamped when lo / hi are given, else dflt: what goes into a value="", a

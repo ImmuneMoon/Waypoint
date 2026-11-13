@@ -107,10 +107,10 @@ function renderResults(list) {
 /* ---------- in-page highlight ---------- */
 // [textcheck:panelfind-start]
 // The page's text is read in stretches: the text nodes of one run of inline content, joined. So a word drawn as several runs (part of it
-// coloured or bold by the Text style bar) is marked whole and a phrase is found across a run boundary, as the editor's Find reads its
+// colored or bold by the Text style bar) is marked whole and a phrase is found across a run boundary, as the editor's Find reads its
 // preview (planner.js pfStretches). A hit is the list of its marks: one around its part of each text node it lies in.
 // Elements whose text runs on with the text around them, so a hit may cross them: the inline tags the page sanitiser and a flowchart label
-// write, and a span with no class (a run of a styled field, a text block's colour or size). Anything else ends a stretch: a paragraph, a
+// write, and a span with no class (a run of a styled field, a text block's color or size). Anything else ends a stretch: a paragraph, a
 // cell, a heading, a line break, a span with a class of the renderer's (a subtitle, a chart's label box). A script or a style sheet is not text.
 var HL_INLINE = { SPAN: 1, B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, STRIKE: 1, A: 1, CODE: 1, FONT: 1, BIG: 1, SMALL: 1, MARK: 1 };
 // 1.5.4 (the review of step 1, found live): a diagram's source that the diagram library has not drawn yet is not read. The library reads that

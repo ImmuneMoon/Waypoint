@@ -83,7 +83,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         mdS.includes('### Scene: The heist\n**Session:** Tonight\n') && mdS.includes('### Scene: The escape\n**Session:** Ahead\n') && mdS.includes('### Scene: The job\n**Played:** yes\n')
         && J(backS.map(b => [b.title, b.when, b.done])) === J([['The heist', 'tonight', undefined], ['The escape', 'ahead', undefined], ['The job', undefined, true]]) && J(handS.map(b => [b.when, b.done])) === J([[undefined, undefined], [undefined, undefined], [undefined, true]]), J([mdS, backS, handS]));
     const plR = read('scripts/planner.js'), ixR = read('index.html'), csR = read('style.css');
-    check('wired (pinned): the editor offers a scene its Session list in place of the Played tick, a clue keeps Found; the preview colours Tonight and Ahead and says them; Help says it',
+    check('wired (pinned): the editor offers a scene its Session list in place of the Played tick, a clue keeps Found; the preview colors Tonight and Ahead and says them; Help says it',
         plR.includes("(kd.key === 'scene' ? ' <label class=\"b-when-l\"") && plR.includes("(kd.tick && kd.key !== 'scene' ? ' <label class=\"b-done-l\"") && plR.includes("CC.setSession(bb, this.value); save(); renderPlannerPreview();") && plR.includes("<span class=\"card-tick card-tick-tonight\">Tonight</span>")
         && /\.doc-view \.node\.card-tonight \{ box-shadow: inset 3px 0 0 var\(--gold\); \}/.test(csR) && /\.doc-view \.node\.card-ahead \{ box-shadow: inset 3px 0 0 var\(--blue\); \}/.test(csR) && ixR.includes('A scene card has a <b>Session</b> list: <b>Ahead</b>, <b>Tonight</b> or <b>Played</b>'));
 

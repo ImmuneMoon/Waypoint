@@ -114,7 +114,7 @@ function runningSet(running, id) {
 function withMap(fx, id) { var f = {}; for (var k in fx) if (Object.prototype.hasOwnProperty.call(fx, k)) f[k] = fx[k]; f.mapId = id; f.type = 'fx'; return f; }
 
 // Saved effects (1.6.2, backlog 81 and 99; the owner's answers of 2026-11-07): what the GM has running, kept by name in the campaign. The
-// weather with its density, the colour held on the screen and up to three loops of the Sound panel, each at its own volume. A map may name
+// weather with its density, the color held on the screen and up to three loops of the Sound panel, each at its own volume. A map may name
 // one to start when it is opened (its meta's fxEffect). Read through these alone: a campaign from a file holds whatever it holds
 var SAVED = Object.freeze({ count: 24, name: 40, loops: 3 });
 var SAVED_ID = /^se_[a-z0-9]{1,16}$/, LOOP_ID = /^[A-Za-z0-9_-]{1,40}$/;
@@ -143,7 +143,7 @@ function savedMake(st, loops, name, id) {
     var w = st && st.weather, h = st && st.wash;
     return cleanSavedOne({ id: id, name: name, weather: w ? { look: w.look, density: w.density } : null, wash: h ? { color: h.color, alpha: h.alpha } : null, loops: loops });
 }
-// The messages that show a saved effect on a map: its weather, and its colour held until cleared
+// The messages that show a saved effect on a map: its weather, and its color held until cleared
 function savedFx(s, mapId) {
     var out = []; if (!s || !mapId) return out;
     if (s.weather) out.push({ kind: 'weather', mapId: mapId, look: s.weather.look, density: s.weather.density });

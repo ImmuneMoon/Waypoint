@@ -17,7 +17,7 @@
                                      keeps one; spans with whole-number offsets inside
                                      the text (never inside a surrogate pair: such an offset moves out to the pair's edge),
                                      sorted, not overlapping (where two overlapped, the later one won on the keys it set),
-                                     neighbours of one look merged, a span that adds nothing to the base dropped, at most
+                                     neighbors of one look merged, a span that adds nothing to the base dropped, at most
                                      MAX_SPANS; every other key ignored; the same again when cleaned twice; undefined when
                                      nothing is left (an empty object is never stored). Only the first MAX_RAW entries of a
                                      span list are read. A size and a link are the base's only when EVERY character has that
@@ -52,16 +52,16 @@
                                      put the text there) — the spans are carried the same and nothing joins.
      apply(fmt, text, s, e, change)  what a press of a control does. change: { b: true } / { i: true } / { u: true } / { st: true }
                                      (the control was pressed: a range that is all bold loses it, any other gains it),
-                                     { color: '#rrggbb' } or { color: null } (the default colour), { size: key } or { size: null },
-                                     { link: address } or { link: null }. s === e (a caret) is the whole field: a colour then is
+                                     { color: '#rrggbb' } or { color: null } (the default color), { size: key } or { size: null },
+                                     { link: address } or { link: null }. s === e (a caret) is the whole field: a color then is
                                      the base's and leaves the parts that have their own; a size and a link are every
                                      character's. A selection takes the change on its characters alone. A value that is no
-                                     colour, no size or no link changes nothing.
+                                     color, no size or no link changes nothing.
      clear(fmt, text, s, e)          a caret or the whole text: nothing left (undefined); a part: that part plain.
      stateAt(fmt, text, s, e)        what the controls show: { b, i, u, st, color, size, link, any } — color, size and link
                                      '' for none and null where the range holds more than one.
 
-   Waypoint's own typefaces (1.5.4). A text's font is one of FONTS, by its name: each is a file of the app (assets/fonts, its licence
+   Waypoint's own typefaces (1.5.4). A text's font is one of FONTS, by its name: each is a file of the app (assets/fonts, its license
    text beside it, an @font-face rule of style.css), so a text looks the same on every computer and no font is read from the computer
    it is shown on.
 
@@ -92,7 +92,7 @@ var SIZE_NAMES = { small: 'Small', large: 'Large', larger: 'Larger', huge: 'Huge
 var PALETTE = [['#e9e9f0', 'White'], ['#1a1a1a', 'Black'], ['#d9534f', 'Red'], ['#e0a54f', 'Gold'], ['#5cb87a', 'Green'], ['#4db3d3', 'Blue'], ['#b98cff', 'Violet']];
 var LOOKS = ['size', 'color', 'b', 'i', 'u', 'st', 'link'];   // a look's keys, in the order they are stored
 // [textcheck:fonts-start]
-// Waypoint's own typefaces: [name, generic, group]. One entry a family; tools/systemcheck.js holds each to its file, its licence text and
+// Waypoint's own typefaces: [name, generic, group]. One entry a family; tools/systemcheck.js holds each to its file, its license text and
 // its @font-face rule. Inter is the one the sheet looks already carried.
 var FONTS = [
     ['Inter', 'sans-serif', 'Reading'], ['Lora', 'serif', 'Reading'], ['Crimson Text', 'serif', 'Reading'], ['Comic Neue', 'sans-serif', 'Reading'], ['Atkinson Hyperlegible', 'sans-serif', 'Reading'],
@@ -289,7 +289,7 @@ function readSpans(fmt, text) {
     }
     return out;
 }
-// the whole text as intervals of one look each (the base under the spans), neighbours of one look merged
+// the whole text as intervals of one look each (the base under the spans), neighbors of one look merged
 function flatten(text, base, raw) {
     var n = text.length, cuts = [0, n], out = [];
     if (!n) return out;
@@ -309,7 +309,7 @@ function flatten(text, base, raw) {
     }
     return out;
 }
-// A base every interval can be written against: a base colour only where every part has a colour; bold, italic, underline, strike only
+// A base every interval can be written against: a base color only where every part has a color; bold, italic, underline, strike only
 // where every part is; a size and a link only where every part has that very one — and then it IS the base's, whoever set it (so a
 // field of one size, or one link, is always stored as the field's own and a part's size or link is always on a span).
 function fitBase(base, ivs) {
@@ -448,9 +448,9 @@ function applyLook(fmt, text, s, e, change) {
         if (o.all) base[k] = on;
     });
     if (own(change, 'color')) {
-        var given = change.color, c = (given == null || given === '') ? '' : hex(given);   // null: the default colour; a value that is no colour changes nothing
-        if (given != null && given !== '' && !c) { /* not a colour */ }
-        else if (o.caret) { o.ivs.forEach(function(iv) { if (iv.color === base.color) iv.color = c; }); base.color = c; }   // the base alone: a part with a colour of its own keeps it
+        var given = change.color, c = (given == null || given === '') ? '' : hex(given);   // null: the default color; a value that is no color changes nothing
+        if (given != null && given !== '' && !c) { /* not a color */ }
+        else if (o.caret) { o.ivs.forEach(function(iv) { if (iv.color === base.color) iv.color = c; }); base.color = c; }   // the base alone: a part with a color of its own keeps it
         else { o.part.forEach(function(iv) { iv.color = c; }); if (o.all) base.color = c; }
     }
     // a size and a link: the characters of the range — every character with nothing selected (a text with none yet: the base)

@@ -58,7 +58,7 @@ var LIMITS = Object.freeze({
     areaAffs: 20,                            // 1.5.9 (the book's (es)): the afflictions one explosive carries (Affliction (HT-2) and a second one)
     desc: 4000, lvls: 200, lvlText: 600, lvlTag: 40, rowsText: 4000000,   // 1.5.4: an entry's description, the levels it describes, a level's text and the words beside it; the long text one list's rows carry to their owner in all
     ownText: 2000000,                        // 1.5.5 (155): the long text the character's own rows of one list may hold in all, as rowText counts it (stored and sent)
-    listStats: 640, entryStats: 640, statAbs: 1e9,   // Stage 6 F4c1: a list's stats (12 since range penalties: a weapons list with Half and MaxRange; 24 since 1.5.4: a whole weapon line; 32 since 1.6.0, a campaign build: a full list and a figure an outside reader fills; 48 since the v2 combat module: a weapons and an armour list; 64 since the core handbook session's ask beside ask 19), the stats an item carries (32 since 1.5.4, 48 with a list's in 1.6.0, 64 with it again: a copy's own values hold every stat of its list), the size of a stat (a price, a weight: 99,999,999 fits)
+    listStats: 640, entryStats: 640, statAbs: 1e9,   // Stage 6 F4c1: a list's stats (12 since range penalties: a weapons list with Half and MaxRange; 24 since 1.5.4: a whole weapon line; 32 since 1.6.0, a campaign build: a full list and a figure an outside reader fills; 48 since the v2 combat module: a weapons and an armor list; 64 since the core handbook session's ask beside ask 19), the stats an item carries (32 since 1.5.4, 48 with a list's in 1.6.0, 64 with it again: a copy's own values hold every stat of its list), the size of a stat (a price, a weight: 99,999,999 fits)
     listCols: 200,                           // Stage 6 F5a1: a list's columns (a formula per row; 6 before 1.5.4, 12 before 1.6.0; the core handbook session's ask 19: 24 before it; 32 before a build that filled three lists)
     colPlus: 80,                             // 1.5.4 With: the stats a column names as adding to it in a case of their own (a DR of 15 that is 35 against energy)
     pickOpts: 480,                           // Stage 6 F5a2: a choice stat's options
@@ -214,9 +214,9 @@ function cleanIcon(v) {
     if (typeof v === 'string') { var t = v.slice(0, 256).replace(CTRL_RE_G, '').trim(); if (/^icon:/i.test(t)) { t = t.toLowerCase(); return glyphPath(t) ? t : ''; } }
     return cutPoints(v, LIMITS.icon, '');
 }
-var TONES = Object.freeze({ good: 1, warn: 1, danger: 1, accent: 1, primary: 1 });   // Stage 6 look fold (L7): a value name's colour on a badge (one vocabulary with the palette keys)
+var TONES = Object.freeze({ good: 1, warn: 1, danger: 1, accent: 1, primary: 1 });   // Stage 6 look fold (L7): a value name's color on a badge (one vocabulary with the palette keys)
 var APPLY_KINDS = Object.freeze({ resource: 1, number: 1, toggle: 1 });   // 1.5.7: and a toggle (on above 0, off at 0 or below), so a roll can switch one on (the owner: a successful Meditation roll enters the trance)   // Stage 6 HUD H7: what an apply action moves (a pool's current value, a number's stored value)
-var ROLL_TONES = Object.freeze({ primary: 1, danger: 1, neutral: 1, outline: 1 });   // Stage 6 look fold: a roll button's tone (filled, red, grey, outline)
+var ROLL_TONES = Object.freeze({ primary: 1, danger: 1, neutral: 1, outline: 1 });   // Stage 6 look fold: a roll button's tone (filled, red, gray, outline)
 function fin(v) { return typeof v === 'number' && isFinite(v) && Math.abs(v) <= 1e15; }   // bounded: the wire's packer refuses a whole number past 64 bits (1e20 typed into a field once stopped every join)
 function map() { return Object.create(null); }
 var PID_RE = /^[A-Za-z0-9_.:-]{1,80}$/;   // a player's profile id (net.js validProfileId)
@@ -272,7 +272,7 @@ function cleanNum(v, dflt) { v = Number(v); return fin(v) ? v : dflt; }
 // height: the website's pair "6'7\" / 2.00 m" by the half of the viewer's setting. DISPLAY ONLY: a field holds its figure in the book's unit,
 // and nothing here reaches a formula, a roll, a stored value or a file. A field with no such unit is drawn exactly as before. Both views alike.
 // The gaps the review of that fold found, closed as options of the builder (the owner, 2026-10-17: "match the website"): a speed, yd/s, which
-// is Move's yards a second and metres a second in metric; a text field's unit weight, read as the website's showWeightText reads one; how a
+// is Move's yards a second and meters a second in metric; a text field's unit weight, read as the website's showWeightText reads one; how a
 // measure reads under Metric (unitShow: beside its figure as before, swap for the metric figure in its place, bare for the book's figure with
 // no word under Imperial, as the website shows a Move); a field's decimals and thousands (decMin, decMax, group: Basic Lift 32.0 lbs, a total
 // 1,234.57 lbs); a caption's {formula|unit}; and a list stat's or column's unit, converted as a field's is
@@ -280,7 +280,7 @@ var FIELD_MEASURE = Object.freeze(Object.assign(Object.create(null), { yd: 'yd',
 // A measure in metric: what one of it is, and the metric word (the exact international definitions, as the website's display-units.ts)
 var MEASURES = Object.freeze(Object.assign(Object.create(null), { yd: Object.freeze({ per: 0.9144, word: 'm' }), ft: Object.freeze({ per: 0.3048, word: 'm' }), 'in': Object.freeze({ per: 2.54, word: 'cm' }), lb: Object.freeze({ per: 0.45359237, word: 'kg' }), mi: Object.freeze({ per: 1.609344, word: 'km' }), 'yd/s': Object.freeze({ per: 0.9144, word: 'm/s' }),
     // 1.6.2 (backlog 164 (f); the owner, by prompt: "Both ways"): a metric book's measures, turned the other way, into Imperial, under the
-    // viewer's Imperial setting (imp: true). A metre is read as yards, as the ruler reads a distance; a centimetre as inches
+    // viewer's Imperial setting (imp: true). A meter is read as yards, as the ruler reads a distance; a centimeter as inches
     m: Object.freeze({ per: 1 / 0.9144, word: 'yd', imp: true }), cm: Object.freeze({ per: 1 / 2.54, word: 'in', imp: true }), kg: Object.freeze({ per: 1 / 0.45359237, word: 'lb', imp: true }), km: Object.freeze({ per: 1 / 1.609344, word: 'mi', imp: true }), 'm/s': Object.freeze({ per: 1 / 0.9144, word: 'yd/s', imp: true }) }));
 // Whether a measure is turned for the viewer: a book's imperial measure under Metric (metric only as true), a book's metric one under Imperial
 // (metric only as false, so a caller that names no setting, as a teammate's hover lines, keeps the book's own figure). The one judge
@@ -306,7 +306,7 @@ function placesShown(shown, value, fixed) {
     return decShown(value);
 }
 // A figure of a measure in metric, its number alone: to the decimals the website shows (display-units.ts): as many as the figure shows, one
-// more where the metric unit is ten times the size (a metre is 3.28 ft), at least one for a whole figure (Move 5 is 4.6 m and Move 6 is
+// more where the metric unit is ten times the size (a meter is 3.28 ft), at least one for a whole figure (Move 5 is 4.6 m and Move 6 is
 // 5.5 m), trailing zeros taken off, and never 0 for a figure that is not. It is the figure AS SHOWN that is turned, where the sheet's text of
 // it reads as a number, since the website turns the figure it shows (the review of the v1.0.4 merge: a load of 1.86438 lb, shown as 1.86,
 // read 0.85 kg, where 1.86 lb is 0.84 kg and the website says 0.84). '' for no measure or no number
@@ -432,13 +432,13 @@ function unitOf(v, col) { return col === true ? cutText(v, LIMITS.unit) : cutPoi
 function unitHead(unit, how, metric) { var m = typeof unit === 'string' ? cleanFieldUnit(unit, 'number') : ''; return m && measureTurns(m, metric) && (how === 'swap' || how === 'bare') ? MEASURES[m].word : (typeof unit === 'string' ? unit : ''); }
 // A height or a weight written as text, read in ONE place as the website reads one (lib/display-units.ts readHeightText and readWeightText):
 // the sheet's display of a height (heightWords) and an outside sheet reader (readerKit) both ask readMeasure. A half is folded
-// (curly quote marks straight, lower case) and read by the forms of its kind: a height's feet from centimetres, metres, inches, or feet with
+// (curly quote marks straight, lower case) and read by the forms of its kind: a height's feet from centimeters, meters, inches, or feet with
 // inches; a weight's pounds from kilograms or pounds; a bare figure is the book's own unit, feet or pounds, with no unit said. Two halves are
 // the book's pair, "6'7\" / 2.00 m" or the order a file before v1.0.4 may hold, "2.00 m / 6'7\"": each half says its unit, one of each system,
 // and the pair is read by its imperial half. { v, metric, pair }: the figure read (feet or pounds), whether it is metric, and a pair's two
 // halves as written, trimmed; null where nothing reads, a kind that is none, or a text that is no text
 var M_PER_FT = 0.3048, KG_PER_LB = 0.45359237, MEASURE_NUM = '(\\d+(?:\\.\\d*)?|\\.\\d+)', MEASURE_BARE = new RegExp('^' + MEASURE_NUM + '$');
-var MEASURE_BARE_PER = Object.freeze(Object.assign(Object.create(null), { height: M_PER_FT, weight: KG_PER_LB }));   // a bare TYPED figure under Metric: metres, kilograms
+var MEASURE_BARE_PER = Object.freeze(Object.assign(Object.create(null), { height: M_PER_FT, weight: KG_PER_LB }));   // a bare TYPED figure under Metric: meters, kilograms
 var MEASURE_FORMS = Object.freeze(Object.assign(Object.create(null), {
     height: [[new RegExp('^' + MEASURE_NUM + '\\s*(?:cm|centimet(?:re|er)s?)$'), function(n) { return n / 100 / M_PER_FT; }, true], [new RegExp('^' + MEASURE_NUM + '\\s*(?:m|metres?|meters?)$'), function(n) { return n / M_PER_FT; }, true],
         [new RegExp('^' + MEASURE_NUM + '\\s*(?:in|inch|inches|")$'), function(n) { return n / 12; }, false], [new RegExp('^' + MEASURE_NUM + "\\s*(?:'|ft|foot|feet)\\s*(?:" + MEASURE_NUM + '\\s*(?:in|inch|inches|")?)?$'), function(n, i) { return n + (i ? Number(i) / 12 : 0); }, false]],
@@ -451,7 +451,7 @@ function measureHalf(text, forms, barePer) {   // one half: { v, metric, said, d
     return (m = MEASURE_BARE.exec(t)) ? { v: barePer ? Number(m[1]) / barePer : Number(m[1]), metric: !!barePer, said: false, d: decShown(Number(m[1])), num: tidyNum(m[1]) } : null;
 }
 // d (1.5.4): the decimals the half read was written to, as the website's decimalsShown counts them. bareMetric: only true reads a bare figure
-// in the metric unit (metres, kilograms), as a box typed under Metric is read; a stored text's bare figure is the book's
+// in the metric unit (meters, kilograms), as a box typed under Metric is read; a stored text's bare figure is the book's
 function readMeasure(text, kind, bareMetric) {
     var forms = typeof kind === 'string' && Object.prototype.hasOwnProperty.call(MEASURE_FORMS, kind) ? MEASURE_FORMS[kind] : null, s = typeof text === 'string' ? text.trim() : '', bp = bareMetric === true && forms ? MEASURE_BARE_PER[kind] : 0;
     if (!forms || !s) return null;
@@ -468,7 +468,7 @@ function readMeasure(text, kind, bareMetric) {
 // ("5'6.9\"" is 66.9), a metric one to the nearest whole inch, a half rounding up ("2.00 m" is 79); the float's own noise taken off first
 function measureInches(r) { var inches = Number((r.v * 12).toPrecision(12)); return r.metric ? Math.floor(inches + 0.5) : inches; }
 // A height as the viewer's setting reads it (the website's showHeightText, display-units.ts): its pair, "6'7\" / 2.00 m" or "2.00 m / 6'7\"",
-// by the half of that setting; a single height as written where it is in that setting, else converted: metres to the centimetre, or feet and
+// by the half of that setting; a single height as written where it is in that setting, else converted: meters to the centimeter, or feet and
 // inches to the nearest whole inch, a half rounding up. A text that is no height is shown as it is. A text of any length is read, as the
 // website's showHeightText and a reader read it (the review of the v1.0.4 merge: a cap of 64 characters showed a pair padded past it whole,
 // where both read its half): readMeasure is one pass, and a stored text is held to LIMITS.text
@@ -571,7 +571,7 @@ function cleanField(f, F, gmView) {
     if ((k === 'number' || k === 'formula' || k === 'skill' || k === 'resource') && typeof f.unit === 'string') { var un = unitOf(f.unit); if (un) out.unit = un; }   // Stage 5g: a unit after the value ("pts", "kg")
     else if (k === 'text' && cleanFieldUnit(f.unit, k)) out.unit = cleanFieldUnit(f.unit, k);   // 1.5.4: a text read as a height or a weight (the two units a text field takes)
     if ((k === 'number' || k === 'formula' || k === 'skill') && out.unit && cleanFieldUnit(out.unit, k) && (f.unitShow === 'swap' || f.unitShow === 'bare')) out.unitShow = f.unitShow;   // 1.5.4: how a measure reads under Metric (absent: beside its figure)
-    // 1.6.2 (auto apply; the CORE session, 2026-11-04, by letter: two general options, a small grey word, and "everything applies at once, with no Apply
+    // 1.6.2 (auto apply; the CORE session, 2026-11-04, by letter: two general options, a small gray word, and "everything applies at once, with no Apply
     // button anywhere"): a number field, or a text read as a height or a weight, may be worked out until someone types its figure (auto: a formula with no
     // dice), and typing it may fill other such fields (fills: { f, formula }, AUTO_FILLS at most), each only where that field is blank or still holds what
     // the fill gave. A GM's edit counts as typed. The same in both views but where the players' view drops one that reads a GM-only value (auto null: GM only)
@@ -581,16 +581,16 @@ function cleanField(f, F, gmView) {
     }
     if (k === 'number' || k === 'formula' || k === 'skill') { var dlo = decCount(f.decMin), dhi = decCount(f.decMax); if (dlo !== null) out.decMin = dlo; if (dhi !== null) out.decMax = dlo !== null && dhi < dlo ? dlo : dhi; if (f.group === true) out.group = true; }   // 1.5.4: the decimals a figure shows and its thousands (display only)
     if ((k === 'formula' || k === 'resource') && Object.prototype.hasOwnProperty.call(ROUNDS, f.round)) { out.round = f.round; var rto = Math.round(Number(f.roundTo)); if (rto >= 1 && rto <= ROUND_TO) out.roundTo = rto; if (f.round === 'from') out.roundAt = roundAtOf(f.roundAt); }   // clarity package: how its value is rounded (formulas, rolls and the sheet read it rounded)
-    if ((k === 'number' || k === 'formula' || k === 'skill') && f.sign === true) out.sign = true;   // Stage 5g: colour the value by its sign (green above zero, red below)
+    if ((k === 'number' || k === 'formula' || k === 'skill') && f.sign === true) out.sign = true;   // Stage 5g: color the value by its sign (green above zero, red below)
     if ((k === 'number' || k === 'formula') && Array.isArray(f.labels)) {   // Stage 6: names for the values 0, 1, 2… — a number becomes a dropdown that stores the position, a formula shows the name for its value; formulas always read the number
         var lbs = cleanLabels(f.labels);
         if (lbs) { out.labels = lbs; if (k === 'number') { out.min = 0; out.max = lbs.length - 1; out.step = 1; out.def = clampNum(Math.round(out.def), 0, out.max); } }
     }
     if (k === 'formula' && f.badge === true) out.badge = true;   // Stage 6 look fold (L7): the value drawn as a pill
-    if (k === 'formula' && out.labels) { var tones = cleanTones(f.tones, out.labels.length); if (tones) out.tones = tones; }   // L7: a colour per value name (parallel to labels)
-    if (k === 'resource' && typeof f.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(f.color)) out.color = f.color.toLowerCase();   // L7: a pool's own colour (icon, bar, band value)
-    if (out.color && f.colorBand === true) out.colorBand = true;   // 1.6.0: that colour on the pinned band alone, the pool plain in its own section
-    if (k === 'number' && (f.slider === true || isObj(f.slider))) out.slider = cleanSlider(f.slider);   // Stage 5e: a gradient slider (end labels, track colours) — drawn once the field has a min and a max (the sheet checks), kept either way so nothing the GM set is lost on Save; a plain number everywhere else
+    if (k === 'formula' && out.labels) { var tones = cleanTones(f.tones, out.labels.length); if (tones) out.tones = tones; }   // L7: a color per value name (parallel to labels)
+    if (k === 'resource' && typeof f.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(f.color)) out.color = f.color.toLowerCase();   // L7: a pool's own color (icon, bar, band value)
+    if (out.color && f.colorBand === true) out.colorBand = true;   // 1.6.0: that color on the pinned band alone, the pool plain in its own section
+    if (k === 'number' && (f.slider === true || isObj(f.slider))) out.slider = cleanSlider(f.slider);   // Stage 5e: a gradient slider (end labels, track colors) — drawn once the field has a min and a max (the sheet checks), kept either way so nothing the GM set is lost on Save; a plain number everywhere else
     if (k !== 'formula' && typeof f.live === 'boolean') out.live = f.live;   // the sheet's lock (1.5.4): this field's own word on it — true: its control works on a locked sheet and in the HUD; false: it needs Edit sheet; absent: by its kind (sheets.js liveField). The same in both views
     if ((k === 'number' || k === 'skill') && f.counter === true && !out.labels && !out.slider) out.counter = true;   // HUD frame (HF4a, H8): a counter — minus and plus either side of the box (a named number is a dropdown and a slider a range, never a counter)
     var exF = cleanExplain(f.explain); if (exF) out.explain = exF;   // 1.6.2 (backlog 218 fold 3): what it means, behind its (i)
@@ -632,7 +632,7 @@ function cleanTones(v, n) {
     while (out.length && !out[out.length - 1]) out.pop();
     return out.length ? out : null;
 }
-// L7: the tone of a formula's worked-out value — its value name's colour, '' when there is none (an error, no name, an unknown tone)
+// L7: the tone of a formula's worked-out value — its value name's color, '' when there is none (an error, no name, an unknown tone)
 function valueTone(f, e) {
     if (!f || !Array.isArray(f.tones) || !e || e.error || !e.label || typeof e.value !== 'number') return '';
     var i = e.value;
@@ -646,12 +646,12 @@ function cleanLabels(v) {
     while (out.length && !out[out.length - 1]) out.pop();
     return out.some(function(s) { return !!s; }) ? out : null;
 }
-// Stage 5e: the slider's own bits — two end labels and two hex track colours, each optional; {} = a slider with the defaults
+// Stage 5e: the slider's own bits — two end labels and two hex track colors, each optional; {} = a slider with the defaults
 function cleanSlider(v) {
     var out = {}; if (!isObj(v)) return out;
     var HEX = /^#[0-9a-fA-F]{6}$/;
     ['low', 'high'].forEach(function(k) { if (typeof v[k] === 'string') { var t = str(v[k], LIMITS.label).replace(CTRL_RE_G, ' ').trim(); if (t) out[k] = t; } });
-    ['lowColor', 'midColor', 'highColor'].forEach(function(k) { if (typeof v[k] === 'string' && HEX.test(v[k])) out[k] = v[k].toLowerCase(); });   // midColor (1.5.4): a third colour at the track's middle, as an alignment's grey
+    ['lowColor', 'midColor', 'highColor'].forEach(function(k) { if (typeof v[k] === 'string' && HEX.test(v[k])) out[k] = v[k].toLowerCase(); });   // midColor (1.5.4): a third color at the track's middle, as an alignment's gray
     return out;
 }
 // Stage 6 HUD H7: an apply action — a roll entry of a second kind: changes (a pool or a number moved by a formula, no dice) in place of a
@@ -719,11 +719,11 @@ function cleanApplyChanges(list, withWhen, withCounters) {   // withWhen (R1): a
     return out;
 }
 // 1.5.4 (SITE_EQUIVALENT_PLAN fold 2): what a system roll or apply action needs before it may be used, as a list roll's needs: a formula with
-// no dice that must be true for the character, and the words its greyed button says. Kept as a list roll's are, the same in both views (the
+// no dice that must be true for the character, and the words its grayed button says. Kept as a list roll's are, the same in both views (the
 // players' view drops one that names a GM-only value, as a list roll's: their presses are then not held back by it)
 function rollNeedsInto(out, r) { var nd = cleanFormulaText(r.needs); if (!nd) return; out.needs = nd; var nt = cutText(r.needsText, LIMITS.needsWords); if (nt) out.needsText = nt; if (r.needsGm === true) out.needsGm = true; }   // 1.6.0 needsGm: a roll the GM may press past its needs, so a limit holds players back and leaves the GM a way past it
 // 1.6.0 (the owner, 2026-10-31, by prompt: "Hide until it applies"): a roll or an action ticked Hidden until it can be used stands on the sheet only
-// while its needs hold, in place of greyed out. True only, only beside needs, the same in both views; the host judges a press as ever
+// while its needs hold, in place of grayed out. True only, only beside needs, the same in both views; the host judges a press as ever
 function hideOffInto(out, r) { if (out.needs && r.hideOff === true) out.hideOff = true; }
 // [systemcheck:rollcalls-start] 1.6.0 (the owner, 2026-10-31, of a roll that follows from another: "should happen automatically", by prompt: "A card
 // to press"): Calls for. A roll or an action may post another roll of the system as a card to press, which goes to the character's player, or the GM
@@ -953,7 +953,7 @@ function cleanRollDef(r, gmView) {
     if (r.init === true) out.init = true;
     if (r.free === true) out.free = true;   // 1.6.0 Any time: called for off a character's turn, whatever the system's Off a character's turn says
     if (r.keep === 'scene') out.keep = 'scene';   // 1.6.2 Kept for the scene: what it comes to stays on the target's token as its reaction (net.js sceneKeep)
-    if (r.dmg === true) { out.dmg = true; var rdt0 = cleanFormulaText(r.dtype); if (rdt0) out.dtype = rdt0; var rdk0 = cleanFormulaText(r.dkind); if (rdk0) out.dkind = rdk0; if (r.dmgMajor === true) out.dmgMajor = true; var rmi0 = cleanFormulaText(r.dmgMajorIf); if (rmi0) out.dmgMajorIf = rmi0; var rht0 = cleanFormulaText(r.hits); if (rht0) out.hits = rht0; var rp20 = cleanFormulaText(r.dmg2); if (rp20) { out.dmg2 = rp20; var rpt0 = cleanFormulaText(r.dtype2); if (rpt0) out.dtype2 = rpt0; var rpk0 = cleanFormulaText(r.dkind2); if (rpk0) out.dkind2 = rpk0; } DMG_MORE.forEach(function(k) { var rpk = cleanFormulaText(r['dmg' + k]); if (rpk) { out['dmg' + k] = rpk; var rtk = cleanFormulaText(r['dtype' + k]); if (rtk) out['dtype' + k] = rtk; var rkk = cleanFormulaText(r['dkind' + k]); if (rkk) out['dkind' + k] = rkk; } }); }   // 1.6.0: a third and a fourth part, each beside Damage as the second is   // 1.6.0: Always a Major Wound, only beside Damage, and A Major Wound where (dmgMajorIf)   // chat cards (owner 2026-09-27): a damage roll — its card the damage colour, a larger total and a "damage" tag; 1.5.7: and the damage type it names
+    if (r.dmg === true) { out.dmg = true; var rdt0 = cleanFormulaText(r.dtype); if (rdt0) out.dtype = rdt0; var rdk0 = cleanFormulaText(r.dkind); if (rdk0) out.dkind = rdk0; if (r.dmgMajor === true) out.dmgMajor = true; var rmi0 = cleanFormulaText(r.dmgMajorIf); if (rmi0) out.dmgMajorIf = rmi0; var rht0 = cleanFormulaText(r.hits); if (rht0) out.hits = rht0; var rp20 = cleanFormulaText(r.dmg2); if (rp20) { out.dmg2 = rp20; var rpt0 = cleanFormulaText(r.dtype2); if (rpt0) out.dtype2 = rpt0; var rpk0 = cleanFormulaText(r.dkind2); if (rpk0) out.dkind2 = rpk0; } DMG_MORE.forEach(function(k) { var rpk = cleanFormulaText(r['dmg' + k]); if (rpk) { out['dmg' + k] = rpk; var rtk = cleanFormulaText(r['dtype' + k]); if (rtk) out['dtype' + k] = rtk; var rkk = cleanFormulaText(r['dkind' + k]); if (rkk) out['dkind' + k] = rkk; } }); }   // 1.6.0: a third and a fourth part, each beside Damage as the second is   // 1.6.0: Always a Major Wound, only beside Damage, and A Major Wound where (dmgMajorIf)   // chat cards (owner 2026-09-27): a damage roll — its card the damage color, a larger total and a "damage" tag; 1.5.7: and the damage type it names
     if (typeof r.tone === 'string' && Object.prototype.hasOwnProperty.call(ROLL_TONES, r.tone)) out.tone = r.tone;   // Stage 6 look fold
     var rIcon = cleanIcon(r.icon); if (rIcon) out.icon = rIcon;
     var rDie2 = cleanDie(r.die); if (rDie2) out.die = rDie2;
@@ -1163,7 +1163,7 @@ function askFind(sys, key) {
 function withAttempt(tctx, m, k, r, t) { var a = { m: fin(m) ? Math.max(-9999, Math.min(9999, m)) : 0 }; if (fin(k)) a.k = Math.max(-9999, Math.min(9999, k)); if (isObj(r)) a.r = r; if (fin(t)) a.t = Math.max(-9999, Math.min(9999, t)); return Object.assign({}, isObj(tctx) ? tctx : {}, { att: a }); }
 // 1.6.0 An attempt's kind: a list roll's attemptKey names one number stat of its row (never a choice or a set of places), kept beside Resisted by in the GM's view
 // alone, spelled as the list spells it. The host reads that stat off the attacker's row on its own record (net.js attKindOf), a resist roll reads it as
-// Attempt.kind, 0 with none, and a defence whose needs fail for it is not offered. A sheet cannot know it, so a button never greys by needs that read it
+// Attempt.kind, 0 with none, and a defense whose needs fail for it is not offered. A sheet cannot know it, so a button never grays by needs that read it
 function attemptKeyOf(stats, key) { var l = typeof key === 'string' ? lower(key.trim()) : '', hit = ''; (Array.isArray(stats) ? stats : []).forEach(function(s) { if (!hit && l && isObj(s) && typeof s.key === 'string' && lower(s.key) === l && s.kind !== 'pick' && s.set !== true) hit = s.key; }); return hit; }
 function attRowNames(sys) { var out = []; (isObj(sys) && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (!isObj(f) || f.kind !== 'item-list' || !isObj(f.list) || !(Array.isArray(f.list.rolls) ? f.list.rolls : []).some(function(r) { return isObj(r) && typeof r.resistBy === 'string' && r.resistBy; })) return; (Array.isArray(f.list.stats) ? f.list.stats : []).filter(function(x) { return isObj(x) && typeof x.key === 'string' && x.kind !== 'pick' && x.vis !== 'gm'; }).concat(Array.isArray(f.list.cols) ? f.list.cols : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string' && out.indexOf('Attempter.Row.' + x.key) < 0) out.push('Attempter.Row.' + x.key); }); }); return out; }   // 1.6.2 (the CORE session's batch 6, 7)
 function readsAttempt(text, F) { if (typeof text !== 'string' || !text || !F || typeof F.names !== 'function') return false; try { return F.names(text).some(function(n) { var l = lower(String(n)); return l === 'attempt.kind' || l === 'attempt.type' || l === 'attackerdark' || l === 'attackerdarkpen' || l.indexOf('attempter.') === 0; }); } catch (e) { return false; } }   // Attempter.<key> too: only the host holds what the attacker's sheet read
@@ -1185,7 +1185,7 @@ function resistReadsAttacker(sys, entry, F) {
 // An item definition (camp.system.items). gmView false: a vis:'gm' item is dropped, and a visible item's
 // formula/skill text (damage/cost/throwSkill) is stripped — the host resolves every roll, so players never
 // need the formula, which also removes the GM-only-field-leak surface (cleanSystem's blanking is fields/rolls only).
-// 126b, prerequisites (the owner, by prompt: "Both", the entries something needs by ticking and a formula for anything else; "the picker greys
+// 126b, prerequisites (the owner, by prompt: "Both", the entries something needs by ticking and a formula for anything else; "the picker grays
 // out what cannot be taken and says why; the host judges a player's pick"). These are the ticked ones: the entries a character must carry
 // before it may take this one, each by its id and, where one is given, at a level at least. At most LIMITS.needs, an id once. names: true
 // only for the needs on an owner's copy of a row, where each may carry the needed entry's name as text; a definition never keeps one
@@ -1618,7 +1618,7 @@ function cleanSenses(s, fieldIds, secretIds, gm, F) {
         o.grade = x.grade;
         if (x.walls === 'pass') o.walls = 'pass';
         if (x.arc === 'all') o.arc = 'all';
-        else if (fin(x.arc)) { var sa = Math.round(x.arc); if (sa >= 360) o.arc = 'all'; else if (sa >= 1) o.arc = sa; }   // 1.6.0: an arc of its own, in degrees centred on the facing
+        else if (fin(x.arc)) { var sa = Math.round(x.arc); if (sa >= 360) o.arc = 'all'; else if (sa >= 1) o.arc = sa; }   // 1.6.0: an arc of its own, in degrees centered on the facing
         else if (isObj(x.arc)) { var sf = senseField(x.arc, SENSE_ARC_KINDS, fieldIds, secretIds); if (sf) o.arc = { field: sf }; }   // or a field its player can read; one that reads a secret takes the eyes' arc again, in both views
         if (x.eyes === true) o.eyes = true;
         if (x.off !== undefined) { var of = senseField(x.off, SENSE_SWITCH_KINDS, fieldIds, secretIds); if (of === null) return; if (of) o.off = { field: of }; }
@@ -1860,7 +1860,7 @@ var MAP_UNITS = Object.freeze({ yd: 1, ft: 1 / 3, m: 1.0936133, km: 1093.6133, m
 // Grid-shaped tokens (owner, 2026-09-27: "when tokens come in, lets have them come in in the grid shape, only using circles when theres no
 // grid"): a map's grid ('hex' | 'square' | 'off' — missing or unknown is 'off') and the one-cell token it takes (a hexagon 60x52, a square
 // 50x50, a circle 60x52). shapeStandIn reshapes a token the app places or brings onto a map — a character token or a waiting token, ONE cell
-// at most (a token the GM sized up keeps its shape) — its centre kept: a plain shape becomes the cell's shape and size; a picture keeps its
+// at most (a token the GM sized up keeps its shape) — its center kept: a plain shape becomes the cell's shape and size; a picture keeps its
 // art and takes the cell as its outline (tok.shape: clipped on screen), its size too on a grid; the app's own bundled hexagon art becomes its
 // square twin (the outline cuts it). Anything else is left alone. Returns true when it changed the token
 var TOKEN_CELL = Object.freeze({ hex: Object.freeze({ type: 'hexagon', w: 60, h: 52 }), square: Object.freeze({ type: 'rect', w: 50, h: 50 }), off: Object.freeze({ type: 'circle', w: 60, h: 52 }) });
@@ -1892,7 +1892,7 @@ function shapeStandIn(tok, mp) {
     return sig() !== before;
 }
 // 1.6.2 (backlog 141; the owner, 2026-11-06, by prompt: "Yes, one cell (Recommended)"): a picture made a token on a map with a grid fits
-// ONE cell of it, its centre kept, and takes the cell as its outline (shapeStandIn). A map with no grid, a waiting or locked token and a piece
+// ONE cell of it, its center kept, and takes the cell as its outline (shapeStandIn). A map with no grid, a waiting or locked token and a piece
 // that is no picture are left as they are. True when it changed the token
 function tokenOneCell(tok, mp) {
     if (!isObj(tok) || !tok.isChar || tok.waiting || tok.locked || tok.type !== 'image' || typeof tok.src !== 'string' || !tok.src) return false;
@@ -2063,7 +2063,7 @@ function rowTimers(sys, char, secs, perOf, F, fight) {   // fight (1.6.2): true 
 //           and the character's names, is true for each row at the struck location; if reads how many as Held.count; stat, a number stat, and
 //           to, a formula of the same names and Held.count, write every such row. So a row may do its work with no effect and no roll. Rows
 //           kept from their player count for nothing, and each row of onWound reads what the row before it wrote
-//           any (1.6.2, asked by a system build: knockback counts where armour stops the whole injury): true only, the row runs on every blow
+//           any (1.6.2, asked by a system build: knockback counts where armor stops the whole injury): true only, the row runs on every blow
 //           that lands, a wound or none, Blow.wound then 0; a row without it runs on a wound alone, as before. asAt (1.6.2, of a shock roll that
 //           leaves out the Stunned of the same hit): true only, beside a roll, which is then worked out on the sheet as it stood when this row
 //           was reached, before its own effect and any later row's, in place of the sheet as the whole blow left it (info.follows[i].vals)
@@ -2086,7 +2086,7 @@ function rowTimers(sys, char, secs, perOf, F, fight) {   // fight (1.6.2): true 
 //           locs.die (1.6.0): a formula of the location's names and the character's, added to a wound that gets through for each die the blow rolled
 //   weapons [{ list, dur, wear, cond }]: a weapon tested by a blow: its listed Dur (a formula of Row.), its stat of wear and its stat of condition
 // The players' view keeps what the window asks (the pool, the types by name, the location list) and no formula: the host works the blow out.
-// 1.6.0 (the core's armour rule, asked by the campaign build's session): a layer may say by formula what a hit wears. majorWear on a Major
+// 1.6.0 (the core's armor rule, asked by the campaign build's session): a layer may say by formula what a hit wears. majorWear on a Major
 // Wound in place of a quarter of its listed figure; brokenWear and brokenMajorWear once its figure there is used up (Broken), for an
 // injuring hit and a Major Wound (a Major Wound with no brokenMajorWear reads majorWear). Each reads the row (Row.), the location (Hit.),
 // Listed (its figure there) and Worn (what has worn off); one that gives no number, or less than 0, wears what the layer wore before.
@@ -2101,12 +2101,12 @@ function rowTimers(sys, char, secs, perOf, F, fight) {   // fight (1.6.2): true 
 // brokenMajorWear); any other hit hitWear; with none of them, or one that gives no number or less than 0, 1 or a quarter as before
 // whole (1.6.0, Every location): a layer that is one figure and one wear stat wherever a blow lands, as a worn field is. Its at, read once a part,
 // says which types it stands against (a part it gives 0 for passes it by) and hitWear, majorWear and the rest what it wears, as on any layer. Three
-// things differ. It wears where a part it stands against took the main pool, never by comparing the damage rolled with its figure, so an armour
+// things differ. It wears where a part it stands against took the main pool, never by comparing the damage rolled with its figure, so an armor
 // divisor or a type that ignores DR cannot let a hit through unworn; a blow with no location wears it too (Hit. names read 0); and with no wearCap
 // it stops at its figure, where it is down (layerWord), wear never going past it nor being put back. wears and pick are dropped beside it: one stat
 // typed (1.6.0, Type named by): { stat, plus }, what a row adds to the DR at the location against one damage type. stat, a number stat of the row
 // naming the type by its place in the Combat tab's list, 1 the first, 0 none; plus, a formula read as the wear formulas are. It is worked out for
-// each part of a blow by that part's own type, added before the armour divisor, and stored nowhere, so it never wears. A row counts where it wears
+// each part of a blow by that part's own type, added before the armor divisor, and stored nowhere, so it never wears. A row counts where it wears
 // (on, or anyRow) and where its at gives that part a figure, and it stops once the row is broken there. Several rows add up
 var LAYER_WEAR = ['majorWear', 'brokenWear', 'brokenMajorWear', 'wearCap', 'hitWear'];
 function layerVars(listed, worn, blow, both, cap) {
@@ -2180,7 +2180,7 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
     if (typeof d.first === 'string' && ((FIELD_ID.test(d.first) && !!kinds && kinds[d.first] === 'number') || (d.first.indexOf('fx:') === 0 && EFFECT_ID.test(d.first.slice(3))))) out.first = d.first;   // 1.6.2 (the CORE session): or an effect that holds a number (fx:<id>), judged by cleanSystem once the effects are known   // 1.6.2 (temporary hit points; the rule modules session's ask): a number a wound to the main pool comes off first
     if (out.first && d.firstSoaks === true) out.firstSoaks = true;   // 1.6.2 (the CORE session): what the number takes is no wound, the same in both views
     var mj = fx(d.major); if (mj) out.major = mj;
-    var wfS = fx(d.woundF); if (wfS) out.woundF = wfS; if (!pl && d.zero === 'none') out.zero = 'none';   // 1.6.2: a wound by a formula for every type, and what a wound of 0 does (absent: armour still wears)
+    var wfS = fx(d.woundF); if (wfS) out.woundF = wfS; if (!pl && d.zero === 'none') out.zero = 'none';   // 1.6.2: a wound by a formula for every type, and what a wound of 0 does (absent: armor still wears)
     var mjw = cutText(d.majorWord, LIMITS.label); if (mjw) out.majorWord = mjw;   // 1.6.0 Major Wound is called: a system's own word for the step, the same in both views, read by majorWords alone (absent: A Major Wound)
     if (mj && !pl && isObj(d.onMajor) && !Array.isArray(d.onMajor)) { var om = {}, omIf = cleanFormulaText(d.onMajor.if); if (omIf) om.if = omIf; if (typeof d.onMajor.fx === 'string' && EFFECT_ID.test(d.onMajor.fx)) om.fx = d.onMajor.fx; if (typeof d.onMajor.roll === 'string' && ROLL_ID.test(d.onMajor.roll)) om.roll = d.onMajor.roll; if (om.fx || om.roll) out.onMajor = om; }
     if (isObj(d.locs) && isList(d.locs.list)) {
@@ -2266,10 +2266,10 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
     return out.pool || out.types || out.locs || out.onWound ? out : null;
 }
 // What a blow does: the pure step, the same on the host and on the GM's own screen. inp = { amt, type, loc, ad, weapon, only }: the damage rolled,
-// the type's key, the hit location's row id, the armour divisor (1: none), a weapon row tested by the blow and whether only that weapon was hit.
+// the type's key, the hit location's row id, the armor divisor (1: none), a weapon row tested by the blow and whether only that weapon was hit.
 // 1.6.0: inp.dice, the dice the blow rolled (0 to 100, absent 0), read by the figures a die of the type and the location (info.dice, info.dieAdd).
 // Returns { ok, values, lines, info } — values: the fields changed (the pool, each list a row of which wore), lines: what it did in words, info:
-// the figures — or { ok: false, reason }. The rule (the handbook's own order): DR at the location (typed DR added, divided by the armour divisor,
+// the figures — or { ok: false, reason }. The rule (the handbook's own order): DR at the location (typed DR added, divided by the armor divisor,
 // rounded down), what gets through times the type's multiplier (its vital one at a vital location), at least 1 when anything gets through, off
 // the type's pool; a Major Wound where the formula says; each worn layer at the location loses 1 of its listed figure, or a quarter of it rounded
 // up on a Major Wound, down to minus its listed figure; a weapon's Dur less the damage: 1 to 10 over wears it 1 and makes it Damaged, 11 to 19
@@ -2437,7 +2437,7 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
     var altOf = function(t) { var l = t && t.alt ? [t.alt].concat(Array.isArray(t.alts) ? t.alts : []) : []; for (var i = 0; i < l.length; i++) if (l[i] && yes(ev(l[i].if, R))) return l[i]; return null; };   // 1.6.2: Instead, if, and the alternatives after it, the first that holds
     var a1 = altOf(ty); if (a1) { if (a1.pool) pool = a1.pool; if (typeof a1.mult === 'number') mult = a1.mult; noWear = a1.noWear === true; }
     var pf = pool ? fieldById(sys, pool) : null; if (!pf || pf.kind !== 'resource') return { ok: false, reason: 'field' };
-    var twos = [];   // 1.6.0 (B3): each added part, its own type, pool, multiplier, armour divisor and dice, in slot order (none: empty)
+    var twos = [];   // 1.6.0 (B3): each added part, its own type, pool, multiplier, armor divisor and dice, in slot order (none: empty)
     for (var pi2 = 0; pi2 < pIn.length; pi2++) {
         var p2 = pIn[pi2].p, two;
         var ty2 = null; (rules.types || []).forEach(function(y) { if (!ty2 && typeof p2.type === 'string' && lower(y.key) === lower(p2.type)) ty2 = y; });
@@ -2483,10 +2483,10 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
         });
         return add;
     };
-    // 1.6.2 (the CORE session's batch 6, 9): a layer may say its own divisor (adBy, a formula reading Divisor, the blow's armour divisor, and what its wear
+    // 1.6.2 (the CORE session's batch 6, 9): a layer may say its own divisor (adBy, a formula reading Divisor, the blow's armor divisor, and what its wear
     // formulas read). The share of the location's DR its rows give there, each row's figure less its wear, comes out of the DR and is divided by that
     // divisor; the rest by the blow's. So 1 ignores the divisor and Divisor / 2 halves it. The location's DR is taken to hold that figure, as it does
-    // where it reads the armour worn. A share never passes what DR is left. With no such layer the DR is divided as it always was
+    // where it reads the armor worn. A share never passes what DR is left. With no such layer the DR is divided as it always was
     var adSplit = function(P, Rp, pv, dr) {
         var lyA = (rules.layers || []).filter(function(ly) { return typeof ly.adBy === 'string' && ly.adBy; });
         if (!lyA.length || !lrow || !Rp) return Math.floor(dr / P.ad);
@@ -2531,7 +2531,7 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
             var wound = through > 0 && mult > 0 ? Math.max(1, Math.floor(through * mult) + dieAdd) : 0;
             var wFx = ty && ty.woundF ? ty.woundF : ty && ty.byMult ? '' : rules.woundF || '', zw = false;   // 1.6.2: Wound by formula, the type's own, else the system's (a type ticked Its multiplier keeps its own)
             if (wFx && through > 0) { var wvF = ev(wFx, partR(P, Object.assign({}, blow0, { through: through }))); if (typeof wvF === 'boolean') wvF = wvF ? 1 : 0; if (typeof wvF !== 'number' || !isFinite(wvF)) return { fail: { ok: false, reason: 'error', message: 'The wound could not be worked out from its formula.' } }; wound = Math.max(0, Math.min(DMG_LIM.amt, Math.floor(wvF))); zw = wound === 0; }
-            var ww = wound > 0 ? wound : zw && rules.zero !== 'none' ? 1 : 0;   // what wear reads: a wound of 0 from the formula still wears armour unless the system says it does nothing
+            var ww = wound > 0 ? wound : zw && rules.zero !== 'none' ? 1 : 0;   // what wear reads: a wound of 0 from the formula still wears armor unless the system says it does nothing
             return { eff: eff, through: through, wound: wound, ww: ww, dieAdd: wFx && through > 0 ? 0 : dieAdd, line: (ty ? ty.label + ' ' : '') + amt + (lrow ? ' to ' + lname : '') + (eff ? ', DR ' + eff : '') + ': ' + (through ? through + ' through' + (wFx ? ', by its formula' : (mult !== 1 ? ' \u00d7' + mult : '') + (dieAdd ? ' ' + (dieAdd > 0 ? '+' : '\u2212') + Math.abs(dieAdd) + ' for ' + dice + (dice === 1 ? ' die' : ' dice') : '')) + ', ' + wound + ' ' + (pf.label || pf.key) : 'nothing gets through') };
         };
         var A = partStep({ amt: amt, ad: ad, dice: dice, ty: ty, kd: kd, pool: pool, pf: pf, mult: mult }); if (A.fail) return A.fail;
@@ -2759,7 +2759,7 @@ function hitsSecret(sys, ent, F, o) {
 }
 // A burst's hits on one character, the one judge beside the step: inp is the first hit's blow, inp.hits the rest (each { amt, type, ad, dice, kind,
 // major, part2 ... part5 }), every hit at inp's location. Each hit is its own blow, through damageStep: its DR, its Major Wound, its Any wound, its
-// follows. Each meets the armour as it was before the burst, and pools move on from hit to hit. The wear of the hits that got through adds up and
+// follows. Each meets the armor as it was before the burst, and pools move on from hit to hit. The wear of the hits that got through adds up and
 // comes off once, at the end, down to each layer's cap. One answer, so one Undo: { ok, values, lines, info } with info.hits (how many) and info.each,
 // each hit's { info, vals } that has a roll to post (the character's values as that hit left them, the wear to come not in them). A hit that
 // cannot be worked out refuses the whole burst. With no inp.hits it is the step itself
@@ -3367,7 +3367,7 @@ function tradeUndoList(before, after, now, nameOf) {
 // 0: that one owes it), in the base unit, 50 at most; none, no key. Both sheets keep their line, written together by debtPut. Pure
 var DEBT_MAX = 50, DEBT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 // 1.6.2, backlog 35, a personal look (the owner, 2026-11-03, by prompt: "name, roll cards, and sheet text", set by "player, or GM, both can
-// clear the other's changes"): the font a character's name is drawn in, one of Waypoint's own (fontKnown, never a computer's), and its colour,
+// clear the other's changes"): the font a character's name is drawn in, one of Waypoint's own (fontKnown, never a computer's), and its color,
 // a strict #rrggbb in lower case; the cleaned record, or null for none. Everyone who sees the name sees the look, so every copy keeps it
 function cleanPlook(v) {
     if (!isObj(v)) return null; var o = {}, f = fontKnown(v.font); if (f) o.font = f;
@@ -3425,7 +3425,7 @@ function rowOpMoney(sys, char, fieldId, q, res) {
 // [systemcheck:money-end]
 // [systemcheck:rowlook-start]
 // 1.6.0, backlog 206 (the core handbook's Color and Hiring the work; the owner's sheet website's F8, ONE shape on both sides, carried by the bridge as
-// it is): a built row's LOOK, the colours and words its builder declares, and its WORK LOG, the work done on it. A list switches each on
+// it is): a built row's LOOK, the colors and words its builder declares, and its WORK LOG, the work done on it. A list switches each on
 // (cleanListSpec: look, workLog); a list that does neither keeps neither, so a system that never ticks them is as it was. A look NEVER feeds a
 // figure: no formula, roll, budget, need or resolver reads it (no row word names it).
 //   look: { overall?: Finish, parts?: [{ part, finish: Finish }] }, Finish = { colors?: up to 4 '#rrggbb', finish?: 40 characters, markings?: 200 }
@@ -3433,7 +3433,7 @@ function rowOpMoney(sys, char, fieldId, q, res) {
 //   look.parts holds it, by the part's name, so the bridge has one reading; a part row with no host keeps its own overall.
 //   workLog: [{ kind: repair|fit|restyle|build, by: self|hired, fee: whole 0 to 1e7, note?: 200 }], the 50 newest, oldest first.
 // cleanRowLook is THE ONE cleaner: the load (rowFacts), the import, the wire (cleanCharItem) and the form (sheets.js) all end in it. Text is plain
-// (control characters as spaces, half a character as the replacement character) and drawn as text; a colour is a strict #rrggbb, in lower case
+// (control characters as spaces, half a character as the replacement character) and drawn as text; a color is a strict #rrggbb, in lower case
 var ROW_LOOK = Object.freeze({ colors: 4, finish: 40, marks: 200, parts: 12, part: 40, log: 50, note: 200, fee: 1e7, room: 200000, shades: 48, shadeName: 60 });   // room: the look and log one list's rows hold in all, as JSON writes them
 var WORK_KINDS = Object.freeze({ repair: 'Repair', fit: 'Fit', restyle: 'Restyle', build: 'Build' }), WORK_BY = Object.freeze({ self: 'own work', hired: 'hired' });
 var LOOK_HEX = /^#[0-9a-fA-F]{6}$/;
@@ -3479,7 +3479,7 @@ function rowLookInto(o, e, spec) {   // rowFacts: a row's look and log, where it
     if (c.look) o.look = c.look; if (c.workLog) o.workLog = c.workLog;
 }
 // the list's Look box (the owner, 2026-10-29, by prompt: "In the list's Look box"): main, the part category whose part's look a host with no look
-// of its own shows (a gun its grip's); by, a stat of the list, as it spells it, whose value names the material; shades, a colour each value name.
+// of its own shows (a gun its grip's); by, a stat of the list, as it spells it, whose value names the material; shades, a color each value name.
 // The same in both views
 function cleanLookSpec(v, stats) {
     var o = {}, mn = cutText(v.main, LIMITS.category); if (mn) o.main = mn;
@@ -3502,7 +3502,7 @@ function rowLookShade(sys, spec, row) {
     return null;
 }
 // what a row SHOWS (derived, never stored): its own overall; else, a host, its main part's finish from its own look.parts (the part of the list's
-// Main part category, by name); else its material's shade. An own overall that names no colour shows the colour it would derive, and says so
+// Main part category, by name); else its material's shade. An own overall that names no color shows the color it would derive, and says so
 // (tint: 'main' or 'shade'). { overall (or null), parts, from: 'own' | 'main' | 'shade' | '', main?, shade?, tint? }; null for a list with no
 // look, a fitted part and a row with nothing to show
 function rowLookShown(sys, char, spec, row) {
@@ -3519,7 +3519,7 @@ function rowLookShown(sys, char, spec, row) {
     if (own) { var ot = res(JSON.parse(JSON.stringify(own)), 'own'), dc = dv && isObj(dv.overall) && Array.isArray(dv.overall.colors) ? dv.overall.colors : []; if (dc.length) { ot.overall.colors = dc.slice(); ot.tint = dv.from; } return ot; }
     return dv || (parts.length ? res(null, '') : null);
 }
-// words, as text for a text node: a finish ("matte, markings: a red stripe"; colours first with withColors) and a log line ("Repair, hired, fee 150: the shop")
+// words, as text for a text node: a finish ("matte, markings: a red stripe"; colors first with withColors) and a log line ("Repair, hired, fee 150: the shop")
 function finishWords(fz, withColors) { if (!isObj(fz)) return ''; var w = []; if (withColors && Array.isArray(fz.colors) && fz.colors.length) w.push(fz.colors.join(' ')); if (fz.finish) w.push(fz.finish); if (fz.markings) w.push('markings: ' + fz.markings); return w.join(', '); }
 function workWords(w) { return isObj(w) && hasOwn(WORK_KINDS, w.kind) ? WORK_KINDS[w.kind] + ', ' + (hasOwn(WORK_BY, w.by) ? WORK_BY[w.by] : '') + (w.fee > 0 ? ', fee ' + fmtNum(w.fee) : '') + (w.note ? ': ' + w.note : '') : ''; }
 // the row op of both (applyRowOp hands them here before any other rule): q = { op: 'look', rowId, look (null: none) } or { op: 'work', rowId,
@@ -3614,7 +3614,7 @@ function cleanCombat(c, resIds, fieldIds, secretIds, F, viewKinds, pl, fl) {   /
     if (typeof c.targetHit === 'string' && FIELD_ID.test(c.targetHit) && isObj(fieldIds) && hasOwn(fieldIds, c.targetHit) && fieldIds[c.targetHit] === 'item-list') out.targetHit = c.targetHit;   // 1.6.0 (B5): the item list of a target's sheet whose rows are its hit locations, read as Target.Hit.<name>, the same in both views
     if (typeof c.steal === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(c.steal)) out.steal = c.steal;   // 1.6.2 (backlog 42, fold 3b): the Pickpocket roll, in both views (a player presses it); cleanSystem keeps it only where that roll is
     if (pl !== true && isObj(c.loot)) { var lootIf = cleanFormulaText(c.loot['if']); if (lootIf) out.loot = { 'if': lootIf }; }   // 1.6.2 (backlog 42, fold 3): Can be looted where, read on an NPC's sheet on the host alone
-    if (c.hideResist === true) out.hideResist = true;   // 1.6.2: Hide what a defence needs, true only, the same in both views
+    if (c.hideResist === true) out.hideResist = true;   // 1.6.2: Hide what a defense needs, true only, the same in both views
     var arcsC = cleanArcs(c.arcs); if (arcsC) out.arcs = arcsC;   // 1.6.2 (vehicles, fold (b), rebuilt): the system's own arcs, the same in both views
     var terC = cleanTerrainKinds(c.terrain); if (terC) out.terrain = terC;   // 1.6.2 (backlog 57): the system's kinds of terrain, the same in both views
     var ps = cleanPostures(c.postures, viewKinds); if (ps) out.postures = ps;   // conditions C3: the system's own postures (absent: the seven)
@@ -3655,7 +3655,7 @@ function cleanCombat(c, resIds, fieldIds, secretIds, F, viewKinds, pl, fl) {   /
 //            the blast's own radius, and never less), type (the damage type's key of a fragmentation whose item names none; absent: the blast's),
 //            cover ('total': only total cover stops it, and a token partly behind cover takes it all; absent: the system's cover outcomes, as
 //            the blast), each (true: each token rolls its own; absent: one roll for every token, H5), direct (true: the token struck directly
-//            takes a hit of its own roll; absent: it takes the same roll as the others) and ad (true: the item's armour divisor counts against
+//            takes a hit of its own roll; absent: it takes the same roll as the others) and ad (true: the item's armor divisor counts against
 //            it too; absent: none, H6)
 //   resist   1.5.9 (the book's (es), section 2's affliction half): the resist roll an affliction makes each character it reaches roll, a check,
 //            dice allowed: Resist stands for the item's resist target (3d6 <= Resist); with none an affliction is not rolled and the GM is told
@@ -3698,7 +3698,7 @@ function cleanBlastDefend(v) {
     if (v.noFrag === true) o.noFrag = true; if (typeof v.posture === 'string' && POSTURE_ID.test(v.posture)) o.posture = v.posture; if (typeof v.count === 'string' && FIELD_ID.test(v.count)) o.count = v.count;
     return o;
 }
-// 1.6.2 (vehicles, fold (e); the owner, by prompt: "One cell in the system's own distance unit. The system sets its base unit (yards, feet, metres)
+// 1.6.2 (vehicles, fold (e); the owner, by prompt: "One cell in the system's own distance unit. The system sets its base unit (yards, feet, meters)
 // once; a blast's formulas get a name worth one cell of the map in that unit, whatever the map is set in", and of a victim's scale, "One field the
 // system names"): MapCell, one cell of a map in the system's unit (combat.unit, absent yards), to the millionth; and the kinds a sheet's scale may be
 var SCALE_KINDS = Object.freeze({ number: 1, formula: 1, skill: 1 });
@@ -3740,7 +3740,7 @@ function cleanBlastRules(v, F) {
 function cleanReach(text, F) { return blastFormula(text, F, null, false); }
 // ... and an item's blast extras, kept in its area beside its radius: its damage type's key (a key of the Combat tab's types), whether
 // going off uses one up (use, true only), whether it is placed, not thrown (place, true only: a mine), and the trigger radius in yards (trig,
-// 0.5 to 100 to the tenth, only beside place), and its armour divisor (ad, 0.1 to 100 to the tenth, never 1). 1.5.9 (es): how a round fired
+// 0.5 to 100 to the tenth, only beside place), and its armor divisor (ad, 0.1 to 100 to the tenth, never 1). 1.5.9 (es): how a round fired
 // from a launcher lands when the roll misses (flight: 'scatter', as a missed throw; 'line', straight on to the first wall or character; never
 // beside place; absent: the GM places it). The same in both views (none of it is secret: the damage formula is). 1.5.9 (the book's (es),
 // docs/BOOK_ES_ET_PLAN.md section 2): its fragmentation (frag: a dice formula's text, as the damage's) and that fragmentation's damage type
@@ -3879,7 +3879,7 @@ function heightOf(sys, from, to, opts) {
 // (statAsk); an older Waypoint drops the key and reads the stats as the GM's alone, so no ask is ever sent to a host that cannot take it
 // Stage 6 F4c2: the system's rules for item lists (the Lists tab's Rules box) — ownerStats: players may change the stats of their own copies
 // (Setting A). Both views carry it: a player's sheet draws its ✎ and their own check judges by it, the host by the full system. null when unset
-// 1.6.0: two names of copies held again are the same name where they read alike as the site's organisation key reads them: lower case,
+// 1.6.0: two names of copies held again are the same name where they read alike as the site's organization key reads them: lower case,
 // each run of characters that are no letter or digit one space, trimmed, so Republic-Navy and Republic  Navy are one
 function againFold(s) { return String(typeof s === 'string' ? s : '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); }
 // 1.6.0: a list roll's, an action's or a counter's other names, each shown on the rows where its formula holds (the first that holds wins; none:
@@ -4015,7 +4015,7 @@ function budgetsOf(sys, char, F) {
     });
     return out;
 }
-// The host's judgement of a player's own change, asked BEFORE the change is stored. changes: { fieldId: the new value }, as the edit and the
+// The host's judgment of a player's own change, asked BEFORE the change is stored. changes: { fieldId: the new value }, as the edit and the
 // row gates answer them. A budget is breached when, with the change, it is over AND further over than it was: a change that leaves an overrun
 // the same or smaller goes through, so a character that is over can be put right a step at a time. A budget is watched by its `when`; one set
 // to off is not judged. A figure that cannot be worked out (the owed review, 2026-10-09: a player could make one fail, by a division by a field
@@ -4053,7 +4053,7 @@ function cleanSecStyle(v) {
     if (!isObj(v)) return null;
     var HEX = /^#[0-9a-fA-F]{6}$/, out = {};
     ['accent', 'bg', 'border'].forEach(function(k) { if (typeof v[k] === 'string' && HEX.test(v[k])) out[k] = v[k].toLowerCase(); });
-    if (out.accent && v.stripe === false) out.stripe = false;   // Stage 5g: the accent colours the title only, without the left stripe (kept only beside an accent)
+    if (out.accent && v.stripe === false) out.stripe = false;   // Stage 5g: the accent colors the title only, without the left stripe (kept only beside an accent)
     return Object.keys(out).length ? out : null;
 }
 // 5h: one change an effect makes — ADD a number to a number, a skill's total, a formula or a resource's max, or switch a toggle ON. The
@@ -4118,7 +4118,7 @@ function cleanEffectDef(d, fieldKinds, gmView, F) {   // conditions C4: F, for a
 }
 // Conditions C4: an automatic effect's formula — one that reads, rolls no dice (whether it names a GM-only value is judged over the whole system)
 function autoFormulaOk(text, F) { if (!F || typeof F.parse !== 'function') return false; var p = F.parse(text); return !!(p && p.ok && p.ast && !hasDice(p.ast.body)); }
-// Stage 5g: the sheet's own shape — headline section titles, filled (angled) tabs, one accent colour, the portrait and the name leading
+// Stage 5g: the sheet's own shape — headline section titles, filled (angled) tabs, one accent color, the portrait and the name leading
 // the header block. Whitelisted values only; absent (or nothing valid) = today's look, and the key is left out.
 var LABEL_PX = Object.freeze([13, 14, 16]);
 function cleanLook(v) {
@@ -4129,7 +4129,7 @@ function cleanLook(v) {
     if (typeof v.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.accent)) out.accent = v.accent.toLowerCase();
     if (v.portrait === true) out.portrait = true;
     if (v.labels === 'caps' || v.labels === 'plain') out.labels = v.labels;   // Fold B: field labels in small bold capitals; 1.6.0: 'plain', the header's labels plain too
-    if (v.labelInk === 'text') out.labelInk = 'text';   // 1.6.0: labels in the sheet's text colour, not the muted one
+    if (v.labelInk === 'text') out.labelInk = 'text';   // 1.6.0: labels in the sheet's text color, not the muted one
     if (LABEL_PX.indexOf(v.labelSize) >= 0) out.labelSize = v.labelSize;   // 1.6.0: labels at a size of their own (the sheet; the HUD keeps its own)
     if (v.sticky === true) out.sticky = true;   // L5: a section's title stays at the top while that section scrolls
     if (v.numbers === 'mono') out.numbers = 'mono';   // L8: figures in a monospaced face
@@ -4138,10 +4138,10 @@ function cleanLook(v) {
     if (v.values === 'boxed') out.values = 'boxed';   // L8: a worked-out result in a box
     if (v.effects === 'cards') out.effects = 'cards';   // L6: status effects as cards, a pill per change
     if (v.rows === 'cards') out.rows = 'cards';   // L8: carried items as cards
-    var pal = cleanPalette(v.palette); if (pal) out.palette = pal;   // Stage 6 look fold: every part of the sheet in ten colours
+    var pal = cleanPalette(v.palette); if (pal) out.palette = pal;   // Stage 6 look fold: every part of the sheet in ten colors
     return Object.keys(out).length ? out : null;
 }
-// Stage 6 look fold (L1): a sheet palette — ten colours, all or nothing (a partial one would leave theme colours mixed in and read
+// Stage 6 look fold (L1): a sheet palette — ten colors, all or nothing (a partial one would leave theme colors mixed in and read
 // differently under each theme); a plain object, since the wire's packer refuses a prototype-free one
 var PALETTE_KEYS = ['text', 'muted', 'panel', 'card', 'field', 'edge', 'primary', 'danger', 'good', 'warn'];
 function cleanPalette(v) {
@@ -4358,7 +4358,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
     var lkC = cleanLock(v.lock, out); if (lkC) out.lock = lkC;
     var lyC = cleanLay(v.lay, out); if (lyC) out.lay = lyC;   // 1.6.2 Laid from: each row of another list lays one row here   // 1.6.2 Locked while: chosen cells of its rows while a test of the character holds
     if (typeof v.modsIf === 'string') { var miT = cleanFormulaText(v.modsIf); if (miT) out.modsIf = miT; }   // 1.6.0 Changes apply where (the campaign build's ask): a formula of the holder's names and each row's own (Row.*); a row where it does not hold gives none of its changes (fxIndex, unseenMods). The same in both views: cleanSystem drops one that cannot stand (modsIfOk)
-    if (typeof v.lvlTone === 'string' && TONES[v.lvlTone] === 1) out.lvlTone = v.lvlTone;   // 1.6.2 (180): the colour of every By level tag of its entries, where a level line names none
+    if (typeof v.lvlTone === 'string' && TONES[v.lvlTone] === 1) out.lvlTone = v.lvlTone;   // 1.6.2 (180): the color of every By level tag of its entries, where a level line names none
     if (v.edge === true) out.edge = true;   // 1.6.0 R16: Edge follows its state, a row's edge in the tone of its strongest badge, else the accent while it is switched on
     if (v.hang === true) out.hang = true;   // 1.6.2 (body fold 1): Rows hang from a row, a row's up and Row.up.<name>
     var shS = cleanSheetsSpec(v.sheets, gmView); if (shS) out.sheets = shS;   // 1.6.2 (vehicles, fold (a)): Rows are sheets, a row's sh and Row.sheet.<name>
@@ -4632,7 +4632,7 @@ function cleanLvls(v) {
         var r = v[i]; if (!isObj(r) || typeof r.lvl !== 'number') continue;
         var lv = lvlNum(r.lvl), tx = cutText(r.text, LIMITS.lvlText); if (lv === undefined || !tx || seen[lv] === 1) continue;
         var o = { lvl: lv, text: tx }, tg = cutText(r.tag, LIMITS.lvlTag); if (tg) o.tag = tg;
-        if (tg && typeof r.tone === 'string' && TONES[r.tone] === 1) o.tone = r.tone;   // 1.6.2 (180, R5's leftover; the owner: both a list's tone and one a level line): its tag's colour, over the list's
+        if (tg && typeof r.tone === 'string' && TONES[r.tone] === 1) o.tone = r.tone;   // 1.6.2 (180, R5's leftover; the owner: both a list's tone and one a level line): its tag's color, over the list's
         seen[lv] = 1; out.push(o);
     }
     out.sort(function(a, b) { return a.lvl - b.lvl; });
@@ -5143,7 +5143,7 @@ function cleanSystem(sys, opts) {
         out.rolls.forEach(function(r) { if (r.then && r.then.some(function(c) { return mentions(c.formula) || mentions(c.by); })) thenGmCut(r, function(c) { return mentions(c.formula) || mentions(c.by); }); if (r.malf && mentions(r.malf)) { delete r.malf; r.named = true; } if (r.needs && mentions(r.needs)) { delete r.needs; delete r.needsText; delete r.hideOff; if (r.every) delete r.every.whileNeeds; if (r.inFight) delete r.inFight.whileNeeds; } });   // 1.5.4: its needs naming one go, as a list roll's (players' presses are then not held back by them); 1.5.5: and Only while its needs hold with them   // R3: a Malf naming one too   // R1: a consequence naming a GM-only value takes them all (players' rolls then change nothing)
         var critGo = function(r) { if (r.critAt && mentions(r.critAt)) { delete r.critAt; r.named = true; } if (r.fumbleAt && mentions(r.fumbleAt)) { delete r.fumbleAt; r.named = true; } if (r.bigAt && mentions(r.bigAt)) delete r.bigAt; };   // 1.6.0: a roll's own critical range naming a GM-only value goes, as its Malf does (their rolls then read the Combat tab's). Either keeps the roll named, so the host still finds the entry whose figure it works out alone
         out.rolls.forEach(critGo); out.fields.forEach(function(f) { if (f.list && Array.isArray(f.list.rolls)) f.list.rolls.forEach(critGo); });
-        var mjGo = function(r) { if (r.dmgMajorIf && mentions(r.dmgMajorIf)) delete r.dmgMajorIf; if (r.hits && mentions(r.hits)) delete r.hits; if (r.dkind && mentions(r.dkind)) delete r.dkind; if (r.dmg2 && mentions(r.dmg2)) { delete r.dmg2; delete r.dtype2; delete r.ad2; delete r.dkind2; } if (r.ad2 && mentions(r.ad2)) delete r.ad2; if (r.dkind2 && mentions(r.dkind2)) delete r.dkind2; DMG_MORE.forEach(function(k) { if (r['dmg' + k] && mentions(r['dmg' + k])) { delete r['dmg' + k]; delete r['dtype' + k]; delete r['ad' + k]; delete r['dkind' + k]; } if (r['ad' + k] && mentions(r['ad' + k])) delete r['ad' + k]; if (r['dkind' + k] && mentions(r['dkind' + k])) delete r['dkind' + k]; }); }; out.rolls.forEach(mjGo); out.fields.forEach(function(f) { if (f.list && Array.isArray(f.list.rolls)) f.list.rolls.forEach(mjGo); });   // 1.6.0: A Major Wound where naming a GM-only value goes, as a list roll's armour divisor does (only the host marks a card); B3: a second part read from one goes whole, its own armour divisor alone as ad does
+        var mjGo = function(r) { if (r.dmgMajorIf && mentions(r.dmgMajorIf)) delete r.dmgMajorIf; if (r.hits && mentions(r.hits)) delete r.hits; if (r.dkind && mentions(r.dkind)) delete r.dkind; if (r.dmg2 && mentions(r.dmg2)) { delete r.dmg2; delete r.dtype2; delete r.ad2; delete r.dkind2; } if (r.ad2 && mentions(r.ad2)) delete r.ad2; if (r.dkind2 && mentions(r.dkind2)) delete r.dkind2; DMG_MORE.forEach(function(k) { if (r['dmg' + k] && mentions(r['dmg' + k])) { delete r['dmg' + k]; delete r['dtype' + k]; delete r['ad' + k]; delete r['dkind' + k]; } if (r['ad' + k] && mentions(r['ad' + k])) delete r['ad' + k]; if (r['dkind' + k] && mentions(r['dkind' + k])) delete r['dkind' + k]; }); }; out.rolls.forEach(mjGo); out.fields.forEach(function(f) { if (f.list && Array.isArray(f.list.rolls)) f.list.rolls.forEach(mjGo); });   // 1.6.0: A Major Wound where naming a GM-only value goes, as a list roll's armor divisor does (only the host marks a card); B3: a second part read from one goes whole, its own armor divisor alone as ad does
         out.rolls.forEach(function(r) { if (r.label.indexOf('{') >= 0 && capMentions(r.label)) r.label = labelHead(r.label); });   // HUD frame (HF5a, H3): a label naming a GM-only value keeps only its plain text before the first {...} (fail closed, as a caption)
     }
     var fieldIds = map(), rollIds = map(), resIds = map();
@@ -5245,7 +5245,7 @@ function cleanSystem(sys, opts) {
         out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && typeof f.list.subjectIf === 'string' && !modsIfOk(sysSj, F, f, f.list.subjectIf)) delete f.list.subjectIf; });
     }
     // 1.6.2 Thrown only where: the GM's view keeps it where it is a formula with no dice, since the host judges every throw by it; the players' view drops
-    // it, and its words, where it reads a GM-only value, so a player's sheet greys Throw only where the host would refuse it
+    // it, and its words, where it reads a GM-only value, so a player's sheet grays Throw only where the host would refuse it
     if (out.fields.some(function(f) { return f.kind === 'item-list' && isObj(f.list) && typeof f.list.throwIf === 'string'; }) && F && typeof F.parse === 'function') {
         var sysTw = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables, values: sys.values, decks: sys.decks, effects: sys.effects };
         out.fields.forEach(function(f) { if (f.kind !== 'item-list' || !isObj(f.list) || typeof f.list.throwIf !== 'string') return; var pT = null; try { pT = F.parse(f.list.throwIf); } catch (x) { pT = null; } if (!pT || !pT.ok || hasDice(pT.ast.body) || (!gmView && !modsIfOk(sysTw, F, f, f.list.throwIf))) { delete f.list.throwIf; delete f.list.throwSays; } });
@@ -6284,7 +6284,7 @@ function dmgMajorOf(ent, vars, F) {
     var p = F.parse(ent.dmgMajorIf); if (!p.ok || hasDice(p.ast.body)) return false;
     return rollNeedsOk({ needs: ent.dmgMajorIf }, vars, F);
 }
-// 1.6.0 (the v2 combat module): the armour divisor a list's damage roll reads from its row (its ad: a number, or a formula of the roll's own names,
+// 1.6.0 (the v2 combat module): the armor divisor a list's damage roll reads from its row (its ad: a number, or a formula of the roll's own names,
 // Row.ap), 0.1 to 100 to the tenth, or 0 for none (1 is none too). Nothing is rolled; a formula that cannot be worked out gives none
 function dmgAdOf(ent, vars, F) {
     if (!isObj(ent) || ent.dmg !== true || typeof ent.ad !== 'string' || !ent.ad || !F || typeof vars !== 'function') return 0;
@@ -6294,7 +6294,7 @@ function dmgAdOf(ent, vars, F) {
 }
 // 1.6.0 (B3): a damage roll's second part, of another type, rolled where the roll is made (the host) with the roller's names, its formula read from
 // the entry and never from a roller's word: { t, n?, dtype?, ad? } (its total, held from 0 to the damage step's most, the dice it rolled, the
-// type its dtype2 names as dmgTypeOf reads a dtype, and the armour divisor its ad2 names as dmgAdOf reads an ad), or null. o.random, the suite's dice
+// type its dtype2 names as dmgTypeOf reads a dtype, and the armor divisor its ad2 names as dmgAdOf reads an ad), or null. o.random, the suite's dice
 // 1.6.0: dmgPartOf reads the part of slot k (2, 3, 4 or 5: dmg<k>, dtype<k>, ad<k>, and dkind<k>, its own kind as dmgKindOf reads a dkind) by the very same rule; dmgPart2Of is its slot 2
 var DMG_MORE = Object.freeze([3, 4, 5]);   // the slots past the second: a blow has five parts at most
 function dmgPart2Of(sys, ent, vars, F, o) { return dmgPartOf(sys, ent, vars, F, o, 2); }
@@ -6438,7 +6438,7 @@ function withOnSelf(vars, self, onVars) {
     if (self === false && typeof onVars === 'function') w.onRes = onVars; else delete w.onRes;   // 1.6.0: the one it is used on, whose rows a change on every row of a list reads (applyAct)
     return w;
 }
-// 1.6.0: whether a formula reads the one an entry is used on (On.<name>): its button never greys by it, as only a press names that character
+// 1.6.0: whether a formula reads the one an entry is used on (On.<name>): its button never grays by it, as only a press names that character
 function readsOn(text, F) { if (typeof text !== 'string' || !text || !F || typeof F.names !== 'function') return false; try { return F.names(text).some(function(n) { return /^on\./i.test(String(n)); }); } catch (e) { return false; } }
 var THEN_WHEN =Object.freeze({ hit: 'On success', miss: 'On failure', crit: 'On a critical success', fumble: 'On a critical failure', malf: 'On malfunction' });   // 1.5.8: a consequence's When, in the editor's words
 // Stage 6 HUD C8: whether a part of the sheet shows for this character — its show-if worked out with the sheet's own resolver (vars). None, a
@@ -8269,7 +8269,7 @@ function rowLoad(sys, char, f, list, spec, q, opts, at, vo, F) {
 // 1.6.0 Stands at (asked by the campaign build's session, for an implant that reads the location it sits at): a list's at { from, by }. A row's
 // choice stat by (a pick's label, or a number's value name: statName) names a row of the list from: the first row there whose entry's key reads
 // the same, else the first whose name does, each folded to its letters and digits in lower case, so Upper Torso is the entry UpperTorso. The key
-// first: it is the entry's own and moves with no rename, where a figure two entries share (two locations at one armour slot) names the wrong one
+// first: it is the entry's own and moves with no rename, where a figure two entries share (two locations at one armor slot) names the wrong one
 // and a name a copy may change. Formulas of the list read that row's stat, choice or column as Row.<by>.<w> (atVal), 0 where none is named or held
 var AT_NOT = Object.freeze({ parts: 1, round: 1, fired: 1 });
 function atFold(s) { return typeof s === 'string' ? lower(s).replace(/[^a-z0-9]/g, '') : ''; }
@@ -9639,7 +9639,7 @@ function setLinkCharSource(fn) { _linkCharSrc = typeof fn === 'function' ? fn : 
 var _setOffSink = null;   // 1.6.2 (the CORE session's batch 6, 10): the host sets off a placed blast (whiteboard.js wpSetOffNear); answers how many went off
 function setSetOffSink(fn) { _setOffSink = typeof fn === 'function' ? fn : null; return !!_setOffSink; }
 function setLaunchSink(fn) { _launchSink = typeof fn === 'function' ? fn : null; return !!_launchSink; }
-// D7 (the core): what a hit takes off a thing in flight: the system's own wound rule against its Protection, divided by the armour divisor, with no
+// D7 (the core): what a hit takes off a thing in flight: the system's own wound rule against its Protection, divided by the armor divisor, with no
 // location, layer, wound row or condition; with no damage rules, the damage less Protection. inp: { amt, type (a key), ad }; a whole number, 0 or more
 function flyWound(sys, inp, pro, F) {
     var amt = isObj(inp) && typeof inp.amt === 'number' && fin(inp.amt) ? Math.max(0, Math.floor(inp.amt)) : 0, ad = isObj(inp) && typeof inp.ad === 'number' && fin(inp.ad) && inp.ad > 0 ? inp.ad : 1;
@@ -9821,7 +9821,7 @@ function tokenCtx(map, tok, flags) {   // everything a token gives the built-in 
 // exactly as before
 var _aimSrc = null;
 function setAimSource(fn) { _aimSrc = typeof fn === 'function' ? fn : null; return !!_aimSrc; }
-function bearingTo(from, to) {   // the world bearing from one piece's centre to another's: whole degrees in (-180, 180], 0 up and clockwise; null for no bearing
+function bearingTo(from, to) {   // the world bearing from one piece's center to another's: whole degrees in (-180, 180], 0 up and clockwise; null for no bearing
     var c = function(p) { if (!isObj(p)) return null; var x = p.x, y = p.y, w = typeof p.w === 'number' && p.w > 0 ? p.w : 60, h = typeof p.h === 'number' && p.h > 0 ? p.h : 52; return [x, y, w, h].every(function(n) { return typeof n === 'number' && isFinite(n) && Math.abs(n) < 1e9; }) ? [x + w / 2, y + h / 2] : null; };
     var a = c(from), b = c(to); if (!a || !b) return null;
     var dx = b[0] - a[0], dy = b[1] - a[1]; if (dx === 0 && dy === 0) return null;
@@ -10163,7 +10163,7 @@ function postureSeven(v, sys) {
 // (CombatRound reads 0 then) or no valid round. The round is whole and within 0..9999, as the wire's combats are
 // Range penalties R2 (docs/RANGE_PLAN.md 3): what RangeMod and TargetDistance read between a roller's token and its target on a map —
 // { mod, dist }: the system's range modifier (0 with no rule, or a formula that gives no number) and the distance in the rule's unit (yards
-// with no rule), centre to centre, with their heights when opts.elev (the elevation feature on) as the ruler and a target mark count them;
+// with no rule), center to center, with their heights when opts.elev (the elevation feature on) as the ruler and a target mark count them;
 // null with no two tokens or a place that is no number. Whose target, and whether its player may know it, the caller decides
 // Item 19b H5 (ground height): the ground under a token, when the caller knows it — opts.groundOf, a function of the token (whiteboard.js
 // tokenGround on its map): yards within -1000 to 1000, 0 with none or an answer that is no number. A token's height is its own elevation plus
@@ -10549,7 +10549,7 @@ function srcKeep(list, m, seen) {
 // breakdown, as rec.names holds them); vars: the resolver the roll was made with (its detail). One entry a number the effects changed, at most
 // 8: { n: the name, b: its figure before the effects on it, a: after, m?: [{ s: the source's name, v: the amount }] the effects on the value
 // itself, which take b to a, w?: [{ s, v, t }] the effects on a value it is worked out from (t), already inside b (an effect of +1 on a skill
-// moves a defence worked out from it by what its formula makes of that), at most 8 of each. A GM-only source is never named: its amount stays
+// moves a defense worked out from it by what its formula makes of that), at most 8 of each. A GM-only source is never named: its amount stays
 // folded into the figure before, so nothing of it shows. A toggle switched on by an effect is no number and is passed over. None: null
 // 1.6.0 roll switches (the owner, by prompt: "In the ± window"): a bonus an item or an effect offers to some rolls, which the roller ticks in
 // the roll's ± window, off by default: { name, v (whole, 1 to 99 either way, how much it helps, as the window's modifier), to: [ { f } a field's
@@ -11788,7 +11788,7 @@ function resolveAll(sys, char, F, tctx, ropts) {   // tctx: tokenCtx(...) = { fa
     return out;
 }
 // 1.6.2 (auto apply): a field still holds what a fill gave while its stored figure is what that fill gives now from the field it fills from: e.filled
-// names that field, for the sheet's grey word. A field typed to that very figure reads so too, and a fill would take it the same
+// names that field, for the sheet's gray word. A field typed to that very figure reads so too, and a fill would take it the same
 function autoMarks(sys, char, F, r, out) {   // the mark where this machine keeps it (the host's record); on a copy, which keeps none, by the figure
     if (!F || !isObj(sys) || !Array.isArray(sys.fields)) return;
     var af = isObj(char) && isObj(char.af) ? char.af : null;
@@ -12059,11 +12059,11 @@ function tokenOwnEffects(sys, rows, gm) {
     return out;
 }
 // Backlog 28, token bars (the owner, 2026-10-29, by prompt: a thin ring around the token, Bar 1 its left half and Bar 2 its right; the system's
-// bars with a token's own; the numbers on hover to whoever sees the bar; each bar its own colour). A bar is { f: a pool's field id, show, color }
+// bars with a token's own; the numbers on hover to whoever sees the bar; each bar its own color). A bar is { f: a pool's field id, show, color }
 // (the system's, combat.bars, kept in the GM's view alone) or, in a token's own list (item.bars, the GM's and never on the wire), that or numbers
 // of the token's own { n, cur, max, show, color }. show: 'gm' the GM alone, 'owner' the token's owner and the GM, 'all' everyone. A list is two
 // slots, [Bar 1, Bar 2], each a bar or null. What a viewer is given is worked out by the host (net.js barsOf) and drawn as [{ s: the slot, v,
-// m, n: the label, c: the colour }], a GM-only bar marked g on the GM's own screen alone
+// m, n: the label, c: the color }], a GM-only bar marked g on the GM's own screen alone
 var BAR_SHOW = { gm: 1, owner: 1, all: 1 }, BAR_COLORS = ['#d9534f', '#4f8fd9'], BAR_NUM = 1e9;
 var BAR_SHOW_WORDS = [['owner', 'Its owner and the GM'], ['all', 'Everyone'], ['gm', 'GM only']];   // the words of show, as the System editor and a token's Properties offer them
 function barNum(v) { return typeof v === 'number' && isFinite(v) ? Math.max(-BAR_NUM, Math.min(BAR_NUM, Math.round(v * 100) / 100)) : null; }
@@ -12109,7 +12109,7 @@ function tokenBarFigs(spec, sys, char, F, who) {
     }
     return out;
 }
-// The figures as a host sent them, cleaned again on a player's app: two at most, one a slot, in slot order, numbers, a plain label, a colour, never a mark
+// The figures as a host sent them, cleaned again on a player's app: two at most, one a slot, in slot order, numbers, a plain label, a color, never a mark
 function cleanBarFigs(list) {
     var out = [], seen = [0, 0]; if (!Array.isArray(list)) return out;
     list.slice(0, 2).forEach(function(e) { if (!isObj(e) || (e.s !== 0 && e.s !== 1) || seen[e.s]) return; var v = barNum(e.v), m = barNum(e.m); if (v === null || m === null) return; seen[e.s] = 1; out.push({ s: e.s, v: v, m: m, n: barLabel(e.n) || 'Bar ' + (e.s + 1), c: barColor(e.c, e.s) }); });
@@ -12132,7 +12132,7 @@ function fmtNum(v) { if (typeof v === 'boolean') return v ? 'yes' : 'no'; if (ty
 // Stage 5d: one read-only header-block entry (an identity row or a ledger figure) for a field: what the sheet prints for it, or null
 // to leave it out. A toggle shows as a chip only while on; an error prints '—' with the message as a title (as the field itself does
 // below); a negative number marks itself so the figure can read red. Stage 5g: an empty text/select keeps its place as a dash (a row
-// that vanished read as a missing field), the field's unit follows the value, and a field coloured by sign marks a positive too.
+// that vanished read as a missing field), the field's unit follows the value, and a field colored by sign marks a positive too.
 function headerEntry(f, e, metric) {   // metric (1.5.4): the viewer's Measurement system, true for Metric and false for Imperial; absent, the field as stored (an export)
     if (!f || !e) return null;
     if (f.kind === 'toggle') return e.value === true ? { chip: true, text: f.label } : null;
@@ -12177,8 +12177,8 @@ var NAME_WORDS = Object.freeze(Object.assign(Object.create(null), {
     onself: 'whether it is used on the user', crossstep: 'which step was crossed', crossed: 'how many steps were crossed', effectnumber: 'the number the effect held',
     'blow.dmg': 'the damage rolled', 'blow.through': 'the damage past DR', 'blow.wound': 'the wound it dealt', 'blow.first': 'what was taken first, before the wound', 'blow.type': 'the damage type', 'blow.cuts': 'whether the blow cuts', 'blow.major': 'whether it is a Major Wound', 'blow.big': 'whether the attack landed as a heavy hit', 'blow.kind': 'the kind of blow',
     'blow.type2': 'the second part\u2019s damage type', 'blow.wound2': 'the second part\u2019s wound', 'blow.kind2': 'the second part\u2019s kind', 'blow.type3': 'the third part\u2019s damage type', 'blow.wound3': 'the third part\u2019s wound', 'blow.kind3': 'the third part\u2019s kind', 'blow.type4': 'the fourth part\u2019s damage type', 'blow.wound4': 'the fourth part\u2019s wound', 'blow.kind4': 'the fourth part\u2019s kind', 'blow.type5': 'the fifth part\u2019s damage type', 'blow.wound5': 'the fifth part\u2019s wound', 'blow.kind5': 'the fifth part\u2019s kind',
-    blastdistance: 'the distance from the blast', blastdice: 'the dice of the blast', blastdamage: 'the damage of the blast', direct: 'whether it was struck directly', centre: 'whether it stands at the centre', blastfills: 'how much of the area it fills', blastradius: 'the item\u2019s own radius, in yards', mapcell: 'one cell of the map', hitscale: 'the scale of the one it hits', blastnodrop: 'whether its damage keeps its strength', blastscale: 'the scale of the item that went off', fragdice: 'the fragmentation dice', throwskill: 'the skill it is thrown with', throwdistance: 'the distance of the throw', margin: 'how far it failed by', distance: 'the distance',
-    listed: 'its listed figure', worn: 'what is worn off it', todestroy: 'the wear that destroys it', divisor: 'the blow\u2019s armour divisor'
+    blastdistance: 'the distance from the blast', blastdice: 'the dice of the blast', blastdamage: 'the damage of the blast', direct: 'whether it was struck directly', centre: 'whether it stands at the center', blastfills: 'how much of the area it fills', blastradius: 'the item\u2019s own radius, in yards', mapcell: 'one cell of the map', hitscale: 'the scale of the one it hits', blastnodrop: 'whether its damage keeps its strength', blastscale: 'the scale of the item that went off', fragdice: 'the fragmentation dice', throwskill: 'the skill it is thrown with', throwdistance: 'the distance of the throw', margin: 'how far it failed by', distance: 'the distance',
+    listed: 'its listed figure', worn: 'what is worn off it', todestroy: 'the wear that destroys it', divisor: 'the blow\u2019s armor divisor'
 }));
 var ROW_SAYS = Object.freeze(Object.assign(Object.create(null), {
     count: 'how many of this row', qty: 'this row\u2019s quantity', on: 'whether this row is on', has: 'whether this row is held', lvl: 'this row\u2019s level', paid: 'what this row cost', loaded: 'what this row has loaded', loadmax: 'the most this row can load', chambered: 'how many rounds this row has chambered', setall: 'whether this row\u2019s whole set is on', parts: 'how many parts this row holds', again: 'whether this row is held under another name', needsmet: 'whether this row\u2019s needs are met', startlvl: 'the level this row started at', bursthits: 'the hits of this burst', side: 'this row\u2019s side', subject: 'this row\u2019s subject', fitted: 'whether this row is fitted', pastslot: 'whether this row stands past what its host holds', once: 'whether this row counts', oncecost: 'what this row costs', oncefree: 'what this row gives free', paysback: 'whether this row pays back', granted: 'whether this row was granted', made: 'whether this row was made here'
@@ -12648,9 +12648,9 @@ function validateSystem(sys, F) {
             if (target.list) {   // F5a1: what a list name reads
                 if (target.onTotal && !(isObj(target.list.list) && isObj(target.list.list.on))) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" counts rows switched on, but ' + (target.list.label || target.list.key) + ' has no switch, so it reads as none.' });
                 if (target.addr) { var tc = isObj(target.list.list) && Array.isArray(target.list.list.cats) && target.list.list.cats.length ? target.list.list.cats : null, has = (Array.isArray(sys.items) ? sys.items : []).concat(Array.isArray(sys.core) ? sys.core : []).some(function(it) { return isObj(it) && typeof it.key === 'string' && lower(it.key) === target.addr && (!tc || catIn(tc, it.category)); }); if (!has) warnings.push({ id: owner.id, prop: prop, message: 'No item in ' + (target.list.label || target.list.key) + ' has the key "' + n.split('.')[1] + '"' + (target.spec ? '. "' + n + '" then finds only rows whose own name says it, and with none it reads as not carried.' : ': it reads as not carried until a row its player can see has it.') }); }
-                if (vis === 'all' && target.gmKey && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" names a GM-only item: ' + (isApplyProp(prop) ? (/(^|\.)then\./.test(prop) ? 'players\u2019 rolls will not apply it.' : 'players will not get this action.') : prop === 'spill' ? 'their own apps do not show the spill, and the host still makes it.' : prop === 'needs' ? 'players are not held back by it.' : prop.indexOf('list.needs.') === 0 ? 'players\u2019 rolls are not held back by it.' : prop === 'turn.face' ? 'players\u2019 turns are not counted by it.' : prop === 'turn.move' ? 'players\u2019 moves are not limited by it.' : prop === 'turn.run' ? 'players have the one move.' : (prop === 'malf' || prop.indexOf('list.malf.') === 0) ? 'players\u2019 rolls never malfunction by it.' : (prop === 'dmgMajorIf' || prop.indexOf('list.mjif.') === 0) ? 'it never marks a Major Wound, on a player\u2019s roll or the GM\u2019s.' : (prop === 'dmg2' || prop.indexOf('list.dmg2.') === 0) ? 'the players\u2019 view drops this second part, so their rolls deal none of it, and the GM\u2019s own roll keeps its card private.' : /^(list\.)?dmg[345](\.|$)/.test(prop) ? 'the players\u2019 view drops this part, so their rolls deal none of it, and the GM\u2019s own roll keeps its card private.' : /^list\.ad[345]\./.test(prop) ? 'the players\u2019 view drops this armour divisor, and the GM\u2019s own roll keeps its card private.' : prop.indexOf('list.ad2.') === 0 ? 'the players\u2019 view drops this armour divisor, and the GM\u2019s own roll keeps its card private.' : (prop === 'critAt' || prop === 'fumbleAt' || prop.indexOf('list.critAt.') === 0 || prop.indexOf('list.fumbleAt.') === 0) ? 'players\u2019 rolls read the usual critical range instead.' : (prop === 'bigAt' || prop.indexOf('list.bigAt.') === 0) ? 'players\u2019 rolls never land as a heavy hit by it.' : prop === 'list.modsif' ? 'Save drops it, so the rows give their changes whatever it says.' : prop === 'list.fitif' ? 'the players\u2019 view drops it, so their parts are not judged by it.' : prop.indexOf('list.roll.') === 0 ? 'players will not get this roll.' : prop.indexOf('link.figs.') === 0 ? 'the players\u2019 view drops this figure, so it reads 0 for them.' : 'players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.') });
+                if (vis === 'all' && target.gmKey && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" names a GM-only item: ' + (isApplyProp(prop) ? (/(^|\.)then\./.test(prop) ? 'players\u2019 rolls will not apply it.' : 'players will not get this action.') : prop === 'spill' ? 'their own apps do not show the spill, and the host still makes it.' : prop === 'needs' ? 'players are not held back by it.' : prop.indexOf('list.needs.') === 0 ? 'players\u2019 rolls are not held back by it.' : prop === 'turn.face' ? 'players\u2019 turns are not counted by it.' : prop === 'turn.move' ? 'players\u2019 moves are not limited by it.' : prop === 'turn.run' ? 'players have the one move.' : (prop === 'malf' || prop.indexOf('list.malf.') === 0) ? 'players\u2019 rolls never malfunction by it.' : (prop === 'dmgMajorIf' || prop.indexOf('list.mjif.') === 0) ? 'it never marks a Major Wound, on a player\u2019s roll or the GM\u2019s.' : (prop === 'dmg2' || prop.indexOf('list.dmg2.') === 0) ? 'the players\u2019 view drops this second part, so their rolls deal none of it, and the GM\u2019s own roll keeps its card private.' : /^(list\.)?dmg[345](\.|$)/.test(prop) ? 'the players\u2019 view drops this part, so their rolls deal none of it, and the GM\u2019s own roll keeps its card private.' : /^list\.ad[345]\./.test(prop) ? 'the players\u2019 view drops this armor divisor, and the GM\u2019s own roll keeps its card private.' : prop.indexOf('list.ad2.') === 0 ? 'the players\u2019 view drops this armor divisor, and the GM\u2019s own roll keeps its card private.' : (prop === 'critAt' || prop === 'fumbleAt' || prop.indexOf('list.critAt.') === 0 || prop.indexOf('list.fumbleAt.') === 0) ? 'players\u2019 rolls read the usual critical range instead.' : (prop === 'bigAt' || prop.indexOf('list.bigAt.') === 0) ? 'players\u2019 rolls never land as a heavy hit by it.' : prop === 'list.modsif' ? 'Save drops it, so the rows give their changes whatever it says.' : prop === 'list.fitif' ? 'the players\u2019 view drops it, so their parts are not judged by it.' : prop.indexOf('list.roll.') === 0 ? 'players will not get this roll.' : prop.indexOf('link.figs.') === 0 ? 'the players\u2019 view drops this figure, so it reads 0 for them.' : 'players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.') });
             }
-            if (vis === 'all' && (target.vis === 'gm' || gmP[target.id] === 1) && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" is GM only: ' + (isApplyProp(prop) ? (/(^|\.)then\./.test(prop) ? 'players\u2019 rolls will not apply it.' : 'players will not get this action.') : prop === 'spill' ? 'their own apps do not show the spill, and the host still makes it.' : prop === 'needs' ? 'players are not held back by it.' : prop.indexOf('list.needs.') === 0 ? 'players\u2019 rolls are not held back by it.' : prop === 'turn.face' ? 'players\u2019 turns are not counted by it.' : prop === 'turn.move' ? 'players\u2019 moves are not limited by it.' : prop === 'turn.run' ? 'players have the one move.' : (prop === 'malf' || prop.indexOf('list.malf.') === 0) ? 'players\u2019 rolls never malfunction by it.' : (prop === 'dmgMajorIf' || prop.indexOf('list.mjif.') === 0) ? 'it never marks a Major Wound, on a player\u2019s roll or the GM\u2019s.' : (prop === 'dmg2' || prop.indexOf('list.dmg2.') === 0) ? 'the players\u2019 view drops this second part, so their rolls deal none of it, and the GM\u2019s own roll keeps its card private.' : /^(list\.)?dmg[345](\.|$)/.test(prop) ? 'the players\u2019 view drops this part, so their rolls deal none of it, and the GM\u2019s own roll keeps its card private.' : /^list\.ad[345]\./.test(prop) ? 'the players\u2019 view drops this armour divisor, and the GM\u2019s own roll keeps its card private.' : prop.indexOf('list.ad2.') === 0 ? 'the players\u2019 view drops this armour divisor, and the GM\u2019s own roll keeps its card private.' : (prop === 'critAt' || prop === 'fumbleAt' || prop.indexOf('list.critAt.') === 0 || prop.indexOf('list.fumbleAt.') === 0) ? 'players\u2019 rolls read the usual critical range instead.' : (prop === 'bigAt' || prop.indexOf('list.bigAt.') === 0) ? 'players\u2019 rolls never land as a heavy hit by it.' : prop === 'list.modsif' ? 'Save drops it, so the rows give their changes whatever it says.' : prop === 'list.fitif' ? 'the players\u2019 view drops it, so their parts are not judged by it.' : prop.indexOf('list.roll.') === 0 ? 'players will not get this roll.' : prop.indexOf('link.figs.') === 0 ? 'the players\u2019 view drops this figure, so it reads 0 for them.' : 'players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.') });
+            if (vis === 'all' && (target.vis === 'gm' || gmP[target.id] === 1) && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" is GM only: ' + (isApplyProp(prop) ? (/(^|\.)then\./.test(prop) ? 'players\u2019 rolls will not apply it.' : 'players will not get this action.') : prop === 'spill' ? 'their own apps do not show the spill, and the host still makes it.' : prop === 'needs' ? 'players are not held back by it.' : prop.indexOf('list.needs.') === 0 ? 'players\u2019 rolls are not held back by it.' : prop === 'turn.face' ? 'players\u2019 turns are not counted by it.' : prop === 'turn.move' ? 'players\u2019 moves are not limited by it.' : prop === 'turn.run' ? 'players have the one move.' : (prop === 'malf' || prop.indexOf('list.malf.') === 0) ? 'players\u2019 rolls never malfunction by it.' : (prop === 'dmgMajorIf' || prop.indexOf('list.mjif.') === 0) ? 'it never marks a Major Wound, on a player\u2019s roll or the GM\u2019s.' : (prop === 'dmg2' || prop.indexOf('list.dmg2.') === 0) ? 'the players\u2019 view drops this second part, so their rolls deal none of it, and the GM\u2019s own roll keeps its card private.' : /^(list\.)?dmg[345](\.|$)/.test(prop) ? 'the players\u2019 view drops this part, so their rolls deal none of it, and the GM\u2019s own roll keeps its card private.' : /^list\.ad[345]\./.test(prop) ? 'the players\u2019 view drops this armor divisor, and the GM\u2019s own roll keeps its card private.' : prop.indexOf('list.ad2.') === 0 ? 'the players\u2019 view drops this armor divisor, and the GM\u2019s own roll keeps its card private.' : (prop === 'critAt' || prop === 'fumbleAt' || prop.indexOf('list.critAt.') === 0 || prop.indexOf('list.fumbleAt.') === 0) ? 'players\u2019 rolls read the usual critical range instead.' : (prop === 'bigAt' || prop.indexOf('list.bigAt.') === 0) ? 'players\u2019 rolls never land as a heavy hit by it.' : prop === 'list.modsif' ? 'Save drops it, so the rows give their changes whatever it says.' : prop === 'list.fitif' ? 'the players\u2019 view drops it, so their parts are not judged by it.' : prop.indexOf('list.roll.') === 0 ? 'players will not get this roll.' : prop.indexOf('link.figs.') === 0 ? 'the players\u2019 view drops this figure, so it reads 0 for them.' : 'players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.') });
             if (!isRollProp(prop) && !isApplyProp(prop) && prop !== 'spill' && prop !== 'track' && prop !== 'surcharge' /* 1.6.2: Costs more while is read only when a cost is paid, never as the pool's value, so a pool may read itself there */ && prop.indexOf('fill.') !== 0 && !target.noEdge) { var from = lower(owner.key); (edges[from] = edges[from] || []).push(lower(target.key)); }
         });
     }
@@ -12835,14 +12835,14 @@ function validateSystem(sys, F) {
                 checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#roll' }, 'list.roll.' + i + '.' + rl2, r.formula, true, f.vis, f);
                 if (r.needs) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#needs' }, 'list.needs.' + i + '.' + rl2, r.needs, false, f.vis, f);
                 if (r.malf) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#malf' }, 'list.malf.' + i + '.' + rl2, r.malf, false, f.vis, f);   // Stage 6 HUD R3
-                if (r.ad) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#ad' }, 'list.ad.' + i + '.' + rl2, r.ad, false, f.vis, f);   // 1.6.0: its armour divisor (no dice, Row.* known)
+                if (r.ad) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#ad' }, 'list.ad.' + i + '.' + rl2, r.ad, false, f.vis, f);   // 1.6.0: its armor divisor (no dice, Row.* known)
                 if (r.dmgMajorIf) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#mjif' }, 'list.mjif.' + i + '.' + rl2, r.dmgMajorIf, false, f.vis, f);
                 if (r.attemptType) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#atype' }, 'list.atype.' + i + '.' + rl2, r.attemptType, false, 'gm', f);   // 1.6.2: its Attempt type (no dice, Row.* known), worked out on the host   // 1.6.0: A Major Wound where (no dice, Row.* known)
                 if (r.hits) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#hits' }, 'list.hits.' + i + '.' + rl2, r.hits, false, f.vis, f);   // 1.6.0: Hits it rolls for (no dice, Row.* known)
                 if (r.burst === 'extra') { if (!/cs(<=|>=|!=|<>|==|=|<|>)/i.test(r.formula)) warnings.push({ id: f.id, prop: 'list.roll.' + i + '.' + rl2, message: 'Its extra dice must count their successes, such as 3d6cs>=4, or no die is read.' }); if (!f.list.rolls.some(function(x) { return isObj(x) && x.burst === 'attack'; })) warnings.push({ id: f.id, prop: 'list.roll.' + i + '.' + rl2, message: 'No roll of this list opens a burst, so this one is always refused.' }); }   // 1.6.0: a burst's extra dice
                 if (r.dmg === true) { dkindSays(f.id, 'l#' + lower(f.key) + '#dkind', 'list.dkind.' + i + '.' + rl2, r.dkind, f.vis, f); [2].concat(DMG_MORE).forEach(function(k) { if (r['dmg' + k]) dkindSays(f.id, 'l#' + lower(f.key) + '#dkind', 'list.dkind' + k + '.' + i + '.' + rl2, r['dkind' + k], f.vis, f); }); }   // 1.6.0: its kind, and each part's (Row.* known)
                 if (r.dmg2) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#dmg2' }, 'list.dmg2.' + i + '.' + rl2, r.dmg2, true, f.vis, f);   // 1.6.0 (B3): a second part of the blow (dice allowed, Row.* known)
-                if (r.ad2) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#ad2' }, 'list.ad2.' + i + '.' + rl2, r.ad2, false, f.vis, f);   // and its own armour divisor (no dice)
+                if (r.ad2) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#ad2' }, 'list.ad2.' + i + '.' + rl2, r.ad2, false, f.vis, f);   // and its own armor divisor (no dice)
                 DMG_MORE.forEach(function(k) { if (r['dmg' + k]) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#dmg' + k }, 'list.dmg' + k + '.' + i + '.' + rl2, r['dmg' + k], true, f.vis, f); if (r['ad' + k]) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#ad' + k }, 'list.ad' + k + '.' + i + '.' + rl2, r['ad' + k], false, f.vis, f); });   // 1.6.0: a third and a fourth part, alike
                 ['critAt', 'fumbleAt'].forEach(function(k) { if (!r[k]) return; checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#crit' }, 'list.' + k + '.' + i + '.' + rl2, r[k], false, f.vis, f); if (!fixedC) warnings.push({ id: f.id, prop: 'list.' + k + '.' + i + '.' + rl2, message: noRangeSays() }); });   // 1.6.0: its own critical range (no dice, Row.* known)
                 if (r.bigAt) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#crit' }, 'list.bigAt.' + i + '.' + rl2, r.bigAt, false, f.vis, f);   // 1.6.0: what lands as a heavy hit (no dice, Row.* known)

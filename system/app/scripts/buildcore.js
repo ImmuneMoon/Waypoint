@@ -9,20 +9,20 @@
    - a texture is a code-drawn pattern named from a frozen list (fogcore cleanTexture keeps the same list, in both views): a piece
      carries item.texture = 'bricks', and every machine draws the same tile from the same constants — nothing is fetched;
    - a piece is an ordinary board item with today's flags (blocksSight / sightType, cover, terrain, layer), so fog, cover, light,
-     movement and the inspector read it as they read any shape, and an older install shows it as a plain coloured shape;
+     movement and the inspector read it as they read any shape, and an older install shows it as a plain colored shape;
    - a wall drawn as a line is the pen's thin wall of item 18 W2 (a path with blocksSight), never a textured stroke;
    - whether a piece gives cover is the GM's to decide per piece ("depends on the GM's intention. should be flexible"): a material
      only sets the default, the tick on the piece wins.
 
    The tiles: drawn twice, the grid overlay's own recipe (whiteboard hexBgCss) — a dark line under a narrower light one, round caps,
-   no fill — an embossed groove that reads over any base colour and in both themes. Each tile is a whole number of pixels (a
+   no fill — an embossed groove that reads over any base color and in both themes. Each tile is a whole number of pixels (a
    fractional tile drifts in Chrome), 50 px where it has joints so they fall on the square lattice; every stroke that reaches a
    tile's edge leaves it at the same place it enters the next, so the 2x2 tiling shows no seam, and a piece's background position
    is taken from its board place (texPos), so abutting pieces continue one pattern. */
 'use strict';
 
 import { cellOf, cellCenter, cellKey, cellsUnderRect, cleanTerrain, cleanTexSrc, cleanTexTile, itemCells, itemOver, itemCovers, pathSegs, isDoor, LIMITS } from './fogcore.js';   // the one lattice the fog, cover and movement read
-import { cssColor } from './safecore.js';   // one colour rule for the GM's screen and the wire (safecore COLOR_RE)
+import { cssColor } from './safecore.js';   // one color rule for the GM's screen and the wire (safecore COLOR_RE)
 
 var VERSION = 1;
 
@@ -110,7 +110,7 @@ var TEX = frozenTable({
     // iron plate: staggered plates with their rivets
     ironplate: { w: 50, h: 50, dark: 2.4, light: 1.1,
         d: 'M -4 12.5 H 54 M -4 37.5 H 54 M 12.5 12.5 V 37.5 M 37.5 37.5 V 54 M 37.5 -4 V 12.5 M 5 17 L 5.1 17 M 20 17 L 20.1 17 M 30 17 L 30.1 17 M 45 17 L 45.1 17 M 5 33 L 5.1 33 M 20 33 L 20.1 33 M 30 33 L 30.1 33 M 45 33 L 45.1 33 M 5 42 L 5.1 42 M 30 42 L 30.1 42 M 45 42 L 45.1 42 M 5 8 L 5.1 8 M 30 8 L 30.1 8 M 45 8 L 45.1 8' },
-    // tread plate: rows of short marks, each turned from its neighbours
+    // tread plate: rows of short marks, each turned from its neighbors
     treadplate: { w: 50, h: 50, dark: 2.2, light: 1,
         d: 'M 3.25 9.25 L 9.25 3.25 M 3.25 15.75 L 9.25 21.75 M 3.25 34.25 L 9.25 28.25 M 3.25 40.75 L 9.25 46.75 M 15.75 3.25 L 21.75 9.25 M 15.75 21.75 L 21.75 15.75 M 15.75 28.25 L 21.75 34.25 M 15.75 46.75 L 21.75 40.75 M 28.25 9.25 L 34.25 3.25 M 28.25 15.75 L 34.25 21.75 M 28.25 34.25 L 34.25 28.25 M 28.25 40.75 L 34.25 46.75 M 40.75 3.25 L 46.75 9.25 M 40.75 21.75 L 46.75 15.75 M 40.75 28.25 L 46.75 34.25 M 40.75 46.75 L 46.75 40.75' },
     // rail track: two rails along x over four sleepers
@@ -187,7 +187,7 @@ function texStyle(name, x, y) {
     return { image: TEX_CSS[n].image, size: TEX_CSS[n].size, position: texPos(x, y, n) };
 }
 // The same tile as an SVG <pattern> for a piece drawn in SVG (a hexagon's plate, a polygon): built with createElementNS only, never markup.
-// serial: the caller's count (a whole number from 0), the id 'wptex' + it; color: the base colour under the grooves, a css colour or
+// serial: the caller's count (a whole number from 0), the id 'wptex' + it; color: the base color under the grooves, a css color or
 // 'transparent'. The caller sets patternTransform itself where its SVG is scaled
 function texPattern(doc, name, x, y, color, serial) {
     if (!doc || typeof doc.createElementNS !== 'function') return null;
@@ -225,7 +225,7 @@ var MATERIALS = frozenTable({
     building: { name: 'Building', texture: 'shingles', color: '#7a3f33', layer: 'back-mid', blocksSight: true, sightType: 'wall' },
     citywall: { name: 'City wall', texture: 'stone', color: '#4a4753', layer: 'back-mid', blocksSight: true, sightType: 'wall' },
     // The era materials (backlog 23c). Glass, chain-link and a force field are see-through barriers (the owner, by prompt: "Yes, see-through barriers
-    // (Recommended)"): a token cannot cross one and sight passes it, and their colours let the ground show
+    // (Recommended)"): a token cannot cross one and sight passes it, and their colors let the ground show
     factory: { name: 'Factory floor', texture: 'treadplate', color: '#4f5157', layer: 'back' },
     concrete: { name: 'Concrete', texture: 'concrete', color: '#6d6f72', layer: 'back' },
     tile: { name: 'Floor tile', texture: 'tiles', color: '#8d9296', layer: 'back' },
@@ -305,7 +305,7 @@ function hexColor(v) { return typeof v === 'string' && HEX_RE.test(v) && cssColo
 // caller adds newOpacityProps()). Rules:
 //   color       the override when it is a #rgb / #rrggbb / #rrggbbaa literal, else the material's
 //   texture     the override when cleanTexture keeps it; the material's when the override is undefined OR an unknown string (a name this
-//               build does not know falls back to the material's default, never to none); ABSENT for '' or null ("Plain colour")
+//               build does not know falls back to the material's default, never to none); ABSENT for '' or null ("Plain color")
 //   texSrc / texTile   (fold B3) the override's picture when fogcore cleanTexSrc keeps it, with its repeat (cleanTexTile, else 1): one of the
 //               campaign's own pictures as the fill. texture is then ABSENT: a piece that wears a picture names no pattern
 //   blocksSight / sightType   the material's as given; blocksSight: false drops both (a piece that blocks nothing is no door either, so it
@@ -347,7 +347,7 @@ function penPreset(matId, ov) {
 // The address handed in is what the board resolved for a piece's texSrc: the app's own path, or on a player's app the blob or data address
 // of the bytes the host sent. It reaches a style or an attribute only as picUrl gives it: a path percent-encoded (a file's name may hold a
 // space, a bracket or a quote mark), a blob or data address only when it holds nothing that could end a css url(). Anything else is no
-// address, and the piece shows its colour. One repeat is PIC_CELL px a cell, the lattice the code-drawn patterns use, or on a map with its own
+// address, and the piece shows its color. One repeat is PIC_CELL px a cell, the lattice the code-drawn patterns use, or on a map with its own
 // cell (1.6.2, backlog 38) that cell's unit and origin, handed in as { u, ox, oy } (picCell): the board's and the map picture's alike
 var PIC_CELL = 50;
 // A map's own cell as a picture's repeat reads it: its unit (5 to 1000 px) and its origin, or null for PIC_CELL from the board's corner
@@ -429,7 +429,7 @@ function snapBox(grid, sx, sy, ex, ey, dragged) {
     var e = cellOf(ex, ey, grid), c0 = Math.min(c.c, e.c), c1 = Math.max(c.c, e.c), r0 = Math.min(c.r, e.r), r1 = Math.max(c.r, e.r);
     return { x: c0 * s + gx, y: r0 * s + gy, w: (c1 - c0 + 1) * s, h: (r1 - r0 + 1) * s };
 }
-// The hexagon item seated exactly on a hex cell: 2s wide, h tall, centred on the cell (whiteboard's 60 x 52 hexagon on the 30/52 grid)
+// The hexagon item seated exactly on a hex cell: 2s wide, h tall, centered on the cell (whiteboard's 60 x 52 hexagon on the 30/52 grid)
 function hexCellBox(grid, cell) {
     if (!hexOk(grid) || !isObj(cell) || !fin(cell.q) || !fin(cell.r)) return null;
     var c = cellCenter(cell, grid), w = 2 * grid.s, h = grid.h;
@@ -445,7 +445,7 @@ function capped(cells, grid, cap) {
     }
     return { cells: out, more: more };
 }
-// The cells whose centre lies in a dragged box (fogcore cellsUnderRect's own order), a click (under a pixel either way) the one cell under it.
+// The cells whose center lies in a dragged box (fogcore cellsUnderRect's own order), a click (under a pixel either way) the one cell under it.
 // A box far larger than the cap is not listed whole before it is cut. The lister walks a column of cells at a time from the left, each from
 // the top, so the box is first tried no taller than one column needs to pass the cap, and no wider than holds the cap by its columns' least
 // count: the first cells of that try are the first cells of the whole box. It is listed whole only where the try came short
@@ -463,9 +463,9 @@ function hexCellsInBox(grid, x, y, w, h, cap) {
 // A corridor from the press to the release. Square: a strip locked to the axis of the larger extent (a tie reads horizontal), from the press
 // cell to the release cell inclusive, one cell wide or two (the press cell's row or column plus the next toward the pointer's perpendicular
 // side; downward or rightward when it is level). Hex: the cells a straight segment passes, sampled every quarter cell; width 2 adds each
-// of them its neighbour on the segment's lower side (its right side when it runs up or down), so a run along a lattice axis is two rows
-// wide (a distance band could not be: the next row's centres lie 1.5 s away, past 0.75 h, and a band wide enough takes both sides);
-// cut at 400 with `more`, a two-wide one as run cell and neighbour in turn. null for a number that is none or a grid that is neither
+// of them its neighbor on the segment's lower side (its right side when it runs up or down), so a run along a lattice axis is two rows
+// wide (a distance band could not be: the next row's centers lie 1.5 s away, past 0.75 h, and a band wide enough takes both sides);
+// cut at 400 with `more`, a two-wide one as run cell and neighbor in turn. null for a number that is none or a grid that is neither
 var HEX_NB = [[1, 0], [1, -1], [0, 1], [0, -1], [-1, 1], [-1, 0]];
 function corridor(grid, sx, sy, ex, ey, width) {
     if (!gridOk(grid) || !fin(sx) || !fin(sy) || !fin(ex) || !fin(ey)) return null;
@@ -483,13 +483,13 @@ function corridor(grid, sx, sy, ex, ey, width) {
     var nx = -dy, ny = dx;   // the segment's normal, turned to point down, or right when it is level (a point: right)
     if (ny < 0 || (ny === 0 && nx < 0)) { nx = -nx; ny = -ny; }
     if (!nx && !ny) nx = 1;
-    // Every sample is moved a hair toward that side. A run that rides the edge two cells share (a level drag through cell centres does, in
+    // Every sample is moved a hair toward that side. A run that rides the edge two cells share (a level drag through cell centers does, in
     // every other column) then takes the cell on its lower side each time, never one or the other as the rounding falls
     var nl = Math.hypot(nx, ny), ox = nx / nl * grid.s * 1e-6, oy = ny / nl * grid.s * 1e-6;
     for (var k = 0; k <= steps; k++) run.push(cellOf(sx + dx * k / steps + ox, sy + dy * k / steps + oy, grid));
     var out = capped(run, grid, 400);
     if (!two) return out;
-    // Two wide: each cell of the run and then its neighbour on that side, so a corridor cut at the cap is two wide for all of its length
+    // Two wide: each cell of the run and then its neighbor on that side, so a corridor cut at the cap is two wide for all of its length
     var cells = [];
     for (var i = 0; i < out.cells.length; i++) {
         var c = out.cells[i], p = cellCenter(c, grid), best = null, bd = -Infinity;
@@ -558,7 +558,7 @@ function seatedAt(items, piece) {
    One command lays thin wall lines along the outer edge of the cells a set of floor pieces covers together. Nothing is derived live: what
    comes back is geometry for ordinary Wall lines (the pen's thin wall of item 18 W2), which the caller dresses with penPreset and adds as
    items. The outline follows the LATTICE, as the fog's own reading of a piece does (fogcore itemCells / itemCovers: a cell is a piece's when
-   its centre is covered), so a rectangle on the grid is walled exactly and a round room or a slanted polygon gets stepped walls. */
+   its center is covered), so a rectangle on the grid is walled exactly and a round room or a slanted polygon gets stepped walls. */
 // A FLOOR piece: a plain area a wall may run around: a rectangle, a circle, a hexagon, a diamond, a filled region or a painted cell that
 // players see and that blocks nothing itself. Never a token, a waiting token or a GM note card; never a hidden piece (walls around one would
 // draw its shape for the players); never a wall, a door or a see-through barrier; never a play area, a null area or smoke; never a picture,
@@ -779,7 +779,7 @@ function wallsOfCells(out, cells, inSet, grid, opts, end) {
 // corridor() lays for the same gesture: the outer edge of its cells, less its two ENDS (the owner, 2026-10-10, by prompt: "Open ends"). A
 // wall that already stands across an end stays: nothing is derived live. An end is an outer edge that faces along the corridor at its last cell, or against it at its first: its
 // outward normal within about 53 degrees of the corridor's direction (so the two sides beside a hexagon's forward side stay walled), and its
-// middle no further back than a quarter of a cell from that end. The direction runs from the first cell's centre to the last one's; a
+// middle no further back than a quarter of a cell from that end. The direction runs from the first cell's center to the last one's; a
 // corridor of one cell takes the gesture's own (a tie reads level, as corridor() reads it). opts as outlineWalls takes them
 function corridorWalls(grid, sx, sy, ex, ey, width, opts) {
     var sh = gridShift(grid); if (sh) return linesMoved(corridorWalls(gridBare(grid), sx - sh.x, sy - sh.y, ex - sh.x, ey - sh.y, width, optsMoved(opts, -sh.x, -sh.y)), sh.x, sh.y);   // backlog 38: a lattice off the board's 0,0

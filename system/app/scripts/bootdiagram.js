@@ -1,7 +1,7 @@
 /* A classic script in the page's head, directly after the three bundled libraries: it publishes the diagram
    library's config and starts the library once the page is parsed — where and when it ran while it was written into the page
    (the page's policy runs no script written into a page). */
-// The full mermaid config is published (handbook.js, the floating panel and a pop-out re-initialise from it: initialize() rebuilds the
+// The full mermaid config is published (handbook.js, the floating panel and a pop-out re-initialize from it: initialize() rebuilds the
 // whole config). The library runs in its STRICT mode for everyone — the GM's own screen too: an action of a diagram that calls a function
 // never runs, and a diagram's link is an address its own cleaner has passed. A diagram's link is still an ordinary web link: only the
 // one line docrender.js writes for it reaches the library (click <id> href "<address>"), and a click on it is linkgate.js's to judge.

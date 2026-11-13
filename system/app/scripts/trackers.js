@@ -2,7 +2,7 @@
    (Recommended)", a countdown's time "Each one picks (Recommended)", a clock "A. A circle in parts (Recommended)", and at the end "A. Glow and a
    chat line (Recommended)"). The pure half is trackcore.js.
 
-   The strip (#trkStrip) runs along the top left of the play map. Each tracker is a pill: its colour, its name, its value. On the GM's screen
+   The strip (#trkStrip) runs along the top left of the play map. Each tracker is a pill: its color, its name, its value. On the GM's screen
    (the machine that owns the campaign) a counter and a clock have − and +, a countdown its start and pause, a press on a name opens the
    tracker's menu beside it (#trkMenu, closed by Escape as a right-click menu is), and + Tracker opens the form (#trkPanel, a floating box). A
    tracker the GM keeps to themselves wears a small GM mark. A player's strip shows only what the host sent them (net.js trkSendTo), drawn the
@@ -378,7 +378,7 @@ function openMenu(id, anchor) {
     row(t.vis === 'all' ? 'Only me' : 'Show it to the table', 'vis', t.vis === 'all' ? 'Keep it to yourself: players stop seeing it' : 'Every player who can see it gets it now');
     var w = row(t.map ? 'On every map' : 'On this map only', 'where', t.map ? 'Show it on every map' : 'Show it on this map alone'); if (!t.map && !mapNow()) w.disabled = true;
     m.appendChild(el('div', 'trk-msep'));
-    row('Edit…', 'edit', 'Change its name, kind, colour, time or parts');
+    row('Edit…', 'edit', 'Change its name, kind, color, time or parts');
     row('Remove', 'remove', 'Remove it for everyone. You are asked first');
     m.style.display = 'block';
     var r = anchor.getBoundingClientRect(), mw = m.offsetWidth || 200, mh = m.offsetHeight || 220;
@@ -434,7 +434,7 @@ function chips(name, opts, cur) {
     opts.forEach(function(o) { var b = btn('trk-chip' + (o[0] === cur ? ' on' : ''), o[1], o[2]); b.dataset.trkset = name; b.dataset.val = o[0]; b.setAttribute('aria-pressed', o[0] === cur ? 'true' : 'false'); w.appendChild(b); });
     return w;
 }
-// A labelled field. A group of buttons sits in no label: a press on the words would press its first button
+// A labeled field. A group of buttons sits in no label: a press on the words would press its first button
 function field(label, input, note) { var w = el(input.tagName === 'INPUT' || input.tagName === 'SELECT' ? 'label' : 'div', 'trk-cap'); w.appendChild(el('span', '', label)); w.appendChild(input); if (note) w.appendChild(el('small', 'trk-note', note)); return w; }
 function numIn(id, v, lo, hi, ph) { var i = el('input', 'field trk-num'); i.type = 'number'; i.id = id; if (typeof lo === 'number') i.min = String(lo); if (typeof hi === 'number') i.max = String(hi); i.step = '1'; i.value = typeof v === 'number' && isFinite(v) ? String(v) : typeof v === 'string' ? v.slice(0, 12) : ''; if (ph) i.placeholder = ph; return i; }
 function drawForm() {
@@ -470,7 +470,7 @@ function drawForm() {
     }
     var sw = el('div', 'trk-chips trk-swatches'); sw.setAttribute('role', 'group');
     T.COLOR_KEYS.forEach(function(k) { var b = btn('trk-swatch' + (k === d.color ? ' on' : ''), '', k.charAt(0).toUpperCase() + k.slice(1)); b.dataset.trkset = 'color'; b.dataset.val = k; b.style.background = T.COLORS[k]; b.setAttribute('aria-label', k); b.setAttribute('aria-pressed', k === d.color ? 'true' : 'false'); sw.appendChild(b); });
-    body.appendChild(field('Colour', sw));
+    body.appendChild(field('Color', sw));
     var mapOk = !!mapNow();
     body.appendChild(field('Where', chips('here', [['1', 'This map', 'Shown on the map on screen alone'], ['0', 'Every map', 'Shown on every map of the campaign']], d.here && mapOk ? '1' : '0')));
     if (!mapOk) { var hb = body.querySelector('[data-trkset="here"][data-val="1"]'); if (hb) hb.disabled = true; }

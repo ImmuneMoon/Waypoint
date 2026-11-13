@@ -23,7 +23,7 @@
         t.style.display = 'block';
         t.style.left = '0px'; t.style.top = '0px';
         var r = el.getBoundingClientRect(), tw = t.offsetWidth, th = t.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
-        // A small control: under it, centred. A large area (a card, a wide row, a whole box that carries one tip): beside the pointer, since its
+        // A small control: under it, centered. A large area (a card, a wide row, a whole box that carries one tip): beside the pointer, since its
         // bottom edge may be far from where the pointer is — the tip used to appear at the top or the bottom of the area.
         var big = !el.dataset.tipUp && (r.height > 56 || r.width > 420) && px !== null && px >= r.left && px <= r.right && py >= r.top && py <= r.bottom;
         var x = (big ? px : r.left + r.width / 2) - tw / 2, y = big ? py + 20 : r.bottom + 8;

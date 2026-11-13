@@ -124,7 +124,7 @@ import { renderDataMap, clearSnaps, drawSnap, doSmartSnapping, attachDrag, attac
 
 import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, uploadImageFile } from './whiteboard.js';
 
-import { cssColor, num, picRef } from './safecore.js';   // a campaign from a file reaches these panels too: colours, numbers and pictures are checked where they land
+import { cssColor, num, picRef } from './safecore.js';   // a campaign from a file reaches these panels too: colors, numbers and pictures are checked where they land
 
 
 
@@ -141,7 +141,7 @@ import { cssColor, num, picRef } from './safecore.js';   // a campaign from a fi
           + '<button class="tool ghost" id="lkSwap" title="Swap the two ends (the direction matters for a one-way link)" style="padding:2px 8px;">' + (cur === 'oneway' ? '&rarr;' : '&harr;') + '</button><b>' + esc(rb ? (rb.name || '(unnamed)') : '?') + '</b></div></div>';
       html += '<div class="field"><label for="lkType">Line type</label><select id="lkType">' + Object.keys(T).map(function(t) { return '<option value="' + t + '"' + (t === cur ? ' selected' : '') + '>' + T[t].label + ' \u2014 ' + T[t].hint + '</option>'; }).join('') + '</select></div>';
       html += '<div class="field"><label for="lkLabel">Label <span class="muted">(drawn on the line &mdash; players see it)</span></label><input type="text" id="lkLabel" maxlength="80" value="' + esc(meta.label || '') + '" placeholder="Half a day on foot, ferry, sewer grate\u2026"></div>';
-      html += '<div class="field"><label for="lkNotes">Notes <span class="muted">(GM only &mdash; never sent to players)</span></label><textarea id="lkNotes" rows="7" placeholder="What travelling this way involves: distance, danger, cost, who watches it, what it takes to find it\u2026">' + esc(meta.notes || '') + '</textarea></div>';
+      html += '<div class="field"><label for="lkNotes">Notes <span class="muted">(GM only &mdash; never sent to players)</span></label><textarea id="lkNotes" rows="7" placeholder="What traveling this way involves: distance, danger, cost, who watches it, what it takes to find it\u2026">' + esc(meta.notes || '') + '</textarea></div>';
       html += '<div class="muted" style="margin:-4px 0 10px;">Right-click the chip on the line for a quick type menu. <kbd>Delete</kbd> removes the selected link.</div>';
       html += '<button id="lkRemove" class="tool ghost danger" style="width:100%;">Remove link</button>';
       return html;
@@ -193,7 +193,7 @@ import { cssColor, num, picRef } from './safecore.js';   // a campaign from a fi
 
           catEditorHtml = '<div style="display:flex; gap:5px; align-items:center; background:rgba(0,0,0,0.2); padding:6px; border-radius:6px; margin-top:5px; border:1px solid var(--edge);">' +
 
-                          '<input type="color" id="fCatColor" value="'+selColor+'" aria-label="Edit Category Colour" style="width:24px; height:24px; padding:0; border:none; background:none; cursor:pointer;" title="Category Colour">' +
+                          '<input type="color" id="fCatColor" value="'+selColor+'" aria-label="Edit Category Color" style="width:24px; height:24px; padding:0; border:none; background:none; cursor:pointer;" title="Category Color">' +
 
                           '<input type="text" id="fCatName" class="cat-label" value="'+esc(selName)+'" aria-label="Edit Category Name" style="flex:1; padding:4px 6px;" title="Category Name">' +
 
@@ -801,11 +801,11 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
 
               return '<div class="cat-row" style="display:flex; gap:5px; margin-bottom:5px; align-items:center;">' +
 
-                     '<input type="color" aria-label="Category Colour" class="cat-color" data-id="'+esc(k)+'" value="'+cssColor(c.color, '#c9c9d4')+'" style="width:24px; height:24px; padding:0; cursor:pointer; border:none; background:none;">' +
+                     '<input type="color" aria-label="Category Color" class="cat-color" data-id="'+esc(k)+'" value="'+cssColor(c.color, '#c9c9d4')+'" style="width:24px; height:24px; padding:0; cursor:pointer; border:none; background:none;">' +
 
                      '<input type="text" aria-label="Category Name" class="cat-label" data-id="'+esc(k)+'" value="'+esc(c.label)+'" style="flex:1;">' +
 
-                     '<button class="tool ghost cat-save' + (saved ? ' on' : '') + '" aria-label="Save to library" title="' + (saved ? 'Saved in the campaign library (click to update its colour)' : 'Save to the campaign library so other maps can add it') + '" data-id="'+esc(k)+'" style="padding:2px 6px;' + (saved ? ' color:var(--gold);' : '') + '">' + (saved ? '<i class="wib wi-starf"></i>' : '<i class="wib wi-star"></i>') + '</button>' +
+                     '<button class="tool ghost cat-save' + (saved ? ' on' : '') + '" aria-label="Save to library" title="' + (saved ? 'Saved in the campaign library (click to update its color)' : 'Save to the campaign library so other maps can add it') + '" data-id="'+esc(k)+'" style="padding:2px 6px;' + (saved ? ' color:var(--gold);' : '') + '">' + (saved ? '<i class="wib wi-starf"></i>' : '<i class="wib wi-star"></i>') + '</button>' +
 
                      '<button class="tool ghost danger cat-del" aria-label="Delete Category" data-id="'+esc(k)+'" style="padding:2px 6px;">×</button>' +
 
@@ -814,7 +814,7 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
           }).join('');
 
           var libMissing = Object.keys(lib).filter(function(id) { return !onMap(lib[id].label); }).sort(function(a, b) { return String(lib[a].label).localeCompare(String(lib[b].label)); });
-          var libHtml = '<div class="field" style="margin-top:10px;"><label title="Categories saved from any map in this campaign. Pick one to add it here with its colour.">Category Library <span class="muted">(' + Object.keys(lib).length + ' saved)</span></label>' +
+          var libHtml = '<div class="field" style="margin-top:10px;"><label title="Categories saved from any map in this campaign. Pick one to add it here with its color.">Category Library <span class="muted">(' + Object.keys(lib).length + ' saved)</span></label>' +
               (Object.keys(lib).length
                   ? '<div style="display:flex; gap:5px; align-items:center;">' +
                     '<select id="catLibPick" style="flex:1;">' + (libMissing.length ? libMissing.map(function(id) { return '<option value="' + esc(id) + '">' + esc(lib[id].label) + '</option>'; }).join('') : '<option value="">All saved categories are on this map</option>') + '</select>' +
@@ -1036,13 +1036,13 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var fillCur = (w.color || '').toLowerCase();
             var colorHtml = Object.keys(WB_COLORS).map(function(k) {
                 return '<div class="color-btn' + (k.toLowerCase() === fillCur ? ' on' : '') + (k === 'transparent' ? ' clear' : '') + '" style="background:'+k+'" data-c="'+k+'" title="'+WB_COLORS[k]+'"></div>';
-            }).join('') + '<label class="color-btn custom" title="Custom colour"><input type="color" id="wbFillCustomColor" value="' + (/^#[0-9a-f]{6}$/i.test(w.color || '') ? w.color : '#4db3d3') + '"></label>';
+            }).join('') + '<label class="color-btn custom" title="Custom color"><input type="color" id="wbFillCustomColor" value="' + (/^#[0-9a-f]{6}$/i.test(w.color || '') ? w.color : '#4db3d3') + '"></label>';
             // Drawings use the pen's palette (solid inks + custom), not the shape tints
             var PEN_COLORS = { '#e9e9f0': 'White', '#1a1a1a': 'Black', '#d9534f': 'Red', '#e0a54f': 'Gold', '#5cb87a': 'Green', '#4db3d3': 'Blue', '#b98cff': 'Violet' };
             var penHtml = Object.keys(PEN_COLORS).map(function(k) {
                 var on = (w.color || '').toLowerCase() === k;
                 return '<div class="color-btn' + (on ? ' on' : '') + '" style="background:'+k+'" data-c="'+k+'" title="'+PEN_COLORS[k]+'"></div>';
-            }).join('') + '<label class="color-btn custom" title="Custom colour"><input type="color" id="wbStrokeCustomColor" value="' + (/^#[0-9a-f]{6}$/i.test(w.color || '') ? w.color : '#e9e9f0') + '"></label>';
+            }).join('') + '<label class="color-btn custom" title="Custom color"><input type="color" id="wbStrokeCustomColor" value="' + (/^#[0-9a-f]{6}$/i.test(w.color || '') ? w.color : '#e9e9f0') + '"></label>';
             
             var nodeOpts = '<option value="">-- None --</option>' + activeMap.rooms.map(function(room) {
                 return '<option value="'+esc(room.id)+'"'+(w.nodeId===room.id?' selected':'')+'>'+esc(room.name||'(unnamed)')+'</option>';
@@ -1065,7 +1065,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               
             html += '<div class="insp-cmds">'   // 1.6.2 (the owner: "commands on top"): the piece's commands, a row at the top
               + '<button class="tool ghost" id="wbDup" title="Make a full copy of this item, settings and data included (Ctrl+D)"><i class="wib wi-dup"></i> Duplicate</button>'
-              + '<button class="tool ghost" id="setHomeVisualBtn" title="The map opens centred here"><i class="wib wi-target"></i> Map center here</button>'
+              + '<button class="tool ghost" id="setHomeVisualBtn" title="The map opens centered here"><i class="wib wi-target"></i> Map center here</button>'
               + (state.gridType && state.gridType !== 'off' && w.type !== 'path' ? '<button class="tool ghost" id="wbFitGrid" title="Size to whole grid cells and seat it in the grid">&#8862; Fit to grid cells</button>' : '')
               + (state.gridType && state.gridType !== 'off' && !w.furn && w.type === 'image' && !w.isChar && !w.waiting ? '<button class="tool ghost" id="wbAlignPic" title="For a map picture with its own grid: click two points of that grid and say how many cells lie between them. The picture is sized and placed so its grid lies on the board\u2019s">Align its grid</button>' : '')
               + (state.gridType && state.gridType !== 'off' && !w.furn && w.type === 'image' && !w.isChar && !w.waiting ? '<button class="tool ghost" id="wbTrimPic" title="Keep only the cells you pick of this picture: click a cell, or drag over cells, then press Esc. The picture file is not changed">Trim to cells</button>' : '')
@@ -1076,7 +1076,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 html += '<button id="ungroupBtn" class="tool ghost danger" style="width:100%; margin-bottom:10px;">Ungroup</button>';
             }
 
-            // [furncheck:insp-start] 1.6.2 (backlog 222): a furnishing's look, picked from the four, and a tint for its main colour
+            // [furncheck:insp-start] 1.6.2 (backlog 222): a furnishing's look, picked from the four, and a tint for its main color
             var FUi = window.wpFurnCore, fuI = w.type === 'image' && FUi ? FUi.cleanFurn(w.furn) : null;
             if (fuI && fuI.pack && w.src) html += '<div class="field insp-furn"><label>' + esc(FUi.furnKind(fuI.k).label) + ', from a pack</label><div class="muted">' + esc((window.wpFurnish && window.wpFurnish.packName ? window.wpFurnish.packName(fuI.pack) : '') || 'A pack no longer in this campaign') + '</div>'
               + '<button class="tool ghost" id="wbFurnBase" title="Draw it as Waypoint&rsquo;s own drawing, in the same look, in place of the pack&rsquo;s picture">Use Waypoint&rsquo;s drawing</button>'
@@ -1102,7 +1102,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                     if (faceAllMay()) html += '<div class="field"><button type="button" class="tool ghost" id="wbFaceModeAll" title="Give every character token of this campaign, on every map, the Turning chosen above">Set for every character</button></div>';   // 1.5.6: the GM's one press for the whole campaign
                     // Elevation (yards) and posture — only while the campaign's VTT features are on (Settings ▸ This campaign; at a table, the GM's setting and the player's own "off for me")
                     var stanceApi = window.wpStance, elevOnI = !!(stanceApi && stanceApi.on('elevation')), postOnI = !!(stanceApi && stanceApi.on('posture')), noListI = !!(stanceApi && stanceApi.postures && !stanceApi.postures().length && (!window.wpVtt || window.wpVtt.on('posture')));   // 1.6.0: a system with no postures of its own
-                    if (elevOnI) html += '<div class="field"><label for="wbElev">Elevation <span class="muted">(' + (stanceApi.lenUnit && stanceApi.lenUnit() === 'm' ? 'metres' : 'yards') + ' above the ground; a pit is negative)</span></label><input type="number" id="wbElev" step="' + (stanceApi.ydStep ? stanceApi.ydStep() : 1) + '" value="' + (stanceApi.ydBox ? stanceApi.ydBox(stanceApi.tokenElevation(w)) : stanceApi.tokenElevation(w)) + '"></div>';   // item 19 H1: in the viewer's unit; 1.5.4: its arrows step one yard in both, from the figure shown
+                    if (elevOnI) html += '<div class="field"><label for="wbElev">Elevation <span class="muted">(' + (stanceApi.lenUnit && stanceApi.lenUnit() === 'm' ? 'meters' : 'yards') + ' above the ground; a pit is negative)</span></label><input type="number" id="wbElev" step="' + (stanceApi.ydStep ? stanceApi.ydStep() : 1) + '" value="' + (stanceApi.ydBox ? stanceApi.ydBox(stanceApi.tokenElevation(w)) : stanceApi.tokenElevation(w)) + '"></div>';   // item 19 H1: in the viewer's unit; 1.5.4: its arrows step one yard in both, from the figure shown
                     if (elevOnI && stanceApi.groundWords) { var gWordsI = stanceApi.groundWords(w, getActiveMap()); if (gWordsI) html += '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Standing on ' + esc(gWordsI) + ', added to its elevation.</div>'; }   // item 19b H5: the ground under it
                     if (postOnI) { var curPI = stanceApi.postureAt(w).i; html += '<div class="field"><label for="wbPosture">Posture</label><select id="wbPosture">' + stanceApi.postures().map(function(p, i) { return '<option value="' + esc(p.id) + '"' + (i === curPI ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select></div>'; }   // conditions C3: the system's own postures, names escaped
                     if (noListI) html += '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">This system lists no postures, so tokens have none. Add them in the System editor, on the Combat tab.</div>';   // 1.6.0, backlog 183 (3)
@@ -1126,8 +1126,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                     var npcTok = !!(w.charId && campNow && campNow.chars && Object.prototype.hasOwnProperty.call(campNow.chars, w.charId) && campNow.chars[w.charId] && campNow.chars[w.charId].npc);   // a player never owns an NPC's token
                     html += '<div class="field"><label for="wbOwner">Player Owner (can move this token)</label><select id="wbOwner"' + (npcTok ? ' disabled title="An NPC\u2019s token \u2014 unlink it from the NPC first"' : '') + '>'+ownerOpts+'</select></div>';
                     var rdT = sheetReaderTok(); if (rdT) html += '<div class="field" id="wbReaderBox"></div>';   // an outside sheet reader's own part of a token's Properties (2026-10-18): its page code fills it below
-                    html += '</details>' + inspFoldOpen('gm', 'GM notes', 'Yours alone: its note, its dialogue and its roster entry');   // 1.6.2: the GM's own notes, a fold of their own
-                    if (!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) html += '<div class="field"><label for="wbGmInfo">GM note / dialogue <span class="muted">(this token only — hidden from players)</span></label><textarea id="wbGmInfo" placeholder="Private notes, read-aloud dialogue…">'+esc(w.gmInfo||'')+'</textarea><div id="wbGmDice" class="gm-dice" hidden></div></div>';
+                    html += '</details>' + inspFoldOpen('gm', 'GM notes', 'Yours alone: its note, its dialog and its roster entry');   // 1.6.2: the GM's own notes, a fold of their own
+                    if (!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) html += '<div class="field"><label for="wbGmInfo">GM note / dialog <span class="muted">(this token only — hidden from players)</span></label><textarea id="wbGmInfo" placeholder="Private notes, read-aloud dialog…">'+esc(w.gmInfo||'')+'</textarea><div id="wbGmDice" class="gm-dice" hidden></div></div>';
                     // Character (roster): the linked roster entry's Info/Background + Reference — one source of truth with the Data Map editor; unlinked → a link-or-create picker. GM only.
                     var _rEntry = null, _rRoom = null;
                     if (!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) {
@@ -1194,8 +1194,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               pagePinFieldHtml(w)+   // 1.5.4: a pin, the page this piece opens (the GM's alone)
               (linkFold ? '</details>' : '') +   // 1.5.6: the end of a character token's Map links
               (typeof boxFieldHtml === 'function' ? boxFieldHtml(w) : '')+   // 1.6.2 (backlog 42): Holds items
-              inspFoldOpen('look', 'Look', 'Colour, size, turn, layer and lock')+   // 1.6.2: the folds
-              (w.type !== 'image' && w.type !== 'trigger' && w.type !== 'light' ? '<div class="field"><label>' + (w.type === 'text' ? 'Text Colour' : w.type === 'path' ? 'Pen Colour' : 'Fill Colour') + '</label><div class="color-row">' + ((w.type === 'path' || w.type === 'text') ? penHtml : colorHtml) + '</div></div>' : '') +
+              inspFoldOpen('look', 'Look', 'Color, size, turn, layer and lock')+   // 1.6.2: the folds
+              (w.type !== 'image' && w.type !== 'trigger' && w.type !== 'light' ? '<div class="field"><label>' + (w.type === 'text' ? 'Text Color' : w.type === 'path' ? 'Pen Color' : 'Fill Color') + '</label><div class="color-row">' + ((w.type === 'path' || w.type === 'text') ? penHtml : colorHtml) + '</div></div>' : '') +
               (w.type === 'text' ? textStyleHtml(w) : '') +
               (w.type !== 'path' && w.type !== 'text' ? '<div class="field check-row"><input type="checkbox" id="wbLockRatio" '+(w.lockRatio?'checked':'')+'> <label for="wbLockRatio">Lock proportions when resizing</label></div>' : '') +
               (w.type === 'path' ? '<div class="field"><label for="wbStrokeWidth">Pen Size <span class="muted" id="wbStrokeWidthVal">' + (num(w.strokeWidth, 0)||3) + ' px</span></label><div style="display:flex; gap:8px; align-items:center;"><input type="range" id="wbStrokeWidth" min="1" max="20" value="'+(num(w.strokeWidth, 0)||3)+'" style="flex:1"><input type="number" id="wbStrokeWidthNum" value="'+(num(w.strokeWidth, 0)||3)+'" min="1" max="20" style="width:56px" aria-label="Pen size in pixels"></div></div>' : '') +
@@ -1225,11 +1225,11 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               // [sinkcheck:heightbox-start]
               (['rect','hexagon','circle','diamond','image','path'].indexOf(w.type) >= 0 && !w.isChar && !w.waiting && !w.hidden ? (function() {   // item 19 H1 (the owner's answer): a piece's height, shown and typed in the viewer's unit, kept in yards
                   var Sh = window.wpStance, FCh = window.wpFogCore, hv = FCh && FCh.cleanHeight ? FCh.cleanHeight(w.height) : null, un = Sh && Sh.lenUnit ? Sh.lenUnit() : 'yd';
-                  return '<div class="field"><label for="wbHeight">Height <span class="muted">(' + (un === 'm' ? 'metres' : 'yards') + ')</span></label><input type="number" id="wbHeight" step="' + (Sh && Sh.ydStep ? Sh.ydStep() / 2 : 0.5) + '" placeholder="' + (w.blocksSight ? 'full height' : un === 'm' ? '0.9' : '1') + '" value="' + (hv ? Math.round((Sh && Sh.ydOut ? Sh.ydOut(hv) : hv) * 100) / 100 : '') + '" title="How tall it is, for a system whose height rule reads it. Under Height clears low cover: looked at from higher than a see-over piece it gives no cover, and from below it hides a target no higher than it &mdash; on the ruler, at target marks, for blasts, and in the fog, where a player whose tokens all stand lower is not shown that creature. Under the True 3D sightline: it stops a line of sight or of cover only where the straight line from the viewer&rsquo;s eye to the target runs at or below it, so a token sees a creature over a low wall. Empty: a wall is full height, a see-over piece 1 yard"></div>';
+                  return '<div class="field"><label for="wbHeight">Height <span class="muted">(' + (un === 'm' ? 'meters' : 'yards') + ')</span></label><input type="number" id="wbHeight" step="' + (Sh && Sh.ydStep ? Sh.ydStep() / 2 : 0.5) + '" placeholder="' + (w.blocksSight ? 'full height' : un === 'm' ? '0.9' : '1') + '" value="' + (hv ? Math.round((Sh && Sh.ydOut ? Sh.ydOut(hv) : hv) * 100) / 100 : '') + '" title="How tall it is, for a system whose height rule reads it. Under Height clears low cover: looked at from higher than a see-over piece it gives no cover, and from below it hides a target no higher than it &mdash; on the ruler, at target marks, for blasts, and in the fog, where a player whose tokens all stand lower is not shown that creature. Under the True 3D sightline: it stops a line of sight or of cover only where the straight line from the viewer&rsquo;s eye to the target runs at or below it, so a token sees a creature over a low wall. Empty: a wall is full height, a see-over piece 1 yard"></div>';
               })() : '')+
               // [sinkcheck:heightbox-end]
               groundFieldHtml(w)+   // item 19b H5: a piece's Ground height (a hill, a ledge, a pit)
-              (['rect','hexagon','circle','diamond','image','path'].indexOf(w.type) >= 0 && !w.isChar && !w.hidden ? ('<div class="field"><label for="wbCover">Cover</label><select id="wbCover" title="What this piece gives as cover (the ruler, blasts and target marks, with Cover from blockers on in your system): as its sight (a wall, pillar or closed door gives it; anything else none), cover you can see over (a crate, a low wall: half or three-quarters, never total), or none. It counts in the grid cells whose centres it covers."><option value="like"'+(w.cover!=='yes'&&w.cover!=='no'?' selected':'')+'>'+(w.blocksSight?'Gives cover (it blocks sight)':(window.wpFog&&window.wpFog.coverObject&&window.wpFog.coverObject(Object.assign({},w,{cover:'like'}))?'Gives cover you can see over (a placed object)':'No cover (it does not block sight)'))+'</option><option value="yes"'+(w.cover==='yes'?' selected':'')+'>'+(w.blocksSight?'Gives cover':'Gives cover you can see over')+'</option><option value="no"'+(w.cover==='no'?' selected':'')+'>No cover</option>'+(window.wpFogCore&&window.wpFogCore.cleanCoverAs&&window.wpFogCore.cleanCoverAs(w.coverAs)?'<option value="as" selected>'+({half:'Half',threeq:'Three-quarters',total:'Total'})[w.coverAs]+' (a map object)</option>':'')+'</select></div>'+'<div class="field"><label for="wbCoverPro">Protection</label><input type="number" id="wbCoverPro" min="0" max="999" step="1" placeholder="None" value="'+(window.wpFogCore&&window.wpFogCore.cleanCoverPro?(window.wpFogCore.cleanCoverPro(w.coverPro)||''):'')+'" title="How much this cover stops of a blow that passes through it, where your system reads it in a roll. The highest on the line counts. Empty for none."></div>') : '')+
+              (['rect','hexagon','circle','diamond','image','path'].indexOf(w.type) >= 0 && !w.isChar && !w.hidden ? ('<div class="field"><label for="wbCover">Cover</label><select id="wbCover" title="What this piece gives as cover (the ruler, blasts and target marks, with Cover from blockers on in your system): as its sight (a wall, pillar or closed door gives it; anything else none), cover you can see over (a crate, a low wall: half or three-quarters, never total), or none. It counts in the grid cells whose centers it covers."><option value="like"'+(w.cover!=='yes'&&w.cover!=='no'?' selected':'')+'>'+(w.blocksSight?'Gives cover (it blocks sight)':(window.wpFog&&window.wpFog.coverObject&&window.wpFog.coverObject(Object.assign({},w,{cover:'like'}))?'Gives cover you can see over (a placed object)':'No cover (it does not block sight)'))+'</option><option value="yes"'+(w.cover==='yes'?' selected':'')+'>'+(w.blocksSight?'Gives cover':'Gives cover you can see over')+'</option><option value="no"'+(w.cover==='no'?' selected':'')+'>No cover</option>'+(window.wpFogCore&&window.wpFogCore.cleanCoverAs&&window.wpFogCore.cleanCoverAs(w.coverAs)?'<option value="as" selected>'+({half:'Half',threeq:'Three-quarters',total:'Total'})[w.coverAs]+' (a map object)</option>':'')+'</select></div>'+'<div class="field"><label for="wbCoverPro">Protection</label><input type="number" id="wbCoverPro" min="0" max="999" step="1" placeholder="None" value="'+(window.wpFogCore&&window.wpFogCore.cleanCoverPro?(window.wpFogCore.cleanCoverPro(w.coverPro)||''):'')+'" title="How much this cover stops of a blow that passes through it, where your system reads it in a roll. The highest on the line counts. Empty for none."></div>') : '')+
               (['rect','hexagon','circle','diamond','image'].indexOf(w.type) >= 0 && !w.isChar && !w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbFogged" '+(w.fogged?'checked':'')+'> <label for="wbFogged">Play area (fog covers only this)</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">With fog on, only cells under items marked as play areas are fogged &mdash; scenes and map art stay lit. Mark none to fog the whole map (or nothing), per your campaign default in the <i class="wib wi-fog"></i> menu.</div>' : '')+
               '</details>'+
               inspFoldOpen('vision', 'Vision and light', 'Its light, its senses, its bars and the senses that fail on it')+
@@ -1243,7 +1243,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               (w.isChar && !w.waiting && window.wpCanPersistLocal && window.wpCanPersistLocal() ? barsFieldHtml(w) : '')+   // backlog 28: its bars
               (['rect','hexagon','circle','diamond','image'].indexOf(w.type) >= 0 && !w.isChar && !w.waiting && !w.gmNoteFor && window.wpCanPersistLocal && window.wpCanPersistLocal() ? nullsFieldHtml(w) + hazardFieldHtml(w) : '')+   // 1.6.2: and a hazard   // senses S7a: a null area (hidden or not)
               '</details>' +
-              (w.type==='text' ? '<div class="muted">Tip: Double-click the text box on the canvas to edit its words. The colour above sets the text colour.</div>' : '');
+              (w.type==='text' ? '<div class="muted">Tip: Double-click the text box on the canvas to edit its words. The color above sets the text color.</div>' : '');
             
             var linkedRoom = w.nodeId ? activeMap.rooms.find(x=>x.id===w.nodeId) : null;
             if(linkedRoom) {
@@ -1261,7 +1261,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 _el_wbFillCustomColor.addEventListener('input', function() {
                     w.color = this.value;
                     var fel = state.wbEls && state.wbEls[w.id];
-                    if (fel) fel.style.backgroundColor = this.value;   // the colour alone, so the live recolour keeps a texture
+                    if (fel) fel.style.backgroundColor = this.value;   // the color alone, so the live recolor keeps a texture
                 });
                 _el_wbFillCustomColor.addEventListener('change', function() { save(); render(); });
             }
@@ -1315,7 +1315,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                     var host = state.wbEls && state.wbEls[w.id];
                     if (!host) return;
                     if (w.type === 'text') { host.style.color = this.value; return; }
-                    var pel = host.querySelector('svg > path'), prc = w.tip === 'fill' ? host.querySelector('svg > defs > pattern > rect') : null;   // the piece's own path, never a pattern's; a textured region: the colour under its pattern
+                    var pel = host.querySelector('svg > path'), prc = w.tip === 'fill' ? host.querySelector('svg > defs > pattern > rect') : null;   // the piece's own path, never a pattern's; a textured region: the color under its pattern
                     if (prc) prc.setAttribute('fill', cssColor(this.value, 'transparent')); else if (pel) pel.setAttribute('stroke', this.value);
                 });
                 _el_wbStrokeCustomColor.addEventListener('change', function() { save(); render(); });
@@ -1961,7 +1961,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
           + '<option value=""' + (cur < 0 ? ' selected' : '') + '>' + (L && L.name && cur < 0 ? esc(L.name) + ' (as placed)' : 'Custom') + '</option>'
           + list.map(function(p, i) { return '<option value="' + i + '"' + (i === cur ? ' selected' : '') + '>' + esc(p && p.name) + ' (' + esc(String(Number(p && p.bright) || 0)) + ' / ' + esc(String(Number(p && p.dim) || 0)) + ' ' + word(p && p.unit) + ')</option>'; }).join('') + '</select></div>';
       return pre + '<div class="field"><label for="wbLightBright">' + (w.type === 'light' ? 'Light' : 'Carries a light') + '</label><div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;"><span class="muted">Bright to</span><input type="number" id="wbLightBright" min="0" max="1000" step="1" value="' + (L ? Number(L.bright) || 0 : 0) + '" style="width:64px;"><span class="muted">dim to</span><input type="number" id="wbLightDim" min="0" max="1000" step="1" value="' + (L ? Number(L.dim) || 0 : 0) + '" style="width:64px;">'
-          + '<select id="wbLightUnit" title="What the two radii count in: the map&rsquo;s scale turns yards, feet or metres into cells; grid cells count as they are">' + ['yd', 'ft', 'm', 'cells'].map(function(u) { return '<option value="' + u + '"' + (u === word(unit) ? ' selected' : '') + '>' + u + '</option>'; }).join('') + '</select></div></div>'
+          + '<select id="wbLightUnit" title="What the two radii count in: the map&rsquo;s scale turns yards, feet or meters into cells; grid cells count as they are">' + ['yd', 'ft', 'm', 'cells'].map(function(u) { return '<option value="' + u + '"' + (u === word(unit) ? ' selected' : '') + '>' + u + '</option>'; }).join('') + '</select></div></div>'
           + '<div class="field check-row"><input type="checkbox" id="wbLightOn" ' + (L && !L.off ? 'checked' : '') + '> <label for="wbLightOn">Light is on</label></div>'
           + (w.type !== 'light' ? '<div class="field check-row"><input type="checkbox" id="wbLightLock" ' + (w.lightLock === true ? 'checked' : '') + '> <label for="wbLightLock" title="Its player may switch this token&rsquo;s light and pick one of the presets you ticked Players may pick, from the token&rsquo;s right-click menu. Locked: only you change it.">Light locked (its player can&rsquo;t change it)</label></div>' : '')
           + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Lights the fog while Lighting is on (<i class="wib wi-cog"></i> Settings &#9656; This campaign): bright out to the first radius, dim to the second; walls and closed doors stop it.' + (w.type === 'light' ? ' Players see its light, never this marker.' : '') + '</div>';
@@ -2021,7 +2021,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   // [sinkcheck:tokbarsfield-start]
   // Backlog 28 (the owner, 2026-10-29, by prompt: the system's bars, a token may change its own): a token's bars in its Properties, the GM's. A
   // character token takes the system's (System editor, Combat, Token bars) or This token's own; a token with no sheet has numbers of its own
-  // alone. A row a bar: a pool of the sheet or numbers of its own (a name, now and most), who sees it and its colour. Every text and number is
+  // alone. A row a bar: a pool of the sheet or numbers of its own (a name, now and most), who sees it and its color. Every text and number is
   // escaped into a value or an option
   function barsFieldHtml(w) {
       var S = window.wpSystemCore, camp = getActiveCampaign(); if (!S || typeof S.cleanTokBars !== 'function' || !camp) return '';
@@ -2039,7 +2039,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
               h += '<select class="wb-tokbar-pool" title="The pool this bar shows, or numbers of the token&rsquo;s own"><option value="">&mdash; none &mdash;</option>' + pools.map(function(f) { return '<option value="' + esc(f.id) + '"' + (val === f.id ? ' selected' : '') + '>' + esc((f.label || f.key) + (f.vis === 'gm' ? ' (GM only)' : '')) + '</option>'; }).join('') + (gone ? '<option value="' + esc(b.f) + '" selected>(a pool that is gone)</option>' : '') + '<option value="#own"' + (val === '#own' ? ' selected' : '') + '>Numbers of its own</option></select>';
           }
           if (nums) h += '<input type="text" class="wb-tokbar-name" maxlength="40" placeholder="Name" title="The bar&rsquo;s name, shown with its numbers" style="flex:2 1 60px; min-width:0;" value="' + esc(b && b.n ? b.n : '') + '"><input type="number" class="wb-tokbar-cur" step="any" placeholder="Now" title="How full it is now' + (hasChar ? '' : '. Empty: no bar') + '" style="flex:1 1 44px; min-width:0;" value="' + (b ? esc(String(b.cur)) : '') + '"><span class="muted">/</span><input type="number" class="wb-tokbar-max" step="any" placeholder="Most" title="The most it holds" style="flex:1 1 44px; min-width:0;" value="' + (b ? esc(String(b.max)) : '') + '">';
-          if (b) h += '<select class="wb-tokbar-show" title="Who sees this bar. The GM always does">' + words.map(function(o) { return '<option value="' + esc(o[0]) + '"' + (b.show === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select><input type="color" class="wb-tokbar-color" title="This bar&rsquo;s colour" value="' + esc(b.color || cols[i]) + '">';
+          if (b) h += '<select class="wb-tokbar-show" title="Who sees this bar. The GM always does">' + words.map(function(o) { return '<option value="' + esc(o[0]) + '"' + (b.show === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select><input type="color" class="wb-tokbar-color" title="This bar&rsquo;s color" value="' + esc(b.color || cols[i]) + '">';
           h += '</div>';
       });
       return h + '<div class="muted" style="margin:0 0 6px; font-size:10.5px;">A thin ring around the token: Bar 1 its left half, Bar 2 its right.' + (hasChar ? '' : ' Type a number in Now to show a bar.') + '</div></div>';
@@ -2155,7 +2155,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   // Difficult terrain T1: a shape's Properties row — its tick and its cost (item.terrain, 2-10, as fogcore cleanTerrain keeps it; the box
   // shows 2 while unticked), and the GM's change of either
   // 1.6.2 (backlog 57; the owner, 2026-11-11, by prompt: "Both"): where the system names kinds of terrain a Kind of terrain list stands under the
-  // tick, the kinds by name (escaped) and Another cost. A piece that names a kind shows the cost the kind has now, its box greyed. The pick is
+  // tick, the kinds by name (escaped) and Another cost. A piece that names a kind shows the cost the kind has now, its box grayed. The pick is
   // written only as a kind the system has (item.terrainKind beside the cost), and another cost or an unticked row takes the kind off
   function terrainKindsNow() { try { var S = window.wpSystemCore, c = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null; return S && S.terrainKinds && c ? S.terrainKinds(c.system) : []; } catch (e) { return []; } }
   function terrainFieldHtml(w) {
@@ -2183,9 +2183,9 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   function textureFieldHtml(w) {
       var BC = window.wpBuildCore, cur = BC && BC.cleanTexture ? BC.cleanTexture(w.texture) : null, names = BC && Array.isArray(BC.TEXTURES) ? BC.TEXTURES : [], pic = texFieldPic(w);
       var TL = window.wpTexList, canPick = !!(TL && typeof TL.pick === 'function' && typeof TL.tileOf === 'function' && Array.isArray(TL.TILES) && BC && typeof BC.picName === 'function' && window.wpFogCore && typeof window.wpFogCore.cleanTexSrc === 'function'), tile = pic && canPick ? String(TL.tileOf(w.texTile)) : '';
-      return '<div class="field"><label for="wbTexture">Texture</label><select id="wbTexture" title="A pattern Waypoint draws over the colour, seated on the grid."><option value=""' + (cur || pic ? '' : ' selected') + '>Plain colour</option>' + names.map(function(n) { return '<option value="' + esc(n) + '"' + (n === cur && !pic ? ' selected' : '') + '>' + esc((window.wpBuildCore && typeof window.wpBuildCore.texName === 'function' && window.wpBuildCore.texName(n)) || n.charAt(0).toUpperCase() + n.slice(1)) + '</option>'; }).join('') + texPackRowsHtml(TL, pic) + (pic && !(TL && typeof TL.rowOf === 'function' && TL.rowOf(pic)) ? '<option value="@pic" selected>' + esc(BC.picName(pic)) + '</option>' : '') + (canPick ? '<option value="@pick">A picture&hellip;</option>' : '') + '</select></div>'
+      return '<div class="field"><label for="wbTexture">Texture</label><select id="wbTexture" title="A pattern Waypoint draws over the color, seated on the grid."><option value=""' + (cur || pic ? '' : ' selected') + '>Plain color</option>' + names.map(function(n) { return '<option value="' + esc(n) + '"' + (n === cur && !pic ? ' selected' : '') + '>' + esc((window.wpBuildCore && typeof window.wpBuildCore.texName === 'function' && window.wpBuildCore.texName(n)) || n.charAt(0).toUpperCase() + n.slice(1)) + '</option>'; }).join('') + texPackRowsHtml(TL, pic) + (pic && !(TL && typeof TL.rowOf === 'function' && TL.rowOf(pic)) ? '<option value="@pic" selected>' + esc(BC.picName(pic)) + '</option>' : '') + (canPick ? '<option value="@pick">A picture&hellip;</option>' : '') + '</select></div>'
           + (tile ? '<div class="field"><label for="wbTexTile">Tile size</label><select id="wbTexTile" title="How large one repeat of the picture is. Whole piece stretches it over the piece once.">' + TL.TILES.map(function(r) { return '<option value="' + esc(String(r[0])) + '"' + (String(r[0]) === tile ? ' selected' : '') + '>' + esc(r[1]) + '</option>'; }).join('') + '</select></div>' : '')
-          + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + (pic ? 'One of your own pictures, over the colour. A pattern or Plain colour takes it off.' : 'A pattern drawn over the colour. Pieces side by side read as one surface.') + '</div>';
+          + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + (pic ? 'One of your own pictures, over the color. A pattern or Plain color takes it off.' : 'A pattern drawn over the color. Pieces side by side read as one surface.') + '</div>';
   }
   // Fold 4 of backlog 222: each pack's patterns and blocks, a group of rows named for the pack, a row already worn selected. Names through esc
   function texPackRowsHtml(TL, pic) {
@@ -2234,13 +2234,13 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   // [sinkcheck:groundbox-start]
   // Item 19b H5 (the owner's answer of 2026-10-01, "Added": ground height): a piece's Ground height row — a shape, an image or a filled region
   // as a hill, a ledge or a pit: a token standing on it is that much higher, on top of its own elevation. Shown and typed in the viewer's
-  // unit (yards or metres) and kept in yards (item.ground, as fogcore cleanGround keeps it: -1000 to 1000, none at 0); never on a token, a
+  // unit (yards or meters) and kept in yards (item.ground, as fogcore cleanGround keeps it: -1000 to 1000, none at 0); never on a token, a
   // waiting token, a GM-note card, a pen line, a text, a trigger or a light. Its markup holds that number and fixed words only
   function groundFieldOk(w) { return !!w && typeof w === 'object' && (['rect', 'hexagon', 'circle', 'diamond', 'image'].indexOf(w.type) >= 0 || (w.type === 'path' && w.tip === 'fill')) && !w.isChar && !w.waiting && !w.gmNoteFor; }
   function groundFieldHtml(w) {
       if (!groundFieldOk(w)) return '';
       var St = window.wpStance, C = window.wpFogCore, g = C && C.cleanGround && Object.prototype.hasOwnProperty.call(w, 'ground') ? C.cleanGround(w.ground) : null, un = St && St.lenUnit ? St.lenUnit() : 'yd';
-      return '<div class="field"><label for="wbGround">Ground height <span class="muted">(' + (un === 'm' ? 'metres' : 'yards') + '; a pit is negative)</span></label><input type="number" id="wbGround" step="' + (St && St.ydStep ? St.ydStep() / 2 : 0.5) + '" placeholder="0" value="' + (g ? Math.round((St && St.ydOut ? St.ydOut(g) : g) * 100) / 100 : '') + '" title="Makes this piece ground &mdash; a hill, a ledge, a pit: a token standing on it (the centre of its cell under the piece&rsquo;s outline) is this much higher, on top of its own elevation. Where ground pieces overlap the highest counts. Empty or 0: no ground"></div>'
+      return '<div class="field"><label for="wbGround">Ground height <span class="muted">(' + (un === 'm' ? 'meters' : 'yards') + '; a pit is negative)</span></label><input type="number" id="wbGround" step="' + (St && St.ydStep ? St.ydStep() / 2 : 0.5) + '" placeholder="0" value="' + (g ? Math.round((St && St.ydOut ? St.ydOut(g) : g) * 100) / 100 : '') + '" title="Makes this piece ground &mdash; a hill, a ledge, a pit: a token standing on it (the center of its cell under the piece&rsquo;s outline) is this much higher, on top of its own elevation. Where ground pieces overlap the highest counts. Empty or 0: no ground"></div>'
           + (w.hidden ? '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">While this piece is hidden, nothing worked out for players reads its ground &mdash; their screens, their rolls, a thrown blast, what the fog shows or hides for them; your own screen, your own rolls and your Radius tool do.</div>' : '');
   }
   function setItemGround(w, v) {
@@ -2311,10 +2311,10 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   // [sinkcheck:secretbox-start]
   // A secret door (the map builder, fold B5; the owner, 2026-10-10, by prompt: players see "The wall's look", and it is found by "A row, and
   // opening it"): the Secret tick under a door's own rows, a wall's door and a see-through barrier's alike. Ticked, the players' screens show
-  // wall there until it is found (fogcore secretSeen), and two rows say what they see: a colour, and a pattern of the app's own list. A door
+  // wall there until it is found (fogcore secretSeen), and two rows say what they see: a color, and a pattern of the app's own list. A door
   // drawn as a line has no pattern row: it has Match the wall it meets and one line of words for what Match set. Never a
   // picture: a picture's path sent to the table is a file the host then serves. The GM's alone (never a player's app, never the stream
-  // window); never on a hidden piece, a picture piece, a token, a waiting token or a GM-note card. Its markup holds fixed words, a colour as
+  // window); never on a hidden piece, a picture piece, a token, a waiting token or a GM-note card. Its markup holds fixed words, a color as
   // the cleaner keeps it, and names of the list through esc
   // Is Character on a secret door (the review of fold B5): a token is no secret door, so ticked there the players were sent the door itself
   // while the tick stayed on the piece and came back beside an open door. Refused, in fixed words, while the piece is a secret door; a tick
@@ -2344,15 +2344,15 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
           + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Your players see wall here until it is found. Reveal it from its right-click menu, or open it.</div>';
       if (!look) return html;
       var col = /^#[0-9a-f]{6}$/.test(look.color) ? look.color : '#3f3b47';
-      html += '<div class="field"><label for="wbSeenColor">Seen as</label><input type="color" id="wbSeenColor" value="' + esc(col) + '" title="The colour your players see where the secret door stands." style="height:30px; padding:2px;"></div>';
-      if (!line) html += '<div class="field"><label for="wbSeenTexture">Seen pattern</label><select id="wbSeenTexture" title="The pattern your players see there."><option value=""' + (look.texture ? '' : ' selected') + '>Plain colour</option>' + names.map(function(n) { return '<option value="' + esc(n) + '"' + (n === look.texture ? ' selected' : '') + '>' + esc((window.wpBuildCore && typeof window.wpBuildCore.texName === 'function' && window.wpBuildCore.texName(n)) || String(n).charAt(0).toUpperCase() + String(n).slice(1)) + '</option>'; }).join('') + '</select></div>';
-      html += '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + (look.clear ? (w.seenColor === 'transparent' ? (line ? 'Your players see nothing drawn here, like the see-through wall this door is matched to. Pick a colour to give it a look.' : 'Your players see nothing drawn here. Pick a colour or a pattern to give it a look.') : 'This piece is see-through, so your players see nothing drawn here. Pick a colour or a pattern to give it a look.') : 'What your players see there. It starts as the Wall material. Match it to a wall of your own. It cannot wear one of your pictures.') + '</div>';
+      html += '<div class="field"><label for="wbSeenColor">Seen as</label><input type="color" id="wbSeenColor" value="' + esc(col) + '" title="The color your players see where the secret door stands." style="height:30px; padding:2px;"></div>';
+      if (!line) html += '<div class="field"><label for="wbSeenTexture">Seen pattern</label><select id="wbSeenTexture" title="The pattern your players see there."><option value=""' + (look.texture ? '' : ' selected') + '>Plain color</option>' + names.map(function(n) { return '<option value="' + esc(n) + '"' + (n === look.texture ? ' selected' : '') + '>' + esc((window.wpBuildCore && typeof window.wpBuildCore.texName === 'function' && window.wpBuildCore.texName(n)) || String(n).charAt(0).toUpperCase() + String(n).slice(1)) + '</option>'; }).join('') + '</select></div>';
+      html += '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + (look.clear ? (w.seenColor === 'transparent' ? (line ? 'Your players see nothing drawn here, like the see-through wall this door is matched to. Pick a color to give it a look.' : 'Your players see nothing drawn here. Pick a color or a pattern to give it a look.') : 'This piece is see-through, so your players see nothing drawn here. Pick a color or a pattern to give it a look.') : 'What your players see there. It starts as the Wall material. Match it to a wall of your own. It cannot wear one of your pictures.') + '</div>';
       if (line) {   // Match a wall (the owner, 2026-10-12, by prompt): one press, and the players see the door as the wall line it meets
-          html += '<div class="field"><button type="button" class="tool ghost" style="width:100%" id="wbSeenMatch" title="Your players then see this door with the colour, width, opacity and nib of the wall line it meets. Your own screen still shows the door as you drew it.">Match the wall it meets</button></div>';
+          html += '<div class="field"><button type="button" class="tool ghost" style="width:100%" id="wbSeenMatch" title="Your players then see this door with the color, width, opacity and nib of the wall line it meets. Your own screen still shows the door as you drew it.">Match the wall it meets</button></div>';
           var seenAs = look.clear ? '' : seenLineWords(look, typeof FC.seenDrawn === 'function' ? FC.seenDrawn(w) : null);   // nothing is drawn for a see-through look, so no width is said
           if (seenAs) html += '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + esc(seenAs) + '</div>';
       }
-      if (named) html += '<div class="field"><button type="button" class="tool ghost" style="width:100%" id="wbSeenReset" title="' + (line ? 'Takes the colour you named and what Match set off again. Your players then see the door in the Wall colour at its own width, opacity and nib, or nothing where it is see-through.' : 'Takes the colour and pattern you named off again. Your players then see the Wall material, or nothing where the piece is see-through.') + '">Back to the Wall look</button></div>';
+      if (named) html += '<div class="field"><button type="button" class="tool ghost" style="width:100%" id="wbSeenReset" title="' + (line ? 'Takes the color you named and what Match set off again. Your players then see the door in the Wall color at its own width, opacity and nib, or nothing where it is see-through.' : 'Takes the color and pattern you named off again. Your players then see the Wall material, or nothing where the piece is see-through.') + '">Back to the Wall look</button></div>';
       return html;
   }
   // What Match set for a door drawn as a line, in words: numbers the core cleaned and one of three fixed words for the nib. '' where nothing
@@ -2396,8 +2396,8 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
           if (mW === null || mW === undefined) delete w.seenWidth; else w.seenWidth = mW;
           if (mO === null || mO === undefined) delete w.seenOpacity; else w.seenOpacity = mO;
           if (mT === null || mT === undefined) delete w.seenTip; else w.seenTip = mT;
-          if (mC) w.seenColor = mC;   // a wall in a colour a secret door cannot be seen in leaves the colour named so far
-          said = mC ? 'Matched. Your players see this door as the wall line it meets.' : 'Matched in width, opacity and nib. That wall has a colour a secret door cannot be seen in. Give the wall one of the pen colours, then press Match again.';
+          if (mC) w.seenColor = mC;   // a wall in a color a secret door cannot be seen in leaves the color named so far
+          said = mC ? 'Matched. Your players see this door as the wall line it meets.' : 'Matched in width, opacity and nib. That wall has a color a secret door cannot be seen in. Give the wall one of the pen colors, then press Match again.';
       }
       else return;
       save(); render(); renderInspector();
@@ -2568,7 +2568,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       });
       return out + (group !== null ? '</optgroup>' : '');
   }
-  // the grey line under the list: fixed words, set as text
+  // the gray line under the list: fixed words, set as text
   function fontNote(cur) {
       return fontOwnOf(cur) ? 'This box uses a font of this computer\u2019s own. It may look different on another computer. Pick one from the list to change that.'
                             : 'Waypoint\u2019s own fonts. The text looks the same on every computer.';
@@ -2577,7 +2577,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   function fontSet(w, v) { var f = TF.cleanFont(v); if (f) w.font = f; else delete w.font; return f || ''; }
   // [sinkcheck:textfont-end]
   // [sinkcheck:texthist-start]
-  /* The Content editor's own undo. A colour or a size is made of nodes the bar re-makes behind the browser's back (planner.js rteColor, rteSize), so the
+  /* The Content editor's own undo. A color or a size is made of nodes the bar re-makes behind the browser's back (planner.js rteColor, rteSize), so the
      browser's own undo and redo no longer know the box: a redo could put a marker (a font element of size 7) back, and the box would store it. The
      editor keeps what it stored instead: the box's markup after each change, a run of typing as one step, HIST_MAX steps at most. Plain objects only. */
   var HIST_MAX = 100, HIST_RUN_MS = 800;
@@ -2616,10 +2616,10 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       }).join('') + '<label class="color-btn custom" title="Custom background"><input type="color" id="wbTextBgCustom" value="' + (/^#[0-9a-f]{6}$/i.test(w.bg || '') ? w.bg : '#15151c') + '"></label>';
       var _rteBar = RTE_CMDS.map(function(k) {
           if (k.sep) return '<span class="rte-sep"></span>';
-          if (k.sym) return rteLookHtml() + '<span class="rte-symwrap"><button type="button" class="rte-btn rte-symbtn" title="' + k.t + '" tabindex="-1">' + k.l + '</button><div class="rte-syms">' + RTE_SYMS.map(function(s) { return '<button type="button" class="rte-sym" data-sym="' + s[0] + '" title="' + s[1] + '" tabindex="-1">' + s[0] + '</button>'; }).join('') + '</div></span>';   // 1.5.4: colour and size on the selected words, the planner text block's own controls (no Link box here)
+          if (k.sym) return rteLookHtml() + '<span class="rte-symwrap"><button type="button" class="rte-btn rte-symbtn" title="' + k.t + '" tabindex="-1">' + k.l + '</button><div class="rte-syms">' + RTE_SYMS.map(function(s) { return '<button type="button" class="rte-sym" data-sym="' + s[0] + '" title="' + s[1] + '" tabindex="-1">' + s[0] + '</button>'; }).join('') + '</div></span>';   // 1.5.4: color and size on the selected words, the planner text block's own controls (no Link box here)
           return '<button type="button" class="rte-btn" data-cmd="' + k.c + '" title="' + k.t + '" tabindex="-1">' + k.l + '</button>';
       }).join('');
-      return '<div class="field"><label>Content</label><div class="rte" id="wbTextContentRte"><div class="rte-bar">' + _rteBar + '</div><div class="rte-body" contenteditable="true" id="wbTextContentBody" data-placeholder="Type here — select text and use the bar, or Ctrl+B / I / U" spellcheck="true">' + (w.text || '') + '</div></div><div class="muted" style="margin-top:3px;">A live edit of the box\'s words. Select words to make them bold or italic, to colour them or to size them. Lists and symbols are here too. Double-clicking the box on the canvas still works.</div></div>' +
+      return '<div class="field"><label>Content</label><div class="rte" id="wbTextContentRte"><div class="rte-bar">' + _rteBar + '</div><div class="rte-body" contenteditable="true" id="wbTextContentBody" data-placeholder="Type here — select text and use the bar, or Ctrl+B / I / U" spellcheck="true">' + (w.text || '') + '</div></div><div class="muted" style="margin-top:3px;">A live edit of the box\'s words. Select words to make them bold or italic, to color them or to size them. Lists and symbols are here too. Double-clicking the box on the canvas still works.</div></div>' +
              '<div class="field"><label for="wbTextFont">Font</label><select id="wbTextFont" style="width:100%;">' + fontOpts + '</select><div class="muted" id="wbTextFontNote" style="margin-top:3px;"></div></div>' +
              '<div class="field"><label for="wbTextSize">Text Size <span class="muted" id="wbTextSizeVal">' + (num(w.fontSize, 0) || 16) + ' px</span></label><div style="display:flex; gap:8px; align-items:center;"><input type="range" id="wbTextSize" min="8" max="96" value="' + (num(w.fontSize, 0) || 16) + '" style="flex:1"><input type="number" id="wbTextSizeNum" min="8" max="200" value="' + (num(w.fontSize, 0) || 16) + '" style="width:56px" aria-label="Text size in pixels"></div></div>' +
              '<div class="field text-align"><label>Text Alignment</label><div class="tal-grid"><span class="tal-cap">Horizontal</span><div class="tal-row">' + ab('left', '&#8676;', 'Align left') + ab('center', '&#8596;', 'Center') + ab('right', '&#8677;', 'Align right') + ab('justify', '&#8801;', 'Justify') + '</div><span class="tal-cap">Vertical</span><div class="tal-row tal-v">' + vb('top', '&#8679;', 'Top') + vb('middle', '&#8597;', 'Middle') + vb('bottom', '&#8681;', 'Bottom') + '</div></div></div>' +
@@ -2642,7 +2642,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
               rteSyncBar(contentBody);
           };
           contentBody.addEventListener('input', function(e) {
-              if (this._wpQuiet) return;   // a colour or a size half-way through (planner.js rteLook): the finished box follows
+              if (this._wpQuiet) return;   // a color or a size half-way through (planner.js rteLook): the finished box follows
               if (this.innerHTML === hist.list[hist.at]) { rteSyncBar(this); return; }   // a press that changed nothing (Bold at a caret): no step, and the stored text is not rewritten
               w.text = this.innerHTML; this._wpShown = w.text;
               histPush(hist, w.text, Date.now(), !!(e && typeof e.inputType === 'string' && /^(insert|delete)/.test(e.inputType)));
@@ -2665,14 +2665,14 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
           contentBody.addEventListener('focus', function() {
               // Refresh from the item only when its text CHANGED since the box last showed it (the on-canvas editor may have committed a newer value while the
               // panel stayed put). Comparing the box's own markup with the stored text would rebuild a box whose text merely reads back differently, as an
-              // imported one does, and throw away the selection the size list and the colour picker come back for
+              // imported one does, and throw away the selection the size list and the color picker come back for
               var fresh = w.text || '';
               if (fresh !== this._wpShown) { this.innerHTML = fresh; this._wpShown = fresh; hist = histNew(this.innerHTML); }
               rteSyncBar(this);
           });
           var contentBar = contentBody.parentNode.querySelector('.rte-bar');
           if (contentBar) {
-              contentBar.addEventListener('mousedown', function(e) { if (e.target && e.target.closest && e.target.closest('select, input')) return; e.preventDefault(); });   // keep the selection (the size list and the colour picker take the focus: the box's selection is remembered for them)
+              contentBar.addEventListener('mousedown', function(e) { if (e.target && e.target.closest && e.target.closest('select, input')) return; e.preventDefault(); });   // keep the selection (the size list and the color picker take the focus: the box's selection is remembered for them)
               var pick = contentBar.querySelector('.rte-colorpick'), sizeSel = contentBar.querySelector('.rte-size');
               if (pick) pick.addEventListener('change', function() { rteLook(contentBody, { color: this.value }); });
               if (sizeSel) sizeSel.addEventListener('change', function() { var v = this.value; this.value = ''; if (v) rteLook(contentBody, { size: v === 'default' ? null : v }); });

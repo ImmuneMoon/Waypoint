@@ -39,7 +39,7 @@ function call(h, method, p, body) {
         check('the routes are the page\'s own six (1.6.2: the computer\'s name the last), and what an account keeps is the profile pack\'s four stores, never wp_hostId',
             J(A.ACCOUNT_ROUTES) === J(['/api/account', '/api/account/link', '/api/account/poll', '/api/account/prefs', '/api/account/adopt', '/api/account/name']) && J(A.PREF_KEYS) === J(['wp_profile', 'wp_tableKeys', 'wp_gmPins', 'wp_gmRooms']));
         const cp = A.cleanPrefs({ updated: 12.7, prefs: { wp_profile: '{"id":"p_a"}', wp_hostId: 'u_x', wp_theme: 'dark', wp_tableKeys: 5, __proto__: { wp_gmPins: 'x' } } });
-        check('cleanPrefs keeps only the four stores as strings, a whole positive time, and nothing a prototype holds; cleanAccount keeps a mail, a player id by its pattern, played only as true and a colour as #rrggbb',
+        check('cleanPrefs keeps only the four stores as strings, a whole positive time, and nothing a prototype holds; cleanAccount keeps a mail, a player id by its pattern, played only as true and a color as #rrggbb',
             J(cp) === J({ updated: 12, prefs: { wp_profile: '{"id":"p_a"}' } }) && A.cleanPrefs(null) === null && A.cleanPrefs({ prefs: 'x' }) === null
             && J(A.cleanAccount({ email: 'a@b.test\u0000', playerId: 'p_a', played: 'yes', colour: '#ABCDEF', key: KEY })) === J({ email: 'a@b.test', playerId: 'p_a', played: false, colour: '#abcdef' })
             && J(A.cleanAccount({ playerId: '<x>' })) === J({ email: '', playerId: '', played: false }));
@@ -125,8 +125,8 @@ function call(h, method, p, body) {
     /* ---- both servers route the account alike, and only the shell's own module talks to the site ---- */
     {
         const main = fs.readFileSync(path.join(ROOT, 'system', 'resources', 'app', 'main.js'), 'utf8'), dev = fs.readFileSync(path.join(ROOT, 'tools', 'dev-server.js'), 'utf8');
-        const appDir = path.join(ROOT, 'system', 'app', 'scripts'), pageNamesSite = fs.readdirSync(appDir).filter(f => /\.js$/.test(f)).filter(f => /waypointvtt\.com/.test(fs.readFileSync(path.join(appDir, f), 'utf8').split('signal.waypointvtt.com').join('')));   /* 1.6.2 (backlog 220): the signalling server is the peer server Peer dials, never the site's API, and the page policy names it alone */
-        check('both servers hand the five routes to account.js\'s handler, made with the site\'s address from siteBase, and no page script names the site but its signalling server (the page asks its own server alone)',
+        const appDir = path.join(ROOT, 'system', 'app', 'scripts'), pageNamesSite = fs.readdirSync(appDir).filter(f => /\.js$/.test(f)).filter(f => /waypointvtt\.com/.test(fs.readFileSync(path.join(appDir, f), 'utf8').split('signal.waypointvtt.com').join('')));   /* 1.6.2 (backlog 220): the signaling server is the peer server Peer dials, never the site's API, and the page policy names it alone */
+        check('both servers hand the five routes to account.js\'s handler, made with the site\'s address from siteBase, and no page script names the site but its signaling server (the page asks its own server alone)',
             /if \(account\.ACCOUNT_ROUTES\.includes\(url\.pathname\)\) \{ accountHandler\(req, res, url\); return; \}/.test(main) && /if \(account\.ACCOUNT_ROUTES\.includes\(url\.pathname\)\) \{ accountHandler\(req, res, url\); return; \}/.test(dev)
             && /account\.makeHandler\(\{ savesDir, base: account\.siteBase\(process\.env\)/.test(main) && /account\.makeHandler\(\{ savesDir, base: account\.siteBase\(process\.env\)/.test(dev) && pageNamesSite.length === 0, J(pageNamesSite));
     }
@@ -165,7 +165,7 @@ function call(h, method, p, body) {
         // 1: an account that played nowhere adopts this computer's player, and nothing is sent before the account is read
         const r1 = run({ local: { wp_profile: PROF }, answers: { 'GET /api/account': acct(false), 'POST /api/account/adopt': b => ({ status: 200, json: { updated: 77, prefs: Object.assign({}, b.prefs, { wp_profile: J({ id: 'p_here', name: 'Kael', color: '#5976cf' }) }) } }) } });
         await r1.api.acctDecide(); await settle();
-        check('linked to an account that has played nowhere: the account is read first, then this computer\'s player is adopted, and what the site added to it (a colour) is taken; nothing is synced before the account was read',
+        check('linked to an account that has played nowhere: the account is read first, then this computer\'s player is adopted, and what the site added to it (a color) is taken; nothing is synced before the account was read',
             r1.calls[0] === 'GET /api/account' && r1.calls[1] === 'GET /api/account/prefs' && /^POST \/api\/account\/adopt /.test(r1.calls[2]) && !r1.calls.some(c => /^POST \/api\/account\/prefs/.test(c)) && JSON.parse(r1.store.get('wp_profile')).color === '#5976cf' && r1.store.get('wp_acctStamp') === '77', J([r1.calls, [...r1.store]]));
         // 1b (1.6.2, the first live test): neither has played, but the account already holds a player: this computer takes it, with no adopt
         const HELD = { updated: 90, prefs: { wp_profile: J({ id: 'p_acct', name: 'Kael Renn' }) } };

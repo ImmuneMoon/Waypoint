@@ -76,7 +76,7 @@ function readerLaidOut(gen, body, it) {
 }
 function renderInto(body, it) { renderPage(body, it); openSig = sigOf(it); }
 // A page drawn into any element — the reader, and a sheet's or HUD's handbook search (Stage 6 HUD H12, window.wpDocRenderPage): the
-// sanitised render (docrender), the campaign's look, its diagrams laid out (strict at another's table)
+// sanitized render (docrender), the campaign's look, its diagrams laid out (strict at another's table)
 function renderPage(body, it) {
     if (foreign()) setMermaidMode('strict');
     var _camp = getActiveCampaign(), gen = body && body === ui('docReaderBody') ? ++_rdGen : 0;   // 1.5.4: which draw of the reader this is, for a landing

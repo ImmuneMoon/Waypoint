@@ -5,7 +5,7 @@
    over the table's own data connection (the way a shown video is), and the host is always the side that offers. The player's
    microphone goes up on the first audio line of it; every other voice (the GM's and the other players') comes down on lines the host
    adds, one per speaker, each line (by its mid) named in the offer's `who` map so the player knows whose it is. Nothing of it passes the
-   signalling server. Mute, volume and push-to-talk are each person's own and never leave their machine. */
+   signaling server. Mute, volume and push-to-talk are each person's own and never leave their machine. */
 'use strict';
 
 var VERSION = '0.1.0';

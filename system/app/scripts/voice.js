@@ -128,7 +128,7 @@ function applyVoice(v) {
     v.audio.volume = own(prefs.vols, v.pid) ? prefs.vols[v.pid] : 1;
 }
 function own(o, k) { return !!o && Object.prototype.hasOwnProperty.call(o, k); }
-// One voice played here (a remote track): an audio element plays it — the engine's echo cancelling hears what elements play — and
+// One voice played here (a remote track): an audio element plays it — the engine's echo canceling hears what elements play — and
 // a meter reads its level for the speaking dot
 function voicePlay(pid, name, gm, track) {
     var v = voices[pid];
@@ -158,7 +158,7 @@ function meterAdd(key, stream) {
     var c = ctx(); if (!c) return;
     try {
         var src = c.createMediaStreamSource(stream), an = c.createAnalyser(); an.fftSize = 512;
-        src.connect(an);   // analysed only: never connected to the speakers (the audio element plays it)
+        src.connect(an);   // analyzed only: never connected to the speakers (the audio element plays it)
         meters[key] = { src: src, an: an, buf: new Float32Array(an.fftSize), on: false, quiet: 0 };
     } catch (e) { return; }
     if (!meterTimer) meterTimer = setInterval(meterTick, 100);

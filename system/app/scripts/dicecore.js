@@ -134,7 +134,7 @@ function withAdvantage(expr, mode, parse) {
     if (!q || !q.ok) return { ok: false };
     return { ok: true, expr: cc };
 }
-// 1.6.2, backlog 35: the personal look of the character a card was made as: a font's plain name and a #rrggbb colour, or null. The font is
+// 1.6.2, backlog 35: the personal look of the character a card was made as: a font's plain name and a #rrggbb color, or null. The font is
 // judged again where it is drawn (wpPlook, Waypoint's own fonts alone)
 function cleanPl(v) {
     if (!v || typeof v !== 'object' || Array.isArray(v)) return null; var o = {};
@@ -336,7 +336,7 @@ function cleanAtt(v) { return typeof v === 'string' && ATT_RE.test(v) ? v : ''; 
 var ATT_RE = /^[ab]_[a-z0-9]{8}$/;   // 1.6.0 (B2): an attempt's id, made by the host (b_: a blow's soft record, which a roll may do without)
 var RESIST_ROWS = 80;   // 1.6.0: a resist card's buttons for a list's roll, one a row the target holds, at most
 // 1.6.0 (B3): a damage roll's second part as the host rolled it, { t, n?, dtype?, ad?, dkind? }: its total (a whole number, 0 to a million), the dice it
-// rolled (1 to 100), the damage type's key, its armour divisor (0.1 to 100, never 1) and its own kind of blow's key; null when anything is malformed
+// rolled (1 to 100), the damage type's key, its armor divisor (0.1 to 100, never 1) and its own kind of blow's key; null when anything is malformed
 var DMG2_TYPE = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;
 function cleanDmg2(v) {
     if (!v || typeof v !== 'object' || Array.isArray(v) || !isInt(v.t) || v.t < 0 || v.t > 1000000) return null;
@@ -738,9 +738,9 @@ function cardText(rec, res, F, opts) {
 function naturalOf(res) { return mainDice(res).reduce(function(s, d) { return s + (d && typeof d.total === 'number' && isFinite(d.total) ? d.total : 0); }, 0); }
 function malfOf(rec, res) { return !!(rec && isInt(rec.malf) && res && res.ok && naturalOf(res) >= rec.malf); }
 function malfWords(rec) { return rec && rec.malfHid === 1 ? 'malfunction' : 'malfunction (Malf ' + (rec ? rec.malf : '') + ')'; }   // what a card says of it, the one place
-// Chat cards (owner 2026-09-27): the colours a card takes from a system's sheet look — a palette's primary, good, danger (bad), muted and the
+// Chat cards (owner 2026-09-27): the colors a card takes from a system's sheet look — a palette's primary, good, danger (bad), muted and the
 // look's accent (else the primary), with tone: the palette made for a dark or a light panel; an accent alone gives the stripe and title.
-// Strict #rrggbb, lower-cased; null: no look colours (the app's own). cleanCardLook: that shape checked again (a chat pop-out takes it from
+// Strict #rrggbb, lower-cased; null: no look colors (the app's own). cleanCardLook: that shape checked again (a chat pop-out takes it from
 // the main window)
 var HEX6 = /^#[0-9a-fA-F]{6}$/;
 function hex6(v) { return typeof v === 'string' && HEX6.test(v) ? v.toLowerCase() : ''; }
@@ -762,9 +762,9 @@ function cleanCardLook(v) {
     if (Object.prototype.hasOwnProperty.call(v, 'tone') && (v.tone === 'dark' || v.tone === 'light')) out.tone = v.tone;
     return out;
 }
-// 1.6.2, backlog 212 fold 3 (the owner, by prompt: "The table sees each player's look"): a roller's dice look, the colours its dice are
-// drawn in on every screen that shows them. b the body, t the second colour (the pattern's), n the numbers, e the edges of a model that has
-// them, p a pattern of DICE_PATS. Strict #rrggbb, lower-cased, by its own keys; null where the body or the numbers are no colour.
+// 1.6.2, backlog 212 fold 3 (the owner, by prompt: "The table sees each player's look"): a roller's dice look, the colors its dice are
+// drawn in on every screen that shows them. b the body, t the second color (the pattern's), n the numbers, e the edges of a model that has
+// them, p a pattern of DICE_PATS. Strict #rrggbb, lower-cased, by its own keys; null where the body or the numbers are no color.
 var DICE_PATS = ['solid', 'marble', 'speckle', 'two'];
 // d (the owner, 2026-11-05, by prompt: "Draw or upload, on each face"): the roller's own design, a small PNG as a data address, at most DICE_DESIGN_MAX
 // characters, its bytes beginning as a PNG's do; anything else is no design

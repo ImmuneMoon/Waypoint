@@ -190,7 +190,7 @@ if (spec) {
         var camp = (campId && data.campaigns[campId]) || (data.activeCampaignId && data.campaigns[data.activeCampaignId]) || data.campaigns[Object.keys(data.campaigns)[0]];
         if (!camp) return;
         data.activeCampaignId = camp.id || campId;   // so sheets.js getActiveCampaign() resolves to this campaign
-        try { state.appState = data; } catch (e) {}   // the full app is loaded here; wpSheets reads state.appState (raw save — GM content, not sanitised)
+        try { state.appState = data; } catch (e) {}   // the full app is loaded here; wpSheets reads state.appState (raw save — GM content, not sanitized)
         var WS = window.wpSheets; if (!WS || !WS.renderSheetInto) return;
         var c = WS.charById ? WS.charById(charId, camp) : null;
         if (!c) { if (lastSig !== ' NOSHEET') { lastSig = ' NOSHEET'; body.className = ''; msg('That character is no longer here.'); document.title = 'Waypoint — (removed)'; } return; }

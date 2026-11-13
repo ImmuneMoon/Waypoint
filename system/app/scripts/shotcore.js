@@ -7,10 +7,10 @@
 
    This module reads nothing but its arguments. It draws through the context it is handed (a real one in the app, a recording one in
    tools/buildcheck.js) and asks the caller for every loaded thing through job.res: a picture by its address, a pattern's tile by its name, a
-   label's plain lines. Nothing here loads, parses markup or touches the page. Colours are fixed to the app's dark theme, so the same map
+   label's plain lines. Nothing here loads, parses markup or touches the page. Colors are fixed to the app's dark theme, so the same map
    gives the same picture on every computer.
 
-   What it knowingly does not match to the pixel: a see-through piece's border and pattern are blended on the piece's colour one after the
+   What it knowingly does not match to the pixel: a see-through piece's border and pattern are blended on the piece's color one after the
    other, where the board blends the whole piece once, and a label's words are plain, wrapped by measured width. */
 import { cleanTexSrc, cleanTexTile, secretSeen, lineWidth, lineOpacity, lineTip, trimPolys } from './fogcore.js';
 import { cleanTexture, TEX, PIC_CELL, picCell, picUrl } from './buildcore.js';
@@ -42,18 +42,18 @@ function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
 function mod(v, m) { v = fin(v) ? v : 0; return ((v % m) + m) % m; }
 function alpha(v) { return fin(v) && v >= 0 && v < 1 ? v : 1; }
 
-// A stored colour as a canvas takes one. A canvas ignores a var() without a word and keeps its last colour, so the theme's names are read
+// A stored color as a canvas takes one. A canvas ignores a var() without a word and keeps its last color, so the theme's names are read
 // here as the dark theme has them, and one this table lacks is the fallback
 // The forms a canvas takes for certain: a hex of 3, 4, 6 or 8 digits, rgb of three plain numbers or three percentages, hsl, each with an
-// alpha or none, and a colour's own name. A canvas says nothing at a colour it cannot read and keeps the one it had, which is whatever was
-// drawn last. So any other form the sink's own rule lets through (inherit, a word that is no colour, rgb(1,2), a hex of five digits) is
-// the fallback, never the last colour
+// alpha or none, and a color's own name. A canvas says nothing at a color it cannot read and keeps the one it had, which is whatever was
+// drawn last. So any other form the sink's own rule lets through (inherit, a word that is no color, rgb(1,2), a hex of five digits) is
+// the fallback, never the last color
 var NUMC = '(?:\\d+(?:\\.\\d+)?|\\.\\d+)', ALPHAC = '\\s*(?:,\\s*' + NUMC + '%?\\s*)?\\)$';
 var CANVAS_RE = Object.freeze([/^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i,
     new RegExp('^rgba?\\(\\s*' + NUMC + '\\s*,\\s*' + NUMC + '\\s*,\\s*' + NUMC + ALPHAC, 'i'),
     new RegExp('^rgba?\\(\\s*' + NUMC + '%\\s*,\\s*' + NUMC + '%\\s*,\\s*' + NUMC + '%' + ALPHAC, 'i'),
     new RegExp('^hsla?\\(\\s*' + NUMC + '\\s*,\\s*' + NUMC + '%\\s*,\\s*' + NUMC + '%' + ALPHAC, 'i')]);
-var NAMED = Object.freeze(('aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen transparent').split(' ').reduce(function(o, n) { o[n] = 1; return o; }, Object.create(null)));
+var NAMED = Object.freeze(('aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow gray honeydew hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen transparent').split(' ').reduce(function(o, n) { o[n] = 1; return o; }, Object.create(null)));
 function canvasColor(c) {
     if (typeof c !== 'string') return false;
     if (NAMED[c.toLowerCase()] === 1) return true;
@@ -119,7 +119,7 @@ function order(items, opts) {
 }
 
 /* ---------- the area ---------- */
-// The box a piece covers as it is drawn: its own box turned about its centre, and for a line its whole width more each way, which covers
+// The box a piece covers as it is drawn: its own box turned about its center, and for a line its whole width more each way, which covers
 // the half that spills past its box, a square end and a blunt corner
 function extent(item, wide) {
     var x = item.x, y = item.y, w = item.w, h = item.h, pad = 0;
@@ -340,7 +340,7 @@ function tileOver(ctx, img, sx, sy, item, tw, th, s, w, h, ox, oy) {
     ctx.fillRect(0, 0, w + tw * s, h + th * s);
     return true;
 }
-// The fill a piece wears over its colour, inside the clip the caller set, in the piece's own frame at the picture's scale. True when drawn
+// The fill a piece wears over its color, inside the clip the caller set, in the piece's own frame at the picture's scale. True when drawn
 function wear(ctx, item, job, w, h) {
     var s = job.scale, res = job.res || {}, f = fillOf(item);
     if (f) {
@@ -374,7 +374,7 @@ function drawBox(ctx, item, job, w, h) {
 function drawImagePiece(ctx, item, job, w, h) {
     var addr = picOf(item), res = job.res || {}, p = addr && typeof res.pic === 'function' ? res.pic(addr) : null;
     if (!p || !p.img || !(p.w > 0) || !(p.h > 0)) { job.out.missing++; return; }
-    var k = Math.min(w / p.w, h / p.h), dw = p.w * k, dh = p.h * k;   // contain: the whole picture inside the box, centred
+    var k = Math.min(w / p.w, h / p.h), dw = p.w * k, dh = p.h * k;   // contain: the whole picture inside the box, centered
     var tr = item.trim ? trimPolys(item.trim, w, h) : [];   // 1.6.2 (backlog 37): a picture trimmed to cells is drawn cut to them, as the board draws it
     if (tr.length) { ctx.save(); ctx.beginPath(); tr.forEach(function(pl) { pl.forEach(function(pt, i) { if (i) ctx.lineTo(pt[0], pt[1]); else ctx.moveTo(pt[0], pt[1]); }); ctx.closePath(); }); ctx.clip(); }
     ctx.drawImage(p.img, (w - dw) / 2, (h - dh) / 2, dw, dh);
@@ -421,7 +421,7 @@ function drawLabel(ctx, item, job, w, h) {
     for (var i = 0; i < wrapped.length; i++) if (wrapped[i]) ctx.fillText(wrapped[i], x, top + lh * (i + 0.5));
     ctx.globalAlpha = base;
 }
-// One piece: its box turned about its centre, see-through as the piece is, then what its kind draws
+// One piece: its box turned about its center, see-through as the piece is, then what its kind draws
 function drawPiece(ctx, item, job) {
     var s = job.scale, w = item.w * s, h = item.h * s, rot = fin(item.rot) ? item.rot % 360 : 0;
     ctx.save();

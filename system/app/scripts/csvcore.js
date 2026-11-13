@@ -1,4 +1,4 @@
-/* csvcore.js — a spreadsheet read as a pack (1.6.2; the owner: "its also important for users to have a way to create catalogues if they cant.
+/* csvcore.js — a spreadsheet read as a pack (1.6.2; the owner: "its also important for users to have a way to create catalogs if they cant.
    this should be accessible and easy as possible for the user"). Pure: no DOM, no network, no disk; it loads under Node. A CSV file as a
    spreadsheet program saves one is decoded (csvText), read (parseCsv, readCsv), its columns are matched to what an entry holds by their headings
    (csvTargets, guessMap), and its rows become entries through librarycore's own cleaner (csvEntries). What comes out has the shape

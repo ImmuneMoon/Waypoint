@@ -263,7 +263,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
 
 /* ---------- warp landing rooms ----------
-   A portal leads to a MAP; the traveller should arrive at the right ROOM on
+   A portal leads to a MAP; the traveler should arrive at the right ROOM on
    it. Resolution, in order: the source node's explicit targetRoomId; a room
    on the target map with the SAME id as the source node (the campaign
    convention — e.g. "darrooffice" on both the complex and the cellblock);
@@ -280,7 +280,7 @@ export function findLandingRoom(src, targetMap) {
     return null;
 }
 /* Where to put the camera (and a spawned token) for a landing room: the
-   room card's centre on the data map, and the centre of the whiteboard item
+   room card's center on the data map, and the center of the whiteboard item
    linked to it (if any) on the whiteboard. */
 export function landingPoint(map, room) {
     if (!map || !room) return null;

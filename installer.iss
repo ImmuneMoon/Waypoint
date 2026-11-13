@@ -96,7 +96,7 @@ begin
               'If you are hosting a multiplayer session, closing it will disconnect your players. ' +
               'Close Waypoint and continue with the update?', mbConfirmation, MB_YESNO) = IDNO then
     begin
-      Result := 'Update cancelled — Waypoint is still running.';
+      Result := 'Update canceled — Waypoint is still running.';
       exit;
     end;
   end;

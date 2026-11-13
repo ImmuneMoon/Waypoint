@@ -34,7 +34,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('every one of the 84 drawings is made: one svg of the module\'s shapes, sized by its cells, with no undefined, no NaN, no script, no handler, no link, no picture and no address in it',
         bad.length === 0 && FU.furnSvg({ k: 'table', era: 'modern' }).indexOf('width="100" height="50"') > 0 && FU.furnSvg({ k: 'chest', era: 'fantasy' }).indexOf('width="50" height="50"') > 0, bad);
     const tinted = FU.furnSvg({ k: 'chest', era: 'fantasy', tint: '#1f7a8c' }), plain = FU.furnSvg({ k: 'chest', era: 'fantasy' });
-    check('a tint paints the main colour: it is in the drawing, the plain one does not hold it, and the drawing is otherwise made the same way',
+    check('a tint paints the main color: it is in the drawing, the plain one does not hold it, and the drawing is otherwise made the same way',
         tinted.indexOf('#1f7a8c') > 0 && plain.indexOf('#1f7a8c') < 0 && tinted !== plain && FU.furnSvg({ k: 'chest', era: 'fantasy', tint: '#1F7A8C' }) === tinted);
     const hostile = [null, 1, 'chest', [], {}, { k: 'chest' }, { era: 'fantasy' }, { k: 'Chest', era: 'fantasy' }, { k: 'chest', era: 'Fantasy' }, { k: '__proto__', era: 'fantasy' }, { k: 'constructor', era: 'modern' }, { k: 'chest', era: 'toString' }, { k: 'toString', era: 'fantasy' }, Object.create({ k: 'chest', era: 'fantasy' })];
     check('what is no furnishing is none: no kind, no look, another case, a prototype\'s name, an inherited key, a list, a word, a number; and nothing of it is drawn',
@@ -57,7 +57,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('the rule for a kind is the first object that names it, the system\'s set before the campaign\'s own; a kind none names has none',
         O.furnRule([sysL, ownL], 'chest').id === 's1' && O.furnRule([[], ownL], 'chest').id === 'c1' && O.furnRule([null, ownL], 'table').id === 'c2' && O.furnRule([sysL, ownL], 'bed') === null && O.furnRule([sysL], 'nope') === null && O.furnRule('x', 'chest') === null);
     const pNone = O.furnProps({ k: 'table', era: 'victorian', tint: '#224466' }, [sysL, ownL.slice(0, 1)], false), pSys = O.furnProps({ k: 'chest', era: 'modern' }, [sysL, ownL], true), pBig = O.furnProps({ k: 'table', era: 'fantasy' }, [[], ownL], false), pWall = O.furnProps({ k: 'bookshelf', era: 'fantasy' }, [[], ownL], false);
-    check('a furnishing no object names is a plain picture: the kind\'s own size, over the map\'s pictures, its name its words, no key of cover so the system\'s rule for pictures speaks, no picture path and no colour',
+    check('a furnishing no object names is a plain picture: the kind\'s own size, over the map\'s pictures, its name its words, no key of cover so the system\'s rule for pictures speaks, no picture path and no color',
         J(pNone) === J({ name: 'Table, Victorian', layer: 'back-mid', w: 100, h: 50, furn: { k: 'table', era: 'victorian', tint: '#224466' }, color: 'transparent', fit: true }), pNone);
     check('a furnishing a map object names takes that object\'s rules: its name, cover and grade, what it stops or blocks, its size where the object names one and the kind\'s own where it does not, on hexagons too',
         pSys.name === 'Iron chest' && pSys.cover === 'yes' && pSys.coverAs === 'threeq' && pSys.barrier === true && pSys.w === 60 && pSys.h === 52 && !pSys.src && pSys.color === 'transparent' && pSys.fit === true && J(pSys.furn) === J({ k: 'chest', era: 'modern' })

@@ -545,6 +545,7 @@ function renderBody() {
             var mb2 = button('icon voice-pmute' + (off ? ' off' : ''), undefined, off ? 'Unmute ' + mb.name + ' for you' : 'Mute ' + mb.name + ' for you', function() { setPeerMute(pid, !off); });
             mb2.appendChild(icon(SPEAKER)); mb2.setAttribute('aria-pressed', String(off));
             row.appendChild(vol); row.appendChild(mb2);
+            if (window.wpUi) window.wpUi.typed(vol, { unit: '%' });   // 1.6.2: a slider's figure typed
         }
         list.appendChild(row);
     });

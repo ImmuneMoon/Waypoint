@@ -1963,6 +1963,13 @@
   .ui-seg > * + *, .ui-seg > .tool + .tool { border-left: 1px solid var(--edge); }
   .ui-slide { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); white-space: nowrap; }
   .ui-slide input[type=range] { accent-color: var(--gold); width: 110px; min-width: 60px; flex: 1 1 auto; margin: 0; }
+  .ui-slide-wide { display: flex; width: 100%; box-sizing: border-box; }   /* a slider that stood on its own, as wide as it stood, its value at its end */
+  .ui-slide-wide input[type=range] { width: auto; }
+  /* where room is short, the counter is smaller: the trackers' bar, a sheet's row */
+  #trkStrip .ui-step, .sheet-step { height: 22px; border-radius: 5px; }
+  #trkStrip .ui-step > button, .sheet-step > button { flex-basis: 22px; width: 22px; font-size: 13px; }
+  #trkStrip span.ui-val > input, .sheet-step span.ui-val > input { width: 2.4em; }
+  #trkStrip .ui-val, .sheet-step .ui-val { font-size: 12px; padding: 0 4px; }
 
   /* Floating mini-toolbar above the whiteboard selection */
   #selToolbar {

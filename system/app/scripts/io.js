@@ -52,7 +52,8 @@ import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, up
 import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  renderElementList, esc } from './inspector.js';
 
 import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js';
-import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allows, read once before load() decides anything
+import { webReady } from './webmode.js';
+import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counter and a slider with a value you type in)   // 1.5.5: what a website's plan allows, read once before load() decides anything
 
 
 

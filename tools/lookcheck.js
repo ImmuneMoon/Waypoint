@@ -662,7 +662,7 @@ function runPress(P, win) {
     const sm = kidsOf(ix, '<div class="shape-menu menu-list" id="shapeMenu">') || [], blocks = sm.filter(k => /^<div class="menu-block"/.test(k.text)).map(k => k.text);
     check('Shapes keeps its two settings as they were, under its rows: New shape size with Free and Grid cell, and New item opacity with its slider and the figure beside its name; and Snap To says what each choice does in plain sentences',
         blocks.length === 2 && blocks[0].includes('<div class="draw-menu-label">New shape size</div>') && count(blocks[0], 'class="draw-style-btn shape-size-btn') === 2 && blocks[0].indexOf('data-shapesize="free"') < blocks[0].indexOf('data-shapesize="cell"')
-        && blocks[1].includes('<div class="draw-menu-label">New item opacity <span id="shapeOpacityVal">100%</span></div>') && blocks[1].includes('<input type="range" class="new-opacity-slider" id="shapeOpacity" min="10" max="100" value="100" style="width:100%;">')
+        && blocks[1].includes('<div class="draw-menu-label">New item opacity <span id="shapeOpacityVal">100%</span></div>') && blocks[1].includes('<input type="range" class="new-opacity-slider" id="shapeOpacity" min="10" max="100" value="100" style="width:100%;" data-typed data-unit="%" data-hide="shapeOpacityVal" aria-label="New item opacity in percent">')   /* 1.6.2 (backlog 225): its figure typed, moved on purpose */
         && count(ix, 'Grid seats pieces in cells. Items lines pieces up with each other. Both does the two, neighbors first.') === 1 && count(ix, 'Grid = predictable cell placement') === 0, J(blocks.map(b => b.slice(0, 80))));
     check('the rows in the style sheet, and the grid in use: a menu of rows is a column as wide as its words, a row sets its icon in a slot and its name over its gray line, the row of the choice in use is gold, and the Grid menu marks the grid that is on whenever the grid is set',
         css.includes('    .floating-toolbar .shape-menu.menu-list { flex-direction: column; align-items: stretch; gap: 2px; min-width: 210px; width: max-content; }')
@@ -4170,22 +4170,26 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
     // correcting things please", and "any slider, or increment control should allow the typing of values")
     check('the app\'s own controls are in the style sheet: .ui-step (a counter: − value + in one frame), .ui-seg (related buttons joined), .ui-slide (a slider) and .ui-val (a value you type in, its unit in .ui-unit)',
         ['.ui-step {', '.ui-step > button {', '.ui-step > .ui-val {', '.ui-val {', 'span.ui-val > input, span.ui-val > input[type="number"] {', '.ui-unit {', '.ui-seg {', '.ui-seg > * + *, .ui-seg > .tool + .tool {', '.ui-slide {', '.ui-slide input[type=range] {'].every(s => css.includes('  ' + s)));
-    // The old controls, by name: backlog 225 moves each over, and takes it off the list as it does
-    const OLD_MINUS_HTML = ['data-op="-"'];   // the dice roller's quick −
+    // What stands outside the parts on purpose. The dice roller's + and − type an operator into the formula: no counter. A pool's arrows sit
+    // on its box, which you type in (675f1dd, the owner's look). Each other − a script makes is the fallback beside its .ui-step, for a page
+    // with no window.wpUi (a suite's page of plain objects): the file asks wpUi first (backlog 225, the sweep of 2026-11-13)
+    const OLD_MINUS_HTML = ['data-op="-"'];   // the dice roller's operator, no counter
     const OLD_MINUS_JS = ['tool ghost box-less', 'tool ghost dice-modpm', 'tool ghost music-slow', 'tool ghost sheet-pm', 'tool ghost sheet-pm sheet-fx-valpm', 'tool ghost sheet-part-pm', 'tool ghost sheet-item-ctb', 'trk-btn'];
-    const OLD_RANGE_HTML = ['drawOpacity', 'eraserSize', 'shapeOpacity', 'gridLabelsOpacity', 'setGridOpacity', 'setOpacity', 'setUndoDepth', 'soundVolume', 'videoVol', 'frameZoom'];
-    const OLD_RANGE_JS = { 'music.js': 3, 'sheets.js': 2, 'voice.js': 1 };
+    const OLD_RANGE_HTML = [];
+    const RANGE_OWN_BOX = { 'sheets.js': 1 };   // a sheet's slider field, its number typed in its own box beside it
+    const FALLBACK = { 'boxes.js': 2, 'dice.js': 1, 'music.js': 1, 'sheets.js': 4, 'trackers.js': 1 };   // the files whose − buttons are fallbacks, and how many sites ask wpUi first
     const badH = [], reMinus = /<button\b[^>]*>(?:&minus;|\u2212)<\/button>/g; let mm;
     while ((mm = reMinus.exec(ix))) { const before = ix.slice(Math.max(0, mm.index - 300), mm.index); if (!/<span class="ui-step"[^>]*>\s*$/.test(before) && !OLD_MINUS_HTML.some(s => mm[0].includes(s))) badH.push(mm[0].slice(0, 90)); }
     const scripts = fs.readdirSync(path.join(app, 'scripts')).filter(f => /\.js$/.test(f)), badJ = [], badR = [];
     scripts.forEach(f => {
         const s = read('scripts/' + f), re = /(?:el\('button',\s*|btn\()'([^']*)',\s*'(?:\u2212|\\u2212)'/g; let m;
         while ((m = re.exec(s))) if (OLD_MINUS_JS.indexOf(m[1]) < 0) badJ.push(f + ': ' + m[1]);
-        const nR = (s.match(/type\s*=\s*'range'/g) || []).length; if (nR > (OLD_RANGE_JS[f] || 0) && !s.includes("'ui-slide'")) badR.push(f + ': ' + nR);
+        const asks = (s.match(/window\.wpUi && window\.wpUi\.step \? window\.wpUi : null/g) || []).length; if ((FALLBACK[f] || 0) > asks) badJ.push(f + ': ' + asks + ' sites ask for the counter, ' + FALLBACK[f] + ' listed');
+        const nR = (s.match(/type\s*=\s*'range'/g) || []).length, nT = (s.match(/wpUi\.typed\(/g) || []).length; if (nR > nT + (RANGE_OWN_BOX[f] || 0)) badR.push(f + ': ' + nR + ' sliders, ' + nT + ' typed');
     });
     const reR = /<input type="range"[^>]*id="([^"]+)"/g; let rr;
-    while ((rr = reR.exec(ix))) { const lab = ix.lastIndexOf('<label', rr.index), labEnd = ix.lastIndexOf('</label>', rr.index), inSlide = lab > labEnd && /^<label class="ui-slide/.test(ix.slice(lab, lab + 30)); if (!inSlide && OLD_RANGE_HTML.indexOf(rr[1]) < 0) badR.push('index.html: ' + rr[1]); }
-    check('every new counter is a .ui-step and every new slider a .ui-slide with a value you type in: a − button in the page stands first in a .ui-step, a script makes none outside the old ones, and a slider in the page stands in a .ui-slide; the old ones are listed by name for backlog 225 to move over',
+    while ((rr = reR.exec(ix))) { const tag = ix.slice(rr.index, ix.indexOf('>', rr.index)), lab = ix.lastIndexOf('<label', rr.index), labEnd = ix.lastIndexOf('</label>', rr.index), inSlide = lab > labEnd && /^<label class="ui-slide/.test(ix.slice(lab, lab + 30)); if (!inSlide && !/\sdata-typed[\s>]/.test(tag + '>') && OLD_RANGE_HTML.indexOf(rr[1]) < 0) badR.push('index.html: ' + rr[1]); }
+    check('every counter is a .ui-step and every slider takes a typed value (backlog 225, the sweep): a − button in the page stands first in a .ui-step, a script\'s − button is a fallback beside a .ui-step its file asks for first, a slider in the page stands in a .ui-slide or carries data-typed, and a script\'s slider is handed to wpUi.typed; only the dice roller\'s operator and a pool\'s arrows on their typed box stand apart',
         !badH.length && !badJ.length && !badR.length, J([badH, badJ, badR]));
     const pS = ix.slice(ix.indexOf('<div id="paintModal"'), ix.indexOf('<!-- Map objects (1.6.0)'));
     check('the paint window is made of them: Size, Opacity and Layer opacity each a .ui-slide with its typed value, zoom a .ui-step with its typed value beside Fit, Undo | Redo and Up | Down each a .ui-seg',

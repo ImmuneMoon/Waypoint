@@ -291,8 +291,10 @@ function pill(t, gm, camp, now) {
     if (gm) { var nb = btn('trk-name', t.name, 'Open this tracker’s menu'); nb.dataset.trkmenu = t.id; nb.setAttribute('aria-haspopup', 'true'); p.appendChild(nb); }
     else p.appendChild(el('span', 'trk-name', t.name));
     if (t.kind === 'clock') p.appendChild(clockSvg(t.parts, t.fill, hex));
-    var v = el('b', 'trk-val', T.face(t, now, clockT(camp), dayLen(camp))); p.appendChild(v);
-    if (gm && t.kind !== 'timer') {
+    var Ut = gm && t.kind !== 'timer' ? (typeof window !== 'undefined' && window.wpUi && window.wpUi.step ? window.wpUi : null) : null;   // 1.6.2: the app's own counter, its figure typed
+    if (Ut) { var cur = t.kind === 'clock' ? t.fill : t.v, stt = Ut.step({ value: cur, min: t.kind === 'clock' ? 0 : (typeof t.min === 'number' ? t.min : undefined), max: t.kind === 'clock' ? t.parts : (typeof t.max === 'number' ? t.max : undefined), unit: t.kind === 'clock' ? '/' + t.parts : '', label: t.name, lessTip: t.kind === 'clock' ? 'Empty one part' : 'One less', moreTip: t.kind === 'clock' ? 'Fill one part' : 'One more', cls: 'trk-step', set: function(n) { stepBy(t.id, n - cur); } }); stt.input.dataset.trkval = t.id; stt.less.dataset.trkless = t.id; stt.more.dataset.trkmore = t.id; p.appendChild(stt); }
+    var v = el('b', 'trk-val', T.face(t, now, clockT(camp), dayLen(camp))); if (!Ut) p.appendChild(v);
+    if (gm && t.kind !== 'timer' && !Ut) {
         var mi = btn('trk-btn', '−', t.kind === 'clock' ? 'Empty one part' : 'One less'); mi.dataset.trkstep = t.id; mi.dataset.by = '-1'; p.appendChild(mi);
         var pl = btn('trk-btn', '+', t.kind === 'clock' ? 'Fill one part' : 'One more'); pl.dataset.trkstep = t.id; pl.dataset.by = '1'; p.appendChild(pl);
     }
@@ -305,6 +307,9 @@ function focusKey(b) {
     if (b.id) return '#' + b.id;
     var d = b.dataset || {}, q = function(k, v) { return '[data-' + k + '="' + String(v).replace(/[^A-Za-z0-9_-]/g, '') + '"]'; };
     if (d.trkstep) return q('trkstep', d.trkstep) + q('by', d.by);
+    if (d.trkval) return q('trkval', d.trkval);
+    if (d.trkless) return q('trkless', d.trkless);
+    if (d.trkmore) return q('trkmore', d.trkmore);
     if (d.trkrun) return q('trkrun', d.trkrun);
     if (d.trkmenu) return q('trkmenu', d.trkmenu);
     return '';
@@ -339,7 +344,8 @@ function draw(force) {
     if (box.style.display === 'none') box.style.display = '';
     place(box);   // beside the minimap, or in its place, and clear of the zoom box
     if (!force && sig === _sig) fitBar(box);
-    if (force || sig !== _sig) {
+    var typing = !force && document.activeElement && document.activeElement.closest && document.activeElement.closest('#trkStrip .ui-val');   // a figure being typed is not drawn over: the strip is drawn again once it is left
+    if ((force || sig !== _sig) && !typing) {
         var had = document.activeElement && box.contains(document.activeElement) ? focusKey(document.activeElement) : '';   // a press from the keyboard keeps its place when the strip is drawn again
         _sig = sig; box.textContent = ''; box.classList.toggle('trk-bar', !tv);   // backlog 217 (the owner, 2026-11-07, by prompt: "One joined bar"): the fold, the bar's name, the trackers and the GM's two buttons read as one thing
         if (!tv && trk) { var f = btn('trk-fold', folded ? (list.length ? 'Trackers · ' + list.length : 'Trackers') : '◂', folded ? 'Show the trackers' : 'Put the trackers away on this screen'); f.id = 'trkFold'; f.setAttribute('aria-expanded', folded ? 'false' : 'true'); box.appendChild(f); }   // the stream window, the party's screen, has no fold: it shares this computer's storage with the GM's window

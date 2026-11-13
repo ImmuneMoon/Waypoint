@@ -264,6 +264,9 @@ jobs:
       - name: campquestcheck, a campaign started from questions (the outline it writes, read by the real page code)
         if: ${{ !cancelled() }}
         run: node tools/campquestcheck.js
+      - name: uicheck, the app's own controls (a counter and a slider with a value you type in, on every site)
+        if: ${{ !cancelled() }}
+        run: node tools/uicheck.js
       - name: drawcheck, drawing a pack's pictures in Waypoint (the paint window, a fill that wraps, layers, undo)
         if: ${{ !cancelled() }}
         run: node tools/drawcheck.js

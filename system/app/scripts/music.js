@@ -408,6 +408,7 @@ function openPill() {
     var mute = el('button', 'tool ghost wib wi-' + (mmuted ? 'muted' : 'sound')); mute.title = mmuted ? 'Unmute music' : 'Mute music'; mute.addEventListener('click', function() { setMute(!mmuted); mute.className = 'tool ghost wib wi-' + (mmuted ? 'muted' : 'sound'); });
     var slider = el('input'); slider.type = 'range'; slider.min = 0; slider.max = 100; slider.value = Math.round(mvol * 100); slider.className = 'music-vol'; slider.addEventListener('input', function() { setVolume(Number(slider.value) / 100); });
     row.appendChild(mute); row.appendChild(slider); pop.appendChild(row);
+    if (window.wpUi) window.wpUi.typed(slider, { unit: '%', label: 'Music volume in percent' });   // 1.6.2: a slider's figure typed
     if (canWrite()) { var open = el('button', 'tool ghost music-pillpop-open', 'Open music panel'); open.addEventListener('click', function() { closePill(); openPanel(); }); pop.appendChild(open); }
     var off = el('button', 'tool ghost music-pillpop-off', 'Turn music off for me'); off.title = 'Settings ▸ This campaign'; off.addEventListener('click', function() { if (window.wpVtt && window.wpVtt.setLocal) { window.wpVtt.setLocal('music', true); } closePill(); }); pop.appendChild(off);
     showPill(pop);
@@ -513,6 +514,7 @@ function renderPanel() {
     bar.addEventListener('input', function() { seek(Number(bar.value)); });
     var t1 = el('span', 'music-t', fmtTime(st.dur));
     seekRow.appendChild(t0); seekRow.appendChild(bar); seekRow.appendChild(t1); tp.appendChild(seekRow);
+    if (window.wpUi) window.wpUi.typed(bar, { label: 'Where in the song, as minutes and seconds', fmt: window.wpUi.fmtTime, parse: window.wpUi.readTime, hide: t0 });   // the place typed as 1:23
     var btns = el('div', 'music-btns');
     function tb(cls, label, title, fn, on) { var b = el('button', 'tool ghost music-tb ' + cls + (on ? ' on' : ''), label); b.title = title; b.addEventListener('click', fn); return b; }
     btns.appendChild(tb('music-prev wib wi-prev', '', 'Previous', prev));
@@ -527,8 +529,12 @@ function renderPanel() {
     var vmute = el('button', 'tool ghost music-mute wib wi-' + (st.muted ? 'muted' : 'sound')); vmute.title = st.muted ? 'Unmute music' : 'Mute music'; vmute.addEventListener('click', function() { setMute(!mmuted); });
     var vsl = el('input'); vsl.type = 'range'; vsl.min = 0; vsl.max = 100; vsl.value = Math.round(st.volume * 100); vsl.className = 'music-vol'; vsl.title = 'Music volume'; vsl.addEventListener('input', function() { setVolume(Number(vsl.value) / 100); });
     volRow.appendChild(vmute); volRow.appendChild(vsl); tp.appendChild(volRow);
+    if (window.wpUi) window.wpUi.typed(vsl, { unit: '%', label: 'Music volume in percent' });
     var spRow = el('div', 'music-speedrow');
     spRow.appendChild(el('span', 'music-speed-lbl', 'Speed'));
+    var Um = (typeof window !== 'undefined' && window.wpUi && window.wpUi.step ? window.wpUi : null);
+    if (Um) { spRow.appendChild(Um.step({ value: st.rate, min: 0.5, max: 2, step: 0.1, dec: 2, unit: '\u00d7', label: 'Speed', lessTip: 'Slow down (0.5\u00d7 at the least)', moreTip: 'Speed up (2\u00d7 at the most)', lessCls: 'music-slow', moreCls: 'music-fast', valCls: 'music-speed-val', set: function(n) { setSpeed(n); } })); tp.appendChild(spRow); }   // 1.6.2: the app's own counter
+    else {
     var slow = el('button', 'tool ghost music-slow', '−'); slow.title = 'Slow down (0.5× minimum)'; slow.addEventListener('click', function() { setSpeed(rate - 0.1); });
     var spIn = el('input'); spIn.type = 'number'; spIn.min = '0.5'; spIn.max = '2'; spIn.step = '0.05'; spIn.value = st.rate.toFixed(2); spIn.className = 'music-speed-val num-stepped'; spIn.title = 'Type a speed from 0.5 to 2×';
     var apply = function() { var v = parseFloat(spIn.value); if (isFinite(v)) setSpeed(v); };
@@ -536,6 +542,7 @@ function renderPanel() {
     var xg = el('span', 'music-speed-x', '×');
     var fast = el('button', 'tool ghost music-fast', '+'); fast.title = 'Speed up (2× maximum)'; fast.addEventListener('click', function() { setSpeed(rate + 0.1); });
     spRow.appendChild(slow); spRow.appendChild(spIn); spRow.appendChild(xg); spRow.appendChild(fast); tp.appendChild(spRow);
+    }
     if (isHost() && sessionLive()) {   // the GM can drive every player's music in sync
         var ctlBtn = el('button', 'tool music-takectl' + (controlling ? ' on' : ''), controlling ? '● Controlling the table — release' : 'Take control of the table’s music');
         ctlBtn.title = controlling ? 'Players follow your music; click to hand them back their own map music' : 'Play your music on every player’s machine in sync (they keep their own volume)';

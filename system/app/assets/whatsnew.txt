@@ -1221,6 +1221,14 @@ The Data Map
   underneath. When you draw a floor pattern, a stroke that runs off one edge
   comes back in on the other, so it tiles with no seam, and a 3 by 3 beside
   the canvas shows it as you go.
+- Every slider and every counter now takes a typed value. Click the figure
+  beside a slider, or between a counter's minus and plus, and type the number
+  you want: grid opacity, a pen's size, the eraser, music and video volume, a
+  sheet row's count, an effect's value, a container's count, a tracker, the
+  dice roller's modifier and the rest. A song's place takes a time such as
+  1:23. What you type is held to the slider's or the counter's own limits.
+  Counters now share one look, the minus, the value and the plus joined in
+  one frame.
 - A piece's Properties now open from Properties on its right-click menu, or
   from the sliders on the bar over a selected piece. A double-click no longer
   opens them. A right-click selects the piece too, so you can see which one

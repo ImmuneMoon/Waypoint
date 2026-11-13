@@ -435,7 +435,7 @@ function rollWithMod(charId, expr, label, opts, anchor, swRef) {   // swRef (1.6
         if (!Fm.plainDice || (Fm.plainDice(x) && !(typeof Fm.names === 'function' && Fm.names(x).length))) return x;   // 1.6.2: a roll that reads a name is said by its own, never by the name
         var n = mod + swSum(), dd = modD + swDice(), w = [label || 'This roll']; if (n || dd) w.push(bonusWords(n, dd)); if (advMode !== 'normal') w.push(advMode === 'adv' ? 'with advantage' : 'with disadvantage'); return w.join(' ');
     }
-    function refresh() { swBtns.forEach(function(p) { p[0].classList.toggle('on', !!swOn[p[1]]); p[0].setAttribute('aria-pressed', swOn[p[1]] ? 'true' : 'false'); }); numEl.textContent = (mod > 0 ? '+' : '') + mod; var r = applied(); prevEl.textContent = prevWords(r.ok ? r.expr : expr); if (canAdv) ['dis', 'normal', 'adv'].forEach(function(m) { advBtns[m].classList.toggle('on', advMode === m); }); }
+    function refresh() { swBtns.forEach(function(p) { p[0].classList.toggle('on', !!swOn[p[1]]); p[0].setAttribute('aria-pressed', swOn[p[1]] ? 'true' : 'false'); }); if (numEl.setValue) numEl.setValue(mod); else numEl.textContent = (mod > 0 ? '+' : '') + mod; var r = applied(); prevEl.textContent = prevWords(r.ok ? r.expr : expr); if (canAdv) ['dis', 'normal', 'adv'].forEach(function(m) { advBtns[m].classList.toggle('on', advMode === m); }); }
     if (canAdv) {
         var advRow = el('div', 'dice-modadv');
         [['dis', 'Disadvantage', 'Dis'], ['normal', 'Normal', 'Normal'], ['adv', 'Advantage', 'Adv']].forEach(function(m) { var b = el('button', 'tool ghost dice-advbtn', m[2]); b.title = m[1] + ' (roll twice, keep the ' + (m[0] === 'dis' ? 'worse' : m[0] === 'adv' ? 'better' : 'roll as written') + ')'; b.addEventListener('click', function() { advMode = m[0]; refresh(); }); advBtns[m[0]] = b; advRow.appendChild(b); });
@@ -445,10 +445,15 @@ function rollWithMod(charId, expr, label, opts, anchor, swRef) {   // swRef (1.6
     [['−5', -5], ['−1', -1], ['+1', 1], ['+5', 5]].forEach(function(q) { var b = el('button', 'tool ghost dice-modchip', q[0]); b.addEventListener('click', function() { mod = clampMod(mod + q[1]); refresh(); }); chips.appendChild(b); });
     pop.appendChild(chips);
     var numRow = el('div', 'dice-modpop-num');
+    var Ud = (typeof window !== 'undefined' && window.wpUi && window.wpUi.step ? window.wpUi : null);   // 1.6.2: the app's own counter, the modifier typed
+    if (Ud) { numEl = Ud.step({ value: 0, min: -99, max: 99, label: 'Modifier', lessTip: 'One less', moreTip: 'One more', valCls: 'dice-modpop-in', set: function(n) { mod = clampMod(n); refresh(); } }); numRow.appendChild(numEl); }
+    else {
     var minus = el('button', 'tool ghost dice-modpm', '−'); minus.title = 'One less'; minus.addEventListener('click', function() { mod = clampMod(mod - 1); refresh(); });
     numEl = el('span', 'dice-modpop-val', '0');
     var plus = el('button', 'tool ghost dice-modpm', '+'); plus.title = 'One more'; plus.addEventListener('click', function() { mod = clampMod(mod + 1); refresh(); });
-    numRow.appendChild(minus); numRow.appendChild(numEl); numRow.appendChild(plus); pop.appendChild(numRow);
+    numRow.appendChild(minus); numRow.appendChild(numEl); numRow.appendChild(plus);
+    }
+    pop.appendChild(numRow);
     // 1.6.2 dice as bonuses (the owner: "A GM often calls for a one-off die ('+1d6 for the high ground')"): dice to add, typed as a table says them
     var dRow = el('label', 'dice-moddice'); dRow.appendChild(el('span', 'dice-moddice-cap', 'Dice to add'));
     dIn = el('input', 'field dice-moddice-in'); dIn.type = 'text'; dIn.maxLength = 40; dIn.placeholder = '+1d6'; dIn.title = 'Dice added to this roll, such as +1d6 or +1d6 \u2212 1d4. They add to its total and never make a critical'; dIn.setAttribute('autocomplete', 'off');

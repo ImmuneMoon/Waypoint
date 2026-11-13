@@ -3634,7 +3634,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   </div>
                   <div class="draw-menu-label">Opacity <span id="drawOpacityVal">100%</span></div>
                   <div class="draw-menu-row">
-                      <input type="range" class="new-opacity-slider" id="drawOpacity" min="10" max="100" value="100" style="width:100%;">
+                      <input type="range" class="new-opacity-slider" id="drawOpacity" min="10" max="100" value="100" style="width:100%;" data-typed data-unit="%" data-hide="drawOpacityVal" aria-label="Opacity in percent">
                   </div>
               </div>
           </div>
@@ -3643,7 +3643,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
               <div class="shape-menu draw-menu" id="eraserMenu">
                   <div class="draw-menu-label">Eraser Size <span id="eraserSizeVal" style="color:var(--dim);"></span></div>
                   <div class="draw-menu-row" title="Radius of the eraser in board pixels — the circle around your pointer shows it">
-                      <input type="range" id="eraserSize" min="2" max="40" value="6" style="width:150px;">
+                      <input type="range" id="eraserSize" min="2" max="40" value="6" style="width:150px;" data-typed data-unit="px" data-hide="eraserSizeVal" aria-label="Eraser size in pixels">
                   </div>
                   <div class="draw-menu-label" style="margin-top:8px;">Eraser Mode</div>
                   <div class="draw-menu-row">
@@ -3707,7 +3707,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   </div>
                   <div class="menu-block" title="Opacity for newly added items (shapes, drawings, images)">
                       <div class="draw-menu-label">New item opacity <span id="shapeOpacityVal">100%</span></div>
-                      <input type="range" class="new-opacity-slider" id="shapeOpacity" min="10" max="100" value="100" style="width:100%;">
+                      <input type="range" class="new-opacity-slider" id="shapeOpacity" min="10" max="100" value="100" style="width:100%;" data-typed data-unit="%" data-hide="shapeOpacityVal" aria-label="New item opacity in percent">
                   </div>
               </div>
           </div>
@@ -4094,7 +4094,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   <button class="wb-tool-btn menu-row" id="gridLabelsBtn" title="Cell labels. On a hex grid each cell shows its column letter and row number, as A1. Kept with this map, and everyone at the table sees them. Press again to take them off."><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7V5h14v2M12 5v14M9.5 19h5"/></svg></span><span class="mr-txt">Cell labels<small>Each hex cell shows its name, as A1.</small></span></button>
                   <div class="menu-block" title="How strongly this map&rsquo;s cell labels show. Kept with the map.">
                       <div class="draw-menu-label">Label opacity <span id="gridLabelsVal">50%</span></div>
-                      <input type="range" id="gridLabelsOpacity" min="10" max="100" step="5" value="50" style="width:100%;" disabled>
+                      <input type="range" id="gridLabelsOpacity" min="10" max="100" step="5" value="50" style="width:100%;" disabled data-typed data-unit="%" data-hide="gridLabelsVal" aria-label="Label opacity in percent">
                   </div>
                   <div class="menu-rule"></div>
                   <button class="wb-tool-btn menu-row" id="gridOpacityBtn" title="Grid opacity&hellip; (opens Settings)"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 4v16M12 8h5.6M12 12h8M12 16h5.6"/></svg></span><span class="mr-txt">Grid opacity&hellip;<small>Opens Settings at the grid&rsquo;s look.</small></span></button>
@@ -4819,7 +4819,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         </div>
         <div style="margin-bottom:14px;">
             <div class="set-field-label" style="display:flex; justify-content:space-between;">Grid opacity <span id="setGridOpacityVal" style="color:var(--dim);"></span></div>
-            <input type="range" id="setGridOpacity" min="10" max="100" style="width:100%;" title="How strongly the square/hex grid lines draw over the map">
+            <input type="range" id="setGridOpacity" min="10" max="100" style="width:100%;" title="How strongly the square/hex grid lines draw over the map" data-typed data-unit="%" data-hide="setGridOpacityVal" aria-label="Grid opacity in percent">
             <div style="font-size:10.5px; color:var(--dim); line-height:1.4;">Only on this computer. In multiplayer every player picks their own.</div>
         </div>
             <div class="set-cap">How things look</div>
@@ -5089,11 +5089,11 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div class="set-group-body">
         <div style="margin-bottom:12px;">
             <div class="set-field-label">Default opacity for new items <span id="setOpacityVal" style="color:var(--dim);"></span></div>
-            <input type="range" id="setOpacity" min="10" max="100" style="width:100%;">
+            <input type="range" id="setOpacity" min="10" max="100" style="width:100%;" data-typed data-unit="%" data-hide="setOpacityVal" aria-label="Default opacity for new items in percent">
         </div>
         <div style="margin-bottom:12px;">
             <div class="set-field-label" style="display:flex; justify-content:space-between;">Undo history size <span id="setUndoDepthVal" style="color:var(--dim);"></span></div>
-            <input type="range" id="setUndoDepth" min="10" max="500" step="10" style="width:100%;" title="How many steps Undo/Redo can take back, per map and per planner">
+            <input type="range" id="setUndoDepth" min="10" max="500" step="10" style="width:100%;" title="How many steps Undo/Redo can take back, per map and per planner" data-typed data-unit="steps" data-hide="setUndoDepthVal" aria-label="Undo history size in steps">
             <div style="font-size:10.5px; color:var(--dim); line-height:1.4;">Steps kept per map &amp; planner (default 100). More gives deeper Undo but uses more memory on this computer &mdash; all maps share a 64&nbsp;MB cap, and the oldest steps on maps you&rsquo;re not using are dropped first. This computer only.</div>
         </div>
         <div class="set-devmode" style="margin-bottom:12px;">
@@ -5250,7 +5250,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <div id="soundPop" style="display:none;">
     <div id="soundNow" class="snd-now">Nothing playing</div>
     <button type="button" class="tool ghost" id="soundOnBtn" style="display:none; width:100%; margin:4px 0 2px;">Turn sound back on for me</button>
-    <label class="snd-pop-row" title="Your own speakers only">Volume <input type="range" id="soundVolume" min="0" max="100" value="80"></label>
+    <label class="snd-pop-row" title="Your own speakers only">Volume <input type="range" id="soundVolume" min="0" max="100" value="80" data-typed data-unit="%" aria-label="Volume in percent"></label>
     <label class="snd-pop-row"><input type="checkbox" id="soundMuteChk"> Mute for me</label>
     <button type="button" class="tool ghost" id="soundBoardBtn" style="display:none; width:100%; margin:4px 0 2px;" title="The campaign's ambient loops and cues, which you play for the table. The same board as Sound under Scene on the play map's toolbar.">Open the sound effects board</button>
     <div class="snd-pop-note">Music has its own button. <button type="button" class="tool ghost" id="soundMusicBtn">Open music</button></div>
@@ -5321,7 +5321,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <!-- Campaign videos (1.5.0, item 21): the GM's Video panel — the library, a player you move, resize and put full screen, and the row that shows it live to the table; a player's side of a showing uses the same panel (video.js) -->
 <div id="videoPanel" role="dialog" aria-label="Video" style="display:none;">
     <div id="videoHead"><span class="notepad-title"><i class="wib wi-film"></i> Video</span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="videoFullBtn" title="Full screen (Esc comes back)" disabled><i class="wib wi-corners"></i></button><button class="tool ghost notepad-btn" id="videoCloseBtn" title="Close the panel">&times;</button></div>
-    <div id="videoStage" style="display:none;"><video id="videoEl" controls playsinline preload="metadata"></video><video id="videoLive" playsinline></video><div id="videoWatchBar" class="video-watchbar"><button class="tool ghost notepad-btn wib wi-sound" id="videoMuteBtn" aria-pressed="false" title="Its sound is on: press to mute it on this screen"></button><input type="range" id="videoVol" min="0" max="100" step="1" value="100" aria-label="Volume on this screen" title="Its volume on this screen"><span id="videoWatchNote" class="video-watchnote" role="status"></span></div><div id="videoCaption" class="video-caption"></div></div>
+    <div id="videoStage" style="display:none;"><video id="videoEl" controls playsinline preload="metadata"></video><video id="videoLive" playsinline></video><div id="videoWatchBar" class="video-watchbar"><button class="tool ghost notepad-btn wib wi-sound" id="videoMuteBtn" aria-pressed="false" title="Its sound is on: press to mute it on this screen"></button><input type="range" id="videoVol" min="0" max="100" step="1" value="100" aria-label="Volume on this screen" title="Its volume on this screen" data-typed data-unit="%"><span id="videoWatchNote" class="video-watchnote" role="status"></span></div><div id="videoCaption" class="video-caption"></div></div>
     <div id="videoTable" style="display:none;"></div>
     <div id="videoBody"></div>
     <input type="file" id="videoFile" accept=".mp4,.m4v,.webm,.ogv,.mov,video/*" multiple style="display:none;">
@@ -5356,7 +5356,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div class="frame-head"><span id="frameTitle" class="frame-title">Frame the picture</span><button class="tool ghost" id="frameClose" type="button" aria-label="Cancel" title="Cancel (Esc)">&times;</button></div>
         <div id="frameStage" class="frame-stage" title="Drag to move &middot; scroll or pinch to zoom &middot; double-click to center"><img id="frameImg" class="frame-img" alt="" draggable="false"><svg class="frame-guide" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path id="frameDim" class="frame-dim" d=""/><path id="frameEdge" class="frame-edge" d=""/></svg></div>
         <div class="frame-row"><span class="frame-lbl">Outline</span><button class="tool ghost frame-shape" data-shape="hexagon" type="button" title="What a hex map's token shows of it">Hexagon</button><button class="tool ghost frame-shape" data-shape="rect" type="button" title="What a square map's token shows of it">Square</button><button class="tool ghost frame-shape" data-shape="circle" type="button" title="What a token shows with no grid">Circle</button></div>
-        <div class="frame-row"><label class="frame-lbl" for="frameZoom">Zoom</label><input type="range" id="frameZoom" class="frame-zoom" min="100" max="800" step="1" value="100" aria-label="Zoom"><button class="tool ghost" id="frameCentre" type="button" title="Back to the middle, the whole picture">Center</button></div>
+        <div class="frame-row"><label class="frame-lbl" for="frameZoom">Zoom</label><input type="range" id="frameZoom" class="frame-zoom" min="100" max="800" step="1" value="100" aria-label="Zoom" data-typed data-unit="%"><button class="tool ghost" id="frameCentre" type="button" title="Back to the middle, the whole picture">Center</button></div>
         <label class="frame-keep" id="frameKeepRow" style="display:none;"><input type="checkbox" id="frameKeep"> Keep the original (to re-frame it later)</label>
         <p id="frameSize" class="frame-size"></p>
         <div class="frame-hint">Drag to move &middot; scroll, pinch or the slider to zoom &middot; OK keeps what is inside the square. Each map&rsquo;s grid gives the outline.<br>Best: a square picture, 256 &times; 256 or larger. On a hex map the corners are cut off, so keep the subject in the middle.</div>

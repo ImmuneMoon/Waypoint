@@ -60,6 +60,8 @@ function iconInto(box, t) {
 }
 // The selected item as a small card (the owner, 2026-11-12, by prompt: "B. A small card for the item"): its picture large, its name and
 // list beside it, the count's stepper at the right, and the actions in a row at its foot. Answers { bar, step, acts }
+// The control of a counter that had the focus as it changed: its typed box, else the button pressed (1.6.2, the sweep of backlog 225)
+function stepAt(btn) { var a = typeof document !== 'undefined' ? document.activeElement : null; return a && a.classList && a.classList.contains('box-qin') ? '.box-qin' : btn; }
 function selCard(t) {
     var bar = el('div', 'box-sel'), top = el('div', 'box-card'), ic = el('span', 'box-ic box-big'), who = el('div', 'box-who');
     iconInto(ic, t); who.appendChild(el('b', '', t.name)); if (t.list) who.appendChild(el('small', '', t.list));
@@ -194,11 +196,15 @@ function draw() {
         var card = selCard(sel), bar = card.bar;
         var spec = lists.filter(function(f) { return f.id === sel.fid; })[0], noQty = !!(spec && spec.list && spec.list.noQty);
         if (!noQty) {
+            var U = (typeof window !== 'undefined' && window.wpUi && window.wpUi.step ? window.wpUi : null);   // 1.6.2: the app's own counter, its figure typed (the owner: "any slider, or increment control should allow the typing of values")
+            if (U) { var su = U.step({ value: sel.qty, min: 1, label: 'How many', lessTip: 'One fewer', moreTip: 'One more', lessCls: 'box-less', moreCls: 'box-more', valCls: 'box-qin', set: function(n) { change(sel.fid, { op: 'setQty', rowId: sel.rowId, qty: n }, n < sel.qty ? 'less' : 'more', [stepAt(n < sel.qty ? '.box-less' : '.box-more'), '.box-less', '.box-more']); } }); card.step.parentNode.replaceChild(su, card.step); card.step = su; }
+            else {
             var mi = el('button', 'tool ghost box-less', '−'); mi.type = 'button'; mi.title = 'One fewer'; mi.setAttribute('aria-label', 'One fewer');
             mi.disabled = sel.qty <= 1; mi.addEventListener('click', function() { change(sel.fid, { op: 'setQty', rowId: sel.rowId, qty: sel.qty - 1 }, 'less', ['.box-less', '.box-more']); });
             var pl = el('button', 'tool ghost box-more', '+'); pl.type = 'button'; pl.title = 'One more'; pl.setAttribute('aria-label', 'One more');
             pl.addEventListener('click', function() { change(sel.fid, { op: 'setQty', rowId: sel.rowId, qty: sel.qty + 1 }, 'more', ['.box-more']); });
             card.step.appendChild(mi); card.step.appendChild(el('span', 'box-q', sel.qty)); card.step.appendChild(pl);
+            }
         } else card.step.remove();
         var pk = el('button', 'tool ghost box-picbtn', 'Picture'); pk.type = 'button'; pk.title = 'A picture for this item in this container. The item keeps it when it is taken.';
         pk.addEventListener('click', function() { if (!window.wpPickImage) { toast('The Image Library is not available here.'); return; } window.wpPickImage(function(src) { if (typeof src !== 'string') return; setPic(sel.fid, sel.rowId, src); }); });
@@ -346,9 +352,13 @@ function drawPlayer() {
     if (sel) {
         var card = selCard(sel), bar = card.bar; var q = Math.max(1, Math.min(sel.qty, _box.qty | 0 || 1)); _box.qty = q;
         if (sel.qty > 1) {
+            var Uq = (typeof window !== 'undefined' && window.wpUi && window.wpUi.step ? window.wpUi : null);
+            if (Uq) { var sq = Uq.step({ value: q, min: 1, max: sel.qty, label: 'How many to take', lessTip: 'Take fewer', moreTip: 'Take more', lessCls: 'box-less', moreCls: 'box-more', valCls: 'box-qin', set: function(n) { var k = stepAt(n < q ? '.box-less' : '.box-more'); _box.qty = n; drawPlayer(); refocus([k, '.box-more', '.box-less']); } }); card.step.parentNode.replaceChild(sq, card.step); card.step = sq; }
+            else {
             var mi = el('button', 'tool ghost box-less', '\u2212'); mi.type = 'button'; mi.title = 'Take fewer'; mi.setAttribute('aria-label', 'Take fewer'); mi.disabled = q <= 1; mi.addEventListener('click', function() { _box.qty = q - 1; drawPlayer(); refocus(['.box-less', '.box-more']); });
             var pl = el('button', 'tool ghost box-more', '+'); pl.type = 'button'; pl.title = 'Take more'; pl.setAttribute('aria-label', 'Take more'); pl.disabled = q >= sel.qty; pl.addEventListener('click', function() { _box.qty = q + 1; drawPlayer(); refocus(['.box-more', '.box-less']); });
             card.step.appendChild(mi); card.step.appendChild(el('span', 'box-q', q)); card.step.appendChild(pl);
+            }
         } else card.step.remove();
         var tk = el('button', 'tool box-take', 'Take'); tk.type = 'button'; tk.title = 'Put it in your own sheet'; tk.addEventListener('click', function() { take({ fid: sel.fid, rowId: sel.rowId, qty: q }); });
         card.acts.appendChild(el('span', 'box-gap')); card.acts.appendChild(tk); body.appendChild(bar);

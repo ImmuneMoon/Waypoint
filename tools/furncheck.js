@@ -375,12 +375,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         !/Math\.random|Date\.|document\.|localStorage/.test(fgSrc) && (fgSrc.match(/^import .*$/mg) || []).join('|') === "import { cellOf, cellCenter } from './fogcore.js';");
     check('fold 5: a kind\'s size in furngen is furncore\'s own, kind for kind',
         Object.keys(FG.SIZE).length === FU.FURN_KINDS.length && FU.FURN_KINDS.every(k => J(FG.SIZE[k.key]) === J([k.w, k.h])));
-    check('fold 5: Furnishings is None, A few or Furnished, A few for anything else; the dungeon and city cleaners keep it only where it is not A few, so a kept setting and every plan stays as it was',
+    check('fold 5: Furnishings is None, A few or Furnished, A few for anything else; the dungeon and city cleaners keep it only as one of the three and add no key where none is named, so every kept setting and every plan stays as it was',
         FG.cleanFurnish('none') === 'none' && FG.cleanFurnish('full') === 'full' && FG.cleanFurnish('x') === 'few' && FG.cleanFurnish(null) === 'few' && FG.cleanFurnish('__proto__') === 'few'
-        && !('furn' in GC.cleanGen({ seed: 'abc-1' })) && !('furn' in GC.cleanGen({ furn: 'few' })) && GC.cleanGen({ furn: 'full' }).furn === 'full' && GC.cleanGen({ furn: 'none' }).furn === 'none' && !('furn' in GC.cleanGen({ furn: 'all' }))
+        && !('furn' in GC.cleanGen({ seed: 'abc-1' })) && GC.cleanGen({ furn: 'few' }).furn === 'few' && GC.cleanGen({ furn: 'full' }).furn === 'full' && GC.cleanGen({ furn: 'none' }).furn === 'none' && !('furn' in GC.cleanGen({ furn: 'all' }))
         && !('furn' in CC.cleanCity({ seed: 'abc-1' })) && CC.cleanCity({ furn: 'none' }).furn === 'none' && !('furn' in CC.cleanCity({ furn: 7 }))
         && J(GC.genDungeon(GC.cleanGen({ seed: 'abc-1', furn: 'full' })).cells) === J(GC.genDungeon(GC.cleanGen({ seed: 'abc-1' })).cells));
-    let fBad = 0, fN = 0, fUse = {}, fMid = 0, fRoomless = 0;
+    let fBad = 0, fN = 0, fUse = {}, fMid = 0, fRoomless = 0, fCut = 0;
     for (let i = 0; i < 300; i++) {
         const dg = GC.genDungeon(GC.cleanGen({ seed: GC.seedOf(i * 31), rooms: ['few', 'some', 'many'][i % 3], doors: ['none', 'some', 'most'][i % 3] }));
         ['few', 'full'].forEach(am => {
@@ -399,12 +399,18 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 for (let r = p.r; r < p.r + p.fh; r++) for (let c = p.c; c < p.c + p.fw; c++) { const k = c + ',' + r; if (occ[k] || inR[k] !== p.room) fBad++; occ[k] = 1; }
             });
             dg.doors.forEach(D => { const c = D.c + D.dc, r = D.r + D.dr; [[c, r], [c + D.dc, r + D.dr]].forEach(x => { if (occ[x[0] + ',' + x[1]]) fBad++; }); });
+            dg.rooms.forEach(R => {   // the review of fold 5: the free cells of a room are one walk, so no doorway or corner is closed off
+                const free = []; for (let r = R.r; r < R.r + R.h; r++) for (let c = R.c; c < R.c + R.w; c++) if (!occ[c + ',' + r]) free.push(c + ',' + r);
+                if (!free.length) return; const seen = new Set([free[0]]), todo = [free[0]];
+                while (todo.length) { const [c, r] = todo.pop().split(',').map(Number); [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(d => { const k = (c + d[0]) + ',' + (r + d[1]); if (free.includes(k) && !seen.has(k)) { seen.add(k); todo.push(k); } }); }
+                if (seen.size !== free.length) { fBad++; fCut++; }
+            });
             if (am === 'few' && Object.values(per).some(v => v > 2)) fBad++;
             if (am === 'full' && dg.rooms.some((R, n) => !per[n])) fRoomless++;
         });
     }
-    check('fold 5, a dungeon over 300 seeds: every piece inside its own room, its footprint its size turned, its back to a wall unless it is the middle piece, no two on a cell, never across a room, a doorway\'s way in and the cell beyond it clear, A few at most two a room, each use given, and the same plan again from the same seed',
-        fBad === 0 && fN > 3000 && Object.keys(fUse).length === 6 && fMid > 20 && fRoomless < 30);
+    check('fold 5, a dungeon over 300 seeds: every piece inside its own room, its footprint its size turned, its back to a wall unless it is the middle piece, no two on a cell, never across a room, a doorway\'s way in and the cell beyond it clear, every room\'s free cells one walk so that no doorway or corner is closed off (the review of fold 5), A few at most two a room, each use given, and the same plan again from the same seed',
+        fBad === 0 && fN > 3000 && Object.keys(fUse).length === 6 && fMid > 20 && fRoomless < 30, 'bad ' + fBad + ', rooms cut ' + fCut);
     const dgA = GC.genDungeon(GC.cleanGen({ seed: 'abc-1', rooms: 'many' })), plA = FG.roomPlan(dgA, 'full');
     const inBox = (x, y, b) => x > b.x && y > b.y && x < b.x + b.w && y < b.y + b.h;
     const sqG = { type: 'square', size: 50 }, hxG = { type: 'hex', s: 30, h: 52 };
@@ -433,25 +439,34 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('fold 5: None, a dungeon that is none, a grid that is none or a place that is no number lay nothing, and nothing throws',
         J(FG.roomPlan(dgA, 'none')) === '[]' && J(FG.roomPlan(null, 'full')) === '[]' && J(FG.roomPlan({ rooms: [{ c: 'x' }], doors: [] }, 'full')) === '[]'
         && J(FG.roomPieces(plA, { type: 'off' }, 0, 0)) === '[]' && J(FG.roomPieces(plA, sqG, NaN, 0)) === '[]' && J(FG.roomPieces([{ k: 'nope', c: 0, r: 0, fw: 1, fh: 1 }], sqG, 0, 0)) === '[]');
-    let tBad = 0, tSq = 0, tN = 0;
+    let tBad = 0, tSq = 0, tN = 0, tOff = 0, tHouse = 0, tWall = 0, tOver = 0, tCell = 0;
     for (let i = 0; i < 60; i++) for (const size of ['village', 'town', 'city']) {
         const o = CC.cleanCity({ seed: GC.seedOf(i * 977), size, water: ['none', 'river', 'coast'][i % 3], layout: i % 2 ? 'grid' : 'winding' }), pc = CC.cityPieces(CC.genCity(o), 0, 0);
         const streets = pc.grounds.filter(g => g.kind === 'street').map(g => g.geo), blocks = pc.grounds.filter(g => g.kind !== 'street').map(g => g.geo).concat(pc.buildings.map(b => b.geo), pc.towers.map(t => t.geo));
-        const open = (x, y) => streets.some(g => FG.inGeo(g, x, y)) && !blocks.some(g => FG.inGeo(g, x, y));
+        const open = (x, y) => streets.some(g => FG.inGeo(g, x, y)) && !blocks.some(g => FG.inGeo(g, x, y)), vil = size === 'village';
+        const solid = pc.buildings.map(b => b.geo).concat(pc.towers.map(t => t.geo), pc.walls.filter(w => !w.line).map(w => w.geo)).map(g => [g.x, g.y, g.x + g.w, g.y + g.h]);
+        const lines = []; pc.walls.filter(w => w.line).forEach(w => { const g = w.geo; for (let i = 1; i < g.pts.length; i++) lines.push([g.x + g.pts[i - 1][0], g.y + g.pts[i - 1][1], g.x + g.pts[i][0], g.y + g.pts[i][1]]); });
+        const meet = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+        const cross = (s, b) => { for (let k = 0; k <= 200; k++) { const x = s[0] + (s[2] - s[0]) * k / 200, y = s[1] + (s[3] - s[1]) * k / 200; if (x > b[0] && x < b[2] && y > b[1] && y < b[3]) return true; } return false; };
         ['few', 'full'].forEach(am => {
-            const tp = FG.townPieces(pc, am, o.seed, 50);
-            if (J(tp) !== J(FG.townPieces(pc, am, o.seed, 50))) tBad++;
+            const tp = FG.townPieces(pc, am, o.seed, 50, vil);
+            if (J(tp) !== J(FG.townPieces(pc, am, o.seed, 50, vil))) tBad++;
             if (tp.some(p => p.at === 'market')) tSq++;
-            tp.forEach(p => {
-                tN++; const sz = FG.SIZE[p.k];
-                if (!open(p.x, p.y)) tBad++;
-                if (sz[0] > 1 || sz[1] > 1) { const along = (p.rot === 0) === (sz[0] > 1); if (along ? !(open(p.x - 25, p.y) && open(p.x + 25, p.y)) : !(open(p.x, p.y - 25) && open(p.x, p.y + 25))) tBad++; }
+            const drawn = [];
+            tp.forEach(p => {   // the box as genFurnItems draws it: its size in cells times the cell, turned about its middle
+                tN++; const sz = FG.SIZE[p.k], tn = p.rot === 90 || p.rot === 270, w = (tn ? sz[1] : sz[0]) * 50, h = (tn ? sz[0] : sz[1]) * 50, b = [p.x - w / 2, p.y - h / 2, p.x + w / 2, p.y + h / 2];
+                for (let a = 0; a <= 4; a++) for (let c = 0; c <= 4; c++) if (!open(b[0] + 1 + (w - 2) * a / 4, b[1] + 1 + (h - 2) * c / 4)) { tBad++; tOff++; a = c = 9; }
+                if (solid.some(s => meet(s, b))) { tBad++; tHouse++; }
+                if (lines.some(s => cross(s, [b[0] - 4, b[1] - 4, b[2] + 4, b[3] + 4]))) { tBad++; tWall++; }
+                if (drawn.some(d => meet(d, b))) { tBad++; tOver++; }
+                if (vil && (b[0] % 50 || b[1] % 50)) { tBad++; tCell++; }
+                drawn.push(b);
             });
             if (tp.filter(p => p.k === 'statue').length > 1) tBad++;
         });
     }
-    check('fold 5, a village, town or city over 180 seeds: every piece on open ground, a long piece with both its cells open, one statue at most in the middle of its square, a square found in each, and the same pieces again from the same seed',
-        tBad === 0 && tSq === 360 && tN > 4000);
+    check('fold 5, a village, town or city over 180 seeds: every piece\'s drawn box, turned, on open ground everywhere, over no house, tower or wall box, crossed by no wall line, over no other piece, and on a village\'s own cells (the review of fold 5: a piece was judged by its middle alone); one statue at most in the middle of its square, a square found in each, and the same pieces again from the same seed',
+        tBad === 0 && tSq === 360 && tN > 2500, J({ tBad, tOff, tHouse, tWall, tOver, tCell, tN, tSq }));
     const pcA = CC.cityPieces(CC.genCity(CC.cleanCity({ seed: 'abc-1' })), 0, 0);
     check('fold 5: None, a plan that is none or holds no street lay nothing in a town, and nothing throws',
         J(FG.townPieces(pcA, 'none', 'abc-1', 50)) === '[]' && J(FG.townPieces(null, 'full', 'x', 50)) === '[]' && J(FG.townPieces({ grounds: [], buildings: [] }, 'full', 'x', 50)) === '[]'
@@ -462,11 +477,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         && wbSrc.includes("theme: val('genTheme'), furn: val('genFurn') });") && wbSrc.includes("set('genFurn', o.furn || 'few');") && wbSrc.includes("theme: val('cityTheme'), furn: val('cityFurn') });") && wbSrc.includes("set('cityFurn', o.furn || 'few');")
         && wbSrc.includes("'genTheme', 'genFurn', 'genSeed'") && wbSrc.includes("'genDoors', 'genTheme', 'genFurn'].forEach") && wbSrc.includes("'cityTheme', 'cityFurn', 'cityLayout'") && wbSrc.includes("'cityFields', 'cityFurn'].forEach"));
     check('fold 5, the laying: the plan counts the furnishings, a dungeon\'s by its own lattice moved by its origin and a town\'s on the 50 px cell; each piece is made as Build\'s Objects tab makes one, in the theme\'s era and the Looks list\'s pack where it has that kind, its middle where it was planned, and never locked',
-        wbSrc.includes("var fu = { list: FG ? FG.roomPieces(FG.roomPlan(dg, opts.furn, grid.type === 'hex'), gox || goy ? genBare(grid) : grid, at.x - gox, at.y - goy) : [], hex: grid.type === 'hex' };") && wbSrc.includes("var fu = { list: FG ? FG.townPieces(pc, opts.furn, opts.seed, CC.CELL) : [], hex: false, cell: { w: CC.CELL, h: CC.CELL } };")
+        wbSrc.includes("var fu = { list: FG ? FG.roomPieces(FG.roomPlan(dg, opts.furn, grid.type === 'hex'), gox || goy ? genBare(grid) : grid, at.x - gox, at.y - goy) : [], hex: grid.type === 'hex' };") && wbSrc.includes("var fu = { list: FG ? FG.townPieces(pc, opts.furn, opts.seed, CC.CELL, cells) : [], hex: false, cell: { w: CC.CELL, h: CC.CELL } };")
         && (wbSrc.match(/nAll = pc\.count \+ fu\.list\.length;/g) || []).length === 2 && (wbSrc.match(/if \(typeof genFurnItems === 'function'\) genFurnItems\(furn, theme\)/g) || []).length === 2
         && (wbSrc.match(/Items\(plan\.pieces, [^)]*\)?, plan\.furn\)/g) || []).length === 4 && wbSrc.includes("var pr = FN.genProps(p.k, era, fu.hex, fu.cell);") && wbSrc.includes("x: Math.round(p.x - pr.w / 2), y: Math.round(p.y - pr.h / 2)")
         && fnSrc.includes("var pk = packById(lookNow()), src = pk ? F.packLook(pk, k, era) : '', f = { k: k, era: era }; if (src) f.pack = pk.id;") && fnSrc.includes("import './furngen.js';")
         && O.furnProps({ k: 'bed', era: 'victorian' }, [], false, { w: 50, h: 50 }, '').furn.era === 'victorian');
+    check('the review of fold 5, the wiring: a piece takes the size the generator planned and never a map object rule\'s own; turned along a column of hexagons its length is counted in rows; a village is planned on its cells; and a dungeon or city kept from before Furnishings opens on None, so made again it stays as it was',
+        fnSrc.includes("if (p && it) { p.w = it.w * cell.w; p.h = it.h * cell.h; }") && wbSrc.includes("if (fu.hex && (p.rot === 90 || p.rot === 270)) { var cw = pr.w / fu.cell.w, ch = pr.h / fu.cell.h; pr.w = Math.round(cw * fu.cell.h); pr.h = Math.round(ch * fu.cell.w); }")
+        && wbSrc.includes("FG.townPieces(pc, opts.furn, opts.seed, CC.CELL, cells)") && wbSrc.includes("if (kept && !Object.prototype.hasOwnProperty.call(here.meta.gen, 'furn')) kept.furn = 'none';") && wbSrc.includes("if (kept && !Object.prototype.hasOwnProperty.call(here.meta.city, 'furn')) kept.furn = 'none';")
+        && O.furnProps({ k: 'crate', era: 'fantasy' }, [[{ id: 'o_c', name: 'Big crate', furn: 'crate', w: 3, h: 3 }]], false, { w: 50, h: 50 }, '').w === 150);   /* the rule's own size, which genProps sets back */
     const notes5 = [readRoot('WHATSNEW.txt'), read('assets/whatsnew.txt')].map(t => /\n- The dungeon and city generators can furnish what they lay\.[\s\S]*?Waypoint's own drawing otherwise\.\n/.exec(t));
     check('fold 5: both release notes say it, alike, and Help says it after Theme', notes5.every(Boolean) && notes5[0][0] === notes5[1][0]
         && ix.includes('<li><b>Furnishings</b> in the dungeon and city dialogs puts in what stands there') && ix.indexOf('<b>Furnishings</b> in the dungeon') > ix.indexOf('<b>Theme</b> in the dungeon'));

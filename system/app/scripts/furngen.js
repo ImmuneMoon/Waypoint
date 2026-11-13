@@ -55,8 +55,23 @@ function roomPlan(dg, amount, hex) {
             if (D.dc) { used[k(c, r - 1)] = 1; used[k(c, r + 1)] = 1; } else { used[k(c - 1, r)] = 1; used[k(c + 1, r)] = 1; }
         });
         var want = am === 'few' ? (rnd() < 0.75 ? 1 + Math.floor(rnd() * 2) : 0) : Math.min(ROOM_MAX, Math.max(2, Math.round((R.w + R.h) * 2 * 0.4)));
+        // The room stays one walk: every cell no piece stands on is reached from every other, so no piece, or two together, closes a doorway
+        // or a corner off from the rest (the review of fold 5: a bed turned against a side wall reaches in, and with the next one shut a pocket)
+        var occ = Object.create(null), whole = function() {
+            var free = [], seen = Object.create(null), todo, got;
+            for (var y = R.r; y < R.r + R.h; y++) for (var x = R.c; x < R.c + R.w; x++) if (!occ[k(x, y)]) free.push([x, y]);
+            if (!free.length) return true;
+            todo = [free[0]]; seen[k(free[0][0], free[0][1])] = 1; got = 1;
+            while (todo.length) {
+                var p = todo.pop();
+                for (var d = 0; d < 4; d++) { var nx = p[0] + [1, -1, 0, 0][d], ny = p[1] + [0, 0, 1, -1][d], q = k(nx, ny); if (inside(nx, ny) && !occ[q] && !seen[q]) { seen[q] = 1; got++; todo.push([nx, ny]); } }
+            }
+            return got === free.length;
+        };
         var put = function(kind, c, r, fw, fh, rot) {
             for (var y = r; y < r + fh; y++) for (var x = c; x < c + fw; x++) if (!inside(x, y) || used[k(x, y)]) return false;
+            for (y = r; y < r + fh; y++) for (x = c; x < c + fw; x++) occ[k(x, y)] = 1;
+            if (!whole()) { for (y = r; y < r + fh; y++) for (x = c; x < c + fw; x++) delete occ[k(x, y)]; return false; }
             for (y = r; y < r + fh; y++) for (x = c; x < c + fw; x++) used[k(x, y)] = 1;
             out.push({ k: kind, c: c, r: r, fw: fw, fh: fh, rot: rot, room: n, use: P.id });
             return true;
@@ -108,15 +123,33 @@ function inGeo(g, x, y) {
 function boxOf(g) { return isObj(g) && fin(g.x) && fin(g.y) && fin(g.w) && fin(g.h) ? [g.x, g.y, g.x + g.w, g.y + g.h] : null; }
 // The distance from a point to the nearest side of a box: a house is judged by its box, which a town's lots are near enough
 function gapTo(bx, x, y) { var dx = Math.max(bx[0] - x, 0, x - bx[2]), dy = Math.max(bx[1] - y, 0, y - bx[3]); return Math.sqrt(dx * dx + dy * dy); }
-// townPieces(pc, amount, seed, cell) -> [{ k, x, y, rot, at }]: pieces on a town's open ground, at 'market' (the open ground farthest from any
-// house, a statue in its middle) or 'street' (beside a house front). cell: one cell of the map in board pixels, how far apart pieces stand
-function townPieces(pc, amount, seed, cell) {
+// Whether the segment a to b crosses or touches a box [x0, y0, x1, y1] (Liang and Barsky's clipping)
+function segBox(ax, ay, bx, by, b) {
+    var t0 = 0, t1 = 1, dx = bx - ax, dy = by - ay, P = [-dx, dx, -dy, dy], Q = [ax - b[0], b[2] - ax, ay - b[1], b[3] - ay];
+    for (var i = 0; i < 4; i++) {
+        if (P[i] === 0) { if (Q[i] < 0) return false; continue; }
+        var t = Q[i] / P[i]; if (P[i] < 0) { if (t > t1) return false; if (t > t0) t0 = t; } else { if (t < t0) return false; if (t < t1) t1 = t; }
+    }
+    return true;
+}
+function boxesMeet(a, b) { return a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]; }
+// townPieces(pc, amount, seed, cell, onCells) -> [{ k, x, y, rot, at }]: pieces on a town's open ground, at 'market' (the open ground near the
+// middle farthest from any house, a statue in its middle) or 'street' (beside a house front). cell: one cell of the map in board pixels, the
+// size each piece is drawn at. onCells, only as true: a village, laid on its cells, where each piece fills whole cells. A piece is judged by
+// its whole box as it will be drawn, turned: on open ground everywhere, over no house, wall or other piece (the review of fold 5)
+function townPieces(pc, amount, seed, cell, onCells) {
     var out = [], am = cleanFurnish(amount); if (am === 'none' || !isObj(pc) || !Array.isArray(pc.grounds) || !Array.isArray(pc.buildings)) return out;
     var u = fin(cell) && cell >= 10 && cell <= 400 ? cell : 50, rnd = rngOf('furn|town|' + (typeof seed === 'string' ? seed : '') + '|' + am);
-    var streets = [], blocks = [], houses = [];
+    var lat = onCells === true, step = lat ? u : TOWN_STEP;
+    var streets = [], blocks = [], houses = [], segs = [];
     pc.grounds.slice(0, 4000).forEach(function(g) { if (!isObj(g) || !isObj(g.geo)) return; if (g.kind === 'street') streets.push(g.geo); else blocks.push(g.geo); });
     pc.buildings.slice(0, 4000).forEach(function(b) { var bx = isObj(b) ? boxOf(b.geo) : null; if (bx) { houses.push(bx); blocks.push(b.geo); } });
-    (Array.isArray(pc.towers) ? pc.towers : []).forEach(function(t) { if (isObj(t) && isObj(t.geo)) blocks.push(t.geo); });
+    (Array.isArray(pc.towers) ? pc.towers : []).forEach(function(t) { if (isObj(t) && isObj(t.geo)) { blocks.push(t.geo); var tb = boxOf(t.geo); if (tb) houses.push(tb); } });
+    (Array.isArray(pc.walls) ? pc.walls : []).slice(0, 4000).forEach(function(w) {   // a village's wall is boxes, a town's the pen's line: a piece stays off both
+        var g = isObj(w) && isObj(w.geo) ? w.geo : null; if (!g || !fin(g.x) || !fin(g.y)) return;
+        if (w.line && Array.isArray(g.pts)) { for (var i = 1; i < g.pts.length && i < 2000; i++) { var a = g.pts[i - 1], b = g.pts[i]; if (Array.isArray(a) && Array.isArray(b) && fin(a[0]) && fin(a[1]) && fin(b[0]) && fin(b[1])) segs.push([g.x + a[0], g.y + a[1], g.x + b[0], g.y + b[1]]); } }
+        else { blocks.push(g); var wb = boxOf(g); if (wb) houses.push(wb); }
+    });
     if (!streets.length || !houses.length) return out;
     var X0 = Infinity, Y0 = Infinity, X1 = -Infinity, Y1 = -Infinity;
     streets.forEach(function(g) { var bx = boxOf(g); if (!bx) return; X0 = Math.min(X0, bx[0]); Y0 = Math.min(Y0, bx[1]); X1 = Math.max(X1, bx[2]); Y1 = Math.max(Y1, bx[3]); });
@@ -124,7 +157,7 @@ function townPieces(pc, amount, seed, cell) {
     var B = 200, FAR = 200, bucket = Object.create(null), keyOf = function(x, y) { return Math.floor(x / B) + ',' + Math.floor(y / B); };   // houses by where they stand, so a point asks only the near ones
     houses.forEach(function(h, i) { for (var bx = Math.floor((h[0] - FAR) / B); bx <= Math.floor((h[2] + FAR) / B); bx++) for (var by = Math.floor((h[1] - FAR) / B); by <= Math.floor((h[3] + FAR) / B); by++) (bucket[bx + ',' + by] = bucket[bx + ',' + by] || []).push(i); });
     var open = [];
-    for (var y = Y0 + TOWN_STEP / 2; y < Y1; y += TOWN_STEP) for (var x = X0 + TOWN_STEP / 2; x < X1; x += TOWN_STEP) {
+    for (var y = Y0 + step / 2; y < Y1; y += step) for (var x = X0 + step / 2; x < X1; x += step) {
         if (!streets.some(function(g) { return inGeo(g, x, y); }) || blocks.some(function(g) { return inGeo(g, x, y); })) continue;
         var near = bucket[keyOf(x, y)] || [], gap = Infinity;
         near.forEach(function(i) { gap = Math.min(gap, gapTo(houses[i], x, y)); });
@@ -132,41 +165,52 @@ function townPieces(pc, amount, seed, cell) {
     }
     if (!open.length) return out;
     var placed = [], far = function(x, y, d) { return placed.every(function(p) { var dx = p.x - x, dy = p.y - y; return dx * dx + dy * dy >= d * d; }); };
-    // Open ground: on a street, under no house, water, bridge, field or tower
+    // Open ground: on a street, under no house, water, bridge, field, tower or wall
     var openAt = function(x, y) { return streets.some(function(g) { return inGeo(g, x, y); }) && !blocks.some(function(g) { return inGeo(g, x, y); }); };
-    // A piece two cells long is laid only where both its cells are open ground, along or across as the seed says and else the other way
-    var lay = function(k, p, at) {
-        var sz = SIZE[k], rot = [0, 90, 180, 270][Math.floor(rnd() * 4)];
-        if (k === 'light' || k === 'statue') rot = 0;
-        if (sz[0] > 1 || sz[1] > 1) {
-            var h = u / 2, ways = rnd() < 0.5 ? [0, 90] : [90, 0];
-            rot = ways.filter(function(r) { var along = (r === 0) === (sz[0] > 1); return along ? openAt(p.x - h, p.y) && openAt(p.x + h, p.y) : openAt(p.x, p.y - h) && openAt(p.x, p.y + h); })[0];
-            if (rot === undefined) return false;
-        }
-        placed.push({ x: p.x, y: p.y }); out.push({ k: k, x: p.x, y: p.y, rot: rot, at: at });
-        return true;
+    var boxes = [], WALL = 5;   // what is laid, as drawn; a town's wall line is 8 px wide
+    // Whether a piece of kind k, its middle at x, y and turned by rot, stands whole on open ground: a grid of points over its box open, no house, tower or wall box under it, no wall line across it and no piece laid before it in its way
+    var fits = function(k, x, y, rot) {
+        var sz = SIZE[k], tn = rot === 90 || rot === 270, w = (tn ? sz[1] : sz[0]) * u, h = (tn ? sz[0] : sz[1]) * u, b = [x - w / 2, y - h / 2, x + w / 2, y + h / 2], i = 1;
+        var pts = []; for (var a = 0; a <= 8; a++) for (var c = 0; c <= 8; c++) pts.push([b[0] + i + (w - 2 * i) * a / 8, b[1] + i + (h - 2 * i) * c / 8]);   // a grid of points over the whole box, its edges inset a pixel
+        if (!pts.every(function(p) { return openAt(p[0], p[1]); })) return false;
+        if ((bucket[keyOf(x, y)] || []).some(function(j) { return boxesMeet(houses[j], b); })) return false;
+        var wb = [b[0] - WALL, b[1] - WALL, b[2] + WALL, b[3] + WALL];
+        if (segs.some(function(s) { return segBox(s[0], s[1], s[2], s[3], wb); })) return false;
+        return !boxes.some(function(o) { return boxesMeet(o, b); });
     };
-    // The square: the open ground nearest the town's middle that lies well clear of every house, and what joins it there, a step at a time
-    var cx = (X0 + X1) / 2, cy = (Y0 + Y1) / 2, d2 = function(a, x, y) { var dx = a.x - x, dy = a.y - y; return dx * dx + dy * dy; };
-    var mid = open.filter(function(p) { return p.gap >= u * 1.4; }).sort(function(a, b) { return d2(a, cx, cy) - d2(b, cx, cy) || a.y - b.y || a.x - b.x; })[0] || null;
-    if (mid && d2(mid, cx, cy) > Math.pow(Math.min(X1 - X0, Y1 - Y0) / 4, 2)) mid = null;   // no wide ground near the middle: a place with no square
+    // A piece is laid where it fits whole: turned as the seed says, else the other way. On a village's cells a piece two cells long fills the
+    // cell it was offered and the next one along, so it lies on whole cells too
+    var lay = function(k, p, at) {
+        var sz = SIZE[k], long = sz[0] > 1 || sz[1] > 1, rots = k === 'light' || k === 'statue' ? [0] : long ? (rnd() < 0.5 ? [0, 90] : [90, 0]) : [[0, 90, 180, 270][Math.floor(rnd() * 4)]];
+        for (var i = 0; i < rots.length; i++) {
+            var r = rots[i], across = long && ((r === 0) === (sz[0] > 1)), x = p.x + (lat && long && across ? u / 2 : 0), y = p.y + (lat && long && !across ? u / 2 : 0);
+            if (!fits(k, x, y, r)) continue;
+            var tn = r === 90 || r === 270, w = (tn ? sz[1] : sz[0]) * u, h = (tn ? sz[0] : sz[1]) * u;
+            boxes.push([x - w / 2, y - h / 2, x + w / 2, y + h / 2]); placed.push({ x: x, y: y }); out.push({ k: k, x: x, y: y, rot: r, at: at });
+            return true;
+        }
+        return false;
+    };
+    // The square: of the open ground near the town's middle, the point farthest from any house, and what joins it there, a step at a time
+    var cx = (X0 + X1) / 2, cy = (Y0 + Y1) / 2, d2 = function(a, x, y) { var dx = a.x - x, dy = a.y - y; return dx * dx + dy * dy; }, lim = Math.pow(Math.min(X1 - X0, Y1 - Y0) / 4, 2);
+    var mid = open.filter(function(p) { return p.gap >= u * 1.4 && d2(p, cx, cy) <= lim; }).sort(function(a, b) { return b.gap - a.gap || d2(a, cx, cy) - d2(b, cx, cy) || a.y - b.y || a.x - b.x; })[0] || null;
     var sq = Object.create(null), at = Object.create(null), mWant = am === 'few' ? 5 : 14, sWant = am === 'few' ? 6 : 16, n = 0, t;
     open.forEach(function(p) { at[p.x + ',' + p.y] = p; });
     if (mid) {
         var todo = [mid]; sq[mid.x + ',' + mid.y] = 1;
         while (todo.length) {
             var q = todo.pop();
-            [[TOWN_STEP, 0], [-TOWN_STEP, 0], [0, TOWN_STEP], [0, -TOWN_STEP]].forEach(function(d) {
+            [[step, 0], [-step, 0], [0, step], [0, -step]].forEach(function(d) {
                 var k = (q.x + d[0]) + ',' + (q.y + d[1]), nb = at[k];
                 if (nb && !sq[k] && nb.gap >= u * 0.5 && d2(nb, mid.x, mid.y) <= (u * 6) * (u * 6)) { sq[k] = 1; todo.push(nb); }
             });
         }
         lay('statue', mid, 'market');
         var ring = open.filter(function(p) { return sq[p.x + ',' + p.y] && d2(p, mid.x, mid.y) >= (u * 1.2) * (u * 1.2); });
-        for (t = 0; n < mWant && t < mWant * 12 && ring.length; t++) { var mp = ring[Math.floor(rnd() * ring.length)], mk = MARKET[n % MARKET.length]; if (far(mp.x, mp.y, u * 1.3) && lay(mk, mp, 'market')) n++; }
+        for (t = 0; n < mWant && t < mWant * 40 && ring.length; t++) { var mp = ring[Math.floor(rnd() * ring.length)], mk = MARKET[n % MARKET.length]; if (far(mp.x, mp.y, u * 1.3) && lay(mk, mp, 'market')) n++; }
     }
-    var street = open.filter(function(p) { return !sq[p.x + ',' + p.y] && p.gap >= u * 0.35 && p.gap <= u * 0.75; });
-    for (n = 0, t = 0; n < sWant && t < sWant * 12 && street.length; t++) { var sp = street[Math.floor(rnd() * street.length)], sk = STREET[n % STREET.length]; if (far(sp.x, sp.y, u * 3) && lay(sk, sp, 'street')) n++; }
+    var street = open.filter(function(p) { return !sq[p.x + ',' + p.y] && p.gap >= u * 0.5 && p.gap <= u * 1.5; });
+    for (n = 0, t = 0; n < sWant && t < sWant * 40 && street.length; t++) { var sp = street[Math.floor(rnd() * street.length)], sk = STREET[n % STREET.length]; if (far(sp.x, sp.y, u * 3) && lay(sk, sp, 'street')) n++; }
     return out;
 }
 

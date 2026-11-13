@@ -97,7 +97,9 @@ function propsOf(f) {
 function genProps(k, era, hex, cell) {
     var O = OC(), F = FU(); if (!O || !O.furnProps || !F || !cell) return null;
     var pk = packById(lookNow()), src = pk ? F.packLook(pk, k, era) : '', f = { k: k, era: era }; if (src) f.pack = pk.id;
-    return O.furnProps(f, ruleLists(campNow()), !!hex, cell, src);
+    var p = O.furnProps(f, ruleLists(campNow()), !!hex, cell, src), it = F.furnKind(k);
+    if (p && it) { p.w = it.w * cell.w; p.h = it.h * cell.h; }   // the size the generator planned, never a map object rule's own (the review of fold 5)
+    return p;
 }
 function place(f) {
     var F = FU(), p = propsOf(f); if (!F || !p || typeof window.wpArmPlacement !== 'function') return;

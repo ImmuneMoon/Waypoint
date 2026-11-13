@@ -9657,6 +9657,7 @@ function genFurnItems(fu, theme) {
     var era = BC.cleanTheme(theme);
     fu.list.forEach(function(p) {
         var pr = FN.genProps(p.k, era, fu.hex, fu.cell); if (!pr || !(pr.w > 0) || !(pr.h > 0)) return;
+        if (fu.hex && (p.rot === 90 || p.rot === 270)) { var cw = pr.w / fu.cell.w, ch = pr.h / fu.cell.h; pr.w = Math.round(cw * fu.cell.h); pr.h = Math.round(ch * fu.cell.w); }   // turned along a column of hexagons, its length is counted in rows and its width in a hexagon's width
         var it = Object.assign({ id: 'wb' + uid(), type: 'image', x: Math.round(p.x - pr.w / 2), y: Math.round(p.y - pr.h / 2), z: 10 }, newOpacityProps(), pr);
         if (p.rot) it.rot = p.rot;
         out.push(it);
@@ -9694,6 +9695,7 @@ function genSync() {
 function genShow() {
     var m = genEl('genModal'), GC = genCore(), here = getActiveMap(); if (!m || !GC || !buildCore() || !buildMay() || !buildHere() || !here) return false;
     var kept = here.meta && typeof here.meta === 'object' && here.meta.gen && typeof here.meta.gen === 'object' ? GC.cleanGen(here.meta.gen) : null;
+    if (kept && !Object.prototype.hasOwnProperty.call(here.meta.gen, 'furn')) kept.furn = 'none';   // a dungeon laid before Furnishings was laid with none: made again, it stays as it was
     if (kept) genFill(kept); else { var sb = genEl('genSeed'); if (sb) sb.value = genNewSeed(); }   // a map that keeps its dungeon's seed shows it, to make it again; else a new seed each time
     var nm = genEl('genName'); if (nm) nm.value = 'Dungeon';
     _gen.where = 'here'; _gen.maps = '';
@@ -9861,7 +9863,7 @@ function cityPlan() {
     var at = cityCorner(map, where === 'here' ? viewCentre() : null, w, h, cells ? CC.CELL : 0), pc = CC.cityPieces(plan, at.x, at.y);
     if (!pc.count || !pc.buildings.length) return { ok: false, say: 'That city could not be laid out. Try another seed.' };
     var FG = window.wpFurnGen;   // 1.6.2 (backlog 222): on its market square and along its streets, a cell of the 50 px lattice a village is laid on
-    var fu = { list: FG ? FG.townPieces(pc, opts.furn, opts.seed, CC.CELL) : [], hex: false, cell: { w: CC.CELL, h: CC.CELL } };
+    var fu = { list: FG ? FG.townPieces(pc, opts.furn, opts.seed, CC.CELL, cells) : [], hex: false, cell: { w: CC.CELL, h: CC.CELL } };
     var held = map && Array.isArray(map.whiteboard) ? map.whiteboard.length : 0, nAll = pc.count + fu.list.length;
     if (held + nAll > BUILD_MAX) return { ok: false, say: genCountWords(nAll, held) };
     return { ok: true, say: genCountWords(nAll, held), map: map, fresh: fresh, grid: grid, opts: opts, pieces: pc, furn: fu };
@@ -9923,6 +9925,7 @@ function citySync() {
 function cityShow() {
     var m = genEl('cityModal'), CC = cityCore(), here = getActiveMap(); if (!m || !CC || !buildCore() || !buildMay() || !buildHere() || !here) return false;
     var kept = here.meta && typeof here.meta === 'object' && here.meta.city && typeof here.meta.city === 'object' && !Array.isArray(here.meta.city) ? CC.cleanCity(here.meta.city) : null;
+    if (kept && !Object.prototype.hasOwnProperty.call(here.meta.city, 'furn')) kept.furn = 'none';   // a city laid before Furnishings was laid with none
     if (kept) cityFill(kept); else { var sb = genEl('citySeed'); if (sb) sb.value = genNewSeed(); }   // a map that keeps its city's seed shows it, to make it again; else a new seed each time
     _city.where = 'here'; _city.maps = ''; _city.grid = ''; _city.named = false;
     m.style.display = 'flex';

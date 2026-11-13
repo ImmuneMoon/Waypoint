@@ -38,7 +38,7 @@ function cleanCity(v) {
     var out = { seed: typeof seed === 'string' && SEED_RE.test(seed) ? seed : '0000-fox', size: pick(SIZES, own(o, 'size'), 'town'), wall: pick(WALLS, own(o, 'wall'), 'gates'),
         water: pick(WATERS, own(o, 'water'), 'river'), roofs: pick(ROOFS, own(o, 'roofs'), 'mixed'), fields: own(o, 'fields') !== false }, th = cleanTheme(own(o, 'theme'));
     if (own(o, 'layout') === 'grid') out.layout = 'grid'; if (th !== 'fantasy') out.theme = th;   // the first of each names nothing, so that a kept setting and every plan stays as it was
-    var fu = own(o, 'furn'); if (fu === 'none' || fu === 'full') out.furn = fu;   // 1.6.2 (backlog 222): Furnishings, A few when absent; no part of the plan or the seed's text
+    var fu = own(o, 'furn'); if (fu === 'none' || fu === 'few' || fu === 'full') out.furn = fu;   // 1.6.2 (backlog 222): Furnishings, kept as named (a city kept before it has none, which the dialog reads as None); no part of the plan or the seed's text
     return out;
 }
 // Chance from the seed alone, as the dungeon's: a 32-bit hash of the text (FNV-1a) feeds a small generator (mulberry32)

@@ -1314,6 +1314,7 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
         delete camp.trkHide;  // backlog 29: the players the GM keeps the trackers from are the GM's to know
         delete camp.soundOn;  // 1.6.2: the sounds the GM ties to actions (soundon.js) are the GM's alone: a player gets the cue and nothing of the list
         delete camp.boxes;   // 1.6.2 (backlog 42): what containers hold, the GM's until opened
+        delete camp.furnPacks;   // 1.6.2 (backlog 222): the GM's furnishing packs; what a piece wears goes as its own picture
         delete camp.objects;  // 1.6.0: the GM's own map objects (objcore.js): the GM's to place, as the system's set is left out of the players' view
         if (window.wpDocRender && window.wpDocRender.cleanDocStyle) { var _cds = window.wpDocRender.cleanDocStyle(camp.docStyle); if (_cds) camp.docStyle = _cds; else delete camp.docStyle; }   // the campaign's document appearance travels (validated: fonts from the list, hex colors) so a player's Handbook matches; the client re-validates at render too
         var libFx = fxLib(camp.system), libIt = itemLib(camp.system), fullSys = camp.system;   // 5h / Stage 6: the full libraries (and F6: the full system), before the players' view replaces the system (a GM-only effect or item reaches its owner inline)

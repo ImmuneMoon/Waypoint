@@ -1078,7 +1078,10 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
             // [furncheck:insp-start] 1.6.2 (backlog 222): a furnishing's look, picked from the four, and a tint for its main colour
             var FUi = window.wpFurnCore, fuI = w.type === 'image' && FUi ? FUi.cleanFurn(w.furn) : null;
-            if (fuI) html += '<div class="field insp-furn"><label for="wbFurnEra">' + esc(FUi.furnKind(fuI.k).label) + ', drawn as</label><select id="wbFurnEra">'
+            if (fuI && fuI.pack && w.src) html += '<div class="field insp-furn"><label>' + esc(FUi.furnKind(fuI.k).label) + ', from a pack</label><div class="muted">' + esc((window.wpFurnish && window.wpFurnish.packName ? window.wpFurnish.packName(fuI.pack) : '') || 'A pack no longer in this campaign') + '</div>'
+              + '<button class="tool ghost" id="wbFurnBase" title="Draw it as Waypoint&rsquo;s own drawing, in the same look, in place of the pack&rsquo;s picture">Use Waypoint&rsquo;s drawing</button>'
+              + '<div class="muted">A map object that names this kind gives new ones their rules. This one keeps what it has.</div></div>';   // fold 2: a look from a pack keeps its picture
+            else if (fuI) html += '<div class="field insp-furn"><label for="wbFurnEra">' + esc(FUi.furnKind(fuI.k).label) + ', drawn as</label><select id="wbFurnEra">'
               + FUi.FURN_ERAS.map(function(e) { return '<option value="' + esc(e.id) + '"' + (e.id === fuI.era ? ' selected' : '') + '>' + esc(e.label) + '</option>'; }).join('')
               + '</select><div class="insp-furn-tint"><label for="wbFurnTint">Tint</label><input type="color" id="wbFurnTint" value="' + esc(fuI.tint || '#8a5a2b') + '"><button class="tool ghost" id="wbFurnNoTint"' + (fuI.tint ? '' : ' disabled') + '>No tint</button></div>'
               + '<div class="muted">A map object that names this kind gives new ones their rules. This one keeps what it has.</div></div>';
@@ -1327,6 +1330,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbFurnEra) _el_wbFurnEra.addEventListener('change', function() { furnSet({ era: this.value }); });
             if (_el_wbFurnTint) _el_wbFurnTint.addEventListener('change', function() { furnSet({ tint: this.value }); });
             if (_el_wbFurnNoTint) _el_wbFurnNoTint.addEventListener('click', function() { furnSet({ tint: '' }); });
+            var _el_wbFurnBase = document.getElementById('wbFurnBase');   // fold 2: back from a pack's picture to Waypoint's drawing
+            if (_el_wbFurnBase) _el_wbFurnBase.addEventListener('click', function() { var FUh = window.wpFurnCore, cur = FUh ? FUh.cleanFurn(w.furn) : null; if (!cur) return; delete cur.pack; delete w.src; w.furn = cur; save(); render(); });
             var _el_wbAlignPic = document.getElementById('wbAlignPic');   // 1.6.2 (backlog 38)
             if (_el_wbAlignPic) _el_wbAlignPic.addEventListener('click', function() { if (window.wpAlignPic) window.wpAlignPic(w); });
             var _el_wbTrimPic = document.getElementById('wbTrimPic'), _el_wbTrimReset = document.getElementById('wbTrimReset');   // 1.6.2 (backlog 37)

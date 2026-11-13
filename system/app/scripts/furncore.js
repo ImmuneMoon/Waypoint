@@ -198,6 +198,7 @@ function cleanFurn(v) {
     if (!own(BY_KEY, k) || ERA_IDS.indexOf(era) < 0) return null;
     var out = { k: k, era: era }, t = own(v, 'tint') && typeof v.tint === 'string' ? v.tint.toLowerCase() : '';
     if (HEX6.test(t)) out.tint = t;
+    var pk = own(v, 'pack') ? cleanPackId(v.pack) : ''; if (pk) out.pack = pk;   // fold 2: the pack its picture came from, which the piece keeps as its own src
     return out;
 }
 function furnKind(k) { return typeof k === 'string' && own(BY_KEY, k) ? FURN_KINDS[KINDS.indexOf(BY_KEY[k])] : null; }
@@ -216,6 +217,48 @@ function furnSrc(f) { var s = furnSvg(f); return s ? 'data:image/svg+xml,' + enc
 // Its size in board pixels on a lattice of 50 a cell (a hex map's cell is 60 by 52, as a map object's is)
 function furnSize(k, hex) { var it = furnKind(k); if (!it) return null; return hex ? { w: it.w * 60, h: it.h * 52 } : { w: it.w * 50, h: it.h * 50 }; }
 
-var API = { FURN_GROUPS: FURN_GROUPS, FURN_ERAS: FURN_ERAS, FURN_KINDS: FURN_KINDS, cleanFurn: cleanFurn, furnKind: furnKind, furnWords: furnWords, furnSvg: furnSvg, furnSrc: furnSrc, furnSize: furnSize, eraLabel: eraLabel };
+// [furncheck:packs-start]
+// Packs (backlog 222, fold 2; the owner, 2026-11-12, by prompt: a pack lives in the campaign it was brought into, a "Looks list" picks it, a kind
+// it has no picture for shows "Waypoint's drawing, marked", and a pack is one file or a folder, "give the option on either on export, and have
+// import allow the same"). A pack is { id, name, looks: { 'chest.fantasy': a picture's path, ... } }: looks only, never rules. A path is cleaned
+// by the caller's own rule for a campaign's picture (fogcore cleanTexSrc), handed in, so this file still imports nothing
+var PACK_MAX = 24, PACK_RE = /^fp_[a-z0-9]{4,24}$/, LOOK_FILE = /^([a-z]+)[-_ ]([a-z]+)\.(png|jpe?g|webp)$/;
+function cleanPackId(v) { return typeof v === 'string' && PACK_RE.test(v) ? v : ''; }
+function lookKey(k, era) { return typeof k === 'string' && own(BY_KEY, k) && ERA_IDS.indexOf(era) >= 0 ? k + '.' + era : ''; }
+function packName(v) { if (typeof v !== 'string') return ''; var t = Array.from(v.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim()); return t.slice(0, 60).join('').trim(); }
+// One pack as it is kept, its looks in the list's own order of kinds and eras, or null where it has no id or no name
+function cleanPack(p, cleanSrc) {
+    if (!p || typeof p !== 'object' || Array.isArray(p)) return null;
+    var id = cleanPackId(own(p, 'id') ? p.id : ''), name = packName(own(p, 'name') ? p.name : ''); if (!id || !name) return null;
+    var L = own(p, 'looks') && p.looks && typeof p.looks === 'object' && !Array.isArray(p.looks) ? p.looks : {}, looks = {};
+    KINDS.forEach(function(k) { ERA_IDS.forEach(function(e) { var key = k.key + '.' + e; if (!own(L, key)) return; var s = typeof cleanSrc === 'function' ? cleanSrc(L[key]) : null; if (s) looks[key] = s; }); });
+    return { id: id, name: name, looks: looks };
+}
+// A campaign's packs: each id once, PACK_MAX at most; anything else is none
+function cleanPacks(v, cleanSrc) {
+    if (!Array.isArray(v)) return [];
+    var out = [], seen = Object.create(null);
+    for (var i = 0; i < v.length && out.length < PACK_MAX; i++) { var p = cleanPack(v[i], cleanSrc); if (p && !seen[p.id]) { seen[p.id] = 1; out.push(p); } }
+    return out;
+}
+function packLook(pack, k, era) { var key = lookKey(k, era); return key && pack && pack.looks && own(pack.looks, key) && typeof pack.looks[key] === 'string' ? pack.looks[key] : ''; }
+function packCount(pack) { return pack && pack.looks ? Object.keys(pack.looks).length : 0; }
+// A look as a file in a folder, and what a file's name says: chest-fantasy.png, or with _ or a space, in any case
+function lookFile(k, era, ext) { var key = lookKey(k, era); return key ? k + '-' + era + '.' + (/^(png|jpg|jpeg|webp)$/.test(ext) ? ext : 'png') : ''; }
+function lookOfFile(name) {
+    var m = typeof name === 'string' ? LOOK_FILE.exec(name.toLowerCase()) : null;
+    return m && lookKey(m[1], m[2]) ? { k: m[1], era: m[2] } : null;
+}
+// A picture's kind by its first bytes, never its name: png, jpeg or webp, else ''
+function picKind(b) {
+    if (!b || typeof b.length !== 'number' || b.length < 12) return '';
+    if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'png';
+    if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpeg';
+    if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'webp';
+    return '';
+}
+// [furncheck:packs-end]
+
+var API = { FURN_GROUPS: FURN_GROUPS, FURN_ERAS: FURN_ERAS, FURN_KINDS: FURN_KINDS, cleanFurn: cleanFurn, furnKind: furnKind, furnWords: furnWords, furnSvg: furnSvg, furnSrc: furnSrc, furnSize: furnSize, eraLabel: eraLabel, PACK_MAX: PACK_MAX, cleanPackId: cleanPackId, lookKey: lookKey, packName: packName, cleanPack: cleanPack, cleanPacks: cleanPacks, packLook: packLook, packCount: packCount, lookFile: lookFile, lookOfFile: lookOfFile, picKind: picKind };
 if (typeof window !== 'undefined') window.wpFurnCore = API;
-export { FURN_GROUPS, FURN_ERAS, FURN_KINDS, cleanFurn, furnKind, furnWords, furnSvg, furnSrc, furnSize, eraLabel };
+export { FURN_GROUPS, FURN_ERAS, FURN_KINDS, cleanFurn, furnKind, furnWords, furnSvg, furnSrc, furnSize, eraLabel, PACK_MAX, cleanPackId, lookKey, packName, cleanPack, cleanPacks, packLook, packCount, lookFile, lookOfFile, picKind };

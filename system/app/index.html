@@ -97,6 +97,7 @@
 <script type="module" src="scripts/medialimit.js"></script>
 <script type="module" src="scripts/mapobjects.js"></script>
 <script type="module" src="scripts/furnish.js"></script>
+<script type="module" src="scripts/furnpack.js"></script>
 <script type="module" src="scripts/layers.js"></script>
 <script type="module" src="scripts/ilayers.js"></script>
 <script type="module" src="scripts/boxes.js"></script>
@@ -983,6 +984,9 @@
                                   <li>A furnishing takes its rules from a map object that names its kind. Pick the kind under <b>Rules for</b> when you edit the object. The system&rsquo;s objects come first.</li>
                                   <li>A kind no object names is a plain picture. A tile marked Rules has one.</li>
                                   <li>In its Properties you can change its look and give it a <b>Tint</b>, so one chair fits many rooms. <b>No tint</b> takes the colour back.</li>
+                                  <li>A <b>pack</b> gives furnishings another look. Press <b>Packs</b> beside the Looks list to bring one in from a file or a folder, or copy one from another campaign. Pick it in the Looks list.</li>
+                                  <li>A pack is one .wpfurn file, or a folder of pictures each named for its kind and era, such as chest-fantasy.png. Export gives you either.</li>
+                                  <li>A kind the pack has no picture for shows Waypoint&rsquo;s drawing, marked. A placed piece keeps its picture, whatever later happens to the pack.</li>
                               </ul>
                           </li>
                           <li><b>Containers:</b> a picture, a shape or a map object can hold items, such as a chest or a crate. Tick <b>Holds items</b> in its Properties. A token, a wall or a door cannot.
@@ -5471,6 +5475,24 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 
+<!-- Furnishing packs (1.6.2, backlog 222, fold 2): the GM's packs of looks (furnpack.js) -->
+<div id="furnPackModal" class="gen-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="furnPackTitle">
+    <div class="gen-box obj-box">
+        <h3 id="furnPackTitle">Furnishing packs</h3>
+        <div class="gen-line">A pack gives furnishings another look. It never changes what they do: a map object that names a kind still gives that.</div>
+        <div id="furnPackList"></div>
+        <div class="gen-rule"></div>
+        <div class="obj-formbar">
+            <button type="button" class="tool ghost" id="furnPackImportFile" title="Bring in one .wpfurn file with its pictures inside">Import a file</button>
+            <button type="button" class="tool ghost" id="furnPackImportFolder" title="Bring in a folder of pictures, each named for its kind and era, such as chest-fantasy.png">Import a folder</button>
+            <button type="button" class="tool ghost" id="furnPackFromOther" title="Copy a pack from another of your campaigns">From another campaign</button>
+        </div>
+        <input type="file" id="furnPackFile" accept=".wpfurn,application/json" hidden>
+        <input type="file" id="furnPackDir" webkitdirectory multiple hidden>
+        <div id="furnPackFromList" hidden></div>
+        <div class="obj-formbar obj-end"><button type="button" class="tool" id="furnPackClose" title="Close">Close</button></div>
+    </div>
+</div>
 <!-- Map objects (1.6.0): the GM's list of what can be placed (mapobjects.js) -->
 <div id="objModal" class="gen-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="objTitle">
     <div class="gen-box obj-box">

@@ -1172,6 +1172,11 @@ The Data Map
   there. A map object can name a kind under Rules for, and a furnishing of
   that kind takes its cover, size and blocking. A placed one can change its
   look in its Properties, and take a tint.
+- Furnishing packs give them another look. Press Packs beside the new Looks
+  list on Build's Objects tab to bring one in from a .wpfurn file or a folder
+  of pictures named like chest-fantasy.png, or to copy one from another
+  campaign. Export writes either. A kind the pack lacks shows Waypoint's own
+  drawing, marked, and a placed piece keeps its picture.
 - A piece's Properties now open from Properties on its right-click menu, or
   from the sliders on the bar over a selected piece. A double-click no longer
   opens them. A right-click selects the piece too, so you can see which one

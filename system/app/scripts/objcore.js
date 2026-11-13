@@ -104,12 +104,13 @@ export function furnRule(lists, k) {
 // What a placed furnishing is: a picture piece that keeps its kind, its version and its tint, drawn by every machine from those words. With a
 // rule it takes the rule's own keys (objProps) and the rule's size where the rule names one, else the kind's own. With none it is a plain picture
 // over the map's pictures and under the tokens, with no key of cover, so the system's own rule for pictures says what it gives
-export function furnProps(f, lists, hex, cell) {
+export function furnProps(f, lists, hex, cell, src) {
     var c = cleanFurn(f); if (!c) return null;
     var rule = furnRule(lists, c.k), it = furnKind(c.k), p = rule ? objProps(rule, hex, cell) : { name: furnWords(c), layer: 'back-mid' };
     delete p.src; delete p.color;
     var cw = rule && (rule.w > 1 || rule.h > 1) ? [rule.w || 1, rule.h || 1] : [it.w, it.h];
     p.w = cw[0] * cellW(hex, cell); p.h = cw[1] * cellH(hex, cell);   // the map's own cell (backlog 38), so a one-cell chest fills one cell
+    var ps = c.pack && src ? cleanTexSrc(src) : null; if (ps) p.src = ps; else delete c.pack;   // fold 2: a pack's picture, the piece's own from now on
     p.furn = c; p.color = 'transparent'; p.fit = true;   // fit: the box keeps the size it is given, never the drawing's own proportions
     return p;
 }

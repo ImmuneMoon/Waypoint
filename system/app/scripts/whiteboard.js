@@ -1034,7 +1034,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
               }
 
-              var FUd = window.wpFurnCore, fuD = item.furn && FUd && !(item.isChar && item.src) ? FUd.cleanFurn(item.furn) : null, wantSrc = fuD ? FUd.furnSrc(fuD) : resolveImg(item.src);   // 1.6.2 (backlog 222): a furnishing is the app's own drawing, from its words
+              var FUd = window.wpFurnCore, fuD = item.furn && FUd && !item.src ? FUd.cleanFurn(item.furn) : null, wantSrc = fuD ? FUd.furnSrc(fuD) : resolveImg(item.src);   // 1.6.2 (backlog 222): a furnishing is the app's own drawing, from its words, unless it has a picture of its own (a pack's, a character's portrait)
 
               var imEl = el.querySelector('img');
 

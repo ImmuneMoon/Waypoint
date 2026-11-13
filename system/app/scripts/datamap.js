@@ -938,9 +938,10 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
                 var wrB = wbWrap.getBoundingClientRect();
                 var wpx = wbX(e.clientX, e.clientY, wrB, wbWrap);
                 var wpy = wbY(e.clientX, e.clientY, wrB, wbWrap);
-                var best = null, bestZ = -Infinity, bestIdx = -1;
+                var best = null, bestZ = -Infinity, bestIdx = -1, BCd = typeof window !== 'undefined' ? window.wpBuildCore : null, stIt = !asPlayer && !!(BCd && BCd.structOk && BCd.structOk(item)), itZ = stIt ? handZ(item) : 0, itIdx = stIt ? activeMap.whiteboard.indexOf(item) : -1;
                 activeMap.whiteboard.forEach(function(cand, idx) {
                     if (cand.locked || cand.id === item.id) return;
+                    if (stIt && (handZ(cand) < itZ || (handZ(cand) === itZ && idx < itIdx))) return;   // backlog 231: locked structure keeps its press from a free piece beneath it (a map picture, paint), so it can be selected
                     if (typeof window !== 'undefined' && window.wpILayers && window.wpILayers.through(cand)) return;   // backlog 43
                     if (asPlayer && !((cand.isChar || cand.waiting) && cand.ownerId === window.wpNet.myId)) return;
                     if (wpx < cand.x || wpx > cand.x + (cand.w || 0) || wpy < cand.y || wpy > cand.y + (cand.h || 0)) return;

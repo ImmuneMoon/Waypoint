@@ -921,7 +921,11 @@ function runLen(r) { var n = 0; for (var i = 1; i < r.length; i++) n += Math.sqr
 // else can be locked", doors locked in place but opened as the GM sets, Build and a door line still work on a locked piece, and a map-wide row with
 // a Settings tick). What characters may move is never structure: a token, a waiting token, a furnishing, a map object (it carries its own cover
 // grade, or none), a light, a GM note card, a player's drawing. Paint the Fill tool lays, and a hazard that spreads, stay free too
-function structMoves(w) { return !!(w.isChar || w.waiting || w.gmNoteFor || w.ownerId || w.byPlayer || w.furn || w.light || w.coverAs || w.cover === 'no' || w.coverPro || w.type === 'trigger' || w.fly); }
+function structMoves(w) {
+    if (w.isChar || w.waiting || w.gmNoteFor || w.ownerId || w.byPlayer || w.furn || w.mobj || w.light || w.roomArea || w.type === 'trigger' || w.fly) return true;
+    // a map object placed before it carried its mark: a cover grade of its own, or none, on a piece that neither blocks nor is ground
+    return !!((w.coverAs || w.cover === 'no' || w.coverPro) && w.blocksSight !== true && w.barrier !== true && w.layer !== 'back');
+}
 function structOk(w) {
     if (!isObj(w) || structMoves(w) || w.fill || w.hazard) return false;
     return w.layer === 'back' || w.layer === 'back-mid' || w.blocksSight === true || w.barrier === true;

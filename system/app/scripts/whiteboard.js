@@ -463,6 +463,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
       if (window.wpRenderCombatStrip) window.wpRenderCombatStrip();
       if (window.wpEnvTool && window.wpEnvTool.draw) window.wpEnvTool.draw();   // 1.6.0: the Environment tool's layer, while it is in hand
       if (window.wpFogRedraw) window.wpFogRedraw();   // keep the fog overlay live whenever a fog map is on screen (any tool, during drags)
+      if (typeof buildStructSync === 'function') { var _bm = document.getElementById('buildMenu'); if (_bm && _bm.style.display !== 'none' && _bm.offsetParent !== null) buildStructSync(); }   // backlog 231: Build's structure row follows a lay, an Undo and another map
       if (window.wpFillMenuSync) window.wpFillMenuSync();   // 1.6.2 (backlog 57): the Fill options, while they are up, follow the campaign and its kinds of terrain
 
       var activeMap = getActiveMap();
@@ -1620,7 +1621,7 @@ function fitToGrid(its) {
 function alignMay(w, grid) {
     if (!w || typeof w !== 'object' || w.type !== 'image') return 'Pick a map picture first.';
     if (w.isChar || w.waiting) return 'A token is sized by Fit to grid cells, not by a grid on its picture.';
-    if (w.locked) return 'Unlock the picture first.';
+    if (w.locked && !(typeof window !== 'undefined' && window.wpBuildCore && window.wpBuildCore.structOk && window.wpBuildCore.structOk(w))) return 'Unlock the picture first.';   // backlog 231: a map's own picture, locked as its ground, is aligned and trimmed in place and keeps its lock
     if ((Number(w.rot) || 0) % 360) return 'Turn the picture straight first: Align its grid needs a picture with no rotation.';
     if (grid !== 'square' && grid !== 'hex') return 'Turn on a square or hex grid first.';
     return '';
@@ -2597,6 +2598,7 @@ window.wpFitToGrid = fitToGrid;
 
       }, newOpacityProps(), props);
 
+      if (type === 'image' && !item.isChar && typeof groundPic === 'function') groundPic(getActiveMap(), item);   // backlog 231: the first picture on a bare map is its ground, however it is added
       getActiveMap().whiteboard.push(item);
 
       state.selWbId = item.id;

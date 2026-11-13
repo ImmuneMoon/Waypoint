@@ -56,7 +56,7 @@ function cellW(hex, cell) { return cell && typeof cell.w === 'number' && cell.w 
 function cellH(hex, cell) { return cell && typeof cell.h === 'number' && cell.h > 0 ? cell.h : hex ? 52 : 50; }
 export function objProps(o, hex, cell) {
     var c = cleanObj(o); if (!c) return null;
-    var p = { name: c.name, w: (c.w || 1) * cellW(hex, cell), h: (c.h || 1) * cellH(hex, cell), layer: 'back-mid' };   // 1.6.2: over the map's own pictures and under the tokens, so a character stands over a crate it stands at (the owner, 2026-11-02: why is this over the character)
+    var p = { name: c.name, w: (c.w || 1) * cellW(hex, cell), h: (c.h || 1) * cellH(hex, cell), layer: 'back-mid', mobj: true };   // backlog 231: a placed map object, which characters move, is never a map's structure   // 1.6.2: over the map's own pictures and under the tokens, so a character stands over a crate it stands at (the owner, 2026-11-02: why is this over the character)
     if (c.src) p.src = c.src; else p.color = c.color || LAND_COLOR;
     if (c.pro) p.coverPro = c.pro;
     if (c.sight) { p.blocksSight = true; p.sightType = 'wall'; } else {

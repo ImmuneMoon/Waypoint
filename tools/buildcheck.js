@@ -5368,6 +5368,15 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             && ixT.includes('id="buildStructBtn"') && ixT.includes('<input type="checkbox" id="setStructLock">') && stT.includes("if (_stl.checked) localStorage.removeItem('wp_structLock'); else localStorage.setItem('wp_structLock', 'off');")
             && ixT.includes('<li><b>Unlock this map&rsquo;s structure</b> on a piece&rsquo;s right-click, or in Build&rsquo;s options, frees them all.'));
         const notes231 = [read('WHATSNEW.txt'), read('system/app/assets/whatsnew.txt')].map(x => /\n- A new map's structure is locked in place as it is laid\.[\s\S]*?a tick to stop it\.\n/.exec(x));
+        const O231 = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'objcore.js')).replace(/[\\]/g, '/'));
+        const objP = O231.objProps({ id: 'o1', name: 'Pillar', sight: true }, false), objC = O231.objProps({ id: 'o2', name: 'Crate', cover: 'half' }, false);
+        check('the review of backlog 231: a room\'s hidden area and a placed map object (marked mobj, a pillar that blocks sight among them) are no structure; a GM\'s own wall, floor or ground picture given a cover grade by hand still is, while a cover-graded piece from before the mark that neither blocks nor is ground stays free',
+            !B.structOk({ type: 'rect', layer: 'back-mid', hidden: true, roomArea: true }) && objP.mobj === true && objP.blocksSight === true && !B.structOk(objP) && !B.structOk(objC)
+            && B.structOk(Object.assign({ type: 'path', coverAs: 'half' }, B.penPreset('wall', {}))) && B.structOk(Object.assign({ type: 'rect', cover: 'no' }, B.pieceProps('floor'))) && B.structOk({ type: 'image', layer: 'back', coverAs: 'threeq' })
+            && !B.structOk({ type: 'rect', layer: 'back-mid', coverAs: 'half', cover: 'yes' }), J([objP, objC]));
+        check('the review of backlog 231: Add picture and the Image Library\'s Add make the first picture on a bare map its ground too, the map picture\'s own tools (Align its grid, Trim to cells) reach it locked and keep its lock, a press on locked structure is never handed down to a free piece beneath it, and Build\'s structure row follows the board while the options are up',
+            wbT.includes("if (type === 'image' && !item.isChar && typeof groundPic === 'function') groundPic(getActiveMap(), item);") && wbT.includes("if (w.locked && !(typeof window !== 'undefined' && window.wpBuildCore && window.wpBuildCore.structOk && window.wpBuildCore.structOk(w))) return 'Unlock the picture first.';")
+            && dmT.includes("if (stIt && (handZ(cand) < itZ || (handZ(cand) === itZ && idx < itIdx))) return;") && wbT.includes("if (_bm && _bm.style.display !== 'none' && _bm.offsetParent !== null) buildStructSync(); }"));
         check('backlog 231, both release notes say it, alike', notes231.every(Boolean) && notes231[0][0] === notes231[1][0]);
     }
     summed = true;

@@ -380,21 +380,21 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         && !('furn' in GC.cleanGen({ seed: 'abc-1' })) && GC.cleanGen({ furn: 'few' }).furn === 'few' && GC.cleanGen({ furn: 'full' }).furn === 'full' && GC.cleanGen({ furn: 'none' }).furn === 'none' && !('furn' in GC.cleanGen({ furn: 'all' }))
         && !('furn' in CC.cleanCity({ seed: 'abc-1' })) && CC.cleanCity({ furn: 'none' }).furn === 'none' && !('furn' in CC.cleanCity({ furn: 7 }))
         && J(GC.genDungeon(GC.cleanGen({ seed: 'abc-1', furn: 'full' })).cells) === J(GC.genDungeon(GC.cleanGen({ seed: 'abc-1' })).cells));
-    let fBad = 0, fN = 0, fUse = {}, fMid = 0, fRoomless = 0, fCut = 0;
+    let fBad = 0, fN = 0, fUse = {}, fMid = 0, fRoomless = 0, fCut = 0, fLead = 0, fFullN = 0, fFewN = 0;
     for (let i = 0; i < 300; i++) {
         const dg = GC.genDungeon(GC.cleanGen({ seed: GC.seedOf(i * 31), rooms: ['few', 'some', 'many'][i % 3], doors: ['none', 'some', 'most'][i % 3] }));
         ['few', 'full'].forEach(am => {
             const pl = FG.roomPlan(dg, am), occ = {}, inR = {};
             if (J(pl) !== J(FG.roomPlan(dg, am))) fBad++;
             dg.rooms.forEach((R, n) => { for (let r = R.r; r < R.r + R.h; r++) for (let c = R.c; c < R.c + R.w; c++) inR[c + ',' + r] = n; });
-            const per = {};
+            const per = {}, sets = {};
             pl.forEach(p => {
-                fN++; fUse[p.use] = 1; per[p.room] = (per[p.room] || 0) + 1;
+                fN++; fUse[p.use] = 1; per[p.room] = (per[p.room] || 0) + 1; (sets[p.room] = sets[p.room] || new Set()).add(p.set); if (p.lead) fLead++;
                 const sz = FG.SIZE[p.k], turned = p.rot === 90 || p.rot === 270;
                 if (p.fw !== (turned ? sz[1] : sz[0]) || p.fh !== (turned ? sz[0] : sz[1]) || [0, 90, 180, 270].indexOf(p.rot) < 0) fBad++;
-                const R = dg.rooms[p.room], mid = p.k === 'table' || p.k === 'rug' || (p.k === 'statue' && p.r > R.r && p.c > R.c && p.r + p.fh < R.r + R.h && p.c + p.fw < R.c + R.w);
-                if (mid) fMid++;
-                else if (!(p.rot === 0 ? p.r === R.r : p.rot === 180 ? p.r + p.fh === R.r + R.h : p.rot === 270 ? p.c === R.c : p.c + p.fw === R.c + R.w)) fBad++;   // against the wall it turns its back to
+                const R = dg.rooms[p.room], mid = !!p.mid;
+                if (mid) { fMid++; if (p.r === R.r || p.c === R.c || p.r + p.fh === R.r + R.h || p.c + p.fw === R.c + R.w) fBad++; }   /* a middle set touches no wall */
+                else if (p.lead && !(p.rot === 0 ? p.r === R.r : p.rot === 180 ? p.r + p.fh === R.r + R.h : p.rot === 270 ? p.c === R.c : p.c + p.fw === R.c + R.w)) fBad++;   // against the wall it turns its back to
                 if (p.fw >= R.w || p.fh >= R.h) fBad++;
                 for (let r = p.r; r < p.r + p.fh; r++) for (let c = p.c; c < p.c + p.fw; c++) { const k = c + ',' + r; if (occ[k] || inR[k] !== p.room) fBad++; occ[k] = 1; }
             });
@@ -405,12 +405,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 while (todo.length) { const [c, r] = todo.pop().split(',').map(Number); [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(d => { const k = (c + d[0]) + ',' + (r + d[1]); if (free.includes(k) && !seen.has(k)) { seen.add(k); todo.push(k); } }); }
                 if (seen.size !== free.length) { fBad++; fCut++; }
             });
-            if (am === 'few' && Object.values(per).some(v => v > 2)) fBad++;
+            if (am === 'few' && Object.values(sets).some(s => s.size > 1)) fBad++;   /* A few: one set a room */
+            if (am === 'full') fFullN += pl.length; else fFewN += pl.length;
             if (am === 'full' && dg.rooms.some((R, n) => !per[n])) fRoomless++;
         });
     }
-    check('fold 5, a dungeon over 300 seeds: every piece inside its own room, its footprint its size turned, its back to a wall unless it is the middle piece, no two on a cell, never across a room, a doorway\'s way in and the cell beyond it clear, every room\'s free cells one walk so that no doorway or corner is closed off (the review of fold 5), A few at most two a room, each use given, and the same plan again from the same seed',
-        fBad === 0 && fN > 3000 && Object.keys(fUse).length === 6 && fMid > 20 && fRoomless < 30, 'bad ' + fBad + ', rooms cut ' + fCut);
+    check('fold 5, a dungeon over 300 seeds: every piece inside its own room, its footprint its size turned, each wall set\'s first piece with its back to its wall and a middle set touching no wall (the owner: "Sets that belong together"), no two on a cell, never across a room, a doorway\'s way in and the cell beyond it clear, every room\'s free cells one walk so that no doorway or corner is closed off (the review of fold 5), A few one set a room and Furnished more than twice as full ("Lived-in"), each use given, and the same plan again from the same seed',
+        fBad === 0 && fN > 3000 && Object.keys(fUse).length === 6 && fMid > 100 && fLead > 1500 && fFullN > fFewN * 2 && fRoomless < 30, J({ fBad, fCut, fMid, fLead, fFullN, fFewN, fRoomless }));
     const dgA = GC.genDungeon(GC.cleanGen({ seed: 'abc-1', rooms: 'many' })), plA = FG.roomPlan(dgA, 'full');
     const inBox = (x, y, b) => x > b.x && y > b.y && x < b.x + b.w && y < b.y + b.h;
     const sqG = { type: 'square', size: 50 }, hxG = { type: 'hex', s: 30, h: 52 };

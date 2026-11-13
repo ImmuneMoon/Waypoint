@@ -478,7 +478,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         && wbSrc.includes("theme: val('genTheme'), furn: val('genFurn') });") && wbSrc.includes("set('genFurn', o.furn || 'few');") && wbSrc.includes("theme: val('cityTheme'), furn: val('cityFurn') });") && wbSrc.includes("set('cityFurn', o.furn || 'few');")
         && wbSrc.includes("'genTheme', 'genFurn', 'genSeed'") && wbSrc.includes("'genDoors', 'genTheme', 'genFurn'].forEach") && wbSrc.includes("'cityTheme', 'cityFurn', 'cityLayout'") && wbSrc.includes("'cityFields', 'cityFurn'].forEach"));
     check('fold 5, the laying: the plan counts the furnishings, a dungeon\'s by its own lattice moved by its origin and a town\'s on the 50 px cell; each piece is made as Build\'s Objects tab makes one, in the theme\'s era and the Looks list\'s pack where it has that kind, its middle where it was planned, and never locked',
-        wbSrc.includes("var fu = { list: FG ? FG.roomPieces(FG.roomPlan(dg, opts.furn, grid.type === 'hex'), gox || goy ? genBare(grid) : grid, at.x - gox, at.y - goy) : [], hex: grid.type === 'hex' };") && wbSrc.includes("var fu = { list: FG ? FG.townPieces(pc, opts.furn, opts.seed, CC.CELL, cells) : [], hex: false, cell: { w: CC.CELL, h: CC.CELL } };")
+        wbSrc.includes("var fu = { list: FG ? FG.roomFurnish(dg, opts.furn, gox || goy ? genBare(grid) : grid, at.x - gox, at.y - goy) : [], hex: grid.type === 'hex' };") && wbSrc.includes("var fu = { list: FG ? FG.townPieces(pc, opts.furn, opts.seed, CC.CELL, cells) : [], hex: false, cell: { w: CC.CELL, h: CC.CELL } };")
         && (wbSrc.match(/nAll = pc\.count \+ fu\.list\.length;/g) || []).length === 2 && (wbSrc.match(/if \(typeof genFurnItems === 'function'\) genFurnItems\(furn, theme\)/g) || []).length === 2
         && (wbSrc.match(/Items\(plan\.pieces, [^)]*\)?, plan\.furn\)/g) || []).length === 4 && wbSrc.includes("var pr = FN.genProps(p.k, era, fu.hex, fu.cell);") && wbSrc.includes("x: Math.round(p.x - pr.w / 2), y: Math.round(p.y - pr.h / 2)")
         && fnSrc.includes("var pk = packById(lookNow()), src = pk ? F.packLook(pk, k, era) : '', f = { k: k, era: era }; if (src) f.pack = pk.id;") && fnSrc.includes("import './furngen.js';")
@@ -487,6 +487,61 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         fnSrc.includes("if (p && it) { p.w = it.w * cell.w; p.h = it.h * cell.h; }") && wbSrc.includes("if (fu.hex && (p.rot === 90 || p.rot === 270)) { var cw = pr.w / fu.cell.w, ch = pr.h / fu.cell.h; pr.w = Math.round(cw * fu.cell.h); pr.h = Math.round(ch * fu.cell.w); }")
         && wbSrc.includes("FG.townPieces(pc, opts.furn, opts.seed, CC.CELL, cells)") && wbSrc.includes("if (kept && !Object.prototype.hasOwnProperty.call(here.meta.gen, 'furn')) kept.furn = 'none';") && wbSrc.includes("if (kept && !Object.prototype.hasOwnProperty.call(here.meta.city, 'furn')) kept.furn = 'none';")
         && O.furnProps({ k: 'crate', era: 'fantasy' }, [[{ id: 'o_c', name: 'Big crate', furn: 'crate', w: 3, h: 3 }]], false, { w: 50, h: 50 }, '').w === 150);   /* the rule's own size, which genProps sets back */
+    // the review of the sets (the owner's picks: "Sets that belong together", "Stalls round the square", "Lived-in"): what each promise means,
+    // checked piece by piece, so that each fault the review found fails here
+    let sBad = {}; const sb = (k) => { sBad[k] = (sBad[k] || 0) + 1; };
+    const near1 = (a, b) => a.c <= b.c + b.fw && b.c <= a.c + a.fw && a.r <= b.r + b.fh && b.r <= a.r + a.fh && !(a.c + a.fw > b.c && b.c + b.fw > a.c && a.r + a.fh > b.r && b.r + b.fh > a.r);   /* touching by a side or a corner, not overlapping */
+    for (let i = 0; i < 300; i++) {
+        const dg = GC.genDungeon(GC.cleanGen({ seed: GC.seedOf(i * 31), rooms: ['few', 'some', 'many'][i % 3], doors: ['none', 'some', 'most'][i % 3] }));
+        ['few', 'full'].forEach(am => {
+            const pl = FG.roomPlan(dg, am), occ = {};
+            pl.forEach(p => { for (let r = p.r; r < p.r + p.fh; r++) for (let c = p.c; c < p.c + p.fw; c++) occ[c + ',' + r] = 1; });
+            dg.doors.forEach(D => { const c = D.c + D.dc, r = D.r + D.dr; (D.dc ? [[c, r - 1], [c, r + 1]] : [[c - 1, r], [c + 1, r]]).forEach(x => { const R0 = dg.rooms.findIndex(R => x[0] >= R.c && x[1] >= R.r && x[0] < R.c + R.w && x[1] < R.r + R.h); if (R0 >= 0 && occ[x[0] + ',' + x[1]] && dg.rooms[R0] && c >= dg.rooms[R0].c && r >= dg.rooms[R0].r && c < dg.rooms[R0].c + dg.rooms[R0].w && r < dg.rooms[R0].r + dg.rooms[R0].h) sb('door side'); }); });
+            const bySet = {}; pl.forEach(p => (bySet[p.set] = bySet[p.set] || []).push(p));
+            Object.values(bySet).forEach(ps => {
+                const lead = ps[0];
+                if (lead.k === 'bed') { const ch = ps.find(p => p.k === 'chest'); if (ch) { const foot = lead.rot === 0 ? ch.c === lead.c && ch.r === lead.r + 2 : lead.rot === 180 ? ch.c === lead.c && ch.r === lead.r - 1 : lead.rot === 90 ? ch.r === lead.r && ch.c === lead.c - 1 : ch.r === lead.r && ch.c === lead.c + 2; if (!foot) sb('chest not at the foot'); } }
+                ps.filter(p => p.k === 'chair' || p.k === 'stool').forEach(p => { const to = ps.find(q => ['table', 'desk', 'workbench'].indexOf(q.k) >= 0); if (to && !near1(p, to)) sb('seat not at its table'); if (to && !(to.rot === p.rot || (to.rot + 180) % 360 === p.rot)) sb('seat turned'); });
+                const mid = ps.filter(p => p.mid); if (mid.length && mid[0].use === 'shrine') { const st = pl.find(p => p.room === mid[0].room && p.k === 'statue' && !p.mid); if (st && mid.some(b => b.rot !== (st.rot + 180) % 360)) sb('pews not facing the statue'); }
+                if (ps.length === 1 && !ps[0].mid && pl.some(p => p.room === ps[0].room && p.mid)) { const P = FG.PURPOSES.find(x => x.id === ps[0].use); if (!P.sets.some(s => s.length === 1 && s[0].k === ps[0].k)) sb('a stray piece beside a middle set'); }
+            });
+        });
+    }
+    const FCx = await import(U('scripts/fogcore.js'));
+    let hexOff = 0, hexSeats = 0;
+    for (let i = 0; i < 120; i++) [[600, 700], [645, 700]].forEach(o => {   /* plan column 0 on an even and an odd column of the board */
+        const dg = GC.genDungeon(GC.cleanGen({ seed: GC.seedOf(i * 53), rooms: ['few', 'some', 'many'][i % 3] })), pl = FG.roomPlan(dg, 'full', true, ((FCx.cellOf(o[0], o[1], hxG).q % 2) + 2) % 2), pcs = FG.roomFurnish(dg, 'full', hxG, o[0], o[1]);
+        if (pcs.length !== pl.length) hexOff++;
+        const bySet = {}; pl.forEach((p, j) => (bySet[p.set] = bySet[p.set] || []).push([p, pcs[j]]));
+        Object.values(bySet).forEach(ps => { const L = ps[0]; if (!L[1] || L[0].fh < 2 || L[0].fw !== 1) return; ps.slice(1).forEach(q => { if (!q[1] || q[0].fw !== 1 || q[0].c === L[0].c) return; hexSeats++; if (Math.abs(q[1].y - L[1].y) > 26 * (L[0].fh - 1) + 0.5) hexOff++; }); });
+    });
+    let stOpp = 0, stBad = 0, stN = 0, stBack = 0, stGoods = 0, stBackN = 0;
+    for (let i = 0; i < 60; i++) for (const size of ['village', 'town', 'city']) {
+        const o = CC.cleanCity({ seed: GC.seedOf(i * 977), size }), pc = CC.cityPieces(CC.genCity(o), 0, 0), vil = size === 'village';
+        const solid = pc.buildings.map(b => b.geo).concat(pc.towers.map(t => t.geo), pc.walls.filter(w => !w.line).map(w => w.geo)).map(g => [g.x, g.y, g.x + g.w, g.y + g.h]);
+        ['few', 'full'].forEach(am => {
+            const tp = FG.townPieces(pc, am, o.seed, 50, vil), st = tp.find(p => p.k === 'statue'), cs = tp.filter(p => p.k === 'counter' && p.at === 'market');
+            cs.forEach(c => {   /* each counter faces the statue and has its goods touching it */
+                stN++; const dx = st.x - c.x, dy = st.y - c.y, want = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 270 : 90) : (dy > 0 ? 0 : 180); if (c.rot !== want) stBad++;
+                const wh = c.rot % 180 ? [50, 100] : [100, 50], g = tp.find(p => p.at === 'market' && ['crate', 'sacks', 'barrel'].indexOf(p.k) >= 0 && Math.abs(p.x - c.x) <= wh[0] / 2 + 25.5 && Math.abs(p.y - c.y) <= wh[1] / 2 + 25.5 && p !== c); if (g) stGoods++; else stBad++;
+            });
+            if (am === 'few' && cs.length === 2 && (cs[0].rot + 180) % 360 !== cs[1].rot) stOpp++;   /* facing each other: turned opposite ways, on either side of the statue (a village snaps a counter half a cell off its line) */
+            tp.filter(p => p.at === 'street' && p.k !== 'light').forEach(p => {   /* a house, tower or wall box behind the piece's whole back edge */
+                stBackN++; const tn = p.rot % 180, w = (tn ? FG.SIZE[p.k][1] : FG.SIZE[p.k][0]) * 50, h = (tn ? FG.SIZE[p.k][0] : FG.SIZE[p.k][1]) * 50;
+                const pts = []; for (let a = 0.1; a < 1; a += 0.2) { if (p.rot === 0) pts.push([p.x - w / 2 + w * a, p.y - h / 2 - 2]); else if (p.rot === 180) pts.push([p.x - w / 2 + w * a, p.y + h / 2 + 2]); else if (p.rot === 270) pts.push([p.x - w / 2 - 2, p.y - h / 2 + h * a]); else pts.push([p.x + w / 2 + 2, p.y - h / 2 + h * a]); }
+                if (!pts.every(q => solid.some(b => q[0] >= b[0] && q[0] <= b[2] && q[1] >= b[1] && q[1] <= b[3]))) stBack++;
+            });
+        });
+    }
+    check('the review of the sets: a dungeon room keeps the cells beside each doorway clear, a bed\'s chest stands at its foot, a chair or stool beside its own table, desk or workbench and turned to it, a shrine\'s pews face its statue, and no stray lone piece beside a middle set, over 300 dungeons',
+        Object.keys(sBad).length === 0, sBad);
+    check('the review of the sets, on hexagons: a piece beside a lead two rows long stands beside it, its middle within the lead\'s own span, with plan column 0 on an even and an odd column of the board',
+        hexOff === 0 && hexSeats > 200, { hexOff, hexSeats });
+    check('the review of the sets, a town\'s square and streets over 180 places: every counter faces the statue with its goods beside it, A few\'s two stalls face each other across it, and every street good has a house, tower or wall behind its whole back edge',
+        stBad === 0 && stOpp === 0 && stBack === 0 && stN > 500 && stGoods === stN && stBackN > 1000, { stBad, stOpp, stBack, stN, stGoods, stBackN });
+    check('the review of the sets: a polygon with a point that is none is no ground and throws nothing',
+        FG.inGeo({ type: 'path', x: 0, y: 0, w: 10, h: 10, pts: [null, [10, 0], [10, 10]] }, 5, 5) === false
+        && Array.isArray(FG.townPieces({ grounds: [{ kind: 'street', geo: { type: 'path', x: 0, y: 0, w: 1000, h: 1000, pts: [null, [1000, 0], [1000, 1000]] } }], buildings: [{ geo: { type: 'rect', x: 500, y: 500, w: 50, h: 50 } }] }, 'full', 'x', 50)));
     const notes5 = [readRoot('WHATSNEW.txt'), read('assets/whatsnew.txt')].map(t => /\n- The dungeon and city generators can furnish what they lay\.[\s\S]*?Waypoint's own drawing otherwise\.\n/.exec(t));
     check('fold 5: both release notes say it, alike, and Help says it after Theme', notes5.every(Boolean) && notes5[0][0] === notes5[1][0]
         && ix.includes('<li><b>Furnishings</b> in the dungeon and city dialogs puts in what stands there') && ix.indexOf('<b>Furnishings</b> in the dungeon') > ix.indexOf('<b>Theme</b> in the dungeon'));

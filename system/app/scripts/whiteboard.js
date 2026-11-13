@@ -9633,7 +9633,7 @@ function genPlan() {
     if (gox || goy) [pc.floors, pc.doors, pc.walls].forEach(function(list) { (list || []).forEach(function(b) { if (b && typeof b.x === 'number') b.x += gox; if (b && typeof b.y === 'number') b.y += goy; }); });   // a lattice off the board's 0,0: laid from 0,0 and moved by its origin
     if (!pc.floors.length || !pc.walls.length) return { ok: false, say: 'That dungeon could not be laid out. Try another seed.' };
     var FG = window.wpFurnGen;   // 1.6.2 (backlog 222): its furnishings, by the same lattice and moved the same way
-    var fu = { list: FG ? FG.roomPieces(FG.roomPlan(dg, opts.furn, grid.type === 'hex'), gox || goy ? genBare(grid) : grid, at.x - gox, at.y - goy) : [], hex: grid.type === 'hex' };
+    var fu = { list: FG ? FG.roomFurnish(dg, opts.furn, gox || goy ? genBare(grid) : grid, at.x - gox, at.y - goy) : [], hex: grid.type === 'hex' };
     fu.list.forEach(function(p) { p.x += gox; p.y += goy; }); fu.cell = fu.hex ? { w: 2 * grid.s, h: grid.h } : { w: grid.size, h: grid.size };
     var held = map && Array.isArray(map.whiteboard) ? map.whiteboard.length : 0, nAll = pc.count + fu.list.length;
     if (held + nAll > BUILD_MAX) return { ok: false, say: genCountWords(nAll, held) };

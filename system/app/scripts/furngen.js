@@ -31,7 +31,7 @@ var PURPOSES = Object.freeze([
         mid: SET([S('rug', 0, 0), S('chair', 0, -1), S('chair', 1, 1, 180)]) }),
     Object.freeze({ id: 'workshop', name: 'Workshop', sets: Object.freeze([SET([S('workbench', 0, 0), S('stool', 0, 1, 180), S('crate', 2, 0)]), SET([S('crate', 0, 0), S('crate', 1, 0), S('barrel', 0, 1)]), SET([S('workbench', 0, 0), S('stool', 1, 1, 180)]), SET([S('barrel', 0, 0), S('sacks', 1, 0), S('light', 2, 0)])]) }),
     Object.freeze({ id: 'shrine', name: 'Shrine', sets: Object.freeze([SET([S('light', 0, 0), S('statue', 1, 0), S('light', 2, 0)]), SET([S('plant', 0, 0), S('light', 1, 0)]), SET([S('bench', 0, 0)]), SET([S('plant', 0, 0)])]),
-        mid: SET([S('bench', 0, 0, 180), S('bench', 0, 2, 180)]) })
+        mid: SET([S('bench', 0, 0, 180), S('bench', 0, 2, 180)]), faces: true })
 ]);
 // A town's goods as they gather by a house wall, in twos and threes, the first against the wall and the rest beside it along the wall
 var STREET_SETS = Object.freeze([SET(['barrel', 'barrel', 'crate']), SET(['crate', 'sacks']), SET(['bench']), SET(['barrel', 'crate', 'crate']), SET(['sacks', 'barrel']), SET(['bench', 'plant']), SET(['plant'])]);
@@ -50,9 +50,12 @@ var TOWN_STEP = 40, SET_TRIES = 600;
 // 5 by 5 or larger that is Furnished, its middle set first, with a ring of clear cells round it. A few lays one set; Furnished lays sets
 // until half the room's wall cells are taken (the owner: "Lived-in"). The cell a doorway opens into, the cells beside it along the wall and
 // the cell inward from it stay clear, and every cell no piece stands on stays one walk, so no set closes a doorway or a corner off.
+// A shrine (faces) lays its statue's set first, and its pews in the middle face the wall it stands on.
 // hex: the dungeon is laid on hexagons, where the cells of one column stack exactly and the next column stands half a row lower, so a
-// piece two cells long lies only along a column there (a piece across two columns would stand half in one row and half in the next)
-function roomPlan(dg, amount, hex) {
+// piece two cells long lies only along a column there (a piece across two columns would stand half in one row and half in the next).
+// odd0, only as 1: plan column 0 lies on an odd column of the board, which stands half a row lower; a piece beside a lead two rows long,
+// in the next column, is moved a row where it would stand past the lead's end, and left out where that meets another piece of its set
+function roomPlan(dg, amount, hex, odd0) {
     var out = [], am = cleanFurnish(amount);
     if (am === 'none' || !isObj(dg) || !Array.isArray(dg.rooms) || !Array.isArray(dg.doors)) return out;
     var seed = isObj(dg.opts) && typeof dg.opts.seed === 'string' ? dg.opts.seed : '', rnd = rngOf('furn|rooms|' + seed + '|' + am), setN = 0;
@@ -82,38 +85,56 @@ function roomPlan(dg, amount, hex) {
         };
         // A set's pieces in the room's cells, its frame at cell (oc, or) turned by d (0: u to the right and v down; each next d a quarter turn
         // clockwise), or null where a piece would leave the room, cross a cell already taken or kept clear, or lie across two hex columns
+        var low = function(c) { return (((odd0 === 1 ? 1 : 0) + c) % 2 + 2) % 2; };   // 1 where a column of hexagons stands half a row lower
         var place = function(set, oc, or, d) {
-            var ps = [], cells = Object.create(null);
+            var raw = [], ps = [], cells = Object.create(null);
             for (var i = 0; i < set.length; i++) {
                 var s = set[i], sz = SIZE[s.k], tn = s.rel === 90 || s.rel === 270, fu = tn ? sz[1] : sz[0], fv = tn ? sz[0] : sz[1], c0 = Infinity, r0 = Infinity, c1 = -Infinity, r1 = -Infinity;
                 for (var a = 0; a < fu; a++) for (var b = 0; b < fv; b++) {
-                    var uu = s.u + a, vv = s.v + b, c = d === 0 ? oc + uu : d === 90 ? oc - vv : d === 180 ? oc - uu : oc + vv, r = d === 0 ? or + vv : d === 90 ? or + uu : d === 180 ? or - vv : or - uu, key = k(c, r);
-                    if (!inside(c, r) || used[key] || cells[key]) return null;
-                    cells[key] = 1; c0 = Math.min(c0, c); r0 = Math.min(r0, r); c1 = Math.max(c1, c); r1 = Math.max(r1, r);
+                    var uu = s.u + a, vv = s.v + b, c = d === 0 ? oc + uu : d === 90 ? oc - vv : d === 180 ? oc - uu : oc + vv, r = d === 0 ? or + vv : d === 90 ? or + uu : d === 180 ? or - vv : or - uu;
+                    c0 = Math.min(c0, c); r0 = Math.min(r0, r); c1 = Math.max(c1, c); r1 = Math.max(r1, r);
                 }
                 if (hex && c1 > c0) return null;
-                ps.push({ k: s.k, c: c0, r: r0, fw: c1 - c0 + 1, fh: r1 - r0 + 1, rot: (d + s.rel) % 360 });
+                raw.push({ k: s.k, c: c0, r: r0, fw: c1 - c0 + 1, fh: r1 - r0 + 1, rot: (d + s.rel) % 360 });
             }
+            var L = raw[0];
+            raw.forEach(function(q, i) {   // on hexagons a piece beside a lead two rows long stands beside it, never past its end
+                var moved = false;
+                if (hex && i && L.fw === 1 && L.fh >= 2 && q.fw === 1 && q.c !== L.c) {
+                    var at = 2 * q.r + (q.fh - 1) + low(q.c), top = 2 * L.r + low(L.c), bot = 2 * (L.r + L.fh - 1) + low(L.c);
+                    if (at < top) { q.r++; moved = true; } else if (at > bot) { q.r--; moved = true; }
+                }
+                var mine = [];
+                for (var y = q.r; y < q.r + q.fh; y++) for (var x = q.c; x < q.c + q.fw; x++) mine.push(k(x, y));
+                if (moved && mine.some(function(key) { return cells[key]; })) return;   // where moving it meets another piece of its set, it is left out
+                ps.push(q); mine.forEach(function(key) { cells[key] = (cells[key] || 0) + 1; });
+            });
+            if (Object.keys(cells).some(function(key) { var xy = key.split(','); return cells[key] > 1 || !inside(+xy[0], +xy[1]) || used[key]; })) return null;
             Object.keys(cells).forEach(function(q) { occ[q] = 1; });
             if (!whole()) { Object.keys(cells).forEach(function(q) { delete occ[q]; }); return null; }
             Object.keys(cells).forEach(function(q) { used[q] = 1; });
             return ps;
         };
         var lay = function(ps, mid) { ps.forEach(function(p, i) { var e = { k: p.k, c: p.c, r: p.r, fw: p.fw, fh: p.fh, rot: p.rot, room: n, use: P.id, set: setN }; if (mid) e.mid = true; else if (!i) e.lead = true; out.push(e); }); setN++; };
-        if (am === 'full' && P.mid && R.w >= 5 && R.h >= 5) {   // the middle set, turned along a column on hexagons, centered by its own size with a ring of clear cells round it
-            var mps = null, u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
-            P.mid.forEach(function(s) { var sz = SIZE[s.k], tn = s.rel === 90 || s.rel === 270; u0 = Math.min(u0, s.u); v0 = Math.min(v0, s.v); u1 = Math.max(u1, s.u + (tn ? sz[1] : sz[0]) - 1); v1 = Math.max(v1, s.v + (tn ? sz[0] : sz[1]) - 1); });
-            [hex ? 90 : 0, hex ? 0 : 90].some(function(d) {
-                var su = u1 - u0 + 1, sv = v1 - v0 + 1, wx = d === 90 ? sv : su, wy = d === 90 ? su : sv;
+        var midLaid = false, tryMid = function(ds) {   // the middle set, centered by its own size with a ring of clear cells round it
+            if (!(am === 'full' && P.mid && R.w >= 5 && R.h >= 5)) return;
+            var mps = null;
+            ds.some(function(d) {   // the set's cells with its frame at 0, 0 and turned by d, then moved so they stand in the room's middle
+                var c0 = Infinity, r0 = Infinity, c1 = -Infinity, r1 = -Infinity;
+                P.mid.forEach(function(s) {
+                    var sz = SIZE[s.k], tn = s.rel === 90 || s.rel === 270, fu = tn ? sz[1] : sz[0], fv = tn ? sz[0] : sz[1];
+                    for (var a = 0; a < fu; a++) for (var b = 0; b < fv; b++) { var uu = s.u + a, vv = s.v + b, c = d === 0 ? uu : d === 90 ? -vv : d === 180 ? -uu : vv, r = d === 0 ? vv : d === 90 ? uu : d === 180 ? -vv : -uu; c0 = Math.min(c0, c); r0 = Math.min(r0, r); c1 = Math.max(c1, c); r1 = Math.max(r1, r); }
+                });
+                var wx = c1 - c0 + 1, wy = r1 - r0 + 1;
                 if (R.w < wx + 2 || R.h < wy + 2) return false;   // a cell between it and every wall
-                var oc = d === 90 ? R.c + Math.floor((R.w - wx) / 2) + v1 : R.c + Math.floor((R.w - wx) / 2) - u0, or = d === 90 ? R.r + Math.floor((R.h - wy) / 2) - u0 : R.r + Math.floor((R.h - wy) / 2) - v0;
-                mps = place(P.mid, oc, or, d); return !!mps;
+                mps = place(P.mid, R.c + Math.floor((R.w - wx) / 2) - c0, R.r + Math.floor((R.h - wy) / 2) - r0, d); return !!mps;
             });
             if (mps) {
-                lay(mps, true);
+                lay(mps, true); midLaid = true;
                 mps.forEach(function(p) { for (var y = p.r - 1; y <= p.r + p.fh; y++) for (var x = p.c - 1; x <= p.c + p.fw; x++) used[k(x, y)] = 1; });
             }
-        }
+        };
+        if (!P.faces) tryMid(hex ? [90, 0] : [0, 90]);
         // The walls in the seed's order, and along each the places a set may start, the two corners first and then inward
         var walls = [0, 90, 180, 270], wallCells = 2 * (R.w + R.h) - 4;
         for (var i = walls.length - 1; i > 0; i--) { var j = Math.floor(rnd() * (i + 1)), sw = walls[i]; walls[i] = walls[j]; walls[j] = sw; }
@@ -123,7 +144,8 @@ function roomPlan(dg, amount, hex) {
             return out2.map(function(a2) { return d === 0 ? [R.c + a2, R.r] : d === 90 ? [R.c + R.w - 1, R.r + a2] : d === 180 ? [R.c + R.w - 1 - a2, R.r + R.h - 1] : [R.c, R.r + R.h - 1 - a2]; });
         };
         var wallTaken = function() { var t = 0; Object.keys(occ).forEach(function(q) { var p = q.split(','); if (edge(+p[0], +p[1])) t++; }); return t; };
-        var goal = am === 'few' ? 1 : Infinity, sets = 0, tries = 0, si = Math.floor(rnd() * P.sets.length);
+        var goal = am === 'few' ? 1 : Infinity, sets = 0, tries = 0, si = P.faces ? 0 : Math.floor(rnd() * P.sets.length);
+        var faced = -1;   // a shrine: the wall its statue's set stands on, which its pews face
         for (var round = 0; sets < goal && round < P.sets.length * 2 && tries < SET_TRIES; round++) {
             if (am === 'full' && wallTaken() * 2 >= wallCells) break;
             var set = P.sets[(si + round) % P.sets.length], len = 0;
@@ -131,12 +153,13 @@ function roomPlan(dg, amount, hex) {
             var done = false;
             for (var wi = 0; wi < walls.length && !done && tries < SET_TRIES; wi++) {
                 var sp = spots(walls[wi], len);
-                for (var q = 0; q < sp.length && !done && tries < SET_TRIES; q++) { tries++; var ps = place(set, sp[q][0], sp[q][1], walls[wi]); if (ps) { lay(ps, false); sets++; done = true; } }
+                for (var q = 0; q < sp.length && !done && tries < SET_TRIES; q++) { tries++; var ps = place(set, sp[q][0], sp[q][1], walls[wi]); if (ps) { lay(ps, false); sets++; done = true; if (P.faces && !round) faced = walls[wi]; } }
             }
+            if (P.faces && !round && faced >= 0) tryMid([faced]);   // the pews face the statue's wall
             if (done) walls.push(walls.shift());   // the next set starts on another wall, so a room's sets spread round it
         }
         // A room too small for a whole set, its doorways kept clear, takes one set's first piece alone, against a wall
-        for (var one = 0; !sets && one < P.sets.length && tries < SET_TRIES * 2; one++) {
+        for (var one = 0; !sets && !midLaid && one < P.sets.length && tries < SET_TRIES * 2; one++) {
             var lone = SET([P.sets[(si + one) % P.sets.length][0]]), llen = SIZE[lone[0].k][0];
             for (var w2 = 0; w2 < walls.length && !sets; w2++) { var sp2 = spots(walls[w2], llen); for (var q2 = 0; q2 < sp2.length && !sets; q2++) { tries++; var ps2 = place(lone, sp2[q2][0], sp2[q2][1], walls[w2]); if (ps2) { lay(ps2, false); sets++; } } }
         }
@@ -160,6 +183,13 @@ function roomPieces(plan, grid, ox, oy) {
     return out;
 }
 
+// roomFurnish(dg, amount, grid, ox, oy) -> roomPieces of roomPlan, the hexagons' columns read from the very lattice the pieces are laid on
+function roomFurnish(dg, amount, grid, ox, oy) {
+    if (!isObj(grid) || !fin(ox) || !fin(oy)) return [];
+    var hex = grid.type === 'hex', odd0 = hex && grid.s > 0 && grid.h > 0 ? ((cellOf(ox, oy, grid).q % 2) + 2) % 2 : 0;
+    return roomPieces(roomPlan(dg, amount, hex, odd0), grid, ox, oy);
+}
+
 // What a town's open ground is, read from cityPieces' own pieces: a point inside a street that no house, water, bridge or field covers
 function inGeo(g, x, y) {
     if (!isObj(g) || !fin(g.x) || !fin(g.y)) return false;
@@ -167,6 +197,7 @@ function inGeo(g, x, y) {
     if (g.type === 'circle') { var rx = g.w / 2, ry = g.h / 2, dx = (x - g.x - rx) / rx, dy = (y - g.y - ry) / ry; return dx * dx + dy * dy <= 1; }
     if (!Array.isArray(g.pts) || x < g.x || y < g.y || x > g.x + g.w || y > g.y + g.h) return false;
     var px = x - g.x, py = y - g.y, inn = false, P = g.pts;
+    if (P.length > 8000 || !P.every(function(q) { return Array.isArray(q) && fin(q[0]) && fin(q[1]); })) return false;   // one point that is none and the walk round would be wrong
     for (var i = 0, j = P.length - 1; i < P.length; j = i++) { var a = P[i], b = P[j]; if ((a[1] > py) !== (b[1] > py) && px < (b[0] - a[0]) * (py - a[1]) / (b[1] - a[1]) + a[0]) inn = !inn; }
     return inn;
 }
@@ -258,17 +289,30 @@ function townPieces(pc, amount, seed, cell, onCells) {
         // Stalls round the statue (the owner: "Stalls round the square"): a counter on each side facing in, its goods behind it, as near as
         // there is room; Furnished adds a light at each corner between them
         if (put('statue', mid.x, mid.y, 0, 'market')) { mid = placed[placed.length - 1]; }
-        var sides = [[0, -1, 0], [0, 1, 180], [-1, 0, 270], [1, 0, 90]], first = Math.floor(rnd() * 2), stalls = 0, sWant0 = am === 'few' ? 2 : 4;
-        if (first) sides = [sides[2], sides[3], sides[0], sides[1]];   // A few: a pair facing each other across the statue, the other pair where that pair finds no room
-        sides.forEach(function(s, i) {
-            if (stalls >= sWant0) return;
-            for (var R2 = 2; R2 <= 5; R2 += 0.5) {
-                var x = mid.x + s[0] * R2 * u, y = mid.y + s[1] * R2 * u;
+        var sides = [[0, -1, 0], [0, 1, 180], [-1, 0, 270], [1, 0, 90]], first = Math.floor(rnd() * 2);
+        if (first) sides = [sides[2], sides[3], sides[0], sides[1]];
+        var mark = function() { return [boxes.length, placed.length, out.length]; }, back = function(m) { boxes.length = m[0]; placed.length = m[1]; out.length = m[2]; };
+        // A stall is a counter facing the statue with its goods behind it, from half a cell clear of the statue outward; where a small square
+        // has no room behind any counter, its goods stand at the counter's end. A counter with no goods is no stall, and is taken back
+        var stall = function(s, i) {
+            for (var R2 = 1.5; R2 <= 5; R2 += 0.5) {
+                var m = mark(), x = mid.x + s[0] * R2 * u, y = mid.y + s[1] * R2 * u;
                 if (!put('counter', x, y, s[2], 'market')) continue;
-                var c = placed[placed.length - 1]; put(STALL_GOODS[i % STALL_GOODS.length], c.x + s[0] * u, c.y + s[1] * u, s[2], 'market'); stalls++;
-                break;
+                var c = placed[placed.length - 1];
+                if (put(STALL_GOODS[i % STALL_GOODS.length], c.x + s[0] * u, c.y + s[1] * u, s[2], 'market')) return true;
+                back(m);
             }
-        });
+            for (var R4 = 1.5; R4 <= 5; R4 += 0.5) {   // a small square has no room behind a counter: its goods stand at the counter's end
+                var m2 = mark(); if (!put('counter', mid.x + s[0] * R4 * u, mid.y + s[1] * R4 * u, s[2], 'market')) continue;
+                var c2 = placed[placed.length - 1], ex = s[0] ? 0 : 1.5 * u, ey = s[0] ? 1.5 * u : 0, gk = STALL_GOODS[i % STALL_GOODS.length];
+                if (put(gk, c2.x + ex, c2.y + ey, s[2], 'market') || put(gk, c2.x - ex, c2.y - ey, s[2], 'market')) return true;
+                back(m2);
+            }
+            return false;
+        };
+        if (am === 'few') {   // A few: a pair of stalls facing each other across the statue, the other pair where the first finds no room, else one
+            if (![0, 2].some(function(j) { var m = mark(); if (stall(sides[j], j) && stall(sides[j + 1], j + 1)) return true; back(m); return false; })) sides.some(function(s, i) { return stall(s, i); });
+        } else sides.forEach(function(s, i) { stall(s, i); });
         if (am === 'full') [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function(s) { for (var R3 = 2.5; R3 <= 4.5; R3 += 0.5) if (put('light', mid.x + s[0] * R3 * u, mid.y + s[1] * R3 * u, 0, 'market')) break; });
     }
     // Along the streets, goods gather in twos and threes with their backs to a house wall, on the side of the house the street is on
@@ -285,8 +329,14 @@ function townPieces(pc, amount, seed, cell, onCells) {
             var wh = dims(set[i], rot), gapPx = lat ? 0 : 1;
             if (rot === 0) ay = hs[3] + wh[1] / 2 + gapPx; else if (rot === 180) ay = hs[1] - wh[1] / 2 - gapPx; else if (rot === 270) ax = hs[2] + wh[0] / 2 + gapPx; else ax = hs[0] - wh[0] / 2 - gapPx;
             var off = i === 0 ? 0 : along + (ux ? wh[0] : wh[1]) / 2, px = (ux ? (i === 0 ? sp.x : sp.x + off) : ax), py = (uy ? (i === 0 ? sp.y : sp.y + off) : ay);
+            // The house runs behind the whole piece, never past its end: the first piece is slid back onto the wall, a later one past its end
+            // ends the set (the review of the sets: goods stood off a house's corner with nothing behind them)
+            var len = ux ? wh[0] : wh[1], w0 = ux ? hs[0] : hs[1], w1 = ux ? hs[2] : hs[3], at0 = ux ? snap(px, wh[0] / u, X0) : snap(py, wh[1] / u, Y0);
+            if (len > w1 - w0 + 0.5) break;
+            if (i === 0) { var sl = at0 - len / 2 < w0 ? w0 - (at0 - len / 2) : at0 + len / 2 > w1 ? w1 - (at0 + len / 2) : 0; if (ux) px = at0 + sl; else py = at0 + sl; at0 += sl; }
+            if (at0 - len / 2 < w0 - 0.5 || at0 + len / 2 > w1 + 0.5) break;
             if (put(set[i], px, py, rot, 'street')) { laid++; var last = placed[placed.length - 1]; if (i === 0) { sp = { x: last.x, y: last.y }; along = (ux ? wh[0] : wh[1]) / 2; } else along = off + (ux ? wh[0] : wh[1]) / 2; }
-            else if (i === 0) break;
+            else break;   // a set stands together: a piece that does not fit ends it
         }
         if (laid) n++;
     }
@@ -298,6 +348,6 @@ function townPieces(pc, amount, seed, cell, onCells) {
     return out;
 }
 
-var API = { AMOUNTS: AMOUNTS, WORDS: WORDS, SIZE: SIZE, PURPOSES: PURPOSES, cleanFurnish: cleanFurnish, roomPlan: roomPlan, roomPieces: roomPieces, townPieces: townPieces, inGeo: inGeo };
+var API = { AMOUNTS: AMOUNTS, WORDS: WORDS, SIZE: SIZE, PURPOSES: PURPOSES, cleanFurnish: cleanFurnish, roomPlan: roomPlan, roomPieces: roomPieces, roomFurnish: roomFurnish, townPieces: townPieces, inGeo: inGeo };
 if (typeof window !== 'undefined') window.wpFurnGen = API;
-export { AMOUNTS, WORDS, SIZE, PURPOSES, cleanFurnish, roomPlan, roomPieces, townPieces, inGeo };
+export { AMOUNTS, WORDS, SIZE, PURPOSES, cleanFurnish, roomPlan, roomPieces, roomFurnish, townPieces, inGeo };

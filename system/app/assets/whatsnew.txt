@@ -1178,6 +1178,12 @@ The Data Map
   its menu is for.
 - Visible to players wears a player with an eye over them, and the eye alone
   means only what a token sees.
+- Eight buttons that shared a drawing with something else now have their own.
+  A hidden piece on your map wears a closed eye. Refresh Waypoint wears the app
+  window reloading. Locked in place is an anchor, while a lock for players
+  keeps the padlock and shows how it stands now, and a GM-only page wears
+  hidden from players. Flatten and Unflatten, Incapacitated, Host a game, Next
+  turn and End turn each have a drawing of their own too.
 - Fixed: placing a shape or Build's pieces over a filled region could drag
   the region instead.
 - A map used to open on whichever face you last left it in. Now Settings,

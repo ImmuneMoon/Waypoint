@@ -210,7 +210,7 @@ function newOwnPicture(tok) {
 function showStanceMenu(e, tok) {
     var cMenu = document.getElementById('contextMenu'); if (!cMenu) return;
     cMenu.onclick = null;   // a machine that hosted earlier in this run still holds the GM's item menu's handler: a player's rows are never its business
-    var rows = tok.locked ? (stanceOn('elevation') || stanceOn('posture') ? '<div class="menu-divider"></div><div class="menu-item" style="color:var(--dim); cursor:default;"><i class="wib wi-lock"></i> Locked by the GM</div>' : '') : (stanceMenuHtml(tok) || '');   // a locked token is frozen for its player
+    var rows = tok.locked ? (stanceOn('elevation') || stanceOn('posture') ? '<div class="menu-divider"></div><div class="menu-item" style="color:var(--dim); cursor:default;"><i class="wib wi-anchor"></i> Locked by the GM</div>' : '') : (stanceMenuHtml(tok) || '');   // a locked token is frozen for its player
     var sheetRow = tok.charId && window.wpSheets && window.wpSheets.canOpen(tok.charId) ? '<div class="menu-item cm-sheet-own"><i class="wib wi-clip"></i> Sheet&hellip;</div>' : '';
     var hudRow = tok.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(tok.charId) ? '<div class="menu-item cm-hud-own"><i class="wib wi-hud"></i> HUD&hellip;</div>' : '';   // HUD frame (HF2b)
     var picRow = ownPicOk(tok) ? '<div class="menu-item cm-pic-own"><i class="wib wi-pic"></i> New picture&hellip;</div>' : '';   // the token creator: their own picture, framed
@@ -1471,7 +1471,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
       }
       // The padlock shows the item's STATE (closed = locked), not the action
       var lockBtn = bar.querySelector('.st-lock');
-      lockBtn.innerHTML = '<i class="wib wi-' + (anyUnlocked ? 'unlock' : 'lock') + '"></i>';
+      lockBtn.innerHTML = '<i class="wib wi-' + (anyUnlocked ? 'anchor-off' : 'anchor') + '"></i>';   // 1.6.2 (backlog 230): locked in place is an anchor, the padlock is for players
       lockBtn.classList.toggle('on', !anyUnlocked);
       var doorSel = !!(window.wpFogCore && window.wpFogCore.isDoor && its.some(function(i) { return window.wpFogCore.isDoor(i); }));
       lockBtn.title = (anyUnlocked ? 'Not locked in place: it can be dragged and resized. Click to lock it in place' : 'Locked in place: no drag or resize. Click to unlock') + (doorSel ? '. This is not the lock of the door itself: right-click the door for Lock door for players' : '');
@@ -9272,8 +9272,8 @@ buildWire();
 var WALLS_ROW = '<div class="menu-item cm-walls" title="Thin wall lines along the outer edge of the selected floors together. Where two of them touch there is no wall between them, and a doorway that holds a door stays open. Each line is an ordinary piece afterwards, and one Undo takes them all back.">'
     + '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 18.5V8.5h13M3.5 18.5h4M18.5 6.5v4"/></svg><span>Walls around selection<small>Lays wall lines along the outer edge.</small></span></div>';
 // 1.6.2 (backlog 39): Flatten into one picture, on the GM's menu of a selection the map picture would draw, and Unflatten on a flattened picture
-var FLAT_ROW = '<div class="menu-item cm-flatten" title="The selected pieces drawn into one picture, saved with this campaign. The plain pieces are hidden, and Unflatten on the picture puts them back.">' + '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5V5h3.5M17.5 5H21v3.5M21 15.5V19h-3.5M6.5 19H3v-3.5M7.5 8.5h9v7h-9zM12 8.5v7M7.5 12h9"/></svg>' + '<span>Flatten into one picture&hellip;<small>Many pieces become one picture.</small></span></div>';
-var UNFLAT_ROW = '<div class="menu-item cm-unflat" title="Puts back the pieces this picture was made from, as they were, and takes the picture away.">' + '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5V5h3.5M17.5 5H21v3.5M21 15.5V19h-3.5M6.5 19H3v-3.5M7.5 8.5h9v7h-9zM12 8.5v7M7.5 12h9"/></svg>' + '<span>Unflatten<small>Puts its pieces back.</small></span></div>';
+var FLAT_ROW = '<div class="menu-item cm-flatten" title="The selected pieces drawn into one picture, saved with this campaign. The plain pieces are hidden, and Unflatten on the picture puts them back.">' + '<i class="wib wi-flatten"></i>' + '<span>Flatten into one picture&hellip;<small>Many pieces become one picture.</small></span></div>';
+var UNFLAT_ROW = '<div class="menu-item cm-unflat" title="Puts back the pieces this picture was made from, as they were, and takes the picture away.">' + '<i class="wib wi-unflatten"></i>' + '<span>Unflatten<small>Puts its pieces back.</small></span></div>';
 function flatRows(items) {
     var SCf = window.wpShotCore; if (window.wpStream || !buildMay() || !window.wpMapShot || typeof window.wpMapShot.flatten !== 'function') return null;
     var list = (Array.isArray(items) ? items : []).filter(Boolean), html = '';
@@ -11017,10 +11017,10 @@ function renderCombatStrip() {
         + (typeof stripMoveHtml === 'function' ? stripMoveHtml(n, fidS, c, am) : '')   // 1.5.7: the turn's move, asked through typeof for the suites that slice the strip alone
         + (typeof stripActsHtml === 'function' ? stripActsHtml(n, c, am) : '')   // 1.6.0: its actions, the same way
         + (nxt !== cur ? '<span class="combat-strip-next" data-tip="' + (chS ? 'Up next: the next in the order who has not gone this round' : 'Up next') + '">next ' + nameOf(nxt) + (nxC && nxC.round ? ', opening round ' + (c.round + 1) : '') + '</span>' : '')   // 1.6.2: a fight of one names nobody next
-        + (mine ? '<button class="combat-strip-btn combat-strip-endturn" data-act="endturn" title="End your turn: play moves on to the next in the order' + (chS ? ' who has not gone. Pick next chooses another' : '') + '">End turn</button>' : '')
+        + (mine ? '<button class="combat-strip-btn combat-strip-endturn" data-act="endturn" title="End your turn: play moves on to the next in the order' + (chS ? ' who has not gone. Pick next chooses another' : '') + '"><i class="wib wi-endturn"></i> End turn</button>' : '')
         + pickH
         + (chS ? '' : (host || mine ? '<button class="combat-strip-btn" data-act="hold" title="' + (holdNm ? 'Hold this turn and say what sets it off: play moves on, and it lasts to this character&rsquo;s next turn' : 'Hold this turn: play moves on. ' + (holdStay ? 'They act while held, and Done ends the hold.' : 'Act later puts them right after whoever is acting.') + (holdNext ? ' The hold lasts to their next turn.' : ' A hold not used by the round&rsquo;s end is lost.')) + '">Hold</button>' : '') + heldH)
-        + (host ? '<button class="combat-strip-btn" data-act="next" title="Next turn">&#9654;</button><button class="combat-strip-btn" data-act="edit" title="Combat roster"><i class="wib wi-pen"></i></button><button class="combat-strip-btn danger" data-act="end" title="End combat">&times;</button>' : '');
+        + (host ? '<button class="combat-strip-btn" data-act="next" title="Next turn"><i class="wib wi-nextturn"></i></button><button class="combat-strip-btn" data-act="edit" title="Combat roster"><i class="wib wi-pen"></i></button><button class="combat-strip-btn danger" data-act="end" title="End combat">&times;</button>' : '');
     // backlog 219 (the owner, 2026-11-10, by prompt, from the sheet docs/sheets/fight-in-bar-sheet.html: "A. A segment of the row"): the fight is a part of the trackers
     // bar's own row (trackers.js draws it there) and keeps the round, the arrows and whose turn it is; the rest is a menu under its last button, this screen's alone.
     // A player on their own turn keeps their move, actions and End turn in sight, and the stream window shows who is next and has no menu
@@ -11308,7 +11308,7 @@ function tableMenuParts(e, role) {
             html += '<div class="menu-item cm-session" data-act="notepad"><i class="wib wi-note"></i> ' + (n.notepad && n.notepad.on ? (typeof n.notepadHidden === 'function' && n.notepadHidden() ? 'Show Table Notepad' : 'Put Away Table Notepad') : 'Open Table Notepad') + '</div>';
             html += '<div class="menu-divider"></div>';
             html += '<div class="menu-item cm-session" data-act="summon"><i class="wib wi-summon"></i> Summon Everyone Here</div>';
-            html += '<div class="menu-item cm-session" data-act="travel">' + (n.travelLocked ? '<i class="wib wi-unlock"></i> Allow travel between maps' : '<i class="wib wi-lock"></i> Lock travel between maps') + '</div>';
+            html += '<div class="menu-item cm-session" data-act="travel">' + (n.travelLocked ? '<i class="wib wi-lock"></i> Allow travel between maps' : '<i class="wib wi-unlock"></i> Lock travel between maps')   /* 1.6.2 (backlog 230): every lock shows how it stands now */ + '</div>';
             html += '<div class="menu-item cm-session" data-act="pause">' + (n.paused ? '<i class="wib wi-play"></i> Resume the table' : '<i class="wib wi-pause"></i> Pause the table') + '</div>';
             html += '<div class="menu-item cm-session" data-act="log"><i class="wib wi-scroll"></i> Game Record\u2026</div>';
             html += '<div class="menu-item cm-session" data-act="end" style="color:var(--danger)">End session for everyone</div>';
@@ -11615,7 +11615,7 @@ document.addEventListener('contextmenu', function(e) {
                     return it && !it.locked;
                 });
                 // the piece's own lock, worded as what it does; the padlock shows how the piece stands, as the toolbar's does (a door's lock for players is a row of its own: doorRows)
-                html += '<div class="menu-item cm-lock" title="' + (anyUnlocked ? 'It stays where it is: no drag and no resize until you unlock it, and a player&rsquo;s token is frozen for its player too. On a door this is not the lock of the door itself.' : 'It can be dragged and resized again.') + '">' + (anyUnlocked ? '<i class="wib wi-unlock"></i> Lock in place' : '<i class="wib wi-lock"></i> Unlock so it can move') + '</div>';
+                html += '<div class="menu-item cm-lock" title="' + (anyUnlocked ? 'It stays where it is: no drag and no resize until you unlock it, and a player&rsquo;s token is frozen for its player too. On a door this is not the lock of the door itself.' : 'It can be dragged and resized again.') + '">' + (anyUnlocked ? '<i class="wib wi-anchor-off"></i> Lock in place' : '<i class="wib wi-anchor"></i> Unlock so it can move') + '</div>';
                 html += '<div class="menu-item cm-dup"><i class="wib wi-dup"></i> Duplicate</div>';
                 html += '<div class="menu-item cm-del" style="color:var(--danger)">Delete</div>';
                 html += '<div class="menu-divider"></div>';
@@ -11708,7 +11708,7 @@ document.addEventListener('contextmenu', function(e) {
             if (isWb && firstItem && firstItem.isChar) {
                 html += '<div class="menu-divider"></div>';
                 html += '<div class="menu-item cm-status-alive"><i class="wib wi-heart"></i> Alive</div>';
-                html += '<div class="menu-item cm-status-down"><i class="wib wi-close"></i> Incapacitated</div>';
+                html += '<div class="menu-item cm-status-down"><i class="wib wi-heartbreak"></i> Incapacitated</div>';
                 html += '<div class="menu-item cm-status-dead">&#9760; Dead</div>';
                 html += stanceMenuHtml(firstItem);
                 html += tokenSensesLine(firstItem);   // senses S3: its senses, read-only

@@ -4604,7 +4604,7 @@ net.travelLocked = false;
 function setTravelLockLocal(on) {
     net.travelLocked = !!on;
     var btn = ui('netTravelLockBtn');
-    if (btn) { btn.innerHTML = net.travelLocked ? '<i class="wib wi-unlock"></i> Allow travel between maps' : '<i class="wib wi-lock"></i> Lock travel between maps'; btn.classList.toggle('paused', net.travelLocked); }
+    if (btn) { btn.innerHTML = net.travelLocked ? '<i class="wib wi-lock"></i> Allow travel between maps' : '<i class="wib wi-unlock"></i> Lock travel between maps'; btn.classList.toggle('paused', net.travelLocked); }
     var hint = ui('travelLockBanner');
     if (hint) hint.style.display = (net.travelLocked && net.role === 'client' && net.active) ? 'block' : 'none';
 }

@@ -1711,7 +1711,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
       if (visual) ordered.forEach(function(e) { var it = e.it, fp = flatOf(it); if (fp) (kids[fp] = kids[fp] || []).push(it); else if (typeof it.groupId === 'string' && it.groupId) (gm[it.groupId] = gm[it.groupId] || []).push(it); });
       var rowOf = function(item, deep) {
           var htmlName = esc(elementName(item));
-          if (item.locked) htmlName = '<i class="wib wi-lock"></i> ' + htmlName;
+          if (item.locked) htmlName = '<i class="wib wi-anchor"></i> ' + htmlName;
           if (visual && item.hidden) htmlName = '<i class="wib wi-unseen"></i> ' + htmlName;
           var sel = (state.selWbIds || []).includes(item.id) || state.selWbId === item.id || state.selId === item.id, sh = !!_lyShut[item.id];
           var fold = visual && kids[item.id] ? '<button class="tool ghost el-fold" data-g="' + esc(item.id) + '" aria-expanded="' + (!sh) + '" title="Show or hide the pieces drawn into this picture">' + (sh ? '&#9656;' : '&#9662;') + '</button>' : '';

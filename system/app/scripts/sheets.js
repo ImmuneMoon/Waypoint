@@ -1208,7 +1208,7 @@ function facingNode(c, gm) {
     var info = el('div', 'sheet-dial-info'), a0 = th.length ? threatArc(fc, th[0]) : -1;
     info.appendChild(el('span', 'sheet-dial-state', 'Facing ' + (faceSide + 1) + (th.length ? ' \u00b7 threat from the ' + ARC[a0] + (th.length > 1 ? ' (+' + (th.length - 1) + ' queued)' : '') : ' \u00b7 no threat marked')));
     var mt = t.map.meta && typeof t.map.meta.title === 'string' ? t.map.meta.title.slice(0, 60) : ''; if (mt) info.appendChild(el('span', 'sheet-dial-map', 'on ' + mt));
-    if (!gm && t.tok.locked) info.appendChild(el('span', 'wib wi-lock sheet-dial-map', 'Locked by the GM'));
+    if (!gm && t.tok.locked) info.appendChild(el('span', 'wib wi-anchor sheet-dial-map', 'Locked by the GM'));
     if (live) {
         var btns = el('div', 'sheet-dial-btns');
         var tf = el('button', 'tool ghost sys-btn', 'Turn to face'); tf.title = 'Turn toward the active threat'; tf.dataset.dk = 'face'; tf.disabled = !th.length || Math.abs(((th[0] - fc.deg) % 360 + 540) % 360 - 180) < 0.5;   // already facing it exactly (a free-angle token between sides may still turn to it)
@@ -1252,7 +1252,7 @@ function stanceNode(c, gm) {
         er.appendChild(em); er.appendChild(ei); er.appendChild(ep); er.appendChild(el('span', 'sheet-unit', eu.unit)); wrap.appendChild(er);
     }
     var mt = t.map.meta && typeof t.map.meta.title === 'string' ? t.map.meta.title.slice(0, 60) : ''; if (mt) wrap.appendChild(el('span', 'sheet-dial-map', 'on ' + mt));
-    if (!gm && t.tok.locked) wrap.appendChild(el('span', 'wib wi-lock sheet-dial-map', 'Locked by the GM'));
+    if (!gm && t.tok.locked) wrap.appendChild(el('span', 'wib wi-anchor sheet-dial-map', 'Locked by the GM'));
     return wrap;
 }
 // [sinkcheck:posturewords-start]

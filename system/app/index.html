@@ -253,7 +253,7 @@
               <button class="rm-row" id="importBtn" title="Import. Bring in a campaign, a map, a planner or a page from a file."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.5H6v17h12v-5.5M21 9.5h-9.5M15 6l-3.5 3.5L15 13"/></svg><span>Import</span></button>
               <div class="rm-rule"></div>
             </div>
-            <button class="rm-row" id="refreshBtn" title="Refresh Waypoint &mdash; reloads the app and puts you straight back into your session"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M17.6 2.8v4.2h-4.2"/></svg><span>Refresh Waypoint</span></button>
+            <button class="rm-row" id="refreshBtn" title="Refresh Waypoint &mdash; reloads the app and puts you straight back into your session"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 4h17v16h-17zM3.5 7.5h17M15.3 12.2a3.4 3.4 0 1 0 .1 3.4M15.6 9.8l-.3 2.4-2.4-.3"/></svg><span>Refresh Waypoint</span></button>
             <button class="rm-row" id="aboutBtn" title="About Waypoint"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 11v5.6M12 7.5h.01"/></svg><span>About Waypoint</span></button>
             <button class="rm-row" data-press="aboutReportLink" title="Report a problem. Opens a new issue page on GitHub in your web browser, with Waypoint&rsquo;s version and what it runs on filled in. Nothing is sent until you send it there."><span class="rm-slot"></span><span>Report a problem</span></button>
             <button class="rm-row" data-press="headerBrand" title="Back to the welcome screen"><img src="icon.ico" alt="" class="rm-mark"><span>Back to the welcome screen</span></button>
@@ -1521,7 +1521,7 @@
                       </ol>
                       <h4>Players can read / GM only</h4>
                       <ul>
-                          <li>Every page has a switch in the planner toolbar. It reads <b><i class="wib wi-seen"></i> Players can read</b>, which is the default, or <b><i class="wib wi-lock"></i> GM only</b>. Right-clicking the page in the tree gives the same choice. A GM-only page shows a small lock in the tree and never leaves your machine. The pages nested under it are GM only too, whatever their own switch says.</li>
+                          <li>Every page has a switch in the planner toolbar. It reads <b><i class="wib wi-seen"></i> Players can read</b>, which is the default, or <b><i class="wib wi-unseen"></i> GM only</b>. Right-clicking the page in the tree gives the same choice. A GM-only page shows a small lock in the tree and never leaves your machine. The pages nested under it are GM only too, whatever their own switch says.</li>
                           <li>While hosting, turning a page GM only removes it, and the pages under it, from every player at once. Moving a page under a GM-only page does the same. Their reader closes if it was open. Turning it back on sends them again. Edits to an open page reach players as you type.</li>
                           <li>Only the pages of the <b>campaign you are hosting</b> reach the table. Your other campaigns' pages stay home whatever their switch says.</li>
                       </ul>
@@ -3736,7 +3736,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       </div>
                       <div class="build-line" id="buildCorridorLine" hidden>With walls lays a wall line along each side. The ends stay open.</div>
                   </div>
-                  <button class="wb-tool-btn menu-row" id="buildFlatBtn" title="The selected pieces drawn into one picture, saved with this campaign. The plain pieces are hidden and Unflatten on the picture's right-click puts them back"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5V5h3.5M17.5 5H21v3.5M21 15.5V19h-3.5M6.5 19H3v-3.5M7.5 8.5h9v7h-9zM12 8.5v7M7.5 12h9"/></svg></span><span class="mr-txt">Flatten selection&hellip;<small>Many pieces become one picture.</small></span></button>
+                  <button class="wb-tool-btn menu-row" id="buildFlatBtn" title="The selected pieces drawn into one picture, saved with this campaign. The plain pieces are hidden and Unflatten on the picture's right-click puts them back"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15.5l8 4 8-4M12 3.5v9M8.5 9L12 12.5 15.5 9"/></svg></span><span class="mr-txt">Flatten selection&hellip;<small>Many pieces become one picture.</small></span></button>
                   <div class="menu-rule"></div>
                   <div class="draw-menu-label">Furnishings</div>
                   <div class="build-furn" id="buildFurn"></div>
@@ -4143,7 +4143,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <button data-st="group" class="st-group" title="Group"><i class="wib wi-chain"></i></button>
                 <button data-st="fit" class="st-fit" title="Fit to grid cells">&#8862;</button>
                 <button data-st="ratio" class="st-ratio" title="Lock proportions while resizing"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="1.5" stroke-dasharray="2.2 1.6"/><path d="M4.5 11.5 L11.5 4.5"/><path d="M11.5 8 V4.5 H8"/><path d="M4.5 8 V11.5 H8"/><g class="ratio-lock"><rect x="8.4" y="9.6" width="6.4" height="4.8" rx="0.9" fill="currentColor" stroke="none"/><path d="M9.8 9.6 V8.3 a1.8 1.8 0 0 1 3.6 0 V9.6" stroke-width="1.3"/></g></svg></button>
-                <button data-st="lock" class="st-lock" title="Unlocked — click to lock"><i class="wib wi-unlock"></i></button>
+                <button data-st="lock" class="st-lock" title="Unlocked — click to lock"><i class="wib wi-anchor-off"></i></button>
                 <button data-st="vis" class="st-vis" title="Visible to players — click to hide"><i class="wib wi-seen"></i></button>
                 <button data-st="fog" class="st-fog" title="Mark as a play area — with fog on, only marked items are fogged (scenes stay lit)">&#9635;</button>
                 <div class="st-sep"></div>
@@ -4429,7 +4429,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <button class="tool ghost" id="netNotepadBtn" style="margin-top:8px; width:100%;" title="A disposable notepad the whole table sees as you type. Gone when you put it away or the session ends; anyone can save it to their Journal."><i class="wib wi-note"></i> Table Notepad</button>
                 <div class="set-line">A throwaway notepad the whole table sees as you type.</div>
                 <button class="tool ghost" id="netLogBtn" style="margin-top:8px; width:100%;" title="Everything that happened at the table, session by session: every roll, what the game ran in the background, moves, sheets, joins and chat"><i class="wib wi-scroll"></i> Game Record</button>
-                <button class="tool ghost" id="netTravelLockBtn" style="margin-top:8px; width:100%;" title="Keep players on the maps they are on: portals, warps and room links stop working for them until you allow travel again. Tokens still move, chat stays open, nothing is paused."><i class="wib wi-lock"></i> Lock travel between maps</button>
+                <button class="tool ghost" id="netTravelLockBtn" style="margin-top:8px; width:100%;" title="Keep players on the maps they are on: portals, warps and room links stop working for them until you allow travel again. Tokens still move, chat stays open, nothing is paused."><i class="wib wi-unlock"></i> Lock travel between maps</button>
                 <div class="set-line">While travel is locked, portals and room links do not work for players. Tokens still move.</div>
                 <button class="tool ghost" id="netPauseBtn" style="margin-top:8px; width:100%;" title="Freeze the table: players can't move tokens or travel until you resume. Chat stays open."><i class="wib wi-pause"></i> Pause the table</button>
                 <div class="set-line">While the table is paused, players cannot move tokens or travel. Chat stays open.</div>
@@ -4574,7 +4574,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
       <div class="wc-actions">
         <button class="wc-card" id="wcStartBtn"><span class="wc-ic"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5v15M4.5 12h15"/></svg></span><b>Start a campaign</b><small>A fresh world of your own</small></button>
         <button class="wc-card" id="wcLoadBtn"><span class="wc-ic"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.5H6v17h12v-5.5M21 9.5h-9.5M15 6l-3.5 3.5L15 13"/></svg></span><b>Import a campaign</b><small>Open one from a file</small></button>
-        <button class="wc-card" id="wcHostBtn"><span class="wc-ic"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z"/><path class="ico-pip" d="M8.5 8.5h0M12 12h0M15.5 15.5h0"/></svg></span><b>Host a game</b><small>Run a table for your players</small></button>
+        <button class="wc-card" id="wcHostBtn"><span class="wc-ic"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.5 5.5a9 9 0 0 0 0 13M18.5 5.5a9 9 0 0 1 0 13"/></svg></span><b>Host a game</b><small>Run a table for your players</small></button>
         <button class="wc-card" id="wcJoinBtn"><span class="wc-ic"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 3.5c-4.4 4.8-4.4 12.2 0 17M12 3.5c4.4 4.8 4.4 12.2 0 17M4.6 9h14.8M4.6 15h14.8"/></svg></span><b>Join a game</b><small>With a room code</small></button>
         <button class="wc-card" id="wcProfileBtn"><span class="wc-ic wc-me" id="wcProfFace" aria-hidden="true"></span><b>Your profile</b><small>Your picture, name and tables</small></button>
       </div>
@@ -5560,7 +5560,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div class="menu-item ctx-planner-only ctx-status" data-status="skipped" style="padding:8px 16px; cursor:pointer;"><i class="wib wi-next"></i> Mark Skipped</div>
     <div class="menu-item ctx-planner-only ctx-status" data-status="" style="padding:8px 16px; cursor:pointer; color:var(--dim);">Clear status</div>
     <div class="menu-divider ctx-doc-only" style="height:1px; background:var(--border); margin:4px 0;"></div>
-    <div class="menu-item ctx-doc-only" id="ctxDocPlayers" style="padding:8px 16px; cursor:pointer;" title="Whether players at your table receive this page. Hidden pages never leave your machine; while hosting, hiding one removes it from every player at once."><i class="wib wi-lock"></i> Hide from players</div>
+    <div class="menu-item ctx-doc-only" id="ctxDocPlayers" style="padding:8px 16px; cursor:pointer;" title="Whether players at your table receive this page. Hidden pages never leave your machine; while hosting, hiding one removes it from every player at once."><i class="wib wi-unseen"></i> Hide from players</div>
     <div class="menu-divider ctx-docwin-only" style="height:1px; background:var(--border); margin:4px 0;"></div>
     <div class="menu-item ctx-docwin-only" id="ctxDocWindow" style="padding:8px 16px; cursor:pointer;" title="Pop this open in a floating panel over the map (read-only), so you can read it while you play. Drag its header to move it, drag a corner to resize; it updates live as you edit the original."><i class="wib wi-clip"></i> Open over the map</div>
     <div class="menu-item ctx-docwin-only" id="ctxDocPopout" style="padding:8px 16px; cursor:pointer;" title="Open this in a window of its own (read-only). Drag that window anywhere, onto another screen too. It follows your edits, and its Dock back button brings it back over the map."><i class="wib wi-dup"></i> Open in a new window</div>

@@ -59,15 +59,16 @@ function paper() {
     var z = _p.zoom, W = _p.w * z, H = _p.h * z;
     pp.style.width = W + 'px'; pp.style.height = H + 'px';
     pp.classList.toggle('pw-pixels', z >= 2);
+    var typing = !!_p.textEl && document.activeElement === _p.textEl, erasing = !!(_p.stroke && _p.stroke.erase);
     pp.textContent = '';
     var tr = _p.traceEl; if (tr && _p.trace) pp.appendChild(tr);
     _p.layers.forEach(function(L, i) {
-        L.cv.className = 'pw-layer'; L.cv.style.opacity = String(L.op); L.cv.style.display = L.hidden ? 'none' : '';
+        L.cv.className = 'pw-layer'; L.cv.style.opacity = String(L.op); L.cv.style.display = L.hidden ? 'none' : ''; L.cv.style.visibility = erasing && i === _p.at ? 'hidden' : '';
         pp.appendChild(L.cv);
-        if (i === _p.at) { _p.buf.className = 'pw-layer pw-buf'; pp.appendChild(_p.buf); }
+        if (i === _p.at) { _p.prev.className = 'pw-layer pw-prev'; _p.prev.style.opacity = String(L.op); _p.prev.style.display = erasing ? '' : 'none'; pp.appendChild(_p.prev); _p.buf.className = 'pw-layer pw-buf'; pp.appendChild(_p.buf); }
     });
     _p.over.className = 'pw-layer pw-over'; pp.appendChild(_p.over);
-    if (_p.textEl) pp.appendChild(_p.textEl);
+    if (_p.textEl) { pp.appendChild(_p.textEl); textPlace(); if (typing) _p.textEl.focus(); }
     drawOver(); layersDraw(); bar(); tileSoon();
     var zv = $('paintZoomV'); if (zv) zv.textContent = Math.round(z * 100) + '%';
 }
@@ -75,10 +76,18 @@ function paper() {
 function compose(g, s, withBuf) {
     _p.layers.forEach(function(L, i) {
         if (L.hidden) return;
-        g.globalAlpha = L.op; g.drawImage(L.cv, 0, 0, _p.w * s, _p.h * s);
-        if (withBuf && i === _p.at && _p.stroke && _p.stroke.buf) { g.globalAlpha = L.op * _p.op; g.drawImage(_p.buf, 0, 0, _p.w * s, _p.h * s); }
+        var mine = withBuf && i === _p.at && _p.stroke;
+        g.globalAlpha = L.op; g.drawImage(mine && _p.stroke.erase ? _p.prev : L.cv, 0, 0, _p.w * s, _p.h * s);
+        if (mine && _p.stroke.buf) { g.globalAlpha = L.op * _p.op; g.drawImage(_p.buf, 0, 0, _p.w * s, _p.h * s); }
+        if (withBuf && i === _p.at && _p.float) { g.globalAlpha = L.op; g.save(); g.scale(s, s); floatOn(g); g.restore(); }
     });
     g.globalAlpha = 1;
+}
+// A selection that floats, drawn where it stands now, with a pattern's wrapping copies
+function floatOn(g) {
+    var f = _p.float; if (!f) return;
+    var cx = f.x + f.w / 2, cy = f.y + f.h / 2, one = function(dx, dy) { g.save(); g.translate(cx + dx, cy + dy); g.rotate(f.a); g.drawImage(f.cv, -f.w / 2, -f.h / 2, f.w, f.h); g.restore(); };
+    if (_p.wrap) [-1, 0, 1].forEach(function(i) { [-1, 0, 1].forEach(function(j) { one(i * _p.w, j * _p.h); }); }); else one(0, 0);
 }
 // The live 3 by 3 of a pattern: nine copies, the seams in gold
 var _tileT = 0;
@@ -104,6 +113,10 @@ function shapePath(g, t, a, b) {
     if (t === 'rect') g.rect(r.x, r.y, r.w, r.h);
     else g.ellipse(r.x + r.w / 2, r.y + r.h / 2, Math.max(0.5, r.w / 2), Math.max(0.5, r.h / 2), 0, 0, Math.PI * 2);
 }
+function shapeAt(g, t, a, b, alpha) {   // through a scratch canvas: its copies whole, then once at alpha
+    var sc = _p.tmp.getContext('2d'); sc.setTransform(1, 0, 0, 1, 0, 0); sc.clearRect(0, 0, _p.w, _p.h); shapeOn(sc, t, a, b);
+    g.save(); g.globalAlpha = alpha; g.drawImage(_p.tmp, 0, 0); g.restore();
+}
 function shapeOn(g, t, a, b) {
     var e = t === 'line' && _p.shift ? DC().constrain(a.x, a.y, b.x, b.y) : b;
     withCopies(g, function(h) {
@@ -116,12 +129,11 @@ function drawOver() {
     if (!_p) return;
     var g = _p.over.getContext('2d'), z = _p.zoom; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, _p.w, _p.h);
     var s = _p.stroke;
-    if (s && s.shape && s.b) { g.globalAlpha = _p.op; shapeOn(g, s.shape, s.a, s.b); g.globalAlpha = 1; }
+    if (s && s.shape && s.b) shapeAt(g, s.shape, s.a, s.b, _p.op);
     if (s && s.pick && s.b) { var r = DC().rectOf(s.a.x, s.a.y, s.b.x, s.b.y, false); dashed(g, r.x, r.y, r.w, r.h, 0, z); }
     var f = _p.float; if (!f) return;
     var cx = f.x + f.w / 2, cy = f.y + f.h / 2;
-    var draw1 = function(dx, dy) { g.save(); g.translate(cx + dx, cy + dy); g.rotate(f.a); g.drawImage(f.cv, -f.w / 2, -f.h / 2, f.w, f.h); g.restore(); };
-    if (_p.wrap) [-1, 0, 1].forEach(function(i) { [-1, 0, 1].forEach(function(j) { draw1(i * _p.w, j * _p.h); }); }); else draw1(0, 0);
+    floatOn(g);
     dashed(g, f.x, f.y, f.w, f.h, f.a, z);
     var lift = 20 / z, hp = DC().rotPt(cx, f.y - lift, cx, cy, f.a), tp = DC().rotPt(cx, f.y, cx, cy, f.a);
     g.save(); g.strokeStyle = '#e3a63b'; g.lineWidth = 1.5 / z; g.beginPath(); g.moveTo(tp.x, tp.y); g.lineTo(hp.x, hp.y); g.stroke();
@@ -159,9 +171,9 @@ function down(ev) {
     if (t === 'select') { _p.stroke = { pick: true, a: p, b: null }; capture(ev); return; }
     if (t === 'line' || t === 'rect' || t === 'circle') { _p.stroke = { shape: t, a: p, b: null }; capture(ev); return; }
     push([L.id]);
-    _p.stroke = { a: p, last: p, carry: 0, buf: t !== 'eraser' };
+    _p.stroke = { a: p, last: p, carry: 0, buf: t !== 'eraser', erase: t === 'eraser' };
     var bg = _p.buf.getContext('2d'); bg.setTransform(1, 0, 0, 1, 0, 0); bg.clearRect(0, 0, _p.w, _p.h);
-    if (t === 'eraser') { var lg = ctxOf(L.cv); lg.save(); lg.globalCompositeOperation = 'destination-out'; lg.globalAlpha = _p.op; seg(lg, p, p); lg.restore(); }
+    if (t === 'eraser') { _p.buf.style.opacity = '0'; seg(bg, p, p); L.cv.style.visibility = 'hidden'; _p.prev.style.display = ''; _p.prev.style.opacity = String(L.op); erasePrev(); }
     else { _p.buf.style.opacity = String(L.op * _p.op); if (t === 'brush') dabs(bg, p, p); else seg(bg, p, p); }
     capture(ev); tileSoon();
 }
@@ -177,7 +189,7 @@ function move(ev) {
     var s = _p.stroke; if (!s) return;
     if (s.shape || s.pick) { s.b = p; drawOver(); return; }
     var L = active(); if (!L) return;
-    if (_p.tool === 'eraser') { var lg = ctxOf(L.cv); lg.save(); lg.globalCompositeOperation = 'destination-out'; lg.globalAlpha = _p.op; seg(lg, s.last, p); lg.restore(); }
+    if (s.erase) { seg(_p.buf.getContext('2d'), s.last, p); erasePrev(); }
     else if (_p.tool === 'brush') dabs(_p.buf.getContext('2d'), s.last, p);
     else seg(_p.buf.getContext('2d'), s.last, p);
     s.last = p; tileSoon();
@@ -189,17 +201,26 @@ function up(ev) {
     var L = active(); if (!L) return;
     if (ev && ev.type !== 'blur' && ev.type !== 'pointercancel' && s.b !== undefined) s.b = s.b || at(ev);
     if (s.pick) { drawOver(); if (s.b) lift(DC().rectOf(s.a.x, s.a.y, s.b.x, s.b.y, false)); return; }
-    if (s.shape) { if (s.b) { push([L.id]); var lg = ctxOf(L.cv); lg.save(); lg.globalAlpha = _p.op; shapeOn(lg, s.shape, s.a, s.b); lg.restore(); log('shape', { t: s.shape }); } drawOver(); tileSoon(); return; }
-    if (s.buf) { var g = ctxOf(L.cv); g.save(); g.globalAlpha = _p.op; g.drawImage(_p.buf, 0, 0); g.restore(); var bg = _p.buf.getContext('2d'); bg.setTransform(1, 0, 0, 1, 0, 0); bg.clearRect(0, 0, _p.w, _p.h); }
+    if (s.shape) { if (s.b) { push([L.id]); shapeAt(ctxOf(L.cv), s.shape, s.a, s.b, _p.op); log('shape', { t: s.shape }); } drawOver(); tileSoon(); return; }
+    if (s.buf || s.erase) { var g = ctxOf(L.cv); g.save(); g.globalAlpha = _p.op; if (s.erase) g.globalCompositeOperation = 'destination-out'; g.drawImage(_p.buf, 0, 0); g.restore(); var bg = _p.buf.getContext('2d'); bg.setTransform(1, 0, 0, 1, 0, 0); bg.clearRect(0, 0, _p.w, _p.h); }
+    if (s.erase) { L.cv.style.visibility = ''; _p.prev.style.display = 'none'; }
     tileSoon();
+}
+// The layer as the eraser's stroke would leave it, shown in its place while the stroke goes on
+function erasePrev() {
+    var L = active(), g = _p.prev.getContext('2d'); if (!L) return;
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'copy'; g.drawImage(L.cv, 0, 0); g.globalCompositeOperation = 'destination-out'; g.globalAlpha = _p.op; g.drawImage(_p.buf, 0, 0); g.restore();
 }
 function capture(ev) { try { if (ev.target && ev.target.setPointerCapture) ev.target.setPointerCapture(ev.pointerId); } catch (e) { /* a pointer the page lost */ } }
 function fill(p) {
-    var L = active(), D = DC(), g = ctxOf(L.cv), id = g.getImageData(0, 0, _p.w, _p.h), rgb = D.rgbOf(_p.color), col = [rgb[0], rgb[1], rgb[2], Math.round(_p.op * 255)];
-    var e = snap([L.id]), n = D.flood(id.data, _p.w, _p.h, p.x, p.y, col, D.DRAW.TOL, _p.wrap);
-    if (_p.mirror) n += D.flood(id.data, _p.w, _p.h, _p.w - p.x, p.y, col, D.DRAW.TOL, _p.wrap);
-    if (!n) return;
-    D.histPush(_p.hist, e); _p.dirty = true; g.putImageData(id, 0, 0); bar(); log('fill', {}); tileSoon();
+    var L = active(), D = DC(), g = ctxOf(L.cv), id = g.getImageData(0, 0, _p.w, _p.h), rgb = D.rgbOf(_p.color);
+    var m = D.floodMask(id.data, _p.w, _p.h, p.x, p.y, D.DRAW.TOL, _p.wrap), m2 = _p.mirror ? D.floodMask(id.data, _p.w, _p.h, _p.w - p.x, p.y, D.DRAW.TOL, _p.wrap) : null;
+    if (!m && !m2) return;
+    var paint = g.createImageData(_p.w, _p.h), d = paint.data;
+    for (var q = 0; q < _p.w * _p.h; q++) if ((m && m.mask[q]) || (m2 && m2.mask[q])) { var j = q * 4; d[j] = rgb[0]; d[j + 1] = rgb[1]; d[j + 2] = rgb[2]; d[j + 3] = 255; }
+    D.histPush(_p.hist, snap([L.id])); _p.dirty = true;
+    var sc = ctxOf(_p.tmp); sc.setTransform(1, 0, 0, 1, 0, 0); sc.putImageData(paint, 0, 0);
+    g.save(); g.globalAlpha = _p.op; g.drawImage(_p.tmp, 0, 0); g.restore(); bar(); log('fill', {}); tileSoon();
 }
 function pick(p) {
     var one = cv(1, 1), g = ctxOf(one); g.setTransform(1, 0, 0, 1, -Math.floor(p.x), -Math.floor(p.y));
@@ -237,27 +258,34 @@ function nudge(dx, dy) { if (!_p.float) return; _p.float.x += dx; _p.float.y += 
 function textAt(p) {
     var t = el('input', 'pw-text'); t.type = 'text'; t.maxLength = DC().DRAW.TEXT; t.setAttribute('aria-label', 'The words to draw');
     var fs = textPx(), fc = fontOf();
-    t.style.left = (p.x * _p.zoom) + 'px'; t.style.top = (p.y * _p.zoom - fs * _p.zoom / 2) + 'px'; t.style.font = Math.round(fs * _p.zoom) + 'px ' + fc; t.style.color = _p.color;
-    _p.textEl = t; _p.textAt = p; $('paintPaper').appendChild(t); hold();
+    t.style.color = _p.color;
+    _p.textEl = t; _p.textAt = p; $('paintPaper').appendChild(t); textPlace(); hold();
     t.addEventListener('keydown', function(ev) {
         if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); textCommit(); }
         else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); textDrop(); }
     });
     setTimeout(function() { t.focus(); }, 0);
 }
+// The words' box where they will be drawn, at the view's zoom
+function textPlace() { var t = _p && _p.textEl, p = _p && _p.textAt; if (!t || !p) return; var fs = textPx(); t.style.left = (p.x * _p.zoom) + 'px'; t.style.top = (p.y * _p.zoom - fs * _p.zoom / 2) + 'px'; t.style.font = Math.round(fs * _p.zoom) + 'px ' + fontOf(); }
+function fontWarm() { if (_p && document.fonts && document.fonts.load) document.fonts.load(textPx() + 'px ' + fontOf()).catch(function() {}); }
 function textPx() { return Math.max(8, Math.round(_p.size * 2)); }
 function fontOf() { var T = window.wpTextFmt, f = _p.font || 'Inter'; return T && T.fontCss ? (T.fontCss(f) || 'sans-serif') : 'sans-serif'; }
 function textDrop() { if (_p && _p.textEl) { var t = _p.textEl; _p.textEl = null; if (t.parentNode) t.parentNode.removeChild(t); hold(); stageFocus(); } }
+// Answers a promise that is kept once the words are a selection (at once where the font is there)
 function textCommit() {
-    if (!_p || !_p.textEl) return;
-    var words = DC().cleanText(_p.textEl.value), p = _p.textAt; textDrop(); if (!words.trim()) return;
+    if (!_p || !_p.textEl) return Promise.resolve();
+    var words = DC().cleanText(_p.textEl.value), p = _p.textAt; textDrop(); if (!words.trim()) return Promise.resolve();
     var fs = textPx(), font = fs + 'px ' + fontOf(), d = _p, go = function() {
         if (_p !== d) return;
         var m = cv(1, 1).getContext('2d'); m.font = font; var w = Math.max(1, Math.ceil(m.measureText(words).width) + 4), h = Math.ceil(fs * 1.35);
         var piece = cv(w, h), g = piece.getContext('2d'); g.font = font; g.fillStyle = _p.color; g.globalAlpha = _p.op; g.textBaseline = 'middle'; g.fillText(words, 2, h / 2);
         push([active().id]); _p.float = { cv: piece, x: p.x, y: p.y - h / 2, w: w, h: h, a: 0 }; hold(); log('text', {}); drawOver(); tileSoon();
+        if (_p.tool !== 'text' && _p.tool !== 'select') floatStamp();   // another tool was picked while the font came: it puts the words down
     };
-    if (document.fonts && document.fonts.load) document.fonts.load(font).then(go, go); else go();
+    var ready = !document.fonts || !document.fonts.check; try { ready = ready || document.fonts.check(font); } catch (e) { ready = true; }
+    if (ready || !document.fonts.load) { go(); return Promise.resolve(); }
+    return document.fonts.load(font).then(go, go);
 }
 // The window holds Escape for itself while a selection floats or words are being typed (esckey.js escKeep reads .pw-hold)
 function hold() { var b = $('paintBox'); if (b && _p) b.classList.toggle('pw-hold', !!(_p.float || _p.textEl)); }
@@ -272,8 +300,9 @@ function layersDraw() {
         eye.type = 'button'; nm.type = 'button'; eye.appendChild(ico(L.hidden ? EYE_OFF : EYE)); eye.setAttribute('aria-pressed', L.hidden ? 'false' : 'true');
         eye.setAttribute('aria-label', (L.hidden ? 'Show ' : 'Hide ') + L.name); eye.dataset.tip = L.hidden ? 'Show this layer' : 'Hide this layer';
         nm.setAttribute('aria-pressed', i === _p.at ? 'true' : 'false'); nm.dataset.tip = 'Draw on this layer. Double-click to rename it.';
-        eye.addEventListener('click', function() { if (_p.float) floatStamp(); push([]); L.hidden = !L.hidden; log('layer-eye', {}); paper(); });
-        nm.addEventListener('click', function() { if (_p.float) floatStamp(); _p.at = i; paper(); });
+        eye.dataset.lid = L.id; nm.dataset.lid = L.id;
+        eye.addEventListener('click', function() { if (_p.float) floatStamp(); push([]); L.hidden = !L.hidden; _p.lfocus = { id: L.id, part: 'pw-eye' }; log('layer-eye', {}); paper(); });
+        nm.addEventListener('click', function() { if (_p.float) floatStamp(); _p.at = i; _p.lfocus = { id: L.id, part: 'pw-lname' }; paper(); });
         nm.addEventListener('dblclick', function() { rename(row, nm, L); });
         row.appendChild(eye); row.appendChild(nm); box.appendChild(row);
     })(_p.layers[i], i);
@@ -283,11 +312,14 @@ function layersDraw() {
         var b = $(id); if (!b) return;
         b.disabled = id === 'paintLayerUp' ? _p.at >= nL - 1 : id === 'paintLayerDown' || id === 'paintLayerMerge' ? _p.at <= 0 : id === 'paintLayerDel' ? nL < 2 : nL >= DC().DRAW.LAYERS;
     });
+    var lf = _p.lfocus; _p.lfocus = null;
+    if (lf) { var to = [].slice.call(box.querySelectorAll('.' + lf.part)).filter(function(b) { return b.dataset.lid === lf.id; })[0]; if (to) to.focus(); }
+    var ae = document.activeElement; if (ae && ae.disabled && $('paintBox') && $('paintBox').contains(ae)) stageFocus();   // a button that went off as it was pressed hands the focus to the drawing
 }
 function rename(row, nm, L) {
     var t = el('input', 'pw-lrename el-rename-in'); t.type = 'text'; t.maxLength = DC().DRAW.NAME; t.value = L.name; t.setAttribute('aria-label', 'The layer’s name');
     row.replaceChild(t, nm); t.focus(); t.select();
-    var done = false, end = function(keep) { if (done) return; done = true; var v = DC().layerName(t.value); if (keep && v && v !== L.name) { push([]); L.name = v; log('layer-name', {}); } layersDraw(); };
+    var done = false, end = function(keep) { if (done) return; done = true; var v = DC().layerName(t.value); if (keep && v && v !== L.name) { push([]); L.name = v; log('layer-name', {}); } _p.lfocus = { id: L.id, part: 'pw-lname' }; layersDraw(); };
     t.addEventListener('keydown', function(ev) { if (ev.key === 'Enter') { ev.preventDefault(); end(true); } else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); end(false); } });
     t.addEventListener('blur', function() { end(true); });
 }
@@ -331,7 +363,7 @@ function toolSet(t) {
     if (_p.textEl) textCommit();
     if (_p.float && t !== 'select') floatStamp();
     if (t === 'pick' && _p.tool !== 'pick') _p.before = _p.tool;
-    _p.tool = t; bar(); drawOver();
+    _p.tool = t; bar(); drawOver(); if (t === 'text') fontWarm();
 }
 function setColor(c) { var h = DC().cleanHex(c); if (h && _p) { _p.color = h; bar(); } }
 function stageFocus() { var s = $('paintStage'); if (s) s.focus({ preventScroll: true }); }
@@ -348,7 +380,7 @@ function loadImg(u) { return new Promise(function(ok, no) { var im = new Image()
 function startPick(v) {
     if (!_p || v === _p.start) return;
     var go = function() { if (_p.float) floatCancel(); if (_p.textEl) textDrop(); push(_p.layers.map(function(l) { return l.id; })); var L = { id: uid(), name: 'Layer 1', hidden: false, op: 1, cv: cv(_p.w, _p.h) }; _p.layers = [L]; _p.at = 0; _p.start = v; log('start', { from: v }); startFill(v); };
-    var anyInk = _p.hist.undo.length > 0;
+    var anyInk = _p.hist.undo.length > 0 || _p.hist.redo.length > 0;
     if (!anyInk) { _p.start = v; startFill(v); return; }
     showConfirm('Start again from ' + (v === 'mine' ? 'your picture' : v === 'wp' ? 'Waypoint’s drawing' : 'a clear drawing') + '? What you drew goes, and Undo brings it back.', function(ok) { if (ok && _p) go(); else { var s = $('paintStart'); if (s && _p) s.value = _p.start; } });
 }
@@ -361,12 +393,13 @@ function traceMake() {
 
 // [drawcheck:open-start]
 function open(opts) {
-    var D = DC(), m = $('paintModal'); if (!D || !m || !opts) return false;
+    var D = DC(), m = $('paintModal'); if (!D || !m || !opts || _p) return false;
     var px = typeof opts.px === 'number' ? opts.px : 200, wrap = typeof opts.tile === 'number' && opts.tile > 0;
     var sz = wrap ? D.canvasFor(opts.tile, opts.tile, px) : D.canvasFor(opts.cells ? opts.cells[0] : 1, opts.cells ? opts.cells[1] : 1, px);
-    var L = { id: uid(), name: 'Layer 1', hidden: false, op: 1, cv: cv(sz.w, sz.h) }, choices = D.startChoices(!!opts.mine, !!opts.wp);
+    var L = { id: uid(), name: 'Layer 1', hidden: false, op: 1, cv: cv(sz.w, sz.h) }, choices = D.startChoices(!!opts.mine, !!opts.wp), TF = window.wpTextFmt, f0 = TF && TF.FONTS && TF.FONTS.length ? (TF.FONTS.some(function(f) { return f[0] === 'Inter'; }) ? 'Inter' : TF.FONTS[0][0]) : 'Inter';
     _p = { opts: opts, w: sz.w, h: sz.h, wrap: wrap, layers: [L], at: 0, tool: 'pen', color: '#3b2a1b', size: Math.max(2, Math.round(sz.w / 40)), op: 1, filled: false, font: 'Inter',
-        mirror: false, trace: false, hist: D.histNew(), zoom: 1, dirty: false, start: choices[0].v, buf: cv(sz.w, sz.h), over: cv(sz.w, sz.h), float: null, stroke: null, textEl: null };
+        mirror: false, trace: false, hist: D.histNew(), zoom: 1, dirty: false, start: choices[0].v, buf: cv(sz.w, sz.h), over: cv(sz.w, sz.h), prev: cv(sz.w, sz.h), tmp: cv(sz.w, sz.h), float: null, stroke: null, textEl: null, back: document.activeElement };
+    _p.font = f0; var pfo = $('paintFont'); if (pfo) pfo.value = f0;
     _p.traceEl = traceMake();
     var t = $('paintTitle'); if (t) t.textContent = 'Draw: ' + (opts.title || 'a picture');
     var sl = $('paintSize'); if (sl) sl.textContent = sz.w + ' by ' + sz.h + ' pixels' + (sz.scaled ? ', held to ' + D.DRAW.MAX_SIDE + ' a side' : '');
@@ -389,7 +422,9 @@ function close() {
     var m = $('paintModal'); if (m) m.style.display = 'none';
     if (_tileT) { clearTimeout(_tileT); _tileT = 0; }
     var w = _p && _p.opts && _p.opts.wp; if (w && typeof w.url === 'string' && w.url.slice(0, 5) === 'blob:') URL.revokeObjectURL(w.url);   // a pattern's start the maker made for this window alone
-    _p = null; var b = $('paintBox'); if (b) b.classList.remove('pw-hold');
+    var back = _p && _p.back, again = _p && _p.opts && _p.opts.back;
+    _p = null;
+    if (back && back.isConnected && typeof back.focus === 'function') back.focus(); else if (typeof again === 'function') again();   // the focus back where the window was opened from, never left on the page behind var b = $('paintBox'); if (b) b.classList.remove('pw-hold');
 }
 function cancel() {
     if (!_p) return;
@@ -399,10 +434,12 @@ function cancel() {
 }
 function done() {
     if (!_p) return;
-    if (_p.textEl) textCommit();
+    var d = _p, b = $('paintDone'); if (b) b.disabled = true;
+    (_p.textEl ? textCommit() : Promise.resolve()).then(function() { if (_p === d) finish(d, b); });
+}
+function finish(d, b) {
     if (_p.float) floatStamp();
-    var d = _p, out = cv(_p.w, _p.h), g = out.getContext('2d'); compose(g, 1, false);
-    var b = $('paintDone'); if (b) b.disabled = true;
+    var out = cv(_p.w, _p.h), g = out.getContext('2d'); compose(g, 1, false);
     out.toBlob(function(blob) {
         if (b) b.disabled = false;
         if (_p !== d) return;
@@ -416,10 +453,10 @@ function done() {
 
 // [drawcheck:keys-start]
 // Every key pressed in the window is the window's: on the map behind it the arrows move and Delete deletes what is selected
-function key(ev) {
+function key(ev, outside) {
     if (!_p) return;
     var t = ev.target, field = t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA') && t.type !== 'range' && t.type !== 'checkbox';
-    if (ev.key === 'Tab') return;
+    if (ev.key === 'Tab') { tabRound(ev); return; }
     if (field) { if (ev.key !== 'Escape') ev.stopPropagation(); return; }
     var mod = ev.ctrlKey || ev.metaKey, k = ev.key, D = DC(), stop = function() { ev.preventDefault(); ev.stopPropagation(); };
     if (mod && !ev.altKey && (k === 'z' || k === 'Z')) { stop(); if (ev.shiftKey) redo(); else undo(); return; }
@@ -430,11 +467,30 @@ function key(ev) {
     var step = ev.shiftKey ? 10 : 1;
     if (_p.float && k.indexOf('Arrow') === 0) { stop(); nudge(k === 'ArrowLeft' ? -step : k === 'ArrowRight' ? step : 0, k === 'ArrowUp' ? -step : k === 'ArrowDown' ? step : 0); return; }
     if (!mod && !ev.altKey && (k === '[' || k === ']')) { stop(); sizeSet(_p.size + (k === ']' ? 1 : -1) * Math.max(1, Math.round(_p.size / 8))); return; }
-    if (!mod && !ev.altKey && t && (t.id === 'paintStage' || (t.closest && t.closest('#paintTools')))) { var tl = D.toolOfKey(k); if (tl) { stop(); toolSet(tl); return; } }
+    if (!mod && !ev.altKey && (outside || (t && (t.id === 'paintStage' || (t.closest && t.closest('#paintTools')))))) { var tl = D.toolOfKey(k); if (tl) { stop(); toolSet(tl); return; } }
     if (k === 'Enter' || k === ' ') return;   // a button's own press
     ev.stopPropagation();
 }
-function sizeSet(v) { if (!_p) return; var D = DC(); _p.size = Math.max(D.DRAW.SIZE_MIN, Math.min(D.DRAW.SIZE_MAX, Math.round(v))); var r = $('paintSizeR'); if (r) r.value = String(_p.size); bar(); }
+// Tab and Shift+Tab go round the window's own controls, never on to the pack maker behind it
+function tabRound(ev) {
+    var box = $('paintBox'); if (!box) return;
+    var list = [].slice.call(box.querySelectorAll('button, input, select, [tabindex="0"]')).filter(function(e) { return !e.disabled && e.getClientRects().length > 0 && !(e.closest && e.closest('[hidden]')); });
+    if (!list.length) return;
+    var i = list.indexOf(ev.target);
+    if (ev.shiftKey && i <= 0) { ev.preventDefault(); list[list.length - 1].focus(); }
+    else if (!ev.shiftKey && (i < 0 || i === list.length - 1)) { ev.preventDefault(); list[0].focus(); }
+}
+// A key pressed while the focus is outside the window, as after a press on a control that went away, is the window's all the same
+function keyOut(ev) {
+    if (!_p || ev.key === 'Escape') return;
+    var t = ev.target, m = $('paintModal');
+    if (t && m && m.contains(t)) return;
+    if (t && t.closest && t.closest('#customConfirm, #customPrompt')) return;   // a question the window asked
+    ev.stopPropagation();
+    if (ev.key === 'Tab') { ev.preventDefault(); stageFocus(); return; }
+    key(ev, true);
+}
+function sizeSet(v) { if (!_p) return; var D = DC(); _p.size = Math.max(D.DRAW.SIZE_MIN, Math.min(D.DRAW.SIZE_MAX, Math.round(v))); var r = $('paintSizeR'); if (r) r.value = String(_p.size); bar(); textPlace(); }
 // [drawcheck:keys-end]
 
 function wire() {
@@ -449,7 +505,7 @@ function wire() {
     on('paintMirror', 'change', function(e) { if (_p) { _p.mirror = !!e.target.checked; log('mirror', { on: _p.mirror ? 1 : 0 }); } });
     on('paintTrace', 'change', function(e) { if (_p) { _p.trace = !!e.target.checked; paper(); } });
     on('paintStart', 'change', function(e) { startPick(e.target.value); });
-    on('paintFont', 'change', function(e) { if (_p) _p.font = e.target.value; });
+    on('paintFont', 'change', function(e) { if (_p) { _p.font = e.target.value; fontWarm(); } });
     var pf = $('paintFont'), T = window.wpTextFmt; if (pf && T && T.FONTS) T.FONTS.forEach(function(f) { var o = el('option', null, f[0]); o.value = f[0]; pf.appendChild(o); });
     on('paintLayerOp', 'input', function(e) { var L = active(); if (!L) return; if (_p.float) floatStamp(); if (!_p.opPushed) { push([]); _p.opPushed = true; } L.op = DC().cleanOp(parseInt(e.target.value, 10) / 100); paper(); });
     on('paintLayerOp', 'change', function() { if (_p) _p.opPushed = false; });
@@ -463,7 +519,8 @@ function wire() {
     on('paintCancel', 'click', cancel); on('paintDone', 'click', done);
     var pp = $('paintPaper'); if (pp) { pp.addEventListener('pointerdown', down); pp.addEventListener('pointermove', move); pp.addEventListener('pointerup', up); pp.addEventListener('pointercancel', up); pp.addEventListener('lostpointercapture', function(ev) { if (_p && (_p.stroke || _p.drag)) up(ev); }); }
     window.addEventListener('blur', function() { if (_p && (_p.stroke || _p.drag)) up({ type: 'blur' }); });
-    m.addEventListener('keydown', key);
+    m.addEventListener('keydown', function(ev) { key(ev, false); });
+    document.addEventListener('keydown', keyOut, true);
     // A paste while the window is up is no piece laid on the map behind it
     window.addEventListener('paste', function(ev) { if (!_p) return; var t = ev.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return; ev.preventDefault(); ev.stopPropagation(); }, true);
     var st = $('paintStage'); if (st) st.addEventListener('wheel', function(ev) { if (!_p || !(ev.ctrlKey || ev.metaKey)) return; ev.preventDefault(); _p.zoom = DC().zoomStep(_p.zoom, ev.deltaY < 0 ? 1 : -1); paper(); }, { passive: false });

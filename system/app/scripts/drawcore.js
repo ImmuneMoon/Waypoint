@@ -4,7 +4,7 @@
 // its arguments: no page, no canvas, no clock. drawwin.js draws with what it answers.
 //   canvasFor        the drawing's pixel size for cells at a cell's pixels, held to MAX_SIDE a side
 //   copiesOf         where a stroke is drawn again: mirrored left and right, and for a pattern at the eight neighbors that wrap it
-//   flood            a fill on RGBA bytes, by a tolerance, wrapping round the edges where asked
+//   flood, floodMask a fill on RGBA bytes, by a tolerance, wrapping round the edges where asked, or only where it reaches
 //   pickAt, hexOf, rgbOf, cleanHex   a color read from the bytes, and a color's text
 //   dabsAlong        the points a brush lays down a segment, spaced, carrying what is left over to the next segment
 //   layerAdd, layerDel, layerMove, layerName, newLayerName, cleanOp   the layers' list
@@ -37,17 +37,27 @@ function copyPt(c, x, y, w) { return { x: (c.flip ? w - x : x) + c.dx, y: y + c.
 // Fill: every pixel joined to (x, y) whose color is within tol of the color there, set to rgba [r, g, b, a]. Wraps round the edges where
 // asked. Changes the bytes in place and answers how many pixels it set (0 where the start is outside, or already that color)
 function flood(px, w, h, x, y, rgba, tol, wrap) {
-    if (!px || !fin(w) || !fin(h) || w < 1 || h < 1 || px.length < w * h * 4) return 0;
+    var fr = rgba[0] | 0, fg = rgba[1] | 0, fb = rgba[2] | 0, fa = rgba[3] | 0, j0 = startOf(px, w, h, x, y, wrap);
+    if (j0 < 0 || (px[j0] === fr && px[j0 + 1] === fg && px[j0 + 2] === fb && px[j0 + 3] === fa)) return 0;
+    var m = floodMask(px, w, h, x, y, tol, wrap); if (!m) return 0;
+    for (var p = 0; p < w * h; p++) if (m.mask[p]) { var j = p * 4; px[j] = fr; px[j + 1] = fg; px[j + 2] = fb; px[j + 3] = fa; }
+    return m.n;
+}
+function startOf(px, w, h, x, y, wrap) {
+    if (!px || !fin(w) || !fin(h) || w < 1 || h < 1 || px.length < w * h * 4 || !fin(x) || !fin(y)) return -1;
     x = Math.floor(x); y = Math.floor(y);
-    if (wrap) { x = ((x % w) + w) % w; y = ((y % h) + h) % h; } else if (x < 0 || y < 0 || x >= w || y >= h) return 0;
-    var t = fin(tol) ? Math.max(0, Math.min(255, tol)) : DRAW.TOL, i0 = (y * w + x) * 4, sr = px[i0], sg = px[i0 + 1], sb = px[i0 + 2], sa = px[i0 + 3];
-    var fr = rgba[0] | 0, fg = rgba[1] | 0, fb = rgba[2] | 0, fa = rgba[3] | 0;
-    if (sr === fr && sg === fg && sb === fb && sa === fa) return 0;
-    var seen = new Uint8Array(w * h), stack = [y * w + x], n = 0;
+    if (wrap) { x = ((x % w) + w) % w; y = ((y % h) + h) % h; } else if (x < 0 || y < 0 || x >= w || y >= h) return -1;
+    return (y * w + x) * 4;
+}
+// Where a fill pressed at (x, y) reaches, without changing the bytes: { mask, n }, mask 1 for each pixel reached; null outside
+function floodMask(px, w, h, x, y, tol, wrap) {
+    var j0 = startOf(px, w, h, x, y, wrap); if (j0 < 0) return null;
+    var t = fin(tol) ? Math.max(0, Math.min(255, tol)) : DRAW.TOL, sr = px[j0], sg = px[j0 + 1], sb = px[j0 + 2], sa = px[j0 + 3];
+    var seen = new Uint8Array(w * h), stack = [j0 / 4], n = 0;
     function near(p) { var j = p * 4; if (sa === 0 && px[j + 3] === 0) return true; return Math.abs(px[j] - sr) <= t && Math.abs(px[j + 1] - sg) <= t && Math.abs(px[j + 2] - sb) <= t && Math.abs(px[j + 3] - sa) <= t; }
     seen[stack[0]] = 1;
     while (stack.length) {
-        var p = stack.pop(), j = p * 4; px[j] = fr; px[j + 1] = fg; px[j + 2] = fb; px[j + 3] = fa; n++;
+        var p = stack.pop(); n++;
         var cx = p % w, cy = (p - cx) / w, nb = [];
         if (cx > 0) nb.push(p - 1); else if (wrap) nb.push(p + w - 1);
         if (cx < w - 1) nb.push(p + 1); else if (wrap) nb.push(p - w + 1);
@@ -55,7 +65,7 @@ function flood(px, w, h, x, y, rgba, tol, wrap) {
         if (cy < h - 1) nb.push(p + w); else if (wrap) nb.push(p - w * (h - 1));
         for (var k = 0; k < nb.length; k++) { var q = nb[k]; if (!seen[q] && near(q)) { seen[q] = 1; stack.push(q); } }
     }
-    return n;
+    return { mask: seen, n: n };
 }
 function hex2(n) { var s = Math.max(0, Math.min(255, Math.round(n))).toString(16); return s.length < 2 ? '0' + s : s; }
 function hexOf(r, g, b) { return '#' + hex2(r) + hex2(g) + hex2(b); }
@@ -147,10 +157,10 @@ function cleanText(s) { return typeof s === 'string' ? s.replace(/[\u0000-\u001f
 // A key pressed with nothing held names a tool, or none
 function toolOfKey(k) { return typeof k === 'string' && k.length === 1 && Object.prototype.hasOwnProperty.call(TOOL_KEYS, k.toLowerCase()) ? TOOL_KEYS[k.toLowerCase()] : null; }
 
-var API = { DRAW: DRAW, TOOLS: TOOLS, TOOL_KEYS: TOOL_KEYS, ZOOMS: ZOOMS, canvasFor: canvasFor, copiesOf: copiesOf, copyPt: copyPt, flood: flood, hexOf: hexOf, cleanHex: cleanHex, rgbOf: rgbOf, pickAt: pickAt,
+var API = { DRAW: DRAW, TOOLS: TOOLS, TOOL_KEYS: TOOL_KEYS, ZOOMS: ZOOMS, canvasFor: canvasFor, copiesOf: copiesOf, copyPt: copyPt, flood: flood, floodMask: floodMask, hexOf: hexOf, cleanHex: cleanHex, rgbOf: rgbOf, pickAt: pickAt,
     dabsAlong: dabsAlong, layerName: layerName, newLayerName: newLayerName, cleanOp: cleanOp, layerAdd: layerAdd, layerDel: layerDel, layerMove: layerMove,
     histNew: histNew, histPush: histPush, histUndo: histUndo, histRedo: histRedo, rectOf: rectOf, constrain: constrain, turnBy: turnBy, rotPt: rotPt, selHit: selHit,
     fitZoom: fitZoom, zoomStep: zoomStep, startChoices: startChoices, cleanText: cleanText, toolOfKey: toolOfKey };
-export { DRAW, TOOLS, TOOL_KEYS, ZOOMS, canvasFor, copiesOf, copyPt, flood, hexOf, cleanHex, rgbOf, pickAt, dabsAlong, layerName, newLayerName, cleanOp, layerAdd, layerDel, layerMove,
+export { DRAW, TOOLS, TOOL_KEYS, ZOOMS, canvasFor, copiesOf, copyPt, flood, floodMask, hexOf, cleanHex, rgbOf, pickAt, dabsAlong, layerName, newLayerName, cleanOp, layerAdd, layerDel, layerMove,
     histNew, histPush, histUndo, histRedo, rectOf, constrain, turnBy, rotPt, selHit, fitZoom, zoomStep, startChoices, cleanText, toolOfKey };
 if (typeof window !== 'undefined') window.wpDrawCore = API;

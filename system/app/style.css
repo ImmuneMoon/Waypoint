@@ -1476,8 +1476,8 @@
   .pw-slide { font-size: 12px; color: var(--dim); display: inline-flex; gap: 6px; align-items: center; }
   .pw-slide input[type=range] { accent-color: var(--gold); width: 110px; }
   .pw-slide span { min-width: 34px; color: var(--ink); }
-  .pw-check { font-size: 12px; display: flex; gap: 6px; align-items: center; margin-top: 6px; cursor: pointer; }
-  .pw-check input[type=checkbox] { width: 16px; height: 16px; margin: 0; accent-color: var(--gold); cursor: pointer; }
+  .pw-check { font-size: 12px; display: flex; gap: 6px; align-items: flex-start; margin-top: 6px; cursor: pointer; line-height: 16px; }
+  .pw-check input[type=checkbox] { width: 16px; height: 16px; margin: 0; flex: 0 0 16px; accent-color: var(--gold); cursor: pointer; }   /* never squeezed by a label that wraps */
   .pw-check[hidden], .pw-font[hidden] { display: none; }
   .pw-font { font-size: 12px; color: var(--dim); display: inline-flex; gap: 6px; align-items: center; }
   .pw-body { display: flex; gap: 14px; min-height: 0; }

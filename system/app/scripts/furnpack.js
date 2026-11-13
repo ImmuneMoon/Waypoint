@@ -477,8 +477,8 @@ function makerRemoveBlock(b) {
 // cells a picture covers, the pixels a cell the template's own. What it starts from is the user's pick: their picture, clear, or
 // Waypoint's drawing (a block's is its material's pattern). Done hands the drawing to makerUse, as a picked file would be
 async function makerPaint(L) {
-    var F = FU(), P = window.wpPaint; if (!F || !_m || !P) return;
-    var d = _m, key = d.sel, px = tplPx(), BC = window.wpBuildCore, o = { px: px, mine: mkUrl(L) || '', done: function(file) { if (_m === d && d.sel === key) makerUse(file); else toast('The pack maker moved on, so the drawing was not kept.'); } };
+    var F = FU(), P = window.wpPaint; if (!F || !_m || !P || P.shown()) return;
+    var d = _m, key = d.sel, px = tplPx(), BC = window.wpBuildCore, o = { px: px, mine: mkUrl(L) || '', back: function() { var b = document.querySelector('#furnMakerSide [data-act="draw"]'); if (b) b.focus(); }, done: function(file) { if (_m === d && d.sel === key) makerUse(file); else toast('The pack maker moved on, so the drawing was not kept.'); } };
     if (mkIsBlock(key)) {
         var b = mkBlock(key), n = key.slice(4), tex = b ? (BC && BC.MATERIALS[b.mat] ? BC.MATERIALS[b.mat].texture : '') : n, t = mkTile(key);
         o.tile = t; o.title = b ? b.name : (BC && BC.texName ? BC.texName(n) : n);
@@ -487,9 +487,10 @@ async function makerPaint(L) {
         var p = key.split('.'), kind = F.furnKind(p[0]); if (!kind) return;
         o.cells = [kind.w, kind.h]; o.title = kind.label + ', ' + F.eraLabel(p[1]); o.wp = { url: F.furnSrc({ k: p[0], era: p[1] }) };
     }
-    if (_m !== d || d.sel !== key) return;
+    var gone = function() { if (o.wp && typeof o.wp.url === 'string' && o.wp.url.slice(0, 5) === 'blob:') URL.revokeObjectURL(o.wp.url); };   // the review of 232: a start made for a window that never opened is let go
+    if (_m !== d || d.sel !== key) { gone(); return; }
     log('maker-draw', { block: mkIsBlock(key) ? 1 : 0 });
-    P.open(o);
+    if (!P.open(o)) gone();
 }
 async function makerUse(file) {
     var F = FU(); if (!F || !_m || !file) return;

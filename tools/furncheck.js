@@ -232,6 +232,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('the page: the packs window with its buttons and its two file pickers, its script after the palette\'s, and Escape closes it',
         ix.includes('<script type="module" src="scripts/furnish.js"></script>\n<script type="module" src="scripts/furnpack.js"></script>\n') && ['furnPackModal', 'furnPackList', 'furnPackImportFile', 'furnPackImportFolder', 'furnPackFromOther', 'furnPackFile', 'furnPackDir', 'furnPackFromList', 'furnPackClose'].every(id => count(ix, 'id="' + id + '"') === 1)
         && ix.includes('<input type="file" id="furnPackDir" webkitdirectory multiple hidden>') && read('scripts/esckey.js').includes("['furnPackModal', 'furnPackClose']"));
+    check('the review of fold 2: an import says a second picture for the same kind and era, and the files past the first 400, each in words of its own',
+        pw.importWords('W', 1, { kind: 0, picture: 0, upload: 0, twice: 1, over: 50 }) === 'Brought in W: 1 picture. Left out: 1 is a second picture for the same kind and era, 50 files past the first 400.'
+        && pwSrc.includes("if (!key) { left.kind++; continue; } if (looks[key]) { left.twice++; continue; }") && pwSrc.includes("await bringIn(name || 'A pack', items, { kind: left, over: over });"));
+    check('the review of fold 2: an import is written to the campaign it began in, read again once its pictures are saved, refused where that campaign is gone, and only one runs at a time',
+        pwSrc.includes("var now = packsOf(c);   // read again") && pwSrc.includes("c.furnPacks = now.concat([pk]); save();") && pwSrc.includes("if (n && !campLive(c)) {") && pwSrc.includes("if (_w.busy) { toast('A pack is still being brought in. Try again when it is done.'); return; }")
+        && pwSrc.includes("if (f) once(function() { return importFile(f); });") && pwSrc.includes("if (L) once(function() { return importFolder(L); });") && pwSrc.includes("var id = packIdOf(allIds(), Math.random() * 2176782336)"));
+    check('the review of fold 2: Remove answers through showConfirm\'s callback, in the packs window and in the map objects\' window, and nothing awaits it',
+        !/await showConfirm/.test(pwSrc) && !/await showConfirm/.test(moSrc) && pwSrc.includes("showConfirm('Remove ' + p.name + ' from this campaign? Pieces already placed keep their pictures.', function(ok) { if (!ok) return;") && moSrc.includes("showConfirm('Remove ' + o.name + ' from your map objects? Pieces already placed stay on their maps.', function(ok) { if (!ok) return;"));
+    check('the review of fold 2: the Image Library counts a pack\'s pictures as the campaign\'s and as used, so Delete warns',
+        wbSrc.includes("list(camp.furnPacks).forEach(function(p) { if (p && p.looks && typeof p.looks === 'object') Object.keys(p.looks).forEach(function(k) { add(p.looks[k], cid); }); });")
+        && wbSrc.includes("maps['the furnishing pack ' + (typeof p.name === 'string' && p.name ? p.name : 'with no name') + ' of ' + (camp.name || 'a campaign')] = 1;"));
     check('Help says what a pack is, where it comes in and the two ways to bring one in or send one out',
         !!help && help[0].includes('A <b>pack</b> gives furnishings another look.') && help[0].includes('chest-fantasy.png') && help[0].includes('Export gives you either.'));
     check('both release notes say it, alike', notes.every(Boolean) && notes[0][0] === notes[1][0] && notes[0][0].includes('Rules for'));

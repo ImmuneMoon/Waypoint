@@ -91,7 +91,7 @@ function formInto(box, o, kind, list) {
     });
     bar.appendChild(move);
     var rm = btn('tool ghost', 'Remove', 'Take it off this list. Pieces already placed stay.');
-    rm.addEventListener('click', async function() { var ok = await showConfirm('Remove ' + o.name + ' from your map objects? Pieces already placed stay on their maps.'); if (!ok) return; store(kind, listsOf(campNow(), C)[kind].filter(function(x) { return x.id !== o.id; })); _win.edit = ''; log('remove', {}); draw(); });
+    rm.addEventListener('click', function() { showConfirm('Remove ' + o.name + ' from your map objects? Pieces already placed stay on their maps.', function(ok) { if (!ok) return; store(kind, listsOf(campNow(), C)[kind].filter(function(x) { return x.id !== o.id; })); _win.edit = ''; log('remove', {}); draw(); }); });   // showConfirm answers through its callback
     bar.appendChild(rm);
     f.appendChild(bar);
     box.appendChild(f);

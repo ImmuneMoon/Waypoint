@@ -6872,6 +6872,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           Object.values(camp.cast || {}).forEach(function(c) { if (c) add(c.src, cid); });
           Object.values(camp.chars && typeof camp.chars === 'object' ? camp.chars : {}).forEach(function(c) { if (c && typeof c === 'object') { add(c.portrait, cid); if (c.frame && typeof c.frame === 'object') add(c.frame.src, cid); } });   // characters' portraits and kept originals
           (Array.isArray(camp.pictures) ? camp.pictures : []).forEach(function(p) { add(p, cid); });
+          list(camp.furnPacks).forEach(function(p) { if (p && p.looks && typeof p.looks === 'object') Object.keys(p.looks).forEach(function(k) { add(p.looks[k], cid); }); });   // 1.6.2 (backlog 222): a furnishing pack's pictures
       });
       return { refs: refs, titles: titles };
   }
@@ -7007,6 +7008,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           Object.values(camp.cast || {}).forEach(function(c) { if (hit(c.src)) { n++; maps['the cast of ' + (camp.name || 'a campaign')] = 1; } });
           Object.values(camp.chars && typeof camp.chars === 'object' ? camp.chars : {}).forEach(function(c) { if (c && typeof c === 'object' && (hit(c.portrait) || (c.frame && typeof c.frame === 'object' && hit(c.frame.src)))) { n++; maps['the characters of ' + (camp.name || 'a campaign')] = 1; } });
           if ((Array.isArray(camp.pictures) ? camp.pictures : []).some(hit)) { n++; maps['brought into ' + (camp.name || 'a campaign')] = 1; }
+          (Array.isArray(camp.furnPacks) ? camp.furnPacks : []).forEach(function(p) { if (p && p.looks && typeof p.looks === 'object' && Object.keys(p.looks).some(function(k) { return hit(p.looks[k]); })) { n++; maps['the furnishing pack ' + (typeof p.name === 'string' && p.name ? p.name : 'with no name') + ' of ' + (camp.name || 'a campaign')] = 1; } });   // 1.6.2 (backlog 222)
       });
       return { count: n, maps: Object.keys(maps) };
   }

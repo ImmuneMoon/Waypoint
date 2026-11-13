@@ -12,7 +12,7 @@ import { save, toast } from './io.js';
 import { showConfirm } from './dialogs.js';
 import './objcore.js';   // brings furncore.js
 
-var PIC_MAX = 4 * 1024 * 1024, FILE_MAX = 96 * 1024 * 1024;
+var PIC_MAX = 4 * 1024 * 1024, FILE_MAX = 96 * 1024 * 1024, FOLDER_MAX = 400;
 function FU() { return window.wpFurnCore || null; }
 function srcRule() { var FC = window.wpFogCore; return FC && FC.cleanTexSrc ? FC.cleanTexSrc : null; }
 function log(step, facts) { if (window.wpStepLog) window.wpStepLog('furnpack v1', step, facts || {}); }
@@ -52,12 +52,14 @@ function importWords(name, n, left) {
     var bits = [];
     if (left.kind) bits.push(left.kind + (left.kind === 1 ? ' names' : ' name') + ' no kind and era');
     if (left.picture) bits.push(left.picture + (left.picture === 1 ? ' is' : ' are') + ' no png, jpeg or webp picture of 4 MB or less');
+    if (left.twice) bits.push(left.twice + (left.twice === 1 ? ' is a second picture' : ' are second pictures') + ' for the same kind and era');
     if (left.upload) bits.push(left.upload + ' could not be saved');
+    if (left.over) bits.push(left.over + (left.over === 1 ? ' file' : ' files') + ' past the first 400');
     return bits.length ? w + ' Left out: ' + bits.join(', ') + '.' : w;
 }
 // [furncheck:packwin-end]
 
-var _w = { from: false };
+var _w = { from: false, busy: false };
 function net() { return window.wpNet || null; }
 function campNow() { return getActiveCampaign(); }
 function packsOf(c) { var F = FU(), r = srcRule(); return F && r && c && c.furnPacks ? F.cleanPacks(c.furnPacks, r) : []; }
@@ -69,21 +71,32 @@ async function upload(packId, k, era, u) {
     if (typeof window.wpUploadBlob !== 'function') return '';
     try { var url = await window.wpUploadBlob(packId, F.lookFile(k, era, ext), blob), r = srcRule(); return r ? (r(url) || '') : ''; } catch (e) { return ''; }
 }
+function campLive(c) { var cs = state.appState && state.appState.campaigns; return !!c && !!cs && Object.keys(cs).some(function(k) { return cs[k] === c; }); }
 async function bringIn(name, items, pre) {   // items: [{ k, era, bytes }]; pre: what the file or the folder already left out
     var F = FU(), c = campNow(); if (!F || !c) return;
-    var list = packsOf(c); if (list.length >= F.PACK_MAX) { toast('This campaign holds as many packs as it can, ' + F.PACK_MAX + '.'); return; }
-    var id = packIdOf([list], Math.random() * 2176782336), looks = {}, left = { kind: pre && pre.kind || 0, picture: pre && pre.picture || 0, upload: 0 }, n = 0;
+    if (packsOf(c).length >= F.PACK_MAX) { toast('This campaign holds as many packs as it can, ' + F.PACK_MAX + '.'); return; }
+    var id = packIdOf(allIds(), Math.random() * 2176782336), looks = {}, left = { kind: pre && pre.kind || 0, picture: pre && pre.picture || 0, upload: 0, twice: pre && pre.twice || 0, over: pre && pre.over || 0 }, n = 0;
     for (var i = 0; i < items.length; i++) {
-        var it = items[i], key = F.lookKey(it.k, it.era); if (!key || looks[key]) { left.kind++; continue; }
+        var it = items[i], key = F.lookKey(it.k, it.era); if (!key) { left.kind++; continue; } if (looks[key]) { left.twice++; continue; }
         if (!F.picKind(it.bytes) || it.bytes.length > PIC_MAX) { left.picture++; continue; }
         var src = await upload(id, it.k, it.era, it.bytes); if (!src) { left.upload++; continue; }
         looks[key] = src; n++;
     }
     var nm = F.packName(name) || 'A pack';
-    if (n) store(list.concat([F.cleanPack({ id: id, name: nm, looks: looks }, srcRule())]).filter(Boolean));
-    log('import', { n: n, left: left.kind + left.picture + left.upload });
+    if (n && !campLive(c)) { log('import-refused', { why: 'campaign gone' }); toast('The campaign ' + nm + ' was brought into is gone, so the pack was not kept.'); return; }
+    var now = packsOf(c);   // read again: a rename or a removal made while the pictures were saved stands
+    if (n && now.length >= F.PACK_MAX) { log('import-refused', { why: 'full' }); toast('This campaign holds as many packs as it can, ' + F.PACK_MAX + '.'); return; }
+    if (n) { var pk = F.cleanPack({ id: id, name: nm, looks: looks }, srcRule()); if (pk) { c.furnPacks = now.concat([pk]); save(); if (window.wpFurnish) window.wpFurnish.draw(); } }   // written to the campaign it began in, whichever is on screen now
+    log('import', { n: n, left: left.kind + left.picture + left.upload + left.twice + left.over });
     toast(importWords(nm, n, left));
     draw();
+}
+// Every pack id held in any campaign, so that a new pack's pictures never share a folder with another's
+function allIds() { var cs = state.appState && state.appState.campaigns, out = []; Object.keys(cs && typeof cs === 'object' ? cs : {}).forEach(function(k) { var c = cs[k]; if (c && Array.isArray(c.furnPacks)) out.push(c.furnPacks); }); return out; }
+// One import at a time: a second waits for nothing and is said
+async function once(fn) {
+    if (_w.busy) { toast('A pack is still being brought in. Try again when it is done.'); return; }
+    _w.busy = true; try { await fn(); } finally { _w.busy = false; }
 }
 async function importFile(file) {
     var F = FU(); if (!F || !file) return;
@@ -96,15 +109,15 @@ async function importFile(file) {
 }
 async function importFolder(files) {
     var F = FU(); if (!F || !files || !files.length) return;
-    var name = '', items = [], left = 0;
-    for (var i = 0; i < files.length && i < 400; i++) {
+    var name = '', items = [], left = 0, over = Math.max(0, files.length - FOLDER_MAX);
+    for (var i = 0; i < files.length && i < FOLDER_MAX; i++) {
         var f = files[i], rel = String(f.webkitRelativePath || ''); if (!name && rel.indexOf('/') > 0) name = rel.slice(0, rel.indexOf('/'));
         var lk = F.lookOfFile(f.name); if (!lk) { left++; continue; }
         if (f.size > PIC_MAX) { items.push({ k: lk.k, era: lk.era, bytes: new Uint8Array(0) }); continue; }
         items.push({ k: lk.k, era: lk.era, bytes: new Uint8Array(await f.arrayBuffer()) });
     }
     if (!items.length) { toast('No picture in that folder is named for a kind and an era, such as chest-fantasy.png.'); log('import-refused', { why: 'no names', files: files.length }); return; }
-    await bringIn(name || 'A pack', items, { kind: left });
+    await bringIn(name || 'A pack', items, { kind: left, over: over });
 }
 async function looksOf(p) {   // each look's bytes, read from the campaign's own picture
     var F = FU(), out = [];
@@ -151,7 +164,7 @@ function rowOf(F, p) {
     var ef = btn('tool ghost', 'Export a file', 'One .wpfurn file with its pictures inside, to keep or to send.'); ef.addEventListener('click', function() { exportFile(p); });
     var ed = btn('tool ghost', 'Export a folder', 'A folder of its pictures, each named for its kind and era, such as chest-fantasy.png.'); ed.addEventListener('click', function() { exportFolder(p); });
     var rm = btn('tool ghost danger', 'Remove', 'Take it out of this campaign. Pieces already placed keep their pictures.');
-    rm.addEventListener('click', async function() { var ok = await showConfirm('Remove ' + p.name + ' from this campaign? Pieces already placed keep their pictures.'); if (!ok) return; store(packsOf(campNow()).filter(function(x) { return x.id !== p.id; })); log('remove', {}); draw(); });
+    rm.addEventListener('click', function() { showConfirm('Remove ' + p.name + ' from this campaign? Pieces already placed keep their pictures.', function(ok) { if (!ok) return; store(packsOf(campNow()).filter(function(x) { return x.id !== p.id; })); log('remove', {}); draw(); }); });   // showConfirm answers through its callback
     top.appendChild(ef); top.appendChild(ed); top.appendChild(rm);
     r.appendChild(top);
     return r;
@@ -192,8 +205,8 @@ function wire() {
     on('furnPackImportFile', function() { var i = $('furnPackFile'); if (i) { i.value = ''; i.click(); } });
     on('furnPackImportFolder', function() { var i = $('furnPackDir'); if (i) { i.value = ''; i.click(); } });
     on('furnPackFromOther', function() { _w.from = !_w.from; draw(); });
-    var fi = $('furnPackFile'); if (fi) fi.addEventListener('change', function() { if (fi.files && fi.files[0]) importFile(fi.files[0]); });
-    var di = $('furnPackDir'); if (di) di.addEventListener('change', function() { if (di.files && di.files.length) importFolder(Array.prototype.slice.call(di.files)); });
+    var fi = $('furnPackFile'); if (fi) fi.addEventListener('change', function() { var f = fi.files && fi.files[0]; if (f) once(function() { return importFile(f); }); });
+    var di = $('furnPackDir'); if (di) di.addEventListener('change', function() { var L = di.files && di.files.length ? Array.prototype.slice.call(di.files) : null; if (L) once(function() { return importFolder(L); }); });
 }
 if (typeof document !== 'undefined') { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire(); }
 window.wpFurnPacks = { open: open, close: close, draw: draw };

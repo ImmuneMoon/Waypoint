@@ -259,6 +259,49 @@ function picKind(b) {
 }
 // [furncheck:packs-end]
 
-var API = { FURN_GROUPS: FURN_GROUPS, FURN_ERAS: FURN_ERAS, FURN_KINDS: FURN_KINDS, cleanFurn: cleanFurn, furnKind: furnKind, furnWords: furnWords, furnSvg: furnSvg, furnSrc: furnSrc, furnSize: furnSize, eraLabel: eraLabel, PACK_MAX: PACK_MAX, cleanPackId: cleanPackId, lookKey: lookKey, packName: packName, cleanPack: cleanPack, cleanPacks: cleanPacks, packLook: packLook, packCount: packCount, lookFile: lookFile, lookOfFile: lookOfFile, picKind: picKind };
+// [furncheck:maker-start]
+// The pack maker and its template (fold 3; the owner: the size "up to the user, defaulting to 200" pixels a cell, and a picture with no clear
+// part "A. Kept, with a word")
+var TPL_PX = 200;
+function cleanTplPx(v) { var n = typeof v === 'number' ? v : typeof v === 'string' && /^\s*\d{1,4}\s*$/.test(v) ? parseInt(v, 10) : NaN; return isFinite(n) && n >= 50 && n <= 800 ? Math.round(n) : TPL_PX; }
+// Does any of a picture's pixels let the map show through? Read from its RGBA bytes
+function hasClear(a) { if (!a || typeof a.length !== 'number') return false; for (var i = 3; i < a.length; i += 4) if (a[i] < 250) return true; return false; }
+// Is a picture of w by h the shape of its kind's cells, give or take a tenth?
+function fitsCells(k, w, h) { var it = furnKind(k); if (!it || !(w > 0) || !(h > 0)) return false; var r = (w / h) / (it.w / it.h); return r > 0.9 && r < 1.1; }
+// Which files of a .zip or a folder are a pack's pictures, by their paths: never one in a reference folder, a hidden file or a system's own
+// folder; only those in a folder named pack where there is one; each kind and era once. Other pictures are counted, text files passed over
+function pickLooks(names) {
+    var list = Array.isArray(names) ? names.slice(0, 400) : [], out = [], left = { kind: 0, twice: 0 }, seen = Object.create(null);
+    var dirsOf = function(n) { return n.split('/').slice(0, -1).map(function(d) { return d.toLowerCase(); }); };
+    var inPack = list.some(function(n) { return typeof n === 'string' && dirsOf(n).indexOf('pack') >= 0; });
+    list.forEach(function(n, i) {
+        if (typeof n !== 'string' || !n || n.charAt(n.length - 1) === '/') return;
+        var parts = n.split('/'), base = parts[parts.length - 1], dirs = dirsOf(n);
+        if (dirs.indexOf('reference') >= 0 || dirs.indexOf('__macosx') >= 0 || base.charAt(0) === '.') return;
+        if (inPack && dirs.indexOf('pack') < 0) return;
+        if (!/\.(png|jpe?g|webp|gif|svg|bmp)$/i.test(base)) return;
+        var lk = lookOfFile(base); if (!lk) { left.kind++; return; }
+        var key = lk.k + '.' + lk.era; if (seen[key]) { left.twice++; return; }
+        seen[key] = 1; out.push({ i: i, k: lk.k, era: lk.era });
+    });
+    return { looks: out, left: left };
+}
+// The template's own words: how to fill it, and each kind with its cells, its size in pixels and its file names
+function tplGuide(px) {
+    var p = cleanTplPx(px), L = [
+        'Waypoint furnishing pack template', '',
+        'The reference folder holds Waypoint\'s own drawings, ' + p + ' pixels a cell. Paint your own over them or beside them.',
+        'Put your pictures in the pack folder, named as the reference ones are, such as chest-fantasy.png.',
+        'A png, jpeg or webp picture of 4 MB or less works. Any size works and is fitted to its cells.',
+        'Give each picture a clear background, so the map shows round it. A picture with none covers its whole square.',
+        'You need not make every kind. A kind your pack leaves out shows Waypoint\'s drawing.',
+        'Then in Waypoint, on Build\'s Objects tab, press Packs, then Import a file, and pick this .zip.', '',
+        'The kinds, with their size in cells and in pixels:'];
+    KINDS.forEach(function(k) { L.push(k.key + ', ' + k.label + ': ' + k.w + ' by ' + k.h + (k.w * k.h === 1 ? ' cell, ' : ' cells, ') + (k.w * p) + ' by ' + (k.h * p) + ' pixels. ' + ERA_IDS.map(function(e) { return k.key + '-' + e + '.png'; }).join(', ')); });
+    return L.join('\r\n') + '\r\n';
+}
+// [furncheck:maker-end]
+
+var API = { FURN_GROUPS: FURN_GROUPS, FURN_ERAS: FURN_ERAS, FURN_KINDS: FURN_KINDS, cleanFurn: cleanFurn, furnKind: furnKind, furnWords: furnWords, furnSvg: furnSvg, furnSrc: furnSrc, furnSize: furnSize, eraLabel: eraLabel, PACK_MAX: PACK_MAX, cleanPackId: cleanPackId, lookKey: lookKey, packName: packName, cleanPack: cleanPack, cleanPacks: cleanPacks, packLook: packLook, packCount: packCount, lookFile: lookFile, lookOfFile: lookOfFile, picKind: picKind, TPL_PX: TPL_PX, cleanTplPx: cleanTplPx, hasClear: hasClear, fitsCells: fitsCells, pickLooks: pickLooks, tplGuide: tplGuide };
 if (typeof window !== 'undefined') window.wpFurnCore = API;
-export { FURN_GROUPS, FURN_ERAS, FURN_KINDS, cleanFurn, furnKind, furnWords, furnSvg, furnSrc, furnSize, eraLabel, PACK_MAX, cleanPackId, lookKey, packName, cleanPack, cleanPacks, packLook, packCount, lookFile, lookOfFile, picKind };
+export { FURN_GROUPS, FURN_ERAS, FURN_KINDS, cleanFurn, furnKind, furnWords, furnSvg, furnSrc, furnSize, eraLabel, PACK_MAX, cleanPackId, lookKey, packName, cleanPack, cleanPacks, packLook, packCount, lookFile, lookOfFile, picKind, TPL_PX, cleanTplPx, hasClear, fitsCells, pickLooks, tplGuide };

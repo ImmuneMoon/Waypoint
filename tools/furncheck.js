@@ -234,7 +234,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         && ix.includes('<input type="file" id="furnPackDir" webkitdirectory multiple hidden>') && read('scripts/esckey.js').includes("['furnPackModal', 'furnPackClose']"));
     check('the review of fold 2: an import says a second picture for the same kind and era, and the files past the first 400, each in words of its own',
         pw.importWords('W', 1, { kind: 0, picture: 0, upload: 0, twice: 1, over: 50 }) === 'Brought in W: 1 picture. Left out: 1 is a second picture for the same kind and era, 50 files past the first 400.'
-        && pwSrc.includes("if (!key) { left.kind++; continue; } if (looks[key]) { left.twice++; continue; }") && pwSrc.includes("await bringIn(name || 'A pack', items, { kind: left, over: over });"));
+        && pwSrc.includes("if (!key) { left.kind++; continue; } if (looks[key]) { left.twice++; continue; }") && pwSrc.includes("await bringIn(name || 'A pack', items, { kind: pick.left.kind, twice: pick.left.twice, over: Math.max(0, files.length - FOLDER_MAX) });"));
     check('the review of fold 2: an import is written to the campaign it began in, read again once its pictures are saved, refused where that campaign is gone, and only one runs at a time',
         pwSrc.includes("var now = packsOf(c);   // read again") && pwSrc.includes("c.furnPacks = now.concat([pk]); save();") && pwSrc.includes("if (n && !campLive(c)) {") && pwSrc.includes("if (_w.busy) { toast('A pack is still being brought in. Try again when it is done.'); return; }")
         && pwSrc.includes("if (f) once(function() { return importFile(f); });") && pwSrc.includes("if (L) once(function() { return importFolder(L); });") && pwSrc.includes("var id = packIdOf(allIds(), Math.random() * 2176782336)"));
@@ -245,6 +245,52 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         && wbSrc.includes("maps['the furnishing pack ' + (typeof p.name === 'string' && p.name ? p.name : 'with no name') + ' of ' + (camp.name || 'a campaign')] = 1;"));
     check('Help says what a pack is, where it comes in and the two ways to bring one in or send one out',
         !!help && help[0].includes('A <b>pack</b> gives furnishings another look.') && help[0].includes('chest-fantasy.png') && help[0].includes('Export gives you either.'));
+    // ---- fold 3: the pack maker, its template and a .zip brought back ----
+    check('the template\'s size is yours, 50 to 800 pixels a cell, 200 where none is given or what is given is no whole number in that span',
+        FU.TPL_PX === 200 && FU.cleanTplPx(120) === 120 && FU.cleanTplPx(' 400 ') === 400 && FU.cleanTplPx('800') === 800 && FU.cleanTplPx(49) === 200 && FU.cleanTplPx(801) === 200
+        && ['', '1e3', '12.5', 'x', null, NaN, Infinity, '__proto__'].every(v => FU.cleanTplPx(v) === 200) && FU.cleanTplPx(150.4) === 150);
+    const rgba = a => Uint8Array.from(a.flatMap(x => [9, 9, 9, x]));
+    check('a picture has a clear part where any pixel lets the map show through, read from its RGBA bytes',
+        FU.hasClear(rgba([255, 255, 0])) && FU.hasClear(rgba([255, 249])) && !FU.hasClear(rgba([255, 255, 250])) && !FU.hasClear(new Uint8Array(0)) && !FU.hasClear(null));
+    check('a picture fits its cells where its shape is theirs, give or take a tenth: a bed is twice as tall as it is wide',
+        FU.fitsCells('chest', 200, 200) && FU.fitsCells('bed', 200, 400) && FU.fitsCells('bed', 105, 200) && !FU.fitsCells('bed', 300, 300) && !FU.fitsCells('chest', 200, 260) && !FU.fitsCells('nope', 1, 1) && !FU.fitsCells('chest', 0, 1));
+    const pk1 = FU.pickLooks(['How to make a pack.txt', 'reference/chest-fantasy.png', 'pack/chest-fantasy.png', 'pack/Put your pictures here.txt', 'pack/mug-fantasy.png', 'pack/CHEST_FANTASY.webp', 'pack/sub/bed-modern.jpg', '__MACOSX/pack/._sofa-modern.png', 'pack/.sofa-modern.png', 'pack/']);
+    const pk2 = FU.pickLooks(['Mine/chest-fantasy.png', 'Mine/reference/bed-modern.png', 'Mine/notes.txt', 'Mine/x.gif']);
+    check('a .zip or a folder gives the pictures of its pack folder, each kind and era once, never a reference picture, a hidden file or one in __MACOSX; other pictures counted, text passed over',
+        J(pk1.looks.map(l => l.i + ':' + l.k + '.' + l.era)) === J(['2:chest.fantasy', '6:bed.modern']) && pk1.left.kind === 1 && pk1.left.twice === 1
+        && J(pk2.looks.map(l => l.k + '.' + l.era)) === J(['chest.fantasy']) && pk2.left.kind === 1 && J(FU.pickLooks('x')) === J({ looks: [], left: { kind: 0, twice: 0 } }), [pk1, pk2]);
+    const gd = FU.tplGuide(120), gl = gd.split('\r\n');
+    check('the template\'s guide says the size picked, how to fill it and bring it back, and every kind with its cells, its pixels and its four file names, in plain words',
+        gd.endsWith('\r\n') && gl[2].includes('120 pixels a cell') && gd.includes('Import a file') && gd.includes('clear background') && gl.filter(l => /^[a-z]+, /.test(l)).length === 21
+        && gl.includes('bed, Bed: 1 by 2 cells, 120 by 240 pixels. bed-fantasy.png, bed-victorian.png, bed-modern.png, bed-futuristic.png') && FU.tplGuide('x').includes('200 pixels a cell') && !/[;()\u2013\u2014]/.test(gd), gl.slice(0, 12));
+    check('an import says a picture with no clear part apart from what it left out: kept, and covering its whole square',
+        pw.importWords('W', 3, { kind: 0, picture: 0, upload: 0, solid: 1 }) === 'Brought in W: 3 pictures. 1 has no clear part, so it covers its whole square.'
+        && pw.importWords('W', 3, { kind: 1, picture: 0, upload: 0, solid: 2 }) === 'Brought in W: 3 pictures. Left out: 1 names no kind and era. 2 have no clear part, so each covers its whole square.'
+        && pwSrc.includes("var inf = await picInfo(new Blob([it.bytes])); if (inf && !inf.clear) left.solid++;   // kept, and said"));
+    check('Import a file takes a .zip by its first bytes, reads only the pictures pickLooks names, each under 4 MB before it is read, and a folder is read by the same rule',
+        pwSrc.includes("if (isZip(head)) return importZip(file);") && pwSrc.includes("var ents = z.entries.slice(0, FOLDER_MAX), pick = F.pickLooks(ents.map(function(e) { return e.name; })), items = [];")
+        && pwSrc.includes("if (!(e.size >= 0) || e.size > PIC_MAX) { items.push({ k: l.k, era: l.era, bytes: new Uint8Array(0) }); continue; }") && pwSrc.includes("var pick = F.pickLooks(L.map(function(f) { return String(f.webkitRelativePath || f.name || ''); }));")
+        && ix.includes('<input type="file" id="furnPackFile" accept=".wpfurn,.zip,application/json,application/zip" hidden>'));
+    check('the maker takes a picture only as png, jpeg or webp of 4 MB or less, saves only to the campaign it began in, one save at a time, keeps the pack\'s id when it edits one, and asks before it closes on changes not saved',
+        pwSrc.includes("if (file.size > PIC_MAX) { toast('That picture is larger than 4 MB.'); return; }") && pwSrc.includes("if (!kind) { toast('That is no png, jpeg or webp picture.');")
+        && pwSrc.includes("var c = _m.camp; if (!campLive(c))") && pwSrc.includes("on('furnMakerSave', function() { once(makerSave); });") && pwSrc.includes("var id = _m.id || packIdOf(allIds(), Math.random() * 2176782336)")
+        && pwSrc.includes("if (at >= 0) now[at] = pk; else now.push(pk);") && pwSrc.includes("showConfirm('Close the pack maker? What you changed since the last save is lost.', function(ok)")
+        && pwSrc.includes("if (failed) { log('maker-save-failed'"));
+    check('the template is made from Waypoint\'s drawings at the size kept for this computer, in a reference folder beside a pack folder and the guide',
+        pwSrc.includes("ents.push({ name: 'reference/' + F.lookFile(k.key, e, 'png'), data: await pngOf(F.furnSrc({ k: k.key, era: e }), k.w * px, k.h * px) });") && pwSrc.includes("ents.push({ name: 'How to make a pack.txt', data: enc.encode(F.tplGuide(px)) });")
+        && pwSrc.includes("var F = FU(), v = ''; try { v = localStorage.getItem('wp_furnTplPx') || ''; } catch (e) {} return F.cleanTplPx(v);") && pwSrc.includes("download(zip.zipCreate(ents), 'Furnishing pack template.zip');"));
+    check('the page: Make a pack, Download the template with its size, Edit on a pack, and the maker with its name, grid, picked square, file picker and four buttons; Escape closes the maker first',
+        ['furnPackMake', 'furnPackTemplate', 'furnTplPx', 'furnMakerModal', 'furnMakerTitle', 'furnMakerName', 'furnMakerCount', 'furnMakerGrid', 'furnMakerSide', 'furnMakerFile', 'furnMakerSave', 'furnMakerExportFile', 'furnMakerExportFolder', 'furnMakerClose'].every(id => count(ix, 'id="' + id + '"') === 1)
+        && ix.includes('<input type="number" id="furnTplPx" min="50" max="800" step="10" value="200">') && pwSrc.includes("var ed = btn('tool ghost', 'Edit', 'Open it in the pack maker');")
+        && read('scripts/esckey.js').includes("['furnMakerModal', 'furnMakerClose'], ['furnPackModal', 'furnPackClose'],") && css.includes('#furnMakerModal { z-index: 99991; }'));
+    check('the maker writes no markup and keys its grid by arrows, Home and End, which go no further',
+        !/innerHTML|insertAdjacentHTML|outerHTML/.test(pwSrc) && pwSrc.includes("ev.preventDefault(); ev.stopPropagation();") && pwSrc.includes("g.addEventListener('keydown', gridKey);"));
+    const help2 = /<li><b>Making a furnishing pack:<\/b>[\s\S]*?<\/ul>\n\s*<\/li>/.exec(ix);
+    check('Help says how to make a pack, the size, the clear background and the template, in plain words',
+        !!help2 && help2[0].includes('<b>Make a pack</b>') && help2[0].includes('<b>Download the template</b>') && help2[0].includes('200 by 400') && help2[0].includes('<code>chest-fantasy.png</code>')
+        && !/[;()\u2013\u2014]/.test(help2[0].replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, '')));
+    const notes3 = [readRoot('WHATSNEW.txt'), read('assets/whatsnew.txt')].map(t => /\n- You can now make a furnishing pack in Waypoint\.[\s\S]*?whole square\.\n/.exec(t));
+    check('both release notes say the maker and the template, alike', notes3.every(Boolean) && notes3[0][0] === notes3[1][0] && notes3[0][0].includes('Download the template'));
     check('both release notes say it, alike', notes.every(Boolean) && notes[0][0] === notes[1][0] && notes[0][0].includes('Rules for'));
     const ci = readRoot('.github/workflows/checks.yml');
     check('CI runs this suite in a step of its own', count(ci, 'run: node tools/furncheck.js') === 1);

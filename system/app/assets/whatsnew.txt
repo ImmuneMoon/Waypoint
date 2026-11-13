@@ -1177,6 +1177,13 @@ The Data Map
   of pictures named like chest-fantasy.png, or to copy one from another
   campaign. Export writes either. A kind the pack lacks shows Waypoint's own
   drawing, marked, and a placed piece keeps its picture.
+- You can now make a furnishing pack in Waypoint. Press Make a pack in the Packs
+  window: every kind stands in its four looks beside Waypoint's drawing, and Use
+  a picture gives one yours, shown at its real size. Edit opens a pack again.
+  Download the template gives a .zip of Waypoint's drawings at the size you
+  pick, 200 pixels a cell to start, with an empty pack folder. Fill it in
+  another program and bring the .zip back with Import a file. A picture with no
+  clear part is kept, and you are told it covers its whole square.
 - A piece's Properties now open from Properties on its right-click menu, or
   from the sliders on the bar over a selected piece. A double-click no longer
   opens them. A right-click selects the piece too, so you can see which one

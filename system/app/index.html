@@ -989,6 +989,15 @@
                                   <li>A kind the pack has no picture for shows Waypoint&rsquo;s drawing, marked. A placed piece keeps its picture, whatever later happens to the pack.</li>
                               </ul>
                           </li>
+                          <li><b>Making a furnishing pack:</b> press <b>Packs</b> beside the Looks list, then <b>Make a pack</b>. <b>Edit</b> on a pack opens it there again.
+                              <ul>
+                                  <li>Every kind stands in four looks beside Waypoint&rsquo;s drawing. Pick a square, then <b>Use a picture</b>.</li>
+                                  <li>200 pixels a cell is a good size, so a bed of two cells is 200 by 400. Any size works and is fitted to its cells.</li>
+                                  <li>Give each picture a clear background, so the map shows round it. A picture with none covers its whole square.</li>
+                                  <li>To paint in another program, press <b>Download the template</b>. Its reference folder holds Waypoint&rsquo;s drawings at the size you pick.</li>
+                                  <li>Put your pictures in its pack folder, named as the reference ones are, such as <code>chest-fantasy.png</code>. Then bring the .zip in with <b>Import a file</b>.</li>
+                              </ul>
+                          </li>
                           <li><b>Containers:</b> a picture, a shape or a map object can hold items, such as a chest or a crate. Tick <b>Holds items</b> in its Properties. A token, a wall or a door cannot.
                               <ul>
                                   <li>Press <b>Open contents</b>, there or on its right-click menu. Each item stands as a tile with its icon and count, and its name and notes show when you point at it.</li>
@@ -5483,14 +5492,37 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div id="furnPackList"></div>
         <div class="gen-rule"></div>
         <div class="obj-formbar">
-            <button type="button" class="tool ghost" id="furnPackImportFile" title="Bring in one .wpfurn file with its pictures inside">Import a file</button>
+            <button type="button" class="tool" id="furnPackMake" title="Make a pack in Waypoint, picture by picture, beside Waypoint&rsquo;s own drawings">Make a pack</button>
+            <button type="button" class="tool ghost" id="furnPackTemplate" title="A .zip of Waypoint&rsquo;s drawings to paint over in another program, with an empty pack folder for your pictures">Download the template</button>
+            <label class="furn-tpl-px" title="How many pixels a cell the template&rsquo;s drawings are made at, and the size the maker suggests">at <input type="number" id="furnTplPx" min="50" max="800" step="10" value="200"> pixels a cell</label>
+        </div>
+        <div class="obj-formbar">
+            <button type="button" class="tool ghost" id="furnPackImportFile" title="Bring in one .wpfurn file with its pictures inside, or a .zip such as the template filled in">Import a file</button>
             <button type="button" class="tool ghost" id="furnPackImportFolder" title="Bring in a folder of pictures, each named for its kind and era, such as chest-fantasy.png">Import a folder</button>
             <button type="button" class="tool ghost" id="furnPackFromOther" title="Copy a pack from another of your campaigns">From another campaign</button>
         </div>
-        <input type="file" id="furnPackFile" accept=".wpfurn,application/json" hidden>
+        <input type="file" id="furnPackFile" accept=".wpfurn,.zip,application/json,application/zip" hidden>
         <input type="file" id="furnPackDir" webkitdirectory multiple hidden>
         <div id="furnPackFromList" hidden></div>
         <div class="obj-formbar obj-end"><button type="button" class="tool" id="furnPackClose" title="Close">Close</button></div>
+    </div>
+</div>
+<!-- The pack maker (1.6.2, backlog 222, fold 3): every kind and era beside Waypoint's drawing (furnpack.js) -->
+<div id="furnMakerModal" class="gen-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="furnMakerTitle">
+    <div class="gen-box furn-maker-box">
+        <h3 id="furnMakerTitle">Make a pack</h3>
+        <div class="fm-head"><input type="text" id="furnMakerName" maxlength="60" placeholder="The pack&rsquo;s name" aria-label="The pack&rsquo;s name"><span id="furnMakerCount" class="fm-count"></span></div>
+        <div class="fm-body">
+            <div id="furnMakerGrid" class="fm-grid" role="group" aria-label="Every kind in the four looks. Pick one to give it a picture."></div>
+            <div id="furnMakerSide" class="fm-side" aria-live="polite"></div>
+        </div>
+        <input type="file" id="furnMakerFile" accept="image/png,image/jpeg,image/webp" hidden>
+        <div class="obj-formbar obj-end">
+            <button type="button" class="tool" id="furnMakerSave" title="Save the pack to this campaign">Save to this campaign</button>
+            <button type="button" class="tool ghost" id="furnMakerExportFile" title="One .wpfurn file with its pictures inside">Export a file</button>
+            <button type="button" class="tool ghost" id="furnMakerExportFolder" title="A folder of its pictures, each named for its kind and era">Export a folder</button>
+            <button type="button" class="tool ghost" id="furnMakerClose" title="Close">Close</button>
+        </div>
     </div>
 </div>
 <!-- Map objects (1.6.0): the GM's list of what can be placed (mapobjects.js) -->

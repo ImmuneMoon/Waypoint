@@ -11,7 +11,7 @@
    text nodes alone, and every step is logged ('furnpack v1'). */
 import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
-import { save, toast } from './io.js';
+import { save, toast, pressHold } from './io.js';
 import { showConfirm } from './dialogs.js';
 import './objcore.js';   // brings furncore.js
 
@@ -145,7 +145,7 @@ async function importFolder(files) {
     var F = FU(); if (!F || !files || !files.length) return;
     var L = files.slice(0, FOLDER_MAX), name = '', items = [];
     L.forEach(function(f) { var rel = String(f.webkitRelativePath || ''); if (!name && rel.indexOf('/') > 0) name = rel.slice(0, rel.indexOf('/')); });
-    var pick = F.pickLooks(L.map(function(f) { return String(f.webkitRelativePath || f.name || ''); }));
+    var pick = F.pickLooks(L.map(function(f) { var rel = String(f.webkitRelativePath || f.name || ''), at = rel.indexOf('/'); return at >= 0 ? rel.slice(at + 1) : rel; }));   // the folder picked is the pack, whatever it is called
     for (var i = 0; i < pick.looks.length; i++) {
         var l = pick.looks[i], f = L[l.i];
         if (f.size > PIC_MAX) { items.push({ k: l.k, era: l.era, bytes: new Uint8Array(0) }); continue; }
@@ -175,18 +175,19 @@ function exportLooksFile(name, looks) {
     download(new Blob([JSON.stringify(out)], { type: 'application/json' }), fileName(name) + '.wpfurn');
     log('export', { as: 'file', n: looks.length }); toast('Exported ' + name + ' as one file, ' + looks.length + (looks.length === 1 ? ' picture.' : ' pictures.'));
 }
-async function exportLooksFolder(name, looks) {
+async function exportLooksFolder(name, getLooks) {   // getLooks: a function that reads the pictures, asked once the folder is picked
     var F = FU();
     if (typeof window.showDirectoryPicker !== 'function') { toast('This window cannot write a folder. Export it as one file instead.'); return; }
-    var dir; try { dir = await window.showDirectoryPicker({ mode: 'readwrite' }); } catch (e) { return; }
+    var dir; try { dir = await window.showDirectoryPicker({ mode: 'readwrite' }); } catch (e) { if (!e || e.name !== 'AbortError') { log('export-failed', { as: 'folder', why: 'picker' }); toast('No folder could be picked here. Export it as one file instead.'); } return; }
     try {
+        var looks = await getLooks(); if (!looks.length) { toast('There is no picture to export.'); return; }
         var sub = await dir.getDirectoryHandle(fileName(name), { create: true });
         for (var i = 0; i < looks.length; i++) { var l = looks[i], fh = await sub.getFileHandle(F.lookFile(l.k, l.era, l.kind === 'jpeg' ? 'jpg' : l.kind), { create: true }), wr = await fh.createWritable(); await wr.write(l.bytes); await wr.close(); }
         log('export', { as: 'folder', n: looks.length }); toast('Exported ' + name + ' as a folder of ' + looks.length + (looks.length === 1 ? ' picture.' : ' pictures.'));
     } catch (e) { log('export-failed', { as: 'folder' }); toast('The folder could not be written. Export it as one file instead.'); }
 }
 async function exportFile(p) { exportLooksFile(p.name, await looksOf(p)); }
-async function exportFolder(p) { exportLooksFolder(p.name, await looksOf(p)); }
+async function exportFolder(p) { exportLooksFolder(p.name, function() { return looksOf(p); }); }
 
 // ---- the template (fold 3): Waypoint's drawings at the size you pick, in a reference folder, beside an empty pack folder ----
 function tplPx() { var F = FU(), v = ''; try { v = localStorage.getItem('wp_furnTplPx') || ''; } catch (e) {} return F.cleanTplPx(v); }
@@ -219,8 +220,9 @@ function mkKeys() { var F = FU(), out = []; F.FURN_KINDS.forEach(function(k) { F
 function makerOpen(p) {
     var F = FU(); if (!F) return;
     if (!packMay(net(), window)) { toast('Furnishing packs are the GM’s.'); return; }
+    if (_m && _m.saving) { toast('A pack is still being saved. Try again when it is done.'); return; }
     mkFree();
-    _m = { camp: campNow(), id: p ? p.id : '', name: p ? p.name : '', looks: {}, info: {}, sel: mkKeys()[0], dirty: false };
+    _m = { camp: campNow(), id: p ? p.id : '', name: p ? p.name : '', looks: {}, info: {}, sel: mkKeys()[0], dirty: false, rev: 0, saving: false };
     if (p) Object.keys(p.looks || {}).forEach(function(k) { _m.looks[k] = { src: p.looks[k] }; });
     var m = $('furnMakerModal'); if (!m) return;
     m.style.display = 'flex'; makerDraw(); log('maker-open', { edit: p ? 1 : 0, n: Object.keys(_m.looks).length });
@@ -229,6 +231,7 @@ function makerOpen(p) {
 function makerShut() { mkFree(); _m = null; var m = $('furnMakerModal'); if (m) m.style.display = 'none'; draw(); }
 function makerClose() {
     if (!_m) return makerShut();
+    if (_m.saving) { toast('The pack is still being saved. Close it when that is done.'); return; }
     if (!_m.dirty) return makerShut();
     showConfirm('Close the pack maker? What you changed since the last save is lost.', function(ok) { if (ok) { log('maker-close', { saved: 0 }); makerShut(); } });
 }
@@ -238,7 +241,7 @@ function makerDraw() {
     var nm = $('furnMakerName'); if (nm && document.activeElement !== nm) nm.value = _m.name;
     var n = Object.keys(_m.looks).length, cnt = $('furnMakerCount'); if (cnt) cnt.textContent = n + ' of ' + mkKeys().length + ' pictures';
     var grid = $('furnMakerGrid'); if (!grid) return;
-    var had = document.activeElement && grid.contains(document.activeElement) ? document.activeElement.dataset.key : '';
+    var had = document.activeElement && grid.contains(document.activeElement) ? document.activeElement.dataset.key : '', sideEl = $('furnMakerSide'), act = document.activeElement && sideEl && sideEl.contains(document.activeElement) ? document.activeElement.dataset.act || '' : '';
     grid.textContent = '';
     grid.appendChild(el('div', 'fm-corner'));
     F.FURN_ERAS.forEach(function(e) { grid.appendChild(el('div', 'fm-era', e.label)); });
@@ -257,6 +260,7 @@ function makerDraw() {
     });
     if (had) { var back = grid.querySelector('[data-key="' + had + '"]'); if (back) back.focus(); }
     sideDraw();
+    if (act && sideEl) { var to = sideEl.querySelector('[data-act="' + act + '"]'); if (!to || to.disabled) to = sideEl.querySelector('[data-act="use"]'); if (to) to.focus(); }
 }
 function sideDraw() {
     var F = FU(), side = $('furnMakerSide'); if (!F || !side || !_m) return;
@@ -272,8 +276,9 @@ function sideDraw() {
     side.appendChild(row);
     side.appendChild(el('div', 'fm-line', (kind.w === 1 && kind.h === 1 ? 'One cell' : kind.w + ' by ' + kind.h + ' cells') + ' on the map. ' + kind.w * px + ' by ' + kind.h * px + ' pixels is a good size. Clear parts show the checker.'));
     var bar = el('div', 'fm-btns'), use = btn('tool', 'Use a picture…', 'A png, jpeg or webp picture of 4 MB or less'), clr = btn('tool ghost', 'Clear', 'Take your picture off. Waypoint’s drawing stands in for it.');
+    use.dataset.act = 'use'; clr.dataset.act = 'clear';
     use.addEventListener('click', function() { var i = $('furnMakerFile'); if (i) { i.value = ''; i.click(); } });
-    clr.disabled = !L; clr.addEventListener('click', function() { if (!_m.looks[_m.sel]) return; var o = _m.looks[_m.sel]; if (o.url) URL.revokeObjectURL(o.url); delete _m.looks[_m.sel]; delete _m.info[_m.sel]; _m.dirty = true; log('maker-clear', {}); makerDraw(); });
+    clr.disabled = !L; clr.addEventListener('click', function() { if (!_m.looks[_m.sel]) return; var o = _m.looks[_m.sel]; if (o.url) URL.revokeObjectURL(o.url); delete _m.looks[_m.sel]; delete _m.info[_m.sel]; _m.dirty = true; _m.rev++; log('maker-clear', {}); makerDraw(); });
     bar.appendChild(use); bar.appendChild(clr); side.appendChild(bar);
     var st = el('div', 'fm-state'); side.appendChild(st);
     if (!L) return;
@@ -293,10 +298,12 @@ async function makerUse(file) {
     if (file.size > PIC_MAX) { toast('That picture is larger than 4 MB.'); return; }
     var u = new Uint8Array(await file.arrayBuffer()), kind = F.picKind(u);
     if (!kind) { toast('That is no png, jpeg or webp picture.'); log('maker-refused', { why: 'kind' }); return; }
-    var key = _m.sel, o = _m.looks[key]; if (o && o.url) URL.revokeObjectURL(o.url);
-    _m.looks[key] = { bytes: u, kind: kind }; _m.info[key] = await picInfo(new Blob([u])); _m.dirty = true;
-    log('maker-use', { clear: _m.info[key] && _m.info[key].clear ? 1 : 0 });
-    makerDraw();
+    var d = _m; if (!d) return;
+    var key = d.sel, o = d.looks[key]; if (o && o.url) URL.revokeObjectURL(o.url);
+    var L = { bytes: u, kind: kind }; d.looks[key] = L; d.info[key] = undefined; d.dirty = true; d.rev++;
+    var inf = await picInfo(new Blob([u])); if (d.looks[key] === L) d.info[key] = inf;   // the picture it was read for, on the draft it was picked in
+    log('maker-use', { clear: inf && inf.clear ? 1 : 0 });
+    if (_m === d) makerDraw();
 }
 function gridKey(ev) {
     var t = ev.target; if (!t || !t.dataset || !t.dataset.key) return;
@@ -309,29 +316,35 @@ function gridKey(ev) {
 }
 // Save: new pictures are saved as the campaign's own, kept ones stay, and the pack is written to the campaign the maker began in
 async function makerSave() {
-    var F = FU(); if (!F || !_m) return;
-    var nm = F.packName(_m.name); if (!nm) { toast('Give the pack a name.'); var ni = $('furnMakerName'); if (ni) ni.focus(); return; }
-    var keys = Object.keys(_m.looks); if (!keys.length) { toast('Add at least one picture.'); return; }
-    var c = _m.camp; if (!campLive(c)) { toast('The campaign this pack was begun in is gone.'); return; }
-    var list = packsOf(c); if (!_m.id && list.length >= F.PACK_MAX) { toast('This campaign holds as many packs as it can, ' + F.PACK_MAX + '.'); return; }
-    var id = _m.id || packIdOf(allIds(), Math.random() * 2176782336), looks = {}, failed = 0;
-    for (var i = 0; i < keys.length; i++) {
-        var key = keys[i], L = _m.looks[key], p = key.split('.');
-        if (L.src) { looks[key] = L.src; continue; }
-        var src = await upload(id, p[0], p[1], L.bytes); if (!src) { failed++; continue; }
-        if (L.url) URL.revokeObjectURL(L.url); _m.looks[key] = { src: src }; looks[key] = src;
-    }
-    if (failed) { log('maker-save-failed', { failed: failed }); toast(failed + (failed === 1 ? ' picture' : ' pictures') + ' could not be saved. Nothing was changed. Try Save again.'); makerDraw(); return; }
+    var F = FU(), d = _m; if (!F || !d) return;
+    var nm = F.packName(d.name); if (!nm) { toast('Give the pack a name.'); var ni = $('furnMakerName'); if (ni) ni.focus(); return; }
+    var keys = Object.keys(d.looks); if (!keys.length) { toast('Add at least one picture.'); return; }
+    var c = d.camp; if (!campLive(c)) { toast('The campaign this pack was begun in is gone.'); return; }
+    var list = packsOf(c); if (!d.id && list.length >= F.PACK_MAX) { toast('This campaign holds as many packs as it can, ' + F.PACK_MAX + '.'); return; }
+    var id = d.id || packIdOf(allIds(), Math.random() * 2176782336), looks = {}, failed = 0, snap = {}, rev = d.rev;
+    keys.forEach(function(k) { snap[k] = d.looks[k]; });   // what the draft held when Save was pressed
+    d.id = id; d.saving = true;
+    try {
+        for (var i = 0; i < keys.length; i++) {
+            var key = keys[i], L = snap[key], p = key.split('.');
+            if (L.src) { looks[key] = L.src; continue; }
+            var src = await upload(id, p[0], p[1], L.bytes); if (!src) { failed++; continue; }
+            looks[key] = src;
+            if (d.looks[key] === L) { if (L.url) URL.revokeObjectURL(L.url); d.looks[key] = { src: src, kind: L.kind }; }   // a picture changed meanwhile stays as it is now
+        }
+    } finally { d.saving = false; }
+    var here = _m === d;
+    if (failed) { log('maker-save-failed', { failed: failed }); toast(failed + (failed === 1 ? ' picture' : ' pictures') + ' could not be saved. Nothing was changed. Try Save again.'); if (here) makerDraw(); return; }
     if (!campLive(c)) { toast('The campaign this pack was begun in is gone.'); return; }
     var now = packsOf(c), pk = F.cleanPack({ id: id, name: nm, looks: looks }, srcRule()); if (!pk) return;
     var at = now.findIndex(function(x) { return x.id === id; });
     if (at < 0 && now.length >= F.PACK_MAX) { toast('This campaign holds as many packs as it can, ' + F.PACK_MAX + '.'); return; }
     if (at >= 0) now[at] = pk; else now.push(pk);
     c.furnPacks = now; save(); if (window.wpFurnish) window.wpFurnish.draw();
-    _m.id = id; _m.name = nm; _m.dirty = false;
-    log('maker-save', { n: keys.length, edit: at >= 0 ? 1 : 0 });
+    if (d.rev === rev) d.dirty = false;   // a change made while it saved is still to be saved
+    log('maker-save', { n: keys.length, edit: at >= 0 ? 1 : 0, changedSince: d.rev === rev ? 0 : 1 });
     toast('Saved ' + nm + ', ' + keys.length + (keys.length === 1 ? ' picture.' : ' pictures.') + ' Pieces already placed keep the pictures they have.');
-    makerDraw(); draw();
+    if (here) makerDraw(); draw();
 }
 async function makerLooks() {   // the draft's looks as bytes, for an export
     var F = FU(), out = [];
@@ -344,9 +357,10 @@ async function makerLooks() {   // the draft's looks as bytes, for an export
 }
 async function makerExport(asFolder) {
     var F = FU(); if (!_m) return;
-    var nm = F.packName(_m.name) || 'A pack', looks = await makerLooks();
-    if (!looks.length) { toast('Add at least one picture.'); return; }
-    if (asFolder) await exportLooksFolder(nm, looks); else exportLooksFile(nm, looks);
+    var nm = F.packName(_m.name) || 'A pack'; if (!Object.keys(_m.looks).length) { toast('Add at least one picture.'); return; }
+    if (asFolder) { await exportLooksFolder(nm, makerLooks); return; }
+    var looks = await makerLooks(); if (!looks.length) { toast('Add at least one picture.'); return; }
+    exportLooksFile(nm, looks);
 }
 
 function othersOf() {
@@ -361,12 +375,13 @@ function othersOf() {
 function rowOf(F, p) {
     var r = el('div', 'obj-row'), top = el('div', 'obj-top'), txt = el('div', 'obj-txt'), nm = el('input', 'furn-pack-name');
     nm.type = 'text'; nm.maxLength = 60; nm.value = p.name; nm.setAttribute('aria-label', 'The pack’s name');
-    nm.addEventListener('change', function() { var v = F.packName(nm.value); if (!v) { nm.value = p.name; return; } store(packsOf(campNow()).map(function(x) { return x.id === p.id ? Object.assign({}, x, { name: v }) : x; })); log('rename', {}); draw(); });
+    nm.addEventListener('change', function() { var v = F.packName(nm.value); if (!v) { nm.value = p.name; return; } store(packsOf(campNow()).map(function(x) { return x.id === p.id ? Object.assign({}, x, { name: v }) : x; })); log('rename', {}); drawSoon(); });
     txt.appendChild(nm); txt.appendChild(el('small', '', F.packCount(p) + (F.packCount(p) === 1 ? ' picture' : ' pictures')));
     top.appendChild(txt);
-    var ed = btn('tool ghost', 'Edit', 'Open it in the pack maker'); ed.addEventListener('click', function() { makerOpen(p); });
-    var ef = btn('tool ghost', 'Export a file', 'One .wpfurn file with its pictures inside, to keep or to send.'); ef.addEventListener('click', function() { exportFile(p); });
-    var eo = btn('tool ghost', 'Export a folder', 'A folder of its pictures, each named for its kind and era, such as chest-fantasy.png.'); eo.addEventListener('click', function() { exportFolder(p); });
+    var cur = function() { return packsOf(campNow()).find(function(x) { return x.id === p.id; }) || p; };   // the pack as it is now: a rename may land in the same press
+    var ed = btn('tool ghost', 'Edit', 'Open it in the pack maker'); ed.addEventListener('click', function() { makerOpen(cur()); });
+    var ef = btn('tool ghost', 'Export a file', 'One .wpfurn file with its pictures inside, to keep or to send.'); ef.addEventListener('click', function() { exportFile(cur()); });
+    var eo = btn('tool ghost', 'Export a folder', 'A folder of its pictures, each named for its kind and era, such as chest-fantasy.png.'); eo.addEventListener('click', function() { exportFolder(cur()); });
     var rm = btn('tool ghost danger', 'Remove', 'Take it out of this campaign. Pieces already placed keep their pictures.');
     rm.addEventListener('click', function() { showConfirm('Remove ' + p.name + ' from this campaign? Pieces already placed keep their pictures.', function(ok) { if (!ok) return; store(packsOf(campNow()).filter(function(x) { return x.id !== p.id; })); log('remove', {}); draw(); }); });   // showConfirm answers through its callback
     top.appendChild(ed); top.appendChild(ef); top.appendChild(eo); top.appendChild(rm);
@@ -398,6 +413,8 @@ function draw() {
         });
     }
 }
+// Drawn again once a press that began in the list has landed, so a button pressed right after a rename is pressed (the review of fold 3)
+function drawSoon() { var box = $('furnPackList'), h = box ? pressHold(box, window) : null; if (h && h.busy()) h.then(draw); else draw(); }
 function open() {
     if (!packMay(net(), window)) { toast('Furnishing packs are the GM’s.'); return; }
     var m = $('furnPackModal'); if (!m) return;
@@ -407,6 +424,7 @@ function close() { var m = $('furnPackModal'); if (m) m.style.display = 'none'; 
 function wire() {
     var on = function(id, fn) { var e = $(id); if (e) e.addEventListener('click', fn); };
     on('furnPackClose', close);
+    var pl = $('furnPackList'); if (pl) pressHold(pl, window);   // listening from the start, so the press that ends a rename is known as it begins
     on('furnPackMake', function() { makerOpen(null); });
     on('furnPackTemplate', function() { template(); });
     on('furnPackImportFile', function() { var i = $('furnPackFile'); if (i) { i.value = ''; i.click(); } });
@@ -419,7 +437,14 @@ function wire() {
     on('furnMakerSave', function() { once(makerSave); });
     on('furnMakerExportFile', function() { makerExport(false); });
     on('furnMakerExportFolder', function() { makerExport(true); });
-    var mn = $('furnMakerName'); if (mn) mn.addEventListener('input', function() { if (_m) { _m.name = mn.value; _m.dirty = true; } });
+    var mn = $('furnMakerName'); if (mn) mn.addEventListener('input', function() { if (_m) { _m.name = mn.value; _m.dirty = true; _m.rev++; } });
+    // 3. Delete and Backspace pressed in the maker are the maker's: on the map they delete what is selected behind it. On a picked square they clear it
+    var mm = $('furnMakerModal'); if (mm) mm.addEventListener('keydown', function(ev) {
+        if ((ev.key !== 'Delete' && ev.key !== 'Backspace') || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+        var t = ev.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) { ev.stopPropagation(); return; }
+        ev.preventDefault(); ev.stopPropagation();
+        if (t && t.dataset && t.dataset.key && _m && _m.looks[t.dataset.key]) { var o = _m.looks[t.dataset.key]; if (o.url) URL.revokeObjectURL(o.url); delete _m.looks[t.dataset.key]; delete _m.info[t.dataset.key]; _m.dirty = true; _m.rev++; log('maker-clear', { key: 1 }); makerDraw(); }
+    });
     var mf = $('furnMakerFile'); if (mf) mf.addEventListener('change', function() { var f = mf.files && mf.files[0]; if (f) makerUse(f); });
     var g = $('furnMakerGrid'); if (g) {
         g.addEventListener('click', function(ev) { var b = ev.target && ev.target.closest ? ev.target.closest('.fm-cell') : null; if (!b || !_m) return; _m.sel = b.dataset.key; makerDraw(); });

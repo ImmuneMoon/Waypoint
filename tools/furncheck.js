@@ -269,11 +269,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         && pwSrc.includes("var inf = await picInfo(new Blob([it.bytes])); if (inf && !inf.clear) left.solid++;   // kept, and said"));
     check('Import a file takes a .zip by its first bytes, reads only the pictures pickLooks names, each under 4 MB before it is read, and a folder is read by the same rule',
         pwSrc.includes("if (isZip(head)) return importZip(file);") && pwSrc.includes("var ents = z.entries.slice(0, FOLDER_MAX), pick = F.pickLooks(ents.map(function(e) { return e.name; })), items = [];")
-        && pwSrc.includes("if (!(e.size >= 0) || e.size > PIC_MAX) { items.push({ k: l.k, era: l.era, bytes: new Uint8Array(0) }); continue; }") && pwSrc.includes("var pick = F.pickLooks(L.map(function(f) { return String(f.webkitRelativePath || f.name || ''); }));")
+        && pwSrc.includes("if (!(e.size >= 0) || e.size > PIC_MAX) { items.push({ k: l.k, era: l.era, bytes: new Uint8Array(0) }); continue; }") && pwSrc.includes("var pick = F.pickLooks(L.map(function(f) { var rel = String(f.webkitRelativePath || f.name || ''), at = rel.indexOf('/');")
         && ix.includes('<input type="file" id="furnPackFile" accept=".wpfurn,.zip,application/json,application/zip" hidden>'));
     check('the maker takes a picture only as png, jpeg or webp of 4 MB or less, saves only to the campaign it began in, one save at a time, keeps the pack\'s id when it edits one, and asks before it closes on changes not saved',
         pwSrc.includes("if (file.size > PIC_MAX) { toast('That picture is larger than 4 MB.'); return; }") && pwSrc.includes("if (!kind) { toast('That is no png, jpeg or webp picture.');")
-        && pwSrc.includes("var c = _m.camp; if (!campLive(c))") && pwSrc.includes("on('furnMakerSave', function() { once(makerSave); });") && pwSrc.includes("var id = _m.id || packIdOf(allIds(), Math.random() * 2176782336)")
+        && pwSrc.includes("var c = d.camp; if (!campLive(c))") && pwSrc.includes("on('furnMakerSave', function() { once(makerSave); });") && pwSrc.includes("var id = d.id || packIdOf(allIds(), Math.random() * 2176782336)")
         && pwSrc.includes("if (at >= 0) now[at] = pk; else now.push(pk);") && pwSrc.includes("showConfirm('Close the pack maker? What you changed since the last save is lost.', function(ok)")
         && pwSrc.includes("if (failed) { log('maker-save-failed'"));
     check('the template is made from Waypoint\'s drawings at the size kept for this computer, in a reference folder beside a pack folder and the guide',
@@ -291,6 +291,27 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         && !/[;()\u2013\u2014]/.test(help2[0].replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, '')));
     const notes3 = [readRoot('WHATSNEW.txt'), read('assets/whatsnew.txt')].map(t => /\n- You can now make a furnishing pack in Waypoint\.[\s\S]*?whole square\.\n/.exec(t));
     check('both release notes say the maker and the template, alike', notes3.every(Boolean) && notes3[0][0] === notes3[1][0] && notes3[0][0].includes('Download the template'));
+    // ---- the review of fold 3 ----
+    const pk3 = FU.pickLooks(['pack\\chest-fantasy.png', 'reference\\bed-modern.png', 'pack\\sub\\sofa-modern.png']);
+    check('the review of fold 3: a .zip whose names are written with backslashes is read as one written with slashes',
+        J(pk3.looks.map(l => l.i + ':' + l.k + '.' + l.era)) === J(['0:chest.fantasy', '2:sofa.modern']), pk3);
+    check('the review of fold 3: a folder is read with its own name taken off, so a pack whose folder is called Pack or Reference still comes in',
+        pwSrc.includes("var rel = String(f.webkitRelativePath || f.name || ''), at = rel.indexOf('/'); return at >= 0 ? rel.slice(at + 1) : rel; }));   // the folder picked is the pack, whatever it is called")
+        && J(FU.pickLooks(['chest-fantasy.png', 'bed-modern.png']).looks.map(l => l.k)) === J(['chest', 'bed']));
+    check('the review of fold 3: Save works on what the draft held when it was pressed, writes back only a picture not changed meanwhile, keeps a change made meanwhile to be saved, and the maker is neither closed nor opened anew while it saves',
+        pwSrc.includes("keys.forEach(function(k) { snap[k] = d.looks[k]; });   // what the draft held when Save was pressed") && pwSrc.includes("if (d.looks[key] === L) { if (L.url) URL.revokeObjectURL(L.url); d.looks[key] = { src: src, kind: L.kind }; }")
+        && pwSrc.includes("if (d.rev === rev) d.dirty = false;") && pwSrc.includes("} finally { d.saving = false; }") && pwSrc.includes("if (_m.saving) { toast('The pack is still being saved. Close it when that is done.'); return; }")
+        && pwSrc.includes("if (_m && _m.saving) { toast('A pack is still being saved. Try again when it is done.'); return; }") && count(pwSrc, '_m.rev++') === 3 && pwSrc.includes('d.dirty = true; d.rev++;'));
+    check('the review of fold 3: a picture picked lands on the square and the draft it was picked for',
+        pwSrc.includes("var inf = await picInfo(new Blob([u])); if (d.looks[key] === L) d.info[key] = inf;") && pwSrc.includes('if (_m === d) makerDraw();'));
+    check('the review of fold 3: Export a folder asks for the folder first, then reads the pictures, and says when no folder could be picked',
+        pwSrc.includes("var dir; try { dir = await window.showDirectoryPicker({ mode: 'readwrite' }); } catch (e) { if (!e || e.name !== 'AbortError')") && pwSrc.indexOf('var looks = await getLooks();') > pwSrc.indexOf("dir = await window.showDirectoryPicker")
+        && pwSrc.includes("exportLooksFolder(p.name, function() { return looksOf(p); });") && pwSrc.includes("if (asFolder) { await exportLooksFolder(nm, makerLooks); return; }"));
+    check('the review of fold 3: Delete and Backspace in the maker go no further, so nothing selected on the map behind it is deleted, and on a picked square they clear it',
+        pwSrc.includes("if ((ev.key !== 'Delete' && ev.key !== 'Backspace') || ev.ctrlKey || ev.metaKey || ev.altKey) return;") && pwSrc.includes("var mm = $('furnMakerModal'); if (mm) mm.addEventListener('keydown', function(ev) {"));
+    check('the review of fold 3: the picked square\'s buttons keep the focus when it is drawn anew, Use a picture where Clear is off; a row\'s button pressed right after a rename is pressed',
+        pwSrc.includes("use.dataset.act = 'use'; clr.dataset.act = 'clear';") && pwSrc.includes("if (!to || to.disabled) to = sideEl.querySelector('[data-act=\"use\"]'); if (to) to.focus();")
+        && pwSrc.includes("import { save, toast, pressHold } from './io.js';") && pwSrc.includes("var pl = $('furnPackList'); if (pl) pressHold(pl, window);") && pwSrc.includes("ed.addEventListener('click', function() { makerOpen(cur()); });") && pwSrc.includes("exportFile(cur());") && pwSrc.includes("exportFolder(cur());") && pwSrc.includes("function drawSoon() { var box = $('furnPackList'), h = box ? pressHold(box, window) : null; if (h && h.busy()) h.then(draw); else draw(); }") && pwSrc.includes("log('rename', {}); drawSoon(); });"));
     check('both release notes say it, alike', notes.every(Boolean) && notes[0][0] === notes[1][0] && notes[0][0].includes('Rules for'));
     const ci = readRoot('.github/workflows/checks.yml');
     check('CI runs this suite in a step of its own', count(ci, 'run: node tools/furncheck.js') === 1);

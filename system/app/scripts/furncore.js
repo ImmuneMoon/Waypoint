@@ -271,7 +271,7 @@ function fitsCells(k, w, h) { var it = furnKind(k); if (!it || !(w > 0) || !(h >
 // Which files of a .zip or a folder are a pack's pictures, by their paths: never one in a reference folder, a hidden file or a system's own
 // folder; only those in a folder named pack where there is one; each kind and era once. Other pictures are counted, text files passed over
 function pickLooks(names) {
-    var list = Array.isArray(names) ? names.slice(0, 400) : [], out = [], left = { kind: 0, twice: 0 }, seen = Object.create(null);
+    var list = (Array.isArray(names) ? names.slice(0, 400) : []).map(function(n) { return typeof n === 'string' ? n.replace(/\\/g, '/') : n; }), out = [], left = { kind: 0, twice: 0 }, seen = Object.create(null);
     var dirsOf = function(n) { return n.split('/').slice(0, -1).map(function(d) { return d.toLowerCase(); }); };
     var inPack = list.some(function(n) { return typeof n === 'string' && dirsOf(n).indexOf('pack') >= 0; });
     list.forEach(function(n, i) {

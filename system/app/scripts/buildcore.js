@@ -542,7 +542,7 @@ function near1(a, b) { return fin(a) && fin(b) && Math.abs(a - b) <= 1; }
 // nor one with a purpose of its own that a new floor or wall must not take over (a see-through barrier, a play area, a portal by its own key
 // or its node's, a null area, smoke, a fog mark, a pin to a page, a secret door, a GM note card). Such a piece is left as it is and the new one lands on it
 function special(w) {
-    return !!(w.locked || w.gmNoteFor || w.barrier === true || w.fogged || w.targetMapId || w.nodeId || w.nulls || w.smoke === true || w.fogHand || w.page || w.secret === true || (fin(w.rot) && w.rot % 360 !== 0));
+    return !!(w.gmNoteFor || w.barrier === true || w.fogged || w.targetMapId || w.nodeId || w.nulls || w.smoke === true || w.fogHand || w.page || w.secret === true || (fin(w.rot) && w.rot % 360 !== 0));
 }
 function seatedAt(items, piece) {
     if (!Array.isArray(items) || !isObj(piece) || typeof piece.type !== 'string') return -1;
@@ -826,7 +826,7 @@ function wallLine(pts) {
 var CUT_TOL = 1, CUT_SEGS = 400, CUT_NEAR = 12;
 function cutOk(w) {
     return isObj(w) && w.type === 'path' && w.tip !== 'fill' && Array.isArray(w.pts) && w.pts.length <= LIMITS.wallSegs + 1 && w.blocksSight === true && w.sightType !== 'door'
-        && !w.hidden && !w.locked && !w.isChar && !w.waiting && !w.gmNoteFor && !w.ownerId && !w.byPlayer && !(fin(w.rot) && w.rot % 360 !== 0);
+        && !w.hidden && !w.isChar && !w.waiting && !w.gmNoteFor && !w.ownerId && !w.byPlayer && !(fin(w.rot) && w.rot % 360 !== 0);   // 231: a door still cuts a locked wall, and the pieces keep the lock
 }
 function cutWalls(pieces, door) {
     var res = { cuts: [], n: 0 };
@@ -915,6 +915,21 @@ function walledUnder(kept, D, Dv) {
 }
 function runLen(r) { var n = 0; for (var i = 1; i < r.length; i++) n += Math.sqrt((r[i][0] - r[i - 1][0]) * (r[i][0] - r[i - 1][0]) + (r[i][1] - r[i - 1][1]) * (r[i][1] - r[i - 1][1])); return n; }
 
-var API = { VERSION: VERSION, TEXTURES: TEXTURES, cleanTexture: cleanTexture, texName: texName, MAT_KINDS: MAT_KINDS, ERAS: ERAS, MAT_ERAS: MAT_ERAS, lineMat: lineMat, PIN_MAX: PIN_MAX, cleanPins: cleanPins, THEME_IDS: THEME_IDS, THEME_NAMES: THEME_NAMES, THEMES: THEMES, cleanTheme: cleanTheme, TEX: TEX, TEX_CSS: TEX_CSS, TEX_INK: TEX_INK, texStyle: texStyle, texPos: texPos, texPattern: texPattern, PIC_CELL: PIC_CELL, picUrl: picUrl, picPos: picPos, picStyle: picStyle, picPattern: picPattern, picName: picName, picCell: picCell, MATERIALS: MATERIALS, MATERIAL_IDS: MATERIAL_IDS, cleanMaterial: cleanMaterial, pieceProps: pieceProps, penPreset: penPreset, snapBox: snapBox, hexCellBox: hexCellBox, hexCellsInBox: hexCellsInBox, corridor: corridor, snapVertex: snapVertex, polyItem: polyItem, seatedAt: seatedAt, floorOk: floorOk, outlineWalls: outlineWalls, corridorWalls: corridorWalls, wallLine: wallLine, cutOk: cutOk, cutWalls: cutWalls };
+// [buildcheck:struct-start]
+// Backlog 231 (the owner, 2026-11-12: "when we create a map, lets lock down all the structural map pieces automatically", and by prompt on a drawn
+// sheet: everything that lays structure locks it, "furnishings can move, and other items youd expect characters are able to move, but everything
+// else can be locked", doors locked in place but opened as the GM sets, Build and a door line still work on a locked piece, and a map-wide row with
+// a Settings tick). What characters may move is never structure: a token, a waiting token, a furnishing, a map object (it carries its own cover
+// grade, or none), a light, a GM note card, a player's drawing. Paint the Fill tool lays, and a hazard that spreads, stay free too
+function structMoves(w) { return !!(w.isChar || w.waiting || w.gmNoteFor || w.ownerId || w.byPlayer || w.furn || w.light || w.coverAs || w.cover === 'no' || w.coverPro || w.type === 'trigger' || w.fly); }
+function structOk(w) {
+    if (!isObj(w) || structMoves(w) || w.fill || w.hazard) return false;
+    return w.layer === 'back' || w.layer === 'back-mid' || w.blocksSight === true || w.barrier === true;
+}
+// The pieces a maker just laid, locked where they are structure; the count locked
+function structLock(items) { var n = 0; (Array.isArray(items) ? items : []).forEach(function(w) { if (structOk(w)) { w.locked = true; n++; } }); return n; }
+// [buildcheck:struct-end]
+
+var API = { VERSION: VERSION, TEXTURES: TEXTURES, cleanTexture: cleanTexture, texName: texName, MAT_KINDS: MAT_KINDS, ERAS: ERAS, MAT_ERAS: MAT_ERAS, lineMat: lineMat, PIN_MAX: PIN_MAX, cleanPins: cleanPins, THEME_IDS: THEME_IDS, THEME_NAMES: THEME_NAMES, THEMES: THEMES, cleanTheme: cleanTheme, TEX: TEX, TEX_CSS: TEX_CSS, TEX_INK: TEX_INK, texStyle: texStyle, texPos: texPos, texPattern: texPattern, PIC_CELL: PIC_CELL, picUrl: picUrl, picPos: picPos, picStyle: picStyle, picPattern: picPattern, picName: picName, picCell: picCell, MATERIALS: MATERIALS, MATERIAL_IDS: MATERIAL_IDS, cleanMaterial: cleanMaterial, pieceProps: pieceProps, penPreset: penPreset, snapBox: snapBox, hexCellBox: hexCellBox, hexCellsInBox: hexCellsInBox, corridor: corridor, snapVertex: snapVertex, polyItem: polyItem, seatedAt: seatedAt, floorOk: floorOk, outlineWalls: outlineWalls, corridorWalls: corridorWalls, structMoves: structMoves, structOk: structOk, structLock: structLock, wallLine: wallLine, cutOk: cutOk, cutWalls: cutWalls };
 if (typeof window !== 'undefined') window.wpBuildCore = API;
-export { VERSION, TEXTURES, cleanTexture, texName, MAT_KINDS, ERAS, MAT_ERAS, lineMat, PIN_MAX, cleanPins, THEME_IDS, THEME_NAMES, THEMES, cleanTheme, TEX, TEX_CSS, TEX_INK, texStyle, texPos, texPattern, PIC_CELL, picUrl, picPos, picStyle, picPattern, picName, picCell, MATERIALS, MATERIAL_IDS, cleanMaterial, pieceProps, penPreset, snapBox, hexCellBox, hexCellsInBox, corridor, snapVertex, polyItem, seatedAt, floorOk, outlineWalls, corridorWalls, wallLine, cutOk, cutWalls };
+export { VERSION, TEXTURES, cleanTexture, texName, MAT_KINDS, ERAS, MAT_ERAS, lineMat, PIN_MAX, cleanPins, THEME_IDS, THEME_NAMES, THEMES, cleanTheme, TEX, TEX_CSS, TEX_INK, texStyle, texPos, texPattern, PIC_CELL, picUrl, picPos, picStyle, picPattern, picName, picCell, MATERIALS, MATERIAL_IDS, cleanMaterial, pieceProps, penPreset, snapBox, hexCellBox, hexCellsInBox, corridor, snapVertex, polyItem, seatedAt, floorOk, outlineWalls, corridorWalls, structMoves, structOk, structLock, wallLine, cutOk, cutWalls };

@@ -310,6 +310,10 @@ appFontSync();
 if (_efBox) { _efBox.checked = _ef0; _efBox.addEventListener('change', function() { var on = _efBox.checked === true; try { if (on) localStorage.setItem('wp_easyFont', '1'); else localStorage.removeItem('wp_easyFont'); } catch (e) {} easyFontApply(on); appFontSync(); if (window.wpPrefsPush) window.wpPrefsPush(); }); }
 var _sigBox = ui('setSignalOwn');   // 1.6.2 (backlog 220): Own signalling server, this computer's, off by default (net.js signalHost reads it at the next host or join)
 if (_sigBox) { try { _sigBox.checked = localStorage.getItem('wp_signalOwn') === '1'; } catch (e) {} _sigBox.addEventListener('change', function() { try { if (_sigBox.checked) localStorage.setItem('wp_signalOwn', '1'); else localStorage.removeItem('wp_signalOwn'); } catch (e) {} toast(_sigBox.checked ? 'Own signalling server is on. It takes effect the next time you host or join.' : 'Back to the public signalling server, the next time you host or join.'); }); }
+// Backlog 231 (the owner, 2026-11-12, by prompt: a map-wide row "and a Settings tick"): a new map's structure locked in place as it is laid,
+// this computer's own (wp_structLock, off only as 'off'), which whiteboard.js structAuto reads
+var _stl = ui('setStructLock');
+if (_stl) { try { _stl.checked = localStorage.getItem('wp_structLock') !== 'off'; } catch (e) { _stl.checked = true; } _stl.addEventListener('change', function() { try { if (_stl.checked) localStorage.removeItem('wp_structLock'); else localStorage.setItem('wp_structLock', 'off'); } catch (e) {} toast(_stl.checked ? 'Walls, doors and floors you lay are now locked in place.' : 'Walls, doors and floors you lay now stay free.'); }); }
 var _hidSel = ui('setHiddenLook'), _hid0 = 'fade';
 try { _hid0 = hiddenLookOf(localStorage.getItem('wp_hiddenLook')); } catch (e) {}
 hiddenLookApply(_hid0);

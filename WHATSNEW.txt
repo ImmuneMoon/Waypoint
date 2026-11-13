@@ -1177,6 +1177,14 @@ The Data Map
   of pictures named like chest-fantasy.png, or to copy one from another
   campaign. Export writes either. A kind the pack lacks shows Waypoint's own
   drawing, marked, and a placed piece keeps its picture.
+- A new map's structure is locked in place as it is laid. Generate a dungeon,
+  a city or a world, lay with Build, draw Wall or Door lines or use Walls
+  around selection, and the walls, doors, floors and ground stay put: a stray
+  drag, the arrow keys or the eraser no longer moves them. Build and a door
+  line still change them, doors still open, and the first picture on a bare
+  map becomes its locked ground. Furnishings, map objects and tokens stay
+  free. Unlock this map's structure, on a piece's right-click or in Build's
+  options, frees them, and Settings has a tick to stop it.
 - You can now make a furnishing pack in Waypoint. Press Make a pack in the Packs
   window: every kind stands in its four looks beside Waypoint's drawing, and Use
   a picture gives one yours, shown at its real size. Edit opens a pack again.

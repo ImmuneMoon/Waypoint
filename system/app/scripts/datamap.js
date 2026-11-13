@@ -858,7 +858,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
       list.forEach(function(c, idx) {
           if (!c || typeof c !== 'object' || c === pressed || c.id === pressed.id) return;
           if ((c.isChar || c.waiting) && !c.locked && px >= c.x && px <= c.x + (c.w || 0) && py >= c.y && py <= c.y + (c.h || 0)) { inTok = true; return; }
-          if (!wallLine(c) || c.locked || (typeof window !== 'undefined' && window.wpILayers && window.wpILayers.through(c))) return;   // backlog 43: a wall set to take no clicks is never picked
+          if (!wallLine(c) || (c.locked && !pressed.locked) || (typeof window !== 'undefined' && window.wpILayers && window.wpILayers.through(c))) return;   // 231: a locked line is picked from a locked piece (a map whose structure is locked); from a free one it is not, or the two would hand the press back and forth   // backlog 43: a wall set to take no clicks is never picked
           var d = wallGap(c, px, py); if (!(d <= WALL_REACH)) return;
           d = Math.max(0, d);   // on the stroke is on it, however deep
           var z = handZ(c);
@@ -1664,6 +1664,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's colour from 
                   item.strokeWidth = PPw.strokeWidth; item.tip = PPw.tip; item.color = PPw.color; item.layer = PPw.layer; item.name = PPw.name;
                   if (PPw.blocksSight === true) { item.blocksSight = true; item.sightType = PPw.sightType === 'door' ? 'door' : 'wall'; }
                   else if (PPw.barrier === true) item.barrier = true;   // backlog 23c: glass, chain-link and a force field drawn as a line
+                  if (window.wpStructLaid) window.wpStructLaid([item]);   // 231: a wall, door or barrier line is locked in place as it is drawn
               }
               // [buildcheck:penpreset-end]
               if (PPw && item.sightType === 'door' && item.blocksSight === true && !item.byPlayer && typeof window.wpDoorCut === 'function') window.wpDoorCut(getActiveMap(), item);   // the map builder: a door drawn along a wall line cuts its doorway, in this stroke's own save

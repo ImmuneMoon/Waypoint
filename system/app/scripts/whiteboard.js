@@ -1007,7 +1007,8 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
           } else {
 
-              el.style.opacity = (item.locked && !(state.selWbIds && state.selWbIds.includes(item.id)) ? 0.85 : 1) * itemOp;
+              var _bcS = typeof window !== 'undefined' ? window.wpBuildCore : null, _lkDim = item.locked && !(_bcS && _bcS.structOk && _bcS.structOk(item));   // 231: a whole map's structure is locked, and is drawn as it is
+              el.style.opacity = (_lkDim && !(state.selWbIds && state.selWbIds.includes(item.id)) ? 0.85 : 1) * itemOp;
 
           }
 
@@ -7835,6 +7836,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
 
                   var item = Object.assign({ id: 'wb'+uid(), type: 'image', x: cx, y: cy, w: 300, h: 300, z: 10, src: data.url, color: 'transparent' }, newOpacityProps());
 
+                  var gpic = typeof groundPic === 'function' && groundPic(getActiveMap(), item);   // 231: the first picture on a bare map is its ground
                   getActiveMap().whiteboard.push(item);
 
                   state.selWbId = item.id;
@@ -7931,9 +7933,9 @@ if(_el_clearWbBtn) _el_clearWbBtn.addEventListener('click', function() {
       var GS = window.wpSnapOn && window.wpSnapOn() && window.wpLatticeOf ? window.wpLatticeOf(am) : null;
       if (GS && GS.type === 'square' && GS.size > 0) { var ox = GS.ox || 0, oy = GS.oy || 0; x = Math.round((x - ox) / GS.size) * GS.size + ox; y = Math.round((y - oy) / GS.size) * GS.size + oy; }
       var it = Object.assign({ id: 'wb' + uid(), type: 'image', x: Math.max(10, Math.round(x)), y: Math.max(10, Math.round(y)), w: 300, h: 300, z: 10, src: src, color: 'transparent' }, newOpacityProps());
-      am.whiteboard = am.whiteboard || []; am.whiteboard.push(it);
+      am.whiteboard = am.whiteboard || []; var gpic = typeof groundPic === 'function' && groundPic(am, it); am.whiteboard.push(it);
       state.selWbId = it.id; state.selWbIds = [];
-      save(); render(); toast('Picture placed.');
+      save(); render(); toast(gpic && it.locked ? 'Picture placed as this map\u2019s ground, locked in place.' : 'Picture placed.');
   }
   // [lookcheck:libdrop-end]
   // [furncheck:drop-start] 1.6.2 (backlog 222): a furnishing dragged from Build's Objects tab, its middle where it is let go, with the rules a
@@ -9158,6 +9160,51 @@ function doorCut(map, door) {
 window.wpDoorCut = doorCut;
 // The boxes as pieces, ONE save for the gesture. A cell that already holds a plain piece of that shape takes the new props instead of a second
 // piece (buildcore seatedAt: never a locked or turned piece, nor one with a purpose of its own)
+// [buildcheck:structwb-start]
+// Backlog 231: a new map's structure locked in place as it is laid, while this computer's Settings tick says so (wp_structLock, on to start)
+function structAuto() { if (typeof localStorage === 'undefined') return false; try { return localStorage.getItem('wp_structLock') !== 'off'; } catch (e) { return true; } }   // a store that cannot be read is on, as the tick starts; with no store at all (a check run in Node) nothing is locked
+function structLaid(items) { var BC = buildCore(); return BC && BC.structLock && structAuto() ? BC.structLock(items) : 0; }
+// A map with nothing laid on it yet: a token, a waiting token or a GM note card is no piece of the place
+function mapBare(map) { return !!map && Array.isArray(map.whiteboard) && map.whiteboard.every(function(w) { return !w || w.isChar || w.waiting || w.gmNoteFor; }); }
+// The first picture laid on a bare map is its ground: on the back layer, and locked where the tick says
+function groundPic(map, it) { if (!mapBare(map)) return false; it.layer = 'back'; if (structAuto()) it.locked = true; return true; }
+// The map-wide row: Lock this map's structure where any of it is free, else Unlock it; nothing where the map holds none
+function structRow(map) {
+    var BC = buildCore(); if (!BC || !BC.structOk || !map || !Array.isArray(map.whiteboard)) return null;
+    var all = map.whiteboard.filter(function(w) { return BC.structOk(w); }); if (!all.length) return null;
+    var free = all.filter(function(w) { return !w.locked; }).length;
+    return { n: all.length, free: free, lock: free > 0 };
+}
+function structSet(map, on) {
+    var BC = buildCore(); if (!BC || !map || !Array.isArray(map.whiteboard)) return 0;
+    var n = 0; map.whiteboard.forEach(function(w) { if (!BC.structOk(w)) return; if (on && !w.locked) { w.locked = true; n++; } else if (!on && w.locked) { delete w.locked; n++; } });
+    return n;
+}
+function structRowHtml(row) {
+    if (!row) return '';
+    return '<div class="menu-item cm-structure" title="' + (row.lock ? 'Walls, doors, floors, ground and the map&rsquo;s picture stay where they are: no drag, no nudge and no erase. Build and a door line still change them. Furnishings, map objects and tokens stay free.' : 'Walls, doors, floors, ground and the map&rsquo;s picture can be dragged, nudged and erased again.') + '"><i class="wib wi-' + (row.lock ? 'anchor-off' : 'anchor') + '"></i> ' + (row.lock ? 'Lock this map&rsquo;s structure' : 'Unlock this map&rsquo;s structure') + '</div>';
+}
+function structDo(map, on) {
+    var n = structSet(map, on); if (!n) return '';
+    save(); render(); if (typeof buildStructSync === 'function') buildStructSync();
+    return (on ? 'Locked ' : 'Unlocked ') + n + (n === 1 ? ' piece' : ' pieces') + ' of this map\u2019s structure.';
+}
+if (typeof window !== 'undefined') window.wpStructLaid = structLaid;   // datamap.js locks a Wall, Door or barrier line it draws
+if (typeof document !== 'undefined') {
+    var _bsb = document.getElementById('buildStructBtn');
+    if (_bsb) _bsb.addEventListener('click', function(ev) { ev.stopPropagation(); var am = getActiveMap(), row = structRow(am); if (!row) return; var sw = structDo(am, row.lock); if (sw) toast(sw); });
+    ['buildModeBtn', 'buildOptBtn'].forEach(function(id) { var b = document.getElementById(id); if (b) b.addEventListener('click', function() { setTimeout(buildStructSync, 0); }); });
+}
+// Build's options say the same, with the same press
+function buildStructSync() {
+    var b = document.getElementById('buildStructBtn'); if (!b) return;
+    var row = structRow(getActiveMap()), lk = !row || row.lock, t = b.querySelector('.mr-txt');
+    b.disabled = !row; b.classList.toggle('on', !!row && !row.lock);
+    var pth = b.querySelector('.mr-ico path'); if (pth) pth.setAttribute('d', 'M12 3a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM12 7v13.5M8.5 10.5h7M4.5 14a7.5 6.5 0 0 0 15 0M4.5 14l-1.3 1.7M19.5 14l1.3 1.7' + (lk ? 'M3 3l18 18' : ''));   // the anchor as the structure stands, struck through while any of it is free
+    if (t) { t.textContent = ''; t.appendChild(document.createTextNode(lk ? 'Lock this map\u2019s structure' : 'Unlock this map\u2019s structure')); var sm = document.createElement('small'); sm.textContent = !row ? 'This map has no walls, doors or floors yet.' : lk ? 'No drag, nudge or erase. Build still changes it.' : 'Walls, doors and floors can be dragged again.'; t.appendChild(sm); }
+}
+// [buildcheck:structwb-end]
+
 function buildLay(map, boxes, props, more, walls) {
     var BC = buildCore(); if (!BC || !props) return;
     if (!boxes.length) { toast('Nothing to lay there.'); return; }
@@ -9175,10 +9222,10 @@ function buildLay(map, boxes, props, more, walls) {
             laid++; continue;
         }
         if (room <= 0) { full = true; break; }
-        room--; map.whiteboard.push(item); laid++; if (item.blocksSight) wall = true;
+        if (typeof structLaid === 'function') structLaid([item]); room--; map.whiteboard.push(item); laid++; if (item.blocksSight) wall = true;
     }
     if (walls && walls.length) {   // a corridor's walls, all or none (a floor that found no room leaves none for them either)
-        if (map.whiteboard.length + walls.length <= BUILD_MAX) { walls.forEach(function(wi) { map.whiteboard.push(wi); }); wall = true; } else full = true;
+        if (map.whiteboard.length + walls.length <= BUILD_MAX) { if (typeof structLaid === 'function') structLaid(walls); walls.forEach(function(wi) { map.whiteboard.push(wi); }); wall = true; } else full = true;
     }
     if (full) toast('This map holds as many pieces as it can carry to players, ' + BUILD_MAX + '. Nothing more was laid.');
     if (!laid) return;
@@ -9343,6 +9390,7 @@ function roomPlaceStep(rec, px, py, pw, ph) {
         var pc = RCw.roomPlacePiece(ans === true ? 'area' : 'floor', room2, box, floor); if (!pc) { toast('Nothing was placed.'); return; }
         if (!Array.isArray(am2.whiteboard)) am2.whiteboard = [];
         var it = Object.assign({ id: 'wb' + uid(), z: 1 }, pc);
+        if (typeof structLaid === 'function') structLaid([it]);   // 231: a floor is structure (an area only the GM sees is hidden, and no floor)
         am2.whiteboard.push(it);
         state.selWbId = it.id; state.selWbIds = [it.id];
         save(); render();
@@ -9415,7 +9463,7 @@ function wallsLay(map, items) {
     if (res.over) return 'Those floors cover too much ground for walls at once. Select fewer pieces.';
     if (!res.lines.length || !pre) return res.had ? 'Those walls are already there.' : 'There is nothing to wall there.';
     if (map.whiteboard.length + res.lines.length > BUILD_MAX) return 'This map holds as many pieces as it can carry to players, ' + BUILD_MAX + '. No wall was laid.';
-    res.lines.forEach(function(L) { map.whiteboard.push(buildWallItem(L, pre)); });
+    res.lines.forEach(function(L) { var wi = buildWallItem(L, pre); if (typeof structLaid === 'function') structLaid([wi]); map.whiteboard.push(wi); });
     return (res.lines.length === 1 ? 'One wall line laid.' : res.lines.length + ' wall lines laid.') + (res.doorsOver === true ? ' Some door lines were not read. Check the doorways.' : '');
 }
 // [buildcheck:wallsrow-end]
@@ -9589,11 +9637,12 @@ function genGo() {
         if (!navigateToMap(map.id)) { if (plan.fresh) delete camp.items[map.id]; toast('That map could not be opened. Nothing was changed.'); return false; }
     }
     if (map.whiteboard.length + items.length > BUILD_MAX) { toast('That dungeon could not be laid. Nothing was changed.'); return false; }
+    var lockedN = typeof structLaid === 'function' ? structLaid(items) : 0;   // 231
     items.forEach(function(it) { map.whiteboard.push(it); });
     map.meta.gen = plan.opts;   // the GM's own, to make it again: never sent (net.js sanitizeItem), cleaned from a file (cleanup.js)
     save(true); render();
     if (window.wpFog && window.wpFog.invalidateVision) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
-    toast('Dungeon laid, ' + items.length + ' pieces. One Undo takes it back.');
+    toast('Dungeon laid, ' + items.length + ' pieces.' + (lockedN ? ' Its walls, doors and floors are locked in place.' : '') + ' One Undo takes it back.');
     return true;
 }
 function genWire() {
@@ -9808,11 +9857,12 @@ function cityGo() {
         if (!navigateToMap(map.id)) { if (plan.fresh) delete camp.items[map.id]; toast('That map could not be opened. Nothing was changed.'); return false; }
     }
     if (map.whiteboard.length + items.length > BUILD_MAX) { toast('That city could not be laid. Nothing was changed.'); return false; }
+    var lockedN = typeof structLaid === 'function' ? structLaid(items) : 0;   // 231
     items.forEach(function(it) { map.whiteboard.push(it); });
     map.meta.city = plan.opts;   // the GM's own, to make it again: never sent (net.js sanitizeItem), cleaned from a file (cleanup.js)
     save(true); render();
     if (window.wpFog && window.wpFog.invalidateVision) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
-    toast(word + ' laid, ' + items.length + ' pieces. One Undo takes it back.');
+    toast(word + ' laid, ' + items.length + ' pieces.' + (lockedN ? ' Its streets, walls and buildings are locked in place.' : '') + ' One Undo takes it back.');
     return true;
 }
 function cityWire() {
@@ -10037,11 +10087,12 @@ function worldGo() {
         if (!navigateToMap(map.id)) { if (plan.fresh) delete camp.items[map.id]; toast('That map could not be opened. Nothing was changed.'); return false; }
     }
     if (map.whiteboard.length + items.length > BUILD_MAX) { toast('That world could not be laid. Nothing was changed.'); return false; }
+    var lockedN = typeof structLaid === 'function' ? structLaid(items) : 0;   // 231
     items.forEach(function(it) { map.whiteboard.push(it); });
     map.meta.world = plan.opts;   // the GM's own, to make it again: never sent (net.js sanitizeItem), cleaned from a file (cleanup.js)
     save(true); render();
     if (window.wpFog && window.wpFog.invalidateVision) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
-    toast('World laid, ' + items.length + ' pieces. One Undo takes it back.');
+    toast('World laid, ' + items.length + ' pieces.' + (lockedN ? ' Its land and sea are locked in place.' : '') + ' One Undo takes it back.');
     return true;
 }
 function worldWire() {
@@ -11618,6 +11669,7 @@ document.addEventListener('contextmenu', function(e) {
                 });
                 // the piece's own lock, worded as what it does; the padlock shows how the piece stands, as the toolbar's does (a door's lock for players is a row of its own: doorRows)
                 html += '<div class="menu-item cm-lock" title="' + (anyUnlocked ? 'It stays where it is: no drag and no resize until you unlock it, and a player&rsquo;s token is frozen for its player too. On a door this is not the lock of the door itself.' : 'It can be dragged and resized again.') + '">' + (anyUnlocked ? '<i class="wib wi-anchor-off"></i> Lock in place' : '<i class="wib wi-anchor"></i> Unlock so it can move') + '</div>';
+                html += structRowHtml(structRow(am));   // 231: the whole map's structure, locked or freed with one press
                 html += '<div class="menu-item cm-dup"><i class="wib wi-dup"></i> Duplicate</div>';
                 html += '<div class="menu-item cm-del" style="color:var(--danger)">Delete</div>';
                 html += '<div class="menu-divider"></div>';
@@ -11804,6 +11856,7 @@ document.addEventListener('contextmenu', function(e) {
 
         cMenu.onclick = function(ce) {
             var action = ce.target.className;
+            if (typeof action === 'string' && isWb && action.includes('cm-structure')) { cMenu.style.display = 'none'; var srow = structRow(am); if (srow) { var sw = structDo(am, srow.lock); if (sw) toast(sw); } return; }   // 231: the whole map's structure
             if (typeof action === 'string' && isWb && action.includes('cm-props')) { cMenu.style.display = 'none'; if (window.wpOpenRightPanel) window.wpOpenRightPanel(); return; }   // 1.6.2 (backlog 229): the piece the right-click selected
 
             if (typeof action === 'string' && (action.includes('cm-opacity') || action.includes('cm-align-row') || action.includes('align-btn') || action.includes('cm-stance') || action.includes('cm-stackrows'))) return; // control rows keep the menu open

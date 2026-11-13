@@ -15,6 +15,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast, pressHold } from './io.js';
 import { showConfirm } from './dialogs.js';
 import './objcore.js';   // brings furncore.js
+import './drawwin.js';   // 1.6.2, backlog 232: the paint window Draw… opens, window.wpPaint
 
 var PIC_MAX = 4 * 1024 * 1024, FILE_MAX = 96 * 1024 * 1024, FOLDER_MAX = 400;
 function FU() { return window.wpFurnCore || null; }
@@ -234,15 +235,17 @@ async function pngOf(svgSrc, w, h) {
 }
 // Fold 4: a pattern's own color, the first material that wears it, else a stone gray
 function texColor(BC, n) { var hit = ''; (BC.MATERIAL_IDS || []).some(function(id) { var M = BC.MATERIALS[id]; if (M && M.texture === n) { hit = M.color; return true; } return false; }); return /^#[0-9a-f]{6}$/i.test(hit) ? hit : '#6b6672'; }
-// One cell of a pattern as Waypoint draws it, px by px: its color, then its tile repeated as on the map, 50 board pixels a cell
-async function texPng(n, px) {
+// One cell of a pattern as Waypoint draws it, px by px: its color, then its tile repeated as on the map, 50 board pixels a cell (t cells a
+// side where t is given: the paint window's start for a pattern that covers t by t cells)
+async function texPng(n, px, t) {
+    var k = t === 2 || t === 4 ? t : 1;
     var BC = window.wpBuildCore, css = BC && BC.TEX_CSS && BC.TEX_CSS[n], T = BC && BC.TEX && BC.TEX[n]; if (!css || !T) return null;
     var m = /^url\("(.*)"\)$/.exec(css.image); if (!m) return null;
     var im = new Image(); im.src = m[1]; await im.decode();
-    var cv = document.createElement('canvas'), g = cv.getContext('2d'), s = px / 50; cv.width = px; cv.height = px;
-    g.fillStyle = texColor(BC, n); g.fillRect(0, 0, px, px);
+    var cv = document.createElement('canvas'), g = cv.getContext('2d'), s = px / 50; cv.width = px * k; cv.height = px * k;
+    g.fillStyle = texColor(BC, n); g.fillRect(0, 0, px * k, px * k);
     var pt = g.createPattern(im, 'repeat');   // the tile at its own size, scaled with the canvas below
-    g.save(); g.scale(s, s); g.fillStyle = pt; g.fillRect(0, 0, 50, 50); g.restore();
+    g.save(); g.scale(s, s); g.fillStyle = pt; g.fillRect(0, 0, 50 * k, 50 * k); g.restore();
     var b = await new Promise(function(r) { cv.toBlob(r, 'image/png'); }); return new Uint8Array(await b.arrayBuffer());
 }
 async function template() {
@@ -392,11 +395,12 @@ function sideDraw() {
 }
 // Use a picture and Clear, under the picked square
 function useBar(L) {
-    var bar = el('div', 'fm-btns'), use = btn('tool', 'Use a picture…', 'A png, jpeg or webp picture of 4 MB or less'), clr = btn('tool ghost', 'Clear', mkIsBlock(_m.sel) ? 'Take your picture off.' : 'Take your picture off. Waypoint’s drawing stands in for it.');
-    use.dataset.act = 'use'; clr.dataset.act = 'clear';
+    var bar = el('div', 'fm-btns'), use = btn('tool', 'Use a picture…', 'A png, jpeg or webp picture of 4 MB or less'), drw = btn('tool', 'Draw…', 'Draw the picture here, at the size this square asks for. You can start from your picture, a clear one or Waypoint\u2019s drawing.'), clr = btn('tool ghost', 'Clear', mkIsBlock(_m.sel) ? 'Take your picture off.' : 'Take your picture off. Waypoint’s drawing stands in for it.');
+    use.dataset.act = 'use'; clr.dataset.act = 'clear'; drw.dataset.act = 'draw';
+    drw.addEventListener('click', function() { makerPaint(L); });   // 1.6.2, backlog 232
     use.addEventListener('click', function() { var i = $('furnMakerFile'); if (i) { i.value = ''; i.click(); } });
     clr.disabled = !L; clr.addEventListener('click', function() { if (!_m.looks[_m.sel]) return; var o = _m.looks[_m.sel]; if (o.url) URL.revokeObjectURL(o.url); delete _m.looks[_m.sel]; delete _m.info[_m.sel]; _m.dirty = true; _m.rev++; log('maker-clear', {}); makerDraw(); });
-    bar.appendChild(use); bar.appendChild(clr);
+    bar.appendChild(use); bar.appendChild(drw); bar.appendChild(clr);
     return bar;
 }
 // A picture's size and clear part, read once for the draft it was picked in, then drawn again; undefined while it is read
@@ -468,6 +472,24 @@ function makerRemoveBlock(b) {
     _m.blocks = _m.blocks.filter(function(x) { return x !== b; });
     _m.sel = mkKeys()[0]; _m.dirty = true; _m.rev++; log('maker-block-remove', {}); makerDraw();
     var g = $('furnMakerGrid'), a = g ? g.querySelector('[data-act="addblock"]') : null; if (a) a.focus();
+}
+// 1.6.2, backlog 232: Draw… opens the paint window at the size the picked square asks for: a furnishing's cells, a pattern's or a block's
+// cells a picture covers, the pixels a cell the template's own. What it starts from is the user's pick: their picture, clear, or
+// Waypoint's drawing (a block's is its material's pattern). Done hands the drawing to makerUse, as a picked file would be
+async function makerPaint(L) {
+    var F = FU(), P = window.wpPaint; if (!F || !_m || !P) return;
+    var d = _m, key = d.sel, px = tplPx(), BC = window.wpBuildCore, o = { px: px, mine: mkUrl(L) || '', done: function(file) { if (_m === d && d.sel === key) makerUse(file); else toast('The pack maker moved on, so the drawing was not kept.'); } };
+    if (mkIsBlock(key)) {
+        var b = mkBlock(key), n = key.slice(4), tex = b ? (BC && BC.MATERIALS[b.mat] ? BC.MATERIALS[b.mat].texture : '') : n, t = mkTile(key);
+        o.tile = t; o.title = b ? b.name : (BC && BC.texName ? BC.texName(n) : n);
+        if (tex) { try { var tb = await texPng(tex, px, t); if (tb) o.wp = { url: URL.createObjectURL(new Blob([tb], { type: 'image/png' })) }; } catch (e) { /* no start from Waypoint's pattern */ } }
+    } else {
+        var p = key.split('.'), kind = F.furnKind(p[0]); if (!kind) return;
+        o.cells = [kind.w, kind.h]; o.title = kind.label + ', ' + F.eraLabel(p[1]); o.wp = { url: F.furnSrc({ k: p[0], era: p[1] }) };
+    }
+    if (_m !== d || d.sel !== key) return;
+    log('maker-draw', { block: mkIsBlock(key) ? 1 : 0 });
+    P.open(o);
 }
 async function makerUse(file) {
     var F = FU(); if (!F || !_m || !file) return;

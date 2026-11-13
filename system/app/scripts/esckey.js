@@ -45,7 +45,7 @@ var ESC_WINDOWS = [['helpModal', 'helpCloseBtn'], ['settingsModal', 'settingsClo
     ['vttNoticeModal', 'vttNoticeKeepBtn'], ['vttPushModal', 'vttPushCancelBtn'], ['soundLibModal', 'soundLibClose'], ['systemModal', 'sysClose', 1], ['charsModal', 'charsClose'], ['libraryModal', 'libClose', 1],
     ['calendarModal', 'calendarClose'], ['journalModal', 'journalCloseBtn'], ['combatModal', 'combatCloseBtn'], ['castModal', 'castCloseBtn'],
     ['handoutModal', 'handoutCloseBtn'], ['handoutsModal', 'handoutsCloseBtn'], ['installerModal', 'installerCloseBtn'], ['sessionLogModal', 'sessionLogClose'],
-    ['uploadModal', 'uploadClose'], ['docReaderModal', 'docReaderClose'], ['docImportModal', 'docImportCancel'], ['cmdkModal', ''], ['tradeModal', 'tradeCloseBtn'], ['tradeLogModal', 'tradeLogClose'], ['setupModal', 'setupClose'], ['objModal', 'objClose'], ['furnMakerModal', 'furnMakerClose'], ['furnPackModal', 'furnPackClose'], ['priceModal', 'priceCloseBtn'], ['sceneModal', 'sceneCloseBtn'], ['profileModal', 'profileCloseBtn'], ['dicePaintModal', 'dicePaintCloseBtn'], ['campQuestModal', 'cqSkip'], ['shareModal', 'shareCancel']];
+    ['uploadModal', 'uploadClose'], ['docReaderModal', 'docReaderClose'], ['docImportModal', 'docImportCancel'], ['cmdkModal', ''], ['tradeModal', 'tradeCloseBtn'], ['tradeLogModal', 'tradeLogClose'], ['setupModal', 'setupClose'], ['objModal', 'objClose'], ['furnMakerModal', 'furnMakerClose'], ['furnPackModal', 'furnPackClose'], ['paintModal', 'paintCancel'], ['priceModal', 'priceCloseBtn'], ['sceneModal', 'sceneCloseBtn'], ['profileModal', 'profileCloseBtn'], ['dicePaintModal', 'dicePaintCloseBtn'], ['campQuestModal', 'cqSkip'], ['shareModal', 'shareCancel']];
 var ESC_BOXES = ['sheetPanel', 'fxPanel', 'videoPanel', 'docPanel', 'dicePanel'];   // floating boxes that answer Escape when the focus is in them (a HUD too)
 // Table Chat, the table notepad, Sound and Music: closed on Escape as a window is, while the focus is in one of them or it is the box last
 // used (the owner, 2026-10-17, by prompt: "Yes, when on top (Recommended)"). One whose module is not there to close it keeps its fields' keys
@@ -72,6 +72,7 @@ function escKeep(doc, t) {
     if (doc.body && doc.body.classList && doc.body.classList.contains('arr-drag')) return true;   // 1.6.2: Escape lets a drag on the Layout tab go
     if (escAt(t, '.body-tiles.has-open')) return true;   // 1.6.2: a tile's drawer shuts before the sheet does
     if (escAt(t, '.fb-open')) return true;   // 1.6.2: a formula's form: Escape shuts the form and leaves the System editor up
+    if (escAt(t, '.pw-hold')) return true;   // 1.6.2 (backlog 232): a selection floating or words typed in the paint window: Escape puts it back, the window stays
     if (escAt(t, '.hk-picking')) return true;   // 1.6.0: a key being picked in Settings, Keys (commands.js): its Escape lets the wait go
     if (t.classList && t.classList.contains('el-rename-in')) return true;   // 1.6.2: a name being typed in Layers or the Elements list: Escape keeps the old name and leaves the window up
     var bar = doc.getElementById('tsBar');

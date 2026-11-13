@@ -1213,6 +1213,14 @@ The Data Map
   can cost more for a larger wearer. Where the column gives no number, the
   Price stat is used as before. A trade still offers the row at its Price
   stat.
+- You can now draw a pack's pictures right in Waypoint. Press Draw... beside
+  Use a picture in the pack maker and a paint window opens at the size the
+  square asks for. It has a pen, a soft brush, fill, shapes, text, a
+  selection you can turn, and layers you can hide and merge. Start from your
+  picture, a clear one or Waypoint's drawing, or trace that drawing faintly
+  underneath. When you draw a floor pattern, a stroke that runs off one edge
+  comes back in on the other, so it tiles with no seam, and a 3 by 3 beside
+  the canvas shows it as you go.
 - A piece's Properties now open from Properties on its right-click menu, or
   from the sliders on the bar over a selected piece. A double-click no longer
   opens them. A right-click selects the piece too, so you can see which one

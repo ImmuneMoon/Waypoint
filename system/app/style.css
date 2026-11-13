@@ -1458,6 +1458,57 @@
   .floating-toolbar .furn-base.build-base { left: 3px; right: auto; }   /* fold 4: on a material's cell, clear of its pin */
   .furn-base { position: absolute; top: 3px; right: 3px; font-size: 8.5px; line-height: 1; padding: 2px 3px; border-radius: 3px; background: rgba(0,0,0,.65); color: var(--dim); pointer-events: none; }
   #furnPackModal { z-index: 99990; }
+  /* 1.6.2, backlog 232: the paint window (drawwin.js), over the pack maker */
+  #paintModal { z-index: 99992; }
+  .gen-box.pw-box { width: 900px; display: flex; flex-direction: column; }
+  .pw-head { display: flex; align-items: baseline; gap: 10px; }
+  .pw-head h3 { margin-bottom: 8px; }
+  .pw-dim, .pw-mini, .pw-line { font-size: 11.5px; color: var(--dim); }
+  .pw-mini { margin: 6px 0 3px; }
+  .pw-spring { flex: 1 1 auto; }
+  .pw-start { font-size: 12px; color: var(--dim); display: inline-flex; gap: 6px; align-items: center; }
+  .pw-tools { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
+  .pw-tool { width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+  .pw-tool.on { border-color: var(--gold); color: var(--gold); background: rgba(227,166,59,.12); }
+  .pw-sep { width: 1px; height: 22px; background: var(--edge); margin: 0 6px; }
+  .pw-swatches { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+  .pw-opts { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; min-height: 26px; }
+  .pw-slide { font-size: 12px; color: var(--dim); display: inline-flex; gap: 6px; align-items: center; }
+  .pw-slide input[type=range] { accent-color: var(--gold); width: 110px; }
+  .pw-slide span { min-width: 34px; color: var(--ink); }
+  .pw-check { font-size: 12px; display: flex; gap: 6px; align-items: center; margin-top: 6px; cursor: pointer; }
+  .pw-check input[type=checkbox] { width: 16px; height: 16px; margin: 0; accent-color: var(--gold); cursor: pointer; }
+  .pw-check[hidden], .pw-font[hidden] { display: none; }
+  .pw-font { font-size: 12px; color: var(--dim); display: inline-flex; gap: 6px; align-items: center; }
+  .pw-body { display: flex; gap: 14px; min-height: 0; }
+  .pw-stage { flex: 1 1 auto; min-width: 0; height: min(58vh, 520px); overflow: auto; border: 1px solid var(--edge); border-radius: 6px; background: var(--panel); display: grid; place-items: center; padding: 12px; box-sizing: border-box; outline: none; }
+  .pw-stage:focus-visible { border-color: var(--gold); }
+  .pw-stage[data-tool=pen], .pw-stage[data-tool=brush], .pw-stage[data-tool=eraser], .pw-stage[data-tool=line], .pw-stage[data-tool=rect], .pw-stage[data-tool=circle], .pw-stage[data-tool=select] { cursor: crosshair; }
+  .pw-stage[data-tool=text] { cursor: text; }
+  .pw-stage[data-tool=fill], .pw-stage[data-tool=pick] { cursor: cell; }
+  .pw-paper { position: relative; flex: none; background: repeating-conic-gradient(#2a2a34 0 25%, #34343e 0 50%) 0 0 / 16px 16px; box-shadow: 0 0 0 1px var(--edge); touch-action: none; }
+  .pw-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .pw-over { pointer-events: auto; }
+  .pw-trace { opacity: .3; object-fit: fill; }
+  .pw-paper.pw-pixels .pw-layer { image-rendering: pixelated; }
+  .pw-text { position: absolute; z-index: 2; min-width: 120px; background: rgba(0,0,0,.35); border: 1px dashed var(--gold); padding: 0 2px; outline: none; }
+  .pw-side { width: 200px; flex: none; display: flex; flex-direction: column; }
+  .pw-layers { display: flex; flex-direction: column; gap: 3px; max-height: 190px; overflow-y: auto; }
+  .pw-lrow { display: flex; gap: 4px; align-items: center; border: 1px solid var(--edge); border-radius: 4px; padding: 2px; background: var(--panel); }
+  .pw-lrow.on { border-color: var(--gold); }
+  .pw-eye { width: 26px; height: 24px; padding: 0; border: none; background: transparent; color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+  .pw-eye[aria-pressed=false] { color: var(--dim); }
+  .pw-lname { flex: 1 1 auto; min-width: 0; text-align: left; border: none; background: transparent; color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 4px; }
+  .pw-lrename { flex: 1 1 auto; min-width: 0; font-size: 12px; }
+  .pw-lbtns { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .pw-lbtns .tool { padding: 3px 7px; font-size: 11.5px; }
+  .pw-lop { margin-top: 8px; }
+  .pw-lop input[type=range] { width: 80px; }
+  .pw-tile { width: 150px; height: 150px; border: 1px solid var(--edge); border-radius: 4px; background: repeating-conic-gradient(#2a2a34 0 25%, #34343e 0 50%) 0 0 / 12px 12px; }
+  .pw-zoom { display: flex; gap: 4px; align-items: center; margin-top: 10px; font-size: 12px; }
+  .pw-zoom .tool { padding: 2px 8px; }
+  .pw-line { margin: 8px 0 0; }
+  @media (max-width: 760px) { .pw-body { flex-direction: column; } .pw-side { width: auto; } }
   /* fold 3: the pack maker, a grid of every kind and era and the picked one beside it at its real size */
   #furnMakerModal { z-index: 99991; }
   .gen-box.furn-maker-box { width: 640px; }

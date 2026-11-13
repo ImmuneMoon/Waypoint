@@ -994,11 +994,21 @@
                           </li>
                           <li><b>Making a furnishing pack:</b> press <b>Packs</b> beside the Looks list, then <b>Make a pack</b>. <b>Edit</b> on a pack opens it there again.
                               <ul>
-                                  <li>Every kind stands in four looks beside Waypoint&rsquo;s drawing. Pick a square, then <b>Use a picture</b>.</li>
+                                  <li>Every kind stands in four looks beside Waypoint&rsquo;s drawing. Pick a square, then <b>Use a picture</b> or <b>Draw…</b>.</li>
                                   <li>200 pixels a cell is a good size, so a bed of two cells is 200 by 400. Any size works and is fitted to its cells.</li>
                                   <li>Give each picture a clear background, so the map shows round it. A picture with none covers its whole square.</li>
                                   <li>To paint in another program, press <b>Download the template</b>. Its reference folder holds Waypoint&rsquo;s drawings at the size you pick.</li>
                                   <li>Put your pictures in its pack folder, named as the reference ones are, such as <code>chest-fantasy.png</code>. Then bring the .zip in with <b>Import a file</b>.</li>
+                              </ul>
+                          </li>
+                          <li><b>Draw…</b> beside <b>Use a picture</b> draws a pack&rsquo;s picture in Waypoint, at the size its square asks for.
+                              <ul>
+                                  <li>Start from your picture, a clear one or Waypoint&rsquo;s drawing. A tick shows Waypoint&rsquo;s drawing faintly under yours to trace.</li>
+                                  <li>The tools are a pen, a soft brush, an eraser, fill, line, rectangle, circle, text, a selection and picking a color. A letter picks each, such as P for the pen.</li>
+                                  <li>Drag a selection to move it, or its round handle to turn it. Enter puts it down and Escape puts it back.</li>
+                                  <li>Layers stack as in a paint program. Hide, move, merge or delete them, and give each its own opacity.</li>
+                                  <li>For a pattern or a block, a stroke that runs off one edge comes back on the other, so it tiles with no seam. A 3 by 3 beside it shows how.</li>
+                                  <li>Done makes it the square&rsquo;s picture, as a picked file would be.</li>
                               </ul>
                           </li>
                           <li><b>Texture blocks:</b> a pack can also repaint the patterns floors and walls are drawn with, and add blocks of its own.
@@ -5542,6 +5552,61 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <button type="button" class="tool ghost" id="furnMakerExportFile" title="One .wpfurn file with its pictures inside">Export a file</button>
             <button type="button" class="tool ghost" id="furnMakerExportFolder" title="A folder of its pictures, each named for what it is">Export a folder</button>
             <button type="button" class="tool ghost" id="furnMakerClose" title="Close">Close</button>
+        </div>
+    </div>
+</div>
+<!-- Draw in Waypoint (1.6.2, backlog 232): the paint window the pack maker opens from Draw (drawwin.js) -->
+<div id="paintModal" class="gen-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="paintTitle">
+    <div class="gen-box pw-box" id="paintBox">
+        <div class="pw-head"><h3 id="paintTitle">Draw</h3><span id="paintSize" class="pw-dim"></span><span class="pw-spring"></span><label class="pw-start" title="What the drawing starts from. Changing it after you drew asks first, and Undo brings your drawing back.">Start from <select id="paintStart"></select></label></div>
+        <div class="pw-tools" id="paintTools" role="toolbar" aria-label="Tools">
+            <button type="button" class="tool ghost pw-tool" data-tool="pen" aria-pressed="false" aria-label="Pen" title="Pen (P)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4l4 4-8.5 8.5-4.5 1 1-4.5L14 4zM4 21c2-1.6 3.6 1.2 5.6 0s3.2-1.4 5 0 3.4.6 5.4-.4"/></svg></button>
+            <button type="button" class="tool ghost pw-tool" data-tool="brush" aria-pressed="false" aria-label="Soft brush" title="Soft brush (B)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 3.5l5 5-7.5 7.5-5-5zM8 11c-2.5.3-4 2-4 4.5 0 1.6-.7 3-1.5 4 3.5.5 7.5-.5 8.5-3.5"/></svg></button>
+            <button type="button" class="tool ghost pw-tool" data-tool="eraser" aria-pressed="false" aria-label="Eraser" title="Eraser (E)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4.5l5 5a1.5 1.5 0 0 1 0 2.1L12 19H7.5l-3.6-3.6a1.5 1.5 0 0 1 0-2.1l8.5-8.8a1.5 1.5 0 0 1 2.1 0zM8.5 9.5l6 6M12 19h8"/></svg></button>
+            <button type="button" class="tool ghost pw-tool" data-tool="fill" aria-pressed="false" aria-label="Fill" title="Fill (G)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3l9 9-6.5 6.5a2.1 2.1 0 0 1-3 0L4.5 13.5a2.1 2.1 0 0 1 0-3L10 5M4.2 12h14.6M20.5 16s1.5 2 1.5 3.2a1.5 1.5 0 0 1-3 0c0-1.2 1.5-3.2 1.5-3.2z"/></svg></button>
+            <button type="button" class="tool ghost pw-tool" data-tool="line" aria-pressed="false" aria-label="Line" title="Line (L)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19L19 5M3.5 17.5l3 3M17.5 3.5l3 3"/></svg></button>
+            <button type="button" class="tool ghost pw-tool" data-tool="rect" aria-pressed="false" aria-label="Rectangle" title="Rectangle (R)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v12H3z"/></svg></button>
+            <button type="button" class="tool ghost pw-tool" data-tool="circle" aria-pressed="false" aria-label="Circle" title="Circle (C)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z"/></svg></button>
+            <button type="button" class="tool ghost pw-tool" data-tool="text" aria-pressed="false" aria-label="Text" title="Text (T)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7V5h14v2M12 5v14M9.5 19h5"/></svg></button>
+            <button type="button" class="tool ghost pw-tool" data-tool="select" aria-pressed="false" aria-label="Select, move and turn" title="Select, move and turn (S)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3v16l4.2-3.8L12 21.2l2.6-1.2-2.8-5.8h5.7L5 3z"/></svg></button>
+            <button type="button" class="tool ghost pw-tool" data-tool="pick" aria-pressed="false" aria-label="Pick a color from the picture" title="Pick a color from the picture (I)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3.5a2.5 2.5 0 0 1 3.5 0l2 2a2.5 2.5 0 0 1 0 3.5L18 11.5 12.5 6zM13.5 8L5 16.5V19h2.5L16 10.5M3.5 20.5l1.5-1.5"/></svg></button>
+            <span class="pw-sep"></span>
+            <label class="draw-swatch custom" title="Any color"><input type="color" id="paintColor" value="#3b2a1b" aria-label="Any color"></label>
+            <span id="paintSwatches" class="pw-swatches"></span>
+        </div>
+        <div class="pw-opts">
+            <label class="pw-slide" title="How wide the pen, brush, eraser and lines are, and how large text is. [ and ] change it.">Size <input type="range" id="paintSizeR" min="1" max="200" value="6"><span id="paintSizeV">6</span></label>
+            <label class="pw-slide" title="How solid what you draw is">Opacity <input type="range" id="paintOpR" min="5" max="100" value="100"><span id="paintOpV">100%</span></label>
+            <label class="pw-check" id="paintFilledRow" hidden><input type="checkbox" id="paintFilled"> Filled</label>
+            <label class="pw-font" id="paintFontRow" hidden>Font <select id="paintFont"></select></label>
+        </div>
+        <div class="pw-body">
+            <div class="pw-stage" id="paintStage" tabindex="0" aria-label="The drawing. Letters pick a tool: P pen, B soft brush, E eraser, G fill, L line, R rectangle, C circle, T text, S select, I pick a color."><div class="pw-paper" id="paintPaper"></div></div>
+            <div class="pw-side">
+                <div class="pw-mini">Layers</div>
+                <div id="paintLayers" class="pw-layers" role="group" aria-label="Layers, the top first"></div>
+                <div class="pw-lbtns">
+                    <button type="button" class="tool ghost" id="paintLayerAdd" title="A new layer above the one you draw on">+ Layer</button>
+                    <button type="button" class="tool ghost" id="paintLayerUp" title="Move this layer up">Up</button>
+                    <button type="button" class="tool ghost" id="paintLayerDown" title="Move this layer down">Down</button>
+                    <button type="button" class="tool ghost" id="paintLayerMerge" title="Join this layer into the one under it">Merge down</button>
+                    <button type="button" class="tool ghost danger" id="paintLayerDel" title="Remove this layer">Delete</button>
+                </div>
+                <label class="pw-slide pw-lop" title="How solid this layer is">Layer opacity <input type="range" id="paintLayerOp" min="0" max="100" value="100"><span id="paintLayerOpV">100%</span></label>
+                <div id="paintTileBox" hidden><div class="pw-mini">How it tiles</div><canvas id="paintTile" width="150" height="150" class="pw-tile"></canvas></div>
+                <label class="pw-check" title="What you draw on one side is drawn on the other too"><input type="checkbox" id="paintMirror"> Mirror left and right</label>
+                <label class="pw-check" id="paintTraceRow" title="Waypoint&rsquo;s drawing shows faintly under yours, to trace. It is never part of your picture."><input type="checkbox" id="paintTrace"> Show Waypoint&rsquo;s drawing faintly under it</label>
+                <div class="pw-zoom"><button type="button" class="tool ghost" id="paintZoomOut" title="Smaller (Ctrl and the wheel)">&minus;</button><span id="paintZoomV">100%</span><button type="button" class="tool ghost" id="paintZoomIn" title="Larger (Ctrl and the wheel)">+</button><button type="button" class="tool ghost" id="paintZoomFit" title="As large as fits">Fit</button></div>
+            </div>
+        </div>
+        <div class="pw-line" id="paintLine"></div>
+        <div class="obj-formbar obj-end">
+            <button type="button" class="tool ghost" id="paintUndo" title="Undo (Ctrl+Z)">Undo</button>
+            <button type="button" class="tool ghost" id="paintRedo" title="Redo (Ctrl+Y)">Redo</button>
+            <button type="button" class="tool ghost" id="paintClearLayer" title="Take everything off the layer you draw on">Clear layer</button>
+            <span class="pw-spring"></span>
+            <button type="button" class="tool ghost" id="paintCancel" title="Close without keeping the drawing">Cancel</button>
+            <button type="button" class="tool" id="paintDone" title="Keep the drawing as this square&rsquo;s picture">Done</button>
         </div>
     </div>
 </div>

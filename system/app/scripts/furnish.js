@@ -115,7 +115,7 @@ function head(F, box) {   // the box and the chips are made once, so that a word
     });
     var lk = el('div', 'furn-looks'), ll = el('label', 'furn-looks-lab', 'Looks'), sel = el('select', 'furn-looks-sel'), pb = el('button', 'tool ghost furn-packs-btn', 'Packs\u2026');
     sel.id = 'furnLooks'; ll.htmlFor = 'furnLooks'; sel.title = 'Waypoint\u2019s own drawings, or one of this campaign\u2019s packs. Any look goes on any map.';
-    sel.addEventListener('change', function() { _p.look = sel.value; lookKeep(sel.value); draw(); log('look', { pack: sel.value ? 1 : 0 }); });
+    sel.addEventListener('change', function() { _p.look = sel.value; lookKeep(sel.value); draw(); if (typeof window.wpBuildSync === 'function') window.wpBuildSync(); log('look', { pack: sel.value ? 1 : 0 }); });   // fold 4: one choice with Build's Materials tab
     pb.type = 'button'; pb.id = 'furnPacksBtn'; pb.title = 'Bring in a pack from a file or a folder, share one from another campaign, or export one.';
     pb.addEventListener('click', function(ev) { ev.stopPropagation(); if (window.wpFurnPacks) window.wpFurnPacks.open(); });
     lk.appendChild(ll); lk.appendChild(sel); lk.appendChild(pb); _p.lookSel = sel;
@@ -172,4 +172,4 @@ function wire() {
     var tabs = document.getElementById('buildTabs'); if (tabs) tabs.addEventListener('click', draw);
 }
 if (typeof document !== 'undefined') { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire(); }
-window.wpFurnish = { draw: draw, propsOf: propsOf, read: function(s) { var F = FU(); return F ? furnRead(F, s) : null; }, place: place, cell: cellNow, era: function() { var F = FU(); load(); return F ? eraKept(F, _p.era) : 'fantasy'; }, packName: function(id) { var p = packById(id); return p ? p.name : ''; } };
+window.wpFurnish = { draw: draw, propsOf: propsOf, read: function(s) { var F = FU(); return F ? furnRead(F, s) : null; }, place: place, cell: cellNow, era: function() { var F = FU(); load(); return F ? eraKept(F, _p.era) : 'fantasy'; }, packName: function(id) { var p = packById(id); return p ? p.name : ''; }, look: lookNow, lookSet: function(id) { var v = id && packById(id) ? id : ''; _p.look = v; _p.lookCamp = campId(); lookKeep(v); draw(); }, packs: packsNow };   // fold 4: one Looks choice for furnishings and blocks

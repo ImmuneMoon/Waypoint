@@ -6226,6 +6226,7 @@ window.wpFitToGrid = fitToGrid;
       var cs = document.querySelector('#fillColorRow .draw-swatch.custom'); if (cs) { var preset = document.querySelector('#fillColorRow .draw-swatch[data-color].active'); cs.classList.toggle('active', !preset); cs.style.background = preset ? '' : state.fillColor; }
       var _fi = document.getElementById('fillColorIndicator'); if (_fi) _fi.style.background = state.fillColor;
       var _fmN = document.getElementById('fillMenu'); fillTerrainNow(!!(_fmN && _fmN.classList && _fmN.classList.contains('show')));
+      var _ftx = document.getElementById('fillTexture'); if (_ftx && _ftx.dataset && typeof texPackSig === 'function' && typeof fillTexSync === 'function' && _ftx.dataset.pk !== texPackSig()) fillTexSync();   // fold 4 of backlog 222: a pack made or changed since shows its rows
       var _ftc = document.getElementById('fillTerrainChk'), _ftn = document.getElementById('fillTerrainCost'), _fsel = document.getElementById('fillTerrainKind');   // difficult terrain T1
       var _FCs = window.wpFogCore, _ftv = _FCs && _FCs.cleanTerrain ? _FCs.cleanTerrain(state.fillTerrain) : null, _kd = fillKindNow();
       if (_ftc) _ftc.checked = !!_ftv;
@@ -6261,21 +6262,44 @@ window.wpFitToGrid = fitToGrid;
   function texPicOf(v) { var FC = window.wpFogCore; return (FC && typeof FC.cleanTexSrc === 'function' ? FC.cleanTexSrc(v) : null) || ''; }
   // A repeat as a chip, a list or this computer's store names it (a text) or as a piece holds it: 1, 2, 4 or 'whole', and 1 for anything else
   function texTileOf(v) { var FC = window.wpFogCore, n = typeof v === 'string' && /^[124]$/.test(v) ? Number(v) : v; return (FC && typeof FC.cleanTexTile === 'function' ? FC.cleanTexTile(n) : null) || 1; }
+  // Fold 4 of backlog 222 (the owner, by prompt: "Looks list + Texture lists"): the campaign's furnishing packs that hold patterns or blocks, each a
+  // group of rows by its own name. A row's value is '@pk:', the pack's id and the key (furncore texRows), which no pattern is named by
+  function texPacksNow() {
+      var FU = window.wpFurnCore, FC = window.wpFogCore, c = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null;
+      return FU && typeof FU.cleanPacks === 'function' && FC && typeof FC.cleanTexSrc === 'function' && c && c.furnPacks ? FU.cleanPacks(c.furnPacks, FC.cleanTexSrc) : [];
+  }
+  function texPackGroups() { var FU = window.wpFurnCore; return FU && typeof FU.texRows === 'function' ? FU.texRows(texPacksNow()) : []; }
+  function texRowLabel(r) { var BC = window.wpBuildCore; return r.tex ? ((BC && typeof BC.texName === 'function' && BC.texName(r.tex)) || r.tex) : r.name; }
+  function texRowOfPic(src) { var FU = window.wpFurnCore; return src && FU && typeof FU.texRowOf === 'function' ? FU.texRowOf(texPacksNow(), src) : ''; }
+  // What the packs' rows are now, so a list filled before a pack was made or changed is filled again (the Fill menu stays up)
+  function texPackSig() { return JSON.stringify(texPackGroups().map(function(g) { return [g.id, g.name, g.rows.map(function(r) { return [r.v, r.src, r.t, r.name || '']; })]; })); }
   function texOptionsInto(sel, cur, pic) {
       var BC = window.wpBuildCore; if (!sel || !BC || !Array.isArray(BC.TEXTURES)) return;
       while (sel.firstChild) sel.removeChild(sel.firstChild);
+      if (sel.dataset) sel.dataset.pk = texPackSig();
       var o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Plain colour'; sel.appendChild(o0);
       BC.TEXTURES.forEach(function(n) { var o = document.createElement('option'); o.value = n; o.textContent = typeof BC.texName === 'function' ? BC.texName(n) : n.charAt(0).toUpperCase() + n.slice(1); sel.appendChild(o); });
       var can = typeof BC.picName === 'function' && !!(window.wpFogCore && typeof window.wpFogCore.cleanTexSrc === 'function'), src = can ? texPicOf(pic) : '';
-      if (src) { var op = document.createElement('option'); op.value = TEX_PIC; op.textContent = BC.picName(src); sel.appendChild(op); }
+      texPackGroups().forEach(function(g) {   // fold 4: each pack's patterns and blocks, the group named for the pack
+          var og = document.createElement('optgroup'); og.label = g.name;
+          g.rows.forEach(function(r) { var o = document.createElement('option'); o.value = r.v; o.textContent = texRowLabel(r); og.appendChild(o); });
+          sel.appendChild(og);
+      });
+      var rowV = src ? texRowOfPic(src) : '';   // a pack's picture in use stands as its own row, by its name
+      if (src && !rowV) { var op = document.createElement('option'); op.value = TEX_PIC; op.textContent = BC.picName(src); sel.appendChild(op); }
       if (can) { var ok = document.createElement('option'); ok.value = TEX_PICK; ok.textContent = 'A picture\u2026'; sel.appendChild(ok); }
-      sel.value = src ? TEX_PIC : (BC.cleanTexture(cur) || '');
+      sel.value = rowV || (src ? TEX_PIC : (BC.cleanTexture(cur) || ''));
   }
   // A Texture list was changed. A name or Plain color is handed on. The picture's own row changes nothing. A picture puts the list back as it
   // was and opens the Image Library, whose pick is handed on only as a path cleanTexSrc keeps. The library says nothing when it is closed
   // with no pick, so nothing waits for one
   function texListPick(value, back, take) {
       if (value === TEX_PIC) { back(); return; }
+      if (typeof value === 'string' && value.slice(0, 4) === '@pk:') {   // fold 4: a pack's pattern or block, its picture and how many cells it covers
+          var FU = window.wpFurnCore, x = FU && typeof FU.texRowPick === 'function' ? FU.texRowPick(texPacksNow(), value) : null;
+          if (x) take({ pic: x.src, tile: x.t }); else back();
+          return;
+      }
       if (value !== TEX_PICK) { take({ tex: value }); return; }
       back();
       if (typeof window.wpPickImage !== 'function') { if (typeof toast === 'function') toast('The image library is not available here.'); return; }
@@ -6308,7 +6332,7 @@ window.wpFitToGrid = fitToGrid;
       var row = document.getElementById(rowId); if (!row) return;
       Array.prototype.forEach.call(row.querySelectorAll('[data-tile]'), function(b) { b.addEventListener('click', function(ev) { ev.stopPropagation(); take(texTileOf(this.dataset.tile)); }); });
   }
-  window.wpTexList = { PIC: TEX_PIC, PICK: TEX_PICK, TILES: TILE_ROWS, pick: texListPick, keys: texListKeys, picOf: texPicOf, tileOf: texTileOf };   // Properties' Texture row asks the same rule
+  window.wpTexList = { PIC: TEX_PIC, PICK: TEX_PICK, TILES: TILE_ROWS, pick: texListPick, keys: texListKeys, picOf: texPicOf, tileOf: texTileOf, groups: texPackGroups, label: texRowLabel, rowOf: texRowOfPic };   // Properties' Texture row asks the same rule
   // The fill menu's Texture list and its Tile size: the picks are kept on this computer and read back through the cleaners
   function fillTexSync() { texOptionsInto(document.getElementById('fillTexture'), state.fillTexture, state.fillPic); tileRowSync('fillTileRow', 'fillTileLine', state.fillPic, state.fillTile); }
   function fillTexKeep() { try { localStorage.setItem('wp_fillTexture', state.fillTexture); localStorage.setItem('wp_fillPic', state.fillPic || ''); localStorage.setItem('wp_fillTile', String(state.fillTile || 1)); } catch (e) {} }
@@ -6322,7 +6346,7 @@ window.wpFitToGrid = fitToGrid;
       sel.addEventListener('change', function() {
           texListPick(this.value, fillTexSync, function(p) {
               var B2 = window.wpBuildCore;
-              if (p.pic) state.fillPic = p.pic; else { state.fillPic = ''; state.fillTexture = (B2 && B2.cleanTexture ? B2.cleanTexture(p.tex) : null) || ''; }
+              if (p.pic) { state.fillPic = p.pic; if (p.tile) state.fillTile = texTileOf(p.tile); } else { state.fillPic = ''; state.fillTexture = (B2 && B2.cleanTexture ? B2.cleanTexture(p.tex) : null) || ''; }   // fold 4: a pack's row brings its own tile
               fillTexKeep(); fillTexSync();
           });
       });
@@ -8803,7 +8827,7 @@ var BUILD_MAX = 6000;   // a map's copy holds this many pieces for players (net.
 var BUILD_SHAPES = ['rect', 'circle', 'poly', 'corridor', 'line'];
 var BUILD_LINES = { floor: 'Flagstones. Tokens walk on it.', wall: 'Blocks sight and gives cover.', door: 'A wall that opens. Players can open it.', water: 'Difficult terrain, counted double.', rubble: 'Gives cover. Tokens can cross it.', wood: 'Planks.', grass: '', street: 'Cobbles. Tokens walk on it.', building: 'A roof. Blocks sight and stops tokens.', citywall: 'Stone. Blocks sight and stops tokens.', factory: 'Tread plate. Tokens walk on it.', concrete: 'Slabs. Tokens walk on it.', tile: 'Tokens walk on it.', carpet: 'Tokens walk on it.', deck: 'Deck plate. Tokens walk on it.', grating: 'Tokens walk on it.', walkway: 'A lit grid. Tokens walk on it.', brickwall: 'Blocks sight and gives cover.', blockwall: 'Blocks sight and gives cover.', bulkhead: 'Blocks sight and gives cover.', ironwall: 'Blocks sight and gives cover.', irondoor: 'A wall that opens. Players can open it.', hatch: 'A wall that opens. Players can open it.', glass: 'Stops tokens. You can see through it.', chainlink: 'Stops tokens. You can see through it.', forcefield: 'Stops tokens. You can see through it.', road: 'Asphalt. Tokens walk on it.', roadlines: 'Asphalt with a dashed line.', rail: 'Tokens walk on it.', terrace: 'A slate roof. Blocks sight and stops tokens.', millroof: 'A sawtooth roof. Blocks sight and stops tokens.', roof: 'A flat roof. Blocks sight and stops tokens.', module: 'Hull plate. Blocks sight and stops tokens.', canal: 'Difficult terrain, counted double.', coolant: 'Difficult terrain, counted double.', scrap: 'Gives cover. Tokens can cross it.', wreckage: 'Gives cover. Tokens can cross it.' };
 var BUILD_SHAPE_LINES = { rect: 'Click a cell, or drag an area.', circle: 'Click a cell, or drag an area. The circle fills its box.', poly: 'Click each corner. Click the first again to close it.', corridor: 'Drag along it.', line: 'Draw along the grid lines. The line is the wall.' };
-var _build = { mat: 'floor', shape: 'rect', tex: 'flagstones', pic: '', tile: 1, color: '#5a5663', terrain: 0, corridorW: 1, walls: false, poly: null, polyEl: null, pen: false, loaded: false, era: '', find: '', drawn: '', body: null, eraEls: [] };
+var _build = { blk: '', lookSel: null, psig: null, mat: 'floor', shape: 'rect', tex: 'flagstones', pic: '', tile: 1, color: '#5a5663', terrain: 0, corridorW: 1, walls: false, poly: null, polyEl: null, pen: false, loaded: false, era: '', find: '', drawn: '', body: null, eraEls: [] };
 function buildCore() { return window.wpBuildCore || null; }
 function buildGrid() { var C = window.wpFogCore; if (!C) return null; if ((state.gridType === 'hex' || state.gridType === 'square') && window.wpLatticeOf) { var BL = window.wpLatticeOf(); if (BL && BL.type === state.gridType) return BL; } return state.gridType === 'hex' ? C.hexGrid(30, 52) : state.gridType === 'square' ? C.squareGrid(50) : null; }   // 1.6.2, backlog 38: the map's own cell   // the lattice the fill tool's cellSnap reads
 function buildHex6(v) { return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null; }
@@ -8838,13 +8862,34 @@ function buildLoad() {   // the options' last choices, kept on this computer, ea
         _build.pic = (FC && typeof FC.cleanTexSrc === 'function' ? FC.cleanTexSrc(v.pic) : null) || ''; _build.tile = (FC && typeof FC.cleanTexTile === 'function' ? FC.cleanTexTile(v.tile) : null) || 1;   // fold B3: a picture as the fill, and its repeat
         _build.terrain = M.terrain ? ((FC && FC.cleanTerrain ? FC.cleanTerrain(v.terrain) : null) || 0) : 0; _build.corridorW = v.corridorW === 2 ? 2 : 1; _build.walls = v.walls === true;
         _build.era = BC.ERAS.indexOf(v.era) >= 0 ? v.era : '';
+        var FUb = window.wpFurnCore; _build.blk = _build.pic && FUb && typeof FUb.blockName === 'function' ? FUb.blockName(v.blk) : '';   // fold 4: a pack's block in hand, its name kept with its picture
     } catch (e) {}
 }
-function buildSave() { try { var kept = { mat: _build.mat, shape: _build.shape, tex: _build.tex, color: _build.color, terrain: _build.terrain, corridorW: _build.corridorW }; if (_build.walls === true) kept.walls = true; if (_build.era) kept.era = _build.era; if (_build.pic) { kept.pic = _build.pic; kept.tile = _build.tile; } localStorage.setItem('wp_build', JSON.stringify(kept)); } catch (e) {} }   // With walls is kept only while it is ticked, a picture and its repeat only while one is the fill
+function buildSave() { try { var kept = { mat: _build.mat, shape: _build.shape, tex: _build.tex, color: _build.color, terrain: _build.terrain, corridorW: _build.corridorW }; if (_build.walls === true) kept.walls = true; if (_build.era) kept.era = _build.era; if (_build.pic) { kept.pic = _build.pic; kept.tile = _build.tile; if (_build.blk) kept.blk = _build.blk; } localStorage.setItem('wp_build', JSON.stringify(kept)); } catch (e) {} }   // With walls is kept only while it is ticked, a picture and its repeat only while one is the fill
 function buildMaterial(mat) {   // a material brings its own texture, colour and terrain; a Wall or a Door is a thin line by default (the owner's answer of 2026-10-01)
     var BC = buildCore(), id = BC ? BC.cleanMaterial(mat) : null, M = id ? BC.MATERIALS[id] : null; if (!M) return false;
     _build.mat = id; _build.tex = M.texture; _build.pic = ''; _build.color = M.color; _build.terrain = M.terrain || 0;   // its own pattern takes a picture's place
+    _build.blk = ''; var lp = typeof buildLookTex === 'function' ? buildLookTex(M.texture) : null; if (lp) { _build.pic = lp.src; _build.tile = lp.t; }   // fold 4: the pack picked in Looks paints its pattern
     _build.shape = BC.lineMat(id) ? 'line' : (_build.shape === 'line' ? 'rect' : _build.shape);
+    return true;
+}
+// Fold 4 of backlog 222: the pack picked in the Looks list (one choice with the furnishings', furnish.js), its picture for a pattern, and a block
+// of its own: the block's material and rules, its picture and its name. A line wears no picture, so a block is laid as a box
+function buildLookPack() {   // a pack of furnishings alone is no look for building: Build shows Waypoint's patterns for it
+    var Fu = window.wpFurnish, FU = window.wpFurnCore; if (!Fu || typeof Fu.look !== 'function' || typeof Fu.packs !== 'function' || !FU || typeof FU.packTexCount !== 'function') return null;
+    var id = Fu.look(), pk = id ? Fu.packs().filter(function(p) { return p.id === id; })[0] || null : null;
+    return pk && FU.packTexCount(pk) ? pk : null;
+}
+function buildLookTex(tex) { var FU = window.wpFurnCore, pk = buildLookPack(); return pk && FU && typeof FU.packTex === 'function' ? FU.packTex(pk, tex) : null; }
+function buildBlock(b) {
+    if (!b || !buildMaterial(b.mat)) return false;
+    _build.pic = b.src; _build.tile = b.t; _build.blk = b.name;
+    if (_build.shape === 'line') _build.shape = 'rect';
+    return true;
+}
+function buildLookFill() {   // the Looks list changed: the material in hand takes the new pack's picture, or its own pattern; a block stays as it is
+    var BC = buildCore(), M = BC ? BC.MATERIALS[_build.mat] : null; if (!M || _build.blk) return false;
+    var lp = buildLookTex(M.texture); _build.tex = M.texture; _build.pic = lp ? lp.src : ''; if (lp) _build.tile = lp.t;
     return true;
 }
 function buildShape(shape) {   // a Wall line is a wall's or a door's: picked with another material in hand, it takes Wall
@@ -8855,7 +8900,9 @@ function buildShape(shape) {   // a Wall line is a wall's or a door's: picked wi
 }
 function buildProps() {   // the props of the piece about to be laid (buildcore pieceProps: a fresh bag by whitelist, never a type, a place or a flag of another kind)
     var BC = buildCore(); if (!BC) return null;
-    return BC.pieceProps(_build.mat, { texture: _build.tex, texSrc: _build.pic || undefined, texTile: _build.tile, color: _build.color, terrain: buildWet(_build.mat) ? (_build.terrain || 0) : undefined });
+    var pp = BC.pieceProps(_build.mat, { texture: _build.tex, texSrc: _build.pic || undefined, texTile: _build.tile, color: _build.color, terrain: buildWet(_build.mat) ? (_build.terrain || 0) : undefined });
+    if (pp && _build.blk && pp.texSrc) pp.name = _build.blk;   // fold 4: a block goes by its own name, with its material's rules
+    return pp;
 }
 // Arm the board for the next piece: for a Wall line the pen under Build's preset, for every other shape a placement that is Build's own
 // (never armPlacement, which takes Select and speaks). Build is still the tool in hand either way
@@ -8927,15 +8974,31 @@ function buildCell(BC, id, pins) {
     var M = BC.MATERIALS[id], c = document.createElement('div'), b = document.createElement('button'), sw = document.createElement('span'), nm = document.createElement('span'), ts = BC.texStyle(M.texture, 0, 0), pin = document.createElement('button'), on = pins.indexOf(id) >= 0;
     c.className = 'build-cell'; b.type = 'button'; b.className = 'build-mat'; b.dataset.buildmat = id; b.title = BUILD_LINES[id] ? M.name + '. ' + BUILD_LINES[id] : M.name;
     sw.className = 'build-tile'; sw.style.backgroundColor = M.color; if (ts) { sw.style.backgroundImage = ts.image; sw.style.backgroundSize = ts.size; }
+    var lp = buildLookTex(M.texture), lu = lp && typeof BC.picUrl === 'function' ? BC.picUrl(lp.src) : '';   // fold 4: the pack's own picture for its pattern
+    if (lu) { sw.style.backgroundImage = 'url("' + lu + '")'; sw.style.backgroundSize = '24px 24px'; }
     nm.className = 'build-nm'; nm.textContent = M.name; b.appendChild(sw); b.appendChild(nm);
+    if (!lu && buildLookPack()) { var wm = document.createElement('span'); wm.className = 'furn-base build-base'; wm.textContent = 'Waypoint'; b.appendChild(wm); b.title += ' This pack has no picture for its pattern, so it shows Waypoint\u2019s own.'; }
     b.addEventListener('click', function(ev) { ev.stopPropagation(); buildPick(function() { return buildMaterial(id); }); });
-    if (id === _build.mat) b.classList.add('on');
+    if (id === _build.mat && !_build.blk) b.classList.add('on');
     pin.type = 'button'; pin.className = 'build-pin wib wi-pin' + (on ? ' on' : ''); pin.title = on ? 'Take it off your palette' : 'Pin it to your palette'; pin.setAttribute('aria-pressed', on ? 'true' : 'false');
     pin.addEventListener('click', function(ev) { ev.stopPropagation(); buildPinFlip(BC, id); });
     c.appendChild(b); c.appendChild(pin);
     return c;
 }
-function buildCells(BC, ids, pins) { var g = document.createElement('div'); g.className = 'build-grid'; ids.forEach(function(id) { g.appendChild(buildCell(BC, id, pins)); }); return g; }
+function buildCells(BC, ids, pins, blocks) { var g = document.createElement('div'); g.className = 'build-grid'; ids.forEach(function(id) { g.appendChild(buildCell(BC, id, pins)); }); (blocks || []).forEach(function(b) { g.appendChild(buildBlockCell(BC, b)); }); return g; }
+// Fold 4: a pack's block in its material's fold, by its own name and picture, its material named in its tip
+function buildBlockCell(BC, b) {
+    var c = document.createElement('div'), btn = document.createElement('button'), sw = document.createElement('span'), nm = document.createElement('span'), M = BC.MATERIALS[b.mat], u = typeof BC.picUrl === 'function' ? BC.picUrl(b.src) : '';
+    c.className = 'build-cell'; btn.type = 'button'; btn.className = 'build-mat build-blk'; btn.dataset.buildblk = b.name;
+    btn.title = b.name + '. A block of this pack. It lays as ' + (M ? M.name : b.mat) + ' and takes its rules.';
+    sw.className = 'build-tile'; sw.style.backgroundColor = M ? M.color : ''; if (u) { sw.style.backgroundImage = 'url("' + u + '")'; sw.style.backgroundSize = '24px 24px'; }
+    nm.className = 'build-nm'; nm.textContent = b.name; btn.appendChild(sw); btn.appendChild(nm);
+    if (_build.blk === b.name && _build.pic === b.src) btn.classList.add('on');
+    btn.addEventListener('click', function(ev) { ev.stopPropagation(); buildPick(function() { return buildBlock(b); }); });
+    c.appendChild(btn);
+    return c;
+}
+function buildBlocksNow() { var FU = window.wpFurnCore, pk = buildLookPack(); return pk && FU && typeof FU.packBlocks === 'function' ? FU.packBlocks(pk) : []; }
 function buildHead(text) { var h = document.createElement('div'); h.className = 'build-head'; h.textContent = text; return h; }
 function buildMatsHead(BC, box) {   // the box and the chips are made once, so that a word being typed keeps its place
     var f = document.createElement('input'), eras = document.createElement('div'), body = document.createElement('div');
@@ -8954,14 +9017,29 @@ function buildMatsHead(BC, box) {   // the box and the chips are made once, so t
         eras.appendChild(c); _build.eraEls.push(c);
     });
     body.className = 'build-matbody'; _build.body = body;
-    box.appendChild(f); box.appendChild(eras); box.appendChild(body);
+    var lk = document.createElement('div'), ll = document.createElement('label'), sel = document.createElement('select'), pb = document.createElement('button');   // fold 4: the Looks list, one choice with the furnishings'
+    lk.className = 'furn-looks'; ll.className = 'furn-looks-lab'; ll.textContent = 'Looks'; sel.className = 'furn-looks-sel'; sel.id = 'buildLooks'; ll.htmlFor = 'buildLooks';
+    sel.title = 'Waypoint\u2019s own patterns, or one of this campaign\u2019s packs. Its pictures paint what you lay. It is the same choice as on the Objects tab.';
+    sel.addEventListener('change', function() { var v = sel.value; if (window.wpFurnish && typeof window.wpFurnish.lookSet === 'function') window.wpFurnish.lookSet(v); _build.drawn = ''; buildPick(buildLookFill); });
+    pb.type = 'button'; pb.className = 'tool ghost furn-packs-btn'; pb.id = 'buildPacksBtn'; pb.textContent = 'Packs\u2026'; pb.title = 'Make a pack, bring one in from a file or a folder, share one from another campaign, or export one.';
+    pb.addEventListener('click', function(ev) { ev.stopPropagation(); if (window.wpFurnPacks) window.wpFurnPacks.open(); });
+    lk.appendChild(ll); lk.appendChild(sel); lk.appendChild(pb); _build.lookSel = sel;
+    box.appendChild(lk); box.appendChild(f); box.appendChild(eras); box.appendChild(body);
 }
 function buildMatsDraw(BC) {
     var box = document.getElementById('buildMatRows'); if (!box) return;
     if (!box.firstChild) buildMatsHead(BC, box);
     var body = _build.body, pins = buildPins(BC), used = buildUsed(BC), kept = buildFolds(), find = !!_build.find.trim();
     _build.eraEls.forEach(function(c) { c.classList.toggle('on', c.dataset.era === _build.era); });
-    var open = BC.MAT_KINDS.map(function(k) { return buildFoldOpen(k, kept) ? 1 : 0; }).join(''), sig = [_build.era, _build.find, pins.join(), used.join(), open].join('|');
+    var Fu = window.wpFurnish, packs = Fu && typeof Fu.packs === 'function' ? Fu.packs() : [], FUc = window.wpFurnCore, psig = packs.map(function(p) { return p.id + '=' + p.name + '=' + JSON.stringify(p.looks) + '=' + JSON.stringify(p.tiles || {}) + '=' + JSON.stringify(p.blocks || []); }).join(',');
+    if (_build.lookSel && _build.psig !== psig) {   // fold 4: the Looks list, Waypoint's patterns then each pack that has a pattern or a block
+        _build.psig = psig; var ls = _build.lookSel; while (ls.firstChild) ls.removeChild(ls.firstChild);
+        var o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Waypoint\u2019s patterns'; ls.appendChild(o0);
+        packs.forEach(function(p) { if (FUc && typeof FUc.packTexCount === 'function' && !FUc.packTexCount(p)) return; var o = document.createElement('option'); o.value = p.id; o.textContent = p.name; ls.appendChild(o); });
+    }
+    var look = buildLookPack(), lookId = look ? look.id : ''; if (_build.lookSel) { _build.lookSel.value = lookId; if (_build.lookSel.value !== lookId) _build.lookSel.value = ''; }   // a pack of furnishings alone is no choice here
+    var blocks = buildBlocksNow(), q = _build.find.trim().toLowerCase();
+    var open = BC.MAT_KINDS.map(function(k) { return buildFoldOpen(k, kept) ? 1 : 0; }).join(''), sig = [_build.era, _build.find, pins.join(), used.join(), open, psig, lookId, _build.blk, _build.pic, _build.mat].join('|');
     if (sig === _build.drawn && body.firstChild) return;
     _build.drawn = sig;
     var keepTop = body.scrollTop, menuEl = document.getElementById('buildMenu'), keepMenu = menuEl ? menuEl.scrollTop : 0, aeB = document.activeElement, keepFold = aeB && body.contains(aeB) && aeB.classList.contains('build-fold') ? aeB.getAttribute('data-fold') : null;   // a fold pressed is the focus: drawing it anew drops the palette's scroll unless it is kept
@@ -8970,23 +9048,24 @@ function buildMatsDraw(BC) {
     if (strip.length) { body.appendChild(buildHead('Pinned and on this map')); body.appendChild(buildCells(BC, strip, pins)); }
     var any = false;
     BC.MAT_KINDS.forEach(function(k) {
-        var ids = k.ids.filter(function(id) { return buildShown(BC, id); }); if (!ids.length) return;
+        var ids = k.ids.filter(function(id) { return buildShown(BC, id); }), bl = blocks.filter(function(x) { return k.ids.indexOf(x.mat) >= 0 && (!q || x.name.toLowerCase().indexOf(q) >= 0); }); if (!ids.length && !bl.length) return;   // fold 4: a block stands in its material's fold whatever the era
         any = true;
         var isOpen = find || buildFoldOpen(k, kept), b = document.createElement('button'), n = document.createElement('small');
-        b.type = 'button'; b.className = 'build-fold'; b.setAttribute('data-fold', k.name); b.setAttribute('aria-expanded', isOpen ? 'true' : 'false'); b.textContent = k.name; n.textContent = String(ids.length); b.appendChild(n);
+        b.type = 'button'; b.className = 'build-fold'; b.setAttribute('data-fold', k.name); b.setAttribute('aria-expanded', isOpen ? 'true' : 'false'); b.textContent = k.name; n.textContent = String(ids.length + bl.length); b.appendChild(n);
         b.addEventListener('click', function(ev) { ev.stopPropagation(); buildFoldSet(k.name, !isOpen); _build.drawn = ''; buildMatsDraw(BC); });
         body.appendChild(b);
-        if (isOpen) body.appendChild(buildCells(BC, ids, pins));
+        if (isOpen) body.appendChild(buildCells(BC, ids, pins, bl));
     });
     if (!any) { var none = document.createElement('div'); none.className = 'build-none'; none.textContent = 'No material by that name.'; body.appendChild(none); }
     body.scrollTop = keepTop; if (menuEl) menuEl.scrollTop = keepMenu;   // the palette stays where it was scrolled to
     if (keepFold) { var fb2 = Array.prototype.filter.call(body.querySelectorAll('.build-fold'), function(x) { return x.getAttribute('data-fold') === keepFold; })[0]; if (fb2) { try { fb2.focus({ preventScroll: true }); } catch (e) {} } }
 }
+window.wpBuildSync = function() { _build.drawn = ''; _build.psig = null; buildSync(); };   // fold 4 of backlog 222: a pack saved, brought in or picked elsewhere draws the palette again
 function buildSync() {
     var BC = buildCore(), FC = window.wpFogCore; if (!BC) return;
     buildLoad();
     buildMatsDraw(BC);
-    Array.prototype.forEach.call(document.querySelectorAll('#buildMatRows .build-mat'), function(b) { b.classList.toggle('on', b.dataset.buildmat === _build.mat); });
+    Array.prototype.forEach.call(document.querySelectorAll('#buildMatRows .build-mat'), function(b) { b.classList.toggle('on', b.dataset.buildblk ? b.dataset.buildblk === _build.blk : b.dataset.buildmat === _build.mat && !_build.blk); });
     Array.prototype.forEach.call(document.querySelectorAll('#buildShapeRow .build-shape-btn'), function(b) { b.classList.toggle('active', b.dataset.buildshape === _build.shape); });
     var ln = document.getElementById('buildShapeLine'); if (ln) ln.textContent = BUILD_SHAPE_LINES[_build.shape] || '';
     var ts2 = document.getElementById('buildTexture'); if (ts2) { texOptionsInto(ts2, _build.tex, _build.pic); ts2.disabled = _build.shape === 'line'; }   // a line is a stroke: it wears no texture
@@ -9295,7 +9374,7 @@ function buildWire() {   // the options' own controls, each once
     var tx = document.getElementById('buildTexture'); if (tx) tx.addEventListener('change', function() {
         var BC = buildCore(), v = this.value, name = function(t) { buildPick(function() { _build.pic = ''; _build.tex = t === '' ? '' : ((BC && BC.cleanTexture(t)) || _build.tex); }); };
         if (typeof texListPick !== 'function') { name(v); return; }
-        texListPick(v, buildSync, function(p) { if (p.pic) buildPick(function() { _build.pic = p.pic; }); else name(p.tex); });   // fold B3: A picture opens the Image Library, and its pick is the fill
+        texListPick(v, buildSync, function(p) { if (p.pic) buildPick(function() { _build.pic = p.pic; if (p.tile) _build.tile = texTileOf(p.tile); }); else name(p.tex); });   // fold B3: A picture opens the Image Library, and its pick is the fill
     });
     if (tx && typeof texListKeys === 'function') texListKeys(tx);
     if (typeof tileRowWire === 'function') tileRowWire('buildTileRow', function(t) { buildPick(function() { _build.tile = t; }); });

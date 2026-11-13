@@ -1192,6 +1192,12 @@ The Data Map
   pick, 200 pixels a cell to start, with an empty pack folder. Fill it in
   another program and bring the .zip back with Import a file. A picture with no
   clear part is kept, and you are told it covers its whole square.
+- A furnishing pack can now repaint floors and walls too. Its maker has a
+  Blocks tab where you give any of Waypoint's 32 patterns a picture of your own,
+  or add a block with its own name, say Marble, that lays as a floor and keeps
+  a floor's rules. Each one shows 3 by 3 with its seams in gold, so you can see
+  whether it tiles. Pick the pack in the Looks list on Build's Materials tab
+  and what you lay wears it. The Fill tool and Properties list its blocks too.
 - A piece's Properties now open from Properties on its right-click menu, or
   from the sliders on the bar over a selected piece. A double-click no longer
   opens them. A right-click selects the piece too, so you can see which one

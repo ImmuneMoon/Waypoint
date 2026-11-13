@@ -232,7 +232,9 @@ function cleanPack(p, cleanSrc) {
     var id = cleanPackId(own(p, 'id') ? p.id : ''), name = packName(own(p, 'name') ? p.name : ''); if (!id || !name) return null;
     var L = own(p, 'looks') && p.looks && typeof p.looks === 'object' && !Array.isArray(p.looks) ? p.looks : {}, looks = {};
     KINDS.forEach(function(k) { ERA_IDS.forEach(function(e) { var key = k.key + '.' + e; if (!own(L, key)) return; var s = typeof cleanSrc === 'function' ? cleanSrc(L[key]) : null; if (s) looks[key] = s; }); });
-    return { id: id, name: name, looks: looks };
+    var out = { id: id, name: name, looks: looks };
+    blocksInto(out, p, L, cleanSrc);   // fold 4: texture blocks, only where the pack has some, so a pack of furnishings alone is kept as it always was
+    return out;
 }
 // A campaign's packs: each id once, PACK_MAX at most; anything else is none
 function cleanPacks(v, cleanSrc) {
@@ -259,6 +261,98 @@ function picKind(b) {
 }
 // [furncheck:packs-end]
 
+// [furncheck:blocks-start]
+// Texture blocks (backlog 222, fold 4; the owner, 2026-11-13, by prompt: a pack holds "Patterns and new blocks", used through a "Looks list +
+// Texture lists", a picture "1 cell, pack may say 2 or 4", and made in a "Blocks tab in the maker"). A pack may hold its own picture for any of
+// Waypoint's 32 patterns, under 'tex.<pattern>' in its looks, and blocks of its own, each a name and the material it lays as, its picture under
+// 'blk.<id>'. A block takes its material's rules: a pack still holds looks alone. tiles says how many cells one picture covers, 2 or 4, where it is
+// not one. This file still imports nothing, so it keeps its own copy of the pattern names and the material ids, which furncheck holds to
+// buildcore's own lists
+var TEX_NAMES = Object.freeze(['flagstones', 'bricks', 'cobbles', 'planks', 'stone', 'hatching', 'ripples', 'grass', 'shingles', 'pantiles', 'slates', 'thatch', 'forest', 'mountains', 'sand', 'snow', 'ironplate', 'treadplate', 'rails', 'sawtooth', 'asphalt', 'lanes', 'concrete', 'tiles', 'carpet', 'glass', 'chainlink', 'deck', 'grating', 'hull', 'forcefield', 'holo']);
+var MAT_IDS = Object.freeze(['floor', 'wall', 'door', 'water', 'rubble', 'wood', 'grass', 'street', 'building', 'citywall', 'factory', 'concrete', 'tile', 'carpet', 'deck', 'grating', 'walkway', 'brickwall', 'blockwall', 'bulkhead', 'ironwall', 'irondoor', 'hatch', 'glass', 'chainlink', 'forcefield', 'road', 'roadlines', 'rail', 'terrace', 'millroof', 'roof', 'module', 'canal', 'coolant', 'scrap', 'wreckage']);
+var BLOCK_MAX = 48, BLOCK_RE = /^b[a-z0-9]{1,6}$/;
+function texKey(n) { return typeof n === 'string' && TEX_NAMES.indexOf(n) >= 0 ? 'tex.' + n : ''; }
+function blockKey(id) { return typeof id === 'string' && BLOCK_RE.test(id) ? 'blk.' + id : ''; }
+function blockMat(v) { return typeof v === 'string' && MAT_IDS.indexOf(v) >= 0 ? v : ''; }
+function blockName(v) { if (typeof v !== 'string') return ''; var t = Array.from(v.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim()); return t.slice(0, 40).join('').trim(); }
+function tileOf(v) { return v === 2 || v === 4 ? v : 1; }
+// The pack's patterns, blocks and tiles, written onto out where it has any. A block needs an id, a name, a material and a picture; a name is
+// kept once, ignoring case
+function blocksInto(out, p, L, cleanSrc) {
+    var src = function(v) { return typeof cleanSrc === 'function' ? cleanSrc(v) : null; };
+    TEX_NAMES.forEach(function(n) { var key = 'tex.' + n; if (!own(L, key)) return; var s = src(L[key]); if (s) out.looks[key] = s; });
+    var B = own(p, 'blocks') && Array.isArray(p.blocks) ? p.blocks : [], blocks = [], ids = Object.create(null), names = Object.create(null);
+    for (var i = 0; i < B.length && i < 400 && blocks.length < BLOCK_MAX; i++) {
+        var b = B[i]; if (!b || typeof b !== 'object' || Array.isArray(b)) continue;
+        var id = own(b, 'id') && typeof b.id === 'string' && BLOCK_RE.test(b.id) ? b.id : '', nm = blockName(own(b, 'name') ? b.name : ''), mat = blockMat(own(b, 'mat') ? b.mat : '');
+        if (!id || !nm || !mat || ids[id] || names[nm.toLowerCase()] || !own(L, 'blk.' + id)) continue;
+        var s = src(L['blk.' + id]); if (!s) continue;
+        ids[id] = 1; names[nm.toLowerCase()] = 1; blocks.push({ id: id, name: nm, mat: mat }); out.looks['blk.' + id] = s;
+    }
+    if (blocks.length) out.blocks = blocks;
+    var T = own(p, 'tiles') && p.tiles && typeof p.tiles === 'object' && !Array.isArray(p.tiles) ? p.tiles : {}, tiles = {};
+    Object.keys(out.looks).forEach(function(key) { if ((key.slice(0, 4) === 'tex.' || key.slice(0, 4) === 'blk.') && own(T, key) && tileOf(T[key]) > 1) tiles[key] = T[key]; });
+    if (Object.keys(tiles).length) out.tiles = tiles;
+}
+// One pattern of a pack: its picture and how many cells it covers, or null
+function packTex(pack, n) { var key = texKey(n); return key && pack && pack.looks && own(pack.looks, key) ? { src: pack.looks[key], t: tileOf(pack.tiles && own(pack.tiles, key) ? pack.tiles[key] : 1) } : null; }
+// A pack's blocks with their pictures, in its own order
+function packBlocks(pack) {
+    return (pack && Array.isArray(pack.blocks) ? pack.blocks : []).filter(function(b) { return b && own(pack.looks, 'blk.' + b.id); }).map(function(b) {
+        var key = 'blk.' + b.id; return { id: b.id, key: key, name: b.name, mat: b.mat, src: pack.looks[key], t: tileOf(pack.tiles && own(pack.tiles, key) ? pack.tiles[key] : 1) };
+    });
+}
+function packTexCount(pack) { return pack && pack.looks ? Object.keys(pack.looks).filter(function(k) { return k.slice(0, 4) === 'tex.' || k.slice(0, 4) === 'blk.'; }).length : 0; }
+// A Texture list's rows for a campaign's packs: each pack that has patterns or blocks, its patterns in the list's order then its blocks. A row's
+// value is '@pk:' and the pack's id and the key, which no pattern is named by
+var ROW_RE = /^@pk:(fp_[a-z0-9]{4,24}):((?:tex|blk)\.[a-z0-9]+)$/;
+function texRows(packs) {
+    var out = [];
+    (Array.isArray(packs) ? packs : []).forEach(function(p) {
+        var rows = [];
+        TEX_NAMES.forEach(function(n) { var x = packTex(p, n); if (x) rows.push({ v: '@pk:' + p.id + ':tex.' + n, tex: n, src: x.src, t: x.t }); });
+        packBlocks(p).forEach(function(b) { rows.push({ v: '@pk:' + p.id + ':' + b.key, name: b.name, mat: b.mat, src: b.src, t: b.t }); });
+        if (rows.length) out.push({ id: p.id, name: p.name, rows: rows });
+    });
+    return out;
+}
+// What a row's value names: its picture and its tile, or null for anything that is no row of these packs
+function texRowPick(packs, v) {
+    var m = typeof v === 'string' ? ROW_RE.exec(v) : null; if (!m) return null;
+    var g = texRows(packs).filter(function(x) { return x.id === m[1]; })[0], r = g ? g.rows.filter(function(x) { return x.v === v; })[0] : null;
+    return r ? { src: r.src, t: r.t } : null;
+}
+// The row a picture already in use stands for, so a Texture list shows it by name: the first row of these packs with that very picture
+function texRowOf(packs, src) {
+    if (typeof src !== 'string' || !src) return '';
+    var hit = ''; texRows(packs).some(function(g) { return g.rows.some(function(r) { if (r.src === src) { hit = r.v; return true; } return false; }); });
+    return hit;
+}
+// A new block's id that none of these blocks holds
+function newBlockId(blocks) { var seen = Object.create(null); (Array.isArray(blocks) ? blocks : []).forEach(function(b) { if (b && typeof b.id === 'string') seen[b.id] = 1; }); var n = 1; while (seen['b' + n.toString(36)]) n++; return 'b' + n.toString(36); }
+// A pattern or a block as a file in a folder, and what a file's name says. tex-bricks.png is a pattern; block-floor-Marble.png a block, its
+// material and then its name; -2 or -4 before the end says how many cells one picture covers
+var TEX_FILE = /^tex[-_ ]([a-z]+)(?:[-_ ]([24]))?\.(png|jpe?g|webp)$/i, BLOCK_FILE = /^block[-_ ]([a-z]+)[-_ ](.+?)(?:[-_ ]([24]))?\.(png|jpe?g|webp)$/i;
+function extOf(ext) { return /^(png|jpg|jpeg|webp)$/.test(ext) ? ext : 'png'; }
+function texFile(n, ext, t) { return texKey(n) ? 'tex-' + n + (tileOf(t) > 1 ? '-' + t : '') + '.' + extOf(ext) : ''; }
+function blockFile(b, ext, t) { var nm = b ? blockName(b.name).replace(/[\\/:*?"<>|]+/g, ' ').trim() : '', mat = b ? blockMat(b.mat) : ''; return nm && mat ? 'block-' + mat + '-' + nm + (tileOf(t) > 1 ? '-' + t : '') + '.' + extOf(ext) : ''; }
+function blockOfFile(name) {
+    if (typeof name !== 'string') return null;
+    var m = TEX_FILE.exec(name); if (m) { var n = m[1].toLowerCase(); return texKey(n) ? { key: 'tex.' + n, t: m[2] ? Number(m[2]) : 1 } : null; }
+    m = BLOCK_FILE.exec(name); if (!m) return null;
+    var mat = blockMat(m[1].toLowerCase()), nm = blockName(m[2]);
+    return mat && nm ? { key: 'blk', blk: { name: nm, mat: mat }, t: m[3] ? Number(m[3]) : 1 } : null;
+}
+// Where a pack's picture is saved among the campaign's own: its furnishing's file, tex-bricks.png, or block-<id>.png
+function storeFile(key, ext) {
+    var p = typeof key === 'string' ? key.split('.') : [];
+    if (p.length !== 2) return '';
+    if (p[0] === 'tex') return texFile(p[1], ext, 1);
+    if (p[0] === 'blk') return blockKey(p[1]) ? 'block-' + p[1] + '.' + extOf(ext) : '';
+    return lookFile(p[0], p[1], ext);
+}
+// [furncheck:blocks-end]
+
 // [furncheck:maker-start]
 // The pack maker and its template (fold 3; the owner: the size "up to the user, defaulting to 200" pixels a cell, and a picture with no clear
 // part "A. Kept, with a word")
@@ -280,9 +374,14 @@ function pickLooks(names) {
         if (dirs.indexOf('reference') >= 0 || dirs.indexOf('__macosx') >= 0 || base.charAt(0) === '.') return;
         if (inPack && dirs.indexOf('pack') < 0) return;
         if (!/\.(png|jpe?g|webp|gif|svg|bmp)$/i.test(base)) return;
-        var lk = lookOfFile(base); if (!lk) { left.kind++; return; }
+        var lk = lookOfFile(base);
+        if (!lk) {   // fold 4: a pattern or a block
+            var bk = blockOfFile(base); if (!bk) { left.kind++; return; }
+            var bkey = bk.blk ? 'blk:' + bk.blk.name.toLowerCase() : bk.key; if (seen[bkey]) { left.twice++; return; }
+            seen[bkey] = 1; var it = { i: i, key: bk.key, t: bk.t }; if (bk.blk) it.blk = bk.blk; out.push(it); return;
+        }
         var key = lk.k + '.' + lk.era; if (seen[key]) { left.twice++; return; }
-        seen[key] = 1; out.push({ i: i, k: lk.k, era: lk.era });
+        seen[key] = 1; out.push({ i: i, k: lk.k, era: lk.era, key: key });
     });
     return { looks: out, left: left };
 }
@@ -298,10 +397,17 @@ function tplGuide(px) {
         'Then in Waypoint, on Build\'s Objects tab, press Packs, then Import a file, and pick this .zip.', '',
         'The kinds, with their size in cells and in pixels:'];
     KINDS.forEach(function(k) { L.push(k.key + ', ' + k.label + ': ' + k.w + ' by ' + k.h + (k.w * k.h === 1 ? ' cell, ' : ' cells, ') + (k.w * p) + ' by ' + (k.h * p) + ' pixels. ' + ERA_IDS.map(function(e) { return k.key + '-' + e + '.png'; }).join(', ')); });
+    L.push('', 'Texture blocks', '',
+        'A pack can also repaint the patterns floors and walls are drawn with. The reference folder holds each one as tex-bricks.png, one cell of ' + p + ' by ' + p + ' pixels.',
+        'Make yours repeat without a seam: its right edge must meet its left edge, and its bottom edge its top.',
+        'A picture covers one cell. For a picture that covers 2 or 4 cells, add -2 or -4 before .png, such as tex-flagstones-2.png.',
+        'A block of your own is named block, the material it lays as, and its name, such as block-floor-Marble.png. It takes that material\'s rules.',
+        'The materials a block may lay as: ' + MAT_IDS.join(', ') + '.',
+        'The patterns: ' + TEX_NAMES.map(function(n) { return 'tex-' + n + '.png'; }).join(', ') + '.');
     return L.join('\r\n') + '\r\n';
 }
 // [furncheck:maker-end]
 
-var API = { FURN_GROUPS: FURN_GROUPS, FURN_ERAS: FURN_ERAS, FURN_KINDS: FURN_KINDS, cleanFurn: cleanFurn, furnKind: furnKind, furnWords: furnWords, furnSvg: furnSvg, furnSrc: furnSrc, furnSize: furnSize, eraLabel: eraLabel, PACK_MAX: PACK_MAX, cleanPackId: cleanPackId, lookKey: lookKey, packName: packName, cleanPack: cleanPack, cleanPacks: cleanPacks, packLook: packLook, packCount: packCount, lookFile: lookFile, lookOfFile: lookOfFile, picKind: picKind, TPL_PX: TPL_PX, cleanTplPx: cleanTplPx, hasClear: hasClear, fitsCells: fitsCells, pickLooks: pickLooks, tplGuide: tplGuide };
+var API = { FURN_GROUPS: FURN_GROUPS, FURN_ERAS: FURN_ERAS, FURN_KINDS: FURN_KINDS, cleanFurn: cleanFurn, furnKind: furnKind, furnWords: furnWords, furnSvg: furnSvg, furnSrc: furnSrc, furnSize: furnSize, eraLabel: eraLabel, PACK_MAX: PACK_MAX, cleanPackId: cleanPackId, lookKey: lookKey, packName: packName, cleanPack: cleanPack, cleanPacks: cleanPacks, packLook: packLook, packCount: packCount, lookFile: lookFile, lookOfFile: lookOfFile, picKind: picKind, TPL_PX: TPL_PX, cleanTplPx: cleanTplPx, hasClear: hasClear, fitsCells: fitsCells, pickLooks: pickLooks, tplGuide: tplGuide, TEX_NAMES: TEX_NAMES, MAT_IDS: MAT_IDS, BLOCK_MAX: BLOCK_MAX, texKey: texKey, blockKey: blockKey, blockName: blockName, packTex: packTex, packBlocks: packBlocks, packTexCount: packTexCount, texRows: texRows, texRowPick: texRowPick, texRowOf: texRowOf, newBlockId: newBlockId, texFile: texFile, blockFile: blockFile, blockOfFile: blockOfFile, storeFile: storeFile };
 if (typeof window !== 'undefined') window.wpFurnCore = API;
-export { FURN_GROUPS, FURN_ERAS, FURN_KINDS, cleanFurn, furnKind, furnWords, furnSvg, furnSrc, furnSize, eraLabel, PACK_MAX, cleanPackId, lookKey, packName, cleanPack, cleanPacks, packLook, packCount, lookFile, lookOfFile, picKind, TPL_PX, cleanTplPx, hasClear, fitsCells, pickLooks, tplGuide };
+export { FURN_GROUPS, FURN_ERAS, FURN_KINDS, cleanFurn, furnKind, furnWords, furnSvg, furnSrc, furnSize, eraLabel, PACK_MAX, cleanPackId, lookKey, packName, cleanPack, cleanPacks, packLook, packCount, lookFile, lookOfFile, picKind, TPL_PX, cleanTplPx, hasClear, fitsCells, pickLooks, tplGuide, TEX_NAMES, MAT_IDS, BLOCK_MAX, texKey, blockKey, blockName, packTex, packBlocks, packTexCount, texRows, texRowPick, texRowOf, newBlockId, texFile, blockFile, blockOfFile, storeFile };

@@ -1000,6 +1000,17 @@
                                   <li>Put your pictures in its pack folder, named as the reference ones are, such as <code>chest-fantasy.png</code>. Then bring the .zip in with <b>Import a file</b>.</li>
                               </ul>
                           </li>
+                          <li><b>Texture blocks:</b> a pack can also repaint the patterns floors and walls are drawn with, and add blocks of its own.
+                              <ul>
+                                  <li>Pick the pack in the <b>Looks</b> list on Build&rsquo;s Materials tab. What you lay then wears its pictures. It is the same choice as on the Objects tab.</li>
+                                  <li>A pattern the pack has no picture for shows Waypoint&rsquo;s own, marked. A block stands in its material&rsquo;s fold under its own name.</li>
+                                  <li>A block lays as the material it names and takes that material&rsquo;s rules. A pack never changes a rule.</li>
+                                  <li>Each pack&rsquo;s patterns and blocks are also rows of every <b>Texture</b> list, so the Fill tool and Properties can use them too.</li>
+                                  <li>To make them, open the pack maker&rsquo;s <b>Blocks</b> tab. Pick a pattern or press <b>+ Block</b>, then <b>Use a picture</b>.</li>
+                                  <li>The picked one shows 3 by 3, with gold lines where one picture meets the next. A picture covers one cell, or 2 or 4 cells if you pick that.</li>
+                                  <li>In a folder a pattern is named such as <code>tex-bricks.png</code>, and a block such as <code>block-floor-Marble.png</code>.</li>
+                              </ul>
+                          </li>
                           <li><b>Containers:</b> a picture, a shape or a map object can hold items, such as a chest or a crate. Tick <b>Holds items</b> in its Properties. A token, a wall or a door cannot.
                               <ul>
                                   <li>Press <b>Open contents</b>, there or on its right-click menu. Each item stands as a tile with its icon and count, and its name and notes show when you point at it.</li>
@@ -5516,6 +5527,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div class="gen-box furn-maker-box">
         <h3 id="furnMakerTitle">Make a pack</h3>
         <div class="fm-head"><input type="text" id="furnMakerName" maxlength="60" placeholder="The pack&rsquo;s name" aria-label="The pack&rsquo;s name"><span id="furnMakerCount" class="fm-count"></span></div>
+        <div class="fm-tabs" id="furnMakerTabs" role="tablist" aria-label="What to make"><button type="button" role="tab" id="furnMakerTabFurn" class="fm-tab on" aria-selected="true" aria-controls="furnMakerGrid" title="Furnishings: every kind in the four looks">Furnishings</button><button type="button" role="tab" id="furnMakerTabBlk" class="fm-tab" aria-selected="false" aria-controls="furnMakerGrid" tabindex="-1" title="Texture blocks: your pictures for Waypoint&rsquo;s patterns, and blocks of your own">Blocks</button></div>
         <div class="fm-body">
             <div id="furnMakerGrid" class="fm-grid" role="group" aria-label="Every kind in the four looks. Pick one to give it a picture."></div>
             <div id="furnMakerSide" class="fm-side" aria-live="polite"></div>
@@ -5524,7 +5536,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div class="obj-formbar obj-end">
             <button type="button" class="tool" id="furnMakerSave" title="Save the pack to this campaign">Save to this campaign</button>
             <button type="button" class="tool ghost" id="furnMakerExportFile" title="One .wpfurn file with its pictures inside">Export a file</button>
-            <button type="button" class="tool ghost" id="furnMakerExportFolder" title="A folder of its pictures, each named for its kind and era">Export a folder</button>
+            <button type="button" class="tool ghost" id="furnMakerExportFolder" title="A folder of its pictures, each named for what it is">Export a folder</button>
             <button type="button" class="tool ghost" id="furnMakerClose" title="Close">Close</button>
         </div>
     </div>

@@ -2183,13 +2183,19 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   function textureFieldHtml(w) {
       var BC = window.wpBuildCore, cur = BC && BC.cleanTexture ? BC.cleanTexture(w.texture) : null, names = BC && Array.isArray(BC.TEXTURES) ? BC.TEXTURES : [], pic = texFieldPic(w);
       var TL = window.wpTexList, canPick = !!(TL && typeof TL.pick === 'function' && typeof TL.tileOf === 'function' && Array.isArray(TL.TILES) && BC && typeof BC.picName === 'function' && window.wpFogCore && typeof window.wpFogCore.cleanTexSrc === 'function'), tile = pic && canPick ? String(TL.tileOf(w.texTile)) : '';
-      return '<div class="field"><label for="wbTexture">Texture</label><select id="wbTexture" title="A pattern Waypoint draws over the colour, seated on the grid."><option value=""' + (cur || pic ? '' : ' selected') + '>Plain colour</option>' + names.map(function(n) { return '<option value="' + esc(n) + '"' + (n === cur && !pic ? ' selected' : '') + '>' + esc((window.wpBuildCore && typeof window.wpBuildCore.texName === 'function' && window.wpBuildCore.texName(n)) || n.charAt(0).toUpperCase() + n.slice(1)) + '</option>'; }).join('') + (pic ? '<option value="@pic" selected>' + esc(BC.picName(pic)) + '</option>' : '') + (canPick ? '<option value="@pick">A picture&hellip;</option>' : '') + '</select></div>'
+      return '<div class="field"><label for="wbTexture">Texture</label><select id="wbTexture" title="A pattern Waypoint draws over the colour, seated on the grid."><option value=""' + (cur || pic ? '' : ' selected') + '>Plain colour</option>' + names.map(function(n) { return '<option value="' + esc(n) + '"' + (n === cur && !pic ? ' selected' : '') + '>' + esc((window.wpBuildCore && typeof window.wpBuildCore.texName === 'function' && window.wpBuildCore.texName(n)) || n.charAt(0).toUpperCase() + n.slice(1)) + '</option>'; }).join('') + texPackRowsHtml(TL, pic) + (pic && !(TL && typeof TL.rowOf === 'function' && TL.rowOf(pic)) ? '<option value="@pic" selected>' + esc(BC.picName(pic)) + '</option>' : '') + (canPick ? '<option value="@pick">A picture&hellip;</option>' : '') + '</select></div>'
           + (tile ? '<div class="field"><label for="wbTexTile">Tile size</label><select id="wbTexTile" title="How large one repeat of the picture is. Whole piece stretches it over the piece once.">' + TL.TILES.map(function(r) { return '<option value="' + esc(String(r[0])) + '"' + (String(r[0]) === tile ? ' selected' : '') + '>' + esc(r[1]) + '</option>'; }).join('') + '</select></div>' : '')
           + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + (pic ? 'One of your own pictures, over the colour. A pattern or Plain colour takes it off.' : 'A pattern drawn over the colour. Pieces side by side read as one surface.') + '</div>';
   }
+  // Fold 4 of backlog 222: each pack's patterns and blocks, a group of rows named for the pack, a row already worn selected. Names through esc
+  function texPackRowsHtml(TL, pic) {
+      if (!TL || typeof TL.groups !== 'function' || typeof TL.label !== 'function') return '';
+      var on = pic && typeof TL.rowOf === 'function' ? TL.rowOf(pic) : '';
+      return TL.groups().map(function(g) { return '<optgroup label="' + esc(g.name) + '">' + g.rows.map(function(r) { return '<option value="' + esc(r.v) + '"' + (r.v === on ? ' selected' : '') + '>' + esc(TL.label(r)) + '</option>'; }).join('') + '</optgroup>'; }).join('');
+  }
   function setItemTexture(w, v) {
       if (v === '@pic') { renderInspector(); return; }   // the picture's own row: nothing changes
-      if (v === '@pick') {   // A picture: the list goes back as it was, and the Image Library's pick, when one comes, is the fill
+      if (v === '@pick' || (typeof v === 'string' && v.slice(0, 4) === '@pk:')) {   // fold 4: a pack's row is handed on as a picture with its tile   // A picture: the list goes back as it was, and the Image Library's pick, when one comes, is the fill
           var TL = window.wpTexList, m0 = getActiveMap(), mapId = m0 ? m0.id : null, id = w.id;
           if (TL && typeof TL.pick === 'function') TL.pick(v, renderInspector, function(p) {
               if (!p || !p.pic) return;
@@ -2197,7 +2203,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
               // found again by its id on the map on screen, and a piece that is gone, or takes no fill any more, is left alone and said
               var m = getActiveMap(), cur = m && m.id === mapId && Array.isArray(m.whiteboard) ? m.whiteboard.find(function(x) { return !!x && x.id === id; }) : null;
               if (!cur || !textureFieldOk(cur)) { toast('That piece is no longer on this map. Nothing was changed.'); return; }
-              cur.texSrc = p.pic; cur.texTile = TL.tileOf(cur.texTile); delete cur.texture; save(); render(); renderInspector();
+              cur.texSrc = p.pic; cur.texTile = TL.tileOf(p.tile || cur.texTile); delete cur.texture; save(); render(); renderInspector();
           });
           else renderInspector();
           return;

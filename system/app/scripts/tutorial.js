@@ -808,7 +808,7 @@ var STEPS = [
       help: ['planners', 'Text style'],
       before: function() { openItem('plan_tut_session1'); } },
     { target: '#docNavList', title: 'Handbook',
-      html: 'Rules and reference pages <b>your players can read</b> at the table, written in the same editor as a planner. Every player at your table gets them and reads them in a panel over the map. The <b><i class="wib wi-eye"></i> Players can read</b> switch keeps a page to yourself. Right-click a page for <b><i class="wib wi-clip"></i> Open over the map</b>, a floating panel with a search across every page. The Tutorial has one page, <b>House rules</b>, open now.',
+      html: 'Rules and reference pages <b>your players can read</b> at the table, written in the same editor as a planner. Every player at your table gets them and reads them in a panel over the map. The <b><i class="wib wi-seen"></i> Players can read</b> switch keeps a page to yourself. Right-click a page for <b><i class="wib wi-clip"></i> Open over the map</b>, a floating panel with a search across every page. The Tutorial has one page, <b>House rules</b>, open now.',
       help: ['handbook', 'What a page is'],
       before: function() { openLeft(); openItem('doc_tut_handbook'); } },
     { target: '#handoutsBtn', title: 'Handouts and the journal',

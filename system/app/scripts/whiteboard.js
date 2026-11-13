@@ -3251,7 +3251,7 @@ window.wpFitToGrid = fitToGrid;
               items.push({ act: 'summonAll', ico: 'summon', label: 'Summon everyone to the table\'s map' + tableSfx });
               if (viewingOther) items.push({ act: 'summonAllHere', ico: 'summon', label: 'Summon everyone to this map (' + amTitle + ')' });
               var waitT = ownerId && window.wpSystemCore && window.wpSystemCore.waitingTokensOf ? window.wpSystemCore.waitingTokensOf(camp, ownerId)[0] : null;   // Onboarding F1a
-              if (waitT) { items.push({ act: 'waitHide', ico: waitT.w.hidden ? 'eye' : 'hide', label: (waitT.w.hidden ? 'Show ' : 'Hide ') + name + '\u2019s waiting token' }); items.push({ act: 'waitRemove', ico: 'close', label: 'Remove ' + name + '\u2019s waiting token (for this session)' }); }
+              if (waitT) { items.push({ act: 'waitHide', ico: waitT.w.hidden ? 'seen' : 'unseen', label: (waitT.w.hidden ? 'Show ' : 'Hide ') + name + '\u2019s waiting token' }); items.push({ act: 'waitRemove', ico: 'close', label: 'Remove ' + name + '\u2019s waiting token (for this session)' }); }
               if (!window.wpStream && window.wpNet.targets && Object.prototype.hasOwnProperty.call(window.wpNet.targets, ownerId) && window.wpNet.targets[ownerId] && typeof window.wpNet.clearTargetOf === 'function') items.push({ act: 'clearTarget', ico: 'ring', label: 'Clear ' + name + '\u2019s target' });   // 1.5.9: the GM takes a player's pointer off (the label through esc, as every row's)
               if (connected) {
                   var pausedP = window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(ownerId);

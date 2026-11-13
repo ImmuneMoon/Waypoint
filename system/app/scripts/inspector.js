@@ -1021,7 +1021,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 var wpP = document.createElement('div'); wpP.className = 'insp-waiting';
                 var wpH = document.createElement('h2'); wpH.textContent = String(w.name || 'A player') + '\u2019s waiting token'; wpP.appendChild(wpH);
                 var wpN = document.createElement('div'); wpN.className = 'help'; wpN.textContent = 'A player with no character yet. It gives way to their token when you give them a character; it goes three minutes after they leave, at a ban, and at the end of the session.'; wpP.appendChild(wpN);
-                [['give', 'Give a character\u2026', 'mask'], ['hide', w.hidden ? 'Show it to players' : 'Hide it from players', w.hidden ? 'eye' : 'hide'], ['remove', 'Remove it for this session', 'close']].forEach(function(b) { var bt = document.createElement('button'); bt.className = 'tool ghost wib wi-' + b[2]; bt.type = 'button'; bt.style.cssText = 'width:100%; margin-top:6px;'; bt.textContent = b[1]; bt.dataset.act = b[0]; wpP.appendChild(bt); });
+                [['give', 'Give a character\u2026', 'mask'], ['hide', w.hidden ? 'Show it to players' : 'Hide it from players', w.hidden ? 'seen' : 'unseen'], ['remove', 'Remove it for this session', 'close']].forEach(function(b) { var bt = document.createElement('button'); bt.className = 'tool ghost wib wi-' + b[2]; bt.type = 'button'; bt.style.cssText = 'width:100%; margin-top:6px;'; bt.textContent = b[1]; bt.dataset.act = b[0]; wpP.appendChild(bt); });
                 inspector.appendChild(wpP);
                 wpP.addEventListener('click', function(e) {
                     var b = e.target.closest && e.target.closest('button'); if (!b) return;

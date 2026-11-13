@@ -36,7 +36,7 @@ function page() {
     const [mi, box, pl] = w.children, inp = box.children[0];
     check('a counter is one frame of three parts: −, a typed value with its unit, +, each saying what it does',
         w.className === 'ui-step' && w.attrs.role === 'group' && mi.textContent === '−' && pl.textContent === '+' && mi.className === 'x-less' && pl.className === 'x-more' && box.className === 'ui-val'
-        && inp.type === 'number' && inp.className === 'x-in' && inp.value === '3' && inp.min === '0' && inp.max === '5' && box.children[1].textContent === '×' && mi.attrs['aria-label'] === 'One less' && w.input === inp && w.less === mi && w.more === pl);
+        && inp.type === 'text' && inp.className === 'x-in' && inp.value === '3' && inp.min === '0' && inp.max === '5' && inp.style.width === '3ch' && box.children[1].textContent === '×' && mi.attrs['aria-label'] === 'One less' && w.input === inp && w.less === mi && w.more === pl);
     mi.fire('click'); pl.fire('click'); pl.fire('click'); pl.fire('click');
     check('its − and + step by one from where it stands and stop at its bounds, + going off at the top', J(got) === J([2, 3, 4, 5]) && pl.disabled === true && mi.disabled === false, J(got));
     got.length = 0; inp.value = '9'; inp.fire('change'); inp.value = 'x'; inp.fire('change'); inp.value = '1'; inp.fire('keydown', { key: 'Enter' }); inp.value = '1'; inp.fire('change');
@@ -49,16 +49,36 @@ function page() {
     check('a counter that may not be changed is read only, its buttons off', off.input.readOnly === true && off.less.disabled && off.more.disabled);
     const dec = []; const sp = U.step({ value: 1, min: 0.5, max: 2, step: 0.1, dec: 2, set: n => dec.push(n) }, page()); sp.more.fire('click'); sp.input.value = '1.234'; sp.input.fire('change');
     check('a counter of decimals steps by its own step and rounds to its places', J(dec) === J([1.1, 1.23]) && sp.input.step === '0.01', J(dec));
+    // the review of the sweep: + read as a number, the arrow keys, a box found again, a change the caller did not make put back, a press landing first
+    const plus = [], pd = page(), pc = U.step({ value: 0, min: -99, max: 99, set: n => plus.push(n) }, pd), pin = pc.input;
+    pin.value = '+3'; pin.fire('change'); pin.fire('keydown', { key: 'ArrowUp' }); pin.fire('keydown', { key: 'ArrowDown' }); pin.fire('keydown', { key: 'ArrowDown' });
+    check('the review of the sweep: a typed +3 reads as 3 (a counter that may go below 0 types as text), and the arrow keys step it',
+        J(plus) === J([3, 4, 3, 2]) && pin.attrs.inputmode === 'text', J(plus));
+    const dd = page(), ds = U.step({ value: 1, data: { fid: 'f_x', part: 'q-w_1' } }, dd);
+    check('the review of the sweep: a counter carries what a view that draws itself again finds its box by', ds.input.dataset.fid === 'f_x' && ds.input.dataset.part === 'q-w_1');
+    const tr = page(); let real = 5; const tc = U.step({ value: 5, min: 0, truth: () => real, set: () => {} }, tr); tc.isConnected = true;
+    tc.less.fire('click'); const shown = tc.input.value; await new Promise(r => setTimeout(r, 500));
+    check('the review of the sweep: a change the caller did not make (a price window cancelled) puts the true figure back, and the next press steps from it',
+        shown === '4' && tc.input.value === '5', J([shown, tc.input.value]));
+    const src = read('scripts/uiparts.js');
+    check('the review of the sweep: a figure typed is handed on only once a press that took the focus from it has landed, so that press is never lost under a redraw; a press of the counter\'s own button hands it on first; a slider dragged meanwhile wins',
+        src.includes("function later(fn) { if (_down) _queue.push(fn); else fn(); }") && src.includes("mi.addEventListener('click', function() { if (pend) pend(); go(base() - st); });") && src.includes("if (ev && ev.isTrusted) pendS = null;")
+        && src.includes("box.addEventListener('click', function(ev) { if (ev.target !== inp) ev.preventDefault(); });"));
+    const fr = read('scripts/framer.js'), shS = read('scripts/sheets.js'), cssS = read('style.css');
+    check('the review of the sweep: the token creator\'s keys and paste stand aside for its typed zoom; each sheet counter is found again after a redraw and puts its true figure back; a wrapped slider takes its share of a row that wraps',
+        fr.includes("if (e.target && e.target.closest && e.target.closest('.ui-val')) {") && fr.includes("if (e.type === 'paste' && e.target && e.target.closest && e.target.closest('.ui-val')) { e.stopPropagation(); return; }")
+        && ["data: { fid: f.id, part: 'q-' + rowIdOf(entry) }", "data: { fid: f.id, part: 'v-' + r.id }", "data: { fid: pf.id, part: 'p-' + prid }", "data: { fid: f.id, part: 'c-' + rid + '-' + t.key }"].every(s => shS.includes(s))
+        && cssS.includes('.ui-slide-wide { display: flex; flex: 1 1 auto; min-width: 0; box-sizing: border-box; }'));
     // a slider: no browser here, so no value override; its box, its bounds and its events
     const d2 = page(), host = d2.createElement('div'), rg = d2.createElement('input'); rg.type = 'range'; rg.min = '10'; rg.max = '100'; rg.value = '50'; rg.closest = () => null; host.appendChild(rg);
     const evs = []; rg.addEventListener('input', () => evs.push('input:' + rg.value)); rg.addEventListener('change', () => evs.push('change'));
     const hid = d2.createElement('span'), vb = U.typed(rg, { unit: '%', hide: hid }), vin = vb.children[0];
     check('a slider standing on its own is put in a .ui-slide as wide as it stood, its typed value right after it with its unit, the figure shown before put away',
         host.children[0].className === 'ui-slide ui-slide-wide' && host.children[0].children[0] === rg && host.children[0].children[1] === vb && vin.value === '50' && vb.children[1].textContent === '%' && hid.style.display === 'none' && U.typed(rg) === vb);
-    vin.value = '250'; vin.fire('change');
+    vin.value = '250'; vin.fire('change'); await new Promise(r => setTimeout(r, 5));
     check('a typed value is held to the slider\'s bounds and handed on as the slider\'s own input and change events', rg.value === '100' && J(evs) === J(['input:100', 'change']) && vin.value === '100', J([rg.value, evs]));
     const d3 = page(), h3 = d3.createElement('div'), sk = d3.createElement('input'); sk.min = '0'; sk.max = '300'; sk.value = '83'; sk.closest = () => null; h3.appendChild(sk);
-    const tb = U.typed(sk, { fmt: U.fmtTime, parse: U.readTime }), tin = tb.children[0]; tin.value = '2:05'; tin.fire('change');
+    const tb = U.typed(sk, { fmt: U.fmtTime, parse: U.readTime }), tin = tb.children[0]; tin.value = '2:05'; tin.fire('change'); await new Promise(r => setTimeout(r, 5));
     check('a time is typed as m:ss in a text box', tin.type === 'text' && sk.value === '125' && tin.value === '2:05', J([sk.value, tin.value]));
     // every site
     const S = f => read('scripts/' + f), ix = read('index.html');

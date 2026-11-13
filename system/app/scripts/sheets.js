@@ -3234,7 +3234,7 @@ function itemQtyCell(entry, c, f) {
     if (typeof lockedHere === 'function' && (lockedHere(c, f, 'qty') || layHere(entry, f, 'qty'))) { var qL = el('span', 'sheet-item-qty sheet-locked'); qL.title = layHere(entry, f, 'qty') ? 'Laid by a row of another list: change that row instead.' : lockTip(); qL.appendChild(el('span', 'sheet-item-qtyn', '\u00d7' + entry.qty)); return qL; }   // 1.6.2 Locked while   // Stage 6 F4a: by row id. Every item has the same controls on a player's sheet (a bound or cursed one never shows it)
     var qc = el('span', 'sheet-item-qty');
     var Uq = (typeof window !== 'undefined' && window.wpUi && window.wpUi.step ? window.wpUi : null);   // 1.6.2: the app's own counter, the count typed (0 takes the row off, as one less at 1 does)
-    if (Uq) qc.appendChild(Uq.step({ value: entry.qty | 0, min: 0, unit: '\u00d7', label: 'How many', lessTip: 'One less (removes at zero)', moreTip: 'One more', lessCls: 'sheet-pm', moreCls: 'sheet-pm', valCls: 'sheet-item-qtyin', cls: 'sheet-step', set: function(n) { commitItem(c, f, { op: 'setQty', rowId: rowIdOf(entry), qty: n }); } }));
+    if (Uq) qc.appendChild(Uq.step({ value: entry.qty | 0, min: 0, unit: '\u00d7', label: 'How many', lessTip: 'One less (removes at zero)', moreTip: 'One more', lessCls: 'sheet-pm', moreCls: 'sheet-pm', valCls: 'sheet-item-qtyin', cls: 'sheet-step', data: { fid: f.id, part: 'q-' + rowIdOf(entry) }, truth: function() { return entry.qty | 0; }, set: function(n) { commitItem(c, f, { op: 'setQty', rowId: rowIdOf(entry), qty: n }); } }));
     else {
     var mn = el('button', 'tool ghost sheet-pm', '−'); mn.title = 'One less (removes at zero)'; mn.addEventListener('click', function() { commitItem(c, f, { op: 'setQty', rowId: rowIdOf(entry), qty: entry.qty - 1 }); });
     qc.appendChild(mn); qc.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
@@ -4060,7 +4060,7 @@ function partPills(wrap, c, f, spec, sysI, entry, chg, dep) {
         var q = p.qty | 0 || 1, prid = rowIdOf(p);
         if (chg && !pspec.noQty) {
             var Up = (typeof window !== 'undefined' && window.wpUi && window.wpUi.step ? window.wpUi : null);   // 1.6.2: the app's own counter, a part's count typed
-            if (Up) pill.appendChild(Up.step({ value: q, min: 0, label: 'How many ' + pd.name, lessTip: 'One fewer ' + pd.name, moreTip: 'One more ' + pd.name, valCls: 'sheet-part-in', cls: 'sheet-step', set: function(n) { commitItem(c, pf, { op: 'setQty', rowId: prid, qty: n }); } }));
+            if (Up) pill.appendChild(Up.step({ value: q, min: 0, label: 'How many ' + pd.name, lessTip: 'One fewer ' + pd.name, moreTip: 'One more ' + pd.name, valCls: 'sheet-part-in', cls: 'sheet-step', data: { fid: pf.id, part: 'p-' + prid }, truth: function() { return q; }, set: function(n) { commitItem(c, pf, { op: 'setQty', rowId: prid, qty: n }); } }));
             else {
             var mn = el('button', 'tool ghost sheet-part-pm', '\u2212'), nn = el('span', 'sheet-part-n', String(q)), pl = el('button', 'tool ghost sheet-part-pm', '+');
             mn.title = 'One fewer ' + pd.name; pl.title = 'One more ' + pd.name; mn.ariaLabel = mn.title; pl.ariaLabel = pl.title;
@@ -4286,7 +4286,7 @@ function ctCtl(host, entry, c, f, spec, editable, cells, ups) {   // ups (1.6.0 
         var tmC = t.timer && typeof t.timer === 'object' ? t.timer : null, ed = editable && !((t.roll === true || !!tmC) && isClient());   // 1.5.7: a counter set by rolls only shows no - or + on a player's app; 1.6.0: nor one the clock counts
         if (tmC) w.title = (t.label || t.key) + ': ' + ctClockWords(tmC);
         var Uc = ed && !(tmC && tmC.end && v <= 0) ? (typeof window !== 'undefined' && window.wpUi && window.wpUi.step ? window.wpUi : null) : null;   // 1.6.2: the app's own counter, the count typed
-        if (Uc) { w.appendChild(Uc.step({ value: v, min: 0, max: mx !== null ? mx : undefined, unit: ofJ !== null ? '/' + fmtNum(ofJ) : mx !== null ? '/' + fmtNum(mx) : '', label: t.label || t.key, lessTip: 'One less', moreTip: 'One more', valCls: 'sheet-item-ctin', cls: 'sheet-step', set: function(n) { set(n); } })); host.appendChild(w); return; }
+        if (Uc) { w.appendChild(Uc.step({ value: v, min: 0, max: mx !== null ? mx : undefined, unit: ofJ !== null ? '/' + fmtNum(ofJ) : mx !== null ? '/' + fmtNum(mx) : '', label: t.label || t.key, lessTip: 'One less', moreTip: 'One more', valCls: 'sheet-item-ctin', cls: 'sheet-step', data: { fid: f.id, part: 'c-' + rid + '-' + t.key }, truth: function() { return v; }, set: function(n) { set(n); } })); host.appendChild(w); return; }
         if (ed) { var mb = el('button', 'tool ghost sheet-item-ctb', '\u2212'); mb.type = 'button'; mb.title = 'One less'; mb.disabled = v <= 0; mb.addEventListener('click', function() { set(v - 1); }); w.appendChild(mb); }
         if (tmC && tmC.end && v <= 0) w.appendChild(el('b', 'sheet-item-ctv sheet-item-ctend', tmC.end));   // 1.6.0: a count down at 0 shows its word (Spoiled)
         else w.appendChild(el('b', 'sheet-item-ctv', fmtNum(v) + (ofJ !== null ? '/' + fmtNum(ofJ) : mx !== null ? '/' + fmtNum(mx) : '')));
@@ -5165,7 +5165,7 @@ function fxValNode(c, f, r, d, editable) {
     var falls = dv && dv.by ? 'It falls by ' + dv.by + (dv.each === 'turn' ? ' each turn of its character' : dv.each === 'minute' ? ' each game minute' : ' each game hour') + '. ' : '';
     var put = function(n) { commitEffect(c, f, { op: 'val', rowId: r.id, v: n }); };
     var Uf = editable ? (typeof window !== 'undefined' && window.wpUi && window.wpUi.step ? window.wpUi : null) : null;   // 1.6.2: the app's own counter, the value typed (0 ends the effect)
-    if (Uf) { var sf = Uf.step({ value: r.v, min: 0, label: (d && d.name ? d.name : 'Its value'), lessTip: r.v <= 1 ? 'One less: at 0 the effect ends' : 'One less', moreTip: 'One more', valCls: 'sheet-fx-valin', cls: 'sheet-step', set: function(n) { put(n); } }); sf.title = (d && d.name ? d.name + ' ' : '') + r.v + '. ' + falls + 'At 0 the effect ends.'; w.appendChild(sf); return w; }
+    if (Uf) { var sf = Uf.step({ value: r.v, min: 0, label: (d && d.name ? d.name : 'Its value'), lessTip: r.v <= 1 ? 'One less: at 0 the effect ends' : 'One less', moreTip: 'One more', valCls: 'sheet-fx-valin', cls: 'sheet-step', data: { fid: f.id, part: 'v-' + r.id }, truth: function() { return r.v; }, set: function(n) { put(n); } }); sf.title = (d && d.name ? d.name + ' ' : '') + r.v + '. ' + falls + 'At 0 the effect ends.'; w.appendChild(sf); return w; }
     if (editable) { var mn = el('button', 'tool ghost sheet-pm sheet-fx-valpm', '−'); mn.type = 'button'; mn.title = r.v <= 1 ? 'One less: at 0 the effect ends' : 'One less'; mn.addEventListener('click', function() { put(r.v - 1); }); w.appendChild(mn); }
     var nb = el('span', 'sheet-fx-valn', String(r.v)); nb.title = (d && d.name ? d.name + ' ' : '') + r.v + '. ' + falls + 'At 0 the effect ends.'; w.appendChild(nb);
     if (editable) { var pl = el('button', 'tool ghost sheet-pm sheet-fx-valpm', '+'); pl.type = 'button'; pl.title = 'One more'; pl.addEventListener('click', function() { put(r.v + 1); }); w.appendChild(pl); }

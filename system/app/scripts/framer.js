@@ -44,6 +44,7 @@ function onKey(e) {
         e.stopPropagation(); return;
     }
     e.stopPropagation();   // nothing behind the creator hears a key while it is open (the map, the dice panel, the face picker)
+    if (e.target && e.target.closest && e.target.closest('.ui-val')) { if (k === 'Escape' && e.target.value !== e.target.defaultValue) return; if (k === 'Escape') { e.preventDefault(); cancel(); } return; }   // 1.6.2: the zoom's typed figure takes its own keys (backlog 225)
     var t = e.target, onSlider = t && t.id === 'frameZoom', step = st.r.s * (e.shiftKey ? 0.2 : 0.05);
     if (k === 'Escape') { e.preventDefault(); cancel(); }
     else if (k === 'Enter') { if (t && t.tagName === 'BUTTON' && t.id !== 'frameOk') return; e.preventDefault(); finish(); }
@@ -56,7 +57,7 @@ function onKey(e) {
     else if (k === '-' || k === '_') { e.preventDefault(); setRect(zoomAt(st.r, 1 / 1.1, NaN, NaN, st.w, st.h)); }
     else if (k === '0') { e.preventDefault(); setRect(defaultRect(st.w, st.h)); }
 }
-function block(e) { if (!st) return; e.preventDefault(); e.stopPropagation(); }   // a paste or a dropped file never lands on the map behind it
+function block(e) { if (!st) return; if (e.type === 'paste' && e.target && e.target.closest && e.target.closest('.ui-val')) { e.stopPropagation(); return; } e.preventDefault(); e.stopPropagation(); }   // a paste or a dropped file never lands on the map behind it
 // A chip: what that grid's one-cell token shows of the square (its own box and outline; the chip it opened with, the box it opened with) — a
 // preview only: the saved square is the same
 function pickShape(sh) {

@@ -197,7 +197,7 @@ function draw() {
         var spec = lists.filter(function(f) { return f.id === sel.fid; })[0], noQty = !!(spec && spec.list && spec.list.noQty);
         if (!noQty) {
             var U = (typeof window !== 'undefined' && window.wpUi && window.wpUi.step ? window.wpUi : null);   // 1.6.2: the app's own counter, its figure typed (the owner: "any slider, or increment control should allow the typing of values")
-            if (U) { var su = U.step({ value: sel.qty, min: 1, label: 'How many', lessTip: 'One fewer', moreTip: 'One more', lessCls: 'box-less', moreCls: 'box-more', valCls: 'box-qin', set: function(n) { change(sel.fid, { op: 'setQty', rowId: sel.rowId, qty: n }, n < sel.qty ? 'less' : 'more', [stepAt(n < sel.qty ? '.box-less' : '.box-more'), '.box-less', '.box-more']); } }); card.step.parentNode.replaceChild(su, card.step); card.step = su; }
+            if (U) { var su = U.step({ value: sel.qty, min: 1, label: 'How many', lessTip: 'One fewer', moreTip: 'One more', lessCls: 'box-less', moreCls: 'box-more', valCls: 'box-qin', truth: function() { return sel.qty; }, set: function(n) { change(sel.fid, { op: 'setQty', rowId: sel.rowId, qty: n }, n < sel.qty ? 'less' : 'more', [stepAt(n < sel.qty ? '.box-less' : '.box-more'), '.box-less', '.box-more']); } }); card.step.parentNode.replaceChild(su, card.step); card.step = su; }
             else {
             var mi = el('button', 'tool ghost box-less', '−'); mi.type = 'button'; mi.title = 'One fewer'; mi.setAttribute('aria-label', 'One fewer');
             mi.disabled = sel.qty <= 1; mi.addEventListener('click', function() { change(sel.fid, { op: 'setQty', rowId: sel.rowId, qty: sel.qty - 1 }, 'less', ['.box-less', '.box-more']); });

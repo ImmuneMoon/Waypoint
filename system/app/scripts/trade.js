@@ -52,14 +52,16 @@ function twDraw(doc, root, v, off, act) {
         var list = twEl(doc, 'div', 'trade-lines');
         if (!s.lines.length) list.appendChild(twEl(doc, 'div', 'trade-none', me ? 'Nothing yet. Add something from the sheet.' : 'Nothing yet.'));
         s.lines.forEach(function(l, i) {
-            var row = twEl(doc, 'div', 'trade-line'), nm = twEl(doc, 'span', 'trade-name', l.key !== undefined ? l.label + ' from ' + l.name : l.name); row.appendChild(nm);
+            var UIt = typeof window !== 'undefined' && window.wpUi && window.wpUi.card ? window.wpUi : null, row, put;
+            if (UIt) { var cdl = UIt.card({ name: l.key !== undefined ? l.label + ' from ' + l.name : l.name, sub: l.list || '', cls: 'trade-line trade-lcard' }, doc); cdl.name.className += ' trade-name'; row = cdl.el; put = cdl.side; }   // 1.6.2 (backlog 225, the item card): each line a small card, its first letter, its name and its list, its count, x and price at the right of its head
+            else { row = twEl(doc, 'div', 'trade-line'); put = row; put.appendChild(twEl(doc, 'span', 'trade-name', l.key !== undefined ? l.label + ' from ' + l.name : l.name)); }
             if (me && v.status === 'open') {
                 var box = doc.createElement('input'); box.type = 'number'; box.className = 'trade-num'; box.min = l.key !== undefined ? '0.01' : '1'; box.step = l.key !== undefined ? '0.01' : '1';
                 box.value = twNum(l.key !== undefined ? l.amt : l.qty); box.title = l.key !== undefined ? 'How much of it you give' : 'How many you give'; box.setAttribute('aria-label', box.title); box.setAttribute('data-k', 'num|' + sd + '|' + i);
-                box.addEventListener('change', function() { act('num', sd, { i: i, n: Number(box.value) }); }); row.appendChild(box);
-                var x = twEl(doc, 'button', 'tool ghost trade-x', '×'); x.type = 'button'; x.title = 'Take it off the table'; x.setAttribute('aria-label', 'Take ' + l.name + ' off the table'); x.setAttribute('data-k', 'drop|' + sd + '|' + i); x.addEventListener('click', function() { act('drop', sd, i); }); row.appendChild(x);
-            } else row.appendChild(twEl(doc, 'span', 'trade-qty', l.key !== undefined ? twNum(l.amt) : 'x' + l.qty));
-            if (typeof l.price === 'number' && l.key === undefined) { var pe = twEl(doc, 'span', 'trade-price' + (typeof l.deal === 'number' ? ' trade-deal' : ''), twNum((typeof l.deal === 'number' ? l.deal : l.price) * l.qty)); if (typeof l.deal === 'number') pe.title = 'List price ' + twNum(l.price * l.qty); if (typeof l.cond === 'number') pe.title = (pe.title ? pe.title + '. ' : '') + 'In ' + l.cond + '% condition'; if (l.hot) pe.title = (pe.title ? pe.title + '. ' : '') + (l.hot === 'illegal' ? 'Illegal' : 'Stolen'); row.appendChild(pe); }   // 157 M1f: its condition in its tooltip   // 157 M1c: at this trade's price, the list price in its tooltip
+                box.addEventListener('change', function() { act('num', sd, { i: i, n: Number(box.value) }); }); put.appendChild(box);
+                var x = twEl(doc, 'button', 'tool ghost trade-x', '×'); x.type = 'button'; x.title = 'Take it off the table'; x.setAttribute('aria-label', 'Take ' + l.name + ' off the table'); x.setAttribute('data-k', 'drop|' + sd + '|' + i); x.addEventListener('click', function() { act('drop', sd, i); }); put.appendChild(x);
+            } else put.appendChild(twEl(doc, 'span', 'trade-qty', l.key !== undefined ? twNum(l.amt) : 'x' + l.qty));
+            if (typeof l.price === 'number' && l.key === undefined) { var pe = twEl(doc, 'span', 'trade-price' + (typeof l.deal === 'number' ? ' trade-deal' : ''), twNum((typeof l.deal === 'number' ? l.deal : l.price) * l.qty)); if (typeof l.deal === 'number') pe.title = 'List price ' + twNum(l.price * l.qty); if (typeof l.cond === 'number') pe.title = (pe.title ? pe.title + '. ' : '') + 'In ' + l.cond + '% condition'; if (l.hot) pe.title = (pe.title ? pe.title + '. ' : '') + (l.hot === 'illegal' ? 'Illegal' : 'Stolen'); put.appendChild(pe); }   // 157 M1f: its condition in its tooltip   // 157 M1c: at this trade's price, the list price in its tooltip
             list.appendChild(row);
         });
         col.appendChild(list);

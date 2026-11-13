@@ -176,6 +176,49 @@ function page() {
             c4.includes('  #popoutBar #popoutFindPrev { border-radius: 5px 0 0 5px; }') && c4.includes('  #popoutBar #popoutFindNext { margin-left: -6px; border-radius: 0 5px 5px 0; }')
             && read('scripts/popout.js').includes('<button id="popoutFindPrev" type="button" aria-label="Previous match" title="Previous match (Shift+Enter)">&#9650;</button><button id="popoutFindNext" type="button"'));
     }
+    {   // backlog 225, the item card (sites A): each place builds its card through wpUi.card and keeps today's markup where wpUi is not there
+        const S3 = f => read('scripts/' + f), c5 = read('style.css'), A = c5.indexOf('  /* ui-card sites A */'), cA = A < 0 ? '' : c5.slice(A, c5.indexOf('\n  /*', A + 5) < 0 ? undefined : c5.indexOf('\n  /*', A + 5));
+        const lp = S3('libpicker.js'), lw = S3('librarywin.js'), mo = S3('mapobjects.js'), dw = S3('deckwin.js'), tr = S3('trade.js');
+        check('the item card (backlog 225): the library picker\'s preview, the Library window\'s entry head, a map object open for editing, the deck in view and a trade\'s lines each build the app\'s own card through window.wpUi.card, today\'s markup kept as the fallback, and their rules stand after the sites A marker alone',
+            lp.includes("UI = typeof window !== 'undefined' && window.wpUi && window.wpUi.card ? window.wpUi : null;") && lp.includes("var cd = UI.card({ name: e.name, sub: [e.category || 'No category', x.p.name].join(' · '),") && lp.includes("var h = el('div', 'lib-pick-name', ")
+            && lw.includes("var UIc = typeof window !== 'undefined' && window.wpUi && window.wpUi.card ? window.wpUi : null;") && lw.includes("var cdh = UIc.card({ name: st.draftNew && !e.name ? 'New entry' : e.name,") && lw.includes("} else form.appendChild(el('div', 'lib-fhead', st.draftNew && !e.name ? 'New entry' : e.name));")
+            && mo.includes("var UI = window.wpUi && window.wpUi.card ? window.wpUi : null;") && mo.includes("var cd = UI.card({ name: o.name, sub: C.objWords(o), pic: thumb(o), cls: 'obj-card' });") && mo.includes("formInto(cd.body, o, kind, list, cd.acts); r.appendChild(cd.el); return r;") && mo.includes("var bar = acts || el('div', 'obj-formbar');")
+            && dw.includes("var UI = window.wpUi && window.wpUi.card ? window.wpUi : null;") && dw.includes("cls: 'dk-view' });") && dw.includes("drawRow(cd.acts, camp, it); p.appendChild(cd.el);") && dw.includes("} else if (it) { if (list.length === 1) p.appendChild(el('div', 'dk-title',")
+            && tr.includes("var UIt = typeof window !== 'undefined' && window.wpUi && window.wpUi.card ? window.wpUi : null, row, put;") && tr.includes("cls: 'trade-line trade-lcard' }, doc);") && tr.includes("else { row = twEl(doc, 'div', 'trade-line'); put = row;")
+            && ['.ui-card.lib-pick-card', '.ui-card.lib-fcard', '.ui-card.obj-card', '.dk-view .ui-card-acts', '.ui-card.trade-lcard'].every(s => cA.includes(s)),
+            J({ A: A >= 0 }));
+    }
+    {   // backlog 225, the item card (sites B): Buy and Sell, a body tile's drawer, a waiting token and Properties' head for one piece or a room, each through wpUi.card, today's markup kept as the fallback
+        const S4 = f => read('scripts/' + f), c6 = read('style.css'), B = c6.indexOf('  /* ui-card sites B */'), cB = B < 0 ? '' : c6.slice(B, c6.indexOf('\n  /*', B + 5) < 0 ? undefined : c6.indexOf('\n  /*', B + 5));
+        const shB = S4('sheets.js'), inB = S4('inspector.js'), hA = inB.indexOf('  function cardHead(o){'), hZ = hA < 0 ? -1 : inB.indexOf('\n  }', hA);
+        let cardHead = null, hOut = '', hPic = '', hErr = '';
+        try {
+            const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'), picRef = p => /^\/saves\/images\/[^"<>]+$/.test(p) ? p : '';
+            cardHead = new Function('esc', 'picRef', 'window', inB.slice(hA, hZ + 4) + '\nreturn cardHead;')(esc, picRef, {});
+            hOut = cardHead({ name: '<img src=x onerror=1>"', sub: '<b>kind</b>', src: 'https://evil.example/x.png' }); hPic = cardHead({ name: 'Lamp', sub: 'Image', src: '/saves/images/lamp.png' });
+        } catch (e) { hErr = e.message; }
+        check('the item card (backlog 225, sites B): Buy and Sell puts the row in a card with the price lines in its body, a body tile\'s drawer heads with a card (its drawing, name, state and close), a waiting token and Properties\' head for one piece or a room are card heads; each asks window.wpUi.card and keeps today\'s markup where it is not there; Properties writes the card\'s markup with every value through esc() and a picture through picRef only, a web address giving the first letter; the rules stand after their marker',
+            shB.includes("var UIp = typeof window !== 'undefined' && window.wpUi && window.wpUi.card ? window.wpUi : null, host = body;") && shB.includes("var kP = UIp.card({ name: o.name, sub: (o.buy ? 'Buying ' : 'Selling ') + o.n,") && shB.includes("host.appendChild(way); host.appendChild(line);") && shB.includes("    host.appendChild(mk('div', 'price-held',")
+            && shB.includes("UIt = typeof window !== 'undefined' && window.wpUi && window.wpUi.card ? window.wpUi : null;") && shB.includes("var kT = UIt.card({ name: openBox ? openBox.label : drO.name, sub: stO ? stO.label : '', pic: drP || undefined,") && shB.includes("kT.side.appendChild(shut); head = kT.el;") && shB.includes("} else { head.appendChild(el('span', 'body-drawer-name', openBox ? openBox.label : byId[open].name)); if (stO) head.appendChild(el('span', 'body-drawer-state', stO.label)); head.appendChild(shut); }")
+            && inB.includes("var UIw = window.wpUi && window.wpUi.card ? window.wpUi : null, wpK = UIw ? UIw.card({ name: String(w.name || 'A player'), sub: 'Waiting token', cls: 'insp-card' }) : null;") && inB.includes("else { var wpH = document.createElement('h2'); wpH.textContent = String(w.name || 'A player') + '\\u2019s waiting token'; wpP.appendChild(wpH); }") && inB.includes("(wpK ? wpK.acts : wpP).appendChild(bt);")
+            && inB.includes("(window.wpUi && window.wpUi.card ? cardHead({ name: w.name ? w.name : typeLabel, sub: w.name ? typeLabel : '',") && inB.includes(": '<h2>' + esc(w.name ? w.name : typeLabel) +") && inB.includes("typeof cardHead === 'function' ? cardHead({ name: r.name || '(unnamed)', sub: 'Data Node', src: picRef(r.image) ? r.image : '' }) : '<h2>Data Node</h2>'+")
+            && !hErr && !/<img src=x|<b>/.test(hOut) && hOut.includes('&lt;img src=x onerror=1&gt;&quot;') && hOut.includes('<span class="ui-card-ch">&lt;</span>') && hPic.includes('<img src="/saves/images/lamp.png" alt="">') && hPic.includes('<h2 class="ui-card-name">Lamp</h2><small class="ui-card-sub">Image</small>')
+            && ['#inspector .insp-card', '.body-drawer-card'].every(s => cB.includes(s) && c6.indexOf(s) > B),
+            J({ B: B >= 0, hErr, hOut, hPic }));
+    }
+    // the review of the item card: a bundled icon is the file glyphPath answers, drawn as the sheet draws one; a name's first whole character
+    {
+        const SC = await import(url('systemcore.js')), gp = SC.glyphPath('icon:star'), cd = page();
+        const k1 = U.card({ name: 'Star', glyph: gp }, cd), g1 = k1.pic.children[0];
+        const k2 = U.card({ name: '🗡 Sword' }, cd), k3 = U.card({ name: 'x', glyph: '"><script>' }, cd), k4 = U.card({ name: '  ' }, cd);
+        const bx = read('scripts/boxes.js'), cssR = read('style.css');
+        check('the review of the item card: a bundled icon is drawn from the file glyphPath answers (solid/star), as the sheet draws one, never as an svg path; anything else is no icon and the first letter shows; a name that begins with an emoji shows that whole emoji; a blank name a question mark; the containers window draws its icons the same way; a narrow trade column puts a line\'s controls under its name, and an object\'s picture fills its box',
+            /^(solid|regular|brands)\//.test(gp) && g1 && g1.className === 'wp-glyph ui-card-glyph' && g1.style.maskImage === 'url("/assets/icons/fa/' + gp + '.svg")' && g1.style.webkitMaskImage === g1.style.maskImage && g1.attrs['aria-hidden'] === 'true'
+            && k2.pic.children[0].textContent === '🗡' && k3.pic.children[0].className === 'ui-card-ch' && k3.pic.children[0].textContent === 'X' && k4.pic.children[0].textContent === '?'
+            && bx.includes("if (g && /^(solid|regular|brands)\\/[a-z0-9-]{1,40}$/.test(g)) { var s = el('span', 'box-glyph wp-glyph'), u = 'url(\"/assets/icons/fa/' + g + '.svg\")';") && !/createElementNS\(NS, 'path'\)/.test(bx)
+            && cssR.includes('.trade-lcard .ui-card-top { flex-wrap: wrap; row-gap: 4px; }') && cssR.includes('.obj-card .ui-card-pic > .obj-thumb { flex: 0 0 48px; width: 48px; height: 48px; border-radius: 6px; }'),
+            J([gp, g1 && g1.className, k2.pic.children[0].textContent, k3.pic.children[0].textContent]));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

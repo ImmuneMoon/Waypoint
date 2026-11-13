@@ -171,8 +171,8 @@ const J = JSON.stringify;
     /* ---- the window: text nodes alone, its wiring ---- */
     {
         const bx = read('scripts/boxes.js');
-        check('the container window writes no markup: every word set as text, the glyph an svg made by name from the app\'s own table, its notes in a tooltip',
-            !/innerHTML|insertAdjacentHTML|outerHTML/.test(bx) && bx.includes("createElementNS(NS, 'svg')") && bx.includes('glyphPath(t.icon)') && bx.includes('b2.title = tipOf(t);') && bx.includes("e.textContent = String(text)"));
+        check('the container window writes no markup: every word set as text, the glyph a bundled icon\'s file from the app\'s own table, drawn as the sheet draws one (the review of the item card, backlog 225, moved on purpose), its notes in a tooltip',
+            !/innerHTML|insertAdjacentHTML|outerHTML/.test(bx) && bx.includes("var s = el('span', 'box-glyph wp-glyph')") && bx.includes('glyphPath(t.icon)') && bx.includes('b2.title = tipOf(t);') && bx.includes("e.textContent = String(text)"));
         check('every change goes through boxOp with the real applyRowOp, is one save and is logged as boxes v1; the window closes when its piece, its map or its campaign is gone, and is drawn again only by its own changes',
             bx.includes('var r = BC.boxOp(sysOf(camp), b, fid, q, F, applyRowOp);') && bx.includes('b.values = r.values; save(); step(what, {});') && bx.includes("window.wpStepLog('boxes v1', s, f || {})")
             && /function sync\(\) \{[^\n]*close\(\); return; \}[^\n]*nm\.textContent/.test(bx) && !/function sync\(\)[^\n]*draw\(\)/.test(bx));

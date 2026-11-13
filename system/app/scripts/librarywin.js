@@ -384,7 +384,14 @@ function renderForm() {
     if (st.imp) { renderImport(form); return; }
     var many = st.draftNew ? [] : chosen(); if (many.length > 1) { renderBulk(form, many); return; }
     var e = current(); if (!e) { form.appendChild(el('div', 'lib-empty', st.packId && ready(st.packId) ? 'Choose an entry, or + Entry to add one. Ctrl-click, Shift-click or Ctrl+A choose several.' : '')); return; }
-    form.appendChild(el('div', 'lib-fhead', st.draftNew && !e.name ? 'New entry' : e.name));
+    var UIc = typeof window !== 'undefined' && window.wpUi && window.wpUi.card ? window.wpUi : null;
+    if (UIc) {   // 1.6.2 (backlog 225, the item card): the entry being edited as the app's own card, its picture or icon, its name, its category and pack
+        var ic = typeof e.icon === 'string' ? e.icon : '', SC = window.wpSystemCore, gl = /^icon:/.test(ic) && SC && typeof SC.glyphPath === 'function' ? SC.glyphPath(ic) : '', pim = null;
+        if (typeof e.pic === 'string' && /^[/]saves[/]images[/]/.test(e.pic) && e.pic.indexOf('..') < 0) { pim = document.createElement('img'); pim.alt = ''; pim.src = e.pic; }
+        var pk = typeof packById === 'function' ? packById(st.packId) : null;
+        var cdh = UIc.card({ name: st.draftNew && !e.name ? 'New entry' : e.name, sub: [e.category || 'No category', pk && pk.name ? pk.name : ''].filter(Boolean).join(' · '), pic: pim || undefined, glyph: !pim && gl ? gl : undefined, ch: !pim && !gl && ic && !/^icon:/.test(ic) ? ic : undefined, cls: 'lib-fcard' });
+        form.appendChild(cdh.el);
+    } else form.appendChild(el('div', 'lib-fhead', st.draftNew && !e.name ? 'New entry' : e.name));
     var btns = el('div', 'lib-fbtns');   // 1.6.2 (the owner: "Save on top"): Save, Duplicate and Delete stand at the form's top
     var sv = el('button', 'tool lib-save', 'Save entry'); sv.type = 'button'; sv.addEventListener('click', saveEntry);
     var dup = el('button', 'tool ghost', 'Duplicate'); dup.type = 'button'; dup.disabled = !!st.draftNew; dup.addEventListener('click', duplicateEntry);

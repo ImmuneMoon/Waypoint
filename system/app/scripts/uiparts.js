@@ -12,6 +12,12 @@
 //                    another way, such as a time as m:ss, typed as text)
 //   typedAll(root)   typed() for every slider marked data-typed (its unit in data-unit, the old figure's id in data-hide) with no box
 //   fmtTime, readTime  a time in seconds as m:ss, and back
+//   card(o)          one item shown on its own, as the containers window shows a picked item (the owner, 2026-11-13: "Library picker and
+//                    form, Buy and Sell, Tile, map object, deck, the maybes too"): its picture large, its name and a gray line under it,
+//                    a place at the right of its head for a counter, then whatever the caller puts in its body, and its actions in a row
+//                    at its foot. o: name, sub, pic (an element the caller made: an img, an svg), glyph (a bundled icon's file as
+//                    systemcore glyphPath answers it, such as solid/star), ch (a character), cls. Every word is set as text. Answers { el, top, pic, who, name, sub, side, body,
+//                    acts }; an empty body or foot takes no room
 //   clampTo, roundTo the pure rules, for the suites
 function fin(n) { return typeof n === 'number' && isFinite(n); }
 function roundTo(v, dec) { var k = Math.pow(10, Math.max(0, Math.min(6, dec | 0))); return Math.round(v * k) / k; }
@@ -36,6 +42,19 @@ function valBox(doc, label, unit, valCls, text) {
 }
 function fmtTime(s) { s = Math.max(0, Math.floor(num(s) || 0)); var m = Math.floor(s / 60), r = s % 60; return m + ':' + (r < 10 ? '0' : '') + r; }
 function readTime(t) { if (typeof t !== 'string') return num(t); var m = /^\s*(?:(\d{1,4}):)?(\d{1,4}(?:\.\d+)?)\s*$/.exec(t); return m ? (m[1] ? parseInt(m[1], 10) * 60 : 0) + parseFloat(m[2]) : null; }
+var GLYPH_BASE = '/assets/icons/fa/', GLYPH_FILE = /^(solid|regular|brands)\/[a-z0-9-]{1,40}$/;
+function card(o, doc) {
+    doc = doc || document; o = o || {};
+    var w = el(doc, 'div', 'ui-card' + (o.cls ? ' ' + o.cls : '')), top = el(doc, 'div', 'ui-card-top'), pic = el(doc, 'span', 'ui-card-pic'), who = el(doc, 'div', 'ui-card-who');
+    var nm = el(doc, 'b', 'ui-card-name', o.name === undefined || o.name === null ? '' : String(o.name)), sub = el(doc, 'small', 'ui-card-sub', o.sub === undefined || o.sub === null ? '' : String(o.sub));
+    if (o.pic && typeof o.pic === 'object' && o.pic.nodeType === 1) pic.appendChild(o.pic);
+    else if (typeof o.glyph === 'string' && GLYPH_FILE.test(o.glyph)) { var g = el(doc, 'span', 'wp-glyph ui-card-glyph'), u = 'url("' + GLYPH_BASE + o.glyph + '.svg")'; g.setAttribute('aria-hidden', 'true'); g.style.webkitMaskImage = u; g.style.maskImage = u; pic.appendChild(g); }   // a bundled icon, drawn as the sheet draws one (its address built from the fixed table's answer alone)
+    else { var c0 = typeof o.name === 'string' ? Array.from(o.name.trim())[0] : ''; pic.appendChild(el(doc, 'span', 'ui-card-ch', String(o.ch || (c0 ? c0.toUpperCase() : '?')))); }   // the name's first whole character, never half of one
+    who.appendChild(nm); if (sub.textContent) who.appendChild(sub);
+    var side = el(doc, 'span', 'ui-card-side'), body = el(doc, 'div', 'ui-card-body'), acts = el(doc, 'div', 'ui-card-acts');
+    top.appendChild(pic); top.appendChild(who); top.appendChild(side); w.appendChild(top); w.appendChild(body); w.appendChild(acts);
+    return { el: w, top: top, pic: pic, who: who, name: nm, sub: sub, side: side, body: body, acts: acts };
+}
 function step(o, doc) {
     doc = doc || document; o = o || {};
     var lo = num(o.min), hi = num(o.max), st = num(o.step) || 1, dec = fin(o.dec) ? o.dec : 0, cur = num(o.value);
@@ -89,8 +108,8 @@ function typedAll(root) {
     var n = 0; [].forEach.call(r.querySelectorAll('input[type="range"][data-typed]'), function(x) { if (!x._uiVal) { var hid = x.getAttribute('data-hide'), h = hid && x.ownerDocument ? x.ownerDocument.getElementById(hid) : null; typed(x, { unit: x.getAttribute('data-unit') || '', hide: h }); n++; } });
     return n;
 }
-var API = { step: step, typed: typed, typedAll: typedAll, clampTo: clampTo, roundTo: roundTo, fmtTime: fmtTime, readTime: readTime };
-export { step, typed, typedAll, clampTo, roundTo, fmtTime, readTime };
+var API = { card: card, step: step, typed: typed, typedAll: typedAll, clampTo: clampTo, roundTo: roundTo, fmtTime: fmtTime, readTime: readTime };
+export { card, step, typed, typedAll, clampTo, roundTo, fmtTime, readTime };
 if (typeof window !== 'undefined') {
     window.wpUi = API;
     if (typeof document !== 'undefined') { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function() { typedAll(document); }); else typedAll(document); }

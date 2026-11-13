@@ -1958,6 +1958,25 @@
   span.ui-val > input::-webkit-outer-spin-button, span.ui-val > input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   html[data-theme="light"] span.ui-val > input { color-scheme: light; }
   .ui-unit { color: var(--dim); }
+  /* the item card (backlog 225): one item on its own, as the containers window shows a picked item; empty parts take no room */
+  .ui-card { display: flex; flex-direction: column; gap: 10px; padding: 10px; background: var(--bg); border: 1px solid var(--edge); border-radius: 8px; box-sizing: border-box; min-width: 0; }
+  .ui-card-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .ui-card-pic { width: 48px; height: 48px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 6px; background: var(--panel); overflow: hidden; font-size: 26px; line-height: 1; color: var(--ink); }
+  .ui-card-pic > img { width: 48px; height: 48px; object-fit: contain; display: block; } .ui-card-pic > svg { width: 30px; height: 30px; fill: currentColor; } .ui-card-pic > .ui-card-glyph { width: 30px; height: 30px; vertical-align: 0; } .ui-card-ch { font-weight: 700; color: var(--dim); }
+  .ui-card-who { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; } .ui-card-name { overflow-wrap: anywhere; } .ui-card-sub { color: var(--dim); font-size: 11.5px; overflow-wrap: anywhere; }
+  .ui-card-side { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; } .ui-card-side:empty, .ui-card-body:empty, .ui-card-acts:empty { display: none; }
+  .ui-card-body { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; min-width: 0; }
+  .ui-card-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; } .ui-card-acts > .tool { height: 28px; padding: 0 10px; font-size: 12px; }
+  /* ui-card sites A */
+  .ui-card.lib-pick-card { flex: none; padding: 8px; } .lib-pick-card .lib-pick-name { display: block; }   /* backlog 225, the item card: the library picker's preview head */
+  .ui-card.lib-fcard { flex: none; } .lib-fcard .ui-card-name { color: var(--gold); }   /* the Library window's entry head */
+  .ui-card.obj-card { margin: 4px 0 2px; } .obj-card .obj-form { margin: 0; } .obj-card .ui-card-pic > .obj-thumb { flex: 0 0 48px; width: 48px; height: 48px; border-radius: 6px; }   /* a map object open for editing */
+  .dk-view .ui-card-pic > svg.ico { fill: none; } .dk-view .ui-card-acts { flex-direction: column; align-items: stretch; } .dk-view .ui-card-acts > .dk-head { flex-wrap: nowrap; margin-bottom: 0; } .dk-view .ui-card-acts > .dk-head .field { margin: 0; }   /* the deck in view */
+  .trade-lcard .ui-card-top { flex-wrap: wrap; row-gap: 4px; } .trade-lcard .ui-card-who { flex: 1 1 110px; } .trade-lcard .ui-card-side { margin-left: auto; } .trade-lcard .ui-card-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* the review: a narrow column puts the line's controls under its name, never crushing it */
+  .ui-card.trade-lcard { align-items: stretch; gap: 0; padding: 4px 6px; } .trade-lcard .ui-card-top { gap: 8px; } .trade-lcard .ui-card-pic { width: 28px; height: 28px; font-size: 15px; } .trade-lcard .ui-card-sub { font-size: 11px; }   /* a trade's line, a small card */
+  /* ui-card sites B */
+  #inspector .insp-card { margin: 0 0 12px; } #inspector .insp-card h2.ui-card-name { margin: 0; font-size: 14px; letter-spacing: normal; text-transform: none; color: var(--ink); }
+  .body-drawer-card { margin-bottom: 6px; padding: 6px 8px; } .body-drawer-card .body-drawer-state { margin-left: 0; } .body-drawer-card.body-dst-bad .body-drawer-state, .body-drawer-card.body-dst-lost .body-drawer-state { color: #e9877f; }
   .ui-seg { display: inline-flex; align-items: stretch; flex: 0 0 auto; border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; }
   .ui-seg > .tool, .ui-seg > button { border: 0; border-radius: 0; margin: 0; }
   .ui-seg > * + *, .ui-seg > .tool + .tool, .ui-seg > button + button { border-left: 0; box-shadow: -1px 0 0 var(--edge); }   /* the line between two parts, drawn just outside the later one: where the first is hidden the frame clips it, so no edge is doubled */

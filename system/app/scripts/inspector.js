@@ -273,9 +273,9 @@ import { cssColor, num, picRef } from './safecore.js';   // a campaign from a fi
 
 
 
-      return '<h2>Data Node</h2>'+
+      return (window.wpUi && window.wpUi.card && typeof cardHead === 'function' ? cardHead({ name: r.name || '(unnamed)', sub: 'Data Node', src: picRef(r.image) ? r.image : '' }) : '<h2>Data Node</h2>'+   // backlog 225, the item card: the room's picture moves into it
 
-             (picRef(r.image) ? '<img class="room-image-preview" src="'+esc(picRef(r.image))+'" alt="Room image">' : '')+
+             (picRef(r.image) ? '<img class="room-image-preview" src="'+esc(picRef(r.image))+'" alt="Room image">' : ''))+
 
              '<div class="row" style="margin-bottom:13px;"><button class="tool ghost" id="fImgBtn"><i class="wib wi-pic"></i> '+(r.image?'Change Image':'Set Room Image')+'</button>'+(r.image?'<button class="tool ghost danger" id="fImgClearBtn">Remove</button>':'')+'</div>'+
 
@@ -1019,9 +1019,10 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (w.waiting) {   // Onboarding F1a: a waiting token has no shape properties — whose it is, and the GM's three hands (text nodes only)
                 inspector.textContent = '';
                 var wpP = document.createElement('div'); wpP.className = 'insp-waiting';
-                var wpH = document.createElement('h2'); wpH.textContent = String(w.name || 'A player') + '\u2019s waiting token'; wpP.appendChild(wpH);
-                var wpN = document.createElement('div'); wpN.className = 'help'; wpN.textContent = 'A player with no character yet. It gives way to their token when you give them a character; it goes three minutes after they leave, at a ban, and at the end of the session.'; wpP.appendChild(wpN);
-                [['give', 'Give a character\u2026', 'mask'], ['hide', w.hidden ? 'Show it to players' : 'Hide it from players', w.hidden ? 'seen' : 'unseen'], ['remove', 'Remove it for this session', 'close']].forEach(function(b) { var bt = document.createElement('button'); bt.className = 'tool ghost wib wi-' + b[2]; bt.type = 'button'; bt.style.cssText = 'width:100%; margin-top:6px;'; bt.textContent = b[1]; bt.dataset.act = b[0]; wpP.appendChild(bt); });
+                var UIw = window.wpUi && window.wpUi.card ? window.wpUi : null, wpK = UIw ? UIw.card({ name: String(w.name || 'A player'), sub: 'Waiting token', cls: 'insp-card' }) : null;   // backlog 225, the item card: whose it is as a card head, the GM's three hands at its foot
+                if (wpK) wpP.appendChild(wpK.el); else { var wpH = document.createElement('h2'); wpH.textContent = String(w.name || 'A player') + '\u2019s waiting token'; wpP.appendChild(wpH); }
+                var wpN = document.createElement('div'); wpN.className = 'help'; wpN.textContent = 'A player with no character yet. It gives way to their token when you give them a character; it goes three minutes after they leave, at a ban, and at the end of the session.'; (wpK ? wpK.body : wpP).appendChild(wpN);
+                [['give', 'Give a character\u2026', 'mask'], ['hide', w.hidden ? 'Show it to players' : 'Hide it from players', w.hidden ? 'seen' : 'unseen'], ['remove', 'Remove it for this session', 'close']].forEach(function(b) { var bt = document.createElement('button'); bt.className = 'tool ghost wib wi-' + b[2]; bt.type = 'button'; if (!wpK) bt.style.cssText = 'width:100%; margin-top:6px;'; bt.textContent = b[1]; bt.dataset.act = b[0]; (wpK ? wpK.acts : wpP).appendChild(bt); });
                 inspector.appendChild(wpP);
                 wpP.addEventListener('click', function(e) {
                     var b = e.target.closest && e.target.closest('button'); if (!b) return;
@@ -1050,7 +1051,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             
             var typeLabel = w.type === 'text' ? 'Text Box' : w.type === 'path' ? 'Drawing' : w.type === 'image' ? 'Image' : w.type === 'trigger' ? 'Trigger Zone' : w.type.charAt(0).toUpperCase() + w.type.slice(1);
             var html =
-              '<h2>' + esc(w.name ? w.name : typeLabel) + (w.name ? ' <span class="muted" style="font-weight:normal; font-size:11px;">' + esc(typeLabel) + '</span>' : '') + '</h2>' +
+              (window.wpUi && window.wpUi.card ? cardHead({ name: w.name ? w.name : typeLabel, sub: w.name ? typeLabel : '', src: w.type === 'image' && typeof w.src === 'string' ? w.src : '' }) : '<h2>' + esc(w.name ? w.name : typeLabel) + (w.name ? ' <span class="muted" style="font-weight:normal; font-size:11px;">' + esc(typeLabel) + '</span>' : '') + '</h2>') +   // backlog 225, the item card: the piece's picture, its name and its kind as a card head
               '<div class="field"><label for="wbName">Name <span class="muted">(shown in Layers)</span></label><input type="text" id="wbName" maxlength="60" value="' + esc(w.name || '') + '" placeholder="' + esc(w.isChar && w.charName ? w.charName : typeLabel) + '"></div>' +
               // Player visibility up top — this is the setting testers kept missing
               '<div class="field vis-field' + (w.hidden ? ' is-hidden' : '') + '">' +
@@ -1930,6 +1931,13 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
 
 
   function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  // backlog 225, the item card, as markup (the class names window.wpUi.card makes): a piece's or a room's picture, its name and its kind. Every value through esc(),
+  // a picture through the host on a player's app, else picRef, and with none the name's first letter
+  function cardHead(o){
+      var p = typeof o.src === 'string' ? o.src : '', n = window.wpNet, src = p && n && typeof n.assetSrc === 'function' ? n.assetSrc(p) : p; if (src === p) src = p ? picRef(p) : '';
+      var nm = String(o.name || ''), ch = Array.from(nm.trim())[0] || '?', pic = src ? '<img src="' + esc(src) + '" alt="">' : '<span class="ui-card-ch">' + esc(ch.toUpperCase()) + '</span>';
+      return '<div class="ui-card insp-card"><div class="ui-card-top"><span class="ui-card-pic">' + pic + '</span><div class="ui-card-who"><h2 class="ui-card-name">' + esc(nm) + '</h2>' + (o.sub ? '<small class="ui-card-sub">' + esc(o.sub) + '</small>' : '') + '</div><span class="ui-card-side"></span></div></div>';
+  }
 
   /* ---------- warp landing room field ----------
      Where a portal drops you on the far map. "Automatic" follows the app's

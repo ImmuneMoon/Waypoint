@@ -52,7 +52,7 @@ function thumb(o) {
     if (o.src || fsrc) { var i = el('img'); i.alt = ''; i.src = o.src || fsrc; t.appendChild(i); } else t.style.background = o.color || '#6b5b45';
     return t;
 }
-function formInto(box, o, kind, list) {
+function formInto(box, o, kind, list, acts) {
     var C = OC(), f = el('div', 'obj-form');
     var commit = function(next) { var nl = listsOf(campNow(), C)[kind].map(function(x) { return x.id === o.id ? Object.assign({}, x, next) : x; }); nl = C.cleanObjects(nl); store(kind, nl); return nl; };
     var row = function(label, ctl) { var r = el('label', 'gen-row'); r.appendChild(el('span', 'gen-name', label)); r.appendChild(ctl); f.appendChild(r); };
@@ -78,7 +78,7 @@ function formInto(box, o, kind, list) {
     if (!o.sight) tick('Stops tokens', !!o.stops, 'Tokens cannot cross it. Sight passes.', function(v) { commit({ stops: v || undefined }); draw(); });
     var size = function(label, key) { var n = el('input'); n.type = 'number'; n.min = 1; n.max = 12; n.value = o[key] || 1; n.addEventListener('change', function() { commit(key === 'w' ? { w: Number(n.value) } : { h: Number(n.value) }); draw(); }); row(label, n); };
     size('Cells wide', 'w'); size('Cells tall', 'h');
-    var bar = el('div', 'obj-formbar');
+    var bar = acts || el('div', 'obj-formbar');   // 1.6.2 (backlog 225, the item card): in a card its actions stand in the card's own row at its foot
     var pic = btn('tool ghost', o.src ? 'Change picture' : 'Pick a picture', 'Pick from the Image Library. A piece already placed keeps its picture.');
     pic.addEventListener('click', function() { pickPic(function(src) { commit({ src: src }); draw(); }); });
     bar.appendChild(pic);
@@ -93,7 +93,7 @@ function formInto(box, o, kind, list) {
     var rm = btn('tool ghost', 'Remove', 'Take it off this list. Pieces already placed stay.');
     rm.addEventListener('click', function() { showConfirm('Remove ' + o.name + ' from your map objects? Pieces already placed stay on their maps.', function(ok) { if (!ok) return; store(kind, listsOf(campNow(), C)[kind].filter(function(x) { return x.id !== o.id; })); _win.edit = ''; log('remove', {}); draw(); }); });   // showConfirm answers through its callback
     bar.appendChild(rm);
-    f.appendChild(bar);
+    if (!acts) f.appendChild(bar);
     box.appendChild(f);
 }
 function rowOf(o, kind, list) {
@@ -105,6 +105,12 @@ function rowOf(o, kind, list) {
     put.addEventListener('click', function() { place(nowOf(o)); });
     var ed = btn('tool ghost', _win.edit === o.id ? 'Done' : 'Edit', 'Its name, picture, cover and size.');
     ed.addEventListener('click', function() { _win.edit = _win.edit === o.id ? '' : o.id; draw(); });
+    var UI = window.wpUi && window.wpUi.card ? window.wpUi : null;
+    if (UI && _win.edit === o.id) {   // 1.6.2 (backlog 225, the item card): the object open for editing as the app's own card: its picture, its name and its kind, its values, then Place, Done and its own actions at its foot
+        var cd = UI.card({ name: o.name, sub: C.objWords(o), pic: thumb(o), cls: 'obj-card' });
+        cd.name.className += ' obj-name'; cd.acts.appendChild(put); cd.acts.appendChild(ed);
+        formInto(cd.body, o, kind, list, cd.acts); r.appendChild(cd.el); return r;
+    }
     top.appendChild(put); top.appendChild(ed);
     r.appendChild(top);
     if (_win.edit === o.id) formInto(r, o, kind, list);

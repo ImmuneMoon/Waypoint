@@ -3609,7 +3609,12 @@ function tileView(wrap, f, c, rows, sysI, plc, res) {
     wrap.appendChild(holder);
     if (!open) { holder.classList.remove('has-open'); return { into: null, rows: [] }; }
     holder.classList.add('has-open'); var dr = el('div', 'body-drawer'), head = el('div', 'body-drawer-head'), shut = el('button', 'tool ghost sys-btn', '\u00d7'); shut.type = 'button'; shut.title = 'Close this'; shut.ariaLabel = 'Close this'; shut.dataset.fid = f.id; shut.dataset.part = 'tile-shut';
-    shut.addEventListener('click', function() { delete _tileOpen[openKey]; renderViews(c.id); }); head.appendChild(el('span', 'body-drawer-name', openBox ? openBox.label : byId[open].name)); var stO = openBox ? null : tileStateIn(tsp, res, open); if (stO) head.appendChild(el('span', 'body-drawer-state', stO.label)); head.appendChild(shut); dr.appendChild(head); holder.appendChild(dr);
+    shut.addEventListener('click', function() { delete _tileOpen[openKey]; renderViews(c.id); }); var stO = openBox ? null : tileStateIn(tsp, res, open), UIt = typeof window !== 'undefined' && window.wpUi && window.wpUi.card ? window.wpUi : null;
+    if (UIt) {   // backlog 225, the item card: the open tile's head as a card head, its drawing, its name, its state as the gray line and the close button at its side
+        var drO = openBox ? null : byId[open], drP = drO && drO.draw ? tileNode(document, drO.draw) : null; if (drP && drO.side === -1) drP.classList.add('body-draw-flip');
+        var kT = UIt.card({ name: openBox ? openBox.label : drO.name, sub: stO ? stO.label : '', pic: drP || undefined, cls: 'body-drawer-card' + (stO ? ' body-dst-' + (stO.shape || 'warn') : '') }); kT.name.classList.add('body-drawer-name'); if (stO) kT.sub.classList.add('body-drawer-state'); kT.side.appendChild(shut); head = kT.el;
+    } else { head.appendChild(el('span', 'body-drawer-name', openBox ? openBox.label : byId[open].name)); if (stO) head.appendChild(el('span', 'body-drawer-state', stO.label)); head.appendChild(shut); }
+    dr.appendChild(head); holder.appendChild(dr);
     if (editing && !openBox) {   // 1.6.2 (body fold 7): the same move with no drag
         var seatT = lay.tiles.filter(function(t) { return t.id === open; })[0], base = seatT ? { c: seatT.c + lay.lo, r: seatT.r } : { c: 0, r: lay.rows }, mvBar = el('div', 'body-switch body-move'), mvSeg = el('span', 'ui-seg'); [['\u2190', 'Left', -1, 0], ['\u2191', 'Up', 0, -1], ['\u2193', 'Down', 0, 1], ['\u2192', 'Right', 1, 0]].forEach(function(m) { var q = el('button', 'tool ghost sys-btn', m[0]); q.type = 'button'; q.title = 'Move this tile ' + m[1].toLowerCase(); q.ariaLabel = q.title; q.dataset.fid = f.id; q.dataset.part = 'tile-mv-' + m[1]; q.addEventListener('click', function() { tileMoveTo(c, f, open, { c: Math.max(-20, Math.min(20, base.c + m[2])), r: Math.max(0, Math.min(60, base.r + m[3])) }); }); mvSeg.appendChild(q); }); mvBar.appendChild(mvSeg); if (byId[open].tp) { var bk = el('button', 'tool ghost sys-btn', 'Back to its place'); bk.type = 'button'; bk.dataset.fid = f.id; bk.dataset.part = 'tile-mv-back'; bk.title = 'It sets itself out by what it hangs from again'; bk.addEventListener('click', function() { tileMoveTo(c, f, open, null); }); mvBar.appendChild(bk); } dr.appendChild(mvBar);
     }
@@ -6930,7 +6935,7 @@ function priceAsk(c, f, q) {   // true when it asked, and the row op waits for t
     }
     if (!(unit > 0) || !(n > 0)) return false;
     var pcR = q.op === 'add' ? row : was, pcD = pcR ? rowDef(sys, pcR) : null, pcS = pcD && pcD.def && typeof priceCurOf === 'function' ? priceCurOf(sys, sp, pcD.def) : null; if (pcS && !pcS.sep) pcS = null;   // 157 M1b: a price set in a Separate currency is said and paid in it
-    priceOpen(c, f, q, { buy: q.op === 'add', n: n, list: Math.round(unit * n * 100) / 100, name: name || 'it', player: player, held: pcS ? moneyHeld(sys, c, pcS.key) : moneyHeld(sys, c), cur: pcS ? pcS.label : '' });
+    priceOpen(c, f, q, { buy: q.op === 'add', n: n, list: Math.round(unit * n * 100) / 100, name: name || 'it', player: player, held: pcS ? moneyHeld(sys, c, pcS.key) : moneyHeld(sys, c), cur: pcS ? pcS.label : '', icon: pcD && pcD.def && typeof pcD.def.icon === 'string' ? pcD.def.icon : '' });
     return true;
 }
 function priceOpen(c, f, q, o) {
@@ -6948,7 +6953,9 @@ function priceDraw(doc, body, o, said) {
     var mk = function(tag, cls, text) { var e = doc.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = String(text); return e; };
     var fmt = function(x) { return typeof fmtNum === 'function' ? fmtNum(x) : String(x); };
     var cw = typeof o.cur === 'string' && o.cur ? ' ' + o.cur : '';   // 157 M1b: a price set in a Separate currency names it
-    body.appendChild(mk('div', 'price-list', (o.buy ? 'List price ' : 'Market value ') + fmt(o.list) + cw + (o.n > 1 ? ' for ' + o.n : '') + '.'));
+    var UIp = typeof window !== 'undefined' && window.wpUi && window.wpUi.card ? window.wpUi : null, host = body;   // backlog 225, the item card: the row bought or sold as a card, the price lines in its body
+    if (UIp) { var gP = typeof o.icon === 'string' && typeof glyphPath === 'function' ? glyphPath(o.icon) : '', tP = !gP && typeof o.icon === 'string' && o.icon && typeof iconText === 'function' ? iconText(o.icon) : ''; var kP = UIp.card({ name: o.name, sub: (o.buy ? 'Buying ' : 'Selling ') + o.n, glyph: gP || undefined, ch: tP || undefined, cls: 'price-card' }, doc); body.appendChild(kP.el); host = kP.body; }
+    host.appendChild(mk('div', 'price-list',(o.buy ? 'List price ' : 'Market value ') + fmt(o.list) + cw + (o.n > 1 ? ' for ' + o.n : '') + '.'));
     var way = mk('div', 'price-way'), st = { mode: 'list', total: o.list, pct: 100, charge: !!o.player || !o.buy };
     var radio = function(val, text) { var lb = mk('label'), r = doc.createElement('input'); r.type = 'radio'; r.name = 'priceWay'; r.value = val; r.checked = st.mode === val; r.addEventListener('change', function() { if (r.checked) { st.mode = val; tell(); } }); lb.appendChild(r); lb.appendChild(mk('span', null, text)); return lb; };
     var tot = doc.createElement('input'); tot.type = 'number'; tot.className = 'price-num'; tot.min = '0'; tot.step = '0.01'; tot.value = String(o.list); tot.setAttribute('aria-label', o.buy ? 'The total paid' : 'What it sells for');
@@ -6964,12 +6971,12 @@ function priceDraw(doc, body, o, said) {
     way.appendChild(radio('list', o.buy ? 'List price' : 'Market value')); way.appendChild(mk('span'));
     way.appendChild(radio('total', o.buy ? 'A total' : 'A price')); way.appendChild(tot);
     if (o.buy) { way.appendChild(radio('pct', 'Percent of list')); way.appendChild(pct); }
-    body.appendChild(way); body.appendChild(line);
+    host.appendChild(way); host.appendChild(line);
     if (o.buy && !o.player) {   // the GM adding to a player's sheet: the price box asks, Charge them ticked off
         var cl = mk('label', 'price-charge'), cb = doc.createElement('input'); cb.type = 'checkbox'; cb.checked = false; cb.addEventListener('change', function() { st.charge = cb.checked; tell(); });
-        cl.appendChild(cb); cl.appendChild(mk('span', null, 'Charge them')); body.appendChild(cl);
+        cl.appendChild(cb); cl.appendChild(mk('span', null, 'Charge them')); host.appendChild(cl);
     }
-    body.appendChild(mk('div', 'price-held', 'Held now: ' + fmt(o.held) + cw + '. ' + (o.buy ? 'Paid from the smallest chips first, then the largest pieces, with change.' : 'Paid onto the largest chip.')));
+    host.appendChild(mk('div', 'price-held', 'Held now: ' + fmt(o.held) + cw + '. ' + (o.buy ? 'Paid from the smallest chips first, then the largest pieces, with change.' : 'Paid onto the largest chip.')));
     tell();
 }
 function priceClose() { var m = document.getElementById('priceModal'); if (m) m.style.display = 'none'; _price.q = null; }

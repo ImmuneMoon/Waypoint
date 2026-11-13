@@ -55,7 +55,7 @@ function iconInto(box, t) {
     var pc = cleanPic(t.pic), n = window.wpNet; if (pc && n && typeof n.assetMissing === 'function' && n.assetMissing(pc)) pc = '';   // a picture that is not there: its icon, quietly
     if (pc) { var src = n && typeof n.assetSrc === 'function' ? n.assetSrc(pc) : pc; if (src === pc) src = picRef(pc); if (src) { var im = document.createElement('img'); im.className = 'box-pic'; im.alt = ''; im.dataset.pic = pc; im.dataset.icon = typeof t.icon === 'string' ? t.icon : ''; im.dataset.nm = typeof t.name === 'string' ? t.name : ''; im.addEventListener('error', function() { picGone(im); }); im.src = src; box.appendChild(im); return; } }   // its own picture: the campaign's, through the host on a player's app
     var g = typeof t.icon === 'string' && /^icon:/.test(t.icon) ? glyphPath(t.icon) : '';
-    if (g) { var NS = 'http://www.w3.org/2000/svg', s = document.createElementNS(NS, 'svg'), pa = document.createElementNS(NS, 'path'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('class', 'box-glyph'); s.setAttribute('aria-hidden', 'true'); pa.setAttribute('d', g); s.appendChild(pa); box.appendChild(s); return; }
+    if (g && /^(solid|regular|brands)\/[a-z0-9-]{1,40}$/.test(g)) { var s = el('span', 'box-glyph wp-glyph'), u = 'url("/assets/icons/fa/' + g + '.svg")'; s.setAttribute('aria-hidden', 'true'); s.style.webkitMaskImage = u; s.style.maskImage = u; box.appendChild(s); return; }   // 1.6.2 (the review of the item card): a bundled icon is a file, drawn as the sheet draws one
     box.appendChild(el('span', 'box-ch', t.icon ? t.icon : (t.name || '?').charAt(0).toUpperCase()));
 }
 // The selected item as a small card (the owner, 2026-11-12, by prompt: "B. A small card for the item"): its picture large, its name and

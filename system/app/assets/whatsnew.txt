@@ -1229,6 +1229,13 @@ The Data Map
   1:23. What you type is held to the slider's or the counter's own limits.
   Counters now share one look, the minus, the value and the plus joined in
   one frame.
+- Buttons that go together now sit in one frame, so Undo and Redo, Imperial
+  and Metric, Open all and Close all and the like read as one control. One
+  item on its own shows as a small card with its picture, as the containers
+  window shows a picked item: the library picker's preview, the Library's
+  entry, Buy and Sell, a body tile's drawer, a map object being edited, the
+  deck in view, a waiting token and Properties' head. A bundled icon now
+  shows in the containers window, where it drew nothing before.
 - A piece's Properties now open from Properties on its right-click menu, or
   from the sliders on the bar over a selected piece. A double-click no longer
   opens them. A right-click selects the piece too, so you can see which one

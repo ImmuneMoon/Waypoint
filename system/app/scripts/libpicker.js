@@ -169,8 +169,15 @@ function preview() {
         clearTimeout(st.getTimer); var mine = st, want = x.e.id;
         st.getTimer = setTimeout(function() { if (st !== mine) return; src.get(x.e, x.p, function(full) { if (st !== mine || !full || full.id !== want) return; st.full[want] = full; if (Array.isArray(full.needs) || typeof st.opts.fit === 'function') { draw(); addLabel(); } var y = st.hi >= 0 ? st.rows[st.hi] : null; if (y && !y.hdr && y.e.id === want) preview(); }); }, 250);
     }
-    var e = st.full[x.e.id] || x.e, h = el('div', 'lib-pick-name', ((e.icon && !/^icon:/.test(e.icon)) ? e.icon + ' ' : '') + e.name); if (gmOnly(x)) h.appendChild(el('span', 'sheet-chip sheet-chip-gm', 'GM only')); box.appendChild(h);
-    box.appendChild(el('div', 'lib-pick-sub', [e.category || 'No category', x.p.name].join(' · ')));
+    var e = st.full[x.e.id] || x.e, UI = typeof window !== 'undefined' && window.wpUi && window.wpUi.card ? window.wpUi : null;
+    if (UI) {   // 1.6.2 (backlog 225, the item card): the entry as the app's own card, its icon large, its name and its category and pack under it
+        var ic = typeof e.icon === 'string' ? e.icon : '', SC = window.wpSystemCore, gl = /^icon:/.test(ic) && SC && typeof SC.glyphPath === 'function' ? SC.glyphPath(ic) : '';
+        var cd = UI.card({ name: e.name, sub: [e.category || 'No category', x.p.name].join(' · '), glyph: gl || undefined, ch: !gl && ic && !/^icon:/.test(ic) ? ic : undefined, cls: 'lib-pick-card' });
+        cd.name.className += ' lib-pick-name'; cd.sub.className += ' lib-pick-sub'; if (gmOnly(x)) cd.side.appendChild(el('span', 'sheet-chip sheet-chip-gm', 'GM only')); box.appendChild(cd.el);
+    } else {
+        var h = el('div', 'lib-pick-name', ((e.icon && !/^icon:/.test(e.icon)) ? e.icon + ' ' : '') + e.name); if (gmOnly(x)) h.appendChild(el('span', 'sheet-chip sheet-chip-gm', 'GM only')); box.appendChild(h);
+        box.appendChild(el('div', 'lib-pick-sub', [e.category || 'No category', x.p.name].join(' · ')));
+    }
     var whyNot = cantText(x); if (whyNot) box.appendChild(el('div', 'lib-pick-need', st.opts.gm && missOf(x).length ? 'This character does not meet what it needs. ' + whyNot : whyNot));   // 126b; 1.6.0 Fits where: a part that does not fit says so alone
     var labels = st.opts.labels || {}, stats = e.stats && typeof e.stats === 'object' ? e.stats : {};
     Object.keys(labels).forEach(function(k) { var key = Object.keys(stats).filter(function(s) { return lc(s) === lc(k); })[0]; if (key !== undefined) line(box, labels[k], String(stats[key])); });

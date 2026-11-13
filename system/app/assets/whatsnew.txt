@@ -1211,7 +1211,8 @@ The Data Map
   Price from, beside Price on the Lists tab. A row then records the price
   worked out for that row on the sheet that buys or adds it, so a fitted limb
   can cost more for a larger wearer. Where the column gives no number, the
-  Price stat is used as before.
+  Price stat is used as before. A trade still offers the row at its Price
+  stat.
 - A piece's Properties now open from Properties on its right-click menu, or
   from the sliders on the bar over a selected piece. A double-click no longer
   opens them. A right-click selects the piece too, so you can see which one

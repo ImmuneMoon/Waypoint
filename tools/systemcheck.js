@@ -23627,7 +23627,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             spP.priceCol === 'LimbCr' && cyOf(cleanSystem(sysP, { F, gmView: false })).list.priceCol === 'LimbCr'
             && S.cleanListSpec({ priceCol: 'LimbCr', stats: [{ key: 'cr' }], cols: [{ key: 'LimbCr', formula: '1' }] }, F).priceCol === undefined && cyOf(withCol('Nothing')).list.priceCol === undefined
             && addP(sysP, 2, F)[0].paid === 3816 && addP(sysP, 1, F)[0].paid === 1908 && addP(sysP, 2, null)[0].paid === 1908 && addP(withCol('Bad'), 2, F)[0].paid === 1908
-            && addP(cleanSystem(withCol('Hid'), { F, gmView: false }), 2, F)[0].paid === 1908 && addP(withCol(''), 2, F)[0].paid === 1908
+            && addP(cleanSystem(withCol('Hid'), { F, gmView: false }), 2, F)[0].paid === 1908 && cyOf(withCol('Hid')).list.priceCol === undefined && addP(withCol('Hid'), 2, F)[0].paid === 1908   /* the review of 234: a column that reads a GM-only value is no price in either view, so the host records the stat */ && addP(withCol(''), 2, F)[0].paid === 1908
             && merged.length === 1 && merged[0].qty === 2 && merged[0].paid === 3816
             && S.priceColOf(sysP, { values: { f_gf: 1.5 } }, cyOf(sysP), { id: 'w_x', defId: 'i_arm', qty: 1 }, F) === 2862 && S.priceColOf(sysP, null, sysP.fields[0], {}, F) === null,
             J([spP.priceCol, addP(sysP, 2, F), merged]));

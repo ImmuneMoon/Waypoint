@@ -4017,10 +4017,10 @@ function statLineNode(entry, def, spec, ovc) {   // F4c2: the line as text (as b
 // the owner, and for the GM where nothing can be changed (the Layout preview, a pop-out). labeled: "Paid" before it (a table's header says it)
 function paidCtl(entry, def, c, f, spec, editable, gm, labelled) {
     if (!spec.price) return null;
-    var lp = Math.max(0, rowStat(spec, def, spec.price)), has = typeof entry.paid === 'number', rid = rowIdOf(entry);
+    var pcv = spec.priceCol && typeof priceColOf === 'function' ? priceColOf(systemOf(getActiveCampaign()), c, f, entry, F()) : null, lp = pcv !== null ? pcv : Math.max(0, rowStat(spec, def, spec.price)), has = typeof entry.paid === 'number', rid = rowIdOf(entry);   // 1.6.2, the review of backlog 234: Price from, worked out for this row
     if (gm && editable) {
         var pi = el('input', 'field sheet-item-paid'); pi.type = 'number'; pi.min = '0'; pi.step = 'any'; pi.dataset.fid = f.id; pi.dataset.part = 'paid-' + rid; pi.value = has ? String(entry.paid) : ''; pi.placeholder = statFmt(lp); pi.title = 'Paid for one (blank: the list price, ' + statFmt(lp) + ')';
-        pi.addEventListener('change', function() { if (pi.validity && pi.validity.badInput) { pi.value = has ? String(entry.paid) : ''; return; } var s = String(pi.value).trim(), n = Number(s); if (s === '') { commitItem(c, f, { op: 'set', rowId: rid, facts: { paid: null } }); return; } if (!isFinite(n) || n < 0 || n > LIMITS.statAbs) { pi.value = has ? String(entry.paid) : ''; return; } commitItem(c, f, { op: 'set', rowId: rid, facts: { paid: n } }); });
+        pi.addEventListener('change', function() { if (pi.validity && pi.validity.badInput) { pi.value = has ? String(entry.paid) : ''; return; } var s = String(pi.value).trim(), n = Number(s); if (s === '') { commitItem(c, f, { op: 'set', rowId: rid, facts: { paid: pcv !== null ? Math.min(LIMITS.statAbs, pcv) : null } }); return; } if (!isFinite(n) || n < 0 || n > LIMITS.statAbs) { pi.value = has ? String(entry.paid) : ''; return; } commitItem(c, f, { op: 'set', rowId: rid, facts: { paid: n } }); });
         if (!labelled) return pi;
         var pl = el('label', 'sheet-item-paidl'); pl.appendChild(el('span', 'sheet-item-paidn', 'Paid')); pl.appendChild(pi); return pl;
     }
@@ -8956,6 +8956,13 @@ function refreshErrors() {
         var pz = null; try { pz = F().parse(f.list.modsIf.trim()); } catch (e) { pz = null; }
         var said = !pz || !pz.ok ? 'is no formula Save can keep, so Save drops it.' : typeof hasDice === 'function' && pz.ast && hasDice(pz.ast.body) ? 'rolls dice, and a gate is read with none, so Save drops it.' : 'reads a GM-only value, here or through what it reads. Your players\u2019 sheets must give the same figures as yours, so Save drops it.';
         (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: 'Changes apply where ' + said + ' The rows then give their changes whatever it says.' });
+    });
+    draft.fields.forEach(function(f) {   // 1.6.2, the review of backlog 234: Price from, as the cleaner reads it
+        if (!f || f.kind !== 'item-list' || !f.list || typeof f.list.priceCol !== 'string' || !f.list.priceCol) return;
+        var cf = (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0]; if (!cf || (cf.list && cf.list.priceCol)) return;
+        var hasCol = (Array.isArray(f.list.cols) ? f.list.cols : []).some(function(c) { return c && typeof c.key === 'string' && c.key.toLowerCase() === f.list.priceCol.toLowerCase(); }) && !!(cf.list && Array.isArray(cf.list.cols) && cf.list.cols.some(function(c) { return c && typeof c.key === 'string' && c.key.toLowerCase() === f.list.priceCol.toLowerCase(); }));
+        var said = !(cf.list && cf.list.price) ? 'needs a Price stat beside it' : !hasCol ? 'names no column of this list' : 'reads a value only the GM sees, here or through what it reads, and a row\u2019s Paid reaches its owner';
+        (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: 'Price from ' + said + ', so Save drops it and a row added records the Price stat.' });
     });
     draft.fields.forEach(function(f) {   // 1.6.0 Subject only where, as the cleaner reads it
         if (!f || f.kind !== 'item-list' || !f.list || typeof f.list.subjectIf !== 'string' || !f.list.subjectIf.trim()) return;
@@ -14996,7 +15003,7 @@ function onInput(e) {
         else if (lcc.indexOf('sys-list-col') >= 0) {   // Stage 6 F5a1: a column's boxes (Save cleans them)
             var crw = t.closest('.sys-list-col'), cix = crw ? +crw.dataset.ci : -1, cL = Array.isArray(lsp.cols) ? lsp.cols : null; if (!cL || !(cix >= 0 && cix < cL.length)) return;
             var cD = cL[cix] && typeof cL[cix] === 'object' && !Array.isArray(cL[cix]) ? cL[cix] : (cL[cix] = {});
-            if (lcc.indexOf('sys-list-colkey') >= 0) cD.key = t.value.trim().slice(0, 24);
+            if (lcc.indexOf('sys-list-colkey') >= 0) { var oldCk = typeof cD.key === 'string' ? cD.key.toLowerCase() : ''; cD.key = t.value.trim().slice(0, 24); if (oldCk && typeof lsp.priceCol === 'string' && lsp.priceCol.toLowerCase() === oldCk) lsp.priceCol = cD.key; var pcSel = t.closest('.sys-list-card') ? t.closest('.sys-list-card').querySelector('.sys-list-paycol') : null; if (pcSel && typeof priceColOptions === 'function') priceColOptions(pcSel, lsp); }   // 1.6.2, the review of backlog 234: Price from follows its column's key
             else if (lcc.indexOf('sys-list-collabel') >= 0) cD.label = t.value.slice(0, LIMITS.label);
             else if (lcc.indexOf('sys-list-colformula') >= 0) cD.formula = t.value.slice(0, LIMITS.formula);
             else if (lcc.indexOf('sys-list-colunit') >= 0) { if (t.value.trim()) cD.unit = t.value.slice(0, LIMITS.unit); else delete cD.unit; }

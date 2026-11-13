@@ -3090,7 +3090,7 @@ function moneyCurOf(sys, b, def) { return curPick(sys, b.spec, def, b.spec.curBy
 // worked out for that row on that sheet (the row need not be in the list yet); null where the list names none, no engine is handed in or
 // the column gives no number of 0 or more, and the caller then reads the price stat as before
 function priceColOf(sys, char, f, row, F) {
-    var sp = isObj(f) && isObj(f.list) ? f.list : null; if (!sp || !sp.priceCol || !isObj(row) || !F) return null;
+    var sp = isObj(f) && isObj(f.list) ? f.list : null; if (!sp || !sp.priceCol || !isObj(row) || !F || !rowDef(sys, row)) return null;   // a row this machine holds no definition for is priced by the stat (the review of 234: a library row on a player's app)
     try { var v = makeResolver(sys, isObj(char) ? char : { values: {} }, F).cell(f, row, sp.priceCol); return typeof v === 'number' && fin(v) && v >= 0 ? v : null; } catch (e) { return null; }
 }
 function priceCurOf(sys, spec, def) { return isObj(spec) && spec.price ? curPick(sys, spec, def, spec.priceCurBy, spec.priceCur) : null; }   // 157 M1b: the currency a row's price is set in: an ordinary one is worth so much of the base unit, a Separate one is paid from its own money alone
@@ -5345,6 +5345,14 @@ function cleanSystem(sys, opts) {
     if (!gmView && typeof mentions === 'function' && out.links) out.links.forEach(function(k) { if (!Array.isArray(k.figs)) return; k.figs = k.figs.filter(function(x) { return !mentions(x.formula); }); if (!k.figs.length) delete k.figs; });   // the core handbook session's ask 6: a group's figure read from a GM-only value is the GM's alone
     var cal = cleanCalendar(sys.calendar); if (cal) out.calendar = cal;   // item 20 K1: the calendar, the same in both views (absent: a plain count of days)
     if (gmView) { var tuR = isObj(out.combat) && isObj(out.combat.turn) && Array.isArray(out.combat.turn.units) ? out.combat.turn.units.map(function(u) { return isObj(u) ? u.key : ''; }) : [], rfR = { rolls: map(), pools: map(), secs: map() }; (out.rolls || []).forEach(function(r) { if (isObj(r) && typeof r.id === 'string' && r.init !== true) rfR.rolls[r.id] = 1; }); (out.fields || []).forEach(function(f) { if (isObj(f) && f.kind === 'resource' && typeof f.id === 'string') rfR.pools[f.id] = 1; }); (isObj(out.sheet) && Array.isArray(out.sheet.sections) ? out.sheet.sections : []).forEach(function(s) { if (isObj(s) && typeof s.id === 'string') rfR.secs[s.id] = 1; }); var rsR = cleanRests(sys.rests, tuR, rfR); if (rsR) out.rests = rsR; (Array.isArray(out.effects) ? out.effects : []).forEach(function(d) { if (isObj(d) && typeof d.endsRest === 'string' && d.endsRest !== '-' && !(rsR || []).some(function(x) { return x.id === d.endsRest; })) delete d.endsRest; }); var skR = cleanRestSkip(sys.restSkip, rsR); if (skR) out.restSkip = skR; }   // 1.6.2 (backlog 138 (j) fold R1): the rests, the GM's alone
+    if (Array.isArray(out.fields) && out.fields.some(function(f) { return isObj(f) && isObj(f.list) && typeof f.list.priceCol === 'string'; })) {   // 1.6.2, the review of backlog 234: Price from stands only where the players' view keeps its column's formula (a column that reads a GM-only value is blanked there), in both views alike, so the host never records a Paid worked out from a value the row's owner may not see, and both machines read the price stat
+        var pvPc = gmView ? cleanSystem(out, { F: F, gmView: false }) : out;
+        out.fields.forEach(function(f) {
+            if (!isObj(f) || !isObj(f.list) || typeof f.list.priceCol !== 'string') return;
+            var pf = f.vis === 'gm' ? f : (pvPc.fields || []).filter(function(x) { return isObj(x) && x.id === f.id; })[0], pc = pf && isObj(pf.list) && Array.isArray(pf.list.cols) ? pf.list.cols.filter(function(c) { return isObj(c) && lower(c.key) === lower(f.list.priceCol); })[0] : null;
+            if (!pc || typeof pc.formula !== 'string' || !pc.formula) delete f.list.priceCol;
+        });
+    }
     explainPages(out, pages);   // 1.6.2 (backlog 218 fold 3): an explanation's page only where players may read it
     if (gmView) Object.defineProperty(out, 'gmSide', { value: true });   // 1.6.0 linked sheets: a system cleaned for the GM, never written or sent (not enumerable), so the link source reads the GM's own character with it
     return out;
@@ -7738,8 +7746,8 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
             if (spec && isObj(spec.on)) row.on = spec.on.def === true;
             if (spec && spec.price) row.paid = clampNum(rowStat(spec, ent, spec.price), 0, LIMITS.statAbs);
             if (typeof row.gr === 'string' && spec && spec.price) row.paid = 0;   // 1.6.0 (v2, B4): a file's granted row, at Paid 0 as a grant makes it
-            if (spec && spec.priceCol && typeof row.gr !== 'string') { var pcV = priceColOf(sys, char, f, row, F); if (pcV !== null) row.paid = clampNum(pcV, 0, LIMITS.statAbs); }   // 1.6.2, backlog 234: Price from a column, for this row on this sheet
             if (fromLib) row.snap = cleanRowDef(ent, true);   // L2c: a library row always carries its copy (it draws with no library; libSnaps keeps it current)   // F4c1: what one cost, from the host's own entry (its price stat, else the stat's default, else 0) — a recorded fact: a merged add keeps the first
+            if (spec && spec.priceCol && typeof row.gr !== 'string') { var pcV = priceColOf(sys, char, f, row, F); if (pcV !== null) row.paid = clampNum(pcV, 0, LIMITS.statAbs); }   // 1.6.2, backlog 234: Price from a column, for this row on this sheet, read once its copy is on it
             for (var oj = list.length - 1; oj >= 0; oj--) if (isObj(list[oj]) && list[oj].defId === q.defId && typeof list[oj].opn === 'string') list.splice(oj, 1);   // 1.5.8: bought, it takes the place of the row a Form opened (the bought tier wins)
             var grA = grOn ? grantWant(ent, rowLvl(spec, row, ent)) : null;   // 1.6.0 (v2, B4): what it grants at the level its row starts at, under an id of its own
             if (grA && Object.keys(grA).length) { if (typeof row.id !== 'string') { var gidA = uid('w_'); while (list.some(function(r) { return rowIdOf(r) === gidA; })) gidA = uid('w_'); row = Object.assign({ id: gidA }, row); } grSteps.push({ rid: row.id, w0: map(), w1: grA }); }

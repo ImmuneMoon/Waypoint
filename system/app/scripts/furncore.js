@@ -274,7 +274,7 @@ var BLOCK_MAX = 48, BLOCK_RE = /^b[a-z0-9]{1,6}$/;
 function texKey(n) { return typeof n === 'string' && TEX_NAMES.indexOf(n) >= 0 ? 'tex.' + n : ''; }
 function blockKey(id) { return typeof id === 'string' && BLOCK_RE.test(id) ? 'blk.' + id : ''; }
 function blockMat(v) { return typeof v === 'string' && MAT_IDS.indexOf(v) >= 0 ? v : ''; }
-function blockName(v) { if (typeof v !== 'string') return ''; var t = Array.from(v.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim()); return t.slice(0, 40).join('').trim(); }
+function blockName(v) { if (typeof v !== 'string') return ''; var t = Array.from(v.replace(/[\u0000-\u001f\u007f\\/:*?"<>|@]+/g, ' ').replace(/\s+/g, ' ').trim()); return t.slice(0, 40).join('').replace(/[. ]+$/, '').trim(); }   // the review of fold 4: no character a file name cannot hold and no @, which marks a tile, so every name exports to a file of its own and comes back as it was
 function tileOf(v) { return v === 2 || v === 4 ? v : 1; }
 // The pack's patterns, blocks and tiles, written onto out where it has any. A block needs an id, a name, a material and a picture; a name is
 // kept once, ignoring case
@@ -331,11 +331,11 @@ function texRowOf(packs, src) {
 // A new block's id that none of these blocks holds
 function newBlockId(blocks) { var seen = Object.create(null); (Array.isArray(blocks) ? blocks : []).forEach(function(b) { if (b && typeof b.id === 'string') seen[b.id] = 1; }); var n = 1; while (seen['b' + n.toString(36)]) n++; return 'b' + n.toString(36); }
 // A pattern or a block as a file in a folder, and what a file's name says. tex-bricks.png is a pattern; block-floor-Marble.png a block, its
-// material and then its name; -2 or -4 before the end says how many cells one picture covers
-var TEX_FILE = /^tex[-_ ]([a-z]+)(?:[-_ ]([24]))?\.(png|jpe?g|webp)$/i, BLOCK_FILE = /^block[-_ ]([a-z]+)[-_ ](.+?)(?:[-_ ]([24]))?\.(png|jpe?g|webp)$/i;
+// material and then its name; @2 or @4 before the end says how many cells one picture covers
+var TEX_FILE = /^tex[-_ ]([a-z]+)(?:[-_ @]([24]))?\.(png|jpe?g|webp)$/i, BLOCK_FILE = /^block[-_ ]([a-z]+)[-_ ]([^@]+?)(?:@([24]))?\.(png|jpe?g|webp)$/i;   // the review of fold 4: a block's tile is @2 or @4, which no name holds
 function extOf(ext) { return /^(png|jpg|jpeg|webp)$/.test(ext) ? ext : 'png'; }
-function texFile(n, ext, t) { return texKey(n) ? 'tex-' + n + (tileOf(t) > 1 ? '-' + t : '') + '.' + extOf(ext) : ''; }
-function blockFile(b, ext, t) { var nm = b ? blockName(b.name).replace(/[\\/:*?"<>|]+/g, ' ').trim() : '', mat = b ? blockMat(b.mat) : ''; return nm && mat ? 'block-' + mat + '-' + nm + (tileOf(t) > 1 ? '-' + t : '') + '.' + extOf(ext) : ''; }
+function texFile(n, ext, t) { return texKey(n) ? 'tex-' + n + (tileOf(t) > 1 ? '@' + t : '') + '.' + extOf(ext) : ''; }
+function blockFile(b, ext, t) { var nm = b ? blockName(b.name).replace(/[\\/:*?"<>|]+/g, ' ').trim() : '', mat = b ? blockMat(b.mat) : ''; return nm && mat ? 'block-' + mat + '-' + nm + (tileOf(t) > 1 ? '@' + t : '') + '.' + extOf(ext) : ''; }
 function blockOfFile(name) {
     if (typeof name !== 'string') return null;
     var m = TEX_FILE.exec(name); if (m) { var n = m[1].toLowerCase(); return texKey(n) ? { key: 'tex.' + n, t: m[2] ? Number(m[2]) : 1 } : null; }
@@ -400,7 +400,7 @@ function tplGuide(px) {
     L.push('', 'Texture blocks', '',
         'A pack can also repaint the patterns floors and walls are drawn with. The reference folder holds each one as tex-bricks.png, one cell of ' + p + ' by ' + p + ' pixels.',
         'Make yours repeat without a seam: its right edge must meet its left edge, and its bottom edge its top.',
-        'A picture covers one cell. For a picture that covers 2 or 4 cells, add -2 or -4 before .png, such as tex-flagstones-2.png.',
+        'A picture covers one cell. For a picture that covers 2 or 4 cells, add @2 or @4 before .png, such as tex-flagstones@2.png.',
         'A block of your own is named block, the material it lays as, and its name, such as block-floor-Marble.png. It takes that material\'s rules.',
         'The materials a block may lay as: ' + MAT_IDS.join(', ') + '.',
         'The patterns: ' + TEX_NAMES.map(function(n) { return 'tex-' + n + '.png'; }).join(', ') + '.');

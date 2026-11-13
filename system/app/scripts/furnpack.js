@@ -75,7 +75,7 @@ var _w = { from: false, busy: false };
 function net() { return window.wpNet || null; }
 function campNow() { return getActiveCampaign(); }
 function packsOf(c) { var F = FU(), r = srcRule(); return F && r && c && c.furnPacks ? F.cleanPacks(c.furnPacks, r) : []; }
-function store(list) { var c = campNow(); if (!c) return false; if (list.length) c.furnPacks = list; else delete c.furnPacks; save(); if (window.wpFurnish) window.wpFurnish.draw(); return true; }
+function store(list) { var c = campNow(); if (!c) return false; if (list.length) c.furnPacks = list; else delete c.furnPacks; save(); if (window.wpFurnish) window.wpFurnish.draw(); bdraw(); return true; }   // the review of fold 4: a rename, a removal or a pack shared in redraws Build too
 function bytesOf(data) { var b64 = data.slice(data.indexOf(',') + 1), s = atob(b64), u = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
 // Where a picture of a pack is saved among the campaign's own: a furnishing's chest-fantasy.png, a pattern's tex-bricks.png, a block's
 // block-<id>.png (furncore storeFile)
@@ -415,7 +415,7 @@ function sideBlock(F, side) {
     side.appendChild(el('div', 'fm-label', lab));
     if (b) {
         var nr = el('div', 'fm-field'), nl = el('label', 'fm-mini', 'Name'), ni = el('input'); ni.type = 'text'; ni.maxLength = 40; ni.value = b.name; ni.id = 'furnMakerBlkName'; nl.htmlFor = 'furnMakerBlkName'; ni.dataset.act = 'bname';
-        ni.addEventListener('change', function() { var v = F.blockName(ni.value); if (!v) { ni.value = b.name; return; } if (_m.blocks.some(function(x) { return x !== b && x.name.toLowerCase() === v.toLowerCase(); })) { toast('Another block of this pack is called ' + v + '.'); ni.value = b.name; return; } b.name = v; _m.dirty = true; _m.rev++; makerDraw(); });
+        ni.addEventListener('change', function() { var v = F.blockName(ni.value); if (!v) { ni.value = b.name; return; } if (_m.blocks.some(function(x) { return x !== b && x.name.toLowerCase() === v.toLowerCase(); })) { toast('Another block of this pack is called ' + v + '.'); ni.value = b.name; return; } b.name = v; _m.dirty = true; _m.rev++; var d = _m; setTimeout(function() { if (_m === d) makerDraw(); }, 0); });   // the review of fold 4: drawn once the focus has gone where Tab sent it
         nr.appendChild(nl); nr.appendChild(ni); side.appendChild(nr);
         var mr = el('div', 'fm-field'), ml = el('label', 'fm-mini', 'Lays as'), ms = el('select'); ms.id = 'furnMakerBlkMat'; ml.htmlFor = 'furnMakerBlkMat'; ms.dataset.act = 'bmat';
         ms.title = 'The material it lays as. The block takes that material’s rules: a wall stops sight and tokens, water costs movement.';

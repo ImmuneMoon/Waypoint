@@ -8892,6 +8892,15 @@ function buildLookFill() {   // the Looks list changed: the material in hand tak
     var lp = buildLookTex(M.texture); _build.tex = M.texture; _build.pic = lp ? lp.src : ''; if (lp) _build.tile = lp.t;
     return true;
 }
+// The review of fold 4: a material whose fill came from the look follows it wherever the look or its pack changed (the Objects tab, the maker, a
+// pack removed, another campaign), so what is laid is what its cell shows; a block in hand and a fill picked by hand stay
+function buildLookFollow() {
+    var BC = buildCore(), M = BC ? BC.MATERIALS[_build.mat] : null; if (!M || _build.blk) return false;
+    var lp = buildLookTex(M.texture), want = lp ? lp.src : '', mine = _build.pic ? /^\/saves\/images\/fp_[a-z0-9]+\/[^\/]*tex-([a-z]+)\.(png|jpe?g|webp)$/.exec(_build.pic) : null;
+    if (!(_build.pic ? !!mine && mine[1] === M.texture : _build.tex === M.texture)) return false;   // its own pattern, or a pack's picture for that very pattern: anything else was picked by hand
+    if (_build.pic === want) return false;
+    buildLookFill(); return true;
+}
 function buildShape(shape) {   // a Wall line is a wall's or a door's: picked with another material in hand, it takes Wall
     if (BUILD_SHAPES.indexOf(shape) < 0) return false;
     var BC0 = buildCore(); if (shape === 'line' && !(BC0 && BC0.lineMat(_build.mat))) { if (!buildMaterial('wall')) return false; }
@@ -9020,7 +9029,7 @@ function buildMatsHead(BC, box) {   // the box and the chips are made once, so t
     var lk = document.createElement('div'), ll = document.createElement('label'), sel = document.createElement('select'), pb = document.createElement('button');   // fold 4: the Looks list, one choice with the furnishings'
     lk.className = 'furn-looks'; ll.className = 'furn-looks-lab'; ll.textContent = 'Looks'; sel.className = 'furn-looks-sel'; sel.id = 'buildLooks'; ll.htmlFor = 'buildLooks';
     sel.title = 'Waypoint\u2019s own patterns, or one of this campaign\u2019s packs. Its pictures paint what you lay. It is the same choice as on the Objects tab.';
-    sel.addEventListener('change', function() { var v = sel.value; if (window.wpFurnish && typeof window.wpFurnish.lookSet === 'function') window.wpFurnish.lookSet(v); _build.drawn = ''; buildPick(buildLookFill); });
+    sel.addEventListener('change', function() { var v = sel.value; if (window.wpFurnish && typeof window.wpFurnish.lookSet === 'function') window.wpFurnish.lookSet(v); _build.drawn = ''; buildPick(function() { buildLookFill(); return true; }); });   // the review of fold 4: drawn again with a block in hand too
     pb.type = 'button'; pb.className = 'tool ghost furn-packs-btn'; pb.id = 'buildPacksBtn'; pb.textContent = 'Packs\u2026'; pb.title = 'Make a pack, bring one in from a file or a folder, share one from another campaign, or export one.';
     pb.addEventListener('click', function(ev) { ev.stopPropagation(); if (window.wpFurnPacks) window.wpFurnPacks.open(); });
     lk.appendChild(ll); lk.appendChild(sel); lk.appendChild(pb); _build.lookSel = sel;
@@ -9064,8 +9073,9 @@ window.wpBuildSync = function() { _build.drawn = ''; _build.psig = null; buildSy
 function buildSync() {
     var BC = buildCore(), FC = window.wpFogCore; if (!BC) return;
     buildLoad();
+    if (typeof buildLookFollow === 'function' && buildLookFollow()) { buildSave(); if (window.isBuildMode) buildArm(); }
     buildMatsDraw(BC);
-    Array.prototype.forEach.call(document.querySelectorAll('#buildMatRows .build-mat'), function(b) { b.classList.toggle('on', b.dataset.buildblk ? b.dataset.buildblk === _build.blk : b.dataset.buildmat === _build.mat && !_build.blk); });
+    Array.prototype.forEach.call(document.querySelectorAll('#buildMatRows .build-mat'), function(b) { b.classList.toggle('on', b.dataset.buildblk ? !!_build.blk && b.dataset.buildblk === _build.blk : b.dataset.buildmat === _build.mat && !_build.blk); });
     Array.prototype.forEach.call(document.querySelectorAll('#buildShapeRow .build-shape-btn'), function(b) { b.classList.toggle('active', b.dataset.buildshape === _build.shape); });
     var ln = document.getElementById('buildShapeLine'); if (ln) ln.textContent = BUILD_SHAPE_LINES[_build.shape] || '';
     var ts2 = document.getElementById('buildTexture'); if (ts2) { texOptionsInto(ts2, _build.tex, _build.pic); ts2.disabled = _build.shape === 'line'; }   // a line is a stroke: it wears no texture
@@ -9372,9 +9382,9 @@ function buildMove(e) {   // the rubber band follows the pointer to the corner t
 function buildWire() {   // the options' own controls, each once
     Array.prototype.forEach.call(document.querySelectorAll('#buildShapeRow .build-shape-btn'), function(b) { b.addEventListener('click', function(ev) { ev.stopPropagation(); var s = this.dataset.buildshape; buildPick(function() { return buildShape(s); }); }); });
     var tx = document.getElementById('buildTexture'); if (tx) tx.addEventListener('change', function() {
-        var BC = buildCore(), v = this.value, name = function(t) { buildPick(function() { _build.pic = ''; _build.tex = t === '' ? '' : ((BC && BC.cleanTexture(t)) || _build.tex); }); };
+        var BC = buildCore(), v = this.value, name = function(t) { buildPick(function() { _build.pic = ''; _build.blk = ''; _build.tex = t === '' ? '' : ((BC && BC.cleanTexture(t)) || _build.tex); }); };   // the review of fold 4: a pick lets go of the block in hand
         if (typeof texListPick !== 'function') { name(v); return; }
-        texListPick(v, buildSync, function(p) { if (p.pic) buildPick(function() { _build.pic = p.pic; if (p.tile) _build.tile = texTileOf(p.tile); }); else name(p.tex); });   // fold B3: A picture opens the Image Library, and its pick is the fill
+        texListPick(v, buildSync, function(p) { if (p.pic) buildPick(function() { _build.pic = p.pic; _build.blk = ''; if (p.tile) _build.tile = texTileOf(p.tile); }); else name(p.tex); });   // fold B3: A picture opens the Image Library, and its pick is the fill
     });
     if (tx && typeof texListKeys === 'function') texListKeys(tx);
     if (typeof tileRowWire === 'function') tileRowWire('buildTileRow', function(t) { buildPick(function() { _build.tile = t; }); });

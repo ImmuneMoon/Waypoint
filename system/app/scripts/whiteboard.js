@@ -1504,9 +1504,9 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
       }
       var ratioBtn = bar.querySelector('.st-ratio');
       if (ratioBtn) {
-          var allRatio = its.every(function(i) { return i.lockRatio; });
+          var allRatio = its.every(ratioLocked);
           ratioBtn.classList.toggle('on', allRatio);
-          ratioBtn.title = allRatio ? 'Proportions locked — resizing keeps the width/height ratio (click to unlock)' : 'Lock proportions while resizing (or hold Shift while dragging)';
+          ratioBtn.title = allRatio ? 'Proportions locked: resizing keeps the shape, and Shift while dragging reshapes it freely. Click to unlock' : 'Proportions free: resizing reshapes it, and Shift while dragging keeps the shape. Click to lock';
       }
       // Color button: its chip mirrors the selection's color and the kind of
       // thing it colors (text ink, pen, or fill); the palette pops on click.
@@ -1967,8 +1967,8 @@ window.wpFitToGrid = fitToGrid;
               fitToGrid(its);
               return;   // fitToGrid saves and renders itself
           } else if (act === 'ratio') {
-              var lockThemR = its.some(function(i) { return !i.lockRatio; });
-              its.forEach(function(i) { if (lockThemR) i.lockRatio = true; else delete i.lockRatio; });
+              var lockThemR = its.some(function(i) { return !ratioLocked(i); });
+              its.forEach(function(i) { ratioLockSet(i, lockThemR); });
           } else if (act === 'fog') {
               var markThem = its.some(function(i) { return !i.fogged; });
               its.forEach(function(i) { if (markThem) i.fogged = true; else delete i.fogged; });
@@ -2015,6 +2015,25 @@ window.wpFitToGrid = fitToGrid;
   window.wpHostGestureStart = hostGestureStart; window.wpHostGestureEnd = hostGestureEnd;
   window.addEventListener('blur', hostGestureEnd);
   // [netcheck:hostgesture-end]
+  // [buildcheck:ratiolock-start]
+  // Lock proportions is on by default (the owner, 2026-11-13: "lets lock proportions when resizing by default", and "All, Shift frees it"):
+  // every picture and shape, those already on maps too, keeps its shape when resized by its corner, unless it carries lockRatio: false. One
+  // reading, so no save needs changing: absent or true is locked, false is free. Text and pen lines, which Properties offers no tick for,
+  // keep the reading they had: locked only where true. ratioLockSet writes the one key the reading needs.
+  function ratioLocked(w) {
+      if (!w || typeof w !== 'object') return false;
+      return w.type === 'text' || w.type === 'path' ? w.lockRatio === true : w.lockRatio !== false;
+  }
+  function ratioLockSet(w, on) {
+      if (!w || typeof w !== 'object') return;
+      if (w.type === 'text' || w.type === 'path') { if (on) w.lockRatio = true; else delete w.lockRatio; }
+      else if (on) delete w.lockRatio; else w.lockRatio = false;
+  }
+  // The corner handle keeps the shape where the lock holds, and Shift held while dragging turns it the other way: a locked piece reshapes
+  // freely, and a free one keeps its shape as it always did
+  function ratioHeld(locked, shift) { return !!locked !== !!shift; }
+  window.wpRatioLocked = ratioLocked; window.wpRatioLockSet = ratioLockSet;
+  // [buildcheck:ratiolock-end]
   function attachResizeHandle() {
 
       var handle = document.getElementById('globalResizeHandle');
@@ -2097,8 +2116,9 @@ window.wpFitToGrid = fitToGrid;
           // The handle sits on the selection's corner: dragging it scales the
           // whole box from its top-left, every member along with it.
           var gsx = Math.max(0.05, (gbw + dx) / gbw), gsy = Math.max(0.05, (gbh + dy) / gbh);
-          if (e.shiftKey || groupMembers.some(function(g) { return g.it.lockRatio; })) { var u = Math.abs(dx) >= Math.abs(dy) ? gsx : gsy; gsx = u; gsy = u; }
-          var gSg = gridStepOn(); if (gSg) { var lkG = e.shiftKey || groupMembers.some(function(g) { return g.it.lockRatio; }) ? { r: gbw / gbh, byH: Math.abs(dx) < Math.abs(dy) } : null, stG = gridStep(gbw * gsx, gbh * gsy, gSg, true, lkG); gsx = stG.w / gbw; gsy = stG.h / gbh; }   // Snap on to the grid: the box by whole cells
+          var lockG = ratioHeld(groupMembers.some(function(g) { return ratioLocked(g.it); }), e.shiftKey);   // Lock proportions (on unless a member is freed), and Shift turns it
+          if (lockG) { var u = Math.abs(dx) >= Math.abs(dy) ? gsx : gsy; gsx = u; gsy = u; }
+          var gSg = gridStepOn(); if (gSg) { var lkG = lockG ? { r: gbw / gbh, byH: Math.abs(dx) < Math.abs(dy) } : null, stG = gridStep(gbw * gsx, gbh * gsy, gSg, true, lkG); gsx = stG.w / gbw; gsy = stG.h / gbh; }   // Snap on to the grid: the box by whole cells
           groupMembers.forEach(function(g) {
               g.it.x = gbx + (g.x0 - gbx) * gsx;
               g.it.y = gby + (g.y0 - gby) * gsy;
@@ -2120,8 +2140,9 @@ window.wpFitToGrid = fitToGrid;
       }
       item.w = Math.max(10, startW + dx);
       item.h = Math.max(10, startH + dy);
-      // Proportional resize: the item's ratio lock, or holding Shift while dragging
-      if ((item.lockRatio || e.shiftKey) && startW > 0 && startH > 0) {
+      // Proportional resize: the item's Lock proportions (on unless it is freed), and Shift held while dragging turns it the other way
+      var lockR = ratioHeld(ratioLocked(item), e.shiftKey);
+      if (lockR && startW > 0 && startH > 0) {
           var ratio = startW / startH;
           if (Math.abs(dx) >= Math.abs(dy)) item.h = Math.max(10, item.w / ratio);
           else item.w = Math.max(10, item.h * ratio);
@@ -2132,10 +2153,10 @@ window.wpFitToGrid = fitToGrid;
           // Size matching runs even with the ratio locked: whichever axis pauses
           // on a neighbor's size, the other follows the ratio.
           var wBefore = item.w, hBefore = item.h, gS1 = gridStepOn();
-          if (gS1) { var lk1 = (item.lockRatio || e.shiftKey) && startW > 0 && startH > 0 ? { r: fitPicRatio(item) || startW / startH, byH: Math.abs(dx) < Math.abs(dy) } : null, st1 = gridStep(item.w, item.h, gS1, false, lk1); item.w = st1.w; item.h = st1.h; clearSnaps(); }   // Snap on to the grid: whole cells, and no pause at a neighbor's size between them
+          if (gS1) { var lk1 = lockR && startW > 0 && startH > 0 ? { r: fitPicRatio(item) || startW / startH, byH: Math.abs(dx) < Math.abs(dy) } : null, st1 = gridStep(item.w, item.h, gS1, false, lk1); item.w = st1.w; item.h = st1.h; clearSnaps(); }   // Snap on to the grid: whole cells, and no pause at a neighbor's size between them
           else {
           doSmartSnapping(item, true);
-          if ((item.lockRatio || e.shiftKey) && startW > 0 && startH > 0) {
+          if (lockR && startW > 0 && startH > 0) {
               var ratioL = startW / startH;
               if (item.w !== wBefore) item.h = Math.max(10, item.w / ratioL);
               else if (item.h !== hBefore) item.w = Math.max(10, item.h * ratioL);
@@ -2908,7 +2929,8 @@ window.wpFitToGrid = fitToGrid;
      Images draw with object-fit: contain, so a box with the wrong proportions
      leaves invisible margins the handles still measure. On load, a non-token
      image whose box is off by more than 1.5% gets its height corrected once
-     (`fit` flag) and proportion lock switched on, unless the GM already chose. */
+     (`fit` flag); Lock proportions is on by default (lockRatio absent), so the shape then holds
+     unless the GM freed it. */
   function fitImageBox(id, img) {
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') return;
       var am = getActiveMap();
@@ -2919,7 +2941,6 @@ window.wpFitToGrid = fitToGrid;
       it.fit = true;
       if (Math.abs(have - want) / want > 0.015) {
           it.h = Math.max(10, Math.round((it.w || 100) / want));
-          if (it.lockRatio === undefined) it.lockRatio = true;
           save(); render();
       }
   }

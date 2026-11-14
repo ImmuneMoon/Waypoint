@@ -5,6 +5,8 @@ function toast(msg) { if(window.appToast) window.appToast(msg); }
 
 
 function render() { if(window.appRender) window.appRender(); }
+// Lock proportions, as the corner handle reads it (whiteboard.js ratioLocked, 1.6.2): on unless the piece carries lockRatio: false
+function ratioLockedOf(w) { return window.wpRatioLocked ? window.wpRatioLocked(w) : !!w && w.lockRatio !== false; }
 // An outside sheet reader with a part of its own in a token's Properties (systemcore registerReader: a module of the GM's, none ships with the app)
 function sheetReaderTok() { var S = window.wpSystemCore, rs = S && typeof S.readers === 'function' ? S.readers() : []; for (var i = 0; i < rs.length; i++) if (rs[i].ui && typeof rs[i].ui.tokenPanel === 'function') return rs[i]; return null; }
 
@@ -1198,7 +1200,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               inspFoldOpen('look', 'Look', 'Color, size, turn, layer and lock')+   // 1.6.2: the folds
               (w.type !== 'image' && w.type !== 'trigger' && w.type !== 'light' ? '<div class="field"><label>' + (w.type === 'text' ? 'Text Color' : w.type === 'path' ? 'Pen Color' : 'Fill Color') + '</label><div class="color-row">' + ((w.type === 'path' || w.type === 'text') ? penHtml : colorHtml) + '</div></div>' : '') +
               (w.type === 'text' ? textStyleHtml(w) : '') +
-              (w.type !== 'path' && w.type !== 'text' ? '<div class="field check-row"><input type="checkbox" id="wbLockRatio" '+(w.lockRatio?'checked':'')+'> <label for="wbLockRatio">Lock proportions when resizing</label></div>' : '') +
+              (w.type !== 'path' && w.type !== 'text' ? '<div class="field check-row"><input type="checkbox" id="wbLockRatio" '+(ratioLockedOf(w)?'checked':'')+'> <label for="wbLockRatio">Lock proportions when resizing</label></div>' : '') +
               (w.type === 'path' ? '<div class="field"><label for="wbStrokeWidth">Pen Size <span class="muted" id="wbStrokeWidthVal">' + (num(w.strokeWidth, 0)||3) + ' px</span></label><div style="display:flex; gap:8px; align-items:center;"><input type="range" id="wbStrokeWidth" min="1" max="20" value="'+(num(w.strokeWidth, 0)||3)+'" style="flex:1"><input type="number" id="wbStrokeWidthNum" value="'+(num(w.strokeWidth, 0)||3)+'" min="1" max="20" style="width:56px" aria-label="Pen size in pixels"></div></div>' : '') +
               '<div class="field"><label for="wbRot">Rotation</label><div style="display:flex; gap:8px;"><input type="range" id="wbRot" min="-180" max="180" value="'+num(w.rot, 0)+'" style="flex:1"><input type="number" id="wbRotNum" value="'+num(w.rot, 0)+'" style="width:60px" aria-label="Rotation degrees"></div></div>'+
               '<div class="field"><label for="wbLayer">Layer</label>'+
@@ -1281,7 +1283,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             });
             var _el_wbLockRatio = document.getElementById('wbLockRatio');
             if (_el_wbLockRatio) _el_wbLockRatio.addEventListener('change', function() {
-                if (this.checked) w.lockRatio = true; else delete w.lockRatio;
+                if (window.wpRatioLockSet) window.wpRatioLockSet(w, this.checked); else if (this.checked) delete w.lockRatio; else w.lockRatio = false;   // 1.6.2: on by default, so unticking stores false and ticking clears it
                 save(); render();
             });
             

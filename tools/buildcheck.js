@@ -5379,6 +5379,33 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             && dmT.includes("if (stIt && (handZ(cand) < itZ || (handZ(cand) === itZ && idx < itIdx))) return;") && wbT.includes("if (_bm && _bm.style.display !== 'none' && _bm.offsetParent !== null) buildStructSync(); }"));
         check('backlog 231, both release notes say it, alike', notes231.every(Boolean) && notes231[0][0] === notes231[1][0]);
     }
+    {   // 1.6.2, the owner (2026-11-13): "lets lock proportions when resizing by default", and by prompt "All, Shift frees it". One reading, so no
+        // save needs changing: a picture or a shape is locked unless it carries lockRatio: false; text and pen lines keep the old reading
+        const wbR = read('system/app/scripts/whiteboard.js'), rA = wbR.indexOf('  // [buildcheck:ratiolock-start]'), rB = wbR.indexOf('  // [buildcheck:ratiolock-end]');
+        const winR = {}, RL = new Function('window', wbR.slice(rA, rB) + NL + 'return { ratioLocked, ratioLockSet, ratioHeld };')(winR);
+        const kinds = ['image', 'rect', 'circle', 'hexagon', 'diamond', 'text', 'path'];
+        const read3 = kinds.map(t => [RL.ratioLocked({ type: t }), RL.ratioLocked({ type: t, lockRatio: true }), RL.ratioLocked({ type: t, lockRatio: false })]);
+        const set = (t, k, on) => { const w = Object.assign({ type: t }, k); RL.ratioLockSet(w, on); return Object.prototype.hasOwnProperty.call(w, 'lockRatio') ? w.lockRatio : 'absent'; };
+        const sets = [set('image', {}, false), set('image', { lockRatio: false }, true), set('image', { lockRatio: true }, true), set('rect', {}, false), set('text', {}, true), set('text', { lockRatio: true }, false), set('path', {}, true)];
+        const held = [[true, false], [true, true], [false, false], [false, true]].map(p => RL.ratioHeld(p[0], p[1]));
+        check('Lock proportions is on by default (whiteboard.js ratioLocked, ratioLockSet and ratioHeld, run for real): a picture or a shape with no key or true is locked and with false is free, a text box and a pen line only with true; unlocking a picture stores false and locking it clears the key, a text box or a pen line stores true or nothing as before; Shift held while dragging frees a locked piece and keeps the shape of a free one; null is free',
+            JSON.stringify(read3) === JSON.stringify(kinds.map(t => t === 'text' || t === 'path' ? [false, true, false] : [true, true, false]))
+            && JSON.stringify(sets) === JSON.stringify([false, 'absent', 'absent', false, true, 'absent', true])
+            && JSON.stringify(held) === JSON.stringify([true, false, false, true]) && RL.ratioLocked(null) === false && winR.wpRatioLocked === RL.ratioLocked && winR.wpRatioLockSet === RL.ratioLockSet,
+            JSON.stringify([read3, sets, held]));
+        const wbNoR = wbR.slice(0, rA) + wbR.slice(rB), insR = read('system/app/scripts/inspector.js'), htmR = read('system/app/index.html');
+        check('every reader of Lock proportions goes through the one reading: the corner handle, the group\'s box and grid stepping\'s lock (Shift turns the lock the other way), the selection toolbar\'s button and its toggle, and Properties\' tick, which unticked stores false; no .lockRatio is read or written anywhere else in whiteboard.js, and a picture fitted to its box on load no longer writes true',
+            wbR.includes('var lockR = ratioHeld(ratioLocked(item), e.shiftKey);') && wbR.includes('var lockG = ratioHeld(groupMembers.some(function(g) { return ratioLocked(g.it); }), e.shiftKey);')
+            && wbR.includes('var lk1 = lockR && startW > 0 && startH > 0 ? {') && wbR.includes('var lkG = lockG ? {') && wbR.includes('var allRatio = its.every(ratioLocked);')
+            && wbR.includes('var lockThemR = its.some(function(i) { return !ratioLocked(i); });') && wbR.includes('its.forEach(function(i) { ratioLockSet(i, lockThemR); });')
+            && !/\.lockRatio\b/.test(wbNoR) && !/\(item\.lockRatio \|\| e\.shiftKey\)/.test(wbR)
+            && insR.includes("id=\"wbLockRatio\" '+(ratioLockedOf(w)?'checked':'')+'>") && insR.includes('if (window.wpRatioLockSet) window.wpRatioLockSet(w, this.checked); else if (this.checked) delete w.lockRatio; else w.lockRatio = false;')
+            && htmR.includes('A picture or a shape keeps its shape by default. Hold <kbd>Shift</kbd> while dragging to reshape it freely, or turn off <b>Lock proportions</b> in the selection toolbar or in Properties to free it for good.')
+            && htmR.includes('title="Lock proportions: resizing keeps the shape, and Shift while dragging reshapes it freely"'));
+        const notesR = ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].map(f => read(f));
+        check('Lock proportions on by default: both release notes say it under 1.6.2, alike, and the line "Character tokens stand over the grid\'s lines" has its own end back',
+            notesR.every(t => t.includes('- Drag the corner of a picture or a shape and it keeps its proportions now, on') && t.includes("- Character tokens stand over the grid's lines. So does a drawing that is no") && !t.includes('as near as whole cells allow. So does a drawing')) && notesR[0] === notesR[1]);
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

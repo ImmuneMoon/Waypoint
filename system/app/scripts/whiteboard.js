@@ -2738,6 +2738,7 @@ window.wpFitToGrid = fitToGrid;
   // what they hold grows as a pick shows more rows, and they never take less than 160 px
   function optsFit(menu, doc) {
       if (!menu || !menu.style || typeof menu.getBoundingClientRect !== 'function') return;
+      if (typeof window !== 'undefined' && window.wpLayout && window.wpLayout.menuFit(menu)) return;   // 1.6.2 (backlog 224): a bar laid on the top or down a side opens its options away from its edge, held inside the map's area
       menu.style.maxHeight = '';
       var hd = doc && typeof doc.querySelector === 'function' ? doc.querySelector('header') : null, top = (hd ? hd.getBoundingClientRect().bottom : 0) + 8, r = menu.getBoundingClientRect();
       if (!(r && isFinite(r.bottom) && isFinite(top)) || r.bottom <= 0) return;   // not laid out: the style sheet's cap stands
@@ -8823,6 +8824,12 @@ function barGroups(bar) {
 }
 function fitBar() {
     if (!_wbTb || !_wbTb.parentElement || _wbTb.style.display === 'none') return;
+    var lay = typeof window !== 'undefined' && window.wpLayout ? window.wpLayout : null;   // 1.6.2 (backlog 224, layout.js): a bar down a side fits as a column, and one across an edge is measured by what it holds
+    if (lay && lay.fitSide(_wbTb)) return;
+    if (lay) lay.measure(_wbTb, true);
+    try { fitRow(); } finally { if (lay) lay.measure(_wbTb, false); }
+}
+function fitRow() {
     var room = _wbTb.parentElement.clientWidth - 24; if (!(room > 0)) return;
     _wbTb.classList.remove('tb-tight'); _wbTb.classList.remove('tb-wrap'); _wbTb.style.width = '';
     Array.prototype.forEach.call(_wbTb.children, function(k) { k.classList.remove('tb-brk'); });

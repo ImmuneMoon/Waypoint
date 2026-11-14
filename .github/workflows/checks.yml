@@ -267,6 +267,9 @@ jobs:
       - name: uicheck, the app's own controls (a counter and a slider with a value you type in, on every site)
         if: ${{ !cancelled() }}
         run: node tools/uicheck.js
+      - name: layoutcheck, the layout editor (where the toolbars and boxes of the map stand, the edit mode, nothing written without a layout)
+        if: ${{ !cancelled() }}
+        run: node tools/layoutcheck.js
       - name: drawcheck, drawing a pack's pictures in Waypoint (the paint window, a fill that wraps, layers, undo)
         if: ${{ !cancelled() }}
         run: node tools/drawcheck.js

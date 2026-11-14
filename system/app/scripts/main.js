@@ -675,9 +675,15 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
   // reason of its own (medialimit.js names each). The desktop app never meets those answers and keeps its own copy above, as it was
   function importOnWebHere() { var W = window.wpWebMode; return !!(W && typeof W.web === 'function' && W.web() === true && window.wpImportSay && typeof window.wpImportSay.tally === 'function'); }
   function importWebDeps() {
+      var N = function() { return window.wpNotices || null; };
       return { IS: window.wpImportSay, toast: toast, toastAction: toastAction, fetch: function(u, o) { return fetch(u, o); }, save: save, lib: window.wpLibrary || null, render: render,
+          wait: function(key, words, kind, arg) { var n = N(); if (n && typeof n.wait === 'function') n.wait(key, words, kind, arg); },
+          done: function(key) { var n = N(); if (n && typeof n.done === 'function') n.done(key); },
           log: function(step, facts) { try { if (typeof window.wpStepLog === 'function') window.wpStepLog('import v1', step, facts); } catch (e) {} } };
   }
+  // What did not land waits in the bell as well as on the 30 s notice (a newer notice takes the notice's place): a row of the bell is a button,
+  // reached from the keyboard, and stays for this session. arg: { go, done }, go the one Try again both share, done once it has run
+  if (typeof window !== 'undefined') { var nkI = window.wpNoticeKinds = window.wpNoticeKinds || {}; nkI.importagain = { label: 'Try again', tip: 'Ask the website again for what did not come in. A file already there counts as already here', still: function(a) { return !!(a && a.done !== true && typeof a.go === 'function'); }, run: function(a) { if (a && typeof a.go === 'function') a.go(); } }; }
   // [zipcheck:importweb-start]
   // The campaign's save is waited for first, then the library packs, then the pictures, sounds and videos, one at a time. A reason every later
   // write would meet (the storage full, the day's uploads used up, a plan that brings nothing in, a busy host) stops the copy at once: the host
@@ -689,15 +695,16 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
       var IS = D.IS, T = IS.tally(), stop = '', seen = {}, imgs = job.imgs || [], libJobs = job.libJobs || [];
       var leftSave = false, saveDead = false, leftLib = [], leftImgs = [];
       var said = function(kind, an) { var key = kind + ':' + an.status + ':' + an.why; if (seen[key]) return; seen[key] = 1; D.log('refused', { kind: kind, status: an.status || 0, why: an.why || 'none' }); };
-      var nVid = imgs.filter(function(en) { return IS.kind(en.name) === 'video'; }).length;
+      var nVid = imgs.filter(function(en) { return IS.kind(en.name) === 'video'; }).length, byKind = {};
+      imgs.forEach(function(en) { var k = IS.kind(en.name); byKind[k] = (byKind[k] || 0) + 1; });
       if (job.again) D.toast('Trying again…');
-      else D.toast(job.msg + (imgs.length ? ' Copying ' + (imgs.length - nVid) + ' image(s)' + (nVid ? ' and ' + nVid + ' video(s)' : '') + '…' : ''));
+      else D.toast(job.msg + (imgs.length ? ' Copying ' + IS.kinds(byKind) + '…' : ''));   // the closing words' own plurals: pictures, sounds and videos
       D.log('start', { again: job.again ? 1 : 0, save: job.saved ? 1 : 0, packs: libJobs.reduce(function(s, lj) { return s + lj.uploads.length; }, 0), files: imgs.length });
       // the campaign itself
       if (job.saved && typeof job.saved.then === 'function') {
           var sa = null; try { sa = await job.saved; } catch (e) { sa = { status: 0, why: '', max: 0 }; }
           if (sa && sa.status >= 200 && sa.status < 300) IS.add(T, 'save', 'landed');
-          else if (sa) { IS.add(T, 'save', 'left', sa.why, sa.max); said('save', sa); leftSave = IS.again(sa.why); saveDead = !leftSave; stop = IS.stops(sa.why) ? sa.why : 'save'; }
+          else if (sa) { IS.add(T, 'save', 'left', sa.why || 'saved-not', sa.max); said('save', sa); leftSave = IS.again(sa.why); saveDead = !leftSave; stop = IS.stops(sa.why) ? sa.why : 'save'; }   // a refusal the reader does not name: the campaign could not be saved, and its files wait for it
       }
       // the library packs
       if (libJobs.length) {
@@ -737,8 +744,14 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
       if (more) {
           var byCamp = [];
           leftLib.forEach(function(row) { var g = byCamp.find(function(x) { return x.camp === row.camp; }); if (!g) { g = { camp: row.camp, uploads: [] }; byCamp.push(g); } g.uploads.push(row.upload); });
-          D.toastAction(words, 'Try again', function() { importOnWeb({ again: true, saved: leftSave ? D.save(true) : null, libJobs: byCamp, libFiles: job.libFiles, imgs: leftImgs, bytes: job.bytes }, D); }, 30000);
-      } else if (imgs.length || libJobs.length || IS.left(T) || job.again) D.toast(words);
+          var arg = { done: false, go: null };
+          arg.go = function() { if (arg.done) return; arg.done = true; if (typeof D.done === 'function') D.done('import-again'); importOnWeb({ again: true, saved: leftSave ? D.save(true) : null, libJobs: byCamp, libFiles: job.libFiles, imgs: leftImgs, bytes: job.bytes }, D); };
+          D.toastAction(words, 'Try again', arg.go, 30000);
+          if (typeof D.wait === 'function') D.wait('import-again', 'The import is not finished. Still to come: ' + (IS.kinds(IS.come(T)) || 'the rest') + '.', 'importagain', arg);
+      } else {
+          if (job.again && typeof D.done === 'function') D.done('import-again');
+          if (imgs.length || libJobs.length || IS.left(T) || job.again) D.toast(words);
+      }
       D.render();
       return T;
   }

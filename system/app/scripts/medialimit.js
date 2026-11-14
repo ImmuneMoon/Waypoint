@@ -53,13 +53,17 @@ if (typeof window !== 'undefined') window.wpMediaLimit = fromResponse;
    desktop app never meets these answers and never comes here (main.js asks only on a website's page). */
 // [zipcheck:importsay-start]
 var IMPORT_WHY = {
-    'too-large': 'Too large for the browser: use the desktop app for this file.',
     quota: 'Your storage on the website is full.',
-    daily: 'Today’s upload limit is reached, and the rest can come tomorrow.',
+    daily: 'Today’s upload limit is reached.',
     plan: 'Your plan does not let you bring campaigns in.',
-    busy: 'The website is busy just now, so try again in a little while.'
+    busy: 'The website is busy just now, so try again in a little while.',
+    'saved-not': 'The campaign could not be saved on the website. Try again in a little while.'
 };
-var WHY_ORDER = ['quota', 'daily', 'plan', 'busy', 'too-large'];
+// What comes back only by asking again, never by itself: said where the storage is full or the day's uploads are used up and something is
+// still to come. Try again stays in the bell for this session; a later session imports the same file again and picks Merge (keep=1 then
+// counts the files already there as already here)
+var IMPORT_LATER = 'Later, press Try again, or import the same file again and choose Merge.';
+var WHY_ORDER = ['quota', 'daily', 'plan', 'busy', 'saved-not', 'too-large'];
 // A refused answer's reason by its status and the body's one word: 'too-large', 'quota', 'daily', 'plan', 'busy' or '' (no reason to name)
 function refusalOf(status, body) {
     var e = body && typeof body === 'object' && typeof body.error === 'string' ? body.error : '';
@@ -88,11 +92,16 @@ function importKind(name) {
 // Whether an entry that did not land is worth asking for again: not one too large for the browser, nor one damaged in the archive
 function tryAgainFor(why) { return why !== 'too-large' && why !== 'damaged'; }
 // The list of what landed: kinds 'save' (the campaign itself), 'pack' (a library pack), 'picture', 'sound', 'video'
-function importTally() { return { landed: {}, here: 0, left: {}, why: {}, stop: '', max: 0, retry: 0 }; }
+// left: every kind that did not land; gone: of those, the ones Try again would never send (too large, damaged); saveWhy: the campaign's own reason
+function importTally() { return { landed: {}, here: 0, left: {}, gone: {}, why: {}, stop: '', max: 0, retry: 0, saveWhy: '' }; }
 function tallyAdd(t, kind, how, why, max) {
     if (how === 'here') { t.here++; return; }
     var m = how === 'landed' ? t.landed : t.left; m[kind] = (m[kind] || 0) + 1;
-    if (how === 'left') { var w = why || ''; t.why[w] = (t.why[w] || 0) + 1; if (tryAgainFor(w)) t.retry++; if (max > 0) t.max = max; }
+    if (how !== 'left') return;
+    var w = why || ''; t.why[w] = (t.why[w] || 0) + 1;
+    if (tryAgainFor(w)) t.retry++; else t.gone[kind] = (t.gone[kind] || 0) + 1;
+    if (max > 0) t.max = max;
+    if (kind === 'save') t.saveWhy = w;
 }
 var KIND_ORDER = ['save', 'pack', 'picture', 'sound', 'video'], KIND_ONE = { pack: 'library pack', picture: 'picture', sound: 'sound', video: 'video' };
 function kindsWords(m) {
@@ -101,24 +110,32 @@ function kindsWords(m) {
     return parts.length < 2 ? parts.join('') : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
 }
 function tallyLeft(t) { return Object.keys(t.left).reduce(function(s, k) { return s + t.left[k]; }, 0); }
-// The import's closing words: what landed, what is still to come, and why, each reason said once
+// What is still to come: what did not land less what Try again would never send
+function tallyCome(t) { var m = {}; Object.keys(t.left).forEach(function(k) { var n = t.left[k] - (t.gone[k] || 0); if (n > 0) m[k] = n; }); return m; }
+// The import's closing words, each reason said once, the reasons first and the counts after them: the bell keeps a notice to NOTE_CHARS
+// (240) characters, so what is cut there is a count, never why. A campaign too large for the browser is said alone: nothing else was tried
 function tallyWords(t) {
-    var landed = kindsWords(t.landed), left = kindsWords(t.left), out = [];
-    var hereW = t.here ? (t.here === 1 ? '1 file was' : t.here + ' files were') + ' already here' : '';
-    if (landed) out.push('Brought in: ' + landed + (hereW ? ', and ' + hereW : '') + '.');
-    else if (hereW) out.push((t.here === 1 ? 'The file was' : 'All ' + t.here + ' files were') + ' already here.');
-    else if (left) out.push('Nothing was brought in.');
-    if (left) out.push((t.stop ? 'Still to come: ' : 'Not brought in: ') + left + '.');
-    var ws = WHY_ORDER.filter(function(w) { return t.why[w]; });
+    var mb = t.max > 0 ? ' (' + Math.max(1, Math.round(t.max / 1048576)) + ' MB at most)' : '';
+    if (t.saveWhy === 'too-large') return 'The campaign is too large for the browser' + mb + ': bring it in with the desktop app, with its packs and files.';
+    var out = [], ws = WHY_ORDER.filter(function(w) { return t.why[w]; });
     if (t.stop && ws.indexOf(t.stop) > 0) { ws.splice(ws.indexOf(t.stop), 1); ws.unshift(t.stop); }
     ws.forEach(function(w) {
         if (w !== 'too-large') { out.push(IMPORT_WHY[w]); return; }
-        out.push('Too large for the browser' + (t.max > 0 ? ' (' + Math.max(1, Math.round(t.max / 1048576)) + ' MB at most)' : '') + ': use the desktop app for ' + (t.why[w] === 1 ? 'this file.' : 'these files.'));
+        var n = t.why[w];
+        out.push((n === 1 ? 'One file is' : n + ' files are') + ' too large for the browser' + mb + ': use the desktop app for ' + (n === 1 ? 'it.' : 'them.'));
     });
+    if (t.why.save) out.push('Its packs and files wait for the campaign.');
     var other = (t.why[''] || 0) + (t.why.damaged || 0);
     if (other) out.push(other === 1 ? 'One was damaged in the archive or could not be written.' : other + ' were damaged in the archive or could not be written.');
+    var come = t.stop ? kindsWords(tallyCome(t)) : '', gone = t.stop ? kindsWords(t.gone) : kindsWords(t.left);
+    if (come && (t.stop === 'daily' || t.stop === 'quota')) out.push(IMPORT_LATER);
+    var landed = kindsWords(t.landed), hereW = t.here ? (t.here === 1 ? '1 file was' : t.here + ' files were') + ' already here' : '';
+    if (landed) out.push('Brought in: ' + landed + (hereW ? ', and ' + hereW : '') + '.');
+    else if (hereW) out.push((t.here === 1 ? 'The file was' : 'All ' + t.here + ' files were') + ' already here.');
+    if (come) out.push('Still to come: ' + come + '.');
+    if (gone) out.push('Not brought in: ' + gone + '.');
     return out.join(' ');
 }
 // [zipcheck:importsay-end]
-if (typeof window !== 'undefined') window.wpImportSay = { why: refusalOf, stops: refusalStops, again: tryAgainFor, read: readRefusal, kind: importKind, tally: importTally, add: tallyAdd, left: tallyLeft, words: tallyWords };
-export { limitOf, limitWords, refusalOf, refusalStops, tryAgainFor, readRefusal, importKind, importTally, tallyAdd, tallyLeft, tallyWords };
+if (typeof window !== 'undefined') window.wpImportSay = { why: refusalOf, stops: refusalStops, again: tryAgainFor, read: readRefusal, kind: importKind, tally: importTally, add: tallyAdd, left: tallyLeft, come: tallyCome, words: tallyWords, kinds: kindsWords };
+export { limitOf, limitWords, refusalOf, refusalStops, tryAgainFor, readRefusal, importKind, importTally, tallyAdd, tallyLeft, tallyCome, tallyWords, kindsWords };

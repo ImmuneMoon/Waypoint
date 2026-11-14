@@ -1328,7 +1328,8 @@ Taking a campaign with you
   campaigns in. You get a count of the pictures, sounds and videos that
   landed and the ones that didn't, and Try again sends only the ones that
   didn't. Hit the day's limit and the copy stops right there instead of
-  knocking again, so the rest can come tomorrow.
+  knocking again. Try again waits in the bell too, and in a later session
+  you can import the same file again and pick Merge.
 
 WAYPOINT 1.6.1 — What's New
 ============================

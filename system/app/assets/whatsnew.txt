@@ -52,6 +52,11 @@ Story cards
   from your own planners. Only you see the twist.
 
 Tokens
+- A token's card now opens beside the token and stays while you move the
+  pointer onto it, so you can press its buttons, roll a dice formula in your
+  note and scroll a long one. It reads in parts: health and bars, marks and
+  effects, your note, and where it stands. Pin keeps it open as a small
+  window.
 - A picture you tick Is Character fits one cell of the map's grid by itself,
   and Undo puts it back. An empty or see-through border is trimmed and the
   picture centered, and Frame picture still changes it. The token creator and

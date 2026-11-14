@@ -16,6 +16,20 @@ Lay out your table
   your computer, and each player sets up their own screen. On a narrow
   window everything goes back to its usual place.
 
+Story cards
+- Lay a few cards out at once, each in a place you name, and read them
+  together. Who, Wants and Stands in the way, each drawn from a deck of your
+  own, gives you a stranger with a problem in one press. That's a spread.
+  Make one on the Spreads tab of the Decks window, or in the System editor
+  under the decks.
+- Only you see a spread at first. Turn a card to its next face, draw one
+  place again, and press Show the table when it reads right. A card from a
+  deck only you know stays off what the table sees.
+- A card can carry up to four faces. Press + Face under its name. A draw
+  lands on one at random, whether it goes to the chat, a hand or a spread.
+  When you add several cards at once, put the other faces after the name,
+  each after a |.
+
 Tokens
 - A picture you tick Is Character fits one cell of the map's grid by itself,
   and Undo puts it back. An empty or see-through border is trimmed and the

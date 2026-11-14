@@ -4,7 +4,7 @@
 // A pile is the campaign's own: { draw, disc, out, last }, each a list of places in cards. A pile's draw order is the host's secret, and never leaves it: pileCounts is what a table is told
 'use strict';
 import { cleanTexSrc } from './fogcore.js';   // a picture is one of the campaign's own, by the map's own rule
-var DECKS_MAX = 48, CARDS_MAX = 300, STATS_MAX = 6, COPIES_MAX = 99, DRAW_MAX = 20, PILE_MAX = 3000;
+var DECKS_MAX = 48, CARDS_MAX = 300, STATS_MAX = 6, COPIES_MAX = 99, DRAW_MAX = 20, PILE_MAX = 3000, FACES_MAX = 4, SPREADS_MAX = 24, PLACES_MAX = 12;
 var AFTER = ['back', 'discard', 'gone'], KEY_RE = /^[A-Za-z][A-Za-z0-9_]{0,23}$/, STAT_RE = /^[A-Za-z][A-Za-z0-9_]{0,31}$/;
 var CTRL = new RegExp('[\\u0000-\\u001f\\u007f]', 'g');
 function isObj(o) { return !!o && typeof o === 'object' && !Array.isArray(o); }
@@ -15,8 +15,15 @@ function cleanCard(c, stats) {
     var n = typeof c.n === 'number' && isFinite(c.n) ? Math.max(1, Math.min(COPIES_MAX, Math.floor(c.n))) : 1; if (n > 1) o.n = n;
     var vals = {}, any = false; if (isObj(c.vals)) stats.forEach(function(s) { if (Object.prototype.hasOwnProperty.call(c.vals, s.key) && typeof c.vals[s.key] === 'number' && isFinite(c.vals[s.key]) && c.vals[s.key] !== 0) { vals[s.key] = num(c.vals[s.key]); any = true; } }); if (any) o.vals = vals;
     var pic = cleanTexSrc(c.pic); if (pic) o.pic = pic;
+    var fs = cleanFaces(c.faces); if (fs) o.faces = fs;   // 1.6.2 (backlog 223): a card's other faces, after its name, which is the first
     if (c.ends === true) o.ends = true; return o;
 }
+// 1.6.2 (backlog 223, story cards; the owner, by prompt: "Random, then turn"): a card may hold up to four faces, its name the first and up to three more
+// short phrases in faces. A draw lands on one at random, and a card with one face draws as it always did and takes no die for it
+function cleanFaces(v) { if (!Array.isArray(v)) return null; var o = []; v.slice(0, FACES_MAX * 4).forEach(function(x) { var t = cut(x, 80); if (t && o.length < FACES_MAX - 1) o.push(t); }); return o.length ? o : null; }
+function faceCount(c) { return 1 + (isObj(c) && Array.isArray(c.faces) ? Math.min(FACES_MAX - 1, c.faces.length) : 0); }
+function faceOf(c, rnd) { var n = faceCount(c); return n > 1 ? Math.max(0, Math.min(n - 1, rnd(n) - 1)) : 0; }   // rnd(n): a whole number from 1 to n
+function faceWords(c, f) { if (!isObj(c)) return ''; var k = typeof f === 'number' && f > 0 && f < faceCount(c) ? Math.floor(f) : 0; return k ? String(c.faces[k - 1]) : String(c.name || ''); }
 function cleanDeck(d, keyRe) {
     if (!isObj(d) || typeof d.key !== 'string' || !KEY_RE.test(d.key) || (keyRe && !keyRe.test(d.key)) || d.key in Object.prototype) return null;
     var o = { key: d.key, label: cut(d.label, 60) || 'A deck', after: AFTER.indexOf(d.after) >= 0 ? d.after : 'discard', stats: [], cards: [] }, word = cut(d.word, 24); if (word) o.word = word; if (d.vis === 'gm') o.vis = 'gm'; if (d.open === true) o.open = true;
@@ -29,6 +36,25 @@ function cleanDecks(list, gmView, keyRe) {   // gmView false leaves out what is 
     return out;
 }
 function deckOf(list, key) { var k = String(key).toLowerCase(); return (Array.isArray(list) ? list : []).filter(function(d) { return isObj(d) && typeof d.key === 'string' && d.key.toLowerCase() === k; })[0] || null; }
+// 1.6.2 (backlog 223, story cards; the owner, by prompt: "Decks window, show when ready"): a spread is a short list of places, each with a label, the
+// deck it draws from and a hint, drawn in one press on the GM's own screen and shown to the table only when the GM says. { key, label, places }: key
+// S<n> on a system and P<n> on a campaign (keyRe), never shown; a place { label, deck?, hint? }, deck a deck's key (a system's spread names a system's deck alone, by deckRe). A spread is the
+// GM's: the players' view holds none, so cleanSpreads answers an empty list for it
+function cleanPlace(p, deckRe) {
+    if (!isObj(p)) return null; var o = { label: cut(p.label, 40) || 'A place' };
+    if (typeof p.deck === 'string' && KEY_RE.test(p.deck) && !(p.deck in Object.prototype) && (!deckRe || deckRe.test(p.deck))) o.deck = p.deck;
+    var h = cut(p.hint, 120); if (h) o.hint = h; return o;
+}
+function cleanSpread(s, deckRe, keyRe) {
+    if (!isObj(s) || typeof s.key !== 'string' || !KEY_RE.test(s.key) || (keyRe && !keyRe.test(s.key)) || s.key in Object.prototype) return null; var o = { key: s.key, label: cut(s.label, 60) || 'A spread', places: [] };
+    (Array.isArray(s.places) ? s.places : []).slice(0, PLACES_MAX * 4).forEach(function(p) { if (o.places.length >= PLACES_MAX) return; var k = cleanPlace(p, deckRe); if (k) o.places.push(k); });
+    return o;
+}
+function cleanSpreads(list, gmView, deckRe, keyRe) {
+    var out = [], seen = Object.create(null); if (gmView !== true) return out;
+    (Array.isArray(list) ? list : []).slice(0, SPREADS_MAX * 4).forEach(function(s) { if (out.length >= SPREADS_MAX) return; var k = cleanSpread(s, deckRe, keyRe); if (!k || seen[k.key.toLowerCase()]) return; seen[k.key.toLowerCase()] = 1; out.push(k); });
+    return out;
+}
 function total(d) { return (isObj(d) && Array.isArray(d.cards) ? d.cards : []).reduce(function(a, c) { return a + (isObj(c) && typeof c.n === 'number' ? c.n : 1); }, 0); }
 function allPlaces(d) { var o = []; d.cards.forEach(function(c, i) { for (var k = 0; k < (c.n || 1) && o.length < PILE_MAX; k++) o.push(i); }); return o; }
 function shuffled(a, rnd) { var o = a.slice(); for (var i = o.length - 1; i > 0; i--) { var j = rnd(i + 1) - 1, t = o[i]; o[i] = o[j]; o[j] = t; } return o; }   // rnd(n): a whole number from 1 to n
@@ -64,10 +90,10 @@ function returnCard(d, p0, i) {   // a card comes back from a hand, by the deck'
 }
 function cardVal(d, i, stat) { var c = isObj(d) && Array.isArray(d.cards) ? d.cards[i] : null, k = String(stat).toLowerCase(), hit = 0; if (c && isObj(c.vals)) Object.keys(c.vals).forEach(function(s) { if (s.toLowerCase() === k) hit = c.vals[s]; }); return hit; }
 function statKey(label, stats) { var base = String(label || '').replace(/[^A-Za-z0-9_]+/g, ''); if (!/^[A-Za-z]/.test(base)) base = 'Num' + base; base = base.slice(0, 28); var k = base, n = 2; while ((stats || []).some(function(s) { return s && String(s.key).toLowerCase() === k.toLowerCase(); })) k = base + n++; return k; }
-function readCards(text, stats) {   // pasted lines: a name, then a number for each of the deck's stats, by commas. Answers cards
-    var out = []; String(text || '').split('\n').forEach(function(l) { var p = l.split(','), name = cut(p[0], 80); if (!name || out.length >= CARDS_MAX) return; var c = { name: name }, vals = {}; (stats || []).forEach(function(s, i) { var n = Number(String(p[i + 1] === undefined ? '' : p[i + 1]).trim()); if (String(p[i + 1] === undefined ? '' : p[i + 1]).trim() !== '' && isFinite(n) && n !== 0) vals[s.key] = n; }); if (Object.keys(vals).length) c.vals = vals; out.push(c); });
+function readCards(text, stats) {   // pasted lines: a name, then a number for each of the deck's stats, by commas. Answers cards. 1.6.2 (backlog 223): a name may carry its other faces after a |
+    var out = []; String(text || '').split('\n').forEach(function(l) { var p = l.split(','), fc = String(p[0]).split('|'), name = cut(fc[0], 80); if (!name || out.length >= CARDS_MAX) return; var c = { name: name }, vals = {}, fs = cleanFaces(fc.slice(1)); if (fs) c.faces = fs; (stats || []).forEach(function(s, i) { var n = Number(String(p[i + 1] === undefined ? '' : p[i + 1]).trim()); if (String(p[i + 1] === undefined ? '' : p[i + 1]).trim() !== '' && isFinite(n) && n !== 0) vals[s.key] = n; }); if (Object.keys(vals).length) c.vals = vals; out.push(c); });
     return out;
 }
-var API = { cleanDeck: cleanDeck, cleanDecks: cleanDecks, deckOf: deckOf, total: total, freshPile: freshPile, cleanPile: cleanPile, pileCounts: pileCounts, cleanCounts: cleanCounts, drawCards: drawCards, shufflePile: shufflePile, returnCard: returnCard, cardVal: cardVal, statKey: statKey, readCards: readCards, DECKS_MAX: DECKS_MAX, CARDS_MAX: CARDS_MAX, STATS_MAX: STATS_MAX, COPIES_MAX: COPIES_MAX, DRAW_MAX: DRAW_MAX };
+var API = { cleanDeck: cleanDeck, cleanDecks: cleanDecks, deckOf: deckOf, total: total, freshPile: freshPile, cleanPile: cleanPile, pileCounts: pileCounts, cleanCounts: cleanCounts, drawCards: drawCards, shufflePile: shufflePile, returnCard: returnCard, cardVal: cardVal, statKey: statKey, readCards: readCards, cleanFaces: cleanFaces, faceCount: faceCount, faceOf: faceOf, faceWords: faceWords, cleanPlace: cleanPlace, cleanSpread: cleanSpread, cleanSpreads: cleanSpreads, FACES_MAX: FACES_MAX, SPREADS_MAX: SPREADS_MAX, PLACES_MAX: PLACES_MAX, DECKS_MAX: DECKS_MAX, CARDS_MAX: CARDS_MAX, STATS_MAX: STATS_MAX, COPIES_MAX: COPIES_MAX, DRAW_MAX: DRAW_MAX };
 if (typeof window !== 'undefined') window.wpDeckCore = API;
-export { cleanDeck, cleanDecks, deckOf, total, freshPile, cleanPile, pileCounts, cleanCounts, drawCards, shufflePile, returnCard, cardVal, statKey, readCards, DECKS_MAX, CARDS_MAX, STATS_MAX, COPIES_MAX, DRAW_MAX };
+export { cleanDeck, cleanDecks, deckOf, total, freshPile, cleanPile, pileCounts, cleanCounts, drawCards, shufflePile, returnCard, cardVal, statKey, readCards, cleanFaces, faceCount, faceOf, faceWords, cleanPlace, cleanSpread, cleanSpreads, FACES_MAX, SPREADS_MAX, PLACES_MAX, DECKS_MAX, CARDS_MAX, STATS_MAX, COPIES_MAX, DRAW_MAX };

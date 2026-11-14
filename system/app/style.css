@@ -4456,6 +4456,19 @@
   #deckBody .dk-to { flex: 1 1 0; width: auto; min-width: 0; }
   #deckBody .dk-title { font-weight: 600; color: var(--ink); }
   #deckBody > .tool { align-self: flex-start; }
+  /* 1.6.2 (backlog 223, story cards): a spread laid in the Decks window, one card a place, and the tab that switches to it */
+  #deckBody > .dk-tabs { align-self: flex-start; }
+  .sp-lay { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sp-card { flex: 0 1 112px; min-width: 88px; min-height: 104px; display: flex; flex-direction: column; gap: 3px; padding: 6px 7px; border: 1px solid var(--edge); border-radius: 7px; background: var(--panel); box-sizing: border-box; }
+  .sp-card.sp-empty { border-style: dashed; }
+  .sp-pos { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--gold); overflow-wrap: anywhere; }
+  .sp-words { flex: 1; font-size: 12.5px; line-height: 1.3; color: var(--ink); overflow-wrap: anywhere; }
+  .sp-words.sp-hint { color: var(--muted); font-style: italic; }
+  .sp-foot { display: flex; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); }
+  .sp-foot .sp-from { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sp-foot .tool { padding: 0 5px; min-height: 0; line-height: 18px; font-size: 12px; }
+  .sp-edit .dk-card > .field, .sp-edit .dk-head > .field { width: auto; margin: 0; } .sp-edit .dk-head > .sp-label { flex: 1 1 200px; } .sp-place .sp-deck { flex: 1 1 130px; min-width: 110px; }
+  .sp-place .sp-plabel { flex: 1 1 110px; min-width: 90px; } .sp-place .sp-hint { flex: 2 1 150px; min-width: 110px; } .dk-card .dk-face { flex: 1 1 120px; min-width: 100px; }
   .sheet-hand-shut { color: var(--muted); font-size: 13px; padding: 2px 0; }
   .sheet-fan { display: flex; justify-content: center; padding: 16px 18px 20px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
   .sheet-fan .sheet-item { flex: 0 1 116px; min-width: 70px; min-height: 152px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px; margin-left: -12px; border: 1px solid var(--dim); border-radius: 9px; background: var(--panel); box-shadow: 0 2px 6px rgba(0, 0, 0, .35); transform: translateY(calc(var(--fan, 0) * var(--fan, 0) * 2px)) rotate(calc(var(--fan, 0) * 4deg)); transition: transform .12s; }

@@ -43,6 +43,31 @@ function twTotal(lines, deal) { var t = 0, any = false; (lines || []).forEach(fu
 // draw the window's body for a view: doc the page, root the body to fill, off { a: [...], b: [...] } what each side of this screen may offer,
 // act(kind, side, arg) the window's own handler
 var _twMore = {};   // 1.6.2: whether each side's More fold is open, kept while the window is drawn anew at every word
+// 1.6.2 (backlog 226): a line's face on its card, as the sheet draws a row's: its row's own picture else its entry's, cleaned again by the core,
+// the campaign's own through the host on a player's app; a picture that is not there, or fails, gives way to the entry's icon, else its first
+// letter, quietly. { pic, glyph, ch } for wpUi.card, each absent where it is not the one
+function twWin() { return typeof window !== 'undefined' ? window : null; }
+function twIcon(l) {
+    var W = twWin(), SC = W && W.wpSystemCore, ic = l && typeof l.icon === 'string' ? l.icon : '', o = {}; if (!ic) return o;
+    if (/^icon:/.test(ic)) { var g = SC && typeof SC.glyphPath === 'function' ? SC.glyphPath(ic) : ''; if (g) o.glyph = g; } else o.ch = ic;
+    return o;
+}
+function twPic(doc, l) {
+    var W = twWin(), SC = W && W.wpSystemCore, n = W && W.wpNet, SF = W && W.wpSafeCore, pc = SC && typeof SC.cleanPic === 'function' ? SC.cleanPic(l && l.pic) : ''; if (!pc) return null;
+    if (n && typeof n.assetMissing === 'function' && n.assetMissing(pc)) return null;
+    var src = n && typeof n.assetSrc === 'function' ? n.assetSrc(pc) : pc; if (src === pc) src = SF && typeof SF.picRef === 'function' ? SF.picRef(pc) : ''; if (!src) return null;
+    var im = doc.createElement('img'); im.className = 'trade-pic'; im.alt = ''; im.setAttribute('data-pic', pc);
+    if (im.addEventListener) im.addEventListener('error', function() { twPicGone(doc, im, l); });
+    im.src = src; return im;
+}
+function twFace(doc, l) { var im = twPic(doc, l); return im ? { pic: im } : twIcon(l); }
+// the picture gone: the icon or the first letter in its place, as the card would have drawn it
+function twPicGone(doc, im, l) {
+    var box = im && im.parentNode; if (!box || !box.removeChild) return; box.removeChild(im);
+    var f = twIcon(l), nm = l ? (l.key !== undefined ? l.label + ' from ' + l.name : l.name) : '';
+    if (f.glyph) { var g = twEl(doc, 'span', 'wp-glyph ui-card-glyph'), u = 'url("/assets/icons/fa/' + f.glyph + '.svg")'; g.setAttribute('aria-hidden', 'true'); if (g.style) { g.style.webkitMaskImage = u; g.style.maskImage = u; } box.appendChild(g); return; }
+    var c0 = typeof nm === 'string' ? Array.from(nm.trim())[0] : ''; box.appendChild(twEl(doc, 'span', 'ui-card-ch', f.ch || (c0 ? c0.toUpperCase() : '?')));
+}
 function twDraw(doc, root, v, off, act) {
     while (root.firstChild) root.removeChild(root.firstChild);
     var mine = twMine(v), cols = twEl(doc, 'div', 'trade-cols');
@@ -53,7 +78,7 @@ function twDraw(doc, root, v, off, act) {
         if (!s.lines.length) list.appendChild(twEl(doc, 'div', 'trade-none', me ? 'Nothing yet. Add something from the sheet.' : 'Nothing yet.'));
         s.lines.forEach(function(l, i) {
             var UIt = typeof window !== 'undefined' && window.wpUi && window.wpUi.card ? window.wpUi : null, row, put;
-            if (UIt) { var cdl = UIt.card({ name: l.key !== undefined ? l.label + ' from ' + l.name : l.name, sub: l.list || '', cls: 'trade-line trade-lcard' }, doc); cdl.name.className += ' trade-name'; row = cdl.el; put = cdl.side; }   // 1.6.2 (backlog 225, the item card): each line a small card, its first letter, its name and its list, its count, x and price at the right of its head
+            if (UIt) { var fcl = twFace(doc, l), cdl = UIt.card({ name: l.key !== undefined ? l.label + ' from ' + l.name : l.name, sub: l.list || '', pic: fcl.pic, glyph: fcl.glyph, ch: fcl.ch, cls: 'trade-line trade-lcard' }, doc); cdl.name.className += ' trade-name'; row = cdl.el; put = cdl.side; }   // 1.6.2 (backlog 225, the item card): each line a small card, its first letter, its name and its list, its count, x and price at the right of its head
             else { row = twEl(doc, 'div', 'trade-line'); put = row; put.appendChild(twEl(doc, 'span', 'trade-name', l.key !== undefined ? l.label + ' from ' + l.name : l.name)); }
             if (me && v.status === 'open') {
                 var box = doc.createElement('input'); box.type = 'number'; box.className = 'trade-num'; box.min = l.key !== undefined ? '0.01' : '1'; box.step = l.key !== undefined ? '0.01' : '1';
@@ -157,6 +182,10 @@ function twScrolls(body) { return [].map.call(body.querySelectorAll('.trade-inv'
 function twScrollsBack(body, was) { [].forEach.call(body.querySelectorAll('.trade-inv'), function(e, i) { if (was[i]) e.scrollTop = was[i]; }); }
 function twAddAt(body, k) { if (!k || k.indexOf('add|') !== 0) return 0; var rows = [].filter.call(body.querySelectorAll('[data-k]'), function(e) { return e.getAttribute('data-k').indexOf('add|') === 0 && !e.disabled; }); for (var i = 0; i < rows.length; i++) if (rows[i].getAttribute('data-k') === k) return i; return 0; }
 // [sinkcheck:tradewin-end]
+if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('wp-asset', function(e) {   // 1.6.2 (backlog 226): a line's picture still on its way is put in place as it arrives, and one the host has not got gives way to its icon
+    var p = e.detail && e.detail.path, n = window.wpNet; if (!p || !n || typeof n.assetSrc !== 'function') return;
+    document.querySelectorAll('img.trade-pic[data-pic]').forEach(function(im) { if (im.getAttribute('data-pic') !== p) return; if (e.detail.missing === true) im.dispatchEvent(new Event('error')); else im.src = n.assetSrc(p); });
+});
 
 function twNet() { return window.wpNet || null; }
 function twGm() { var n = twNet(); return !(n && n.active && n.role === 'client'); }

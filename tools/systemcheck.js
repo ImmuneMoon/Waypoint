@@ -1177,6 +1177,97 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const tOpen = tblOf(W, undefined), tLock = tblOf(W, false), tHud = tblOf(WH, false), lOpen = lstOf(W, undefined), lLock = lstOf(W, false), lHud = lstOf(WH, false);
         check('sheet lock, a rich table and a plain list alike (the GM\'s): locked, a level reads as text, Remove, Make custom on a row whose entry left the library and the Paid box are gone, and the row still says it is not in the library; the details button stays on the sheet and is not drawn in the HUD; a caller that names no second right draws every one of them, as before',
             [tOpen, lOpen].every(o => o[0] === 3 && o[1] === 0 && o[2] === 3 && o[3] === 3 && o[4] === 1 && o[5] === 1 && o[6] === 3) && [tLock, lLock].every(o => o[0] === 0 && o[1] === 3 && o[2] === 0 && o[3] === 3 && o[4] === 0 && o[5] === 1 && o[6] === 0) && [tHud, lHud].every(o => o[3] === 0 && o[0] === 0 && o[2] === 0), j([tOpen, tLock, tHud, lOpen, lLock, lHud]));
+        // backlog 226: a row's picture on the HUD, the quiet missing picture, and the larger picture on hover (sheets.js [systemcheck:rowpic-*], run for real on a page of plain objects)
+        {
+            const SF226 = await import(url('safecore.js')), sh226 = shB, a226 = sh226.indexOf('// [systemcheck:rowpic-start]'), z226 = sh226.indexOf('// [systemcheck:rowpic-end]');
+            const page226 = () => {
+                const tm = [], cl = [], lsn = {}, win = { innerWidth: 1000, innerHeight: 700, on: {}, addEventListener(k, f) { (this.on[k] = this.on[k] || []).push(f); }, removeEventListener(k, f) { this.on[k] = (this.on[k] || []).filter(x => x !== f); } };
+                const D = { on: {}, defaultView: win, addEventListener(k, f) { (this.on[k] = this.on[k] || []).push(f); }, removeEventListener(k, f) { this.on[k] = (this.on[k] || []).filter(x => x !== f); } };
+                const mk = tag => { const n = { tag, className: '', children: [], dataset: {}, style: {}, attrs: {}, on: {}, parentNode: null, hidden: false, id: '', src: '', alt: '', ownerDocument: D, rect: null, innerHTML: undefined,
+                    get firstChild() { return this.children[0] || null; },
+                    get isConnected() { let x = this; while (x) { if (x === D.body) return true; x = x.parentNode; } return false; },
+                    appendChild(c) { if (c.parentNode) c.parentNode.removeChild(c); c.parentNode = this; this.children.push(c); return c; },
+                    removeChild(c) { const i = this.children.indexOf(c); if (i >= 0) this.children.splice(i, 1); c.parentNode = null; return c; },
+                    replaceChild(a, b) { const i = this.children.indexOf(b); this.children[i] = a; a.parentNode = this; b.parentNode = null; return b; },
+                    addEventListener(k, f) { (this.on[k] = this.on[k] || []).push(f); }, removeEventListener(k, f) { this.on[k] = (this.on[k] || []).filter(x => x !== f); },
+                    setAttribute(k, v) { this.attrs[k] = String(v); }, removeAttribute(k) { if (k === 'src') this.src = ''; delete this.attrs[k]; },
+                    closest(sel) { let x = this; while (x) { if (sel === '#sheetPrint' && x.id === 'sheetPrint') return x; x = x.parentNode; } return null; },
+                    getBoundingClientRect() { return this.rect || { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 }; },
+                    getClientRects() { return this.noRects ? [] : [this.getBoundingClientRect()]; },
+                    fire(k, ev) { (this.on[k] || []).slice().forEach(f => f(Object.assign({ target: this }, ev || {}))); } }; return n; };
+                D.body = mk('body'); D.body.cls = []; D.body.classList = { contains: c => D.body.cls.includes(c) };
+                const all = (n, acc) => { acc.push(n); n.children.forEach(k => all(k, acc)); return acc; };
+                D.createElement = mk; D.getElementById = id => all(D.body, []).find(n => n.id === id) || null;
+                D.querySelectorAll = sel => sel === 'img.sheet-item-pic[data-pic]' ? all(D.body, []).filter(n => n.tag === 'img' && n.className === 'sheet-item-pic' && n.dataset.pic) : [];
+                D.fire = (k, ev) => (D.on[k] || []).slice().forEach(f => f(ev));
+                const missing = {}, W = { wpSystemCore: { cleanPic: S.cleanPic }, wpNet: { assetMissing: p => missing[p] === 1, assetSrc: p => p } };
+                const R = new Function('window', 'document', 'picRef', 'iconNode', 'setTimeout', 'clearTimeout', sh226.slice(a226, z226) + '\nreturn { rowPicNode: rowPicNode, rowPicGone: rowPicGone, picPeek: picPeek, picPeekPlace: picPeekPlace, picPeekHide: picPeekHide, PIC_PEEK: PIC_PEEK };')(
+                    W, D, SF226.picRef, (v, cls) => { const s = mk('span'); s.className = cls + ' wp-glyph'; s.dataset.glyph = v; return s; }, f => { tm.push(f); return tm.length; }, id => { if (id > 0) { cl.push(id); tm[id - 1] = () => {}; } });
+                return { D, W, R, mk, tm, cl, missing, win, all };
+            };
+            const P1 = page226(), row1 = P1.mk('div'); P1.D.body.appendChild(row1);
+            const im1 = P1.R.rowPicNode({ id: 'w_1', pic: '/saves/images/frayed rope.png' }, { name: 'Rope', icon: 'icon:star', pic: '/saves/images/rope.png' }), im1b = P1.R.rowPicNode({ id: 'w_2' }, { name: 'Rope', pic: '/saves/images/rope.png' });
+            const noPic = [P1.R.rowPicNode({ pic: 'http://x/a.png' }, { name: 'X' }), P1.R.rowPicNode({}, { name: 'X', pic: '/saves/images/../data.json' }), P1.R.rowPicNode({}, { name: 'X', pic: 'data:image/png;base64,AA' })];
+            P1.missing['/saves/images/gone.png'] = 1; const goneN = P1.R.rowPicNode({}, { name: 'X', icon: 'icon:star', pic: '/saves/images/gone.png' });
+            row1.appendChild(im1); im1.fire('error'); const swapped = row1.children[0];
+            const row2 = P1.mk('div'); P1.D.body.appendChild(row2); const im2 = P1.R.rowPicNode({}, { name: 'Plain', pic: '/saves/images/plain.png' }); row2.appendChild(im2); im2.fire('error');
+            const row3 = P1.mk('div'); P1.D.body.appendChild(row3); const im3 = P1.R.rowPicNode({}, { name: 'Lamp', icon: 'icon:sun', pic: '/saves/images/late.png' }); row3.appendChild(im3);
+            P1.D.fire('wp-asset', { detail: { path: '/saves/images/late.png', missing: true } }); const swapped3 = row3.children[0];
+            check('a row’s picture (backlog 226): its own, else its item’s, as cleanPic keeps it and never a web address, a walk or an inline picture; a file the host said is gone draws none, so the row’s icon shows; a picture that fails to load, or is said gone as it arrives, is replaced by the row’s icon in its very place, quietly, and with no icon leaves nothing',
+                im1 && im1.tag === 'img' && im1.className === 'sheet-item-pic' && im1.dataset.pic === '/saves/images/frayed rope.png' && im1.dataset.icon === 'icon:star' && im1.alt === '' && im1b.dataset.pic === '/saves/images/rope.png' && im1b.dataset.icon === ''
+                && noPic.every(x => x === null) && goneN === null && swapped && swapped.tag === 'span' && swapped.className === 'sheet-item-icon wp-glyph' && swapped.dataset.glyph === 'icon:star' && row1.children.length === 1
+                && row2.children.length === 0 && swapped3 && swapped3.className === 'sheet-item-icon wp-glyph' && swapped3.dataset.glyph === 'icon:sun' && row3.children.length === 1, j([im1 && im1.dataset, swapped && swapped.className, row2.children.length]));
+            // the larger picture on hover
+            const P2 = page226(), host2 = P2.mk('div'); P2.D.body.appendChild(host2); const im4 = P2.R.rowPicNode({}, { name: 'Rope', pic: '/saves/images/rope.png' }); host2.appendChild(im4); im4.rect = { left: 100, top: 300, right: 122, bottom: 322, width: 22, height: 22 };
+            im4.fire('mouseenter'); const waited = P2.D.getElementById('picPeek') === null && P2.tm.length === 1; P2.tm[0]();
+            const pop = P2.D.getElementById('picPeek'), shown = !!pop && pop.hidden === false && pop.className === 'pic-peek' && pop.attrs['aria-hidden'] === 'true' && pop.children.length === 1 && pop.children[0].tag === 'img' && pop.children[0].src === '/saves/images/rope.png' && pop.style.width === '240px' && pop.style.left === '130px' && pop.style.top === String(311 - 120) + 'px';
+            const enter = el => { el.fire('mouseenter'); P2.tm[P2.tm.length - 1](); }, watching = P2.tm.length === 2;   // a shown pop keeps a timer of its own (the watch)
+            enter(im4); const one = P2.all(P2.D.body, []).filter(n => n.id === 'picPeek').length === 1;
+            im4.fire('mouseleave'); const gone = pop.hidden === true && pop.children[0].src === '' && !(P2.D.on.pointermove || []).length && !(P2.D.on.pointerdown || []).length;
+            enter(im4); const back = pop.hidden === false; P2.D.fire('pointermove', { target: host2 }); const offMove = pop.hidden === true;
+            enter(im4); host2.removeChild(im4); P2.D.fire('pointermove', { target: P2.D.body }); const offGone = pop.hidden === true;
+            host2.appendChild(im4); enter(im4); P2.D.fire('keydown', { key: 'a' }); const offKey = pop.hidden === true;
+            enter(im4); P2.D.fire('scroll', {}); const offScroll = pop.hidden === true;
+            { const k = P2.tm.length; im4.fire('mouseenter'); im4.fire('mouseleave'); P2.tm[k](); } const leftEarly = pop.hidden === true;   // a timer let go of by mouseleave never runs
+            // the watch (the review): with no pointer move, a picture taken off the page (Escape closing the sheet, a redraw) or put out of sight (floats.js) takes the pop with it at the next tick; while all is well it looks again
+            enter(im4); P2.tm[P2.tm.length - 1](); const stillUp = pop.hidden === false;
+            host2.removeChild(im4); P2.tm[P2.tm.length - 1](); const watchGone = pop.hidden === true && !(P2.D.on.keydown || []).length; host2.appendChild(im4);
+            enter(im4); im4.noRects = true; P2.tm[P2.tm.length - 1](); const watchHid = pop.hidden === true; im4.noRects = false;
+            enter(im4); const wId = P2.tm.length; P2.R.picPeekHide(); const watchCleared = P2.cl.includes(wId) && pop.hidden === true;
+            check('the larger picture never outlives its picture (backlog 226, the review): while it is up a timer of its own looks every 200 ms, and a picture taken off the page or out of sight takes the pop with it with no pointer move; while all is well it keeps looking; hiding the pop lets the timer go',
+                watching && stillUp && watchGone && watchHid && watchCleared && P2.R.PIC_PEEK.watch === 200, j({ watching, stillUp, watchGone, watchHid, watchCleared }));
+            P2.D.body.cls.push('stream-mode'); P2.R.picPeekHide(); im4.fire('mouseenter'); P2.tm[P2.tm.length - 1](); const noStream = pop.hidden === true; P2.D.body.cls.length = 0;
+            const pr = P2.mk('div'); pr.id = 'sheetPrint'; P2.D.body.appendChild(pr); const im5 = P2.R.rowPicNode({}, { name: 'Rope', pic: '/saves/images/rope.png' }); pr.appendChild(im5); im5.rect = im4.rect; im5.fire('mouseenter'); P2.tm[P2.tm.length - 1](); const noPaper = pop.hidden === true;
+            const loose = P2.R.rowPicNode({}, { name: 'Rope', pic: '/saves/images/rope.png' }); loose.fire('mouseenter'); P2.tm[P2.tm.length - 1](); const noLoose = pop.hidden === true;
+            P2.win.innerWidth = 60; im4.fire('mouseenter'); P2.tm[P2.tm.length - 1](); const noTiny = pop.hidden === true; P2.win.innerWidth = 1000;
+            const wrapped = P2.R.picPeek(P2.mk('img')), twice = P2.R.picPeek(wrapped) === wrapped && (wrapped.on.mouseenter || []).length === 1;
+            check('a row’s picture shown larger (backlog 226): the pointer resting on it a moment shows it in one pop a document, made by name, beside it and as large as 240 px, never taking the pointer; it goes as the pointer leaves, moves off it, the picture is drawn away, a key or a scroll; never in the stream window, on paper, for a picture off the page or in a window too small for it; a picture is wired once (picPeek, which the containers window may use through wpSheets.picPeek)',
+                waited && shown && one && gone && back && offMove && offGone && offKey && offScroll && leftEarly && noStream && noPaper && noLoose && noTiny && twice, j({ waited, shown, one, gone, back, offMove, offGone, offKey, offScroll, noStream, noPaper, noLoose, noTiny, twice, pop: pop && pop.style }));
+            const PL = P1.R.picPeekPlace, inWin = (at, vw, vh) => at.x >= 8 && at.y >= 8 && at.x + at.s <= vw - 8 && at.y + at.s <= vh - 8;
+            const apart = (at, r) => at.x + at.s <= r.left || at.x >= r.right || at.y + at.s <= r.top || at.y >= r.bottom;   // the pop never lies over the picture
+            let seeded = 1, rnd = () => { seeded = (seeded * 1103515245 + 12345) % 2147483648; return seeded / 2147483648; }, allIn = true, nShown = 0, nNone = 0, nSmall = 0;
+            for (let i = 0; i < 4000; i++) {
+                const small = i >= 2000, vw = small ? 100 + Math.floor(rnd() * 300) : 300 + Math.floor(rnd() * 1600), vh = small ? 100 + Math.floor(rnd() * 300) : 300 + Math.floor(rnd() * 900), pw = 16 + Math.floor(rnd() * 60), ph = 16 + Math.floor(rnd() * 60);
+                const l = Math.floor(rnd() * (vw - pw)) + (rnd() < 0.3 ? rnd() : 0), t = Math.floor(rnd() * (vh - ph)) + (rnd() < 0.3 ? rnd() : 0), r = { left: l, top: t, right: l + pw, bottom: t + ph, width: pw, height: ph }, at = PL(r, 240, vw, vh, 8, 64);
+                if (!at) { nNone++; continue; } nShown++; if (at.s < 240) nSmall++;
+                if (!inWin(at, vw, vh) || !apart(at, r) || at.s < 64 || at.s > 240 || at.s !== Math.floor(at.s)) { allIn = false; break; }
+            }
+            const R0 = { left: 100, top: 300, right: 122, bottom: 322, width: 22, height: 22 }, pR = PL(R0, 240, 1000, 700, 8, 64), pL = PL({ left: 900, top: 300, right: 922, bottom: 322, width: 22, height: 22 }, 240, 1000, 700, 8, 64), pU = PL({ left: 200, top: 40, right: 222, bottom: 62, width: 22, height: 22 }, 240, 400, 700, 8, 64), pT = PL({ left: 0, top: 690, right: 22, bottom: 700, width: 22, height: 10 }, 240, 1000, 700, 8, 64);
+            const pD = PL({ left: 60, top: 20, right: 250, bottom: 60, width: 190, height: 40 }, 240, 300, 400, 8, 64), pN = PL({ left: 40, top: 40, right: 100, bottom: 100, width: 60, height: 60 }, 240, 140, 140, 8, 64);
+            check('where the larger picture stands (picPeekPlace, pure): the first side with room of right, left, under and over, the pop as large as that side allows up to 240 px and never under 64, its middle level with the picture’s; never over the picture and held 8 px inside the window over 4,000 seeded places, 2,000 of them in a small window; nothing at all where no side has room',
+                allIn && nShown > 1000 && nNone > 50 && nSmall > 200 && j(pR) === j({ x: 130, y: 191, s: 240 }) && j(pL) === j({ x: 652, y: 191, s: 240 }) && j(pU) === j({ x: 230, y: 8, s: 162 }) && pT.y === 452 && pT.x === 30 && pT.s === 240
+                && j(pD) === j({ x: 35, y: 68, s: 240 }) && pN === null, j([pR, pL, pU, pT, pD, pN, nShown, nNone, nSmall]));
+            // the HUD draws a row's picture as the sheet does, kept small
+            const PH = page226(), WHp = new Function(...deps, 'rowPicNode', itSrc + '\nreturn { itemListInto: itemListInto, itemTableInto: itemTableInto };')(...depV.slice(0, -1), 'hud', PH.R.rowPicNode);
+            const rowsP = [{ id: 'w_p1', defId: 'i_karate', qty: 1, lvl: 12, pic: '/saves/images/belt.png' }, { id: 'w_p2', defId: 'i_sneak', qty: 1 }], hudL = fe('div'), hudT = fe('div');
+            WHp.itemListInto(hudL, fW, chS, rowsP, sysB, false, true, false); WHp.itemTableInto(hudT, Object.assign({}, fW, { table: { columns: [] } }), chS, rowsP, sysB, false, true, false);
+            const picsL = walk(hudL, x => x.tag === 'img' && x.className === 'sheet-item-pic', []), picsT = walk(hudT, x => x.tag === 'img' && x.className === 'sheet-item-pic', []);
+            const css226 = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n'), mB226 = css226.indexOf('  /* ui-card sites B */');
+            check('the HUD (backlog 226): a list row and a rich table’s row on the HUD show the row’s own picture as the sheet does, through the same rowPicNode, and a row with none draws none; the style sheet keeps it small on the HUD, stands the larger picture above everything without taking the pointer, never on paper; sheets.js publishes picPeek',
+                picsL.length === 1 && picsL[0].dataset.pic === '/saves/images/belt.png' && picsT.length === 1 && picsT[0].dataset.pic === '/saves/images/belt.png'
+                && css226.indexOf('\n  .hud-panel .sheet-item-pic { width: 18px; height: 18px; margin-right: 4px; }') > mB226 && css226.split('.hud-panel .sheet-item-pic {').length === 2 && /\n {2}\.pic-peek \{ position: fixed; z-index: 99993;[^\n]*pointer-events: none;/.test(css226) && css226.includes('\n  @media print { .pic-peek { display: none !important; } }')
+                && /window\.wpSheets = \{ bellNote: bellNote, picPeek: picPeek, /.test(shB), j([picsL.length, picsT.length]));
+        }
         // 1.5.4 (the owner, of a power's details: "theres no actually useful info here about the ability"; by prompt: "On the row itself"): an
         // entry's long text — its description and what each of its levels gives — on an owner's copy of a row and in a row's details
         {

@@ -2237,17 +2237,81 @@ var _glyphPop = null;
 function closeGlyphPicker() { if (_glyphPop) { _glyphPop.remove(); _glyphPop = null; document.removeEventListener('mousedown', glyphOutside, true); } }
 function glyphOutside(e) { if (_glyphPop && !_glyphPop.contains(e.target) && !(e.target.closest && e.target.closest('.sys-glyph-btn'))) closeGlyphPicker(); }
 // The picker's button, right after an icon box: it shows the box's current icon, so it doubles as the preview
-// 1.6.2 (backlog 42): a row's own picture, else its item's: a small picture before its name, the campaign's own (through the host on a player's app)
+// [systemcheck:rowpic-start] 1.6.2 (backlog 42): a row's own picture, else its item's: a small picture before its name, the campaign's own (through the host on a player's app)
 function rowPicNode(entry, def) {
     var SC = window.wpSystemCore, pc = SC && typeof SC.cleanPic === 'function' ? (SC.cleanPic(entry && entry.pic) || SC.cleanPic(def && def.pic)) : ''; if (!pc) return null;
     var n = window.wpNet; if (n && typeof n.assetMissing === 'function' && n.assetMissing(pc)) return null;   // a picture that is not there: the row's icon alone, quietly
     var src = n && typeof n.assetSrc === 'function' ? n.assetSrc(pc) : pc; if (src === pc) src = picRef(pc); if (!src) return null;
-    var im = document.createElement('img'); im.className = 'sheet-item-pic'; im.alt = ''; im.addEventListener('error', function() { im.remove(); }); im.src = src; im.dataset.pic = pc; return im;
+    var im = document.createElement('img'); im.className = 'sheet-item-pic'; im.alt = ''; im.dataset.icon = def && typeof def.icon === 'string' ? def.icon : ''; im.addEventListener('error', function() { rowPicGone(im); }); im.src = src; im.dataset.pic = pc; picPeek(im); return im;
+}
+// backlog 226: a picture whose file is not there shows the row's icon in its place, quietly, never a broken picture nor nothing (boxes.js picGone is the model)
+function rowPicGone(im) {
+    if (_peek.at === im) picPeekHide();
+    var p = im.parentNode; if (!p) return; var ic = im.dataset.icon || '';
+    if (ic && typeof iconNode === 'function') p.replaceChild(iconNode(ic, 'sheet-item-icon'), im); else p.removeChild(im);
+}
+// backlog 226: a row's picture shown larger beside it while the pointer rests on it, on the sheet and on the HUD; one pop a document, made by name; never on paper nor in the stream window
+var PIC_PEEK = { side: 240, gap: 8, wait: 250, least: 64, watch: 200 }, _peek = { at: null, t: 0, doc: null, w: 0 };
+// pure: the first side of the picture with room for a pop of at least least px (right, left, under, over), the pop as large as that side's room
+// allows up to max and the window's other way less its two gaps; never over the picture, held inside the window. null where no side has room
+function picPeekPlace(r, max, vw, vh, gap, least) {
+    var capW = Math.min(max, vw - 2 * gap), capH = Math.min(max, vh - 2 * gap), my = r.top + r.height / 2, mx = r.left + r.width / 2;
+    var cx = function(x, s) { return Math.max(gap, Math.min(vw - gap - s, x)); }, cy = function(y, s) { return Math.max(gap, Math.min(vh - gap - s, y)); };
+    var sides = [
+        [Math.min(capH, vw - Math.max(r.right, 0) - 2 * gap), function(s) { return { x: Math.ceil(r.right + gap), y: Math.round(cy(my - s / 2, s)) }; }],
+        [Math.min(capH, Math.min(r.left, vw) - 2 * gap), function(s) { return { x: Math.floor(r.left - gap - s), y: Math.round(cy(my - s / 2, s)) }; }],
+        [Math.min(capW, vh - Math.max(r.bottom, 0) - 2 * gap), function(s) { return { x: Math.round(cx(mx - s / 2, s)), y: Math.ceil(r.bottom + gap) }; }],
+        [Math.min(capW, Math.min(r.top, vh) - 2 * gap), function(s) { return { x: Math.round(cx(mx - s / 2, s)), y: Math.floor(r.top - gap - s) }; }]
+    ];
+    for (var i = 0; i < sides.length; i++) { var s = Math.floor(sides[i][0]); if (s >= least) { var at = sides[i][1](s); at.s = s; return at; } }
+    return null;
+}
+function picPeekOff(im) {   // where no pop shows: on paper, in the stream window, a picture off the page
+    var doc = im && im.ownerDocument; if (!doc || !doc.body || !im.isConnected) return true;
+    if (doc.body.classList && doc.body.classList.contains('stream-mode')) return true;
+    return !!(im.closest && im.closest('#sheetPrint'));
+}
+function picPeekEl(doc) {
+    var p = doc.getElementById('picPeek'); if (p) return p;
+    p = doc.createElement('div'); p.id = 'picPeek'; p.className = 'pic-peek'; p.hidden = true; p.setAttribute('aria-hidden', 'true');
+    var im = doc.createElement('img'); im.alt = ''; im.addEventListener('error', function() { picPeekHide(); }); p.appendChild(im); doc.body.appendChild(p); return p;
+}
+function picPeekShow(im) {
+    _peek.t = 0; if (picPeekOff(im) || !im.src) return;
+    var doc = im.ownerDocument, win = doc.defaultView || window, vw = win.innerWidth || 0, vh = win.innerHeight || 0;
+    var at = picPeekPlace(im.getBoundingClientRect(), PIC_PEEK.side, vw, vh, PIC_PEEK.gap, PIC_PEEK.least); if (!at) return;   // no side with room: nothing, never a pop over the picture
+    var pop = picPeekEl(doc), side = at.s;
+    pop.firstChild.src = im.src; pop.style.width = side + 'px'; pop.style.height = side + 'px'; pop.style.left = at.x + 'px'; pop.style.top = at.y + 'px'; pop.hidden = false;
+    _peek.at = im; _peek.doc = doc; if (_peek.w) { clearTimeout(_peek.w); _peek.w = 0; } picPeekWatch();
+    doc.addEventListener('pointermove', picPeekMove, true); doc.addEventListener('pointerdown', picPeekHide, true); doc.addEventListener('scroll', picPeekHide, true); doc.addEventListener('keydown', picPeekHide, true); win.addEventListener('blur', picPeekHide);
+}
+// while the pop is up: a picture taken off the page, put out of sight or onto paper takes the pop with it, with no pointer move (Escape closing
+// the sheet stops its key at the window, a redraw takes the picture away, floats.js puts its box away)
+function picPeekWatch() {
+    _peek.w = setTimeout(function() {
+        _peek.w = 0; var at = _peek.at; if (!at) return;
+        if (!at.isConnected || (typeof at.getClientRects === 'function' && !at.getClientRects().length) || picPeekOff(at)) picPeekHide(); else picPeekWatch();
+    }, PIC_PEEK.watch);
+}
+function picPeekMove(e) { if (!_peek.at || !_peek.at.isConnected || e.target !== _peek.at) picPeekHide(); }   // a picture a redraw took away, or the pointer gone from it
+function picPeekHide() {
+    if (_peek.t) { clearTimeout(_peek.t); _peek.t = 0; } if (_peek.w) { clearTimeout(_peek.w); _peek.w = 0; }
+    var doc = _peek.doc; _peek.at = null; _peek.doc = null; if (!doc) return;
+    var p = doc.getElementById('picPeek'); if (p) { p.hidden = true; if (p.firstChild) p.firstChild.removeAttribute('src'); }
+    var win = doc.defaultView || window;
+    doc.removeEventListener('pointermove', picPeekMove, true); doc.removeEventListener('pointerdown', picPeekHide, true); doc.removeEventListener('scroll', picPeekHide, true); doc.removeEventListener('keydown', picPeekHide, true); win.removeEventListener('blur', picPeekHide);
+}
+function picPeek(im) {   // published (wpSheets.picPeek): any picture of an item may wear it, the containers window's tiles among them
+    if (!im || !im.addEventListener || im._wpPeek) return im; im._wpPeek = true;
+    im.addEventListener('mouseenter', function() { if (_peek.t) clearTimeout(_peek.t); _peek.t = setTimeout(function() { picPeekShow(im); }, PIC_PEEK.wait); });
+    im.addEventListener('mouseleave', function() { if (_peek.t) { clearTimeout(_peek.t); _peek.t = 0; } if (_peek.at === im) picPeekHide(); });
+    return im;
 }
 if (typeof document !== 'undefined') document.addEventListener('wp-asset', function(e) {   // a row's picture that was still on its way (the review): put in place as it arrives, no redraw
     var p = e.detail && e.detail.path, n = window.wpNet; if (!p || !n || typeof n.assetSrc !== 'function') return;
-    document.querySelectorAll('img.sheet-item-pic[data-pic]').forEach(function(im) { if (im.dataset.pic !== p) return; if (e.detail.missing === true) im.remove(); else im.src = n.assetSrc(p); });
+    document.querySelectorAll('img.sheet-item-pic[data-pic]').forEach(function(im) { if (im.dataset.pic !== p) return; if (e.detail.missing === true) rowPicGone(im); else im.src = n.assetSrc(p); });
 });
+// [systemcheck:rowpic-end]
 // The Items tab's Picture: one of the campaign's own pictures from the Image Library, kept in a hidden box the tab's own change reads
 function picPicker(inp) {
     var wrap = el('span', 'sys-pic'), b = el('button', 'tool ghost sys-btn sys-pic-btn'); b.type = 'button'; b.title = 'A picture for this item, from your Image Library. It shows on a container\u2019s tile and on a sheet\u2019s row.';
@@ -15993,7 +16057,7 @@ function dmgPartPre(mk) { if (!dmgObj(mk) || typeof mk.amt !== 'number' || !isFi
 function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient() && canWrite(); }   // the cards' Apply to target: the GM's own machine
 // [systemcheck:dmgwin-end]
 function nameWordNow(n) { var c = getActiveCampaign(), s = c ? systemOf(c) : null; return nameWord(s, n); }   // 1.6.2: a name in words, for a card
-window.wpSheets = { bellNote: bellNote, restDoes: restDoes, restTakeBack: restTakeBack, charCatSet: charCatSet, charCatNow: charCatNow, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, lootOf: lootOf, lootSet: lootSet, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, linkValuesWrite: linkValuesWrite, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, fxEndSeed: function() { return fxEndSeed(getActiveCampaign()); }, fxRanOut: fxRanOut, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+window.wpSheets = { bellNote: bellNote, picPeek: picPeek, restDoes: restDoes, restTakeBack: restTakeBack, charCatSet: charCatSet, charCatNow: charCatNow, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, lootOf: lootOf, lootSet: lootSet, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, linkValuesWrite: linkValuesWrite, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, fxEndSeed: function() { return fxEndSeed(getActiveCampaign()); }, fxRanOut: fxRanOut, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame, openChars: openChars, closeChars: closeChars,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,

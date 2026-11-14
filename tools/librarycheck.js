@@ -259,6 +259,37 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && room.done === 1 && room.left === 2 && j(room.src.map(e => e.id)) === j(['i_2', 'i_3']) && dupe.dst.length === 4 && dupe.dst[3].name === 'Two', j([mv, cp, room.done, room.left]));
         const fs = require('fs');
         const winT = fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').replace(/\r\n/g, '\n');
+        {   // 1.6.2 (backlog 226): a picture on many entries at once, through bulkSet as the rest (librarycore bulkSet, and librarywin.js renderBulk and bulk, sliced and run for real on a page of plain objects)
+            const P = '/saves/images/rope.png', withPic = bulkSet(bl, ['i_1', 'i_2'], { pic: P }, gmC), off = bulkSet(withPic.entries, ['i_1'], { pic: '' }, gmC);
+            const bad = ['https://evil.example/x.png', '/saves/images/journal/x.png', '../x.png', '/saves/images/x.txt'].map(p => bulkSet(withPic.entries, ['i_1', 'i_2'], { pic: p }, gmC));
+            const again = bulkSet(withPic.entries, ['i_1', 'i_2'], { pic: P }, gmC), noKey = bulkSet(withPic.entries, ['i_1'], { category: 'Gear' }, gmC);
+            check('backlog 226 bulkSet: Set picture gives every chosen entry the picture, cleaned as an entry\'s own (one of the campaign\'s pictures), the others untouched; No picture takes it off; a path the cleaner refuses changes nothing and takes no picture off; setting the same again counts nothing; a change of anything else keeps the picture',
+                withPic.changed === 2 && withPic.entries[0].pic === P && withPic.entries[1].pic === P && withPic.entries[2] === bl[2] && !('pic' in withPic.entries[2]) && !('pic' in bl[0])
+                && off.changed === 1 && !('pic' in off.entries[0]) && off.entries[1].pic === P && bad.every(b => b.changed === 0 && b.entries[0].pic === P && b.entries[1].pic === P) && again.changed === 0 && noKey.entries[0].pic === P,
+                j([withPic.entries.map(e => e.pic), off.entries.map(e => e.pic), bad.map(b => b.changed)]));
+            let bw = null, bwErr = '';
+            try {
+                const rA = winT.indexOf('function renderBulk(form, ids) {'), rZ = winT.indexOf('function moveTo(dst, copy) {'); if (rA < 0 || rZ < rA) throw new Error('renderBulk and bulk not found');
+                const mk = tag => { const e = { tag, kids: [], on: {}, attrs: {}, className: '', textContent: '', title: '', value: '', appendChild(c) { this.kids.push(c); return c; }, addEventListener(t, f) { this.on[t] = f; }, setAttribute(k, v) { this.attrs[k] = String(v); } }; Object.defineProperty(e, 'innerHTML', { set() { throw new Error('markup written'); } }); return e; };
+                const el = (tag, cls, text) => { const e = mk(tag); if (cls) e.className = cls; if (text !== undefined && text !== null) e.textContent = String(text); return e; };
+                const st = { packId: 'p', work: { p: bl.slice() }, sel: { i_1: 1, i_2: 1 }, shown: bl.slice() }, toasts = [], saved = [], picks = [];
+                const win = { wpPickImage: f => picks.push(f) };
+                const api = new Function('st', 'packs', 'ready', 'el', 'plural', 'select', 'catList', 'VIS', 'tagList', 'moveTo', 'dupMany', 'delMany', 'afterPick', 'map', 'toast', 'window', 'chosen', 'workOf', 'bulkSet', 'gmCtx', 'reachOf', 'schedule', 'renderList', 'renderForm',
+                    '"use strict";\n' + winT.slice(rA, rZ) + '\nreturn { renderBulk: renderBulk, bulk: bulk };')(
+                    st, () => [{ id: 'p', name: 'P' }], () => true, el, n => n + (n === 1 ? ' entry' : ' entries'), () => mk('select'), () => {}, [['all', 'a'], ['gm', 'g']], () => [], () => {}, () => {}, () => {}, () => {}, () => Object.create(null),
+                    m => toasts.push(m), win, () => Object.keys(st.sel).filter(k => st.sel[k]), id => st.work[id], bulkSet, () => gmC, () => '', id => saved.push(id), () => {}, () => {});
+                const form = mk('div'); api.renderBulk(form, ['i_1', 'i_2']);
+                const all = []; const walk = n => { all.push(n); (n.kids || []).forEach(walk); }; walk(form);
+                const seg = all.find(n => /(^| )ui-seg( |$)/.test(n.className) && /lib-bulk-pic/.test(n.className)), setB = seg && seg.kids[0], noB = seg && seg.kids[1], label = all.find(n => n.className === 'lib-flabel' && n.textContent === 'Picture');
+                setB.on.click(); st.sel = { i_3: 1 }; picks[0]('/saves/images/rope.png'); const afterSet = st.work.p.map(e => e.pic || '');
+                setB.on.click(); picks[1]('https://evil.example/x.png'); setB.on.click(); picks[2]('/saves/images/journal/x.png'); const afterBad = st.work.p.map(e => e.pic || '');
+                st.sel = { i_1: 1 }; noB.on.click(); const afterNone = st.work.p.map(e => e.pic || '');
+                bw = { seg: !!seg, words: [setB && setB.textContent, noB && noB.textContent], label: !!label, afterSet, afterBad, afterNone, toasts: toasts.slice(), saved: saved.slice() };
+            } catch (e) { bwErr = String(e && e.stack || e).slice(0, 500); }
+            check('backlog 226 the Library window (renderBulk and bulk, run for real): with several chosen a Picture row holds Set picture… and No picture joined in one frame; Set picture opens the Image Library and the picture it answers lands on the entries chosen when it was pressed, though the choice changed meanwhile; a pick that is not one of the campaign\'s pictures changes nothing; No picture takes the chosen entries’ off; each change is saved and said as the other bulk changes are',
+                !!bw && bw.seg && bw.label && j(bw.words) === j(['Set picture…', 'No picture']) && j(bw.afterSet) === j(['/saves/images/rope.png', '/saves/images/rope.png', '']) && j(bw.afterBad) === j(bw.afterSet) && j(bw.afterNone) === j(['', '/saves/images/rope.png', ''])
+                && j(bw.toasts) === j(['2 entries changed.', 'Nothing changed.', '1 entry changed.']) && j(bw.saved) === j(['p', 'p']), bwErr || j(bw));
+        }
         {   // 1.6.2, backlog 208, the tracing audit's point 7: a key that goes, said in the Library, keyGoneSays run for real with the real core
             const Sk = await import(url('systemcore.js')), kgS = winT.slice(winT.indexOf('function keyGoneSays('), winT.indexOf('function tagList('));
             const sysK = { fields: [{ id: 'f_sk', key: 'Skills', kind: 'item-list', list: {} }, { id: 'f_a', key: 'Nose', kind: 'formula', formula: 'Skills.Tracking.lvl' }], items: [{ id: 'i_o', name: 'Oil', mods: [{ f: 'f_sk', op: 'add', v: 1, key: 'Tracking', col: 'Bonus' }] }], rolls: [], effects: [] };
@@ -274,7 +305,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /var plan = planFor\(im\), pid = im\.target, rmv = Array\.isArray\(plan\.remove\) \? plan\.remove : \[\];\n\s*if \(!plan\.add && !plan\.update && !rmv\.length\) return;/.test(winT) /* 1.6.0, backlog 196: a replacing import also goes on for what it removes (moved on purpose) */ && /\} else if \(!ready\(pid\)\) return;\n\s*st\.work\[pid\] = plan\.entries;/.test(winT) && /pid = r\.id; LB\(\)\.setMeta\(pid, \{ icon: im\.data\.icon \|\| '', vis: im\.data\.vis \}\); plan = planFor\(im\);/.test(winT)
             && /var file = packFile\(p, workOf\(p\.id\), players \? libCtx\(pv \|\| \{ fields: \[\] \}, F\(\), false, LB\(\) && LB\(\)\.needShown \? LB\(\)\.needShown : undefined, LB\(\) && LB\(\)\.needRuleShown \? LB\(\)\.needRuleShown : undefined\) : gmCtx\(\)\);/.test(winT) && /window\.wpSheets\.playerSystem\(c\)/.test(winT) && /if \(p\.vis === 'gm'\) ex\.options\[2\]\.disabled = true;/.test(winT)
             && /function chosen\(\) \{ return st\.shown\.filter\(function\(e\) \{ return st\.sel\[e\.id\]; \}\)\.map\(function\(e\) \{ return e\.id; \}\); \}/.test(winT)
-            && /var pid = st\.packId, ids = chosen\(\); if \(!ids\.length \|\| !ready\(pid\)\) return;\n\s*var before = workOf\(pid\), r = bulkSet\(/.test(winT) && /if \(!ids\.length \|\| !ready\(src\) \|\| !ready\(dst\) \|\| src === dst\) return;/.test(winT)
+            && /var pid = at && at\.pid \? at\.pid : st\.packId, ids = at && Array\.isArray\(at\.ids\) \? at\.ids : chosen\(\); if \(!ids\.length \|\| !ready\(pid\)\) return;\n\s*var before = workOf\(pid\), r = bulkSet\(/.test(winT) /* backlog 226, moved on purpose: a picture picked later acts on the entries chosen when Set picture was pressed */ &&/if \(!ids\.length \|\| !ready\(src\) \|\| !ready\(dst\) \|\| src === dst\) return;/.test(winT)
             && /if \(!yes \|\| !st\.open \|\| !ready\(pid\)\) return; var gone = map\(\);/.test(winT) && !/innerHTML|outerHTML|insertAdjacentHTML/.test(winT));
         const hmT = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
         check('L2a2 Help describes choosing several, import with its dry run and export; the window has its Import button and a list that takes the keys',

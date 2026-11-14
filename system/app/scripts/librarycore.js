@@ -5,7 +5,7 @@
    (gmNotes: never in the players' view). Everything that enters goes through here — a pack file read from disk, an imported
    .wppack.json, a manifest in a loaded save, and later (L3) every message on the wire — and comes out as plain arrays and objects
    (prototype-free maps inside). Build plan: docs/STAGE_6_LIBRARY_BUILD.md. */
-import { cleanItemDef, gmStatKeys, statKeys, statPicks, cleanIcon, fieldKinds, cleanLvls, hideNeeds, hideGrants, cleanNeeds, needRule } from './systemcore.js';
+import { cleanItemDef, gmStatKeys, statKeys, statPicks, cleanIcon, fieldKinds, cleanLvls, hideNeeds, hideGrants, cleanNeeds, needRule, cleanPic } from './systemcore.js';
 
 export var VERSION = 1;
 export var LIB = Object.freeze({
@@ -351,15 +351,18 @@ export function packsForRow(packs, entriesOf, rd, spec, isReady) {
     return out.sort(function(a, b) { return (a.gm ? 1 : 0) - (b.gm ? 1 : 0) || (b.fit === a.fit ? 0 : b.fit > a.fit ? 1 : -1) || a.at - b.at; });
 }
 // L2a2: a bulk change to a pack's chosen entries (ids): a category, tags added or replacing theirs, who may see them — each entry
-// cleaned again (ctx), the others untouched. { entries, changed }
+// cleaned again (ctx), the others untouched. { entries, changed }. 1.6.2 (backlog 226): and a picture, pic one of the campaign's own (through
+// cleanPic, so a path it refuses changes nothing) or '' for none
 export function bulkSet(entries, ids, change, ctx) {
     var pick = map(), n = 0; (Array.isArray(ids) ? ids : []).forEach(function(id) { pick[id] = 1; }); change = isObj(change) ? change : {};
+    var pic = typeof change.pic === 'string' ? (change.pic === '' ? '' : cleanPic(change.pic) || null) : null;   // null: no change of picture
     var list = (Array.isArray(entries) ? entries : []).map(function(e) {
         if (!isObj(e) || !pick[e.id]) return e;
         var d = JSON.parse(JSON.stringify(e));
         if (typeof change.category === 'string') d.category = change.category;
         if (change.vis === 'gm' || change.vis === 'all') d.vis = change.vis;
         if (Array.isArray(change.tags)) d.tags = change.tags.slice(); else if (Array.isArray(change.addTags)) d.tags = (Array.isArray(d.tags) ? d.tags : []).concat(change.addTags);
+        if (pic === '') delete d.pic; else if (pic) d.pic = pic;
         var c = cleanLibEntry(d, ctx); if (!c) return e;
         if (JSON.stringify(c) !== JSON.stringify(e)) n++;
         return c;

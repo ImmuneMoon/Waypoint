@@ -237,21 +237,31 @@ function csvPick() {
     fi.addEventListener('change', function() {
         var f = fi.files && fi.files[0]; if (!f || !st.open) return;
         if (f.size > CSV.bytes) { catLog('csv-refused', { why: 'size' }); toast('That file is too large (' + Math.round(CSV.bytes / 1048576) + ' MB at most).'); return; }
-        f.arrayBuffer().then(function(buf) { if (st.open) csvOpen(String(f.name || ''), new Uint8Array(buf)); }).catch(function() { catLog('csv-refused', { why: 'read' }); toast('That file could not be read.'); });
+        f.arrayBuffer().then(function(buf) { return csvPics().then(function(pics) { if (st.open) csvOpen(String(f.name || ''), new Uint8Array(buf), pics); }); }).catch(function() { catLog('csv-refused', { why: 'read' }); toast('That file could not be read.'); });
     });
     fi.click();
 }
-function csvOpen(fileName, bytes) {
+// backlog 226: the campaign's own pictures as the Image Library lists them, so that a Picture column is matched against real files; null where
+// they cannot be asked (a Picture cell with a bare name is then refused and said)
+function csvPics() {
+    if (typeof fetch !== 'function') return Promise.resolve(null);
+    return fetch('/api/list-images').then(function(r) { return r.ok ? r.json() : null; }).then(function(list) {
+        if (!Array.isArray(list)) return null; var c = camp();
+        if (c && typeof window !== 'undefined' && typeof window.wpImgScope === 'function') list = window.wpImgScope(list, c.id);
+        return (Array.isArray(list) ? list : []).filter(function(im) { return im && typeof im.path === 'string'; }).map(function(im) { return { path: im.path, folder: String(im.folder || ''), name: String(im.name || '') }; });
+    }).catch(function() { return null; });
+}
+function csvOpen(fileName, bytes, pics) {
     var t = readCsv(bytes); if (t.error) { catLog('csv-refused', { why: 'file' }); toast(t.error); return; }
     var c = camp(), sys = c && c.system, hasHead = headLooks(t), heads = headsOf(t, hasHead), list = bestList(sys, heads), stats = csvStats(sys, list), mapped = guessMap(heads, csvTargets(stats));
     var name = fileName.replace(/\.[^.]*$/, '').replace(/[_]+/g, ' ').trim().slice(0, LIB.packName), low = name.toLowerCase(), hit = packs().filter(function(p) { return String(p.name || '').trim().toLowerCase() === low; })[0];
-    var cv = { file: fileName.slice(0, 80), table: t, hasHead: hasHead, heads: heads, list: list, stats: stats, map: mapped, cat: csvCatFor(list, mapped), pack: name };
+    var cv = { file: fileName.slice(0, 80), table: t, hasHead: hasHead, heads: heads, list: list, stats: stats, map: mapped, cat: csvCatFor(list, mapped), pack: name, pics: Array.isArray(pics) ? pics : null };
     var im = { file: cv.file, csv: cv, data: null, mode: hit ? (mapped.indexOf('key') >= 0 ? 'key' : 'id') : 'new', target: hit ? hit.id : st.packId };   // a file named as a pack updates that pack, by default
     csvApply(im); st.imp = im; st.sel = map(); st.entryId = null; st.draftNew = null; drawRows(); renderForm();
     catLog('csv-read', { rows: t.rows.length, cols: heads.length, sep: t.sep === ',' ? 'comma' : t.sep === ';' ? 'semicolon' : t.sep === '\t' ? 'tab' : 'other', enc: t.enc, guessed: mapped.filter(Boolean).length, cutRows: t.cut.rows, cutCols: t.cut.cols, cutCells: t.cut.cells, open: t.open });
 }
 function csvCatFor(list, mapped) { if (mapped.indexOf('category') >= 0) return ''; var f = itemLists().filter(function(x) { return x.id === list; })[0]; return f && Array.isArray(f.list.cats) && typeof f.list.cats[0] === 'string' ? f.list.cats[0] : ''; }
-function csvApply(im) { var cv = im.csv; im.data = csvEntries(cv.table, cv.map, cv.stats, gmCtx(), { hasHead: cv.hasHead, cat: cv.cat, name: cv.pack }); }
+function csvApply(im) { var cv = im.csv; im.data = csvEntries(cv.table, cv.map, cv.stats, gmCtx(), { hasHead: cv.hasHead, cat: cv.cat, name: cv.pack, pics: cv.pics }); }
 // a change of what the file says: planned again, and the form drawn where it stood, with the focus on the box that changed
 function csvRedraw(im) {
     csvApply(im); var form = ui('libForm'), top = form ? form.scrollTop : 0, at = document.activeElement ? document.activeElement.id : ''; renderForm();
@@ -799,12 +809,15 @@ function renderBulk(form, ids) {
     var c3 = row('Tags', 'Comma separated: Add puts them beside each entry’s own, Replace puts them instead'), tg = el('input', 'field'); tg.type = 'text'; tg.maxLength = 220; tg.placeholder = 'comma, separated'; c3.appendChild(tg);
     btn(c3, 'Add', function() { bulk({ addTags: tagList(tg.value) }); }); btn(c3, 'Replace', function() { bulk({ tags: tagList(tg.value) }); }, 'ghost');
     var c4 = row('Who sees them'), vs = select(VIS, 'all'); c4.appendChild(vs); btn(c4, 'Set', function() { bulk({ vis: vs.value }); });
+    var c5 = row('Picture', 'One of your Image Library pictures for every chosen entry. It shows on a sheet’s row, a container’s tile and a trade'), pseg = el('span', 'ui-seg lib-bulk-pic'); c5.appendChild(pseg);   // 1.6.2 (backlog 226): a picture on many entries at once, through bulkSet as the rest
+    btn(pseg, 'Set picture…', function() { var at = { pid: pid, ids: ids.slice() }; if (!window.wpPickImage) { toast('The Image Library is not available here.'); return; } window.wpPickImage(function(src) { if (typeof src === 'string' && /^[/]saves[/]images[/]/.test(src)) bulk({ pic: src }, at); }); }, 'ghost lib-bulk-picset');
+    btn(pseg, 'No picture', function() { bulk({ pic: '' }); }, 'ghost lib-bulk-picnone');
     var btns = el('div', 'lib-fbtns');
     btn(btns, 'Duplicate', dupMany, 'ghost'); btn(btns, 'Delete ' + plural(ids.length), delMany, 'ghost lib-del'); btn(btns, 'Clear the choice', function() { st.sel = map(); afterPick(); }, 'ghost');
     form.appendChild(btns);
 }
-function bulk(change) {
-    var pid = st.packId, ids = chosen(); if (!ids.length || !ready(pid)) return;
+function bulk(change, at) {   // at { pid, ids }: the pack and the entries chosen when the change was asked for, where its answer comes later (a picture picked in the Image Library)
+    var pid = at && at.pid ? at.pid : st.packId, ids = at && Array.isArray(at.ids) ? at.ids : chosen(); if (!ids.length || !ready(pid)) return;
     var before = workOf(pid), r = bulkSet(before, ids, change, gmCtx()), pick = Object.create(null); ids.forEach(function(id) { pick[id] = 1; });
     var rt = r.changed ? reachOf(before.filter(function(e) { return pick[e.id]; }), r.entries.filter(function(e) { return pick[e.id]; })) : '';   // L4
     st.work[pid] = r.entries; if (r.changed) schedule(pid);

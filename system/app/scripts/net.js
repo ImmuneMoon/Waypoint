@@ -3826,10 +3826,19 @@ function tradeHere(pid) { return !!pid && net.active && net.role === 'host' && n
 // who acts for a character: its player while at the table, '' for the GM (an NPC, one with no player, one whose player is away)
 function tradeBy(ch) { return ch && !ch.npc && ch.ownerId && tradeHere(ch.ownerId) ? ch.ownerId : ''; }
 function tradeOfChar(id) { var hit = null; Object.keys(_trades).forEach(function(k) { var tr = _trades[k]; if (!hit && (tr.a.charId === id || tr.b.charId === id)) hit = tr; }); return hit; }
+// 1.6.2 (backlog 226): a line's face, its row's own picture else its entry's, and the entry's icon, each through the core's own cleaner. tradeOfferable
+// offers no GM-only entry, so a picture here is one players may see; it is named under pic, so the asset gate serves it to whoever is sent the view
+function tradeFace(S, sys, ch, l, o) {
+    var rows = ch && ch.values && Array.isArray(ch.values[l.fid]) ? ch.values[l.fid] : [], r = null; rows.forEach(function(x) { if (!r && x && S.rowIdOf && S.rowIdOf(x) === l.rowId) r = x; }); if (!r) return o;
+    var rd = S.rowDef ? S.rowDef(sys, r) : null, d = rd && rd.def && typeof rd.def === 'object' ? rd.def : {}; if (d.vis === 'gm') return o;
+    var pc = S.cleanPic ? S.cleanPic(r.pic) || S.cleanPic(d.pic) : ''; if (pc) o.pic = pc;
+    var ic = S.cleanIcon && typeof d.icon === 'string' ? S.cleanIcon(d.icon) : ''; if (ic) o.icon = ic;
+    return o;
+}
 function tradeLines(S, sys, ch, off, who, other, hag) {   // other: who takes it, for what it is worth to them (157 M1c); hag: haggling toward this side (157 M1i)
     var can = Object.create(null); S.tradeOfferable(sys, ch, who).forEach(function(e) { can[e.fid + '|' + e.rowId] = e; });
     return (off || []).map(function(l) {
-        var e = can[l.fid + '|' + l.rowId]; if (!e) return null; var o = { fid: l.fid, rowId: l.rowId, name: e.name, list: e.list };
+        var e = can[l.fid + '|' + l.rowId]; if (!e) return null; var o = tradeFace(S, sys, ch, l, { fid: l.fid, rowId: l.rowId, name: e.name, list: e.list });
         if (l.key === undefined) { o.qty = l.qty; if (typeof e.price === 'number') { o.price = e.price; var dl = S.tradeDeal ? S.tradeDeal(sys, ch, other, e, hag) : null; if (dl !== null) o.deal = dl; if (typeof e.cond === 'number') o.cond = e.cond; } if (e.hot) o.hot = e.hot; } else { var sp = e.split.filter(function(s) { return s.key === l.key; })[0]; o.key = l.key; o.amt = l.amt; o.label = sp ? sp.label : l.key; }
         return o;
     }).filter(Boolean);
@@ -4210,6 +4219,7 @@ function cleanTradeView(v) {
         var lines = (Array.isArray(s.lines) ? s.lines.slice(0, N) : []).map(function(l) {
             if (!l || typeof l !== 'object' || typeof l.fid !== 'string' || typeof l.rowId !== 'string' || l.fid.length > 40 || l.rowId.length > 40) return null;
             var o = { fid: l.fid, rowId: l.rowId, name: txt(l.name, 80) || 'Item', list: txt(l.list, 60) };
+            var pcV = S && S.cleanPic ? S.cleanPic(l.pic) : '', icV = S && S.cleanIcon && typeof l.icon === 'string' ? S.cleanIcon(l.icon) : ''; if (pcV) o.pic = pcV; if (icV) o.icon = icV;   // 1.6.2 (backlog 226): a picture of the campaign's own and an icon, cleaned again; anything else is none
             if (typeof l.key === 'string') { var a = num(l.amt); if (a === null) return null; o.key = l.key.slice(0, 40); o.amt = a; o.label = txt(l.label, 60) || o.key; }
             else { var q = num(l.qty); if (q === null || q < 1) return null; o.qty = Math.floor(q); var p = num(l.price); if (p !== null) { o.price = p; var dv = num(l.deal); if (dv !== null) o.deal = dv; var cdv = num(l.cond); if (cdv !== null && cdv >= 0 && cdv < 100) o.cond = Math.round(cdv); if (l.hot === 'stolen' || l.hot === 'illegal') o.hot = l.hot; } }
             return o;

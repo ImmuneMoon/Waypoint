@@ -206,6 +206,24 @@ function page() {
             && ['#inspector .insp-card', '.body-drawer-card'].every(s => cB.includes(s) && c6.indexOf(s) > B),
             J({ B: B >= 0, hErr, hOut, hPic }));
     }
+    {   // backlog 226: a trade's line wears its picture, else its icon, else its first letter (trade.js twDraw and its face, sliced by the tradewin markers and run for real with the real card, cleaner and picRef)
+        const SCt = await import(url('systemcore.js')), SFt = await import(url('safecore.js')), trS = read('scripts/trade.js'), twS = trS.slice(trS.indexOf('// [sinkcheck:tradewin-start]'), trS.indexOf('// [sinkcheck:tradewin-end]'));
+        const run = (net) => { const W = { wpUi: U, wpSystemCore: SCt, wpSafeCore: SFt, wpNet: net }; const tw = new Function('window', twS + '\nreturn { twDraw: twDraw };')(W); const d = page(), mk0 = d.createElement; d.createElement = t => Object.assign(mk0(t), { nodeType: 1 }); const root = d.createElement('div');   /* a real element says it is one, which the card asks of a picture */
+            const v = { tid: 't_abcdefgh', status: 'done', you: 'b', a: { charId: 'c_1', name: 'Kael', ok: true, lines: [
+                { fid: 'f_g', rowId: 'w_1', name: 'Lamp', list: 'Gear', qty: 1, pic: '/saves/images/lamp.png', icon: 'icon:star' },
+                { fid: 'f_g', rowId: 'w_2', name: 'Lantern', list: 'Gear', qty: 1, pic: '/saves/images/gone.png', icon: 'icon:star' },
+                { fid: 'f_g', rowId: 'w_3', name: 'Rope', list: 'Gear', qty: 1, icon: '*' },
+                { fid: 'f_g', rowId: 'w_4', name: 'knife', list: 'Gear', qty: 1, pic: 'https://evil.example/x.png' }] }, b: { charId: 'c_2', name: 'Bo', ok: true, lines: [] } };
+            tw.twDraw(d, root, v, { a: [], b: [] }, () => {}); const cards = []; const walk = n => { if (/(^| )trade-lcard( |$)/.test(n.className)) cards.push(n); (n.children || []).forEach(walk); }; walk(root); return cards.map(c => c.children[0].children[0]); };
+        const host = run({ assetMissing: p => p === '/saves/images/gone.png', assetSrc: p => p }), player = run({ assetMissing: () => false, assetSrc: p => 'blob:wp-' + p.length });
+        const face = pc => { const k = pc.children[0]; return k ? [k.tagName, k.className, k.tagName === 'IMG' ? k.src : k.textContent] : null; };
+        const hf = host.map(face), pf = player.map(face), img = host[0].children[0];
+        host[0].removeChild = function(c) { this.children.splice(this.children.indexOf(c), 1); c.parentNode = null; }; img.fire('error'); const after = face(host[0]);
+        check('backlog 226 a trade\'s lines (trade.js twDraw, run for real with the real card, cleaner and picRef): a line\'s picture of the campaign\'s own stands in its card, the campaign\'s own address on the GM\'s screen and the bytes through the host on a player\'s; one the host says is not there shows the item\'s icon, quietly; with no picture its icon, an emoji as itself; one that is no picture of the campaign\'s its first letter; a picture that fails to load gives way to its icon',
+            J(hf) === J([['IMG', 'trade-pic', '/saves/images/lamp.png'], ['SPAN', 'wp-glyph ui-card-glyph', ''], ['SPAN', 'ui-card-ch', '*'], ['SPAN', 'ui-card-ch', 'K']]) && img.attrs['data-pic'] === '/saves/images/lamp.png' && img.alt === ''
+            && pf[0][2] === 'blob:wp-22' && pf[1][0] === 'IMG' && J(after) === J(['SPAN', 'wp-glyph ui-card-glyph', '']) && host[1].children[0].style.maskImage === 'url("/assets/icons/fa/' + SCt.glyphPath('icon:star') + '.svg")' && host[0].children.length === 1
+            && !/innerHTML|insertAdjacentHTML|outerHTML/.test(twS) && trS.includes("document.querySelectorAll('img.trade-pic[data-pic]')"), J([hf, pf, after]));
+    }
     // the review of the item card: a bundled icon is the file glyphPath answers, drawn as the sheet draws one; a name's first whole character
     {
         const SC = await import(url('systemcore.js')), gp = SC.glyphPath('icon:star'), cd = page();

@@ -114,6 +114,21 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         check('a word for who sees it that cannot be read stays GM only, never shown by mistake', so.vis === 'gm' && da.reasons.some(r => /Who sees it reads .maybe., so it stays GM only/.test(r)), so.vis);
         check('an id named twice is the first row\'s, and the second cannot be read', da.dropped === 1 && da.reasons.some(r => /^row 4: its id is used by a row above/.test(r)) && da.entries.length === 2, j(da.reasons));
     }
+    {   // 1.6.2 (backlog 226): a Picture column, matched against the campaign's own pictures as /api/list-images answers them, then read through cleanPic
+        const lib = [{ path: '/saves/images/m_inn/ab12cd34_rope.png', folder: 'm_inn', name: 'ab12cd34_rope.png' }, { path: '/saves/images/gear/lamp.webp', folder: 'gear', name: 'lamp.webp' }, { path: '/saves/images/pick.jpg', folder: '', name: 'pick.jpg' },
+            { path: '/saves/images/m_a/zz99yy88_coin.png', folder: 'm_a', name: 'zz99yy88_coin.png' }, { path: '/saves/images/m_b/qq11ww22_coin.png', folder: 'm_b', name: 'qq11ww22_coin.png' }, { path: '/saves/images/journal/n.png', folder: 'journal', name: 'n.png' }, { path: 'https://evil.example/y.png', name: 'y.png' }];
+        const tp = table('Name,Picture' + NL + 'Rope,rope.png' + NL + 'Lamp,/saves/images/gear/lamp.webp' + NL + 'Pick,images/pick.jpg' + NL + 'Web,https://evil.example/x.png' + NL + 'Walk,../../x.png' + NL + 'Note,/saves/images/journal/n.png' + NL + 'Text,rope.txt' + NL + 'Plain,' + NL + 'Ghost,ghost.png' + NL + 'Dead,/saves/images/gone/dead.png' + NL + 'Coin,coin.png' + NL + 'Coin A,m_a/zz99yy88_coin.png' + NL + 'Loud,ROPE.PNG' + NL + 'Whole,AB12CD34_rope.png' + NL);
+        const mp = guessMap(headsOf(tp, true), tg), dp = csvEntries(tp, mp, stats, ctx, { pics: lib }), pics = dp.entries.map(e => e.pic || '');
+        const said = (row, w) => dp.reasons.some(r => r.indexOf('row ' + row + ': Picture reads') === 0 && new RegExp(w + ', so it has none$').test(r));
+        check('backlog 226 a Picture column: its heading is guessed (Picture, Image, Art); a cell is matched against the campaign\'s own pictures ignoring case, by its exact path, its folder and name, its name, or its name with the upload\'s 8-character prefix taken off, so a bare name that exists only in a map\'s folder is that file; a name or a path with no file is left out and said with its row, two files of that name in two folders are said as such, and a web address, a path that walks, the Journal\'s folder and a file that is no picture are never kept; the row still comes in and an empty cell is no picture',
+            mp[1] === 'pic' && guessMap(['Name', 'Image'], tg)[1] === 'pic' && guessMap(['Name', 'Art'], tg)[1] === 'pic' && csvTargets([]).some(t => t.id === 'pic' && t.label === 'Picture')
+            && j(pics) === j(['/saves/images/m_inn/ab12cd34_rope.png', '/saves/images/gear/lamp.webp', '/saves/images/pick.jpg', '', '', '', '', '', '', '', '', '/saves/images/m_a/zz99yy88_coin.png', '/saves/images/m_inn/ab12cd34_rope.png', '/saves/images/m_inn/ab12cd34_rope.png']) && dp.entries.length === 14 && dp.cells === 7
+            && [5, 6, 7, 8, 10, 11].every(r => said(r, 'which is not one of your pictures')) && said(12, 'which matches pictures in several folders, so name its folder too'), j([pics, dp.reasons]));
+        const dn = csvEntries(tp, mp, stats, ctx, {}), pn = dn.entries.map(e => e.pic || '');
+        check('backlog 226 with no list of the campaign\'s pictures at hand, a path is read as it stands and a bare name is refused and said, never guessed under /saves/images',
+            pn[0] === '' && pn[1] === '/saves/images/gear/lamp.webp' && pn[2] === '/saves/images/pick.jpg' && dn.reasons.some(r => r.indexOf('row 2: Picture reads') === 0 && /a file name with no folder, and your pictures could not be looked up to find it, so it has none$/.test(r))
+            && C.picCell('Sub\\rope.png') === '/saves/images/Sub/rope.png' && C.picCell('rope.png') === '' && C.picCell('javascript:alert(1)', lib) === '' && C.picCell('', lib) === '' && j(C.picMatch('coin.png', lib)) === j({ pic: '', why: 'many' }) && C.picMatch('ghost.png', lib).why === 'none' && C.picMatch('rope.png').why === 'nolist', j([pn, dn.reasons]));
+    }
     {
         const opt = S.cleanSystem({ v: 1, name: 'L', rolls: [], fields: [{ id: 'f_g', key: 'Gear', kind: 'item-list', list: { stats: [{ key: 'Slot', label: 'Slot', labels: ['Head', 'Hand', 'Foot'] }], on: { label: 'Worn', over: 'Slot' } } }] }, { F, gmView: true }), so = csvStats(opt, ''), to = table('Name,Slot' + NL + 'Hat,Head' + NL + 'Gloves,"Hand, Foot"' + NL + 'Wings,Back' + NL + 'Coat,3' + NL), dO = csvEntries(to, guessMap(headsOf(to, true), csvTargets(so)), so, L.libCtx(opt, F, true), {});
         check('a stat read as a set of places takes its places by name, or as its number, and names a place it does not have', so[0].kind === 'set' && dO.entries[0].stats.Slot === 1 && dO.entries[1].stats.Slot === 6 && dO.entries[3].stats.Slot === 3 && !dO.entries[2].stats && dO.reasons.some(r => /Slot reads .Back., which names a place/.test(r)), j(dO));
@@ -223,6 +238,16 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         W.select('libF_csvList', 'f_sk');
         check('another list offers its own stats, and a stat it has not is left out', !W.st.imp.csv.map.some(x => x === 'st:Wt') && W.ui('libCsvCol0').kids.some(o => o.textContent === 'Stat: Difficulty') && !W.ui('libCsvCol0').kids.some(o => o.textContent === 'Stat: Weight'), j(W.st.imp.csv.map));
         W.select('libF_csvList', 'f_gear');
+    }
+    {   // backlog 226: the box hands the campaign's pictures it was opened with to every plan, so a Picture column is matched against real files
+        const lib = [{ path: '/saves/images/m_inn/ab12cd34_rope.png', folder: 'm_inn', name: 'ab12cd34_rope.png' }], wnS = read('scripts/librarywin.js');
+        const W = winWorld(); W.api.csvOpen('Goods.csv', bytes('Name,Picture' + NL + 'Rope,rope.png' + NL + 'Ghost,ghost.png' + NL), lib); const e0 = W.st.imp.data.entries;
+        W.select('libF_csvHead', 'yes'); const e1 = W.st.imp.data.entries;
+        const W2 = winWorld(); W2.api.csvOpen('Goods.csv', bytes('Name,Picture' + NL + 'Rope,rope.png' + NL));
+        check('backlog 226 the spreadsheet box keeps the pictures it was opened with and plans with them again after a change; the dry run says which row named a picture with no file; opened with none, a bare name is refused and said',
+            W.st.imp.csv.pics === lib && e0[0].pic === '/saves/images/m_inn/ab12cd34_rope.png' && !e0[1].pic && e1[0].pic === e0[0].pic && W.st.imp.data.reasons.some(r => /^row 3: Picture reads .ghost\.png., which is not one of your pictures/.test(r))
+            && W2.st.imp.csv.pics === null && !W2.st.imp.data.entries[0].pic && W2.st.imp.data.reasons.some(r => /could not be looked up/.test(r))
+            && /function csvPics\(\) \{/.test(wnS) && /fetch\('\/api\/list-images'\)/.test(wnS.slice(wnS.indexOf('function csvPics()'))) && /window\.wpImgScope\(list, c\.id\)/.test(wnS) && /csvOpen\(String\(f\.name \|\| ''\), new Uint8Array\(buf\), pics\)/.test(wnS), j([e0, W.st.imp.data.reasons]));
     }
     {
         const W = winWorld(); W.api.csvOpen('Goods.csv', bytes('Name,Weight' + NL + 'Rope,1' + NL + 'Knife,2' + NL));
@@ -366,6 +391,13 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     /* ---- the page, the words and CI ---- */
     const page = read('index.html'), css = read('style.css'), win = read('scripts/librarywin.js'), sh = read('scripts/sheets.js'), ci = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'checks.yml'), 'utf8'), w1 = fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8'), w2 = read('assets/whatsnew.txt');
     check('the page has the window\'s new button and the guide\'s strip, once each', page.split('id="libCsv"').length === 2 && page.split('id="libGuide"').length === 2 && /id="libGuide" class="lib-guide" hidden/.test(page));
+    {   // backlog 226 (the review): Help and both release notes say what a Picture column and a trade's line really do
+        const wn = s => s.replace(/\s+/g, ' ');
+        check('backlog 226 Help and both release notes say it as it works: a Picture cell names a file as the Image Library shows it, a name with no file is left out and the dry run says its row, two folders of that name want the folder; a trade line with no picture shows its item\'s icon, else the first letter of its name',
+            page.includes('<li>A <b>Picture</b> column names one of your pictures by its file name, as the Image Library shows it. A name with no file is left out, and the dry run says which row it was. Where two folders hold a picture of that name, put the folder&rsquo;s name before it, as gear/rope.png.</li>')
+            && page.includes('it shows the item&rsquo;s icon, else the first letter of its name.</li>')
+            && [w1, w2].every(w => wn(w).includes('A name with no file is left out, and the dry run says which row it was. Where two folders hold a picture of that name, put the folder\'s name before it, as gear/rope.png.') && wn(w).includes('A line with no picture shows its item\'s icon, else the first letter of its name.') && !wn(w).includes('A cell that names none of your pictures')));
+    }
     check('the window wires them', /ui\('libCsv'\); if \(cs\) cs\.addEventListener\('click', csvPick\)/.test(win) && /m\.addEventListener\('click', guidePress, true\)/.test(win) && /guideOpen\(\)/.test(win.slice(win.indexOf('function open() {'), win.indexOf('async function close()'))));
     check('the app\'s own styles for what is new, a hidden strip staying hidden', ['.lib-csv-col', '.lib-csv-table', '.lib-guide[hidden]', '.lib-guide-at', '.lib-guide-tip', '.sheet-rowlib-pop', '#libraryModal.lib-csv-on'].every(c => css.indexOf(c) >= 0));
     check('a row and a table row are hooked, and both forms have the button', sh.split('rowLibHook(line, entry, rd, c, f, spec, gm)').length === 3 && /rowLibHook\(tr, entry, rd, c, f, spec, gm\)/.test(sh) && sh.split('rowLibBtn(head, entry, rd, c, f, spec,').length === 3, sh.split('rowLibHook(line, entry, rd, c, f, spec, gm)').length);

@@ -6,7 +6,7 @@
    exactly the same. What is read is bounded (CSV), and what is cut is said. Nothing here writes markup: a cell is text, and the window draws it
    as text. */
 import { LIB, ITEM_RE, cleanLibEntry, hashText, lvlsFromText } from './librarycore.js';
-import { LIMITS, cleanItemKey } from './systemcore.js';
+import { LIMITS, cleanItemKey, cleanPic } from './systemcore.js';
 
 export var CSV = Object.freeze({ bytes: LIB.fileBytes, rows: LIB.entries, cols: 800, cell: 16000, head: 60, sample: 48, sniff: 64 * 1024, sniffLines: 20, show: 8, showStats: 6 });
 var SEPS = [',', ';', '\t'], CTRL_LINE = /[\u0000-\u001f\u007f]/g;
@@ -119,7 +119,7 @@ export function csvStats(sys, listId) {
     return out;
 }
 // What a column may go to: what an entry holds, each with the headings that read like it, then the list's stats, each as 'st:' and its key
-var FIXED = [['name', 'Name', 'name title item entry itemname entryname'], ['category', 'Category', 'category cat type kind group class'], ['desc', 'Description', 'description desc details detail text effect summary'], ['notes', 'Notes', 'notes note comment comments remarks'], ['key', 'Key', 'key shortname'], ['id', 'Id', 'id entryid itemid'], ['tags', 'Tags', 'tags tag keywords'], ['ref', 'Reference', 'reference ref source page book'], ['icon', 'Icon', 'icon emoji'], ['vis', 'Who sees it', 'whoseesit visibility vis visible'], ['lvl', 'Starts at level', 'level lvl startsatlevel startlevel rank'], ['lvls', 'By level', 'bylevel levels'], ['damage', 'Damage', 'damage dmg'], ['cost', 'Cost', 'cost'], ['gmNotes', 'GM notes', 'gmnotes gmnote secret secrets']];
+var FIXED = [['name', 'Name', 'name title item entry itemname entryname'], ['category', 'Category', 'category cat type kind group class'], ['desc', 'Description', 'description desc details detail text effect summary'], ['notes', 'Notes', 'notes note comment comments remarks'], ['key', 'Key', 'key shortname'], ['id', 'Id', 'id entryid itemid'], ['tags', 'Tags', 'tags tag keywords'], ['ref', 'Reference', 'reference ref source page book'], ['icon', 'Icon', 'icon emoji'], ['pic', 'Picture', 'picture pic image img art portrait photo'], ['vis', 'Who sees it', 'whoseesit visibility vis visible'], ['lvl', 'Starts at level', 'level lvl startsatlevel startlevel rank'], ['lvls', 'By level', 'bylevel levels'], ['damage', 'Damage', 'damage dmg'], ['cost', 'Cost', 'cost'], ['gmNotes', 'GM notes', 'gmnotes gmnote secret secrets']];
 export function csvTargets(stats) {
     var out = FIXED.map(function(t) { return { id: t[0], label: t[1], words: t[2].split(' ') }; });
     (Array.isArray(stats) ? stats : []).forEach(function(s) { out.push({ id: 'st:' + s.key, label: 'Stat: ' + s.label, words: [norm(s.key), norm(s.label)], stat: s }); });
@@ -166,6 +166,36 @@ function statCell(st, cell, sep) {
     if (st.kind === 'named') { if (n !== undefined) return { v: n }; var k2 = at(st.names || [], t); return k2 >= 0 ? { v: k2 } : { why: 'which is not a number or one of its names' }; }
     return n !== undefined ? { v: n } : { why: 'which is not a number' };
 }
+// 1.6.2 (backlog 226): a Picture cell as the path of one of the campaign's own pictures. An upload is kept as /saves/images/<folder>/<8 letters
+// or digits>_<its name>, so a spreadsheet names a picture as the Image Library shows it. pics is the campaign's pictures as /api/list-images
+// answers them ({ path, folder, name }); a cell is matched against them, ignoring case, in this order: the exact path (a whole path, a path under
+// images or folder/name read as one), then folder/name, then the file's name, then its name with the upload's 8-character prefix taken off. The
+// first of those that matches decides: one picture is the answer, two or more that are not the same file are none (why 'many'), and nothing is
+// none (why 'none'). With no list (a suite, or the list could not be asked) a path is read as it stands and a bare name is refused (why 'nolist').
+// Whatever is kept goes through cleanPic, so a web address, a walk or the Journal's folder is never kept. picMatch answers { pic, why }
+var PIC_PREFIX = /^[a-z0-9]{8}_/i;
+export function picMatch(cell, pics) {
+    var t = String(cell == null ? '' : cell).trim().replace(/\\/g, '/'), no = function(w) { return { pic: '', why: w }; }; if (!t) return no('');
+    if (/^[a-z][a-z0-9+.-]*:/i.test(t)) return no('none');
+    var p = t; if (/^saves\//i.test(p)) p = '/' + p; else if (/^images\//i.test(p)) p = '/saves/' + p; else if (p.charAt(0) !== '/') p = '/saves/images/' + p;
+    var bare = t.indexOf('/') < 0;
+    if (!Array.isArray(pics)) { if (bare) return no('nolist'); var k0 = cleanPic(p); return k0 ? { pic: k0, why: '' } : no('none'); }
+    var lw = function(s) { return String(s == null ? '' : s).toLowerCase(); }, list = [], root = '/saves/images/';
+    pics.forEach(function(im) {
+        if (!isObj(im) || typeof im.path !== 'string') return; var k = cleanPic(im.path); if (!k) return;
+        var nm = typeof im.name === 'string' && im.name ? im.name : k.slice(k.lastIndexOf('/') + 1), fd = typeof im.folder === 'string' ? im.folder : k.slice(root.length, Math.max(root.length, k.lastIndexOf('/')));
+        list.push({ path: k, fn: lw((fd ? fd + '/' : '') + nm), name: lw(nm), bare: lw(nm.replace(PIC_PREFIX, '')) });
+    });
+    var tl = lw(t.replace(/^\/?(?:saves\/)?images\//i, '')), tests = [function(x) { return lw(x.path) === lw(p); }, function(x) { return x.fn === tl; }];
+    if (bare) tests.push(function(x) { return x.name === tl; }, function(x) { return x.bare === tl; });
+    for (var i = 0; i < tests.length; i++) {
+        var seen = Object.create(null), hit = list.filter(tests[i]).filter(function(x) { if (seen[x.path]) return false; seen[x.path] = 1; return true; });
+        if (hit.length === 1) return { pic: hit[0].path, why: '' }; if (hit.length > 1) return no('many');
+    }
+    return no('none');
+}
+export function picCell(cell, pics) { return picMatch(cell, pics).pic; }
+var PIC_WHY = { none: 'which is not one of your pictures', many: 'which matches pictures in several folders, so name its folder too', nolist: 'a file name with no folder, and your pictures could not be looked up to find it' };
 function visOf(cell) { var f = norm(cell); if (!f || f === 'all' || f === 'players' || f === 'everyone' || f === 'public' || f === 'playerscanseeit') return 'all'; if (f === 'gm' || f === 'gmonly' || f === 'hidden' || f === 'secret') return 'gm'; return null; }
 // An entry's id from what it is, so that the same sheet read again finds the entries it made: its key, else its name and category, and for a row that
 // repeats those, how many came before it
@@ -195,6 +225,7 @@ export function csvEntries(table, mapped, stats, ctx, opts) {
         var lv = get('lvl').trim(); if (lv) { var ln = readNum(lv, sep); if (ln === undefined) soft('Starts at level reads \u201c' + one(lv, 40) + '\u201d, which is not a number'); else raw.lvl = ln; }
         var lvs = get('lvls'); if (lvs.trim()) { var ll = lvlsFromText(lvs); if (ll.length) raw.lvls = ll; else soft('By level holds no line such as 2: what it gives'); }
         var tg = get('tags'); if (tg.trim()) raw.tags = tg.split(/[,;|]+/).map(function(t) { return t.trim(); }).filter(Boolean);
+        var pcC = get('pic'); if (pcC.trim()) { var pcM = picMatch(pcC, opts.pics); if (pcM.pic) raw.pic = pcM.pic; else soft('Picture reads \u201c' + one(pcC, 40) + '\u201d, ' + (PIC_WHY[pcM.why] || PIC_WHY.none) + ', so it has none'); }   // 1.6.2 (backlog 226): matched against opts.pics, the campaign's own pictures
         var st = {}, nSt = 0; Object.keys(col).forEach(function(id) {
             if (id.slice(0, 3) !== 'st:') return; var s = byKey[id.slice(3)], cl = r[col[id]]; if (!s || cl === undefined || !String(cl).trim()) return;
             var got = statCell(s, cl, sep); if (got.why) { soft(s.label + ' reads \u201c' + one(cl, 40) + '\u201d, ' + got.why); return; } st[s.key] = got.v; nSt++;

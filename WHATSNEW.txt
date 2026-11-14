@@ -1236,6 +1236,20 @@ The Data Map
   entry, Buy and Sell, a body tile's drawer, a map object being edited, the
   deck in view, a waiting token and Properties' head. A bundled icon now
   shows in the containers window, where it drew nothing before.
+- Rest the pointer on a row's picture, on a sheet or a HUD, and it opens
+  larger beside it, up to 240 pixels, until you move away. On a HUD the
+  picture stays small. A picture whose file has gone shows the row's icon in
+  its place, where a picture that failed to load used to leave a blank.
+- A trade's lines now show their pictures, the row's own or else its item's,
+  where they only had a first letter. A line with no picture shows its
+  item's icon, else the first letter of its name.
+- A spreadsheet read into the Library can have a Picture column. Type the
+  file's name as the Image Library shows it, rope.png, and the entry gets
+  that picture, wherever it was uploaded. A name with no file is left out,
+  and the dry run says which row it was. Where two folders hold a picture of
+  that name, put the folder's name before it, as gear/rope.png.
+- In the Library, choose several entries and press Set picture... to give
+  them all one picture, or No picture to take theirs off.
 - A piece's Properties now open from Properties on its right-click menu, or
   from the sliders on the bar over a selected piece. A double-click no longer
   opens them. A right-click selects the piece too, so you can see which one

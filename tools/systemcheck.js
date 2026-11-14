@@ -2907,7 +2907,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             // and at senses S8: a deliberate change (the owner's answer "Hearing + smoke demo"), the tour's system carries a Hearing mark sense (the automatic layout's hash is unchanged);
             // and at 1.6.2: a deliberate change (the owner, 2026-11-08: "2d6 + a stat", "Might, Agility, Grit"), the tour's own generic rules (the automatic layout's hash is unchanged)
             // and at backlog 233 (2026-11-13): a deliberate change, the tour's Defense field labeled in American spelling, its key Defence kept (the automatic layout's hash is unchanged)
-            tutorial: ['54ec535e5c7e57047af88926327942be677a956c93fcdd941041386fb763924a', '4bcb8d3a340da94c9e528b8622e999be73a10a6ae518ec63d72740713024e4ce', 'ca140918d060af6f2949d30e7ba68e3b559fa4142b5101ee8ab04f34b7306e41']
+            // and at the 1.6.2 tour (2026-11-14): a deliberate change, the tour's Kit list is Tradable and its system carries a Healing draught, so the Armory chest can hold them (the automatic layout's hash is unchanged)
+            tutorial: ['d7261d0b04ed9e60790bdd8edeb7caf94eca11e0537d72166836dc42eb28e9b9', '8bc5c32f3e3e3d046b1854e8b2fd510eaa75ec9723938c5af197a076642da006', 'ca140918d060af6f2949d30e7ba68e3b559fa4142b5101ee8ab04f34b7306e41']
         };
         const absent = [['d20', preset('d20')], ['3d6', preset('3d6')], ['tutorial', tutorialSystem()]].map(([n, raw]) => { const gm = cleanSystem(raw, { F, gmView: true }), pv = cleanSystem(raw, { F, gmView: false }); return [n, [H(gm), H(pv), H(S.autoLayout(gm))], gm]; });
         check('look L1: the bundled presets and the tutorial\'s system clean byte-for-byte as before the look fold (GM view, players\' view, automatic layout), with no look key', absent.every(([n, h, gm]) => j(h) === j(PRE[n]) && !(gm.sheet && gm.sheet.look && gm.sheet.look.palette)), j(absent.map(([n, h]) => [n, h.map((x, i) => x === PRE[n][i])])));

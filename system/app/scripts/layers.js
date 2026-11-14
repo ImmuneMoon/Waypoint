@@ -30,12 +30,12 @@ function wire() {
     head.addEventListener('pointerup', function() { drag = null; });
 }
 // 1.6.2, backlog 217: Properties floats. Moved by its title bar, kept where it was left on this computer (wp_propAt), held inside the window; its close
-// presses the toggle at the map's edge, so a hand close holds as it always did
+// is a hand close, which holds until the selection changes as it always did (1.6.2: the tab at the map's edge that it pressed is gone)
 function propAt() { try { var v = JSON.parse(localStorage.getItem('wp_propAt') || 'null'); return v && typeof v.x === 'number' && typeof v.y === 'number' && isFinite(v.x) && isFinite(v.y) ? v : null; } catch (e) { return null; } }
 function propPlace(sb, at) { if (!sb || !at) return; var w = sb.offsetWidth || 320, x = Math.max(4, Math.min(window.innerWidth - Math.min(w, 120), at.x)), y = Math.max(40, Math.min(window.innerHeight - 60, at.y)); sb.style.left = x + 'px'; sb.style.top = y + 'px'; sb.style.right = 'auto'; }
 function propWire() {
     var sb = document.getElementById('sidebar'), head = document.getElementById('propHead'), x = document.getElementById('propClose'), drag = null; if (!sb || !head) return;
-    if (x) x.addEventListener('click', function() { var t = document.getElementById('toggleRightBtn'); if (t && !sb.classList.contains('collapsed')) t.click(); });
+    if (x) x.addEventListener('click', function() { if (window.wpRightHand) window.wpRightHand(false); });
     propPlace(sb, propAt());
     head.addEventListener('pointerdown', function(e) { if (e.target.closest('button')) return; var r = sb.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
     head.addEventListener('pointermove', function(e) { if (!drag) return; propPlace(sb, { x: e.clientX - drag.dx, y: e.clientY - drag.dy }); });

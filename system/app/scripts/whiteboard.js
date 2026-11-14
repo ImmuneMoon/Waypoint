@@ -8265,8 +8265,7 @@ if(_el_toggleLeftBtn) _el_toggleLeftBtn.addEventListener('click', function() {
 
       sb.classList.toggle('collapsed');
 
-      this.textContent = sb.classList.contains('collapsed') ? '▶' : '◀';
-      this.dataset.tip = sb.classList.contains('collapsed') ? 'Show the left panel' : 'Hide the left panel'; this.removeAttribute('title');   // what a press does now (tooltips.js reads data-tip: one tooltip, never two)
+      this.dataset.tip = sb.classList.contains('collapsed') ? 'Show the left panel' : 'Hide the left panel'; this.removeAttribute('title');   // what a press does now (tooltips.js reads data-tip: one tooltip, never two); the arrow turns by its aria-expanded, which leftrail.js writes
       if (window.wpLeftRail) window.wpLeftRail.toggled();   // the panel's three states are leftrail.js's: folded it leaves a rail, and on the play map docking it is pinning it
 
   });
@@ -8275,11 +8274,15 @@ if(_el_toggleLeftBtn) _el_toggleLeftBtn.addEventListener('click', function() {
 
   /* Properties sidebar: closed by default, opens when something is selected (a
      room on the data map, an item on the play map) and closes again when the
-     selection clears. A hand toggle (the ▶/◀ button) wins until the selection changes. */
+     selection clears. A hand open or close wins until the selection changes.
+     1.6.2: the Properties tab at the map's edge is gone (the owner, at the click test of the layout editor: "honstely we dont need the button
+     anymore since properties is easily reached from other options now"), so the bar laid along the right edge sits flush. The panel opens
+     from Properties on the right-click menu and the selection bar and by a double-click, and closes by its own X (layers.js propWire). */
   window.wpSelKey = function() { return state.viewMode === 'data' ? (state.selId ? 'r:' + state.selId : (state.selLink != null ? 'l:' + state.selLink : '')) : (state.selWbId ? 'w:' + state.selWbId : ''); };
+  function rightShown(sb) { return !!sb && sb.style.display !== 'none'; }   // a planner on screen has no Properties (main.js render)
   window.wpSyncRightPanel = function() {
-      var sb = document.getElementById('sidebar'), btn = document.getElementById('toggleRightBtn');
-      if (!sb || !btn || btn.style.display === 'none') return;
+      var sb = document.getElementById('sidebar');
+      if (!rightShown(sb)) return;
       var key = window.wpSelKey();
       if (state.rightManualKey !== undefined && state.rightManualKey !== key) state.rightManualKey = undefined;   // selection moved on: automation resumes
       if (state.rightManualKey !== undefined) return;
@@ -8288,35 +8291,25 @@ if(_el_toggleLeftBtn) _el_toggleLeftBtn.addEventListener('click', function() {
       if (!key) { if (state.rightAuto || !state.rightEverSynced) { sb.classList.add('collapsed'); state.rightAuto = false; } }
       else if (state.rightAuto && key !== state.rightAutoKey) { sb.classList.add('collapsed'); state.rightAuto = false; }
       state.rightEverSynced = true;
-      btn.textContent = sb.classList.contains('collapsed') ? '◀' : '▶';
   };
   window.wpOpenRightPanel = function() {   // Properties on a piece's right-click menu or its selection bar: deliberately open Properties for the current selection
-      var sb = document.getElementById('sidebar'), btn = document.getElementById('toggleRightBtn');
-      if (!sb || !btn || btn.style.display === 'none') return;
+      var sb = document.getElementById('sidebar');
+      if (!rightShown(sb)) return;
       sb.classList.remove('collapsed');
       state.rightAuto = true; state.rightAutoKey = window.wpSelKey ? window.wpSelKey() : '';
       state.rightManualKey = undefined; state.rightEverSynced = true;
-      btn.textContent = '▶';
   };
-  var _el_toggleRightBtn = document.getElementById('toggleRightBtn');
-
-if(_el_toggleRightBtn) _el_toggleRightBtn.addEventListener('click', function() {
-
+  // Opened or closed by hand (the panel's X, the tour): that overrides the automatic open and close until the selection changes. Answers
+  // whether anything changed
+  window.wpRightHand = function(open) {
       var sb = document.getElementById('sidebar');
-
-      sb.classList.toggle('collapsed');
-
-      this.textContent = sb.classList.contains('collapsed') ? '◀' : '▶';
-      // A hand toggle overrides the automatic open/close until the selection changes
+      if (!rightShown(sb) || sb.classList.contains('collapsed') === !open) return false;
+      sb.classList.toggle('collapsed', !open);
       state.rightAuto = false;
       state.rightManualKey = window.wpSelKey ? window.wpSelKey() : '';
-
-      // The button is pinned to the center pane's right edge (CSS right:0),
-      // which already tracks the sidebar as it collapses — no inline offset.
-
       if (state.viewMode === 'data') renderDataMap();
-
-  });
+      return true;
+  };
 
 
 
@@ -11737,6 +11730,7 @@ function tableMenuParts(e, role) {
         var dkSys = camp && camp.system && Array.isArray(camp.system.dark) ? camp.system.dark : [], dkNow = amPin && amPin.meta && typeof amPin.meta.dark === 'string' ? amPin.meta.dark : '';   // 1.6.2: the map's darkness step
         if (amPin && amPin.type === 'map' && dkSys.length && window.wpCanPersistLocal && window.wpCanPersistLocal()) { html += head('Darkness'); html += '<div class="menu-item cm-session" data-act="dkst" data-k="lit" title="No darkness on this map">' + (!dkNow ? '<i class="wib wi-check"></i> ' : '') + 'Lit</div>'; dkSys.forEach(function(st, i) { if (st && typeof st.label === 'string') html += '<div class="menu-item cm-session" data-act="dkst" data-k="' + i + '" title="Every cell of this map is at this step, but where a shape sets its own or a light lights it">' + (st.key === dkNow ? '<i class="wib wi-check"></i> ' : '') + esc(st.label) + '</div>'; }); }
         if (amPin && amPin.type === 'map' && scSys.length && window.wpCanPersistLocal && window.wpCanPersistLocal()) { html += head('Scene'); scSys.forEach(function(sc, i) { if (sc && typeof sc.label === 'string') html += '<div class="menu-item cm-session" data-act="scch" data-k="' + i + '" title="Rolls read the scene as this channel">' + (sc.key === scNow ? '<i class="wib wi-check"></i> ' : '') + esc(sc.label) + '</div>'; }); if (scNow) html += '<div class="menu-item cm-session" data-act="scend" title="No channel, and every reaction kept on this map goes">End the scene</div>'; }
+        if (amPin && amPin.type === 'map') html += '<div class="menu-item cm-session" data-act="mapprops" title="This map\u2019s own settings, its scene page among them, in the Properties panel. Its X closes it."><i class="wib wi-props"></i> Map properties</div>';   // 1.6.2: the Properties tab at the map's edge was the way to them with nothing selected (the owner removed it, 2026-11-14)
         if (amPin && amPin.type === 'map') html += '<div class="menu-item cm-session" data-act="pin" title="Pinned maps sit at the top of the Maps list"><i class="wib wi-pin"></i> ' + (isPinned ? 'Unpin this map' : 'Pin this map') + '</div>';
         if (role !== 'host') html += '<div class="menu-item cm-session" data-act="log"><i class="wib wi-scroll"></i> Game Record\u2026</div>';
         html += '<div class="menu-divider"></div>';
@@ -11827,6 +11821,7 @@ function tableMenuParts(e, role) {
                     import('./sidebar.js').then(function(m) { m.updateSidebarNav(); });
                 }
                 else if (act === 'setups') { var suM = getActiveMap(); if (suM && window.wpSetups) window.wpSetups.open(suM.id); }   // backlog 31
+                else if (act === 'mapprops') { state.selWbIds = []; state.selWbId = null; render(); if (window.wpOpenRightPanel) window.wpOpenRightPanel(); }   // nothing selected: Properties shows the map's own settings
                 else if (act === 'scene') { if (window.wpPageShelf) window.wpPageShelf.open(it.dataset.id, window.wpPageShelf.wayNow(ce), it.dataset.at ? { at: it.dataset.at } : undefined); }   // 1.5.4 (pageshelf.js): over the map by a plain click, as every page asked for from the play map
                 else if (act === 'bring') n.bringPlayerHere(it.dataset.pid, pt.x, pt.y);
                 else if (act === 'travel') n.toggleTravelLock();

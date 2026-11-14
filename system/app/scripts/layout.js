@@ -81,15 +81,27 @@ function barOf(sp, was) {
     if (side === 'free') out.at = s;
     return out;
 }
-// What the other controls step in by, at each edge, for the toolbar as it stands (rect: the bar's box in the area; ins: the room kept
-// at each edge without it). A free or hidden bar, or one at the bottom (the column alone answers for that), moves nobody
+// What the other controls step in by, at each edge, for the toolbar as it stands (rect: the bar's box in the area; area: the room kept
+// at each edge without it, and the rulers' sizes). A free or hidden bar, or one at the bottom (the column alone answers for that), moves
+// nobody. A bar across the top or the left edge sits flush and its ruler stands beside it (rulerShift), so the others step past both
 function pushOf(bar, rect, area) {
     var p = { t: 0, l: 0, r: 0 }, b = cleanBar(bar);
     if (!rect || b.hide || b.side === 'free' || b.side === 'bottom') return p;
-    if (b.side === 'top') p.t = Math.max(0, Math.round(rect.bottom + LAY_GAP - area.t));
-    if (b.side === 'left') p.l = Math.max(0, Math.round(rect.right + LAY_GAP - area.l));
+    if (b.side === 'top') p.t = Math.max(0, Math.round(rect.bottom + (b.edge ? area.rh || 0 : 0) + LAY_GAP - area.t));
+    if (b.side === 'left') p.l = Math.max(0, Math.round(rect.right + (b.edge ? area.rw || 0 : 0) + LAY_GAP - area.l));
     if (b.side === 'right') p.r = Math.max(0, Math.round(area.w - rect.left + LAY_GAP - area.r));
     return p;
+}
+// Where the rulers stand for the toolbar as it stands: a bar across the top edge, shown, pushes the top ruler down by its height, and one
+// across the left edge pushes the left ruler out by its width, so the bar sits flush against the edge and the ruler beside it (the owner,
+// 2026-11-14: "the one on the left can be placed inside the bar so thats flush too, with the ruler coming out to sit to its side, same with
+// the top when on top"). Under a hidden top row the bar across the top stands under the row's own bar, and the ruler stays where it is
+function rulerShift(bar, rect, area) {
+    var s = { t: 0, l: 0 }, b = cleanBar(bar);
+    if (!rect || b.hide || !b.edge) return s;
+    if (b.side === 'top' && area.rh > 0) s.t = Math.max(0, Math.round(rect.bottom));
+    if (b.side === 'left' && area.rw > 0) s.l = Math.max(0, Math.round(rect.right));
+    return s;
 }
 // The layout with one change made, cleaned: set(lay, which, { bar? , part?: [id, place or null], colHide? }) -> a layout or null
 function layWith(lay, which, ch) {
@@ -157,11 +169,11 @@ function layNarrow() { return document.body.classList.contains('area-narrow'); }
 function layInsets() {
     var b = document.body, rulers = !b.classList.contains('no-rulers'), rowHid = b.classList.contains('row-hidden') && !b.classList.contains('tour-on');
     var bar = rowHid ? (parseFloat(getComputedStyle(b).getPropertyValue('--rowbar')) || 0) : 0;
-    return { t: rowHid ? bar + 32 : (rulers ? 26 : 8), l: rulers ? 44 : 26, r: 14, b: 8, et: rowHid ? bar + 26 : (rulers ? 18 : 0), el: rulers ? 36 : 18 };   // with no ruler the left panel's handle (18 px) keeps its strip
+    return { t: rowHid ? bar + 32 : (rulers ? 26 : 8), l: rulers ? 44 : 8, r: 14, b: 8, et: rowHid ? bar + 26 : (rulers ? 18 : 0), tt: rowHid ? bar + 26 : 0, rw: rulers ? 36 : 0, rh: rulers && !rowHid ? 18 : 0 };   // 1.6.2: no pane's handle keeps a strip at the left or right edge; a bar across the top or the left edge sits flush, its ruler beside it (rulerShift)
 }
 function layArea() {
     var m = layEl('main'); if (!m) return null;
-    var ins = layInsets(); return { el: m, w: m.clientWidth, h: m.clientHeight, t: ins.t, l: ins.l, r: ins.r, b: ins.b, et: ins.et, el0: ins.el };
+    var ins = layInsets(); return { el: m, w: m.clientWidth, h: m.clientHeight, t: ins.t, l: ins.l, r: ins.r, b: ins.b, et: ins.et, tt: ins.tt, rw: ins.rw, rh: ins.rh };
 }
 function layRectIn(el, m) { var r = el.getBoundingClientRect(), a = m.getBoundingClientRect(); return { left: r.left - a.left, top: r.top - a.top, right: r.right - a.left, bottom: r.bottom - a.top, w: r.width, h: r.height }; }
 function laySetVar(el, k, v) { if (el.style.getPropertyValue(k) !== v) el.style.setProperty(k, v); }
@@ -196,15 +208,16 @@ function layApply() {
     var ids = LAY_PARTS.play.concat(LAY_PARTS.data.filter(function(id) { return LAY_PARTS.play.indexOf(id) < 0; }));
     var col = layEl('wbEdgeTools'), colOn = on && which === 'play';
     if (col) { col.classList.toggle('lay-hide', colOn && !!v.colHide); col.classList.toggle('lay-low', colOn && !barPlain(v.bar)); }   // the column stands low unless the bar is the floating box at the bottom it stands above
-    if (!on || !m) { ids.forEach(function(id) { layFree(layEl(id)); }); if (m) ['--lay-t', '--lay-l', '--lay-et', '--lay-el', '--lay-pt', '--lay-pl', '--lay-pr', '--lay-colb'].forEach(function(k) { layDropVar(m, k); }); layHot(null); if (wasOn) { layFitBar(); layTrk(); } return; }   // nothing is written where nothing was laid out
+    if (!on || !m) { ids.forEach(function(id) { layFree(layEl(id)); }); layDropVar(body, '--lay-rl'); if (m) ['--lay-t', '--lay-l', '--lay-et', '--lay-tt', '--lay-rt', '--lay-pt', '--lay-pl', '--lay-pr', '--lay-colb'].forEach(function(k) { layDropVar(m, k); }); layHot(null); if (wasOn) { layFitBar(); layTrk(); } return; }   // nothing is written where nothing was laid out
     var A = layArea(), barEl = layBarOf(which);
-    laySetVar(m, '--lay-t', A.t + 'px'); laySetVar(m, '--lay-l', A.l + 'px'); laySetVar(m, '--lay-et', A.et + 'px'); laySetVar(m, '--lay-el', A.el0 + 'px');
+    laySetVar(m, '--lay-t', A.t + 'px'); laySetVar(m, '--lay-l', A.l + 'px'); laySetVar(m, '--lay-et', A.et + 'px'); laySetVar(m, '--lay-tt', A.tt + 'px');
     layFitBar();
     if (barEl && v.bar.side === 'free' && v.bar.at && !(_lay.drag && _lay.drag.el === barEl)) {   // a free bar in the upper half opens its menus downward
         var bxy = spotXY(v.bar.at, { w: barEl.offsetWidth, h: barEl.offsetHeight }, A); layAt(barEl, bxy);
         barEl.classList.toggle('lay-open-r', bxy.x + barEl.offsetWidth / 2 < A.w / 2); barEl.classList.toggle('lay-open-d', bxy.y + barEl.offsetHeight / 2 < A.h / 2);
     }
-    var p = pushOf(v.bar, barEl && barEl.offsetWidth ? layRectIn(barEl, m) : null, A);
+    var bRect = barEl && barEl.offsetWidth ? layRectIn(barEl, m) : null, p = pushOf(v.bar, bRect, A), rs = rulerShift(v.bar, bRect, A);
+    laySetVar(m, '--lay-rt', rs.t + 'px'); laySetVar(body, '--lay-rl', rs.l + 'px');   // the rulers beside a bar across the top or the left edge; the left one on the body, as a hidden row's bar floats past that ruler too
     laySetVar(m, '--lay-pt', p.t + 'px'); laySetVar(m, '--lay-pl', p.l + 'px'); laySetVar(m, '--lay-pr', p.r + 'px');
     laySetVar(m, '--lay-colb', (v.bar.side === 'bottom' && v.bar.edge && !v.bar.hide && barEl ? barEl.offsetHeight + 12 : 30) + 'px');   // over a bar across the bottom, else low
     var room = { w: A.w, h: A.h, t: A.t + p.t, l: A.l + p.l, r: A.r + p.r, b: A.b };
@@ -520,7 +533,7 @@ function layInit() {
 }
 // [layoutcheck:api]
 var API = { sync: laySync, edit: layEdit, escape: layEscape, held: layHeld, fitSide: layFitSide, measure: layMeasure, menuFit: layMenuFit, keyHold: layKeyHold, cardPlace: layCardPlace, down: layDown, move: layMove, up: layUp, editing: function() { return _lay.edit; } };
-export { cleanLayout, cleanView, cleanBar, cleanSpot, spotXY, spotOf, barOf, pushOf, layWith, barClasses, unclash, LAY_KEY, LAY_PARTS, LAY_BARS, LAY_SPOTS, LAY_SIDES, API };
+export { cleanLayout, cleanView, cleanBar, cleanSpot, spotXY, spotOf, barOf, pushOf, rulerShift, layWith, barClasses, unclash, LAY_KEY, LAY_PARTS, LAY_BARS, LAY_SPOTS, LAY_SIDES, API };
 if (typeof window !== 'undefined') {
     window.wpLayout = API;
     if (typeof document !== 'undefined') { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', layInit); else layInit(); }

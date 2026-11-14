@@ -2291,6 +2291,15 @@ if(_el_dataFitBtn) _el_dataFitBtn.addEventListener('click', function(e) {
     if(window.wpFitView) window.wpFitView(false);   // frame every room (zoom + pan)
     if(_el_dataCenterMenu) _el_dataCenterMenu.classList.remove('show');
 });
+// 1.6.2: this map's own settings, its categories and their library, in Properties with nothing selected. The Properties tab at the map's edge
+// opened them until the owner removed it (2026-11-14: "properties is easily reached from other options now")
+var _el_dataMapPropsBtn = document.getElementById('dataMapPropsBtn');
+if(_el_dataMapPropsBtn) _el_dataMapPropsBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if(_el_dataCenterMenu) _el_dataCenterMenu.classList.remove('show');
+    state.selId = null; state.selLink = null; render();
+    if(window.wpOpenRightPanel) window.wpOpenRightPanel();
+});
 
 // 1.6.2 (the owner, 2026-11-14, by prompt: "A tick, on by default"): A new room makes its own map, this computer's wp_roomMakesMap, ticked to start.
 // The page slice reads it at each room added (roomMapOn); the menu stays open, as the play map's View ticks do

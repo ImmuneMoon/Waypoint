@@ -35,7 +35,7 @@ function page(o) {
     mk('combatStrip', { w: 0, h: 0 }); mk('joinCard', { w: 0, h: 0 }); mk('dataFind', { x: 78, y: 66, w: 400, h: 32 });
     ['layCard', 'layPart', 'layTags', 'layShade'].forEach(id => { mk(id, { w: 300, h: 400 }).hidden = true; });
     Object.values(els).forEach(e => { if (e !== main) e.parentElement = main; });
-    const body = { classList: null, id: 'body' }; body.classList = classes(body); (o.body || []).forEach(c => body.classList.add(c));
+    const bvars = {}, body = { classList: null, id: 'body', style: { setProperty(k, v) { bvars[k] = String(v); }, getPropertyValue(k) { return bvars[k] || ''; }, removeProperty(k) { delete bvars[k]; }, vars: bvars } }; body.classList = classes(body); (o.body || []).forEach(c => body.classList.add(c));
     const doc = { body, readyState: 'complete', activeElement: null, getElementById: id => els[id] || null, querySelector: () => null, querySelectorAll: () => [], addEventListener() {}, createElement: () => mk('x' + Math.random()) };
     const win = { view: o.view === undefined ? 'play' : o.view, appToast: t => toasts.push(t) };
     win.wpFloats = { view: () => win.view };
@@ -111,12 +111,12 @@ function install(P) {
     check('with no layout the page is left exactly as it was: no class, no variable, nothing held', snap(P) === before && !API.held(P.els.minimap));
     // a layout drawn
     P.store.wp_layout = J({ play: { bar: { side: 'top', edge: true }, parts: { minimap: { c: 'tr', x: 0, y: 0 } } } });
-    P.els.wbFloatingToolbar.box = { x: 34, y: 58, w: 1246, h: 52 };   // as the style sheet stands it across the top, under the rulers
+    P.els.wbFloatingToolbar.box = { x: 34, y: 40, w: 1246, h: 52 };   // as the style sheet stands it across the top: flush with the edge, the top ruler under it (1.6.2)
     API.sync();
     const E = P.els, mv = E.main.style.vars;
-    check('a layout is drawn: the body says so, the bar takes its side and its edge, the others step down by the bar\'s depth, and a placed control stands at its place below it',
+    check('a layout is drawn: the body says so, the bar takes its side and its edge, flush with the top edge, the top ruler steps down by the bar\'s depth and stands under it, the left one stays, the others step down past both, and a placed control stands at its place below them',
         P.body.classList.contains('lay-on') && J(E.wbFloatingToolbar.classList.list()) === J(['floating-toolbar', 'lay-bar', 'lay-edge', 'lay-top'].filter(c => c !== 'floating-toolbar').sort())
-        && mv['--lay-t'] === '26px' && mv['--lay-et'] === '18px' && mv['--lay-pt'] === (18 + 52 + 8 - 26) + 'px' && mv['--lay-pl'] === '0px'
+        && mv['--lay-t'] === '26px' && mv['--lay-et'] === '18px' && mv['--lay-tt'] === '0px' && mv['--lay-rt'] === '52px' && P.body.style.vars['--lay-rl'] === '0px' && mv['--lay-pt'] === (52 + 18 + 8 - 26) + 'px' && mv['--lay-pl'] === '0px'
         && E.minimap.classList.contains('lay-at') && E.minimap.style.vars['--lay-x'] === (1246 - 14 - 180) + 'px' && E.minimap.style.vars['--lay-y'] === (26 + 52) + 'px' && API.held(E.minimap)
         && !E.zoomBox.classList.contains('lay-at') && E.wbEdgeTools.classList.contains('lay-low'), J([E.wbFloatingToolbar.classList.list(), mv, E.minimap.style.vars]));
     // the other map: the play map's layout goes, the data map has none
@@ -197,10 +197,17 @@ function install(P) {
     check('a floating side bar taller than the area less twice its top room tightens (centred, its top would reach the rulers); across the edge it is measured from its top alone',
         sideTight && !edgeTight);
     E2.wbFloatingToolbar.classList.remove('lay-side', 'lay-edge'); E2.wbFloatingToolbar.box.h = 52;
-    // the room kept with no ruler: clear of the left panel's handle
-    P.body.classList.add('no-rulers'); P.store.wp_layout = J({ play: { bar: { side: 'left', edge: true } } }); API.sync();
-    check('with no ruler a bar across the left edge and a box on the left keep clear of the left panel\'s handle (18 px)',
-        E2.main.style.vars['--lay-el'] === '18px' && E2.main.style.vars['--lay-l'] === '26px', J(E2.main.style.vars));
+    // 1.6.2: no pane's handle keeps a strip at the map's edge (the owner, at the click test: "the clickable properties button got in the way
+    // of it sitting flush"). A bar across the left edge sits flush and its ruler stands beside it; with no ruler nothing more is kept
+    P.store.wp_layout = J({ play: { bar: { side: 'left', edge: true } } }); E2.wbFloatingToolbar.box = { x: 34, y: 58, w: 49, h: 700 }; API.sync();
+    const flushL = [P.body.style.vars['--lay-rl'], E2.main.style.vars['--lay-rt'], E2.main.style.vars['--lay-pl'], E2.main.style.vars['--lay-l']];
+    P.body.classList.add('no-rulers'); API.sync();
+    const flushN = [P.body.style.vars['--lay-rl'], E2.main.style.vars['--lay-pl'], E2.main.style.vars['--lay-l'], E2.main.style.vars['--lay-el']];
+    P.store.wp_layout = J({ play: { bar: { side: 'left', edge: true, hide: true } } }); P.body.classList.remove('no-rulers'); API.sync();
+    const flushH = [P.body.style.vars['--lay-rl'], E2.main.style.vars['--lay-pl']];
+    check('a bar across the left edge sits flush with it and the left ruler stands beside it (the ruler steps out by the bar\'s width, written on the body, as a hidden row\'s bar floats past that ruler too), and the others step past both; with no ruler a box on the left keeps 8 px and nothing more; a bar shown only near the pointer leaves the ruler at the edge',
+        J(flushL) === J(['49px', '0px', '49px', '44px']) && J(flushN) === J(['0px', '49px', '8px', undefined]) && J(flushH) === J(['0px', '0px']), J([flushL, flushN, flushH]));
+    E2.wbFloatingToolbar.box = { x: 256, y: 678, w: 800, h: 52 };
     P.body.classList.remove('no-rulers');
     // a placed column that waits for the pointer waits where it stands
     P.store.wp_layout = J({ play: { colHide: true, parts: { wbEdgeTools: { c: 'mc' } } } }); API.sync();
@@ -237,12 +244,15 @@ function install(P) {
         !!fdSpot && fdSpot.c === 'tl', J(fdSpot));
     API.edit(false); P.win.view = 'play';
     const cssR = read('style.css'), blkR = cssR.slice(cssR.indexOf('/* 1.6.2 (backlog 224): the layout editor'));
-    check('the style sheet: a hidden bar stays out only for a focus the keyboard gave, a free bar in the upper half opens downward, a placed hidden column fades where it stands, and both panels\' handles keep their strip',
+    check('the style sheet: a hidden bar stays out only for a focus the keyboard gave, a free bar in the upper half opens downward, a placed hidden column fades where it stands, and a bar across an edge sits flush with it, its ruler beside it (1.6.2: no pane\'s handle keeps a strip, and a box at the right stands as far in as the zoom box)',
         !blkR.includes(':not(:focus-within)') && (blkR.match(/:not\(:has\(:focus-visible\)\)/g) || []).length === 12
         && blkR.includes('body.lay-on .floating-toolbar.lay-free.lay-open-d > * > .shape-menu { top: 100% !important; bottom: auto !important;')
         && blkR.includes('#wbEdgeTools.lay-hide.lay-at:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)) { opacity: 0; pointer-events: auto; }')
-        && blkR.includes('body.lay-on .floating-toolbar.lay-edge.lay-left ~ #toggleLeftBtn { z-index: 9501; }') && blkR.includes('.lay-hot[data-side="right"] { top: calc(50% - 130px); height: 260px; right: 18px;')
-        && blkR.includes('body.lay-on .floating-toolbar.lay-right { left: auto; right: 22px; }') && blkR.includes('body.lay-on .floating-toolbar.lay-edge.lay-right { right: 18px;'));
+        && !/toggleRightBtn|pane-toggle|--lay-el/.test(cssR) && blkR.includes('.lay-hot[data-side="right"] { top: calc(50% - 130px); height: 260px; right: 0; width: 12px; }') && blkR.includes('.lay-hot[data-side="left"] { top: calc(50% - 130px); height: 260px; left: 0; width: 12px; }')
+        && blkR.includes('body.lay-on .floating-toolbar.lay-right { left: auto; right: 14px; }') && blkR.includes('body.lay-on .floating-toolbar.lay-edge.lay-right { right: 0; border-width: 0 0 0 1px; }')
+        && blkR.includes('body.lay-on .floating-toolbar.lay-edge.lay-left { left: 0; border-width: 0 1px 0 0; }') && blkR.includes('body.lay-on .floating-toolbar.lay-edge.lay-top { top: var(--lay-tt, 0px); border-width: 0 0 1px; }')
+        && blkR.includes('body.lay-on #main > :is(#rulerTop, #rulerCursorX) { top: var(--lay-rt, 0px); }') && blkR.includes('body.lay-on #main > :is(#rulerLeft, #rulerCursorY) { left: var(--lay-rl, 0px); }')
+        && cssR.includes('  body.row-hidden:not(.tour-on) header { position: fixed; top: var(--rowbar); left: calc(var(--mainleft, 34px) + 42px + var(--lay-rl, 0px)); right: 8px;'));
     const layR = read('scripts/layout.js');
     check('a bar that a press left the focus in goes again: the timer asks for the pointer or a focus the keyboard gave, and the focus leaving lets it go',
         layR.includes("if (el.matches(':hover') || el.querySelector(':focus-visible, .shape-menu.show')) return;") && layR.includes("el.addEventListener('focusout', function(e) { if (el.classList.contains('lay-hide')") && layR.includes("window.addEventListener('keydown', layKeyHold, true);"));

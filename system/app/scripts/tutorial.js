@@ -750,8 +750,8 @@ function closeSettingsForTour() {
 function openItem(id) { var camp = getActiveCampaign(); if (!camp || !camp.items[id]) return; if (camp.items[id].type === 'map') navigateToMap(id); else { camp.activeItemId = id; state.selId = null; state.selWbId = null; state.selWbIds = []; updateSidebarNav(); render(); } }
 // The Properties step spotlights the right panel: unfold it when it is folded away, and fold it again when the tour moves on or ends.
 var _rightWasFolded = false;
-function openRightForTour() { var sb = document.getElementById('sidebar'), t = document.getElementById('toggleRightBtn'); if (sb && t && sb.classList.contains('collapsed')) { t.click(); _rightWasFolded = true; } }
-function closeRightForTour() { if (!_rightWasFolded) return; _rightWasFolded = false; var sb = document.getElementById('sidebar'), t = document.getElementById('toggleRightBtn'); if (sb && t && !sb.classList.contains('collapsed')) t.click(); }
+function openRightForTour() { if (window.wpRightHand && window.wpRightHand(true)) _rightWasFolded = true; }   // opened by hand, as the panel's X closes it (1.6.2: the tab at the map's edge is gone)
+function closeRightForTour() { if (!_rightWasFolded) return; _rightWasFolded = false; if (window.wpRightHand) window.wpRightHand(false); }
 function openLeft() { var sb = document.getElementById('campaignSidebar'); if (sb && sb.classList.contains('collapsed')) { var t = document.getElementById('toggleLeftBtn'); if (t) t.click(); } }
 
 var STEPS = [

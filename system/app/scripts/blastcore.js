@@ -139,9 +139,9 @@ function firstBox(a, b, boxes, after) {
 // that placed it and the row, its maker's name, whether it is the GM's alone, and the item's notes. Anything else is no key; null where no
 // blast is left
 var MINE_ID = /^c_[A-Za-z0-9_]{1,24}$/, MINE_FIELD = /^[A-Za-z0-9_]{1,64}$/, MINE_ROW = /^w_[A-Za-z0-9_]{1,24}$/, MINE_TYPE = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;
-// 1.6.2: the cloud a blast leaves, as systemcore cleanCloud keeps it (its formula as plain text here: none with a control character or past 1000 characters)
+// 1.6.2: the cloud a blast leaves, as systemcore cleanCloud keeps it (its formula as plain text here: none with a control character or past 10000 characters, systemcore LIMITS.formula)
 function cleanCloud(v) {
-    if (!isObj(v)) return null; var o = {}, n = typeof v.n === 'string' && !/[\u0000-\u001f\u007f]/.test(v.n) && v.n.trim().length <= 1000 ? v.n.trim() : '';
+    if (!isObj(v)) return null; var o = {}, n = typeof v.n === 'string' && !/[\u0000-\u001f\u007f]/.test(v.n) && v.n.trim().length <= 10000 ? v.n.trim() : '';
     if (n) { o.n = n; o.u = typeof v.u === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(v.u) ? v.u : 'turns'; }
     if (fin(v.r) && v.r > 0) o.r = Math.max(0.5, Math.min(1000, Math.round(v.r * 10) / 10));
     if (v.smoke === true) o.smoke = true;

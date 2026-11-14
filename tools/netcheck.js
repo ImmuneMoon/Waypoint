@@ -15123,6 +15123,13 @@ pendingChecks.push((async () => {
             !wsErr && !!r && r.honest === true && r.edge === true && r.over === false && r.deepIn === false && r.typeBig === false && r.nest64 === true && r.nest65 === false && r.nest2000 === false && r.nestArr === false && r.bytes === true && r.buffer === true && r.plain === true && r.nul === true && r.num === true, J([wsErr, r]));
         check('security K g14 (client, wired): every message a player\'s app takes is judged by wireShapeOk first, at the head of handleMessage, before any branch; the two caps as stated',
             /function handleMessage\(msg, conn\) \{\n\s*if \(!msg \|\| !msg\.type\) return;\n\s*if \(net\.role === 'client' && !wireShapeOk\(msg\)\) return;/.test(src) && /var WIRE_STR_MAX = 400000, WIRE_DEPTH_MAX = 64;/.test(wsSrc) && (src.match(/wireShapeOk\(/g) || []).length === 2);
+        {   // 1.6.2: a formula may be 10,000 characters (systemcore LIMITS.formula, dicecore's expr the same), so a roll and a system that carry the longest pass the wire's shape, far under its string cap
+            const fu = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).replace(/[\\]/g, '/'), SCw = await import(fu('systemcore.js')), DCw = await import(fu('dicecore.js'));
+            const longF = '1d20 + ' + '1 + '.repeat(Math.floor((SCw.LIMITS.formula - 8) / 4)) + '1', okW = ok || (() => null);
+            const rec = { type: 'roll', id: 'r_long', from: { id: 'u_a', name: 'Pat', gm: false }, expr: longF, draws: [7], v: 1, ts: 1 }, sysMsg = { type: 'snapshot', appState: { campaigns: { k: { system: { fields: Array.from({ length: 40 }, (_, i) => ({ id: 'f_' + i, kind: 'formula', formula: longF.replace('1d20', 'A') })) } } } } };
+            check('1.6.2 the wire carries a formula at its length: a table roll of LIMITS.expr characters (the same figure as LIMITS.formula, 10,000) passes dicecore\'s cleanExpr and the client\'s wireShapeOk, as does a system of forty such formulas; the string cap stands forty times above it',
+                SCw.LIMITS.formula === 10000 && DCw.LIMITS.expr === SCw.LIMITS.formula && longF.length <= SCw.LIMITS.formula && longF.length > SCw.LIMITS.formula - 4 && !!DCw.cleanExpr(longF) && okW(rec) === true && okW(sysMsg) === true && 400000 >= SCw.LIMITS.formula * 40, J([SCw.LIMITS.formula, DCw.LIMITS.expr, longF.length, okW(rec), okW(sysMsg)]));
+        }
         const aiSrc = ownKeySrc + fnK('function applyItem(msg) {', '\n}\n');
         const mkI = () => { const I = { renders: 0 }; const state = { appState: { activeCampaignId: 'k', campaigns: { k: { id: 'k', activeItemId: 'mA', items: { mA: { id: 'mA', type: 'map', whiteboard: [] } } } } } };
             I.run = msg => noThrow(() => new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'updateSidebarNav', 'cleanHostMap', 'msg', aiSrc + '\nreturn applyItem(msg);')({ applyingRemote: false }, state, { wpDocRender: { cleanDoc: d => (d && d.type === 'doc' ? { id: d.id, type: 'doc', meta: { title: 'P' }, blocks: [] } : null) }, wpFog: { invalidateVision() {}, redraw() {} } }, () => state.appState.campaigns.k, () => { I.renders++; }, () => {}, m => m, msg)); I.items = () => state.appState.campaigns.k.items; return I; };
@@ -15720,9 +15727,9 @@ pendingChecks.push((async () => {
         const edSrc = between('// [netcheck:charedit-start]', '// [netcheck:charedit-end]', 'charedit'), msSrc = between('// [netcheck:charedits-start]', '// [netcheck:charedits-end]', 'charedits'), ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem');
         const dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta'), bnSrc = between('// [netcheck:budgetnote-start]', '// [netcheck:budgetnote-end]', 'budgetnote');
         const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();   // the item notice, the budget notice and what both keep
-        const mk = (rule, vals, charMore) => {
+        const mk = (rule, vals, charMore, fieldsMore) => {
             const sys = Sx.cleanSystem({ v: 1, name: 'B', rolls: [], items: [{ id: 'i_x', name: 'X' }, { id: 'i_y', name: 'Y' }, { id: 'i_z', name: 'Z' }], fields: [{ id: 'f_st', key: 'ST', kind: 'number', def: 10 }, { id: 'f_dx', key: 'DX', kind: 'number', def: 10 },
-                { id: 'f_cp', key: 'CP', kind: 'number', def: 100, edit: 'gm' }, { id: 'f_kit', key: 'Kit', kind: 'item-list' }], budgets: rule ? [Object.assign({ id: 'b_cp', name: 'Character points', has: 'CP', spent: '(ST - 10) * 10 + (DX - 10) * 10 + Kit.count * 5' }, rule)] : undefined }, { F: Fx, gmView: true });
+                { id: 'f_cp', key: 'CP', kind: 'number', def: 100, edit: 'gm' }, { id: 'f_kit', key: 'Kit', kind: 'item-list' }].concat(fieldsMore || []), budgets: rule ? [Object.assign({ id: 'b_cp', name: 'Character points', has: 'CP', spent: '(ST - 10) * 10 + (DX - 10) * 10 + Kit.count * 5' }, rule)] : undefined }, { F: Fx, gmView: true });
             const camp = { id: 'k', system: sys, chars: { c_1: Object.assign({ id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: vals || { f_st: 19 } }, charMore) } };
             const out = { answer: [], owner: [], notes: [], logs: [], saves: 0, clock: 1000000 }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
             const conn = { peer: 'pA', send: box(out.answer) }, net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }], roster: { pA: { id: 'u_a' } } };
@@ -15737,6 +15744,16 @@ pendingChecks.push((async () => {
         const E = (fid, v) => ({ type: 'char-edit', rid: 'e1', charId: 'c_1', fieldId: fid, value: v }), M = (...vals) => ({ type: 'char-edits', rid: 'm1', charId: 'c_1', values: vals.map(p => ({ fieldId: p[0], value: p[1] })) });
         const ADD = k => ({ type: 'char-item', rid: 'i1', charId: 'c_1', fieldId: 'f_kit', op: 'add', defId: 'i_' + k, rowId: 'w_' + k + '1', qty: 1 });
         const ACK = rid => j([{ type: 'char-ack', rid }]), SAYS = (spent, by) => 'Character points: ' + spent + ' of 100 spent. That is ' + by + ' over.', NO = (rid, spent, by) => j([{ type: 'char-deny', rid, reason: 'budget', msg: SAYS(spent, by) }]), WARN = (rid, spent, by) => j([{ type: 'char-ack', rid, msg: SAYS(spent, by) }]);
+        {   // 1.6.2: a toggle worked out until set (the ask of the session that builds a game system), on the host: the real edit and batch branches fill it, a player's own setting stands, and a null gives the worked-out one back
+            const T = mk(null, { f_st: 10 }, null, [{ id: 'f_sz', key: 'Size', kind: 'number', def: 2, fills: [{ f: 'f_big', formula: 'Size >= 3' }] }, { id: 'f_big', key: 'Big', kind: 'toggle', auto: 'Size >= 3' }]);
+            const afOf = () => JSON.parse(JSON.stringify(T.camp.chars.c_1.af || null));
+            const t1 = T.run('edit', E('f_sz', 4)), a1 = afOf(), t2 = T.run('edit', E('f_big', false)), a2 = afOf(), t3 = T.run('edit', E('f_sz', 1)), t4 = T.run('edit', E('f_big', null)), t5 = T.run('edits', M(['f_sz', 5])), a5 = afOf();
+            check('1.6.2 a toggle worked out until set, on the host (the real edit and batch branches, with the real core): typing a figure fills the toggle in the same change and marks it; the player switching it, off too, takes the mark and no fill writes over it; a null gives it back to its worked-out setting (stored as none); a batch fills it again',
+                j(t1.answer) === j([{ type: 'char-ack', rid: 'e1' }]) && j(t1.vals) === j({ f_st: 10, f_sz: 4, f_big: true }) && j(a1) === j({ f_big: 1 })
+                && j(t2.vals) === j({ f_st: 10, f_sz: 4, f_big: false }) && a2 === null && j(t3.vals) === j({ f_st: 10, f_sz: 1, f_big: false })
+                && j(t4.answer) === j([{ type: 'char-ack', rid: 'e1' }]) && j(t4.vals) === j({ f_st: 10, f_sz: 1 }) && j(t5.vals) === j({ f_st: 10, f_sz: 5, f_big: true }) && j(a5) === j({ f_big: 1 }),
+                j([t1.answer, t1.vals, a1, t2.vals, a2, t3.vals, t4.answer, t4.vals, t5.vals, a5]));
+        }
         const quiet = (r, vals) => r.sent === 0 && r.saved === 0 && r.notes.length === 0 && r.logs.length === 0 && j(r.vals) === j(vals), went = r => r.sent === 1 && r.saved === 1;
         // a budget that refuses, watched always
         const R = mk({ over: 'refuse', when: 'always' });

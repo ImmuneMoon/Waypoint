@@ -427,8 +427,8 @@ function renderForm() {
     field(form, 'tags', 'Tags', (e.tags || []).join(', '), { max: 220, ph: 'comma, separated', title: 'Words the search finds it by' });
     field(form, 'ref', 'Reference', e.ref, { max: LIB.ref, ph: 'e.g. Core p. 152' });
     form.appendChild(el('div', 'lib-fsub', 'At the table'));
-    field(form, 'damage', 'Damage', e.damage, { max: 1000, ph: 'e.g. 2d6 + 1' });
-    field(form, 'cost', 'Cost', e.cost, { max: 1000 });
+    field(form, 'damage', 'Damage', e.damage, { max: 10000, ph: 'e.g. 2d6 + 1' });
+    field(form, 'cost', 'Cost', e.cost, { max: 10000 });
     field(form, 'areaFt', 'Blast (ft)', e.area && e.area.ft ? e.area.ft : '', { max: 5, title: 'A blast radius in feet: the character can throw it from the sheet' });
     blastBox(form, e.area);   // 1.5.8: the blast's extras, as systemcore areaExtra keeps them
     fliesLibBox(form, e.flies);   // 1.6.2 (vehicles, fold (d)): what it is once launched
@@ -481,7 +481,7 @@ function needsBox(form, e) {
         box.appendChild(sel);
     };
     draw();
-    field(form, 'needsIf', 'Rule', e.needsIf, { max: 1000, ph: 'A formula that must be true, such as ST >= 12 (optional)', title: 'A formula with no dice that must be true for the character. It reads the character as a list’s column does, and it can stand beside the entries above or alone' });
+    field(form, 'needsIf', 'Rule', e.needsIf, { max: 10000, ph: 'A formula that must be true, such as ST >= 12 (optional)', title: 'A formula with no dice that must be true for the character. It reads the character as a list’s column does, and it can stand beside the entries above or alone' });
     form.appendChild(el('div', 'lib-note', 'A rule is a formula that must be true for the character, such as ST >= 12. It rolls no dice.'));
     field(form, 'needsFrom', 'Rule from level', e.needsFrom, { max: 8, ph: 'The level of this entry from which the rule applies (optional)', title: 'Leave it empty for a rule that must be true to take the entry at all' });
     form.appendChild(el('div', 'lib-note', 'A need or a rule with a From level counts only once the row of this entry is at that level. A player who raises a level is judged as when they take the entry.'));
@@ -600,7 +600,7 @@ function modsBox(form, e) {
             if (m.op !== 'on') {
                 var am = el('input', 'field lib-mod-amt'); am.type = 'number'; am.step = 'any'; am.value = typeof m.v === 'number' ? String(m.v) : ''; am.title = 'How much it adds (negative to take away)'; ln.appendChild(am);
                 am.addEventListener('input', function() { m.v = am.value === '' ? 0 : Number(am.value); });
-                var amF = el('input', 'field lib-mod-amtf'); amF.type = 'text'; amF.maxLength = 1000; amF.placeholder = 'By a formula'; amF.value = typeof m.vf === 'string' ? m.vf : ''; amF.title = 'By a formula, in place of the number: worked out for each character carrying it, reading the character and this entry\u2019s own row, such as its level. It rolls no dice'; if (amF.value) am.disabled = true; ln.appendChild(amF);   /* 1.6.2 (205): an entry's change sized by a formula */
+                var amF = el('input', 'field lib-mod-amtf'); amF.type = 'text'; amF.maxLength = 10000; amF.placeholder = 'By a formula'; amF.value = typeof m.vf === 'string' ? m.vf : ''; amF.title = 'By a formula, in place of the number: worked out for each character carrying it, reading the character and this entry\u2019s own row, such as its level. It rolls no dice'; if (amF.value) am.disabled = true; ln.appendChild(amF);   /* 1.6.2 (205): an entry's change sized by a formula */
                 amF.addEventListener('input', function() { if (amF.value.trim()) { m.vf = amF.value; m.v = 0; delete m.lvl; delete m.tiers; } else delete m.vf; am.disabled = !!amF.value.trim(); });
                 if (anyL) { var lb = el('label', 'lib-mod-lvl'), cb = el('input'); cb.type = 'checkbox'; cb.checked = m.lvl === true; lb.appendChild(cb); lb.appendChild(document.createTextNode(' per level')); lb.title = 'Times the row’s level'; cb.addEventListener('change', function() { if (cb.checked) m.lvl = true; else delete m.lvl; }); ln.appendChild(lb);
                     var tr = el('input', 'field lib-mod-tiers'); tr.type = 'text'; tr.maxLength = 200; tr.placeholder = 'Figure by level'; tr.value = typeof modTiersText === 'function' ? modTiersText(m.tiers) : ''; tr.title = 'A figure for each level, such as 1: +2, 2: 0. Each holds from its level up, and below the first the amount beside it counts. It takes the place of per level. Blank: the same figure at every level'; ln.appendChild(tr);   // 1.6.0, as typed: the cleaner reads it
@@ -696,7 +696,7 @@ function fliesLibBox(form, f) {
     f = f && typeof f === 'object' ? f : {}; var num = function(v) { return typeof v === 'number' && isFinite(v) ? v : ''; }, c = camp();
     var rl = (c && c.system && Array.isArray(c.system.rolls) ? c.system.rolls : []).filter(function(r) { return r && typeof r.id === 'string' && typeof r.formula === 'string' && !Array.isArray(r.apply); }).map(function(r) { return [r.id, typeof r.label === 'string' && r.label ? r.label : 'A roll']; });
     if (typeof f.roll === 'string' && f.roll && !rl.some(function(o) { return o[0] === f.roll; })) rl.push([f.roll, 'A roll that is gone']);
-    field(form, 'flySpeed', 'Flies once launched, cells a round', typeof f.speed === 'string' ? f.speed : '', { max: 1000, title: 'How many cells it flies each round once a change launches it, worked out from the launcher\u2019s sheet. Blank: it does not fly' });
+    field(form, 'flySpeed', 'Flies once launched, cells a round', typeof f.speed === 'string' ? f.speed : '', { max: 10000, title: 'How many cells it flies each round once a change launches it, worked out from the launcher\u2019s sheet. Blank: it does not fly' });
     field(form, 'flyRounds', 'Flies for (rounds)', num(f.rounds), { max: 2, title: 'How many rounds it flies before it is spent' });
     field(form, 'flyHp', 'In flight, HP', num(f.hp), { max: 7, title: 'Its HP in flight. A hit takes a wound off it, worked out by your damage rules against its Protection' });
     field(form, 'flyPro', 'In flight, Protection', num(f.pro), { max: 7, title: 'Taken off a hit before the wound. Blank: none' });
@@ -729,7 +729,7 @@ function cloudRows(form, cl) {
     var fxP = [['', 'No effect']].concat(effs.map(function(d) { return [d.id, typeof d.name === 'string' && d.name ? d.name : d.id]; })); if (typeof o.fx === 'string' && o.fx && !effs.some(function(d) { return d.id === o.fx; })) fxP.push([o.fx, 'An effect that is gone']);
     var rlP = [['', 'No roll']].concat(rolls.map(function(r) { return [r.id, typeof r.label === 'string' && r.label ? r.label : 'A roll']; })); if (typeof o.roll === 'string' && o.roll && !rolls.some(function(r) { return r.id === o.roll; })) rlP.push([o.roll, 'A roll that is gone']);
     field(form, 'areaCloud', 'Leaves a cloud', cl ? 'yes' : '', { pairs: [['', 'No'], ['yes', 'Yes, where it goes off']], title: 'Where it goes off it leaves a cloud, a round area that stays put. In a fight it counts rounds of that fight, out of one the game\u2019s time' });
-    field(form, 'areaCloudN', 'Cloud lasts', typeof o.n === 'string' ? o.n : '', { max: 1000, ph: 'e.g. 1d6+2', title: 'How long the cloud stays, a formula that may roll dice. Blank: until you clear it' });
+    field(form, 'areaCloudN', 'Cloud lasts', typeof o.n === 'string' ? o.n : '', { max: 10000, ph: 'e.g. 1d6+2', title: 'How long the cloud stays, a formula that may roll dice. Blank: until you clear it' });
     field(form, 'areaCloudU', 'Cloud lasts in', typeof o.u === 'string' && o.u ? o.u : 'turns', { pairs: uP, title: 'The unit of the cloud\u2019s Lasts. Rounds count the fight on its map, and the game\u2019s time out of one' });
     field(form, 'areaCloudR', 'Cloud radius (yd)', num(o.r), { max: 6, title: 'The cloud\u2019s radius in yards. Blank: the blast\u2019s own' });
     field(form, 'areaCloudSmoke', 'Cloud is smoke', o.smoke === true ? 'yes' : '', { pairs: [['', 'No'], ['yes', 'Yes, it blocks sight']], title: 'It blocks sight as smoke does, for the eyes and every sense that does not see through smoke' });
@@ -743,11 +743,11 @@ function affRows(form, i, a) {
     var fxP = [['', 'Pick an effect']].concat(effs.map(function(d) { return [d.id, typeof d.name === 'string' && d.name ? d.name : d.id]; })); if (typeof a.fx === 'string' && a.fx && !effs.some(function(d) { return d.id === a.fx; })) fxP.push([a.fx, 'An effect that is gone']);
     var tu = c && c.system && c.system.combat && c.system.combat.turn && Array.isArray(c.system.combat.turn.units) ? c.system.combat.turn.units.filter(function(u) { return u && typeof u.key === 'string'; }) : [], ls = a.lasts && typeof a.lasts === 'object' ? a.lasts : {};
     var uP = [['turns', 'Turns'], ['seconds', 'Seconds'], ['minutes', 'Minutes'], ['hours', 'Hours'], ['days', 'Days']].concat(tu.map(function(u) { return [u.key, typeof u.label === 'string' && u.label ? u.label : u.key]; })); if (typeof ls.u === 'string' && ls.u && !uP.some(function(o) { return o[0] === ls.u; })) uP.push([ls.u, ls.u]);
-    field(form, 'areaAff' + i + 'Vs', n + 'resisted against', typeof a.vs === 'string' ? a.vs : '', { max: 1000, ph: 'e.g. HT-2', title: 'What a character it reaches rolls the Combat tab\u2019s resist roll against, read with their own names. Blank: no affliction' });
+    field(form, 'areaAff' + i + 'Vs', n + 'resisted against', typeof a.vs === 'string' ? a.vs : '', { max: 10000, ph: 'e.g. HT-2', title: 'What a character it reaches rolls the Combat tab\u2019s resist roll against, read with their own names. Blank: no affliction' });
     field(form, 'areaAff' + i + 'Fx', n + 'on a failure', typeof a.fx === 'string' ? a.fx : '', { pairs: fxP, title: 'The effect put on a character that fails to resist, one of the system\u2019s effects' });
     field(form, 'areaAff' + i + 'Who', n + 'reaches', a.who === 'all' ? 'all' : '', { pairs: [['', 'Those it hurts'], ['all', 'Everyone in the blast']], title: 'Whom it reaches: those the blast or its fragmentation hurt, or everyone in the blast\u2019s radius' });
-    field(form, 'areaAff' + i + 'Needs', n + 'only where', typeof a.needs === 'string' ? a.needs : '', { max: 1000, ph: 'e.g. not Robot', title: 'A formula of the character it reaches that must hold for it to touch them at all. Blank: everyone it reaches' });
-    field(form, 'areaAff' + i + 'Lasts', n + 'lasts', typeof ls.n === 'string' ? ls.n : '', { max: 1000, ph: 'e.g. 1d6', title: 'How long the effect lasts, a formula that may roll dice. Blank: the effect\u2019s own duration' });
+    field(form, 'areaAff' + i + 'Needs', n + 'only where', typeof a.needs === 'string' ? a.needs : '', { max: 10000, ph: 'e.g. not Robot', title: 'A formula of the character it reaches that must hold for it to touch them at all. Blank: everyone it reaches' });
+    field(form, 'areaAff' + i + 'Lasts', n + 'lasts', typeof ls.n === 'string' ? ls.n : '', { max: 10000, ph: 'e.g. 1d6', title: 'How long the effect lasts, a formula that may roll dice. Blank: the effect\u2019s own duration' });
     field(form, 'areaAff' + i + 'Unit', n + 'lasts in', typeof ls.u === 'string' && ls.u ? ls.u : 'minutes', { pairs: uP, title: 'The unit of its Lasts' });
 }
 // what the cleaner left out of the blast's extras, said in fixed words (an empty text: nothing)

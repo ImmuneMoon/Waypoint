@@ -328,6 +328,9 @@ The System editor
 - A system can hold far more of everything now, about ten times what it could.
   The limits are there only to stop a broken file from freezing the app. A very
   long list on a sheet draws its first rows, and Show all draws the rest.
+- A formula can run to 10,000 characters now, ten times the old 1,000. One
+  system's armor rule had already reached 962, so the next rule folded into
+  it would have been refused at Save. A table roll takes the same length.
 - The foot of the editor counts your errors and warnings. Press the count
   to list them, and press one to go to the box it names.
 - A tab's long note folds away with Got it, and About this tab brings it
@@ -576,6 +579,8 @@ At the table
   blank or still holds what a fill wrote, never over a figure someone typed.
   The sheet marks such figures worked out or filled, and a faint arrow sets
   a typed one back.
+  A toggle can be worked out the same way, so Large ticks itself once Size
+  reaches 3 and unticks when Size falls back. Tick it by hand and it stays.
   A character file carries which figures are fills, and a file read in can
   say so too, so an average keeps following what fills it.
 - Taking damage can name a number a wound comes off first, as temporary hit

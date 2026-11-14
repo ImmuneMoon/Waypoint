@@ -7,7 +7,7 @@
 
 var VERSION = '1.5.0';
 var LIMITS = Object.freeze({
-    expr: 1000,         // characters in a table roll: systemcore's LIMITS.formula, so a sheet roll never dies here (300 before 1.6.0, backlog 200)
+    expr: 10000,        // characters in a table roll: systemcore's LIMITS.formula, so a sheet roll never dies here (1000 before 1.6.2, 300 before 1.6.0, backlog 200)
     dice: 200,          // dice rolled in one table roll (the engine allows 1,000; a card must stay readable)
     draws: 1000,        // draws in a record — rerolls and explosions multiply dice; host and receivers share this cap
     perMs: 400,         // one roll per peer per 400 ms

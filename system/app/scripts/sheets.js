@@ -5542,7 +5542,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var bar = el('div', 'sheet-bar'); var fill = el('div', 'sheet-bar-fill'); var bmn = f.minNeg === true ? 0 : (f.min || 0), pct = max ? Math.max(0, Math.min(100, (cur - bmn) / Math.max(1, max - bmn) * 100)) : 0; fill.style.width = pct + '%'; bar.appendChild(fill); box.appendChild(bar);
         return box;
     }
-    if (k === 'toggle') { var lb = el('label', 'sheet-toggle'); var cb = el('input'); cb.type = 'checkbox'; cb.dataset.fid = f.id; cb.checked = raw === undefined ? f.def === true : raw === true; cb.disabled = !use; cb.addEventListener('change', function() { commit(c, f, cb.checked); }); lb.appendChild(cb); lb.appendChild(document.createTextNode(' ' + (cb.checked ? 'on' : 'off'))); box.appendChild(lb); if (e && e.value === true && !cb.checked && e.mods && e.mods.length) { var ft = el('span', 'sheet-eff sheet-eff-same', 'on (' + e.mods.map(function(m) { return m.name; }).join(', ') + ')'); ft.title = 'Switched on by ' + e.mods.map(function(m) { return m.name; }).join(', '); box.appendChild(ft); } return box; }
+    if (k === 'toggle') { var lb = el('label', 'sheet-toggle'); var cb = el('input'); cb.type = 'checkbox'; cb.dataset.fid = f.id; cb.checked = (raw === undefined || raw === null) && e && e.auto === 1 ? (typeof e.base === 'boolean' ? e.base : e.value === true) : raw === undefined ? f.def === true : raw === true; cb.disabled = !use; cb.addEventListener('change', function() { commit(c, f, cb.checked); }); lb.appendChild(cb); lb.appendChild(document.createTextNode(' ' + (cb.checked ? 'on' : 'off'))); box.appendChild(lb); if (e && e.value === true && !cb.checked && e.mods && e.mods.length) { var ft = el('span', 'sheet-eff sheet-eff-same', 'on (' + e.mods.map(function(m) { return m.name; }).join(', ') + ')'); ft.title = 'Switched on by ' + e.mods.map(function(m) { return m.name; }).join(', '); box.appendChild(ft); } var abT = typeof autoBits === 'function' ? autoBits(f, c, e, use, raw) : null; if (abT) box.appendChild(abT); return box; }
     if (k === 'text' && typeof heightNode === 'function') { var hN = heightNode(f, c, use, e); if (hN) { box.appendChild(hN); var abH = typeof autoBits === 'function' ? autoBits(f, c, e, use, raw) : null; if (abH) box.appendChild(abH); return box; } }   // 1.6.2 (auto apply): e, a figure worked out until typed   // 1.5.4: a height, read by the half of the viewer's setting
     if ((k === 'text' || k === 'notes') && typeof lookNode === 'function') { var lkN = lookNode(f, c, use, k === 'notes'); if (lkN) { box.appendChild(lkN); return box; } }   // item 35: read with its look where it is only read here; else as ever, below
     if (k === 'text') { var ti = el('input', 'field sheet-text'); ti.type = 'text'; ti.dataset.fid = f.id; ti.maxLength = f.max || 200; ti.value = raw === undefined ? String(f.def || '') : String(raw); ti.disabled = !use; ti.addEventListener('change', function() { commit(c, f, ti.value); }); box.appendChild(ti); return box; }
@@ -6836,11 +6836,11 @@ function lookReadRule(f) { var r = lookRule(f); if (!r || !lookPaper()) return r
 // typed, the word worked out; beside one a fill wrote and nobody has typed since, the word filled, its tooltip naming the field it came from; and
 // where a figure was typed into a field that has a worked-out one, a faint icon that sets it back. Nothing is pressed for a figure to apply. Null for none
 function autoBits(f, c, e, use, raw) {
-    var w = el('span', 'sheet-autobits'), any = false, paper = typeof lookPaper === 'function' && lookPaper();
-    if (e && e.auto === 1) { var s = el('span', 'sheet-auto', 'worked out'); s.title = 'Worked out from the sheet. Type your own figure and it stays.'; w.appendChild(s); any = true; }
-    else if (e && typeof e.filled === 'string' && e.filled) { var s2 = el('span', 'sheet-auto', 'filled'); s2.title = 'Filled in from ' + e.filled + '. Type your own figure and it stays.'; w.appendChild(s2); any = true; }
+    var w = el('span', 'sheet-autobits'), any = false, paper = typeof lookPaper === 'function' && lookPaper(), yours = f.kind === 'toggle' ? 'Set it yourself and it stays.' : 'Type your own figure and it stays.';   // 1.6.2: a toggle is set, never typed
+    if (e && e.auto === 1) { var s = el('span', 'sheet-auto', 'worked out'); s.title = 'Worked out from the sheet. ' + yours; w.appendChild(s); any = true; }
+    else if (e && typeof e.filled === 'string' && e.filled) { var s2 = el('span', 'sheet-auto', 'filled'); s2.title = 'Filled in from ' + e.filled + '. ' + yours; w.appendChild(s2); any = true; }
     if (typeof f.auto === 'string' && f.auto && use && !paper && !(e && e.auto === 1) && raw !== undefined && raw !== null && raw !== '') {
-        var b = el('button', 'sheet-auto-reset', '\u21ba'); b.type = 'button'; b.title = 'Back to the worked-out figure'; b.ariaLabel = 'Set ' + (f.label || f.key) + ' back to the worked-out figure'; b.dataset.fid = f.id; b.dataset.part = 'autoreset';
+        var b = el('button', 'sheet-auto-reset', '\u21ba'); b.type = 'button'; var wkd = f.kind === 'toggle' ? 'worked-out setting' : 'worked-out figure'; b.title = 'Back to the ' + wkd; b.ariaLabel = 'Set ' + (f.label || f.key) + ' back to the ' + wkd; b.dataset.fid = f.id; b.dataset.part = 'autoreset';
         b.addEventListener('click', function() { commit(c, f, null); }); w.appendChild(b); any = true;
     }
     return any ? w : null;
@@ -9292,7 +9292,7 @@ function refreshErrors() {
         else if (!rfP || !rfP.ok) rErr.push({ message: 'Range: ' + (rfP && rfP.error && rfP.error.message ? rfP.error.message : 'the formula cannot be read.') + ' Save drops the rule.', prop: 'formula', pos: rfP && rfP.error ? rfP.error.pos : undefined, len: rfP && rfP.error ? rfP.error.len : undefined });
         else if (rfN.length) rErr.push({ message: 'Range: the formula reads only Distance, not ' + rfN[0] + ': Save drops the rule.' });
         else if (rfDice(rfP.ast && rfP.ast.body)) rErr.push({ message: 'Range: the formula cannot roll dice: Save drops the rule.' });
-        else if (rfT.length > LIMITS.formula || /[\u0000-\u001f\u007f]/.test(rfT)) rErr.push({ message: 'Range: the formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops the rule.' });
+        else if (rfT.length > LIMITS.formula || /[\u0000-\u001f\u007f]/.test(rfT)) rErr.push({ message: 'Range: the formula is at most ' + LIMITS.formula.toLocaleString('en-US') + ' characters, on one line: Save drops the rule.' });
     } else if (byE === 'table') {
         var rsE = Array.isArray(rgE.steps) ? rgE.steps : [], rSeen = Object.create(null), rKept = 0, rNum = function(v) { return typeof v === 'number' && isFinite(v) && Math.abs(v) <= 1e15; };
         rsE.forEach(function(s, i) {
@@ -9328,7 +9328,7 @@ function refreshErrors() {
         else if (!hfP || !hfP.ok) hErr.push({ message: 'Height: ' + (hfP && hfP.error && hfP.error.message ? hfP.error.message : 'the formula cannot be read.') + ' Save drops it.' });
         else if (hfN.length) hErr.push({ message: 'Height: the formula reads only HeightDiff, not ' + hfN[0] + ': Save drops it.' });
         else if (rfDice(hfP.ast && hfP.ast.body)) hErr.push({ message: 'Height: the formula cannot roll dice: Save drops it.' });
-        else if (hfT.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(hfT)) hErr.push({ message: 'Height: the formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops it.' });
+        else if (hfT.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(hfT)) hErr.push({ message: 'Height: the formula is at most ' + LIMITS.formula.toLocaleString('en-US') + ' characters, on one line: Save drops it.' });
     } else if (hbyE === 'table') {
         var hsE = hgE.steps, hSeen = Object.create(null), hKept = 0, hNum = function(v) { return typeof v === 'number' && isFinite(v) && Math.abs(v) <= 1e15; };
         hsE.forEach(function(s, i) {
@@ -9489,7 +9489,7 @@ function refreshErrors() {
     auFx.forEach(function(d) {
         var t0 = d.auto.trim(), pa = F() ? F().parse(t0) : null, msg = null;
         if (d.vis === 'gm') msg = { message: 'Applies itself when: a GM-only effect cannot apply itself (its switching on would give it away): Save drops the formula.' };
-        else if (t0.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(t0)) msg = { message: 'Applies itself when: a formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops it.' };
+        else if (t0.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(t0)) msg = { message: 'Applies itself when: a formula is at most ' + LIMITS.formula.toLocaleString('en-US') + ' characters, on one line: Save drops it.' };
         else if (!pa || !pa.ok) msg = { message: 'Applies itself when: ' + (pa && pa.error && pa.error.message ? pa.error.message : 'the formula cannot be read.') + ' Save drops it.', prop: 'formula', pos: pa && pa.error ? pa.error.pos : undefined, len: pa && pa.error ? pa.error.len : undefined };
         else if (rfDice(pa.ast && pa.ast.body)) msg = { message: 'Applies itself when: the formula cannot roll dice: Save drops it.' };
         else {
@@ -9507,7 +9507,7 @@ function refreshErrors() {
         d.mods.forEach(function(m, mi) {
             if (!m || typeof m !== 'object' || m.op === 'on' || typeof m.vf !== 'string' || !m.vf.trim()) return;
             var t1 = m.vf.trim(), pv = F() ? F().parse(t1) : null, hd = 'Change ' + (mi + 1) + ', by a formula: ', mv = null;
-            if (t1.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(t1)) mv = { message: hd + 'a formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops the change.' };
+            if (t1.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(t1)) mv = { message: hd + 'a formula is at most ' + LIMITS.formula.toLocaleString('en-US') + ' characters, on one line: Save drops the change.' };
             else if (!pv || !pv.ok) mv = { message: hd + (pv && pv.error && pv.error.message ? pv.error.message : 'the formula cannot be read.') + ' Save drops the change.' };
             else if (rfDice(pv.ast && pv.ast.body)) mv = { message: hd + 'the formula cannot roll dice: Save drops the change.' };
             else {
@@ -9576,12 +9576,12 @@ function refreshErrors() {
     (irE && Array.isArray(irE.ties) ? irE.ties : []).slice(0, LIMITS.initTies).forEach(function(t, i) {
         if (typeof t !== 'string' || !t.trim()) return;
         var t0 = t.trim(), nm = 'Tie step ' + (i + 1), pa = F() ? F().parse(t0) : null;
-        if (t0.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(t0)) iErr.push({ message: nm + ': a formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops it.' });
+        if (t0.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(t0)) iErr.push({ message: nm + ': a formula is at most ' + LIMITS.formula.toLocaleString('en-US') + ' characters, on one line: Save drops it.' });
         else if (!pa || !pa.ok) iErr.push({ message: nm + ': ' + (pa && pa.error && pa.error.message ? pa.error.message : 'the formula cannot be read.') + ' Save drops it.' });
         else { iSys = iSys || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables }; var gmI = gmDerivedNames(iSys, F(), Array.isArray(pa.names) ? pa.names : []); if (gmI.length) iErr.push({ message: nm + ': it reads ' + gmI[0] + ', which players cannot read, and the order is public: Save drops it.' }); }
     });
     var sdE = irE && typeof irE.side === 'string' ? irE.side.trim() : '', paS = sdE && F() ? F().parse(sdE) : null;   // initiative O4: the sides' roll, read as the cleaner reads it
-    if (sdE && (sdE.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(sdE))) iErr.push({ message: 'Sides roll: a formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops it.' });
+    if (sdE && (sdE.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(sdE))) iErr.push({ message: 'Sides roll: a formula is at most ' + LIMITS.formula.toLocaleString('en-US') + ' characters, on one line: Save drops it.' });
     else if (sdE && (!paS || !paS.ok)) iErr.push({ message: 'Sides roll: ' + (paS && paS.error && paS.error.message ? paS.error.message : 'the formula cannot be read.') + ' Save drops it.' });
     else if (sdE && Array.isArray(paS.names) && paS.names.length) iErr.push({ message: 'Sides roll: it reads ' + paS.names[0] + ', but a side rolls it as one, never as one character: Save drops it.' });
     else if (sdE && irE.chosen === true) iErr.push({ message: 'Sides roll: Next is chosen takes the place of sides, so Save drops it. Untick Next is chosen to keep it.' });   // initiative O5, as the cleaner reads it
@@ -9597,7 +9597,7 @@ function refreshErrors() {
         [['has', 'Has', 'the points a character has'], ['spent', 'Spent', 'the points it has spent']].some(function(g) {
             var t = typeof b[g[0]] === 'string' ? b[g[0]].trim() : '', at = nm + ', ' + g[1] + ': ';
             if (!t) { bErr.push({ message: at + 'a formula is needed for ' + g[2] + '. Save drops the budget.' }); return true; }
-            if (t.length > LIMITS.formula || bCtl.test(t)) { bErr.push({ message: at + 'a formula is at most ' + LIMITS.formula + ' characters, on one line. Save drops the budget.' }); return true; }
+            if (t.length > LIMITS.formula || bCtl.test(t)) { bErr.push({ message: at + 'a formula is at most ' + LIMITS.formula.toLocaleString('en-US') + ' characters, on one line. Save drops the budget.' }); return true; }
             var pa = F().parse(t);
             if (!pa || !pa.ok) { bErr.push({ message: at + (pa && pa.error && pa.error.message ? pa.error.message : 'the formula cannot be read.') + ' Save drops the budget.' }); return true; }
             if (rfDice(pa.ast && pa.ast.body)) { bErr.push({ message: at + 'a budget rolls no dice. Save drops the budget.' }); return true; }
@@ -9783,7 +9783,7 @@ function fieldRow(f) {
     if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list' && f.kind !== 'effects' && !f.test) { flags.appendChild(capInline(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'optional'), 'Roll: ')); if (typeof dieSel === 'function') flags.appendChild(dieSel('sys-fielddie', f.rollDie, 'The die its roll button wears. From its formula: the die it rolls, so 3d6 shows three dice and d20 a d20. Kept only beside a roll')); }
     if (f.kind === 'number' || f.kind === 'formula') flags.appendChild(capInline(input('sys-vnames field', (f.labels || []).join(', '),'Names for the values 0, 1, 2\u2026 separated by commas (Not stunned, Physical, Mental): a number becomes a dropdown, a formula shows the name for its value; formulas still read the number. A named value is a word: \u00b1 color, unit and slider do not apply to it', 'optional'), 'Value names: '));   // Stage 6
     if (f.kind === 'number') { var ovF = f.override && typeof f.override === 'object' ? f.override : {}; flags.appendChild(capInline(input('sys-ovr-value field', ovF.value, 'The number reads this formula instead of what is typed, closed to editing, while the next formula holds: Chassis.Might', 'none'), 'Taken from: ')); if (ovF.value || ovF.when) flags.appendChild(capInline(input('sys-ovr-when field', ovF.when, 'While this holds, no dice: Bodies.count > 0. Otherwise the number is what is typed, as before', 'Bodies.count > 0'), 'while: ')); }   // 205 (6)
-    if ((f.kind === 'number' || (f.kind === 'text' && (f.unit === 'height' || f.unit === 'weight'))) && typeof autoBox === 'function') flags.appendChild(autoBox(f));   // 1.6.2 (auto apply): Worked out until typed, Typing it fills
+    if ((f.kind === 'number' || f.kind === 'toggle' || (f.kind === 'text' && (f.unit === 'height' || f.unit === 'weight'))) && typeof autoBox === 'function') flags.appendChild(autoBox(f));   // 1.6.2 (auto apply): Worked out until typed, Typing it fills (a toggle too, since the session that builds a game system asked)
     if (f.kind === 'formula') { var bgl = el('label', 'sys-hover'), bgc = el('input'); bgc.type = 'checkbox'; bgc.checked = !!f.badge; bgc.className = 'sys-badge-chk'; bgl.appendChild(bgc); bgl.appendChild(document.createTextNode(' Badge')); bgl.title = 'Show the value as a small pill; with value names, each name can have its own color'; flags.appendChild(bgl); }   // Stage 6 look fold (L7)
     flags.appendChild(capInline(input('sys-caption field', f.caption, 'A line under the field on the sheet \u2014 {formula} shows a value, {\u00b1formula} the value with its sign (+2), e.g. Base: {ST * 2}', 'optional'), 'Caption: '));   // Fold B; Stage 6: {\u00b1\u2026}
     if (f.kind === 'resource') {   // Fold B: the pool's icon, a fill-to-max button, the bar
@@ -10592,7 +10592,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
             var nI = el('input', 'field sys-list-layrname'); nI.type = 'text'; nI.value = typeof ru.name === 'string' ? ru.name : ''; nI.placeholder = 'Its name, such as {side} Arm'; nI.title = 'The laid row\u2019s name. {side} is its side\u2019s word, such as Right, and {n} its number among the rows this rule lays on that side. Two rows that would share a name are numbered, such as Right Arm 1 and Right Arm 2. Empty: the name of the row that lays it';
             nI.addEventListener('change', function(e) { lyStop(e); if (nI.value.trim()) ru.name = nI.value.slice(0, 240); else delete ru.name; lyRe(); }); rw.appendChild(nI);
             var rI = el('input', 'field sys-list-layrif'); rI.type = 'text'; rI.value = typeof ru['if'] === 'string' ? ru['if'] : ''; rI.placeholder = 'every row'; rI.spellcheck = false; rI.autocomplete = 'off'; rI.dataset.rl = lyS.from; rI.title = 'A test of each source row this rule takes. A row where it does not hold lays nothing by this rule. Blank: every row';   // 1.6.2: a rule's own Only where
-            rI.addEventListener('change', function(e) { lyStop(e); var rv = String(rI.value || '').trim(); if (rv) ru['if'] = rv.slice(0, 1000); else delete ru['if']; lyRe(); }); rw.appendChild(rI);
+            rI.addEventListener('change', function(e) { lyStop(e); var rv = String(rI.value || '').trim(); if (rv) ru['if'] = rv.slice(0, LIMITS.formula); else delete ru['if']; lyRe(); }); rw.appendChild(rI);
             var eS = select('sys-list-layreach', [['row', 'One a row'], ['unit', 'One a unit'], ['kind', 'One between them']], ru.each === 'unit' || ru.each === 'kind' ? ru.each : 'row', 'One a row: as ever. One a unit: a row of quantity 2 lays two, their sides in order. One between them: rows of these categories lay one row, kept while any is there');
             eS.addEventListener('change', function(e) { lyStop(e); ru.each = eS.value; lyRe(); }); rw.appendChild(eS);
             if (ru.each !== 'kind') { var rsI = el('input', 'field sys-list-layrsides'); rsI.type = 'text'; rsI.value = Array.isArray(ru.sides) ? (ru.sides.length ? ru.sides.join(', ') : 'none') : ''; rsI.placeholder = 'Sides: the list\u2019s'; rsI.title = 'This rule\u2019s own sides in order, such as 2, 1, repeated over its units. None: no side. Blank: the list\u2019s Sides in order'; rsI.addEventListener('change', function(e) { lyStop(e); var tv = rsI.value.trim(); if (!tv) delete ru.sides; else if (/^none$/i.test(tv)) ru.sides = []; else { var ns2 = tv.split(',').map(function(x) { return Math.round(Number(x.trim())); }).filter(function(n2) { return isFinite(n2); }).slice(0, 8); ru.sides = ns2; } lyRe(); }); rw.appendChild(rsI);
@@ -14975,20 +14975,20 @@ function itemOfRow(target) { var row = target.closest && target.closest('.sys-it
 var KEY_FOLLOW = { 'sys-list-statlabel': ['sys-list-statkey', '.sys-list-stat', 1], 'sys-list-collabel': ['sys-list-colkey', '.sys-list-col', 1], 'sys-list-ctlabel': ['sys-list-ctkey', '.sys-list-ct', 1], 'sys-env-label': ['sys-env-key', '.sys-env-row'], 'sys-tbl-label': ['sys-tbl-key', '.sys-tbl-head'], 'sys-tbl-clabel': ['sys-tbl-ckey', 'th'], 'sys-tbl-rlabel': ['sys-tbl-rkey', 'tr'], 'sys-link-label': ['sys-link-key', '.sys-link-row'], 'sys-dmgr-ylabel': ['sys-dmgr-ykey', '.sys-dmgr-type'], 'sys-dmgr-klabel': ['sys-dmgr-kkey', '.sys-dmgr-kind'] };
 // [systemcheck:autobox-start]
 // 1.6.2 (auto apply): a field's two options, its own listeners (the Fields tab's dispatcher never hears them) and classes no handler there reads.
-// Worked out until typed: a form whose figure the field reads while nothing is typed. Typing it fills: rows of another number, height or weight and a
-// form for what is written there once this is typed, only where that field is blank or still holds what a fill wrote. A height reads and is written in
-// inches, a weight in pounds
+// Worked out until typed: a form whose figure the field reads while nothing is typed. Typing it fills: rows of another number, toggle, height or weight
+// and a form for what is written there once this is typed, only where that field is blank or still holds what a fill wrote. A height reads and is written
+// in inches, a weight in pounds, and a toggle is on where its form gives a figure other than 0
 function autoBox(f) {
     var box = el('div', 'sys-wout-box'), ch = function(re) { markDirty(); if (re && typeof renderAll === 'function') renderAll(); else if (typeof patchErrors === 'function') patchErrors(); }, stop = function(ev) { ev.stopPropagation(); };
-    var meas = f.kind === 'text', inp = input('sys-wout field', typeof f.auto === 'string' ? f.auto : '', 'What it reads until someone types a figure' + (meas ? (f.unit === 'height' ? ', in inches' : ', in pounds') : '') + '. Once someone types one, theirs stays. Empty: nothing is worked out', 'none');
-    inp.maxLength = LIMITS.formula; box.appendChild(capInline(inp, 'Worked out until typed: '));
+    var meas = f.kind === 'text', tog = f.kind === 'toggle', inp = input(tog ? 'sys-wout-on field' : 'sys-wout field', typeof f.auto === 'string' ? f.auto : '', tog ? 'While nobody has set it, it is on where this gives a figure other than 0, such as Size >= 3. Once someone sets it, theirs stays. Empty: nothing is worked out' : 'What it reads until someone types a figure' + (meas ? (f.unit === 'height' ? ', in inches' : ', in pounds') : '') + '. Once someone types one, theirs stays. Empty: nothing is worked out', 'none');
+    inp.maxLength = LIMITS.formula; box.appendChild(capInline(inp, tog ? 'Worked out until set: ' : 'Worked out until typed: '));
     var setA = function(ev) { stop(ev); var v = inp.value.trim(); if (v) f.auto = v.slice(0, LIMITS.formula); else delete f.auto; ch(false); };
     inp.addEventListener('input', setA); inp.addEventListener('change', setA);
     var fl = Array.isArray(f.fills) ? f.fills : [], all = draft && Array.isArray(draft.fields) ? draft.fields : [];
-    var tgs = all.filter(function(x) { return !!x && x !== f && typeof x.id === 'string' && (x.kind === 'number' || (x.kind === 'text' && (x.unit === 'height' || x.unit === 'weight'))); });
+    var tgs = all.filter(function(x) { return !!x && x !== f && typeof x.id === 'string' && (x.kind === 'number' || x.kind === 'toggle' || (x.kind === 'text' && (x.unit === 'height' || x.unit === 'weight'))); });
     fl.forEach(function(row, i) {
         var rw = el('div', 'sys-flags sys-tfill-row'), sel = el('select', 'field sys-tfill-to'), h0 = el('option', null, 'Pick a field\u2026'); h0.value = ''; sel.appendChild(h0);
-        tgs.forEach(function(x) { var op = el('option', null, fieldWord(x) + (x.kind === 'text' ? (x.unit === 'height' ? ' (inches)' : ' (pounds)') : '')); op.value = x.id; if (x.id === row.f) op.selected = true; sel.appendChild(op); });
+        tgs.forEach(function(x) { var op = el('option', null, fieldWord(x) + (x.kind === 'text' ? (x.unit === 'height' ? ' (inches)' : ' (pounds)') : x.kind === 'toggle' ? ' (on where not 0)' : '')); op.value = x.id; if (x.id === row.f) op.selected = true; sel.appendChild(op); });
         if (row.f && !tgs.some(function(x) { return x.id === row.f; })) { var gone = el('option', null, 'A field that is gone'); gone.value = row.f; gone.selected = true; sel.appendChild(gone); }
         sel.title = 'The field this fills in'; sel.addEventListener('change', function(ev) { stop(ev); row.f = sel.value; ch(false); }); sel.addEventListener('input', stop);
         var fi = input('sys-tfill-f field', typeof row.formula === 'string' ? row.formula : '', 'What it writes there once this is typed, worked out from the sheet. It writes only where that field is blank or still holds a figure a fill wrote, never one someone typed', 'Amount');
@@ -14997,7 +14997,7 @@ function autoBox(f) {
         rw.appendChild(el('span', 'sys-num-cap', i ? 'and' : 'Typing it fills')); rw.appendChild(sel); rw.appendChild(fi); rw.appendChild(rm); box.appendChild(rw);
     });
     var cap = window.wpSystemCore && window.wpSystemCore.AUTO_FILLS || 4, add = el('button', 'tool ghost sys-btn sys-tfill-add', '+ Typing it fills');
-    add.type = 'button'; add.disabled = fl.length >= cap || !tgs.length; add.title = !tgs.length ? 'There is no other number, height or weight to fill' : fl.length >= cap ? 'At most ' + cap + ' fields' : 'Another field this one fills in when someone types it';
+    add.type = 'button'; add.disabled = fl.length >= cap || !tgs.length; add.title = !tgs.length ? 'There is no other number, toggle, height or weight to fill' : fl.length >= cap ? 'At most ' + cap + ' fields' : 'Another field this one fills in when someone types it';
     add.addEventListener('click', function(ev) { stop(ev); if (add.disabled) return; (f.fills = Array.isArray(f.fills) ? f.fills : []).push({ f: tgs[0].id, formula: '' }); ch(true); });
     box.appendChild(add);
     return box;

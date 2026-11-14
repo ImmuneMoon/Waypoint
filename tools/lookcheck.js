@@ -4247,5 +4247,60 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         (pS.match(/<label class="ui-slide/g) || []).length === 3 && ['paintSizeN', 'paintOpN', 'paintLayerOpN', 'paintZoomN'].every(id => pS.includes('<span class="ui-val"><input type="number" id="' + id + '"'))
         && pS.includes('<span class="ui-step" role="group" aria-label="Zoom"><button type="button" id="paintZoomOut"') && (pS.match(/<span class="ui-seg">/g) || []).length === 2 && !/class="pw-slide/.test(pS));
 }
+// 1.6.2 (the owner, 2026-11-13: "when locked, i should still be able to click and highlight pieces, so i know which im dealing with"): the
+// board's redraw gives a lone selected piece its sel class whether it is locked or not, and a locked one wears locked beside it; the drag's
+// still click on a locked piece already selected it (datamap.js lockedMq), but the redraw kept sel from a locked piece, so nothing showed
+{
+    const lsA = wbSrc.indexOf('          if (item.id === state.selWbId && (!state.selWbIds || state.selWbIds.length === 1)'), lsEnd = "              el.classList.remove('locked');\n\n          }\n";
+    const lsB = lsA < 0 ? -1 : wbSrc.indexOf(lsEnd, lsA), lsSrc = lsA >= 0 && lsB > lsA ? wbSrc.slice(lsA, lsB + lsEnd.length).replace(/\r\n/g, '\n') : '';
+    const lsRun = (item, st) => { const cls = new Set(['wb-item']), el = { classList: { add: c => cls.add(c), remove: c => cls.delete(c) } }; let selItem = null; if (lsSrc) selItem = new Function('item', 'state', 'el', 'var selItem = null;\n' + lsSrc + '\nreturn selItem;')(item, st, el); return [[...cls].sort().join(' '), selItem ? selItem.id : null]; };
+    const lsRes = lsSrc ? [
+        lsRun({ id: 'a', locked: true }, { selWbId: 'a', selWbIds: ['a'] }),   // a locked piece, selected alone: shown, as locked
+        lsRun({ id: 'a' }, { selWbId: 'a', selWbIds: ['a'] }),                  // a free one: shown
+        lsRun({ id: 'a', locked: true }, { selWbId: 'a', selWbIds: ['a', 'b'] }),   // one of several: the box shadow shows it, not sel
+        lsRun({ id: 'b', locked: true }, { selWbId: 'a', selWbIds: ['a'] }),   // not selected
+        lsRun({ id: 'a', locked: true }, { selWbId: 'a' }),                     // no list yet
+    ] : [];
+    check('a locked piece clicked is selected AND shown (the owner, 2026-11-13): the redraw gives it sel and locked, a free one sel alone, one of several or one not selected neither; the outline is gold and solid, a picture\'s edge gold as any selection\'s, and a locked piece still gets no handles',
+        J(lsRes) === J([['locked sel wb-item', 'a'], ['sel wb-item', 'a'], ['wb-item', null], ['wb-item', null], ['locked sel wb-item', 'a']])
+        && css.includes('\n  .wb-item.sel.locked { outline: 2px solid var(--gold); }') && !/\.sel\.locked\s*\{[^}]*--edge/.test(css) && !/\.sel\.locked\s*\{[^}]*var\(--dim\)/.test(css)
+        && css.includes('\n  .wb-item:is(.image, .wb-hextok):is(.sel, .circle-hit, .wb-turn, .wb-find-lit, .size-match) { --edge: var(--gold); }')
+        && wbSrc.includes('if (!selItem || selItem.locked) { hide(); return; }')
+        && ix.includes('A click still selects a locked piece: a gold outline shows which one it is, and Properties holds it. A free piece standing on it is selected first.')
+        && [read('../../WHATSNEW.txt'), read('assets/whatsnew.txt')].every(t => t.replace(/\r\n/g, '\n').includes("- A locked piece still answers a click. Click a wall, a floor, a door or a\n  locked picture and it is selected, outlined in gold and shown in\n  Properties, so you can tell which one you're dealing with. A drag still\n  won't budge it.\n")),
+        J(lsRes));
+}
+// the ring (whiteboard.js lockRingSync, 1.6.2): on a generated map a floor is many abutting locked pieces of one texture, and the piece's own
+// outline was covered by the neighbor drawn after it; the ring stands above every piece, run here on a stub page
+{
+    const rA = wbSrc.indexOf('  // [lookcheck:lockring-start]'), rB = wbSrc.indexOf('  // [lookcheck:lockring-end]'), rSrc = rA >= 0 && rB > rA ? wbSrc.slice(rA, rB) : '';
+    const mkEl = (tag) => { const e = { tag, id: '', className: '', style: { setProperty(k, v) { this[k] = v; } }, dataset: {}, kids: [], attrs: {}, set textContent(v) { this.kids = []; }, appendChild(k) { this.kids.push(k); return k; }, setAttribute(k, v) { this.attrs[k] = v; }, getAttribute(k) { return this.attrs[k] === undefined ? null : this.attrs[k]; }, removeAttribute(k) { delete this.attrs[k]; } }; return e; };
+    const ringRun = (items, st, opts) => {
+        opts = opts || {}; const wb = mkEl('div'), els = {}, made = [];
+        items.forEach(it => { const e = mkEl('div'); e.style.display = opts.hidden === it.id ? 'none' : ''; if (it.type === 'path') { const p = mkEl('path'); p.attrs = { 'stroke-width': '6', style: 'stroke: red' }; const svg = mkEl('svg'); svg.attrs = { viewBox: '0 0 50 10' }; svg.innerHTML = '<path/>'; svg.viewBox = { baseVal: { width: 50 } }; svg.cloneNode = () => { const c = mkEl('svg'); const cp = mkEl('path'); cp.attrs = Object.assign({}, p.attrs); c.paths = [cp]; c.querySelectorAll = () => c.paths; return c; }; e.querySelector = () => svg; } else e.querySelector = () => null; els[it.id] = e; });
+        let ring = null;
+        const doc = { getElementById: id => id === 'whiteboard' ? wb : id === 'lockSelRing' ? ring : null, createElement: t => { const e = mkEl(t); made.push(e); ring = e; return e; }, querySelector: q => { const m = /data-id="([^"]+)"/.exec(q); return m ? els[m[1]] || null : null; } };
+        const fn = new Function('document', 'state', rSrc + '\nreturn lockRingSync;')(doc, st);
+        fn({ type: 'map', whiteboard: items });
+        return ring ? { d: ring.style.display, box: [ring.style.left, ring.style.top, ring.style.width, ring.style.height, ring.style.transform].join(' '), lr: ring.style['--lr'], cls: ring.className, id: ring.id, stroke: ring.kids[0] && ring.kids[0].paths[0].attrs } : null;
+    };
+    const S = (id, z) => ({ viewMode: 'visual', selWbId: id, selWbIds: [id], zoomLevel: z || 0.5 });
+    const fl = { id: 'f', type: 'rect', x: 100, y: 200, w: 250, h: 50, locked: true }, ci = { id: 'c', type: 'circle', x: 0, y: 0, w: 80, h: 80, locked: true, rot: 30 }, pic = { id: 'p', type: 'image', x: 0, y: 0, w: 80, h: 80, locked: true }, free = { id: 'r', type: 'rect', x: 0, y: 0, w: 50, h: 50 }, wl = { id: 'w', type: 'path', x: 0, y: 0, w: 50, h: 10, locked: true };
+    const all = [fl, ci, pic, free, wl], rr = [
+        ringRun(all, S('f')), ringRun(all, S('c', 2)), ringRun(all, S('p')), ringRun(all, S('r')),
+        ringRun(all, { viewMode: 'visual', selWbId: 'f', selWbIds: ['f', 'c'], zoomLevel: 1 }), ringRun(all, S('f'), { hidden: 'f' }), ringRun(all, Object.assign(S('f'), { viewMode: 'data' })), ringRun(all, S('w', 1)),
+    ];
+    check('a locked piece selected wears a ring of its own above every piece (the owner: on an open map a clicked locked floor among abutting floors of one texture could not be told apart): its exact box, 2 px on screen at any zoom, a circle round and turned with it, a line or region its own path in gold; none for a picture (its own edge follows its visible part), a free piece, several selected, a piece hidden from you or another view',
+        rSrc && J(rr) === J([
+            { d: 'block', box: '100px 200px 250px 50px none', lr: '4px', cls: '', id: 'lockSelRing' },
+            { d: 'block', box: '0px 0px 80px 80px rotate(30deg)', lr: '1px', cls: 'lr-round', id: 'lockSelRing' },
+            null, null, null, null, null,
+            { d: 'block', box: '0px 0px 50px 10px none', lr: '2px', cls: 'lr-path', id: 'lockSelRing', stroke: { 'stroke-width': '6', fill: 'none', stroke: 'var(--gold)' } },
+        ])
+        && wbSrc.includes("      try { lockRingSync(am); } catch (e) {}   // 1.6.2: a locked piece selected, its outline above the board\n      if (!rHandle || !rotHandle) return;")
+        && css.includes('\n  .wb-item.sel.locked:not(.image):not(.wb-hextok) { outline: none; }') && css.includes('\n  #lockSelRing { position: absolute; pointer-events: none; z-index: 9999; box-sizing: border-box; outline: var(--lr, 2px) solid var(--gold);')
+        && css.includes('\n  #lockSelRing.lr-round { border-radius: 50%; }') && css.includes('\n  #lockSelRing.lr-path { outline: none; box-shadow: none;'),
+        J(rr));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

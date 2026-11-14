@@ -144,7 +144,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function cornerFit(doc, win) {
     var mm = doc.getElementById('minimap'), z = doc.getElementById('zoomBox'), b = doc.body; if (!mm || !z || !b) return false;
     var both = mm.offsetParent !== null && z.offsetParent !== null && mm.offsetParent === z.offsetParent;
-    var hit = both && mm.offsetLeft + mm.offsetWidth + 8 > z.offsetLeft, had = b.classList.contains('mm-under');
+    var held = win.wpLayout && typeof win.wpLayout.held === 'function' && (win.wpLayout.held(mm) || win.wpLayout.held(z));   // 1.6.2 (backlog 224): one the layout placed is clear of the other by its own place
+    var hit = both && !held && mm.offsetLeft + mm.offsetWidth + 8 > z.offsetLeft, had = b.classList.contains('mm-under');
     if (hit === had) return false;
     b.classList.toggle('mm-under', hit);
     if (win.wpTrackers && typeof win.wpTrackers.place === 'function') win.wpTrackers.place();
@@ -262,6 +263,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (window.wpLeftRail) window.wpLeftRail.sync();
       if (window.wpRowHide) window.wpRowHide.fit();
       if (window.wpFloats) window.wpFloats.sync();
+      if (window.wpLayout) window.wpLayout.sync();   // 1.6.2 (backlog 224): no map, no layout
       if (window.wpMapTabs) window.wpMapTabs.sync();
       if (window.wpCharList) window.wpCharList.sync();
       if (window.wpNotices) window.wpNotices.sync();
@@ -341,6 +343,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (window.wpRowHide) window.wpRowHide.fit();   // where the map's area begins, for a hidden row's tab and bar (rowhide.js): one redraw can move both of the area's edges and leave its size as it was
       if (window.wpFitBar) window.wpFitBar();   // 107: the bar never runs off the map (it tightens, then wraps). Asked once the panes are switched: it measures the room the map has
       if (window.wpFloats) window.wpFloats.sync();   // 1.5.4 (floats.js): a floating box shows on the play map, and on another view only if it was asked for there
+      if (window.wpLayout) window.wpLayout.sync();   // 1.6.2 (backlog 224, layout.js): where the map's controls stand, for the view on screen, once the boxes are switched
 
       // Breadcrumb trail for nested maps (world > region > city > ...)
 

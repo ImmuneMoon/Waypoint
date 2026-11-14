@@ -149,11 +149,13 @@ function place(box) {
     var party = document.getElementById('partyStrip');   // the party's faces spread out under the pointer on a narrow area: the bar keeps its place meanwhile
     if (party && box.style.getPropertyValue('--trkleft') && document.body.classList.contains('area-narrow') && typeof party.matches === 'function' && party.matches(':hover, :focus-within')) return;
     var mmOn = !!mm && mm.parentElement === box.parentElement && mm.offsetParent !== null, cs = mm ? window.getComputedStyle(mm) : null;
+    var mmHeld = mmOn && !!window.wpLayout && typeof window.wpLayout.held === 'function' && window.wpLayout.held(mm);   // 1.6.2 (backlog 224): a minimap the layout placed is in the way only where it stands
     var was = box.style.top; if (was) box.style.top = '';   // the row the style sheet gives it, which follows a hidden top row
     var top0 = box.offsetTop, obs = [], rect = function(e) { return { left: e.offsetLeft, top: e.offsetTop, right: e.offsetLeft + e.offsetWidth, bottom: e.offsetTop + e.offsetHeight }; };
     if (mmOn) obs.push(rect(mm));
     ['zoomBox', 'partyStrip', 'joinCard'].forEach(function(id) { var e = document.getElementById(id); if (e && e.parentElement === box.parentElement && e.offsetParent !== null && e.offsetWidth > 0) obs.push(rect(e)); });
-    var base = mmOn ? mm.offsetLeft : (cs ? parseFloat(cs.left) || 0 : 0);
+    var lcs = mmHeld ? window.getComputedStyle(box.parentElement) : null;   // where the minimap would stand: the room the layout keeps at the left
+    var base = mmHeld ? (parseFloat(lcs.getPropertyValue('--lay-l')) || 0) + (parseFloat(lcs.getPropertyValue('--lay-pl')) || 0) : mmOn ? mm.offsetLeft : (cs ? (parseFloat(cs.left) || 0) + (parseFloat(cs.marginLeft) || 0) : 0);
     var p = placeRows(obs, base, area.clientWidth, top0, barParts(box)), L = p.left + 'px', W = p.wide + 'px', T = p.top !== top0 ? p.top + 'px' : '';
     if (box.style.getPropertyValue('--trkleft') !== L) box.style.setProperty('--trkleft', L);
     if (box.style.getPropertyValue('--trkwide') !== W) box.style.setProperty('--trkwide', W);

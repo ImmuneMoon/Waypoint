@@ -6441,3 +6441,95 @@
 .cal-rest-go { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .cal-rest-go .cal-restcall-map { flex: 1 1 140px; min-width: 120px; width: auto; }
 .cal-rest-npc { display: block; margin: 2px 0 2px 4px; }
+
+/* 1.6.2 (backlog 224): the layout editor (layout.js). Every rule waits for body.lay-on, which layout.js writes only while a layout is set,
+   the map's area is wide enough and the view is a map, so with no layout, on a narrow area and in the stream window the page is as before.
+   The toolbar takes a side as a floating box or across the whole edge, up to the panels, or stands free; the others step out of its way */
+body.lay-on .floating-toolbar.lay-bar.lay-hide { transition: z-index 0s .2s, transform .18s ease, opacity .18s ease; }   /* it slides only when it hides: a side picked moves it at once */
+body.lay-on .floating-toolbar.lay-top { top: var(--lay-t, 26px); bottom: auto; }
+body.lay-on .floating-toolbar.lay-side { flex-direction: column; top: 50%; bottom: auto; transform: translateY(-50%); gap: 3px; padding: 5px; }
+body.lay-on .floating-toolbar.lay-left { left: var(--lay-l, 44px); }
+body.lay-on .floating-toolbar.lay-right { left: auto; right: 14px; }
+body.lay-on .floating-toolbar.lay-side > .wb-tool-sep, body.lay-on .floating-toolbar.lay-side.tb-tight > .wb-tool-sep { width: 24px; height: 1px; margin: 2px 0; }
+body.lay-on .floating-toolbar.lay-side.lay-cols { display: grid !important; grid-template-columns: repeat(2, auto); gap: 2px; align-content: center; }   /* too tall for the area even tight: two columns */
+body.lay-on .floating-toolbar.lay-side.lay-cols > .wb-tool-sep { display: none; }
+body.lay-on .floating-toolbar.lay-edge:not(.lay-side) { left: 0; right: 0; transform: none; width: auto !important; max-width: none !important; border-radius: 0; justify-content: center; box-shadow: 0 0 16px rgba(0,0,0,0.45); }
+body.lay-on .floating-toolbar.lay-edge:not(.lay-side):not(.lay-top) { bottom: 0; border-width: 1px 0 0; }
+body.lay-on .floating-toolbar.lay-edge.lay-top { top: var(--lay-et, 18px); border-width: 0 0 1px; }
+body.lay-on .floating-toolbar.lay-edge.lay-side { top: var(--lay-et, 18px); bottom: 0; transform: none; border-radius: 0; justify-content: center; align-content: center; box-shadow: 0 0 16px rgba(0,0,0,0.45); }
+body.lay-on .floating-toolbar.lay-edge.lay-left { left: var(--lay-el, 36px); border-width: 0 1px 0 0; }
+body.lay-on .floating-toolbar.lay-edge.lay-right { right: 0; border-width: 0 0 0 1px; }
+body.lay-on .floating-toolbar.lay-edge.lay-right ~ #toggleRightBtn { z-index: 9501; }   /* the right panel's handle stays over a bar across that edge */
+body.lay-on .floating-toolbar.lay-edge.lay-meas:not(.lay-side) { right: auto !important; width: max-content !important; }
+body.lay-on .floating-toolbar.lay-edge.lay-side.lay-meas { bottom: auto !important; }   /* whiteboard.js fitBar measures what the bar holds */
+/* a menu opens away from the bar's edge (layout.js layMenuFit holds it inside the area) */
+body.lay-on .floating-toolbar.lay-top > * > .shape-menu { top: 100% !important; bottom: auto !important; margin-top: 10px !important; margin-bottom: 0 !important; }
+body.lay-on .floating-toolbar.lay-left > * > .shape-menu { left: 100% !important; right: auto !important; top: 0 !important; bottom: auto !important; transform: none !important; margin: 0 0 0 10px !important; }
+body.lay-on .floating-toolbar.lay-right > * > .shape-menu { right: 100% !important; left: auto !important; top: 0 !important; bottom: auto !important; transform: none !important; margin: 0 10px 0 0 !important; }
+/* a control held to a place, and the others stepping out of the toolbar's way */
+body.lay-on .lay-at { left: var(--lay-x) !important; top: var(--lay-y) !important; right: auto !important; bottom: auto !important; transform: none !important; margin: 0 !important; }
+body.lay-on #main > :is(#zoomBox, #partyStrip, #joinCard):not(.lay-at) { margin-top: var(--lay-pt, 0px); margin-right: var(--lay-pr, 0px); }
+body.lay-on #main > :is(#minimap, #combatStrip, #dataFind):not(.lay-at) { margin-top: var(--lay-pt, 0px); margin-left: var(--lay-pl, 0px); }
+body.lay-on #main > #trkStrip:not(.lay-at) { margin-top: var(--lay-pt, 0px); }
+body.lay-on #main > #wbEdgeTools:not(.lay-at) { margin-right: var(--lay-pr, 0px); }
+body.lay-on #wbEdgeTools.lay-low:not(.lay-at) { bottom: var(--lay-colb, 30px); }
+body.lay-on #wbEdgeTools.lay-open-r .shape-menu { right: auto !important; left: 100% !important; margin: 0 0 0 10px !important; }
+body.lay-on #wbEdgeTools.lay-open-d .shape-menu, body.lay-on #wbEdgeTools.lay-open-d #wbCenterMenu { top: 0 !important; bottom: auto !important; }
+/* shown only when the pointer comes near: it slides off its edge, a free one fades, and a thin line marks where it waits */
+body.lay-on:not(.lay-edit):not(.tour-on) .lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)) { pointer-events: none; }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)):not(.lay-top):not(.lay-side):not(.lay-free):not(.lay-edge) { transform: translate(-50%, calc(100% + 40px)); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)).lay-edge:not(.lay-top):not(.lay-side) { transform: translateY(100%); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)).lay-top:not(.lay-edge) { transform: translate(-50%, calc(-100% - var(--lay-t, 26px) - 10px)); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)).lay-top.lay-edge { transform: translateY(calc(-100% - var(--lay-et, 18px) - 2px)); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)).lay-left:not(.lay-edge) { transform: translate(calc(-100% - var(--lay-l, 44px) - 10px), -50%); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)).lay-left.lay-edge { transform: translateX(calc(-100% - var(--lay-el, 36px) - 2px)); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)).lay-right:not(.lay-edge) { transform: translate(calc(100% + 24px), -50%); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)).lay-right.lay-edge { transform: translateX(100%); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)).lay-free { opacity: 0; pointer-events: auto; }   /* a free bar waits where it stands: the pointer over it brings it back */
+body.lay-on #wbEdgeTools.lay-hide { transition: z-index 0s .2s, transform .18s ease; }
+body.lay-on:not(.lay-edit):not(.tour-on) #wbEdgeTools.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)) { transform: translateX(calc(100% + 40px)); }
+.lay-hot { position: absolute; z-index: 9499; }
+.lay-hot::after { content: ''; position: absolute; border-radius: 3px; background: rgba(227,166,59,.55); box-shadow: 0 0 8px rgba(227,166,59,.35); }
+.lay-hot[data-side="bottom"] { left: calc(50% - 130px); width: 260px; bottom: 0; height: 12px; }
+.lay-hot[data-side="top"] { left: calc(50% - 130px); width: 260px; top: var(--lay-et, 18px); height: 12px; }
+.lay-hot[data-side="left"] { top: calc(50% - 130px); height: 260px; left: var(--lay-el, 36px); width: 12px; }
+.lay-hot[data-side="right"] { top: calc(50% - 130px); height: 260px; right: 0; width: 12px; }
+.lay-hot.lay-hot-edge[data-side="bottom"], .lay-hot.lay-hot-edge[data-side="top"] { left: 0; width: auto; right: 0; }
+#layHotCol[data-side="right"] { top: auto; bottom: var(--lay-colb, 96px); height: 140px; }
+.lay-hot[data-side="bottom"]::after { left: 0; right: 0; bottom: 2px; height: 3px; }
+.lay-hot[data-side="top"]::after { left: 0; right: 0; top: 2px; height: 3px; }
+.lay-hot[data-side="left"]::after { top: 0; bottom: 0; left: 2px; width: 3px; }
+.lay-hot[data-side="right"]::after { top: 0; bottom: 0; right: 2px; width: 3px; }
+.lay-hot[data-side="free"], body:not(.lay-on) .lay-hot, body.lay-edit .lay-hot, body.tour-on .lay-hot { display: none; }
+/* the edit mode: every control outlined and named, the card of choices, and one control's card of nine places */
+#layShade { position: absolute; inset: 0; z-index: 4990; background: rgba(8,10,14,0.42); pointer-events: none; }
+body.lay-edit :is(#wbFloatingToolbar, #dataFloatingToolbar, #wbEdgeTools, #zoomBox, #minimap, #partyStrip, #trkStrip, #joinCard, #dataFind, #main > #combatStrip) { outline: 2px dashed var(--gold); outline-offset: 4px; cursor: grab; }
+body.lay-edit :is(#wbFloatingToolbar, #dataFloatingToolbar, #wbEdgeTools, #zoomBox, #minimap, #partyStrip, #trkStrip, #joinCard, #dataFind, #main > #combatStrip) * { cursor: grab; }
+body.lay-edit #minimap { opacity: 1; }
+body.lay-edit #dataFind { pointer-events: auto; }   /* the whole strip is taken by a drag, its gaps too */
+body.lay-edit .lay-moving, body.lay-edit .lay-moving * { cursor: grabbing; }
+body.lay-edit .lay-moving { box-shadow: 0 14px 34px rgba(0,0,0,0.7); transition: none; }
+#layTags { position: absolute; inset: 0; z-index: 90025; pointer-events: none; }
+.lay-tag { position: absolute; font: 600 10.5px/1 Inter, system-ui, sans-serif; color: #1a1a1a; background: var(--gold); border-radius: 4px; padding: 3px 6px; white-space: nowrap; }
+#layCard, #layPart { position: absolute; z-index: 90030; background: var(--deep); border: 1px solid #333; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); color: var(--ink); font-size: 12.5px; box-sizing: border-box; }
+#layCard { width: 300px; padding: 10px 14px 12px; }
+#layCard .lay-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; cursor: move; padding: 2px 0; user-select: none; }
+#layCard .lay-card-head b { font-size: 13.5px; }
+#layCard .lay-card-head small, #layCard .lay-line { color: var(--dim); font-size: 11px; }
+#layCard .lay-line { margin: 2px 0 8px; line-height: 1.4; }
+#layCard .lay-name { margin: 8px 0 4px; font-weight: 600; font-size: 12px; }
+#layCard .lay-edge-seg { margin-top: 6px; }
+#layCard .ui-seg .tool { font-size: 11.5px; padding: 4px 6px; }
+#layCard .lay-tick { display: flex; align-items: center; gap: 7px; margin: 5px 0; font-size: 12px; cursor: pointer; }
+#layCard .lay-tick input { accent-color: var(--gold); margin: 0; }
+#layCard .lay-foot { display: flex; justify-content: space-between; margin-top: 12px; }
+#layPart { padding: 10px 12px; z-index: 90035; }
+#layPart .lay-part-name { font-weight: 600; font-size: 13px; }
+#layPart .lay-spots { display: grid; grid-template-columns: repeat(3, 30px); grid-template-rows: repeat(3, 22px); border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; margin: 8px 0 10px; }
+#layPart .lay-spots > button { border: 0; border-right: 1px solid var(--edge); border-bottom: 1px solid var(--edge); background: transparent; padding: 0; cursor: pointer; }
+#layPart .lay-spots > button:nth-child(3n) { border-right: 0; }
+#layPart .lay-spots > button:nth-child(n+7) { border-bottom: 0; }
+#layPart .lay-spots > button:hover, #layPart .lay-spots > button:focus-visible { background: rgba(227,166,59,.12); outline: none; }
+#layPart .lay-spots > button.on { background: rgba(227,166,59,.12); box-shadow: inset 0 0 0 1px var(--gold); }
+#layPart .lay-spots > button.on::after { content: ''; display: block; width: 8px; height: 6px; margin: auto; background: var(--gold); border-radius: 1px; }
+body.stream-mode :is(#layCard, #layPart, #layTags, #layShade, .lay-hot) { display: none !important; }

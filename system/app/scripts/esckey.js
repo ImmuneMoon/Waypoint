@@ -183,6 +183,7 @@ function escJudge(doc, win, t) {
     var menu = escMenus(doc, win)[0];
     if (menu && menu.back && (escInBox(doc, t) || escInSpread(doc, win, t))) menu = null;   // options that stood back under a box pressed since: that box is on top of them (the Prep column spread wide is one, whiteboard.js barWindow)
     if (menu) return { act: menu.keep && (escHas(menu.el, t) || escHas(menu.also, t)) ? 'defer' : 'close', layer: menu };
+    if (body && body.classList && body.classList.contains('lay-edit')) return { act: 'close', layer: { el: doc.getElementById('layCard'), close: function() { if (win.wpLayout) win.wpLayout.escape(); } } };   // 1.6.2 (backlog 224): a control's card, then the edit mode
     var w = escTop(escWindows(doc), win);
     if (w) return { act: escHas(w.el, t) && (w.own || escKeep(doc, t)) ? 'defer' : 'close', layer: w };
     if (t && t.isContentEditable === true && escAt(t, '.wb-item.editing')) return { act: 'close', layer: { el: t, close: function() { if (doc.activeElement === t && typeof t.blur === 'function') t.blur(); } } };   // a text box on the map loses the focus, which keeps what was typed

@@ -32,7 +32,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('module loads in Node with no window (the guard)', !!F && !loadErr, loadErr && loadErr.message);
     if (!F) { console.log('\n' + 'cannot continue'); process.exit(1); }
     check('exports the API', ['parse', 'evaluate', 'evaluateAst', 'names', 'describe', 'fromDraws', 'LIMITS', 'VERSION'].every(k => k in F));
-    check('LIMITS as designed', j(F.LIMITS) === j({ maxChars: 2000, maxDice: 1000, maxFaces: 1000000, maxDepth: 64, maxNest: 64, maxExplode: 100, maxReroll: 100 }));
+    check('LIMITS as designed', j(F.LIMITS) === j({ maxChars: 20000, maxDice: 1000, maxFaces: 1000000, maxDepth: 64, maxNest: 64, maxExplode: 100, maxReroll: 100 }));
 
     const ev = (text, opts) => F.evaluate(text, opts);
     const val = (text, opts) => { const r = ev(text, opts); return r.ok ? r.value : ('ERR: ' + r.error.message); };
@@ -69,7 +69,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('parse() carries src and names', (() => { const p = F.parse('STR + 1'); return p.ok && p.ast.src === 'STR + 1' && j(p.names) === j(['STR']); })());
     E('empty text', '', 'Nothing to evaluate.', 0, 0);
     E('whitespace only', '   ', 'Nothing to evaluate.', 0, 0);
-    E('too long', 'x'.repeat(2001), 'The formula is too long (over 2,000 characters).', 2000, 1);
+    E('too long', 'x'.repeat(20001), 'The formula is too long (over 20,000 characters).', 20000, 1);
     E('unknown character', '1 § 2', 'Unexpected character "§".', 2, 1);
     E('5. is not a number', '5.', '"5." is not a number.', 0, 2);
     E('1.2.3 is not a number', '1.2.3', '"1.2.3" is not a number.', 0, 5);

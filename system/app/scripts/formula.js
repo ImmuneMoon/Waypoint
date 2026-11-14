@@ -6,7 +6,7 @@
    is capped; the random source is injectable and every draw is recorded so a roll can be replayed.
    Design of record: docs/FORMULA_ENGINE_PLAN.md (local). Offline checks: node tools/formulacheck.js. */
 
-var LIMITS = Object.freeze({ maxChars: 2000, maxDice: 1000, maxFaces: 1000000, maxDepth: 64, maxNest: 64, maxExplode: 100, maxReroll: 100 });
+var LIMITS = Object.freeze({ maxChars: 20000, maxDice: 1000, maxFaces: 1000000, maxDepth: 64, maxNest: 64, maxExplode: 100, maxReroll: 100 });
 var VERSION = 1;
 
 /* ---------- errors ---------- */

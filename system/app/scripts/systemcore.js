@@ -46,7 +46,7 @@ function rollDie(pick, formula) { return cleanDie(pick) || dieOf(formula); }
 var LIMITS = Object.freeze({
     onRemove: 40,   // 1.6.0: a list's changes when a row is taken off for good
     fields: 6000, rolls: 1600, sections: 1000, tabs: 120, placements: 8000, options: 500, optionChars: 60,   // Stage 6: room for a big sheet (one section per section of a large VTT sheet); 1.5.4: 400 fields, 60 sections and 400 placements (a website's whole sheet: 300, 40 and 300 before); 1.6.0: 100 sections (a sheet folded by body slot, asked by the campaign build's session), then 600 fields, 160 rolls and 800 placements (a big system's build stood at 392 fields and 75 rolls, asked by the campaign build's session)
-    key: 64, label: 60, formula: 1000,      // 1000 = the dice path's expression cap, so a sheet roll never dies there (300 before 1.6.0, backlog 200)
+    key: 64, label: 60, formula: 10000,     // 10000 = the dice path's expression cap, so a sheet roll never dies there; a safety ceiling some ten times the longest real formula (962 characters), 1000 before 1.6.2 and 300 before 1.6.0 (backlog 200)
     text: 200, notes: 20000, name: 60, itemName: 240, charName: 60, names: 200,   // 1.6.0, backlog 194: an item's and a library entry's name 240 (60 before), as a row's own name; every other name and a character's stay 60
     makingMax: 12,   // Onboarding F3: characters in the making at one table at once (each a player's own, on the GM's disk)
     core: 10000, coreBytes: 2560 * 1024,       // Stage 6 library L1d: library entries a formula addresses by key, copied into the system

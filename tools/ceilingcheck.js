@@ -80,6 +80,28 @@ const j = JSON.stringify;
     const itemsG = Object.fromEntries(gm.items.map(i => [i.id, i])), own = timed('a player\'s own copy of the character', 2000, () => S.charFor(ch, pv, 'u_a', { items: itemsG }));
     timed('resolveAll on a player\'s app', 5000, () => S.resolveAll(pv, own, F));
     timed('one name read of a character', 100, () => S.makeResolver(gm, ch, F)('A400'));
+
+    /* ---------- formulas at their length (1.6.2: LIMITS.formula 10,000, some ten times the longest real one, 962 characters) ---------- */
+    {   // a system the size of a real game (a tenth of the ceilings: 600 fields, 160 rolls) whose every formula stands at the cap: a chain of formulas, numbers worked out until typed, and rolls
+        const capF = (head, len) => { const s = head + ' + 1'.repeat(Math.floor((len - head.length) / 4)); return s + '1'.repeat(len - s.length); };
+        const longSys = len => {
+            const fields = [{ id: 'f_n', key: 'N0', label: 'N', kind: 'number', def: 1, vis: 'all' }];
+            for (let i = 1; fields.length < L.fields / 10; i++) fields.push(i % 2 ? { id: 'f_a' + i, key: 'A' + i, label: 'A ' + i, kind: 'formula', formula: capF(i === 1 ? 'N0' : 'A' + (i - 2), len), vis: 'all' } : { id: 'f_a' + i, key: 'A' + i, label: 'A ' + i, kind: 'number', auto: capF('A' + (i - 1), len), vis: 'all' });
+            const rolls = Array.from({ length: L.rolls / 10 }, (_, i) => ({ id: 'r_l' + i, label: 'Long ' + i, formula: capF('1d20 + A' + (1 + 2 * (i % 100)), len) }));
+            return { v: 1, name: 'Long', fields, rolls, sheet: { sections: [{ id: 's_1', title: 'S', fields: fields.slice(0, 100).map(f => ({ id: f.id, w: 1 })) }] } };
+        };
+        const rawL = longSys(L.formula), gmL = timed('cleanSystem of formulas at their length, the GM\'s view', 1800, () => S.cleanSystem(rawL, { F, gmView: true }));
+        check('every formula at LIMITS.formula is kept whole, and the dice path and the engine take one that long: dicecore\'s expr is the same figure, the engine\'s own cap stands above it', gmL.fields.filter(f => (f.formula || f.auto || '').length === L.formula).length === rawL.fields.length - 1 && gmL.rolls.every(r => r.formula.length === L.formula) && D.LIMITS.expr === L.formula && F.LIMITS.maxChars >= L.formula && !!D.cleanExpr(gmL.rolls[0].formula) && F.evaluate(gmL.rolls[0].formula, { vars: { A1: 1 }, random: () => 1 }).ok, j([gmL.fields.length, gmL.rolls.length, D.LIMITS.expr, F.LIMITS.maxChars]));
+        const pvL = timed('cleanSystem of formulas at their length, the players\' view', 1800, () => S.cleanSystem(gmL, { F, gmView: false }));
+        const vL = timed('validateSystem of formulas at their length', 4400, () => S.validateSystem(gmL, F));
+        check('formulas at their length read: no error of their own', vL.errors.length === 0, j(vL.errors.slice(0, 2)).slice(0, 300));
+        const chL = S.cleanChar({ id: 'c_l', name: 'L', ownerId: 'u_a', values: {} }, gmL), resL = timed('resolveAll of formulas at their length', 3200, () => S.resolveAll(gmL, chL, F));
+        check('formulas at their length are worked out: the chain\'s last figure and a number worked out until typed', typeof resL['f_a' + (L.fields / 10 - 3)].value === 'number' && resL.f_a2.auto === 1, j([resL['f_a' + (L.fields / 10 - 3)], resL.f_a2]).slice(0, 300));
+        console.log('          a system of formulas at their length ' + (j(rawL).length / 1048576).toFixed(1) + ' MB, its players\' view ' + (j(pvL).length / 1048576).toFixed(1) + ' MB');
+        const halfL = longSys(L.formula / 2), gmH = S.cleanSystem(halfL, { F, gmView: true }), chH = S.cleanChar({ id: 'c_l', name: 'L', ownerId: 'u_a', values: {} }, gmH), best = f => Math.min(cpu(f)[1], cpu(f)[1], cpu(f)[1]);
+        const [rH, rF] = [best(() => S.resolveAll(gmH, chH, F)), best(() => S.resolveAll(gmL, chL, F))];
+        check('the work grows with a formula\'s length: formulas twice as long cost less than three times the work (a linear read gives two)', rF < rH * 3, j([rF, rH]));
+    }
     const sysW = S.cleanSystem({ v: 1, name: 'W', rolls: [], sheet: { sections: [] }, items: [{ id: 'i_a', name: 'Pebble', vis: 'all' }], fields: Array.from({ length: 22 }, (_, i) => ({ id: 'f_w' + i, key: 'W' + i, label: 'W', kind: 'item-list', vis: 'all', edit: 'owner', list: {} })) }, { F, gmView: true }), valsW = {};
     for (let i = 0; i < 22; i++) valsW['f_w' + i] = Array.from({ length: L.carried }, (_, k) => ({ id: 'w_' + i + 'x' + k, defId: 'i_a', qty: 1 }));
     const wide = S.cleanChar({ id: 'c_w', name: 'W', ownerId: 'u_a', values: valsW }, sysW), wideN = Object.keys(wide.values).map(k => wide.values[k].length);

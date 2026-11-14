@@ -9292,7 +9292,7 @@ function refreshErrors() {
         else if (!rfP || !rfP.ok) rErr.push({ message: 'Range: ' + (rfP && rfP.error && rfP.error.message ? rfP.error.message : 'the formula cannot be read.') + ' Save drops the rule.', prop: 'formula', pos: rfP && rfP.error ? rfP.error.pos : undefined, len: rfP && rfP.error ? rfP.error.len : undefined });
         else if (rfN.length) rErr.push({ message: 'Range: the formula reads only Distance, not ' + rfN[0] + ': Save drops the rule.' });
         else if (rfDice(rfP.ast && rfP.ast.body)) rErr.push({ message: 'Range: the formula cannot roll dice: Save drops the rule.' });
-        else if (rfT.length > LIMITS.formula || /[\u0000-\u001f\u007f]/.test(rfT)) rErr.push({ message: 'Range: the formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops the rule.' });
+        else if (rfT.length > LIMITS.formula || /[\u0000-\u001f\u007f]/.test(rfT)) rErr.push({ message: 'Range: the formula is at most ' + LIMITS.formula.toLocaleString('en-US') + ' characters, on one line: Save drops the rule.' });
     } else if (byE === 'table') {
         var rsE = Array.isArray(rgE.steps) ? rgE.steps : [], rSeen = Object.create(null), rKept = 0, rNum = function(v) { return typeof v === 'number' && isFinite(v) && Math.abs(v) <= 1e15; };
         rsE.forEach(function(s, i) {
@@ -9328,7 +9328,7 @@ function refreshErrors() {
         else if (!hfP || !hfP.ok) hErr.push({ message: 'Height: ' + (hfP && hfP.error && hfP.error.message ? hfP.error.message : 'the formula cannot be read.') + ' Save drops it.' });
         else if (hfN.length) hErr.push({ message: 'Height: the formula reads only HeightDiff, not ' + hfN[0] + ': Save drops it.' });
         else if (rfDice(hfP.ast && hfP.ast.body)) hErr.push({ message: 'Height: the formula cannot roll dice: Save drops it.' });
-        else if (hfT.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(hfT)) hErr.push({ message: 'Height: the formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops it.' });
+        else if (hfT.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(hfT)) hErr.push({ message: 'Height: the formula is at most ' + LIMITS.formula.toLocaleString('en-US') + ' characters, on one line: Save drops it.' });
     } else if (hbyE === 'table') {
         var hsE = hgE.steps, hSeen = Object.create(null), hKept = 0, hNum = function(v) { return typeof v === 'number' && isFinite(v) && Math.abs(v) <= 1e15; };
         hsE.forEach(function(s, i) {
@@ -9489,7 +9489,7 @@ function refreshErrors() {
     auFx.forEach(function(d) {
         var t0 = d.auto.trim(), pa = F() ? F().parse(t0) : null, msg = null;
         if (d.vis === 'gm') msg = { message: 'Applies itself when: a GM-only effect cannot apply itself (its switching on would give it away): Save drops the formula.' };
-        else if (t0.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(t0)) msg = { message: 'Applies itself when: a formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops it.' };
+        else if (t0.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(t0)) msg = { message: 'Applies itself when: a formula is at most ' + LIMITS.formula.toLocaleString('en-US') + ' characters, on one line: Save drops it.' };
         else if (!pa || !pa.ok) msg = { message: 'Applies itself when: ' + (pa && pa.error && pa.error.message ? pa.error.message : 'the formula cannot be read.') + ' Save drops it.', prop: 'formula', pos: pa && pa.error ? pa.error.pos : undefined, len: pa && pa.error ? pa.error.len : undefined };
         else if (rfDice(pa.ast && pa.ast.body)) msg = { message: 'Applies itself when: the formula cannot roll dice: Save drops it.' };
         else {
@@ -9507,7 +9507,7 @@ function refreshErrors() {
         d.mods.forEach(function(m, mi) {
             if (!m || typeof m !== 'object' || m.op === 'on' || typeof m.vf !== 'string' || !m.vf.trim()) return;
             var t1 = m.vf.trim(), pv = F() ? F().parse(t1) : null, hd = 'Change ' + (mi + 1) + ', by a formula: ', mv = null;
-            if (t1.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(t1)) mv = { message: hd + 'a formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops the change.' };
+            if (t1.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(t1)) mv = { message: hd + 'a formula is at most ' + LIMITS.formula.toLocaleString('en-US') + ' characters, on one line: Save drops the change.' };
             else if (!pv || !pv.ok) mv = { message: hd + (pv && pv.error && pv.error.message ? pv.error.message : 'the formula cannot be read.') + ' Save drops the change.' };
             else if (rfDice(pv.ast && pv.ast.body)) mv = { message: hd + 'the formula cannot roll dice: Save drops the change.' };
             else {
@@ -9576,12 +9576,12 @@ function refreshErrors() {
     (irE && Array.isArray(irE.ties) ? irE.ties : []).slice(0, LIMITS.initTies).forEach(function(t, i) {
         if (typeof t !== 'string' || !t.trim()) return;
         var t0 = t.trim(), nm = 'Tie step ' + (i + 1), pa = F() ? F().parse(t0) : null;
-        if (t0.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(t0)) iErr.push({ message: nm + ': a formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops it.' });
+        if (t0.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(t0)) iErr.push({ message: nm + ': a formula is at most ' + LIMITS.formula.toLocaleString('en-US') + ' characters, on one line: Save drops it.' });
         else if (!pa || !pa.ok) iErr.push({ message: nm + ': ' + (pa && pa.error && pa.error.message ? pa.error.message : 'the formula cannot be read.') + ' Save drops it.' });
         else { iSys = iSys || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables }; var gmI = gmDerivedNames(iSys, F(), Array.isArray(pa.names) ? pa.names : []); if (gmI.length) iErr.push({ message: nm + ': it reads ' + gmI[0] + ', which players cannot read, and the order is public: Save drops it.' }); }
     });
     var sdE = irE && typeof irE.side === 'string' ? irE.side.trim() : '', paS = sdE && F() ? F().parse(sdE) : null;   // initiative O4: the sides' roll, read as the cleaner reads it
-    if (sdE && (sdE.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(sdE))) iErr.push({ message: 'Sides roll: a formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops it.' });
+    if (sdE && (sdE.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(sdE))) iErr.push({ message: 'Sides roll: a formula is at most ' + LIMITS.formula.toLocaleString('en-US') + ' characters, on one line: Save drops it.' });
     else if (sdE && (!paS || !paS.ok)) iErr.push({ message: 'Sides roll: ' + (paS && paS.error && paS.error.message ? paS.error.message : 'the formula cannot be read.') + ' Save drops it.' });
     else if (sdE && Array.isArray(paS.names) && paS.names.length) iErr.push({ message: 'Sides roll: it reads ' + paS.names[0] + ', but a side rolls it as one, never as one character: Save drops it.' });
     else if (sdE && irE.chosen === true) iErr.push({ message: 'Sides roll: Next is chosen takes the place of sides, so Save drops it. Untick Next is chosen to keep it.' });   // initiative O5, as the cleaner reads it
@@ -9597,7 +9597,7 @@ function refreshErrors() {
         [['has', 'Has', 'the points a character has'], ['spent', 'Spent', 'the points it has spent']].some(function(g) {
             var t = typeof b[g[0]] === 'string' ? b[g[0]].trim() : '', at = nm + ', ' + g[1] + ': ';
             if (!t) { bErr.push({ message: at + 'a formula is needed for ' + g[2] + '. Save drops the budget.' }); return true; }
-            if (t.length > LIMITS.formula || bCtl.test(t)) { bErr.push({ message: at + 'a formula is at most ' + LIMITS.formula + ' characters, on one line. Save drops the budget.' }); return true; }
+            if (t.length > LIMITS.formula || bCtl.test(t)) { bErr.push({ message: at + 'a formula is at most ' + LIMITS.formula.toLocaleString('en-US') + ' characters, on one line. Save drops the budget.' }); return true; }
             var pa = F().parse(t);
             if (!pa || !pa.ok) { bErr.push({ message: at + (pa && pa.error && pa.error.message ? pa.error.message : 'the formula cannot be read.') + ' Save drops the budget.' }); return true; }
             if (rfDice(pa.ast && pa.ast.body)) { bErr.push({ message: at + 'a budget rolls no dice. Save drops the budget.' }); return true; }
@@ -10592,7 +10592,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
             var nI = el('input', 'field sys-list-layrname'); nI.type = 'text'; nI.value = typeof ru.name === 'string' ? ru.name : ''; nI.placeholder = 'Its name, such as {side} Arm'; nI.title = 'The laid row\u2019s name. {side} is its side\u2019s word, such as Right, and {n} its number among the rows this rule lays on that side. Two rows that would share a name are numbered, such as Right Arm 1 and Right Arm 2. Empty: the name of the row that lays it';
             nI.addEventListener('change', function(e) { lyStop(e); if (nI.value.trim()) ru.name = nI.value.slice(0, 240); else delete ru.name; lyRe(); }); rw.appendChild(nI);
             var rI = el('input', 'field sys-list-layrif'); rI.type = 'text'; rI.value = typeof ru['if'] === 'string' ? ru['if'] : ''; rI.placeholder = 'every row'; rI.spellcheck = false; rI.autocomplete = 'off'; rI.dataset.rl = lyS.from; rI.title = 'A test of each source row this rule takes. A row where it does not hold lays nothing by this rule. Blank: every row';   // 1.6.2: a rule's own Only where
-            rI.addEventListener('change', function(e) { lyStop(e); var rv = String(rI.value || '').trim(); if (rv) ru['if'] = rv.slice(0, 1000); else delete ru['if']; lyRe(); }); rw.appendChild(rI);
+            rI.addEventListener('change', function(e) { lyStop(e); var rv = String(rI.value || '').trim(); if (rv) ru['if'] = rv.slice(0, LIMITS.formula); else delete ru['if']; lyRe(); }); rw.appendChild(rI);
             var eS = select('sys-list-layreach', [['row', 'One a row'], ['unit', 'One a unit'], ['kind', 'One between them']], ru.each === 'unit' || ru.each === 'kind' ? ru.each : 'row', 'One a row: as ever. One a unit: a row of quantity 2 lays two, their sides in order. One between them: rows of these categories lay one row, kept while any is there');
             eS.addEventListener('change', function(e) { lyStop(e); ru.each = eS.value; lyRe(); }); rw.appendChild(eS);
             if (ru.each !== 'kind') { var rsI = el('input', 'field sys-list-layrsides'); rsI.type = 'text'; rsI.value = Array.isArray(ru.sides) ? (ru.sides.length ? ru.sides.join(', ') : 'none') : ''; rsI.placeholder = 'Sides: the list\u2019s'; rsI.title = 'This rule\u2019s own sides in order, such as 2, 1, repeated over its units. None: no side. Blank: the list\u2019s Sides in order'; rsI.addEventListener('change', function(e) { lyStop(e); var tv = rsI.value.trim(); if (!tv) delete ru.sides; else if (/^none$/i.test(tv)) ru.sides = []; else { var ns2 = tv.split(',').map(function(x) { return Math.round(Number(x.trim())); }).filter(function(n2) { return isFinite(n2); }).slice(0, 8); ru.sides = ns2; } lyRe(); }); rw.appendChild(rsI);

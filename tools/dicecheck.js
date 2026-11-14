@@ -23,7 +23,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     const rec = (o) => Object.assign({ id: 'r_abc123', from: { id: 'u_pat', name: 'Pat', gm: false }, expr: '2d6 + 3', draws: [4, 5], v: V, ts: 1000 }, o);
 
     /* ---- expressions ---- */
-    check('cleanExpr trims, caps at 1000 (300 before 1.6.0, backlog 200: a sheet formula\'s own cap), refuses empty and control characters', cleanExpr('  d20 ') === 'd20' && cleanExpr('x'.repeat(1001)) === null && cleanExpr('') === null && cleanExpr('d20' + String.fromCharCode(0)) === null && cleanExpr(5) === null && cleanExpr('x'.repeat(1000)) !== null);
+    check('cleanExpr trims, caps at 10,000 (1000 before 1.6.2, 300 before 1.6.0, backlog 200: a sheet formula\'s own cap), refuses empty and control characters', cleanExpr('  d20 ') === 'd20' && cleanExpr('x'.repeat(10001)) === null && cleanExpr('') === null && cleanExpr('d20' + String.fromCharCode(0)) === null && cleanExpr(5) === null && cleanExpr('x'.repeat(10000)) !== null);
 
     /* ---- Stage 5a: composeModifier (the situational-modifier dialog folds a flat bonus into a roll) ---- */
     const co = (e, m) => composeModifier(e, m, F.parse);
@@ -208,8 +208,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     /* ---- the review of the fold of 409: dicecore's own figures for what a sheet sends are the character system's, so the editor's caps and the wire agree ---- */
     {
         let SC = null; try { SC = await import(url('systemcore.js')); } catch (e) { SC = null; }
-        check('409 dicecore\'s caps are the character system\'s: a row roll\'s index under LIMITS.rowRolls (160 since 1.6.2, 16 before it: moved on purpose), an apply card\'s lines under LIMITS.applyChanges (120 since 1.6.2, 12 before), a roll\'s picked switches past a holder\'s, a burst\'s hits and a resist card\'s other rolls, each the same figure in systemcore.js',
-            !!SC && LIMITS.rowRolls === 160 && LIMITS.rowRolls === SC.LIMITS.rowRolls && LIMITS.applyLines === SC.LIMITS.applyChanges && LIMITS.swPicks >= SC.LIMITS.rollSw && LIMITS.rollSw === SC.LIMITS.rollSw && LIMITS.hits === SC.HITS_MAX && LIMITS.resistOr === SC.RESIST_OR, SC ? JSON.stringify([LIMITS.rowRolls, SC.LIMITS.rowRolls, LIMITS.applyLines, SC.LIMITS.applyChanges]) : 'no systemcore');
+        check('409 dicecore\'s caps are the character system\'s: a row roll\'s index under LIMITS.rowRolls (160 since 1.6.2, 16 before it: moved on purpose), an apply card\'s lines under LIMITS.applyChanges (120 since 1.6.2, 12 before), a roll\'s picked switches past a holder\'s, a burst\'s hits, a resist card\'s other rolls and a table roll\'s length (LIMITS.expr, a formula\'s own LIMITS.formula: 10,000 since 1.6.2, 1000 before), each the same figure in systemcore.js',
+            !!SC && LIMITS.rowRolls === 160 && LIMITS.rowRolls === SC.LIMITS.rowRolls && LIMITS.applyLines === SC.LIMITS.applyChanges && LIMITS.swPicks >= SC.LIMITS.rollSw && LIMITS.rollSw === SC.LIMITS.rollSw && LIMITS.hits === SC.HITS_MAX && LIMITS.resistOr === SC.RESIST_OR && LIMITS.expr === 10000 && LIMITS.expr === SC.LIMITS.formula, SC ? JSON.stringify([LIMITS.rowRolls, SC.LIMITS.rowRolls, LIMITS.applyLines, SC.LIMITS.applyChanges, LIMITS.expr, SC.LIMITS.formula]) : 'no systemcore');
     }
 
     /* ---- Stage 6 HUD R3: a record's malfunction threshold; the natural total; the card's words ---- */

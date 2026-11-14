@@ -1210,7 +1210,7 @@ function cleanNullFx(v) { return typeof v === 'string' && /^e_[A-Za-z0-9_]{1,24}
 // narrows it; spread, how a painted cell of fire grows on the GM's press: 'burns', onto cells a piece ticked Burns covers, or 'all'. null for none
 function cleanHazard(v) {
     if (!isObj(v)) return null; var o = {}, fx = cleanNullFx(v.fx); if (fx) o.fx = fx;
-    if (typeof v.roll === 'string' && /^r_[A-Za-z0-9_]{1,24}$/.test(v.roll)) { o.roll = v.roll; if (typeof v['if'] === 'string') { var t = v['if'].replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 1000); if (t) o['if'] = t; } }
+    if (typeof v.roll === 'string' && /^r_[A-Za-z0-9_]{1,24}$/.test(v.roll)) { o.roll = v.roll; if (typeof v['if'] === 'string') { var t = v['if'].replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 10000); if (t) o['if'] = t; } }
     if (v.spread === 'burns' || v.spread === 'all') o.spread = v.spread;
     return Object.keys(o).length ? o : null;
 }

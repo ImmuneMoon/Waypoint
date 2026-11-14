@@ -11010,6 +11010,7 @@ function startHosting(forceFresh) {
         load();
         return;
     }
+    if (typeof fightsHold === 'function') fightsHold();   // 1.6.2: a fight running on this machine alone goes in the save before the table empties net.combats, and comes back with the table (fightsBack)
     leaveSession(true);
     defaultStageMode(getActiveCampaign());   // hosting without opening the panel first still starts on the default
     var resumed = !forceFresh ? recentHostCode() : null;
@@ -13093,18 +13094,28 @@ net.offTurnSay = function(ch, act, row, label) {   // the GM's own press goes th
 // the session's end among them. It is the host's own: sanitizeAppState deletes it, and a file's is never taken (cleanImportItems). It comes back as the
 // host's table opens, read as data: a fight of a map that is gone goes, and so does a row whose token is gone. Nothing of a turn runs again, since a fight
 // keeps how far it has gone, but what the turn on hand had spent is not kept, so it gets its move and its actions afresh
-var _fightSoon = null, _fightKept = '';
+var _fightSoon = null, _fightKept = '', _fightsWait = false;
 function fightsKeep() {
     if (_fightSoon) { clearTimeout(_fightSoon); _fightSoon = null; }
     if (net.role !== 'host' || net.stream) return false;
     var camp = getActiveCampaign(); if (!camp) return false;
-    if (!fightIds().length) { _fightKept = ''; if (!camp.fights) return false; delete camp.fights; saveRemoteSoon(); return true; }
+    if (!fightIds().length) { _fightKept = ''; if (!camp.fights || _fightsWait) return false; delete camp.fights; saveRemoteSoon(); return true; }   // 1.6.2: never let go while a table is opening: its fightsBack has not read them yet
+    _fightsWait = false;
     var bodyK = { on: net.fightOn, list: net.combats }; if (net.targets && Object.keys(net.targets).length) bodyK.targets = net.targets;
     var ntK = window.wpNotice && typeof window.wpNotice.keep === 'function' ? window.wpNotice.keep() : null; if (ntK) bodyK.notice = ntK;   // 1.6.2: noticing results, so a reload rolls nothing again
     var text = JSON.stringify(bodyK); if (text === _fightKept) return false;
     _fightKept = text; camp.fights = JSON.parse(text); saveRemoteSoon(); return true;
 }
 function fightsKeepSoon() { if (net.role !== 'host' || net.stream || _fightSoon) return; _fightSoon = setTimeout(fightsKeep, 200); }
+// 1.6.2 (the click test of the campaign before 1.6.2, 2026-11-14: the GM's reload in a fight lost the fight, and the save with it): on a reload the fight comes back first on the
+// GM's own machine (renderCombatStrip, soloHost), and asks for a keep a moment later; the table that opens next empties net.combats (leaveSession) before
+// its fightsBack, so that keep found no fight and let the kept one go. As a table opens: what runs now goes in the save at once, a keep still to come is
+// let go, and none lets the save's fights go until a fight runs again or fightsBack has read them
+function fightsHold() {
+    if (_fightSoon) { clearTimeout(_fightSoon); _fightSoon = null; }
+    if (net.role === 'host' && !net.active && !net.stream && fightIds().length) fightsKeep();
+    _fightsWait = true;
+}
 net.fightsKeepSoon = fightsKeepSoon;   // 1.6.2: notice.js asks it once a result is rolled
 function fightNum(v) { return typeof v === 'number' && isFinite(v) && v >= 0 && v <= 1e6 && Math.floor(v) === v; }
 function fightMarks(v) {   // { a row's or a character's id: a whole number }, into an object with no prototype
@@ -13141,6 +13152,7 @@ function fightsRead(raw, camp) {   // what the save holds, as data: { list, on }
     return { list: list, on: on, targets: kept, notice: raw.notice && typeof raw.notice === 'object' ? raw.notice : null };   // 1.6.2: noticing results, read as data by notice.js restore
 }
 function fightsBack() {   // as the host's table opens: the fights its campaign kept, if none runs yet; how many came back
+    _fightsWait = false;   // 1.6.2: the table has read the save (fightsHold)
     if (net.role !== 'host' || net.stream || fightIds().length) return 0;
     var camp = getActiveCampaign(), back = camp && camp.fights ? fightsRead(camp.fights, camp) : null, ids = back ? Object.keys(back.list) : [];
     if (!ids.length) { if (camp && camp.fights) { delete camp.fights; saveRemoteSoon(); } return 0; }

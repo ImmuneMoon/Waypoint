@@ -645,6 +645,13 @@ const dice = read('scripts/dice.js');
     check('a sheet and a HUD that are opened say they were asked for here, so one opened from a list on the data map shows there; the HUD asks through typeof, as its slice needs',
         /\n    p\.style\.display = 'flex'; if \(window\.wpFloats\) window\.wpFloats\.reveal\(p\);[^\n]*\n    placeSheet\(\); raisePanel\(p\); renderSheet\(\);\n\}\n$/.test(openSheet)
         && /\n    if \(typeof window !== 'undefined' && window\.wpFloats\) window\.wpFloats\.reveal\(v\.panel\);[^\n]*\n    raisePanel\(v\.panel\); renderHud\(charId\);\n/.test(openHud) && count(sh, 'wpFloats.reveal(') === 2);
+    {   // 1.6.2 (the click test of the campaign before 1.6.2): a player's first HUD ran off the foot of the window, its lowest rolls out of reach. openHud placed a new HUD while it was still empty (makeHud, then placeHud, then renderHud), so placeHud read a panel a head tall and made no room. placeHud run for real on an empty panel and on a drawn one shows what the second placing gives
+        const hudSrc2 = fnK(sh, 'function placeHud(v) {', '\n}\n');
+        const placeAt = hgt => { const panel = { offsetWidth: 470, offsetHeight: hgt, style: {} }; new Function('window', 'hudPref', 'huds', 'sizePanel', hudSrc2 + '\nreturn placeHud;')({ innerWidth: 1366, innerHeight: 850, wpFloats: { spot: (w, up) => SP.spotFor(w, LIVE, AREA, up) } }, () => ({}), {}, () => {})({ panel }); return [panel.style.top, panel.style.height || '']; };
+        const empty = placeAt(40), drawn = placeAt(710), iR = openHud.indexOf('raisePanel(v.panel); renderHud(charId);'), iP = openHud.indexOf('if (!existed && huds[charId] === v) placeHud(v);');
+        check('1.6.2 a new HUD is placed again once it is drawn (openHud): placed empty it is given no height and its foot runs past the room, placed at its drawn height its foot stops where the room ends; the second placing comes after renderHud, and only for a HUD just made, so one already open stays where its user left it',
+            iR > 0 && iP > iR && empty[1] === '' && drawn[1] !== '' && parseInt(drawn[1], 10) < 710, J({ empty, drawn, iR, iP }));
+    }
     check('the Music panel is asked for from any view by the pill in the header: opening it says so, and the toolbar\'s Music button opens a panel that is put away rather than closing it unseen',
         count(mu, "var p = ui('musicPanel'); if (!p) return; p.style.display = 'flex'; if (window.wpFloats) window.wpFloats.reveal(p); try {") === 1
         && count(mu, "b.addEventListener('click', function() { if (panelOpen() && !(window.wpFloats && window.wpFloats.away(ui('musicPanel')))) closePanel(); else openPanel(); });") === 1 && /open\.addEventListener\('click', function\(\) \{ closePill\(\); openPanel\(\); \}\);/.test(mu));

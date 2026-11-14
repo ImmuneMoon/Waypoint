@@ -147,7 +147,15 @@ function spreadCard(o, id) {
     b.rows = pl.map(function(p) { return { col1: escCard(p.label, 80) || 'A place', col2: escCard(p.words, 240), col3: '' }; });
     return b;
 }
-var api = { SPREAD_AS: SPREAD_AS, spreadCard: spreadCard, VERSION: VERSION, AKA_MAX: AKA_MAX, AKA_CHARS: AKA_CHARS, KINDS: KINDS, ORDER: ORDER, MODES: MODES, cleanMode: cleanMode, cardKind: cardKind, kindOf: kindOf, kindBy: kindBy, cleanName: cleanName, cleanAka: cleanAka, akaFrom: akaFrom, akaText: akaText, cardNames: cardNames, cleanDone: cleanDone, WHEN: WHEN, cleanWhen: cleanWhen, CUE_K: CUE_K, cleanCue: cleanCue, sessionOf: sessionOf, setSession: setSession, CARD_SIZES: CARD_SIZES, cleanCards: cleanCards, wideMay: wideMay, wideOn: wideOn, wideSet: wideSet, cardWide: cardWide, cleanSection: cleanSection, cleanSheet: cleanSheet, cleanCard: cleanCard, defaultCols: defaultCols };
+// 1.6.2 (backlog 223, fold D): the campaign's own open threads, where an oracle's twist lands: every scene not yet played, every person, and every
+// clue not yet found, across the planners, by name as [words, kind word]. Planners never travel, so this is the GM's alone
+function plainCard(v) { return String(v == null ? '' : v).replace(/<[^>]*>/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim().slice(0, 120); }
+function openThreads(camp) {
+    var out = [], items = camp && camp.items && typeof camp.items === 'object' ? camp.items : {};
+    Object.keys(items).forEach(function(id) { var it = items[id]; if (!it || it.type !== 'planner' || !Array.isArray(it.blocks)) return; it.blocks.forEach(function(b) { if (!b || b.type !== 'node') return; var k = cardKind(b), w = plainCard(b.title); if (!w || k === 'table' || k === 'place' || b.done === true) return; out.push([w, KINDS[k].word]); }); });
+    return out.slice(0, 2000);
+}
+var api = { openThreads: openThreads, SPREAD_AS: SPREAD_AS, spreadCard: spreadCard, VERSION: VERSION, AKA_MAX: AKA_MAX, AKA_CHARS: AKA_CHARS, KINDS: KINDS, ORDER: ORDER, MODES: MODES, cleanMode: cleanMode, cardKind: cardKind, kindOf: kindOf, kindBy: kindBy, cleanName: cleanName, cleanAka: cleanAka, akaFrom: akaFrom, akaText: akaText, cardNames: cardNames, cleanDone: cleanDone, WHEN: WHEN, cleanWhen: cleanWhen, CUE_K: CUE_K, cleanCue: cleanCue, sessionOf: sessionOf, setSession: setSession, CARD_SIZES: CARD_SIZES, cleanCards: cleanCards, wideMay: wideMay, wideOn: wideOn, wideSet: wideSet, cardWide: cardWide, cleanSection: cleanSection, cleanSheet: cleanSheet, cleanCard: cleanCard, defaultCols: defaultCols };
 if (typeof window !== 'undefined') window.wpCardCore = api;
 
-export { SPREAD_AS, spreadCard, CARD_SIZES, cleanCards, wideMay, wideOn, wideSet, cardWide, cleanSection, CUE_K, cleanCue, WHEN, cleanWhen, sessionOf, setSession, VERSION, AKA_MAX, AKA_CHARS, KINDS, ORDER, MODES, cleanMode, cardKind, kindOf, kindBy, cleanName, cleanAka, akaFrom, akaText, cardNames, cleanDone, cleanSheet, cleanCard, defaultCols };
+export { openThreads, SPREAD_AS, spreadCard, CARD_SIZES, cleanCards, wideMay, wideOn, wideSet, cardWide, cleanSection, CUE_K, cleanCue, WHEN, cleanWhen, sessionOf, setSession, VERSION, AKA_MAX, AKA_CHARS, KINDS, ORDER, MODES, cleanMode, cardKind, kindOf, kindBy, cleanName, cleanAka, akaFrom, akaText, cardNames, cleanDone, cleanSheet, cleanCard, defaultCols };

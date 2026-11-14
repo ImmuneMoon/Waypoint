@@ -4466,6 +4466,9 @@
   .sp-tuckline { display: flex; align-items: center; gap: 3px; font-size: 11px; color: var(--ink); background: rgba(167,127,214,.16); border: 1px solid rgba(167,127,214,.55); border-radius: 4px; padding: 0 3px; }
   .sp-tuckline .sp-tuckwords { flex: 1; min-width: 0; overflow-wrap: anywhere; } .sp-tuckline .tool { padding: 0 4px; min-height: 0; line-height: 16px; font-size: 11px; }
   .sp-savebox .sp-saveto { text-align: left; justify-content: flex-start; }
+  .ask-card { border: 1px solid var(--edge); border-left: 3px solid var(--muted); border-radius: 6px; padding: 7px 9px; background: var(--panel); display: flex; flex-direction: column; gap: 3px; }
+  .ask-card.ask-yes { border-left-color: var(--gold); } .ask-answer { font-size: 16px; font-weight: 600; color: var(--ink); }
+  .ask-twist { font-size: 12.5px; color: var(--ink); } .ask-twist b { color: var(--gold); }
   .sp-savebox { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--edge); border-radius: 6px; padding: 6px; max-height: 180px; overflow: auto; }
   .sp-place .sp-tuck, .sp-place .sp-tuckway { flex: 1 1 150px; min-width: 120px; }
   .sp-pos { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--gold); overflow-wrap: anywhere; }

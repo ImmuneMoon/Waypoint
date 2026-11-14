@@ -64,6 +64,15 @@ function cleanSpreads(list, gmView, deckRe, keyRe) {
     (Array.isArray(list) ? list : []).slice(0, SPREADS_MAX * 4).forEach(function(s) { if (out.length >= SPREADS_MAX) return; var k = cleanSpread(s, deckRe, keyRe); if (!k || seen[k.key.toLowerCase()]) return; seen[k.key.toLowerCase()] = 1; out.push(k); });
     return out;
 }
+// 1.6.2 (backlog 223, story cards, fold D; the owner, by prompt: "D: yes or no oracle"): a yes or no question. odds is the chance of a yes in
+// hundredths, one of ODDS; one roll of 1 to 100 answers it: a yes at or under the odds, strongly so in the lowest fifth of the yeses, and a strong no in
+// the highest fifth of the noes. A roll of two like digits (11, 22 ... 99) also brings a twist. Answers { roll, yes, strong, answer, twist }
+var ODDS = [[10, 'Very unlikely'], [25, 'Unlikely'], [50, 'Even odds'], [75, 'Likely'], [90, 'Very likely']];
+function cleanOdds(v) { var n = Number(v); return ODDS.some(function(o) { return o[0] === n; }) ? n : 50; }
+function askOracle(odds, rnd) {
+    var o = cleanOdds(odds), r = Math.max(1, Math.min(100, Math.floor(Number(rnd(100)) || 1))), yes = r <= o, strong = yes ? r <= Math.ceil(o / 5) : r > 100 - Math.ceil((100 - o) / 5);
+    return { roll: r, yes: yes, strong: strong, answer: yes ? (strong ? 'Yes, and more' : 'Yes') : (strong ? 'No, and worse' : 'No'), twist: r % 11 === 0 && r < 100 };
+}
 function total(d) { return (isObj(d) && Array.isArray(d.cards) ? d.cards : []).reduce(function(a, c) { return a + (isObj(c) && typeof c.n === 'number' ? c.n : 1); }, 0); }
 function allPlaces(d) { var o = []; d.cards.forEach(function(c, i) { for (var k = 0; k < (c.n || 1) && o.length < PILE_MAX; k++) o.push(i); }); return o; }
 function shuffled(a, rnd) { var o = a.slice(); for (var i = o.length - 1; i > 0; i--) { var j = rnd(i + 1) - 1, t = o[i]; o[i] = o[j]; o[j] = t; } return o; }   // rnd(n): a whole number from 1 to n
@@ -103,6 +112,6 @@ function readCards(text, stats) {   // pasted lines: a name, then a number for e
     var out = []; String(text || '').split('\n').forEach(function(l) { var p = l.split(','), fc = String(p[0]).split('|'), name = cut(fc[0], 80); if (!name || out.length >= CARDS_MAX) return; var c = { name: name }, vals = {}, fs = cleanFaces(fc.slice(1)); if (fs) c.faces = fs; (stats || []).forEach(function(s, i) { var n = Number(String(p[i + 1] === undefined ? '' : p[i + 1]).trim()); if (String(p[i + 1] === undefined ? '' : p[i + 1]).trim() !== '' && isFinite(n) && n !== 0) vals[s.key] = n; }); if (Object.keys(vals).length) c.vals = vals; out.push(c); });
     return out;
 }
-var API = { cleanDeck: cleanDeck, cleanDecks: cleanDecks, deckOf: deckOf, total: total, freshPile: freshPile, cleanPile: cleanPile, pileCounts: pileCounts, cleanCounts: cleanCounts, drawCards: drawCards, shufflePile: shufflePile, returnCard: returnCard, cardVal: cardVal, statKey: statKey, readCards: readCards, cleanFaces: cleanFaces, faceCount: faceCount, faceOf: faceOf, faceWords: faceWords, cleanPlace: cleanPlace, placeWords: placeWords, cleanKeep: cleanKeep, cleanSpread: cleanSpread, cleanSpreads: cleanSpreads, FACES_MAX: FACES_MAX, SPREADS_MAX: SPREADS_MAX, PLACES_MAX: PLACES_MAX, DECKS_MAX: DECKS_MAX, CARDS_MAX: CARDS_MAX, STATS_MAX: STATS_MAX, COPIES_MAX: COPIES_MAX, DRAW_MAX: DRAW_MAX };
+var API = { cleanDeck: cleanDeck, cleanDecks: cleanDecks, deckOf: deckOf, total: total, freshPile: freshPile, cleanPile: cleanPile, pileCounts: pileCounts, cleanCounts: cleanCounts, drawCards: drawCards, shufflePile: shufflePile, returnCard: returnCard, cardVal: cardVal, statKey: statKey, readCards: readCards, askOracle: askOracle, cleanOdds: cleanOdds, ODDS: ODDS, cleanFaces: cleanFaces, faceCount: faceCount, faceOf: faceOf, faceWords: faceWords, cleanPlace: cleanPlace, placeWords: placeWords, cleanKeep: cleanKeep, cleanSpread: cleanSpread, cleanSpreads: cleanSpreads, FACES_MAX: FACES_MAX, SPREADS_MAX: SPREADS_MAX, PLACES_MAX: PLACES_MAX, DECKS_MAX: DECKS_MAX, CARDS_MAX: CARDS_MAX, STATS_MAX: STATS_MAX, COPIES_MAX: COPIES_MAX, DRAW_MAX: DRAW_MAX };
 if (typeof window !== 'undefined') window.wpDeckCore = API;
-export { cleanDeck, cleanDecks, deckOf, total, freshPile, cleanPile, pileCounts, cleanCounts, drawCards, shufflePile, returnCard, cardVal, statKey, readCards, cleanFaces, faceCount, faceOf, faceWords, cleanPlace, placeWords, cleanKeep, cleanSpread, cleanSpreads, FACES_MAX, SPREADS_MAX, PLACES_MAX, DECKS_MAX, CARDS_MAX, STATS_MAX, COPIES_MAX, DRAW_MAX };
+export { cleanDeck, cleanDecks, deckOf, total, freshPile, cleanPile, pileCounts, cleanCounts, drawCards, shufflePile, returnCard, cardVal, statKey, readCards, askOracle, cleanOdds, ODDS, cleanFaces, faceCount, faceOf, faceWords, cleanPlace, placeWords, cleanKeep, cleanSpread, cleanSpreads, FACES_MAX, SPREADS_MAX, PLACES_MAX, DECKS_MAX, CARDS_MAX, STATS_MAX, COPIES_MAX, DRAW_MAX };

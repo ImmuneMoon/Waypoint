@@ -1,9 +1,9 @@
 // deckwin.js: the left panel's Decks section and its window (1.6.2, backlog 210 d, fold 4; the owner, by prompt: "The left panel, as a section", and of a campaign's own decks, "a GM can add a house game, or a custom deck for one story, without editing the system"). A system's decks and a campaign's stand together, and a campaign's are built by the one editor. Drawing by hand goes through the host: a GM's press there at once, a player's by net.deckDo, judged as any message is. Elements and text nodes alone
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
-import { cleanDecks, cleanPile, pileCounts, cleanSpreads, faceWords, faceCount, placeWords, cleanKeep } from './deckcore.js';
+import { cleanDecks, cleanPile, pileCounts, cleanSpreads, faceWords, faceCount, placeWords, cleanKeep, askOracle, cleanOdds, ODDS } from './deckcore.js';
 import { edit, spreads } from './deckui.js';
-import { spreadCard } from './cardcore.js';
+import { spreadCard, openThreads } from './cardcore.js';
 var CAMP_KEY = /^C[0-9]+$/, _sig = null, _at = '', _build = false, _tab = 'decks', _sp = '', _lay = null, _keep = Object.create(null);   // _lay (backlog 223): the spread laid on this screen, { camp, key, at: [{ deck, ix, face, tk } or null a place], shown }; _keep (fold B): a place kept as what the GM picked, by campaign and spread, this screen's alone
 function net() { return window.wpNet || null; }
 function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = String(text); return e; }
@@ -103,10 +103,27 @@ function spreadDraw(p, camp) {
     var b = btn('tool ghost sys-btn sp-build', _build ? 'Done' : 'Make a spread for this campaign', 'A spread for this campaign alone, drawn from any of its decks'); b.addEventListener('click', function() { _build = !_build; panelDraw(); }); p.appendChild(b);
     if (_build) { var host = el('div', 'dk-build-box'); p.appendChild(host); spreads(host, { head: 'This campaign’s spreads', note: 'Name the places and pick the deck each draws from. Yours to change at any time.', prefix: 'P', list: function() { return Array.isArray(camp.spreads) ? camp.spreads : null; }, set: function(l) { if (l && l.length) camp.spreads = l; else delete camp.spreads; }, decks: function() { return decksOf(camp).map(function(x) { return [x.d.key, x.d.label || 'A deck']; }); }, changed: function() { save(); } }); }
 }
-function tabs(p) { var sw = el('div', 'seg-control dk-tabs'); [['decks', 'Decks'], ['spreads', 'Spreads']].forEach(function(t) { var b = btn('seg-btn' + (_tab === t[0] ? ' active' : ''), t[1], t[0] === 'spreads' ? 'Lay out several cards at once, each in a place you name' : 'Draw from one deck'); b.setAttribute('aria-pressed', _tab === t[0] ? 'true' : 'false'); b.addEventListener('click', function() { if (_tab === t[0]) return; _tab = t[0]; _build = false; panelDraw(); }); sw.appendChild(b); }); p.appendChild(sw); }
+// 1.6.2 (backlog 223, fold D; the owner, by prompt: "D: yes or no oracle"): the Ask tab, the GM's alone. A question and its odds, answered on this
+// screen; a twist lands on one of the campaign's own open threads, which stays the GM's note. Show the table posts the question and its answer alone
+var _ask = { q: '', odds: 50, res: null, shown: false };
+function oracleRnd(n) { var F = window.wpFormula, r = F && F.evaluate ? F.evaluate('1d' + n) : null; return r && r.ok && typeof r.value === 'number' ? r.value : 1 + Math.floor(Math.random() * n); }
+function askRun(camp) { var res = askOracle(_ask.odds, oracleRnd), th = res.twist ? openThreads(camp) : []; if (res.twist) res.thread = th.length ? th[oracleRnd(th.length) - 1] : null; _ask.res = res; _ask.shown = false; if (typeof window.wpStepLog === 'function') window.wpStepLog('decks v1', 'ask', { twist: !!res.twist }); return res; }
+function askShow() { var n = net(), r = _ask.res; if (!r || !n || typeof n.postApplyCard !== 'function') return; n.postApplyCard(null, 'Ask', [{ n: _ask.q.trim() || 'A question', say: r.answer + '.' }], 'table'); _ask.shown = true; }
+function askDraw(p, camp) {
+    p.appendChild(el('div', 'dk-count', 'Ask a yes or no question about the story, and set how likely a yes is.'));
+    var q = el('input', 'field ask-q'); q.type = 'text'; q.maxLength = 200; q.value = _ask.q; q.placeholder = 'Is the gate guarded tonight?'; q.title = 'Your question. It goes to the table only if you show it'; q.addEventListener('input', function() { _ask.q = q.value.slice(0, 200); }); p.appendChild(q);
+    var row = el('div', 'dk-head'), od = el('select', 'field ask-odds'); ODDS.forEach(function(o) { var op = el('option', '', o[1]); op.value = String(o[0]); od.appendChild(op); }); od.value = String(cleanOdds(_ask.odds)); od.title = 'How likely a yes is'; od.addEventListener('change', function() { _ask.odds = cleanOdds(od.value); });
+    var go = btn('tool ask-go', 'Ask', 'Answer it with one roll of 1 to 100. Only you see the answer until you show the table'); go.addEventListener('click', function() { askRun(camp); panelDraw(); }); row.appendChild(od); row.appendChild(go); p.appendChild(row);
+    var r = _ask.res; if (!r) return;
+    var card = el('div', 'ask-card' + (r.yes ? ' ask-yes' : ' ask-no')); card.appendChild(el('div', 'ask-answer', r.answer)); card.appendChild(el('div', 'dk-count', 'Rolled ' + r.roll + ' against ' + cleanOdds(_ask.odds) + ' or under.'));
+    if (r.twist) { var tw = el('div', 'ask-twist'); tw.appendChild(el('b', '', 'A twist')); tw.appendChild(document.createTextNode(r.thread ? ' lands on the ' + String(r.thread[1]).toLowerCase() + ' “' + r.thread[0] + '.” Something about it changes.' : ' brings something new. Your planners hold no open thread for it to land on.')); tw.title = 'Only you see this. It lands on a scene not yet played, a person or a clue not yet found, from your planners'; card.appendChild(tw); }
+    p.appendChild(card);
+    var sh = btn('tool ghost sys-btn ask-show', _ask.shown ? 'Shown' : 'Show the table', 'Post the question and its answer to the chat. A twist stays yours'); sh.disabled = _ask.shown; sh.addEventListener('click', function() { askShow(); panelDraw(); }); p.appendChild(sh);
+}
+function tabs(p) { var sw = el('div', 'seg-control dk-tabs'); [['decks', 'Decks'], ['spreads', 'Spreads'], ['ask', 'Ask']].forEach(function(t) { var b = btn('seg-btn' + (_tab === t[0] ? ' active' : ''), t[1], t[0] === 'spreads' ? 'Lay out several cards at once, each in a place you name' : t[0] === 'ask' ? 'Ask a yes or no question about the story' : 'Draw from one deck'); b.setAttribute('aria-pressed', _tab === t[0] ? 'true' : 'false'); b.addEventListener('click', function() { if (_tab === t[0]) return; _tab = t[0]; _build = false; panelDraw(); }); sw.appendChild(b); }); p.appendChild(sw); }
 function panelDraw() {
     var p = document.getElementById('deckBody'), camp = getActiveCampaign(), list = decksOf(camp), gm = gmHand(); if (!p) return; p.textContent = '';
-    if (gm) tabs(p); else _tab = 'decks'; if (_tab === 'spreads') { spreadDraw(p, camp); return; }
+    if (gm) tabs(p); else _tab = 'decks'; if (_tab === 'spreads') { spreadDraw(p, camp); return; } if (_tab === 'ask') { askDraw(p, camp); return; }
     var it = list.filter(function(x) { return x.d.key === _at; })[0] || list[0] || null; if (it) _at = it.d.key;
     if (list.length > 1) { var sel = el('select', 'field dk-pick'); list.forEach(function(x) { var o = el('option', '', (x.d.label || 'A deck') + (x.own ? ' (this campaign)' : '')); o.value = x.d.key; sel.appendChild(o); }); sel.value = _at; sel.addEventListener('change', function() { _at = sel.value; _build = false; panelDraw(); }); p.appendChild(sel); }
     var UI = window.wpUi && window.wpUi.card ? window.wpUi : null;

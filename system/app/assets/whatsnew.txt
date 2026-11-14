@@ -36,6 +36,10 @@ Story cards
 - Save as a card turns a laid spread into a Scene, Person, Place or Clue
   card at the end of a planner. The first place's words are its title, and
   each place is a row you edit like any other card.
+- The Decks window has an Ask tab for yes or no questions. Pick how likely
+  a yes is and ask. Now and then the answer comes with a twist, and the
+  twist picks a scene you haven't played, a person or a clue still unfound
+  from your own planners. Only you see the twist.
 
 Tokens
 - A picture you tick Is Character fits one cell of the map's grid by itself,

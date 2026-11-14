@@ -127,8 +127,8 @@ var _menu = '', _form = null, _sig = '';
 function strip() { return document.getElementById('trkStrip'); }
 // backlog 219 (the owner, 2026-11-10, by prompt: "A. A segment of the row"): the fight's own strip (whiteboard.js renderCombatStrip) stands in the bar's row, right after the fold,
 // while a fight shows on the map on screen; the bar then shows for a player with no trackers too, holding the fight alone. Kept by reference, since a drawing of the bar empties it
-var _fseg = null;
-function fightSeg() { if (!_fseg) _fseg = document.getElementById('combatStrip'); return _fseg; }
+var _fseg = null, _fsegHome = null;
+function fightSeg() { if (!_fseg) _fseg = document.getElementById('combatStrip'); if (_fseg && !_fsegHome && _fseg.parentNode && _fseg.parentNode !== strip()) _fsegHome = _fseg.parentNode; return _fseg; }   // 1.6.2: and where it stands in the page, to go back to (draw)
 // What the bar holds, measured from the page for placeRows: its own row, that row as a tight bar draws it, and each tracker. Both rows are
 // measured with the class put on and taken off for the moment, never read from the class the bar happens to wear: a tight bar hides the word
 // Trackers and lets a fight's name take only its own width, so a row read as it stood gave another need after each fitting, and the bar went
@@ -350,6 +350,7 @@ function draw(force) {
     if ((force || sig !== _sig) && !typing) {
         var had = document.activeElement && box.contains(document.activeElement) ? focusKey(document.activeElement) : '';   // a press from the keyboard keeps its place when the strip is drawn again
         _sig = sig; box.textContent = ''; box.classList.toggle('trk-bar', !tv);   // backlog 217 (the owner, 2026-11-07, by prompt: "One joined bar"): the fold, the bar's name, the trackers and the GM's two buttons read as one thing
+        if (seg && !fight && !seg.parentNode && _fsegHome) _fsegHome.appendChild(seg);   // 1.6.2 (the click test of the campaign before 1.6.2): a fight that ended, or went on another view, took its strip out of the page with the bar's old parts, so the next fight on the GM's screen had none (renderCombatStrip finds it by its id); it goes back where the page keeps it
         if (!tv && trk) { var f = btn('trk-fold', folded ? (list.length ? 'Trackers · ' + list.length : 'Trackers') : '◂', folded ? 'Show the trackers' : 'Put the trackers away on this screen'); f.id = 'trkFold'; f.setAttribute('aria-expanded', folded ? 'false' : 'true'); box.appendChild(f); }   // the stream window, the party's screen, has no fold: it shares this computer's storage with the GM's window
         if (fight) box.appendChild(seg);   // backlog 219: the fight right after the fold, never folded away
         if (!folded && trk) {

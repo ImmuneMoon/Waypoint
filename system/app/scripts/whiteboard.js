@@ -8868,6 +8868,7 @@ function armPlacement(type, props, label) {
 }
 function disarmPlacement() {
     window.wpPlace = null;
+    portalEnd();   // a new room's portal tile and its line go with it (wpPortalPlace)
     if (wbWrap) wbWrap.style.cursor = '';
     document.body.classList.remove('placing');
     ['shapeTextBtn', 'shapeMenuBtn'].forEach(function(id) { var b = document.getElementById(id); if (b) b.classList.remove('active'); });
@@ -8920,7 +8921,8 @@ window.wpPlaceCommit = function(px, py, pw, ph, sx, sy) {
     if (P.build) { wpBuildCommit(P, px, py, pw, ph, sx, sy); return; }
     if (P.align) { alignStep(P.align, sx, sy); return; }   // 1.6.2 (backlog 38): a click of Align its grid
     if (P.trim) { trimStep(P.trim, px, py, pw, ph, sx, sy); return; }
-    if (P.roomplace) { roomPlaceStep(P.roomplace, px, py, pw, ph); return; }   // 1.6.2 (backlog 45, fold 3): a room's place, drawn from the room
+    if (P.roomplace) { roomPlaceStep(P.roomplace, px, py, pw, ph); return; }
+    if (P.portal) { portalPlaceStep(P.portal, sx, sy); return; }   // 1.6.2 (the owner, 2026-11-14): a new room's portal, in the cell clicked   // 1.6.2 (backlog 45, fold 3): a room's place, drawn from the room
     if (P.cellfit) { if (window.wpCellSize && typeof window.wpCellSize.fitStep === 'function') window.wpCellSize.fitStep(P.cellfit, sx, sy); return; }   // 1.6.2 (backlog 38): a click of Fit grid to picture   // 1.6.2 (backlog 37): a click or a drag of Trim to cells   // the map builder: a built piece lands by its own rules (on the lattice, a hexagon a cell) and Build stays in hand
     var props = Object.assign({}, P.props);
     var dragged = pw > 12 && ph > 12;
@@ -8973,7 +8975,7 @@ function addWbItemAt(type, props, x, y) {
     save(); render();
 }
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && window.wpPlace && !window.wpPlace.build && (!window.wpEsc || window.wpEsc.free(e))) { var trimEnd = !!window.wpPlace.trim; disarmPlacement(); toast(trimEnd ? 'Trim to cells is put down.' : 'Placement canceled.'); if (trimEnd) render(); }   // a placement that is Build's own is Build's to end (buildKey)
+    if (e.key === 'Escape' && window.wpPlace && !window.wpPlace.build && (!window.wpEsc || window.wpEsc.free(e))) { var trimEnd = !!window.wpPlace.trim, portalP = window.wpPlace.portal; disarmPlacement(); toast(portalP ? portalSkipSay(portalP) : trimEnd ? 'Trim to cells is put down.' : 'Placement canceled.'); if (trimEnd) render(); }   // a placement that is Build's own is Build's to end (buildKey)
 });
 // [buildcheck:buildtool-start]
 // The map builder (fold B1c, backlog 23): the Build tool, the GM's alone. A tool with options, wired like every other (wireTool): its icon
@@ -9562,6 +9564,101 @@ function buildWire() {   // the options' own controls, each once
 }
 // [buildcheck:buildtool-end]
 buildWire();
+// [roomcheck:portalplace-start]
+// 1.6.2 (the owner, 2026-11-14, of a new room's portal: "you place it, but there needs to be a clear indicator that this is happening. like a tile
+// following the mouse cursor until it is placed, or escaped"). The Data Map hands here a room that just made its own map (datamap.js
+// roomPortalArm): the play map of the map the room is on comes up, and a portal tile, drawn as the board draws that piece and half transparent,
+// follows the pointer cell by cell on the map's lattice, a line beside it saying what a click does. A click lays an ordinary trigger zone linked
+// to the room (roomcore portalPiece) in the cell clicked, so it is a portal through the room, one save. Esc skips it through esckey's router, and
+// the room and its map stay. Another map or the Data Map on screen puts it down (main.js render asks wpPortalPlaceHold). Never on a player's
+// app, at someone else's table or in the stream window
+var PORTAL_RING = '#5ac8fa';   // the board's own portal color, for a piece that names none
+var PORTAL_GLYPH = { 'Stairs Up': 'stairs-up', 'Stairs Down': 'stairs-down', 'Door': 'door', 'Gate': 'gate', 'Cave': 'cave', 'Tower': 'tower', 'Camp': 'camp' };   // the board's marker names
+var _portal = null;   // the placement under way: { rec, ghost, tip }
+function portalMay() { return !window.wpStream && buildMay() && !(window.wpNet && window.wpNet.foreign); }
+function portalRoom(am, rec) { var r = am && rec && am.id === rec.mapId && Array.isArray(am.rooms) ? am.rooms.find(function(x) { return x && x.id === rec.roomId; }) : null; return r && r.targetMapId === rec.targetMapId ? r : null; }
+function portalGrid(am) { var L = window.wpLatticeOf ? window.wpLatticeOf(am) : null; return L && (L.type === 'square' || L.type === 'hex') && window.wpFogCore ? L : null; }   // read fresh at every move and at the click: the grid may change while the tile waits
+function portalKind(g) { return g ? g.type : 'none'; }   // 'square', 'hex' or 'none' (a circle)
+// The tile wears the look the board gives the piece it places: a hex trigger's ring and fill clipped to a hexagon, a square trigger's dashed edge,
+// a circle trigger's dashed edge rounded. Set again only when the grid's kind changed
+function portalLook(ghost, kind) {
+    if (ghost.dataset.kind === kind) return;
+    ghost.dataset.kind = kind;
+    ghost.className = 'portal-ghost' + (kind === 'hex' ? ' pg-hex' : kind === 'none' ? ' pg-circle' : '');
+    ghost.style.background = kind === 'hex' ? withAlpha(PORTAL_RING, 0.55) : '';
+    ghost.style.boxShadow = kind === 'hex' ? 'inset 0 0 0 4px ' + PORTAL_RING : '';
+    ghost.style.border = kind === 'hex' ? '' : '3px dashed var(--gold)';
+}
+function portalBoxAt(am, x, y) {   // the cell under (x, y), or the point itself where the map has no grid
+    var C = window.wpFogCore, g = portalGrid(am), ctr = g ? C.cellCenter(C.cellOf(x, y, g), g) : { x: x, y: y };
+    return window.wpRoomCore.portalBox(g, ctr.x, ctr.y);
+}
+function portalSay(name) { return 'Click to place the portal to ' + name + '. Esc to skip.'; }
+function portalSkipSay(rec) { return 'No portal placed. The room and its map stay. Link a piece to the room in Properties to make a way to ' + rec.name + '.'; }
+function portalEnd() {
+    var P = _portal; _portal = null;
+    document.body.classList.remove('placing-portal');
+    if (!P) return;
+    if (P.ghost && P.ghost.parentNode) P.ghost.parentNode.removeChild(P.ghost);
+    if (P.tip && P.tip.parentNode) P.tip.parentNode.removeChild(P.tip);
+}
+function portalGhostAt(am, x, y) {
+    var P = _portal, b = P ? portalBoxAt(am, x, y) : null; if (!b) return;
+    portalLook(P.ghost, portalKind(portalGrid(am)));
+    if (!P.ghost.parentNode && wb) wb.appendChild(P.ghost);   // the board was drawn again meanwhile: the tile goes back on it
+    P.ghost.style.left = b.x + 'px'; P.ghost.style.top = b.y + 'px'; P.ghost.style.width = b.w + 'px'; P.ghost.style.height = b.h + 'px';
+}
+function portalMove(e) {
+    var P = _portal, am = getActiveMap(); if (!P || !am || !wbWrap) return;
+    var rb = wbWrap.getBoundingClientRect();
+    portalGhostAt(am, wbX(e.clientX, e.clientY, rb, wbWrap), wbY(e.clientX, e.clientY, rb, wbWrap));
+    P.tip.style.left = (e.clientX + 18) + 'px'; P.tip.style.top = (e.clientY + 22) + 'px';
+}
+window.wpPortalPlace = function(rec) {
+    if (!rec || !portalMay() || !window.wpRoomCore || !wbWrap) return false;
+    var am = getActiveMap(), room = portalRoom(am, rec); if (!room) return false;
+    if (state.viewMode !== 'visual' && window.wpSetViewMode) window.wpSetViewMode('visual');
+    if (state.viewMode !== 'visual') return false;
+    if (window.wpPlace) disarmPlacement(); else portalEnd();
+    var mv = document.getElementById('moveModeBtn');
+    if (mv && (!mv.classList.contains('active') || window.isMeasureMode)) mv.click();
+    var camp = getActiveCampaign(), dest = camp && camp.items ? camp.items[rec.targetMapId] : null;
+    var name = (dest && dest.meta && dest.meta.title) || room.name || 'the new map';
+    var ghost = document.createElement('div'), mark = document.createElement('span'), tip = document.createElement('div');
+    ghost.className = 'portal-ghost'; ghost.setAttribute('aria-hidden', 'true');   // its look and shape: portalLook, at each place it takes
+    ghost.style.setProperty('--pi', 'var(--mk-' + (PORTAL_GLYPH[room.icon] || 'door') + ')');
+    mark.className = 'pg-mark'; ghost.appendChild(mark);
+    tip.className = 'portal-tip'; tip.setAttribute('role', 'status'); tip.textContent = portalSay(name);
+    window.wpPlace = { type: 'portal', props: {}, portal: { mapId: rec.mapId, roomId: rec.roomId, targetMapId: rec.targetMapId, name: name } };
+    wbWrap.style.cursor = 'crosshair';
+    document.body.classList.add('placing'); document.body.classList.add('placing-portal');
+    _portal = { rec: window.wpPlace.portal, ghost: ghost, tip: tip };
+    document.body.appendChild(tip);
+    var rb = wbWrap.getBoundingClientRect(), cx = rb.left + rb.width / 2, cy = rb.top + rb.height / 2;   // until the pointer moves: the middle of the view
+    portalGhostAt(am, wbX(cx, cy, rb, wbWrap), wbY(cx, cy, rb, wbWrap));
+    tip.style.left = (cx + 18) + 'px'; tip.style.top = (cy + 22) + 'px';
+    return true;
+};
+window.wpPortalPlaceHold = function(mapId, view) {   // main.js render: another map or the Data Map on screen puts the tile down
+    var P = _portal; if (!P || (mapId === P.rec.mapId && view === 'visual')) return false;
+    var rec = P.rec; disarmPlacement(); toast(portalSkipSay(rec)); return true;
+};
+function portalPlaceStep(rec, sx, sy) {
+    var am = getActiveMap(), RCw = window.wpRoomCore;
+    if (!RCw || !portalMay() || !am || am.id !== rec.mapId) { toast('That map is no longer on screen. No portal was placed.'); return null; }
+    var room = portalRoom(am, rec); if (!room) { toast('That room no longer leads to its new map. No portal was placed.'); return null; }
+    var pc = RCw.portalPiece(room, portalBoxAt(am, sx, sy), portalKind(portalGrid(am)));   // the grid as it is at the click
+    if (!pc) { toast('No portal was placed.'); return null; }
+    if (!Array.isArray(am.whiteboard)) am.whiteboard = [];
+    var it = Object.assign({ id: 'wb' + uid(), z: 10 }, window.wpNewOpacityProps ? window.wpNewOpacityProps() : {}, pc);
+    am.whiteboard.push(it);
+    state.selWbId = it.id; state.selWbIds = [it.id];
+    save(); render();
+    toast('Portal placed. It leads to ' + rec.name + '. Double-click it to go there.');
+    return it;
+}
+if (wbWrap) wbWrap.addEventListener('pointermove', portalMove);
+// [roomcheck:portalplace-end]
 // [buildcheck:wallsrow-start]
 // Walls around selection (the map builder, fold B2b; the owner, 2026-10-10, by prompt: "Walls first", on the "Right-click menu"). One row on the
 // GM's menu of a selection that holds floor pieces (buildcore floorOk). It lays ordinary Wall lines, the very items the Build tool's Wall line
@@ -9618,7 +9715,10 @@ function roomPlaceArm(rec, say) {
 window.wpRoomPlace = function(roomId) {
     var am = getActiveMap(), room = am && am.type === 'map' ? (am.rooms || []).find(function(r) { return r.id === roomId; }) : null;
     if (!room || window.wpStream || !buildMay()) return false;
-    if (room.targetMapId) { toast(ROOM_LEADS); return false; }   // the review: every piece linked to such a room is a way to that map, and a hidden one a trap tile, so a place drawn over the whole room would send a token dropped anywhere in it
+    if (room.targetMapId) {   // the review: every piece linked to such a room is a way to that map, and a hidden one a trap tile, so a place drawn over the whole room would send a token dropped anywhere in it
+        if (window.wpPortalPlace && window.wpPortalPlace({ mapId: am.id, roomId: room.id, targetMapId: room.targetMapId })) return true;   // 1.6.2 (the owner, 2026-11-14): its place is a portal of one cell, laid as a new room's is
+        toast(ROOM_LEADS); return false;
+    }
     if (window.wpSetViewMode) window.wpSetViewMode('visual');
     roomPlaceArm({ mapId: am.id, roomId: room.id, name: room.name || 'the room' }, true);
     return true;

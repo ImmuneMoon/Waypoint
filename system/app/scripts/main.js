@@ -286,6 +286,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       document.body.classList.toggle('no-map', !activeMap && !!getActiveCampaign());
       if(!activeMap) { renderNoMap(); return; }
       state.viewMapId = activeMap.id;   // backlog 221: the item on screen, which io.js applyRememberedView reads as the map already open
+      if (window.wpPortalPlaceHold) window.wpPortalPlaceHold(activeMap.id, state.viewMode);   // 1.6.2: a new room's portal tile is put down when another map or view comes on screen
 
       
 

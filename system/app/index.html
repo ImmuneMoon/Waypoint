@@ -638,6 +638,17 @@
                           <li>Categories are per-map. Add your own under <b>Categories</b>. Press <i class="wib wi-star"></i> on one, or <b>Save all to library</b>, and any other map can add it from the <b>Category Library</b> with the same name and color.</li>
                           <li><b>+ Add</b> under <b>Characters</b> also drops a stand-in token on the play map. It shows initials, in the shape of the map&rsquo;s cells. Set a portrait and the token wears it. Rename the character and the token follows.</li>
                       </ol>
+                      <h4>A new room&rsquo;s own map</h4>
+                      <ul>
+                          <li>A room you add makes a map of its own. The map has the room&rsquo;s name and sits under this map in the Maps list. The room leads to it.</li>
+                          <li>Type the room&rsquo;s name and press <kbd>Enter</kbd>. The new map takes the name too.</li>
+                          <li>Then the Data Map asks whether to place its portal now. Press <b>Place it now</b> and the play map opens, with a see-through portal tile under the pointer. Click a cell to place the portal there. Press <kbd>Esc</kbd> to skip it. The room and its map stay.</li>
+                          <li>Press <b>Later</b> to stay on the Data Map. Place the portal any time with <b>Place it</b> on the room.</li>
+                          <li>The portal takes the map&rsquo;s grid: one square cell, one hex cell, or a circle on a map with no grid. Change the grid while it waits, and the tile changes with it.</li>
+                          <li>One Undo takes the room back. The new map stays in the Maps list, so delete it there if you don&rsquo;t want it.</li>
+                          <li>Adding rooms that are only notes? Open the <b>Center</b> menu on the Data Map toolbar and untick <b>A new room makes its own map</b>. This computer keeps your choice.</li>
+                          <li><b>Make a room for this</b> makes no map. Its piece is already the room&rsquo;s place.</li>
+                      </ul>
                       <h4>Finding a room</h4>
                       <ul>
                           <li>The <b>Find a room</b> box along the top of the Data Map reads each room&rsquo;s name, its notes and who is there.
@@ -3572,6 +3583,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                     <button class="wb-tool-btn" id="dataCenterItemsBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;">Center on items</button>
                     <button class="wb-tool-btn" id="dataFitBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;" title="Zoom and pan to frame every room (Shift+1)">Fit to content</button>
                     <button class="wb-tool-btn" id="dataEditLayoutBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;" title="Drag the toolbar and boxes of the Data Map where you want them. Esc or Done to finish.">Edit layout&hellip;</button>
+                    <div class="draw-menu-label">New rooms</div>
+                    <button class="wb-tool-btn view-tick on" id="dataRoomMapBtn" role="menuitemcheckbox" aria-checked="true" title="Ticked, a room you add here makes a map of its own, named as the room and nested under this one, and you place its portal on the play map. Untick it for rooms that are only notes. This computer keeps it."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>A new room makes its own map</button>
                 </div>
             </div>
             <button class="wb-tool-btn" id="dataUndoBtn" title="Undo (this map)" style="opacity:0.5; pointer-events:none;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L4 9l5 5M4 9h10.5a5.5 5.5 0 0 1 0 11H9"/></svg></button>

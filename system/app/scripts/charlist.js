@@ -59,7 +59,7 @@ function charDraw(doc, box, model, gm, open, shut) {   // shut (218 fold 2): the
         return d;
     };
     var cts = Array.isArray(model.cats) ? model.cats : [], tps = gm && Array.isArray(model.templates) ? model.templates : [], n = model.players.length + model.npcs.length + tps.length + cts.reduce(function(a, x) { return a + x.rows.length; }, 0);
-    if (!n) { if (model.onMap) box.appendChild(el('div', 'nav-empty', 'No characters on this map')); else if (gm) box.appendChild(el('div', 'nav-empty', model.noSys ? 'No character sheets yet. Set them up first: the Campaign menu, then System.' : 'No characters yet. Press + above to make a sheet, or right-click a token.')); return 0; }   // 1.6.2 (the builder trial): a campaign with no system says where it is set up
+    if (!n) { if (model.onMap && model.anyAll) box.appendChild(el('div', 'nav-empty', 'No characters on this map')); else if (gm) box.appendChild(el('div', 'nav-empty', model.noSys ? 'No character sheets yet. Set them up first: the Campaign menu, then System.' : 'No characters yet. Press + above to make a sheet, or right-click a token.')); return 0; }   // 1.6.2 (the builder trial): a campaign with no system says where it is set up
     if (gm && model.players.length) box.appendChild(el('div', 'ch-sub', 'Players'));
     model.players.forEach(function(r) { box.appendChild(rowOf(r)); });
     cts.forEach(function(x) {   // 1.6.2 (218, fold 2): a category's fold, with how many it holds
@@ -83,7 +83,7 @@ function charDraw(doc, box, model, gm, open, shut) {   // shut (218 fold 2): the
     return n;
 }
 // What was drawn, as a text: the list is drawn again only when this changed
-function charSig(model, gm, open, shut) { return JSON.stringify([(model.cats || []).map(function(x) { return [x.key, x.label, shut && shut[x.key] ? 1 : 0, x.rows.map(function(r) { return [r.id, r.name, r.who, r.at || '']; })]; }), gm ? 1 : 0, open ? 1 : 0, model.players.map(function(r) { return [r.id, r.name, r.who, r.at || '']; }), model.npcs.map(function(r) { return [r.id, r.name, r.at || '']; }), (model.templates || []).map(function(r) { return [r.id, r.name]; }), model.tplOpen ? 1 : 0, typeof window !== 'undefined' && window.wpPlook ? model.players.concat(model.npcs).map(function(r) { return window.wpPlook.sig(window.wpPlook.ofCharId(r.id)); }) : [], model.onMap || '']); }   // 1.6.2, backlog 35: and the looks; and On this map's map
+function charSig(model, gm, open, shut) { return JSON.stringify([(model.cats || []).map(function(x) { return [x.key, x.label, shut && shut[x.key] ? 1 : 0, x.rows.map(function(r) { return [r.id, r.name, r.who, r.at || '']; })]; }), gm ? 1 : 0, open ? 1 : 0, model.players.map(function(r) { return [r.id, r.name, r.who, r.at || '']; }), model.npcs.map(function(r) { return [r.id, r.name, r.at || '']; }), (model.templates || []).map(function(r) { return [r.id, r.name]; }), model.tplOpen ? 1 : 0, model.anyAll ? 1 : 0, typeof window !== 'undefined' && window.wpPlook ? model.players.concat(model.npcs).map(function(r) { return window.wpPlook.sig(window.wpPlook.ofCharId(r.id)); }) : [], model.onMap || '']); }   // 1.6.2, backlog 35: and the looks; and On this map's map
 // A character's token to go to: on the map on screen before any other, a shown one before one the GM hid; hidden ones only for the GM (all).
 // items: camp.items. Answers { map, tok } or null
 function charTokenOf(items, charId, activeId, all) {
@@ -146,9 +146,12 @@ function charOnMap(items, activeId, view, all) {
     return out;
 }
 // The rows kept by that set, each list and category in its own order; a category left empty goes, as charRowsOf leaves one. here: null keeps
-// the model whole. mapId marks the model as filtered, for the empty list's words and for the signature. The model is changed in place
+// the model whole. mapId marks the model as filtered, for the empty list's words and for the signature. The model is changed in place.
+// anyAll (the review of 2026-11-13): whether the list held anyone before it was filtered, so a campaign with no character at all still gets the
+// GM's guidance (how a sheet is made, where its system is set up) and not "No characters on this map"
 function charOnly(model, here, mapId) {
     if (!here) return model;
+    model.anyAll = model.players.length + model.npcs.length + (model.templates ? model.templates.length : 0) + (model.cats || []).reduce(function(a, x) { return a + x.rows.length; }, 0) > 0;
     var keep = function(r) { return here[r.id] === 1; };
     model.players = model.players.filter(keep); model.npcs = model.npcs.filter(keep); if (model.templates) model.templates = [];   // a template has no token on any map
     if (model.cats) model.cats = model.cats.filter(function(x) { x.rows = x.rows.filter(keep); return x.rows.length > 0; });
@@ -172,7 +175,9 @@ var _sig = null, _tplOpen = charTplRead(localStorage), _open = charNpcsRead(loca
 function onMapShow(shown) {
     var b = document.getElementById('charOnMapBtn'); if (!b) return;
     if (b.classList) b.classList.toggle('on', _onMap);
-    b.setAttribute('aria-pressed', _onMap ? 'true' : 'false'); b.title = charOnMapTip(_onMap, shown);
+    b.setAttribute('aria-pressed', _onMap ? 'true' : 'false');
+    // the review of 2026-11-13: the tooltip goes into data-tip, and only on a change, with the title taken off (as prep.js tipSet), since sync runs at every redraw and a title written back showed the browser's own bubble beside the app's
+    var t = charOnMapTip(_onMap, shown); if (b.dataset && b.dataset.tip !== t) { b.dataset.tip = t; if (typeof b.removeAttribute === 'function') b.removeAttribute('title'); }
 }
 function sheets() { return window.wpSheets || null; }
 function foreign() { var n = window.wpNet; return !!(n && (n.foreign || (n.active && n.role === 'client'))); }   // someone else's table on this screen, its link up or between attempts

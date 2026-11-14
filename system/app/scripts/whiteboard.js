@@ -1425,33 +1425,60 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
   // generated map a floor is many abutting locked pieces of one texture). A locked piece selected alone wears its outline on a ring of its own,
   // above every piece of the board and below the handles, so a neighbor drawn after it, a wall line on its edge or its own texture never covers
   // it: its box, a circle round, a line or a region its own path. A picture is left to its own edge, which follows its visible part.
-  // positionHandles places it, so it follows a zoom, a move and a redraw; 2 px on screen at every zoom
+  // positionHandles places it, so it follows a zoom, a move and a redraw; 2 px on screen at every zoom.
+  // The review of 2026-11-13: the ring is drawn fresh, never cloned from the piece, so it holds no pattern id and no element id (a clone's
+  // pattern was found before the piece's own, which lost its texture), and it is emptied whenever it is hidden. A hexagon, a diamond, a
+  // triangle or a star is outlined along the very polygon the style sheet clips it to (LR_POLY, by the class that draws each), since
+  // abutting hexagons' boxes overlap. The piece the ring stands in for wears lr-on, the one class the style sheet takes its own outline away
+  // by, so a locked piece with no ring (a character token, a waiting one) keeps its outline
+  var LR_HEX = '25,0 75,0 100,50 75,100 25,100 0,50', LR_DIA = '50,0 100,50 50,100 0,50';
+  var LR_POLY = { hexagon: LR_HEX, 'hex-trigger': LR_HEX, diamond: LR_DIA, 'trigger-diamond': LR_DIA, triangle: '50,0 0,100 100,100', star: '50,0 61,35 98,35 68,57 79,91 50,70 21,91 32,57 2,35 39,35' };
+  var _lrEl = null;   // the piece that wears lr-on
+  function lrPoly(el) {
+      if (!el || !el.classList || typeof el.classList.contains !== 'function') return '';
+      for (var k in LR_POLY) if (Object.prototype.hasOwnProperty.call(LR_POLY, k) && el.classList.contains(k)) return LR_POLY[k];
+      return '';
+  }
   function lockRingSync(am) {
       var wb = document.getElementById('whiteboard'); if (!wb) return;
       var ring = document.getElementById('lockSelRing');
       var it = am && am.type === 'map' && state.viewMode === 'visual' && state.selWbId && !(state.selWbIds && state.selWbIds.length > 1) ? am.whiteboard.find(function(x) { return x.id === state.selWbId; }) : null;
       var el = it && it.locked && it.type !== 'image' && !it.isChar && !it.waiting ? document.querySelector('.wb-item[data-id="' + it.id + '"]') : null;
-      if (!el || el.style.display === 'none') { if (ring) ring.style.display = 'none'; return; }
+      if (_lrEl && _lrEl !== el && _lrEl.classList) _lrEl.classList.remove('lr-on');
+      _lrEl = null;
+      if (!el || el.style.display === 'none') {
+          if (el && el.classList) el.classList.remove('lr-on');
+          if (ring) { ring.style.display = 'none'; ring.textContent = ''; delete ring.dataset.sig; }
+          return;
+      }
       if (!ring) { ring = document.createElement('div'); ring.id = 'lockSelRing'; ring.setAttribute('aria-hidden', 'true'); wb.appendChild(ring); }
-      var z = state.zoomLevel || 1, px = 2 / z, svg = it.type === 'path' ? el.querySelector(':scope > svg') : null;
+      var z = state.zoomLevel || 1, px = 2 / z, svg = it.type === 'path' ? el.querySelector(':scope > svg') : null, src = svg ? svg.querySelector(':scope > path') : null, poly = src ? '' : lrPoly(el);
       ring.style.display = 'block'; ring.style.left = it.x + 'px'; ring.style.top = it.y + 'px';
       ring.style.width = (it.w || 0) + 'px'; ring.style.height = (it.h || 0) + 'px';
       ring.style.transform = it.rot ? 'rotate(' + it.rot + 'deg)' : 'none';
       ring.style.setProperty('--lr', px + 'px');
-      ring.className = svg ? 'lr-path' : it.type === 'circle' ? 'lr-round' : '';
-      var sig = svg ? it.id + '|' + svg.innerHTML.length + '|' + svg.getAttribute('viewBox') + '|' + z : '';
+      ring.className = src ? 'lr-path' : poly ? 'lr-path lr-poly' : it.type === 'circle' ? 'lr-round' : '';
+      var d = src ? src.getAttribute('d') || '' : '', vb = svg ? svg.getAttribute('viewBox') || '' : '', fr = src ? src.getAttribute('fill-rule') || '' : '';
+      var sw = src ? parseFloat(src.getAttribute('stroke-width')) || 0 : 0, sc = (src && it.w && svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width) ? svg.viewBox.baseVal.width / it.w : 1;
+      var sig = src ? 'p|' + it.id + '|' + d.length + '|' + d.slice(0, 48) + '|' + d.slice(-48) + '|' + vb + '|' + fr + '|' + sw + '|' + z : poly ? 'g|' + poly : '';
       if (ring.dataset.sig !== sig) {
           ring.dataset.sig = sig; ring.textContent = '';
-          if (svg) {
-              var cp = svg.cloneNode(true);
-              cp.querySelectorAll('path').forEach(function(p) {
-                  var sw = parseFloat(p.getAttribute('stroke-width')) || 0, sc = (it.w && svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width) ? svg.viewBox.baseVal.width / it.w : 1;
-                  p.removeAttribute('style'); p.setAttribute('fill', 'none'); p.setAttribute('stroke', 'var(--gold)');
-                  p.setAttribute('stroke-width', String(Math.max(sw, 1.5 * px * sc)));
-              });
-              ring.appendChild(cp);
+          var NS = 'http://www.w3.org/2000/svg';
+          if (src) {
+              var sv = document.createElementNS(NS, 'svg'), p = document.createElementNS(NS, 'path');
+              sv.setAttribute('viewBox', vb); sv.setAttribute('preserveAspectRatio', svg.getAttribute('preserveAspectRatio') || 'none');
+              p.setAttribute('d', d); if (fr) p.setAttribute('fill-rule', fr);
+              p.setAttribute('fill', 'none'); p.setAttribute('stroke', 'var(--gold)'); p.setAttribute('stroke-width', String(Math.max(sw, 1.5 * px * sc)));
+              p.setAttribute('stroke-linecap', 'round'); p.setAttribute('stroke-linejoin', 'round');
+              sv.appendChild(p); ring.appendChild(sv);
+          } else if (poly) {
+              var sg = document.createElementNS(NS, 'svg'), pg = document.createElementNS(NS, 'polygon');
+              sg.setAttribute('viewBox', '0 0 100 100'); sg.setAttribute('preserveAspectRatio', 'none'); pg.setAttribute('points', poly);
+              sg.appendChild(pg); ring.appendChild(sg);
           }
       }
+      if (el.classList) el.classList.add('lr-on');
+      _lrEl = el;
   }
   // [lookcheck:lockring-end]
   // the sight outline's eye (fog.js setOutline): this machine's own choice, kept from one selection to the next
@@ -1539,7 +1566,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
       }
       var ratioBtn = bar.querySelector('.st-ratio');
       if (ratioBtn) {
-          var allRatio = its.every(ratioLocked);
+          var allRatio = selRatioLocked(its);
           ratioBtn.classList.toggle('on', allRatio);
           ratioBtn.title = allRatio ? 'Proportions locked: resizing keeps the shape, and Shift while dragging reshapes it freely. Click to unlock' : 'Proportions free: resizing reshapes it, and Shift while dragging keeps the shape. Click to lock';
       }
@@ -2002,7 +2029,7 @@ window.wpFitToGrid = fitToGrid;
               fitToGrid(its);
               return;   // fitToGrid saves and renders itself
           } else if (act === 'ratio') {
-              var lockThemR = its.some(function(i) { return !ratioLocked(i); });
+              var lockThemR = !selRatioLocked(its);
               its.forEach(function(i) { ratioLockSet(i, lockThemR); });
           } else if (act === 'fog') {
               var markThem = its.some(function(i) { return !i.fogged; });
@@ -2067,6 +2094,18 @@ window.wpFitToGrid = fitToGrid;
   // The corner handle keeps the shape where the lock holds, and Shift held while dragging turns it the other way: a locked piece reshapes
   // freely, and a free one keeps its shape as it always did
   function ratioHeld(locked, shift) { return !!locked !== !!shift; }
+  // A selection of several pieces reads one rule in both places (the review of 2026-11-13): the group's corner keeps the shape where any member
+  // is locked, so the toolbar's button shows on, and its press frees the whole selection, by that same reading
+  function selRatioLocked(list) { return Array.isArray(list) && list.some(ratioLocked); }
+  // The ratio a locked resize keeps while it steps by whole cells (the review of 2026-11-13): the box's own, but for a picture whose box already
+  // shows its shape (within 2%), which keeps the picture's exact ratio as the box's rounded one may not. A character token is fitted to its cell
+  // whatever its picture's shape, so it always keeps its box's: by its picture's a 50 by 50 token of a 2:3 picture jumped to two cells at once.
+  // pr: the picture's width over its height, 0 where it is not known
+  function stepRatio(it, w, h, pr) {
+      var br = w > 0 && h > 0 ? w / h : 0;
+      if (!br || !it || it.isChar || !(pr > 0) || !isFinite(pr)) return br;
+      return Math.abs(br - pr) / pr <= 0.02 ? pr : br;
+  }
   window.wpRatioLocked = ratioLocked; window.wpRatioLockSet = ratioLockSet;
   // [buildcheck:ratiolock-end]
   function attachResizeHandle() {
@@ -2151,7 +2190,7 @@ window.wpFitToGrid = fitToGrid;
           // The handle sits on the selection's corner: dragging it scales the
           // whole box from its top-left, every member along with it.
           var gsx = Math.max(0.05, (gbw + dx) / gbw), gsy = Math.max(0.05, (gbh + dy) / gbh);
-          var lockG = ratioHeld(groupMembers.some(function(g) { return ratioLocked(g.it); }), e.shiftKey);   // Lock proportions (on unless a member is freed), and Shift turns it
+          var lockG = ratioHeld(selRatioLocked(groupMembers.map(function(g) { return g.it; })), e.shiftKey);   // Lock proportions (on unless a member is freed), and Shift turns it
           if (lockG) { var u = Math.abs(dx) >= Math.abs(dy) ? gsx : gsy; gsx = u; gsy = u; }
           var gSg = gridStepOn(); if (gSg) { var lkG = lockG ? { r: gbw / gbh, byH: Math.abs(dx) < Math.abs(dy) } : null, stG = gridStep(gbw * gsx, gbh * gsy, gSg, true, lkG); gsx = stG.w / gbw; gsy = stG.h / gbh; }   // Snap on to the grid: the box by whole cells
           groupMembers.forEach(function(g) {
@@ -2188,7 +2227,7 @@ window.wpFitToGrid = fitToGrid;
           // Size matching runs even with the ratio locked: whichever axis pauses
           // on a neighbor's size, the other follows the ratio.
           var wBefore = item.w, hBefore = item.h, gS1 = gridStepOn();
-          if (gS1) { var lk1 = lockR && startW > 0 && startH > 0 ? { r: fitPicRatio(item) || startW / startH, byH: Math.abs(dx) < Math.abs(dy) } : null, st1 = gridStep(item.w, item.h, gS1, false, lk1); item.w = st1.w; item.h = st1.h; clearSnaps(); }   // Snap on to the grid: whole cells, and no pause at a neighbor's size between them
+          if (gS1) { var lk1 = lockR && startW > 0 && startH > 0 ? { r: stepRatio(item, startW, startH, item.isChar ? 0 : fitPicRatio(item)), byH: Math.abs(dx) < Math.abs(dy) } : null, st1 = gridStep(item.w, item.h, gS1, false, lk1); item.w = st1.w; item.h = st1.h; clearSnaps(); }   // Snap on to the grid: whole cells, and no pause at a neighbor's size between them
           else {
           doSmartSnapping(item, true);
           if (lockR && startW > 0 && startH > 0) {
@@ -2743,11 +2782,26 @@ window.wpFitToGrid = fitToGrid;
   // the arrow's own handler and toolPress. A right-click of the pointer counts as a pointer's press (barPress has heard its pointerdown, so
   // barBehind asks what that pointerdown found), and one by the keyboard's menu key as a key's. The browser's own menu does not open there and
   // the map's right-click menu does not hear it. A button with no options is not wired, so nothing new happens there
-  function rightPress(e, to) {
-      if (!e || !to || typeof to.dispatchEvent !== 'function') return false;
+  // The review of 2026-11-13: a right-click counts only where its own press began on that very button. Windows ends a right drag with a
+  // contextmenu at the place it is let go, so a pan, Fill's erase or the fog brush let go over the bar took a tool. A pointer's press is noted
+  // as it goes down (rightDown, heard by the document in the capture phase), a key lets the note go, and rightFrom says what a right-click is:
+  // 'ptr' from a press that began on one of the buttons ok names and moved no more than 4 px, 'key' with no pointer's press since the last key
+  // (the keyboard's menu key), else '' and nothing is done. Whether it was the pointer's comes from that press and never from e.button, which a
+  // touch's long press and the Ctrl+click of a Mac give as 0 (finding 6)
+  var _rightOn = null;
+  function rightDown(e) { var t = e && e.target; _rightOn = { el: t && typeof t.closest === 'function' ? t.closest('button') : null, x: e && e.clientX, y: e && e.clientY }; }
+  function rightFrom(e, ok) {
+      var r = _rightOn, num = function(v) { return typeof v === 'number' && isFinite(v); }; _rightOn = null;
+      if (!r) return 'key';
+      if (!r.el || !ok(r.el)) return '';
+      if (num(r.x) && num(r.y) && e && num(e.clientX) && num(e.clientY) && Math.max(Math.abs(e.clientX - r.x), Math.abs(e.clientY - r.y)) > 4) return '';
+      return 'ptr';
+  }
+  function rightPress(e, to, how) {
+      if (!e || !to || typeof to.dispatchEvent !== 'function' || !how) return false;
       if (typeof e.preventDefault === 'function') e.preventDefault();
       if (typeof e.stopPropagation === 'function') e.stopPropagation();
-      var init = { bubbles: true, cancelable: true, detail: e.button === 2 ? 1 : 0, button: 0 };
+      var init = { bubbles: true, cancelable: true, detail: how === 'ptr' ? 1 : 0, button: 0 };
       to.dispatchEvent(typeof MouseEvent === 'function' ? new MouseEvent('click', init) : Object.assign({ type: 'click' }, init));
       return true;
   }
@@ -2769,11 +2823,12 @@ window.wpFitToGrid = fitToGrid;
       Array.prototype.forEach.call(document.querySelectorAll('.tool-pair'), function(pair) {
           var icon = pair.querySelector('.wb-tool-btn'), chev = pair.querySelector('.tool-chev');
           if (!icon || !chev) return;
-          pair.addEventListener('contextmenu', function(e) { var hit = e && e.target && typeof e.target.closest === 'function' ? e.target.closest('button') : null; if (hit === icon || hit === chev) rightPress(e, chev); });
+          pair.addEventListener('contextmenu', function(e) { var hit = e && e.target && typeof e.target.closest === 'function' ? e.target.closest('button') : null; if (hit === icon || hit === chev) rightPress(e, chev, rightFrom(e, function(b) { return b === icon || b === chev; })); });
       });
-      Object.keys(MENU_BTNS).forEach(function(id) { var btn = document.getElementById(id); if (btn) btn.addEventListener('contextmenu', function(e) { rightPress(e, btn); }); });
+      Object.keys(MENU_BTNS).forEach(function(id) { var btn = document.getElementById(id); if (btn) btn.addEventListener('contextmenu', function(e) { rightPress(e, btn, rightFrom(e, function(b) { return b === btn; })); }); });
       var swap = document.getElementById('selSwap'), swapBtn = document.getElementById('selSwapBtn');
-      if (swap && swapBtn) swap.addEventListener('contextmenu', function(e) { rightPress(e, swapBtn); });
+      if (swap && swapBtn) swap.addEventListener('contextmenu', function(e) { rightPress(e, swapBtn, rightFrom(e, function(b) { for (var n = b; n; n = n.parentElement) if (n === swap) return true; return false; })); });
+      if (typeof document.addEventListener === 'function') { document.addEventListener('pointerdown', rightDown, true); document.addEventListener('keydown', function() { _rightOn = null; }, true); }
   }
   wireMenuArrows();
   // [lookcheck:press-end]

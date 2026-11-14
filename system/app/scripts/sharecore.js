@@ -28,6 +28,8 @@
      leftPicName                a left-out picture as share.json names it (images/..., its place kept in data.json)
      lookOf, lookWords          an import's counts before anything is written: from data.json and the archive's entry names only
      asNewCamps                 Import as a new campaign: every campaign of the file under a new id
+     freeNames                  ... and a name of its own here, no two of the file alike
+     stripPrivate               Full export: the private tags and their marks stay on this computer
    No DOM, no state: tools/zipcheck.js runs it under Node. Published as window.wpShareCore. */
 'use strict';
 
@@ -269,15 +271,58 @@ function lookWords(t) {
     LOOK_KINDS.slice(2).forEach(function(k) { if (t[k] > 0) out.push(w(k, t[k])); });
     return out;
 }
-// Import as a new campaign: each campaign of the file under an id mkId() makes, the open one followed. Answers { old: new }
-function asNewCamps(data, mkId) {
+// Import as a new campaign: each campaign of the file under an id mkId() makes, the open one followed. Answers { old: new }. No campaign is
+// ever dropped (the review of backlog 227): an id already given in this call is asked for again, and where mkId keeps giving one that is
+// taken (or none), a number is put after it until it is free here and in the call (taken: an id already in use, optional)
+var NEW_TRIES = 64;
+function asNewCamps(data, mkId, taken) {
     var map = {}; if (!isObj(data) || !isObj(data.campaigns) || typeof mkId !== 'function') return map;
-    var out = {};
-    Object.keys(data.campaigns).forEach(function(k) { var c = data.campaigns[k]; if (!isObj(c)) return; var id = String(mkId()); if (!id || own(out, id)) return; map[k] = id; c.id = id; out[id] = c; });
+    var out = {}, used = function(id) { return !id || own(out, id) || (typeof taken === 'function' && !!taken(id)); };
+    Object.keys(data.campaigns).forEach(function(k) {
+        var c = data.campaigns[k]; if (!isObj(c)) return;
+        var id = '', n = 0;
+        do { id = String(mkId()); } while (used(id) && ++n < NEW_TRIES);
+        if (used(id)) { var base = id || 'camp_new', m = 2; while (used(base + '_' + m)) m++; id = base + '_' + m; }
+        map[k] = id; c.id = id; out[id] = c;
+    });
     data.campaigns = out;
     if (typeof data.activeCampaignId === 'string' && own(map, data.activeCampaignId)) data.activeCampaignId = map[data.activeCampaignId];
     else data.activeCampaignId = Object.keys(out)[0] || null;
     return map;
+}
+// Import as a new campaign: each campaign of the file a name of its own, one at a time, so that two campaigns of the file never share one
+// (the review of backlog 227). isTaken(name): whether a campaign here has it, ignoring case. A name already given counts as taken; a
+// taken name gets " (2)", " (3)" and on, as a campaign's name here does. Answers the names in the file's order
+function freeNames(data, isTaken) {
+    var out = [], given = Object.create(null); if (!isObj(data) || !isObj(data.campaigns)) return out;
+    var taken = function(n) { return !!given[n.toLowerCase()] || (typeof isTaken === 'function' && !!isTaken(n)); };
+    Object.keys(data.campaigns).forEach(function(k) {
+        var c = data.campaigns[k]; if (!isObj(c)) return;
+        var base = String(c.name || '').trim() || 'Imported campaign', name = base, i = 2;
+        while (taken(name)) name = base + ' (' + (i++) + ')';
+        given[name.toLowerCase()] = 1; c.name = name; out.push(name);
+    });
+    return out;
+}
+// Full export (the review of backlog 227): a private mark stays on this computer, so what a Full export writes holds no private tag at all.
+// Every tag marked private in a store of the payload, or in one of the extra stores (the shared store, when only one campaign goes), is
+// taken off each store of the payload: its name from list and shelf, from each picture's tags (a picture left with none loses its entry),
+// and a saved filter that names it goes whole (its own name could tell). Every store's priv goes. Changes nothing where nothing is
+// private, so such a file is the one it always was. Answers how many private names were taken off
+function stripPrivate(payload, extra) {
+    if (!isObj(payload)) return 0;
+    var stores = [payload.imageCats].concat(campsOf(payload).map(function(c) { return c.imageCats; })).filter(storeOk);
+    var all = stores.concat((Array.isArray(extra) ? extra : [extra]).filter(storeOk)), priv = Object.create(null), n = 0;
+    all.forEach(function(s) { if (isObj(s.priv)) s.list.forEach(function(t) { if (typeof t === 'string' && s.priv[t] === true && !priv[t]) { priv[t] = 1; n++; } }); });
+    stores.forEach(function(s) {
+        if (own(s, 'priv')) delete s.priv;
+        if (!n) return;
+        s.list = s.list.filter(function(t) { return !priv[t]; });
+        if (isObj(s.shelf)) Object.keys(s.shelf).forEach(function(t) { if (priv[t]) delete s.shelf[t]; });
+        if (isObj(s.by)) Object.keys(s.by).forEach(function(p) { var ts = s.by[p]; if (!Array.isArray(ts)) return; var keep = ts.filter(function(t) { return !priv[t]; }); if (keep.length) s.by[p] = keep; else delete s.by[p]; });
+        if (Array.isArray(s.filters)) { s.filters = s.filters.filter(function(f) { return !(isObj(f) && Array.isArray(f.tags) && f.tags.some(function(t) { return priv[t]; })); }); if (!s.filters.length) delete s.filters; }
+    });
+    return n;
 }
 function byWords(card) {
     if (!card) return '';
@@ -285,10 +330,10 @@ function byWords(card) {
     return a && v ? a + ' \u00b7 ' + v : a || (v ? v.charAt(0).toUpperCase() + v.slice(1) : '');
 }
 
-var API = { TAG_NONE: TAG_NONE, LOOK_KINDS: LOOK_KINDS, picTags: picTags, privOff: privOff, tagRows: tagRows, picsOut: picsOut, templatesIn: templatesIn, leftPicName: leftPicName, lookOf: lookOf, lookWords: lookWords, asNewCamps: asNewCamps,
+var API = { TAG_NONE: TAG_NONE, LOOK_KINDS: LOOK_KINDS, picTags: picTags, privOff: privOff, tagRows: tagRows, picsOut: picsOut, templatesIn: templatesIn, leftPicName: leftPicName, lookOf: lookOf, lookWords: lookWords, asNewCamps: asNewCamps, freeNames: freeNames, stripPrivate: stripPrivate,
     KINDS: KINDS, NAMES: NAMES, WORDS: WORDS, FILE_KINDS: FILE_KINDS, LIMITS: LIMITS, PLAYER_KEYS: PLAYER_KEYS, fileSets: fileSets, kindOf: kindOf, tally: tally,
     leaveOut: leaveOut, keepPaths: keepPaths, cleanLeave: cleanLeave, coverName: coverName, cleanCard: cleanCard, isBlank: isBlank, cardFor: cardFor, sizeWords: sizeWords,
     countWords: countWords, contentsWords: contentsWords, leftWords: leftWords, byWords: byWords };
 if (typeof window !== 'undefined') window.wpShareCore = API;
-export { TAG_NONE, LOOK_KINDS, picTags, privOff, tagRows, picsOut, templatesIn, leftPicName, lookOf, lookWords, asNewCamps, KINDS, NAMES, WORDS, FILE_KINDS, LIMITS, PLAYER_KEYS, fileSets, kindOf, tally, leaveOut, keepPaths, cleanLeave, coverName, cleanCard, isBlank, cardFor, sizeWords,
+export { TAG_NONE, LOOK_KINDS, picTags, privOff, tagRows, picsOut, templatesIn, leftPicName, lookOf, lookWords, asNewCamps, freeNames, stripPrivate, KINDS, NAMES, WORDS, FILE_KINDS, LIMITS, PLAYER_KEYS, fileSets, kindOf, tally, leaveOut, keepPaths, cleanLeave, coverName, cleanCard, isBlank, cardFor, sizeWords,
     countWords, contentsWords, leftWords, byWords };

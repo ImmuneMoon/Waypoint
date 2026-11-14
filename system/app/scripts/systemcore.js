@@ -13169,6 +13169,15 @@ function fromTemplate(c, id, sys) {
     if (!isObj(c) || c.template !== true || typeof id !== 'string' || !CHAR_ID.test(id)) return null;
     var cp = JSON.parse(JSON.stringify(c));
     ['template', 'links', 'stn', 'debts', 'shareWith', 'making', 'invited', 'unlocked', 'review', 'made', 'af', 'trader', 'noLoot', 'partial', 'shared', 'lines', 'unseen', 'ck', 'cr', 'lk', 'hk', 'sk'].forEach(function(k) { delete cp[k]; });
+    // 1.6.2 (the review of backlog 227): a row's ties to things outside the sheet stay with the template too. A row joined to a sheet (sh)
+    // would hold that one sheet from two characters, and a hand's row (cd) a card that left the pile once: the copy starts with no join and
+    // an empty hand. With a system only its item lists are read; without one, every list of rows is
+    var tl = sys && Array.isArray(sys.fields) ? sys.fields.filter(function(f) { return isObj(f) && f.kind === 'item-list'; }).map(function(f) { return f.id; }) : null;
+    if (isObj(cp.values)) Object.keys(cp.values).forEach(function(k) {
+        var v = cp.values[k]; if (!Array.isArray(v) || (tl && tl.indexOf(k) < 0)) return;
+        cp.values[k] = v.filter(function(r) { return !(isObj(r) && hasOwn(r, 'cd')); });
+        cp.values[k].forEach(function(r) { if (isObj(r)) delete r.sh; });
+    });
     cp.id = id; cp.ownerId = ''; cp.updated = Date.now();
     return sys ? cleanChar(cp, sys, { state: 'host' }) : cp;
 }

@@ -72,7 +72,7 @@ function buildGrid() {
         tip(b, p.split('/').pop());   // the file's own name, as text
         im.alt = ''; im.loading = 'lazy'; im.src = picAddr(p);
         b.appendChild(im);
-        b.addEventListener('click', function() { _s.cover = this.getAttribute('data-path') || ''; drawCover(); g.hidden = true; log('cover-pick', { n: _s.pics.length }); var pk = el('shareCoverPick'); if (pk) pk.focus(); });
+        b.addEventListener('click', function() { _s.cover = this.getAttribute('data-path') || ''; drawCover(); if (typeof coverMoved === 'function') coverMoved(); g.hidden = true; log('cover-pick', { n: _s.pics.length }); var pk = el('shareCoverPick'); if (pk) pk.focus(); });
         g.appendChild(b);
     });
 }
@@ -86,7 +86,13 @@ function liveStores() {
     add(app.imageCats);
     return out;
 }
-function outNow() { return SC.picsOut(_s.allPics, _s.stores, _s.sets, _s.off, _s.pickOut, _s.pickIn); }
+// [zipcheck:sharecover-start]
+function outRaw() { return SC.picsOut(_s.allPics, _s.stores, _s.sets, _s.off, _s.pickOut, _s.pickIn); }
+// The pictures left out, less the cover: the cover always goes in the file (sharecore keepPaths), so it is never counted or said as left out (the review of backlog 227)
+function outNow() { var o = outRaw(); return _s.cover ? o.filter(function(p) { return p !== _s.cover; }) : o; }
+function coverAnyway() { return !!_s.cover && outRaw().indexOf(_s.cover) >= 0; }   // a cover whose tag, or own pick, would leave it out
+function coverMoved() { drawKinds(); drawPicsLine(); drawPicks(); }
+// [zipcheck:sharecover-end]
 function sharedTag(name) { var sh = (state.appState || {}).imageCats; return !!sh && Array.isArray(sh.list) && sh.list.indexOf(name) >= 0 && !(_s.stores.length > 1 && _s.stores.slice(0, -1).some(function(s) { return s.list.indexOf(name) >= 0; })); }
 // [sinkcheck:sharetags-start]
 function drawTags() {
@@ -122,7 +128,7 @@ function drawPicks() {
         var b = document.createElement('button'), im = document.createElement('img'), gone = !!set[p], nm = p.split('/').pop();
         b.type = 'button'; b.className = 'share-thumb share-pick' + (gone ? ' out' : ''); b.setAttribute('data-path', p);
         b.setAttribute('aria-pressed', gone ? 'true' : 'false'); b.setAttribute('aria-label', nm + (gone ? ', left out' : ''));
-        tip(b, nm + (gone ? '. Left out: press to put it back' : '. Press to leave it out'));
+        tip(b, nm + (_s.cover === p ? '. The cover: it goes in the file' : gone ? '. Left out: press to put it back' : '. Press to leave it out'));
         im.alt = ''; im.loading = 'lazy'; im.src = picAddr(p);
         im.addEventListener('error', function() { this.hidden = true; b.classList.add('nopic'); });   // a missing file is quiet: the cell stays, empty
         b.appendChild(im);
@@ -131,12 +137,15 @@ function drawPicks() {
     if (_s.allPics.length > PICK_MAX) { var w = document.createElement('div'); w.className = 'gen-line share-pick-more'; w.textContent = 'The first ' + PICK_MAX + ' of ' + _s.allPics.length + ' pictures. Tags reach the rest.'; g.appendChild(w); }
 }
 // [sinkcheck:sharetags-end]
+// [zipcheck:sharepicsline-start]
 function drawPicsLine() {
     var line = el('sharePicsLine'), pk = el('sharePick'); if (!line) return;
     var picsOn = !!kindBox('pictures') && kindBox('pictures').checked, n = picsOn ? outNow().length : _s.allPics.length;
     if (pk) pk.disabled = !picsOn || !_s.allPics.length;
-    line.textContent = !_s.allPics.length ? '' : !picsOn ? 'No picture goes in. Their places are kept.' : n ? (n === 1 ? 'One picture is left out. Its place is kept.' : n + ' pictures are left out. Their places are kept.') : 'Every picture goes in.';
+    line.textContent = !_s.allPics.length ? '' : (!picsOn ? 'No picture goes in. Their places are kept.' : n ? (n === 1 ? 'One picture is left out. Its place is kept.' : n + ' pictures are left out. Their places are kept.') : 'Every picture goes in.')
+        + (_s.cover && (!picsOn || coverAnyway()) ? ' The cover goes in the file all the same.' : '');
 }
+// [zipcheck:sharepicsline-end]
 function allChanged() { drawKinds(); drawTags(); drawPicsLine(); drawPicks(); }
 function drawKinds() {
     var t = _s.tally, total = _s.data;
@@ -171,15 +180,16 @@ async function open(scope, share) {
     _s.title0 = _s.scope === 'all' ? 'My campaigns' : (plan.name || 'My campaign');
     var mem = memOf(), set = function(id, v) { var f = el(id); if (f) f.value = v; };
     set('shareName', str(mem.title) || _s.title0); set('shareAuthor', str(mem.author)); set('shareVersion', str(mem.version)); set('shareDesc', str(mem.desc));
-    _s.cover = _s.pics.indexOf(mem.cover) >= 0 ? mem.cover : '';
     var head = el('shareTitle'); if (head) head.textContent = _s.share ? 'Full export' : _s.scope === 'all' ? 'Export everything' : 'Export this campaign';
     var all = el('shareAllLine'); if (all) { all.hidden = _s.scope !== 'all'; all.textContent = _s.scope !== 'all' ? '' : plan.camps === 1 ? 'The counts cover your one campaign.' : 'The counts cover all ' + plan.camps + ' of your campaigns.'; }
     SC.KINDS.forEach(function(k) { var b = kindBox(k); if (b) b.checked = !(_s.share && k === 'players'); });
     var g = el('shareCoverGrid'); if (g) { g.hidden = true; g.textContent = ''; }
     _s.built = false;
     var pk = el('shareCoverPick'); if (pk) pk.disabled = false;
-    drawCover(); drawKinds();
     _s.off = _s.share ? SC.privOff(_s.stores) : {};   // 1.6.2 (backlog 227): on Full export a private tag starts unticked; the two exports start with every tick on, as before
+    _s.cover = '';   // the review of backlog 227: the remembered cover comes back only where it goes in as the sheet starts, never one its tag leaves out
+    if (_s.pics.indexOf(mem.cover) >= 0 && outRaw().indexOf(mem.cover) < 0) _s.cover = mem.cover;
+    drawCover(); drawKinds();
     drawTags(); drawPicsLine();
     m.style.display = 'flex'; _s.open = true;
     var t = _s.tally;
@@ -202,7 +212,7 @@ function go() {
     var form = { title: v('shareName'), author: v('shareAuthor'), version: v('shareVersion'), desc: v('shareDesc'), cover: _s.cover ? _s.cover.replace(/^\/saves\//, '') : '', leave: leaveList(), pics: picsOn ? outNow() : [] };
     var blank = SC.isBlank(form, _s.title0);
     memPut({ title: form.title.trim() === _s.title0 ? '' : form.title, author: form.author, version: form.version, desc: form.desc, cover: _s.cover });
-    var share = blank ? undefined : { card: { title: form.title.trim() || _s.title0, author: form.author, version: form.version, desc: form.desc }, cover: _s.cover, leave: form.leave, pics: form.pics, sizes: _s.plan.sizes };
+    var share = blank ? (_s.share ? { full: true } : undefined) : { card: { title: form.title.trim() || _s.title0, author: form.author, version: form.version, desc: form.desc }, cover: _s.cover, leave: form.leave, pics: form.pics, sizes: _s.plan.sizes, full: _s.share };   // full (the review of backlog 227): a Full export, which keeps no private tag (io.js buildExport, sharecore stripPrivate), even left as it came
     log('export', { scope: _s.scope, card: !blank, cover: !!_s.cover, left: form.leave.length, pics: form.pics.length, author: !!form.author.trim(), version: !!form.version.trim(), desc: !!form.desc.trim() });
     var scope = _s.scope;
     hide('');
@@ -221,7 +231,7 @@ function wire() {
         g.hidden = !g.hidden;
         if (!g.hidden) log('cover-grid', { n: _s.pics.length });
     });
-    on('shareCoverClear', function() { _s.cover = ''; drawCover(); log('cover-clear', {}); });
+    on('shareCoverClear', function() { _s.cover = ''; drawCover(); coverMoved(); log('cover-clear', {}); });
     SC.KINDS.forEach(function(k) { var b = kindBox(k); if (b) b.addEventListener('change', function() { allChanged(); log('tick', { kind: k, keep: !!this.checked }); }); });
     // 1.6.2 (backlog 227)
     var tags = el('shareTags');

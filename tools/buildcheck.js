@@ -5382,7 +5382,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     {   // 1.6.2, the owner (2026-11-13): "lets lock proportions when resizing by default", and by prompt "All, Shift frees it". One reading, so no
         // save needs changing: a picture or a shape is locked unless it carries lockRatio: false; text and pen lines keep the old reading
         const wbR = read('system/app/scripts/whiteboard.js'), rA = wbR.indexOf('  // [buildcheck:ratiolock-start]'), rB = wbR.indexOf('  // [buildcheck:ratiolock-end]');
-        const winR = {}, RL = new Function('window', wbR.slice(rA, rB) + NL + 'return { ratioLocked, ratioLockSet, ratioHeld };')(winR);
+        const winR = {}, RL = new Function('window', wbR.slice(rA, rB) + NL + 'return { ratioLocked, ratioLockSet, ratioHeld, selRatioLocked, stepRatio };')(winR);
         const kinds = ['image', 'rect', 'circle', 'hexagon', 'diamond', 'text', 'path'];
         const read3 = kinds.map(t => [RL.ratioLocked({ type: t }), RL.ratioLocked({ type: t, lockRatio: true }), RL.ratioLocked({ type: t, lockRatio: false })]);
         const set = (t, k, on) => { const w = Object.assign({ type: t }, k); RL.ratioLockSet(w, on); return Object.prototype.hasOwnProperty.call(w, 'lockRatio') ? w.lockRatio : 'absent'; };
@@ -5393,11 +5393,20 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             && JSON.stringify(sets) === JSON.stringify([false, 'absent', 'absent', false, true, 'absent', true])
             && JSON.stringify(held) === JSON.stringify([true, false, false, true]) && RL.ratioLocked(null) === false && winR.wpRatioLocked === RL.ratioLocked && winR.wpRatioLockSet === RL.ratioLockSet,
             JSON.stringify([read3, sets, held]));
+        // the review of 2026-11-13: a selection reads one rule in the toolbar's button, its toggle and the group's corner (selRatioLocked: any member locked),
+        // and a locked resize that steps by whole cells keeps the box's ratio for a character token and for a picture its box does not already show (stepRatio)
+        const pic = { type: 'image' }, txt = { type: 'text' }, freed = { type: 'image', lockRatio: false };
+        const selR = [RL.selRatioLocked([pic, txt]), RL.selRatioLocked([pic, freed]), RL.selRatioLocked([txt, freed]), RL.selRatioLocked([]), RL.selRatioLocked(null)];
+        const stR = [RL.stepRatio({ type: 'image', isChar: true }, 50, 50, 2 / 3), RL.stepRatio({ type: 'image', isChar: true }, 60, 52, 3 / 4), RL.stepRatio({ type: 'image' }, 50, 50, 2 / 3), RL.stepRatio({ type: 'image' }, 74, 76, (74 / 76) * 1.01),
+            RL.stepRatio({ type: 'image' }, 100, 50, 0), RL.stepRatio({ type: 'rect' }, 100, 50, NaN), RL.stepRatio(null, 100, 50, 2), RL.stepRatio({ type: 'image' }, 0, 50, 2)];
+        check('the review of 2026-11-13: a mixed selection shows Lock proportions as its corner resizes it (selRatioLocked, run for real): a picture beside a text box or a freed picture is locked, two free pieces are not; and with Snap on to the grid a locked resize keeps a character token\'s box ratio whatever its picture\'s shape, so a 50 by 50 token of a 2:3 picture and a 60 by 52 hex token of a 3:4 one step by their own box, as does a picture whose box does not show its shape, while one whose box shows it within 2% keeps the picture\'s exact ratio (stepRatio, run for real)',
+            JSON.stringify(selR) === JSON.stringify([true, true, false, false, false])
+            && JSON.stringify(stR) === JSON.stringify([1, 60 / 52, 1, (74 / 76) * 1.01, 2, 2, 2, 0]), JSON.stringify([selR, stR]));
         const wbNoR = wbR.slice(0, rA) + wbR.slice(rB), insR = read('system/app/scripts/inspector.js'), htmR = read('system/app/index.html');
-        check('every reader of Lock proportions goes through the one reading: the corner handle, the group\'s box and grid stepping\'s lock (Shift turns the lock the other way), the selection toolbar\'s button and its toggle, and Properties\' tick, which unticked stores false; no .lockRatio is read or written anywhere else in whiteboard.js, and a picture fitted to its box on load no longer writes true',
-            wbR.includes('var lockR = ratioHeld(ratioLocked(item), e.shiftKey);') && wbR.includes('var lockG = ratioHeld(groupMembers.some(function(g) { return ratioLocked(g.it); }), e.shiftKey);')
-            && wbR.includes('var lk1 = lockR && startW > 0 && startH > 0 ? {') && wbR.includes('var lkG = lockG ? {') && wbR.includes('var allRatio = its.every(ratioLocked);')
-            && wbR.includes('var lockThemR = its.some(function(i) { return !ratioLocked(i); });') && wbR.includes('its.forEach(function(i) { ratioLockSet(i, lockThemR); });')
+        check('every reader of Lock proportions goes through the one reading: the corner handle, the group\'s box and grid stepping\'s lock (Shift turns the lock the other way), the selection toolbar\'s button and its toggle (the button, its toggle and the group\'s corner moved on purpose, the review of 2026-11-13, to the one rule for a selection, selRatioLocked, and the cell step\'s ratio to stepRatio), and Properties\' tick, which unticked stores false; no .lockRatio is read or written anywhere else in whiteboard.js, and a picture fitted to its box on load no longer writes true',
+            wbR.includes('var lockR = ratioHeld(ratioLocked(item), e.shiftKey);') && wbR.includes('var lockG = ratioHeld(selRatioLocked(groupMembers.map(function(g) { return g.it; })), e.shiftKey);')
+            && wbR.includes('var lk1 = lockR && startW > 0 && startH > 0 ? { r: stepRatio(item, startW, startH, item.isChar ? 0 : fitPicRatio(item)),') && wbR.includes('var lkG = lockG ? {') && wbR.includes('var allRatio = selRatioLocked(its);')
+            && wbR.includes('var lockThemR = !selRatioLocked(its);') && wbR.includes('its.forEach(function(i) { ratioLockSet(i, lockThemR); });')
             && !/\.lockRatio\b/.test(wbNoR) && !/\(item\.lockRatio \|\| e\.shiftKey\)/.test(wbR)
             && insR.includes("id=\"wbLockRatio\" '+(ratioLockedOf(w)?'checked':'')+'>") && insR.includes('if (window.wpRatioLockSet) window.wpRatioLockSet(w, this.checked); else if (this.checked) delete w.lockRatio; else w.lockRatio = false;')
             && htmR.includes('A picture or a shape keeps its shape by default. Hold <kbd>Shift</kbd> while dragging to reshape it freely, or turn off <b>Lock proportions</b> in the selection toolbar or in Properties to free it for good.')

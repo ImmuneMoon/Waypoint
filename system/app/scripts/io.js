@@ -1973,6 +1973,9 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       Object.values(payload.campaigns || {}).forEach(function(c) { delete c._foreign; delete c._keptByUser; delete c._cleanup; dropWaiting(c); });   // Onboarding F1a: nor a waiting token
       var shareSets = null;   // the files each list named before a kind was left out: a file of a kind left out stays out, wherever else it is named
       if (share && share.leave) { shareSets = Share.fileSets(payload); Share.leaveOut(payload, share.leave); }
+      // the review of backlog 227: a Full export is made to hand to someone else, and a private mark stays on this computer (Help says so):
+      // the private tags and their marks, and which pictures wore them, leave data.json (sharecore stripPrivate). A backup export keeps them
+      if (share && share.full === true && typeof Share.stripPrivate === 'function') Share.stripPrivate(payload, [state.appState && state.appState.imageCats]);
 
       var json = JSON.stringify(payload, null, 2);
       var libMissing = 0, unlisted = false;   // what could not be read is said at the end, never passed over (the owed review, 2026-10-09)

@@ -853,9 +853,12 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
   var _el_importNewBtn = document.getElementById('importNewBtn');
   if (_el_importNewBtn) _el_importNewBtn.addEventListener('click', function() {
       if (!pendingImport || !window.wpShareCore) return;
-      var mkId = function() { var id = 'camp_' + Date.now() + '_' + Math.floor(Math.random() * 1000); while (state.appState.campaigns[id]) id = 'camp_' + Date.now() + '_' + Math.floor(Math.random() * 1000); return id; };
-      var mapN = window.wpShareCore.asNewCamps(pendingImport, mkId);
-      Object.keys(pendingImport.campaigns || {}).forEach(function(id) { var c = pendingImport.campaigns[id]; if (c && typeof c === 'object') c.name = getUniqueCampaignTitle(String(c.name || 'Imported campaign').trim() || 'Imported campaign'); });
+      // the review of backlog 227: every campaign of the file gets an id never given before, here or in this call (an Export everything file
+      // makes its ids in one millisecond), and a name of its own here, no two of the file alike
+      var issued = Object.create(null), seq = 0, takenId = function(id) { return !!state.appState.campaigns[id] || !!issued[id]; };
+      var mkId = function() { var id; do { id = 'camp_' + Date.now() + '_' + (++seq) + '_' + Math.floor(Math.random() * 1000); } while (takenId(id)); issued[id] = 1; return id; };
+      var mapN = window.wpShareCore.asNewCamps(pendingImport, mkId, takenId);
+      window.wpShareCore.freeNames(pendingImport, function(n) { return isCampaignNameTaken(n, null); });
       var r = mergeAppState(pendingImport);
       if (window.wpShare && window.wpShare.log) window.wpShare.log('import-new', { camps: Object.keys(mapN).length, landed: r.newCamps });
       finishImport(r.newCamps === 1 ? 'Imported as a new campaign. Pick it in the campaign list.' : 'Imported as ' + r.newCamps + ' new campaigns.');

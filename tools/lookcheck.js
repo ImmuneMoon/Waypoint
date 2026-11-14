@@ -3268,6 +3268,12 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
 
     // 2. the turn strip keeps the selection, and is drawn again only when it changed. With a piece selected, the click-away deselect (a capture
     // listener on the document) drew the board again at the press, the strip with it, so the button under the pointer was gone before its click
+    {   // 1.6.2 (the click test of the campaign before 1.6.2): a comment left open on the line of #propFind swallowed the next line, the rules that set a fold's summary in Properties apart and hide it while the fold is open; Properties read "LOOKLOCK PROPORTIONS WHEN RESIZI" on an open fold. No comment of the style sheet holds the start of another, and the summary's two rules stand outside every comment
+        let at = 0, open = 0, swallow = []; while ((at = css.indexOf('/*', at)) >= 0) { const end = css.indexOf('*/', at + 2); if (end < 0) { swallow.push('unclosed at ' + css.slice(0, at).split('\n').length); break; } if (css.slice(at + 2, end).includes('/*')) swallow.push(css.slice(0, at).split('\n').length); open++; at = end + 2; }
+        const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
+        check('1.6.2 no comment of the style sheet swallows the rules after it (each closes before the next opens), and the summary of a shut Properties fold is set apart and hidden on an open one',
+            open > 100 && swallow.length === 0 && bare.includes('.insp-part > summary .insp-says { margin-left: 8px;') && bare.includes('.insp-part[open] > summary .insp-says { display: none; }'), JSON.stringify({ open, swallow }));
+    }
     const awaySrc = sliceOf(wbSrc, 'clickaway');
     const elOf = (tag, id, cls, parent, attrs) => ({ tagName: tag.toUpperCase(), id: id || '', cls: cls || [], parentElement: parent || null, attrs: attrs || {} });
     const matches = (e, sel) => { let m; sel = sel.trim();

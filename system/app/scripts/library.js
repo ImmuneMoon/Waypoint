@@ -164,24 +164,32 @@ async function migrateItems(camp) {
 // revision its campaign's manifest now pins; the manifest watch waits until they are all there, then the library is read again.
 // jobs: [{ camp, uploads }], files: the zip's entries by name
 var busy = 0;
-async function importFiles(jobs, files) {
-    busy++; var ok = 0, bad = 0;
+// opts (1.6.2 backlog 235, an import on a website's page): { read, stops }. Each refused answer is read for its reason (medialimit.js
+// readRefusal), the copy stops at a reason every later write would meet, and nothing is said here: the import says it all in its closing
+// words. Back come { ok, bad, rows }, a row each pack's { camp, upload, how: 'landed' or 'left', why, max }. With none, as it always was
+async function importFiles(jobs, files, opts) {
+    busy++; var ok = 0, bad = 0, rows = opts ? [] : null, stop = '';
     try {
         for (var j = 0; j < jobs.length; j++) {
             var camp = jobs[j].camp, ctx = libCtx(camp && camp.system, F(), true);
             for (var k = 0; k < jobs[j].uploads.length; k++) {
                 var u = jobs[j].uploads[k], fe = files && Object.prototype.hasOwnProperty.call(files, u.from) ? files[u.from] : null;
+                if (stop) { bad++; rows.push({ camp: camp, upload: u, how: 'left', why: stop, max: 0 }); continue; }   // stopped: still to come, the host not asked again
                 var feD = null; if (fe) { try { feD = fe.data || await fe.bytes(); } catch (eF) { feD = null; } }   // a zip's pack file is read only now, one at a time, its checksum checked: a damaged one is not used
-                var rd = feD ? readPackFile(new TextDecoder().decode(feD), ctx) : null; if (!rd || rd.error || rd.pack.id !== u.pack) { bad++; continue; }
+                var rd = feD ? readPackFile(new TextDecoder().decode(feD), ctx) : null; if (!rd || rd.error || rd.pack.id !== u.pack) { bad++; if (rows) rows.push({ camp: camp, upload: u, how: 'left', why: 'damaged', max: 0 }); continue; }
                 rd.pack.rev = u.rev;
                 var res = null; try { res = await fetch('/api/library?dir=' + u.dir + '&pack=' + u.pack + '&rev=' + u.rev, { method: 'POST', body: JSON.stringify(rd.pack) }); } catch (e) { res = null; }
-                if (res && res.ok) ok++; else { bad++; if (res && res.status === 404) oldCore(); }
+                if (res && res.ok) { ok++; if (rows) rows.push({ camp: camp, upload: u, how: 'landed', why: '', max: 0 }); }
+                else {
+                    bad++; if (res && res.status === 404) oldCore();
+                    if (rows) { var an = res && typeof opts.read === 'function' ? await opts.read(res) : null; an = an || { why: '', max: 0 }; rows.push({ camp: camp, upload: u, how: 'left', why: an.why || '', max: an.max || 0, status: an.status || 0 }); if (typeof opts.stops === 'function' && opts.stops(an.why)) stop = an.why; }
+                }
             }
         }
     } finally { busy--; }
-    if (ok || bad) toast('Library packs copied: ' + ok + (bad ? ', ' + bad + ' could not be' : '') + '.');
+    if ((ok || bad) && !opts) toast('Library packs copied: ' + ok + (bad ? ', ' + bad + ' could not be' : '') + '.');
     load(getActiveCampaign());
-    return { ok: ok, bad: bad };
+    return { ok: ok, bad: bad, rows: rows };
 }
 // A list's categories in the players' view (systemcore cleanSystem opts.libCats): the categories of the entries players may see (show) and of
 // those only the GM may (hide: a GM-only pack's, a GM-only entry's) — the GM's machine only, the campaign on screen; null while a pack is

@@ -1322,6 +1322,13 @@ Taking a campaign with you
 - Import now shows what a file holds before anything lands: the system and
   its packs, maps, pages, characters, templates, pictures and sounds. Then
   you pick Import as a new campaign, or merge it into yours.
+- On the website, Import now tells you what made it in. If the site turns
+  something away, it says why: too large for the browser, your storage is
+  full, today's upload limit is used up, or your plan doesn't bring
+  campaigns in. You get a count of the pictures, sounds and videos that
+  landed and the ones that didn't, and Try again sends only the ones that
+  didn't. Hit the day's limit and the copy stops right there instead of
+  knocking again, so the rest can come tomorrow.
 
 WAYPOINT 1.6.1 — What's New
 ============================

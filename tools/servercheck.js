@@ -762,6 +762,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             keepBoth(main) && keepBoth(dev) && keepOnlyExact(main) && keepOnlyExact(dev)
             && /fetch\('\/api\/upload-exact\?keep=1&path=' \+ encodeURIComponent\(relPath\), \{ method: 'POST', body: body \}\)/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'main.js'), 'utf8'))
             && ['handouts.js', 'sheets.js', 'tutorial.js'].every(f => { const s = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8'); return /upload-exact\?path=/.test(s) && !/keep=1/.test(s); }));
+        // 1.6.2 backlog 235: a browser import's Try again sends again what did not land. It is safe only because every copy the import makes asks
+        // the saves folder to keep a file already there: both copies in main.js (the desktop's own, and importOnWeb on a website's page) post with keep=1
+        {
+            const mnK = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'main.js'), 'utf8'), posts = mnK.match(/upload-exact\?[a-z]+=1?/g) || [];
+            const webK = mnK.slice(mnK.indexOf('// [zipcheck:importweb-start]'), mnK.indexOf('// [zipcheck:importweb-end]'));
+            check('backlog 235: every copy an import makes asks to keep a file already there (keep=1), the desktop\'s own and the one on a website\'s page alike, so Try again never writes over a file and a 409 reads as already here',
+                posts.length === 2 && posts.every(x => x === 'upload-exact?keep=1') && /var r = await D\.fetch\('\/api\/upload-exact\?keep=1&path=' \+ encodeURIComponent\(relPath\), \{ method: 'POST', body: body \}\);/.test(webK) && /else if \(r\.status === 409\) IS\.add\(T, kind, 'here'\);/.test(webK), j(posts));
+        }
     }
 
     {   // the outside audit of 2026-10-01 (cluster V): what the local server takes and refuses. The rules live in reqguard.js and are run for

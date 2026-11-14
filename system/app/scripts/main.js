@@ -2,7 +2,7 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, getMapAncestors, isDocLike } from './models.js';
 
-import { load, updateUndoBtn, pushHistory, undo, save, saveView, download, getBase64Image, toast, historyDepth, resetHistory, migrateAppState } from './io.js';
+import { load, updateUndoBtn, pushHistory, undo, save, saveView, download, getBase64Image, toast, toastAction, historyDepth, resetHistory, migrateAppState } from './io.js';
 
 import { classifyState, askOwnership, cleanupInfo, cleanImport, cleanImportItems } from './cleanup.js';
 
@@ -620,14 +620,15 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
       pendingImportImages = null;
       importCardDone();
       var libJobs = importLibJobs, libFiles = pendingImportLibrary; importLibJobs = []; pendingImportLibrary = null;
-      if (libJobs.length && window.wpLibrary && window.wpLibrary.importFiles) window.wpLibrary.importFiles(libJobs, libFiles || {});   // the pack files, while the library waits for them (L1c2)
+      var webI = importOnWebHere();   // 1.6.2 backlog 235: on a website's page the import waits on each write and says what landed (importOnWeb)
+      if (libJobs.length && window.wpLibrary && window.wpLibrary.importFiles && !webI) window.wpLibrary.importFiles(libJobs, libFiles || {});   // the pack files, while the library waits for them (L1c2)
 
       document.getElementById('importChoiceModal').style.display = 'none';
 
       if (window.wpVtt) window.wpVtt.fillAll(state.appState);   // a file from before VTT features gets its per-campaign set; one that has it keeps it
       if (window.wpMigratePictures) window.wpMigratePictures(state.appState);   // a file from before per-campaign picture categories (1.5.0)
 
-      save(true);
+      var savedI = save(true);   // its answer, for the import on a website's page
 
       updateCampaignSelect();
 
@@ -636,6 +637,8 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
       render();
 
       restoreCameraPosition();
+
+      if (webI) { importOnWeb({ msg: msg, saved: savedI, libJobs: libJobs, libFiles: libFiles || {}, imgs: imgs, bytes: pendingImportBytes }, importWebDeps()); return; }
 
       if (!imgs.length) { toast(msg); return; }
 
@@ -667,6 +670,79 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
       // [zipcheck:importcopy-end]
 
   }
+
+  // 1.6.2 backlog 235 (the website coordinator, 2026-11-14): an import on a website's page, where the play host may refuse a write for a
+  // reason of its own (medialimit.js names each). The desktop app never meets those answers and keeps its own copy above, as it was
+  function importOnWebHere() { var W = window.wpWebMode; return !!(W && typeof W.web === 'function' && W.web() === true && window.wpImportSay && typeof window.wpImportSay.tally === 'function'); }
+  function importWebDeps() {
+      return { IS: window.wpImportSay, toast: toast, toastAction: toastAction, fetch: function(u, o) { return fetch(u, o); }, save: save, lib: window.wpLibrary || null, render: render,
+          log: function(step, facts) { try { if (typeof window.wpStepLog === 'function') window.wpStepLog('import v1', step, facts); } catch (e) {} } };
+  }
+  // [zipcheck:importweb-start]
+  // The campaign's save is waited for first, then the library packs, then the pictures, sounds and videos, one at a time. A reason every later
+  // write would meet (the storage full, the day's uploads used up, a plan that brings nothing in, a busy host) stops the copy at once: the host
+  // is not asked again, and what is left is said. A campaign the host refused stops it too: its files are no use without it. The closing words
+  // list what landed and what did not, by kind and by count, and Try again asks again for what did not land and only that (a file already there
+  // answers 409 to keep=1 and counts as already here); a file too large for the browser, or damaged in the archive, is not asked for again.
+  // Counts and statuses are logged, never a name. job: { msg, saved, again, libJobs, libFiles, imgs, bytes }; D: importWebDeps, or stand-ins
+  async function importOnWeb(job, D) {
+      var IS = D.IS, T = IS.tally(), stop = '', seen = {}, imgs = job.imgs || [], libJobs = job.libJobs || [];
+      var leftSave = false, saveDead = false, leftLib = [], leftImgs = [];
+      var said = function(kind, an) { var key = kind + ':' + an.status + ':' + an.why; if (seen[key]) return; seen[key] = 1; D.log('refused', { kind: kind, status: an.status || 0, why: an.why || 'none' }); };
+      var nVid = imgs.filter(function(en) { return IS.kind(en.name) === 'video'; }).length;
+      if (job.again) D.toast('Trying again…');
+      else D.toast(job.msg + (imgs.length ? ' Copying ' + (imgs.length - nVid) + ' image(s)' + (nVid ? ' and ' + nVid + ' video(s)' : '') + '…' : ''));
+      D.log('start', { again: job.again ? 1 : 0, save: job.saved ? 1 : 0, packs: libJobs.reduce(function(s, lj) { return s + lj.uploads.length; }, 0), files: imgs.length });
+      // the campaign itself
+      if (job.saved && typeof job.saved.then === 'function') {
+          var sa = null; try { sa = await job.saved; } catch (e) { sa = { status: 0, why: '', max: 0 }; }
+          if (sa && sa.status >= 200 && sa.status < 300) IS.add(T, 'save', 'landed');
+          else if (sa) { IS.add(T, 'save', 'left', sa.why, sa.max); said('save', sa); leftSave = IS.again(sa.why); saveDead = !leftSave; stop = IS.stops(sa.why) ? sa.why : 'save'; }
+      }
+      // the library packs
+      if (libJobs.length) {
+          var lr = null;
+          if (!stop && D.lib && typeof D.lib.importFiles === 'function') { try { lr = await D.lib.importFiles(libJobs, job.libFiles || {}, { read: IS.read, stops: IS.stops }); } catch (e) { lr = null; } }
+          var rows = lr && Array.isArray(lr.rows) ? lr.rows : [];
+          if (!lr) libJobs.forEach(function(lj) { lj.uploads.forEach(function(u) { rows.push({ camp: lj.camp, upload: u, how: 'left', why: stop, max: 0, status: 0 }); }); });
+          rows.forEach(function(row) {
+              IS.add(T, 'pack', row.how, row.why, row.max);
+              if (row.how !== 'left') return;
+              if (row.status) said('pack', row);
+              if (IS.again(row.why)) leftLib.push(row);
+              if (!stop && IS.stops(row.why)) stop = row.why;
+          });
+      }
+      // the pictures, sounds and videos: each checked as the desktop's copy checks it, then sent with keep=1
+      var wrote = 0, budget = (job.bytes || 0) * 20 + 1048576, vidAt = 0;
+      for (var i = 0; i < imgs.length; i++) {
+          var en = imgs[i], kind = IS.kind(en.name), relPath = en.name, sending = false;
+          if (stop) { IS.add(T, kind, 'left', stop); leftImgs.push(en); continue; }
+          try { relPath = decodeURIComponent(relPath); } catch (e) {}
+          try {
+              if (kind === 'video') { vidAt++; D.toast('Copying video ' + vidAt + ' of ' + nVid + '…'); }
+              if (en.method !== 0 && en.size > en.csize * 20 + 1048576) throw new Error('an entry that inflates out of proportion');
+              wrote += en.size; if (wrote > budget) throw new Error('more than the archive can hold');
+              var body = await en.check();   // its bytes, only once its checksum is the archive's
+              sending = true;
+              var r = await D.fetch('/api/upload-exact?keep=1&path=' + encodeURIComponent(relPath), { method: 'POST', body: body });   // keep: never over a file already there
+              if (r.ok) IS.add(T, kind, 'landed');
+              else if (r.status === 409) IS.add(T, kind, 'here');
+              else { var an = await IS.read(r); IS.add(T, kind, 'left', an.why, an.max); said(kind, an); if (IS.again(an.why)) leftImgs.push(en); if (IS.stops(an.why)) stop = an.why; }
+          } catch (err) { IS.add(T, kind, 'left', sending ? '' : 'damaged'); if (sending) leftImgs.push(en); }
+      }
+      T.stop = saveDead ? '' : stop;   // a campaign too large for the browser: nothing is still to come here, it is for the desktop app
+      var words = IS.words(T), more = !saveDead && (leftSave || leftLib.length > 0 || leftImgs.length > 0);
+      D.log('closed', { landed: Object.keys(T.landed).reduce(function(s, k) { return s + T.landed[k]; }, 0), here: T.here, left: IS.left(T), stop: stop || 'none', again: more ? 1 : 0 });
+      if (more) {
+          var byCamp = [];
+          leftLib.forEach(function(row) { var g = byCamp.find(function(x) { return x.camp === row.camp; }); if (!g) { g = { camp: row.camp, uploads: [] }; byCamp.push(g); } g.uploads.push(row.upload); });
+          D.toastAction(words, 'Try again', function() { importOnWeb({ again: true, saved: leftSave ? D.save(true) : null, libJobs: byCamp, libFiles: job.libFiles, imgs: leftImgs, bytes: job.bytes }, D); }, 30000);
+      } else if (imgs.length || libJobs.length || IS.left(T) || job.again) D.toast(words);
+      D.render();
+      return T;
+  }
+  // [zipcheck:importweb-end]
 
   // Items from a file someone else made are content from another table (cleanup.js cleanImportItems: raw HTML rebuilt, diagram clicks
   // stripped, pages through cleanDoc, map text rebuilt, no prototype-key id). A whole file (Replace, a legacy one) also goes through the

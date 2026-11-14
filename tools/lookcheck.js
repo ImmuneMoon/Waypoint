@@ -462,7 +462,13 @@ function toolbarPage(player) {
         for (const n of way.slice().reverse()) { n.on.forEach(l => { if (l[0] === 'click' && l[2]) l[1].call(n, ev); }); if (ev.stopped && n !== target) return; }
         for (const n of way) { n.on.forEach(l => { if (l[0] === 'click' && !l[2]) l[1].call(n, ev); }); if (ev.stopped) return; }
         docOn.forEach(l => { if (l[0] === 'click') l[1](ev); }); };
-    const mk = (tag, id, cls, parent) => { const e = new El(tag, id, cls); e.click = () => click(e); if (id) byId[id] = e; if (parent) parent.add(e); return e; };
+    // a right-click, as a page gives it (1.6.2): down through the boxes, then up from the target, and on to the page unless a listener stops it;
+    // button 2 for the pointer's, 0 for the keyboard's menu key. It answers the event, which says whether its default was held back and whether it reached the page
+    const ctx = (target, more) => { const way = []; for (let n = target; n; n = n.parentElement) way.push(n); const ev = Object.assign({ type: 'contextmenu', target, button: 2, stopped: false, prevented: false, page: false, stopPropagation() { this.stopped = true; }, preventDefault() { this.prevented = true; } }, more || {});
+        for (const n of way.slice().reverse()) { n.on.forEach(l => { if (l[0] === 'contextmenu' && l[2]) l[1].call(n, ev); }); if (ev.stopped && n !== target) return ev; }
+        for (const n of way) { n.on.forEach(l => { if (l[0] === 'contextmenu' && !l[2]) l[1].call(n, ev); }); if (ev.stopped) return ev; }
+        ev.page = true; docOn.forEach(l => { if (l[0] === 'contextmenu') l[1](ev); }); return ev; };
+    const mk = (tag, id, cls, parent) => { const e = new El(tag, id, cls); e.click = () => click(e); e.dispatchEvent = ev => { if (ev && ev.type === 'click') click(e, { detail: ev.detail }); return true; }; if (id) byId[id] = e; if (parent) parent.add(e); return e; };
     const main = mk('div', 'main', ''), bar = mk('div', 'wbFloatingToolbar', 'floating-toolbar', main), edge = mk('div', 'wbEdgeTools', 'floating-toolbar', main);
     const wrap = (box, btnId, menuId) => { const wr = mk('div', '', ARROW[btnId] ? 'tool-pair' : '', box); mk('button', btnId, 'wb-tool-btn', wr);
         if (ARROW[btnId]) { const c = mk('button', ARROW[btnId], 'wb-tool-btn tool-chev', wr); if (MENU_ONLY[btnId]) c.setAttribute('data-for', btnId); }
@@ -478,7 +484,7 @@ function toolbarPage(player) {
     bar.w = () => bar.cls.has('tb-wrap') ? -1 : bar.cls.has('tb-tight') ? tight : (player ? 237 : 723);   // as it is, a button is 38: ten pairs fewer by 10 each than before 1.6.2 (823), five on a player's bar (287)
     [['wbCenterBtn', 'wbCenterMenu'], ['wbGridBtn', 'gridMenu'], ['wbSnapBtn', 'snapMenu']].forEach(p => wrap(edge, p[0], p[1]));
     const vm = byId.wbCenterMenu; ['wbRulersBtn', 'wbZoomCtlBtn', 'wbPointerPosBtn'].forEach(id => mk('button', id, 'wb-tool-btn view-tick on', vm));
-    return { doc, byId, main, bar, edge, click, tight, open: () => main.all().filter(n => n.is('.shape-menu.show')).map(n => n.id).sort() };
+    return { doc, byId, main, bar, edge, click, ctx, tight, open: () => main.all().filter(n => n.is('.shape-menu.show')).map(n => n.id).sort() };
 }
 const barSrc = sliceOf(wbSrc, 'bar');
 function runBar(P, win) {
@@ -570,6 +576,42 @@ function runPress(P, win) {
     if (S.api) { MENUS.forEach(m => Q.click(Q.byId[m[1]])); Q.click(Q.byId.drawOptBtn); Q.click(Q.byId.snapOptBtn); }
     check('a button that only opens a menu and its small arrow are one control (wireMenuArrows, run for real): a press on the arrow presses its own button once and no other, and reaches the page as that button\'s press, so every rule of the button holds for the arrow; the arrow of a tool that has options is no such arrow',
         !!S.api && J(hits) === J({ shapeMenuBtn: 1, addMenuBtn: 1, fogModeBtn: 1, sceneFxBtn: 1, wbCenterBtn: 1, wbGridBtn: 1 }) && J(docHits) === J(['shapeMenuBtn', 'addMenuBtn', 'fogModeBtn', 'sceneFxBtn', 'wbCenterBtn', 'wbGridBtn', 'drawOptBtn', 'snapOptBtn']), S.err || J([hits, docHits]));
+    // 1.6.2 (the owner, 2026-11-13: "right clicking on a toolbar button should bring up it's options"): a right-click on a button that has options
+    // does what a press of its small arrow does, by the very same press (whiteboard.js rightPress, wired by wireMenuArrows). The same script is run
+    // three times on fresh pages, once by the arrows, once by the pointer's right-clicks and once by the menu key, and they must come out alike, step by step
+    const RIGHT_ARROW = { drawModeBtn: 'drawOptBtn', drawOptBtn: 'drawOptBtn', eraserModeBtn: 'eraserOptBtn', shapeMenuBtn: 'shapeOptBtn', addOptBtn: 'addOptBtn', wbGridBtn: 'gridOptBtn', wbCenterBtn: 'viewOptBtn',
+        wbSnapBtn: 'snapOptBtn', wbMoreBtn: 'wbMoreBtn', pagesBtn: 'pagesBtn', moveModeBtn: 'selSwapBtn', panModeBtn: 'selSwapBtn', selSwapBtn: 'selSwapBtn' };   // what is right-clicked, and the press it stands for
+    const RIGHT_SEQ = ['drawModeBtn', 'drawModeBtn', 'drawOptBtn', 'eraserModeBtn', 'eraserModeBtn', 'shapeMenuBtn', 'addOptBtn', 'wbGridBtn', 'wbCenterBtn', 'wbSnapBtn', 'wbSnapBtn', 'wbMoreBtn', 'pagesBtn', 'moveModeBtn', 'panModeBtn', 'selSwapBtn'];
+    const rightRun = how => { const P = toolbarPage(false), R = runPress(P, {}), b = P.byId, hits = [], page = [], evs = [], det = []; let hand = 'move';
+        if (!R.api) return 'no slice: ' + R.err;
+        P.doc.addEventListener('click', e => page.push('click ' + e.target.id)); P.doc.addEventListener('contextmenu', e => page.push('menu ' + e.target.id));
+        b.moveModeBtn.addEventListener('click', () => { hand = 'move'; hits.push('moveModeBtn'); R.api.toolOptsOnly('moveModeBtn'); });
+        b.panModeBtn.addEventListener('click', () => hits.push('panModeBtn'));
+        b.selSwapBtn.addEventListener('click', e => { e.stopPropagation(); hits.push('selSwapBtn'); });
+        [['drawModeBtn', 'drawOptBtn', 'pen'], ['eraserModeBtn', 'eraserOptBtn', 'eraser']].forEach(t => R.api.wireTool({ id: t[0], chev: t[1], inHand: () => hand === t[2], take: () => { hand = t[2]; R.api.toolOptsOnly(t[0]); } }));
+        b.drawOptBtn.addEventListener('click', e => det.push(e.detail), true);
+        MENUS.forEach(m => b[m[0]].addEventListener('click', () => { hits.push(m[0]); b[m[2]].classList.toggle('show'); }));
+        b.wbSnapBtn.addEventListener('click', e => { e.stopPropagation(); hits.push('wbSnapBtn'); });
+        b.snapOptBtn.addEventListener('click', e => { e.stopPropagation(); hits.push('snapOptBtn'); b.snapMenu.classList.toggle('show'); });
+        ['wbMoreBtn', 'pagesBtn'].forEach(id => b[id].addEventListener('click', () => { hits.push(id); }));
+        const out = RIGHT_SEQ.map(id => { if (how === 'arrow') P.click(b[RIGHT_ARROW[id]], { detail: 1 }); else evs.push(P.ctx(b[id], how === 'key' ? { button: 0 } : {})); return hand + ' | ' + P.open().join(',') + ' | ' + hits.splice(0).join(','); });
+        return { out, page: page.join(';'), right: evs.map(e => (e.prevented ? 'held' : 'free') + (e.page ? ',page' : '')), det };
+    };
+    const RA = rightRun('arrow'), RP = rightRun('pointer'), RK = rightRun('key');
+    const RIGHT_OUT = ['pen | drawMenu | ', 'pen |  | ', 'pen | drawMenu | ', 'eraser | eraserMenu | ', 'eraser |  | ', 'eraser | shapeMenu | shapeMenuBtn', 'eraser | addMenu,shapeMenu | addMenuBtn', 'eraser | addMenu,gridMenu,shapeMenu | wbGridBtn',
+        'eraser | addMenu,gridMenu,shapeMenu,wbCenterMenu | wbCenterBtn', 'eraser | addMenu,gridMenu,shapeMenu,snapMenu,wbCenterMenu | snapOptBtn', 'eraser | addMenu,gridMenu,shapeMenu,wbCenterMenu | snapOptBtn',
+        'eraser | addMenu,gridMenu,shapeMenu,wbCenterMenu | wbMoreBtn', 'eraser | addMenu,gridMenu,shapeMenu,wbCenterMenu | pagesBtn', 'eraser | addMenu,gridMenu,shapeMenu,wbCenterMenu | selSwapBtn', 'eraser | addMenu,gridMenu,shapeMenu,wbCenterMenu | selSwapBtn', 'eraser | addMenu,gridMenu,shapeMenu,wbCenterMenu | selSwapBtn'];
+    check('1.6.2 a right-click on a toolbar button that has options does what its small arrow does (the owner: "right clicking on a toolbar button should bring up it\'s options"; whiteboard.js rightPress, wired by wireMenuArrows, run for real on pages of plain objects): on a tool\'s icon or its mark it takes the tool and opens its options, and over options that are up closes them and leaves the tool, as the arrow does; on a button that only opens a menu, on the column\'s View and Grid, on Snap, More and Pages it presses what the arrow or the button presses; on Select or Pan it presses the mark that switches them; the same script by the arrows and by right-clicks comes out alike step by step, with the same presses reaching the page, by the pointer and by the keyboard\'s menu key alike; every such right-click holds back the browser\'s own menu and goes no further, and the arrow hears a pointer\'s right-click as a pointer\'s press and the menu key\'s as a key\'s',
+        typeof RA === 'object' && typeof RP === 'object' && typeof RK === 'object' && J(RA.out) === J(RIGHT_OUT) && J(RP.out) === J(RA.out) && J(RK.out) === J(RA.out) && RP.page === RA.page && RK.page === RA.page
+        && RP.right.length === RIGHT_SEQ.length && RP.right.concat(RK.right).every(r => r === 'held') && J(RP.det) === J([1, 1, 1]) && J(RK.det) === J([0, 0, 0]) && J(RA.det) === J([1, 1, 1]), J([RA, RP, RK]));
+    {   // a button with no options, a row inside an open menu and the bar's own skin: nothing new, and the right-click goes on to the page as before
+        const P = toolbarPage(false), R = runPress(P, {}), b = P.byId, hits = [];
+        if (R.api) { ['wbUndoBtn', 'drawMenuRow', 'shapeOptBtn', 'shapeMenuBtn', 'selSwapBtn'].forEach(id => b[id].addEventListener('click', () => hits.push(id))); b.drawMenu.classList.add('show'); }
+        const evs = R.api ? [b.wbUndoBtn, b.wbRedoBtn, b.drawMenuRow, b.shapeMenuRow, P.bar, b.wbMoreMenuRow].map(t => P.ctx(t)) : [];
+        const said = evs.map(e => (e.prevented ? 'held' : 'free') + (e.page ? ',page' : ''));
+        check('1.6.2 a right-click where there are no options does nothing new (whiteboard.js rightPress, run for real): on Undo and Redo, on a row of an open menu and on the bar\'s own skin it presses nothing, closes no options and goes on to the page with its default as it was',
+            !!R.api && J(said) === J(['free,page', 'free,page', 'free,page', 'free,page', 'free,page', 'free,page']) && hits.length === 0 && J(P.open()) === J(['drawMenu']), R.err || J([said, hits, P.open()]));
+    }
     const wired = [["wireTool({ id: 'drawModeBtn', chev: 'drawOptBtn', inHand: function() { return !!window.isDrawingMode && !window.isBuildMode; }, sync: syncDrawMenu, take: function() {", "updateWbToolbar('drawModeBtn');"],
         ["wireTool({ id: 'eraserModeBtn', chev: 'eraserOptBtn', inHand: function() { return !!window.isEraserMode; }, sync: syncEraserMenu, take: function() {", "updateWbToolbar('eraserModeBtn');"],
         ["wireTool({ id: 'fillModeBtn', chev: 'fillOptBtn', inHand: function() { return !!window.isFillMode; }, sync: syncFillMenu, take: function() {", "updateWbToolbar('fillModeBtn');"],
@@ -1126,11 +1168,11 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && count(tourSrc.replace(/<svg class="ico[^>]*>.*?<\/svg>/g, '{ico}'), 'From the left: undo and redo for this map, then move and pan, the pen, eraser and fill. Next come shapes and <b>+ Add</b> for text and pictures, then <b>measure</b>, <b>radius</b>, fog and {ico} <b>Scene</b>. Center, the <b>grid</b> and <b>snap</b> stand at the map&rsquo;s right edge.') === 1
         && count(tourSrc, "'#wbFloatingToolbar .shape-menu.show, #wbEdgeTools .shape-menu.show'") === 2 && count(ix, 'the minimap fold, rulers, the zoom buttons, the pointer location, panel sizes,') === 1);
     check('Help says how a press works now: a tip of its own on tool options (the small arrow, the icon, a second press, options that stay up), the Snap entry and the Measure entry in the new words, and the four tools\' own tooltips say what a press does',
-        count(ix, '<div class="help-tip"><b>Tool options:</b> a tool that has options has a <b>small mark</b> in the corner of its button. The button takes the tool, and a second press puts it away. The corner mark opens the tool&rsquo;s options. They stay up while you work, until you press the mark again or take another tool. The pen, the eraser, fill, measure and radius work this way. A button that only opens a menu has the same mark, and either of the two opens the menu.</div>') === 1
+        count(ix, '<div class="help-tip"><b>Tool options:</b> a tool that has options has a <b>small mark</b> in the corner of its button. The button takes the tool, and a second press puts it away. The corner mark opens the tool&rsquo;s options. They stay up while you work, until you press the mark again or take another tool. The pen, the eraser, fill, measure and radius work this way. A button that only opens a menu has the same mark, and either of the two opens the menu. A right-click on any of these buttons does what its corner mark does.</div>') === 1 /* 1.6.2, moved on purpose: the right-click (the owner, 2026-11-13) */
         && count(ix, '<b>Snap To</b> picks what a drag aligns to. The Snap button switches snapping on and off, and the mark in its corner opens Snap To.') === 1
         && count(ix, 'drag across the map to place a ruler. Press the mark in the tool&rsquo;s corner for its options.</li>') === 1
         && count(ix, '<li><b>Select and Pan</b> share one place on the toolbar. The mark in its corner switches between them.</li>') === 1
-        && [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')].every(t => count(t.replace(/\r\n/g, '\n'), "- A tool's options open from a small mark in the corner of its button now,\n  where an arrow used to hang beside it. The toolbar is shorter for it, and\n  a lit button stands clean. Select and Pan switch by the same mark.\n- The pointer location wears its own drawing, a pointer beside a crosshair,\n  so it no longer looks like the Select tool.\n") === 1)
+        && [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')].every(t => count(t.replace(/\r\n/g, '\n'), "- A tool's options open from a small mark in the corner of its button now,\n  where an arrow used to hang beside it. The toolbar is shorter for it, and\n  a lit button stands clean. Select and Pan switch by the same mark.\n- Right-click a toolbar button to open its options. It does just what the\n  corner mark does, so you no longer have to aim for the little corner.\n- The pointer location wears its own drawing, a pointer beside a crosshair,\n  so it no longer looks like the Select tool.\n") === 1)
         && count(ix, ' id="drawModeBtn" title="Pen. Press again to put it away.">') === 1 && count(ix, ' id="eraserModeBtn" title="Eraser. Click or drag over strokes to erase them. Press again to put it away.">') === 1
         && count(ix, ' id="measureModeBtn" title="Measure. Drag to place a ruler. Press again to put it away.">') === 1
         && count(ix, ' id="fillModeBtn" title="Fill. Click or drag grid cells to fill them with a color: a hexagon on hex maps, a square on square maps. Right-click a cell to clear it. Press again to put it away.">') === 1);
@@ -2892,7 +2934,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         }
         const down = t => caps.filter(l => l[0] === 'pointerdown').forEach(l => l[1]({ type: 'pointerdown', target: t }));
         const st = () => hand + ' | ' + P.open().join(',') + ' | ' + [P.bar, P.edge].map(x => x.cls.has(api.BAR_BACK) ? 'back' : 'up').join(',') + (popEl.parentElement ? ' | pop' : '');
-        return { P, b, api, err, hits, st, row: box.children[0], sp: spBody, win, pt: t => { down(t); P.click(t, { detail: 1 }); }, kb: t => P.click(t, { detail: 0 }), putPop: () => { P.main.add(popEl); } };
+        return { P, b, api, err, hits, st, down, row: box.children[0], sp: spBody, win, pt: t => { down(t); P.click(t, { detail: 1 }); }, kb: t => P.click(t, { detail: 0 }), putPop: () => { P.main.add(popEl); } };
     }
     // each case: a world, what is pressed, and where things stand after each press that counts
     const run = (args, fn) => { const W = world.apply(null, args); if (!W.api) return 'no slice: ' + W.err; try { return fn(W); } catch (e) { return 'threw: ' + String(e && e.stack || e); } };
@@ -2931,6 +2973,15 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         away: ['move |  | up,back', 'move | shapeMenu | up,back', S3], snapOver: ['move | snapMenu | back,up', 'move |  | back,up', ['snapOptBtn', 'snapOptBtn']], snapFar: ['move |  | back,up', 'move | snapMenu | back,up', ['snapOptBtn', 'snapOptBtn', 'snapOptBtn']] };
     check('a button that only opens a menu, its arrow and Snap\'s arrow follow the same rule (backlog 143, the review of 2026-10-17; the presses\' guard, menuFront, asking barBehind): with a window that shows over the menu the first press brings it in front without the button\'s own handler, and the next closes it; with none over it, or only one put away for this view, the first press reaches the button\'s own handler and closes it, as before F2',
         J(RB) === J(EB), J(RB));
+    // 1.6.2: a right-click takes the arrow's path here too (whiteboard.js rightPress): where a window that shows covers the options it brings them in front and closes nothing, and the next one closes them;
+    // where none covers them it closes them as the arrow does; by the pointer (its pointerdown heard first, as a page gives it) and by the keyboard's menu key, on a tool's icon, a button that only opens a menu and Snap
+    const rc = (W, t, key) => { if (!key) W.down(t); W.P.ctx(t, key ? { button: 0 } : {}); };
+    const rTool = (args, key) => run(args, W => { const b = W.b; W.pt(b.drawOptBtn); W.pt(W.row); const s = []; rc(W, b.drawModeBtn, key); s.push(W.st()); rc(W, b.drawModeBtn, key); s.push(W.st()); return s; });
+    const rBtn = args => run(args, W => { const b = W.b; W.pt(b.shapeOptBtn); W.pt(W.row); rc(W, b.shapeMenuBtn); const s1 = W.st(); rc(W, b.shapeMenuBtn); return [s1, W.st(), W.hits]; });
+    const rSnap = args => run(args, W => { const b = W.b; W.pt(b.snapOptBtn); W.pt(W.row); rc(W, b.wbSnapBtn); const s1 = W.st(); rc(W, b.wbSnapBtn); return [s1, W.st(), W.hits]; });
+    const RR = { over: rTool([OVER]), overKey: rTool([OVER], true), far: rTool([FAR, NEAR]), farKey: rTool([FAR, NEAR], true), btnOver: rBtn([OVER]), btnFar: rBtn([FAR, NEAR]), snapOver: rSnap([OVER]), snapFar: rSnap([FAR, NEAR]) };
+    check('1.6.2 a right-click on a toolbar button follows the arrow\'s rule where options stood back (whiteboard.js rightPress, barBehind and menuFront, run for real on pages given rectangles): with a window that shows over the options the first right-click brings them in front and closes nothing and the next closes them; with none over them the first closes them, by the pointer and by the menu key, on a tool\'s icon, on a button that only opens a menu and on Snap, exactly as a press of the small arrow',
+        J(RR) === J({ over: R.over, overKey: R.overKey, far: R.far, farKey: R.farKey, btnOver: EB.over, btnFar: EB.far, snapOver: EB.snapOver, snapFar: EB.snapFar }), J(RR));
     // the Fog pill that this review also judged went in 1.5.8, at the owner's word: the toolbar's fog button is the one way to the fog options
 }
 

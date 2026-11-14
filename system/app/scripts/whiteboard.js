@@ -2682,6 +2682,19 @@ window.wpFitToGrid = fitToGrid;
   // in the capture phase as a pair is (backlog 143, the review of 2026-10-17): More and Pages on the play map's bar, Link and Center on the data
   // map's. A press that brings nothing forward reaches the button's own handler, as before. A new such button joins this list
   var MENU_BTNS = { wbMoreBtn: 'wbMoreMenu', pagesBtn: 'pagesMenu', linkBtn: 'linkMenu', dataCenterBtn: 'dataCenterMenu' };   // the button, and the menu it opens
+  // 1.6.2 (the owner, 2026-11-13: "right clicking on a toolbar button should bring up it's options"): a right-click on a button that has options
+  // does what a press of its small arrow does, by sending the arrow that very press, so every rule of the arrow holds: wbOneMenu, menuFront,
+  // the arrow's own handler and toolPress. A right-click of the pointer counts as a pointer's press (barPress has heard its pointerdown, so
+  // barBehind asks what that pointerdown found), and one by the keyboard's menu key as a key's. The browser's own menu does not open there and
+  // the map's right-click menu does not hear it. A button with no options is not wired, so nothing new happens there
+  function rightPress(e, to) {
+      if (!e || !to || typeof to.dispatchEvent !== 'function') return false;
+      if (typeof e.preventDefault === 'function') e.preventDefault();
+      if (typeof e.stopPropagation === 'function') e.stopPropagation();
+      var init = { bubbles: true, cancelable: true, detail: e.button === 2 ? 1 : 0, button: 0 };
+      to.dispatchEvent(typeof MouseEvent === 'function' ? new MouseEvent('click', init) : Object.assign({ type: 'click' }, init));
+      return true;
+  }
   function wireMenuArrows() {
       Array.prototype.forEach.call(document.querySelectorAll('.tool-chev[data-for]'), function(c) {
           c.addEventListener('click', function(e) { e.stopPropagation(); var b = document.getElementById(c.getAttribute('data-for')); if (b) b.click(); });
@@ -2696,6 +2709,15 @@ window.wpFitToGrid = fitToGrid;
           var btn = document.getElementById(id), menu = document.getElementById(MENU_BTNS[id]), box = btn ? btn.parentElement : null;
           if (box && menu) box.addEventListener('click', function(e) { menuFront(e, menu, null, btn); }, true);
       });
+      // the right-click: on a pair's icon or its arrow, the arrow's press; on More, Pages, Link and Center, the button's own; on Select and Pan, the mark that switches them
+      Array.prototype.forEach.call(document.querySelectorAll('.tool-pair'), function(pair) {
+          var icon = pair.querySelector('.wb-tool-btn'), chev = pair.querySelector('.tool-chev');
+          if (!icon || !chev) return;
+          pair.addEventListener('contextmenu', function(e) { var hit = e && e.target && typeof e.target.closest === 'function' ? e.target.closest('button') : null; if (hit === icon || hit === chev) rightPress(e, chev); });
+      });
+      Object.keys(MENU_BTNS).forEach(function(id) { var btn = document.getElementById(id); if (btn) btn.addEventListener('contextmenu', function(e) { rightPress(e, btn); }); });
+      var swap = document.getElementById('selSwap'), swapBtn = document.getElementById('selSwapBtn');
+      if (swap && swapBtn) swap.addEventListener('contextmenu', function(e) { rightPress(e, swapBtn); });
   }
   wireMenuArrows();
   // [lookcheck:press-end]

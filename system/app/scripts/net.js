@@ -3254,7 +3254,7 @@ function drawForRoll(camp, key, n) {   // 1.6.2 (draw several at once): n, how m
     var had = !!(camp.piles && own(camp.piles, d.key)), was = had ? camp.piles[d.key] : undefined, dr = K.drawCards(d, had ? K.cleanPile(was, d) : null, typeof n === 'number' && n >= 2 && n <= 20 ? Math.floor(n) : 1, rnd, false);
     if (!dr.cards.length) return { error: 'Nothing is left to draw from ' + (d.label || 'its deck') + '.' };
     camp.piles = Object.assign({}, camp.piles || {}); camp.piles[d.key] = dr.pile;
-    var name = dr.cards.map(function(i) { return d.cards[i] ? d.cards[i].name : ''; }).filter(Boolean).join(', ');
+    var name = dr.cards.map(function(i) { return d.cards[i] ? K.faceWords(d.cards[i], K.faceOf(d.cards[i], rnd)) : ''; }).filter(Boolean).join(', ');   // each card on one of its faces, as every draw lands (the review of story cards); a card of one face takes no die
     return {
         name: name,
         undo: function() { camp.piles = Object.assign({}, camp.piles || {}); if (had) camp.piles[d.key] = was; else delete camp.piles[d.key]; },
@@ -6677,7 +6677,7 @@ function deckOrder(camp, c) {
     c.rows = pairs.map(function(x, k) { x.r.init = by && x.i !== null ? val(x.i) : pairs.length - k; x.r.rolled = 1; delete x.r.tb; return x.r; });
     var pos = null; ends.forEach(function(e) { var at = by ? pairs.filter(function(x) { return has(x) > e.v; }).length : e.at; if (pos === null || at < pos) pos = at; }); if (pos !== null && pos < c.rows.length) c.endAt = Math.max(1, pos); else delete c.endAt;
     camp.piles = Object.assign({}, camp.piles || {}); camp.piles[d.key] = p; saveRemoteSoon(); if (typeof net.decksTell === 'function') net.decksTell(camp);
-    var map = camp.items && own(camp.items, c.mapId) ? camp.items[c.mapId] : null, lines = pairs.filter(function(x) { var tk = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(w) { return w && w.id === x.r.tokId; }) : null; return x.i !== null && !(tk && tk.hidden); }).map(function(x) { return { n: String(x.r.name || 'Someone'), say: d.cards[x.i].name }; });
+    var map = camp.items && own(camp.items, c.mapId) ? camp.items[c.mapId] : null, lines = pairs.filter(function(x) { var tk = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(w) { return w && w.id === x.r.tokId; }) : null; return x.i !== null && !(tk && tk.hidden); }).map(function(x) { return { n: String(x.r.name || 'Someone'), say: K.faceWords(d.cards[x.i], K.faceOf(d.cards[x.i], rnd)) }; });   // a dealt card on one of its faces (the review of story cards)
     if (lines.length && typeof net.postApplyCard === 'function') net.postApplyCard(null, 'Round ' + c.round + ': ' + d.label, lines, 'table');
     if (typeof window.wpStepLog === 'function') window.wpStepLog('decks v1', 'order', { rows: c.rows.length, ends: ends.length });
     return true;

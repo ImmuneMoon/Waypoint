@@ -25,7 +25,7 @@ Story cards
 - Only you see a spread at first. Turn a card to its next face, draw one
   place again, and press Show the table when it reads right. A card from a
   deck only you know stays off what the table sees.
-- A card can carry up to four faces. Press + Face under its name. A draw
+- A card can carry up to four faces. Press + Face beside its name. A draw
   lands on one at random, whether it goes to the chat, a hand or a spread.
   When you add several cards at once, put the other faces after the name,
   each after a |.

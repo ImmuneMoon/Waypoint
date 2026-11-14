@@ -53,7 +53,8 @@ function edit(host, o) {
 // 1.6.2 (backlog 223, story cards): one editor for a spread, a system's or a campaign's. o: { head, note, prefix, list, set, decks, changed }. decks() answers
 // the decks a place may draw from ([key, name] each). A spread's places are its own: a label, the deck it draws from (or none, filled by hand), a hint
 function spreads(host, o) {
-    host.textContent = ''; var list = o.list() || [], wrap = el('div', 'sys-budgets sys-results sp-edit'), redraw = function() { o.changed(); spreads(host, o); }, dk = o.decks() || [], key = 'sp:' + o.prefix;
+    var kre = new RegExp('^' + String(o.prefix || '').replace(/[^A-Za-z]/g, '') + '[0-9]+$'), raw = o.list();   // the review of story cards: a file's junk (null, an entry of another kind of key) is never drawn, and goes at the next change
+    host.textContent = ''; var list = (Array.isArray(raw) ? raw : []).filter(function(s) { return !!s && typeof s === 'object' && !Array.isArray(s) && typeof s.key === 'string' && kre.test(s.key); }), wrap = el('div', 'sys-budgets sys-results sp-edit'), redraw = function() { o.changed(); spreads(host, o); }, dk = o.decks() || [], key = 'sp:' + o.prefix;
     wrap.appendChild(el('div', 'sys-light-head', o.head)); wrap.appendChild(el('div', 'sys-note', o.note));
     var at = list.filter(function(s) { return s && s.key === open[key]; })[0] || list[0] || null; if (at) open[key] = at.key;
     var top = el('div', 'dk-head');
@@ -63,7 +64,8 @@ function spreads(host, o) {
     wrap.appendChild(top); if (!at) { host.appendChild(wrap); return; }
     var nm = box('field sp-label', at.label, 'Its name, in the Decks window and on the card the table sees', 'A name'); nm.addEventListener('input', function() { at.label = nm.value.slice(0, 60); o.changed(); }); var hr = el('div', 'dk-head'); hr.appendChild(nm);
     var as = pickBox('field sp-as', [['', 'A Scene card'], ['person', 'A Person card'], ['place', 'A Place card'], ['clue', 'A Clue card']], ['person', 'place', 'clue'].indexOf(at.as) >= 0 ? at.as : '', 'What Save as a card makes of it in a planner'); as.addEventListener('change', function() { if (as.value) at.as = as.value; else delete at.as; o.changed(); }); hr.appendChild(cap('Saves as', as)); wrap.appendChild(hr);   // 1.6.2 (backlog 223, fold C)
-    var places = Array.isArray(at.places) ? at.places : (at.places = []), rows = [['', 'No deck: you fill it in']].concat(dk);
+    var places = Array.isArray(at.places) ? at.places : (at.places = []); if (places.some(function(p) { return !p || typeof p !== 'object' || Array.isArray(p); })) places = at.places = places.filter(function(p) { return !!p && typeof p === 'object' && !Array.isArray(p); });
+    var rows = [['', 'No deck: you fill it in']].concat(dk);
     places.forEach(function(p, i) {
         var rw = el('div', 'dk-card sp-place'), lb = box('field sp-plabel', p.label, 'What this place stands for, such as Who or Stands in the way', 'A place'), ds = pickBox('field sp-deck', rows, rows.some(function(r) { return r[0] === p.deck; }) ? p.deck || '' : '', 'The deck this place draws from'), hn = box('field sp-hint', p.hint || '', 'A hint for reading it, shown on the place', 'A hint (optional)'), x = btn('tool ghost sys-btn sp-placerm', '×', 'Take this place away');
         lb.addEventListener('input', function() { p.label = lb.value.slice(0, 40); o.changed(); }); ds.addEventListener('change', function() { if (ds.value) p.deck = ds.value; else delete p.deck; o.changed(); }); hn.addEventListener('input', function() { var v = hn.value.slice(0, 120); if (v.trim()) p.hint = v; else delete p.hint; o.changed(); });

@@ -4462,6 +4462,7 @@
   .sp-card { flex: 0 1 112px; min-width: 88px; min-height: 104px; display: flex; flex-direction: column; gap: 3px; padding: 6px 7px; border: 1px solid var(--edge); border-radius: 7px; background: var(--panel); box-sizing: border-box; }
   .sp-card.sp-empty { border-style: dashed; }
   .sp-card.sp-kept { border-style: dashed; border-color: var(--blue, #5b8fd9); } .sp-card.sp-kept .sp-pos { color: var(--blue, #5b8fd9); }
+  .sp-card .sp-keepcap { display: flex; flex-direction: column; gap: 1px; margin-top: 2px; font-size: 10.5px; color: var(--muted); } .sp-card .sp-keepcap .sp-keep { margin-top: 0; }
   .sp-card .sp-keep, .sp-card .sp-keepbox { width: 100%; min-width: 0; margin: 2px 0 0; font-size: 11.5px; padding: 1px 3px; box-sizing: border-box; }
   .sp-tuckline { display: flex; align-items: center; gap: 3px; font-size: 11px; color: var(--ink); background: rgba(167,127,214,.16); border: 1px solid rgba(167,127,214,.55); border-radius: 4px; padding: 0 3px; }
   .sp-tuckline .sp-tuckwords { flex: 1; min-width: 0; overflow-wrap: anywhere; } .sp-tuckline .tool { padding: 0 4px; min-height: 0; line-height: 16px; font-size: 11px; }

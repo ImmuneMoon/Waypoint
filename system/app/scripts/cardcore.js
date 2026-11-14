@@ -137,9 +137,10 @@ function defaultCols(b) { return kindOf(b).cols.slice(); }
 // 1.6.2 (backlog 223, story cards, fold C; the owner, by prompt: "Card of the spread's kind"): a laid spread made into an ordinary node block, so a
 // saved spread is a card like any other. o: { label, as, places: [{ label, words }] }. as is scene, person, place or clue (a scene where it is none);
 // the first place with words is the title, the spread's name the tag, and every place with words a row: its label, then its words. Every word is the
-// GM's own and is stored as a planner stores text, escaped
+// GM's own and is stored as a planner stores text: as the editor's box shows it, only an & or a < that would start markup escaped (prep.js prepEsc's rule;
+// the review of story cards: a full escape put &amp; in the box)
 var SPREAD_AS = Object.freeze(['scene', 'person', 'place', 'clue']);
-function escCard(v, n) { var s = String(v == null ? '' : v).replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim(); s = Array.from(s).slice(0, n).join(''); return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function escCard(v, n) { var s = String(v == null ? '' : v).replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim(); s = Array.from(s).slice(0, n).join(''); return s.replace(/&(?=[a-zA-Z#])/g, '&amp;').replace(/<(?=[a-zA-Z\/!?])/g, '&lt;'); }
 function spreadCard(o, id) {
     var src = o && typeof o === 'object' ? o : {}, kind = SPREAD_AS.indexOf(src.as) >= 0 ? src.as : 'scene', pl = (Array.isArray(src.places) ? src.places : []).slice(0, 12).filter(function(p) { return !!p && typeof p === 'object' && escCard(p.words, 240); });
     var b = { id: typeof id === 'string' ? id : '', type: 'node', title: (pl[0] ? escCard(pl[0].words, 120) : '') || escCard(src.label, 120) || 'Unnamed' }; if (kind !== 'scene') b.mode = kind;

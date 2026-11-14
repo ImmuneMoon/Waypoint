@@ -66,7 +66,12 @@ function spreads(host, o) {
     places.forEach(function(p, i) {
         var rw = el('div', 'dk-card sp-place'), lb = box('field sp-plabel', p.label, 'What this place stands for, such as Who or Stands in the way', 'A place'), ds = pickBox('field sp-deck', rows, rows.some(function(r) { return r[0] === p.deck; }) ? p.deck || '' : '', 'The deck this place draws from'), hn = box('field sp-hint', p.hint || '', 'A hint for reading it, shown on the place', 'A hint (optional)'), x = btn('tool ghost sys-btn sp-placerm', '×', 'Take this place away');
         lb.addEventListener('input', function() { p.label = lb.value.slice(0, 40); o.changed(); }); ds.addEventListener('change', function() { if (ds.value) p.deck = ds.value; else delete p.deck; o.changed(); }); hn.addEventListener('input', function() { var v = hn.value.slice(0, 120); if (v.trim()) p.hint = v; else delete p.hint; o.changed(); });
-        x.addEventListener('click', function() { places.splice(i, 1); redraw(); }); rw.appendChild(lb); rw.appendChild(ds); rw.appendChild(hn); rw.appendChild(x); wrap.appendChild(rw);
+        x.addEventListener('click', function() { places.splice(i, 1); redraw(); }); rw.appendChild(lb); rw.appendChild(ds); rw.appendChild(hn);
+        // 1.6.2 (backlog 223, fold B): a card from a second deck tucked under this place's own, read before its words or after them
+        var tk = pickBox('field sp-tuck', [['', 'Nothing tucked under it']].concat(dk.map(function(r) { return [r[0], 'Tuck under it: ' + r[1]]; })), p.tuck && dk.some(function(r) { return r[0] === p.tuck.deck; }) ? p.tuck.deck : '', 'A card from another deck that adds its words to this place, such as drowned before lighthouse');
+        tk.addEventListener('change', function() { if (tk.value) p.tuck = { deck: tk.value, down: p.tuck && p.tuck.down === true ? true : undefined }; else delete p.tuck; if (p.tuck && !p.tuck.down) delete p.tuck.down; redraw(); }); rw.appendChild(tk);
+        if (p.tuck) { var tw = pickBox('field sp-tuckway', [['', 'Read before its words'], ['down', 'Read after its words']], p.tuck.down === true ? 'down' : '', 'Where the tucked card\u2019s words go'); tw.addEventListener('change', function() { if (tw.value === 'down') p.tuck.down = true; else delete p.tuck.down; o.changed(); }); rw.appendChild(tw); }
+        rw.appendChild(x); wrap.appendChild(rw);
     });
     if (places.length < PLACES_MAX) { var pa = btn('tool ghost sys-btn sp-placeadd', '+ Place', 'Another place in this spread'); pa.addEventListener('click', function() { places.push({ label: '' }); redraw(); }); var ft = el('div', 'dk-head'); ft.appendChild(pa); wrap.appendChild(ft); }
     host.appendChild(wrap);

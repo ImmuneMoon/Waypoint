@@ -29,6 +29,10 @@ Story cards
   lands on one at random, whether it goes to the chat, a hand or a spread.
   When you add several cards at once, put the other faces after the name,
   each after a |.
+- Keep a place you already know. A Person card from your planners, a
+  character, a map or a few words of your own can sit in a place, and the
+  draw leaves it alone. A place can also tuck a card from a second deck
+  under its own, so drowned and lighthouse read as one.
 
 Tokens
 - A picture you tick Is Character fits one cell of the map's grid by itself,

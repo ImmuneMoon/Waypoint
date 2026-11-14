@@ -43,8 +43,17 @@ function deckOf(list, key) { var k = String(key).toLowerCase(); return (Array.is
 function cleanPlace(p, deckRe) {
     if (!isObj(p)) return null; var o = { label: cut(p.label, 40) || 'A place' };
     if (typeof p.deck === 'string' && KEY_RE.test(p.deck) && !(p.deck in Object.prototype) && (!deckRe || deckRe.test(p.deck))) o.deck = p.deck;
-    var h = cut(p.hint, 120); if (h) o.hint = h; return o;
+    var h = cut(p.hint, 120); if (h) o.hint = h;
+    // 1.6.2 (backlog 223, fold B; the owner, by prompt: "B: keep a place, tuck a card"): a card from a second deck tucked under the place's own, its words
+    // read before the place's (up) or after them (down: true)
+    if (isObj(p.tuck) && typeof p.tuck.deck === 'string' && KEY_RE.test(p.tuck.deck) && !(p.tuck.deck in Object.prototype) && (!deckRe || deckRe.test(p.tuck.deck))) { o.tuck = { deck: p.tuck.deck }; if (p.tuck.down === true) o.tuck.down = true; }
+    return o;
 }
+// A place's words with its tucked card's: before them, or after them where the tuck reads down. Either may be missing
+function placeWords(main, tuck, down) { var a = typeof main === 'string' ? main.trim() : '', b = typeof tuck === 'string' ? tuck.trim() : ''; if (!b) return a; if (!a) return b; return down === true ? a + ' ' + b : b + ' ' + a; }
+// What a place may be kept as instead of drawn, as the Spreads tab offers it: { t, id?, words }. t is card (a planner's Person, Place or Clue card),
+// char (a character), map, or words (typed). The words are cut to 120, and a kept place with none is no kept place
+function cleanKeep(k) { if (!isObj(k) || ['card', 'char', 'map', 'words'].indexOf(k.t) < 0) return null; var w = cut(k.words, 120); if (!w) return null; var o = { t: k.t, words: w }; if (k.t !== 'words' && typeof k.id === 'string' && k.id.length <= 200) o.id = k.id; return o; }
 function cleanSpread(s, deckRe, keyRe) {
     if (!isObj(s) || typeof s.key !== 'string' || !KEY_RE.test(s.key) || (keyRe && !keyRe.test(s.key)) || s.key in Object.prototype) return null; var o = { key: s.key, label: cut(s.label, 60) || 'A spread', places: [] };
     (Array.isArray(s.places) ? s.places : []).slice(0, PLACES_MAX * 4).forEach(function(p) { if (o.places.length >= PLACES_MAX) return; var k = cleanPlace(p, deckRe); if (k) o.places.push(k); });
@@ -94,6 +103,6 @@ function readCards(text, stats) {   // pasted lines: a name, then a number for e
     var out = []; String(text || '').split('\n').forEach(function(l) { var p = l.split(','), fc = String(p[0]).split('|'), name = cut(fc[0], 80); if (!name || out.length >= CARDS_MAX) return; var c = { name: name }, vals = {}, fs = cleanFaces(fc.slice(1)); if (fs) c.faces = fs; (stats || []).forEach(function(s, i) { var n = Number(String(p[i + 1] === undefined ? '' : p[i + 1]).trim()); if (String(p[i + 1] === undefined ? '' : p[i + 1]).trim() !== '' && isFinite(n) && n !== 0) vals[s.key] = n; }); if (Object.keys(vals).length) c.vals = vals; out.push(c); });
     return out;
 }
-var API = { cleanDeck: cleanDeck, cleanDecks: cleanDecks, deckOf: deckOf, total: total, freshPile: freshPile, cleanPile: cleanPile, pileCounts: pileCounts, cleanCounts: cleanCounts, drawCards: drawCards, shufflePile: shufflePile, returnCard: returnCard, cardVal: cardVal, statKey: statKey, readCards: readCards, cleanFaces: cleanFaces, faceCount: faceCount, faceOf: faceOf, faceWords: faceWords, cleanPlace: cleanPlace, cleanSpread: cleanSpread, cleanSpreads: cleanSpreads, FACES_MAX: FACES_MAX, SPREADS_MAX: SPREADS_MAX, PLACES_MAX: PLACES_MAX, DECKS_MAX: DECKS_MAX, CARDS_MAX: CARDS_MAX, STATS_MAX: STATS_MAX, COPIES_MAX: COPIES_MAX, DRAW_MAX: DRAW_MAX };
+var API = { cleanDeck: cleanDeck, cleanDecks: cleanDecks, deckOf: deckOf, total: total, freshPile: freshPile, cleanPile: cleanPile, pileCounts: pileCounts, cleanCounts: cleanCounts, drawCards: drawCards, shufflePile: shufflePile, returnCard: returnCard, cardVal: cardVal, statKey: statKey, readCards: readCards, cleanFaces: cleanFaces, faceCount: faceCount, faceOf: faceOf, faceWords: faceWords, cleanPlace: cleanPlace, placeWords: placeWords, cleanKeep: cleanKeep, cleanSpread: cleanSpread, cleanSpreads: cleanSpreads, FACES_MAX: FACES_MAX, SPREADS_MAX: SPREADS_MAX, PLACES_MAX: PLACES_MAX, DECKS_MAX: DECKS_MAX, CARDS_MAX: CARDS_MAX, STATS_MAX: STATS_MAX, COPIES_MAX: COPIES_MAX, DRAW_MAX: DRAW_MAX };
 if (typeof window !== 'undefined') window.wpDeckCore = API;
-export { cleanDeck, cleanDecks, deckOf, total, freshPile, cleanPile, pileCounts, cleanCounts, drawCards, shufflePile, returnCard, cardVal, statKey, readCards, cleanFaces, faceCount, faceOf, faceWords, cleanPlace, cleanSpread, cleanSpreads, FACES_MAX, SPREADS_MAX, PLACES_MAX, DECKS_MAX, CARDS_MAX, STATS_MAX, COPIES_MAX, DRAW_MAX };
+export { cleanDeck, cleanDecks, deckOf, total, freshPile, cleanPile, pileCounts, cleanCounts, drawCards, shufflePile, returnCard, cardVal, statKey, readCards, cleanFaces, faceCount, faceOf, faceWords, cleanPlace, placeWords, cleanKeep, cleanSpread, cleanSpreads, FACES_MAX, SPREADS_MAX, PLACES_MAX, DECKS_MAX, CARDS_MAX, STATS_MAX, COPIES_MAX, DRAW_MAX };

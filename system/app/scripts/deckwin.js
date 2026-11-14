@@ -1,9 +1,9 @@
 // deckwin.js: the left panel's Decks section and its window (1.6.2, backlog 210 d, fold 4; the owner, by prompt: "The left panel, as a section", and of a campaign's own decks, "a GM can add a house game, or a custom deck for one story, without editing the system"). A system's decks and a campaign's stand together, and a campaign's are built by the one editor. Drawing by hand goes through the host: a GM's press there at once, a player's by net.deckDo, judged as any message is. Elements and text nodes alone
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
-import { cleanDecks, cleanPile, pileCounts, cleanSpreads, faceWords, faceCount } from './deckcore.js';
+import { cleanDecks, cleanPile, pileCounts, cleanSpreads, faceWords, faceCount, placeWords, cleanKeep } from './deckcore.js';
 import { edit, spreads } from './deckui.js';
-var CAMP_KEY = /^C[0-9]+$/, _sig = null, _at = '', _build = false, _tab = 'decks', _sp = '', _lay = null;   // _lay (backlog 223): the spread laid on this screen, { camp, key, at: [{ deck, ix, face } or null a place], shown }
+var CAMP_KEY = /^C[0-9]+$/, _sig = null, _at = '', _build = false, _tab = 'decks', _sp = '', _lay = null, _keep = Object.create(null);   // _lay (backlog 223): the spread laid on this screen, { camp, key, at: [{ deck, ix, face, tk } or null a place], shown }; _keep (fold B): a place kept as what the GM picked, by campaign and spread, this screen's alone
 function net() { return window.wpNet || null; }
 function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = String(text); return e; }
 function btn(cls, text, tip) { var b = el('button', cls, text); b.type = 'button'; if (tip) b.title = tip; return b; }
@@ -31,12 +31,28 @@ function drawRow(p, camp, it) {
 // sees one card of the whole spread only when Show the table is pressed. A place whose deck is the GM's alone is never on that card
 function spreadsOf(camp) { if (!camp) return []; var sysL = cleanSpreads(camp.system && camp.system.spreads, true, /^D[0-9]+$/, /^S[0-9]+$/); return sysL.map(function(s) { return { s: s, own: false }; }).concat(cleanSpreads(camp.spreads, true, null, /^P[0-9]+$/).map(function(s) { return { s: s, own: true }; })); }
 function deckBy(camp, key) { var hit = decksOf(camp).filter(function(x) { return x.d.key === key; })[0]; return hit ? hit.d : null; }
-function slotOf(camp, sp, i) { var at = _lay && camp && _lay.camp === camp.id && _lay.key === sp.key ? _lay.at[i] : null, d = at ? deckBy(camp, at.deck) : null, c = d && d.cards[at.ix] ? d.cards[at.ix] : null; return c ? { at: at, d: d, c: c, words: faceWords(c, at.face), n: faceCount(c) } : null; }
+function keepsOf(camp, sp) { var k = camp.id + '/' + sp.key; return _keep[k] || (_keep[k] = []); }
+// 1.6.2 (backlog 223, fold B; the owner, by prompt: "B: keep a place, tuck a card"): what a place may be kept as. The planners' Person, Place and Clue
+// cards, the characters and the maps, by their names, as [value, words, group]. Planners never travel, and nothing of this is sent
+function plainOf(v) { return String(v == null ? '' : v).replace(/<[^>]*>/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim().slice(0, 120); }
+function keepRows(camp) {
+    var out = [], items = camp && camp.items && typeof camp.items === 'object' ? camp.items : {}, KW = { person: 'Person card', place: 'Place card', clue: 'Clue card' };
+    Object.keys(items).forEach(function(id) { var it = items[id]; if (!it || it.type !== 'planner' || !Array.isArray(it.blocks)) return; it.blocks.forEach(function(b) { if (!b || b.type !== 'node' || !KW[b.mode] || typeof b.id !== 'string') return; var w = plainOf(b.title); if (w) out.push(['card:' + id + '/' + b.id, w, KW[b.mode]]); }); });
+    Object.keys(camp && camp.chars || {}).forEach(function(id) { var c = camp.chars[id]; if (c && !c.partial && c.making !== 1 && typeof c.name === 'string' && c.name.trim()) out.push(['char:' + id, plainOf(c.name), 'Character']); });
+    Object.keys(items).forEach(function(id) { var it = items[id]; if (!it || it.type !== 'map') return; var w = plainOf(it.meta && it.meta.title); if (w) out.push(['map:' + id, w, 'Map']); });
+    return out.slice(0, 400);
+}
+function slotOf(camp, sp, i) {
+    var at = _lay && camp && _lay.camp === camp.id && _lay.key === sp.key ? _lay.at[i] : null, kp = cleanKeep(keepsOf(camp, sp)[i]), d = at && at.deck ? deckBy(camp, at.deck) : null, c = d && d.cards[at.ix] ? d.cards[at.ix] : null;
+    var td = at && at.tk ? deckBy(camp, at.tk.deck) : null, tc = td && td.cards[at.tk.ix] ? td.cards[at.tk.ix] : null, main = kp ? kp.words : c ? faceWords(c, at.face) : '', tuck = tc ? faceWords(tc, at.tk.face) : '', pl = sp.places[i] || {};
+    if (!main && !tuck) return null; return { at: at, d: kp ? null : d, c: kp ? null : c, kept: kp, n: !kp && c ? faceCount(c) : 1, td: td, tc: tc, tn: tc ? faceCount(tc) : 1, main: main, tuck: tuck, words: placeWords(main, tuck, pl.tuck && pl.tuck.down === true), gm: (!kp && !!d && d.vis === 'gm') || (!!td && td.vis === 'gm') };
+}
+function layPlace(pl, kept) { var o = {}; if (pl.deck && !kept) { var t = takeOne(pl.deck); if (t) { o.deck = t.deck; o.ix = t.ix; o.face = t.face; } } if (pl.tuck) { var u = takeOne(pl.tuck.deck); if (u) o.tk = u; } return Object.keys(o).length ? o : null; }
 function takeOne(deck) { var n = net(), r = n && typeof n.deckTake === 'function' ? n.deckTake(deck, 1) : { error: 'That cannot be done now.' }; if (r && r.error) { toast(r.error); return null; } return r && r.cards && r.cards[0] ? { deck: deck, ix: r.cards[0].ix, face: r.cards[0].face } : null; }
 function spreadShow(camp, sp) {
-    var lines = []; sp.places.forEach(function(pl, i) { var sl = slotOf(camp, sp, i); if (!sl || sl.d.vis === 'gm') return; lines.push({ n: pl.label, say: sl.words }); });
+    var lines = []; sp.places.forEach(function(pl, i) { var sl = slotOf(camp, sp, i); if (!sl || sl.gm) return; lines.push({ n: pl.label, say: sl.words }); });
     var n = net(); if (!lines.length) { toast('Nothing on this spread can be shown to the table.'); return; } if (n && typeof n.postApplyCard === 'function') n.postApplyCard(null, sp.label || 'A spread', lines, 'table');
-    _lay.shown = true; if (typeof window.wpStepLog === 'function') window.wpStepLog('decks v1', 'spread-show', { n: lines.length });
+    if (!_lay || _lay.camp !== camp.id || _lay.key !== sp.key) _lay = { camp: camp.id, key: sp.key, at: sp.places.map(function() { return null; }) }; _lay.shown = true; if (typeof window.wpStepLog === 'function') window.wpStepLog('decks v1', 'spread-show', { n: lines.length });
 }
 function spreadDraw(p, camp) {
     var list = spreadsOf(camp), it = list.filter(function(x) { return x.s.key === _sp; })[0] || list[0] || null; if (it) _sp = it.s.key;
@@ -45,19 +61,29 @@ function spreadDraw(p, camp) {
     if (it) {
         var sp = it.s, laid = !!(_lay && _lay.camp === camp.id && _lay.key === sp.key), row = el('div', 'sp-lay');
         sp.places.forEach(function(pl, i) {
-            var sl = slotOf(camp, sp, i), c = el('div', 'sp-card' + (sl ? '' : ' sp-empty')), d0 = pl.deck ? deckBy(camp, pl.deck) : null; c.appendChild(el('span', 'sp-pos', pl.label || 'A place'));
-            c.appendChild(el('span', sl ? 'sp-words' : 'sp-words sp-hint', sl ? sl.words : (pl.hint || (pl.deck ? (d0 ? 'Not drawn yet' : 'Its deck is gone') : 'Filled in by you'))));
+            var sl = slotOf(camp, sp, i), kps = keepsOf(camp, sp), kp = cleanKeep(kps[i]), c = el('div', 'sp-card' + (sl && sl.main ? '' : ' sp-empty') + (kp ? ' sp-kept' : '')), d0 = pl.deck ? deckBy(camp, pl.deck) : null; c.appendChild(el('span', 'sp-pos', pl.label || 'A place'));
+            c.appendChild(el('span', sl && sl.main ? 'sp-words' : 'sp-words sp-hint', sl && sl.main ? sl.main : (pl.hint || (pl.deck ? (d0 ? 'Not drawn yet' : 'Its deck is gone') : 'Filled in by you'))));
+            if (kps[i] && kps[i].t === 'words') { var kb = el('input', 'field sp-keepbox'); kb.type = 'text'; kb.value = kps[i].words || ''; kb.placeholder = 'Your words'; kb.maxLength = 120; kb.title = 'What this place says, typed by you'; kb.addEventListener('change', function() { kps[i].words = kb.value.slice(0, 120); if (_lay) _lay.shown = false; panelDraw(); }); c.appendChild(kb); }
+            if (pl.tuck) { var tdk = deckBy(camp, pl.tuck.deck), tst = el('span', 'sp-tuckline'); tst.appendChild(el('span', 'sp-tuckwords', (pl.tuck.down ? 'After: ' : 'Before: ') + (sl && sl.tuck ? sl.tuck : tdk ? (tdk.label || 'A deck') : 'its deck is gone'))); tst.title = 'Tucked under it, from ' + (tdk ? tdk.label || 'a deck' : 'a deck that is gone');
+                if (sl && sl.tc && sl.tn > 1) { var tt = btn('tool ghost sp-tuckturn', '\u21bb', 'Face ' + (sl.at.tk.face + 1) + ' of ' + sl.tn + ' of the tucked card. Turn it to the next'); tt.setAttribute('aria-label', 'Turn the card tucked under ' + (pl.label || 'this place')); tt.addEventListener('click', function() { sl.at.tk.face = (sl.at.tk.face + 1) % sl.tn; _lay.shown = false; panelDraw(); }); tst.appendChild(tt); }
+                if (laid && tdk) { var ta = btn('tool ghost sp-tuckagain', '\u27f3', 'Draw the tucked card again'); ta.setAttribute('aria-label', 'Draw the card tucked under ' + (pl.label || 'this place') + ' again'); ta.addEventListener('click', function() { var u = takeOne(pl.tuck.deck); if (!u) return; _lay.at[i] = Object.assign({}, _lay.at[i] || {}, { tk: u }); _lay.shown = false; panelDraw(); }); tst.appendChild(ta); }
+                c.appendChild(tst); }
             if (pl.hint) c.title = pl.hint;
-            var ft = el('span', 'sp-foot'); ft.appendChild(el('span', 'sp-from', d0 ? d0.label || 'A deck' : ''));
-            if (sl && sl.n > 1) { var tn = btn('tool ghost sp-turn', '↻', 'Face ' + (sl.at.face + 1) + ' of ' + sl.n + '. Turn it to the next'); tn.setAttribute('aria-label', 'Turn ' + (pl.label || 'this card') + ' to its next face'); tn.addEventListener('click', function() { sl.at.face = (sl.at.face + 1) % sl.n; _lay.shown = false; panelDraw(); }); ft.appendChild(tn); }
-            if (laid && d0) { var ag = btn('tool ghost sp-again', '⟳', 'Draw this place again'); ag.setAttribute('aria-label', 'Draw ' + (pl.label || 'this place') + ' again'); ag.addEventListener('click', function() { var t = takeOne(pl.deck); if (!t) return; _lay.at[i] = t; _lay.shown = false; panelDraw(); }); ft.appendChild(ag); }
-            c.appendChild(ft); row.appendChild(c);
+            var ft = el('span', 'sp-foot'); ft.appendChild(el('span', 'sp-from', kp ? { card: 'Kept', char: 'Kept', map: 'Kept', words: 'Your words' }[kp.t] : d0 ? d0.label || 'A deck' : ''));
+            if (sl && sl.c && sl.n > 1) { var tn = btn('tool ghost sp-turn', '↻', 'Face ' + (sl.at.face + 1) + ' of ' + sl.n + '. Turn it to the next'); tn.setAttribute('aria-label', 'Turn ' + (pl.label || 'this card') + ' to its next face'); tn.addEventListener('click', function() { sl.at.face = (sl.at.face + 1) % sl.n; _lay.shown = false; panelDraw(); }); ft.appendChild(tn); }
+            if (laid && d0 && !kp) { var ag = btn('tool ghost sp-again', '⟳', 'Draw this place again'); ag.setAttribute('aria-label', 'Draw ' + (pl.label || 'this place') + ' again'); ag.addEventListener('click', function() { var t = takeOne(pl.deck); if (!t) return; _lay.at[i] = Object.assign({}, _lay.at[i] || {}, { deck: t.deck, ix: t.ix, face: t.face }); _lay.shown = false; panelDraw(); }); ft.appendChild(ag); }
+            c.appendChild(ft);
+            var ks = el('select', 'field sp-keep'), rows = [['', pl.deck ? 'Draw it' : 'Leave it'], ['words', 'Type it']].concat(keepRows(camp)), grp = null; rows.forEach(function(r) { var o = el('option', '', r[1]); o.value = r[0]; if (r[2]) { if (!grp || grp.label !== r[2]) { grp = el('optgroup'); grp.label = r[2]; ks.appendChild(grp); } grp.appendChild(o); } else ks.appendChild(o); });
+            ks.value = kps[i] ? (kps[i].t === 'words' ? 'words' : kps[i].t + ':' + (kps[i].id || '')) : ''; if (ks.value === undefined || ks.value === null) ks.value = ''; ks.title = 'Keep this place as something you already have, instead of drawing it'; ks.setAttribute('aria-label', 'What ' + (pl.label || 'this place') + ' is');
+            ks.addEventListener('change', function() { var v = ks.value, hit = rows.filter(function(r) { return r[0] === v; })[0]; if (!v) delete kps[i]; else if (v === 'words') kps[i] = { t: 'words', words: kps[i] && kps[i].words || '' }; else if (hit) kps[i] = { t: v.slice(0, v.indexOf(':')), id: v.slice(v.indexOf(':') + 1), words: hit[1] }; if (_lay) _lay.shown = false; panelDraw(); }); c.appendChild(ks);
+            row.appendChild(c);
         });
         p.appendChild(row);
         var acts = el('div', 'dk-head'), go = btn('tool sp-draw', laid ? 'Draw it again' : 'Draw the spread', 'Draw a card for every place. Nobody else sees it until you show the table'), sh = btn('tool ghost sys-btn sp-show', laid && _lay.shown ? 'Shown' : 'Show the table', 'Post this spread to the chat for everyone. A place drawn from a deck only you know stays off it');
-        go.addEventListener('click', function() { var at = sp.places.map(function(pl) { return pl.deck ? takeOne(pl.deck) : null; }); _lay = { camp: camp.id, key: sp.key, at: at, shown: false }; panelDraw(); });
-        if (!laid || _lay.shown) sh.disabled = true; if (!laid) sh.title = 'Draw the spread first'; sh.addEventListener('click', function() { spreadShow(camp, sp); panelDraw(); });
-        if (!sp.places.some(function(pl) { return !!pl.deck; })) { go.disabled = true; go.title = 'No place of this spread draws from a deck'; }
+        go.addEventListener('click', function() { var kps = keepsOf(camp, sp), at = sp.places.map(function(pl, i) { return layPlace(pl, !!cleanKeep(kps[i])); }); _lay = { camp: camp.id, key: sp.key, at: at, shown: false }; panelDraw(); });
+        if (!laid || _lay.shown) sh.disabled = true; if (!laid) sh.title = 'Draw the spread first';   // or keep a place: see below sh.addEventListener('click', function() { spreadShow(camp, sp); panelDraw(); });
+        if (!sp.places.some(function(pl) { return !!pl.deck || !!pl.tuck; })) { go.disabled = true; go.title = 'No place of this spread draws from a deck'; }
+        if (!laid && sp.places.some(function(pl, i) { return !!slotOf(camp, sp, i); })) { sh.disabled = false; sh.title = 'Post the places you have kept to the chat for everyone'; }
         acts.appendChild(go); acts.appendChild(sh); p.appendChild(acts);
         if (!it.own) p.appendChild(el('div', 'dk-count', 'This one comes with the system. Change it in the System editor.'));
     } else p.appendChild(el('div', 'dk-count', 'No spreads here yet. A spread lays out a few cards at once, each in a place you name, such as Who, Wants and Stands in the way.'));

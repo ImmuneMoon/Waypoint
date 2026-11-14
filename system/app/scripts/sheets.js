@@ -1631,6 +1631,7 @@ function openHud(charId, opts) {
     if (opts && typeof opts.tab === 'string' && HUD_TAB.test(opts.tab)) v.body.dataset.wpTab = opts.tab;   // buildSections falls back to the first tab if it is not one
     if (typeof window !== 'undefined' && window.wpFloats) window.wpFloats.reveal(v.panel);   // 1.5.4 (floats.js): asked for here, so it shows on this view
     raisePanel(v.panel); renderHud(charId);
+    if (!existed && huds[charId] === v) placeHud(v);   // 1.6.2 (the click test of the campaign before 1.6.2): a new HUD was placed while still empty, so placeHud read a panel a head tall, and the HUD it drew ran off the foot of the window; placed again at the height it is drawn
     if (stuck && huds[charId] === v && v.body.dataset.wpTab !== was) v.body.scrollTop = frameFlowTop(v.body);   // another tab asked of an open, scrolled HUD starts at its own top, as the HUD's own strip does
 }
 function makeHud(charId) {

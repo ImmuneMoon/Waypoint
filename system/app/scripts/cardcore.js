@@ -134,7 +134,20 @@ function cleanSection(b) { if (!b || typeof b !== 'object') return b; var c = b.
 // The default columns of a node with none of its own
 function defaultCols(b) { return kindOf(b).cols.slice(); }
 
-var api = { VERSION: VERSION, AKA_MAX: AKA_MAX, AKA_CHARS: AKA_CHARS, KINDS: KINDS, ORDER: ORDER, MODES: MODES, cleanMode: cleanMode, cardKind: cardKind, kindOf: kindOf, kindBy: kindBy, cleanName: cleanName, cleanAka: cleanAka, akaFrom: akaFrom, akaText: akaText, cardNames: cardNames, cleanDone: cleanDone, WHEN: WHEN, cleanWhen: cleanWhen, CUE_K: CUE_K, cleanCue: cleanCue, sessionOf: sessionOf, setSession: setSession, CARD_SIZES: CARD_SIZES, cleanCards: cleanCards, wideMay: wideMay, wideOn: wideOn, wideSet: wideSet, cardWide: cardWide, cleanSection: cleanSection, cleanSheet: cleanSheet, cleanCard: cleanCard, defaultCols: defaultCols };
+// 1.6.2 (backlog 223, story cards, fold C; the owner, by prompt: "Card of the spread's kind"): a laid spread made into an ordinary node block, so a
+// saved spread is a card like any other. o: { label, as, places: [{ label, words }] }. as is scene, person, place or clue (a scene where it is none);
+// the first place with words is the title, the spread's name the tag, and every place with words a row: its label, then its words. Every word is the
+// GM's own and is stored as a planner stores text, escaped
+var SPREAD_AS = Object.freeze(['scene', 'person', 'place', 'clue']);
+function escCard(v, n) { var s = String(v == null ? '' : v).replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim(); s = Array.from(s).slice(0, n).join(''); return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function spreadCard(o, id) {
+    var src = o && typeof o === 'object' ? o : {}, kind = SPREAD_AS.indexOf(src.as) >= 0 ? src.as : 'scene', pl = (Array.isArray(src.places) ? src.places : []).slice(0, 12).filter(function(p) { return !!p && typeof p === 'object' && escCard(p.words, 240); });
+    var b = { id: typeof id === 'string' ? id : '', type: 'node', title: (pl[0] ? escCard(pl[0].words, 120) : '') || escCard(src.label, 120) || 'Unnamed' }; if (kind !== 'scene') b.mode = kind;
+    var tag = escCard(src.label, 60); if (tag) b.tag = tag;
+    b.rows = pl.map(function(p) { return { col1: escCard(p.label, 80) || 'A place', col2: escCard(p.words, 240), col3: '' }; });
+    return b;
+}
+var api = { SPREAD_AS: SPREAD_AS, spreadCard: spreadCard, VERSION: VERSION, AKA_MAX: AKA_MAX, AKA_CHARS: AKA_CHARS, KINDS: KINDS, ORDER: ORDER, MODES: MODES, cleanMode: cleanMode, cardKind: cardKind, kindOf: kindOf, kindBy: kindBy, cleanName: cleanName, cleanAka: cleanAka, akaFrom: akaFrom, akaText: akaText, cardNames: cardNames, cleanDone: cleanDone, WHEN: WHEN, cleanWhen: cleanWhen, CUE_K: CUE_K, cleanCue: cleanCue, sessionOf: sessionOf, setSession: setSession, CARD_SIZES: CARD_SIZES, cleanCards: cleanCards, wideMay: wideMay, wideOn: wideOn, wideSet: wideSet, cardWide: cardWide, cleanSection: cleanSection, cleanSheet: cleanSheet, cleanCard: cleanCard, defaultCols: defaultCols };
 if (typeof window !== 'undefined') window.wpCardCore = api;
 
-export { CARD_SIZES, cleanCards, wideMay, wideOn, wideSet, cardWide, cleanSection, CUE_K, cleanCue, WHEN, cleanWhen, sessionOf, setSession, VERSION, AKA_MAX, AKA_CHARS, KINDS, ORDER, MODES, cleanMode, cardKind, kindOf, kindBy, cleanName, cleanAka, akaFrom, akaText, cardNames, cleanDone, cleanSheet, cleanCard, defaultCols };
+export { SPREAD_AS, spreadCard, CARD_SIZES, cleanCards, wideMay, wideOn, wideSet, cardWide, cleanSection, CUE_K, cleanCue, WHEN, cleanWhen, sessionOf, setSession, VERSION, AKA_MAX, AKA_CHARS, KINDS, ORDER, MODES, cleanMode, cardKind, kindOf, kindBy, cleanName, cleanAka, akaFrom, akaText, cardNames, cleanDone, cleanSheet, cleanCard, defaultCols };

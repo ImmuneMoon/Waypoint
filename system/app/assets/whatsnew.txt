@@ -33,6 +33,9 @@ Story cards
   character, a map or a few words of your own can sit in a place, and the
   draw leaves it alone. A place can also tuck a card from a second deck
   under its own, so drowned and lighthouse read as one.
+- Save as a card turns a laid spread into a Scene, Person, Place or Clue
+  card at the end of a planner. The first place's words are its title, and
+  each place is a row you edit like any other card.
 
 Tokens
 - A picture you tick Is Character fits one cell of the map's grid by itself,

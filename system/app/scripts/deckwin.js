@@ -3,6 +3,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { cleanDecks, cleanPile, pileCounts, cleanSpreads, faceWords, faceCount, placeWords, cleanKeep } from './deckcore.js';
 import { edit, spreads } from './deckui.js';
+import { spreadCard } from './cardcore.js';
 var CAMP_KEY = /^C[0-9]+$/, _sig = null, _at = '', _build = false, _tab = 'decks', _sp = '', _lay = null, _keep = Object.create(null);   // _lay (backlog 223): the spread laid on this screen, { camp, key, at: [{ deck, ix, face, tk } or null a place], shown }; _keep (fold B): a place kept as what the GM picked, by campaign and spread, this screen's alone
 function net() { return window.wpNet || null; }
 function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = String(text); return e; }
@@ -54,9 +55,19 @@ function spreadShow(camp, sp) {
     var n = net(); if (!lines.length) { toast('Nothing on this spread can be shown to the table.'); return; } if (n && typeof n.postApplyCard === 'function') n.postApplyCard(null, sp.label || 'A spread', lines, 'table');
     if (!_lay || _lay.camp !== camp.id || _lay.key !== sp.key) _lay = { camp: camp.id, key: sp.key, at: sp.places.map(function() { return null; }) }; _lay.shown = true; if (typeof window.wpStepLog === 'function') window.wpStepLog('decks v1', 'spread-show', { n: lines.length });
 }
+// 1.6.2 (backlog 223, fold C; the owner, by prompt: "Card of the spread's kind"): Save as a card. The planners offered by name, and the spread lands
+// as an ordinary card at the end of the one picked, saved at once as any edit of it is. Planners never travel, so nothing of it is sent
+function plannersOf(camp) { var items = camp && camp.items && typeof camp.items === 'object' ? camp.items : {}; return Object.keys(items).filter(function(id) { var it = items[id]; return !!it && it.type === 'planner' && Array.isArray(it.blocks); }).map(function(id) { return [id, plainOf(items[id].meta && items[id].meta.title) || 'A planner']; }).sort(function(a, b) { return a[1].localeCompare(b[1]); }).slice(0, 60); }
+function spreadSave(camp, sp, plId) {
+    var it = camp && camp.items && Object.prototype.hasOwnProperty.call(camp.items, plId) ? camp.items[plId] : null; if (!it || it.type !== 'planner' || !Array.isArray(it.blocks)) { toast('That planner is no longer here.'); return null; }
+    var pl = []; sp.places.forEach(function(p, i) { var sl = slotOf(camp, sp, i); if (sl) pl.push({ label: p.label, words: sl.words }); }); if (!pl.length) { toast('Nothing is laid on this spread yet.'); return null; }
+    var b = spreadCard({ label: sp.label, as: sp.as, places: pl }, 'b_' + Math.random().toString(36).slice(2, 10)); it.blocks.push(b); it.meta = it.meta && typeof it.meta === 'object' ? it.meta : {}; it.meta.updated = Date.now();
+    save(true); toast('Saved as a card in ' + (plainOf(it.meta.title) || 'the planner') + '.'); if (typeof window.wpStepLog === 'function') window.wpStepLog('decks v1', 'spread-save', { as: sp.as || 'scene', n: pl.length }); if (typeof window.appRender === 'function') window.appRender(); return b;
+}
+var _saving = false;
 function spreadDraw(p, camp) {
     var list = spreadsOf(camp), it = list.filter(function(x) { return x.s.key === _sp; })[0] || list[0] || null; if (it) _sp = it.s.key;
-    if (list.length > 1) { var sel = el('select', 'field sp-pick'); list.forEach(function(x) { var o = el('option', '', (x.s.label || 'A spread') + (x.own ? ' (this campaign)' : '')); o.value = x.s.key; sel.appendChild(o); }); sel.value = _sp; sel.addEventListener('change', function() { _sp = sel.value; _build = false; panelDraw(); }); p.appendChild(sel); }
+    if (list.length > 1) { var sel = el('select', 'field sp-pick'); list.forEach(function(x) { var o = el('option', '', (x.s.label || 'A spread') + (x.own ? ' (this campaign)' : '')); o.value = x.s.key; sel.appendChild(o); }); sel.value = _sp; sel.addEventListener('change', function() { _sp = sel.value; _build = false; _saving = false; panelDraw(); }); p.appendChild(sel); }
     else if (it) p.appendChild(el('div', 'dk-title', it.s.label || 'A spread'));
     if (it) {
         var sp = it.s, laid = !!(_lay && _lay.camp === camp.id && _lay.key === sp.key), row = el('div', 'sp-lay');
@@ -84,7 +95,9 @@ function spreadDraw(p, camp) {
         if (!laid || _lay.shown) sh.disabled = true; if (!laid) sh.title = 'Draw the spread first';   // or keep a place: see below sh.addEventListener('click', function() { spreadShow(camp, sp); panelDraw(); });
         if (!sp.places.some(function(pl) { return !!pl.deck || !!pl.tuck; })) { go.disabled = true; go.title = 'No place of this spread draws from a deck'; }
         if (!laid && sp.places.some(function(pl, i) { return !!slotOf(camp, sp, i); })) { sh.disabled = false; sh.title = 'Post the places you have kept to the chat for everyone'; }
-        acts.appendChild(go); acts.appendChild(sh); p.appendChild(acts);
+        var sv = btn('tool ghost sys-btn sp-save', 'Save as a card', 'Make this spread a ' + ({ person: 'Person', place: 'Place', clue: 'Clue' }[sp.as] || 'Scene') + ' card in a planner, one row a place'); if (!sp.places.some(function(pl, i) { return !!slotOf(camp, sp, i); })) { sv.disabled = true; sv.title = 'Draw the spread first'; } sv.addEventListener('click', function() { _saving = !_saving; panelDraw(); });
+        acts.appendChild(go); acts.appendChild(sh); acts.appendChild(sv); p.appendChild(acts);
+        if (_saving && !sv.disabled) { var pls = plannersOf(camp), box = el('div', 'sp-savebox'); box.appendChild(el('div', 'dk-count', pls.length ? 'Which planner? The card goes at its end.' : 'There is no planner yet. Make one in the left panel first.')); pls.forEach(function(r) { var b2 = btn('tool ghost sp-saveto', r[1], 'Save it at the end of this planner'); b2.addEventListener('click', function() { if (spreadSave(camp, sp, r[0])) { _saving = false; panelDraw(); } }); box.appendChild(b2); }); p.appendChild(box); }
         if (!it.own) p.appendChild(el('div', 'dk-count', 'This one comes with the system. Change it in the System editor.'));
     } else p.appendChild(el('div', 'dk-count', 'No spreads here yet. A spread lays out a few cards at once, each in a place you name, such as Who, Wants and Stands in the way.'));
     var b = btn('tool ghost sys-btn sp-build', _build ? 'Done' : 'Make a spread for this campaign', 'A spread for this campaign alone, drawn from any of its decks'); b.addEventListener('click', function() { _build = !_build; panelDraw(); }); p.appendChild(b);

@@ -220,6 +220,14 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     check('cards side by side, a file: the import cleaner keeps a section\'s cards only as one of the three sizes, on a section heading alone, and with no card core at hand keeps none; a block that never had the key gains none',
         J(icC.items.p1.blocks.map(b => b.cards)) === J(['large', undefined, undefined, undefined, undefined]) && J(icD.items.p1.blocks.map(b => b.cards)) === J([undefined, undefined, undefined, undefined, undefined])
         && icC.items.p1.blocks.every(b => b.cards !== undefined || !Object.prototype.hasOwnProperty.call(b, 'cards')), J([icC.items.p1.blocks, icD.items.p1.blocks]));
+    {   // 1.6.2 (backlog 223, story cards, fold C; the owner, by prompt: "Card of the spread's kind"): a saved spread is ordinary planner blocks
+        const sb = C.spreadCard({ label: 'A stranger', as: 'person', places: [{ label: 'Who', words: 'a <pilot>' }, { label: 'Wants', words: 'to pay off a debt' }, { label: 'Empty', words: ' ' }] }, 'b_s1');
+        const fileS = { id: 'c2', name: 'C', items: { p1: { id: 'p1', type: 'planner', meta: { title: 'P' }, blocks: [JSON.parse(J(sb))] } } }; CU.cleanImportItems(fileS, { CARD: C });
+        const mdS = M.docToMarkdown({ id: 'p1', type: 'planner', meta: { title: 'P' }, blocks: [sb] }, {}).text, backS = M.markdownToBlocks(mdS, { kind: 'planner' }).blocks.filter(b => b.type === 'node')[0];
+        check('a saved spread is an ordinary card of its kind: escaped as a planner stores text, a row a place with words, kept whole by the import cleaner, and written to Markdown and read back as a card of that kind with that title',
+            sb.type === 'node' && C.cardKind(sb) === 'person' && sb.title === 'a &lt;pilot&gt;' && sb.tag === 'A stranger' && sb.rows.length === 2 && J(fileS.items.p1.blocks[0]) === J(sb) && !!backS && C.cardKind(backS) === 'person' && backS.title === sb.title, J([sb, mdS, backS]));
+        check('the Decks window makes it through the card core, and a scene is the kind where a spread names none', /import \{ spreadCard[^}]*\} from '\.\/cardcore\.js';/.test(read('scripts/deckwin.js')) && read('scripts/deckwin.js').includes("spreadCard({ label: sp.label, as: sp.as, places: pl }") && C.cardKind(C.spreadCard({ places: [{ label: 'A', words: 'b' }] }, 'b_s2')) === 'scene');
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

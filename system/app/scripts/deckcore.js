@@ -39,7 +39,7 @@ function deckOf(list, key) { var k = String(key).toLowerCase(); return (Array.is
 // 1.6.2 (backlog 223, story cards; the owner, by prompt: "Decks window, show when ready"): a spread is a short list of places, each with a label, the
 // deck it draws from and a hint, drawn in one press on the GM's own screen and shown to the table only when the GM says. { key, label, places }: key
 // S<n> on a system and P<n> on a campaign (keyRe), never shown; a place { label, deck?, hint? }, deck a deck's key (a system's spread names a system's deck alone, by deckRe). A spread is the
-// GM's: the players' view holds none, so cleanSpreads answers an empty list for it
+// GM's: the players' view holds none, so cleanSpreads answers an empty list for it. as (fold C): person, place or clue, the card it saves as
 function cleanPlace(p, deckRe) {
     if (!isObj(p)) return null; var o = { label: cut(p.label, 40) || 'A place' };
     if (typeof p.deck === 'string' && KEY_RE.test(p.deck) && !(p.deck in Object.prototype) && (!deckRe || deckRe.test(p.deck))) o.deck = p.deck;
@@ -55,7 +55,7 @@ function placeWords(main, tuck, down) { var a = typeof main === 'string' ? main.
 // char (a character), map, or words (typed). The words are cut to 120, and a kept place with none is no kept place
 function cleanKeep(k) { if (!isObj(k) || ['card', 'char', 'map', 'words'].indexOf(k.t) < 0) return null; var w = cut(k.words, 120); if (!w) return null; var o = { t: k.t, words: w }; if (k.t !== 'words' && typeof k.id === 'string' && k.id.length <= 200) o.id = k.id; return o; }
 function cleanSpread(s, deckRe, keyRe) {
-    if (!isObj(s) || typeof s.key !== 'string' || !KEY_RE.test(s.key) || (keyRe && !keyRe.test(s.key)) || s.key in Object.prototype) return null; var o = { key: s.key, label: cut(s.label, 60) || 'A spread', places: [] };
+    if (!isObj(s) || typeof s.key !== 'string' || !KEY_RE.test(s.key) || (keyRe && !keyRe.test(s.key)) || s.key in Object.prototype) return null; var o = { key: s.key, label: cut(s.label, 60) || 'A spread', places: [] }; if (['person', 'place', 'clue'].indexOf(s.as) >= 0) o.as = s.as;   // fold C: the kind of card it saves as, a scene where none
     (Array.isArray(s.places) ? s.places : []).slice(0, PLACES_MAX * 4).forEach(function(p) { if (o.places.length >= PLACES_MAX) return; var k = cleanPlace(p, deckRe); if (k) o.places.push(k); });
     return o;
 }

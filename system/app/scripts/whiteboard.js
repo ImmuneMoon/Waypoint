@@ -613,6 +613,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
               el.addEventListener('pointerenter', function(e) {
 
+                  if (!item.isChar && tokCardUp()) { _tc.next = { el: el, x: e.clientX, y: e.clientY }; return; }   // backlog 236: a token's card stays through its grace; this piece shows its own once it has gone
                   cardAside(el, document.elementFromPoint ? document.elementFromPoint(e.clientX, e.clientY) : null);   // entered on a bar's arc: its own tooltip alone
                   var _am = getActiveMap(); if (!_am) return; var wItem = _am.whiteboard.find(x => x.id === item.id);
 
@@ -628,46 +629,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
                   
 
-                  if(wItem.isChar) {
-
-                      var cname = wItem.charName || 'Unnamed Character';
-
-                      var cstats = wItem.charStats || '';
-                      var stanceBits = [];
-                      if (stanceOn('elevation')) { var hvE = tokenElevation(wItem, _am), hvG = groundWords(wItem, _am); if (hvE || hvG) stanceBits.push('Elevation ' + fmtElev(hvE) + ' ' + lenUnit() + (hvG ? ' (' + esc(hvG) + ')' : '')); }   // item 19b H5: its height, the ground it stands on included (and named)
-                      var postAtH = stanceOn('posture') ? tokenPostureAt(wItem) : null; if (postAtH && postAtH.i > 0 && postAtH.p) stanceBits.push(String(postAtH.p.name || ''));   // conditions C3: its posture's name in the list in use (a text node below)
-                      var stanceLine = stanceBits.length ? '<div class="rc" style="color:var(--gold); font-size:11px;">' + stanceBits.join(' \u00b7 ') + '</div>' : '';
-
-                      // GM only: the roster entry's notes ride along (players never get `info`)
-                      var isClientC = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
-                      if (!isClientC && wItem.charRef) {
-                          var amC = getActiveMap();
-                          var entry = null;
-                          (amC.rooms || []).some(function(rm) { entry = (rm.characters || []).find(function(c) { return c.id === wItem.charRef; }); return !!entry; });
-                          if (entry && entry.info) cstats = (cstats ? cstats + String.fromCharCode(10) : '') + entry.info;
-                      }
-                      // built from nodes (1.5.0): a portrait, the name, the (capped) stats line, the sheet's hover fields, the stance line
-                      var ttRoot = document.createElement('div'); ttRoot.className = 'room'; ttRoot.style.cssText = 'border-left-color:var(--gold); margin:0; pointer-events:none;';
-                      var ownerAv = (!wItem.src && wItem.face && window.wpNet && window.wpNet.faceView) ? (window.wpNet.faceView({ face: wItem.face }, cssColor((wItem.color && wItem.color !== 'transparent') ? wItem.color : '#4db3d3')).img || null) : null;   // Onboarding F1c: the character's own face (an emoji face has no picture: the silhouette), never its owner's live profile picture
-                      var portrait = wItem.src ? resolveImg(wItem.src) : (ownerAv || (window.wpDefaultAvatar ? window.wpDefaultAvatar((wItem.color && wItem.color !== 'transparent') ? wItem.color : ('hsl(' + wbHashHue(wItem.charName || wItem.id) + ',55%,55%)')) : null));   // character image → owner profile picture → color-tinted silhouette default
-                      if (portrait) { var ttImg = document.createElement('img'); ttImg.src = portrait; ttImg.loading = 'lazy'; ttImg.decoding = 'async'; ttImg.style.cssText = 'width:100%; height:90px; object-fit:cover; border-radius:4px; margin-bottom:6px; display:block;'; ttRoot.appendChild(ttImg); }   // fixed height so the card measures the same before/after the image loads (matches the room card)
-                      var ttName = document.createElement('div'); ttName.className = 'rn'; ttName.textContent = cname; if (window.wpPlook) window.wpPlook.dress(ttName, window.wpPlook.ofTok(wItem)); ttRoot.appendChild(ttName);
-                      var ttStats = document.createElement('div'); ttStats.className = 'rc'; ttStats.style.cssText = 'color:var(--ink); font-size:11px; white-space:pre-wrap; text-transform:none; letter-spacing:0;'; ttStats.textContent = cstats.length > 400 ? cstats.slice(0, 400) + '…' : cstats; ttRoot.appendChild(ttStats);   // prose, not a label: no uppercase; capped for the hover peek (full text lives in the roster / Properties)
-                      if (!isClientC && wItem.gmInfo) { var gmTxt = String(wItem.gmInfo); var ttGm = document.createElement('div'); ttGm.className = 'rc'; ttGm.style.cssText = 'color:var(--gold); font-size:11px; white-space:pre-wrap; margin-top:4px; border-top:1px solid var(--edge); padding-top:3px; text-transform:none; letter-spacing:0;'; ttGm.textContent = gmTxt.length > 300 ? gmTxt.slice(0, 300) + '…' : gmTxt; ttRoot.appendChild(ttGm); }   // per-token GM note / dialog (GM only; stripped on the wire), capped
-                      var cardLn = !isClientC && typeof pageCardLine === 'function' ? pageCardLine(wItem) : ''; if (cardLn) { var ttCard = document.createElement('div'); ttCard.className = 'rc tt-card'; ttCard.style.cssText = 'color:var(--gold); font-size:11px; white-space:pre-wrap; margin-top:4px; text-transform:none; letter-spacing:0;'; ttCard.textContent = cardLn; ttRoot.appendChild(ttCard); }   // 1.6.2: the person card that names its sheet (GM only, worked out on this screen, never sent)
-                      var sheetLines = window.wpSheets ? window.wpSheets.hoverLinesForToken(wItem) : [];
-                      if (sheetLines.length) { var ttSheet = document.createElement('div'); ttSheet.className = 'rc'; ttSheet.style.cssText = 'color:var(--ink); font-size:11px;'; ttSheet.textContent = sheetLines.join(' · '); ttRoot.appendChild(ttSheet); }
-                      if (stanceBits.length) { var ttStance = document.createElement('div'); ttStance.className = 'rc'; ttStance.style.cssText = 'color:var(--gold); font-size:11px;'; ttStance.textContent = stanceBits.join(' · '); ttRoot.appendChild(ttStance); }
-                      if (postureRanged(wItem)) { var ttRanged = document.createElement('div'); ttRanged.className = 'rc'; ttRanged.style.cssText = 'color:var(--dim); font-size:11px; text-transform:none; letter-spacing:0;'; ttRanged.textContent = postureRangedLine(tokenPostureAt(wItem).p); ttRoot.appendChild(ttRanged); }   // posture: its ranged note (display only)
-                      var ttSays = badgeLines(el, wItem);   // 1.6.0: its marks in words
-                      if (ttSays.length) { var ttMarks = document.createElement('div'); ttMarks.className = 'rc tt-marks'; ttMarks.textContent = ttSays.join(String.fromCharCode(10)); ttRoot.appendChild(ttMarks); }
-                      tt.textContent = ''; tt.appendChild(ttRoot);
-
-                      tt.style.display = 'block';
-
-                      return;
-
-                  }
+                  if (wItem.isChar) { tokCardPut(tt, wItem, el, _am); return; }   // backlog 236: a token's card, in parts, beside the token (tokCardFor)
 
                   
 
@@ -777,6 +739,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
                   cardAside(el, e.target);
                   var tt = document.getElementById('wbTooltip');
+                  if (tt.classList.contains('tc-on')) return;   // backlog 236: a token's card stands still beside its token
 
                   if (tt.style.display === 'block') {
 
@@ -798,6 +761,8 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
               el.addEventListener('pointerleave', function(e) {
 
+                  if (_tc.next && _tc.next.el === el) _tc.next = null;
+                  if (tokCardUp()) { if (item.isChar && _tc.id === item.id) { tokTip().classList.remove('wb-aside'); tokCardLater(); } return; }   // backlog 236: the card in sight for the grace, so the pointer can reach it
                   document.getElementById('wbTooltip').style.display = 'none';
                   document.getElementById('wbTooltip').classList.remove('wb-aside');
 
@@ -3774,7 +3739,7 @@ window.wpFitToGrid = fitToGrid;
       if (!state.selWbId && !(state.selWbIds && state.selWbIds.length)) return;
       var t = e.target;
       if (!t || !t.closest) return;
-      if (t.closest('#whiteboardWrap, #sidebar, #selToolbar, #contextMenu, .floating-toolbar, .shape-menu, .dropdown, .menu-item, [id$="Modal"], #sheetPanel, .hud-panel, #soundPanel, #dicePanel, #cmdkModal, #combatStrip, #docPanel, #prepCol, #musicPanel, #videoPanel, #fxPanel, #notepadPanel, #chatPanel, #prepMakeMenu, #namedInMenu, input, select, textarea, [contenteditable="true"]')) return;   // 1.5.6 (the sweep of 2026-10-17, seen live): every floating box keeps the selection, as the sheet and Sound do
+      if (t.closest('#whiteboardWrap, #sidebar, #selToolbar, #contextMenu, .floating-toolbar, .shape-menu, .dropdown, .menu-item, [id$="Modal"], #sheetPanel, .hud-panel, #soundPanel, #dicePanel, #cmdkModal, #combatStrip, #docPanel, #prepCol, #musicPanel, #videoPanel, #fxPanel, #notepadPanel, #chatPanel, #prepMakeMenu, #namedInMenu, #tokCardPanel, input, select, textarea, [contenteditable="true"]')) return;   // 1.5.6 (the sweep of 2026-10-17, seen live): every floating box keeps the selection, as the sheet and Sound do
       state.selWbId = null; state.selWbIds = [];
       if (window.appRender) window.appRender();
   }, true);
@@ -3787,16 +3752,27 @@ window.wpFitToGrid = fitToGrid;
   (function wireTooltipHygiene() {
       var tt = document.getElementById('wbTooltip');
       if (!tt) return;
-      function hide() { if (tt.style.display !== 'none') tt.style.display = 'none'; }
+      function hide() { _tc.next = null; tokCardDrop(); if (tt.style.display !== 'none') tt.style.display = 'none'; }
+      // backlog 236: a token's card (tc-on) stays while the pointer is on it, and goes a grace after the pointer left both it and the token
+      tt.addEventListener('pointerenter', function() { if (tt.classList.contains('tc-on')) tokCardKeep(); });
+      tt.addEventListener('pointerleave', function() { if (tt.classList.contains('tc-on')) tokCardLater(); });
       document.addEventListener('pointermove', function(e) {
           if (tt.style.display !== 'block') return;
+          if (tt.contains(e.target)) return;
           var over = e.target && e.target.closest && e.target.closest('.wb-item');
+          if (tt.classList.contains('tc-on')) { if (!over) tokCardLater(); return; }
           if (!over) hide();
       }, true);
-      document.addEventListener('pointerdown', hide, true);
+      document.addEventListener('pointerdown', function(e) { if (!(e.target && tt.contains(e.target))) hide(); }, true);   // a press elsewhere puts it away and goes on to what it was for; a press on the card is the card's
       document.addEventListener('keydown', function(e) { if (e.key === 'Escape') hide(); });
       window.addEventListener('blur', hide);
-      window.wpHideTooltip = hide;
+      // a redraw of the board: the card the pointer is on is made again once the board is drawn (a roll from its note, a bar that moved), any
+      // other goes; the pinned card is made again too. Called with true it simply goes
+      window.wpHideTooltip = function(now) {
+          if (now !== true && tokCardUp() && _tc.id) { var go = function() { if (tokCardUp()) tokCardRedo(); }; if (typeof requestAnimationFrame === 'function') requestAnimationFrame(go); else setTimeout(go, 0); }
+          else hide();
+          if (_pin.id) { var pd = function() { tokPinDraw(); }; if (typeof requestAnimationFrame === 'function') requestAnimationFrame(pd); else setTimeout(pd, 0); }
+      };
   })();
 
   /* ---- eraser: delete drawn paths under the pointer ---- */
@@ -4241,18 +4217,109 @@ window.wpFitToGrid = fitToGrid;
       if (hg && typeof hg.mod === 'number' && isFinite(hg.mod) && hg.mod !== 0) parts.push(heightTitle(hg));
       return 'Targeted by ' + name + (parts.length ? ': ' + parts.join(', ') : '');
   }
-  function badgeLines(el, item) {   // the card's lines, one a mark, from what this screen drew; at most eight target marks and then how many more
-      var out = [], marks = el.querySelector(':scope > .target-marks'), says = marks && Array.isArray(marks._says) ? marks._says : [];
-      out = says.slice(0, 8); if (says.length > 8) out.push((says.length - 8) + ' more target it');
-      if (item.status === 'down') out.push('Down'); else if (item.status === 'dead') out.push('Dead');
-      var fx = window.wpSheets && window.wpSheets.tokenFx ? window.wpSheets.tokenFx(item) : null, names = Array.isArray(fx) ? fx.slice(0, 8).map(function(e) { return e && typeof e.n === 'string' ? e.n : ''; }).filter(Boolean) : [];
-      if (names.length) out.push('Effects: ' + names.join(', '));
+  // 1.6.2, backlog 236: the same marks as chips, { t: the words, k: its kind, g: 1 for an effect the GM alone sees }, in the lines' order and
+  // each effect a chip of its own. el may be null (a pinned card of a token on a map not on screen: no target marks are drawn for it)
+  function badgeChips(el, item) {
+      var out = [], marks = el && el.querySelector ? el.querySelector(':scope > .target-marks') : null, says = marks && Array.isArray(marks._says) ? marks._says : [];
+      says.slice(0, 8).forEach(function(s) { out.push({ t: s, k: 'mark' }); }); if (says.length > 8) out.push({ t: (says.length - 8) + ' more target it', k: 'mark' });
+      if (item.status === 'down') out.push({ t: 'Down', k: 'down' }); else if (item.status === 'dead') out.push({ t: 'Dead', k: 'down' });
+      var fx = window.wpSheets && window.wpSheets.tokenFx ? window.wpSheets.tokenFx(item) : null;
+      (Array.isArray(fx) ? fx.slice(0, 8) : []).forEach(function(e) { if (e && typeof e.n === 'string' && e.n) { var c = { t: e.n, k: e.t === 'buff' ? 'buff' : e.t === 'debuff' ? 'debuff' : 'fx' }; if (e.g === 1) c.g = 1; out.push(c); } });
       var env = window.wpSheets && window.wpSheets.tokenEnv ? window.wpSheets.tokenEnv(item) : null;
-      if (env && typeof env.text === 'string' && env.text) out.push(env.text);
-      var cpF = window.wpCompass && typeof window.wpCompass.faceWords === 'function' ? window.wpCompass.faceWords(item) : ''; if (cpF) out.push(cpF);   // 1.6.2, backlog 82: the way it faces by the map's compass
+      if (env && typeof env.text === 'string' && env.text) out.push({ t: env.text, k: 'env' });
+      var cpF = window.wpCompass && typeof window.wpCompass.faceWords === 'function' ? window.wpCompass.faceWords(item) : ''; if (cpF) out.push({ t: cpF, k: 'face' });   // 1.6.2, backlog 82: the way it faces by the map's compass
       return out;
   }
+  function badgeLines(el, item) {   // the card's lines, one a mark, from what this screen drew; at most eight target marks and then how many more
+      var out = [], fx = [];
+      badgeChips(el, item).forEach(function(c) { if (c.k === 'fx' || c.k === 'buff' || c.k === 'debuff') { if (!fx.length) out.push(fx); fx.push(c.t); } else out.push(c.t); });
+      return out.map(function(l) { return Array.isArray(l) ? 'Effects: ' + l.join(', ') : l; });
+  }
   // [lookcheck:badgesay-end]
+  // [lookcheck:tokcard-start]
+  // Backlog 236, a token's hover card on the play map (the owner, 2026-11-14, by prompt after a drawn mock-up: "Both", "In parts, as drawn",
+  // "Health and marks first"). The card sits beside the token, never over it, and stays while the pointer goes onto it within the grace; its
+  // pin keeps it as a small window. It is laid out in parts: a head (the round picture, the name, a gray line with the sheet's name and NPC or
+  // the player's name, Sheet where the viewer may open it), then Health, Marks and effects, the note, and Where, each only when it holds
+  // something. Built of elements and text nodes alone: every word is set as text, a color is a #rrggbb, a picture's address is the caller's
+  var TOKCARD_GRACE = 400, TOKCARD_GAP = 10;
+  var TOKCARD_KINDS = ['mark', 'down', 'fx', 'buff', 'debuff', 'env', 'face', 'stance', 'ranged'];
+  // Prose as the card says it: an art file's name or an id in brackets is left out, since the head shows the picture and Where the room
+  function tokCardTidy(s) {
+      if (typeof s !== 'string') return '';
+      return s.replace(/[ \t]*\((?:[A-Za-z][A-Za-z ]{0,15}:\s*)?[^()\n]{0,160}?\.(?:png|jpe?g|webp|gif|svg|avif)\)/gi, '').replace(/[ \t]*\((?:suggested\s+)?id\b[^()\n]{0,160}\)/gi, '').replace(/[ \t]+([.,;:])/g, '$1').replace(/[ \t]{2,}/g, ' ').trim();
+  }
+  function tokCardCap(s, n) { s = tokCardTidy(s); return s.length > n ? s.slice(0, n) + '…' : s; }
+  function tokCardFig(v) { return typeof v === 'number' && isFinite(v) ? String(Math.round(v * 100) / 100) : ''; }
+  // The card's parts from plain figures. o: { name, sheet, who, about, bars: [{ n, v, m, c, g }], fields: [text], chips: [{ t, k, g }],
+  // notes: [text], room, map, gm (the GM's screen: the note is "Your note") }. Answers { name, sub, about, parts: [{ k, label, ... }] }
+  function tokCardModel(o) {
+      o = o || {}; var str = function(v) { return typeof v === 'string' ? v.trim() : ''; }, strs = function(a) { return (Array.isArray(a) ? a : []).map(str).filter(Boolean); };
+      var name = str(o.name) || 'Unnamed character', sheet = str(o.sheet), who = str(o.who);
+      var m = { name: name, sub: [sheet && sheet !== name ? sheet : '', who].filter(Boolean).join(' · '), about: tokCardCap(str(o.about), 600), parts: [] };
+      var bars = (Array.isArray(o.bars) ? o.bars : []).filter(function(e) { return !!e && typeof e === 'object' && typeof e.v === 'number' && isFinite(e.v); }).slice(0, 2).map(function(e) {
+          var mx = typeof e.m === 'number' && isFinite(e.m) && e.m > 0 ? e.m : 0;
+          return { n: str(e.n) || 'Bar', v: tokCardFig(e.v), m: mx ? tokCardFig(mx) : '', f: mx ? Math.max(0, Math.min(1, e.v / mx)) : 0, c: typeof e.c === 'string' && /^#[0-9a-f]{6}$/i.test(e.c) ? e.c : '#d9534f', g: e.g === 1 };
+      });
+      var fields = strs(o.fields).slice(0, 12);
+      if (bars.length || fields.length) m.parts.push({ k: 'health', label: 'Health', bars: bars, fields: fields });
+      var chips = (Array.isArray(o.chips) ? o.chips : []).filter(function(c) { return !!c && !!str(c.t); }).slice(0, 24).map(function(c) { var r = { t: str(c.t), k: TOKCARD_KINDS.indexOf(c.k) >= 0 ? c.k : '' }; if (c.g === 1) r.g = 1; return r; });
+      if (chips.length) m.parts.push({ k: 'marks', label: 'Marks and effects', chips: chips });
+      var notes = strs(o.notes).map(function(t) { return tokCardCap(t, 1200); }).filter(Boolean).slice(0, 4);
+      if (notes.length) m.parts.push({ k: 'note', label: o.gm === true ? 'Your note' : 'Note', notes: notes });
+      var where = [str(o.room) ? ['Room', str(o.room)] : null, str(o.map) ? ['Map', str(o.map)] : null].filter(Boolean);
+      if (where.length) m.parts.push({ k: 'where', label: 'Where', rows: where });
+      return m;
+  }
+  // The card from its model. o: { pic (an img element, or null), sheet (a function: Sheet shows only with one), pin (a function: the pin shows
+  // only with one), pinned (the pin lit, as it is in the window), dice (a function given the note's element: its dice made pressable) }.
+  // A press on the card is the card's: it never reaches the board under it
+  function tokCardBuild(doc, m, o) {
+      o = o || {}; var U = window.wpUi;
+      var mk = function(tag, cls, text) { var e = doc.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+      var c = U && typeof U.card === 'function' ? U.card({ name: m.name, sub: m.sub, pic: o.pic || null, cls: 'tok-card' }, doc) : null;
+      if (!c) { c = { el: mk('div', 'ui-card tok-card'), side: mk('span', 'ui-card-side'), body: mk('div', 'ui-card-body') }; var top = mk('div', 'ui-card-top'); top.appendChild(mk('b', 'ui-card-name', m.name)); if (m.sub) top.appendChild(mk('small', 'ui-card-sub', m.sub)); top.appendChild(c.side); c.el.appendChild(top); c.el.appendChild(c.body); }
+      var btn = function(cls, text, tip, fn) { var b = mk('button', 'tool ghost ' + cls, text); b.type = 'button'; b.title = tip; b.setAttribute('aria-label', tip); b.addEventListener('click', function(e) { e.stopPropagation(); e.preventDefault(); fn(); }); return b; };
+      var seg = mk('span', 'ui-seg tc-acts');
+      if (typeof o.sheet === 'function') seg.appendChild(btn('tc-sheet', 'Sheet', 'Open its sheet', o.sheet));
+      if (typeof o.pin === 'function') { var pb = btn('tc-pin' + (o.pinned ? ' on' : ''), o.pinned ? 'Pinned' : 'Pin', o.pinned ? 'Kept as a window: close it with its × or Escape' : 'Keep this card open as a small window', o.pin); pb.setAttribute('aria-pressed', o.pinned ? 'true' : 'false'); seg.appendChild(pb); }
+      if (seg.firstChild) c.side.appendChild(seg);
+      if (m.about) c.body.appendChild(mk('div', 'tc-about', m.about));
+      m.parts.forEach(function(p) {
+          var sec = mk('section', 'tc-part tc-part-' + p.k); sec.appendChild(mk('div', 'tc-label', p.label));
+          (p.bars || []).forEach(function(b) {
+              var row = mk('div', 'tc-bar' + (b.g ? ' gm' : '')), tr = mk('span', 'tc-track'), fill = mk('span', 'tc-fill');
+              row.appendChild(mk('span', 'tc-bar-name', b.n + (b.g ? ' (GM only)' : '')));
+              fill.style.width = Math.round(b.f * 1000) / 10 + '%'; fill.style.background = b.c; tr.appendChild(fill); row.appendChild(tr);
+              row.appendChild(mk('span', 'tc-bar-fig', b.m ? b.v + ' / ' + b.m : b.v)); sec.appendChild(row);
+          });
+          (p.fields || []).forEach(function(f) { sec.appendChild(mk('div', 'tc-field', f)); });
+          if (p.chips) { var cw = mk('div', 'tc-chips'); p.chips.forEach(function(ch) { var s = mk('span', 'tc-chip' + (ch.k ? ' ' + ch.k : '') + (ch.g ? ' gm' : ''), ch.t); if (ch.g) s.title = 'The GM alone sees this'; cw.appendChild(s); }); sec.appendChild(cw); }
+          (p.notes || []).forEach(function(t) { var n = mk('div', 'tc-note', t); sec.appendChild(n); if (typeof o.dice === 'function') o.dice(n); });
+          (p.rows || []).forEach(function(r) { var w = mk('div', 'tc-where'); w.appendChild(mk('span', 'tc-where-k', r[0])); w.appendChild(mk('span', 'tc-where-v', r[1])); sec.appendChild(w); });
+          c.body.appendChild(sec);
+      });
+      ['pointerdown', 'mousedown', 'dblclick', 'contextmenu'].forEach(function(ev) { c.el.addEventListener(ev, function(e) { e.stopPropagation(); }); });   // the card's own press: nothing on the board under it starts a drag, a marquee or a menu
+      c.el.addEventListener('wheel', function(e) { var b = c.body; if (b && b.scrollHeight > b.clientHeight + 1) e.stopPropagation(); }, { passive: true });   // a long card scrolls, and the board does not zoom under it
+      return c.el;
+  }
+  // Where the card stands beside the token, in the board's own numbers: tok and room are { l, t, r, b }, the card w by h. Right of the token with
+  // their tops level, else left, else below, else above: the first that fits the room whole, moved along its side to stay in it. Where none
+  // fits, the one that covers the least of the token. Never over the token where any side has room
+  function tokCardSpot(tok, w, h, room, gap) {
+      var G = typeof gap === 'number' ? gap : TOKCARD_GAP, clamp = function(v, lo, hi) { return Math.max(lo, Math.min(v, hi)); };
+      var cy = clamp(tok.t, room.t, room.b - h), cx = clamp(tok.l, room.l, room.r - w);
+      var tries = [{ x: tok.r + G, y: cy }, { x: tok.l - G - w, y: cy }, { x: cx, y: tok.b + G }, { x: cx, y: tok.t - G - h }];
+      for (var i = 0; i < tries.length; i++) { var p = tries[i]; if (p.x >= room.l && p.x + w <= room.r && p.y >= room.t && p.y + h <= room.b) return { x: Math.round(p.x), y: Math.round(p.y) }; }
+      var best = null, least = Infinity;
+      tries.forEach(function(p) {
+          var x = clamp(p.x, room.l, Math.max(room.l, room.r - w)), y = clamp(p.y, room.t, Math.max(room.t, room.b - h));
+          var ov = Math.max(0, Math.min(x + w, tok.r) - Math.max(x, tok.l)) * Math.max(0, Math.min(y + h, tok.b) - Math.max(y, tok.t));
+          if (ov < least) { least = ov; best = { x: Math.round(x), y: Math.round(y) }; }
+      });
+      return best;
+  }
+  // [lookcheck:tokcard-end]
   // [sinkcheck:tokenbars-start]
   // Backlog 28 (the owner, 2026-10-29, by prompt: "A ring around it", the numbers on hover, each bar its own color): a token's bars as a thin ring
   // just outside its edge, Bar 1 filling the left half from the bottom up and over, Bar 2 the right half from the top down, each its own color
@@ -4294,6 +4361,117 @@ window.wpFitToGrid = fitToGrid;
       return '<span class="tfx-row" title="' + esc(names.join(' · ')) + '">' + h + '</span>';
   }
   // [sinkcheck:tokenfx-end]
+  // The room a token stands in: its middle inside a floor piece linked to a room, the smallest such (as net.js roomUnder finds it)
+  function tokRoomUnder(item, map) {
+      if (!item || !map || !Array.isArray(map.whiteboard)) return null;
+      var cx = item.x + (item.w || 0) / 2, cy = item.y + (item.h || 0) / 2, best = null, area = Infinity;
+      map.whiteboard.forEach(function(o) { if (!o || o.id === item.id || !o.nodeId || o.isChar) return; var ow = o.w || 0, oh = o.h || 0; if (cx < o.x || cx > o.x + ow || cy < o.y || cy > o.y + oh || ow * oh >= area) return; area = ow * oh; best = o; });
+      return best ? (map.rooms || []).find(function(r) { return r && r.id === best.nodeId; }) || null : null;
+  }
+  // A token's card on this screen, from what the board and the sheets already work out (backlog 236). el: the token on the board (null for a
+  // pinned card of a map not on screen). Nothing of the GM's (the note, the roster's info, the person card) on a player's app, as before
+  function tokCardFor(wItem, el, map, pinned) {
+      var camp = getActiveCampaign(), S = window.wpSheets, n = window.wpNet, client = !!(n && n.active && n.role === 'client');
+      var c = S && typeof S.charById === 'function' && wItem.charId ? S.charById(wItem.charId) : null, who = '';
+      if (c && c.npc) who = 'NPC';
+      else { var own = c && (c.ownerId || c.shared === 1) ? c : wItem.ownerId ? { ownerId: wItem.ownerId } : null; if (!own) who = 'NPC'; else { var on = S && typeof S.ownerName === 'function' ? S.ownerName(own, camp) : ''; who = on && on !== own.ownerId ? on : 'A player'; } }   // never a bare id
+      var chips = badgeChips(el, wItem);
+      if (stanceOn('elevation')) { var hvE = tokenElevation(wItem, map), hvG = groundWords(wItem, map); if (hvE || hvG) chips.push({ t: 'Elevation ' + fmtElev(hvE) + ' ' + lenUnit() + (hvG ? ' (' + hvG + ')' : ''), k: 'stance' }); }   // item 19b H5: its height, the ground it stands on included (and named)
+      var postAt = stanceOn('posture') ? tokenPostureAt(wItem) : null; if (postAt && postAt.i > 0 && postAt.p && postAt.p.name) chips.push({ t: String(postAt.p.name), k: 'stance' });   // conditions C3: its posture's name in the list in use
+      if (postureRanged(wItem)) chips.push({ t: postureRangedLine(tokenPostureAt(wItem).p), k: 'ranged' });   // its posture's ranged note, in the website's words (display only)
+      var notes = [], entry = null, roster = null;
+      if (!client) {
+          if (wItem.charRef) (map.rooms || []).some(function(rm) { entry = (rm.characters || []).find(function(x) { return x && x.id === wItem.charRef; }) || null; if (entry) roster = rm; return !!entry; });
+          if (wItem.gmInfo) notes.push(String(wItem.gmInfo));   // the GM's note on the token (stripped on the wire)
+          if (entry && entry.info) notes.push(String(entry.info));   // the roster entry's notes (players never get info)
+          var cardLn = typeof pageCardLine === 'function' ? pageCardLine(wItem) : ''; if (cardLn) notes.push(cardLn);   // 1.6.2: the person card that names its sheet, worked out on this screen, never sent
+      }
+      var rm = tokRoomUnder(wItem, map) || roster;
+      var tint = (wItem.color && wItem.color !== 'transparent') ? wItem.color : '';
+      var ownerAv = (!wItem.src && wItem.face && window.wpNet && window.wpNet.faceView) ? (window.wpNet.faceView({ face: wItem.face }, cssColor(tint || '#4db3d3')).img || null) : null;   // Onboarding F1c: the character's own face, never its owner's live profile picture
+      var src = wItem.src ? resolveImg(wItem.src) : (ownerAv || (window.wpDefaultAvatar ? window.wpDefaultAvatar(tint || ('hsl(' + wbHashHue(wItem.charName || wItem.id) + ',55%,55%)')) : null)), pic = null;
+      if (src) { pic = document.createElement('img'); pic.src = src; pic.alt = ''; pic.loading = 'lazy'; pic.decoding = 'async'; }
+      var model = tokCardModel({ name: wItem.charName || '', sheet: c && typeof c.name === 'string' ? c.name : '', who: who, about: wItem.charStats || '',
+          bars: S && S.tokenBars ? S.tokenBars(wItem, map.id) : [], fields: S && S.hoverLinesForToken ? S.hoverLinesForToken(wItem, camp, map.id) : [], chips: chips, notes: notes,
+          room: rm ? rm.name || '' : '', map: map.meta && map.meta.title || '', gm: !client });
+      var cid = wItem.charId, mayS = !!cid && !!S && typeof S.canOpen === 'function' && S.canOpen(cid);
+      var card = tokCardBuild(document, model, { pic: pic, pinned: !!pinned,
+          sheet: mayS ? function() { if (!pinned && window.wpHideTooltip) window.wpHideTooltip(true); if (window.wpSheets) window.wpSheets.openSheet(cid); } : null,
+          pin: window.wpStream ? null : pinned ? tokPinClose : function() { tokPinOpen(wItem.id, map.id); },
+          dice: client ? null : function(nd) { if (window.wpInlineDice && typeof window.wpInlineDice.apply === 'function') window.wpInlineDice.apply(nd); } });
+      if (window.wpPlook) { var nmEl = card.querySelector('.ui-card-name'); if (nmEl) window.wpPlook.dress(nmEl, window.wpPlook.ofTok(wItem)); }   // the name in the token's own look
+      return card;
+  }
+  // The hover card: it sits beside the token and stays while the pointer is on the token or on it, and for a grace after it leaves both
+  var _tc = { id: '', timer: 0, next: null };
+  function tokTip() { return document.getElementById('wbTooltip'); }
+  function tokCardUp() { var tt = tokTip(); return !!tt && tt.style.display === 'block' && tt.classList.contains('tc-on'); }
+  function tokCardKeep() { if (_tc.timer) clearTimeout(_tc.timer); _tc.timer = 0; }
+  function tokCardLater() { if (!_tc.timer) _tc.timer = setTimeout(tokCardGo, TOKCARD_GRACE); }
+  function tokCardDrop() { var tt = tokTip(); tokCardKeep(); _tc.id = ''; if (!tt) return; if (tt.style.display !== 'none') tt.style.display = 'none'; tt.classList.remove('tc-on'); tt.classList.remove('wb-aside'); }
+  function tokCardGo() {   // the grace is over: the card goes, and the piece the pointer rests on now shows its own
+      _tc.timer = 0; var nx = _tc.next; _tc.next = null; tokCardDrop();
+      if (nx && nx.el.isConnected && nx.el.matches(':hover') && typeof PointerEvent === 'function') { nx.el.dispatchEvent(new PointerEvent('pointerenter', { clientX: nx.x, clientY: nx.y })); nx.el.dispatchEvent(new PointerEvent('pointermove', { clientX: nx.x, clientY: nx.y, bubbles: true })); }
+  }
+  function tokCardPlace(tt, el) {
+      var wrap = document.getElementById('whiteboardWrap'), card = tt.firstElementChild; if (!wrap || !card || !el) return;
+      var wb = wrap.getBoundingClientRect(), sL = wrap.scrollLeft, sT = wrap.scrollTop, r = el.getBoundingClientRect();
+      card.style.maxWidth = Math.min(320, wb.width - 16) + 'px'; card.style.maxHeight = (wb.height - 16) + 'px';
+      tt.style.left = sL + 'px'; tt.style.top = sT + 'px';   // measured at the board's corner, where nothing narrows it
+      var cr = tt.getBoundingClientRect(), P = 6;   // the ring of bars and the effect icons stand just outside the token's box
+      var p = tokCardSpot({ l: r.left - wb.left + sL - P, t: r.top - wb.top + sT - P, r: r.right - wb.left + sL + P, b: r.bottom - wb.top + sT + P }, cr.width, cr.height, { l: sL + 8, t: sT + 8, r: sL + wb.width - 8, b: sT + wb.height - 8 });
+      if (p) { tt.style.left = p.x + 'px'; tt.style.top = p.y + 'px'; }
+  }
+  function tokCardPut(tt, wItem, el, map) {
+      if (window.wpStream) return;   // the stream window shows nothing of it
+      tokCardKeep(); _tc.next = null;
+      var card = tokCardFor(wItem, el, map, false);
+      tt.textContent = ''; tt.appendChild(card); tt.classList.add('tc-on'); tt.style.display = 'block'; _tc.id = wItem.id;
+      tokCardPlace(tt, el);
+  }
+  function tokElFor(id) { var q = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(id) : String(id).replace(/[^\w-]/g, ''); return document.querySelector('#whiteboard .wb-item[data-id="' + q + '"]'); }
+  // A redraw of the board: the card the pointer is on (or on its token) is made again from the figures as they are now; any other goes
+  function tokCardRedo() {
+      var tt = tokTip(), map = getActiveMap(); if (!tt || !_tc.id || !map) { tokCardDrop(); return; }
+      var w = (map.whiteboard || []).find(function(x) { return x && x.id === _tc.id; }), el = w ? tokElFor(w.id) : null, n = window.wpNet;
+      if (!w || !el || (w.hidden && n && n.active && n.role === 'client') || !(tt.matches(':hover') || el.matches(':hover'))) { tokCardDrop(); return; }
+      var left = tt.style.left, top = tt.style.top, onCard = tt.matches(':hover');
+      tt.textContent = ''; tt.appendChild(tokCardFor(w, el, map, false));
+      if (onCard) { tt.style.left = left; tt.style.top = top; } else tokCardPlace(tt, el);   // the card under the pointer stays where it is
+  }
+  // The pinned card: a small window of its own (floats.js, sheets.js Z_BOXES, esckey.js ESC_LAST), made again whenever the board is drawn
+  var _pin = { id: '', map: '' };
+  function tokPinEl() { return document.getElementById('tokCardPanel'); }
+  function tokPinDraw() {
+      var p = tokPinEl(), body = document.getElementById('tokCardBody'); if (!p || !body || !_pin.id || p.style.display === 'none') return false;
+      var camp = getActiveCampaign(), map = camp && camp.items ? camp.items[_pin.map] : null, w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === _pin.id; }) : null, n = window.wpNet;
+      if (!w || (w.hidden && n && n.active && n.role === 'client')) { tokPinClose(); return false; }   // the token is gone, or hidden from this player
+      var am = getActiveMap(), sc = body.scrollTop;
+      body.textContent = ''; body.appendChild(tokCardFor(w, am && am.id === map.id ? tokElFor(w.id) : null, map, true)); body.scrollTop = sc;
+      var t = document.getElementById('tokCardTitle'); if (t) t.textContent = w.charName || 'Token';
+      return true;
+  }
+  function tokPinOpen(id, mapId) {
+      var p = tokPinEl(), tt = tokTip(); if (!p || window.wpStream) return;
+      var r = tt && tt.style.display === 'block' ? tt.getBoundingClientRect() : null, was = p.style.display !== 'none';
+      _pin.id = id; _pin.map = mapId; tokCardDrop();
+      if (!was) {
+          var at = { l: r ? r.left : 80, t: r ? r.top : 120, w: 300, h: r ? Math.max(160, r.height + 34) : 360 }, F = window.wpFloats, s = F && typeof F.spot === 'function' ? F.spot(at, false, p) : null;   // where the card stood, kept clear of the map's bars
+          p.style.left = Math.max(0, Math.round(s ? s.l : at.l)) + 'px'; p.style.top = Math.max(0, Math.round(s ? s.t : at.t)) + 'px'; p.style.right = 'auto';
+          p.style.display = 'flex';
+      }
+      tokPinDraw();
+      if (window.wpFloats && typeof window.wpFloats.reveal === 'function') window.wpFloats.reveal(p);
+  }
+  function tokPinClose() { var p = tokPinEl(); _pin.id = ''; _pin.map = ''; if (p) { p.style.display = 'none'; var b = document.getElementById('tokCardBody'); if (b) b.textContent = ''; } }
+  (function wireTokPin() {
+      var p = tokPinEl(), head = document.getElementById('tokCardHead'), x = document.getElementById('tokCardClose'), drag = null; if (!p || !head) return;
+      if (x) x.addEventListener('click', tokPinClose);
+      head.addEventListener('pointerdown', function(e) { if (e.target.closest('button')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
+      head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = (e.clientY - drag.dy) + 'px'; p.style.right = 'auto'; });
+      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function(ev) { head.addEventListener(ev, function() { drag = null; }); });   // a drag ends however the pointer is let go
+      if (typeof MutationObserver === 'function') new MutationObserver(function() { if (p.style.display === 'none' && _pin.id) { _pin.id = ''; _pin.map = ''; } }).observe(p, { attributes: true, attributeFilter: ['style'] });   // closed by Escape (esckey.js) or anything else: nothing is kept
+  })();
   // [sinkcheck:tokfxmenu-start]
   // Conditions C2 (docs/CONDITIONS_PLAN.md): a token's Effects menu — the model's rows (wpSheets.tokenFxModel) as menu lines ticked when
   // applied, a GM-only one marked, one applied but switched off saying so; a click adds the library effect or ends the one applied. A token

@@ -98,7 +98,7 @@ function between(src, a, b) { const i = src.indexOf(a), j = src.indexOf(b, i); r
     check('the host names a card’s character with its look where it names it from its record (seven places, a crew press none), through plOn asked by typeof',
         (net.match(/if \(typeof plOn === 'function'\)( && !\(typeof pressQ[^)]*\)\))? plOn\(rec[A-Za-z]*, ch[A-Za-z]*\);|typeof plOn === 'function' && !\(typeof pressQ !== 'undefined' && pressQ\)\) plOn\(recQ, chQ\);/g) || []).length >= 6 && net.includes('function plOn(rec, ch) {'));
     check('the hover card’s name, a token’s initials (the font alone, so a plate of the same color never hides them), the turn strip’s and the roster’s names, and the Characters section’s rows wear the look; the section is drawn again when a look changes',
-        wb.includes("ttName.textContent = cname; if (window.wpPlook) window.wpPlook.dress(ttName, window.wpPlook.ofTok(wItem));") && (wb.match(/window\.wpPlook\.fontOn\(ini[EL][a-z]*, window\.wpPlook\.ofTok\(item\)\)/g) || []).length === 2
+        wb.includes("if (window.wpPlook) { var nmEl = card.querySelector('.ui-card-name'); if (nmEl) window.wpPlook.dress(nmEl, window.wpPlook.ofTok(wItem)); }")   /* 1.6.2, backlog 236: the card's name (moved on purpose) */ && (wb.match(/window\.wpPlook\.fontOn\(ini[EL][a-z]*, window\.wpPlook\.ofTok\(item\)\)/g) || []).length === 2
         && wb.includes("var stL = typeof nameCss === 'function' ? nameCss(tokId) : ''; if (stL) t = '<span class=\"plook-name\" style=\"' + esc(stL) + '\">' + t + '</span>';") && wb.includes('function nameCss(tokId) {')
         && cl.includes("window.wpPlook.dress(tN, window.wpPlook.ofCharId(r.id))") && cl.includes("window.wpPlook.sig(window.wpPlook.ofCharId(r.id))"));
     const P2 = mkP(campA, true);

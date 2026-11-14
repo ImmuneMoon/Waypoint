@@ -942,7 +942,7 @@
   body.stream-mode header, body.stream-mode #campaignSidebar, body.stream-mode #leftGrip, body.stream-mode #rightGrip,
   body.stream-mode #sidebar, body.stream-mode #wbFloatingToolbar, body.stream-mode #selToolbar, body.stream-mode #minimap,
   body.stream-mode #saveNote, body.stream-mode #toast, body.stream-mode #updateBanner, body.stream-mode #updateBtn,
-  body.stream-mode #pauseBanner, body.stream-mode #rulerTop, body.stream-mode #rulerLeft, body.stream-mode #wbTooltip,
+  body.stream-mode #pauseBanner, body.stream-mode #rulerTop, body.stream-mode #rulerLeft, body.stream-mode #wbTooltip, body.stream-mode #tokCardPanel,
   body.stream-mode #dataFloatingToolbar, body.stream-mode #zoomBox, body.stream-mode .pane-toggle, body.stream-mode [id$="Modal"], body.stream-mode #welcomeScreen { display: none !important; }
   body.stream-mode #whiteboardWrap, body.stream-mode #whiteboardWrap * { cursor: grab !important; }
   body.stream-mode .wb-item.wb-absent { opacity: 1 !important; filter: none !important; }
@@ -1281,11 +1281,40 @@
   #wbTooltip { position: absolute; pointer-events: none; user-select: none; -webkit-user-select: none; z-index: 90020; display: none; transition: opacity 0.15s; }   /* a token's hover card: in front of an open menu of the map's tools (90010), as the right-click menu is */
   #wbTooltip .room { position: relative !important; left: 0 !important; top: 0 !important; box-shadow: 0 4px 12px rgba(0,0,0,0.5); max-width: 320px; max-height: calc(100vh - 120px); overflow: hidden; overflow-wrap: anywhere; }   /* no transform: a scale here isn't seen by the JS clamp (it measures the un-transformed box) and let a tall card spill past the board edge */
   #wbTooltip .room img { max-height: 120px; object-fit: cover; }
-  #wbTooltip .tt-marks { color: var(--ink); font-size: 11px; white-space: pre-wrap; text-transform: none; letter-spacing: 0; margin-top: 4px; padding-top: 3px; border-top: 1px solid var(--edge); }
   #wbTooltip.wb-aside { visibility: hidden; }   /* the pointer rests on a part of the token with a tooltip of its own: that one alone (whiteboard.js cardAside) */
   #wbTooltip .room .portal-peek { display: none; }   /* 1.6.0: a portal's destination, a small picture beside its name (mapshot.js draws it) */
   #wbTooltip .room .portal-peek.on { display: block; float: right; margin: 0 0 4px 10px; }
   #wbTooltip .room .portal-peek img { display: block; width: 112px; height: 70px; max-height: 70px; object-fit: contain; border: 1px solid var(--edge); border-radius: 4px; background: #15151c; }
+  /* 1.6.2, backlog 236 (the owner, 2026-11-14, by prompt: "Both", "In parts, as drawn", "Health and marks first"): a token's card. It sits beside the
+     token and can be pressed, its note selected and scrolled (whiteboard.js tokCardBuild); its pin keeps it as a small window, #tokCardPanel. An
+     item card (.ui-card) with a round picture; each part a label over its lines; a bar its own color over a dark track; neutral chips, a buff's
+     edge green and a debuff's or Down's red, one the GM alone sees dashed. Gold is only on the pin while it is on */
+  #wbTooltip.tc-on { pointer-events: auto; user-select: text; -webkit-user-select: text; }
+  .ui-card.tok-card { width: 280px; max-width: 320px; gap: 8px; overflow: hidden; color: var(--ink); text-align: left; }
+  #wbTooltip .ui-card.tok-card { box-shadow: 0 4px 14px rgba(0,0,0,0.45); }
+  .tok-card .ui-card-pic { width: 44px; height: 44px; border-radius: 50%; } .tok-card .ui-card-pic > img { width: 44px; height: 44px; object-fit: cover; border-radius: 50%; }
+  .tok-card .ui-card-name { font-size: 14px; } .tok-card .ui-card-side { align-self: flex-start; }
+  .tok-card .tc-acts > .tool { height: 24px; padding: 0 9px; font-size: 11.5px; }
+  .tok-card .ui-card-body { overflow-y: auto; min-height: 0; gap: 8px; overscroll-behavior: contain; }
+  .tok-card .tc-about { font-size: 12px; line-height: 1.4; white-space: pre-wrap; }
+  .tok-card .tc-part { display: flex; flex-direction: column; gap: 4px; padding-top: 6px; border-top: 1px solid var(--edge); }
+  .tok-card .tc-label { font-size: 10.5px; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; }
+  .tok-card .tc-bar { display: grid; grid-template-columns: minmax(0, 96px) 1fr auto; align-items: center; gap: 8px; font-size: 12px; }
+  .tok-card .tc-bar-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tok-card .tc-track { height: 8px; border-radius: 4px; background: var(--bg2); border: 1px solid var(--edge); overflow: hidden; } .tok-card .tc-bar.gm .tc-track { border-style: dashed; }
+  .tok-card .tc-fill { display: block; height: 100%; }
+  .tok-card .tc-bar-fig { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tok-card .tc-field { font-size: 12px; }
+  .tok-card .tc-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tok-card .tc-chip { font-size: 11px; line-height: 1.6; padding: 0 7px; border: 1px solid var(--edge); border-radius: 10px; background: var(--panel); overflow-wrap: anywhere; }
+  .tok-card .tc-chip.buff { border-color: var(--green); } .tok-card .tc-chip.debuff, .tok-card .tc-chip.down { border-color: var(--red); } .tok-card .tc-chip.down { color: var(--red); } .tok-card .tc-chip.gm { border-style: dashed; } .tok-card .tc-chip.ranged, .tok-card .tc-chip.env { color: var(--dim); }
+  .tok-card .tc-note { font-size: 12px; line-height: 1.4; white-space: pre-wrap; } .tok-card .tc-note + .tc-note { border-top: 1px dashed var(--edge); padding-top: 4px; }
+  .tok-card .tc-where { display: flex; gap: 8px; font-size: 12px; } .tok-card .tc-where-k { flex: 0 0 40px; color: var(--dim); } .tok-card .tc-where-v { min-width: 0; overflow-wrap: anywhere; }
+  #tokCardPanel { position: fixed; left: 80px; top: 120px; width: 300px; max-width: calc(100vw - 24px); max-height: 70vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--edge); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  #tokCardHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
+  #tokCardHead .notepad-btn { padding: 1px 7px; font-size: 11px; }
+  #tokCardBody { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  #tokCardBody > .ui-card.tok-card { width: auto; max-width: none; flex: 1 1 auto; min-height: 0; border: 0; border-radius: 0; background: transparent; }
 
   .wb-item.sel { outline: 2px dashed var(--gold); outline-offset: 3px; z-index: 100; }
   .wb-item.sel.locked { outline: 2px solid var(--gold); }   /* a locked piece selected: gold as any selection, solid where a free one is dashed (it has no handles) */

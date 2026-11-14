@@ -434,6 +434,120 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         copySrc.length > 400 && copyRan && urlsK.length === 6 && urlsK.every(u => /^\/api\/upload-exact\?keep=1&path=images%2F/.test(u)) && landsK.every(s => s[0] === 'images' && !/^journal[. ]*$/i.test(s[1])) && j(landsK[5]) === j(['images', 'm', 'a b.png']) && j(bodiesK) === j([10, 10, 10, 10, 10, 10])
         && toastsK[toastsK.length - 1] === 'Files copied: 4, 1 already here, 1 failed (damaged in the archive, or refused by the saves folder).' && toastsK[0] === 'Imported. Copying 5 image(s) and 1 video(s)…', j([urlsK, toastsK, bodiesK]));
 
+    /* ---- 1.6.2 backlog 235 (the website coordinator, 2026-11-14): a browser import that says what landed. On a website's page the play host
+       answers an import's writes 413 { error: "too-large", max }, 413 { error: "quota" }, 429 { error: "daily-upload" } and 403 for a Player plan.
+       medialimit.js importsay (the reader and the closing words) and main.js importweb (the copy itself) run for real on stand-ins ---- */
+    {
+        let IS = null, isErr = '';
+        try { IS = await import(url('medialimit.js')); } catch (e) { isErr = e.message; }
+        const isSrc = (() => { try { return sliceOf(read('system/app/scripts/medialimit.js'), 'importsay'); } catch (e) { return ''; } })();
+        const ans = (status, body, opts) => { const o = opts || {}; return { ok: status >= 200 && status < 300, status, clone() { if (o.noClone) throw new Error('read on the desktop'); return { json: async () => { if (body === undefined) throw new Error('not json'); return body; } }; }, json: async () => { throw new Error('the answer itself is never read'); } }; };
+        const MAX = 33554432;
+        const reads = IS ? await Promise.all([ans(413, { error: 'too-large', max: MAX }), ans(413, { error: 'quota' }), ans(429, { error: 'daily-upload', resetsAt: 9 }), ans(403, { error: 'plan' }), ans(403), ans(429, { error: 'slow' }), ans(413), ans(500, { error: 'x' }, { noClone: true }), ans(409, null, { noClone: true })].map(r => IS.readRefusal(r))) : [];
+        check('backlog 235: a refused answer is named by its status and its body\'s one word (medialimit.js readRefusal and refusalOf, run for real): 413 too-large (with its limit) and a 413 with no word are too large for the browser, 413 quota is the storage full, 429 daily-upload is the day\'s uploads used up, any other 429 the host busy, 403 the plan; a 500 or a 409 is never read for a reason, and a copy of the answer is read, never the answer itself',
+            !!IS && isSrc.length > 400 && j(reads.map(r => [r.status, r.why, r.max])) === j([[413, 'too-large', MAX], [413, 'quota', 0], [429, 'daily', 0], [403, 'plan', 0], [403, 'plan', 0], [429, 'busy', 0], [413, 'too-large', 0], [500, '', 0], [409, '', 0]])
+            && ['quota', 'daily', 'plan', 'busy'].every(w => IS.refusalStops(w)) && !IS.refusalStops('too-large') && !IS.refusalStops('') && !IS.tryAgainFor('too-large') && !IS.tryAgainFor('damaged') && IS.tryAgainFor('quota') && IS.tryAgainFor(''), isErr || j(reads));
+        const words1 = w => { const t = IS.importTally(); IS.tallyAdd(t, 'picture', 'left', w); return IS.tallyWords(t); };
+        check('backlog 235: each reason is one plain sentence (medialimit.js tallyWords, run for real): too large for the browser, use the desktop app for this file; your storage on the website is full; today\'s upload limit is reached, and the rest can come tomorrow; your plan does not let you bring campaigns in',
+            !!IS && words1('too-large') === 'Nothing was brought in. Not brought in: 1 picture. Too large for the browser: use the desktop app for this file.'
+            && words1('quota') === 'Nothing was brought in. Not brought in: 1 picture. Your storage on the website is full.'
+            && words1('daily') === 'Nothing was brought in. Not brought in: 1 picture. Today’s upload limit is reached, and the rest can come tomorrow.'
+            && words1('plan') === 'Nothing was brought in. Not brought in: 1 picture. Your plan does not let you bring campaigns in.', IS && j(['too-large', 'quota', 'daily', 'plan'].map(words1)));
+
+        const webSrc = (() => { try { return sliceOf(mainSrc, 'importweb'); } catch (e) { return ''; } })();
+        let importOnWeb = null; try { importOnWeb = new Function('"use strict";' + NL + webSrc + NL + 'return importOnWeb;')(); } catch (e) { importOnWeb = null; }
+        const D = (answer, opts) => {
+            const o = opts || {}, R = { urls: [], toasts: [], actions: [], logs: [], libCalls: [], saves: 0, rendered: 0 };
+            const Dx = { IS: { why: IS.refusalOf, stops: IS.refusalStops, again: IS.tryAgainFor, read: IS.readRefusal, kind: IS.importKind, tally: IS.importTally, add: IS.tallyAdd, left: IS.tallyLeft, words: IS.tallyWords },
+                toast: m => R.toasts.push(m), toastAction: (m, label, fn, ms) => R.actions.push({ m, label, fn, ms }), render: () => R.rendered++, log: (step, f) => R.logs.push([step, f]),
+                fetch: async (u, init) => { R.urls.push(u); return answer(u, init); },
+                save: () => { R.saves++; return Promise.resolve(o.saveAgain || { status: 200, why: '', max: 0 }); },
+                lib: { importFiles: async (jobs, files, op) => { R.libCalls.push(jobs.map(x => x.uploads.map(u => u.pack))); const rows = []; let stop = ''; for (const jb of jobs) for (const u of jb.uploads) { if (stop) { rows.push({ camp: jb.camp, upload: u, how: 'left', why: stop, max: 0 }); continue; } const r = o.pack ? o.pack(u) : { ok: true, status: 200 }; if (r.ok) { rows.push({ camp: jb.camp, upload: u, how: 'landed', why: '', max: 0 }); continue; } const an = await op.read(ans(r.status, r.body)); rows.push({ camp: jb.camp, upload: u, how: 'left', why: an.why, max: an.max, status: an.status }); if (op.stops(an.why)) stop = an.why; } return { ok: 0, bad: 0, rows }; } } };
+            return { Dx, R };
+        };
+        const run = (job, d) => importOnWeb ? importOnWeb(job, d.Dx) : Promise.reject(new Error('no importOnWeb'));
+        const files = names => names.map(n => ent(n));
+        const nameOf = u => decodeURIComponent((u.match(/path=([^&]*)/) || [])[1] || '');
+        const noNames = R => !/images\/|\.png|\.mp4|\.mp3|p_[a-z]/.test(j(R.logs)) && R.logs.every(l => Object.keys(l[1]).every(k => ['again', 'save', 'packs', 'files', 'kind', 'status', 'why', 'landed', 'here', 'left', 'stop'].includes(k)));
+
+        // a mixed run: the campaign and a pack land, one picture lands, one was already here, a video too large, a picture refused for no reason given
+        const d1 = D(async u => { const n = nameOf(u); return n === 'images/m/b.png' ? ans(409) : n === 'images/video/c/big.mp4' ? ans(413, { error: 'too-large', max: MAX }) : n === 'images/m/c.png' ? ans(500, {}) : ans(200); }, { pack: () => ({ ok: true }) });
+        const job1 = { msg: 'Imported.', saved: Promise.resolve({ status: 200, why: '', max: 0 }), libJobs: [{ camp: 'c1', uploads: [{ pack: 'p_a' }] }], libFiles: {}, imgs: files(['images/m/a.png', 'images/m/b.png', 'images/video/c/big.mp4', 'images/m/c.png', 'images/m/song.mp3']), bytes: 100000 };
+        let t1 = null; try { t1 = await run(job1, d1); } catch (e) { d1.R.toasts.push('threw: ' + e.message); }
+        const a1 = d1.R.actions[0] || {};
+        check('backlog 235: the closing words list what landed and what did not, by kind and by count, and name each refusal once (main.js importOnWeb, run for real on stand-ins): the campaign, a library pack, a picture and a sound brought in, one already here (409 under keep=1), a video too large for the browser with its limit, a picture that could not be written; Try again is offered on the notice, up for 30 s',
+            webSrc.length > 400 && !!t1 && a1.label === 'Try again' && a1.ms === 30000
+            && a1.m === 'Brought in: the campaign, 1 library pack, 1 picture and 1 sound, and 1 file was already here. Not brought in: 1 picture and 1 video. Too large for the browser (32 MB at most): use the desktop app for this file. One was damaged in the archive or could not be written.'
+            && d1.R.toasts[0] === 'Imported. Copying 4 image(s) and 1 video(s)…' && d1.R.urls.length === 5 && d1.R.urls.every(u => /^\/api\/upload-exact\?keep=1&path=images%2F/.test(u)) && d1.R.rendered === 1, j([d1.R.toasts, d1.R.actions.map(a => [a.m, a.label, a.ms]), d1.R.urls]));
+        // Try again: only the picture that could not be written is asked for again (not the video too large, not what landed); the host now says it is there
+        let d1Again = null;
+        if (a1.fn) { const before = d1.R.urls.length; d1.Dx.fetch = async u => { d1.R.urls.push(u); return ans(409); }; a1.fn(); await new Promise(r => setTimeout(r, 30)); d1Again = d1.R.urls.slice(before); }
+        check('backlog 235: Try again asks again for what did not land and only that: the picture the host could not write, never what landed, the file already here, or the video too large for the browser; a 409 then counts as already here, the campaign is not saved again, and the closing words say so with no button',
+            j((d1Again || []).map(nameOf)) === j(['images/m/c.png']) && d1.R.saves === 0 && d1.R.toasts.includes('Trying again…') && d1.R.toasts[d1.R.toasts.length - 1] === 'The file was already here.' && d1.R.actions.length === 1, j([d1Again, d1.R.toasts]));
+
+        // the day's uploads used up on the second file: the copy stops at once, the rest never sent, what is left said
+        const d2 = D(async u => nameOf(u) === 'images/m/2.png' ? ans(429, { error: 'daily-upload', resetsAt: 1 }) : ans(200));
+        const job2 = { msg: 'Imported.', saved: Promise.resolve({ status: 200, why: '', max: 0 }), libJobs: [], libFiles: {}, imgs: files(['images/m/1.png', 'images/m/2.png', 'images/m/3.png', 'images/video/c/4.mp4']), bytes: 100000 };
+        try { await run(job2, d2); } catch (e) { d2.R.toasts.push('threw: ' + e.message); }
+        const a2 = d2.R.actions[0] || {};
+        let d2Again = null;
+        if (a2.fn) { const before = d2.R.urls.length; d2.Dx.fetch = async u => { d2.R.urls.push(u); return ans(200); }; a2.fn(); await new Promise(r => setTimeout(r, 30)); d2Again = d2.R.urls.slice(before).map(nameOf); }
+        check('backlog 235: a daily-cap stop ends the copy at once (main.js importOnWeb, run for real): after the 429 daily-upload no other file is sent, the closing words say what is still to come and that the rest can come tomorrow, and Try again sends the refused file and the ones never sent, in order, and the video\'s own notice comes only when it is sent',
+            j(d2.R.urls.slice(0, 2).map(nameOf)) === j(['images/m/1.png', 'images/m/2.png']) && a2.label === 'Try again'
+            && a2.m === 'Brought in: the campaign and 1 picture. Still to come: 2 pictures and 1 video. Today’s upload limit is reached, and the rest can come tomorrow.'
+            && d2.R.toasts.indexOf('Copying video 1 of 1…') > d2.R.toasts.indexOf('Trying again…')
+            && j(d2Again) === j(['images/m/2.png', 'images/m/3.png', 'images/video/c/4.mp4']) && d2.R.toasts[d2.R.toasts.length - 1] === 'Brought in: 2 pictures and 1 video.', j([d2.R.urls, d2.R.toasts, a2.m, d2Again]));
+
+        // the storage full on a library pack: the second pack and every file are never sent
+        const d3 = D(async () => ans(200), { pack: u => u.pack === 'p_b' ? { ok: false, status: 413, body: { error: 'quota' } } : { ok: true } });
+        const job3 = { msg: 'Imported.', saved: Promise.resolve({ status: 200, why: '', max: 0 }), libJobs: [{ camp: 'c1', uploads: [{ pack: 'p_a' }, { pack: 'p_b' }, { pack: 'p_c' }] }], libFiles: {}, imgs: files(['images/m/1.png', 'images/m/2.png']), bytes: 100000 };
+        try { await run(job3, d3); } catch (e) { d3.R.toasts.push('threw: ' + e.message); }
+        const a3 = d3.R.actions[0] || {};
+        let d3Again = null;
+        if (a3.fn) { const before = d3.R.libCalls.length; a3.fn(); await new Promise(r => setTimeout(r, 30)); d3Again = d3.R.libCalls.slice(before); }
+        check('backlog 235: the storage full stops the copy at once, a library pack\'s refusal as much as a file\'s (main.js importOnWeb and library.js importFiles\' reader): no file is sent after a pack is refused for quota, the closing words say what is still to come, and Try again asks again for the refused pack and those after it, never the one that landed',
+            d3.R.urls.length === 0 && a3.m === 'Brought in: the campaign and 1 library pack. Still to come: 2 library packs and 2 pictures. Your storage on the website is full.' && j(d3Again) === j([[['p_b', 'p_c']]]), j([d3.R.urls, a3.m, d3Again]));
+
+        // a Player plan: the campaign's own save is refused, so nothing else is asked for
+        const d4 = D(async () => ans(200));
+        const job4 = { msg: 'Imported.', saved: Promise.resolve({ status: 403, why: 'plan', max: 0 }), libJobs: [{ camp: 'c1', uploads: [{ pack: 'p_a' }] }], libFiles: {}, imgs: files(['images/m/1.png']), bytes: 100000 };
+        try { await run(job4, d4); } catch (e) { d4.R.toasts.push('threw: ' + e.message); }
+        const a4 = d4.R.actions[0] || {};
+        let d4Again = null; const d4Before = [d4.R.urls.length, d4.R.libCalls.length];
+        if (a4.fn) { a4.fn(); await new Promise(r => setTimeout(r, 30)); d4Again = [d4.R.saves, d4.R.urls.length, d4.R.libCalls.length]; }
+        check('backlog 235: a plan that brings nothing in (403 on the campaign\'s save) asks the host for nothing more: no pack, no file; the closing words name the plan and what is still to come, and Try again saves the campaign again before the rest',
+            j(d4Before) === j([0, 0]) && a4.m === 'Nothing was brought in. Still to come: the campaign, 1 library pack and 1 picture. Your plan does not let you bring campaigns in.' && j(d4Again) === j([1, 1, 1]), j([d4.R.toasts, a4.m, d4Again]));
+
+        // a campaign too large for the browser: no Try again (it would be refused again), the desktop app named
+        const d5 = D(async () => ans(200));
+        try { await run({ msg: 'Imported.', saved: Promise.resolve({ status: 413, why: 'too-large', max: MAX }), libJobs: [], libFiles: {}, imgs: files(['images/m/1.png']), bytes: 100000 }, d5); } catch (e) { d5.R.toasts.push('threw: ' + e.message); }
+        check('backlog 235: a campaign too large for the browser sends nothing more and offers no Try again (it would only be refused again): the closing words point to the desktop app',
+            d5.R.urls.length === 0 && d5.R.actions.length === 0 && d5.R.toasts[d5.R.toasts.length - 1] === 'Nothing was brought in. Not brought in: the campaign and 1 picture. Too large for the browser (32 MB at most): use the desktop app for this file.', j(d5.R.toasts));
+
+        // a whole import that lands: the closing words alone, no button; a plain file with nothing to copy keeps the import's own line
+        const d6 = D(async () => ans(200)), d7 = D(async () => ans(200));
+        try { await run({ msg: 'Imported.', saved: Promise.resolve({ status: 200, why: '', max: 0 }), libJobs: [], libFiles: {}, imgs: files(['images/m/1.png']), bytes: 100000 }, d6); await run({ msg: 'Merged 2 items.', saved: Promise.resolve({ status: 200 }), libJobs: [], libFiles: {}, imgs: [], bytes: 0 }, d7); } catch (e) { d6.R.toasts.push('threw: ' + e.message); }
+        check('backlog 235: an import that lands whole says what landed and offers nothing more; one with no files keeps the import\'s own line alone',
+            j(d6.R.toasts) === j(['Imported. Copying 1 image(s)…', 'Brought in: the campaign and 1 picture.']) && d6.R.actions.length === 0 && j(d7.R.toasts) === j(['Merged 2 items.']) && d7.R.actions.length === 0, j([d6.R.toasts, d7.R.toasts]));
+
+        check('backlog 235: the steps are logged through the house step log as import v1, counts and statuses only, never a file\'s name, a pack\'s id or anything a file holds; each refusal logged once for its kind and status',
+            [d1, d2, d3, d4, d5].every(d => noNames(d.R)) && j(d1.R.logs.filter(l => l[0] === 'refused')) === j([['refused', { kind: 'video', status: 413, why: 'too-large' }], ['refused', { kind: 'picture', status: 500, why: 'none' }]])
+            && j(d2.R.logs.find(l => l[0] === 'closed')) === j(['closed', { landed: 2, here: 0, left: 3, stop: 'daily', again: 1 }]) && /'import v1'/.test(mainSrc), j([d1.R.logs, d2.R.logs]));
+
+        // the desktop app: none of this runs there, and its own copy and words are as they were
+        const fin = mainSrc.slice(mainSrc.indexOf('  function finishImport(msg) {'), mainSrc.indexOf('  // [zipcheck:importcopy-start]'));
+        const hereSrc = (mainSrc.match(/  function importOnWebHere\(\) \{[^\n]*\}\n/) || [''])[0];
+        let hereDesk = null; try { hereDesk = [new Function('window', hereSrc + 'return importOnWebHere();')({}), new Function('window', hereSrc + 'return importOnWebHere();')({ wpWebMode: { web: () => false }, wpImportSay: { tally() {} } }), new Function('window', hereSrc + 'return importOnWebHere();')({ wpWebMode: { web: () => true }, wpImportSay: { tally() {} } })]; } catch (e) { hereDesk = e.message; }
+        const ioN = read('system/app/scripts/io.js'), saSrc = (ioN.match(/  function saveAnswer\(raw\) \{\n[\s\S]*?\n  \}\n/) || [''])[0];
+        let saDesk = null; try { const fn = new Function('window', saSrc + 'return saveAnswer;')({ wpWebMode: { web: () => false }, wpImportSay: { read: () => { throw new Error('read on the desktop'); } } }); saDesk = await Promise.all([fn(Promise.resolve(ans(413, { error: 'too large' }, { noClone: true }))), fn(Promise.resolve(ans(200, null, { noClone: true }))), fn(Promise.reject(new Error('offline')))]); } catch (e) { saDesk = e.message; }
+        const lbN = read('system/app/scripts/library.js');
+        check('backlog 235: on the desktop app nothing changes: the import\'s own copy (importcopy) and its closing words are as they were, it runs whenever the page is no website\'s, the packs are copied with their own line as before, and the save hands back its status alone, never reading a refusal\'s body (the reader runs only on a website\'s page)',
+            j(hereDesk) === j([false, false, true]) && /\n      if \(webI\) \{ importOnWeb\(\{ msg: msg, saved: savedI, libJobs: libJobs, libFiles: libFiles \|\| \{\}, imgs: imgs, bytes: pendingImportBytes \}, importWebDeps\(\)\); return; \}\n\n      if \(!imgs\.length\) \{ toast\(msg\); return; \}\n/.test(fin)
+            && /var savedI = save\(true\);/.test(fin) && /window\.wpLibrary\.importFiles && !webI\) window\.wpLibrary\.importFiles\(libJobs, libFiles \|\| \{\}\);/.test(fin)
+            && j(saDesk) === j([{ status: 413, why: '', max: 0 }, { status: 200, why: '', max: 0 }, { status: 0, why: '', max: 0 }])
+            && lbN.includes("    if ((ok || bad) && !opts) toast('Library packs copied: ' + ok + (bad ? ', ' + bad + ' could not be' : '') + '.');") && lbN.includes('busy++; var ok = 0, bad = 0, rows = opts ? [] : null'), j([hereDesk, saDesk]));
+    }
+
     /* ---- 1.6.0 backlog 34: the export share sheet. The owner, 2026-10-29, by prompt: Export this campaign, Share this campaign and Export
        Everything open it ("all of the above"; Share with Players unticked), the card is "share.json beside data.json (Recommended)", and "Yes, a
        Players tick (Recommended)". sharecore.js run for real; io.js and share.js pinned; the sheet's own run is the live check ---- */

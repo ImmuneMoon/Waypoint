@@ -1319,6 +1319,13 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
   // A failed save was said only in the row's saved note, which is out of sight while the row is hidden (the owed review, 2026-10-09): it is
   // said in a notice too, once when saving begins to fail, and again only after a save has gone through in between
   var _saveFailSaid = false, _saveFailAt = 0, SAVE_FAIL_AGAIN = 60000, _saveSeq = 0;   // ... and once a minute while it goes on failing: a notice is on screen for three seconds
+  // 1.6.2 backlog 235: a save's answer for whoever waits on it (an import on a website's page): { status, why, max }, the reason read only on a
+  // website's page (medialimit.js readRefusal), from a copy taken before the save's own note reads the answer. The desktop app reads the status alone
+  function saveAnswer(raw) {
+      var W = window.wpWebMode, IS = window.wpImportSay, web = !!(W && typeof W.web === 'function' && W.web() === true && IS && typeof IS.read === 'function');
+      if (!raw || typeof raw.then !== 'function') return undefined;
+      return raw.then(function(res) { return web ? IS.read(res) : { status: res.status, why: '', max: 0 }; }, function() { return { status: 0, why: '', max: 0 }; });
+  }
   var _saveLimit = 0;   // 1.6.2: when a website's day of uploads is renewed, where the last save was refused for it
   function saveFailed(bad) {
       if (!bad) { if (_saveFailSaid) toast('Saving works again. The campaign is on the disk.'); _saveFailSaid = false; return; }
@@ -1365,7 +1372,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
         }
 
-        var sent = fetch('/api/data', {
+        var rawS = fetch('/api/data', {
 
           method: 'POST',
 
@@ -1373,7 +1380,9 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
           body: JSON.stringify(state.appState)
 
-        })
+        });
+        var answerS = saveAnswer(rawS);   // 1.6.2 backlog 235: taken first, so a copy of the answer is read before the note below reads it
+        var sent = rawS
 
         .then(res => {
 
@@ -1387,6 +1396,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
         .catch(err => saveNote.innerHTML = 'Network error saving.');
         if (sent && typeof sent.then === 'function') { var seqS = ++_saveSeq; sent.then(function() { if (seqS === _saveSeq && typeof saveFailed === 'function') saveFailed(/rror saving/.test(String(saveNote.innerHTML))); }); }   // the newest save's word alone: an older one that answers late says nothing of where the disk stands
+        return answerS;
 
     };
 
@@ -1396,7 +1406,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
         clearTimeout(saveTimeout);
 
-        doSave();
+        return doSave();   // 1.6.2 backlog 235: the save's answer, for an import that waits on it (none where nothing is written here)
 
     } else {
 

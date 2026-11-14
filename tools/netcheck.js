@@ -8179,7 +8179,7 @@ pendingChecks.push((async () => {
     // io.js: a save while waiting goes to this player's own disk (the campaign on screen is theirs), never to the host; seated, to the host as before
     const ioE = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, '\n');
     const fnIo = (start, end, label, optional) => { const i = ioE.indexOf(start); if (i < 0 && optional) return ''; const k = ioE.indexOf(end, i + 1); if (i < 0 || k < 0 || ioE.indexOf(start, i + 1) >= 0) throw new Error('netcheck: io.js ' + label + ' not found once'); return ioE.slice(i, k + end.length); };
-    const saveSrc = ['var saveTimeout, savePending = false;', fnIo('  function canPersistLocal() {', '\n  }\n', 'canPersistLocal'), fnIo('  function ownWhileWaiting() {', '\n  }\n', 'ownWhileWaiting', true), fnIo('  function save(immediate) {', '\n  }\n', 'save'), 'return save;'].join('\n');
+    const saveSrc = ['var saveTimeout, savePending = false;', fnIo('  function canPersistLocal() {', '\n  }\n', 'canPersistLocal'), fnIo('  function ownWhileWaiting() {', '\n  }\n', 'ownWhileWaiting', true), fnIo('  function saveAnswer(raw) {', '\n  }\n', 'saveAnswer'), fnIo('  function save(immediate) {', '\n  }\n', 'save'), 'return save;'].join('\n');
     const runSaveE = (netS, o) => { o = o || {}; const log = [], st = { appState: Object.assign({ activeCampaignId: 'mine', campaigns: { mine: { id: 'mine' } } }, o.marked ? { _foreign: { at: 1 } } : {}) }, note = { innerHTML: '' };
         if (netS) netS.onLocalSave = () => log.push('wire');
         const save = new Function('window', 'state', 'getActiveMap', 'saveNote', 'pushHistory', 'fetch', 'setTimeout', 'clearTimeout', saveSrc)(

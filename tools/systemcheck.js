@@ -5567,8 +5567,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && J(rdRes[0].values) === J({}) && rdRes[1].values.f_heat === 1 && tR[0].ran === 0 && tR[0].held === true && tR[1].ran >= 1 && J(rA.rn.w_1) === J([false, true]) && rA.rw.w_1[0] === 'Out of charges' && J(rB.rn.w_1) === J([false, true]) && rB.rw.w_1[0] === 'The forge is cold' && J(rC.rn.w_1) === J([true, true]) && !('rw' in rC), J([aRes, zRes, rdRes, tR, rA.rw, rB.rw]));
         const vBad = S.validateSystem(cleanSystem(Object.assign({}, rawW, { rolls: [{ id: 'r_v', label: 'V', formula: 'd6', needsWhy: [{ if: 'Nope > 1', says: 'A' }, { if: 'd6 > 1', says: 'B' }] }] }), { F, gmView: true }), F).errors.filter(e => e.id === 'r_v');
         const vList = S.validateSystem(gW, F).errors;
-        check('1.6.2 needsWhy, the validator: each reason\'s test is read as needs are, a name it does not know and dice said under the roll (prop needs), a list roll\'s reasons read with the row\'s names (no fault for Row.Charges)',
-            vBad.some(e => e.prop === 'needs' && /Unknown name "Nope"/.test(e.message)) && vBad.some(e => e.prop === 'needs' && /dice|die/i.test(e.message)) && !vList.some(e => /Unknown name/.test(e.message)), J([vBad, vList]));
+        check('1.6.2 needsWhy, the validator: each reason\'s test is read as needs are, a name it does not know and dice said under that reason (prop needsWhy.<k>), a list roll\'s reasons read with the row\'s names (no fault for Row.Charges)',
+            vBad.some(e => e.prop === 'needsWhy.0' && /Unknown name "Nope"/.test(e.message)) && vBad.some(e => e.prop === 'needsWhy.1' && /dice|die/i.test(e.message)) && !vList.some(e => /Unknown name/.test(e.message)), J([vBad, vList]));
         // the sheet: rollNode (run for real) grays with the first failing reason's words, never its formula
         const shW = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL);
         const cutW = (a, b) => { const i = shW.indexOf(a), k = shW.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('needsWhy slice: ' + a); return shW.slice(i, k); };
@@ -5605,6 +5605,65 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && sysBox.querySelectorAll('.sys-rwhy-if').length === 1 && sysBox.querySelectorAll('.sys-lwhy-if').length === 0
             && J(drops) === J(['Reason 1 is empty, so Save drops it.', 'Reason 2 has words but no test, so Save drops it.', 'Reason 3 has a test but no words to say, so Save drops it.', 'Reason 4 is no test Save can keep, so Save drops it.', 'Reason 17 is past the 12 a roll keeps, so Save drops it.'])
             && cleanKept.length === 12, J([drawn0, afterType, afterUp, afterAdd, afterDel, capped, drops]));
+        // the review of 44a0c556: seven things a roll's reasons had left as a single needs
+        // (2) the players' view: a single needs read from a GM-only value goes, but Hidden until and Only while its needs hold stay while reasons stand
+        const rawX = { v: 1, name: 'X', fields: rawW.fields.slice(0, 4).concat([{ id: 'f_kx', key: 'KitX', kind: 'item-list', vis: 'all', edit: 'owner', list: { rolls: [{ label: 'Burn', formula: 'd20', needs: 'GSecret > 0', needsWhy: [{ if: 'Heat > 0', says: 'Too cold' }], hideOff: true }, { label: 'Gone', formula: 'd20', needs: 'GSecret > 0', hideOff: true }] } }]),
+            rolls: [{ id: 'r_hx', label: 'HX', formula: 'd6', needs: 'GSecret > 0', needsWhy: [{ if: 'Heat > 0', says: 'Too cold' }], hideOff: true },
+                { id: 'r_wx', label: 'WX', apply: [{ f: 'f_ore', formula: '1', add: true }], needs: 'GSecret > 0', needsWhy: [{ if: 'Heat > 0', says: 'Too cold' }], every: { n: 1, u: 'hour', whileNeeds: true }, inFight: { n: 1, u: 'round', whileNeeds: true } },
+                { id: 'r_nx', label: 'NX', formula: 'd6', needs: 'GSecret > 0', hideOff: true, needsGm: true }], items: [], sheet: { sections: [] } };
+        const gX = cleanSystem(rawX, { F, gmView: true }), pX = cleanSystem(rawX, { F, gmView: false }), lX = s => s.fields.find(f => f.id === 'f_kx').list.rolls;
+        check('1.6.2 needsWhy, the players\' view (the review of 44a0c556): a single needs that reads a GM-only value goes, and Hidden until it can be used and Only while its needs hold stay while a reason stands, a system roll\'s, an action\'s and a list roll\'s alike, so the button hides on both screens; with no reason they go with it as before, and Players are held back by it (needsGm) stays as before',
+            gX.rolls[0].hideOff === true && pX.rolls[0].hideOff === true && !('needs' in pX.rolls[0]) && J(pX.rolls[0].needsWhy) === J([{ if: 'Heat > 0', says: 'Too cold' }])
+            && pX.rolls[1].every.whileNeeds === true && pX.rolls[1].inFight.whileNeeds === true && gX.rolls[1].every.whileNeeds === true
+            && !('hideOff' in pX.rolls[2]) && !('needs' in pX.rolls[2]) && pX.rolls[2].needsGm === true
+            && lX(pX)[0].hideOff === true && !('needs' in lX(pX)[0]) && !('hideOff' in lX(pX)[1]) && lX(gX)[0].hideOff === true, J([pX.rolls, lX(pX)]));
+        // (3) and (4): the validator files each reason under a prop of its own, a list's said by its number; the editor says it, carets it and finds its box by the draft's own line
+        const vX = S.validateSystem(cleanSystem(Object.assign({}, rawW, { rolls: [{ id: 'r_v', label: 'V', formula: 'd6', needs: 'Heat >= 0', needsWhy: [{ if: 'Bogus > 1', says: 'A' }, { if: 'Heat > 1', says: 'B' }, { if: 'Heat >', says: 'C' }] }] }), { F, gmView: true }), F);
+        const vXl = S.validateSystem(cleanSystem(Object.assign({}, rawW, { fields: rawW.fields.slice(0, 4).concat([{ id: 'f_kv', key: 'KitV', kind: 'item-list', vis: 'all', edit: 'owner', list: { rolls: [{ label: 'Fire', formula: 'd20', needsWhy: [{ if: 'Heat > 0', says: 'A' }, { if: 'Bogus > 1', says: 'B' }] }] } }]), rolls: [] }), { F, gmView: true }), F);
+        const eX = vX.errors.filter(e => e.id === 'r_v'), eXl = vXl.errors.filter(e => e.id === 'f_kv');
+        const shTF = cutW('function errPrefix(', '// 1.6.0: on a large system');
+        const draftT = { fields: [], items: [], rolls: [{ id: 'r_v', needs: 'Heat >= 0', needsWhy: [{ if: '', says: '' }, { if: '  Bogus > 1 ', says: 'A' }, { if: 'Heat > 1', says: 'B' }] }] };
+        const TF = new Function('draft', 'cleanNeedsWhy', 'DEF_PROP', shTF + NL + 'return { errPrefix: errPrefix, formulaTextFor: formulaTextFor };')(draftT, S.cleanNeedsWhy, {});
+        const WD = new Function('cleanNeedsWhy', 'NEEDS_WHY', cutW('// [systemcheck:whybox-start]', '// [systemcheck:whybox-end]') + NL + 'return { whyDraftAt: whyDraftAt, whyDropsAt: whyDropsAt, whyDrops: whyDrops };')(S.cleanNeedsWhy, S.NEEDS_WHY);
+        const suiS = fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8');
+        check('1.6.2 needsWhy, the validator\'s faults (the review of 44a0c556): a reason\'s test is filed under needsWhy.<k>, never under the single Needs, each with its own place in its own text; a list roll\'s says which reason; the editor names it Reason N, draws its caret under that reason\'s test as the validator read it, maps the cleaned line to the draft\'s (an empty line before it), and the press finds the reason\'s own box (sysui PROP_BOX); whyDrops\' lines carry their line too',
+            eX.length === 2 && eX[0].prop === 'needsWhy.0' && /Unknown name "Bogus"/.test(eX[0].message) && eX[0].pos === 0 && eX[0].len === 5 && eX[1].prop === 'needsWhy.2' && typeof eX[1].pos === 'number' && !eX.some(e => e.prop === 'needs')
+            && eXl.some(e => e.prop === 'list' && /^Roll “Fire”, needs, reason 2: Unknown name "Bogus"/.test(e.message)) && !eXl.some(e => /needs: Unknown name/.test(e.message))
+            && WD.whyDraftAt(draftT.rolls[0], 0) === 1 && WD.whyDraftAt(draftT.rolls[0], 1) === 2 && TF.errPrefix('needsWhy.1') === 'Reason 2: ' && TF.errPrefix('needsWhy.1.drop') === '' && TF.errPrefix('needs') === 'Needs: '
+            && TF.formulaTextFor('r_v', 'needsWhy.1') === 'Bogus > 1' && TF.formulaTextFor('r_v', 'needs') === 'Heat >= 0'
+            && J(WD.whyDropsAt(draftT.rolls[0])) === J([{ at: 0, message: 'Reason 1 is empty, so Save drops it.' }]) && J(WD.whyDrops(draftT.rolls[0])) === J(['Reason 1 is empty, so Save drops it.'])
+            && suiS.includes("[/^needsWhy\\.(\\d+)/, ['sys-rwhy-if']]"), J([eX, eXl]));
+        // (1) and (5): refreshErrors reads Only while its needs hold, and CombatRound, as the cleaner does, with reasons and no single Needs; (3) its faults by reason
+        const reW = cutW('function refreshErrors(', 'function errorCell('), reN = ['draft', 'F', 'validKey', 'KINDS', 'cleanItemKey', 'cleanSystem', 'validateSystem', 'statKey', 'LIMITS', 'getActiveCampaign', 'systemOf', 'gmViewFields', 'gmDerivedNames', 'POSTURE_IDS', 'cleanCalendar', 'CAL_LIMITS', 'TIME_WORDS', 'cleanEvery', 'cleanInFight', 'cleanNeedsWhy', 'cleanFormulaText', 'whyDropsAt', 'whyDraftAt'];
+        const errsW = rolls => { const dr = Object.assign(S.emptySystem(), { name: 'E', fields: [{ id: 'f_fp', key: 'FP', kind: 'resource', maxFormula: '10' }, { id: 'f_ht', key: 'Heat', kind: 'number' }], rolls: rolls });
+            const got = new Function(...reN, 'var errorsById = {}, warningsById = {};' + NL + reW + NL + 'refreshErrors(); return { e: errorsById, w: warningsById };')(
+                dr, () => F, S.validKey, S.KINDS, S.cleanItemKey, cleanSystem, S.validateSystem, S.statKey, S.LIMITS, () => null, c => c && c.system && typeof c.system === 'object' ? c.system : null, S.gmViewFields, S.gmDerivedNames, S.POSTURE_IDS, null, null, S.TIME_WORDS, S.cleanEvery, S.cleanInFight, S.cleanNeedsWhy, S.cleanFormulaText, WD.whyDropsAt, WD.whyDraftAt);
+            return { dr, got }; };
+        const apW = [{ f: 'f_fp', formula: '1', add: true }];
+        const rwOnly = { id: 'r_wo', label: 'WO', apply: apW, needsWhy: [{ if: 'Heat > 0', says: 'cold' }], every: { n: 1, u: 'hour', whileNeeds: true }, inFight: { n: 1, u: 'round', whileNeeds: true } };
+        const rwNone = { id: 'r_wn', label: 'WN', apply: apW, every: { n: 1, u: 'hour', whileNeeds: true } };
+        const rwRound = { id: 'r_wr', label: 'WR', apply: apW, needsWhy: [{ if: 'CombatRound > 0', says: 'Not in a fight' }], every: { n: 1, u: 'hour' } };
+        const rwBad = { id: 'r_wb', label: 'WB', formula: 'd6', needsWhy: [{ if: '', says: '' }, { if: 'Bogus > 1', says: 'A' }] };
+        const outW = errsW([rwOnly, rwNone, rwRound, rwBad]), mW = (bag, id) => (outW.got[bag][id] || []).map(e => e.message), cW = cleanSystem(outW.dr, { F, gmView: true }), rcW = id => cW.rolls.find(r => r.id === id);
+        check('1.6.2 needsWhy in refreshErrors (the review of 44a0c556): a time rule with reasons and no single Needs keeps Only while its needs hold, By the clock\'s and In a fight\'s, as the cleaner keeps it, and is told nothing; one with neither is still told; a reason that reads CombatRound gets the By the clock warning; an empty reason is said under its own line and a fault of a later reason under the draft\'s line, never under Needs',
+            rcW('r_wo').every.whileNeeds === true && rcW('r_wo').inFight.whileNeeds === true && !mW('e', 'r_wo').some(m => /^Only while its needs hold/.test(m))
+            && mW('e', 'r_wn').some(m => /^Only while its needs hold: the rule has no Needs/.test(m))
+            && mW('w', 'r_wr').some(m => /^By the clock: the round of a fight reads 0/.test(m))
+            && J((outW.got.e.r_wb || []).map(e => e.prop)) === J(['needsWhy.0.drop', 'needsWhy.1']) && /Unknown name "Bogus"/.test(outW.got.e.r_wb[1].message), J([outW.got.e, outW.got.w]));
+        // (6) the reason line's layout holds on a list card too; (7) the box keeps the focus where the press was
+        const cssW = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
+        const kpCalls = [], fakeWin = { wpFormBox: { sweep(root) { root.querySelectorAll('.sys-why-line').forEach(ln => { if (!ln.querySelector('.fb-go')) { const g = dW.document.createElement('button'); g.className = 'fb-go'; ln.appendChild(g); } }); } } };
+        const WK = new Function('document', 'el', 'input', 'LIMITS', 'NEEDS_WHY', 'cleanNeedsWhy', 'markDirty', 'patchErrors', 'keepPlace', 'window', cutW('// [systemcheck:whybox-start]', '// [systemcheck:whybox-end]') + NL + 'return { whyBox: whyBox };')(
+            dW.document, (t, c, x) => { const e = dW.document.createElement(t); if (c) e.className = c; if (x !== undefined) e.textContent = x; return e; },
+            (c, v, ti, ph) => { const i = dW.document.createElement('input'); i.className = c; i.value = v == null ? '' : String(v); if (ti) i.title = ti; if (ph) i.placeholder = ph; return i; }, LIMITS, S.NEEDS_WHY, S.cleanNeedsWhy, () => {}, () => {},
+            (root, draw) => { kpCalls.push(root); return draw(); }, fakeWin);
+        const entK = { needsWhy: [{ if: 'Heat > 1', says: 'A' }, { if: 'Heat > 2', says: 'B' }] }, boxK = WK.whyBox(entK, 'roll');
+        dW.fire(boxK.querySelectorAll('.sys-why-line')[1].querySelectorAll('button').filter(b => b.dataset.act === 'whyup')[0], 'click', {}); const kpAfterUp = kpCalls.length;
+        dW.fire(boxK.querySelectorAll('button').filter(b => b.dataset.act === 'whyadd')[0], 'click', {});
+        const lastK = boxK.querySelectorAll('.sys-why-line')[2], focK = dW.document.activeElement;
+        check('1.6.2 needsWhy, the editor\'s look and its focus (the review of 44a0c556): the reason line\'s rule is no longer held to a roll\'s row, so a list card\'s test and words share a line; a move or a remove draws the box again through keepPlace, so the focus stays on the control where the pressed one stood; + Reason draws it and gives the focus to the new line\'s form, once formbox has dressed it',
+            cssW.includes('  .sys-why-line > .field, .sys-why-line > .fb { flex: 1 1 240px; width: auto; min-width: 0; }') && !cssW.includes('.sys-row .sys-why-line > .field')
+            && kpAfterUp === 1 && kpCalls[0] === boxK && kpCalls.length === 1 && entK.needsWhy.map(l => l.says).join('|') === 'B|A|' && lastK && focK === lastK.querySelector('.fb-go'), J([kpCalls.length, kpCalls[0] === boxK, entK.needsWhy.map(l => l.says).join('|'), !!lastK, focK && focK.className, focK === (lastK && lastK.querySelector('.fb-go'))]));
     }
     /* ---- [m410 review] 1.5.4 SITE_EQUIVALENT_PLAN fold 2, what its review found, each by a case of its own: (1) a row that is on, moved into a
        group that has one on by a change of its stat, comes into it off (onMoved), its lock holding for a player; (2) a player's change is grouped by
@@ -9276,7 +9335,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 j(labH(evH)) === j([['sys-roll-evrest', ' During rest only'], ['sys-roll-evwait', ' Waits in a fight'], ['sys-roll-evhold', ' Only while its needs hold']]) && evH.children[evH.children.length - 1].children[0] === tkH(evH, 'sys-roll-evhold')
                 && j(labH(fiH)) === j([['sys-roll-iffresh', ' Each fight starts again'], ['sys-roll-ifhold', ' Only while its needs hold']]) && fiH.children[fiH.children.length - 1].children[0] === tkH(fiH, 'sys-roll-ifhold')
                 && [tkH(evH, 'sys-roll-evhold'), tkH(fiH, 'sys-roll-ifhold')].every(t => !!t && t.type === 'checkbox' && t.checked === true) && [tkH(evH0, 'sys-roll-evhold'), tkH(evHy, 'sys-roll-evhold'), tkH(fiH0, 'sys-roll-ifhold'), tkH(fiHy, 'sys-roll-ifhold')].every(t => !!t && t.checked === false)
-                && tipsH[0] === 'Its count grows only while this rule’s Needs hold for its character, and stands still the rest of the time. Save keeps the tick only beside Needs.' && tipsH[1] === 'In a fight, its count grows only while this rule’s Needs hold for its character, and stands still the rest of the time. Save keeps the tick only beside Needs.'
+                && tipsH[0] === 'Its count grows only while this rule’s Needs hold for its character, and stands still the rest of the time. Save keeps the tick only beside Needs or a reason.' && tipsH[1] === 'In a fight, its count grows only while this rule’s Needs hold for its character, and stands still the rest of the time. Save keeps the tick only beside Needs or a reason.'
                 && tipsH.every(t => !/[()\[\];‒-―]| - /.test(t) && /\.$/.test(t)) && !/innerHTML|insertAdjacentHTML|outerHTML/.test(erSrc), j([labH(evH), labH(fiH), tipsH]));
             const rH = { id: 'r_e', needs: 'Asleep' }, sqH = [], edq = (c, v, k) => { sqH.push(edH.everyEdit(rH, c, v)); sqH.push(k in rH ? j(rH[k]) : false); };
             edq('sys-roll-evhold', { checked: true }, 'every'); edq('field sys-roll-evn', { value: '1' }, 'every'); edq('sys-roll-evhold', { checked: 'yes' }, 'every'); edq('sys-roll-ifhold', { checked: true }, 'inFight'); edq('sys-roll-ifhold', { checked: false }, 'inFight');

@@ -12,6 +12,7 @@ import { laySync } from './systemcore.js';   // 1.6.2 Laid from: rows another li
 import { picRef, cssColor } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
 import { cleanDamageRules, CUR_MAX, priceCurOf, priceColOf, moneySummary, condShare, cleanHeld, areaFxPlan, cleanOnRemove, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsCapLines, capRead, capFOk, fitRows, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, rollNeedsFails, cleanNeedsWhy, NEEDS_WHY, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, hudOf, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { cleanFormulaText } from './systemcore.js';   // 1.6.2: refreshErrors reads a rule's needs as the cleaner does
 import { swDice, renamesOf, renamesCarry, renamesOnChars, renamesSay, swGone, goneRefs, catsGone, catNear, keysGone, keyUses, keyUseSays } from './systemcore.js';   // 1.6.2: backlog 208, the tracing audit
 import { cleanCardActs, CARD_MAX, cleanHelp } from './systemcore.js';
 import { deckTrial, deckTrialRead } from './systemcore.js';
@@ -9125,9 +9126,9 @@ function refreshErrors() {
         var cf = (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0], cs = cf && cf.list && cf.list.specs ? cf.list.specs : null; if (!cs) return;
         [['by', 'Specialty from names no choice stat of this list'], ['of', 'Parent from names no choice stat of this list'], ['cover', 'Covers names no number stat with value names of this list'], ['apart', 'Stands apart names no number stat with value names of this list'], ['never', 'Never untrained names no number stat or column of this list'], ['pen', 'Untrained shows names no number stat or column of this list'], ['fall', 'Fallback names no number stat or column of this list'], ['dflt', 'Untrained names no column of this list']].forEach(function(p) { var w = f.list.specs[p[0]]; if (typeof w === 'string' && w.trim() && !cs[p[0]]) (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: p[1] + ', so Save drops it.' }); });
     });
-    if (typeof whyDrops === 'function') {   // 1.6.2: a reason Save drops, as the cleaner reads it
-        (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) { if (r && typeof r.id === 'string') whyDrops(r).forEach(function(m) { (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'needs', message: m }); }); });
-        draft.fields.forEach(function(f) { if (f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls)) f.list.rolls.forEach(function(r) { if (!r || typeof r !== 'object') return; var nm = r.label || (Array.isArray(r.apply) ? 'Apply' : 'Roll'); whyDrops(r).forEach(function(m) { (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: 'Roll \u201c' + nm + '\u201d, needs: ' + m }); }); }); });
+    if (typeof whyDropsAt === 'function') {   // 1.6.2: a reason Save drops, as the cleaner reads it
+        (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) { if (r && typeof r.id === 'string') whyDropsAt(r).forEach(function(d) { (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'needsWhy.' + d.at + '.drop', message: d.message }); }); });   // under the reason's own box
+        draft.fields.forEach(function(f) { if (f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls)) f.list.rolls.forEach(function(r) { if (!r || typeof r !== 'object') return; var nm = r.label || (Array.isArray(r.apply) ? 'Apply' : 'Roll'); whyDropsAt(r).forEach(function(d) { (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: 'Roll \u201c' + nm + '\u201d, needs: ' + d.message }); }); }); });
     }
     (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) {   // 1.5.4: a roll's or an apply action's needs that Save cannot keep, as the cleaner reads it (the validator says the rest)
         if (!r || typeof r !== 'object' || typeof r.needs !== 'string' || !r.needs.trim()) return;
@@ -9238,8 +9239,9 @@ function refreshErrors() {
         if (!r || typeof r !== 'object' || Array.isArray(r.apply) || typeof r.label !== 'string' || !r.label.trim() || (typeof r.formula === 'string' && r.formula.trim())) return;
         (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'formula', message: 'It has nothing to roll yet, so Save leaves it out.' });
     });
-    v.errors.forEach(function(e) { var eid = e.prop === 'list' ? 'list:' + e.id : e.id; (errorsById[eid] = errorsById[eid] || []).push(e); });   // F4c1: a list's own messages sit under its card in Lists
-    v.warnings.forEach(function(w) { var wid = w.prop === 'list' ? 'list:' + w.id : w.id; (warningsById[wid] = warningsById[wid] || []).push(w); });
+    var whyRe = function(e) { var m = e && typeof e.prop === 'string' ? /^needsWhy\.(\d+)$/.exec(e.prop) : null, rr = m && typeof whyDraftAt === 'function' ? (draft.rolls || []).filter(function(x) { return x && x.id === e.id; })[0] : null; if (rr) e.prop = 'needsWhy.' + whyDraftAt(rr, +m[1]); };   // 1.6.2: a reason the validator read in the cleaned roll, named by its line in the draft
+    v.errors.forEach(function(e) { whyRe(e); var eid = e.prop === 'list' ? 'list:' + e.id : e.id; (errorsById[eid] = errorsById[eid] || []).push(e); });   // F4c1: a list's own messages sit under its card in Lists
+    v.warnings.forEach(function(w) { whyRe(w); var wid = w.prop === 'list' ? 'list:' + w.id : w.id; (warningsById[wid] = warningsById[wid] || []).push(w); });
     var tnE = draft.combat && draft.combat.turn && typeof draft.combat.turn === 'object' ? draft.combat.turn : null, tErr = [];   // turn-based combat T1: what Save drops from the turn rules, under the Combat tab
     if (tnE) {
         var KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;
@@ -9424,7 +9426,8 @@ function refreshErrors() {
         (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) {
             if (!r || typeof r !== 'object' || typeof r.id !== 'string') return;
             var say = function(bag, m) { (bag[r.id] = Array.isArray(bag[r.id]) ? bag[r.id] : []).push({ message: m }); };
-            var ev = r.every, evK = cleanEvery(ev, r.needs), fi = r.inFight, fiK = cleanInFight(fi, r.needs), fiO = fi && typeof fi === 'object' && !Array.isArray(fi) ? fi : {};
+            var ndW = (typeof cleanFormulaText === 'function' ? cleanFormulaText(r.needs) : (typeof r.needs === 'string' ? r.needs.trim() : '')) || (((typeof cleanNeedsWhy === 'function' && cleanNeedsWhy(r.needsWhy)) || [{}])[0]['if']) || '';   // 1.6.2: its needs, else its first reason, as the cleaner reads them (systemcore needsOf)
+            var ev = r.every, evK = cleanEvery(ev, ndW), fi = r.inFight, fiK = cleanInFight(fi, ndW), fiO = fi && typeof fi === 'object' && !Array.isArray(fi) ? fi : {};
             if (ev && typeof ev === 'object' && ev.wait === true && !evK) say(errorsById, 'Waits in a fight: Save drops the tick with its By the clock.');
             var holds = function(o) { return !!o && typeof o === 'object' && !Array.isArray(o) && o.whileNeeds === true; };   // 1.5.5: Only while its needs hold, read by the cleaner itself: kept only beside its piece and the rule's Needs
             if (holds(ev) && !evK) say(errorsById, 'Only while its needs hold: Save drops the tick with its By the clock.'); else if (holds(ev) && evK.whileNeeds !== true) say(errorsById, 'Only while its needs hold: the rule has no Needs, so Save drops the tick beside By the clock.');
@@ -9437,7 +9440,7 @@ function refreshErrors() {
             if (r.ask === true && !evK && !fiK) say(errorsById, 'Ask me first: set By the clock or In a fight, or Save drops the tick.');
             var eaW = Array.isArray(r.apply) ? (r.each === 'round' || r.each === 'turn' || r.each === 'turnEnd' ? r.each : r.round === true ? 'round' : '') : '';
             if (eaW && fiK) say(warningsById, 'In a fight: it also runs ' + (eaW === 'turn' ? 'at its turn\u2019s start' : eaW === 'turnEnd' ? 'at its turn\u2019s end' : 'each round') + ', so in a fight it runs both ways.');
-            var fcTexts = [r.needs, r.malf].concat(Array.isArray(r.apply) ? [] : [r.formula]).concat([r.apply, r.then].reduce(function(a, l) { return a.concat(Array.isArray(l) ? l.map(function(ch) { return ch && typeof ch === 'object' ? ch.formula : ''; }) : []); }, []));
+            var fcTexts = [r.needs, r.malf].concat(Array.isArray(r.needsWhy) ? r.needsWhy.map(function(l) { return l && typeof l === 'object' ? l['if'] : ''; }) : []).concat(Array.isArray(r.apply) ? [] : [r.formula]).concat([r.apply, r.then].reduce(function(a, l) { return a.concat(Array.isArray(l) ? l.map(function(ch) { return ch && typeof ch === 'object' ? ch.formula : ''; }) : []); }, []));
             if (evK && !(evK.wait === true && fiK) && fcTexts.some(fcReads)) say(warningsById, evK.wait === true ? 'By the clock: the round of a fight reads 0 when it runs by the clock. Only runs In a fight read the round.' : 'By the clock: the round of a fight reads 0 when it runs by the clock, even in a fight. Only its runs In a fight read the round.');
         });
     }
@@ -9623,7 +9626,7 @@ function errorCell(id) {
     if (!cell.childNodes.length) cell.style.display = 'none';
     return cell;
 }
-function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'turn.run') return 'Move by giving up an action: '; if (p === 'turn.face') return 'Facing changes per turn: '; if (p === 'turn.holdLost') return 'An action is lost when: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (p === 'needs') return 'Needs: '; if (/^(?:list\.)?byIf(\.|$)/.test(p || '')) return 'Read on the one who resisted: '; if (p === 'area' || /^list\.area\./.test(p || '')) return ''; if (p === 'hits' || /^list\.hits\./.test(p || '')) return 'Hits it rolls for: '; if (p === 'dmgMajorIf' || /^list\.mjif\./.test(p || '')) return 'A Major Wound where: '; if (p === 'dmg2' || /^list\.dmg2\./.test(p || '')) return 'Second part: '; var pk3 = /^(?:list\.)?(dmg|ad)([345])(\.|$)/.exec(p || ''); if (pk3) return (pk3[2] === '3' ? 'Third' : pk3[2] === '4' ? 'Fourth' : 'Fifth') + ' part' + (pk3[1] === 'ad' ? ' armor divisor' : '') + ': '; if (p === 'ad2' || /^list\.ad2\./.test(p || '')) return 'Second part armor divisor: '; var pkK = /^(?:list\.)?dkind([2345]?)(\.|$)/.exec(p || ''); if (pkK) return (pkK[1] === '' ? 'Kind' : pkK[1] === '2' ? 'Second part kind' : pkK[1] === '3' ? 'Third part kind' : pkK[1] === '4' ? 'Fourth part kind' : 'Fifth part kind') + ': '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; if (p === 'critAt') return 'Critical at: '; if (p === 'fumbleAt') return 'Critical failure at: '; if (p === 'bigAt') return 'Lands as a heavy hit at: '; var words = { maxFormula: 'Its most: ', base: 'Its base: ', key: 'Short name: ', label: 'Its name: ', caption: 'Line under it: ', resistBy: 'Resisted by: ', resistOr: 'Or resisted by: ', asks: 'What it asks: ', calls: 'Calls for: ', lvlOnly: 'Levels it may be: ', mods: 'Changes: ', holds: 'Holds: ', malf: 'Jams at: ', roll: 'Its roll: ', throwSkill: 'Thrown with: ' }; return Object.prototype.hasOwnProperty.call(words, p) ? words[p] : ''; }   // 1.6.2 (found building a system by hand): a part in words, never its short name in the file, and none where it has no word   // Stage 6 HUD H7: an apply action's change by its number
+function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'turn.run') return 'Move by giving up an action: '; if (p === 'turn.face') return 'Facing changes per turn: '; if (p === 'turn.holdLost') return 'An action is lost when: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (p === 'needs') return 'Needs: '; var nwP = /^needsWhy\.(\d+)$/.exec(p || ''); if (nwP) return 'Reason ' + (+nwP[1] + 1) + ': '; if (/^(?:list\.)?byIf(\.|$)/.test(p || '')) return 'Read on the one who resisted: '; if (p === 'area' || /^list\.area\./.test(p || '')) return ''; if (p === 'hits' || /^list\.hits\./.test(p || '')) return 'Hits it rolls for: '; if (p === 'dmgMajorIf' || /^list\.mjif\./.test(p || '')) return 'A Major Wound where: '; if (p === 'dmg2' || /^list\.dmg2\./.test(p || '')) return 'Second part: '; var pk3 = /^(?:list\.)?(dmg|ad)([345])(\.|$)/.exec(p || ''); if (pk3) return (pk3[2] === '3' ? 'Third' : pk3[2] === '4' ? 'Fourth' : 'Fifth') + ' part' + (pk3[1] === 'ad' ? ' armor divisor' : '') + ': '; if (p === 'ad2' || /^list\.ad2\./.test(p || '')) return 'Second part armor divisor: '; var pkK = /^(?:list\.)?dkind([2345]?)(\.|$)/.exec(p || ''); if (pkK) return (pkK[1] === '' ? 'Kind' : pkK[1] === '2' ? 'Second part kind' : pkK[1] === '3' ? 'Third part kind' : pkK[1] === '4' ? 'Fourth part kind' : 'Fifth part kind') + ': '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; if (p === 'critAt') return 'Critical at: '; if (p === 'fumbleAt') return 'Critical failure at: '; if (p === 'bigAt') return 'Lands as a heavy hit at: '; var words = { maxFormula: 'Its most: ', base: 'Its base: ', key: 'Short name: ', label: 'Its name: ', caption: 'Line under it: ', resistBy: 'Resisted by: ', resistOr: 'Or resisted by: ', asks: 'What it asks: ', calls: 'Calls for: ', lvlOnly: 'Levels it may be: ', mods: 'Changes: ', holds: 'Holds: ', malf: 'Jams at: ', roll: 'Its roll: ', throwSkill: 'Thrown with: ' }; return Object.prototype.hasOwnProperty.call(words, p) ? words[p] : ''; }   // 1.6.2 (found building a system by hand): a part in words, never its short name in the file, and none where it has no word   // Stage 6 HUD H7: an apply action's change by its number
 function formulaTextFor(id, prop) {
     if (id === 'combat' && prop === 'turn.move') return (draft.combat && draft.combat.turn && draft.combat.turn.move) || '';   // turn-based combat T1
     if (id === 'combat' && prop === 'turn.run') return (draft.combat && draft.combat.turn && draft.combat.turn.run) || '';   // 1.6.0
@@ -9639,6 +9642,7 @@ function formulaTextFor(id, prop) {
     if (r && prop === 'malf') return r.malf || '';   // R3
     if (r && (prop === 'critAt' || prop === 'fumbleAt' || prop === 'bigAt')) return r[prop] || '';   // 1.6.0
     if (r && prop === 'needs') return r.needs || '';   // 1.5.4
+    var nwT = r ? /^needsWhy\.(\d+)$/.exec(prop || '') : null; if (nwT) { var nwL = Array.isArray(r.needsWhy) ? r.needsWhy[+nwT[1]] : null, nwC = nwL && typeof cleanNeedsWhy === 'function' ? cleanNeedsWhy([nwL]) : null; return nwC ? nwC[0]['if'] : (nwL && typeof nwL['if'] === 'string' ? nwL['if'].trim() : ''); }   // 1.6.2: a reason's test, as the validator read it
     var biF = r ? /^byIf\.(\d+)$/.exec(prop || '') : null; if (biF) return Array.isArray(r.calls) && r.calls[+biF[1]] && typeof r.calls[+biF[1]].byIf === 'string' ? r.calls[+biF[1]].byIf.trim() : '';   // 1.6.0, as the validator read it
     if (r && prop === 'dmgMajorIf') return r.dmgMajorIf || '';   // 1.6.0
     if (r && prop === 'hits') return r.hits || '';   // 1.6.0 A burst
@@ -10021,7 +10025,6 @@ function whyBox(r, kind) {
             var bs = el('span', 'sys-btns'), mv = el('span', 'ui-seg sys-moves'), up = mk('whyup', 'Move this reason up', '\u25b2'), dn = mk('whydown', 'Move this reason down', '\u25bc');   // the app's joined pair, as segPut joins a row's moves
             up.disabled = i === 0; dn.disabled = i === ls.length - 1; mv.appendChild(up); mv.appendChild(dn); bs.appendChild(mv); bs.appendChild(mk('whydel', 'Remove this reason', '\u00d7'));
             ln.appendChild(bs); w.appendChild(ln);
-            if (focusAt === i) { try { t.focus(); } catch (e) {} }
         });
         var add = mk('whyadd', ls.length >= most ? 'A roll keeps at most ' + most + ' reasons' : 'Add a reason: a test and the words the grayed button says when it fails', '+ Reason'); add.className += ' sys-why-add'; if (ls.length >= most) add.disabled = true; w.appendChild(add);
     };
@@ -10032,22 +10035,39 @@ function whyBox(r, kind) {
         if (a === 'whyadd') { if (ls.length >= most) return; ls.push({ 'if': '', says: '' }); at = ls.length - 1; }
         else { var ln = typeof b.closest === 'function' ? b.closest('.sys-why-line') : null, i = ln ? +ln.dataset.wi : -1; if (!(i >= 0 && i < ls.length)) return; if (a === 'whydel') ls.splice(i, 1); else { var j = a === 'whyup' ? i - 1 : i + 1; if (j < 0 || j >= ls.length) return; var x = ls[i]; ls[i] = ls[j]; ls[j] = x; } }
         if (!ls.length) delete r.needsWhy;
-        edited(); draw(at);
+        edited();
+        var kp = typeof keepPlace === 'function' ? keepPlace : (typeof window !== 'undefined' && typeof window.wpKeepPlace === 'function' ? window.wpKeepPlace : null);
+        if (at < 0) { if (kp) kp(w, function() { draw(); }); else draw(); return; }   // a move or a remove: the focus to the control now standing where the pressed one stood
+        draw(); whyFocus(at);   // + Reason: the new line's test, as its form once dressed
     });
+    var whyFocus = function(at) {
+        var fb = typeof window !== 'undefined' && window.wpFormBox && typeof window.wpFormBox.sweep === 'function' ? window.wpFormBox : null; if (fb) { try { fb.sweep(w); } catch (e) {} }
+        var ln = Array.prototype.filter.call(w.querySelectorAll('.sys-why-line'), function(x) { return x.dataset && +x.dataset.wi === at; })[0]; if (!ln) return;
+        var go = ln.querySelector('.fb-go'), t = ln.querySelector(kind === 'list' ? '.sys-lwhy-if' : '.sys-rwhy-if'), to = go || t; if (to && typeof to.focus === 'function') { try { to.focus(); } catch (e) {} }
+    };
     draw(); return w;
 }
 // The reasons Save drops, as the cleaner reads them (cleanNeedsWhy): a line with no test or no words, and one past the most
-function whyDrops(r) {
+function whyDrops(r) { return whyDropsAt(r).map(function(d) { return d.message; }); }
+// The same, each with the place of its line in the roll (at), so the editor says it under that reason's own box
+function whyDropsAt(r) {
     var out = [], ls = r && Array.isArray(r.needsWhy) ? r.needsWhy : [], most = typeof NEEDS_WHY === 'number' ? NEEDS_WHY : 12, kept = 0;
     ls.forEach(function(l, i) {
         if (!l || typeof l !== 'object') return; var t = typeof l['if'] === 'string' ? l['if'].trim() : '', s = typeof l.says === 'string' ? l.says.trim() : '', n = 'Reason ' + (i + 1);
-        if (!t && !s) { out.push(n + ' is empty, so Save drops it.'); return; }
-        if (!t) { out.push(n + ' has words but no test, so Save drops it.'); return; }
-        if (!s) { out.push(n + ' has a test but no words to say, so Save drops it.'); return; }
-        if (typeof cleanNeedsWhy === 'function' && !cleanNeedsWhy([l])) { out.push(n + ' is no test Save can keep, so Save drops it.'); return; }
-        kept++; if (kept > most) out.push(n + ' is past the ' + most + ' a roll keeps, so Save drops it.');
+        var put = function(m) { out.push({ at: i, message: m }); };
+        if (!t && !s) { put(n + ' is empty, so Save drops it.'); return; }
+        if (!t) { put(n + ' has words but no test, so Save drops it.'); return; }
+        if (!s) { put(n + ' has a test but no words to say, so Save drops it.'); return; }
+        if (typeof cleanNeedsWhy === 'function' && !cleanNeedsWhy([l])) { put(n + ' is no test Save can keep, so Save drops it.'); return; }
+        kept++; if (kept > most) put(n + ' is past the ' + most + ' a roll keeps, so Save drops it.');
     });
     return out;
+}
+// The line in the draft of the k-th reason the cleaner keeps: the validator reads the cleaned roll, the editor draws the draft's lines
+function whyDraftAt(r, k) {
+    var ls = r && Array.isArray(r.needsWhy) ? r.needsWhy : [], n = -1;
+    for (var i = 0; i < ls.length; i++) { if (typeof cleanNeedsWhy === 'function' ? !!cleanNeedsWhy([ls[i]]) : !!(ls[i] && typeof ls[i] === 'object')) { n++; if (n === k) return i; } }
+    return k;
 }
 // [systemcheck:whybox-end]
 function rollRow(r) {
@@ -14491,7 +14511,7 @@ function everyRow(r) {
     row.appendChild(select('sys-roll-evu', opts, cur, 'What it counts in: the calendar\u2019s minutes, hours, days and weeks, or one of your time units (the Combat tab\u2019s Turns box)'));
     var rl = el('label', 'sys-hover'), rc = el('input', 'sys-roll-evrest'); rc.type = 'checkbox'; rc.checked = !!(ev && ev.rest === true); rc.title = 'It counts rest only: time the GM moves on as Rest; activity starts its count again'; rl.appendChild(rc); rl.appendChild(document.createTextNode(' During rest only')); row.appendChild(rl);
     var wl = el('label', 'sys-hover'), wc = el('input', 'sys-roll-evwait'); wc.type = 'checkbox'; wc.checked = !!(ev && ev.wait === true); wc.title = 'Its count waits while its character is in a fight, and goes on after it. A fight still breaks a rest.'; wl.appendChild(wc); wl.appendChild(document.createTextNode(' Waits in a fight')); row.appendChild(wl);
-    var hl = el('label', 'sys-hover'), hc = el('input', 'sys-roll-evhold'); hc.type = 'checkbox'; hc.checked = !!(ev && ev.whileNeeds === true); hc.title = 'Its count grows only while this rule\u2019s Needs hold for its character, and stands still the rest of the time. Save keeps the tick only beside Needs.'; hl.appendChild(hc); hl.appendChild(document.createTextNode(' Only while its needs hold')); row.appendChild(hl);   // 1.5.5
+    var hl = el('label', 'sys-hover'), hc = el('input', 'sys-roll-evhold'); hc.type = 'checkbox'; hc.checked = !!(ev && ev.whileNeeds === true); hc.title = 'Its count grows only while this rule\u2019s Needs hold for its character, and stands still the rest of the time. Save keeps the tick only beside Needs or a reason.'; hl.appendChild(hc); hl.appendChild(document.createTextNode(' Only while its needs hold')); row.appendChild(hl);   // 1.5.5
     return row;
 }
 function fightRow(r) {   // In a fight: every n rounds, minutes, hours or the system's own time units of a fight's own time, and whether each fight starts its count again
@@ -14503,7 +14523,7 @@ function fightRow(r) {   // In a fight: every n rounds, minutes, hours or the sy
     var cur = fi && typeof fi.u === 'string' && fi.u ? fi.u : 'round'; if (!opts.some(function(o) { return o[0] === cur; })) opts.push([cur, cur + ' (no such unit)']);
     row.appendChild(select('sys-roll-ifu', opts, cur, 'What it counts in: a fight\u2019s rounds, minutes or hours, or one of your time units from the Combat tab\u2019s Turns box. A round lasts as long as the Turns box says.'));
     var fl = el('label', 'sys-hover'), fc = el('input', 'sys-roll-iffresh'); fc.type = 'checkbox'; fc.checked = !!(fi && fi.fresh === true); fc.title = 'Its count begins again with each fight. Left unticked, its count goes on from one fight to the next.'; fl.appendChild(fc); fl.appendChild(document.createTextNode(' Each fight starts again')); row.appendChild(fl);
-    var hl = el('label', 'sys-hover'), hc = el('input', 'sys-roll-ifhold'); hc.type = 'checkbox'; hc.checked = !!(fi && fi.whileNeeds === true); hc.title = 'In a fight, its count grows only while this rule\u2019s Needs hold for its character, and stands still the rest of the time. Save keeps the tick only beside Needs.'; hl.appendChild(hc); hl.appendChild(document.createTextNode(' Only while its needs hold')); row.appendChild(hl);   // 1.5.5
+    var hl = el('label', 'sys-hover'), hc = el('input', 'sys-roll-ifhold'); hc.type = 'checkbox'; hc.checked = !!(fi && fi.whileNeeds === true); hc.title = 'In a fight, its count grows only while this rule\u2019s Needs hold for its character, and stands still the rest of the time. Save keeps the tick only beside Needs or a reason.'; hl.appendChild(hc); hl.appendChild(document.createTextNode(' Only while its needs hold')); row.appendChild(hl);   // 1.5.5
     return row;
 }
 // 1.5.9 (docs/BOOK_ES_ET_PLAN.md 4a): When a value crosses, a pool or a number of the system, the step where it first does, how far apart the next are

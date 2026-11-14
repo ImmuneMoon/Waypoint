@@ -1584,6 +1584,8 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
       var t = e.target;
 
+      if (document.body && document.body.classList.contains('lay-edit')) return;   // 1.6.2 (backlog 224): while the layout is edited no key moves, deletes, copies or undoes anything of the map
+
       var typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
 
       if (typing) { fieldUndoChord(e); return; }   // a planner field with nothing of its own to undo hands the chord to the planner's history

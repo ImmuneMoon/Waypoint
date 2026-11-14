@@ -109,6 +109,28 @@ function barClasses(bar) {
     if (b.hide) c.push('lay-hide');
     return c;
 }
+// A placed control kept off the boxes already settled (rects: { left, top, right, bottom } in the area): it steps away from its own spot's
+// edge (down from a top spot and from the middle, up from a bottom spot, inward from the middle of a side) past the box in its way and
+// LAY_GAP, held to the area. Where the area holds no room it stays where the last step put it
+function layHits(a, b) { return !!a && !!b && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom; }
+function unclash(xy, box, rects, c, area) {
+    var s = LAY_SPOTS.indexOf(c) >= 0 ? c : 'tl', row = s.charAt(0), col = s.charAt(1), bw = Math.max(0, +box.w || 0), bh = Math.max(0, +box.h || 0);
+    var x = xy.x, y = xy.y, list = Array.isArray(rects) ? rects : [];
+    for (var n = 0; n <= list.length; n++) {
+        var me = { left: x, top: y, right: x + bw, bottom: y + bh }, hit = null;
+        for (var i = 0; i < list.length && !hit; i++) if (layHits(me, list[i])) hit = list[i];
+        if (!hit) break;
+        var nx = x, ny = y;
+        if (row === 't' || (row === 'm' && col === 'c')) ny = hit.bottom + LAY_GAP;
+        else if (row === 'b') ny = hit.top - LAY_GAP - bh;
+        else if (col === 'l') nx = hit.right + LAY_GAP;
+        else nx = hit.left - LAY_GAP - bw;
+        nx = Math.round(layHold(nx, area.l, area.w - area.r - bw)); ny = Math.round(layHold(ny, area.t, area.h - area.b - bh));
+        if (nx === x && ny === y) break;
+        x = nx; y = ny;
+    }
+    return { x: x, y: y };
+}
 // [layoutcheck:core-end]
 
 var LAY_BAR_CLS = ['lay-top', 'lay-left', 'lay-right', 'lay-free', 'lay-side', 'lay-edge', 'lay-hide', 'lay-peek', 'lay-cols', 'lay-bar'];
@@ -135,7 +157,7 @@ function layNarrow() { return document.body.classList.contains('area-narrow'); }
 function layInsets() {
     var b = document.body, rulers = !b.classList.contains('no-rulers'), rowHid = b.classList.contains('row-hidden') && !b.classList.contains('tour-on');
     var bar = rowHid ? (parseFloat(getComputedStyle(b).getPropertyValue('--rowbar')) || 0) : 0;
-    return { t: rowHid ? bar + 32 : (rulers ? 26 : 8), l: rulers ? 44 : 8, r: 14, b: 8, et: rowHid ? bar + 26 : (rulers ? 18 : 0), el: rulers ? 36 : 0 };
+    return { t: rowHid ? bar + 32 : (rulers ? 26 : 8), l: rulers ? 44 : 26, r: 14, b: 8, et: rowHid ? bar + 26 : (rulers ? 18 : 0), el: rulers ? 36 : 18 };   // with no ruler the left panel's handle (18 px) keeps its strip
 }
 function layArea() {
     var m = layEl('main'); if (!m) return null;
@@ -178,20 +200,29 @@ function layApply() {
     var A = layArea(), barEl = layBarOf(which);
     laySetVar(m, '--lay-t', A.t + 'px'); laySetVar(m, '--lay-l', A.l + 'px'); laySetVar(m, '--lay-et', A.et + 'px'); laySetVar(m, '--lay-el', A.el0 + 'px');
     layFitBar();
-    if (barEl && v.bar.side === 'free' && v.bar.at && !(_lay.drag && _lay.drag.el === barEl)) layAt(barEl, spotXY(v.bar.at, { w: barEl.offsetWidth, h: barEl.offsetHeight }, A));
+    if (barEl && v.bar.side === 'free' && v.bar.at && !(_lay.drag && _lay.drag.el === barEl)) {   // a free bar in the upper half opens its menus downward
+        var bxy = spotXY(v.bar.at, { w: barEl.offsetWidth, h: barEl.offsetHeight }, A); layAt(barEl, bxy);
+        barEl.classList.toggle('lay-open-r', bxy.x + barEl.offsetWidth / 2 < A.w / 2); barEl.classList.toggle('lay-open-d', bxy.y + barEl.offsetHeight / 2 < A.h / 2);
+    }
     var p = pushOf(v.bar, barEl && barEl.offsetWidth ? layRectIn(barEl, m) : null, A);
     laySetVar(m, '--lay-pt', p.t + 'px'); laySetVar(m, '--lay-pl', p.l + 'px'); laySetVar(m, '--lay-pr', p.r + 'px');
     laySetVar(m, '--lay-colb', (v.bar.side === 'bottom' && v.bar.edge && !v.bar.hide && barEl ? barEl.offsetHeight + 12 : 30) + 'px');   // over a bar across the bottom, else low
     var room = { w: A.w, h: A.h, t: A.t + p.t, l: A.l + p.l, r: A.r + p.r, b: A.b };
     if (v.bar.side === 'bottom' && !v.bar.hide && barEl && barEl.offsetWidth) room.b = Math.max(room.b, Math.round(A.h - layRectIn(barEl, m).top + LAY_GAP));
+    var settled = [], placed = [], mine = LAY_PARTS[which] || [];   // a placed control never covers another: the controls in their own place are measured first
     ids.forEach(function(id) {
         var el = layEl(id); if (!el) return;
-        var sp = (LAY_PARTS[which] || []).indexOf(id) >= 0 ? v.parts[id] : null;
-        if (!sp || (id === 'combatStrip' && el.parentElement && el.parentElement.id === 'trkStrip')) { layFree(el); return; }
-        if (_lay.drag && _lay.drag.el === el) return;
-        var xy = spotXY(sp, { w: el.offsetWidth, h: el.offsetHeight }, room); layAt(el, xy);
-        el.classList.toggle('lay-open-r', xy.x + el.offsetWidth / 2 < A.w / 2);
-        el.classList.toggle('lay-open-d', xy.y + el.offsetHeight / 2 < A.h / 2);
+        var inTrk = id === 'combatStrip' && el.parentElement && el.parentElement.id === 'trkStrip', sp = mine.indexOf(id) >= 0 ? v.parts[id] : null;
+        if (!sp || inTrk) { layFree(el); if (!inTrk && mine.indexOf(id) >= 0 && el.offsetWidth > 0) settled.push(layRectIn(el, m)); return; }
+        placed.push([el, sp]);
+    });
+    if (barEl && v.bar.side === 'free' && !v.bar.hide && barEl.offsetWidth && !(_lay.drag && _lay.drag.el === barEl)) settled.push(layRectIn(barEl, m));
+    placed.forEach(function(pe) {
+        var el = pe[0], sp = pe[1]; if (_lay.drag && _lay.drag.el === el) return;
+        var box = { w: el.offsetWidth, h: el.offsetHeight }, xy = unclash(spotXY(sp, box, room), box, settled, sp.c, room); layAt(el, xy);
+        if (box.w > 0) settled.push({ left: xy.x, top: xy.y, right: xy.x + box.w, bottom: xy.y + box.h });
+        el.classList.toggle('lay-open-r', xy.x + box.w / 2 < A.w / 2);
+        el.classList.toggle('lay-open-d', xy.y + box.h / 2 < A.h / 2);
     });
     layHot(v.bar.hide && barEl ? barEl : null, v.colHide && which === 'play' ? col : null);
     layTrk();
@@ -206,7 +237,7 @@ function layFitSide(bar) {
     bar.classList.remove('tb-tight'); bar.classList.remove('tb-wrap'); bar.classList.remove('lay-cols'); bar.style.width = '';
     Array.prototype.forEach.call(bar.children, function(k) { k.classList.remove('tb-brk'); });
     var A = layArea(); if (!A) return true;
-    var room = A.h - (bar.classList.contains('lay-edge') ? A.et : A.t) - LAY_GAP;
+    var room = bar.classList.contains('lay-edge') ? A.h - A.et - LAY_GAP : A.h - 2 * Math.max(A.t, A.b) - LAY_GAP;   // a floating side bar is centred: its top stays under the top row and the rulers only while it fits twice the top's room
     layMeasure(bar, true);
     try {
         if (bar.offsetHeight > room) bar.classList.add('tb-tight');
@@ -219,12 +250,13 @@ function layMeasure(bar, on) { if (bar && bar.classList && bar.classList.contain
 // A menu of a laid-out bar opens away from its edge and is held inside the map's area (whiteboard.js optsFit asks first, and every
 // menu that comes up in a laid-out bar is fitted here). Answers true where it fitted the menu
 function layMenuFit(menu) {
+    if (menu && menu.style && menu._layFit) { menu.style.removeProperty('top'); menu.style.maxHeight = ''; menu.style.overflowY = ''; menu._layFit = false; }   // what an earlier fit wrote never outlives it
     if (!menu || !menu.style || typeof menu.closest !== 'function' || !document.body.classList.contains('lay-on')) return false;
     var bar = menu.closest('.lay-bar, #wbEdgeTools.lay-at, #dataFind'); if (!bar) return false;
-    var side = bar.classList.contains('lay-left') || bar.classList.contains('lay-right'), down = bar.classList.contains('lay-top') || (bar.id === 'wbEdgeTools' && bar.classList.contains('lay-open-d'));
+    var side = bar.classList.contains('lay-left') || bar.classList.contains('lay-right'), down = bar.classList.contains('lay-top') || ((bar.id === 'wbEdgeTools' || bar.classList.contains('lay-free')) && bar.classList.contains('lay-open-d'));
     if (!side && !down) return false;
     var m = layEl('main'); if (!m) return false;
-    menu.style.removeProperty('top'); menu.style.maxHeight = '';
+    menu._layFit = true;
     var a = m.getBoundingClientRect(), r = menu.getBoundingClientRect(), hd = document.querySelector('header'), top = Math.max(a.top, hd ? hd.getBoundingClientRect().bottom : 0) + LAY_GAP, foot = a.bottom - LAY_GAP;
     if (!(r && isFinite(r.bottom)) || r.height <= 0) return true;
     if (side && r.bottom > foot) {   // a menu beside a column stands up from the foot of the area, never above its top
@@ -248,13 +280,14 @@ function layHot(bar, col) {
             hot.addEventListener('pointerleave', function() { var t = hot._for; if (t) layPeek(t, false); });
         }
         hot._for = el; hot.hidden = false;
-        var side = el.id === 'wbEdgeTools' ? 'right' : (['top', 'left', 'right', 'free'].filter(function(s) { return el.classList.contains('lay-' + s); })[0] || 'bottom');
+        var side = el.id === 'wbEdgeTools' ? (el.classList.contains('lay-at') ? 'free' : 'right') : (['top', 'left', 'right', 'free'].filter(function(s) { return el.classList.contains('lay-' + s); })[0] || 'bottom');
         hot.setAttribute('data-side', side); hot.classList.toggle('lay-hot-edge', el.classList.contains('lay-edge'));
         if (!el._layHot) {
             el._layHot = true;
             el.addEventListener('pointerenter', function() { if (el.classList.contains('lay-hide')) layPeek(el, true); });
             el.addEventListener('pointerleave', function() { if (el.classList.contains('lay-hide')) layPeek(el, false); });
             el.addEventListener('focusin', function() { if (el.classList.contains('lay-hide')) layPeek(el, true); });
+            el.addEventListener('focusout', function(e) { if (el.classList.contains('lay-hide') && !(e && e.relatedTarget && el.contains(e.relatedTarget))) layPeek(el, false); });
         }
     });
 }
@@ -263,7 +296,7 @@ function layPeek(el, on) {
     if (on) { el.classList.add('lay-peek'); return; }
     _lay.peekT.set(el, setTimeout(function() {
         _lay.peekT.delete(el);
-        if (el.matches(':hover, :focus-within') || el.querySelector('.shape-menu.show')) return;
+        if (el.matches(':hover') || el.querySelector(':focus-visible, .shape-menu.show')) return;   // a focus the keyboard gave keeps it out; one a press left behind does not
         el.classList.remove('lay-peek');
     }, 450));
 }
@@ -312,11 +345,19 @@ function layEdit(on) {
     laySync();
     return true;
 }
+// While the edit mode is up a key reaches only the edit mode's own controls: a button's Enter and Space are its own, Escape goes to
+// esckey.js and Tab moves the focus, and nothing of the page (a selected token's arrows, Delete, a tool's key, Ctrl+Z) hears any key
+function layKeyHold(e) { if (!_lay.edit || !e || e.key === 'Escape' || e.key === 'Tab') return false; if (typeof e.stopPropagation === 'function') e.stopPropagation(); return true; }
 // Escape: the card of one control first, then the edit mode (esckey.js asks while the body wears lay-edit)
 function layEscape() { var p = layEl('layPart'); if (p && !p.hidden) { p.hidden = true; return; } layEdit(false); }
 function layToast(t) { if (typeof window.appToast === 'function') window.appToast(t); }
 function layCardPlace() {
-    var cd = layEl('layCard'), m = layEl('main'); if (!cd || !m || cd._moved) return;
+    var cd = layEl('layCard'), m = layEl('main'); if (!cd || !m) return;
+    if (cd._moved) {   // where it was dragged, held inside the area as it now stands
+        cd.style.left = Math.round(layHold(parseFloat(cd.style.left) || 8, 0, m.clientWidth - cd.offsetWidth)) + 'px';
+        cd.style.top = Math.round(layHold(parseFloat(cd.style.top) || 8, 0, m.clientHeight - cd.offsetHeight)) + 'px';
+        return;
+    }
     cd.style.left = Math.max(8, Math.round((m.clientWidth - cd.offsetWidth) / 2)) + 'px';
     cd.style.top = Math.max(8, Math.round(m.clientHeight * 0.16)) + 'px';
 }
@@ -375,6 +416,11 @@ function layDown(e) {
         _lay.drag.w = el.offsetWidth; _lay.drag.h = el.offsetHeight; _lay.drag.dx = fx * _lay.drag.w; _lay.drag.dy = fy * _lay.drag.h;
         layAt(el, { x: Math.round(layHold(e.clientX - m.getBoundingClientRect().left - _lay.drag.dx, 0, m.clientWidth - _lay.drag.w)), y: Math.round(layHold(e.clientY - m.getBoundingClientRect().top - _lay.drag.dy, 0, m.clientHeight - _lay.drag.h)) });
     }
+    else {   // a part is measured in its placed look, as a strip that spans the area shrinks to what it holds there
+        var px = _lay.drag.dx / Math.max(1, _lay.drag.w), py = _lay.drag.dy / Math.max(1, _lay.drag.h);
+        layAt(el, { x: Math.round(r.left), y: Math.round(r.top) });
+        _lay.drag.w = el.offsetWidth; _lay.drag.h = el.offsetHeight; _lay.drag.dx = px * _lay.drag.w; _lay.drag.dy = py * _lay.drag.h;
+    }
     el.classList.add('lay-moving');
     try { if (el.setPointerCapture) el.setPointerCapture(e.pointerId); } catch (x) {}
 }
@@ -395,6 +441,7 @@ function layUp(e) {
     layPutPart(d.el.id, sp);
 }
 function layWire() {
+    window.addEventListener('keydown', layKeyHold, true);
     document.addEventListener('pointerdown', layDown, true);
     document.addEventListener('pointermove', layMove, true);
     document.addEventListener('pointerup', layUp, true);
@@ -472,8 +519,8 @@ function layInit() {
     if (layRead()) laySync();
 }
 // [layoutcheck:api]
-var API = { sync: laySync, edit: layEdit, escape: layEscape, held: layHeld, fitSide: layFitSide, measure: layMeasure, menuFit: layMenuFit, editing: function() { return _lay.edit; } };
-export { cleanLayout, cleanView, cleanBar, cleanSpot, spotXY, spotOf, barOf, pushOf, layWith, barClasses, LAY_KEY, LAY_PARTS, LAY_BARS, LAY_SPOTS, LAY_SIDES, API };
+var API = { sync: laySync, edit: layEdit, escape: layEscape, held: layHeld, fitSide: layFitSide, measure: layMeasure, menuFit: layMenuFit, keyHold: layKeyHold, cardPlace: layCardPlace, down: layDown, move: layMove, up: layUp, editing: function() { return _lay.edit; } };
+export { cleanLayout, cleanView, cleanBar, cleanSpot, spotXY, spotOf, barOf, pushOf, layWith, barClasses, unclash, LAY_KEY, LAY_PARTS, LAY_BARS, LAY_SPOTS, LAY_SIDES, API };
 if (typeof window !== 'undefined') {
     window.wpLayout = API;
     if (typeof document !== 'undefined') { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', layInit); else layInit(); }

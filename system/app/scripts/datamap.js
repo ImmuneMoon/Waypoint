@@ -2058,7 +2058,7 @@ if(_el_addBtn) _el_addBtn.addEventListener('click', function(){
       document.body.classList.toggle('linkmode', id === 'linkBtn');
       if (id !== 'linkBtn') { state.linkStart = null; var lmT = document.getElementById('linkMenu'); if (lmT) lmT.classList.remove('show'); }
       var cw = document.getElementById('canvasWrap');
-      if (cw) cw.style.cursor = (id === 'dataPanBtn') ? 'grab' : 'default';
+      if (cw) cw.style.cursor = (id === 'dataPanBtn') ? 'grab' : '';   // 1.6.2 (the owner, 2026-11-14: "seems like we're panning with the arrow mouse in the data map"): Select pans on the empty board, so the board keeps its hand (the style sheet's), and a room shows the arrow
       document.body.classList.toggle('data-pan', id === 'dataPanBtn');
   }
   function setLinkMode(on){ setDataTool(on ? 'linkBtn' : 'dataMoveBtn'); }

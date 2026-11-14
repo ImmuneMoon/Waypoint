@@ -21,8 +21,8 @@ function page(o) {
     o = o || {};
     const els = {}, store = Object.assign({}, o.store || {}), toasts = [];
     const mk = (id, box) => {
-        const vars = {};
-        const e = { id, hidden: false, children: [], parentElement: null, classList: null, box: Object.assign({ x: 0, y: 0, w: 0, h: 0 }, box || {}),
+        const vars = {}, attrs = {};
+        const e = { id, hidden: false, setAttribute(k, v) { attrs[k] = String(v); }, getAttribute(k) { return k in attrs ? attrs[k] : null; }, children: [], parentElement: null, classList: null, box: Object.assign({ x: 0, y: 0, w: 0, h: 0 }, box || {}),
             style: { setProperty(k, v) { vars[k] = String(v); }, getPropertyValue(k) { return vars[k] || ''; }, removeProperty(k) { delete vars[k]; }, vars },
             get offsetWidth() { return e.box.w; }, get offsetHeight() { return e.box.h; }, get clientWidth() { return e.box.w; }, get clientHeight() { return e.box.h; },
             getBoundingClientRect() { return { left: e.box.x, top: e.box.y, right: e.box.x + e.box.w, bottom: e.box.y + e.box.h, width: e.box.w, height: e.box.h }; },
@@ -156,6 +156,97 @@ function install(P) {
     check('a bar down a side too tall for the area tightens, then takes two columns; any other is left to fitBar, and a bar across an edge is measured by what it holds',
         fitted === true && cols && plain === false && meas && !E.wbFloatingToolbar.classList.contains('lay-meas'));
 
+    // 4b. the review of the fold (fifteen findings): what each fix holds to
+    const AR = { w: 1000, h: 600, t: 26, l: 44, r: 14, b: 8 };
+    check('a placed control keeps off a box already there: down from a top spot, up from a bottom one, inward from a side\'s middle, and held to the area where there is no room',
+        J(L.unclash({ x: 886, y: 26 }, box, [{ left: 820, top: 26, right: 986, bottom: 62 }], 'tr', AR)) === J({ x: 886, y: 70 })
+        && J(L.unclash({ x: 44, y: 552 }, box, [{ left: 44, top: 540, right: 200, bottom: 592 }], 'bl', AR)) === J({ x: 44, y: 492 })
+        && J(L.unclash({ x: 44, y: 280 }, box, [{ left: 44, top: 270, right: 120, bottom: 330 }], 'ml', AR)) === J({ x: 128, y: 280 })
+        && J(L.unclash({ x: 886, y: 280 }, box, [{ left: 900, top: 270, right: 986, bottom: 330 }], 'mr', AR)) === J({ x: 792, y: 280 })
+        && J(L.unclash({ x: 450, y: 26 }, box, [{ left: 0, top: 0, right: 1000, bottom: 600 }], 'tc', AR)) === J({ x: 450, y: 552 })
+        && J(L.unclash({ x: 44, y: 26 }, box, [{ left: 500, top: 500, right: 600, bottom: 560 }], 'tl', AR)) === J({ x: 44, y: 26 }));
+    P = page(); install(P); const E2 = P.els;
+    P.store.wp_layout = J({ play: { parts: { zoomBox: { c: 'tr' }, minimap: { c: 'tr' } } } }); API.sync();
+    check('two controls given the same place never stand on each other: the second steps down past the first and 8 px',
+        E2.zoomBox.style.vars['--lay-y'] === '26px' && E2.minimap.style.vars['--lay-x'] === (1246 - 14 - 180) + 'px' && E2.minimap.style.vars['--lay-y'] === (26 + 36 + 8) + 'px', J([E2.zoomBox.style.vars, E2.minimap.style.vars]));
+    P.store.wp_layout = J({ play: { parts: { minimap: { c: 'tr' } } } }); API.sync();
+    check('a placed control keeps off one that stands in its own place (the minimap at Top right over the zoom box)',
+        !E2.zoomBox.classList.contains('lay-at') && E2.minimap.style.vars['--lay-y'] === (26 + 36 + 8) + 'px', J(E2.minimap.style.vars));
+    P.store.wp_layout = J({ play: { bar: { side: 'free', at: { c: 'tl' } } } }); API.sync(); const upHalf = E2.wbFloatingToolbar.classList.contains('lay-open-d') && E2.wbFloatingToolbar.classList.contains('lay-open-r');
+    P.store.wp_layout = J({ play: { bar: { side: 'free', at: { c: 'br' } } } }); API.sync(); const lowHalf = !E2.wbFloatingToolbar.classList.contains('lay-open-d') && !E2.wbFloatingToolbar.classList.contains('lay-open-r');
+    P.store.wp_layout = J({ play: { bar: { side: 'top' } } }); API.sync();
+    check('a free toolbar in the upper half opens its menus downward, one in the lower half upward, and a bar that is no longer free keeps neither',
+        upHalf && lowHalf && !E2.wbFloatingToolbar.classList.contains('lay-open-d') && !E2.wbFloatingToolbar.classList.contains('lay-free'));
+    // a menu's fit: written while it fits, taken off as soon as it no longer does
+    const mkMenu = (rect) => { const props = {}; const st = { setProperty(k, v) { props[k] = v; }, removeProperty(k) { delete props[k]; }, getPropertyValue(k) { return props[k] || ''; }, maxHeight: '', overflowY: '', props }; return { style: st, closest: () => (E2.wbFloatingToolbar.classList.contains('lay-bar') ? E2.wbFloatingToolbar : null), getBoundingClientRect: () => rect }; };
+    E2.wbFloatingToolbar.classList.remove('lay-top'); E2.wbFloatingToolbar.classList.add('lay-left');
+    const side = mkMenu({ top: 100, bottom: 1000, height: 900 }), sideFit = API.menuFit(side), lifted = side.style.props.top === '-52px' && side._layFit === true && side.style.maxHeight !== '';
+    E2.wbFloatingToolbar.classList.remove('lay-left'); const sideGone = API.menuFit(side);
+    check('a menu lifted on a side bar keeps no lift once the bar is back at the bottom: what an earlier fit wrote is taken off before anything else',
+        sideFit === true && lifted && sideGone === false && !('top' in side.style.props) && side.style.maxHeight === '' && side.style.overflowY === '' && side._layFit === false, J([side.style.props, side.style.maxHeight]));
+    E2.wbFloatingToolbar.classList.add('lay-free', 'lay-open-d');
+    const free = mkMenu({ top: 100, bottom: 1000, height: 900 }), freeFit = API.menuFit(free), freeH = free.style.maxHeight;
+    P.body.classList.remove('lay-on'); const offGone = API.menuFit(free);
+    check('a free toolbar\'s menu opening downward is held inside the area, and its height is let go once no layout is on',
+        freeFit === true && freeH === (760 - 8 - 100) + 'px' && offGone === false && free.style.maxHeight === '' && free._layFit === false, J([freeH, free.style.maxHeight]));
+    P.body.classList.add('lay-on'); E2.wbFloatingToolbar.classList.remove('lay-free', 'lay-open-d');
+    // a floating side bar is centred: it fits only within twice the top's room
+    E2.wbFloatingToolbar.classList.add('lay-side'); E2.wbFloatingToolbar.box.h = 680;
+    API.fitSide(E2.wbFloatingToolbar); const sideTight = E2.wbFloatingToolbar.classList.contains('tb-tight');
+    E2.wbFloatingToolbar.classList.add('lay-edge'); API.fitSide(E2.wbFloatingToolbar); const edgeTight = E2.wbFloatingToolbar.classList.contains('tb-tight');
+    check('a floating side bar taller than the area less twice its top room tightens (centred, its top would reach the rulers); across the edge it is measured from its top alone',
+        sideTight && !edgeTight);
+    E2.wbFloatingToolbar.classList.remove('lay-side', 'lay-edge'); E2.wbFloatingToolbar.box.h = 52;
+    // the room kept with no ruler: clear of the left panel's handle
+    P.body.classList.add('no-rulers'); P.store.wp_layout = J({ play: { bar: { side: 'left', edge: true } } }); API.sync();
+    check('with no ruler a bar across the left edge and a box on the left keep clear of the left panel\'s handle (18 px)',
+        E2.main.style.vars['--lay-el'] === '18px' && E2.main.style.vars['--lay-l'] === '26px', J(E2.main.style.vars));
+    P.body.classList.remove('no-rulers');
+    // a placed column that waits for the pointer waits where it stands
+    P.store.wp_layout = J({ play: { colHide: true, parts: { wbEdgeTools: { c: 'mc' } } } }); API.sync();
+    const hotOf = () => Object.values(P.els).filter(e => e.className === 'lay-hot' && e._for === E2.wbEdgeTools).pop();   // the page of plain objects finds no element by an id given after it is made, so each sync makes a new line: the last is the one
+    const placedSide = hotOf() && hotOf().getAttribute('data-side');
+    P.store.wp_layout = J({ play: { colHide: true } }); API.sync(); const homeSide = hotOf() && hotOf().getAttribute('data-side');
+    check('View, Grid and Snap placed and shown only when the pointer comes near wait where they stand (no line at the right edge); at home their line is at the edge',
+        E2.wbEdgeTools.classList.contains('lay-hide') && placedSide === 'free' && homeSide === 'right', J([placedSide, homeSide]));
+    // the edit mode holds the page's keys
+    let stopped = 0; const key = k => ({ key: k, stopPropagation() { stopped++; } });
+    const before0 = [API.keyHold(key('Delete')), stopped];
+    API.edit(true);
+    const held = ['Delete', 'Backspace', 'ArrowLeft', 'z', 'p', 'Enter', ' '].map(k => API.keyHold(key(k))), passed = ['Escape', 'Tab'].map(k => API.keyHold(key(k)));
+    check('while the layout is edited every key but Escape and Tab stops at the window before the page hears it, and nothing is held otherwise',
+        J(before0) === J([false, 0]) && held.every(x => x === true) && passed.every(x => x === false) && stopped === 7, J([held, passed, stopped]));
+    const cmdSrc = read('scripts/commands.js'), hkFn = cmdSrc.slice(cmdSrc.indexOf('function hotkeyHeld(doc, win, e) {'), cmdSrc.indexOf('\nfunction hotkeyDown'));
+    const hk = new Function(hkFn + '\nreturn hotkeyHeld;')();
+    const hkDoc = { body: P.body, querySelector: () => null, querySelectorAll: () => [], getElementById: () => null }, hkE = { target: { tagName: 'DIV' } };
+    const hkOn = hk(hkDoc, {}, hkE); API.edit(false); const hkOff = hk(hkDoc, {}, hkE);
+    check('a command\'s key, a controller button and a mouse press run nothing while the layout is edited (commands.js hotkeyHeld says layout), and the page\'s own keys return at once (io.js)',
+        hkOn === 'layout' && hkOff === '' && read('scripts/io.js').includes("      var t = e.target;\n\n      if (document.body && document.body.classList.contains('lay-edit')) return;"), J([hkOn, hkOff]));
+    // the card comes back inside the area; the Find strip is measured in its placed look before a drag
+    API.edit(true); E2.layCard._moved = true; E2.layCard.style.left = '2000px'; E2.layCard.style.top = '-50px'; API.cardPlace();
+    check('the edit mode\'s card, once dragged, comes back held inside the area as it now stands',
+        E2.layCard.style.left === (1246 - 300) + 'px' && E2.layCard.style.top === '0px', J([E2.layCard.style.left, E2.layCard.style.top]));
+    API.edit(false);
+    P.store.wp_layout = null; delete P.store.wp_layout; P.win.view = 'data'; API.sync();
+    const fd = E2.dataFind; fd.box.x = 42; fd.box.y = 66; Object.defineProperty(fd.box, 'w', { get: () => (fd.classList.contains('lay-at') ? 400 : 1230), configurable: true });
+    API.edit(true);
+    const ev = (x, y) => ({ button: 0, target: fd, clientX: x, clientY: y, pointerId: 1, preventDefault() {}, stopPropagation() {} });
+    API.down(ev(42 + 615, 76)); API.move(ev(34 + 50, 76)); API.up(ev(34 + 50, 76));
+    const fdLay = L.cleanLayout(P.store.wp_layout), fdSpot = fdLay && fdLay.data && fdLay.data.parts.dataFind;
+    check('the Data Map\'s Find strip, which spans the area in its own place, is measured in its placed look as a drag begins, so it can be dropped at a side',
+        !!fdSpot && fdSpot.c === 'tl', J(fdSpot));
+    API.edit(false); P.win.view = 'play';
+    const cssR = read('style.css'), blkR = cssR.slice(cssR.indexOf('/* 1.6.2 (backlog 224): the layout editor'));
+    check('the style sheet: a hidden bar stays out only for a focus the keyboard gave, a free bar in the upper half opens downward, a placed hidden column fades where it stands, and both panels\' handles keep their strip',
+        !blkR.includes(':not(:focus-within)') && (blkR.match(/:not\(:has\(:focus-visible\)\)/g) || []).length === 12
+        && blkR.includes('body.lay-on .floating-toolbar.lay-free.lay-open-d > * > .shape-menu { top: 100% !important; bottom: auto !important;')
+        && blkR.includes('#wbEdgeTools.lay-hide.lay-at:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)) { opacity: 0; pointer-events: auto; }')
+        && blkR.includes('body.lay-on .floating-toolbar.lay-edge.lay-left ~ #toggleLeftBtn { z-index: 9501; }') && blkR.includes('.lay-hot[data-side="right"] { top: calc(50% - 130px); height: 260px; right: 18px;')
+        && blkR.includes('body.lay-on .floating-toolbar.lay-right { left: auto; right: 22px; }') && blkR.includes('body.lay-on .floating-toolbar.lay-edge.lay-right { right: 18px;'));
+    const layR = read('scripts/layout.js');
+    check('a bar that a press left the focus in goes again: the timer asks for the pointer or a focus the keyboard gave, and the focus leaving lets it go',
+        layR.includes("if (el.matches(':hover') || el.querySelector(':focus-visible, .shape-menu.show')) return;") && layR.includes("el.addEventListener('focusout', function(e) { if (el.classList.contains('lay-hide')") && layR.includes("window.addEventListener('keydown', layKeyHold, true);"));
+
     // 5. the wiring, pinned
     const lay = read('scripts/layout.js'), ix = read('index.html'), css = read('style.css'), wb = read('scripts/whiteboard.js'), mn = read('scripts/main.js'), tr = read('scripts/trackers.js'), esc = read('scripts/esckey.js'), st = read('scripts/settings.js');
     const once = id => ix.split(' id="' + id + '"').length === 2;
@@ -175,8 +266,8 @@ function install(P) {
     const help = ix.slice(ix.indexOf('<h4>The layout of the map</h4>'), ix.indexOf('<h4>Turning with your token</h4>'));
     const wn = [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')];
     check('Help says it in plain words (Edit layout, the four sides, across the edge, the pointer coming near, Put back, Escape, the narrow window), and both release notes have it the same',
-        help.length > 400 && ['Edit layout', 'Across the edge', 'Show it only when the pointer comes near', 'Put back', 'Esc', 'narrow', 'Data Map', 'this computer'].every(w => help.includes(w)) && !/[;—(]/.test(help.replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, "'"))
-        && wn.every(t => /Lay out your table/.test(t)) && wn[0].match(/Lay out your table[\s\S]*?\n\n/)[0] === wn[1].match(/Lay out your table[\s\S]*?\n\n/)[0]);
+        help.length > 400 && !/taskbar|so nothing overlaps|corner it is nearest/.test(help) && help.includes('the nearest corner, edge or the middle') && ['Edit layout', 'Across the edge', 'Show it only when the pointer comes near', 'Put back', 'Esc', 'narrow', 'Data Map', 'this computer'].every(w => help.includes(w)) && !/[;—(]/.test(help.replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, "'"))
+        && wn.every(t => /Lay out your table/.test(t) && (s => !/taskbar|so nothing overlaps|nearest\s+corner, so/.test(s) && /nearest\s+corner, edge or the middle/.test(s))(t.match(/Lay out your table[\s\S]*?\n\n/)[0])) && wn[0].match(/Lay out your table[\s\S]*?\n\n/)[0] === wn[1].match(/Lay out your table[\s\S]*?\n\n/)[0]);
     check('CI runs this suite under a plain name', /- name: layoutcheck, the layout editor [^\n:]*\n\s+if: \$\{\{ !cancelled\(\) \}\}\n\s+run: node tools\/layoutcheck\.js/.test(rootRead('.github/workflows/checks.yml').replace(/\r\n/g, '\n')));
 
     summed = true;

@@ -519,13 +519,13 @@
   .room{
     position:absolute; min-width:118px; max-width:190px; background:var(--panel);
     border:1px solid var(--edge); border-left:4px solid var(--neutral); border-radius:9px;
-    padding:8px 11px; box-shadow:var(--shadow); cursor:grab; user-select:none; z-index:2;
+    padding:8px 11px; box-shadow:var(--shadow); cursor:default; user-select:none; z-index:2;   /* 1.6.2: the arrow over a room, as over a piece on the play map; the hand is the board's, where a drag pans */
     transition:box-shadow .12s,border-color .12s,transform .06s;
   }
   .room:hover{border-top-color:#54546a;border-right-color:#54546a;border-bottom-color:#54546a}
   .room.sel{outline:2px solid var(--gold);outline-offset:2px;z-index:4}
   .room.linkstart{outline:2px dashed var(--blue);outline-offset:2px;z-index:4}
-  .room.dragging{cursor:grabbing;box-shadow:0 12px 30px rgba(0,0,0,.6);z-index:6}
+  .room.dragging{cursor:move;box-shadow:0 12px 30px rgba(0,0,0,.6);z-index:6}
   .room .rn{font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.28}
   .room .rc{font-size:10px;letter-spacing:.08em;text-transform:uppercase;margin-top:3px;opacity:.8}
   /* 1.6.2 (backlog 45): the handle a link is dragged from, shown on a room under the pointer or selected; the name typed on the room's own box */
@@ -6449,7 +6449,7 @@ body.lay-on .floating-toolbar.lay-bar.lay-hide { transition: z-index 0s .2s, tra
 body.lay-on .floating-toolbar.lay-top { top: var(--lay-t, 26px); bottom: auto; }
 body.lay-on .floating-toolbar.lay-side { flex-direction: column; top: 50%; bottom: auto; transform: translateY(-50%); gap: 3px; padding: 5px; }
 body.lay-on .floating-toolbar.lay-left { left: var(--lay-l, 44px); }
-body.lay-on .floating-toolbar.lay-right { left: auto; right: 14px; }
+body.lay-on .floating-toolbar.lay-right { left: auto; right: 22px; }   /* clear of the right panel's handle (18 px) */
 body.lay-on .floating-toolbar.lay-side > .wb-tool-sep, body.lay-on .floating-toolbar.lay-side.tb-tight > .wb-tool-sep { width: 24px; height: 1px; margin: 2px 0; }
 body.lay-on .floating-toolbar.lay-side.lay-cols { display: grid !important; grid-template-columns: repeat(2, auto); gap: 2px; align-content: center; }   /* too tall for the area even tight: two columns */
 body.lay-on .floating-toolbar.lay-side.lay-cols > .wb-tool-sep { display: none; }
@@ -6458,13 +6458,15 @@ body.lay-on .floating-toolbar.lay-edge:not(.lay-side):not(.lay-top) { bottom: 0;
 body.lay-on .floating-toolbar.lay-edge.lay-top { top: var(--lay-et, 18px); border-width: 0 0 1px; }
 body.lay-on .floating-toolbar.lay-edge.lay-side { top: var(--lay-et, 18px); bottom: 0; transform: none; border-radius: 0; justify-content: center; align-content: center; box-shadow: 0 0 16px rgba(0,0,0,0.45); }
 body.lay-on .floating-toolbar.lay-edge.lay-left { left: var(--lay-el, 36px); border-width: 0 1px 0 0; }
-body.lay-on .floating-toolbar.lay-edge.lay-right { right: 0; border-width: 0 0 0 1px; }
+body.lay-on .floating-toolbar.lay-edge.lay-right { right: 18px; border-width: 0 0 0 1px; }   /* across the edge up to the right panel's handle, which keeps its strip */
 body.lay-on .floating-toolbar.lay-edge.lay-right ~ #toggleRightBtn { z-index: 9501; }   /* the right panel's handle stays over a bar across that edge */
+body.lay-on .floating-toolbar.lay-edge.lay-left ~ #toggleLeftBtn { z-index: 9501; }   /* and the left one's over a bar across the left */
 body.lay-on .floating-toolbar.lay-edge.lay-meas:not(.lay-side) { right: auto !important; width: max-content !important; }
 body.lay-on .floating-toolbar.lay-edge.lay-side.lay-meas { bottom: auto !important; }   /* whiteboard.js fitBar measures what the bar holds */
 /* a menu opens away from the bar's edge (layout.js layMenuFit holds it inside the area) */
 body.lay-on .floating-toolbar.lay-top > * > .shape-menu { top: 100% !important; bottom: auto !important; margin-top: 10px !important; margin-bottom: 0 !important; }
 body.lay-on .floating-toolbar.lay-left > * > .shape-menu { left: 100% !important; right: auto !important; top: 0 !important; bottom: auto !important; transform: none !important; margin: 0 0 0 10px !important; }
+body.lay-on .floating-toolbar.lay-free.lay-open-d > * > .shape-menu { top: 100% !important; bottom: auto !important; margin: 10px 0 0 !important; }   /* a free bar in the upper half opens downward */
 body.lay-on .floating-toolbar.lay-right > * > .shape-menu { right: 100% !important; left: auto !important; top: 0 !important; bottom: auto !important; transform: none !important; margin: 0 10px 0 0 !important; }
 /* a control held to a place, and the others stepping out of the toolbar's way */
 body.lay-on .lay-at { left: var(--lay-x) !important; top: var(--lay-y) !important; right: auto !important; bottom: auto !important; transform: none !important; margin: 0 !important; }
@@ -6476,24 +6478,25 @@ body.lay-on #wbEdgeTools.lay-low:not(.lay-at) { bottom: var(--lay-colb, 30px); }
 body.lay-on #wbEdgeTools.lay-open-r .shape-menu { right: auto !important; left: 100% !important; margin: 0 0 0 10px !important; }
 body.lay-on #wbEdgeTools.lay-open-d .shape-menu, body.lay-on #wbEdgeTools.lay-open-d #wbCenterMenu { top: 0 !important; bottom: auto !important; }
 /* shown only when the pointer comes near: it slides off its edge, a free one fades, and a thin line marks where it waits */
-body.lay-on:not(.lay-edit):not(.tour-on) .lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)) { pointer-events: none; }
-body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)):not(.lay-top):not(.lay-side):not(.lay-free):not(.lay-edge) { transform: translate(-50%, calc(100% + 40px)); }
-body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)).lay-edge:not(.lay-top):not(.lay-side) { transform: translateY(100%); }
-body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)).lay-top:not(.lay-edge) { transform: translate(-50%, calc(-100% - var(--lay-t, 26px) - 10px)); }
-body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)).lay-top.lay-edge { transform: translateY(calc(-100% - var(--lay-et, 18px) - 2px)); }
-body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)).lay-left:not(.lay-edge) { transform: translate(calc(-100% - var(--lay-l, 44px) - 10px), -50%); }
-body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)).lay-left.lay-edge { transform: translateX(calc(-100% - var(--lay-el, 36px) - 2px)); }
-body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)).lay-right:not(.lay-edge) { transform: translate(calc(100% + 24px), -50%); }
-body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)).lay-right.lay-edge { transform: translateX(100%); }
-body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)).lay-free { opacity: 0; pointer-events: auto; }   /* a free bar waits where it stands: the pointer over it brings it back */
-body.lay-on #wbEdgeTools.lay-hide { transition: z-index 0s .2s, transform .18s ease; }
-body.lay-on:not(.lay-edit):not(.tour-on) #wbEdgeTools.lay-hide:not(.lay-peek):not(:focus-within):not(:has(.shape-menu.show)) { transform: translateX(calc(100% + 40px)); }
+body.lay-on:not(.lay-edit):not(.tour-on) .lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)) { pointer-events: none; }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)):not(.lay-top):not(.lay-side):not(.lay-free):not(.lay-edge) { transform: translate(-50%, calc(100% + 40px)); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-edge:not(.lay-top):not(.lay-side) { transform: translateY(100%); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-top:not(.lay-edge) { transform: translate(-50%, calc(-100% - var(--lay-t, 26px) - 10px)); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-top.lay-edge { transform: translateY(calc(-100% - var(--lay-et, 18px) - 2px)); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-left:not(.lay-edge) { transform: translate(calc(-100% - var(--lay-l, 44px) - 10px), -50%); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-left.lay-edge { transform: translateX(calc(-100% - var(--lay-el, 36px) - 2px)); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-right:not(.lay-edge) { transform: translate(calc(100% + 24px), -50%); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-right.lay-edge { transform: translateX(calc(100% + 18px)); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-free { opacity: 0; pointer-events: auto; }   /* a free bar waits where it stands: the pointer over it brings it back */
+body.lay-on #wbEdgeTools.lay-hide { transition: z-index 0s .2s, transform .18s ease, opacity .18s ease; }
+body.lay-on:not(.lay-edit):not(.tour-on) #wbEdgeTools.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)) { transform: translateX(calc(100% + 40px)); }
+body.lay-on:not(.lay-edit):not(.tour-on) #wbEdgeTools.lay-hide.lay-at:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)) { opacity: 0; pointer-events: auto; }   /* a placed column waits where it stands, as a free bar does */
 .lay-hot { position: absolute; z-index: 9499; }
 .lay-hot::after { content: ''; position: absolute; border-radius: 3px; background: rgba(227,166,59,.55); box-shadow: 0 0 8px rgba(227,166,59,.35); }
 .lay-hot[data-side="bottom"] { left: calc(50% - 130px); width: 260px; bottom: 0; height: 12px; }
 .lay-hot[data-side="top"] { left: calc(50% - 130px); width: 260px; top: var(--lay-et, 18px); height: 12px; }
 .lay-hot[data-side="left"] { top: calc(50% - 130px); height: 260px; left: var(--lay-el, 36px); width: 12px; }
-.lay-hot[data-side="right"] { top: calc(50% - 130px); height: 260px; right: 0; width: 12px; }
+.lay-hot[data-side="right"] { top: calc(50% - 130px); height: 260px; right: 18px; width: 12px; }   /* clear of the right panel's handle */
 .lay-hot.lay-hot-edge[data-side="bottom"], .lay-hot.lay-hot-edge[data-side="top"] { left: 0; width: auto; right: 0; }
 #layHotCol[data-side="right"] { top: auto; bottom: var(--lay-colb, 96px); height: 140px; }
 .lay-hot[data-side="bottom"]::after { left: 0; right: 0; bottom: 2px; height: 3px; }

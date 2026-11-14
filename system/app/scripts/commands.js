@@ -167,6 +167,7 @@ function hotkeyHeld(doc, win, e) {
     var mn = t && typeof t.closest === 'function' ? t.closest('[role="menu"], [role="listbox"]') : null;   // 1.6.2: a letter typed while a menu holds the focus is the menu's (it goes to a row that begins with it), never a command's key
     if (mn && (typeof mn.getClientRects !== 'function' || mn.getClientRects().length > 0)) return 'menu';   // only a menu that shows: the focus can rest on a row of one that was put away
     var b = doc.body; if (b && b.classList && b.classList.contains('tour-on')) return 'tour';
+    if (b && b.classList && b.classList.contains('lay-edit')) return 'layout';   // 1.6.2 (backlog 224): the layout editor's edit mode holds every key for its own card
     if (doc.querySelector('.hk-picking')) return 'picking';   // a key being picked in Settings is that key's alone   // a website's join page is the welcome screen, held below
     var up = function(el) { return !!el && typeof el.getClientRects === 'function' && el.getClientRects().length > 0; };
     if (up(doc.getElementById('customConfirm')) || up(doc.getElementById('customPrompt'))) return 'asking';

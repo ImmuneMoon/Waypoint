@@ -4,16 +4,17 @@ WAYPOINT 1.6.2 — What's New
 Lay out your table
 - Put the map's controls where you want them. Open the View menu and press
   Edit layout, then drag the toolbar, the zoom box, the minimap, the party's
-  faces and the rest wherever suits you. Each one holds to its nearest
-  corner, so it stays put when the window changes size. Right-click one for
-  nine places to pick from, or Put back.
+  faces and the rest wherever suits you. Each one holds to the nearest
+  corner, edge or the middle, so it stays put when the window changes size.
+  Drop the toolbar at the middle of a side and it runs along that side.
+  Right-click one for nine places to pick from, or Put back.
 - The toolbar goes on any side. Run it across the whole edge up to the
   panels, keep it as a small box, or leave it free where you drop it. Tick
-  Show it only when the pointer comes near and it tucks away like a taskbar
-  until you need it.
+  Show it only when the pointer comes near and it slides off its edge. Move
+  the pointer to that edge to bring it back.
 - The Data Map gets a layout of its own the same way. Your layout stays on
   your computer, and each player sets up their own screen. On a narrow
-  window everything goes back to its usual place, so nothing overlaps.
+  window everything goes back to its usual place.
 
 Tokens
 - A picture you tick Is Character fits one cell of the map's grid by itself,

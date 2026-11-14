@@ -18,7 +18,7 @@ var LIMITS = Object.freeze({
     timeoutMs: 5000,    // a client's pending request
     history: 20,        // the roller's recent list
     logChars: 300,      // describe() cap in the session log line
-    names: 200,         // named values a record may carry (rolls from a character sheet)
+    names: 5000,        // named values a record may carry (rolls from a character sheet), each time a name is read: 1.6.2, every name a formula of LIMITS.expr (10,000) characters can hold, a name and an operator two characters at the least, so a roll Save keeps can always be recorded (200 before, out of reach at 1,000 characters)
     nameChars: 64,
     label: 60,          // a roll's label, the character's name on a card
     cardChars: 240,     // describe() cap in a toast / plain-text card

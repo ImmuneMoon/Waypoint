@@ -2068,20 +2068,21 @@ function idnControl(f, c, e, tone) {
     if (f.kind === 'text' && typeof measureBox === 'function') ctl = measureBox(f, c, 'field sheet-text sheet-idn-input');   // 1.5.4: a height or a weight, its box showing the half of the viewer's setting
     if (ctl) { /* that box */ } else if (f.kind === 'text') { ctl = typeof sbxNode === 'function' ? sbxNode(f, c, false) : null; if (!ctl) { ctl = el('input', 'field sheet-text sheet-idn-input'); ctl.type = 'text'; ctl.maxLength = f.max || 200; ctl.value = raw === undefined ? String(f.def || '') : String(raw); ctl.addEventListener('change', function() { commit(c, f, ctl.value); }); } }   // item 35: its own box where the box can serve
     else if (f.kind === 'select') { ctl = el('select', 'field sheet-select sheet-idn-input'); var sv = raw === undefined ? f.def : raw; (f.options || []).forEach(function(o) { ctl.appendChild(opt(o, o, sv === o)); }); ctl.addEventListener('change', function() { commit(c, f, ctl.value); }); }
-    else if (f.kind === 'toggle') { ctl = el('input', 'sheet-idn-check'); ctl.type = 'checkbox'; ctl.checked = raw === undefined ? f.def === true : raw === true; ctl.addEventListener('change', function() { commit(c, f, ctl.checked); }); }
+    else if (f.kind === 'toggle') { ctl = el('input', 'sheet-idn-check'); ctl.type = 'checkbox'; ctl.checked = (raw === undefined || raw === null) && e && e.auto === 1 ? (typeof e.base === 'boolean' ? e.base : e.value === true) : raw === undefined ? f.def === true : raw === true; ctl.addEventListener('change', function() { commit(c, f, ctl.checked); }); }   // 1.6.2 (auto apply): worked out until set, as the section draws it
     else if (named) {
         ctl = el('select', 'field sheet-select sheet-idn-input'); var nv = raw === undefined ? f.def : raw;
         f.labels.forEach(function(nm, i) { ctl.appendChild(opt(String(i), nm, nv === i)); });
         if (typeof nv === 'number' && !(nv >= 0 && nv < f.labels.length && nv === Math.floor(nv))) { var xo = opt(String(nv), String(nv), true); xo.disabled = true; ctl.appendChild(xo); }   // a stored value past the names, as the section shows it
         ctl.addEventListener('change', function() { commit(c, f, Number(ctl.value)); });
     } else {
-        ctl = el('input', 'field sheet-num sheet-idn-input' + tone); ctl.type = 'number'; ctl.value = raw === undefined ? String(f.def) : String(raw); ctl.step = String(f.step || 1);
+        ctl = el('input', 'field sheet-num sheet-idn-input' + tone); ctl.type = 'number'; ctl.value = raw === undefined || raw === null ? String(e && e.auto === 1 && typeof e.value === 'number' ? (typeof e.base === 'number' ? e.base : e.value) : f.def) : String(raw); ctl.step = String(f.step || 1);   // 1.6.2 (auto apply): worked out until typed, as the section draws it
         if (f.min !== undefined) ctl.min = String(f.min); if (f.max !== undefined) ctl.max = String(f.max);
         ctl.addEventListener('change', function() { commit(c, f, Number(ctl.value)); });
     }
     ctl.dataset.fid = f.id; ctl.dataset.part = 'idn'; ctl.title = f.label + (f.unit && f.kind === 'number' && !named ? ' (' + f.unit + ')' : '');
     wrap.appendChild(ctl);
     if (f.kind === 'number' && !named) { if (f.unit) wrap.appendChild(el('span', 'sheet-unit', typeof unitText === 'function' ? unitText(f, Number(ctl.value), ctl.value) : f.unit)); if (e && e.mods && e.mods.length) { var fb = fxMark(e); if (fb) { fb.textContent = '\u2192 ' + fmtNum(e.value); wrap.appendChild(fb); } } }   // 5h: the effective value beside the base
+    if (f.kind === 'toggle' || (f.kind === 'number' && !named)) { var abI = typeof autoBits === 'function' ? autoBits(f, c, e, true, raw) : null; if (abI) wrap.appendChild(abI); }   // 1.6.2 (auto apply): the header's own copy says worked out and gives it back, as the section does
     return wrap;
 }
 // Stage 5g: the text color for a label on a filled accent (the open filled tab) — near-black or white, whichever reads better
@@ -11352,7 +11353,7 @@ function blastBox(box, cm) {
     box.appendChild(labeledSelect('sys-combat-blfumble', 'Its critical failure', [['', 'Misses by its margin'], ['feet', 'Goes off at the shooter\u2019s feet'], ['none', 'Spends the round and goes nowhere']], lnB.fumble === 'feet' || lnB.fumble === 'none' ? lnB.fumble : '', 'What a launched round does when its roll is a critical failure'));
     box.appendChild(labeledSelect('sys-combat-blstop', 'A round that flies straight stops at', [['', 'The first wall or character'], ['past', 'The first wall, or a character past its target'], ['walls', 'The first wall only']], lnB.stop === 'past' || lnB.stop === 'walls' ? lnB.stop : '', 'For a round whose item flies straight on a miss. With nothing in its path it goes off at its farthest'));
     box.appendChild(labeledSelect('sys-combat-blglance', 'A character it stops on', [['', 'Is struck directly'], ['glance', 'Is not struck directly']], lnB.glance === true ? 'glance' : '', 'Whether a character a straight round stops on takes the blast as its direct target'));
-    var stV = typeof lnB.stray === 'string' ? lnB.stray : '', stL = el('label', 'sys-combat-item'); stL.appendChild(el('span', 'sys-num-cap', 'A stray round lands')); var stI = input('sys-combat-blstray field', stV, STRAY_LINE, 'e.g. 1d6'); stI.dataset.sk = 'stray'; stI.maxLength = 1200; stL.appendChild(stI); box.appendChild(stL); lineUnder(box, STRAY_LINE);   // 1.6.0 A burst
+    var stV = typeof lnB.stray === 'string' ? lnB.stray : '', stL = el('label', 'sys-combat-item'); stL.appendChild(el('span', 'sys-num-cap', 'A stray round lands')); var stI = input('sys-combat-blstray field', stV, STRAY_LINE, 'e.g. 1d6'); stI.dataset.sk = 'stray'; stI.maxLength = LIMITS.formula; stL.appendChild(stI); box.appendChild(stL); lineUnder(box, STRAY_LINE);   // 1.6.0 A burst
     var stE = el('div', 'sys-blast-err'); stE.dataset.sk = 'stray'; stE.textContent = straySays(stV); box.appendChild(stE);
     box = PB.dist;
     var kdB = cm.damage && Array.isArray(cm.damage.kinds) ? cm.damage.kinds.filter(function(y) { return y && typeof y.key === 'string' && y.key; }) : [];   // 1.6.0: the kind of blow its shares and fragmentation carry, where the system names kinds
@@ -11468,26 +11469,26 @@ function bodySays(v) { var SCb = window.wpSystemCore; return !v || !SCb || typeo
 function onBlastInput(t) {
     if (t && t.dataset && t.dataset.vk === 'body' && /(^| )sys-combat-cover-body( |$)/.test(t.className || '')) {   // 1.6.2: a body in the way, and what Save does with it
         var cmB = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), cvB = draft.combat.cover || (cmB.cover = { on: false, style: 'graded' }), vB = String(t.value || '').trim();
-        if (vB) cvB.body = vB.slice(0, 1200); else delete cvB.body;
+        if (vB) cvB.body = vB.slice(0, LIMITS.formula); else delete cvB.body;
         var boxB = ui('sysCombatBox'), erB = boxB ? Array.prototype.filter.call(boxB.querySelectorAll('.sys-blast-err'), function(x) { return x.dataset.vk === 'body'; })[0] : null; if (erB) erB.textContent = bodySays(vB);
         markDirty(); return true;
     }
     if (t && t.dataset && t.dataset.sk === 'stray' && /(^| )sys-combat-blstray( |$)/.test(t.className || '')) {   // 1.6.0 A burst: how far a stray round lands, and what Save does with it
         var cmS = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), blS = cmS.blast && typeof cmS.blast === 'object' && !Array.isArray(cmS.blast) ? cmS.blast : (cmS.blast = {}), loS = blS.launch && typeof blS.launch === 'object' && !Array.isArray(blS.launch) ? blS.launch : (blS.launch = {}), vS = String(t.value || '').trim();
-        if (vS) loS.stray = vS.slice(0, 1200); else delete loS.stray; if (!Object.keys(loS).length) delete blS.launch; if (!Object.keys(blS).length) delete cmS.blast;
+        if (vS) loS.stray = vS.slice(0, LIMITS.formula); else delete loS.stray; if (!Object.keys(loS).length) delete blS.launch; if (!Object.keys(blS).length) delete cmS.blast;
         var boxS = ui('sysCombatBox'), erS = boxS ? Array.prototype.filter.call(boxS.querySelectorAll('.sys-blast-err'), function(x) { return x.dataset.sk === 'stray'; })[0] : null; if (erS) erS.textContent = straySays(vS);
         markDirty(); return true;
     }
     if (t && t.dataset && t.dataset.rk === 'resist' && /(^| )sys-combat-resist( |$)/.test(t.className || '')) {   // 1.5.9 (es): the Resist roll, and what Save does with it
         var cmR = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), blR = cmR.blast && typeof cmR.blast === 'object' && !Array.isArray(cmR.blast) ? cmR.blast : (cmR.blast = {}), vR = String(t.value || '').trim();
-        if (vR) blR.resist = vR.slice(0, 1200); else delete blR.resist; if (!Object.keys(blR).length) delete cmR.blast;
+        if (vR) blR.resist = vR.slice(0, LIMITS.formula); else delete blR.resist; if (!Object.keys(blR).length) delete cmR.blast;
         var boxR = ui('sysCombatBox'), erR = boxR ? Array.prototype.filter.call(boxR.querySelectorAll('.sys-blast-err'), function(x) { return x.dataset.rk === 'resist'; })[0] : null; if (erR) erR.textContent = resistSays(vR);
         markDirty(); return true;
     }
     if (t && t.dataset && t.dataset.fk === 'reach' && /(^| )sys-combat-fgreach( |$)/.test(t.className || '')) {   // 1.5.9 (es): Fragmentation reaches, and what Save does with it
         var cmF = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), blF = cmF.blast && typeof cmF.blast === 'object' && !Array.isArray(cmF.blast) ? cmF.blast : (cmF.blast = {});
         var foF = blF.frag && typeof blF.frag === 'object' && !Array.isArray(blF.frag) ? blF.frag : (blF.frag = {}), vF = String(t.value || '').trim();
-        if (vF) foF.reach = vF.slice(0, 1200); else delete foF.reach;
+        if (vF) foF.reach = vF.slice(0, LIMITS.formula); else delete foF.reach;
         if (!Object.keys(foF).length) delete blF.frag; if (!Object.keys(blF).length) delete cmF.blast;
         var boxF = ui('sysCombatBox'), erF = boxF ? Array.prototype.filter.call(boxF.querySelectorAll('.sys-blast-err'), function(x) { return x.dataset.fk === 'reach'; })[0] : null; if (erF) erF.textContent = fragSays(vF);
         markDirty(); return true;
@@ -11495,7 +11496,7 @@ function onBlastInput(t) {
     var k = t && t.dataset ? t.dataset.bk : ''; if (!k || !/(^| )sys-combat-b(fall|each|roll|scatter|max|min|hand)( |$)/.test(t.className || '')) return false;   // 1.6.0: each (the core's gap 8)
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' });
     var bl = cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : (cm.blast = {}), v = String(t.value || '').trim();
-    if (v) bl[k] = v.slice(0, 1200); else delete bl[k];
+    if (v) bl[k] = v.slice(0, LIMITS.formula); else delete bl[k];
     if (!Object.keys(bl).length) delete cm.blast;
     var box = ui('sysCombatBox'), er = box ? Array.prototype.filter.call(box.querySelectorAll('.sys-blast-err'), function(x) { return x.dataset.bk === k; })[0] : null; if (er) er.textContent = blastSays(k, v);
     markDirty(); return true;

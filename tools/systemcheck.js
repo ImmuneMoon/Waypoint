@@ -16335,6 +16335,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && jj(BC.scatterPoint({ x: 100, y: 0 }, { x: 0, y: 0 }, 2, 0, 10, 6)) === jj({ x: 120, y: 0, way: 0, words: 'Long' }) && BC.scatterPoint({ x: 100, y: 0 }, { x: 0, y: 0 }, 2, 3, 10, 6).words === 'Short' && BC.scatterPoint({ x: 100, y: 0 }, { x: 0, y: 0 }, 2, 3, 10, 6).x === 80
             && jj(BC.scatterPoint({ x: 100, y: 0 }, { x: 0, y: 0 }, 2, 2, 10, 8)) === jj({ x: 100, y: 20, way: 2, words: 'Right' }) && BC.scatterPoint({ x: 0, y: 0 }, { x: 0, y: 0 }, 1, 0, 10, 6).y === -10 && BC.scatterPoint(null, null, 1, 0, 10) === null && BC.SCATTER_WAYS6.length === 6 && BC.SCATTER_WAYS.length === 8,
             jj([fs1({ dmg: 12, dist: 2, dice: 2 }), BC.throwOutcome({ pass: false, margin: 0 }), BC.scatterPoint({ x: 100, y: 0 }, { x: 0, y: 0 }, 2, 2, 10, 8)]));
+        {   // 1.6.2 (the review of the formula cap): a damage longer than the old 1,200 whose dice come last is read whole, never cut
+            const pad = 'if(ST > 10, 1, 0) + '.repeat(70), longDm = pad + '3d6', longFirst = '3d6 + ' + pad + '2';
+            const wbFg = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'latin1');
+            check('1.6.2 blastcore reads a formula as long as LIMITS.formula (FORMULA_MAX held equal to systemcore\'s): a damage of more than 1,200 characters whose dice come last still counts its dice and is set at n dice whole, one whose dice come first is never cut in the middle, a mine keeps such a damage and fragmentation whole, and a thrown blast\'s fragmentation is cut at the system\'s own cap',
+                BC.FORMULA_MAX === LIMITS.formula && longDm.length > 1200 && BC.diceCount(longDm) === 3 && BC.diceAt(longDm, 2) === pad + '2d6' && BC.diceAt(longFirst, 1) === '1d6 + ' + pad + '2'
+                && BC.cleanMine({ ft: 9, damage: longDm, frag: longDm }).damage === longDm.trim() && BC.cleanMine({ ft: 9, damage: longDm, frag: longDm }).frag === longDm.trim()
+                && !/1200/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'blastcore.js'), 'utf8')) && wbFg.includes('b.frag = { expr: fgB.slice(0, (window.wpSystemCore && window.wpSystemCore.LIMITS && window.wpSystemCore.LIMITS.formula) || 10000),') && !wbFg.includes('fgB.slice(0, 1200)'),
+                jj([longDm.length, BC.diceCount(longDm), BC.diceAt(longDm, 2).slice(-12), BC.diceAt(longFirst, 1).length]));
+        }
         const zone = { x: 0, y: 0, w: 100, h: 100, mine: { trig: 1 } }, ydB = (a, b) => Math.hypot(b.x - a.x, b.y - a.y) / 50;
         check('1.5.8 explosives, a mine (blastcore cleanMine and inTrigger): its blast, its trigger radius (2 yards with none, 0.5 to 100), who placed it, the row, an unarmed mark and an armor divisor kept as their kinds and nothing else; a token stands in its trigger by its center within the radius of the zone\'s center, by the map\'s own yards',
             jj(BC.cleanMine({ ft: 12, name: ' Spike ', damage: '2d6', type: 'cr', trig: 0, charId: 'c_kael', fieldId: 'f_w', rowId: 'w_1', by: 'Kael', gmOnly: true, notes: 'Loud.', unarmed: true, ad: 2, evil: '<x>' }))
@@ -16491,7 +16500,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const elB = (tag, cls, txt) => ({ tag: tag, className: cls || '', textContent: txt || '', kids: [], dataset: {}, appendChild(k) { this.kids.push(k); return k; } });
         const selB = (cls, cap, opts, val) => { const l = elB('label', 'sys-combat-item'); l.sel = { cls: cls, cap: cap, opts: opts, val: val }; return l; };
         let BB = null, bbErr = '', draftB = { combat: {} };
-        try { BB = new Function('el', 'input', 'lineUnder', 'labeledSelect', 'ui', 'F', 'markDirty', 'getDraft', 'window', "'use strict';\nvar draft = getDraft();\n" + bbSrc + '\nreturn { box: blastBox, change: function(t) { draft = getDraft(); return onBlastChange(t); } };')(elB, (cls, v) => { const i = elB('input', cls); i.value = v; return i; }, () => {}, selB, () => null, () => F, () => {}, () => draftB, { wpSystemCore: S }); } catch (e) { bbErr = String(e); }
+        try { BB = new Function('el', 'input', 'lineUnder', 'labeledSelect', 'ui', 'F', 'markDirty', 'getDraft', 'window', 'LIMITS', "'use strict';\nvar draft = getDraft();\n" + bbSrc + '\nreturn { box: blastBox, change: function(t) { draft = getDraft(); return onBlastChange(t); } };')(elB, (cls, v) => { const i = elB('input', cls); i.value = v; return i; }, () => {}, selB, () => null, () => F, () => {}, () => draftB, { wpSystemCore: S }, S.LIMITS); } catch (e) { bbErr = String(e); }
         const drawn = cm => { const b = elB('div'); BB.box(b, cm); return flatKids(b).filter(k => k.sel && /sys-combat-bl/.test(k.sel.cls)).map(k => [k.sel.cls, k.sel.cap, k.sel.val, k.sel.opts.map(o => o[0]).join('|')]); };
         const ch = (cls, v) => { BB.change({ className: cls, value: v }); return jm(draftB.combat); };
         const d0 = bbErr ? null : drawn({}), d1 = bbErr ? null : drawn({ blast: { launch: { now: true, fumble: 'none', stop: 'walls', glance: true } } }), dOld = bbErr ? null : drawn({ blast: { launch: { fuse: true } } });
@@ -16690,8 +16699,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const elF = (tag, cls, txt) => ({ tag: tag, className: cls || '', textContent: txt || '', kids: [], dataset: {}, appendChild(k) { this.kids.push(k); return k; } });
         const selF = (cls, cap, opts, val, title) => { const l = elF('label', 'sys-combat-item'); l.sel = { cls: cls, cap: cap, opts: opts, val: val, title: title }; return l; };
         let FB = null, fbErr = '', draftF = { combat: {} }; const linesF = [];
-        try { FB = new Function('el', 'input', 'lineUnder', 'labeledSelect', 'ui', 'F', 'markDirty', 'getDraft', 'window', "'use strict';\nvar draft = getDraft();\n" + fbSrc + '\nreturn { box: blastBox, change: function(t) { draft = getDraft(); return onBlastChange(t); }, input: function(t) { draft = getDraft(); return onBlastInput(t); }, says: fragSays };')(
-            elF, (cls, v, title, ph) => { const i = elF('input', cls); i.value = v; i.title = title; i.placeholder = ph; return i; }, (b, t) => { linesF.push(t); }, selF, () => null, () => F, () => {}, () => draftF, { wpSystemCore: S }); } catch (e) { fbErr = String(e); }
+        try { FB = new Function('el', 'input', 'lineUnder', 'labeledSelect', 'ui', 'F', 'markDirty', 'getDraft', 'window', 'LIMITS', "'use strict';\nvar draft = getDraft();\n" + fbSrc + '\nreturn { box: blastBox, change: function(t) { draft = getDraft(); return onBlastChange(t); }, input: function(t) { draft = getDraft(); return onBlastInput(t); }, says: fragSays };')(
+            elF, (cls, v, title, ph) => { const i = elF('input', cls); i.value = v; i.title = title; i.placeholder = ph; return i; }, (b, t) => { linesF.push(t); }, selF, () => null, () => F, () => {}, () => draftF, { wpSystemCore: S }, S.LIMITS); } catch (e) { fbErr = String(e); }
         const drawnF = cm => { const b = elF('div'); linesF.length = 0; FB.box(b, cm); const inp = flatKids(b).map(k => k.kids && k.kids.find(x => x.tag === 'input' && /sys-combat-fgreach/.test(x.className))).filter(Boolean)[0], err = flatKids(b).find(k => k.className === 'sys-blast-err' && k.dataset.fk === 'reach');
             return { lists: flatKids(b).filter(k => k.sel && /sys-combat-fg/.test(k.sel.cls)).map(k => [k.sel.cls, k.sel.cap, k.sel.val, k.sel.opts.map(o => o[0]).join('|')]), reach: inp ? [inp.value, inp.placeholder] : null, err: err ? err.textContent : null, lines: linesF.slice(6, 12) }; };   // 1.5.9 (es) afflictions: the fragmentation's six lines by their place, now that the resist roll's two follow them (moved on purpose)
         const chF = (cls, v) => { FB.change({ className: cls, value: v }); return jf(draftF.combat); };
@@ -16861,8 +16870,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const elA = (tag, cls, txt) => ({ tag: tag, className: cls || '', textContent: txt || '', kids: [], dataset: {}, appendChild(k) { this.kids.push(k); return k; } });
         const selA = (cls, cap, opts, val, title) => { const l = elA('label', 'sys-combat-item'); l.sel = { cls: cls, cap: cap, opts: opts, val: val, title: title }; return l; };
         let FA = null, faErr = '', draftA = { combat: {} }; const linesA = [];
-        try { FA = new Function('el', 'input', 'lineUnder', 'labeledSelect', 'ui', 'F', 'markDirty', 'getDraft', 'window', "'use strict';\nvar draft = getDraft();\n" + bbSrc + '\nreturn { box: blastBox, change: function(t) { draft = getDraft(); return onBlastChange(t); }, input: function(t) { draft = getDraft(); return onBlastInput(t); }, says: resistSays };')(
-            elA, (cls, v, title, ph) => { const i = elA('input', cls); i.value = v; i.title = title; i.placeholder = ph; return i; }, (b, t) => { linesA.push(t); }, selA, () => null, () => F, () => {}, () => draftA, { wpSystemCore: S }); } catch (e) { faErr = String(e); }
+        try { FA = new Function('el', 'input', 'lineUnder', 'labeledSelect', 'ui', 'F', 'markDirty', 'getDraft', 'window', 'LIMITS', "'use strict';\nvar draft = getDraft();\n" + bbSrc + '\nreturn { box: blastBox, change: function(t) { draft = getDraft(); return onBlastChange(t); }, input: function(t) { draft = getDraft(); return onBlastInput(t); }, says: resistSays };')(
+            elA, (cls, v, title, ph) => { const i = elA('input', cls); i.value = v; i.title = title; i.placeholder = ph; return i; }, (b, t) => { linesA.push(t); }, selA, () => null, () => F, () => {}, () => draftA, { wpSystemCore: S }, S.LIMITS); } catch (e) { faErr = String(e); }
         const drawnA = cm => { const b = elA('div'); linesA.length = 0; FA.box(b, cm); const inp = flatKids(b).map(k => k.kids && k.kids.find(x => x.tag === 'input' && /sys-combat-resist/.test(x.className))).filter(Boolean)[0], err = flatKids(b).find(k => k.className === 'sys-blast-err' && k.dataset.rk === 'resist'), hs = flatKids(b).find(k => k.sel && k.sel.cls === 'sys-combat-affhurt');
             return { resist: inp ? [inp.value, inp.placeholder] : null, err: err ? err.textContent : null, hurt: hs ? [hs.sel.cap, hs.sel.val, hs.sel.opts.map(o => o.join('=')).join('|')] : null, lines: linesA.slice(23) }; };   // 1.6.2: and an item's own scale (the core's gap 213, moved on purpose); 1.6.2: and Things in flight (moved on purpose); 1.6.0: one box and two lists more above it (Each victim's dice, the core's gap 8); and A stray round lands; and the two lists of an item that fills (moved on purpose); 1.6.2: and Blast radius (moved on purpose); and the two lists of fold (e), the distance unit and a sheet’s scale (moved on purpose)
         const a0 = faErr ? null : drawnA({}), a1 = faErr ? null : drawnA({ blast: { resist: '((', hurt: 'share' } });
@@ -16873,6 +16882,24 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && a1.resist[0] === '((' && a1.err === 'Save drops it: it does not read as a formula.' && a1.hurt[1] === 'share'
             && ch1 === jf({ blast: { hurt: 'share' } }) && in1 === true && k1 === jf({ blast: { hurt: 'share', resist: '3d6 <= Resist' } }) && k2 === jf({}) && FA.says('3d6 <= Resist') === '' && jf(S.cleanBlastRules(JSON.parse(k1).blast, F)) === jf({ resist: '3d6 <= Resist', hurt: 'share' }),
             faErr || jf([a0, a1, ch1, k1, k2]));
+        {   // 1.6.2 (the review of the formula cap): every box of the Combat tab's blasts keeps a formula as long as the cleaner keeps, never cut at the old 1,200
+            const longB = 'if(ST > 10, 1, 0) + '.repeat(70) + '3d6';
+            let lbOk = !faErr, lbOut = [];
+            if (lbOk) {
+                draftA.combat = {};
+                FA.input({ className: 'sys-combat-resist field', value: longB, dataset: { rk: 'resist' } });
+                FA.input({ className: 'sys-combat-fgreach field', value: longB, dataset: { fk: 'reach' } });
+                FA.input({ className: 'sys-combat-blstray field', value: longB, dataset: { sk: 'stray' } });
+                FA.input({ className: 'sys-combat-cover-body field', value: longB, dataset: { vk: 'body' } });
+                ['fall', 'each', 'roll', 'scatter', 'max', 'min', 'hand'].forEach(k => FA.input({ className: 'sys-combat-b' + k + ' field', value: longB, dataset: { bk: k } }));
+                const cmL = draftA.combat, blL = cmL.blast || {};
+                lbOut = [blL.resist, blL.frag && blL.frag.reach, blL.launch && blL.launch.stray, cmL.cover && cmL.cover.body, blL.fall, blL.each, blL.roll, blL.scatter, blL.max, blL.min, blL.hand].map(v => typeof v === 'string' ? v.length : v);
+                const bxL = elA('div'); FA.box(bxL, {}); const strayI = flatKids(bxL).map(k => k.kids && k.kids.find(x => x.tag === 'input' && /sys-combat-blstray/.test(x.className))).filter(Boolean)[0];
+                lbOut.push(strayI ? strayI.maxLength : null); draftA.combat = {};
+            }
+            check('1.6.2 the Combat tab\'s blast boxes (sheets.js onBlastInput, run for real) keep a formula of more than 1,200 characters whole, up to LIMITS.formula as cleanBlastRules and cleanBodyCover keep it: the resist roll, fragmentation\'s reach, a stray round, a body in the way and the seven blast formulas; the stray box takes as many; no 1,200 left in the slice',
+                lbOk && longB.length > 1200 && lbOut.length === 12 && lbOut.slice(0, 11).every(n => n === longB.length) && lbOut[11] === LIMITS.formula && !/\b1200\b/.test(bbSrc), jf([faErr, longB.length, lbOut]));
+        }
         const abs = shA.indexOf('var AFF_WHO = '), abz = shA.indexOf('function affOfRow('), afSrc = abs >= 0 && abz > abs ? shA.slice(abs, abz) : '';
         let AB = null, abErr = '';
         const mkA = (tag, cls, txt) => { const n = elA(tag, cls, txt); n.kids = []; return n; };
@@ -23235,6 +23262,18 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && /if \(\(f\.kind === 'number' \|\| f\.kind === 'toggle' \|\| \(f\.kind === 'text' && \(f\.unit === 'height' \|\| f\.unit === 'weight'\)\)\) && typeof autoBox === 'function'\) flags\.appendChild\(autoBox\(f\)\);/.test(shA)
                 && /tog \? 'Worked out until set: ' : 'Worked out until typed: '/.test(shA) && /input\(tog \? 'sys-wout-on field' : 'sys-wout field',/.test(shA) && /'sys-wout-on': 'cond'/.test(fb) && /x\.kind === 'number' \|\| x\.kind === 'toggle' \|\| \(x\.kind === 'text'/.test(shA),
                 J([tw1.kids.map(k => [k.textContent, k.title]), tw2.kids.map(k => k.title), tw3.kids.length, tw4, tgDraw.slice(0, 80)]));
+            {   // 1.6.2 (the review of auto on a toggle): the sheet header's own copy of a toggle or a number (idnControl, run for real) reads its worked-out value where nothing is stored, as the section does, and says so with the section's own word and arrow
+                const idSrc = shA.slice(shA.indexOf('function idnControl('), shA.indexOf('// Stage 5g: the text color for a label on a filled accent'));
+                let IDN = null, idErr = ''; try { IDN = new Function('el', 'commit', 'autoBits', 'fxMark', 'fmtNum', "'use strict';\n" + idSrc + '\nreturn idnControl;')(mkE, () => {}, AB, () => null, String); } catch (e) { idErr = String(e); }
+                const fBig = fT(GT, 'f_big'), fNum = { id: 'f_n', key: 'N', label: 'N', kind: 'number' }, cE = { id: 'c_t', values: {} };
+                const iOn = IDN ? IDN(fBig, cE, { auto: 1, value: true, base: true }, '') : null, iOff = IDN ? IDN(fBig, cE, { auto: 1, value: false, base: false }, '') : null, iSet = IDN ? IDN(fBig, { id: 'c_t', values: { f_big: false } }, { value: false }, '') : null;
+                const iNum = IDN ? IDN(fNum, cE, { auto: 1, value: 7, base: 7 }, '') : null, iNum2 = IDN ? IDN(fNum, { id: 'c_t', values: { f_n: 3 } }, { value: 3 }, '') : null;
+                const word = w => !!w && w.kids.some(k => k.className === 'sheet-autobits' && k.kids.some(x => x.textContent === 'worked out'));
+                check('1.6.2 the sheet header’s own toggle and number (idnControl, run for real) show the worked-out setting or figure where nothing is stored, as the section does, with the word worked out; one set by hand shows what was set and the faint arrow back',
+                    !idErr && iOn.kids[0].checked === true && word(iOn) && iOff.kids[0].checked === false && word(iOff) && iSet.kids[0].checked === false && !word(iSet) && iSet.kids.some(k => k.className === 'sheet-autobits' && k.kids.some(x => x.className === 'sheet-auto-reset'))
+                    && iNum.kids[0].value === '7' && word(iNum) && iNum2.kids[0].value === '3' && !word(iNum2),
+                    J([idErr, iOn && iOn.kids.map(k => [k.className, k.checked]), iOff && iOff.kids[0].checked, iNum && iNum.kids.map(k => [k.className, k.value]), iNum2 && iNum2.kids[0].value]));
+            }
             const jT = XP.charToJson(GT, { id: 'c_t', name: 'T', values: { f_big: true, f_pl: false }, af: { f_big: 1 } }, null, {}), jTb = XP.charFromJson(GT, jT, null, null);
             check('1.6.2 a Waypoint character file carries a toggle’s fill mark and reads it back', J(jT.filled) === J(['f_big']) && !!jTb && J(jTb.filled) === J(['f_big']), J([jT.filled, jTb && jTb.filled]));
         }

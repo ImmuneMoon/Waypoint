@@ -136,6 +136,12 @@ for (const t of targets) {
     const guardPinned = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dialogs.js'), 'utf8').includes("if ((window.wpNet && window.wpNet.foreign) || (state.appState && state.appState._foreign)) { toast('Not while you\\'re at someone else\\'s table.'); return; }");
     if (startPinned && importPinned && endPinned && guardPinned) console.log('ok        the welcome\'s Start a campaign on a fresh, unseen save enters Waypoint and owes the naming prompt (wpCampaignAfterTour) instead of opening it; endTour — the last step, Keep, Discard, Skip and Esc all go through it — opens that prompt once, after the tour; Import from the welcome holds the tour until the file is chosen or dropped; wpTutorial.pending published');
     else { bad++; console.log('FAIL      the welcome\'s Start a campaign / the prompt after the tour / Import\'s hold pinned', JSON.stringify({ startPinned, importPinned, endPinned, guardPinned })); }
+    // 1.6.2 (the review of the tour): the Containers step opens the Armory chest's window, and ending the tour on that step closes it as every
+    // other window a step opens is closed, inside endTour's block for a tour not paused (a window opened in Try it yourself is the user's own)
+    const etA = lf.indexOf('function endTour() {'), etSrc = etA >= 0 ? lf.slice(etA, lf.indexOf('\n}\n', etA)) : '', etBlk = etSrc.slice(etSrc.indexOf('if (!wasPaused) {'), etSrc.indexOf('if (partWay)'));
+    const boxEnd = /window\.wpBoxes\.open\('tut_wb_chest'\)/.test(lf) && /if \(!need\.box && window\.wpBoxes\) window\.wpBoxes\.close\(\);/.test(lf) && /\n\s*if \(window\.wpBoxes\) window\.wpBoxes\.close\(\);   \/\/ and the Containers step the Armory chest's window\n/.test(etBlk);
+    if (boxEnd) console.log('ok        1.6.2 ending the tour on the Containers step closes the Armory chest\'s window (endTour, for a tour not paused), as clearStage closes it on every other step');
+    else { bad++; console.log('FAIL      1.6.2 ending the tour on the Containers step closes the Armory chest\'s window', JSON.stringify({ etSrc: etSrc.length, etBlk: etBlk.slice(-200) })); }
 }
 // 1.5.5, a plan-aware mode (the owner, 2026-10-23: "jut the welcome screen being available for now with an option to join and nothing else but what is
 // needed for the player side to work will suffice"): on a website whose plan joins tables and nothing else (webmode.js) the welcome is the way to a table

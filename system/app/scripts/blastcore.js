@@ -14,6 +14,9 @@ var isObj = function(v) { return !!v && typeof v === 'object' && !Array.isArray(
 var fin = function(v) { return typeof v === 'number' && isFinite(v); };
 var CTRL = /[\u0000-\u001f\u007f]/g;
 function text(v, n) { return typeof v === 'string' ? v.slice(0, n).replace(CTRL, ' ').trim() : ''; }
+// 1.6.2: the longest formula this module reads, systemcore LIMITS.formula (it imports nothing, so systemcheck holds the two equal): a damage or a
+// fragmentation an item keeps whole is read whole here, never cut where the cleaner kept it (1,200 before, the old cap and a margin)
+var FORMULA_MAX = 10000;
 
 // The eight ways a miss lands, in the site's words (use-dice-roller.ts getScatterResult), each with its turn from the line of the throw in
 // degrees: Long is on past the aim, Short back toward the thrower, Right a quarter turn clockwise on the board (whose y runs down)
@@ -27,7 +30,7 @@ var SCATTER_TURN6 = Object.freeze([0, 60, 120, 180, -120, -60]);
 function diceCount(expr) {
     if (typeof expr !== 'string') return 0;
     var n = 0, re = /(\d*)\s*d\s*(\d+|%|F)/gi, m, guard = 0;
-    while ((m = re.exec(expr.slice(0, 1200))) && guard++ < 200) n += m[1] ? Math.min(1000, parseInt(m[1], 10)) : 1;
+    while ((m = re.exec(expr.slice(0, FORMULA_MAX))) && guard++ < 200) n += m[1] ? Math.min(1000, parseInt(m[1], 10)) : 1;
     return n;
 }
 // 1.6.0 (the core's gap 8, each victim rolls its own dice): a damage formula at n dice in all, 1 to 100. The dice come off its last term
@@ -36,7 +39,7 @@ function diceCount(expr) {
 // added or taken off is scaled with the dice too, rounded down, so 4d6+4 at 3 is 3d6+3 and 2d6+3 at 1 is 1d6+1
 function diceAt(expr, n, withAdds) {
     if (typeof expr !== 'string' || !fin(n) || Math.floor(n) !== n || n < 1 || n > 100) return '';
-    var src = expr.slice(0, 1200), re = /(\d*)\s*d\s*(\d+|%|F)/gi, m, terms = [], guard = 0;
+    var src = expr.slice(0, FORMULA_MAX), re = /(\d*)\s*d\s*(\d+|%|F)/gi, m, terms = [], guard = 0;
     while ((m = re.exec(src)) && guard++ < 200) terms.push({ at: m.index, len: m[0].length, n: m[1] ? Math.min(1000, parseInt(m[1], 10)) : 1, sides: m[2] });
     if (!terms.length) return '';
     var tot = terms.reduce(function(a, t) { return a + t.n; }, 0);
@@ -154,7 +157,7 @@ function cleanMine(m) {   // 1.5.9 (es): and its fragmentation (frag, a formula'
     var ft = fin(m.ft) ? Math.round(m.ft) : 0; if (!(ft >= 1)) return null;
     var out = { ft: Math.min(3000, ft) };
     var nm = text(m.name, 240); if (nm) out.name = nm;
-    var dm = text(m.damage, 1200); if (dm) out.damage = dm;
+    var dm = text(m.damage, FORMULA_MAX); if (dm) out.damage = dm;
     if (typeof m.type === 'string' && MINE_TYPE.test(m.type)) out.type = m.type;
     out.trig = fin(m.trig) && m.trig > 0 ? Math.max(0.5, Math.min(100, Math.round(m.trig * 10) / 10)) : 2;
     if (typeof m.charId === 'string' && MINE_ID.test(m.charId)) out.charId = m.charId;
@@ -166,7 +169,7 @@ function cleanMine(m) {   // 1.5.9 (es): and its fragmentation (frag, a formula'
     var lcM = text(m.loc, 60); if (lcM) out.loc = lcM;   // 1.6.2 (11): the location it strikes
     if (fin(m.ad) && m.ad > 0 && m.ad !== 1) out.ad = Math.max(0.1, Math.min(100, Math.round(m.ad * 10) / 10));
     var nt = text(m.notes, 800); if (nt) out.notes = nt;
-    var fg = text(m.frag, 1200); if (fg) { out.frag = fg; if (typeof m.fragType === 'string' && MINE_TYPE.test(m.fragType)) out.fragType = m.fragType; }   // 1.5.9 (es): its fragmentation, rolled when it goes off
+    var fg = text(m.frag, FORMULA_MAX); if (fg) { out.frag = fg; if (typeof m.fragType === 'string' && MINE_TYPE.test(m.fragType)) out.fragType = m.fragType; }   // 1.5.9 (es): its fragmentation, rolled when it goes off
     var af = cleanAffs(m.aff); if (af) out.aff = af;   // 1.5.9 (es): and its afflictions
     var cl = cleanCloud(m.cloud); if (cl) out.cloud = cl;   // 1.6.2: and the cloud it leaves
     if (fin(m.fills) && m.fills > 0) out.fills = Math.min(10000, m.fills); if (m.noDrop === true) out.noDrop = true; if (fin(m.iscale) && m.iscale > 0 && m.iscale !== 1) out.iscale = Math.min(1000, m.iscale);   // 1.6.2 (the core's gap 213): BlastScale too   // 1.6.0: BlastFills and BlastNoDrop, read from its row as it is placed
@@ -289,4 +292,4 @@ function flyStep(o) {
 function flyLine(from, to) { if (!isObj(from) || !isObj(to) || !fin(from.x) || !fin(from.y) || !fin(to.x) || !fin(to.y)) return null; var dx = to.x - from.x, dy = to.y - from.y, len = Math.hypot(dx, dy); return len > 1e-6 ? { ox: from.x, oy: from.y, dx: dx / len, dy: dy / len, k: 0 } : null; }
 var API = { flyStep: flyStep, flyLine: flyLine, FLY_MAX: FLY_MAX, envRead: envRead, lineTargets: lineTargets, towardPoint: towardPoint, diceAt: diceAt, VERSION: VERSION, SCATTER_WAYS: SCATTER_WAYS, SCATTER_TURN: SCATTER_TURN, SCATTER_WAYS6: SCATTER_WAYS6, SCATTER_TURN6: SCATTER_TURN6, diceCount: diceCount, fallShare: fallShare, throwOutcome: throwOutcome, scatterPoint: scatterPoint, bookScatterYd: bookScatterYd, missOf: missOf, flightEnd: flightEnd, firstBox: firstBox, fragTargets: fragTargets, cleanAffs: cleanAffs, affTargets: affTargets, cleanCloud: cleanCloud, cleanMine: cleanMine, inTrigger: inTrigger, STAND_INS: STAND_INS };
 if (typeof window !== 'undefined') window.wpBlastCore = API;
-export { flyStep, flyLine, FLY_MAX, envRead, lineTargets, towardPoint, diceAt, VERSION, SCATTER_WAYS, SCATTER_TURN, SCATTER_WAYS6, SCATTER_TURN6, diceCount, fallShare, throwOutcome, scatterPoint, bookScatterYd, missOf, flightEnd, firstBox, fragTargets, cleanAffs, affTargets, cleanCloud, cleanMine, inTrigger, STAND_INS };
+export { FORMULA_MAX, flyStep, flyLine, FLY_MAX, envRead, lineTargets, towardPoint, diceAt, VERSION, SCATTER_WAYS, SCATTER_TURN, SCATTER_WAYS6, SCATTER_TURN6, diceCount, fallShare, throwOutcome, scatterPoint, bookScatterYd, missOf, flightEnd, firstBox, fragTargets, cleanAffs, affTargets, cleanCloud, cleanMine, inTrigger, STAND_INS };

@@ -1250,6 +1250,7 @@ function endTour() {
         if (window.wpSheets) { window.wpSheets.closeSheet(); if (window.wpSheets.closeHuds) window.wpSheets.closeHuds(); window.wpSheets.close(true); }   // and the sheet step Bren's sheet (and the HUD step his HUD) + the layout step's System editor
         if (window.wpFog) window.wpFog.setPreview('off');   // and the fog step its player-view preview
         document.querySelectorAll('#wbFloatingToolbar .shape-menu.show, #wbEdgeTools .shape-menu.show').forEach(function(m) { m.classList.remove('show'); });   // and any toolbar flyout a step opened (Add, Scene)
+        if (window.wpBoxes) window.wpBoxes.close();   // and the Containers step the Armory chest's window
         if (window.wpTopRow) window.wpTopRow.close();   // and the System step or the Export step a menu of the top row
     }
     if (partWay) toast('The tour stopped at “' + STEPS[at].title + '”. Help ▸ Tutorial resumes it there.');

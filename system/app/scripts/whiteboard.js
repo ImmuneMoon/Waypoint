@@ -9594,7 +9594,21 @@ function portalBoxAt(am, x, y) {   // the cell under (x, y), or the point itself
     return window.wpRoomCore.portalBox(g, ctr.x, ctr.y);
 }
 function portalSay(name) { return 'Click to place the portal to ' + name + '. Esc to skip.'; }
-function portalSkipSay(rec) { return 'No portal placed. The room and its map stay. Link a piece to the room in Properties to make a way to ' + rec.name + '.'; }
+function portalSkipSay(rec) { return 'No portal placed. The room and its map stay. Press Place it on the room when you are ready.'; }   // the Later answer's own words (datamap.js roomPortalArm)
+// The one rule for where a portal leads: the room's map must still be a map of the campaign. A map deleted from the Maps list leaves the room's
+// targetMapId behind (dialogs.js), so a portal laid then would lead nowhere while it says where it leads
+var PORTAL_GONE = 'That room\'s map is gone. No portal can be placed.';
+function portalDest(rec) { var camp = getActiveCampaign(), d = camp && camp.items && rec && rec.targetMapId ? camp.items[rec.targetMapId] : null; return d && d.type === 'map' ? d : null; }
+// The line beside the pointer: right of it and below, else left of it or above where it would run past the window's edge. Its size is read once it
+// stands, so a long name keeps it in sight
+function portalTipAt(tip, cx, cy) {
+    tip.style.left = '0px'; tip.style.top = '0px';   // measured at the window's corner, so its width is its own and not what is left beside the pointer
+    var x = cx + 18, y = cy + 22, w = tip.offsetWidth || 0, h = tip.offsetHeight || 0, W = window.innerWidth, H = window.innerHeight;
+    if (W > 0 && w > 0 && x + w > W - 8) x = Math.max(8, cx - 18 - w);
+    if (H > 0 && h > 0 && y + h > H - 8) y = Math.max(8, cy - 22 - h);
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+function portalTipShow(on) { var P = _portal; if (P && P.tip) P.tip.style.display = on ? '' : 'none'; }   // put away while the pointer is off the map, or the window has no focus
 function portalEnd() {
     var P = _portal; _portal = null;
     document.body.classList.remove('placing-portal');
@@ -9612,11 +9626,12 @@ function portalMove(e) {
     var P = _portal, am = getActiveMap(); if (!P || !am || !wbWrap) return;
     var rb = wbWrap.getBoundingClientRect();
     portalGhostAt(am, wbX(e.clientX, e.clientY, rb, wbWrap), wbY(e.clientX, e.clientY, rb, wbWrap));
-    P.tip.style.left = (e.clientX + 18) + 'px'; P.tip.style.top = (e.clientY + 22) + 'px';
+    P.tip.style.display = ''; portalTipAt(P.tip, e.clientX, e.clientY);
 }
 window.wpPortalPlace = function(rec) {
     if (!rec || !portalMay() || !window.wpRoomCore || !wbWrap) return false;
     var am = getActiveMap(), room = portalRoom(am, rec); if (!room) return false;
+    if (!portalDest(rec)) { toast(PORTAL_GONE); return null; }   // null: said here, so Place it on the room says nothing more (wpRoomPlace)
     if (state.viewMode !== 'visual' && window.wpSetViewMode) window.wpSetViewMode('visual');
     if (state.viewMode !== 'visual') return false;
     if (window.wpPlace) disarmPlacement(); else portalEnd();
@@ -9636,7 +9651,7 @@ window.wpPortalPlace = function(rec) {
     document.body.appendChild(tip);
     var rb = wbWrap.getBoundingClientRect(), cx = rb.left + rb.width / 2, cy = rb.top + rb.height / 2;   // until the pointer moves: the middle of the view
     portalGhostAt(am, wbX(cx, cy, rb, wbWrap), wbY(cx, cy, rb, wbWrap));
-    tip.style.left = (cx + 18) + 'px'; tip.style.top = (cy + 22) + 'px';
+    portalTipAt(tip, cx, cy);
     return true;
 };
 window.wpPortalPlaceHold = function(mapId, view) {   // main.js render: another map or the Data Map on screen puts the tile down
@@ -9647,6 +9662,7 @@ function portalPlaceStep(rec, sx, sy) {
     var am = getActiveMap(), RCw = window.wpRoomCore;
     if (!RCw || !portalMay() || !am || am.id !== rec.mapId) { toast('That map is no longer on screen. No portal was placed.'); return null; }
     var room = portalRoom(am, rec); if (!room) { toast('That room no longer leads to its new map. No portal was placed.'); return null; }
+    if (!portalDest(rec)) { toast(PORTAL_GONE); return null; }   // the map was deleted while the tile waited
     var pc = RCw.portalPiece(room, portalBoxAt(am, sx, sy), portalKind(portalGrid(am)));   // the grid as it is at the click
     if (!pc) { toast('No portal was placed.'); return null; }
     if (!Array.isArray(am.whiteboard)) am.whiteboard = [];
@@ -9658,6 +9674,8 @@ function portalPlaceStep(rec, sx, sy) {
     return it;
 }
 if (wbWrap) wbWrap.addEventListener('pointermove', portalMove);
+if (wbWrap) { wbWrap.addEventListener('pointerleave', function() { portalTipShow(false); }); wbWrap.addEventListener('pointerenter', function() { portalTipShow(true); }); }
+if (typeof window.addEventListener === 'function') window.addEventListener('blur', function() { portalTipShow(false); });
 // [roomcheck:portalplace-end]
 // [buildcheck:wallsrow-start]
 // Walls around selection (the map builder, fold B2b; the owner, 2026-10-10, by prompt: "Walls first", on the "Right-click menu"). One row on the
@@ -9716,7 +9734,9 @@ window.wpRoomPlace = function(roomId) {
     var am = getActiveMap(), room = am && am.type === 'map' ? (am.rooms || []).find(function(r) { return r.id === roomId; }) : null;
     if (!room || window.wpStream || !buildMay()) return false;
     if (room.targetMapId) {   // the review: every piece linked to such a room is a way to that map, and a hidden one a trap tile, so a place drawn over the whole room would send a token dropped anywhere in it
-        if (window.wpPortalPlace && window.wpPortalPlace({ mapId: am.id, roomId: room.id, targetMapId: room.targetMapId })) return true;   // 1.6.2 (the owner, 2026-11-14): its place is a portal of one cell, laid as a new room's is
+        var pOk = window.wpPortalPlace ? window.wpPortalPlace({ mapId: am.id, roomId: room.id, targetMapId: room.targetMapId }) : false;
+        if (pOk) return true;   // 1.6.2 (the owner, 2026-11-14): its place is a portal of one cell, laid as a new room's is
+        if (pOk === null) return false;   // its map is gone, which wpPortalPlace said
         toast(ROOM_LEADS); return false;
     }
     if (window.wpSetViewMode) window.wpSetViewMode('visual');

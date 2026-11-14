@@ -1615,7 +1615,7 @@
   .portal-ghost.pg-hex { clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
   .portal-ghost.pg-circle { border-radius: 50%; }
   .portal-ghost .pg-mark { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; background: var(--pi) center / contain no-repeat; filter: drop-shadow(0 0 3px rgba(0,0,0,0.95)); }
-  .portal-tip { position: fixed; z-index: 100000; pointer-events: none; padding: 5px 9px; border-radius: 6px; background: var(--panel); color: var(--ink); border: 1px solid var(--gold); font-size: 12px; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,0.45); }
+  .portal-tip { position: fixed; z-index: 90015; pointer-events: none; padding: 5px 9px; border-radius: 6px; background: var(--panel); color: var(--ink); border: 1px solid var(--gold); font-size: 12px; max-width: min(420px, calc(100vw - 16px)); overflow-wrap: anywhere; box-shadow: 0 4px 14px rgba(0,0,0,0.45); }   /* over the floating boxes and an open tool menu, under notices, questions and windows; a long name wraps, and whiteboard.js portalTipAt keeps it inside the window */
   
   .wb-item.line { border-radius: 4px; }
   

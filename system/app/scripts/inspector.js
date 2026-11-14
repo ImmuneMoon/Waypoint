@@ -361,6 +361,8 @@ import { cssColor, num, picRef } from './safecore.js';   // a campaign from a fi
       var RCi = window.wpRoomCore; if (!RCi || state.viewMode !== 'data' || !am || !r) return '';
       return RCi.roomPlaceOf(am, r.id)
           ? '<div class="field room-place-row"><button type="button" class="tool ghost" id="fRoomShowPlay" title="Switch to the play map with this room\u2019s place selected and in view">Show on the play map</button></div>'
+          : r.targetMapId   // a room that leads to a map is placed by a portal of one cell (whiteboard.js wpPortalPlace)
+          ? '<div class="field room-place-row"><span class="room-place-none">No portal on the play map yet.</span><button type="button" class="tool ghost" id="fRoomPlace" title="Click a cell on the play map to place its portal">Place it</button></div>'
           : '<div class="field room-place-row"><span class="room-place-none">No place on the play map yet.</span><button type="button" class="tool ghost" id="fRoomPlace" title="Drag a box on the play map where this room is">Place it</button></div>';
   }
   function roomPlaceRowWire(r) {

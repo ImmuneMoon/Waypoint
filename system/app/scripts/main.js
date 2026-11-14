@@ -257,6 +257,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // 1.6.0: what a campaign with no map draws. The style sheet puts the board's own parts away by the body's no-map class and shows
   // #noMapState, whose New map button is the left panel's. The left panel, the boxes and the row follow as with a map
   function renderNoMap() {
+      if (window.wpPortalPlaceHold) window.wpPortalPlaceHold(null, state.viewMode);   // 1.6.2: a campaign with no map puts a new room's portal tile down, and its line with it
       var bc = document.getElementById('mapBreadcrumb'); if (bc) bc.style.display = 'none';
       if (window.wpBoxes) window.wpBoxes.sync();   // 1.6.2 (backlog 42): a container's window closes with its map
       if (window.wpPrep) window.wpPrep.sync();   // the Prep column stands outside the map's area: with no map it is put away by its own word

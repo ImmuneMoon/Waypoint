@@ -50,7 +50,7 @@ function wbDY(dx, dy) { var V = typeof window !== 'undefined' ? window.wpView : 
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, findLandingRoom } from './models.js';
 
-import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image } from './io.js';
+import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, stepBoundary, stepFold } from './io.js';
 
 import { updateCampaignSelect, updateSidebarNav } from './sidebar.js';
 
@@ -137,6 +137,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
 
       el.classList.toggle('linkstart', r.id===state.linkStart);
       el.classList.toggle('no-place', !placed[r.id]);   // a room with no place on the play map: a dashed edge, and selected it offers Place it
+      if (!placed[r.id]) roomNpWords(el, r);   // its words follow what Place it does: a portal of one cell for a room that leads to a map, else a box
 
       
 
@@ -1348,9 +1349,11 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
                   on: true,
                   sx: wbX(e.clientX, e.clientY, pb, wrapEl),
                   sy: wbY(e.clientX, e.clientY, pb, wrapEl),
-                  box: document.createElement('div')
+                  box: document.createElement('div'),
+                  portal: !!window.wpPlace.portal   // 1.6.2: a new room's portal draws no box; it lands under the tile where the press is let go
               };
               P.box.className = 'marquee-selection';
+              if (P.portal) P.box.style.display = 'none';
               P.box.style.left = P.sx + 'px'; P.box.style.top = P.sy + 'px';
               P.box.style.width = '0px'; P.box.style.height = '0px';
               document.getElementById('whiteboard').appendChild(P.box);
@@ -1611,7 +1614,9 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
               var px = parseFloat(P1.box.style.left) || P1.sx, py = parseFloat(P1.box.style.top) || P1.sy;
               P1.box.remove();
               window.__place = null;
-              if (window.wpPlaceCommit) window.wpPlaceCommit(px, py, pw, ph, P1.sx, P1.sy);
+              var ex = P1.sx, ey = P1.sy;
+              if (P1.portal && isFinite(e.clientX) && isFinite(e.clientY)) { var pbU = wrapEl.getBoundingClientRect(); if (e.clientX >= pbU.left && e.clientX <= pbU.right && e.clientY >= pbU.top && e.clientY <= pbU.bottom) { ex = wbX(e.clientX, e.clientY, pbU, wrapEl); ey = wbY(e.clientX, e.clientY, pbU, wrapEl); } }   // the portal: the cell of the tile seen as the press is let go; let go off the map, where the tile is put away, the cell it was pressed on
+              if (window.wpPlaceCommit) window.wpPlaceCommit(px, py, pw, ph, ex, ey);
               return;
           }
           if (isMarquee && marqueeBox) {
@@ -1787,7 +1792,8 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
           var am = getActiveMap(), rr = am && am.id === made.mapId ? roomOf(am, made.roomId) : null;
           if (!rr || rr.targetMapId !== made.targetMapId) return;   // the room is gone, or another map came on screen: nothing to place
           if (canvas && canvas.querySelector && canvas.querySelector('.rn-edit')) { toast('No portal placed for ' + (rr.name || 'the room') + '. Another room is being named.'); return; }
-          var nm = rr.name || 'the room';
+          var nm = rr.name || 'the room', campQ = getActiveCampaign(), dmQ = campQ && campQ.items ? campQ.items[made.targetMapId] : null;
+          if (dmQ && dmQ.meta && dmQ.meta.title) nm = dmQ.meta.title;   // the destination map's title, as the tile and the toast name it (Tavern (2) where Tavern was taken)
           showConfirm('Place the portal to ' + nm + ' on the play map now?', function(ans) {
               var am2 = getActiveMap(), r2 = am2 && am2.id === made.mapId ? roomOf(am2, made.roomId) : null;
               if (ans !== true) { if (r2) toast('The room and its map are kept, with no portal yet. Press Place it on the room when you are ready.'); return; }   // Later, Escape or the close
@@ -1828,7 +1834,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
           if (done) return; done = true;
           el.classList.remove('renaming'); if (inp.parentNode) inp.parentNode.removeChild(inp);
           var am2 = getActiveMap(), rr = am2 && am2.id === mapId ? roomOf(am2, id) : null;
-          if (keep && rr) { var nm = RC.roomNameOf(inp.value, rr.name); if (nm !== rr.name) { rr.name = nm; if (made && roomMapName(made, rr)) updateSidebarNav(); save(); } }
+          if (keep && rr) { var nm = RC.roomNameOf(inp.value, rr.name); if (nm !== rr.name) { rr.name = nm; if (made && roomMapName(made, rr)) updateSidebarNav(); if (made) { if (typeof stepBoundary === 'function') stepBoundary(); if (typeof stepFold === 'function') stepFold(); } save(); } }   // a new room's first name joins the room's own step (io.js), so one Undo takes the room back: the add flushed as its step first, then the name folded into it
           if (made && rr) roomPortalArm(made);
           if (!blur) { render(); return; }
           var rnE = el.querySelector('.rn'); if (rnE && rr) rnE.textContent = rr.name || '(unnamed)';   // the check: never renderDataMap here either, which builds every link again under a press on one
@@ -1861,6 +1867,12 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
   // [roomcheck:faces-end]
   // [roomcheck:place-start]
   // 1.6.2 (backlog 45, fold 3): Place it on a room with no place. A press on it is no press on the room: nothing is dragged or selected again
+  function roomNpWords(el, r) {   // a room that leads to a map is placed by a portal of one cell (whiteboard.js wpPortalPlace), any other by a box
+      var sp = el.querySelector('.rnp span'), go = el.querySelector('.rnp-go'), lead = !!(r && r.targetMapId);
+      var w = lead ? 'No portal' : 'No place', t = lead ? 'Click a cell on the play map to place its portal' : 'Drag a box on the play map where this room is';
+      if (sp && sp.textContent !== w) sp.textContent = w;
+      if (go && go.dataset && go.dataset.tip !== t) { go.dataset.tip = t; if (typeof go.removeAttribute === 'function') go.removeAttribute('title'); }   // as tooltips.js keeps a tooltip, so its words follow a change
+  }
   function roomNpWire(el) {
       var b = el.querySelector('.rnp-go'); if (!b) return;
       ['pointerdown', 'mousedown', 'dblclick'].forEach(function(ev) { b.addEventListener(ev, function(e) { e.stopPropagation(); }); });

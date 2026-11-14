@@ -1168,10 +1168,11 @@ The Data Map
 - Drag from the small dot on a room's edge to another room to link the two.
   Let go on empty ground and you get a new room there, already linked.
 - Double-click empty ground on the Data Map to add a room there.
-- A new room makes its own map now, named after it and nested under the map
-  you're on. Place its portal on the play map right away, or later with Place
-  it. The portal fits your grid. Untick it in the Center menu for rooms that
-  are only notes.
+- A new room now makes its own map, named after the room and nested under the
+  one you're on. Place its portal on the play map straight away, or press the
+  Place it button on the room later. On a square grid the portal is one
+  square, on hexes one hex, and with no grid a circle. Rooms that are only
+  notes? In the Center menu, untick A new room makes its own map.
 - On the play map, right-click a floor or a picture and pick Make a room for
   this. The room goes on the Data Map, linked to the piece, and its name is
   ready to type in Properties.

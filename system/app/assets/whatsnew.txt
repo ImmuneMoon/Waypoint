@@ -25,6 +25,8 @@ Tidier screens
 - A tool's options open from a small mark in the corner of its button now,
   where an arrow used to hang beside it. The toolbar is shorter for it, and
   a lit button stands clean. Select and Pan switch by the same mark.
+- Right-click a toolbar button to open its options. It does just what the
+  corner mark does, so you no longer have to aim for the little corner.
 - The pointer location wears its own drawing, a pointer beside a crosshair,
   so it no longer looks like the Select tool.
 - The trackers bar is never covered on a small window. Where the row beside

@@ -168,6 +168,26 @@ function roomPlacePiece(kind, room, box, floor) {
     return Object.assign({ color: '#3a3a44' }, isObj(floor) ? floor : {}, { type: 'rect', x: x, y: y, w: w, h: h, layer: 'back', nodeId: room.id, name: name });
 }
 
+// 1.6.2 (the owner, 2026-11-14, by prompt: "A tick, on by default", and of the portal: "you place it, but there needs to be a clear indicator").
+// A room the Data Map adds while A new room makes its own map is ticked leads to a map of its own, and the GM places its portal on the play map.
+// portalBox: the tile a portal takes at a cell's center (cx, cy) on the map's lattice (fogcore gridFor or the app's own: a square's side, or a
+// flat-top hex of side s and row h), or 100 px centered on the point where the map has no grid. portalPiece: the piece placed there, an ordinary
+// trigger zone linked to the room by nodeId, so it is a portal through the room (fogcore isPortal) and the room's place (roomPlaceOf); a hex
+// on a hex grid, as the hex trigger tool lays one. Null for a room that leads nowhere or a box that is no box
+function portalBox(grid, cx, cy) {
+    var x = num(cx, NaN), y = num(cy, NaN); if (!isFinite(x) || !isFinite(y)) return null;
+    var w = 100, h = 100;
+    if (isObj(grid) && grid.type === 'square' && num(grid.size, 0) > 0) { w = grid.size; h = grid.size; }
+    else if (isObj(grid) && grid.type === 'hex' && num(grid.s, 0) > 0 && num(grid.h, 0) > 0) { w = 2 * grid.s; h = grid.h; }
+    return { x: Math.round((x - w / 2) * 100) / 100, y: Math.round((y - h / 2) * 100) / 100, w: w, h: h };
+}
+function portalPiece(room, box, hex) {
+    if (!isObj(room) || typeof room.id !== 'string' || !room.id || typeof room.targetMapId !== 'string' || !room.targetMapId || !isObj(box)) return null;
+    var x = num(box.x, NaN), y = num(box.y, NaN), w = num(box.w, NaN), h = num(box.h, NaN);
+    if (!isFinite(x) || !isFinite(y) || !(w >= 10) || !(h >= 10)) return null;
+    return { type: 'trigger', shape: hex ? 'hexagon' : 'rect', x: x, y: y, w: w, h: h, color: 'transparent', eventMessage: '', nodeId: room.id, name: roomNameOf(typeof room.name === 'string' ? room.name : '', 'Room') };
+}
+
 // ---- fold 4, who is in a room (the owner, 2026-11-11, by prompt: "Tokens there, typed list kept", "Names or faces on the box", "Find a
 // character's room", "Tie an entry to a sheet"; and 2026-11-12, of the look: "A. Here now, then Expected", "A. Faces, then +N", "A. A Sheet list,
 // name follows"). A token is in the room whose place holds its center, the smallest place where several do (as net.js roomUnder judges a drop).
@@ -224,6 +244,6 @@ function charRoomIn(items, first, charId, name) {
     return null;
 }
 
-var API = { ROOM_W: ROOM_W, fold: fold, queryWords: queryWords, jumpMatch: jumpMatch, roomWords: roomWords, roomMatch: roomMatch, roomCatOf: roomCatOf, catsUsed: catsUsed, roomShown: roomShown, roomsOrdered: roomsOrdered, ROOM_H: ROOM_H, NAME_MAX: NAME_MAX, roomNameOf: roomNameOf, freeSpot: freeSpot, newRoom: newRoom, linkAt: linkAt, linkAdd: linkAdd, besideRooms: besideRooms, pieceRoomOk: pieceRoomOk, pieceRoomName: pieceRoomName, roomPlaceOf: roomPlaceOf, roomsPlaced: roomsPlaced, roomPlacePiece: roomPlacePiece, roomsHere: roomsHere, roomFaces: roomFaces, entryName: entryName, charRoomIn: charRoomIn };
+var API = { ROOM_W: ROOM_W, portalBox: portalBox, portalPiece: portalPiece, fold: fold, queryWords: queryWords, jumpMatch: jumpMatch, roomWords: roomWords, roomMatch: roomMatch, roomCatOf: roomCatOf, catsUsed: catsUsed, roomShown: roomShown, roomsOrdered: roomsOrdered, ROOM_H: ROOM_H, NAME_MAX: NAME_MAX, roomNameOf: roomNameOf, freeSpot: freeSpot, newRoom: newRoom, linkAt: linkAt, linkAdd: linkAdd, besideRooms: besideRooms, pieceRoomOk: pieceRoomOk, pieceRoomName: pieceRoomName, roomPlaceOf: roomPlaceOf, roomsPlaced: roomsPlaced, roomPlacePiece: roomPlacePiece, roomsHere: roomsHere, roomFaces: roomFaces, entryName: entryName, charRoomIn: charRoomIn };
 if (typeof window !== 'undefined') window.wpRoomCore = API;
-export { fold, queryWords, jumpMatch, roomWords, roomMatch, roomCatOf, catsUsed, roomShown, roomsOrdered, ROOM_W, ROOM_H, NAME_MAX, roomNameOf, freeSpot, newRoom, linkAt, linkAdd, besideRooms, pieceRoomOk, pieceRoomName, roomPlaceOf, roomsPlaced, roomPlacePiece, roomsHere, roomFaces, entryName, charRoomIn };
+export { portalBox, portalPiece, fold, queryWords, jumpMatch, roomWords, roomMatch, roomCatOf, catsUsed, roomShown, roomsOrdered, ROOM_W, ROOM_H, NAME_MAX, roomNameOf, freeSpot, newRoom, linkAt, linkAdd, besideRooms, pieceRoomOk, pieceRoomName, roomPlaceOf, roomsPlaced, roomPlacePiece, roomsHere, roomFaces, entryName, charRoomIn };

@@ -75,18 +75,24 @@ function mkDoc() {
         const doc = mkDoc(), wrap = doc.createElement('div'), canvas = doc.createElement('div'), svg = doc.createElement('svg');
         wrap.id = 'canvasWrap'; canvas.id = 'canvas'; svg.id = 'edges'; wrap.appendChild(canvas); canvas.appendChild(svg);
         wrap.scrollLeft = 1000; wrap.scrollTop = 2000; wrap.getBoundingClientRect = () => ({ left: 100, top: 50, width: 800, height: 600 });
-        const am = { id: 'm1', type: 'map', cats: { c1: { label: 'Rooms' } }, rooms: (o.rooms || []).map(r => Object.assign({}, r)), links: (o.links || []).map(l => l.slice()) };
+        const am = { id: 'm1', type: 'map', meta: { title: 'Keep', gridType: o.grid }, cats: { c1: { label: 'Rooms' } }, rooms: (o.rooms || []).map(r => Object.assign({}, r)), links: (o.links || []).map(l => l.slice()) };
+        const camp = { items: { m1: am } }; if (o.taken) camp.items.t1 = { type: 'map', id: 't1', meta: { title: o.taken } };
+        const store = {}; if (o.tick !== null) store.wp_roomMakesMap = o.tick === undefined ? 'off' : o.tick;   // null: nothing stored, so the tick as it starts
         const state = { viewMode: 'data', zoomLevel: o.zoom || 2, snap: !!o.snap, linkType: o.linkType || '', els: {}, selId: null, selLink: null, linkStart: 'x' };
-        const log = { saves: 0, renders: 0, dm: 0, toasts: [], picked: [] };
+        const log = { saves: 0, renders: 0, dm: 0, toasts: [], picked: [], nav: 0, armed: [] };
         let n = 0;
-        const win = { wpCanPersistLocal: () => o.persist !== false, wpNet: o.foreign ? { foreign: true } : null, isPanMode: !!o.playPan, listeners: {}, addEventListener(t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); } };
+        const win = { wpCanPersistLocal: () => o.persist !== false, wpNet: o.foreign ? { foreign: true } : null, isPanMode: !!o.playPan, listeners: {}, addEventListener(t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); },
+            localStorage: { getItem: k => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null) }, wpPortalPlace: rec => { log.armed.push(Object.assign({}, rec)); return true; } };
+        const newMap = t => ({ type: 'map', id: 'map_' + 1, meta: { title: t || 'New Map', updated: 1, homeX: 15000, homeY: 15000 }, rooms: [], links: [], whiteboard: [], cats: { 'default': { label: 'Default Category', color: '#c9c9d4' } } });
+        const unique = (base, ignore) => { const taken = t => Object.keys(camp.items).some(id => id !== ignore && camp.items[id].meta && camp.items[id].meta.title === t); if (!taken(base)) return base; let k = 2; while (taken(base + ' (' + k + ')')) k++; return base + ' (' + k + ')'; };
         if (o.pan) doc.body.classList.add('data-pan');
         const render = () => { log.renders++; am.rooms.forEach(r => { if (!state.els[r.id]) { const el = doc.createElement('div'); el.classList.add('room'); el.dataset.id = r.id; el.offsetWidth = 120; el.offsetHeight = 50; const rn = doc.createElement('div'); rn.classList.add('rn'); const rc = doc.createElement('div'); rc.classList.add('rc'); el.appendChild(rn); el.appendChild(rc); canvas.appendChild(el); state.els[r.id] = el; } }); };
-        const api = new Function('window', 'document', 'state', 'getActiveMap', 'getSnapCoords', 'uid', 'save', 'render', 'RC', 'isLinkMode', 'svg', 'canvas', 'wrap', 'toast', 'selectLink', 'LINK_TYPES', 'setTimeout', 'renderDataMap', 'wbX', 'wbY',
+        const api = new Function('window', 'document', 'state', 'getActiveMap', 'getSnapCoords', 'uid', 'save', 'render', 'RC', 'isLinkMode', 'svg', 'canvas', 'wrap', 'toast', 'selectLink', 'LINK_TYPES', 'setTimeout', 'renderDataMap', 'wbX', 'wbY', 'getActiveCampaign', 'createNewMap', 'getUniqueItemTitle', 'updateSidebarNav',
             pageSrc + '\nreturn { roomAddAt: roomAddAt, roomRename: roomRename, roomLinkStart: roomLinkStart, roomLinkMove: roomLinkMove, roomLinkEnd: roomLinkEnd, dataPt: dataPt, roomGround: roomGround };')(
             win, doc, state, () => (o.noMap ? null : am), (x, y) => ({ x: Math.round(x / 50) * 50, y: Math.round(y / 50) * 50 }), () => 'n' + (++n), () => { log.saves++; }, render, RC, () => !!o.linkMode, svg, canvas, wrap,
-            t => log.toasts.push(t), i => { log.picked.push(i); state.selLink = i; }, { '': { label: 'Path' }, route: { label: 'Route' } }, f => f(), () => { log.dm++; }, (cx, cy, rb, w) => (cx - rb.left + w.scrollLeft) / state.zoomLevel, (cx, cy, rb, w) => (cy - rb.top + w.scrollTop) / state.zoomLevel);
-        return { doc, wrap, canvas, svg, am, state, log, win, api };
+            t => log.toasts.push(t), i => { log.picked.push(i); state.selLink = i; }, { '': { label: 'Path' }, route: { label: 'Route' } }, f => f(), () => { log.dm++; }, (cx, cy, rb, w) => (cx - rb.left + w.scrollLeft) / state.zoomLevel, (cx, cy, rb, w) => (cy - rb.top + w.scrollTop) / state.zoomLevel,
+            () => camp, newMap, unique, () => { log.nav++; });
+        return { doc, wrap, canvas, svg, am, state, log, win, api, camp, store };
     };
     // a room added (as Add Room, a double-click or the drag's empty ground ask it)
     const A = mkWorld({ rooms: [{ id: 'r0', name: 'Hall', x: 150, y: 150 }] });
@@ -179,8 +185,122 @@ function mkDoc() {
         capL.length === 1 && evH.stopped && evH.prevented && linking && !afterEsc && !evR.stopped && D.am.rooms.length === 1 && D.am.rooms[0].x === 530 && D.am.rooms[0].y === 1070 && dE.prevented && D2.am.rooms.length === 0 && D3.am.rooms.length === 1, J([capL.length, linking, afterEsc, D.am.rooms]));
     check('the Data Map is wired (source): it imports roomcore, every room box carries its handle, Add Room asks roomAddAt at the middle of the view, and the slice publishes window.wpRoomAdd',
         /^import \* as RC from '\.\/roomcore\.js';/m.test(dm) && dm.includes(`el.innerHTML='<div class="rn"></div><div class="rc"></div><div class="badges"></div><div class="rlink" title="Drag to another room to link them. Let go on empty ground for a new linked room." aria-hidden="true"></div>';`)
-        && /var cy = \(wrap\.scrollTop \+ wrap\.clientHeight\/2\) \/ state\.zoomLevel - 20;\n\s*roomAddAt\(cx, cy\);/.test(dm) && !/name:'New room'/.test(dm) && pageSrc.includes('window.wpRoomAdd = { at: roomAddAt, rename: roomRename };'));
+        && /var cy = \(wrap\.scrollTop \+ wrap\.clientHeight\/2\) \/ state\.zoomLevel - 20;\n\s*roomAddAt\(cx, cy\);/.test(dm) && !/name:'New room'/.test(dm) && pageSrc.includes('window.wpRoomAdd = { at: roomAddAt, rename: roomRename, mapOn: roomMapOn };'));
 
+    /* ---- a new room makes its own map (the owner, 2026-11-14, by prompt: "A tick, on by default"; and of its portal: "you place it, but there
+       needs to be a clear indicator that this is happening. like a tile following the mouse cursor until it is placed, or escaped") ---- */
+    {
+        const Off = mkWorld({ rooms: [{ id: 'r0', name: 'Hall', x: 150, y: 150 }] }), off = Off.api.roomAddAt(150, 150); Off.doc.activeElement.value = 'Mill'; Off.doc.fire(Off.doc.activeElement, 'keydown', { key: 'Enter' });
+        check('the tick off (this computer\'s wp_roomMakesMap off): a room added is only a room, as before: no map made, nothing it leads to, no portal to place, the Maps list left as it was',
+            off.made === null && Object.keys(Off.camp.items).length === 1 && !('targetMapId' in off.room) && Off.log.armed.length === 0 && Off.log.nav === 0 && Off.log.saves === 2 && Off.am.rooms[1].name === 'Mill', J([off.made, Off.log]));
+        const On = mkWorld({ tick: null, grid: 'hex' }), on = On.api.roomAddAt(150, 150), mk = On.camp.items[on.room.targetMapId], onI = On.doc.activeElement, armedBefore = On.log.armed.length;
+        check('the tick on (as it starts, nothing stored): a room added makes a map named as the room, nested under the map on screen with that map\'s grid, and leads to it; the map on screen opens its branch of the Maps list, which is drawn again; all in the one save that adds the room; its name box is ready and no portal is asked for while it is open',
+            !!mk && mk.id === 'map_n2' && on.room.targetMapId === 'map_n2' && mk.meta.title === 'New room' && mk.meta.parentId === 'm1' && mk.meta.gridType === 'hex' && On.am.meta.collapsed === false
+            && J(on.made) === J({ mapId: 'm1', roomId: 'n1', targetMapId: 'map_n2', title: 'New room' }) && On.log.saves === 1 && On.log.nav === 1 && onI && onI.className === 'rn-edit' && armedBefore === 0, J([on.made, mk && mk.meta, On.log]));
+        onI.value = 'Old Mill'; On.doc.fire(onI, 'keydown', { key: 'Enter' });
+        check('the name kept with Enter names the map too, in the same save, and only then is the portal asked for on the play map: the map on screen, the room and the map it leads to',
+            On.am.rooms[0].name === 'Old Mill' && mk.meta.title === 'Old Mill' && On.log.saves === 2 && On.log.nav === 2 && J(On.log.armed) === J([{ mapId: 'm1', roomId: 'n1', targetMapId: 'map_n2', title: 'Old Mill' }]), J([mk.meta, On.log]));
+        const Es = mkWorld({ tick: 'on' }), es = Es.api.roomAddAt(10, 10), esI = Es.doc.activeElement; esI.value = 'Nope'; Es.doc.fire(esI, 'keydown', { key: 'Escape' });
+        const Bl = mkWorld({ tick: 'on' }), bl = Bl.api.roomAddAt(10, 10), blI = Bl.doc.activeElement; blI.value = 'Ford'; Bl.doc.fire(blI, 'blur', {});
+        const Rn = mkWorld({ tick: 'on' }), rn = Rn.api.roomAddAt(10, 10), rnI = Rn.doc.activeElement; Rn.camp.items[rn.room.targetMapId].meta.title = 'Cellar'; rnI.value = 'Gate'; Rn.doc.fire(rnI, 'keydown', { key: 'Enter' });
+        const Pc = mkWorld({ tick: 'on' }), pc = Pc.api.roomAddAt(10, 10), pcI = Pc.doc.activeElement; Pc.camp.items[pc.room.targetMapId].whiteboard.push({ id: 'w' }); pcI.value = 'Gate'; Pc.doc.fire(pcI, 'keydown', { key: 'Enter' });
+        const Tk = mkWorld({ tick: 'on', taken: 'Old Mill' }), tk = Tk.api.roomAddAt(10, 10), tkI = Tk.doc.activeElement; tkI.value = 'Old Mill'; Tk.doc.fire(tkI, 'keydown', { key: 'Enter' });
+        check('the rule for the name: Escape keeps New room for the room and the map, and the portal is still asked for; leaving the box keeps the name for both; a map the GM renamed meanwhile, or one with a piece on it already, keeps its own name; a name another item has takes the next free one',
+            Es.am.rooms[0].name === 'New room' && Es.camp.items[es.room.targetMapId].meta.title === 'New room' && Es.log.armed.length === 1 && Es.log.saves === 1
+            && Bl.am.rooms[0].name === 'Ford' && Bl.camp.items[bl.room.targetMapId].meta.title === 'Ford' && Bl.log.armed.length === 1
+            && Rn.am.rooms[0].name === 'Gate' && Rn.camp.items[rn.room.targetMapId].meta.title === 'Cellar' && Rn.log.armed.length === 1
+            && Pc.camp.items[pc.room.targetMapId].meta.title === 'New room' && Tk.camp.items[tk.room.targetMapId].meta.title === 'Old Mill (2)' && Tk.log.armed[0].title === 'Old Mill (2)',
+            J([Es.log.armed, Bl.log.armed, Rn.camp.items[rn.room.targetMapId].meta, Tk.camp.items[tk.room.targetMapId].meta]));
+        const Two = mkWorld({ tick: 'on' }), t1 = Two.api.roomAddAt(10, 10), t1I = Two.doc.activeElement, t2 = Two.api.roomAddAt(400, 10); Two.doc.fire(t1I, 'blur', {});
+        const Gone = mkWorld({ tick: 'on' }), g1 = Gone.api.roomAddAt(10, 10), gI = Gone.doc.activeElement; Gone.am.id = 'm9'; Gone.doc.fire(gI, 'keydown', { key: 'Enter' });
+        check('a room whose box closes while another new room is being named asks for no portal and says so; one whose map left the screen asks for none',
+            Two.log.armed.length === 0 && J(Two.log.toasts) === J(['No portal placed for New room. Another room is being named.']) && !!t2.made && Gone.log.armed.length === 0, J([Two.log, Gone.log.armed]));
+        const Dg = lw({ tick: 'on' }, W => { W.api.roomLinkMove({ clientX: 500, clientY: 450 }); W.doc.hit = W.canvas; W.res = W.api.roomLinkEnd({ clientX: 500, clientY: 450 }, false); });
+        const Db = mkWorld({ tick: 'on' }); Db.wrap.listeners.dblclick[0].f({ target: Db.canvas, clientX: 300, clientY: 250, preventDefault() {} });
+        check('a link dragged to empty ground and a double-click on the ground make their room\'s map too, the dragged one linked as before',
+            Dg.res === 'new' && !!Dg.camp.items[Dg.am.rooms[2].targetMapId] && J(Dg.am.links) === J([['a', 'n1']]) && Dg.camp.items[Dg.am.rooms[2].targetMapId].meta.parentId === 'm1'
+            && Db.am.rooms.length === 1 && !!Db.camp.items[Db.am.rooms[0].targetMapId], J([Dg.res, Dg.am.rooms[2], Object.keys(Db.camp.items)]));
+        const Np = mkWorld({ tick: 'on', foreign: true }), Nw = mkWorld({ tick: 'on', persist: false });
+        check('no player: at someone else\'s table, or where the campaign cannot be written here, nothing is added, no map is made and no portal is asked for',
+            Np.api.roomAddAt(1, 1) === null && Nw.api.roomAddAt(1, 1) === null && Object.keys(Np.camp.items).length === 1 && Object.keys(Nw.camp.items).length === 1 && Np.log.armed.length + Nw.log.armed.length === 0);
+        const prS = cut(read('scripts/whiteboard.js'), 'pieceroom', 'whiteboard.js');
+        check('Make a room for this makes no map: its piece is the room\'s place already (it never asks roomAddAt)', !/roomAddAt|wpRoomAdd|wpPortalPlace/.test(prS));
+    }
+    {
+        const FC = await import(url('fogcore.js'));
+        const wbS = read('scripts/whiteboard.js'), ppS = cut(wbS, 'portalplace', 'whiteboard.js');
+        const da = wbS.indexOf('function disarmPlacement() {'), daSrc = wbS.slice(da, wbS.indexOf('\n}\n', da) + 3);
+        const ek = wbS.indexOf("document.addEventListener('keydown', function(e) {\n    if (e.key === 'Escape' && window.wpPlace && !window.wpPlace.build"), ekSrc = wbS.slice(ek, wbS.indexOf('\n});', ek) + 4);
+        check('the slices are found: disarmPlacement and the placement\'s Escape listener', da > 0 && ek > 0 && daSrc.includes('portalEnd();') && ekSrc.includes('portalSkipSay(portalP)'), [da, ek].join());
+        const mkPP = o => {
+            o = o || {}; const doc = mkDoc(), toasts = [], saves = [], viewSet = []; let n = 0;
+            const mkE = doc.createElement; doc.createElement = t => { const el = mkE(t); el.style.setProperty = (k, v) => { el.style[k] = v; }; return el; };
+            const mv = doc.createElement('button'); if (!o.mvOff) mv.classList.add('active'); doc.byId.moveModeBtn = mv; let mvClicks = 0; mv.click = () => { mvClicks++; };
+            const wb = doc.createElement('div'), wbWrap = doc.createElement('div'); wbWrap.scrollLeft = 14600; wbWrap.scrollTop = 14700; wbWrap.getBoundingClientRect = () => ({ left: 100, top: 50, width: 800, height: 600 });
+            const am = { id: 'm1', type: 'map', meta: {}, rooms: [{ id: 'r1', name: 'Old Mill', targetMapId: 'map_x', icon: o.icon }], whiteboard: [] }, camp = { items: { m1: am, map_x: { type: 'map', id: 'map_x', meta: { title: 'Old Mill' } } } };
+            const state = { viewMode: o.view || 'visual', selWbId: null, selWbIds: [], zoomLevel: 1 };
+            const win = { wpRoomCore: RC, wpFogCore: FC, wpLatticeOf: () => (o.grid === undefined ? { type: 'square', size: 50 } : o.grid), wpStream: !!o.stream, wpNet: o.foreign ? { foreign: true } : null,
+                wpSetViewMode: v => { viewSet.push(v); if (!o.stuck) state.viewMode = v; }, wpNewOpacityProps: () => (o.opacity ? { opacity: o.opacity } : {}), wpEsc: { free: () => o.escFree !== false } };
+            const api = new Function('window', 'document', 'getActiveMap', 'getActiveCampaign', 'buildMay', 'toast', 'state', 'uid', 'save', 'render', 'wb', 'wbWrap', 'wbX', 'wbY', 'withAlpha',
+                daSrc + ppS + ekSrc + '\nreturn { step: portalPlaceStep, disarm: disarmPlacement, st: function() { return _portal; } };')(
+                win, doc, () => (o.noMap ? null : am), () => camp, () => o.may !== false, m => toasts.push(m), state, () => 'u' + (++n), () => saves.push(1), () => {}, wb, wbWrap,
+                (cx, cy, r, w) => (cx - r.left + w.scrollLeft) / state.zoomLevel, (cx, cy, r, w) => (cy - r.top + w.scrollTop) / state.zoomLevel, (c, a) => 'mix(' + c + ',' + a + ')');
+            const commit = (sx, sy) => { const P = win.wpPlace; api.disarm(); return P && P.portal ? api.step(P.portal, sx, sy) : null; };   // as wpPlaceCommit hands it on: disarmed first
+            return { api, win, doc, am, camp, state, wb, wbWrap, toasts, saves, viewSet, commit, get mvClicks() { return mvClicks; } };
+        };
+        const rec = { mapId: 'm1', roomId: 'r1', targetMapId: 'map_x', title: 'Old Mill' };
+        const S = mkPP({ view: 'data', mvOff: true }), sArmed = S.win.wpPortalPlace(rec), sP = S.win.wpPlace, sG = S.wb.children[0], sT = S.doc.body.children[0];
+        check('the portal (whiteboard.js portalplace, run for real): it switches to the play map of the map the room is on, takes Select, and arms a placement of its own for that room; a portal tile drawn as the board draws a square trigger zone, half transparent by its class, its marker the room\'s, sits on the board at the cell in the middle of the view, and a line beside it says what a click does',
+            sArmed === true && J(S.viewSet) === J(['visual']) && S.mvClicks === 1 && sP.type === 'portal' && J(sP.portal) === J({ mapId: 'm1', roomId: 'r1', targetMapId: 'map_x', name: 'Old Mill' })
+            && S.doc.body.classList.contains('placing') && S.doc.body.classList.contains('placing-portal') && S.wbWrap.style.cursor === 'crosshair'
+            && sG && sG.className === 'portal-ghost' && sG.style.border === '3px dashed var(--gold)' && sG.style['--pi'] === 'var(--mk-door)' && sG.children[0].className === 'pg-mark' && sG.attrs['aria-hidden'] === 'true'
+            && sG.style.left === '15000px' && sG.style.top === '15000px' && sG.style.width === '50px' && sG.style.height === '50px'
+            && sT && sT.className === 'portal-tip' && sT.textContent === 'Click to place the portal to Old Mill. Esc to skip.' && sT.attrs.role === 'status' && sT.style.left === '518px' && sT.style.top === '372px', J([sP, sG && sG.style, sT && sT.style]));
+        S.doc.fire(S.wbWrap, 'pointermove', { clientX: 130, clientY: 80 });
+        const moved = [sG.style.left, sG.style.top, sT.style.left, sT.style.top];
+        check('the tile follows the pointer cell by cell on the map\'s lattice, and the line follows beside the pointer',
+            J(moved) === J(['14600px', '14700px', '148px', '102px']), J(moved));
+        const Q = mkPP({ opacity: 0.8 }); Q.win.wpPortalPlace(rec); const qG = Q.wb.children[0], qT = Q.doc.body.children[0];
+        const qIt = Q.commit(14630, 14730);
+        check('a click places an ordinary trigger zone in the cell clicked, on the lattice: linked to the room by nodeId and named as it, so it is a portal through the room (fogcore isPortal) and the room\'s place; the new pieces\' opacity; selected; saved once; said; the tile and the line gone and the placement put down',
+            J(qIt) === J({ id: 'wbu1', z: 10, opacity: 0.8, type: 'trigger', shape: 'rect', x: 14600, y: 14700, w: 50, h: 50, color: 'transparent', eventMessage: '', nodeId: 'r1', name: 'Old Mill' })
+            && FC.isPortal(qIt, Q.am) === true && RC.roomPlaceOf(Q.am, 'r1') === qIt && Q.am.whiteboard.length === 1 && Q.state.selWbId === 'wbu1' && Q.saves.length === 1
+            && J(Q.toasts) === J(['Portal placed. It leads to Old Mill. Double-click it to go there.']) && qG.parentNode === null && qT.parentNode === null && Q.win.wpPlace === null
+            && !Q.doc.body.classList.contains('placing') && !Q.doc.body.classList.contains('placing-portal') && Q.api.st() === null, J([qIt, Q.toasts]));
+        const H = mkPP({ grid: { type: 'hex', s: 30, h: 52 }, icon: 'Stairs Down' }); H.win.wpPortalPlace(rec); const hG = H.wb.children[0], hIt = H.commit(14630, 14730), hC = FC.cellCenter(FC.cellOf(14630, 14730, { type: 'hex', s: 30, h: 52 }), { type: 'hex', s: 30, h: 52 });
+        const N = mkPP({ grid: null }); N.win.wpPortalPlace(rec); const nIt = N.commit(14630.4, 14730);
+        check('on a hex grid the tile is the board\'s hex portal (its ring and fill, clipped to a hex) and the piece a hex trigger a cell wide, centered in the hex clicked; the marker is the room\'s; with no grid a 100 px tile centered on the click',
+            hG.className === 'portal-ghost pg-hex' && hG.style.background === 'mix(#5ac8fa,0.55)' && hG.style.boxShadow === 'inset 0 0 0 4px #5ac8fa' && hG.style['--pi'] === 'var(--mk-stairs-down)'
+            && hIt.shape === 'hexagon' && hIt.w === 60 && hIt.h === 52 && Math.abs(hIt.x + 30 - hC.x) < 0.01 && Math.abs(hIt.y + 26 - hC.y) < 0.01
+            && nIt.shape === 'rect' && nIt.w === 100 && nIt.h === 100 && nIt.x === 14580.4 && nIt.y === 14680, J([hIt, hC, nIt]));
+        const X = mkPP(); X.win.wpPortalPlace(rec); const xG = X.wb.children[0], xE = X.doc.fireDoc('keydown', { key: 'Escape' });
+        const Y = mkPP({ escFree: false }); Y.win.wpPortalPlace(rec); Y.doc.fireDoc('keydown', { key: 'Escape' });
+        check('Escape, where esckey\'s router leaves the key to the map, skips the portal: nothing placed or saved, the room and the map it leads to kept, the tile and the line gone, and said; an Escape the router gave to something else leaves the tile in place',
+            X.win.wpPlace === null && X.am.whiteboard.length === 0 && X.saves.length === 0 && X.am.rooms[0].targetMapId === 'map_x' && !!X.camp.items.map_x && xG.parentNode === null && X.api.st() === null
+            && J(X.toasts) === J(['No portal placed. The room and its map stay. Link a piece to the room in Properties to make a way to Old Mill.']) && !xE.prevented
+            && Y.win.wpPlace && Y.win.wpPlace.type === 'portal' && Y.wb.children.length === 1 && Y.toasts.length === 0, J([X.toasts, Y.toasts]));
+        const V = mkPP(); V.win.wpPortalPlace(rec); const vSame = V.win.wpPortalPlaceHold('m1', 'visual'), vStill = !!V.win.wpPlace; const vData = V.win.wpPortalPlaceHold('m1', 'data');
+        const M = mkPP(); M.win.wpPortalPlace(rec); const mOther = M.win.wpPortalPlaceHold('m2', 'visual');
+        const Z = mkPP(); Z.win.wpPortalPlace(rec); Z.am.id = 'm2'; const zIt = Z.commit(14630, 14730);
+        const R = mkPP(); R.win.wpPortalPlace(rec); R.am.rooms[0].targetMapId = 'elsewhere'; const rIt = R.commit(14630, 14730);
+        check('the Data Map or another map on screen puts the tile down and says the portal was not placed (main.js render asks); a click once the map or the room\'s way has changed places nothing and says why',
+            vSame === false && vStill && vData === true && V.win.wpPlace === null && V.wb.children.length === 0 && V.toasts.length === 1 && mOther === true && M.win.wpPlace === null
+            && zIt === null && Z.am.whiteboard.length === 0 && J(Z.toasts) === J(['That map is no longer on screen. No portal was placed.']) && rIt === null && R.am.whiteboard.length === 0 && J(R.toasts) === J(['That room no longer leads to its new map. No portal was placed.']), J([V.toasts, Z.toasts, R.toasts]));
+        const P1 = mkPP({ may: false }), P2 = mkPP({ stream: true }), P3 = mkPP({ foreign: true }), P4 = mkPP({ stuck: true, view: 'data' }), P5 = mkPP();
+        const pr = [P1.win.wpPortalPlace(rec), P2.win.wpPortalPlace(rec), P3.win.wpPortalPlace(rec), P4.win.wpPortalPlace(rec), P5.win.wpPortalPlace({ mapId: 'm1', roomId: 'r1', targetMapId: 'other' }), P5.win.wpPortalPlace({ mapId: 'm9', roomId: 'r1', targetMapId: 'map_x' })];
+        check('no player: never on a player\'s app or where the campaign is not this computer\'s, at someone else\'s table or in the stream window; nor for a room that no longer leads to that map, a map not on screen, or a view that would not switch: nothing armed, no tile drawn',
+            J(pr) === J([false, false, false, false, false, false]) && [P1, P2, P3, P4, P5].every(W => !W.win.wpPlace && W.wb.children.length === 0 && W.doc.body.children.length === 0) && J(P1.viewSet) === J([]), J(pr));
+        check('the wiring (source): a placement put down takes the tile with it; wpPlaceCommit hands a portal to its step with the cell clicked; main.js asks wpPortalPlaceHold at every draw; the tile follows a move over the board',
+            wbS.includes("    if (P.portal) { portalPlaceStep(P.portal, sx, sy); return; }") && read('scripts/main.js').includes('if (window.wpPortalPlaceHold) window.wpPortalPlaceHold(activeMap.id, state.viewMode);') && ppS.includes("if (wbWrap) wbWrap.addEventListener('pointermove', portalMove);"));
+    }
+    {   // the tick in the Data Map's view menu
+        const dm2 = read('scripts/datamap.js'), ix2 = read('index.html'), css2 = read('style.css');
+        check('the tick stands in the Data Map\'s view menu, ticked to start, kept on this computer, and says what it does; the tile\'s styles: half transparent, no press, over the pieces; the line fixed beside the pointer, no press',
+            ix2.includes('<div class="draw-menu-label">New rooms</div>') && /<button class="wb-tool-btn view-tick on" id="dataRoomMapBtn" role="menuitemcheckbox" aria-checked="true" title="[^"]+">[\s\S]{0,140}A new room makes its own map<\/button>/.test(ix2)
+            && ix2.indexOf('id="dataRoomMapBtn"') > ix2.indexOf('id="dataCenterMenu"') && ix2.indexOf('id="dataRoomMapBtn"') < ix2.indexOf('id="dataUndoBtn"')
+            && dm2.includes("try { localStorage.setItem('wp_roomMakesMap', on ? 'on' : 'off'); } catch (err) {}") && dm2.includes("var on = window.wpRoomAdd.mapOn();")
+            && /\.portal-ghost \{[^}]*pointer-events: none; opacity: 0\.5; z-index: 15200;/.test(css2) && /\.portal-tip \{ position: fixed;[^}]*pointer-events: none;/.test(css2) && css2.includes('.portal-ghost.pg-hex { clip-path:'));
+    }
     /* ---- the play map's row ---- */
     const wb = read('scripts/whiteboard.js'), prSrc = cut(wb, 'pieceroom', 'whiteboard.js');
     const mkRow = o => { o = o || {}; let n = 0; return new Function('window', 'buildMay', 'uid', prSrc + '\nreturn { row: pieceRoomRow, make: pieceRoomMake, ROW: ROOM_ROW };')({ wpRoomCore: o.noCore ? undefined : RC, wpStream: !!o.stream }, () => o.may !== false, () => 'p' + (++n)); };
@@ -503,6 +623,10 @@ function mkDoc() {
         && [wn, wn2].every(t => t.includes('- A room with no place on the play map now has a dashed edge. Select it and') && t.includes('- Fixed: placing a shape or Build\'s pieces over a filled region could drag'))
         && [wn, wn2].every(t => t.includes('- A Find a room box runs along the top of the Data Map. It reads each room\'s') && t.includes('- Quick jump finds a room by the words in its notes or by who is there too.'))
         && [wn, wn2].every(t => /\nThe Data Map\n- A new room comes up with its name ready to type, on the room itself\./.test(t) && t.includes('now stand as a stair, each\n  one in sight.\n') && t.includes('this. The room goes on the Data Map, linked to the piece, and its name is')));
+    check('Help says a new room\'s own map in plain words, and both release notes say it under the Data Map',
+        ix.includes('<h4>A new room&rsquo;s own map</h4>') && ix.includes('Click a cell to place the portal there. Press <kbd>Esc</kbd> to skip it. The room and its map stay.</li>') && ix.includes('untick <b>A new room makes its own map</b>')
+        && ix.includes('<li><b>Make a room for this</b> makes no map. Its piece is already the room&rsquo;s place.</li>')
+        && [wn, wn2].every(t => t.includes("- Double-click empty ground on the Data Map to add a room there.\n- A new room makes its own map now, named after it and nested under the map\n  you're on. Name the room, then click to drop its portal on the play map, or\n  press Esc to skip.")));
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exitCode = 1;

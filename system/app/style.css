@@ -1609,6 +1609,12 @@
   /* a portal locked for players (the owner, 2026-10-03): a small lock beside its marker, for the GM and for players alike (whiteboard.js sets the class) */
   .wb-item.wb-portal-locked[data-portal="true"]::after { width: 54px; background: var(--pi) left center / 26px 26px no-repeat, var(--mk-lock) right center / 26px 26px no-repeat; }
   .wb-item[data-portal="true"]::after { content:''; width:26px; height:26px; background:var(--pi) center / contain no-repeat; position:absolute; bottom:-13px; right:-13px; filter:drop-shadow(0 0 3px rgba(0,0,0,0.95)) drop-shadow(0 2px 4px rgba(0,0,0,0.85)); pointer-events:none; z-index:100; transform: scale(var(--wbz, 1)); transform-origin: 0% 0%; }
+  /* 1.6.2 (the owner, 2026-11-14): a new room's portal, half transparent, following the pointer cell by cell until it is placed or skipped
+     (whiteboard.js wpPortalPlace). Its look is the board's own (a hex trigger's ring and fill, a square trigger's dashed edge), its marker in the middle */
+  .portal-ghost { position: absolute; box-sizing: border-box; pointer-events: none; opacity: 0.5; z-index: 15200; }
+  .portal-ghost.pg-hex { clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
+  .portal-ghost .pg-mark { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; background: var(--pi) center / contain no-repeat; filter: drop-shadow(0 0 3px rgba(0,0,0,0.95)); }
+  .portal-tip { position: fixed; z-index: 100000; pointer-events: none; padding: 5px 9px; border-radius: 6px; background: var(--panel); color: var(--ink); border: 1px solid var(--gold); font-size: 12px; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,0.45); }
   
   .wb-item.line { border-radius: 4px; }
   

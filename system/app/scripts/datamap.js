@@ -1755,6 +1755,39 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
   function roomTool() { return !isLinkMode() && !document.body.classList.contains('data-pan') && !window.wpSpacePan && state.viewMode === 'data'; }   // the Data Map's own Pan (body.data-pan), never the play map's flag (the review)
   function dataPt(e) { var rb = wrap.getBoundingClientRect(); return { x: wbX(e.clientX, e.clientY, rb, wrap), y: wbY(e.clientX, e.clientY, rb, wrap) }; }   // the board's one reading of a pointer
   function roomOf(am, id) { return am && Array.isArray(am.rooms) ? am.rooms.find(function(x) { return x && x.id === id; }) || null : null; }
+  // 1.6.2 (the owner, 2026-11-14, by prompt: "A tick, on by default", and of the portal: "you place it, but there needs to be a clear indicator
+  // that this is happening"). While A new room makes its own map is ticked (the Data Map's view menu, this computer's wp_roomMakesMap, ticked to
+  // start), a room added here makes a map named as the room, nested under the map on screen, and leads to it (room.targetMapId), in the same
+  // save as the room. Once its name box is closed, the play map takes a portal tile that follows the pointer (whiteboard.js wpPortalPlace). A
+  // name kept in that first box names the map too while the map is as it was made: its title untouched, no piece and no room on it yet
+  function roomMapOn() { try { var ls = window.localStorage; return !ls || ls.getItem('wp_roomMakesMap') !== 'off'; } catch (e) { return true; } }
+  function roomMapMake(am, rm) {
+      if (!roomMapOn()) return null;
+      var camp = getActiveCampaign(); if (!camp || !camp.items || camp.items[am.id] !== am) return null;
+      var title = getUniqueItemTitle(rm.name || 'New room', null), nm = createNewMap(title);
+      nm.id = 'map_' + uid(); nm.meta.parentId = am.id;
+      if (am.meta && (am.meta.gridType === 'square' || am.meta.gridType === 'hex')) nm.meta.gridType = am.meta.gridType;   // as a map made from a room's picture: the grid of the map it lies under
+      camp.items[nm.id] = nm;
+      am.meta = am.meta || {}; am.meta.collapsed = false;   // the new map shows under it in the Maps list
+      rm.targetMapId = nm.id;
+      return { mapId: am.id, roomId: rm.id, targetMapId: nm.id, title: title };
+  }
+  function roomMapName(made, rr) {
+      if (!made || !rr || rr.targetMapId !== made.targetMapId) return false;
+      var camp = getActiveCampaign(), m = camp && camp.items ? camp.items[made.targetMapId] : null;
+      if (!m || m.type !== 'map' || !m.meta || m.meta.title !== made.title) return false;   // renamed by the GM meanwhile: their name stays
+      if ((Array.isArray(m.whiteboard) && m.whiteboard.length) || (Array.isArray(m.rooms) && m.rooms.length)) return false;   // no longer new and empty
+      m.meta.title = getUniqueItemTitle(rr.name, m.id); made.title = m.meta.title;
+      return true;
+  }
+  function roomPortalArm(made) {   // after the name box: the board's own turn, so the press or key that closed the box is over first
+      setTimeout(function() {
+          var am = getActiveMap(), rr = am && am.id === made.mapId ? roomOf(am, made.roomId) : null;
+          if (!rr || rr.targetMapId !== made.targetMapId) return;   // the room is gone, or another map came on screen: nothing to place
+          if (canvas && canvas.querySelector && canvas.querySelector('.rn-edit')) { toast('No portal placed for ' + (rr.name || 'the room') + '. Another room is being named.'); return; }
+          if (window.wpPortalPlace) window.wpPortalPlace(made);
+      }, 0);
+  }
   function roomAddAt(x, y, from) {
       var am = getActiveMap(); if (!am || am.type !== 'map' || !roomMay()) return null;
       if (!Array.isArray(am.rooms)) am.rooms = []; if (!Array.isArray(am.links)) am.links = [];
@@ -1767,12 +1800,14 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
       var rm = RC.newRoom(uid(), am.rooms, am.cats, p.x, p.y);
       am.rooms.push(rm);
       var lk = from && roomOf(am, from) ? RC.linkAdd(am.links, from, rm.id, state.linkType) : null;
+      var made = roomMapMake(am, rm);   // the tick: its map, in this same save
       state.selId = rm.id; state.selLink = null; state.linkStart = null;
       save(); render();
-      roomRename(rm.id);
-      return { room: rm, link: lk };
+      if (made) updateSidebarNav();
+      if (!roomRename(rm.id, made) && made) roomPortalArm(made);
+      return { room: rm, link: lk, made: made };
   }
-  function roomRename(id) {
+  function roomRename(id, made) {   // made: the map a room just added made (roomMapMake), named with it and its portal placed once the box closes
       var el = state.els && state.els[id], am = getActiveMap(), rm = roomOf(am, id);
       if (!el || !rm || !roomMay()) return null;
       var had = el.querySelector('.rn-edit'); if (had) { had.focus(); return had; }
@@ -1785,7 +1820,8 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
           if (done) return; done = true;
           el.classList.remove('renaming'); if (inp.parentNode) inp.parentNode.removeChild(inp);
           var am2 = getActiveMap(), rr = am2 && am2.id === mapId ? roomOf(am2, id) : null;
-          if (keep && rr) { var nm = RC.roomNameOf(inp.value, rr.name); if (nm !== rr.name) { rr.name = nm; save(); } }
+          if (keep && rr) { var nm = RC.roomNameOf(inp.value, rr.name); if (nm !== rr.name) { rr.name = nm; if (made && roomMapName(made, rr)) updateSidebarNav(); save(); } }
+          if (made && rr) roomPortalArm(made);
           if (!blur) { render(); return; }
           var rnE = el.querySelector('.rn'); if (rnE && rr) rnE.textContent = rr.name || '(unnamed)';   // the check: never renderDataMap here either, which builds every link again under a press on one
           var fN = document.getElementById('fName'); if (fN && rr && state.selId === id) fN.value = rr.name;
@@ -1924,7 +1960,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
       e.preventDefault();
       var p = dataPt(e); roomAddAt(p.x - RC.ROOM_W / 2, p.y - RC.ROOM_H / 2);
   });
-  window.wpRoomAdd = { at: roomAddAt, rename: roomRename };
+  window.wpRoomAdd = { at: roomAddAt, rename: roomRename, mapOn: roomMapOn };
   // [roomcheck:page-end]
   // [roomcheck:find-start]
   // 1.6.2 (backlog 45, fold 2; the owner, 2026-11-11, by prompt: "A. Strip along the top (Recommended)", "Dimmed, still usable (Recommended)"):
@@ -2204,6 +2240,20 @@ if(_el_dataFitBtn) _el_dataFitBtn.addEventListener('click', function(e) {
     if(window.wpFitView) window.wpFitView(false);   // frame every room (zoom + pan)
     if(_el_dataCenterMenu) _el_dataCenterMenu.classList.remove('show');
 });
+
+// 1.6.2 (the owner, 2026-11-14, by prompt: "A tick, on by default"): A new room makes its own map, this computer's wp_roomMakesMap, ticked to start.
+// The page slice reads it at each room added (roomMapOn); the menu stays open, as the play map's View ticks do
+var _el_dataRoomMapBtn = document.getElementById('dataRoomMapBtn');
+function dataRoomMapSync() { if (!_el_dataRoomMapBtn) return; var on = window.wpRoomAdd.mapOn(); _el_dataRoomMapBtn.classList.toggle('on', on); _el_dataRoomMapBtn.setAttribute('aria-checked', on ? 'true' : 'false'); }
+if (_el_dataRoomMapBtn) {
+    dataRoomMapSync();
+    _el_dataRoomMapBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var on = !window.wpRoomAdd.mapOn(); try { localStorage.setItem('wp_roomMakesMap', on ? 'on' : 'off'); } catch (err) {}
+        dataRoomMapSync();
+        toast(on ? 'A new room makes its own map, and you place its portal.' : 'A new room is only a room. No map is made for it.');
+    });
+}
 
 document.addEventListener('click', function(e) {
     if(_el_dataCenterMenu && e.target !== _el_dataCenterBtn && !e.target.closest('#dataCenterMenu')) {

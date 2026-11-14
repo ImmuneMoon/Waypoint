@@ -1,9 +1,10 @@
 // deckwin.js: the left panel's Decks section and its window (1.6.2, backlog 210 d, fold 4; the owner, by prompt: "The left panel, as a section", and of a campaign's own decks, "a GM can add a house game, or a custom deck for one story, without editing the system"). A system's decks and a campaign's stand together, and a campaign's are built by the one editor. Drawing by hand goes through the host: a GM's press there at once, a player's by net.deckDo, judged as any message is. Elements and text nodes alone
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
-import { cleanDecks, cleanPile, pileCounts } from './deckcore.js';
-import { edit } from './deckui.js';
-var CAMP_KEY = /^C[0-9]+$/, _sig = null, _at = '', _build = false;
+import { cleanDecks, cleanPile, pileCounts, cleanSpreads, faceWords, faceCount, placeWords, cleanKeep, askOracle, cleanOdds, ODDS } from './deckcore.js';
+import { edit, spreads } from './deckui.js';
+import { spreadCard, openThreads } from './cardcore.js';
+var CAMP_KEY = /^C[0-9]+$/, _sig = null, _at = '', _build = false, _tab = 'decks', _sp = '', _lay = null, _keep = Object.create(null);   // _lay (backlog 223): the spread laid on this screen, { camp, key, at: [{ deck, ix, face, tk } or null a place], shown }; _keep (fold B): a place kept as what the GM picked, by campaign and spread, this screen's alone
 function net() { return window.wpNet || null; }
 function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = String(text); return e; }
 function btn(cls, text, tip) { var b = el('button', cls, text); b.type = 'button'; if (tip) b.title = tip; return b; }
@@ -26,8 +27,103 @@ function drawRow(p, camp, it) {
     row.appendChild(cnt); row.appendChild(to); row.appendChild(go); p.appendChild(row);
     if (gm) { var r2 = el('div', 'dk-head'), sh = btn('tool ghost sys-btn dk-shuffle', 'Shuffle the discard in', 'What was discarded goes back in'), re = btn('tool ghost sys-btn dk-reset', 'Start again', 'Everything but what hands hold goes back in'); if (cnL && !cnL.disc) { sh.disabled = true; sh.title = 'Nothing is discarded'; } sh.addEventListener('click', function() { var w = n && n.deckDo ? n.deckDo(d.key, 'shuffle', {}) : null; if (w) toast(w); }); re.addEventListener('click', function() { var w = n && n.deckDo ? n.deckDo(d.key, 'reset', {}) : null; if (w) toast(w); }); r2.appendChild(sh); r2.appendChild(re); p.appendChild(r2); }
 }
+// 1.6.2 (backlog 223, story cards; the owner, by prompt: "Decks window, show when ready", "Random, then turn"): the Spreads tab, the GM's alone. A spread
+// is laid here, one card a place, each drawn through the host (net.deckTake); a card is turned to its next face or a place drawn again, and the table
+// sees one card of the whole spread only when Show the table is pressed. A place whose deck is the GM's alone is never on that card
+function spreadsOf(camp) { if (!camp) return []; var sysL = cleanSpreads(camp.system && camp.system.spreads, true, /^D[0-9]+$/, /^S[0-9]+$/); return sysL.map(function(s) { return { s: s, own: false }; }).concat(cleanSpreads(camp.spreads, true, null, /^P[0-9]+$/).map(function(s) { return { s: s, own: true }; })); }
+function deckBy(camp, key) { var hit = decksOf(camp).filter(function(x) { return x.d.key === key; })[0]; return hit ? hit.d : null; }
+function keepsOf(camp, sp) { var k = camp.id + '/' + sp.key; return _keep[k] || (_keep[k] = []); }
+// 1.6.2 (backlog 223, fold B; the owner, by prompt: "B: keep a place, tuck a card"): what a place may be kept as. The planners' Person, Place and Clue
+// cards, the characters and the maps, by their names, as [value, words, group]. Planners never travel, and nothing of this is sent
+function plainOf(v) { return String(v == null ? '' : v).replace(/<[^>]*>/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim().slice(0, 120); }
+function keepRows(camp) {
+    var out = [], items = camp && camp.items && typeof camp.items === 'object' ? camp.items : {}, KW = { person: 'Person card', place: 'Place card', clue: 'Clue card' };
+    Object.keys(items).forEach(function(id) { var it = items[id]; if (!it || it.type !== 'planner' || !Array.isArray(it.blocks)) return; it.blocks.forEach(function(b) { if (!b || b.type !== 'node' || !KW[b.mode] || typeof b.id !== 'string') return; var w = plainOf(b.title); if (w) out.push(['card:' + id + '/' + b.id, w, KW[b.mode]]); }); });
+    Object.keys(camp && camp.chars || {}).forEach(function(id) { var c = camp.chars[id]; if (c && !c.partial && c.making !== 1 && typeof c.name === 'string' && c.name.trim()) out.push(['char:' + id, plainOf(c.name), 'Character']); });
+    Object.keys(items).forEach(function(id) { var it = items[id]; if (!it || it.type !== 'map') return; var w = plainOf(it.meta && it.meta.title); if (w) out.push(['map:' + id, w, 'Map']); });
+    return out.slice(0, 400);
+}
+function slotOf(camp, sp, i) {
+    var at = _lay && camp && _lay.camp === camp.id && _lay.key === sp.key ? _lay.at[i] : null, kp = cleanKeep(keepsOf(camp, sp)[i]), d = at && at.deck ? deckBy(camp, at.deck) : null, c = d && d.cards[at.ix] ? d.cards[at.ix] : null;
+    var td = at && at.tk ? deckBy(camp, at.tk.deck) : null, tc = td && td.cards[at.tk.ix] ? td.cards[at.tk.ix] : null, main = kp ? kp.words : c ? faceWords(c, at.face) : '', tuck = tc ? faceWords(tc, at.tk.face) : '', pl = sp.places[i] || {};
+    if (!main && !tuck) return null; return { at: at, d: kp ? null : d, c: kp ? null : c, kept: kp, n: !kp && c ? faceCount(c) : 1, td: td, tc: tc, tn: tc ? faceCount(tc) : 1, main: main, tuck: tuck, words: placeWords(main, tuck, pl.tuck && pl.tuck.down === true), gm: (!kp && !!d && d.vis === 'gm') || (!!td && td.vis === 'gm') };
+}
+function layPlace(pl, kept) { var o = {}; if (pl.deck && !kept) { var t = takeOne(pl.deck); if (t) { o.deck = t.deck; o.ix = t.ix; o.face = t.face; } } if (pl.tuck) { var u = takeOne(pl.tuck.deck); if (u) o.tk = u; } return Object.keys(o).length ? o : null; }
+function takeOne(deck) { var n = net(), r = n && typeof n.deckTake === 'function' ? n.deckTake(deck, 1) : { error: 'That cannot be done now.' }; if (r && r.error) { toast(r.error); return null; } return r && r.cards && r.cards[0] ? { deck: deck, ix: r.cards[0].ix, face: r.cards[0].face } : null; }
+function spreadShow(camp, sp) {
+    var lines = []; sp.places.forEach(function(pl, i) { var sl = slotOf(camp, sp, i); if (!sl || sl.gm) return; lines.push({ n: pl.label, say: sl.words }); });
+    var n = net(); if (!lines.length) { toast('Nothing on this spread can be shown to the table.'); return; } if (n && typeof n.postApplyCard === 'function') n.postApplyCard(null, sp.label || 'A spread', lines, 'table');
+    if (!_lay || _lay.camp !== camp.id || _lay.key !== sp.key) _lay = { camp: camp.id, key: sp.key, at: sp.places.map(function() { return null; }) }; _lay.shown = true; if (typeof window.wpStepLog === 'function') window.wpStepLog('decks v1', 'spread-show', { n: lines.length });
+}
+// 1.6.2 (backlog 223, fold C; the owner, by prompt: "Card of the spread's kind"): Save as a card. The planners offered by name, and the spread lands
+// as an ordinary card at the end of the one picked, saved at once as any edit of it is. Planners never travel, so nothing of it is sent
+function plannersOf(camp) { var items = camp && camp.items && typeof camp.items === 'object' ? camp.items : {}; return Object.keys(items).filter(function(id) { var it = items[id]; return !!it && it.type === 'planner' && Array.isArray(it.blocks); }).map(function(id) { return [id, plainOf(items[id].meta && items[id].meta.title) || 'A planner']; }).sort(function(a, b) { return a[1].localeCompare(b[1]); }).slice(0, 60); }
+function spreadSave(camp, sp, plId) {
+    var it = camp && camp.items && Object.prototype.hasOwnProperty.call(camp.items, plId) ? camp.items[plId] : null; if (!it || it.type !== 'planner' || !Array.isArray(it.blocks)) { toast('That planner is no longer here.'); return null; }
+    var pl = []; sp.places.forEach(function(p, i) { var sl = slotOf(camp, sp, i); if (sl) pl.push({ label: p.label, words: sl.words }); }); if (!pl.length) { toast('Nothing is laid on this spread yet.'); return null; }
+    var b = spreadCard({ label: sp.label, as: sp.as, places: pl }, 'b_' + Math.random().toString(36).slice(2, 10)); it.blocks.push(b); it.meta = it.meta && typeof it.meta === 'object' ? it.meta : {}; it.meta.updated = Date.now();
+    save(true); toast('Saved as a card in ' + (plainOf(it.meta.title) || 'the planner') + '.'); if (typeof window.wpStepLog === 'function') window.wpStepLog('decks v1', 'spread-save', { as: sp.as || 'scene', n: pl.length }); if (typeof window.appRender === 'function') window.appRender(); return b;
+}
+var _saving = false;
+function spreadDraw(p, camp) {
+    var list = spreadsOf(camp), it = list.filter(function(x) { return x.s.key === _sp; })[0] || list[0] || null; if (it) _sp = it.s.key;
+    if (list.length > 1) { var sel = el('select', 'field sp-pick'); list.forEach(function(x) { var o = el('option', '', (x.s.label || 'A spread') + (x.own ? ' (this campaign)' : '')); o.value = x.s.key; sel.appendChild(o); }); sel.value = _sp; sel.addEventListener('change', function() { _sp = sel.value; _build = false; _saving = false; panelDraw(); }); p.appendChild(sel); }
+    else if (it) p.appendChild(el('div', 'dk-title', it.s.label || 'A spread'));
+    if (it) {
+        var sp = it.s, laid = !!(_lay && _lay.camp === camp.id && _lay.key === sp.key), row = el('div', 'sp-lay');
+        sp.places.forEach(function(pl, i) {
+            var sl = slotOf(camp, sp, i), kps = keepsOf(camp, sp), kp = cleanKeep(kps[i]), c = el('div', 'sp-card' + (sl && sl.main ? '' : ' sp-empty') + (kp ? ' sp-kept' : '')), d0 = pl.deck ? deckBy(camp, pl.deck) : null; c.appendChild(el('span', 'sp-pos', pl.label || 'A place'));
+            c.appendChild(el('span', sl && sl.main ? 'sp-words' : 'sp-words sp-hint', sl && sl.main ? sl.main : (pl.hint || (pl.deck ? (d0 ? 'Not drawn yet' : 'Its deck is gone') : 'Filled in by you'))));
+            if (kps[i] && kps[i].t === 'words') { var kb = el('input', 'field sp-keepbox'); kb.type = 'text'; kb.value = kps[i].words || ''; kb.placeholder = 'Your words'; kb.maxLength = 120; kb.title = 'What this place says, typed by you'; kb.addEventListener('change', function() { kps[i].words = kb.value.slice(0, 120); if (_lay) _lay.shown = false; panelDraw(); }); c.appendChild(kb); }
+            if (pl.tuck) { var tdk = deckBy(camp, pl.tuck.deck), tst = el('span', 'sp-tuckline'); tst.appendChild(el('span', 'sp-tuckwords', (pl.tuck.down ? 'After: ' : 'Before: ') + (sl && sl.tuck ? sl.tuck : tdk ? (tdk.label || 'A deck') : 'its deck is gone'))); tst.title = 'Tucked under it, from ' + (tdk ? tdk.label || 'a deck' : 'a deck that is gone');
+                if (sl && sl.tc && sl.tn > 1) { var tt = btn('tool ghost sp-tuckturn', '\u21bb', 'Face ' + (sl.at.tk.face + 1) + ' of ' + sl.tn + ' of the tucked card. Turn it to the next'); tt.setAttribute('aria-label', 'Turn the card tucked under ' + (pl.label || 'this place')); tt.addEventListener('click', function() { sl.at.tk.face = (sl.at.tk.face + 1) % sl.tn; _lay.shown = false; panelDraw(); }); tst.appendChild(tt); }
+                if (laid && tdk) { var ta = btn('tool ghost sp-tuckagain', '\u27f3', 'Draw the tucked card again'); ta.setAttribute('aria-label', 'Draw the card tucked under ' + (pl.label || 'this place') + ' again'); ta.addEventListener('click', function() { var u = takeOne(pl.tuck.deck); if (!u) return; _lay.at[i] = Object.assign({}, _lay.at[i] || {}, { tk: u }); _lay.shown = false; panelDraw(); }); tst.appendChild(ta); }
+                c.appendChild(tst); }
+            if (pl.hint) c.title = pl.hint;
+            var ft = el('span', 'sp-foot'); ft.appendChild(el('span', 'sp-from', kp ? { card: 'Kept', char: 'Kept', map: 'Kept', words: 'Your words' }[kp.t] : d0 ? d0.label || 'A deck' : ''));
+            if (sl && sl.c && sl.n > 1) { var tn = btn('tool ghost sp-turn', '↻', 'Face ' + (sl.at.face + 1) + ' of ' + sl.n + '. Turn it to the next'); tn.setAttribute('aria-label', 'Turn ' + (pl.label || 'this card') + ' to its next face'); tn.addEventListener('click', function() { sl.at.face = (sl.at.face + 1) % sl.n; _lay.shown = false; panelDraw(); }); ft.appendChild(tn); }
+            if (laid && d0 && !kp) { var ag = btn('tool ghost sp-again', '⟳', 'Draw this place again'); ag.setAttribute('aria-label', 'Draw ' + (pl.label || 'this place') + ' again'); ag.addEventListener('click', function() { var t = takeOne(pl.deck); if (!t) return; _lay.at[i] = Object.assign({}, _lay.at[i] || {}, { deck: t.deck, ix: t.ix, face: t.face }); _lay.shown = false; panelDraw(); }); ft.appendChild(ag); }
+            c.appendChild(ft);
+            var ks = el('select', 'field sp-keep'), rows = [['', pl.deck ? 'Draw it' : 'Leave it'], ['words', 'Type it']].concat(keepRows(camp)), grp = null; rows.forEach(function(r) { var o = el('option', '', r[1]); o.value = r[0]; if (r[2]) { if (!grp || grp.label !== r[2]) { grp = el('optgroup'); grp.label = r[2]; ks.appendChild(grp); } grp.appendChild(o); } else ks.appendChild(o); });
+            ks.value = kps[i] ? (kps[i].t === 'words' ? 'words' : kps[i].t + ':' + (kps[i].id || '')) : ''; if (ks.value === undefined || ks.value === null) ks.value = ''; ks.title = 'Keep this place as something you already have, instead of drawing it'; ks.setAttribute('aria-label', 'What ' + (pl.label || 'this place') + ' is');
+            ks.addEventListener('change', function() { var v = ks.value, hit = rows.filter(function(r) { return r[0] === v; })[0]; if (!v) delete kps[i]; else if (v === 'words') kps[i] = { t: 'words', words: kps[i] && kps[i].words || '' }; else if (hit) kps[i] = { t: v.slice(0, v.indexOf(':')), id: v.slice(v.indexOf(':') + 1), words: hit[1] }; if (_lay) _lay.shown = false; panelDraw(); }); c.appendChild(ks);
+            row.appendChild(c);
+        });
+        p.appendChild(row);
+        var acts = el('div', 'dk-head'), go = btn('tool sp-draw', laid ? 'Draw it again' : 'Draw the spread', 'Draw a card for every place. Nobody else sees it until you show the table'), sh = btn('tool ghost sys-btn sp-show', laid && _lay.shown ? 'Shown' : 'Show the table', 'Post this spread to the chat for everyone. A place drawn from a deck only you know stays off it');
+        go.addEventListener('click', function() { var kps = keepsOf(camp, sp), at = sp.places.map(function(pl, i) { return layPlace(pl, !!cleanKeep(kps[i])); }); _lay = { camp: camp.id, key: sp.key, at: at, shown: false }; panelDraw(); });
+        if (!laid || _lay.shown) sh.disabled = true; if (!laid) sh.title = 'Draw the spread first';   // or keep a place: see below sh.addEventListener('click', function() { spreadShow(camp, sp); panelDraw(); });
+        if (!sp.places.some(function(pl) { return !!pl.deck || !!pl.tuck; })) { go.disabled = true; go.title = 'No place of this spread draws from a deck'; }
+        if (!laid && sp.places.some(function(pl, i) { return !!slotOf(camp, sp, i); })) { sh.disabled = false; sh.title = 'Post the places you have kept to the chat for everyone'; }
+        var sv = btn('tool ghost sys-btn sp-save', 'Save as a card', 'Make this spread a ' + ({ person: 'Person', place: 'Place', clue: 'Clue' }[sp.as] || 'Scene') + ' card in a planner, one row a place'); if (!sp.places.some(function(pl, i) { return !!slotOf(camp, sp, i); })) { sv.disabled = true; sv.title = 'Draw the spread first'; } sv.addEventListener('click', function() { _saving = !_saving; panelDraw(); });
+        acts.appendChild(go); acts.appendChild(sh); acts.appendChild(sv); p.appendChild(acts);
+        if (_saving && !sv.disabled) { var pls = plannersOf(camp), box = el('div', 'sp-savebox'); box.appendChild(el('div', 'dk-count', pls.length ? 'Which planner? The card goes at its end.' : 'There is no planner yet. Make one in the left panel first.')); pls.forEach(function(r) { var b2 = btn('tool ghost sp-saveto', r[1], 'Save it at the end of this planner'); b2.addEventListener('click', function() { if (spreadSave(camp, sp, r[0])) { _saving = false; panelDraw(); } }); box.appendChild(b2); }); p.appendChild(box); }
+        if (!it.own) p.appendChild(el('div', 'dk-count', 'This one comes with the system. Change it in the System editor.'));
+    } else p.appendChild(el('div', 'dk-count', 'No spreads here yet. A spread lays out a few cards at once, each in a place you name, such as Who, Wants and Stands in the way.'));
+    var b = btn('tool ghost sys-btn sp-build', _build ? 'Done' : 'Make a spread for this campaign', 'A spread for this campaign alone, drawn from any of its decks'); b.addEventListener('click', function() { _build = !_build; panelDraw(); }); p.appendChild(b);
+    if (_build) { var host = el('div', 'dk-build-box'); p.appendChild(host); spreads(host, { head: 'This campaign’s spreads', note: 'Name the places and pick the deck each draws from. Yours to change at any time.', prefix: 'P', list: function() { return Array.isArray(camp.spreads) ? camp.spreads : null; }, set: function(l) { if (l && l.length) camp.spreads = l; else delete camp.spreads; }, decks: function() { return decksOf(camp).map(function(x) { return [x.d.key, x.d.label || 'A deck']; }); }, changed: function() { save(); } }); }
+}
+// 1.6.2 (backlog 223, fold D; the owner, by prompt: "D: yes or no oracle"): the Ask tab, the GM's alone. A question and its odds, answered on this
+// screen; a twist lands on one of the campaign's own open threads, which stays the GM's note. Show the table posts the question and its answer alone
+var _ask = { q: '', odds: 50, res: null, shown: false };
+function oracleRnd(n) { var F = window.wpFormula, r = F && F.evaluate ? F.evaluate('1d' + n) : null; return r && r.ok && typeof r.value === 'number' ? r.value : 1 + Math.floor(Math.random() * n); }
+function askRun(camp) { var res = askOracle(_ask.odds, oracleRnd), th = res.twist ? openThreads(camp) : []; if (res.twist) res.thread = th.length ? th[oracleRnd(th.length) - 1] : null; _ask.res = res; _ask.shown = false; if (typeof window.wpStepLog === 'function') window.wpStepLog('decks v1', 'ask', { twist: !!res.twist }); return res; }
+function askShow() { var n = net(), r = _ask.res; if (!r || !n || typeof n.postApplyCard !== 'function') return; n.postApplyCard(null, 'Ask', [{ n: _ask.q.trim() || 'A question', say: r.answer + '.' }], 'table'); _ask.shown = true; }
+function askDraw(p, camp) {
+    p.appendChild(el('div', 'dk-count', 'Ask a yes or no question about the story, and set how likely a yes is.'));
+    var q = el('input', 'field ask-q'); q.type = 'text'; q.maxLength = 200; q.value = _ask.q; q.placeholder = 'Is the gate guarded tonight?'; q.title = 'Your question. It goes to the table only if you show it'; q.addEventListener('input', function() { _ask.q = q.value.slice(0, 200); }); p.appendChild(q);
+    var row = el('div', 'dk-head'), od = el('select', 'field ask-odds'); ODDS.forEach(function(o) { var op = el('option', '', o[1]); op.value = String(o[0]); od.appendChild(op); }); od.value = String(cleanOdds(_ask.odds)); od.title = 'How likely a yes is'; od.addEventListener('change', function() { _ask.odds = cleanOdds(od.value); });
+    var go = btn('tool ask-go', 'Ask', 'Answer it with one roll of 1 to 100. Only you see the answer until you show the table'); go.addEventListener('click', function() { askRun(camp); panelDraw(); }); row.appendChild(od); row.appendChild(go); p.appendChild(row);
+    var r = _ask.res; if (!r) return;
+    var card = el('div', 'ask-card' + (r.yes ? ' ask-yes' : ' ask-no')); card.appendChild(el('div', 'ask-answer', r.answer)); card.appendChild(el('div', 'dk-count', 'Rolled ' + r.roll + ' against ' + cleanOdds(_ask.odds) + ' or under.'));
+    if (r.twist) { var tw = el('div', 'ask-twist'); tw.appendChild(el('b', '', 'A twist')); tw.appendChild(document.createTextNode(r.thread ? ' lands on the ' + String(r.thread[1]).toLowerCase() + ' “' + r.thread[0] + '.” Something about it changes.' : ' brings something new. Your planners hold no open thread for it to land on.')); tw.title = 'Only you see this. It lands on a scene not yet played, a person or a clue not yet found, from your planners'; card.appendChild(tw); }
+    p.appendChild(card);
+    var sh = btn('tool ghost sys-btn ask-show', _ask.shown ? 'Shown' : 'Show the table', 'Post the question and its answer to the chat. A twist stays yours'); sh.disabled = _ask.shown; sh.addEventListener('click', function() { askShow(); panelDraw(); }); p.appendChild(sh);
+}
+function tabs(p) { var sw = el('div', 'seg-control dk-tabs'); [['decks', 'Decks'], ['spreads', 'Spreads'], ['ask', 'Ask']].forEach(function(t) { var b = btn('seg-btn' + (_tab === t[0] ? ' active' : ''), t[1], t[0] === 'spreads' ? 'Lay out several cards at once, each in a place you name' : t[0] === 'ask' ? 'Ask a yes or no question about the story' : 'Draw from one deck'); b.setAttribute('aria-pressed', _tab === t[0] ? 'true' : 'false'); b.addEventListener('click', function() { if (_tab === t[0]) return; _tab = t[0]; _build = false; panelDraw(); }); sw.appendChild(b); }); p.appendChild(sw); }
 function panelDraw() {
     var p = document.getElementById('deckBody'), camp = getActiveCampaign(), list = decksOf(camp), gm = gmHand(); if (!p) return; p.textContent = '';
+    if (gm) tabs(p); else _tab = 'decks'; if (_tab === 'spreads') { spreadDraw(p, camp); return; } if (_tab === 'ask') { askDraw(p, camp); return; }
     var it = list.filter(function(x) { return x.d.key === _at; })[0] || list[0] || null; if (it) _at = it.d.key;
     if (list.length > 1) { var sel = el('select', 'field dk-pick'); list.forEach(function(x) { var o = el('option', '', (x.d.label || 'A deck') + (x.own ? ' (this campaign)' : '')); o.value = x.d.key; sel.appendChild(o); }); sel.value = _at; sel.addEventListener('change', function() { _at = sel.value; _build = false; panelDraw(); }); p.appendChild(sel); }
     var UI = window.wpUi && window.wpUi.card ? window.wpUi : null;

@@ -6,7 +6,7 @@
    or a stub) is passed in as F, so tools/systemcheck.js runs this under Node. Published as window.wpSystemCore.
    Design of record: docs/SHEET_BUILDER_PLAN.md. */
 'use strict';
-import { cleanDecks, deckOf, drawCards, shufflePile, returnCard, cleanPile, cardVal, pileCounts } from './deckcore.js';   // 1.6.2 (G9): decks and bags, a pure module of its own (deckcheck runs it)
+import { cleanDecks, deckOf, drawCards, shufflePile, returnCard, cleanPile, cardVal, pileCounts, cleanSpreads, faceOf, faceWords } from './deckcore.js';   // 1.6.2 (G9): decks and bags, a pure module of its own (deckcheck runs it)
 import { cleanObjects } from './objcore.js';
 import { gridFor as fcGridFor, cellOf as fcCellOf, cleanTexSrc as fcPicSrc } from './fogcore.js';   // 1.6.2 (backlog 38): a map's own cell, read by fogcore's one lattice
 import { cleanNameLists } from './namecore.js';   // 1.6.2 (backlog 147): the name button's lists (pure; namecheck runs it)   // 1.6.0: a system's own set of map objects (pure; objcheck runs it)
@@ -5376,6 +5376,7 @@ function cleanSystem(sys, opts) {
     var cuC = cleanCurrencies(sys.currencies); if (cuC.length) out.currencies = cuC;   // 157 M1: the currencies, the same in both views; a list's currency only one they name, spelled as they spell it, and a row's choice of one only where there are some
     (Array.isArray(out.fields) ? out.fields : []).forEach(function(f) { if (!isObj(f) || f.kind !== 'item-list' || !isObj(f.list)) return; var L = f.list; ['cur', 'priceCur'].forEach(function(k) { if (L[k] === undefined) return; var cuH = cuC.filter(function(c) { return lower(c.key) === lower(L[k]); })[0]; if (cuH) L[k] = cuH.key; else delete L[k]; }); if (!cuC.length) { delete L.curBy; delete L.priceCurBy; } if (!tgC || !tgC.rates) { delete L.buyBy; delete L.sellBy; } });
     var dkC = cleanDecks(sys.decks, gmView, /^D[0-9]+$/); if (dkC.length) out.decks = dkC;   // 1.6.2 (G9)
+    var spC = cleanSpreads(sys.spreads, gmView, /^D[0-9]+$/, /^S[0-9]+$/); if (spC.length) out.spreads = spC;   // 1.6.2 (backlog 223): a system's spreads name its own decks, and are the GM's alone
     var tbls = cleanTables(sys.tables, gmView); if (tbls) out.tables = tbls;
     var ccL = cleanCharCats(sys.charCats, F); if (ccL) { if (F && typeof F.parse === 'function') { var sysCc = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables, values: sys.values, decks: sys.decks, effects: sys.effects }; ccL.forEach(function(x) { if (typeof x['if'] !== 'string') return; var pc = F.parse(x['if']); if (!pc.ok || gmDerivedNames(sysCc, F, pc.names || []).length) delete x['if']; }); } out.charCats = ccL; }   // 1.6.2 (218, fold 2): the Characters list's categories, alike in both views, a rule that reads a GM-only value gone
     var nmL = cleanNameLists(sys.names, gmView !== false); if (nmL) out.names = nmL;   // 1.6.2 (backlog 147): the name button's lists (absent: none), a list for the GM alone left out of the players' view   // 1.6.0: the tables a formula reads by name (absent: none)
@@ -5816,8 +5817,8 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
             var dkK2 = a.deckD.key, dkW = a.deckD.word || 'Deck', rndK = function(n) { var r = F.evaluate('1d' + n, typeof D.random === 'function' ? { random: D.random } : {}); return r && r.ok && typeof r.value === 'number' ? r.value : 1; };
             var pk = hasOwn(deckMoves, dkK2) ? deckMoves[dkK2] : (function() { var s0 = null; try { s0 = _deckSrc ? _deckSrc(dkK2, true) : null; } catch (e) { s0 = null; } return s0 ? cleanPile(s0, a.deckD) : null; })();
             if (a.shuffle) { deckMoves[dkK2] = shufflePile(a.deckD, pk, rndK); lines.push({ n: a.deckD.label, say: dkW + ' shuffled.' }); paidM = true; continue; }
-            var dr = drawCards(a.deckD, pk, a.n, rndK, !!a.lfH); if (a.self || a.lfH) { dr.pile.last = pk ? pk.last : null; if (pk && Array.isArray(pk.got) && pk.got.length) dr.pile.got = pk.got; else delete dr.pile.got; } deckMoves[dkK2] = dr.pile; var dkLn = { n: a.deckD.label, say: dr.cards.length ? dr.cards.map(function(i) { return a.deckD.cards[i].name; }).join(', ') : 'Nothing left to draw.' };
-            if (a.lfH) { var rH = (out[a.lfH.id] !== undefined ? out[a.lfH.id] : (isObj(char.values) && Array.isArray(char.values[a.lfH.id]) ? char.values[a.lfH.id] : [])).slice(); dr.cards.forEach(function(ix) { rH.push(cardRow(a.lfH, a.deckD, ix, rH)); }); out[a.lfH.id] = rH; if (dr.cards.length && handKept(a.lfH.list, char)) { dkLn.hand = true; dkLn.cnt = 'Draws ' + (dr.cards.length === 1 ? 'a card.' : dr.cards.length + ' cards.'); } }
+            var dr = drawCards(a.deckD, pk, a.n, rndK, !!a.lfH); if (a.self || a.lfH) { dr.pile.last = pk ? pk.last : null; if (pk && Array.isArray(pk.got) && pk.got.length) dr.pile.got = pk.got; else delete dr.pile.got; } deckMoves[dkK2] = dr.pile; var dkFc = dr.cards.map(function(i) { return faceWords(a.deckD.cards[i], faceOf(a.deckD.cards[i], rndK)); }), dkLn = { n: a.deckD.label, say: dr.cards.length ? dkFc.join(', ') : 'Nothing left to draw.' };   // 1.6.2 (backlog 223): each card lands on one of its faces
+            if (a.lfH) { var rH = (out[a.lfH.id] !== undefined ? out[a.lfH.id] : (isObj(char.values) && Array.isArray(char.values[a.lfH.id]) ? char.values[a.lfH.id] : [])).slice(); dr.cards.forEach(function(ix, k) { rH.push(cardRow(a.lfH, a.deckD, ix, rH, dkFc[k])); }); out[a.lfH.id] = rH; if (dr.cards.length && handKept(a.lfH.list, char)) { dkLn.hand = true; dkLn.cnt = 'Draws ' + (dr.cards.length === 1 ? 'a card.' : dr.cards.length + ' cards.'); } }
             else if (!a.self) dkLn.pub = true;
             lines.push(dkLn); paidM = true; continue;   // only a draw everyone sees names the last card, which the table is told
         }
@@ -10046,9 +10047,9 @@ function cardHome(sys, cd) {   // a card leaves a hand, and goes back by its dec
 }
 // a card's deck, a system's or the campaign's on the machine that owns it, and the row a card makes in a hand
 function deckDefOf(sys, key) { var d = deckOf(sys.decks, key); if (d) return d; try { return _deckSrc ? _deckSrc(key, 'def') : null; } catch (e) { return null; } }
-function cardRow(lf, d, ix, rows) {
+function cardRow(lf, d, ix, rows, words) {   // words (1.6.2, backlog 223): the face the card landed on, its name where it has one face
     var cD = d.cards[ix], st = {}; (Array.isArray(lf.list.stats) ? lf.list.stats : []).forEach(function(s) { if (!isObj(s) || typeof s.key !== 'string') return; var ds = d.stats.filter(function(x) { return lower(x.key) === lower(s.key) || (!!s.label && lower(x.label) === lower(s.label)); })[0]; if (ds && isObj(cD.vals) && typeof cD.vals[ds.key] === 'number') st[s.key] = cD.vals[ds.key]; });
-    var id = uid('w_'); while (rows.some(function(r) { return rowIdOf(r) === id; })) id = uid('w_'); var rw = { id: id, def: { name: cD.name }, qty: 1, cd: [d.key, ix] }; if (Object.keys(st).length) rw.def.stats = st; return rw;
+    var id = uid('w_'); while (rows.some(function(r) { return rowIdOf(r) === id; })) id = uid('w_'); var rw = { id: id, def: { name: typeof words === 'string' && words ? words : cD.name }, qty: 1, cd: [d.key, ix] }; if (Object.keys(st).length) rw.def.stats = st; return rw;
 }
 // 1.6.2 (the builder trial's survey: draw several at once): the cards of the last draw everyone saw, read as how many (Deck.<key>.drawn), a number
 // of theirs added up (.drawn.<stat>), or its highest and lowest (.drawn.high.<stat>, .drawn.low.<stat>). 0 with none

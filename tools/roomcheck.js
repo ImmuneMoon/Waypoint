@@ -77,12 +77,14 @@ function mkDoc() {
         wrap.scrollLeft = 1000; wrap.scrollTop = 2000; wrap.getBoundingClientRect = () => ({ left: 100, top: 50, width: 800, height: 600 });
         const am = { id: 'm1', type: 'map', meta: { title: 'Keep', gridType: o.grid }, cats: { c1: { label: 'Rooms' } }, rooms: (o.rooms || []).map(r => Object.assign({}, r)), links: (o.links || []).map(l => l.slice()) };
         const camp = { items: { m1: am } }; if (o.taken) camp.items.t1 = { type: 'map', id: 't1', meta: { title: o.taken } };
+        if (o.parent) { camp.items.g1 = { type: 'map', id: 'g1', meta: { title: 'Realm', collapsed: true } }; am.meta.parentId = o.parent; }   // the map on screen under a parent ('g1'), or under one that is gone
         const store = {}; if (o.tick !== null) store.wp_roomMakesMap = o.tick === undefined ? 'off' : o.tick;   // null: nothing stored, so the tick as it starts
+        if (o.place !== undefined) store.wp_newMapPlace = o.place;
         const state = { viewMode: 'data', zoomLevel: o.zoom || 2, snap: !!o.snap, linkType: o.linkType || '', els: {}, selId: null, selLink: null, linkStart: 'x' };
-        const log = { saves: 0, renders: 0, dm: 0, toasts: [], picked: [], nav: 0, armed: [], asks: [] };
+        const log = { saves: 0, renders: 0, dm: 0, toasts: [], picked: [], nav: 0, armed: [] }; Object.defineProperty(log, 'asks', { value: [], enumerable: false });   // the questions asked, kept out of the log's words (their body is elements)
         let n = 0;
         const win = { wpCanPersistLocal: () => o.persist !== false, wpNet: o.foreign ? { foreign: true } : null, isPanMode: !!o.playPan, listeners: {}, addEventListener(t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); },
-            localStorage: { getItem: k => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null) }, wpPortalPlace: rec => { log.armed.push(Object.assign({}, rec)); return true; } };
+            localStorage: { getItem: k => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } }, wpPortalPlace: rec => { log.armed.push(Object.assign({}, rec)); return true; } };
         const newMap = t => ({ type: 'map', id: 'map_' + 1, meta: { title: t || 'New Map', updated: 1, homeX: 15000, homeY: 15000 }, rooms: [], links: [], whiteboard: [], cats: { 'default': { label: 'Default Category', color: '#c9c9d4' } } });
         const unique = (base, ignore) => { const taken = t => Object.keys(camp.items).some(id => id !== ignore && camp.items[id].meta && camp.items[id].meta.title === t); if (!taken(base)) return base; let k = 2; while (taken(base + ' (' + k + ')')) k++; return base + ' (' + k + ')'; };
         if (o.pan) doc.body.classList.add('data-pan');
@@ -91,7 +93,7 @@ function mkDoc() {
             pageSrc + '\nreturn { roomAddAt: roomAddAt, roomRename: roomRename, roomLinkStart: roomLinkStart, roomLinkMove: roomLinkMove, roomLinkEnd: roomLinkEnd, dataPt: dataPt, roomGround: roomGround };')(
             win, doc, state, () => (o.noMap ? null : am), (x, y) => ({ x: Math.round(x / 50) * 50, y: Math.round(y / 50) * 50 }), () => 'n' + (++n), () => { log.saves++; }, render, RC, () => !!o.linkMode, svg, canvas, wrap,
             t => log.toasts.push(t), i => { log.picked.push(i); state.selLink = i; }, { '': { label: 'Path' }, route: { label: 'Route' } }, f => f(), () => { log.dm++; }, (cx, cy, rb, w) => (cx - rb.left + w.scrollLeft) / state.zoomLevel, (cx, cy, rb, w) => (cy - rb.top + w.scrollTop) / state.zoomLevel,
-            () => camp, newMap, unique, () => { log.nav++; }, (q, cb, op) => { log.asks.push({ q, cb, op }); if (o.answer !== 'hold') cb(o.answer === undefined ? true : o.answer); });
+            () => camp, newMap, unique, () => { log.nav++; }, (q, cb, op) => { log.asks.push({ q, cb, op }); if (o.where && op && op.body) op.body.children.slice(1).forEach(r => { r.children[0].checked = r.children[0].value === o.where; }); if (o.answer !== 'hold') cb(o.answer === undefined ? true : o.answer); });
         return { doc, wrap, canvas, svg, am, state, log, win, api, camp, store };
     };
     // a room added (as Add Room, a double-click or the drag's empty ground ask it)
@@ -228,11 +230,34 @@ function mkDoc() {
         const Lat = mkWorld({ tick: 'on', answer: false }), lat = Lat.api.roomAddAt(10, 10), latI = Lat.doc.activeElement; latI.value = 'Old Mill'; Lat.doc.fire(latI, 'keydown', { key: 'Enter' });
         const Gn = mkWorld({ tick: 'on', answer: 'hold' }); Gn.api.roomAddAt(10, 10); Gn.doc.fire(Gn.doc.activeElement, 'keydown', { key: 'Enter' }); Gn.am.rooms.length = 0; Gn.log.asks[0].cb(true);
         check('the owner\'s refinement (2026-11-14): once the name box closes, the Data Map asks first, with the app\'s own question, its two buttons alone (Enter never answers it): Place it now arms the portal on the play map; Later, Escape or the close (all answer false) keep the room and its map, place no portal and say how to place it later; a room gone meanwhile places nothing',
-            Ask.log.asks.length === 1 && aq.q === 'Place the portal to Old Mill on the play map now?' && J(aq.op) === J({ yes: 'Place it now', no: 'Later', noEnter: true }) && armedAsked === 0
+            Ask.log.asks.length === 1 && aq.q === 'Place the portal to Old Mill on the play map now?' && J([aq.op.yes, aq.op.no, aq.op.noEnter]) === J(['Place it now', 'Later', true]) && aq.op.body.className === 'rmm-where' && armedAsked === 0
             && J(Ask.log.armed) === J([{ mapId: 'm1', roomId: 'n1', targetMapId: 'map_n2', title: 'Old Mill' }]) && Ask.state.viewMode === 'data'
             && Lat.log.asks.length === 1 && Lat.log.armed.length === 0 && Lat.am.rooms[0].targetMapId === lat.room.targetMapId && Lat.camp.items[lat.room.targetMapId].meta.title === 'Old Mill' && Lat.state.viewMode === 'data'
             && J(Lat.log.toasts) === J(['The room and its map are kept, with no portal yet. Press Place it on the room when you are ready.'])
-            && Gn.log.armed.length === 0 && J(Gn.log.toasts) === J(['That room is no longer on screen. No portal was placed.']), J([aq && aq.q, aq && aq.op, Ask.log.armed, Lat.log, Gn.log.toasts]));
+            && Gn.log.armed.length === 0 && J(Gn.log.toasts) === J(['That room is no longer on screen. No portal was placed.']), J([aq && aq.q, aq && aq.op && aq.op.yes, Ask.log.armed, Lat.log, Gn.log.toasts]));
+        {   // where the new map goes, asked with the portal (the owner, 2026-11-14, by prompt: "Ask with the portal")
+            const go = o => { const W = mkWorld(Object.assign({ tick: 'on' }, o)); const a = W.api.roomAddAt(10, 10); W.doc.fire(W.doc.activeElement, 'keydown', { key: 'Enter' }); W.map = W.camp.items[a.room.targetMapId]; W.ask = W.log.asks[0]; return W; };
+            const rowOf = W => { const b = W.ask.op.body; return { lab: b.children[0].textContent, role: b.attrs.role, rows: b.children.slice(1).map(r => [r.children[0].type, r.children[0].name, r.children[0].value, !!r.children[0].checked, r.children[1].textContent, r.children[2].textContent]) }; };
+            const In = go(), inRow = rowOf(In);
+            check('the question that offers the portal asks where the new map goes too: a row of three choices made by name with words set as text, Inside this map picked to start; Inside keeps the map a child of the map on screen, and the pick is kept on this computer',
+                J(inRow) === J({ lab: 'Its map goes', role: 'radiogroup', rows: [['radio', 'rmmWhere', 'inside', true, 'Inside this map', 'Nested under it in the Maps list.'], ['radio', 'rmmWhere', 'beside', false, 'Beside this map', 'Next to it, under the same parent.'], ['radio', 'rmmWhere', 'top', false, 'At the top', 'A map of its own at the top of the Maps list.']] })
+                && In.map.meta.parentId === 'm1' && In.store.wp_newMapPlace === 'inside' && In.log.armed.length === 1 && In.log.saves === 1, J([inRow, In.map.meta, In.store, In.log.saves]));
+            const Bs = go({ parent: 'g1', where: 'beside' }), Bn = go({ where: 'beside' }), Bg = go({ parent: 'gone', where: 'beside' });
+            check('Beside this map makes the new map a sibling: the parent of the map on screen, its branch of the Maps list opened, one save; where that map has no parent, or one that is gone, the new map stands at the top',
+                Bs.map.meta.parentId === 'g1' && Bs.camp.items.g1.meta.collapsed === false && Bs.store.wp_newMapPlace === 'beside' && Bs.log.saves === 2 && Bs.log.armed.length === 1
+                && !('parentId' in Bn.map.meta) && !('parentId' in Bg.map.meta) && Bn.store.wp_newMapPlace === 'beside', J([Bs.map.meta, Bn.map.meta, Bg.map.meta]));
+            const Tp = go({ parent: 'g1', where: 'top' }), Tl = go({ where: 'top', answer: false });
+            check('At the top makes it a map of its own at the top of the Maps list; Later (and so Escape and the close) moves it as picked too, places no portal, and keeps the pick',
+                !('parentId' in Tp.map.meta) && Tp.store.wp_newMapPlace === 'top' && Tp.log.armed.length === 1 && !('parentId' in Tl.map.meta) && Tl.log.armed.length === 0 && Tl.store.wp_newMapPlace === 'top', J([Tp.map.meta, Tl.map.meta, Tl.log.armed]));
+            const Rb = go({ parent: 'g1', place: 'beside' }), Rt = go({ place: 'top' }), Rx = go({ place: '<b>x</b>' }), rbRow = rowOf(Rb).rows.map(r => r[3]), rtRow = rowOf(Rt).rows.map(r => r[3]), rxRow = rowOf(Rx).rows.map(r => r[3]);
+            check('the remembered pick: the question starts on the place this computer picked last (wp_newMapPlace), and the map goes there when it is left as it is; a kept value that is none of the three reads as Inside',
+                J(rbRow) === J([false, true, false]) && Rb.map.meta.parentId === 'g1' && J(rtRow) === J([false, false, true]) && !('parentId' in Rt.map.meta) && J(rxRow) === J([true, false, false]) && Rx.map.meta.parentId === 'm1' && Rx.store.wp_newMapPlace === 'inside', J([rbRow, rtRow, rxRow]));
+            check('roomcore: a kept place read back as data (cleanMapPlace: inside, beside or top, else inside) and the parent each one gives (mapPlaceParent: the map itself, its parent where that is a map, else none), and the move adds no undo step of its own: a map\'s parent is live meta, outside what Undo records (io.js META_LIVE)',
+                ['inside', 'beside', 'top'].every(k => RC.cleanMapPlace(k) === k) && [null, '', 'Top', 5, {}].every(v => RC.cleanMapPlace(v) === 'inside')
+                && RC.mapPlaceParent('inside', { id: 'm1', meta: { parentId: 'g1' } }, {}) === 'm1' && RC.mapPlaceParent('beside', { id: 'm1', meta: { parentId: 'g1' } }, { g1: { type: 'map' } }) === 'g1'
+                && RC.mapPlaceParent('beside', { id: 'm1', meta: { parentId: 'g1' } }, { g1: { type: 'planner' } }) === null && RC.mapPlaceParent('beside', { id: 'm1', meta: {} }, {}) === null && RC.mapPlaceParent('top', { id: 'm1' }, {}) === null && RC.mapPlaceParent('inside', null, {}) === null
+                && /var META_LIVE = \{[^}]*\bparentId: 1,/.test(read('scripts/io.js')));
+        }
         const prS = cut(read('scripts/whiteboard.js'), 'pieceroom', 'whiteboard.js');
         check('Make a room for this makes no map: its piece is the room\'s place already (it never asks roomAddAt)', !/roomAddAt|wpRoomAdd|wpPortalPlace/.test(prS));
     }
@@ -658,9 +683,9 @@ function mkDoc() {
         && [wn, wn2].every(t => t.includes('- A Find a room box runs along the top of the Data Map. It reads each room\'s') && t.includes('- Quick jump finds a room by the words in its notes or by who is there too.'))
         && [wn, wn2].every(t => /\nThe Data Map\n- A new room comes up with its name ready to type, on the room itself\./.test(t) && t.includes('now stand as a stair, each\n  one in sight.\n') && t.includes('this. The room goes on the Data Map, linked to the piece, and its name is')));
     check('Help says a new room\'s own map in plain words, and both release notes say it under the Data Map',
-        ix.includes('<h4>A new room&rsquo;s own map</h4>') && ix.includes('Click a cell to place the portal there. Press <kbd>Esc</kbd> to skip it. The room and its map stay.</li>') && ix.includes('<li>Press <b>Later</b> to stay on the Data Map. Place the portal any time with <b>Place it</b> on the room.</li>') && ix.includes('one square cell, one hex cell, or a circle on a map with no grid.') && ix.includes('untick <b>A new room makes its own map</b>')
+        ix.includes('<h4>A new room&rsquo;s own map</h4>') && ix.includes('Click a cell to place the portal there. Press <kbd>Esc</kbd> to skip it. The room and its map stay.</li>') && ix.includes('<b>Beside this map</b> puts it next to this one, under the same parent, for places you travel between. <b>At the top</b> makes it a map of its own. Your pick is ready next time.</li>') && ix.includes('<li>Press <b>Later</b> to stay on the Data Map. Place the portal any time with <b>Place it</b> on the room.</li>') && ix.includes('one square cell, one hex cell, or a circle on a map with no grid.') && ix.includes('untick <b>A new room makes its own map</b>')
         && ix.includes('<li><b>Make a room for this</b> makes no map. Its piece is already the room&rsquo;s place.</li>')
-        && [wn, wn2].every(t => t.includes("- Double-click empty ground on the Data Map to add a room there.\n- A new room makes its own map now, named after it and nested under the map\n  you're on. Place its portal on the play map right away, or later with Place\n  it. The portal fits your grid.")));
+        && [wn, wn2].every(t => t.includes("- Double-click empty ground on the Data Map to add a room there.\n- A new room makes its own map now, named after it. Put the map inside the one\n  you're on, beside it as a sibling, or at the top. Place its portal on the\n  play map right away, or later with Place it. The portal fits your grid.")));
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exitCode = 1;

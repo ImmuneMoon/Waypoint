@@ -1782,18 +1782,47 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
       m.meta.title = getUniqueItemTitle(rr.name, m.id); made.title = m.meta.title;
       return true;
   }
+  // Where the new map goes is asked with the portal (the owner, 2026-11-14, by prompt: "Ask with the portal"): Inside this map, Beside this map or
+  // At the top, a row of choices in the question's body, set at the one this computer picked last (wp_newMapPlace, read back through roomcore
+  // cleanMapPlace; Inside to start). Whatever the answer, Later and Escape too, the map goes where the row says and the pick is kept. The map's
+  // place in the Maps list is no content of any map, so the move adds no step of its own: one Undo still takes the room back
+  var MAP_PLACE_WORDS = { inside: ['Inside this map', 'Nested under it in the Maps list.'], beside: ['Beside this map', 'Next to it, under the same parent.'], top: ['At the top', 'A map of its own at the top of the Maps list.'] };
+  function roomMapPlacePick() { try { var ls = window.localStorage; return RC.cleanMapPlace(ls ? ls.getItem('wp_newMapPlace') : null); } catch (e) { return 'inside'; } }
+  function roomMapPlaceRow(pick) {   // elements made by name, every word set as text
+      var box = document.createElement('div'), lab = document.createElement('div'), list = [];
+      box.className = 'rmm-where'; box.setAttribute('role', 'radiogroup'); box.setAttribute('aria-label', 'Where the new map goes');
+      lab.className = 'rmm-where-lab'; lab.textContent = 'Its map goes'; box.appendChild(lab);
+      RC.MAP_PLACES.forEach(function(k) {
+          var row = document.createElement('label'), inp = document.createElement('input'), txt = document.createElement('span'), sm = document.createElement('small');
+          inp.type = 'radio'; inp.name = 'rmmWhere'; inp.value = k; inp.checked = k === pick;
+          txt.textContent = MAP_PLACE_WORDS[k][0]; sm.textContent = MAP_PLACE_WORDS[k][1];
+          row.className = 'rmm-where-row'; row.appendChild(inp); row.appendChild(txt); row.appendChild(sm); box.appendChild(row); list.push(inp);
+      });
+      return { el: box, read: function() { var on = list.filter(function(i) { return i.checked; })[0]; return RC.cleanMapPlace(on ? on.value : pick); } };
+  }
+  function roomMapMove(made, where) {   // the map moved where the row says, and the pick kept on this computer. Answers whether it moved
+      try { if (window.localStorage) window.localStorage.setItem('wp_newMapPlace', where); } catch (e) {}
+      var camp = getActiveCampaign(), m = camp && camp.items ? camp.items[made.targetMapId] : null, am = camp && camp.items ? camp.items[made.mapId] : null;
+      if (!m || m.type !== 'map' || !m.meta || !am) return false;
+      var pid = RC.mapPlaceParent(where, am, camp.items), had = m.meta.parentId || null;
+      if (pid) { m.meta.parentId = pid; if (camp.items[pid].meta) camp.items[pid].meta.collapsed = false; } else delete m.meta.parentId;
+      if (had === pid) return false;
+      save(); updateSidebarNav();
+      return true;
+  }
   function roomPortalArm(made) {   // after the name box: the board's own turn, so the press or key that closed the box is over first
       setTimeout(function() {
           var am = getActiveMap(), rr = am && am.id === made.mapId ? roomOf(am, made.roomId) : null;
           if (!rr || rr.targetMapId !== made.targetMapId) return;   // the room is gone, or another map came on screen: nothing to place
           if (canvas && canvas.querySelector && canvas.querySelector('.rn-edit')) { toast('No portal placed for ' + (rr.name || 'the room') + '. Another room is being named.'); return; }
-          var nm = rr.name || 'the room';
+          var nm = rr.name || 'the room', where = roomMapPlaceRow(roomMapPlacePick());
           showConfirm('Place the portal to ' + nm + ' on the play map now?', function(ans) {
+              roomMapMove(made, where.read());   // Later, Escape and the close keep the place picked too
               var am2 = getActiveMap(), r2 = am2 && am2.id === made.mapId ? roomOf(am2, made.roomId) : null;
               if (ans !== true) { if (r2) toast('The room and its map are kept, with no portal yet. Press Place it on the room when you are ready.'); return; }   // Later, Escape or the close
               if (!r2 || r2.targetMapId !== made.targetMapId) { toast('That room is no longer on screen. No portal was placed.'); return; }
               if (window.wpPortalPlace) window.wpPortalPlace(made);
-          }, { yes: 'Place it now', no: 'Later', noEnter: true });   // its buttons alone: the Enter that kept the name never answers it
+          }, { yes: 'Place it now', no: 'Later', noEnter: true, body: where.el });   // its buttons alone: the Enter that kept the name never answers it
       }, 0);
   }
   function roomAddAt(x, y, from) {

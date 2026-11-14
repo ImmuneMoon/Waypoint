@@ -182,6 +182,19 @@ function portalBox(grid, cx, cy) {
     else if (isObj(grid) && grid.type === 'hex' && num(grid.s, 0) > 0 && num(grid.h, 0) > 0) { w = 2 * grid.s; h = grid.h; }
     return { x: Math.round((x - w / 2) * 100) / 100, y: Math.round((y - h / 2) * 100) / 100, w: w, h: h };
 }
+// Where a new room's map goes (the owner, 2026-11-14, by prompt: "Ask with the portal"): 'inside' the map the Data Map shows (a child), 'beside'
+// it (a sibling: that map's own parent, or the top level where it has none or its parent is gone) or at the 'top'. cleanMapPlace reads a kept
+// pick back as data, Inside where it is none of the three. mapPlaceParent answers the parent's id, or null for the top level
+var MAP_PLACES = ['inside', 'beside', 'top'];
+function cleanMapPlace(v) { return MAP_PLACES.indexOf(v) >= 0 ? v : 'inside'; }
+function mapPlaceParent(where, map, items) {
+    if (!isObj(map) || typeof map.id !== 'string') return null;
+    var w = cleanMapPlace(where);
+    if (w === 'inside') return map.id;
+    if (w === 'top') return null;
+    var p = isObj(map.meta) && typeof map.meta.parentId === 'string' ? map.meta.parentId : '';
+    return p && isObj(items) && Object.prototype.hasOwnProperty.call(items, p) && isObj(items[p]) && items[p].type === 'map' ? p : null;
+}
 function portalPiece(room, box, kind) {
     if (!isObj(room) || typeof room.id !== 'string' || !room.id || typeof room.targetMapId !== 'string' || !room.targetMapId || !isObj(box)) return null;
     var x = num(box.x, NaN), y = num(box.y, NaN), w = num(box.w, NaN), h = num(box.h, NaN);
@@ -245,6 +258,6 @@ function charRoomIn(items, first, charId, name) {
     return null;
 }
 
-var API = { ROOM_W: ROOM_W, portalBox: portalBox, portalPiece: portalPiece, fold: fold, queryWords: queryWords, jumpMatch: jumpMatch, roomWords: roomWords, roomMatch: roomMatch, roomCatOf: roomCatOf, catsUsed: catsUsed, roomShown: roomShown, roomsOrdered: roomsOrdered, ROOM_H: ROOM_H, NAME_MAX: NAME_MAX, roomNameOf: roomNameOf, freeSpot: freeSpot, newRoom: newRoom, linkAt: linkAt, linkAdd: linkAdd, besideRooms: besideRooms, pieceRoomOk: pieceRoomOk, pieceRoomName: pieceRoomName, roomPlaceOf: roomPlaceOf, roomsPlaced: roomsPlaced, roomPlacePiece: roomPlacePiece, roomsHere: roomsHere, roomFaces: roomFaces, entryName: entryName, charRoomIn: charRoomIn };
+var API = { ROOM_W: ROOM_W, portalBox: portalBox, portalPiece: portalPiece, MAP_PLACES: MAP_PLACES, cleanMapPlace: cleanMapPlace, mapPlaceParent: mapPlaceParent, fold: fold, queryWords: queryWords, jumpMatch: jumpMatch, roomWords: roomWords, roomMatch: roomMatch, roomCatOf: roomCatOf, catsUsed: catsUsed, roomShown: roomShown, roomsOrdered: roomsOrdered, ROOM_H: ROOM_H, NAME_MAX: NAME_MAX, roomNameOf: roomNameOf, freeSpot: freeSpot, newRoom: newRoom, linkAt: linkAt, linkAdd: linkAdd, besideRooms: besideRooms, pieceRoomOk: pieceRoomOk, pieceRoomName: pieceRoomName, roomPlaceOf: roomPlaceOf, roomsPlaced: roomsPlaced, roomPlacePiece: roomPlacePiece, roomsHere: roomsHere, roomFaces: roomFaces, entryName: entryName, charRoomIn: charRoomIn };
 if (typeof window !== 'undefined') window.wpRoomCore = API;
-export { portalBox, portalPiece, fold, queryWords, jumpMatch, roomWords, roomMatch, roomCatOf, catsUsed, roomShown, roomsOrdered, ROOM_W, ROOM_H, NAME_MAX, roomNameOf, freeSpot, newRoom, linkAt, linkAdd, besideRooms, pieceRoomOk, pieceRoomName, roomPlaceOf, roomsPlaced, roomPlacePiece, roomsHere, roomFaces, entryName, charRoomIn };
+export { portalBox, portalPiece, MAP_PLACES, cleanMapPlace, mapPlaceParent, fold, queryWords, jumpMatch, roomWords, roomMatch, roomCatOf, catsUsed, roomShown, roomsOrdered, ROOM_W, ROOM_H, NAME_MAX, roomNameOf, freeSpot, newRoom, linkAt, linkAdd, besideRooms, pieceRoomOk, pieceRoomName, roomPlaceOf, roomsPlaced, roomPlacePiece, roomsHere, roomFaces, entryName, charRoomIn };

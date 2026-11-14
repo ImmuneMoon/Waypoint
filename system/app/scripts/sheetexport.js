@@ -171,7 +171,7 @@ function charFromJson(view, j, find, findKey) {
         var fits = k === 'number' || k === 'skill' ? typeof v === 'number' && isFinite(v) : k === 'toggle' ? typeof v === 'boolean' : k === 'resource' ? isObj(v) && typeof v.cur === 'number' && isFinite(v.cur) : typeof v === 'string';
         if (!fits) { out.unmatched.push(label(fid)); return; }
         out.values[f.id] = k === 'resource' ? { cur: v.cur } : v;
-        if (fileFilled && fileFilled.indexOf(fid) >= 0 && (k === 'number' || k === 'text')) (out.filled = out.filled || []).push(f.id);   // 1.6.2 (auto apply): a figure the file says a fill wrote
+        if (fileFilled && fileFilled.indexOf(fid) >= 0 && (k === 'number' || k === 'toggle' || k === 'text')) (out.filled = out.filled || []).push(f.id);   // 1.6.2 (auto apply): a figure the file says a fill wrote
         if (fileLooks && (k === 'text' || k === 'notes') && own(fileLooks, fid)) { if (!out.looks) out.looks = {}; out.looks[f.id] = recShapeOk(fileLooks[fid]) ? clone(fileLooks[fid]) : null; }   // item 35 (a look that is no record: null, which ends the text's old look where the fill is applied, as a look that does not clean does)
     });
     lnQ.forEach(function(x) { var o = {}; if (x.o.tp) o.tp = x.o.tp; ['up', 'pl'].forEach(function(k) { if (typeof x.o[k] === 'string' && own(idMap, x.o[k])) o[k] = idMap[x.o[k]]; else if (x.o[k + 'At']) o[k + 'At'] = x.o[k + 'At']; }); if (Object.keys(o).length) x.q.link = o; });   // 1.6.2 (body fold 2): fillMaking lays them once every row stands

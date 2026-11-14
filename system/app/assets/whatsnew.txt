@@ -554,6 +554,8 @@ At the table
   blank or still holds what a fill wrote, never over a figure someone typed.
   The sheet marks such figures worked out or filled, and a faint arrow sets
   a typed one back.
+  A toggle can be worked out the same way, so Large ticks itself once Size
+  reaches 3 and unticks when Size falls back. Tick it by hand and it stays.
   A character file carries which figures are fills, and a file read in can
   say so too, so an average keeps following what fills it.
 - Taking damage can name a number a wound comes off first, as temporary hit

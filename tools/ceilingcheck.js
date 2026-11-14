@@ -82,10 +82,10 @@ const j = JSON.stringify;
     timed('one name read of a character', 100, () => S.makeResolver(gm, ch, F)('A400'));
 
     /* ---------- formulas at their length (1.6.2: LIMITS.formula 10,000, some ten times the longest real one, 962 characters) ---------- */
-    {   // a system the size of a real game (a tenth of the ceilings: 600 fields, 160 rolls) whose every formula stands at the cap: a chain of formulas, numbers worked out until typed, and rolls
+    {   // a system the size of a real game (a tenth of the ceilings: 600 fields, 160 rolls) whose every formula stands at the cap: a chain of formulas, numbers and a toggle worked out until typed, and rolls
         const capF = (head, len) => { const s = head + ' + 1'.repeat(Math.floor((len - head.length) / 4)); return s + '1'.repeat(len - s.length); };
         const longSys = len => {
-            const fields = [{ id: 'f_n', key: 'N0', label: 'N', kind: 'number', def: 1, vis: 'all' }];
+            const fields = [{ id: 'f_n', key: 'N0', label: 'N', kind: 'number', def: 1, vis: 'all' }, { id: 'f_tg', key: 'Tg', label: 'Tg', kind: 'toggle', auto: capF('N0 > 0 and 1', len), vis: 'all' }];
             for (let i = 1; fields.length < L.fields / 10; i++) fields.push(i % 2 ? { id: 'f_a' + i, key: 'A' + i, label: 'A ' + i, kind: 'formula', formula: capF(i === 1 ? 'N0' : 'A' + (i - 2), len), vis: 'all' } : { id: 'f_a' + i, key: 'A' + i, label: 'A ' + i, kind: 'number', auto: capF('A' + (i - 1), len), vis: 'all' });
             const rolls = Array.from({ length: L.rolls / 10 }, (_, i) => ({ id: 'r_l' + i, label: 'Long ' + i, formula: capF('1d20 + A' + (1 + 2 * (i % 100)), len) }));
             return { v: 1, name: 'Long', fields, rolls, sheet: { sections: [{ id: 's_1', title: 'S', fields: fields.slice(0, 100).map(f => ({ id: f.id, w: 1 })) }] } };
@@ -96,7 +96,7 @@ const j = JSON.stringify;
         const vL = timed('validateSystem of formulas at their length', 4400, () => S.validateSystem(gmL, F));
         check('formulas at their length read: no error of their own', vL.errors.length === 0, j(vL.errors.slice(0, 2)).slice(0, 300));
         const chL = S.cleanChar({ id: 'c_l', name: 'L', ownerId: 'u_a', values: {} }, gmL), resL = timed('resolveAll of formulas at their length', 3200, () => S.resolveAll(gmL, chL, F));
-        check('formulas at their length are worked out: the chain\'s last figure and a number worked out until typed', typeof resL['f_a' + (L.fields / 10 - 3)].value === 'number' && resL.f_a2.auto === 1, j([resL['f_a' + (L.fields / 10 - 3)], resL.f_a2]).slice(0, 300));
+        check('formulas at their length are worked out: the chain\'s last figure, a number worked out until typed and a toggle worked out until set', typeof resL['f_a' + (L.fields / 10 - 3)].value === 'number' && resL.f_a2.auto === 1 && resL.f_tg.value === true && resL.f_tg.auto === 1, j([resL['f_a' + (L.fields / 10 - 3)], resL.f_a2, resL.f_tg]).slice(0, 300));
         console.log('          a system of formulas at their length ' + (j(rawL).length / 1048576).toFixed(1) + ' MB, its players\' view ' + (j(pvL).length / 1048576).toFixed(1) + ' MB');
         const halfL = longSys(L.formula / 2), gmH = S.cleanSystem(halfL, { F, gmView: true }), chH = S.cleanChar({ id: 'c_l', name: 'L', ownerId: 'u_a', values: {} }, gmH), best = f => Math.min(cpu(f)[1], cpu(f)[1], cpu(f)[1]);
         const [rH, rF] = [best(() => S.resolveAll(gmH, chH, F)), best(() => S.resolveAll(gmL, chL, F))];

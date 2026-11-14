@@ -15727,9 +15727,9 @@ pendingChecks.push((async () => {
         const edSrc = between('// [netcheck:charedit-start]', '// [netcheck:charedit-end]', 'charedit'), msSrc = between('// [netcheck:charedits-start]', '// [netcheck:charedits-end]', 'charedits'), ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem');
         const dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta'), bnSrc = between('// [netcheck:budgetnote-start]', '// [netcheck:budgetnote-end]', 'budgetnote');
         const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();   // the item notice, the budget notice and what both keep
-        const mk = (rule, vals, charMore) => {
+        const mk = (rule, vals, charMore, fieldsMore) => {
             const sys = Sx.cleanSystem({ v: 1, name: 'B', rolls: [], items: [{ id: 'i_x', name: 'X' }, { id: 'i_y', name: 'Y' }, { id: 'i_z', name: 'Z' }], fields: [{ id: 'f_st', key: 'ST', kind: 'number', def: 10 }, { id: 'f_dx', key: 'DX', kind: 'number', def: 10 },
-                { id: 'f_cp', key: 'CP', kind: 'number', def: 100, edit: 'gm' }, { id: 'f_kit', key: 'Kit', kind: 'item-list' }], budgets: rule ? [Object.assign({ id: 'b_cp', name: 'Character points', has: 'CP', spent: '(ST - 10) * 10 + (DX - 10) * 10 + Kit.count * 5' }, rule)] : undefined }, { F: Fx, gmView: true });
+                { id: 'f_cp', key: 'CP', kind: 'number', def: 100, edit: 'gm' }, { id: 'f_kit', key: 'Kit', kind: 'item-list' }].concat(fieldsMore || []), budgets: rule ? [Object.assign({ id: 'b_cp', name: 'Character points', has: 'CP', spent: '(ST - 10) * 10 + (DX - 10) * 10 + Kit.count * 5' }, rule)] : undefined }, { F: Fx, gmView: true });
             const camp = { id: 'k', system: sys, chars: { c_1: Object.assign({ id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: vals || { f_st: 19 } }, charMore) } };
             const out = { answer: [], owner: [], notes: [], logs: [], saves: 0, clock: 1000000 }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
             const conn = { peer: 'pA', send: box(out.answer) }, net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }], roster: { pA: { id: 'u_a' } } };
@@ -15744,6 +15744,16 @@ pendingChecks.push((async () => {
         const E = (fid, v) => ({ type: 'char-edit', rid: 'e1', charId: 'c_1', fieldId: fid, value: v }), M = (...vals) => ({ type: 'char-edits', rid: 'm1', charId: 'c_1', values: vals.map(p => ({ fieldId: p[0], value: p[1] })) });
         const ADD = k => ({ type: 'char-item', rid: 'i1', charId: 'c_1', fieldId: 'f_kit', op: 'add', defId: 'i_' + k, rowId: 'w_' + k + '1', qty: 1 });
         const ACK = rid => j([{ type: 'char-ack', rid }]), SAYS = (spent, by) => 'Character points: ' + spent + ' of 100 spent. That is ' + by + ' over.', NO = (rid, spent, by) => j([{ type: 'char-deny', rid, reason: 'budget', msg: SAYS(spent, by) }]), WARN = (rid, spent, by) => j([{ type: 'char-ack', rid, msg: SAYS(spent, by) }]);
+        {   // 1.6.2: a toggle worked out until set (the ask of the session that builds a game system), on the host: the real edit and batch branches fill it, a player's own setting stands, and a null gives the worked-out one back
+            const T = mk(null, { f_st: 10 }, null, [{ id: 'f_sz', key: 'Size', kind: 'number', def: 2, fills: [{ f: 'f_big', formula: 'Size >= 3' }] }, { id: 'f_big', key: 'Big', kind: 'toggle', auto: 'Size >= 3' }]);
+            const afOf = () => JSON.parse(JSON.stringify(T.camp.chars.c_1.af || null));
+            const t1 = T.run('edit', E('f_sz', 4)), a1 = afOf(), t2 = T.run('edit', E('f_big', false)), a2 = afOf(), t3 = T.run('edit', E('f_sz', 1)), t4 = T.run('edit', E('f_big', null)), t5 = T.run('edits', M(['f_sz', 5])), a5 = afOf();
+            check('1.6.2 a toggle worked out until set, on the host (the real edit and batch branches, with the real core): typing a figure fills the toggle in the same change and marks it; the player switching it, off too, takes the mark and no fill writes over it; a null gives it back to its worked-out setting (stored as none); a batch fills it again',
+                j(t1.answer) === j([{ type: 'char-ack', rid: 'e1' }]) && j(t1.vals) === j({ f_st: 10, f_sz: 4, f_big: true }) && j(a1) === j({ f_big: 1 })
+                && j(t2.vals) === j({ f_st: 10, f_sz: 4, f_big: false }) && a2 === null && j(t3.vals) === j({ f_st: 10, f_sz: 1, f_big: false })
+                && j(t4.answer) === j([{ type: 'char-ack', rid: 'e1' }]) && j(t4.vals) === j({ f_st: 10, f_sz: 1 }) && j(t5.vals) === j({ f_st: 10, f_sz: 5, f_big: true }) && j(a5) === j({ f_big: 1 }),
+                j([t1.answer, t1.vals, a1, t2.vals, a2, t3.vals, t4.answer, t4.vals, t5.vals, a5]));
+        }
         const quiet = (r, vals) => r.sent === 0 && r.saved === 0 && r.notes.length === 0 && r.logs.length === 0 && j(r.vals) === j(vals), went = r => r.sent === 1 && r.saved === 1;
         // a budget that refuses, watched always
         const R = mk({ over: 'refuse', when: 'always' });

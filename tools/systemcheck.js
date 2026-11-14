@@ -23148,7 +23148,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             fA(GA, 'f_s').auto === 'floor(max(Height.figure, Long) / 12)' && J(fA(GA, 'f_s').fills) === J([{ f: 'f_h', formula: 'Size * 12 + 6' }, { f: 'f_w', formula: 'Size * 30' }, { f: 'f_gone', formula: '1' }]) && !('auto' in fA(GA, 'f_t'))
             && J(fA(VA, 'f_s').fills) === J(fA(GA, 'f_s').fills) && fA(VA, 'f_x').auto === null && !('fills' in fA(VA, 'f_x')) && fA(GA, 'f_x').auto === 'Secret * 2', J([fA(GA, 'f_s'), fA(VA, 'f_x')]));
         const vA = S.validateSystem(GA, F);
-        check('the validator reads a height or a weight as a figure (Height.figure, in inches) in a worked-out formula, and says a fill whose field is gone', vA.errors.length === 0 && vA.warnings.some(w => w.id === 'f_s' && /A field this fills is not a number, a height or a weight/.test(w.message)), J([vA.errors, vA.warnings]));
+        check('the validator reads a height or a weight as a figure (Height.figure, in inches) in a worked-out formula, and says a fill whose field is gone', vA.errors.length === 0 && vA.warnings.some(w => w.id === 'f_s' && /A field this fills is not a number, a toggle, a height or a weight/.test(w.message)), J([vA.errors, vA.warnings]));
         const chA = v => ({ id: 'c_a', name: 'A', ownerId: 'u_a', values: v || {} });
         const r1 = S.resolveAll(GA, chA({ f_h: "5'7\"" }), F), r2 = S.resolveAll(GA, chA({ f_h: "5'7\"", f_s: 9 }), F), r3 = S.resolveAll(GA, chA({ f_l: 80 }), F);
         check('with nothing typed the field reads its worked-out figure, a height read in inches (5\u20327\u2033 is 67, so Size 5), the longer of two, and is marked worked out; a typed figure stands', r1.f_s.value === 5 && r1.f_s.auto === 1 && r2.f_s.value === 9 && !r2.f_s.auto && r3.f_s.value === 6, J([r1.f_s, r2.f_s, r3.f_s]));
@@ -23183,7 +23183,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const nt = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8'), fb = fs.readFileSync(path.join(app, 'scripts', 'formbox.js'), 'utf8');
         check('every place a typed figure is stored fills at once, in the same change: the GM\u2019s own and the host\u2019s, one at a time and in a batch; Revert takes the marks back with the figures; both boxes are forms',
             /autoFills\(sys, c, f\.id, res\.value, F\(\)\)/.test(shA) && /autoFills\(sys, work, q\.fieldId, res\.value, F\(\)\)/.test(shA) && /Se\.autoFills\(campE\.system, chE, q\.fieldId, resE\.value, Fe\)/.test(nt) && /Sm\.autoFills\(campM\.system, workM, fidM, resM\.value, Fm\)/.test(nt)
-            && /if \(lastChange\.af !== undefined\)/.test(shA) && /'sys-wout': 'amt', 'sys-tfill-f': 'amt'/.test(fb));
+            && /if \(lastChange\.af !== undefined\)/.test(shA) && /'sys-wout': 'amt', 'sys-wout-on': 'cond', 'sys-tfill-f': 'amt'/.test(fb));
         // a file read in may say which of its figures are fills (the Campaign beats session's follow-up: a website's average height keeps following Size)
         const fillF = { values: { f_h: "6'6\"", f_w: '180 lbs', f_t: 'x' }, filled: ['f_h', 'f_t', 'f_nope'] }, fm = S.fillMarks(GA, fillF, { f_h: "6'6\"", f_w: '180 lbs', f_t: 'x' });
         const chM = { id: 'c_m', values: {}, af: { f_w: 1, f_l: 1 } }; S.afApply(chM, fm);
@@ -23196,6 +23196,47 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const XP = await import(url('sheetexport.js')), jOut = XP.charToJson(GA, { id: 'c_a', name: 'A', values: { f_h: "6'6\"", f_w: '180 lbs' }, af: { f_h: 1, f_x: 1 } }, null, {}), jNone = XP.charToJson(GA, { id: 'c_a', name: 'A', values: { f_h: "6'6\"" } }, null, {});
         const jBack = XP.charFromJson(GA, jOut, null, null);
         check('a Waypoint character file carries the marks of the figures it holds, absent with none, and reads them back for this sheet', J(jOut.filled) === J(['f_h']) && !('filled' in jNone) && jBack && J(jBack.filled) === J(['f_h']), J([jOut.filled, jNone.filled, jBack && jBack.filled]));
+        {   // 1.6.2: a toggle may be worked out until set (asked by the session that builds a game system, 2026-11-14): on where its formula gives a figure other than 0, as a number's figure is worked out
+            const RAWT = { v: 1, name: 'T', fields: [
+                { id: 'f_sz', key: 'Size', label: 'Size', kind: 'number', def: 2, fills: [{ f: 'f_big', formula: 'Size >= 3' }, { f: 'f_pl', formula: 'Size - 2' }, { f: 'f_tx', formula: '1' }] },
+                { id: 'f_big', key: 'Big', label: 'Big', kind: 'toggle', auto: 'Size >= 3' },
+                { id: 'f_sec', key: 'Sec', label: 'Sec', kind: 'number', vis: 'gm', def: 5 },
+                { id: 'f_hid', key: 'Hid', label: 'Hid', kind: 'toggle', auto: 'Sec - 4', fills: [{ f: 'f_sz', formula: 'Sec' }, { f: 'f_big', formula: '1' }] },
+                { id: 'f_dice', key: 'Dice', label: 'Dice', kind: 'toggle', auto: '1d6 > 3', fills: [{ f: 'f_big', formula: '1d6' }] },
+                { id: 'f_pl', key: 'Pl', label: 'Pl', kind: 'toggle', def: true },
+                { id: 'f_tx', key: 'Tx', label: 'Tx', kind: 'text' }] };
+            const GT = S.cleanSystem(RAWT, { F, gmView: true }), VT = S.cleanSystem(RAWT, { F, gmView: false }), fT = (s, id) => s.fields.find(x => x.id === id);
+            check('1.6.2 a toggle may be worked out until set: cleanField keeps its auto and its fills as a number\'s, none that rolls dice, in both views; the players’ view makes one that reads a GM-only value null (GM only) and drops such a fill; a toggle with neither is cleaned as it always was',
+                fT(GT, 'f_big').auto === 'Size >= 3' && !('auto' in fT(GT, 'f_dice')) && !('fills' in fT(GT, 'f_dice')) && fT(GT, 'f_hid').auto === 'Sec - 4' && J(fT(GT, 'f_hid').fills) === J([{ f: 'f_sz', formula: 'Sec' }, { f: 'f_big', formula: '1' }])
+                && fT(VT, 'f_big').auto === 'Size >= 3' && fT(VT, 'f_hid').auto === null && J(fT(VT, 'f_hid').fills) === J([{ f: 'f_big', formula: '1' }])
+                && J(fT(GT, 'f_pl')) === J({ id: 'f_pl', key: 'Pl', label: 'Pl', kind: 'toggle', vis: 'all', hover: false, edit: 'owner', def: true }) && J(fT(VT, 'f_pl')) === J(fT(GT, 'f_pl')),
+                J([fT(GT, 'f_big'), fT(GT, 'f_hid'), fT(VT, 'f_hid'), fT(GT, 'f_pl')]));
+            const cT = { id: 'c_t', name: 'T', ownerId: 'u_a', values: {} }, rT0 = S.resolveAll(GT, cT, F), rTc = S.resolveAll(GT, { id: 'c_t', values: { f_sz: 4 } }, F), rTf = S.resolveAll(GT, { id: 'c_t', values: { f_sz: 4, f_big: false } }, F);
+            check('1.6.2 with nothing set a toggle reads its worked-out setting, on where the formula gives a figure other than 0, and is marked worked out; a toggle set by someone stands, off too',
+                rT0.f_big.value === false && rT0.f_big.auto === 1 && rTc.f_big.value === true && rTc.f_big.auto === 1 && S.makeResolver(GT, { id: 'c_t', values: { f_sz: 4 } }, F)('Big') === true && rTf.f_big.value === false && rTf.f_big.auto === undefined && rT0.f_pl.value === true && rT0.f_pl.auto === undefined,
+                J([rT0.f_big, rTc.f_big, rTf.f_big, rT0.f_pl]));
+            const flT = S.autoFills(GT, cT, 'f_sz', 4, F); S.autoStore(cT, 'f_sz', 4, flT); const rTs = S.resolveAll(GT, cT, F);
+            const cT2 = JSON.parse(J(cT)); S.autoStore(cT2, 'f_big', false, S.autoFills(GT, cT2, 'f_big', false, F)); const flT2 = S.autoFills(GT, cT2, 'f_sz', 2, F);
+            check('1.6.2 typing a figure fills a toggle at once, on where the fill gives a figure other than 0, and marks it filled with the field it came from; once someone sets it, off too, its mark goes and no fill writes over it',
+                J(flT) === J({ f_big: true, f_pl: true }) && J(cT.values) === J({ f_sz: 4, f_big: true, f_pl: true }) && J(cT.af) === J({ f_big: 1, f_pl: 1 }) && rTs.f_big.filled === 'Size' && rTs.f_big.auto === undefined
+                && J(cT2.af) === J({ f_pl: 1 }) && J(flT2) === J({ f_pl: false }) && J(S.cleanAf({ f_big: 1, f_tx: 1 }, { f_big: true, f_tx: 'x' }, GT)) === J({ f_big: 1 }),
+                J([flT, cT, rTs.f_big, cT2, flT2]));
+            const clT = S.applyEdit(GT, cT, 'f_big', null, F), clP = S.applyEdit(GT, cT, 'f_pl', null, F), rTp = S.resolveAll(VT, S.charFor({ id: 'c_t', ownerId: 'u_a', values: {} }, VT, 'u_a', {}), F), vT = S.validateSystem(GT, F);
+            check('1.6.2 a toggle’s faint arrow asks for its worked-out setting back (a null, stored as none), which one with none refuses; in the players’ view one worked out from a GM-only value reads GM only and is GM-derived; a fill whose field can take none is said in plain words',
+                J(clT) === J({ ok: true, value: null, clear: true }) && clP.ok === false && rTp.f_hid.auto === 1 && /GM only/.test(String(rTp.f_hid.error)) && J(S.gmDerivedNames(GT, F, [{ name: 'Hid' }, { name: 'Big' }])) === J(['Hid'])
+                && vT.warnings.some(w => w.id === 'f_sz' && w.prop === 'fill.2' && w.message === 'A field this fills is not a number, a toggle, a height or a weight here any more.'),
+                J([clT, clP, rTp.f_hid, vT.warnings]));
+            const tw1 = AB(fT(GT, 'f_big'), cT, { auto: 1 }, true, undefined), tw2 = AB(fT(GT, 'f_big'), cT, { filled: 'Size' }, true, true), tw3 = AB(fT(GT, 'f_big'), cT, {}, true, false), tw4 = AB(fT(GT, 'f_pl'), cT, {}, true, false);
+            const tgDraw = shA.slice(shA.indexOf("    if (k === 'toggle') { var lb = el('label', 'sheet-toggle');"), shA.indexOf('\n', shA.indexOf("    if (k === 'toggle') { var lb = el('label', 'sheet-toggle');")));
+            check('1.6.2 the sheet’s toggle shows its worked-out setting, says worked out or filled (set it yourself and it stays), and a faint arrow beside one set by hand, off too, where it has a worked-out one; the System editor offers Worked out until set on a toggle’s row, and a toggle as a field to fill',
+                tw1.kids[0].textContent === 'worked out' && tw1.kids[0].title === 'Worked out from the sheet. Set it yourself and it stays.' && /from Size\. Set it yourself/.test(tw2.kids[0].title) && tw3.kids.length === 1 && tw3.kids[0].className === 'sheet-auto-reset' && tw3.kids[0].title === 'Back to the worked-out setting' && tw3.kids[0].ariaLabel === 'Set Big back to the worked-out setting' && tw4 === null
+                && /cb\.checked = \(raw === undefined \|\| raw === null\) && e && e\.auto === 1 \? \(typeof e\.base === 'boolean' \? e\.base : e\.value === true\)/.test(tgDraw) && /var abT = typeof autoBits === 'function' \? autoBits\(f, c, e, use, raw\) : null; if \(abT\) box\.appendChild\(abT\); return box; \}$/.test(tgDraw)
+                && /if \(\(f\.kind === 'number' \|\| f\.kind === 'toggle' \|\| \(f\.kind === 'text' && \(f\.unit === 'height' \|\| f\.unit === 'weight'\)\)\) && typeof autoBox === 'function'\) flags\.appendChild\(autoBox\(f\)\);/.test(shA)
+                && /tog \? 'Worked out until set: ' : 'Worked out until typed: '/.test(shA) && /input\(tog \? 'sys-wout-on field' : 'sys-wout field',/.test(shA) && /'sys-wout-on': 'cond'/.test(fb) && /x\.kind === 'number' \|\| x\.kind === 'toggle' \|\| \(x\.kind === 'text'/.test(shA),
+                J([tw1.kids.map(k => [k.textContent, k.title]), tw2.kids.map(k => k.title), tw3.kids.length, tw4, tgDraw.slice(0, 80)]));
+            const jT = XP.charToJson(GT, { id: 'c_t', name: 'T', values: { f_big: true, f_pl: false }, af: { f_big: 1 } }, null, {}), jTb = XP.charFromJson(GT, jT, null, null);
+            check('1.6.2 a Waypoint character file carries a toggle’s fill mark and reads it back', J(jT.filled) === J(['f_big']) && !!jTb && J(jTb.filled) === J(['f_big']), J([jT.filled, jTb && jTb.filled]));
+        }
         const ntF = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8');
         // temporary hit points (the rule modules session's ask, 2026-11-04): combat.damage.first, a number a wound to the main pool comes off first
         const tmpRaw = tw => ({ v: 1, name: 'T', rolls: [], sheet: { sections: [] }, fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '12', min: -99, vis: 'all', edit: 'owner' }, { id: 'f_tmp', key: 'TempHP', label: 'Temporary HP', kind: 'number', vis: tw || 'all' }, { id: 'f_txt', key: 'Note', kind: 'text' }],

@@ -574,8 +574,9 @@ function cleanField(f, F, gmView) {
     // 1.6.2 (auto apply; the CORE session, 2026-11-04, by letter: two general options, a small gray word, and "everything applies at once, with no Apply
     // button anywhere"): a number field, or a text read as a height or a weight, may be worked out until someone types its figure (auto: a formula with no
     // dice), and typing it may fill other such fields (fills: { f, formula }, AUTO_FILLS at most), each only where that field is blank or still holds what
-    // the fill gave. A GM's edit counts as typed. The same in both views but where the players' view drops one that reads a GM-only value (auto null: GM only)
-    if (k === 'number' || measureKindOf(out)) {
+    // the fill gave. A GM's edit counts as typed. The same in both views but where the players' view drops one that reads a GM-only value (auto null: GM only).
+    // A toggle too (asked by the session that builds a game system, 2026-11-14): on where its formula gives a figure other than 0, until someone sets it
+    if (autoKindOf(out)) {
         var auT = autoText(f.auto, F); if (auT) out.auto = auT; else if (f.auto === null) out.auto = null;
         if (Array.isArray(f.fills)) { var flO = [], flS = map(); f.fills.slice(0, AUTO_FILLS * 4).forEach(function(x) { if (flO.length >= AUTO_FILLS || !isObj(x) || typeof x.f !== 'string' || !FIELD_ID.test(x.f) || x.f === f.id || flS[x.f]) return; var ft = autoText(x.formula, F); if (!ft) return; flS[x.f] = 1; flO.push({ f: x.f, formula: ft }); }); if (flO.length) out.fills = flO; }
     }
@@ -6220,7 +6221,7 @@ function chainsWalk(sys, F) {
         return (lists[lk] = { sp: spec && isObj(spec.specs) ? spec.specs : null, k: lk, fid: f.id, st: st, cl: cl, ct: ct, chs: chs, fds: fds, pts: pts, ats: ats && ats.id !== f.id ? ats : null, atb: ats ? lower(spec.at.by) : '', hg: !!(spec && spec.hang === true) });
     };
     var defNode = function(f, sfx) {   // a field's name: its definition worked out (a formula, a skill's base, a pool's most), '' for one read as stored
-        if ((f.kind === 'number' || measureKindOf(f)) && typeof f.auto === 'string' && f.auto) { var aTn = [f.auto].concat(f.kind === 'number' && isObj(f.override) ? [f.override.when, f.override.value] : []).filter(function(x) { return typeof x === 'string' && x; }); return sfx && sfx !== 'base' && sfx !== 'figure' ? '' : node('f|' + lower(f.key), aTn, null, [], []); }   // 1.6.2 (auto apply): worked out until typed
+        if (autoKindOf(f) && typeof f.auto === 'string' && f.auto) { var aTn = [f.auto].concat(f.kind === 'number' && isObj(f.override) ? [f.override.when, f.override.value] : []).filter(function(x) { return typeof x === 'string' && x; }); return sfx && sfx !== 'base' && sfx !== 'figure' ? '' : node('f|' + lower(f.key), aTn, null, [], []); }   // 1.6.2 (auto apply): worked out until typed
         if (f.kind === 'number' && isObj(f.override)) return sfx && sfx !== 'base' ? '' : node('f|' + lower(f.key), [f.override.when, f.override.value].filter(function(x) { return typeof x === 'string' && x; }), null, [], []);   // 205 (6): a number's override (its .base too)
         var t = DEF_PROP[f.kind] ? f[DEF_PROP[f.kind]] : null; if (typeof t !== 'string' || !t) return '';   // none, GM only or missing: answered with nothing on the chain
         if (f.kind === 'formula' ? sfx : f.kind === 'skill' ? sfx && sfx !== 'base' : sfx && sfx !== 'max' && sfx !== 'cur') return '';   // a pool full or by .cur reads its most
@@ -11698,7 +11699,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (k === 'text' || k === 'select') { out = storedOf(field, char); if (k === 'text' && field.auto !== undefined && autoBlank(field)) { var aRt = evalDef(l, field.auto); if (aRt.error) return aRt; var aTt = measureText(field, typeof aRt.value === 'number' ? aRt.value : NaN); out = aTt === undefined ? '' : aTt; } if (suffix === 'figure') { var mFg = measureFig(field, out); out = mFg === null ? 0 : mFg; } }   // 1.6.2 (auto apply): worked out until typed, and read as a figure
         else if (k === 'notes') return undefined;
         else if (k === 'number' && field.override !== undefined) { var ovR = overOf(l, field); if (ovR && ovR.error) return ovR; var ovB = ovR ? ovR.value : field.auto !== undefined && autoBlank(field) ? autoNum(l, field) : storedOf(field, char); if (ovB && typeof ovB === 'object' && ovB.error) return ovB; out = suffix ? ovB : withFx(l, ovB, ovR ? ovR.via : null); }   // 205 (6): a number taken from a formula while its when holds (.base reads it too: the number before effects)
-        else if (k === 'number' || k === 'toggle') { var sv = k === 'number' && field.auto !== undefined && autoBlank(field) ? autoNum(l, field) : storedOf(field, char); if (sv && typeof sv === 'object' && sv.error) return sv; out = suffix ? sv : withFx(l, sv, null); }   // 1.6.2 (auto apply): a number worked out until typed   // 5h: an effect adds to a number or switches a toggle on (a suffixed name reads the stored value, as before)
+        else if (k === 'number' || k === 'toggle') { var sv = field.auto !== undefined && autoBlank(field) ? autoNum(l, field) : storedOf(field, char); if (sv && typeof sv === 'object' && sv.error) return sv; out = suffix ? sv : withFx(l, sv, null); }   // 1.6.2 (auto apply): a number worked out until typed   // 5h: an effect adds to a number or switches a toggle on (a suffixed name reads the stored value, as before)
         else if (k === 'skill') {
             var ranks = storedOf(field, char);
             if (suffix === 'ranks') out = ranks;
@@ -11717,7 +11718,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         return out;
     }
     function autoBlank(field) { var av = isObj(char) && isObj(char.values) ? char.values[field.id] : undefined; return av === undefined || av === null || av === ''; }   // 1.6.2 (auto apply): nothing typed, so its worked-out figure stands
-    function autoNum(l, field) { var aR = evalDef(l, field.auto); if (aR.error) return aR; var aV = typeof aR.value === 'number' ? aR.value : typeof aR.value === 'boolean' ? (aR.value ? 1 : 0) : NaN, aN = cleanValue(field, aV); return aN === undefined ? field.def : aN; }
+    function autoNum(l, field) { var aR = evalDef(l, field.auto); if (aR.error) return aR; var aV = typeof aR.value === 'number' ? aR.value : typeof aR.value === 'boolean' ? (aR.value ? 1 : 0) : NaN, aN = field.kind === 'toggle' ? (fin(aV) ? aV !== 0 : undefined) : cleanValue(field, aV); return aN === undefined ? field.def : aN; }   // a toggle: on where it gives a figure other than 0
     function roundKept(l, v, field) { var rv = roundBy(v, field.round, field.roundTo, field.roundAt); if (rv !== v) unr[l] = v; else delete unr[l]; return rv; }   // clarity package
     fn.unrounded = function(name) { var l = lower(name); return Object.prototype.hasOwnProperty.call(unr, l) ? unr[l] : undefined; };   // ... the figure before its rounding, where the rounding changed it
     fn.reset = function() { rowXs = new WeakMap(); linkC = map(); holdC = undefined; cache = map(); chain = []; detail = map(); unr = map(); lctx = map(); pretty = map(); rangeRead = false; coverRead = false; bodyRead = false; postureRead = false; refRec = map(); };
@@ -11831,7 +11832,7 @@ function resolveAll(sys, char, F, tctx, ropts) {   // tctx: tokenCtx(...) = { fa
             if (k === 'skill') { var rk = r(f.key + '.ranks'); e.ranks = rk; }
         }
         var dt = (k === 'number' || k === 'toggle' || k === 'formula' || k === 'skill') ? r.detail(f.key) : null;   // 5h: where the value came from — only when an effect touched it
-        if ((k === 'number' || measureKindOf(f)) && f.auto !== undefined) { var avA = isObj(char) && isObj(char.values) ? char.values[f.id] : undefined; if (avA === undefined || avA === null || avA === '') { e.auto = 1; var arA = r(f.key); if (arA && typeof arA === 'object' && arA.error) { e.error = arA.error.message; e.text = '\u2014'; } else if (k === 'text') { e.value = typeof arA === 'string' ? arA : ''; e.text = e.value; } } }   // 1.6.2 (auto apply): worked out until typed
+        if (autoKindOf(f) && f.auto !== undefined) { var avA = isObj(char) && isObj(char.values) ? char.values[f.id] : undefined; if (avA === undefined || avA === null || avA === '') { e.auto = 1; var arA = r(f.key); if (arA && typeof arA === 'object' && arA.error) { e.error = arA.error.message; e.text = '\u2014'; } else if (k === 'text') { e.value = typeof arA === 'string' ? arA : ''; e.text = e.value; } } }   // 1.6.2 (auto apply): worked out until typed
         if (dt) { var b0 = base0(f.key); e.base = b0 !== undefined ? b0 : dt.base; e.mods = dt.mods; e.via = dt.via; }
         if (k === 'formula' || k === 'resource') { var ur = r.unrounded(k === 'resource' ? f.key + '.max' : f.key); if (ur !== undefined) e[k === 'resource' ? 'maxUnrounded' : 'unrounded'] = ur; }   // clarity package: only where the rounding changed it
         if (k === 'resource') { var dm = r.detail(f.key + '.max'); if (dm) { var bm = base0(f.key + '.max'); e.maxBase = bm !== undefined ? bm : dm.base; e.maxMods = dm.mods; e.maxVia = dm.via; } }
@@ -11857,10 +11858,10 @@ function autoMarks(sys, char, F, r, out) {   // the mark where this machine keep
         });
     });
 }
-// 1.6.2 (auto apply): a character's marks, { fieldId: 1 } for a number, height or weight that holds a figure; null with none
+// 1.6.2 (auto apply): a character's marks, { fieldId: 1 } for a number, a toggle, a height or a weight that holds a figure; null with none
 function cleanAf(v, values, sys) {
     if (!isObj(v) || !isObj(sys) || !Array.isArray(sys.fields)) return null; var o = {}, n = 0;
-    Object.keys(v).slice(0, LIMITS.fields * 2).forEach(function(k) { if (v[k] !== 1 || !FIELD_ID.test(k) || !isObj(values) || values[k] === undefined || values[k] === null || values[k] === '') return; var fd = fieldById(sys, k); if (!fd || !(fd.kind === 'number' || measureKindOf(fd))) return; o[k] = 1; n++; });
+    Object.keys(v).slice(0, LIMITS.fields * 2).forEach(function(k) { if (v[k] !== 1 || !FIELD_ID.test(k) || !isObj(values) || values[k] === undefined || values[k] === null || values[k] === '') return; var fd = fieldById(sys, k); if (!autoKindOf(fd)) return; o[k] = 1; n++; });
     return n ? o : null;
 }
 // 1.6.2 (auto apply): one typed figure stored with what it fills, on the machine that owns the campaign: its own mark goes (it is typed now), each
@@ -11869,7 +11870,7 @@ function cleanAf(v, values, sys) {
 // website's sheet marks one), so they go on following what fills them. fillMarks: { fieldId: 1 | 0 } for each number, height or weight a fill wrote
 // from the file, 1 where the file lists it (fill.filled), 0 where it does not (typed, so its mark goes). proposalMarks: the same for a Review's
 // accepted value lines, each carrying filled (cleanUploads keeps it only as true). afApply lays such marks on the host's record
-function autoKindOf(f) { return isObj(f) && (f.kind === 'number' || !!measureKindOf(f)); }
+function autoKindOf(f) { return isObj(f) && (f.kind === 'number' || f.kind === 'toggle' || !!measureKindOf(f)); }   // what may be worked out until typed, and filled: a number, a toggle (1.6.2, asked by the session that builds a game system), a height or a weight
 function fillMarks(sys, fill, values) {
     var out = {}, any = false, fl = map(); if (!isObj(sys) || !isObj(fill) || !isObj(fill.values) || !isObj(values)) return null;
     (Array.isArray(fill.filled) ? fill.filled : []).slice(0, LIMITS.fields).forEach(function(x) { if (typeof x === 'string') fl[x] = 1; });
@@ -11892,7 +11893,7 @@ function autoStore(char, fieldId, value, fills) {
     if (isObj(char.af) && !Object.keys(char.af).length) delete char.af;
 }
 function fillFig(F, text, vars) { var v = null; try { v = F.evaluate(text, { vars: vars, random: noDice }); } catch (er) { v = null; } if (!v || !v.ok) return null; var n = typeof v.value === 'number' ? v.value : typeof v.value === 'boolean' ? (v.value ? 1 : 0) : NaN; return fin(n) ? n : null; }
-function fillSame(tg, cur, n) { if (tg.kind === 'text') { var a = measureFig(tg, typeof cur === 'string' ? cur : ''), b = measureFig(tg, measureText(tg, n)); return a !== null && b !== null && Math.abs(a - b) < 0.06; } var cv = cleanValue(tg, n); return typeof cur === 'number' && cv === cur; }
+function fillSame(tg, cur, n) { if (tg.kind === 'toggle') return typeof cur === 'boolean' && cur === (n !== 0); if (tg.kind === 'text') { var a = measureFig(tg, typeof cur === 'string' ? cur : ''), b = measureFig(tg, measureText(tg, n)); return a !== null && b !== null && Math.abs(a - b) < 0.06; } var cv = cleanValue(tg, n); return typeof cur === 'number' && cv === cur; }
 // 1.6.2 (auto apply): what typing a field writes into the fields it fills, worked out on the machine that stores the change, as its own part of that one
 // change: { fieldId: value } for each field that is blank or still marked as filled (char.af, the host’s own), never one typed, the GM’s typing too.
 // A field filled is not typed, so its own fills do not run. Nothing for a figure set back to its worked-out one (value null)
@@ -11900,11 +11901,11 @@ function autoFills(sys, char, fieldId, value, F) {
     var outF = {}, src = isObj(sys) ? fieldById(sys, fieldId) : null; if (!src || !Array.isArray(src.fills) || !src.fills.length || !F || value === null || value === undefined) return outF;
     var work = Object.assign({}, char, { values: Object.assign({}, isObj(char) && isObj(char.values) ? char.values : {}) }); work.values[src.id] = value;
     src.fills.forEach(function(x) {
-        var tg = fieldById(sys, x.f); if (!tg || tg.id === src.id || !(tg.kind === 'number' || measureKindOf(tg))) return;
+        var tg = fieldById(sys, x.f); if (!tg || tg.id === src.id || !autoKindOf(tg)) return;
         var cur = work.values[tg.id], blank = cur === undefined || cur === null || cur === '';
         if (!blank && !(isObj(char.af) && char.af[tg.id] === 1)) return;   // typed by someone, the GM too: never overwritten
         var now = fillFig(F, x.formula, makeResolver(sys, work, F)); if (now === null) return;
-        var nv = tg.kind === 'text' ? measureText(tg, now) : cleanValue(tg, now); if (nv === undefined || nv === null || nv === cur) return;
+        var nv = tg.kind === 'text' ? measureText(tg, now) : tg.kind === 'toggle' ? now !== 0 : cleanValue(tg, now); if (nv === undefined || nv === null || nv === cur) return;
         work.values[tg.id] = nv; outF[tg.id] = nv;
     });
     return outF;
@@ -12726,7 +12727,7 @@ function validateSystem(sys, F) {
         if (f.kind === 'resource' && isObj(f.surcharge) && typeof f.surcharge['if'] === 'string' && f.surcharge['if']) checkFormula(f, 'surcharge', f.surcharge['if'], false, f.vis);   // 1.6.2 Costs more while   // 1.6.0 Spills into: below a formula
         if (f.kind === 'number' && isObj(f.override)) { checkFormula(f, 'override.when', f.override.when, false, f.vis); checkFormula(f, 'override.value', f.override.value, false, f.vis); }   // 205 (6): Taken from, and while
         if (typeof f.auto === 'string' && f.auto) checkFormula(f, 'auto', f.auto, false, f.vis);   // 1.6.2 (auto apply): Worked out until typed
-        if (Array.isArray(f.fills)) f.fills.forEach(function(x, i) { if (!isObj(x)) return; var tgV = fieldById(sys, x.f); if (!tgV || !(tgV.kind === 'number' || measureKindOf(tgV))) { warnings.push({ id: f.id, prop: 'fill.' + i, message: 'A field this fills is not a number, a height or a weight here any more.' }); return; } checkFormula(f, 'fill.' + i, x.formula, false, f.vis); });   // ... and Typing it fills (no edge of the loop graph: a fill is written, never read)
+        if (Array.isArray(f.fills)) f.fills.forEach(function(x, i) { if (!isObj(x)) return; var tgV = fieldById(sys, x.f); if (!autoKindOf(tgV)) { warnings.push({ id: f.id, prop: 'fill.' + i, message: 'A field this fills is not a number, a toggle, a height or a weight here any more.' }); return; } checkFormula(f, 'fill.' + i, x.formula, false, f.vis); });   // ... and Typing it fills (no edge of the loop graph: a fill is written, never read)
         if (isObj(f.track) && f.track.of) checkFormula(f, 'track', f.track.of, false, f.vis);   // 1.6.2: a track's Out of (display only: no edge of the loop graph)
         if (f.roll) checkFormula(f, 'roll', f.roll, true, f.vis);
         if (f.caption) {   // Fold B: each {formula} in the caption, as warnings
@@ -13256,7 +13257,7 @@ function applyEdit(sys, char, fieldId, value, F, opts) {
     if (opts.player && f.edit !== 'owner' && !openChar(char)) return { ok: false, reason: 'field' };   // Onboarding F3: a character in the making or unlocked: every field its owner can see (D3 = (a))
     if (opts.player && f.vis !== 'all') return { ok: false, reason: 'field' };
     if (opts.player && f.kind === 'resource' && gmPools(sys, F)[f.id] === 1) return { ok: false, reason: 'field' };   // a pool whose max is GM-only is GM-only: the answer to 999 would be the max
-    if (value === null && f.auto !== undefined && (f.kind === 'number' || measureKindOf(f))) return { ok: true, value: null, clear: true };   // 1.6.2 (auto apply): back to its worked-out figure (stored as none)
+    if (value === null && f.auto !== undefined && autoKindOf(f)) return { ok: true, value: null, clear: true };   // 1.6.2 (auto apply): back to its worked-out figure (stored as none)
     if (f.kind === 'number' && isObj(f.override) && F) { var ovE = typeof opts.vars === 'function' && typeof opts.vars.overOn === 'function' ? opts.vars : makeResolver(sys, char, F, isObj(opts.tctx) ? opts.tctx : undefined); ovE(f.key); if (ovE.overOn(f.key)) return { ok: false, reason: 'field' }; }   // 205 (6): closed while it reads its override, for the GM's hand and a player's alike
     var max = null;
     if (f.kind === 'resource') { var r = (typeof opts.vars === 'function' ? opts.vars : makeResolver(sys, char, F, isObj(opts.tctx) ? opts.tctx : undefined))(f.key + '.max'); max = typeof r === 'number' && isFinite(r) ? r : null; }
@@ -14096,6 +14097,7 @@ function gmDerivedNames(sys, F, names) {
             else if (f.kind === 'skill') def = !sfx || sfx === 'base';
             else if (f.kind === 'resource') def = !sfx || sfx === 'max' || sfx === 'cur';   // the pool's value goes with its max, full or stored (the players' view drops the pool)
             else if (f.kind === 'number') def = (isObj(f.override) || typeof f.auto === 'string') && (!sfx || sfx === 'base');   // 1.6.2 (auto apply): a number worked out until typed
+            else if (f.kind === 'toggle') def = typeof f.auto === 'string' && !sfx;   // 1.6.2: a toggle worked out until set
             else if (f.kind === 'text') def = typeof f.auto === 'string' && (!sfx || sfx === 'figure');   // 205 (6): a number taken from a formula, its .base too
             return { f: f, def: def };
         };

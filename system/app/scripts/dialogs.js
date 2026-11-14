@@ -186,6 +186,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       if (careful) { okBtn.disabled = true; readyT = setTimeout(function() { okBtn.disabled = false; }, CONFIRM_CAREFUL_MS); }
       if (readyFn) { readyChk = function() { var r = false; try { r = !!readyFn(); } catch (e) {} okBtn.disabled = !r; return r; }; readyChk(); if (slot) slot.addEventListener('change', readyChk); }
+      // opts.shown: told once as the question comes up, its body in place (1.6.2, a new room's map: a question that waited behind another
+      // starts on the pick the first one kept, and its body takes the focus). A question without it is drawn exactly as before
+      if (opts && typeof opts.shown === 'function') { try { opts.shown(); } catch (e) {} }
 
       okBtn.onclick = function(e) {
 

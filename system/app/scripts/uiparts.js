@@ -18,6 +18,13 @@
 //                    at its foot. o: name, sub, pic (an element the caller made: an img, an svg), glyph (a bundled icon's file as
 //                    systemcore glyphPath answers it, such as solid/star), ch (a character), cls. Every word is set as text. Answers { el, top, pic, who, name, sub, side, body,
 //                    acts }; an empty body or foot takes no room
+//   pick(o)          a choice of a few, one picked (the review of a new room's map, 2026-11-14): a caption over a .ui-seg.ui-seg-wide of
+//                    buttons, the picked one pressed (aria-pressed, .on, gold by the seg's own rules), and one gray line under it saying
+//                    what the picked one does. The caption names the group (aria-labelledby). o: label, choices [{ value, name, says }],
+//                    value, cls, set(v) called when a press or a key picks another. The arrows, Home and End move the pick and the focus
+//                    along it and go no further; Enter and the space bar are a button's own press. Every word is set as text. Answers the
+//                    .ui-pick element with picked() (the value picked), setValue(v) (shown, set not called), focusPick(), touched (true
+//                    once a press or a key picked) and buttons
 //   clampTo, roundTo the pure rules, for the suites
 function fin(n) { return typeof n === 'number' && isFinite(n); }
 function roundTo(v, dec) { var k = Math.pow(10, Math.max(0, Math.min(6, dec | 0))); return Math.round(v * k) / k; }
@@ -82,6 +89,38 @@ function step(o, doc) {
     w.setValue = function(n) { var c = num(n); cur = c === null ? null : roundTo(c, dec); if (doc.activeElement !== v.inp) { v.inp.value = cur === null ? '' : String(cur); fit(); } ends(); };   // a figure that changed without the counter being made again
     return w;
 }
+var _pickN = 0, PICK_KEYS = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 };
+function pick(o, doc) {
+    doc = doc || document; o = o || {};
+    var ch = (Array.isArray(o.choices) ? o.choices : []).filter(function(c) { return c && typeof c.value === 'string'; });
+    var w = el(doc, 'div', 'ui-pick' + (o.cls ? ' ' + o.cls : '')), cap = el(doc, 'div', 'ui-pick-cap', o.label === undefined || o.label === null ? '' : String(o.label));
+    var seg = el(doc, 'div', 'ui-seg ui-seg-wide'), say = el(doc, 'small', 'ui-pick-say'), at = -1;
+    cap.id = 'uiPick' + (++_pickN); seg.setAttribute('role', 'group'); seg.setAttribute('aria-labelledby', cap.id);
+    var btns = ch.map(function(c) { var b = el(doc, 'button', 'tool', c.name === undefined || c.name === null ? c.value : String(c.name)); b.type = 'button'; b.dataset.v = c.value; return b; });
+    var show = function(v) {
+        at = 0; for (var i = 0; i < ch.length; i++) if (ch[i].value === v) { at = i; break; }   // a value that is none of the choices shows the first
+        btns.forEach(function(b, i) { var on = i === at; b.className = on ? 'tool on' : 'tool'; b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });   // the focus goes to the picked one, the arrows to the rest
+        say.textContent = ch[at] && ch[at].says !== undefined && ch[at].says !== null ? String(ch[at].says) : '';
+    };
+    var go = function(i, focus) { if (i < 0 || i >= ch.length) return; w.touched = true; var was = at; show(ch[i].value); if (focus) btns[i].focus(); if (i !== was && typeof o.set === 'function') o.set(ch[i].value); };
+    btns.forEach(function(b, i) {
+        b.addEventListener('click', function() { go(i, false); });
+        b.addEventListener('keydown', function(ev) {
+            if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
+            var n = PICK_KEYS[ev.key] !== undefined ? (i + PICK_KEYS[ev.key] + ch.length) % ch.length : ev.key === 'Home' ? 0 : ev.key === 'End' ? ch.length - 1 : -1;
+            if (n < 0) return;
+            ev.preventDefault(); ev.stopPropagation(); go(n, true);   // the page reads the arrows as moving what is selected: they stop here
+        });
+        seg.appendChild(b);
+    });
+    w.appendChild(cap); w.appendChild(seg); w.appendChild(say);
+    w.touched = false; w.buttons = btns;
+    w.picked = function() { return ch[at] ? ch[at].value : null; };
+    w.setValue = function(v) { show(v); };
+    w.focusPick = function() { if (btns[at]) btns[at].focus(); };
+    show(o.value);
+    return w;
+}
 var VALUE = typeof HTMLInputElement !== 'undefined' ? Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value') : null;
 function typed(range, o) {
     if (!range || range._uiVal) return range && range._uiVal;
@@ -108,8 +147,8 @@ function typedAll(root) {
     var n = 0; [].forEach.call(r.querySelectorAll('input[type="range"][data-typed]'), function(x) { if (!x._uiVal) { var hid = x.getAttribute('data-hide'), h = hid && x.ownerDocument ? x.ownerDocument.getElementById(hid) : null; typed(x, { unit: x.getAttribute('data-unit') || '', hide: h }); n++; } });
     return n;
 }
-var API = { card: card, step: step, typed: typed, typedAll: typedAll, clampTo: clampTo, roundTo: roundTo, fmtTime: fmtTime, readTime: readTime };
-export { card, step, typed, typedAll, clampTo, roundTo, fmtTime, readTime };
+var API = { card: card, pick: pick, step: step, typed: typed, typedAll: typedAll, clampTo: clampTo, roundTo: roundTo, fmtTime: fmtTime, readTime: readTime };
+export { card, pick, step, typed, typedAll, clampTo, roundTo, fmtTime, readTime };
 if (typeof window !== 'undefined') {
     window.wpUi = API;
     if (typeof document !== 'undefined') { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function() { typedAll(document); }); else typedAll(document); }

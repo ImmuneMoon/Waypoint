@@ -60,6 +60,21 @@ function page() {
     tc.less.fire('click'); const shown = tc.input.value; await new Promise(r => setTimeout(r, 500));
     check('the review of the sweep: a change the caller did not make (a price window cancelled) puts the true figure back, and the next press steps from it',
         shown === '4' && tc.input.value === '5', J([shown, tc.input.value]));
+    {   // a choice of a few, one picked (the review of a new room's map): a caption naming a joined row of buttons, one gray line for the picked one
+        const pd2 = page(), picks = [], P = U.pick({ label: 'Its map goes', cls: 'x-where', value: 'b', choices: [{ value: 'a', name: 'Alpha', says: 'First.' }, { value: 'b', name: 'Beta', says: 'Second.' }, { value: 'c', name: '<b>C</b>', says: 'Third.' }, null, { value: 4 }], set: v => picks.push(v) }, pd2);
+        const [cap, seg, say] = P.children, bs = seg.children, st = () => bs.map(b => [b.className, b.attrs['aria-pressed'], b.tabIndex]);
+        const shape = J([P.className, cap.className, cap.textContent, seg.className, seg.attrs.role, seg.attrs['aria-labelledby'] === cap.id && /^uiPick[0-9]+$/.test(cap.id), say.tagName, say.className, say.textContent, bs.map(b => [b.tagName, b.type, b.dataset.v, b.textContent]), st(), P.picked(), P.touched]);
+        P.focusPick(); const f0 = pd2.activeElement === bs[1];
+        let stop = 0, prev = 0; const k = (b, key, more) => b.fire('keydown', Object.assign({ key, stopPropagation() { stop++; }, preventDefault() { prev++; } }, more || {}));
+        k(bs[1], 'ArrowRight'); const r1 = [P.picked(), pd2.activeElement === bs[2], say.textContent]; k(bs[2], 'ArrowDown'); const r2 = P.picked(); k(bs[0], 'ArrowUp'); k(bs[2], 'Home'); k(bs[0], 'End'); const r3 = [P.picked(), stop, prev];
+        k(bs[2], 'Tab'); k(bs[2], 'ArrowLeft', { ctrlKey: true }); const r4 = [P.picked(), stop, prev];
+        bs[0].fire('click'); bs[0].fire('click'); P.setValue('b'); const r5 = [P.picked(), say.textContent, J(picks)];
+        const Q = U.pick({ value: 'zz', choices: [{ value: 'a', says: 'A.' }, { value: 'b' }] }, page());
+        check('a choice of a few (pick): a caption that names its group, a joined row of buttons set as text with the picked one pressed and the only one Tab reaches, and a gray line saying the picked one; the arrows, Home and End move the pick and the focus round the row and go no further, a key with Ctrl and Tab are left alone; a press picks and tells set once a change, setValue shows a pick and tells nothing; a value that is none of the choices shows the first',
+            shape === J(['ui-pick x-where', 'ui-pick-cap', 'Its map goes', 'ui-seg ui-seg-wide', 'group', true, 'SMALL', 'ui-pick-say', 'Second.', [['BUTTON', 'button', 'a', 'Alpha'], ['BUTTON', 'button', 'b', 'Beta'], ['BUTTON', 'button', 'c', '<b>C</b>']], [['tool', 'false', -1], ['tool on', 'true', 0], ['tool', 'false', -1]], 'b', false])
+            && f0 && J(r1) === J(['c', true, 'Third.']) && r2 === 'a' && J(r3) === J(['c', 5, 5]) && J(r4) === J(['c', 5, 5]) && P.touched === true && J(r5) === J(['b', 'Second.', J(['c', 'a', 'c', 'a', 'c', 'a'])])
+            && Q.picked() === 'a' && Q.children[2].textContent === 'A.' && Q.children[1].children[1].textContent === 'b', J([shape, r1, r2, r3, r4, r5]));
+    }
     const src = read('scripts/uiparts.js');
     check('the review of the sweep: a figure typed is handed on only once a press that took the focus from it has landed, so that press is never lost under a redraw; a press of the counter\'s own button hands it on first; a slider dragged meanwhile wins',
         src.includes("function later(fn) { if (_down) _queue.push(fn); else fn(); }") && src.includes("mi.addEventListener('click', function() { if (pend) pend(); go(base() - st); });") && src.includes("if (ev && ev.isTrusted) pendS = null;")

@@ -1772,10 +1772,11 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
       if (!roomMapOn()) return null;
       var camp = getActiveCampaign(); if (!camp || !camp.items || camp.items[am.id] !== am) return null;
       var title = getUniqueItemTitle(rm.name || 'New room', null), nm = createNewMap(title);
-      nm.id = 'map_' + uid(); nm.meta.parentId = am.id;
+      nm.id = 'map_' + uid();
+      var pid0 = RC.mapPlaceParent(roomMapPlacePick(), am, camp.items); if (pid0) nm.meta.parentId = pid0;   // the review: made where this computer's kept pick says, so every way on (the question skipped too) starts there, and the question only changes it
       if (am.meta && (am.meta.gridType === 'square' || am.meta.gridType === 'hex')) nm.meta.gridType = am.meta.gridType;   // as a map made from a room's picture: the grid of the map it lies under
       camp.items[nm.id] = nm;
-      am.meta = am.meta || {}; am.meta.collapsed = false;   // the new map shows under it in the Maps list
+      if (pid0) { var pm0 = camp.items[pid0]; pm0.meta = pm0.meta || {}; pm0.meta.collapsed = false; }   // the new map shows under its parent in the Maps list
       rm.targetMapId = nm.id;
       return { mapId: am.id, roomId: rm.id, targetMapId: nm.id, title: title };
   }
@@ -1788,22 +1789,23 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
       return true;
   }
   // Where the new map goes is asked with the portal (the owner, 2026-11-14, by prompt: "Ask with the portal"): Inside this map, Beside this map or
-  // At the top, a row of choices in the question's body, set at the one this computer picked last (wp_newMapPlace, read back through roomcore
-  // cleanMapPlace; Inside to start). Whatever the answer, Later and Escape too, the map goes where the row says and the pick is kept. The map's
-  // place in the Maps list is no content of any map, so the move adds no step of its own: one Undo still takes the room back
+  // At the top, the app's own choice of a few (uiparts.js pick) in the question's body, set at the one this computer picked last (wp_newMapPlace,
+  // read back through roomcore cleanMapPlace; Inside to start). The map is made there (roomMapMake), and a question that waited behind another
+  // starts on the pick that one kept (its shown hook). Whatever the answer, Later and Escape too, the map goes where the row says and the pick is
+  // kept. The map's place in the Maps list is no content of any map, so the move adds no step of its own: one Undo still takes the room back
   var MAP_PLACE_WORDS = { inside: ['Inside this map', 'Nested under it in the Maps list.'], beside: ['Beside this map', 'Next to it, under the same parent.'], top: ['At the top', 'A map of its own at the top of the Maps list.'] };
   function roomMapPlacePick() { try { var ls = window.localStorage; return RC.cleanMapPlace(ls ? ls.getItem('wp_newMapPlace') : null); } catch (e) { return 'inside'; } }
-  function roomMapPlaceRow(pick) {   // elements made by name, every word set as text
-      var box = document.createElement('div'), lab = document.createElement('div'), list = [];
-      box.className = 'rmm-where'; box.setAttribute('role', 'radiogroup'); box.setAttribute('aria-label', 'Where the new map goes');
-      lab.className = 'rmm-where-lab'; lab.textContent = 'Its map goes'; box.appendChild(lab);
-      RC.MAP_PLACES.forEach(function(k) {
-          var row = document.createElement('label'), inp = document.createElement('input'), txt = document.createElement('span'), sm = document.createElement('small');
-          inp.type = 'radio'; inp.name = 'rmmWhere'; inp.value = k; inp.checked = k === pick;
-          txt.textContent = MAP_PLACE_WORDS[k][0]; sm.textContent = MAP_PLACE_WORDS[k][1];
-          row.className = 'rmm-where-row'; row.appendChild(inp); row.appendChild(txt); row.appendChild(sm); box.appendChild(row); list.push(inp);
-      });
-      return { el: box, read: function() { var on = list.filter(function(i) { return i.checked; })[0]; return RC.cleanMapPlace(on ? on.value : pick); } };
+  function roomMapPlaceRow(pick) {   // the app's own choice of a few (uiparts.js pick), every word set as text
+      var UI = window.wpUi && typeof window.wpUi.pick === 'function' ? window.wpUi : null;
+      if (!UI) return { el: null, read: function() { return pick; }, shown: function() {} };   // no parts at hand: the question alone, the map where it was made
+      var row = UI.pick({ label: 'Its map goes', cls: 'rmm-where', value: pick, choices: RC.MAP_PLACES.map(function(k) { return { value: k, name: MAP_PLACE_WORDS[k][0], says: MAP_PLACE_WORDS[k][1] }; }) }, document);
+      return { el: row, read: function() { return RC.cleanMapPlace(row.picked()); },
+          shown: function() { if (!row.touched) row.setValue(roomMapPlacePick()); row.focusPick(); } };   // as the question comes up: the pick kept by now (one answered before it), and the focus in the row, so no key reaches the room behind it
+  }
+  function roomMapWhereWords(made) {   // where a new room's map stands, said where no question asks it
+      var camp = getActiveCampaign(), m = camp && camp.items ? camp.items[made.targetMapId] : null;
+      if (!m || !m.meta || m.meta.parentId === made.mapId) return '';
+      return m.meta.parentId ? ' Its map is beside this map.' : ' Its map is at the top of the Maps list.';
   }
   function roomMapMove(made, where) {   // the map moved where the row says, and the pick kept on this computer. Answers whether it moved
       try { if (window.localStorage) window.localStorage.setItem('wp_newMapPlace', where); } catch (e) {}
@@ -1819,7 +1821,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
       setTimeout(function() {
           var am = getActiveMap(), rr = am && am.id === made.mapId ? roomOf(am, made.roomId) : null;
           if (!rr || rr.targetMapId !== made.targetMapId) return;   // the room is gone, or another map came on screen: nothing to place
-          if (canvas && canvas.querySelector && canvas.querySelector('.rn-edit')) { toast('No portal placed for ' + (rr.name || 'the room') + '. Another room is being named.'); return; }
+          if (canvas && canvas.querySelector && canvas.querySelector('.rn-edit')) { toast('No portal placed for ' + (rr.name || 'the room') + '. Another room is being named.' + roomMapWhereWords(made)); return; }   // its map stands where the kept pick put it
           var nm = rr.name || 'the room', campQ = getActiveCampaign(), dmQ = campQ && campQ.items ? campQ.items[made.targetMapId] : null, where = roomMapPlaceRow(roomMapPlacePick());
           if (dmQ && dmQ.meta && dmQ.meta.title) nm = dmQ.meta.title;   // the destination map's title, as the tile and the toast name it (Tavern (2) where Tavern was taken)
           showConfirm('Place the portal to ' + nm + ' on the play map now?', function(ans) {
@@ -1828,7 +1830,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
               if (ans !== true) { if (r2) toast('The room and its map are kept, with no portal yet. Press Place it on the room when you are ready.'); return; }   // Later, Escape or the close
               if (!r2 || r2.targetMapId !== made.targetMapId) { toast('That room is no longer on screen. No portal was placed.'); return; }
               if (window.wpPortalPlace) window.wpPortalPlace(made);
-          }, { yes: 'Place it now', no: 'Later', noEnter: true, body: where.el });   // its buttons alone: the Enter that kept the name never answers it
+          }, { yes: 'Place it now', no: 'Later', noEnter: true, body: where.el, shown: where.shown });   // its buttons alone: the Enter that kept the name never answers it
       }, 0);
   }
   function roomAddAt(x, y, from) {

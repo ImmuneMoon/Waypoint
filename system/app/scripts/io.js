@@ -504,6 +504,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
   // that shows holds them: the focus can still rest on a row of a menu that was put away, since the board keeps a click from moving the focus
   function menuHeld(el) { var m = el && el.nodeType === 1 && typeof el.closest === 'function' ? el.closest('[role="menu"], [role="listbox"]') : null; return !!(m && (typeof m.getClientRects !== 'function' || m.getClientRects().length > 0)); }
   // [shelfcheck:menuheld-end]
+  function askHeld() { var up = function(id) { var e = document.getElementById(id); return !!(e && e.style && e.style.display === 'flex'); }; return up('customConfirm') || up('customPrompt'); }   // the app's own question or prompt is up, as commands.js hotkeyHeld reads it ('asking')
   function canPersistLocal() {
       var n = window.wpNet, W = window.wpWebMode;
       if (W && typeof W.joinOnly === 'function' && W.joinOnly() === true) return false;   // 1.5.5: a website's plan that joins tables alone keeps nothing of the player's (webmode.js): the site answers a save with 403
@@ -1595,6 +1596,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       var t = e.target;
 
       if (document.body && document.body.classList.contains('lay-edit')) return;   // 1.6.2 (backlog 224): while the layout is edited no key moves, deletes, copies or undoes anything of the map
+      if (askHeld()) return;   // 1.6.2 (the review of a new room's map): while the app's own question or prompt is up no key moves, deletes or undoes what stands behind it
 
       var typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
 

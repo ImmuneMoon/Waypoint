@@ -877,6 +877,16 @@ const siSrc = () => {
     if (a < 0 || b < a) throw new Error('netcheck: sanitizeItem and wireWbItem not found in net.js');
     return (src.match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0] + '\n' + src.slice(a, b + 3);
 };
+// 1.6.2 (the owner, 2026-11-13: "lets lock proportions when resizing by default"): Lock proportions is on unless a piece carries lockRatio: false,
+// so the false has to reach the table and come back as it left: the real wireWbItem and the real cleanHostWbItem carry it, and true and absent alike
+{
+    const [, wireL] = new Function('window', '"use strict";\n' + siSrc() + '\nreturn [sanitizeItem, wireWbItem];')({});
+    const chA = src.indexOf('function cleanHostWbItem(w) {'), chB = src.indexOf('\n', chA), cleanL = new Function('window', '"use strict";\n' + src.slice(chA, chB) + '\nreturn cleanHostWbItem;')({});
+    const pic = k => Object.assign({ id: 'wbL', type: 'image', x: 10, y: 20, w: 100, h: 50, src: 'p.png' }, k), lr = o => o && Object.prototype.hasOwnProperty.call(o, 'lockRatio') ? o.lockRatio : 'absent';
+    const got = [{ lockRatio: false }, { lockRatio: true }, {}].map(k => [lr(wireL(pic(k), false)), lr(cleanL(pic(k)))]);
+    check('1.6.2 Lock proportions on by default: a piece freed with lockRatio: false goes to the table and is cleaned on a player’s side with its false kept, and a locked one (true or no key) as it was, so a player’s copy reads the shape the GM set (net.js wireWbItem and cleanHostWbItem, run for real)',
+        JSON.stringify(got) === JSON.stringify([[false, false], [true, true], ['absent', 'absent']]), JSON.stringify(got));
+}
 const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) { this.sent.push(m); } });
 // text style (1.5.0): a page's formats on the wire — the look of a title, a table cell or a flowchart label, stored beside its text. The host's real
 // sanitizeItem sends them cleaned (docrender cleanDoc -> textfmt cleanFmt); a player's real applyItem cleans what a host sends again before it is stored

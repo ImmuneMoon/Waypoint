@@ -653,16 +653,21 @@ Around the app
   each character token there has its name under it.
 - The Image Library's how-to is folded behind How it works in its head.
 - A handbook page's bar keeps Import and Appearance together when it wraps.
-- Character tokens stand over the grid's lines.
+- Character tokens stand over the grid's lines. So does a drawing that is no
+  part of the map, such as an arrow or a mark, and anything you placed on a
+  layer above the tokens, so nothing you stacked by hand changes order. A wall,
+  a door, a filled area and a textured drawing stay under the lines.
 - Fit to grid sizes a picture by the picture it shows. A square picture in a
   box one cell by two was drawn half a cell off. It now gets one cell.
 - A value name of a number stat renamed in place is followed at Save. A line of
   Holds by kind and a place split by that stat keep it, where Save dropped them.
-- With Snap on to the grid, the corner handle sizes a piece by whole cells. Lock
-  proportions or Shift keeps its shape as near as whole cells allow. So does a drawing that is no
-  part of the map, such as an arrow or a mark, and anything you placed on a
-  layer above the tokens, so nothing you stacked by hand changes order. A wall,
-  a door, a filled area and a textured drawing stay under the lines.
+- With Snap on to the grid, the corner handle sizes a piece by whole cells.
+  A piece with its proportions locked keeps its shape as near as whole cells
+  allow.
+- Drag the corner of a picture or a shape and it keeps its proportions now, on
+  every map, the ones you already built too. Hold Shift while you drag to
+  reshape it freely, or untick Lock proportions in Properties to free it for
+  good.
 - A picture fitted to the grid lands in its cells when you let it go, even
   with the magnet sticking it to a piece nearby while you drag.
 - The Image Library has Add pictures beside its search box. It brings

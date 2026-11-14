@@ -6291,7 +6291,7 @@ function fxCombatEdge(mapId, combat, kind) { var camp = getActiveCampaign(), now
 function fxClockTick() {   // out of combat: the clock, on the GM's own machine
     if (net.role === 'client' || net.stream || (window.wpVtt && !window.wpVtt.on('sheets'))) return;
     var camp = getActiveCampaign(), now = Date.now(); if (!camp || !camp.system || !camp.chars) return;
-    var byGame = !!(window.wpVtt && window.wpVtt.on('calendar')), inF = typeof ordersOfChars === 'function' ? ordersOfChars(camp) : null, fights = typeof fightIds === 'function' && fightIds().length > 0;   // K4: the Calendar on — real time never counts outside a fight; 152 fold 4: nor while any fight runs, when everyone in no fight follows the second (net.fxSpans)
+    var byGame = !!(window.wpVtt && window.wpVtt.on('calendar')), inF = typeof ordersOfChars === 'function' ? ordersOfChars(camp) : null, fights = (typeof fightIds === 'function' && fightIds().length > 0) || (typeof _fightsWait !== 'undefined' && _fightsWait && !!camp.fights);   // 1.6.2: a fight held through the GM's reload (fightsHold, before its fightsBack) runs still, so no real seconds come off a fighter's effects in the gap. K4: the Calendar on — real time never counts outside a fight; 152 fold 4: nor while any fight runs, when everyone in no fight follows the second (net.fxSpans)
     if (byGame || fights) { if (!net._fxStop) net._fxStop = now; } else net._fxStop = 0;   // 1.6.0: when real time stopped counting. A timer begun since loses no real seconds at the bank, or a one-round effect on someone in no fight ran out at the next tick (found live)
     Object.keys(camp.chars).forEach(function(id) { if (inF ? inF[id] : charCombat(camp, id)) return; if (byGame || fights) fxApply(camp, camp.chars[id], 'bank', now, undefined, net._fxStop); else { fxApply(camp, camp.chars[id], 'resume', now); fxApply(camp, camp.chars[id], 'clock', now); } });
 }
@@ -11108,11 +11108,12 @@ function startHosting(forceFresh) {
             setTimeout(function() { startHosting(true); }, 300);
             return;
         }
-        if (type === 'invalid-key' && !opened) { var planW = typeof SIGNAL_PLAN === 'string' ? SIGNAL_PLAN : 'This plan joins tables.'; closing = true; try { peer.destroy(); } catch (e) {} setStatus(planW); toast(planW); return; }   // 1.6.2 (backlog 220): the app's own server refused this host's key; no next generation
+        if (type === 'invalid-key' && !opened) { var planW = typeof SIGNAL_PLAN === 'string' ? SIGNAL_PLAN : 'This plan joins tables.'; closing = true; try { peer.destroy(); } catch (e) {} if (typeof fightsBack === 'function') fightsBack(); setStatus(planW); toast(planW); return; }   // 1.6.2 (backlog 220): the app's own server refused this host's key; no next generation
         if (opened) {   // a live table: the room code stays in the status line — a stranger's bad dial is nothing of the GM's, and a dropped signaling link is said beside the code
             if (type === 'network' || type === 'server-error' || type === 'socket-error' || type === 'socket-closed') sayDrop(codeLine() + ' \u2014 the link that lets new players find you dropped; reconnecting. Players at the table are not affected.');
             return;
         }
+        if (typeof fightsBack === 'function') fightsBack();   // 1.6.2: a table that never opened gives a fight it held (fightsHold) back on this machine, or the save keeps it unseen and the next fight writes over it
         setStatus('Host error: ' + type);
     });
     // [netcheck:hostpeer-end]

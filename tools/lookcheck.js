@@ -3296,9 +3296,10 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         const prepPress = awayRun(elOf('button', '', ['prep-card-h'], elOf('div', 'prepBody', [], elOf('aside', 'prepCol', [], body))));
         check('1.6.2 a press in the Prep column keeps the map\'s selection too (the review of the column): a card opened or ticked there is read beside the token it is about, and nothing is drawn again at the press',
             prepPress[0] === '' && prepPress[1] === 'w1' && prepPress[2] === 0, J(prepPress));
-        const popPress = [awayRun(elOf('span', '', ['sheet-dl-t'], elOf('button', '', ['sheet-dl-item'], elOf('div', '', ['sheet-dl-pop', 'sheet-hit-pop'], body)))), awayRun(elOf('button', '', [], elOf('div', '', ['dice-modpop'], body)))];
-        check('1.6.2 a press on a menu a sheet or HUD hangs on the page (No called shot, a load menu) or on the dice\'s ± window keeps the map\'s selection (the click test of the campaign before 1.6.2: the press let the NPC\'s token go, so a HUD of a sheet seven guards share read its range from another of them and grayed an attack in reach)',
-            popPress.every(r => r[0] === '' && r[1] === 'w1' && r[2] === 0), J(popPress));
+        const popPress = [awayRun(elOf('span', '', ['sheet-dl-t'], elOf('button', '', ['sheet-dl-item'], elOf('div', '', ['sheet-dl-pop', 'sheet-hit-pop'], body)))), awayRun(elOf('button', '', [], elOf('div', '', ['dice-modpop'], body))),
+            awayRun(elOf('button', '', ['tool', 'lib-pick-x'], elOf('div', '', ['lib-pick-head'], elOf('div', '', ['lib-pick'], body)))), awayRun(elOf('input', '', ['field'], elOf('div', 'dmgWin', ['dmg-win'], body))), awayRun(elOf('button', '', ['tool'], elOf('div', 'dmgWin', ['dmg-win'], body)))];
+        check('1.6.2 a press on a menu a sheet or HUD hangs on the page (No called shot, a load menu) or on the dice\'s ± window, the library picker (its Roll unheld reads the token\'s facing) or the Take damage window (its preview and Apply read the token context) keeps the map\'s selection (the click test of the campaign before 1.6.2: the press let the NPC\'s token go, so a HUD of a sheet seven guards share read its range from another of them and grayed an attack in reach)',
+            popPress.length === 5 && popPress.every(r => r[0] === '' && r[1] === 'w1' && r[2] === 0), J(popPress));
     }
     // the strip, drawn by its own code twice over with nothing changed between: the second draw writes nothing, so the button pressed stays
     const fSl = sliceOf(wbSrc, 'combatfind'), cutWb = (a, z) => { const i = wbSrc.indexOf(a), k = wbSrc.indexOf(z, i + 1); return i >= 0 && k > i && count(wbSrc, a) === 1 ? wbSrc.slice(i, k) : ''; };

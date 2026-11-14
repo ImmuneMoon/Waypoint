@@ -369,6 +369,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
       menu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default; padding:6px 16px 2px;">Line type</div>'
           + Object.keys(LINK_TYPES).map(function(t) { return '<div class="menu-item edge-type" data-type="' + t + '" style="' + item + (t === cur ? ' color:var(--gold);' : '') + '" title="' + LINK_TYPES[t].hint + '">' + (t === cur ? '\u2713 ' : '') + LINK_TYPES[t].glyph + '\u2002' + LINK_TYPES[t].label + '</div>'; }).join('')
           + '<div class="menu-divider" style="height:1px; background:var(--border); margin:4px 0;"></div>'
+          + (edgePropsMay() ? '<div class="menu-item edge-props" style="' + item + '" title="Open this link&rsquo;s settings at the right edge of the map">Properties</div>' : '')
           + '<div class="menu-item danger edge-remove" style="' + item + ' color:var(--red);">Remove link</div>';
       menu.style.display = 'block';
       window.wpClampMenu(menu, ev.clientX, ev.clientY);
@@ -381,9 +382,15 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
               save(); render(); toast('Link: ' + LINK_TYPES[t].label + '.');
           });
       });
+      var pr = menu.querySelector('.edge-props');   // 1.6.2: the link's own Properties, the one way in since the edge tab went
+      if (pr) pr.addEventListener('click', function(ce) { ce.stopPropagation(); menu.style.display = 'none'; edgeProps(i); });
       var rm = menu.querySelector('.edge-remove');
       if (rm) rm.addEventListener('click', function(ce) { ce.stopPropagation(); menu.style.display = 'none'; removeLinkAt(i); });
   }
+  // [lookcheck:edgeprops-start]
+  function edgePropsMay() { var n = typeof window !== 'undefined' ? window.wpNet : null; return !(n && (n.foreign || (n.active && n.role === 'client'))); }
+  function edgeProps(i) { state.selLink = i; state.selId = null; render(); if (window.wpOpenRightPanel) window.wpOpenRightPanel(); }
+  // [lookcheck:edgeprops-end]
   document.addEventListener('click', function(e) {
       var menu = document.getElementById('edgeMenu');
       if (menu && menu.style.display !== 'none' && !e.target.closest('#edgeMenu')) menu.style.display = 'none';
@@ -2116,7 +2123,10 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
           _df.at = -1; dataFindSync();
           var nb = chips.querySelector('.df-chip[data-cat="' + (window.CSS && CSS.escape ? CSS.escape(k) : k) + '"]'); if (nb) nb.focus();   // the chips are made again: the focus stays on the one pressed
       });
-      if (window.ResizeObserver) { var ro = new ResizeObserver(function() { dataFindPlace(); }); ['minimap', 'zoomBox', 'main'].forEach(function(id) { var el = document.getElementById(id); if (el) ro.observe(el); }); }
+      // The observer asks for the strip to be placed in the next frame, never on the spot: dataFindPlace sets both its edges, so its width changes, and
+      // layout.js watches #dataFind. Found 2026-11-14 with main.js narrowWire (the owner: "lets fix the issue instead of glossing it over"): a ResizeObserver callback that changes a size some observer watches makes the browser raise "ResizeObserver loop completed with undelivered notifications", which booterror.js shows as a red banner.
+      var dfRaf = 0, dataFindSoon = function() { if (dfRaf) return; dfRaf = requestAnimationFrame(function() { dfRaf = 0; dataFindPlace(); }); };
+      if (window.ResizeObserver) { var ro = new ResizeObserver(dataFindSoon); ['minimap', 'zoomBox', 'main'].forEach(function(id) { var el = document.getElementById(id); if (el) ro.observe(el); }); }
       if (window.MutationObserver && document.body) new MutationObserver(function() { dataFindPlace(); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });   // the minimap moved under the zoom box, the rulers or the top row hidden: a class of the body, with no size changed
       window.addEventListener('resize', dataFindPlace);
       if (chips) {

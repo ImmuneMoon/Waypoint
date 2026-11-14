@@ -6152,7 +6152,13 @@ function rollEven(body) {
     if (!_evenObs || typeof ResizeObserver !== 'function') return;
     var seen = _evenObs.get(body);
     if (!seen) {
-        seen = { w: new WeakMap() }; seen.ro = new ResizeObserver(function(list) { list.forEach(function(en) { var w = Math.round(en.contentRect.width); if (seen.w.get(en.target) === w) return; seen.w.set(en.target, w); evenGrid(en.target); }); });
+        // A grid whose width changed is made even in the next frame, never inside the observer's own pass: evenGrid sets its rolls' heights, so the
+        // grid this very observer watches changes its height. Found 2026-11-14 with main.js narrowWire (the owner: "lets fix the issue instead of glossing it over"): a ResizeObserver callback that changes a size some observer watches makes the browser raise "ResizeObserver loop completed with undelivered notifications", which booterror.js shows as a red banner. Each grid once a frame, however often it is told
+        var later = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : function(fn) { return setTimeout(fn, 16); };
+        seen = { w: new WeakMap(), due: [], raf: 0 }; seen.ro = new ResizeObserver(function(list) {
+            list.forEach(function(en) { var w = Math.round(en.contentRect.width); if (seen.w.get(en.target) === w) return; seen.w.set(en.target, w); if (seen.due.indexOf(en.target) < 0) seen.due.push(en.target); });
+            if (seen.due.length && !seen.raf) seen.raf = later(function() { var d = seen.due; seen.due = []; seen.raf = 0; d.forEach(evenGrid); });
+        });
         _evenObs.set(body, seen);
         if (typeof body.addEventListener === 'function') body.addEventListener('toggle', function(e) { var tg = e.target; if (tg && tg.querySelectorAll) Array.prototype.forEach.call(tg.querySelectorAll('.sheet-grid'), evenGrid); }, true);
     }

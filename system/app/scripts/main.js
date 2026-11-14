@@ -158,7 +158,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   (function narrowWire() {
     narrowNow();
     if (typeof ResizeObserver !== 'function') { window.addEventListener('resize', narrowNow); return; }
-    var ro = new ResizeObserver(narrowNow); ['main', 'zoomBox', 'minimap'].forEach(function(id) { var e = document.getElementById(id); if (e) ro.observe(e); });
+    // The observer only asks for a look in the next frame (narrowSoon), never folds on the spot. Folding the pointer location shrinks the
+    // zoom box, which this very observer watches (and so do datamap.js dataFindWire, trackers.js and layout.js): done inside the callback, the
+    // browser had to deliver that change again in the same frame and raised "ResizeObserver loop completed with undelivered notifications" as
+    // an error, which booterror.js showed as a red banner at launch. Found 2026-11-14: on a first load the map's area has no width yet, so
+    // the look made at wiring decides nothing and the first one with a width came from the observer. The owner: "lets fix the issue instead of
+    // glossing it over". A direct call (wpAreaNarrow, from the rulers' switch) still looks at once
+    var _narrowRaf = 0;
+    function narrowSoon() { if (_narrowRaf) return; _narrowRaf = requestAnimationFrame(function() { _narrowRaf = 0; narrowNow(); }); }
+    var ro = new ResizeObserver(narrowSoon); ['main', 'zoomBox', 'minimap'].forEach(function(id) { var e = document.getElementById(id); if (e) ro.observe(e); });
   })();
 
   var _el_zoomInBtn = document.getElementById('zoomInBtn');

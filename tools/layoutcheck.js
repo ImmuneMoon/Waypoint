@@ -209,6 +209,23 @@ function install(P) {
         J(flushL) === J(['49px', '0px', '49px', '44px']) && J(flushN) === J(['0px', '49px', '8px', undefined]) && J(flushH) === J(['0px', '0px']), J([flushL, flushN, flushH]));
     E2.wbFloatingToolbar.box = { x: 256, y: 678, w: 800, h: 52 };
     P.body.classList.remove('no-rulers');
+    // 1.6.2, the review of the rail's merge (4): Properties (fixed 18 px from the window's right) keeps clear of a bar laid down the right edge,
+    // which stands over windows: its X, at the right end of its head, stays in reach. The window here is the area (34 + 1246 = 1280 wide)
+    P.store.wp_layout = J({ play: { bar: { side: 'right', edge: true } } }); E2.wbFloatingToolbar.box = { x: 1236, y: 58, w: 44, h: 700 }; API.sync();
+    const propR = P.body.style.vars['--lay-propr'], sbRight = 1280 - (18 + parseFloat(propR)), barLeft = 1236;
+    P.store.wp_layout = J({ play: { bar: { side: 'right', edge: true, hide: true } } }); API.sync(); const hidR = P.body.style.vars['--lay-propr'];
+    P.store.wp_layout = J({ play: { bar: { side: 'left', edge: true } } }); E2.wbFloatingToolbar.box = { x: 34, y: 58, w: 49, h: 700 }; API.sync(); const leftR = P.body.style.vars['--lay-propr'];
+    delete P.store.wp_layout; API.sync(); const goneR = '--lay-propr' in P.body.style.vars;
+    const lyS = read('scripts/layers.js'), lyFns = ['function propBarRoom(', 'function propPlace('].map(h => { const a = lyS.indexOf(h); return a >= 0 ? lyS.slice(a, lyS.indexOf('\n', a)) : ''; }).join('\n');
+    const placeAt = (pr, x) => { const sbx = { offsetWidth: 320, style: {} }; new Function('window', 'document', lyFns + '\npropPlace(arguments[2], { x: arguments[3], y: 100 });')({ innerWidth: 1280, innerHeight: 800 }, { body: { style: { getPropertyValue: k => (k === '--lay-propr' ? pr : '') } } }, sbx, x); return sbx.style.left; };
+    const cssP = read('style.css');
+    check('the review of the rail\'s merge (4): a bar laid down the right edge keeps Properties clear of it (the body says how much further than its own 18 px it stands, so its right edge, its X with it, keeps 8 px left of the bar), and a place of Properties\' own kept on this computer is held clear of it too; a hidden bar, a bar on another side or no layout keeps it where it was',
+        propR === '34px' && sbRight <= barLeft - 8 && hidR === '0px' && leftR === '0px' && !goneR
+        && cssP.includes('body:not(.stream-mode) #sidebar { position: fixed; right: calc(18px + var(--lay-propr, 0px)); top: 110px;')
+        && L.propRight({ side: 'right', edge: true }, { getBoundingClientRect: () => ({ left: 957 }) }, { left: 957 }, { w: 1000 }) === 33 && L.propRight({ side: 'top' }, {}, { left: 0 }, { w: 1000 }) === 0 && L.propRight({ side: 'right' }, null, null, { w: 1000 }) === 0
+        && placeAt('34px', 1100) === (1280 - 320 - 18 - 34) + 'px' && placeAt('', 1100) === (1280 - 320 - 4) + 'px' /* moved on purpose: the whole panel in the window, its X in reach */ && placeAt('34px', 200) === '200px' && lyS.includes("window.wpPropFit = function() { var a = propAt(); if (a) propPlace(sb, a); };"),
+        J([propR, sbRight, hidR, leftR, goneR, placeAt('34px', 1100), placeAt('', 1100)]));
+    E2.wbFloatingToolbar.box = { x: 256, y: 678, w: 800, h: 52 };
     // a placed column that waits for the pointer waits where it stands
     P.store.wp_layout = J({ play: { colHide: true, parts: { wbEdgeTools: { c: 'mc' } } } }); API.sync();
     const hotOf = () => Object.values(P.els).filter(e => e.className === 'lay-hot' && e._for === E2.wbEdgeTools).pop();   // the page of plain objects finds no element by an id given after it is made, so each sync makes a new line: the last is the one

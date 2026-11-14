@@ -32,7 +32,12 @@ function wire() {
 // 1.6.2, backlog 217: Properties floats. Moved by its title bar, kept where it was left on this computer (wp_propAt), held inside the window; its close
 // is a hand close, which holds until the selection changes as it always did (1.6.2: the tab at the map's edge that it pressed is gone)
 function propAt() { try { var v = JSON.parse(localStorage.getItem('wp_propAt') || 'null'); return v && typeof v.x === 'number' && typeof v.y === 'number' && isFinite(v.x) && isFinite(v.y) ? v : null; } catch (e) { return null; } }
-function propPlace(sb, at) { if (!sb || !at) return; var w = sb.offsetWidth || 320, x = Math.max(4, Math.min(window.innerWidth - Math.min(w, 120), at.x)), y = Math.max(40, Math.min(window.innerHeight - 60, at.y)); sb.style.left = x + 'px'; sb.style.top = y + 'px'; sb.style.right = 'auto'; }
+// 1.6.2: a bar laid down the right edge (layout.js writes --lay-propr on the body) keeps Properties clear of it, its X in reach
+function propBarRoom() { try { var v = parseFloat(document.body.style.getPropertyValue('--lay-propr')); return isFinite(v) && v > 0 ? v : 0; } catch (e) { return 0; } }
+// The whole panel is held inside the window, 4 px in (or 18 px and the bar's width in, where a bar is laid down the right edge). Before the
+// review of 2026-11-14 only 120 px of it were kept in sight, which was enough while the tab at the map's edge could also close it; with its X
+// now the only close, at the right end of its title, a place kept from a wider window put the X off the screen (found live at 700 px wide)
+function propPlace(sb, at) { if (!sb || !at) return; var w = sb.offsetWidth || 320, pr = propBarRoom(), lim = window.innerWidth - w - (pr ? 18 + pr : 4), x = Math.max(4, Math.min(lim, at.x)), y = Math.max(40, Math.min(window.innerHeight - 60, at.y)); sb.style.left = x + 'px'; sb.style.top = y + 'px'; sb.style.right = 'auto'; }
 function propWire() {
     var sb = document.getElementById('sidebar'), head = document.getElementById('propHead'), x = document.getElementById('propClose'), drag = null; if (!sb || !head) return;
     if (x) x.addEventListener('click', function() { if (window.wpRightHand) window.wpRightHand(false); });
@@ -41,6 +46,7 @@ function propWire() {
     head.addEventListener('pointermove', function(e) { if (!drag) return; propPlace(sb, { x: e.clientX - drag.dx, y: e.clientY - drag.dy }); });
     head.addEventListener('pointerup', function() { if (!drag) return; drag = null; var r = sb.getBoundingClientRect(); try { localStorage.setItem('wp_propAt', JSON.stringify({ x: Math.round(r.left), y: Math.round(r.top) })); } catch (e) {} step('prop-moved'); });
     window.addEventListener('resize', function() { var a = propAt(); if (a) propPlace(sb, a); });
+    window.wpPropFit = function() { var a = propAt(); if (a) propPlace(sb, a); };   // the layout moved a bar to or from the right edge
 }
 if (typeof window !== 'undefined') { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', propWire); else propWire(); }
 if (typeof window !== 'undefined') { window.wpLayers = { open: open, close: close, toggle: toggle, shown: shown, title: title }; if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire(); }

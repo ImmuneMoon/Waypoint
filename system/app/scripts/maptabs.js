@@ -146,7 +146,10 @@ function wire() {
     if (list) list.addEventListener('click', function(e) { var b = e.target && e.target.closest ? e.target.closest('.map-tab') : null, id = b ? b.getAttribute('data-id') : null; if (id && tabMap(getActiveCampaign(), id)) navigateToMap(id); });
     if (add) add.addEventListener('click', function() { if (window.wpCmdkOpen) window.wpCmdkOpen(); });
     window.addEventListener('resize', tabsClip);
-    if (box && typeof ResizeObserver === 'function') new ResizeObserver(tabsFit).observe(box);   // the row's room for the tabs changed: a pill came, the row folded
+    // Fitted in the next frame, never inside the observer's own pass: tabsFit folds the breadcrumb, which changes the sizes of the top row's
+    // children, and toprow.js watches each of them. Found 2026-11-14 with main.js narrowWire (the owner: "lets fix the issue instead of glossing it over"): a ResizeObserver callback that changes a size some observer watches makes the browser raise "ResizeObserver loop completed with undelivered notifications", which booterror.js shows as a red banner.
+    var tfRaf = 0, tabsFitSoon = function() { if (tfRaf) return; tfRaf = requestAnimationFrame(function() { tfRaf = 0; tabsFit(); }); };
+    if (box && typeof ResizeObserver === 'function') new ResizeObserver(tabsFitSoon).observe(box);   // the row's room for the tabs changed: a pill came, the row folded
     tabsSync();
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();

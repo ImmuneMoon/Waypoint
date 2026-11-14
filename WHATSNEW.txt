@@ -17,10 +17,11 @@ Lay out your table
   window everything goes back to its usual place.
 - Across an edge the toolbar sits flush against it, and the ruler of that
   edge moves out beside it. The Properties tab at the right edge is gone.
-  Open Properties from a piece's right-click menu, a double-click or the
-  selection bar, and close it by its X. With nothing selected, right-click
-  the empty play map for Map properties. On the Data Map it is in the
-  menu of the toolbar's first button.
+  Open Properties from a piece's right-click menu or the selection bar,
+  and close it by its X. On the Data Map a room's right-click menu and a
+  link's menu have Properties too. With nothing selected, right-click the
+  empty play map for Map properties. On the Data Map it is in the menu of
+  the toolbar's first button.
 - The left panel keeps a rail of icons at the window's left edge on every
   view. An icon shows that section alone, and All shows every section, one
   under another. This computer remembers which. The arrow at the foot of

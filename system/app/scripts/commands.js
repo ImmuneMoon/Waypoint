@@ -90,7 +90,7 @@ function sceneCan() {
     if (n && (n.foreign || (n.active && n.role === 'client'))) return 'Scene pages are the GM’s.';
     if (!PS || typeof PS.scenePage !== 'function' || typeof PS.sceneOpen !== 'function') return 'Scene pages are not in this window.';
     if (!cmdPlayMap()) return 'The scene page opens on the play map.';
-    return PS.scenePage() ? true : 'This map has no scene page yet. With nothing selected, open Properties at the right edge and pick one under Scene page.';
+    return PS.scenePage() ? true : 'This map has no scene page yet. Right-click the empty play map, press Map properties and pick one under Scene page.';
 }
 function sceneAct() { var PS = window.wpPageShelf, s = PS && typeof PS.scenePage === 'function' ? PS.scenePage() : null, t = s && typeof s.title === 'string' ? s.title.slice(0, 60) : ''; return t ? 'Enter opens ' + t + ' over the map.' : 'Enter opens the scene page over the map.'; }
 var CMD_SCENE = { id: 'page.scene', name: 'Scene page', does: 'Open this map’s scene page over the map.', also: ['scene', 'map page', 'planner'], icon: 'mask', key: 'Shift+KeyP',

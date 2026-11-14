@@ -2886,6 +2886,11 @@ window.wpFitToGrid = fitToGrid;
       updateWbToolbar('moveModeBtn');
       closeDrawMenu();
   });
+  // Select is the tool in hand when the app opens, so the body says so from the start (mode-move), as it does once any tool is taken
+  // (updateWbToolbar). Before this the class came only with the first press of a tool: the map's Select cursor was missing until then, and
+  // the token card (backlog 236), which takes presses only with Select in hand (style.css body:not(.mode-move) #wbTooltip.tc-on), could not
+  // be pressed at all on a fresh launch. Found live on 2026-11-14 at the review of the hover card's merge
+  if (typeof document !== 'undefined' && document.body && !/(^|\s)mode-/.test(document.body.className)) document.body.classList.add('mode-move');
 
   if(_el_panModeBtn) _el_panModeBtn.addEventListener('click', function() {
       if (window.isPanMode) { var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); return; }   // second click on the active tool → back to the arrow
@@ -4299,7 +4304,17 @@ window.wpFitToGrid = fitToGrid;
           (p.rows || []).forEach(function(r) { var w = mk('div', 'tc-where'); w.appendChild(mk('span', 'tc-where-k', r[0])); w.appendChild(mk('span', 'tc-where-v', r[1])); sec.appendChild(w); });
           c.body.appendChild(sec);
       });
-      ['pointerdown', 'mousedown', 'dblclick', 'contextmenu'].forEach(function(ev) { c.el.addEventListener(ev, function(e) { e.stopPropagation(); }); });   // the card's own press: nothing on the board under it starts a drag, a marquee or a menu
+      // The card's own press: nothing on the board under it starts a drag, a marquee or a menu. The card takes presses only with Select in hand
+      // (style.css), and even then the button that pans, and a press while Space is held, go on to the board, so a pan under it never dies
+      var passes = function(e) {
+          if (e.type !== 'pointerdown' && e.type !== 'mousedown') return false;
+          if (e.button === 1) return true;
+          var W = typeof window !== 'undefined' && window ? window : null; if (!W) return false;
+          if (W.wpSpacePan && !e.button) return true;
+          var pb = W.wpMouse && typeof W.wpMouse.panButton === 'function' ? W.wpMouse.panButton() : 1;
+          return e.button > 0 && e.button === pb;
+      };
+      ['pointerdown', 'mousedown', 'dblclick', 'contextmenu'].forEach(function(ev) { c.el.addEventListener(ev, function(e) { if (passes(e)) return; e.stopPropagation(); }); });
       c.el.addEventListener('wheel', function(e) { var b = c.body; if (b && b.scrollHeight > b.clientHeight + 1) e.stopPropagation(); }, { passive: true });   // a long card scrolls, and the board does not zoom under it
       return c.el;
   }
@@ -4413,6 +4428,25 @@ window.wpFitToGrid = fitToGrid;
       _tc.timer = 0; var nx = _tc.next; _tc.next = null; tokCardDrop();
       if (nx && nx.el.isConnected && nx.el.matches(':hover') && typeof PointerEvent === 'function') { nx.el.dispatchEvent(new PointerEvent('pointerenter', { clientX: nx.x, clientY: nx.y })); nx.el.dispatchEvent(new PointerEvent('pointermove', { clientX: nx.x, clientY: nx.y, bubbles: true })); }
   }
+  // [lookcheck:tokredo-start]
+  // A card is not drawn again under a press on it (a button pressed would be replaced under the pointer, io.js pressHold) nor while words of it
+  // are selected: the redraw waits for the press to land, or for the selection to go. tokCardHeld answers the hold of a card, made as it goes up
+  function tokCardHeld(card) { return card && typeof pressHold === 'function' && typeof window !== 'undefined' && window && typeof window.addEventListener === 'function' ? pressHold(card, window) : null; }
+  function tokCardSelIn(box) {
+      try { var s = typeof window !== 'undefined' && window && typeof window.getSelection === 'function' ? window.getSelection() : null; if (!s || s.isCollapsed || !s.rangeCount || !box || typeof box.contains !== 'function') return false; return !!(s.anchorNode && box.contains(s.anchorNode)) || !!(s.focusNode && box.contains(s.focusNode)); } catch (e) { return false; }
+  }
+  var _tcWait = { card: null, pin: null };
+  // false where it may be drawn now; else true, and fn runs again once the press has landed or the selection has gone
+  function tokCardWait(box, card, which, fn) {
+      var h = tokCardHeld(card);
+      if (h && h.busy()) { h.then(fn); return true; }
+      if (tokCardSelIn(box)) { _tcWait[which] = fn; return true; }
+      _tcWait[which] = null; return false;
+  }
+  function tokCardSelGone() {   // the selection changed: a redraw that waited for it runs once it is no longer in its card
+      ['card', 'pin'].forEach(function(k) { var fn = _tcWait[k]; if (!fn) return; var box = k === 'card' ? tokTip() : document.getElementById('tokCardBody'); if (!tokCardSelIn(box)) { _tcWait[k] = null; fn(); } });
+  }
+  if (typeof document !== 'undefined' && document && typeof document.addEventListener === 'function') document.addEventListener('selectionchange', tokCardSelGone);
   function tokCardPlace(tt, el) {
       var wrap = document.getElementById('whiteboardWrap'), card = tt.firstElementChild; if (!wrap || !card || !el) return;
       var wb = wrap.getBoundingClientRect(), sL = wrap.scrollLeft, sT = wrap.scrollTop, r = el.getBoundingClientRect();
@@ -4426,7 +4460,7 @@ window.wpFitToGrid = fitToGrid;
       if (window.wpStream) return;   // the stream window shows nothing of it
       tokCardKeep(); _tc.next = null;
       var card = tokCardFor(wItem, el, map, false);
-      tt.textContent = ''; tt.appendChild(card); tt.classList.add('tc-on'); tt.style.display = 'block'; _tc.id = wItem.id;
+      tt.textContent = ''; tt.appendChild(card); tt.classList.add('tc-on'); tt.style.display = 'block'; _tc.id = wItem.id; tokCardHeld(card);
       tokCardPlace(tt, el);
   }
   function tokElFor(id) { var q = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(id) : String(id).replace(/[^\w-]/g, ''); return document.querySelector('#whiteboard .wb-item[data-id="' + q + '"]'); }
@@ -4435,9 +4469,13 @@ window.wpFitToGrid = fitToGrid;
       var tt = tokTip(), map = getActiveMap(); if (!tt || !_tc.id || !map) { tokCardDrop(); return; }
       var w = (map.whiteboard || []).find(function(x) { return x && x.id === _tc.id; }), el = w ? tokElFor(w.id) : null, n = window.wpNet;
       if (!w || !el || (w.hidden && n && n.active && n.role === 'client') || !(tt.matches(':hover') || el.matches(':hover'))) { tokCardDrop(); return; }
+      var old = tt.firstElementChild; if (tokCardWait(tt, old, 'card', function() { if (tokCardUp()) tokCardRedo(); })) return;   // a press on it, or words of it selected: after
       var left = tt.style.left, top = tt.style.top, onCard = tt.matches(':hover');
-      tt.textContent = ''; tt.appendChild(tokCardFor(w, el, map, false));
-      if (onCard) { tt.style.left = left; tt.style.top = top; } else tokCardPlace(tt, el);   // the card under the pointer stays where it is
+      var ob = old && typeof old.querySelector === 'function' ? old.querySelector('.ui-card-body') : null, st = ob ? ob.scrollTop : 0, mw = old && old.style ? old.style.maxWidth : '', mh = old && old.style ? old.style.maxHeight : '';
+      var nc = tokCardFor(w, el, map, false);
+      tt.textContent = ''; tt.appendChild(nc); tokCardHeld(nc);
+      if (onCard) { nc.style.maxWidth = mw; nc.style.maxHeight = mh; tt.style.left = left; tt.style.top = top; } else tokCardPlace(tt, el);   // the card under the pointer stays where it is, held to the room it had
+      var nb = typeof nc.querySelector === 'function' ? nc.querySelector('.ui-card-body') : null; if (nb && st) nb.scrollTop = st;   // a long note read part way stays where it was read
   }
   // The pinned card: a small window of its own (floats.js, sheets.js Z_BOXES, esckey.js ESC_LAST), made again whenever the board is drawn
   var _pin = { id: '', map: '' };
@@ -4446,11 +4484,15 @@ window.wpFitToGrid = fitToGrid;
       var p = tokPinEl(), body = document.getElementById('tokCardBody'); if (!p || !body || !_pin.id || p.style.display === 'none') return false;
       var camp = getActiveCampaign(), map = camp && camp.items ? camp.items[_pin.map] : null, w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === _pin.id; }) : null, n = window.wpNet;
       if (!w || (w.hidden && n && n.active && n.role === 'client')) { tokPinClose(); return false; }   // the token is gone, or hidden from this player
-      var am = getActiveMap(), sc = body.scrollTop;
-      body.textContent = ''; body.appendChild(tokCardFor(w, am && am.id === map.id ? tokElFor(w.id) : null, map, true)); body.scrollTop = sc;
+      var old = body.firstElementChild; if (tokCardWait(body, old, 'pin', function() { tokPinDraw(); })) return true;   // a press on it, or words of it selected: after
+      var am = getActiveMap(), ob = typeof body.querySelector === 'function' ? body.querySelector('.ui-card-body') : null, sc = ob ? ob.scrollTop : 0;   // the card's own body scrolls, never the window's
+      var nc = tokCardFor(w, am && am.id === map.id ? tokElFor(w.id) : null, map, true);
+      body.textContent = ''; body.appendChild(nc); tokCardHeld(nc);
+      var nb = typeof nc.querySelector === 'function' ? nc.querySelector('.ui-card-body') : null; if (nb && sc) nb.scrollTop = sc;
       var t = document.getElementById('tokCardTitle'); if (t) t.textContent = w.charName || 'Token';
       return true;
   }
+  // [lookcheck:tokredo-end]
   function tokPinOpen(id, mapId) {
       var p = tokPinEl(), tt = tokTip(); if (!p || window.wpStream) return;
       var r = tt && tt.style.display === 'block' ? tt.getBoundingClientRect() : null, was = p.style.display !== 'none';
@@ -8455,7 +8497,8 @@ if(_el_toggleLeftBtn) _el_toggleLeftBtn.addEventListener('click', function() {
      selection clears. A hand open or close wins until the selection changes.
      1.6.2: the Properties tab at the map's edge is gone (the owner, at the click test of the layout editor: "honstely we dont need the button
      anymore since properties is easily reached from other options now"), so the bar laid along the right edge sits flush. The panel opens
-     from Properties on the right-click menu and the selection bar and by a double-click, and closes by its own X (layers.js propWire). */
+     from Properties on the right-click menu (a room's on the Data Map too, and a link's own menu there) and the selection bar, never by a
+     double-click, and closes by its own X (layers.js propWire). */
   window.wpSelKey = function() { return state.viewMode === 'data' ? (state.selId ? 'r:' + state.selId : (state.selLink != null ? 'l:' + state.selLink : '')) : (state.selWbId ? 'w:' + state.selWbId : ''); };
   function rightShown(sb) { return !!sb && sb.style.display !== 'none'; }   // a planner on screen has no Properties (main.js render)
   window.wpSyncRightPanel = function() {
@@ -11885,6 +11928,17 @@ function placeMenu(cMenu, e) {
     // limit and scroll — never rows off screen. Judged afresh each time the menu is placed; called with no event (its rows changed while it
     // was up) it is fitted again where it stands.
     var room = window.innerHeight - 12;
+    // Where the menu lives. The page puts #contextMenu inside #whiteboardWrap, the play map's box, and the Data Map hides that box (display: none),
+    // so on the Data Map a room's right-click menu was built and never seen, and its Properties row (the only way to a room's settings since
+    // the edge tab went, the rail merge of 1.6.2) could not be reached. While the box is hidden the menu moves to the page itself; it is
+    // position: fixed, so nothing about where it stands changes. Back on the play map it goes home into the box, as the page wrote it.
+    // Found live on 2026-11-14 in the review of that merge. No document in a suite's stand-in: nothing moves there.
+    var home = typeof document !== 'undefined' && document && typeof document.getElementById === 'function' ? document.getElementById('whiteboardWrap') : null;
+    if (home && document.body && typeof getComputedStyle === 'function') {
+        var hidden = getComputedStyle(home).display === 'none';
+        if (hidden && cMenu.parentNode === home) document.body.appendChild(cMenu);
+        else if (!hidden && cMenu.parentNode === document.body) home.appendChild(cMenu);
+    }
     cMenu.style.position = 'fixed';
     cMenu.classList.remove('compact', 'tall'); cMenu.style.maxHeight = '';
     if (cMenu.offsetHeight > room) cMenu.classList.add('compact');
@@ -12254,7 +12308,7 @@ document.addEventListener('contextmenu', function(e) {
                 html += '<div class="menu-item cm-dup"><i class="wib wi-dup"></i> Duplicate</div>';
                 html += '<div class="menu-item cm-del" style="color:var(--danger)">Delete</div>';
                 html += '<div class="menu-divider"></div>';
-            }
+            } else if (!(window.wpNet && (window.wpNet.foreign || (window.wpNet.active && window.wpNet.role === 'client')))) html += '<div class="menu-item cm-props" title="Open this room&rsquo;s settings at the right edge of the map: its notes, who is here, its place on the play map"><i class="wib wi-props"></i> Properties</div>';   // 1.6.2: on the Data Map too, the room the right-click selected
 
             if (isWb) {
                 if (selectedIds.length > 1) {
@@ -12440,7 +12494,7 @@ document.addEventListener('contextmenu', function(e) {
         cMenu.onclick = function(ce) {
             var action = ce.target.className;
             if (typeof action === 'string' && isWb && action.includes('cm-structure')) { cMenu.style.display = 'none'; var srow = structRow(am); if (srow) { var sw = structDo(am, srow.lock); if (sw) toast(sw); } return; }   // 231: the whole map's structure
-            if (typeof action === 'string' && isWb && action.includes('cm-props')) { cMenu.style.display = 'none'; if (window.wpOpenRightPanel) window.wpOpenRightPanel(); return; }   // 1.6.2 (backlog 229): the piece the right-click selected
+            if (typeof action === 'string' && action.includes('cm-props')) { cMenu.style.display = 'none'; if (window.wpOpenRightPanel) window.wpOpenRightPanel(); return; }   // 1.6.2 (backlog 229): the piece, or on the Data Map the room, the right-click selected
 
             if (typeof action === 'string' && (action.includes('cm-opacity') || action.includes('cm-align-row') || action.includes('align-btn') || action.includes('cm-stance') || action.includes('cm-stackrows'))) return; // control rows keep the menu open
             if (typeof action === 'string' && action.includes('cm-order')) { var stk = cMenu.querySelector('.cm-stackrows'); if (stk) { stk.hidden = !stk.hidden; ce.target.setAttribute('aria-expanded', stk.hidden ? 'false' : 'true'); ce.target.innerHTML = 'Order ' + (stk.hidden ? '&#9656;' : '&#9662;'); placeMenu(cMenu); } return; }   // 1.6.2: Order opens its four rows and keeps the menu up

@@ -1031,7 +1031,7 @@
   #prepCol.spread > #prepGrip { display: none; }
   /* what must lie over a spread column asks the body's word (prep.js sync): the left panel opened from its rail, which stands where the spread
      begins, and a hidden top row's bar and tab, which float where the map's area begins. The spread's head starts under that bar */
-  body.prep-spread #campaignSidebar.floating { z-index: 8998; }
+  body.prep-spread #campaignSidebar.floating { z-index: 9510; }
   body.row-hidden:not(.tour-on):not(.stream-mode).prep-spread header, body.row-hidden:not(.tour-on):not(.stream-mode).prep-spread #rowShowTab { z-index: 8998; }
   body.row-hidden:not(.tour-on):not(.stream-mode).prep-spread #prepCol.spread > .prep-head { padding-top: calc(var(--rowbar, 22px) + 38px); }
   .prep-spc { min-width: 0; }
@@ -1286,6 +1286,7 @@
      item card (.ui-card) with a round picture; each part a label over its lines; a bar its own color over a dark track; neutral chips, a buff's
      edge green and a debuff's or Down's red, one the GM alone sees dashed. Gold is only on the pin while it is on */
   #wbTooltip.tc-on { pointer-events: auto; user-select: text; -webkit-user-select: text; }
+  body:not(.mode-move) #wbTooltip.tc-on { pointer-events: none; }   /* only with Select in hand: with any other tool (the ruler, the pen, the fog brush, Pan) a press on it reaches the board under it */
   .ui-card.tok-card { width: 280px; max-width: 320px; gap: 8px; overflow: hidden; color: var(--ink); text-align: left; }
   #wbTooltip .ui-card.tok-card { box-shadow: 0 4px 14px rgba(0,0,0,0.45); }
   .tok-card .ui-card-pic { width: 44px; height: 44px; border-radius: 50%; } .tok-card .ui-card-pic > img { width: 44px; height: 44px; object-fit: cover; border-radius: 50%; }
@@ -1746,7 +1747,7 @@
     max-width: 0 !important; flex-basis: 0 !important; padding-left: 0; padding-right: 0; border-left: none; overflow: hidden;
   }
   /* 1.6.2, backlog 217 (the owner, by prompt: "Floating window"): Properties floats over the map where it was last left, and never narrows it */
-  body:not(.stream-mode) #sidebar { position: fixed; right: 18px; top: 110px; width: var(--rightw, 320px); max-width: calc(100vw - 24px); max-height: calc(100vh - 170px); z-index: 9000; border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  body:not(.stream-mode) #sidebar { position: fixed; right: calc(18px + var(--lay-propr, 0px)); top: 110px; width: var(--rightw, 320px); max-width: calc(100vw - 24px); max-height: calc(100vh - 170px); z-index: 9000; border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   body:not(.stream-mode) #sidebar.collapsed { display: none !important; }
   #rightGrip { display: none; }
   #propHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; flex: none; }
@@ -2989,7 +2990,7 @@
   #toggleLeftBtn[aria-expanded="false"] .ico { transform: rotate(-90deg); }   /* and pointing right it shows it */
   body:not(.tour-on) #campaignSidebar > .sidebar-section.rail-off { display: none !important; }   /* a section not shown is put away, a player's Decks too; the tour's steps point into every section */
   .rail-grow { flex: 1; }
-  #campaignSidebar.floating { position: absolute; left: 34px; top: 0; bottom: 0; z-index: 5001; box-shadow: 6px 0 18px rgba(0,0,0,0.45); }   /* over the map, its fog, the panes' arrows, the minimap (5000) and a hidden row's bar and tab (4030, 4031): nothing of the map's own is drawn on the opened panel */
+  #campaignSidebar.floating { position: absolute; left: 34px; top: 0; bottom: 0; z-index: 9510; box-shadow: 6px 0 18px rgba(0,0,0,0.45); }   /* over the map, its fog, the panes' arrows, the minimap (5000), a hidden row's bar and tab (4030, 4031) and the toolbar at rest (9500), which a layout may lay across the left or the bottom edge: nothing of the map's own is drawn on the opened panel. Under every menu of the bars (90010) and every notice */
   #campaignSidebar.collapsed + #leftGrip, #campaignSidebar.floating + #leftGrip { display: none; }   /* only a docked panel is resized */
   body.stream-mode #leftRail, body.net-client.no-handbook #leftRail { display: none !important; }
   /* ---- the top row's state pills (step R3 of the slim row): what is going on, in a few words. A pill shows only while it has something to
@@ -4478,7 +4479,7 @@
   .fb { flex: 1 1 100%; min-width: 0; width: 100%; }
   .fb-line { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 6px 4px 8px; min-height: 30px; }
   .fb-col { flex: 1; min-width: 0; }
-  body.net-client #campaignSidebar .sidebar-section.sb-decks:not([hidden]) { display: block !important; }
+  body.net-client #campaignSidebar .sidebar-section.sb-decks:not([hidden]):not(.rail-off), body.net-client.tour-on #campaignSidebar .sidebar-section.sb-decks:not([hidden]) { display: block !important; }   /* the rail's own mark puts it away like any section, but while the tour's card is up */
   .dk-row { display: flex; justify-content: space-between; gap: 8px; width: 100%; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
   #deckPanel { position: fixed; left: 60px; top: 100px; width: 420px; max-width: calc(100vw - 24px); max-height: 80vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; }
   #deckHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }

@@ -55,7 +55,10 @@ function wire() {
     hideApply(document, hideRead(localStorage));
     mainLeftApply(document);
     var area = document.getElementById('main');
-    if (area && typeof ResizeObserver === 'function') new ResizeObserver(function() { mainLeftApply(document); }).observe(area);   // the area changes size when the left panel is folded, opened, docked or dragged wider; main.js render() asks fit() too, since one redraw can move both of its edges
+    // Written in the next frame, never inside the observer's own pass: --mainleft places the hidden row's bar and its tab, and what stands there
+    // may be watched. Found 2026-11-14 with main.js narrowWire (the owner: "lets fix the issue instead of glossing it over"): a ResizeObserver callback that changes a size some observer watches makes the browser raise "ResizeObserver loop completed with undelivered notifications", which booterror.js shows as a red banner. main.js render() still asks fit() at once.
+    var mlRaf = 0;
+    if (area && typeof ResizeObserver === 'function') new ResizeObserver(function() { if (mlRaf) return; mlRaf = requestAnimationFrame(function() { mlRaf = 0; mainLeftApply(document); }); }).observe(area);   // the area changes size when the left panel is folded, opened, docked or dragged wider; main.js render() asks fit() too, since one redraw can move both of its edges
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
 window.wpRowHide = { set: function(on) { return hideSet(document, localStorage, window, on === true); }, hidden: function() { return document.body.classList.contains('row-hidden'); }, fit: function() { return mainLeftApply(document); } };

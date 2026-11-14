@@ -697,7 +697,7 @@ function scenePageField(map) { var camp = mapPinGm() ? getActiveCampaign() : nul
 function scenePageSet(map, id) { return mapPinGm() ? scenePagePut(getActiveCampaign(), map, id) : ''; }
 // The scene page of the map on screen, for the map's right-click menu: its id and its name, or null
 function scenePageNow() { var camp = mapPinGm() ? getActiveCampaign() : null, map = camp ? getActiveMap() : null, it = camp && map ? scenePageOf(camp, map) : null; return it ? { id: map.meta.scenePage, title: pageTitle(it) } : null; }
-var SCENE_NONE = 'This map has no scene page yet. With nothing selected, open Properties at the right edge and pick one under Scene page.';
+var SCENE_NONE = 'This map has no scene page yet. Right-click the empty play map, press Map properties and pick one under Scene page.';
 // The scene page of the map on screen opened by the one rule: commands.js's Scene page runs it (its key, Shift+P, the owner's ruling of
 // 2026-10-29: "Pen keeps P"; any key of your own in Settings, Keys; and the quick jump). Says how it opened (openPage's answer), 'none'
 // where the map names no page, or '' where it is not this screen's to open

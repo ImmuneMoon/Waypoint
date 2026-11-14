@@ -176,6 +176,15 @@ function layArea() {
     var ins = layInsets(); return { el: m, w: m.clientWidth, h: m.clientHeight, t: ins.t, l: ins.l, r: ins.r, b: ins.b, et: ins.et, tt: ins.tt, rw: ins.rw, rh: ins.rh };
 }
 function layRectIn(el, m) { var r = el.getBoundingClientRect(), a = m.getBoundingClientRect(); return { left: r.left - a.left, top: r.top - a.top, right: r.right - a.left, bottom: r.bottom - a.top, w: r.width, h: r.height }; }
+// How much further from the window's right Properties stands than its own 18 px, so that a bar down the right edge, shown, never covers its X:
+// the bar's left edge in the window's numbers (else in the area's, whose right is the window's), less 8 px to keep clear, less the 18 px it has
+function propRight(bar, barEl, rect, area) {
+    var b = cleanBar(bar); if (!rect || !barEl || b.hide || b.side !== 'right') return 0;
+    var W = typeof window !== 'undefined' && window && typeof window.innerWidth === 'number' && window.innerWidth > 0 ? window.innerWidth : 0;
+    var from = W ? W - barEl.getBoundingClientRect().left : area.w - rect.left;
+    return Math.max(0, Math.round(from) + LAY_GAP - 18);
+}
+function layPropFit() { if (typeof window !== 'undefined' && window && typeof window.wpPropFit === 'function') window.wpPropFit(); }   // a place of Properties' own, kept clear of it too (layers.js)
 function laySetVar(el, k, v) { if (el.style.getPropertyValue(k) !== v) el.style.setProperty(k, v); }
 function layDropVar(el, k) { if (el.style.getPropertyValue(k)) el.style.removeProperty(k); }
 function layAt(el, xy) { el.classList.add('lay-at'); laySetVar(el, '--lay-x', xy.x + 'px'); laySetVar(el, '--lay-y', xy.y + 'px'); }
@@ -208,7 +217,7 @@ function layApply() {
     var ids = LAY_PARTS.play.concat(LAY_PARTS.data.filter(function(id) { return LAY_PARTS.play.indexOf(id) < 0; }));
     var col = layEl('wbEdgeTools'), colOn = on && which === 'play';
     if (col) { col.classList.toggle('lay-hide', colOn && !!v.colHide); col.classList.toggle('lay-low', colOn && !barPlain(v.bar)); }   // the column stands low unless the bar is the floating box at the bottom it stands above
-    if (!on || !m) { ids.forEach(function(id) { layFree(layEl(id)); }); layDropVar(body, '--lay-rl'); if (m) ['--lay-t', '--lay-l', '--lay-et', '--lay-tt', '--lay-rt', '--lay-pt', '--lay-pl', '--lay-pr', '--lay-colb'].forEach(function(k) { layDropVar(m, k); }); layHot(null); if (wasOn) { layFitBar(); layTrk(); } return; }   // nothing is written where nothing was laid out
+    if (!on || !m) { ids.forEach(function(id) { layFree(layEl(id)); }); layDropVar(body, '--lay-rl'); layDropVar(body, '--lay-propr'); layPropFit(); if (m) ['--lay-t', '--lay-l', '--lay-et', '--lay-tt', '--lay-rt', '--lay-pt', '--lay-pl', '--lay-pr', '--lay-colb'].forEach(function(k) { layDropVar(m, k); }); layHot(null); if (wasOn) { layFitBar(); layTrk(); } return; }   // nothing is written where nothing was laid out
     var A = layArea(), barEl = layBarOf(which);
     laySetVar(m, '--lay-t', A.t + 'px'); laySetVar(m, '--lay-l', A.l + 'px'); laySetVar(m, '--lay-et', A.et + 'px'); laySetVar(m, '--lay-tt', A.tt + 'px');
     layFitBar();
@@ -219,6 +228,7 @@ function layApply() {
     var bRect = barEl && barEl.offsetWidth ? layRectIn(barEl, m) : null, p = pushOf(v.bar, bRect, A), rs = rulerShift(v.bar, bRect, A);
     laySetVar(m, '--lay-rt', rs.t + 'px'); laySetVar(body, '--lay-rl', rs.l + 'px');   // the rulers beside a bar across the top or the left edge; the left one on the body, as a hidden row's bar floats past that ruler too
     laySetVar(m, '--lay-pt', p.t + 'px'); laySetVar(m, '--lay-pl', p.l + 'px'); laySetVar(m, '--lay-pr', p.r + 'px');
+    laySetVar(body, '--lay-propr', propRight(v.bar, barEl, bRect, A) + 'px'); layPropFit();   // Properties (fixed, 18 px from the window's right) stands clear of a bar down the right edge, its X in reach
     laySetVar(m, '--lay-colb', (v.bar.side === 'bottom' && v.bar.edge && !v.bar.hide && barEl ? barEl.offsetHeight + 12 : 30) + 'px');   // over a bar across the bottom, else low
     var room = { w: A.w, h: A.h, t: A.t + p.t, l: A.l + p.l, r: A.r + p.r, b: A.b };
     if (v.bar.side === 'bottom' && !v.bar.hide && barEl && barEl.offsetWidth) room.b = Math.max(room.b, Math.round(A.h - layRectIn(barEl, m).top + LAY_GAP));
@@ -533,7 +543,7 @@ function layInit() {
 }
 // [layoutcheck:api]
 var API = { sync: laySync, edit: layEdit, escape: layEscape, held: layHeld, fitSide: layFitSide, measure: layMeasure, menuFit: layMenuFit, keyHold: layKeyHold, cardPlace: layCardPlace, down: layDown, move: layMove, up: layUp, editing: function() { return _lay.edit; } };
-export { cleanLayout, cleanView, cleanBar, cleanSpot, spotXY, spotOf, barOf, pushOf, rulerShift, layWith, barClasses, unclash, LAY_KEY, LAY_PARTS, LAY_BARS, LAY_SPOTS, LAY_SIDES, API };
+export { cleanLayout, cleanView, cleanBar, cleanSpot, spotXY, spotOf, barOf, pushOf, rulerShift, propRight, layWith, barClasses, unclash, LAY_KEY, LAY_PARTS, LAY_BARS, LAY_SPOTS, LAY_SIDES, API };
 if (typeof window !== 'undefined') {
     window.wpLayout = API;
     if (typeof document !== 'undefined') { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', layInit); else layInit(); }

@@ -156,7 +156,7 @@ var GROUPS = {
     rolls: { split: ['sys-row-main'], head: ['sys-label', 'sys-roll-kind', 'sys-formula', 'sys-btns'], list: [
         ['how', 'How it rolls', 1, ['sys-roll-drawfirst', 'sys-drawnrow', 'sys-roll-drawn', 'sys-roll-malf', 'sys-roll-critat', 'sys-roll-fumbleat', 'sys-roll-bigat', 'sys-init-chk', 'sys-roll-anytime', 'sys-roll-keepscene']],
         ['look', 'Who sees it and how it looks', 1, ['sys-vis', 'sys-roll-togm', 'sys-roll-tone', 'snd-on-btn', 'sys-roll-die', 'sys-roll-icon', 'sys-glyph-btn']],
-        ['use', 'When it can be used', 1, ['sys-roll-needsrow', 'sys-roll-cost', 'sys-costhowrow', 'sys-costhow', 'sys-clockrow', 'sys-clockn', 'sys-roll-near', 'sys-roll-each', 'sys-roll-by', 'sys-crewstn']],
+        ['use', 'When it can be used', 1, ['sys-roll-needsrow', 'sys-why', 'sys-roll-cost', 'sys-costhowrow', 'sys-costhow', 'sys-clockrow', 'sys-clockn', 'sys-roll-near', 'sys-roll-each', 'sys-roll-by', 'sys-crewstn']],
         ['damage', 'Damage', 0, ['sys-dmg-chk', 'sys-roll-hits', 'sys-roll-mjif', 'sys-roll-mjdmg', 'sys-roll-dtype', 'sys-roll-dkind', 'sys-roll-p2*', 'sys-roll-p3*', 'sys-roll-p4*', 'sys-roll-p5*', 'sys-area']],
         ['resist', 'Resisting it', 0, ['sys-roll-rsist', 'sys-roll-critok', 'sys-roll-rsby', 'sys-rsor', 'sys-roll-rsnocrit']],
         ['clock', 'By the clock and in a fight', 0, ['sys-roll-everyrow', 'sys-roll-fightrow', 'sys-roll-askrow', 'sys-roll-noterow']],
@@ -187,7 +187,7 @@ var GROUPS = {
         ['stats', 'Stats', 1, ['sys-list-stats']],
         ['cols', 'Columns', 0, ['sys-list-col', 'sys-list-coladd']],
         ['cts', 'Counters', 0, ['sys-list-ct', 'sys-list-ctadd']],
-        ['rolls', 'Rolls', 1, ['sys-list-roll', 'sys-list-needsrow', 'sys-list-rolladd', 'sys-list-xsrow', 'sys-calls', 'sys-help']],
+        ['rolls', 'Rolls', 1, ['sys-list-roll', 'sys-list-needsrow', 'sys-why', 'sys-list-rolladd', 'sys-list-xsrow', 'sys-calls', 'sys-help']],
         ['ties', 'Tied to other rows', 0, ['sys-list-hang'].concat(['sys-list-partsfrom', 'sys-list-partscats', 'sys-list-partshosts', 'sys-list-partscap', 'sys-pcaps', 'sys-list-partsfitif', 'sys-list-partsfitwords', 'sys-pfits', 'sys-list-partslabel', 'sys-list-partsdeep'], ['sys-list-standfrom', 'sys-list-standfits', 'sys-list-standsays', 'sys-list-standreach', 'sys-list-standcounts', 'sys-list-standoff', 'sys-list-standbox', 'sys-list-standpieces', 'sys-sthen'], ['sys-list-atfrom', 'sys-list-atby']), [['hang', 'Hangs from a row of this list', ['sys-list-hang']], ['parts', 'Holds parts', ['sys-list-partsfrom', 'sys-list-partscats', 'sys-list-partshosts', 'sys-list-partscap', 'sys-pcaps', 'sys-list-partsfitif', 'sys-list-partsfitwords', 'sys-pfits', 'sys-list-partslabel', 'sys-list-partsdeep']], ['stand', 'Stands at a row of another list', ['sys-list-standfrom', 'sys-list-standfits', 'sys-list-standsays', 'sys-list-standreach', 'sys-list-standcounts', 'sys-list-standoff', 'sys-list-standbox', 'sys-list-standpieces', 'sys-sthen']], ['at', 'Names a row of another list by a stat', ['sys-list-atfrom', 'sys-list-atby']]]],   // 1.6.2 (the owner, by prompt: "Rows tied to rows"): the four ways a row ties to another row, in one place, a kind at a time
         ['tiles', 'Tiles', 0, ['sys-list-tileside', 'sys-list-tiletop', 'sys-list-tiledraw', 'sys-list-tilemake', 'sys-tboxes', 'sys-tstates']],
         ['badges', 'Badges', 0, ['sys-badges']],

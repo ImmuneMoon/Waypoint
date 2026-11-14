@@ -211,7 +211,7 @@ function world(opts) {
     check('what a player is sent, and a live move, ask the same judge', /nj && nj\.missed\(w, tk\)/.test(fog) && /ce\.nj && !ce\.nj\.moved\(w, pk\)/.test(fog));
     check('the host hears a sneak\'s roll from a player and from its own', net.split('window.wpNotice.stealth(').length === 3);
     check('a creature stops moving by its turn, a new table starts clean, and a result that changes what is held is sent', /window\.wpNotice\.turnEnd\(mapId, row\.tokId\)/.test(net) && /function fogForgetAll\(\) \{ if \(typeof window !== 'undefined' && window\.wpNotice\) window\.wpNotice\.forget\(\);/.test(net) && /net\.noticeArm = function\(mapId\) \{ fogArm\(mapId\); \};/.test(net));
-    check('the sheet names such a roll as it is pressed', sh.indexOf('if (r.needs || r.named) { oR = oR || {}; oR.act = r.id; }') >= 0);
+    check('the sheet names such a roll as it is pressed', sh.indexOf('if (r.needs || r.needsWhy || r.named) { oR = oR || {}; oR.act = r.id; }') >= 0);
     const nt = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'latin1');
     check('a player\'s roll and the sheet read TargetCover by the fog, as the ruler does', nt.indexOf('Fgc.coverGrade(map, camp, tok, w, true)') > 0 && sh.indexOf('window.wpFog.coverGrade(map, camp, tok, w, pc)') > 0);
     check('the module is in the page', page.indexOf('<script type="module" src="scripts/notice.js"></script>') > 0);

@@ -5983,7 +5983,7 @@ function jobPress(S, camp, ch, ref, ent, vars, F, round, label, saved) {
 net.jobGo = function(camp, ch, ref, ent, vars, F, label) {
     var S = typeof SC === 'function' ? SC() : null; if (!S || !camp || !camp.system || !ch || !ref || !ent || !ent.job || typeof S.jobStep !== 'function') return '';
     var rd = jobRound(camp, ch.id), bar = S.jobBar(ch, ref, ent, vars, F, rd); if (bar) return bar;
-    if (ent.needs && typeof S.rollNeedsOk === 'function' && !S.rollNeedsOk(ent, vars, F)) return S.rollNeedsSays(ent);
+    if ((ent.needs || ent.needsWhy) && typeof S.rollNeedsOk === 'function' && !S.rollNeedsOk(ent, vars, F)) return S.rollNeedsSays(ent, vars, F);
     return jobPress(S, camp, ch, ref, ent, vars, F, rd, label, function() { if (typeof save === 'function') save(true); });
 };
 function turnJobEnd(mapId, c, row, round) {
@@ -9154,7 +9154,7 @@ function handleMessage(msg, conn) {
         var jobA = actA.job && qa.row && typeof Sa.jobStep === 'function', costDoneA = false;   // 1.6.2 (the CORE session): a list's action that is a job, judged and counted before its changes, which only its last press makes
         if (jobA) {
             var jrA = typeof jobRound === 'function' ? jobRound(campA, chA.id) : null, jbA = Sa.jobBar(chA, qa.row, actA, varsA, Fa, jrA); if (jbA) { denyA('error', jbA); return; }
-            if (actA.needs && !Sa.rollNeedsOk(actA, varsA, Fa)) { denyA('error', Sa.rollNeedsSays(actA)); return; }
+            if ((actA.needs || actA.needsWhy) && !Sa.rollNeedsOk(actA, varsA, Fa)) { denyA('error', Sa.rollNeedsSays(actA, varsA, Fa)); return; }
             var cjA = typeof actSpend === 'function' ? actSpend(campA, qa.charId, profA, actA.cost, conn, chA.name, false, actA.costN) : ''; if (cjA) { denyA('error', cjA); return; } if (typeof clockPress === 'function') clockPress(campA, qa.charId, actA); costDoneA = true;
             var jsA = jobPress(Sa, campA, chA, qa.row, actA, varsA, Fa, jrA, qa.label, saveRemoteSoon); if (jsA) { denyA('error', jsA); return; }
         }
@@ -10218,7 +10218,7 @@ function handleMessage(msg, conn) {
                 var askedQ = null; if (q.ask && !Array.isArray(actQ.asks)) { denyQ('error', { error: { message: 'That roll asks nothing.', pos: 0, len: 0 } }); return; }
                 if (Array.isArray(actQ.asks) && typeof SQ.askJudge === 'function') { var ajQ = SQ.askJudge(viewQ, actQ, q.ask, varsQ, Fq); if (ajQ.error) { denyQ('error', { error: { message: ajQ.error, pos: 0, len: 0 } }); return; } varsQ = SQ.withAsk(varsQ, ajQ); askedQ = ajQ.said; }   // 1.6.2: what they answered, judged here and read as Ask.<key>
                 if (q.row && typeof actQ.showIf === 'string' && actQ.showIf && !SQ.rollNeedsOk({ needs: actQ.showIf }, varsQ, Fq)) { denyQ('error', { error: { message: 'That roll is not offered on this row.', pos: 0, len: 0 } }); return; }   // 1.6.0: Shown where, through their view
-                if (actQ.needs && !SQ.rollNeedsOk(actQ, varsQ, Fq)) { denyQ('error', { error: { message: SQ.rollNeedsSays(actQ), pos: 0, len: 0 } }); return; }   // R2b: what it needs, through their view (the row's names); the one reading (1.5.4: no die in it is rolled)
+                if ((actQ.needs || actQ.needsWhy) && !SQ.rollNeedsOk(actQ, varsQ, Fq)) { denyQ('error', { error: { message: SQ.rollNeedsSays(actQ, varsQ, Fq), pos: 0, len: 0 } }); return; }   // R2b: what it needs, through their view (the row's names); the one reading (1.5.4: no die in it is rolled)
                 var fsQ = q.row && typeof SQ.feedShortOf === 'function' ? SQ.feedShortOf(viewQ, chvQ, q.row, actQ, Fq, tcQ) : ''; if (fsQ) { if (window.wpStepLog) window.wpStepLog('feed v1', 'stopped', { by: 'player' }); denyQ('error', { error: { message: fsQ, pos: 0, len: 0 } }); return; }   // 1.6.0 Feeds: any feed at 0 stops the shot, from the host's own copy of the row
                 var mnQ = q.row && typeof SQ.moneyDue === 'function' ? SQ.moneyDue(campQ.system, chQ, actQ, varsQ, Fq) : null; if (mnQ && mnQ.no) { if (window.wpStepLog) window.wpStepLog('money v1', 'before-roll', { by: 'player' }); denyQ('error', { error: { message: mnQ.no, pos: 0, len: 0 } }); return; }   // 1.6.0: a Then due whatever the dice say that cannot be paid: refused before anything is rolled or spent, by the host's own copy of the character (the GM's own press in net.diceRoll is never asked this: it takes what is held)
             }
@@ -11766,7 +11766,7 @@ function attTokCtx(tch, toO, at) {   // the target's token context on the map th
 }
 function attKindWord(camp, entry, fromCh, rowRef) { var S = SC(), kr = attKindRow(camp, entry, fromCh, rowRef); return kr && typeof S.statName === 'function' ? S.statName(kr.f.list, kr.def, entry.attemptKey) : ''; }   // the kind's value name, for a card that may say it
 function attOffers(camp, tch, toO, r, at) {   // a system roll that resists: whether its needs hold for this attempt
-    var S = SC(), Fs = window.wpFormula; if (!r.needs) return true; if (!Fs) return false;
+    var S = SC(), Fs = window.wpFormula; if (!r.needs && !r.needsWhy) return true; if (!Fs) return false;
     try {
         if (!toO) return S.rollNeedsOk(r, S.makeResolver(camp.system, tch, Fs, S.withAttempt(attTokCtx(tch, false, at), at.m, at.k, at.r, at.t)), Fs);
         var view = window.wpSheets.playerSystem(camp), vr = null; (view && Array.isArray(view.rolls) ? view.rolls : []).forEach(function(x) { if (x && x.id === r.id) vr = x; }); if (!vr) return false;
@@ -11796,14 +11796,14 @@ function attRowAlts(camp, tch, ref, toO, out, at) {
     }
     var lb = String(lr.label || 'Roll').split('{')[0].trim() || 'Roll';
     var shw = toO ? vr.showIf : lr.showIf, Fs = window.wpFormula, rvs = null;   // 1.6.0: Shown where, as the host judges the press (none: every row, as before)
-    var ndA = at && typeof at.k === 'number' ? (toO ? vr.needs : lr.needs) : ''; if (typeof ndA !== 'string') ndA = '';   // 1.6.0 An attempt's kind: its needs, only where the attack names a kind
-    if ((typeof shw === 'string' && shw) || ndA) { if (!Fs) return; var cxA = attTokCtx(tch, toO, at);
-        if (ndA) cxA = S.withAttempt(cxA, at.m, at.k, at.r, at.t);
+    var ndA = at && typeof at.k === 'number' ? (toO ? vr.needs : lr.needs) : ''; if (typeof ndA !== 'string') ndA = ''; var ndW = at && typeof at.k === 'number' && Array.isArray((toO ? vr : lr).needsWhy) ? (toO ? vr : lr).needsWhy : null;   // 1.6.0 An attempt's kind: its needs, only where the attack names a kind (1.6.2: and its reasons)
+    if ((typeof shw === 'string' && shw) || ndA || ndW) { if (!Fs) return; var cxA = attTokCtx(tch, toO, at);
+        if (ndA || ndW) cxA = S.withAttempt(cxA, at.m, at.k, at.r, at.t);
         try { rvs = S.makeResolver(toO ? view : camp.system, toO ? chv : tch, Fs, cxA); } catch (e) { return; } if (!rvs || typeof rvs.row !== 'function') return; }
     (tch.values && Array.isArray(tch.values[lr0.f]) ? tch.values[lr0.f] : []).forEach(function(row) {
         if (out.length >= ATT_ROWS) return; var rid = S.rowIdOf(row); if (typeof rid !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(rid) || out.some(function(x) { return x.f === lr0.f && x.r === rid && x.i === ri; })) return;
         if (toO && (seen[rid] !== 1 || S.rowKeptFrom(camp.system, row))) return;
-        if (rvs) { var rvA = null; try { rvA = rvs.row(lr0.f, rid); } catch (e) { rvA = null; } if (!rvA || (typeof shw === 'string' && shw && !S.rollNeedsOk({ needs: shw }, rvA, Fs)) || (ndA && !S.rollNeedsOk({ needs: ndA }, rvA, Fs))) return; }   // 1.6.0: only where its Shown where holds on that row, and an attempt's kind its needs
+        if (rvs) { var rvA = null; try { rvA = rvs.row(lr0.f, rid); } catch (e) { rvA = null; } if (!rvA || (typeof shw === 'string' && shw && !S.rollNeedsOk({ needs: shw }, rvA, Fs)) || ((ndA || ndW) && !S.rollNeedsOk({ needs: ndA, needsWhy: ndW }, rvA, Fs))) return; }   // 1.6.0: only where its Shown where holds on that row, and an attempt's kind its needs
         var rd = S.rowDef(camp.system, row), nm = rd && rd.def && typeof rd.def.name === 'string' && rd.def.name.trim() ? rd.def.name.trim() : 'a row';
         out.push({ f: lr0.f, r: rid, i: ri, label: (lb + ' with ' + nm).slice(0, 60) });
     });
@@ -11913,7 +11913,7 @@ function callPostRow(camp, ref, ch, by, priv, row, big) {
         ri = typeof S.rollPlace === 'function' ? S.rollPlace(camp.system, view, f.id, ref.i) : ref.i; var vr = vf && vf.list && Array.isArray(vf.list.rolls) ? vf.list.rolls[ri] : null; if (!vr || vr.formula !== lr.formula) return false;
         var chv = S.charFor(ch, view, ch.ownerId, { lib: fxLib(camp.system), items: itemLib(camp.system), full: camp.system }); if (!chv || !(chv.values && Array.isArray(chv.values[f.id]) && chv.values[f.id].some(function(x) { return S.rowIdOf(x) === row.r; }))) return false;
     }
-    if (lr.needs) { var cv = null; try { cv = S.makeResolver(camp.system, ch, Fc, null); cv = typeof cv === 'function' ? cv.row(f.id, row.r) : null; } catch (e) { cv = null; } if (typeof cv !== 'function' || !S.rollNeedsOk(lr, cv, Fc)) return false; }
+    if (lr.needs || lr.needsWhy) { var cv = null; try { cv = S.makeResolver(camp.system, ch, Fc, null); cv = typeof cv === 'function' ? cv.row(f.id, row.r) : null; } catch (e) { cv = null; } if (typeof cv !== 'function' || !S.rollNeedsOk(lr, cv, Fc)) return false; }
     if (typeof net.blowMake !== 'function' || typeof net.postDue !== 'function') return false;
     var id = net.blowMake(ch, 'r_row', {}, '', '', null, true); if (!id) return false; _attempts[id].rows = [f.id + '#' + ri + '#' + row.r]; if (big === true) _attempts[id].big = true;
     var lb = String(lr.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll';
@@ -11924,7 +11924,7 @@ function callPost(camp, rollId, ch, by, priv, row, big) {   // row (1.6.2): the 
     var S = SC(), Fc = window.wpFormula; if (!S || !Fc || !camp || !camp.system || !ch || typeof ch.id !== 'string') return false;
     var lref = typeof S.listRollRef === 'function' ? S.listRollRef(rollId) : null; if (lref) return callPostRow(camp, lref, ch, by, priv, row, big);
     var rr = null; (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === rollId && (Array.isArray(r.apply) || typeof r.formula === 'string')) rr = r; }); if (!rr) return false;
-    if (rr.needs) { var cv = null; try { cv = S.makeResolver(camp.system, ch, Fc, null); } catch (e) { cv = null; } if (typeof cv !== 'function' || !S.rollNeedsOk(rr, (rr.to === 'near' || rr.to === 'target') && S.withOnSelf ? S.withOnSelf(cv, true) : cv, Fc)) return false; }
+    if (rr.needs || rr.needsWhy) { var cv = null; try { cv = S.makeResolver(camp.system, ch, Fc, null); } catch (e) { cv = null; } if (typeof cv !== 'function' || !S.rollNeedsOk(rr, (rr.to === 'near' || rr.to === 'target') && S.withOnSelf ? S.withOnSelf(cv, true) : cv, Fc)) return false; }
     var toO = !priv && !ch.npc && !!ch.ownerId && rr.vis !== 'gm', id = Array.isArray(rr.apply) || typeof net.blowMake !== 'function' ? '' : net.blowMake(ch, rr.id, {}, '', '', null, true);
     if (big === true && id && Object.prototype.hasOwnProperty.call(_attempts, id)) _attempts[id].big = true;   // 1.6.2
     if (typeof net.postDue === 'function') net.postDue(ch, rr, 'called', 1, toO, { att: id, by: by }); return true;
@@ -12045,7 +12045,7 @@ function areaHit(camp, h) {
 net.defendPost = function(camp, rollId, ch, by, m, def, gm, tctx) {
     var S = SC(), Fc = window.wpFormula; if (!S || !Fc || !camp || !camp.system || !ch || typeof ch.id !== 'string') return '';
     var rr = null; (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === rollId && typeof r.formula === 'string' && !r.apply) rr = r; }); if (!rr) return '';
-    if (rr.needs) { var cv = null; try { cv = S.makeResolver(camp.system, ch, Fc, tctx || null); } catch (e) { cv = null; } if (typeof cv !== 'function' || !S.rollNeedsOk(rr, cv, Fc)) return ''; }
+    if (rr.needs || rr.needsWhy) { var cv = null; try { cv = S.makeResolver(camp.system, ch, Fc, tctx || null); } catch (e) { cv = null; } if (typeof cv !== 'function' || !S.rollNeedsOk(rr, cv, Fc)) return ''; }
     var id = net.blowMake(ch, rr.id, {}, '', '', null, false); if (!id) return '';
     _attempts[id].m = typeof m === 'number' && isFinite(m) ? m : 0; _attempts[id].defend = def;
     if (typeof net.postDue === 'function') net.postDue(ch, rr, 'called', 1, !gm && !ch.npc && !!ch.ownerId && rr.vis !== 'gm', { att: id, by: by });
@@ -12416,7 +12416,7 @@ net.diceRoll = function(expr, o) {
     if (o.row && typeof o.row.lv === 'number' && !(entR && entR.askLvl === true)) return { error: D.denyText('char') };   // 1.6.0 R12: a level only for a roll that asks it
     if (typeof o.att === 'string' && !(entR && entR.resist === true) && !(typeof attemptRec === 'function' && attemptRec(o.att) && attemptRec(o.att).blow)) return { error: 'That roll does not resist an attempt.' };   // 1.6.0 (B2)   // 1.6.0 (the core's gaps 6 and 7): or it answers a blow
     if (o.row && entR && typeof entR.showIf === 'string' && entR.showIf && varsR && !SR.rollNeedsOk({ needs: entR.showIf }, varsR, F)) return { error: 'That roll is not offered on this row.' };   // 1.6.0: Shown where
-    if (entR && entR.needs && entR.needsGm !== true && varsR && !SR.rollNeedsOk(entR, varsR, F)) return { error: SR.rollNeedsSays(entR) };
+    if (entR && (entR.needs || entR.needsWhy) && entR.needsGm !== true && varsR && !SR.rollNeedsOk(entR, varsR, F)) return { error: SR.rollNeedsSays(entR, varsR, F) };
     if (entR && entR.area && !(o.aim && typeof o.aim === 'object')) return { error: AREA_AIM };   // 1.6.0: a line takes an aim
     var hbR = chR && typeof holdsBar === 'function' && typeof SR.holdRefOf === 'function' ? holdsBar(campR, chR, SR.holdRefOf(o.act, o.row)) : ''; if (hbR) return { error: hbR };   // 1.6.0 Who holds whom
     var fsR = entR && o.row && campR && campR.system && typeof SR.feedShortOf === 'function' ? SR.feedShortOf(campR.system, chR, o.row, entR, F, tcR) : ''; if (fsR) { if (window.wpStepLog) window.wpStepLog('feed v1', 'stopped', { by: 'gm' }); return { error: fsR }; }   // 1.6.0 Feeds: any feed at 0 stops the shot

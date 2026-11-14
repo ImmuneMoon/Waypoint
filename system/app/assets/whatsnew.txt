@@ -646,6 +646,8 @@ Around the app
   it.
 - Under Characters, two characters of one name each say the map their token
   stands on.
+- Characters has a map button now, On this map. Press it and the list keeps
+  only the characters with a token on the map you're looking at.
 - A roll's name on a sheet takes a second line where it needs one. Past two
   lines it is cut, and pointing at it shows the whole name.
 - With no table open, Target and Target as on a token's right-click menu work

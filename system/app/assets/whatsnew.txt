@@ -1185,6 +1185,10 @@ The Data Map
   map becomes its locked ground. Furnishings, map objects and tokens stay
   free. Unlock this map's structure, on a piece's right-click or in Build's
   options, frees them, and Settings has a tick to stop it.
+- A locked piece still answers a click. Click a wall, a floor, a door or a
+  locked picture and it is selected, outlined in gold and shown in
+  Properties, so you can tell which one you're dealing with. A drag still
+  won't budge it.
 - You can now make a furnishing pack in Waypoint. Press Make a pack in the Packs
   window: every kind stands in its four looks beside Waypoint's drawing, and Use
   a picture gives one yours, shown at its real size. Edit opens a pack again.

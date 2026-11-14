@@ -1288,7 +1288,12 @@
   #wbTooltip .room .portal-peek img { display: block; width: 112px; height: 70px; max-height: 70px; object-fit: contain; border: 1px solid var(--edge); border-radius: 4px; background: #15151c; }
 
   .wb-item.sel { outline: 2px dashed var(--gold); outline-offset: 3px; z-index: 100; }
-  .wb-item.sel.locked { outline: 2px solid var(--dim); }
+  .wb-item.sel.locked { outline: 2px solid var(--gold); }   /* a locked piece selected: gold as any selection, solid where a free one is dashed (it has no handles) */
+  .wb-item.sel.locked:not(.image):not(.wb-hextok) { outline: none; }   /* its ring draws it instead (whiteboard.js lockRingSync), above the pieces beside it */
+  #lockSelRing { position: absolute; pointer-events: none; z-index: 9999; box-sizing: border-box; outline: var(--lr, 2px) solid var(--gold); box-shadow: 0 0 0 calc(var(--lr, 2px) * 2) rgba(0,0,0,0.55); }   /* 1.6.2: a locked piece selected, its own box, above every piece and below the handles (10000); 2 px on screen with a dark edge outside it */
+  #lockSelRing.lr-round { border-radius: 50%; }
+  #lockSelRing.lr-path { outline: none; box-shadow: none; filter: drop-shadow(0 0 var(--lr, 2px) rgba(0,0,0,0.8)); }
+  #lockSelRing > svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; }
   
   .wb-item.rect { border: 2px solid var(--edge); border-radius: 6px; }
   .wb-item.circle { border: 2px solid var(--edge); border-radius: 50%; }
@@ -2661,7 +2666,6 @@
   .wb-item:is(.image, .wb-hextok).wb-barrier { --edge: #4dd0e1; }
   .wb-item:is(.image, .wb-hextok).wb-door.wb-door-open { --edge: #4caf7d; }
   .wb-item:is(.image, .wb-hextok):is(.sel, .circle-hit, .wb-turn, .wb-find-lit, .size-match) { --edge: var(--gold); }
-  .wb-item:is(.image, .wb-hextok).sel.locked { --edge: var(--dim); }
   .wb-item:is(.image, .wb-hextok).blast-hit { --edge: var(--red); }
   .wb-item.image:not(.tok-pic-hexagon):is(.sel, .wb-hidden-gm, .wb-trap, .wb-blocks-sight, .wb-door, .wb-barrier, .blast-hit, .circle-hit, .wb-turn, .wb-find-lit, .size-match) > img { filter: var(--imgf,) drop-shadow(2px 0 0 var(--edge)) drop-shadow(-2px 0 0 var(--edge)) drop-shadow(0 2px 0 var(--edge)) drop-shadow(0 -2px 0 var(--edge)); }
   .wb-item.image.wb-turn:not(.tok-pic-hexagon) > img { filter: var(--imgf,) drop-shadow(3px 0 0 var(--edge)) drop-shadow(-3px 0 0 var(--edge)) drop-shadow(0 3px 0 var(--edge)) drop-shadow(0 -3px 0 var(--edge)) drop-shadow(0 0 7px rgba(224,165,79,0.8)); }

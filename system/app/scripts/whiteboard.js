@@ -1269,7 +1269,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
               if (!envEl) { envEl = document.createElement('div'); envEl.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13.5V5a2 2 0 0 1 4 0v8.5a4 4 0 1 1-4 0z"/></svg>'; el.appendChild(envEl); }
               envEl.className = 'token-env ' + (envT.band === 'danger' ? 'danger' : 'warn'); envEl.title = envT.text; envEl.setAttribute('aria-label', envT.text);
           } else if (envEl) envEl.remove();
-          if (item.id === state.selWbId && (!state.selWbIds || state.selWbIds.length === 1) && !item.locked) {
+          if (item.id === state.selWbId && (!state.selWbIds || state.selWbIds.length === 1)) {   // a locked piece is selected and shown too (the owner, 2026-11-13: "when locked, i should still be able to click and highlight pieces"), with no handles (positionHandles)
 
               el.classList.add('sel');
 
@@ -1378,9 +1378,10 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
   function positionHandles(am) {
       var rHandle = document.getElementById('globalResizeHandle');
       var rotHandle = document.getElementById('globalRotateHandle');
+      try { lockRingSync(am); } catch (e) {}   // 1.6.2: a locked piece selected, its outline above the board
       if (!rHandle || !rotHandle) return;
       var z = state.zoomLevel || 1;
-      var tf = 'translate(-50%, -50%) scale(' + (1 / z) + ')';
+      var tf ='translate(-50%, -50%) scale(' + (1 / z) + ')';
       rHandle.style.transform = tf; rotHandle.style.transform = tf;
       var hide = function() { rHandle.style.display = 'none'; rotHandle.style.display = 'none'; };
       if (!am || am.type !== 'map' || state.viewMode !== 'visual') { hide(); return; }
@@ -1415,6 +1416,40 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
       rHandle.style.left = rx + 'px'; rHandle.style.top = ry + 'px';
       rotHandle.style.left = ox + 'px'; rotHandle.style.top = oy + 'px';
   }
+  // [lookcheck:lockring-start]
+  // 1.6.2 (the owner, 2026-11-13: "when locked, i should still be able to click and highlight pieces, so i know which im dealing with"; on a
+  // generated map a floor is many abutting locked pieces of one texture). A locked piece selected alone wears its outline on a ring of its own,
+  // above every piece of the board and below the handles, so a neighbor drawn after it, a wall line on its edge or its own texture never covers
+  // it: its box, a circle round, a line or a region its own path. A picture is left to its own edge, which follows its visible part.
+  // positionHandles places it, so it follows a zoom, a move and a redraw; 2 px on screen at every zoom
+  function lockRingSync(am) {
+      var wb = document.getElementById('whiteboard'); if (!wb) return;
+      var ring = document.getElementById('lockSelRing');
+      var it = am && am.type === 'map' && state.viewMode === 'visual' && state.selWbId && !(state.selWbIds && state.selWbIds.length > 1) ? am.whiteboard.find(function(x) { return x.id === state.selWbId; }) : null;
+      var el = it && it.locked && it.type !== 'image' && !it.isChar && !it.waiting ? document.querySelector('.wb-item[data-id="' + it.id + '"]') : null;
+      if (!el || el.style.display === 'none') { if (ring) ring.style.display = 'none'; return; }
+      if (!ring) { ring = document.createElement('div'); ring.id = 'lockSelRing'; ring.setAttribute('aria-hidden', 'true'); wb.appendChild(ring); }
+      var z = state.zoomLevel || 1, px = 2 / z, svg = it.type === 'path' ? el.querySelector(':scope > svg') : null;
+      ring.style.display = 'block'; ring.style.left = it.x + 'px'; ring.style.top = it.y + 'px';
+      ring.style.width = (it.w || 0) + 'px'; ring.style.height = (it.h || 0) + 'px';
+      ring.style.transform = it.rot ? 'rotate(' + it.rot + 'deg)' : 'none';
+      ring.style.setProperty('--lr', px + 'px');
+      ring.className = svg ? 'lr-path' : it.type === 'circle' ? 'lr-round' : '';
+      var sig = svg ? it.id + '|' + svg.innerHTML.length + '|' + svg.getAttribute('viewBox') + '|' + z : '';
+      if (ring.dataset.sig !== sig) {
+          ring.dataset.sig = sig; ring.textContent = '';
+          if (svg) {
+              var cp = svg.cloneNode(true);
+              cp.querySelectorAll('path').forEach(function(p) {
+                  var sw = parseFloat(p.getAttribute('stroke-width')) || 0, sc = (it.w && svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width) ? svg.viewBox.baseVal.width / it.w : 1;
+                  p.removeAttribute('style'); p.setAttribute('fill', 'none'); p.setAttribute('stroke', 'var(--gold)');
+                  p.setAttribute('stroke-width', String(Math.max(sw, 1.5 * px * sc)));
+              });
+              ring.appendChild(cp);
+          }
+      }
+  }
+  // [lookcheck:lockring-end]
   // the sight outline's eye (fog.js setOutline): this machine's own choice, kept from one selection to the next
   function sightPref() { try { return localStorage.getItem('wp_sightOutline') === 'on'; } catch (e) { return false; } }
   function sightSync(id) { var F = window.wpFog; if (F && F.setOutline) F.setOutline(id); }

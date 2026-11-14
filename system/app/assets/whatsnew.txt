@@ -1355,6 +1355,11 @@ Taking a campaign with you
   it sits in its own fold under Characters, and it has its own tick on the
   export. New from a template on the + makes a fresh sheet from it,
   and a new campaign that copies your system brings its templates along.
+- Give a token a sheet that another token already uses and Waypoint asks
+  first: Share stats, or Its own copy. A copy takes the token's own name,
+  or the sheet's name with the next number, so a hit on one guard no longer
+  hurts the rest. Tokens that already share can each get their own from the
+  right-click menu, or all at once from the + of Characters.
 - Import now shows what a file holds before anything lands: the system and
   its packs, maps, pages, characters, templates, pictures and sounds. Then
   you pick Import as a new campaign, or merge it into yours.

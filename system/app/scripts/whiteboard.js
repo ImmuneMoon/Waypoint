@@ -11091,9 +11091,9 @@ function groupSave(items) {
     showPrompt('Name the encounter group', 'Group ' + (groupsOf(camp).length + 1), function(v) { var nm = SU.cleanName(v); if (!nm) return; var g = SU.takeGroup(toks, nm, Date.now(), SU.newId(groupsOf(camp), 'gr_')); if (!g) return; groupsOf(camp).push(g); if (window.wpStepLog) window.wpStepLog('groups v1', 'save', { pieces: g.pieces.length });
         import('./io.js').then(function(m) { m.save(true); m.toast('Saved the group ' + g.name + ' in the Image Library.'); }); });
 }
-function groupCopyChar(camp, ch) {   // a fresh copy of an NPC's sheet, numbered on; nothing of who plays it, its links or its debts
-    var c = JSON.parse(JSON.stringify(ch)), id = null; for (var i = 0; i < 50 && !id; i++) { var t = 'c_' + Math.random().toString(36).slice(2, 12); if (!camp.chars[t]) id = t; } if (!id) return null;
-    ['ownerId', 'links', 'debts', 'shareWith', 'making', 'invited', 'unlocked', 'trader', 'unique'].forEach(function(k) { delete c[k]; }); c.id = id; c.npc = true; c.name = window.wpSetupCore.nextName(ch.name, Object.values(camp.chars).map(function(x) { return x && x.name; })); c.updated = Date.now();
+function groupCopyChar(camp, ch) {   // a fresh copy of an NPC's sheet, numbered on; nothing of who plays it, its links or its debts (1.6.2, backlog 237: the one copy, systemcore sheetCopy)
+    var SC = window.wpSystemCore, id = null; if (!SC || !SC.sheetCopy) return null; for (var i = 0; i < 50 && !id; i++) { var t = 'c_' + Math.random().toString(36).slice(2, 12); if (!camp.chars[t]) id = t; } if (!id) return null;
+    var c = SC.sheetCopy(ch, id, window.wpSetupCore.nextName(ch.name, Object.values(camp.chars).map(function(x) { return x && x.name; })), camp.system); if (!c) return null;
     camp.chars[id] = c; return c;
 }
 function groupPlace(gid) {
@@ -11124,6 +11124,13 @@ function castPlace(cid, x, y, count) {
     var camp = getActiveCampaign(), am = getActiveMap();
     if (!camp || !am || am.type !== 'map') return;
     var c = castOf(camp)[cid]; if (!c) return;
+    // 1.6.2 (backlog 237): one copy of a character names its sheet, so the GM is asked first where another token already uses it (sheets.js
+    // shareAsk): Share stats, or Its own copy. Escape places nothing
+    var SHc = window.wpSheets;
+    if (c.charId && Math.max(1, count || 1) === 1 && SHc && typeof SHc.shareAsk === 'function') { SHc.shareAsk(null, c.charId, function(way) { if (way && getActiveMap() === am) castPut(camp, am, c, x, y, 1, way); }); return; }
+    castPut(camp, am, c, x, y, count, 'share');
+}
+function castPut(camp, am, c, x, y, count, way) {
     am.whiteboard = am.whiteboard || [];
     count = Math.max(1, count || 1);
     var cols = Math.ceil(Math.sqrt(count)), gap = 10;
@@ -11134,6 +11141,7 @@ function castPlace(cid, x, y, count) {
         if (c.furn && window.wpFurnCore) { var cf = window.wpFurnCore.cleanFurn(c.furn); if (cf) it.furn = cf; }   // 1.6.2 (backlog 222): a furnishing saved to the cast
         if (c.shape) it.shape = c.shape;
         if (c.charId && count === 1) it.charId = c.charId;   // one copy of a character shares its sheet; several are separate mooks
+        if (way === 'copy' && it.charId && window.wpSheets && window.wpSheets.shareTake && !window.wpSheets.shareTake(it, it.charId)) delete it.charId;   // 1.6.2 (backlog 237): or takes its own copy
         if (window.wpSystemCore && window.wpSystemCore.shapeStandIn) window.wpSystemCore.shapeStandIn(it, am);   // grid-shaped tokens: this map's cell shape
         if (window.wpSeatCell) window.wpSeatCell(it, am); else if (window.wpSeatHex) window.wpSeatHex(it, am);
         am.whiteboard.push(it);
@@ -12178,6 +12186,8 @@ document.addEventListener('contextmenu', function(e) {
             if (isWb && firstItem && firstItem.id && !firstItem.hidden && window.wpFx && window.wpVtt && window.wpVtt.on('fx')) html += '<div class="menu-item cm-pulse"><i class="wib wi-spark"></i> Pulse</div>';
             if (!isWb) html += '<div class="menu-item cm-dup"><i class="wib wi-dup"></i> Duplicate</div>';   // the data map keeps them at its foot: the play map has them first
             if (isWb && firstItem && (firstItem.isChar || firstItem.charName)) html += '<div class="menu-item cm-cast-save"><i class="wib wi-starf"></i> Save to Campaign Cast</div>';
+            var osN = isWb && firstItem && firstItem.isChar && window.wpSheets && window.wpSheets.ownSheetCount ? window.wpSheets.ownSheetCount(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean)) : 0;   // 1.6.2 (backlog 237): the GM's alone (ownSheetCount answers 0 elsewhere), where a picked token shares its sheet with another
+            if (osN) html += '<div class="menu-item cm-own-sheet" title="A copy of the sheet for ' + (osN === 1 ? 'this token' : 'each of them') + ', so a hit on one no longer hurts the others"><i class="wib wi-dup"></i> ' + (osN === 1 && selectedIds.length === 1 ? 'Give this token its own sheet' : 'Give ' + osN + (osN === 1 ? ' token its own sheet' : ' tokens their own sheets')) + '</div>';
             if (isWb && firstItem && firstItem.isChar && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client') && window.wpCanPersistLocal && window.wpCanPersistLocal()) html += '<div class="menu-item cm-encounter-save" title="Save the selected character tokens as an encounter group in the Image Library, placed again in one press">Save as an encounter group\u2026</div>';   // backlog 31
             if (!isWb) html += '<div class="menu-item cm-del" style="color:var(--danger)">Delete</div>';
 
@@ -12358,6 +12368,10 @@ document.addEventListener('contextmenu', function(e) {
                     var itTH = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; });
                     cMenu.style.display = 'none';
                     if (itTH && itTH.ownerId && window.wpTrackers && window.wpTrackers.setHidden(itTH.ownerId, !window.wpTrackers.hidden(itTH.ownerId))) toast(window.wpTrackers.hidden(itTH.ownerId) ? 'Table trackers hidden from this player.' : 'This player sees the table\u2019s trackers again.');
+                    return;
+                } else if (action.includes('cm-own-sheet')) {   // 1.6.2 (backlog 237): one save, one Undo step on this map
+                    cMenu.style.display = 'none';
+                    if (window.wpSheets && window.wpSheets.ownSheetFor) window.wpSheets.ownSheetFor(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean));
                     return;
                 } else if (action.includes('cm-encounter-save')) {   // backlog 31
                     groupSave(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean));

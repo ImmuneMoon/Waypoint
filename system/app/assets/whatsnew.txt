@@ -216,6 +216,13 @@ The System editor
   name. A new column or row takes its short name from the name you give it.
 - A button grayed out by what it needs tells the GM in words, such as only
   while First-level slots is at least 1, never as its formula.
+- A roll or an action can now have up to twelve reasons it can't be used,
+  each a test with its own words, such as The forge is cold. Its grayed
+  button, and a press that is refused, say the first one that fails, so the
+  player knows the one thing to fix. Before, one line of words had to cover
+  every reason at once, and it was cut at 200 characters. A list's rolls and
+  actions have them too, read for each row. Add them under Needs with
+  + Reason.
 - A roll you named but left with nothing to roll says so under its row, since
   Save leaves it out. It used to go at Save without a word.
 - A deck's number takes its short name from the name you first give it, and

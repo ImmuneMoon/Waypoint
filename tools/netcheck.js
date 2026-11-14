@@ -4455,8 +4455,8 @@ pendingChecks.push((async () => {
         rolls: [{ id: 'r_dodge', label: 'Dodge', formula: '3d6 <= 10', needs: 'not(Stunned)', needsText: 'Not while stunned' }, { id: 'r_g', label: 'G', formula: '3d6 <= 30', needs: 'GSecret > 0', needsText: 'Secret' },
             { id: 'r_bleed', label: 'Bleed', apply: [{ f: 'f_hp', formula: 'Bleeding' }], needs: 'Bleeding > 0', needsText: 'Not bleeding' }] }, { F: Fx, gmView: true });
     const chN = v => ({ c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: v } });
-    const runR = (msg, vals) => { const out = { table: [], sent: [] };
-        const camp = { id: 'k', activeItemId: 'm1', system: sysN, chars: chN(vals), items: { m1: { type: 'map', whiteboard: [] } } };
+    const runR = (msg, vals, sy) => { const out = { table: [], sent: [] };
+        const camp = { id: 'k', activeItemId: 'm1', system: sy || sysN, chars: chN(vals), items: { m1: { type: 'map', whiteboard: [] } } };
         const net = { role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {}, syncCharDelta() {} };
         const conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(J(m))); } };
         const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
@@ -4468,14 +4468,14 @@ pendingChecks.push((async () => {
     check('fold 2 (A) a player\'s system roll that needs something (roll-req, run for real): refused before anything is rolled while it is not met, with its own words and the reason a list roll gets, a modifier beside it too; rolled once it is met; needs that read a GM-only value are not in their view, so their roll is not held back by them',
         rNo.table.length === 0 && J(rNo.sent) === J([{ type: 'roll-deny', rid: 'q1', reason: 'error', message: 'Not while stunned', pos: 0, len: 0 }]) && rMod.table.length === 0 && rMod.sent[0].message === 'Not while stunned'
         && J(rYes.table) === J(['3d6 <= 10']) && !rYes.sent.some(m => m.type === 'roll-deny') && J(rGm.table) === J(['3d6 <= 30']), J([rNo, rYes, rGm, rMod.sent]));
-    const runG = (act, vals) => { const camp = { id: 'k', system: sysN, chars: chN(vals) }, net = { active: true, role: 'host', stream: false, conns: [], roster: {}, syncCharDelta() {} }, pushed = [];
+    const runG = (act, vals, sy) => { const camp = { id: 'k', system: sy || sysN, chars: chN(vals) }, net = { active: true, role: 'host', stream: false, conns: [], roster: {}, syncCharDelta() {} }, pushed = [];
         const dr = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'getProfile', 'toast', 'ui', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'save', 'var _dicePending = null;\n' + helpers + drSrc + '\nreturn net.diceRoll;')(
             net, () => Dx, () => Sx, { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { tokenCtxFor: () => null, charChanged() {} } }, () => camp, () => ({ id: 'u_gm', name: 'GM' }), () => {}, () => null, e => { throw e; }, () => {}, rec => pushed.push(rec.expr), () => {}, () => {});
         return [dr('3d6 <= 10', { charId: 'c_a', act: act }), pushed]; };
     const gNo = runG('r_dodge', { f_st: true }), gYes = runG('r_dodge', { f_st: false });
     check('fold 2 (A) the GM\'s own system roll that needs something (net.diceRoll, run for real): refused with its words before anything is rolled, rolled once it is met',
         J(gNo) === J([{ error: 'Not while stunned' }, []]) && gYes[0].ok === true && J(gYes[1]) === J(['3d6 <= 10']), J([gNo, gYes]));
-    const runA = vals => { const camp = { id: 'k', system: sysN, items: {}, chars: chN(vals) }, out = { sent: [], chat: [] };
+    const runA = (vals, sy) => { const camp = { id: 'k', system: sy || sysN, items: {}, chars: chN(vals) }, out = { sent: [], chat: [] };
         const conn = { peer: 'pA', open: true, send: m => { packCheck(m); out.sent.push(JSON.parse(J(m))); } }, net = { active: true, role: 'host', paused: false, combats: {}, conns: [conn], roster: { pA: { id: 'u_a', name: 'Pat' } } };
         new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'own', 'diceFrom', 'sendTable', 'pushChat', 'logEvent', 'applyLine', 'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + paSrc + '\n' + apSrc)(
             { type: 'char-apply', rid: 'a1', charId: 'c_a', act: 'r_bleed', label: 'Bleed' }, conn, net, () => Sx, { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} } }, () => false, () => camp, () => {}, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true },
@@ -4484,6 +4484,20 @@ pendingChecks.push((async () => {
     const aNo = runA({ f_bl: 0 }), aYes = runA({ f_bl: 2 });
     check('fold 2 (A) a player\'s apply action that needs something (char-apply, run for real): refused with the reason a list roll gets and its words while it is not met, nothing moved, stored or carded; pressed once it is met, it moves its values on the host\'s copy',
         J(aNo.sent) === J([{ type: 'char-deny', rid: 'a1', reason: 'error', msg: 'Not bleeding' }]) && J(aNo.vals) === J({ f_bl: 0 }) && aNo.chat.length === 0 && aYes.sent.some(m => m.type === 'char-ack') && aYes.vals.f_hp === 8, J([aNo, aYes.sent.map(m => m.type), aYes.vals]));
+    {   // 1.6.2 (a system build's ask, 2026-11-14): a roll's and an action's reasons (needsWhy), judged on the host after its needs and in order; the
+        // refusal says the first that fails in its own words, never its formula, and a reason read from a GM-only value is not in the players' view
+        const sysW = Sx.cleanSystem({ v: 1, name: 'W', fields: [{ id: 'f_st', key: 'Stunned', kind: 'toggle', edit: 'owner' }, { id: 'f_bl', key: 'Bleeding', kind: 'number', def: 0 }, { id: 'f_hp', key: 'HP', kind: 'number', def: 10 }, { id: 'f_g', key: 'GSecret', kind: 'number', def: 0, vis: 'gm' }],
+            rolls: [{ id: 'r_dodge', label: 'Dodge', formula: '3d6 <= 10', needs: 'HP > 0', needsText: 'Down', needsWhy: [{ if: 'not(Stunned)', says: 'Not while stunned' }, { if: 'Bleeding < 3', says: 'Bleeding too much' }] },
+                { id: 'r_g', label: 'G', formula: '3d6 <= 30', needsWhy: [{ if: 'GSecret > 0', says: 'Secret' }] },
+                { id: 'r_bleed', label: 'Bleed', apply: [{ f: 'f_hp', formula: 'Bleeding' }], needsWhy: [{ if: 'Bleeding > 0', says: 'Not bleeding' }, { if: 'Bleeding < 5', says: 'Bleeding out' }] }] }, { F: Fx, gmView: true });
+        const ex = { act: 'r_dodge', expr: '3d6 <= 10' }, wR = [runR(ex, { f_st: true }, sysW), runR(ex, { f_bl: 4 }, sysW), runR(ex, { f_hp: 0, f_st: true }, sysW), runR(ex, { f_bl: 1 }, sysW), runR({ act: 'r_g', expr: '3d6 <= 30' }, {}, sysW)];
+        const wG = [runG('r_dodge', { f_bl: 4 }, sysW), runG('r_dodge', {}, sysW), runG('r_g', {}, sysW)], wA = [runA({ f_bl: 0 }, sysW), runA({ f_bl: 6 }, sysW), runA({ f_bl: 2 }, sysW)];
+        check('1.6.2 needsWhy on the wire: a player\'s roll (roll-req, run for real) is refused before anything is rolled with the first reason that fails in its words (stunned, then bleeding too much), the single needs first (Down); rolled once all hold; a reason read from a GM-only value is not in their view and holds nothing back. The GM\'s own roll (net.diceRoll) says the reason alike, and is held by the GM-only one too. A player\'s action (char-apply) is refused with the reason a list roll gets and that reason\'s words, nothing moved, and runs once each holds',
+            wR[0].sent[0].message === 'Not while stunned' && wR[0].table.length === 0 && wR[1].sent[0].message === 'Bleeding too much' && wR[2].sent[0].message === 'Down' && J(wR[3].table) === J(['3d6 <= 10']) && J(wR[4].table) === J(['3d6 <= 30'])
+            && J(wG[0]) === J([{ error: 'Bleeding too much' }, []]) && wG[1][0].ok === true && J(wG[2]) === J([{ error: 'Secret' }, []])
+            && J(wA[0].sent) === J([{ type: 'char-deny', rid: 'a1', reason: 'error', msg: 'Not bleeding' }]) && wA[1].sent[0].msg === 'Bleeding out' && J(wA[1].vals) === J({ f_bl: 6 }) && wA[2].vals.f_hp === 8
+            && ![].concat(wR.map(r => J(r.sent)), wG.map(J), wA.map(a => J(a.sent))).some(t => /Bleeding [<>]|not\(Stunned\)|GSecret/.test(t)), J([wR.map(r => r.sent), wG, wA.map(a => a.sent)]));
+    }
     // fold 2's review: an apply action reads CombatRound from the fight that holds the player's token, two fights on one map in rounds 2 and 7, and the
     // first begun there for a token in neither, though the GM plays the second (char-apply run for real, net.combatRoundOf, as the player's own sheet)
     const sysR2 = Sx.cleanSystem({ v: 1, name: 'R2', fields: [{ id: 'f_hp', key: 'HP', kind: 'number', def: 10 }], rolls: [{ id: 'r_charge', label: 'Charge', apply: [{ f: 'f_hp', formula: '1' }], needs: 'CombatRound >= 5', needsText: 'Not before round 5' }] }, { F: Fx, gmView: true });

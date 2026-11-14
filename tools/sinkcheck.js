@@ -5157,6 +5157,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('m410 what Save drops, said as text (refreshErrors, errorCell and formulaTextFor, run for real on a page that refuses markup): a hostile Per stat is quoted in the line that says One at a time keeps one row on for the whole list; a roll\'s hostile needs that do not read are said under "Needs: ", with the caret drawn under the needs themselves and not under the roll\'s formula; every line a text and nothing markup, an attribute or a style',
             listSaid.indexOf('One at a time goes by "' + X4 + '", which is no stat of this list. Save keeps one row on for the whole list.') >= 0 && needSaid.length >= 1 && caret4.length >= 1 && caret4.every(k => k[2].indexOf(T + '\n') === 0 && k[3] === 0)
             && said4.every(c => c.every(k => k[3] === 0)) && PG2.clean() && !HTML4.test(ecSrc4), j([said4, PG2.htmlSet, PG2.attrs]));
+        // 1.6.2 (a system build's ask, 2026-11-14): a roll's reasons (needsWhy) in the Rolls tab, from a file
+        const wbSrc4 = cut4('// [systemcheck:whybox-start]', '// [systemcheck:whybox-end]'), PG3 = mkPage4(), entW4 = { id: 'r_w', label: 'W', formula: 'd6', needsWhy: [{ if: T, says: X4 }, { if: '', says: X4 }, { if: X4 }] };
+        const WB4 = new Function('document', 'LIMITS', 'NEEDS_WHY', 'cleanNeedsWhy', 'markDirty', 'patchErrors', "'use strict';\n" + line4('function el(tag, cls, text) {') + '\n' + line4('function input(cls, value, title, placeholder) {') + '\n' + wbSrc4 + '\nreturn { whyBox: whyBox, whyDrops: whyDrops };')(
+            PG3.doc, SY4.LIMITS, SY4.NEEDS_WHY, SY4.cleanNeedsWhy, () => {}, () => {});
+        const box4 = WB4.whyBox(entW4, 'roll'), ins4 = PG3.made.filter(e => e.tag === 'input').map(e => [e.className, e.value]), txt4 = PG3.made.filter(e => e.tag !== 'input' && e.tag !== '#text').map(e => e.textContent).filter(Boolean), drops4 = WB4.whyDrops(entW4);
+        check('1.6.2 a roll\'s reasons in the System editor (whyBox and whyDrops, run for real on a page that refuses markup): a hostile test and hostile words from a file reach their boxes only as values, a line with no words an empty box; the buttons and the caption are the app\'s own words; what Save drops is said as text by its place, never by what it holds; nothing is markup, an attribute or a style',
+            !!box4 && j(ins4) === j([['sys-rwhy-if field', T], ['sys-why-says field', X4], ['sys-rwhy-if field', ''], ['sys-why-says field', X4], ['sys-rwhy-if field', X4], ['sys-why-says field', '']])
+            && txt4.every(t => t.indexOf('<') < 0) && drops4.indexOf('Reason 2 has words but no test, so Save drops it.') >= 0 && drops4.indexOf('Reason 3 has a test but no words to say, so Save drops it.') >= 0 && drops4.every(m => m.indexOf('<') < 0 && m.indexOf(X4) < 0)
+            && PG3.clean() && !HTML4.test(wbSrc4), j([ins4, txt4, drops4, PG3.htmlSet, PG3.attrs]));
     }
 
 

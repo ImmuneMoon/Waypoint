@@ -340,7 +340,7 @@
   #netBtn.net-live{border-color:var(--green);color:var(--green);box-shadow:0 0 6px rgba(92,184,122,0.5)}
 
   /* ---- player (client) spectator lockdown ---- */
-  body.net-client #sidebar, body.net-client #toggleRightBtn,
+  body.net-client #sidebar,
   body.net-client #viewModeSelect, body.net-client #mapBreadcrumb,
   body.net-client #dataFloatingToolbar,
   body.net-client #saveAsDropdownWrap, body.net-client #importBtn,
@@ -434,7 +434,7 @@
   /* A joined player's left panel is the Handbook alone: the other sections are hidden by class, and the whole
      panel steps aside when the hosted campaign has no readable page (sidebar.js sets no-handbook) */
   body.net-client #campaignSidebar .sidebar-section:not(.sb-handbook):not(.sb-characters) { display: none !important; }   /* a player's panel: the Handbook, and their own characters */
-  body.net-client.no-handbook #campaignSidebar, body.net-client.no-handbook #toggleLeftBtn { display: none !important; }
+  body.net-client.no-handbook #campaignSidebar { display: none !important; }
 
   /* segmented view-mode switch */
   .seg-control{
@@ -943,7 +943,7 @@
   body.stream-mode #sidebar, body.stream-mode #wbFloatingToolbar, body.stream-mode #selToolbar, body.stream-mode #minimap,
   body.stream-mode #saveNote, body.stream-mode #toast, body.stream-mode #updateBanner, body.stream-mode #updateBtn,
   body.stream-mode #pauseBanner, body.stream-mode #rulerTop, body.stream-mode #rulerLeft, body.stream-mode #wbTooltip,
-  body.stream-mode #dataFloatingToolbar, body.stream-mode #zoomBox, body.stream-mode .pane-toggle, body.stream-mode [id$="Modal"], body.stream-mode #welcomeScreen { display: none !important; }
+  body.stream-mode #dataFloatingToolbar, body.stream-mode #zoomBox, body.stream-mode [id$="Modal"], body.stream-mode #welcomeScreen { display: none !important; }
   body.stream-mode #whiteboardWrap, body.stream-mode #whiteboardWrap * { cursor: grab !important; }
   body.stream-mode .wb-item.wb-absent { opacity: 1 !important; filter: none !important; }
   /* ---- doc panel: a planner / handbook popped OVER the map (like the sheet panel), read-only + live ---- */
@@ -1011,10 +1011,6 @@
   .prep-k { flex: none; font-size: 10px; border: 1px solid var(--edge); border-radius: 4px; padding: 0 5px; white-space: nowrap; }
   #prepBody { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 8px 30px 16px; }
   #prepGrip { position: absolute; top: 0; right: -3px; bottom: 0; width: 6px; cursor: col-resize; z-index: 2; touch-action: none; }
-  /* the left panel's fold arrow, seated at the column's left edge while the column shows (prep.js arrowSeat), since the left panel then ends
-     there and the map's area begins a column further right. Slim, in the margin the column keeps at its left for it, and whole under the pointer */
-  #prepCol > .pane-toggle.left { width: 12px; font-size: 8px; }
-  #prepCol > .pane-toggle.left:hover { width: 18px; font-size: 11px; }
   .prep-pages { margin-top: 4px; }
   /* a card its mark on a token asked for is lit for a moment; Make a card's menu of planners stands by its button, over every box */
   .prep-card.prep-lit { border-color: var(--gold); box-shadow: 0 0 0 2px color-mix(in srgb, var(--gold) 45%, transparent); transition: box-shadow .3s; }
@@ -1626,7 +1622,7 @@
   #dataEmpty .nm-line { color: var(--muted); }   /* 1.6.2: an empty data map says how to begin */
   /* 1.6.0: a campaign with no map. The board's own parts are put away, whatever a script last set on them, and the empty state shows */
   #noMapState { display: none; }
-  body.no-map #main > *:not(#noMapState):not(#toggleLeftBtn), body.no-map #sidebar, body.no-map header #viewModeSelect, body.no-map header #mapBreadcrumb { display: none !important; }
+  body.no-map #main > *:not(#noMapState), body.no-map #sidebar, body.no-map header #viewModeSelect, body.no-map header #mapBreadcrumb { display: none !important; }
   body.no-map #noMapState { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: var(--bg2); padding: 24px 16px; text-align: center; }
   #noMapState .nm-title { font-size: 15px; font-weight: 600; color: var(--text); }
   #noMapState .nm-line { font-size: 12px; color: var(--dim); max-width: 360px; line-height: 1.5; }
@@ -2305,15 +2301,6 @@
   .help-pane .help-hit { animation:helpHitFlash 1.7s ease-out; border-radius:4px; }
   @keyframes helpHitFlash { from { background:color-mix(in srgb, var(--gold) 32%, transparent); } to { background:transparent; } }
 
-  .pane-toggle {
-    position: absolute; top: 50%; transform: translateY(-50%);
-    width: 18px; height: 48px; background: var(--bg2); color: var(--gold);
-    border: 1px solid var(--edge); cursor: pointer; display: flex; align-items: center; justify-content: center;
-    font-size: 11px; z-index: 4010; transition: background 0.1s, color 0.1s, right 0.2s ease;   /* over the fog of war (#fogScreen 3950) and the screen effects (#fxScreen 4000): a player's opaque fog covered the handle; under the strips, the tool bar and every window */
-  }
-  .pane-toggle:hover { background: var(--panel); color: var(--gold); border-color: var(--gold); }
-  .pane-toggle.left { left: 0; border-left: none; border-radius: 0 4px 4px 0; }
-  .pane-toggle.right { right: 0px; border-right: none; border-radius: 4px 0 0 4px; }
   
   .sidebar-section { padding: 12px 10px; border-bottom: 1px solid var(--edge); }
   .sidebar-section h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--gold); margin: 0 0 10px 0; display: flex; justify-content: space-between; align-items: center; }
@@ -2919,7 +2906,7 @@
      With no ruler on screen it stands at the top edge */
   body.row-hidden:not(.tour-on) { --rowbar: 22px; }
   body.row-hidden:not(.tour-on).no-rulers { --rowbar: 3px; }
-  body.row-hidden:not(.tour-on) header { position: fixed; top: var(--rowbar); left: calc(var(--mainleft, 34px) + 42px); right: 8px; z-index: 4030; min-height: 0; padding: 0; gap: 6px; background: none; border: 0; flex-wrap: nowrap; pointer-events: none; }
+  body.row-hidden:not(.tour-on) header { position: fixed; top: var(--rowbar); left: calc(var(--mainleft, 34px) + 42px + var(--lay-rl, 0px)); right: 8px; z-index: 4030; min-height: 0; padding: 0; gap: 6px; background: none; border: 0; flex-wrap: nowrap; pointer-events: none; }
   /* where the window is too narrow for the bar it gives way and never spills over the Properties panel: the tabs down to the plus alone, as a folded row's do,
      the clock cut short first, and then each pill down to its drawing alone (32 px: its drawing, its padding and its edge), its words cut short. Past that the pills' box
      clips sideways: nothing of the bar is ever drawn past its own right edge */
@@ -2957,8 +2944,9 @@
   body.row-hidden:not(.tour-on):not(.stream-mode) #soundGate, body.row-hidden:not(.tour-on):not(.stream-mode) #musicGate { top: calc(var(--rowbar) + 32px); }
   body.row-hidden:not(.tour-on):not(.stream-mode) #docReaderModal { top: calc(var(--rowbar) + 26px) !important; }
   body.row-hidden:not(.tour-on):not(.stream-mode) #updateBanner { top: calc(var(--rowbar) + 34px) !important; }
-  /* ---- the left panel folded to a rail (step R4 of the slim row; leftrail.js). Folded, a narrow column of icons stands in the panel's place.
-     Opened from the rail, the panel lies over the map beside it, and takes no room from the map ---- */
+  /* ---- the left panel's rail (step R4 of the slim row; leftrail.js; 1.6.2: on every view). A narrow column of icons at the window's left edge:
+     each shows its section alone, All shows every section, and the arrow at its foot hides and shows the panel. Opened from the rail while
+     hidden, the panel lies over the map beside it, and takes no room from the map ---- */
   .layout-wrapper { position: relative; }
   #leftRail { flex: 0 0 34px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; background: var(--bg2); border-right: 1px solid var(--edge); }
   #leftRail[hidden] { display: none; }
@@ -2967,6 +2955,10 @@
   .rail-btn[hidden] { display: none; }   /* the Characters icon, where there is nothing to list for this screen */
   .rail-btn.on { background: var(--gold); color: #1a1a1a; }
   .rail-btn .ico { width: 16px; height: 16px; }
+  .rail-btn.rail-all { font-size: 10.5px; font-weight: 600; letter-spacing: .02em; }   /* All, in a word: no drawing says it as well */
+  #toggleLeftBtn .ico { transform: rotate(90deg); }   /* the small arrow the toolbar uses for "this opens", turned as the top row's hide arrow is: pointing left it hides the panel */
+  #toggleLeftBtn[aria-expanded="false"] .ico { transform: rotate(-90deg); }   /* and pointing right it shows it */
+  body:not(.tour-on) #campaignSidebar > .sidebar-section.rail-off { display: none !important; }   /* a section not shown is put away, a player's Decks too; the tour's steps point into every section */
   .rail-grow { flex: 1; }
   #campaignSidebar.floating { position: absolute; left: 34px; top: 0; bottom: 0; z-index: 5001; box-shadow: 6px 0 18px rgba(0,0,0,0.45); }   /* over the map, its fog, the panes' arrows, the minimap (5000) and a hidden row's bar and tab (4030, 4031): nothing of the map's own is drawn on the opened panel */
   #campaignSidebar.collapsed + #leftGrip, #campaignSidebar.floating + #leftGrip { display: none; }   /* only a docked panel is resized */
@@ -6490,18 +6482,18 @@ body.lay-on .floating-toolbar.lay-bar.lay-hide { transition: z-index 0s .2s, tra
 body.lay-on .floating-toolbar.lay-top { top: var(--lay-t, 26px); bottom: auto; }
 body.lay-on .floating-toolbar.lay-side { flex-direction: column; top: 50%; bottom: auto; transform: translateY(-50%); gap: 3px; padding: 5px; }
 body.lay-on .floating-toolbar.lay-left { left: var(--lay-l, 44px); }
-body.lay-on .floating-toolbar.lay-right { left: auto; right: 22px; }   /* clear of the right panel's handle (18 px) */
+body.lay-on .floating-toolbar.lay-right { left: auto; right: 14px; }   /* as far in as the zoom box (1.6.2: no handle keeps a strip at the right edge) */
 body.lay-on .floating-toolbar.lay-side > .wb-tool-sep, body.lay-on .floating-toolbar.lay-side.tb-tight > .wb-tool-sep { width: 24px; height: 1px; margin: 2px 0; }
 body.lay-on .floating-toolbar.lay-side.lay-cols { display: grid !important; grid-template-columns: repeat(2, auto); gap: 2px; align-content: center; }   /* too tall for the area even tight: two columns */
 body.lay-on .floating-toolbar.lay-side.lay-cols > .wb-tool-sep { display: none; }
 body.lay-on .floating-toolbar.lay-edge:not(.lay-side) { left: 0; right: 0; transform: none; width: auto !important; max-width: none !important; border-radius: 0; justify-content: center; box-shadow: 0 0 16px rgba(0,0,0,0.45); }
 body.lay-on .floating-toolbar.lay-edge:not(.lay-side):not(.lay-top) { bottom: 0; border-width: 1px 0 0; }
-body.lay-on .floating-toolbar.lay-edge.lay-top { top: var(--lay-et, 18px); border-width: 0 0 1px; }
+body.lay-on .floating-toolbar.lay-edge.lay-top { top: var(--lay-tt, 0px); border-width: 0 0 1px; }   /* flush with the top edge, the top ruler under it (layout.js rulerShift); under a hidden row's bar while the row is hidden */
 body.lay-on .floating-toolbar.lay-edge.lay-side { top: var(--lay-et, 18px); bottom: 0; transform: none; border-radius: 0; justify-content: center; align-content: center; box-shadow: 0 0 16px rgba(0,0,0,0.45); }
-body.lay-on .floating-toolbar.lay-edge.lay-left { left: var(--lay-el, 36px); border-width: 0 1px 0 0; }
-body.lay-on .floating-toolbar.lay-edge.lay-right { right: 18px; border-width: 0 0 0 1px; }   /* across the edge up to the right panel's handle, which keeps its strip */
-body.lay-on .floating-toolbar.lay-edge.lay-right ~ #toggleRightBtn { z-index: 9501; }   /* the right panel's handle stays over a bar across that edge */
-body.lay-on .floating-toolbar.lay-edge.lay-left ~ #toggleLeftBtn { z-index: 9501; }   /* and the left one's over a bar across the left */
+body.lay-on .floating-toolbar.lay-edge.lay-left { left: 0; border-width: 0 1px 0 0; }   /* flush with the left edge, beside the rail or the panel, the left ruler beside it (rulerShift) */
+body.lay-on .floating-toolbar.lay-edge.lay-right { right: 0; border-width: 0 0 0 1px; }   /* flush with the right edge: the Properties tab that kept its strip is gone (1.6.2) */
+body.lay-on #main > :is(#rulerTop, #rulerCursorX) { top: var(--lay-rt, 0px); }   /* a ruler stands beside a bar across its edge (layout.js rulerShift: 0 for any other bar) */
+body.lay-on #main > :is(#rulerLeft, #rulerCursorY) { left: var(--lay-rl, 0px); }
 body.lay-on .floating-toolbar.lay-edge.lay-meas:not(.lay-side) { right: auto !important; width: max-content !important; }
 body.lay-on .floating-toolbar.lay-edge.lay-side.lay-meas { bottom: auto !important; }   /* whiteboard.js fitBar measures what the bar holds */
 /* a menu opens away from the bar's edge (layout.js layMenuFit holds it inside the area) */
@@ -6523,11 +6515,11 @@ body.lay-on:not(.lay-edit):not(.tour-on) .lay-hide:not(.lay-peek):not(:has(:focu
 body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)):not(.lay-top):not(.lay-side):not(.lay-free):not(.lay-edge) { transform: translate(-50%, calc(100% + 40px)); }
 body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-edge:not(.lay-top):not(.lay-side) { transform: translateY(100%); }
 body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-top:not(.lay-edge) { transform: translate(-50%, calc(-100% - var(--lay-t, 26px) - 10px)); }
-body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-top.lay-edge { transform: translateY(calc(-100% - var(--lay-et, 18px) - 2px)); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-top.lay-edge { transform: translateY(calc(-100% - var(--lay-tt, 0px) - 2px)); }
 body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-left:not(.lay-edge) { transform: translate(calc(-100% - var(--lay-l, 44px) - 10px), -50%); }
-body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-left.lay-edge { transform: translateX(calc(-100% - var(--lay-el, 36px) - 2px)); }
-body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-right:not(.lay-edge) { transform: translate(calc(100% + 24px), -50%); }
-body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-right.lay-edge { transform: translateX(calc(100% + 18px)); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-left.lay-edge { transform: translateX(calc(-100% - 2px)); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-right:not(.lay-edge) { transform: translate(calc(100% + 16px), -50%); }
+body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-right.lay-edge { transform: translateX(calc(100% + 2px)); }
 body.lay-on:not(.lay-edit):not(.tour-on) .floating-toolbar.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)).lay-free { opacity: 0; pointer-events: auto; }   /* a free bar waits where it stands: the pointer over it brings it back */
 body.lay-on #wbEdgeTools.lay-hide { transition: z-index 0s .2s, transform .18s ease, opacity .18s ease; }
 body.lay-on:not(.lay-edit):not(.tour-on) #wbEdgeTools.lay-hide:not(.lay-peek):not(:has(:focus-visible)):not(:has(.shape-menu.show)) { transform: translateX(calc(100% + 40px)); }
@@ -6535,9 +6527,9 @@ body.lay-on:not(.lay-edit):not(.tour-on) #wbEdgeTools.lay-hide.lay-at:not(.lay-p
 .lay-hot { position: absolute; z-index: 9499; }
 .lay-hot::after { content: ''; position: absolute; border-radius: 3px; background: rgba(227,166,59,.55); box-shadow: 0 0 8px rgba(227,166,59,.35); }
 .lay-hot[data-side="bottom"] { left: calc(50% - 130px); width: 260px; bottom: 0; height: 12px; }
-.lay-hot[data-side="top"] { left: calc(50% - 130px); width: 260px; top: var(--lay-et, 18px); height: 12px; }
-.lay-hot[data-side="left"] { top: calc(50% - 130px); height: 260px; left: var(--lay-el, 36px); width: 12px; }
-.lay-hot[data-side="right"] { top: calc(50% - 130px); height: 260px; right: 18px; width: 12px; }   /* clear of the right panel's handle */
+.lay-hot[data-side="top"] { left: calc(50% - 130px); width: 260px; top: var(--lay-tt, 0px); height: 12px; }
+.lay-hot[data-side="left"] { top: calc(50% - 130px); height: 260px; left: 0; width: 12px; }
+.lay-hot[data-side="right"] { top: calc(50% - 130px); height: 260px; right: 0; width: 12px; }
 .lay-hot.lay-hot-edge[data-side="bottom"], .lay-hot.lay-hot-edge[data-side="top"] { left: 0; width: auto; right: 0; }
 #layHotCol[data-side="right"] { top: auto; bottom: var(--lay-colb, 96px); height: 140px; }
 .lay-hot[data-side="bottom"]::after { left: 0; right: 0; bottom: 2px; height: 3px; }

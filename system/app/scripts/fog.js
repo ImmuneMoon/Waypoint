@@ -1858,7 +1858,7 @@ function drawMarks(ctx, s, marks, seenKeys, grid, now, still, held, edge) {   //
     if (hoverAt) pill(hoverAt.word, hoverAt.x, hoverAt.y - R - 12);
     var said = [1, 2, 3, 4].filter(function(k) { return count[k] > 0; }).map(function(k) { return MARK_WORD[k] + ': ' + count[k]; }).join(' · ');
     if (said && held) said += ' — as heard on your turn';
-    if (said) { var tw = Math.min(ctx.measureText(said).width + 14, 360), rl = ui('rulerLeft'), inset = rl && rl.offsetWidth > 0 ? rl.offsetWidth : 0; pill(said, inset + 12 + tw / 2, H - 22); }   // clear of the left ruler while it shows
+    if (said) { var tw = Math.min(ctx.measureText(said).width + 14, 360), rl = ui('rulerLeft'), inset = rl && rl.offsetWidth > 0 ? (rl.offsetLeft || 0) + rl.offsetWidth : 0; pill(said, inset + 12 + tw / 2, H - 22); }   // clear of the left ruler while it shows, where a bar across the left edge stood it (1.6.2)
     ctx.restore();
 }
 // the cell the pointer is on, for a mark's word (the board's own coordinates, as the fog draws them)

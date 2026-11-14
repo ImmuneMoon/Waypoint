@@ -42,7 +42,7 @@ function orderKept(o) { var c = orderOf(o); return c.join() === PANEL_SECS.join(
 function el(id) { return document.getElementById(id); }
 function sectionOf(key) { var t = document.querySelector('#campaignSidebar .section-title[data-section="' + key + '"]'); return t ? t.closest('.sidebar-section') : null; }
 function railOf(key) { return document.querySelector('#leftRail .rail-btn[data-rail="' + key + '"]'); }
-function shownKeys() { return PANEL_SECS.filter(function(k) { var s = sectionOf(k); return !!s && !s.hidden && getComputedStyle(s).display !== 'none'; }); }
+function shownKeys() { return PANEL_SECS.filter(function(k) { var s = sectionOf(k); return !!s && !s.hidden && (s.classList.contains('rail-off') || getComputedStyle(s).display !== 'none'); }); }   // a section the rail put away while another shows alone is still in the order (leftrail.js)
 // Whether this screen may keep an order: the GM's own campaign or a player's own, never someone else's table or a window of its own
 function mayKeep() {
     if (window.wpStream || window.wpPopout) return false;

@@ -338,7 +338,6 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       document.getElementById('sidebar').style.display = isPlanner ? 'none' : 'flex'; document.getElementById('sidebar').classList.toggle('no-elements', state.viewMode === 'visual');   // 1.6.2, backlog 217: on the play map the pieces are in Layers, and the panel is Properties alone
 
-      document.getElementById('toggleRightBtn').style.display = isPlanner ? 'none' : 'flex';
       if (window.wpBoxes) window.wpBoxes.sync();   // 1.6.2 (backlog 42): a container's window follows its piece, its map and its campaign
       if (window.wpPrep) window.wpPrep.sync();   // 1.6.2 (prep.js): the Prep column shows on the play map alone, and takes its room before anything measures the map's
       if (window.wpLeftRail) window.wpLeftRail.sync();   // the left panel folds to its rail on the play map (leftrail.js), before the bar measures the room the map has

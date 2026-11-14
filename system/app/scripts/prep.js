@@ -448,16 +448,6 @@ function foundNow(camp, q, PS, mapId) {
     return _fq.list;
 }
 // [prepcheck:found-end]
-// [prepcheck:seat-start]
-// The left panel's fold arrow stands at the left panel's own edge: in the map's area as the page has it, and at the column's left edge
-// while the column shows, since the map's area then begins a column further right
-function arrowSeat(E, on) {
-    var tg = document.getElementById('toggleLeftBtn'), main = document.getElementById('main'); if (!tg || !main || !E.col) return;
-    if (tg.parentNode === (on ? E.col : main)) return;
-    if (on) { E.col.appendChild(tg); return; }
-    var rb = document.getElementById('toggleRightBtn'); main.insertBefore(tg, rb && rb.parentNode === main ? rb : main.firstChild);
-}
-// [prepcheck:seat-end]
 function draw(force) {
     var E = els(), camp = getActiveCampaign(); if (!E.col || !E.body || !camp) return;
     var PS = window.wpPageShelf, mapId = mapNow(camp), pinList = PS && typeof PS.pinned === 'function' ? PS.pinned() : [], pinned = {}; pinList.forEach(function(id) { pinned[id] = 1; });
@@ -512,7 +502,6 @@ function sync() {
     var E = els(); if (!E.col) return false;
     var on = shownNow();
     if (E.col.hidden === on) { E.col.hidden = !on; relaid(); }
-    arrowSeat(E, on);
     if (E.rail) { E.rail.classList.toggle('on', on); E.rail.setAttribute('aria-pressed', on ? 'true' : 'false'); }
     if (on !== _was) { _was = on; if (!on) { _sig = ''; _fq.list = null; if (E.body) E.body.textContent = ''; } }
     if (!on || document.body.classList.contains('tour-on')) st.spread = false;   // Spread is for the moment: a column that is put away comes back docked, and the tour's card has the map to itself

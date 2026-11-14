@@ -3256,6 +3256,18 @@
     .doc-view table.pv-tstack td { display: block; border: 0; padding: 2px 0; overflow-wrap: anywhere; }
     .doc-view table.pv-tstack td:empty { display: none; }
     .doc-view .pv-cards > .pv-blk > .node table.pv-tstack tr { background: var(--panel2); }   /* inside a card's frame, which wears the panel's own color */
+    /* 1.6.2, wide tables (the owner: "Scroll, first column stays"): the table's box scrolls sideways where the table needs more room than it has,
+       and its first column stays in view. The table keeps its own natural width, so a table of short figures that fits shows whole with no scroll
+       bar, each column as wide as its words want, and wraps only past 160 px a column on average (--tcols, its count of columns, set by pagenav.js), so a notes column gets its room and a paragraph in a cell cannot stretch the table without end. The 125 px a
+       column pagenav.js counts only decides WHEN a table scrolls, and neither is read back by it. The table drops its own clipping, which would
+       make it the scroller its sticky column is held to. A hit scrolled into view (Find, a landing) is kept clear of the sticky first column,
+       whose measured width pagenav.js writes as --tfirst */
+    .doc-view .pv-tscroll { overflow-x: auto; scroll-padding-inline-start: var(--tfirst, 125px); }
+    .doc-view .pv-tscroll > :not(table) { position: sticky; left: 0; }   /* the table's title, and a card's own lines above its table, stay in view as it scrolls */
+    .doc-view .pv-tscroll > table { width: max-content; min-width: 100%; max-width: calc(var(--tcols, 3) * 160px); overflow: visible; }
+    .doc-view .pv-tscroll > table th:first-child, .doc-view .pv-tscroll > table td:first-child { position: sticky; left: 0; z-index: 1; box-shadow: inset -1px 0 0 var(--edge); }
+    .doc-view .pv-tscroll > table th:first-child { background: var(--panel2); }
+    .doc-view .pv-tscroll > table td:first-child { background: var(--panel); }
     .doc-view table.pv-tstack td[data-col]::before { content: attr(data-col); display: inline-block; margin-right: 8px; color: var(--gold); font-size: 11px; font-weight: 400; letter-spacing: .8px; text-transform: uppercase; }
   }
   .doc-view .flare { background: var(--panel); border: 1px solid var(--edge); border-left: 3px solid var(--violet); border-radius: 7px; padding: 10px 13px; margin-top: 10px; font-size: 13.5px; color: var(--dim); }
@@ -3537,7 +3549,7 @@
   body.party-dragging #whiteboardWrap { outline: 2px dashed rgba(224,165,79,0.5); outline-offset: -2px; }
 
   /* Planner node table editor */
-  .b-table { overflow-x: auto; }
+  .b-table { overflow-x: auto; }   /* a table of many columns (up to 64 since 1.6.2) scrolls sideways in the editor, each box keeping its 70 px */
   .b-heads input { font-weight: 600; color: var(--gold); }
   .b-table .row-h input { min-width: 70px; }
 

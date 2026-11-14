@@ -27,6 +27,13 @@ Lay out your table
   under another. This computer remembers which. The arrow at the foot of
   the rail hides the panel and shows it again.
 
+Wide tables
+- A table on a page or in a planner can have up to 64 columns now, up
+  from 8. A table wider than its page scrolls sideways and keeps its first
+  column in view, so a stat block of 17 columns reads whole. In a very
+  narrow place, such as the panel over the map, each row still reads as a
+  small card.
+
 Story cards
 - Lay a few cards out at once, each in a place you name, and read them
   together. Who, Wants and Stands in the way, each drawn from a deck of your

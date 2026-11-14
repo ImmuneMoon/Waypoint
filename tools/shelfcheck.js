@@ -1732,6 +1732,17 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         noSelf.filter(r => r.id === 'p1')[0].at === 'b_vey' && noSelf.filter(r => r.id === 'p1')[0].n === 3 && J(lit.map(r => r.id)) === J(['d1']) && short.length === 0
         && J(wolf) === J([{ id: 'p1', type: 'planner', title: 'Act one', at: '', where: 'Later', n: 1, q: 'the Harbor Wolf' }]) && A.N.namedIn(many, ['Kael']).length === 40 && cyr.length === 1 && cyr[0].at === 'b2' && cyr[0].n === 1
         && threw === false && J(odd) === J([0, 0, 0, 0, 0, 4, 0]), J([noSelf, lit, short, wolf, cyr, threw, odd]));
+    {   // 1.6.2, wide tables: a table is read to its 64th column, as docrender keeps it, a row of cells and a row of { colN } alike, never past it
+        const wide = (at, v) => { const a = Array.from({ length: 70 }, () => 'x'); a[at - 1] = v; return a; }, objRow = arr => { const o = { fmt: { col1: { b: true } } }; arr.forEach((v, i) => { o['col' + (i + 1)] = v; }); return o; };
+        const wc = { items: {
+            a: { type: 'doc', meta: { title: 'A' }, blocks: [{ id: 'b_a', type: 'table', cols: wide(64, 'Captain Vey'), rows: [] }] },
+            b: { type: 'doc', meta: { title: 'B' }, blocks: [{ id: 'b_b', type: 'table', cols: ['N'], rows: [wide(64, 'Captain Vey')] }] },
+            c: { type: 'planner', meta: { title: 'C' }, blocks: [{ id: 'b_c', type: 'node', mode: 'table', cols: ['N'], rows: [objRow(wide(64, 'Captain Vey'))] }] },
+            d: { type: 'doc', meta: { title: 'D' }, blocks: [{ id: 'b_d', type: 'table', cols: wide(65, 'Captain Vey'), rows: [wide(65, 'Captain Vey'), objRow(wide(65, 'Captain Vey'))] }] } } };
+        const wf = A.N.namedIn(wc, ['Captain Vey']).map(r => r.id), drCols = (/var LIMITS = \{[^}]*\bcols: (\d+)/.exec(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'docrender.js'), 'utf8')) || [])[1];
+        check('Mentioned in reads a table to its last column (1.6.2, wide tables): a card named only in the 64th heading, the 64th cell of a row of cells or a row\'s col64 is found, one named only past the 64th column is not, and the module\'s count of columns is docrender\'s own LIMITS.cols',
+            J(wf) === J(['a', 'b', 'c']) && /\nvar NAMED_COLS = 64;/.test(sliceOf(ps, 'namedin')) && drCols === '64', J([wf, drCols]));
+    }
     // the button's press and the menu, on a page that refuses markup
     const mkBtn = (X, page, at) => { const p = X.doc.createElement('p'); p.className = 'pv-linkrow pv-ment-row'; const b = X.doc.createElement('button'); b.className = 'tool ghost pv-ment'; b.dataset.page = page; b.dataset.at = at; b.rect = { left: 700, top: 560, right: 790, bottom: 584 }; p.appendChild(b); X.doc.body.appendChild(p); return b; };
     const B = mkN({ camp }); B.N.namedWire();

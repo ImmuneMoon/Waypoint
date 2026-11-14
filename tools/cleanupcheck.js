@@ -687,7 +687,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const styledPlanner = () => ({ id: 'pf', type: 'planner', meta: { title: 'Styled' }, blocks: [
                 { id: 'b1', type: 'h1', title: 'Title', sub: 'sub', fmt: { title: { color: '#D9534F', b: 'yes', onclick: 'alert(1)', spans: [{ s: 0, e: 2, b: true, style: 'x' }, { s: 3, e: 99, color: 'url(//evil.example/c)' }, { s: -1, e: 4, i: true }] }, sub: { size: '99em;position:fixed' }, evil: { b: true } } },
                 { id: 'b2', type: 'node', title: 'N', tag: 't', must: 'm', cols: ['A', 'B'], colFmt: [{ b: true }, 'x', { i: true }], fmt: { tag: { i: true }, must: 'bold' },
-                  rows: [{ col1: 'cell', col2: 'y', fmt: { col1: { spans: [{ s: 1, e: 3, color: RED }] }, col2: { color: 'red' }, col9: { b: true }, junk: { b: true } } }, { col1: 'q', fmt: [{ b: true }] }] },
+                  rows: [{ col1: 'cell', col2: 'y', fmt: { col1: { spans: [{ s: 1, e: 3, color: RED }] }, col2: { color: 'red' }, col65: { b: true }, junk: { b: true } } }, { col1: 'q', fmt: [{ b: true }] }] },
                 { id: 'b3', type: 'flowchart', nodes: [{ id: 'n1', text: 'label', fmt: { size: 'huge', spans: [{ s: 2, e: 400, i: true }] } }, { id: 'n2', text: 'x', fmt: { color: 'javascript:alert(1)' } }], edges: [{ from: 'n1', to: 'n2', text: 'go', fmt: { b: true, x: 1 } }, { from: 'n2', to: 'n1', text: '', fmt: { spans: [{ s: 0, e: 1, b: true }] } }] },
                 { id: 'b4', type: 'image', src: '/saves/images/x.png', caption: 'cap', fmt: { caption: { size: 'small', color: '#fff' } } }
             ] });

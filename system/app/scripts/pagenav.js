@@ -308,7 +308,17 @@ function foldStrip(root) { if (!root) return; navBlocks(root).forEach(foldClear)
 // cell (the column's name, which a style sheet prints, as a folded part's word is), and both are taken off before the markup is read for an export.
 // The rule is the room the table's own box has and how many columns it has, never what the table measures once it is stacked, so it cannot flip.
 // Only the app's own two tables are fitted, a card's and a page's table block: a table the GM wrote as Raw HTML is left as written.
-var TFIT_COL = 125, TFIT_MIN = 3, TFIT_WORDS = 60;
+// 1.6.2, wide tables (the owner, 2026-11-14, by prompt, of the book's stat blocks of up to 17 columns: "Scroll, first column stays", with cards
+// only for a very narrow window, as today). A table that has less room than its columns need reads as cards (pv-tstack) only where its box is
+// narrower than TFIT_NARROW; anywhere wider it keeps its shape and its box scrolls sideways (pv-tscroll on the box, the table's parent), the
+// first column held in view by the style sheet. TFIT_COL only decides WHEN a table scrolls: drawn, a scrolling table keeps its own natural
+// width (a table of short figures that fits shows whole, with no scroll bar), with a floor from its count of columns (--tcols, which the style
+// sheet multiplies by a small width) so that a table of long text is never crushed. Neither is ever read back by tfitMode, so it cannot flip.
+// tfitMode is the one judge: 'stack', 'scroll' or ''. The box also carries its first column's measured width (--tfirst), which the style sheet
+// keeps clear when a Find or a landing scrolls a hit into view, since the sticky column is drawn over that strip. And the sideways scroll of each
+// box is kept in memory by its block (tfitKeep), so a page drawn again comes back where the reader had scrolled it. Nothing is stored or sent.
+var TFIT_COL = 125, TFIT_MIN = 3, TFIT_WORDS = 60, TFIT_NARROW = 480;
+function tfitMode(avail, cols, named) { if (!tfitStacks(avail, cols)) return ''; return named && avail < TFIT_NARROW ? 'stack' : 'scroll'; }
 function tfitStacks(avail, cols) { return typeof avail === 'number' && avail > 0 && typeof cols === 'number' && cols >= TFIT_MIN && avail < cols * TFIT_COL; }
 function tfitOurs(t) { var p = t && t.parentNode, c = p && p.classList; return !!c && (c.contains('node') || c.contains('doc-tablewrap')); }
 function tfitFloats(t) { var c = t.parentNode.classList; return c.contains('fl-left') || c.contains('fl-right'); }   // a floated table takes the width it needs: stacked it would grow to the page's
@@ -317,23 +327,87 @@ function tfitCut(s) { var a = Array.from(String(s == null ? '' : s).replace(/\s+
 // the names of a table's columns, from its heading row; null where it has none (a table with no headings is never stacked: its cells would have no names)
 function tfitHeads(t) { var hd = tfitKids(t, 'THEAD')[0], tr = hd ? tfitKids(hd, 'TR')[0] : null, th = tr ? tfitKids(tr, 'TH') : []; return th.length ? th.map(function(h) { return tfitCut(h.textContent); }) : null; }
 function tfitCells(t) { var rows = []; tfitKids(t, 'TBODY').forEach(function(b) { tfitKids(b, 'TR').forEach(function(r) { rows.push(tfitKids(r, 'TD')); }); }); return rows; }
+// a table's column count where it has no heading row: its widest row
+function tfitCount(t) { var n = 0; tfitCells(t).forEach(function(r) { if (r.length > n) n = r.length; }); return n; }
+// A custom property of an element's own style set (v a string) or taken off (v null), only where its style can do both; an empty style attribute
+// left behind is taken off too, so the export reads the markup as the renderer wrote it. True where anything changed
+function tfitVar(el, k, v) {
+    var s = el && el.style; if (!s || typeof s.getPropertyValue !== 'function' || typeof s.setProperty !== 'function' || typeof s.removeProperty !== 'function') return false;
+    var now = s.getPropertyValue(k);
+    if (v === null) { if (!now) return false; s.removeProperty(k); if (typeof el.getAttribute === 'function' && !el.getAttribute('style')) el.removeAttribute('style'); return true; }
+    if (now === v) return false; s.setProperty(k, v); return true;
+}
+// the width of a table's first column as drawn (its heading's, else its first row's first cell): 0 where it is not laid out. A measure only,
+// written for the style sheet's scroll padding; tfitMode never reads it
+function tfitFirst(t) {
+    var hd = tfitKids(t, 'THEAD')[0], tr = hd ? tfitKids(hd, 'TR')[0] : null, c = tr ? tfitKids(tr, 'TH')[0] : null;
+    if (!c) { var r = tfitCells(t)[0]; c = r ? r[0] : null; }
+    var w = c ? c.offsetWidth : 0; return typeof w === 'number' && w > 0 ? Math.round(w) : 0;
+}
+// the scrolling form taken off: the class and the first column's width on the box, the count on the table. True where anything changed
+function tfitUnscroll(t) {
+    var p = t && t.parentNode, was = !!(p && p.classList && p.classList.contains('pv-tscroll'));
+    if (was) p.classList.remove('pv-tscroll');
+    if (tfitVar(p, '--tfirst', null)) was = true;
+    if (tfitVar(t, '--tcols', null)) was = true;
+    return was;
+}
+// The sideways scroll a reader left each box at, kept on the place's root by the box's block (its data-blk), its count of columns and its first
+// heading, so a page drawn again (from its markup: every box new, at 0) comes back where it was, and another page's table is not taken for it. Memory
+// only. The root hears every scroll inside it in the capture phase (a scroll does not bubble); a landing that scrolls a box records it at once
+var TFIT_KEEP = 400;
+function tfitMem(root) {
+    if (root._wpTfitLeft) return root._wpTfitLeft;
+    root._wpTfitLeft = Object.create(null);
+    if (typeof root.addEventListener === 'function') root.addEventListener('scroll', function(e) { tfitKeep(e && e.target); }, true);
+    return root._wpTfitLeft;
+}
+// the key of a scrolling table: its block's number, its count of columns and its first heading; null where it stands in no numbered block
+function tfitKey(t, n) {
+    for (var b = t; b; b = b.parentNode) if (b.classList && b.classList.contains('pv-blk')) break;
+    var bi = b && b.dataset ? b.dataset.blk : null; if (typeof bi !== 'string' || !bi) return null;
+    var h = tfitHeads(t); return bi + ':' + n + ':' + (h ? h[0] : '');
+}
+// a scrolling box's place recorded on the root above it that keeps them (a scroll of anything else, or of a box with no key, is passed over)
+function tfitKeep(box) {
+    if (!box || !box.classList || !box.classList.contains('pv-tscroll') || typeof box._wpTfitKey !== 'string') return false;
+    for (var r = box.parentNode; r; r = r.parentNode) if (r._wpTfitLeft) {
+        var mem = r._wpTfitLeft; if (!(box._wpTfitKey in mem) && Object.keys(mem).length >= TFIT_KEEP) { r._wpTfitLeft = mem = Object.create(null); }
+        mem[box._wpTfitKey] = typeof box.scrollLeft === 'number' ? box.scrollLeft : 0; return true;
+    }
+    return false;
+}
 function tfitClear(t) {
-    if (!t || !t.classList || !t.classList.contains('pv-tstack')) return false;
+    var un = tfitUnscroll(t);
+    if (!t || !t.classList || !t.classList.contains('pv-tstack')) return un;
     t.classList.remove('pv-tstack'); tfitCells(t).forEach(function(r) { r.forEach(function(td) { td.removeAttribute('data-col'); }); }); return true;
 }
-function tfitOne(t, widthOf) {
-    var heads = tfitOurs(t) ? tfitHeads(t) : null; if (!heads || tfitFloats(t)) return tfitClear(t);
-    var avail = widthOf(t); if (!(avail > 0)) return false;   // a place that is not laid out (put away, or not yet shown) is left as it stands
-    if (!tfitStacks(avail, heads.length)) return tfitClear(t);
-    var moved = !t.classList.contains('pv-tstack'); if (moved) t.classList.add('pv-tstack');
+function tfitOne(t, widthOf, mem) {
+    if (!tfitOurs(t) || tfitFloats(t)) return tfitClear(t);
+    var heads = tfitHeads(t), avail = widthOf(t); if (!(avail > 0)) return false;   // a place that is not laid out (put away, or not yet shown) is left as it stands
+    var n = heads ? heads.length : tfitCount(t), mode = tfitMode(avail, n, !!heads);
+    if (mode === 'scroll') {   // the box scrolls sideways: the cards' form taken off first
+        var off = false; if (t.classList.contains('pv-tstack')) { t.classList.remove('pv-tstack'); tfitCells(t).forEach(function(r) { r.forEach(function(td) { td.removeAttribute('data-col'); }); }); off = true; }
+        var p = t.parentNode, on = !p.classList.contains('pv-tscroll'); if (on) p.classList.add('pv-tscroll');
+        if (tfitVar(t, '--tcols', String(n))) on = true;
+        // the first column's width, measured once the box scrolls, for the scroll padding that keeps a hit clear of it. Not counted as a change:
+        // it is a measure of the drawn page, and a window made wider would otherwise count as the table changing form
+        var fw = tfitFirst(t); if (fw > 0) tfitVar(p, '--tfirst', fw + 'px');
+        // back where the reader had scrolled this table before the page was drawn again (memory only)
+        var key = tfitKey(t, n); p._wpTfitKey = key === null ? undefined : key;
+        if (mem && key !== null && key in mem && p.scrollLeft !== mem[key]) p.scrollLeft = mem[key];
+        return on || off;
+    }
+    if (mode !== 'stack') return tfitClear(t);
+    var unS = tfitUnscroll(t), moved = !t.classList.contains('pv-tstack') || unS; if (!t.classList.contains('pv-tstack')) t.classList.add('pv-tstack');
     tfitCells(t).forEach(function(r) { r.forEach(function(td, i) { var w = i > 0 && heads[i] ? heads[i] : ''; if (w) { if (td.getAttribute('data-col') !== w) td.setAttribute('data-col', w); } else if (td.getAttribute('data-col') !== null) td.removeAttribute('data-col'); }); });
     return moved;
 }
 function tfitWidth(t) { var p = t.parentNode; return p && typeof p.clientWidth === 'number' ? p.clientWidth : 0; }
 function tableFit(root, widthOf) {
     if (!root || typeof root.querySelectorAll !== 'function') return 0;
-    var w = typeof widthOf === 'function' ? widthOf : tfitWidth, n = 0, ts = root.querySelectorAll('table');
-    for (var i = 0; i < ts.length; i++) if (tfitOne(ts[i], w)) n++;
+    var w = typeof widthOf === 'function' ? widthOf : tfitWidth, n = 0, ts = root.querySelectorAll('table'), mem = tfitMem(root);
+    for (var i = 0; i < ts.length; i++) if (tfitOne(ts[i], w, mem)) n++;
     return n;
 }
 // the page as it was drawn: no table stacked, no cell named
@@ -442,8 +516,29 @@ function land(root, it, lnd, again) {
         if (NAV_PLACES.some(function(p) { return p[1] === root.id; })) foldApply(root);
         foldReveal(root, el, true);
         if (again === true) navTop(el); else navGo(el);
+        if (L.q) landSide(el, L.q);   // 1.6.2, wide tables: the words brought into their table's sideways view as well
         return true;
     } catch (e) { return false; }
+}
+// 1.6.2, wide tables. Words landed on in a table whose box scrolls sideways (tableFit's pv-tscroll) may stand in a column far to the right, out
+// of sight though their block is at the top. The cell is found by the very rule the block was (landFind over the cells, so the phrase in one
+// cell first), and its box is moved by its own scrollLeft, never by scrollIntoView, which would move the page again: the cell is brought just
+// into view, never under the first column, which stays in view over that strip (a cell of the first column is always in sight). The place is
+// recorded at once (tfitKeep, asked through typeof so the slice runs alone), so a page drawn again comes back to it. Answers whether it moved
+function landSide(el, q) {
+    if (!el || typeof el.querySelectorAll !== 'function') return false;
+    var boxes = el.querySelectorAll('.pv-tscroll'), cells = [], i, j; if (!boxes.length) return false;
+    for (i = 0; i < boxes.length; i++) { var cs = boxes[i].querySelectorAll('th, td'); for (j = 0; j < cs.length; j++) cells.push(cs[j]); }
+    var c = cells.length ? landFind(cells, q) : null; if (!c) return false;
+    var box = c.parentNode; while (box && !(box.classList && box.classList.contains('pv-tscroll'))) box = box.parentNode;
+    var row = c.parentNode, kids = row && row.children ? row.children : [], lead = kids[0];
+    if (!box || !lead || lead === c || typeof box.getBoundingClientRect !== 'function' || typeof c.getBoundingClientRect !== 'function') return false;
+    var pad = lead.offsetWidth > 0 ? lead.offsetWidth : 0, b = box.getBoundingClientRect(), r = c.getBoundingClientRect(), now = box.scrollLeft || 0, to = now;
+    if (r.left < b.left + pad) to = now - (b.left + pad - r.left);   // to its left, under the first column: brought out just beside it
+    else if (r.right > b.right) to = now + Math.min(r.right - b.right, r.left - b.left - pad);   // to its right: its right edge into view, its start never past the first column
+    to = Math.max(0, Math.round(to)); if (to === now) return false;
+    box.scrollLeft = to; if (typeof tfitKeep === 'function') tfitKeep(box);
+    return true;
 }
 // [pagecheck:land-end]
 

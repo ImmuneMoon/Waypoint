@@ -854,7 +854,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             { id: 'b1', type: 'h1', title: 'Rules', sub: 'v1', fmt: { title: { color: RED }, sub: { i: true }, evil: { b: true }, must: { b: true } } },
             { id: 'b2', type: 'h2', title: 'Sec', fmt: { title: { size: 'huge' } } },
             { id: 'b3', type: 'h3', title: 'Sub', fmt: { title: { spans: [{ s: 0, e: 1, b: true }] } } },
-            { id: 'b4', type: 'table', title: 'Tab', cols: ['A', 'B'], colFmt: [null, { b: true }, { i: true }], rows: [{ col1: 'x', col2: 'yy', fmt: { col2: { spans: [{ s: 0, e: 1, color: GREEN }] }, col9: { b: true }, nope: { b: true } } }, { col1: 'p' }] },
+            { id: 'b4', type: 'table', title: 'Tab', cols: ['A', 'B'], colFmt: [null, { b: true }, { i: true }], rows: [{ col1: 'x', col2: 'yy', fmt: { col2: { spans: [{ s: 0, e: 1, color: GREEN }] }, col65: { b: true }, nope: { b: true } } }, { col1: 'p' }] },
             { id: 'b5', type: 'flowchart', nodes: [{ id: 'a', text: 'buy milk\nwalk "dog" #1', fmt: { color: RED, size: 'larger', spans: [{ s: 0, e: 8, color: GREEN, i: true }] } }, { id: 'b', text: 'plain' }], edges: [{ from: 'a', to: 'b', text: 'go', fmt: { b: true } }] },
             { id: 'b6', type: 'image', src: '/saves/images/x.png', caption: 'cap', fmt: { caption: { size: 'small' } } }
         ] };
@@ -901,7 +901,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
 
         // a planner's block from a file: cleaned in place
         const pb = cleanBlockFmts({ type: 'node', title: 'T', tag: 'g', must: 'm', cols: ['A', 'B'], fmt: { title: { color: '#D9534F', evil: 1 }, tag: { b: 'yes' }, must: { spans: [{ s: 0, e: 9, i: true }] }, nope: { b: true } }, colFmt: [{ b: true }, 'x', { i: true }],
-            rows: [{ col1: 'x', col2: 'yy', fmt: { col1: { color: 'red' }, col2: { spans: [{ s: 1, e: 2, b: true }] }, col7: { spans: [{ s: 0, e: 1, b: true }] }, col9: { b: true }, x: { b: true } } }, { col1: 'q', fmt: 'bold' }, null] });
+            rows: [{ col1: 'x', col2: 'yy', fmt: { col1: { color: 'red' }, col2: { spans: [{ s: 1, e: 2, b: true }] }, col7: { spans: [{ s: 0, e: 1, b: true }] }, col65: { b: true }, x: { b: true } } }, { col1: 'q', fmt: 'bold' }, null] });
         const fb = cleanBlockFmts({ type: 'flowchart', nodes: [{ id: 'a', text: 'ab', fmt: { color: RED, spans: [{ s: 1, e: 5, b: true }] } }, { id: 'b', text: 'c', fmt: { color: 'red' } }, null], edges: [{ text: 'e', fmt: { i: true, x: 1 } }, { text: 5, fmt: { spans: [{ s: 0, e: 1, b: true }] } }] });
         check('cleanBlockFmts: every format a block carries is cleaned in place against its own text; one that cleans to nothing, a key the app does not use and an empty holder go; twice is the same',
             JSON.stringify(pb.fmt) === JSON.stringify({ title: { color: RED }, must: { spans: [{ s: 0, e: 1, i: true }] } }) && JSON.stringify(pb.colFmt) === '[{"b":true}]' && JSON.stringify(pb.rows[0].fmt) === JSON.stringify({ col2: { spans: [{ s: 1, e: 2, b: true }] } }) && !('fmt' in pb.rows[1]) && pb.rows[2] === null
@@ -1026,10 +1026,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             tH.indexOf('<h3><span style="color:#d9534f;font-weight:bold;">Loot</span><span style="color:#d9534f;"> table</span></h3>') > 0 && renderDoc({ blocks: [{ type: 'table', title: 'Loot table', cols: ['A'], rows: [['x']] }] }).indexOf('<h3>Loot table</h3><table class="doc-table">') > 0, tH);
         check('render (text style): the caption of a picture block with no picture yet is drawn from its runs too; with no format exactly as before',
             tH.indexOf('<div class="doc-noimg">No picture yet</div><figcaption><span style="font-style:italic;">no picture</span></figcaption>') > 0 && renderDoc({ blocks: [{ type: 'image', src: '', caption: 'no picture' }] }).indexOf('<div class="doc-noimg">No picture yet</div><figcaption>no picture</figcaption>') > 0, tH);
-        const ten = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
-        const wide = cleanBlockFmts({ type: 'node', title: 'W', cols: ten.slice(), colFmt: [{ b: true }, null, null, null, null, null, null, { i: true }, { b: true }, { i: true }] });
-        const past = cleanBlockFmts({ type: 'node', title: 'W', cols: ten.slice(), colFmt: [null, null, null, null, null, null, null, null, { b: true }] });
-        check('cleanBlockFmts: a table\'s heads are read up to the ' + LIMITS.cols + ' columns a table can have — a format past the last of them is not kept', LIMITS.cols === 8 && Jq(wide.colFmt) === Jq([{ b: true }, null, null, null, null, null, null, { i: true }]) && !('colFmt' in past), Jq([wide.colFmt, past.colFmt]));
+        // 1.6.2, wide tables: 64 columns (8 before; moved on purpose). A format on the 64th head is kept, the 65th and 66th go
+        const ten = Array.from({ length: 66 }, (_, i) => 'c' + i), fmA = ten.map((_, i) => (i === 0 ? { b: true } : i === 63 ? { i: true } : i >= 64 ? { b: true } : null));
+        const wide = cleanBlockFmts({ type: 'node', title: 'W', cols: ten.slice(), colFmt: fmA });
+        const past = cleanBlockFmts({ type: 'node', title: 'W', cols: ten.slice(), colFmt: ten.map((_, i) => (i === 64 ? { b: true } : null)) });
+        check('cleanBlockFmts: a table\'s heads are read up to the ' + LIMITS.cols + ' columns a table can have — a format past the last of them is not kept', LIMITS.cols === 64 && Jq(wide.colFmt) === Jq(fmA.slice(0, 64)) && !('colFmt' in past), Jq([wide.colFmt, past.colFmt]));
     }
 
     /* ---- a text block's link (1.5.0, the Link control on a text block's own bar): through the sanitiser, and through Markdown both ways ---- */

@@ -549,6 +549,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       return '';
   }
   // The Columns select: the heads cut or grown, and the heads' formats with them (a cell past the last column keeps its text and its look, as before)
+  // How many columns a table may have: docrender LIMITS.cols, which a page's cleaner keeps (8 before 1.6.2; the owner, 2026-11-14: the book's
+  // stat blocks run to 17 columns, and "waypoint should adapt for this, not the other way"). A safety ceiling, far past any table the book has.
+  // The editor's Columns list offers every count up to it; pagecheck holds the two to each other and runs the list and its change for real
+  var TABLE_COLS = 64;
   function tsSetColCount(b, n) {
       var cols = tsCols(b).slice();
       while (cols.length < n) cols.push('Column ' + (cols.length + 1));
@@ -1877,7 +1881,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if (b.type === 'node' && !plain) html += '<div class="fc-opts" style="margin-bottom:10px;"><label>Plays <select class="b-cue" data-idx="'+idx+'" title="A sound, a song, a playlist or a saved effect. The card gets a Play button that starts it for the table.">' + cueOptions(b.cue) + '</select></label></div>';   // 1.6.2 (backlog 166 g)
               var colNames = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plain ? ['Item', 'Detail', 'Notes'] : kd.cols.slice());
               if (!b.rows) b.rows = [];
-              html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + [1,2,3,4,5,6,7,8].map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label><span style="color:var(--dim); font-size:11px;">Headers below, then one line of boxes per row.</span></div>';
+              html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + Array.from({ length: TABLE_COLS }, function(_, i) { return i + 1; }).map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label><span style="color:var(--dim); font-size:11px;">Headers below, then one line of boxes per row.</span></div>';
               html += '<div class="grouped-fields b-table"><div class="row-h b-heads">';
               colNames.forEach(function(c, ci) { html += tsBoxHtml('b-colhead', 'Column '+(ci+1), 'data-idx="'+idx+'" data-ci="'+ci+'"', '', false, 'title="Header of column '+(ci+1)+'"'); });
               html += '<div style="width:31px; height:31px; flex:0 0 31px;"></div></div>';
@@ -2056,7 +2060,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           save(true); renderPlannerPreview();
       }));
       Array.from(blockContainer.querySelectorAll('.b-ncols')).forEach(el => el.addEventListener('change', function() {
-          var bb = activeMap.blocks[this.dataset.idx], n = Math.max(1, Math.min(8, parseInt(this.value, 10) || 1));
+          var bb = activeMap.blocks[this.dataset.idx], n = Math.max(1, Math.min(TABLE_COLS, parseInt(this.value, 10) || 1));
           tsSetColCount(bb, n);   // the heads, and their formats in step
           save(true); renderPlanner();
       }));

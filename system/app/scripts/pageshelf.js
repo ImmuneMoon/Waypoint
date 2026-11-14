@@ -423,6 +423,7 @@ function peekLines(it, at, names) {
 // block that names it. It is found by reading the campaign as it stands when asked. Nothing is stored and no link is kept: it answers "where
 // did I write about her" with no link data at all. The GM's alone, on this computer's own campaign: planners never travel
 var NAMED_MIN = 3, NAMED_MAX = 40, NAMED_NAMES = 13, NAMED_FIELD = 200000, NAMED_ID = /^[A-Za-z0-9_-]{1,64}$/, NAMED_WORD = '\\p{L}\\p{N}';
+var NAMED_COLS = 64;   // a table's columns, as docrender's LIMITS.cols keeps them (this module does not import it: shelfcheck holds the two alike)
 // Scripts in which a name stands against its neighbors with no space: there a name needs no gap on that side, and two characters are a whole
 // name. Read by a character's script extensions, so a kana's voicing mark and the long-vowel mark count, which a name folded apart may end in
 var NAMED_RUNS = '\\p{scx=Han}\\p{scx=Hiragana}\\p{scx=Katakana}\\p{scx=Hangul}\\p{scx=Thai}\\p{scx=Lao}\\p{scx=Khmer}\\p{scx=Myanmar}', NAMED_RUN = new RegExp('[' + NAMED_RUNS + ']', 'u');
@@ -467,8 +468,13 @@ function namedSay(s) { return namedPlain(s).split(NAMED_BRK).join(' ').replace(/
 function namedText(b) {
     var out = [namedLine(b.title), namedLine(b.sub), namedLine(b.tag), namedLine(b.must), namedPlain(b.content), namedLine(b.caption), namedLine(b.alt)];
     if (Array.isArray(b.aka)) b.aka.slice(0, 40).forEach(function(a) { out.push(namedLine(a)); });
-    if (Array.isArray(b.cols)) b.cols.slice(0, 60).forEach(function(c) { out.push(namedLine(c)); });
-    if (Array.isArray(b.rows)) b.rows.slice(0, 500).forEach(function(r) { if (Array.isArray(r)) r.slice(0, 60).forEach(function(c) { out.push(namedLine(c)); }); else if (r && typeof r === 'object') Object.keys(r).slice(0, 60).forEach(function(k) { if (/^col\d+$/.test(k)) out.push(namedLine(r[k])); }); });
+    // a table is read to its last column (NAMED_COLS, docrender's LIMITS.cols: 64 since 1.6.2), a row of cells or a row of { col1, col2, ... }
+    // read by its own colN keys alone (never fmt or anything else a row holds)
+    if (Array.isArray(b.cols)) b.cols.slice(0, NAMED_COLS).forEach(function(c) { out.push(namedLine(c)); });
+    if (Array.isArray(b.rows)) b.rows.slice(0, 500).forEach(function(r) {
+        if (Array.isArray(r)) r.slice(0, NAMED_COLS).forEach(function(c) { out.push(namedLine(c)); });
+        else if (r && typeof r === 'object') for (var c = 1; c <= NAMED_COLS; c++) if (Object.prototype.hasOwnProperty.call(r, 'col' + c)) out.push(namedLine(r['col' + c]));
+    });
     [b.nodes, b.edges].forEach(function(l) { if (Array.isArray(l)) l.slice(0, 200).forEach(function(n) { if (n && typeof n === 'object') out.push(namedLine(n.text)); }); });
     return out.filter(Boolean).join(NAMED_BRK);
 }

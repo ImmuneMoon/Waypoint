@@ -879,10 +879,10 @@
   body.net-client #wbStubNote.on { display: block; }
 
   .wb-item {
-    position: absolute; box-sizing: border-box; cursor: grab; z-index: 10;
+    position: absolute; box-sizing: border-box; cursor: default; z-index: 10;   /* 1.6.2 (the owner, 2026-11-14, by prompt: "The arrow"): the plain arrow over a piece with Select / Move in hand; the hand is the Pan tool's */
     box-shadow: var(--shadow);
   }
-  .wb-item.dragging { cursor: grabbing; z-index: 9999 !important; box-shadow: 0 12px 30px rgba(0,0,0,.6); }
+  .wb-item.dragging { cursor: move; z-index: 9999 !important; box-shadow: 0 12px 30px rgba(0,0,0,.6); }
   /* Drawings: the SVG must fill its box exactly. As an inline element it sat on
      the text baseline and rendered ~6px below the stroke's true position, so
      snapped lines looked just off the grid. */

@@ -6593,7 +6593,57 @@ net.holdSet = function(mapId, byTok, tok, what) {   // the GM's own hand: take, 
     var gone = holdsOf(c).filter(function(x) { return what === 'all' ? x.by === tok.id || x.on === tok.id : !!byTok && x.by === byTok.id && x.on === tok.id; });
     if (gone.length) holdEnd(camp, c, gone, 'gm'); return gone.length > 0;
 };
+// 1.6.2, the review of backlog 237: a token given its own copy of the sheet it shared (sheets.js shareTake). Each hold record that names the token
+// takes the copy's id, oc where it is held and bc where it holds, and the effects of who holds whom then stand where the records now say, on the
+// original and on the copy, which came with the sheet's Held, Pinned or holder effect. Only where a record named the original before, so an effect
+// the GM put on by hand stays. True where a record moved
+net.holdsRetarget = function(tokId, oldId, newId) {
+    var camp = getActiveCampaign(); if ((net.active && net.role === 'client') || !camp || typeof tokId !== 'string' || typeof oldId !== 'string' || typeof newId !== 'string' || !oldId || oldId === newId) return false;
+    var named = holdsAll(function(x) { return x.oc === oldId || x.bc === oldId; }); if (!named.length) return false;
+    var moved = 0; named.forEach(function(h) { if (h.rec.on === tokId && h.rec.oc === oldId) { h.rec.oc = newId; moved++; } if (h.rec.by === tokId && h.rec.bc === oldId) { h.rec.bc = newId; moved++; } });
+    holdsSync(camp, [oldId, newId], [oldId, newId]);
+    if (moved && typeof fightsKeepSoon === 'function') fightsKeepSoon();
+    holdLog('split', { n: moved }); return moved > 0;
+};
 // [netcheck:holds-end]
+// [netcheck:charsplit-start]
+// 1.6.2, the review of backlog 237: a token given its own copy of a sheet while a fight runs (sheets.js shareTake). What a fight keeps of a turn by
+// CHARACTER goes with the copy: the round its turn's timed effects were last counted in (turned) and its turn-end ones (fxEnded), so the copy's
+// effects, which came counted, are not counted a second time in that round; and where the token's row is on turn, what its turn has spent and
+// allows (turnSpent, turnMax) and a run under way, so it gets no action back. The host's own and never sent. True where anything moved
+net.charSplitFight = function(oldId, newId, tokId) {
+    if ((net.active && net.role === 'client') || typeof oldId !== 'string' || typeof newId !== 'string' || typeof tokId !== 'string' || !oldId || oldId === newId || !net.combats) return false;
+    var moved = false, cp = function(o) { return o && typeof o === 'object' ? JSON.parse(JSON.stringify(o)) : o; };
+    fightIds().forEach(function(fid) {
+        var c = net.combats[fid]; if (!c) return;
+        ['turned', 'fxEnded'].forEach(function(k) { if (c[k] && typeof c[k] === 'object' && own(c[k], oldId) && !own(c[k], newId)) { c[k][newId] = c[k][oldId]; moved = true; } });
+        var row = Array.isArray(c.rows) ? c.rows[c.turn] : null; if (!row || row.tokId !== tokId) return;
+        if (net.turnSpent && own(net.turnSpent, oldId)) { net.turnSpent[newId] = cp(net.turnSpent[oldId]); moved = true; }
+        if (net.turnMax && own(net.turnMax, oldId)) { net.turnMax[newId] = cp(net.turnMax[oldId]); moved = true; }
+        var mv = net.turnMove && own(net.turnMove, fid) ? net.turnMove[fid] : null; if (mv && mv.tokId === tokId && mv.charId === oldId) { mv.charId = newId; moved = true; }
+    });
+    if (moved && typeof fightsKeepSoon === 'function') fightsKeepSoon();
+    return moved;
+};
+// The rows of the fights named after their tokens again, for tokens a split gave a sheet and a name of their own (whiteboard.js rowNameOf, the
+// name a row takes at Start or Add), so the strip, the roster and each player's copy of the order say the name the board shows. Sent once. How many
+net.fightRowsRenamed = function(tokIds) {
+    var camp = getActiveCampaign(); if ((net.active && net.role === 'client') || !camp || !net.combats || !Array.isArray(tokIds) || !tokIds.length) return 0;
+    var n = 0, nameOf = typeof window !== 'undefined' && typeof window.wpRowNameOf === 'function' ? window.wpRowNameOf : null;
+    fightIds().forEach(function(fid) {
+        var c = net.combats[fid], map = c && camp.items && own(camp.items, c.mapId) ? camp.items[c.mapId] : null; if (!c || !map || !Array.isArray(map.whiteboard) || !Array.isArray(c.rows)) return;
+        c.rows.forEach(function(r) {
+            if (!r || typeof r.tokId !== 'string' || tokIds.indexOf(r.tokId) < 0) return;
+            var w = map.whiteboard.find(function(x) { return !!x && x.id === r.tokId; }); if (!w) return;
+            var nm = nameOf ? nameOf(w, map, camp) : (w.charName || w.name || 'Unnamed'); if (typeof nm === 'string' && nm && nm !== r.name) { r.name = nm; n++; }
+        });
+    });
+    if (!n) return 0;
+    if (net.active && net.role === 'host' && typeof broadcastCombats === 'function') { try { broadcastCombats(); } catch (e) { console.error(e); } } else if (typeof fightsKeepSoon === 'function') fightsKeepSoon();
+    if (typeof window !== 'undefined' && window.wpRenderCombatStrip) window.wpRenderCombatStrip();
+    return n;
+};
+// [netcheck:charsplit-end]
 function combatsOverAll() {   // the session's end: every fight ends as End ends it, quietly; how many ended. Fold 4: the furthest ahead first, so the clock stays with the one behind and those ahead keep their own time
     var n = 0, CCa = typeof timeCore === 'function' ? timeCore() : null, campA = getActiveCampaign(), idsA = fightIds();
     if (CCa) idsA = idsA.map(function(k, i) { return { k: k, i: i, a: fightAtOf(net.combats[k], campA) }; }).sort(function(x, y) { return CCa.tCmp(y.a, x.a) || (x.i - y.i); }).map(function(x) { return x.k; });

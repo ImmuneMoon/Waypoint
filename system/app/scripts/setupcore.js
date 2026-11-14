@@ -71,7 +71,10 @@ function nextName(name, names) {
 // differs from the sheet's (Ommish Daal on the generic guard sheet); otherwise the sheet's name, numbered on (nextName)
 function copyNameOf(own, sheetName, names) {
     var o = String(own || '').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim(), s = String(sheetName || '').trim();
-    return o && o.toLowerCase() !== s.toLowerCase() ? o : nextName(s, names);
+    // the review of backlog 237: a name of the token's own that a sheet already carries is numbered on too, so copies of tokens still named
+    // after a sheet that was renamed since (Guard on Prison Guard) are told apart: Guard, then Guard 2
+    var taken = (Array.isArray(names) ? names : []).some(function(n) { return String(n || '').trim().toLowerCase() === o.toLowerCase(); });
+    return o && o.toLowerCase() !== s.toLowerCase() ? (taken ? nextName(o, names) : o) : nextName(s, names);
 }
 // what a drop does with a piece's sheet: 'copy' for an NPC that is not Unique, 'keep' for a player's character, a Unique NPC or a token with no sheet
 function groupSheetWay(ch) { return isObj(ch) && ch.npc === true && ch.unique !== true ? 'copy' : 'keep'; }

@@ -13252,8 +13252,11 @@ function sheetCopy(c, id, name, sys) {
     cp.updated = Date.now(); return cp;
 }
 // Which answer comes first when a sheet already has tokens: Share stats for a player's character ("from the player point of view the sheet
-// should be the same across maps unless the GM specifies otherwise") and for an NPC ticked Unique (one named person); Its own copy for any other NPC
-function shareFirst(c) { return isObj(c) && (c.npc !== true || c.unique === true); }
+// should be the same across maps unless the GM specifies otherwise") and for an NPC ticked Unique (one named person); Its own copy for any other
+// sheet. A character a player plays is one that is no NPC and has a player, read as splitsOf reads it (the review: a sheet with no player that is
+// no NPC, as New character from this token makes, is split by the campaign-wide split, so its own copy comes first here too)
+function sharePlayed(c) { return isObj(c) && c.npc !== true && !!c.ownerId; }
+function shareFirst(c) { return isObj(c) && (sharePlayed(c) || c.unique === true); }
 // The character tokens on any map of the campaign that name sheet id, but those in skip (token objects): [{ mapId, tok }], in map order.
 // A token that is no character, or a player's token still waiting to be placed, is none of them
 function sheetUsers(camp, id, skip) {
@@ -13262,7 +13265,7 @@ function sheetUsers(camp, id, skip) {
     return out;
 }
 // A sheet the campaign-wide split may copy: never one a player plays, an NPC ticked Unique or a template
-function splitsOf(c) { return isObj(c) && c.template !== true && c.unique !== true && c.partial !== true && !(c.npc !== true && c.ownerId); }
+function splitsOf(c) { return isObj(c) && c.template !== true && c.unique !== true && c.partial !== true && !sharePlayed(c); }
 // The campaign-wide split (the owner: "split them all individually, ill fix them later"): on each map, every character token after the first
 // that names the same sheet as another there gets its own; the first keeps the original. A sheet with one token on each of several maps is
 // left as it is: on different maps, sharing is right. [{ mapId, tok, charId }], in map order

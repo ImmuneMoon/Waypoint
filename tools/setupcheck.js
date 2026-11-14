@@ -52,6 +52,11 @@ const imp = p => import('file:///' + path.resolve(app(p)).replace(/\\/g, '/'));
         SU.copyNameOf('Ommish Daal', 'Detention guard', ['Detention guard']) === 'Ommish Daal' && SU.copyNameOf('', 'Detention guard', ['Detention guard']) === 'Detention guard 2'
         && SU.copyNameOf('Detention guard', 'Detention guard', ['Detention guard', 'Detention guard 2']) === 'Detention guard 3' && SU.copyNameOf(' detention GUARD ', 'Detention guard', ['Detention guard']) === 'Detention guard 2'
         && SU.copyNameOf('Detention guard 4', 'Detention guard', ['Detention guard']) === 'Detention guard 4' && SU.copyNameOf('A\u0007b', 'Guard', []) === 'A b' && SU.copyNameOf(null, 'Guard', ['Guard']) === 'Guard 2');
+    {   // the review of backlog 237: a sheet renamed after its tokens were placed (Prison Guard, its tokens still Guard): each copy is told apart, the token's own name numbered on once another sheet carries it
+        const names = ['Prison Guard'], made = []; for (let i = 0; i < 3; i++) { const x = SU.copyNameOf('Guard', 'Prison Guard', names); names.push(x); made.push(x); }
+        check('copies of tokens still named after a sheet that was renamed since are told apart: Guard, Guard 2, Guard 3, never three of Guard; a name of its own that a sheet carries in another case is numbered on too',
+            J(made) === J(['Guard', 'Guard 2', 'Guard 3']) && SU.copyNameOf('Ommish Daal', 'Detention guard', ['Detention guard', 'ommish daal']) === 'Ommish Daal 2' && SU.copyNameOf('Ommish Daal', 'Detention guard', ['Detention guard']) === 'Ommish Daal', J(made));
+    }
     const wbG = read('scripts/whiteboard.js'), gcA = wbG.indexOf('function groupCopyChar(camp, ch) {'), gcSrc = wbG.slice(gcA, wbG.indexOf('\n}\n', gcA) + 3);
     {   // groupCopyChar run for real with the real one copy (systemcore sheetCopy): an encounter group's drop copies as a token's own sheet does
         const SC = await imp('scripts/systemcore.js'), camp = { chars: { c_g: { id: 'c_g', name: 'Raider', npc: true, values: { f_x: 4 }, links: { lk_a: 'c_o' }, debts: [1], review: 1 } } };
@@ -59,6 +64,14 @@ const imp = p => import('file:///' + path.resolve(app(p)).replace(/\\/g, '/'));
         const a = gc(camp, camp.chars.c_g), b = gc(camp, camp.chars.c_g);
         check('an encounter group\u2019s drop copies through the one copy of a sheet (systemcore sheetCopy): numbered on, an NPC, nothing that ties it to other sheets or to play, the original untouched',
             !!a && !!b && a.name === 'Raider 2' && b.name === 'Raider 3' && a.npc === true && a.values.f_x === 4 && !('links' in a) && !('debts' in a) && !('review' in a) && camp.chars[a.id] === a && camp.chars.c_g.links.lk_a === 'c_o' && /SC\.sheetCopy\(ch, id,/.test(gcSrc), J([a, b]));
+        // the review of backlog 237: a template's piece drops on a sheet made from the template, never linked to the template itself; and a copy keeps the GM's Rules run switch
+        const CK = await imp('scripts/calendarcore.js'), campT = { chars: { c_t: { id: 'c_t', name: 'Raider', template: true, npc: true, values: { f_x: 5 } }, c_o: { id: 'c_o', name: 'Raider', npc: true, values: {} } }, clock: { t: 10, rulesOff: ['c_o'] } };
+        const gcT = new Function('window', gcSrc + '\nreturn groupCopyChar;')({ wpSystemCore: SC, wpSetupCore: SU, wpCalendarCore: CK });
+        const t1 = gc(campT, campT.chars.c_t) || gcT(campT, campT.chars.c_t), o1 = gcT(campT, campT.chars.c_o), tplWas = J(campT.chars.c_t);
+        const gpA = wbG.indexOf('function groupPlace(gid) {'), gpSrc = wbG.slice(gpA, wbG.indexOf('\n}\n', gpA) + 3);
+        check('the review of backlog 237: an encounter group’s piece whose sheet is ticked Template drops on a sheet made from the template (systemcore fromTemplate), an NPC numbered on, its own id and no Template tick, the template untouched; a drop of an NPC whose time rules the GM switched off is switched off too (calendarcore clockCopyChar); a template’s piece never links to the template, even where no sheet can be made',
+            !!t1 && t1.id !== 'c_t' && t1.name === 'Raider 2' && t1.npc === true && !('template' in t1) && t1.values.f_x === 5 && campT.chars[t1.id] === t1 && J(campT.chars.c_t) === tplWas
+            && !!o1 && J(campT.clock.rulesOff) === J(['c_o', o1.id]) && gpSrc.includes("SU.groupSheetWay(ch) === 'copy' || ch.template === true") && gpSrc.includes("else if (ch.template === true) delete it.charId;"), J([t1, o1, campT.clock]));
     }
     check('a drop copies an NPC\u2019s sheet and keeps a player\u2019s character and a Unique NPC on the one sheet', SU.groupSheetWay({ npc: true }) === 'copy' && SU.groupSheetWay({ npc: true, unique: true }) === 'keep' && SU.groupSheetWay({ npc: false, ownerId: 'u_a' }) === 'keep' && SU.groupSheetWay(null) === 'keep');
     const wbS = read('scripts/whiteboard.js'), chS = read('scripts/charlist.js'), shS = read('scripts/sheets.js'), scS = read('scripts/systemcore.js');

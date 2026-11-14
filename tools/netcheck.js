@@ -20059,6 +20059,37 @@ pendingChecks.push((async () => {
         check('1.6.0 both paths hand the resist roll its token context (a player\'s roll and the GM\'s own)', full.includes('attemptCalled(campQ, blowRecQ, q.act, rowGQ, pcQ, chQ, !!recQ.priv, tcQ);') && full.includes('attemptCalled(campR, blowRecR, o.act, o.row, pcR, chR, !!rec.priv || !!rec.to, tcR);'));
     }
 })());
+{   // the review of backlog 237: a token given its own copy of a sheet while a fight runs (net.js charSplitFight and fightRowsRenamed, sliced by their charsplit markers and run for real)
+    const J = JSON.stringify, csS = between('// [netcheck:charsplit-start]', '// [netcheck:charsplit-end]', 'charsplit');
+    const mkS = (o) => {
+        o = o || {}; const seen = { bc: 0, kept: 0, strip: 0 };
+        const map = { id: 'm1', type: 'map', whiteboard: [{ id: 'g1', isChar: true, charId: 'c_g', charName: 'Guard', name: 'Guard' }, { id: 'g2', isChar: true, charId: 'c_n', charName: 'Guard 2', name: 'Guard 2' }, { id: 'g3', isChar: true, charId: 'c_g', charName: 'Guard', name: 'Guard' }] };
+        const camp = { id: 'k', items: { m1: map }, chars: { c_g: { id: 'c_g', name: 'Guard' }, c_n: { id: 'c_n', name: 'Guard 2' } } };
+        const turned = Object.create(null); turned.c_g = 2; const fxEnded = Object.create(null); fxEnded.c_g = 2;
+        const f1 = { id: 'f1', mapId: 'm1', round: 2, turn: o.onTurn ? 1 : 0, rows: [{ id: 'rg1', tokId: 'g1', name: 'Guard' }, { id: 'rg2', tokId: 'g2', name: 'Guard' }, { id: 'rg3', tokId: 'g3', name: 'Guard' }], turned, fxEnded };
+        const net = { active: !!o.host, role: o.client ? 'client' : (o.host ? 'host' : undefined), combats: { f1 }, turnSpent: { c_g: { act: 1 } }, turnMax: { c_g: { act: 2 } }, turnMove: { f1: { rowId: o.onTurn ? 'rg2' : 'rg1', tokId: o.onTurn ? 'g2' : 'g1', charId: 'c_g', run: 3 } } };
+        const win = { wpRowNameOf: (w) => w.charName || w.name, wpRenderCombatStrip: () => seen.strip++ };
+        const fn = new Function('net', 'own', 'fightIds', 'getActiveCampaign', 'window', 'broadcastCombats', 'fightsKeepSoon', csS + '\nreturn net;');
+        fn(net, (ob, k) => !!ob && typeof k === 'string' && Object.prototype.hasOwnProperty.call(ob, k) && ob[k] !== undefined && ob[k] !== null, () => Object.keys(net.combats), () => camp, win, () => seen.bc++, () => seen.kept++);
+        return { net, camp, map, f1, seen };
+    };
+    const A = mkS({ onTurn: true, host: true }), a1 = A.net.charSplitFight('c_g', 'c_n', 'g2');
+    const B = mkS({ onTurn: false }), b1 = B.net.charSplitFight('c_g', 'c_n', 'g2');
+    const C = mkS({ onTurn: true, client: true, host: true }), c1 = C.net.charSplitFight('c_g', 'c_n', 'g2'), c2 = A.net.charSplitFight('c_g', 'c_g', 'g2'), c3 = A.net.charSplitFight(null, 'c_n', 'g2');
+    check('the review of backlog 237 (charSplitFight): a guard given its own copy while a fight runs takes the round its sheet\'s turn timed effects and turn-end ones were last counted in, so its copy is not counted twice in that round; where its row is on turn it takes what the turn has spent and allows, and a run under way names the copy, so it gets no action back; off turn, those stay with the original; a client, the same id and no id move nothing',
+        a1 === true && A.f1.turned.c_n === 2 && A.f1.fxEnded.c_n === 2 && A.f1.turned.c_g === 2 && J(A.net.turnSpent.c_n) === J({ act: 1 }) && A.net.turnSpent.c_n !== A.net.turnSpent.c_g && J(A.net.turnMax.c_n) === J({ act: 2 }) && A.net.turnMove.f1.charId === 'c_n' && A.seen.kept === 1
+        && b1 === true && B.f1.turned.c_n === 2 && !('c_n' in B.net.turnSpent) && !('c_n' in B.net.turnMax) && B.net.turnMove.f1.charId === 'c_g'
+        && c1 === false && !('c_n' in C.f1.turned) && c2 === false && c3 === false, J([A.f1.turned, A.net.turnSpent, A.net.turnMove, B.net.turnSpent]));
+    const R = mkS({ host: true }); R.map.whiteboard[1].charName = R.map.whiteboard[1].name = 'Guard 2'; const r1 = R.net.fightRowsRenamed(['g2']), r2 = R.net.fightRowsRenamed(['g2']), r3 = R.net.fightRowsRenamed([]);
+    const Q = mkS({}); const q1 = Q.net.fightRowsRenamed(['g2', 'g3']), P = mkS({ host: true, client: true }), p1 = P.net.fightRowsRenamed(['g2']);
+    check('the review of backlog 237 (fightRowsRenamed): after a split a fight\'s row takes its token\'s new name as a row is named at Start (rowNameOf), sent to the table once by the host and drawn on the strip, nothing sent where nothing changed; on a GM\'s machine with no table the fight is kept for a reload; a client renames nothing',
+        r1 === 1 && J(R.f1.rows.map(x => x.name)) === J(['Guard', 'Guard 2', 'Guard']) && R.seen.bc === 1 && R.seen.strip === 1 && r2 === 0 && r3 === 0 && R.seen.bc === 1 && q1 === 1 && Q.seen.bc === 0 && Q.seen.kept === 1 && p1 === 0 && P.f1.rows[1].name === 'Guard'
+        , J([R.f1.rows, R.seen, Q.seen]));
+    const shN = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8'), wbN = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8');
+    check('the review of backlog 237 wired: shareTake asks charSplitFight only for a token that stood on that very sheet, and holdsRetarget for every copy; the three ways a split is made name the fights\' rows again once; the board publishes the name a row takes',
+        shN.includes("if (n && was === c.id && typeof n.charSplitFight === 'function') n.charSplitFight(c.id, nc.id, w.id);") && shN.includes("if (n && typeof n.holdsRetarget === 'function') n.holdsRetarget(w.id, c.id, nc.id);")
+        && shN.includes('syncOwners(getActiveCampaign()); shareRows([w]); save(true);') && (shN.match(/syncOwners\(camp\); shareRows\(toks\); save\(true\);/g) || []).length === 2 && wbN.includes('window.wpRowNameOf = rowNameOf;'));
+}
 { const { pathToFileURL } = require('url'); pendingChecks.push((async () => {
     {   // 1.6.0 Who holds whom: net.js's holds slice run for real with the real core: the records, the effects, the keep, a squeeze, the move gates and what ends them
         const J = JSON.stringify, src = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n'), hsS = between('// [netcheck:holds-start]', '// [netcheck:holds-end]', 'holds');
@@ -20098,6 +20129,21 @@ pendingChecks.push((async () => {
                 !beside.log.back.length && !pinned.log.back.length && !gripped.log.back.length && gripped.c.hl.length === 2 && room.tok('t_far').x === 900 && room.c.hl.length === 1 && room.log.notes.includes('c_far:You are held.'), J([beside.log.back, pinned.log.back, gripped.log.back, room.tok('t_far')]));
             check('1.6.2 Who holds whom, where it lands: past a wall on the side it came from it takes the next way round, walked from the holder\'s own place; a token there on a map with no grid is judged by its box; on a grid by the cell, so that a hex map\'s neighbor, whose box overlaps, is no bar and a token in that very cell is',
                 Math.round(walled.tok('t_far').x) === 55 && Math.round(walled.tok('t_far').y) === 32 && froms[0] === '0,0' && Math.round(box.tok('t_far').x) === 32 && Math.round(box.tok('t_far').y) === 55 && hex.tok('t_far').x === 48 && hex.tok('t_far').y === 0 && Math.round(cell.tok('t_far').x) !== 48, J([walled.tok('t_far'), froms[0], box.tok('t_far'), hex.tok('t_far'), cell.tok('t_far')]));
+        }
+        {   // the review of backlog 237: a token given its own copy of the sheet it shared (net.holdsRetarget, run for real with the holds slice)
+            const copyOf = (W, from, to) => { W.chars[to] = JSON.parse(JSON.stringify(Object.assign({}, W.chars[from], { id: to }))); return W.chars[to]; };
+            const R1 = await mk(); R1.holdsRolled(R1.camp, R1.chars.c_k, null, 'r_take', true, R1.tc('t_a'), null, ''); copyOf(R1, 'c_a', 'c_a2'); R1.tok('t_a').charId = 'c_a2';
+            const m1 = R1.net.holdsRetarget('t_a', 'c_a', 'c_a2'), oc1 = R1.c.hl[0].oc, fx1 = [R1.fx('c_a'), R1.fx('c_a2')]; R1.holdsGone(R1.camp, R1.c); const fx1e = [R1.fx('c_a'), R1.fx('c_a2')];
+            const R2 = await mk(); R2.tok('t_b').charId = 'c_a'; R2.holdsRolled(R2.camp, R2.chars.c_k, null, 'r_take', true, R2.tc('t_a'), null, ''); copyOf(R2, 'c_a', 'c_a3'); R2.tok('t_b').charId = 'c_a3';
+            const m2 = R2.net.holdsRetarget('t_b', 'c_a', 'c_a3'), fx2 = [R2.fx('c_a'), R2.fx('c_a3')], oc2 = R2.c.hl[0].oc;
+            const R3 = await mk({ holder: 'e_pin', pinned: undefined }); R3.holdsRolled(R3.camp, R3.chars.c_k, null, 'r_take', true, R3.tc('t_a'), null, ''); copyOf(R3, 'c_k', 'c_k2'); R3.tok('t_k').charId = 'c_k2';
+            const m3 = R3.net.holdsRetarget('t_k', 'c_k', 'c_k2'), bc3 = R3.c.hl[0].bc, fx3 = [R3.fx('c_k'), R3.fx('c_k2')];
+            const R4 = await mk(); copyOf(R4, 'c_a', 'c_a4'); const syncedBefore = R4.log.synced.length, m4 = R4.net.holdsRetarget('t_a', 'c_a', 'c_a4'), m5 = R4.net.holdsRetarget('t_a', 'c_a', 'c_a'), m6 = R4.net.holdsRetarget(5, 'c_a', 'c_a4');
+            const R5 = await mk(); R5.holdsRolled(R5.camp, R5.chars.c_k, null, 'r_take', true, R5.tc('t_a'), null, ''); R5.net.role = 'client'; R5.net.active = true; const m7 = R5.net.holdsRetarget('t_a', 'c_a', 'c_a5');
+            check('the review of backlog 237: a held guard given its own copy of the sheet moves its hold record to the copy, which then wears Held while the original lets it go, and the hold\'s end takes it off the copy; a guard on the same sheet who is not held takes its copy with no Held while the held one keeps it; a holder\'s record follows its copy, and the holder wears its effect there; nothing named, a client, the same id or a token that is no id moves nothing and syncs nothing',
+                m1 === true && oc1 === 'c_a2' && J(fx1) === J([[], ['e_held']]) && J(fx1e) === J([[], []]) && m2 === false && oc2 === 'c_a' && J(fx2) === J([['e_held'], []])
+                && m3 === true && bc3 === 'c_k2' && J(fx3) === J([[], ['e_pin']]) && m4 === false && m5 === false && m6 === false && R4.log.synced.length === syncedBefore && m7 === false && R5.c.hl[0].oc === 'c_a' && R1.log.rec.includes('split'),
+                J([m1, oc1, fx1, fx1e, m2, fx2, m3, bc3, fx3, m4, m7]));
         }
         const A = await mk();
         A.holdsRolled(A.camp, A.chars.c_k, null, 'r_take', true, A.tc('t_a'), null, ''); A.holdsRolled(A.camp, A.chars.c_b, null, 'r_take', true, A.tc('t_a'), null, ''); A.holdsRolled(A.camp, A.chars.c_k, null, 'r_take', false, A.tc('t_b'), null, '');

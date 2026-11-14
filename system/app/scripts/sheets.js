@@ -983,7 +983,7 @@ function wireCharSelect(w, rerender) {
 // share stats or be a copy"). Whenever a sheet comes to a token (Properties' Character (sheet), a single drop from the Campaign Cast, Is
 // Character ticked on a token that names a sheet), the GM is asked, where another character token on any map already uses that sheet:
 // Share stats with them, or Its own copy (systemcore sheetCopy, the one copy New from a template and an encounter group's drop make too).
-// Its own copy is the first answer for an NPC; Share stats for a player's character and an NPC ticked Unique (shareFirst). Buttons only
+// Its own copy is the first answer for any other sheet; Share stats for a character a player plays and an NPC ticked Unique (shareFirst). Buttons only
 // (noEnter); Escape cancels the assignment. The GM's alone: a player's app, someone else's table and the stream window are never asked and
 // assign as they always did. Steps log as sheetshare v1: counts and answers, never a name
 function shareGm() { return !isClient() && canWrite(); }
@@ -1013,27 +1013,34 @@ function shareOwnName(w, c) { var nm = String(w.name || w.charName || '').trim()
 function shareTake(w, charId) {
     var camp = getActiveCampaign(), c = camp ? charById(charId, camp) : null, SU = window.wpSetupCore; if (!c || !w || !SU || typeof SU.copyNameOf !== 'function' || !shareGm()) return null;
     var nc = sheetCopy(c, uid('c_'), SU.copyNameOf(shareOwnName(w, c), c.name, charList(camp).map(function(x) { return x.name; })), camp.system); if (!nc) { shareLog('copy-failed', {}); return null; }
-    charsOf(camp)[nc.id] = nc; w.charId = nc.id; w.charName = nc.name; w.name = nc.name;
+    var was = w.charId; charsOf(camp)[nc.id] = nc; w.charId = nc.id; w.charName = nc.name; w.name = nc.name;
+    // the review of backlog 237: what stands outside the sheet goes with the copy. The GM's Rules run switch, what its time rules have counted and its
+    // own time (calendarcore clockCopyChar); in a running fight what a turn keeps by character, and who holds whom, which names the token's sheet
+    var CK = window.wpCalendarCore, ck = CK && typeof CK.clockCopyChar === 'function' && camp.clock ? CK.clockCopyChar(camp.clock, c.id, nc.id, true) : null; if (ck) camp.clock = ck;
     var n = net(); if (n && n.active && n.role === 'host' && n.syncChar) n.syncChar(nc.id);
+    if (n && was === c.id && typeof n.charSplitFight === 'function') n.charSplitFight(c.id, nc.id, w.id);   // only a token that stood on that very sheet
+    if (n && typeof n.holdsRetarget === 'function') n.holdsRetarget(w.id, c.id, nc.id);
     return nc;
 }
+// A fight's rows keep the name their token had as the fight began: after a split, the rows of the tokens that took their own sheets say the new names (net.js fightRowsRenamed, sent once)
+function shareRows(toks) { var n = net(), ids = (toks || []).filter(function(w) { return w && typeof w.id === 'string'; }).map(function(w) { return w.id; }); if (ids.length && n && typeof n.fightRowsRenamed === 'function') n.fightRowsRenamed(ids); }
 // One token's own copy, as one save: the Properties choice and the Is Character tick
-function shareOwn(w, charId) { var nc = shareTake(w, charId); if (!nc) return null; syncOwners(getActiveCampaign()); save(true); shareLog('copy', { toks: 1 }); renderAll(); return nc; }
+function shareOwn(w, charId) { var nc = shareTake(w, charId); if (!nc) return null; syncOwners(getActiveCampaign()); shareRows([w]); save(true); shareLog('copy', { toks: 1 }); renderAll(); return nc; }
 // Give this token its own sheet (the GM's token menu): each picked character token whose sheet another token also uses (systemcore
 // ownSheetPlan). ownSheetCount says how many, for the menu's row; ownSheetFor does it, as one save
 function ownSheetCount(picks) { var camp = getActiveCampaign(); return camp && shareGm() ? ownSheetPlan(camp, picks).length : 0; }
 function ownSheetFor(picks) {
     var camp = getActiveCampaign(); if (!camp || !shareGm()) return 0;
     var plan = ownSheetPlan(camp, picks), made = []; shareLog('own-start', { toks: plan.length });
-    plan.forEach(function(p) { var nc = shareTake(p.tok, p.charId); if (nc) made.push(nc); });
+    var toks = []; plan.forEach(function(p) { var nc = shareTake(p.tok, p.charId); if (nc) { made.push(nc); toks.push(p.tok); } });
     if (!made.length) { shareLog('own-none', {}); toast('No picked token shares its sheet with another.'); return 0; }
-    syncOwners(camp); save(true); shareLog('own-done', { copies: made.length }); renderAll(); if (window.appRender) window.appRender();
+    syncOwners(camp); shareRows(toks); save(true); shareLog('own-done', { copies: made.length }); renderAll(); if (window.appRender) window.appRender();
     toast(made.length === 1 ? 'The token has its own sheet now: ' + made[0].name + '.' : made.length + ' tokens have their own sheets now.');
     return made.length;
 }
 // The campaign-wide split (the owner: "split them all individually, ill fix them later, or have the campaign session link the ones that
 // should be linked"): asked first, with how many; then on every map, each character token after the first that shares a sheet there gets its
-// own (systemcore splitPlan, worked out again at the answer). A player's character, an NPC ticked Unique and a character with one token on
+// own (systemcore splitPlan, worked out again at the answer). A character a player plays, an NPC ticked Unique and a character with one token on
 // each of several maps stay as they are. One save: each map it changed takes it as one Undo step there
 function shareSplitCount() { var camp = getActiveCampaign(); return camp && shareGm() ? splitPlan(camp).length : 0; }
 function shareSplitAsk() {
@@ -1042,7 +1049,7 @@ function shareSplitAsk() {
     var maps = {}, shs = {}; plan.forEach(function(p) { maps[p.mapId] = 1; shs[p.charId] = 1; }); var nM = Object.keys(maps).length, nS = Object.keys(shs).length;
     shareLog('split-ask', { toks: plan.length, maps: nM, sheets: nS });
     showConfirm('Give ' + plan.length + (plan.length === 1 ? ' token its own sheet' : ' tokens their own sheets') + '? On ' + (nM === 1 ? 'one map' : nM + ' maps') + ', ' + (nS === 1 ? 'one sheet is' : nS + ' sheets are') + ' shared by two or more character tokens. '
-        + 'Each token after the first gets its own copy, and the first keeps the original. A player’s character, an NPC ticked Unique and a character with one token on each of several maps stay as they are.', function(yes) {
+        + 'Each token after the first gets its own copy, and the first keeps the original. A character a player plays, an NPC ticked Unique and a character with one token on each of several maps stay as they are.', function(yes) {
         if (yes !== true) { shareLog('split-cancel', {}); return; }
         shareSplitDo();
     }, { yes: plan.length === 1 ? 'Give it its own' : 'Give them their own', noEnter: true });
@@ -1051,9 +1058,9 @@ function shareSplitAsk() {
 function shareSplitDo() {
     var camp = getActiveCampaign(); if (!camp || !shareGm()) return 0;
     var plan = splitPlan(camp), made = 0, touched = {}; shareLog('split-start', { toks: plan.length });
-    plan.forEach(function(p) { if (shareTake(p.tok, p.charId)) { made++; touched[p.mapId] = 1; } });
+    var toks = []; plan.forEach(function(p) { if (shareTake(p.tok, p.charId)) { made++; touched[p.mapId] = 1; toks.push(p.tok); } });
     if (!made) { shareLog('split-none', {}); toast('No two character tokens on one map share a sheet.'); return 0; }
-    syncOwners(camp); save(true);
+    syncOwners(camp); shareRows(toks); save(true);
     var n = net(), others = Object.keys(touched).filter(function(id) { return id !== camp.activeItemId; }); if (others.length && n && n.active && n.role === 'host' && n.pushItems) n.pushItems(others);   // a host save sends only the open map
     shareLog('split-done', { copies: made, maps: Object.keys(touched).length }); renderAll(); if (window.appRender) window.appRender();
     toast(made === 1 ? 'One token has its own sheet now.' : made + ' tokens have their own sheets now.');

@@ -228,6 +228,14 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             j(nx) === j(want) && C.noteOn(tw, mar3, want[1]) === true && C.noteOn(tw, mar3, want[1] + 1) === false && C.noteOn(tw, mar3, 'x') === false, j([nx, want]));
         const ckY = C.cleanClock({ t: 0, notes: [Object.assign({}, mar3), { id: yId('z'), day: 3, text: 'Not yearly', yearly: 'yes' }] });
         check('166 b a note keeps Repeats every year only as true (cleanClock), and the same twice', ckY.notes[0].yearly === undefined && ckY.notes[1].yearly === true && j(C.cleanClock(ckY)) === j(ckY), j(ckY));
+        {   // the review of backlog 237: a sheet's own copy keeps the GM's Rules run switch, and with counts its time rules' counts and its own time
+            const ckS = { t: 100, rulesOff: ['c_g'], acc: { c_g: { r_a: 30 } }, lived: { c_g: [200, 0] } }, was = j(ckS);
+            const all = C.clockCopyChar(ckS, 'c_g', 'c_n', true), sw = C.clockCopyChar(ckS, 'c_g', 'c_n', false);
+            check('the review of backlog 237 (clockCopyChar): a sheet’s own copy is switched off where its original’s time rules are, and with counts takes what they counted and its own time; nothing to carry, an id that is no character’s or the same id is null; the clock handed in untouched',
+                j(all) === j({ t: 100, acc: { c_g: { r_a: 30 }, c_n: { r_a: 30 } }, lived: { c_g: [200, 0], c_n: [200, 0] }, rulesOff: ['c_g', 'c_n'] }) && j(sw.rulesOff) === j(['c_g', 'c_n']) && !sw.acc.c_n && !sw.lived.c_n
+                && C.clockCopyChar({ t: 1 }, 'c_g', 'c_n', true) === null && C.clockCopyChar(ckS, 'c_x', 'c_n', true) === null && C.clockCopyChar(ckS, 'c_g', 'c_g', true) === null && C.clockCopyChar(ckS, 'c_g', '__proto__', true) === null
+                && j(C.clockCopyChar({ t: 1, rulesOff: ['c_h'] }, 'c_g', 'c_n', false)) === 'null' && j(ckS) === was, j([all, sw]));
+        }
         const erIn = [{ id: eId('a'), name: '  Age of\u0000Ash ', from: 1, color: '#AABBCC', vis: 'all', x: '<b>' }, { id: eId('b'), name: 'War', from: 5, to: 10, color: 'red', vis: 'gm' }, { id: eId('a'), name: 'twice', from: 2 }, { id: 'e_bad', name: 'x', from: 1 }, { id: eId('c'), name: '', from: 1 }, { id: eId('d'), name: 'No start', from: 1.5 }, { id: eId('e'), name: 'Late', from: 20, to: 'x' }, null, 'x'];
         const er = C.cleanEras(erIn), erCap = C.cleanEras(Array.from({ length: 30 }, (_, i) => ({ id: 'e_' + String(i).padStart(8, '0'), name: 'E' + i, from: i })));
         check('166 b a campaign\u2019s eras (cleanEras): an id of e_ and 8 of a-z and 0-9 once, a name of one line, a whole year it begins, the year it ends only as a whole year, a color as #rrggbb in lower case or the gold, players see it only as vis all; one with no name or no start dropped; at most 24; none: null',

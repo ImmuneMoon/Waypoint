@@ -11093,8 +11093,13 @@ function groupSave(items) {
 }
 function groupCopyChar(camp, ch) {   // a fresh copy of an NPC's sheet, numbered on; nothing of who plays it, its links or its debts (1.6.2, backlog 237: the one copy, systemcore sheetCopy)
     var SC = window.wpSystemCore, id = null; if (!SC || !SC.sheetCopy) return null; for (var i = 0; i < 50 && !id; i++) { var t = 'c_' + Math.random().toString(36).slice(2, 12); if (!camp.chars[t]) id = t; } if (!id) return null;
-    var c = SC.sheetCopy(ch, id, window.wpSetupCore.nextName(ch.name, Object.values(camp.chars).map(function(x) { return x && x.name; })), camp.system); if (!c) return null;
-    camp.chars[id] = c; return c;
+    var nm = window.wpSetupCore.nextName(ch.name, Object.values(camp.chars).map(function(x) { return x && x.name; })), c = null;
+    if (ch.template !== true) c = SC.sheetCopy(ch, id, nm, camp.system);
+    else if (typeof SC.fromTemplate === 'function') { c = SC.fromTemplate(ch, id, camp.system); if (c) { c.name = nm; c.npc = true; delete c.unique; } }   // the review of backlog 237: a template's piece drops on a sheet made from it, never linked to the template itself
+    if (!c) return null;
+    camp.chars[id] = c;
+    var CK = window.wpCalendarCore, ck = CK && typeof CK.clockCopyChar === 'function' && camp.clock ? CK.clockCopyChar(camp.clock, ch.id, id, false) : null; if (ck) camp.clock = ck;   // and the GM's Rules run switch, where the original's time rules are off
+    return c;
 }
 function groupPlace(gid) {
     var camp = getActiveCampaign(), am = getActiveMap(), SU = window.wpSetupCore; if (!camp || !am || am.type !== 'map' || !SU) return;
@@ -11103,7 +11108,7 @@ function groupPlace(gid) {
     g.pieces.forEach(function(p) {
         var it = JSON.parse(JSON.stringify(p)); delete it.dx; delete it.dy; it.id = 'wb' + Math.random().toString(36).slice(2, 10); it.x = c0.x - wMax / 2 + p.dx; it.y = c0.y - hMax / 2 + p.dy; delete it.threats; delete it.ownerId;
         var ch = it.charId && camp.chars[it.charId] ? camp.chars[it.charId] : null;
-        if (ch && SU.groupSheetWay(ch) === 'copy') { var nc = groupCopyChar(camp, ch); if (nc) { it.charId = nc.id; it.charName = nc.name; it.name = nc.name; copied++; } }
+        if (ch && (SU.groupSheetWay(ch) === 'copy' || ch.template === true)) { var nc = groupCopyChar(camp, ch); if (nc) { it.charId = nc.id; it.charName = nc.name; it.name = nc.name; copied++; } else if (ch.template === true) delete it.charId; }   // the review of backlog 237: a template's piece never links to the template
         else if (it.charId && !ch) delete it.charId;
         if (window.wpSeatCell) window.wpSeatCell(it, am); else if (window.wpSeatHex) window.wpSeatHex(it, am);
         am.whiteboard.push(it); made++;
@@ -11206,6 +11211,7 @@ function rowNameOf(w, map, camp) {
     return map.whiteboard.some(function(o) { return o && o !== w && o.isChar && o.charId !== w.charId && (o.charName || o.name) === mine; }) ? own : mine;
 }
 // [lookcheck:rowname-end]
+window.wpRowNameOf = rowNameOf;   // the review of backlog 237: net.js names a fight's rows again after a token takes its own sheet
 // [lookcheck:onturn-start]
 // Fold 2's review: the board's ring on a token whose turn it is, in any fight on that map, while a table is up
 function onTurnHere(n, mapId, tokId) {

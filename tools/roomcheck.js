@@ -81,7 +81,7 @@ function mkDoc() {
         const store = {}; if (o.tick !== null) store.wp_roomMakesMap = o.tick === undefined ? 'off' : o.tick;   // null: nothing stored, so the tick as it starts
         if (o.place !== undefined) store.wp_newMapPlace = o.place;
         const state = { viewMode: 'data', zoomLevel: o.zoom || 2, snap: !!o.snap, linkType: o.linkType || '', els: {}, selId: null, selLink: null, linkStart: 'x' };
-        const log = { saves: 0, renders: 0, dm: 0, toasts: [], picked: [], nav: 0, armed: [] }; Object.defineProperty(log, 'asks', { value: [], enumerable: false });   // the questions asked, kept out of the log's words (their body is elements)
+        const log = { saves: 0, renders: 0, dm: 0, toasts: [], picked: [], nav: 0, armed: [], hist: [] }; Object.defineProperty(log, 'asks', { value: [], enumerable: false });   // the questions asked, kept out of the log's words (their body is elements)
         let n = 0;
         const win = { wpCanPersistLocal: () => o.persist !== false, wpNet: o.foreign ? { foreign: true } : null, isPanMode: !!o.playPan, listeners: {}, addEventListener(t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); },
             localStorage: { getItem: k => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } }, wpPortalPlace: rec => { log.armed.push(Object.assign({}, rec)); return true; } };
@@ -89,11 +89,12 @@ function mkDoc() {
         const unique = (base, ignore) => { const taken = t => Object.keys(camp.items).some(id => id !== ignore && camp.items[id].meta && camp.items[id].meta.title === t); if (!taken(base)) return base; let k = 2; while (taken(base + ' (' + k + ')')) k++; return base + ' (' + k + ')'; };
         if (o.pan) doc.body.classList.add('data-pan');
         const render = () => { log.renders++; am.rooms.forEach(r => { if (!state.els[r.id]) { const el = doc.createElement('div'); el.classList.add('room'); el.dataset.id = r.id; el.offsetWidth = 120; el.offsetHeight = 50; const rn = doc.createElement('div'); rn.classList.add('rn'); const rc = doc.createElement('div'); rc.classList.add('rc'); el.appendChild(rn); el.appendChild(rc); canvas.appendChild(el); state.els[r.id] = el; } }); };
-        const api = new Function('window', 'document', 'state', 'getActiveMap', 'getSnapCoords', 'uid', 'save', 'render', 'RC', 'isLinkMode', 'svg', 'canvas', 'wrap', 'toast', 'selectLink', 'LINK_TYPES', 'setTimeout', 'renderDataMap', 'wbX', 'wbY', 'getActiveCampaign', 'createNewMap', 'getUniqueItemTitle', 'updateSidebarNav', 'showConfirm',
+        const api = new Function('window', 'document', 'state', 'getActiveMap', 'getSnapCoords', 'uid', 'save', 'render', 'RC', 'isLinkMode', 'svg', 'canvas', 'wrap', 'toast', 'selectLink', 'LINK_TYPES', 'setTimeout', 'renderDataMap', 'wbX', 'wbY', 'getActiveCampaign', 'createNewMap', 'getUniqueItemTitle', 'updateSidebarNav', 'showConfirm', 'stepBoundary', 'stepFold',
             pageSrc + '\nreturn { roomAddAt: roomAddAt, roomRename: roomRename, roomLinkStart: roomLinkStart, roomLinkMove: roomLinkMove, roomLinkEnd: roomLinkEnd, dataPt: dataPt, roomGround: roomGround };')(
             win, doc, state, () => (o.noMap ? null : am), (x, y) => ({ x: Math.round(x / 50) * 50, y: Math.round(y / 50) * 50 }), () => 'n' + (++n), () => { log.saves++; }, render, RC, () => !!o.linkMode, svg, canvas, wrap,
             t => log.toasts.push(t), i => { log.picked.push(i); state.selLink = i; }, { '': { label: 'Path' }, route: { label: 'Route' } }, f => f(), () => { log.dm++; }, (cx, cy, rb, w) => (cx - rb.left + w.scrollLeft) / state.zoomLevel, (cx, cy, rb, w) => (cy - rb.top + w.scrollTop) / state.zoomLevel,
-            () => camp, newMap, unique, () => { log.nav++; }, (q, cb, op) => { log.asks.push({ q, cb, op }); if (o.where && op && op.body) op.body.children.slice(1).forEach(r => { r.children[0].checked = r.children[0].value === o.where; }); if (o.answer !== 'hold') cb(o.answer === undefined ? true : o.answer); });
+            () => camp, newMap, unique, () => { log.nav++; }, (q, cb, op) => { log.asks.push({ q, cb, op }); if (o.where && op && op.body) op.body.children.slice(1).forEach(r => { r.children[0].checked = r.children[0].value === o.where; }); if (o.answer !== 'hold') cb(o.answer === undefined ? true : o.answer); },
+            () => { log.hist.push('boundary'); }, () => { log.hist.push('fold'); });
         return { doc, wrap, canvas, svg, am, state, log, win, api, camp, store };
     };
     // a room added (as Add Room, a double-click or the drag's empty ground ask it)
@@ -213,6 +214,18 @@ function mkDoc() {
             && Rn.am.rooms[0].name === 'Gate' && Rn.camp.items[rn.room.targetMapId].meta.title === 'Cellar' && Rn.log.armed.length === 1
             && Pc.camp.items[pc.room.targetMapId].meta.title === 'New room' && Tk.camp.items[tk.room.targetMapId].meta.title === 'Old Mill (2)' && Tk.log.armed[0].title === 'Old Mill (2)',
             J([Es.log.armed, Bl.log.armed, Rn.camp.items[rn.room.targetMapId].meta, Tk.camp.items[tk.room.targetMapId].meta]));
+        {   // the review: a new room's first name joins the room's own undo step (io.js stepBoundary, then stepFold, then the save); a later rename, and a room that made no map, are steps of their own
+            const U = mkWorld({ tick: 'on' }); U.api.roomAddAt(10, 10); const uI = U.doc.activeElement; uI.value = 'Old Mill'; U.doc.fire(uI, 'keydown', { key: 'Enter' }); const uHist = U.log.hist.slice();
+            const U2 = mkWorld({ tick: 'on' }); U2.api.roomAddAt(10, 10); U2.doc.fire(U2.doc.activeElement, 'keydown', { key: 'Enter' });
+            const U3 = mkWorld(); U3.api.roomAddAt(10, 10); U3.doc.activeElement.value = 'Mill'; U3.doc.fire(U3.doc.activeElement, 'keydown', { key: 'Enter' });
+            const U4 = mkWorld({ rooms: [{ id: 'r0', name: 'Hall', x: 150, y: 150 }] }); U4.state.els.r0 = U4.doc.createElement('div'); const u4I = U4.api.roomRename('r0'); u4I.value = 'Great Hall'; U4.doc.fire(u4I, 'keydown', { key: 'Enter' });
+            check('the review: so that one Undo takes the room back, a new room\'s first name is folded into the room\'s own step: the room\'s pending save flushed as its step, then the fold, then the save of the name; a name left as it was saves nothing and folds nothing; a room that made no map and a later rename are steps of their own',
+                J(uHist) === J(['boundary', 'fold']) && U.log.saves === 2 && U.am.rooms[0].name === 'Old Mill' && J(U2.log.hist) === J([]) && J(U3.log.hist) === J([]) && U3.log.saves === 2 && J(U4.log.hist) === J([]) && U4.am.rooms[0].name === 'Great Hall'
+                && dm.includes("import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, stepBoundary, stepFold } from './io.js';"), J([uHist, U2.log.hist, U3.log.hist, U4.log.hist, U4.am.rooms[0]]));
+            const Tq = mkWorld({ tick: 'on', taken: 'Old Mill', answer: 'hold' }); Tq.api.roomAddAt(10, 10); Tq.doc.activeElement.value = 'Old Mill'; Tq.doc.fire(Tq.doc.activeElement, 'keydown', { key: 'Enter' });
+            check('the review: the question names the destination map as the tile and the toast name it, Old Mill (2) where another item is called Old Mill',
+                Tq.log.asks.length === 1 && Tq.log.asks[0].q === 'Place the portal to Old Mill (2) on the play map now?', J(Tq.log.asks.map(a => a.q)));
+        }
         const Two = mkWorld({ tick: 'on' }), t1 = Two.api.roomAddAt(10, 10), t1I = Two.doc.activeElement, t2 = Two.api.roomAddAt(400, 10); Two.doc.fire(t1I, 'blur', {});
         const Gone = mkWorld({ tick: 'on' }), g1 = Gone.api.roomAddAt(10, 10), gI = Gone.doc.activeElement; Gone.am.id = 'm9'; Gone.doc.fire(gI, 'keydown', { key: 'Enter' });
         check('a room whose box closes while another new room is being named asks for no portal and says so; one whose map left the screen asks for none',
@@ -333,7 +346,7 @@ function mkDoc() {
         const Y = mkPP({ escFree: false }); Y.win.wpPortalPlace(rec); Y.doc.fireDoc('keydown', { key: 'Escape' });
         check('Escape, where esckey\'s router leaves the key to the map, skips the portal: nothing placed or saved, the room and the map it leads to kept, the tile and the line gone, and said; an Escape the router gave to something else leaves the tile in place',
             X.win.wpPlace === null && X.am.whiteboard.length === 0 && X.saves.length === 0 && X.am.rooms[0].targetMapId === 'map_x' && !!X.camp.items.map_x && xG.parentNode === null && X.api.st() === null
-            && J(X.toasts) === J(['No portal placed. The room and its map stay. Link a piece to the room in Properties to make a way to Old Mill.']) && !xE.prevented
+            && J(X.toasts) === J(['No portal placed. The room and its map stay. Press Place it on the room when you are ready.']) && !xE.prevented
             && Y.win.wpPlace && Y.win.wpPlace.type === 'portal' && Y.wb.children.length === 1 && Y.toasts.length === 0, J([X.toasts, Y.toasts]));
         const V = mkPP(); V.win.wpPortalPlace(rec); const vSame = V.win.wpPortalPlaceHold('m1', 'visual'), vStill = !!V.win.wpPlace; const vData = V.win.wpPortalPlaceHold('m1', 'data');
         const M = mkPP(); M.win.wpPortalPlace(rec); const mOther = M.win.wpPortalPlaceHold('m2', 'visual');
@@ -342,6 +355,36 @@ function mkDoc() {
         check('the Data Map or another map on screen puts the tile down and says the portal was not placed (main.js render asks); a click once the map or the room\'s way has changed places nothing and says why',
             vSame === false && vStill && vData === true && V.win.wpPlace === null && V.wb.children.length === 0 && V.toasts.length === 1 && mOther === true && M.win.wpPlace === null
             && zIt === null && Z.am.whiteboard.length === 0 && J(Z.toasts) === J(['That map is no longer on screen. No portal was placed.']) && rIt === null && R.am.whiteboard.length === 0 && J(R.toasts) === J(['That room no longer leads to its new map. No portal was placed.']), J([V.toasts, Z.toasts, R.toasts]));
+        {   // the review: the room's map deleted from the Maps list leaves its targetMapId behind (dialogs.js), so a portal laid then would lead nowhere
+            const G1 = mkPP(); G1.win.wpPortalPlace(rec); delete G1.camp.items.map_x; const g1It = G1.commit(14630, 14730);
+            const G2 = mkPP(); delete G2.camp.items.map_x; const g2 = G2.win.wpPortalPlace(rec);
+            const G3 = mkPP(); G3.camp.items.map_x = { type: 'page', id: 'map_x', meta: {} }; const g3 = G3.win.wpPortalPlace(rec);
+            const GONE = 'That room\'s map is gone. No portal can be placed.';
+            check('the review: a room whose map was deleted gets no portal, the one rule in both places: a click after the map was deleted while the tile waited places nothing and says so; Place it on such a room arms nothing, draws no tile, switches no view and answers null, so the room\'s Place it says nothing more; an item of that id that is no map is no map',
+                g1It === null && G1.am.whiteboard.length === 0 && G1.saves.length === 0 && J(G1.toasts) === J([GONE])
+                && g2 === null && !G2.win.wpPlace && G2.wb.children.length === 0 && G2.doc.body.children.length === 0 && J(G2.viewSet) === J([]) && J(G2.toasts) === J([GONE])
+                && g3 === null && !G3.win.wpPlace && J(G3.toasts) === J([GONE]), J([g1It, G1.toasts, g2, G2.toasts, g3]));
+            // the line beside the pointer: kept inside the window by its own size, put away while the pointer is off the map
+            const T = mkPP(); T.win.innerWidth = 1000; T.win.innerHeight = 700; T.win.wpPortalPlace(rec); const tT = T.doc.body.children[0]; tT.offsetWidth = 300; tT.offsetHeight = 30;
+            T.doc.fire(T.wbWrap, 'pointermove', { clientX: 130, clientY: 80 }); const tNear = [tT.style.left, tT.style.top];
+            T.doc.fire(T.wbWrap, 'pointermove', { clientX: 900, clientY: 690 }); const tFar = [tT.style.left, tT.style.top];
+            T.doc.fire(T.wbWrap, 'pointerleave', {}); const tOff = tT.style.display; T.doc.fire(T.wbWrap, 'pointerenter', {}); const tOn = tT.style.display;
+            T.doc.fire(T.wbWrap, 'pointerleave', {}); T.doc.fire(T.wbWrap, 'pointermove', { clientX: 130, clientY: 80 }); const tMoved = tT.style.display;
+            check('the review: the line beside the pointer stays inside the window, right of and below the pointer where it fits, left of it and above where it would run past the edge; it is put away while the pointer is off the map and back as it comes on again or moves there',
+                J(tNear) === J(['148px', '102px']) && J(tFar) === J(['582px', '638px']) && tOff === 'none' && tOn === '' && tMoved === '', J([tNear, tFar, tOff, tOn, tMoved]));
+            const css3 = read('style.css'), mnS = read('scripts/main.js'), nmA = mnS.indexOf('  function renderNoMap() {');
+            const NH = mkPP(); NH.win.wpPortalPlace(rec); const nh = NH.win.wpPortalPlaceHold(null, 'visual');
+            check('the review: a campaign with no map puts the tile and its line down (renderNoMap asks wpPortalPlaceHold first, since render returns before its own ask); the line stands under notices, questions and windows (90015) and wraps a long name',
+                nh === true && NH.win.wpPlace === null && NH.wb.children.length === 0 && NH.doc.body.children.length === 0 && NH.toasts.length === 1
+                && nmA > 0 && mnS.slice(nmA, mnS.indexOf('\n  }\n', nmA)).includes('if (window.wpPortalPlaceHold) window.wpPortalPlaceHold(null, state.viewMode);')
+                && /\.portal-tip \{ position: fixed; z-index: 90015;[^}]*max-width: min\(420px, calc\(100vw - 16px\)\);/.test(css3) && !/\.portal-tip \{[^}]*white-space: nowrap/.test(css3));
+            const dmS2 = read('scripts/datamap.js');
+            check('the review: a press and drag while the portal tile waits draws no placement box, and the portal lands in the cell of the release, under the tile the GM sees as the press is let go; let go off the map, where the tile is put away, it lands in the cell pressed',
+                dmS2.includes("portal: !!window.wpPlace.portal") && dmS2.includes("if (P.portal) P.box.style.display = 'none';")
+                && dmS2.includes("if (P1.portal && isFinite(e.clientX) && isFinite(e.clientY)) { var pbU = wrapEl.getBoundingClientRect(); if (e.clientX >= pbU.left && e.clientX <= pbU.right && e.clientY >= pbU.top && e.clientY <= pbU.bottom) { ex = wbX(e.clientX, e.clientY, pbU, wrapEl); ey = wbY(e.clientX, e.clientY, pbU, wrapEl); } }")
+                && dmS2.includes("var ex = P1.sx, ey = P1.sy;")
+                && dmS2.includes("if (window.wpPlaceCommit) window.wpPlaceCommit(px, py, pw, ph, ex, ey);"));
+        }
         const P1 = mkPP({ may: false }), P2 = mkPP({ stream: true }), P3 = mkPP({ foreign: true }), P4 = mkPP({ stuck: true, view: 'data' }), P5 = mkPP();
         const pr = [P1.win.wpPortalPlace(rec), P2.win.wpPortalPlace(rec), P3.win.wpPortalPlace(rec), P4.win.wpPortalPlace(rec), P5.win.wpPortalPlace({ mapId: 'm1', roomId: 'r1', targetMapId: 'other' }), P5.win.wpPortalPlace({ mapId: 'm9', roomId: 'r1', targetMapId: 'map_x' })];
         check('no player: never on a player\'s app or where the campaign is not this computer\'s, at someone else\'s table or in the stream window; nor for a room that no longer leads to that map, a map not on screen, or a view that would not switch: nothing armed, no tile drawn',
@@ -562,6 +605,9 @@ function mkDoc() {
         const L2 = mkRP(); L2.win.wpRoomPlace('r1'); const rec = L2.win.wpPlace.roomplace; L2.am.rooms[0].targetMapId = 'm9'; L2.api.step(rec, 0, 0, 100, 100);
         const L3 = mkRP(); L3.win.wpRoomPlace('r1'); L3.api.step(L3.win.wpPlace.roomplace, 0, 0, 100, 100); L3.am.rooms[0].targetMapId = 'm9'; L3.asks[0].cb('alt');
         const L4 = mkRP({ am: { id: 'm1', type: 'map', rooms: [{ id: 'r1', name: 'Door', targetMapId: 'm2' }], whiteboard: [] } }), l4calls = []; L4.win.wpPortalPlace = r => { l4calls.push(r); return true; }; const lp4 = L4.win.wpRoomPlace('r1');
+        const L5 = mkRP({ am: { id: 'm1', type: 'map', rooms: [{ id: 'r1', name: 'Door', targetMapId: 'gone' }], whiteboard: [] } }); L5.win.wpPortalPlace = () => null; const lp5 = L5.win.wpRoomPlace('r1');
+        check('the review: Place it on a room whose map was deleted says only what wpPortalPlace said (it answers null), never the doorway words, and arms nothing',
+            lp5 === false && L5.toasts.length === 0 && !L5.win.wpPlace && L5.asks.length === 0, J([lp5, L5.toasts]));
         check('the owner\'s refinement (2026-11-14): Place it on a room that leads to a map (a new room\'s, answered Later) lays its portal, the tile of one cell that follows the pointer, and no area or floor; where no portal can be armed it still says what to do',
             lp4 === true && J(l4calls) === J([{ mapId: 'm1', roomId: 'r1', targetMapId: 'm2' }]) && L4.toasts.length === 0 && !L4.win.wpPlace && L4.asks.length === 0, J([lp4, l4calls, L4.toasts]));
         check('the review of fold 3: a room that leads to another map gets no place drawn, since a piece linked to it is a way there and a hidden one a trap tile, refused as Place it is pressed, at the drag and at the answer, in words that say what to do',
@@ -578,6 +624,16 @@ function mkDoc() {
             const api = new Function('window', 'getActiveMap', 'state', 'RC', plS + '\nreturn { play: roomShowPlay, data: roomShowData };')(win, () => am, st, RC);
             return { api, am, st, views, get renders() { return renders; }, get cams() { return cams; } }; };
         const A = mk(), s1 = A.api.play('r1'), B = mk(), s2 = B.api.play('r2'), C = mk(), s3 = C.api.data('p'), D = mk(), s4 = D.api.data('q');
+        {   // the review: the room box's No place line follows what Place it does, written again at each draw, since the room's map may come or go
+            const words = new Function('window', 'getActiveMap', 'state', 'RC', plS + '\nreturn roomNpWords;')({}, () => null, {}, RC);
+            const sp = { textContent: 'No place' }, go = { title: 'Drag a box on the play map where this room is', dataset: {}, removeAttribute(k) { if (k === 'title') delete this.title; } };
+            const el = { querySelector: s => (s === '.rnp span' ? sp : s === '.rnp-go' ? go : null) };
+            words(el, { id: 'r1', targetMapId: 'm2' }); const w1 = [sp.textContent, go.dataset.tip, 'title' in go];
+            words(el, { id: 'r1' }); const w2 = [sp.textContent, go.dataset.tip];
+            check('the review (datamap.js place, run for real): the room box\'s line says No portal and its Place it says to click a cell for a room that leads to a map, and No place with drag a box for any other; the words go where tooltips.js keeps them, so they follow a change',
+                J(w1) === J(['No portal', 'Click a cell on the play map to place its portal', false]) && J(w2) === J(['No place', 'Drag a box on the play map where this room is'])
+                && dmS.includes("      if (!placed[r.id]) roomNpWords(el, r);"), J([w1, w2]));
+        }
         check('fold 3, Show it both ways (datamap.js place, run for real): from a room to its place, the play map with the place selected and in the middle of the view; a room with no place says so and moves nothing; from a piece to its room, the Data Map with the room selected and in the middle; a piece with no room says so',
             s1 === '' && J(A.views) === J(['visual']) && A.am.meta.lastWbX === 110 && A.am.meta.lastWbY === 70 && A.st.selWbId === 'p' && A.st.selId === null && A.renders === 1 && A.cams === 1
             && s2 === 'This room has no place on the play map yet. Press Place it to draw one.' && B.views.length === 0
@@ -598,6 +654,9 @@ function mkDoc() {
         check('fold 3, a room\'s Properties (inspector.js placerow, run for real): on the Data Map, Show on the play map for a room with a place and No place yet with Place it for one with none, in fixed words with nothing of the room in the markup; on the play map nothing',
             h1.includes('id="fRoomShowPlay"') && h1.includes('>Show on the play map</button>') && !h1.includes('fRoomPlace') && h2.includes('No place on the play map yet.') && h2.includes('id="fRoomPlace"') && !h2.includes('script') && h3 === ''
             && inS.includes("(typeof roomPlaceRowHtml === 'function' ? roomPlaceRowHtml(r, activeMap) : '')+") && inS.includes("if (typeof roomPlaceRowWire === 'function') roomPlaceRowWire(r);"), J([h1, h2, h3]));
+        const h4 = mk('data').html({ id: 'r3', targetMapId: 'm2' }, am), h5 = mk('data').html({ id: 'r1', targetMapId: 'm2' }, am);
+        check('the review: a room that leads to a map is placed by a portal of one cell, so its Properties say No portal on the play map yet, and Place it says to click a cell; a room that leads to a map and has its place shows it as any room',
+            h4.includes('No portal on the play map yet.') && h4.includes('title="Click a cell on the play map to place its portal"') && h4.includes('id="fRoomPlace"') && !h4.includes('Drag a box') && h5.includes('id="fRoomShowPlay"'), J([h4, h5]));
     }
     /* ---- fold 4: who is in a room ---- */
     {
@@ -685,7 +744,8 @@ function mkDoc() {
     check('Help says a new room\'s own map in plain words, and both release notes say it under the Data Map',
         ix.includes('<h4>A new room&rsquo;s own map</h4>') && ix.includes('Click a cell to place the portal there. Press <kbd>Esc</kbd> to skip it. The room and its map stay.</li>') && ix.includes('<b>Beside this map</b> puts it next to this one, under the same parent, for places you travel between. <b>At the top</b> makes it a map of its own. Your pick is ready next time.</li>') && ix.includes('<li>Press <b>Later</b> to stay on the Data Map. Place the portal any time with <b>Place it</b> on the room.</li>') && ix.includes('one square cell, one hex cell, or a circle on a map with no grid.') && ix.includes('untick <b>A new room makes its own map</b>')
         && ix.includes('<li><b>Make a room for this</b> makes no map. Its piece is already the room&rsquo;s place.</li>')
-        && [wn, wn2].every(t => t.includes("- Double-click empty ground on the Data Map to add a room there.\n- A new room makes its own map now, named after it. Put the map inside the one\n  you're on, beside it as a sibling, or at the top. Place its portal on the\n  play map right away, or later with Place it. The portal fits your grid.")));
+        && ix.includes('<li>A room that leads to a map says <b>No portal</b> instead. Its <b>Place it</b> lays the portal tile, and you click a cell, as for a new room.</li>')   // the review: the room box and Properties say No portal for such a room
+        && [wn, wn2].every(t => t.includes("- Double-click empty ground on the Data Map to add a room there.\n- A new room now makes its own map, named after the room. Put the map inside\n  the one you're on, beside it as a sibling, or at the top. Place its portal on\n  the play map straight away, or press the Place it button on the room later.\n  On a square grid the portal is one square, on hexes one hex, and with no grid\n  a circle. Rooms that are only notes? In the Center menu, untick A new room\n  makes its own map.")));
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exitCode = 1;

@@ -86,11 +86,11 @@ function tutorialSystem() {
             { id: 'f_tut_prone', key: 'Prone', label: 'Prone', kind: 'toggle', def: false, edit: 'owner', vis: 'all', hover: true },
             { id: 'f_tut_notes', key: 'Notes', label: 'Notes', kind: 'notes', edit: 'owner', vis: 'all', hover: false },
             { id: 'f_tut_gm', key: 'GMnotes', label: 'GM notes', kind: 'notes', edit: 'gm', vis: 'gm', hover: false },
-            { id: 'f_tut_kit', key: 'Kit', label: 'Kit', kind: 'item-list', edit: 'owner', vis: 'all', hover: false },
+            { id: 'f_tut_kit', key: 'Kit', label: 'Kit', kind: 'item-list', edit: 'owner', vis: 'all', hover: false, list: { trade: true } },   // Tradable (1.6.2): the Armory chest holds its items
             { id: 'f_tut_fx', key: 'Effects', label: 'Effects', kind: 'effects', edit: 'owner', vis: 'all', hover: true }   // status effects (5h)
         ],
         rolls: [{ id: 'r_tut_init', label: 'Initiative', formula: '2d6 + Agility', vis: 'all', init: true }, { id: 'r_tut_atk', label: 'Attack (blade)', formula: '2d6 + Blades', vis: 'all' }],
-        items: [{ id: 'i_tut_firepot', name: 'Firepot', category: 'Thrown', icon: '🔥', notes: 'A thrown clay pot of alchemist\'s fire.', vis: 'all', area: { ft: 10, shape: 'circle', name: 'Firepot' }, damage: '2d6', cost: '', throwSkill: '' }],
+        items: [{ id: 'i_tut_firepot', name: 'Firepot', category: 'Thrown', icon: '🔥', notes: 'A thrown clay pot of alchemist\'s fire.', vis: 'all', area: { ft: 10, shape: 'circle', name: 'Firepot' }, damage: '2d6', cost: '', throwSkill: '' }, { id: 'i_tut_draught', name: 'Healing draught', category: 'Potion', icon: '🧪', notes: 'Bitter, red, and worth every drop.', vis: 'all', damage: '', cost: '' }],
         effects: tutorialEffects(),
         combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: 'f_tut_hp', postures: tutorialPostures(), light: { names: { dim: 'Dim light', dark: 'Darkness' }, presets: [{ name: 'Torch', bright: 3, dim: 7, pick: true }, { name: 'Brazier', bright: 2, dim: 4 }] }, senses: tutorialSenses() },   // lighting (L6): what the rules call a dim and a dark place, and two lights in yards — the torch one a player may pick; senses (S8): Hearing
         sheet: { sections: [], identity: [{ id: 'f_tut_class' }], ledger: [{ id: 'f_tut_strmod' }, { id: 'f_tut_sight' }], band: [{ id: 'f_tut_hp' }, { id: 'f_tut_ac' }, { id: 'f_tut_prone' }, { roll: 'r_tut_init' }], hud: tutorialHud() } };   // the automatic layout, with a header block (Stage 5d), a pinned band (Stage 5c) and a HUD (Stage 6) so the tour shows them
@@ -104,6 +104,28 @@ function tutorialHud() {
 function tutorialEffects() {
     return [{ id: 'e_tut_bless', name: 'Blessed', icon: '\u2728', tone: 'buff', dur: 'until dawn', notes: 'A priest\u2019s blessing on the blade.', vis: 'all', mods: [{ f: 'f_tut_sword', op: 'add', v: 1 }] },
             { id: 'e_tut_poison', name: 'Poisoned', icon: '\uD83E\uDD22', tone: 'debuff', dur: 'an hour', notes: 'Raider\u2019s dart poison.', vis: 'all', mods: [{ f: 'f_tut_str', op: 'add', v: -1 }] }];
+}
+/* Containers (1.6.2): the Armory chest on the hideout's ground floor holds two Firepots and a Healing draught, so the tour can open a real one.
+   The chest is a plain hexagon on the armory's cell at (O + 180, O + 770) of that map; its box id is fixed, as every Tutorial id is */
+function tutorialDraught() { return tutorialSystem().items.filter(function(i) { return i.id === 'i_tut_draught'; })[0]; }   // as tutorialSystem gives it (the suites slice that function alone)
+function tutorialChestPiece() { return { id: 'tut_wb_chest', type: 'hexagon', x: 14655, y: 15210, w: 60, h: 52, color: 'rgba(139,94,52,0.85)', layer: 'back-mid', name: 'Armory chest', box: 'c_bxtutchest' }; }
+function tutorialChestBox() { return { id: 'c_bxtutchest', values: { f_tut_kit: [{ defId: 'i_tut_firepot', qty: 2 }, { defId: 'i_tut_draught', qty: 1 }] } }; }
+// ... and an older Tutorial gets them once (camp.tutorialChest 1), outside the GM's undo: the Kit list made Tradable where nobody shaped it,
+// the draught where the system lacks it, and the chest where the ground floor has none. A chest the GM later empties or deletes stays as they leave it
+function ensureTutorialChest(camp) {
+    if (!camp || typeof camp !== 'object') return;
+    var sys = camp.system, own = function(o, k) { return !!o && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k); };
+    if (sys && typeof sys === 'object') {
+        var kit = Array.isArray(sys.fields) ? sys.fields.filter(function(f) { return f && f.id === 'f_tut_kit'; })[0] : null;
+        if (kit && kit.kind === 'item-list' && !own(kit, 'list')) kit.list = { trade: true };
+        if (!Array.isArray(sys.items)) sys.items = [];
+        if (!sys.items.some(function(i) { return i && i.id === 'i_tut_draught'; })) sys.items.push(tutorialDraught());
+    }
+    var g = camp.items && own(camp.items, 'map_tut_ground') ? camp.items.map_tut_ground : null;
+    if (!g || typeof g !== 'object' || !Array.isArray(g.whiteboard) || g.whiteboard.some(function(w) { return w && w.id === 'tut_wb_chest'; })) return;
+    if (!camp.boxes || typeof camp.boxes !== 'object') camp.boxes = {};
+    if (!own(camp.boxes, 'c_bxtutchest')) camp.boxes.c_bxtutchest = tutorialChestBox();
+    withoutHistory(g, function() { g.whiteboard.push(tutorialChestPiece()); });
 }
 function tutorialCharacter(A) {
     return { id: 'c_tut_bren', name: 'Bren of Hollowvale', ownerId: '', portrait: A + 'bren_sq.jpg', npc: false, updated: 1,
@@ -159,6 +181,7 @@ function buildTutorialCampaign() {
     var camp = createNewCampaign(TUTORIAL_NAME);
     camp.id = TUTORIAL_CAMP_ID;
     camp.tutorialRules = 1;   // 1.6.2: built with the Tutorial's own rules
+    camp.tutorialChest = 1;   // 1.6.2: built with the Armory chest
     camp.tutorialSeed = 2;   // HUD frame (HF4a, HF4b): the seed migrations this build already carries (ensureTutorialSheet runs each once, on an older tutorial)
     camp.vtt = tutorialVtt();   // every VTT feature on: the tour points at chips and the minimap, so they must render
     camp.fog = { fields: { sight: 'f_tut_sight' }, defaults: { sight: 3 } };   // fog of war (1.5.0): Bren's Sight field drives vision; 3 yd default for a token with no character
@@ -291,8 +314,10 @@ function buildTutorialCampaign() {
         hexTok(O + 300, O + 690, pic('sage_hex.png', { id: 'tut_wb_sage2', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Scholar.' })),
         stairs(O + 935, O + 760, 'map_tut_basement', false, 'Stairs down'),
         stairs(O + 700, O + 420, 'map_tut_top', true, 'Stairs up'),
-        hexTok(O + 480, O + 300, { id: 'tut_wb_officedoor', type: 'trigger', shape: 'hexagon', color: 'transparent', eventMessage: 'The office door is locked. Grukk\'s ledger is inside \u2014 a roll of 10 to pick it, or ask Grukk nicely.', name: 'Office door' })
+        hexTok(O + 480, O + 300, { id: 'tut_wb_officedoor', type: 'trigger', shape: 'hexagon', color: 'transparent', eventMessage: 'The office door is locked. Grukk\'s ledger is inside \u2014 a roll of 10 to pick it, or ask Grukk nicely.', name: 'Office door' }),
+        tutorialChestPiece()   // a container (1.6.2): Holds items, two Firepots and a Healing draught
     ];
+    camp.boxes = { c_bxtutchest: tutorialChestBox() };
 
     var basement = createNewMap('Hideout \u2014 Basement');
     basement.id = 'map_tut_basement';
@@ -664,6 +689,7 @@ function ensureTutorialCampaign(rebuild) {
     if (!(camp.tutorialFloors >= 1)) { ensureTutorialFloors(camp); camp.tutorialFloors = 1; }   // 1.5.4, once: the two floors no one sees are locked
     if (!(camp.tutorialPostures >= 1)) { ensureTutorialPostures(camp); camp.tutorialPostures = 1; }   // 1.6.0, once: its own postures, now that no list is a default
     if (!(camp.tutorialRules >= 1)) { if (typeof ensureTutorialRules === 'function') ensureTutorialRules(camp); camp.tutorialRules = 1; }   // 1.6.2, once: the Tutorial's own rules, where nobody changed the old ones
+    if (!(camp.tutorialChest >= 1)) { if (typeof ensureTutorialChest === 'function') ensureTutorialChest(camp); camp.tutorialChest = 1; }   // 1.6.2, once: the Armory chest the Containers step opens
     state.appState.activeCampaignId = TUTORIAL_CAMP_ID;
     state.selId = null; state.selWbId = null; state.selWbIds = []; state.linkStart = null;
     updateCampaignSelect(); updateSidebarNav(); render(); save(true);
@@ -756,9 +782,13 @@ var STEPS = [
       help: ['datamap', 'Rooms'],
       before: function() { openItem('map_tut_city'); goView('data'); state.selId = 'tut_palace'; render(); if (window.wpSyncRightPanel) window.wpSyncRightPanel(); openRightForTour(); } },
     { section: 'Play map & VTT features', target: '#wbFloatingToolbar', title: 'Play map tools',
-      html: 'Now inside the hideout, on its Play Map. From the left: undo and redo for this map, then move and pan, the pen, eraser and fill. Next come shapes and <b>+ Add</b> for text and pictures, then <b>measure</b>, <b>radius</b>, fog and <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11h18v9H3zM3 11l-.5-3.5 17.5-3 .6 3.4L3 11zM7.5 6.6l1.8 3.3M12.5 5.8l1.8 3.3"/></svg> <b>Scene</b>. Center, the <b>grid</b> and <b>snap</b> stand at the map&rsquo;s right edge. Hold <kbd>Space</kbd> and drag to pan from any tool.',
+      html: 'Now inside the hideout, on its Play Map. In order, the toolbar holds undo and redo for this map, then select and pan, the pen, eraser and fill. Next come shapes, <b>+ Add</b> for text and pictures, and <b>Build</b> for floors and walls. Its <b>Generate</b> tab lays out a whole dungeon, city or world. Then <b>measure</b>, <b>radius</b>, fog and <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11h18v9H3zM3 11l-.5-3.5 17.5-3 .6 3.4L3 11zM7.5 6.6l1.8 3.3M12.5 5.8l1.8 3.3"/></svg> <b>Scene</b>. A small mark in a button&rsquo;s corner opens its options, and so does a right-click. Hold <kbd>Space</kbd> and drag to pan from any tool.',
       help: ['whiteboard', 'Placing things'],
       before: function() { openItem('map_tut_ground'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
+    { target: '#wbEditLayoutBtn', title: 'Your own layout',
+      html: '<b>Edit layout</b> in the View menu, beside the <b>grid</b> and <b>snap</b>, puts the map&rsquo;s controls where you want them. Drag the toolbar to any side, or a box such as the minimap to a corner. Right-click a control for its places and <b>Put back</b>. The toolbar can also hide until the pointer comes near. Your layout stays on this computer, and each player lays out their own.',
+      help: ['grids', 'The layout of the map'],
+      before: function() { openItem('map_tut_ground'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); var m = document.getElementById('wbCenterMenu'); if (m) m.classList.add('show'); } },   // Edit layout is a row of the View menu: the menu is opened, so the row can be seen
     { target: '#soundBtn', title: 'Sound',
       html: 'Under the <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11h18v9H3zM3 11l-.5-3.5 17.5-3 .6 3.4L3 11zM7.5 6.6l1.8 3.3M12.5 5.8l1.8 3.3"/></svg> <b>Scene</b> button. Ambient loops and one-shot cues, heard by every player at the table. Click a loop to <b>crossfade</b> to it, or a cue to fire it. <b>Master</b> sets the table&rsquo;s volume, and <b>Mute mine</b> silences your own speakers. <b>Library&hellip;</b> holds this campaign&rsquo;s sounds and a bundled set, and takes your own files.',
       help: ['whiteboard', 'Sound'],
@@ -787,8 +817,12 @@ var STEPS = [
       html: 'Any shape or picture with <b>Is Character</b> set is a token. Hover one for its name and stats. <b>Right-click</b> one for its conditions, posture, elevation and light. The chips at its foot show its height and posture. <b>Horn</b>, behind the guard-room door, is hidden from players until you tick <b>Visible to players</b>. The gold hexes on the stairs are <b>portals</b>: double-click one to change floors.',
       help: ['whiteboard', 'The right-click menu'],
       before: function() { openItem('map_tut_ground'); goView('visual'); } },
+    { target: '#boxPanel', title: 'Containers',
+      html: 'A picture or a shape can hold items, such as the <b>Armory chest</b> here. Tick <b>Holds items</b> in its Properties, then press <b>Open contents</b> to fill it from your system or the library. A player whose token stands next to it presses the chest and takes what they want. You are told who took what. A container can be locked, and a fallen foe can be searched the same way.',
+      help: ['whiteboard', 'Containers'],
+      before: function() { var camp = tutorialCampaign(); if (camp && !(camp.tutorialChest >= 1)) { ensureTutorialChest(camp); camp.tutorialChest = 1; save(true); } openItem('map_tut_ground'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); if (window.wpBoxes) window.wpBoxes.open('tut_wb_chest'); } },
     { target: '#whiteboardWrap', title: 'Square grids, square tokens',
-      html: '<b>The Inn</b> runs on a <b>square grid</b>, and its tokens are square pictures that fill one cell each. Drag one with <b>Snap</b> on and it seats in a cell. <b>&#8862; Fit to grid</b> sizes a selection to whole cells. Tokens the app places take the grid&rsquo;s shape: a hexagon, a square, or a circle with no grid. Right-click a picture token for <b>Frame picture&hellip;</b> to choose the part that shows.',
+      html: '<b>The Inn</b> runs on a <b>square grid</b>, and its tokens are square pictures that fill one cell each. Drag one with <b>Snap</b> on and it seats in a cell. <b>&#8862; Fit to grid</b> sizes a selection to whole cells. A picture keeps its shape as you resize it, and <kbd>Shift</kbd> lets you stretch it. Tokens the app places take the grid&rsquo;s shape: a hexagon, a square, or a circle with no grid. Right-click a picture token for <b>Frame picture&hellip;</b> to choose the part that shows.',
       help: ['grids', 'Grids'],
       before: function() { openItem('map_tut_inn'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#whiteboardWrap', title: 'No grid at all',
@@ -815,7 +849,7 @@ var STEPS = [
       html: 'Pictures and text to show your players: a letter, a face, a place. The Tutorial has two ready, <b>Grukk&rsquo;s ledger</b> and <b>The hideout</b>. In a session you show one to everyone or to one player. It lands in their <b>Journal</b>, the book icon beside this, where they keep notes on it. A room can carry a handout that arrives when a player reaches it.',
       help: ['mp-gm', 'Handouts'] },
     { section: 'Sharing & finding', target: '#saveAsBtn', title: 'Export and import',
-      html: 'Share or back up at any scope: one map or planner, a whole campaign, or everything. An export that uses pictures arrives as a <b>.zip</b> with the pictures inside. <b>Import</b> takes those files and <b>merges by id</b> or replaces. Merging is how another author hands you a module without touching the rest of your campaign. A <b>Markdown</b> file becomes a planner or a handbook page. Both are under <b>More</b> in the top row.',
+      html: 'Share or back up at any scope: one map or planner, a whole campaign, or everything. <b>Full export</b> puts a campaign in one file, and you tick what goes with it. An export with pictures arrives as a <b>.zip</b>. <b>Import</b> shows what a file holds before anything lands. Bring it in as a new campaign, or merge it into yours by id to take a module from another author. A <b>Markdown</b> file becomes a planner or a handbook page. Both are under <b>More</b> in the top row.',
       help: ['start', 'Export As'],
       before: function() { if (window.wpTopRow) window.wpTopRow.open('moreMenu'); } },   // Export As is a row of More: the menu is opened, so the row can be seen
     { target: '#mapNavList', title: 'Finding things',
@@ -842,7 +876,7 @@ var STEPS = [
       help: ['sheets', 'Senses'],
       before: function() { var camp = tutorialCampaign(); if (camp && ensureTutorialSheet(camp)) save(true); if (window.wpSheets) { window.wpSheets.closeSheet(); window.wpSheets.open('combat', 'senses'); } var sb = document.querySelector('#sysCombatBox .sys-senses'); if (sb && sb.scrollIntoView) sb.scrollIntoView({ block: 'center' }); } },
     { target: '#sysLists', title: 'Lists',
-      html: 'The <b>Lists</b> tab shapes each <b>Item list</b> field. It sets the item categories its picker offers, and whether a row has a quantity, a <b>level</b> or a <b>switch</b> such as Equipped. A list can carry <b>stats</b> for its items, <b>columns</b> worked out for each row, <b>rolls</b> on each row and <b>counters</b> such as a weapon&rsquo;s charges. That is how one sheet holds skills, powers, weapons and gear.',
+      html: 'The <b>Lists</b> tab shapes each <b>Item list</b> field. It sets the item categories its picker offers, and whether a row has a quantity, a <b>level</b> or a <b>switch</b> such as Equipped. A list can carry <b>stats</b> for its items, <b>columns</b> worked out for each row, <b>rolls</b> on each row and <b>counters</b> such as a weapon&rsquo;s charges. That is how one sheet holds skills, powers, weapons and gear. A list can also be a hand that holds cards drawn from a deck.',
       help: ['sheets', 'Lists'],
       before: function() { var camp = tutorialCampaign(); if (camp && ensureTutorialSheet(camp)) save(true); if (window.wpSheets) { window.wpSheets.closeSheet(); window.wpSheets.open('lists'); } } },
     { target: '#sysEffects', title: 'Status effects',
@@ -1065,8 +1099,8 @@ function place() {
 }
 
 // [tutorialcheck:stage-start]
-// What a step's own setup opens, told by its target: the System editor, a sheet (or a HUD), Settings, Table Chat, the fog preview, a menu of the top row.
-function stageFor(step) { var t = step.target || ''; return { editor: /^#sys(?!temBtn)/.test(t), sheet: t === '#sheetPanel' || !!step.opens, settings: t === '#setVttCampBlock', chat: t === '#diceBtn', fog: t === '#fogModeBtn', right: t === '#sidebar', row: t === '#systemBtn' || t === '#saveAsBtn' }; }
+// What a step's own setup opens, told by its target: the System editor, a sheet (or a HUD), Settings, Table Chat, the fog preview, a menu of the top row, a container's window.
+function stageFor(step) { var t = step.target || ''; return { editor: /^#sys(?!temBtn)/.test(t), sheet: t === '#sheetPanel' || !!step.opens, settings: t === '#setVttCampBlock', chat: t === '#diceBtn', fog: t === '#fogModeBtn', right: t === '#sidebar', row: t === '#systemBtn' || t === '#saveAsBtn', box: t === '#boxPanel' }; }
 // [tutorialcheck:stage-end]
 // Before a step's setup runs, everything another step (or the user, in Try it yourself) may have left open is put away, the Tutorial
 // campaign is the one on screen and the left panel is open — so a step reads the same wherever it is reached from: Next, Back, a jump to
@@ -1083,6 +1117,8 @@ function clearStage(step) {
     if (!need.chat) { var cp = document.getElementById('chatPanel'); if (cp) cp.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel(); }
     if (window.wpSheets) { if (!need.editor) window.wpSheets.close(true); if (!need.sheet) window.wpSheets.closeSheet(); }
     if (!need.fog && window.wpFog) window.wpFog.setPreview('off');
+    if (!need.box && window.wpBoxes) window.wpBoxes.close();   // 1.6.2: a container's window
+    if (window.wpLayout && window.wpLayout.editing()) window.wpLayout.edit(false);   // 1.6.2: Edit layout, begun in Try it yourself, is left as Done leaves it
     if (window.wpSound) window.wpSound.closePanel(); if (window.wpMusic) window.wpMusic.closePanel(); if (window.wpFx) window.wpFx.closePanel();
 }
 // A step whose target is no longer on screen (something put it away) has its setup run again.

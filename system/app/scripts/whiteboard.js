@@ -1030,7 +1030,10 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                   // The frame must be the picture: once the image's real proportions are
                   // known, the box adopts them (width kept) so the resize handle and the
                   // selection outline hug the visible art instead of letterbox space.
-                  img.addEventListener('load', function() { fitImageBox(el.dataset.id, img); });
+                  img.addEventListener('load', function() { if (el.dataset.picGone) { delete el.dataset.picGone; el.classList.remove('pic-missing'); } fitImageBox(el.dataset.id, img); });
+                  // 1.6.2 (backlog 227): a picture whose file is not here (bring your own art: a shared file keeps its places) is quiet. The
+                  // frame stays as an outline, a character's token shows its initials, and nothing says an error
+                  img.addEventListener('error', function() { var s = img.getAttribute('src') || ''; if (!s || /^data:/.test(s)) return; el.dataset.picGone = s; el.classList.add('pic-missing'); picGoneSoon(); });
 
                   el.appendChild(img);
 
@@ -1044,7 +1047,8 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
               trimDraw(el, imEl, item);   // 1.6.2 (backlog 37): a picture cut to the cells kept
               // A player's copy while the picture's bytes are still on their way (or never came): the character's
               // initials stand in, so a token is never an invisible box with a facing wedge and chips floating around it.
-              var pendingPic = !!(item.isChar && window.wpNet && window.wpNet.ASSET_PLACEHOLDER && wantSrc === window.wpNet.ASSET_PLACEHOLDER);
+              if (el.dataset.picGone && el.dataset.picGone !== imEl.getAttribute('src')) { delete el.dataset.picGone; el.classList.remove('pic-missing'); }   // 1.6.2: another picture now
+              var pendingPic = !!(item.isChar && ((window.wpNet && window.wpNet.ASSET_PLACEHOLDER && wantSrc === window.wpNet.ASSET_PLACEHOLDER) || el.dataset.picGone));   // 1.6.2 (backlog 227): or its file is not here
               var iniEl = el.querySelector(':scope > .token-initials');
               if (pendingPic) {
                   var iniP = String(item.charName || item.name || '?').trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase() || '?';
@@ -6832,6 +6836,9 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   var _imgLibPicker = null;     // Import from another campaign…: the source ('<campId>' | 'shared' | 'unfiled'), else null
   var _imgLibStash = null;      // the main view's state while the picker is open
   var _imgIndex = null;         // built per open from the save: { refs: { path: [campIds] }, titles: { itemId: { title, campId, camp } } }
+  // 1.6.2 (backlog 227): one quiet redraw after pictures turn out to be missing, however many failed at once
+  var _picGoneT = 0;
+  function picGoneSoon() { if (_picGoneT) return; _picGoneT = setTimeout(function() { _picGoneT = 0; if (typeof window.appRender === 'function') window.appRender(); }, 60); }
   function fixCats(c) { if (!Array.isArray(c.list)) c.list = []; if (!c.by || typeof c.by !== 'object') c.by = {}; if (!c.shelf || typeof c.shelf !== 'object') c.shelf = {}; return c; }
   function catStoreIn(data, store, create) {   // 'shared' or a campaign id; create only from a writer
       if (!data) return EMPTY_CATS;
@@ -6877,6 +6884,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       c.list[c.list.indexOf(oldName)] = newName;
       Object.keys(c.by).forEach(function(p) { var arr = Array.isArray(c.by[p]) ? c.by[p] : [c.by[p]]; c.by[p] = arr.map(function(n) { return n === oldName ? newName : n; }); });
       if (c.shelf[oldName]) { delete c.shelf[oldName]; c.shelf[newName] = true; }
+      if (c.priv && c.priv[oldName]) { delete c.priv[oldName]; c.priv[newName] = true; }   // 1.6.2 (backlog 227)
       return true;
   };
   /* ---- the scope index ---- */
@@ -7061,7 +7069,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       var allN = list.filter(function(im) { return !shelf || !imgCatsOf(im.path).some(isShelved); }).length;
       var m = { scopes: [], imp: false, all: { count: allN, active: !_imgLibCat }, bymap: _imgLibCat === '__bymap', none: { count: none, active: _imgLibCat === '__none' }, make: !_imgLibPicker, tools: null,
           match: pk.length > 1 ? _imgLibMatch : null, saved: null,
-          tags: cats.map(function(c) { return { name: c.name, store: c.store, count: counts[c.name] || 0, active: pk.indexOf(c.name) >= 0 }; }) };
+          tags: cats.map(function(c) { return { name: c.name, store: c.store, count: counts[c.name] || 0, active: pk.indexOf(c.name) >= 0, priv: TagCore.isPrivate(catStore(c.store), c.name) }; }) };
       if (!_imgLibPicker) {   // the scope row: which pictures
           var all = (_imgLibCache || []).filter(notJournal), nCamp = 0, nShared = 0, nUnf = 0;
           all.forEach(function(im) { if (inScope(im, 'camp', campId)) nCamp++; if (inScope(im, 'shared')) nShared++; if (inScope(im, 'unfiled')) nUnf++; });
@@ -7074,7 +7082,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       }
       if (!_imgLibPicker && soleTag()) {
           var home = catHome(_imgLibCat), c = home ? catStore(home) : EMPTY_CATS;
-          m.tools = { shelf: !!c.shelf[_imgLibCat], shared: home === 'shared' };
+          m.tools = { shelf: !!c.shelf[_imgLibCat], shared: home === 'shared', priv: TagCore.isPrivate(c, _imgLibCat) };
       }
       _imgLibSavedAt = -1;
       if (!_imgLibPicker && campId) {   // the Saved row: this campaign's filters; another campaign's only when asked for (Import from another campaign…)
@@ -7282,12 +7290,21 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
               toast(cs.shelf[_imgLibCat] ? '"' + _imgLibCat + '" is on its own shelf: its pictures no longer appear under All.' : '"' + _imgLibCat + '" shows under All again.');
               return;
           }
+          if (act === 'private') {   // 1.6.2 (backlog 227): on Full export this tag starts unticked; the mark lives in the tag's own store
+              var homeP = catHome(_imgLibCat); if (!homeP) return;
+              var csP = catStore(homeP, true), onP = TagCore.setPrivate(csP, _imgLibCat, !TagCore.isPrivate(csP, _imgLibCat));
+              imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
+              tagLog('tag-private', { on: onP, store: homeP === 'shared' ? 'shared' : 'camp' });
+              toast(onP ? '"' + _imgLibCat + '" is private: on Full export its pictures start unticked.' : '"' + _imgLibCat + '" is no longer private.');
+              return;
+          }
           if (act === 'share') {   // move a category with its tags between the campaign's store and the shared one
               var name = _imgLibCat, from = catHome(name), me = viewCampId(); if (!from || !me) return;
               var to = from === 'shared' ? me : 'shared';
               if (catStore(to).list.indexOf(name) >= 0) { toast('"' + name + '" already exists ' + (to === 'shared' ? 'as a shared tag.' : 'in this campaign.')); return; }
               var a = catStore(from, true), z = catStore(to, true);
               z.list.push(name); if (a.shelf[name]) { z.shelf[name] = true; delete a.shelf[name]; }
+              if (TagCore.isPrivate(a, name)) { TagCore.setPrivate(z, name, true); TagCore.setPrivate(a, name, false); }   // 1.6.2: the private mark moves with the tag
               Object.keys(a.by).forEach(function(p) { var arr = tagsIn(a, p); if (arr.indexOf(name) < 0) return; var d = Array.isArray(z.by[p]) ? z.by[p] : []; if (d.indexOf(name) < 0) d.push(name); z.by[p] = d; var rest = arr.filter(function(n) { return n !== name; }); if (rest.length) a.by[p] = rest; else delete a.by[p]; });
               a.list = a.list.filter(function(n) { return n !== name; });
               tagLog('tag-share', { to: to === 'shared' ? 'shared' : 'camp' });
@@ -7304,6 +7321,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
                   var i = c.list.indexOf(old); if (i >= 0) c.list[i] = name;
                   Object.keys(c.by).forEach(function(p) { var arr = Array.isArray(c.by[p]) ? c.by[p] : [c.by[p]]; c.by[p] = arr.map(function(n) { return n === old ? name : n; }); });
                   if (c.shelf[old]) { delete c.shelf[old]; c.shelf[name] = true; }
+                  if (c.priv && c.priv[old]) { delete c.priv[old]; c.priv[name] = true; }   // 1.6.2: and its private mark
                   tagLog('tag-rename', { store: homeR === 'shared' ? 'shared' : 'camp' });
                   _imgLibCat = name; imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
               });
@@ -7315,7 +7333,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
               showConfirm('Delete the tag "' + del + '"? ' + (n ? n + ' picture' + (n === 1 ? ' loses' : 's lose') + ' it — no picture is deleted.' : 'No picture has it.'), function(yes) {
                   if (!yes) return;
                   var members = Object.keys(cc.by).filter(function(p) { return tagsIn(cc, p).indexOf(del) >= 0 && catMemberFile(p); });
-                  cc.list = cc.list.filter(function(x) { return x !== del; }); delete cc.shelf[del];
+                  TagCore.setPrivate(cc, del, false); cc.list = cc.list.filter(function(x) { return x !== del; }); delete cc.shelf[del];
                   Object.keys(cc.by).forEach(function(p) { var rest = tagsIn(cc, p); if (rest.length) cc.by[p] = rest; else delete cc.by[p]; });
                   tagLog('tag-delete', { pics: members.length, store: homeD === 'shared' ? 'shared' : 'camp' });
                   _imgLibCat = ''; imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
@@ -7451,6 +7469,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           : 'No images match.';
       var showGroups = !_imgLibPick && !_imgLibPicker && state.viewMode === 'visual' && _imgLibScope === 'camp' && (grid.dataset.cast === '1' || !soleTag());   // backlog 31: groups in this campaign's pictures, and wherever the cast shows
       grid.innerHTML = (showGroups ? groupsLibraryHtml(filter) : '') + (grid.dataset.cast ? castLibraryHtml(filter) : '') + html || '<div style="color:var(--dim); padding:20px; text-align:center;">' + empty + '</div>';
+      if (!grid.dataset.quiet) { grid.dataset.quiet = '1'; grid.addEventListener('error', function(e) { var t = e.target; if (t && t.tagName === 'IMG') { t.style.visibility = 'hidden'; if (t.parentNode && t.parentNode.classList) t.parentNode.classList.add('pic-missing'); } }, true); }   // 1.6.2 (backlog 227): a picture whose file is gone stays a quiet empty cell
       var label = !_imgLibCat || _imgLibCat === '__bymap', hint = _imgLibPicker ? 'Ctrl-click to pick it to bring in' : 'right-click to tag it; Ctrl-click to pick several';
       Array.prototype.forEach.call(grid.querySelectorAll('.img-lib-cell[data-src]'), function(cell) { TagCore.cellTags(document, cell, imgCatsOf(cell.dataset.src), label, hint); });
       libDragCells(grid);   // 1.6.2 (backlog 41 (a)): dragged onto the map

@@ -430,6 +430,7 @@ function tokenSpotOf(camp, pid, charId) {
 // the newly given character is the one they play, the one they played before is kept), keep (the token that wins) }. GM side only.
 function giveCharacter(pid, charId, o) {
     var camp = getActiveCampaign(), c = charById(charId, camp); if (!camp || !c) return false;
+    if (c.template === true && pid) return false;   // 1.6.2 (backlog 227): no player plays a template
     o = o || {}; pid = pid && okPid(pid) ? pid : '';
     var prev = c.ownerId || '', was = pid ? activeCharOf(camp, pid).id : null, wasMade = c.made === 1;
     if (prev !== pid) { delete c.making; delete c.unlocked; delete c.review; delete c.made; }   // Onboarding F3: a new owner gets a finished, locked character of their own (no one else's unfinished one)
@@ -1444,6 +1445,35 @@ function hideFigHead(c, gm) {
     b.style.display = fits ? '' : 'none'; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
     b.title = on ? 'Players see the dice and Success or Failure when they resist this NPC. Press to show them the figure again' : 'Keep the figure a player needs to resist this NPC off their cards. They see the dice and Success or Failure, and you see it all';
 }
+// [systemcheck:template-start]
+// 1.6.2 (backlog 227; the owner, by prompt: "a Template tick on a character"): the GM's Template tick on the sheet's ⋯ menu, and New from this
+// template under it. A template has no player; it travels with every export of its campaign and with a copy of its system
+function templateFits(c, gm) { return !!(gm && c && !c.partial && c.making !== 1 && !isClient()) && canWrite(); }
+function templateHead(c, gm) {
+    var b = ui('sheetTemplate'), nb = ui('sheetFromTemplate'), fits = templateFits(c, gm), on = fits && c.template === true;
+    if (b) { b.style.display = fits ? '' : 'none'; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.title = on ? 'A template: no player plays it, and New from this template makes a fresh copy. Press to make it an ordinary sheet again' : 'Make it a template: no player plays it, and it travels with every export of this campaign'; }
+    if (nb) nb.style.display = on ? '' : 'none';
+}
+function templatesOf(camp) { return charList(camp).filter(function(x) { return !!x && x.template === true && !x.partial; }).sort(function(a, b) { return String(a.name || '').localeCompare(String(b.name || '')); }); }
+function templateToggle(id) {
+    var camp = getActiveCampaign(), c = charById(id, camp); if (!templateFits(c, !isClient())) return false;
+    if (c.template !== true && c.ownerId) { toast((c.name || 'This character') + ' has a player. Give it to no player first, then make it a template.'); return false; }
+    if (c.template === true) delete c.template; else { c.template = true; c.ownerId = ''; }
+    afterCharChange(c, true); renderAll();
+    if (window.wpStepLog) window.wpStepLog('template v1', 'tick', { on: c.template === true });
+    toast((c.name || 'This character') + (c.template === true ? ' is a template now. New from a template makes a fresh copy of it.' : ' is an ordinary sheet again.'));
+    return true;
+}
+// A fresh copy of a template, under a name the GM gave or the template's own: a new id, no player, no token, not a template
+function newFromTemplate(id, name) {
+    var camp = getActiveCampaign(), t = charById(id, camp), SC = window.wpSystemCore; if (isClient() || !canWrite() || !t || t.template !== true || !SC || !SC.fromTemplate) return null;
+    var c = SC.fromTemplate(t, uid('c_'), camp.system); if (!c) { if (window.wpStepLog) window.wpStepLog('template v1', 'new-failed', {}); return null; }
+    var nm = String(name || '').trim(); if (nm) c.name = nm.slice(0, LIMITS.charName);
+    charsOf(camp)[c.id] = c; afterCharChange(c, true); renderAll();
+    if (window.wpStepLog) window.wpStepLog('template v1', 'new', { npc: c.npc === true });
+    return c;
+}
+// [systemcheck:template-end]
 function hideFigPress() {
     var camp = getActiveCampaign(), c = charById(sheetOpen, camp); if (!hideFigFits(c, !isClient())) return false;
     if (c.hideFig === true) delete c.hideFig; else c.hideFig = true;
@@ -1496,6 +1526,7 @@ function renderSheet() {
     var arrH = ui('sheetArrange'); if (arrH) arrH.style.display = gm && canWrite() && !c.partial ? '' : 'none';   // 1.6.2
     if (typeof asPlayerHead === 'function') asPlayerHead(c, gm, seeP, sub, edB, camp);   // 1.6.0: As player
     if (typeof hideFigHead === 'function') hideFigHead(c, gm);   // 1.6.2: Hide figures
+    if (typeof templateHead === 'function') templateHead(c, gm);   // 1.6.2 (backlog 227): Template
     var dlX = ui('sheetDelete'); if (dlX) { var mineX = isClient() && own && !c.partial && charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }).length > 1; dlX.style.display = (gm && canWrite()) || mineX ? '' : 'none'; dlX.title = gm ? 'Delete this sheet: its values are gone; its tokens keep their name and lose the link' : 'Delete this sheet of yours: one you are still making, or one you do not play (your GM is told)'; }
     if (c.shared === 1) ['sheetUpload', 'sheetPic', 'sheetDelete'].forEach(function(k) { var bS = ui(k); if (bS) bS.style.display = 'none'; });   // 1.6.2 (G8): those stay with its one player
     if (typeof sheetMoreWire === 'function') { sheetMoreWire(); sheetMoreSync(); }   // 1.6.2: the second row's ⋯ menu
@@ -7384,7 +7415,7 @@ var _debtAdd = Object.create(null);
 // As player, and Upload, Unlock for player, Arrange, Hide figures, Download and Delete stand in a menu behind a ⋯ button, Delete last and in
 // red. The buttons themselves move into the menu, so each keeps its id, its handler and the place that says whether it shows
 // [sinkcheck:sheetmore-start]
-var SHEET_MORE = ['sheetUpload', 'sheetUnlock', 'sheetArrange', 'sheetHideFig', 'sheetDownload', 'sheetDelete'];
+var SHEET_MORE = ['sheetUpload', 'sheetUnlock', 'sheetArrange', 'sheetHideFig', 'sheetTemplate', 'sheetFromTemplate', 'sheetDownload', 'sheetDelete'];
 function sheetMoreOpen(on) {
     var b = ui('sheetMoreBtn'), m = ui('sheetMoreMenu'); if (!b || !m) return;
     m.hidden = !on; b.setAttribute('aria-expanded', on ? 'true' : 'false'); if (b.classList) b.classList.toggle('on', !!on);
@@ -15828,6 +15859,8 @@ function importFile(file) {
     var apBt = ui('sheetAsPlayer'); if (apBt) apBt.addEventListener('click', asPlayerPress);   // 1.6.0: As player
     var arrBt = ui('sheetArrange'); if (arrBt) arrBt.addEventListener('click', function() { if (!sheetOpen) return; _arrChar = sheetOpen; open('layout'); arrSet(true); });   // 1.6.2: the System editor, Arrange on, with this character's figures
     var hfBt = ui('sheetHideFig'); if (hfBt) hfBt.addEventListener('click', hideFigPress);   // 1.6.2: Hide figures
+    var tpBt = ui('sheetTemplate'); if (tpBt) tpBt.addEventListener('click', function() { if (sheetOpen) templateToggle(sheetOpen); });   // 1.6.2 (backlog 227)
+    var ntBt = ui('sheetFromTemplate'); if (ntBt) ntBt.addEventListener('click', function() { var t = sheetOpen ? charById(sheetOpen, getActiveCampaign()) : null; if (!t || t.template !== true) return; showPrompt('Name the new sheet', t.name || 'New character', function(nm) { if (nm === null) return; var nc = newFromTemplate(t.id, nm); if (nc) openSheet(nc.id); }, { name: 'person' }); });
     var edBt = ui('sheetEdit'); if (edBt) edBt.addEventListener('click', function() { if (!sheetOpen) return; _sheetEdit = _sheetEdit === sheetOpen ? null : sheetOpen; renderSheet(); });   // the sheet's lock: this viewer's own switch, for the sheet that is open
     var delBt = ui('sheetDelete'); if (delBt) delBt.addEventListener('click', function() { if (sheetOpen) askDeleteSheet(sheetOpen); });
     var cfI = ui('sysCharFilter'); if (cfI) cfI.addEventListener('input', charFilter);
@@ -16059,7 +16092,7 @@ function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient(
 function nameWordNow(n) { var c = getActiveCampaign(), s = c ? systemOf(c) : null; return nameWord(s, n); }   // 1.6.2: a name in words, for a card
 window.wpSheets = { bellNote: bellNote, picPeek: picPeek, restDoes: restDoes, restTakeBack: restTakeBack, charCatSet: charCatSet, charCatNow: charCatNow, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, lootOf: lootOf, lootSet: lootSet, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, linkValuesWrite: linkValuesWrite, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, fxEndSeed: function() { return fxEndSeed(getActiveCampaign()); }, fxRanOut: fxRanOut, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame, openChars: openChars, closeChars: closeChars,
-    charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
+    templateToggle: templateToggle, newFromTemplate: newFromTemplate, templatesOf: templatesOf, charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,
     playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, dialSig: dialSigFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, styleResult: styleResult, commitLook: commitLook, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, LIMITS: LIMITS,

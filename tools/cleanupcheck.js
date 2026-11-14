@@ -637,6 +637,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 { id: 'sn_ether001', name: 'Ether' + String.fromCharCode(7) + 'Sight', range: { by: 'field', field: 'f_st', formula: 'x' }, grade: 'full', walls: 'pass', shows: 'dim', glyph: 'heat', junk: 1 },
                 { id: 'sn_secret01', name: 'Secret', range: { by: 'field', field: 'f_gm' }, grade: 'mark' }, { id: 'bad', name: 'Bad', range: { by: 'n', n: 1 }, grade: 'full' }] } } });
         const sensesWant = JSON.stringify({ list: [{ id: 'sn_ether001', name: 'Ether Sight', range: { by: 'field', field: 'f_st' }, grade: 'full', walls: 'pass', shows: 'dim' }] });
+        // 1.6.2 (backlog 227; the owner, by prompt): an import keeps a character ticked Template as the GM's, with no player, and a tag's private mark
+        // through the load's own normaliser; Import as a new campaign lands the file's campaigns under ids of their own (sharecore asNewCamps)
+        {
+            const tplFile = () => ({ activeCampaignId: 'cT', imageCats: { list: ['Art'], by: { '/saves/images/m/a.png': ['Art'] }, shelf: {}, priv: { Art: true, Gone: true } }, campaigns: { cT: { id: 'cT', name: 'T', items: {},
+                imageCats: { list: ['Own'], by: {}, shelf: {}, priv: { Own: true, Own2: 'yes' } },
+                system: { v: 1, name: 'T', rolls: [], fields: [{ id: 'f_name', key: 'Name', kind: 'text' }] },
+                chars: { c_t: { id: 'c_t', name: 'Guard', ownerId: 'u_x', template: true, values: { f_name: 'G' } }, c_p: { id: 'c_p', name: 'Pat', ownerId: 'u_y', template: 'yes', values: {} } } } } });
+            const depsT = Object.assign({}, deps, { migrate: migV({ wpSystemCore: S, wpFormula: F, wpLibraryCore: LBC, wpImgTagCore: await import(surl('imgtagcore.js')) }) });   // the real normaliser with the real tag core
+            const outT = cleanImport(tplFile(), depsT), cT = outT && outT.campaigns.cT, SHI = await import(surl('sharecore.js')), jT = JSON.stringify;
+            const nf = tplFile(); let k = 0; const mp = SHI.asNewCamps(nf, () => 'camp_new' + (++k)), outN = cleanImport(nf, depsT);
+            check('1.6.2 import: a character ticked Template comes in as the GM\'s template with no player (the real load normaliser with the real core); a tick that is not true is no template; the tags\' private marks come in on the names their store lists; Import as a new campaign lands the same campaign under a new id, the template and the marks with it',
+                !!cT && cT.chars.c_t.template === true && cT.chars.c_t.ownerId === '' && !('template' in cT.chars.c_p) && cT.chars.c_p.ownerId === 'u_y'
+                && jT(outT.imageCats.priv) === jT({ Art: true }) && jT(cT.imageCats.priv) === jT({ Own: true }) && jT(outN.campaigns.camp_new1.imageCats.priv) === jT({ Own: true })
+                && jT(mp) === jT({ cT: 'camp_new1' }) && !!outN && !!outN.campaigns.camp_new1 && outN.campaigns.camp_new1.chars.c_t.template === true && outN.activeCampaignId === 'camp_new1',
+                jT([cT && cT.chars, outT && outT.imageCats, cT && cT.imageCats, outN && Object.keys(outN.campaigns)]));
+        }
         const outS = cleanImport({ campaigns: { cS: { id: 'cS', name: 'S', items: {}, system: sensesSys() } } }, deps);
         const mergeS = S.cleanSystem(sensesSys(), { F, gmView: true });
         check('S1 import: a file\'s senses come in cleaned — on Replace by the load\'s own normaliser (junk keys cut, a name cleaned, a sense or blind on a GM-only value gone, a bad id gone) and on Merge by the same cleaner main.js runs on a new campaign and on one already here',

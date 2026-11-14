@@ -1149,6 +1149,13 @@ pendingChecks.push((async () => {
     const tgP = JSON.stringify(SA(tg(), 'u_p')), tgS = JSON.stringify(SA(tg())), tgKept = tg(); SA(tgKept, 'u_p');
     check('backlog 34 the Image Library tags never leave (the real sanitizeAppState): no tag, no picture it is on, no shelf and no saved filter in a player\'s snapshot or the stream window\'s, of the shared store or the hosted campaign\'s; the GM\'s own state keeps both',
         ![tgP, tgS].some(t => /imageCats|SharedTagQ|VillainTagQ|SavedFilterQ|docksQ/.test(t)) && !!tgKept.imageCats && tgKept.campaigns.k1.imageCats.filters.length === 1, [tgP.slice(0, 300)]);
+    // 1.6.2 (backlog 227; the owner, by prompt): a tag's private mark lives in its store and leaves with nothing; a character ticked Template is the GM's
+    // alone, so neither it nor its tick is in a player's snapshot or the stream window's copy
+    const tp = () => { const s = tg(); s.imageCats.priv = { SharedTagQ: true }; s.campaigns.k1.imageCats.priv = { VillainTagQ: true };
+        s.campaigns.k1.chars = Object.assign({}, s.campaigns.k1.chars || {}, { c_tplq: { id: 'c_tplq', name: 'TemplateGuardQ', ownerId: '', template: true, values: {} } }); return s; };
+    const tpP = JSON.stringify(SA(tp(), 'u_p')), tpS = JSON.stringify(SA(tp())), tpKept = tp(); SA(tpKept, 'u_p');
+    check('1.6.2 Export all on the wire (the real sanitizeAppState): no private mark of the shared store or the hosted campaign\'s, no template and no Template tick in a player\'s snapshot or the stream window\'s; the GM\'s own state keeps them',
+        ![tpP, tpS].some(t => /priv|imageCats|TemplateGuardQ|c_tplq|"template"/.test(t)) && tpKept.campaigns.k1.imageCats.priv.VillainTagQ === true && tpKept.campaigns.k1.chars.c_tplq.template === true, [tpP.slice(0, 300)]);
 }
 // 1.5.5, a list placed once a category (the review of that fold): a placement's categories in the join snapshot and the stream window are judged as a
 // list's own are (Stage 6 F4b), so a category only GM-only things carry never reaches a player — the real sanitizeAppState with the real systemcore

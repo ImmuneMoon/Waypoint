@@ -5946,6 +5946,46 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && !!none && none.childNodes.length === 1 && none.childNodes[0].textContent === 'The file carries no picture to use as a cover.',
             err || JSON.stringify([imgs.map(i => i && i.src), steps]));
     }
+    /* ---- 1.6.2, Export all (backlog 227): the share sheet's pictures by tag and its Pick... grid (share.js drawTags and drawPicks, sliced by
+       their sharetags markers with the sharetip and sharegrid slices, run for real with sharecore and safecore on a page that refuses markup),
+       and the look before an import lands (showLook, sliced by its sharelook markers): a tag's name and a picture's path come from the campaign ---- */
+    {
+        let err = ''; const out = {}, steps = [], j = JSON.stringify, evil = '<img src=x onerror=alert(1)>"\'';
+        try {
+            const { makeDom } = require('./boxdom.js'), dom = makeDom(), doc = dom.document, SFt = await import(modUrl('safecore.js')), SHt = await import(modUrl('sharecore.js'));
+            const ids = {}; ['shareTags', 'shareTagsHead', 'sharePickGrid', 'importLook', 'importLookList'].forEach(id => { const e = doc.createElement(id === 'importLookList' ? 'ul' : 'div'); e.id = id; doc.body.appendChild(e); ids[id] = e; });
+            const pics = { checked: true }, P = n => '/saves/images/m/' + n;
+            const stores = [{ list: [evil, 'Plain'], by: { [P('a.png')]: [evil], [P('"><svg onload=1>.png')]: ['Plain'] }, priv: { [evil]: true } }];
+            const st = { allPics: [P('a.png'), P('"><svg onload=1>.png'), P('javascript:alert(1).png'), P('<b>c</b>.png')], stores: stores, sets: SHt.fileSets({}), off: { [evil]: true }, pickOut: {}, pickIn: {} };
+            const k = new Function('el', 'document', '_s', 'SC', 'kindBox', 'sharedTag', 'outNow', 'picRef', 'log', 'PICK_MAX',
+                slice('share.js', 'sharetip') + '\n' + slice('share.js', 'sharegrid') + '\n' + slice('share.js', 'sharetags') + '\nreturn { drawTags: drawTags, drawPicks: drawPicks };')(
+                id => ids[id] || null, doc, st, SHt, kk => (kk === 'pictures' ? pics : null), n => n === 'Plain', () => SHt.picsOut(st.allPics, st.stores, st.sets, st.off, st.pickOut, st.pickIn), SFt.picRef, (s, o) => steps.push(s), 600);
+            k.drawTags();
+            const rows = ids.shareTags.childNodes;
+            out.tags = rows.map(r => ({ txt: r.childNodes.filter(c => c.className === 'share-kname').map(c => c.textContent).join(), cb: r.childNodes[0].checked, tag: r.childNodes[0].getAttribute('data-tag'), priv: (r.childNodes.find(c => c.tagName === 'BUTTON') || { getAttribute: () => null }).getAttribute('aria-pressed'), cls: r.className }));
+            pics.checked = false; k.drawTags(); out.off = ids.shareTags.childNodes.every(r => r.childNodes[0].disabled === true); pics.checked = true;
+            ids.sharePickGrid.hidden = false; k.drawPicks();
+            const cells = ids.sharePickGrid.childNodes, im = cells.map(c => c.childNodes[0]);
+            out.cells = cells.map(c => [c.tagName, c.getAttribute('aria-pressed'), c.getAttribute('data-path'), c.className]);
+            out.srcs = im.map(i => i.src);
+            if (im[1] && im[1].handlers && im[1].handlers.error) im[1].handlers.error.forEach(fn => fn.call(im[1], {}));
+            out.gone = [im[1].hidden, cells[1].className];
+            ids.sharePickGrid.hidden = true; k.drawPicks(); out.closed = ids.sharePickGrid.childNodes.length;
+            const look = new Function('el', 'document', 'SC', 'log', slice('share.js', 'sharelook') + '\nreturn showLook;')(id => ids[id] || null, doc, SHt, (s, o) => steps.push(s + ' ' + JSON.stringify(o)));
+            out.t = look({ campaigns: { a: { name: evil, items: { m: { type: 'map', meta: { title: evil } } }, chars: { c_1: { name: evil, template: true } } } } }, ['images/m/a.png', 'images/m/' + evil + '.png']);
+            out.look = ids.importLookList.childNodes.map(li => [li.tagName, li.textContent]); out.lookShown = ids.importLook.hidden;
+            look(null); out.lookGone = [ids.importLook.hidden, ids.importLookList.childNodes.length];
+            const all = []; (function w(n) { all.push(n); (n.childNodes || []).forEach(w); })(doc.body); out.els = all.filter(n => n.nodeType === 1).map(n => n.tagName).filter((t, i, a) => a.indexOf(t) === i).sort();
+        } catch (e) { err = String(e && e.stack || e); }
+        check('1.6.2 Export all: the sheet\'s pictures by tag and Pick... (share.js drawTags, drawPicks, run for real on a page that refuses markup, with sharecore and safecore): a tag\'s name is text and names its tick as written, its own row\'s tick follows the sheet, Private pressed for a private tag; No tag is a row of its own; every tick waits while Pictures is unticked; each picture a button with one img at a plain address under /saves/images/ by encodeURI and picRef, pressed when it is left out; a picture whose file is missing hides quietly; a grid put away draws nothing',
+            !err && j(out.tags) === j([{ txt: evil, cb: false, tag: evil, priv: 'true', cls: 'gen-tick share-kind share-tag priv' }, { txt: 'Plain \u25C7', cb: true, tag: 'Plain', priv: 'false', cls: 'gen-tick share-kind share-tag' }, { txt: 'No tag', cb: true, tag: '__none', priv: null, cls: 'gen-tick share-kind share-tag' }])
+            && out.off === true && out.cells.length === 4 && out.cells.every(c => c[0] === 'BUTTON') && j(out.cells.map(c => c[1])) === j(['true', 'false', 'false', 'false'])
+            && out.srcs.every(s => typeof s === 'string' && s.indexOf('/saves/images/m/') === 0 && !/["<> ]/.test(s)) && out.gone[0] === true && /nopic/.test(out.gone[1]) && out.closed === 0
+            && j(out.els) === j(['BODY', 'BUTTON', 'DIV', 'IMG', 'INPUT', 'LABEL', 'LI', 'SPAN', 'UL'].filter(t => out.els.includes(t))) && !out.els.some(t => /SCRIPT|SVG|A$/.test(t)), err || j(out));
+        check('1.6.2 Export all: the look before an import lands (share.js showLook, run for real on a page that refuses markup): counts only, each a list row of text, never a name from the file; put away with nothing left; logged as look-shown with its counts',
+            !err && j(out.look) === j([['LI', '1 map'], ['LI', '1 template'], ['LI', '2 pictures']]) && out.lookShown === false && j(out.lookGone) === j([true, 0])
+            && steps.some(s => s === 'look-shown ' + j({ system: 0, packs: 0, maps: 1, pages: 0, chars: 0, templates: 1, pictures: 2, sounds: 0, music: 0, videos: 0, zip: true })), err || j([out.look, steps]));
+    }
     /* ---- 1.6.0 backlog 34, the card an import shows (share.js showCard, sliced by its sharecard markers and run for real with sharecore and
        safecore on a page that refuses markup): every word of it comes from a file someone else made ---- */
     {

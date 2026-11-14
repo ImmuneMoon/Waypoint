@@ -94,6 +94,8 @@ function systemCopy(src, newDir, pages) {
         c.library.packs.forEach(function(p) { if (isObj(p) && typeof p.id === 'string' && typeof p.rev === 'number' && p.rev > 0) out.uploads.push({ pack: p.id, rev: p.rev, fromDir: from, toDir: newDir }); });
     }
     if (isObj(c.fog)) out.fog = c.fog;
+    // 1.6.2 (backlog 227): a template lives in its campaign and comes along with a copy of its system, under its own id, with no player
+    if (isObj(c.chars)) Object.keys(c.chars).forEach(function(id) { var ch = c.chars[id]; if (!isObj(ch) || ch.template !== true || ch.partial === true) return; ['links', 'stn', 'debts', 'shareWith'].forEach(function(k) { delete ch[k]; }); ch.ownerId = ''; (out.chars = out.chars || {})[id] = ch; });
     if (pages === true && isObj(c.items)) {
         Object.keys(c.items).forEach(function(id) { var it = c.items[id]; if (isObj(it) && it.type === 'doc') out.items[id] = it; });
         Object.keys(out.items).forEach(function(id) { var m = out.items[id].meta; if (isObj(m) && m.parentId && !out.items[m.parentId]) delete m.parentId; });

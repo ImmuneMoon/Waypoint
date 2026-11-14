@@ -208,6 +208,29 @@ const ch = n => String.fromCharCode(n);
             && css.includes('#imgLibModal.lib-drag, #imgLibModal.lib-drag * { pointer-events: none !important; }') && css.includes('#imgLibModal.lib-drag.lib-aside > * { opacity: 0.12;') && wb.includes("if (wpPic) { libDropAt(wpPic, e); return; }"),
             JSON.stringify([fto('Tavern/Chairs/chair.png'), am.whiteboard, toasts]));
     }
+    {   // 1.6.2 (backlog 227; the owner, by prompt: "Both"): a tag marked private, in the store that holds it; Share's For friends leaves its pictures out
+        const en = T.tagName(evil), pv = {}; pv.A = true; pv.B = 'yes'; pv.Z = true; pv[evil] = true; pv.__proto__x = true;
+        const c1 = T.cleanStore({ list: ['A', 'B', evil], by: {}, shelf: {}, priv: pv });
+        check('the private mark (imgtagcore cleanStore): kept beside shelf as { name: true }, only for a name the store lists, cleaned as the name is; a mark that is not true, or a name the store lacks, is dropped; absent when nothing is marked, so a store without one is as it was',
+            j(c1.priv) === j({ A: true, [en]: true }) && !('priv' in T.cleanStore({ list: ['A'], priv: {} })) && !('priv' in T.cleanStore({ list: ['A'], priv: [true] })) && !('priv' in T.cleanStore({ list: ['A'], priv: { A: 1 } }))
+            && j(T.cleanStore({ list: ['A'], by: {}, shelf: {} })) === j({ list: ['A'], by: {}, shelf: {} }) && T.storeEmpty({ list: [], by: {}, shelf: {}, priv: { A: true } }) === false && T.storeEmpty(T.cleanStore({ priv: { A: true } })) === true, j(c1));
+        const mg = T.mergeStores({ list: ['A'], priv: { A: true } }, { list: ['A', 'B', 'C'], priv: { B: true } });
+        const s1 = { list: ['A', 'B'], by: {}, shelf: {} }, on1 = T.setPrivate(s1, 'A', true), had = j(s1.priv), off1 = T.setPrivate(s1, 'A', false), miss = T.setPrivate(s1, 'Q', true);
+        check('the private mark joins on a Merge and is set in one store (imgtagcore mergeStores, setPrivate, isPrivate, privNames): ours stay on and the file\'s join; set only for a tag the store lists, cleared with its key gone when none is left; read across stores, in their order',
+            j(mg.priv) === j({ A: true, B: true }) && on1 === true && had === j({ A: true }) && off1 === false && !('priv' in s1) && miss === false && !('priv' in s1)
+            && T.isPrivate([{ list: ['A'], priv: { A: true } }, { list: ['B'] }], 'A') === true && T.isPrivate([{ list: ['B'], priv: { A: true } }], 'A') === false && T.isPrivate(null, 'A') === false
+            && j(T.privNames([{ list: ['B', 'A'], priv: { A: true, B: true } }, { list: ['C', 'A'], priv: { C: true } }])) === j(['B', 'A', 'C']), j([mg, s1]));
+        const dm = makeDom(), dd = dm.document, rw = dd.createElement('div');
+        let er = ''; try { T.drawRow(dd, rw, { scopes: [], all: { count: 1 }, tags: [{ name: evil, store: 'camp', count: 1, active: true, priv: true }, { name: 'Ships', store: 'shared', count: 1 }], none: { count: 0 }, tools: { shelf: false, shared: false, priv: true } }); } catch (e) { er = String(e && e.stack || e); }
+        const bs = walk(rw).filter(n => n.tagName === 'BUTTON'), pb = bs.find(b => b.dataset.act === 'private'), tb = bs.find(b => b.dataset.cat === evil);
+        check('the private mark drawn (imgtagcore drawRow, run for real on a page that refuses markup): a private tag\'s chip wears its own class and says so in its title; Private: on among the tag\'s tools, before Make shared; none where the caller says nothing of it',
+            !er && textOnly(rw) && !!pb && pb.textContent === 'Private: on' && /img-cat-private/.test(tb.className) && /Private: it starts unticked on Full export/.test(tb.title) && !/img-cat-private/.test(bs.find(b => b.dataset.cat === 'Ships').className)
+            && j(bs.filter(b => b.dataset.act).map(b => b.dataset.act)) === j(['shelf', 'private', 'share', 'rename', 'delete']) && tb.className === 'journal-from active img-cat-private', er || j(bs.map(b => [b.className, b.dataset])));
+        check('the private mark wired (whiteboard.js): the tag\'s tools toggle it in the store that holds the tag, save, say so and log it as imglib v1 with no name; a rename moves it, a delete clears it, and moving a tag between stores moves it too',
+            wb.includes("if (act === 'private') {") && wb.includes("var csP = catStore(homeP, true), onP = TagCore.setPrivate(csP, _imgLibCat, !TagCore.isPrivate(csP, _imgLibCat));") && wb.includes("tagLog('tag-private', { on: onP, store: homeP === 'shared' ? 'shared' : 'camp' });")
+            && wb.includes("if (c.priv && c.priv[old]) { delete c.priv[old]; c.priv[name] = true; }") && wb.includes("TagCore.setPrivate(cc, del, false); cc.list = cc.list.filter(") && wb.includes("if (TagCore.isPrivate(a, name)) { TagCore.setPrivate(z, name, true); TagCore.setPrivate(a, name, false); }")
+            && wb.includes("m.tools = { shelf: !!c.shelf[_imgLibCat], shared: home === 'shared', priv: TagCore.isPrivate(c, _imgLibCat) };"));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

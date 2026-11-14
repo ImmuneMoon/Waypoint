@@ -1996,11 +1996,13 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       // the share sheet's card (1.6.0 backlog 34): its cover is one of the campaign's pictures and always comes along, even with Pictures left out;
       // the contents it counts are the file's as it is made. A file with a card is always a .zip
       var shareCover = share && typeof share.cover === 'string' && exportPathOk(share.cover) && Share.coverName(share.cover.replace(/^\/saves\//, '')) ? share.cover : '';
-      if (shareSets) paths = Share.keepPaths(paths, share.leave, shareSets, shareCover);
+      if (shareSets) paths = Share.keepPaths(paths, share.leave, shareSets, shareCover, share.pics);   // 1.6.2 (backlog 227): and the single pictures the sheet left out
       else if (shareCover && paths.indexOf(shareCover) < 0) paths.push(shareCover);
+      // 1.6.2 (backlog 227): a picture left out keeps its path everywhere it is used, and the card names those places (share.json leftPics)
+      var shareNamed = shareSets ? collectImagePaths(payload) : [], shareLeftPics = shareNamed.filter(function(p) { return Share.kindOf(p, shareSets) === 'pictures' && paths.indexOf(p) < 0; });
       var shareE = null;
       if (share && share.card) {
-          var shareCard = Share.cardFor(Object.assign({}, share.card, { cover: shareCover.replace(/^\/saves\//, ''), leave: share.leave }), Share.tally(payload, paths, share.sizes), scope === 'all' ? 'all' : 'campaign');
+          var shareCard = Share.cardFor(Object.assign({}, share.card, { cover: shareCover.replace(/^\/saves\//, ''), leave: share.leave, leftPics: shareLeftPics }), Share.tally(payload, paths, share.sizes), scope === 'all' ? 'all' : 'campaign');
           if (shareCard) shareE = { name: 'share.json', data: new TextEncoder().encode(JSON.stringify(shareCard, null, 2)) };
       }
       if (!paths.length && !libFiles.length && !handle && !shareE) return { name: base + '.json', text: json, libMissing: libMissing, unlisted: unlisted };

@@ -1255,6 +1255,25 @@ The Data Map
   open on its Play Map or its Data Map. A map can pick its own with Opens on
   in its right-click in the Maps list. Players always open on the Play Map.
 
+Taking a campaign with you
+- Share this campaign is now Full export: your whole campaign in one file,
+  with its system, packs, maps, pages and pictures. Plain ticks pick what
+  goes, so it can travel with pictures or without, with your players or
+  without, and with your templates, sounds, music and videos.
+- The sheet lists your pictures by their Image Library tags. Untick a tag,
+  mark one Private, or press Pick... to leave out single pictures. A private
+  tag starts unticked, and you can mark one in the Image Library too.
+- A picture left out keeps its place in the file. Friends add their own art
+  there, and until they do, the map shows a faint frame and a token its
+  initials. No broken pictures, no error.
+- Tick Template on a sheet and it becomes one to copy. It never has a player,
+  it sits in its own fold under Characters, and it has its own tick on the
+  export. New from a template on the + makes a fresh sheet from it,
+  and a new campaign that copies your system brings its templates along.
+- Import now shows what a file holds before anything lands: the system and
+  its packs, maps, pages, characters, templates, pictures and sounds. Then
+  you pick Import as a new campaign, or merge it into yours.
+
 WAYPOINT 1.6.1 — What's New
 ============================
 

@@ -28,6 +28,7 @@ function charRowsOf(chars, names, me, catOf, cats) {   // catOf, cats (1.6.2, 21
     Object.keys(chars).forEach(function(id) {
         var c = chars[id]; if (!CHAR_ID.test(id) || !c || typeof c !== 'object' || c.partial || c.id !== id) return;   // a sheet under its own plain id: what the sheet module opens by
         if (own && c.ownerId !== own) return;
+        if (c.template === true) { if (!own) (out.templates = out.templates || []).push({ id: id, name: charText(c.name, CHAR_NAME) || 'Unnamed', who: '' }); return; }   // 1.6.2 (backlog 227): a template stands under its own fold, the GM's alone, never among Players or NPCs
         var owner = typeof c.ownerId === 'string' ? c.ownerId : '';
         var row = { id: id, name: (charText(c.name, CHAR_NAME) || 'Unnamed') + (c.making === 1 ? ' (being made)' : ''), who: '' };
         if (!own && !c.npc) row.who = owner ? (Object.prototype.hasOwnProperty.call(nm, owner) && charText(nm[owner], 40)) || 'a player' : 'no player';
@@ -35,7 +36,7 @@ function charRowsOf(chars, names, me, catOf, cats) {   // catOf, cats (1.6.2, 21
         (c.npc && !own ? out.npcs : out.players).push(row);
     });
     var by = function(a, b) { return a.name.localeCompare(b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0); };
-    out.players.sort(by); out.npcs.sort(by); if (out.cats) out.cats = out.cats.filter(function(x) { x.rows.sort(by); return x.rows.length > 0; });
+    out.players.sort(by); out.npcs.sort(by); if (out.templates) out.templates.sort(by); if (out.cats) out.cats = out.cats.filter(function(x) { x.rows.sort(by); return x.rows.length > 0; });
     return out;
 }
 // 1.6.2 (the owner, by prompt: "The map they stand on"): where two rows of a list share a name, each says the map its token stands on, or that
@@ -57,7 +58,7 @@ function charDraw(doc, box, model, gm, open, shut) {   // shut (218 fold 2): the
         var tN = el('span', 'si-title', r.name); if (typeof window !== 'undefined' && window.wpPlook) window.wpPlook.dress(tN, window.wpPlook.ofCharId(r.id)); d.appendChild(tN); if (r.at) d.appendChild(el('small', 'ch-at', r.at)); if (r.who) d.appendChild(el('small', 'ch-who', r.who));
         return d;
     };
-    var cts = Array.isArray(model.cats) ? model.cats : [], n = model.players.length + model.npcs.length + cts.reduce(function(a, x) { return a + x.rows.length; }, 0);
+    var cts = Array.isArray(model.cats) ? model.cats : [], tps = gm && Array.isArray(model.templates) ? model.templates : [], n = model.players.length + model.npcs.length + tps.length + cts.reduce(function(a, x) { return a + x.rows.length; }, 0);
     if (!n) { if (gm) box.appendChild(el('div', 'nav-empty', model.noSys ? 'No character sheets yet. Set them up first: the Campaign menu, then System.' : 'No characters yet. Press + above to make a sheet, or right-click a token.')); return 0; }   // 1.6.2 (the builder trial): a campaign with no system says where it is set up
     if (gm && model.players.length) box.appendChild(el('div', 'ch-sub', 'Players'));
     model.players.forEach(function(r) { box.appendChild(rowOf(r)); });
@@ -72,10 +73,17 @@ function charDraw(doc, box, model, gm, open, shut) {   // shut (218 fold 2): the
         model.npcs.forEach(function(r) { list.appendChild(rowOf(r)); });
         box.appendChild(list);
     }
+    if (tps.length) {   // 1.6.2 (backlog 227): the templates' own fold, last
+        var ft = el('button', 'ch-fold ch-tplfold', (model.tplOpen ? '\u25be ' : '\u25b8 ') + 'Templates, ' + tps.length); ft.type = 'button'; ft.dataset.tpl = '1'; ft.setAttribute('aria-expanded', model.tplOpen ? 'true' : 'false'); ft.title = 'Sheets to copy. No player plays them, and they travel with every export of this campaign';
+        box.appendChild(ft);
+        var lt = el('div', 'ch-tpls'); lt.hidden = !model.tplOpen;
+        tps.forEach(function(r) { lt.appendChild(rowOf(r)); });
+        box.appendChild(lt);
+    }
     return n;
 }
 // What was drawn, as a text: the list is drawn again only when this changed
-function charSig(model, gm, open, shut) { return JSON.stringify([(model.cats || []).map(function(x) { return [x.key, x.label, shut && shut[x.key] ? 1 : 0, x.rows.map(function(r) { return [r.id, r.name, r.who, r.at || '']; })]; }), gm ? 1 : 0, open ? 1 : 0, model.players.map(function(r) { return [r.id, r.name, r.who, r.at || '']; }), model.npcs.map(function(r) { return [r.id, r.name, r.at || '']; }), typeof window !== 'undefined' && window.wpPlook ? model.players.concat(model.npcs).map(function(r) { return window.wpPlook.sig(window.wpPlook.ofCharId(r.id)); }) : []]); }   // 1.6.2, backlog 35: and the looks
+function charSig(model, gm, open, shut) { return JSON.stringify([(model.cats || []).map(function(x) { return [x.key, x.label, shut && shut[x.key] ? 1 : 0, x.rows.map(function(r) { return [r.id, r.name, r.who, r.at || '']; })]; }), gm ? 1 : 0, open ? 1 : 0, model.players.map(function(r) { return [r.id, r.name, r.who, r.at || '']; }), model.npcs.map(function(r) { return [r.id, r.name, r.at || '']; }), (model.templates || []).map(function(r) { return [r.id, r.name]; }), model.tplOpen ? 1 : 0, typeof window !== 'undefined' && window.wpPlook ? model.players.concat(model.npcs).map(function(r) { return window.wpPlook.sig(window.wpPlook.ofCharId(r.id)); }) : []]); }   // 1.6.2, backlog 35: and the looks
 // A character's token to go to: on the map on screen before any other, a shown one before one the GM hid; hidden ones only for the GM (all).
 // items: camp.items. Answers { map, tok } or null
 function charTokenOf(items, charId, activeId, all) {
@@ -102,28 +110,32 @@ function charNoToken(name, waiting, client) { return name + (waiting ? ' has a t
 // The rows of a character's menu, as the owner picked them: Sheet, HUD where the sheet has one, Find on the map, Delete sheet. Backlog 152 fold 4b (the
 // owner's answer 1, 2026-10-19: a Rules run switch on each NPC, "placed somewhere easy to use quickly"): after Find on the map, an NPC's Rules run as a
 // tick row where it has the switch. rules: which way it stands, true or false (calendar.js rulesRun); anything else, no row
-function charMenuRows(hud, del, rules, give, debts, unique, file, room, loot) {   /* loot (backlog 42, fold 3): an NPC's Can be looted, the GM's */   // room (backlog 45, fold 4): Find their room, the GM's   // debts (157 M1h): the GM's Debts... row; unique (backlog 31): an NPC's Unique tick; file (218 fold 2): File under…
+function charMenuRows(hud, del, rules, give, debts, unique, file, room, loot, tpl) {   /* tpl (1.6.2, backlog 227): the GM's Template tick, and New from this template under it */   /* loot (backlog 42, fold 3): an NPC's Can be looted, the GM's */   // room (backlog 45, fold 4): Find their room, the GM's   // debts (157 M1h): the GM's Debts... row; unique (backlog 31): an NPC's Unique tick; file (218 fold 2): File under…
     var rows = [{ act: 'sheet', text: 'Sheet\u2026' }];
     if (hud) rows.push({ act: 'hud', text: 'HUD\u2026' });
     rows.push({ rule: true }, { act: 'find', text: 'Find on the map' });
     if (room === true) rows.push({ act: 'room', text: 'Find their room' });
     if (file === true) rows.push({ act: 'file', text: 'File under\u2026' });
-    if (give === true) rows.push({ act: 'give', text: 'Give to a player\u2026' });
+    if (give === true && tpl !== true) rows.push({ act: 'give', text: 'Give to a player\u2026' });   // no player plays a template
     if (debts === true) rows.push({ act: 'debts', text: 'Debts\u2026' });   // 1.6.0: the GM's, here and on the sheet's own line
     if (rules === true || rules === false) rows.push({ act: 'rules', text: 'Rules run', tick: rules });
     if (loot === true || loot === false) rows.push({ act: 'loot', text: 'Can be looted', tick: loot });
     if (unique === true || unique === false) rows.push({ act: 'unique', text: 'Unique', tick: unique });   // a named NPC: a group's drop uses its one sheet
+    if (tpl === true || tpl === false) rows.push({ act: 'template', text: 'Template', tick: tpl });
+    if (tpl === true) rows.push({ act: 'fromtpl', text: 'New from this template\u2026' });
     if (del) rows.push({ rule: true }, { act: 'delete', text: 'Delete sheet\u2026', red: true });
     return rows;
 }
 function charCatsShutRead(store) { var o = Object.create(null); try { String(store.getItem('wp_charCatsShut') || '').split(',').forEach(function(k) { if (/^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(k)) o[k] = 1; }); } catch (e) {} return o; }   // 1.6.2 (218, fold 2)
 function charCatsShutKeep(store, shut) { try { var ks = Object.keys(shut).filter(function(k) { return shut[k]; }); if (ks.length) store.setItem('wp_charCatsShut', ks.join(',')); else store.removeItem('wp_charCatsShut'); return true; } catch (e) { return false; } }
+function charTplRead(store) { try { return store.getItem('wp_charTpl') === '1'; } catch (e) { return false; } }   // 1.6.2 (backlog 227): the templates' fold, open on this computer
+function charTplKeep(store, open) { try { if (open === true) store.setItem('wp_charTpl', '1'); else store.removeItem('wp_charTpl'); return true; } catch (e) { return false; } }
 function charNpcsRead(store) { try { return store.getItem('wp_charNpcs') === '1'; } catch (e) { return false; } }
 function charNpcsKeep(store, open) { try { if (open === true) store.setItem('wp_charNpcs', '1'); else store.removeItem('wp_charNpcs'); return true; } catch (e) { return false; } }
 // [lookcheck:charlist-end]
 
 // [lookcheck:charwire-start]
-var _sig = null, _open = charNpcsRead(localStorage), _menu = null, _menuAt = [0, 0], _shut = charCatsShutRead(localStorage);
+var _sig = null, _tplOpen = charTplRead(localStorage), _open = charNpcsRead(localStorage), _menu = null, _menuAt = [0, 0], _shut = charCatsShutRead(localStorage);
 function sheets() { return window.wpSheets || null; }
 function foreign() { var n = window.wpNet; return !!(n && (n.foreign || (n.active && n.role === 'client'))); }   // someone else's table on this screen, its link up or between attempts
 function linkUp() { var n = window.wpNet; return !!(n && n.active && n.role === 'client'); }   // a player's app as the sheet module knows one (sheets.js isClient)
@@ -142,7 +154,7 @@ function sync() {
     var camp = getActiveCampaign(), S = sheets(), client = foreign(), n = window.wpNet, me = client ? String((n && n.myId) || '\u0000') : '';
     var on = !!camp && !!S && !window.wpStream && (!window.wpVtt || !!window.wpVtt.on('sheets'));
     var catsS = on && camp.system && Array.isArray(camp.system.charCats) ? camp.system.charCats : [], catOfS = catsS.length && S.charCatNow ? function(id) { var cc = S.charById(id, camp); return cc ? S.charCatNow(cc) : ''; } : null;   /* 1.6.2 (218, fold 2) */
-    var model = on ? charPlaces(charRowsOf(camp.chars, namesOf(camp), me, catOfS, catsS), camp.items, camp.activeItemId, !client) : { players: [], npcs: [], cats: [] }, count = model.players.length + model.npcs.length + (model.cats || []).reduce(function(a2, x) { return a2 + x.rows.length; }, 0), show = on && (!client || count > 0); if (on && !client) model.noSys = !(camp.system && Array.isArray(camp.system.fields) && camp.system.fields.length);
+    var model = on ? charPlaces(charRowsOf(camp.chars, namesOf(camp), me, catOfS, catsS), camp.items, camp.activeItemId, !client) : { players: [], npcs: [], cats: [] }; model.tplOpen = _tplOpen; var count = model.players.length + model.npcs.length + (!client && model.templates ? model.templates.length : 0) + (model.cats || []).reduce(function(a2, x) { return a2 + x.rows.length; }, 0), show = on && (!client || count > 0); if (on && !client) model.noSys = !(camp.system && Array.isArray(camp.system.fields) && camp.system.fields.length);
     sec.hidden = !show; if (rb) rb.hidden = !show;
     var sig = show ? charSig(model, !client, _open, _shut) + (model.noSys ? '|nosys' : '') : '';
     if (sig !== _sig) { _sig = sig; if (show) { var KP = typeof window !== 'undefined' ? window.wpKeepPlace : null, dr = function() { charDraw(document, box, model, !client, _open, _shut); }; if (typeof KP === 'function') KP(box, dr); else dr(); } else while (box.firstChild) box.removeChild(box.firstChild); }
@@ -218,7 +230,7 @@ function menuFor(id, x, y) {
     // Delete only where the sheet module will take it: a player's own whole sheet while their link is up, the GM's where the campaign can be written
     var client = foreign(), del = client ? !!(linkUp() && c.ownerId && c.ownerId === window.wpNet.myId && !c.partial && c.shared !== 1) : !!(window.wpCanPersistLocal && window.wpCanPersistLocal());
     var Cal = window.wpCalendar, rules = !client && Cal && typeof Cal.rulesRun === 'function' ? Cal.rulesRun(id) : null;   // 152 fold 4b: the GM's alone, and only where calendar.js says the character has the switch
-    charMenuRows(!!(S.hudFor && S.hudFor(id)), del, rules, !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()), !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && typeof S.debtAdd === 'function', !client && c.npc === true && typeof S.uniqueToggle === 'function' && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) ? c.unique === true : null, !!catMayOf(c), !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()), !client && typeof S.lootOf === 'function' ? S.lootOf(id) : null).forEach(function(r) {
+    charMenuRows(!!(S.hudFor && S.hudFor(id)), del, rules, !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()), !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && typeof S.debtAdd === 'function', !client && c.npc === true && typeof S.uniqueToggle === 'function' && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) ? c.unique === true : null, !!catMayOf(c), !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()), !client && typeof S.lootOf === 'function' ? S.lootOf(id) : null, !client && typeof S.templateToggle === 'function' && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && !c.ownerId && c.making !== 1 ? c.template === true : null).forEach(function(r) {
         var d = document.createElement(r.rule ? 'div' : 'button');
         if (r.rule) d.className = 'menu-divider'; else { d.type = 'button'; if (r.red) d.className = 'danger'; d.dataset.act = r.act; d.setAttribute('role', r.tick === true || r.tick === false ? 'menuitemcheckbox' : 'menuitem'); if (r.tick === true || r.tick === false) { d.setAttribute('aria-checked', r.tick ? 'true' : 'false'); d.title = r.act === 'loot' ? 'Ticked, a player next to it can search it and take what its lists ticked Tradable hold' : r.act === 'unique' ? 'Ticked, an encounter group placed with this NPC uses this one sheet. Unticked, each placing makes a fresh numbered copy' : 'Ticked, this NPC\u2019s time rules run by themselves as time passes. Unticked, they do not'; } d.appendChild(document.createTextNode((r.tick === true ? '\u2713 ' : '') + r.text)); }
         _menu.appendChild(d);
@@ -239,6 +251,31 @@ function catMenu(id, x, y) {
     _menu.style.display = 'flex'; if (window.wpClampMenu) window.wpClampMenu(_menu, x, y);
     var first = _menu.querySelector('button'); try { if (first) first.focus(); } catch (e) {}
 }
+// 1.6.2 (backlog 227): New from a template: a name asked, then a fresh copy, opened, under Players or NPCs as the template was
+function fromTemplate(tid) {
+    var S = sheets(), camp = getActiveCampaign(), t = camp && S ? S.charById(tid, camp) : null; if (!t || t.template !== true || !S.newFromTemplate) return;
+    if (foreign() || !(window.wpCanPersistLocal && window.wpCanPersistLocal())) { toast('A sheet cannot be made here. This campaign is not yours to change.'); return; }
+    showPrompt('Name the new sheet', charText(t.name, CHAR_NAME) || 'New character', function(name) {
+        if (name === null) return;
+        var c = S.newFromTemplate(tid, String(name || '').trim()); if (!c) { toast('That template could not be copied.'); return; }
+        if (c.npc) _open = true;
+        sync(); if (S.canOpen(c.id)) S.openSheet(c.id);
+    }, { name: 'person' });
+}
+// The + button's menu where the campaign holds templates: a new sheet as ever, then each template
+function plusMenu(x, y, tpls) {
+    menuMake(); _menuAt = [x, y];
+    while (_menu.firstChild) _menu.removeChild(_menu.firstChild);
+    _menu.dataset.char = '';
+    var row = function(text, fn, cls) { var d = document.createElement('button'); d.type = 'button'; d.setAttribute('role', 'menuitem'); if (cls) d.className = cls; d.textContent = text; d.addEventListener('click', function(e) { e.stopPropagation(); menuAway(); fn(); }); _menu.appendChild(d); return d; };
+    row('New sheet\u2026', function() { plusAsk(); });
+    var dv = document.createElement('div'); dv.className = 'menu-divider'; _menu.appendChild(dv);
+    var hd = document.createElement('div'); hd.className = 'char-menu-head'; hd.textContent = 'New from a template'; _menu.appendChild(hd);
+    tpls.forEach(function(t) { row(charText(t.name, CHAR_NAME) || 'Unnamed', function() { fromTemplate(t.id); }); });
+    _menu.style.display = 'flex';
+    if (window.wpClampMenu) window.wpClampMenu(_menu, x, y); else { _menu.style.left = x + 'px'; _menu.style.top = y + 'px'; }
+    var first = _menu.querySelector('button'); try { if (first) first.focus(); } catch (e) {}
+}
 function menuPress(e) {
             var sh = e.target && e.target.closest ? e.target.closest('[data-share]') : null;
             if (sh) { var cidS = _menu.dataset.char, S1 = sheets(), keep = sh.dataset.share; if (S1 && S1.shareToggle) S1.shareToggle(cidS, keep); giveMenu(cidS, _menuAt[0], _menuAt[1]); var bk = _menu.querySelector('[data-share="' + String(keep).replace(/[^A-Za-z0-9_-]/g, '') + '"]'); if (bk) bk.focus(); return; }   // the list stays up, for the next tick
@@ -251,6 +288,8 @@ function menuPress(e) {
             var S2 = sheets(); if (!S2 || !cid) return;
             if (act === 'debts') { if (S2.debtAdd) S2.debtAdd(cid); return; }
             if (act === 'unique') { if (S2.uniqueToggle) S2.uniqueToggle(cid); return; }   // backlog 31
+            if (act === 'template') { if (S2.templateToggle) S2.templateToggle(cid); return; }   // 1.6.2 (backlog 227)
+            if (act === 'fromtpl') { fromTemplate(cid); return; }
             if (act === 'loot') { if (S2.lootSet && S2.lootOf) S2.lootSet(cid, S2.lootOf(cid) !== true); return; }   // backlog 42, fold 3
             if (act === 'sheet') openOf(cid);
             else if (act === 'hud') { if (!away() && S2.hudFor(cid)) S2.openHud(cid); }
@@ -265,6 +304,7 @@ function wire() {
     box.addEventListener('click', function(e) {
         var f = e.target && e.target.closest ? e.target.closest('.ch-fold') : null;
         if (f && f.dataset.cat) { var kf = f.dataset.cat; _shut[kf] = !_shut[kf]; if (!_shut[kf]) delete _shut[kf]; charCatsShutKeep(localStorage, _shut); sync(); return; }   // 1.6.2 (218, fold 2): a category's fold
+        if (f && f.dataset.tpl) { _tplOpen = !_tplOpen; charTplKeep(localStorage, _tplOpen); sync(); return; }   // 1.6.2 (backlog 227)
         if (f) { _open = !_open; charNpcsKeep(localStorage, _open); sync(); return; }
         var r = rowAt(e.target); if (r && r.dataset.char) openOf(r.dataset.char);
     });
@@ -284,6 +324,14 @@ function wire() {
         e.stopPropagation();
         var S = sheets(); if (!S || !S.addCharacter) return;
         if (foreign() || !(window.wpCanPersistLocal && window.wpCanPersistLocal())) { toast('A sheet cannot be made here. This campaign is not yours to change.'); return; }
+        var tpls = S.templatesOf ? S.templatesOf(getActiveCampaign()) : [];   // 1.6.2 (backlog 227): with templates, the + is a menu
+        if (tpls.length) { var rP = plus.getBoundingClientRect(); plusMenu(rP.left, rP.bottom + 4, tpls); return; }
+        plusAsk();
+    });
+    updateSidebarNav();   // the panel judges once more what it holds for this screen, the section among it (sidebar.js asks sync)
+}
+function plusAsk() {
+        var S = sheets(); if (!S || !S.addCharacter) return;
         // Asked each time (the owner, 2026-10-17: "Ask each time"): a player's character or an NPC. An NPC lands under the NPCs' fold, which opens
         // to show it; a player's character stands with the players, with no player until it is given one. The question takes its buttons alone
         // (the owner, 2026-10-17, by prompt: "None, buttons only (Recommended)"): Enter answers neither, and Escape is Cancel
@@ -297,8 +345,6 @@ function wire() {
                 sync(); if (S.canOpen(c.id)) S.openSheet(c.id);
             }, { name: 'person' });   // 1.6.2 (backlog 147): with the name button
         }, { yes: 'NPC', alt: 'Player\u2019s character', noEnter: true });
-    });
-    updateSidebarNav();   // the panel judges once more what it holds for this screen, the section among it (sidebar.js asks sync)
 }
 // [lookcheck:charwire-end]
 window.wpCharList = { sync: sync };

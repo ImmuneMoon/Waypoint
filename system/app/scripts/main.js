@@ -596,7 +596,8 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
   var pendingImportBytes = 0;     // the picked archive's own size: what an import may write is judged against it
   var pendingImportLibrary = null; // Stage 6 library L1c2: the zip's pack files by name (library/<dir>/<id>.<rev>.json); none: a file's manifest is not used
   var pendingImportCard = null; // 1.6.0 backlog 34: the zip's share card as share.js readCard read it ({ card, url }), shown at the top of the Import box; none for a file without one
-  function importCardDone() { pendingImportCard = null; if (window.wpShare && typeof window.wpShare.showCard === 'function') window.wpShare.showCard(null); }   // the card is put away with the box, its picture let go
+  var pendingImportNames = null; // 1.6.2 backlog 227: the archive's entry names, for the look before it lands (lookOf); none for a plain file
+  function importCardDone() { pendingImportCard = null; if (window.wpShare && typeof window.wpShare.showCard === 'function') window.wpShare.showCard(null); }   // the card is put away with the box, its picture let go (share.js puts the look away with it, 1.6.2)
   var importLibJobs = [];
   // an imported campaign's library manifest, used only with its files: it lands in a fresh folder, or joins the one already here
   function takeImportedLibrary(target, ic, existingLib) {
@@ -847,6 +848,19 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
   });
 
+  // 1.6.2 (backlog 227; the owner, by prompt: "A look before it lands"): Import as a new campaign. Every campaign of the file comes in under a
+  // new id and a name of its own here, so nothing of yours is updated: then it lands as a Merge lands a campaign that is new here
+  var _el_importNewBtn = document.getElementById('importNewBtn');
+  if (_el_importNewBtn) _el_importNewBtn.addEventListener('click', function() {
+      if (!pendingImport || !window.wpShareCore) return;
+      var mkId = function() { var id = 'camp_' + Date.now() + '_' + Math.floor(Math.random() * 1000); while (state.appState.campaigns[id]) id = 'camp_' + Date.now() + '_' + Math.floor(Math.random() * 1000); return id; };
+      var mapN = window.wpShareCore.asNewCamps(pendingImport, mkId);
+      Object.keys(pendingImport.campaigns || {}).forEach(function(id) { var c = pendingImport.campaigns[id]; if (c && typeof c === 'object') c.name = getUniqueCampaignTitle(String(c.name || 'Imported campaign').trim() || 'Imported campaign'); });
+      var r = mergeAppState(pendingImport);
+      if (window.wpShare && window.wpShare.log) window.wpShare.log('import-new', { camps: Object.keys(mapN).length, landed: r.newCamps });
+      finishImport(r.newCamps === 1 ? 'Imported as a new campaign. Pick it in the campaign list.' : 'Imported as ' + r.newCamps + ' new campaigns.');
+  });
+
   var _el_importReplaceBtn = document.getElementById('importReplaceBtn');
 
   if(_el_importReplaceBtn) _el_importReplaceBtn.addEventListener('click', function() {
@@ -908,6 +922,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
                   var zip = await import('./zip.js');
                   var zopen = await zip.zipOpen(file), entries = zopen.entries;
                   pendingImportBytes = zopen.size;
+                  pendingImportNames = entries.map(function(en) { return en.name; });   // 1.6.2 backlog 227: the names the look counts, nothing read
                   var dj = entries.find(function(en) { return en.name === 'data.json'; });
                   if (!dj) {
                       if (window.wpDocImport && window.wpDocImport.detectBundle(entries)) { window.wpDocImport.importFile(file); return; }   // a .md with its pictures
@@ -946,6 +961,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
           pendingImportImages = null; pendingImportLibrary = null;   // a plain file carries no pack files: its library manifest is not used
           importCardDone();   // nor a share card (1.6.0 backlog 34)
+          pendingImportNames = null;   // 1.6.2 backlog 227: nor entries for the look to count
 
           var textIn = String(ev.target.result || '');
           if (/\.txt$/i.test(file.name) && !/^[\s\uFEFF]*[\[{]/.test(textIn) && window.wpDocImport) { window.wpDocImport.importFile(file); return; }   // plain text that is not JSON: read as Markdown
@@ -1057,7 +1073,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
                           'The file contains ' + nCamps + ' campaign(s) with ' + nItems + ' maps/planners. Merge adds and updates by id, keeping everything else you have. Replace discards ALL current data.';
 
-                      if (window.wpShare && typeof window.wpShare.showCard === 'function') window.wpShare.showCard(pendingImportCard);   // 1.6.0 backlog 34: the card at the top, or the box as it always was
+                      if (window.wpShare && typeof window.wpShare.showCard === 'function') window.wpShare.showCard(pendingImportCard); if (window.wpShare && typeof window.wpShare.showLook === 'function') window.wpShare.showLook(data, pendingImportNames);   // 1.6.0 backlog 34: the card at the top, or the box as it always was; 1.6.2 backlog 227: then what it holds, counted before anything is written
 
                       document.getElementById('importChoiceModal').style.display = 'flex';
 

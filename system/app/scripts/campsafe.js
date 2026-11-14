@@ -135,7 +135,7 @@ function csFlows(D) {
     function pickSystem(done) {
         var rows = C.systemRows(app().campaigns, app().activeCampaignId); if (!rows.length) { done(null); return; }
         var box = ui.createElement('div'), lead = ui.createElement('div'), sel = ui.createElement('select'), tick = ui.createElement('label'), cb = ui.createElement('input'), words = ui.createElement('span');
-        box.className = 'cs-list cs-sys-box'; lead.className = 'cs-lead'; lead.textContent = 'Start with no system, or with a copy of one of yours. After that the two change apart. Maps, planners and characters stay behind.'; box.appendChild(lead);
+        box.className = 'cs-list cs-sys-box'; lead.className = 'cs-lead'; lead.textContent = 'Start with no system, or with a copy of one of yours. After that the two change apart. Maps, planners and characters stay behind. Its templates come along.'; box.appendChild(lead);
         sel.className = 'tool cs-sys'; sel.title = 'The campaign whose system this one starts with';
         var add = function(v, t) { var o = ui.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); };
         add('', 'No system yet'); rows.forEach(function(r) { add(r.id, r.name); }); box.appendChild(sel);
@@ -152,6 +152,7 @@ function csFlows(D) {
         var bad = await copyPacks(plan.uploads);
         if (bad >= 0) { log('system-fail', { at: 'library', n: bad }); D.toast('A library pack could not be copied, so the campaign has no system yet. ' + name(src) + ' is untouched.'); return false; }
         into.system = plan.system; if (plan.library) into.library = plan.library; if (plan.fog) into.fog = plan.fog;
+        if (plan.chars) into.chars = plan.chars;   // 1.6.2 (backlog 227): its templates
         into.items = into.items || {}; Object.keys(plan.items).forEach(function(id) { into.items[id] = plan.items[id]; });
         log('system-done', { packs: plan.uploads.length, pages: Object.keys(plan.items).length });
         return true;

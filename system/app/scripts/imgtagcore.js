@@ -9,6 +9,9 @@
    a picture's tags are names the store lists. A campaign's store also keeps its saved filters (the owner, by prompt: "chips, kept with
    the campaign, export/ importable from another campaign without always showing by default"): { name, tags, match, words }, cleaned by
    cleanFilter, unique by name; the shared store keeps none.
+   A tag may be marked private (1.6.2, backlog 227; the owner, by prompt, "Both"): priv: { name: true }, beside shelf in the store that holds
+   the tag, kept only when one is marked. on Full export a private tag starts unticked, so its pictures stay out (sharecore.js); the mark is
+   the GM's own and never leaves this machine with the store. isPrivate and privNames read it across stores.
    drawRow, drawMenu, cellTags and previewTags draw tag names as text nodes only, on any document (the app's, or tools/boxdom.js, which
    refuses markup). Pure but for the document it is handed. Published as window.wpImgTagCore. */
 
@@ -62,10 +65,23 @@ function cleanStore(c, o) {
     });
     var shelf = isObj(c.shelf) ? c.shelf : {};
     Object.keys(shelf).forEach(function(raw) { var n = own(was, raw) ? was[raw] : tagName(raw); if (n && seen[n] && shelf[raw]) out.shelf[n] = true; });
+    var pv = isObj(c.priv) ? c.priv : {}, pvOut = {};   // 1.6.2 (backlog 227): the tags marked private, kept only when one is
+    Object.keys(pv).forEach(function(raw) { var n = own(was, raw) ? was[raw] : tagName(raw); if (n && seen[n] && pv[raw] === true) pvOut[n] = true; });
+    if (Object.keys(pvOut).length) out.priv = pvOut;
     if (o && o.filters) { var fl = cleanFilters(c.filters); if (fl.length) out.filters = fl; }
     return out;
 }
-function storeEmpty(c) { return !c || (!c.list.length && !Object.keys(c.by).length && !Object.keys(c.shelf).length && !(c.filters && c.filters.length)); }
+function storeEmpty(c) { return !c || (!c.list.length && !Object.keys(c.by).length && !Object.keys(c.shelf).length && !(c.filters && c.filters.length) && !(c.priv && Object.keys(c.priv).length)); }
+// 1.6.2 (backlog 227): whether a tag is marked private in any of the stores that list it, and every private name of the stores
+function isPrivate(stores, name) { return (Array.isArray(stores) ? stores : [stores]).some(function(s) { return isObj(s) && Array.isArray(s.list) && s.list.indexOf(name) >= 0 && isObj(s.priv) && s.priv[name] === true; }); }
+function privNames(stores) { var out = []; (Array.isArray(stores) ? stores : [stores]).forEach(function(s) { if (!isObj(s) || !isObj(s.priv) || !Array.isArray(s.list)) return; s.list.forEach(function(n) { if (s.priv[n] === true && out.indexOf(n) < 0) out.push(n); }); }); return out; }
+// Marks or clears a tag's private mark in the one store that lists it; answers whether it is marked now
+function setPrivate(store, name, on) {
+    if (!isObj(store) || !Array.isArray(store.list) || store.list.indexOf(name) < 0) return false;
+    if (on) { if (!isObj(store.priv)) store.priv = {}; store.priv[name] = true; return true; }
+    if (isObj(store.priv)) { delete store.priv[name]; if (!Object.keys(store.priv).length) delete store.priv; }
+    return false;
+}
 // A Merge of a file's store into this campaign's: the file's tags join, a picture keeps its tags and gains the file's, a shelf stays on
 // (a campaign's: a saved filter of the file whose name this campaign has not used joins, ours keep theirs)
 function mergeStores(dst, src) {
@@ -74,6 +90,7 @@ function mergeStores(dst, src) {
     b.list.forEach(function(n) { if (a.list.indexOf(n) < 0 && a.list.length < LIMITS.tags) a.list.push(n); });
     Object.keys(b.by).forEach(function(p) { var d = a.by[p] || []; b.by[p].forEach(function(n) { if (a.list.indexOf(n) >= 0 && d.indexOf(n) < 0 && d.length < LIMITS.perPic) d.push(n); }); if (d.length) a.by[p] = d; });
     Object.keys(b.shelf).forEach(function(n) { if (a.list.indexOf(n) >= 0) a.shelf[n] = true; });
+    Object.keys(b.priv || {}).forEach(function(n) { if (a.list.indexOf(n) >= 0) { a.priv = a.priv || {}; a.priv[n] = true; } });   // 1.6.2: a private mark stays on
     (b.filters || []).forEach(function(f) { a.filters = a.filters || []; if (!a.filters.some(function(x) { return sameName(x.name, f.name); })) a.filters.push(f); });
     return cleanStore(a, F);
 }
@@ -141,7 +158,7 @@ function drawRow(doc, row, m) {
     row.appendChild(chip(doc, { text: 'By map', active: m.bymap, cat: '__bymap', title: 'Grouped under the map, planner or page each picture was uploaded from' }));
     m.tags.forEach(function(t) {
         var sh = t.store === 'shared';
-        row.appendChild(chip(doc, { text: t.name, count: t.count, active: t.active, cat: t.name, cls: sh ? 'img-cat-shared' : '', mark: sh ? '\u25C7' : '', title: (sh ? 'A shared tag: every campaign sees it' : 'This campaign\'s tag') + '. Ctrl-click to add it to the tags you filter by' }));
+        row.appendChild(chip(doc, { text: t.name, count: t.count, active: t.active, cat: t.name, cls: [sh ? 'img-cat-shared' : '', t.priv ? 'img-cat-private' : ''].filter(Boolean).join(' '), mark: sh ? '\u25C7' : '', title: (sh ? 'A shared tag: every campaign sees it' : 'This campaign\'s tag') + (t.priv ? '. Private: it starts unticked on Full export' : '') + '. Ctrl-click to add it to the tags you filter by' }));
     });
     row.appendChild(chip(doc, { text: 'No tag', count: m.none.count, active: m.none.active, cat: '__none', title: 'Pictures with no tag' }));
     if (m.match) {
@@ -159,6 +176,7 @@ function drawRow(doc, row, m) {
     if (m.tools) {
         var tl = el(doc, 'div', 'img-cat-tools');
         tl.appendChild(chip(doc, { text: m.tools.shelf ? 'Own shelf: on' : 'Own shelf: off', cls: 'img-cat-tool', act: 'shelf', title: 'Own shelf: its pictures show under this chip only, not under All' }));
+        if (m.tools.priv !== undefined) tl.appendChild(chip(doc, { text: m.tools.priv ? 'Private: on' : 'Private: off', cls: 'img-cat-tool', act: 'private', title: 'Private: on Full export its pictures start unticked, so they stay out of the file. Their places stay.' }));   // 1.6.2 (backlog 227)
         tl.appendChild(chip(doc, { text: m.tools.shared ? 'Shared \u2192 this campaign\'s' : 'Make shared', cls: 'img-cat-tool', act: 'share', title: m.tools.shared ? 'Make it this campaign\'s own: only this campaign sees it' : 'Make it shared: every campaign sees it' }));
         tl.appendChild(chip(doc, { text: 'Rename', cls: 'img-cat-tool', act: 'rename', title: 'Rename this tag' }));
         tl.appendChild(chip(doc, { text: 'Delete tag', cls: 'img-cat-tool danger', act: 'delete', title: 'Delete this tag (the pictures stay)' }));
@@ -246,8 +264,8 @@ function previewTags(doc, box, mapName, tags) {
     return box;
 }
 
-var API = { LIMITS: LIMITS, RESERVED: RESERVED, tagName: tagName, pathKey: pathKey, filterWords: filterWords, cleanFilter: cleanFilter, cleanFilters: cleanFilters, cleanStore: cleanStore, storeEmpty: storeEmpty, mergeStores: mergeStores,
+var API = { LIMITS: LIMITS, RESERVED: RESERVED, tagName: tagName, pathKey: pathKey, filterWords: filterWords, cleanFilter: cleanFilter, cleanFilters: cleanFilters, cleanStore: cleanStore, storeEmpty: storeEmpty, mergeStores: mergeStores, isPrivate: isPrivate, privNames: privNames, setPrivate: setPrivate,
     matchTags: matchTags, words: words, matchWords: matchWords, sameFilter: sameFilter, freeName: freeName,
     chip: chip, drawRow: drawRow, drawFilterMenu: drawFilterMenu, menuItem: menuItem, tagState: tagState, drawMenu: drawMenu, cellTags: cellTags, previewTags: previewTags };
 if (typeof window !== 'undefined') window.wpImgTagCore = API;
-export { LIMITS, RESERVED, tagName, pathKey, filterWords, cleanFilter, cleanFilters, cleanStore, storeEmpty, mergeStores, matchTags, words, matchWords, sameFilter, freeName, chip, drawRow, drawFilterMenu, menuItem, tagState, drawMenu, cellTags, previewTags };
+export { LIMITS, RESERVED, tagName, pathKey, filterWords, cleanFilter, cleanFilters, cleanStore, storeEmpty, mergeStores, isPrivate, privNames, setPrivate, matchTags, words, matchWords, sameFilter, freeName, chip, drawRow, drawFilterMenu, menuItem, tagState, drawMenu, cellTags, previewTags };

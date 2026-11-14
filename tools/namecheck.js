@@ -68,7 +68,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     const plS = read('scripts/planner.js'), ins = read('scripts/inspector.js'), wbN = read('scripts/whiteboard.js');
     check('fold 2: a planner\'s scene card offers a name for its title as one change, its title\'s format let go; Manage characters\' name box and a token\'s Character Name in Properties have the button; a player\'s own naming prompts for their character and their token offer it',
         plS.includes("class=\"tool ghost name-btn b-namebtn\"") && plS.includes("bb.title = n; if (bb.fmt && typeof bb.fmt === 'object' && !Array.isArray(bb.fmt)) { delete bb.fmt.title;") && sh.includes("top.appendChild(window.wpNames.button('person', nm));") && ins.includes("window.wpNames.button('person', wbCharName)")
-        && sh.split(", { name: 'person' })").length - 1 === 4 && wbN.includes(", { name: 'person' })"), sh.split(", { name: 'person' })").length - 1);
+        && sh.split(", { name: 'person' })").length - 1 === 5 && wbN.includes(", { name: 'person' })"), sh.split(", { name: 'person' })").length - 1);
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

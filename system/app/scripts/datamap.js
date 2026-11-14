@@ -1758,8 +1758,10 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
   // 1.6.2 (the owner, 2026-11-14, by prompt: "A tick, on by default", and of the portal: "you place it, but there needs to be a clear indicator
   // that this is happening"). While A new room makes its own map is ticked (the Data Map's view menu, this computer's wp_roomMakesMap, ticked to
   // start), a room added here makes a map named as the room, nested under the map on screen, and leads to it (room.targetMapId), in the same
-  // save as the room. Once its name box is closed, the play map takes a portal tile that follows the pointer (whiteboard.js wpPortalPlace). A
-  // name kept in that first box names the map too while the map is as it was made: its title untouched, no piece and no room on it yet
+  // save as the room. Once its name box is closed the Data Map asks, with the app's own question, whether to place its portal now (the owner,
+  // 2026-11-14): Place it now takes the play map, where a portal tile follows the pointer (whiteboard.js wpPortalPlace); Later, Escape and the
+  // close keep the room and its map with no portal, which the room's Place it lays later. A name kept in that first box names the map too while
+  // the map is as it was made: its title untouched, no piece and no room on it yet
   function roomMapOn() { try { var ls = window.localStorage; return !ls || ls.getItem('wp_roomMakesMap') !== 'off'; } catch (e) { return true; } }
   function roomMapMake(am, rm) {
       if (!roomMapOn()) return null;
@@ -1785,7 +1787,13 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
           var am = getActiveMap(), rr = am && am.id === made.mapId ? roomOf(am, made.roomId) : null;
           if (!rr || rr.targetMapId !== made.targetMapId) return;   // the room is gone, or another map came on screen: nothing to place
           if (canvas && canvas.querySelector && canvas.querySelector('.rn-edit')) { toast('No portal placed for ' + (rr.name || 'the room') + '. Another room is being named.'); return; }
-          if (window.wpPortalPlace) window.wpPortalPlace(made);
+          var nm = rr.name || 'the room';
+          showConfirm('Place the portal to ' + nm + ' on the play map now?', function(ans) {
+              var am2 = getActiveMap(), r2 = am2 && am2.id === made.mapId ? roomOf(am2, made.roomId) : null;
+              if (ans !== true) { if (r2) toast('The room and its map are kept, with no portal yet. Press Place it on the room when you are ready.'); return; }   // Later, Escape or the close
+              if (!r2 || r2.targetMapId !== made.targetMapId) { toast('That room is no longer on screen. No portal was placed.'); return; }
+              if (window.wpPortalPlace) window.wpPortalPlace(made);
+          }, { yes: 'Place it now', no: 'Later', noEnter: true });   // its buttons alone: the Enter that kept the name never answers it
       }, 0);
   }
   function roomAddAt(x, y, from) {

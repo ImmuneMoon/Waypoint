@@ -172,8 +172,9 @@ function roomPlacePiece(kind, room, box, floor) {
 // A room the Data Map adds while A new room makes its own map is ticked leads to a map of its own, and the GM places its portal on the play map.
 // portalBox: the tile a portal takes at a cell's center (cx, cy) on the map's lattice (fogcore gridFor or the app's own: a square's side, or a
 // flat-top hex of side s and row h), or 100 px centered on the point where the map has no grid. portalPiece: the piece placed there, an ordinary
-// trigger zone linked to the room by nodeId, so it is a portal through the room (fogcore isPortal) and the room's place (roomPlaceOf); a hex
-// on a hex grid, as the hex trigger tool lays one. Null for a room that leads nowhere or a box that is no box
+// trigger zone linked to the room by nodeId, so it is a portal through the room (fogcore isPortal) and the room's place (roomPlaceOf). Its shape
+// is the grid's (the owner, 2026-11-14): a square of one cell on a square grid ('square'), a hexagon of one cell on a hex grid ('hex'), a
+// circle with no grid (anything else). Null for a room that leads nowhere or a box that is no box
 function portalBox(grid, cx, cy) {
     var x = num(cx, NaN), y = num(cy, NaN); if (!isFinite(x) || !isFinite(y)) return null;
     var w = 100, h = 100;
@@ -181,11 +182,11 @@ function portalBox(grid, cx, cy) {
     else if (isObj(grid) && grid.type === 'hex' && num(grid.s, 0) > 0 && num(grid.h, 0) > 0) { w = 2 * grid.s; h = grid.h; }
     return { x: Math.round((x - w / 2) * 100) / 100, y: Math.round((y - h / 2) * 100) / 100, w: w, h: h };
 }
-function portalPiece(room, box, hex) {
+function portalPiece(room, box, kind) {
     if (!isObj(room) || typeof room.id !== 'string' || !room.id || typeof room.targetMapId !== 'string' || !room.targetMapId || !isObj(box)) return null;
     var x = num(box.x, NaN), y = num(box.y, NaN), w = num(box.w, NaN), h = num(box.h, NaN);
     if (!isFinite(x) || !isFinite(y) || !(w >= 10) || !(h >= 10)) return null;
-    return { type: 'trigger', shape: hex ? 'hexagon' : 'rect', x: x, y: y, w: w, h: h, color: 'transparent', eventMessage: '', nodeId: room.id, name: roomNameOf(typeof room.name === 'string' ? room.name : '', 'Room') };
+    return { type: 'trigger', shape: kind === 'hex' ? 'hexagon' : kind === 'square' ? 'rect' : 'circle', x: x, y: y, w: w, h: h, color: 'transparent', eventMessage: '', nodeId: room.id, name: roomNameOf(typeof room.name === 'string' ? room.name : '', 'Room') };
 }
 
 // ---- fold 4, who is in a room (the owner, 2026-11-11, by prompt: "Tokens there, typed list kept", "Names or faces on the box", "Find a

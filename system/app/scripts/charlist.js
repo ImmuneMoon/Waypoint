@@ -309,8 +309,9 @@ function fromTemplate(tid) {
         sync(); if (S.canOpen(c.id)) S.openSheet(c.id);
     }, { name: 'person' });
 }
-// The + button's menu where the campaign holds templates: a new sheet as ever, then each template
-function plusMenu(x, y, tpls) {
+// The + button's menu where the campaign holds templates: a new sheet as ever, then each template. 1.6.2 (backlog 237): spl, how many character
+// tokens share a sheet with another on one map: then a row last that gives them their own (sheets.js shareSplitAsk, which asks first)
+function plusMenu(x, y, tpls, spl) {
     menuMake(); _menuAt = [x, y];
     while (_menu.firstChild) _menu.removeChild(_menu.firstChild);
     _menu.dataset.char = '';
@@ -319,6 +320,8 @@ function plusMenu(x, y, tpls) {
     var dv = document.createElement('div'); dv.className = 'menu-divider'; _menu.appendChild(dv);
     var hd = document.createElement('div'); hd.className = 'char-menu-head'; hd.textContent = 'New from a template'; _menu.appendChild(hd);
     tpls.forEach(function(t) { row(charText(t.name, CHAR_NAME) || 'Unnamed', function() { fromTemplate(t.id); }); });
+    if (!tpls.length) { hd.remove(); dv.remove(); }
+    if (spl > 0) { var dS = document.createElement('div'); dS.className = 'menu-divider'; _menu.appendChild(dS); var sp = row('Give shared tokens their own sheets…', function() { var S = sheets(); if (S && S.shareSplitAsk) S.shareSplitAsk(); }); sp.title = spl + (spl === 1 ? ' token shares' : ' tokens share') + ' a sheet with another on the same map'; }
     _menu.style.display = 'flex';
     if (window.wpClampMenu) window.wpClampMenu(_menu, x, y); else { _menu.style.left = x + 'px'; _menu.style.top = y + 'px'; }
     var first = _menu.querySelector('button'); try { if (first) first.focus(); } catch (e) {}
@@ -374,7 +377,8 @@ function wire() {
         var S = sheets(); if (!S || !S.addCharacter) return;
         if (foreign() || !(window.wpCanPersistLocal && window.wpCanPersistLocal())) { toast('A sheet cannot be made here. This campaign is not yours to change.'); return; }
         var tpls = S.templatesOf ? S.templatesOf(getActiveCampaign()) : [];   // 1.6.2 (backlog 227): with templates, the + is a menu
-        if (tpls.length) { var rP = plus.getBoundingClientRect(); plusMenu(rP.left, rP.bottom + 4, tpls); return; }
+        var spl = typeof S.shareSplitCount === 'function' ? S.shareSplitCount() : 0;   // 1.6.2 (backlog 237): and where tokens on one map share a sheet
+        if (tpls.length || spl) { var rP = plus.getBoundingClientRect(); plusMenu(rP.left, rP.bottom + 4, tpls, spl); return; }
         plusAsk();
     });
     updateSidebarNav();   // the panel judges once more what it holds for this screen, the section among it (sidebar.js asks sync)

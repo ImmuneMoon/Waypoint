@@ -35,6 +35,7 @@ import { upkeepLines } from './systemcore.js';   // 205 follow-up (3): a turn's 
 import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT, setGateEngine, stationFit, crewHost, charCatOf, CHAR_CATS } from './systemcore.js';
 import { rowSheetSet, sheetFromRow, rowSheetsDrop, sheetRows, setTagSource, setTagSink, setLaunchSink, setSetOffSink, setLinkCharSource } from './systemcore.js';   // 1.6.2 (vehicles, fold (a)): Rows are sheets; fold (c): marks   // 1.6.0: linked sheets
 import { ROW_LOOK, WORK_KINDS, cleanRowLook, rowLookShown, finishWords, workWords } from './systemcore.js';   // 1.6.0, backlog 206: a row's look and its work log
+import { sheetCopy, shareFirst, sheetUsers, splitPlan, ownSheetPlan } from './systemcore.js';   // 1.6.2 (backlog 237): a sheet shared or its own copy
 import { setCrewSource } from './systemcore.js';   // 1.6.0 (CORE gap 16): a vehicle's crew as a group
 import { fitIfOk, partFitEntry, modsIfOk } from './systemcore.js';
 import { rowTextRule } from './systemcore.js';
@@ -962,12 +963,103 @@ function wireCharSelect(w, rerender) {
     sel.addEventListener('change', function() {
         var v = sel.value;
         if (v === '__new') { newFromToken(w); toast('Character created from ' + (w.charName || 'this token') + '.'); }
+        else if (v && v !== w.charId) {   // 1.6.2 (backlog 237): asked first where another token already uses that sheet; Escape leaves the token as it was
+            shareAsk([w], v, function(way) {
+                if (way === 'copy') { var nc = shareOwn(w, v); toast(nc ? 'Token linked to its own copy, ' + nc.name + '.' : 'That sheet could not be copied.'); }
+                else if (way === 'share') toast('Token linked to ' + ((charById(v) || {}).name || 'that sheet') + '.');
+                if (way === 'share') linkToken(w, v);
+                if (window.appRender) window.appRender(); if (rerender) rerender();
+            });
+            return;
+        }
         else { linkToken(w, v); toast(v ? 'Token linked to ' + (charById(v) || {}).name + '.' : 'Token unlinked from its character.'); if (window.appRender) window.appRender(); }   // the board draws its name
         if (rerender) rerender();
     });
     var ob = ui('wbCharOpen'); if (ob) ob.addEventListener('click', function() { openSheet(w.charId); });
     var hob = ui('wbHudOpen'); if (hob) hob.addEventListener('click', function() { openHud(w.charId); });   // HUD frame (HF2b)
 }
+// [systemcheck:sheetshare-start]
+// 1.6.2 (backlog 237; the owner, 2026-11-14: "each time i assign a sheet, lets detect other characters using that sheet and ask if it should
+// share stats or be a copy"). Whenever a sheet comes to a token (Properties' Character (sheet), a single drop from the Campaign Cast, Is
+// Character ticked on a token that names a sheet), the GM is asked, where another character token on any map already uses that sheet:
+// Share stats with them, or Its own copy (systemcore sheetCopy, the one copy New from a template and an encounter group's drop make too).
+// Its own copy is the first answer for an NPC; Share stats for a player's character and an NPC ticked Unique (shareFirst). Buttons only
+// (noEnter); Escape cancels the assignment. The GM's alone: a player's app, someone else's table and the stream window are never asked and
+// assign as they always did. Steps log as sheetshare v1: counts and answers, never a name
+function shareGm() { return !isClient() && canWrite(); }
+function shareLog(step, facts) { if (window.wpStepLog) window.wpStepLog('sheetshare v1', step, facts || {}); }
+// toks: the tokens the sheet comes to (none yet for a drop); charId: the sheet; done(way): 'share', 'copy', or null for Escape. Asked only
+// where another token uses the sheet; else done('share') at once, as the assignment always went
+function shareAsk(toks, charId, done) {
+    var camp = getActiveCampaign(), c = camp ? charById(charId, camp) : null, tk = Array.isArray(toks) ? toks.filter(Boolean) : [];
+    var users = c && c.template !== true && shareGm() ? sheetUsers(camp, charId, tk) : [];
+    if (!users.length) { done('share'); return; }
+    var maps = {}; users.forEach(function(u) { maps[u.mapId] = 1; });
+    var nM = Object.keys(maps).length, n = users.length, k = Math.max(1, tk.length), pc = shareFirst(c), SH = 'Share stats', OWN = 'Its own copy';
+    var q = (n === 1 ? 'Another token already uses' : n + ' other tokens already use') + ' the sheet ' + (c.name || 'Unnamed') + (nM > 1 ? ', on ' + nM + ' maps' : '') + '. '
+        + (k > 1 ? 'Should these ' + k + ' tokens share its stats, or each get its own copy?' : 'Should this token share its stats, or get its own copy?');
+    shareLog('ask', { users: n, maps: nM, toks: k, first: pc ? 'share' : 'copy' });
+    showConfirm(q, function(ans) {
+        var way = ans === true ? (pc ? 'share' : 'copy') : ans === 'alt' ? (pc ? 'copy' : 'share') : null;
+        shareLog(way ? 'answer' : 'cancel', { way: way || 'none' });
+        done(way);
+    }, { yes: pc ? SH : OWN, alt: pc ? OWN : SH, noEnter: true });
+}
+// The token's own name, where it is not just the sheet it named before (a token whose name followed its old sheet has none of its own)
+function shareOwnName(w, c) { var nm = String(w.name || w.charName || '').trim(), was = w.charId && w.charId !== c.id ? charById(w.charId) : null; return nm && !(was && nm === String(was.name || '').trim()) ? nm : ''; }
+// Token w takes its own copy of sheet charId: named by the token's own name where it differs from the sheet's, else the sheet's numbered on
+// (setupcore copyNameOf). The copy joins the campaign and the token names it, its charName and name with it. Neither saved nor sent to the
+// table's owners here (syncOwners): its caller does that once. The host tells the table of the new sheet, as any new one
+function shareTake(w, charId) {
+    var camp = getActiveCampaign(), c = camp ? charById(charId, camp) : null, SU = window.wpSetupCore; if (!c || !w || !SU || typeof SU.copyNameOf !== 'function' || !shareGm()) return null;
+    var nc = sheetCopy(c, uid('c_'), SU.copyNameOf(shareOwnName(w, c), c.name, charList(camp).map(function(x) { return x.name; })), camp.system); if (!nc) { shareLog('copy-failed', {}); return null; }
+    charsOf(camp)[nc.id] = nc; w.charId = nc.id; w.charName = nc.name; w.name = nc.name;
+    var n = net(); if (n && n.active && n.role === 'host' && n.syncChar) n.syncChar(nc.id);
+    return nc;
+}
+// One token's own copy, as one save: the Properties choice and the Is Character tick
+function shareOwn(w, charId) { var nc = shareTake(w, charId); if (!nc) return null; syncOwners(getActiveCampaign()); save(true); shareLog('copy', { toks: 1 }); renderAll(); return nc; }
+// Give this token its own sheet (the GM's token menu): each picked character token whose sheet another token also uses (systemcore
+// ownSheetPlan). ownSheetCount says how many, for the menu's row; ownSheetFor does it, as one save
+function ownSheetCount(picks) { var camp = getActiveCampaign(); return camp && shareGm() ? ownSheetPlan(camp, picks).length : 0; }
+function ownSheetFor(picks) {
+    var camp = getActiveCampaign(); if (!camp || !shareGm()) return 0;
+    var plan = ownSheetPlan(camp, picks), made = []; shareLog('own-start', { toks: plan.length });
+    plan.forEach(function(p) { var nc = shareTake(p.tok, p.charId); if (nc) made.push(nc); });
+    if (!made.length) { shareLog('own-none', {}); toast('No picked token shares its sheet with another.'); return 0; }
+    syncOwners(camp); save(true); shareLog('own-done', { copies: made.length }); renderAll(); if (window.appRender) window.appRender();
+    toast(made.length === 1 ? 'The token has its own sheet now: ' + made[0].name + '.' : made.length + ' tokens have their own sheets now.');
+    return made.length;
+}
+// The campaign-wide split (the owner: "split them all individually, ill fix them later, or have the campaign session link the ones that
+// should be linked"): asked first, with how many; then on every map, each character token after the first that shares a sheet there gets its
+// own (systemcore splitPlan, worked out again at the answer). A player's character, an NPC ticked Unique and a character with one token on
+// each of several maps stay as they are. One save: each map it changed takes it as one Undo step there
+function shareSplitCount() { var camp = getActiveCampaign(); return camp && shareGm() ? splitPlan(camp).length : 0; }
+function shareSplitAsk() {
+    var camp = getActiveCampaign(); if (!camp || !shareGm()) { toast('Only the GM gives tokens their own sheets, on their own campaign.'); return false; }
+    var plan = splitPlan(camp); if (!plan.length) { toast('No two character tokens on one map share a sheet.'); return false; }
+    var maps = {}, shs = {}; plan.forEach(function(p) { maps[p.mapId] = 1; shs[p.charId] = 1; }); var nM = Object.keys(maps).length, nS = Object.keys(shs).length;
+    shareLog('split-ask', { toks: plan.length, maps: nM, sheets: nS });
+    showConfirm('Give ' + plan.length + (plan.length === 1 ? ' token its own sheet' : ' tokens their own sheets') + '? On ' + (nM === 1 ? 'one map' : nM + ' maps') + ', ' + (nS === 1 ? 'one sheet is' : nS + ' sheets are') + ' shared by two or more character tokens. '
+        + 'Each token after the first gets its own copy, and the first keeps the original. A player’s character, an NPC ticked Unique and a character with one token on each of several maps stay as they are.', function(yes) {
+        if (yes !== true) { shareLog('split-cancel', {}); return; }
+        shareSplitDo();
+    }, { yes: plan.length === 1 ? 'Give it its own' : 'Give them their own', noEnter: true });
+    return true;
+}
+function shareSplitDo() {
+    var camp = getActiveCampaign(); if (!camp || !shareGm()) return 0;
+    var plan = splitPlan(camp), made = 0, touched = {}; shareLog('split-start', { toks: plan.length });
+    plan.forEach(function(p) { if (shareTake(p.tok, p.charId)) { made++; touched[p.mapId] = 1; } });
+    if (!made) { shareLog('split-none', {}); toast('No two character tokens on one map share a sheet.'); return 0; }
+    syncOwners(camp); save(true);
+    var n = net(), others = Object.keys(touched).filter(function(id) { return id !== camp.activeItemId; }); if (others.length && n && n.active && n.role === 'host' && n.pushItems) n.pushItems(others);   // a host save sends only the open map
+    shareLog('split-done', { copies: made, maps: Object.keys(touched).length }); renderAll(); if (window.appRender) window.appRender();
+    toast(made === 1 ? 'One token has its own sheet now.' : made + ' tokens have their own sheets now.');
+    return made;
+}
+// [systemcheck:sheetshare-end]
 
 /* ---------- hover lines ---------- */
 function hoverLinesForToken(w, camp, mapId) {   // mapId: the map the token stands on (the party strip finds it on any map); the viewed map when absent (the map's own hover card)
@@ -16178,7 +16270,7 @@ function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient(
 function nameWordNow(n) { var c = getActiveCampaign(), s = c ? systemOf(c) : null; return nameWord(s, n); }   // 1.6.2: a name in words, for a card
 window.wpSheets = { bellNote: bellNote, picPeek: picPeek, restDoes: restDoes, restTakeBack: restTakeBack, charCatSet: charCatSet, charCatNow: charCatNow, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, lootOf: lootOf, lootSet: lootSet, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, linkValuesWrite: linkValuesWrite, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, fxEndSeed: function() { return fxEndSeed(getActiveCampaign()); }, fxRanOut: fxRanOut, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame, openChars: openChars, closeChars: closeChars,
-    templateToggle: templateToggle, newFromTemplate: newFromTemplate, templatesOf: templatesOf, charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
+    templateToggle: templateToggle, newFromTemplate: newFromTemplate, templatesOf: templatesOf, shareAsk: shareAsk, shareTake: shareTake, shareOwn: shareOwn, ownSheetCount: ownSheetCount, ownSheetFor: ownSheetFor, shareSplitCount: shareSplitCount, shareSplitAsk: shareSplitAsk, charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,
     playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, dialSig: dialSigFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, styleResult: styleResult, commitLook: commitLook, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, LIMITS: LIMITS,

@@ -67,11 +67,17 @@ function nextName(name, names) {
     (Array.isArray(names) ? names : []).forEach(function(n) { var s = String(n || '').trim(), m = /^(.*?)\s+(\d+)$/.exec(s); if (m && m[1].toLowerCase() === low) hi = Math.max(hi, parseInt(m[2], 10)); else if (s.toLowerCase() === low) hi = Math.max(hi, 1); });
     return base + ' ' + (hi + 1);
 }
+// 1.6.2 (backlog 237; the owner's pick, 2026-11-14): the name a token's own copy of a sheet takes. The token's own name where it has one that
+// differs from the sheet's (Ommish Daal on the generic guard sheet); otherwise the sheet's name, numbered on (nextName)
+function copyNameOf(own, sheetName, names) {
+    var o = String(own || '').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim(), s = String(sheetName || '').trim();
+    return o && o.toLowerCase() !== s.toLowerCase() ? o : nextName(s, names);
+}
 // what a drop does with a piece's sheet: 'copy' for an NPC that is not Unique, 'keep' for a player's character, a Unique NPC or a token with no sheet
 function groupSheetWay(ch) { return isObj(ch) && ch.npc === true && ch.unique !== true ? 'copy' : 'keep'; }
 function newId(list, pre) { var have = Object.create(null), p = pre === 'gr_' ? 'gr_' : 'su_', re = p === 'gr_' ? GROUP_ID : SETUP_ID; (Array.isArray(list) ? list : []).forEach(function(s) { if (isObj(s)) have[s.id] = 1; }); for (var i = 0; i < 50; i++) { var id = p + Math.random().toString(36).slice(2, 10); if (re.test(id) && !have[id]) return id; } return null; }
 function logLine(step, facts) { var f = isObj(facts) ? facts : {}, parts = Object.keys(f).map(function(k) { return k + '=' + String(f[k]); }); return 'setups v' + VERSION + ' ' + step + (parts.length ? ' ' + parts.join(' ') : ''); }
 
-var API = { GROUP_MAX: GROUP_MAX, takeGroup: takeGroup, cleanGroups: cleanGroups, nextName: nextName, groupSheetWay: groupSheetWay, VERSION: VERSION, SETUP_MAX: SETUP_MAX, SETUP_PIECES: SETUP_PIECES, isTok: isTok, isLight: isLight, cleanName: cleanName, fogPart: fogPart, takeSetup: takeSetup, cleanSetups: cleanSetups, restoreSetup: restoreSetup, newId: newId, logLine: logLine };
+var API = { GROUP_MAX: GROUP_MAX, takeGroup: takeGroup, cleanGroups: cleanGroups, nextName: nextName, copyNameOf: copyNameOf, groupSheetWay: groupSheetWay, VERSION: VERSION, SETUP_MAX: SETUP_MAX, SETUP_PIECES: SETUP_PIECES, isTok: isTok, isLight: isLight, cleanName: cleanName, fogPart: fogPart, takeSetup: takeSetup, cleanSetups: cleanSetups, restoreSetup: restoreSetup, newId: newId, logLine: logLine };
 if (typeof window !== 'undefined') window.wpSetupCore = API;
-export { GROUP_MAX, takeGroup, cleanGroups, nextName, groupSheetWay, VERSION, SETUP_MAX, SETUP_PIECES, isTok, isLight, cleanName, fogPart, takeSetup, cleanSetups, restoreSetup, newId, logLine };
+export { GROUP_MAX, takeGroup, cleanGroups, nextName, copyNameOf, groupSheetWay, VERSION, SETUP_MAX, SETUP_PIECES, isTok, isLight, cleanName, fogPart, takeSetup, cleanSetups, restoreSetup, newId, logLine };

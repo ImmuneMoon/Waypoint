@@ -58,7 +58,7 @@ function charDraw(doc, box, model, gm, open, shut) {   // shut (218 fold 2): the
         return d;
     };
     var cts = Array.isArray(model.cats) ? model.cats : [], n = model.players.length + model.npcs.length + cts.reduce(function(a, x) { return a + x.rows.length; }, 0);
-    if (!n) { if (gm) box.appendChild(el('div', 'nav-empty', model.noSys ? 'No character sheets yet. Set them up first: the Campaign menu, then System.' : 'No characters yet. Press + above to make a sheet, or right-click a token.')); return 0; }   // 1.6.2 (the builder trial): a campaign with no system says where it is set up
+    if (!n) { if (model.onMap) box.appendChild(el('div', 'nav-empty', 'No characters on this map')); else if (gm) box.appendChild(el('div', 'nav-empty', model.noSys ? 'No character sheets yet. Set them up first: the Campaign menu, then System.' : 'No characters yet. Press + above to make a sheet, or right-click a token.')); return 0; }   // 1.6.2 (the builder trial): a campaign with no system says where it is set up
     if (gm && model.players.length) box.appendChild(el('div', 'ch-sub', 'Players'));
     model.players.forEach(function(r) { box.appendChild(rowOf(r)); });
     cts.forEach(function(x) {   // 1.6.2 (218, fold 2): a category's fold, with how many it holds
@@ -75,7 +75,7 @@ function charDraw(doc, box, model, gm, open, shut) {   // shut (218 fold 2): the
     return n;
 }
 // What was drawn, as a text: the list is drawn again only when this changed
-function charSig(model, gm, open, shut) { return JSON.stringify([(model.cats || []).map(function(x) { return [x.key, x.label, shut && shut[x.key] ? 1 : 0, x.rows.map(function(r) { return [r.id, r.name, r.who, r.at || '']; })]; }), gm ? 1 : 0, open ? 1 : 0, model.players.map(function(r) { return [r.id, r.name, r.who, r.at || '']; }), model.npcs.map(function(r) { return [r.id, r.name, r.at || '']; }), typeof window !== 'undefined' && window.wpPlook ? model.players.concat(model.npcs).map(function(r) { return window.wpPlook.sig(window.wpPlook.ofCharId(r.id)); }) : []]); }   // 1.6.2, backlog 35: and the looks
+function charSig(model, gm, open, shut) { return JSON.stringify([(model.cats || []).map(function(x) { return [x.key, x.label, shut && shut[x.key] ? 1 : 0, x.rows.map(function(r) { return [r.id, r.name, r.who, r.at || '']; })]; }), gm ? 1 : 0, open ? 1 : 0, model.players.map(function(r) { return [r.id, r.name, r.who, r.at || '']; }), model.npcs.map(function(r) { return [r.id, r.name, r.at || '']; }), typeof window !== 'undefined' && window.wpPlook ? model.players.concat(model.npcs).map(function(r) { return window.wpPlook.sig(window.wpPlook.ofCharId(r.id)); }) : [], model.onMap || '']); }   // 1.6.2, backlog 35: and the looks; and On this map's map
 // A character's token to go to: on the map on screen before any other, a shown one before one the GM hid; hidden ones only for the GM (all).
 // items: camp.items. Answers { map, tok } or null
 function charTokenOf(items, charId, activeId, all) {
@@ -118,12 +118,50 @@ function charMenuRows(hud, del, rules, give, debts, unique, file, room, loot) { 
 }
 function charCatsShutRead(store) { var o = Object.create(null); try { String(store.getItem('wp_charCatsShut') || '').split(',').forEach(function(k) { if (/^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(k)) o[k] = 1; }); } catch (e) {} return o; }   // 1.6.2 (218, fold 2)
 function charCatsShutKeep(store, shut) { try { var ks = Object.keys(shut).filter(function(k) { return shut[k]; }); if (ks.length) store.setItem('wp_charCatsShut', ks.join(',')); else store.removeItem('wp_charCatsShut'); return true; } catch (e) { return false; } }
+// 1.6.2 (the owner, 2026-11-13: "i should be able to filter characters in the left panel list for ones that only appear on the current map"): On
+// this map. The characters with a token on the play map on screen, a token judged as Find on the map judges one: a character's own, never one
+// that waits to be placed or a GM note card, and a hidden one only for the GM (all). A player's app judges the copy it holds. Answers a set of
+// character ids, or null where no play map is on screen (a page, the Data Map): the filter then lets every character through
+function charOnMap(items, activeId, view, all) {
+    if (view !== 'visual' || !items || typeof items !== 'object' || typeof activeId !== 'string' || !activeId || !Object.prototype.hasOwnProperty.call(items, activeId)) return null;
+    var m = items[activeId]; if (!m || typeof m !== 'object' || m.type !== 'map' || m.id !== activeId) return null;
+    var out = Object.create(null);
+    (Array.isArray(m.whiteboard) ? m.whiteboard : []).forEach(function(w) {
+        if (!w || typeof w !== 'object' || !w.isChar || w.waiting || w.gmNoteFor || typeof w.charId !== 'string' || !w.charId || typeof w.id !== 'string') return;
+        if (w.hidden && !all) return;
+        out[w.charId] = 1;
+    });
+    return out;
+}
+// The rows kept by that set, each list and category in its own order; a category left empty goes, as charRowsOf leaves one. here: null keeps
+// the model whole. mapId marks the model as filtered, for the empty list's words and for the signature. The model is changed in place
+function charOnly(model, here, mapId) {
+    if (!here) return model;
+    var keep = function(r) { return here[r.id] === 1; };
+    model.players = model.players.filter(keep); model.npcs = model.npcs.filter(keep);
+    if (model.cats) model.cats = model.cats.filter(function(x) { x.rows = x.rows.filter(keep); return x.rows.length > 0; });
+    model.onMap = String(mapId || '') || '?';
+    return model;
+}
+// The toggle's tooltip: on, and whether a play map is on screen to filter by
+function charOnMapTip(on, shown) {
+    if (!shown) return 'On this map: no play map is on screen (a page or the Data Map), so every character shows' + (on ? '. On a play map the list shows only its characters again' : '');
+    return on ? 'On this map: only the characters with a token on this map show. Press to show every character' : 'On this map: show only the characters with a token on this map';
+}
+function charOnMapRead(store) { try { return store.getItem('wp_charOnMap') === '1'; } catch (e) { return false; } }
+function charOnMapKeep(store, on) { try { if (on === true) store.setItem('wp_charOnMap', '1'); else store.removeItem('wp_charOnMap'); return true; } catch (e) { return false; } }
 function charNpcsRead(store) { try { return store.getItem('wp_charNpcs') === '1'; } catch (e) { return false; } }
 function charNpcsKeep(store, open) { try { if (open === true) store.setItem('wp_charNpcs', '1'); else store.removeItem('wp_charNpcs'); return true; } catch (e) { return false; } }
 // [lookcheck:charlist-end]
 
 // [lookcheck:charwire-start]
-var _sig = null, _open = charNpcsRead(localStorage), _menu = null, _menuAt = [0, 0], _shut = charCatsShutRead(localStorage);
+var _sig = null, _open = charNpcsRead(localStorage), _menu = null, _menuAt = [0, 0], _shut = charCatsShutRead(localStorage), _onMap = charOnMapRead(localStorage);
+// The On this map toggle as it stands: lit while on, and its tooltip says whether a play map is on screen to filter by
+function onMapShow(shown) {
+    var b = document.getElementById('charOnMapBtn'); if (!b) return;
+    if (b.classList) b.classList.toggle('on', _onMap);
+    b.setAttribute('aria-pressed', _onMap ? 'true' : 'false'); b.title = charOnMapTip(_onMap, shown);
+}
 function sheets() { return window.wpSheets || null; }
 function foreign() { var n = window.wpNet; return !!(n && (n.foreign || (n.active && n.role === 'client'))); }   // someone else's table on this screen, its link up or between attempts
 function linkUp() { var n = window.wpNet; return !!(n && n.active && n.role === 'client'); }   // a player's app as the sheet module knows one (sheets.js isClient)
@@ -142,7 +180,11 @@ function sync() {
     var camp = getActiveCampaign(), S = sheets(), client = foreign(), n = window.wpNet, me = client ? String((n && n.myId) || '\u0000') : '';
     var on = !!camp && !!S && !window.wpStream && (!window.wpVtt || !!window.wpVtt.on('sheets'));
     var catsS = on && camp.system && Array.isArray(camp.system.charCats) ? camp.system.charCats : [], catOfS = catsS.length && S.charCatNow ? function(id) { var cc = S.charById(id, camp); return cc ? S.charCatNow(cc) : ''; } : null;   /* 1.6.2 (218, fold 2) */
-    var model = on ? charPlaces(charRowsOf(camp.chars, namesOf(camp), me, catOfS, catsS), camp.items, camp.activeItemId, !client) : { players: [], npcs: [], cats: [] }, count = model.players.length + model.npcs.length + (model.cats || []).reduce(function(a2, x) { return a2 + x.rows.length; }, 0), show = on && (!client || count > 0); if (on && !client) model.noSys = !(camp.system && Array.isArray(camp.system.fields) && camp.system.fields.length);
+    var model = on ? charRowsOf(camp.chars, namesOf(camp), me, catOfS, catsS) : { players: [], npcs: [], cats: [] }, count = model.players.length + model.npcs.length + (model.cats || []).reduce(function(a2, x) { return a2 + x.rows.length; }, 0), show = on && (!client || count > 0); if (on && !client) model.noSys = !(camp.system && Array.isArray(camp.system.fields) && camp.system.fields.length);
+    // On this map (1.6.2): the count above is the whole list's, so a player whose characters are all elsewhere keeps the section and its toggle
+    var here = show ? charOnMap(camp.items, camp.activeItemId, state && state.viewMode, !client) : null;
+    if (on) charPlaces(charOnly(model, _onMap ? here : null, camp.activeItemId), camp.items, camp.activeItemId, !client);
+    onMapShow(!!here);
     sec.hidden = !show; if (rb) rb.hidden = !show;
     var sig = show ? charSig(model, !client, _open, _shut) + (model.noSys ? '|nosys' : '') : '';
     if (sig !== _sig) { _sig = sig; if (show) { var KP = typeof window !== 'undefined' ? window.wpKeepPlace : null, dr = function() { charDraw(document, box, model, !client, _open, _shut); }; if (typeof KP === 'function') KP(box, dr); else dr(); } else while (box.firstChild) box.removeChild(box.firstChild); }
@@ -279,6 +321,8 @@ function wire() {
     });
     document.addEventListener('pointerdown', function(e) { if (_menu && _menu.style.display !== 'none' && !(e.target && e.target.closest && e.target.closest('#charMenu'))) menuAway(); }, true);
     document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && (!window.wpEsc || window.wpEsc.free(e))) menuAway(); });   // 1.5.4: esckey.js puts it away, one thing a press
+    var om = document.getElementById('charOnMapBtn');   // 1.6.2: On this map, kept on this computer
+    if (om) om.addEventListener('click', function(e) { e.stopPropagation(); _onMap = !_onMap; charOnMapKeep(localStorage, _onMap); sync(); });
     var plus = document.getElementById('newCharBtn');
     if (plus) plus.addEventListener('click', function(e) {
         e.stopPropagation();

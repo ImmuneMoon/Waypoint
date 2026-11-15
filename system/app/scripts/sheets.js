@@ -630,6 +630,43 @@ function rowCrossRules(sys) { var out = []; (sys && Array.isArray(sys.fields) ? 
 function rowCrossRows(c, x) { return c && c.values && Array.isArray(c.values[x.f]) ? c.values[x.f].filter(function(row) { return !!row && typeof row.id === 'string' && row.hid !== 1; }) : []; }
 function rowCrossValue(vars, x, rid) { var rv = vars && typeof vars.row === 'function' ? vars.row(x.f, rid) : null; if (!rv) return null; var v = rv('Row.' + x.r.cross.ct); return typeof v === 'number' && isFinite(v) ? { v: v, rv: rv } : null; }
 function crossValue(sys, c, r, vars) { var f = fieldById(sys, r.cross.f), v = f ? vars(f.key) : null; return typeof v === 'number' && isFinite(v) ? v : null; }
+// 1.6.2 (backlog 242; the CORE Master's ruling for finding 4c: "Rattled and Battered come after the hit's own rolls. They don't apply to rolls the same
+// hit calls for"). A roll that runs When a value crosses may be ticked Reads the sheet as the blow left it (cross.asAt). Where a damage step's blow made
+// the crossing, that roll is worked out on the sheet as the blow left it before any effect the blow switched on, and reads the blow's Blow.<name> and
+// Hit.<name>, as a roll an Any wound row ticked asAt posts does. systemcore's damage step tells blowAt what the blow was (setBlowSink, registered right
+// after this slice) once it is worked out, on every path that stores one: the GM's Take damage window, the host's char-damage branch for a player, and
+// the blast passes. The store that follows asks crossFollow, which takes the record whatever it finds (blowTake), so it never outlives the change it
+// came with. A preview of a blow tells nothing (_dmgPeek, the fxend slice's), and a record older than BLOW_AT_MS is not believed, should a blow be
+// worked out and never stored. A crossing with no blow in flight, by a rule without the tick or on another character, runs exactly as before
+var _blowAt = Object.create(null), BLOW_AT_MS = 2000;
+function blowAt(charId, rec) {
+    if (typeof charId !== 'string' || !charId || !rec || typeof rec !== 'object' || !Array.isArray(rec.hits) || !rec.hits.length || (typeof _dmgPeek !== 'undefined' && _dmgPeek)) return;
+    _blowAt[charId] = { rec: rec, at: Date.now() };
+}
+function blowTake(charId) { var b = Object.prototype.hasOwnProperty.call(_blowAt, charId) ? _blowAt[charId] : null; delete _blowAt[charId]; return b && Date.now() - b.at <= BLOW_AT_MS ? b.rec : null; }
+// a copy of the character's values with a blow's record laid over it, a key the record holds as undefined taken away (it had no value before the blow)
+function blowLay(base, over) { var o = JSON.parse(JSON.stringify(base && typeof base === 'object' ? base : {})); Object.keys(over && typeof over === 'object' ? over : {}).forEach(function(k) { if (over[k] === undefined) delete o[k]; else o[k] = JSON.parse(JSON.stringify(over[k])); }); return o; }
+// Which hit made rule r's step cross: the blow's one hit, else, for a burst, the first hit at whose own end (post) the watched value had passed that
+// step, read as crossFollow reads it, from the value before the burst (was); the last hit where none is found. Its record is what the roll reads
+function blowHitFor(sys, c, camp, r, rec, was, step, vars) {
+    var hs = rec.hits; if (hs.length < 2) return hs[0] || null;
+    var prev = was;
+    for (var i = 0; i < hs.length; i++) {
+        var cc = Object.assign({}, c, { values: blowLay(c.values, hs[i].post || hs[i].vals) }), v = crossValue(sys, cc, r, makeResolver(sys, cc, F(), tokenCtxFor(c.id, camp)));
+        if (v === null) continue;
+        if (crossings(r, prev, v, vars, F()).indexOf(step) >= 0) return hs[i];
+        prev = v;
+    }
+    return hs[hs.length - 1];
+}
+// The record of the blow a crossing's roll is worked out on, as majorFollow makes one (net.blowMake: the blow, and the character's whole values as the
+// blow left them before its effects); its id, or '' with no net to keep it. Soft where the roll reads no Blow. or Hit. name, so a reminder pressed after
+// the host let the record go is rolled on the sheet as it stands, as a wound's roll is
+function blowAtt(c, r, h) {
+    var n = net(); if (!h || !c || !n || typeof n.blowMake !== 'function') return '';
+    var nm = F() && typeof F().names === 'function' && typeof r.formula === 'string' ? F().names(r.formula) : [], reads = nm.some(function(x) { return /^(blow|hit)\./i.test(x); });
+    return n.blowMake(c, r.id, h.blow, '', '', blowLay(c.values, h.vals), !reads) || '';
+}
 function crossSeed() {
     if (typeof tileSeed === 'function') tileSeed();   // 1.6.2 (body fold 8)
     var camp = getActiveCampaign(), sys = camp && camp.system; if (!sys || !crossOk() || typeof makeResolver !== 'function') return 0;
@@ -644,12 +681,13 @@ function crossSeed() {
 function crossFollow(c, camp) {
     if (!c || typeof c.id !== 'string' || !camp || !camp.system || !crossOk() || typeof crossings !== 'function' || typeof makeResolver !== 'function') return 0;
     var sys = camp.system, rules = crossRules(sys), lrs = rowCrossRules(sys); if (!rules.length && !lrs.length) return 0;
-    var vars = makeResolver(sys, c, F(), tokenCtxFor(c.id, camp)), runs = [];
+    var vars = makeResolver(sys, c, F(), tokenCtxFor(c.id, camp)), runs = [], bA = blowTake(c.id);   // 1.6.2 (242): the blow this change came with, if any
     rules.forEach(function(r) {
         var now = crossValue(sys, c, r, vars), k = (camp.id || '') + '|' + c.id + '|' + r.id; if (now === null) return;
         var was = Object.prototype.hasOwnProperty.call(_crossSeen, k) ? _crossSeen[k] : null; _crossSeen[k] = now; if (was === null) return;
         var hit = crossings(r, was, now, vars, F()); if (!hit.length) return;
-        for (var i = 0; i < (r.cross.one ? 1 : hit.length); i++) runs.push({ r: r, cx: { step: r.cross.one ? hit[hit.length - 1] : hit[i], n: hit.length } });   // 1.6.0: CrossStep and Crossed
+        var asB = !!bA && r.cross.asAt === true && !Array.isArray(r.apply);   // 1.6.2 (242): a roll ticked Reads the sheet as the blow left it, and a blow made this change
+        for (var i = 0; i < (r.cross.one ? 1 : hit.length); i++) { var stp = r.cross.one ? hit[hit.length - 1] : hit[i], rn = { r: r, cx: { step: stp, n: hit.length } }; if (asB) rn.bh = blowHitFor(sys, c, camp, r, bA, was, stp, vars); runs.push(rn); }   // 1.6.0: CrossStep and Crossed
     });
     lrs.forEach(function(x) {   // 1.6.0: a row's counter, read and its steps worked out with that row's names; a row seen for the first time is only noted
         rowCrossRows(c, x).forEach(function(row) {
@@ -668,10 +706,14 @@ function crossFollow(c, camp) {
         runs.forEach(function(x) {
             var r = x.r, lb = String(r.label || (Array.isArray(r.apply) ? 'Apply' : 'Roll')).split('{')[0].trim() || (Array.isArray(r.apply) ? 'Apply' : 'Roll');
             if (x.at) { if (off) return; var cR = charById(c.id, camp); if (!cR) return; if (Array.isArray(r.apply)) applyAction(r, cR, lb, x.at, undefined, x.cx); else if (window.wpDice && window.wpDice.rollFor) window.wpDice.rollFor(cR.id, r.formula, lb, { row: x.at, cross: x.cx }); return; }   // 1.6.0: on its row, as the GM's own press; an NPC whose rules are off runs nothing
-            if (r.cross.by || off) { if (n && n.postDue) n.postDue(c, r, 'cross', 1, !off && r.cross.by === 'owner' && r.vis !== 'gm'); return; }
+            if (r.cross.by || off) { var attP = x.bh ? blowAtt(c, r, x.bh) : ''; if (n && n.postDue) n.postDue(c, r, 'cross', 1, !off && r.cross.by === 'owner' && r.vis !== 'gm', attP ? { att: attP } : undefined); return; }   // 1.6.2 (242): its card names the blow's record, which the host works its roll out on
             var cN = charById(c.id, camp); if (!cN) return;
             if (Array.isArray(r.apply)) applyAction(r, cN, lb, undefined, undefined, x.cx);   // 1.6.0: with CrossStep and Crossed
-            else if (window.wpDice && window.wpDice.rollFor) window.wpDice.rollFor(cN.id, r.formula, lb, r.vis === 'gm' ? { act: r.id, gmOnly: true, cross: x.cx } : { act: r.id, cross: x.cx });
+            else if (window.wpDice && window.wpDice.rollFor) {
+                var attN = x.bh ? blowAtt(cN, r, x.bh) : '';   // 1.6.2 (242): rolled at once on the blow's record, handed to this very roll as a card's press hands one (net.diceRoll takes _attNext)
+                if (attN && n) n._attNext = { att: attN, charId: cN.id, act: r.id };
+                try { window.wpDice.rollFor(cN.id, r.formula, lb, r.vis === 'gm' ? { act: r.id, gmOnly: true, cross: x.cx } : { act: r.id, cross: x.cx }); } finally { if (attN && n) n._attNext = null; }
+            }
         });
     } finally { _crossDepth--; }
     return runs.length;
@@ -688,6 +730,7 @@ function ruleFollow(c, camp) {
     return typeof crossFollow === 'function' ? crossFollow(c, camp) : 0;
 }
 // [systemcheck:cross-end]
+(function() { var SCb = typeof window !== 'undefined' ? window.wpSystemCore : null; if (SCb && typeof SCb.setBlowSink === 'function') SCb.setBlowSink(blowAt); })();   // 1.6.2 (backlog 242): the damage step tells crossFollow what each blow was
 // [bodycheck:tilefollow-start]
 // 1.6.2 (body fold 8): as a tile comes into a state, what stands there does what its list says, on the machine that owns the campaign, once a change is stored. What each character's tiles were in is kept in memory alone, so a load does nothing, and a tile that leaves a state and comes back runs again. An NPC whose rules are off runs nothing, as a crossing on a row does
 var _tileSeen = Object.create(null), _tileNoted = Object.create(null), _tileDepth = 0, _tileSig = '';
@@ -14648,6 +14691,11 @@ function crossRow(r) {
     var st = input('sys-roll-xsstep field', cr.step || '', 'How far apart the next steps are, such as HP.max. Empty: one step', 'Then every'); st.maxLength = LIMITS.formula; row.appendChild(st);
     if (cr.step) { var cn = input('sys-roll-xsn field', cr.count ? String(cr.count) : '', 'How many steps in all, 2 to 20', 'Steps'); cn.type = 'number'; row.appendChild(cn); var ol = el('label', 'sys-hover'), oc = el('input', 'sys-roll-xsone'); oc.type = 'checkbox'; oc.checked = cr.one === true; ol.appendChild(oc); ol.appendChild(document.createTextNode(' Once however many')); ol.title = 'Runs once when one change passes several steps, not once a step'; row.appendChild(ol); }
     row.appendChild(select('sys-roll-xsby', [['', 'runs at once'], ['owner', 'reminds its player'], ['gm', 'reminds me']], cr.by === 'owner' || cr.by === 'gm' ? cr.by : '', 'At once, as your own press of it, or as a reminder in chat with its button'));
+    if (!Array.isArray(r.apply)) {   // 1.6.2 (backlog 242; the CORE Master: a hit's own effects do not apply to the rolls the same hit calls for): a roll's alone
+        var bl = el('label', 'sys-hover'), bc = el('input', 'sys-roll-xsblow'); bc.type = 'checkbox'; bc.checked = cr.asAt === true; bl.appendChild(bc); bl.appendChild(document.createTextNode(' Reads the sheet as the blow left it'));
+        bl.title = 'Where a hit makes the crossing, the roll leaves out the effects that same hit put on, as a death check leaves out the hit\u2019s own Rattled. It may read Blow and Hit names too. Any other crossing rolls on the sheet as it stands';
+        row.appendChild(bl); if (typeof lineUnder === 'function') lineUnder(row, 'A hit\u2019s own effects come after this roll.');
+    }
     return row;
 }
 // 1.6.0: the Lists card's crossing on a row's counter, beside a list's roll or action: shown where the list has a counter (or one is set)
@@ -14678,6 +14726,7 @@ function crossEdit(r, c, t) {
     var cr = r.cross && typeof r.cross === 'object' ? r.cross : null;
     if (c.indexOf('sys-roll-xsf') >= 0) { if (t.value) r.cross = Object.assign({ dir: 'down', at: '0' }, cr || {}, { f: t.value }); else delete r.cross; return 'all'; }
     if (!cr) return '';
+    if (c.indexOf('sys-roll-xsblow') >= 0) { if (t.checked) cr.asAt = true; else delete cr.asAt; return 'one'; }   // 1.6.2 (242): Reads the sheet as the blow left it
     if (c.indexOf('sys-roll-xsd') >= 0) { cr.dir = t.value === 'up' ? 'up' : 'down'; return 'one'; }
     if (c.indexOf('sys-roll-xsat') >= 0) { cr.at = String(t.value).slice(0, LIMITS.formula); return 'one'; }
     if (c.indexOf('sys-roll-xsstep') >= 0) { var sv = String(t.value).slice(0, LIMITS.formula), had = !!cr.step; if (sv.trim()) cr.step = sv; else { delete cr.step; delete cr.count; delete cr.one; } return had !== !!cr.step ? 'all' : 'one'; }

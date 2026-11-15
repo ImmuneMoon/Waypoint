@@ -646,6 +646,11 @@ At the table
 - An Any wound row can also run on a blow that wounds nobody, as armor that
   stops it all, for knockback. A row's roll can read the sheet as it stood at
   that row, so a shock roll leaves out the Stunned of the same hit.
+- A death check that a hit sets off can leave out that hit's own effects.
+  Tick Reads the sheet as the blow left it on a roll that runs when a value
+  crosses, and the Rattled from the very hit that dropped someone won't make
+  their death check harder. It can read the blow's Blow and Hit names too.
+  Any other crossing rolls on the sheet as it stands.
 - Help draws the System editor's buttons and tabs as they look in the app.
   Press one, and Help steps aside, opens the editor on that tab and lights
   the button; Back to Help returns. A button of the top row's menus opens

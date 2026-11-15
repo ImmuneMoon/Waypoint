@@ -15002,7 +15002,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const hit = { amt: 9, type: 'cut', loc: 'w_body' }, yS = DS(mkY([{ roll: 'r_vit', asAt: true }, { fx: 'e_shock' }]), chD(), hit, F, undefined, { now: 1, inCombat: false }), yL = DS(mkY([{ fx: 'e_shock' }, { roll: 'r_vit', asAt: true }]), chD(), hit, F, undefined, { now: 1, inCombat: false }), yP = DS(mkY([{ roll: 'r_vit' }, { fx: 'e_shock' }]), chD(), hit, F, undefined, { now: 1, inCombat: false });
             const fS = yS.ok && yS.info.follows[0], fL = yL.ok && yL.info.follows[0];
             check('1.6.2 a roll ticked to read the sheet as it was at its row carries the step\u2019s writes as they stood there: above the row that puts Rattled on it holds the wound and not the effect, below it both; with no tick the roll carries nothing of its own and reads the sheet as the whole blow left it',
-                fS && fS.vals && fS.vals.f_hp && fS.vals.f_hp.cur === yS.values.f_hp.cur && !('f_fx' in fS.vals) && yS.values.f_fx.some(r => r.ref === 'e_shock')
+                fS && fS.vals && fS.vals.f_hp && fS.vals.f_hp.cur === yS.values.f_hp.cur && fS.vals.f_fx === undefined /* 1.6.2 (backlog 242): the effects list now named, as it stood before the hit (none), so laid over the sheet as stored it leaves the later Rattled out (moved on purpose) */ && yS.values.f_fx.some(r => r.ref === 'e_shock')
                 && fL && fL.vals && Array.isArray(fL.vals.f_fx) && fL.vals.f_fx.some(r => r.ref === 'e_shock')
                 && yP.ok && !('vals' in yP.info.follows[0]), j([fS, fL, yP.info.follows]));
             const shY = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
@@ -15019,7 +15019,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 bH.ok && bH.info.major === true && bH.info.blow.big === 1 && bH.values.f_fx.some(r => r.ref === 'e_shock') && bN.ok && bN.info.major !== true && !('f_fx' in bN.values) && bS.ok && bS.info.major !== true && S.withBlow({}, { big: 1 }).blow.big === 1 && S.withBlow({}, {}).blow.big === 0, j([bH.info, bN.info, bS.info]));
             const fM = bH.ok && bH.info.follows.find(x => x.why === 'major');
             check('1.6.2 its Big Hit roll, ticked to read the sheet as it was there, carries the wound and not the Major Wound\u2019s own effect nor the Rattled an Any wound row puts on',
-                fM && fM.vals && fM.vals.f_hp && !('f_fx' in fM.vals), j(fM));
+                fM && fM.vals && fM.vals.f_hp && fM.vals.f_fx === undefined /* 1.6.2 (backlog 242): named as before the hit (moved on purpose) */, j(fM));
         }
         {   /* 1.6.0 (the core's gaps 6 and 7): what any wound does (onWound), a posted roll reading the blow (Blow.<name>, Hit.<name>), and its failure crippling the location (crip) */
             const mkW = (om, ow) => { const s = mkM(om); s.effects.push({ id: 'e_bleed', name: 'Bleeding', vis: 'all', mods: [] });
@@ -17295,6 +17295,66 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.5.9 crossings (the book (et) and (eu); cleanSystem, crossSteps and crossings, and sheets.js crossFollow and crossSeed run for real): the cleaner keeps a crossing of a pool or a number with its first step, its steps, how many, Once however many and who runs it, in the GM\'s view alone, and drops one of a text, of no field or with no first step; the steps are worked out with the character\'s names after the change; a fall past a step crosses it, a fall past two crosses both, a value already past crosses nothing, back above and down again crosses again, and a rising rule with Once however many runs once for three steps; on the machine that owns the campaign the first look only notes, a run is the GM\'s own roll by its name, a step set to remind posts the GM\'s reminder, an NPC switched off gets a reminder in place of a run, and a player\'s app or a campaign this machine may not write runs nothing',
             clOk && pureOk && runOk && notSeen === 0 && fresh.out.rolls.length === 0 && offs.every(x => x[0] === 0 && x[1] === 0) && nOff.out.rolls.length === 0 && J(nOff.out.dues) === J([['c_a', 'r_dc', 'cross', false]]),
             J([clOk, pureOk, seeded, seededAgain, [r1, r2, r3, r4, r5, r6], w.out, notSeen, offs, nOff.out]));
+    }
+    // 1.6.2 (backlog 242; the CORE Master's ruling for finding 4c: "Rattled and Battered come after the hit's own rolls. They don't apply to rolls the
+    // same hit calls for"): a crossing's roll ticked Reads the sheet as the blow left it (cross.asAt). The cleaner, the validator, the damage step's
+    // blow sink and sheets.js crossFollow, sliced by its cross markers and run for real with the real core, a stand-in net keeping its blow records
+    {
+        const J = JSON.stringify, NLb = '\n';
+        const raw = (asAt, by) => ({ v: 1, name: 'B', fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '15', def: 'max', min: -99 }, { id: 'f_vit', key: 'Vit', label: 'Vitality', kind: 'number', def: 12 }, { id: 'f_fx', key: 'Fx', label: 'Effects', kind: 'effects' }],
+            effects: [{ id: 'e_rat', name: 'Rattled', mods: [{ f: 'f_vit', op: 'add', v: -4 }] }],
+            rolls: [{ id: 'r_dc', label: 'Death check', formula: '3d6 <= Vit', cross: Object.assign({ f: 'f_hp', dir: 'down', at: '-HP.max', step: 'HP.max', count: 2 }, asAt === undefined ? {} : { asAt: asAt }, by ? { by: by } : {}) },
+                { id: 'r_dn', label: 'Plain check', formula: '3d6 <= Vit', cross: { f: 'f_hp', dir: 'down', at: '-HP.max' } },
+                { id: 'r_ap', label: 'Mark', apply: [{ f: 'f_vit', formula: '0', add: true }], cross: { f: 'f_hp', at: '-99', asAt: true } }],
+            combat: { hpResource: 'f_hp', damage: { pool: 'f_hp', major: 'HP.max', onMajor: { fx: 'e_rat' } } } });
+        const gm = S.cleanSystem(raw(true), { F, gmView: true }), pl = S.cleanSystem(raw(true), { F, gmView: false }), rOf = (s, id) => s.rolls.filter(r => r.id === id)[0] || {};
+        const odd = [1, 'yes', false].map(v => J(rOf(S.cleanSystem(raw(v), { F, gmView: true }), 'r_dc').cross));
+        const clOk = rOf(gm, 'r_dc').cross.asAt === true && !('asAt' in rOf(gm, 'r_dn').cross) && !('asAt' in rOf(gm, 'r_ap').cross) && pl.rolls.every(r => !('cross' in r)) && odd.every(x => x === J({ f: 'f_hp', dir: 'down', at: '-HP.max', step: 'HP.max', count: 2 }))
+            && J(S.cleanSystem(gm, { F, gmView: true })) === J(gm) && S.asAtCross(gm) === true && S.asAtCross(S.cleanSystem(raw(), { F, gmView: true })) === false;
+        // the validator: Blow.<name> in such a roll, and never in one without the tick
+        const blowErrs = r => (S.validateSystem(Object.assign({}, gm, { rolls: [Object.assign({}, r, { formula: '3d6 <= Vit - Blow.wound' })] }), F).errors || []).filter(e => /blow\./i.test(e.message || '')).length;
+        const vB = blowErrs(rOf(gm, 'r_dc')), vN = blowErrs(rOf(gm, 'r_dn')), valOk = vB === 0 && vN === 1;
+        const shB = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NLb), ba = shB.indexOf('// [systemcheck:cross-start]'), bz = shB.indexOf('// [systemcheck:cross-end]');
+        const mk = (sys) => {
+            const out = { rolls: [], dues: [], recs: {} }, c = { id: 'c_k', name: 'Kael', ownerId: 'u_k', values: { f_hp: { cur: 3 }, f_vit: 12 } }, camp = { id: 'k', system: sys, chars: { c_k: c } };
+            const n = { _attNext: null, postDue: (ch, r, kind, rd, own, more) => out.dues.push([r.id, kind, more && more.att ? 'att' : '']), blowMake: (ch, act, blow, crip, cripBy, vals, soft) => { const id = (soft ? 'b_' : 'a_') + Object.keys(out.recs).length; out.recs[id] = { act: act, blow: blow, vals: vals, soft: soft }; return id; } };
+            const vitOf = (vals, blow) => S.makeResolver(sys, Object.assign({}, c, { values: vals }), F, blow ? S.withBlow({}, blow) : null)('Vit');
+            const api = new Function('isClient', 'canWrite', 'F', 'crossings', 'makeResolver', 'getActiveCampaign', 'fieldById', 'tokenCtxFor', 'charById', 'net', 'toast', 'applyAction', 'window', shB.slice(ba, bz) + NLb + 'return { crossFollow: crossFollow, crossSeed: crossSeed, blowAt: blowAt };')(
+                () => false, () => true, () => F, S.crossings, S.makeResolver, () => camp, (s, id) => s.fields.filter(f => f.id === id)[0] || null, () => null, (id, k) => k.chars[id] || null, () => n, () => {}, () => {},
+                { wpDice: { rollFor: (id, f, lb, op) => { const at = n._attNext, rc = at ? out.recs[at.att] : null; out.rolls.push([op.act, at ? 'att' : '', rc ? vitOf(rc.vals, rc.blow) : vitOf(c.values), rc ? S.withBlow({}, rc.blow).blow.wound : null]); } }, wpCalendar: { rulesRun: () => null } });
+            S.setBlowSink(api.blowAt);
+            const store = st => { Object.keys(st.values).forEach(k => { c.values[k] = st.values[k]; }); return api.crossFollow(c, camp); };
+            return { out, c, camp, api, store };
+        };
+        let runOk = false, burstOk = false, noBlowOk = false, offOk = false, dueOk = false, prevOk = false, info = [];
+        try {
+            // the owner's case: Vitality 12, 15 HP at 3; a Big Hit of 20 to -17 puts Rattled (-4) on; the death check at -HP.max reads 12 where it is ticked, 8 where it is not
+            const w = mk(gm); w.api.crossSeed(); const st = S.damageStep(gm, w.c, { amt: 20, big: true }, F, undefined, { now: 1, inCombat: false }), n1 = w.store(st);
+            const liveVit = S.makeResolver(gm, w.c, F, null)('Vit');
+            runOk = st.ok && w.c.values.f_hp.cur === -17 && liveVit === 8 && n1 === 2 && J(w.out.rolls) === J([['r_dc', 'att', 12, 20], ['r_dn', '', 8, null]]) && Object.keys(w.out.recs).length === 1 && w.out.recs[Object.keys(w.out.recs)[0]].blow.major === 1;
+            // a crossing made any other way (a hand edit back down past the step) rolls on the sheet as it stands, Rattled and all
+            w.c.values.f_hp = { cur: 3 }; w.api.crossFollow(w.c, w.camp); w.c.values.f_hp = { cur: -17 }; w.api.crossFollow(w.c, w.camp);
+            noBlowOk = J(w.out.rolls.slice(2)) === J([['r_dc', '', 8, null], ['r_dn', '', 8, null]]);
+            // a system with no roll ticked: the step tells nothing, every crossing as today
+            const w0 = mk(S.cleanSystem(raw(), { F, gmView: true })); w0.api.crossSeed(); w0.store(S.damageStep(w0.camp.system, w0.c, { amt: 20, big: true }, F, undefined, { now: 1, inCombat: false }));
+            offOk = J(w0.out.rolls) === J([['r_dc', '', 8, null], ['r_dn', '', 8, null]]) && Object.keys(w0.out.recs).length === 0;
+            // a reminder: its card names the blow's record
+            const wr = mk(S.cleanSystem(raw(true, 'owner'), { F, gmView: true })); wr.api.crossSeed(); wr.store(S.damageStep(wr.camp.system, wr.c, { amt: 20, big: true }, F, undefined, { now: 1, inCombat: false }));
+            const rcR = wr.out.recs[Object.keys(wr.out.recs)[0]];
+            dueOk = J(wr.out.dues) === J([['r_dc', 'cross', 'att']]) && !!rcR && S.makeResolver(wr.camp.system, Object.assign({}, wr.c, { values: rcR.vals }), F, null)('Vit') === 12 && rcR.soft === true;
+            // a burst: the first hit (10, no Major Wound) leaves -7, the second, a Big Hit, crosses -15 and puts Rattled on; the roll reads that hit, before its own Rattled
+            const wb = mk(gm); wb.api.crossSeed(); const sb = S.damageBurst(gm, wb.c, { amt: 10, hits: [{ amt: 10, big: true }] }, F, undefined, { now: 1, inCombat: false }); wb.store(sb);
+            burstOk = sb.ok && wb.c.values.f_hp.cur === -17 && J(wb.out.rolls) === J([['r_dc', 'att', 12, 10], ['r_dn', '', 8, null]]);
+            // a blow worked out and never stored (a preview) is let go at the next crossFollow, which finds no crossing, so a later hand edit rolls as today
+            const wp = mk(gm); wp.api.crossSeed(); S.damageStep(gm, wp.c, { amt: 20, big: true }, F, undefined, { now: 1, inCombat: false }); wp.api.crossFollow(wp.c, wp.camp); wp.c.values.f_hp = { cur: -17 }; wp.api.crossFollow(wp.c, wp.camp);
+            prevOk = J(wp.out.rolls) === J([['r_dc', '', 12, null], ['r_dn', '', 12, null]]);
+            info = [st.ok, w.c.values, liveVit, w.out, w0.out, wr.out.dues, wb.out.rolls, wp.out.rolls];
+        } finally { S.setBlowSink(null); }
+        const edOk = shB.includes("bc = el('input', 'sys-roll-xsblow')") && shB.includes("createTextNode(' Reads the sheet as the blow left it')") && shB.includes("if (c.indexOf('sys-roll-xsblow') >= 0) { if (t.checked) cr.asAt = true; else delete cr.asAt; return 'one'; }")
+            && shB.indexOf("if (c.indexOf('sys-roll-xsblow') >= 0)") < shB.indexOf("if (c.indexOf('sys-roll-xsd') >= 0)") && shB.includes('SCb.setBlowSink(blowAt)');
+        const ixB = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), helpOk = /<li>Tick <b>Reads the sheet as the blow left it<\/b>/.test(ixB) && /<b>Reads the sheet as the blow left it<\/b><small>[^<]+<\/small>/.test(ixB);
+        check('1.6.2 (backlog 242; the CORE Master: the hit\u2019s own Rattled does not apply to the rolls the same hit calls for) a roll that runs When a value crosses may be ticked Reads the sheet as the blow left it: the cleaner keeps asAt only as true, in the GM\u2019s view as a crossing is, never on an apply action; the validator lets such a roll read Blow names and no other crossing; run for real, a Big Hit of 20 taking Vitality 12 and 15 HP from 3 to -17 and putting Rattled (-4) on rolls the death check at -HP.max on the blow\u2019s record, reading Vitality 12, where the same crossing without the tick reads 8; a hand edit past the step, a system with no tick and a blow never stored roll on the sheet as it stands; a reminder names the record; a burst reads the hit that crossed; and the editor\u2019s tick, its handler, the sink\u2019s registration, Help and the Rolls key',
+            clOk && valOk && runOk && noBlowOk && offOk && dueOk && burstOk && prevOk && edOk && helpOk, J([clOk, odd, valOk, vB, vN, runOk, noBlowOk, offOk, dueOk, burstOk, prevOk, edOk, helpOk, info]));
     }
     // The review of folds 4a and 6b (1.5.9): a load seeds what the posture rule last saw, as it seeds the crossings, so the first change after it
     // lays a token down; the crossings' seed reads a value in its token's context as crossFollow does; and a time rule's run and a round's or a

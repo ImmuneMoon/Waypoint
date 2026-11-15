@@ -528,7 +528,7 @@ function cleanDue(rec) {
             var cL = cleanLabel(cO.label); if (cL === null) return null; out.or = [cL ? { row: { f: cW.f, r: cW.r, i: cW.i }, label: cL } : { row: { f: cW.f, r: cW.r, i: cW.i } }]; out.nm = 1;
         }
         var byC = cleanLabel(rec.by); if (byC === null) return null; if (byC) out.by = byC;
-    } else if ((rec.why === 'major' || rec.why === 'wound') && rec.att !== undefined) {   // 1.6.0 (the core's gaps 6 and 7): the blow a roll the damage step posted answers, by the id of the host's record
+    } else if ((rec.why === 'major' || rec.why === 'wound' || rec.why === 'cross') && rec.att !== undefined) {   // 1.6.0 (the core's gaps 6 and 7): the blow a roll the damage step posted answers, by the id of the host's record   // 1.6.2 (backlog 242): and a crossing's roll ticked Reads the sheet as the blow left it, the blow that made it cross
         if (out.roll !== 1 || typeof rec.att !== 'string' || !ATT_RE.test(rec.att) || rec.by !== undefined || rec.m !== undefined || rec.or !== undefined) return null; out.att = rec.att;
     } else if (rec.att !== undefined || rec.by !== undefined || rec.m !== undefined || rec.or !== undefined) return null;
     return out;

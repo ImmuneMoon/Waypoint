@@ -17,7 +17,8 @@
      `[t](https://…)` form one text block per run; `> quote` = callout, `> [!lede|oneline|flare|callout]`
      and `::: type … :::` pick the prose block; pipe tables (first row headers, at most 64 columns,
      a bold line above = the title; a line break inside a cell is <br>, and a line of a cell that begins
-     with "- " or "• " is an item of a bulleted list in that cell); ```mermaid = diagram, ```flowchart / ```graph in the simple
+     with "- " or "• " is an item of a bulleted list in that cell; a cell followed by a bare || spans the next
+     column too, as MultiMarkdown writes it, and a row whose first cell spans every column is a full-width row); ```mermaid = diagram, ```flowchart / ```graph in the simple
      subset = a native flowchart, other fences = code; `---` = a rule on a page, a run boundary in a
      planner; `![caption](path){width=50 float=left dx=0 dy=0 span}` = a picture (a relative path
      resolved against the files or zip dropped with the .md, `data:` decoded, `https:` kept as a
@@ -29,7 +30,7 @@
      the whole field or on a part of it — are written from the field's format and read back into it
      ("text style" below). */
 'use strict';
-import { sanitizeHtml, DOC_BLOCKS, fieldFmt, colFmtOf, cellFmtOf, labelFmt, stripMermaidLinks, linkLine, readLinkLine } from './docrender.js';
+import { sanitizeHtml, DOC_BLOCKS, fieldFmt, colFmtOf, cellFmtOf, labelFmt, stripMermaidLinks, linkLine, readLinkLine, rowJoin } from './docrender.js';
 import { cleanFmt, runsOf, SIZE_EM, MAX_RAW } from './textfmt.js';
 import * as CC from './cardcore.js';   // backlog 107 step 3: a card's kind, other names and tick, written and read back
 
@@ -175,6 +176,21 @@ function splitRow(line) {
     for (var i = 0; i < s.length; i++) { if (s[i] === '\\' && s[i + 1] === '|') { cur += '|'; i++; } else if (s[i] === '|') { cells.push(cur); cur = ''; } else cur += s[i]; }
     cells.push(cur);
     return cells.map(function(c) { return c.trim(); });
+}
+// 1.6.2, merged cells: a table row with each cell's span. A pipe right after a cell's own closing pipe, with nothing between (||), adds a
+// column to that cell, as MultiMarkdown writes a merged cell; the export writes an empty cell as "|  |" (a space each side), so it is never
+// read as a merge. cells: the texts by their columns (a merged cell's columns after the first are ''), spans: how many columns each column's
+// cell takes (0 under a merge), or null where nothing is merged. The first cell of a row cannot merge backwards: a bare || there is an empty cell.
+function splitJoin(line) {
+    var s = line.trim().replace(/^\|/, '').replace(/\|$/, ''), raw = [], cur = '';
+    for (var i = 0; i < s.length; i++) { if (s[i] === '\\' && s[i + 1] === '|') { cur += '\\|'; i++; } else if (s[i] === '|') { raw.push(cur); cur = ''; } else cur += s[i]; }
+    raw.push(cur);
+    var cells = [], spans = [], any = false, last = -1;
+    raw.forEach(function(c, k) {
+        if (c === '' && k > 0 && last >= 0) { spans[last]++; spans.push(0); cells.push(''); any = true; return; }   // a bare || : the cell before takes this column
+        last = cells.length; cells.push(c.replace(/\\\|/g, '|').trim()); spans.push(1);
+    });
+    return { cells: cells, spans: any ? spans : null };
 }
 function isTableSep(line) { return /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(line || ''); }
 
@@ -551,15 +567,20 @@ function markdownToBlocks(text, opts) {
         if (info === 'html') { run.push('<pre><code>' + esc(body) + '</code></pre>'); notes.push('An html fence was kept as code, not as page markup.'); return; }
         run.push('<pre><code>' + esc(body) + '</code></pre>');
     }
-    // fm: the formats read with the texts — { title, cols: [fmt…], rows: [[fmt…]…] }, each undefined where there is none
+    // fm: the formats read with the texts — { title, cols: [fmt…], rows: [[fmt…]…] }, each undefined where there is none; fm.joins (1.6.2): each
+    // row's spans as splitJoin read them, or null
     function pushTable(cols, rows, title, fm) {
         fm = fm || {};
-        var cf = fm.cols || [], rf = fm.rows || [];
+        var cf = fm.cols || [], rf = fm.rows || [], jf = fm.joins || [];
         if (cols.length > LIMITS.cols) { notes.push('Table "' + (title || cols[0] || '') + '": ' + cols.length + ' columns cut to ' + LIMITS.cols + '.'); cols = cols.slice(0, LIMITS.cols); }
         var objRows = rows.map(function(r, ri) {
             var o = {}, fo = {}, one = rf[ri] || [];
             cols.forEach(function(c, k) { o['col' + (k + 1)] = r[k] === undefined ? '' : r[k]; if (one[k] && r[k] !== undefined) fo['col' + (k + 1)] = one[k]; });
             if (Object.keys(fo).length) o.fmt = fo;
+            // 1.6.2, merged cells: a first cell that spans every column is a full-width row (the export writes one so); else each span on its cell
+            var sp = jf[ri];
+            if (sp && cols.length > 1 && sp[0] >= cols.length) o.full = true;
+            else if (sp) { var mg = {}; sp.forEach(function(k, ci) { if (k > 1 && ci < cols.length) mg['col' + (ci + 1)] = Math.min(k, cols.length - ci); }); if (Object.keys(mg).length) o.merge = mg; }
             return o;
         });
         var colFmt = cols.map(function(c, k) { return cf[k] || null; });   // parallel to cols: null for a plain head, no trailing nulls
@@ -627,8 +648,9 @@ function markdownToBlocks(text, opts) {
         if (/\|/.test(line) && isTableSep(next)) {
             var textOf = function(c) { return c.text; }, fmtOf = function(c) { return c.fmt; };
             var hc = splitRow(line).map(cellOf), cols = hc.map(textOf), rows = [], rfm = []; i += 2;   // a head and a cell read a <br> as a line break (cellOf)
-            while (i < lines.length && /\|/.test(lines[i]) && lines[i].trim()) { var rc = splitRow(lines[i]).map(cellOf); rows.push(rc.map(textOf)); rfm.push(rc.map(fmtOf)); i++; }
-            var tt = pendingTitle; pendingTitle = null; pushTable(cols, rows, tt ? tt.text : tt, { title: tt ? tt.fmt : undefined, cols: hc.map(fmtOf), rows: rfm }); continue;
+            var rj = [];   // 1.6.2: each row's merged cells (splitJoin)
+            while (i < lines.length && /\|/.test(lines[i]) && lines[i].trim()) { var sj = splitJoin(lines[i]), rc = sj.cells.map(cellOf); rows.push(rc.map(textOf)); rfm.push(rc.map(fmtOf)); rj.push(sj.spans); i++; }
+            var tt = pendingTitle; pendingTitle = null; pushTable(cols, rows, tt ? tt.text : tt, { title: tt ? tt.fmt : undefined, cols: hc.map(fmtOf), rows: rfm, joins: rj }); continue;
         }
         var imL = picLine(line);
         if (imL) {
@@ -780,7 +802,17 @@ function tableMd(title, cols, rows, b) {
     if (title) L.push('**' + ((b && fieldMd(title, fieldFmt(b, 'title'), IN_BOLD)) || mdEscapeText(title)) + '**');
     L.push('| ' + cols.join(' | ') + ' |');
     L.push('|' + cols.map(function() { return '---'; }).join('|') + '|');
-    (rows || []).forEach(function(r, ri) { var c = rowCells(r, cols); L.push('| ' + cols.map(function(x, k) { return (b && fieldMd(c[k], cellFmtOf(b, ri, k), IN_CELL)) || cellText(c[k]); }).join(' | ') + ' |'); });
+    (rows || []).forEach(function(r, ri) {
+        var c = rowCells(r, cols), one = function(k) { return (b && fieldMd(c[k], cellFmtOf(b, ri, k), IN_CELL)) || cellText(c[k]); };
+        var j = b ? rowJoin(b, ri, cols.length) : { full: false, spans: null };
+        if (!j.full && !j.spans) { L.push('| ' + cols.map(function(x, k) { return one(k); }).join(' | ') + ' |'); return; }
+        // 1.6.2, merged cells: a merged cell is followed by one bare | for each further column it takes (splitJoin reads it back); a full-width
+        // row is its first cell spanning every column. A cell under a merge is not written: it is not drawn either
+        var line = '|';
+        if (j.full) line += ' ' + one(0) + ' ' + new Array(cols.length + 1).join('|');
+        else j.spans.forEach(function(k, ci) { if (k > 0) line += ' ' + one(ci) + ' ' + new Array(k + 1).join('|'); });
+        L.push(line);
+    });
     return L.join('\n');
 }
 // opts.items: the campaign's items (a scene node's map link is written as "Map: title / room");

@@ -17,6 +17,7 @@
                              with no format, exactly put(text).
      fmtRich(text, fmt)      the same for a field that reads typed markup (a planner's): the whole field through
                              sanitizeHtml once, the runs laid over its text; with no format, exactly sanitizeHtml(text).
+     rowJoin(b, ri, ncol)    a table row's merged cells: { full, spans } — a full-width row, or how many columns each cell takes (1.6.2).
      cellHtml(text, fmt, draw) a table cell: its lines that begin with "- " or "• " as a bulleted list, each line drawn by
                              draw (fmtHtml on a page, fmtRich in a planner) with its own part of the format; a cell with
                              no such line is exactly draw(text, fmt).
@@ -299,6 +300,63 @@ function fmtSlice(text, fmt, s, e) {
     if (f.font) part.font = f.font;
     return cleanFmt(part, t.slice(s, e));
 }
+/* ---------- merged cells in a table (1.6.2) ----------
+   The owner, 2026-11-14, by prompt: "Cell and row menus". The book's Word tables merge cells: a heading over two columns, and a row that runs
+   the whole width of the table as a sub-heading. Two things are kept ON THE ROW, so moving or deleting a row takes them along:
+     - a merged cell: the cell spans the next columns too. On a row as the editor keeps it ({ col1, col2, … }) that is row.merge, a map from a
+       cell's key to how many columns it takes ({ col1: 2 }); on a row as a page travels (a list of cells) it is the block's rowMerge, a list
+       parallel to rows whose entry is a list of how many columns each cell takes ([2, 1, 1]) or null.
+     - a full-width row: its first cell spans the whole table and is drawn as a sub-heading row. row.full (true only), or the entry 'full'.
+   A cell under a merge keeps its text (Unmerge shows it again) but is not drawn. rowJoin is the ONE reading of both forms: renderDoc,
+   planner.js plannerPreviewHtml, cleanDoc, cleanBlockFmts and planner.js tsRowsAsObjects all ask it, so a hostile number never reaches markup. */
+var JOIN_MAX = 64;   // a cell spans at most LIMITS.cols columns
+// How many columns one stored span means: a whole number from 2 up, held to the columns left from the cell's own; 1 for anything else
+function joinSpan(v, left) { var n = typeof v === 'number' && isFinite(v) && Math.floor(v) === v ? v : 1; return n < 2 ? 1 : Math.min(n, left, JOIN_MAX); }
+// A row's merged cells, read from either form: { full: true|false, spans: [how many columns each cell takes, in order] or null where no cell
+// is merged }. ncol: the table's count of columns (a span never runs past it). A cell under another's span counts 0, and a span that would
+// cover a cell that is itself merged takes it in (the earlier cell wins).
+function rowJoin(b, ri, ncol) {
+    var rows = b && Array.isArray(b.rows) ? b.rows : [], r = rows[ri], raw = [], full = false;
+    ncol = Math.max(1, Math.min(LIMITS.cols, Math.floor(Number(ncol)) || 1));
+    if (r && typeof r === 'object' && !Array.isArray(r)) {
+        full = own(r, 'full') && r.full === true;
+        if (own(r, 'merge') && r.merge && typeof r.merge === 'object' && !Array.isArray(r.merge)) Object.keys(r.merge).forEach(function(k) { var m = /^col([1-9][0-9]?)$/.exec(k); if (m && +m[1] <= ncol) raw[+m[1] - 1] = r.merge[k]; });
+    } else {
+        var e = Array.isArray(b.rowMerge) ? b.rowMerge[ri] : null;
+        if (e === 'full') full = true;
+        else if (Array.isArray(e)) for (var i = 0; i < Math.min(e.length, ncol); i++) raw[i] = e[i];
+    }
+    if (full) return { full: true, spans: null };
+    var spans = [], any = false, c = 0;
+    while (c < ncol) { var k = joinSpan(raw[c], ncol - c); spans.push(k); for (var j = 1; j < k; j++) spans.push(0); if (k > 1) any = true; c += k; }
+    return { full: false, spans: any ? spans : null };
+}
+// The editor's form of a row's merged cells, cleaned in place against the table's count of columns: row.full only as true, row.merge only
+// as { colN: span } for each cell that spans 2 or more (none under another's span, none past the table). cleanBlockFmts calls it for every
+// row of a planner's or a page's table that arrives as objects; nothing is left where nothing is merged.
+function cleanRowJoin(b, ri, ncol) {
+    var r = b.rows[ri]; if (!r || typeof r !== 'object' || Array.isArray(r)) return;
+    var j = rowJoin(b, ri, ncol);
+    if (j.full) { r.full = true; delete r.merge; return; }
+    delete r.full;
+    if (!j.spans) { delete r.merge; return; }
+    var m = {}; j.spans.forEach(function(k, i) { if (k > 1) m['col' + (i + 1)] = k; }); r.merge = m;
+}
+// The column count rowJoin is measured against: a table's heads, or its widest row where it has more cells than heads (as renderDoc draws it)
+function joinCols(b) {
+    var n = Array.isArray(b.cols) ? Math.min(b.cols.length, LIMITS.cols) : 0;
+    (Array.isArray(b.rows) ? b.rows : []).forEach(function(r) { var c = rowCells(r).length; if (c > n) n = c; });
+    return Math.max(1, n);
+}
+// The cells of one table row as markup: <td> by <td>, a merged cell with its colspan and the cells under it left out, a full-width row as one
+// cell over the whole table in a row of class t-full (a sub-heading: style.css, and pagenav.js tableFit draws it as a heading between the
+// cards). cell(ci): one cell's inner markup. The colspan is a number rowJoin made, never stored text.
+function rowHtml(j, ncol, cell) {
+    if (j.full) return '<tr class="t-full"><td colspan="' + ncol + '">' + cell(0) + '</td></tr>';
+    var out = '<tr>';
+    for (var c = 0; c < ncol; c++) { var k = j.spans ? j.spans[c] : 1; if (k === 0) continue; out += (k > 1 ? '<td colspan="' + k + '">' : '<td>') + cell(c) + '</td>'; }
+    return out + '</tr>';
+}
 // A table cell as markup. draw(text, fmt) draws one stretch of plain text with its format: docrender's fmtHtml on a page (escaped text), its
 // fmtRich in a planner (typed markup through the sanitiser). A cell with no listed line is draw(text, fmt), byte for byte as before. Otherwise
 // its lines in order: a run of listed lines is one <ul class="cell-list">, each item its line less the mark; every other line reads as it is,
@@ -395,6 +453,18 @@ function cleanBlockFmts(b) {
         if (cf) b.colFmt = cf; else delete b.colFmt;
     }
     var rowsAreLists = false;
+    if (Array.isArray(b.rows) && (b.type === 'table' || b.type === 'node')) {   // 1.6.2, merged cells: a row's merge and full, as rowJoin reads them (cleanRowJoin)
+        var jnB = joinCols(b);
+        b.rows.forEach(function(r, ri) { if (r && typeof r === 'object' && !Array.isArray(r) && (r.merge !== undefined || r.full !== undefined)) cleanRowJoin(b, ri, jnB); });
+    }
+    if (b.rowMerge !== undefined) {   // the travelling form beside rows that are lists: rowJoin's own numbers, or nothing
+        var rmOut = null, jnL = joinCols(b);
+        if (Array.isArray(b.rows) && b.rows.some(Array.isArray) && Array.isArray(b.rowMerge)) {
+            var lastM = -1, ml = b.rows.slice(0, LIMITS.rows).map(function(r, ri) { if (!Array.isArray(r)) return null; var j = rowJoin(b, ri, jnL); if (!j.full && !j.spans) return null; lastM = ri; return j.full ? 'full' : j.spans; });
+            if (lastM >= 0) rmOut = ml.slice(0, lastM + 1);
+        }
+        if (rmOut) b.rowMerge = rmOut; else delete b.rowMerge;
+    }
     if (Array.isArray(b.rows)) b.rows.forEach(function(r) {
         if (Array.isArray(r)) { rowsAreLists = true; return; }
         if (!r || typeof r !== 'object' || r.fmt === undefined) return;
@@ -752,6 +822,10 @@ function cleanBlock(b, used, ctx) {
             var cfT = fmtList(o.cols, function(ci) { return colFmtOf(b, ci); }); if (cfT) o.colFmt = cfT;
             var lastRf = -1, rfT = o.rows.map(function(cells, ri) { var one = fmtList(cells, function(ci) { return cellFmtOf(b, ri, ci); }); if (one) lastRf = ri; return one || null; });   // rows travel as lists, so a row's cell formats travel beside them
             if (lastRf >= 0) o.rowFmt = rfT.slice(0, lastRf + 1);
+            // 1.6.2, merged cells: beside the rows too, as rowJoin reads them from either form ('full', or each cell's span), so a host's numbers
+            // are rowJoin's numbers; trailing rows with nothing merged are left off, and the key is not there at all where nothing is
+            var jn = joinCols(o), lastJ = -1, rjT = o.rows.map(function(cells, ri) { var j = rowJoin(b, ri, jn); if (!j.full && !j.spans) return null; lastJ = ri; return j.full ? 'full' : j.spans.map(function(k) { return k; }); });
+            if (lastJ >= 0) o.rowMerge = rjT.slice(0, lastJ + 1);
             break;
         case 'diagram': o.content = stripMermaidLinks(str(b.content, LIMITS.html)); break;
         case 'flowchart':
@@ -955,7 +1029,7 @@ function renderDoc(doc, opts) {
                 blk += '<table class="doc-table">';
                 if (tcols.length) { blk += '<thead><tr>'; for (var c = 0; c < ncol; c++) blk += '<th>' + fmtHtml(tcols[c] || '', colFmtOf(b, c)) + '</th>'; blk += '</tr></thead>'; }
                 blk += '<tbody>';
-                rows.forEach(function(r, ri) { blk += '<tr>'; for (var c2 = 0; c2 < ncol; c2++) blk += '<td>' + cellHtml(r[c2] || '', cellFmtOf(b, ri, c2), pageCell) + '</td>'; blk += '</tr>'; });   // a cell's listed lines as a list (cellHtml)
+                rows.forEach(function(r, ri) { blk += rowHtml(rowJoin(b, ri, ncol), ncol, function(c2) { return cellHtml(r[c2] || '', cellFmtOf(b, ri, c2), pageCell); }); });   // a cell's listed lines as a list (cellHtml); merged cells and a full-width row (rowJoin, rowHtml)
                 blk += '</tbody></table></div>';
                 break;
             }
@@ -1065,6 +1139,6 @@ function pageHid(items, id) {
     return false;
 }
 
-var API = { cellHtml: cellHtml, cellLines: cellLines, fmtSlice: fmtSlice, docFontName: docFontName, docFontCss: docFontCss, docFontOptions: docFontOptions, VERSION: VERSION, pageHid: pageHid, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, mermaidPre: mermaidPre, diagramLink: diagramLink, linkLine: linkLine, readLinkLine: readLinkLine, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
+var API = { rowJoin: rowJoin, rowHtml: rowHtml, joinCols: joinCols, cleanRowJoin: cleanRowJoin, cellHtml: cellHtml, cellLines: cellLines, fmtSlice: fmtSlice, docFontName: docFontName, docFontCss: docFontCss, docFontOptions: docFontOptions, VERSION: VERSION, pageHid: pageHid, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, mermaidPre: mermaidPre, diagramLink: diagramLink, linkLine: linkLine, readLinkLine: readLinkLine, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
 if (typeof window !== 'undefined') window.wpDocRender = API;
-export { cellHtml, cellLines, fmtSlice, docFontName, docFontCss, docFontOptions, VERSION, pageHid, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, mermaidPre, diagramLink, linkLine, readLinkLine, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };
+export { rowJoin, rowHtml, joinCols, cleanRowJoin, cellHtml, cellLines, fmtSlice, docFontName, docFontCss, docFontOptions, VERSION, pageHid, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, mermaidPre, diagramLink, linkLine, readLinkLine, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };

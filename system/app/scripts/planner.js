@@ -32,7 +32,7 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, isDocLike } from './models.js';
 
-import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, mermaidPre, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf, diagramLink, cellHtml } from './docrender.js';
+import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, mermaidPre, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf, diagramLink, cellHtml, rowJoin, rowHtml, cleanRowJoin } from './docrender.js';
 
 import * as TF from './textfmt.js';
 
@@ -392,6 +392,94 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (E.pw) E.pw.addEventListener('scroll', function() { if (E.ed) pbeBarPlace(E.ed); }, { passive: true });   // the bar held over its slot as the page scrolls
   }
   // [textcheck:pbepage-end]
+  // [pagecheck:tbjoin-start]
+  /* 1.6.2, merged cells (the owner, 2026-11-14, by prompt: "Cell and row menus"). A cell's menu (a right-click on a cell of the editor's table)
+     has Merge with next and Unmerge; a row's menu (the ⋯ button at the row's end, and the cell's menu too) has Full-width row. What they change
+     is kept on the row (docrender.js rowJoin: row.merge, row.full), so moving or deleting a row takes it along; a cell under a merge keeps
+     its words. Each is one step: a save and the editor drawn again. tbMerge, tbUnmerge and tbFull change the block only, so a test can run
+     them; tbMenuFor draws the menu with elements and text alone. */
+  function tbCols(b) { return tsCols(b).length; }
+  // Merge the cell at ci with the cell after it (the next cell's own span joins too). False where there is no next cell, or on a full-width row
+  function tbMerge(b, ri, ci) {
+      var r = b && Array.isArray(b.rows) ? b.rows[ri] : null, n = tbCols(b); if (!r || typeof r !== 'object' || Array.isArray(r)) return false;
+      var j = rowJoin(b, ri, n), k = j.spans ? j.spans[ci] : 1;
+      if (j.full || !(k >= 1) || ci + k >= n) return false;
+      var kn = j.spans ? j.spans[ci + k] : 1, m = r.merge && typeof r.merge === 'object' && !Array.isArray(r.merge) ? r.merge : {};
+      m['col' + (ci + 1)] = k + kn; delete m['col' + (ci + k + 1)]; r.merge = m;
+      cleanRowJoin(b, ri, n);
+      return true;
+  }
+  // Take a cell's merge off: every column it spanned is a cell of its own again, with the words it had. False where it spans one
+  function tbUnmerge(b, ri, ci) {
+      var r = b && Array.isArray(b.rows) ? b.rows[ri] : null, n = tbCols(b); if (!r || typeof r !== 'object' || Array.isArray(r)) return false;
+      var j = rowJoin(b, ri, n); if (j.full || !j.spans || !(j.spans[ci] > 1)) return false;
+      delete r.merge['col' + (ci + 1)];
+      cleanRowJoin(b, ri, n);
+      return true;
+  }
+  // A full-width row on or off. Its first cell is the sub-heading; the row's other cells keep their words, out of sight, and its merges
+  // are kept for when it is a row of cells again
+  function tbFull(b, ri) {
+      var r = b && Array.isArray(b.rows) ? b.rows[ri] : null; if (!r || typeof r !== 'object' || Array.isArray(r)) return false;
+      if (r.full === true) delete r.full; else r.full = true;
+      return true;
+  }
+  // Words in the columns a merge would cover that differ from the merged cell's own (the book's Word tables wrote merged words twice, side by
+  // side: those read once and need no word). True where the GM should be told they are kept out of sight
+  function tbHides(b, ri, ci) {
+      var r = b.rows[ri], n = tbCols(b), j = rowJoin(b, ri, n), k = j.spans ? j.spans[ci] : 1, kn = j.spans && ci + k < n ? j.spans[ci + k] : 1, own = String(r['col' + (ci + 1)] || '').trim();
+      for (var c = ci + k; c < ci + k + kn && c < n; c++) { var w = String(r['col' + (c + 1)] || '').trim(); if (w && w !== own) return true; }
+      return false;
+  }
+  var tbMenuEl = null;
+  function tbMenuAway() { if (tbMenuEl) { tbMenuEl.style.display = 'none'; var back = tbMenuEl._back; tbMenuEl._back = null; if (back && back.isConnected && tbMenuEl.contains(document.activeElement)) try { back.focus(); } catch (e) {} } }
+  // The menu for a row (ci -1: its ⋯ button) or for a cell and its row (a right-click on the cell), at x, y in the window. from: what opened it,
+  // which takes the focus back when the menu goes with the focus in it
+  function tbMenuFor(idx, ri, ci, x, y, from) {
+      var am = getActiveMap(), b = am && Array.isArray(am.blocks) ? am.blocks[idx] : null; if (!b || !Array.isArray(b.rows) || !b.rows[ri]) return;
+      if (!tbMenuEl) {
+          tbMenuEl = document.createElement('div'); tbMenuEl.id = 'tbMenu'; tbMenuEl.className = 'context-menu tb-menu'; tbMenuEl.setAttribute('role', 'menu'); tbMenuEl.style.display = 'none';
+          document.body.appendChild(tbMenuEl);
+          tbMenuEl.addEventListener('click', function(e) {
+              var bt = e.target && e.target.closest ? e.target.closest('button') : null; if (!bt || bt.disabled) return;
+              var at = tbMenuEl._at, am2 = getActiveMap(), b2 = am2 && Array.isArray(am2.blocks) ? am2.blocks[at.idx] : null; tbMenuAway(); if (!b2) return;
+              var hides = bt.dataset.act === 'merge' && tbHides(b2, at.ri, at.ci);
+              var did = bt.dataset.act === 'merge' ? tbMerge(b2, at.ri, at.ci) : bt.dataset.act === 'unmerge' ? tbUnmerge(b2, at.ri, at.ci) : bt.dataset.act === 'full' ? tbFull(b2, at.ri) : false;
+              if (!did) return;
+              save(true); renderPlanner();
+              if (hides) toast('The words of the cell it now covers are kept out of sight. Unmerge shows them again.');
+          });
+          tbMenuEl.addEventListener('keydown', function(e) {   // up and down move between the items; Escape is esckey.js's (below)
+              if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+              var items = Array.prototype.filter.call(tbMenuEl.querySelectorAll('button'), function(x) { return !x.disabled; }), at = items.indexOf(document.activeElement);
+              if (!items.length) return; e.preventDefault(); e.stopPropagation();
+              items[(at + (e.key === 'ArrowDown' ? 1 : items.length - 1) + items.length) % items.length].focus();
+          });
+          document.addEventListener('pointerdown', function(e) { if (tbMenuEl.style.display !== 'none' && !(e.target && e.target.closest && e.target.closest('#tbMenu'))) tbMenuAway(); }, true);
+          document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && tbMenuEl.style.display !== 'none' && (!window.wpEsc || window.wpEsc.free(e))) tbMenuAway(); });
+      }
+      var n = tbCols(b), j = rowJoin(b, ri, n), k = ci >= 0 && j.spans ? j.spans[ci] : 1, rows = [];
+      if (ci >= 0) {
+          rows.push({ act: 'merge', text: 'Merge with next', title: 'This cell takes the next column too, and reads once across both', off: j.full || ci + k >= n });
+          rows.push({ act: 'unmerge', text: 'Unmerge', title: 'Every column this cell spans is a cell of its own again, with the words it had', off: j.full || !(k > 1) });
+          rows.push({ rule: true });
+      }
+      rows.push({ act: 'full', text: 'Full-width row', title: 'The row\u2019s first cell runs across the whole table, as a sub-heading between the rows', tick: j.full });
+      while (tbMenuEl.firstChild) tbMenuEl.removeChild(tbMenuEl.firstChild);
+      rows.forEach(function(o) {
+          var d = o.rule ? document.createElement('div') : document.createElement('button');   // each by a fixed name (sinkcheck reads every createElement here)
+          if (o.rule) d.className = 'menu-divider';
+          else { d.type = 'button'; d.dataset.act = o.act; d.textContent = (o.tick === true ? '\u2713 ' : '') + o.text; d.title = o.title; d.disabled = !!o.off; if (o.tick === true || o.tick === false) { d.setAttribute('role', 'menuitemcheckbox'); d.setAttribute('aria-checked', o.tick ? 'true' : 'false'); } else d.setAttribute('role', 'menuitem'); }
+          tbMenuEl.appendChild(d);
+      });
+      tbMenuEl._at = { idx: idx, ri: ri, ci: ci }; tbMenuEl._back = from || null;
+      tbMenuEl.style.display = 'flex';
+      var w = tbMenuEl.offsetWidth || 180, h = tbMenuEl.offsetHeight || 100;
+      tbMenuEl.style.left = Math.max(4, Math.min(x, (window.innerWidth || 1e4) - w - 4)) + 'px'; tbMenuEl.style.top = Math.max(4, Math.min(y, (window.innerHeight || 1e4) - h - 4)) + 'px';
+      if (window.wpEsc && window.wpEsc.opened) window.wpEsc.opened(tbMenuEl);
+      var first = Array.prototype.filter.call(tbMenuEl.querySelectorAll('button'), function(x) { return !x.disabled; })[0]; if (first) try { first.focus(); } catch (e) {}
+  }
+  // [pagecheck:tbjoin-end]
   // [sinkcheck:boxes-start]
   // [textcheck:fields-start]
   var TS_PLAIN = '.b-title, .b-sub, .b-must, .b-caption, .b-colhead, .r-col, .fc-n-text, .fc-e-text';   // the editor boxes that hold a plain field
@@ -573,10 +661,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           var o = {}, fm = {}, one = Array.isArray(rf[ri]) ? rf[ri] : [];
           r.forEach(function(c, ci) { o['col' + (ci + 1)] = c == null ? '' : String(c); if (one[ci] && typeof one[ci] === 'object') fm['col' + (ci + 1)] = one[ci]; });
           if (Object.keys(fm).length) o.fmt = fm;
+          var jm = Array.isArray(b.rowMerge) ? b.rowMerge[ri] : null;   // 1.6.2, merged cells: the travelling form ('full', or each cell's span) onto the row as the editor keeps it
+          if (jm === 'full') o.full = true;
+          else if (Array.isArray(jm)) { var mg = {}; jm.forEach(function(k, ci) { if (typeof k === 'number' && k > 1) mg['col' + (ci + 1)] = k; }); if (Object.keys(mg).length) o.merge = mg; }
           changed = true;
           return o;
       });
       if (changed || b.rowFmt !== undefined) { if (b.rowFmt !== undefined) changed = true; delete b.rowFmt; }
+      if (b.rowMerge !== undefined) { changed = true; delete b.rowMerge; }
       return changed;
   }
   // [textcheck:fields-end]
@@ -1946,10 +2038,18 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + Array.from({ length: TABLE_COLS }, function(_, i) { return i + 1; }).map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label><span style="color:var(--dim); font-size:11px;">Headers below, then one line of boxes per row.</span></div>';
               html += '<div class="grouped-fields b-table"><div class="row-h b-heads">';
               colNames.forEach(function(c, ci) { html += tsBoxHtml('b-colhead', 'Column '+(ci+1), 'data-idx="'+idx+'" data-ci="'+ci+'"', '', true, 'title="Header of column '+(ci+1)+'"'); });   // heads and cells take line breaks (tsMulti)
-              html += '<div style="width:31px; height:31px; flex:0 0 31px;"></div></div>';
+              html += '<div style="width:68px; height:31px; flex:0 0 68px;"></div></div>';   // over a row's two buttons (its menu and its x)
               b.rows.forEach(function(r, ri) {
-                  html += '<div class="row-h">';
-                  colNames.forEach(function(c, ci) { html += tsBoxHtml('r-col', c||'—', 'data-idx="'+idx+'" data-ri="'+ri+'" data-ci="'+ci+'"', '', true); });
+                  // 1.6.2, merged cells (docrender.js rowJoin): a merged cell's box takes the room of every column it spans, a cell under a merge has
+                  // no box (its words are kept, and come back on Unmerge), and a full-width row is its first cell alone, across the row
+                  var jE = rowJoin(b, ri, colNames.length);
+                  html += '<div class="row-h' + (jE.full ? ' b-row-full' : '') + '">';
+                  colNames.forEach(function(c, ci) {
+                      var k = jE.full ? (ci === 0 ? colNames.length : 0) : jE.spans ? jE.spans[ci] : 1;
+                      if (k === 0) return;
+                      html += tsBoxHtml('r-col' + (k > 1 ? ' r-span' : ''), jE.full ? 'Sub-heading across the table' : (c||'—'), 'data-idx="'+idx+'" data-ri="'+ri+'" data-ci="'+ci+'"', k > 1 ? 'flex:' + k + ' 1 0%; min-width:' + (70 * k) + 'px;' : '', true, k > 1 && !jE.full ? 'title="Spans ' + k + ' columns. Right-click for Unmerge."' : '');
+                  });
+                  html += '<button class="tool ghost b-rowmenu x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="This row: make it a full-width row" aria-haspopup="menu" aria-label="Row menu">\u22ef</button>';
                   html += '<button class="tool ghost danger del-row x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="Remove this row"><i class="wib wi-close"></i></button>';
                   html += '</div>';
               });
@@ -2157,6 +2257,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       }));
 
+      // 1.6.2, merged cells: the row's menu button, and a right-click on a cell (tbMenuFor)
+      Array.from(blockContainer.querySelectorAll('.b-rowmenu')).forEach(el => el.addEventListener('click', function(e) { e.stopPropagation(); var r = this.getBoundingClientRect(); tbMenuFor(+this.dataset.idx, +this.dataset.ri, -1, r.left, r.bottom + 2, this); }));
+      Array.from(blockContainer.querySelectorAll('.b-table .r-col')).forEach(el => el.addEventListener('contextmenu', function(e) { e.preventDefault(); e.stopPropagation(); tbMenuFor(+this.dataset.idx, +this.dataset.ri, +this.dataset.ci, e.clientX, e.clientY, this); }));
       Array.from(blockContainer.querySelectorAll('.del-row')).forEach(el => el.addEventListener('click', function() { 
 
           activeMap.blocks[this.dataset.idx].rows.splice(this.dataset.ri, 1); save(true); renderPlanner(); 
@@ -3108,8 +3211,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if (Array.isArray(b.rows) && b.rows.length > 0) {
                   var cols = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plainPv ? ['Item', 'Detail', 'Notes'] : kdP.cols.slice());
                   html += '<table><thead><tr>' + cols.map(function(c, ci) { return '<th>' + fmtRich(c, colFmtOf(b, ci)) + '</th>'; }).join('') + '</tr></thead><tbody>';
-                  b.rows.forEach(function(r, ri) {
-                      html += '<tr>' + cols.map(function(c, ci) { return '<td>' + cellHtml((r && r['col' + (ci + 1)]) || '', cellFmtOf(b, ri, ci), fmtRich) + '</td>'; }).join('') + '</tr>';   // a cell's lines that begin with "- " or "• " as a list (docrender.js cellHtml)
+                  b.rows.forEach(function(r, ri) {   // a cell's lines that begin with "- " or "• " as a list (docrender.js cellHtml); merged cells and a full-width row (rowJoin, rowHtml)
+                      html += rowHtml(rowJoin(b, ri, cols.length), cols.length, function(ci) { return cellHtml((r && r['col' + (ci + 1)]) || '', cellFmtOf(b, ri, ci), fmtRich); });
                   });
                   html += '</tbody></table>';
               }

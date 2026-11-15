@@ -709,6 +709,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const outF = cleanImport(JSON.parse(JSON.stringify({ activeCampaignId: 'cF', campaigns: { cF: { id: 'cF', name: 'F', items: { pf: styledPlanner(), df: styledPage() } } } })), deps);
             check('text style import (Replace): the same, after the load\'s normaliser', !!outF && JSON.stringify(outF.campaigns.cF.items.pf.blocks) === wantPlanner && pageOk(outF.campaigns.cF.items.df), outF && JSON.stringify(outF.campaigns.cF.items.pf.blocks));
             const bare = b => JSON.stringify(b).indexOf('"fmt"') < 0 && JSON.stringify(b).indexOf('"colFmt"') < 0 && JSON.stringify(b).indexOf('"rowFmt"') < 0;
+            {   // 1.6.2, merged cells (the owner, 2026-11-14, by prompt: "Cell and row menus"): a row's merge and full from a file, cleaned by docrender.js rowJoin
+                const J = JSON.stringify;
+                const mPlan = () => ({ id: 'pm', type: 'planner', meta: { title: 'M' }, blocks: [{ id: 'm1', type: 'node', mode: 'table', cols: ['A', 'B', 'C'], rows: [{ col1: 'a', merge: { col1: 2, col3: '<b>', toString: 3 } }, { col1: 'b', full: 'yes', merge: { col2: 99 } }, { col1: 'c', full: true }], rowMerge: [[2]] }] });
+                const mPage = () => ({ id: 'dm', type: 'doc', meta: { title: 'D' }, blocks: [{ id: 'm2', type: 'table', cols: ['A', 'B'], rows: [['a', 'b'], ['c']], rowMerge: [[2, 1], 'full', 'full'] }] });
+                const icM = JSON.parse(JSON.stringify({ items: { pm: mPlan(), dm: mPage() } })); cleanImportItems(icM, deps);
+                const icMN = JSON.parse(JSON.stringify({ items: { pm: mPlan() } })); cleanImportItems(icMN, { sanitize });
+                check('1.6.2 merged cells from a file: a planner\'s rows keep only real spans by their cells (held to the table) and a full only as true, a stray rowMerge beside rows that are objects goes; a page\'s come through cleanDoc as rowJoin reads them; with no cleaner on hand none comes in at all, the words kept',
+                    J(icM.items.pm.blocks[0].rows) === J([{ col1: 'a', merge: { col1: 2 } }, { col1: 'b', merge: { col2: 2 } }, { col1: 'c', full: true }]) && !('rowMerge' in icM.items.pm.blocks[0])
+                    && J(icM.items.dm.blocks[0].rowMerge) === J([[2, 0], 'full']) && J(icMN.items.pm.blocks[0].rows) === J([{ col1: 'a' }, { col1: 'b' }, { col1: 'c' }]) && !('rowMerge' in icMN.items.pm.blocks[0]), J([icM.items.pm.blocks[0], icM.items.dm.blocks[0], icMN.items.pm.blocks[0]]));
+            }
             const icN = JSON.parse(JSON.stringify({ items: { pf: styledPlanner(), df: styledPage() } })); cleanImportItems(icN, { sanitize });
             const icO = JSON.parse(JSON.stringify({ items: { pf: styledPlanner(), df: styledPage() } })); cleanImportItems(icO, { sanitize, DR: { cleanDoc: DOC.cleanDoc, stripMermaidLinks: DOC.stripMermaidLinks } });
             check('text style import: none without the core — with no cleaner on hand a planner comes in with no format at all (its text as it was), and a page does not come in',

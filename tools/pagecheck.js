@@ -89,8 +89,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     let real = null;   // the two drawn trees, kept for the folds' own check further down
     {
         const d = makeDom(), sliceOf = (file, a, b) => { const s = read(file), i = s.indexOf(a), k = s.indexOf(b); if (i < 0 || k < i) throw new Error('pagecheck: ' + a + ' is not in ' + file); return s.slice(i + a.length, k); };
-        const plannerPreviewHtml = new Function('esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef', 'fmtHtml', 'fmtRich', 'fieldFmt', 'colFmtOf', 'cellFmtOf', 'mermaidPre', 'cellHtml',
-            sliceOf('scripts/planner.js', '// [sinkcheck:planner-preview-start]', '// [sinkcheck:planner-preview-end]') + '\nreturn plannerPreviewHtml;')(SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef, DR.fmtHtml, DR.fmtRich, DR.fieldFmt, DR.colFmtOf, DR.cellFmtOf, DR.mermaidPre, DR.cellHtml);
+        const plannerPreviewHtml = new Function('esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef', 'fmtHtml', 'fmtRich', 'fieldFmt', 'colFmtOf', 'cellFmtOf', 'mermaidPre', 'cellHtml', 'rowJoin', 'rowHtml',
+            sliceOf('scripts/planner.js', '// [sinkcheck:planner-preview-start]', '// [sinkcheck:planner-preview-end]') + '\nreturn plannerPreviewHtml;')(SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef, DR.fmtHtml, DR.fmtRich, DR.fieldFmt, DR.colFmtOf, DR.cellFmtOf, DR.mermaidPre, DR.cellHtml, DR.rowJoin, DR.rowHtml);
         const HOSTILE = '<img src=x onerror=alert(1)> & "quoted"';
         const plan = { id: 'p1', type: 'planner', blocks: [{ type: 'h1', title: 'Session 1', sub: 'An evening' }, { type: 'lede', content: 'Lead.' }, { type: 'h2', title: 'Beats' },
             { type: 'node', title: 'The inn', tag: 'social', must: 'Find the driver', rows: [{ col1: 'Ask', col2: 'Why', col3: '1', col4: 'Next' }] }, { type: 'node', mode: 'table', title: 'Prices', cols: ['Item'], rows: [{ col1: 'Ale' }] }, { type: 'node', mode: 'table', rows: [{ col1: 'x' }] },
@@ -1009,8 +1009,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             TF.TFIT_COL === 125 && TF.TFIT_MIN === 3 && S(374, 3) === true && S(375, 3) === false && S(499, 4) === true && S(500, 4) === false && S(749, 6) === true && S(750, 6) === false && S(100, 2) === false && S(1, 1) === false
             && S(0, 4) === false && S(-5, 4) === false && S(NaN, 4) === false && S('300', 4) === false && S(300, '4') === false && S(undefined, 4) === false);
         const d = makeDom(), sliceOf = (file, a, b) => { const s = read(file), i = s.indexOf(a), k = s.indexOf(b); if (i < 0 || k < i) throw new Error('pagecheck: ' + a + ' is not in ' + file); return s.slice(i + a.length, k); };
-        const plannerPreviewHtml = new Function('esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef', 'fmtHtml', 'fmtRich', 'fieldFmt', 'colFmtOf', 'cellFmtOf', 'mermaidPre', 'cellHtml',
-            sliceOf('scripts/planner.js', '// [sinkcheck:planner-preview-start]', '// [sinkcheck:planner-preview-end]') + '\nreturn plannerPreviewHtml;')(SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef, DR.fmtHtml, DR.fmtRich, DR.fieldFmt, DR.colFmtOf, DR.cellFmtOf, DR.mermaidPre, DR.cellHtml);
+        const plannerPreviewHtml = new Function('esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef', 'fmtHtml', 'fmtRich', 'fieldFmt', 'colFmtOf', 'cellFmtOf', 'mermaidPre', 'cellHtml', 'rowJoin', 'rowHtml',
+            sliceOf('scripts/planner.js', '// [sinkcheck:planner-preview-start]', '// [sinkcheck:planner-preview-end]') + '\nreturn plannerPreviewHtml;')(SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef, DR.fmtHtml, DR.fmtRich, DR.fieldFmt, DR.colFmtOf, DR.cellFmtOf, DR.mermaidPre, DR.cellHtml, DR.rowJoin, DR.rowHtml);
         const HOSTILE = '<img src=x onerror=alert(1)> & "quoted"', LONG = 'A column whose name runs on and on past what a small block has room to print before its cell';
         const plan = { id: 'p1', type: 'planner', blocks: [{ type: 'h1', title: 'Session 1' },
             { type: 'node', title: 'The inn', rows: [{ col1: 'Ask', col2: 'Why', col3: '', col4: 'Next' }, { col1: 'Wait', col2: 'Dusk', col3: '2', col4: '' }] },
@@ -1038,6 +1038,43 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && J(c1[2]) === J([null, HOSTILE, Array.from(LONG).slice(0, 60).join('').trim() + '\u2026', 'Notes', null, HOSTILE, Array.from(LONG).slice(0, 60).join('').trim() + '\u2026', 'Notes']) && txt1 === txt0
             && J(again) === '[0,0,true,true]' && J(away) === J([0, 0, '101', '1000']) && J(mid) === J([1, '100', ',,']) && J(wide) === '[1,2,true,true]' && J(bare) === '[true,true]' && twice === true,
             J([shape, n1, s1, heads, c1, txt1 === txt0, again, away, mid, wide, bare, twice]));
+        {   // 1.6.2, merged cells (the owner, 2026-11-14, by prompt: "Cell and row menus"): drawn by both renderers, and read in the cards
+            const mDoc = DR.cleanDoc({ id: 'dm', type: 'doc', meta: { title: 'Armory' }, blocks: [{ type: 'table', cols: ['Name', 'Cost', 'Weight', 'Notes'], rows: [
+                { col1: 'Armor', col2: 'Armor', full: true }, { col1: 'Plate', col2: '12', col3: '12', col4: 'heavy', merge: { col2: 2 } }, { col1: 'Mail', col2: '8', col3: '20', col4: '' }] }] });
+            const mPlan = { id: 'pm', type: 'planner', blocks: [{ type: 'node', mode: 'table', cols: ['Name', 'Cost', 'Weight', 'Notes'], rows: [{ col1: 'Shields', full: true }, { col1: 'Buckler', col2: '3', col3: '3', col4: 'light', merge: { col2: 2 } }] }] };
+            const mT = toTree(d, DR.renderDoc(mDoc, {})), pmT = toTree(d, plannerPreviewHtml(mPlan, { id: 'c1', items: {} })), rowsOf = T => T.querySelectorAll('tr').filter(r => r.parentNode.nodeName === 'TBODY');
+            const shapeOf = T => rowsOf(T).map(r => r.className + ':' + r.childNodes.map(td => (td.getAttribute('colspan') || '1') + '=' + td.textContent).join(','));
+            const drawn = [shapeOf(mT), shapeOf(pmT)];
+            W = 360; const fitM = [TF.tableFit(mT, w), TF.tableFit(pmT, w), rowsOf(mT).map(r => r.childNodes.map(td => td.getAttribute('data-col'))), rowsOf(pmT).map(r => r.childNodes.map(td => td.getAttribute('data-col')))];
+            TF.tableUnfit(mT); const unM = rowsOf(mT).every(r => r.childNodes.every(td => td.getAttribute('data-col') === null));
+            check('1.6.2 merged cells, drawn: a page\'s table and a planner\'s draw a full-width row as one cell over the whole table in a row of class t-full (only its first cell\'s words: the book put a sub-heading in the first cell, and a duplicate beside it is not read twice), and a merged cell once with its colspan, the cell under it left out',
+                J(drawn) === J([['t-full:4=Armor', ':1=Plate,2=12,1=heavy', ':1=Mail,1=8,1=20,1='], ['t-full:4=Shields', ':1=Buckler,2=3,1=light']]), J(drawn));
+            check('1.6.2 merged cells in the cards (pv-tstack): a full-width row has no column\'s name (the style sheet makes it a sub-heading between the cards), and a merged cell reads once after the names of every column it takes; taken off, nothing is left',
+                J(fitM) === J([1, 1, [[null], [null, 'Cost / Weight', 'Notes'], [null, 'Cost', 'Weight', 'Notes']], [[null], [null, 'Cost / Weight', 'Notes']]]) && unM
+                && /\.doc-view table\.pv-tstack tr\.t-full, [^{]*\{ background: none; border: 0;/.test(read('style.css')) && read('style.css').includes('.doc-view tr.t-full > td {'), J(fitM));
+            // the editor's menu and what it does (planner.js, its [pagecheck:tbjoin] slice run for real on the test page)
+            const ed = makeDom(), am = { blocks: [{ type: 'node', mode: 'table', cols: ['A', 'B', 'C', 'D'], rows: [{ col1: 'a', col2: 'b', col3: 'c', col4: 'd' }, { col1: 'x', col2: 'x', col3: '', col4: '' }] }] }, calls = [];
+            const TB = new Function('rowJoin', 'cleanRowJoin', 'tsCols', 'getActiveMap', 'document', 'window', 'save', 'renderPlanner', 'toast', "'use strict';\n" + sliceOf('scripts/planner.js', '// [pagecheck:tbjoin-start]', '// [pagecheck:tbjoin-end]') + '\nreturn { tbMerge, tbUnmerge, tbFull, tbHides, tbMenuFor };')(
+                DR.rowJoin, DR.cleanRowJoin, b => (Array.isArray(b.cols) && b.cols.length ? b.cols : ['Item', 'Detail', 'Notes']), () => am, ed.document, { innerWidth: 1000, innerHeight: 800 }, im => calls.push('save:' + im), () => calls.push('draw'), m => calls.push('toast:' + m));
+            const b0 = am.blocks[0], r0 = () => J(b0.rows[0]);
+            const acts = [TB.tbMerge(b0, 0, 1), r0(), TB.tbMerge(b0, 0, 1), r0(), TB.tbMerge(b0, 0, 1), r0(), TB.tbUnmerge(b0, 0, 1), r0(), TB.tbUnmerge(b0, 0, 1), TB.tbMerge(b0, 0, 0), TB.tbMerge(b0, 0, 0), r0(), TB.tbFull(b0, 0), TB.tbMerge(b0, 0, 0), TB.tbFull(b0, 0), r0()];
+            check('1.6.2 merged cells, what the editor\'s menu does: Merge with next makes the cell span the next one too (and that one\'s own span), never past the last column; Unmerge gives each column its cell back with its words; nothing to merge or unmerge changes nothing; Full-width row turns on and off and keeps the merges for when it is off; every word stays on the row',
+                J(acts) === J([true, J({ col1: 'a', col2: 'b', col3: 'c', col4: 'd', merge: { col2: 2 } }), true, J({ col1: 'a', col2: 'b', col3: 'c', col4: 'd', merge: { col2: 3 } }), false, J({ col1: 'a', col2: 'b', col3: 'c', col4: 'd', merge: { col2: 3 } }),
+                    true, J({ col1: 'a', col2: 'b', col3: 'c', col4: 'd' }), false, true, true, J({ col1: 'a', col2: 'b', col3: 'c', col4: 'd', merge: { col1: 3 } }), true, false, true, J({ col1: 'a', col2: 'b', col3: 'c', col4: 'd', merge: { col1: 3 } })]), J(acts));
+            const hides = [TB.tbHides(am.blocks[0], 1, 0), (am.blocks[0].rows[0].merge = undefined, delete am.blocks[0].rows[0].merge, TB.tbHides(am.blocks[0], 0, 0))];
+            TB.tbMenuFor(0, 0, 2, 40, 50, null);
+            const menu = ed.document.getElementById('tbMenu'), items = () => menu.querySelectorAll('button').map(x => [x.dataset.act, x.textContent, x.disabled, x.getAttribute('role'), x.getAttribute('aria-checked')]);
+            const m1 = [menu.className, menu.style.display, J(items())];
+            ed.document.getElementById('tbMenu').querySelectorAll('button')[0].fire('click'); const afterMerge = [J(am.blocks[0].rows[0].merge), menu.style.display, calls.join('|')];
+            TB.tbMenuFor(0, 0, -1, 40, 50, null); const m2 = J(items()); menu.querySelectorAll('button')[0].fire('click'); const afterFull = [am.blocks[0].rows[0].full, calls.slice(-2).join('|')];
+            TB.tbMenuFor(0, 0, 0, 40, 50, null); const m3 = J(items());
+            check('1.6.2 merged cells, the menus: a cell\'s menu has Merge with next, Unmerge (off where the cell spans one) and the row\'s Full-width row; a row\'s menu (its ⋯ button) has Full-width row alone, ticked when on, and on a full-width row a cell\'s Merge and Unmerge are off; a pick does its one thing, saves, draws the editor again and puts the menu away; merging over different words says they are kept out of sight, over the same words or nothing it says nothing',
+                J(hides) === J([false, true]) && m1[0] === 'context-menu tb-menu' && m1[1] === 'flex'
+                && m1[2] === J([['merge', 'Merge with next', false, 'menuitem', null], ['unmerge', 'Unmerge', true, 'menuitem', null], ['full', 'Full-width row', false, 'menuitemcheckbox', 'false']])
+                && J(afterMerge) === J([J({ col3: 2 }), 'none', 'save:true|draw|toast:The words of the cell it now covers are kept out of sight. Unmerge shows them again.'])
+                && m2 === J([['full', 'Full-width row', false, 'menuitemcheckbox', 'false']]) && J(afterFull) === J([true, 'save:true|draw'])
+                && m3 === J([['merge', 'Merge with next', true, 'menuitem', null], ['unmerge', 'Unmerge', true, 'menuitem', null], ['full', '\u2713 Full-width row', false, 'menuitemcheckbox', 'true']]), J([hides, m1, afterMerge, m2, afterFull, m3]));
+        }
         {   // 1.6.2, wide tables (the owner, 2026-11-14, by prompt: "Scroll, first column stays", cards only for a very narrow window)
             const TW = new Function('setTimeout', "'use strict';\n" + slice('tfit') + '\nreturn { tfitMode: tfitMode, TFIT_NARROW: TFIT_NARROW, tableFit: tableFit, tableUnfit: tableUnfit };')(() => { throw new Error('a timer of the page'); });
             const M = TW.tfitMode, heads17 = Array.from({ length: 17 }, (_, i) => 'C' + i), row17 = heads17.map((_, i) => String(i));
@@ -1131,8 +1168,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const CCm = await import(modUrl('cardcore.js'));
         const d = makeDom(), sliceOf = (file, a, b) => { const s = read(file), i = s.indexOf(a), k = s.indexOf(b); if (i < 0 || k < i) throw new Error('pagecheck: ' + a + ' is not in ' + file); return s.slice(i + a.length, k); };
         const pvSrc = sliceOf('scripts/planner.js', '// [sinkcheck:planner-preview-start]', '// [sinkcheck:planner-preview-end]') + '\nreturn plannerPreviewHtml;';
-        const NAMES = ['esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef', 'fmtHtml', 'fmtRich', 'fieldFmt', 'colFmtOf', 'cellFmtOf', 'mermaidPre', 'cellHtml'];
-        const ARGS = [SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef, DR.fmtHtml, DR.fmtRich, DR.fieldFmt, DR.colFmtOf, DR.cellFmtOf, DR.mermaidPre, DR.cellHtml];
+        const NAMES = ['esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef', 'fmtHtml', 'fmtRich', 'fieldFmt', 'colFmtOf', 'cellFmtOf', 'mermaidPre', 'cellHtml', 'rowJoin', 'rowHtml'];
+        const ARGS = [SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef, DR.fmtHtml, DR.fmtRich, DR.fieldFmt, DR.colFmtOf, DR.cellFmtOf, DR.mermaidPre, DR.cellHtml, DR.rowJoin, DR.rowHtml];
         const withCC = new Function(...NAMES, 'CC', pvSrc)(...ARGS, CCm), noCC = new Function(...NAMES, pvSrc)(...ARGS);
         const HOST = 'x" onload="alert(1)';
         const blocksOf = () => [{ type: 'h1', title: 'Session' }, { type: 'h2', title: 'People', cards: 'medium' }, { type: 'text', content: '<p>Read this.</p>' }, { type: 'node', title: 'The gate', rows: [{ col1: 'Rush', col2: 'Time', col3: '1', col4: 'Open' }] },
@@ -1202,8 +1239,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const CCm = await import(modUrl('cardcore.js'));
         const d = makeDom(), sliceOf = (file, a, b) => { const s = read(file), i = s.indexOf(a), k = s.indexOf(b); if (i < 0 || k < i) throw new Error('pagecheck: ' + a + ' is not in ' + file); return s.slice(i + a.length, k); };
         const pvSrc = sliceOf('scripts/planner.js', '// [sinkcheck:planner-preview-start]', '// [sinkcheck:planner-preview-end]') + '\nreturn plannerPreviewHtml;';
-        const NAMES = ['esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef', 'fmtHtml', 'fmtRich', 'fieldFmt', 'colFmtOf', 'cellFmtOf', 'mermaidPre', 'cellHtml'];
-        const ARGS = [SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef, DR.fmtHtml, DR.fmtRich, DR.fieldFmt, DR.colFmtOf, DR.cellFmtOf, DR.mermaidPre, DR.cellHtml];
+        const NAMES = ['esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef', 'fmtHtml', 'fmtRich', 'fieldFmt', 'colFmtOf', 'cellFmtOf', 'mermaidPre', 'cellHtml', 'rowJoin', 'rowHtml'];
+        const ARGS = [SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef, DR.fmtHtml, DR.fmtRich, DR.fieldFmt, DR.colFmtOf, DR.cellFmtOf, DR.mermaidPre, DR.cellHtml, DR.rowJoin, DR.rowHtml];
         const withCC = new Function(...NAMES, 'CC', pvSrc)(...ARGS, CCm), noCC = new Function(...NAMES, pvSrc)(...ARGS);
         const HOST = 'b"><img src=x onerror=alert(1)>';
         const mk = ids => [{ type: 'h1', title: 'Session' }, { type: 'node', mode: 'person', title: 'Kael' }, { type: 'node', mode: 'place', title: 'The <b>ford</b>' }, { type: 'node', mode: 'clue', title: 'Ash' }, { type: 'node', title: 'The gate' },

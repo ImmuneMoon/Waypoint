@@ -3228,6 +3228,9 @@
      list. It is a block, so in the narrow card view it starts on a line of its own under the column's name */
   .doc-view td ul.cell-list { margin: 2px 0; padding-left: 18px; list-style: disc; }
   .doc-view td ul.cell-list li { margin: 1px 0; }
+  /* 1.6.2, merged cells (the owner: "Cell and row menus"; docrender.js rowHtml): a full-width row is a sub-heading across the table */
+  .doc-view tr.t-full > td { background: var(--panel2); color: var(--gold); font-size: 12px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; padding: 8px 12px; }
+  .b-table .row-h.b-row-full .ts-box { color: var(--gold); font-weight: 600; }   /* the editor's full-width row: its one box reads as the sub-heading it is */
   .doc-view td:first-child { font-weight: 600; color: var(--ink); }
   /* Cards side by side (1.6.2, backlog 107 (a); planner.js plannerPreviewHtml, cardcore.js cleanCards): the blocks under a section heading set to
      Cards stand in a grid, as many in a row as the place has room for. On a 1020 px page that is five Small, three Medium or two Large, and in the
@@ -3261,6 +3264,8 @@
     .doc-view table.pv-tstack td { display: block; border: 0; padding: 2px 0; overflow-wrap: anywhere; }
     .doc-view table.pv-tstack td:empty { display: none; }
     .doc-view .pv-cards > .pv-blk > .node table.pv-tstack tr { background: var(--panel2); }   /* inside a card's frame, which wears the panel's own color */
+    .doc-view table.pv-tstack tr.t-full, .doc-view .pv-cards > .pv-blk > .node table.pv-tstack tr.t-full { background: none; border: 0; border-radius: 0; padding: 10px 2px 2px; margin: 0 0 4px; }   /* 1.6.2: a full-width row is a sub-heading between the cards, no card of its own */
+    .doc-view table.pv-tstack tr.t-full > td { background: none; padding: 0; }
     /* 1.6.2, wide tables (the owner: "Scroll, first column stays"): the table's box scrolls sideways where the table needs more room than it has,
        and its first column stays in view. The table keeps its own natural width, so a table of short figures that fits shows whole with no scroll
        bar, each column as wide as its words want, and wraps only past 160 px a column on average (--tcols, its count of columns, set by pagenav.js), so a notes column gets its room and a paragraph in a cell cannot stretch the table without end. The 125 px a
@@ -3273,6 +3278,7 @@
     .doc-view .pv-tscroll > table th:first-child, .doc-view .pv-tscroll > table td:first-child { position: sticky; left: 0; z-index: 1; box-shadow: inset -1px 0 0 var(--edge); }
     .doc-view .pv-tscroll > table th:first-child { background: var(--panel2); }
     .doc-view .pv-tscroll > table td:first-child { background: var(--panel); }
+    .doc-view .pv-tscroll > table tr.t-full > td { position: static; background: var(--panel2); box-shadow: none; }   /* 1.6.2: a full-width row runs the table's whole width, so it is no held first column */
     .doc-view table.pv-tstack td[data-col]::before { content: attr(data-col); display: inline-block; margin-right: 8px; color: var(--gold); font-size: 11px; font-weight: 400; letter-spacing: .8px; text-transform: uppercase; }
   }
   .doc-view .flare { background: var(--panel); border: 1px solid var(--edge); border-left: 3px solid var(--violet); border-radius: 7px; padding: 10px 13px; margin-top: 10px; font-size: 13.5px; color: var(--dim); }

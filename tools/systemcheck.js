@@ -15002,7 +15002,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const hit = { amt: 9, type: 'cut', loc: 'w_body' }, yS = DS(mkY([{ roll: 'r_vit', asAt: true }, { fx: 'e_shock' }]), chD(), hit, F, undefined, { now: 1, inCombat: false }), yL = DS(mkY([{ fx: 'e_shock' }, { roll: 'r_vit', asAt: true }]), chD(), hit, F, undefined, { now: 1, inCombat: false }), yP = DS(mkY([{ roll: 'r_vit' }, { fx: 'e_shock' }]), chD(), hit, F, undefined, { now: 1, inCombat: false });
             const fS = yS.ok && yS.info.follows[0], fL = yL.ok && yL.info.follows[0];
             check('1.6.2 a roll ticked to read the sheet as it was at its row carries the step\u2019s writes as they stood there: above the row that puts Rattled on it holds the wound and not the effect, below it both; with no tick the roll carries nothing of its own and reads the sheet as the whole blow left it',
-                fS && fS.vals && fS.vals.f_hp && fS.vals.f_hp.cur === yS.values.f_hp.cur && fS.vals.f_fx === undefined /* 1.6.2 (backlog 242): the effects list now named, as it stood before the hit (none), so laid over the sheet as stored it leaves the later Rattled out (moved on purpose) */ && yS.values.f_fx.some(r => r.ref === 'e_shock')
+                fS && fS.vals && fS.vals.f_hp && fS.vals.f_hp.cur === yS.values.f_hp.cur && 'f_fx' in fS.vals && fS.vals.f_fx === undefined /* 1.6.2 (backlog 242): the effects list now named, as it stood before the hit (none), so laid over the sheet as stored it leaves the later Rattled out (moved on purpose); the review of 242: the key must be there, not merely read as undefined */ && yS.values.f_fx.some(r => r.ref === 'e_shock')
                 && fL && fL.vals && Array.isArray(fL.vals.f_fx) && fL.vals.f_fx.some(r => r.ref === 'e_shock')
                 && yP.ok && !('vals' in yP.info.follows[0]), j([fS, fL, yP.info.follows]));
             const shY = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
@@ -15019,7 +15019,21 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 bH.ok && bH.info.major === true && bH.info.blow.big === 1 && bH.values.f_fx.some(r => r.ref === 'e_shock') && bN.ok && bN.info.major !== true && !('f_fx' in bN.values) && bS.ok && bS.info.major !== true && S.withBlow({}, { big: 1 }).blow.big === 1 && S.withBlow({}, {}).blow.big === 0, j([bH.info, bN.info, bS.info]));
             const fM = bH.ok && bH.info.follows.find(x => x.why === 'major');
             check('1.6.2 its Big Hit roll, ticked to read the sheet as it was there, carries the wound and not the Major Wound\u2019s own effect nor the Rattled an Any wound row puts on',
-                fM && fM.vals && fM.vals.f_hp && fM.vals.f_fx === undefined /* 1.6.2 (backlog 242): named as before the hit (moved on purpose) */, j(fM));
+                fM && fM.vals && fM.vals.f_hp && 'f_fx' in fM.vals && fM.vals.f_fx === undefined /* 1.6.2 (backlog 242): named as before the hit (moved on purpose); the review of 242: the key present */, j(fM));
+            /* 1.6.2 (the review of backlog 242): a character that already holds an effect before the hit. The effects list a row ticked asAt carries is the
+               one the character held BEFORE the hit, key for key, so laid over the sheet as stored it keeps the effect already on and leaves out the hit's own
+               Shock; run through the real majorFollow with a stand-in blowMake, the record's values read Vitality with the old effect alone (10 - 1 = 9), where
+               the sheet as stored reads both (10 - 1 - 4 = 5) */
+            const sO = cleanSystem((() => { const s = mkM(); s.fields.push({ id: 'f_vt', key: 'Vt', label: 'Vitality', kind: 'number', def: 10, vis: 'all' }); s.effects = [{ id: 'e_shock', name: 'Shock', vis: 'all', mods: [{ f: 'f_vt', op: 'add', v: -4 }] }, { id: 'e_old', name: 'Old', vis: 'all', mods: [{ f: 'f_vt', op: 'add', v: -1 }] }]; s.combat.damage.onWound = [{ roll: 'r_vit', asAt: true }, { fx: 'e_shock' }]; return s; })(), { F, gmView: true });
+            const chO = chD(), opO = S.applyEffectOp(sO, chO, 'f_fx', { op: 'add', rowId: 'x_old', ref: 'e_old' }, F, { now: 1, inCombat: false }); if (opO.ok) chO.values.f_fx = opO.value;
+            const fxBefore = JSON.parse(j(chO.values.f_fx || null)), yO = DS(sO, chO, { amt: 9, type: 'cut', loc: 'w_body' }, F, undefined, { now: 1, inCombat: false }), fO = yO.ok && yO.info.follows[0];
+            const shO = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), a0O = shO.indexOf('function majorFollow(c, info, vals) {'), a1O = shO.indexOf('\n}\n', a0O) + 3, recO = [];
+            const mfO = new Function('net', 'systemOf', 'dmgObj', 'F', "'use strict';\n" + shO.slice(a0O, a1O) + '\nreturn majorFollow;')(() => ({ postDue: () => {}, blowMake: (c, act, b, crip, cripBy, vals) => { recO.push(vals); return 'a_' + recO.length + 'abcdefg'; } }), () => sO, v => !!v && typeof v === 'object' && !Array.isArray(v), () => F);
+            if (yO.ok) Object.keys(yO.values).forEach(k => { chO.values[k] = yO.values[k]; });   // the store, as dmgApply makes it, before majorFollow runs
+            const posted = yO.ok && mfO(chO, yO.info, yO.values) === true, vtRec = recO[0] ? S.makeResolver(sO, { id: chO.id, values: recO[0] }, F, null)('Vt') : null, vtLive = S.makeResolver(sO, chO, F, null)('Vt');
+            check('1.6.2 (the review of backlog 242) where the character already holds an effect, the roll a row ticked to read the sheet as it was there carries the effects list as it stood before the hit, key present and key for key, holding the old effect and never the hit’s own Shock; the real majorFollow lays it over the sheet as stored, so the blow’s record reads Vitality 9 with the old effect alone, where the sheet reads 5',
+                opO.ok && Array.isArray(fxBefore) && fxBefore.some(r => r.ref === 'e_old') && fO && fO.vals && 'f_fx' in fO.vals && j(fO.vals.f_fx) === j(fxBefore) && !fO.vals.f_fx.some(r => r.ref === 'e_shock')
+                && yO.values.f_fx.some(r => r.ref === 'e_shock') && posted && recO.length === 1 && vtRec === 9 && vtLive === 5, j([opO.ok, fxBefore, fO, recO, vtRec, vtLive]));
         }
         {   /* 1.6.0 (the core's gaps 6 and 7): what any wound does (onWound), a posted roll reading the blow (Blow.<name>, Hit.<name>), and its failure crippling the location (crip) */
             const mkW = (om, ow) => { const s = mkM(om); s.effects.push({ id: 'e_bleed', name: 'Bleeding', vis: 'all', mods: [] });
@@ -17319,7 +17333,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const out = { rolls: [], dues: [], recs: {} }, c = { id: 'c_k', name: 'Kael', ownerId: 'u_k', values: { f_hp: { cur: 3 }, f_vit: 12 } }, camp = { id: 'k', system: sys, chars: { c_k: c } };
             const n = { _attNext: null, postDue: (ch, r, kind, rd, own, more) => out.dues.push([r.id, kind, more && more.att ? 'att' : '']), blowMake: (ch, act, blow, crip, cripBy, vals, soft) => { const id = (soft ? 'b_' : 'a_') + Object.keys(out.recs).length; out.recs[id] = { act: act, blow: blow, vals: vals, soft: soft }; return id; } };
             const vitOf = (vals, blow) => S.makeResolver(sys, Object.assign({}, c, { values: vals }), F, blow ? S.withBlow({}, blow) : null)('Vit');
-            const api = new Function('isClient', 'canWrite', 'F', 'crossings', 'makeResolver', 'getActiveCampaign', 'fieldById', 'tokenCtxFor', 'charById', 'net', 'toast', 'applyAction', 'window', shB.slice(ba, bz) + NLb + 'return { crossFollow: crossFollow, crossSeed: crossSeed, blowAt: blowAt };')(
+            const api = new Function('isClient', 'canWrite', 'F', 'crossings', 'makeResolver', 'getActiveCampaign', 'fieldById', 'tokenCtxFor', 'charById', 'net', 'toast', 'applyAction', 'window', shB.slice(ba, bz) + NLb + 'return { crossFollow: crossFollow, crossSeed: crossSeed, blowAt: blowAt, blowDrop: blowDrop };')(
                 () => false, () => true, () => F, S.crossings, S.makeResolver, () => camp, (s, id) => s.fields.filter(f => f.id === id)[0] || null, () => null, (id, k) => k.chars[id] || null, () => n, () => {}, () => {},
                 { wpDice: { rollFor: (id, f, lb, op) => { const at = n._attNext, rc = at ? out.recs[at.att] : null; out.rolls.push([op.act, at ? 'att' : '', rc ? vitOf(rc.vals, rc.blow) : vitOf(c.values), rc ? S.withBlow({}, rc.blow).blow.wound : null]); } }, wpCalendar: { rulesRun: () => null } });
             S.setBlowSink(api.blowAt);
@@ -17327,6 +17341,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             return { out, c, camp, api, store };
         };
         let runOk = false, burstOk = false, noBlowOk = false, offOk = false, dueOk = false, prevOk = false, info = [];
+        let turnOk = false, slowOk = false, dropOk = false, madeOk = false, info2 = [];   // the review of backlog 242
         try {
             // the owner's case: Vitality 12, 15 HP at 3; a Big Hit of 20 to -17 puts Rattled (-4) on; the death check at -HP.max reads 12 where it is ticked, 8 where it is not
             const w = mk(gm); w.api.crossSeed(); const st = S.damageStep(gm, w.c, { amt: 20, big: true }, F, undefined, { now: 1, inCombat: false }), n1 = w.store(st);
@@ -17349,12 +17364,53 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const wp = mk(gm); wp.api.crossSeed(); S.damageStep(gm, wp.c, { amt: 20, big: true }, F, undefined, { now: 1, inCombat: false }); wp.api.crossFollow(wp.c, wp.camp); wp.c.values.f_hp = { cur: -17 }; wp.api.crossFollow(wp.c, wp.camp);
             prevOk = J(wp.out.rolls) === J([['r_dc', '', 12, null], ['r_dn', '', 12, null]]);
             info = [st.ok, w.c.values, liveVit, w.out, w0.out, wr.out.dues, wb.out.rolls, wp.out.rolls];
+            // the review of backlog 242: how long a record is believed. No clock: a store whose chain takes a minute of the clock (Date.now moved on
+            // between the blow and its store, as a large campaign's save and redraws may) still rolls on the blow's record
+            const wl = mk(gm); wl.api.crossSeed(); const stL = S.damageStep(gm, wl.c, { amt: 20, big: true }, F, undefined, { now: 1, inCombat: false });
+            const dnL = Date.now; Date.now = () => dnL() + 60000; try { wl.store(stL); } finally { Date.now = dnL; }
+            slowOk = J(wl.out.rolls) === J([['r_dc', 'att', 12, 20], ['r_dn', '', 8, null]]);
+            // a blow worked out in one turn and never stored is let go at the end of that turn: in a later turn the very value it would have written,
+            // typed by hand, rolls on the sheet as it stands (no record), which a record matched by its values alone would not
+            const wt = mk(gm); wt.api.crossSeed(); S.damageStep(gm, wt.c, { amt: 20, big: true }, F, undefined, { now: 1, inCombat: false });
+            await new Promise(res => setTimeout(res, 0));
+            wt.c.values.f_hp = { cur: -17 }; wt.api.crossFollow(wt.c, wt.camp);
+            turnOk = J(wt.out.rolls) === J([['r_dc', '', 12, null], ['r_dn', '', 12, null]]) && Object.keys(wt.out.recs).length === 0;
+            // a blow that stored nothing drops its record at once (blowDrop, as dmgApply and the host's char-damage branch do), so a change in the same turn rolls as today
+            const wd = mk(gm); wd.api.crossSeed(); S.damageStep(gm, wd.c, { amt: 20, big: true }, F, undefined, { now: 1, inCombat: false }); wd.api.blowDrop(wd.c.id);
+            wd.c.values.f_hp = { cur: -17 }; wd.api.crossFollow(wd.c, wd.camp);
+            dropOk = J(wd.out.rolls) === J([['r_dc', '', 12, null], ['r_dn', '', 12, null]]) && Object.keys(wd.out.recs).length === 0;
+            // a crossing on a value the blow did not write is not the blow's (blowMade): Vitality falling past 10 by the Rattled the blow put on rolls on the
+            // sheet as it stands (8), while the death check on the HP the blow wrote reads the blow's record (12)
+            const rawV = raw(true); rawV.rolls.push({ id: 'r_vx', label: 'Vit check', formula: '3d6 <= Vit', cross: { f: 'f_vit', dir: 'down', at: '10', asAt: true } });
+            const gmV = S.cleanSystem(rawV, { F, gmView: true }), wv = mk(gmV); wv.api.crossSeed(); wv.store(S.damageStep(gmV, wv.c, { amt: 20, big: true }, F, undefined, { now: 1, inCombat: false }));
+            madeOk = rOf(gmV, 'r_vx').cross.asAt === true && wv.out.rolls.some(x => J(x) === J(['r_vx', '', 8, null])) && wv.out.rolls.some(x => J(x) === J(['r_dc', 'att', 12, 20])) && Object.keys(wv.out.recs).length === 1;
+            info2 = [wl.out.rolls, wt.out, wd.out, wv.out];
         } finally { S.setBlowSink(null); }
         const edOk = shB.includes("bc = el('input', 'sys-roll-xsblow')") && shB.includes("createTextNode(' Reads the sheet as the blow left it')") && shB.includes("if (c.indexOf('sys-roll-xsblow') >= 0) { if (t.checked) cr.asAt = true; else delete cr.asAt; return 'one'; }")
             && shB.indexOf("if (c.indexOf('sys-roll-xsblow') >= 0)") < shB.indexOf("if (c.indexOf('sys-roll-xsd') >= 0)") && shB.includes('SCb.setBlowSink(blowAt)');
         const ixB = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), helpOk = /<li>Tick <b>Reads the sheet as the blow left it<\/b>/.test(ixB) && /<b>Reads the sheet as the blow left it<\/b><small>[^<]+<\/small>/.test(ixB);
         check('1.6.2 (backlog 242; the CORE Master: the hit\u2019s own Rattled does not apply to the rolls the same hit calls for) a roll that runs When a value crosses may be ticked Reads the sheet as the blow left it: the cleaner keeps asAt only as true, in the GM\u2019s view as a crossing is, never on an apply action; the validator lets such a roll read Blow names and no other crossing; run for real, a Big Hit of 20 taking Vitality 12 and 15 HP from 3 to -17 and putting Rattled (-4) on rolls the death check at -HP.max on the blow\u2019s record, reading Vitality 12, where the same crossing without the tick reads 8; a hand edit past the step, a system with no tick and a blow never stored roll on the sheet as it stands; a reminder names the record; a burst reads the hit that crossed; and the editor\u2019s tick, its handler, the sink\u2019s registration, Help and the Rolls key',
             clOk && valOk && runOk && noBlowOk && offOk && dueOk && burstOk && prevOk && edOk && helpOk, J([clOk, odd, valOk, vB, vN, runOk, noBlowOk, offOk, dueOk, burstOk, prevOk, edOk, helpOk, info]));
+        // the review of backlog 242. The record holds by the turn, never by a clock: blowAt queues the microtask that lets it go, blowDrop is asked where
+        // a blow stores nothing (dmgApply; the host's char-damage branch), and crossFollow believes it only for a rule whose watched value the blow wrote
+        const ntB = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'latin1').replace(/\r\n/g, NLb);
+        const keepOk = !shB.includes('BLOW_AT_MS') && shB.includes('try { Promise.resolve().then(function() { if (_blowAt[charId] === b) delete _blowAt[charId]; }); } catch (e) {}') && shB.includes('    } else blowDrop(c.id);   // 1.6.2 (the review of 242)')
+            && shB.includes('blowDrop: blowDrop,') && shB.includes('&& blowMade(bA, c, r);') && ntB.includes("else if (window.wpSheets && typeof window.wpSheets.blowDrop === 'function') window.wpSheets.blowDrop(qd.charId);");
+        check('1.6.2 (the review of backlog 242) a blow’s record lives for the turn it was made in, never by a clock: a store a minute of the clock later in the same turn still rolls the death check on it (Vitality 12); a blow never stored is let go by the turn’s end, so the very value it would have written, typed in a later turn, rolls on the sheet as it stands; a blow that stored nothing drops it at once; and a crossing on a value the blow did not write (Vitality past 10 by its Rattled) rolls on the sheet as it stands (8), while the HP it wrote reads its record',
+            slowOk && turnOk && dropOk && madeOk && keepOk, J([slowOk, turnOk, dropOk, madeOk, keepOk, info2]));
+        // the review of backlog 242: a roll's own crossing steps (First at, Then every) are checked, read on the sheet as it stands, so even a roll ticked
+        // Reads the sheet as the blow left it reads no blow there, nor CrossStep; each fault lands on its box in the editor (sysui PROP_BOX)
+        const xsV = cr => (S.validateSystem(Object.assign({}, gm, { rolls: [Object.assign({}, rOf(gm, 'r_dc'), { cross: Object.assign({}, rOf(gm, 'r_dc').cross, cr) })] }), F).errors || []).filter(e => e.id === 'r_dc' && /^cross\./.test(e.prop || ''));
+        const eW = xsV({ at: '-Blow.wound' }), eM = xsV({ at: '-HP.max' }), eS = xsV({ step: 'CrossStep + HP.max' }), eH = xsV({ step: 'HP.max' });
+        const suB = fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8');
+        const stepOk = eW.length === 1 && eW[0].prop === 'cross.at' && /never in the steps of its crossing/.test(eW[0].message) && !/Blow\./.test(S.plainMessage(gm, eW[0].message)) && eM.length === 0
+            && eS.length === 1 && eS[0].prop === 'cross.step' && eH.length === 0
+            && suB.includes("[/^cross\\.at$/, ['sys-roll-xsat']], [/^cross\\.step$/, ['sys-roll-xsstep']]") && shB.includes("if (p === 'cross.at') return 'First at: '; if (p === 'cross.step') return 'Then every: ';")
+            && shB.includes("if (r && (prop === 'cross.at' || prop === 'cross.step')) return r.cross && typeof r.cross[prop.slice(6)] === 'string' ? r.cross[prop.slice(6)].trim() : '';");
+        const vBm = (S.validateSystem(Object.assign({}, gm, { rolls: [Object.assign({}, rOf(gm, 'r_dn'), { formula: '3d6 <= Vit - Blow.wound' })] }), F).errors || []).filter(e => e.id === 'r_dn')[0];
+        const msgOk = !!vBm && /a roll ticked Reads the sheet as the blow left it/.test(vBm.message) && /Reads the sheet as the blow left it/.test(S.plainMessage(gm, vBm.message));
+        check('1.6.2 (the review of backlog 242) the validator reads a roll’s own crossing steps: First at -Blow.wound on a roll ticked Reads the sheet as the blow left it is a fault said in words with no key (the steps read the sheet as it stands), -HP.max none, CrossStep in Then every a fault and HP.max none; a press on each lands on its box (First at, Then every); and Blow names read where no tick lets them say the tick by its own words',
+            stepOk && msgOk, J([eW, eM, eS, eH, vBm, vBm && S.plainMessage(gm, vBm.message)]));
     }
     // The review of folds 4a and 6b (1.5.9): a load seeds what the posture rule last saw, as it seeds the crossings, so the first change after it
     // lays a token down; the crossings' seed reads a value in its token's context as crossFollow does; and a time rule's run and a round's or a

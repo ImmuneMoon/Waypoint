@@ -636,14 +636,35 @@ function crossValue(sys, c, r, vars) { var f = fieldById(sys, r.cross.f), v = f 
 // Hit.<name>, as a roll an Any wound row ticked asAt posts does. systemcore's damage step tells blowAt what the blow was (setBlowSink, registered right
 // after this slice) once it is worked out, on every path that stores one: the GM's Take damage window, the host's char-damage branch for a player, and
 // the blast passes. The store that follows asks crossFollow, which takes the record whatever it finds (blowTake), so it never outlives the change it
-// came with. A preview of a blow tells nothing (_dmgPeek, the fxend slice's), and a record older than BLOW_AT_MS is not believed, should a blow be
-// worked out and never stored. A crossing with no blow in flight, by a rule without the tick or on another character, runs exactly as before
-var _blowAt = Object.create(null), BLOW_AT_MS = 2000;
+// came with. A preview of a blow tells nothing (_dmgPeek, the fxend slice's).
+// How long a record is believed (the review of backlog 242): no clock. The step, the store and the store's crossFollow always run in ONE synchronous
+// turn of the page (the GM's dmgApply, the host's char-damage branch and the blast passes call no timer or promise between them), and on a large
+// campaign the save, the redraws and the posture follow that afterCharChange runs before crossFollow could outlast any fixed time, which made the
+// death check read the live sheet after all. So a record lives until the end of the turn it was made in: blowAt queues one microtask that lets it go,
+// which runs only once the whole synchronous chain has finished. A counter of stores was weighed and not taken, since a "store" is not one place
+// (afterCharChange, charChanged from the table, the blast writer) and a crossFollow of the same character may run nested inside a follow of the store.
+// Within the turn, a path that works a blow out and stores nothing drops it (blowDrop: dmgApply and the host's char-damage branch when the blow
+// changed nothing; every blast pass stores what its step gives), and crossFollow believes a record only for a rule whose watched value the blow
+// wrote and the sheet still holds as the blow left it (blowMade), so a record can never speak for a crossing another change made.
+// A crossing with no blow in flight, by a rule without the tick or on another character, runs exactly as before
+var _blowAt = Object.create(null);
 function blowAt(charId, rec) {
     if (typeof charId !== 'string' || !charId || !rec || typeof rec !== 'object' || !Array.isArray(rec.hits) || !rec.hits.length || (typeof _dmgPeek !== 'undefined' && _dmgPeek)) return;
-    _blowAt[charId] = { rec: rec, at: Date.now() };
+    var b = _blowAt[charId] = { rec: rec };
+    // the end of this turn lets it go, unless a newer blow of the same character took its place meanwhile
+    try { Promise.resolve().then(function() { if (_blowAt[charId] === b) delete _blowAt[charId]; }); } catch (e) {}
 }
-function blowTake(charId) { var b = Object.prototype.hasOwnProperty.call(_blowAt, charId) ? _blowAt[charId] : null; delete _blowAt[charId]; return b && Date.now() - b.at <= BLOW_AT_MS ? b.rec : null; }
+// the record of the blow this change came with, taken whatever it holds, so the next crossFollow of the character is the only one that sees it
+function blowTake(charId) { var b = Object.prototype.hasOwnProperty.call(_blowAt, charId) ? _blowAt[charId] : null; delete _blowAt[charId]; return b ? b.rec : null; }
+// a blow worked out that stores nothing (it changed no value): its record goes now, so no other change in this turn can read it. dmgApply asks it,
+// and so does the host's char-damage branch (net.js), through wpSheets
+function blowDrop(charId) { if (typeof charId === 'string' && Object.prototype.hasOwnProperty.call(_blowAt, charId)) delete _blowAt[charId]; }
+// whether the blow a record holds made rule r's crossing: it wrote the value the rule watches (rec.post, every value the blow wrote, as it wrote it)
+// and the character's stored value is still exactly that, compared as JSON. A crossing on a value the blow did not write is not the blow's
+function blowMade(rec, c, r) {
+    var f = r && r.cross ? r.cross.f : '', post = rec && rec.post && typeof rec.post === 'object' ? rec.post : null; if (!post || typeof f !== 'string' || !Object.prototype.hasOwnProperty.call(post, f)) return false;
+    var cur = c && c.values && Object.prototype.hasOwnProperty.call(c.values, f) ? c.values[f] : undefined; return JSON.stringify(cur) === JSON.stringify(post[f]);
+}
 // a copy of the character's values with a blow's record laid over it, a key the record holds as undefined taken away (it had no value before the blow)
 function blowLay(base, over) { var o = JSON.parse(JSON.stringify(base && typeof base === 'object' ? base : {})); Object.keys(over && typeof over === 'object' ? over : {}).forEach(function(k) { if (over[k] === undefined) delete o[k]; else o[k] = JSON.parse(JSON.stringify(over[k])); }); return o; }
 // Which hit made rule r's step cross: the blow's one hit, else, for a burst, the first hit at whose own end (post) the watched value had passed that
@@ -686,7 +707,7 @@ function crossFollow(c, camp) {
         var now = crossValue(sys, c, r, vars), k = (camp.id || '') + '|' + c.id + '|' + r.id; if (now === null) return;
         var was = Object.prototype.hasOwnProperty.call(_crossSeen, k) ? _crossSeen[k] : null; _crossSeen[k] = now; if (was === null) return;
         var hit = crossings(r, was, now, vars, F()); if (!hit.length) return;
-        var asB = !!bA && r.cross.asAt === true && !Array.isArray(r.apply);   // 1.6.2 (242): a roll ticked Reads the sheet as the blow left it, and a blow made this change
+        var asB = !!bA && r.cross.asAt === true && !Array.isArray(r.apply) && blowMade(bA, c, r);   // 1.6.2 (242): a roll ticked Reads the sheet as the blow left it, and a blow made this change, which wrote the value this rule watches
         for (var i = 0; i < (r.cross.one ? 1 : hit.length); i++) { var stp = r.cross.one ? hit[hit.length - 1] : hit[i], rn = { r: r, cx: { step: stp, n: hit.length } }; if (asB) rn.bh = blowHitFor(sys, c, camp, r, bA, was, stp, vars); runs.push(rn); }   // 1.6.0: CrossStep and Crossed
     });
     lrs.forEach(function(x) {   // 1.6.0: a row's counter, read and its steps worked out with that row's names; a row seen for the first time is only noted
@@ -8371,6 +8392,9 @@ function formCtx(inp) {
         return { list: sp || undefined, subject: rr ? rr.label || '' : '', roll: rr || undefined, reach: !!cs && cs.contains('sys-list-standreach'), then: !!rr && !Array.isArray(rr.apply) && !!cs && (cs.contains('sys-list-applyformula') || cs.contains('sys-list-applyif')) };
     }
     if (typeof id === 'string' && /^r_/.test(id)) (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(x) { if (x && x.id === id) r = x; });
+    // 1.6.2 (the review of backlog 242): a crossing's own steps (First at, Then every) are read on the sheet as it stands before the roll runs, so their
+    // form is offered nothing of the roll's own moment (crossStep: no blow, no CrossStep, no answer), as the validator refuses it there
+    if (r && cs && (cs.contains('sys-roll-xsat') || cs.contains('sys-roll-xsstep'))) return { roll: r, subject: r.label, crossStep: true };
     if (r) return { roll: r, subject: r.label, then: !Array.isArray(r.apply) && !!cs && (cs.contains('sys-apply-formula') || cs.contains('sys-apply-if') || cs.contains('sys-card-n') || cs.contains('sys-card-needs')) };
     var fd = null; if (typeof id === 'string') (Array.isArray(draft.fields) ? draft.fields : []).forEach(function(x) { if (x && x.id === id) fd = x; });
     return fd ? { subject: fd.label || '', list: fd.kind === 'item-list' && fd.list ? fd.list : undefined } : {};
@@ -9776,7 +9800,7 @@ function errorCell(id) {
     if (!cell.childNodes.length) cell.style.display = 'none';
     return cell;
 }
-function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'turn.run') return 'Move by giving up an action: '; if (p === 'turn.face') return 'Facing changes per turn: '; if (p === 'turn.holdLost') return 'An action is lost when: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (p === 'needs') return 'Needs: '; var nwP = /^needsWhy\.(\d+)$/.exec(p || ''); if (nwP) return 'Reason ' + (+nwP[1] + 1) + ': '; if (/^(?:list\.)?byIf(\.|$)/.test(p || '')) return 'Read on the one who resisted: '; if (p === 'area' || /^list\.area\./.test(p || '')) return ''; if (p === 'hits' || /^list\.hits\./.test(p || '')) return 'Hits it rolls for: '; if (p === 'dmgMajorIf' || /^list\.mjif\./.test(p || '')) return 'A Major Wound where: '; if (p === 'dmg2' || /^list\.dmg2\./.test(p || '')) return 'Second part: '; var pk3 = /^(?:list\.)?(dmg|ad)([345])(\.|$)/.exec(p || ''); if (pk3) return (pk3[2] === '3' ? 'Third' : pk3[2] === '4' ? 'Fourth' : 'Fifth') + ' part' + (pk3[1] === 'ad' ? ' armor divisor' : '') + ': '; if (p === 'ad2' || /^list\.ad2\./.test(p || '')) return 'Second part armor divisor: '; var pkK = /^(?:list\.)?dkind([2345]?)(\.|$)/.exec(p || ''); if (pkK) return (pkK[1] === '' ? 'Kind' : pkK[1] === '2' ? 'Second part kind' : pkK[1] === '3' ? 'Third part kind' : pkK[1] === '4' ? 'Fourth part kind' : 'Fifth part kind') + ': '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; if (p === 'critAt') return 'Critical at: '; if (p === 'fumbleAt') return 'Critical failure at: '; if (p === 'bigAt') return 'Lands as a heavy hit at: '; var words = { maxFormula: 'Its most: ', base: 'Its base: ', key: 'Short name: ', label: 'Its name: ', caption: 'Line under it: ', resistBy: 'Resisted by: ', resistOr: 'Or resisted by: ', asks: 'What it asks: ', calls: 'Calls for: ', lvlOnly: 'Levels it may be: ', mods: 'Changes: ', holds: 'Holds: ', malf: 'Jams at: ', roll: 'Its roll: ', throwSkill: 'Thrown with: ' }; return Object.prototype.hasOwnProperty.call(words, p) ? words[p] : ''; }   // 1.6.2 (found building a system by hand): a part in words, never its short name in the file, and none where it has no word   // Stage 6 HUD H7: an apply action's change by its number
+function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'turn.run') return 'Move by giving up an action: '; if (p === 'turn.face') return 'Facing changes per turn: '; if (p === 'turn.holdLost') return 'An action is lost when: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (p === 'needs') return 'Needs: '; if (p === 'cross.at') return 'First at: '; if (p === 'cross.step') return 'Then every: '; var nwP = /^needsWhy\.(\d+)$/.exec(p || ''); if (nwP) return 'Reason ' + (+nwP[1] + 1) + ': '; if (/^(?:list\.)?byIf(\.|$)/.test(p || '')) return 'Read on the one who resisted: '; if (p === 'area' || /^list\.area\./.test(p || '')) return ''; if (p === 'hits' || /^list\.hits\./.test(p || '')) return 'Hits it rolls for: '; if (p === 'dmgMajorIf' || /^list\.mjif\./.test(p || '')) return 'A Major Wound where: '; if (p === 'dmg2' || /^list\.dmg2\./.test(p || '')) return 'Second part: '; var pk3 = /^(?:list\.)?(dmg|ad)([345])(\.|$)/.exec(p || ''); if (pk3) return (pk3[2] === '3' ? 'Third' : pk3[2] === '4' ? 'Fourth' : 'Fifth') + ' part' + (pk3[1] === 'ad' ? ' armor divisor' : '') + ': '; if (p === 'ad2' || /^list\.ad2\./.test(p || '')) return 'Second part armor divisor: '; var pkK = /^(?:list\.)?dkind([2345]?)(\.|$)/.exec(p || ''); if (pkK) return (pkK[1] === '' ? 'Kind' : pkK[1] === '2' ? 'Second part kind' : pkK[1] === '3' ? 'Third part kind' : pkK[1] === '4' ? 'Fourth part kind' : 'Fifth part kind') + ': '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; if (p === 'critAt') return 'Critical at: '; if (p === 'fumbleAt') return 'Critical failure at: '; if (p === 'bigAt') return 'Lands as a heavy hit at: '; var words = { maxFormula: 'Its most: ', base: 'Its base: ', key: 'Short name: ', label: 'Its name: ', caption: 'Line under it: ', resistBy: 'Resisted by: ', resistOr: 'Or resisted by: ', asks: 'What it asks: ', calls: 'Calls for: ', lvlOnly: 'Levels it may be: ', mods: 'Changes: ', holds: 'Holds: ', malf: 'Jams at: ', roll: 'Its roll: ', throwSkill: 'Thrown with: ' }; return Object.prototype.hasOwnProperty.call(words, p) ? words[p] : ''; }   // 1.6.2 (found building a system by hand): a part in words, never its short name in the file, and none where it has no word   // Stage 6 HUD H7: an apply action's change by its number
 function formulaTextFor(id, prop) {
     if (id === 'combat' && prop === 'turn.move') return (draft.combat && draft.combat.turn && draft.combat.turn.move) || '';   // turn-based combat T1
     if (id === 'combat' && prop === 'turn.run') return (draft.combat && draft.combat.turn && draft.combat.turn.run) || '';   // 1.6.0
@@ -9792,6 +9816,7 @@ function formulaTextFor(id, prop) {
     if (r && prop === 'malf') return r.malf || '';   // R3
     if (r && (prop === 'critAt' || prop === 'fumbleAt' || prop === 'bigAt')) return r[prop] || '';   // 1.6.0
     if (r && prop === 'needs') return r.needs || '';   // 1.5.4
+    if (r && (prop === 'cross.at' || prop === 'cross.step')) return r.cross && typeof r.cross[prop.slice(6)] === 'string' ? r.cross[prop.slice(6)].trim() : '';   // 1.6.2 (the review of backlog 242): a crossing's own steps, as the validator read them
     var nwT = r ? /^needsWhy\.(\d+)$/.exec(prop || '') : null; if (nwT) { var nwL = Array.isArray(r.needsWhy) ? r.needsWhy[+nwT[1]] : null, nwC = nwL && typeof cleanNeedsWhy === 'function' ? cleanNeedsWhy([nwL]) : null; return nwC ? nwC[0]['if'] : (nwL && typeof nwL['if'] === 'string' ? nwL['if'].trim() : ''); }   // 1.6.2: a reason's test, as the validator read it
     var biF = r ? /^byIf\.(\d+)$/.exec(prop || '') : null; if (biF) return Array.isArray(r.calls) && r.calls[+biF[1]] && typeof r.calls[+biF[1]].byIf === 'string' ? r.calls[+biF[1]].byIf.trim() : '';   // 1.6.0, as the validator read it
     if (r && prop === 'dmgMajorIf') return r.dmgMajorIf || '';   // 1.6.0
@@ -14693,7 +14718,7 @@ function crossRow(r) {
     row.appendChild(select('sys-roll-xsby', [['', 'runs at once'], ['owner', 'reminds its player'], ['gm', 'reminds me']], cr.by === 'owner' || cr.by === 'gm' ? cr.by : '', 'At once, as your own press of it, or as a reminder in chat with its button'));
     if (!Array.isArray(r.apply)) {   // 1.6.2 (backlog 242; the CORE Master: a hit's own effects do not apply to the rolls the same hit calls for): a roll's alone
         var bl = el('label', 'sys-hover'), bc = el('input', 'sys-roll-xsblow'); bc.type = 'checkbox'; bc.checked = cr.asAt === true; bl.appendChild(bc); bl.appendChild(document.createTextNode(' Reads the sheet as the blow left it'));
-        bl.title = 'Where a hit makes the crossing, the roll leaves out the effects that same hit put on, as a death check leaves out the hit\u2019s own Rattled. It may read Blow and Hit names too. Any other crossing rolls on the sheet as it stands';
+        bl.title = 'Where a hit makes the crossing, the roll leaves out the effects that same hit put on, as a death check leaves out the hit\u2019s own Rattled. It can also read the blow and where it struck. Any other crossing rolls on the sheet as it stands';
         row.appendChild(bl); if (typeof lineUnder === 'function') lineUnder(row, 'A hit\u2019s own effects come after this roll.');
     }
     return row;
@@ -16274,7 +16299,7 @@ function dmgApply(charId, q) {
         lastChange = { charId: c.id, fieldId: ids[0], prev: prevs[ids[0]], extra: extra };
         c.values = c.values || {}; ids.forEach(function(fid) { c.values[fid] = r.values[fid]; });
         afterCharChange(c, false, r.values);
-    }
+    } else blowDrop(c.id);   // 1.6.2 (the review of 242): a blow that changed nothing is stored nowhere, so its record goes now
     if (n && typeof n.damageCard === 'function') n.damageCard(c, r.lines);
     majorFollow(c, r.info, r.values);
     return true;
@@ -16330,7 +16355,7 @@ function dmgPartPre(mk) { if (!dmgObj(mk) || typeof mk.amt !== 'number' || !isFi
 function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient() && canWrite(); }   // the cards' Apply to target: the GM's own machine
 // [systemcheck:dmgwin-end]
 function nameWordNow(n) { var c = getActiveCampaign(), s = c ? systemOf(c) : null; return nameWord(s, n); }   // 1.6.2: a name in words, for a card
-window.wpSheets = { bellNote: bellNote, picPeek: picPeek, restDoes: restDoes, restTakeBack: restTakeBack, charCatSet: charCatSet, charCatNow: charCatNow, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, lootOf: lootOf, lootSet: lootSet, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, linkValuesWrite: linkValuesWrite, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, fxEndSeed: function() { return fxEndSeed(getActiveCampaign()); }, fxRanOut: fxRanOut, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+window.wpSheets = { bellNote: bellNote, picPeek: picPeek, restDoes: restDoes, restTakeBack: restTakeBack, charCatSet: charCatSet, charCatNow: charCatNow, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, lootOf: lootOf, lootSet: lootSet, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, linkValuesWrite: linkValuesWrite, formOn: formOn, majorFollow: majorFollow, blowDrop: blowDrop, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, fxEndSeed: function() { return fxEndSeed(getActiveCampaign()); }, fxRanOut: fxRanOut, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame, openChars: openChars, closeChars: closeChars,
     templateToggle: templateToggle, newFromTemplate: newFromTemplate, templatesOf: templatesOf, shareAsk: shareAsk, shareTake: shareTake, shareOwn: shareOwn, ownSheetCount: ownSheetCount, ownSheetFor: ownSheetFor, shareSplitCount: shareSplitCount, shareSplitAsk: shareSplitAsk, charsOf: charsOf, charList: charList, charById: charById, ownerName: ownerName, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,

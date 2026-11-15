@@ -9309,6 +9309,7 @@ function handleMessage(msg, conn) {
         if (Object.keys(rd.values).length) saveRemoteSoon();
         try { conn.send({ type: 'char-ack', rid: qd.rid }); } catch (e) { sendFailed(e); }
         if (Object.keys(rd.values).length) { net.syncCharDelta(qd.charId, rd.values); if (window.wpSheets) window.wpSheets.charChanged(qd.charId); }
+        else if (window.wpSheets && typeof window.wpSheets.blowDrop === 'function') window.wpSheets.blowDrop(qd.charId);   // 1.6.2 (the review of backlog 242): a blow that changed nothing stores nothing, so the record it gave a crossing's roll goes now
         net.damageCard(chD, rd.lines);
         if (rd.info && (rd.info.majorRoll || rd.info.follows) && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(chD, rd.info, rd.values);   // 1.6.0 (B3): a Major Wound's roll is posted   // 1.6.0 (the core's gap 6): and a wound's
         // [netcheck:chardamage-end]

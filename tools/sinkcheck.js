@@ -85,8 +85,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('nothing picRef lets through leaves the app (WHATWG URL)', escaped.length === 0, escaped);
 
     /* ---- the planner preview (planner.js plannerPreviewHtml) ---- */
-    const plannerPreviewHtml = new Function('esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef', 'fmtHtml', 'fmtRich', 'fieldFmt', 'colFmtOf', 'cellFmtOf', 'mermaidPre', 'cellHtml', 'rowJoin', 'rowHtml',
-        slice('planner.js', 'planner-preview') + '\nreturn plannerPreviewHtml;')(SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef, DR.fmtHtml, DR.fmtRich, DR.fieldFmt, DR.colFmtOf, DR.cellFmtOf, DR.mermaidPre, DR.cellHtml, DR.rowJoin, DR.rowHtml);
+    const plannerPreviewHtml = new Function('esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef', 'fmtHtml', 'fmtRich', 'fieldFmt', 'colFmtOf', 'cellFmtOf', 'mermaidPre', 'cellHtml', 'rowJoin', 'rowHtml', 'headJoin', 'headHtml',
+        slice('planner.js', 'planner-preview') + '\nreturn plannerPreviewHtml;')(SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef, DR.fmtHtml, DR.fmtRich, DR.fieldFmt, DR.colFmtOf, DR.cellFmtOf, DR.mermaidPre, DR.cellHtml, DR.rowJoin, DR.rowHtml, DR.headJoin, DR.headHtml);
     const camp = { id: 'c1', docStyle: { textColor: 'red;background:url(//evil.example/d)', bgImage: U }, items: {
         m2: { id: 'm2', type: 'map', meta: { title: T }, rooms: [{ id: P, name: T }] }
     } };
@@ -6165,6 +6165,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const bl = [TWm.twBullets('a\nb\nc', 0, 3), TWm.twBullets('\u2022 a\n\u2022 b', 0, 7), TWm.twBullets('- a\nb', 0, 5), TWm.twBullets('x', 1, 1)].map(r => [r.text, r.s, r.e]);
         check('1.6.2 a big table in its own window, its "• List" button (tablewin.js twBullets, the page editor\'s rule): the lines picked get "• " where any lacks a mark, lose their marks where all have one, a hand-typed "- " is kept beside a new bullet, and the selection moves with its words',
             JSON.stringify(bl) === JSON.stringify([['\u2022 a\n\u2022 b\nc', 2, 7], ['a\nb', 0, 3], ['- a\n\u2022 b', 0, 7], ['\u2022 x', 3, 3]]), JSON.stringify(bl));
+        const hw = TWm.twHtml({ id: 'b_h', type: 'table', cols: ['Coin', 'Weight ' + H, 'covered ' + H, 'Value'], headMerge: { col2: 2, col4: '9" onclick="x' }, rows: [['a', 'b', 'c', 'd']] }, false, '');
+        check('1.6.2 merged headings in a big table\'s window (tablewin.js twHtml): a merged heading is drawn once, escaped, with a colspan of its own numbers, the heading under it left out, and a hostile span is nothing',
+            hw.includes('<th tabindex="0" data-ci="1" colspan="2"') && !hw.split('</thead>')[0].includes('data-ci="2"') && !hw.includes('covered') && !/<img|onclick=/.test(hw.replace(/&lt;img[^&]*&gt;/g, '')) && (hw.match(/colspan=/g) || []).length === 1, hw.slice(0, 900));
         const twSrc = read('tablewin.js');
         check('1.6.2 a big table in its own window writes nothing itself: no fetch, no storage, no window it opens; every edit is the one word to the main window over the app\'s own channel, and markup only from twHtml and the window\'s fixed message',
             !/fetch\(|localStorage|sessionStorage|indexedDB|window\.open\(|\.outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/.test(twSrc) && (twSrc.match(/\.innerHTML = /g) || []).length === 3 && twSrc.includes("tw.body.innerHTML = twHtml(tw.b, tw.rich, tw.note);") && twSrc.includes("body.innerHTML = '<div class=\"popout-msg\">This table is no longer on the page.</div>';")

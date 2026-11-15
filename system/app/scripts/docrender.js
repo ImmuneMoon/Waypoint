@@ -346,6 +346,30 @@ function cleanRowJoin(b, ri, ncol) {
     if (!j.spans) { delete r.merge; return; }
     var m = {}; j.spans.forEach(function(k, i) { if (k > 1) m['col' + (i + 1)] = k; }); r.merge = m;
 }
+/* 1.6.2, merged headings (the owner, 2026-11-14, by prompt: "Waypoint merges headings"). The book merges one heading over two columns of
+   sub-labels (its weight given as pounds and as metric under one "Aurodium Weight"), so a table's heading row merges cells as a body row does.
+   It is kept on the BLOCK, beside cols, in one form everywhere (the editor, a file, the wire): headMerge, a map from a heading's key to how
+   many columns it takes ({ col2: 2 }). headJoin reads it by rowJoin's own rule (a whole number from 2, held to the columns left, the earlier
+   heading winning), so a hostile number never reaches markup. A heading under a merge keeps its words on the GM's page (Unmerge shows them
+   again) but is not drawn, and net.js sanitizeItem blanks it on the copy players get. */
+// A heading row's spans: how many columns each heading takes (0 under a merge), or null where none is merged
+function headJoin(b, ncol) {
+    var m = b && own(b, 'headMerge') && b.headMerge && typeof b.headMerge === 'object' && !Array.isArray(b.headMerge) ? b.headMerge : null;
+    return m ? rowJoin({ rows: [{ merge: m }] }, 0, ncol).spans : null;
+}
+// headMerge cleaned in place against the table's count of columns: only each real span by its heading's key, and no key where none is left
+function cleanHeadJoin(b, ncol) {
+    if (!b || b.headMerge === undefined) return;
+    var s = headJoin(b, ncol); if (!s) { delete b.headMerge; return; }
+    var m = {}; s.forEach(function(k, i) { if (k > 1) m['col' + (i + 1)] = k; }); b.headMerge = m;
+}
+// A table's heading row as markup: <th> by <th>, a merged heading with its colspan and the headings under it left out. cell(ci): one heading's
+// inner markup. The colspan is a number headJoin made, never stored text
+function headHtml(spans, ncol, cell) {
+    var out = '';
+    for (var c = 0; c < ncol; c++) { var k = spans ? spans[c] : 1; if (k === 0) continue; out += (k > 1 ? '<th colspan="' + k + '">' : '<th>') + cell(c) + '</th>'; }
+    return out;
+}
 // The column count rowJoin is measured against: a table's heads, or its widest row where it has more cells than heads (as renderDoc draws it)
 function joinCols(b) {
     var n = Array.isArray(b.cols) ? Math.min(b.cols.length, LIMITS.cols) : 0;
@@ -458,6 +482,7 @@ function cleanBlockFmts(b) {
     }
     var rowsAreLists = false;
     if (b.pin !== undefined && b.pin !== true) delete b.pin;   // 1.6.2: a table's pinned heading row, true only
+    if (b.headMerge !== undefined) cleanHeadJoin(b, (Array.isArray(b.cols) && b.cols.length) ? joinCols(b) : LIMITS.cols);   // 1.6.2: merged headings, by headJoin's rule (a table with no columns of its own held to the shape, as its rows are)
     if (Array.isArray(b.rows) && (b.type === 'table' || b.type === 'node')) {   // 1.6.2, merged cells: a row's merge and full, as rowJoin reads them (cleanRowJoin)
         // A planner's table or card with no columns of its own draws its kind's default columns (planner.js tsCols, kdP.cols), which this
         // module does not know, and a column nobody typed in has no key in any row: joinCols would guess too few and cut a merge into it.
@@ -835,6 +860,7 @@ function cleanBlock(b, used, ctx) {
             var jn = joinCols(o), lastJ = -1, rjT = o.rows.map(function(cells, ri) { var j = rowJoin(b, ri, jn); if (!j.full && !j.spans) return null; lastJ = ri; return j.full ? 'full' : j.spans.map(function(k) { return k; }); });
             if (lastJ >= 0) o.rowMerge = rjT.slice(0, lastJ + 1);
             if (b.pin === true) o.pin = true;   // 1.6.2: the heading row pinned in sight while the table is read (tablefollow.js), true only
+            var hjT = headJoin(b, jn); if (hjT) { o.headMerge = {}; hjT.forEach(function(k, i) { if (k > 1) o.headMerge['col' + (i + 1)] = k; }); }   // 1.6.2: merged headings (headJoin)
             break;
         case 'diagram': o.content = stripMermaidLinks(str(b.content, LIMITS.html)); break;
         case 'flowchart':
@@ -1036,7 +1062,7 @@ function renderDoc(doc, opts) {
                 blk += '<div' + layoutAttrs(b, 'node plain-table doc-tablewrap') + '>';
                 if (b.title) blk += '<h3>' + fmtHtml(b.title, fieldFmt(b, 'title')) + '</h3>';
                 blk += '<table class="doc-table' + (b.pin === true ? ' t-pin' : '') + '">';   // 1.6.2: a pinned heading row (tablefollow.js)
-                if (tcols.length) { blk += '<thead><tr>'; for (var c = 0; c < ncol; c++) blk += '<th>' + fmtHtml(tcols[c] || '', colFmtOf(b, c)) + '</th>'; blk += '</tr></thead>'; }
+                if (tcols.length) blk += '<thead><tr>' + headHtml(headJoin(b, ncol), ncol, function(c) { return fmtHtml(tcols[c] || '', colFmtOf(b, c)); }) + '</tr></thead>';   // 1.6.2: a merged heading by its colspan (headJoin)
                 blk += '<tbody>';
                 rows.forEach(function(r, ri) { blk += rowHtml(rowJoin(b, ri, ncol), ncol, function(c2) { return cellHtml(r[c2] || '', cellFmtOf(b, ri, c2), pageCell); }); });   // a cell's listed lines as a list (cellHtml); merged cells and a full-width row (rowJoin, rowHtml)
                 blk += '</tbody></table></div>';
@@ -1148,6 +1174,6 @@ function pageHid(items, id) {
     return false;
 }
 
-var API = { rowJoin: rowJoin, rowHtml: rowHtml, joinCols: joinCols, cleanRowJoin: cleanRowJoin, cellHtml: cellHtml, cellLines: cellLines, fmtSlice: fmtSlice, docFontName: docFontName, docFontCss: docFontCss, docFontOptions: docFontOptions, VERSION: VERSION, pageHid: pageHid, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, mermaidPre: mermaidPre, diagramLink: diagramLink, linkLine: linkLine, readLinkLine: readLinkLine, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
+var API = { headJoin: headJoin, cleanHeadJoin: cleanHeadJoin, headHtml: headHtml, rowJoin: rowJoin, rowHtml: rowHtml, joinCols: joinCols, cleanRowJoin: cleanRowJoin, cellHtml: cellHtml, cellLines: cellLines, fmtSlice: fmtSlice, docFontName: docFontName, docFontCss: docFontCss, docFontOptions: docFontOptions, VERSION: VERSION, pageHid: pageHid, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, mermaidPre: mermaidPre, diagramLink: diagramLink, linkLine: linkLine, readLinkLine: readLinkLine, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
 if (typeof window !== 'undefined') window.wpDocRender = API;
-export { rowJoin, rowHtml, joinCols, cleanRowJoin, cellHtml, cellLines, fmtSlice, docFontName, docFontCss, docFontOptions, VERSION, pageHid, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, mermaidPre, diagramLink, linkLine, readLinkLine, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };
+export { headJoin, cleanHeadJoin, headHtml, rowJoin, rowHtml, joinCols, cleanRowJoin, cellHtml, cellLines, fmtSlice, docFontName, docFontCss, docFontOptions, VERSION, pageHid, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, mermaidPre, diagramLink, linkLine, readLinkLine, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };

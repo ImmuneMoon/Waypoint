@@ -329,7 +329,9 @@ function tfitFloats(t) { var c = t.parentNode.classList; return c.contains('fl-l
 function tfitKids(el, name) { var out = [], k = el && el.childNodes ? el.childNodes : []; for (var i = 0; i < k.length; i++) if (k[i] && k[i].nodeType === 1 && String(k[i].nodeName).toUpperCase() === name) out.push(k[i]); return out; }
 function tfitCut(s) { var a = Array.from(String(s == null ? '' : s).replace(/\s+/g, ' ').trim()); return a.length > TFIT_WORDS ? a.slice(0, TFIT_WORDS).join('').trim() + '\u2026' : a.join(''); }
 // the names of a table's columns, from its heading row; null where it has none (a table with no headings is never stacked: its cells would have no names)
-function tfitHeads(t) { var hd = tfitKids(t, 'THEAD')[0], tr = hd ? tfitKids(hd, 'TR')[0] : null, th = tr ? tfitKids(tr, 'TH') : []; return th.length ? th.map(function(h) { return tfitCut(h.textContent); }) : null; }
+// 1.6.2, merged headings: a heading over several columns (its colspan, docrender.js headJoin) names each of them, so the list has one name a
+// column and the count of columns stays true
+function tfitHeads(t) { var hd = tfitKids(t, 'THEAD')[0], tr = hd ? tfitKids(hd, 'TR')[0] : null, th = tr ? tfitKids(tr, 'TH') : [], out = []; th.forEach(function(h) { var w = tfitCut(h.textContent); for (var k = tfitSpan(h); k > 0; k--) out.push(w); }); return out.length ? out : null; }
 function tfitCells(t) { var rows = []; tfitKids(t, 'TBODY').forEach(function(b) { tfitKids(b, 'TR').forEach(function(r) { rows.push(tfitKids(r, 'TD')); }); }); return rows; }
 // 1.6.2, merged cells: how many columns one cell takes (its colspan, a number docrender.js rowHtml wrote; 1 for anything else)
 function tfitSpan(td) { var v = td && typeof td.getAttribute === 'function' ? parseInt(td.getAttribute('colspan'), 10) : 1; return v > 1 ? Math.min(v, 64) : 1; }
@@ -338,7 +340,7 @@ function tfitCount(t) { var n = 0; tfitCells(t).forEach(function(r) { var w = 0;
 // The name a cell is shown after in the cards (data-col): its column's, or for a merged cell the names of every column it takes joined with
 // " / " (1.6.2: a merged cell reads once, under all its columns). The first column has none, and neither has a full-width row's one cell,
 // which the style sheet draws as a sub-heading between the cards
-function tfitName(heads, at, span) { if (at === 0) return ''; var ns = heads.slice(at, at + span).filter(function(h) { return !!h; }); return ns.join(' / '); }
+function tfitName(heads, at, span) { if (at === 0) return ''; var ns = heads.slice(at, at + span).filter(function(h, k, all) { return !!h && all.indexOf(h) === k; }); return ns.join(' / '); }   // a merged heading's name once
 // A custom property of an element's own style set (v a string) or taken off (v null), only where its style can do both; an empty style attribute
 // left behind is taken off too, so the export reads the markup as the renderer wrote it. True where anything changed
 function tfitVar(el, k, v) {
@@ -353,6 +355,7 @@ function tfitVar(el, k, v) {
 // over; where no row has a plain first cell nothing is measured
 function tfitFirst(t) {
     var hd = tfitKids(t, 'THEAD')[0], tr = hd ? tfitKids(hd, 'TR')[0] : null, c = tr ? tfitKids(tr, 'TH')[0] : null;
+    if (c && tfitSpan(c) > 1) c = null;   // 1.6.2: a first heading merged over more columns is not the held column's width: a row's first cell is measured instead
     if (!c) {
         tfitKids(t, 'TBODY').some(function(b) { return tfitKids(b, 'TR').some(function(r) {
             if (r.classList && r.classList.contains('t-full')) return false;

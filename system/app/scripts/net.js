@@ -810,6 +810,11 @@ function sanitizeItem(item) {
     function docHideMerged(d, DR) {
         if (!d || !Array.isArray(d.blocks) || typeof DR.rowJoin !== 'function' || typeof DR.joinCols !== 'function') return d;
         d.blocks.forEach(function(b) {
+            // 1.6.2, merged headings: a heading under another's merge is blanked too, with its look (docrender.js headJoin)
+            if (b && Array.isArray(b.cols) && b.headMerge && typeof DR.headJoin === 'function') {
+                var hs = DR.headJoin(b, DR.joinCols(b));
+                if (hs) hs.forEach(function(k, ci) { if (k === 0 && ci < b.cols.length) { b.cols[ci] = ''; if (Array.isArray(b.colFmt) && ci < b.colFmt.length) b.colFmt[ci] = null; } });
+            }
             if (!b || !Array.isArray(b.rows) || !Array.isArray(b.rowMerge)) return;
             var n = DR.joinCols(b);
             b.rows.forEach(function(cells, ri) {

@@ -140,7 +140,7 @@ function tfHead() {
         var reg = tfRoom(t), at = tfHeadAt(row.getBoundingClientRect(), t.getBoundingClientRect(), reg); if (!at) continue;
         var br = box.getBoundingClientRect(), left = Math.max(br.left, reg.left), right = Math.min(br.left + (box.clientWidth || br.width), reg.right);
         if (right - left < TF_MIN || !tfOnTop(box.contains(t) ? box : t, left + 4, at.top + 2)) continue;
-        var cells = Array.prototype.map.call(ed ? row.querySelectorAll('.ts-box') : row.children, function(c, k) { return { rect: c.getBoundingClientRect(), text: ed && typeof c._tsText === 'string' ? c._tsText : c.textContent, first: !ed && k === 0 && !!box.classList && box.classList.contains('pv-tscroll') }; });
+        var cells = Array.prototype.map.call(ed ? row.querySelectorAll('.ts-box') : row.children, function(c, k) { return { rect: c.getBoundingClientRect(), text: ed && typeof c._tsText === 'string' ? c._tsText : c.textContent, first: !ed && k === 0 && !!box.classList && box.classList.contains('pv-tscroll') && !(c.getAttribute && +c.getAttribute('colspan') > 1) }; });   // a merged first heading is not held (1.6.2)
         pick = { at: at, left: left, width: right - left, cells: tfHeadCells(cells, left), ed: ed, t: t };
     }
     if (!pick) { if (!tf.head.hidden) tf.head.hidden = true; return; }

@@ -1506,6 +1506,27 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.2 a text block that holds only {pin}, {wide pin}, {pin wide} or {wide} right before a table round-trips through Markdown as that text, on a page and in a planner, and the table stays unpinned and not wide',
             marks.every(x => x === 'ok'), jj(marks.filter(x => x !== 'ok')));
     }
+    /* ---- 1.6.2, merged headings (the owner, 2026-11-14, by prompt: "Waypoint merges headings"): headMerge on the table, by headJoin ---- */
+    {
+        const jj = JSON.stringify, H = (m, n) => jj(D.headJoin({ headMerge: m }, n));
+        const reads = [H({ col2: 2 }, 4), H({ col1: 2, col2: 3 }, 4), H({ col3: 9 }, 4), H({ col1: '2', col2: 1.5, col9: 2, colX: 3 }, 4), H([2], 3), H(null, 3), H({ col1: 2 }, 1), jj(D.headJoin({}, 3))];
+        check('1.6.2 merged headings, headJoin (one reading, by rowJoin\'s rule): a heading\'s span by its key, held to the columns left, the earlier heading winning, a heading under a merge counting 0; a string, a fraction, a key past the table or no column, a list, and no merge at all read as nothing',
+            jj(reads) === jj([jj([1, 2, 0, 1]), jj([2, 0, 1, 1]), jj([1, 1, 2, 0]), 'null', 'null', 'null', 'null', 'null']), jj(reads));
+        const src = { type: 'doc', id: 'd_h', meta: { title: 'Coins' }, blocks: [{ id: 'b_1', type: 'table', title: 'Coins', cols: ['Coin', 'Aurodium Weight', '', 'Value'], headMerge: { col2: 2, col9: 4 }, rows: [['Lot', '1 lb', '0.45 kg', '10']] }] };
+        const cd = D.cleanDoc(src), h = D.renderDoc(cd), pb = { type: 'node', mode: 'table', headMerge: { col2: 5, junk: 1 }, rows: [{ col1: 'x' }] }, pb2 = { type: 'table', cols: ['a', 'b'], headMerge: { col2: 2 }, rows: [] };
+        D.cleanBlockFmts(pb); D.cleanBlockFmts(pb2);
+        check('1.6.2 merged headings, kept and drawn: cleanDoc keeps a table\'s headMerge as headJoin reads it (no key where nothing is merged) and twice cleaned it is the same; renderDoc draws a merged heading once with its colspan and leaves the one under it out; cleanBlockFmts cleans a planner\'s (one with no columns of its own held to the shape, as its rows are)',
+            jj(cd.blocks[0].headMerge) === jj({ col2: 2 }) && jj(D.cleanDoc(cd)) === jj(cd) && h.includes('<thead><tr><th>Coin</th><th colspan="2">Aurodium Weight</th><th>Value</th></tr></thead>')
+            && jj(pb.headMerge) === jj({ col2: 5 }) && !('headMerge' in pb2), jj([cd.blocks[0], pb, pb2]));
+        const tbl = (cols, headMerge) => ({ type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [{ type: 'h1', title: 'T' }, Object.assign({ type: 'table', title: '', cols, rows: [['a', 'b', 'c', 'd'].slice(0, cols.length)] }, headMerge ? { headMerge } : {})] });
+        const rt = d => { const md = M.docToMarkdown(d, {}).text; return { md, back: M.markdownToBlocks(md, { kind: 'doc' }).blocks.filter(b => b.type === 'table')[0] }; };
+        const r1 = rt(tbl(['Coin', 'Aurodium Weight', '', 'Value'], { col2: 2 })), r2 = rt(tbl(['Weight (Credit Denomination / Aurodium Weight)', '', ''], { col1: 3 })), r3 = rt(tbl(['A', 'B', 'C'], null));
+        const hand = M.markdownToBlocks('| A | B ||\n|---|---|---|\n| 1 | 2 | 3 |\n\n|| X | Y |\n|---|---|---|\n| 1 | 2 | 3 |\n', { kind: 'doc' }).blocks.filter(b => b.type === 'table');
+        check('1.6.2 merged headings in Markdown, both ways: a merged heading is followed by one bare | for each further column it takes (the line under the headings keeps one --- a column), and an import reads it back to the same headMerge; a heading over every column too; a table with none is written as ever; a bare || at the row\'s start is an empty first heading',
+            r1.md.includes('| Coin | Aurodium Weight || Value |\n|---|---|---|---|') && jj(r1.back.cols) === jj(['Coin', 'Aurodium Weight', '', 'Value']) && jj(r1.back.headMerge) === jj({ col2: 2 })
+            && r2.md.includes('| Weight (Credit Denomination / Aurodium Weight) |||\n|---|---|---|') && jj(r2.back.headMerge) === jj({ col1: 3 }) && r3.md.includes('| A | B | C |') && !('headMerge' in r3.back)
+            && jj(hand[0].headMerge) === jj({ col2: 2 }) && !('headMerge' in hand[1]) && hand[1].cols[0] === '', jj([r1, r2, r3.md, hand.map(x => [x.cols, x.headMerge])]));
+    }
     /* ---- 1.5.6: a GM-only page keeps every page nested under it from players (the owner, 2026-10-24, by prompt: "Hidden parent hides all") ---- */
     {
         const pg = (id, players, parentId) => ({ id, type: 'doc', meta: Object.assign({ title: id }, players === false ? { players: false } : {}, parentId ? { parentId } : {}) });

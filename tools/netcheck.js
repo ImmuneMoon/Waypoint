@@ -916,6 +916,22 @@ pendingChecks.push((async () => {
         check(T, hostOk && clientOk, Jw([hostOk, clientOk, sent && sent.blocks, got && got.blocks]).slice(0, 1200));
     } catch (e) { check(T, false, 'threw: ' + (e && e.stack || e)); }
 })());
+// 1.6.2, merged headings (the owner, 2026-11-14, by prompt: "Waypoint merges headings"): a heading under another's merge goes to players blank, with
+// no look, as a cell under a merge does; the GM's own page keeps it; a player's app re-cleans a hostile host's headMerge by docrender.js headJoin
+pendingChecks.push((async () => {
+    const T = '1.6.2 merged headings on the wire: a heading under another\'s merge goes to players blank and with no look, the merge goes with it as headJoin reads it, the GM\'s own page keeps every word, and a player\'s app re-cleans a hostile host\'s merge to nothing or to the table';
+    try {
+        const urlH = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+        const DRh = await import(urlH('docrender.js')), Jh = JSON.stringify;
+        const [siH] = new Function('window', '"use strict";\n' + siSrc() + '\nreturn [sanitizeItem, wireWbItem];')({ wpDocRender: DRh });
+        const gm = { id: 'dH', type: 'doc', meta: { title: 'Coins' }, blocks: [{ id: 'b1', type: 'table', cols: ['Coin', 'Aurodium Weight', 'secretHead', 'Value'], colFmt: [null, null, { b: true }], headMerge: { col2: 2 }, rows: [['Lot', '1 lb', '0.45 kg', '10']] }] };
+        const before = Jh(gm), out = siH(gm), b = out && out.blocks[0];
+        const host = DRh.cleanDoc({ type: 'doc', id: 'x', meta: { title: 'x' }, blocks: [{ type: 'table', cols: ['a', 'b', 'c'], headMerge: { col1: 99, col3: '"><img src=x>', toString: 2 }, rows: [] }, { type: 'table', cols: ['a'], headMerge: 'col1', rows: [] }] }, { keepHidden: true });
+        const ok = !!b && Jh(b.cols) === Jh(['Coin', 'Aurodium Weight', '', 'Value']) && Jh(b.headMerge) === Jh({ col2: 2 }) && !(Array.isArray(b.colFmt) && b.colFmt[2]) && Jh(gm) === before && !Jh(out).includes('secretHead')
+            && Jh(host.blocks[0].headMerge) === Jh({ col1: 3 }) && !('headMerge' in host.blocks[1]);
+        check(T, ok, Jh([b, host.blocks.map(x => x.headMerge)]).slice(0, 900));
+    } catch (e) { check(T, false, 'threw: ' + (e && e.stack || e)); }
+})());
 // 1.6.2, merged cells (the review of 7f77d4ed): words a merge hides from the GM never reach a player. The host's real sanitizeItem blanks a cell
 // under a merge and every cell of a full-width row but its first, with its look, on the copy that goes out; the GM's own page keeps them
 pendingChecks.push((async () => {

@@ -19,7 +19,7 @@
    While a change of the table's rows is on its way no box or row menu opens, since the grid still shows the rows as they were. Until the save comes back in this window's poll the
    cell shows what was typed (twHold), and the grid is never drawn again while a box is open in it, so a poll cannot take the GM's typing. */
 'use strict';
-import { cellHtml, rowJoin, fmtHtml, fmtRich, cellFmtOf, colFmtOf, LIMITS } from './docrender.js';
+import { cellHtml, rowJoin, headJoin, fmtHtml, fmtRich, cellFmtOf, colFmtOf, LIMITS } from './docrender.js';
 // text as markup: the page's own escaping (docrender.js esc, which its module does not export by name)
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
@@ -85,9 +85,10 @@ function twHtml(b, rich, note) {
         + '<span class="tw-size">' + rows.length + ' rows, ' + n + ' columns, ' + cells.toLocaleString('en-US') + ' cells</span>'
         + '<button type="button" class="tool ghost tw-addrow" title="Add a row at the end of the table">+ Row at the end</button>'
         + '<span class="tw-note" role="status">' + esc(note || '') + '</span>'
-        + '<span class="tw-help">Click a cell or a heading to change it. Right-click a cell, or press a row&rsquo;s number, for more.</span></div>';
+        + '<span class="tw-help">Click a cell or a heading to change it. Right-click a cell or a heading, or press a row&rsquo;s number, for more.</span></div>';
     h += '<div class="tw-scroll"><table class="tw-grid doc-table"><thead><tr><th class="tw-rn"></th>';
-    cols.forEach(function(c, ci) { h += '<th tabindex="0" data-ci="' + ci + '" title="Click to change this heading">' + draw(String(c == null ? '' : c), colFmtOf(b, ci)) + '</th>'; });
+    var hs = headJoin(b, n);   // 1.6.2: a merged heading by its colspan, one under it not drawn (docrender.js headJoin)
+    cols.forEach(function(c, ci) { var hk = hs ? hs[ci] : 1; if (hk === 0) return; h += '<th tabindex="0" data-ci="' + ci + '"' + (hk > 1 ? ' colspan="' + hk + '"' : '') + ' title="Click to change this heading. Right-click to merge it with the next or unmerge it.">' + draw(String(c == null ? '' : c), colFmtOf(b, ci)) + '</th>'; });
     h += '</tr></thead><tbody>';
     rows.forEach(function(r, ri) {
         var j = rowJoin(b, ri, n);
@@ -226,7 +227,8 @@ function twEdit(el) {
 
 // The menu for a row (its number's button) or a cell and its row (a right-click). Elements and text alone
 function twMenu(ri, ci, x, y, from) {
-    if (!tw.b || !(ri >= 0 && ri < tw.b.rows.length) || twBusy()) return;
+    var head = ri === -1 && ci >= 0;   // 1.6.2: a heading's menu (its merge alone)
+    if (!tw.b || (!head && !(ri >= 0 && ri < tw.b.rows.length)) || twBusy()) return;
     if (!tw.menu) {
         tw.menu = document.createElement('div'); tw.menu.className = 'context-menu tw-menu'; tw.menu.setAttribute('role', 'menu'); tw.menu.style.display = 'none';
         (document.getElementById('popoutWrap') || document.body).appendChild(tw.menu);   // inside the window's own wrapper: the pop-out's style sheet puts away everything else on its page
@@ -237,6 +239,7 @@ function twMenu(ri, ci, x, y, from) {
             // each edit carries what the grid showed as the menu opened: its rows, and the row's words (twRowSig)
             if (k === 'above') twSend({ k: 'addRow', at: at.ri, rows: at.rows }); else if (k === 'below') twSend({ k: 'addRow', at: at.ri + 1, rows: at.rows }); else if (k === 'del') twSend({ k: 'delRow', ri: at.ri, rows: at.rows, row: at.row });
             else if (k === 'merge' || k === 'unmerge') twSend({ k: k, ri: at.ri, ci: at.ci, rows: at.rows, row: at.row }); else if (k === 'full') twSend({ k: 'full', ri: at.ri, rows: at.rows, row: at.row });
+            else if (k === 'hmerge' || k === 'hunmerge') twSend({ k: k === 'hmerge' ? 'headMerge' : 'headUnmerge', ci: at.ci, rows: at.rows, heads: at.heads });   // with the headings' words it saw (planner.js tbEditOk)
         });
         document.addEventListener('pointerdown', function(e) { if (tw.menu.style.display !== 'none' && !(e.target && e.target.closest && e.target.closest('.tw-menu'))) twMenuAway(); }, true);
         document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && tw.menu.style.display !== 'none') { e.preventDefault(); twMenuAway(); } }, true);
@@ -247,13 +250,16 @@ function twMenu(ri, ci, x, y, from) {
             items[(at + (e.key === 'ArrowDown' ? 1 : items.length - 1) + items.length) % items.length].focus();
         });
     }
-    var n = twCols(tw.b).length, j = rowJoin(tw.b, ri, n), k = ci >= 0 && j.spans ? j.spans[ci] : 1, rows = [];
-    if (ci >= 0) { rows.push(['merge', 'Merge with next', j.full || ci + k >= n]); rows.push(['unmerge', 'Unmerge', j.full || !(k > 1)]); }
-    rows.push(['full', (j.full ? '✓ ' : '') + 'Full-width row', false]);
-    rows.push(['above', 'Add a row above', tw.b.rows.length >= LIMITS.rows]); rows.push(['below', 'Add a row below', tw.b.rows.length >= LIMITS.rows]); rows.push(['del', 'Delete this row', false]);
+    var n = twCols(tw.b).length, j = head ? { full: false, spans: headJoin(tw.b, n) } : rowJoin(tw.b, ri, n), k = ci >= 0 && j.spans ? j.spans[ci] : 1, rows = [];
+    if (head) { rows.push(['hmerge', 'Merge with next', ci + k >= n]); rows.push(['hunmerge', 'Unmerge', !(k > 1)]); }
+    else if (ci >= 0) { rows.push(['merge', 'Merge with next', j.full || ci + k >= n]); rows.push(['unmerge', 'Unmerge', j.full || !(k > 1)]); }
+    if (!head) {
+        rows.push(['full', (j.full ? '✓ ' : '') + 'Full-width row', false]);
+        rows.push(['above', 'Add a row above', tw.b.rows.length >= LIMITS.rows]); rows.push(['below', 'Add a row below', tw.b.rows.length >= LIMITS.rows]); rows.push(['del', 'Delete this row', false]);
+    }
     while (tw.menu.firstChild) tw.menu.removeChild(tw.menu.firstChild);
     rows.forEach(function(o) { var d = document.createElement('button'); d.type = 'button'; d.dataset.act = o[0]; d.textContent = o[1]; d.disabled = !!o[2]; d.setAttribute('role', 'menuitem'); if (o[0] === 'del') d.className = 'danger'; tw.menu.appendChild(d); });
-    tw.menu._at = { ri: ri, ci: ci, rows: tw.b.rows.length, row: twRowSig(tw.b.rows[ri]) }; tw.menu._back = from || null;
+    tw.menu._at = { ri: ri, ci: ci, rows: tw.b.rows.length, row: head ? '' : twRowSig(tw.b.rows[ri]), heads: JSON.stringify(twCols(tw.b).map(function(c) { return String(c == null ? '' : c); })) }; tw.menu._back = from || null;
     tw.menu.style.display = 'flex';
     var w = tw.menu.offsetWidth || 180, h = tw.menu.offsetHeight || 160;
     tw.menu.style.left = Math.max(4, Math.min(x, (window.innerWidth || 1e4) - w - 4)) + 'px'; tw.menu.style.top = Math.max(4, Math.min(y, (window.innerHeight || 1e4) - h - 4)) + 'px';
@@ -277,8 +283,8 @@ function twWire(body) {
         if (c && (e.key === 'Enter' || e.key === 'F2')) { e.preventDefault(); twEdit(c); }
     });
     body.addEventListener('contextmenu', function(e) {
-        var c = e.target && e.target.closest ? e.target.closest('.tw-grid td[data-ri]') : null; if (!c || (e.target.closest && e.target.closest('.tw-edit'))) return;
-        e.preventDefault(); twMenu(parseInt(c.dataset.ri, 10), parseInt(c.dataset.ci, 10), e.clientX, e.clientY, c);
+        var c = e.target && e.target.closest ? e.target.closest('.tw-grid td[data-ri], .tw-grid thead th[data-ci]') : null; if (!c || (e.target.closest && e.target.closest('.tw-edit'))) return;
+        e.preventDefault(); twMenu(c.dataset.ri === undefined ? -1 : parseInt(c.dataset.ri, 10), parseInt(c.dataset.ci, 10), e.clientX, e.clientY, c);   // a heading (no row) opens the heading's menu
     });
     try { var ch = new BroadcastChannel('waypoint'); ch.addEventListener('message', function(e) { twAck(e.data); }); } catch (e) {}
 }

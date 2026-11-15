@@ -809,6 +809,14 @@ const dice = read('scripts/dice.js');
         const away = (() => { const P = page(); P.mk('', { cls: ['face-pop'], display: 'none' }); show(P, 'contextMenu'); const r = P.press(); return [r.stopped, P.ids.contextMenu.style.display]; })();
         check('Escape leaves to their own rules a question or a prompt, the tour, the cleanup\'s questions, the token creator, the generators\' dialogs, the Image Library\'s preview, a video filling the window and the menus with keys of their own (a face, a symbol tray, the Outline, a page link\'s menu, the sheet\'s Download): nothing is closed under them and nothing hears the key as free; one put away counts for nothing; the right-click menus of the left panel, the Characters section and the data map go first as the map\'s does',
             asides.every(a => J(a) === J([false, false, 0, 0])) && J(right) === J([['sidebarContextMenu', true, 'none', 'flex'], ['charMenu', true, 'none', 'flex'], ['edgeMenu', true, 'none', 'flex']]) && J(away) === J([true, 'none']), J([asides, right, away]));
+        // 1.6.2, the table cell menu (planner.js #tbMenu, the review of 7f77d4ed): it takes its own Escape, so the router stands aside while it
+        // shows, and Table Chat up on the planner's view is not shut in its place
+        {
+            const P = page(); show(P, 'chatPanel'); P.mk('tbMenu', { display: 'flex' }); const r = P.press();
+            check('Escape on the table cell menu (#tbMenu) is the menu\'s own: the router stands aside while it shows, so Table Chat up on the same view is not shut in its place',
+                J([r.stopped, r.free, P.said.slice(), P.ids.chatPanel.style.display]) === J([false, false, [], 'flex']) && read('scripts/esckey.js').includes('#prepMakeMenu, #tbMenu\';')
+                && read('scripts/planner.js').includes("if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); tbMenuAway(); return; }"), J([r, P.said]));
+        }
     }
     // 3. the windows: the one on top by its z-index, then by its place in the page; a box in it that gives Escape a meaning of its own first
     {

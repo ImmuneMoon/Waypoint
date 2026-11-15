@@ -579,7 +579,9 @@ function markdownToBlocks(text, opts) {
             if (Object.keys(fo).length) o.fmt = fo;
             // 1.6.2, merged cells: a first cell that spans every column is a full-width row (the export writes one so); else each span on its cell
             var sp = jf[ri];
-            if (sp && cols.length > 1 && sp[0] >= cols.length) o.full = true;
+            // In a one-column table a plain row also spans every column, so there the export writes a full-width row with one bare | more
+            // than the table has columns (tableMd), and only that reads back as full
+            if (sp && (cols.length > 1 ? sp[0] >= cols.length : sp[0] > cols.length)) o.full = true;
             else if (sp) { var mg = {}; sp.forEach(function(k, ci) { if (k > 1 && ci < cols.length) mg['col' + (ci + 1)] = Math.min(k, cols.length - ci); }); if (Object.keys(mg).length) o.merge = mg; }
             return o;
         });
@@ -809,7 +811,8 @@ function tableMd(title, cols, rows, b) {
         // 1.6.2, merged cells: a merged cell is followed by one bare | for each further column it takes (splitJoin reads it back); a full-width
         // row is its first cell spanning every column. A cell under a merge is not written: it is not drawn either
         var line = '|';
-        if (j.full) line += ' ' + one(0) + ' ' + new Array(cols.length + 1).join('|');
+        // (in a one-column table one bare | more, or the row would read back as a plain row: pushTable reads that as full)
+        if (j.full) line += ' ' + one(0) + ' ' + new Array(cols.length + 1).join('|') + (cols.length === 1 ? '|' : '');
         else j.spans.forEach(function(k, ci) { if (k > 0) line += ' ' + one(ci) + ' ' + new Array(k + 1).join('|'); });
         L.push(line);
     });

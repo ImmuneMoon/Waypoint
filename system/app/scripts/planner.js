@@ -449,14 +449,18 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               save(true); renderPlanner();
               if (hides) toast('The words of the cell it now covers are kept out of sight. Unmerge shows them again.');
           });
-          tbMenuEl.addEventListener('keydown', function(e) {   // up and down move between the items; Escape is esckey.js's (below)
+          // up and down move between the items; Escape puts the menu away and gives the focus back to the cell. The menu owns its Escape, as
+          // the Outline's does: esckey.js stands aside while it shows (ESC_OWN_MENUS), so a floating box up on this view is not shut in its place
+          tbMenuEl.addEventListener('keydown', function(e) {
+              if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); tbMenuAway(); return; }
               if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
               var items = Array.prototype.filter.call(tbMenuEl.querySelectorAll('button'), function(x) { return !x.disabled; }), at = items.indexOf(document.activeElement);
               if (!items.length) return; e.preventDefault(); e.stopPropagation();
               items[(at + (e.key === 'ArrowDown' ? 1 : items.length - 1) + items.length) % items.length].focus();
           });
           document.addEventListener('pointerdown', function(e) { if (tbMenuEl.style.display !== 'none' && !(e.target && e.target.closest && e.target.closest('#tbMenu'))) tbMenuAway(); }, true);
-          document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && tbMenuEl.style.display !== 'none' && (!window.wpEsc || window.wpEsc.free(e))) tbMenuAway(); });
+          // Escape with the focus outside the menu while it shows (the router stands aside for it): it goes all the same
+          document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && tbMenuEl.style.display !== 'none') tbMenuAway(); });
       }
       var n = tbCols(b), j = rowJoin(b, ri, n), k = ci >= 0 && j.spans ? j.spans[ci] : 1, rows = [];
       if (ci >= 0) {
@@ -476,7 +480,6 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       tbMenuEl.style.display = 'flex';
       var w = tbMenuEl.offsetWidth || 180, h = tbMenuEl.offsetHeight || 100;
       tbMenuEl.style.left = Math.max(4, Math.min(x, (window.innerWidth || 1e4) - w - 4)) + 'px'; tbMenuEl.style.top = Math.max(4, Math.min(y, (window.innerHeight || 1e4) - h - 4)) + 'px';
-      if (window.wpEsc && window.wpEsc.opened) window.wpEsc.opened(tbMenuEl);
       var first = Array.prototype.filter.call(tbMenuEl.querySelectorAll('button'), function(x) { return !x.disabled; })[0]; if (first) try { first.focus(); } catch (e) {}
   }
   // [pagecheck:tbjoin-end]
@@ -2041,13 +2044,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               html += '<div style="width:68px; height:31px; flex:0 0 68px;"></div></div>';   // over a row's two buttons (its menu and its x)
               b.rows.forEach(function(r, ri) {
                   // 1.6.2, merged cells (docrender.js rowJoin): a merged cell's box takes the room of every column it spans, a cell under a merge has
-                  // no box (its words are kept, and come back on Unmerge), and a full-width row is its first cell alone, across the row
+                  // no box (its words are kept, and come back on Unmerge), and a full-width row is its first cell alone, across the row. A merged box
+                  // also takes the k-1 gaps of 6 px (.row-h) between the boxes it stands for, so it lines up with the headings above at every width
                   var jE = rowJoin(b, ri, colNames.length);
                   html += '<div class="row-h' + (jE.full ? ' b-row-full' : '') + '">';
                   colNames.forEach(function(c, ci) {
                       var k = jE.full ? (ci === 0 ? colNames.length : 0) : jE.spans ? jE.spans[ci] : 1;
                       if (k === 0) return;
-                      html += tsBoxHtml('r-col' + (k > 1 ? ' r-span' : ''), jE.full ? 'Sub-heading across the table' : (c||'—'), 'data-idx="'+idx+'" data-ri="'+ri+'" data-ci="'+ci+'"', k > 1 ? 'flex:' + k + ' 1 0%; min-width:' + (70 * k) + 'px;' : '', true, k > 1 && !jE.full ? 'title="Spans ' + k + ' columns. Right-click for Unmerge."' : '');
+                      html += tsBoxHtml('r-col' + (k > 1 ? ' r-span' : ''), jE.full ? 'Sub-heading across the table' : (c||'—'), 'data-idx="'+idx+'" data-ri="'+ri+'" data-ci="'+ci+'"', k > 1 ? 'flex:' + k + ' 1 ' + (6 * (k - 1)) + 'px; min-width:' + (70 * k + 6 * (k - 1)) + 'px;' : '', true, k > 1 && !jE.full ? 'title="Spans ' + k + ' columns. Right-click for Unmerge."' : '');
                   });
                   html += '<button class="tool ghost b-rowmenu x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="This row: make it a full-width row" aria-haspopup="menu" aria-label="Row menu">\u22ef</button>';
                   html += '<button class="tool ghost danger del-row x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="Remove this row"><i class="wib wi-close"></i></button>';

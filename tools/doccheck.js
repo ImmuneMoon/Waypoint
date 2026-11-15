@@ -1451,8 +1451,20 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && !('rowMerge' in D.cleanDoc({ type: 'doc', id: 'x', meta: { title: 'x' }, blocks: [{ type: 'table', cols: ['A'], rows: [['a']], rowMerge: [[1]] }] }).blocks[0]), jj([cd.blocks[0], hostile.blocks[0].rowMerge]));
         const pb = { type: 'node', mode: 'table', cols: ['A', 'B', 'C'], rows: [{ col1: 'a', merge: { col1: 2, col2: 2, col9: 3, junk: 1 }, full: 1 }, { col1: 'b', full: true, merge: { col1: 2 } }, { col1: 'c', merge: {} }, ['d', 'e']], rowMerge: [null, null, null, [2]] };
         D.cleanBlockFmts(pb);
-        check('1.6.2 merged cells, cleanBlockFmts (a planner from a file, and a page\'s table as the editor keeps it): a row\'s merge keeps only each real span by its cell, a full only as true (and then no merge), an empty merge goes; rowMerge beside rows that are lists is cleaned by rowJoin',
-            jj(pb.rows) === jj([{ col1: 'a', merge: { col1: 2 } }, { col1: 'b', full: true }, { col1: 'c' }, ['d', 'e']]) && jj(pb.rowMerge) === jj([null, null, null, [2, 0, 1]]), jj(pb));
+        check('1.6.2 merged cells, cleanBlockFmts (a planner from a file, and a page\'s table as the editor keeps it): a row\'s merge keeps only each real span by its cell, a full only as true (its merges kept, cleaned as a row of cells would be, for when it is one again), an empty merge goes; rowMerge beside rows that are lists is cleaned by rowJoin',
+            jj(pb.rows) === jj([{ col1: 'a', merge: { col1: 2 } }, { col1: 'b', full: true, merge: { col1: 2 } }, { col1: 'c' }, ['d', 'e']]) && jj(pb.rowMerge) === jj([null, null, null, [2, 0, 1]]), jj(pb));
+        // A planner's table or card with no columns of its own draws its kind's default columns, and a column nobody typed in has no key in
+        // any row: a load must not cut or drop a merge into it (the review of 7f77d4ed). Each span is held to the drawn table at the draw.
+        const nc1 = { type: 'node', mode: 'table', rows: [{ col1: 'a', col2: 'b', merge: { col1: 3 } }] }, nc2 = { type: 'node', mode: 'table', rows: [{ col1: 'Guard', merge: { col1: 2 } }, {}] },
+            nc3 = { type: 'node', mode: 'table', rows: [{ col1: 'Sword', col2: 'A long blade', merge: { col2: 2 } }, { col1: 'Axe', col2: 'Heavy' }] };
+        [nc1, nc2, nc3].forEach(b => D.cleanBlockFmts(b));
+        check('1.6.2 merged cells, cleanBlockFmts on a planner table or card with no columns of its own: a merge into a column no row has a key for is kept whole, and drawn against the kind\'s own columns it spans as the GM merged it',
+            jj(nc1.rows[0].merge) === jj({ col1: 3 }) && jj(nc2.rows[0].merge) === jj({ col1: 2 }) && jj(nc3.rows[0].merge) === jj({ col2: 2 }) && jj(D.rowJoin(nc3, 0, 3).spans) === jj([1, 2, 0]), jj([nc1, nc2, nc3]));
+        // A full-width row keeps its merges through a load, so unticking Full-width row brings them back (planner.js tbFull)
+        const fr = { type: 'node', mode: 'table', cols: ['A', 'B', 'C'], rows: [{ col1: 'Sub', col2: 'x', col3: 'y', merge: { col2: 2 }, full: true }] };
+        D.cleanBlockFmts(fr); const frFull = jj(D.rowJoin(fr, 0, 3)); delete fr.rows[0].full;
+        check('1.6.2 merged cells: a full-width row keeps its merges through a load (drawn as one cell over the table meanwhile), and turned back into a row of cells its merge is there again',
+            frFull === jj({ full: true, spans: null }) && jj(D.rowJoin(fr, 0, 3).spans) === jj([1, 2, 0]), jj([frFull, fr]));
         const tbl = (rows) => ({ type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [{ type: 'h1', title: 'T' }, { type: 'table', title: '', cols: ['Name', 'Cost', 'Weight', 'Notes'], rows }] });
         const mdOf = doc => M.docToMarkdown(doc, {}).text, backOf = md => M.markdownToBlocks(md, { kind: 'doc' }).blocks.filter(b => b.type === 'table')[0];
         const m1 = mdOf(tbl([{ col1: 'Armor', full: true }, { col1: 'Plate', col2: '12', col3: '12', col4: 'heavy', merge: { col2: 2 } }, { col1: 'Mail', col2: '8', col3: '', col4: 'x' }, { col1: 'Robe', col2: '1', col3: '1', col4: '', merge: { col2: 3 } }])), b1 = backOf(m1);
@@ -1462,6 +1474,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && jj(b1.rows) === jj([{ col1: 'Armor', col2: '', col3: '', col4: '', full: true }, { col1: 'Plate', col2: '12', col3: '', col4: 'heavy', merge: { col2: 2 } }, { col1: 'Mail', col2: '8', col3: '', col4: 'x' }, { col1: 'Robe', col2: '1', col3: '', col4: '', merge: { col2: 3 } }]), m1 + '\n' + jj(b1.rows));
         check('1.6.2 merged cells, Markdown by hand: a bare || at a row\'s start is an empty first cell, one after a cell merges it with the next column, an escaped \\| is a pipe in the text, a first cell that spans every column is a full-width row, and a span that runs past the table is held to it',
             jj(hand.rows) === jj([{ col1: '', col2: 'x', col3: 'y' }, { col1: 'q', col2: 'r', col3: '', merge: { col2: 2 } }, { col1: 'p', col2: '', col3: 'q', merge: { col1: 2 } }, { col1: 'a |', col2: 'b', col3: 'c' }, { col1: 's', col2: '', col3: '', full: true }, { col1: 't', col2: '', col3: '', merge: { col1: 2 } }]), jj(hand.rows));
+        // A one-column table: a plain row also spans every column there, so a full-width row is written with one bare | more and reads back full
+        const one1 = { type: 'doc', id: 'd1', meta: { title: 'O' }, blocks: [{ type: 'h1', title: 'O' }, { type: 'table', title: '', cols: ['Gear'], rows: [{ col1: 'Packs', full: true }, { col1: 'Rope' }] }] };
+        const m1c = mdOf(one1), b1c = backOf(m1c);
+        check('1.6.2 merged cells, Markdown both ways in a one-column table: a full-width row is written with one bare | more than a plain row, and only it reads back as full',
+            m1c.split('\n').includes('| Packs ||') && m1c.split('\n').includes('| Rope |') && jj(b1c.rows) === jj([{ col1: 'Packs', full: true }, { col1: 'Rope' }]), m1c + '\n' + jj(b1c.rows));
     }
     /* ---- 1.5.6: a GM-only page keeps every page nested under it from players (the owner, 2026-10-24, by prompt: "Hidden parent hides all") ---- */
     {

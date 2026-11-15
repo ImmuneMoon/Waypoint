@@ -916,6 +916,22 @@ pendingChecks.push((async () => {
         check(T, hostOk && clientOk, Jw([hostOk, clientOk, sent && sent.blocks, got && got.blocks]).slice(0, 1200));
     } catch (e) { check(T, false, 'threw: ' + (e && e.stack || e)); }
 })());
+// 1.6.2, merged cells (the review of 7f77d4ed): words a merge hides from the GM never reach a player. The host's real sanitizeItem blanks a cell
+// under a merge and every cell of a full-width row but its first, with its look, on the copy that goes out; the GM's own page keeps them
+pendingChecks.push((async () => {
+    const T = '1.6.2 merged cells on the wire: a cell under a merge and the other cells of a full-width row go to players blank (and with no look), so their search never finds words they cannot see; the GM\'s own page keeps every word, and a row with nothing merged goes as it was';
+    try {
+        const urlM = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+        const DRm = await import(urlM('docrender.js')), Jm = JSON.stringify;
+        const [siM] = new Function('window', '"use strict";\n' + siSrc() + '\nreturn [sanitizeItem, wireWbItem];')({ wpDocRender: DRm });
+        const gm = { id: 'dM', type: 'doc', meta: { title: 'Armory' }, blocks: [{ id: 'b1', type: 'table', cols: ['Name', 'Cost', 'Weight'], rows: [
+            { col1: 'Armor', col2: 'secretA', col3: 'secretB', full: true }, { col1: 'Plate', col2: '12', col3: 'hiddenW', merge: { col2: 2 }, fmt: { col3: { b: true } } }, { col1: 'Mail', col2: '8', col3: '20' }] }] };
+        const before = Jm(gm), out = siM(gm), b = out && out.blocks[0];
+        const ok = !!b && Jm(b.rows) === Jm([['Armor', '', ''], ['Plate', '12', ''], ['Mail', '8', '20']]) && Jm(b.rowMerge) === Jm(['full', [1, 2, 0]]) && !('rowFmt' in b && b.rowFmt.some(r => r && r[2]))
+            && Jm(gm) === before && !Jm(out).includes('secretA') && !Jm(out).includes('hiddenW');
+        check(T, ok, Jm(b));
+    } catch (e) { check(T, false, 'threw: ' + (e && e.stack || e)); }
+})());
 // text style, a size on a part, underline, strike and a link (the owner, 2026-10-02): a link is a web address by the page sanitiser's own rule (textfmt.js cleanLink). The host's
 // real sanitizeItem and a player's real applyItem, on a page whose formats hold links that are not allowed
 pendingChecks.push((async () => {

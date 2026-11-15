@@ -804,9 +804,29 @@ function cleanPosture(v, sys) {   // '' for the first posture (none stored)
 // 1.5.6: a page nested under a GM-only page is GM only too (docrender pageHid), judged in the hosted campaign (the one on screen)
 function docHidHere(id) { var c = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, R = window.wpDocRender; return !!(c && c.items && R && typeof R.pageHid === 'function' && R.pageHid(c.items, id)); }
 function sanitizeItem(item) {
+    // 1.6.2, merged cells: a cell under a merge, and every cell of a full-width row but its first, keeps its words on the GM's page (Unmerge
+    // shows them again) but is not drawn. On the copy that goes to players it is blanked, with its look, so a player's Handbook search or
+    // Mentioned in never finds a page by words they cannot see on it. d is cleanDoc's fresh copy (rows as lists), never the GM's own page.
+    function docHideMerged(d, DR) {
+        if (!d || !Array.isArray(d.blocks) || typeof DR.rowJoin !== 'function' || typeof DR.joinCols !== 'function') return d;
+        d.blocks.forEach(function(b) {
+            if (!b || !Array.isArray(b.rows) || !Array.isArray(b.rowMerge)) return;
+            var n = DR.joinCols(b);
+            b.rows.forEach(function(cells, ri) {
+                if (!Array.isArray(cells)) return;
+                var j = DR.rowJoin(b, ri, n), fr = Array.isArray(b.rowFmt) && Array.isArray(b.rowFmt[ri]) ? b.rowFmt[ri] : null;
+                if (!j.full && !j.spans) return;
+                for (var ci = 0; ci < cells.length; ci++) {
+                    var shown = j.full ? ci === 0 : (j.spans[ci] === undefined || j.spans[ci] > 0);
+                    if (!shown) { cells[ci] = ''; if (fr && ci < fr.length) fr[ci] = null; }
+                }
+            });
+        });
+        return d;
+    }
     if (!item) return item;
     if (item.type === 'planner') return null;
-    if (item.type === 'doc') { if (typeof docHidHere === 'function' && docHidHere(item.id)) return null; return window.wpDocRender ? window.wpDocRender.cleanDoc(item) : null; }   // GM-only pages and unknown block types never leave the host; without the renderer, no page at all (1.5.6: nor a page nested under a GM-only one)
+    if (item.type === 'doc') { if (typeof docHidHere === 'function' && docHidHere(item.id)) return null; return window.wpDocRender ? docHideMerged(window.wpDocRender.cleanDoc(item), window.wpDocRender) : null; }   // GM-only pages and unknown block types never leave the host; without the renderer, no page at all (1.5.6: nor a page nested under a GM-only one)
     if (item.type !== 'map') return item;
     var m = JSON.parse(JSON.stringify(item), wireNum);
     if (m.meta && typeof m.meta === 'object') { delete m.meta.lastX; delete m.meta.lastY; delete m.meta.lastZoom; delete m.meta.lastWbX; delete m.meta.lastWbY; delete m.meta.lastWbZoom; }   // the camera (CAM_KEYS, written out here): where the GM last looked may be on a hidden token, and is the GM's screen's own; a player's app opens on its own (camLand)

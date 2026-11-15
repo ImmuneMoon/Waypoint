@@ -1052,6 +1052,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('1.6.2 merged cells in the cards (pv-tstack): a full-width row has no column\'s name (the style sheet makes it a sub-heading between the cards), and a merged cell reads once after the names of every column it takes; taken off, nothing is left',
                 J(fitM) === J([1, 1, [[null], [null, 'Cost / Weight', 'Notes'], [null, 'Cost', 'Weight', 'Notes']], [[null], [null, 'Cost / Weight', 'Notes']]]) && unM
                 && /\.doc-view table\.pv-tstack tr\.t-full, [^{]*\{ background: none; border: 0;/.test(read('style.css')) && read('style.css').includes('.doc-view tr.t-full > td {'), J(fitM));
+            {   // the review of 7f77d4ed: in the scroll form a first cell merged over more columns is no held column, as a full-width row is not
+                const css = read('style.css'), held = css.indexOf('.doc-view .pv-tscroll > table td:first-child { position: sticky;'), freeM = css.indexOf('    .doc-view .pv-tscroll > table td[colspan]:first-child { position: static; box-shadow: none; }');
+                check('1.6.2 merged cells in the scroll form: a first cell merged over more columns is not held in view (it would cover the rest of its row as it scrolled), by a rule after the held one that outweighs it',
+                    held > 0 && freeM > held, J([held, freeM]));
+                // the editor: the cell menu's rule has a look of its own (every other .menu-divider rule is scoped to its menu), and a merged box takes
+                // the gaps between the boxes it stands for, so it lines up with the headings above (6 px a gap, .grouped-fields .row-h)
+                const pl = read('scripts/planner.js'), boxW = k => 70 * k + 6 * (k - 1);
+                check('1.6.2 merged cells in the editor: the cell menu\'s rule between its two groups is drawn, and a merged cell\'s box is as wide as the k boxes and k-1 gaps it stands for (two columns 146 px at least, three 222)',
+                    css.includes('  .tb-menu .menu-divider { height: 1px; margin: 4px 0; background: var(--edge); }') && pl.includes("'flex:' + k + ' 1 ' + (6 * (k - 1)) + 'px; min-width:' + (70 * k + 6 * (k - 1)) + 'px;'")
+                    && /\.grouped-fields \.row-h \{[^}]*gap: 6px/.test(css) && boxW(2) === 146 && boxW(3) === 222, J([boxW(2), boxW(3)]));
+            }
             // the editor's menu and what it does (planner.js, its [pagecheck:tbjoin] slice run for real on the test page)
             const ed = makeDom(), am = { blocks: [{ type: 'node', mode: 'table', cols: ['A', 'B', 'C', 'D'], rows: [{ col1: 'a', col2: 'b', col3: 'c', col4: 'd' }, { col1: 'x', col2: 'x', col3: '', col4: '' }] }] }, calls = [];
             const TB = new Function('rowJoin', 'cleanRowJoin', 'tsCols', 'getActiveMap', 'document', 'window', 'save', 'renderPlanner', 'toast', "'use strict';\n" + sliceOf('scripts/planner.js', '// [pagecheck:tbjoin-start]', '// [pagecheck:tbjoin-end]') + '\nreturn { tbMerge, tbUnmerge, tbFull, tbHides, tbMenuFor };')(
@@ -1104,6 +1115,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             TW.tableUnfit(A1.T); const f3 = [A1.ts[0].parentNode.style.m['--tfirst'] || '', ser(A1.T) === A1p];
             check('1.6.2 wide tables, a hit kept clear of the first column: a scrolling box carries its first column\'s width as drawn (--tfirst), measured again at each fit and never counted as the table changing form; a box whose first column is not laid out carries none; the export strip takes it off and the page is as drawn',
                 J(f1) === J([2, '140px', '']) && J(f2) === J([0, '152px']) && J(f3) === J(['', true]), J([f1, f2, f3]));
+            // 1.6.2, merged cells (the review of 7f77d4ed): a table with no heading row is measured by the first row that draws its first column alone,
+            // never a full-width row's one cell nor a first cell merged over more columns; with no such row nothing is measured
+            const nh = (rows, rowMerge) => DR.cleanDoc({ id: 'dn', type: 'doc', meta: { title: 'N' }, blocks: [{ type: 'table', cols: [], rows, rowMerge }] });
+            const B1 = mkT(nh([['Head'], row17, row17], ['full', [2]])), b1tr = B1.ts[0].querySelectorAll('tr'), td0 = i => b1tr[i].querySelectorAll('td')[0];
+            td0(0).rect = { left: 0, top: 0, right: 900, bottom: 20 }; td0(1).rect = { left: 0, top: 0, right: 180, bottom: 20 }; td0(2).rect = { left: 0, top: 0, right: 90, bottom: 20 };
+            TW.tableFit(B1.T, ww); const nf1 = B1.ts[0].parentNode.style.m['--tfirst'] || '';
+            const B2 = mkT(nh([['Head'], row17], ['full', [2]])), b2td = B2.ts[0].querySelectorAll('td');
+            b2td[0].rect = { left: 0, top: 0, right: 900, bottom: 20 }; b2td[1].rect = { left: 0, top: 0, right: 180, bottom: 20 };
+            TW.tableFit(B2.T, ww); const nf2 = B2.ts[0].parentNode.style.m['--tfirst'] || '';
+            check('1.6.2 merged cells, a hit kept clear of the first column in a table with no heading row: the measure is the first cell of the first row that draws that column alone, never a full-width row nor a first cell merged over more columns, and with none there is no measure',
+                nf1 === '90px' && nf2 === '', J([nf1, nf2]));
             // the sideways scroll kept across a redraw, by the box's block, its count of columns and its first heading (memory only)
             TW.tableFit(A1.T, ww); const bx0 = A1.ts[0].parentNode, bx1 = A1.ts[1].parentNode, cap = () => (A1.T.capture.scroll || []);
             bx0.scrollLeft = 300; bx1.scrollLeft = 40; cap().forEach(fn => fn({ target: bx0 })); cap().forEach(fn => fn({ target: bx1 })); cap().forEach(fn => fn({ target: A1.T })); cap().forEach(fn => fn({ target: A1.ts[0] })); cap().forEach(fn => fn(null));

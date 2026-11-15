@@ -334,11 +334,15 @@ function rowJoin(b, ri, ncol) {
 // The editor's form of a row's merged cells, cleaned in place against the table's count of columns: row.full only as true, row.merge only
 // as { colN: span } for each cell that spans 2 or more (none under another's span, none past the table). cleanBlockFmts calls it for every
 // row of a planner's or a page's table that arrives as objects; nothing is left where nothing is merged.
+// A full-width row keeps its merges, cleaned as a row of cells would be: planner.js tbFull keeps them for when the row is a row of cells
+// again, so a load must not drop them. rowJoin still answers full first, so nothing of them is drawn while the row is full.
 function cleanRowJoin(b, ri, ncol) {
     var r = b.rows[ri]; if (!r || typeof r !== 'object' || Array.isArray(r)) return;
-    var j = rowJoin(b, ri, ncol);
-    if (j.full) { r.full = true; delete r.merge; return; }
-    delete r.full;
+    var isFull = own(r, 'full') && r.full === true;
+    // the spans as a row of cells: rowJoin reads only full and merge, so it is handed the merge alone, with the full mark left off
+    var cells = own(r, 'merge') ? { merge: r.merge } : {};
+    var j = rowJoin({ rows: [cells] }, 0, ncol);
+    if (isFull) r.full = true; else delete r.full;
     if (!j.spans) { delete r.merge; return; }
     var m = {}; j.spans.forEach(function(k, i) { if (k > 1) m['col' + (i + 1)] = k; }); r.merge = m;
 }
@@ -454,7 +458,10 @@ function cleanBlockFmts(b) {
     }
     var rowsAreLists = false;
     if (Array.isArray(b.rows) && (b.type === 'table' || b.type === 'node')) {   // 1.6.2, merged cells: a row's merge and full, as rowJoin reads them (cleanRowJoin)
-        var jnB = joinCols(b);
+        // A planner's table or card with no columns of its own draws its kind's default columns (planner.js tsCols, kdP.cols), which this
+        // module does not know, and a column nobody typed in has no key in any row: joinCols would guess too few and cut a merge into it.
+        // So such rows are held only to the shape (LIMITS.cols), and rowJoin holds each span to the drawn table at every draw.
+        var jnB = (Array.isArray(b.cols) && b.cols.length) ? joinCols(b) : LIMITS.cols;
         b.rows.forEach(function(r, ri) { if (r && typeof r === 'object' && !Array.isArray(r) && (r.merge !== undefined || r.full !== undefined)) cleanRowJoin(b, ri, jnB); });
     }
     if (b.rowMerge !== undefined) {   // the travelling form beside rows that are lists: rowJoin's own numbers, or nothing

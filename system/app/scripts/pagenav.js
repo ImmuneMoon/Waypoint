@@ -343,11 +343,19 @@ function tfitVar(el, k, v) {
     if (v === null) { if (!now) return false; s.removeProperty(k); if (typeof el.getAttribute === 'function' && !el.getAttribute('style')) el.removeAttribute('style'); return true; }
     if (now === v) return false; s.setProperty(k, v); return true;
 }
-// the width of a table's first column as drawn (its heading's, else its first row's first cell): 0 where it is not laid out. A measure only,
-// written for the style sheet's scroll padding; tfitMode never reads it
+// the width of a table's first column as drawn (its heading's, else the first cell of the first row that draws that column alone): 0 where it
+// is not laid out. A measure only, written for the style sheet's scroll padding; tfitMode never reads it. 1.6.2, merged cells: a full-width
+// row's one cell (tr.t-full) and a first cell merged over more columns are the width of several columns, never the first one, so they are passed
+// over; where no row has a plain first cell nothing is measured
 function tfitFirst(t) {
     var hd = tfitKids(t, 'THEAD')[0], tr = hd ? tfitKids(hd, 'TR')[0] : null, c = tr ? tfitKids(tr, 'TH')[0] : null;
-    if (!c) { var r = tfitCells(t)[0]; c = r ? r[0] : null; }
+    if (!c) {
+        tfitKids(t, 'TBODY').some(function(b) { return tfitKids(b, 'TR').some(function(r) {
+            if (r.classList && r.classList.contains('t-full')) return false;
+            var td = tfitKids(r, 'TD')[0]; if (!td || tfitSpan(td) > 1) return false;
+            c = td; return true;
+        }); });
+    }
     var w = c ? c.offsetWidth : 0; return typeof w === 'number' && w > 0 ? Math.round(w) : 0;
 }
 // the scrolling form taken off: the class and the first column's width on the box, the count on the table. True where anything changed

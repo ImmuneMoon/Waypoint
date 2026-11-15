@@ -3231,6 +3231,27 @@
   /* 1.6.2, merged cells (the owner: "Cell and row menus"; docrender.js rowHtml): a full-width row is a sub-heading across the table */
   .doc-view tr.t-full > td { background: var(--panel2); color: var(--gold); font-size: 12px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; padding: 8px 12px; }
   .b-table .row-h.b-row-full .ts-box { color: var(--gold); font-weight: 600; }   /* the editor's full-width row: its one box reads as the sub-heading it is */
+  /* 1.6.2, a big table in a window of its own (planner.js tbCardHtml, tablewin.js): the editor's card, and the window's grid */
+  .context-menu.tb-menu, .context-menu.tw-menu { flex-direction: column; min-width: 180px; }   /* 1.6.2: a table's cell and row menus (planner.js tbMenuFor, tablewin.js twMenu), one item a line */
+  .b-bigtable { border: 1px dashed var(--edge); border-radius: 8px; padding: 10px 12px; margin: 6px 0; color: var(--dim); font-size: 13px; }
+  .b-bigtable p { margin: 0 0 8px; }
+  #popoutBody .tw-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 10px; }
+  #popoutBody .tw-title { font-size: 17px; color: var(--ink); }
+  #popoutBody .tw-size, #popoutBody .tw-help { color: var(--dim); font-size: 12px; }
+  #popoutBody .tw-note { color: var(--gold); font-size: 12px; }
+  #popoutBody .tw-help { flex-basis: 100%; }
+  #popoutBody .tw-scroll { overflow: auto; max-height: calc(100vh - 140px); border-radius: 8px; }
+  #popoutBody table.tw-grid { width: max-content; min-width: 100%; margin: 0; }
+  #popoutBody table.tw-grid thead th { position: sticky; top: 0; z-index: 2; cursor: text; }
+  #popoutBody table.tw-grid td { cursor: text; max-width: 320px; min-width: 60px; }
+  #popoutBody table.tw-grid td:first-child, #popoutBody table.tw-grid td.tw-c0 { font-weight: 600; }
+  #popoutBody table.tw-grid td:focus, #popoutBody table.tw-grid th:focus { outline: 2px solid var(--gold); outline-offset: -2px; }
+  #popoutBody table.tw-grid .tw-rn { position: sticky; left: 0; z-index: 1; background: var(--panel2); padding: 4px; width: 1%; }
+  #popoutBody table.tw-grid thead .tw-rn { z-index: 3; }
+  #popoutBody .tw-rowmenu { background: none; border: 1px solid transparent; border-radius: 5px; color: var(--dim); font: inherit; font-size: 11px; min-width: 30px; cursor: pointer; padding: 2px 4px; }
+  #popoutBody .tw-rowmenu:hover, #popoutBody .tw-rowmenu:focus { border-color: var(--gold); color: var(--ink); }
+  #popoutBody .tw-edit textarea { width: 100%; min-width: 180px; box-sizing: border-box; background: var(--panel); color: var(--ink); border: 1px solid var(--gold); border-radius: 6px; padding: 6px 8px; font: inherit; font-weight: 400; resize: vertical; }
+  #popoutBody .tw-editbar { display: flex; gap: 6px; margin-top: 4px; }
   .doc-view td:first-child { font-weight: 600; color: var(--ink); }
   /* Cards side by side (1.6.2, backlog 107 (a); planner.js plannerPreviewHtml, cardcore.js cleanCards): the blocks under a section heading set to
      Cards stand in a grid, as many in a row as the place has room for. On a 1020 px page that is five Small, three Medium or two Large, and in the

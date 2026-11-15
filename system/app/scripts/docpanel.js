@@ -441,11 +441,15 @@ function popLand(land) {
 // parts of one planner stand side by side and one part never opens twice. An id that is no block id opens the page as before, and so does
 // a page whose own id holds a slash (only a file makes one): the window reads its address by its slashes. A part's window is a smaller
 // box, 640 by 760, which the desktop shell gives it too whatever is asked here (shellguard.js childWindowOptions: the two keep one size)
+// 1.6.2 (the owner, 2026-11-14, by prompt: "Edit a big table in its own window"): table true with a part opens that one table to EDIT, in a
+// big window (1280 by 860, shellguard.js TABLE_QUERY gives the same) named for the page and the table: /table:<block id> after the item,
+// inside the same doc: part of the address, so the shell's rule is untouched. popout.js draws it with tablewin.js, which writes nothing:
+// each edit is a word to this window (planner.js tbEditTake)
 var POP_PART = /^[A-Za-z0-9_-]{1,64}$/;
-function popOut(id, land, part) {
+function popOut(id, land, part, table) {
     var camp = activeCamp(); if (!camp || typeof camp.id !== 'string' || typeof id !== 'string' || !id) return false;
-    var p = typeof part === 'string' && POP_PART.test(part) && id.indexOf('/') < 0 ? part : '';
-    var made = null; try { made = window.open(location.origin + '/?popout=doc:' + encodeURIComponent(camp.id) + '/' + encodeURIComponent(id) + (p ? '/part:' + p : popLand(land)), 'wpPopout_' + id + (p ? '_part_' + p : ''), p ? 'width=640,height=760' : 'width=820,height=1000'); } catch (e) { made = null; }
+    var p = typeof part === 'string' && POP_PART.test(part) && id.indexOf('/') < 0 ? part : '', tb = table === true ? p : '';
+    var made = null; try { made = window.open(location.origin + '/?popout=doc:' + encodeURIComponent(camp.id) + '/' + encodeURIComponent(id) + (tb ? '/table:' + tb : p ? '/part:' + p : popLand(land)), 'wpPopout_' + id + (tb ? '_table_' + tb : p ? '_part_' + p : ''), tb ? 'width=1280,height=860' : p ? 'width=640,height=760' : 'width=820,height=1000'); } catch (e) { made = null; }
     if (!made) return false;   // the owed review, 2026-10-09: no window came up (refused or blocked). The caller falls back to the panel, and no tab is closed for a window that is not there
     if (window.wpPageShelf && window.wpPageShelf.opened) window.wpPageShelf.opened(id);   // 1.5.4 (pageshelf.js): one of the last pages opened
     return true;

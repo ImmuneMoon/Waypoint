@@ -4,8 +4,11 @@
    to the in-app floating panel in the opener. Read-only + live (polls the local save), like the Stream
    window; nothing here ever writes the save (io.js no-ops save while window.wpPopout is set).
      kind 'doc'   → arg = "<campId>/<itemId>"   (a planner or handbook page, rendered via docrender.js)
-     kind 'sheet' → arg = "<charId>"            (a character sheet, rendered read-only via wpSheets)  */
+     kind 'sheet' → arg = "<charId>"            (a character sheet, rendered read-only via wpSheets)
+   1.6.2: a page's window whose address ends /table:<block id> edits that one big table (tablewin.js). It still writes nothing: each edit is
+   a word to the main window, which makes it (planner.js tbEditTake).  */
 import { state } from './state.js';
+import { twTick } from './tablewin.js';
 
 // [textcheck:popland-start]
 // 1.5.4: a page's window is told where to land in its own address, after the item (docs/PLANNER_ORG_DESIGN.md 4.1): <campaign>/<item>/at:<block
@@ -18,6 +21,7 @@ function popPlace(a) {
     var land = tail.indexOf('at:') === 0 ? { at: tail.slice(3) } : tail.indexOf('q:') === 0 ? { q: tail.slice(2) } : null;
     var out = { camp: s1 >= 0 ? a.slice(0, s1) : '', head: s1 >= 0 ? a.slice(0, s1 + 1) : '', item: item, rest: rest, land: land };
     if (!land && tail.indexOf('part:') === 0 && /^[A-Za-z0-9_-]{1,64}$/.test(tail.slice(5))) out.part = tail.slice(5);   // 1.6.2: a part of the page shown alone (popPart)
+    if (!land && tail.indexOf('table:') === 0 && /^[A-Za-z0-9_-]{1,64}$/.test(tail.slice(6))) out.table = tail.slice(6);   // 1.6.2: one big table of the page, edited here (tablewin.js)
     return out;
 }
 // the page the window shows: the item its address names; where that is no page of the campaign, the address names no landing and the whole of
@@ -144,6 +148,15 @@ if (spec) {
         if (!it || (it.type !== 'doc' && it.type !== 'planner')) { window.wpPopoutPart = ''; window.wpPopoutFoldKey = ''; }   // a page that is gone shows no part
         if (!it || (it.type !== 'doc' && it.type !== 'planner')) { if (lastSig !== ' GONE') { lastSig = ' GONE'; msg('This page is no longer in the campaign.'); document.title = 'Waypoint — (removed)'; } return; }
         var title = (it.meta && it.meta.title) || it.name || 'Page';
+        // 1.6.2 (the owner: "Edit a big table in its own window"): a table's window draws that table as a grid to edit (tablewin.js twTick),
+        // never the page. Its own sig and its own drawing; Back to a page (popGo) makes it a page's window, as a part's does
+        var tableId = itemId === pp.item && typeof pp.table === 'string' ? pp.table : '';
+        if (tableId) {
+            window.wpPopoutPart = ''; window.wpPopoutFoldKey = '';
+            var twr = twTick(body, camp, it, tableId, title), twT = twr && twr.title ? twr.title : title;
+            if (lastSig !== '\x00TABLE' + twT) { lastSig = '\x00TABLE' + twT; document.title = 'Waypoint \u2014 ' + twT; if (titleEl) titleEl.textContent = twT; }
+            return;
+        }
         // 1.6.2: a part alone is the page with that part's blocks and nothing else, drawn by the page's own renderers, so it follows its edits
         var partId = itemId === pp.item && typeof pp.part === 'string' ? pp.part : '';   // a page whose own id ends as a part's address would is that page, whole
         var part = partId ? popPart(it, partId) : null, shown = part && part.name ? title + ' \u203a ' + part.name : title;

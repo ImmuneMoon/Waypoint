@@ -41,9 +41,12 @@ function childWindowOk(own, url) {
 // smaller box, so a card or a section stands beside the map and several stand side by side. The address is judged by childWindowOk as
 // every pop-out's is; this only picks its size
 const PART_QUERY = /^\?popout=doc:[^&#]*\/part:[A-Za-z0-9_-]{1,64}$/;
+// 1.6.2: a big table edited in a window of its own (/table:<block id> after the item, docpanel.js popOut) is a big box, 1280 by 860, so a
+// table of many columns has room. Only the size: the address is childWindowOk's to judge, as every pop-out's is
+const TABLE_QUERY = /^\?popout=doc:[^&#]*\/table:[A-Za-z0-9_-]{1,64}$/;
 function childWindowOptions(url, icon) {
-    const u = parseUrl(url), portrait = !!u && /^\?popout=/.test(u.search), part = portrait && PART_QUERY.test(u.search);
-    return { autoHideMenuBar: true, icon: icon, width: part ? 640 : portrait ? 840 : 1280, height: part ? 760 : portrait ? 1000 : 720, backgroundColor: '#15151c' };
+    const u = parseUrl(url), portrait = !!u && /^\?popout=/.test(u.search), part = portrait && PART_QUERY.test(u.search), table = portrait && TABLE_QUERY.test(u.search);
+    return { autoHideMenuBar: true, icon: icon, width: table ? 1280 : part ? 640 : portrait ? 840 : 1280, height: table ? 860 : part ? 760 : portrait ? 1000 : 720, backgroundColor: '#15151c' };
 }
 
 // A link that may go to the system browser: a web page or a mail address, never a file, a program or a custom protocol —

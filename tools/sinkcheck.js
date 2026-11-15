@@ -168,7 +168,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             JSON.stringify(msgs.slice(0, 3)) === JSON.stringify([{ type: 'goto', camp: 'c1', map: 'm1', room: 'r1' }, { type: 'goto', camp: 'c 1', map: 'm1', room: '' }, { type: 'goto', camp: 'c%201', map: 'm1', room: '' }]) && msgs.slice(3).every(v => v === null)
             && oks.every(v => v === true) && noes.every(v => v === false) && ({}).map === undefined
             && plR.includes("  var _qsP = new URLSearchParams(location.search), _isPopP = _qsP.has('popout'), _isStreamP = _qsP.has('stream');") && plR.includes("  if (_isPopP) document.addEventListener('click', function(e) {") && plR.includes("var a = e.target && e.target.closest ? e.target.closest('#popoutBody .pv-link') : null; if (!a) return;")
-            && plR.includes("  else if (!_isStreamP) { try { new BroadcastChannel('waypoint').addEventListener('message', function(e) { if (pvGotoOk(e.data, getActiveCampaign())) navigateToMap(e.data.map, e.data.room || null); else if (pvCueOk(e.data, getActiveCampaign())) cuePlay(e.data.k, e.data.id); }); } catch (e) {} }"), JSON.stringify([msgs, oks, noes]));   /* 1.6.2 (166 g) a card's Play button from a window of its own, moved on purpose */
+            && plR.includes("  else if (!_isStreamP) { try { new BroadcastChannel('waypoint').addEventListener('message', function(e) { if (pvGotoOk(e.data, getActiveCampaign())) navigateToMap(e.data.map, e.data.room || null); else if (pvCueOk(e.data, getActiveCampaign())) cuePlay(e.data.k, e.data.id); else if (e.data && e.data.type === 'tableEdit') tbEditTake(e.data); }); } catch (e) {} }"), JSON.stringify([msgs, oks, noes]));   /* 1.6.2 (166 g) a card's Play button from a window of its own, moved on purpose; and a big table's window (tbEditTake), moved on purpose */
     }
 
     /* ---- a landing read from a window's own address (1.5.4; docs/PLANNER_ORG_DESIGN.md 4.1): words are a search and never markup, an id never a selector ---- */
@@ -6150,6 +6150,25 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const onAttrs = made.filter(e => Object.keys(e.attrs).some(k => /^on/i.test(k)));
         check('1.6.2 sounds on actions: a name from a campaign file (a roll, a list, a category, an entry, a map, a door, a sound and what a gone line kept) reaches the list under the Sound panel as text alone, on a page that refuses markup, and every element is made by name', box.textContent.includes(EV) && box.textContent.split(EV).length > 5 && onAttrs.length === 0 && made.every(e => /^(DIV|SPAN|SMALL|SELECT|OPTION|OPTGROUP|BUTTON|BODY)$/.test(e.tagName)), box.textContent.slice(0, 300));
         check('1.6.2 the module writes no markup of its own', !/innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(soSrc));
+    }
+    /* ---- 1.6.2, a big table in a window of its own (tablewin.js): the grid a table's window draws from the save ---- */
+    {
+        const J2 = JSON.stringify, TWm = await import(modUrl('tablewin.js')), H = '<img src=x onerror=alert(1)>', A = '"><script>x()</script>';
+        const tb = { id: 'b_t', type: 'table', title: H, cols: [H, 'Cost', A], rows: [[H, '- ' + H + '\n- two', '3'], { col1: 'Belt', col2: A, col3: '', merge: { col2: '2" onmouseover="x' } }, { col1: 'Sub ' + H, full: true }, ['m', 'n', 'o']], rowMerge: [null, null, null, [2]] };
+        const page = TWm.twHtml(tb, false, 'a note <b>'), rich = TWm.twHtml({ id: 'b_r', type: 'node', mode: 'table', cols: ['<b>Bold</b> ' + H], rows: [{ col1: '<i>it</i>' + A }] }, true, '');
+        const attrs = (page.match(/ [a-z-]+="[^"]*"/g) || []).filter(a => !/^ (class|tabindex|data-ci|data-ri|colspan|title|type|aria-haspopup|role)="/.test(a));
+        const nums = (page.match(/ (data-ci|data-ri|colspan|tabindex)="[^"]*"/g) || []).every(a => /="\d+"$/.test(a));
+        check('1.6.2 a big table in its own window (tablewin.js twHtml): a table from the save is drawn as a grid of escaped text — its title, its heads, its cells (a listed cell as a list), a merged cell by its own number, a full-width row, and the window\'s note — with no tag of its own and no attribute but the module\'s, whose numbers are its own; a planner\'s table goes through the page sanitiser, a typed <b> and <i> kept and a hostile one dropped',
+            !/<img|<script/i.test(page) && page.includes('&lt;img src=x onerror=alert(1)&gt;') && page.includes('<ul class="cell-list"><li>&lt;img') && page.includes('<tr class="t-full">') && page.includes('a note &lt;b&gt;')
+            && attrs.length === 0 && nums && (page.match(/<td /g) || []).length === 3 + 3 + 1 + 2 && J2(page.match(/colspan="\d+"/g)) === J2(['colspan="3"', 'colspan="2"'])
+            && rich.includes('<b>Bold</b>') && rich.includes('<i>it</i>') && !/<img|<script/i.test(rich) && !/ on[a-z]+=/i.test(rich.replace(/&[a-z]+;|[^<>]+(?=<|$)/g, '')), page.slice(0, 900) + ' ||| ' + rich);
+        const bl = [TWm.twBullets('a\nb\nc', 0, 3), TWm.twBullets('\u2022 a\n\u2022 b', 0, 7), TWm.twBullets('- a\nb', 0, 5), TWm.twBullets('x', 1, 1)].map(r => [r.text, r.s, r.e]);
+        check('1.6.2 a big table in its own window, its "• List" button (tablewin.js twBullets, the page editor\'s rule): the lines picked get "• " where any lacks a mark, lose their marks where all have one, a hand-typed "- " is kept beside a new bullet, and the selection moves with its words',
+            JSON.stringify(bl) === JSON.stringify([['\u2022 a\n\u2022 b\nc', 2, 7], ['a\nb', 0, 3], ['- a\n\u2022 b', 0, 7], ['\u2022 x', 3, 3]]), JSON.stringify(bl));
+        const twSrc = read('tablewin.js');
+        check('1.6.2 a big table in its own window writes nothing itself: no fetch, no storage, no window it opens; every edit is the one word to the main window over the app\'s own channel, and markup only from twHtml and the window\'s fixed message',
+            !/fetch\(|localStorage|sessionStorage|indexedDB|window\.open\(|\.outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/.test(twSrc) && (twSrc.match(/\.innerHTML = /g) || []).length === 2 && twSrc.includes("tw.body.innerHTML = twHtml(tw.b, tw.rich, tw.note);") && twSrc.includes("body.innerHTML = '<div class=\"popout-msg\">This table is no longer on the page.</div>';")
+            && (twSrc.match(/postMessage\(/g) || []).length === 1 && twSrc.includes("var msg = { type: 'tableEdit', camp: tw.camp, item: tw.item, block: tw.block, n: ++tw.n, op: op };"));
     }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

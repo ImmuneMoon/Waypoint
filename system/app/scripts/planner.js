@@ -314,6 +314,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var fw = Math.round(Math.max(300, r.width)), fl = Math.round(r.left - pr.left), pvr = E.pv.getBoundingClientRect(), flMax = Math.round(pvr.right - pr.left) - fw;
       if (fl > flMax) fl = Math.max(Math.round(pvr.left - pr.left), flMax);   // 1.6.2 (backlog 107 (a)): a card in a right-hand column of a row of cards is narrower than the form, which then stays inside the page
       form.style.top = Math.round(top + base) + 'px'; form.style.left = fl + 'px'; form.style.width = fw + 'px';
+      var fbar = document.getElementById('plannerFindBar'), fbh = fbar && fbar.parentNode === E.pw ? Math.round(fbar.getBoundingClientRect().height) : 0;
+      form.style.setProperty('--pg-top', Math.max(0, fbh - 20) + 'px');   // 1.6.2: where the open block's head sticks, under the Find bar (which sticks at -20 px, over the box's padding)
       var h = form.offsetHeight;
       if (face && !under) { face.classList.add('pg-room', 'pg-hid'); face.style.minHeight = h + 'px'; }
       else if (face) { face.classList.add('pg-room'); face.style.marginBottom = (h + 14) + 'px'; }
@@ -2060,7 +2062,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           html += '<div class="block-head"><span>' + esc(blockName(b)) + '</span>';
 
-          html += '<div class="block-tools"><button class="tool ghost mv-up" data-idx="'+idx+'">▲</button><button class="tool ghost mv-dn" data-idx="'+idx+'">▼</button><button class="tool ghost danger del-blk" data-idx="'+idx+'"><i class="wib wi-close"></i></button></div></div>';
+          html += '<div class="block-tools"><button type="button" class="tool pg-done" data-idx="'+idx+'" title="Done: close this block and go back to the page (Esc)">Done</button><button class="tool ghost mv-up" data-idx="'+idx+'">▲</button><button class="tool ghost mv-dn" data-idx="'+idx+'">▼</button><button class="tool ghost danger del-blk" data-idx="'+idx+'"><i class="wib wi-close"></i></button></div></div>';
 
           
 
@@ -2118,7 +2120,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if (b.type === 'node' && !plain) html += '<div class="fc-opts" style="margin-bottom:10px;"><label>Plays <select class="b-cue" data-idx="'+idx+'" title="A sound, a song, a playlist or a saved effect. The card gets a Play button that starts it for the table.">' + cueOptions(b.cue) + '</select></label></div>';   // 1.6.2 (backlog 166 g)
               var colNames = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plain ? ['Item', 'Detail', 'Notes'] : kd.cols.slice());
               if (!b.rows) b.rows = [];
-              html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + Array.from({ length: TABLE_COLS }, function(_, i) { return i + 1; }).map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label><span style="color:var(--dim); font-size:11px;">Headers below, then one line of boxes per row.</span></div>';
+              html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + Array.from({ length: TABLE_COLS }, function(_, i) { return i + 1; }).map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label>' + (plain ? '<label title="Keep this table\u2019s heading row in sight at the top while the table is read, as a pinned header row does. The editor always keeps it in sight."><input type="checkbox" class="b-tpin" data-idx="'+idx+'"' + (b.pin === true ? ' checked' : '') + '> Pin heading row</label>' : '') + '<span style="color:var(--dim); font-size:11px;">Headers below, then one line of boxes per row.</span></div>';   // 1.6.2: the pin (tablefollow.js), true only
               if (tbBig(b)) html += tbCardHtml(b, idx);   // 1.6.2: a big table is a card here and is edited in a window of its own (tbBig)
               else {
               html += '<div class="grouped-fields b-table"><div class="row-h b-heads">';
@@ -2343,6 +2345,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       }));
 
+      // 1.6.2 (the owner, 2026-11-14: "i dont see a way to exit editing the table"): Done closes the block open on the page, as Escape does
+      Array.from(blockContainer.querySelectorAll('.pg-done')).forEach(el => el.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); pgClose(true); }));
+      // 1.6.2: a table's Pin heading row (the owner: "allow pinning of the table headers, like google docs does"), true or not there at all
+      Array.from(blockContainer.querySelectorAll('.b-tpin')).forEach(el => el.addEventListener('change', function() { var bb = activeMap.blocks[this.dataset.idx]; if (!bb) return; if (this.checked) bb.pin = true; else delete bb.pin; save(true); renderPlannerPreview(); }));
       // 1.6.2, a big table: its own window (docpanel.js popOut with table true), or its boxes here all the same, this sitting (tbHere)
       Array.from(blockContainer.querySelectorAll('.b-tablewin')).forEach(el => el.addEventListener('click', function() {
           var bb = activeMap.blocks[this.dataset.idx]; if (!bb || typeof bb.id !== 'string') return;
@@ -3302,7 +3308,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               }
               if (Array.isArray(b.rows) && b.rows.length > 0) {
                   var cols = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plainPv ? ['Item', 'Detail', 'Notes'] : kdP.cols.slice());
-                  html += '<table><thead><tr>' + cols.map(function(c, ci) { return '<th>' + fmtRich(c, colFmtOf(b, ci)) + '</th>'; }).join('') + '</tr></thead><tbody>';
+                  html += '<table' + (b.pin === true ? ' class="t-pin"' : '') + '><thead><tr>' + cols.map(function(c, ci) { return '<th>' + fmtRich(c, colFmtOf(b, ci)) + '</th>'; }).join('') + '</tr></thead><tbody>';
                   b.rows.forEach(function(r, ri) {   // a cell's lines that begin with "- " or "• " as a list (docrender.js cellHtml); merged cells and a full-width row (rowJoin, rowHtml)
                       html += rowHtml(rowJoin(b, ri, cols.length), cols.length, function(ci) { return cellHtml((r && r['col' + (ci + 1)]) || '', cellFmtOf(b, ri, ci), fmtRich); });
                   });

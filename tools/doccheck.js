@@ -1463,6 +1463,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.2 merged cells, Markdown by hand: a bare || at a row\'s start is an empty first cell, one after a cell merges it with the next column, an escaped \\| is a pipe in the text, a first cell that spans every column is a full-width row, and a span that runs past the table is held to it',
             jj(hand.rows) === jj([{ col1: '', col2: 'x', col3: 'y' }, { col1: 'q', col2: 'r', col3: '', merge: { col2: 2 } }, { col1: 'p', col2: '', col3: 'q', merge: { col1: 2 } }, { col1: 'a |', col2: 'b', col3: 'c' }, { col1: 's', col2: '', col3: '', full: true }, { col1: 't', col2: '', col3: '', merge: { col1: 2 } }]), jj(hand.rows));
     }
+    /* ---- 1.6.2, a table's pinned heading row (the owner, 2026-11-14: "allow pinning of the table headers, like google docs does") ---- */
+    {
+        const jj = JSON.stringify, pd = (pin) => ({ type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [{ type: 'h1', title: 'T' }, { type: 'table', title: 'Kit', pin, cols: ['A'], rows: [['x']] }] });
+        const kept = [true, 'true', 1, false, {}].map(v => D.cleanDoc(pd(v)).blocks[1].pin), drawn = D.renderDoc(D.cleanDoc(pd(true))), plain = D.renderDoc(D.cleanDoc(pd(false)));
+        const pb = { type: 'node', mode: 'table', pin: 'yes', cols: ['A'], rows: [] }, pb2 = { type: 'node', mode: 'table', pin: true, cols: ['A'], rows: [] }; D.cleanBlockFmts(pb); D.cleanBlockFmts(pb2);
+        check('1.6.2 a pinned heading row: a table\'s pin travels and is kept only as true (cleanDoc, cleanBlockFmts), and a pinned table is drawn as table.t-pin; any other table as before',
+            jj(kept) === jj([true, undefined, undefined, undefined, undefined]) && drawn.includes('<table class="doc-table t-pin">') && plain.includes('<table class="doc-table">') && !('pin' in pb) && pb2.pin === true, jj([kept, pb, pb2]));
+        const rtP = M.markdownToBlocks(M.docToMarkdown(pd(true), {}).text, { kind: 'doc' }).blocks[1], mdP = M.docToMarkdown(pd(true), {}).text;
+        const plan = { type: 'planner', id: 'p', meta: { title: 'P' }, blocks: [{ type: 'h1', title: 'P' }, { type: 'node', mode: 'table', title: 'W', pin: true, layout: { span: true }, cols: ['A'], rows: [{ col1: 'x' }] }, { type: 'node', mode: 'table', title: 'Q', pin: true, cols: ['A'], rows: [{ col1: 'y' }] }] };
+        const mdPl = M.docToMarkdown(plan, {}).text, rtPl = M.markdownToBlocks(mdPl, { kind: 'planner' }).blocks;
+        const stray = M.markdownToBlocks('# T\n\n{pin}\n\nwords\n\n{wide pin}\n\n| A |\n|---|\n| x |\n', { kind: 'doc' }).blocks;
+        check('1.6.2 a pinned heading row in Markdown: a line {pin} alone right above a table (or its bold title) pins it, and the export writes it there; a planner\'s Wide table card that is pinned is {wide pin}; a {pin} line above no table, and {wide pin} on a page, are words as before',
+            mdP.includes('{pin}\n\n**Kit**') && rtP.pin === true && rtP.title === 'Kit' && mdPl.includes('{wide pin}\n\n**W**') && mdPl.includes('{pin}\n\n**Q**')
+            && rtPl[1].pin === true && rtPl[1].mode === 'table' && rtPl[2].pin === true && !('pin' in rtPl[0]) && !!rtPl[1].layout && rtPl[1].layout.span === true && !(rtPl[2].layout && rtPl[2].layout.span)
+            && stray.filter(b => b.type === 'table').length === 1 && !('pin' in stray.filter(b => b.type === 'table')[0]) && stray.some(b => /\{pin\}/.test(b.content || '')) && stray.some(b => /\{wide pin\}/.test(b.content || '')), jj([mdP, rtP, mdPl, rtPl, stray]));
+    }
     /* ---- 1.5.6: a GM-only page keeps every page nested under it from players (the owner, 2026-10-24, by prompt: "Hidden parent hides all") ---- */
     {
         const pg = (id, players, parentId) => ({ id, type: 'doc', meta: Object.assign({ title: id }, players === false ? { players: false } : {}, parentId ? { parentId } : {}) });

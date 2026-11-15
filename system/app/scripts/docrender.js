@@ -453,6 +453,7 @@ function cleanBlockFmts(b) {
         if (cf) b.colFmt = cf; else delete b.colFmt;
     }
     var rowsAreLists = false;
+    if (b.pin !== undefined && b.pin !== true) delete b.pin;   // 1.6.2: a table's pinned heading row, true only
     if (Array.isArray(b.rows) && (b.type === 'table' || b.type === 'node')) {   // 1.6.2, merged cells: a row's merge and full, as rowJoin reads them (cleanRowJoin)
         var jnB = joinCols(b);
         b.rows.forEach(function(r, ri) { if (r && typeof r === 'object' && !Array.isArray(r) && (r.merge !== undefined || r.full !== undefined)) cleanRowJoin(b, ri, jnB); });
@@ -826,6 +827,7 @@ function cleanBlock(b, used, ctx) {
             // are rowJoin's numbers; trailing rows with nothing merged are left off, and the key is not there at all where nothing is
             var jn = joinCols(o), lastJ = -1, rjT = o.rows.map(function(cells, ri) { var j = rowJoin(b, ri, jn); if (!j.full && !j.spans) return null; lastJ = ri; return j.full ? 'full' : j.spans.map(function(k) { return k; }); });
             if (lastJ >= 0) o.rowMerge = rjT.slice(0, lastJ + 1);
+            if (b.pin === true) o.pin = true;   // 1.6.2: the heading row pinned in sight while the table is read (tablefollow.js), true only
             break;
         case 'diagram': o.content = stripMermaidLinks(str(b.content, LIMITS.html)); break;
         case 'flowchart':
@@ -1026,7 +1028,7 @@ function renderDoc(doc, opts) {
                 var ncol = Math.max(tcols.length, rows.reduce(function(m, r) { return Math.max(m, r.length); }, 0), 1);
                 blk += '<div' + layoutAttrs(b, 'node plain-table doc-tablewrap') + '>';
                 if (b.title) blk += '<h3>' + fmtHtml(b.title, fieldFmt(b, 'title')) + '</h3>';
-                blk += '<table class="doc-table">';
+                blk += '<table class="doc-table' + (b.pin === true ? ' t-pin' : '') + '">';   // 1.6.2: a pinned heading row (tablefollow.js)
                 if (tcols.length) { blk += '<thead><tr>'; for (var c = 0; c < ncol; c++) blk += '<th>' + fmtHtml(tcols[c] || '', colFmtOf(b, c)) + '</th>'; blk += '</tr></thead>'; }
                 blk += '<tbody>';
                 rows.forEach(function(r, ri) { blk += rowHtml(rowJoin(b, ri, ncol), ncol, function(c2) { return cellHtml(r[c2] || '', cellFmtOf(b, ri, c2), pageCell); }); });   // a cell's listed lines as a list (cellHtml); merged cells and a full-width row (rowJoin, rowHtml)

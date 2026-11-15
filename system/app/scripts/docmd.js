@@ -18,7 +18,8 @@
      and `::: type … :::` pick the prose block; pipe tables (first row headers, at most 64 columns,
      a bold line above = the title; a line break inside a cell is <br>, and a line of a cell that begins
      with "- " or "• " is an item of a bulleted list in that cell; a cell followed by a bare || spans the next
-     column too, as MultiMarkdown writes it, and a row whose first cell spans every column is a full-width row); ```mermaid = diagram, ```flowchart / ```graph in the simple
+     column too, as MultiMarkdown writes it, and a row whose first cell spans every column is a full-width row; a line that
+     holds {pin} alone right above a table pins its heading row, {wide pin} for a planner's Wide table card); ```mermaid = diagram, ```flowchart / ```graph in the simple
      subset = a native flowchart, other fences = code; `---` = a rule on a page, a run boundary in a
      planner; `![caption](path){width=50 float=left dx=0 dy=0 span}` = a picture (a relative path
      resolved against the files or zip dropped with the .md, `data:` decoded, `https:` kept as a
@@ -518,7 +519,7 @@ function isBlockStart(line, next) {
 function markdownToBlocks(text, opts) {
     opts = opts || {};
     var kind = opts.kind === 'planner' ? 'planner' : 'doc', items = opts.items || {};
-    var notes = [], meta = {}, blocks = [], images = [], run = [], scene = null, sceneGap = false, pendingTitle = null, pendingWide = false, sawH1 = false, h1Block = null;
+    var notes = [], meta = {}, blocks = [], images = [], run = [], scene = null, sceneGap = false, pendingTitle = null, pendingWide = false, pendingPin = false, sawH1 = false, h1Block = null;   // pendingPin (1.6.2): a {pin} line stood right above the table
     var ctx = { inlineImages: [] };
     text = String(text || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
     if (text.length > LIMITS.text) { text = text.slice(0, LIMITS.text); notes.push('The file is longer than 2 MB; the rest was left out.'); }
@@ -588,12 +589,13 @@ function markdownToBlocks(text, opts) {
         // 1.6.2 (the owner, 2026-11-11, by prompt: "Blank line ends the card (Recommended)"): a table right under a card's heading or its lines is the card's
         // own rows, as the export writes them. A table after a blank line is a table of its own (sceneGap): an untitled table after a card that has
         // no rows used to be read back as that card's rows
-        if (scene && kind === 'planner' && !sceneGap) { scene.cols = cols; scene.rows = objRows; if (colFmt.length) scene.colFmt = colFmt; else delete scene.colFmt; scene = null; return; }
+        if (scene && kind === 'planner' && !sceneGap) { scene.cols = cols; scene.rows = objRows; if (colFmt.length) scene.colFmt = colFmt; else delete scene.colFmt; scene = null; pendingPin = false; return; }
         scene = null;
         flushRun();
         var tb = kind === 'planner' ? push({ type: 'node', mode: 'table', title: title || '', cols: cols, rows: objRows }) : push({ type: 'table', title: title || '', cols: cols, rows: objRows });
         if (pendingWide && kind === 'planner') CC.wideSet(tb, true);
-        pendingWide = false;
+        if (pendingPin) tb.pin = true;   // 1.6.2: its heading row pinned in sight (tablefollow.js)
+        pendingWide = false; pendingPin = false;
         if (colFmt.length) tb.colFmt = colFmt;
         if (title) setFmt(tb, 'title', fm.title);
     }
@@ -612,7 +614,7 @@ function markdownToBlocks(text, opts) {
         var h = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
         if (h) {
             var level = h[1].length, ht = splitAttrTail(h[2], headAttrs(kind, level, !sawH1, h[2])), hf = fieldOf(ht.text), title = hf.text;
-            flushRun(); scene = null; pendingTitle = null; pendingWide = false;
+            flushRun(); scene = null; pendingTitle = null; pendingWide = false; pendingPin = false;
             if (level === 1 && !sawH1) {
                 sawH1 = true; h1Block = push({ type: 'h1', title: title, sub: meta.subtitle || '' }); setFmt(h1Block, 'title', hf.fmt);
                 if (!meta.title) meta.title = title;
@@ -689,9 +691,12 @@ function markdownToBlocks(text, opts) {
         var boldOnly = pb.length === 1 && /^\s*(\*\*|__)(.+?)\1\s*$/.exec(pb[0]);
         var nextNonBlank = i; while (nextNonBlank < lines.length && !lines[nextNonBlank].trim()) nextNonBlank++;
         // 1.6.2 (backlog 107 (a)): a line that holds {wide} alone, right before a plain table of a planner, makes that table a Wide card
-        if (kind === 'planner' && pb.length === 1 && /^\s*\{wide\}\s*$/i.test(pb[0]) && nextNonBlank < lines.length && wideTableAt(lines, nextNonBlank)) { pendingWide = true; scene = null; continue; }   // a table of its own, never the rows of the card above it
+        if (kind === 'planner' && pb.length === 1 && /^\s*\{wide\}\s*$/i.test(pb[0]) && nextNonBlank < lines.length && wideTableAt(lines, nextNonBlank)) { pendingWide = true; scene = null; continue; }
+        // 1.6.2: {pin} alone right before a table (or its bold title) pins its heading row; a planner's {wide pin} makes a Wide card that is pinned too
+        var pinM = pb.length === 1 ? /^\s*\{(pin|wide\s+pin|pin\s+wide)\}\s*$/i.exec(pb[0]) : null;
+        if (pinM && (kind === 'planner' || /^pin$/i.test(pinM[1])) && nextNonBlank < lines.length && wideTableAt(lines, nextNonBlank)) { pendingPin = true; if (/wide/i.test(pinM[1])) pendingWide = true; scene = null; continue; }   // a table of its own, never the rows of the card above it
         if (boldOnly && nextNonBlank < lines.length && /\|/.test(lines[nextNonBlank]) && isTableSep(lines[nextNonBlank + 1])) { pendingTitle = fieldOf(boldOnly[2]); scene = null; continue; }   // the table's title. A titled table is a table of its own: a card's own rows have no title (found 2026-11-11: it became the rows of a card above it that had none, and its title was lost)
-        scene = null; pendingWide = false;
+        scene = null; pendingWide = false; pendingPin = false;
         run.push('<p>' + paraHtml(pb, ctx) + '</p>');
         flushInlineImages();
     }
@@ -850,9 +855,9 @@ function docToMarkdown(item, opts) {
                 var lay = kind === 'doc' ? b.layout : (b.width && b.width !== 100 || (b.align && b.align !== 'center') || CC.wideOn(b) ? { width: b.width, float: b.align === 'left' || b.align === 'right' ? b.align : 'none', span: CC.wideOn(b) } : null);
                 L.push('![' + fieldText(b, 'caption', IN_CAPTION) + '](' + ref + ')' + layoutTail(lay), ''); break;
             }
-            case 'table': L.push(tableMd(b.title, b.cols, b.rows, b), ''); break;
+            case 'table': if (b.pin === true) L.push('{pin}', ''); L.push(tableMd(b.title, b.cols, b.rows, b), ''); break;   // 1.6.2: a pinned heading row
             case 'node':
-                if (b.mode === 'table') { if (kind !== 'doc' && CC.wideOn(b)) L.push('{wide}', ''); L.push(tableMd(b.title, b.cols, b.rows, b), ''); break; }
+                if (b.mode === 'table') { var wdT = kind !== 'doc' && CC.wideOn(b); if (wdT || b.pin === true) L.push('{' + (wdT ? 'wide' : '') + (wdT && b.pin === true ? ' ' : '') + (b.pin === true ? 'pin' : '') + '}', ''); L.push(tableMd(b.title, b.cols, b.rows, b), ''); break; }
                 var kdM = CC.kindOf(b), akaM = CC.cleanAka(b.aka);   // backlog 107 step 3 and 147
                 // 1.6.2: each of a card's lines is ONE line. A title, a tag or a map's name that held a line break (only a file makes one) wrote a blank line
                 // into the card, and a blank line before the card's own table now ends the card (markdownToBlocks sceneGap), so its rows would be lost

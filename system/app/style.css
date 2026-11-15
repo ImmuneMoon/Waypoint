@@ -3128,6 +3128,7 @@
   .pg-seg .tool { border: 0; border-radius: 0; padding: 3px 9px; }
   .pg-seg .tool.on { background: rgba(224,165,79,0.16); color: var(--gold); }
   #plannerPreviewWrap.pbe-page { position: relative; }
+  .pbe-page #plannerFindBar { z-index: 21; }   /* 1.6.2 (found live): a tall block open on the page scrolls under the Find bar, as the page does, never over it (the layer stands at 20) */
   #plannerEditorWrap.pbe-layer { position: absolute !important; top: 0; left: 0; width: 100% !important; height: 0; padding: 0 !important; border: 0 !important; background: none !important; overflow: visible !important; display: block !important; pointer-events: none; z-index: 20; }
   .pbe-layer #plannerBlocks > .pbe-add, .pbe-layer #plannerBlocks + div { display: none !important; }   /* on the page the + stands between the drawn blocks */
   .pbe-layer .planner-block-edit { display: none; position: absolute; pointer-events: auto; margin: 0; box-shadow: 0 8px 26px rgba(0,0,0,.5); border-color: var(--gold); }
@@ -3232,6 +3233,22 @@
   .doc-view tr.t-full > td { background: var(--panel2); color: var(--gold); font-size: 12px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; padding: 8px 12px; }
   .b-table .row-h.b-row-full .ts-box { color: var(--gold); font-weight: 600; }   /* the editor's full-width row: its one box reads as the sub-heading it is */
   /* 1.6.2, a big table in a window of its own (planner.js tbCardHtml, tablewin.js): the editor's card, and the window's grid */
+  /* 1.6.2 (tablefollow.js): a wide table's scroll bar at the bottom of the view, and a pinned heading row at its top, while the table is in
+     view. Nothing of a page: they live in the window's own wrapper, take no part in print, and the copy's names are attributes, never text */
+  .tf-bar { position: fixed; z-index: 9001; height: 14px; overflow-x: scroll; overflow-y: hidden; background: var(--panel2); border-top: 1px solid var(--edge); box-sizing: border-box; }
+  .tf-bar-inner { height: 1px; }
+  .tf-head { position: fixed; z-index: 9001; overflow: hidden; pointer-events: none; background: var(--panel2); border-bottom: 1px solid var(--edge); box-shadow: 0 2px 5px rgba(0,0,0,.35); }
+  .tf-bar[hidden], .tf-head[hidden] { display: none; }
+  .tf-head > span { position: absolute; top: 0; bottom: 0; box-sizing: border-box; padding: 9px 12px; overflow: hidden; white-space: nowrap; color: var(--gold); font-size: 11px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; }
+  .tf-head > span::before { content: attr(data-t); }
+  .tf-head > span.tf-first { z-index: 1; background: var(--panel2); box-shadow: inset -1px 0 0 var(--edge); }
+  .tf-head.tf-head-ed > span { padding: 7px 9px; font-size: 13px; letter-spacing: 0; text-transform: none; }
+  @media print { .tf-bar, .tf-head { display: none !important; } }
+  /* 1.6.2 (the owner: "i dont see a way to exit editing the table"): Done on a block open on the page, and its head kept in sight as a tall
+     block scrolls (under the Find bar: --pg-top, planner.js pgPlace) */
+  .planner-block-edit .pg-done { display: none; }
+  .pbe-layer .planner-block-edit.pg-open .pg-done { display: inline-flex; margin-right: 6px; }
+  .pbe-layer .planner-block-edit.pg-open > .block-head { position: sticky; top: var(--pg-top, 0px); z-index: 4; background: var(--panel); margin: -12px -12px 8px; padding: 8px 12px; border-radius: 8px 8px 0 0; }
   .context-menu.tb-menu, .context-menu.tw-menu { flex-direction: column; min-width: 180px; }   /* 1.6.2: a table's cell and row menus (planner.js tbMenuFor, tablewin.js twMenu), one item a line */
   .b-bigtable { border: 1px dashed var(--edge); border-radius: 8px; padding: 10px 12px; margin: 6px 0; color: var(--dim); font-size: 13px; }
   .b-bigtable p { margin: 0 0 8px; }

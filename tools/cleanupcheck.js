@@ -718,6 +718,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 check('1.6.2 merged cells from a file: a planner\'s rows keep only real spans by their cells (held to the table) and a full only as true, a stray rowMerge beside rows that are objects goes; a page\'s come through cleanDoc as rowJoin reads them; with no cleaner on hand none comes in at all, the words kept',
                     J(icM.items.pm.blocks[0].rows) === J([{ col1: 'a', merge: { col1: 2 } }, { col1: 'b', merge: { col2: 2 } }, { col1: 'c', full: true }]) && !('rowMerge' in icM.items.pm.blocks[0])
                     && J(icM.items.dm.blocks[0].rowMerge) === J([[2, 0], 'full']) && J(icMN.items.pm.blocks[0].rows) === J([{ col1: 'a' }, { col1: 'b' }, { col1: 'c' }]) && !('rowMerge' in icMN.items.pm.blocks[0]), J([icM.items.pm.blocks[0], icM.items.dm.blocks[0], icMN.items.pm.blocks[0]]));
+                // the review of e61ed377: a table's merged headings from a file are cleaned by docrender.js headJoin where the cleaner is on hand, and
+                // with no cleaner none comes in at all, as a row's merges do not; the headings' words are kept
+                const hPlan = () => ({ id: 'ph', type: 'planner', meta: { title: 'H' }, blocks: [{ id: 'h1', type: 'node', mode: 'table', cols: ['Coin', 'Weight', '', 'Value'], headMerge: { col2: 2, col4: 9, toString: 3 }, rows: [{ col1: 'a' }] }] });
+                const icH = JSON.parse(JSON.stringify({ items: { ph: hPlan() } })); cleanImportItems(icH, deps);
+                const icHN = JSON.parse(JSON.stringify({ items: { ph: hPlan() } })); cleanImportItems(icHN, { sanitize });
+                check('1.6.2 merged headings from a file: a planner\'s headMerge keeps only real spans by their headings (held to the table) with the cleaner on hand; with no cleaner on hand none comes in at all, the headings\' words kept',
+                    J(icH.items.ph.blocks[0].headMerge) === J({ col2: 2 }) && !('headMerge' in icHN.items.ph.blocks[0]) && J(icHN.items.ph.blocks[0].cols) === J(['Coin', 'Weight', '', 'Value']), J([icH.items.ph.blocks[0], icHN.items.ph.blocks[0]]));
             }
             const icN = JSON.parse(JSON.stringify({ items: { pf: styledPlanner(), df: styledPage() } })); cleanImportItems(icN, { sanitize });
             const icO = JSON.parse(JSON.stringify({ items: { pf: styledPlanner(), df: styledPage() } })); cleanImportItems(icO, { sanitize, DR: { cleanDoc: DOC.cleanDoc, stripMermaidLinks: DOC.stripMermaidLinks } });

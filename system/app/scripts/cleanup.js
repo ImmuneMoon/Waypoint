@@ -635,7 +635,7 @@ function cleanImportItems(ic, deps) {
             }
             if (DR && typeof DR.cleanBlockFmts === 'function') DR.cleanBlockFmts(b);
             else {
-                delete b.fmt; delete b.colFmt; delete b.rowFmt; delete b.rowMerge;
+                delete b.fmt; delete b.colFmt; delete b.rowFmt; delete b.rowMerge; delete b.headMerge;   // 1.6.2: nor a table's merged headings (cleanBlockFmts cleans them by docrender.js headJoin; the review of e61ed377)
                 ['rows', 'nodes', 'edges'].forEach(function(k) { if (Array.isArray(b[k])) b[k].forEach(function(x) { if (isObj(x)) { delete x.fmt; delete x.link; delete x.merge; delete x.full; } }); });   // 1.6.2: nor a row's merged cells (cleanBlockFmts cleans them by docrender.js rowJoin)   // nor a flowchart node's link (cleanBlockFmts cleans it by the diagram's rule)
             }
         });

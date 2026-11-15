@@ -546,6 +546,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       while (t.length && t[t.length - 1] === '') t.pop();
       return JSON.stringify(t);
   }
+  // The heading row as one text, the guard a heading's merge carries (tablewin.js twHeadSig is the same rule): the headings' words and how many
+  // columns each one takes (headJoin, null where none is merged). The words alone let a second Merge with next made on the window's old view of
+  // the merge through, and it grew the same heading again (the review of e61ed377)
+  function tbHeadSig(b) { var cols = tsCols(b), w = cols.map(function(h) { return String(h == null ? '' : h); }); return JSON.stringify({ w: w, s: headJoin(b, cols.length) }); }
   // A word from a table's window, judged: null when it is no table edit at all; else { it, b, op } where it may be made, or the reason it
   // may not (a sentence the window shows). mine: this window may write the campaign (the GM's own, at their own table)
   function tbEditOk(d, camp, mine) {
@@ -574,7 +578,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (op.k === 'cell' && op.was !== tbText(b.rows[op.ri], op.ci)) return stale;
       if (op.k === 'head') { var hd = tsCols(b)[op.ci]; if (op.was !== String(hd == null ? '' : hd)) return stale; }
       if ((op.k === 'delRow' || op.k === 'full' || op.k === 'merge' || op.k === 'unmerge') && op.row !== tbRowSig(b.rows[op.ri])) return stale;
-      if ((op.k === 'headMerge' || op.k === 'headUnmerge') && op.heads !== JSON.stringify(tsCols(b).map(function(h) { return String(h == null ? '' : h); }))) return stale;   // 1.6.2: the headings' words the window saw
+      if ((op.k === 'headMerge' || op.k === 'headUnmerge') && op.heads !== tbHeadSig(b)) return stale;   // 1.6.2: the heading row the window saw, its words and its merges (tbHeadSig)
       return { it: it, b: b, op: { k: op.k, ri: op.ri, ci: op.ci, at: op.at, text: op.text } };
   }
   // The edit made on the block, as the editor makes it: the words of a cell or a head with their look carried across (textfmt respan), a
@@ -796,6 +800,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           while (l.length && !l[l.length - 1]) l.pop();
           if (l.length) b.colFmt = l; else delete b.colFmt;
       }
+      // Merges cut to the new count (the review of e61ed377): a heading's merge or a row's cell merge that ran past the last column is held to it,
+      // and one left spanning a single column goes, so growing the table again later never brings back a merge that was cut away. Each row's
+      // words stay (a cell past the last column keeps its text and its look, as before). Asked through typeof: a suite runs this function alone
+      if (typeof cleanHeadJoin === 'function') cleanHeadJoin(b, n);
+      if (typeof cleanRowJoin === 'function' && Array.isArray(b.rows)) for (var ri = 0; ri < b.rows.length; ri++) cleanRowJoin(b, ri, n);
   }
   // A page's table from a file or from another table holds its rows as lists (docrender cleanDoc), their cells' formats beside them in
   // rowFmt. The editor works on rows as { col1, col2, … }: each list becomes that once, its formats moving onto the row. True when it changed.

@@ -1090,6 +1090,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             ed.document.getElementById('tbMenu').querySelectorAll('button')[0].fire('click'); const afterMerge = [J(am.blocks[0].rows[0].merge), menu.style.display, calls.join('|')];
             TB.tbMenuFor(0, 0, -1, 40, 50, null); const m2 = J(items()); menu.querySelectorAll('button')[0].fire('click'); const afterFull = [am.blocks[0].rows[0].full, calls.slice(-2).join('|')];
             TB.tbMenuFor(0, 0, 0, 40, 50, null); const m3 = J(items());
+            // the review of e61ed377: a heading's menu (ri -1) draws its merge alone, Merge with next off on the last heading, and no Full-width row
+            TB.tbMenuFor(0, -1, 1, 40, 50, null); const mh1 = J(items()); TB.tbMenuFor(0, -1, 3, 40, 50, null); const mh3 = J(items());
+            check('1.6.2 merged headings, the editor\'s heading menu (tbMenuFor with no row): Merge with next and Unmerge alone (Unmerge off where the heading spans one), Merge with next off on the last heading, and no Full-width row or rule',
+                mh1 === J([['hmerge', 'Merge with next', false, 'menuitem', null], ['hunmerge', 'Unmerge', true, 'menuitem', null]]) && mh3 === J([['hmerge', 'Merge with next', true, 'menuitem', null], ['hunmerge', 'Unmerge', true, 'menuitem', null]])
+                && menu.querySelectorAll('.menu-divider').length === 0, J([mh1, mh3]));
             check('1.6.2 merged cells, the menus: a cell\'s menu has Merge with next, Unmerge (off where the cell spans one) and the row\'s Full-width row; a row\'s menu (its ⋯ button) has Full-width row alone, ticked when on, and on a full-width row a cell\'s Merge and Unmerge are off; a pick does its one thing, saves, draws the editor again and puts the menu away; merging over different words says they are kept out of sight, over the same words or nothing it says nothing',
                 J(hides) === J([false, true]) && m1[0] === 'context-menu tb-menu' && m1[1] === 'flex'
                 && m1[2] === J([['merge', 'Merge with next', false, 'menuitem', null], ['unmerge', 'Unmerge', true, 'menuitem', null], ['full', 'Full-width row', false, 'menuitemcheckbox', 'false']])
@@ -1107,17 +1112,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             camp.items.doc_1 = { id: 'doc_1', type: 'doc', meta: { title: 'Book' }, blocks: [{ id: 'b_h', type: 'h1', title: 'Book' }, big, small, { id: 'b_txt', type: 'text', content: 'x' }] };
             camp.items.map_1 = { id: 'map_1', type: 'map', meta: {} };
             class FakeChan { constructor(n) { this.n = n; } postMessage(m) { posts.push([this.n, m]); } }
-            const T3 = new Function('rowJoin', 'cleanRowJoin', 'getActiveMap', 'getActiveCampaign', 'document', 'window', 'save', 'renderPlanner', 'renderPlannerPreview', 'toast', 'TF', 'CC', 'BroadcastChannel', 'headJoin', 'cleanHeadJoin', "'use strict';\n" + helpers + sliceOf('scripts/planner.js', '// [pagecheck:tbjoin-start]', '// [pagecheck:tbjoin-end]') + '\nreturn { tbBig, tbCardHtml, tbCells, tbEditOk, tbEditDo, tbEditTake, TABLE_BIG, tbHere, tbText, tbRowSig };')(
+            const T3 = new Function('rowJoin', 'cleanRowJoin', 'getActiveMap', 'getActiveCampaign', 'document', 'window', 'save', 'renderPlanner', 'renderPlannerPreview', 'toast', 'TF', 'CC', 'BroadcastChannel', 'headJoin', 'cleanHeadJoin', "'use strict';\n" + helpers + sliceOf('scripts/planner.js', '// [pagecheck:tbjoin-start]', '// [pagecheck:tbjoin-end]') + '\nreturn { tbBig, tbCardHtml, tbCells, tbEditOk, tbEditDo, tbEditTake, TABLE_BIG, tbHere, tbText, tbRowSig, tbHeadSig };')(
                 DR.rowJoin, DR.cleanRowJoin, () => am.cur, () => camp, ed.document, { wpCanPersistLocal: () => true, innerWidth: 1000, innerHeight: 800 }, im => log.push('save:' + im), () => log.push('draw'), () => log.push('preview'), m => log.push('toast'), TFm, undefined, FakeChan, DR.headJoin, DR.cleanHeadJoin);
             const sizes = [T3.TABLE_BIG, T3.tbCells(big), T3.tbBig(big), T3.tbBig(small), T3.tbBig({ type: 'table', rows: big.rows, cols: big.cols })];
             const card = T3.tbCardHtml(big, 3);
             {   // 1.6.2, merged headings from the table's window: judged with the headings' words the window saw, and made as the editor's menu makes it
                 const hb = { id: 'b_hm', type: 'table', cols: ['Coin', 'Aurodium Weight', '', 'Value'], rows: [['a', 'b', 'c', 'd']] }; camp.items.doc_1.blocks.push(hb);
-                const heads = JSON.stringify(hb.cols), HW = op => ({ type: 'tableEdit', camp: 'camp_1', item: 'doc_1', block: 'b_hm', n: 9, op: Object.assign({ rows: 1, heads: heads }, op) });
-                const okM = T3.tbEditOk(HW({ k: 'headMerge', ci: 1 }), camp, true), stale = T3.tbEditOk(HW({ k: 'headMerge', ci: 1, heads: '[]' }), camp, true), out = T3.tbEditOk(HW({ k: 'headMerge', ci: 4 }), camp, true);
-                const did = typeof okM === 'object' && T3.tbEditDo(okM.b, okM.op), m1 = JSON.stringify(hb.headMerge), un = T3.tbEditOk(HW({ k: 'headUnmerge', ci: 1 }), camp, true), did2 = typeof un === 'object' && T3.tbEditDo(un.b, un.op);
-                check('1.6.2 merged headings from a big table\'s window (tbEditOk, tbEditDo): Merge with next and Unmerge on a heading are taken with the headings\' words the window saw, refused where those changed or the heading is past the table, and made as the editor\'s menu makes them',
-                    did === true && m1 === JSON.stringify({ col2: 2 }) && typeof stale === 'string' && typeof out === 'string' && did2 === true && !('headMerge' in hb), JSON.stringify([okM && okM.op, stale, out, m1, did2]));
+                // the guard is the heading row the window saw, its words and its merges (tbHeadSig; the review of e61ed377: the words alone let a second
+                // Merge with next made on the window's old view through, and it grew { col2: 2 } to { col2: 3 })
+                const heads = T3.tbHeadSig(hb), HW = (op, g) => ({ type: 'tableEdit', camp: 'camp_1', item: 'doc_1', block: 'b_hm', n: 9, op: Object.assign({ rows: 1, heads: g === undefined ? heads : g }, op) });
+                const okM = T3.tbEditOk(HW({ k: 'headMerge', ci: 1 }), camp, true), stale = T3.tbEditOk(HW({ k: 'headMerge', ci: 1 }, '[]'), camp, true), out = T3.tbEditOk(HW({ k: 'headMerge', ci: 4 }), camp, true);
+                const did = typeof okM === 'object' && T3.tbEditDo(okM.b, okM.op), m1 = JSON.stringify(hb.headMerge);
+                const again = T3.tbEditOk(HW({ k: 'headMerge', ci: 1 }), camp, true), m1b = JSON.stringify(hb.headMerge), unOld = T3.tbEditOk(HW({ k: 'headUnmerge', ci: 1 }), camp, true);   // the same old guard twice: the second is refused
+                const un = T3.tbEditOk(HW({ k: 'headUnmerge', ci: 1 }, T3.tbHeadSig(hb)), camp, true), did2 = typeof un === 'object' && T3.tbEditDo(un.b, un.op);
+                check('1.6.2 merged headings from a big table\'s window (tbEditOk, tbEditDo): Merge with next and Unmerge on a heading are taken with the heading row the window saw (its words and its merges), refused where those changed or the heading is past the table, and made as the editor\'s menu makes them; a second Merge with next by the same old view is refused as stale and the merge stays { col2: 2 }',
+                    did === true && m1 === JSON.stringify({ col2: 2 }) && typeof stale === 'string' && typeof out === 'string' && typeof again === 'string' && m1b === m1 && typeof unOld === 'string' && did2 === true && !('headMerge' in hb)
+                    && heads === JSON.stringify({ w: ['Coin', 'Aurodium Weight', '', 'Value'], s: null }), JSON.stringify([okM && okM.op, stale, out, m1, again, m1b, unOld, did2, heads]));
                 camp.items.doc_1.blocks.pop();
             }
             check('1.6.2 a big table in its own window, the editor\'s card: a table of more than 600 cells (rows times columns) is drawn in the editor as a card that says its size in numbers and has Edit in its own window and Edit here, by the block\'s index; a smaller table, and one with no id to name its window, keep their boxes',
@@ -1186,11 +1196,32 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                     && twSrc2.includes("if (twSend(head ? { k: 'head', ci: ci, text: now.slice(0, 300), rows: ed.rows, was: ed.was } : { k: 'cell', ri: ri, ci: ci, text: now.slice(0, LIMITS.cell), rows: ed.rows, was: ed.was })) {")
                     && popS.includes("var twr = twTick(body, camp, it, tableId, title, typeof pp.camp === 'string' ? pp.camp : ''), twT = twr && twr.title ? twr.title : title;"),
                     J([away, awayMsg, awaySend, sendOk, m && m.op, busy1, busy2, busy3, fs1]));
+                {   // the review of e61ed377: a heading's menu in the window (twMenu) and its Merge with next, sent with the heading row the window saw
+                    // (twHeadSig, the very text planner.js tbHeadSig makes); a heading's merge is a change of the table's shape, so while it is on its way
+                    // no heading menu opens again (TW_STRUCT), and a second Merge with next by the old view cannot be sent
+                    const realDoc = globalThis.document, realWin = globalThis.window, wd = makeDom();
+                    globalThis.document = wd.document; globalThis.window = { innerWidth: 1000, innerHeight: 800 };
+                    try {
+                        const hwit = { id: 'd1', type: 'doc', blocks: [{ id: 'b_hw', type: 'table', cols: ['Coin', 'Weight', '', 'Value'], rows: [['a', 'b', 'c', 'd']] }] };
+                        TWW.twTick(wb, wc, hwit, 'b_hw', 'P', 'c1');
+                        const twm = () => wd.document.body.querySelector('.tw-menu'), twItems = () => twm().querySelectorAll('button').map(x => [x.dataset.act, x.textContent, x.disabled]);
+                        TWW.twMenu(-1, 3, 10, 10, null); const last = J(twItems());
+                        TWW.twMenu(-1, 1, 10, 10, null); const mid = J(twItems()), n0 = sent.length;
+                        twm().querySelectorAll('button')[0].fire('click'); const hm = sent[sent.length - 1], hmOp = sent.length === n0 + 1 ? hm.op : null;
+                        const hBusy = TWW.twBusy(); TWW.twMenu(-1, 1, 10, 10, null); const reopened = twm().style.display, nAfter = sent.length;
+                        const merged = { cols: ['Coin', 'Weight', '', 'Value'], headMerge: { col2: 2 }, rows: [] };
+                        check('1.6.2 merged headings in a big table\'s window (tablewin.js twMenu): a heading\'s menu has Merge with next (off on the last heading) and Unmerge alone; Merge with next posts { k: headMerge, ci, heads } with the heading row it saw, the text planner.js judges by; while that is on its way the window is busy and no heading menu opens again',
+                            last === J([['hmerge', 'Merge with next', true], ['hunmerge', 'Unmerge', true]]) && mid === J([['hmerge', 'Merge with next', false], ['hunmerge', 'Unmerge', true]])
+                            && !!hmOp && hmOp.k === 'headMerge' && hmOp.ci === 1 && hmOp.rows === 1 && hmOp.heads === T3.tbHeadSig(hwit.blocks[0]) && hm.block === 'b_hw'
+                            && hBusy === true && reopened === 'none' && nAfter === n0 + 1 && TWW.twHeadSig(merged) === T3.tbHeadSig(merged) && TWW.twHeadSig(merged) === J({ w: ['Coin', 'Weight', '', 'Value'], s: [1, 2, 0, 1] }),
+                            J([last, mid, hmOp, hBusy, reopened, nAfter - n0, TWW.twHeadSig(merged)]));
+                    } finally { if (realDoc === undefined) delete globalThis.document; else globalThis.document = realDoc; if (realWin === undefined) delete globalThis.window; else globalThis.window = realWin; }
+                }
             } finally { globalThis.BroadcastChannel = realBC; }
         }
         {   // 1.6.2 (the owner, 2026-11-14): "lets have the horizontal scroll bar for a table stick to the bottom of the screen while navigating it, and
             // allow pinning of the table headers, like google docs does", and "i dont see a way to exit editing the table" (tablefollow.js, planner.js)
-            const TFw = new Function("'use strict';\nvar TF_BAR_H = 14, TF_MIN = 60;\n" + sliceOf('scripts/tablefollow.js', '// [pagecheck:tfollow-start]', '// [pagecheck:tfollow-end]') + '\nreturn { tfBarAt, tfHeadAt, tfHeadCells, tfZOf, tfFirst };')();
+            const TFw = new Function("'use strict';\nvar TF_BAR_H = 14, TF_MIN = 60;\n" + sliceOf('scripts/tablefollow.js', '// [pagecheck:tfollow-start]', '// [pagecheck:tfollow-end]') + '\nreturn { tfBarAt, tfHeadAt, tfHeadCells, tfZOf, tfFirst, tfHeldFirst };')();
             // the place a table stands in gives the bar and the copy their z (tfZOf): the reader at 99990 and the panel raised over other boxes hid them
             // at the style sheet's 9001; and the scroller the reader moved last is tried first (tfFirst), so the editor's table in Side by side no longer
             // takes them from the preview being read
@@ -1208,11 +1239,28 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 J(bars) === J([{ left: 120, width: 700, top: 636, offset: 0 }, null, null, null, null, { left: 100, width: 800, top: 636, offset: 60 }, null, null]), J(bars));
             check('1.6.2 a pinned heading row in sight (tablefollow.js tfHeadAt and tfHeadCells): its copy stands at the top of the room once the real row is above it and the table goes on below by more than the row; never while the row is in sight, near the table\'s end, or for a row of no height; each name keeps its place and width from the copy\'s edge, its white space folded and cut at 80 characters',
                 J(heads) === J([{ top: 50, height: 32 }, null, null, { top: 50, height: 32 }, null]) && J(cells) === J([{ left: 30, width: 100, text: 'Name of it', first: true }, { left: 130, width: 160, text: 'x'.repeat(80), first: false }]), J([heads, cells]));
+            {   // the review of e61ed377: which heading of the real row is the copy's held first column (tablefollow.js tfHeldFirst, the rule tfHead maps each
+                // heading through): the first heading of a page's table in the scroll form, never a first heading merged over more columns, never another
+                // heading, never the editor's boxes, never a table that is not in the scroll form
+                const hTh = sp => ({ getAttribute: k => (k === 'colspan' && sp ? String(sp) : null) }), scBox = { classList: { contains: c => c === 'pv-tscroll' } }, plainBox = { classList: { contains: () => false } };
+                const row = [hTh(2), hTh(0)], firsts = row.map((c, k) => TFw.tfHeldFirst(c, k, false, scBox)), plainRow = [hTh(0), hTh(0)].map((c, k) => TFw.tfHeldFirst(c, k, false, scBox));
+                const others = [TFw.tfHeldFirst(hTh(0), 0, true, scBox), TFw.tfHeldFirst(hTh(0), 0, false, plainBox), TFw.tfHeldFirst(hTh(0), 0, false, null), TFw.tfHeldFirst(hTh(1), 0, false, scBox)];
+                check('1.6.2 merged headings, the pinned copy of the heading row (tablefollow.js tfHeldFirst): a first heading merged over two columns gives first: false (the style sheet holds no such heading in view), a plain first heading in the scroll form first: true, every other heading, the editor\'s boxes and a table not in the scroll form none; tfHead maps each heading through it',
+                    J(firsts) === J([false, false]) && J(plainRow) === J([true, false]) && J(others) === J([false, false, false, true]) && read('scripts/tablefollow.js').includes('first: tfHeldFirst(c, k, ed, box) }; });'), J([firsts, plainRow, others]));
+            }
             const tfSrc = read('scripts/tablefollow.js'), css4 = read('style.css'), plS = read('scripts/planner.js'), ix4 = read('index.html');
             {   // 1.6.2, merged headings (the owner, 2026-11-14, by prompt: "Waypoint merges headings")
                 const hPlan = { id: 'ph', type: 'planner', blocks: [{ type: 'node', mode: 'table', cols: ['Coin', 'Aurodium Weight', 'covered', 'Value'], headMerge: { col2: 2 }, rows: [{ col1: 'Lot', col2: '1 lb', col3: '0.45 kg', col4: '10' }] }] };
                 const hT = toTree(d, plannerPreviewHtml(hPlan, { id: 'c1', items: {} })), ths = hT.querySelectorAll('th').map(t => (t.getAttribute('colspan') || '1') + '=' + t.textContent);
-                const TFh = new Function('setTimeout', "'use strict';\n" + slice('tfit') + '\nreturn { tfitHeads: tfitHeads, tfitName: tfitName };')(() => {});
+                const TFh = new Function('setTimeout', "'use strict';\n" + slice('tfit') + '\nreturn { tfitHeads: tfitHeads, tfitName: tfitName, tfitFirst: tfitFirst };')(() => {});
+                {   // the review of e61ed377: the held first column's width (pagenav.js tfitFirst) is never a first heading merged over more columns: the
+                    // first row's plain first cell is measured instead; a plain first heading is measured itself
+                    const nd = (name, kids, attrs, w) => ({ nodeType: 1, nodeName: name, childNodes: kids || [], getAttribute: k => (attrs && k in attrs ? attrs[k] : null), offsetWidth: w || 0, classList: { contains: () => false } });
+                    const tbl = th0 => nd('TABLE', [nd('THEAD', [nd('TR', [th0, nd('TH', [], {}, 100)])]), nd('TBODY', [nd('TR', [nd('TD', [], {}, 120), nd('TD', [], {}, 180)])])]);
+                    const fw = [TFh.tfitFirst(tbl(nd('TH', [], { colspan: '2' }, 300))), TFh.tfitFirst(tbl(nd('TH', [], {}, 150)))];
+                    check('1.6.2 merged headings, the held first column (pagenav.js tfitFirst): a first heading merged over two columns (300 px) is passed over and the first row\'s plain first cell (120 px) is measured; a plain first heading is measured itself',
+                        J(fw) === J([120, 150]), J(fw));
+                }
                 const heads = TFh.tfitHeads(hT.querySelector('table')), nm = TFh.tfitName(heads, 1, 2);
                 check('1.6.2 merged headings, the planner\'s page: a merged heading drawn once with its colspan, the one under it left out; the table-fit code names each column under it, so the count of columns stays true, and a cell under it reads the name once',
                     J(ths) === J(['1=Coin', '2=Aurodium Weight', '1=Value']) && J(heads) === J(['Coin', 'Aurodium Weight', 'Aurodium Weight', 'Value']) && nm === 'Aurodium Weight', J([ths, heads, nm]));
@@ -1289,8 +1337,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const pl = read('scripts/planner.js'), tcM = /\n {2}var TABLE_COLS = (\d+);/.exec(pl);
             const selLine = (pl.match(/\n {14}html \+= '<div class="fc-opts"><label>Columns <select class="b-ncols"[^\n]*\n/) || [''])[0];
             const hdl = (pl.match(/querySelectorAll\('\.b-ncols'\)\)\.forEach\(el => el\.addEventListener\('change', (function\(\) \{[\s\S]*?\n {6}\})\)\);/) || [])[1] || 'null';
-            const E = new Function('TABLE_COLS', 'esc', 'tsDefaultCols', "'use strict';\n" + (pl.match(/\n {2}function tsCols\(b\) \{[^\n]*\n/) || [''])[0] + (pl.match(/\n {2}function tsSetColCount\(b, n\) \{[\s\S]*?\n {2}\}\n/) || [''])[0]
-                + '\nreturn { sel: function(idx, colNames, plain, b) { var html = \'\';' + selLine + ' return html; }, set: tsSetColCount };')(tcM ? +tcM[1] : 0, SC.esc, () => ['Item', 'Detail', 'Notes']);
+            const E = new Function('TABLE_COLS', 'esc', 'tsDefaultCols', 'cleanHeadJoin', 'cleanRowJoin', "'use strict';\n" + (pl.match(/\n {2}function tsCols\(b\) \{[^\n]*\n/) || [''])[0] + (pl.match(/\n {2}function tsSetColCount\(b, n\) \{[\s\S]*?\n {2}\}\n/) || [''])[0]
+                + '\nreturn { sel: function(idx, colNames, plain, b) { var html = \'\';' + selLine + ' return html; }, set: tsSetColCount };')(tcM ? +tcM[1] : 0, SC.esc, () => ['Item', 'Detail', 'Notes'], DR.cleanHeadJoin, DR.cleanRowJoin);
             const opts = E.sel(0, heads17).match(/<option value="(\d+)"( selected)?>\1<\/option>/g) || [], am = { blocks: [{ type: 'node', mode: 'table', cols: ['A', 'B', 'C'], colFmt: [{ b: true }] }] }; let saved = 0, drawn = 0;
             const onChange = new Function('activeMap', 'TABLE_COLS', 'tsSetColCount', 'save', 'renderPlanner', "'use strict'; return " + hdl + ';')(am, tcM ? +tcM[1] : 0, E.set, () => { saved++; }, () => { drawn++; });
             const pick = v => { onChange.call({ dataset: { idx: '0' }, value: v }); return am.blocks[0].cols.length; };
@@ -1298,6 +1346,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('1.6.2 wide tables, the editor\'s Columns list by what it does: it offers every count from 1 to TABLE_COLS, which is docrender\'s LIMITS.cols (64), with the table\'s own count picked; a pick of 17 gives the card 17 heads, its own kept and the rest named; a count past 64 is held to 64 and one that is no number is 1, each a save and a redraw',
                 !!tcM && +tcM[1] === DR.LIMITS.cols && opts.length === 64 && opts.every((o, i) => o.indexOf('value="' + (i + 1) + '"') > 0) && opts.filter(o => o.includes(' selected')).length === 1 && opts[16].includes(' selected')
                 && J(picks) === J([17, ['A', 'B', 'C', 'Column 4'], 64, 1, 64, 4, 4, J([{ b: true }])]), J([tcM && tcM[1], opts.length, picks]));
+            {   // the review of e61ed377: fewer columns cut the merges with them (tsSetColCount: cleanHeadJoin and each row's cleanRowJoin), so growing the
+                // table again later brings back no merge that was cut away; a merge that still fits stays, and every row's words stay
+                const mb = { type: 'node', mode: 'table', cols: ['A', 'B', 'C', 'D'], headMerge: { col2: 3 }, rows: [{ col1: 'a', col2: 'b', col3: 'c', col4: 'd', merge: { col2: 3 } }, { col1: 'x', merge: { col1: 2 } }] };
+                E.set(mb, 2); const cut2 = J([mb.cols, mb.headMerge, mb.rows]); E.set(mb, 4); const back4 = J([mb.cols, 'headMerge' in mb, mb.rows]);
+                check('1.6.2 merged cells and headings, the Columns count (tsSetColCount): a heading merge { col2: 3 } on 4 columns set to 2 and then 4 leaves no headMerge, and a row\'s merge cut away does not come back; a merge that still fits stays, and every word stays',
+                    cut2 === J([['A', 'B'], undefined, [{ col1: 'a', col2: 'b', col3: 'c', col4: 'd' }, { col1: 'x', merge: { col1: 2 } }]])
+                    && back4 === J([['A', 'B', 'Column 3', 'Column 4'], false, [{ col1: 'a', col2: 'b', col3: 'c', col4: 'd' }, { col1: 'x', merge: { col1: 2 } }]]), J([cut2, back4]));
+            }
             // a landing at words in a wide table brings the words into the box's sideways view, clear of the first column (pagenav.js land)
             const LN = mkNav(), lr = LN.el.plannerPreview, cellsOf = i => Array.from({ length: 17 }, (_, c) => mk(LN.dom, i < 0 ? 'th' : 'td', '', [i < 0 ? 'Head ' + c : (c === 11 && i === 0 ? 'Ember Lance' : c === 0 ? 'Row ' + i : 'v' + i + '-' + c)]));
             const tb = mk(LN.dom, 'table', '', [mk(LN.dom, 'thead', '', [mk(LN.dom, 'tr', '', cellsOf(-1))]), mk(LN.dom, 'tbody', '', [mk(LN.dom, 'tr', '', cellsOf(0)), mk(LN.dom, 'tr', '', cellsOf(1))])]), lbox = mk(LN.dom, 'div', 'node pv-tscroll', [tb]);

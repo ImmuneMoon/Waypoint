@@ -31,8 +31,13 @@ var TW_ID = (function() {
     try { var a = new Uint32Array(2); crypto.getRandomValues(a); return 'tw' + a[0].toString(36) + a[1].toString(36); } catch (e) {}
     return 'tw' + Math.floor(Math.random() * 1e12).toString(36) + Date.now().toString(36);
 })();
-// The edits that change the table's rows (their number or their shape): while one is on its way the grid's row numbers are not to be trusted
-var TW_STRUCT = { addRow: 1, delRow: 1, merge: 1, unmerge: 1, full: 1 };
+// The edits that change the table's rows (their number or their shape): while one is on its way the grid's row numbers are not to be trusted.
+// A heading's merge changes the heading row's shape too: while one is on its way no heading menu opens, or a second Merge with next by the old
+// grid would grow the same heading again (the review of e61ed377)
+var TW_STRUCT = { addRow: 1, delRow: 1, merge: 1, unmerge: 1, full: 1, headMerge: 1, headUnmerge: 1 };
+// The heading row as the grid shows it, the guard a heading's merge carries (planner.js tbHeadSig is the same rule): the headings' words and
+// how many columns each one takes (docrender.js headJoin, null where none is merged), so an edit made on a stale merge is refused
+function twHeadSig(b) { var cols = twCols(b), w = cols.map(function(c) { return String(c == null ? '' : c); }); return JSON.stringify({ w: w, s: headJoin(b, cols.length) }); }
 
 // The table block of a page by its id: a page's table, or a planner's table card. null where there is none
 function twBlock(it, id) {
@@ -239,7 +244,7 @@ function twMenu(ri, ci, x, y, from) {
             // each edit carries what the grid showed as the menu opened: its rows, and the row's words (twRowSig)
             if (k === 'above') twSend({ k: 'addRow', at: at.ri, rows: at.rows }); else if (k === 'below') twSend({ k: 'addRow', at: at.ri + 1, rows: at.rows }); else if (k === 'del') twSend({ k: 'delRow', ri: at.ri, rows: at.rows, row: at.row });
             else if (k === 'merge' || k === 'unmerge') twSend({ k: k, ri: at.ri, ci: at.ci, rows: at.rows, row: at.row }); else if (k === 'full') twSend({ k: 'full', ri: at.ri, rows: at.rows, row: at.row });
-            else if (k === 'hmerge' || k === 'hunmerge') twSend({ k: k === 'hmerge' ? 'headMerge' : 'headUnmerge', ci: at.ci, rows: at.rows, heads: at.heads });   // with the headings' words it saw (planner.js tbEditOk)
+            else if (k === 'hmerge' || k === 'hunmerge') twSend({ k: k === 'hmerge' ? 'headMerge' : 'headUnmerge', ci: at.ci, rows: at.rows, heads: at.heads });   // with the heading row it saw, its words and its merges (twHeadSig; planner.js tbEditOk)
         });
         document.addEventListener('pointerdown', function(e) { if (tw.menu.style.display !== 'none' && !(e.target && e.target.closest && e.target.closest('.tw-menu'))) twMenuAway(); }, true);
         document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && tw.menu.style.display !== 'none') { e.preventDefault(); twMenuAway(); } }, true);
@@ -259,7 +264,7 @@ function twMenu(ri, ci, x, y, from) {
     }
     while (tw.menu.firstChild) tw.menu.removeChild(tw.menu.firstChild);
     rows.forEach(function(o) { var d = document.createElement('button'); d.type = 'button'; d.dataset.act = o[0]; d.textContent = o[1]; d.disabled = !!o[2]; d.setAttribute('role', 'menuitem'); if (o[0] === 'del') d.className = 'danger'; tw.menu.appendChild(d); });
-    tw.menu._at = { ri: ri, ci: ci, rows: tw.b.rows.length, row: head ? '' : twRowSig(tw.b.rows[ri]), heads: JSON.stringify(twCols(tw.b).map(function(c) { return String(c == null ? '' : c); })) }; tw.menu._back = from || null;
+    tw.menu._at = { ri: ri, ci: ci, rows: tw.b.rows.length, row: head ? '' : twRowSig(tw.b.rows[ri]), heads: twHeadSig(tw.b) }; tw.menu._back = from || null;
     tw.menu.style.display = 'flex';
     var w = tw.menu.offsetWidth || 180, h = tw.menu.offsetHeight || 160;
     tw.menu.style.left = Math.max(4, Math.min(x, (window.innerWidth || 1e4) - w - 4)) + 'px'; tw.menu.style.top = Math.max(4, Math.min(y, (window.innerHeight || 1e4) - h - 4)) + 'px';
@@ -290,4 +295,4 @@ function twWire(body) {
 }
 
 if (typeof window !== 'undefined') window.wpTableWin = { tick: twTick };   // (a suite loads the module under Node, where there is no window)
-export { twTick, twHtml, twBlock, twBullets, twBulletLines, twText, twRowSig, twFocusSel, twSend, twBusy, twCols, TW_HOLD_MS };   // twSend and twBusy for a suite
+export { twTick, twHtml, twBlock, twBullets, twBulletLines, twText, twRowSig, twHeadSig, twFocusSel, twSend, twBusy, twMenu, twCols, TW_HOLD_MS };   // twSend, twBusy and twMenu for a suite

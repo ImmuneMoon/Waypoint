@@ -46,6 +46,10 @@ function tfHeadCells(cells, clipLeft) {
         return { left: Math.round(c.rect.left - clipLeft), width: Math.max(0, Math.round(c.rect.right - c.rect.left)), text: t, first: !!c.first };
     });
 }
+// Whether a heading of the real row stands for the held first column in the copy (its tf-first look): the first heading of a page's table in
+// the scroll form (pv-tscroll) alone, never the editor's boxes (ed), and never a first heading merged over more columns (1.6.2: the style sheet
+// holds no such heading in view, so the copy does not either). c: the heading, k: its place in the row, box: what the table scrolls in
+function tfHeldFirst(c, k, ed, box) { return !ed && k === 0 && !!box && !!box.classList && box.classList.contains('pv-tscroll') && !(c && c.getAttribute && +c.getAttribute('colspan') > 1); }
 // The stacking z of the place an element stands in, so the bar and the copy stand just over that place and under whatever is raised above it:
 // the z-index of its ancestor that is a child of the host (the body, or a window's own wrapper), where that is a whole number; '' where it is
 // auto or the element is not under the host (the style sheet's value then stands). The bar and the copy come later in the host than every
@@ -140,7 +144,7 @@ function tfHead() {
         var reg = tfRoom(t), at = tfHeadAt(row.getBoundingClientRect(), t.getBoundingClientRect(), reg); if (!at) continue;
         var br = box.getBoundingClientRect(), left = Math.max(br.left, reg.left), right = Math.min(br.left + (box.clientWidth || br.width), reg.right);
         if (right - left < TF_MIN || !tfOnTop(box.contains(t) ? box : t, left + 4, at.top + 2)) continue;
-        var cells = Array.prototype.map.call(ed ? row.querySelectorAll('.ts-box') : row.children, function(c, k) { return { rect: c.getBoundingClientRect(), text: ed && typeof c._tsText === 'string' ? c._tsText : c.textContent, first: !ed && k === 0 && !!box.classList && box.classList.contains('pv-tscroll') && !(c.getAttribute && +c.getAttribute('colspan') > 1) }; });   // a merged first heading is not held (1.6.2)
+        var cells = Array.prototype.map.call(ed ? row.querySelectorAll('.ts-box') : row.children, function(c, k) { return { rect: c.getBoundingClientRect(), text: ed && typeof c._tsText === 'string' ? c._tsText : c.textContent, first: tfHeldFirst(c, k, ed, box) }; });   // a merged first heading is not held (1.6.2, tfHeldFirst)
         pick = { at: at, left: left, width: right - left, cells: tfHeadCells(cells, left), ed: ed, t: t };
     }
     if (!pick) { if (!tf.head.hidden) tf.head.hidden = true; return; }

@@ -314,6 +314,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var fw = Math.round(Math.max(300, r.width)), fl = Math.round(r.left - pr.left), pvr = E.pv.getBoundingClientRect(), flMax = Math.round(pvr.right - pr.left) - fw;
       if (fl > flMax) fl = Math.max(Math.round(pvr.left - pr.left), flMax);   // 1.6.2 (backlog 107 (a)): a card in a right-hand column of a row of cards is narrower than the form, which then stays inside the page
       form.style.top = Math.round(top + base) + 'px'; form.style.left = fl + 'px'; form.style.width = fw + 'px';
+      var fbar = document.getElementById('plannerFindBar'), fbh = fbar && fbar.parentNode === E.pw ? Math.round(fbar.getBoundingClientRect().height) : 0;
+      form.style.setProperty('--pg-top', Math.max(0, fbh - 20) + 'px');   // 1.6.2: where the open block's head sticks, under the Find bar (which sticks at -20 px, over the box's padding)
       var h = form.offsetHeight;
       if (face && !under) { face.classList.add('pg-room', 'pg-hid'); face.style.minHeight = h + 'px'; }
       else if (face) { face.classList.add('pg-room'); face.style.marginBottom = (h + 14) + 'px'; }
@@ -481,6 +483,89 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var w = tbMenuEl.offsetWidth || 180, h = tbMenuEl.offsetHeight || 100;
       tbMenuEl.style.left = Math.max(4, Math.min(x, (window.innerWidth || 1e4) - w - 4)) + 'px'; tbMenuEl.style.top = Math.max(4, Math.min(y, (window.innerHeight || 1e4) - h - 4)) + 'px';
       var first = Array.prototype.filter.call(tbMenuEl.querySelectorAll('button'), function(x) { return !x.disabled; })[0]; if (first) try { first.focus(); } catch (e) {}
+  }
+  /* 1.6.2, a big table in a window of its own (the owner, 2026-11-14, by prompt: "Edit a big table in its own window"). The book's largest
+     tables hold 3,300 to 3,650 cells, and the editor drew a box for each, so a page that held one was slow to open. A table of more than
+     TABLE_BIG cells (rows times columns) is drawn in the editor as a short card (tbCardHtml) with "Edit in its own window" (docpanel.js
+     popOut with table true: tablewin.js in a pop-out) and "Edit here" (its boxes all the same, for this sitting only: tbHere, in memory).
+     The table's window writes nothing: it sends each edit here over the app's BroadcastChannel, where tbEditTake judges it (tbEditOk: the
+     campaign this window has open and may write, the page, the table by its block id, the edit's kind and numbers in range, the words
+     capped), makes it as the GM's own edit (tbEditDo, then a save, which is an undo step) and answers the window. */
+  var TABLE_BIG = 600;
+  var tbHere = {};
+  function tbCells(b) { return (Array.isArray(b.rows) ? b.rows.length : 0) * tsCols(b).length; }
+  function tbBig(b) { return !!b && typeof b.id === 'string' && !Object.prototype.hasOwnProperty.call(tbHere, b.id) && tbCells(b) > TABLE_BIG; }
+  // The card a big table is in the editor: its size in words, and its two buttons. Numbers alone, no stored text
+  function tbCardHtml(b, idx) {
+      var rows = Array.isArray(b.rows) ? b.rows.length : 0, cols = tsCols(b).length;
+      return '<div class="b-bigtable"><p>This table has <b>' + tbCells(b).toLocaleString('en-US') + '</b> cells, in ' + rows + ' rows and ' + cols + ' columns. It opens for editing in a window of its own, so this editor stays quick.</p>'
+          + '<div class="fc-opts"><button type="button" class="tool b-tablewin" data-idx="' + idx + '" title="Edit every cell of this table in a big window of its own. Your changes save here as you make them.">Edit in its own window</button>'
+          + '<button type="button" class="tool ghost b-tablehere" data-idx="' + idx + '" title="Draw every cell of this table here, until you close the app. A table this big makes the editor slow.">Edit here</button></div></div>';
+  }
+  var TB_OPS = { cell: 1, head: 1, addRow: 1, delRow: 1, merge: 1, unmerge: 1, full: 1 };
+  function tbWhole(v, lo, hi) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v >= lo && v <= hi; }
+  // A word from a table's window, judged: null when it is no table edit at all; else { it, b, op } where it may be made, or the reason it
+  // may not (a sentence the window shows). mine: this window may write the campaign (the GM's own, at their own table)
+  function tbEditOk(d, camp, mine) {
+      if (!d || typeof d !== 'object' || d.type !== 'tableEdit') return null;
+      if (!camp || typeof camp.id !== 'string' || d.camp !== camp.id) return 'That table is in a campaign the main window does not have open.';
+      if (!mine) return 'This campaign is not yours to change here.';
+      var it = typeof d.item === 'string' && camp.items && typeof camp.items === 'object' && Object.prototype.hasOwnProperty.call(camp.items, d.item) ? camp.items[d.item] : null;
+      if (!it || typeof it !== 'object' || (it.type !== 'doc' && it.type !== 'planner') || !Array.isArray(it.blocks)) return 'That page is no longer in the campaign.';
+      var b = null; if (typeof d.block === 'string') it.blocks.forEach(function(x) { if (!b && x && typeof x === 'object' && x.id === d.block && (x.type === 'table' || (x.type === 'node' && x.mode === 'table'))) b = x; });
+      if (!b || !Array.isArray(b.rows)) return 'That table is no longer on the page.';
+      var op = d.op, n = tsCols(b).length, rows = b.rows.length;
+      if (!op || typeof op !== 'object' || typeof op.k !== 'string' || !Object.prototype.hasOwnProperty.call(TB_OPS, op.k)) return 'The window asked for a change this version does not know.';
+      var ok = op.k === 'cell' ? tbWhole(op.ri, 0, rows - 1) && tbWhole(op.ci, 0, n - 1) && typeof op.text === 'string' && op.text.length <= 2000
+          : op.k === 'head' ? tbWhole(op.ci, 0, n - 1) && typeof op.text === 'string' && op.text.length <= 300
+          : op.k === 'addRow' ? tbWhole(op.at, 0, rows) && rows < 500
+          : op.k === 'delRow' || op.k === 'full' ? tbWhole(op.ri, 0, rows - 1)
+          : tbWhole(op.ri, 0, rows - 1) && tbWhole(op.ci, 0, n - 1);
+      if (!ok) return 'The table changed before that edit arrived. Look again and try once more.';
+      return { it: it, b: b, op: { k: op.k, ri: op.ri, ci: op.ci, at: op.at, text: op.text } };
+  }
+  // The edit made on the block, as the editor makes it: the words of a cell or a head with their look carried across (textfmt respan), a
+  // row put in or taken out, a merge, an unmerge or a full-width row (tbMerge, tbUnmerge, tbFull). Rows as the editor keeps them first
+  // (tsRowsAsObjects: a page from a file holds them as lists). True when the block changed
+  function tbEditDo(b, op) {
+      tsRowsAsObjects(b);
+      if (op.k === 'cell') {
+          var r = b.rows[op.ri]; if (!r || typeof r !== 'object' || Array.isArray(r)) { r = {}; b.rows[op.ri] = r; }
+          var key = 'col' + (op.ci + 1), old = typeof r[key] === 'string' ? r[key] : '', fm = r.fmt && typeof r.fmt === 'object' && !Array.isArray(r.fmt) ? r.fmt[key] : undefined;
+          if (old === op.text) return false;
+          r[key] = op.text;
+          if (fm !== undefined) { var nf = TF.respan(old, op.text, fm); if (nf) r.fmt[key] = nf; else { delete r.fmt[key]; if (!Object.keys(r.fmt).length) delete r.fmt; } }
+          return true;
+      }
+      if (op.k === 'head') {
+          tsOwnCols(b);
+          var was = typeof b.cols[op.ci] === 'string' ? b.cols[op.ci] : '', cf = Array.isArray(b.colFmt) ? b.colFmt[op.ci] : null;
+          if (was === op.text) return false;
+          b.cols[op.ci] = op.text;
+          if (cf) { var l = b.colFmt.slice(); l[op.ci] = TF.respan(was, op.text, cf) || null; while (l.length && !l[l.length - 1]) l.pop(); if (l.length) b.colFmt = l; else delete b.colFmt; }
+          return true;
+      }
+      if (op.k === 'addRow') { b.rows.splice(op.at, 0, {}); return true; }
+      if (op.k === 'delRow') { b.rows.splice(op.ri, 1); return true; }
+      if (op.k === 'merge') return tbMerge(b, op.ri, op.ci);
+      if (op.k === 'unmerge') return tbUnmerge(b, op.ri, op.ci);
+      return op.k === 'full' ? tbFull(b, op.ri) : false;
+  }
+  // The main window's hearing of a table's window: the word judged and made, saved (the save is an undo step), the editor or the preview drawn
+  // again (never the editor's boxes under a box that has the focus), and the window answered by the number it gave. False for any other word
+  function tbEditTake(d) {
+      var camp = getActiveCampaign(), mine = !!camp && !camp._foreign && !(window.wpNet && window.wpNet.foreign) && !!(window.wpCanPersistLocal && window.wpCanPersistLocal());
+      var j = tbEditOk(d, camp, mine); if (j === null) return false;
+      var done = typeof j === 'object' && tbEditDo(j.b, j.op);
+      if (done) {
+          if (j.it.meta && typeof j.it.meta === 'object') j.it.meta.updated = Date.now();
+          save(true);
+          var am = getActiveMap(), ae = document.activeElement;
+          if (am === j.it) { if (ae && ae.closest && ae.closest('#plannerBlocks')) renderPlannerPreview(); else renderPlanner(); }
+          else if (window.wpDocPanel && typeof window.wpDocPanel.refresh === 'function') window.wpDocPanel.refresh();
+      }
+      try { new BroadcastChannel('waypoint').postMessage({ type: 'tableEditAck', n: typeof d.n === 'number' && isFinite(d.n) ? d.n : 0, ok: !!done, why: typeof j === 'string' ? j : done ? '' : 'There was nothing to change there.' }); } catch (e) {}
+      return true;
   }
   // [pagecheck:tbjoin-end]
   // [sinkcheck:boxes-start]
@@ -1980,7 +2065,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           html += '<div class="block-head"><span>' + esc(blockName(b)) + '</span>';
 
-          html += '<div class="block-tools"><button class="tool ghost mv-up" data-idx="'+idx+'">▲</button><button class="tool ghost mv-dn" data-idx="'+idx+'">▼</button><button class="tool ghost danger del-blk" data-idx="'+idx+'"><i class="wib wi-close"></i></button></div></div>';
+          html += '<div class="block-tools"><button type="button" class="tool pg-done" data-idx="'+idx+'" title="Done: close this block and go back to the page (Esc)">Done</button><button class="tool ghost mv-up" data-idx="'+idx+'">▲</button><button class="tool ghost mv-dn" data-idx="'+idx+'">▼</button><button class="tool ghost danger del-blk" data-idx="'+idx+'"><i class="wib wi-close"></i></button></div></div>';
 
           
 
@@ -2038,7 +2123,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if (b.type === 'node' && !plain) html += '<div class="fc-opts" style="margin-bottom:10px;"><label>Plays <select class="b-cue" data-idx="'+idx+'" title="A sound, a song, a playlist or a saved effect. The card gets a Play button that starts it for the table.">' + cueOptions(b.cue) + '</select></label></div>';   // 1.6.2 (backlog 166 g)
               var colNames = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plain ? ['Item', 'Detail', 'Notes'] : kd.cols.slice());
               if (!b.rows) b.rows = [];
-              html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + Array.from({ length: TABLE_COLS }, function(_, i) { return i + 1; }).map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label><span style="color:var(--dim); font-size:11px;">Headers below, then one line of boxes per row.</span></div>';
+              html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + Array.from({ length: TABLE_COLS }, function(_, i) { return i + 1; }).map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label>' + (plain ? '<label title="Keep this table\u2019s heading row in sight at the top while the table is read, as a pinned header row does. The editor always keeps it in sight."><input type="checkbox" class="b-tpin" data-idx="'+idx+'"' + (b.pin === true ? ' checked' : '') + '> Pin heading row</label>' : '') + '<span style="color:var(--dim); font-size:11px;">Headers below, then one line of boxes per row.</span></div>';   // 1.6.2: the pin (tablefollow.js), true only
+              if (tbBig(b)) html += tbCardHtml(b, idx);   // 1.6.2: a big table is a card here and is edited in a window of its own (tbBig)
+              else {
               html += '<div class="grouped-fields b-table"><div class="row-h b-heads">';
               colNames.forEach(function(c, ci) { html += tsBoxHtml('b-colhead', 'Column '+(ci+1), 'data-idx="'+idx+'" data-ci="'+ci+'"', '', true, 'title="Header of column '+(ci+1)+'"'); });   // heads and cells take line breaks (tsMulti)
               html += '<div style="width:68px; height:31px; flex:0 0 68px;"></div></div>';   // over a row's two buttons (its menu and its x)
@@ -2059,6 +2146,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               });
               html += '</div>';
               html += '<button class="tool ghost add-row" data-idx="'+idx+'">+ Add Row</button>';
+              }
           } else if (b.type === 'flowchart') {
               if (!b.nodes) b.nodes = [];
               if (!b.edges) b.edges = [];
@@ -2261,6 +2349,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       }));
 
+      // 1.6.2 (the owner, 2026-11-14: "i dont see a way to exit editing the table"): Done closes the block open on the page, as Escape does
+      Array.from(blockContainer.querySelectorAll('.pg-done')).forEach(el => el.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); pgClose(true); }));
+      // 1.6.2: a table's Pin heading row (the owner: "allow pinning of the table headers, like google docs does"), true or not there at all
+      Array.from(blockContainer.querySelectorAll('.b-tpin')).forEach(el => el.addEventListener('change', function() { var bb = activeMap.blocks[this.dataset.idx]; if (!bb) return; if (this.checked) bb.pin = true; else delete bb.pin; save(true); renderPlannerPreview(); }));
+      // 1.6.2, a big table: its own window (docpanel.js popOut with table true), or its boxes here all the same, this sitting (tbHere)
+      Array.from(blockContainer.querySelectorAll('.b-tablewin')).forEach(el => el.addEventListener('click', function() {
+          var bb = activeMap.blocks[this.dataset.idx]; if (!bb || typeof bb.id !== 'string') return;
+          if (!(window.wpDocPanel && window.wpDocPanel.popOut(activeMap.id, null, bb.id, true))) toast('The table\u2019s window could not open. Edit here still works, but slowly.');
+      }));
+      Array.from(blockContainer.querySelectorAll('.b-tablehere')).forEach(el => el.addEventListener('click', function() { var bb = activeMap.blocks[this.dataset.idx]; if (!bb || typeof bb.id !== 'string') return; tbHere[bb.id] = true; renderPlanner(); }));
       // 1.6.2, merged cells: the row's menu button, and a right-click on a cell (tbMenuFor)
       Array.from(blockContainer.querySelectorAll('.b-rowmenu')).forEach(el => el.addEventListener('click', function(e) { e.stopPropagation(); var r = this.getBoundingClientRect(); tbMenuFor(+this.dataset.idx, +this.dataset.ri, -1, r.left, r.bottom + 2, this); }));
       Array.from(blockContainer.querySelectorAll('.b-table .r-col')).forEach(el => el.addEventListener('contextmenu', function(e) { e.preventDefault(); e.stopPropagation(); tbMenuFor(+this.dataset.idx, +this.dataset.ri, +this.dataset.ci, e.clientX, e.clientY, this); }));
@@ -3214,7 +3312,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               }
               if (Array.isArray(b.rows) && b.rows.length > 0) {
                   var cols = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plainPv ? ['Item', 'Detail', 'Notes'] : kdP.cols.slice());
-                  html += '<table><thead><tr>' + cols.map(function(c, ci) { return '<th>' + fmtRich(c, colFmtOf(b, ci)) + '</th>'; }).join('') + '</tr></thead><tbody>';
+                  html += '<table' + (b.pin === true ? ' class="t-pin"' : '') + '><thead><tr>' + cols.map(function(c, ci) { return '<th>' + fmtRich(c, colFmtOf(b, ci)) + '</th>'; }).join('') + '</tr></thead><tbody>';
                   b.rows.forEach(function(r, ri) {   // a cell's lines that begin with "- " or "• " as a list (docrender.js cellHtml); merged cells and a full-width row (rowJoin, rowHtml)
                       html += rowHtml(rowJoin(b, ri, cols.length), cols.length, function(ci) { return cellHtml((r && r['col' + (ci + 1)]) || '', cellFmtOf(b, ri, ci), fmtRich); });
                   });
@@ -3557,7 +3655,7 @@ if(_el_renderPlannerBtn) _el_renderPlannerBtn.addEventListener('click', function
       var msg = pvGotoMsg(location.search, a); if (!msg) return;
       try { new BroadcastChannel('waypoint').postMessage(msg); } catch (err) {}
   });
-  else if (!_isStreamP) { try { new BroadcastChannel('waypoint').addEventListener('message', function(e) { if (pvGotoOk(e.data, getActiveCampaign())) navigateToMap(e.data.map, e.data.room || null); else if (pvCueOk(e.data, getActiveCampaign())) cuePlay(e.data.k, e.data.id); }); } catch (e) {} }
+  else if (!_isStreamP) { try { new BroadcastChannel('waypoint').addEventListener('message', function(e) { if (pvGotoOk(e.data, getActiveCampaign())) navigateToMap(e.data.map, e.data.room || null); else if (pvCueOk(e.data, getActiveCampaign())) cuePlay(e.data.k, e.data.id); else if (e.data && e.data.type === 'tableEdit') tbEditTake(e.data); }); } catch (e) {} }   // 1.6.2: an edit from a big table's window (tbEditTake)
   // Page layout by hand (pages only): drag a picture in the preview to nudge it (dx / dy), drag its
   // bottom-right corner to resize it (the width snaps to the select's steps). One save at pointerup is
   // one undo step per drag; io.js's capture listener closes any typing chunk at the pointerdown.

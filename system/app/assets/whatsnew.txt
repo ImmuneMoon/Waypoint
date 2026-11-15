@@ -41,6 +41,16 @@ Wide tables
   and Unmerge, and a merged cell reads once across its columns. A row's
   menu makes it a full-width row, a sub-heading that runs across the whole
   table. Both read right in the narrow card view too.
+- A very big table now opens for editing in a big window of its own, so
+  the page editor stays quick even on a page with thousands of cells.
+  Click a cell to change it, and right-click for rows and merges. Every
+  change saves at once.
+- A wide table keeps its sideways scroll bar at the bottom of the screen
+  while you read or edit it, so you never hunt for it below a long table.
+  Tick Pin heading row on a table and its headings stay in sight at the
+  top as you scroll down it. The editor always keeps them in sight.
+- A block you open on the page has a Done button at its top, which stays
+  in sight however tall the block is. Done or Esc closes it.
 
 Story cards
 - Lay a few cards out at once, each in a place you name, and read them

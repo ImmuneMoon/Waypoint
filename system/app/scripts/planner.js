@@ -32,7 +32,7 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, isDocLike } from './models.js';
 
-import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, mermaidPre, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf, diagramLink } from './docrender.js';
+import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, mermaidPre, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf, diagramLink, cellHtml, rowJoin, rowHtml, cleanRowJoin } from './docrender.js';
 
 import * as TF from './textfmt.js';
 
@@ -392,6 +392,94 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (E.pw) E.pw.addEventListener('scroll', function() { if (E.ed) pbeBarPlace(E.ed); }, { passive: true });   // the bar held over its slot as the page scrolls
   }
   // [textcheck:pbepage-end]
+  // [pagecheck:tbjoin-start]
+  /* 1.6.2, merged cells (the owner, 2026-11-14, by prompt: "Cell and row menus"). A cell's menu (a right-click on a cell of the editor's table)
+     has Merge with next and Unmerge; a row's menu (the ⋯ button at the row's end, and the cell's menu too) has Full-width row. What they change
+     is kept on the row (docrender.js rowJoin: row.merge, row.full), so moving or deleting a row takes it along; a cell under a merge keeps
+     its words. Each is one step: a save and the editor drawn again. tbMerge, tbUnmerge and tbFull change the block only, so a test can run
+     them; tbMenuFor draws the menu with elements and text alone. */
+  function tbCols(b) { return tsCols(b).length; }
+  // Merge the cell at ci with the cell after it (the next cell's own span joins too). False where there is no next cell, or on a full-width row
+  function tbMerge(b, ri, ci) {
+      var r = b && Array.isArray(b.rows) ? b.rows[ri] : null, n = tbCols(b); if (!r || typeof r !== 'object' || Array.isArray(r)) return false;
+      var j = rowJoin(b, ri, n), k = j.spans ? j.spans[ci] : 1;
+      if (j.full || !(k >= 1) || ci + k >= n) return false;
+      var kn = j.spans ? j.spans[ci + k] : 1, m = r.merge && typeof r.merge === 'object' && !Array.isArray(r.merge) ? r.merge : {};
+      m['col' + (ci + 1)] = k + kn; delete m['col' + (ci + k + 1)]; r.merge = m;
+      cleanRowJoin(b, ri, n);
+      return true;
+  }
+  // Take a cell's merge off: every column it spanned is a cell of its own again, with the words it had. False where it spans one
+  function tbUnmerge(b, ri, ci) {
+      var r = b && Array.isArray(b.rows) ? b.rows[ri] : null, n = tbCols(b); if (!r || typeof r !== 'object' || Array.isArray(r)) return false;
+      var j = rowJoin(b, ri, n); if (j.full || !j.spans || !(j.spans[ci] > 1)) return false;
+      delete r.merge['col' + (ci + 1)];
+      cleanRowJoin(b, ri, n);
+      return true;
+  }
+  // A full-width row on or off. Its first cell is the sub-heading; the row's other cells keep their words, out of sight, and its merges
+  // are kept for when it is a row of cells again
+  function tbFull(b, ri) {
+      var r = b && Array.isArray(b.rows) ? b.rows[ri] : null; if (!r || typeof r !== 'object' || Array.isArray(r)) return false;
+      if (r.full === true) delete r.full; else r.full = true;
+      return true;
+  }
+  // Words in the columns a merge would cover that differ from the merged cell's own (the book's Word tables wrote merged words twice, side by
+  // side: those read once and need no word). True where the GM should be told they are kept out of sight
+  function tbHides(b, ri, ci) {
+      var r = b.rows[ri], n = tbCols(b), j = rowJoin(b, ri, n), k = j.spans ? j.spans[ci] : 1, kn = j.spans && ci + k < n ? j.spans[ci + k] : 1, own = String(r['col' + (ci + 1)] || '').trim();
+      for (var c = ci + k; c < ci + k + kn && c < n; c++) { var w = String(r['col' + (c + 1)] || '').trim(); if (w && w !== own) return true; }
+      return false;
+  }
+  var tbMenuEl = null;
+  function tbMenuAway() { if (tbMenuEl) { tbMenuEl.style.display = 'none'; var back = tbMenuEl._back; tbMenuEl._back = null; if (back && back.isConnected && tbMenuEl.contains(document.activeElement)) try { back.focus(); } catch (e) {} } }
+  // The menu for a row (ci -1: its ⋯ button) or for a cell and its row (a right-click on the cell), at x, y in the window. from: what opened it,
+  // which takes the focus back when the menu goes with the focus in it
+  function tbMenuFor(idx, ri, ci, x, y, from) {
+      var am = getActiveMap(), b = am && Array.isArray(am.blocks) ? am.blocks[idx] : null; if (!b || !Array.isArray(b.rows) || !b.rows[ri]) return;
+      if (!tbMenuEl) {
+          tbMenuEl = document.createElement('div'); tbMenuEl.id = 'tbMenu'; tbMenuEl.className = 'context-menu tb-menu'; tbMenuEl.setAttribute('role', 'menu'); tbMenuEl.style.display = 'none';
+          document.body.appendChild(tbMenuEl);
+          tbMenuEl.addEventListener('click', function(e) {
+              var bt = e.target && e.target.closest ? e.target.closest('button') : null; if (!bt || bt.disabled) return;
+              var at = tbMenuEl._at, am2 = getActiveMap(), b2 = am2 && Array.isArray(am2.blocks) ? am2.blocks[at.idx] : null; tbMenuAway(); if (!b2) return;
+              var hides = bt.dataset.act === 'merge' && tbHides(b2, at.ri, at.ci);
+              var did = bt.dataset.act === 'merge' ? tbMerge(b2, at.ri, at.ci) : bt.dataset.act === 'unmerge' ? tbUnmerge(b2, at.ri, at.ci) : bt.dataset.act === 'full' ? tbFull(b2, at.ri) : false;
+              if (!did) return;
+              save(true); renderPlanner();
+              if (hides) toast('The words of the cell it now covers are kept out of sight. Unmerge shows them again.');
+          });
+          tbMenuEl.addEventListener('keydown', function(e) {   // up and down move between the items; Escape is esckey.js's (below)
+              if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+              var items = Array.prototype.filter.call(tbMenuEl.querySelectorAll('button'), function(x) { return !x.disabled; }), at = items.indexOf(document.activeElement);
+              if (!items.length) return; e.preventDefault(); e.stopPropagation();
+              items[(at + (e.key === 'ArrowDown' ? 1 : items.length - 1) + items.length) % items.length].focus();
+          });
+          document.addEventListener('pointerdown', function(e) { if (tbMenuEl.style.display !== 'none' && !(e.target && e.target.closest && e.target.closest('#tbMenu'))) tbMenuAway(); }, true);
+          document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && tbMenuEl.style.display !== 'none' && (!window.wpEsc || window.wpEsc.free(e))) tbMenuAway(); });
+      }
+      var n = tbCols(b), j = rowJoin(b, ri, n), k = ci >= 0 && j.spans ? j.spans[ci] : 1, rows = [];
+      if (ci >= 0) {
+          rows.push({ act: 'merge', text: 'Merge with next', title: 'This cell takes the next column too, and reads once across both', off: j.full || ci + k >= n });
+          rows.push({ act: 'unmerge', text: 'Unmerge', title: 'Every column this cell spans is a cell of its own again, with the words it had', off: j.full || !(k > 1) });
+          rows.push({ rule: true });
+      }
+      rows.push({ act: 'full', text: 'Full-width row', title: 'The row\u2019s first cell runs across the whole table, as a sub-heading between the rows', tick: j.full });
+      while (tbMenuEl.firstChild) tbMenuEl.removeChild(tbMenuEl.firstChild);
+      rows.forEach(function(o) {
+          var d = o.rule ? document.createElement('div') : document.createElement('button');   // each by a fixed name (sinkcheck reads every createElement here)
+          if (o.rule) d.className = 'menu-divider';
+          else { d.type = 'button'; d.dataset.act = o.act; d.textContent = (o.tick === true ? '\u2713 ' : '') + o.text; d.title = o.title; d.disabled = !!o.off; if (o.tick === true || o.tick === false) { d.setAttribute('role', 'menuitemcheckbox'); d.setAttribute('aria-checked', o.tick ? 'true' : 'false'); } else d.setAttribute('role', 'menuitem'); }
+          tbMenuEl.appendChild(d);
+      });
+      tbMenuEl._at = { idx: idx, ri: ri, ci: ci }; tbMenuEl._back = from || null;
+      tbMenuEl.style.display = 'flex';
+      var w = tbMenuEl.offsetWidth || 180, h = tbMenuEl.offsetHeight || 100;
+      tbMenuEl.style.left = Math.max(4, Math.min(x, (window.innerWidth || 1e4) - w - 4)) + 'px'; tbMenuEl.style.top = Math.max(4, Math.min(y, (window.innerHeight || 1e4) - h - 4)) + 'px';
+      if (window.wpEsc && window.wpEsc.opened) window.wpEsc.opened(tbMenuEl);
+      var first = Array.prototype.filter.call(tbMenuEl.querySelectorAll('button'), function(x) { return !x.disabled; })[0]; if (first) try { first.focus(); } catch (e) {}
+  }
+  // [pagecheck:tbjoin-end]
   // [sinkcheck:boxes-start]
   // [textcheck:fields-start]
   var TS_PLAIN = '.b-title, .b-sub, .b-must, .b-caption, .b-colhead, .r-col, .fc-n-text, .fc-e-text';   // the editor boxes that hold a plain field
@@ -573,10 +661,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           var o = {}, fm = {}, one = Array.isArray(rf[ri]) ? rf[ri] : [];
           r.forEach(function(c, ci) { o['col' + (ci + 1)] = c == null ? '' : String(c); if (one[ci] && typeof one[ci] === 'object') fm['col' + (ci + 1)] = one[ci]; });
           if (Object.keys(fm).length) o.fmt = fm;
+          var jm = Array.isArray(b.rowMerge) ? b.rowMerge[ri] : null;   // 1.6.2, merged cells: the travelling form ('full', or each cell's span) onto the row as the editor keeps it
+          if (jm === 'full') o.full = true;
+          else if (Array.isArray(jm)) { var mg = {}; jm.forEach(function(k, ci) { if (typeof k === 'number' && k > 1) mg['col' + (ci + 1)] = k; }); if (Object.keys(mg).length) o.merge = mg; }
           changed = true;
           return o;
       });
       if (changed || b.rowFmt !== undefined) { if (b.rowFmt !== undefined) changed = true; delete b.rowFmt; }
+      if (b.rowMerge !== undefined) { changed = true; delete b.rowMerge; }
       return changed;
   }
   // [textcheck:fields-end]
@@ -669,7 +761,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       text = String(text == null ? '' : text).replace(/\u0000/g, '');
       return multi ? text.replace(/\r\n?/g, '\n') : text.replace(/\r\n?|\n/g, ' ');
   }
-  function tsMulti(d) { return !!d && (d.k === 'node' || (d.k === 'x' && d.m === 1)); }   // a flowchart node's label takes line breaks, and so does a host's box that its host made so
+  // Which fields take line breaks: a flowchart node's label, a host's box that its host made so, and (1.6.2, the owner's "Both ways" for lists in a
+  // cell) a table's heads and cells. A cell's lines are what its bulleted list is made of (docrender.js cellHtml), and a one-line box dropped
+  // the line breaks of a cell an import brought the moment it was typed in. A table's boxes are drawn with tsBoxHtml's multi set to match.
+  function tsMulti(d) { return !!d && (d.k === 'node' || d.k === 'cell' || d.k === 'col' || (d.k === 'x' && d.m === 1)); }
   // A run's look as one string: what its element is drawn with
   // 1.5.6: what a link says in a tooltip: a web address as it is, a page link by its page and section (pageshelf.js)
   function tsLinkWords(l) {
@@ -1417,7 +1512,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // the bar's controls the keyboard can stand on, in order (the symbols while their tray is open)
   function tsOrder() {
       var E = tsState.els; if (!E) return [];
-      var list = [E.b, E.i, E.u, E.s].concat(E.swatches, [E.custom, E.nocolor, E.size], E.fontLab.hidden ? [] : [E.font], [E.link, E.clear, E.symBtn]);   // (the Font list only while it shows)
+      var list = [E.b, E.i, E.u, E.s].concat(E.swatches, [E.custom, E.nocolor, E.size], E.fontLab.hidden ? [] : [E.font], [E.link, E.clear], E.bullets.hidden ? [] : [E.bullets], [E.symBtn]);   // (the Font list and Bullets only while they show)
       if (E.symWrap.classList.contains('open')) list = list.concat(E.symList);
       return list.filter(function(c) { return !c.disabled; });
   }
@@ -1449,6 +1544,58 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       tsPaint(box, fld, tsMulti(sel.d));   // only this box is drawn again
       if (!left && !kept) tsHold(box, sel.s, sel.e, sel.back);   // the selection stays where it was, so the next press needs no second selecting
       if (now && now.spans && now.spans.length >= TF.MAX_SPANS) toast('This field now holds the most styled parts it can (' + TF.MAX_SPANS + ').');
+      tsRefresh(); tsPlace();
+      return true;
+  }
+  // 1.6.2, lists in a table cell (the owner, 2026-11-14, by prompt: "Both ways"). A line of a cell that begins with "- " or "• " is an item of a
+  // bulleted list (docrender.js cellHtml draws it so), and the bar's Bullets button writes or takes off that mark. Only a table's cell takes it
+  // (tsBulletsOn): the button is put away on every other field, a host's included. What the button puts is a bullet and a space.
+  var TS_BULLET = '\u2022 ';
+  function tsBulletsOn(d) { return !!d && d.k === 'cell'; }
+  // The lines of a text that the selection [s, e) touches, each as { at, mark }: where it begins, and how long its mark is (0: none). With
+  // nothing selected it is the caret's own line. A selection that ends right at a line's start does not take that line (a whole line picked
+  // with its line break), and an empty line inside the selection is taken.
+  function tsBulletLines(text, s, e) {
+      var out = [], at = 0, lines = String(text || '').split('\n');
+      for (var i = 0; i < lines.length; i++) {
+          var end = at + lines[i].length;
+          var touched = s === e ? (at <= s && s <= end) : (at < e && (end > s || (end === at && at >= s)));
+          if (touched) out.push({ at: at, mark: /^[-\u2022][ \t]/.test(lines[i]) ? 2 : 0 });
+          at = end + 1;
+      }
+      return out;
+  }
+  // A press of Bullets: where every line the selection touches has a mark, each mark is taken off; else a bullet is put at the start of each
+  // of those lines that has none. The text is changed one line at a time from the last, its looks carried across each change by textfmt.js
+  // respan (as a paste is, nothing joined), so no look on a line in between is lost; the selection moves with its text. The press is one undo
+  // step (io.js stepBoundary, stepSel), as a press of Bold is; the field is saved, the preview drawn and the box painted again. from: the
+  // bar's control the press came from (the keyboard keeps its focus there, as tsPress does). True when something changed.
+  function tsBullets(from) {
+      if (tsState.comp) return false;   // as a press: not while a composition is under way
+      var box = tsState.box, am = tsBlocksOf(box), sel = tsTarget();
+      if (!am || !sel || !tsBulletsOn(sel.d)) { tsRefresh(); return false; }
+      var fld = tsField(am.blocks, sel.d), text = fld.text(), had = fld.fmt(), f = had, lines = tsBulletLines(text, sel.s, sel.e);
+      if (!lines.length) { tsRefresh(); return false; }
+      var off = lines.every(function(l) { return l.mark > 0; }), t = text, s = sel.s, e = sel.e;
+      for (var i = lines.length - 1; i >= 0; i--) {
+          var L = lines[i]; if (!off && L.mark) continue;   // putting marks on: a line that has one keeps it
+          var n = off ? L.mark : TS_BULLET.length, next = off ? t.slice(0, L.at) + t.slice(L.at + n) : t.slice(0, L.at) + TS_BULLET + t.slice(L.at);
+          if (f !== undefined) f = TF.respan(t, next, f, off ? L.at : L.at + n, true);
+          var move = function(x) { return off ? (x >= L.at + n ? x - n : x > L.at ? L.at : x) : (x >= L.at ? x + n : x); };   // a caret at the line's start goes after a new mark
+          s = move(s); e = move(e); t = next;
+      }
+      var kept = !!(from && tsState.key && document.activeElement === from);
+      stepBoundary();   // typing still on its way is its own step; this press is one step of its own
+      tsState.run = null; tsState.last = null;
+      fld.setText(t);
+      if (had !== undefined) fld.setFmt(f);   // a field that never had a format gets none
+      box._tsText = t;
+      stepSel({ d: sel.d, s: sel.s, e: sel.e }, { d: sel.d, s: s, e: e });
+      save(true);
+      renderPlannerPreview();
+      tsPaint(box, fld, tsMulti(sel.d));
+      if (!kept) tsHold(box, s, e, sel.back);
+      else tsState.sel = { map: am.id, d: sel.d, s: s, e: e, back: !!sel.back };
       tsRefresh(); tsPlace();
       return true;
   }
@@ -1530,6 +1677,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           E.link.placeholder = E.link.disabled || node ? 'https://…' : here && !(st && st.link) ? 'here: ' + here : st && st.link === null ? 'several links' : 'https://…';
       }
       E.clear.disabled = off || !st.any;
+      var bOn = !off && tsBulletsOn(sel.d), bLines = bOn ? tsBulletLines(fld.text(), sel.s, sel.e) : [];   // Bullets: shown on a table's cell only, lit where every line it would act on is listed
+      if (E.bullets.hidden === bOn) E.bullets.hidden = !bOn;
+      E.bullets.classList.toggle('on', bLines.length > 0 && bLines.every(function(l) { return l.mark > 0; }));
       E.symBtn.disabled = off;
       if (tsHosts.length) tsxRefresh(E, fld, sel);   // a host's field: Size and Link only where its host takes them
       else tsFontBar(E, fld, sel);   // 1.6.2 (44 (d)): with no host at all, a planner's own field still offers its font
@@ -1574,6 +1724,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       root.appendChild(mk('span', 'rte-sep'));
       E.clear = mk('button', 'rte-btn', 'Tₓ', 'Clear — take the styling off: the selected characters, or the whole field with nothing selected'); E.clear.type = 'button'; E.clear.tabIndex = -1; E.clear.dataset.ts = 'clear';
       root.appendChild(E.clear); root.appendChild(mk('span', 'rte-sep'));
+      // 1.6.2: Bullets, on a table's cell only (tsRefresh shows it): a list made of the cell's lines (tsBullets)
+      E.bullets = mk('button', 'rte-btn ts-bullets', '\u2022 List', 'Bullets \u2014 make the lines you picked, or the line the caret is on, a bulleted list; press again to make them plain lines. A line typed with "- " or "\u2022 " at its start is a list item too.'); E.bullets.type = 'button'; E.bullets.tabIndex = -1; E.bullets.dataset.ts = 'bullets'; E.bullets.hidden = true;
+      root.appendChild(E.bullets);
       E.symWrap = mk('span', 'rte-symwrap');
       E.symBtn = mk('button', 'rte-btn rte-symbtn', 'Ω', 'Insert a symbol at the caret — arrows, dashes, ellipsis, bullets, maths, checks, quotes'); E.symBtn.type = 'button'; E.symBtn.tabIndex = -1;
       E.syms = mk('div', 'rte-syms');
@@ -1606,6 +1759,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           else if (btn.dataset.ts === 'st') tsPress({ st: true }, btn);
           else if (btn.dataset.ts === 'nocolor') tsPress({ color: null }, btn);
           else if (btn.dataset.ts === 'clear') tsPress('clear', btn);
+          else if (btn.dataset.ts === 'bullets') tsBullets(btn);
       });
       E.size.addEventListener('change', function() { tsPress({ size: E.size.value || null }, E.size); });   // "Mixed" is no size: the core changes nothing for it
       E.link.addEventListener('change', function() { var done = tsState.linkDone; tsState.linkDone = null; if (done === E.link.value) return; tsLink(); });   // the box was left with a new address in it (Enter has its own way, above)
@@ -1883,11 +2037,19 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if (!b.rows) b.rows = [];
               html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + Array.from({ length: TABLE_COLS }, function(_, i) { return i + 1; }).map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label><span style="color:var(--dim); font-size:11px;">Headers below, then one line of boxes per row.</span></div>';
               html += '<div class="grouped-fields b-table"><div class="row-h b-heads">';
-              colNames.forEach(function(c, ci) { html += tsBoxHtml('b-colhead', 'Column '+(ci+1), 'data-idx="'+idx+'" data-ci="'+ci+'"', '', false, 'title="Header of column '+(ci+1)+'"'); });
-              html += '<div style="width:31px; height:31px; flex:0 0 31px;"></div></div>';
+              colNames.forEach(function(c, ci) { html += tsBoxHtml('b-colhead', 'Column '+(ci+1), 'data-idx="'+idx+'" data-ci="'+ci+'"', '', true, 'title="Header of column '+(ci+1)+'"'); });   // heads and cells take line breaks (tsMulti)
+              html += '<div style="width:68px; height:31px; flex:0 0 68px;"></div></div>';   // over a row's two buttons (its menu and its x)
               b.rows.forEach(function(r, ri) {
-                  html += '<div class="row-h">';
-                  colNames.forEach(function(c, ci) { html += tsBoxHtml('r-col', c||'—', 'data-idx="'+idx+'" data-ri="'+ri+'" data-ci="'+ci+'"', ''); });
+                  // 1.6.2, merged cells (docrender.js rowJoin): a merged cell's box takes the room of every column it spans, a cell under a merge has
+                  // no box (its words are kept, and come back on Unmerge), and a full-width row is its first cell alone, across the row
+                  var jE = rowJoin(b, ri, colNames.length);
+                  html += '<div class="row-h' + (jE.full ? ' b-row-full' : '') + '">';
+                  colNames.forEach(function(c, ci) {
+                      var k = jE.full ? (ci === 0 ? colNames.length : 0) : jE.spans ? jE.spans[ci] : 1;
+                      if (k === 0) return;
+                      html += tsBoxHtml('r-col' + (k > 1 ? ' r-span' : ''), jE.full ? 'Sub-heading across the table' : (c||'—'), 'data-idx="'+idx+'" data-ri="'+ri+'" data-ci="'+ci+'"', k > 1 ? 'flex:' + k + ' 1 0%; min-width:' + (70 * k) + 'px;' : '', true, k > 1 && !jE.full ? 'title="Spans ' + k + ' columns. Right-click for Unmerge."' : '');
+                  });
+                  html += '<button class="tool ghost b-rowmenu x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="This row: make it a full-width row" aria-haspopup="menu" aria-label="Row menu">\u22ef</button>';
                   html += '<button class="tool ghost danger del-row x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="Remove this row"><i class="wib wi-close"></i></button>';
                   html += '</div>';
               });
@@ -2095,6 +2257,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       }));
 
+      // 1.6.2, merged cells: the row's menu button, and a right-click on a cell (tbMenuFor)
+      Array.from(blockContainer.querySelectorAll('.b-rowmenu')).forEach(el => el.addEventListener('click', function(e) { e.stopPropagation(); var r = this.getBoundingClientRect(); tbMenuFor(+this.dataset.idx, +this.dataset.ri, -1, r.left, r.bottom + 2, this); }));
+      Array.from(blockContainer.querySelectorAll('.b-table .r-col')).forEach(el => el.addEventListener('contextmenu', function(e) { e.preventDefault(); e.stopPropagation(); tbMenuFor(+this.dataset.idx, +this.dataset.ri, +this.dataset.ci, e.clientX, e.clientY, this); }));
       Array.from(blockContainer.querySelectorAll('.del-row')).forEach(el => el.addEventListener('click', function() { 
 
           activeMap.blocks[this.dataset.idx].rows.splice(this.dataset.ri, 1); save(true); renderPlanner(); 
@@ -3046,8 +3211,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if (Array.isArray(b.rows) && b.rows.length > 0) {
                   var cols = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plainPv ? ['Item', 'Detail', 'Notes'] : kdP.cols.slice());
                   html += '<table><thead><tr>' + cols.map(function(c, ci) { return '<th>' + fmtRich(c, colFmtOf(b, ci)) + '</th>'; }).join('') + '</tr></thead><tbody>';
-                  b.rows.forEach(function(r, ri) {
-                      html += '<tr>' + cols.map(function(c, ci) { return '<td>' + fmtRich((r && r['col' + (ci + 1)]) || '', cellFmtOf(b, ri, ci)) + '</td>'; }).join('') + '</tr>';
+                  b.rows.forEach(function(r, ri) {   // a cell's lines that begin with "- " or "• " as a list (docrender.js cellHtml); merged cells and a full-width row (rowJoin, rowHtml)
+                      html += rowHtml(rowJoin(b, ri, cols.length), cols.length, function(ci) { return cellHtml((r && r['col' + (ci + 1)]) || '', cellFmtOf(b, ri, ci), fmtRich); });
                   });
                   html += '</tbody></table>';
               }

@@ -327,8 +327,14 @@ function tfitCut(s) { var a = Array.from(String(s == null ? '' : s).replace(/\s+
 // the names of a table's columns, from its heading row; null where it has none (a table with no headings is never stacked: its cells would have no names)
 function tfitHeads(t) { var hd = tfitKids(t, 'THEAD')[0], tr = hd ? tfitKids(hd, 'TR')[0] : null, th = tr ? tfitKids(tr, 'TH') : []; return th.length ? th.map(function(h) { return tfitCut(h.textContent); }) : null; }
 function tfitCells(t) { var rows = []; tfitKids(t, 'TBODY').forEach(function(b) { tfitKids(b, 'TR').forEach(function(r) { rows.push(tfitKids(r, 'TD')); }); }); return rows; }
-// a table's column count where it has no heading row: its widest row
-function tfitCount(t) { var n = 0; tfitCells(t).forEach(function(r) { if (r.length > n) n = r.length; }); return n; }
+// 1.6.2, merged cells: how many columns one cell takes (its colspan, a number docrender.js rowHtml wrote; 1 for anything else)
+function tfitSpan(td) { var v = td && typeof td.getAttribute === 'function' ? parseInt(td.getAttribute('colspan'), 10) : 1; return v > 1 ? Math.min(v, 64) : 1; }
+// a table's column count where it has no heading row: its widest row, a merged cell counting every column it takes
+function tfitCount(t) { var n = 0; tfitCells(t).forEach(function(r) { var w = 0; r.forEach(function(td) { w += tfitSpan(td); }); if (w > n) n = w; }); return n; }
+// The name a cell is shown after in the cards (data-col): its column's, or for a merged cell the names of every column it takes joined with
+// " / " (1.6.2: a merged cell reads once, under all its columns). The first column has none, and neither has a full-width row's one cell,
+// which the style sheet draws as a sub-heading between the cards
+function tfitName(heads, at, span) { if (at === 0) return ''; var ns = heads.slice(at, at + span).filter(function(h) { return !!h; }); return ns.join(' / '); }
 // A custom property of an element's own style set (v a string) or taken off (v null), only where its style can do both; an empty style attribute
 // left behind is taken off too, so the export reads the markup as the renderer wrote it. True where anything changed
 function tfitVar(el, k, v) {
@@ -400,7 +406,7 @@ function tfitOne(t, widthOf, mem) {
     }
     if (mode !== 'stack') return tfitClear(t);
     var unS = tfitUnscroll(t), moved = !t.classList.contains('pv-tstack') || unS; if (!t.classList.contains('pv-tstack')) t.classList.add('pv-tstack');
-    tfitCells(t).forEach(function(r) { r.forEach(function(td, i) { var w = i > 0 && heads[i] ? heads[i] : ''; if (w) { if (td.getAttribute('data-col') !== w) td.setAttribute('data-col', w); } else if (td.getAttribute('data-col') !== null) td.removeAttribute('data-col'); }); });
+    tfitCells(t).forEach(function(r) { var at = 0; r.forEach(function(td) { var sp = tfitSpan(td), w = tfitName(heads, at, sp); at += sp; if (w) { if (td.getAttribute('data-col') !== w) td.setAttribute('data-col', w); } else if (td.getAttribute('data-col') !== null) td.removeAttribute('data-col'); }); });   // a cell's column counted by the colspans before it
     return moved;
 }
 function tfitWidth(t) { var p = t.parentNode; return p && typeof p.clientWidth === 'number' ? p.clientWidth : 0; }

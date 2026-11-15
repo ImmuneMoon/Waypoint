@@ -532,7 +532,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         };
         const names = Object.keys(deps), fsrc = opts.linkGrows ? fieldsSrc.replace('var TS_LINK_GROWS = false;', 'var TS_LINK_GROWS = true;') : fieldsSrc;
         if (opts.linkGrows && fsrc === fieldsSrc) throw new Error('textcheck: the link rule\'s one line was not found');
-        const api = new Function(...names, fsrc + '\n' + boxSrc + '\n' + barSrc + '\nreturn { tsDesc, tsField, tsType, tsEditAt, tsName, tsSetColCount, tsRowsAsObjects, tsCols, TS_PLAIN, TS_LINK_GROWS, TS_EDIT, tsScan, tsPointAt, tsShown, tsIncoming, tsMulti, tsDraw, tsPaint, tsBoxHtml, tsFill, tsSelOf, tsSelect, tsState, tsBox, tsBoxOf, tsNote, tsTarget, tsShow, tsHide, tsPlaceAt, tsPlace, tsKind, tsCommit, tsInsertAt, tsPress, tsLink, tsSymbol, tsRebuilt, tsBack, tsRefresh, tsBuild, tsKey, tsWire, tsOrder, tsToBar, tsHosts, tsHostOf, tsHostBy, tsxUndo, tsxShown, tsxFont };')(...names.map(k => deps[k]));
+        const api = new Function(...names, fsrc + '\n' + boxSrc + '\n' + barSrc + '\nreturn { tsDesc, tsField, tsType, tsEditAt, tsName, tsSetColCount, tsRowsAsObjects, tsCols, TS_PLAIN, TS_LINK_GROWS, TS_EDIT, tsScan, tsPointAt, tsShown, tsIncoming, tsMulti, tsDraw, tsPaint, tsBoxHtml, tsFill, tsSelOf, tsSelect, tsState, tsBox, tsBoxOf, tsNote, tsTarget, tsShow, tsHide, tsPlaceAt, tsPlace, tsKind, tsCommit, tsInsertAt, tsPress, tsLink, tsSymbol, tsRebuilt, tsBack, tsRefresh, tsBuild, tsKey, tsWire, tsOrder, tsToBar, tsHosts, tsHostOf, tsHostBy, tsxUndo, tsxShown, tsxFont, tsBullets, tsBulletLines, tsBulletsOn };')(...names.map(k => deps[k]));
         Object.assign(page, api, { editor, blocksEl, engine: dom.engine });
         // an editor box for a field, as renderPlanner writes it (its classes and data attributes), empty until tsFill draws it
         page.box = (cls, data, multi) => { const el = dom.mk('div', cls + ' ts-box' + (multi ? ' ts-multi' : ''), data); el.setAttribute('contenteditable', 'plaintext-only'); el.rect = { left: 140, top: 300, right: 520, bottom: 334 }; blocksEl.appendChild(el); return el; };
@@ -549,8 +549,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 else if (b.type === 'node' || b.type === 'table') {
                     page.box('field b-title', { idx });
                     if (b.type === 'node' && b.mode !== 'table') { page.box('field b-sub', { idx }); page.box('field b-must', { idx }); }
-                    const cols = api.tsCols(b); cols.forEach((c, ci) => page.box('b-colhead', { idx, ci }));
-                    (b.rows || []).forEach((r, ri) => cols.forEach((c, ci) => page.box('r-col', { idx, ri, ci })));
+                    const cols = api.tsCols(b); cols.forEach((c, ci) => page.box('b-colhead', { idx, ci }, true));   // 1.6.2: a head and a cell take line breaks (renderPlanner draws them so)
+                    (b.rows || []).forEach((r, ri) => cols.forEach((c, ci) => page.box('r-col', { idx, ri, ci }, true)));
                 } else if (b.type === 'flowchart') { (b.nodes || []).forEach((n, ni) => page.box('field fc-n-text fc-grow', { idx, ni }, true)); (b.edges || []).forEach((e, ei) => page.box('fc-e-text', { idx, ei })); }
             });
             page.fill(); api.tsRebuilt();
@@ -731,8 +731,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         pg2.tsField(pg2.map.blocks, { idx: 6, k: 'col', ci: 1 }).setFmt({ b: true });
         check('storage: a head styled before the heads were ever typed makes them the block\'s own first, so colFmt always lies beside a real cols', J(b6.cols) === J(['Item', 'Detail', 'Notes']) && J(b6.colFmt) === J([null, { b: true }]));
         const boxes = [['field b-title', { idx: 1 }, { idx: 1, k: 'title' }], ['field b-sub', { idx: 1 }, { idx: 1, k: 'sub' }], ['field b-must', { idx: 1 }, { idx: 1, k: 'must' }], ['field b-caption', { idx: 3 }, { idx: 3, k: 'caption' }], ['b-colhead', { idx: 1, ci: 2 }, { idx: 1, k: 'col', ci: 2 }], ['r-col', { idx: 1, ri: 1, ci: 0 }, { idx: 1, k: 'cell', ri: 1, ci: 0 }], ['field fc-n-text fc-grow', { idx: 2, ni: 1 }, { idx: 2, k: 'node', ni: 1 }], ['fc-e-text', { idx: 2, ei: 0 }, { idx: 2, k: 'edge', ei: 0 }]];
-        check('storage: each editor box names its field by its place (tsDesc), and the bar finds the box again by it (tsBox); a box that holds no plain field names none; only a node\'s label takes line breaks',
-            boxes.every(x => { const el = pg.box(x[0], x[1], x[2].k === 'node'); return J(pg.tsDesc(el)) === J(x[2]) && pg.tsBox(x[2]) === el && pg.tsMulti(x[2]) === (x[2].k === 'node'); }) && pg.tsDesc(pg.plain('input', 'fc-n-id', { idx: 2, ni: 0 })) === null && pg.tsDesc(pg.plain('textarea', 'field b-content', { idx: 4 })) === null && pg.tsDesc(pg.box('b-title', {})) === null
+        const lineK = k => k === 'node' || k === 'cell' || k === 'col';   // 1.6.2 (lists in a cell): a table's heads and cells take line breaks too
+        check('storage: each editor box names its field by its place (tsDesc), and the bar finds the box again by it (tsBox); a box that holds no plain field names none; a node\'s label and (1.6.2) a table\'s heads and cells take line breaks, no other field',
+            boxes.every(x => { const el = pg.box(x[0], x[1], lineK(x[2].k)); return J(pg.tsDesc(el)) === J(x[2]) && pg.tsBox(x[2]) === el && pg.tsMulti(x[2]) === lineK(x[2].k); }) && pg.tsDesc(pg.plain('input', 'fc-n-id', { idx: 2, ni: 0 })) === null && pg.tsDesc(pg.plain('textarea', 'field b-content', { idx: 4 })) === null && pg.tsDesc(pg.box('b-title', {})) === null
             && pg.TS_PLAIN.split(',').length === 8 && pg.blocksEl.querySelectorAll(pg.TS_PLAIN).length === 9);
     }
 
@@ -1084,7 +1085,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     {
         // the old path, written out: an input's handler was tsType(blocks, d, input.value, input.selectionStart) — the field's text set, its spans carried by respan —
         // and a press was TF.apply / TF.clear on the field's text at the input's selection. (With the link constant true: the one rule that changed is off.)
-        const sha = v => require('crypto').createHash('sha256').update(JSON.stringify(v)).digest('hex'), PINS_BOX = ['3c0b1f8ca2aa67f1b83d14775eeaae3c8898ef5b956ff56aecde881ff6c4697a', '24e83e9b0abda075b77654722ac2766c2c2d25dc47e1cf019270828081fbdab7', 'dd4bca6c3b92d5f26d3762ca54457a3fcd98572edb25659a1df27d862960bcb0', '5d126ef5207163fea5a0f57044849b2e3f68de71c84fec0cf9cbda32e3ed5119'];
+        const sha = v => require('crypto').createHash('sha256').update(JSON.stringify(v)).digest('hex'), PINS_BOX = ['3c0b1f8ca2aa67f1b83d14775eeaae3c8898ef5b956ff56aecde881ff6c4697a', '6065f887b7ad14c53030365ea454713cea970e8505328fa752d034c2ccc9e3ad',   // the second, the table node, moved in 1.6.2: a head and a cell keep a pasted or typed line break (they were spaces)
+ 'dd4bca6c3b92d5f26d3762ca54457a3fcd98572edb25659a1df27d862960bcb0', '5d126ef5207163fea5a0f57044849b2e3f68de71c84fec0cf9cbda32e3ed5119'];
         const start = () => [
             { id: 'b0', type: 'h1', title: 'The Hill Road', sub: 'an evening', fmt: { title: { color: RED, spans: [{ s: 4, e: 8, b: true, link: LINK }] } } },
             { id: 'b1', type: 'node', title: 'The inn', tag: 'social', must: 'learn the road', cols: ['Check', 'DC', 'Cost'], colFmt: [null, { b: true }], rows: [{ col1: 'Medicine', col2: '10', col3: 'free', fmt: { col1: { spans: [{ s: 0, e: 3, color: GREEN, u: true }] } } }, { col1: 'Insight', col2: '13', col3: 'a coin' }] },
@@ -1097,7 +1099,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const oldType = (d, value, caret) => { const f = refPg.tsField(ref, d), old = f.text(), fm = f.fmt(); f.setText(value); if (fm !== undefined) f.setFmt(respan(old, value, fm, caret)); };
         const oldPress = (d, s, e, change) => { const f = refPg.tsField(ref, d), now = change === 'clear' ? clear(f.fmt(), f.text(), s, e) : apply(f.fmt(), f.text(), s, e, change); if (J(now) !== J(cleanFmt(f.fmt(), f.text()))) f.setFmt(now); };
         for (let k = 0; k < 900 && !bad; k++) {
-            const d = fields[Math.floor(R() * fields.length)], box = pg.tsBox(d), multi = d.k === 'node', text = refPg.tsField(ref, d).text();
+            const d = fields[Math.floor(R() * fields.length)], box = pg.tsBox(d), multi = d.k === 'node' || d.k === 'cell' || d.k === 'col', text = refPg.tsField(ref, d).text();   // 1.6.2: a head and a cell take line breaks, as a label does
             const a = Math.floor(R() * (text.length + 1)), z = R() < 0.5 ? a : Math.min(text.length, a + Math.floor(R() * 5)), op = Math.floor(R() * 12);
             pg.focus(box, a, z);
             if (op < 4) { const ch = alpha[Math.floor(R() * alpha.length)]; E.type(box, ch); oldType(d, text.slice(0, a) + ch + text.slice(z), a + 1); }
@@ -1301,6 +1303,42 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             !bad && ops === 540 && totalSteps > 150 && totalSteps < ops && pressSteps > 60, bad || { ops, totalSteps, pressSteps });
     }
 
+    /* ---- 1.6.2, lists in a table cell (the owner, 2026-11-14, by prompt: "Both ways"): a cell's lines, and the bar's Bullets button ---- */
+    {
+        const BU = '\u2022 ', cellD = { idx: 0, k: 'cell', ri: 0, ci: 0 };
+        const mk1 = () => mkPage({ map: mapOf([{ id: 'b1', type: 'table', cols: ['Kit', 'Notes'], rows: [{ col1: 'one\ntwo\nthree', col2: 'x', fmt: { col1: { spans: [{ s: 4, e: 7, b: true }] } } }] }, { id: 'b2', type: 'h2', title: 'After' }]) }).wire().rebuild();
+        const pg = mk1(), E = pg.tsState.els, row = () => pg.map.blocks[0].rows[0], cell = () => pg.tsBox(cellD);
+        // the lines a selection touches
+        const L = (t, s, e) => J(pg.tsBulletLines(t, s, e));
+        const lines = [L('a\nb\nc', 0, 0), L('a\nb\nc', 3, 3), L('a\nb\nc', 0, 2), L('a\nb\nc', 1, 3), L('- a\n\u2022 b\nc', 0, 5), L('a\n\nb', 0, 4), L('-a\n-\tb', 0, 6)];
+        check('1.6.2 lists in a cell: the lines a press of Bullets acts on — the caret\'s own line with nothing selected; every line the selection touches, a line it only ends at the start of, or only starts at the end of, left out and an empty line inside it taken; each with its mark ("- " or "• ", or a hyphen and a tab: 2, else 0)',
+            J(lines) === J([J([{ at: 0, mark: 0 }]), J([{ at: 2, mark: 0 }]), J([{ at: 0, mark: 0 }]), J([{ at: 2, mark: 0 }]), J([{ at: 0, mark: 2 }, { at: 4, mark: 2 }]), J([{ at: 0, mark: 0 }, { at: 2, mark: 0 }, { at: 3, mark: 0 }]), J([{ at: 0, mark: 0 }, { at: 3, mark: 2 }])]), J(lines));
+        // the button: shown on a cell only, a press puts the marks on, a second takes them off, each one step with the looks carried
+        pg.focus(pg.tsBox({ idx: 1, k: 'title' }), 0, 2); const onTitle = [E.bullets.hidden, pg.tsOrder().indexOf(E.bullets), pg.tsBullets(E.bullets)];
+        pg.focus(cell(), 0, 7); const shown = [E.bullets.hidden, E.bullets.classList.contains('on'), pg.tsOrder().indexOf(E.bullets) === pg.tsOrder().indexOf(E.symBtn) - 1];
+        pg.log.length = 0; pg.sels.length = 0; pg.click(E.bullets);
+        const on1 = [row().col1, J(row().fmt), J(pg.sels[0]), J(pg.log), cell()._tsText, E.bullets.classList.contains('on'), pg.tsState.sel.s, pg.tsState.sel.e];
+        pg.log.length = 0; pg.click(E.bullets);
+        const off1 = [row().col1, J(row().fmt), pg.tsState.sel.s, pg.tsState.sel.e, J(pg.log)];
+        check('1.6.2 lists in a cell, the Bullets button: put away on any field but a table\'s cell (a title has none, not in the keyboard\'s order, and a press there changes nothing), shown on a cell after Clear; a press puts "• " at the start of each line the selection touches, the bold of the second line carried with its words, the selection moved with its text, one step (a boundary, the selections noted, a save, the preview drawn) and the button lit; a second press takes the marks off and gives back the very text and look',
+            J(onTitle) === J([true, -1, false]) && J(shown) === J([false, false, true])
+            && J(on1) === J([BU + 'one\n' + BU + 'two\nthree', J({ col1: { spans: [{ s: 8, e: 11, b: true }] } }), J([{ d: cellD, s: 0, e: 7 }, { d: cellD, s: 2, e: 11 }]), J(['step', 'save:true', 'preview']), BU + 'one\n' + BU + 'two\nthree', true, 2, 11])
+            && J(off1) === J(['one\ntwo\nthree', J({ col1: { spans: [{ s: 4, e: 7, b: true }] } }), 0, 7, J(['step', 'save:true', 'preview'])]), J([onTitle, shown, on1, off1]));
+        // a caret on the last line, a mixed choice (a line marked by hand with "- " keeps its mark), and a cell that never had a format gets none
+        const pg2 = mk1(), c2 = () => pg2.tsBox(cellD), r2 = () => pg2.map.blocks[0].rows[0];
+        pg2.focus(c2(), 10, 10); pg2.click(pg2.tsState.els.bullets); const caret = [r2().col1, pg2.tsState.sel.s];
+        r2().col1 = '- one\ntwo'; delete r2().fmt; pg2.rebuild(); pg2.focus(c2(), 0, 9); pg2.click(pg2.tsState.els.bullets); const mixed = [r2().col1, 'fmt' in r2()];
+        pg2.focus(c2(), 0, 11); pg2.click(pg2.tsState.els.bullets); const allOff = r2().col1;
+        check('1.6.2 lists in a cell: a caret alone marks its own line (the caret moves after the mark); where some lines have a mark ("- " typed by hand) a press marks the others and leaves those; where all have one it takes them all off; a cell with no format is given none',
+            J(caret) === J(['one\ntwo\n' + BU + 'three', 12]) && J(mixed) === J(['- one\n' + BU + 'two', false]) && allOff === 'one\ntwo', J([caret, mixed, allOff]));
+        // Enter in a cell is a line break of the cell (it took none before), and a pasted list keeps its lines
+        const pg3 = mk1(), c3 = pg3.tsBox(cellD); pg3.focus(c3, 3, 3); pg3.engine.enter(c3); const afterEnter = pg3.map.blocks[0].rows[0].col1;
+        pg3.focus(pg3.tsBox({ idx: 0, k: 'cell', ri: 0, ci: 1 }), 1, 1); pg3.engine.paste(pg3.tsBox({ idx: 0, k: 'cell', ri: 0, ci: 1 }), { 'text/plain': '\r\n- a\r\n- b' }); const afterPaste = pg3.map.blocks[0].rows[0].col2;
+        pg3.focus(pg3.tsBox({ idx: 1, k: 'title' }), 5, 5); pg3.engine.enter(pg3.tsBox({ idx: 1, k: 'title' })); const titleKept = pg3.map.blocks[1].title;
+        check('1.6.2 lists in a cell: Enter in a table\'s cell starts a new line of the cell, a pasted list keeps its lines (a carriage return read as the break), and a one-line field still takes no line break',
+            afterEnter === 'one\n\ntwo\nthree' && afterPaste === 'x\n- a\n- b' && titleKept === 'After', J([afterEnter, afterPaste, titleKept]));
+    }
+
     /* ---- the bar on the box ---- */
     {
         const pg = mkPage({ map: mapOf(B0()) }).wire().rebuild(), E = pg.tsState.els, D = pg.dom, title = () => pg.tsBox({ idx: 0, k: 'title' }), lab = () => pg.tsBox({ idx: 2, k: 'node', ni: 0 });
@@ -1312,8 +1350,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && E.nocolor.textContent === 'Default' && J(E.size.children.map(o => [o.value, o.textContent])) === J([['', 'Default'], ['small', 'Small'], ['large', 'Large'], ['larger', 'Larger'], ['huge', 'Huge'], ['mixed', 'Mixed']]) && E.sizeMixed.disabled === true && E.sizeMixed.hidden === true
             && E.link.tagName === 'INPUT' && E.link.type === 'text' && E.link.parentNode === E.linkLab && /^Link — a web address/.test(E.linkLab.title) && E.clear.dataset.ts === 'clear' && /^Clear/.test(E.clear.title)
             && J(E.symList.map(b => [b.dataset.sym, b.textContent, b.title])) === J(SYMS.map(s => [s[0], s[0], s[1]])) && E.symBtn.textContent === 'Ω'
-            && J(E.root.children.filter(c => c.className !== 'rte-sep').map(c => c.className.replace(/ off$/, ''))) === J(['rte-btn', 'rte-btn', 'rte-btn', 'rte-btn'].concat(PALETTE.map(() => 'rte-sw'), ['rte-sw rte-custom ts-custom', 'rte-btn rte-nocolor', 'ts-sizelab', 'ts-fontlab', 'ts-linklab', 'rte-btn ts-pagebtn', 'rte-btn', 'rte-symwrap', 'ts-scope']))
-            && [E.b, E.i, E.u, E.s, E.custom, E.nocolor, E.size, E.link, E.pageBtn, E.clear, E.symBtn].concat(E.swatches, E.symList).every(c => c.tabIndex === -1) && E.pageBtn.textContent === 'Page…' && /^Link to a page or a section of one/.test(E.pageBtn.title) && [E.b, E.i, E.u, E.s, E.nocolor].every(c => /the selected characters, or the whole field with nothing selected$/.test(c.title)));
+            && J(E.root.children.filter(c => c.className !== 'rte-sep').map(c => c.className.replace(/ off$/, ''))) === J(['rte-btn', 'rte-btn', 'rte-btn', 'rte-btn'].concat(PALETTE.map(() => 'rte-sw'), ['rte-sw rte-custom ts-custom', 'rte-btn rte-nocolor', 'ts-sizelab', 'ts-fontlab', 'ts-linklab', 'rte-btn ts-pagebtn', 'rte-btn', 'rte-btn ts-bullets', 'rte-symwrap', 'ts-scope']))
+            && E.bullets.hidden === true && E.bullets.dataset.ts === 'bullets' && /^Bullets/.test(E.bullets.title)
+            && [E.b, E.i, E.u, E.s, E.custom, E.nocolor, E.size, E.link, E.pageBtn, E.clear, E.bullets, E.symBtn].concat(E.swatches, E.symList).every(c => c.tabIndex === -1) && E.pageBtn.textContent === 'Page…' && /^Link to a page or a section of one/.test(E.pageBtn.title) && [E.b, E.i, E.u, E.s, E.nocolor].every(c => /the selected characters, or the whole field with nothing selected$/.test(c.title)));
         check('bar: with no box in use every control is disabled, and a press changes nothing and saves nothing',
             [E.b, E.i, E.u, E.s, E.custom, E.nocolor, E.size, E.link, E.pageBtn, E.clear, E.symBtn].concat(E.swatches).every(c => c.disabled === true) && (() => { const before = J(pg.map); pg.click(E.b); pg.click(E.swatches[2]); E.size.value = 'large'; D.fire(E.size, 'change'); pg.click(E.symList[0]); pg.tsPress({ b: true }); return J(pg.map) === before && pg.log.length === 0; })());
 

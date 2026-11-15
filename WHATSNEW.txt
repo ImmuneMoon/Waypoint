@@ -33,6 +33,14 @@ Wide tables
   column in view, so a stat block of 17 columns reads whole. In a very
   narrow place, such as the panel over the map, each row still reads as a
   small card.
+- A table cell can hold a list. Start a line with a dash or a bullet, or
+  press List on the cell's style bar, and the lines read as a tidy bulleted
+  list on the page. Press Enter in a cell for a new line. Lists and line
+  breaks in cells travel through Markdown too.
+- Merge table cells. Right-click a cell in the editor for Merge with next
+  and Unmerge, and a merged cell reads once across its columns. A row's
+  menu makes it a full-width row, a sub-heading that runs across the whole
+  table. Both read right in the narrow card view too.
 
 Story cards
 - Lay a few cards out at once, each in a place you name, and read them

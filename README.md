@@ -40,7 +40,7 @@ One-click updates inside the app are signed: your copy takes an update only when
 
 New versions install over old ones. Saves and settings are kept, and older saves are upgraded automatically after a backup is taken. When Setup finds a copy already installed it asks what to do: update it in place (the usual choice), do a clean install that rebuilds the program files but keeps your saves and settings unless you tick the box to delete them, or put a separate copy in a new folder and leave the existing one alone.
 
-Requirements: Windows 10 or 11. An internet connection is needed for multiplayer only.
+Requirements: Windows 10 or 11. You'll want an internet connection to play together, and Waypoint uses it to look for updates.
 
 **What the app does not do.** No account is needed and there are no ads. The app collects nothing about how you use it. Your campaigns are files on your own computer, in the saves folder. Linking a Waypoint website account is your choice, in Settings. No AI runs inside the app either, so your notes and maps never go to one.
 
@@ -59,7 +59,7 @@ Everything about a campaign is in the `saves` folder next to the app:
 | `saves/preferences.json` | your settings, app-managed |
 | `saves/backups/` | a dated snapshot taken at each launch (newest ten kept) |
 
-To back up, copy `saves`. To restore or move to another computer, paste it back beside the app. The app never phones home and needs nothing online except for multiplayer.
+To back up, copy `saves`. To restore or move to another computer, paste it back beside the app. Waypoint goes online when you play together, and each time it starts it asks GitHub whether there's a new release. If you link a waypointvtt.com account, your profile and cloud saves go there too. Nothing about how you use the app is ever sent.
 
 ## Running from source
 

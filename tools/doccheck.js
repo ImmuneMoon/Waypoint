@@ -1393,6 +1393,46 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             cellH.includes('<td>one\ntwo &lt;b&gt;x&lt;/b&gt;</td>') && cellH.includes('<th>A\nB</th>') && cellD.blocks[0].rows[1][0].length === D.LIMITS.cell
             && cssT.includes('.doc-view .doc-table th, .doc-view .doc-table td { white-space: pre-line; }'), cellH.slice(0, 300));
     }
+    /* ---- 1.6.2, lists in a table cell (the owner, 2026-11-14, by prompt: "Both ways"): a line that begins with "- " or "• " is a list item ---- */
+    {
+        const jj = JSON.stringify, cssT = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8'), BU ='\u2022', pageDraw = (t, f) => D.fmtHtml(t, f);
+        const plainSame = ['', 'one', 'one\ntwo', '-5 and -x', ' - not at the start', '-\none', '<b>x</b>\n-not'].every(t => D.cellHtml(t, { b: true }, pageDraw) === D.fmtHtml(t, { b: true }) && D.cellHtml(t, undefined, pageDraw) === D.fmtHtml(t));
+        const mixed = D.cellHtml('Intro\n- one\n' + BU + ' two <i>\nAfter\nmore\n-\tthree', undefined, pageDraw);
+        const looked = D.cellHtml('- ab\n- cd', { color: '#d9534f', spans: [{ s: 3, e: 8, b: true, link: 'https://example.com/x' }] }, pageDraw);
+        const crlf = D.cellHtml('- a\r\n- b\r', undefined, pageDraw), empty = D.cellHtml('- \n- x', undefined, pageDraw);
+        check('1.6.2 lists in a cell (cellHtml): a cell with no line that begins with "- " or "• " is drawn exactly as before (a hyphen inside a line, a line that begins with spaces, a lone hyphen); listed lines are one <ul class="cell-list"> each line an item less its mark, a plain line before or after reads as it is, two plain lines in a row have a <br> between them, a hyphen and a tab is a mark too, and every line is escaped text',
+            plainSame && mixed === 'Intro<ul class="cell-list"><li>one</li><li>two &lt;i&gt;</li></ul>After<br>more<ul class="cell-list"><li>three</li></ul>'
+            && crlf === '<ul class="cell-list"><li>a</li><li>b</li></ul>' && empty === '<ul class="cell-list"><li></li><li>x</li></ul>', jj([plainSame, mixed, crlf, empty]));
+        check('1.6.2 lists in a cell: each line is drawn with its own part of the cell\'s format (fmtSlice): the field\'s color on every character, and a bold link that runs from the end of one item across the line break into the next on both items, the marks left out',
+            looked === '<ul class="cell-list"><li><span style="color:#d9534f;">a</span><a href="https://example.com/x" target="_blank" rel="noopener noreferrer"><span style="color:#d9534f;font-weight:bold;">b</span></a></li><li><a href="https://example.com/x" target="_blank" rel="noopener noreferrer"><span style="color:#d9534f;font-weight:bold;">c</span></a><span style="color:#d9534f;">d</span></li></ul>', looked);
+        const sl = [jj(D.fmtSlice('abcdef', { spans: [{ s: 1, e: 4, i: true }] }, 2, 6)), jj(D.fmtSlice('abcdef', { spans: [{ s: 1, e: 2, i: true }] }, 3, 6)), jj(D.fmtSlice('abcdef', undefined, 0, 3)), jj(D.fmtSlice('abc', { font: 'Lora', b: true }, 1, 3))];
+        check('1.6.2 fmtSlice: the format of a part of a text, offsets from the part\'s start, nothing where the part has no look, a look over the whole part kept, the field\'s font kept',
+            sl[0] === jj({ spans: [{ s: 0, e: 2, i: true }] }) && sl[1] === undefined && sl[2] === undefined && sl[3] === jj({ spans: [{ s: 0, e: 2, b: true }], font: 'Lora' }), jj(sl));
+        const rich = D.cellHtml('- <b>bold</b>\n- <img src=x onerror=alert(1)>', undefined, D.fmtRich);
+        check('1.6.2 lists in a cell (a planner\'s cell, which reads typed markup): each line goes through the page sanitiser on its own, a typed tag kept, a hostile one dropped',
+            rich === '<ul class="cell-list"><li><b>bold</b></li><li></li></ul>' || (rich.indexOf('<li><b>bold</b></li>') > 0 && rich.indexOf('img') < 0 && rich.indexOf('onerror') < 0), rich);
+        const pageD = D.cleanDoc({ type: 'doc', id: 'doc_l', meta: { title: 'T' }, blocks: [{ id: 'b_1', type: 'table', cols: ['Kit', 'Holds'], rows: [{ col1: 'Pack', col2: '- rope\n- <lamp>' }, ['Belt', 'one\ntwo']] }] }), pageH = D.renderDoc(pageD);
+        check('1.6.2 lists in a cell: a page\'s table draws a listed cell as a list and every other cell as before; the text is stored and sent as it was typed, marks and all (nothing new on a row), and the style sheet gives the list its look',
+            pageH.includes('<td>Pack</td><td><ul class="cell-list"><li>rope</li><li>&lt;lamp&gt;</li></ul></td>') && pageH.includes('<td>Belt</td><td>one\ntwo</td>') && jj(pageD.blocks[0].rows) === jj([['Pack', '- rope\n- <lamp>'], ['Belt', 'one\ntwo']])
+            && cssT.includes('.doc-view td ul.cell-list {') && cssT.includes('.doc-view .node > table th, .doc-view .node > table td { white-space: pre-line; }'), pageH);
+        // Markdown both ways: a cell's line break is <br>, and a list is its lines
+        const rt = (cols, rows) => { const doc = { type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [{ type: 'h1', title: 'T' }, { type: 'table', title: '', cols, rows }] }; const md = M.docToMarkdown(doc, {}).text, back = M.markdownToBlocks(md, { kind: 'doc' }).blocks.filter(b => b.type === 'table')[0]; return { md, back }; };
+        const r1 = rt(['Kit', 'Holds\nand more'], [{ col1: 'Pack', col2: '- rope\n' + BU + ' lamp\nplain end' }, { col1: 'x | y', col2: 'a\n\nb\n' }, { col1: 'styled', col2: '- one\n- two', fmt: { col2: { spans: [{ s: 2, e: 5, b: true }, { s: 8, e: 11, color: '#5cb87a' }] } } }]);
+        check('1.6.2 lists in a cell, Markdown both ways: Save Markdown writes a cell\'s (and a head\'s) line breaks as <br> (they were spaces, and the lines were lost) and an import reads each <br> in a cell back as a line break, so a listed cell, a styled one, a | and an empty line all come back exactly',
+            r1.md.includes('| Kit | Holds<br>and more |') && r1.md.includes('| Pack | - rope<br>' + BU + ' lamp<br>plain end |') && r1.md.includes('| x \\| y | a<br><br>b<br> |')
+            && jj(r1.back.cols) === jj(['Kit', 'Holds\nand more']) && r1.back.rows[0].col2 === '- rope\n' + BU + ' lamp\nplain end' && r1.back.rows[1].col1 === 'x | y' && r1.back.rows[1].col2 === 'a\n\nb\n'
+            && r1.back.rows[2].col2 === '- one\n- two' && jj(r1.back.rows[2].fmt) === jj({ col2: { spans: [{ s: 2, e: 5, b: true }, { s: 8, e: 11, color: '#5cb87a' }] } }), r1.md + '\n' + jj(r1.back));
+        const hand = M.markdownToBlocks('| A | B |\n|---|---|\n| one<BR/>two | - x<br />- y |\n', { kind: 'doc' }).blocks[0], heading = M.markdownToBlocks('# Title<br>more\n', { kind: 'doc' }).blocks[0];
+        const R = (() => { let s = 20261114; return () => ((s = (s * 1103515245 + 12345) >>> 0) / 4294967296); })(), alpha = ['a', 'b', ' ', '\n', '- ', BU + ' ', '-', 'x9'];
+        let walkBad = null;
+        for (let k = 0; k < 120 && !walkBad; k++) {
+            let t = ''; const n = 1 + Math.floor(R() * 12); for (let j = 0; j < n; j++) t += alpha[Math.floor(R() * alpha.length)];
+            t = t.replace(/^\s+|\s+$/g, '') || 'z';   // a pipe table trims a cell's two ends, as it always has
+            const got = rt(['A'], [{ col1: t }]).back.rows[0].col1; if (got !== t) walkBad = { t, got };
+        }
+        check('1.6.2 lists in a cell, Markdown by hand and at random: a <br> written by hand in any of its forms is a line break of a cell, a heading still drops it as before; 120 seeded cells of letters, spaces, line breaks and marks come back exactly',
+            hand.rows[0].col1 === 'one\ntwo' && hand.rows[0].col2 === '- x\n- y' && heading.title === 'Titlemore' && !walkBad, jj([hand.rows, heading.title, walkBad]));
+    }
     /* ---- 1.5.6: a GM-only page keeps every page nested under it from players (the owner, 2026-10-24, by prompt: "Hidden parent hides all") ---- */
     {
         const pg = (id, players, parentId) => ({ id, type: 'doc', meta: Object.assign({ title: id }, players === false ? { players: false } : {}, parentId ? { parentId } : {}) });

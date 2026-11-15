@@ -32,7 +32,7 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, isDocLike } from './models.js';
 
-import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, mermaidPre, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf, diagramLink } from './docrender.js';
+import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, mermaidPre, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf, diagramLink, cellHtml } from './docrender.js';
 
 import * as TF from './textfmt.js';
 
@@ -669,7 +669,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       text = String(text == null ? '' : text).replace(/\u0000/g, '');
       return multi ? text.replace(/\r\n?/g, '\n') : text.replace(/\r\n?|\n/g, ' ');
   }
-  function tsMulti(d) { return !!d && (d.k === 'node' || (d.k === 'x' && d.m === 1)); }   // a flowchart node's label takes line breaks, and so does a host's box that its host made so
+  // Which fields take line breaks: a flowchart node's label, a host's box that its host made so, and (1.6.2, the owner's "Both ways" for lists in a
+  // cell) a table's heads and cells. A cell's lines are what its bulleted list is made of (docrender.js cellHtml), and a one-line box dropped
+  // the line breaks of a cell an import brought the moment it was typed in. A table's boxes are drawn with tsBoxHtml's multi set to match.
+  function tsMulti(d) { return !!d && (d.k === 'node' || d.k === 'cell' || d.k === 'col' || (d.k === 'x' && d.m === 1)); }
   // A run's look as one string: what its element is drawn with
   // 1.5.6: what a link says in a tooltip: a web address as it is, a page link by its page and section (pageshelf.js)
   function tsLinkWords(l) {
@@ -1417,7 +1420,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // the bar's controls the keyboard can stand on, in order (the symbols while their tray is open)
   function tsOrder() {
       var E = tsState.els; if (!E) return [];
-      var list = [E.b, E.i, E.u, E.s].concat(E.swatches, [E.custom, E.nocolor, E.size], E.fontLab.hidden ? [] : [E.font], [E.link, E.clear, E.symBtn]);   // (the Font list only while it shows)
+      var list = [E.b, E.i, E.u, E.s].concat(E.swatches, [E.custom, E.nocolor, E.size], E.fontLab.hidden ? [] : [E.font], [E.link, E.clear], E.bullets.hidden ? [] : [E.bullets], [E.symBtn]);   // (the Font list and Bullets only while they show)
       if (E.symWrap.classList.contains('open')) list = list.concat(E.symList);
       return list.filter(function(c) { return !c.disabled; });
   }
@@ -1449,6 +1452,58 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       tsPaint(box, fld, tsMulti(sel.d));   // only this box is drawn again
       if (!left && !kept) tsHold(box, sel.s, sel.e, sel.back);   // the selection stays where it was, so the next press needs no second selecting
       if (now && now.spans && now.spans.length >= TF.MAX_SPANS) toast('This field now holds the most styled parts it can (' + TF.MAX_SPANS + ').');
+      tsRefresh(); tsPlace();
+      return true;
+  }
+  // 1.6.2, lists in a table cell (the owner, 2026-11-14, by prompt: "Both ways"). A line of a cell that begins with "- " or "• " is an item of a
+  // bulleted list (docrender.js cellHtml draws it so), and the bar's Bullets button writes or takes off that mark. Only a table's cell takes it
+  // (tsBulletsOn): the button is put away on every other field, a host's included. What the button puts is a bullet and a space.
+  var TS_BULLET = '\u2022 ';
+  function tsBulletsOn(d) { return !!d && d.k === 'cell'; }
+  // The lines of a text that the selection [s, e) touches, each as { at, mark }: where it begins, and how long its mark is (0: none). With
+  // nothing selected it is the caret's own line. A selection that ends right at a line's start does not take that line (a whole line picked
+  // with its line break), and an empty line inside the selection is taken.
+  function tsBulletLines(text, s, e) {
+      var out = [], at = 0, lines = String(text || '').split('\n');
+      for (var i = 0; i < lines.length; i++) {
+          var end = at + lines[i].length;
+          var touched = s === e ? (at <= s && s <= end) : (at < e && (end > s || (end === at && at >= s)));
+          if (touched) out.push({ at: at, mark: /^[-\u2022][ \t]/.test(lines[i]) ? 2 : 0 });
+          at = end + 1;
+      }
+      return out;
+  }
+  // A press of Bullets: where every line the selection touches has a mark, each mark is taken off; else a bullet is put at the start of each
+  // of those lines that has none. The text is changed one line at a time from the last, its looks carried across each change by textfmt.js
+  // respan (as a paste is, nothing joined), so no look on a line in between is lost; the selection moves with its text. The press is one undo
+  // step (io.js stepBoundary, stepSel), as a press of Bold is; the field is saved, the preview drawn and the box painted again. from: the
+  // bar's control the press came from (the keyboard keeps its focus there, as tsPress does). True when something changed.
+  function tsBullets(from) {
+      if (tsState.comp) return false;   // as a press: not while a composition is under way
+      var box = tsState.box, am = tsBlocksOf(box), sel = tsTarget();
+      if (!am || !sel || !tsBulletsOn(sel.d)) { tsRefresh(); return false; }
+      var fld = tsField(am.blocks, sel.d), text = fld.text(), had = fld.fmt(), f = had, lines = tsBulletLines(text, sel.s, sel.e);
+      if (!lines.length) { tsRefresh(); return false; }
+      var off = lines.every(function(l) { return l.mark > 0; }), t = text, s = sel.s, e = sel.e;
+      for (var i = lines.length - 1; i >= 0; i--) {
+          var L = lines[i]; if (!off && L.mark) continue;   // putting marks on: a line that has one keeps it
+          var n = off ? L.mark : TS_BULLET.length, next = off ? t.slice(0, L.at) + t.slice(L.at + n) : t.slice(0, L.at) + TS_BULLET + t.slice(L.at);
+          if (f !== undefined) f = TF.respan(t, next, f, off ? L.at : L.at + n, true);
+          var move = function(x) { return off ? (x >= L.at + n ? x - n : x > L.at ? L.at : x) : (x >= L.at ? x + n : x); };   // a caret at the line's start goes after a new mark
+          s = move(s); e = move(e); t = next;
+      }
+      var kept = !!(from && tsState.key && document.activeElement === from);
+      stepBoundary();   // typing still on its way is its own step; this press is one step of its own
+      tsState.run = null; tsState.last = null;
+      fld.setText(t);
+      if (had !== undefined) fld.setFmt(f);   // a field that never had a format gets none
+      box._tsText = t;
+      stepSel({ d: sel.d, s: sel.s, e: sel.e }, { d: sel.d, s: s, e: e });
+      save(true);
+      renderPlannerPreview();
+      tsPaint(box, fld, tsMulti(sel.d));
+      if (!kept) tsHold(box, s, e, sel.back);
+      else tsState.sel = { map: am.id, d: sel.d, s: s, e: e, back: !!sel.back };
       tsRefresh(); tsPlace();
       return true;
   }
@@ -1530,6 +1585,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           E.link.placeholder = E.link.disabled || node ? 'https://…' : here && !(st && st.link) ? 'here: ' + here : st && st.link === null ? 'several links' : 'https://…';
       }
       E.clear.disabled = off || !st.any;
+      var bOn = !off && tsBulletsOn(sel.d), bLines = bOn ? tsBulletLines(fld.text(), sel.s, sel.e) : [];   // Bullets: shown on a table's cell only, lit where every line it would act on is listed
+      if (E.bullets.hidden === bOn) E.bullets.hidden = !bOn;
+      E.bullets.classList.toggle('on', bLines.length > 0 && bLines.every(function(l) { return l.mark > 0; }));
       E.symBtn.disabled = off;
       if (tsHosts.length) tsxRefresh(E, fld, sel);   // a host's field: Size and Link only where its host takes them
       else tsFontBar(E, fld, sel);   // 1.6.2 (44 (d)): with no host at all, a planner's own field still offers its font
@@ -1574,6 +1632,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       root.appendChild(mk('span', 'rte-sep'));
       E.clear = mk('button', 'rte-btn', 'Tₓ', 'Clear — take the styling off: the selected characters, or the whole field with nothing selected'); E.clear.type = 'button'; E.clear.tabIndex = -1; E.clear.dataset.ts = 'clear';
       root.appendChild(E.clear); root.appendChild(mk('span', 'rte-sep'));
+      // 1.6.2: Bullets, on a table's cell only (tsRefresh shows it): a list made of the cell's lines (tsBullets)
+      E.bullets = mk('button', 'rte-btn ts-bullets', '\u2022 List', 'Bullets \u2014 make the lines you picked, or the line the caret is on, a bulleted list; press again to make them plain lines. A line typed with "- " or "\u2022 " at its start is a list item too.'); E.bullets.type = 'button'; E.bullets.tabIndex = -1; E.bullets.dataset.ts = 'bullets'; E.bullets.hidden = true;
+      root.appendChild(E.bullets);
       E.symWrap = mk('span', 'rte-symwrap');
       E.symBtn = mk('button', 'rte-btn rte-symbtn', 'Ω', 'Insert a symbol at the caret — arrows, dashes, ellipsis, bullets, maths, checks, quotes'); E.symBtn.type = 'button'; E.symBtn.tabIndex = -1;
       E.syms = mk('div', 'rte-syms');
@@ -1606,6 +1667,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           else if (btn.dataset.ts === 'st') tsPress({ st: true }, btn);
           else if (btn.dataset.ts === 'nocolor') tsPress({ color: null }, btn);
           else if (btn.dataset.ts === 'clear') tsPress('clear', btn);
+          else if (btn.dataset.ts === 'bullets') tsBullets(btn);
       });
       E.size.addEventListener('change', function() { tsPress({ size: E.size.value || null }, E.size); });   // "Mixed" is no size: the core changes nothing for it
       E.link.addEventListener('change', function() { var done = tsState.linkDone; tsState.linkDone = null; if (done === E.link.value) return; tsLink(); });   // the box was left with a new address in it (Enter has its own way, above)
@@ -1883,11 +1945,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if (!b.rows) b.rows = [];
               html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + Array.from({ length: TABLE_COLS }, function(_, i) { return i + 1; }).map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label><span style="color:var(--dim); font-size:11px;">Headers below, then one line of boxes per row.</span></div>';
               html += '<div class="grouped-fields b-table"><div class="row-h b-heads">';
-              colNames.forEach(function(c, ci) { html += tsBoxHtml('b-colhead', 'Column '+(ci+1), 'data-idx="'+idx+'" data-ci="'+ci+'"', '', false, 'title="Header of column '+(ci+1)+'"'); });
+              colNames.forEach(function(c, ci) { html += tsBoxHtml('b-colhead', 'Column '+(ci+1), 'data-idx="'+idx+'" data-ci="'+ci+'"', '', true, 'title="Header of column '+(ci+1)+'"'); });   // heads and cells take line breaks (tsMulti)
               html += '<div style="width:31px; height:31px; flex:0 0 31px;"></div></div>';
               b.rows.forEach(function(r, ri) {
                   html += '<div class="row-h">';
-                  colNames.forEach(function(c, ci) { html += tsBoxHtml('r-col', c||'—', 'data-idx="'+idx+'" data-ri="'+ri+'" data-ci="'+ci+'"', ''); });
+                  colNames.forEach(function(c, ci) { html += tsBoxHtml('r-col', c||'—', 'data-idx="'+idx+'" data-ri="'+ri+'" data-ci="'+ci+'"', '', true); });
                   html += '<button class="tool ghost danger del-row x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="Remove this row"><i class="wib wi-close"></i></button>';
                   html += '</div>';
               });
@@ -3047,7 +3109,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   var cols = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plainPv ? ['Item', 'Detail', 'Notes'] : kdP.cols.slice());
                   html += '<table><thead><tr>' + cols.map(function(c, ci) { return '<th>' + fmtRich(c, colFmtOf(b, ci)) + '</th>'; }).join('') + '</tr></thead><tbody>';
                   b.rows.forEach(function(r, ri) {
-                      html += '<tr>' + cols.map(function(c, ci) { return '<td>' + fmtRich((r && r['col' + (ci + 1)]) || '', cellFmtOf(b, ri, ci)) + '</td>'; }).join('') + '</tr>';
+                      html += '<tr>' + cols.map(function(c, ci) { return '<td>' + cellHtml((r && r['col' + (ci + 1)]) || '', cellFmtOf(b, ri, ci), fmtRich) + '</td>'; }).join('') + '</tr>';   // a cell's lines that begin with "- " or "• " as a list (docrender.js cellHtml)
                   });
                   html += '</tbody></table>';
               }

@@ -15,8 +15,9 @@
      scene node (with `**Tag:**`, `**Must resolve:**`, `Map: title / room` lines and a table right under them, no blank line between)
      and other `###` become a bold lead line; paragraphs, lists, `**b**` `*i*` `~~s~~` `<u>` `code`
      `[t](https://…)` form one text block per run; `> quote` = callout, `> [!lede|oneline|flare|callout]`
-     and `::: type … :::` pick the prose block; pipe tables (first row headers, at most 8 columns,
-     a bold line above = the title); ```mermaid = diagram, ```flowchart / ```graph in the simple
+     and `::: type … :::` pick the prose block; pipe tables (first row headers, at most 64 columns,
+     a bold line above = the title; a line break inside a cell is <br>, and a line of a cell that begins
+     with "- " or "• " is an item of a bulleted list in that cell); ```mermaid = diagram, ```flowchart / ```graph in the simple
      subset = a native flowchart, other fences = code; `---` = a rule on a page, a run boundary in a
      planner; `![caption](path){width=50 float=left dx=0 dy=0 span}` = a picture (a relative path
      resolved against the files or zip dropped with the .md, `data:` decoded, `https:` kept as a
@@ -224,16 +225,18 @@ function lookWalk() {
     };
 }
 function unesc(s) { return String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&'); }   // the sanitiser's own escaping, undone
-// fmtFromInline(html) → { text, fmt }: a plain field read from inline HTML. Built on the page sanitiser's output, never on the input: the
+// fmtFromInline(html, lines) → { text, fmt }: a plain field read from inline HTML. Built on the page sanitiser's output, never on the input: the
 // html goes through sanitizeHtml first and only what that wrote is read — <b> / <strong>, <i> / <em>, <u>, <s> / <strike>, its one span
 // form (a strict color, a size step: around everything or around a part) and its <a href> (an address the sanitiser let through, then
 // the format's own link rule — the same rule — in the cleaner). Whatever else it kept (code, a paragraph, a list) is just its text, and
-// a line break no character. fmt is the cleaner's (textfmt.js cleanFmt): absent when nothing is left.
-function fmtFromInline(html) {
+// a line break no character. fmt is the cleaner's (textfmt.js cleanFmt): absent when nothing is left. lines === true (a table cell, 1.6.2):
+// a line break is the one character \n, in the text and in the format's offsets alike, so a cell's lines (and the bulleted list its
+// lines can make, docrender.js cellHtml) come back from a file as they were written to it.
+function fmtFromInline(html, lines) {
     var clean = sanitizeHtml(html), w = lookWalk(), text = '', re = /<(\/?)([a-z0-9]+)([^>]*)>|([^<]+)/g, m;
     while ((m = re.exec(clean))) {
         if (m[4] !== undefined) { var t = unesc(m[4]); text += t; w.text(t.length); continue; }
-        if (m[2] === 'br') continue;
+        if (m[2] === 'br') { if (lines === true && !m[1]) { text += '\n'; w.text(1); } continue; }
         if (m[1]) { w.close(); continue; }
         var look = null;
         if (m[2] === 'b' || m[2] === 'strong') look = { b: true };
@@ -254,10 +257,18 @@ function fmtFromInline(html) {
 // A plain field from the file's inline Markdown: its text exactly as before (the inline HTML less its tags, entities decoded: cells and
 // titles are plain text in the editor's inputs), and the format its bold, italic, underline, strike, links and color / size
 // spans make — only where the sanitiser's reading of that inline HTML is the very same text (else the field is plain, as before).
-function fieldOf(md) {
-    var html = inline(md, { inlineImages: [] }), text = unent(html.replace(/<[^>]+>/g, ''));
+function fieldOf(md) { return fieldRead(md, false); }
+// A table cell (or a head) from the file (1.6.2): read as fieldOf reads a field, except that a <br> is a line break of the cell's text (\n)
+// where every other tag is dropped. The export writes each line break of a cell as <br> (IN_CELL, cellText), so a cell's lines, and with
+// them a bulleted list made of its lines that begin with "- " or "• ", come back exactly.
+function cellOf(md) { return fieldRead(md, true); }
+// lines: true reads a <br> as a line break (a cell), false drops it as a field always did. The text is the inline HTML less its tags, its
+// entities decoded; the format is fmtFromInline's, kept only where its text is that very text.
+var CELL_BR = /<br\b[^>]*>/gi;   // a line break as the file may write it (<br>, <BR/>, <br />); the sanitiser writes each as <br>
+function fieldRead(md, lines) {
+    var html = inline(md, { inlineImages: [] }), text = unent((lines ? html.replace(CELL_BR, '\n') : html).replace(/<[^>]+>/g, ''));
     if (html.indexOf('<') < 0) return { text: text };
-    var r = fmtFromInline(html);
+    var r = fmtFromInline(html, lines);
     return r.fmt && r.text === text ? { text: text, fmt: r.fmt } : { text: text };
 }
 // a field's format on its block (block.fmt.<key>): set, or taken off when there is none
@@ -338,7 +349,8 @@ function picLine(line) { return PIC_ESC.exec(line) || PIC_RAW.exec(line) || PIC_
 var IN_CAPTION = { put: IN_LINE.put, read: function(s) { var m = picLine('![' + s + '](x)'); return m && m[1] === s && m[2] === 'x' ? fieldOf(s) : null; } };
 var IN_BOLD = { put: IN_LINE.put, tags: true, read: function(s) { var m = /^\s*(\*\*|__)(.+?)\1\s*$/.exec('**' + s + '**'); return m ? fieldOf(m[2]) : null; } };   // a table's title: its line is bold syntax
 var IN_ITALIC = { put: IN_LINE.put, tags: true, read: function(s) { var m = /^\s*(\*|_)([^*_]+)\1\s*$/.exec('*' + s + '*'); return m ? fieldOf(m[2]) : null; } };   // the subtitle: its line is italic syntax
-var IN_CELL = { lines: true, put: function(x) { return mdEscapeMarks(String(x).replace(/\r?\n/g, ' ')).replace(/\|/g, '\\|'); }, read: function(s) { var c = splitRow('| ' + s + ' |'); return c.length === 1 ? fieldOf(c[0]) : null; } };
+// a table's head or cell: a line break is written <br> and read back as one (cellOf), so a cell's lines and its bulleted list travel (1.6.2)
+var IN_CELL = { lines: true, put: function(x) { return mdEscapeMarks(String(x)).replace(/\r?\n/g, '<br>').replace(/\|/g, '\\|'); }, read: function(s) { var c = splitRow('| ' + s + ' |'); return c.length === 1 ? cellOf(c[0]) : null; } };
 // a scene node's title: read after "### Scene:", whose own trailing space takes any the title begins with
 var IN_SCENE = { put: IN_LINE.put, read: function(s) { var f = fieldOf(s), t = fieldOf('Scene: ' + s).text.replace(/^scene:\s*/i, ''); return f.text === t ? f : { text: t }; } };
 function fieldText(b, k, o) { return fieldMd(b[k], fieldFmt(b, k), o) || mdEscapeText(b[k] || ''); }
@@ -614,8 +626,8 @@ function markdownToBlocks(text, opts) {
         }
         if (/\|/.test(line) && isTableSep(next)) {
             var textOf = function(c) { return c.text; }, fmtOf = function(c) { return c.fmt; };
-            var hc = splitRow(line).map(fieldOf), cols = hc.map(textOf), rows = [], rfm = []; i += 2;
-            while (i < lines.length && /\|/.test(lines[i]) && lines[i].trim()) { var rc = splitRow(lines[i]).map(fieldOf); rows.push(rc.map(textOf)); rfm.push(rc.map(fmtOf)); i++; }
+            var hc = splitRow(line).map(cellOf), cols = hc.map(textOf), rows = [], rfm = []; i += 2;   // a head and a cell read a <br> as a line break (cellOf)
+            while (i < lines.length && /\|/.test(lines[i]) && lines[i].trim()) { var rc = splitRow(lines[i]).map(cellOf); rows.push(rc.map(textOf)); rfm.push(rc.map(fmtOf)); i++; }
             var tt = pendingTitle; pendingTitle = null; pushTable(cols, rows, tt ? tt.text : tt, { title: tt ? tt.fmt : undefined, cols: hc.map(fmtOf), rows: rfm }); continue;
         }
         var imL = picLine(line);
@@ -741,7 +753,8 @@ function proseMd(html, type, kind) {
     var was = read(md), now = read(tagged);
     return was === now || (html.indexOf('<span') < 0 && flat(was) === flat(now)) ? md : tagged;   // (beside a span the block comes back exactly as it was, so there the order counts)
 }
-function cellText(s) { return String(s == null ? '' : s).replace(/\r?\n/g, ' ').replace(/\|/g, '\\|').trim(); }
+// a plain head or cell as a pipe table writes it: each line break as <br> (1.6.2: it was a space, and a cell's lines were lost), a | escaped
+function cellText(s) { return String(s == null ? '' : s).replace(/\r?\n/g, '<br>').replace(/\|/g, '\\|').trim(); }
 function yamlStr(s) { s = String(s == null ? '' : s); return /[:#\[\]{}"'<>&\u0000-\u001f\u007f]|^\s|\s$/.test(s) ? JSON.stringify(s).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026') : s; }   // F2a: a control character (a CR would end the front matter early), and markup, always quoted and escaped
 function layoutTail(l, forPage) {
     if (!l || typeof l !== 'object') return '';

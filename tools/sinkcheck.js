@@ -6167,8 +6167,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             JSON.stringify(bl) === JSON.stringify([['\u2022 a\n\u2022 b\nc', 2, 7], ['a\nb', 0, 3], ['- a\n\u2022 b', 0, 7], ['\u2022 x', 3, 3]]), JSON.stringify(bl));
         const twSrc = read('tablewin.js');
         check('1.6.2 a big table in its own window writes nothing itself: no fetch, no storage, no window it opens; every edit is the one word to the main window over the app\'s own channel, and markup only from twHtml and the window\'s fixed message',
-            !/fetch\(|localStorage|sessionStorage|indexedDB|window\.open\(|\.outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/.test(twSrc) && (twSrc.match(/\.innerHTML = /g) || []).length === 2 && twSrc.includes("tw.body.innerHTML = twHtml(tw.b, tw.rich, tw.note);") && twSrc.includes("body.innerHTML = '<div class=\"popout-msg\">This table is no longer on the page.</div>';")
-            && (twSrc.match(/postMessage\(/g) || []).length === 1 && twSrc.includes("var msg = { type: 'tableEdit', camp: tw.camp, item: tw.item, block: tw.block, n: ++tw.n, op: op };"));
+            !/fetch\(|localStorage|sessionStorage|indexedDB|window\.open\(|\.outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/.test(twSrc) && (twSrc.match(/\.innerHTML = /g) || []).length === 3 && twSrc.includes("tw.body.innerHTML = twHtml(tw.b, tw.rich, tw.note);") && twSrc.includes("body.innerHTML = '<div class=\"popout-msg\">This table is no longer on the page.</div>';")
+            && twSrc.includes("if (body) body.innerHTML = '<div class=\"popout-msg\">This table&rsquo;s campaign is no longer here.</div>';") /* 1.6.2: a window whose campaign is gone says so (moved on purpose) */
+            && (twSrc.match(/postMessage\(/g) || []).length === 1 && twSrc.includes("var msg = { type: 'tableEdit', camp: tw.camp, item: tw.item, block: tw.block, w: TW_ID, n: ++tw.n, op: op };") /* 1.6.2: an edit names its window (moved on purpose) */);
     }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

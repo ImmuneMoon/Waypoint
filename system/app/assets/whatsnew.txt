@@ -30,9 +30,9 @@ Lay out your table
 Wide tables
 - A table on a page or in a planner can have up to 64 columns now, up
   from 8. A table wider than its page scrolls sideways and keeps its first
-  column in view, so a stat block of 17 columns reads whole. In a very
-  narrow place, such as the panel over the map, each row still reads as a
-  small card.
+  column in view, so a stat block of 17 columns reads whole. It keeps its
+  shape however narrow the place, beside the editor and in the panel over
+  the map too.
 - A table cell can hold a list. Start a line with a dash or a bullet, or
   press List on the cell's style bar, and the lines read as a tidy bulleted
   list on the page. Press Enter in a cell for a new line. Lists and line
@@ -40,7 +40,7 @@ Wide tables
 - Merge table cells. Right-click a cell in the editor for Merge with next
   and Unmerge, and a merged cell reads once across its columns. A row's
   menu makes it a full-width row, a sub-heading that runs across the whole
-  table. Both read right in the narrow card view too.
+  table.
 - A very big table now opens for editing in a big window of its own, so
   the page editor stays quick even on a page with thousands of cells.
   Click a cell to change it, and right-click for rows and merges. Every
@@ -983,10 +983,6 @@ Writing planners and pages
   the sessions played and where the clock stands. Scroll to zoom from
   centuries down to days, and press a mark to open its day. Timeline in the
   campaign menu opens it in a window over the map.
-- A table in a narrow place now reads a row at a time. Each row is a small
-  block with its first cell in bold and the column's name before each other
-  cell. You see it in the panel over the map and in a narrow window, and a
-  wide place keeps the table.
 - A planner's section can lay its cards side by side. On the section
   heading set Blocks under it to Cards and pick Small, Medium or Large. As
   many cards stand in a row as there is room for. Text and charts keep the

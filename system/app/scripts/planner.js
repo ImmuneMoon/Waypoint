@@ -391,6 +391,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           _pg.open = -1; renderPlannerPreview(); applyPlannerFullscreen();
       });
       window.addEventListener('resize', pgPlaceSoon);
+      window.wpPgPlaceSoon = pgPlaceSoon;   // 1.6.2: pagenav.js navBarWire asks it when the Find bar changes size, so --pg-top follows the bar
       if (E.pw) E.pw.addEventListener('scroll', function() { if (E.ed) pbeBarPlace(E.ed); }, { passive: true });   // the bar held over its slot as the page scrolls
   }
   // [textcheck:pbepage-end]
@@ -504,6 +505,17 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   var TB_OPS = { cell: 1, head: 1, addRow: 1, delRow: 1, merge: 1, unmerge: 1, full: 1 };
   function tbWhole(v, lo, hi) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v >= lo && v <= hi; }
+  // One cell's text as stored, from a row of either form (a list, or { col1, … }): read as the window reads it (tablewin.js twText)
+  function tbText(r, ci) { var v = Array.isArray(r) ? r[ci] : r && typeof r === 'object' ? r['col' + (ci + 1)] : ''; return typeof v === 'string' ? v : v == null ? '' : String(v); }
+  // A row's words as one text, the guard a row's edit carries (tablewin.js twRowSig is the same rule): every cell the row holds, in order, with
+  // trailing empty cells left out, so a list row and the same row as { col1, … } read alike
+  function tbRowSig(r) {
+      var n = 0;
+      if (Array.isArray(r)) n = r.length; else if (r && typeof r === 'object') Object.keys(r).forEach(function(k) { var m = /^col([1-9]\d{0,2})$/.exec(k); if (m && +m[1] > n) n = +m[1]; });
+      var t = []; for (var i = 0; i < n; i++) t.push(tbText(r, i));
+      while (t.length && t[t.length - 1] === '') t.pop();
+      return JSON.stringify(t);
+  }
   // A word from a table's window, judged: null when it is no table edit at all; else { it, b, op } where it may be made, or the reason it
   // may not (a sentence the window shows). mine: this window may write the campaign (the GM's own, at their own table)
   function tbEditOk(d, camp, mine) {
@@ -521,7 +533,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           : op.k === 'addRow' ? tbWhole(op.at, 0, rows) && rows < 500
           : op.k === 'delRow' || op.k === 'full' ? tbWhole(op.ri, 0, rows - 1)
           : tbWhole(op.ri, 0, rows - 1) && tbWhole(op.ci, 0, n - 1);
-      if (!ok) return 'The table changed before that edit arrived. Look again and try once more.';
+      var stale = 'The table changed before that edit arrived. Look again and try once more.';
+      if (!ok) return stale;
+      // What the window saw (1.6.2, the review of the table's window). The window shows the table as it was until its next poll, so an edit made
+      // in that time, or a cell opened before a row went, named a row by a number that now stands for another row (a second Delete this row took
+      // the row after the one meant). So every edit says how many rows it saw, a cell's or a heading's edit its words before, and a row's edit
+      // that row's words (tbRowSig); one that does not match is refused, and the window shows the table as it is now
+      if (op.rows !== rows) return stale;
+      if (op.k === 'cell' && op.was !== tbText(b.rows[op.ri], op.ci)) return stale;
+      if (op.k === 'head') { var hd = tsCols(b)[op.ci]; if (op.was !== String(hd == null ? '' : hd)) return stale; }
+      if ((op.k === 'delRow' || op.k === 'full' || op.k === 'merge' || op.k === 'unmerge') && op.row !== tbRowSig(b.rows[op.ri])) return stale;
       return { it: it, b: b, op: { k: op.k, ri: op.ri, ci: op.ci, at: op.at, text: op.text } };
   }
   // The edit made on the block, as the editor makes it: the words of a cell or a head with their look carried across (textfmt respan), a
@@ -564,7 +585,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           if (am === j.it) { if (ae && ae.closest && ae.closest('#plannerBlocks')) renderPlannerPreview(); else renderPlanner(); }
           else if (window.wpDocPanel && typeof window.wpDocPanel.refresh === 'function') window.wpDocPanel.refresh();
       }
-      try { new BroadcastChannel('waypoint').postMessage({ type: 'tableEditAck', n: typeof d.n === 'number' && isFinite(d.n) ? d.n : 0, ok: !!done, why: typeof j === 'string' ? j : done ? '' : 'There was nothing to change there.' }); } catch (e) {}
+      // the answer names the edit it answers (its campaign, page, table and the window that sent it, w), so another table's window never takes it
+      // for its own: each window counts its edits from 1
+      var said = function(v, n) { return typeof v === 'string' ? v.slice(0, n) : ''; };
+      try { new BroadcastChannel('waypoint').postMessage({ type: 'tableEditAck', camp: said(d.camp, 200), item: said(d.item, 200), block: said(d.block, 200), w: said(d.w, 64), n: typeof d.n === 'number' && isFinite(d.n) ? d.n : 0, ok: !!done, why: typeof j === 'string' ? j : done ? '' : 'There was nothing to change there.' }); } catch (e) {}
       return true;
   }
   // [pagecheck:tbjoin-end]
@@ -3312,7 +3336,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               }
               if (Array.isArray(b.rows) && b.rows.length > 0) {
                   var cols = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plainPv ? ['Item', 'Detail', 'Notes'] : kdP.cols.slice());
-                  html += '<table' + (b.pin === true ? ' class="t-pin"' : '') + '><thead><tr>' + cols.map(function(c, ci) { return '<th>' + fmtRich(c, colFmtOf(b, ci)) + '</th>'; }).join('') + '</tr></thead><tbody>';
+                  // a pinned heading row is a plain table's alone (Pin heading row and {pin} are offered only there): a card of another kind that keeps
+                  // pin from before it was switched draws as unpinned, and the field stays so that switching back to Table finds it
+                  html += '<table' + (plainPv && b.pin === true ? ' class="t-pin"' : '') + '><thead><tr>' + cols.map(function(c, ci) { return '<th>' + fmtRich(c, colFmtOf(b, ci)) + '</th>'; }).join('') + '</tr></thead><tbody>';
                   b.rows.forEach(function(r, ri) {   // a cell's lines that begin with "- " or "• " as a list (docrender.js cellHtml); merged cells and a full-width row (rowJoin, rowHtml)
                       html += rowHtml(rowJoin(b, ri, cols.length), cols.length, function(ci) { return cellHtml((r && r['col' + (ci + 1)]) || '', cellFmtOf(b, ri, ci), fmtRich); });
                   });

@@ -713,7 +713,9 @@ function markdownToBlocks(text, opts) {
 // separator (:), a number list (1. → 1\.). Each reads back exactly as written (inline() unescapes \ before # + - . ) |, and &#58; is a colon;
 // a backslash before a digit or a colon it would keep)
 function mdEscapeMarks(s) { return String(s).replace(/([\\*_`~\[\]<>])/g, '\\$1').replace(/&(?=#?[A-Za-z0-9]+;)/g, '&amp;'); }
-function mdEscapeLineStart(s) { return String(s).replace(/^(\s*)\{(?=wide\}\s*$)/i, '$1\\{').replace(/^(\s*)([#+\-|])/, '$1\\$2').replace(/^(\s*):/, '$1&#58;').replace(/^(\s*)(\d+)([.)])(\s|$)/, '$1$2\\$3$4'); }
+// A paragraph that is the very words of a line mark ({wide}, {pin}, {wide pin} or {pin wide}) is written with its brace escaped, so that it reads
+// back as text and never as the mark of the table after it (1.6.2: {pin} beside {wide})
+function mdEscapeLineStart(s) { return String(s).replace(/^(\s*)\{(?=(?:wide|pin|wide\s+pin|pin\s+wide)\}\s*$)/i, '$1\\{').replace(/^(\s*)([#+\-|])/, '$1\\$2').replace(/^(\s*):/, '$1&#58;').replace(/^(\s*)(\d+)([.)])(\s|$)/, '$1$2\\$3$4'); }
 function mdEscapeText(s) { return mdEscapeLineStart(mdEscapeMarks(s)); }
 // A text block's color / size span as the sanitiser's one form, written anew from its two values ('' for any other span)
 function spanTag(attrs) {

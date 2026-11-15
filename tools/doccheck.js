@@ -1495,6 +1495,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             mdP.includes('{pin}\n\n**Kit**') && rtP.pin === true && rtP.title === 'Kit' && mdPl.includes('{wide pin}\n\n**W**') && mdPl.includes('{pin}\n\n**Q**')
             && rtPl[1].pin === true && rtPl[1].mode === 'table' && rtPl[2].pin === true && !('pin' in rtPl[0]) && !!rtPl[1].layout && rtPl[1].layout.span === true && !(rtPl[2].layout && rtPl[2].layout.span)
             && stray.filter(b => b.type === 'table').length === 1 && !('pin' in stray.filter(b => b.type === 'table')[0]) && stray.some(b => /\{pin\}/.test(b.content || '')) && stray.some(b => /\{wide pin\}/.test(b.content || '')), jj([mdP, rtP, mdPl, rtPl, stray]));
+        // a text block whose words are exactly a line mark ({pin}, {wide pin}, {pin wide}, {wide}) right before a table: written with its brace
+        // escaped (docmd.js mdEscapeLineStart), so it reads back as the same text and the table after it is neither pinned nor made wide
+        const marks = [];
+        ['{pin}', '{wide pin}', '{pin wide}', '{wide}', '  {PIN}'].forEach(w => ['doc', 'planner'].forEach(kind => {
+            const tb = kind === 'doc' ? { type: 'table', cols: ['A', 'B', 'C'], rows: [['x', 'y', 'z']] } : { type: 'node', mode: 'table', cols: ['A', 'B', 'C'], rows: [{ col1: 'x', col2: 'y', col3: 'z' }] };
+            const md = M.docToMarkdown({ type: kind, id: 'd', meta: { title: 'T' }, blocks: [{ type: 'h1', title: 'T' }, { type: 'text', content: '<p>' + w + '</p>' }, tb] }, {}).text, bl = M.markdownToBlocks(md, { kind }).blocks;
+            marks.push(bl.length === 3 && bl[1].type === 'text' && bl[1].content === '<p>' + w.trim() + '</p>' && bl[2].type === tb.type && !('pin' in bl[2]) && !(bl[2].layout && bl[2].layout.span) ? 'ok' : [kind, w, md, bl]);
+        }));
+        check('1.6.2 a text block that holds only {pin}, {wide pin}, {pin wide} or {wide} right before a table round-trips through Markdown as that text, on a page and in a planner, and the table stays unpinned and not wide',
+            marks.every(x => x === 'ok'), jj(marks.filter(x => x !== 'ok')));
     }
     /* ---- 1.5.6: a GM-only page keeps every page nested under it from players (the owner, 2026-10-24, by prompt: "Hidden parent hides all") ---- */
     {

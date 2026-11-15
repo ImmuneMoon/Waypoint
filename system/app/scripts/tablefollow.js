@@ -46,9 +46,29 @@ function tfHeadCells(cells, clipLeft) {
         return { left: Math.round(c.rect.left - clipLeft), width: Math.max(0, Math.round(c.rect.right - c.rect.left)), text: t, first: !!c.first };
     });
 }
+// The stacking z of the place an element stands in, so the bar and the copy stand just over that place and under whatever is raised above it:
+// the z-index of its ancestor that is a child of the host (the body, or a window's own wrapper), where that is a whole number; '' where it is
+// auto or the element is not under the host (the style sheet's value then stands). The bar and the copy come later in the host than every
+// place, so a tie puts them over their own place. zOf(el): the computed z-index of an element (getComputedStyle there, a stand-in in a suite)
+function tfZOf(el, host, zOf) {
+    var n = el; while (n && n.parentElement && n.parentElement !== host) n = n.parentElement;
+    if (!n || !host || n.parentElement !== host) return '';
+    var z = String(zOf(n) == null ? '' : zOf(n)); return /^-?\d+$/.test(z) ? z : '';
+}
+// The candidates in the order they are tried: those whose scroller (scOf) is the one the reader scrolled last (want) first, then the rest in
+// the page's order. Found live: in Side by side the editor's own table comes first in the page and took the bar and the copy from the preview
+// the GM was reading. want undefined: nothing scrolled yet, the page's order as it is
+function tfFirst(items, scOf, want) {
+    var list = Array.prototype.slice.call(items || []); if (want === undefined) return list;
+    var mine = [], rest = []; list.forEach(function(x) { (scOf(x) === want ? mine : rest).push(x); });
+    return mine.concat(rest);
+}
 // [pagecheck:tfollow-end]
 
-var tf = { bar: null, inner: null, head: null, box: null, raf: 0, wired: false };
+var tf = { bar: null, inner: null, head: null, box: null, raf: 0, wired: false, lastSc: undefined };   // lastSc: the element the reader last scrolled up and down (null: the window)
+function tfZ(el) { return getComputedStyle(el).zIndex; }
+// The bar or the copy given the z of the place it serves (tfZOf), written only where it changed
+function tfZSet(node, el) { var z = tfZOf(el, node.parentElement, tfZ); if (node.style.zIndex !== z) node.style.zIndex = z; }
 function tfOwn(el) { return !!el && (el === tf.bar || el === tf.head || (tf.bar && tf.bar.contains(el)) || (tf.head && tf.head.contains(el))); }
 // The element that scrolls a box up and down: its nearest ancestor that scrolls so; null for the window itself
 function tfScroller(el) {
@@ -96,7 +116,7 @@ function tfNow() {
     tfBar(); tfHead();
 }
 function tfBar() {
-    var boxes = document.querySelectorAll('.pv-tscroll, .b-table'), pick = null;
+    var boxes = tfFirst(document.querySelectorAll('.pv-tscroll, .b-table'), tfScroller, tf.lastSc), pick = null;
     for (var i = 0; i < boxes.length && !pick; i++) {
         var b = boxes[i]; if (!tfSeen(b)) continue;
         var reg = tfRoom(b), at = tfBarAt(b.getBoundingClientRect(), b.scrollWidth, b.clientWidth, reg);
@@ -106,11 +126,12 @@ function tfBar() {
     var s = tf.bar.style, b2 = pick.b;
     s.left = pick.at.left + 'px'; s.top = pick.at.top + 'px'; s.width = pick.at.width + 'px';
     tf.inner.style.width = (b2.scrollWidth - b2.clientWidth + pick.at.width) + 'px';   // the same reach as the box's own scroll, so the two move one for one
+    tfZSet(tf.bar, b2);   // over its own place: a player's reader and the panel over the map stand above the style sheet's 9001
     tf.box = b2; if (tf.bar.hidden) tf.bar.hidden = false;
     if (tf.bar.scrollLeft !== b2.scrollLeft) tf.bar.scrollLeft = b2.scrollLeft;
 }
 function tfHead() {
-    var ts = document.querySelectorAll('table.t-pin, .b-table'), pick = null;
+    var ts = tfFirst(document.querySelectorAll('table.t-pin, .b-table'), tfScroller, tf.lastSc), pick = null;
     for (var i = 0; i < ts.length && !pick; i++) {
         var t = ts[i], ed = t.classList.contains('b-table');
         if (!ed && t.classList.contains('pv-tstack')) continue;   // the cards have no heading row
@@ -120,11 +141,12 @@ function tfHead() {
         var br = box.getBoundingClientRect(), left = Math.max(br.left, reg.left), right = Math.min(br.left + (box.clientWidth || br.width), reg.right);
         if (right - left < TF_MIN || !tfOnTop(box.contains(t) ? box : t, left + 4, at.top + 2)) continue;
         var cells = Array.prototype.map.call(ed ? row.querySelectorAll('.ts-box') : row.children, function(c, k) { return { rect: c.getBoundingClientRect(), text: ed && typeof c._tsText === 'string' ? c._tsText : c.textContent, first: !ed && k === 0 && !!box.classList && box.classList.contains('pv-tscroll') }; });
-        pick = { at: at, left: left, width: right - left, cells: tfHeadCells(cells, left), ed: ed };
+        pick = { at: at, left: left, width: right - left, cells: tfHeadCells(cells, left), ed: ed, t: t };
     }
     if (!pick) { if (!tf.head.hidden) tf.head.hidden = true; return; }
     var s = tf.head.style; s.left = Math.round(pick.left) + 'px'; s.top = pick.at.top + 'px'; s.width = Math.round(pick.width) + 'px'; s.height = pick.at.height + 'px';
     tf.head.classList.toggle('tf-head-ed', pick.ed);
+    tfZSet(tf.head, pick.t);
     var kids = tf.head.children;
     while (kids.length > pick.cells.length) tf.head.removeChild(tf.head.lastChild);
     while (kids.length < pick.cells.length) tf.head.appendChild(document.createElement('span'));
@@ -140,9 +162,13 @@ function tfSoon() { if (!tf.raf) tf.raf = requestAnimationFrame(tfNow); }
 function tfWire() {
     if (tf.wired || typeof document === 'undefined') return; tf.wired = true;
     var q = new URLSearchParams(location.search); if (q.has('stream')) return;   // the stream window shows the table's view, never a page
-    document.addEventListener('scroll', function(e) { if (e.target === tf.bar) return; if (tf.box && e.target === tf.box && tf.bar && tf.bar.scrollLeft !== tf.box.scrollLeft) tf.bar.scrollLeft = tf.box.scrollLeft; tfSoon(); }, true);
+    document.addEventListener('scroll', function(e) {
+        if (e.target === tf.bar) return;
+        // the scroller the reader is moving now, tried first by tfBar and tfHead (tfFirst): an element that scrolls up and down, or null for the page
+        var st = e.target; if (st && st.nodeType === 1 && st.scrollHeight > st.clientHeight + 1 && st !== document.body && st !== document.documentElement) tf.lastSc = st; else if (st && (st.nodeType === 9 || st === document.body || st === document.documentElement)) tf.lastSc = null;
+        if (tf.box && e.target === tf.box && tf.bar && tf.bar.scrollLeft !== tf.box.scrollLeft) tf.bar.scrollLeft = tf.box.scrollLeft; tfSoon(); }, true);
     window.addEventListener('resize', tfSoon);
     setInterval(tfSoon, 500);   // a page drawn again, a fold opened, a table's box filled anew
 }
 if (typeof window !== 'undefined' && typeof document !== 'undefined') { tfWire(); window.wpTableFollow = { now: tfNow }; }
-export { tfBarAt, tfHeadAt, tfHeadCells, TF_BAR_H };
+export { tfBarAt, tfHeadAt, tfHeadCells, tfZOf, tfFirst, TF_BAR_H };

@@ -12,8 +12,11 @@
      - lets the GM edit a cell or a head in a plain text box (line breaks and a "• List" button that marks lines, as the page editor's bar
        does; the cell's styling is kept and carried across the edit), add and delete rows, merge and unmerge cells and make a full-width row.
    A pop-out never writes the save (io.js). So every edit is a WORD to the main window over the app's own BroadcastChannel ('waypoint'),
-   { type: 'tableEdit', camp, item, block, n, op }, which planner.js tbEditOk judges and tbEditDo applies there, as the GM's own edit, with
-   a save and an undo step. The main window answers { type: 'tableEditAck', n, ok, why }. Until the save comes back in this window's poll the
+   { type: 'tableEdit', camp, item, block, w, n, op }, which planner.js tbEditOk judges and tbEditDo applies there, as the GM's own edit, with
+   a save and an undo step. The main window answers { type: 'tableEditAck', camp, item, block, w, n, ok, why }, w being this window's own id, so
+   that another table's window never takes the answer for its own. Every op says what this window saw (rows, and a cell's or a heading's words
+   before, was, or a row's words, row: twRowSig), and the main window refuses one that no longer matches, so an edit never lands on another row.
+   While a change of the table's rows is on its way no box or row menu opens, since the grid still shows the rows as they were. Until the save comes back in this window's poll the
    cell shows what was typed (twHold), and the grid is never drawn again while a box is open in it, so a poll cannot take the GM's typing. */
 'use strict';
 import { cellHtml, rowJoin, fmtHtml, fmtRich, cellFmtOf, colFmtOf, LIMITS } from './docrender.js';
@@ -23,6 +26,13 @@ function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').repla
 // The one state of the window's table (there is one table a window)
 var tw = { body: null, key: '', camp: '', item: '', block: '', b: null, rich: false, sig: '', editing: null, pending: null, hold: null, n: 0, sent: 0, menu: null, note: '', chan: null, wired: false };
 var TW_HOLD_MS = 5000;   // how long a sent edit is shown as typed while the save is on its way (a poll with the old table is passed over)
+// This window's own id, made once, which every edit carries and every answer names again (twAck passes over an answer to another window)
+var TW_ID = (function() {
+    try { var a = new Uint32Array(2); crypto.getRandomValues(a); return 'tw' + a[0].toString(36) + a[1].toString(36); } catch (e) {}
+    return 'tw' + Math.floor(Math.random() * 1e12).toString(36) + Date.now().toString(36);
+})();
+// The edits that change the table's rows (their number or their shape): while one is on its way the grid's row numbers are not to be trusted
+var TW_STRUCT = { addRow: 1, delRow: 1, merge: 1, unmerge: 1, full: 1 };
 
 // The table block of a page by its id: a page's table, or a planner's table card. null where there is none
 function twBlock(it, id) {
@@ -34,6 +44,15 @@ function twBlock(it, id) {
 function twCols(b) { return Array.isArray(b.cols) && b.cols.length ? b.cols.slice(0, LIMITS.cols) : ['Item', 'Detail', 'Notes']; }
 // One cell's text as stored, from a row of either form (a list, or { col1, … })
 function twText(r, ci) { var v = Array.isArray(r) ? r[ci] : r && typeof r === 'object' ? r['col' + (ci + 1)] : ''; return typeof v === 'string' ? v : v == null ? '' : String(v); }
+// A row's words as one text, the guard a row's edit carries (planner.js tbRowSig is the same rule): every cell the row holds, in order, with
+// trailing empty cells left out, so a list row and the same row as { col1, … } read alike
+function twRowSig(r) {
+    var n = 0;
+    if (Array.isArray(r)) n = r.length; else if (r && typeof r === 'object') Object.keys(r).forEach(function(k) { var m = /^col([1-9]\d{0,2})$/.exec(k); if (m && +m[1] > n) n = +m[1]; });
+    var t = []; for (var i = 0; i < n; i++) t.push(twText(r, i));
+    while (t.length && t[t.length - 1] === '') t.pop();
+    return JSON.stringify(t);
+}
 // The lines of a text that a selection [s, e) touches, each { at, mark }: the same rule as the page editor's Bullets (planner.js tsBulletLines)
 function twBulletLines(text, s, e) {
     var out = [], at = 0, lines = String(text || '').split('\n');
@@ -82,20 +101,42 @@ function twHtml(b, rich, note) {
     return h + '</tbody></table></div>';
 }
 
-// Draw the grid again, the scroll kept where it was. Never while a box is open: what came in waits for it (tw.pending)
+// What has the keyboard's focus in the grid, as a selector that finds the same control in a grid drawn anew: a cell or a heading by its row
+// and column, a row's number by its row, + Row at the end. '' where the focus is elsewhere
+function twFocusSel(el, body) {
+    if (!el || !body || el === body || typeof body.contains !== 'function' || !body.contains(el) || !el.matches) return '';
+    var d = el.dataset || {}, num = function(v) { return /^\d{1,4}$/.test(String(v)) ? String(v) : ''; };
+    if (el.matches('.tw-grid td[data-ci]') && num(d.ri) && num(d.ci)) return '.tw-grid td[data-ri="' + d.ri + '"][data-ci="' + d.ci + '"]';
+    if (el.matches('.tw-grid th[data-ci]') && num(d.ci)) return '.tw-grid thead th[data-ci="' + d.ci + '"]';
+    if (el.matches('.tw-rowmenu') && num(d.ri)) return '.tw-rowmenu[data-ri="' + d.ri + '"]';
+    if (el.matches('.tw-addrow')) return '.tw-addrow';
+    return '';
+}
+// Draw the grid again, the scroll kept where it was, and the keyboard's focus put back on the same control (a save's poll draws the grid a
+// moment after each edit: without this the focus fell to the page and a GM working from the keys lost their place). Never while a box is
+// open: what came in waits for it (tw.pending)
 function twDraw() {
     if (!tw.body || !tw.b) return;
     if (tw.editing) { tw.pending = true; return; }
     var sc = tw.body.querySelector('.tw-scroll'), x = sc ? sc.scrollLeft : 0, y = tw.body.scrollTop;
+    var fsel = twFocusSel(typeof document !== 'undefined' ? document.activeElement : null, tw.body);
     tw.body.innerHTML = twHtml(tw.b, tw.rich, tw.note);
     var sc2 = tw.body.querySelector('.tw-scroll'); if (sc2) sc2.scrollLeft = x; tw.body.scrollTop = y;
+    var back = fsel ? tw.body.querySelector(fsel) : null; if (back) try { back.focus({ preventScroll: true }); } catch (e) {}
     tw.pending = false;
 }
 
 // Every poll of the save (popout.js tickDoc): the table as the save holds it now. Answers { title } for the window's bar, or null where the
 // page or the table is gone (the window then says so). A table that has not changed is not drawn again; one that changed while an edit is
-// on its way, and still holds what was there before it, is passed over until the save comes (twHold)
-function twTick(body, camp, it, blockId, pageTitle) {
+// on its way, and still holds what was there before it, is passed over until the save comes (twHold). want: the campaign the window's address names
+// (popout.js passes it). Where it is given and the campaign handed in is another (the window's own was deleted, and the window fell back to
+// the campaign the main window has open, whose page of the same id a test copy shares), nothing is drawn or sent: the window says so
+function twTick(body, camp, it, blockId, pageTitle, want) {
+    if (want !== undefined && !(camp && typeof camp.id === 'string' && camp.id === want)) {
+        tw.key = ''; tw.camp = ''; tw.item = ''; tw.block = ''; tw.b = null; tw.hold = null; tw.body = body; twWire(body);
+        if (tw.sig !== '\u0000NOCAMP') { tw.sig = '\u0000NOCAMP'; if (body) body.innerHTML = '<div class="popout-msg">This table&rsquo;s campaign is no longer here.</div>'; }
+        return null;
+    }
     var key = (camp && camp.id) + '\u0000' + (it && it.id) + '\u0000' + blockId;
     if (tw.key !== key) { tw.key = key; tw.sig = ''; tw.hold = null; tw.note = ''; }
     tw.body = body; tw.camp = camp && typeof camp.id === 'string' ? camp.id : ''; tw.item = it && typeof it.id === 'string' ? it.id : ''; tw.block = blockId;
@@ -117,18 +158,24 @@ function twTitle(pageTitle, b) { var t = typeof b.title === 'string' && b.title.
 
 // An edit to the main window. op: { k: 'cell' | 'head' | 'addRow' | 'delRow' | 'merge' | 'unmerge' | 'full', ri, ci, at, text }. The grid shows
 // it at once where it can (a cell's or a head's new words), and holds what the poll brings until the save holds it
+// op.rows: the number of rows the grid showed when the edit began (a box or a menu opened); where the caller gives none, the grid's now
 function twSend(op) {
-    if (!tw.camp || !tw.item || !tw.block) return false;
-    var msg = { type: 'tableEdit', camp: tw.camp, item: tw.item, block: tw.block, n: ++tw.n, op: op };
+    if (!tw.camp || !tw.item || !tw.block || !tw.b) return false;
+    if (typeof op.rows !== 'number') op.rows = Array.isArray(tw.b.rows) ? tw.b.rows.length : 0;
+    var msg = { type: 'tableEdit', camp: tw.camp, item: tw.item, block: tw.block, w: TW_ID, n: ++tw.n, op: op };
     try { if (!tw.chan) tw.chan = new BroadcastChannel('waypoint'); tw.chan.postMessage(msg); } catch (e) { twNote('This window cannot reach the main window, so the change was not made.'); return false; }
-    tw.hold = { was: tw.sig, until: Date.now() + TW_HOLD_MS, n: tw.n }; tw.sent = tw.n;
+    tw.hold = { was: tw.sig, until: Date.now() + TW_HOLD_MS, n: tw.n, struct: Object.prototype.hasOwnProperty.call(TW_STRUCT, op.k) }; tw.sent = tw.n;
     twNote('Saving…');
     return true;
 }
 function twNote(t) { tw.note = t; var el = tw.body && tw.body.querySelector('.tw-note'); if (el) el.textContent = t; }
+// A change of the table's rows is on its way: the grid's row numbers may no longer be the table's, so no box or row menu opens until the save
+// is here (twTick lets the hold go), and the note says why nothing opened
+function twBusy() { if (!(tw.hold && tw.hold.struct)) return false; twNote('Saving…'); return true; }
 // The main window's answer: saved, or refused and why (the poll then shows the table as it is)
 function twAck(d) {
     if (!d || d.type !== 'tableEditAck' || typeof d.n !== 'number' || !tw.sent || d.n !== tw.sent) return;   // the answer to the last edit this window sent
+    if (d.w !== TW_ID || d.camp !== tw.camp || d.item !== tw.item || d.block !== tw.block) return;   // and to this window, about this very table
     if (d.ok === true) twNote('Saved.');
     else { tw.hold = null; tw.sig = ''; tw.sent = 0; twNote(typeof d.why === 'string' && d.why ? d.why.slice(0, 200) : 'The change was not made.'); }
 }
@@ -136,7 +183,7 @@ function twAck(d) {
 // A cell or a head opened for typing: a box in its place with its words, a "• List" button and Done. Enter is a new line (a cell takes
 // them); Ctrl+Enter or Done keeps the words, Escape leaves them as they were; leaving the box keeps them too
 function twEdit(el) {
-    if (!tw.b || tw.editing || !el || !el.dataset) return;
+    if (!tw.b || tw.editing || !el || !el.dataset || twBusy()) return;
     var ci = parseInt(el.dataset.ci, 10), ri = el.dataset.ri === undefined ? -1 : parseInt(el.dataset.ri, 10), head = ri < 0, cols = twCols(tw.b);
     if (!(ci >= 0 && ci < cols.length) || (!head && !(ri >= 0 && ri < tw.b.rows.length))) return;
     var was = head ? String(cols[ci] == null ? '' : cols[ci]) : twText(tw.b.rows[ri], ci);
@@ -150,12 +197,12 @@ function twEdit(el) {
     box.appendChild(ta); box.appendChild(bar);
     while (el.firstChild) el.removeChild(el.firstChild);
     el.appendChild(box);
-    tw.editing = { el: el, ri: ri, ci: ci, was: was, ta: ta, gone: false };
+    tw.editing = { el: el, ri: ri, ci: ci, was: was, ta: ta, gone: false, rows: tw.b.rows.length };   // rows: what the grid showed as the box opened (the edit's guard)
     var finish = function(keep) {
         var ed = tw.editing; if (!ed || ed.gone) return; ed.gone = true; tw.editing = null;
         var now = ta.value.replace(/\r\n?/g, '\n');
         if (keep && now !== ed.was) {
-            if (twSend(head ? { k: 'head', ci: ci, text: now.slice(0, 300) } : { k: 'cell', ri: ri, ci: ci, text: now.slice(0, LIMITS.cell) })) {
+            if (twSend(head ? { k: 'head', ci: ci, text: now.slice(0, 300), rows: ed.rows, was: ed.was } : { k: 'cell', ri: ri, ci: ci, text: now.slice(0, LIMITS.cell), rows: ed.rows, was: ed.was })) {
                 if (head) tw.b.cols = cols.map(function(c, k) { return k === ci ? now : c; });   // shown at once, with no look until the save brings it
                 else { var r = tw.b.rows[ri]; if (Array.isArray(r)) r[ci] = now; else { r['col' + (ci + 1)] = now; if (r.fmt) delete r.fmt['col' + (ci + 1)]; } if (Array.isArray(tw.b.rowFmt) && Array.isArray(tw.b.rowFmt[ri])) tw.b.rowFmt[ri][ci] = null; }
             }
@@ -179,7 +226,7 @@ function twEdit(el) {
 
 // The menu for a row (its number's button) or a cell and its row (a right-click). Elements and text alone
 function twMenu(ri, ci, x, y, from) {
-    if (!tw.b || !(ri >= 0 && ri < tw.b.rows.length)) return;
+    if (!tw.b || !(ri >= 0 && ri < tw.b.rows.length) || twBusy()) return;
     if (!tw.menu) {
         tw.menu = document.createElement('div'); tw.menu.className = 'context-menu tw-menu'; tw.menu.setAttribute('role', 'menu'); tw.menu.style.display = 'none';
         (document.getElementById('popoutWrap') || document.body).appendChild(tw.menu);   // inside the window's own wrapper: the pop-out's style sheet puts away everything else on its page
@@ -187,8 +234,9 @@ function twMenu(ri, ci, x, y, from) {
             var bt = e.target && e.target.closest ? e.target.closest('button') : null; if (!bt || bt.disabled) return;
             var at = tw.menu._at; twMenuAway();
             var k = bt.dataset.act;
-            if (k === 'above') twSend({ k: 'addRow', at: at.ri }); else if (k === 'below') twSend({ k: 'addRow', at: at.ri + 1 }); else if (k === 'del') twSend({ k: 'delRow', ri: at.ri });
-            else if (k === 'merge' || k === 'unmerge') twSend({ k: k, ri: at.ri, ci: at.ci }); else if (k === 'full') twSend({ k: 'full', ri: at.ri });
+            // each edit carries what the grid showed as the menu opened: its rows, and the row's words (twRowSig)
+            if (k === 'above') twSend({ k: 'addRow', at: at.ri, rows: at.rows }); else if (k === 'below') twSend({ k: 'addRow', at: at.ri + 1, rows: at.rows }); else if (k === 'del') twSend({ k: 'delRow', ri: at.ri, rows: at.rows, row: at.row });
+            else if (k === 'merge' || k === 'unmerge') twSend({ k: k, ri: at.ri, ci: at.ci, rows: at.rows, row: at.row }); else if (k === 'full') twSend({ k: 'full', ri: at.ri, rows: at.rows, row: at.row });
         });
         document.addEventListener('pointerdown', function(e) { if (tw.menu.style.display !== 'none' && !(e.target && e.target.closest && e.target.closest('.tw-menu'))) twMenuAway(); }, true);
         document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && tw.menu.style.display !== 'none') { e.preventDefault(); twMenuAway(); } }, true);
@@ -205,7 +253,7 @@ function twMenu(ri, ci, x, y, from) {
     rows.push(['above', 'Add a row above', tw.b.rows.length >= LIMITS.rows]); rows.push(['below', 'Add a row below', tw.b.rows.length >= LIMITS.rows]); rows.push(['del', 'Delete this row', false]);
     while (tw.menu.firstChild) tw.menu.removeChild(tw.menu.firstChild);
     rows.forEach(function(o) { var d = document.createElement('button'); d.type = 'button'; d.dataset.act = o[0]; d.textContent = o[1]; d.disabled = !!o[2]; d.setAttribute('role', 'menuitem'); if (o[0] === 'del') d.className = 'danger'; tw.menu.appendChild(d); });
-    tw.menu._at = { ri: ri, ci: ci }; tw.menu._back = from || null;
+    tw.menu._at = { ri: ri, ci: ci, rows: tw.b.rows.length, row: twRowSig(tw.b.rows[ri]) }; tw.menu._back = from || null;
     tw.menu.style.display = 'flex';
     var w = tw.menu.offsetWidth || 180, h = tw.menu.offsetHeight || 160;
     tw.menu.style.left = Math.max(4, Math.min(x, (window.innerWidth || 1e4) - w - 4)) + 'px'; tw.menu.style.top = Math.max(4, Math.min(y, (window.innerHeight || 1e4) - h - 4)) + 'px';
@@ -220,7 +268,7 @@ function twWire(body) {
     body.addEventListener('click', function(e) {
         var t = e.target, rm = t && t.closest ? t.closest('.tw-rowmenu') : null;
         if (rm) { var r = rm.getBoundingClientRect(); twMenu(parseInt(rm.dataset.ri, 10), -1, r.left, r.bottom + 2, rm); return; }
-        if (t && t.closest && t.closest('.tw-addrow')) { if (tw.b && tw.b.rows.length < LIMITS.rows) twSend({ k: 'addRow', at: tw.b.rows.length }); return; }
+        if (t && t.closest && t.closest('.tw-addrow')) { if (tw.b && tw.b.rows.length < LIMITS.rows && !twBusy()) twSend({ k: 'addRow', at: tw.b.rows.length, rows: tw.b.rows.length }); return; }
         if (t && t.closest && (t.closest('.tw-edit') || t.closest('a'))) return;   // inside an open box, or a link (linkgate.js takes it)
         var c = t && t.closest ? t.closest('.tw-grid td[data-ci], .tw-grid th[data-ci]') : null; if (c) twEdit(c);
     });
@@ -236,4 +284,4 @@ function twWire(body) {
 }
 
 if (typeof window !== 'undefined') window.wpTableWin = { tick: twTick };   // (a suite loads the module under Node, where there is no window)
-export { twTick, twHtml, twBlock, twBullets, twBulletLines, twText, twCols, TW_HOLD_MS };
+export { twTick, twHtml, twBlock, twBullets, twBulletLines, twText, twRowSig, twFocusSel, twSend, twBusy, twCols, TW_HOLD_MS };   // twSend and twBusy for a suite

@@ -153,7 +153,9 @@ if (spec) {
         var tableId = itemId === pp.item && typeof pp.table === 'string' ? pp.table : '';
         if (tableId) {
             window.wpPopoutPart = ''; window.wpPopoutFoldKey = '';
-            var twr = twTick(body, camp, it, tableId, title), twT = twr && twr.title ? twr.title : title;
+            // the campaign the address names is the only one a table's window edits: camp above falls back to the main window's own where the
+            // window's campaign is gone, and a test copy keeps the very ids of its pages, so twTick refuses (and says so) where the two differ
+            var twr = twTick(body, camp, it, tableId, title, typeof pp.camp === 'string' ? pp.camp : ''), twT = twr && twr.title ? twr.title : title;
             if (lastSig !== '\x00TABLE' + twT) { lastSig = '\x00TABLE' + twT; document.title = 'Waypoint \u2014 ' + twT; if (titleEl) titleEl.textContent = twT; }
             return;
         }

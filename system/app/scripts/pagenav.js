@@ -317,7 +317,11 @@ function foldStrip(root) { if (!root) return; navBlocks(root).forEach(foldClear)
 // tfitMode is the one judge: 'stack', 'scroll' or ''. The box also carries its first column's measured width (--tfirst), which the style sheet
 // keeps clear when a Find or a landing scrolls a hit into view, since the sticky column is drawn over that strip. And the sideways scroll of each
 // box is kept in memory by its block (tfitKeep), so a page drawn again comes back where the reader had scrolled it. Nothing is stored or sent.
-var TFIT_COL = 125, TFIT_MIN = 3, TFIT_WORDS = 60, TFIT_NARROW = 480;
+// 1.6.2, later the same day (the owner, 2026-11-14, of a 17-column table drawn as cards in the planner's Side by side preview: "side by side
+// still breaks the table", and by prompt "Always scroll, never cards"): a table keeps its shape however narrow its place, so tfitMode answers
+// 'scroll' or '' and never 'stack'. TFIT_NARROW is 0, so no box is narrow enough for cards; the card form's code and rules stay, unused, so that
+// it can be brought back by one figure, and tfitClear still takes it off a table that wears it.
+var TFIT_COL = 125, TFIT_MIN = 3, TFIT_WORDS = 60, TFIT_NARROW = 0;
 function tfitMode(avail, cols, named) { if (!tfitStacks(avail, cols)) return ''; return named && avail < TFIT_NARROW ? 'stack' : 'scroll'; }
 function tfitStacks(avail, cols) { return typeof avail === 'number' && avail > 0 && typeof cols === 'number' && cols >= TFIT_MIN && avail < cols * TFIT_COL; }
 function tfitOurs(t) { var p = t && t.parentNode, c = p && p.classList; return !!c && (c.contains('node') || c.contains('doc-tablewrap')); }
@@ -950,7 +954,9 @@ function navBarSet(doc) {
 // kept current whenever the bar changes size (a wider or narrower view, the editor shown or put away, a page with other buttons, the view put
 // away), or with no observer at hand at every change of the window's size. Answers whether there is a bar to follow
 function navBarWire(doc, Obs) {
-    var bar = doc && typeof doc.getElementById === 'function' ? doc.getElementById(NAV_BAR[0]) : null, go = function() { navBarSet(doc); if (typeof tocTop === 'function') tocTop(doc); };
+    // go also tells the planner's page editor (planner.js publishes pgPlaceSoon on the window as wpPgPlaceSoon): the open block's head sticks at
+    // --pg-top under this very bar, so a bar that grows with no draw of the preview (Contents ticked, a strip that came later) moves it too
+    var bar = doc && typeof doc.getElementById === 'function' ? doc.getElementById(NAV_BAR[0]) : null, go = function() { navBarSet(doc); if (typeof tocTop === 'function') tocTop(doc); var dv = doc.defaultView; if (dv && typeof dv.wpPgPlaceSoon === 'function') dv.wpPgPlaceSoon(); };
     if (!bar) return false;
     if (typeof Obs === 'function') new Obs(go).observe(bar);
     else if (doc.defaultView && typeof doc.defaultView.addEventListener === 'function') doc.defaultView.addEventListener('resize', go);

@@ -3318,7 +3318,7 @@
     .doc-view .pv-tscroll > table th:first-child { background: var(--panel2); }
     .doc-view .pv-tscroll > table td:first-child { background: var(--panel); }
     .doc-view .pv-tscroll > table tr.t-full > td { position: static; background: var(--panel2); box-shadow: none; }   /* 1.6.2: a full-width row runs the table's whole width, so it is no held first column */
-    .doc-view .pv-tscroll > table td[colspan]:first-child { position: static; box-shadow: none; }   /* 1.6.2: nor is a first cell merged over more columns: held, it would cover the rest of its row as it scrolled */
+    .doc-view .pv-tscroll > table td[colspan]:first-child, .doc-view .pv-tscroll > table th[colspan]:first-child { position: static; box-shadow: none; }   /* 1.6.2: nor is a first cell merged over more columns: held, it would cover the rest of its row as it scrolled */
     .doc-view table.pv-tstack td[data-col]::before { content: attr(data-col); display: inline-block; margin-right: 8px; color: var(--gold); font-size: 11px; font-weight: 400; letter-spacing: .8px; text-transform: uppercase; }
   }
   .doc-view .flare { background: var(--panel); border: 1px solid var(--edge); border-left: 3px solid var(--violet); border-radius: 7px; padding: 10px 13px; margin-top: 10px; font-size: 13.5px; color: var(--dim); }

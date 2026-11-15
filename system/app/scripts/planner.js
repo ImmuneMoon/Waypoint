@@ -32,7 +32,7 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, isDocLike } from './models.js';
 
-import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, mermaidPre, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf, diagramLink, cellHtml, rowJoin, rowHtml, cleanRowJoin } from './docrender.js';
+import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, mermaidPre, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf, diagramLink, cellHtml, rowJoin, rowHtml, cleanRowJoin, headJoin, cleanHeadJoin, headHtml } from './docrender.js';
 
 import * as TF from './textfmt.js';
 
@@ -420,6 +420,32 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       cleanRowJoin(b, ri, n);
       return true;
   }
+  // 1.6.2, merged headings (the owner, 2026-11-14, by prompt: "Waypoint merges headings"): a heading merged with the next one, or unmerged, kept
+  // on the block as headMerge (docrender.js headJoin). The headings are made the block's own first (tsOwnCols), as a heading typed or styled
+  // is. A heading under a merge keeps its words. False where there is nothing to do (no next heading; a heading that spans one)
+  function tbHeadMerge(b, ci) {
+      if (!b || typeof b !== 'object') return false;
+      var n = tbCols(b), s = headJoin(b, n), k = s ? s[ci] : 1; if (!(k >= 1) || ci + k >= n) return false;
+      tsOwnCols(b);
+      var kn = s ? s[ci + k] : 1, m = b.headMerge && typeof b.headMerge === 'object' && !Array.isArray(b.headMerge) ? b.headMerge : {};
+      m['col' + (ci + 1)] = k + kn; delete m['col' + (ci + k + 1)]; b.headMerge = m;
+      cleanHeadJoin(b, n);
+      return true;
+  }
+  function tbHeadUnmerge(b, ci) {
+      if (!b || typeof b !== 'object') return false;
+      var n = tbCols(b), s = headJoin(b, n); if (!s || !(s[ci] > 1)) return false;
+      delete b.headMerge['col' + (ci + 1)];
+      cleanHeadJoin(b, n);
+      return true;
+  }
+  // Words in the headings a heading's merge would cover that differ from its own (the book wrote a merged heading in the first and left the
+  // next blank: that needs no word)
+  function tbHeadHides(b, ci) {
+      var cols = tsCols(b), n = cols.length, s = headJoin(b, n), k = s ? s[ci] : 1, kn = s && ci + k < n ? s[ci + k] : 1, own = String(cols[ci] || '').trim();
+      for (var c = ci + k; c < ci + k + kn && c < n; c++) { var w = String(cols[c] || '').trim(); if (w && w !== own) return true; }
+      return false;
+  }
   // A full-width row on or off. Its first cell is the sub-heading; the row's other cells keep their words, out of sight, and its merges
   // are kept for when it is a row of cells again
   function tbFull(b, ri) {
@@ -439,15 +465,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // The menu for a row (ci -1: its ⋯ button) or for a cell and its row (a right-click on the cell), at x, y in the window. from: what opened it,
   // which takes the focus back when the menu goes with the focus in it
   function tbMenuFor(idx, ri, ci, x, y, from) {
-      var am = getActiveMap(), b = am && Array.isArray(am.blocks) ? am.blocks[idx] : null; if (!b || !Array.isArray(b.rows) || !b.rows[ri]) return;
+      var am = getActiveMap(), b = am && Array.isArray(am.blocks) ? am.blocks[idx] : null, head = ri === -1 && ci >= 0;   // ri -1 with a column: a heading's menu (1.6.2)
+      if (!b || !Array.isArray(b.rows) || (!head && !b.rows[ri])) return;
       if (!tbMenuEl) {
           tbMenuEl = document.createElement('div'); tbMenuEl.id = 'tbMenu'; tbMenuEl.className = 'context-menu tb-menu'; tbMenuEl.setAttribute('role', 'menu'); tbMenuEl.style.display = 'none';
           document.body.appendChild(tbMenuEl);
           tbMenuEl.addEventListener('click', function(e) {
               var bt = e.target && e.target.closest ? e.target.closest('button') : null; if (!bt || bt.disabled) return;
               var at = tbMenuEl._at, am2 = getActiveMap(), b2 = am2 && Array.isArray(am2.blocks) ? am2.blocks[at.idx] : null; tbMenuAway(); if (!b2) return;
-              var hides = bt.dataset.act === 'merge' && tbHides(b2, at.ri, at.ci);
-              var did = bt.dataset.act === 'merge' ? tbMerge(b2, at.ri, at.ci) : bt.dataset.act === 'unmerge' ? tbUnmerge(b2, at.ri, at.ci) : bt.dataset.act === 'full' ? tbFull(b2, at.ri) : false;
+              var act = bt.dataset.act, hides = (act === 'merge' && tbHides(b2, at.ri, at.ci)) || (act === 'hmerge' && tbHeadHides(b2, at.ci));
+              var did = act === 'merge' ? tbMerge(b2, at.ri, at.ci) : act === 'unmerge' ? tbUnmerge(b2, at.ri, at.ci) : act === 'full' ? tbFull(b2, at.ri) : act === 'hmerge' ? tbHeadMerge(b2, at.ci) : act === 'hunmerge' ? tbHeadUnmerge(b2, at.ci) : false;
               if (!did) return;
               save(true); renderPlanner();
               if (hides) toast('The words of the cell it now covers are kept out of sight. Unmerge shows them again.');
@@ -465,13 +492,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           // Escape with the focus outside the menu while it shows (the router stands aside for it): it goes all the same
           document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && tbMenuEl.style.display !== 'none') tbMenuAway(); });
       }
-      var n = tbCols(b), j = rowJoin(b, ri, n), k = ci >= 0 && j.spans ? j.spans[ci] : 1, rows = [];
-      if (ci >= 0) {
+      var n = tbCols(b), j = head ? { full: false, spans: headJoin(b, n) } : rowJoin(b, ri, n), k = ci >= 0 && j.spans ? j.spans[ci] : 1, rows = [];
+      if (head) {   // a heading's menu: its merge alone
+          rows.push({ act: 'hmerge', text: 'Merge with next', title: 'This heading stands over the next column too, as one heading over sub-labels', off: ci + k >= n });
+          rows.push({ act: 'hunmerge', text: 'Unmerge', title: 'Every column this heading spans has a heading of its own again, with the words it had', off: !(k > 1) });
+      } else if (ci >= 0) {
           rows.push({ act: 'merge', text: 'Merge with next', title: 'This cell takes the next column too, and reads once across both', off: j.full || ci + k >= n });
           rows.push({ act: 'unmerge', text: 'Unmerge', title: 'Every column this cell spans is a cell of its own again, with the words it had', off: j.full || !(k > 1) });
           rows.push({ rule: true });
       }
-      rows.push({ act: 'full', text: 'Full-width row', title: 'The row\u2019s first cell runs across the whole table, as a sub-heading between the rows', tick: j.full });
+      if (!head) rows.push({ act: 'full', text: 'Full-width row', title: 'The row\u2019s first cell runs across the whole table, as a sub-heading between the rows', tick: j.full });
       while (tbMenuEl.firstChild) tbMenuEl.removeChild(tbMenuEl.firstChild);
       rows.forEach(function(o) {
           var d = o.rule ? document.createElement('div') : document.createElement('button');   // each by a fixed name (sinkcheck reads every createElement here)
@@ -503,7 +533,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           + '<div class="fc-opts"><button type="button" class="tool b-tablewin" data-idx="' + idx + '" title="Edit every cell of this table in a big window of its own. Your changes save here as you make them.">Edit in its own window</button>'
           + '<button type="button" class="tool ghost b-tablehere" data-idx="' + idx + '" title="Draw every cell of this table here, until you close the app. A table this big makes the editor slow.">Edit here</button></div></div>';
   }
-  var TB_OPS = { cell: 1, head: 1, addRow: 1, delRow: 1, merge: 1, unmerge: 1, full: 1 };
+  var TB_OPS = { cell: 1, head: 1, addRow: 1, delRow: 1, merge: 1, unmerge: 1, full: 1, headMerge: 1, headUnmerge: 1 };
   function tbWhole(v, lo, hi) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v >= lo && v <= hi; }
   // One cell's text as stored, from a row of either form (a list, or { col1, … }): read as the window reads it (tablewin.js twText)
   function tbText(r, ci) { var v = Array.isArray(r) ? r[ci] : r && typeof r === 'object' ? r['col' + (ci + 1)] : ''; return typeof v === 'string' ? v : v == null ? '' : String(v); }
@@ -532,6 +562,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           : op.k === 'head' ? tbWhole(op.ci, 0, n - 1) && typeof op.text === 'string' && op.text.length <= 300
           : op.k === 'addRow' ? tbWhole(op.at, 0, rows) && rows < 500
           : op.k === 'delRow' || op.k === 'full' ? tbWhole(op.ri, 0, rows - 1)
+          : op.k === 'headMerge' || op.k === 'headUnmerge' ? tbWhole(op.ci, 0, n - 1)
           : tbWhole(op.ri, 0, rows - 1) && tbWhole(op.ci, 0, n - 1);
       var stale = 'The table changed before that edit arrived. Look again and try once more.';
       if (!ok) return stale;
@@ -543,6 +574,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (op.k === 'cell' && op.was !== tbText(b.rows[op.ri], op.ci)) return stale;
       if (op.k === 'head') { var hd = tsCols(b)[op.ci]; if (op.was !== String(hd == null ? '' : hd)) return stale; }
       if ((op.k === 'delRow' || op.k === 'full' || op.k === 'merge' || op.k === 'unmerge') && op.row !== tbRowSig(b.rows[op.ri])) return stale;
+      if ((op.k === 'headMerge' || op.k === 'headUnmerge') && op.heads !== JSON.stringify(tsCols(b).map(function(h) { return String(h == null ? '' : h); }))) return stale;   // 1.6.2: the headings' words the window saw
       return { it: it, b: b, op: { k: op.k, ri: op.ri, ci: op.ci, at: op.at, text: op.text } };
   }
   // The edit made on the block, as the editor makes it: the words of a cell or a head with their look carried across (textfmt respan), a
@@ -570,6 +602,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (op.k === 'delRow') { b.rows.splice(op.ri, 1); return true; }
       if (op.k === 'merge') return tbMerge(b, op.ri, op.ci);
       if (op.k === 'unmerge') return tbUnmerge(b, op.ri, op.ci);
+      if (op.k === 'headMerge') return tbHeadMerge(b, op.ci);
+      if (op.k === 'headUnmerge') return tbHeadUnmerge(b, op.ci);
       return op.k === 'full' ? tbFull(b, op.ri) : false;
   }
   // The main window's hearing of a table's window: the word judged and made, saved (the save is an undo step), the editor or the preview drawn
@@ -2151,7 +2185,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if (tbBig(b)) html += tbCardHtml(b, idx);   // 1.6.2: a big table is a card here and is edited in a window of its own (tbBig)
               else {
               html += '<div class="grouped-fields b-table"><div class="row-h b-heads">';
-              colNames.forEach(function(c, ci) { html += tsBoxHtml('b-colhead', 'Column '+(ci+1), 'data-idx="'+idx+'" data-ci="'+ci+'"', '', true, 'title="Header of column '+(ci+1)+'"'); });   // heads and cells take line breaks (tsMulti)
+              var hjE = headJoin(b, colNames.length);   // 1.6.2, merged headings: a merged heading's box takes its columns' room (as a merged cell's does), one under it has none
+              colNames.forEach(function(c, ci) { var hk = hjE ? hjE[ci] : 1; if (hk === 0) return; html += tsBoxHtml('b-colhead' + (hk > 1 ? ' r-span' : ''), 'Column '+(ci+1), 'data-idx="'+idx+'" data-ci="'+ci+'"', hk > 1 ? 'flex:' + hk + ' 1 ' + (6 * (hk - 1)) + 'px; min-width:' + (70 * hk + 6 * (hk - 1)) + 'px;' : '', true, hk > 1 ? 'title="Heading over ' + hk + ' columns. Right-click for Unmerge."' : 'title="Header of column '+(ci+1)+'. Right-click to merge it with the next."'); });   // heads and cells take line breaks (tsMulti)
               html += '<div style="width:68px; height:31px; flex:0 0 68px;"></div></div>';   // over a row's two buttons (its menu and its x)
               b.rows.forEach(function(r, ri) {
                   // 1.6.2, merged cells (docrender.js rowJoin): a merged cell's box takes the room of every column it spans, a cell under a merge has
@@ -2385,6 +2420,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       Array.from(blockContainer.querySelectorAll('.b-tablehere')).forEach(el => el.addEventListener('click', function() { var bb = activeMap.blocks[this.dataset.idx]; if (!bb || typeof bb.id !== 'string') return; tbHere[bb.id] = true; renderPlanner(); }));
       // 1.6.2, merged cells: the row's menu button, and a right-click on a cell (tbMenuFor)
       Array.from(blockContainer.querySelectorAll('.b-rowmenu')).forEach(el => el.addEventListener('click', function(e) { e.stopPropagation(); var r = this.getBoundingClientRect(); tbMenuFor(+this.dataset.idx, +this.dataset.ri, -1, r.left, r.bottom + 2, this); }));
+      Array.from(blockContainer.querySelectorAll('.b-table .b-colhead')).forEach(el => el.addEventListener('contextmenu', function(e) { e.preventDefault(); e.stopPropagation(); tbMenuFor(+this.dataset.idx, -1, +this.dataset.ci, e.clientX, e.clientY, this); }));   // 1.6.2: a heading's menu (Merge with next, Unmerge)
       Array.from(blockContainer.querySelectorAll('.b-table .r-col')).forEach(el => el.addEventListener('contextmenu', function(e) { e.preventDefault(); e.stopPropagation(); tbMenuFor(+this.dataset.idx, +this.dataset.ri, +this.dataset.ci, e.clientX, e.clientY, this); }));
       Array.from(blockContainer.querySelectorAll('.del-row')).forEach(el => el.addEventListener('click', function() { 
 
@@ -3338,7 +3374,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   var cols = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plainPv ? ['Item', 'Detail', 'Notes'] : kdP.cols.slice());
                   // a pinned heading row is a plain table's alone (Pin heading row and {pin} are offered only there): a card of another kind that keeps
                   // pin from before it was switched draws as unpinned, and the field stays so that switching back to Table finds it
-                  html += '<table' + (plainPv && b.pin === true ? ' class="t-pin"' : '') + '><thead><tr>' + cols.map(function(c, ci) { return '<th>' + fmtRich(c, colFmtOf(b, ci)) + '</th>'; }).join('') + '</tr></thead><tbody>';
+                  html += '<table' + (plainPv && b.pin === true ? ' class="t-pin"' : '') + '><thead><tr>' + headHtml(headJoin(b, cols.length), cols.length, function(ci) { return fmtRich(cols[ci], colFmtOf(b, ci)); }) + '</tr></thead><tbody>';
                   b.rows.forEach(function(r, ri) {   // a cell's lines that begin with "- " or "• " as a list (docrender.js cellHtml); merged cells and a full-width row (rowJoin, rowHtml)
                       html += rowHtml(rowJoin(b, ri, cols.length), cols.length, function(ci) { return cellHtml((r && r['col' + (ci + 1)]) || '', cellFmtOf(b, ri, ci), fmtRich); });
                   });

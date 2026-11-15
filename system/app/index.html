@@ -1431,6 +1431,7 @@
                                   <li>The words of a cell it covers are kept out of sight. Unmerge shows them again.</li>
                                   <li>The <b>&#8943;</b> button at the end of a row has <b>Full-width row</b>, and so does the right-click menu. The row&rsquo;s first cell then runs across the whole table as a sub-heading.</li>
                                   <li>A merged cell and a full-width row keep their shape when the table scrolls sideways.</li>
+                                  <li>A heading merges the same way: right-click it for <b>Merge with next</b>, to put one name over two columns of sub-labels. <b>Unmerge</b> gives each column its own heading again.</li>
                               </ul></li>
                           <li><b>A big table</b>: a table of more than 600 cells opens for editing in a window of its own, so the editor stays quick. Its card in the editor has <b>Edit in its own window</b>.<ul>
                                   <li>In that window click a cell or a heading to change it. <kbd>Ctrl</kbd>+<kbd>Enter</kbd> or <b>Done</b> keeps the words, and <kbd>Esc</kbd> leaves them as they were.</li>
@@ -1692,6 +1693,7 @@
                           <li>A <code>]</code> in a picture&rsquo;s caption is written <code>\]</code> and read back as part of the caption, styled or not.</li>
                           <li>A new line inside a table cell is written <code>&lt;br&gt;</code>, and an import reads it back as a new line. So a list in a cell comes back as it was.</li>
                           <li>A line that holds <code>{pin}</code> alone, right above a table, pins its heading row. A planner&rsquo;s wide table card that is pinned is <code>{wide pin}</code>.</li>
+                          <li>A merged heading is written the same way in the heading row, as in <code>| Coin | Weight || Value |</code>. The line of dashes under it still has one for each column.</li>
                           <li>A merged cell is followed by one more <code>|</code> for each further column it takes, as in <code>| Plate | 12 || heavy |</code>. A row whose first cell takes every column is a full-width row.</li>
                           <li>A flowchart node&rsquo;s link is written as one more line in the chart&rsquo;s fence, after the arrows: <code>click a href "https://example.com/page"</code>. It is read back onto the node. A diagram is written with its links as that same line.</li>
                           <li>Not carried: a link on a flowchart label, because a label cannot hold one. A few fields are written as their plain text, because their line would not read back styled.

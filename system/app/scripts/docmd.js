@@ -31,7 +31,7 @@
      the whole field or on a part of it — are written from the field's format and read back into it
      ("text style" below). */
 'use strict';
-import { sanitizeHtml, DOC_BLOCKS, fieldFmt, colFmtOf, cellFmtOf, labelFmt, stripMermaidLinks, linkLine, readLinkLine, rowJoin } from './docrender.js';
+import { sanitizeHtml, DOC_BLOCKS, fieldFmt, colFmtOf, cellFmtOf, labelFmt, stripMermaidLinks, linkLine, readLinkLine, rowJoin, headJoin } from './docrender.js';
 import { cleanFmt, runsOf, SIZE_EM, MAX_RAW } from './textfmt.js';
 import * as CC from './cardcore.js';   // backlog 107 step 3: a card's kind, other names and tick, written and read back
 
@@ -569,11 +569,13 @@ function markdownToBlocks(text, opts) {
         run.push('<pre><code>' + esc(body) + '</code></pre>');
     }
     // fm: the formats read with the texts — { title, cols: [fmt…], rows: [[fmt…]…] }, each undefined where there is none; fm.joins (1.6.2): each
-    // row's spans as splitJoin read them, or null
+    // row's spans as splitJoin read them, or null; fm.heads (1.6.2): the heading row's spans, read the same way, or null
     function pushTable(cols, rows, title, fm) {
         fm = fm || {};
         var cf = fm.cols || [], rf = fm.rows || [], jf = fm.joins || [];
         if (cols.length > LIMITS.cols) { notes.push('Table "' + (title || cols[0] || '') + '": ' + cols.length + ' columns cut to ' + LIMITS.cols + '.'); cols = cols.slice(0, LIMITS.cols); }
+        // 1.6.2, merged headings: a heading followed by bare pipes takes those columns too (headMerge, as docrender.js headJoin reads it)
+        var hm = null; if (fm.heads) { hm = {}; fm.heads.forEach(function(k, ci) { if (k > 1 && ci < cols.length) hm['col' + (ci + 1)] = Math.min(k, cols.length - ci); }); if (!Object.keys(hm).length) hm = null; }
         var objRows = rows.map(function(r, ri) {
             var o = {}, fo = {}, one = rf[ri] || [];
             cols.forEach(function(c, k) { o['col' + (k + 1)] = r[k] === undefined ? '' : r[k]; if (one[k] && r[k] !== undefined) fo['col' + (k + 1)] = one[k]; });
@@ -591,12 +593,13 @@ function markdownToBlocks(text, opts) {
         // 1.6.2 (the owner, 2026-11-11, by prompt: "Blank line ends the card (Recommended)"): a table right under a card's heading or its lines is the card's
         // own rows, as the export writes them. A table after a blank line is a table of its own (sceneGap): an untitled table after a card that has
         // no rows used to be read back as that card's rows
-        if (scene && kind === 'planner' && !sceneGap) { scene.cols = cols; scene.rows = objRows; if (colFmt.length) scene.colFmt = colFmt; else delete scene.colFmt; scene = null; pendingPin = false; return; }
+        if (scene && kind === 'planner' && !sceneGap) { scene.cols = cols; scene.rows = objRows; if (colFmt.length) scene.colFmt = colFmt; else delete scene.colFmt; if (hm) scene.headMerge = hm; else delete scene.headMerge; scene = null; pendingPin = false; return; }
         scene = null;
         flushRun();
         var tb = kind === 'planner' ? push({ type: 'node', mode: 'table', title: title || '', cols: cols, rows: objRows }) : push({ type: 'table', title: title || '', cols: cols, rows: objRows });
         if (pendingWide && kind === 'planner') CC.wideSet(tb, true);
         if (pendingPin) tb.pin = true;   // 1.6.2: its heading row pinned in sight (tablefollow.js)
+        if (hm) tb.headMerge = hm;   // 1.6.2: its merged headings
         pendingWide = false; pendingPin = false;
         if (colFmt.length) tb.colFmt = colFmt;
         if (title) setFmt(tb, 'title', fm.title);
@@ -651,10 +654,10 @@ function markdownToBlocks(text, opts) {
         }
         if (/\|/.test(line) && isTableSep(next)) {
             var textOf = function(c) { return c.text; }, fmtOf = function(c) { return c.fmt; };
-            var hc = splitRow(line).map(cellOf), cols = hc.map(textOf), rows = [], rfm = []; i += 2;   // a head and a cell read a <br> as a line break (cellOf)
+            var hsj = splitJoin(line), hc = hsj.cells.map(cellOf), cols = hc.map(textOf), rows = [], rfm = []; i += 2;   // a head and a cell read a <br> as a line break (cellOf); 1.6.2: the heading row's merges by the rows' own rule (splitJoin)
             var rj = [];   // 1.6.2: each row's merged cells (splitJoin)
             while (i < lines.length && /\|/.test(lines[i]) && lines[i].trim()) { var sj = splitJoin(lines[i]), rc = sj.cells.map(cellOf); rows.push(rc.map(textOf)); rfm.push(rc.map(fmtOf)); rj.push(sj.spans); i++; }
-            var tt = pendingTitle; pendingTitle = null; pushTable(cols, rows, tt ? tt.text : tt, { title: tt ? tt.fmt : undefined, cols: hc.map(fmtOf), rows: rfm, joins: rj }); continue;
+            var tt = pendingTitle; pendingTitle = null; pushTable(cols, rows, tt ? tt.text : tt, { title: tt ? tt.fmt : undefined, cols: hc.map(fmtOf), rows: rfm, joins: rj, heads: hsj.spans }); continue;
         }
         var imL = picLine(line);
         if (imL) {
@@ -809,7 +812,11 @@ function tableMd(title, cols, rows, b) {
     cols = heads.map(function(c, k) { return (b && fieldMd(c, colFmtOf(b, k), IN_CELL)) || cellText(c); });
     var L = [];
     if (title) L.push('**' + ((b && fieldMd(title, fieldFmt(b, 'title'), IN_BOLD)) || mdEscapeText(title)) + '**');
-    L.push('| ' + cols.join(' | ') + ' |');
+    // 1.6.2, merged headings: a merged heading is followed by one bare | for each further column it takes, as a merged cell is; a heading under
+    // it is not written (it is not drawn either). The line under the headings still has one --- a column
+    var hsT = b ? headJoin(b, heads.length) : null, hl = '|';
+    if (hsT) { hsT.forEach(function(k, ci) { if (k > 0) hl += ' ' + cols[ci] + ' ' + new Array(k + 1).join('|'); }); L.push(hl); }
+    else L.push('| ' + cols.join(' | ') + ' |');
     L.push('|' + cols.map(function() { return '---'; }).join('|') + '|');
     (rows || []).forEach(function(r, ri) {
         var c = rowCells(r, cols), one = function(k) { return (b && fieldMd(c[k], cellFmtOf(b, ri, k), IN_CELL)) || cellText(c[k]); };

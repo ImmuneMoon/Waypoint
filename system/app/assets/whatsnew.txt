@@ -41,6 +41,8 @@ Wide tables
   and Unmerge, and a merged cell reads once across its columns. A row's
   menu makes it a full-width row, a sub-heading that runs across the whole
   table.
+- A heading can stand over two columns too, as one name over its
+  sub-labels: right-click a heading for Merge with next.
 - A very big table now opens for editing in a big window of its own, so
   the page editor stays quick even on a page with thousands of cells.
   Click a cell to change it, and right-click for rows and merges. Every

@@ -135,11 +135,11 @@ function extent(item, wide) {
 // [buildcheck:flatplan-start]
 // 1.6.2 (backlog 39; the owner, 2026-11-07, by prompt): Flatten into one picture. What a flatten of a selection takes, pure. A piece that carries
 // a rule (it blocks sight or movement, is a door or a way to another map, gives cover, smoke, difficult terrain or ground height, holds a light,
-// a fog mark, a page pin or a null area) is drawn in and kept as an invisible piece where the dialog says Drawn in (mode 'keep'), and is left
+// a fog mark, a page pin or a null area, or is a place on the map's list) is drawn in and kept as an invisible piece where the dialog says Drawn in (mode 'keep'), and is left
 // out as it is otherwise ('out'). Every other piece the picture draws (shows) is drawn in and then hidden, to be put back by Unflatten. A piece
 // the picture never draws (a token, a hidden piece, a GM note card) is left as it is. The box is the drawn pieces' own extent, to whole pixels,
 // and the picture takes the lowest level among them
-var FLAT_RULES = ['blocksSight', 'barrier', 'cover', 'coverAs', 'smoke', 'terrain', 'ground', 'height', 'light', 'fogHand', 'nulls', 'targetMapId', 'nodeId', 'page', 'trigger', 'playArea', 'secret', 'sightType'];
+var FLAT_RULES = ['blocksSight', 'barrier', 'cover', 'coverAs', 'smoke', 'terrain', 'ground', 'height', 'light', 'fogHand', 'nulls', 'targetMapId', 'nodeId', 'page', 'trigger', 'playArea', 'secret', 'sightType', 'place'];   // 1.6.3: 'place', a piece the GM ticked Place (placecore.js): hidden, no list of places would name it
 function flatRule(item) {
     if (!item || typeof item !== 'object') return false;
     for (var i = 0; i < FLAT_RULES.length; i++) {

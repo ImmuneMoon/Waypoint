@@ -81,9 +81,10 @@ const byClass = (n, cls) => all(n).filter(e => (' ' + e.className + ' ').include
     {
         const fogS = read('scripts/fog.js'), seenS = slice(fogS, 'placescheck:seen');
         const grid = FC.gridFor('square', null, null), key = (x, y) => FC.cellKey(FC.cellOf(x, y, grid), grid);
-        const mk = o => new Function('core', 'gridForMap', 'fogFeatureOn', 'mapFog', 'activeCamp', 'fogMask', 'isClientView', 'isStreamView', 'partyTiers', 'revealedTiers', 'myId', 'PARTY', 'rememberOn', '_mem', 'inMask',
+        const mk = o => new Function('core', 'gridForMap', 'fogFeatureOn', 'mapFog', 'activeCamp', 'fogMask', 'isClientView', 'isStreamView', 'partyTiers', 'revealedTiers', 'myId', 'PARTY', 'rememberOn', '_mem', 'inMask', 'wallEdged',
             seenS + '\nreturn placeSeen;')(() => FC, () => o.grid === undefined ? grid : o.grid, () => o.fog !== false, () => ({ on: o.on !== false, epoch: 0 }), () => ({}), () => o.mask || { mode: 'all' }, () => o.who === 'player', () => o.who === 'stream',
-            () => o.party, (m, c, who) => { o.asked = who; return o.tiers === undefined ? { keys: {} } : o.tiers; }, () => 'pl1', '*players', () => o.remember !== false, o.mem || {}, (mask, k) => mask.mode === 'all' ? true : mask.mode === 'none' ? false : !!mask.keys[k]);
+            () => o.party, (m, c, who) => { o.asked = who; return o.tiers === undefined ? { keys: {} } : o.tiers; }, () => 'pl1', '*players', () => o.remember !== false, o.mem || {}, (mask, k) => mask.mode === 'all' ? true : mask.mode === 'none' ? false : !!mask.keys[k],
+            o.edge ? (t, m, g) => { o.edged = (o.edged || 0) + 1; const k2 = Object.assign({}, t.keys, o.edge); return Object.assign({}, t, { keys: k2 }); } : undefined);
         const map = { type: 'map', id: 'm1' }, pts = [{ x: 25, y: 25 }, { x: 125, y: 25 }, { x: 225, y: 25 }, { x: NaN, y: 1 }];
         const pl = { who: 'player', tiers: { keys: { [key(25, 25)]: 2 } }, mem: { m1: { key: 'square:50|0', cells: { [key(125, 25)]: { c: 2, r: 0 } } } } };
         const got = mk(pl)(map, pts);
@@ -98,6 +99,20 @@ const byClass = (n, cls) => all(n).filter(e => (' ' + e.className + ' ').include
         const outside = mk({ who: 'player', mask: { mode: 'set', keys: { [key(25, 25)]: 1 } }, tiers: { keys: {} } })(map, pts);
         check('every pin is seen where the fog does not apply: Fog of war off, this map\'s fog off, no grid, no play area with the rest left clear, the map on Reveal all; and a pin outside a play area is seen (that ground is never fogged)',
             allT.every(r => J(r) === J([true, true, true, true])) && J(outside) === J([false, true, true, false]) && J(mk({ who: 'player' })(null, pts)) === J([true, true, true, true]), J([allT, outside]));
+        // the review of 2026-11-15: a place is judged by every cell it touches, never its middle's alone
+        const room = { type: 'map', id: 'm1', whiteboard: [{ id: 'door', type: 'path', x: 100, y: 200, w: 50, h: 0, targetMapId: 'm2', blocksSight: true, sightType: 'door' },
+            { id: 'blk', type: 'rect', x: 300, y: 300, w: 150, h: 150, nodeId: 'r1', blocksSight: true }, { id: 'pin', type: 'mappin', x: 405, y: 105, w: 40, h: 40, place: true }] };
+        const inRoom = { [key(125, 175)]: 2, [key(75, 175)]: 2 }, doorP = [{ id: 'door', x: 125, y: 200 }];
+        const doorGot = mk({ who: 'player', remember: false, tiers: { keys: inRoom } })(room, doorP), doorOld = FC.cellKey(FC.cellOf(125, 200, grid), grid) in inRoom;
+        const blkP = [{ id: 'blk', x: 375, y: 375 }], blkGot = mk({ who: 'player', remember: false, tiers: { keys: { [key(325, 325)]: 1 } } })(room, blkP), blkNone = mk({ who: 'player', remember: false, tiers: { keys: {} } })(room, blkP);
+        const pinP = [{ id: 'pin', x: 425, y: 125 }], pinNear = mk({ who: 'player', remember: false, tiers: { keys: { [key(475, 125)]: 2, [key(375, 125)]: 2, [key(425, 175)]: 2 } } })(room, pinP);
+        check('a door drawn as a line along a room\'s bottom wall, its middle on the grid line, is seen by a player standing inside the room (the cell of its middle lies past the wall, and was all the first build read); a building block whose middle is deep inside it is seen once a cell under it is; and a pin in a fogged cell whose neighbours are all seen is still not seen, so no place is told one cell early',
+            !doorOld && J(doorGot) === J([true]) && J(blkGot) === J([true]) && J(blkNone) === J([false]) && J(pinNear) === J([false]), J([doorGot, blkGot, blkNone, pinNear]));
+        const edgeP = [{ id: 'x', x: 625, y: 25 }], eKey = { [key(625, 25)]: 1 };
+        const ePl = { who: 'player', remember: false, tiers: { keys: {} }, edge: eKey }, eGm = { who: 'gm', tiers: { keys: {} }, edge: eKey }, eSt = { who: 'stream', party: { keys: {} }, edge: eKey };
+        const eGot = [mk(ePl)(map, edgeP), mk(eGm)(map, edgeP), mk(eSt)(map, edgeP)];
+        check('a player\'s and the GM\'s screen add the cells a thin wall runs through (wallEdged), as the overlay draws them; the stream window does not, since the host\'s party cells carry them already',
+            J(eGot) === J([[true], [true], [false]]) && ePl.edged === 1 && eGm.edged === 1 && !eSt.edged, J(eGot));
         check('fog.js publishes it as wpFog.placeSeen, and it reads nothing but the fog\'s own readers', fogS.includes('    placeSeen: placeSeen,   // 1.6.3') && !/\bsend\(|wpNet|localStorage/.test(seenS));
     }
 
@@ -119,6 +134,10 @@ const byClass = (n, cls) => all(n).filter(e => (' ' + e.className + ' ').include
             && failClosed.length === 0 && noJudge.length === 3, J([plL, gmL, failClosed]));
         seen[1] = true; L(PC, map, 'gm', seenOf, store, cx); seen[1] = false;
         check('the GM\'s mark goes once a player has been seen to see the place, and stays gone when their tokens move away', L(PC, map, 'gm', seenOf, store, cx).every(l => !l.mark));
+        const crowd = { type: 'map', id: 'mc', rooms: [], whiteboard: Array.from({ length: 600 }, (x, i) => ({ id: 'k' + i, type: 'rect', place: true, name: 'P' + i, x: i * 10, y: 0, w: 1, h: 1 })) };
+        const late = (m, l) => l.map((p, i) => i >= 300), plC = L(PC, crowd, 'player', late, store, cx), gmC = L(PC, crowd, 'gm', late, store, cx);
+        check('on a map of more than 200 places a player\'s list is judged whole and cut only then: a player who has seen places 301 and on gets 200 of them, numbered from 1; the GM\'s list is the first 200 (placesOn\'s cut handed in, the review of 2026-11-15)',
+            plC.length === PC.LIST_MAX && plC[0].id === 'k300' && plC[0].n === 1 && gmC.length === PC.LIST_MAX && gmC[0].id === 'k0' && PC.placesOn(crowd, cx, Infinity).length === 600 && PC.placesOn(crowd, cx).length === PC.LIST_MAX && PC.placesOn(crowd, cx, 3).length === 3, J([plC.length, plC[0], gmC.length]));
         const D = new Function('el', drawS + '\nreturn { listInto, cardInto, legendInto, inkFor };')(new Function(elS + '\nreturn el;')());
         const doc = mkDoc(), body = doc.createElement('div');
         const hostile = [{ n: 1, id: 'x"><img src=x onerror=alert(1)>', name: '<script>alert(1)</script>', to: '' }, { n: 2, id: 'g', name: 'Gate & <i>Way</i>', to: 'm3', mark: true }];
@@ -142,6 +161,12 @@ const byClass = (n, cls) => all(n).filter(e => (' ' + e.className + ' ').include
         check('a legend with nothing its viewer has seen says No places yet', byClass(box2, 'lg-empty')[0].textContent === 'No places yet.' && byClass(box2, 'lg-line').length === 0);
         check('places.js writes no markup but the Properties field, which inspector.js lays as html and which escapes every word it does not write itself, and reads no storage',
             count(plS, 'innerHTML') === 0 && !/localStorage|eval\(|new Function/.test(plS) && /value="' \+ esc\(nm\) \+ '" placeholder="' \+ esc\(def\) \+ '"/.test(plS) && /function esc\(s\) \{ return String/.test(plS));
+        check('a pin\'s name, which hangs below it and outside the cell the fog judges, is drawn on a player\'s app and in the stream window only where the screen\'s own list holds the place; the slow look draws a player\'s pins again; the lines are worked out once a pass (linesNow keeps them until a microtask); and the open card\'s own words are part of what the box compares, worked out before the comparison (the review of 2026-11-15)',
+            plS.includes("if (nm && who() !== 'gm' && !linesNow(map).some(function(l) { return l.id === item.id; })) nm = '';") && plS.includes("else if (w.type === 'mappin' && !gm) pinDraw(state.wbEls[w.id], w, map);")
+            && plS.includes("return w && (w.type === 'maplegend' || (!gm && w.type === 'mappin'));") && plS.includes('Promise.resolve().then(function() { _pl.memo = null; _pl.memoDrop = false; });')
+            && /var sig = PC\.placesSig\(lines, \[map && map\.id, _pl\.card, who\(\), cw \? cw\.title : '', cw \? \(cw\.closed \? 1 : 0\) : '', cw \? cw\.to : ''\]\.join\('\|'\)\);\n[^\n]*\n    if \(!force && sig === _pl\.sig\) return;/.test(plS));
+        check('every function of places.js says what it does in a comment of its own (the house rule): none stands under a section\'s banner alone',
+            ['P', 'shown', 'open', 'close', 'toggle', 'addPin', 'addLegend', 'wire', 'boardNeeds'].every(n => { const i = plS.indexOf('\nfunction ' + n + '('); return i > 0 && /\/\/[^\n]*\n$/.test(plS.slice(0, i + 1)) && !/\/\/ ---- [^\n]*----\n$/.test(plS.slice(0, i + 1)); }));
         check('a press: finds the place on this screen (its view to the pin, lit by the board\'s own find light for a moment) and opens a teleporter\'s card in the box; a line this screen no longer lists does nothing; and every step logs as places v1',
             /function press\(id, fromLegend\) \{\n    var map = getActiveMap\(\), lines = map \? linesNow\(map\) : \[\], l = lines\.filter\(function\(x\) \{ return x\.id === id; \}\)\[0\]; if \(!l\) return false;\n    find\(id\);/.test(plS)
             && plS.includes("e.classList.add('wb-find-lit')") && plS.includes("window.wpStepLog('places v1', s, f || {})") && plS.includes('/^data:image\\/png;base64,[A-Za-z0-9+\\/]+={0,2}$/'));
@@ -162,6 +187,11 @@ const byClass = (n, cls) => all(n).filter(e => (' ' + e.className + ' ').include
         check('the board draws a legend and a place pin through places.js, a placed pin asks it to open Properties, the redraw syncs it with and without a map, and Properties asks it for the Place tick and wires it',
             wb.includes("} else if (item.type === 'maplegend') {") && wb.includes("window.wpPlaces.legendDraw(el, item, activeMap);") && wb.includes("window.wpPlaces.pinDraw(el, item, activeMap);") && wb.includes("window.wpPlaces.placed(type, state.selWbId);")
             && count(main, 'if (window.wpPlaces) window.wpPlaces.sync();') === 2 && ins.includes("window.wpPlaces.fieldHtml(w) : '')+") && ins.includes('window.wpPlaces.fieldWire(w);'));
+        const BC = await import(url.pathToFileURL(app('scripts/buildcore.js')).href), SC = await import(url.pathToFileURL(app('scripts/shotcore.js')).href);
+        const seat = { type: 'rect', x: 0, y: 0, w: 50, h: 50 };
+        check('a piece ticked Place keeps its purpose: Build never lays it again in place (buildcore special, so it is never renamed by a material or made a plain wall) and Flatten keeps it as a piece drawing nothing (shotcore FLAT_RULES), where one the GM unticked is a plain piece to both',
+            BC.seatedAt([Object.assign({ place: true }, seat)], seat) === -1 && BC.seatedAt([Object.assign({ place: false }, seat)], seat) === 0 && SC.flatRule({ place: true }) === true && SC.flatRule({ place: false }) === false
+            && J(SC.flatPlan([Object.assign({ id: 'pl', color: '#336699', place: true }, seat)], ['pl'], 'keep').ghost) === J(['pl']));
         check('Show on my map has a row for place pins and legends, among the kinds under Show more', il.includes("{ k: 'place', name: 'Place pins and legends', more: true }") && il.includes("else if (w.type === 'mappin' || w.type === 'maplegend') out.push('place');"));
         check('the wire: a place\'s tick and name go with a shown piece and only as their cleaners keep them, never on a secret door or a plain wall; a player\'s app cleans them again; a file\'s are cleaned on import; the secret door\'s copy drops them (SECRET_DROP)',
             net.includes("if (w.place !== undefined || w.placeName !== undefined) {") && net.includes("delete w.portalLock; delete w.place; delete w.placeName;") && net.includes("delete w.darkStep; delete w.cloud; if (w.place !== undefined && w.place !== true && w.place !== false) delete w.place; if (w.placeName !== undefined) { var PCh = window.wpPlaceCore")

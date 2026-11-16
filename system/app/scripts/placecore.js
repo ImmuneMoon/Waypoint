@@ -99,12 +99,15 @@ function readingOrder(list) {
     rows.forEach(function(rw) { rw.items.sort(function(a, b) { return a.x - b.x || a.y - b.y; }).forEach(function(p) { out.push(p); }); });
     return out;
 }
-// Every place of a map, in reading order, LIST_MAX at most. [] for anything that is no map
-function placesOn(map, ctx) {
+// Every place of a map, in reading order, LIST_MAX at most. [] for anything that is no map. max, where it is a number, is the cut in place of
+// LIST_MAX (places.js passes Infinity for a player, whose list is cut only after it is judged for what they have seen, so that a player who
+// has seen places 201 and on of a crowded map still gets them; the cut of what a screen draws is then LIST_MAX all the same)
+function placesOn(map, ctx, max) {
     if (!isObj(map) || !Array.isArray(map.whiteboard)) return [];
     var out = [];
     for (var i = 0; i < map.whiteboard.length; i++) { var p = placeOf(map.whiteboard[i], map, ctx); if (p) out.push(p); }
-    return readingOrder(out).slice(0, LIST_MAX);
+    var cut = typeof max === 'number' && max >= 0 ? max : LIST_MAX;
+    return isFinite(cut) ? readingOrder(out).slice(0, cut) : readingOrder(out);
 }
 // The places a viewer may see: seen is a list of true and false, one for each place handed in (fog.js placeSeen), and a place is kept where
 // it says true. A list of another length, or none, keeps nothing: failing closed, a player is never shown a place their screen cannot judge

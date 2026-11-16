@@ -2445,27 +2445,39 @@ window.wpFogSync = sync;
 window.wpFogRedraw = redraw;
 setTimeout(sync, 0);
 // [placescheck:seen-start]
-// 1.6.3, a map's places (places.js; the owner, by prompt: "Only places they have seen"): for each point handed in, the middle of a place's pin,
-// whether this screen's viewer has seen it. Read from the fog's own readers and nothing else, on the screen's own copy, so nothing is sent:
-// a player's app reads what its tokens see now (revealedTiers for the player's own id) and the ground its screen remembers (the explored-
-// terrain memory the overlay keeps, S6, only while Players remember what they have seen is on and the store is this map's grid and fog epoch);
-// the stream window reads the party's cells the host sent it (partyTiers); the GM's screen reads what the players' tokens see together now
-// (PARTY), for the GM's mark of a place no player has seen. Every point is seen where the fog does not apply: Fog of war switched off, this
-// map's fog off, no grid, the map on Reveal all, no play area with the campaign leaving the rest clear, or the point outside the play area
-// (that ground is never fogged). Answers a list of true and false, one for each point, in order
+// 1.6.3, a map's places (places.js; the owner, by prompt: "Only places they have seen"): for each place handed in (placecore placeOf: its id
+// and its middle), whether this screen's viewer has seen it. Read from the fog's own readers and nothing else, on the screen's own copy, so
+// nothing is sent: a player's app reads what its tokens see now (revealedTiers for the player's own id, with the cells a thin wall runs
+// through added as the overlay draws them, wallEdged) and the ground its screen remembers (the explored-terrain memory the overlay keeps, S6,
+// only while Players remember what they have seen is on and the store is this map's grid and fog epoch); the stream window reads the party's
+// cells the host sent it (partyTiers, which carry the wall cells already); the GM's screen reads what the players' tokens see together now
+// (PARTY, wall cells added), for the GM's mark of a place no player has seen. Every place is seen where the fog does not apply: Fog of war
+// switched off, this map's fog off, no grid, the map on Reveal all, no play area with the campaign leaving the rest clear.
+// A place is seen where ANY of its cells is seen, or lies outside the play area (that ground is never fogged). Its cells (placeCells): the
+// cell of its middle and every cell within a pixel of the middle, so a door drawn as a line along a grid line (Build and the generators lay
+// doors on the lattice) counts the cells on BOTH sides of its wall, and the cells under the piece's own outline (fogcore itemCells, never for
+// a piece too large to list, itemOver), so a large piece is seen once any part of it is, a building's middle inside the block included.
+// Answers a list of true and false, one for each place, in order; a place that is no number is not seen
+function placeCells(C, p, piece, grid) {
+    var out = [], had = Object.create(null), add = function(c) { var k = C.cellKey(c, grid); if (!had[k]) { had[k] = 1; out.push(k); } };
+    for (var dx = -1; dx <= 1; dx++) for (var dy = -1; dy <= 1; dy++) add(C.cellOf(p.x + dx, p.y + dy, grid));   // the middle, and both sides of a grid line it sits on
+    if (piece && typeof C.itemCells === 'function' && !(typeof C.itemOver === 'function' && C.itemOver(piece, grid))) C.itemCells(piece, grid).forEach(add);
+    return out;
+}
 function placeSeen(map, pts) {
     var list = Array.isArray(pts) ? pts : [], all = list.map(function() { return true; }), C = core();
     if (!map || map.type !== 'map' || !C) return all;
     var grid = gridForMap(map); if (!grid || !fogFeatureOn() || !mapFog(map).on) return all;
     var camp = activeCamp(), mask = fogMask(map, camp, grid); if (mask.mode === 'none') return all;
-    var client = isClientView(), tiers = isStreamView() ? partyTiers(map, grid) : revealedTiers(map, camp, client ? myId() : PARTY);
+    var client = isClientView(), stream = isStreamView(), tiers = stream ? partyTiers(map, grid) : revealedTiers(map, camp, client ? myId() : PARTY);
     if (tiers === null) return all;
+    if (!stream && tiers && typeof wallEdged === 'function') tiers = wallEdged(tiers, map, grid);   // the cells a thin wall runs through, as every screen draws them
     var mem = client && rememberOn(camp) ? _mem[map.id] : null; if (mem && mem.key !== grid.type + ':' + (grid.size || grid.s) + '|' + (mapFog(map).epoch || 0)) mem = null;
+    var byId = Object.create(null); (Array.isArray(map.whiteboard) ? map.whiteboard : []).forEach(function(w) { if (w && typeof w.id === 'string') byId[w.id] = w; });
     return list.map(function(p) {
         if (!p || typeof p.x !== 'number' || typeof p.y !== 'number' || !isFinite(p.x) || !isFinite(p.y)) return false;
-        var k = C.cellKey(C.cellOf(p.x, p.y, grid), grid);
-        if (!inMask(mask, k)) return true;
-        return !!(tiers && tiers.keys && tiers.keys[k]) || !!(mem && mem.cells[k]);
+        var keys = placeCells(C, p, typeof p.id === 'string' ? byId[p.id] : null, grid);
+        return keys.some(function(k) { return !inMask(mask, k) || !!(tiers && tiers.keys && tiers.keys[k]) || !!(mem && mem.cells[k]); });
     });
 }
 // [placescheck:seen-end]

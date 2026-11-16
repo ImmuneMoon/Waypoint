@@ -12,7 +12,8 @@
    - the Place tick and Place name box of a piece's Properties (fieldHtml, fieldWire, asked by inspector.js), the GM's alone.
    What a player's list holds is worked out on the player's own app from what it holds (fog.js placeSeen: what their tokens see now and what
    their screen remembers), so nothing new is sent. The GM's list shows every place and marks one no player's token has been seen to see
-   on this computer this session. The stream window draws a legend as the party sees. Everything is drawn with elements and text nodes:
+   on this computer while its box or a legend was up this session (that mark is only this screen's memory: it starts over at a reload, and it never
+   reads a player's remembered ground, which only their own app holds). The stream window draws a legend as the party sees. Everything is drawn with elements and text nodes:
    a place's name is the GM's words and may come from a file. Steps log as places v1. */
 
 import { getActiveCampaign, getActiveMap } from './models.js';
@@ -21,7 +22,7 @@ import { save, toast } from './io.js';
 import * as PC from './placecore.js';
 
 var FIND_MS = 1600;   // how long a found pin stays lit (as the turn strip's own find)
-var _pl = { card: '', sig: '', seen: Object.create(null), lit: null, litT: null, tick: null };
+var _pl = { card: '', sig: '', seen: Object.create(null), lit: null, litT: null, tick: null, memo: null, memoDrop: false };
 
 // One step to the app's log (steplog.js): a step's name and counts, never a place's name
 function step(s, f) { try { if (typeof window.wpStepLog === 'function') window.wpStepLog('places v1', s, f || {}); } catch (e) {} }
@@ -48,18 +49,28 @@ function viewOn() { var m = getActiveMap(); return !!m && m.type === 'map' && st
 // true or false a place (fog.js placeSeen). A player and the stream window keep only the places their viewer has seen (placesSeenOnly fails
 // closed: a judge that gives no answer of the right length keeps none). The GM keeps every place, and each one no player's token has been
 // seen to see on this computer is marked (mark: true); store remembers, by map and piece, the places the GM's screen has found seen
+// A player's and the stream window's list is judged whole and only then cut at LIST_MAX (placesOn with no cut), so a crowded map never hides
+// places they have seen behind 200 they have not; the GM's is cut first, as it lists every place anyway
 function linesFor(PCx, map, viewer, seenOf, store, cx) {
-    var list = PCx.placesOn(map, cx), seen = typeof seenOf === 'function' ? seenOf(map, list) : list.map(function() { return true; });
-    if (viewer !== 'gm') return PCx.placeLines(PCx.placesSeenOnly(list, seen));
+    var list = PCx.placesOn(map, cx, viewer === 'gm' ? undefined : Infinity), seen = typeof seenOf === 'function' ? seenOf(map, list) : list.map(function() { return true; });
+    if (viewer !== 'gm') return PCx.placeLines(PCx.placesSeenOnly(list, seen).slice(0, PCx.LIST_MAX));
     var lines = PCx.placeLines(list);
     lines.forEach(function(l, i) { var k = (map && map.id) + '|' + l.id; if (Array.isArray(seen) && seen[i] === true && store) store[k] = 1; if (!(store && store[k] === 1)) l.mark = true; });
     return lines;
 }
 // [placescheck:lines-end]
-// The lines for the map on screen, by fog.js's own reader where it is there (with no fog module there is no fog, so every place is seen)
+// The lines for the map on screen, by fog.js's own reader where it is there (with no fog module there is no fog, so every place is seen).
+// Worked out ONCE for a pass: every legend, every pin's label and the box ask it at each redraw and each slow look, and each working-out runs
+// the fog's whole judgement of what is seen (fog.js placeSeen, revealedTiers), so the answer is kept for the map, its list of pieces and the
+// viewer until the code running now is done (a microtask lets it go). A change made later, in another event, is always worked out afresh
 function linesNow(map) {
-    var F = window.wpFog, seenOf = F && typeof F.placeSeen === 'function' ? function(m, l) { return F.placeSeen(m, l); } : null;
-    return linesFor(PC, map, who(), seenOf, _pl.seen, ctx());
+    var w = who(), wb = map && Array.isArray(map.whiteboard) ? map.whiteboard : null, m = _pl.memo;
+    if (m && m.map === map && m.wb === wb && m.n === (wb ? wb.length : 0) && m.who === w) return m.lines;
+    var F = window.wpFog, seenOf = F && typeof F.placeSeen === 'function' ? function(mp, l) { return F.placeSeen(mp, l); } : null;
+    var lines = linesFor(PC, map, w, seenOf, _pl.seen, ctx());
+    _pl.memo = { map: map, wb: wb, n: wb ? wb.length : 0, who: w, lines: lines };
+    if (!_pl.memoDrop) { _pl.memoDrop = true; Promise.resolve().then(function() { _pl.memo = null; _pl.memoDrop = false; }); }
+    return lines;
 }
 
 // [placescheck:draw-start]
@@ -78,7 +89,7 @@ function listInto(body, lines, card, cardOf, viewer, doc) {
         b.type = 'button'; b.dataset.id = l.id; b.title = l.to ? 'Find it on the map and see where it leads' : 'Find it on the map';
         b.appendChild(el(doc, 'span', 'places-n', l.n + '.')); b.appendChild(el(doc, 'span', 'places-name', l.name));
         if (l.to) { var t = el(doc, 'span', 'places-to', '\u2192'); t.setAttribute('aria-label', 'leads to another map'); b.appendChild(t); }
-        if (l.mark) { var u = el(doc, 'span', 'places-unseen wib wi-unseen'); u.title = 'No player has seen it yet this session'; u.setAttribute('aria-label', 'not seen by a player yet'); b.appendChild(u); }
+        if (l.mark) { var u = el(doc, 'span', 'places-unseen wib wi-unseen'); u.title = 'No player\u2019s token has seen it while your list or a legend was up. This starts over when you reload.'; u.setAttribute('aria-label', 'not seen by a player yet'); b.appendChild(u); }
         li.appendChild(b);
         if (card === l.id && l.to && typeof cardOf === 'function') li.appendChild(cardInto(doc, cardOf(l)));
         ol.appendChild(li);
@@ -139,28 +150,39 @@ function thumbInto(body) {
 }
 
 // ---- the box ----
+// The Places here box in the page (#placesPanel), or null where the page has none
 function P() { return document.getElementById('placesPanel'); }
+// Whether the box is up: it is put away by an inline display of none, as every floating box of floats.js is
 function shown() { var p = P(); return !!p && p.style.display !== 'none'; }
-// Draws the box again where what it says changed; the focus stays on the line that had it
+// Draws the box again where what it says changed; the focus stays on the line that had it. What it says includes the open teleporter card's
+// own words (the destination map's title, whether the way is closed for now, the map it leads to), worked out before the comparison, so a
+// lock or a rename the GM makes while the card is open shows at the next slow look and not only when the box is opened again
 function draw(force) {
     var p = P(), body = document.getElementById('placesBody'), map = getActiveMap(); if (!p || !body || !shown()) return;
     if (!viewOn()) { close(); return; }
-    var lines = linesNow(map), sig = PC.placesSig(lines, (map && map.id) + '|' + _pl.card + '|' + who());
+    var lines = linesNow(map);
+    if (_pl.card && !lines.some(function(l) { return l.id === _pl.card && l.to; })) _pl.card = '';
+    var cl = _pl.card ? lines.filter(function(l) { return l.id === _pl.card; })[0] : null, cw = cl ? cardOfLine(cl) : null;
+    var sig = PC.placesSig(lines, [map && map.id, _pl.card, who(), cw ? cw.title : '', cw ? (cw.closed ? 1 : 0) : '', cw ? cw.to : ''].join('|'));
     var tt = document.getElementById('placesTitle'); if (tt) { var t = 'Places here'; if (tt.textContent !== t) tt.textContent = t; }
     if (!force && sig === _pl.sig) return;
     var a = document.activeElement, keep = a && body.contains(a) && a.dataset ? a.dataset.id : '';
     _pl.sig = sig;
-    if (_pl.card && !lines.some(function(l) { return l.id === _pl.card && l.to; })) _pl.card = '';
-    listInto(body, lines, _pl.card, cardOfLine, who(), document);
+    listInto(body, lines, _pl.card, function() { return cw; }, who(), document);
     if (_pl.card) thumbInto(body);
     if (keep) { var b = body.querySelector('.places-line[data-id="' + (window.CSS && CSS.escape ? CSS.escape(keep) : keep) + '"]'); if (b) b.focus(); }
 }
+// Opens the box (the top row's #placesBtn through toggle, and press for a teleporter's card): never in the stream window or off the play map.
+// It is revealed through floats.js, so it shows on the view it was opened on, and drawn at once. Answers whether it opened
 function open() {
     var p = P(); if (!p || who() === 'stream' || !viewOn()) return false;
     p.style.display = ''; if (window.wpFloats && typeof window.wpFloats.reveal === 'function') window.wpFloats.reveal(p);
     draw(true); step('open', { n: document.querySelectorAll('#placesBody .places-line').length, who: who() }); return true;
 }
+// Puts the box away (its own close, toggle, Escape through esckey.js ESC_LAST pressing #placesClose, and draw when the play map leaves the
+// screen), with the open card shut and the signature forgotten, so the next open draws it whole
 function close() { var p = P(); _pl.card = ''; if (!p || p.style.display === 'none') return; p.style.display = 'none'; _pl.sig = ''; step('close'); }
+// The top row's map pin: opens the box, or puts it away where it is up
 function toggle() { if (shown()) close(); else open(); }
 
 // ---- a press on a line, in the box or on a legend ----
@@ -208,7 +230,9 @@ function legendDraw(pe, item, map) {
     legendInto(box, title, lines, ink, document);
 }
 // A place pin: the map pin on a round plate in the pin's color, and the place's name under it while it is a place. The piece's own box draws
-// nothing (its color is the pin's)
+// nothing (its color is the pin's). The name hangs below the pin, outside its box and so outside the cell the fog judges, so on a player's app
+// and in the stream window it is drawn only where the screen's own list holds the place (linesNow, the same judge as Places here and every
+// legend): a pin at the edge of a fogged cell, or of the play area, never shows its name in ground the player does see. The GM always sees it
 function pinDraw(pe, item, map) {
     if (!pe || !item) return;
     pe.style.background = 'transparent';
@@ -216,6 +240,7 @@ function pinDraw(pe, item, map) {
     var col = typeof item.color === 'string' && /^(#[0-9a-f]{3,8}|var\(--[a-z0-9-]+\))$/i.test(item.color.trim()) ? item.color.trim() : 'var(--gold)';
     if (g.style.getPropertyValue('--pin') !== col) g.style.setProperty('--pin', col);
     var p = map ? PC.placeOf(item, map, ctx()) : null, nm = p ? p.name : '', lab = pe.querySelector(':scope > .mp-name');
+    if (nm && who() !== 'gm' && !linesNow(map).some(function(l) { return l.id === item.id; })) nm = '';
     if (nm) { if (!lab) { lab = document.createElement('span'); lab.className = 'mp-name'; pe.appendChild(lab); } if (lab.textContent !== nm) lab.textContent = nm; }
     else if (lab) lab.remove();
 }
@@ -248,10 +273,13 @@ function fieldWire(w) {
 }
 
 // ---- Add: a place pin and a legend, the GM's ----
+// Add's Place pin (#addPlacePinBtn): arms the board's placement (whiteboard.js wpArmPlacement) for a 40 px mappin already ticked Place;
+// whiteboard.js wpPlaceCommit lays it at the next click and then asks placed, below
 function addPin() {
     if (!gmMay() || typeof window.wpArmPlacement !== 'function') return;
     window.wpArmPlacement('mappin', { w: 40, h: 40, color: '#e0a54f', name: 'Place pin', place: true }, 'place pin'); step('add', { kind: 'pin' });
 }
+// Add's Legend (#addLegendBtn): arms a placement of a 240 by 200 maplegend that may be dragged to its size (wpPlace.sized), drawn by legendDraw
 function addLegend() {
     if (!gmMay() || typeof window.wpArmPlacement !== 'function') return;
     window.wpArmPlacement('maplegend', { w: 240, h: 200, color: '#efe4c8', name: '' }, 'legend'); if (window.wpPlace) window.wpPlace.sized = true; step('add', { kind: 'legend' });
@@ -273,10 +301,20 @@ function sync(legends) {
     if (b) { var d = on ? '' : 'none'; if (b.style.display !== d) b.style.display = d; b.classList.toggle('on', on && shown()); b.setAttribute('aria-expanded', on && shown() ? 'true' : 'false'); }
     if (shown()) { if (!on) close(); else draw(); }
     var map = getActiveMap(); if (legends !== true || !map || !Array.isArray(map.whiteboard) || !state.wbEls) return;
-    map.whiteboard.forEach(function(w) { if (w && w.type === 'maplegend' && Object.prototype.hasOwnProperty.call(state.wbEls, w.id)) legendDraw(state.wbEls[w.id], w, map); });
+    var gm = who() === 'gm';   // a pin's name follows what is seen on a player's app and in the stream window only (pinDraw)
+    map.whiteboard.forEach(function(w) {
+        if (!w || !Object.prototype.hasOwnProperty.call(state.wbEls, w.id)) return;
+        if (w.type === 'maplegend') legendDraw(state.wbEls[w.id], w, map); else if (w.type === 'mappin' && !gm) pinDraw(state.wbEls[w.id], w, map);
+    });
 }
-// What each viewer may see moves with the fog, which redraws without asking anyone: a slow look while the box or a legend is up
-function tick() { if (document.hidden) return; var map = getActiveMap(); if (shown() || (map && Array.isArray(map.whiteboard) && map.whiteboard.some(function(w) { return w && w.type === 'maplegend'; }))) sync(true); }
+// Whether the board holds something the slow look must draw again: a legend on every screen, a place pin on a player's app or in the stream window
+function boardNeeds(map) { var gm = who() === 'gm'; return !!map && Array.isArray(map.whiteboard) && map.whiteboard.some(function(w) { return w && (w.type === 'maplegend' || (!gm && w.type === 'mappin')); }); }
+// What each viewer may see moves with the fog, which redraws without asking anyone: a slow look while the box, a legend or a player's pin is up
+function tick() { if (document.hidden) return; var map = getActiveMap(); if (shown() || boardNeeds(map)) sync(true); }
+// Wires the page once it is loaded: the box's close, the top row's button, Add's two rows, a press on a line of the box, and the box's head,
+// which drags it (as the container window's does). It also starts the slow look (tick, every 1.5 s), which is never stopped: it runs in every
+// window that loads index.html, the stream window and a window of its own included, and does nothing there unless the play map is on screen
+// with the box, a legend or a pin to draw
 function wire() {
     var c = document.getElementById('placesClose'); if (c) c.addEventListener('click', close);
     var b = document.getElementById('placesBtn'); if (b) b.addEventListener('click', toggle);

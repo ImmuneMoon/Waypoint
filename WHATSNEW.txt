@@ -10,7 +10,8 @@ Places on the map
   its pin on the map. A way to another map shows where it leads, with
   a small picture of that map, and says when it is closed for now.
 - A player sees a place once their token has seen its spot. Your own list
-  marks the places no player has seen yet.
+  marks the places no player's token has seen while it or a legend was up,
+  and the mark starts over when you reload.
 - Add has a Place pin and a Legend. A legend is a numbered list of the
   places that sits on the map, and each screen draws it with the places
   its own viewer has seen.

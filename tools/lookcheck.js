@@ -1603,7 +1603,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const UNDER = [['netNotepadBtn', 'A throwaway notepad the whole table sees as you type.'], ['netTravelLockBtn', 'While travel is locked, portals and room links do not work for players. Tokens still move.'],
         ['netPauseBtn', 'While the table is paused, players cannot move tokens or travel. Chat stays open.'],
         ['netStageSelect', 'Follow me moves the whole table with you. A map keeps it on that map.'], ['netStageFallbackSelect', 'Follow me puts them on your map once. After that they stay put.'],
-        ['netWaitingSelect', 'A waiting token is their picture in a dashed outline. They can move it.'], ['netMakeSelect', 'Right-click their chip for Let them make a character.'], ['netJoinPassInput', 'Your GM sends you the room code. Type or paste it with or without the hyphen.']];
+        ['netWaitingSelect', 'A waiting token is their picture in a dashed outline. They can move it.'], ['netMakeSelect', 'Right-click their chip for Let them make a character.'], ['netJoinPassInput', 'Your GM sends you the room code. Type or paste it with or without the hyphen. A code that begins with WP is found on the Waypoint server.']];
     const ticks = [...netHtml.matchAll(/<input type="checkbox" id="([A-Za-z]+)"> <span class="set-name"><span>([^<]+)<\/span><small>([^<]+)<\/small><\/span><\/label>/g)].map(m => [m[1], m[2], m[3]]);
     // a line tells of the control it stands under: the last id before it, with nothing between the two but that control's own choices and its end
     const OWN_END = /^(?:option value="[a-z]*">[^<]*|\/option>\s*|\/select>\s*|\/button>\s*|i class="wib wi-[a-z0-9-]+">|\/i>[^<]*)$/;

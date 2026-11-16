@@ -10899,9 +10899,25 @@ function makeCode() {
     while (c.length < CODE_LEN) { crypto.getRandomValues(buf); for (var i = 0; i < buf.length && c.length < CODE_LEN; i++) if (buf[i] < 248) c += CODE_CHARS[buf[i] % 31]; }
     return c;
 }
-function showCode(code) { var s = String(code === null || code === undefined ? '' : code).toUpperCase(); return s.length === CODE_LEN ? s.slice(0, 5) + '-' + s.slice(5) : s; }
+// 1.6.3 (backlog 241; the owner, by prompt: "the room code" carries a mark): a table found through Waypoint's own signaling server, which every
+// table hosted in a browser is, has a code that begins with the mark WP (CODE_MARK), shown and copied as WP-XXXXX-XXXXX. A player's app that reads the
+// mark joins through the own server for that join alone, whatever its own tick says (joinSession hands peerOpts its second argument), so a desktop
+// player reaches a table hosted in a browser with nothing to set. The mark is part of the code itself, so the room id (roomPeerId) and the key proof
+// made over it are the same on both sides, and nothing of the proof or the signaling gate changes. A marked code is twelve characters, a length no
+// usual code has, so codeOwn never reads a usual code as marked. An older app reads WP as two more letters of the code, dials a room that is not
+// there and says so: it can never reach another table by mistake.
+var CODE_MARK = 'wp';
+// codeOwn: whether a code (as stored, or as typed or pasted, read through typedCode) carries the mark: the two letters and then a whole code of the
+// alphabet. Asked by showCode, joinSession, startHosting (a remembered code from the other server is not taken up again) and signalMiss.
+function codeOwn(code) { return new RegExp('^' + CODE_MARK + '[' + CODE_CHARS + ']{' + CODE_LEN + '}$').test(typedCode(code)); }
+// showCode: a code as it is shown and copied. A marked code reads WP-XXXXX-XXXXX, a usual ten-character code XXXXX-XXXXX, any other as it is.
+function showCode(code) {
+    var s = String(code === null || code === undefined ? '' : code).toUpperCase();
+    if (codeOwn(s)) { var t = typedCode(s).toUpperCase(); return t.slice(0, 2) + '-' + t.slice(2, 7) + '-' + t.slice(7); }
+    return s.length === CODE_LEN ? s.slice(0, 5) + '-' + s.slice(5) : s;
+}
 function typedCode(v) { return String(v === null || v === undefined ? '' : v).replace(/[\s\u00ad\u2010-\u2015\u2212-]+/g, '').toLowerCase().slice(0, 64); }   // what was typed or pasted: spaces and hyphens (a dash of any kind) out, lower case
-net.showCode = showCode; net.typedCode = typedCode;
+net.showCode = showCode; net.typedCode = typedCode; net.codeOwn = codeOwn;
 // [netcheck:roomcode-end]
 
 // Direct peer-to-peer is always tried first (STUN). The TURN entries are a
@@ -10947,11 +10963,11 @@ function relayActive() { return relayOnly() && !!turnConfig(); }
 net.relayActive = relayActive;
 function relayNote() { return relayActive() ? ' (relay-only connections)' : relayOnly() ? ' (Firewall-friendly connections is on, but no relay server is set on this computer: connecting directly)' : ''; }
 function relayWarn() { if (relayOnly() && !relayActive()) toast('Firewall-friendly connections is on, but no relay server is set on this computer, so you are connecting directly. Set one under Settings \u25B8 Relay server, or switch the option off there.'); }
-function peerOpts(key) {
+function peerOpts(key, own) {   // own: true for a join whose room code carries the mark of Waypoint's own signaling server (1.6.3, backlog 241)
     var t = turnConfig(), o;
     if (relayOnly() && t) o = { config: { iceServers: [t], iceTransportPolicy: 'relay' } };   // relay-only: the relay alone
     else o = { config: { iceServers: iceServers() } };   // relay-only means nothing without a relay
-    return typeof signalOn === 'function' ? signalOn(o, key) : o;   // 1.6.2 (backlog 220): the app's own signaling server, while it is switched on
+    return typeof signalOn === 'function' ? signalOn(o, key, own) : o;   // 1.6.2 (backlog 220): the app's own signaling server, while it is switched on
 }
 // [netcheck:relay-end]
 // [netcheck:signal-start]
@@ -10969,8 +10985,10 @@ function signalHost() {
     var on = false; try { on = localStorage.getItem('wp_signalOwn') === '1'; } catch (e) {}
     return on ? SIGNAL_OWN : '';
 }
-function signalOn(o, key) {
-    var h = signalHost(); if (!h) return o;
+// signalOn: the options a Peer is made with on the server signalHost names, or, for a join whose code carries the mark (own true, 1.6.3, backlog
+// 241), on Waypoint's own server whatever signalHost says. Only the one fixed host is ever named, so the page policy needs nothing new.
+function signalOn(o, key, own) {
+    var h = own === true ? SIGNAL_OWN : signalHost(); if (!h) return o;
     var r = { host: h, port: 443, path: '/', secure: true, key: typeof key === 'string' && key ? key : 'waypoint' };
     Object.keys(o).forEach(function(k) { r[k] = o[k]; });
     return r;
@@ -10986,8 +11004,10 @@ function hostToken() {
 net.signalHost = signalHost;
 // a room not found while this app looks on Waypoint's own server: the GM may still be on the public one (the coordinator, 2026-11-10: once the
 // website switches it on, a browser player reaches only our server, so a desktop GM needs the tick too)
-var SIGNAL_MISS = ' The GM may be on the public server. Ask them to tick Own signaling server in Settings, under Multiplayer, and host again.';
-function signalMiss() { return signalHost() ? SIGNAL_MISS : ''; }
+var SIGNAL_MISS = ' The GM may be on the public server. Ask them to tick Own signaling server in Settings, under Multiplayer, and host again: their new room code begins with WP.';
+// signalMiss: the advice added where a room was not found. A code that carries the mark (1.6.3, backlog 241) was dialed on the own server because
+// the GM hosts there, so the public server is no reason and nothing is added.
+function signalMiss(code) { return signalHost() && !(typeof codeOwn === 'function' && codeOwn(code)) ? SIGNAL_MISS : ''; }
 // [netcheck:signal-end]
 net.rtcConfig = function() { return peerOpts().config; };   // voice chat (voice.js): its links take the table's own ICE servers and relay rule
 /* Try the configured relay: gather with relay-only ICE and see whether a relay candidate
@@ -11114,8 +11134,10 @@ function startHosting(forceFresh) {
     if (typeof fightsHold === 'function') fightsHold();   // 1.6.2: a fight running on this machine alone goes in the save before the table empties net.combats, and comes back with the table (fightsBack)
     leaveSession(true);
     defaultStageMode(getActiveCampaign());   // hosting without opening the panel first still starts on the default
+    var ownSig = typeof signalHost === 'function' && !!signalHost();   // 1.6.3 (backlog 241): a table on Waypoint's own signaling server gets a room code that carries the mark, so a player's app joins it there
     var resumed = !forceFresh ? recentHostCode() : null;
-    var code = resumed || makeCode();
+    if (resumed && codeOwn(resumed) !== ownSig) resumed = null;   // a code remembered from the other server is not taken up again: its players would dial where the table is not
+    var code = resumed || (ownSig ? CODE_MARK : '') + makeCode();
     var gen = resumed ? net._hostGen : 0;
     gmSignArm();   // security (2026-10-01): this GM's signing key, read or made the first time, before anyone can connect
     var peer = new Peer(roomPeerId(code, gen), peerOpts(_hostTok || undefined));   // 1.6.2: a browser's host token as its key, on the app's own server
@@ -11242,7 +11264,7 @@ function joinSession(code, name, isRetry, probe) {
     var nextGen = null;   // (set once this attempt's connection exists) on to the next generation of the code, or the end of the join
     var profile = setProfileName(name || getProfile().name || 'Player');
     net.myId = profile.id;
-    var peer = new Peer(peerOpts());
+    var peer = new Peer(peerOpts(undefined, typeof codeOwn === 'function' && codeOwn(code)));   // 1.6.3 (backlog 241): a code that carries the mark is joined on Waypoint's own signaling server, for this join alone
     net.peer = peer; net.role = 'client'; net.code = code;
     peer.on('call', function(call) { try { call.close(); } catch (e) {} });   // item 21 V2: no media call is used: any that comes is closed
     if (isRetry) {
@@ -11280,7 +11302,7 @@ function joinSession(code, name, isRetry, probe) {
             if (!_joinTrust.refused && typeof rejoinKeep === 'function' && rejoinKeep()) return;
             var rfJ = _joinTrust.refused;   // security (2026-10-01): a table answered at this code, but not as the GM this app knows: that is what is said (in the app's own words), not the network advice
             if (rfJ) setStatus(rfJ.late ? HOST_LATE + ' You have not joined.' : SNAP_REFUSED + ' You have not joined.' + (rfJ.offer ? ' Join again to be asked whether to trust this table\u2019s GM.' : ''));
-            else setStatus(why + (typeof signalMiss === 'function' && signalMiss() ? signalMiss() : ' This usually means your connection is behind carrier-grade NAT and the table needs a relay server: ask the GM to set one under Settings \u25B8 Relay server, then try again.'));
+            else setStatus(why + (typeof signalMiss === 'function' && signalMiss(code) ? signalMiss(code) : ' This usually means your connection is behind carrier-grade NAT and the table needs a relay server: ask the GM to set one under Settings \u25B8 Relay server, then try again.'));
             if (net.fromWelcome) { if (window.wpJoinFailed) window.wpJoinFailed(); }   // joined from the welcome screen: the error shows there; re-enable its Join button
             else { toast(rfJ ? 'You have not joined. See the Multiplayer panel.' : 'Could not reach the GM\'s table. See the Multiplayer panel.'); var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'flex'; }
             if (net.foreign && !window.wpStream) load();   // a previous table is still on screen: bring the own campaign back
@@ -11319,7 +11341,7 @@ function joinSession(code, name, isRetry, probe) {
         }
         if (_joinTrust.refused && nextGen && net.peer === peer && !net.active) { nextGen(); return; }   // security (2026-10-01): after a host this app refused, a generation that is not there is passed over at once (its seven seconds are for a host that may yet answer)
         if (!net.active && typeof rejoinKeep === 'function' && rejoinKeep()) { try { peer.destroy(); } catch (e) {} return; }
-        var missJ = err.type === 'peer-unavailable' && typeof signalMiss === 'function' ? signalMiss() : '';
+        var missJ = err.type === 'peer-unavailable' && typeof signalMiss === 'function' ? signalMiss(code) : '';
         setStatus('Connection error: ' + err.type + '.' + missJ);
         if (net.fromWelcome && window.wpJoinFailed) window.wpJoinFailed();   // re-enable the welcome Join button (the error shows on that screen)
         toast('Could not reach that room (' + err.type + ').' + missJ);

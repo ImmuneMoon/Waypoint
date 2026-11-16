@@ -52,6 +52,10 @@ Smaller things
   the rows. You see the table and anything left out before it goes in, as
   a new table or in place of one of yours. Where that table found its rows
   by a range, it tells you how many rows come in without one.
+- A player on the desktop app can join a table hosted in a browser. Such
+  a table's room code begins with WP, like WP-AB2CD-EF3GH, and Waypoint
+  finds it on its own server with nothing to tick. A code without WP
+  joins as before.
 
 WAYPOINT 1.6.2 — What's New
 ============================

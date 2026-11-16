@@ -702,7 +702,8 @@ function secretLook(w) {
 // lays, less its name. On the wire the order says nothing either way: the host writes the keys of every wall, door and barrier in one
 // order on its way out. Any other piece: the piece itself. The host's one rule for a piece on its way out and the map's picture
 // (shotcore.js) both ask this, so a table and a picture show one thing
-var SECRET_DROP = Object.freeze({ secret: 1, seenColor: 1, seenTexture: 1, seenWidth: 1, seenOpacity: 1, seenTip: 1, locked: 1, name: 1, doorOpen: 1, doorLock: 1, groupId: 1, texSrc: 1, texTile: 1, texture: 1, targetMapId: 1, targetRoomId: 1, nodeId: 1, trap: 1, portalIcon: 1, portalLock: 1 });
+// 1.6.3: and a map's place, its tick and its name (placecore.js): a secret door is no place to the players
+var SECRET_DROP = Object.freeze({ secret: 1, seenColor: 1, seenTexture: 1, seenWidth: 1, seenOpacity: 1, seenTip: 1, locked: 1, name: 1, doorOpen: 1, doorLock: 1, groupId: 1, texSrc: 1, texTile: 1, texture: 1, targetMapId: 1, targetRoomId: 1, nodeId: 1, trap: 1, portalIcon: 1, portalLock: 1, place: 1, placeName: 1 });
 function secretSeen(w) {
     if (!secretOn(w)) return w;
     var s = {}, k, look = secretLook(w), put = false, tex = function() { if (!put && look.texture) s.texture = look.texture; put = true; };

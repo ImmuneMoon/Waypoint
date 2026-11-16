@@ -1,3 +1,20 @@
+WAYPOINT 1.6.3 — What's New
+============================
+
+Places on the map
+- A map can list its places now, such as a tavern or a city gate. Tick
+  Place in a piece's Properties and give it a name. A piece linked to a
+  room or to another map is a place already, so the pins you have are
+  listed at once.
+- Press the map pin in the top row for Places here. Press a place to find
+  its pin on the map. A way to another map shows where it leads, with
+  a small picture of that map, and says when it is closed for now.
+- A player sees a place once their token has seen its spot. Your own list
+  marks the places no player has seen yet.
+- Add has a Place pin and a Legend. A legend is a numbered list of the
+  places that sits on the map, and each screen draws it with the places
+  its own viewer has seen.
+
 WAYPOINT 1.6.2 — What's New
 ============================
 

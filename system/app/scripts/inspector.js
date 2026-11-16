@@ -28,7 +28,7 @@ if (inspector) inspector.addEventListener('toggle', function(e) { var d = e.targ
 
 // 1.6.2, backlog 217 (the owner, by prompt, of Properties: "Yes, as drawn"): the piece's kind beside the title, each fold saying what it holds
 // while shut, and a search where a piece has many folds. All of it read from the panel as drawn, never stored
-var INSP_KIND = { rect: 'Rectangle', circle: 'Circle', diamond: 'Diamond', hexagon: 'Hexagon', image: 'Picture', path: 'Drawing', text: 'Text box', trigger: 'Trigger zone' };
+var INSP_KIND = { rect: 'Rectangle', circle: 'Circle', diamond: 'Diamond', hexagon: 'Hexagon', image: 'Picture', path: 'Drawing', text: 'Text box', trigger: 'Trigger zone', mappin: 'Place pin', maplegend: 'Legend' };   // 1.6.3: a map's places (places.js)
 function inspKindOf(w) { if (!w || typeof w !== 'object') return ''; if (w.isChar) return 'Token'; if (w.flatPic === true) return 'Flattened picture'; return Object.prototype.hasOwnProperty.call(INSP_KIND, w.type) ? INSP_KIND[w.type] : ''; }
 function inspWord(t) { t = String(t || '').replace(/\s+/g, ' ').trim(); var i = t.search(/ \(| \u2014 | - /); return (i > 0 ? t.slice(0, i) : t).slice(0, 28); }
 function inspSays(d) {   // a fold's words while shut: its ticks that are on, and its lists set to something other than their first choice
@@ -1199,6 +1199,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               pagePinFieldHtml(w)+   // 1.5.4: a pin, the page this piece opens (the GM's alone)
               (linkFold ? '</details>' : '') +   // 1.5.6: the end of a character token's Map links
               (typeof boxFieldHtml === 'function' ? boxFieldHtml(w) : '')+   // 1.6.2 (backlog 42): Holds items
+              (window.wpPlaces && typeof window.wpPlaces.fieldHtml === 'function' ? window.wpPlaces.fieldHtml(w) : '')+   // 1.6.3: the Place tick and its name, the GM's (places.js)
               inspFoldOpen('look', 'Look', 'Color, size, turn, layer and lock')+   // 1.6.2: the folds
               (w.type !== 'image' && w.type !== 'trigger' && w.type !== 'light' ? '<div class="field"><label>' + (w.type === 'text' ? 'Text Color' : w.type === 'path' ? 'Pen Color' : 'Fill Color') + '</label><div class="color-row">' + ((w.type === 'path' || w.type === 'text') ? penHtml : colorHtml) + '</div></div>' : '') +
               (w.type === 'text' ? textStyleHtml(w) : '') +
@@ -1361,6 +1362,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var _el_wbPagePinAt = document.getElementById('wbPagePinAt');   // 1.6.0: where on its page the pin opens
             if (_el_wbPagePinAt) _el_wbPagePinAt.addEventListener('change', function() { setItemPagePinAt(w, this.value); });
             if (typeof boxFieldWire === 'function') boxFieldWire(w);   // 1.6.2 (backlog 42): Holds items and Open contents
+            if (window.wpPlaces && typeof window.wpPlaces.fieldWire === 'function') window.wpPlaces.fieldWire(w);   // 1.6.3: the Place tick and its name
             var _el_wbPortalLock = document.getElementById('wbPortalLock');   // a portal's own lock: true or no key
             if (_el_wbPortalLock) _el_wbPortalLock.addEventListener('change', function() { setItemPortalLock(w, this.checked, activeMap); });
             var _el_wbPortalRoom = document.getElementById('wbPortalRoom');
@@ -1784,6 +1786,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
           if (item.type === 'image') return 'Image';
           if (item.type === 'trigger') return item.shape === 'hexagon' ? 'Hex trigger' : 'Trigger zone';
           if (item.type === 'path') return 'Drawing';
+          if (item.type === 'mappin') return 'Place pin';   // 1.6.3: a map's places (places.js)
+          if (item.type === 'maplegend') return 'Legend';
           return item.type.charAt(0).toUpperCase() + item.type.slice(1);
       }
 

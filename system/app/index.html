@@ -102,6 +102,8 @@
 <script type="module" src="scripts/layers.js"></script>
 <script type="module" src="scripts/ilayers.js"></script>
 <script type="module" src="scripts/boxes.js"></script>
+<script type="module" src="scripts/placecore.js"></script>
+<script type="module" src="scripts/places.js"></script>
 <script type="module" src="scripts/trade.js"></script>
 <script type="module" src="scripts/keycore.js"></script>
 <script type="module" src="scripts/commands.js"></script>
@@ -188,6 +190,7 @@
       <input type="file" id="sheetFileIn" accept=".json,application/json" hidden>
       <input type="file" id="fileIn" accept=".json,application/json,.html,text/html,.zip,application/zip,application/x-zip-compressed,.md,.markdown,text/markdown,.txt,text/plain" hidden>
      <input type="file" id="docImportFile" accept=".md,.markdown,.txt,.zip,image/*" multiple hidden>
+      <button class="tool ghost icon" id="placesBtn" style="display:none;" aria-expanded="false" aria-controls="placesPanel" title="Places here: the places on this map you have seen. Press one to find it on the map."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21zM12 7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg></button>
       <div class="header-sep"></div>
       <button class="tool" id="updateBtn" style="display:none;" title="A newer Waypoint is available — click to update"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 12L12 6.5l5.5 5.5M6.5 18L12 12.5l5.5 5.5"/></svg> Update </button>
       <button class="tool" id="reviewChip" style="display:none;" title="A player sent a sheet update: review what changes"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 5H6v15.5h12V5h-2.5M9 3.5h6v3H9zM9 13.5l2.2 2.2 3.8-4.2"/></svg> Review <span id="reviewChipN"></span></button>
@@ -1079,6 +1082,16 @@
                                   <li>A player next to it presses its chest, or picks <b>Search the body</b> on its right-click menu, and takes from its lists ticked Tradable. A row you tick <b>Never looted</b> in its details stays hidden.</li>
                                   <li>Name a <b>Pickpocket roll</b> under Bodies and a player can pick the <b>Pickpocket</b> row on an NPC next to them. Its own Resisted by is the NPC&rsquo;s roll. A success shows one row at random to take.</li>
                                   <li>What it holds stays on your computer until a player opens it. You are told who took what.</li>
+                              </ul>
+                          </li>
+                          <li><b>Places:</b> a map can list its places, such as a tavern or a city gate. Tick <b>Place</b> in a piece&rsquo;s Properties and give it a <b>Place name</b>. A piece linked to a room or to another map is a place already.
+                              <ul>
+                                  <li>Press the map pin in the top row for <b>Places here</b>. It lists this map&rsquo;s places from top to bottom, and a way to another map has an arrow.</li>
+                                  <li>Press a place to find it on the map. For a way to another map you also see where it leads, a small picture of that map and whether it is closed for now.</li>
+                                  <li>A player sees a place once their token has seen its spot, or their screen remembers it. Your own list marks a place no player has seen yet.</li>
+                                  <li><b>Place pin</b> in the Add menu sets a pin of its own. <b>Legend</b> lays a numbered list of the places on the map, which moves and sizes as any piece does.</li>
+                                  <li>Each screen draws a legend with the places its own viewer has seen. Press a line on it to find that place.</li>
+                                  <li>Untick Place on a room&rsquo;s piece or a way to another map to leave it out. A hidden piece is not listed until you show it.</li>
                               </ul>
                           </li>
                           <li><b>Height in the fog:</b> with <b>Token elevation</b> on and your system&rsquo;s <b>Height and cover</b> rule set to <b>Height clears low cover</b>, the fog hides what that rule hides.
@@ -3807,6 +3820,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   <button class="wb-tool-btn menu-row" id="addImageBtn" title="Add Image"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v14H3zM7.5 8.5a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zM3.5 17l5-5 3.5 3.5 3-3 5.5 5.5"/></svg></span><span class="mr-txt">Image<small>A picture from this computer.</small></span></button>
                   <button class="wb-tool-btn menu-row" id="imgLibBtn" title="Image Library &mdash; this campaign's pictures, the shared ones, and every campaign's"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h15v11H3zM6 8V5h15v11h-3M3.5 17l4-4 3 3 2.5-2.5 4.5 4.5"/></svg></span><span class="mr-txt">Image Library<small>This campaign&rsquo;s pictures and the shared ones.</small></span></button>
                   <button class="wb-tool-btn menu-row" id="addObjectsBtn" title="Map objects &mdash; chairs, tables, crates and the like, each with its own cover"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 5.5h9v7h-9zM3 12.5h9v7H3zM12 12.5h9v7h-9z"/></svg></span><span class="mr-txt">Map objects<small>Place what gives cover, by what it is.</small></span></button>
+                  <button class="wb-tool-btn menu-row" id="addPlacePinBtn" title="Place pin: click the map to set a pin that the map&rsquo;s list of places names"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21zM12 7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg></span><span class="mr-txt">Place pin<small>A named spot for Places here.</small></span></button>
+                  <button class="wb-tool-btn menu-row" id="addLegendBtn" title="Legend: a numbered list of this map&rsquo;s places, laid on the map"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM9 8h6M9 12h6M9 16h4"/></svg></span><span class="mr-txt">Legend<small>The places, numbered, on the map.</small></span></button>
                   <button class="wb-tool-btn menu-row" id="importCharBtn" title="Import Character &mdash; a sheet file as a ready token" hidden><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM2.5 20v-1.5A4.5 4.5 0 0 1 7 14h4a4.5 4.5 0 0 1 4.5 4.5V20M19 5v8M15.8 9.8L19 13l3.2-3.2"/></svg></span><span class="mr-txt">Import Character<small>A character file as a ready token.</small></span></button>
               </div>
           </div>
@@ -5400,6 +5415,11 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div id="layersHead"><span class="notepad-title"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5.5h4v4h-4Z M3.5 14.5h4v4h-4Z M10.5 7.5h10 M10.5 16.5h10 M12.5 11.5h8 M12.5 20.5h6"/></svg> Layers</span><span id="layersMap" class="ly-map"></span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="layersClose" title="Close Layers">&times;</button></div>
     <div id="iLayers" role="group" aria-label="Show on my map"></div>
     <div id="layersList"></div>
+</div>
+<!-- A map's places (1.6.3): this map's places as a list, each line finding its pin (places.js) -->
+<div id="placesPanel" style="display:none;" role="dialog" aria-label="Places here">
+    <div id="placesHead"><span class="notepad-title"><i class="wib wi-marker"></i> <span id="placesTitle">Places here</span></span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="placesClose" title="Close the places">&times;</button></div>
+    <div id="placesBody"></div>
 </div>
 <!-- Containers (1.6.2, backlog 42): what a container on the map holds, as tiles (boxes.js) -->
 <div id="boxPanel" style="display:none;" role="dialog" aria-label="Container">

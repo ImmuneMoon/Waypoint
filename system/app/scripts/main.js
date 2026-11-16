@@ -268,6 +268,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (window.wpPortalPlaceHold) window.wpPortalPlaceHold(null, state.viewMode);   // 1.6.2: a campaign with no map puts a new room's portal tile down, and its line with it
       var bc = document.getElementById('mapBreadcrumb'); if (bc) bc.style.display = 'none';
       if (window.wpBoxes) window.wpBoxes.sync();   // 1.6.2 (backlog 42): a container's window closes with its map
+      if (window.wpPlaces) window.wpPlaces.sync();   // 1.6.3: Places here closes with its map, and its button goes
       if (window.wpPrep) window.wpPrep.sync();   // the Prep column stands outside the map's area: with no map it is put away by its own word
       if (window.wpLeftRail) window.wpLeftRail.sync();
       if (window.wpRowHide) window.wpRowHide.fit();
@@ -347,6 +348,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       document.getElementById('sidebar').style.display = isPlanner ? 'none' : 'flex'; document.getElementById('sidebar').classList.toggle('no-elements', state.viewMode === 'visual');   // 1.6.2, backlog 217: on the play map the pieces are in Layers, and the panel is Properties alone
 
       if (window.wpBoxes) window.wpBoxes.sync();   // 1.6.2 (backlog 42): a container's window follows its piece, its map and its campaign
+      if (window.wpPlaces) window.wpPlaces.sync();   // 1.6.3: Places here and its button follow the map on screen, and every legend what its viewer may see
       if (window.wpPrep) window.wpPrep.sync();   // 1.6.2 (prep.js): the Prep column shows on the play map alone, and takes its room before anything measures the map's
       if (window.wpLeftRail) window.wpLeftRail.sync();   // the left panel folds to its rail on the play map (leftrail.js), before the bar measures the room the map has
       if (window.wpRowHide) window.wpRowHide.fit();   // where the map's area begins, for a hidden row's tab and bar (rowhide.js): one redraw can move both of the area's edges and leave its size as it was
@@ -769,7 +771,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
   // Items from a file someone else made are content from another table (cleanup.js cleanImportItems: raw HTML rebuilt, diagram clicks
   // stripped, pages through cleanDoc, map text rebuilt, no prototype-key id). A whole file (Replace, a legacy one) also goes through the
   // load's own normaliser first (cleanImport). importDeps() hands both the app's real cleaners.
-  function importDeps() { return { migrate: function(d) { return migrateAppState(d).data; }, CARD: window.wpCardCore, CP: window.wpCompassCore, DR: window.wpDocRender, sanitize: window.wpNet && window.wpNet.sanitizeRichText, FC: window.wpFogCore, TF: window.wpTextFmt, GEN: window.wpGenCore, CITY: window.wpCityCore, WORLD: window.wpWorldCore, SU: window.wpSetupCore, FU: window.wpFurnCore }; }
+  function importDeps() { return { migrate: function(d) { return migrateAppState(d).data; }, CARD: window.wpCardCore, CP: window.wpCompassCore, DR: window.wpDocRender, sanitize: window.wpNet && window.wpNet.sanitizeRichText, FC: window.wpFogCore, TF: window.wpTextFmt, GEN: window.wpGenCore, CITY: window.wpCityCore, WORLD: window.wpWorldCore, SU: window.wpSetupCore, FU: window.wpFurnCore, PLACE: window.wpPlaceCore }; }
 
   function cleanImportedItems(ic) { cleanImportItems(ic, importDeps()); }
 

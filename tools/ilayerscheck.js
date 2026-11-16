@@ -35,8 +35,8 @@ const FC = { isDoor: w => !!w && (w.blocksSight === true || w.barrier === true) 
         && J(Object.assign({}, q2.st)) === J({ wall: { s: false, p: false }, image: { s: false, p: false }, text: { s: true, p: false } }) && q2.prev === null, J([q1, q2]));
     check('As players see it (playersView): every row out of sight, what was there kept; a second press puts it back exactly',
         C.isPlayersView(p1.st) && C.MAIN_IDS.every(k => p1.st[k].s === false) && J(Object.assign({}, p1.prev)) === J(Object.assign({}, st)) && !C.isPlayersView(p2.st) && J(Object.assign({}, p2.st)) === J(Object.assign({}, st)) && p2.prev === null
-        && J(C.KINDS.map(x => x.name)) === J(['Trigger zones', 'Portals and doors', 'Walls and barriers', 'GM notes', 'Lights', 'Room areas', 'Hidden pieces', 'Containers', 'Characters', 'Pictures', 'Shapes', 'Drawings', 'Text boxes', 'Painted cells'])
-        && J(C.KINDS.filter(x => x.more).map(x => x.k)) === J(['token', 'image', 'shape', 'path', 'text', 'fill']));
+        && J(C.KINDS.map(x => x.name)) === J(['Trigger zones', 'Portals and doors', 'Walls and barriers', 'GM notes', 'Lights', 'Room areas', 'Hidden pieces', 'Containers', 'Characters', 'Pictures', 'Shapes', 'Drawings', 'Text boxes', 'Painted cells', 'Place pins and legends'])   /* 1.6.3: place pins and legends (moved on purpose) */
+        && J(C.KINDS.filter(x => x.more).map(x => x.k)) === J(['token', 'image', 'shape', 'path', 'text', 'fill', 'place']));
 }
 
 /* ---- the module on a page of plain objects ---- */
@@ -93,7 +93,7 @@ function world(o) {
         const el = mkEl('div'); V.api.mark(el, { type: 'image', id: 'p' }, V.map); const el2 = mkEl('div'); V.api.mark(el2, { type: 'image', isChar: true }, V.map);
         const pb = V.box.children.find(c => c.className && c.className.indexOf('il-players') >= 0); pb.listeners.click[0]();
         check('Show more (the owner, 2026-11-12, run for real): a fold right after the GM\'s own kinds with the six other kinds inside, shut at first, opened and shut by its press and kept on this computer, open while one of its rows is put away; a picture unticked goes out of sight and a character token does not; As players see it leaves those rows alone',
-            at === 9 && J(names) === J(['Characters', 'Pictures', 'Shapes', 'Drawings', 'Text boxes', 'Painted cells']) && J(shut) === J(['Show more', 'false', 'iLayersMore', 'iLayersMore', true])
+            at === 9 && J(names) === J(['Characters', 'Pictures', 'Shapes', 'Drawings', 'Text boxes', 'Painted cells', 'Place pins and legends'])   /* 1.6.3 (moved on purpose) */ && J(shut) === J(['Show more', 'false', 'iLayersMore', 'iLayersMore', true])
             && J(open) === J(['Show less', 'true', false, '1']) && J(again) === J([true, undefined]) && J(kept) === J([false, 'true', J({ image: { s: false, p: false } })])
             && el.classList.contains('il-off') && !el2.classList.contains('il-off') && JSON.parse(V.store.wp_iLayers).image.s === false && JSON.parse(V.store.wp_iLayers).trigger.s === false,
             J([at, names, shut, open, again, kept]));

@@ -141,7 +141,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     CU.cleanImportItems(ic1, { FU: FU }); CU.cleanImportItems(ic2, {});
     check('a file\'s furnishing comes in as the core keeps it, on a picture alone, and none without the core; the import is handed the core',
         J(ic1.items.m1.whiteboard.map(w => w.furn || 'none')) === J([{ k: 'bed', era: 'modern', tint: '#aabbcc' }, 'none', 'none', 'none']) && ic2.items.m1.whiteboard.every(w => !('furn' in w))
-        && mainSrc.includes('SU: window.wpSetupCore, FU: window.wpFurnCore }; }') && cuSrc.includes("if (w.furn !== undefined) { var FUd = deps && deps.FU"), J(ic1.items.m1.whiteboard));
+        && mainSrc.includes('SU: window.wpSetupCore, FU: window.wpFurnCore, PLACE: window.wpPlaceCore }; }') && cuSrc.includes("if (w.furn !== undefined) { var FUd = deps && deps.FU"), J(ic1.items.m1.whiteboard));
 
     // ---- Properties, Rules for, the page, the styles, Help and the notes ----
     const insB = slice(insSrc, 'furncheck:insp');

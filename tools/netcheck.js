@@ -887,6 +887,43 @@ const siSrc = () => {
     check('1.6.2 Lock proportions on by default: a piece freed with lockRatio: false goes to the table and is cleaned on a player’s side with its false kept, and a locked one (true or no key) as it was, so a player’s copy reads the shape the GM set (net.js wireWbItem and cleanHostWbItem, run for real)',
         JSON.stringify(got) === JSON.stringify([[false, false], [true, true], ['absent', 'absent']]), JSON.stringify(got));
 }
+// 1.6.3, a map's places (placecore.js; the owner, by prompt: "A Place tick on any piece", "Only places they have seen"): a place's tick and its
+// name go to the table with a shown piece and only as their cleaners keep them; a hidden piece is not sent at all; a secret door's copy and a
+// plain wall carry neither, so no key tells a wall apart; a door that leads somewhere and that the GM unticked keeps its false; a player's app
+// cleans what a host sends again; and a player's map copy sets neither, on the GM's piece or a drawing of their own (the real wireWbItem,
+// cleanHostWbItem, playerStroke and patch gate, with the real fogcore and placecore)
+pendingChecks.push((async () => {
+    const T = '1.6.3 places on the wire: a shown piece carries its Place tick and name cleaned, a hidden piece nothing, a secret door\'s copy and a plain wall neither (the wall the same as one never ticked), a door that leads somewhere keeps an untick, no name goes with no core; a player\'s app cleans a host\'s again; a player\'s map copy sets neither on the GM\'s piece or a drawing of their own';
+    try {
+        const urlP = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+        const FCp = await import(urlP('fogcore.js')), PCp = await import(urlP('placecore.js'));
+        const [, wireP] = new Function('window', '"use strict";\n' + siSrc() + '\nreturn [sanitizeItem, wireWbItem];')({ wpFogCore: FCp, wpPlaceCore: PCp });
+        const [, wireN] = new Function('window', '"use strict";\n' + siSrc() + '\nreturn [sanitizeItem, wireWbItem];')({});
+        const chA = src.indexOf('function cleanHostWbItem(w) {'), chB = src.indexOf('\n', chA), chS = src.slice(chA, chB);
+        const cleanP = new Function('window', '"use strict";\n' + chS + '\nreturn cleanHostWbItem;')({ wpPlaceCore: PCp, wpFogCore: FCp }), cleanN = new Function('window', '"use strict";\n' + chS + '\nreturn cleanHostWbItem;')({});
+        const R = k => Object.assign({ id: 'p1', type: 'rect', x: 10, y: 20, w: 40, h: 40, color: '#334455', name: 'Crate' }, k), has = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
+        const shownP = wireP(R({ place: true, placeName: '  The   Inn\n' }), false), oddP = wireP(R({ place: 'yes', placeName: 7 }), false), hidP = wireP(R({ place: true, placeName: 'Secret Lair', hidden: true }), false);
+        const door = { id: 'd1', type: 'rect', x: 0, y: 0, w: 50, h: 50, color: '#3f3b47', blocksSight: true, sightType: 'door', targetMapId: 'm2' }, doorOut = wireP(Object.assign({}, door, { place: false }), false);
+        const sec = { id: 's1', type: 'rect', x: 0, y: 0, w: 50, h: 50, color: '#3f3b47', blocksSight: true, sightType: 'door', secret: true, place: true, placeName: 'Hidden Vault' }, secP = wireP(sec, false), secN = wireN(Object.assign({}, sec), false);
+        const wall = { id: 'w1', type: 'rect', x: 0, y: 0, w: 50, h: 50, color: '#3f3b47', blocksSight: true, sightType: 'wall' }, wallT = wireP(Object.assign({}, wall, { place: true, placeName: 'Old Wall' }), false), wallU = wireP(Object.assign({}, wall), false);
+        const noCore = wireN(R({ place: true, placeName: 'The Inn' }), false);
+        const okWire = shownP && shownP.place === true && shownP.placeName === 'The Inn' && !has(oddP, 'place') && !has(oddP, 'placeName') && hidP === null && doorOut.place === false
+            && !has(secP, 'place') && !has(secP, 'placeName') && !/Hidden Vault/.test(j(secP)) && !has(secN, 'place') && !has(secN, 'placeName') && !has(wallT, 'place') && !has(wallT, 'placeName') && j(wallT) === j(wallU)
+            && noCore.place === true && !has(noCore, 'placeName');
+        const cH = cleanP(R({ place: 'yes', placeName: 'A'.repeat(90) + '\u0007' })), cH2 = cleanP(R({ place: false, placeName: { x: 1 } })), cN = cleanN(R({ place: true, placeName: 'The Inn' }));
+        const okClient = !has(cH, 'place') && cH.placeName === 'A'.repeat(60) && cH2.place === false && !has(cH2, 'placeName') && cN.place === true && !has(cN, 'placeName');
+        const psP = new Function('"use strict";\n' + fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\nreturn playerStroke;')();
+        const st = psP({ id: 'dr1', type: 'path', ownerId: 'u_p', pts: [[0, 0], [5, 5]], x: 1, y: 1, w: 5, h: 5, place: true, placeName: 'Mine' }, 'u_p');
+        const patchSrcP = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), cleanersP = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')), psSrcP = fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n';
+        const S = (id, extra) => Object.assign({ id, type: 'path', byPlayer: true, ownerId: 'u_p', x: 5, y: 5, w: 10, h: 10, baseW: 10, baseH: 10, z: 35, pts: [[0, 0], [4, 4]], color: '#e9e9f0', strokeWidth: 3 }, extra);
+        const camps = { c1: { id: 'c1', items: { m1: { type: 'map', whiteboard: [R({ id: 'pl', place: true, placeName: 'Inn' }), R({ id: 'gate', nodeId: 'r1' }), S('mine')], rooms: [{ id: 'r1', name: 'Gate' }] } } } };
+        const msg = { campId: 'c1', itemId: 'm1', item: { whiteboard: [S('mine', { place: true, placeName: 'My Spot' }), R({ id: 'pl', place: false, placeName: 'Renamed' }), R({ id: 'gate', place: false }), S('new1', { place: true, placeName: 'Fresh' })] } };
+        let gate = 'ran'; try { new Function('state', 'window', 'msg', 'prof', 'out', cleanersP + ownKeySrc + psSrcP + patchSrcP + '\nreturn applyClientItemFiltered(msg, prof, out);')({ appState: { campaigns: camps } }, { wpVtt: { campaignOn: () => true }, wpFogCore: FCp, wpPlaceCore: PCp }, msg, { id: 'u_p', name: 'P' }, {}); } catch (e) { gate = String(e); }
+        const wbA = camps.c1.items.m1.whiteboard, byA = id => wbA.find(w => w.id === id);
+        const okPatch = gate === 'ran' && byA('pl').place === true && byA('pl').placeName === 'Inn' && !has(byA('gate'), 'place') && !wbA.some(w => w.ownerId === 'u_p' && (has(w, 'place') || has(w, 'placeName'))) && st && !has(st, 'place') && !has(st, 'placeName');
+        check(T, okWire && okClient && okPatch, j([okWire, okClient, okPatch, gate, shownP, oddP, doorOut, secP, wallT, cH, cH2, wbA.map(w => [w.id, w.place, w.placeName])]).slice(0, 900));
+    } catch (e) { check(T, false, String(e && e.stack || e)); }
+})());
 const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) { this.sent.push(m); } });
 // text style (1.5.0): a page's formats on the wire — the look of a title, a table cell or a flowchart label, stored beside its text. The host's real
 // sanitizeItem sends them cleaned (docrender cleanDoc -> textfmt cleanFmt); a player's real applyItem cleans what a host sends again before it is stored

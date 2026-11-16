@@ -995,7 +995,7 @@ function fxbOf(w) {
     if (net.role !== 'host' || !w || typeof w !== 'object') return null;
     var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !S.tokenEffects) return null;
     var list, key;
-    if (typeof w.charId === 'string' && camp.chars && own(camp.chars, w.charId)) { key = w.charId; list = S.tokenEffects(camp.system, camp.chars[w.charId], false, window.wpFormula); }   // conditions C4: its automatic effects too
+    if (typeof w.charId === 'string' && camp.chars && own(camp.chars, w.charId)) { key = w.charId; list = (S.tokenEffectsPass || S.tokenEffects)(camp.system, camp.chars[w.charId], false, window.wpFormula); }   // conditions C4: its automatic effects too; 1.6.3: worked out once a pass for every token of one sheet (systemcore tokenEffectsPass)
     else if (Array.isArray(w.fx) && S.tokenOwnEffects && typeof w.id === 'string') { key = 'w:' + w.id; list = S.tokenOwnEffects(camp.system, w.fx, false); }
     else return null;
     list = list.map(function(e) { return { n: e.n, i: e.i, t: e.t }; });
@@ -1005,10 +1005,16 @@ function fxbOf(w) {
 // A character's change (called where sensesMoved is): every map holding a shown token of a character whose list moved since a copy was last
 // made is sent again, its per-player delta carrying the one token. id: one character, or null for every one (the system changed: a token
 // with no sheet looked at again too, since its library effects may have)
+// 1.6.3 (the review of the game's fixes): the effects kept for one pass (systemcore tokenEffectsPass) are let go where a character's change
+// enters the host's three funnels (net.syncChars, net.syncChar, net.syncCharDelta), on the first line of each, before sensesMoved: that and
+// the bars, the look and the loot below may send a map at once, and a list kept earlier in the same task, before the sheet changed in place,
+// would ride on it and be noted as what the token was last sent with. fxbMoved lets it go once more itself, since it may be asked alone
+function fxPassForget() { var SF = SC(); if (SF && typeof SF.tokenEffectsForget === 'function') SF.tokenEffectsForget(); }
 function fxbMoved(id) {
     if (typeof barsMoved === 'function') barsMoved(id);   // backlog 28: the bars on the tokens, at every change the effects are looked at for
     if (typeof plMoved === 'function') plMoved(id);   // 1.6.2, backlog 35: the personal look on the tokens
     if (typeof lootMoved === 'function') lootMoved(id);   // 1.6.2 (backlog 42, fold 3): a body that comes to be lootable, or stops
+    var SF = SC(); if (SF && typeof SF.tokenEffectsForget === 'function') SF.tokenEffectsForget();   // 1.6.3: a list kept for this pass (tokenEffectsPass) is worked out again, so what each token was last sent with is compared with the character as it is now
     if (!net.active || net.role !== 'host') return;
     var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !S.tokenEffects || !camp.chars) return;
     var moved = Object.create(null), out = Object.create(null);
@@ -3508,7 +3514,7 @@ function budgetNotice(ch, hits) {
 // [netcheck:budgetnote-end]
 var _uploadAt = {}, UPLOAD_GAP_MS = 10000;   // Stage 6 U2: host: peer -> when their last upload was read (one every 10 s)
 var _triedSaid = {}, TRY_QUIET_MS = 30000;   // host: 'charId|item|kind' -> { at, more } — the last said refused attempt (memory only)
-net.syncChars = function() {   // every character, per peer (after the system changed)
+net.syncChars = function() { if (typeof fxPassForget === 'function') fxPassForget();   // every character, per peer (after the system changed)
     if (!net.active || net.role !== 'host') return;
     if (net.sensesMoved) net.sensesMoved(null);
     if (typeof fxbMoved === 'function') fxbMoved(null);   // conditions C1: the effects on the tokens
@@ -3521,7 +3527,7 @@ net.syncChars = function() {   // every character, per peer (after the system ch
         try { c.send({ type: 'chars', campId: camp.id, chars: outC }); } catch (e) { sendFailed(e); }
     });
 };
-net.syncChar = function(id) {   // one character whole (renamed, reassigned, portrait) or gone for a peer that may not see it
+net.syncChar = function(id) { if (typeof fxPassForget === 'function') fxPassForget();   // one character whole (renamed, reassigned, portrait) or gone for a peer that may not see it
     if (!net.active || net.role !== 'host') return;
     if (net.sensesMoved) net.sensesMoved(id);
     if (typeof fxbMoved === 'function') fxbMoved(id);   // conditions C1
@@ -3536,7 +3542,7 @@ net.syncChar = function(id) {   // one character whole (renamed, reassigned, por
         try { c.send(v ? { type: 'char', campId: camp.id, char: v } : { type: 'charGone', campId: camp.id, id: id }); } catch (e) { sendFailed(e); }
     });
 };
-net.syncCharDelta = function(id, values) {   // changed values, filtered to what each peer may see (null = reverted to the default)
+net.syncCharDelta = function(id, values) { if (typeof fxPassForget === 'function') fxPassForget();   // changed values, filtered to what each peer may see (null = reverted to the default)
     if (!net.active || net.role !== 'host') return;
     if (net.sensesMoved) net.sensesMoved(id);   // before anything turns this away: a change that sends its owner nothing (a kept curse) moves their sight all the same
     if (typeof fxbMoved === 'function') fxbMoved(id);   // conditions C1: the effects on their tokens

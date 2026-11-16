@@ -151,20 +151,43 @@ function tokenSightCells(token, map, camp) { return tokenSenses(token, map, camp
 // [fogcheck:sensesmemo-start]
 // A token's senses, remembered while the overlay draws (the owner, 2026-10-04: "Remember senses"). The overlay redraws about sixteen times a
 // second and read every character token's senses from its sheet each time: a resolver a token, 18 ms a frame on a map of 47 tokens of which
-// 20 have sheets. While a frame is drawn (tick sets _sensesDraw) a token's result is kept until something it reads changes: the token's own
-// place, facing, stance, blind tick and ranges; its character (the object, its values object, its stamp); the system; the campaign's fog
-// settings; the map's stamp and grid; the features that feed a formula; the role. And until anything says a sheet or what is seen changed
+// 20 have sheets. While a frame is drawn (tick sets _sensesDraw) a token's result is kept until something it reads changes: what its place
+// gives (1.6.3: the null areas over its cell, its context), facing, stance, blind tick and ranges; its character (the object, its values object, its stamp); the system; the campaign's fog
+// settings; the map's grid and what else the senses read of it (sensesSig, 1.6.3: no longer its save stamp); the features that feed a formula; the role. And until anything says a sheet or what is seen changed
 // (sensesForget: the sheet's own two funnels, invalidateVision, invalidateSeen). A second is the longest a result is kept whatever happens,
 // for a change that reaches none of those. ONLY the drawing: a judgment the host makes for a player (fogDropIds, canSeePoint, sightSigFor,
 // the marks) is never made inside a frame, so it reads the sheet afresh every time, as before. A kept result is frozen: nothing writes to it
 var SENSES_KEEP_MS = 1000, _sensesDraw = false, _sensesBusy = false, _sensesEpoch = 0, _sensesMemo = typeof WeakMap === 'function' ? new WeakMap() : null;
 function sensesForget() { _sensesEpoch++; }
+// 1.6.3 (the game of 2026-11-15, a GM's map of 158 characters that lagged): the signature names what the senses READ from the map, never the
+// map's save stamp (meta.updated), which every save moves (a token dropped, a note typed) and which threw every token's senses away with it, a
+// fresh resolver each, some 6 ms a token. What tokenSenses reads of the map: its grid (gridType, the gridless cell and a cell size of its
+// own: the null areas are judged by cell), the cell's size in yards (cellValue, cellUnit: every range in cells), the map's light level
+// (mapLevel: a sense as far as the eyes reach in the dark), the null areas over this token's cell (nullsAt: the senses they switch off, the
+// host's word to a player, map.fogOff, among them) and what a formula on its sheet reads through the token's context (tokenCtx: its facing
+// with whatever targets it, its stance, the marks it holds and is held by, the map's kind and scene). Each is asked through typeof, so a
+// suite that runs this slice alone runs it as before. What a formula may read from the campaign as a whole, through the sources the
+// resolver asks rather than a sheet (systemcore valueNow, the date, a deck's counts), is named too (glS: the shared values, the clock's time
+// or the date a player is sent, each deck's counts and last card), since the map's save stamp no longer stands for them: a Sight formula
+// that reads a shared value follows it at the next frame. Whatever reaches none of these (a value written into a sheet in place with no
+// stamp, a linked sheet's figure) still waits at most SENSES_KEEP_MS, as it always did
+function sensesGlobal(camp) {   // the campaign-wide inputs of a sheet's formulas, as a short text (piles by their counts alone: a pile may hold hundreds of cards)
+    if (!camp || typeof camp !== 'object') return '';
+    var js = function(v) { return v === undefined || v === null ? '' : JSON.stringify(v); }, pl = camp.piles && typeof camp.piles === 'object' ? camp.piles : null, plS = '';
+    if (pl) Object.keys(pl).forEach(function(k) { var p = pl[k]; if (p && typeof p === 'object') plS += k + ':' + (Array.isArray(p.draw) ? p.draw.length : '') + '/' + (Array.isArray(p.disc) ? p.disc.length : '') + '/' + js(p.last) + ';'; });
+    return [js(camp.shared), js(camp.clock && typeof camp.clock === 'object' ? camp.clock.t : null), js(camp.dateFig), js(camp.pileN), plS].join('~');
+}
 function sensesSig(token, map, camp) {
     var mm = map && map.meta && typeof map.meta === 'object' ? map.meta : null, js = function(v) { return v === undefined || v === null ? '' : JSON.stringify(v); };
     var fo = map && map.fogOff && typeof map.fogOff === 'object' && typeof token.id === 'string' && Object.prototype.hasOwnProperty.call(map.fogOff, token.id) ? map.fogOff[token.id] : null;
     var vt = window.wpVtt, rf = function(k) { return !vt || (vt.rulesOn ? vt.rulesOn(k) : vt.on(k)) ? 1 : 0; };
-    return [_sensesEpoch, roleNow(), js(token.x), js(token.y), js(token.w), js(token.h), js(token.rot), js(token.front), js(token.elevation), js(token.posture), token.blind === true ? 1 : 0, token.waiting ? 1 : 0, js(token.ownerId), js(token.senses), js(token.threats), js(fo),
-        map ? js(map.id) : '', mm ? js(mm.updated) : '', mm ? js(mm.gridType) : '', js(map && map.fog && map.fog.cell), js(camp && camp.fog), rf('turning'), rf('posture'), rf('elevation')].join('|');
+    var lvlS = map && typeof mapLevel === 'function' ? js(mapLevel(map)) : '';   // the light level: a sense by the eyes reaches as far as they do in the dark (eyesReach)
+    var nulS = ''; if (map && typeof nullsAt === 'function') { try { nulS = Object.keys(nullsAt(map, token)).sort().join(','); } catch (e) { nulS = '?'; } }   // the senses a null area over this token's cell switches off
+    var S0 = window.wpSystemCore, ch = camp && camp.chars && typeof camp.chars === 'object' && typeof token.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, token.charId) ? camp.chars[token.charId] : null;
+    var tcS = ''; if (ch && S0 && typeof S0.tokenCtx === 'function' && window.wpFormula) { try { tcS = js(S0.tokenCtx(map, token, { turning: !!rf('turning'), posture: !!rf('posture'), elevation: !!rf('elevation') })); } catch (e) { tcS = '?'; } }   // what the sheet's formulas read of the token, as tokenSenses builds it
+    var posS = tcS === '?' || nulS === '?' ? [js(token.x), js(token.y), js(token.w), js(token.h)].join(',') : '';   // the place itself only where what it is read for could not be read: the senses read a place only through the null areas over its cell and the token's context (the bearing of what targets it), both above, so a token dragged across a cell keeps its senses
+    return [_sensesEpoch, roleNow(), posS, js(token.rot), js(token.front), js(token.elevation), js(token.posture), token.blind === true ? 1 : 0, token.waiting ? 1 : 0, js(token.ownerId), js(token.senses), js(token.threats), js(fo),
+        map ? js(map.id) : '', mm ? js(mm.gridType) : '', js(map && map.fog && map.fog.cell), mm ? js(mm.cell) : '', mm ? js(mm.cellValue) : '', mm ? js(mm.cellUnit) : '', lvlS, nulS, tcS, js(camp && camp.fog), sensesGlobal(camp), rf('turning'), rf('posture'), rf('elevation')].join('|');
 }
 function sensesKept(token, map, camp, waived) {   // the kept result while a frame is drawn (worked out afresh when the kept one is no longer good); null outside a frame
     if (!_sensesDraw || _sensesBusy || !_sensesMemo || !token || typeof token !== 'object') return null;
@@ -932,7 +955,10 @@ function revealedTiers(map, camp, ownerId) {
         var lc = lvl === null || over ? null : litFor(map, grid, blk);   // lighting off: no light sources either
         viewersFor(map, camp, ownerId).forEach(function(v) {
             var s = viewSeen(map, grid, blk, lvl, v, lc), by = v.pass ? (passed || (passed = Object.create(null))) : plain;
-            for (var i = 0; i < s.length; i++) { put(s[i].key, s[i].cell, s[i].tier); by[s[i].key] = 1; if (v.side) { band = band || Object.create(null); bandBy = bandBy || Object.create(null); band[s[i].key] = (band[s[i].key] || []).concat(v.side); (bandBy[s[i].key] || (bandBy[s[i].key] = [])).push({ t: v.tok, ids: v.side }); } else more[s[i].key] = 1; }
+            // 1.6.3: a band's senses are added to the cell's own list in place (a copy the first time, pushed after), where each cell of each
+            // band once made a whole new array by concat: a side band reaches far in the dark, so that was thousands of arrays every frame. The
+            // lists hold the very same ids in the very same order
+            for (var i = 0; i < s.length; i++) { put(s[i].key, s[i].cell, s[i].tier); by[s[i].key] = 1; if (v.side) { band = band || Object.create(null); bandBy = bandBy || Object.create(null); var bl = band[s[i].key]; if (bl) { for (var bi = 0; bi < v.side.length; bi++) bl.push(v.side[bi]); } else band[s[i].key] = v.side.slice(); (bandBy[s[i].key] || (bandBy[s[i].key] = [])).push({ t: v.tok, ids: v.side }); } else more[s[i].key] = 1; }
         });
     }
     (mf.manual.adds || []).forEach(function(c) { var k = C.cellKey(c, grid); put(k, c, 2); plain[k] = 1; more[k] = 1; });
@@ -969,6 +995,59 @@ function wallEdged(tiers, map, grid) {
     return tiers;
 }
 // [fogcheck:walledge-end]
+// [fogcheck:drawtiers-start]
+// 1.6.3 (the game of 2026-11-15: a GM hosting a map of 33 character tokens, a campaign of 158 characters, the screen two thirds busy doing
+// nothing): the overlay draws at most every 60 ms, and every frame it built the whole revealed set again (revealedTiers, then wallEdged), some
+// 45 ms each time though nothing had moved. drawTiers keeps the tiers of the frame before and hands them back while every input they are
+// worked out from is the same; anything else is worked out afresh exactly as before. Only the overlay asks it (draw, inside a frame, never
+// the stream window, whose tiers are the host's word): a judgment the host makes for a player (fogDropIds, canSeePoint, the marks) never
+// reads it, and revealedTiers itself stays new at every call, as wallEdged and heightShown expect.
+// The key (dtKey) names everything revealedTiers and wallEdged read, each as cheaply as it can be read again:
+//   the map (the very object, and its id), the screen's role (a player's copy reads the host's lit cells, fogLit), the owner whose tokens
+//   reveal (drawOwner: the GM, a preview, a player), the grid, the map's fog mode, the cells shown and hidden by hand (each by its key);
+//   every viewer as viewersFor gives it (a token's place, facing, sight, arc, each sense: whatever the tokens and their sheets give, read
+//   through the same kept senses as the frame's own call would be); the walls outside Cover all (the set's own object, its content version, over the cap);
+//   the light level (mapLevel); the lit cells (litFor's own object and version, new whenever a light moves, switches or is carried); the
+//   smoke (its set and version); the pieces marked Always revealed or Under fog (pieceHand's signature: where each stands).
+// The walls', the smoke's and the lights' sets are themselves kept on the map's save stamp and their own signatures, as revealedTiers reads
+// them, so the key holds whatever those hold. The tiers handed back are the kept object: a caller that changes them (heightShown) is handed
+// a copy (drawTiersOwn). The cached object is never handed to anything that writes into it
+var _dtKept = null, _dtIds = typeof WeakMap === 'function' ? new WeakMap() : null, _dtN = 0;
+function dtId(o) { if (!o || typeof o !== 'object') return '0'; if (!_dtIds) return '?'; var n = _dtIds.get(o); if (!n) { n = ++_dtN; _dtIds.set(o, n); } return String(n); }   // a number for an object, the same while it is the same object
+function dtKey(map, camp, ownerId, grid) {   // the text every input of the tiers is named in; null where the tiers are not to be kept (worked out afresh)
+    var C = core(); if (!C || !map || !grid || !_dtIds) return null;
+    var mf = mapFog(map); if (mf.mode === 'reveal') return null;   // Reveal all: revealedTiers answers null at once, nothing to keep
+    var cellsOf = function(l) { var s = ''; for (var i = 0; l && i < l.length; i++) s += C.cellKey(l[i], grid) + ';'; return s; };
+    var k = [dtId(map), map.id, roleNow(), String(ownerId), JSON.stringify(grid), mf.mode, cellsOf(mf.manual.adds), cellsOf(mf.manual.cuts)];
+    // the walls only where the tiers read them: under Cover all neither revealedTiers nor wallEdged asks blockersFor, and asking it here would
+    // raise its Too many sight-blockers notice on a screen that never read the walls
+    if (mf.mode === 'cover') k.push('cover');
+    else {
+        var blk = blockersFor(map, grid), over = !!_blockerOver[map.id];
+        k.push(dtId(blk), _blockerVer[map.id] || 0, over ? 1 : 0);
+        var lvl = mapLevel(map); if (over && lvl !== null) lvl = 0;
+        var lc = lvl === null || over ? null : litFor(map, grid, blk), sm = smokeFor(map, grid);
+        k.push(String(lvl), dtId(lc), lc ? lc.ver : 0, dtId(sm), _smokeVer[map.id] || 0, JSON.stringify(viewersFor(map, camp, ownerId)));
+    }
+    var ph = typeof pieceHand === 'function' ? pieceHand(map, grid) : null; k.push(ph ? ph.sig : '');
+    return k.join('\u0001');
+}
+function drawTiers(map, camp, ownerId, grid) {   // the overlay's tiers (revealedTiers, then the cells a wall runs through): the kept ones while dtKey is the same
+    var key = dtKey(map, camp, ownerId, grid);
+    if (key !== null && _dtKept && _dtKept.key === key) return _dtKept.tiers;
+    var t = revealedTiers(map, camp, ownerId); if (t !== null && typeof wallEdged === 'function') t = wallEdged(t, map, grid);
+    _dtKept = key !== null && t !== null ? { key: key, tiers: t } : null;
+    return t;
+}
+function drawTiersOwn(t, map, camp, ownerId, grid) {   // the tiers for a caller that writes into them: a copy of the kept object where the heights would add cells (heightShown), else the very tiers
+    if (!t || !_dtKept || _dtKept.tiers !== t) return t;
+    var hr = typeof heightRules === 'function' ? heightRules(map, camp, grid, ownerId) : null; if (!hr || !hr.hs.split) return t;   // heightShown changes nothing then
+    var o = {}; Object.keys(t).forEach(function(n) { o[n] = t[n]; });
+    o.list = t.list.slice(); o.keys = Object.assign(Object.create(null), t.keys);
+    return o;
+}
+function drawTiersForget() { _dtKept = null; }
+// [fogcheck:drawtiers-end]
 // The cells revealed to ownerId at any tier (what host enforcement drops by). null = the whole map (reveal mode)
 // 1.6.0: a token stands unnoticed in a band of side vision where every sense of that band is ticked for it (item.unsensed, the GM's): nothing of it is sent
 function sideMissed(C, w, ids) { var un = C.cleanUnsensed(w.unsensed); return un === true || (!!un && !!ids && ids.every(function(id) { return un.indexOf(id) >= 0; })); }
@@ -1450,7 +1529,13 @@ function fogMarksFor(recipientId, camp, map, drop, peek) {   // peek: the GM's p
 // profile id holds none; a map's id, from a file, may)
 var _keyCache = Object.create(null);
 function invalidateSeen(mapId, recipientId) {
-    if (typeof sensesForget === 'function') sensesForget();   // what is seen is judged afresh: the overlay's kept senses with it
+    // 1.6.3 (the game of 2026-11-15): the overlay's kept senses are forgotten only when the whole map (or every map) is judged afresh. A call
+    // scoped to one player is their own token moving with no light that changes the map (net.js's pos gate passes no player for a moving light):
+    // what that token's place gives its senses, the null areas over its cell and its context (the bearings of what targets it), is read again
+    // in sensesSig at every frame, so its senses follow by themselves, and every other token's senses stand. Forgetting them all here made
+    // every token build a fresh resolver after each move a player made, some 6 ms a token
+    var oneSeen = typeof mapId === 'string' && !!mapId && typeof recipientId === 'string' && !!recipientId;
+    if (!oneSeen && typeof sensesForget === 'function') sensesForget();   // what is seen is judged afresh: the overlay's kept senses with it
     if (typeof mapId !== 'string' || !mapId) { _keyCache = Object.create(null); return; }
     if (typeof recipientId === 'string' && recipientId) { delete _keyCache[recipientId + '|' + mapId]; return; }
     Object.keys(_keyCache).forEach(function(k) { var i = k.indexOf('|'); if (i >= 0 && k.slice(i + 1) === mapId) delete _keyCache[k]; });
@@ -1478,7 +1563,7 @@ function lightMoves(map) {
     blockersFor(map, grid);
     return !_blockerOver[map.id];
 }
-function invalidateVision() { _coverCache = Object.create(null); _coverStamp = Object.create(null); _keyCache = Object.create(null); _blockerCache = Object.create(null); _blockerStamp = Object.create(null); _maskCache = Object.create(null); _maskStamp = Object.create(null); if (typeof sensesForget === 'function') sensesForget(); }   // and the overlay's kept senses are read again
+function invalidateVision() { _coverCache = Object.create(null); if (typeof drawTiersForget === 'function') drawTiersForget(); _coverStamp = Object.create(null); _keyCache = Object.create(null); _blockerCache = Object.create(null); _blockerStamp = Object.create(null); _maskCache = Object.create(null); _maskStamp = Object.create(null); if (typeof sensesForget === 'function') sensesForget(); }   // and the overlay's kept senses are read again
 function canSeePoint(recipientId, camp, map, x, y, w) {   // w (item 19b): the piece whose place this is — a creature is judged at its height, as its drop is
     if (!fogFeatureOn() || !map) return true;
     var mf = mapFog(map); if (!mf.on) return true;
@@ -1630,6 +1715,24 @@ function maskClip(mask, grid, z, sx, sy, W, H, traceOn) {
     return _clipPath;
 }
 // [fogcheck:maskclip-end]
+// [fogcheck:punchpaths-start]
+// 1.6.3 (the game of 2026-11-15): the fog's two punches as kept paths, as maskClip keeps the play area's clip. A frame whose tiers are the very
+// object the frame before drew (drawTiers hands the kept one on while nothing they read changed) and whose view is the same gets the paths
+// made once by the very calls the frame itself would make (traceOn, cell by cell, in the list's order: the dim cells in one path, the clear
+// ones in the other), and the frames after it trace nothing. A frame whose tiers or view have just changed gets null and is traced on the
+// canvas as ever. Null too where there is no Path2D. vk: the view by its numbers (zoom, scroll, size, the pad a turned view adds, the grid)
+var _punchTiers = null, _punchKey = null, _punchDim = null, _punchClear = null;
+function punchPaths(tiers, vk, traceOn) {
+    if (typeof Path2D !== 'function' || !tiers || !Array.isArray(tiers.list) || !tiers.keys) return null;
+    if (_punchTiers !== tiers || _punchKey !== vk) { _punchTiers = tiers; _punchKey = vk; _punchDim = null; _punchClear = null; return null; }
+    if (!_punchClear) {
+        var tl = tiers.list, tk = tiers.keys, d = null, c = new Path2D();
+        for (var i = 0; i < tl.length; i++) { if (tk[tl[i].key] === 1) traceOn(d || (d = new Path2D()), tl[i].cell); else traceOn(c, tl[i].cell); }
+        _punchDim = d; _punchClear = c;
+    }
+    return { dim: _punchDim, clear: _punchClear };
+}
+// [fogcheck:punchpaths-end]
 // R2 #14: the stream window's tiers — the host's word on its copy (map.fogParty, fogPartyCells) alone, never worked out from the window's own copy,
 // which lacks the players' sheets and the GM's null areas. Each cell once, the clearer tier winning; { all: true } (Reveal all) is no fog; nothing
 // said, or a word that is no list, covers everything (fail closed)
@@ -1661,9 +1764,10 @@ function draw() {
         if (mapFog(map).mode !== 'reveal') { drawCaptions(ctx, s); drawSenseCaptions(ctx, s, blindCaptionsFor(map, camp, drawOwner())); }
         return;
     }
-    var tiers = isStreamView() ? partyTiers(map, grid) : revealedTiers(map, camp, drawOwner());   // R2 #14: the stream window draws the host's word
+    var keptT = !isStreamView() && typeof drawTiers === 'function';   // 1.6.3: the tiers of the frame before, while nothing they read changed (drawTiers: revealedTiers and wallEdged, kept)
+    var tiers = keptT ? drawTiers(map, camp, drawOwner(), grid) : isStreamView() ? partyTiers(map, grid) : revealedTiers(map, camp, drawOwner());   // R2 #14: the stream window draws the host's word
     if (tiers === null) return;                                    // reveal-all: no fog
-    if (!isStreamView() && typeof wallEdged === 'function') tiers = wallEdged(tiers, map, grid);   // the cells a wall runs through (the stream window's come with the host's word)
+    if (!keptT && !isStreamView() && typeof wallEdged === 'function') tiers = wallEdged(tiers, map, grid);   // the cells a wall runs through (the stream window's come with the host's word; drawTiers adds them itself)
     var z = state.zoomLevel || 1, sx = wrap.scrollLeft, sy = wrap.scrollTop;
     var turnV = typeof window !== 'undefined' && window.wpView && window.wpView.turned && window.wpView.turned() ? window.wpView : null;   // 1.6.2 (backlog 82b): a view turned with its token
     var pad = 80 + (grid.type === 'square' ? grid.size * z / 2 : grid.s * z * 1.02) + (turnV ? Math.hypot(W, H) : 0);   // turned, the screen's corners reach cells past its own edges   // keep a cell whose CENTER is off-view but whose body reaches the viewport (else a sliver of the clip edge stays unfogged at high zoom)
@@ -1681,7 +1785,7 @@ function draw() {
         else hexPath(cx2, lx, ly, grid.s * z * 1.02);
     }; };
     var mem = isClientView() && rememberOn(camp) ? memRemember(map, grid, tiers) : null, memBox = turnV && turnV.fogBox ? turnV.fogBox(W, H) : null, memLay = mem && mem.n ? (memBox ? memLayer(map, mem, z, sx + memBox.x, sy + memBox.y, memBox.w, memBox.h, traceIn(memBox)) : memLayer(map, mem, z, sx, sy, W, H, traceOn)) : null;   // senses S6: the ground this player remembers
-    if (!isStreamView() && typeof heightShown === 'function') tiers = heightShown(tiers, map, camp, drawOwner(), grid, mask);   // item 19b H4: the cell of a creature seen over a low wall (after the memory: it is no ground seen)
+    if (!isStreamView() && typeof heightShown === 'function') tiers = heightShown(keptT && typeof drawTiersOwn === 'function' ? drawTiersOwn(tiers, map, camp, drawOwner(), grid) : tiers, map, camp, drawOwner(), grid, mask);   // 1.6.3: heightShown adds cells to what it is handed, so the kept tiers go to it as a copy   // item 19b H4: the cell of a creature seen over a low wall (after the memory: it is no ground seen)
     ctx.save();
     if (turnV) turnV.turnCtx(ctx);   // the fog's cells turn about the same point as the board
     if (mask.mode === 'set') {                                     // confine the fog to the play-area cells
@@ -1699,15 +1803,19 @@ function draw() {
     // padded cells never double-punch a seam. Lighting off: every cell is tier 2, exactly as before
     var tl = tiers.list, tk = tiers.keys, anyDim = false;
     for (var di = 0; di < tl.length && !anyDim; di++) if (tk[tl[di].key] === 1) anyDim = true;
+    // 1.6.3: while the tiers are the kept ones (drawTiers) and the view has not moved, the two punches are kept paths (punchPaths), made
+    // once by the very calls below; else (pp null) each cell is traced on the canvas as ever. fillP fills the kept path or the traced one
+    var pp = keptT && typeof punchPaths === 'function' ? punchPaths(tiers, [z, sx, sy, W, H, pad, grid.type, grid.size, grid.s, grid.h].join('|'), traceOn) : null;
+    var fillP = function(p) { if (pp) { if (p) ctx.fill(p); } else ctx.fill(); };
     if (anyDim) {
-        ctx.beginPath(); for (var dj = 0; dj < tl.length; dj++) if (tk[tl[dj].key] === 1) traceCell(tl[dj].cell);
-        if (memLay) { ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = 'rgba(5,6,12,0.97)'; ctx.fill(); ctx.globalCompositeOperation = 'destination-out'; }   // a dim cell it remembers is as dim as any other
-        ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fill();
+        if (!pp) { ctx.beginPath(); for (var dj = 0; dj < tl.length; dj++) if (tk[tl[dj].key] === 1) traceCell(tl[dj].cell); }
+        if (memLay) { ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = 'rgba(5,6,12,0.97)'; fillP(pp && pp.dim); ctx.globalCompositeOperation = 'destination-out'; }   // a dim cell it remembers is as dim as any other
+        ctx.fillStyle = 'rgba(0,0,0,0.5)'; fillP(pp && pp.dim);
     }
     ctx.fillStyle = 'rgba(0,0,0,1)';
-    ctx.beginPath();
-    for (var i = 0; i < tl.length; i++) if (tk[tl[i].key] !== 1) traceCell(tl[i].cell);
-    ctx.fill();                                                    // punch every clear or bright cell in one pass
+    if (!pp) { ctx.beginPath();
+    for (var i = 0; i < tl.length; i++) if (tk[tl[i].key] !== 1) traceCell(tl[i].cell); }
+    fillP(pp && pp.clear);                                         // punch every clear or bright cell in one pass
     ctx.globalCompositeOperation = 'source-over';
     ctx.restore();
     ctx.save(); if (turnV) turnV.turnCtx(ctx);

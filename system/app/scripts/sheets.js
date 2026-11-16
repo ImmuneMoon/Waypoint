@@ -498,6 +498,7 @@ function afterCharChange(c, whole, values) {
     var posA = typeof postureFollow === 'function' ? postureFollow(c, camp) : [];   // 1.5.9: an effect that came on lays its token down, in this very save
     syncOwners(camp);
     save(true);
+    if (typeof passForget === 'function') passForget();   // 1.6.3: what was kept for this pass of the app (a token's effects, the party's hover lines) is read again before anything is drawn or sent
     var n = net();
     if (n && n.active && n.role === 'host') { if (whole || !values) n.syncChar(c.id); else n.syncCharDelta(c.id, values); }
     if (posA.length && n && n.active && n.role === 'host' && n.broadcastItemFiltered) posA.forEach(function(mid) { n.broadcastItemFiltered(camp.id, mid); });   // 1.5.9: the maps whose tokens it moved
@@ -1139,7 +1140,7 @@ function hoverLinesForToken(w, camp, mapId) {   // mapId: the map the token stan
     if (!sys || !c) return [];
     if (c.npc && isClient()) return [];
     if (c.partial && Array.isArray(c.lines)) return c.lines.slice();   // 5h: a teammate's copy shows the host's lines (it lacks the fields their formulas read)
-    try { var midH = typeof mapId === 'string' && camp.items && Object.prototype.hasOwnProperty.call(camp.items, mapId) ? mapId : camp.activeItemId, amH = camp.items && camp.items[midH]; return hoverLines(sys, c, F(), withRange(withRound(tokenCtx(amH, w, tokenFlags()), combatOn(midH, w && w.id)), rangeFor(c, midH, amH, w, camp))); } catch (e) { return []; }   // 5h Fold 3 / Stage 6: this token's own facing and stance; HF5b: the combat on its map (HF5 review: the map it stands on, as its sheet reads it)
+    try { var midH = typeof mapId === 'string' && camp.items && Object.prototype.hasOwnProperty.call(camp.items, mapId) ? mapId : camp.activeItemId, amH = camp.items && camp.items[midH], ctxH = withRange(withRound(tokenCtx(amH, w, tokenFlags()), combatOn(midH, w && w.id)), rangeFor(c, midH, amH, w, camp)); return typeof hlKept === 'function' ? hlKept(w, sys, c, ctxH) : hoverLines(sys, c, F(), ctxH); } catch (e) { return []; }   // 5h Fold 3 / Stage 6: this token's own facing and stance; HF5b: the combat on its map (HF5 review: the map it stands on, as its sheet reads it)
 }
 // [sinkcheck:tokenfxlist-start]
 // Conditions C1 (docs/CONDITIONS_PLAN.md): the effects a character token shows on this screen — the GM's worked out from its character, a
@@ -1149,7 +1150,7 @@ function tokenFx(w) {
     if (!w || !w.isChar || (window.wpVtt && !window.wpVtt.on('sheets'))) return [];
     var n = window.wpNet; if (n && (n.foreign || (n.active && n.role === 'client'))) return Array.isArray(w.fxb) ? w.fxb : [];
     var S = window.wpSystemCore, camp = getActiveCampaign(), sys = systemOf(camp), c = charById(w.charId, camp); if (!S || !sys) return [];
-    if (c) return S.tokenEffects ? S.tokenEffects(sys, c, true, F()) : [];   // conditions C4: its automatic effects too
+    if (c) return S.tokenEffectsPass ? S.tokenEffectsPass(sys, c, true, F()) : S.tokenEffects ? S.tokenEffects(sys, c, true, F()) : [];   // conditions C4: its automatic effects too; 1.6.3: worked out once a pass for every token of one sheet (systemcore tokenEffectsPass)
     return Array.isArray(w.fx) && S.tokenOwnEffects ? S.tokenOwnEffects(sys, w.fx, true) : [];   // C2: a token with no sheet, its own
 }
 // Backlog 28: a token's bars on this screen, [{ s, v, m, n, c, g? }] in slot order: the GM's worked out from the token and its character, a GM-only
@@ -1200,11 +1201,33 @@ function tokenFxCharOp(charId, fieldId, q) {   // a character token's menu: the 
     else if (q.op === 'remove' && typeof q.rowId === 'string') commitEffect(c, f, { op: 'remove', rowId: q.rowId });
 }
 // [sinkcheck:tokenfxlist-end]
+// [systemcheck:hlpass-start]
+// 1.6.3 (the game of 2026-11-15: a redraw cost over half a second, two thirds of it here): the party strip asks every chip's hover lines twice
+// a draw (its signature, then the chip's tooltip), and it is drawn twice by every appRender (renderWhiteboard draws it, then appRender
+// itself); the map's own hover card asks them too. Each ask worked the whole sheet out (hoverLines). hlKept keeps the lines for ONE pass of
+// the app, by the token's id: until the end of the synchronous run (cleared in a microtask), or at once by passForget, which every funnel
+// of a character change asks first (afterCharChange, charChanged). A kept answer is handed back only where the token, its character, the
+// values object, the sheet's stamp, the system and the formula engine are the same and the context the lines are worked out in (its facing,
+// stance, the round of its fight, its range to a target) reads the same, so a fight that ends or a target that moves within the pass is
+// read afresh. Each caller gets its own copy of the lines
+var _hlPass = null;
+function passForget() { _hlPass = null; var S = window.wpSystemCore; if (S && typeof S.tokenEffectsForget === 'function') S.tokenEffectsForget(); }   // what one pass kept (these lines, and systemcore's tokenEffectsPass) is read again
+function hlKept(w, sys, c, ctx) {
+    var Fh = F(); if (typeof Map !== 'function' || !w || typeof w.id !== 'string') return hoverLines(sys, c, Fh, ctx);
+    var ctxS = ''; try { ctxS = JSON.stringify(ctx === undefined ? null : ctx); } catch (e) { return hoverLines(sys, c, Fh, ctx); }   // a context that cannot be written out is never kept
+    if (!_hlPass) { var mine = _hlPass = new Map(), clear = function() { if (_hlPass === mine) _hlPass = null; }; if (typeof queueMicrotask === 'function') queueMicrotask(clear); else Promise.resolve().then(clear); }
+    var hit = _hlPass.get(w.id);
+    if (hit && hit.w === w && hit.sys === sys && hit.c === c && hit.vals === c.values && hit.upd === c.updated && hit.F === Fh && hit.ctx === ctxS) return hit.out.slice();
+    var out = hoverLines(sys, c, Fh, ctx);
+    if (Array.isArray(out)) _hlPass.set(w.id, { w: w, sys: sys, c: c, vals: c.values, upd: c.updated, F: Fh, ctx: ctxS, out: out.slice() });
+    return out;
+}
 function hoverLinesForTokenId(camp, tokId) {
     if (!camp || !tokId) return [];
     var w = null, onMap = null; Object.keys(camp.items || {}).some(function(id) { var m = camp.items[id]; if (!m || m.type !== 'map') return false; w = (m.whiteboard || []).find(function(x) { return x && x.id === tokId; }) || null; if (w) onMap = id; return !!w; });
     return w ? hoverLinesForToken(w, camp, onMap) : [];
 }
+// [systemcheck:hlpass-end]
 
 /* ---------- the facing dial (Stage 5h Fold 3): a view of the token's own facing, with threat marks formulas read as Arc / Threats ---------- */
 var SVGNS = 'http://www.w3.org/2000/svg', _dialSig = '', _dialStale = false, _dialRedraw = null, _dialOn = null, _roundSig = '', _rangeSig = '';   // HF5b: _roundSig, the sheet's combat round; range R2: _rangeSig, its range to the target
@@ -6202,17 +6225,25 @@ function rollHidden(r, vars) {
 // 1.6.2: a roll's name in a section takes two lines where it needs them and is cut past that (the style sheet; the owner, 2026-11-06, by prompt: "a mix
 // of 1 and 3", which took the place of "One line, shrink to fit" of 2026-11-05). Its text keeps its size: rollFit only clears a size an earlier draw set
 function rollFit(b) { if (b && b.style) b.style.fontSize = ''; }
-function evenGrid(g) {
+// 1.6.3 (the game of 2026-11-15: a roll that changed a sheet took some 2 s, much of it here): a grid is made even in three steps, so that a
+// view of many grids is laid out ONCE: every grid's rolls are let go first (evenPrep: their names' size cleared, their heights taken off),
+// then every height is read (evenMost), then every height is set (evenSet). Done grid by grid, each read came right after the writes of the
+// grid before it and the browser laid the whole sheet out again for each. evenGrids does it for many grids, evenGrid for one, as before:
+// the observer, the fold that opens and a suite call it alone
+function evenPrep(g) {   // a grid's rolls, let go (a name's size an earlier draw set cleared, a height set before taken off); null where it holds fewer than two, which then keep no height
     var rolls = Array.prototype.filter.call(g.children || [], function(x) { return x && x.classList && x.classList.contains('sheet-kind-roll'); });
     rolls.forEach(function(x) { var bt = typeof x.querySelector === 'function' ? x.querySelector('.sheet-roll') : null; if (bt) rollFit(bt); });
-    if (rolls.length < 2) return; rolls.forEach(function(x) { x.style.minHeight = ''; });
-    var most = 0; rolls.forEach(function(x) { var h = typeof x.getBoundingClientRect === 'function' ? x.getBoundingClientRect().height : 0; if (h > most) most = h; });
-    if (most > 0) rolls.forEach(function(x) { x.style.minHeight = Math.ceil(most) + 'px'; });
+    if (rolls.length < 2) return null; rolls.forEach(function(x) { x.style.minHeight = ''; });
+    return rolls;
 }
+function evenMost(rolls) { var most = 0; rolls.forEach(function(x) { var h = typeof x.getBoundingClientRect === 'function' ? x.getBoundingClientRect().height : 0; if (h > most) most = h; }); return most; }   // the tallest roll's height, as laid out now
+function evenSet(rolls, most) { if (most > 0) rolls.forEach(function(x) { x.style.minHeight = Math.ceil(most) + 'px'; }); }   // every roll at the tallest's height, rounded up
+function evenGrids(gs) { var prep = gs.map(evenPrep), most = prep.map(function(r) { return r ? evenMost(r) : 0; }); prep.forEach(function(r, i) { if (r) evenSet(r, most[i]); }); }   // many grids: all let go, then all read, then all set
+function evenGrid(g) { evenGrids([g]); }
 var _evenObs = typeof WeakMap === 'function' ? new WeakMap() : null;
 function rollEven(body) {
     if (!body || typeof body.querySelectorAll !== 'function') return;
-    var grids = Array.prototype.slice.call(body.querySelectorAll('.sheet-grid')); grids.forEach(evenGrid);
+    var grids = Array.prototype.slice.call(body.querySelectorAll('.sheet-grid')); evenGrids(grids);   // 1.6.3: the view's grids together, laid out once
     if (!_evenObs || typeof ResizeObserver !== 'function') return;
     var seen = _evenObs.get(body);
     if (!seen) {
@@ -6221,10 +6252,10 @@ function rollEven(body) {
         var later = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : function(fn) { return setTimeout(fn, 16); };
         seen = { w: new WeakMap(), due: [], raf: 0 }; seen.ro = new ResizeObserver(function(list) {
             list.forEach(function(en) { var w = Math.round(en.contentRect.width); if (seen.w.get(en.target) === w) return; seen.w.set(en.target, w); if (seen.due.indexOf(en.target) < 0) seen.due.push(en.target); });
-            if (seen.due.length && !seen.raf) seen.raf = later(function() { var d = seen.due; seen.due = []; seen.raf = 0; d.forEach(evenGrid); });
+            if (seen.due.length && !seen.raf) seen.raf = later(function() { var d = seen.due; seen.due = []; seen.raf = 0; evenGrids(d); });
         });
         _evenObs.set(body, seen);
-        if (typeof body.addEventListener === 'function') body.addEventListener('toggle', function(e) { var tg = e.target; if (tg && tg.querySelectorAll) Array.prototype.forEach.call(tg.querySelectorAll('.sheet-grid'), evenGrid); }, true);
+        if (typeof body.addEventListener === 'function') body.addEventListener('toggle', function(e) { var tg = e.target; if (tg && tg.querySelectorAll) evenGrids(Array.prototype.slice.call(tg.querySelectorAll('.sheet-grid'))); }, true);
     }
     seen.ro.disconnect(); grids.forEach(function(g) { if (g.querySelector && g.querySelector(':scope > .sheet-kind-roll')) { seen.w.set(g, Math.round(g.getBoundingClientRect().width)); seen.ro.observe(g); } });
 }
@@ -8339,6 +8370,7 @@ function playerFinder(camp, view) {
 function charChanged(id) {
     if (typeof window !== 'undefined' && window.wpFog && window.wpFog.sensesForget) window.wpFog.sensesForget();   // the fog's kept senses are read again from the sheet
     if (typeof lookPrune === 'function') lookPrune(id);   // item 35: a change from the table (a player's edit, a time rule) that left a look without its text
+    if (typeof passForget === 'function') passForget();   // 1.6.3: what was kept for this pass of the app (a token's effects, the party's hover lines) is read again after the change
     if (typeof openSyncOne === 'function') openSyncOne(id);   // 1.5.8: a change from the table (a Form a player switched on) that opens or closes rows
     if (typeof tileFollow === 'function' && typeof id === 'string') { var campT = getActiveCampaign(), cT = charById(id, campT); if (cT) tileFollow(cT, campT); }   // 1.6.2 (body fold 8)
     if (typeof crossFollow === 'function' && typeof id === 'string') { var campX = getActiveCampaign(), cX = charById(id, campX); if (cX) crossFollow(cX, campX); }   // 1.5.9: a change from the table that crossed a step
@@ -8348,7 +8380,9 @@ function charChanged(id) {
     var lost = {};   // HUD frame (HF2a): one notice per character, however many of its views close
     if (sheetOpen && isClient() && (id === null || sheetOpen === id)) { var gone = charById(sheetOpen); if (gone && (gone.partial || gone.ownerId !== myId())) { var nmG = gone.name; lost[gone.id] = 1; closeSheet(); toast(nmG + ' is no longer your character.'); var nG = net(); if (nG && nG.dropPending) nG.dropPending(gone.id); } }
     if (isClient()) Object.keys(huds).forEach(function(hid) { if (id !== null && id !== undefined && hid !== id) return; var gh = charById(hid); if (gh && !gh.partial && gh.ownerId === myId()) return; closeHud(hid); if (!lost[hid]) { lost[hid] = 1; toast((gh ? gh.name : 'That character') + ' is no longer your character.'); var nH = net(); if (nH && nH.dropPending) nH.dropPending(hid); } });
-    renderViews(id); if (window.appRender) window.appRender(); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); if (window.wpDice && window.wpDice.syncChars) window.wpDice.syncChars(); }
+    // 1.6.3: appRender draws the party strip itself (render, then the strip again for a view that is no map), so the strip is drawn here only
+    // where there is no appRender: a third draw of every chip's hover lines after each change from the table
+    renderViews(id); if (window.appRender) window.appRender(); else if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); if (window.wpDice && window.wpDice.syncChars) window.wpDice.syncChars(); }
 // the token's owner select moved (inspector.js): the character follows, and every token of it
 function ownerFromToken(w) {
     var camp = getActiveCampaign(), c = w && w.charId ? charById(w.charId, camp) : null; if (!c || c.npc) return;

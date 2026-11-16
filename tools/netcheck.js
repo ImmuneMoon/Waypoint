@@ -1062,10 +1062,21 @@ pendingChecks.push((async () => {
     const apiA4 = new Function('net', 'getActiveCampaign', 'SC', 'own', 'window', "'use strict';\n" + fxS + '\nreturn { sanitizeItem: sanitizeItem, fxbMoved: fxbMoved };')({ role: 'host', active: true, sendItem: (cid, mid) => sentA4.push(cid + ':' + mid) }, () => campA4, () => Sx, H.own, { wpFormula: Fx4 });
     const a4a = tokOf(apiA4.sanitizeItem(campA4.items.m1), 'tA'); campA4.chars.c_a.values.f_hp = 0; apiA4.fxbMoved('c_a'); const a4mv = sentA4.slice(); const a4b = tokOf(apiA4.sanitizeItem(campA4.items.m1), 'tA'); sentA4.length = 0; apiA4.fxbMoved('c_a'); const a4mv2 = sentA4.slice();
     check('conditions C4 (host, run for real): a character token shows the table its automatic effects on, worked out on the host from its character\'s own values — none while the formula is false; a change that turns one on sends its map once, and nothing moves nothing',
-        !('fxb' in a4a) && J(a4mv) === J(['k:m1']) && J(a4b.fxb) === J([{ n: 'Unconscious', i: 'X', t: 'debuff' }]) && J(a4mv2) === J([]) && /S\.tokenEffects\(camp\.system, camp\.chars\[w\.charId\], false, window\.wpFormula\)/.test(fxS), J([a4a, a4mv, a4b, a4mv2]));
+        !('fxb' in a4a) && J(a4mv) === J(['k:m1']) && J(a4b.fxb) === J([{ n: 'Unconscious', i: 'X', t: 'debuff' }]) && J(a4mv2) === J([]) && /\(S\.tokenEffectsPass \|\| S\.tokenEffects\)\(camp\.system, camp\.chars\[w\.charId\], false, window\.wpFormula\)/.test(fxS) && /function fxbMoved\(id\) \{\n(?:[^\n]*\n){3}    var SF = SC\(\); if \(SF && typeof SF\.tokenEffectsForget === 'function'\) SF\.tokenEffectsForget\(\);/.test(fxS), J([a4a, a4mv, a4b, a4mv2]));
     check('conditions C1 (source): the three funnels every character change leaves by look for moved effects — syncChars for every character, syncChar and syncCharDelta for the one that changed',
         /net\.syncChars = function\(\) \{[^\n]*\n[^\n]*\n[^\n]*\n    if \(typeof fxbMoved === 'function'\) fxbMoved\(null\);/.test(src) && /net\.syncChar = function\(id\) \{[^\n]*\n[^\n]*\n[^\n]*\n    if \(typeof fxbMoved === 'function'\) fxbMoved\(id\);/.test(src)
         && /net\.syncCharDelta = function\(id, values\) \{[^\n]*\n[^\n]*\n[^\n]*\n    if \(typeof fxbMoved === 'function'\) fxbMoved\(id\);/.test(src));
+    {   // 1.6.3 (the review of the game's fixes): the effects kept for one pass (systemcore tokenEffectsPass) are let go on the FIRST line of each host
+        // funnel (fxPassForget, run for real from the slice), before sensesMoved, the bars, the look or the loot may send a map: a list kept earlier in
+        // the same task, before the sheet changed in place (same object, same values object, same stamp), would otherwise ride on that copy
+        const campP = { id: 'k', system: sysA4, chars: { c_a: { id: 'c_a', name: 'A', values: { f_hp: 3 } } }, items: {} };
+        const apiP = new Function('net', 'getActiveCampaign', 'SC', 'own', 'window', "'use strict';\n" + fxS + '\nreturn { fxPassForget: fxPassForget };')({ role: 'host', active: true, sendItem: () => {} }, () => campP, () => Sx, H.own, { wpFormula: Fx4 });
+        Sx.tokenEffectsForget(); const pBefore = Sx.tokenEffectsPass(sysA4, campP.chars.c_a, false, Fx4); campP.chars.c_a.values.f_hp = 0;
+        const pStale = Sx.tokenEffectsPass(sysA4, campP.chars.c_a, false, Fx4); apiP.fxPassForget(); const pFresh = Sx.tokenEffectsPass(sysA4, campP.chars.c_a, false, Fx4);
+        const pHeads = ['net\\.syncChars = function\\(\\) \\{', 'net\\.syncChar = function\\(id\\) \\{', 'net\\.syncCharDelta = function\\(id, values\\) \\{'].map(h => new RegExp(h + " if \\(typeof fxPassForget === 'function'\\) fxPassForget\\(\\);").test(src));
+        check('1.6.3 the effects kept for one pass are let go where a change enters the host: fxPassForget (run for real) makes the next ask work the list out from the sheet as it is now, where a list kept before an in-place change is still handed back without it; and it is the first thing syncChars, syncChar and syncCharDelta do, before sensesMoved',
+            pBefore.length === 0 && pStale === pBefore && J(pFresh.map(e => e.n)) === J(['Unconscious']) && pHeads.every(Boolean), J([pBefore, pStale, pFresh, pHeads]));
+    }
 })());
 // backlog 28, token bars on the wire: the real sanitizeItem and wireWbItem with barsOf, barsMoved and tokBarsTell (the slice fxb's checks run), and
 // a player's side (cleanHostBars, ownBarsTake, net.ownBars), sliced and run for real

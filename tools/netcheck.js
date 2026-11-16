@@ -10852,6 +10852,11 @@ pendingChecks.push((async () => {
                 if (w.sheet || w.gmInfo || w.frame) { w = JSON.parse(JSON.stringify(w)); delete w.sheet; delete w.gmInfo; delete w.frame; }
                 return w;
             });
+            // 1.6.3 (the owner, 2026-11-15: "Yes, send only what shows"; moved on purpose): only the rooms a piece sent names, with no Expected here list, and the links between them
+            var named = Object.create(null); m.whiteboard.forEach(function(w) { if (w && typeof w.nodeId === 'string' && w.nodeId) named[w.nodeId] = true; });
+            m.rooms = (m.rooms || []).filter(function(r) { return !!r && typeof r.id === 'string' && named[r.id] === true; });
+            m.rooms.forEach(function(r) { delete r.characters; });
+            m.links = m.links.filter(function(lk) { return Array.isArray(lk) && named[lk[0]] === true && named[lk[1]] === true; });
             return m;
         };
     })({}, wireNumF);
@@ -10882,6 +10887,16 @@ pendingChecks.push((async () => {
         () => ({ id: 'i1', type: 'image', src: '/saves/images/x.png' }),
         () => null
     ];
+    {   // 1.6.3 (the owner, 2026-11-15, by prompt: "Yes, send only what shows"): a player is sent only the rooms a piece they are sent names
+        const mR = () => ({ id: 'mr', type: 'map', rooms: [{ id: 'shown', name: 'Plaza', image: '/saves/images/p.png', characters: [{ id: 'c1', name: 'Vorn', portrait: '/saves/images/v.png' }] }, { id: 'hid', name: 'Hideout' }, { id: 'prep', name: 'Lodging' }, { id: 'sec', name: 'Vault' }, { id: 'note', name: 'Note room' }, { id: 'two', name: 'Market' }],
+            links: [['shown', 'two'], ['shown', 'prep', 'route', { label: 'Alley', notes: 'x' }], ['hid', 'two'], ['two', 'sec']],
+            whiteboard: [{ id: 'p1', type: 'trigger', nodeId: 'shown', x: 1, y: 1, w: 60, h: 52 }, { id: 'p2', type: 'trigger', nodeId: 'hid', hidden: true, x: 1, y: 1 }, { id: 'p3', type: 'rect', nodeId: 'note', gmNoteFor: 'note', x: 1, y: 1 },
+                { id: 'p4', type: 'rect', nodeId: 'two', x: 5, y: 5, w: 10, h: 10 }, { id: 'p5', type: 'rect', nodeId: 'two', x: 9, y: 9, w: 10, h: 10 }, { id: 'p6', type: 'rect', nodeId: 7, x: 1, y: 1 }] });
+        const outR = siNew(mR()), gmR = mR(), keptR = JSON.stringify(gmR); siNew(gmR); const bare = siNew({ id: 'mb', type: 'map', rooms: [{ id: 'a' }, { id: 7 }], links: [['a', 'a'], 'junk'] });
+        check('1.6.3 a player is sent only the rooms a piece they are sent names (net.js sanitizeItem, run for real; the owner, 2026-11-15, by prompt: "Yes, send only what shows"): a room a shown pin names goes, with its name and picture and without its Expected here list; a room whose only pin is hidden, one only a GM note card names, a room the GM has not placed and a pin whose nodeId is no text keep their rooms home; two pins of one room send it once; a link goes only between two rooms that go, its notes off as before; the GM\u2019s own map is left as it was; a map with no pins sends no room and no link',
+            JSON.stringify(outR.rooms) === JSON.stringify([{ id: 'shown', name: 'Plaza', image: '/saves/images/p.png' }, { id: 'two', name: 'Market' }]) && JSON.stringify(outR.links) === JSON.stringify([['shown', 'two']])
+            && JSON.stringify(gmR) === keptR && JSON.stringify(bare.rooms) === '[]' && JSON.stringify(bare.links) === '[]', JSON.stringify([outR.rooms, outR.links, bare]));
+    }
     const same = fixtures.map(fx => { const a = fx(), b = fx(), before = JSON.stringify(a); const n = siNew(a), o = siOld(b); return [JSON.stringify(n) === JSON.stringify(o), JSON.stringify(a) === before, JSON.stringify(n).slice(0, 60)]; });
     const img = fixtures[5](), m1out = siNew(fixtures[0]());
     check('fold M2: sanitizeItem (run for real) with its per-item rule in wireWbItem gives, byte for byte, the copy the rule written out beside it gives (a hidden token, a hidden shape and one hidden by a 1 left out whole, a GM-note card, a hidden one, sheet, GM note and kept original, 1e20, a text box, a waiting token, a light, falsy GM prep, a stray entry; a map with nothing, a planner, a page, a picture) and never touches the host\'s own map',

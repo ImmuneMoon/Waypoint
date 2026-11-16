@@ -3443,6 +3443,100 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && helpJ.includes('<li><b>Personal notes</b> is one notebook for every campaign. It has a tab in each journal, and it is the same notebook wherever you open it.</li>')
             && helpJ.includes('<li>A search looks through the journal shown. Tick <b>Every journal</b> to look through all of them, and each result then names its campaign.</li>') && !/in a campaign's section/.test(ixJ)
             && [fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'assets', 'whatsnew.txt'), 'utf8')].every(t => cnt(t.replace(/\r\n/g, '\n'), NOTE_J) === 1));
+        // ---- 1.6.3: the Journal saved as one page to read offline (the owner, 2026-11-15: "lets have a way for players to download their journal and
+        // entries for offline review", by prompt "One readable page", "The journal on screen"). The file is opened from disk, where a script in it would
+        // run: handouts.js's journaldl slice is run for real on hostile entries and the file it writes is held to a page that runs and loads nothing
+        {
+            let dlSrc = '', DL = null, dlErr = '';
+            try { dlSrc = slice('handouts.js', 'journaldl'); DL = new Function('"use strict";\n' + dlSrc + '\nreturn { jdlEsc: jdlEsc, jdlPic: jdlPic, jdlRow: jdlRow, jdlShownRow: jdlShownRow, jdlHtml: jdlHtml, jdlParts: jdlParts, jdlName: jdlName, JDL_PIC: JDL_PIC, JDL_CSP: JDL_CSP, JDL_PIC_MAX: JDL_PIC_MAX };')(); } catch (e) { dlErr = String(e && e.message); }
+            const XD = '"><img src=x onerror=alert(1)>', SD = '<script>alert(1)</script>', JD = 'javascript:alert(1)', AD = '<a href="javascript:alert(1)" onclick="x()">x</a>';
+            const PNG = [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13], SVG = Buffer.from('<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'), HTMLB = Buffer.from('<html><script>alert(1)</script></html>');
+            const fetchedD = [];
+            const getD = async u => { fetchedD.push(u); const b = /h1\.png$/.test(u) ? Buffer.from(PNG) : /pic\.svg$/.test(u) ? SVG : /fake\.png$/.test(u) ? HTMLB : null; return b ? { ok: true, arrayBuffer: async () => new Uint8Array(b).buffer } : { ok: false, arrayBuffer: async () => new ArrayBuffer(0) }; };
+            const jD = { campId: 'c1__u_gm', gmId: 'u_gm' };
+            const entriesD = [
+                { id: 'h1', kind: 'image', title: XD + SD, caption: JD, notes: XD, src: '/saves/images/journal/c1__u_gm/h1.png', tags: [XD, 'map'], receivedAt: 1700000000000, sharedBy: XD, sharedById: 'u_pat', sharedNotes: SD + AD, sentTo: [{ to: 'gm', name: XD, at: 1700000000001 }, null, 'x'] },
+                { id: 'h2', kind: 'text', title: 'Letter', text: SD + ' ' + JD + ' ' + AD + '\nsecond line', receivedAt: 1700000000002 },
+                { id: 'h3', kind: 'image', title: 'No pic', src: JD },
+                { id: 'h4', kind: 'image', title: 'Html as png', src: '/saves/images/journal/c1__u_gm/fake.png' },
+                { id: 'h5', kind: 'image', title: 'Page as data', src: 'data:text/html;base64,' + HTMLB.toString('base64') },
+                { id: 'h6', kind: 'image', title: 'Lying data', src: 'data:image/png;base64,' + HTMLB.toString('base64') },
+                { id: 'h7', kind: 'image', title: 'Svg', src: '/saves/images/journal/c1__u_gm/pic.svg' },
+                { id: 'h8', kind: 'image', title: 'Lost', src: '' },
+                { id: 'h9', kind: 'image', title: 'Save itself', src: '/saves/data.json' },
+                { id: 'h10', kind: 'image', title: 'Walk', src: '/saves/images/../data.json' },
+                { id: 'h11', kind: 'image', title: 'Gone file', src: '/saves/images/journal/c1__u_gm/gone.png' },
+                { id: 'h12', kind: 'image', title: 'Kept small', src: 'data:image/png;base64,' + Buffer.from(PNG).toString('base64') },
+                { id: 'n1', kind: 'note', title: XD, text: SD + '\n' + JD, look: { fmt: { spans: [{ s: 0, e: 3, link: JD }] }, sig: 1 }, receivedAt: 1700000000003 },
+                { id: 'n2', kind: 'note', table: true, title: 'Table', text: 'pad' },
+                { id: 'g1', kind: 'image', title: 'From the GM', src: '' },
+                null, 'x', 7, []];
+            let htmlD = '', threwD = '', rowsD = [];
+            try {
+                rowsD = entriesD.map(e => DL.jdlRow(e, jD)).filter(Boolean);
+                for (const r of rowsD) if (r.src) { const p = await DL.jdlPic(r.src, getD); if (p.url) r.pic = p.url; else r.picWhy = p.why; }
+                const shownD = DL.jdlShownRow({ hid: 'x', title: XD, caption: SD, kind: 'image', src: '/saves/images/' + XD + '.png', tags: [SD], last: 5, to: [{ name: XD, at: 9 }] }, SD);
+                const p2 = await DL.jdlPic(shownD.src, getD); if (p2.url) shownD.pic = p2.url; else shownD.picWhy = p2.why;
+                htmlD = DL.jdlHtml({ name: XD, heading: 'Journal of ' + XD, gm: XD + SD, at: 1700000000000, sections: [{ head: XD, rows: [shownD].concat(rowsD) }, { head: SD, rows: [] }, 'junk', null] });
+            } catch (e) { threwD = String(e && e.stack || e); }
+            const bodyD = htmlD.slice(htmlD.indexOf('<body>') + 6), headD = htmlD.slice(0, htmlD.indexOf('<body>'));
+            const srcsD = (htmlD.match(/\ssrc\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi) || []).map(s => s.replace(/^\s*src\s*=\s*["']?|["']$/gi, ''));
+            const tagsD = htmlD.match(/<[a-zA-Z][^>]*>/g) || [];
+            const kindsD = rowsD.map(r => r.kind + '|' + r.from);
+            check('journal (saved as one page, the journaldl slice run for real on hostile entries): the file carries the policy that runs nothing and loads only data pictures in its head, and no script, no handler attribute, no javascript: address, no link and no frame anywhere; every word of a title, a sender, a caption, the text, the notes, what a sender wrote, a tag and a GM\'s name is escaped text; a picture is in it only as a data:image address of a type its own bytes say it is (a png of the journal\'s own and one kept inside the index, an svg shown as an image), and a page whose picture is a web address, an html file named png, a page as data, lying base64, a walk, the save itself, a file that is gone or none at all says so in words and fails nothing; only the app\'s own picture paths are ever read',
+                !dlErr && !threwD && dlSrc.length > 2000 && htmlD.startsWith('<!DOCTYPE html>')
+                && headD.split('<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:; style-src \'unsafe-inline\'">').length === 2 && DL.JDL_CSP === "default-src 'none'; img-src data:; style-src 'unsafe-inline'"
+                && !/<script/i.test(htmlD) && !/javascript:/i.test(htmlD) && !/\son[a-z]+\s*=/i.test(htmlD) && !/<(a|iframe|object|embed|link|base|form|frame)\b/i.test(htmlD) && !/url\(/i.test(htmlD)
+                && risks(bodyD).length === 0 && tagsD.every(t => !/\son[a-z]+\s*=/i.test(t))
+                && srcsD.length === 3 && srcsD.every(s => /^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,[A-Za-z0-9+/]+={0,2}$/.test(s)) && srcsD.filter(s => s.startsWith('data:image/png')).length === 2 && srcsD.filter(s => s.startsWith('data:image/svg+xml')).length === 1
+                && bodyD.includes(DL.jdlEsc(XD + SD)) && bodyD.includes('Journal of ' + DL.jdlEsc(XD)) && bodyD.includes('Run by ' + DL.jdlEsc(XD + SD)) && bodyD.includes(DL.jdlEsc(SD + ' ' + JD + ' ' + AD + '\nsecond line')) && bodyD.includes(DL.jdlEsc(SD + AD))
+                && !bodyD.includes(XD) && !bodyD.includes(SD) && DL.jdlEsc(JD) === 'javascript&#58;alert(1)' && DL.jdlEsc(5) === '5' && DL.jdlEsc({}) === '' && DL.jdlEsc(null) === ''
+                && bodyD.split('The picture is not a kind this page can show.').length - 1 === 3 && bodyD.split('The picture could not be read on this computer.').length - 1 === 7
+                && JSON.stringify(fetchedD) === JSON.stringify(['/saves/images/journal/c1__u_gm/h1.png', '/saves/images/journal/c1__u_gm/fake.png', '/saves/images/journal/c1__u_gm/pic.svg', '/saves/images/journal/c1__u_gm/gone.png', encodeURI('/saves/images/' + XD + '.png')])
+                && bodyD.includes('<p class="empty">Nothing here yet.</p>') && bodyD.split('<section>').length - 1 === 4,
+                [dlErr || threwD, srcsD.map(s => s.slice(0, 30)), risks(bodyD).slice(0, 3), fetchedD, bodyD.split('The picture is not a kind').length - 1, bodyD.split('could not be read on').length - 1]);
+            const nameD = DL ? DL.jdlName(XD + '/..\\:*?|' + '\u0000' + 'x'.repeat(200), 'A page: "one"', 1700000000000) : '';
+            check('journal (saved as one page): each page says what it is and whom it came from, as the window says it (a handout, a page a player shared by their name, a note of your own, the table notepad as the GM\'s); a row that is no row is nothing; the file\'s name is Journal, the journal\'s name, the page\'s title and the day, with nothing a file name cannot hold, and with no name it is still a name',
+                DL && JSON.stringify(kindsD) === JSON.stringify(['A received page|' + XD, 'A handout|the GM', 'A handout|the GM', 'A handout|the GM', 'A handout|the GM', 'A handout|the GM', 'A handout|the GM', 'A handout|the GM', 'A handout|the GM', 'A handout|the GM', 'A handout|the GM', 'A handout|the GM', 'A note of your own|you', 'The table notepad, saved|the GM', 'A handout|the GM'])
+                && DL.jdlRow({ kind: 'text', title: 't', sharedBy: 'Gina', sharedById: 'u_gm' }, jD).from === 'the GM' && DL.jdlRow({ kind: 'text', title: 't', sharedBy: 'Gina', sharedById: 'u_gm' }, jD).kind === 'A received page'
+                && /^Journal - [^<>:"/\\|?*\u0000-\u001f]+ - A page one - \d{4}-\d{2}-\d{2}\.html$/.test(nameD) && nameD.length < 160 && DL.jdlName(null, '', 0) === 'Journal.html' && DL.jdlName('My camp.', '', 0) === 'Journal - My camp.html',
+                [kindsD, nameD]);
+            // the review of 2026-11-15: the notes written under one send of a page of your own (the window's Sent rows, kept as sentNotes
+            // 'sent:<page id>:<time>') go on that send's line; a relative picture path the window shows is read as the app's own; '..' walks only as a
+            // segment; a picture too long for the file is said as too large, never cut; a picture is a part of its own, so the file is made as a
+            // Blob of parts and never one string; and a picture past what one file holds is said in words
+            let snHtml = '', snThrew = '', relP = null, dotP = null, walkP = null, bigP = null, bigRow = null, partsD = [], fetched2 = [];
+            try {
+                const get2 = async u => { fetched2.push(u); return getD(u); };
+                const eS = { id: 'p1', kind: 'note', title: 'Mine', text: 'x', sentTo: [{ to: 'u_a', name: XD, at: 100 }, { to: 'gm', at: 200 }, { to: 'u_b', name: 'Bo', at: 300 }] };
+                const rowS = DL.jdlRow(eS, jD, { 'sent:p1:100': SD + ' about it', 'sent:p1:200': '', 'sent:p1:999': 'stray words', __proto__: { 'sent:p1:300': 'inherited words' } });
+                snHtml = DL.jdlHtml({ name: 'J', sections: [{ head: 'S', rows: [rowS, { kind: 'A handout', title: 'Full', picWhy: 'full' }] }] });
+                relP = await DL.jdlPic('saves/images/journal/c1__u_gm/h1.png', get2);
+                dotP = await DL.jdlPic('/saves/images/journal/a..h1.png', get2);
+                walkP = await DL.jdlPic('assets/../saves/data.json', get2);
+                const longS = 'data:image/png;base64,' + 'A'.repeat(Math.ceil(DL.JDL_PIC_MAX / 3 * 4) + 200);
+                bigRow = DL.jdlRow({ id: 'b', kind: 'image', title: 'Big', src: longS }, jD); bigP = await DL.jdlPic(bigRow.src, get2); bigRow.ok = bigRow.src.length === longS.length;
+                const pr = DL.jdlRow({ id: 'k', kind: 'image', title: 'Kept', src: 'x' }, jD); pr.pic = 'data:image/png;base64,' + Buffer.from(PNG).toString('base64');
+                partsD = DL.jdlParts({ name: 'J', sections: [{ head: 'S', rows: [pr] }] });
+            } catch (e) { snThrew = String(e && e.stack || e); }
+            check('journal (saved as one page, the review): the notes you wrote under each send of a page of your own are in the file under that send, escaped, and none that the window does not show (another time, an inherited key); a picture the window shows by a relative path is read as the app\'s own, a name holding two dots is read and a walk is not; a picture longer than one file takes is kept whole on its row and said as too large; a picture is a part of its own; one past what a file holds is said in words',
+                !snThrew && snHtml.includes('Your notes about the send to ' + DL.jdlEsc(XD)) && snHtml.includes(DL.jdlEsc(SD + ' about it')) && !snHtml.includes(SD) && !snHtml.includes('stray words') && !snHtml.includes('inherited words')
+                && snHtml.split('Your notes about the send to').length - 1 === 1 && snHtml.includes('The file was already as large as it can be, so this picture was left out.')
+                && relP && /^data:image\/png;base64,/.test(relP.url || '') && dotP && /^data:image\/png;base64,/.test(dotP.url || '') && walkP && walkP.why === 'missing'
+                && JSON.stringify(fetched2) === JSON.stringify(['/saves/images/journal/c1__u_gm/h1.png', '/saves/images/journal/a..h1.png'])
+                && bigRow && bigRow.ok && bigP && bigP.why === 'big'
+                && partsD.indexOf('data:image/png;base64,' + Buffer.from(PNG).toString('base64')) > 0 && partsD.join('').includes('<img src="data:image/png;base64,'),
+                [snThrew, relP, dotP, walkP, bigP, fetched2]);
+            const hoD = read('handouts.js'), ixD = read('../index.html'), ioD = read('io.js');
+            check('journal (saved as one page, wired): the window\'s title holds Download beside the picker with its tooltip and its words, each row holds a save button of its own that is an icon alone, the download reads every index through readIndex as the window does, saves what was typed first, and goes out through io.js\'s own downloadBlob as an html file; its steps are logged as journal v1; Help says how',
+                cnt(ixD, '<button id="journalDownloadBtn" class="tool ghost" style="margin-left:auto;" title="Save the journal shown, with Personal notes, as one page to read offline in any browser" aria-label="Download the journal shown as one page"><i class="wib wi-disk"></i> Download</button>') === 1
+                && cnt(hoD, "if (_jDown) _jDown.addEventListener('click', function() { journalDownload(null); });") === 1 && cnt(hoD, "if (rowV) journalDownload({ camp: rowV.dataset.camp, id: rowV.dataset.id });") === 1
+                && cnt(hoD, 'journalSaveBtn()') === 5 && cnt(hoD, "import { save, toast, historyBarrier, downloadBlob } from './io.js';") === 1 && /\n\s*downloadBlob,[^\n]*\n\s*migrateAppState/.test(ioD)
+                && cnt(hoD, "var blob = new Blob(parts, { type: 'text/html' });") === 1 && cnt(hoD, 'if (downloadBlob(name, blob) === false) { jdlLog(\'download-fail\', { at: at }); return; }') === 1
+                && /function downloadBlob\(name, blob\) \{[\s\S]{0,700}?return true;\s*\} catch\(e\) \{ toast\('Export failed\.'\); return false; \}/.test(ioD) && cnt(hoD, "if (_jdlBusy) { toast('The journal is still being saved.'); return; }") === 1 && cnt(hoD, "if (typeof flushNotes === 'function') await flushNotes();") === 2 && /var idxO = await readIndex\(campO\)/.test(hoD) && /idx = await readIndex\(key\)/.test(hoD)
+                && ['download-start', 'download-read', 'download-done', 'download-none'].every(s => cnt(hoD, "jdlLog('" + s + "'") === 1) && cnt(hoD, "jdlLog('download-fail'") === 2 && cnt(hoD, "window.wpStepLog('journal v1', step, o)") === 1
+                && ixD.includes('<li><b data-ctl="#journalDownloadBtn">Download</b> in the title saves the journal shown and Personal notes as one page. It opens in any browser, with no app and no connection. Each page also has a save button of its own.</li>'));
+        }
     }
 
     /* ---- Settings' snapshots: Delete and Restore act only on a yes (settings.js, sliced by its snaps markers and run on a recording page; the page's

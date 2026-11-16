@@ -10,7 +10,7 @@
 import { state } from './state.js';
 import { net } from './net.js';
 import { getActiveCampaign, getActiveMap } from './models.js';
-import { save, toast, historyBarrier } from './io.js';
+import { save, toast, historyBarrier, downloadBlob } from './io.js';
 import { esc } from './inspector.js';
 import { picRef } from './safecore.js';   // a handout's picture is the app's own (a web address from a file never loads)
 import { fillLinked } from './linkgate.js';
@@ -507,6 +507,12 @@ window.wpSceneClosed = sceneClosed;
 // campaign the owner said: "personal notes can transcend campaigns then and be available from each campaign as they are and as they update.
 // they will be the only exception". So Personal notes is a tab of every journal, the same notebook each time, and a journal of its own
 var journalAt = '';
+var journalShown = [];   // the journals the window last drew, with the names it gave them (journalDocOf reads a journal's name and GM there)
+// What the GM had shown from each journal as the window last drew it, by the journal's key. sentRecords answers only for the campaign on
+// screen, and the window is not drawn again when the GM switches campaigns, so a download made after a switch reads the rows from here
+var journalSentDrawn = {};
+// A row's own save button (1.6.3): an icon alone, so the row's words stay what they were for a search and for opening it
+function journalSaveBtn() { return '<button class="tool ghost journal-save" title="Save this page as a file to read offline" aria-label="Save this page as a file" style="padding:2px 6px;"><i class="wib wi-disk"></i></button>'; }
 // The journal of the campaign on screen: the GM's own campaign, or the table this app sits at (one journal per campaign per GM)
 function journalHere() {
     var n = window.wpNet, own = ownCampaignKey();
@@ -564,10 +570,12 @@ async function openJournal(keep) {   // keep (true only): drawn again where it s
     journals = journals.map(function(j, i) { return { j: j, i: i }; }).sort(function(a, b) { return rank(a.j) - rank(b.j) || a.i - b.i; }).map(function(x) { return x.j; });
     var has = function(k) { return !!k && journals.some(function(j) { return j.campId === k; }); };
     if (!(keep === true && has(journalAt))) journalAt = here ? here.key : has(journalAt) ? journalAt : journals[0].campId;
+    journalSentDrawn = {};   // filled again below, journal by journal, with what this drawing shows
     list.innerHTML = journals.map(function(j) {
         var personal = j.campId === 'personal';
         var iRunIt = !!(j.gmId && window.wpNet && j.gmId === window.wpNet.myId);   // my own campaign: nothing here is "from the GM"
         var sent = iRunIt ? sentRecords(j.campId) : [];
+        journalSentDrawn[j.campId] = sent;   // kept for a download after a campaign switch (journalDocOf)
         var page = personal ? 'mine' : (journalPage[j.campId] || journalDefaultPage());
         var runBy = j.gm && !iRunIt && !/^gm$/i.test(j.gm.trim()) ? ' <span style="color:var(--dim); font-weight:normal; font-size:11px;">run by ' + esc(j.gm) + '</span>' : '';
         // inbox: everything received (the GM's handouts, other players' shares); own pages are the rest
@@ -618,7 +626,7 @@ async function openJournal(keep) {   // keep (true only): drawn again where it s
             var thumb = kind === 'text' ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(text).slice(0, 160)) + '</div>' : '<img class="journal-thumb" src="' + esc(picRef(e.src)) + '" alt="" title="Open">';
             return '<div class="journal-entry journal-sentrow" data-page="sent" data-to="' + esc(s.to) + '" data-camp="' + esc(j.campId) + '" data-id="sent:' + esc(e.id) + ':' + esc(s.at) + '" data-kind="' + kind + '" data-sent="1"' + whose(e) + (kind === 'text' ? ' data-text="' + esc(String(text)) + '"' : '') + '>' + thumb +
                 '<div class="journal-body"><div class="journal-title">' + esc(e.title || (e.kind === 'note' ? 'A note' : 'Handout')) + '</div>' + (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') +
-                '<div class="journal-when">Sent to <b>' + esc(s.to === 'gm' ? 'GM' : s.to === '*' ? 'everyone at once' : s.name) + '</b> <span style="opacity:.7;">' + new Date(s.at).toLocaleString() + '</span>' + (e.kind !== 'note' && e.notes ? ' · with your notes' : '') + inTag + '</div>' +
+                '<div class="journal-when">Sent to <b>' + esc(s.to === 'gm' ? 'GM' : s.to === '*' ? 'everyone at once' : s.name) + '</b> <span style="opacity:.7;">' + new Date(s.at).toLocaleString() + '</span>' + (e.kind !== 'note' && e.notes ? ' · with your notes' : '') + inTag + ' ' + journalSaveBtn() + '</div>' +
                 '<textarea class="journal-notes" placeholder="Your notes about this send…">' + esc((j.sentNotes || {})['sent:' + e.id + ':' + s.at] || '') + '</textarea></div></div>';
         }).join('');
         var head = '<div class="journal-camp"><b>' + esc(journalName(j)) + '</b>' + runBy + tabs + ' <button class="tool ghost journal-add" data-camp="' + esc(j.campId) + '" title="Write a page of your own">+ Note</button></div>';
@@ -626,7 +634,7 @@ async function openJournal(keep) {   // keep (true only): drawn again where it s
             if (e.kind === 'note') {
                 return '<div class="journal-entry journal-own" data-page="mine" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="note"' + whose(e) + '>' +
                     '<div class="journal-body">' +
-                    '<div style="display:flex; gap:6px; align-items:center;"><input class="field journal-note-title" value="' + esc(e.title || '') + '" placeholder="Title"><button class="tool ghost journal-open" title="Open this note to read it: a web address in it is a link there" style="padding:2px 8px;">Open</button><button class="tool ghost danger journal-del" title="Delete this note" style="padding:2px 8px;">&times;</button></div>' +
+                    '<div style="display:flex; gap:6px; align-items:center;"><input class="field journal-note-title" value="' + esc(e.title || '') + '" placeholder="Title">' + journalSaveBtn() + '<button class="tool ghost journal-open" title="Open this note to read it: a web address in it is a link there" style="padding:2px 8px;">Open</button><button class="tool ghost danger journal-del" title="Delete this note" style="padding:2px 8px;">&times;</button></div>' +
                     '<textarea class="journal-notes journal-note-body" placeholder="Write…">' + esc(e.text || '') + '</textarea>' +
                     '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + ' · your note' + inTag + '</div>' + sentLine(e) + shareControls() + '</div></div>';
             }
@@ -634,7 +642,7 @@ async function openJournal(keep) {   // keep (true only): drawn again where it s
                 ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(e.text || '').slice(0, 160)) + '</div>'
                 : '<img class="journal-thumb" src="' + esc(picRef(e.src)) + '" alt="" title="Open">';
             return '<div class="journal-entry" data-page="inbox" data-from="' + esc(fromOf(e)) + '" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="' + esc(e.kind || 'image') + '"' + whose(e) + (e.kind === 'text' ? ' data-text="' + esc(String(e.text || '')) + '"' : '') + '>' + thumb +
-                '<div class="journal-body"><div class="journal-title" style="display:flex; align-items:center; gap:6px;"><span style="flex:1;">' + esc(e.title || 'Handout') + '</span><button class="tool ghost danger journal-del" title="Remove this from your journal (the sender keeps theirs)" style="padding:2px 8px;">&times;</button></div>' +
+                '<div class="journal-body"><div class="journal-title" style="display:flex; align-items:center; gap:6px;"><span style="flex:1;">' + esc(e.title || 'Handout') + '</span>' + journalSaveBtn() + '<button class="tool ghost danger journal-del" title="Remove this from your journal (the sender keeps theirs)" style="padding:2px 8px;">&times;</button></div>' +
                 (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') + tagChips(e.tags) +
                 '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + (e.from ? ' · updated version — the earlier one is kept below' : '') + ' · from <b>' + esc(fromName(e)) + '</b>' + inTag + '</div>' +
                 (e.sharedBy && e.sharedNotes ? '<div class="journal-shared"><div class="journal-shared-who">' + esc(fromOf(e) === 'gm' ? 'The GM' : e.sharedBy) + ' wrote</div>' + esc(e.sharedNotes) + '</div>' : '') +
@@ -649,13 +657,14 @@ async function openJournal(keep) {   // keep (true only): drawn again where it s
                       : picRef(s.src) ? '<img class="journal-thumb" src="' + esc(picRef(s.src)) + '" alt="" title="Open">' : '<div class="journal-thumb journal-thumb-text">(removed)</div>';
             return '<div class="journal-entry journal-sentrow" data-page="sent" data-to="' + esc(s.to.map(function(t) { return t.pid || ''; }).join(' ')) + '" data-camp="' + esc(j.campId) + '" data-id="sent:' + esc(s.hid) + '" data-kind="' + (s.kind === 'text' ? 'text' : 'image') + '" data-sent="1" data-mine="1"' + (s.kind === 'text' ? ' data-text="' + esc(String(s.text || '')) + '"' : '') + '>' + thumb +
                 '<div class="journal-body"><div class="journal-title">' + esc(s.title) + '</div>' + (s.caption ? '<div class="journal-caption">' + esc(s.caption) + '</div>' : '') + tagChips(s.tags) +
-                '<div class="journal-when">Shown to ' + s.to.map(function(t) { return esc(t.name) + ' <span style="opacity:.7;">' + new Date(t.at).toLocaleString() + '</span>'; }).join(', ') + inTag + '</div>' +
+                '<div class="journal-when">Shown to ' + s.to.map(function(t) { return esc(t.name) + ' <span style="opacity:.7;">' + new Date(t.at).toLocaleString() + '</span>'; }).join(', ') + inTag + ' ' + journalSaveBtn() + '</div>' +
                 '<textarea class="journal-notes" placeholder="Your notes about this handout…">' + esc((j.sentNotes || {})['sent:' + s.hid] || '') + '</textarea></div></div>';
         }).join('');
         return '<div class="journal-section' + (here && j.campId === here.key ? ' here' : '') + '" data-camp="' + esc(j.campId) + '" data-page="' + page + '" data-show="' + esc(show) + '" data-from="' + esc(from) + '" data-to="' + esc(to) + '">' + head + chipRows + empty + sentRows + mySentRows + entries + '</div>';
     }).join('');
     if (typeof noteBoxes === 'function') noteBoxes(list, journals);   // item 35: a note of your own is written in the text box, with its look
     journalPickFill(journals, here);
+    journalShown = journals;
     journalFilter();
 }
 // [sinkcheck:journal-end]
@@ -902,6 +911,8 @@ if (_jPick) {
 var _jAll = ui('journalAll');
 if (_jAll) { _jAll.addEventListener('change', journalFilter); _jAll.addEventListener('keydown', function(e) { e.stopPropagation(); }); }
 var _jClose = ui('journalCloseBtn');
+var _jDown = ui('journalDownloadBtn');   // 1.6.3: the journal shown, with Personal notes, as one page to read offline
+if (_jDown) _jDown.addEventListener('click', function() { journalDownload(null); });
 if (_jClose) _jClose.addEventListener('click', function() { ui('journalModal').style.display = 'none'; });
 // [sinkcheck:journalbox-start]
 // Item 35 (the owner, 2026-10-09: "Your own notes"): the TEXT of a note you write takes a look and one of Waypoint's own fonts. Not its
@@ -999,6 +1010,241 @@ function openRow(target) {
     } else showHandout(Object.assign(base, { src: t.getAttribute('src') }));
 }
 // [sinkcheck:journalopen-end]
+// [sinkcheck:journaldl-start]
+// A journal saved as ONE page to read offline (1.6.3; the owner, 2026-11-15, after a game: "lets have a way for players to download their
+// journal and entries for offline review", and by prompt "One readable page" and "The journal on screen"). The Download button in the
+// window's title saves the journal shown with its Personal notes, and each row's own save button saves that one page the same way. The
+// file is opened from disk, where a script in it would run, so everything in it is built here from fixed markup: every word goes in through
+// jdlEsc, a picture only as a data:image address of a type its own bytes say it is, and the page's head carries a policy that runs nothing
+// and loads nothing but those pictures. This part is pure (no page, no disk): journalDocOf reads the rows below and sinkcheck runs it alone.
+
+// The one form a picture may take in the file: a data address of a picture type, its bytes in base64, nothing after them
+var JDL_PIC = /^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,[A-Za-z0-9+\/]+={0,2}$/;
+var JDL_PIC_MAX = 25 * 1024 * 1024;   // one picture's bytes at most; a larger one is said in words, never embedded
+var JDL_CSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'";
+// Words as text of the page: & < > " ' are entities, and so are : and = so that no word, whatever it holds, reads as an address or an
+// attribute even to a reader that scans the file without parsing it. A value that is no text is nothing
+function jdlEsc(v) {
+    if (typeof v === 'number' && isFinite(v)) v = String(v);
+    if (typeof v !== 'string') return '';
+    return v.replace(/[&<>"':=]/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', ':': '&#58;', '=': '&#61;' }[c]; });
+}
+// A text of the index cut to a length (60,000 characters where none is named), or '' for a value that is no text
+function jdlStr(v, max) { return typeof v === 'string' ? v.slice(0, max || 60000) : ''; }
+// A time from an index as the window says it, or nothing for a time that is no number
+function jdlWhen(t) { var n = Number(t); if (!isFinite(n) || n <= 0) return ''; try { return new Date(n).toLocaleString(); } catch (e) { return ''; } }
+// What a picture's own bytes say it is: png, jpeg, gif, webp or svg, else '' (a name or a stated type is never believed)
+function jdlSniff(b) {
+    if (!b || typeof b.length !== 'number' || b.length < 4) return '';
+    if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) return 'image/png';
+    if (b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'image/jpeg';
+    if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return 'image/gif';
+    if (b.length >= 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp';
+    var head = ''; for (var i = 0; i < Math.min(b.length, 1024); i++) head += String.fromCharCode(b[i]);
+    head = head.replace(/^ï»¿/, '').replace(/^\s+/, '');   // the three bytes of a UTF-8 byte order mark, read one character a byte as head is built
+    return /^(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*(<!DOCTYPE[^>]*>\s*)?<svg[\s>]/i.test(head) ? 'image/svg+xml' : '';   // an svg shown as a picture: a script in it never runs there
+}
+// Bytes to base64 and back. jdlB64 turns the bytes into text 32 KB at a time, since one call of fromCharCode with every byte of a large
+// picture would pass the engine's limit on a call's arguments
+function jdlB64(b) { var s = ''; for (var i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, Array.prototype.slice.call(b, i, i + 0x8000)); return btoa(s); }
+function jdlUnB64(t) { var s = atob(t), out = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) out[i] = s.charCodeAt(i); return out; }
+// One page's picture as the file will hold it: { url } a data:image address, or { why } said in words where the picture cannot be put in.
+// src is what the index names: a small picture kept inside the index (a data address, the browser's own storage on a website), or a file
+// of the app's own pictures, read through get (the page's fetch) as the window itself shows it. Anything else is not read at all
+// The reasons follow what happened: 'big' for a picture past JDL_PIC_MAX, 'notpic' only where something was read and is no picture (a data
+// address of another kind, bytes that sniff as nothing), and 'missing' for everything that was not read at all: a path outside the app's
+// own pictures, a walk, a file that is gone
+async function jdlPic(src, get) {
+    if (typeof src !== 'string' || !src) return { why: 'missing' };
+    var bytes = null;
+    if (/^data:/i.test(src)) {
+        if (src.length > JDL_PIC_MAX / 3 * 4 + 64) return { why: 'big' };   // too long to be one picture this file takes: said before it is read
+        var m = /^data:image\/[a-z0-9.+-]{1,20};base64,([A-Za-z0-9+\/]+={0,2})$/i.exec(src);
+        if (!m) return { why: 'notpic' };   // a data address of a page or a text is no picture
+        try { bytes = jdlUnB64(m[1]); } catch (e) { bytes = null; }
+    } else {
+        var path = /^(saves|assets)\//.test(src) ? '/' + src : src;   // the relative forms the window shows (picRef takes them) read as the app's own paths
+        if (!/^\/(saves\/images|assets)\/[^?#\\]{1,400}$/.test(path) || /(^|\/)\.\.(\/|$)/.test(path)) return { why: 'missing' };   // never read: a '..' segment walks, a name such as a..b.png does not
+        try { var r = typeof get === 'function' ? await get(encodeURI(path)) : null; if (r && r.ok) bytes = new Uint8Array(await r.arrayBuffer()); } catch (e) { bytes = null; }
+    }
+    if (!bytes || !bytes.length) return { why: 'missing' };
+    if (bytes.length > JDL_PIC_MAX) return { why: 'big' };
+    var t = jdlSniff(bytes); if (!t) return { why: 'notpic' };
+    var url = 'data:' + t + ';base64,' + jdlB64(bytes);
+    return JDL_PIC.test(url) ? { url: url } : { why: 'notpic' };
+}
+// 'full': the pictures before it already filled what one file holds (JDL_BUDGET in journalDownload)
+var JDL_WHY = { missing: 'The picture could not be read on this computer.', big: 'The picture was too large to put in this file.', notpic: 'The picture is not a kind this page can show.', full: 'The file was already as large as it can be, so this picture was left out.' };
+// A page of the journal's index as one row of the file, read as the window reads it: its kind, who it came from and when, its title, its
+// words, the notes you wrote under it, what its sender wrote, to whom you sent it and its tags. j is the journal (its GM's id tells the GM's
+// pages from a player's). sentNotes is the index's own sentNotes: the notes you wrote under each send of the page in the window's Sent rows,
+// kept there as 'sent:<page id>:<time>', go on each send's line. src is handed on whole, so jdlPic judges its length. A row that is no row is nothing
+function jdlRow(e, j, sentNotes) {
+    if (!e || typeof e !== 'object' || Array.isArray(e)) return null;
+    var note = e.kind === 'note', table = note && e.table === true, gmId = j && typeof j.gmId === 'string' ? j.gmId : '';
+    var gmPage = !e.sharedBy || (typeof e.sharedById === 'string' && e.sharedById && e.sharedById === gmId);
+    var kind = note ? (table ? 'The table notepad, saved' : 'A note of your own') : !e.sharedBy ? 'A handout' : 'A received page';
+    var from = note ? (table ? 'the GM' : 'you') : gmPage ? 'the GM' : jdlStr(e.sharedBy, 60);
+    var sn = sentNotes && typeof sentNotes === 'object' && !Array.isArray(sentNotes) ? sentNotes : {};
+    var snOf = function(at) { var k = 'sent:' + String(e.id) + ':' + at; return Object.prototype.hasOwnProperty.call(sn, k) ? jdlStr(sn[k], 20000) : ''; };   // the key the window writes (its Sent rows' textarea)
+    var sent = (Array.isArray(e.sentTo) ? e.sentTo : []).filter(function(t) { return t && typeof t === 'object' && !Array.isArray(t); }).map(function(t) { var at = Number(t.at) || 0; return { name: t.to === 'gm' ? 'GM' : t.to === '*' ? 'everyone at once' : jdlStr(t.name, 60), at: at, notes: snOf(at) }; });
+    return { kind: kind, from: from, at: Number(e.receivedAt) || 0, title: jdlStr(e.title, 120) || (note ? 'A note' : 'Handout'),
+        caption: note ? '' : jdlStr(e.caption, 4000), text: note || e.kind === 'text' ? jdlStr(e.text) : '', notes: note ? '' : jdlStr(e.notes, 20000),
+        shared: !note && e.sharedBy && typeof e.sharedNotes === 'string' && e.sharedNotes ? { who: gmPage ? 'The GM' : jdlStr(e.sharedBy, 60), words: jdlStr(e.sharedNotes, 20000) } : null,
+        sent: sent, tags: (Array.isArray(e.tags) ? e.tags : []).filter(function(t) { return typeof t === 'string'; }).slice(0, 8), src: !note && e.kind !== 'text' && typeof e.src === 'string' ? e.src : '',
+        picWhy: !note && e.kind !== 'text' && !jdlStr(e.src, 1) ? 'missing' : '' };   // a picture the index lost (one too large for the browser's own storage) is said, never left out in silence
+}
+// A handout the GM has shown (sentRecords in handouts.js) as one row: to whom and when, and the GM's notes under it
+function jdlShownRow(r, notes) {
+    if (!r || typeof r !== 'object') return null;
+    var to = (Array.isArray(r.to) ? r.to : []).filter(function(t) { return t && typeof t === 'object'; }).map(function(t) { return { name: jdlStr(t.name, 60), at: Number(t.at) || 0 }; });
+    return { kind: 'A handout you showed', from: 'you', at: Number(r.last) || 0, title: jdlStr(r.title, 120) || 'Handout', caption: jdlStr(r.caption, 4000), text: r.kind === 'text' ? jdlStr(r.text) : '',
+        notes: jdlStr(notes, 20000), shared: null, sent: to, sentWord: 'Shown to', tags: (Array.isArray(r.tags) ? r.tags : []).filter(function(t) { return typeof t === 'string'; }).slice(0, 8), src: r.kind !== 'text' && typeof r.src === 'string' ? r.src : '', picWhy: r.kind !== 'text' && !jdlStr(r.src, 1) ? 'missing' : '' };
+}
+// The file itself. doc: { name, heading, gm, at, sections: [{ head, rows }] }, each row as jdlRow makes it with, where it had a picture, pic (a data
+// address, checked again here) or picWhy. Fixed markup and escaped words only: no script, no handler, no link, no address but a picture's.
+// jdlParts answers the file as a list of strings, each picture's data address a string of its own, so that journalDownload makes the file
+// with new Blob(parts) and never joins a large journal into one string, which would pass the engine's limit on a string's length.
+// jdlHtml joins the same parts for the suites
+function jdlHtml(doc) { return jdlParts(doc).join(''); }
+function jdlParts(doc) {
+    var d = doc && typeof doc === 'object' ? doc : {}, w = function(s) { return jdlEsc(s); }, out = [];
+    var block = function(cls, label, words) { return words ? '<div class="' + cls + '">' + (label ? '<p class="who">' + w(label) + '</p>' : '') + '<div class="words">' + w(words) + '</div></div>' : ''; };
+    var row = function(r) {
+        if (!r || typeof r !== 'object') return;
+        var when = jdlWhen(r.at), okPic = typeof r.pic === 'string' && JDL_PIC.test(r.pic);
+        var sends = Array.isArray(r.sent) ? r.sent.filter(function(t) { return t && typeof t === 'object'; }) : [];
+        var sent = sends.length ? '<p class="sent">' + w(r.sentWord || 'Sent to') + ' ' + sends.map(function(t) { return w(t.name) + (jdlWhen(t.at) ? ' <span class="t">' + w(jdlWhen(t.at)) + '</span>' : ''); }).join(', ') + '</p>' : '';
+        // the notes you wrote under one send (the window's Sent rows), each under the send it was written for
+        var sendNotes = sends.map(function(t) { return t.notes ? block('notes', 'Your notes about the send to ' + (t.name || 'someone') + (jdlWhen(t.at) ? ', ' + jdlWhen(t.at) : ''), t.notes) : ''; }).join('');
+        out.push('<article><p class="kind">' + w(r.kind) + (r.from ? ', from <b>' + w(r.from) + '</b>' : '') + (when ? ' <span class="t">' + w(when) + '</span>' : '') + '</p>'
+            + '<h3>' + w(r.title) + '</h3>');
+        if (okPic) out.push('<figure><img src="', r.pic, '" alt=""></figure>');   // the picture a part of its own
+        else if (r.picWhy) out.push('<p class="missing">' + w(JDL_WHY[r.picWhy] || JDL_WHY.missing) + '</p>');
+        out.push((r.caption ? '<p class="caption">' + w(r.caption) + '</p>' : '') + block('text', '', r.text)
+            + (r.shared ? block('shared', r.shared.who + ' wrote', r.shared.words) : '') + block('notes', 'Your notes', r.notes) + sent + sendNotes
+            + (Array.isArray(r.tags) && r.tags.length ? '<p class="tags">Tags: ' + r.tags.map(w).join(', ') + '</p>' : '') + '</article>');
+    };
+    out.push('<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">\n<meta http-equiv="Content-Security-Policy" content="' + JDL_CSP + '">\n'
+        + '<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>' + w(d.name || 'Journal') + '</title>\n<style>\n'
+        + 'body { font: 16px/1.55 Georgia, "Times New Roman", serif; color: #222; background: #faf8f3; max-width: 46em; margin: 0 auto; padding: 24px 18px 60px; }\n'
+        + 'h1 { font-size: 1.7em; margin: 0 0 4px; } .meta { color: #666; font-size: .9em; margin: 0 0 24px; }\n'
+        + 'h2 { font-size: 1.25em; border-bottom: 2px solid #b8913c; padding-bottom: 4px; margin: 34px 0 10px; }\n'
+        + 'article { background: #fff; border: 1px solid #e3ddcf; border-radius: 8px; padding: 14px 16px; margin: 0 0 16px; break-inside: avoid; }\n'
+        + 'h3 { margin: 2px 0 8px; font-size: 1.15em; } .kind, .sent, .tags, .t { color: #666; font-size: .85em; } .kind { margin: 0; }\n'
+        + 'figure { margin: 8px 0; } img { max-width: 100%; height: auto; border-radius: 4px; } .caption { font-style: italic; }\n'
+        + '.words { white-space: pre-wrap; overflow-wrap: anywhere; } .who { font-weight: bold; margin: 10px 0 2px; font-size: .9em; }\n'
+        + '.notes, .shared { border-left: 3px solid #e3ddcf; padding-left: 10px; } .missing, .empty { color: #8a5a00; font-style: italic; }\n'
+        + '@media print { body { background: #fff; } article { border-color: #ccc; } }\n</style></head><body>\n'
+        + '<h1>' + w(d.heading || d.name || 'Journal') + '</h1><p class="meta">' + (d.gm ? 'Run by ' + w(d.gm) + '. ' : '') + 'Saved from Waypoint' + (jdlWhen(d.at) ? ' ' + w(jdlWhen(d.at)) : '') + '.</p>\n');
+    (Array.isArray(d.sections) ? d.sections : []).forEach(function(s) {
+        var rows = s && Array.isArray(s.rows) ? s.rows : [];
+        out.push('<section><h2>' + w(s && s.head) + '</h2>');
+        if (rows.length) rows.forEach(row); else out.push('<p class="empty">Nothing here yet.</p>');
+        out.push('</section>');
+    });
+    out.push('\n</body></html>\n');
+    return out;
+}
+// The file's name: Journal, the journal's name, a page's title where one page is saved, and the day, each made safe for a file name
+function jdlName(name, title, at) {
+    var d = new Date(Number(at) || 0), pad = function(n) { return (n < 10 ? '0' : '') + n; };
+    var day = isFinite(d.getTime()) && Number(at) > 0 ? d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) : '';
+    var clean = function(s) { return String(typeof s === 'string' ? s : '').replace(/[\u0000-\u001f\u007f<>:"\/\\|?*]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60).replace(/[. ]+$/, ''); };
+    return ['Journal', clean(name), clean(title), day].filter(Boolean).join(' - ') + '.html';
+}
+// [sinkcheck:journaldl-end]
+// The rows of a download, read as the window reads them (backlog of 2026-11-15). only: null for the journal shown with its Personal notes,
+// or { camp, id } for the one page a row's save button stands on. What was typed in the last half second is saved first, then each index is
+// read with readIndex, as the window reads it: its file in the saves folder, else the browser's own storage (a website's Player plan keeps
+// its index and small pictures there). The GM's own campaign also lists what the GM has shown: from sentRecords, else, where the GM has
+// switched campaigns since the window was drawn (sentRecords answers only for the campaign on screen), from what the window drew
+// (journalSentDrawn). Answers { name, title, sections }, { why } with words that say why nothing can be saved, or null for a page that is gone
+async function journalDocOf(only) {
+    if (typeof flushNotes === 'function') await flushNotes();
+    var byKey = function(k) { return journalShown.filter(function(j) { return j && j.campId === k; })[0] || null; };
+    var metaOf = function(k, idx) { var dj = byKey(k); return { campId: k, campaign: (dj && dj.campaign) || idx.campaign || '', gm: dj ? dj.gm || '' : idx.gm || '', gmId: (dj && dj.gmId) || idx.gmId || '' }; };
+    var gmOf = function(m) { return m.gm && !(window.wpNet && m.gmId === window.wpNet.myId) && !/^gm$/i.test(String(m.gm).trim()) ? String(m.gm).slice(0, 60) : ''; };
+    var newest = function(a, b) { return (Number(b.receivedAt) || 0) - (Number(a.receivedAt) || 0); };
+    var shownOf = function(k) { var live = sentRecords(k); return live.length ? live : Array.isArray(journalSentDrawn[k]) ? journalSentDrawn[k] : []; };
+    if (only) {
+        var campO = typeof only.camp === 'string' ? only.camp : '', idO = typeof only.id === 'string' ? only.id : ''; if (!campO || !idO) return null;
+        var idxO = await readIndex(campO), mO = metaOf(campO, idxO), r = null;
+        if (idO.indexOf('sent:') === 0) {
+            // 'sent:<hid>' is a handout the GM showed; 'sent:<page id>:<time>' is one send of a page of your own (the window's two kinds of Sent row)
+            var rest = idO.slice(5), shown = shownOf(campO).filter(function(s) { return s.hid === rest; })[0], mm = /^(.*):\d+$/.exec(rest);
+            if (shown) r = jdlShownRow(shown, (idxO.sentNotes || {})['sent:' + rest]);
+            else if (mm) idO = mm[1];
+            else return { why: 'Open this campaign to save what you showed in it.' };
+        }
+        if (!r) r = jdlRow(idxO.entries.filter(function(x) { return x && x.id === idO; })[0], mO, idxO.sentNotes);
+        if (!r) return null;
+        return { name: journalName(mO), heading: r.title, gm: gmOf(mO), title: r.title, sections: [{ head: journalName(mO), rows: [r] }] };
+    }
+    var key = journalAt || 'personal', idx = await readIndex(key), m = metaOf(key, idx), sections = [];
+    if (key !== 'personal') {
+        var shownRows = shownOf(key).map(function(s) { return jdlShownRow(s, (idx.sentNotes || {})['sent:' + s.hid]); }).filter(Boolean);
+        sections.push({ head: journalName(m), rows: shownRows.concat(idx.entries.slice().sort(newest).map(function(e) { return jdlRow(e, m, idx.sentNotes); }).filter(Boolean)) });
+    }
+    var pIdx = key === 'personal' ? idx : await readIndex('personal');
+    sections.push({ head: 'Personal notes', rows: pIdx.entries.filter(function(e) { return e && e.kind === 'note'; }).sort(newest).map(function(e) { return jdlRow(e, { gmId: '' }, pIdx.sentNotes); }).filter(Boolean) });
+    return { name: key === 'personal' ? 'Personal notes' : journalName(m), heading: key === 'personal' ? 'Personal notes' : 'Journal of ' + journalName(m), gm: key === 'personal' ? '' : gmOf(m), title: '', sections: sections };
+}
+// Download: the journal shown, or one page, as one page to read offline, handed over as the app's other exports are (io.js downloadBlob).
+// The file is made as a Blob from jdlParts' list of strings, so no one string holds it, and the pictures put in one file are held to
+// JDL_BUDGET characters of their data addresses: past it a picture is said in words ('full') and never read
+var _jdlBusy = false;
+var JDL_BUDGET = 300 * 1024 * 1024;
+var JDL_TIP = 'Save the journal shown, with Personal notes, as one page to read offline in any browser';   // the button's own tooltip, put back after a download
+// One step of a download in the app's step log as 'journal v1', with counts and never a word of the journal; a log that fails changes nothing
+function jdlLog(step, o) { try { if (typeof window.wpStepLog === 'function') window.wpStepLog('journal v1', step, o); } catch (e) {} }
+// While a download runs the Download button is off and says why in its tooltip, and any other press is answered in words (journalDownload)
+function jdlBusy(on) {
+    _jdlBusy = on;
+    var b = ui('journalDownloadBtn'); if (!b) return;
+    var words = on ? 'The journal is still being saved' : JDL_TIP;
+    b.disabled = on;
+    if (b.dataset && b.dataset.tip !== words) { b.dataset.tip = words; b.removeAttribute('title'); }   // a tooltip changed while the page runs goes into data-tip (tooltips.js), never back into title
+}
+async function journalDownload(only) {
+    if (_jdlBusy) { toast('The journal is still being saved.'); return; }
+    jdlBusy(true);
+    var at = 'read';
+    jdlLog('download-start', { one: !!only });
+    try {
+        var doc = await journalDocOf(only);
+        if (!doc || doc.why) { jdlLog('download-none', { one: !!only }); toast(doc && doc.why || 'That page is no longer in your journal.'); return; }
+        at = 'pictures';
+        var n = 0, pics = 0, missing = 0, used = 0, want = 0;
+        doc.sections.forEach(function(sc) { sc.rows.forEach(function(r) { if (r.src) want++; }); });
+        if (want) toast('Preparing the journal…');   // reading many pictures can take a while: said before it starts
+        for (var s = 0; s < doc.sections.length; s++) {
+            for (var i = 0; i < doc.sections[s].rows.length; i++) {
+                var r = doc.sections[s].rows[i]; n++;
+                if (!r.src) continue;
+                if (used >= JDL_BUDGET) { r.picWhy = 'full'; missing++; continue; }
+                var p = await jdlPic(r.src, function(u) { return fetch(u, { cache: 'no-store' }); });
+                if (p.url && used + p.url.length > JDL_BUDGET) { r.picWhy = 'full'; missing++; }
+                else if (p.url) { r.pic = p.url; used += p.url.length; pics++; }
+                else { r.picWhy = p.why; missing++; }
+            }
+        }
+        jdlLog('download-read', { entries: n, pics: pics, missing: missing });
+        at = 'build';
+        doc.at = Date.now();
+        var parts = jdlParts(doc), name = jdlName(doc.name, doc.title, doc.at), chars = 0;
+        parts.forEach(function(x) { chars += x.length; });
+        var blob = new Blob(parts, { type: 'text/html' });
+        parts = null; doc = null;   // the Blob holds the file now
+        at = 'save';
+        if (downloadBlob(name, blob) === false) { jdlLog('download-fail', { at: at }); return; }   // downloadBlob has said that it failed
+        jdlLog('download-done', { entries: n, pics: pics, missing: missing, chars: chars });
+        toast('Saved ' + name + (missing ? '. ' + missing + ' picture' + (missing === 1 ? '' : 's') + ' could not be put in, and the page says so.' : '.'));
+    } catch (e) {
+        jdlLog('download-fail', { at: at });
+        toast('The journal could not be saved.');
+    } finally { jdlBusy(false); }
+}
 // The app's own question, as a promise: true for a yes. more is set as text under the question, its line breaks kept
 function askYes(q, more, opts) {
     return new Promise(function(res) {
@@ -1069,6 +1315,8 @@ if (_jList) {
         });
     });
     _jList.addEventListener('keydown', function(e) { e.stopPropagation(); });
+    // 1.6.3: a row's own save button saves that one page as a file to read offline (journalDownload)
+    _jList.addEventListener('click', function(e) { var sv = e.target.closest && e.target.closest('.journal-save'); if (!sv) return; var rowV = sv.closest('.journal-entry'); if (rowV) journalDownload({ camp: rowV.dataset.camp, id: rowV.dataset.id }); });
     _jList.addEventListener('change', function(e) {
         var s = e.target.closest && e.target.closest('.journal-share'); if (!s) return;
         var b = s.parentNode.querySelector('.journal-share-send'); if (b) b.disabled = !s.value;

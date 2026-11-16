@@ -852,6 +852,16 @@ function sanitizeItem(item) {
         var keep = lk.slice(0, 3); if (lk[3].label) keep.push({ label: lk[3].label }); return keep;
     });
     m.whiteboard = (m.whiteboard || []).map(function(w) { return wireWbItem(w, true); }).filter(function(w) { return w !== null; });
+    // 1.6.3 (the owner, 2026-11-15, by prompt: "Yes, send only what shows"): a player is sent only the rooms that a piece they are sent names
+    // (its nodeId, read from m.whiteboard as wireWbItem left it, so a hidden pin, a GM note card and a secret door, whose nodeId wireWbItem
+    // takes off, name none), and no room's Expected here list (characters: the GM's own list of who may be there, with names and pictures).
+    // A room the GM has not placed on the play map, a room whose only pin is hidden, and the GM's prep rooms stay on the GM's machine, and so do
+    // the links that reach them. Nothing on a player's app reads more of a room: the hover card shows a placed room's name, picture and category
+    // (whiteboard.js), and isPortal reads the room a pin names. A delta is worked out between two such copies, so it follows the same rule.
+    var named = Object.create(null); m.whiteboard.forEach(function(w) { if (w && typeof w.nodeId === 'string' && w.nodeId) named[w.nodeId] = true; });
+    m.rooms = (m.rooms || []).filter(function(r) { return !!r && typeof r.id === 'string' && named[r.id] === true; });
+    m.rooms.forEach(function(r) { delete r.characters; });
+    m.links = m.links.filter(function(lk) { return Array.isArray(lk) && named[lk[0]] === true && named[lk[1]] === true; });
     return m;
 }
 // Fold M: one item's rule on its way to a player, for a whole map's copy (sanitizeItem, whose clone it already is: cloned = true) and for

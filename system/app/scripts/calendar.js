@@ -1169,6 +1169,18 @@ function setRate(r) {
     var nc = Object.assign({}, ck); if (r === sysClockStart().rate) delete nc.rate; else nc.rate = r; camp.clock = nc;
     save(); refresh(); return true;
 }
+// 1.6.3 (the owner, 2026-11-15, after a game: "show seconds", then "it just counts seconds next to the minute where the time is displayed"):
+// the running clock still moves the campaign's time by whole minutes (liveTick banks them), so its time rules and its saves are as they were.
+// What the GM's chip shows is that time plus the seconds the clock has counted but not yet banked (liveMs), so the chip ticks a second at a
+// time and lands on the minute the bank then writes. Held, paused or in a fight it shows the time as it stands. A player's app is sent the
+// time alone and never whether the clock runs (netcheck K2), so it shows the minute as before, with no seconds that would stand at :00.
+function liveShown(camp, ck) { if (isPlayer() || !ck || liveHeld(camp) !== '' || !(liveMs > 0)) return ck ? ck.t : 0; return Math.min(CAL_LIMITS.time, ck.t + Math.floor(liveMs / 1000)); }
+function chipWords(camp, ck, cal) { return isPlayer() ? fmtIn(cal, ck.cal, ck.t) : fmtIn(cal, ck.cal, liveShown(camp, ck), true); }   // the top row's chip: in the calendar the GM picked, with seconds for the GM
+function liveChip() {   // each second, after liveTick: the chip's words alone, while it shows (refresh draws the rest at every render)
+    var chip = typeof document !== 'undefined' ? document.getElementById('clockChip') : null; if (!chip || chip.style.display === 'none' || isPlayer()) return false;
+    var camp = getActiveCampaign(), ck = clockOf(camp), txt = chip.querySelector('.clock-txt'); if (!ck || !txt) return false;
+    var w = chipWords(camp, ck, sysCal()); if (txt.textContent === w) return false; txt.textContent = w; return true;
+}
 function liveTick(now) {   // one look at the wall clock, about once a second on the GM's machine
     var camp = getActiveCampaign(), why = liveHeld(camp);
     if (why !== liveWas) { liveWas = why; refresh(); }   // the chip's mark and an open window say what the clock is doing
@@ -1353,7 +1365,7 @@ function refresh(live) {   // live (1.5.4): the clock ran by itself, or a host's
     var camp = getActiveCampaign(), on = shown(camp); chip.style.display = on ? '' : 'none';
     if (window.wpTimeline && typeof window.wpTimeline.refresh === 'function') { try { window.wpTimeline.refresh(); } catch (e) {} }   // 1.6.2 (backlog 166 h): its window follows the clock
     if (!on) { if (winOpen()) closeWin(); return; }
-    var cal = sysCal(), ck = clockOf(camp) || { t: 0 }, txt = chip.querySelector('.clock-txt'), words = fmtIn(cal, ck.cal, ck.t);   // 1.6.2 (backlog 60): in the calendar the GM picked
+    var cal = sysCal(), ck = clockOf(camp) || { t: 0 }, txt = chip.querySelector('.clock-txt'), words = chipWords(camp, ck, cal);   // 1.6.2 (backlog 60): in the calendar the GM picked
     if (txt && txt.textContent !== words) txt.textContent = words;
     var off = !isPlayer() && !!ck.hide; chip.classList.toggle('clock-private', off);
     var why = isPlayer() ? 'off' : liveHeld(camp), run = chip.querySelector('.clock-run'), mark = why === '' ? '\u25b6' : why === 'hold' || why === 'paused' || why === 'fight' ? '\u275A\u275A' : '';   // 1.5.4: the GM sees whether the clock is running
@@ -1400,7 +1412,7 @@ function fightBegan(ids) {
 (function wire() {
     var chip = document.getElementById('clockChip'); if (chip) chip.addEventListener('click', openWin);
     var m = document.getElementById('calendarModal'); if (m) { m.addEventListener('click', onWinClick); m.addEventListener('change', onWinChange); m.addEventListener('mousedown', function(e) { if (e.target === m) closeWin(); }); }
-    if (typeof setInterval === 'function') setInterval(function() { try { liveTick(Date.now()); } catch (e) {} }, 1000);   // 1.5.4: the running clock's look at the wall clock
+    if (typeof setInterval === 'function') setInterval(function() { try { liveTick(Date.now()); } catch (e) {} try { liveChip(); } catch (e) {} }, 1000);   // 1.5.4: the running clock's look at the wall clock
     if (typeof setInterval === 'function') setInterval(function() { try { if (winOpen()) refresh(true); } catch (e) {} }, 1000);   // 1.6.2: an open window follows a pause, a table opening or a fight, which ask it nothing
 })();
 

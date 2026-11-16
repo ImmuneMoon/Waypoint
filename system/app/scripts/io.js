@@ -1775,13 +1775,16 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
      so anything exported here round-trips through Import → Merge. Exports
      that reference images become a .zip bundling data.json + the images. */
 
+  // Hands a file to the browser to save. It says a failure itself ('Export failed.') and answers false then, true once the file was
+  // handed over, so a caller that says more (handouts.js journalDownload) can tell the two apart; the export callers read no answer
   function downloadBlob(name, blob) {
       try {
           var url = URL.createObjectURL(blob);
           var a = document.createElement('a'); a.href = url; a.download = name;
           document.body.appendChild(a); a.click(); a.remove();
           setTimeout(function() { URL.revokeObjectURL(url); }, blob && blob.size > 50 * 1024 * 1024 ? 600000 : 1000);   // a large archive is still being written a second later
-      } catch(e) { toast('Export failed.'); }
+          return true;
+      } catch(e) { toast('Export failed.'); return false; }
   }
 
   function slugName(s) {
@@ -2199,6 +2202,8 @@ export {
     stepSel,
 
     takeSafetyCopy,
+
+    downloadBlob,   // handouts.js: the Journal saved as one page to read offline goes out as every export does
 
     migrateAppState   // main.js: an import is shaped by the load's own normaliser (cleanup.js cleanImport)
 

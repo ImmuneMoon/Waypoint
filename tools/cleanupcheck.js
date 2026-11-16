@@ -1228,7 +1228,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const legacy = mainSrc.slice(mainSrc.indexOf('// Legacy single-campaign format'), mainSrc.indexOf('} else if (data.campaigns) {'));
         check('import (main.js): Replace cleans first (cleanImport with the app\'s real normaliser, docrender and the wire\'s sanitiser) and only then may replace the state; the raw file never becomes the state',
             /var cleanR = cleanImport\(pendingImport, importDeps\(\)\);[\s\S]*if \(!cleanR\) \{ importNothing\(\); return; \}[\s\S]*var guard = [\s\S]*state\.appState = cleanR;/.test(repl) && !/state\.appState = pendingImport/.test(mainSrc)
-            && /function importDeps\(\) \{ return \{ migrate: function\(d\) \{ return migrateAppState\(d\)\.data; \}, CARD: window\.wpCardCore, CP: window\.wpCompassCore, DR: window\.wpDocRender, sanitize: window\.wpNet && window\.wpNet\.sanitizeRichText, FC: window\.wpFogCore, TF: window\.wpTextFmt, GEN: window\.wpGenCore, CITY: window\.wpCityCore, WORLD: window\.wpWorldCore, SU: window\.wpSetupCore, FU: window\.wpFurnCore \}; \}/.test(mainSrc) && /\n    migrateAppState   \/\/ main\.js/.test(ioSrc));
+            && /function importDeps\(\) \{ return \{ migrate: function\(d\) \{ return migrateAppState\(d\)\.data; \}, CARD: window\.wpCardCore, CP: window\.wpCompassCore, DR: window\.wpDocRender, sanitize: window\.wpNet && window\.wpNet\.sanitizeRichText, FC: window\.wpFogCore, TF: window\.wpTextFmt, GEN: window\.wpGenCore, CITY: window\.wpCityCore, WORLD: window\.wpWorldCore, SU: window\.wpSetupCore, FU: window\.wpFurnCore, PLACE: window\.wpPlaceCore \}; \}/.test(mainSrc) && /\n    migrateAppState   \/\/ main\.js/.test(ioSrc));
         check('import (main.js): a legacy single-campaign file is wrapped and cleaned the same way before it joins the campaigns; Merge cleans its items with the same cleaner',
             /var cleanL = cleanImport\(wrapL, importDeps\(\)\);[\s\S]*var guardL = [\s\S]*state\.appState\.campaigns\[defaultCamp\.id\] = cleanL\.campaigns\[defaultCamp\.id\];/.test(legacy) && !/state\.appState\.campaigns\[defaultCamp\.id\] = defaultCamp;/.test(legacy)
             && /function cleanImportedItems\(ic\) \{ cleanImportItems\(ic, importDeps\(\)\); \}/.test(mainSrc) && /cleanImportedItems\(ic\);/.test(mainSrc));
@@ -2572,6 +2572,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     {   // 1.6.0: a running fight is the host's own
         const icF = { fights: { on: 'f_aaaaaaa1', list: { f_aaaaaaa1: { mapId: 'm1' } } }, items: {} }; cleanImportItems(icF, {});
         check('1.6.0 a campaign file brings no running fight with it: Replace and Merge both clean a file through the item cleaners, which drop it', !('fights' in icF));
+    }
+    {   // 1.6.3, a map's places (placecore.js): a file's Place tick only as true or false and its name as placecore cleans it, never on a token, a
+        // waiting token or a GM note card; with no cleaner at hand neither comes in
+        const PCi = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'placecore.js')).split(String.fromCharCode(92)).join('/'));
+        const mkIc = () => ({ items: { m1: { type: 'map', whiteboard: [
+            { id: 'a', type: 'rect', place: true, placeName: '  The\nOld   Mill  ' }, { id: 'b', type: 'rect', place: 'yes', placeName: 7 }, { id: 'c', type: 'rect', targetMapId: 'm2', place: false, placeName: 'X'.repeat(80) },
+            { id: 't', type: 'image', isChar: true, place: true, placeName: 'Hero' }, { id: 'n', type: 'rect', gmNoteFor: 't', place: true, placeName: 'Note' }] } } });
+        const icP = mkIc(); cleanImportItems(icP, { PLACE: PCi }); const icN = mkIc(); cleanImportItems(icN, {});
+        const wbP = icP.items.m1.whiteboard, has = (w, k) => Object.prototype.hasOwnProperty.call(w, k);
+        check('1.6.3 a file\'s places (cleanImportItems with placecore): the Place tick only as true or false and the Place name as one line of 60 characters at most, nothing on a token or a GM note card, and none of it with no cleaner at hand',
+            wbP[0].place === true && wbP[0].placeName === 'The Old Mill' && !has(wbP[1], 'place') && !has(wbP[1], 'placeName') && wbP[2].place === false && wbP[2].placeName === 'X'.repeat(60)
+            && !has(wbP[3], 'place') && !has(wbP[3], 'placeName') && !has(wbP[4], 'place') && !has(wbP[4], 'placeName') && icN.items.m1.whiteboard.every(w => !has(w, 'place') && !has(w, 'placeName')),
+            JSON.stringify([wbP, icN.items.m1.whiteboard]).slice(0, 600));
     }
 
     summed = true;

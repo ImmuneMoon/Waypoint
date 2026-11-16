@@ -28,7 +28,8 @@ var KINDS = [
     { k: 'shape', name: 'Shapes', more: true },
     { k: 'path', name: 'Drawings', more: true },
     { k: 'text', name: 'Text boxes', more: true },
-    { k: 'fill', name: 'Painted cells', more: true }
+    { k: 'fill', name: 'Painted cells', more: true },
+    { k: 'place', name: 'Place pins and legends', more: true }   // 1.6.3 (places.js): a place pin and a legend of the map's places
 ];
 var KIND_IDS = KINDS.map(function(x) { return x.k; });
 var MAIN_IDS = KINDS.filter(function(x) { return !x.more && !x.seen; }).map(function(x) { return x.k; });   // the GM's own kinds, which As players see it puts away (never Containers, which players see as you do)
@@ -55,6 +56,7 @@ function kindsOf(w, map, FC, hasBox) {
             else if (w.type === 'text') out.push('text');
             else if (w.type === 'path') out.push('path');
             else if (SHAPES[w.type]) out.push('shape');
+            else if (w.type === 'mappin' || w.type === 'maplegend') out.push('place');
         }
     } else out.push('token');
     if (w.hidden) out.push('hidden');

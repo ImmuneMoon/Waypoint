@@ -291,3 +291,6 @@ jobs:
       - name: boxcheck, containers (what a container holds, Holds items, the container window and its wiring)
         if: ${{ !cancelled() }}
         run: node tools/boxcheck.js
+      - name: placescheck, a map's places (the one judge of a place, what a player has seen, the Places here box, a legend and their wiring)
+        if: ${{ !cancelled() }}
+        run: node tools/placescheck.js

@@ -1074,6 +1074,10 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
               if (!lgG) { el.textContent = ''; lgG = document.createElement('span'); lgG.className = 'wb-light-glyph'; el.appendChild(lgG); }
               var lgU = lgL && lgL.unit ? lgL.unit : 'yd', lgT = 'Light source' + (lgL && lgL.name ? ' (' + lgL.name + ')' : '') + (lgL ? ': bright ' + lgL.bright + ' ' + lgU + ', dim to ' + lgL.dim + ' ' + lgU + (lgL.off ? ' (off)' : '') : ' (no light set)');
               if (el.dataset.tip !== lgT) el.dataset.tip = lgT;
+          } else if (item.type === 'maplegend') {   // 1.6.3: a legend of the map's places (places.js), drawn with the lines this screen's own viewer may see
+              if (window.wpPlaces && typeof window.wpPlaces.legendDraw === 'function') window.wpPlaces.legendDraw(el, item, activeMap);
+          } else if (item.type === 'mappin') {   // 1.6.3: a place pin, the map pin on a plate and the place's name under it (places.js)
+              if (window.wpPlaces && typeof window.wpPlaces.pinDraw === 'function') window.wpPlaces.pinDraw(el, item, activeMap);
           } else if(item.type === 'path') {
 
               // [drawshowcheck:board-start]
@@ -9150,6 +9154,7 @@ window.wpPlaceCommit = function(px, py, pw, ph, sx, sy) {
     var x = (dragged && !cell) ? px : sx - (props.w || 100) / 2;
     var y = (dragged && !cell) ? py : sy - (props.h || 100) / 2;
     addWbItemAt(type, props, x, y);
+    if (window.wpPlaces && typeof window.wpPlaces.placed === 'function') window.wpPlaces.placed(type, state.selWbId);   // 1.6.3: a place pin opens Properties with its Place name ready (places.js)
     if (cell) {
         // Cell-sized shapes always seat into a cell, whether or not Snap is on
         var ci = getActiveMap().whiteboard.find(function(i) { return i.id === state.selWbId; });

@@ -405,7 +405,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     check('Help says all three under the Library', /<b>Spreadsheet&hellip;<\/b> reads a CSV file/.test(page) && /<b>Add to the library<\/b> makes a row/.test(page) && /short walk through your first pack/.test(page));
     check('both release notes say it in the 1.6.2 section, under a heading of its own', [w1, w2].every(t => { const a = t.indexOf('WAYPOINT 1.6.2'), b = t.indexOf('WAYPOINT 1.6.1'), c = t.indexOf('Making a catalog'); return a >= 0 && c > a && c < b && /Add to the library/.test(t.slice(c, b)) && /Spreadsheet/.test(t.slice(c, b)); }));
     check('CI has this suite\'s step under a plain name', /- name: catalogcheck [^:\n]*\n\s+if: \$\{\{ !cancelled\(\) \}\}\n\s+run: node tools\/catalogcheck\.js/.test(ci.replace(/\r\n/g, NL)));
-    /* ---- 1.6.2 (the owner, 2026-11-16: "Make a new table, or replace one"): a spreadsheet read as one of a system's Tables (csvcore csvTable, with the
+    /* ---- 1.6.3 (the owner, 2026-11-16: "Make a new table, or replace one"): a spreadsheet read as one of a system's Tables (csvcore csvTable, with the
        editor's own short-form rule, sheets.js keyWord, sliced and run, and what it makes run through the real cleanTables) ---- */
     {
         const T = C.csvTable, LM = S.LIMITS, shK = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), kwAt = shK.indexOf('function keyWord(label) {');
@@ -443,6 +443,19 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         check('csvTable: a name from a hostile file is kept as the words it is, never a short form of its own, a line break folded to a space; a row named __proto__ sets nothing on any prototype; the cleaner keeps them as text',
             r11.table.label === H && r11.table.cols[0].label === H && r11.table.rows[0].label === H + ' z' && r11.table.rows.every(r => /^[A-Za-z][A-Za-z0-9_]*$/.test(r.key)) && ({}).ok === undefined && Object.getPrototypeOf(r11.table.rows[1].vals) === Object.prototype
             && c11 && c11[0].cols[0].label === H && c11[0].rows.length === 2, j(r11.table));
+        // the review of 1.6.3: a spreadsheet holds no From and To, so a replace of a table read by its rows' ranges counts the rows that come in with none
+        const ranged = { key: 'Slots', label: 'Spell slots', cols: [{ key: 'n', label: 'Slots' }], rows: [{ key: 'L1', label: 'Level 1-2', lo: 1, hi: 2, vals: {} }, { key: 'L3', label: 'Level 3-4', lo: 3, hi: 4, vals: {} }] };
+        const r12 = T(csv(['Level,Slots', '1,2', '2,3', '3,4']), { keyOf: keyWord, keep: ranged }), r13 = T(csv(['Level,Slots', 'Level 1-2,2', 'x,3']), { keyOf: keyWord, keep: ranged });
+        const r14 = T(csv(['N,a', 'r,1']), { keyOf: keyWord, keep: { key: 'K', cols: [{ key: 'a' }], rows: [{ key: 'r', vals: {} }] } }), r15 = T(csv(['N,a', 'r,1']), { keyOf: keyWord });
+        check('csvTable with keep, ranges: where the old table found rows by their From and To, the rows that come in with none are counted (noRange), a row that keeps its short form keeps its range and is not counted, and a replace of a table with no ranges or a new table counts none',
+            r12.noRange === 3 && r12.table.rows.every(r => r.lo === undefined) && r13.noRange === 1 && r13.table.rows[0].key === 'L1' && r13.table.rows[0].lo === 1 && r13.table.rows[0].hi === 2 && r14.noRange === 0 && r15.noRange === 0, j([r12.noRange, r13.noRange, r13.table.rows, r14.noRange, r15.noRange]));
+        // the review of 1.6.3: a short form given to one row never reads as another row's name in the file, so whether a row is kept never hangs on the file's order
+        const stOld = { key: 'Metal', cols: [{ key: 'd', label: 'D' }], rows: [{ key: 'St', label: 'Steel', vals: {} }] }, keysOf = r => j(r.table.rows.map(x => x.key));
+        const r16 = T(csv(['N,D', 'Steel,1', 'St,2']), { keyOf: keyWord, keep: stOld }), r17 = T(csv(['N,D', 'St,2', 'Steel,1']), { keyOf: keyWord, keep: stOld });
+        const r18 = T(csv(['N,a', '\u2605,1', 'Row 1,2']), { keyOf: keyWord }), r19 = T(csv(['N,a', 'Row 1,2', '\u2605,1']), { keyOf: keyWord });
+        check('csvTable: two rows with names of their own are both kept in either order, an old short name or a made one never taken where it reads as another row\'s name in the file (a replace whose old Steel was St, with the file holding Steel and St; a new table with a row named \u2605 and one named Row 1), and the cleaner keeps both',
+            r16.dropped === 0 && keysOf(r16) === j(['Steel', 'St']) && r17.dropped === 0 && keysOf(r17) === j(['St', 'Steel']) && r18.dropped === 0 && keysOf(r18) === j(['Row2', 'Row1']) && r19.dropped === 0 && keysOf(r19) === j(['Row1', 'Row2'])
+            && [r16, r17, r18, r19].every(r => S.cleanTables([r.table], true)[0].rows.length === 2), j([r16.reasons, keysOf(r16), keysOf(r17), keysOf(r18), keysOf(r19)]));
     }
     check('csvcore is pure: no page, no network, no disk', !/\b(document|window|fetch|localStorage|XMLHttpRequest)\b/.test(read('scripts/csvcore.js').replace(/^\s*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')));
 

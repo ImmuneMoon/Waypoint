@@ -6365,7 +6365,7 @@
   #sysTables input, #sysTables select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 7px; font-size: 12px; box-sizing: border-box; }
   #sysTables input:focus, #sysTables select:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(224,165,79,0.22); }
   .sys-tbl, .sys-tcsv { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--edge); border-radius: 8px; }
-  /* 1.6.2: a spreadsheet read for a table (sheets.js tableCsvDraw): what was left out, and the first rows and columns as text */
+  /* 1.6.3: a spreadsheet read for a table (sheets.js tableCsvDraw): what was left out, and the first rows and columns as text */
   .sys-tcsv-left { margin: 0; padding-left: 18px; font-size: 12px; color: var(--muted); }
   .sys-tcsv-grid { border-collapse: collapse; }
   .sys-tcsv-grid th, .sys-tcsv-grid td { padding: 2px 8px; text-align: left; font-size: 11px; white-space: nowrap; border-bottom: 1px solid var(--edge); }

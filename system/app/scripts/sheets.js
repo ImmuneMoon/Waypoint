@@ -48,7 +48,7 @@ import { tileThenRuns, rowKeptFrom } from './systemcore.js';   // 1.6.2 (body fo
 import { standFitSays } from './systemcore.js';   // 1.6.2 (body fold 5)   // 1.6.0 Fits where (the core handbook session's ask 18)
 import { targetHitList, targetHitRows, readsTargetHit } from './systemcore.js';   // 1.6.0 (B5): a called shot by the target's own location
 import { tableKeyOk, TABLE_KEY, TABLE_ROW_KEY, nameFold, tableRangeSays } from './systemcore.js';   // 1.6.0: a system's tables, as Save reads them (tableSays)
-import { CSV, readCsv, csvTable } from './csvcore.js';   // 1.6.2: a table filled from a spreadsheet (the tablecsv slice)
+import { CSV, readCsv, csvTable } from './csvcore.js';   // 1.6.3: a table filled from a spreadsheet (the tablecsv slice)
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { FEEDS_MAX, feedOf, feedSpec, feedCt, feedCount, feedStack, feedLive } from './systemcore.js';   // 1.6.0 Feeds
 import { lvlsFromBox, lvlsToText, rowLibJudge, entryFromRow, packsForRow } from './librarycore.js';
@@ -12342,8 +12342,8 @@ function renderTables() {
         wrap.appendChild(blk);
     });
     var ad = tableBtn('+ Table', 'tableadd', arr.length >= LIMITS.tables ? 'At most ' + LIMITS.tables : 'A table of figures a formula reads by name'); ad.className += ' sys-tbl-add'; ad.disabled = arr.length >= LIMITS.tables; wrap.appendChild(ad);
-    var csvB = tableBtn('Import from a spreadsheet\u2026', 'tablecsv', 'Fill a table from a CSV file: its first row names the columns and its first column names the rows. You see it before anything changes'); csvB.className += ' sys-tbl-csv'; wrap.appendChild(csvB);   // 1.6.2: tableClick hands its press to the tablecsv slice
-    if (typeof tableCsvDraw === 'function') tableCsvDraw(wrap);   // 1.6.2: a file read and waiting for Import, shown under the box
+    var csvB = tableBtn('Import from a spreadsheet\u2026', 'tablecsv', 'Fill a table from a CSV file: its first row names the columns and its first column names the rows. You see it before anything changes'); csvB.className += ' sys-tbl-csv'; wrap.appendChild(csvB);   // 1.6.3: tableClick hands its press to the tablecsv slice
+    if (typeof tableCsvDraw === 'function') tableCsvDraw(wrap);   // 1.6.3: a file read and waiting for Import, shown under the box
     var err = errorCell('tables'); err.dataset.errFor = 'tables'; wrap.appendChild(err);
     box.appendChild(wrap);
 }
@@ -12437,7 +12437,7 @@ function onTableChange(t) {
     markDirty(); patchErrors(); return true;
 }
 function tableClick(b) {
-    if (b.dataset.act === 'tablecsv') { if (typeof tableCsvPick === 'function') tableCsvPick(); return true; }   // 1.6.2: Import from a spreadsheet, the tablecsv slice's
+    if (b.dataset.act === 'tablecsv') { if (typeof tableCsvPick === 'function') tableCsvPick(); return true; }   // 1.6.3: Import from a spreadsheet, the tablecsv slice's
     var m = /^table(add|up|down|del|coladd|coldel|rowadd|rowdel)$/.exec(b.dataset.act || ''); if (!m) return false;
     var arr = tablesDraft(), blk = b.closest('.sys-tbl'), i = blk ? +blk.dataset.ti : -1, x = arr[i] && typeof arr[i] === 'object' ? arr[i] : null;
     if (m[1] === 'add') { if (arr.length >= LIMITS.tables) { toast('At most ' + LIMITS.tables + '.'); return true; } arr.push({ key: '', label: '', cols: [{ key: 'value', label: 'Value' }], rows: [{ key: 'row1', vals: {} }] }); }
@@ -12490,13 +12490,16 @@ function tableSays(tables) {
 // [systemcheck:tablebox-end]
 // [systemcheck:tablecsv-start]
 // [sinkcheck:tablecsv-start]
-// 1.6.2 (the owner, 2026-11-16, by prompt: "Make a new table, or replace one"): a table filled from a spreadsheet. Import from a spreadsheet, beside
+// 1.6.3 (the owner, 2026-11-16, by prompt: "Make a new table, or replace one"): a table filled from a spreadsheet. Import from a spreadsheet, beside
 // + Table in the Tables box (tableClick hands its press to tableCsvPick), picks a CSV file; csvcore reads it (readCsv, the Library's own reader) and
 // makes it a table (csvTable), each row's and column's name the name the user sees and its short form made by keyWord, the rule every short form of
 // this editor follows. Nothing changes until Import is pressed: renderTables asks tableCsvDraw, which shows the file under the box with what was left
 // out, and Goes in picks a new table or one of the system's to put it in place of. Import (tableCsvGo) puts it into the draft, a replace asked first
 // with noEnter since it takes the old rows and columns away, so Save stores it as any edit and says what it would drop (tableSays). _tcsv is this
-// editor's own memory of the file read, never stored: Cancel, Import, a new file or another draft lets it go. Every word from the file is a text node
+// editor's own memory of the file read, never stored: Cancel, Import, a new file or another draft lets it go. Every word from the file is a text node.
+// The table a replace goes into is kept as the table itself (_tcsv.target), never by its place in the list, and what the file makes is worked out
+// again from the draft as it stands at every drawing and again at Import (the review of 1.6.3: a table moved, removed or edited between the preview
+// and Import turned a replace onto another table, or brought in short names, room and taken names that no longer held)
 var _tcsv = null, TCSV_ROWS = 12, TCSV_COLS = 8;
 function tcsvLog(step, o) { try { if (typeof window !== 'undefined' && typeof window.wpStepLog === 'function') window.wpStepLog('tables v1', step, o); } catch (e) {} }   // structure only: counts and a status, never a name or a cell
 // The file picker: a CSV file, read whole as bytes and handed to tableCsvOpen, unless it is past the Library's own size for a spreadsheet
@@ -12509,25 +12512,48 @@ function tableCsvPick() {
     });
     fi.click();
 }
+// The draft's first entry that is a table, what a replace falls back to where the system has no room for a new one
+function tcsvFirst(arr) { for (var i = 0; i < arr.length; i++) if (arr[i] && typeof arr[i] === 'object') return arr[i]; return null; }
 // A picked file's bytes: read by readCsv (what cannot be a spreadsheet is said and nothing is shown), named after the file, and shown as a new table
 // where the system has room for one, else in place of its first table
 function tableCsvOpen(fileName, bytes) {
     var t = readCsv(bytes); if (t.error) { tcsvLog('csv-refused', { why: 'file' }); toast(t.error); return; }
-    var nm = String(fileName || '').replace(/\.[^.]*$/, '').replace(/[_]+/g, ' ').trim().slice(0, LIMITS.label);
-    _tcsv = { draft: draft, file: String(fileName || '').slice(0, 80), label: nm, parsed: t, mode: (Array.isArray(draft.tables) ? draft.tables.length : 0) < LIMITS.tables ? 'new' : '0', res: null };
-    tableCsvMake(); tcsvLog('csv-read', { rows: t.rows.length, sep: t.sep === ',' ? 'comma' : t.sep === ';' ? 'semicolon' : t.sep === '\t' ? 'tab' : 'other', enc: t.enc, open: t.open });
-    renderTables();
+    var nm = String(fileName || '').replace(/\.[^.]*$/, '').replace(/[_]+/g, ' ').trim().slice(0, LIMITS.label), arr = Array.isArray(draft.tables) ? draft.tables : [];
+    _tcsv = { draft: draft, file: String(fileName || '').slice(0, 80), label: nm, parsed: t, target: arr.length < LIMITS.tables ? null : tcsvFirst(arr), mode: 'new', lost: '', res: null, seen: '' };
+    tableCsvSync(); tcsvLog('csv-read', { rows: t.rows.length, sep: t.sep === ',' ? 'comma' : t.sep === ';' ? 'semicolon' : t.sep === '\t' ? 'tab' : 'other', enc: t.enc, open: t.open });
+    tcsvRedraw('.sys-tcsv-mode, .sys-tcsv-off', -1);
 }
 // How many figures the draft's tables hold, all but the one at skip: what csvTable may fill is what they leave of LIMITS.tableCells, as the cleaner counts
 function tableCsvCells(skip) {
     var n = 0; (Array.isArray(draft.tables) ? draft.tables : []).forEach(function(x, i) { if (i === skip || !x || typeof x !== 'object') return; n += (Array.isArray(x.cols) ? x.cols.length : 0) * (Array.isArray(x.rows) ? x.rows.length : 0); });
     return n;
 }
-// The table as the mode picked makes it: a new table's short form kept clear of the others', or a replace keeping the old table's short forms
+// Where the file goes, read again from the draft as it stands now, then the table it makes there (tableCsvMake). A replace's table that is no longer in
+// the draft (removed since) falls back to a new table where there is room, else the first table, and s.lost keeps its name so the box can say so.
+// s.mode is the Goes in list's value: 'new', or the target's place in the list now, so a table moved since still reads under its own name
+function tableCsvSync() {
+    var s = _tcsv; if (!s) return; var arr = Array.isArray(draft.tables) ? draft.tables : [];
+    if (s.target && arr.indexOf(s.target) < 0) { s.lost = tcsvName(s.target, 0); s.target = null; }
+    if (!s.target && arr.length >= LIMITS.tables) s.target = tcsvFirst(arr);
+    var i = s.target ? arr.indexOf(s.target) : -1; s.mode = i >= 0 ? String(i) : 'new';
+    tableCsvMake();
+}
+// The table as the mode picked makes it: a new table's short form kept clear of the others', or a replace keeping the old table's short forms, the
+// room and the names taken worked out from the draft as it stands
 function tableCsvMake() {
-    var s = _tcsv; if (!s) return; var arr = Array.isArray(draft.tables) ? draft.tables : [], i = s.mode === 'new' ? -1 : +s.mode, keep = i >= 0 && arr[i] && typeof arr[i] === 'object' ? arr[i] : null;
-    if (i >= 0 && !keep) { s.mode = arr.length < LIMITS.tables ? 'new' : '0'; return tableCsvMake(); }
+    var s = _tcsv; if (!s) return; var arr = Array.isArray(draft.tables) ? draft.tables : [], i = s.target ? arr.indexOf(s.target) : -1, keep = i >= 0 ? s.target : null;
     s.res = csvTable(s.parsed, { keyOf: keyWord, label: s.label, keep: keep, taken: arr.map(function(x) { return x && typeof x.key === 'string' ? x.key : ''; }), room: LIMITS.tableCells - tableCsvCells(i) });
+}
+// What the box shows of the file, as one text: where it goes and the table it makes, with what was left out. Import compares it with what was last
+// drawn and goes no further where they differ, so nothing comes in that was not shown
+function tcsvSig(s) { var r = s && s.res ? s.res : {}; return JSON.stringify([s ? s.mode : '', r.table || null, r.error || '', r.cutCols, r.cutRows, r.full, r.bad, r.dropped, r.noRange]); }
+// The Tables box drawn again with its scroll kept (io.js keepPlace), then the focus put on focusSel: inside the table at place ti, or anywhere in the
+// box where ti is below 0. The button pressed (Import, Cancel) is gone after the drawing, so without this the focus fell to the page
+function tcsvRedraw(focusSel, ti) {
+    var root = ui('sysTables'), kp = typeof window !== 'undefined' && typeof window.wpKeepPlace === 'function' ? window.wpKeepPlace : null;
+    if (kp && root) kp(root, renderTables); else renderTables();
+    var nx = ui('sysTables'), scope = nx && typeof nx.querySelector === 'function' ? (ti >= 0 ? nx.querySelector('.sys-tbl[data-ti="' + ti + '"]') : nx) : null, f = focusSel && scope ? scope.querySelector(focusSel) : null;
+    if (f && typeof f.focus === 'function') { try { f.focus({ preventScroll: true }); } catch (e) {} }
 }
 function tcsvName(x, i) { return x && typeof x.label === 'string' && x.label.trim() ? x.label.trim() : x && typeof x.key === 'string' && x.key ? x.key : 'Table ' + (i + 1); }
 function tcsvWords(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
@@ -12536,26 +12562,29 @@ function tableCsvLeft(res) {
     var out = [];
     if (res.open) out.push('A quote in the file never closed, so the rest of the file was read as one cell.');
     if (res.cutCols) out.push(tcsvWords(res.cutCols, 'column', 'columns') + ' past the ' + LIMITS.tableCols + ' a table holds ' + (res.cutCols === 1 ? 'was' : 'were') + ' left out.');
-    if (res.cutRows) out.push(tcsvWords(res.cutRows, 'row', 'rows') + (res.full ? ' did not fit, since the system\u2019s tables hold ' + LIMITS.tableCells + ' figures in all, and ' + (res.cutRows === 1 ? 'was' : 'were') + ' left out.' : ' past the ' + LIMITS.tableRows + ' a table holds ' + (res.cutRows === 1 ? 'was' : 'were') + ' left out.'));
+    if (res.cutRows) out.push(tcsvWords(res.cutRows, 'row', 'rows') + (res.full ? ' did not fit, since the system’s tables hold ' + LIMITS.tableCells + ' figures in all, and ' + (res.cutRows === 1 ? 'was' : 'were') + ' left out.' : ' past the ' + LIMITS.tableRows + ' a table holds ' + (res.cutRows === 1 ? 'was' : 'were') + ' left out.'));
+    if (res.noRange) out.push(tcsvWords(res.noRange, 'row comes', 'rows come') + ' in with no From and To, which a spreadsheet does not hold, so a number no longer finds ' + (res.noRange === 1 ? 'it' : 'them') + '. You can give ' + (res.noRange === 1 ? 'it a range' : 'them ranges') + ' in the table’s box.');
     (Array.isArray(res.reasons) ? res.reasons : []).forEach(function(r) { out.push(r); });
     if (res.more) out.push('And ' + tcsvWords(res.more, 'thing', 'things') + ' more like these.');
     return out;
 }
 // The file shown under the Tables box: its name, Goes in, what was left out, the first rows and columns as text, then Import and Cancel. Its controls
-// have listeners of their own and stop there, so the editor's dispatchers never read them
+// have listeners of their own and stop there, so the editor's dispatchers never read them. Where it goes and what it makes are read again first
 function tableCsvDraw(wrap) {
     var s = _tcsv; if (!s) return; if (s.draft !== draft) { _tcsv = null; return; }
+    tableCsvSync(); s.seen = tcsvSig(s);
     var res = s.res || {}, box = el('div', 'sys-tcsv'), arr = Array.isArray(draft.tables) ? draft.tables : [], stop = function(e) { if (e && e.stopPropagation) e.stopPropagation(); };
     box.appendChild(el('div', 'sys-light-head', 'From a spreadsheet'));
     var btn = function(text, cls, title, fn) { var b = el('button', cls, text); b.type = 'button'; b.title = title; b.addEventListener('click', function(e) { stop(e); fn(); }); return b; };
-    var off = btn('Cancel', 'tool ghost sys-btn sys-tcsv-off', 'Leave the tables as they are', function() { _tcsv = null; tcsvLog('csv-cancel', {}); renderTables(); });
-    if (res.error || !res.table) { box.appendChild(el('div', 'sys-note', '\u201c' + s.file + '\u201d: ' + (res.error || 'That file does not read as a table.'))); var bb = el('div', 'sys-flags'); bb.appendChild(off); box.appendChild(bb); wrap.appendChild(box); return; }
+    var off = btn('Cancel', 'tool ghost sys-btn sys-tcsv-off', 'Leave the tables as they are', function() { _tcsv = null; tcsvLog('csv-cancel', {}); tcsvRedraw('.sys-tbl-csv', -1); });
+    if (res.error || !res.table) { box.appendChild(el('div', 'sys-note', '“' + s.file + '”: ' + (res.error || 'That file does not read as a table.'))); var bb = el('div', 'sys-flags'); bb.appendChild(off); box.appendChild(bb); wrap.appendChild(box); return; }
     var tb = res.table, cols = tb.cols, rows = tb.rows;
-    box.appendChild(el('div', 'sys-note', '\u201c' + s.file + '\u201d holds ' + tcsvWords(rows.length, 'row', 'rows') + ' and ' + tcsvWords(cols.length, 'column', 'columns') + ' of figures. Its first row names the columns and its first column names the rows. Nothing changes until you press Import.'));
+    box.appendChild(el('div', 'sys-note', '“' + s.file + '” holds ' + tcsvWords(rows.length, 'row', 'rows') + ' and ' + tcsvWords(cols.length, 'column', 'columns') + ' of figures. Its first row names the columns and its first column names the rows. Nothing changes until you press Import.'));
     var opts = []; if (arr.length < LIMITS.tables) opts.push(['new', 'A new table']); arr.forEach(function(x, i) { opts.push([String(i), 'In place of ' + tcsvName(x, i)]); });
-    var lbl = el('label', 'sys-combat-item'), sel = select('sys-tcsv-mode field', opts, s.mode, 'A new table, or one of yours whose rows and columns become the file\u2019s'), row1 = el('div', 'sys-flags'); lbl.appendChild(el('span', 'sys-num-cap', 'Goes in as')); lbl.appendChild(sel); row1.appendChild(lbl); box.appendChild(row1);
-    sel.addEventListener('input', stop); sel.addEventListener('change', function(e) { stop(e); s.mode = sel.value; tableCsvMake(); renderTables(); var nx = ui('sysTables'), ns = nx && nx.querySelector ? nx.querySelector('.sys-tcsv-mode') : null; if (ns && ns.focus) ns.focus(); });
-    box.appendChild(el('div', 'sys-note', s.mode === 'new' ? 'It comes in as a new table named ' + tb.label + '. You can rename it in its box.' : 'Its name and who reads it stay. Its rows and columns become the file\u2019s, and a row or a column of the same name keeps its short name, so a formula that reads it still does.'));
+    var lbl = el('label', 'sys-combat-item'), sel = select('sys-tcsv-mode field', opts, s.mode, 'A new table, or one of yours whose rows and columns become the file’s'), row1 = el('div', 'sys-flags'); lbl.appendChild(el('span', 'sys-num-cap', 'Goes in as')); lbl.appendChild(sel); row1.appendChild(lbl); box.appendChild(row1);
+    sel.addEventListener('input', stop); sel.addEventListener('change', function(e) { stop(e); var now = Array.isArray(draft.tables) ? draft.tables : [], pick = now[+sel.value]; s.target = sel.value === 'new' ? null : (pick && typeof pick === 'object' ? pick : null); s.lost = ''; tableCsvSync(); tcsvRedraw('.sys-tcsv-mode', -1); });
+    if (s.lost) box.appendChild(el('div', 'sys-note', 'The table it was to go in place of, ' + s.lost + ', is gone, so it goes in ' + (s.mode === 'new' ? 'as a new table' : 'in place of ' + tcsvName(s.target, +s.mode)) + ' now.'));
+    box.appendChild(el('div', 'sys-note', s.mode === 'new' ? 'It comes in as a new table named ' + tb.label + '. You can rename it in its box.' : 'Its name and who reads it stay. Its rows and columns become the file’s, and a row or a column of the same name keeps its short name, so a formula that reads it by name still does.'));
     var left = tableCsvLeft(res), ul = el('ul', 'sys-tcsv-left');
     if (left.length) { box.appendChild(el('div', 'sys-num-cap', 'Left out')); left.forEach(function(w) { ul.appendChild(el('li', null, w)); }); box.appendChild(ul); }
     else box.appendChild(el('div', 'sys-note', 'Nothing was left out.'));
@@ -12568,16 +12597,23 @@ function tableCsvDraw(wrap) {
     var bar = el('div', 'sys-flags'); bar.appendChild(btn('Import', 'tool sys-btn sys-tcsv-go', 'Put this table into the system. Save keeps it', tableCsvGo)); bar.appendChild(off); box.appendChild(bar);
     wrap.appendChild(box);
 }
+// Where it goes and what it makes, read again from the draft: true while that is what the box last showed. Where not, the box is drawn again as it
+// is now and the GM is asked to look again, and nothing comes in
+function tcsvStill(s) {
+    var was = s.seen; tableCsvSync(); if (s.res && s.res.table && tcsvSig(s) === was) return true;
+    tcsvLog('csv-stale', {}); tcsvRedraw('.sys-tcsv-go, .sys-tcsv-off', -1); toast('The tables changed since the file was shown. Look at it again, then press Import.'); return false;
+}
 // Import: a new table goes at the end of the draft's tables, and a replace puts the file's rows and columns into the table picked, asked first with its
-// buttons alone. The draft is marked changed and the box drawn again, so Save stores it and says what it would drop
+// buttons alone. Both are judged again on the draft as it stands at the press and, for a replace, at the answer (tcsvStill). The draft is marked
+// changed and the box drawn again with the focus on the table's name, so Save stores it and says what it would drop
 function tableCsvGo() {
-    var s = _tcsv; if (!s || s.draft !== draft || !s.res || !s.res.table) return;
-    var tb = s.res.table, done = function(mode) { _tcsv = null; markDirty(); renderTables(); patchErrors(); toast(mode === 'new' ? 'The table is in. Save keeps it.' : 'The table holds the file\u2019s rows and columns now. Save keeps it.'); tcsvLog('csv-done', { mode: mode, rows: tb.rows.length, cols: tb.cols.length, bad: s.res.bad, dropped: s.res.dropped, cutRows: s.res.cutRows, cutCols: s.res.cutCols }); };
-    if (s.mode === 'new') { var arr = tablesDraft(); if (arr.length >= LIMITS.tables) { toast('The system holds ' + LIMITS.tables + ' tables at most.'); return; } arr.push(tb); done('new'); return; }
-    var arr2 = tablesDraft(), x = arr2[+s.mode]; if (!x || typeof x !== 'object') { toast('That table is gone.'); return; }
-    showConfirm('Put the file\u2019s rows and columns in place of those of ' + tcsvName(x, +s.mode) + '? Its old figures go. Its name and who reads it stay.', function(yes) {
-        if (!yes || yes === 'alt' || _tcsv !== s || s.draft !== draft || tablesDraft().indexOf(x) < 0) return;
-        x.cols = tb.cols; x.rows = tb.rows; done('replace');
+    var s = _tcsv; if (!s || s.draft !== draft || !tcsvStill(s)) return;
+    var done = function(mode, tb, ti) { _tcsv = null; markDirty(); tcsvRedraw('.sys-tbl-label', ti); patchErrors(); toast(mode === 'new' ? 'The table is in. Save keeps it.' : 'The table holds the file’s rows and columns now. Save keeps it.'); tcsvLog('csv-done', { mode: mode, rows: tb.rows.length, cols: tb.cols.length, bad: s.res.bad, dropped: s.res.dropped, cutRows: s.res.cutRows, cutCols: s.res.cutCols, noRange: s.res.noRange }); };
+    if (s.mode === 'new') { var arr = tablesDraft(); if (arr.length >= LIMITS.tables) { toast('The system holds ' + LIMITS.tables + ' tables at most.'); return; } arr.push(s.res.table); done('new', s.res.table, arr.length - 1); return; }
+    var x = s.target; if (!x || tablesDraft().indexOf(x) < 0) { toast('That table is gone.'); return; }
+    showConfirm('Put the file’s rows and columns in place of those of ' + tcsvName(x, +s.mode) + '? Its old figures go. Its name and who reads it stay.', function(yes) {
+        if (!yes || yes === 'alt' || _tcsv !== s || s.draft !== draft || tablesDraft().indexOf(x) < 0 || !tcsvStill(s) || s.target !== x) return;
+        var tb = s.res.table; x.cols = tb.cols; x.rows = tb.rows; done('replace', tb, tablesDraft().indexOf(x));
     }, { noEnter: true, yes: 'Replace' });
 }
 // [sinkcheck:tablecsv-end]

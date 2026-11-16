@@ -50,7 +50,8 @@ Smaller things
   spreadsheet, under the Tables on the System editor's Rules tab, reads a
   CSV file whose first row names the columns and whose first column names
   the rows. You see the table and anything left out before it goes in, as
-  a new table or in place of one of yours.
+  a new table or in place of one of yours. Where that table found its rows
+  by a range, it tells you how many rows come in without one.
 
 WAYPOINT 1.6.2 — What's New
 ============================

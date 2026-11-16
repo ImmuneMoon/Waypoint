@@ -6138,7 +6138,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && texts.every(t => t.indexOf('<') < 0 && t.indexOf('alert') < 0) && made.filter(e => e.tag !== '#text').every(e => String(e.title).indexOf('<') < 0) && says.every(m => m.indexOf('<') < 0 && m.indexOf('alert') < 0) && says.length >= 2 && cleaned === null,
             errT || j([htmlSet, texts.filter(t => t.indexOf('<') >= 0), says, cleaned]));
     }
-    {   // 1.6.2 a table filled from a spreadsheet from anywhere: a hostile file name, heading, row name and cell, and a hostile table already in the system,
+    {   // 1.6.3 a table filled from a spreadsheet from anywhere: a hostile file name, heading, row name and cell, and a hostile table already in the system,
         // reach the file shown under the Tables box and the box after Import as text and values alone (sheets.js tablecsv and tablebox slices, run for real
         // with the real csvcore on a page that records every node and any markup)
         const j = JSON.stringify, SYc = await import(modUrl('systemcore.js')), CVc = await import(modUrl('csvcore.js')), shC = read('sheets.js'), srcC = slice('sheets.js', 'tablecsv'), srcB = slice('sheets.js', 'tablebox');
@@ -6157,7 +6157,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const sel = byC('sys-tcsv-mode')[0], goB = byC('sys-tcsv-go')[0];
         let errG = ''; try { sel.value = '0'; sel.fire('change'); byC('sys-tcsv-go').pop().fire('click'); asks[0].cb(true); } catch (e) { errG = String(e && e.stack || e); }
         const tb = draftC.tables[0];
-        check('1.6.2 a table filled from a spreadsheet from anywhere (sheets.js tablecsv, run for real with the real csvcore on a page that records every node and any markup): a hostile file name, heading, row name and cell, and a hostile name of a table already there, reach the file shown under the box as an element\'s own words or an option\'s, never markup, a title or a class; the slice writes no markup; a heading and a row name come in as names, never short names, and the box after Import holds them as values',
+        check('1.6.3 a table filled from a spreadsheet from anywhere (sheets.js tablecsv, run for real with the real csvcore on a page that records every node and any markup): a hostile file name, heading, row name and cell, and a hostile name of a table already there, reach the file shown under the box as an element\'s own words or an option\'s, never markup, a title or a class; the slice writes no markup; a heading and a row name come in as names, never short names, and the box after Import holds them as values',
             !errC && !errG && !!goB && htmlSet.length === 0 && !/innerHTML|insertAdjacentHTML|outerHTML/.test(srcC) && made.every(e => ['div', 'span', 'input', 'select', 'option', 'label', 'button', 'table', 'tr', 'th', 'td', 'ul', 'li', '#text'].indexOf(e.tag) >= 0)
             && shown.indexOf(T) >= 0 && shown.indexOf(P) >= 0 && shown.some(t => t.indexOf('\u201c' + T + '.csv\u201d') === 0) && sel.children.some(o => o.textContent === 'In place of ' + P)
             && made.filter(e => e.tag !== '#text').every(e => String(e.title).indexOf('<') < 0 && String(e.className).indexOf('<') < 0 && j(e.dataset).indexOf('<') < 0)

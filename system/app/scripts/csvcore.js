@@ -6,7 +6,7 @@
    exactly the same. What is read is bounded (CSV), and what is cut is said. Nothing here writes markup: a cell is text, and the window draws it
    as text. */
 import { LIB, ITEM_RE, cleanLibEntry, hashText, lvlsFromText } from './librarycore.js';
-import { LIMITS, cleanItemKey, cleanPic, tableKeyOk, TABLE_KEY, TABLE_ROW_KEY, nameFold } from './systemcore.js';   // 1.6.2: a table's short forms, as the cleaner holds them (csvTable)
+import { LIMITS, cleanItemKey, cleanPic, tableKeyOk, TABLE_KEY, TABLE_ROW_KEY, nameFold } from './systemcore.js';   // 1.6.3: a table's short forms, as the cleaner holds them (csvTable)
 
 export var CSV = Object.freeze({ bytes: LIB.fileBytes, rows: LIB.entries, cols: 800, cell: 16000, head: 60, sample: 48, sniff: 64 * 1024, sniffLines: 20, show: 8, showStats: 6 });
 var SEPS = [',', ';', '\t'], CTRL_LINE = /[\u0000-\u001f\u007f]/g;
@@ -257,35 +257,41 @@ export function csvCats(sys, listId, entries) {
     (Array.isArray(entries) ? entries : []).forEach(function(e) { var c = isObj(e) && typeof e.category === 'string' ? e.category : ''; if (!c) { out.none++; return; } var l = c.toLowerCase(); if (!cats[l] && !seen[l]) { seen[l] = 1; out.off.push(c); } });
     return out;
 }
-// 1.6.2 (the owner, 2026-11-16, by prompt: "Make a new table, or replace one"): a spreadsheet read as one of a system's Tables, the figures a
+// 1.6.3 (the owner, 2026-11-16, by prompt: "Make a new table, or replace one"): a spreadsheet read as one of a system's Tables, the figures a
 // formula reads by name (the System editor's Tables box, sheets.js renderTables and its tablecsv slice, which asks this and draws what it answers).
 // parsed is what readCsv answered. Its first row names the columns and its first column names the rows; the cell where they meet is passed over.
 // A row's or a column's name is the name the user sees; its short form (the key a formula reads) is made by opts.keyOf, the editor's own rule for a
 // name's short form (sheets.js keyWord), held to the key rules the cleaner holds a table to (tableKeyOk), and made unique the way the cleaner
-// judges it: a column by its key ignoring case, a row by nameFold over its key and every other row's name, so no formula finds two rows. A name
-// that gives no usable short form takes Column, Row or Table and the first free number. A cell is a figure as a spreadsheet writes one (readNum);
-// a cell that is no figure, or one past LIMITS.statAbs, is said and left empty. What a table holds is held to LIMITS.tableCols and
+// judges it: a column by its key ignoring case, a row by nameFold over its key and every other row's name, so no formula finds two rows. A row's
+// short form never reads as the name of ANOTHER row of the file, kept or not yet read (the review of 1.6.3: a short form given to an earlier row,
+// an old one or a made one, pushed a later row with a name of its own out as a row above, so what was kept hung on the file's order); only two
+// rows of one name are one too many. A name that gives no usable short form takes Column, Row or Table and the first free number. A cell is a
+// figure as a spreadsheet writes one (readNum); a cell that is no figure, or one past LIMITS.statAbs, is said and left empty. What a table holds is held to LIMITS.tableCols and
 // LIMITS.tableRows, and to opts.room, the figures the system's other tables leave of LIMITS.tableCells; what is cut is counted. opts.keep is the
 // table a replace puts this in place of: a column or row whose name or short form reads as one of it keeps that short form (and a row its From and
-// To), so a formula that read it still does. opts.taken is the short forms of the other tables, for a new table's. opts.label is the new table's
-// name (the file's). The answer: { table: { key, label, cols, rows } or null, error, cutCols, cutRows, full (rows cut by opts.room), bad (cells
-// left empty), dropped (rows left out), reasons (the first CSV_TABLE.says, in words that end a sentence), more, open }. Pure: nothing here draws
+// To), so a formula that read it still does. A spreadsheet holds no From and To, so where the old table read a figure by its rows' ranges, the
+// rows that come in with none are counted as noRange, which the box says: a number no longer finds them. opts.taken is the short forms of the
+// other tables, for a new table's. opts.label is the new table's name (the file's). The answer: { table: { key, label, cols, rows } or null, error, cutCols, cutRows, full (rows cut by opts.room), bad (cells
+// left empty), dropped (rows left out), noRange (rows a replace leaves with no From and To where the old table had ranges, else 0), reasons
+// (the first CSV_TABLE.says, in words that end a sentence), more, open }. Pure: nothing here draws
 export var CSV_TABLE = Object.freeze({ says: 12 });
 export function csvTable(parsed, opts) {
     opts = isObj(opts) ? opts : {};
     var t = isObj(parsed) && Array.isArray(parsed.rows) ? parsed : { rows: [], nums: [], cut: {} }, rows = t.rows, nums = Array.isArray(t.nums) ? t.nums : [], sep = t.sep;
     var keyOf = typeof opts.keyOf === 'function' ? opts.keyOf : function() { return ''; }, keep = isObj(opts.keep) ? opts.keep : null;
     var room = typeof opts.room === 'number' && isFinite(opts.room) ? Math.max(0, Math.floor(opts.room)) : LIMITS.tableCells;
-    var out = { table: null, error: '', cutCols: isObj(t.cut) && t.cut.cols > 0 ? t.cut.cols : 0, cutRows: isObj(t.cut) && t.cut.rows > 0 ? t.cut.rows : 0, full: false, bad: 0, dropped: 0, reasons: [], more: 0, open: t.open === true };
+    var out = { table: null, error: '', cutCols: isObj(t.cut) && t.cut.cols > 0 ? t.cut.cols : 0, cutRows: isObj(t.cut) && t.cut.rows > 0 ? t.cut.rows : 0, full: false, bad: 0, dropped: 0, noRange: 0, reasons: [], more: 0, open: t.open === true };
     var why = function(r) { if (out.reasons.length < CSV_TABLE.says) out.reasons.push(r); else out.more++; }, lineOf = function(i) { return 'Line ' + (nums[i] || i + 1); };
     if (rows.length < 2) { out.error = rows.length ? 'That file holds its first row and nothing under it.' : 'That file holds no rows.'; return out; }
     var lowerK = function(k) { return String(k).toLowerCase(); };
-    // a short form: the old table's where the name reads as one of its, else keyOf's, else word and a number; never one taken, never past its length
-    var mkKey = function(name, re, len, taken, fold, old, word) {
-        var f = nameFold(name), o = f && old ? old[f] : ''; if (o && tableKeyOk(o, re) && !taken[fold(o)]) return o;
+    // a short form: the old table's where the name reads as one of its, else keyOf's, else word and a number; never one taken, never one avoid
+    // turns down (a row's: another row's name in the file), never past its length
+    var mkKey = function(name, re, len, taken, fold, old, word, avoid) {
+        var no = function(k) { return typeof avoid === 'function' && avoid(k); };
+        var f = nameFold(name), o = f && old ? old[f] : ''; if (o && tableKeyOk(o, re) && !taken[fold(o)] && !no(o)) return o;
         var base = tableKeyOk(String(keyOf(name) || '').slice(0, len), re), k = base, n = 2;
         if (!base) { base = word; k = ''; n = 1; }
-        while (!k || !tableKeyOk(k, re) || taken[fold(k)]) { var tail = String(n++); k = base.slice(0, len - tail.length) + tail; }
+        while (!k || !tableKeyOk(k, re) || taken[fold(k)] || no(k)) { var tail = String(n++); k = base.slice(0, len - tail.length) + tail; }
         return k;
     };
     var oldOf = function(list, rowLike) { var m = map(); (Array.isArray(list) ? list : []).forEach(function(x) { if (!isObj(x) || typeof x.key !== 'string') return; [x.label, x.key].forEach(function(w) { var f = nameFold(typeof w === 'string' ? w : ''); if (f && !(f in m)) m[f] = rowLike ? x : x.key; }); }); return m; };
@@ -299,13 +305,14 @@ export function csvTable(parsed, opts) {
         cTaken[lowerK(ck)] = 1; cols.push({ key: ck, label: label }); at.push(j);
     }
     if (!cols.length) { out.error = 'That file holds no column of figures after its first, which names the rows.'; return out; }
-    var tRows = [], rTaken = map(), most = Math.min(LIMITS.tableRows, Math.floor(room / cols.length));
+    var tRows = [], rTaken = map(), most = Math.min(LIMITS.tableRows, Math.floor(room / cols.length)), names = map();
+    body.forEach(function(r) { var nf = nameFold(one(r[0], LIMITS.label)); if (nf) names[nf] = 1; });   // every row's name in the file, before any short form is made
     body.forEach(function(r, bi) {
         var name = one(r[0], LIMITS.label), line = lineOf(bi + 1), f = nameFold(name);
         if (!name) { out.dropped++; why(line + ' has no name in its first column, so it was left out.'); return; }
         if (f && rTaken[f]) { out.dropped++; why(line + ', \u201c' + one(name, 40) + '\u201d, reads as a row above, so it was left out.'); return; }
         if (tRows.length >= most) { out.cutRows++; if (tRows.length < LIMITS.tableRows) out.full = true; return; }
-        var rk = mkKey(name, TABLE_ROW_KEY, 40, rTaken, nameFold, oldR, 'Row'), vals = {}, ro = { key: rk, label: name, vals: vals };
+        var rk = mkKey(name, TABLE_ROW_KEY, 40, rTaken, nameFold, oldR, 'Row', function(k) { var kf = nameFold(k); return !!names[kf] && kf !== f; }), vals = {}, ro = { key: rk, label: name, vals: vals };
         at.forEach(function(j2, ci) {
             var s = r[j2] === undefined || r[j2] === null ? '' : String(r[j2]).trim(); if (!s) return;
             var v = readNum(s, sep), where = line + ', ' + cols[ci].label + ': \u201c' + one(s, 40) + '\u201d ';
@@ -316,6 +323,7 @@ export function csvTable(parsed, opts) {
         var was = oldRows && oldRows[nameFold(rk)]; if (was && was.key === rk && typeof was.lo === 'number') { ro.lo = was.lo; if (typeof was.hi === 'number') ro.hi = was.hi; }   // a row that keeps its short form keeps its From and To
         rTaken[f || nameFold(rk)] = 1; rTaken[nameFold(rk)] = 1; tRows.push(ro);
     });
+    if (keep && Array.isArray(keep.rows) && keep.rows.some(function(x) { return isObj(x) && typeof x.lo === 'number'; })) out.noRange = tRows.filter(function(x) { return typeof x.lo !== 'number'; }).length;
     if (!tRows.length) { out.error = out.full ? 'The system\u2019s tables hold ' + LIMITS.tableCells + ' figures in all, and there is no room left for these.' : 'That file holds no row with a name in its first column.'; return out; }
     var tLabel = one(opts.label, LIMITS.label) || 'Table', tTaken = map(); (Array.isArray(opts.taken) ? opts.taken : []).forEach(function(k) { if (typeof k === 'string') tTaken[lowerK(k)] = 1; });
     var tKey = keep && tableKeyOk(keep.key, TABLE_KEY) ? keep.key : mkKey(tLabel, TABLE_KEY, 24, tTaken, lowerK, null, 'Table');

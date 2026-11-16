@@ -9653,7 +9653,8 @@ function cleanMapKinds(raw) {
 // 1.6.3 (the owner, 2026-11-16, by prompt: "Only where it starts"): the scale a NEW map of this system starts at, such as 1 yard a square
 // (sys.mapStart { per, unit }, the same in both views). It is read in one place, mapStartOn, which every maker of a new play map asks once the map is
 // made (models.js applyMapStart): the map then opens with that cell (meta.cellValue and meta.cellUnit) and can be changed like any map. A map that is
-// already there is never touched, a copy keeps its own, and with none set a new map starts as it always did. The cell follows a map kind's own
+// already there is never touched (should a command that copies a map be added, the copy keeps its source's scale), and with none set a new map
+// starts as it always did, 5 feet a square or 1 yard a hex. The cell follows a map kind's own
 // rule (cleanMapKinds' scale): a number above 0 and at most 1,000,000, to four decimals, in a unit the ruler offers (MAP_UNITS)
 function cleanMapStart(raw) {
     if (!isObj(raw) || typeof raw.per !== 'number' || !fin(raw.per) || !(raw.per > 0) || raw.per > 1e6 || typeof raw.unit !== 'string' || !hasOwn(MAP_UNITS, raw.unit)) return null;

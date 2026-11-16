@@ -274,7 +274,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 // the New Map button, a nested map and a map made to hold another (dialogs.js), a room's own map (datamap.js, inspector.js) and the three
 // generators' new map (whiteboard.js). The rule itself is systemcore's mapStartOn, which writes meta.cellValue and meta.cellUnit and nothing else.
 // camp: the campaign the map is made for, the active one where none is handed in. createNewMap does not ask it by itself, since the Tutorial and a
-// fresh save build maps of another campaign than the one on screen. A copy of a map keeps its own scale and never comes here. Answers whether the
+// fresh save build maps of another campaign than the one on screen. The app has no command that copies a map today; should one be added, the copy
+// keeps its source map's scale and does not ask this. Answers whether the
 // map was stamped; with no system core loaded, no campaign or no start scale the map is left as made
 export function applyMapStart(map, camp) {
     try {

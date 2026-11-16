@@ -12967,16 +12967,18 @@ function mapStartSays(v) {
 function mapStartBox(box) {
     var wrap = el('div', 'sys-holds sys-mapstart'), st = draft.mapStart && typeof draft.mapStart === 'object' ? draft.mapStart : null, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
     wrap.appendChild(el('div', 'sys-light-head', 'New maps start at'));
-    wrap.appendChild(el('div', 'sys-note', 'The cell a map starts at when it is made in a campaign of this system, such as 1 yard a square. It can be changed on each map like any scale. Maps that are already there keep their own. Empty: a new map starts as it always did.'));
+    wrap.appendChild(el('div', 'sys-note', 'The cell a map starts at when it is made in a campaign of this system, such as 1 yard a square. It can be changed on each map like any scale. Maps that are already there keep their own. Empty: a new map starts as it always did, 5 feet a square or 1 yard a hex.'));
     var rw = el('div', 'sys-flags sys-arcrow'), pw = el('label', 'sys-check'), pi = el('input', 'field sys-num sys-ms-per'); pi.type = 'number'; pi.min = '0'; pi.step = 'any'; if (st && typeof st.per === 'number' && isFinite(st.per)) pi.value = String(st.per);
     pi.title = 'How large one cell of a new map is, in the unit beside it. Empty: a new map starts as it always did';
     var us = select('sys-ms-unit', MAPKIND_UNITS, st && typeof st.unit === 'string' ? st.unit : 'yd', 'The unit of that cell');
     var says = el('div', 'sys-note sys-ms-says', mapStartSays(st)); says.hidden = !says.textContent;
-    var tell = function() { says.textContent = mapStartSays(draft.mapStart); says.hidden = !says.textContent; };
+    var clr = el('button', 'tool ghost sys-btn sys-ms-clear', 'Clear'); clr.type = 'button'; clr.title = 'New maps start as they always did'; clr.disabled = !st;
+    // Says under the row whether Save keeps what is typed, and keeps Clear live exactly while the draft holds a start scale: the number box changes
+    // the draft with no redraw, so Clear follows it here and not only when the row is drawn
+    var tell = function() { says.textContent = mapStartSays(draft.mapStart); says.hidden = !says.textContent; clr.disabled = !draft.mapStart; };
     pi.addEventListener('input', function() { var v = pi.value === '' ? NaN : Number(pi.value); if (isFinite(v)) draft.mapStart = { per: v, unit: us.value }; else delete draft.mapStart; tell(); ch(); });
     us.addEventListener('change', function(e) { e.stopPropagation(); if (draft.mapStart && typeof draft.mapStart === 'object') { draft.mapStart.unit = us.value; ch(); } });
     pw.appendChild(document.createTextNode('A cell is ')); pw.appendChild(pi); rw.appendChild(pw); rw.appendChild(us);
-    var clr = el('button', 'tool ghost sys-btn sys-ms-clear', 'Clear'); clr.type = 'button'; clr.title = 'New maps start as they always did'; clr.disabled = !st;
     clr.addEventListener('click', function() { delete draft.mapStart; ch(true); }); rw.appendChild(clr);
     wrap.appendChild(rw); wrap.appendChild(says);
     box.appendChild(wrap);

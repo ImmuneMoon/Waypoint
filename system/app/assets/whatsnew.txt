@@ -44,6 +44,8 @@ Smaller things
 - A system can set the scale every new map starts at, such as 1 yard a
   square. It's New maps start at, above the map kinds on the System
   editor's Combat tab. Maps you already have keep their own scale.
+  Left empty, a new map starts as before, at 5 feet a square or 1 yard a
+  hex, and the row says so.
 
 WAYPOINT 1.6.2 — What's New
 ============================

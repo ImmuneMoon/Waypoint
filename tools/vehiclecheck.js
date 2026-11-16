@@ -472,12 +472,12 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
             return { box, by, counts: () => [dirty, redrawn] }; };
         const d1 = {}, b1 = runBox(d1), pi = b1.by('sys-ms-per'), us = b1.by('sys-ms-unit'), says = b1.by('sys-ms-says'), clr = b1.by('sys-ms-clear');
         const st0 = [pi.value, us.value, J(us.options), says.hidden, clr.disabled];
-        pi.value = '1'; pi.listeners.input(); const st1 = J(d1.mapStart); us.value = 'ft'; us.listeners.change({ stopPropagation() {} }); const st2 = J(d1.mapStart);
-        pi.value = '0'; pi.listeners.input(); const st3 = [says.hidden, says.textContent]; pi.value = ''; pi.listeners.input(); const st4 = ['mapStart' in d1, says.hidden];
+        pi.value = '1'; pi.listeners.input(); const st1 = J(d1.mapStart), clrOn = clr.disabled; us.value = 'ft'; us.listeners.change({ stopPropagation() {} }); const st2 = J(d1.mapStart);
+        pi.value = '0'; pi.listeners.input(); const st3 = [says.hidden, says.textContent]; pi.value = ''; pi.listeners.input(); const st4 = ['mapStart' in d1, says.hidden, clr.disabled]; const b3d = { mapStart: { per: 2, unit: 'yd' } }, b3 = runBox(b3d), p3 = b3.by('sys-ms-per'), c3 = b3.by('sys-ms-clear'); p3.value = ''; p3.listeners.input(); const st6 = c3.disabled;
         const d2 = { mapStart: { per: 5, unit: 'm' } }, b2 = runBox(d2), st5a = [b2.by('sys-ms-per').value, b2.by('sys-ms-unit').value, b2.by('sys-ms-clear').disabled]; b2.by('sys-ms-clear').listeners.click(); const st5 = ['mapStart' in d2, b2.counts()[1]].concat(st5a);
-        check('1.6.3 the Combat tab’s New maps start at row, run on a page of plain objects: empty to start with the ruler’s units and Clear off; a number typed keeps the cell in the unit beside it, a unit picked follows; a cell Save would leave out is said under the row as it is typed; empty and Clear take the key away',
+        check('1.6.3 the Combat tab’s New maps start at row, run on a page of plain objects: empty to start with the ruler’s units and Clear off; a number typed keeps the cell in the unit beside it, a unit picked follows; a cell Save would leave out is said under the row as it is typed; empty and Clear take the key away; Clear goes live as a number is typed and off as the box is emptied, with no redraw',
             !!mxSrc && J(st0) === J(['', 'yd', J(['yd', 'ft', 'm', 'km', 'mi']), true, true]) && st1 === J({ per: 1, unit: 'yd' }) && st2 === J({ per: 1, unit: 'ft' })
-            && st3[0] === false && /Save leaves this out/.test(st3[1]) && J(st4) === J([false, true]) && J(st5) === J([false, 1, '5', 'm', false])
+            && st3[0] === false && /Save leaves this out/.test(st3[1]) && clrOn === false && J(st4) === J([false, true, true]) && st6 === true && J(st5) === J([false, 1, '5', 'm', false])
             && /^function mapKindsBox\(box\) \{\n    if \(typeof mapStartBox === 'function'\) mapStartBox\(box\);/m.test(shS) && !/innerHTML/.test(mxSrc), J([st0, st1, st2, st3, st4, st5]));
         const hlp = read('index.html'), wn = readRoot('WHATSNEW.txt'), wa = read('assets/whatsnew.txt');
         check('1.6.3 Help and both release notes say a new map starts at the system’s scale and that maps already there keep their own',

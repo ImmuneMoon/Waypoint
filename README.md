@@ -30,11 +30,11 @@ A portable desktop companion for tabletop RPG campaigns: linked data maps for th
 
 ## Installing (players and GMs)
 
-Download `Waypoint_Setup.exe` from the latest release and run it. The installer puts Waypoint in your user folder, needs no admin rights, and offers a Start Menu and desktop shortcut.
+Download `Waypoint_Setup.exe` from Waypoint's website, waypointvtt.com, and run it. The installer puts Waypoint in your user folder, needs no admin rights, and offers a Start Menu and desktop shortcut.
 
 ### The Windows warning
 
-Windows may warn that it does not recognize the publisher: Waypoint's installer is not code-signed yet. Only run a `Waypoint_Setup.exe` you downloaded from Waypoint's own releases page, or through the app's own update button; if it came from anywhere else, do not run it.
+Windows may warn that it does not recognize the publisher: Waypoint's installer is not code-signed yet. Only run a `Waypoint_Setup.exe` you downloaded from Waypoint's own website, or through the app's own update button; if it came from anywhere else, do not run it.
 
 One-click updates inside the app are signed: your copy takes an update only when its signature checks against the key the installer put there, and **Settings ▸ Updates & about ▸ Restore the previous version** puts the app back as it was before the last update. From 1.5.0 on an update that changes Waypoint's core installs itself the same way: the app downloads the installer, checks its signature, closes, updates and opens again.
 
@@ -59,7 +59,7 @@ Everything about a campaign is in the `saves` folder next to the app:
 | `saves/preferences.json` | your settings, app-managed |
 | `saves/backups/` | a dated snapshot taken at each launch (newest ten kept) |
 
-To back up, copy `saves`. To restore or move to another computer, paste it back beside the app. Waypoint goes online when you play together, and each time it starts it asks GitHub whether there's a new release. If you link a waypointvtt.com account, your profile and cloud saves go there too. Nothing about how you use the app is ever sent.
+To back up, copy `saves`. To restore or move to another computer, paste it back beside the app. Waypoint goes online when you play together, and each time it starts it asks Waypoint's website, waypointvtt.com, whether there's a new release. If you link a waypointvtt.com account, your profile and cloud saves go there too. Nothing about how you use the app is ever sent.
 
 ## Running from source
 
@@ -77,7 +77,7 @@ To run the real thing from source, unpack the latest release and replace its `sy
 
 ## Releases and updates
 
-Players update from inside the app: **Settings ▸ Check for Updates** looks at this repository's latest GitHub Release. If only the front end changed, **Update Now** downloads the app zip, verifies its checksum, swaps `system/app` in place and reloads. If the release changed the Electron shell, the same panel offers the installer instead. A quiet check runs shortly after launch; when it finds a newer version a gold **Update** button appears in the top bar and stays until the update is applied, and a dismissable notice appears once per launch. Nothing installs without the user pressing the button.
+Players update from inside the app: **Settings ▸ Check for Updates** asks Waypoint's website for the newest release. The site answers a list signed with Waypoint's update key, and the app reads it only once the signature checks; the files come from Waypoint's own download host and from nowhere else. If only the front end changed, **Update Now** downloads the app zip, verifies its checksum, swaps `system/app` in place and reloads. If the release changed the Electron shell, the same panel offers the installer instead. A quiet check runs shortly after launch; when it finds a newer version a gold **Update** button appears in the top bar and stays until the update is applied, and a dismissable notice appears once per launch. Nothing installs without the user pressing the button.
 
 To cut a release:
 
@@ -89,9 +89,9 @@ To cut a release:
    ```
 
    This zips `system/app` as `waypoint-app-<version>.zip` with a `.sha256`, writes `manifest.json`, copies what an install needs and nothing else into `dist/<version>/stage`, compiles the installer there with [Inno Setup 6](https://jrsoftware.org/isinfo.php), and collects everything under `dist/<version>/` with the release notes. The notes are the top section of `WHATSNEW.txt` rendered as markdown; `--notes-only` regenerates just that file.
-3. Publish: create a GitHub Release tagged with the version and attach the four files, or run `node tools/release.js --publish` with a `GITHUB_TOKEN` that can write releases.
+3. Publish: create a GitHub Release tagged with the version and attach the four files, or run `node tools/release.js --publish` with a `GITHUB_TOKEN` that can write releases. From 1.6.4 installs read their updates from Waypoint's website instead, so the release also goes up there, with the signed list beside it; the GitHub release is kept while installs move.
 
-The repository the app checks is the `UPDATE_REPO` constant at the top of `system/resources/app/main.js`.
+The website the app checks is the `UPDATE_SITE` constant at the top of `system/resources/app/main.js`.
 
 ## Repository layout
 

@@ -6,8 +6,10 @@
      node tools/release.js --publish       also create the GitHub Release (needs GITHUB_TOKEN with
                                            "contents: write" on the repo) and upload the assets
 
-   Reads the version from system/resources/app/package.json, the repo slug from UPDATE_REPO in
-   system/resources/app/main.js, and the release notes from the top section of WHATSNEW.txt.
+   Reads the version from system/resources/app/package.json and the release notes from the top section of
+   WHATSNEW.txt. --publish puts the release on the GitHub repository named in REPO below: from 1.6.4 an install
+   reads its updates from Waypoint's own website (main.js UPDATE_SITE, the signed list and the files on its
+   download host), and that upload is not part of this script yet; the GitHub release is kept while installs move.
    The manifest's minShell is the version in which the core last changed (everything under
    system/resources/app, and installer.iss): an install whose core is older takes the installer, not the
    one-click update. It is a recorded fact, not a constant to remember: tools/shellrev.json, kept by
@@ -44,8 +46,7 @@ const ROOT = path.join(__dirname, '..');
 const SYSTEM = path.join(ROOT, 'system');
 const pkg = JSON.parse(fs.readFileSync(path.join(SYSTEM, 'resources', 'app', 'package.json'), 'utf8'));
 const VERSION = pkg.version;
-const mainSrc = fs.readFileSync(path.join(SYSTEM, 'resources', 'app', 'main.js'), 'utf8');
-const REPO = (mainSrc.match(/const UPDATE_REPO = '([^']+)'/) || [])[1];
+const REPO = 'ImmuneMoon/Waypoint';   // the public GitHub repository releases are still published to while installs move to the website (1.6.4)
 const ISCC = process.env.ISCC || 'D:\\Files\\Programs\\Inno Setup 6\\ISCC.exe';
 const PUBLISH = process.argv.includes('--publish');
 const NOTES_ONLY = process.argv.includes('--notes-only');   // just regenerate RELEASE_NOTES.md
@@ -300,12 +301,12 @@ console.log('  ' + fs.readdirSync(dist).join('\n  '));
 if (RUNTIME_NOTE) console.warn(RUNTIME_NOTE);   // said last, where it is read: the build goes on either way
 
 if (!PUBLISH) {
-    console.log('\nTo publish: create a GitHub Release tagged', VERSION, 'on', REPO || '<set UPDATE_REPO in main.js>', 'and attach every file above,\nor run again with --publish and GITHUB_TOKEN set.');
+    console.log('\nTo publish: create a GitHub Release tagged', VERSION, 'on', REPO, 'and attach every file above,\nor run again with --publish and GITHUB_TOKEN set.');
     process.exit(0);
 }
 
 // 5. publish via the GitHub API
-if (!REPO) { console.error('UPDATE_REPO is not set in main.js'); process.exit(1); }
+
 const TOKEN = process.env.GITHUB_TOKEN;
 if (!TOKEN) { console.error('GITHUB_TOKEN is not set'); process.exit(1); }
 function api(method, url, body, contentType) {

@@ -64,15 +64,21 @@ function webLinkOk(port, url) {
     return u.href;
 }
 
-// The one address the update walk-through may open in the system browser: this project's own release pages on github.com
-// (the installer's download link, a release's page, the list). Nothing else on that site, no other host, no port, no user
-// name; the path is judged after the URL parser has resolved it. Returns the address to open, or null.
-function releaseLink(target, repo) {
-    if (typeof target !== 'string' || target.length > 2000 || typeof repo !== 'string' || !repo) return null;
+// The one address the update walk-through may open in the system browser (1.6.4: updates come from Waypoint's own website).
+// site is main.js's one constant, https://waypointvtt.com. Opened: any page of that very site (a release's notes, the
+// download page), and a file of a release on its download host, downloads.<the site's host>, under /waypoint/ (the
+// installer). Nothing on any other host, not the site under http, no port, no user name or password; the path is judged
+// after the URL parser has resolved it, so a dot-dot never climbs out of /waypoint/. Returns the address to open, or null.
+// Until 1.6.3 this was this project's own release pages on github.com.
+function releaseLink(target, site) {
+    if (typeof target !== 'string' || target.length > 2000 || typeof site !== 'string' || !site) return null;
+    let s; try { s = new URL(site); } catch (e) { return null; }
+    if (s.protocol !== 'https:' || s.port || s.username || s.password || !s.hostname) return null;
     let u; try { u = new URL(target); } catch (e) { return null; }
-    if (u.protocol !== 'https:' || u.hostname !== 'github.com' || u.port || u.username || u.password) return null;
-    const base = '/' + repo + '/releases';
-    return (u.pathname === base || u.pathname.startsWith(base + '/')) ? u.href : null;
+    if (u.protocol !== 'https:' || u.port || u.username || u.password) return null;
+    if (u.hostname === s.hostname) return u.href;
+    if (u.hostname === 'downloads.' + s.hostname && u.pathname.startsWith('/waypoint/')) return u.href;
+    return null;
 }
 
 /* ---------- permissions ---------- */

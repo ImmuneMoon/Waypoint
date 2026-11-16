@@ -5,11 +5,24 @@
      node tools/release.js                 build into dist/<version>/ and print what to upload
      node tools/release.js --publish       also create the GitHub Release (needs GITHUB_TOKEN with
                                            "contents: write" on the repo) and upload the assets
+     node tools/release.js --publish-site  also put the files and the signed list on Waypoint's download host
+                                           (Cloudflare R2: WAYPOINT_R2_ENDPOINT, WAYPOINT_R2_BUCKET, WAYPOINT_R2_KEY_ID,
+                                           WAYPOINT_R2_SECRET) and wake the website (WEBSITE_DISPATCH_TOKEN, if set);
+                                           with --publish too, the site comes first, then the GitHub Release
+     node tools/sitepub.js --check         the checklist step after: does the live site name this release, as an
+                                           install reads it? (exit 0 yes, 1 no; writes nothing)
 
    Reads the version from system/resources/app/package.json and the release notes from the top section of
-   WHATSNEW.txt. --publish puts the release on the GitHub repository named in REPO below: from 1.6.4 an install
-   reads its updates from Waypoint's own website (main.js UPDATE_SITE, the signed list and the files on its
-   download host), and that upload is not part of this script yet; the GitHub release is kept while installs move.
+   WHATSNEW.txt. --publish puts the release on the GitHub repository named in REPO below, as before: installs of 1.6.3
+   and older still read their updates there, so the GitHub release is kept while installs move. From 1.6.4 an install
+   reads its updates from Waypoint's own website (main.js UPDATE_SITE): the build also writes dist/<version>/envelope.json,
+   the signed list the site serves (tools/sitepub.js: the manifest of the zip and the installer, each with its address on
+   the download host, its size, digest and own signature, signed over "waypoint-manifest\n" and its text), reads it back
+   at once exactly as an install will and refuses to build where an install would not take it as written; --publish-site
+   puts the files and that list on the download host (Cloudflare R2).
+   The checklist, in order, for a release that ships the installer: build; --publish-site; wait until the site has recorded
+   it (the dispatch wakes it; else its daily look); node tools/sitepub.js --check must say the site names this version
+   (an install of it reports up to date, an older one is offered it); only then --publish to GitHub and announce it.
    The manifest's minShell is the version in which the core last changed (everything under
    system/resources/app, and installer.iss): an install whose core is older takes the installer, not the
    one-click update. It is a recorded fact, not a constant to remember: tools/shellrev.json, kept by
@@ -51,6 +64,8 @@ const ISCC = process.env.ISCC || 'D:\\Files\\Programs\\Inno Setup 6\\ISCC.exe';
 const PUBLISH = process.argv.includes('--publish');
 const NOTES_ONLY = process.argv.includes('--notes-only');   // just regenerate RELEASE_NOTES.md
 const SIGNTOOL = process.env.WAYPOINT_SIGNTOOL;
+const PUBLISH_SITE = process.argv.includes('--publish-site');   // 1.6.4: put the files and the signed list on Waypoint's download host
+const sitepub = require('./sitepub.js');
 const signkey = require('./signkey.js');
 const shellrev = require('./shellrev.js');
 const updater = require('../system/resources/app/updater.js');
@@ -88,6 +103,15 @@ if (!NOTES_ONLY) {
     if (!rev.ok) { console.error('Not built: ' + rev.why + '.'); process.exit(1); }
     if (updater.cmpVersion(rev.since, VERSION) > 0) { console.error('Not built: tools/shellrev.json says the core last changed in ' + rev.since + ', which is newer than this release (' + VERSION + '). Correct the version in package.json, or the record (node tools/shellrev.js writes it).'); process.exit(1); }
     SHELL_SINCE = rev.since;
+}
+// The upload to the site needs the bucket and its token, and with --publish too, GitHub's: all asked for before the first thing the
+// build writes, so a run never uploads half and then stops for a missing word.
+let R2 = null;
+if (PUBLISH_SITE) {
+    if (NOTES_ONLY) { console.error('Not uploaded to the site: --notes-only builds no release to upload.'); process.exit(1); }
+    R2 = sitepub.r2Config(process.env);
+    if (R2.why) { console.error(R2.why); process.exit(1); }
+    if (PUBLISH && !process.env.GITHUB_TOKEN) { console.error('GITHUB_TOKEN is not set (--publish): nothing built or uploaded.'); process.exit(1); }
 }
 
 // The repository's private/ folder (an outside sheet reader of the owner's own, git-ignored) never ships. A build is refused while the app
@@ -208,6 +232,7 @@ const dist = path.join(ROOT, 'dist', VERSION);
 fs.mkdirSync(dist, { recursive: true });
 const zipName = 'waypoint-app-' + VERSION + '.zip';
 const zipPath = path.join(dist, zipName);
+let SITE_WANT = null, SITE = null;   // what the site's list names, once 3d has written and checked it: the upload holds the files on disk to it
 const ASSETS = ['Waypoint_Setup.exe', 'Waypoint_Setup.exe.sig', zipName, zipName + '.sha256', zipName + '.sig', 'manifest.json'];   // what a release carries: all of it, or it is not published
 
 if (!NOTES_ONLY) {
@@ -268,6 +293,24 @@ fs.copyFileSync(SETUP, path.join(dist, 'Waypoint_Setup.exe'));
 fs.writeFileSync(path.join(dist, 'Waypoint_Setup.exe.sig'), setupSig + '\n');
 // the stage is a copy, and goes once the installer is out of it. A build that stops before here leaves it to be looked at; the next one makes it fresh.
 fs.rmSync(STAGE, { recursive: true, force: true });
+
+// 3d. the signed list Waypoint's website serves (1.6.4): the manifest of this release (the zip and the installer, each by its exact
+//     name, with its address on the download host, its size, digest and own signature, and the notes as plain text), signed over
+//     "waypoint-manifest\n" and its text, written as dist/<version>/envelope.json. It is read back at once exactly as an install
+//     will read it, with the key the shell carries, and held to what was written: a list an install would refuse, or would read
+//     otherwise, stops the build here, so the writer can never drift from the shell's cleanManifest.
+{
+    const site = sitepub.siteOf(ROOT), zipBytes = fs.readFileSync(zipPath), setupBytes = fs.readFileSync(path.join(dist, 'Waypoint_Setup.exe'));
+    const files = [sitepub.fileEntry(site, VERSION, zipName, zipBytes, sig), sitepub.fileEntry(site, VERSION, 'Waypoint_Setup.exe', setupBytes, setupSig)];
+    const want = { version: VERSION, minShell: SHELL_SINCE, electron: typeof pkg.electron === 'string' ? pkg.electron : null, published: new Date().toISOString(),
+        notes: sitepub.notesText(fs.readFileSync(path.join(ROOT, 'WHATSNEW.txt'), 'utf8')), notesUrl: null, files };
+    const envText = sitepub.envelopeOf(sitepub.siteManifest(want), SIGNKEY);
+    want.files = {}; for (const f of files) want.files[f.name] = { size: f.size, sha256: f.sha256 };
+    const why = sitepub.envelopeCheck(envText, UPDATE_PUBKEY, site, want);
+    if (why) { console.error('Not built: the site\'s list is not one an install takes as written (' + why + ').'); process.exit(1); }
+    fs.writeFileSync(path.join(dist, sitepub.ENVELOPE_NAME), envText);
+    SITE_WANT = want; SITE = site;
+}
 }
 
 // 4. notes: the top section of WHATSNEW.txt, turned into markdown for the GitHub Release body.
@@ -300,15 +343,16 @@ console.log('\nBuilt', dist);
 console.log('  ' + fs.readdirSync(dist).join('\n  '));
 if (RUNTIME_NOTE) console.warn(RUNTIME_NOTE);   // said last, where it is read: the build goes on either way
 
-if (!PUBLISH) {
+if (!PUBLISH && !PUBLISH_SITE) {
     console.log('\nTo publish: create a GitHub Release tagged', VERSION, 'on', REPO, 'and attach every file above,\nor run again with --publish and GITHUB_TOKEN set.');
+    console.log('For installs of 1.6.4 and later: run again with --publish-site (the R2 bucket and token set) first, then node tools/sitepub.js --check.');
     process.exit(0);
 }
 
 // 5. publish via the GitHub API
 
 const TOKEN = process.env.GITHUB_TOKEN;
-if (!TOKEN) { console.error('GITHUB_TOKEN is not set'); process.exit(1); }
+if (PUBLISH && !TOKEN) { console.error('GITHUB_TOKEN is not set'); process.exit(1); }
 function api(method, url, body, contentType) {
     return new Promise((resolve, reject) => {
         const u = new URL(url);
@@ -321,6 +365,18 @@ function api(method, url, body, contentType) {
     });
 }
 (async () => {
+    // 5a. the site first (1.6.4): the files, then the signed list, on the download host; then the website is woken to record it
+    if (PUBLISH_SITE) {
+        if (!SITE_WANT) throw new Error('Not uploaded to the site: no list was built in this run.');
+        console.log('\nPutting ' + VERSION + ' on Waypoint\'s download host');
+        const up = await sitepub.sitePublish({ cfg: R2, dist, version: VERSION, pubKey: UPDATE_PUBKEY, site: SITE, want: SITE_WANT, log: console.log });
+        console.log('On the download host: ' + up.keys.join(', '));
+        const dt = process.env.WEBSITE_DISPATCH_TOKEN;
+        if (dt) { const st = await sitepub.dispatch(dt); console.log(st === 204 ? 'The website was told: it records the release within minutes.' : 'The website could not be told (GitHub answered ' + st + '): it records the release at its daily look.'); }
+        else console.log('WEBSITE_DISPATCH_TOKEN is not set: the website records the release at its daily look, or when the GitHub release is published.');
+        console.log('Before the installer goes out: node tools/sitepub.js --check must say the site names ' + VERSION + '.');
+    }
+    if (!PUBLISH) return;
     const missing = ASSETS.filter(f => !fs.existsSync(path.join(dist, f)));
     if (missing.length) throw new Error('Not published: ' + missing.join(', ') + ' missing from ' + dist + ' (build first, without --notes-only)');   // never a release without its signature: no install would take it
     console.log('\nCreating release', VERSION, 'on', REPO);

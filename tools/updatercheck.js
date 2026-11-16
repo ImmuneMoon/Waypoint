@@ -53,6 +53,7 @@ const REFUSED = /^unsigned update — refused$/;
 const LIST_UNSIGNED = /^the update list is not signed by Waypoint — no update offered$/;   // a list whose signature does not check
 const LIST_BAD = /^the update list could not be read — no update offered$/;               // a signed list with a field that does not clean
 const NOT_OURS = /^that address is not Waypoint's update site — refused$/;                // an address, or a redirect, off the two hosts
+const NOT_LISTED = /^the download is not the file the update list names — refused$/;   // an installer whose length or digest is not the signed list's
 const NO_UPDATE = /^(unsigned update — refused|the update list is not signed by Waypoint — no update offered|the update list could not be read — no update offered)$/;
 
 function slice(rel, name) {
@@ -375,13 +376,25 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
 
             // the fields the app reads, each that does not clean
             const zE = { name: 'waypoint-app-1.5.1.zip', url: FILES + '/waypoint/1.5.1/rx/waypoint-app-1.5.1.zip', size: 10, sha256: sha256(zA), sig: sign('waypoint-app-1.5.1.zip', sha256(zA), '1.5.1') };
-            const fieldCases = [{ manifest: { version: undefined } }, { manifest: { version: 151 } }, { manifest: { version: '../1.5.1' } }, { manifest: { minShell: '<b>' } }, { manifest: { minShell: 16 } }, { manifest: { electron: {} } }, { manifest: { electron: '40 0' } },
-                { manifest: { notes: 42 } }, { manifest: { notes: ['a'] } }, { manifest: { notesUrl: 'https://evil.example/notes' } }, { manifest: { notesUrl: 'http://waypointvtt.com/notes' } }, { manifest: { notesUrl: 'https://waypointvtt.com:444/notes' } },
-                { manifest: { notesUrl: 'https://u@waypointvtt.com/notes' } }, { manifest: { notesUrl: 'https://waypointvtt.com.evil.example/notes' } }, { manifest: { notesUrl: 7 } }, { manifest: { files: 'waypoint-app-1.5.1.zip' } }, { manifest: { files: undefined } },
-                { files: [null] }, { files: [{ name: 5 }] }, { files: ['waypoint-app-1.5.1.zip'] }, { files: [zE] }, { zipExtra: { size: 0 } }, { zipExtra: { size: '10' } }, { zipExtra: { url: 42 } }];
+            const fieldCases = [{ manifest: { version: undefined } }, { manifest: { version: 151 } }, { manifest: { version: '../1.5.1' } }, { manifest: { minShell: '<b>' } }, { manifest: { minShell: 16 } },
+                { manifest: { files: 'waypoint-app-1.5.1.zip' } }, { manifest: { files: undefined } }, { files: [zE] }, { zipExtra: { size: 0 } }, { zipExtra: { size: '10' } }, { zipExtra: { url: 42 } }];
             const fieldRs = []; for (const c of fieldCases) fieldRs.push(await listTry(c));
-            check('a signed manifest with a field the app reads that does not clean offers no update at all ("could not be read") and nothing is fetched: no version, a version that is a number or a path, a minShell or electron that is no plain version, notes that are not text, a notes page that is not on the site itself (another host, http, a port, a user name, a look-alike host, a number), a file list that is no list, an entry that is no object or has no name, the zip listed twice, a size of 0 or in words, an address that is no text',
+            check('a signed manifest with a field that decides what is fetched or whether it is taken that does not clean offers no update at all ("could not be read") and nothing is fetched: no version, a version that is a number or a path, a minShell that is no plain version, a file list that is no list, the zip listed twice, a size of 0 or in words, an address that is no text',
                 fieldRs.every(r => none(r, LIST_BAD)), whyL(fieldRs));
+            // a field that is only shown, and an entry that names no file, never stop an update (review of 2026-11-16: a slip in words must not stop every install)
+            const softCases = [{ manifest: { electron: {} } }, { manifest: { electron: '40 0' } }, { manifest: { notes: 42 } }, { manifest: { notes: ['a'] } }, { manifest: { notesUrl: 'https://evil.example/notes' } }, { manifest: { notesUrl: 'http://waypointvtt.com/notes' } },
+                { manifest: { notesUrl: 'https://waypointvtt.com:444/notes' } }, { manifest: { notesUrl: 'https://u@waypointvtt.com/notes' } }, { manifest: { notesUrl: 'https://waypointvtt.com.evil.example/notes' } }, { manifest: { notesUrl: 7 } },
+                { manifest: { notesUrl: 'https://www.waypointvtt.com/notes' } }, { manifest: { notesUrl: 'https://waypointvtt.com/api/open-external' } }, { manifest: { notesUrl: 'https://waypointvtt.com/API' } }, { manifest: { notesUrl: 'https://waypointvtt.com/go?to=https://evil.example/' } },
+                { files: [null] }, { files: [{ name: 5 }] }, { files: ['waypoint-app-1.5.1.zip'] }, { files: [{ kind: 'sbom' }, [], 7] }];
+            const softRs = []; for (const c of softCases) softRs.push(await listTry(c));
+            const softZ = []; for (const c of [{ manifest: { notesUrl: 'https://www.waypointvtt.com/notes' } }, { files: [{ kind: 'sbom' }] }]) softZ.push(await attempt(Object.assign({ tag: '1.5.1' }, c)));
+            check('a field that is only shown that does not clean is dropped and the update stands: an electron that is no plain version, notes that are not text, a notes page that is not a page of the site itself (another host, www, http, a port, a user name, a look-alike host, a number, a page under /api/ in any case, a page with a query) falls back on the site\'s front page; an entry of the file list that names no file (nothing, no name, a name that is no text, a word, a list) is passed over; the zip is still offered and applied',
+                softRs.every(offered) && softRs.slice(2, 4).every(r => r.info && r.info.notes === '')
+                && softRs.slice(4, 14).every(r => r.info && r.info.page === 'https://waypointvtt.com/') && softZ.every(r => !r.err && r.res && r.res.ok === true && verOf(r.inst.app) === '1.5.1'), whyL(softRs).concat(why(softZ)));
+            const sigBad = await listTry({ installer: true, key: K2.privateKey }), sigZipOnly = await listTry({ installer: true, setup: { key: K2.privateKey } });
+            check('each file\'s own signature is checked when the list is read, before anything is offered: a zip and an installer signed with another key are taken as not listed (nothing offered that a press would only see refused, nothing fetched); a zip signed rightly beside an installer signed with another key is offered, the installer not',
+                !sigBad.err && sigBad.info.canHotUpdate === false && sigBad.info.appZip === null && sigBad.info.installer === null && sigBad.info.canSelfInstall === false && sigBad.zipHits === 0 && sigBad.setupHits === 0
+                && offered(sigZipOnly) && sigZipOnly.info.installer === null && sigZipOnly.info.installerSig === null && sigZipOnly.info.installerSha256 === null, whyL([sigBad, sigZipOnly]));
 
             // a file's address: on the download host, under /waypoint/<version>/, ending in its own name, and nothing else
             const o0 = otherHits.length, zn = 'waypoint-app-1.5.1.zip';
@@ -552,8 +565,8 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             }), 90000, method + ' ' + p);
             const c0 = await call('GET', '/api/update-check?force=1');
             const a0 = await call('POST', '/api/update-apply', JSON.stringify({ pubKey: PUB2, sig: 'x', sha256: 'x', appZip: 'x' }));
-            check('the apply route refuses a release signed with another key (500, "unsigned update — refused") whatever the request\'s body says — the page cannot hand the shell a key — and the install is untouched',
-                c0.code === 200 && c0.json.canHotUpdate === true && c0.json.hasPrev === false && c0.json.prevVersion === null && c0.json.current === '1.5.0' && a0.code === 500 && a0.json.ok === false && REFUSED.test(String(a0.json.error)) && tree(inst.app) === appBefore && !fs.existsSync(path.join(inst.sys, 'app.prev')), j([c0.json, a0]));
+            check('a release whose zip is signed with another key offers no one-click update (the check sees the zip\'s signature fail and names no zip), and the apply route refuses it (500) whatever the request\'s body says — the page cannot hand the shell a key — and the install is untouched',
+                c0.code === 200 && c0.json.canHotUpdate === false && c0.json.appZip === null && c0.json.sig === null && c0.json.hasPrev === false && c0.json.prevVersion === null && c0.json.current === '1.5.0' && a0.code === 500 && a0.json.ok === false && /needs the installer/.test(String(a0.json.error)) && tree(inst.app) === appBefore && !fs.existsSync(path.join(inst.sys, 'app.prev')), j([c0.json, a0]));
             cfg.apiUrl = signedApi;
             const a1 = await call('POST', '/api/update-apply'), c1 = await call('GET', '/api/update-check');
             check('the apply route takes the signed release; the check then reports the new version as current, nothing newer, and a previous version to go back to (hasPrev, prevVersion)',
@@ -588,7 +601,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             let info = null, res = null, err = null, verified = 0;
             try {
                 info = await within(updater.checkForUpdate({ currentVersion: '1.5.0', shellVersion: '1.5.0', apiUrl: api, selfInstall: true, pubKey: PUB }), 60000, 'check');
-                const opts = { url: info.installer, sig: info.installerSig, version: 'version' in o ? o.version : info.latest, dir, apiUrl: api, onProgress: (g, t) => prog.push([g, t]), onVerify: () => { verified++; } };
+                const opts = { url: info.installer, sig: info.installerSig, sha256: 'sha256' in o ? o.sha256 : info.installerSha256, size: 'size' in o ? o.size : info.installerSize, version: 'version' in o ? o.version : info.latest, dir, apiUrl: api, onProgress: (g, t) => prog.push([g, t]), onVerify: () => { verified++; } };
                 if (!o.noKeyOpt) opts.pubKey = 'pubKey' in o ? o.pubKey : PUB;
                 if (o.maxBytes) opts.maxBytes = o.maxBytes;
                 res = await within(dl(opts), 120000, 'download');
@@ -619,7 +632,15 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             const otherVer = await fetchSetup({ tag: '1.5.2', setup: { sigText: sign(SETUP_NAME, sha256(SETUP), '1.5.1') + NL } });
             const changedBytes = Buffer.concat([SETUP, Buffer.from('one more byte')]);
             const altered = await fetchSetup({ setup: { served: changedBytes } });
-            check('an installer whose signature is over another version (a signed older installer offered as a newer release), or whose bytes changed after it was signed, is refused with nothing left', nothing(otherVer) && nothing(altered) && altered.asked === 1, whyD([otherVer, altered]));
+            const flipped = Buffer.from(SETUP); flipped[100] ^= 1;
+            const sameLen = await fetchSetup({ setup: { served: flipped } });
+            check('an installer whose signature is over another version (a signed older installer offered as a newer release) is not offered; one whose bytes changed after it was signed is refused, longer than the list says at once from its stated length, the same length by its digest once it arrived ("not the file the update list names"); each with nothing left',
+                nothing(otherVer) && otherVer.asked === 0 && nothing(altered, NOT_LISTED) && altered.asked === 1 && nothing(sameLen, NOT_LISTED) && sameLen.asked === 1 && sameLen.verified === 1, whyD([otherVer, altered, sameLen]));
+            // the listed digest and length: downloadInstaller is never handed none, and the signature must vouch for the digest before anything is fetched
+            const noDig = await fetchSetup({ setup: {} }, { sha256: undefined }), badDig = await fetchSetup({ setup: {} }, { sha256: sha256(Buffer.from('another')) }), noLen = await fetchSetup({ setup: {} }, { size: undefined }), zeroLen = await fetchSetup({ setup: {} }, { size: 0 }), strLen = await fetchSetup({ setup: {} }, { size: String(SETUP.length) });
+            const shortLen = await fetchSetup({ setup: {} }, { size: SETUP.length - 1 }), longLen = await fetchSetup({ setup: {} }, { size: SETUP.length + 1 });
+            check('downloadInstaller takes the listed digest and length: none, a digest the signature does not vouch for, no length, a length of 0 or in words are refused ("unsigned update — refused") before anything is fetched; a length one byte short or long of the file is refused ("not the file the update list names") from the stated length, before a byte is read; nothing is left',
+                [noDig, badDig, noLen, zeroLen, strLen].every(r => nothing(r, REFUSED) && r.asked === 0) && [shortLen, longLen].every(r => nothing(r, NOT_LISTED) && r.asked === 1 && r.verified === 0), whyD([noDig, badDig, noLen, zeroLen, strLen, shortLen, longLen]));
             const badSig = []; for (const s of ['', 'words', Buffer.alloc(1 << 20, 65), sha256(SETUP)]) badSig.push(await fetchSetup({ setup: { sigText: s } }));
             check('an installer signature in the manifest that could not be a signature (empty, words, a megabyte of filler, a hex digest) offers no update before the installer is asked for at all: nothing downloaded, nothing left',
                 badSig.every(r => !!r.err && !r.res && r.left.length === 0 && r.asked === 0) && nothing(badSig[0], LIST_BAD) && nothing(badSig[1], LIST_BAD) && nothing(badSig[3], LIST_BAD), whyD(badSig));
@@ -637,11 +658,15 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             try {
                 big = await fetchSetup({ setup: { served: (req, res) => { res.on('error', () => {}); res.writeHead(200, { 'Content-Length': 700 * 1024 * 1024 }); const c = Buffer.alloc(65536); const t = setInterval(() => { if (res.destroyed || bodySent > 64) { clearInterval(t); return; } bodySent++; res.write(c); }, 5); t.unref(); res.on('close', () => clearInterval(t)); } } });
             } finally { fs.createWriteStream = realCWS; }
-            check('an installer whose stated length is past the cap (600 MB) is refused before a byte of it is read: "download too large", no file ever opened, nothing left', nothing(big, /^download too large$/) && opened === 0, j([big && big.err, opened, bodySent]));
+            const pastCap = await fetchSetup({ setup: { size: 700 * 1024 * 1024 } });
+            check('an installer whose stated length is not the one the list names (here 700 MB) is refused before a byte of it is read ("not the file the update list names"), no file ever opened, nothing left; a list that names an installer past the cap (600 MB) is refused before it is asked for at all ("download too large")',
+                nothing(big, NOT_LISTED) && opened === 0 && nothing(pastCap, /^download too large$/) && pastCap.asked === 0 && updater.INSTALLER_CAP === 600 * 1024 * 1024, j([big && big.err, opened, bodySent, pastCap.err, pastCap.asked]));
             const stream = (n, o) => (req, res) => { res.on('error', () => {}); res.writeHead(200, o && o.len ? { 'Content-Length': o.len } : {}); let sent = 0, open = true; res.on('close', () => { open = false; }); const c = Buffer.alloc(16384, 7); const pump = () => { while (open && sent < n) { sent++; if (!res.write(c)) { res.once('drain', pump); return; } } if (!open) return; if (o && o.cut) res.destroy(); else res.end(); }; pump(); };
             const past = await fetchSetup({ setup: { served: stream(64) } }, { maxBytes: 100000 });
             const small = await fetchSetup({ setup: {} }, { maxBytes: 1000 });
-            check('bytes that run past the cap stop the download ("download too large") and the part that was written is removed — for a body sent with no stated length, and for a stated length past a smaller cap', nothing(past, /^download too large$/) && nothing(small, /^download too large$/), whyD([past, small]));
+            const pastList = await fetchSetup({ setup: { served: stream(64) } });
+            check('a smaller cap than the listed length refuses before the installer is asked for ("download too large"); bytes sent with no stated length that run past the listed length stop the download ("not the file the update list names") and the part that was written is removed',
+                nothing(past, /^download too large$/) && past.asked === 0 && nothing(small, /^download too large$/) && small.asked === 0 && nothing(pastList, NOT_LISTED) && pastList.asked === 1, whyD([past, small, pastList]));
             let hops = 0;
             const loop = await fetchSetup({ setup: { served: (req, res) => { hops++; res.writeHead(302, { Location: req.url }); res.end(); } } });
             let bounced = 0;
@@ -779,10 +804,13 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                 && sBad.json.state === 'failed' && /changed after it was checked/.test(String(sBad.json.error)) && !fs.existsSync(path.join(tmpDir, dir2)), j([ready2, bad, sBad.json]));
             // a download that fails its check: failed, said, nothing left; then a good one may start again
             cfg.apiUrl = publish({ tag: '1.5.1', noZip: true, setup: { key: K2.privateKey } });
-            const pBad = await call('POST', '/api/update-installer'), failedS = await until(s => s.state === 'failed' || s.state === 'ready', 'failed'), leftover = dirs().filter(n => n !== 'waypoint-update-fresh' && n !== jobDir);
+            const pK2 = await call('POST', '/api/update-installer'), dirsK2 = dirs().filter(n => n !== 'waypoint-update-fresh' && n !== jobDir);
+            const flipped2 = Buffer.from(SETUP); flipped2[7] ^= 1;
+            cfg.apiUrl = publish({ tag: '1.5.1', noZip: true, setup: { served: flipped2 } });
+            const pBad = await call('POST', '/api/update-installer'), failedS = await until(s => (s.state === 'failed' && NOT_LISTED.test(String(s.error))) || s.state === 'ready', 'failed'), leftover = dirs().filter(n => n !== 'waypoint-update-fresh' && n !== jobDir);
             cfg.apiUrl = api2; const pAgain = await call('POST', '/api/update-installer'), again = await until(s => s.state === 'ready' || s.state === 'failed', 'ready a third time');
-            check('an installer that fails its signature check ends as failed, in the updater\'s own words, with its folder removed from the temp directory; a new start is then taken',
-                pBad.code === 200 && failedS.state === 'failed' && REFUSED.test(String(failedS.error)) && leftover.length === 0 && pAgain.code === 200 && again.state === 'ready' && spawned.length === 1, j([failedS, leftover, again]));
+            check('an installer signed with another key is never started (409: the check names no installer, nothing downloaded); one whose bytes changed on the download host ends as failed, in the updater\'s own words, with its folder removed from the temp directory; a new start is then taken',
+                pK2.code === 409 && dirsK2.length === 0 && pBad.code === 200 && failedS.state === 'failed' && NOT_LISTED.test(String(failedS.error)) && leftover.length === 0 && pAgain.code === 200 && again.state === 'ready' && spawned.length === 1, j([pK2, failedS, leftover, again]));
             // a shell with no quit and no data folder (the dev server's): Run still answers, nothing closes, no mark anywhere
             const inst2 = install('1.5.0'), tmp2 = path.join(tmp, 'tmp' + (++seq)); fs.mkdirSync(tmp2); const sp2 = [];
             const h2 = updater.makeHandler({ currentVersion: '1.5.0', shellVersion: '1.5.0', systemDir: inst2.sys, apiUrl: api2, pubKey: PUB });
@@ -836,11 +864,13 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                 && /Compress-Archive -Force -Path '\$\{path\.join\(SYSTEM, 'app', '\*'\)\}'/.test(rel), j([typeof pk, kind, keySrc.length]));
         }
         const node = (script, args, env, cwd) => cp.spawnSync(process.execPath, [script].concat(args || []), { encoding: 'utf8', timeout: 60000, env: env || cleanEnv(), cwd: cwd || tmp });
-        function cleanEnv(extra) { const e = Object.assign({}, process.env); delete e.WAYPOINT_SIGNING_KEY; delete e.WAYPOINT_SIGNTOOL; delete e.GITHUB_TOKEN; return Object.assign(e, extra || {}); }
+        function cleanEnv(extra) { const e = Object.assign({}, process.env); for (const k of ['WAYPOINT_SIGNING_KEY', 'WAYPOINT_SIGNTOOL', 'GITHUB_TOKEN', 'WEBSITE_DISPATCH_TOKEN', 'WAYPOINT_R2_ENDPOINT', 'WAYPOINT_R2_BUCKET', 'WAYPOINT_R2_KEY_ID', 'WAYPOINT_R2_SECRET']) delete e[k]; return Object.assign(e, extra || {}); }
+        // the same as node(), without blocking this process: for a run that talks to a server of the suite's own (the bucket's stand-in)
+        const nodeAsync = (script, args, env) => new Promise(resolve => { const c = cp.spawn(process.execPath, [script].concat(args || []), { env: env || cleanEnv(), cwd: tmp }); let out = '', err = ''; c.stdout.on('data', d => { out += d; }); c.stderr.on('data', d => { err += d; }); const t = setTimeout(() => c.kill(), 120000); c.on('close', code => { clearTimeout(t); resolve({ status: code, stdout: out, stderr: err }); }); });
         // a scratch copy of the repository's own tools and shell files: the tools take their root from where they lie
         function scratchRepo(pubPem) {
             const r = path.join(tmp, 'repo' + (++seq));
-            for (const f of ['tools/release.js', 'tools/signkey.js', 'tools/shellrev.js', 'installer.iss', 'system/resources/app/updater.js', 'system/resources/app/package.json', 'system/resources/app/main.js']) {
+            for (const f of ['tools/release.js', 'tools/signkey.js', 'tools/shellrev.js', 'tools/sitepub.js', 'installer.iss', 'system/resources/app/updater.js', 'system/resources/app/package.json', 'system/resources/app/main.js']) {
                 fs.mkdirSync(path.dirname(path.join(r, f)), { recursive: true }); if (has(f)) fs.copyFileSync(path.join(ROOT, f), path.join(r, f));
             }
             fs.writeFileSync(path.join(r, 'system/resources/app/updatekey.js'), signkey ? signkey.keyFileText(pubPem || '') : "module.exports = { UPDATE_PUBKEY: '' };" + NL);
@@ -851,6 +881,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             fs.writeFileSync(path.join(r, 'Waypoint.exe'), 'MZ'); fs.writeFileSync(path.join(r, 'license.txt'), 'the license' + NL);   // the rest of what the installer's stage takes from the top
             return r;
         }
+        const scratchRepoWith = pubPem => { const r = scratchRepo(pubPem); fs.writeFileSync(path.join(r, 'tools', 'tutorialcheck.js'), "'use strict';" + NL); return r; };
         const keyOf = r => { try { delete require.cache[require.resolve(path.join(r, 'system/resources/app/updatekey.js'))]; return require(path.join(r, 'system/resources/app/updatekey.js')).UPDATE_PUBKEY; } catch (e) { return null; } };
         const pemOf = p => { try { return crypto.createPrivateKey(fs.readFileSync(p, 'utf8')); } catch (e) { return null; } };
         const pairs = (priv, pubPem) => { try { return crypto.createPublicKey(priv).export({ type: 'spki', format: 'der' }).equals(crypto.createPublicKey(pubPem).export({ type: 'spki', format: 'der' })); } catch (e) { return false; } };
@@ -921,7 +952,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                 const sk = require(path.join(repo, 'tools', 'signkey.js'));
                 rk = sk.releaseKey(priv2, repo); rkBad = [sk.releaseKey(undefined, repo), sk.releaseKey('', repo), sk.releaseKey(priv, repo), sk.releaseKey(foreign, repo)];
                 const z = appZip('1.5.1'); sig = sk.signZip('waypoint-app-1.5.1.zip', sha256(z), '1.5.1', rk.key);
-                applied = await attempt({ tag: '1.5.1', zip: z, sigText: sig + NL, pubKey: pub2 });
+                applied = await attempt({ tag: '1.5.1', zip: z, sigText: sig + NL, pubKey: pub2, checkKey: pub2, listKey: rk.key });   // the list signed with the same key, as the build signs it: the check reads each file's signature too
             } catch (e) { applied = { err: String(e && e.message || e) }; }
             check('the release build\'s own key check and signing step: the committed key\'s private half is taken, every other answer says why; the signature it makes over a zip is one the updater takes with the committed public key — a release built this way applies',
                 !!rk && rk.ok === true && !!rkBad && rkBad.every(r => r && r.ok === false && typeof r.why === 'string' && r.why.length > 0) && typeof sig === 'string' && /^[A-Za-z0-9+/]{86}==$/.test(sig) && updater.verifyUpdate(pub2, 'waypoint-app-1.5.1.zip', sha256(appZip('1.5.1')), '1.5.1', sig) === true
@@ -968,7 +999,18 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                 fs.writeFileSync(isccJs, ["'use strict';", "const fs = require('fs'), path = require('path'), crypto = require('crypto');", "const iss = process.argv[2], dir = path.dirname(iss), files = {};",
                     "const walk = rel => { for (const n of fs.readdirSync(rel ? path.join(dir, rel) : dir)) { const r = rel ? rel + '/' + n : n, p = path.join(dir, r), st = fs.lstatSync(p); if (st.isSymbolicLink()) files[r] = 'link'; else if (st.isDirectory()) { files[r + '/'] = 'folder'; walk(r); } else files[r] = crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex'); } };",
                     "walk('');", "fs.writeFileSync(process.env.WP_ISCC_LOG, JSON.stringify({ args: process.argv.slice(2), files: files }));", "fs.writeFileSync(path.join(dir, 'Waypoint_Setup.exe'), 'an installer the stand-in made');"].join(NL) + NL);
-                fs.writeFileSync(psJs, ["'use strict';", "const m = /-DestinationPath '([^']+)'/.exec(process.argv.slice(2).join(' '));", "require('fs').writeFileSync(m[1], 'PK an archive the stand-in made');"].join(NL) + NL);
+                fs.writeFileSync(psJs, ["'use strict';", "const fs = require('fs'), path = require('path'), a = process.argv.slice(2).join(' ');",
+                    "const dest = /-DestinationPath '([^']+)'/.exec(a)[1], src = /-Path '([^']+)'/.exec(a)[1].replace(/[\\\\/]\\*$/, '');",
+                    "const T = new Int32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); T[n] = c; }",
+                    "const crc = b => { let c = -1; for (let i = 0; i < b.length; i++) c = T[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ -1) >>> 0; };",
+                    "const files = []; const walk = rel => { for (const n of fs.readdirSync(rel ? path.join(src, rel) : src).sort()) { const r = rel ? rel + '/' + n : n; if (fs.statSync(path.join(src, r)).isDirectory()) walk(r); else files.push(r); } }; walk('');",
+                    "const loc = [], cen = []; let off = 0;",
+                    "for (const r of files) { const name = Buffer.from(r), d = fs.readFileSync(path.join(src, r)), c = crc(d);",
+                    "  const lh = Buffer.alloc(30); lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt32LE(c, 14); lh.writeUInt32LE(d.length, 18); lh.writeUInt32LE(d.length, 22); lh.writeUInt16LE(name.length, 26);",
+                    "  const ch = Buffer.alloc(46); ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 4); ch.writeUInt16LE(20, 6); ch.writeUInt32LE(c, 16); ch.writeUInt32LE(d.length, 20); ch.writeUInt32LE(d.length, 24); ch.writeUInt16LE(name.length, 28); ch.writeUInt32LE(off, 42);",
+                    "  loc.push(lh, name, d); cen.push(ch, name); off += 30 + name.length + d.length; }",
+                    "const cd = Buffer.concat(cen), end = Buffer.alloc(22); end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(files.length, 8); end.writeUInt16LE(files.length, 10); end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(off, 16);",
+                    "fs.writeFileSync(dest, Buffer.concat(loc.concat([cd, end])));"].join(NL) + NL);
                 const exe = (name, js) => { const p = path.join(stub, name + (win ? '.cmd' : '')); fs.writeFileSync(p, win ? '@"' + process.execPath + '" "' + js + '" %*\r\n' : '#!/bin/sh\nexec "' + process.execPath + '" "' + js + '" "$@"\n'); if (!win) fs.chmodSync(p, 0o755); return p; };
                 const iscc = exe('iscc', isccJs); exe('powershell', psJs);
                 const envOf = () => { const e = cleanEnv({ WAYPOINT_SIGNING_KEY: priv2, ISCC: iscc, WP_ISCC_LOG: log }), pk = Object.keys(e).find(k => k.toUpperCase() === 'PATH') || 'PATH'; e[pk] = stub + path.delimiter + (e[pk] || ''); return e; };
@@ -994,7 +1036,107 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     j([ran.status, said.slice(-400), got && got.args, got && Object.keys(got.files).filter(k => !(k in want)), Object.keys(want).filter(k => !got || !(k in got.files))]));
                 check('the installer is taken out of the stage: the copy in dist/<version>/ is the one Inno Setup made there, its signature (Waypoint_Setup.exe.sig) checks against the key as an install will check it, the stage is removed once it is out, nothing is written at the top of the tree (an old installer there stays as it was), and dist/<version>/ holds what a release carries and its notes, nothing else',
                     ran.status === 0 && setupBytes.toString('utf8') === 'an installer the stand-in made' && updater.verifyUpdate(pub2, 'Waypoint_Setup.exe', sha256(setupBytes), vNow, setupSig) === true && !fs.existsSync(path.join(dist, 'stage'))
-                    && fs.readFileSync(path.join(sr, 'Waypoint_Setup.exe'), 'utf8') === 'an old installer' && j(distList) === j(['RELEASE_NOTES.md', 'Waypoint_Setup.exe', 'Waypoint_Setup.exe.sig', zipN, zipN + '.sha256', zipN + '.sig', 'manifest.json'].sort()) && /Copying what an install needs into /.test(said), j([ran.status, distList, setupSig.length]));
+                    && fs.readFileSync(path.join(sr, 'Waypoint_Setup.exe'), 'utf8') === 'an old installer' && j(distList) === j(['RELEASE_NOTES.md', 'Waypoint_Setup.exe', 'Waypoint_Setup.exe.sig', zipN, zipN + '.sha256', zipN + '.sig', 'manifest.json', 'envelope.json'].sort()) && /Copying what an install needs into /.test(said), j([ran.status, distList, setupSig.length]));
+                /* ---- the site's list as release.js really writes it (1.6.4; the review of 2026-11-16: nothing may let the writer drift from what
+                   an install takes). dist/<version>/envelope.json, made by the run above, is served by the mock site as it is, and read by the
+                   shell's own checkForUpdate with no address of the suite's own for the files: the list names the real download host, as an
+                   install reads it. The zip and the installer the run made are then fetched from the mock's download host under the same names,
+                   with the digests and signatures the check gave, and applied and downloaded by the shell's own code. ---- */
+                {
+                    let envText = ''; try { envText = fs.readFileSync(path.join(dist, 'envelope.json'), 'utf8'); } catch (e) { envText = ''; }
+                    const zipBytes = fs.existsSync(path.join(dist, zipN)) ? fs.readFileSync(path.join(dist, zipN)) : Buffer.alloc(0);
+                    const rid = 'r' + (++seq); releases[rid] = { files: { [zipN]: zipBytes, [SETUP_NAME]: setupBytes }, hits: {}, envelope: envText };
+                    const realApi = API + '/api/updates/' + rid + '/latest', at = n => FILES + '/waypoint/' + vNow + '/' + rid + '/' + n, DLH = 'https://downloads.waypointvtt.com/waypoint/' + vNow + '/';
+                    let env = null, man = null; try { env = JSON.parse(envText); man = JSON.parse(env.manifest); } catch (e) { env = null; }
+                    let info = null, infoErr = null; try { info = await within(realUpdater.checkForUpdate({ currentVersion: '0.0.1', shellVersion: vNow, apiUrl: realApi, pubKey: pub2 }), 60000, 'check'); } catch (e) { infoErr = String(e && e.message || e); }
+                    const sp = require(path.join(sr, 'tools', 'sitepub.js'));
+                    check('release.js writes the site\'s signed list (dist/<version>/envelope.json): { manifest: <text>, sig } signed over "waypoint-manifest" and the text with the build\'s key, the manifest\'s keys in their order (version, minShell, electron, published, notes, files), the notes the top of WHATSNEW.txt as plain text, and the zip and the installer each by its exact name at downloads.<the site>/waypoint/<version>/<name>, with its whole size, lower-case digest and own signature, the very files on disk',
+                        !!env && j(Object.keys(env)) === j(['manifest', 'sig']) && updater.verifyManifest(pub2, env.manifest, env.sig) === true && !!man && j(Object.keys(man)) === j(['version', 'minShell', 'electron', 'published', 'notes', 'files'])
+                        && man.version === vNow && man.notes === '- x' && j(man.files.map(x => x.name)) === j([zipN, SETUP_NAME]) && j(man.files.map(x => x.url)) === j([DLH + zipN, DLH + SETUP_NAME])
+                        && man.files[0].size === zipBytes.length && man.files[0].sha256 === sha256(zipBytes) && man.files[1].size === setupBytes.length && man.files[1].sha256 === sha256(setupBytes)
+                        && man.files.every(x => /^[A-Za-z0-9+/]{86}==$/.test(x.sig)) && man.files[0].sig === fs.readFileSync(path.join(dist, zipN + '.sig'), 'utf8').trim() && man.files[1].sig === setupSig && sp.notesText('WAYPOINT 9.9.9' + NL + '====' + NL + NL + '- y' + NL + NL + 'WAYPOINT 9.9.8' + NL + '====' + NL + '- old') === '- y',
+                        j([env && Object.keys(env), man]));
+                    check('the shell\'s own checkForUpdate takes release.js\'s list as written: signed by the key the shell carries, every field clean, the zip and the installer listed with their signatures checking — a one-click update offered to an older install, the installer named, the notes as written',
+                        !infoErr && !!info && info.latest === vNow && info.newer === true && info.canHotUpdate === true && info.appZip === DLH + zipN && info.installer === DLH + SETUP_NAME && info.sha256 === sha256(zipBytes)
+                        && info.installerSha256 === sha256(setupBytes) && info.installerSize === setupBytes.length && info.notes === '- x' && info.page === 'https://waypointvtt.com/', j([infoErr, info]));
+                    const ri = install('0.0.1'); let applied = null, appliedErr = null;
+                    try { applied = await within(updater.applyAppUpdate({ systemDir: ri.sys, appZip: at(zipN), appZipName: info && info.appZipName, sha256: info && info.sha256, sig: info && info.sig, version: info && info.latest, pubKey: pub2, shellVersion: vNow }), 60000, 'apply'); } catch (e) { appliedErr = String(e && e.message || e); }
+                    const rdir = fs.mkdtempSync(path.join(tmp, 'dl-')); let fetched = null, fetchedErr = null;
+                    try { fetched = await within(updater.downloadInstaller({ url: at(SETUP_NAME), sig: info && info.installerSig, sha256: info && info.installerSha256, size: info && info.installerSize, version: info && info.latest, pubKey: pub2, dir: rdir }), 60000, 'download'); } catch (e) { fetchedErr = String(e && e.message || e); }
+                    check('and the files release.js made are taken by the shell\'s own code with the digests and signatures from its list: the zip applied (the app the release\'s version, as its own version.json says), the installer downloaded and checked byte for byte',
+                        !appliedErr && !!applied && applied.ok === true && verOf(ri.app) === vNow && !fetchedErr && !!fetched && fetched.sha256 === sha256(setupBytes) && fs.readFileSync(fetched.file).equals(setupBytes), j([appliedErr, fetchedErr]));
+                    // the checklist step: the live site asked as an install asks it (here the mock, with the list release.js wrote)
+                    const cs = await sp.checkSite({ version: vNow, apiUrl: realApi, pubKey: pub2 }), csOld = await sp.checkSite({ version: '0.0.1', apiUrl: realApi, pubKey: pub2 });
+                    const csKey = await sp.checkSite({ version: vNow, apiUrl: realApi, pubKey: PUB2 }), csNone = await sp.checkSite({ version: vNow, apiUrl: NOLIST, pubKey: pub2 });
+                    check('node tools/sitepub.js --check (checkSite, run for real against the mock site with release.js\'s own list): yes where the site names this version, signed, with its zip and installer offered to an older install; no, in plain words, where the site names another version, where its list is signed by another key, and where no list can be had',
+                        cs.ok === true && cs.lines.length === 1 && csOld.ok === false && csOld.lines.some(l => /names version .* as the newest, not 0\.0\.1/.test(l)) && csKey.ok === false && /not signed by Waypoint/.test(csKey.lines.join(' ')) && csNone.ok === false && /could not be taken/.test(csNone.lines.join(' ')), j([cs, csOld, csKey, csNone]));
+                    // a writer that drifts is stopped by the very check the build makes (envelopeCheck), never shipped
+                    const wantOf = () => ({ version: vNow, minShell: man.minShell, electron: man.electron, notes: man.notes, notesUrl: null, files: { [zipN]: { size: zipBytes.length, sha256: sha256(zipBytes) }, [SETUP_NAME]: { size: setupBytes.length, sha256: sha256(setupBytes) } } });
+                    const remake = edit => { const m2 = JSON.parse(env.manifest); edit(m2); const t = JSON.stringify(m2); return JSON.stringify({ manifest: t, sig: crypto.sign(null, Buffer.from('waypoint-manifest' + NL + t, 'utf8'), crypto.createPrivateKey(fs.readFileSync(priv2, 'utf8'))).toString('base64') }); };
+                    const drifts = [m2 => { m2.files[0].size = String(m2.files[0].size); }, m2 => { m2.notesUrl = 'https://www.waypointvtt.com/notes'; }, m2 => { m2.files[1].sig = m2.files[1].sig.slice(0, 40) + NL + m2.files[1].sig.slice(40); },
+                        m2 => { m2.files[0].url = 'https://downloads.waypointvtt.com/other/' + zipN; }, m2 => { m2.electron = 'forty-four point five'; }, m2 => { m2.notes = 42; }, m2 => { m2.files[0].sha256 = m2.files[0].sha256.toUpperCase(); m2.files[1].sha256 = 'f'.repeat(64); }, m2 => { m2.version = '9.9.9'; }];
+                    const driftSaid = drifts.map(d => sp.envelopeCheck(remake(d), pub2, 'https://waypointvtt.com', wantOf()));
+                    check('the build\'s own check of its list (sitepub.envelopeCheck) passes the list as written and stops every drift from what an install takes as written: a size in words, a notes page an install would drop, a signature with a line break in it, a file off /waypoint/<version>/, an electron or notes an install would drop, a digest that is not the file on disk, another version',
+                        sp.envelopeCheck(envText, pub2, 'https://waypointvtt.com', wantOf()) === null && driftSaid.every(x => typeof x === 'string' && x.length > 10), j(driftSaid));
+                }
+                // the upload to the site: a refusal before the build writes anything where the bucket is not named
+                {
+                    const nr = scratchRepo(pub2), nB = { readme: fs.readFileSync(path.join(nr, 'README.md'), 'utf8') }, nRun = node(path.join(nr, 'tools', 'release.js'), ['--publish-site'], envOf()), nSaid = String(nRun.stdout) + String(nRun.stderr);
+                    const half = node(path.join(nr, 'tools', 'release.js'), ['--publish-site'], Object.assign(envOf(), { WAYPOINT_R2_ENDPOINT: 'https://acct.r2.cloudflarestorage.com', WAYPOINT_R2_BUCKET: 'waypoint-test' })), halfSaid = String(half.stdout) + String(half.stderr);
+                    const plain = node(path.join(nr, 'tools', 'release.js'), ['--publish-site'], Object.assign(envOf(), { WAYPOINT_R2_ENDPOINT: 'http://example.com', WAYPOINT_R2_BUCKET: 'waypoint-test', WAYPOINT_R2_KEY_ID: 'k', WAYPOINT_R2_SECRET: 's' })), plainSaid = String(plain.stdout) + String(plain.stderr);
+                    const both = node(path.join(nr, 'tools', 'release.js'), ['--publish-site', '--publish'], Object.assign(envOf(), { WAYPOINT_R2_ENDPOINT: 'https://acct.r2.cloudflarestorage.com', WAYPOINT_R2_BUCKET: 'waypoint-test', WAYPOINT_R2_KEY_ID: 'k', WAYPOINT_R2_SECRET: 's' })), bothSaid = String(both.stdout) + String(both.stderr);
+                    check('release.js --publish-site refuses before the first thing the build writes (exit 1, no dist folder, the README as it was) while the bucket is not named, half named (the key and secret missing, each said), named by an address that is not https, or, with --publish too, while GITHUB_TOKEN is not set',
+                        [nRun, half, plain, both].every(r => r.status === 1) && /WAYPOINT_R2_ENDPOINT, WAYPOINT_R2_BUCKET, WAYPOINT_R2_KEY_ID, WAYPOINT_R2_SECRET are not set/.test(nSaid) && /WAYPOINT_R2_KEY_ID, WAYPOINT_R2_SECRET are not set/.test(halfSaid)
+                        && /WAYPOINT_R2_ENDPOINT is not an https address/.test(plainSaid) && /GITHUB_TOKEN is not set/.test(bothSaid) && !fs.existsSync(path.join(nr, 'dist')) && fs.readFileSync(path.join(nr, 'README.md'), 'utf8') === nB.readme, j([nRun.status, nSaid.slice(0, 200), halfSaid.slice(0, 200), plainSaid.slice(0, 200), bothSaid.slice(0, 200)]));
+                }
+                // and run to its end against a stand-in for the bucket (Cloudflare R2's S3 API on loopback): every request signed (AWS Signature
+                // Version 4, checked here with the token's secret over what arrived), the files first, the list last and only once
+                {
+                    const store = {}, reqs = [], SECRET = 'the bucket token secret ' + crypto.randomBytes(8).toString('hex'), KEYID = 'test-key-id', BUCKET = 'waypoint-test';
+                    const s3 = http.createServer((req, res) => {
+                        const bufs = []; req.on('data', b => bufs.push(b)); req.on('end', () => {
+                            const body = Buffer.concat(bufs), auth = String(req.headers.authorization || ''), m = /^AWS4-HMAC-SHA256 Credential=([^/]+)\/(\d{8})\/auto\/s3\/aws4_request, SignedHeaders=([a-z0-9;-]+), Signature=([0-9a-f]{64})$/.exec(auth);
+                            let signedOk = false;
+                            if (m) { const hs = {}; for (const n of m[3].split(';')) hs[n] = req.headers[n]; const want = sitepubOf().s3Auth({ method: req.method, host: req.headers.host, path: req.url, query: '', headers: hs, payloadHash: sha256(body), keyId: KEYID, secret: SECRET, region: 'auto', amzDate: req.headers['x-amz-date'] }); signedOk = want === auth && m[1] === KEYID && req.headers['x-amz-content-sha256'] === sha256(body) && /host/.test(m[3]); }
+                            reqs.push({ method: req.method, url: req.url, signedOk, inm: req.headers['if-none-match'] || null, cc: req.headers['cache-control'] || null, type: req.headers['content-type'] || null, sha: sha256(body) });
+                            if (!signedOk) { res.writeHead(403); return res.end('<Error>SignatureDoesNotMatch</Error>'); }
+                            const key = decodeURIComponent(req.url.replace('/' + BUCKET + '/', ''));
+                            if (req.method === 'HEAD') { res.writeHead(store[key] ? 200 : 404); return res.end(); }
+                            if (req.method === 'PUT') { if (req.headers['if-none-match'] === '*' && store[key]) { res.writeHead(412); return res.end(); } store[key] = body; res.writeHead(200); return res.end(); }
+                            res.writeHead(405); res.end();
+                        });
+                    });
+                    const sitepubOf = () => require(path.join(ROOT, 'tools', 'sitepub.js'));
+                    await new Promise(r => s3.listen(0, '127.0.0.1', r));
+                    const r2env = () => Object.assign(envOf(), { WAYPOINT_R2_ENDPOINT: 'http://127.0.0.1:' + s3.address().port, WAYPOINT_R2_BUCKET: BUCKET, WAYPOINT_R2_KEY_ID: KEYID, WAYPOINT_R2_SECRET: SECRET });
+                    const pr = scratchRepo(pub2); fs.writeFileSync(path.join(pr, 'tools', 'tutorialcheck.js'), "'use strict';" + NL);
+                    const up = await nodeAsync(path.join(pr, 'tools', 'release.js'), ['--publish-site'], r2env()), upSaid = String(up.stdout) + String(up.stderr), pd = path.join(pr, 'dist', vNow);
+                    const base = 'waypoint/' + vNow + '/', fileOf = n => { try { return fs.readFileSync(path.join(pd, n)); } catch (e) { return Buffer.alloc(0); } };
+                    const order = reqs.map(r => r.method + ' ' + decodeURIComponent(r.url));
+                    check('release.js --publish-site, run to its end against a stand-in for the bucket: one HEAD of the version\'s list (not there yet), then the zip and the installer, then the list last with If-None-Match: *, every request signed with the token (Signature Version 4, path-style, region auto, the body\'s digest named), each body byte for byte the file in dist/<version>/, every file kept immutable; and the secret is never printed',
+                        up.status === 0 && j(order) === j(['HEAD /' + BUCKET + '/' + base + 'envelope.json', 'PUT /' + BUCKET + '/' + base + zipN, 'PUT /' + BUCKET + '/' + base + SETUP_NAME, 'PUT /' + BUCKET + '/' + base + 'envelope.json'])
+                        && reqs.every(r => r.signedOk) && reqs[3].inm === '*' && reqs[1].inm === null && reqs.slice(1).every(r => r.cc === 'public, max-age=31536000, immutable') && reqs[1].type === 'application/zip' && reqs[3].type === 'application/json'
+                        && [zipN, SETUP_NAME, 'envelope.json'].every(n => !!store[base + n] && store[base + n].equals(fileOf(n)) && fileOf(n).length > 0) && upSaid.indexOf(SECRET) < 0 && /sitepub\.js --check/.test(upSaid), j([up.status, upSaid.slice(-500), order, reqs.map(r => r.signedOk)]));
+                    // a second run of the same version: the list is already there, so nothing is put; and a run whose token's secret is wrong puts nothing
+                    const n0 = reqs.length, again = await nodeAsync(path.join(pr, 'tools', 'release.js'), ['--publish-site'], r2env()), againSaid = String(again.stdout) + String(again.stderr), puts = reqs.slice(n0).filter(r => r.method === 'PUT').length;
+                    const n1 = reqs.length, wrong = await nodeAsync(path.join(scratchRepoWith(pub2), 'tools', 'release.js'), ['--publish-site'], Object.assign(r2env(), { WAYPOINT_R2_SECRET: 'not the secret' })), wrongSaid = String(wrong.stdout) + String(wrong.stderr), wrongPuts = reqs.slice(n1).filter(r => r.method === 'PUT' && r.signedOk).length;
+                    check('a version already on the download host is never uploaded again: a second run asks for its list, finds it, puts nothing and says so (exit 1); a token the bucket refuses puts nothing (exit 1, the bucket\'s answer said)',
+                        again.status === 1 && puts === 0 && /already there/.test(againSaid) && wrong.status === 1 && wrongPuts === 0 && /answered 403/.test(wrongSaid), j([again.status, againSaid.slice(-300), puts, wrong.status, wrongSaid.slice(-300)]));
+                    try { if (s3.closeAllConnections) s3.closeAllConnections(); s3.close(); } catch (e) {}
+                }
+                // the signing the upload uses is AWS's own: its published example requests, signed here, give the very signatures AWS gives
+                {
+                    const sp = require(path.join(ROOT, 'tools', 'sitepub.js')), E = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', AK = 'AKIAIOSFODNN7EXAMPLE', SK = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY', H = 'examplebucket.s3.amazonaws.com';
+                    const getSig = sp.s3Auth({ method: 'GET', host: H, path: '/test.txt', query: '', headers: { host: H, range: 'bytes=0-9', 'x-amz-content-sha256': E, 'x-amz-date': '20130524T000000Z' }, payloadHash: E, keyId: AK, secret: SK, region: 'us-east-1', amzDate: '20130524T000000Z' });
+                    const ph = sha256(Buffer.from('Welcome to Amazon S3.')), putSig = sp.s3Auth({ method: 'PUT', host: H, path: '/' + sp.s3Encode('test$file.text'), query: '', headers: { date: 'Fri, 24 May 2013 00:00:00 GMT', host: H, 'x-amz-date': '20130524T000000Z', 'x-amz-storage-class': 'REDUCED_REDUNDANCY', 'x-amz-content-sha256': ph }, payloadHash: ph, keyId: AK, secret: SK, region: 'us-east-1', amzDate: '20130524T000000Z' });
+                    const cfgs = [{}, { WAYPOINT_R2_ENDPOINT: 'https://a.r2.cloudflarestorage.com', WAYPOINT_R2_BUCKET: 'Bad_Bucket', WAYPOINT_R2_KEY_ID: 'k', WAYPOINT_R2_SECRET: 's' }, { WAYPOINT_R2_ENDPOINT: 'https://a.r2.cloudflarestorage.com/path', WAYPOINT_R2_BUCKET: 'b-1', WAYPOINT_R2_KEY_ID: 'k', WAYPOINT_R2_SECRET: 's' },
+                        { WAYPOINT_R2_ENDPOINT: 'http://a.r2.cloudflarestorage.com', WAYPOINT_R2_BUCKET: 'b-1', WAYPOINT_R2_KEY_ID: 'k', WAYPOINT_R2_SECRET: 's' }, { WAYPOINT_R2_ENDPOINT: 'https://u:p@a.r2.cloudflarestorage.com', WAYPOINT_R2_BUCKET: 'b-1', WAYPOINT_R2_KEY_ID: 'k', WAYPOINT_R2_SECRET: 's' }].map(e => sp.r2Config(e));
+                    const good = sp.r2Config({ WAYPOINT_R2_ENDPOINT: ' https://a.r2.cloudflarestorage.com/ ', WAYPOINT_R2_BUCKET: 'waypoint-downloads', WAYPOINT_R2_KEY_ID: 'k', WAYPOINT_R2_SECRET: 's' });
+                    check('the upload\'s signing (sitepub.s3Auth) gives the signatures of AWS\'s own published Signature Version 4 examples for S3 (a GET of a range, a PUT of a file whose name needs encoding); the bucket\'s settings are taken only as an https address of an account, a bucket name and both halves of the token, and anything else is refused in plain words',
+                        getSig === 'AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41'
+                        && /Signature=98ad721746da40c64f1a55b78f14c238d841ea1380cd77a1b5971af0ece108bd$/.test(putSig) && cfgs.every(c => typeof c.why === 'string' && /^Not uploaded to the site: /.test(c.why))
+                        && good.endpoint === 'https://a.r2.cloudflarestorage.com' && good.bucket === 'waypoint-downloads' && !good.why, j([getSig, putSig, cfgs, good]));
+                }
                 // and a file of the list that is missing, or a junction in what would be copied, refuses the build before the first thing it writes
                 const before = r => ({ readme: fs.readFileSync(path.join(r, 'README.md'), 'utf8'), ver: fs.readFileSync(path.join(r, 'system', 'app', 'version.json'), 'utf8') });
                 const asWas = (r, b) => { const n = before(r); return n.readme === b.readme && n.ver === b.ver && !fs.existsSync(path.join(r, 'dist')) && !fs.existsSync(path.join(r, 'Waypoint_Setup.exe')); };
@@ -1223,6 +1365,16 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             check('Settings: a restore the shell refuses is said and the button comes back, with no reload; at a multiplayer table it is not even asked; with nothing to restore the button does nothing; a version that is no plain version never reaches the question or a toast', ok3, d[2]);
             check('Settings: the Update now question names both versions and what will happen, with no size that could go stale (the app download grew when the libraries were bundled), and takes No for an answer — nothing downloads, nothing is said; Yes posts /api/update-apply and reloads', ok4, d[3]);
             check('Settings: a check draws the shell\'s answer, the Restore button with it', ok5, d[4]);
+            {   // a failed check says the shell's own refusal of a list in full (review of 2026-11-16: a tampered list must not read as being offline)
+                const said = err => { try { const r = rig({ appVersion: '1.6.4' }); r.ui('setUpdateState'); r.ui('setUpdateRow'); r.upd.info = { current: '1.6.4', error: err }; r.api.updateUI(); return r.els.setUpdateState.textContent; } catch (e) { return 'threw: ' + e; } };
+                const own = [realUpdater.LIST_UNSIGNED, realUpdater.LIST_BAD, realUpdater.NOT_OURS], net = ['getaddrinfo ENOTFOUND waypointvtt.com', 'HTTP 503 for https://waypointvtt.com/api/updates/latest', 'connect ECONNREFUSED 127.0.0.1:443 and a good deal more words', '<b>x</b>'];
+                const ownSaid = own.map(said), netSaid = net.map(said);
+                let goToast = null; try { const r = rig({ appVersion: '1.6.4' }); r.ui('installerModal'); r.ui('installerGoBtn'); if (r.els.installerGoBtn.handlers.click) r.els.installerGoBtn.handlers.click(); goToast = [r.log.toasts.slice(), r.log.fetches.length, r.els.installerModal.style.display]; } catch (e) { goToast = 'threw: ' + e; }
+                check('Settings: a failed check says the shell\'s own refusal of the list in full (not signed by Waypoint, could not be read, an address off the update site), never "offline?"; a short network error is said as itself and a long one as "offline?"; the words are one plain line',
+                    !!src && own.every((e, n) => ownSaid[n] === 'could not check (' + e + ')') && netSaid[0] === 'could not check (getaddrinfo ENOTFOUND waypointvtt.com)' && netSaid[1] === 'could not check (offline?)' && netSaid[2] === 'could not check (offline?)' && netSaid[3] === 'could not check (b x /b)', j([ownSaid, netSaid]));
+                check('Settings: the installer\'s Continue with no address to open (an older core whose check failed names no page) says in words where the installer comes from, opens nothing and asks the shell nothing, and puts the steps away',
+                    Array.isArray(goToast) && goToast[0].length === 1 && /Waypoint_Setup\.exe from Waypoint's website/.test(goToast[0][0]) && !/https?:/.test(goToast[0][0]) && goToast[1] === 0 && goToast[2] === 'none', j(goToast));
+            }
 
             /* ---- an update that changes the core, in one click (Part D4) ---- */
             const SELF = { current: '1.5.0', latest: '1.5.1', newer: true, canHotUpdate: false, needsInstaller: true, canSelfInstall: true, installerSize: 115343360, installer: 'https://example.invalid/Waypoint_Setup.exe', page: 'https://example.invalid/releases/1.5.1' };

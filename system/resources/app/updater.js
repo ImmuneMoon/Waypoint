@@ -14,9 +14,13 @@
        waypoint-app-<version>.zip       the system/app folder (the whole front end)
        Waypoint_Setup.exe               the full installer (for shell changes / fresh installs)
      with sha256 the hex digest the downloaded bytes must match, and sig the file's own signature as before: Ed25519
-     over the three lines "<file name>", "<sha256 hex>", "<version>", base64 (tools/release.js). Any key the app does
-     not know is passed over; any field it reads that does not clean offers no update at all, said plainly. Until
-     1.6.3 the list was a public GitHub release, with the digest and the signature in files of their own.
+     over the three lines "<file name>", "<sha256 hex>", "<version>", base64 (tools/release.js, its site half in
+     tools/sitepub.js, which reads every list it writes back through this very code before it is uploaded). Any key the
+     app does not know is passed over, and so is a file entry that names no file. A field that decides what is fetched
+     or whether it is taken (version, minShell, the zip's and the installer's address, size, digest and signature) that
+     does not clean offers no update at all, said plainly; a field that is only shown (notes, notesUrl, electron) that
+     does not clean is dropped, so a slip in words never stops every install updating. Until 1.6.3 the list was a
+     public GitHub release, with the digest and the signature in files of their own.
 
    Hot update = check the signature, download the zip, check its digest, unpack into
    system/app.new, swap it in. The Electron shell keeps serving from disk, so a page reload
@@ -67,6 +71,7 @@ const MANIFEST_PREFIX = 'waypoint-manifest\n';   // the words the list's signatu
 const LIST_UNSIGNED = 'the update list is not signed by Waypoint — no update offered';
 const LIST_BAD = 'the update list could not be read — no update offered';
 const NOT_OURS = "that address is not Waypoint's update site — refused";
+const NOT_LISTED = 'the download is not the file the update list names — refused';   // its length or its digest is not the list's
 
 /* The two addresses this shell may fetch from, as origins: { site, siteHost, api, files, apiUrl }. By default they are
    the site and its download host. opts.apiUrl (the list's own address) and opts.filesUrl (an address on the files' host)
@@ -95,6 +100,16 @@ function updateUrlOk(u, h) {
     if (h.api && u.origin === h.api && u.pathname.indexOf('/api/updates/') === 0) return true;
     if (h.files && u.origin === h.files && u.pathname.indexOf('/waypoint/') === 0) return true;
     return false;
+}
+/* May a release's notes page be this address? A page of the site itself over https, with no port, user name, password or
+   query, and never under /api/ (in any letter case): the same rule shellguard.releaseLink holds a page of the site to, so the
+   page a check names is always one the walk-through may open. A fragment is a place on the page and is kept. Answers the
+   address as the URL parser made it, or null. */
+function sitePage(s, h) {
+    let u = null; try { u = typeof s === 'string' && s.length <= 2000 ? new URL(s) : null; } catch (e) { u = null; }
+    if (!u || u.protocol !== 'https:' || u.hostname !== h.siteHost || u.port || u.username || u.password || u.search) return null;
+    if (/^\/api(\/|$)/i.test(u.pathname)) return null;
+    return u.href;
 }
 
 /* The words a release signs, and the check of a signature over them. Ed25519 only; anything that is not a 64-byte
@@ -160,8 +175,11 @@ function fetchBuffer(url, headers, redirects, max, ok) {
    fetchBuffer: at most 5 redirects, an idle socket times out, only a 200 is taken. The cap is 600 MB unless a smaller one is
    given: a stated length past it is refused before a byte is read, and bytes that run past it stop the download. The file is
    made only once the answer is taken, must not exist yet, and is removed again on any failure.
-   o: { max, redirects, onProgress(got, total|null), ok }. ok, where given, judges the first address and every redirect
-   as fetchBuffer's does: one that fails it makes no file. Resolves { sha256, size }: the digest of exactly what was written. */
+   o: { max, redirects, onProgress(got, total|null), ok, exact }. ok, where given, judges the first address and every redirect
+   as fetchBuffer's does: one that fails it makes no file. exact, where given, is the one length the file may have (the
+   installer's size as the signed list gives it): a stated length that is another is refused before a byte is read and before
+   any file is made, bytes that run past it stop the download, and an end short of it fails, each as NOT_LISTED.
+   Resolves { sha256, size }: the digest of exactly what was written. */
 function fetchToFile(url, file, o) {
     o = o || {};
     const redirects = o.redirects == null ? 5 : o.redirects;
@@ -188,6 +206,8 @@ function fetchToFile(url, file, o) {
             }
             if (res.statusCode !== 200) { res.resume(); return fail(new Error('HTTP ' + res.statusCode + ' for ' + url)); }
             const stated = /^[0-9]{1,15}$/.test(String(res.headers['content-length'] || '')) ? parseInt(res.headers['content-length'], 10) : null;
+            const exact = (typeof o.exact === 'number') ? o.exact : null;
+            if (exact !== null && stated !== null && stated !== exact) return fail(new Error(NOT_LISTED));   // not the length the list names: before a byte of it is read
             if (stated !== null && stated > cap) return fail(new Error('download too large'));   // before a byte of it is read
             const hash = crypto.createHash('sha256'); let size = 0;
             out = fs.createWriteStream(file, { flags: 'wx' });
@@ -195,6 +215,7 @@ function fetchToFile(url, file, o) {
             res.on('data', c => {
                 if (done) return;
                 size += c.length;
+                if (exact !== null && size > exact) return fail(new Error(NOT_LISTED));
                 if (size > cap) return fail(new Error('download too large'));
                 hash.update(c);
                 if (!out.write(c)) { res.pause(); out.once('drain', () => res.resume()); }
@@ -203,6 +224,7 @@ function fetchToFile(url, file, o) {
             res.on('end', () => {
                 if (done) return;
                 if (stated !== null && size !== stated) return fail(new Error('download cut short'));
+                if (exact !== null && size !== exact) return fail(new Error(NOT_LISTED));
                 out.end(() => { if (done) return; done = true; resolve({ sha256: hash.digest('hex'), size: size }); });
             });
             res.on('error', fail);
@@ -245,29 +267,29 @@ function cleanFile(f, name, version, h) {
     if (!sig || !SIG_OK.test(sig)) throw new Error(LIST_BAD);
     return { name: name, url: u.href, size: f.size, sha256: f.sha256.toLowerCase(), sig: sig };
 }
-/* The manifest a signature vouched for, read field by field. Every field the app reads must clean, or no update is
-   offered at all (a throw of LIST_BAD): version, minShell, electron (a plain version, the last two where given), notes
-   (text, cut at NOTES_MAX), notesUrl (a page on the site itself), and of the files list the two the app looks for by
-   their exact names, the zip of this version and the installer (each once). Keys it does not know, and files of other
-   names, are passed over, so the site can add to the list later. published is the site's to show, never read here. */
+/* The manifest a signature vouched for, read field by field. A field that decides what is fetched or whether it is
+   taken must clean, or no update is offered at all (a throw of LIST_BAD): version, minShell (a plain version, the second
+   where given), the files list, and of it the two the app looks for by their exact names, the zip of this version and the
+   installer (each once, each through cleanFile). A field that is only shown is dropped where it does not clean, and the
+   update stands: electron (a plain version, else none), notes (text, cut at NOTES_MAX, else none) and notesUrl (a page of
+   the site, sitePage, else none: the site's own front page stands in). An entry of the files list that is no object with
+   a name is passed over, as a file of another name is, and so are keys the app does not know, so the site can add to the
+   list later. published is the site's to show, never read here. The release build reads every list it writes back
+   through this function and holds it to what it wrote (tools/sitepub.js envelopeCheck), so a writer that drifts from
+   it is stopped at the build and never reaches an install. */
 function cleanManifest(m, h) {
     const bad = () => { throw new Error(LIST_BAD); };
     const version = plainVersion(m.version); if (!version) bad();
-    const opt = k => { if (m[k] === undefined || m[k] === null) return null; const v = plainVersion(m[k]); if (!v) bad(); return v; };
-    const minShell = opt('minShell'), electron = opt('electron');
-    let notes = '';
-    if (m.notes !== undefined && m.notes !== null) { if (typeof m.notes !== 'string') bad(); notes = cutChars(m.notes, NOTES_MAX); }
-    let notesUrl = null;
-    if (m.notesUrl !== undefined && m.notesUrl !== null) {
-        let u = null; try { u = typeof m.notesUrl === 'string' && m.notesUrl.length <= 2000 ? new URL(m.notesUrl) : null; } catch (e) { u = null; }
-        if (!u || u.protocol !== 'https:' || u.hostname !== h.siteHost || u.port || u.username || u.password) bad();
-        notesUrl = u.href;
-    }
+    let minShell = null;
+    if (m.minShell !== undefined && m.minShell !== null) { minShell = plainVersion(m.minShell); if (!minShell) bad(); }
+    const electron = plainVersion(m.electron);   // shown only: none where it is no plain version
+    const notes = typeof m.notes === 'string' ? cutChars(m.notes, NOTES_MAX) : '';   // shown only: none where it is no text
+    const notesUrl = sitePage(m.notesUrl, h);   // shown only: none where it is no page of the site
     if (!Array.isArray(m.files)) bad();
     const zipName = 'waypoint-app-' + version + '.zip';
     let zip = null, installer = null;
     for (const f of m.files.slice(0, FILES_MAX)) {
-        if (!f || typeof f !== 'object' || Array.isArray(f) || typeof f.name !== 'string') bad();
+        if (!f || typeof f !== 'object' || Array.isArray(f) || typeof f.name !== 'string') continue;   // names no file: passed over
         if (f.name === zipName) { if (zip) bad(); zip = cleanFile(f, zipName, version, h); }
         else if (f.name === INSTALLER_NAME) { if (installer) bad(); installer = cleanFile(f, INSTALLER_NAME, version, h); }
     }
@@ -287,7 +309,13 @@ async function checkForUpdate(opts) {
     const h = updateHosts(opts);
     const raw = await fetchBuffer(h.apiUrl, { 'Accept': 'application/json' }, null, ENVELOPE_CAP, u => updateUrlOk(u, h));
     const man = cleanManifest(readEnvelope(raw, pubKey), h);
-    const zip = man.zip, installer = man.installer, latest = man.version;
+    const latest = man.version;
+    // Each file's own signature over its name, the digest the list gives and the version is checked here too, before anything
+    // is offered: a file whose signature does not check is taken as not listed (a zip so falls back on the installer, which is
+    // checked on its own), so nothing is offered that the person's press would only see refused. applyAppUpdate and
+    // downloadInstaller check it again, and the downloaded bytes against the digest.
+    const vouched = f => (f && verifyUpdate(pubKey, f.name, f.sha256, latest, f.sig)) ? f : null;
+    const zip = vouched(man.zip), installer = vouched(man.installer);
     const newer = cmpVersion(latest, opts.currentVersion) > 0;   // only a version newer than this one: a list played back from before offers nothing
     const minShell = man.minShell;
     const shellOk = !minShell || cmpVersion(opts.shellVersion || opts.currentVersion, minShell) >= 0;
@@ -304,7 +332,8 @@ async function checkForUpdate(opts) {
         sig: zip ? zip.sig : null,           // the zip's own signature, over its name, that digest and the version
         installer: installer ? installer.url : null,
         installerSig: installer ? installer.sig : null,
-        installerSize: installer ? installer.size : null,   // as the manifest gives it: for the words on the page only, never trusted as a bound
+        installerSha256: installer ? installer.sha256 : null,   // the digest the installer's bytes must match (downloadInstaller holds the download to it)
+        installerSize: installer ? installer.size : null,   // as the signed list gives it: the exact length downloadInstaller takes, and the words on the page
         minShell: minShell,
         canHotUpdate: !!(newer && zip && shellOk),   // a file of the manifest always has its digest and its signature (cleanFile), and applyAppUpdate checks both
         needsInstaller: needsInstaller,
@@ -507,12 +536,15 @@ function rollbackAppUpdate(opts) {
 
 /* ---- an update that changes the core: the shell fetches the installer, checks it, and runs it over this copy ---- */
 
-/* Download the installer to a file and check it. opts: { url, sig (its signature as the manifest gives it), version, pubKey,
+/* Download the installer to a file and check it. opts: { url, sig (its signature as the manifest gives it), sha256 and size
+   (its digest and length as the signed list gives them: checkForUpdate's installerSha256 and installerSize), version, pubKey,
    dir, onProgress, onVerify, maxBytes, and site, apiUrl and filesUrl as checkForUpdate takes them }.
    The signed words are the same three lines as the zip's, with the installer's own name the first: a zip's signature never
-   stands for an installer, nor the reverse. The bytes go to <dir>/Waypoint_Setup-<version>.exe.part and take their final
-   name only once the signature checks; anything else removes them. dir is a fresh private folder the caller made.
-   Returns { file, sha256, version }. */
+   stands for an installer, nor the reverse. Before a byte is fetched the signature must check over the listed digest, and the
+   listed length must be within the cap; the download is then held to exactly that length (a file of another length on the
+   download host is refused at once, never downloaded in full), its bytes to that digest, and the signature is checked once more
+   over the digest of what arrived. The bytes go to <dir>/Waypoint_Setup-<version>.exe.part and take their final name only once
+   all of that holds; anything else removes them. dir is a fresh private folder the caller made. Returns { file, sha256, version }. */
 async function downloadInstaller(opts) {
     const pubKey = opts.pubKey !== undefined ? opts.pubKey : UPDATE_PUBKEY;
     if (typeof pubKey !== 'string' || !pubKey.trim()) throw new Error(UNSIGNED);   // no key configured: nothing can be vouched for
@@ -523,10 +555,17 @@ async function downloadInstaller(opts) {
     // the signature first: a release without one that could be a signature costs no download
     const sigText = typeof opts.sig === 'string' ? opts.sig.trim() : '';
     if (!SIG_OK.test(sigText)) throw new Error(UNSIGNED);
+    // the listed digest and length: never without them, and the signature must vouch for that digest before anything is fetched
+    const want = typeof opts.sha256 === 'string' ? opts.sha256.trim().toLowerCase() : '';
+    if (!/^[0-9a-f]{64}$/.test(want) || !Number.isSafeInteger(opts.size) || opts.size <= 0) throw new Error(UNSIGNED);
+    if (!verifyUpdate(pubKey, INSTALLER_NAME, want, version, sigText)) throw new Error(UNSIGNED);
+    const cap = Math.min(INSTALLER_CAP, (typeof opts.maxBytes === 'number' && opts.maxBytes > 0) ? opts.maxBytes : INSTALLER_CAP);
+    if (opts.size > cap) throw new Error('download too large');   // the list names a file past the cap: nothing is asked for
     const hosts = updateHosts(opts);
     try {
-        const got = await fetchToFile(opts.url, part, { max: opts.maxBytes, onProgress: opts.onProgress, ok: u => updateUrlOk(u, hosts) });
+        const got = await fetchToFile(opts.url, part, { max: cap, exact: opts.size, onProgress: opts.onProgress, ok: u => updateUrlOk(u, hosts) });
         if (typeof opts.onVerify === 'function') { try { opts.onVerify(); } catch (_) {} }
+        if (got.size !== opts.size || got.sha256 !== want) throw new Error(NOT_LISTED);
         if (!verifyUpdate(pubKey, INSTALLER_NAME, got.sha256, version, sigText)) throw new Error(UNSIGNED);
         fs.renameSync(part, file);
         return { file: file, sha256: got.sha256, version: version };
@@ -682,7 +721,7 @@ function makeHandler(cfg) {
                     const base = cfg.tmpDir || os.tmpdir();
                     sweepInstallerDirs(base, Date.now());
                     job.dir = fs.mkdtempSync(path.join(base, TMP_PREFIX));
-                    const r = await downloadInstaller({ url: info.installer, sig: info.installerSig, version: info.latest, pubKey: cfg.pubKey, dir: job.dir, maxBytes: cfg.maxInstallerBytes, site: cfg.site, apiUrl: cfg.apiUrl, filesUrl: cfg.filesUrl,
+                    const r = await downloadInstaller({ url: info.installer, sig: info.installerSig, sha256: info.installerSha256, size: info.installerSize, version: info.latest, pubKey: cfg.pubKey, dir: job.dir, maxBytes: cfg.maxInstallerBytes, site: cfg.site, apiUrl: cfg.apiUrl, filesUrl: cfg.filesUrl,
                         onProgress: (got, total) => { job.got = got; if (total !== null) job.total = total; }, onVerify: () => { job.state = 'verifying'; } });
                     job.file = r.file; job.sha256 = r.sha256; job.state = 'ready';
                 } catch (e) {
@@ -723,4 +762,4 @@ function makeHandler(cfg) {
 
 module.exports = { cmpVersion, checkForUpdate, applyAppUpdate, rollbackAppUpdate, prevInfo, signedText, verifyUpdate, readZip, makeHandler, fetchBuffer, PRIVATE_FILES, PRIVATE_BYTES,
     fetchToFile, downloadInstaller, runInstaller, sweepInstallerDirs, installFailed, UPDATE_ROUTES, INSTALLER_NAME, INSTALLER_ARGS,
-    UPDATE_SITE, MANIFEST_PREFIX, NOTES_MAX, LIST_UNSIGNED, LIST_BAD, NOT_OURS, updateHosts, updateUrlOk, verifyManifest, readEnvelope, cleanManifest };
+    UPDATE_SITE, MANIFEST_PREFIX, NOTES_MAX, LIST_UNSIGNED, LIST_BAD, NOT_OURS, NOT_LISTED, INSTALLER_CAP, updateHosts, updateUrlOk, sitePage, verifyManifest, readEnvelope, cleanManifest };

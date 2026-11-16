@@ -1077,7 +1077,10 @@ function updateUI() {
     if (inst) { inst.textContent = self ? 'Update' : 'Get installer'; inst.title = self ? SELF_TITLE : INST_TITLE; }
     if (!st || !row) return;
     if (!i) { st.textContent = ''; row.style.display = 'none'; return; }
-    if (i.error) { st.textContent = 'could not check (' + (i.error.length > 40 ? 'offline?' : i.error) + ')'; row.style.display = 'none'; return; }
+    // A failed check: the shell's own refusals of a list (one not signed by Waypoint, one that cannot be read, an address off
+    // Waypoint's update site) are said in full as one plain line, since a tampered list must not read as being offline; any
+    // other error, a network one or an HTTP answer, is said as itself where it is short and as offline? where it is not.
+    if (i.error) { var said = plainLine(i.error), own = /no update offered|refused/.test(said); st.textContent = 'could not check (' + (own || said.length <= 40 ? said : 'offline?') + ')'; row.style.display = 'none'; return; }
     if (!i.newer && _upd.shellOld) { st.textContent = 'app ' + (window.wpAppVersion || i.current) + ' — core needs the installer'; row.style.display = 'flex'; if (now) now.style.display = 'none'; if (inst) inst.style.display = 'block'; return; }
     if (!i.newer) { st.textContent = 'up to date (' + i.current + ')'; row.style.display = 'none'; return; }
     st.textContent = _upd.selfText || (i.latest + ' available');
@@ -1353,7 +1356,8 @@ if (_updInst) _updInst.addEventListener('click', function() { var i = _upd.info;
     if (later) later.addEventListener('click', function() { hide(); toast('No download started. The Update button stays in the top bar until you install it.'); });
     if (close) close.addEventListener('click', hide);
     if (go) go.addEventListener('click', function() {
-        var target = m.dataset.url; if (!target) { hide(); return; }
+        // with no address to open (an older core whose check failed names no page), say where the installer comes from in words, never nothing
+        var target = m.dataset.url; if (!target) { hide(); toast("Download the newest Waypoint_Setup.exe from Waypoint's website. Then close Waypoint, run it, and open Waypoint again."); return; }
         fetch('/api/open-external', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: target }) })
             .then(function(r) { if (!r.ok) throw new Error(); hide(); toast('Downloading in your browser. When it finishes: close Waypoint, run the Waypoint_Setup.exe you just downloaded (never one from anywhere else), and open Waypoint again.'); })
             .catch(function() { hide(); toast('Open this in a browser: ' + target); });

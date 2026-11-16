@@ -1472,7 +1472,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       var W = window.wpWebMode;   // 1.5.5: where only the site's answer can say it is join-only (the dev server's test switch), the join page comes up once it does
       var wasJoin = wcJoinOnly();   // 1.6.3: what the page was taken for before the answer: a website's page is join-only from the start (webmode.js, fail closed)
       if (W && W.ready && typeof W.ready.then === 'function') W.ready.then(function() { if (wcJoinOnly()) { if (!wasJoin) showWelcome(); } else if (wasJoin) wcGuessUndone(); }, function() {});
-      // 1.6.3 (the owner, 2026-11-16, on waypointvtt.com/play as a GM: the page opened on Join a game, as if he could only play): a website's
+      // 1.6.3 (the owner, 2026-11-16, on the website's play page as a GM: the page opened on Join a game, as if he could only play): a website's
       // page is taken for join-only until the site answers, so the welcome came up on Join a game (wcJoinFirst) and stayed there when the
       // answer then said this page is a GM's (web, its plan holding campaigns). Once the answer is in and the page is no longer join-only,
       // the join page that guess opened goes back to the start screen, as on the desktop: the gate over the app is lifted, and showWelcome

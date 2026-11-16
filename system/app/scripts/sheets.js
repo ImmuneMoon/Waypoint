@@ -12953,7 +12953,37 @@ function scenesBox(box) {
     var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
     box.appendChild(wrap);
 }
+// [vehiclecheck:mapstart-start]
+// 1.6.3 (the owner, 2026-11-16, by prompt: "Only where it starts"): the scale a new map of this system starts at, set above the map kinds on the
+// Combat tab. A number and the units the ruler offers (MAPKIND_UNITS, the very list a map kind's own cell uses), and Clear. What is typed is kept on
+// the draft as sys.mapStart { per, unit }; Save keeps it through systemcore cleanMapStart, and the line under the row says, as it is typed, when
+// Save would leave it out (mapStartSays). Nothing else reads the draft's value: models.js applyMapStart reads the saved system when a map is made.
+// Called by mapKindsBox before its own block, so the pinned call of mapKindsBox at tp('mapkinds') stays as it was. Values and text nodes only
+function mapStartSays(v) {
+    if (v === undefined || v === null) return '';
+    var SCk = window.wpSystemCore || {}, ok = typeof SCk.cleanMapStart === 'function' ? SCk.cleanMapStart(v) : v;
+    return ok ? '' : 'Save leaves this out: a cell must be more than 0 and at most 1,000,000.';
+}
+function mapStartBox(box) {
+    var wrap = el('div', 'sys-holds sys-mapstart'), st = draft.mapStart && typeof draft.mapStart === 'object' ? draft.mapStart : null, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
+    wrap.appendChild(el('div', 'sys-light-head', 'New maps start at'));
+    wrap.appendChild(el('div', 'sys-note', 'The cell a map starts at when it is made in a campaign of this system, such as 1 yard a square. It can be changed on each map like any scale. Maps that are already there keep their own. Empty: a new map starts as it always did.'));
+    var rw = el('div', 'sys-flags sys-arcrow'), pw = el('label', 'sys-check'), pi = el('input', 'field sys-num sys-ms-per'); pi.type = 'number'; pi.min = '0'; pi.step = 'any'; if (st && typeof st.per === 'number' && isFinite(st.per)) pi.value = String(st.per);
+    pi.title = 'How large one cell of a new map is, in the unit beside it. Empty: a new map starts as it always did';
+    var us = select('sys-ms-unit', MAPKIND_UNITS, st && typeof st.unit === 'string' ? st.unit : 'yd', 'The unit of that cell');
+    var says = el('div', 'sys-note sys-ms-says', mapStartSays(st)); says.hidden = !says.textContent;
+    var tell = function() { says.textContent = mapStartSays(draft.mapStart); says.hidden = !says.textContent; };
+    pi.addEventListener('input', function() { var v = pi.value === '' ? NaN : Number(pi.value); if (isFinite(v)) draft.mapStart = { per: v, unit: us.value }; else delete draft.mapStart; tell(); ch(); });
+    us.addEventListener('change', function(e) { e.stopPropagation(); if (draft.mapStart && typeof draft.mapStart === 'object') { draft.mapStart.unit = us.value; ch(); } });
+    pw.appendChild(document.createTextNode('A cell is ')); pw.appendChild(pi); rw.appendChild(pw); rw.appendChild(us);
+    var clr = el('button', 'tool ghost sys-btn sys-ms-clear', 'Clear'); clr.type = 'button'; clr.title = 'New maps start as they always did'; clr.disabled = !st;
+    clr.addEventListener('click', function() { delete draft.mapStart; ch(true); }); rw.appendChild(clr);
+    wrap.appendChild(rw); wrap.appendChild(says);
+    box.appendChild(wrap);
+}
+// [vehiclecheck:mapstart-end]
 function mapKindsBox(box) {
+    if (typeof mapStartBox === 'function') mapStartBox(box);   // 1.6.3: the scale a new map starts at, above the map kinds
     var wrap = el('div', 'sys-holds sys-mapkinds'), list = Array.isArray(draft.mapKinds) ? draft.mapKinds : null, SCk = window.wpSystemCore || {}, max = SCk.MAPKIND_MAX || 8, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
     var keyFor = function(arr, a, lb) { var k = typeof SCk.arcKey === 'function' ? SCk.arcKey(lb) : '', base = k, n = 2; while (k && (arr || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };
     wrap.appendChild(el('div', 'sys-light-head', 'Map kinds'));

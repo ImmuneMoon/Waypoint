@@ -438,7 +438,7 @@ function wbDX(dx, dy) { var V = typeof window !== 'undefined' ? window.wpView : 
 function wbDY(dx, dy) { var V = typeof window !== 'undefined' ? window.wpView : null; return V && V.turned && V.turned() ? V.dy(dx, dy) : dy / state.zoomLevel; }
 // [view:helpers-end]
 
-import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, findLandingRoom, characterList, locateCharacter } from './models.js';
+import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, findLandingRoom, characterList, locateCharacter, applyMapStart } from './models.js';
 
 import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, pressHold } from './io.js';
 
@@ -10234,6 +10234,7 @@ function genGo() {
     if (!items.length) { toast('That dungeon could not be laid. Nothing was changed.'); return false; }
     if (plan.fresh) {
         map = createNewMap(getUniqueItemTitle(genText(nmBox ? nmBox.value : '', 80) || 'Dungeon', null));
+        if (typeof applyMapStart === 'function') applyMapStart(map);   // 1.6.3: a new map starts at the scale the system names (models.js applyMapStart)
         map.meta.gridType = plan.kind;
         camp.items[map.id] = map;
     }
@@ -10458,6 +10459,7 @@ function cityGo() {
     if (!items.length) { toast('That city could not be laid. Nothing was changed.'); return false; }
     if (plan.fresh) {
         map = createNewMap(getUniqueItemTitle(genText(nmBox ? nmBox.value : '', 80) || word, null));
+        if (typeof applyMapStart === 'function') applyMapStart(map);   // 1.6.3: a new map starts at the scale the system names (models.js applyMapStart)
         map.meta.gridType = plan.grid;
         camp.items[map.id] = map;
     }
@@ -10688,6 +10690,7 @@ function worldGo() {
     var camp = getActiveCampaign(), here = getActiveMap(), map = plan.map, nmBox = genEl('worldName'), items = plan.items;
     if (plan.fresh) {
         map = createNewMap(getUniqueItemTitle(genText(nmBox ? nmBox.value : '', 80) || 'World', null));
+        if (typeof applyMapStart === 'function') applyMapStart(map);   // 1.6.3: a new map starts at the scale the system names (models.js applyMapStart)
         map.meta.gridType = plan.grid;
         camp.items[map.id] = map;
     }

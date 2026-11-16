@@ -269,6 +269,20 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
    convention — e.g. "darrooffice" on both the complex and the cellblock);
    a room with the same name (case/punctuation-insensitive); else nothing
    (the map opens at its saved home). */
+// 1.6.3 (the owner, 2026-11-16, by prompt: "Only where it starts"): a new play map starts at the scale its campaign's system names, such as
+// 1 yard a square. This is the one function every maker of a new map asks, right after createNewMap and before the map is put in the campaign:
+// the New Map button, a nested map and a map made to hold another (dialogs.js), a room's own map (datamap.js, inspector.js) and the three
+// generators' new map (whiteboard.js). The rule itself is systemcore's mapStartOn, which writes meta.cellValue and meta.cellUnit and nothing else.
+// camp: the campaign the map is made for, the active one where none is handed in. createNewMap does not ask it by itself, since the Tutorial and a
+// fresh save build maps of another campaign than the one on screen. A copy of a map keeps its own scale and never comes here. Answers whether the
+// map was stamped; with no system core loaded, no campaign or no start scale the map is left as made
+export function applyMapStart(map, camp) {
+    try {
+        var c = camp || getActiveCampaign(), SC = window.wpSystemCore;
+        return !!(c && SC && typeof SC.mapStartOn === 'function' && SC.mapStartOn(map, c.system));
+    } catch (e) { return false; }
+}
+
 export function findLandingRoom(src, targetMap) {
     if (!src || !targetMap || !Array.isArray(targetMap.rooms)) return null;
     var rooms = targetMap.rooms;

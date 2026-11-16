@@ -48,7 +48,7 @@ function wbDX(dx, dy) { var V = typeof window !== 'undefined' ? window.wpView : 
 function wbDY(dx, dy) { var V = typeof window !== 'undefined' ? window.wpView : null; return V && V.turned && V.turned() ? V.dy(dx, dy) : dy / state.zoomLevel; }
 // [view:helpers-end]
 
-import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, findLandingRoom } from './models.js';
+import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, findLandingRoom, applyMapStart } from './models.js';
 
 import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, stepBoundary, stepFold } from './io.js';
 
@@ -1780,6 +1780,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
       var camp = getActiveCampaign(); if (!camp || !camp.items || camp.items[am.id] !== am) return null;
       var title = getUniqueItemTitle(rm.name || 'New room', null), nm = createNewMap(title);
       nm.id = 'map_' + uid();
+      if (typeof applyMapStart === 'function') applyMapStart(nm, camp);   // 1.6.3: a new map starts at the scale the system names (models.js applyMapStart)
       var pid0 = RC.mapPlaceParent(roomMapPlacePick(), am, camp.items); if (pid0) nm.meta.parentId = pid0;   // the review: made where this computer's kept pick says, so every way on (the question skipped too) starts there, and the question only changes it
       if (am.meta && (am.meta.gridType === 'square' || am.meta.gridType === 'hex')) nm.meta.gridType = am.meta.gridType;   // as a map made from a room's picture: the grid of the map it lies under
       camp.items[nm.id] = nm;

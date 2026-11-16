@@ -80,7 +80,7 @@ var wb = document.getElementById('whiteboard');
 
 import { state, dom, WB_COLORS } from './state.js';
 
-import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, getMapChildren, findLandingRoom } from './models.js';
+import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, getMapChildren, findLandingRoom, applyMapStart } from './models.js';
 
 import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image } from './io.js';
 
@@ -2550,6 +2550,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
           var title = getUniqueItemTitle((r.name || 'Room').trim() || 'Room', null);
           var nm = createNewMap(title);
           nm.id = 'map_' + uid();
+          if (typeof applyMapStart === 'function') applyMapStart(nm, camp);   // 1.6.3: a new map starts at the scale the system names (models.js applyMapStart)
           nm.meta.parentId = parentMap.id;
           nm.meta.gridType = parentMap.meta && parentMap.meta.gridType || 'off';
           nm.cats = { 'default': { label: 'Default Category', color: '#c9c9d4' } };

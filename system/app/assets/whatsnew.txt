@@ -41,6 +41,9 @@ Smaller things
   look box, pick one color for the tab you're on and one for the rest.
   Underlined tabs wear it as the line under each tab, and the words on a
   filled tab stay readable on whatever you pick.
+- A system can set the scale every new map starts at, such as 1 yard a
+  square. It's New maps start at, above the map kinds on the System
+  editor's Combat tab. Maps you already have keep their own scale.
 
 WAYPOINT 1.6.2 — What's New
 ============================

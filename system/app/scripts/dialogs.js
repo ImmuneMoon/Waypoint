@@ -30,7 +30,7 @@ var wb = document.getElementById('whiteboard');
 
 import { state, dom } from './state.js';
 
-import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, createNewDoc, isTreeItem, getActiveCampaign, getActiveMap } from './models.js';
+import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, createNewDoc, isTreeItem, getActiveCampaign, getActiveMap, applyMapStart } from './models.js';
 
 import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image, resetHistory, takeSafetyCopy } from './io.js';
 
@@ -494,6 +494,7 @@ if(_el_newMapSidebarBtn) _el_newMapSidebarBtn.addEventListener('click', function
           var newMap = createNewMap(title);
 
           var camp = getActiveCampaign();
+          if (typeof applyMapStart === 'function') applyMapStart(newMap, camp);   // 1.6.3: a new map starts at the scale the system names (models.js applyMapStart)
 
           camp.items[newMap.id] = newMap;
 
@@ -565,6 +566,7 @@ if(_el_ctxNewChildItem) _el_ctxNewChildItem.addEventListener('click', function()
       var initial = getUniqueItemTitle(FIRST[parent.type], null);
       promptForItemName(initial, "Enter a name for the new nested " + KIND[parent.type] + ":", null, function(title) {
           var newItem = FACTORY[parent.type](title);
+          if (newItem.type === 'map' && typeof applyMapStart === 'function') applyMapStart(newItem, camp);   // 1.6.3: a new map starts at the scale the system names (models.js applyMapStart)
           newItem.meta.parentId = parentId;
           parent.meta.collapsed = false;
           camp.items[newItem.id] = newItem;
@@ -589,6 +591,7 @@ if(_el_ctxNewChildItem) _el_ctxNewChildItem.addEventListener('click', function()
       var initial = getUniqueItemTitle(child.type === 'map' ? 'New Region' : child.type === 'doc' ? 'New Chapter' : 'New Section', null);
       promptForItemName(initial, 'Name the new ' + kindP + ' that will hold \u201c' + (child.meta.title || '') + '\u201d:', null, function(title) {
           var parent = child.type === 'planner' ? createNewPlanner(title) : child.type === 'doc' ? createNewDoc(title) : createNewMap(title);
+          if (parent.type === 'map' && typeof applyMapStart === 'function') applyMapStart(parent, camp);   // 1.6.3: a new map starts at the scale the system names (models.js applyMapStart)
           var grand = child.meta && child.meta.parentId;
           if (grand && camp.items[grand]) parent.meta.parentId = grand;   // the new item steps into the child's old place
           child.meta = child.meta || {};

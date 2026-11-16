@@ -431,6 +431,58 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
             /^function mapKindsBox\(box\) \{/m.test(shG) && /tp\('mapkinds'\); if \(typeof mapKindsBox === 'function'\) mapKindsBox\(box\);/.test(shG) && /function mapKindSync\(\) \{/.test(wbG) && /m\.meta\.kind = k\.key; if \(k\.scale && typeof k\.scale\.per === 'number'\) \{ m\.meta\.cellValue = k\.scale\.per; m\.meta\.cellUnit = k\.scale\.unit; \}/.test(wbG)
             && /<select id="measureKind"/.test(ixG) && /id="mapTabKind" hidden/.test(ixG) && /return hit && typeof hit\.label === 'string' && hit\.label \? hit\.label \+ ' scale' : '';/.test(mtG) && /m\.meta\.kind !== undefined && !\(typeof m\.meta\.kind === 'string'/.test(ntG));
     }
+    /* ---- 1.6.3: the scale a new map starts at (the owner, 2026-11-16, by prompt: "Only where it starts") ---- */
+    {
+        // the system's key, read through one cleaner, the same in both views: a number above 0 and at most 1,000,000 to four decimals, a unit the ruler offers
+        const MS = r => [S.cleanSystem(Object.assign({ v: 1, name: 'M', fields: [] }, r), { F, gmView: true }).mapStart, S.cleanSystem(Object.assign({ v: 1, name: 'M', fields: [] }, r), { F, gmView: false }).mapStart];
+        const kept = MS({ mapStart: { per: 1.234567, unit: 'yd', junk: 1 } });
+        check('1.6.3 a system names the scale a new map starts at, the same in both views: a cell above 0 and at most 1,000,000 to four decimals in a unit the ruler offers; one that is no size, a unit the app does not know or junk is left out, and a system with none has no key',
+            J(kept) === J([{ per: 1.2346, unit: 'yd' }, { per: 1.2346, unit: 'yd' }]) && J(MS({ mapStart: { per: 5, unit: 'ft' } })[1]) === J({ per: 5, unit: 'ft' })
+            && [{ per: 0, unit: 'yd' }, { per: -1, unit: 'yd' }, { per: 2e6, unit: 'yd' }, { per: 1, unit: 'parsec' }, { per: '1', unit: 'yd' }, { per: NaN, unit: 'yd' }, { per: 0.00001, unit: 'm' }, 'junk', null, [1]].every(v => S.cleanMapStart(v) === null && !('mapStart' in S.cleanSystem({ v: 1, name: 'M', fields: [], mapStart: v }, { F, gmView: true })))
+            && !('mapStart' in S.cleanSystem({ v: 1, name: 'M', fields: [] }, { F, gmView: true })), J(kept));
+        // the one rule a maker asks: a new map takes the cell and its unit, nothing else of it changes; with none the map is left key for key as made
+        const fresh = () => ({ type: 'map', id: 'map_1', meta: { title: 'New', updated: 1, homeX: 15000, homeY: 15000 }, rooms: [], links: [], whiteboard: [] });
+        const m1 = fresh(), m0 = fresh(), m2 = fresh(); const on1 = S.mapStartOn(m1, { mapStart: { per: 1, unit: 'yd' } }), on0 = S.mapStartOn(m0, { fields: [] }), on2 = S.mapStartOn(m2, { mapStart: { per: 0, unit: 'yd' } });
+        check('1.6.3 a new map takes the system’s start scale as its cell and unit, and nothing else of it; a system with none, or one Save would leave out, leaves the map exactly as made',
+            on1 === true && J(m1.meta) === J(Object.assign(fresh().meta, { cellValue: 1, cellUnit: 'yd' })) && on0 === false && J(m0) === J(fresh()) && on2 === false && J(m2) === J(fresh()) && S.mapStartOn(null, { mapStart: { per: 1, unit: 'yd' } }) === false && S.mapStartOn(fresh(), null) === false
+            && S.mapCellScale({ meta: m1.meta }).per === 1 && S.mapCellScale({ meta: m1.meta }).unit === 'yd', J([on1, m1.meta]));
+        // models.js applyMapStart, sliced and run for real: the campaign handed in, else the active one; no core, no campaign or a core that throws leaves the map alone
+        const mdS = read('scripts/models.js'), maA = mdS.indexOf('export function applyMapStart(map, camp) {'), maB = mdS.indexOf('\n}\n', maA), maSrc = maA >= 0 && maB > maA ? mdS.slice(maA + 'export '.length, maB + 2) : '';
+        const runAp = (win, active, m, camp) => new Function('window', 'getActiveCampaign', '"use strict";' + maSrc + '\nreturn applyMapStart;')(win, () => active)(m, camp);
+        const W = { wpSystemCore: S }, cY = { system: { mapStart: { per: 1, unit: 'yd' } } }, cM = { system: { mapStart: { per: 2, unit: 'm' } } };
+        const a1 = fresh(), a2 = fresh(), a3 = fresh(), a4 = fresh(), a5 = fresh();
+        const ap = [runAp(W, cY, a1), runAp(W, cY, a2, cM), runAp({}, cY, a3), runAp(W, null, a4), runAp({ wpSystemCore: { mapStartOn: () => { throw new Error('x'); } } }, cY, a5)];
+        check('1.6.3 models.js applyMapStart, run for real, is the one way a maker reads the start scale: the campaign handed in before the active one, and with no system core, no campaign or a core that throws the map is left as made',
+            !!maSrc && J(ap) === J([true, true, false, false, false]) && a1.meta.cellValue === 1 && a2.meta.cellUnit === 'm' && a2.meta.cellValue === 2 && J(a3) === J(fresh()) && J(a4) === J(fresh()) && J(a5) === J(fresh()), J(ap));
+        // every maker of a new play map asks it right after createNewMap: the New Map button, a nested map, a map made to hold another, a room's own
+        // map (the Data Map and Properties) and the three generators. createNewMap itself never does, so the Tutorial and a fresh save stay as built
+        const after = (src, needle) => { let at = -1, n = 0, ok = 0; while ((at = src.indexOf(needle, at + 1)) >= 0) { n++; const tail = src.slice(at).split('\n').slice(0, 4).join('\n'); if (/applyMapStart\(/.test(tail)) ok++; } return n + ':' + ok; };
+        const dgS = read('scripts/dialogs.js'), dmS = read('scripts/datamap.js'), inS = read('scripts/inspector.js'), wbS = read('scripts/whiteboard.js');
+        const makers = [after(dgS, 'var newMap = createNewMap(title);'), after(dgS, 'var newItem = FACTORY[parent.type](title);'), after(dgS, ': createNewMap(title);\n'), after(dmS, 'nm = createNewMap(title);'), after(inS, 'var nm = createNewMap(title);'), after(wbS, 'map = createNewMap(getUniqueItemTitle(')];
+        check('1.6.3 every maker of a new play map asks applyMapStart right after createNewMap (the New Map button, a nested map, a map that holds another, a room’s own map on the Data Map and in Properties, the three generators), each importing it, and createNewMap itself never does',
+            J(makers) === J(['1:1', '1:1', '1:1', '1:1', '1:1', '3:3']) && [dgS, dmS, inS, wbS].every(s => /^import \{[^}\n]*\bapplyMapStart\b[^}\n]*\} from '\.\/models\.js';$/m.test(s))
+            && (() => { const a = mdS.indexOf('function createNewMap(title) {'), b = mdS.indexOf('return map;', a); return a >= 0 && b > a && mdS.slice(a, b).indexOf('applyMapStart') < 0 && mdS.slice(a, b).indexOf('mapStartOn') < 0; })(), J(makers));
+        // the System editor's row, sliced and run on a page of plain objects: a number and the ruler's units, Clear, and the line that says what Save does
+        const shS = read('scripts/sheets.js'), mxA = shS.indexOf('// [vehiclecheck:mapstart-start]'), mxB = shS.indexOf('// [vehiclecheck:mapstart-end]'), mxSrc = mxA >= 0 && mxB > mxA ? shS.slice(mxA, mxB) : '';
+        const mkEl = (tag, cls, txt) => { const L = {}; return { tag, className: cls || '', children: [], textContent: txt || '', hidden: false, value: '', type: '', disabled: false, title: '', listeners: L, appendChild(c) { this.children.push(c); return c; }, addEventListener(t, f) { L[t] = f; } }; };
+        const sel = (cls, opts, val, title) => { const s = mkEl('select', cls); s.options = opts.map(o => o[0]); s.value = val; s.title = title; return s; };
+        const runBox = (draft) => { let dirty = 0, redrawn = 0; const box = mkEl('div', 'box'); new Function('draft', 'el', 'select', 'markDirty', 'renderCombat', 'patchErrors', 'MAPKIND_UNITS', 'window', 'document', 'box', '"use strict";' + mxSrc + '\nmapStartBox(box);')
+            (draft, mkEl, sel, () => dirty++, () => redrawn++, () => 0, [['yd', 'yards'], ['ft', 'feet'], ['m', 'meters'], ['km', 'kilometers'], ['mi', 'miles']], { wpSystemCore: S }, { createTextNode: t => ({ text: t }) }, box);
+            const all = []; const walk = n => { all.push(n); (n.children || []).forEach(walk); }; walk(box); const by = c => all.find(n => (n.className || '').split(' ').indexOf(c) >= 0);
+            return { box, by, counts: () => [dirty, redrawn] }; };
+        const d1 = {}, b1 = runBox(d1), pi = b1.by('sys-ms-per'), us = b1.by('sys-ms-unit'), says = b1.by('sys-ms-says'), clr = b1.by('sys-ms-clear');
+        const st0 = [pi.value, us.value, J(us.options), says.hidden, clr.disabled];
+        pi.value = '1'; pi.listeners.input(); const st1 = J(d1.mapStart); us.value = 'ft'; us.listeners.change({ stopPropagation() {} }); const st2 = J(d1.mapStart);
+        pi.value = '0'; pi.listeners.input(); const st3 = [says.hidden, says.textContent]; pi.value = ''; pi.listeners.input(); const st4 = ['mapStart' in d1, says.hidden];
+        const d2 = { mapStart: { per: 5, unit: 'm' } }, b2 = runBox(d2), st5a = [b2.by('sys-ms-per').value, b2.by('sys-ms-unit').value, b2.by('sys-ms-clear').disabled]; b2.by('sys-ms-clear').listeners.click(); const st5 = ['mapStart' in d2, b2.counts()[1]].concat(st5a);
+        check('1.6.3 the Combat tab’s New maps start at row, run on a page of plain objects: empty to start with the ruler’s units and Clear off; a number typed keeps the cell in the unit beside it, a unit picked follows; a cell Save would leave out is said under the row as it is typed; empty and Clear take the key away',
+            !!mxSrc && J(st0) === J(['', 'yd', J(['yd', 'ft', 'm', 'km', 'mi']), true, true]) && st1 === J({ per: 1, unit: 'yd' }) && st2 === J({ per: 1, unit: 'ft' })
+            && st3[0] === false && /Save leaves this out/.test(st3[1]) && J(st4) === J([false, true]) && J(st5) === J([false, 1, '5', 'm', false])
+            && /^function mapKindsBox\(box\) \{\n    if \(typeof mapStartBox === 'function'\) mapStartBox\(box\);/m.test(shS) && !/innerHTML/.test(mxSrc), J([st0, st1, st2, st3, st4, st5]));
+        const hlp = read('index.html'), wn = readRoot('WHATSNEW.txt'), wa = read('assets/whatsnew.txt');
+        check('1.6.3 Help and both release notes say a new map starts at the system’s scale and that maps already there keep their own',
+            hlp.includes('<li>Where your system sets <b>New maps start at</b> above its map kinds') && [wn, wa].every(t => t.includes('- A system can set the scale every new map starts at, such as 1 yard a') && t.includes("editor's Combat tab. Maps you already have keep their own scale.")));
+    }
     /* ---- fold (d): things in flight ---- */
     {
         const BC = await import(url.pathToFileURL(app('scripts/blastcore.js')).href);

@@ -1470,7 +1470,21 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       var backAt = false; try { backAt = !wcJoinOnly() && !!(sessionStorage.getItem('wp_rehost') || sessionStorage.getItem('wp_rejoin')); } catch (e) {}   // 1.6.0: a reload at a table goes straight back to it (net.js refreshMark, found live, 2026-10-30: the GM landed here with the table up behind)
       if (!backAt && wcAtLaunch(welcomePref(), !!(wcProfile().name || '').trim())) showWelcome();   // at once, as before: a desktop by its stored choice, a website's page always (1.5.5, webmode.js knows one by its address)
       var W = window.wpWebMode;   // 1.5.5: where only the site's answer can say it is join-only (the dev server's test switch), the join page comes up once it does
-      if (!wcJoinOnly() && W && W.ready && typeof W.ready.then === 'function') W.ready.then(function() { if (wcJoinOnly()) showWelcome(); }, function() {});
+      var wasJoin = wcJoinOnly();   // 1.6.3: what the page was taken for before the answer: a website's page is join-only from the start (webmode.js, fail closed)
+      if (W && W.ready && typeof W.ready.then === 'function') W.ready.then(function() { if (wcJoinOnly()) { if (!wasJoin) showWelcome(); } else if (wasJoin) wcGuessUndone(); }, function() {});
+      // 1.6.3 (the owner, 2026-11-16, on waypointvtt.com/play as a GM: the page opened on Join a game, as if he could only play): a website's
+      // page is taken for join-only until the site answers, so the welcome came up on Join a game (wcJoinFirst) and stayed there when the
+      // answer then said this page is a GM's (web, its plan holding campaigns). Once the answer is in and the page is no longer join-only,
+      // the join page that guess opened goes back to the start screen, as on the desktop: the gate over the app is lifted, and showWelcome
+      // draws the main view and the campaigns to continue. Left as it is where the welcome is no longer up, the user already went elsewhere
+      // on it, a join is under way, or a room code was typed.
+      function wcGuessUndone() {
+          wcGate(document, false);
+          var w = document.getElementById('welcomeScreen'), jv = document.getElementById('wcJoinView'), code = document.getElementById('wcJoinCode');
+          if (!w || w.style.display === 'none' || !jv || jv.style.display === 'none') return false;
+          if ((window.wpNet && (window.wpNet.active || window.wpNet.fromWelcome)) || (code && (code.value || '').trim())) return false;
+          showWelcome(); return true;
+      }
   })();
 
 

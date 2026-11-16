@@ -46,6 +46,11 @@ Smaller things
   editor's Combat tab. Maps you already have keep their own scale.
   Left empty, a new map starts as before, at 5 feet a square or 1 yard a
   hex, and the row says so.
+- A system's Tables can be filled from a spreadsheet. Import from a
+  spreadsheet, under the Tables on the System editor's Rules tab, reads a
+  CSV file whose first row names the columns and whose first column names
+  the rows. You see the table and anything left out before it goes in, as
+  a new table or in place of one of yours.
 
 WAYPOINT 1.6.2 — What's New
 ============================

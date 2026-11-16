@@ -405,6 +405,45 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     check('Help says all three under the Library', /<b>Spreadsheet&hellip;<\/b> reads a CSV file/.test(page) && /<b>Add to the library<\/b> makes a row/.test(page) && /short walk through your first pack/.test(page));
     check('both release notes say it in the 1.6.2 section, under a heading of its own', [w1, w2].every(t => { const a = t.indexOf('WAYPOINT 1.6.2'), b = t.indexOf('WAYPOINT 1.6.1'), c = t.indexOf('Making a catalog'); return a >= 0 && c > a && c < b && /Add to the library/.test(t.slice(c, b)) && /Spreadsheet/.test(t.slice(c, b)); }));
     check('CI has this suite\'s step under a plain name', /- name: catalogcheck [^:\n]*\n\s+if: \$\{\{ !cancelled\(\) \}\}\n\s+run: node tools\/catalogcheck\.js/.test(ci.replace(/\r\n/g, NL)));
+    /* ---- 1.6.2 (the owner, 2026-11-16: "Make a new table, or replace one"): a spreadsheet read as one of a system's Tables (csvcore csvTable, with the
+       editor's own short-form rule, sheets.js keyWord, sliced and run, and what it makes run through the real cleanTables) ---- */
+    {
+        const T = C.csvTable, LM = S.LIMITS, shK = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), kwAt = shK.indexOf('function keyWord(label) {');
+        const keyWord = new Function(shK.slice(kwAt, shK.indexOf(NL, kwAt)) + NL + 'return keyWord;')();
+        const csv = rows => parseCsv(rows.join(NL)), kept = r => S.cleanTables([r.table], true);
+        const r1 = T(csv(['Metal,Density,Price (cp),', 'Steel,7.8,12,', 'Tin,7.3,,', 'Lead, 11.3 ,x,', 'Gold,19.3,2000000000,']), { keyOf: keyWord, label: 'Metals', taken: ['metals'] });
+        const t1 = r1.table, c1 = kept(r1);
+        check('csvTable: the first row names the columns and the first column the rows, the corner passed over and an empty column a spreadsheet leaves at the end dropped; each name is the name shown and its short form the editor\'s own (keyWord); a figure is read as a spreadsheet writes it, an empty cell stays empty, and a cell that is no number or past what a stat holds is said with its line and column and left empty; a new table\'s short form is kept clear of the others\'',
+            !r1.error && t1.key === 'Metals2' && t1.label === 'Metals' && j(t1.cols) === j([{ key: 'Density', label: 'Density' }, { key: 'PriceCp', label: 'Price (cp)' }]) && j(t1.rows.map(r => [r.key, r.label])) === j([['Steel', 'Steel'], ['Tin', 'Tin'], ['Lead', 'Lead'], ['Gold', 'Gold']])
+            && j(t1.rows.map(r => r.vals)) === j([{ Density: 7.8, PriceCp: 12 }, { Density: 7.3 }, { Density: 11.3 }, { Density: 19.3 }]) && r1.bad === 2 && r1.dropped === 0 && r1.cutCols === 0 && r1.cutRows === 0
+            && j(r1.reasons) === j(['Line 4, Price (cp): \u201cx\u201d is no number, so it is left empty.', 'Line 5, Price (cp): \u201c2000000000\u201d is larger than a table holds, so it is left empty.'])
+            && c1 && c1.length === 1 && c1[0].cols.length === 2 && c1[0].rows.length === 4 && j(c1[0].rows.map(r => r.vals)) === j(t1.rows.map(r => r.vals)), j([r1, c1]));
+        const r2 = T(csv([';Weight;Weight!;constructor;\u65e5\u672c', 'Rope;1,5;2;3;4', ';9;9;9;9', 'rope!;1;1;1;1', '\u65e5\u672c;1;1;1;1', 'toString;1;1;1;1', 'Ironwood Lumber Grade Alpha One;1;;;', 'Ironwood Lumber Grade Alpha Two;2;;;']), { keyOf: keyWord });
+        const t2 = r2.table;
+        check('csvTable: a short form is never one taken (a column by its key ignoring case, a row by nameFold over every key and name), never a word scripts keep for themselves and never past its length; a name that gives none takes Column, Row or Table and a number; a row with no name, or one whose name reads as a row above, is left out and said; a decimal comma in a file divided by semicolons',
+            !r2.error && j(t2.cols.map(c => c.key)) === j(['Weight', 'Weight2', 'Column1', 'Column2']) && j(t2.cols.map(c => c.label)) === j(['Weight', 'Weight!', 'constructor', '\u65e5\u672c']) && t2.key === 'Table' && t2.label === 'Table'
+            && j(t2.rows.map(r => r.key)) === j(['Rope', 'Row1', 'ToString', 'IronwoodLumberGradeAlpha', 'IronwoodLumberGradeAlpha2']) && t2.rows[0].vals.Weight === 1.5 && t2.rows.every(r => /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(r.key))
+            && j(T(csv(['N,Ironwood Lumber Grade Alpha One,Ironwood Lumber Grade Alpha Two', 'r,1,2']), { keyOf: keyWord }).table.cols.map(c => c.key)) === j(['IronwoodLumberGradeAlpha', 'IronwoodLumberGradeAlph2'])
+            && r2.dropped === 2 && j(r2.reasons) === j(['Line 3 has no name in its first column, so it was left out.', 'Line 4, \u201crope!\u201d, reads as a row above, so it was left out.']) && S.cleanTables([t2.key ? t2 : null], true)[0].rows.length === 5, j(r2));
+        const wide = ['Name,' + Array.from({ length: LM.tableCols + 10 }, (x, i) => 'c' + i).join(',')].concat(Array.from({ length: LM.tableRows + 60 }, (x, i) => 'r' + i + ',' + Array.from({ length: LM.tableCols + 10 }, () => '1').join(',')));
+        const r3 = T(csv(wide), { keyOf: keyWord }), r4 = T(csv(['N,a,b,c,d,e,f,g,h,i,j'].concat(Array.from({ length: 300 }, (x, i) => 'r' + i + ',1,2,3,4,5,6,7,8,9,10'))), { keyOf: keyWord, room: 1000 }), r5 = T(csv(['N,a', 'r,1']), { keyOf: keyWord, room: 0 });
+        check('csvTable: held to LIMITS.tableCols and LIMITS.tableRows, what is cut counted; held to the figures the system\'s other tables leave (room), the rows that do not fit counted and marked full; with no room at all, said and nothing made; and what it makes at its bounds passes the real cleaner whole',
+            r3.table.cols.length === LM.tableCols && r3.cutCols === 10 && r3.table.rows.length === LM.tableRows && r3.cutRows === 60 && r3.full === false && kept(r3)[0].rows.length === LM.tableRows && kept(r3)[0].cols.length === LM.tableCols
+            && r4.table.rows.length === 100 && r4.cutRows === 200 && r4.full === true && r5.table === null && /no room left/.test(r5.error), j([r3.cutCols, r3.cutRows, r4.cutRows, r4.full, r5.error]));
+        const old = { key: 'Metal', label: 'Metals', vis: 'gm', cols: [{ key: 'dens', label: 'Density' }, { key: 'cost' }], rows: [{ key: 'St', label: 'Steel', lo: 1, hi: 3, vals: { dens: 1 } }, { key: 'Tin', vals: {} }] };
+        const r6 = T(csv(['Metal,Density,Cost,Hardness', 'Steel,7.8,12,5', 'TIN,7.3,1,2', 'Lead,11.3,1,1']), { keyOf: keyWord, keep: old, label: 'Ignored' });
+        check('csvTable with keep (a replace): the table keeps its own short form and name; a column or a row whose name or short form reads as one of its keeps that short form, and a row its From and To, so a formula that read it still does; the rest take new ones',
+            r6.table.key === 'Metal' && r6.table.label === 'Metals' && j(r6.table.cols.map(c => c.key)) === j(['dens', 'cost', 'Hardness']) && j(r6.table.rows.map(r => [r.key, r.lo, r.hi])) === j([['St', 1, 3], ['Tin', undefined, undefined], ['Lead', undefined, undefined]]) && r6.table.rows[0].vals.dens === 7.8, j(r6.table));
+        const r7 = T(csv(['Only,a']), { keyOf: keyWord }), r8 = T(csv(['Name', 'a', 'b']), { keyOf: keyWord }), r9 = T(csv([',a', ',1']), { keyOf: keyWord }), r10 = T(null, {});
+        const many = T(csv(['N,a'].concat(Array.from({ length: 20 }, (x, i) => 'r' + i + ',x'))), { keyOf: keyWord }), op = T(parseCsv('N,a' + NL + 'r,"1'), { keyOf: keyWord });
+        check('csvTable: a file with its first row alone, with no column after the first, with no row named, or no file at all says so and makes nothing; past twelve reasons the rest are counted; a quote that never closed is told',
+            r7.table === null && /nothing under it/.test(r7.error) && r8.table === null && /no column of figures/.test(r8.error) && r9.table === null && /no row with a name/.test(r9.error) && r10.table === null && r10.error === 'That file holds no rows.'
+            && many.bad === 20 && many.reasons.length === C.CSV_TABLE.says && many.more === 20 - C.CSV_TABLE.says && op.open === true, j([r7.error, r8.error, r9.error, many.more, op.open]));
+        const H = '<img src=x onerror=alert(1)>', r11 = T(csv(['x,"' + H + '",b', '"' + H + CR + 'z",1,2', '__proto__,1,1']), { keyOf: keyWord, label: H }), c11 = kept(r11);
+        check('csvTable: a name from a hostile file is kept as the words it is, never a short form of its own, a line break folded to a space; a row named __proto__ sets nothing on any prototype; the cleaner keeps them as text',
+            r11.table.label === H && r11.table.cols[0].label === H && r11.table.rows[0].label === H + ' z' && r11.table.rows.every(r => /^[A-Za-z][A-Za-z0-9_]*$/.test(r.key)) && ({}).ok === undefined && Object.getPrototypeOf(r11.table.rows[1].vals) === Object.prototype
+            && c11 && c11[0].cols[0].label === H && c11[0].rows.length === 2, j(r11.table));
+    }
     check('csvcore is pure: no page, no network, no disk', !/\b(document|window|fetch|localStorage|XMLHttpRequest)\b/.test(read('scripts/csvcore.js').replace(/^\s*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')));
 
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

@@ -4207,6 +4207,12 @@ function cleanLook(v) {
     var out = {};
     if (v.titles === 'headline' || v.titles === 'accordion') out.titles = v.titles;   // Stage 6 look fold (L5): accordion titles
     if (v.tabs === 'filled' || v.tabs === 'angular') out.tabs = v.tabs;   // L5: angular tabs ('angled' stays invalid)
+    // 1.6.3 (improvement week; the owner, 2026-11-16, of tabs that took colors of their own): one color for the tab that is open (tabOn)
+    // and one for the others (tabOff), each a plain #rrggbb or left out, so a look without them is key for key what it was. Nothing of
+    // it is a secret, so cleanLook keeps them the same in both views. sheets.js tabColors draws them, with words in the ink worked out
+    // for each (accentInk); absent, the tabs take their colors from the accent and the palette, as before
+    if (typeof v.tabOn === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.tabOn)) out.tabOn = v.tabOn.toLowerCase();
+    if (typeof v.tabOff === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.tabOff)) out.tabOff = v.tabOff.toLowerCase();
     if (typeof v.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.accent)) out.accent = v.accent.toLowerCase();
     if (v.portrait === true) out.portrait = true;
     if (v.labels === 'caps' || v.labels === 'plain') out.labels = v.labels;   // Fold B: field labels in small bold capitals; 1.6.0: 'plain', the header's labels plain too

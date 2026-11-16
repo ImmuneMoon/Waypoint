@@ -2305,6 +2305,24 @@ function applyPaletteTo(node, look) {
     return !!pal;
 }
 // [systemcheck:palette-end]
+// [systemcheck:tabcolors-start]
+// 1.6.3 (improvement week; the owner, 2026-11-16): a sheet's tabs in colors of their own. The look may name tabOn, the color of the tab
+// that is open, and tabOff, the color of the other tabs (systemcore cleanLook keeps each as a plain #rrggbb). This puts them on the
+// node that holds the tabs (the strip, or a printed tab's heading) as custom properties, each beside the ink accentInk works out for
+// it, so words on a filled tab read whatever the color, and marks the node with sheet-tabs-on and sheet-tabs-off, which the style
+// sheet reads. Underlined tabs wear the colors as their words, filled and angular tabs as their fill. Each color is checked again
+// here, since the live sheet draws the campaign's raw system, so only a plain hex color ever reaches a style property. With neither
+// color nothing is set and no class is added, so the strip is drawn exactly as before. buildSections asks it through typeof, since a
+// suite runs buildSections alone.
+function tabColors(node, look) {
+    var HEX = /^#[0-9a-fA-F]{6}$/, L = look && typeof look === 'object' ? look : {};
+    [['tabOn', '--sheet-tab-on', 'sheet-tabs-on'], ['tabOff', '--sheet-tab-off', 'sheet-tabs-off']].forEach(function(p) {
+        var c = typeof L[p[0]] === 'string' && HEX.test(L[p[0]]) ? L[p[0]].toLowerCase() : '';
+        if (c) { node.style.setProperty(p[1], c); node.style.setProperty(p[1] + '-ink', accentInk(c)); node.classList.add(p[2]); }
+    });
+    return node;
+}
+// [systemcheck:tabcolors-end]
 // The sheet's look on a container (the live body, the Layout preview, a pop-out): the palette now; later look options add their
 // classes here. vctx = { campId, view, preview } — the options object a second view of the sheet extends.
 function applyLook(body, look, vctx) {
@@ -2640,6 +2658,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
         if (tabIds.indexOf(active) < 0) { active = tabIds[0]; body.dataset.wpTab = active; }
         var strip = el('div', 'sheet-tabs' + (look.tabs === 'filled' ? ' sheet-tabs-filled' : ''));   // Stage 5g: angled tabs, the open one filled in the accent
         if (look.tabs === 'angular') strip.classList.add('sheet-tabs-angular');   // Stage 6 look fold (L5): cut-corner tabs across the strip
+        if (typeof tabColors === 'function') tabColors(strip, look);   // 1.6.3: the open tab's color and the others' (none set: nothing changes)
         tabs.forEach(function(t) {
             var tb = el('button', 'sheet-tab' + (t.id === active ? ' active' : '')); if (look.tabs === 'filled' || look.tabs === 'angular') tb.title = t.label || 'Tab';   // a filled or angular tab can ellipsise a long label
             if (t.icon) tb.appendChild(iconNode(t.icon, 'sheet-tab-icon'));   // Stage 5g (Stage 6: or a bundled glyph)
@@ -2749,6 +2768,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
     (printV && tabs ? tabs : [null]).forEach(function(pt) {   // Onboarding F2b: printed, each tab in turn under its own heading (a tab with nothing drawn has none)
         var tabHead = null, had = 0; sideLast = null;
         if (pt) { tabHead = el('div', 'sheet-print-tab'); if (pt.icon) tabHead.appendChild(iconNode(pt.icon, 'sheet-tab-icon')); tabHead.appendChild(el('span', 'sheet-tab-label', pt.label || 'Tab')); }
+        if (tabHead && typeof tabColors === 'function') tabColors(tabHead, look);   // 1.6.3: a printed tab's heading wears the open tab's color
         var want = pt ? pt.id : active;
     layout.forEach(function(sec) {
         if (sec.pinned || childParent(sec)) return;   // a dashboard section (already above the strip) or a sub-section (rendered under its parent)
@@ -2990,7 +3010,24 @@ function renderLayout() {
     var labelsSel = select('sys-look-labels', [['', 'Plain labels'], ['caps', 'Capital labels'], ['plain', 'Plain labels, the header too']], shape.labels || '', 'Field labels: as they are, small bold capitals like a printed sheet, or plain everywhere, the header’s labels too');
     var inkSel = select('sys-look-labelink', [['', 'Muted labels'], ['text', 'Labels in text color']], shape.labelInk || '', 'The color of every label: the muted gray (as now), or the sheet’s own text color');
     var lsizeSel = select('sys-look-labelsize', [['', 'Label size as now'], ['13', '13 px labels'], ['14', '14 px labels'], ['16', '16 px labels']], shape.labelSize ? String(shape.labelSize) : '', 'How large a label is drawn on the sheet. The HUD keeps its own small labels');
-    [[titlesSel, 'Section titles'], [tabsSel, 'Tabs'], [labelsSel, 'Labels'], [inkSel, 'Label color'], [lsizeSel, 'Label size']].forEach(function(p) { shapeRow.appendChild(capBox(p[0], p[1])); });
+    // 1.6.3 (improvement week; the owner, 2026-11-16): two swatches beside the tab options, the open tab's color and the other tabs'
+    // (shape.tabOn and shape.tabOff, which cleanLook keeps as plain hex colors). A swatch that is not set shows a stand-in color and
+    // says so in its tooltip; a pick sets it, and Clear takes both off, back to the accent and the palette. tabColorsBox builds them;
+    // its listeners are its own, since the layout's delegated handlers key on sections and tabs
+    var tabColorsBox = function() {
+        var box = el('span', 'sys-look-tabcols');
+        [['tabOn', 'Open tab', 'The open tab’s color. Underlined tabs show it as the tab’s words, filled and angular tabs as its fill, with words in a color that reads on it', themeGold()],
+         ['tabOff', 'Other tabs', 'The other tabs’ color. Underlined tabs show it as their words, filled and angular tabs as their fill, with words in a color that reads on it', '#808080']].forEach(function(p) {
+            var sw = el('input', 'sys-look-tabcol'); sw.type = 'color'; sw.dataset.key = p[0]; sw.value = shape[p[0]] || p[3];
+            sw.title = shape[p[0]] ? p[2] : p[2] + '. Not set: the tabs take their colors from the accent and the palette';
+            sw.addEventListener('input', function() { setShape(p[0], /^#[0-9a-fA-F]{6}$/.test(sw.value) ? sw.value.toLowerCase() : null); });
+            sw.addEventListener('change', function() { renderLayout(); });   // Clear appears once one is picked
+            box.appendChild(el('span', 'sys-sec-style-lbl', p[1])); box.appendChild(sw);
+        });
+        if (shape.tabOn || shape.tabOff) { var tclr = el('button', 'tool ghost sys-btn sys-look-tabclr', 'Clear'); tclr.title = 'Take both tab colors off: the tabs take their colors from the accent and the palette again'; tclr.addEventListener('click', function() { setShape('tabOn', null); setShape('tabOff', null); renderLayout(); }); box.appendChild(tclr); }
+        return box;
+    };
+    [[titlesSel, 'Section titles'], [tabsSel, 'Tabs'], [labelsSel, 'Labels'], [inkSel, 'Label color'], [lsizeSel, 'Label size']].forEach(function(p) { shapeRow.appendChild(capBox(p[0], p[1])); if (p[0] === tabsSel) shapeRow.appendChild(tabColorsBox()); });
     shapeRow.appendChild(el('span', 'sys-sec-style-lbl', 'Accent'));
     var accentIn = el('input', 'sys-look-accent'); accentIn.type = 'color'; accentIn.value = shape.accent || themeGold(); accentIn.title = 'The sheet\u2019s accent: section titles, the open tab, the name in the header'; shapeRow.appendChild(accentIn);
     var portLbl = el('label', 'sys-hover'); var portChk = el('input', 'sys-look-portrait'); portChk.type = 'checkbox'; portChk.checked = !!shape.portrait; portLbl.appendChild(portChk); portLbl.appendChild(document.createTextNode(' Portrait & name in the header')); portLbl.title = 'The character\u2019s portrait and name lead the header block, with the identity rows and ledger figures beside the picture'; shapeRow.appendChild(portLbl);

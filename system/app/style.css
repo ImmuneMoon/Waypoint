@@ -5795,6 +5795,18 @@
   .sheet-frame .sheet-tabs.sheet-tabs-angular > .sheet-tab:focus-visible { outline: none; text-decoration: underline; text-underline-offset: 3px; box-shadow: inset 0 -3px 0 var(--sheet-accent, var(--gold)); }   /* clip-path hides an outside focus ring */
   #sheetPanel.sheet-has-headportrait #sheetTitle, body:has(#popoutBody .sheet-head-name) #popoutTitle { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .sys-look-palsw { display: inline-flex; align-items: center; gap: 3px; }
+  /* 1.6.3 (improvement week; the owner, 2026-11-16): a sheet's tabs in colors of their own, the look's tabOn for the open tab and tabOff for the others (sheets.js tabColors sets the
+     variables and the classes sheet-tabs-on and sheet-tabs-off, only where a color is set). Underlined tabs wear the colors as their words, the open one's underline too; filled and
+     angular tabs as their fill, with words in the ink worked out for that fill (--sheet-tab-on-ink, --sheet-tab-off-ink). Each selector repeats its class so that it outranks every
+     tab rule above, the palette's and the angular tabs' included, wherever it stands. A strip with neither class is drawn exactly as before. */
+  .sheet-tabs.sheet-tabs-on.sheet-tabs-on:not(.sheet-tabs-filled):not(.sheet-tabs-angular) > .sheet-tab.active { color: var(--sheet-tab-on); border-bottom-color: var(--sheet-tab-on); }
+  .sheet-tabs.sheet-tabs-off.sheet-tabs-off:not(.sheet-tabs-filled):not(.sheet-tabs-angular) > .sheet-tab:not(.active) { color: var(--sheet-tab-off); }
+  .sheet-tabs.sheet-tabs-off.sheet-tabs-off:not(.sheet-tabs-filled):not(.sheet-tabs-angular) > .sheet-tab:not(.active):hover { border-bottom-color: color-mix(in srgb, var(--sheet-tab-off) 55%, transparent); }
+  .sheet-tabs.sheet-tabs-on.sheet-tabs-on.sheet-tabs-on:is(.sheet-tabs-filled, .sheet-tabs-angular) > .sheet-tab.active { background: var(--sheet-tab-on); color: var(--sheet-tab-on-ink); }
+  .sheet-tabs.sheet-tabs-off.sheet-tabs-off.sheet-tabs-off:is(.sheet-tabs-filled, .sheet-tabs-angular) > .sheet-tab:not(.active) { background: var(--sheet-tab-off); color: var(--sheet-tab-off-ink); }
+  .sheet-tabs.sheet-tabs-off.sheet-tabs-off.sheet-tabs-off:is(.sheet-tabs-filled, .sheet-tabs-angular) > .sheet-tab:not(.active):hover { filter: brightness(1.15); }
+  .sheet-tabs.sheet-tabs-on.sheet-tabs-on > .sheet-tab.active .sheet-tab-icon, .sheet-tabs.sheet-tabs-off.sheet-tabs-off > .sheet-tab:not(.active) .sheet-tab-icon { color: inherit; }
+  .sys-look-tabcols { display: inline-flex; align-items: center; gap: 4px; }
   .sheet-stance.sheet-row { grid-column: 1 / -1; }
   .sheet-stance-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .sheet-stance-row > .sheet-label { min-width: 64px; }
@@ -6372,6 +6384,7 @@
   .sheet-print-name { font-size: 20px; font-weight: 700; color: var(--sheet-primary, var(--ink)); }
   .sheet-print-sub { font-size: 12px; color: var(--dim); }
   .sheet-print-tab { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 14px; padding: 8px 2px 3px; border-bottom: 2px solid var(--sheet-accent, var(--gold)); color: var(--sheet-accent, var(--gold)); break-after: avoid; }
+  .sheet-print-tab.sheet-tabs-on { color: var(--sheet-tab-on); border-bottom-color: var(--sheet-tab-on); }   /* 1.6.3: a printed tab's heading in the open tab's color (sheets.js tabColors) */
   .sheet-print-text { display: block; white-space: pre-wrap; overflow-wrap: anywhere; min-height: 1.4em; height: auto; }
   @media print {
       html.print-sheet, body.print-sheet { height: auto !important; overflow: visible !important; background: none !important; }

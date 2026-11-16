@@ -4718,6 +4718,54 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('look L5: Help describes accordion titles, sticky titles and angular tabs', /<b>accordion<\/b> titles[^<]*<b>Sticky titles<\/b>[^<]*<b>angular<\/b> across the strip/.test(help5.replace(/&rsquo;/g, "'")));
     }
 
+    /* ---- 1.6.3 (improvement week; the owner, 2026-11-16): a sheet's tabs in colors of their own, tabOn for the open tab and tabOff for the others ---- */
+    {
+        // cleanLook keeps each as a plain #rrggbb in lower case, right after tabs, the same in both views; anything else leaves no key
+        const tcSys = (look, gmView) => cleanSystem({ v: 1, name: 'TC', fields: [{ id: 'f_a', key: 'A', kind: 'number', def: 1, vis: 'all', edit: 'owner' }], rolls: [], sheet: { sections: [{ id: 's_a', title: 'A', cols: 1, fields: [{ id: 'f_a', w: 1 }] }], look } }, { F, gmView: gmView !== false });
+        const tcLook = (look, gmView) => { const x = tcSys(look, gmView); return x && x.sheet ? x.sheet.look : undefined; };
+        const tcFull = tcLook({ titles: 'accordion', tabs: 'angular', tabOn: '#AA3311', tabOff: '#224466', accent: '#123456' }), tcPl = tcLook({ tabs: 'filled', tabOn: '#AA3311', tabOff: '#224466' }, false);
+        const tcBad = [{ tabOn: 'red' }, { tabOff: '#12345' }, { tabOn: '#1234567' }, { tabOff: 123 }, { tabOn: 'url(x)' }, { tabOff: '#12345g' }, { tabOn: null }, { tabOff: {} }].map(x => tcLook(x));
+        check('1.6.3 tab colors: cleanLook keeps tabOn and tabOff as plain #rrggbb in lower case, right after tabs and before accent; the players\' view keeps them alike; a value that is no plain hex leaves no look key; a look without them is key for key as before',
+            tcFull && j(Object.keys(tcFull)) === j(['titles', 'tabs', 'tabOn', 'tabOff', 'accent']) && tcFull.tabOn === '#aa3311' && tcFull.tabOff === '#224466'
+            && tcPl && j(tcPl) === j({ tabs: 'filled', tabOn: '#aa3311', tabOff: '#224466' }) && tcBad.every(x => x === undefined)
+            && j(tcLook({ tabs: 'angular', accent: '#123456' })) === j({ tabs: 'angular', accent: '#123456' }) && tcLook({ tabOn: '#00ff00' }).tabOn === '#00ff00' && j(Object.keys(tcLook({ tabOff: '#00FF00' }))) === j(['tabOff']), j([tcFull, tcPl, tcBad]));
+        // the drawing: sheets.js tabColors, sliced by its markers and run for real on a node of plain objects beside the real accentInk
+        const tcSh = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const tcSrc = tcSh.slice(tcSh.indexOf('// [systemcheck:tabcolors-start]'), tcSh.indexOf('// [systemcheck:tabcolors-end]')), tcAcc = tcSh.slice(tcSh.indexOf('function accentInk('), tcSh.indexOf('// [systemcheck:palette-start]'));
+        const tabColorsF = new Function(tcAcc + '\n' + tcSrc + '\nreturn { tabColors: tabColors, accentInk: accentInk };')();
+        const tcNode = () => { const props = {}, cls = new Set(); return { props, cls, style: { setProperty(k, v) { props[k] = v; }, removeProperty(k) { delete props[k]; } }, classList: { add(c) { cls.add(c); }, toggle(c, on) { if (on) cls.add(c); else cls.delete(c); } } }; };
+        const tcRun = look => { const n = tcNode(); tabColorsF.tabColors(n, look); return { props: n.props, cls: [...n.cls].sort() }; };
+        const tcNone = [undefined, null, {}, { tabs: 'filled', accent: '#123456' }, { tabOn: 'red', tabOff: 'url(x)' }, { tabOn: '#12345' }].map(tcRun);
+        const tcBoth = tcRun({ tabOn: '#FFEE00', tabOff: '#101820' }), tcOn = tcRun({ tabOn: '#ffee00' });
+        check('1.6.3 tab colors: tabColors sets nothing and adds no class for a look without them, or with a value that is no plain hex; with both it sets each color, the ink accentInk works out for it, and the two classes; with one, that one alone',
+            tcNone.every(x => j(x) === j({ props: {}, cls: [] }))
+            && j(tcBoth) === j({ props: { '--sheet-tab-on': '#ffee00', '--sheet-tab-on-ink': '#111318', '--sheet-tab-off': '#101820', '--sheet-tab-off-ink': '#ffffff' }, cls: ['sheet-tabs-off', 'sheet-tabs-on'] })
+            && j(tcOn) === j({ props: { '--sheet-tab-on': '#ffee00', '--sheet-tab-on-ink': '#111318' }, cls: ['sheet-tabs-on'] })
+            && tabColorsF.accentInk('#ffee00') === '#111318' && tabColorsF.accentInk('#101820') === '#ffffff', j([tcNone, tcBoth, tcOn]));
+        check('1.6.3 tab colors: buildSections asks tabColors (through typeof) for the strip, right after its angular class, and for a printed tab\'s heading on the line after it is made',
+            /if \(look\.tabs === 'angular'\) strip\.classList\.add\('sheet-tabs-angular'\);[^\n]*\n\s*if \(typeof tabColors === 'function'\) tabColors\(strip, look\);/.test(tcSh)
+            && /tabHead\.appendChild\(el\('span', 'sheet-tab-label', pt\.label \|\| 'Tab'\)\); \}\n\s*if \(tabHead && typeof tabColors === 'function'\) tabColors\(tabHead, look\);/.test(tcSh));
+        const tcCss = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n');
+        const tcRules = tcCss.split('\n').filter(x => /sheet-tabs-on|sheet-tabs-off/.test(x.split('{')[0]) && /\{/.test(x) && !/^\s*\/\*/.test(x));
+        check('1.6.3 tab colors: the style sheet draws them only under sheet-tabs-on or sheet-tabs-off: underlined tabs as their words, filled and angular tabs as their fill with the worked-out ink, icons inheriting, a printed heading in the open tab\'s color; every rule reads its color through the variable tabColors sets',
+            tcRules.length === 8
+            && tcCss.indexOf('.sheet-tabs.sheet-tabs-on.sheet-tabs-on:not(.sheet-tabs-filled):not(.sheet-tabs-angular) > .sheet-tab.active { color: var(--sheet-tab-on); border-bottom-color: var(--sheet-tab-on); }') >= 0
+            && tcCss.indexOf('.sheet-tabs.sheet-tabs-off.sheet-tabs-off:not(.sheet-tabs-filled):not(.sheet-tabs-angular) > .sheet-tab:not(.active) { color: var(--sheet-tab-off); }') >= 0
+            && tcCss.indexOf('.sheet-tabs.sheet-tabs-on.sheet-tabs-on.sheet-tabs-on:is(.sheet-tabs-filled, .sheet-tabs-angular) > .sheet-tab.active { background: var(--sheet-tab-on); color: var(--sheet-tab-on-ink); }') >= 0
+            && tcCss.indexOf('.sheet-tabs.sheet-tabs-off.sheet-tabs-off.sheet-tabs-off:is(.sheet-tabs-filled, .sheet-tabs-angular) > .sheet-tab:not(.active) { background: var(--sheet-tab-off); color: var(--sheet-tab-off-ink); }') >= 0
+            && tcCss.indexOf('.sheet-print-tab.sheet-tabs-on { color: var(--sheet-tab-on); border-bottom-color: var(--sheet-tab-on); }') >= 0
+            && tcRules.every(x => /var\(--sheet-tab-(on|off)(-ink)?\)|color: inherit|filter: brightness/.test(x)), j(tcRules));
+        // the System editor: two swatches beside the tab options, each through setShape, and a Clear that takes both off; Help says it in plain words
+        const tcBox = tcSh.slice(tcSh.indexOf('var tabColorsBox = function() {'), tcSh.indexOf('shapeRow.appendChild(capBox(p[0], p[1])); if (p[0] === tabsSel) shapeRow.appendChild(tabColorsBox()); });'));
+        const tcHelp = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/&rsquo;/g, "'");
+        check('1.6.3 tab colors: the Sheet look box puts two color swatches, Open tab and Other tabs, right after the Tabs list, each written through setShape as a plain hex; Clear shows only while one is set and takes both off; Help names both swatches and Clear',
+            tcBox.length > 0 && /\['tabOn', 'Open tab', /.test(tcBox) && /\['tabOff', 'Other tabs', /.test(tcBox) && /sw\.type = 'color'/.test(tcBox)
+            && /sw\.addEventListener\('input', function\(\) \{ setShape\(p\[0\], \/\^#\[0-9a-fA-F\]\{6\}\$\/\.test\(sw\.value\) \? sw\.value\.toLowerCase\(\) : null\); \}\);/.test(tcBox)
+            && /if \(shape\.tabOn \|\| shape\.tabOff\) \{ var tclr = el\('button', 'tool ghost sys-btn sys-look-tabclr', 'Clear'\);[^\n]*setShape\('tabOn', null\); setShape\('tabOff', null\); renderLayout\(\);/.test(tcBox)
+            && /if \(p\[0\] === tabsSel\) shapeRow\.appendChild\(tabColorsBox\(\)\);/.test(tcSh)
+            && /The two swatches beside the tabs give them colors of their own: <b>Open tab<\/b> for the tab you are on, and <b>Other tabs<\/b> for the rest\.[^<]*<b>Clear<\/b> takes both off\./.test(tcHelp));
+    }
+
     /* ---- Stage 6 look fold (L4): pin groups — band groups, the Pin button, a viewer's pins per character ---- */
     {
         const gf4 = [{ id: 'f_a', key: 'A', kind: 'number', def: 1, vis: 'all' }, { id: 'f_b', key: 'B', kind: 'number', def: 1, vis: 'all' }, { id: 'f_s', key: 'S', kind: 'number', def: 1, vis: 'gm' }];

@@ -37,6 +37,9 @@ Smaller things
 - Players are now sent only the rooms that have a pin they can see.
   Rooms you have not placed on the map, and the names and pictures you
   keep under Expected here, stay on your computer.
+- A sheet's tabs can take colors of their own. Beside Tabs in the Sheet
+  look box, pick one color for the tab you're on and one for the rest, and
+  the words on a filled tab stay readable on whatever you pick.
 
 WAYPOINT 1.6.2 — What's New
 ============================

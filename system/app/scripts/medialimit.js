@@ -45,6 +45,20 @@ if (typeof document !== 'undefined') {
     }, true);
 }
 if (typeof window !== 'undefined') window.wpMediaLimit = fromResponse;
+// 1.6.3 (the cloud saves session, 2026-11-16, live: the Video panel said a refused video was missing from the saves folder): whether a file is
+// refused because the month's downloads are used up. Answers a promise of the limit's words (and says the notice once, as say does), or '' where
+// it is not: the desktop app, a page that is not the website's, an address that is no saved file, or any other answer. Once the limit has been
+// heard this session it answers at once without asking again. Asked by video.js when its element fails
+function check(src) {
+    var W = typeof window !== 'undefined' ? window.wpWebMode : null; if (!W || typeof W.web !== 'function' || W.web() !== true) return Promise.resolve('');
+    if (_said >= 0) return Promise.resolve(limitWords(_said));
+    if (typeof src !== 'string' || !/^\/saves\//.test(src.replace(location.origin, '')) || typeof fetch !== 'function') return Promise.resolve('');
+    return fetch(src, { headers: { Range: 'bytes=0-0' }, cache: 'no-store' }).then(function(r) {
+        if (!r || r.status !== 429) return '';
+        return r.clone().json().then(function(j) { var lim = limitOf(429, j); if (!lim) return ''; say(lim); return limitWords(lim.at); }, function() { return ''; });
+    }, function() { return ''; });
+}
+if (typeof window !== 'undefined' && window.wpMediaLimit) window.wpMediaLimit.check = check;
 
 /* 1.6.2 backlog 235 (the website coordinator, 2026-11-14): what a website's play host says to an import's writes. In a browser it answers
    413 { error: "too-large", max } for a body past its limit, 413 { error: "quota" } past the plan's storage, 429 { error: "daily-upload" }

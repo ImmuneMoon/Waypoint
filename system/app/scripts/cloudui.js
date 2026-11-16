@@ -18,7 +18,9 @@ async function call(method, p, body) {
 }
 // [cloudcheck:words-start]
 // The size of a save in words
-function sizeWords(n) { if (!(n >= 0)) return ''; if (n < 1024 * 1024) return Math.max(1, Math.round(n / 1024)) + ' KB'; if (n < 1024 * 1024 * 1024) return Math.round(n / 1024 / 1024) + ' MB'; return (Math.round(n / 1024 / 1024 / 1024 * 10) / 10) + ' GB'; }
+// 1.6.3 (the cloud saves session, 2026-11-16, live: the Profile window said "of 4.7 GB" where the site's account page says "of 5 GB" for
+// the same quota): sizes are counted as the website counts them, a kilobyte 1,000 bytes, a megabyte 1,000,000 and a gigabyte 1,000,000,000
+function sizeWords(n) { if (!(n >= 0)) return ''; if (n < 1e6) return Math.max(1, Math.round(n / 1e3)) + ' KB'; if (n < 1e9) return Math.round(n / 1e6) + ' MB'; return (Math.round(n / 1e8) / 10) + ' GB'; }
 // What a state says, in plain words
 function stateWords(s) {
     if (!s) return '';

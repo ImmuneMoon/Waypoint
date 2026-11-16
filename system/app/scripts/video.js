@@ -416,7 +416,12 @@ function deleteVideo(id) {
     var el = ui('videoEl');
     el.addEventListener('error', function() {
         if (!showing || !el.getAttribute('src')) return;
-        ui('videoCaption').textContent = 'This file cannot be played here: it is missing from your saves folder, or in a format this app cannot play.';
+        // 1.6.3 (the cloud saves session, 2026-11-16, live on waypointvtt.com past the month's downloads): the panel's own line said the file was
+        // missing beside the notice that the month's downloads are used up. On a website's page it now asks medialimit.js first (wpMediaLimit.check,
+        // which asks the file once): past the limit the line says the limit, and only a file that is refused for another reason says the old words
+        var capV = ui('videoCaption'), MISS = 'This file cannot be played here: it is missing from your saves folder, or in a format this app cannot play.', ML = window.wpMediaLimit;
+        capV.textContent = MISS;
+        if (ML && typeof ML.check === 'function') ML.check(el.getAttribute('src')).then(function(w) { if (w && capV.textContent === MISS) capV.textContent = w; }, function() {});
         stopShowing('The video could not be played: no longer showing to players.');
     });
     el.addEventListener('ended', function() { stopShowing('The video ended: it closed on the players’ screens.'); });   // with Loop it never ends

@@ -153,12 +153,35 @@ function tokenSightCells(token, map, camp) { return tokenSenses(token, map, camp
 // second and read every character token's senses from its sheet each time: a resolver a token, 18 ms a frame on a map of 47 tokens of which
 // 20 have sheets. While a frame is drawn (tick sets _sensesDraw) a token's result is kept until something it reads changes: what its place
 // gives (1.6.3: the null areas over its cell, its context), facing, stance, blind tick and ranges; its character (the object, its values object, its stamp); the system; the campaign's fog
-// settings; the map's grid and what else the senses read of it (sensesSig, 1.6.3: no longer its save stamp); the features that feed a formula; the role. And until anything says a sheet or what is seen changed
-// (sensesForget: the sheet's own two funnels, invalidateVision, invalidateSeen). A second is the longest a result is kept whatever happens,
-// for a change that reaches none of those. ONLY the drawing: a judgment the host makes for a player (fogDropIds, canSeePoint, sightSigFor,
-// the marks) is never made inside a frame, so it reads the sheet afresh every time, as before. A kept result is frozen: nothing writes to it
-var SENSES_KEEP_MS = 1000, _sensesDraw = false, _sensesBusy = false, _sensesEpoch = 0, _sensesMemo = typeof WeakMap === 'function' ? new WeakMap() : null;
-function sensesForget() { _sensesEpoch++; }
+// settings; the map's grid and what else the senses read of it (sensesSig, 1.6.3: no longer its save stamp); the features that feed a formula; the role.
+// ONLY the drawing: a judgment the host makes for a player (fogDropIds, canSeePoint, sightSigFor, the marks) is never made inside a frame, so
+// it reads the sheet afresh every time, as before. A kept result is frozen: nothing writes to it.
+// 1.6.3 (the game of 2026-11-15, the owner: "yes please", to looking at the lag of a map of 158 characters): a kept result is no longer
+// worked out again as a matter of course when its second is up. Every token's second ran out in the same frame, each was worked out again
+// with a fresh resolver (some 6.5 ms a token), and the GM's screen stuttered once a second. Now each kept result also keeps its CONTENT KEY
+// (sensesContent): everything its senses can read that the signature above does not name, which is the character's whole stored self as
+// JSON (a value written in place with no stamp changes it), what a resolver reads through the sources it asks (systemcore outsideKey and
+// outsideCamp: linked sheets both ways, the holder of a joined row, the sheets its rows are joined to, whether its token moved this turn, the
+// date, the shared values, the decks), the library its rows' entries come from (sensesLib) and the system's shape (sensesShape). When its
+// second is up the key is made again: the same, and the kept result lives another second with no resolver made (renewed); another, and it is
+// worked out again. A token with no character reads no sheet, so everything it reads is in the signature and its key is empty. Where the key
+// cannot be made (no outsideKey in the core, a part that cannot be written as text) the result is worked out again when its second is up,
+// as before. Three more rules, from the review of that change:
+//  - Anything that says a sheet or what is seen changed (sensesForget: the sheet's own two funnels, invalidateVision, invalidateSeen) no
+//    longer throws every kept result away, which made every token on the map build a fresh resolver after every save and every sheet change.
+//    It makes every kept result look again at the next frame (_sensesCheck, which the signature does not name): the token whose sheet
+//    changed is worked out again by its stamp or its key, and every other token is renewed for the price of its key (a quarter of a ms).
+//  - Each result keeps its own moment. A renewal, or a result worked out again because its second was up, falls due a second after it last
+//    fell due (sensesNext), not a second after the frame that looked at it, so tokens that a long frame looked at together still fall due
+//    apart. A result worked out for any other reason (a load, a signature that moved) lives 1 to 1,000 ms by its token's id (sensesJitter),
+//    so tokens worked out in one frame fall due over a whole second.
+//  - A result is never renewed past SENSES_MAX_MS (30 s) from when it was worked out: whatever the signature and the key may both miss (a
+//    part of the system changed in place, a figure that JSON writes the same way twice, such as NaN and null, a source a later fold forgets
+//    to key) shows within that time, as it showed within a second before. Spread by each token's own moment, that costs one resolver a token
+//    every 30 s, a thirtieth of the old cost
+var SENSES_KEEP_MS = 1000, SENSES_SPREAD = 1000, SENSES_MAX_MS = 30000, _sensesDraw = false, _sensesBusy = false, _sensesCheck = 0, _sensesCamp = null, _sensesMemo = typeof WeakMap === 'function' ? new WeakMap() : null;
+var _sensesDates = typeof WeakMap === 'function' ? new WeakMap() : null, _sensesIds = typeof WeakMap === 'function' ? new WeakMap() : null, _sensesIdN = 0;
+function sensesForget() { _sensesCheck++; }   // every kept result looks at its key again at the next frame (see above)
 // 1.6.3 (the game of 2026-11-15, a GM's map of 158 characters that lagged): the signature names what the senses READ from the map, never the
 // map's save stamp (meta.updated), which every save moves (a token dropped, a note typed) and which threw every token's senses away with it, a
 // fresh resolver each, some 6 ms a token. What tokenSenses reads of the map: its grid (gridType, the gridless cell and a cell size of its
@@ -169,13 +192,26 @@ function sensesForget() { _sensesEpoch++; }
 // suite that runs this slice alone runs it as before. What a formula may read from the campaign as a whole, through the sources the
 // resolver asks rather than a sheet (systemcore valueNow, the date, a deck's counts), is named too (glS: the shared values, the clock's time
 // or the date a player is sent, each deck's counts and last card), since the map's save stamp no longer stands for them: a Sight formula
-// that reads a shared value follows it at the next frame. Whatever reaches none of these (a value written into a sheet in place with no
-// stamp, a linked sheet's figure) still waits at most SENSES_KEEP_MS, as it always did
+// that reads a shared value follows it at the next frame. The clock's time and the date a player is sent are named only where the system's
+// formulas name the date at all (sensesDates): a running clock moves the time every few seconds, and that worked out every token again on
+// a map whose sheets never read it. The content key reads the date through its own source, so a system that starts to read the date in
+// place is still followed within a second. Whatever reaches none of these (a value written into a sheet in place with no stamp, a linked
+// sheet's figure) is found by the content key when the result's second is up (sensesKept)
 function sensesGlobal(camp) {   // the campaign-wide inputs of a sheet's formulas, as a short text (piles by their counts alone: a pile may hold hundreds of cards)
     if (!camp || typeof camp !== 'object') return '';
     var js = function(v) { return v === undefined || v === null ? '' : JSON.stringify(v); }, pl = camp.piles && typeof camp.piles === 'object' ? camp.piles : null, plS = '';
     if (pl) Object.keys(pl).forEach(function(k) { var p = pl[k]; if (p && typeof p === 'object') plS += k + ':' + (Array.isArray(p.draw) ? p.draw.length : '') + '/' + (Array.isArray(p.disc) ? p.disc.length : '') + '/' + js(p.last) + ';'; });
-    return [js(camp.shared), js(camp.clock && typeof camp.clock === 'object' ? camp.clock.t : null), js(camp.dateFig), js(camp.pileN), plS].join('~');
+    var dt = sensesDates(camp.system);
+    return [js(camp.shared), dt ? js(camp.clock && typeof camp.clock === 'object' ? camp.clock.t : null) : '', dt ? js(camp.dateFig) : '', js(camp.pileN), plS].join('~');
+}
+// Whether a system's formulas name the date (systemcore dateReads, which reads the whole system as text), kept for each system object so
+// that it is read once a system and not once a token a frame. True where it cannot be told (no core, or the core throws): the safe answer
+function sensesDates(sys) {
+    var S0 = window.wpSystemCore; if (!sys || typeof sys !== 'object' || !S0 || typeof S0.dateReads !== 'function') return true;
+    if (_sensesDates) { var c = _sensesDates.get(sys); if (c !== undefined) return c; }
+    var r = true; try { r = !!S0.dateReads(sys); } catch (e) { r = true; }
+    if (_sensesDates) _sensesDates.set(sys, r);
+    return r;
 }
 function sensesSig(token, map, camp) {
     var mm = map && map.meta && typeof map.meta === 'object' ? map.meta : null, js = function(v) { return v === undefined || v === null ? '' : JSON.stringify(v); };
@@ -186,18 +222,88 @@ function sensesSig(token, map, camp) {
     var S0 = window.wpSystemCore, ch = camp && camp.chars && typeof camp.chars === 'object' && typeof token.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, token.charId) ? camp.chars[token.charId] : null;
     var tcS = ''; if (ch && S0 && typeof S0.tokenCtx === 'function' && window.wpFormula) { try { tcS = js(S0.tokenCtx(map, token, { turning: !!rf('turning'), posture: !!rf('posture'), elevation: !!rf('elevation') })); } catch (e) { tcS = '?'; } }   // what the sheet's formulas read of the token, as tokenSenses builds it
     var posS = tcS === '?' || nulS === '?' ? [js(token.x), js(token.y), js(token.w), js(token.h)].join(',') : '';   // the place itself only where what it is read for could not be read: the senses read a place only through the null areas over its cell and the token's context (the bearing of what targets it), both above, so a token dragged across a cell keeps its senses
-    return [_sensesEpoch, roleNow(), posS, js(token.rot), js(token.front), js(token.elevation), js(token.posture), token.blind === true ? 1 : 0, token.waiting ? 1 : 0, js(token.ownerId), js(token.senses), js(token.threats), js(fo),
+    return [roleNow(), posS, js(token.rot), js(token.front), js(token.elevation), js(token.posture), token.blind === true ? 1 : 0, token.waiting ? 1 : 0, js(token.ownerId), js(token.senses), js(token.threats), js(fo),
         map ? js(map.id) : '', mm ? js(mm.gridType) : '', js(map && map.fog && map.fog.cell), mm ? js(mm.cell) : '', mm ? js(mm.cellValue) : '', mm ? js(mm.cellUnit) : '', lvlS, nulS, tcS, js(camp && camp.fog), sensesGlobal(camp), rf('turning'), rf('posture'), rf('elevation')].join('|');
 }
+// The library a row's entry may be read from (systemcore rowDef through libFind), as a short text: the campaign's pack list (each pack's
+// revision, hash and whether it is GM-only, which a pack's save moves), and the library's own state and size (a pack read or let go). An entry
+// changes only through a pack's save, which replaces its object and moves the pack's revision, so this stands for every entry's content
+function sensesLib(camp) {
+    var L = window.wpLibrary, st = '', n = '';
+    if (L) { try { st = typeof L.state === 'function' ? String(L.state()) : ''; n = typeof L.size === 'function' ? String(L.size()) : ''; } catch (e) { st = '?'; } }
+    return (camp && camp.library !== undefined ? JSON.stringify(camp.library) : '') + '\u0001' + st + '\u0001' + n;
+}
+// A number for each object, kept in a WeakMap, so that "which array this is" can be written as text
+function sensesId(o) { if (!_sensesIds) return 0; var n = _sensesIds.get(o); if (n === undefined) { n = ++_sensesIdN; _sensesIds.set(o, n); } return n; }
+// The system's shape, as a short text: each top-level part by its name, an array by which array it is and its length, an object by which
+// object it is, anything else as itself. The signature names the system by its object and its stamp, and the system is far too large to
+// write out as text each frame (half a megabyte on the campaign that lagged); this catches a part written in place with no new stamp, as
+// the tutorial's own upgrade pushes fields onto the system and library.js sets its core. A field changed inside an array in place is not
+// caught here: SENSES_MAX_MS is the bound for that
+function sensesShape(sys) {
+    if (!sys || typeof sys !== 'object') return '';
+    return Object.keys(sys).sort().map(function(k) { var v = sys[k]; return k + ':' + (Array.isArray(v) ? 'a' + sensesId(v) + '.' + v.length : v && typeof v === 'object' ? 'o' + sensesId(v) : typeof v + ':' + String(v)); }).join(',');
+}
+// The parts of a content key that are the same for every token of the campaign (outsideCamp's date, shared values and decks, the library,
+// the system's shape), made once a frame and not once a token: { oc, tail }, or null where they cannot be made. A frame is drawn in one go,
+// as one task with nothing changing in it, so they are kept until that task has ended: a microtask lets them go, and every frame of the
+// overlay is a task of its own. They are also let go once the clock has moved 50 ms or gone back, which only a suite that draws several
+// frames in one task, with a clock of its own, ever sees (a frame drawn over 50 ms makes them again, which costs time and nothing else).
+// oc is undefined where the core has no outsideCamp: outsideKey then makes those parts itself
+function sensesShared(camp, sys) {
+    var now = Date.now(), c = _sensesCamp;
+    if (c && c.camp === camp && c.sys === sys && now >= c.now && now - c.now < 50) return c.v;
+    var S0 = window.wpSystemCore, v = null;
+    try {
+        var oc; if (S0 && typeof S0.outsideCamp === 'function') oc = S0.outsideCamp(sys);
+        if (oc !== null) v = { oc: typeof oc === 'string' ? oc : undefined, tail: sensesLib(camp) + '\u0002' + sensesShape(sys) };
+    } catch (e) { v = null; }
+    c = _sensesCamp = { now: now, camp: camp, sys: sys, v: v };
+    if (typeof Promise === 'function') Promise.resolve().then(function() { if (_sensesCamp === c) _sensesCamp = null; });
+    return v;
+}
+// A kept result's content key (see the heading above): '' for a token with no character, else the character's whole stored self, what its
+// resolver reads through the core's sources, the library and the system's shape, as one text; null where it cannot be made, which means
+// "work it out again". JSON.stringify writes NaN, Infinity and null alike and -0 as 0: the cleaners never store any of them in a sheet,
+// and SENSES_MAX_MS bounds what such a change could miss (a replacer that told them apart doubled the key's cost)
+function sensesContent(token, ch, camp, sys) {
+    if (!ch) return '';   // no sheet: tokenSenses reads only what the signature names
+    var S0 = window.wpSystemCore; if (!S0 || typeof S0.outsideKey !== 'function') return null;
+    try {
+        var sh = sensesShared(camp, sys); if (!sh) return null;
+        var out = S0.outsideKey(sys, ch, typeof token.id === 'string' ? token.id : '', sh.oc); if (typeof out !== 'string') return null;
+        return JSON.stringify(ch) + '\u0002' + out + '\u0002' + sh.tail;
+    } catch (e) { return null; }
+}
+// How much less than a second a result worked out afresh lives: 0 to SENSES_SPREAD - 1 ms, fixed by its token's id and which of the two
+// results it is (FNV-1a), so that tokens worked out in one frame fall due in different frames
+function sensesJitter(token, k) {
+    var s = (typeof token.id === 'string' ? token.id : '') + '|' + k, h = 2166136261;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    return h % SENSES_SPREAD;
+}
+// When a result that was looked at because its second was up next falls due: a second after it last fell due, so that each token keeps its
+// own moment even where a long frame (a save, the garbage collector) looked at several at once; where even that is already past, a second
+// from now less its own jitter, so that tokens long overdue do not all fall due together again
+function sensesNext(until, now, token, k) { var u = until + SENSES_KEEP_MS; return u > now ? u : now + SENSES_KEEP_MS - sensesJitter(token, k); }
 function sensesKept(token, map, camp, waived) {   // the kept result while a frame is drawn (worked out afresh when the kept one is no longer good); null outside a frame
     if (!_sensesDraw || _sensesBusy || !_sensesMemo || !token || typeof token !== 'object') return null;
     var ch = camp && camp.chars && typeof camp.chars === 'object' && typeof token.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, token.charId) ? camp.chars[token.charId] : null, vals = ch ? ch.values : null, sys = camp ? camp.system : null;
     var slot = _sensesMemo.get(token); if (!slot) { slot = {}; _sensesMemo.set(token, slot); }
     var k = waived === true ? 'w' : 'o', hit = slot[k], now = Date.now(), sig = sensesSig(token, map, camp) + '|' + (ch ? JSON.stringify(ch.updated) : '-') + '|' + (sys ? JSON.stringify(sys.updated) : '-');
-    if (hit && hit.sig === sig && hit.ch === ch && hit.vals === vals && hit.sys === sys && now >= hit.at && now - hit.at < SENSES_KEEP_MS) return hit.out;
+    var same = !!hit && hit.sig === sig && hit.ch === ch && hit.vals === vals && hit.sys === sys && now >= hit.at;   // nothing the signature names moved, and the clock did not go back
+    if (same && now < hit.until && hit.chk === _sensesCheck) return hit.out;   // its second is not up and nothing said to look again
+    var young = same && now - hit.born < SENSES_MAX_MS;   // it may still be renewed by its key
+    var key = sensesContent(token, ch, camp, sys);   // made before the senses are read, so the key names what they were read from
+    if (young && key !== null && hit.key !== null && key === hit.key) {   // nothing it reads changed: it lives on, at its own moment, with no resolver made
+        hit.at = now; hit.chk = _sensesCheck; if (now >= hit.until) hit.until = sensesNext(hit.until, now, token, k);
+        return hit.out;
+    }
     var out; _sensesBusy = true; try { out = tokenSenses(token, map, camp, waived); } finally { _sensesBusy = false; }
     [out.full, out.marks, out.offs].forEach(function(l) { if (Array.isArray(l)) { l.forEach(function(e) { Object.freeze(e); }); Object.freeze(l); } }); Object.freeze(out);
-    slot[k] = { sig: sig, at: now, out: out, ch: ch, vals: vals, sys: sys };
+    // its moment: where the signature moved, a new one by its id; where only its key (or its age) moved, the one it had, a second on where that is up
+    var until = !same ? now + SENSES_KEEP_MS - sensesJitter(token, k) : now >= hit.until ? sensesNext(hit.until, now, token, k) : hit.until;
+    slot[k] = { sig: sig, at: now, born: now, chk: _sensesCheck, until: until, out: out, ch: ch, vals: vals, sys: sys, key: key };
     return out;
 }
 // [fogcheck:sensesmemo-end]

@@ -4,18 +4,23 @@
    - every hard case of the JavaScript tokenizer by hand: strings in all three quotes, template literals with nested ${...} and
      templates inside them, regular-expression literals told from division by the token before (after a keyword, an if head, a block,
      an object, a postfix ++, a property named like a keyword), a // or a block comment inside a regex, a string or a template, a
-     hashbang, a /*! licence, HTML-like comments left as code, line breaks kept (CRLF and the line separator too), a comment that held a
-     line break still ending a statement, a NUL byte inside a string;
-   - CSS and HTML by hand: strings, url(...), a comment that would join two words kept, attribute values, pre, textarea, inline script
-     and style;
-   - stripTree on a small tree of its own: the vendor and font folders, JSON and binary files byte for byte, a latin1 file, which
-     scripts are classic, and each refusal (a file that grew, a lost line, tokens that differ, a module or a classic script that does
-     not parse as its kind);
+     hashbang, a /*! licence, HTML-like comments (code in a module, comments kept whole in a classic script, where the review of
+     2026-11-16 showed a strip that read them as code deleting a statement), a { after a case or default clause or a label (a block),
+     for await, export default and the of of a for head (each before a regex), line breaks kept (CRLF and the line separator too), a
+     comment that held a line break still ending a statement, a NUL byte inside a string;
+   - CSS and HTML by hand: strings, url(...), a comment that would join two words kept, attribute values, the elements whose contents
+     are no markup (pre, textarea, title, xmp, iframe, noembed, noframes, noscript, plaintext), the comments the HTML tokenizer ends
+     early (<!-->, <!--->, --!>) left as they are, the independent check of each removed comment (htmlRemovedSays), inline script and
+     style;
+   - stripTree on a small tree of its own: the vendor and font folders, JSON and binary files byte for byte, a latin1 style sheet,
+     which scripts are classic (a relative address, a root-absolute one, one with a ?query or a #hash), and each refusal (a file that
+     grew, a lost line, tokens that differ, a module or a classic script that does not parse as its kind, a .js that is not UTF-8, a
+     misreading only acorn sees, a removed comment that fails the independent check); and acornCheck by itself;
    - a seeded fuzz of generated JavaScript, judged three ways: the tokens the generator wrote, the tokens of the stripped program, and
      what V8 itself makes of the program before and after (each one is run and its result compared);
-   - the REAL app: stripTree over a copy of system/app, every stripped module imported as parsecheck imports it, the token streams file
-     by file, the vendor and font folders and every file left unstripped byte for byte, the NUL bytes of docpanel.js and popout.js, and
-     the bytes saved, reported.
+   - the REAL app: stripTree over a copy of system/app, the comments of every script held to acorn's file by file, every stripped
+     module imported as parsecheck imports it, the token streams file by file, the vendor and font folders and every file left
+     unstripped byte for byte, the NUL bytes of docpanel.js and popout.js, and the bytes saved, reported.
    Usage: node tools/stripcheck.js   (exit 1 on any failure) */
 'use strict';
 const fs = require('fs'), path = require('path'), os = require('os'), vm = require('vm');
@@ -34,12 +39,13 @@ function run(code) {
     try { const v = vm.runInNewContext(code, {}, { timeout: 2000 }); return 'ok:' + j(v === undefined ? '(undefined)' : v); }
     catch (e) { return 'err:' + (e && e.name); }
 }
-// One hand case: the source, what stripJs must give (null to judge it by its tokens and its run alone), and a short name.
-function jsCase(name, src, want, runs) {
+// One hand case: the source, what stripJs must give (null to judge it by its tokens and its run alone), and a short name. runs says
+// V8 runs both (as a classic script) to the same good end; opts goes to stripJs (opts.classic for a classic script's reading).
+function jsCase(name, src, want, runs, opts) {
     let got = null, err = null;
-    try { got = S.stripJs(src); } catch (e) { err = e.message; }
+    try { got = S.stripJs(src, opts); } catch (e) { err = e.message; }
     if (err) { check(name, false, 'threw: ' + err); return null; }
-    const lines = S.lineCount(got) === S.lineCount(src), toks = same(src, got), shorter = got.length <= src.length;
+    const lines = S.lineCount(got) === S.lineCount(src), toks = j(S.jsTokens(src, opts)) === j(S.jsTokens(got, opts)), shorter = got.length <= src.length;
     const exact = want === null || got === want;
     const ran = runs ? run(src) === run(got) && run(got).startsWith('ok:') : true;
     check(name, exact && lines && toks && shorter && ran, j({ got, want, lines, toks, shorter, ran: runs ? [run(src), run(got)] : '-' }));
@@ -87,7 +93,46 @@ function jsCase(name, src, want, runs) {
     jsCase('a block comment between two tokens with nothing else between them leaves one space, so typeof and a name stay two words',
         'var ab = 1; var c = typeof/**/ab; var e = ab -/**/-ab; var f = ab/*x*//*y*/+1; [c, e, f];', 'var ab = 1; var c = typeof ab; var e = ab - -ab; var f = ab +1; [c, e, f];', true);
     const hl = 'var lt = 1, hl = 3 <!--lt;\nvar gt = 2\n-->gt;\n';
-    check('HTML-like comments are no comments to the stripper: a text that holds <!-- and --> and no other comment comes back unchanged', S.stripJs(hl) === hl);
+    check('in a module, <!-- and --> are code (a module has no HTML-like comments): a text that holds them and no other comment comes back unchanged', S.stripJs(hl) === hl);
+    // the review of 2026-11-16: in a classic script V8 reads <!-- (anywhere) and --> (at a line start) as a comment to the line's end,
+    // so a block comment marker inside one is no marker. Each source runs to another result if read the other way, which the run proves.
+    const CL = { classic: true };
+    const runOut = code => { const out = []; try { vm.runInNewContext(code, { out, s: 'x/*' }, { timeout: 2000 }); } catch (e) { return 'err:' + e.name; } return j(out); };
+    const wrongWay = (src, wrong) => runOut(src) !== runOut(wrong);
+    const ha = 'out.push(1) <!-- /* \nout.push(2); // */\n';
+    jsCase('classic: <!-- begins a comment to the line\'s end, kept whole, so a /* inside it opens nothing and the next line still runs',
+        ha, 'out.push(1) <!-- /* \nout.push(2);\n', false, CL);
+    check('... and the strip that read <!-- as code would have deleted a statement (V8 runs [1,2] against [1])', runOut(ha) === '[1,2]' && runOut(S.stripJs(ha, CL)) === '[1,2]' && wrongWay(ha, 'out.push(1) <!--\n\n'));
+    const hb = 'var x = 1\n--> /* \nout.push(2); // */';
+    jsCase('classic: --> at the start of a line is a comment too, kept whole', hb, 'var x = 1\n--> /* \nout.push(2);', false, CL);
+    check('... and V8 runs the stripped script as the source', runOut(hb) === '[2]' && runOut(S.stripJs(hb, CL)) === '[2]' && wrongWay(hb, 'var x = 1\n-->\n'));
+    jsCase('classic: --> that does not start a line is code (a decrement and a greater-than), and a comment after it goes',
+        'var y = 3, z = y-->1; // c\n[y, z];', 'var y = 3, z = y-->1;\n[y, z];', true, CL);
+    // the review of 2026-11-16: a { after the colon of a case or default clause, or of a label, opens a block, so a slash after its }
+    // begins a regex; the regex holds a [/*] that would otherwise open a comment and swallow the next statement
+    const RX = "\n/[/*]/.test(s)&&out.push(3);var q='*/]/;out.push(9);//';";
+    const blockCases = [
+        ['a { after case 1: is a block', 'switch(1){case 1:{ }' + RX + '}'],
+        ['a { after default: is a block', 'switch(2){default:{ }' + RX + '}'],
+        ['a { after a label is a block', 'L:{ }' + RX],
+        ['a { after a case whose test holds a conditional is a block, and the conditional\'s own colon is no clause\'s', 'switch(1){case (0 ? 2 : 1):{ }' + RX + '}'],
+        ['the ( of for await is a control head, so a regex may follow its )', '(async () => { for await (const z of [1])' + RX + '})()'],
+        ['the of of a for head is a keyword, after which a slash begins a regex', "for (const m of /[/*]/.exec(s)) out.push(m);var q='*/]/;out.push(9);//';"]
+    ];
+    // each source holds no comment at all (its // stands inside a string), so it must come back as it is
+    for (const [name, src] of blockCases) {
+        const got = S.stripJs(src);
+        check(name + ': the text holds no comment and comes back as it is, and V8 runs it', got === src && S.scanJs(src).cuts.length === 0 && !runOut(src).startsWith('err'), j({ got, ran: runOut(src) }));
+    }
+    check('... and the old misreading (a regex after a label\'s block read as a division) would have changed what runs: [3] against [9]',
+        runOut('L:{ }' + RX) === '[3]' && runOut("L:{ }\n/[ ]/;out.push(9);") === '[9]');
+    jsCase('a module\'s export default is followed by a regex (default before a slash), and its comment goes',
+        "export default /[/*]/; globalThis.z = 9; // c */\n", "export default /[/*]/; globalThis.z = 9;\n", false);
+    jsCase('export default { } is an object, so a slash after it divides', 'export default {} / 2; // c\n', 'export default {} / 2;\n', false);
+    jsCase('an of that is a name (outside a for head, or after an operator in one) divides',
+        'var of = 8, w = 2; var d1 = of / w / 2; for (var i = of / w; i < 5; i++) {} // c\n[d1, i];', 'var of = 8, w = 2; var d1 = of / w / 2; for (var i = of / w; i < 5; i++) {}\n[d1, i];', true);
+    jsCase('an object literal with a key named case or default keeps its colons as an object\'s: a slash after its } divides',
+        'var o2 = { case: 4, default: { k: 1 } }; var v = o2.case / 2 / 1; // c\nv;', 'var o2 = { case: 4, default: { k: 1 } }; var v = o2.case / 2 / 1;\nv;', true);
     jsCase('CRLF line endings: the CR LF after a // comment stays, and a block comment that held a CR LF leaves it',
         'var a = 1; // c\r\nvar b = 2; /* x\r\ny */ var c = 3;\r\n[a, b, c];', 'var a = 1;\r\nvar b = 2;\r\n var c = 3;\r\n[a, b, c];', true);
     jsCase('a NUL byte inside a string stays where it is',
@@ -114,8 +159,8 @@ function jsCase(name, src, want, runs) {
         j(tokv('var ' + BS + 'u0061b = 3_000n; f(...x);')) === j(['var', BS + 'u0061b', '=', '3_000n', ';', 'f', '(', '...', 'x', ')', ';']), j(tokv('var ' + BS + 'u0061b = 3_000n; f(...x);')));
     check('the tokens say which follow a line break, and a comment that held one counts as one',
         j(S.jsTokens('a /*\n*/ b // c\nd').map(t => t.nl)) === j([false, true, true]));
-    check('latin1 reading: a byte of 0x80 or more is part of a name, and only LF and CR end a line',
-        j(S.jsTokens('a' + String.fromCharCode(0xE9) + 'b // c' + String.fromCharCode(0xE2, 0x80, 0xA8) + 'd', { bytes: true }).map(t => t.v)) === j(['a' + String.fromCharCode(0xE9) + 'b']));
+    check('a block comment that holds only a line separator still counts as a line break (it ends a statement)',
+        j(S.jsTokens('a /*' + LS + '*/ b').map(t => t.nl)) === j([false, true]) && S.stripJs('a /*' + LS + '*/ b') === 'a' + LS + ' b');
 
     /* ---- CSS, by hand ---- */
     const cssCase = (name, src, want) => {
@@ -152,14 +197,46 @@ function jsCase(name, src, want, runs) {
     htmlCase('a comment that held line breaks leaves them where white space stands beside it', '<p>a <!-- one\ntwo\nthree -->b</p>', '<p>a \n\nb</p>');
     htmlCase('a comment that held line breaks between two words, or between two tags, is emptied and kept, since its line breaks alone would put a space between them',
         '<p>a<!-- one\ntwo -->b</p><b>x</b><!--\nc\n--><i>y</i>', '<p>a<!--\n-->b</p><b>x</b><!--\n\n--><i>y</i>');
+    // the review of 2026-11-16: a comment ends where the HTML tokenizer ends it, and markup a browser shows after it is never swallowed
+    htmlCase('<!--> is an empty comment that closes at once: the paragraph after it stays, and the odd comment is left as it is',
+        '<!--><p>shown</p><!-- x -->', '<!--><p>shown</p>');
+    htmlCase('<!---> closes at once too', '<!---><p>shown</p><!-- x -->', '<!---><p>shown</p>');
+    htmlCase('--!> ends a comment: the paragraph after it stays, and the odd comment is left as it is',
+        '<!-- a --!><p>shown</p><!-- b -->', '<!-- a --!><p>shown</p>');
+    htmlCase('a comment that never closes is left as it is', '<p>x</p><!-- open', '<p>x</p><!-- open');
+    check('commentEnd reads each form as the tokenizer does', j([S.commentEnd('<!-->', 0), S.commentEnd('<!--->', 0), S.commentEnd('<!---->', 0), S.commentEnd('<!-- a --!> -->', 0), S.commentEnd('<!-- a ---> b', 0)])
+        === j([{ e: 5, odd: true }, { e: 6, odd: true }, { e: 7, odd: false }, { e: 11, odd: true }, { e: 11, odd: false }]));
+    htmlCase('a comment inside title (RCDATA: its text) stays, so the window\'s title is as written', '<title>A <!-- b --> C</title><!-- x -->', '<title>A <!-- b --> C</title>');
+    htmlCase('a comment inside xmp, iframe, noembed, noframes and noscript stays',
+        '<xmp><!-- a --></xmp><iframe><!-- b --></iframe><noembed><!-- c --></noembed><noframes><!-- d --></noframes><noscript><!-- e --></noscript>',
+        '<xmp><!-- a --></xmp><iframe><!-- b --></iframe><noembed><!-- c --></noembed><noframes><!-- d --></noframes><noscript><!-- e --></noscript>');
+    htmlCase('a raw element written with a / before its > is still open, and plaintext runs to the end, its </plaintext> its text',
+        '<title/> <!-- a --> </title><plaintext><!-- b --></plaintext><!-- c -->', '<title/> <!-- a --> </title><plaintext><!-- b --></plaintext><!-- c -->');
+    {
+        const rec = []; S.stripHtml('<p>a <!-- x --> b</p>\n<!-- y -->\n', { removed: rec });
+        check('stripHtml names each comment it took out', j(rec) === j([{ s: 5, e: 15 }, { s: 22, e: 32 }]), j(rec));
+        const page = '<title>t <!-- in --></title>\n<p>a <!-- ok --> b<!-- odd --!>c</p>';
+        const says = rs => S.htmlRemovedSays(page, rs);
+        const ok = page.indexOf('<!-- ok'), inT = page.indexOf('<!-- in');
+        const r1 = says([{ s: ok, e: ok + 11 }]), r2 = says([{ s: inT, e: inT + 11 }]), r3 = says([{ s: ok, e: ok + 6 }]);
+        check('htmlRemovedSays passes an ordinary comment outside raw text, and refuses one inside title, one that is not the first --> after its <!--, and one that holds --!>, each read apart from walkHtml',
+            r1 === null && /inside an element/.test(r2) && /first -->/.test(r3)
+            && /--!>/.test(S.htmlRemovedSays('<!-- a --!> b -->', [{ s: 0, e: 17 }])) && /no ordinary/.test(S.htmlRemovedSays('<!--> x -->', [{ s: 0, e: 11 }])),
+            j([r1, r2, r3]));
+    }
 
     /* ---- stripTree on a tree of its own ---- */
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wp-stripcheck-'));
     try {
         const src = path.join(tmp, 'src');
         const put = (rel, data) => { const f = path.join(src, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, data); };
-        put('index.html', '<!doctype html>\n<!-- page -->\n<script src="scripts/boot.js"></script>\n<script src="/api/prefs.js"></script>\n<script type="module" src="scripts/m.js"></script>\n');
+        put('index.html', '<!doctype html>\n<!-- page -->\n<script src="scripts/boot.js"></script>\n<script src="/api/prefs.js"></script>\n<script type="module" src="scripts/m.js"></script>\n'
+            + '<script src="/scripts/abs.js?v=2"></script>\n<script src="scripts/q.js#h"></script>\n');
         put('scripts/boot.js', '/* boot */\nvar boot = 1; // c\n');
+        // classic scripts named by a root-absolute address and by one with a ?query or #hash; each holds an HTML-like comment, which
+        // only a classic script's reading takes (a module would refuse it as code that does not parse)
+        put('scripts/abs.js', 'var abs = 1 <!-- an HTML-like comment /* with a marker\nabs; // c\n');
+        put('scripts/q.js', 'var q = 2;\n--> a line-start one /*\nq; // c\n');
         put('scripts/m.js', 'import { b } from "./b.js"; // c\nexport const a = b / 2; /* d */\nawait 0;\n');
         put('scripts/b.js', 'export const b = 4;\n');
         put('scripts/nul.js', 'export const sep = "' + NUL + '"; // sig\nexport const t = 1;\n');
@@ -169,23 +246,26 @@ function jsCase(name, src, want, runs) {
         put('assets/vendor/lib.css', '/* kept */ a { }\n');
         put('assets/fonts/x.ttf', Buffer.from([0, 1, 2, 47, 42, 3, 42, 47, 255, 254]));
         put('assets/pic.png', Buffer.from([137, 80, 78, 71, 47, 47, 10, 0]));
-        // a file that is not UTF-8: its 0xFF byte inside a string must come back as it was
-        put('scripts/latin.js', Buffer.concat([Buffer.from('export const s = "'), Buffer.from([0xFF, 0xFE]), Buffer.from('"; // c\n')]));
+        // a style sheet that is not UTF-8: its 0xFF byte inside a string must come back as it was
+        put('latin.css', Buffer.concat([Buffer.from('a::before { content: "'), Buffer.from([0xFF, 0xFE]), Buffer.from('"; } /* c */\n')]));
         const out = path.join(tmp, 'out');
         const rep = S.stripTree(src, out);
         const B = rel => fs.readFileSync(path.join(out, rel)), A = rel => fs.readFileSync(path.join(src, rel));
-        check('stripTree copies the whole tree, stripping the five scripts, the style sheet and the page', rep.files === 12 && rep.stripped.length === 7 && rep.copied === 5, j(rep));
+        check('stripTree copies the whole tree, stripping the six scripts, the two style sheets and the page', rep.files === 14 && rep.stripped.length === 9 && rep.copied === 5, j(rep));
         check('the vendor folder, the font folder, JSON and a picture come out byte for byte',
             ['assets/vendor/lib.js', 'assets/vendor/lib.css', 'assets/fonts/x.ttf', 'assets/pic.png', 'data.json'].every(r => A(r).equals(B(r))));
-        check('a script the page loads with no type="module" is judged as a classic script, the rest as modules, and an address outside the tree is no file',
-            j(rep.stripped.filter(x => x.kind === 'classic').map(x => x.file)) === j(['scripts/boot.js']) && j([...S.classicScripts(src, ['index.html'])]) === j(['scripts/boot.js']));
-        check('the stripped files are what stripJs, stripCss and stripHtml give',
+        check('a script the page loads with no type="module" is judged as a classic script (a relative address, a root-absolute one, one with a ?query or a #hash), the rest as modules, and an address outside the tree is no file',
+            j(rep.stripped.filter(x => x.kind === 'classic').map(x => x.file).sort()) === j(['scripts/abs.js', 'scripts/boot.js', 'scripts/q.js'])
+            && j([...S.classicScripts(src, ['index.html'])].sort()) === j(['scripts/abs.js', 'scripts/boot.js', 'scripts/q.js']));
+        check('the stripped files are what stripJs, stripCss and stripHtml give, and a classic script\'s HTML-like comments are kept whole',
             B('scripts/boot.js').toString() === '\nvar boot = 1;\n' && B('scripts/m.js').toString() === 'import { b } from "./b.js";\nexport const a = b / 2;\nawait 0;\n'
-            && B('style.css').toString() === '\na { }\n' && B('index.html').toString() === '<!doctype html>\n\n<script src="scripts/boot.js"></script>\n<script src="/api/prefs.js"></script>\n<script type="module" src="scripts/m.js"></script>\n',
-            j([B('scripts/boot.js').toString(), B('style.css').toString()]));
+            && B('scripts/abs.js').toString() === 'var abs = 1 <!-- an HTML-like comment /* with a marker\nabs;\n' && B('scripts/q.js').toString() === 'var q = 2;\n--> a line-start one /*\nq;\n'
+            && B('style.css').toString() === '\na { }\n' && B('index.html').toString() === '<!doctype html>\n\n<script src="scripts/boot.js"></script>\n<script src="/api/prefs.js"></script>\n<script type="module" src="scripts/m.js"></script>\n'
+            + '<script src="/scripts/abs.js?v=2"></script>\n<script src="scripts/q.js#h"></script>\n',
+            j([B('scripts/boot.js').toString(), B('scripts/abs.js').toString(), B('scripts/q.js').toString(), B('style.css').toString()]));
         check('a NUL byte inside a string comes out where it was', B('scripts/nul.js').toString() === 'export const sep = "' + NUL + '";\nexport const t = 1;\n');
-        check('a file that is not UTF-8 is read and written as latin1, so its own bytes come back as they were',
-            B('scripts/latin.js').equals(Buffer.concat([Buffer.from('export const s = "'), Buffer.from([0xFF, 0xFE]), Buffer.from('";\n')])));
+        check('a style sheet that is not UTF-8 is read and written as latin1, so its own bytes come back as they were',
+            B('latin.css').equals(Buffer.concat([Buffer.from('a::before { content: "'), Buffer.from([0xFF, 0xFE]), Buffer.from('"; }\n')])));
         check('the report counts the bytes before and after and what was saved', rep.saved === rep.before - rep.after && rep.saved > 0 && rep.stripped.every(x => x.after <= x.before));
         const refusal = (name, opts, srcEdit, pat) => {
             const o = path.join(tmp, 'o' + Math.random().toString(36).slice(2));
@@ -198,18 +278,39 @@ function jsCase(name, src, want, runs) {
         refusal('a stripped file that grew is refused, the file named', { stripJs: t => t + ' ' }, null, /^stripTree refused scripts\/\S+\.js: it grew from/);
         refusal('a stripped file that lost a line is refused, the file named', { stripJs: t => t.replace('\n', '') }, null, /^stripTree refused scripts\/\S+\.js: it went from \d+ lines to/);
         refusal('a stripped file whose tokens differ from the source\'s is refused, the token named', { stripJs: t => t.replace(/b/, 'c') }, null, /^stripTree refused scripts\/\S+\.js: its tokens differ .*token \d+ was/);
-        refusal('a stripped style sheet whose tokens differ is refused', { stripCss: t => t.replace('a', 'b') }, null, /^stripTree refused style\.css: its tokens differ/);
+        refusal('a stripped style sheet whose tokens differ is refused', { stripCss: t => t.replace('a', 'b') }, null, /^stripTree refused \S+\.css: its tokens differ/);
         refusal('a stripped page whose markup differs is refused', { stripHtml: t => t.replace('/api/prefs.js', '/api/prefs.jz') }, null, /^stripTree refused index\.html: its markup differs/);
         const swap = (rel, text) => () => { const f = path.join(src, rel), was = fs.readFileSync(f); fs.writeFileSync(f, text); return () => fs.writeFileSync(f, was); };
         refusal('a module that does not parse as a module is refused, by V8\'s own parser', null, swap('scripts/b.js', 'export const b = ;\n'), /^stripTree refused scripts\/b\.js: it no longer parses as a module/);
         refusal('a classic script that holds an import (module-only syntax) is refused as a classic script', null, swap('scripts/boot.js', 'import x from "./b.js"; // c\n'), /^stripTree refused scripts\/boot\.js: it no longer parses as a classic script/);
         refusal('a file the tokenizer cannot read is refused, never stripped', null, swap('scripts/b.js', 'export const b = "open;\n'), /^stripTree refused scripts\/b\.js: it could not be read/);
+        // the review of 2026-11-16: a .js that is not UTF-8 is refused (read as latin1, E2 80 A8 would be no line break to the tokenizer
+        // while the browser ends the // comment there and runs what follows)
+        refusal('a .js file that is not UTF-8 is refused, the file named', null,
+            swap('scripts/b.js', Buffer.concat([Buffer.from('export const b = "'), Buffer.from([0xFF]), Buffer.from('"; // c'), Buffer.from([0xE2, 0x80, 0xA8]), Buffer.from('export const c = 1;\n')])),
+            /^stripTree refused scripts\/b\.js: it is not UTF-8/);
+        // the independent check: a source the tokenizer misreads in a way its own token check cannot see. In sloppy mode `yield` is a
+        // name, so `yield / b // x` is two divisions and a comment; the tokenizer takes `/ b /` for a regex and so finds no comment.
+        // Nothing is cut, the token check sees the very same text, and V8 parses it: only acorn sees the comment the tokenizer missed.
+        refusal('a classic script the tokenizer misreads (a comment it does not see) is refused by acorn, Node\'s own parser, the line named', null,
+            swap('scripts/boot.js', 'var yield = 6, b = 2, c = 3;\nvar r = yield / b // x\n/ c;\n'),
+            /^stripTree refused scripts\/boot\.js: acorn and the tokenizer read its comments differently from line 2/);
+        refusal('a page whose removed comment fails the independent check is refused', { stripHtml: (t, o) => { o.removed.push({ s: t.indexOf('<!doctype'), e: t.indexOf('<!doctype') + 5 }); return S.stripHtml(t); } }, null,
+            /^stripTree refused index\.html: the comment at line 1 is no ordinary/);
         let m1 = '', m2 = '';
         try { S.stripTree(src, out); } catch (e) { m1 = e.message; }
         try { S.stripTree(src, path.join(src, 'inner')); } catch (e) { m2 = e.message; }
         check('stripTree refuses a copy folder that is not empty, and one inside the source', /is not empty/.test(m1) && /inside each other/.test(m2), j([m1, m2]));
         const bad = S.parseModules([path.join(src, 'scripts', 'b.js')]);
         check('parseModules answers nothing for a module that parses', j(bad) === '{}', j(bad));
+        // acornCheck by itself: a stripped copy that dropped a line break (which ended a statement) is caught, by a parser of its own
+        const ta = path.join(tmp, 'ta.js'), tb = path.join(tmp, 'tb.js');
+        fs.writeFileSync(ta, 'function f() { return /* c\n */ 1; }\n'); fs.writeFileSync(tb, 'function f() { return 1; }\n');
+        const tc = path.join(tmp, 'tc.js'); fs.writeFileSync(tc, 'function f() { return\n 1; }\n');
+        const td = path.join(tmp, 'td.js'); fs.writeFileSync(td, 'function f() { return 1 }}\n');
+        const ac = S.acornCheck([{ file: 'x', src: ta, out: tc, module: false }, { file: 'y', src: ta, out: tb, module: false }, { file: 'z', src: td, out: td, module: false }]);
+        check('acornCheck reads each comment of a source and compares the token streams with their line breaks: the right strip passes, one that lost a line break (a return that now returns 1) fails, and a file acorn cannot read says so',
+            !ac.unavailable && j(ac.x.comments) === j([[22, 30]]) && ac.x.diff === null && j(ac.x.outComments) === '[]' && /line break/.test(ac.y.diff || '') && !!ac.z.error, j(ac));
     } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 
     /* ---- a seeded fuzz of generated JavaScript ---- */
@@ -247,14 +348,25 @@ function jsCase(name, src, want, runs) {
             default: return pick(R, [[T('typeof'), rx(R)], [T('!'), rx(R), T('.'), T('test'), T('('), T(strTok(R)), T(')')], [T('o'), T('.'), T('return'), T('/'), T('2')]]);
         }
     }
+    // A regex then `.test(str) && r.push(k);`: what follows a block or a head after which a slash begins a regex.
+    const rxTest = (R, k) => [rx(R), T('.'), T('test'), T('('), T(strTok(R)), T(')'), T('&&'), T('r'), T('.'), T('push'), T('('), T(String(k)), T(')'), T(';')];
     function statement(R, n) {
-        const k = Math.floor(R() * 6);
-        if (k === 0) return [T('if'), T('('), T('true'), T(')'), rx(R), T('.'), T('test'), T('('), T(strTok(R)), T(')'), T('&&'), T('r'), T('.'), T('push'), T('('), T('1'), T(')'), T(';')];
-        if (k === 1) return [T('{'), T('}'), rx(R), T('.'), T('test'), T('('), T(strTok(R)), T(')'), T('&&'), T('r'), T('.'), T('push'), T('('), T('2'), T(')'), T(';')];
+        const k = Math.floor(R() * 11);
+        if (k === 0) return [T('if'), T('('), T('true'), T(')'), ...rxTest(R, 1)];
+        if (k === 1) return [T('{'), T('}'), ...rxTest(R, 2)];
         if (k === 2) return [T('function'), T('f' + n), T('('), T(')'), T('{'), T('return', { noNlAfter: true }), rx(R), T('.'), T('source'), T(';'), T('}'), T('r'), T('.'), T('push'), T('('), T('f' + n), T('('), T(')'), T(')'), T(';')];
+        // the review of 2026-11-16: a block after a case or default clause's colon or a label's, the head of for await, and the of of a
+        // for head, each followed by a regex
+        if (k === 3) return [T('switch'), T('('), T('1'), T(')'), T('{'), T('case'), T('1'), T(':'), T('{'), T('}'), ...rxTest(R, 3), T('}')];
+        if (k === 4) return [T('switch'), T('('), T('2'), T(')'), T('{'), T('default'), T(':'), T('{'), T('}'), ...rxTest(R, 4), T('}')];
+        if (k === 5) return [T('L' + n), T(':'), T('{'), T('}'), ...rxTest(R, 5)];
+        if (k === 6) return [T('for'), T('('), T('const'), T('z'), T('of'), rx(R), T('.'), T('exec'), T('('), T(strTok(R)), T(')'), T('||'), T('['), T(']'), T(')'), T('r'), T('.'), T('push'), T('('), T('6'), T(')'), T(';')];
+        if (k === 7) return [T('('), T('async', { noNlAfter: true }), T('('), T(')'), T('=>', { noNlBefore: true }), T('{'), T('for'), T('await'), T('('), T('const'), T('z'), T('of'), T('['), T('1'), T(']'), T(')'), ...rxTest(R, 7), T('}'), T(')'), T('('), T(')'), T(';')];
         return [T('r'), T('.'), T('push'), T('('), ...expr(R, 1 + Math.floor(R() * 3)), T(')'), T(';')];
     }
-    const SEPS = [' ', ' ', ' ', ' ', '  ', '\t', '\n', '\r\n', ' /* CMT */ ', '/*CMT*/', '// CMT\n', '/* CMT\nCMT */', ' /*! KEEP */ ', '/**/', '\t// CMT\r\n'];
+    // the programs are classic scripts (V8 runs them so), and so may hold HTML-like comments, each holding other comment markers
+    const SEPS = [' ', ' ', ' ', ' ', '  ', '\t', '\n', '\r\n', ' /* CMT */ ', '/*CMT*/', '// CMT\n', '/* CMT\nCMT */', ' /*! KEEP */ ', '/**/', '\t// CMT\r\n',
+        ' <!-- KEEPH /* x */ // y\n', '\n--> KEEPH /* z\n', '\n  /* CMT */ --> KEEPH */ q\n'];
     const SEPS_FLAT = [' ', '\t', '/*CMT*/', ' /* CMT */ ', '/**/', ' /*! KEEP */ '];
     function program(R) {
         const toks = [T('var'), T('r'), T('='), T('['), T(']'), T(','), T('a'), T('='), T('7'), T(','), T('b'), T('='), T('3'), T(','), T('i'), T('='), T('4'),
@@ -273,18 +385,19 @@ function jsCase(name, src, want, runs) {
         return { src, vals: toks.map(t => t.v) };
     }
     const FUZZ = 1500;
-    let fuzzBad = null, okRuns = 0, cuts = 0;
+    let fuzzBad = null, okRuns = 0, cuts = 0, htmlLike = 0;
     for (let s = 1; s <= FUZZ && !fuzzBad; s++) {
         const R = rng(s * 7919), p = program(R);
         let out;
-        try { out = S.stripJs(p.src); } catch (e) { fuzzBad = { seed: s, why: 'threw ' + e.message, src: p.src }; break; }
-        cuts += S.scanJs(p.src).cuts.length;
-        const srcVals = tokv(p.src), outVals = tokv(out);
+        try { out = S.stripJs(p.src, CL); } catch (e) { fuzzBad = { seed: s, why: 'threw ' + e.message, src: p.src }; break; }
+        cuts += S.scanJs(p.src, CL).cuts.length;
+        if (/<!--|-->/.test(p.src)) htmlLike++;
+        const srcVals = S.jsTokens(p.src, CL).map(x => x.v), outVals = S.jsTokens(out, CL).map(x => x.v);
         const ranA = run(p.src), ranB = run(out);
         if (ranA.startsWith('ok:')) okRuns++;
         const why = j(srcVals) !== j(p.vals) ? 'the source was read into other tokens than the generator wrote'
             : j(outVals) !== j(p.vals) ? 'the stripped program has other tokens than the generator wrote'
-            : !same(p.src, out) ? 'the line breaks between tokens differ'
+            : j(S.jsTokens(p.src, CL)) !== j(S.jsTokens(out, CL)) ? 'the line breaks between tokens differ'
             : ranA !== ranB ? 'V8 ran the two to different ends: ' + ranA.slice(0, 80) + ' / ' + ranB.slice(0, 80)
             : /CMT/.test(out) ? 'a comment was left in'
             : (out.match(/KEEP/g) || []).length !== (p.src.match(/KEEP/g) || []).length ? 'a /*! comment was lost'
@@ -294,7 +407,7 @@ function jsCase(name, src, want, runs) {
     }
     check('a seeded fuzz of ' + FUZZ + ' generated programs: each source is read into the very tokens the generator wrote, the stripped program has them too with the same line breaks between them, V8 runs both to the same result, no comment is left and every /*! kept, no line lost, nothing grew',
         !fuzzBad, fuzzBad && j(fuzzBad));
-    check('the fuzz meant something: nearly every generated program runs, and they held thousands of comments', okRuns >= FUZZ * 0.95 && cuts > FUZZ * 20, j({ okRuns, cuts }));
+    check('the fuzz meant something: nearly every generated program runs, they held thousands of comments, and hundreds held HTML-like ones', okRuns >= FUZZ * 0.95 && cuts > FUZZ * 20 && htmlLike > FUZZ / 5, j({ okRuns, cuts, htmlLike }));
 
     // a seeded fuzz of CSS: words, punctuation, strings and url(...) with comments between them
     let cssBad = null;
@@ -326,6 +439,21 @@ function jsCase(name, src, want, runs) {
             check('every .js of the app outside the vendor folder was stripped, every style sheet and page too, and nothing of the vendor or font folders',
                 all.filter(r => /\.(js|css|html)$/.test(r) && !S.KEEP_DIRS.some(d => r.startsWith(d + '/'))).length === rep.stripped.length
                 && !rep.stripped.some(x => S.KEEP_DIRS.some(d => x.file.startsWith(d + '/'))), rep.stripped.length);
+            // the independent check, said on its own: every comment of every script of the app, as the tokenizer reads it (those it
+            // cuts and those it keeps), is a comment to acorn, Node's own parser, at the very same place, and acorn finds no other
+            const classicSet = new Set(js.filter(x => x.kind === 'classic').map(x => x.file));
+            const ac = S.acornCheck(js.map(x => ({ file: x.file, src: path.join(copy, x.file), out: path.join(copy, x.file), module: !classicSet.has(x.file) })));
+            let acTotal = 0;
+            const acBad = ac.unavailable ? ['acorn unavailable: ' + ac.unavailable] : js.filter(x => {
+                const a = ac[x.file];
+                if (!a || a.error || a.diff) return true;
+                const sc = S.scanJs(S.decode(fs.readFileSync(path.join(copy, x.file))).text, { classic: classicSet.has(x.file) });
+                const mine = sc.cuts.map(c => [c.s, c.e]).concat(sc.keeps.map(c => [c.s, c.e])).sort((p, q) => p[0] - q[0]);
+                acTotal += a.comments.length;
+                return j(mine) !== j(a.comments);
+            }).map(x => x.file);
+            check('file by file, the comments the tokenizer reads in each script of the app are exactly the comments acorn (Node\'s own parser, the independent check) finds, at the same places', acBad.length === 0 && acTotal > 20000, j({ acBad: acBad.slice(0, 5), acTotal }));
+            console.log('info      acorn and the tokenizer agree on all ' + acTotal + ' comments of the app\'s ' + js.length + ' scripts');
             check('the classic scripts are index.html\'s own: the four boot scripts and tooltips.js; every other script is a module',
                 j(js.filter(x => x.kind === 'classic').map(x => x.file).sort()) === j(['scripts/bootdiagram.js', 'scripts/booterror.js', 'scripts/bootprefs.js', 'scripts/boottheme.js', 'scripts/tooltips.js']));
             let badImport = [];
@@ -366,7 +494,7 @@ function jsCase(name, src, want, runs) {
     /* ---- wired ---- */
     const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'checks.yml'), 'utf8').replace(/\r\n/g, '\n');
     check('CI runs this suite', yml.includes('        run: node tools/stripcheck.js\n'));
-    check('stripcore.js stands on Node alone and exports what the release tool will call', !/require\((?!'(fs|path|vm|os|child_process)')/.test(fs.readFileSync(path.join(__dirname, 'stripcore.js'), 'utf8')) && typeof S.stripTree === 'function');
+    check('stripcore.js stands on Node alone (acorn is Node\'s own copy) and exports what the release tool will call', !/require\((?!'(fs|path|vm|os|child_process|internal\/deps\/acorn\/acorn\/dist\/acorn)')/.test(fs.readFileSync(path.join(__dirname, 'stripcore.js'), 'utf8')) && typeof S.stripTree === 'function');
 
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

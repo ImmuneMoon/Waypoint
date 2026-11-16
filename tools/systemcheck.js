@@ -4732,7 +4732,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         // the drawing: sheets.js tabColors, sliced by its markers and run for real on a node of plain objects beside the real accentInk
         const tcSh = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
         const tcSrc = tcSh.slice(tcSh.indexOf('// [systemcheck:tabcolors-start]'), tcSh.indexOf('// [systemcheck:tabcolors-end]')), tcAcc = tcSh.slice(tcSh.indexOf('function accentInk('), tcSh.indexOf('// [systemcheck:palette-start]'));
-        const tabColorsF = new Function(tcAcc + '\n' + tcSrc + '\nreturn { tabColors: tabColors, accentInk: accentInk };')();
+        const tabColorsF = new Function(tcAcc + '\n' + tcSrc + '\nreturn { tabColors: tabColors, accentInk: accentInk, tabStandIns: tabStandIns };')();
         const tcNode = () => { const props = {}, cls = new Set(); return { props, cls, style: { setProperty(k, v) { props[k] = v; }, removeProperty(k) { delete props[k]; } }, classList: { add(c) { cls.add(c); }, toggle(c, on) { if (on) cls.add(c); else cls.delete(c); } } }; };
         const tcRun = look => { const n = tcNode(); tabColorsF.tabColors(n, look); return { props: n.props, cls: [...n.cls].sort() }; };
         const tcNone = [undefined, null, {}, { tabs: 'filled', accent: '#123456' }, { tabOn: 'red', tabOff: 'url(x)' }, { tabOn: '#12345' }].map(tcRun);
@@ -4742,28 +4742,100 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && j(tcBoth) === j({ props: { '--sheet-tab-on': '#ffee00', '--sheet-tab-on-ink': '#111318', '--sheet-tab-off': '#101820', '--sheet-tab-off-ink': '#ffffff' }, cls: ['sheet-tabs-off', 'sheet-tabs-on'] })
             && j(tcOn) === j({ props: { '--sheet-tab-on': '#ffee00', '--sheet-tab-on-ink': '#111318' }, cls: ['sheet-tabs-on'] })
             && tabColorsF.accentInk('#ffee00') === '#111318' && tabColorsF.accentInk('#101820') === '#ffffff', j([tcNone, tcBoth, tcOn]));
+        // the review of the first cut: a printed heading asked with print true is marked as a filled bar only where the tabs are filled or
+        // angular AND the open tab has a color; a heading of underlined tabs, one with only the other tabs' color, and a strip (no print) never
+        const tcPr = (look, print) => { const n = tcNode(); tabColorsF.tabColors(n, look, print); return [...n.cls].sort(); };
+        const tcPrint = [tcPr({ tabs: 'filled', tabOn: '#ffee00' }, true), tcPr({ tabs: 'angular', tabOn: '#ffee00', tabOff: '#101820' }, true), tcPr({ tabOn: '#ffee00' }, true),
+            tcPr({ tabs: 'filled', tabOff: '#101820' }, true), tcPr({ tabs: 'filled', tabOn: '#ffee00' }), tcPr({ tabs: 'filled', tabOn: '#ffee00' }, 'yes'), tcPr({ tabs: 'filled' }, true)];
+        check('1.6.3 tab colors (the review): a printed tab\'s heading of filled or angular tabs with an open tab\'s color is marked sheet-print-tab-fill, so it prints as a filled bar with readable words; underlined tabs, the other tabs\' color alone, a strip, a print word that is not true and no color mark none',
+            j(tcPrint) === j([['sheet-print-tab-fill', 'sheet-tabs-on'], ['sheet-print-tab-fill', 'sheet-tabs-off', 'sheet-tabs-on'], ['sheet-tabs-on'], ['sheet-tabs-off'], ['sheet-tabs-on'], ['sheet-tabs-on'], []]), j(tcPrint));
+        // the swatches' stand-ins: what the tabs show now, as the style sheet draws them
+        const tcSI = tabColorsF.tabStandIns, tcTh = { gold: '#E0A54F', dim: '#8A8A8A' }, tcPal = { primary: '#AA0000', muted: '#00BB00' }, tcPg = { textColor: '#EEDDCC', bgColor: '#101010' };
+        const tcStand = [tcSI({}, null, null, tcTh), tcSI({ accent: '#123456' }, null, null, tcTh), tcSI({ tabs: 'filled', accent: '#123456' }, null, null, tcTh),
+            tcSI({ tabs: 'filled', accent: '#123456' }, tcPal, null, tcTh), tcSI({ tabs: 'angular' }, tcPal, null, tcTh), tcSI({}, tcPal, null, tcTh), tcSI({ accent: '#123456' }, tcPal, null, tcTh),
+            tcSI({}, null, tcPg, tcTh), tcSI({ tabs: 'filled' }, null, tcPg, tcTh), tcSI({}, tcPal, tcPg, tcTh), tcSI({}, null, { textColor: '#eeddcc' }, tcTh), tcSI(null, null, null, null), tcSI({ accent: 'red' }, null, 'x', { gold: 'gold', dim: 3 })];
+        check('1.6.3 tab colors (the review): an unset swatch shows what the tabs show now: the open tab is the palette\'s primary on filled or angular tabs under a palette, else the accent, else the palette\'s primary, else the page look\'s text color on underlined tabs where it sets a whole pair, else the theme\'s gold; the other tabs are the palette\'s muted color, else the theme\'s dim; every color in lower case, junk read as the defaults',
+            j(tcStand) === j([{ on: '#e0a54f', off: '#8a8a8a' }, { on: '#123456', off: '#8a8a8a' }, { on: '#123456', off: '#8a8a8a' }, { on: '#aa0000', off: '#00bb00' }, { on: '#aa0000', off: '#00bb00' }, { on: '#aa0000', off: '#00bb00' }, { on: '#123456', off: '#00bb00' },
+                { on: '#eeddcc', off: '#8a8a8a' }, { on: '#e0a54f', off: '#8a8a8a' }, { on: '#aa0000', off: '#00bb00' }, { on: '#e0a54f', off: '#8a8a8a' }, { on: '#e0a54f', off: '#808080' }, { on: '#e0a54f', off: '#808080' }]), j(tcStand));
         check('1.6.3 tab colors: buildSections asks tabColors (through typeof) for the strip, right after its angular class, and for a printed tab\'s heading on the line after it is made',
             /if \(look\.tabs === 'angular'\) strip\.classList\.add\('sheet-tabs-angular'\);[^\n]*\n\s*if \(typeof tabColors === 'function'\) tabColors\(strip, look\);/.test(tcSh)
-            && /tabHead\.appendChild\(el\('span', 'sheet-tab-label', pt\.label \|\| 'Tab'\)\); \}\n\s*if \(tabHead && typeof tabColors === 'function'\) tabColors\(tabHead, look\);/.test(tcSh));
+            && /tabHead\.appendChild\(el\('span', 'sheet-tab-label', pt\.label \|\| 'Tab'\)\); \}\n\s*if \(tabHead && typeof tabColors === 'function'\) tabColors\(tabHead, look, true\);/.test(tcSh));
         const tcCss = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n');
         const tcRules = tcCss.split('\n').filter(x => /sheet-tabs-on|sheet-tabs-off/.test(x.split('{')[0]) && /\{/.test(x) && !/^\s*\/\*/.test(x));
-        check('1.6.3 tab colors: the style sheet draws them only under sheet-tabs-on or sheet-tabs-off: underlined tabs as their words, filled and angular tabs as their fill with the worked-out ink, icons inheriting, a printed heading in the open tab\'s color; every rule reads its color through the variable tabColors sets',
-            tcRules.length === 8
-            && tcCss.indexOf('.sheet-tabs.sheet-tabs-on.sheet-tabs-on:not(.sheet-tabs-filled):not(.sheet-tabs-angular) > .sheet-tab.active { color: var(--sheet-tab-on); border-bottom-color: var(--sheet-tab-on); }') >= 0
-            && tcCss.indexOf('.sheet-tabs.sheet-tabs-off.sheet-tabs-off:not(.sheet-tabs-filled):not(.sheet-tabs-angular) > .sheet-tab:not(.active) { color: var(--sheet-tab-off); }') >= 0
+        // the review of the first cut: underlined tabs take the colors only as the line under each tab, so no rule of theirs sets a word's color
+        // (a color picked on one theme could not be read on the other); a hovered other tab of filled or angular tabs shows a bar in the ink
+        // worked out for its fill, which reads on any fill; icons follow the words only on a fill; a printed heading of filled or angular tabs
+        // is a filled bar printed with its fill, and its icon follows its words
+        const tcUnder = tcRules.filter(x => /:not\(\.sheet-tabs-filled\):not\(\.sheet-tabs-angular\)/.test(x.split('{')[0]));
+        check('1.6.3 tab colors: the style sheet draws them only under sheet-tabs-on or sheet-tabs-off: underlined tabs as the line under each tab with their words kept, filled and angular tabs as their fill with the worked-out ink and a hover bar in that ink, icons inheriting on a fill, a printed heading as its line or as a filled bar; every rule reads its color through the variable tabColors sets',
+            tcRules.length === 10 && tcUnder.length === 3 && tcUnder.every(x => !/(^|[^-])color:/.test(x.split('{')[1]))
+            && tcCss.indexOf('.sheet-tabs.sheet-tabs-on.sheet-tabs-on:not(.sheet-tabs-filled):not(.sheet-tabs-angular) > .sheet-tab.active { border-bottom-color: var(--sheet-tab-on); }') >= 0
+            && tcCss.indexOf('.sheet-tabs.sheet-tabs-off.sheet-tabs-off:not(.sheet-tabs-filled):not(.sheet-tabs-angular) > .sheet-tab:not(.active) { border-bottom-color: color-mix(in srgb, var(--sheet-tab-off) 55%, transparent); }') >= 0
+            && tcCss.indexOf('.sheet-tabs.sheet-tabs-off.sheet-tabs-off:not(.sheet-tabs-filled):not(.sheet-tabs-angular) > .sheet-tab:not(.active):hover { border-bottom-color: var(--sheet-tab-off); }') >= 0
             && tcCss.indexOf('.sheet-tabs.sheet-tabs-on.sheet-tabs-on.sheet-tabs-on:is(.sheet-tabs-filled, .sheet-tabs-angular) > .sheet-tab.active { background: var(--sheet-tab-on); color: var(--sheet-tab-on-ink); }') >= 0
             && tcCss.indexOf('.sheet-tabs.sheet-tabs-off.sheet-tabs-off.sheet-tabs-off:is(.sheet-tabs-filled, .sheet-tabs-angular) > .sheet-tab:not(.active) { background: var(--sheet-tab-off); color: var(--sheet-tab-off-ink); }') >= 0
-            && tcCss.indexOf('.sheet-print-tab.sheet-tabs-on { color: var(--sheet-tab-on); border-bottom-color: var(--sheet-tab-on); }') >= 0
-            && tcRules.every(x => /var\(--sheet-tab-(on|off)(-ink)?\)|color: inherit|filter: brightness/.test(x)), j(tcRules));
+            && tcCss.indexOf('.sheet-tabs.sheet-tabs-off.sheet-tabs-off.sheet-tabs-off:is(.sheet-tabs-filled, .sheet-tabs-angular) > .sheet-tab:not(.active):hover { box-shadow: inset 0 -3px 0 var(--sheet-tab-off-ink); }') >= 0
+            && tcCss.indexOf('.sheet-tabs.sheet-tabs-on.sheet-tabs-on:is(.sheet-tabs-filled, .sheet-tabs-angular) > .sheet-tab.active .sheet-tab-icon, .sheet-tabs.sheet-tabs-off.sheet-tabs-off:is(.sheet-tabs-filled, .sheet-tabs-angular) > .sheet-tab:not(.active) .sheet-tab-icon { color: inherit; }') >= 0
+            && tcCss.indexOf('.sheet-print-tab.sheet-tabs-on { border-bottom-color: var(--sheet-tab-on); }') >= 0
+            && tcCss.indexOf('.sheet-print-tab.sheet-print-tab-fill.sheet-tabs-on { background: var(--sheet-tab-on); color: var(--sheet-tab-on-ink); padding: 6px 8px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }') >= 0
+            && tcCss.indexOf('.sheet-print-tab.sheet-tabs-on .sheet-tab-icon { color: inherit; }') >= 0 && !/filter: brightness/.test(tcRules.join('\n'))
+            && tcRules.every(x => /var\(--sheet-tab-(on|off)(-ink)?\)|color: inherit/.test(x)), j(tcRules));
         // the System editor: two swatches beside the tab options, each through setShape, and a Clear that takes both off; Help says it in plain words
         const tcBox = tcSh.slice(tcSh.indexOf('var tabColorsBox = function() {'), tcSh.indexOf('shapeRow.appendChild(capBox(p[0], p[1])); if (p[0] === tabsSel) shapeRow.appendChild(tabColorsBox()); });'));
         const tcHelp = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/&rsquo;/g, "'");
         check('1.6.3 tab colors: the Sheet look box puts two color swatches, Open tab and Other tabs, right after the Tabs list, each written through setShape as a plain hex; Clear shows only while one is set and takes both off; Help names both swatches and Clear',
             tcBox.length > 0 && /\['tabOn', 'Open tab', /.test(tcBox) && /\['tabOff', 'Other tabs', /.test(tcBox) && /sw\.type = 'color'/.test(tcBox)
-            && /sw\.addEventListener\('input', function\(\) \{ setShape\(p\[0\], \/\^#\[0-9a-fA-F\]\{6\}\$\/\.test\(sw\.value\) \? sw\.value\.toLowerCase\(\) : null\); \}\);/.test(tcBox)
-            && /if \(shape\.tabOn \|\| shape\.tabOff\) \{ var tclr = el\('button', 'tool ghost sys-btn sys-look-tabclr', 'Clear'\);[^\n]*setShape\('tabOn', null\); setShape\('tabOff', null\); renderLayout\(\);/.test(tcBox)
+            && /var setNow = function\(\) \{ setShape\(p\[0\], HEXT\.test\(sw\.value\) \? sw\.value\.toLowerCase\(\) : null\); \};\n\s*sw\.addEventListener\('input', setNow\);/.test(tcBox)
+            && /sw\.addEventListener\('change', function\(\) \{ var lk = draft\.sheet && draft\.sheet\.look; if \(!\(lk && lk\[p\[0\]\]\)\) setNow\(\); renderLayout\(\); \}\);/.test(tcBox)
+            && /var now = tabStandIns\(shape, paletteOf\(shape\), look, \{ gold: themeGold\(\), dim: themeDim\(\) \}\);/.test(tcBox) && /now\.on\],/.test(tcBox) && /now\.off\]\]\.forEach/.test(tcBox)
+            && /if \(shape\.tabOn \|\| shape\.tabOff\) \{ var tclr = el\('button', 'tool ghost sys-btn sys-look-tabclr', 'Clear tab colors'\);[^\n]*setShape\('tabOn', null\); setShape\('tabOff', null\); renderLayout\(\);/.test(tcBox)
             && /if \(p\[0\] === tabsSel\) shapeRow\.appendChild\(tabColorsBox\(\)\);/.test(tcSh)
-            && /The two swatches beside the tabs give them colors of their own: <b>Open tab<\/b> for the tab you are on, and <b>Other tabs<\/b> for the rest\.[^<]*<b>Clear<\/b> takes both off\./.test(tcHelp));
+            && /Beside the Tabs list, two swatches give the tabs colors of their own: <b>Open tab<\/b> for the tab you are on, and <b>Other tabs<\/b> for the rest\. Underlined tabs show each color as the line under the tab and keep their own words\.[^<]*<b>Clear tab colors<\/b> takes both off\./.test(tcHelp));
+        // the real renderer (the review of the first cut): sheets.js buildSections, run for real on a page of plain objects with the real
+        // tabColors, on a system of two tabs: the sheet's strip, every printed heading, and the HUD through hudView with tabs of its own
+        let tcB = null, tcBErr = '';
+        try {
+            const hasT = (e, c) => (' ' + e.className + ' ').indexOf(' ' + c + ' ') >= 0;
+            const mkT = (tag, cls, text) => {   // an element of plain objects that keeps the custom properties set on its style
+                const e = { tag: tag, className: cls || '', children: [], props: {}, dataset: {}, on: {}, hidden: false, scrollTop: 0, _t: text === undefined || text === null ? '' : String(text) };
+                e.style = { setProperty(k, v) { e.props[k] = v; }, removeProperty(k) { delete e.props[k]; } };
+                Object.defineProperty(e, 'textContent', { get() { return e.children.length ? e.children.map(k => k.textContent).join('') : e._t; }, set(v) { e.children = []; e._t = String(v); } });
+                Object.defineProperty(e, 'childNodes', { get() { return e.children; } });
+                e.classList = { add: c => { if (!hasT(e, c)) e.className = (e.className + ' ' + c).trim(); }, contains: c => hasT(e, c), toggle: (c, on) => { if (on) e.classList.add(c); else e.className = e.className.split(' ').filter(x => x !== c).join(' '); } };
+                e.appendChild = x => { e.children.push(x); return x; }; e.insertBefore = x => { e.children.unshift(x); return x; }; e.addEventListener = (k, f) => { e.on[k] = f; };
+                return e;
+            };
+            const bsA = tcSh.indexOf('function buildSections('), bsSrcT = tcSh.slice(bsA, tcSh.indexOf('\n}\n', bsA) + 3);
+            const DEPS = ['F', 'PIN_GID', '_fxView', '_lockNow', '_rfClearing', '_secOpen', 'accentInk', 'applyLook', 'autoLayout', 'bandInto', 'el', 'facingNode', 'fieldNode', 'frameFlowTop', 'hbKey', 'hbNode', 'headerBlocks', 'hudButton', 'iconNode', 'imgSrc', 'inlineRow', 'linkNode', 'pageChip', 'pinChip', 'pinNode', 'pinTargetsAll', 'renderSheet', 'resetChip', 'rollNode', 'rollerNode', 'sbxFill', 'sbxKeep', 'sbxView', 'showsIf', 'stanceNode', 'syncFramePad', 'viewLocked', 'tabColors'];
+            const nul = () => null, BST = tc => new Function(...DEPS, bsSrcT + '\nreturn buildSections;')(() => F, /^g_/, 'sheet', false, false, {}, () => '#000000', () => {}, S.autoLayout, () => {}, mkT, nul, f => mkT('div', 'sheet-field', f.key), () => 0, nul, nul, () => {}, nul, () => mkT('span'), x => x, () => {}, nul, nul, nul, nul, S.pinTargetsAll, () => {}, nul, nul, nul, undefined, undefined, undefined, S.showsIf, nul, () => {}, () => false, tc);
+            const TSYS = look => cleanSystem({ v: 1, name: 'Tabs', fields: [{ id: 'f_a', key: 'Coins', kind: 'number' }, { id: 'f_b', key: 'Rope', kind: 'number' }],
+                sheet: { tabs: [{ id: 't_a', label: 'Kit' }, { id: 't_b', label: 'Pebbles' }], sections: [{ id: 's_a', title: 'Purse', tab: 't_a', fields: [{ id: 'f_a', w: 1 }] }, { id: 's_b', title: 'Pack', tab: 't_b', fields: [{ id: 'f_b', w: 1 }] }],
+                    hud: { tabs: [{ id: 't_h', label: 'Docks' }, { id: 't_i', label: 'Kit' }], sections: [{ id: 's_h', title: 'Purse', tab: 't_h', fields: [{ id: 'f_a', w: 1 }] }, { id: 's_i', title: 'Pack', tab: 't_i', fields: [{ id: 'f_b', w: 1 }] }] }, look: look } }, { F, gmView: true });
+            const chT = { id: 'c_k', name: 'Kael', ownerId: '', values: { f_a: 3, f_b: 1 } };
+            const drawT = (sys, vctx, tc) => { const body = mkT('div', 'sheet-body'); BST(tc)(body, sys, chT, S.resolveAll(sys, chT, F, null), true, false, () => {}, vctx); return body; };
+            const findAll = (n, c, out) => { out = out || []; if (hasT(n, c)) out.push(n); (n.children || []).forEach(k => findAll(k, c, out)); return out; };
+            const ser = n => ({ c: n.className, p: n.props, d: n.dataset, k: n.children.length ? n.children.map(ser) : n._t });
+            const TC = tabColorsF.tabColors, V = (print, view) => ({ campId: 'k_1', view: view || 'sheet', preview: false, print: !!print });
+            const plain = TSYS({ tabs: 'filled', accent: '#123456' }), both = TSYS({ tabs: 'filled', tabOn: '#FFEE00', tabOff: '#101820' }), under = TSYS({ tabOn: '#ffee00', tabOff: '#d8d8d8' });
+            const stripOf = b => findAll(b, 'sheet-tabs')[0], heads = b => findAll(b, 'sheet-print-tab');
+            tcB = {
+                same: j(ser(stripOf(drawT(plain, V(), TC)))) === j(ser(stripOf(drawT(plain, V(), undefined)))) && j(heads(drawT(plain, V(true), TC)).map(ser)) === j(heads(drawT(plain, V(true), undefined)).map(ser)),
+                plainStrip: (s => [s.className, j(s.props)])(stripOf(drawT(plain, V(), TC))),
+                bothStrip: (s => [s.className, s.props])(stripOf(drawT(both, V(), TC))),
+                bothHeads: heads(drawT(both, V(true), TC)).map(h => [h.className, h.props['--sheet-tab-on'], h.props['--sheet-tab-on-ink']]),
+                bothNoStrip: findAll(drawT(both, V(true), TC), 'sheet-tabs').length,
+                underHeads: heads(drawT(under, V(true), TC)).map(h => h.className),
+                hudLook: j(S.hudView(both).sheet.look),
+                hudStrip: (s => s ? [s.className, s.props['--sheet-tab-on'], s.props['--sheet-tab-off'], s.children.map(k => k.className)] : null)(stripOf(drawT(S.hudView(both), V(false, 'hud'), TC)))
+            };
+        } catch (e) { tcBErr = e.stack || e.message; }
+        check('1.6.3 tab colors (the review): sheets.js buildSections, run for real with the real tabColors on a system of two tabs: with neither color the strip and every printed heading are node for node what a renderer with no tabColors draws; with both, the strip and each printed heading carry the variables and the classes, a printed heading of filled tabs is a filled bar and of underlined tabs none; the HUD keeps the look\'s two colors through hudView and draws them on its own strip',
+            !!tcB && tcB.same === true && j(tcB.plainStrip) === j(['sheet-tabs sheet-tabs-filled', '{}'])
+            && tcB.bothStrip[0] === 'sheet-tabs sheet-tabs-filled sheet-tabs-on sheet-tabs-off' && j(tcB.bothStrip[1]) === j({ '--sheet-tab-on': '#ffee00', '--sheet-tab-on-ink': '#111318', '--sheet-tab-off': '#101820', '--sheet-tab-off-ink': '#ffffff' })
+            && j(tcB.bothHeads) === j([['sheet-print-tab sheet-tabs-on sheet-tabs-off sheet-print-tab-fill', '#ffee00', '#111318'], ['sheet-print-tab sheet-tabs-on sheet-tabs-off sheet-print-tab-fill', '#ffee00', '#111318']]) && tcB.bothNoStrip === 0
+            && j(tcB.underHeads) === j(['sheet-print-tab sheet-tabs-on sheet-tabs-off', 'sheet-print-tab sheet-tabs-on sheet-tabs-off'])
+            && tcB.hudLook === j({ tabs: 'filled', tabOn: '#ffee00', tabOff: '#101820' })
+            && !!tcB.hudStrip && tcB.hudStrip[0] === 'sheet-tabs sheet-tabs-filled sheet-tabs-on sheet-tabs-off' && tcB.hudStrip[1] === '#ffee00' && tcB.hudStrip[2] === '#101820' && j(tcB.hudStrip[3]) === j(['sheet-tab active', 'sheet-tab']), tcBErr || j(tcB));
     }
 
     /* ---- Stage 6 look fold (L4): pin groups — band groups, the Pin button, a viewer's pins per character ---- */

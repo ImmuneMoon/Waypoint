@@ -38,8 +38,9 @@ Smaller things
   Rooms you have not placed on the map, and the names and pictures you
   keep under Expected here, stay on your computer.
 - A sheet's tabs can take colors of their own. Beside Tabs in the Sheet
-  look box, pick one color for the tab you're on and one for the rest, and
-  the words on a filled tab stay readable on whatever you pick.
+  look box, pick one color for the tab you're on and one for the rest.
+  Underlined tabs wear it as the line under each tab, and the words on a
+  filled tab stay readable on whatever you pick.
 
 WAYPOINT 1.6.2 — What's New
 ============================

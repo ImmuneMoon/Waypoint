@@ -57,6 +57,10 @@ Smaller things
   finds it on its own server with nothing to tick. A code without WP
   joins as before. A WP code typed with a character Waypoint never uses
   in a code, such as O or 1, says so instead of sending you to a setting.
+- On a website plan without uploads, the Sound, Music and Video panels no
+  longer show their add buttons, which the site would turn away. A picture
+  dropped on the map from your computer says your plan doesn't include
+  uploads instead of failing quietly.
 
 WAYPOINT 1.6.2 — What's New
 ============================

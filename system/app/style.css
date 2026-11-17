@@ -3746,11 +3746,12 @@
   /* 1.6.2: a GM's page on the website (webmode.js puts web on the body, and web-no-<word> for each word of can the plan lacks). What a website
      never has: Updates (the deploy is the update), Developer mode, the saves folder line, this install's website account and cloud saves (the
      site is the account). Then each word: host, the Host part, Host a game, Player History and End Session; uploads, the Image Library and
-     Handouts; files, Import and Export As; backups, the snapshots */
+     Handouts, and since 1.6.3 (backlog 174) the Sound library's Add sounds, the Music panel's + Add music and the Video panel's Add videos,
+     which the site answers 403; files, Import and Export As; backups, the snapshots */
   body.web #updateBtn, body.web #updateBanner, body.web #installerModal, body.web #wcUpdate, body.web #settingsModal .set-devmode, body.web #settingsModal .set-group[data-group="updates"],
   body.web #settingsModal .set-saves, body.web #profileModal .set-acct, body.web #wcPromise, body.web-no-files #wcLoadBtn,
   body.web-no-host #wcHostBtn, body.web-no-host #netPaneHostBtn, body.web-no-host #netPaneHost, body.web-no-host #netPlayersBtn, body.web-no-host #netEndBtn,
-  body.web-no-uploads #imgLibBtn, body.web-no-uploads #handoutsBtn, body.web-no-files #moreFiles, body.web-no-files #importCharBtn,
+  body.web-no-uploads #imgLibBtn, body.web-no-uploads #handoutsBtn, body.web-no-uploads #soundLibUpload, body.web-no-uploads .music-add, body.web-no-uploads .vid-add, body.web-no-files #moreFiles, body.web-no-files #importCharBtn,
   body.web-no-backups #setSnapNowBtn, body.web-no-backups #setSnapNowBtn + .set-line, body.web-no-backups #settingsModal .set-snaps, body.web-no-backups #settingsModal .set-group[data-group="backups"] { display: none !important; }
   .set-acct-line { margin-top: 3px; font-size: 10.5px; color: var(--dim); line-height: 1.4; }   /* the account's state, words a script sets: a set-line's look, not one of Settings' fixed lines */
   .set-acct-code { margin-top: 6px; font-size: 12px; color: var(--dim); }

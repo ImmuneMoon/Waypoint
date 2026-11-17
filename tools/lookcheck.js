@@ -3735,6 +3735,31 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         J([writers, rulesG.length, scopedG, namedG.filter(id => count(ix, 'id="' + id + '"') !== 1), never]));
 }
 
+// 1.6.3 (backlog 174): a website plan that does not include uploads puts away the upload buttons it still showed, and refuses a picture dropped
+// on the map from the computer in one plain sentence. The style sheet names Add sounds (#soundLibUpload), + Add music (.music-add) and Add
+// videos (.vid-add) under web-no-uploads alone; whiteboard.js's noupload slice is run for real against stand-ins of window.wpWebMode (refused
+// only in the mode web with no word uploads: never on the desktop, before the answer, on a plan with uploads, on a joined player's page, or
+// where the module throws); and the board's drop asks it, and says its words, before it uploads a file
+{
+    const wb = read('scripts/whiteboard.js'), a = wb.indexOf('// [lookcheck:noupload-start]'), b = wb.indexOf('// [lookcheck:noupload-end]');
+    const run = (wm) => { const W = { wpWebMode: wm }; return new Function('window', wb.slice(a, b) + '\nreturn { no: webNoUploads(), words: NO_UPLOAD_WORDS };')(W); };
+    const mk = (mode, can) => ({ web: () => mode === 'web' || mode === 'join-only', joinOnly: () => mode === 'join-only', has: w => mode === 'full' || (mode === 'web' && can.indexOf(w) >= 0) });
+    const cases = [run(undefined).no, run(mk('full', [])).no, run(mk(null, [])).no, run(mk('join-only', [])).no, run(mk('web', ['campaigns', 'uploads'])).no,
+        run(mk('web', ['campaigns'])).no, run({ web: () => { throw new Error('x'); }, joinOnly: () => false, has: () => false }).no, run({ web: () => true, joinOnly: () => false }).no];
+    const words = a > 0 && b > a ? run(undefined).words : '';
+    const drop = (() => { const i = wb.indexOf("wbWrap.addEventListener('drop'"), j = wb.indexOf('uploadImageFile(f,', i); return i > 0 && j > i ? wb.slice(i, j) : ''; })();
+    const ruleNo = css.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(l => /body\.web-no-uploads\s/.test(l)).join(' ');
+    const sels = ['#soundLibUpload', '.music-add', '.vid-add'];
+    const sn = read('scripts/sound.js'), mu = read('scripts/music.js'), vi = read('scripts/video.js');
+    check('1.6.3 a website plan with no uploads (backlog 174): Add sounds, + Add music and Add videos put away under web-no-uploads alone and named nowhere else by a web word; the noupload slice refuses only in the mode web with no word uploads, never on the desktop, before the answer, with uploads, on a joined player\'s page or where the module throws; the board\'s drop asks it and says one plain sentence before it uploads; Help says so',
+        J(cases) === J([false, false, false, false, false, true, false, false]) && /^Your plan on the website does not include uploads, so a picture from your computer cannot go on the map\.$/.test(words)
+        && /if \(webNoUploads\(\)\) \{ toast\(NO_UPLOAD_WORDS\); return; \}/.test(drop) && drop.indexOf("getData('application/x-wp-picture')") > 0
+        && sels.every(k => ruleNo.indexOf('body.web-no-uploads ' + k + ',') >= 0 && count(css, k + ',') === 1)
+        && count(ix, 'id="soundLibUpload"') === 1 && /'tool ghost music-add'/.test(mu) && /class="tool vid-add"/.test(vi) && /ui\('soundLibUpload'\)/.test(sn)
+        && /Where it has no uploads, a picture dropped on the map from your computer says so\./.test(ix),
+        J([cases, words, drop.length, sels.map(k => ruleNo.indexOf('body.web-no-uploads ' + k + ',') >= 0)]));
+}
+
 // 1.6.2, backlog 56's other half: the left panel's own order of sections, kept by each campaign (the owner, 2026-11-07, by prompt: "Each
 // campaign"). panelorder.js's pure part run for real: the order a campaign keeps read as the names the page knows, each once, the rest in the usual
 // order; a step passes over a section that is hidden; a drop puts a section before another; the usual order keeps no key. Then the wiring, the menu

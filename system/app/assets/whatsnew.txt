@@ -65,6 +65,8 @@ Smaller things
 - A page from a file whose id holds a slash now opens at the part, the
   table or the place you asked for in a window of its own. Before, it
   opened whole at its top.
+- Docking such a window back now opens that same page in the panel.
+  Before, a page whose id began the same way could open in its place.
 
 WAYPOINT 1.6.2 — What's New
 ============================

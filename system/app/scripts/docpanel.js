@@ -464,9 +464,16 @@ function popOut(id, land, part, table) {
 // has no way to put a panel away, and it hears the same word
 // 1.5.4: the page a window docked back names: the item after its campaign. What follows the item (a landing, or an address of another shape)
 // is not the item's, unless the whole of it is a page of the campaign and the item alone is not (an id with a slash in it)
+// 1.6.3, the review of the slash fix: a window hands back a page whose own id holds a slash with that id encoded once (popout.js popDockArg),
+// so the item is read once more here as popout.js popPlace reads it: where the item as it stands is no page and the item decoded holds a
+// slash and is a page, that is the page, and a page named by the id's first part is never opened in its place. The item named literally
+// wins, as it does in the window (popout.js popItem). What follows is the reading before 1.6.3, for an id handed back raw
 function dockId(arg, camp) {
     var a = typeof arg === 'string' ? arg : '', rest = a.slice(a.indexOf('/') + 1), cut = rest.indexOf('/');
     var page = function(id) { var it = camp && camp.items && typeof camp.items === 'object' && Object.prototype.hasOwnProperty.call(camp.items, id) ? camp.items[id] : null; return !!it && typeof it === 'object' && (it.type === 'doc' || it.type === 'planner'); };
+    var item = cut < 0 ? rest : rest.slice(0, cut), dec = '';
+    if (item.indexOf('%') >= 0) { try { dec = decodeURIComponent(item); } catch (e) { dec = ''; } }
+    if (dec.indexOf('/') >= 0 && !page(item) && page(dec)) return dec;
     return cut < 0 || (page(rest) && !page(rest.slice(0, cut))) ? rest : rest.slice(0, cut);
 }
 function dockTakes(search) { try { var q = new URLSearchParams(String(search == null ? '' : search)); return !q.has('stream') && !q.has('popout'); } catch (e) { return false; } }

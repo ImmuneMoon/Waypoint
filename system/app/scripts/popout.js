@@ -32,13 +32,33 @@ function popPlace(a) {
 // what follows the campaign is a page (an id with a slash in it, as an address made before 1.5.4 was read), that page
 // 1.6.3: the item as it reads comes first, so a page whose own id really is what the address says opens as before; then the item read once
 // more (enc, an id with a slash that docpanel.js popId wrote), then the old reading of a whole rest as the id (a window docked back and
-// reopened hands the id over as it is, slashes and all). A LIMIT, kept: an id with no slash whose own words are an encoded slash (a%2Fb)
-// is written as the id a/b is, and where both are pages the one named literally wins
+// reopened before 1.6.3 handed the id over as it is, slashes and all). A LIMIT, kept: an id with no slash whose own words are an encoded
+// slash (a%2Fb) is written as the id a/b is, and where both are pages the one named literally wins. Where a%2Fb is gone and a/b is there,
+// a window opened at that address shows a/b, since the two addresses are one; a window that has shown a%2Fb keeps it (popResolve, below)
 function popItem(pl, items) {
     var page = function(id) { var it = items && typeof items === 'object' && Object.prototype.hasOwnProperty.call(items, id) ? items[id] : null; return !!it && typeof it === 'object' && (it.type === 'doc' || it.type === 'planner'); };
     if (!page(pl.item) && typeof pl.enc === 'string' && page(pl.enc)) return pl.enc;
     return !pl.land && pl.rest !== pl.item && !page(pl.item) && page(pl.rest) ? pl.rest : pl.item;
 }
+// 1.6.3, the review of the slash fix: the page a window shows at one drawing (popItem), and what the window keeps of that answer. Where the
+// item read once more (enc) is the page, it becomes the window's item from here on (item and rest), so its part, its table and its landing
+// are its own. Where the item as it reads is a page, the window keeps that one and lets enc go, so a window that has shown a page named
+// literally (a%2Fb) never moves to the page a/b when the first is deleted: it says the page is gone. Where neither is a page, nothing is
+// kept and the next drawing asks again. tickDoc asks it at every drawing, in place of popItem; it changes pp and nothing else
+function popResolve(pp, items) {
+    var id = popItem(pp, items);
+    if (typeof pp.enc !== 'string') return id;
+    var it = items && typeof items === 'object' && Object.prototype.hasOwnProperty.call(items, id) ? items[id] : null, isPage = !!it && typeof it === 'object' && (it.type === 'doc' || it.type === 'planner');
+    if (id === pp.enc && isPage) { pp.item = id; pp.rest = id; delete pp.enc; }
+    else if (id === pp.item && isPage) delete pp.enc;
+    return id;
+}
+// 1.6.3, the review of the slash fix: what a window hands back when it docks, both to the main window's dock word (docpanel.js dockId) and
+// to the ?reopen address (read by popPlace and popItem below): the campaign and the page alone, never a landing. A page whose own id holds a
+// slash is written encoded once, as the browser's reading of the window's own address left it, so that the slash can never end the item
+// there and a page named by the id's first part is never taken for it. An id with no slash is handed back exactly as before. pp is the
+// window's reading of its address (popPlace), itemNow the page it shows
+function popDockArg(pp, itemNow) { var id = typeof itemNow === 'string' ? itemNow : ''; return pp.head + (id.indexOf('/') >= 0 ? encodeURIComponent(id) : id); }
 // a page opened at its landing once it is drawn: words go into the window's own Find, which marks them and goes to the first (finder: a
 // wpDocPanel.finder of the window's page); a block, and words where there is no Find, are landed on by wpPageNav.land. again: the landing made
 // once more after the page's charts were drawn, with the words the Find holds and nothing lit twice
@@ -82,7 +102,7 @@ if (spec) {
     var arg = colon >= 0 ? spec.slice(colon + 1) : '';
     var pp = popPlace(arg), itemNow = pp.item;   // 1.5.4: the campaign, the page and where it lands, read apart
     if (kind === 'doc') window.wpPopoutKey = pp.head + pp.item;   // pagenav.js keeps the page's folds under it, as every other place keeps them
-    var dockArg = function() { return kind === 'doc' ? pp.head + itemNow : arg; };   // what the main window is handed back: never the landing
+    var dockArg = function() { return kind === 'doc' ? popDockArg(pp, itemNow) : arg; };   // what the main window is handed back: never the landing (1.6.3: an id with a slash encoded once, popDockArg)
 
     var wrap = document.createElement('div');
     wrap.id = 'popoutWrap';
@@ -152,8 +172,7 @@ if (spec) {
         var camp = (campId && data.campaigns[campId]) || (data.activeCampaignId && data.campaigns[data.activeCampaignId]) || data.campaigns[Object.keys(data.campaigns)[0]];
         if (!camp) return;
         body.classList.add('doc-view');
-        var itemId = itemNow = popItem(pp, camp.items); window.wpPopoutKey = pp.head + itemId;
-        if (typeof pp.enc === 'string' && itemId === pp.enc) { pp.item = itemId; pp.rest = itemId; delete pp.enc; }   // 1.6.3: an id with a slash read from the address is the window's item from here on, so its part, its table and its landing are its own
+        var itemId = itemNow = popResolve(pp, camp.items); window.wpPopoutKey = pp.head + itemId;   // 1.6.3: an id with a slash read from the address becomes the window's item, so its part, its table and its landing are its own (popResolve)
         var it = camp.items && camp.items[itemId];
         if (!it || (it.type !== 'doc' && it.type !== 'planner')) { window.wpPopoutPart = ''; window.wpPopoutFoldKey = ''; }   // a page that is gone shows no part
         if (!it || (it.type !== 'doc' && it.type !== 'planner')) { if (lastSig !== ' GONE') { lastSig = ' GONE'; msg('This page is no longer in the campaign.'); document.title = 'Waypoint — (removed)'; } return; }

@@ -657,6 +657,9 @@ function renderPanel() {
         var o = otherMusicCamps(); if (!o.length) { toast('No other campaign has music.'); return; }
         picking = { to: campL ? campL.id : '', from: o[0].id, pl: Object.create(null), tr: Object.create(null) }; renderPanel();
     });
+    // 1.6.3 (backlog 174's review): on a website plan without uploads the style sheet puts + Add music away (the body's web-no-uploads), so the
+    // empty library's words point at From another campaign… there instead. Reads the body's word, the very thing that hides the button
+    function noUploadsHere() { try { return !!(document.body && document.body.classList.contains('web-no-uploads')); } catch (e) { return false; } }
     var addF = el('button', 'tool ghost music-add', '+ Add music…');   // music-add: Help's chip finds it (1.6.2, backlog 142 fold 7)
     var fileIn = el('input'); fileIn.type = 'file'; fileIn.accept = 'audio/*'; fileIn.multiple = true; fileIn.style.display = 'none';
     addF.addEventListener('click', function() { if (!canWrite()) { toast('Only the GM manages music.'); return; } fileIn.value = ''; fileIn.click(); });
@@ -664,7 +667,7 @@ function renderPanel() {
     if (!picking) { headBtns.appendChild(fromB); headBtns.appendChild(addF); }
     libHead.appendChild(headBtns); lib.appendChild(libHead); lib.appendChild(fileIn);
     if (picking) renderPicker(lib);
-    else if (!m.tracks.length) lib.appendChild(el('div', 'music-empty', 'No music tracks yet. Add songs (MP3 / OGG, up to ' + fmtMB(LIMITS.file) + ') above; a playlist plays tracks from here.'));
+    else if (!m.tracks.length) lib.appendChild(el('div', 'music-empty', noUploadsHere() ? 'No music tracks yet. Your plan on the website does not include uploads, so bring songs in with From another campaign… above; a playlist plays tracks from here.' : 'No music tracks yet. Add songs (MP3 / OGG, up to ' + fmtMB(LIMITS.file) + ') above; a playlist plays tracks from here.'));
     else m.tracks.forEach(function(tr) {
         var row = el('div', 'music-libtrack'); row.title = 'Double-click to play this song';
         row.addEventListener('dblclick', function(e) { if (e.target && e.target.closest && e.target.closest('button')) return; playTrack(tr.id); });

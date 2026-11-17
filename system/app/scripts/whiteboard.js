@@ -8219,11 +8219,27 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           .then(function(res) { return res.json(); }).then(function(d) { if (!d || !d.url) throw new Error('upload failed'); return d.url; });
   }
   window.wpUploadBlob = uploadBlob;
+  // [lookcheck:noupload-start] 1.6.3 (backlog 174): a website plan that does not include uploads. webmode.js says such a page is in its mode
+  // web (a page of a website that is not join-only) with no word uploads in can, which is exactly when it writes web-no-uploads on the body
+  // and the style sheet puts the upload buttons away (lookcheck runs the real webmode.js to hold the two together). A picture from the
+  // computer can still reach the map with no button: a file dropped on the board and an image pasted with Ctrl+V (io.js calls
+  // window.wpUploadImage, which is uploadImageFile). The site would answer that upload 403, so uploadImageFile, the one function that sends
+  // such a picture, asks this after its own two tests and says NO_UPLOAD_WORDS in place of sending anything. It reads window.wpWebMode alone and
+  // answers false wherever it cannot tell: the desktop app, a website plan that has uploads, and a joined player's page (join-only, which keeps
+  // its own refusal) are never refused here
+  var NO_UPLOAD_WORDS = 'Your plan on the website does not include uploads, so a picture from your computer cannot go on the map.';
+  function webNoUploads() {
+      var wm = typeof window !== 'undefined' ? window.wpWebMode : null;
+      try { return !!(wm && typeof wm.web === 'function' && typeof wm.joinOnly === 'function' && typeof wm.has === 'function' && wm.web() && !wm.joinOnly() && !wm.has('uploads')); } catch (e) { return false; }
+  }
+  // [lookcheck:noupload-end]
   function uploadImageFile(f, cx, cy) {
 
       if(!f || !f.type.startsWith('image/')) return;
 
       if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; }   // would create saves/images/<GM mapId>/
+
+      if (webNoUploads()) { toast(NO_UPLOAD_WORDS); return; }   // 1.6.3 (backlog 174): a website plan with no uploads sends nothing, by a drop, a paste or a file picked
 
       toast('Uploading image...');
 
@@ -8315,8 +8331,6 @@ if(_el_clearWbBtn) _el_clearWbBtn.addEventListener('click', function() {
 
       if(f) {
 
-          if (webNoUploads()) { toast(NO_UPLOAD_WORDS); return; }   // 1.6.3 (backlog 174): a website plan with no uploads sends nothing
-
           var dr = wbWrap.getBoundingClientRect(), cx = wbX(e.clientX, e.clientY, dr, wbWrap) - 150, cy = wbY(e.clientX, e.clientY, dr, wbWrap) - 150;   // 1.6.2: through the board's one reading of a pointer
 
           uploadImageFile(f, Math.max(10, Math.round(cx)), Math.max(10, Math.round(cy)));
@@ -8327,18 +8341,6 @@ if(_el_clearWbBtn) _el_clearWbBtn.addEventListener('click', function() {
 
 
 
-  // [lookcheck:noupload-start] 1.6.3 (backlog 174): a website plan that does not include uploads. webmode.js says such a page is in its mode
-  // web (a page of a website that is not join-only) with no word uploads in can, which is also when the body wears web-no-uploads and the
-  // style sheet puts the upload buttons away. A file
-  // dropped on the map from the computer has no button to put away, and the site would answer its upload 403, so the board's drop asks this
-  // first and says NO_UPLOAD_WORDS in place of sending anything. It reads window.wpWebMode alone and answers false wherever it cannot tell:
-  // the desktop app, a website plan that has uploads, and a joined player's page (join-only, which keeps its own refusal) are never refused here
-  var NO_UPLOAD_WORDS = 'Your plan on the website does not include uploads, so a picture from your computer cannot go on the map.';
-  function webNoUploads() {
-      var wm = typeof window !== 'undefined' ? window.wpWebMode : null;
-      try { return !!(wm && typeof wm.web === 'function' && typeof wm.joinOnly === 'function' && typeof wm.has === 'function' && wm.web() && !wm.joinOnly() && !wm.has('uploads')); } catch (e) { return false; }
-  }
-  // [lookcheck:noupload-end]
   // [lookcheck:libdrop-start] 1.6.2 (backlog 41 (a)): a picture dragged from the Image Library, placed where it is let go: a picture of this
   // computer's own saves or the app's own, 300 px as Add to map makes one, its corner on the lattice where Snap is on and the map is square
   function libDropAt(src, e) {

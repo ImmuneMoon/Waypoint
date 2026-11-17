@@ -111,9 +111,34 @@ function chipStand(doc, el) {   // what stands for a control: itself, or its but
     if (el && el.classList && el.classList.contains('row-fold') && el.id) { var t = doc.querySelector('#rowTray [data-press="' + el.id + '"]'); if (t) return t; }
     return el;
 }
+// 1.6.3 (backlog 174's review): what a website plan puts away when its can lacks a word, by that word. Each entry is a simple selector (an id
+// or one class) of the style sheet's body.web-no-<word> rule that a chip of Help may reach, and helpchipcheck holds every entry to that rule.
+// While the body wears web-no-<word> the style sheet hides these, so a chip that would open or light one says Not in your plan instead of
+// lighting a control that is out of sight. On the desktop and on a plan that has the word the body wears nothing, and nothing changes
+var CHIP_PLAN = { uploads: ['#imgLibBtn', '#handoutsBtn', '#soundLibUpload', '.music-add', '.vid-add', '#addImageBtn'], files: ['#moreFiles', '#importCharBtn', '#wcLoadBtn'],
+    host: ['#wcHostBtn', '#netPaneHostBtn', '#netPaneHost', '#netPlayersBtn', '#netEndBtn'], backups: ['#setSnapNowBtn'] };
+var CHIP_NO_PLAN = 'Not in your plan';
+// whether element n is the one a simple selector of CHIP_PLAN names
+function chipPlanIs(n, sel) { return sel.charAt(0) === '#' ? n.id === sel.slice(1) : !!(n.classList && n.classList.contains(sel.slice(1))); }
+// els: the elements a chip would show or press (its control, the button that opens its window), each judged with what stands around it;
+// cls: the class a stand-in is drawn by, for a control its window has not built yet. Answers CHIP_NO_PLAN where the plan put one away, else ''
+function chipPlan(doc, els, cls) {
+    var cl = doc && doc.body && doc.body.classList; if (!cl) return '';
+    for (var w in CHIP_PLAN) {
+        if (!Object.prototype.hasOwnProperty.call(CHIP_PLAN, w) || !cl.contains('web-no-' + w)) continue;
+        var sels = CHIP_PLAN[w];
+        for (var i = 0; i < sels.length; i++) {
+            if (cls && sels[i] === '.' + cls) return CHIP_NO_PLAN;
+            for (var e = 0; e < (els || []).length; e++) for (var n = els[e]; n && n !== doc.body; n = n.parentNode) if (chipPlanIs(n, sels[i])) return CHIP_NO_PLAN;
+        }
+    }
+    return '';
+}
 // whether this screen may reach it, and the words where it may not
 function chipReach(doc, f) {
     if (!f) return 'Not on this screen';
+    var cwP = f.win && Object.prototype.hasOwnProperty.call(CHIP_WINDOWS, f.win) ? CHIP_WINDOWS[f.win] : null;   // 1.6.3: a control, or the window's own button, the plan put away
+    var plan = chipPlan(doc, [f.el, cwP && cwP.open ? doc.getElementById(cwP.open) : null]); if (plan) return plan;
     if (chipIn(f.key)) return chipReachIn(doc, f.key);   // fold 7
     if (!f.win && f.el.closest && f.el.closest('.gm-only') && doc.body && doc.body.classList && doc.body.classList.contains('net-client')) return 'The GM\u2019s';   // fold 2: a control of the GM's, on a player's app
     var bar = !f.win && f.el.closest ? f.el.closest('.floating-toolbar') : null;   // fold 4: a toolbar of the map, which shows on its own view
@@ -140,6 +165,7 @@ function chipReachIn(doc, key) {
     var ip = chipIn(key), cw = ip && Object.prototype.hasOwnProperty.call(CHIP_WINDOWS, ip.win) ? CHIP_WINDOWS[ip.win] : null, rec = Object.prototype.hasOwnProperty.call(CHIP_STANDS, key) ? CHIP_STANDS[key] : {};
     var cl = !!(doc.body && doc.body.classList && doc.body.classList.contains('net-client'));
     if (!cw || !doc.getElementById(ip.win)) return 'Not on this screen';
+    var plan = chipPlan(doc, [cw.open ? doc.getElementById(cw.open) : null], ip.cls); if (plan) return plan;   // 1.6.3: a control the plan put away, drawn yet or not
     if (rec.gm && cl) return 'The GM\u2019s'; if (rec.player && !cl) return 'On a player\u2019s screen';
     if (typeof cw.when === 'function') { var w = cw.when(doc); if (w) return w; }
     if (!cw.open) return '';

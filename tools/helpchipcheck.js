@@ -54,7 +54,7 @@ function page(opts) {
 }
 const src = read('scripts/helpchips.js'), cut = (a, b) => src.slice(src.indexOf('// [helpchipcheck:' + a + '-start]'), src.indexOf('// [helpchipcheck:' + b + '-end]'));
 const timers = [], opened = [], winA = { wpOpenHelp: p => opened.push(p) };
-const api = new Function('window', 'setTimeout', 'MutationObserver', cut('core', 'wire') + '\nreturn { chipFind, chipReach, chipCopy, chipsDraw, chipGo, chipBack, chipMenus, chipStand, chipsName, chipWords, chipBarOpener, chipShut, CHIP_NAMES, CHIP_KEY, CHIP_TAB_IDS, chipIn, chipReachIn, chipStandIn, CHIP_STANDS, CHIP_WINDOWS };')(winA, (f, ms) => { timers.push([f, ms]); return timers.length; }, undefined);
+const api = new Function('window', 'setTimeout', 'MutationObserver', cut('core', 'wire') + '\nreturn { chipFind, chipReach, chipCopy, chipsDraw, chipGo, chipBack, chipMenus, chipStand, chipsName, chipWords, chipBarOpener, chipShut, CHIP_NAMES, CHIP_KEY, CHIP_TAB_IDS, chipIn, chipReachIn, chipStandIn, CHIP_STANDS, CHIP_WINDOWS, CHIP_PLAN, chipPlan };')(winA, (f, ms) => { timers.push([f, ms]); return timers.length; }, undefined);
 // ---- the core
 const P = page(), d = P.doc;
 const fTab = api.chipFind(d, 'sys-tab:rules'), fSave = api.chipFind(d, '#sysSaveBtn'), fKey = api.chipFind(d, 'sys:fields:sys-key-btn');
@@ -267,6 +267,26 @@ check('every mark Help carries is a key of the chips’ own form, and names a bu
     timers.length = 0; const g3 = api.chipGo(T1.doc, 'in:timePanel.tp-mute'); runT8(); const chH = T1.tp.querySelector('.tp-ch-h');
     check('... Mute opens the Time rules panel by its own way, which no button gives, and lights a character where no rule\u2019s fold is open', g3 === true && tpOpened === 1 && !!chH && chH.classList.contains('help-found') && api.chipReachIn(T1.doc, 'in:timePanel.tp-mute') === '' && api.chipReachIn(mk8({ player: true }).doc, 'in:timePanel.tp-mute') === 'The GM\u2019s', J([g3, tpOpened]));
     check('... the Time rules panel\u2019s own way calls the panel\u2019s open, and nothing where it is not there', /timePanel: \{ go: function\(\) \{ var tp = typeof window !== 'undefined' \? window\.wpTimePanel : null; if \(tp && tp\.open\) tp\.open\(\); \}, when: chipGmOnly \}/.test(src));
+}
+{   // 1.6.3 (backlog 174's review): a website plan without a word of can puts its controls away (the body's web-no-<word>), so a chip that would
+    // light one says Not in your plan: Add sounds by its id, + Add music and Add videos before their windows are drawn (by the stand-in's class)
+    // and once drawn, a button of the Image Library by the button that opens it; nothing changes for a body with no such word or another word.
+    // Every entry of CHIP_PLAN is a simple selector the style sheet's body.web-no-<word> rule names, under that very word
+    const mkP = cls => {
+        const mus = mk('div', { id: 'musicPanel', style: { display: 'none' } }, []), vid = mk('div', { id: 'videoPanel', style: { display: 'none' } }, [mk('button', { cls: 'tool vid-add', text: 'Add videos' })]);
+        const up = mk('button', { id: 'soundLibUpload', text: 'Add sounds\u2026' }), lib = mk('div', { id: 'soundLibModal', style: { display: 'none' } }, [mk('div', { cls: 'snd-lib-head' }, [up])]);
+        const il = mk('div', { id: 'imgLibModal', style: { display: 'none' } }, [mk('button', { id: 'imgLibSelectBtn', text: 'Select' })]);
+        const help = mk('div', { id: 'helpModal', style: { display: 'flex' } }, [mk('div', { cls: 'help-body' }, [])]);
+        const bodyE = mk('body', { cls: cls }, [mk('button', { id: 'musicBtn' }), mk('button', { id: 'videoBtn' }), mk('button', { id: 'soundBtn' }), mk('button', { id: 'imgLibBtn' }), mus, vid, lib, il, help]);
+        return { body: bodyE, getElementById: id => bodyE.all().find(n => n.id === id) || null, querySelectorAll: q => bodyE.querySelectorAll(q), querySelector: q => bodyE.querySelector(q), createElement: t => new El(t) };
+    };
+    const says = cls => { const d = mkP(cls); return [api.chipReach(d, api.chipFind(d, '#soundLibUpload')), api.chipReachIn(d, 'in:musicPanel.music-add'), api.chipReach(d, api.chipFind(d, 'in:videoPanel.vid-add')), api.chipReachIn(d, 'in:videoPanel.vid-add'), api.chipReach(d, api.chipFind(d, '#imgLibSelectBtn'))]; };
+    const no = says('web web-no-uploads'), yes = says('web web-no-files'), desk = says('');
+    const cssP = read('style.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    const held = Object.keys(api.CHIP_PLAN).every(w => api.CHIP_PLAN[w].every(s => /^[#.][A-Za-z][\w-]*$/.test(s) && (cssP.indexOf('body.web-no-' + w + ' ' + s + ',') >= 0 || cssP.indexOf('body.web-no-' + w + ' ' + s + ' {') >= 0)));
+    check('1.6.3: a chip whose control a website plan put away says Not in your plan (Add sounds, + Add music and Add videos drawn or not, a button of the Image Library by its opener), on a plan with uploads and on the desktop as before; every CHIP_PLAN entry is a simple selector the style sheet hides under that word',
+        J(no) === J(['Not in your plan', 'Not in your plan', 'Not in your plan', 'Not in your plan', 'Not in your plan']) && J(yes) === J(desk) && desk.every(s => s !== 'Not in your plan') && held && api.CHIP_PLAN.uploads.length === 6,
+        J([no, yes, desk, held]));
 }
 {   // fold 3: the names marked as Help opens, each a bold of its part as Help writes it, naming a control the page has, its one occurrence where it says so
     const paneOf = p => { const i = html.indexOf('class="help-pane" data-pane="' + p + '"') >= 0 ? html.indexOf('class="help-pane" data-pane="' + p + '"') : html.indexOf('data-pane="' + p + '"'); if (i < 0) return ''; const j = html.indexOf('class="help-pane"', i + 20); return html.slice(i, j < 0 ? html.length : j); };

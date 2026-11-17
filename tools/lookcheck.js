@@ -3725,7 +3725,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
 // website never has (Updates, Developer mode, the saves folder, the website account) is put away under web as it is under web-join
 {
     const scripts = fs.readdirSync(path.join(app, 'scripts')).filter(f => f.endsWith('.js'));
-    const writers = scripts.filter(f => /['"]web['"]|'web-no-'/.test(read('scripts/' + f)));
+    const writers = scripts.filter(f => /['"]web['"]|'web-no-'/.test(read('scripts/' + f).replace(/\.contains\('web-no-' \+/g, '')));   // 1.6.3: reading a word is no writing it
     const rulesG = css.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(l => /body\.web(-no-[a-z]+)?\s/.test(l));
     const scopedG = rulesG.every(l => l.indexOf(':has(') < 0 && l.replace(/body\.web(?:-no-(?:host|uploads|files|backups|join|campaigns))?\s/g, '').indexOf('body.web') < 0);
     const namedG = (css.match(/body\.web(?:-no-[a-z]+)? #[A-Za-z][\w-]*/g) || []).map(t => t.slice(t.indexOf('#') + 1)).filter((v, i, a) => a.indexOf(v) === i);
@@ -3735,29 +3735,57 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         J([writers, rulesG.length, scopedG, namedG.filter(id => count(ix, 'id="' + id + '"') !== 1), never]));
 }
 
-// 1.6.3 (backlog 174): a website plan that does not include uploads puts away the upload buttons it still showed, and refuses a picture dropped
-// on the map from the computer in one plain sentence. The style sheet names Add sounds (#soundLibUpload), + Add music (.music-add) and Add
-// videos (.vid-add) under web-no-uploads alone; whiteboard.js's noupload slice is run for real against stand-ins of window.wpWebMode (refused
-// only in the mode web with no word uploads: never on the desktop, before the answer, on a plan with uploads, on a joined player's page, or
-// where the module throws); and the board's drop asks it, and says its words, before it uploads a file
+// 1.6.3 (backlog 174 and its review): a website plan that does not include uploads puts away the upload buttons it still showed (Add sounds,
+// + Add music, Add videos and the Add menu's Image row), and refuses a picture from the computer that reaches the map with no button, by a drop or
+// by a paste, in one plain sentence. whiteboard.js's noupload slice is run for real against the REAL webmode.js, loaded on a page of plain
+// objects and settled by its own webSettle with each answer (on this computer and on a website, before an answer and after): webNoUploads() is
+// true exactly where webmode.js wrote web-no-uploads on the body, which is what hides the buttons. Two stand-ins that throw or lack has are
+// never refused. uploadImageFile, the one function that sends such a picture, asks it after its image test and its own-table test; the drop
+// asks nothing of its own; the paste (io.js) and Add picture's file both go through uploadImageFile. The empty Sound and Music libraries
+// point at what is left on such a plan
 {
     const wb = read('scripts/whiteboard.js'), a = wb.indexOf('// [lookcheck:noupload-start]'), b = wb.indexOf('// [lookcheck:noupload-end]');
     const run = (wm) => { const W = { wpWebMode: wm }; return new Function('window', wb.slice(a, b) + '\nreturn { no: webNoUploads(), words: NO_UPLOAD_WORDS };')(W); };
-    const mk = (mode, can) => ({ web: () => mode === 'web' || mode === 'join-only', joinOnly: () => mode === 'join-only', has: w => mode === 'full' || (mode === 'web' && can.indexOf(w) >= 0) });
-    const cases = [run(undefined).no, run(mk('full', [])).no, run(mk(null, [])).no, run(mk('join-only', [])).no, run(mk('web', ['campaigns', 'uploads'])).no,
-        run(mk('web', ['campaigns'])).no, run({ web: () => { throw new Error('x'); }, joinOnly: () => false, has: () => false }).no, run({ web: () => true, joinOnly: () => false }).no];
+    const wmSrc = read('scripts/webmode.js').replace(/^export /gm, '');
+    // the real module on a page of plain objects: host its location's name, answer what /api/version said (or undefined: no answer yet)
+    const real = (host, answer) => {
+        const list = new Set(), win = {}, body = { classList: { toggle(c, on) { if (on) list.add(c); else list.delete(c); return !!on; }, add(c) { list.add(c); }, contains(c) { return list.has(c); } } };
+        const mod = new Function('window', 'fetch', 'document', 'location', 'setTimeout', 'clearTimeout', wmSrc + '\nreturn { webSettle: webSettle };')(win, undefined, { body }, { hostname: host }, () => 1, () => {});
+        if (answer !== undefined) mod.webSettle(answer);
+        return { no: run(win.wpWebMode).no, word: list.has('web-no-uploads') };
+    };
+    const SITE = 'play.example.test', DESK = { version: '1.6.3', shell: '1.6.3' };
+    const answers = [undefined, DESK, null, { web: { plan: 'player', can: ['join'] } }, { web: { plan: 'gm', can: ['campaigns'] } }, { web: { plan: 'gm', can: ['campaigns', 'uploads'] } }, { web: { can: ['campaigns', 'host', 'files', 'backups'] } }];
+    const got = [];
+    ['localhost', SITE].forEach(h => answers.forEach(ans => got.push(real(h, ans))));
+    const noAt = got.map(g => g.no), agree = got.every(g => g.no === g.word);
+    const wantNo = [false, false, false, false, true, false, true, false, false, false, false, true, false, true];
+    const odd = [run(undefined).no, run({ web: () => { throw new Error('x'); }, joinOnly: () => false, has: () => false }).no, run({ web: () => true, joinOnly: () => false }).no];
     const words = a > 0 && b > a ? run(undefined).words : '';
+    const up = (() => { const i = wb.indexOf('function uploadImageFile('), j = wb.indexOf("toast('Uploading image...')", i); return i > 0 && j > i ? wb.slice(i, j) : ''; })();
+    const tImg = up.indexOf("if(!f || !f.type.startsWith('image/')) return;"), tOwn = up.indexOf('wpCanPersistLocal()) {'), tPlan = up.indexOf('if (webNoUploads()) { toast(NO_UPLOAD_WORDS); return; }');
     const drop = (() => { const i = wb.indexOf("wbWrap.addEventListener('drop'"), j = wb.indexOf('uploadImageFile(f,', i); return i > 0 && j > i ? wb.slice(i, j) : ''; })();
+    const ioS = read('scripts/io.js');
     const ruleNo = css.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(l => /body\.web-no-uploads\s/.test(l)).join(' ');
     const sels = ['#soundLibUpload', '.music-add', '.vid-add'];
     const sn = read('scripts/sound.js'), mu = read('scripts/music.js'), vi = read('scripts/video.js');
-    check('1.6.3 a website plan with no uploads (backlog 174): Add sounds, + Add music and Add videos put away under web-no-uploads alone and named nowhere else by a web word; the noupload slice refuses only in the mode web with no word uploads, never on the desktop, before the answer, with uploads, on a joined player\'s page or where the module throws; the board\'s drop asks it and says one plain sentence before it uploads; Help says so',
-        J(cases) === J([false, false, false, false, false, true, false, false]) && /^Your plan on the website does not include uploads, so a picture from your computer cannot go on the map\.$/.test(words)
-        && /if \(webNoUploads\(\)\) \{ toast\(NO_UPLOAD_WORDS\); return; \}/.test(drop) && drop.indexOf("getData('application/x-wp-picture')") > 0
-        && sels.every(k => ruleNo.indexOf('body.web-no-uploads ' + k + ',') >= 0 && count(css, k + ',') === 1)
+    check('1.6.3 a website plan with no uploads (backlog 174 and its review): Add sounds, + Add music, Add videos and the Add menu\'s Image row put away under web-no-uploads; the noupload slice, run on the real webmode.js, refuses exactly where webmode.js wrote web-no-uploads (never on the desktop, before an answer, with uploads or on a joined player\'s page) and never where the module throws; uploadImageFile asks it after its own two tests, so a drop, a paste and a file picked are refused alike in one plain sentence; Help says so',
+        J(noAt) === J(wantNo) && agree && J(odd) === J([false, false, false]) && /^Your plan on the website does not include uploads, so a picture from your computer cannot go on the map\.$/.test(words)
+        && tImg >= 0 && tOwn > tImg && tPlan > tOwn && drop.indexOf('webNoUploads') < 0 && drop.indexOf("getData('application/x-wp-picture')") > 0
+        && /\nwindow\.wpUploadImage = uploadImageFile;/.test(wb) && /if \(imgItem && window\.wpUploadImage\) \{[\s\S]{0,600}?window\.wpUploadImage\(f, /.test(ioS) && /_el_imgFileIn\.addEventListener\('change', function\(e\) \{\s*uploadImageFile\(e\.target\.files\[0\]\);/.test(wb)
+        && sels.every(k => ruleNo.indexOf('body.web-no-uploads ' + k + ',') >= 0 && count(css, k + ',') === 1) && ruleNo.indexOf('body.web-no-uploads #addImageBtn,') >= 0 && count(ix, 'id="addImageBtn"') === 1
         && count(ix, 'id="soundLibUpload"') === 1 && /'tool ghost music-add'/.test(mu) && /class="tool vid-add"/.test(vi) && /ui\('soundLibUpload'\)/.test(sn)
-        && /Where it has no uploads, a picture dropped on the map from your computer says so\./.test(ix),
-        J([cases, words, drop.length, sels.map(k => ruleNo.indexOf('body.web-no-uploads ' + k + ',') >= 0)]));
+        && /Where it has no uploads, a picture dropped or pasted on the map from your computer says so\./.test(ix),
+        J([noAt, agree, odd, words, [tImg, tOwn, tPlan], drop.indexOf('webNoUploads'), sels.map(k => ruleNo.indexOf('body.web-no-uploads ' + k + ',') >= 0)]));
+    // the empty libraries: their words follow the body's word that hides the button, and name only what is left on such a plan
+    const muFn = (() => { const m = /function noUploadsHere\(\) \{[^\n]*\}/.exec(mu); return m ? new Function('document', m[0] + '\nreturn noUploadsHere();') : null; })();
+    const docW = on => ({ body: { classList: { contains: c => on && c === 'web-no-uploads' } } });
+    check('1.6.3 (backlog 174\'s review): on a plan with no uploads the empty Music library points at From another campaign… and the empty Sound library and its foot at another campaign and Shared, read from the body\'s web-no-uploads; elsewhere the words are as before',
+        !!muFn && muFn(docW(true)) === true && muFn(docW(false)) === false && muFn({}) === false
+        && mu.includes("noUploadsHere() ? 'No music tracks yet. Your plan on the website does not include uploads, so bring songs in with From another campaign… above; a playlist plays tracks from here.' : 'No music tracks yet. Add songs (MP3 / OGG, up to '")
+        && /var noUp = false; try \{ noUp = !!\(document\.body && document\.body\.classList\.contains\('web-no-uploads'\)\); \} catch \(e\) \{ noUp = false; \}/.test(sn)
+        && sn.includes("noUp ? '<div class=\"snd-empty\">No sounds in this campaign yet. Your plan on the website does not include uploads, so bring them in from another campaign or Shared.</div>'")
+        && sn.includes("foot.textContent = libScope === 'camp' && noUp ? 'Your plan on the website does not include uploads. Bring sounds in with Import from another campaign…, or use Shared.' : libScope === 'camp' ?"));
 }
 
 // 1.6.2, backlog 56's other half: the left panel's own order of sections, kept by each campaign (the owner, 2026-11-07, by prompt: "Each

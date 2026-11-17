@@ -272,6 +272,35 @@ function world(opts) {
         check('1.6.3 (finding 23) the sneak formula is worked out once while nothing it reads moved (notice.js sneakKey, run for real): three frames one evaluation; a value of its sheet written in place, its context (the round), what it reads from outside the sheet, another system object and a part written into the system each work it out again with the new answer; with no reading of the outside every frame works it out, as before',
             JSON.stringify(steps) === JSON.stringify([1, 2, true, 2, 3, 4, 5, 6, 7, false]) && nEv === 3, JSON.stringify([steps, nEv]));
     }
+    {   // the review of finding 23: the same kept answer through the REAL systemcore (this suite's own copy, SC): its outsideKey and outsideCamp,
+        // and a context made as sheets.js tokenCtxFor makes it (tokenCtx with facing, the aims a target gives, stance and marks, then withRound
+        // and withRange). The check above stubs the outside reading, so it would pass whatever the real one wrote; this one proves that the real
+        // context and the real outside text serialise the same across frames where nothing moved (so the kept answer is ever used in the app),
+        // and that the date, a mark on the map (Marked.*), a linked sheet and an attacker that moves each work the formula out again
+        const Wr = world(); Wr.notice = N.make(Wr.D);
+        const Sr = Wr.D.S(), Fr = Wr.D.F(), evr = [];
+        Sr.outsideKey = SC.outsideKey; Sr.outsideCamp = SC.outsideCamp;
+        let date = { year: 3, day: 10, days: 1100, hour: 8, minute: 0 }, tags = [], linked = { id: 'c3', name: 'Mule', values: { hp: 10 } };
+        const srcOk = [SC.setDateSource(() => date), SC.setTagSource(() => tags), SC.setLinkSource(id => (id === 'c3' ? linked : null)), SC.setAimSource((map, tok) => (tok === Wr.T ? [Wr.V] : []))];
+        const T3 = Wr.camp.chars.c2; T3.links = { Mount: 'c3' }; Wr.T.rot = 90; Wr.T.elevation = 2;
+        Wr.D.ctxFor = () => SC.withRange(SC.withRound(SC.tokenCtx(Wr.map, Wr.T, { turning: true, posture: true, elevation: true }), { round: 2 }), { mod: -2, dist: 9, tid: 'V', mapId: 'm1' });
+        const ctx0 = Wr.D.ctxFor(), outsideReal = typeof Sr.outsideKey(Wr.camp.system, T3, 'T', Sr.outsideCamp(Wr.camp.system)) === 'string';
+        const evr0 = Fr.evaluate; Fr.evaluate = (text, o) => { if (text === 'Sneaking') { evr.push(1); return { ok: true, value: false }; } return evr0(text, o); };
+        const st = [];
+        try {
+            Wr.judge(); Wr.judge(); Wr.judge(); st.push(evr.length);                                   // three frames, nothing moved: once
+            date = Object.assign({}, date, { minute: 1 }); Wr.judge(); st.push(evr.length);            // the campaign's date moved: again
+            Wr.judge(); st.push(evr.length);                                                           // and kept again
+            tags = [{ k: 'Spotted', by: 'V', on: 'T' }]; Wr.judge(); st.push(evr.length);              // a mark put on its token (Marked.Spotted): again
+            Wr.judge(); st.push(evr.length);
+            linked.values.hp = 9; Wr.judge(); st.push(evr.length);                                     // the linked sheet written in place: again
+            Wr.judge(); st.push(evr.length);
+            Wr.V.y = -300; Wr.judge(); st.push(evr.length);                                            // the attacker that targets it moved round it: again
+            Wr.judge(); st.push(evr.length);
+        } finally { SC.setDateSource(null); SC.setTagSource(null); SC.setLinkSource(null); SC.setAimSource(null); }
+        check('1.6.3 (the review of finding 23) the kept sneak answer with the real systemcore\'s outsideKey and outsideCamp and a context made by its tokenCtx, withRound and withRange: three frames where nothing moved work the formula out once, and the date, a mark put on its token, a linked sheet written in place and an attacker that moves each work it out again',
+            srcOk.every(Boolean) && outsideReal && !!(ctx0 && ctx0.facing && ctx0.stance && ctx0.combat && ctx0.range) && JSON.stringify(st) === JSON.stringify([1, 2, 2, 3, 3, 4, 4, 5, 5]), JSON.stringify([srcOk, outsideReal, ctx0, st]));
+    }
     console.log(pass + ' passed, ' + fail + ' failed.');
     summed = true;
     if (fail) process.exitCode = 1;

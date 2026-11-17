@@ -4660,7 +4660,7 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         e.matches = sel => sel.split(',').map(s => s.trim()).includes(e.tag);
         const all = () => { const out = []; const walk = n => n.kids.forEach(k => { if (k.nodeType === 1) { out.push(k); walk(k); } }); walk(e); return out; };
         e.querySelectorAll = sel => sel === '[id]' ? all().filter(k => k.id) : all().filter(k => k.matches(sel));
-        e.closest = sel => { for (let n = e; n; n = n.parentNode) if (n.id && sel.split(',').map(s => s.trim()).includes('#' + n.id)) return n; return null; };
+        e.closest = sel => { const ss = sel.split(',').map(s => s.trim()); for (let n = e; n; n = n.parentNode) if ((n.id && ss.includes('#' + n.id)) || ss.includes(n.tag)) return n; return null; };   // by id or by tag, the selectors this page holds
         e.add = k => { k.parentNode = e; e.kids.push(k); if (k.id) byIdEls[k.id] = k; return k; };
         return e; };
     const body = mk('body'), board = body.add(mk('div', { id: 'whiteboard' })), fog = body.add(mk('div', { id: 'fogScreen' }));
@@ -4684,9 +4684,14 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         api.schedule([{ addedNodes: [{ nodeType: 3, parentNode: h }] }]); run(); res.push(h.title, docQ.byId === before);
         // a node taken off the page before the pass is passed over
         const gone = body.add(mk('label', { text: 'Known', isConnected: false })); api.schedule([{ addedNodes: [gone] }]); run(); res.push(gone.title);
+        // the review of finding 30: a heading already on the page with no known words gets an element child whose words make it known (a span
+        // appended, or innerHTML that holds only elements): the heading it went into is read again and gets its tip. Before, only the span was a
+        // root, which matches nothing and holds nothing, so the tooltip never came
+        const hEl = body.add(mk('h2', { text: 'Other' })); api.schedule([{ addedNodes: [hEl] }]); run(); const hBefore = hEl.title;
+        const sp = hEl.add(mk('span', { text: 'Known' })); hEl.text = 'Known'; api.schedule([{ addedNodes: [sp] }]); run(); res.push(hBefore, hEl.title, sp.title);
     }
-    check('the tooltip pass after a change reads only the nodes the change added (finding 30, tips.js run for real): nothing inside the board or the fog\'s screen and not even a timer for them, a label and an input added outside them tipped in one pass for any number of records, the ids of the dictionary looked up only where an added node holds one, a heading whose words were set afresh read again, a node already taken off passed over, and the whole document never walked',
-        !tsErr && JSON.stringify(res) === JSON.stringify([0, '', '', 0, 0, 1, 'Tip of Known', 'The name', 0, true, 'Tip of Known', true, '']) && tipsSrc.includes('applyTips(document);\nnew MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });'), tsErr || JSON.stringify(res));
+    check('the tooltip pass after a change reads only the nodes the change added (finding 30, tips.js run for real): nothing inside the board or the fog\'s screen and not even a timer for them, a label and an input added outside them tipped in one pass for any number of records, the ids of the dictionary looked up only where an added node holds one, a heading whose words were set afresh read again, a node already taken off passed over, a heading that gets its words as an element inside it read again and tipped, and the whole document never walked',
+        !tsErr && JSON.stringify(res) === JSON.stringify([0, '', '', 0, 0, 1, 'Tip of Known', 'The name', 0, true, 'Tip of Known', true, '', '', 'Tip of Known', '']) && tipsSrc.includes('applyTips(document);\nnew MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });'), tsErr || JSON.stringify(res));
 }
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

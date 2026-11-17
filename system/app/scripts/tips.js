@@ -226,7 +226,10 @@ function applyTips(root) {
 // document and every id of the dictionary 60 ms after ANY change, a drag of the board's tokens included, at up to 4.5 ms a time. Now each record's
 // added nodes are kept as roots (a text node by the element it went into, so a heading whose words change is read again), never one inside the
 // board or the fog's screen (#whiteboard, #fogScreen), which hold no heading or label of the app's own; and the inputs by id are looked at only
-// where a root holds an element with one of the dictionary's ids. Only additions are watched, as before
+// where a root holds an element with one of the dictionary's ids. Only additions are watched, as before. The review of that fix: a heading or
+// label is tipped by its whole text (tipFor reads every word inside it), so where its words arrive as an element inside it (a span appended to
+// an h2, or innerHTML that holds only elements) the heading or label the node went into is kept as a root too, found by closest(SELECTOR);
+// tipOne does nothing for one already tipped, so a heading read again costs nothing more
 function tipsSkip(el) { return !!(el.closest && el.closest('#whiteboard, #fogScreen')); }
 function tipsHasId(el) {
     if (el.id && Object.prototype.hasOwnProperty.call(BY_ID, el.id)) return true;
@@ -253,7 +256,11 @@ function schedule(records) {
         var added = rec && rec.addedNodes ? rec.addedNodes : [];
         for (var i = 0; i < added.length; i++) {
             var n = added[i], el = n && n.nodeType === 1 ? n : n && n.parentNode && n.parentNode.nodeType === 1 ? n.parentNode : null;
-            if (el && !tipsSkip(el)) pendRoots.push(el);
+            if (el && !tipsSkip(el)) {
+                pendRoots.push(el);
+                var h = el.closest ? el.closest(SELECTOR) : null;   // the heading or label it went into, whose words have just changed
+                if (h && h !== el) pendRoots.push(h);
+            }
         }
     });
     if (pending || !pendRoots.length) return;

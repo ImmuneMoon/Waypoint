@@ -1818,17 +1818,32 @@ function memRemember(map, grid, tiers) {   // what is seen now, kept: never a ce
     if (changed) _memVer++;
     return m;
 }
-// the remembered cells as one opaque layer in screen space, traced again only when the store or the view changed (a draw with the same view
-// and the same memory traces none of them)
-function memLayer(map, m, z, sx, sy, W, H, traceOn) {
+// the remembered cells as one opaque layer in screen space, made again only when the store or the view changed (a draw with the same view
+// and the same memory makes nothing). The layer is a raster the size of the screen, so a new scroll fills it again; what is kept across a pan
+// is the cells' outline. 1.6.3 (the review of finding 31): where draw() hands it the board's window (win, from punchWin) and the trace into it
+// (traceWin, a cell's outline in the board's own scale), the outline is one Path2D kept by the map, the memory's version, the memory's grid key
+// and the window's key, never by the scroll, and the layer is filled from it laid with the scroll as a translation: a player's pan inside the
+// window traces none of the cells again, it only fills the kept path once. A cell the window adds past the screen's own cull lies wholly off
+// the layer, so its pixels are the ones the trace gives. With no window (a turned view's layer, which covers a box of its own and is handed
+// traceIn), no trace or no Path2D, the cells are traced onto the layer as before. draw() is the one caller
+var _memPath = null, _memPathKey = '';
+function memLayer(map, m, z, sx, sy, W, H, traceOn, win, traceWin) {
     var sig = map.id + '|' + _memVer + '|' + z + '|' + sx + '|' + sy + '|' + W + '|' + H;
     if (_memCanvas && _memSig === sig) return _memCanvas;
     if (!_memCanvas) { if (typeof document === 'undefined' || !document.createElement) return null; _memCanvas = document.createElement('canvas'); }
     _memCanvas.width = W; _memCanvas.height = H;
     var mc = _memCanvas.getContext('2d'); if (!mc) return null;
-    mc.clearRect(0, 0, W, H); mc.fillStyle = '#000'; mc.beginPath();
-    for (var k in m.cells) traceOn(mc, m.cells[k]);
-    mc.fill(); _memSig = sig;
+    mc.clearRect(0, 0, W, H); mc.fillStyle = '#000';
+    var pk = win && typeof win.key === 'string' && typeof traceWin === 'function' && typeof Path2D === 'function' ? map.id + '|' + _memVer + '|' + m.key + '|' + win.key : '';
+    if (pk) {   // the kept outline, made once for this memory and this window, then laid at this scroll
+        if (_memPathKey !== pk) { var p = new Path2D(); for (var pc in m.cells) traceWin(p, m.cells[pc]); _memPath = p; _memPathKey = pk; }
+        mc.save(); mc.translate(-sx, -sy); mc.fill(_memPath); mc.restore();
+    } else {   // no window to keep it by: traced on the layer, cell by cell, as ever
+        mc.beginPath();
+        for (var k in m.cells) traceOn(mc, m.cells[k]);
+        mc.fill();
+    }
+    _memSig = sig;
     return _memCanvas;
 }
 // [fogcheck:memory-end]
@@ -1867,27 +1882,33 @@ function memTrace(map, ctx, z, ox, oy) {
 }
 // [fogcheck:seenpic-end]
 // [fogcheck:maskclip-start]
-// The play area's clip as a kept path. A frame with the same play area and the same view as the frame before it clips to a Path2D made
-// once by the very calls the frame itself would make (traceOn, cell for cell, in order), and the frames after it trace nothing: the
-// overlay redraws many times a second while nothing moves, and at the full frame rate while a token is dragged. A frame whose play area
-// or view has just changed (a scroll, a zoom, a play area being dragged) gets null and is traced on the canvas as ever, so a moving
-// view builds no path only to throw it away. Null too where there is no Path2D. The play area is known by its object (fogMask hands
-// the same one on until its stamp changes), the view by its numbers.
+// The play area's clip as a kept path. A frame with the same play area, the same grid and the same window as the frame before it clips to a
+// Path2D made once by the trace draw() hands it (traceWin: each cell's outline as traceOn draws it, in the board's own scale, less the scroll,
+// the cells in the window), and the frames after it trace nothing: the overlay redraws many times a second while nothing moves, and at the
+// full frame rate while a token is dragged. draw() lays the path with the scroll as a translation (ctx.translate(-sx, -sy) before the clip),
+// so the scroll is no part of what keeps it. 1.6.3 (the review of finding 31): the window is punchWin's, keyed by the zoom, the screen's size,
+// the pad and a window of the board that a pan within half a screen keeps; it used to be keyed by the exact scroll, so every step of a pan
+// on a map with a play area traced every play-area cell on the canvas and then again into a new path. A frame whose play area, grid or window
+// has just changed (a zoom, a pan past the window, a play area being dragged) gets null and is traced on the canvas as ever, so a view that
+// jumps builds no path only to throw it away. Null too where there is no Path2D or no window. A cell the window adds past the screen's own
+// cull lies wholly off the screen (fogcheck holds it for punchWin), so the clip on the screen is the one the trace gives. The play area is
+// known by its object (fogMask hands the same one on until its stamp changes). draw() is the one caller
 var _clipKey = null, _clipPath = null;
-function maskClip(mask, grid, z, sx, sy, W, H, traceOn) {
-    if (typeof Path2D !== 'function') return null;
-    var k = _clipKey, same = !!k && k.mask === mask && k.type === grid.type && k.size === grid.size && k.s === grid.s && k.h === grid.h && k.z === z && k.sx === sx && k.sy === sy && k.W === W && k.H === H;
-    if (!same) { _clipKey = { mask: mask, type: grid.type, size: grid.size, s: grid.s, h: grid.h, z: z, sx: sx, sy: sy, W: W, H: H }; _clipPath = null; return null; }
-    if (!_clipPath) { var p = new Path2D(); for (var i = 0; i < mask.cells.length; i++) traceOn(p, mask.cells[i]); _clipPath = p; }
+function maskClip(mask, grid, win, traceWin) {
+    if (typeof Path2D !== 'function' || !win || typeof win.key !== 'string') return null;
+    var k = _clipKey, same = !!k && k.mask === mask && k.type === grid.type && k.size === grid.size && k.s === grid.s && k.h === grid.h && k.z === win.z && k.W === win.W && k.H === win.H && k.pad === win.pad && k.win === win.key;
+    if (!same) { _clipKey = { mask: mask, type: grid.type, size: grid.size, s: grid.s, h: grid.h, z: win.z, W: win.W, H: win.H, pad: win.pad, win: win.key }; _clipPath = null; return null; }
+    if (!_clipPath) { var p = new Path2D(); for (var i = 0; i < mask.cells.length; i++) traceWin(p, mask.cells[i]); _clipPath = p; }
     return _clipPath;
 }
 // [fogcheck:maskclip-end]
 // [fogcheck:punchpaths-start]
 // 1.6.3 (the game of 2026-11-15): the fog's two punches as kept paths, as maskClip keeps the play area's clip. A frame whose tiers are the very
-// object the frame before drew (drawTiers hands the kept one on while nothing they read changed) and whose view is the same gets the paths
-// made once by the very calls the frame itself would make (traceOn, cell by cell, in the list's order: the dim cells in one path, the clear
-// ones in the other), and the frames after it trace nothing. A frame whose tiers or view have just changed gets null and is traced on the
-// canvas as ever. Null too where there is no Path2D. vk: the view by its numbers (zoom, scroll, size, the pad a turned view adds, the grid)
+// object the frame before drew (drawTiers hands the kept one on while nothing they read changed) and whose view key is the same gets the paths
+// made once by the trace draw() hands it (traceWin: each cell's outline as traceOn draws it, in the board's own scale, over punchWin's window,
+// cell by cell in the list's order: the dim cells in one path, the clear ones in the other), and the frames after it trace nothing; draw()
+// fills them translated by the scroll. A frame whose tiers or view key have just changed gets null and is traced on the canvas as ever. Null
+// too where there is no Path2D. vk: the zoom, the screen's size, the pad a turned view adds, the grid and the window's key, never the scroll
 var _punchTiers = null, _punchKey = null, _punchDim = null, _punchClear = null;
 // 1.6.3 (the improvement week's review, finding 31): the window of the board the kept punches hold, in the board's own scale (a cell's center
 // times the zoom), never by the view's scroll: a pan inside it keeps the very paths, and draw() lays them on the canvas with the scroll as a
@@ -1966,13 +1987,25 @@ function draw() {
         if (grid.type === 'square') { var half = grid.size * z / 2; cx2.rect(lx - half - 1, ly - half - 1, half * 2 + 2, half * 2 + 2); }
         else hexPath(cx2, lx, ly, grid.s * z * 1.02);
     }; };
-    var mem = isClientView() && rememberOn(camp) ? memRemember(map, grid, tiers) : null, memBox = turnV && turnV.fogBox ? turnV.fogBox(W, H) : null, memLay = mem && mem.n ? (memBox ? memLayer(map, mem, z, sx + memBox.x, sy + memBox.y, memBox.w, memBox.h, traceIn(memBox)) : memLayer(map, mem, z, sx, sy, W, H, traceOn)) : null;   // senses S6: the ground this player remembers
+    // 1.6.3 (the improvement week's review, finding 31, and its review): the window of the board the kept paths hold, in the board's own scale
+    // (punchWin: the view's own cull and half a screen more each way, never keyed by the scroll), and the trace into it (traceWin: one cell's
+    // outline as traceOn draws it less the scroll; a cell outside the window is skipped). The play area's clip (maskClip), a player's remembered
+    // ground (memLayer) and the punches (punchPaths) are each kept as a path made by it and laid on the canvas with the scroll as a translation,
+    // so a pan inside the window traces none of them again. Null where punchWin is not at hand, which traces each of them as ever
+    var win = typeof punchWin === 'function' ? punchWin(z, sx, sy, W, H, pad) : null;
+    var traceWin = function(cx2, cell) {
+        var ctr = C.cellCenter(cell, grid), lx = ctr.x * z, ly = ctr.y * z;
+        if (lx < win.x0 || ly < win.y0 || lx > win.x1 || ly > win.y1) return;
+        if (grid.type === 'square') { var half = grid.size * z / 2; cx2.rect(lx - half - 1, ly - half - 1, half * 2 + 2, half * 2 + 2); }
+        else hexPath(cx2, lx, ly, grid.s * z * 1.02);
+    };
+    var mem = isClientView() && rememberOn(camp) ? memRemember(map, grid, tiers) : null, memBox = turnV && turnV.fogBox ? turnV.fogBox(W, H) : null, memLay = mem && mem.n ? (memBox ? memLayer(map, mem, z, sx + memBox.x, sy + memBox.y, memBox.w, memBox.h, traceIn(memBox)) : memLayer(map, mem, z, sx, sy, W, H, traceOn, win, traceWin)) : null;   // senses S6: the ground this player remembers
     if (!isStreamView() && typeof heightShown === 'function') tiers = heightShown(keptT && typeof drawTiersOwn === 'function' ? drawTiersOwn(tiers, map, camp, drawOwner(), grid) : tiers, map, camp, drawOwner(), grid, mask);   // 1.6.3: heightShown adds cells to what it is handed, so the kept tiers go to it as a copy   // item 19b H4: the cell of a creature seen over a low wall (after the memory: it is no ground seen)
     ctx.save();
     if (turnV) turnV.turnCtx(ctx);   // the fog's cells turn about the same point as the board
     if (mask.mode === 'set') {                                     // confine the fog to the play-area cells
-        var mp = maskClip(mask, grid, z, sx, sy, W, H, traceOn);   // the same clip, kept from the frame before while nothing moved
-        if (mp) ctx.clip(mp);
+        var mp = maskClip(mask, grid, win, traceWin);   // the same clip, kept from the frame before while the window holds
+        if (mp) { ctx.translate(-sx, -sy); ctx.clip(mp); ctx.translate(sx, sy); }   // the kept path is in the board's own scale: laid at this scroll, the transform then put back
         else { ctx.beginPath(); for (var mi = 0; mi < mask.cells.length; mi++) traceCell(mask.cells[mi]); ctx.clip(); }
     }
     ctx.globalCompositeOperation = 'source-over';
@@ -1989,13 +2022,7 @@ function draw() {
     // once by the very calls below; else (pp null) each cell is traced on the canvas as ever. fillP fills the kept path or the traced one
     // 1.6.3 (finding 31): the kept paths are in the board's own scale (punchWin), traced by traceWin, and laid with the scroll as a translation,
     // so a pan inside the window traces nothing again (each step of a pan used to trace every cell twice)
-    var pw = keptT && typeof punchWin === 'function' ? punchWin(z, sx, sy, W, H, pad) : null;
-    var traceWin = function(cx2, cell) {   // one cell's outline in the board's own scale, as traceOn draws it less the scroll; a cell outside the window is skipped
-        var ctr = C.cellCenter(cell, grid), lx = ctr.x * z, ly = ctr.y * z;
-        if (lx < pw.x0 || ly < pw.y0 || lx > pw.x1 || ly > pw.y1) return;
-        if (grid.type === 'square') { var half = grid.size * z / 2; cx2.rect(lx - half - 1, ly - half - 1, half * 2 + 2, half * 2 + 2); }
-        else hexPath(cx2, lx, ly, grid.s * z * 1.02);
-    };
+    var pw = keptT ? win : null;   // the punches are kept only with the kept tiers (drawTiers); the stream window traces them as ever
     var pp = pw && typeof punchPaths === 'function' ? punchPaths(tiers, [z, W, H, pad, grid.type, grid.size, grid.s, grid.h, pw.key].join('|'), traceWin) : null;
     var fillP = function(p) { if (pp) { if (p) { ctx.save(); ctx.translate(-sx, -sy); ctx.fill(p); ctx.restore(); } } else ctx.fill(); };
     if (anyDim) {

@@ -2100,6 +2100,8 @@ var WHY_REST = 600, _whySince = 0, _whyHeld = false, _whyPt = null;
 function previewName() {
     var n = net(), r = n && n.roster && typeof n.roster === 'object' ? n.roster : null, nm = '';
     if (r) Object.keys(r).forEach(function(k) { var p = r[k]; if (p && p.id === previewMode && typeof p.name === 'string' && p.name) nm = p.name; });
+    var cp = typeof activeCamp === 'function' ? activeCamp() : null, pl = cp && cp.players && typeof cp.players === 'object' && Object.prototype.hasOwnProperty.call(cp.players, previewMode) ? cp.players[previewMode] : null;   // 1.6.3: a player previewed while not connected is named from the campaign's own record
+    if (!nm && pl && typeof pl === 'object' && typeof pl.name === 'string' && pl.name) nm = pl.name;
     return nm ? Array.from(nm).slice(0, 40).join('') : 'this player';
 }
 function whyDark(map, grid, mask, tiers, key, cell) {   // why the veil draws this cell dark, or '' when it does not
@@ -2327,7 +2329,10 @@ function paintGrid() {   // the map and grid a stroke paints on, or null (said w
 }
 function paintDo(g, cells, opposite) {
     var mf = mapFog(g.map);
-    if (mf.mode !== 'auto') { mf.mode = 'auto'; syncMenu(); }
+    // Only Reveal all goes back to Auto at the first cell painted, since on Reveal all nothing painted would show. Cover all stays Cover all
+    // (1.6.3, the improvement week's review, finding 1): there a cell revealed by hand is the one thing players see, as Help and the Cover
+    // all notice promise, and turning the map to Auto here showed every player everything their tokens see the moment the GM revealed a room
+    if (mf.mode === 'reveal') { mf.mode = 'auto'; syncMenu(); }
     var lost = paintCells(mf, cells, paintHow(opposite), g.grid, g.C);
     if (lost && !_capSaid) { _capSaid = true; toast('This map keeps no more cells painted by hand (' + g.C.LIMITS.manual + ' revealed, as many hidden). For a large area mark a picture Under fog or Always revealed, or use Cover all or Reveal all.'); }
     queueSave(); redraw();
@@ -2392,15 +2397,34 @@ function drawBox() {
 // [fogcheck:brush-end]
 
 /* ---------- the fog menu (#fogMenu) ---------- */
+// [fogcheck:previewopts-start]
+// The Preview list: Off, Party, then each player connected now, then (1.6.3, the improvement week's review, finding 20) each player of the
+// campaign who is not connected but owns a character token on this map, marked (not connected), so a GM can check what a player will see
+// before they join, hosting or not. Both are judged by the profile id, the value the preview reads tokens by (drawOwner). A banned player is
+// left out, and so is a player with no token here, whose view would be nothing. Every name and id reaches the markup through esc
+function previewPlayers(n, hosting, map, camp) {
+    var out = [], had = Object.create(null);
+    if (hosting && n && n.roster && typeof n.roster === 'object') Object.keys(n.roster).forEach(function(k) { var p = n.roster[k]; if (p && typeof p.id === 'string' && p.id && !had[p.id]) { had[p.id] = 1; out.push({ id: p.id, name: typeof p.name === 'string' && p.name ? p.name : p.id, off: false }); } });
+    var owners = Object.create(null); (map && Array.isArray(map.whiteboard) ? map.whiteboard : []).forEach(function(w) { if (w && w.isChar && typeof w.ownerId === 'string' && w.ownerId) owners[w.ownerId] = 1; });
+    var pl = camp && camp.players && typeof camp.players === 'object' ? camp.players : null, ban = camp && camp.bannedPlayers && typeof camp.bannedPlayers === 'object' ? camp.bannedPlayers : null;
+    var rest = [];
+    if (pl) Object.keys(pl).forEach(function(pid) {
+        var r = pl[pid]; if (had[pid] || owners[pid] !== 1 || !r || typeof r !== 'object' || (ban && Object.prototype.hasOwnProperty.call(ban, pid))) return;
+        had[pid] = 1; rest.push({ id: pid, name: typeof r.name === 'string' && r.name ? r.name : pid, off: true });
+    });
+    rest.sort(function(a, b) { return a.name < b.name ? -1 : a.name > b.name ? 1 : 0; });
+    return out.concat(rest);
+}
 function fillPreviewOptions() {
     var sel = ui('fogPreview'); if (!sel) return;
     var cur = previewMode, n = net(), hosting = !!(n && n.active && n.role === 'host');
     var opts = '<option value="off">Off &mdash; your own view</option><option value="party">Party &mdash; all tokens</option>';
-    if (hosting && n.roster) Object.keys(n.roster).forEach(function(k) { var p = n.roster[k]; if (p && p.id) opts += '<option value="' + esc(p.id) + '">' + esc(p.name || p.id) + '</option>'; });
+    previewPlayers(n, hosting, activeMap(), activeCamp()).forEach(function(p) { opts += '<option value="' + esc(p.id) + '">' + esc(p.name) + (p.off ? ' (not connected)' : '') + '</option>'; });
     sel.innerHTML = opts;
     var ok = Array.prototype.some.call(sel.options, function(o) { return o.value === cur; });
     sel.value = ok ? cur : 'off'; if (!ok) previewMode = 'off';
 }
+// [fogcheck:previewopts-end]
 function fillSightField() {
     var sel = ui('fogSightField'); if (!sel) return;
     var camp = activeCamp(), sys = camp && camp.system, cf = campFog(camp);
@@ -2627,7 +2651,7 @@ var LIGHT_SAID = {
     document.querySelectorAll('#fogMenu .fog-brush-btn').forEach(function(b) { b.addEventListener('click', function() { brushPress(b.dataset.fbrush); }); });
     document.querySelectorAll('#fogMenu .fog-stroke-btn').forEach(function(b) { b.addEventListener('click', function() { strokePick(b.dataset.fstroke); }); });
     var rev = ui('fogRevealAll');
-    if (rev) rev.addEventListener('click', function() { var map = activeMap(); if (!map) return; var mfR = mapFog(map); mfR.mode = 'reveal'; mfR.epoch = (mfR.epoch || 0) + 1; save(); syncMenu(); redraw(); toast('Whole map revealed. Paint or pick a preview to fog again.'); });   // senses S6: a new epoch empties every player's memory of it
+    if (rev) rev.addEventListener('click', function() { var map = activeMap(); if (!map) return; var mfR = mapFog(map); mfR.mode = 'reveal'; mfR.epoch = (mfR.epoch || 0) + 1; save(); syncMenu(); redraw(); toast('Whole map revealed. Paint a cell with a brush to fog it again by what the tokens see.'); });   // senses S6: a new epoch empties every player's memory of it
     var cov = ui('fogCoverAll');
     if (cov) cov.addEventListener('click', function() { var map = activeMap(); if (!map) return; var mfC = mapFog(map); mfC.mode = 'cover'; mfC.epoch = (mfC.epoch || 0) + 1; save(); syncMenu(); redraw(); toast('Whole map covered. Only cells you reveal by hand show.'); });   // senses S6: a new epoch empties every player's memory of it
     var prev = ui('fogPreview');
@@ -2695,6 +2719,45 @@ function placeSeen(map, pts) {
     });
 }
 // [placescheck:seen-end]
+// [placescheck:pieceseen-start]
+// 1.6.3, the improvement week's review (findings 3 and 4): which pieces of a map a player's screen, or the stream window, may show OUTSIDE the
+// board itself, on the minimap, in Shift+1's frame, in a hover card and for a double-click's travel. The board's own pieces lie under the
+// fog's black canvas, but that canvas takes no pointer and the minimap drew every piece of a fogged map, so a player could read the layout,
+// the doors, the labels and the ways to other maps of rooms they had never seen. seenJudge(map) answers null where nothing is to be judged
+// (the GM's own screen, a player whose fog does not apply: Fog of war off, this map's fog off, no grid, no play area with the rest left clear,
+// Reveal all), else a function of one piece that says whether it is seen, by the very rule placeSeen uses for a place: any of its cells seen
+// now (the overlay's own tiers, drawTiers, which keeps them while nothing changed, so a scroll that redraws the minimap works nothing out
+// again), remembered by this screen (S6), or outside the play area. The stream window reads the party's cells the host sent it. The judge is
+// made again only when the tiers, the play area or the memory changed, and keeps each piece's answer while the piece stands where it stood
+var _sj = null, _sjCells = typeof WeakMap === 'function' ? new WeakMap() : null;   // each piece's cells, kept while the piece and the grid stand as they stood, so a new judge (a token moved) reads cells it already listed
+function seenJudge(map) {
+    var C = core(); if (!map || map.type !== 'map' || !C) return null;
+    var client = isClientView(), stream = isStreamView(); if (!client && !stream) return null;   // the GM's own screen shows every piece
+    var grid = gridForMap(map); if (!grid || !fogFeatureOn() || !mapFog(map).on) return null;
+    var camp = activeCamp(), mask = fogMask(map, camp, grid); if (mask.mode === 'none') return null;
+    var tiers = stream ? partyTiers(map, grid) : typeof drawTiers === 'function' ? drawTiers(map, camp, myId(), grid) : revealedTiers(map, camp, myId());
+    if (tiers === null) return null;   // Reveal all: the whole map shows
+    if (!stream && typeof drawTiers !== 'function' && typeof wallEdged === 'function') tiers = wallEdged(tiers, map, grid);   // drawTiers adds the wall cells itself
+    var mem = client && rememberOn(camp) ? _mem[map.id] : null; if (mem && mem.key !== grid.type + ':' + (grid.size || grid.s) + '|' + (mapFog(map).epoch || 0)) mem = null;
+    var memV = typeof _memVer === 'number' ? _memVer : 0;
+    if (_sj && _sj.map === map && _sj.tiers === tiers && _sj.mask === mask && _sj.mem === mem && _sj.memV === memV && _sj.stream === stream) return _sj.judge;
+    var kept = typeof WeakMap === 'function' ? new WeakMap() : null, gsig = grid.type + ':' + (grid.size || grid.s) + ':' + (grid.ox || 0) + ':' + (grid.oy || 0);
+    var judge = function(w) {
+        if (!w || typeof w !== 'object' || typeof w.x !== 'number' || typeof w.y !== 'number' || !isFinite(w.x) || !isFinite(w.y)) return false;   // a piece with no place on the board shows nowhere
+        var ww = typeof w.w === 'number' && isFinite(w.w) ? w.w : 0, hh = typeof w.h === 'number' && isFinite(w.h) ? w.h : 0;
+        var sig = gsig + '|' + w.x + '|' + w.y + '|' + ww + '|' + hh + '|' + (w.rot || 0) + '|' + (w.baseW || 0) + '|' + (w.baseH || 0) + '|' + (Array.isArray(w.pts) ? w.pts.length : 0), k0 = kept ? kept.get(w) : null;
+        if (k0 && k0.sig === sig) return k0.v;
+        var c0 = _sjCells ? _sjCells.get(w) : null, keys = c0 && c0.sig === sig ? c0.keys : placeCells(C, { x: w.x + ww / 2, y: w.y + hh / 2 }, w, grid);
+        if (_sjCells && !(c0 && c0.sig === sig)) _sjCells.set(w, { sig: sig, keys: keys });
+        var v = keys.some(function(k) { return !inMask(mask, k) || !!(tiers && tiers.keys && tiers.keys[k]) || !!(mem && mem.cells[k]); });
+        if (kept) kept.set(w, { sig: sig, v: v });
+        return v;
+    };
+    _sj = { map: map, tiers: tiers, mask: mask, mem: mem, memV: memV, stream: stream, judge: judge };
+    return judge;
+}
+function pieceSeen(map, w) { var j = seenJudge(map); return j ? j(w) : true; }   // one piece: true where it is seen or nothing is judged
+// [placescheck:pieceseen-end]
 window.wpFog = {
     // host enforcement (net.js)
     fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, noticeFacts: noticeFacts, targetLight: targetLight, coverGrade: coverGrade, coverPro: coverPro, bodiesOnLine: bodiesOnLine, coverObject: coverObject, coverAt: coverAt, blastSeat: blastSeat, flightWall: flightWall, moveBlocked: moveBlocked, arrivalOk: arrivalOk, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
@@ -2716,6 +2779,7 @@ window.wpFog = {
     nullFxAt: nullFxAt, gridForMap: gridForMap, darkAt: darkAt,   // 1.6.2: the darkness step at a token's place   // 1.6.2: and a map's lattice, for a hazard's own rows (whiteboard.js)   // 1.6.0: the effects the null areas over a token put on its character (sheets.js areaFxFollow)
     fogOffFor: fogOffFor, nullsAt: nullsAt,   // senses S7a: a player's word of their own tokens' senses a null area switches off, and what is off where a token stands
     placeSeen: placeSeen,   // 1.6.3: which of a map's places this screen's viewer has seen (places.js)
+    seenJudge: seenJudge, pieceSeen: pieceSeen,   // 1.6.3: which pieces a player's minimap, Shift+1, hover card and double-click may show (main.js, whiteboard.js)
     seenKind: seenKind, memSeenSig: memSeenSig, memTrace: memTrace, rememberOff: function() { return !rememberOn(activeCamp()); },   // 1.6.0: what a portal's picture of a map may hold on a player's screen (mapshot.js)
     stats: function() { var map = activeMap(); return { on: map ? !!mapFog(map).on : false, light: map ? mapLevel(map) : null, mode: map ? mapFog(map).mode : null, preview: previewMode, brush: brush, fogMode: !!window.isFogMode, role: roleNow() }; }
 };

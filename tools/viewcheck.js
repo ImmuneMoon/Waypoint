@@ -12,7 +12,7 @@ const viewSrc = read('scripts/view.js');
 const a = viewSrc.indexOf('// [viewcheck:core-start]'), z = viewSrc.indexOf('// [viewcheck:core-end]');
 check('view.js holds its core between its markers', a >= 0 && z > a);
 const state = { zoomLevel: 1 };
-const K = new Function('state', viewSrc.slice(a, z) + '\nreturn { uprightOf: uprightOf, uprightTurn: uprightTurn, levelTurn: levelTurn, fogBox: fogBox, pieceTurn: pieceTurn, viewSource: viewSource, V: V, rad: rad, isTurned: isTurned, turnTo: turnTo, bxy: bxy, dxy: dxy, sxy: sxy, pivotTo: pivotTo, transform: transform, headingOf: headingOf, moveHeading: moveHeading };')(state);
+const K = new Function('state', viewSrc.slice(a, z) + '\nreturn { uprightOf: uprightOf, uprightTurn: uprightTurn, levelTurn: levelTurn, fogBox: fogBox, pieceTurn: pieceTurn, viewSource: viewSource, V: V, rad: rad, isTurned: isTurned, turnTo: turnTo, bxy: bxy, dxy: dxy, sxy: sxy, pivotTo: pivotTo, transform: transform, headingOf: headingOf, moveHeading: moveHeading, pointAt: pointAt, placeAt: placeAt };')(state);
 const V = K.V, near = (p, q, e) => Math.abs(p - q) <= (e || 1e-6);
 
 // the shortest way round
@@ -137,5 +137,31 @@ check('a token\'s words read level: its own turn taken back from them as a value
     && read('style.css').includes('#whiteboard .wb-item > .token-initials, #whiteboard .token-fx .tfx { rotate: calc(var(--lvl-own, 0deg) - var(--view-turn, 0deg)); }')
     && read('style.css').includes('#streamNames .stream-name { rotate: calc(var(--view-turn, 0deg) * -1); transform-origin: 0 50%; }')
     && read('style.css').includes('#measureLayer text, #tagLayer text { transform-box: fill-box; transform-origin: center; rotate: calc(var(--view-turn, 0deg) * -1); }'));
+// 1.6.3 (the improvement week's review, finding 7): the readings every place that centres the view or reads the board under a point asks
+// (view.js pointAt and placeAt, through window.wpView). Unturned they are the plain readings the callers always had, number for number; turned,
+// pointAt is the very point the pointer helpers read at that place on screen, and placeAt puts a board point where the board then draws it
+{
+    let seed = 11, worstR = 0, worstP = 0, plain = true; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const ok = typeof K.pointAt === 'function' && typeof K.placeAt === 'function';
+    for (let i = 0; ok && i < 1500; i++) {
+        Object.assign(V, { deg: rnd() * 360 - 180, ox: rnd() * 3000, oy: rnd() * 3000, tx: rnd() * 800 - 400, ty: rnd() * 800 - 400 }); state.zoomLevel = 0.25 + rnd() * 3;
+        const r = { left: rnd() * 300, top: rnd() * 300 }, w = { scrollLeft: rnd() * 2000, scrollTop: rnd() * 2000, getBoundingClientRect: () => r }, sx = rnd() * 900, sy = rnd() * 700;
+        const p = K.pointAt(w, sx, sy, true), q = K.bxy(r.left + sx, r.top + sy, r, w); worstR = Math.max(worstR, Math.abs(p.x - q.x), Math.abs(p.y - q.y));
+        const bx = rnd() * 4000, by = rnd() * 4000; K.placeAt(w, bx, by, sx, sy, true); const back = K.pointAt(w, sx, sy, true); worstP = Math.max(worstP, Math.abs(back.x - bx), Math.abs(back.y - by));
+        const u = { scrollLeft: rnd() * 2000, scrollTop: rnd() * 2000 }, z = state.zoomLevel, pu = K.pointAt(u, sx, sy, false);
+        if (pu.x !== (u.scrollLeft + sx) / z || pu.y !== (u.scrollTop + sy) / z) plain = false;
+        K.placeAt(u, bx, by, sx, sy, false); if (u.scrollLeft !== bx * z - sx || u.scrollTop !== by * z - sy) plain = false;
+    }
+    check('1.6.3 pointAt reads the board point the pointer helpers read at that place on screen, and placeAt scrolls a board point to stand there, turned about any point with any offset, scroll and zoom (1,500 seeded); unturned each is the plain reading the callers had, number for number',
+        ok && worstR < 1e-6 && worstP < 1e-6 && plain, J([ok, worstR, worstP, plain]));
+    const dm = read('scripts/datamap.js'), wb = read('scripts/whiteboard.js'), io = read('scripts/io.js'), mn = read('scripts/main.js'), pl = read('scripts/places.js'), ins = read('scripts/inspector.js');
+    check('1.6.3 wired: the marquee\'s first corner (datamap.js), a blast\'s drag and Center on my token (whiteboard.js), a pasted picture (io.js), the zoom\'s anchor, Shift+1 and the pointer location (main.js), Find a place (places.js) and a Layers row (inspector.js) read and centre through the view, and no marquee starts by the plain reading',
+        dm.includes('marqueeStartX = wbX(e.clientX, e.clientY, mqBox, wrapEl);') && !dm.includes('marqueeStartX = (e.clientX - wrapEl.getBoundingClientRect().left + wrapEl.scrollLeft) / state.zoomLevel;')
+        && wb.includes('bm.x = blastDrag.ox + wbDX(e.clientX - blastDrag.sx, e.clientY - blastDrag.sy);') && wb.includes('if (window.wpView && window.wpView.place) window.wpView.place(wrap, tok.x + (tok.w || 100) / 2, tok.y + (tok.h || 100) / 2, wrap.clientWidth / 2, wrap.clientHeight / 2);')
+        && io.includes('window.wpView.pointAt(wbWrap, e.clientX - r.left, e.clientY - r.top)') && io.includes('window.wpView.pointAt(wbWrap, wbWrap.clientWidth / 2, wbWrap.clientHeight / 2)')
+        && mn.includes('if (zAt) zV.place(wrap, zAt.x, zAt.y, mouseX, mouseY); else {') && mn.includes('window.wpView.place(wrap, cx, cy, wrap.clientWidth / 2, wrap.clientHeight / 2);') && mn.includes('window.wpView.pointAt(wrap, e.clientX - wrapBox.left, e.clientY - wrapBox.top)')
+        && pl.includes('window.wpView.place(wrap, x, y, wrap.clientWidth / 2, wrap.clientHeight / 2);') && ins.includes('window.wpView.place(wrap, cx, cy, wrap.clientWidth / 2, wrap.clientHeight / 2);')
+        && viewSrc.includes('pointAt: function(w, sx, sy) { return pointAt(w, sx, sy, isTurned() && !!w && w === wrapEl()); },') && viewSrc.includes('place: function(w, bx, by, sx, sy) { placeAt(w, bx, by, sx, sy, isTurned() && !!w && w === wrapEl()); },'));
+}
 console.log(pass + ' passed, ' + fail + ' failed.');
 process.exit(fail ? 1 : 0);

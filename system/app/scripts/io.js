@@ -1706,7 +1706,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
   if (wbWrap) wbWrap.addEventListener('pointermove', function(e) {
       var r = wbWrap.getBoundingClientRect();
       var z = state.zoomLevel || 1;
-      wbMouse = { x: (wbWrap.scrollLeft + e.clientX - r.left) / z, y: (wbWrap.scrollTop + e.clientY - r.top) / z };
+      wbMouse = window.wpView && window.wpView.pointAt ? window.wpView.pointAt(wbWrap, e.clientX - r.left, e.clientY - r.top) : { x: (wbWrap.scrollLeft + e.clientX - r.left) / z, y: (wbWrap.scrollTop + e.clientY - r.top) / z };   // 1.6.3 (the review, finding 7): the board point under the pointer on a turned view too
   });
 
   document.addEventListener('paste', function(e) {
@@ -1733,7 +1733,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
           var f = imgItem.getAsFile();
 
-          var pos = wbMouse || {
+          var pos = wbMouse || (window.wpView && window.wpView.pointAt ? window.wpView.pointAt(wbWrap, wbWrap.clientWidth / 2, wbWrap.clientHeight / 2) : null) || {   // 1.6.3 (the review, finding 7)
               x: (wbWrap.scrollLeft + wbWrap.clientWidth / 2) / (state.zoomLevel || 1),
               y: (wbWrap.scrollTop + wbWrap.clientHeight / 2) / (state.zoomLevel || 1)
           };

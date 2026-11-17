@@ -41,6 +41,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var mapX = (wrap.scrollLeft + mouseX) / state.zoomLevel;
 
       var mapY = (wrap.scrollTop + mouseY) / state.zoomLevel;
+      // 1.6.3 (the review, finding 7): on a turned view the board point under the mouse is read, and put back under it, as the board draws it
+      var zV = state.viewMode !== 'data' && window.wpView && window.wpView.turned && window.wpView.pointAt && window.wpView.turned(wrap) ? window.wpView : null, zAt = zV ? zV.pointAt(wrap, mouseX, mouseY) : null;
 
       
 
@@ -58,9 +60,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       // Scroll to keep the mouse anchored
 
+      if (zAt) zV.place(wrap, zAt.x, zAt.y, mouseX, mouseY); else {
       wrap.scrollLeft = (mapX * state.zoomLevel) - mouseX;
 
       wrap.scrollTop = (mapY * state.zoomLevel) - mouseY;
+      }
 
       renderRulers();
 
@@ -1584,9 +1588,13 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         var wrap = state.viewMode === 'data' ? document.getElementById('canvasWrap') : document.getElementById('whiteboardWrap');
         if (!wrap || !wrap.clientWidth) return;
         var z = state.zoomLevel || 1;
+        // 1.6.3 (the improvement week's review, finding 3): on a player's screen and the stream window a fogged map shows on the minimap only
+        // the pieces they have seen or remember, by the fog's own judge (fog.js seenJudge: null on the GM's screen and wherever fog does not
+        // apply, so those draw every piece as before); the minimap drew the whole layout of rooms nobody had reached
+        var mmSeen = state.viewMode === 'data' || !window.wpFog || typeof window.wpFog.seenJudge !== 'function' ? null : window.wpFog.seenJudge(am);
         var items = state.viewMode === 'data'
             ? (am.rooms || []).map(function(r) { return { x: r.x, y: r.y, w: 140, h: 60, c: (am.cats && am.cats[r.cat] && am.cats[r.cat].color) || '#e0a54f' }; })
-            : (am.whiteboard || []).filter(function(w) { return !(w && w.type === 'light' && window.wpNet && window.wpNet.active && window.wpNet.role === 'client'); }).map(function(w) { return { x: w.x, y: w.y, w: w.w || 50, h: w.h || 50, c: w.type === 'image' ? '#8a8a97' : (/^#/.test(w.color || '') ? w.color : '#4db3d3') }; });   // a player never sees a light source's marker
+            : (am.whiteboard || []).filter(function(w) { return !mmSeen || mmSeen(w); }).filter(function(w) { return !(w && w.type === 'light' && window.wpNet && window.wpNet.active && window.wpNet.role === 'client'); }).map(function(w) { return { x: w.x, y: w.y, w: w.w || 50, h: w.h || 50, c: w.type === 'image' ? '#8a8a97' : (/^#/.test(w.color || '') ? w.color : '#4db3d3') }; });   // a player never sees a light source's marker
         var vx = wrap.scrollLeft / z, vy = wrap.scrollTop / z, vw = wrap.clientWidth / z, vh = wrap.clientHeight / z;
         var turnRect = state.viewMode !== 'data' && window.wpView && window.wpView.screenRect ? window.wpView.screenRect() : null;   // 1.6.2 (backlog 82b): a turned screen is a turned box on the minimap, framed by its own extent
         if (turnRect) { var txs = turnRect.map(function(p) { return p.x; }), tys = turnRect.map(function(p) { return p.y; }); vx = Math.min.apply(null, txs); vy = Math.min.apply(null, tys); vw = Math.max.apply(null, txs) - vx; vh = Math.max.apply(null, tys) - vy; }
@@ -1933,8 +1941,9 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
             var pos = document.getElementById('cursorPos');
             if(wrap && pos) {
                 var wrapBox = wrap.getBoundingClientRect();
-                var wx = (e.clientX - wrapBox.left + wrap.scrollLeft) / state.zoomLevel;
-                var wy = (e.clientY - wrapBox.top + wrap.scrollTop) / state.zoomLevel;
+                var pAt = state.viewMode !== 'data' && window.wpView && window.wpView.pointAt ? window.wpView.pointAt(wrap, e.clientX - wrapBox.left, e.clientY - wrapBox.top) : null;   // 1.6.3 (the review, finding 7): the board point under the pointer on a turned view too
+                var wx = pAt ? pAt.x : (e.clientX - wrapBox.left + wrap.scrollLeft) / state.zoomLevel;
+                var wy = pAt ? pAt.y : (e.clientY - wrapBox.top + wrap.scrollTop) / state.zoomLevel;
                 pos.textContent = Math.round(wx) + ', ' + Math.round(wy);
             }
         }
@@ -2018,6 +2027,10 @@ function fitView(selectionOnly) {
     if(!wrap || !wrap.clientWidth || !wrap.clientHeight) return;    // no laid-out viewport to fit into — leave the camera alone
     var items = (state.viewMode === 'data' ? m.rooms : m.whiteboard) || [];
     if (state.viewMode !== 'data' && window.wpNet && window.wpNet.active && window.wpNet.role === 'client') items = items.filter(function(w) { return !(w && w.type === 'light'); });   // nor frames to one
+    // 1.6.3 (the review, finding 3): a player frames only what they have seen or remember on a fogged map, as the minimap draws it, so Shift+1
+    // never tells how far the unseen map runs (fog.js seenJudge, null on the GM's screen and wherever fog does not apply)
+    var fitSeen = state.viewMode === 'data' || !window.wpFog || typeof window.wpFog.seenJudge !== 'function' ? null : window.wpFog.seenJudge(m);
+    if (fitSeen) items = items.filter(function(w) { return fitSeen(w); });
     if(selectionOnly) {
         var sel = state.viewMode === 'data'
             ? (state.selId ? [state.selId] : [])
@@ -2038,8 +2051,11 @@ function fitView(selectionOnly) {
     if(z < 0.1) z = 0.1; if(z > 4) z = 4;                          // same clamp setZoom enforces
     setZoom(z);
     var cx = minX + (maxX - minX)/2, cy = minY + (maxY - minY)/2;
+    if (state.viewMode !== 'data' && window.wpView && window.wpView.place) window.wpView.place(wrap, cx, cy, wrap.clientWidth / 2, wrap.clientHeight / 2);   // 1.6.3 (the review, finding 7): centered where a turned view draws it
+    else {
     wrap.scrollLeft = (cx * state.zoomLevel) - wrap.clientWidth/2;
     wrap.scrollTop = (cy * state.zoomLevel) - wrap.clientHeight/2;
+    }
     renderRulers();
     toast(selectionOnly ? 'Framed selection.' : 'Fit to content.');
 }

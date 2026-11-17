@@ -9703,12 +9703,22 @@ function handleMessage(msg, conn) {
         var FCsd = window.wpFogCore; if (FCsd && typeof FCsd.secretOn === 'function' ? FCsd.secretOn(doorEl) : doorEl.secret === true) return;   // a secret door answers nothing, as the wall the players hold there would: before its lock is asked, which would say that it is a door
         if (doorEl.doorLock) { denyDR('locked'); return; }                            // GM-locked against players
         var Cdr = window.wpFogCore; if (!Cdr) return;
-        var gridDR = Cdr.gridFor((amDR.meta && amDR.meta.gridType) || 'off', amDR.fog && amDR.fog.cell, amDR.meta && amDR.meta.cell); if (!gridDR) return;   // gridless: can't judge adjacency -> ignore
-        var dCellsR = doorEl.type === 'path' ? Cdr.pathCells(doorEl, gridDR) : Cdr.itemCells(doorEl, gridDR);   // item 18: the door's own cells, by its outline (a turned door as it is drawn); W2: a line door's, the cells its line passes
+        // 1.6.3 (the improvement week's review, finding 14): a token of theirs is beside the door where the door lights up for them, its box within
+        // fogcore's DOOR_NEAR of the door (doorGap, the rule whiteboard.js's cue reads), on any grid and on a map with no grid, where the request
+        // was dropped with no word; and, on a grid, where any cell of its footprint (fogcore itemCells) touches a cell of the door, so a token two or
+        // three cells wide beside a door is never answered as too far by its middle alone. A token's own middle cell stays the rule's last resort
+        // (a token too large to list, itemOver)
+        var gridDR = Cdr.gridFor((amDR.meta && amDR.meta.gridType) || 'off', amDR.fog && amDR.fog.cell, amDR.meta && amDR.meta.cell);
+        var dNearR = typeof Cdr.DOOR_NEAR === 'number' ? Cdr.DOOR_NEAR : 40;
+        var dCellsR = !gridDR ? [] : doorEl.type === 'path' ? Cdr.pathCells(doorEl, gridDR) : Cdr.itemCells(doorEl, gridDR);   // item 18: the door's own cells, by its outline (a turned door as it is drawn); W2: a line door's, the cells its line passes
         var adjacentR = (amDR.whiteboard || []).some(function(w) {
             if (!w || !(w.isChar || w.waiting) || w.hidden || w.ownerId !== profDR.id) return false;   // a shown token of theirs: a character's or a waiting one (the same walls stop it, so it opens the same doors)
-            var tc = Cdr.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, gridDR);
-            return dCellsR.some(function(dc) { return gridDR.type === 'square' ? (Math.max(Math.abs((dc.c || 0) - (tc.c || 0)), Math.abs((dc.r || 0) - (tc.r || 0))) <= 1) : (Cdr.hexDist(dc, tc) <= 1); });
+            if (typeof w.x !== 'number' || typeof w.y !== 'number' || !isFinite(w.x) || !isFinite(w.y)) return false;
+            if (typeof Cdr.doorGap === 'function' && Cdr.doorGap({ x: w.x, y: w.y, w: w.w || 0, h: w.h || 0 }, doorEl) <= dNearR) return true;
+            if (!gridDR) return false;
+            var tCells = typeof Cdr.itemOver === 'function' && Cdr.itemOver(w, gridDR) ? [] : Cdr.itemCells(w, gridDR);
+            tCells = tCells.concat([Cdr.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, gridDR)]);
+            return tCells.some(function(tc) { return dCellsR.some(function(dc) { return gridDR.type === 'square' ? (Math.max(Math.abs((dc.c || 0) - (tc.c || 0)), Math.abs((dc.r || 0) - (tc.r || 0))) <= 1) : (Cdr.hexDist(dc, tc) <= 1); }); });
         });
         if (!adjacentR) { denyDR('far'); return; }
         doorEl.doorOpen = !doorEl.doorOpen;

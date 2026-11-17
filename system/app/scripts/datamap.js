@@ -1373,8 +1373,9 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
           var isMoveMode = _el_moveModeBtn && _el_moveModeBtn.classList.contains('active');
           if (e.button === 0 && wrapEl === wbWrap && !window.isDrawingMode && isMoveMode) {
               isMarquee = true;
-              marqueeStartX = (e.clientX - wrapEl.getBoundingClientRect().left + wrapEl.scrollLeft) / state.zoomLevel;
-              marqueeStartY = (e.clientY - wrapEl.getBoundingClientRect().top + wrapEl.scrollTop) / state.zoomLevel;
+              var mqBox = wrapEl.getBoundingClientRect();   // 1.6.3 (the review, finding 7): the first corner read as the moves read theirs, so a turned view's box starts where the press was
+              marqueeStartX = wbX(e.clientX, e.clientY, mqBox, wrapEl);
+              marqueeStartY = wbY(e.clientX, e.clientY, mqBox, wrapEl);
               marqueeBox = document.createElement('div');
               marqueeBox.className = 'marquee-selection';
               marqueeBox.style.left = marqueeStartX + 'px';

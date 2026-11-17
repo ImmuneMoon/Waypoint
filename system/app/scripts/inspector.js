@@ -1892,9 +1892,12 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
 
               
 
+              if (state.viewMode !== 'data' && window.wpView && window.wpView.place) window.wpView.place(wrap, cx, cy, wrap.clientWidth / 2, wrap.clientHeight / 2);   // 1.6.3 (the review, finding 7): centered where a turned view draws it
+              else {
               wrap.scrollLeft = (cx * state.zoomLevel) - wrap.clientWidth/2;
 
               wrap.scrollTop = (cy * state.zoomLevel) - wrap.clientHeight/2;
+              }
 
               render();
 

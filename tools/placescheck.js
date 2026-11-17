@@ -115,6 +115,40 @@ const byClass = (n, cls) => all(n).filter(e => (' ' + e.className + ' ').include
             J(eGot) === J([[true], [true], [false]]) && ePl.edged === 1 && eGm.edged === 1 && !eSt.edged, J(eGot));
         check('fog.js publishes it as wpFog.placeSeen, and it reads nothing but the fog\'s own readers', fogS.includes('    placeSeen: placeSeen,   // 1.6.3') && !/\bsend\(|wpNet|localStorage/.test(seenS));
     }
+    /* ---- 1.6.3 (the improvement week's review, findings 3 and 4): fog.js seenJudge and pieceSeen, the slice run with the real fogcore, and
+       the minimap, Shift+1, the hover card and the double-click that ask it ---- */
+    {
+        const fogS = read('scripts/fog.js'), seenS = slice(fogS, 'placescheck:seen'), pieceS = slice(fogS, 'placescheck:pieceseen');
+        const grid = FC.gridFor('square', null, null), key = (x, y) => FC.cellKey(FC.cellOf(x, y, grid), grid), maskAll = { mode: 'all' };   // a play area answer kept as fog.js fogMask keeps it
+        const mk = o => new Function('core', 'gridForMap', 'fogFeatureOn', 'mapFog', 'activeCamp', 'fogMask', 'isClientView', 'isStreamView', 'partyTiers', 'revealedTiers', 'drawTiers', 'myId', 'PARTY', 'rememberOn', '_mem', '_memVer', 'inMask', 'wallEdged',
+            seenS + '\n' + pieceS + '\nreturn { judge: seenJudge, one: pieceSeen };')(() => FC, () => o.grid === undefined ? grid : o.grid, () => o.fog !== false, () => ({ on: o.on !== false, epoch: 0 }), () => ({}), () => o.mask || maskAll, () => o.who === 'player', () => o.who === 'stream',
+            () => o.party, (m, c, who) => { o.asked = (o.asked || 0) + 1; return o.tiers === undefined ? { keys: {} } : o.tiers; },
+            o.kept === false ? undefined : (m, c, who, g) => { o.drawn = (o.drawn || 0) + 1; o.drawnFor = who; return o.tiers === undefined ? { keys: {} } : o.tiers; },
+            () => 'pl1', '*players', () => o.remember !== false, o.mem || {}, o.memVer || 0, (mask, k) => mask.mode === 'all' ? true : mask.mode === 'none' ? false : !!mask.keys[k], undefined);
+        const room = { id: 'room', type: 'rect', x: 0, y: 0, w: 100, h: 100 }, portal = { id: 'way', type: 'rect', x: 400, y: 400, w: 50, h: 50, targetMapId: 'm2' }, label = { id: 'lbl', type: 'text', x: 200, y: 0, w: 50, h: 50 };
+        const wall = { id: 'wl', type: 'path', x: 600, y: 0, w: 1, h: 100, baseW: 1, baseH: 100, pts: [[0, 0], [0, 100]], blocksSight: true };
+        const map = { type: 'map', id: 'm1', whiteboard: [room, portal, label, wall] };
+        const pl = { who: 'player', tiers: { keys: { [key(75, 75)]: 2 } }, mem: { m1: { key: 'square:50|0', cells: { [key(225, 25)]: { c: 4, r: 0 } } } } };
+        const P = mk(pl), j = P.judge(map), got = map.whiteboard.map(w => j(w));
+        check('1.6.3 a player\'s app (fog.js seenJudge, its pieceseen slice run with the real fogcore): a piece shows outside the board only where they see a cell of it now or remember one, by the rule placeSeen uses for a place, so a room a token stands beside shows, a label on remembered ground shows, and a way to another map and a wall line in the fog do not; the overlay\'s own tiers are asked for their own id (drawTiers, kept while nothing changes), never worked out afresh',
+            J(got) === J([true, false, true, false]) && pl.drawn === 1 && pl.drawnFor === 'pl1' && !pl.asked && P.one(map, portal) === false && P.one(map, room) === true, J([got, pl.drawn, pl.asked]));
+        const again = P.judge(map), againGot = [again === j, pl.drawn];
+        const moved = Object.assign({}, portal); const keptP = j(portal); portal.x = 25; portal.y = 25; const after = j(portal); portal.x = 400; portal.y = 400;
+        const P2 = mk(Object.assign({}, pl, { tiers: { keys: { [key(425, 425)]: 1 } } })), wayNow = P2.judge(map)(moved);
+        check('1.6.3 seenJudge keeps one judge while the tiers, the play area and the memory are the same, and a piece moved since is judged where it stands now; new tiers that see a way to another map show it',
+            againGot[0] === true && keptP === false && after === true && wayNow === true, J([againGot, keptP, after, wayNow]));
+        const none = [mk({ who: 'gm' }), mk({ who: 'player', fog: false }), mk({ who: 'player', on: false }), mk({ who: 'player', grid: null }), mk({ who: 'player', mask: { mode: 'none' } }), mk({ who: 'player', tiers: null })].map(Q => [Q.judge(map), Q.one(map, portal)]);
+        const outside = mk({ who: 'player', mask: { mode: 'set', keys: { [key(25, 25)]: 1 } }, tiers: { keys: {} } }).judge(map), inArea = { id: 'ia', type: 'rect', x: 5, y: 5, w: 30, h: 30 };
+        const st = mk({ who: 'stream', party: { keys: { [key(425, 425)]: 2 } } }), stJ = st.judge(map);
+        const noPlace = j({ id: 'np', type: 'rect', x: NaN, y: 0, w: 5, h: 5 }), noCore = mk({ who: 'player', kept: false, tiers: { keys: { [key(75, 75)]: 2 } } }), ncJ = noCore.judge(map);
+        check('1.6.3 nothing is judged, and every piece shows, on the GM\'s screen and where the fog does not apply (Fog of war off, this map\'s fog off, no grid, no play area with the rest left clear, Reveal all); a piece that reaches outside a play area shows, one wholly inside it and unseen does not; the stream window reads the party\'s cells the host sent it; a piece with no place on the board shows nowhere; with no kept tiers at hand the fog\'s own reader is asked',
+            none.every(r => r[0] === null && r[1] === true) && outside(portal) === true && outside(room) === true && outside(inArea) === false && stJ(portal) === true && stJ(room) === false && noPlace === false && ncJ(room) === true && ncJ(portal) === false, J([none.map(r => r[0] === null), noPlace]));
+        const mainS = read('scripts/main.js'), wbS = read('scripts/whiteboard.js');
+        check('1.6.3 wired: the minimap draws, and Shift+1 frames, only what seenJudge lets through on a fogged map (main.js renderMinimap and fitView); a player\'s hover card and double-click travel ask pieceSeen for a piece that is no token (whiteboard.js); fog.js publishes both',
+            mainS.includes("var mmSeen = state.viewMode === 'data' || !window.wpFog || typeof window.wpFog.seenJudge !== 'function' ? null : window.wpFog.seenJudge(am);") && mainS.includes(": (am.whiteboard || []).filter(function(w) { return !mmSeen || mmSeen(w); }).filter(")
+            && mainS.includes("if (fitSeen) items = items.filter(function(w) { return fitSeen(w); });") && count(wbS, "!window.wpFog.pieceSeen(_am, wItem)") === 2 && wbS.includes("if (!wItem.isChar && window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && window.wpFog && typeof window.wpFog.pieceSeen === 'function' && !window.wpFog.pieceSeen(_am, wItem)) return;")
+            && fogS.includes('    seenJudge: seenJudge, pieceSeen: pieceSeen,   // 1.6.3') && !/\bsend\(|wpNet|localStorage/.test(pieceS));
+    }
 
     /* ---- places.js: the lines a screen draws, the box and a legend, on a page of plain objects ---- */
     {

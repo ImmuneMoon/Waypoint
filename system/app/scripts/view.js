@@ -72,6 +72,20 @@ function pieceTurn(item, deg, follow, moveTurn, heading) {
     return typeof heading === 'number' && Math.abs(heading) > 0.01 ? (Math.round(heading * 100) / 100) + 'deg' : '';
 }
 // Which turn a screen wears: the GM's for everyone where it holds or the screen follows no token of its own; else the screen's own, or none
+// 1.6.3 (the improvement week's review, finding 7): the board point at (sx, sy) pixels from a wrap's top left, and the wrap scrolled so a board
+// point stands there. turned says the view is turned and the wrap is the play map's (window.wpView.pointAt and place say it); otherwise each is
+// the plain reading the callers always had, (scroll + s) / zoom and b * zoom - s, number for number
+function pointAt(w, sx, sy, turned) {
+    var z = state.zoomLevel || 1;
+    if (turned && w && w.getBoundingClientRect) { var r = w.getBoundingClientRect(); return bxy(r.left + sx, r.top + sy, r, w); }
+    return { x: ((w ? w.scrollLeft : 0) + sx) / z, y: ((w ? w.scrollTop : 0) + sy) / z };
+}
+function placeAt(w, bx, by, sx, sy, turned) {
+    if (!w) return;
+    var z = state.zoomLevel || 1;
+    if (turned) { var s = sxy(bx, by); w.scrollLeft = s.x - sx; w.scrollTop = s.y - sy; return; }
+    w.scrollLeft = bx * z - sx; w.scrollTop = by * z - sy;
+}
 function viewSource(gmTurn, mine) { return gmTurn && (gmTurn.hold || !mine) ? 'gm' : mine ? 'own' : ''; }
 // [viewcheck:core-end]
 
@@ -179,6 +193,14 @@ window.wpView = {
     dy: function(dx, dy) { return dxy(dx, dy).y; },
     transform: transform,
     screen: sxy,
+    // 1.6.3 (the improvement week's review, finding 7): the two readings every place that centres the view or reads the board under a point
+    // on screen asks, so a turned view (or one still offset while it eases back to north) centres and reads where the board is drawn. pointAt:
+    // the board point at (sx, sy) pixels from the wrap's top left; place: the wrap scrolled so that board point (bx, by) stands at (sx, sy).
+    // Unturned, or for any wrap but the play map's, each is the plain reading the callers had: (scroll + s) / zoom and b * zoom - s. Asked by
+    // main.js (the zoom's anchor, Shift+1, the pointer location), io.js (a pasted picture), whiteboard.js (Center on my token), places.js and
+    // inspector.js (finding a piece)
+    pointAt: function(w, sx, sy) { return pointAt(w, sx, sy, isTurned() && !!w && w === wrapEl()); },
+    place: function(w, bx, by, sx, sy) { placeAt(w, bx, by, sx, sy, isTurned() && !!w && w === wrapEl()); },
     rad: rad, deg: function() { return V.deg; },
     // the fog's canvas turned about the pivot's place on screen, where it draws a board point at board * zoom - scroll
     screenRect: function() { var w = wrapEl(); if (!w || !isTurned()) return null; var r = w.getBoundingClientRect(), cs = [[r.left, r.top], [r.right, r.top], [r.right, r.bottom], [r.left, r.bottom]]; return cs.map(function(p) { return bxy(p[0], p[1], r, w); }); },   // the screen's four corners on the board, for the minimap

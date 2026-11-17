@@ -2394,7 +2394,7 @@ pendingChecks.push((async () => {
     const runDoor = (doorOver, o) => {
         o = o || {};
         const door = Object.assign({ id: 'dr', type: 'rect', blocksSight: true, sightType: 'door', x: 50, y: 50, w: 50, h: 50 }, doorOver), tok = Object.assign({ id: 'tk', isChar: true, ownerId: 'u_p', x: 100, y: 50, w: 50, h: 50 }, o.tok || {});
-        const map = { id: 'm1', type: 'map', meta: { gridType: 'square' }, fog: { on: true }, whiteboard: [door, tok] }, out = { sent: [], saves: 0, redraws: 0 };
+        const map = { id: 'm1', type: 'map', meta: o.meta || { gridType: 'square' }, fog: { on: true }, whiteboard: [door, tok] }, out = { sent: [], saves: 0, redraws: 0 };
         const conn = { peer: 'pA', send: m => { packCheck(m); out.sent.push(JSON.parse(j(m))); } };
         const netD = { role: 'host', active: true, paused: false, roster: { pA: { id: 'u_p', location: 'm1' } } };
         new Function('msg', 'conn', 'net', 'peerPaused', 'window', '_doorLimit', 'sendFailed', 'getActiveCampaign', 'getActiveMap', 'save', 'toast', 'moveMode', drSrc)(
@@ -2445,6 +2445,14 @@ pendingChecks.push((async () => {
     const farD = j({ open: false, sent: ['door-deny:far'], saves: 0 }), stand = [runDoor({}, { tok: { isChar: undefined, waiting: true } }), runBar({}, { tok: { isChar: undefined, waiting: true } })], notStand = [runDoor({}, { tok: { ownerId: 'u_x' } }), runDoor({}, { tok: { hidden: true } }), runDoor({}, { tok: { isChar: undefined } }), runDoor({}, { tok: { isChar: undefined, waiting: true, hidden: true } }), runDoor({}, { tok: { isChar: undefined, waiting: true, ownerId: 'u_x' } })];
     check('door-req: a waiting token next to a door opens it as a character\'s token does (the same walls stop it); another player\'s token, a hidden one of theirs and a piece of theirs that is no token do not count as standing next to it, waiting or not',
         stand.every(r => j(r) === openD) && notStand.every(r => j(r) === farD), j([stand, notStand]));
+    // 1.6.3 (the improvement week's review, finding 14): a door is beside a token where the board lights it up for its player (fogcore doorGap within
+    // DOOR_NEAR), on a map with no grid too, where the request was dropped with no word; and on a grid a token two or three cells wide beside a door
+    // is beside it by any cell of its footprint, where its middle cell alone answered far
+    const gridless = { gridType: 'off' }, hexM = { gridType: 'hex' }, lockedD = j({ open: false, sent: ['door-deny:locked'], saves: 0 });
+    const noGrid = [runDoor({}, { meta: gridless }), runDoor({}, { meta: gridless, tok: { x: 130 } }), runDoor({}, { meta: gridless, tok: { x: 141 } }), runDoor({ doorLock: true }, { meta: gridless }), runBar(lineGate, { meta: gridless, tok: { x: 60 } })].map(r => j(r));
+    const big = [runDoor({}, { tok: { x: 100, y: 0, w: 100, h: 100 } }), runDoor({}, { tok: { x: 100, y: 50, w: 150, h: 150 } }), runDoor({}, { tok: { x: 0, y: 100, w: 100, h: 100 } }), runDoor({}, { tok: { x: 200, y: 50, w: 100, h: 100 } }), runDoor({}, { meta: hexM, tok: { x: 100, y: 0, w: 120, h: 104 } })].map(r => j(r));
+    check('1.6.3 door-req (run for real with the real fogcore): on a map with no grid a door beside a token of theirs opens and one too far is answered far, where both were dropped with no word; a locked one answers locked there, a line gate beside it opens; on a grid a token two or three cells wide beside a door (on its right, below it, on a hex grid) opens it, where its middle cell two cells off was answered far; one whose nearest edge stands two cells from the door is still far',
+        j(noGrid) === j([openD, openD, farD, lockedD, openD]) && j(big) === j([openD, openD, openD, farD, openD]), j([noGrid, big]));
 })());
 // Forget: asked first, and whole — a player at the table plays on, but nothing brings their record back until the GM's next Allow
 {

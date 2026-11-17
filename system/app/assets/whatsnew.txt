@@ -77,6 +77,24 @@ Smaller things
   tab. Nobody can change it by hand then, you included, and the sheet shows
   a small lock with your words for why, while damage and actions still
   reach it. A section's Reset all skips a locked field and resets the rest.
+- After Cover all, revealing a room by hand shows players that room and
+  nothing more. Before, the first cell you painted put the map back to fog
+  by what the tokens see.
+- On a map under fog, a player's minimap and Shift+1 show only the ground
+  they've seen, and a piece under the fog no longer gives its name or a way
+  to travel when they rest the pointer on it or double-click it.
+- A player can open a door beside their token on a map with no grid, and a
+  token two or three cells wide opens a door at its side. Before, the first
+  was ignored and the second was told it stood too far.
+- The fog menu's Preview list also offers players who aren't connected
+  but have a token on the map, so you can check what they'll see before
+  they join.
+- A blast you threw stays on its map while you look at another one, so
+  Apply to all in the blast still works when you come back, and players
+  there keep seeing it.
+- With Turn with my token on, the selection box, a dragged blast, a pasted
+  picture, zooming at the pointer, Center on my token, Shift+1 and the
+  pointer's numbers all land where the map is drawn.
 
 WAYPOINT 1.6.2 — What's New
 ============================

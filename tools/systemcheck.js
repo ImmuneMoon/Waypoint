@@ -24570,6 +24570,25 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && ['f_b', 'f_c', 'f_e'].every(id => !('lock' in (cleanSystem(drR, { F, gmView: true }).fields.find(x => x.id === id) || {}))), J([lkMsg('f_b'), lkMsg('f_c'), lkMsg('f_d'), lkMsg('f_e')]));
     }
     }
+    {   // 1.6.3 (the improvement week's review, finding 6): blasts are kept per map (whiteboard.js, its blastaway slice run for real)
+        const wbA = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, NL);
+        const aA = wbA.indexOf('// [systemcheck:blastaway-start]'), zA = wbA.indexOf('// [systemcheck:blastaway-end]'), awaySrc = aA < 0 || zA < aA ? '' : wbA.slice(aA, zA);
+        const runA = player => { const env = { map: { id: 'A' }, renders: 0 }, win = player ? { wpNet: { active: true, role: 'client' } } : {};
+            const api = new Function('getActiveMap', 'ownCircle', 'renderMeasures', 'syncBlastMenu', 'window', 'BLAST_CAP', 'var blasts = [];\n' + awaySrc + '\nreturn { sw: blastsMapSwitch, on: blastsOn, find: blastsAwayFind, set: function(l) { blasts = l; }, get: function() { return blasts; }, away: function() { return _blastsAway; } };')(
+                () => env.map, b => !!b && typeof b.yd === 'number' && b.yd > 0, () => { env.renders++; }, () => {}, win, 40);
+            return { api, env }; };
+        const own = { yd: 4, as: 'r' }, thrown = { x: 1, y: 1, ft: 9, bid: 'b1', wire: { x: 1 }, wireMap: 'A' }, shared = { x: 2, y: 2, ft: 9, shared: true };
+        const G = runA(false); G.api.set([own, thrown]); G.env.map = { id: 'B' }; G.api.sw('A', 'B');
+        const onB = G.api.get().slice(), keptA = G.api.on('A').slice(), foundA = G.api.find(x => x.bid === 'b1');
+        G.env.map = { id: 'A' }; G.api.sw('B', 'A'); const backA = G.api.get().slice(), awayAfter = Object.keys(G.api.away());
+        const P = runA(true); P.api.set([shared]); P.env.map = { id: 'B' }; P.api.sw('A', 'B'); P.env.map = { id: 'A' }; P.api.sw('B', 'A');
+        check('1.6.3 a blast thrown on a map is kept for that map while the GM looks at another and is back on screen when the GM returns, so Apply to all in the blast, Undo last throw and a latecomer still find it; the Radius tool\'s own circle goes with the switch, as a ruler does; a player\'s app keeps nothing aside (the host sends a map\'s blasts to whoever arrives on it)',
+            awaySrc.length > 400 && onB.length === 0 && keptA.length === 1 && keptA[0] === thrown && !!foundA && foundA.mapId === 'A' && backA.length === 1 && backA[0] === thrown && awayAfter.length === 0 && P.api.get().length === 0 && Object.keys(P.api.away()).length === 0,
+            JSON.stringify([onB.length, keptA.length, !!foundA, backA.length, awayAfter, P.api.get().length]));
+        check('1.6.3 wired (whiteboard.js): the map switch keeps the blasts of the map left and tells the table nothing; a latecomer is sent the blasts of the map they come to wherever the GM looks; the end of a fight on a map the GM is not looking at clears that map\'s blasts and none on screen; Apply to all in the blast says where a blast put aside stands',
+            wbA.includes("if (typeof blastsMapSwitch === 'function') blastsMapSwitch(_blastsFrom, activeMap.id);") && !wbA.includes("if (typeof clearBlasts === 'function') clearBlasts();") && wbA.includes('window.wpBlastsShown = function(mapId) { return blastsOn(mapId).filter(')
+            && wbA.includes("if (typeof mapId === 'string' && amG && amG.id !== mapId) {") && wbA.includes("toast('That blast is on another map. Open that map to apply it.')"));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

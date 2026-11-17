@@ -192,7 +192,8 @@ function find(id) {
     var map = getActiveMap(), w = pieceOf(map, id), wrap = document.getElementById('whiteboardWrap'); if (!w || !wrap || state.viewMode !== 'visual') return false;
     var z = typeof state.zoomLevel === 'number' && state.zoomLevel > 0 ? state.zoomLevel : 1, wd = Number(w.w), ht = Number(w.h);
     var x = w.x + (isFinite(wd) && wd > 0 ? wd : 40) / 2, y = w.y + (isFinite(ht) && ht > 0 ? ht : 40) / 2;
-    wrap.scrollLeft = Math.max(0, Math.round(x * z - wrap.clientWidth / 2)); wrap.scrollTop = Math.max(0, Math.round(y * z - wrap.clientHeight / 2));
+    if (window.wpView && window.wpView.turned && window.wpView.place && window.wpView.turned(wrap)) window.wpView.place(wrap, x, y, wrap.clientWidth / 2, wrap.clientHeight / 2);   // 1.6.3 (the review, finding 7): centered where a turned view draws it
+    else { wrap.scrollLeft = Math.max(0, Math.round(x * z - wrap.clientWidth / 2)); wrap.scrollTop = Math.max(0, Math.round(y * z - wrap.clientHeight / 2)); }
     if (_pl.lit) { _pl.lit.classList.remove('wb-find-lit'); _pl.lit = null; } if (_pl.litT) { clearTimeout(_pl.litT); _pl.litT = null; }
     var e = state.wbEls && Object.prototype.hasOwnProperty.call(state.wbEls, id) ? state.wbEls[id] : null;
     if (e && e.classList) { e.classList.add('wb-find-lit'); _pl.lit = e; _pl.litT = setTimeout(function() { if (_pl.lit === e) { e.classList.remove('wb-find-lit'); _pl.lit = null; } _pl.litT = null; }, FIND_MS); }

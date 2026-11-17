@@ -482,11 +482,12 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
       if (activeMap.id !== _lastMeasureMapId) {
 
+          var _blastsFrom = _lastMeasureMapId;
           _lastMeasureMapId = activeMap.id;
           if (typeof buildPolyEnd === 'function') buildPolyEnd();   // the map builder: a polygon under way was the other map's
 
           if (typeof clearMeasures === 'function') clearMeasures();
-          if (typeof clearBlasts === 'function') clearBlasts();
+          if (typeof blastsMapSwitch === 'function') blastsMapSwitch(_blastsFrom, activeMap.id);   // 1.6.3 (the review, finding 6): the blasts of the map left are kept for it, never cleared for the table
 
       }
 
@@ -551,6 +552,9 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
                           if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') {
 
+                              // 1.6.3 (the review, finding 4): a way to another map under the fog is no way the player can see, so a double-click there asks
+                              // nothing (fog.js pieceSeen, the rule the minimap and the hover card read)
+                              if (window.wpFog && typeof window.wpFog.pieceSeen === 'function' && !window.wpFog.pieceSeen(_am, wItem)) return;
                               if (!wItem.hidden) { window.wpNet.requestTravel(wItem.id); if (wItem.portalLock !== true) toast('Traveling...'); }   // a portal locked for players: the request still goes (the host is the judge, and its answer says why), without the promise
 
                               return;
@@ -622,6 +626,10 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                   // no info leaks from hidden items on the player side
 
                   if (wItem.hidden && window.wpNet && window.wpNet.active && window.wpNet.role === 'client') return;
+                  // 1.6.3 (the review, finding 4): nor from a piece under the fog. The fog's canvas takes no pointer, so a player sweeping the black
+                  // ground found rooms, ways to other maps and their names by their cards; a piece they have not seen or do not remember shows none
+                  // (fog.js pieceSeen: true on the GM's screen and wherever fog does not apply). A token is not judged here: the host sends only those seen
+                  if (!wItem.isChar && window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && window.wpFog && typeof window.wpFog.pieceSeen === 'function' && !window.wpFog.pieceSeen(_am, wItem)) return;
 
                   
 
@@ -1295,6 +1303,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
   // selected; nothing in the stream window. A door is fogcore isDoor; a door drawn as a line is measured to its own strokes, any other to its box
   var DOOR_NEAR = 40;   // a token in the cell beside the door, on squares and on hexagons (a hex cell's edge door stands 34 px off a token seated beside it); a door two cells away is 50 px or more
   function doorGap(box, door, F) {
+      if (F && typeof F.doorGap === 'function') return F.doorGap(box, door);   // 1.6.3 (the review, finding 14): fogcore's, the rule the host judges a player's door by; this copy only where no core is at hand
       var x1 = box.x, y1 = box.y, x2 = box.x + (box.w || 0), y2 = box.y + (box.h || 0);
       var ptGap = function(px, py) { var dx = Math.max(x1 - px, 0, px - x2), dy = Math.max(y1 - py, 0, py - y2); return Math.sqrt(dx * dx + dy * dy); };
       if (door.type === 'path') {
@@ -4810,8 +4819,8 @@ window.wpFitToGrid = fitToGrid;
           var bm = blasts[blastDrag.i]; if (!bm) { blastDrag = null; return; }
           if (!blastDrag.moved && Math.hypot(e.clientX - blastDrag.sx, e.clientY - blastDrag.sy) < 4) return;
           blastDrag.moved = true;
-          bm.x = blastDrag.ox + (e.clientX - blastDrag.sx) / state.zoomLevel;
-          bm.y = blastDrag.oy + (e.clientY - blastDrag.sy) / state.zoomLevel;
+          bm.x = blastDrag.ox + wbDX(e.clientX - blastDrag.sx, e.clientY - blastDrag.sy);   // 1.6.3 (the review, finding 7): the step on screen as a step on the board, turned view or not
+          bm.y = blastDrag.oy + wbDY(e.clientX - blastDrag.sx, e.clientY - blastDrag.sy);
           renderMeasures();
       });
       document.addEventListener('pointerup', function() {
@@ -5151,6 +5160,35 @@ window.wpFitToGrid = fitToGrid;
   var blasts = [];
   var BLAST_CAP = 40;   // blasts on screen per map: the oldest go as new ones land (a throw stream from a player never grows this, or every client's render, without bound)
   function pushBlast(b) { blasts.push(b); if (blasts.length > BLAST_CAP) blasts.splice(0, blasts.length - BLAST_CAP); }
+  // [systemcheck:blastaway-start]
+  // 1.6.3 (the improvement week's review, finding 6): blasts are kept per map. The board shows only the map on screen's (blasts), and on the
+  // GM's screen a thrown, set-off or shared blast of a map the GM leaves is put aside for that map (_blastsAway) and comes back when the GM
+  // returns. Before, a look at another map cleared every blast and told the table to clear the NEW map, so the card's Apply to all in the
+  // blast lost the blast it was rolled for, Undo last throw and a latecomer lost it, and players on the old map kept a circle the GM no longer
+  // had. The Radius tool's own circles are this screen's measuring and go, as rulers do. A player's app and the stream window keep nothing
+  // aside: the host sends the blasts of a map to whoever arrives on it (net.js blastsSendTo). blastsMapSwitch is asked by renderWhiteboard
+  // when the map on screen changes; blastsFind, blastsShownOn and blastsGoOn read and clear the blasts of any map, on screen or put aside
+  var _blastsAway = Object.create(null);
+  function blastsMapSwitch(fromId, toId) {
+      var nB = window.wpNet, keep = !(nB && (nB.foreign || (nB.active && nB.role === 'client'))) && !window.wpStream;   // playerScreen's own test, written out: the GM's screen alone keeps blasts aside
+      if (keep && typeof fromId === 'string' && fromId) {
+          var left = blasts.filter(function(b) { return !ownCircle(b); });
+          if (left.length) _blastsAway[fromId] = left.slice(-BLAST_CAP); else delete _blastsAway[fromId];
+      }
+      blasts = keep && typeof toId === 'string' && Object.prototype.hasOwnProperty.call(_blastsAway, toId) ? _blastsAway[toId] : [];
+      if (typeof toId === 'string') delete _blastsAway[toId];
+      renderMeasures(); syncBlastMenu();
+  }
+  function blastsOn(mapId) {   // the blasts of a map: those on screen where it is the map on screen, else those put aside for it
+      var am = getActiveMap();
+      if (am && am.id === mapId) return blasts;
+      return typeof mapId === 'string' && Object.prototype.hasOwnProperty.call(_blastsAway, mapId) ? _blastsAway[mapId] : [];
+  }
+  function blastsAwayFind(pred) {   // a blast put aside for a map not on screen, and that map's id, or null
+      for (var k in _blastsAway) { var hit = _blastsAway[k].filter(pred)[0]; if (hit) return { b: hit, mapId: k }; }
+      return null;
+  }
+  // [systemcheck:blastaway-end]
   var circleKept = circleShape({ yd: 4, as: 'r' });   // the Radius tool's shape, kept on this computer (wp_radius); a thrown blast takes its feet and its name from the item
   try { circleKept = circlePref(JSON.parse(localStorage.getItem('wp_radius') || 'null'), JSON.parse(localStorage.getItem('wp_blast') || 'null')); } catch (e) {}
   var circleKeptPicked = false;   // the kept shape was picked in the options while no shape of the tool's own was on screen: a circle that comes back with its token does not take its place
@@ -5266,11 +5304,16 @@ window.wpFitToGrid = fitToGrid;
   window.wpRulerUnit = function() { return rulerUnitNow() + '|' + rulerImpNow(); };   // ... and that unit with the one its meters are turned from, so the sheet is drawn again on a map in another unit
   window.wpRefreshBlasts = function() { if (blasts.length || _blastHitIds.length || measures.length) renderMeasures(); };   // and the rulers placed: their words read the tokens they end on (a posture, a height) and the table's switches
   window.wpBlasts = function() { return blasts; };   // sandbox testing hook
-  window.wpBlastsShown = function(mapId) { return blasts.filter(function(b) { return !!b.wire && b.wireMap === mapId; }).map(function(b) { return { wire: b.wire, charId: b.wireChar }; }); };   // 1.6.0: what the table was told is standing on that map, for one who comes to it after
+  window.wpBlastsShown = function(mapId) { return blastsOn(mapId).filter(function(b) { return !!b.wire && b.wireMap === mapId; }).map(function(b) { return { wire: b.wire, charId: b.wireChar }; }); };   // 1.6.0: what the table was told is standing on that map, for one who comes to it after
   window.wpFightBlastsGo = function(mapId) {   // 1.6.0: the last fight on a map is over: the circles of what was thrown there go on every screen. The Radius tool's own stay, and one that waits on its fuse
-      var had = blasts.length, fz = typeof _fused !== 'undefined' ? _fused : [];
+      var had = blasts.length, fz = typeof _fused !== 'undefined' ? _fused : [], amG = getActiveMap();
+      if (typeof mapId === 'string' && amG && amG.id !== mapId) {   // 1.6.3: a map not on screen loses the blasts put aside for it (blastsOn)
+          var awayG = blastsOn(mapId).filter(function(b) { return fz.some(function(f) { return f.b === b; }); });
+          if (awayG.length) _blastsAway[mapId] = awayG; else delete _blastsAway[mapId];
+      } else {
       blasts = blasts.filter(function(b) { return ownCircle(b) || fz.some(function(f) { return f.b === b; }); });
       if (blasts.length !== had) { renderMeasures(); syncBlastMenu(); }
+      }
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlastClear) window.wpNet.broadcastBlastClear(mapId);
   };
   function clearBlasts() { blasts = []; renderMeasures(); syncBlastMenu(); if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlastClear) { var mc = getActiveMap(); window.wpNet.broadcastBlastClear(mc ? mc.id : null); } }
@@ -5872,6 +5915,7 @@ window.wpFitToGrid = fitToGrid;
   // The card's Apply to all in the blast (Roll to chat): the blast its damage was rolled for, still on the map on screen
   window.wpBlastApply = function(bid, total) {
       var camp = getActiveCampaign(), sys = camp && camp.system, b = blasts.filter(function(x) { return x && x.bid === bid; })[0];
+      if (!b && typeof blastsAwayFind === 'function' && blastsAwayFind(function(x) { return x && x.bid === bid; })) { toast('That blast is on another map. Open that map to apply it.'); return false; }   // 1.6.3: kept for its map, never lost to a look elsewhere
       if (!b) { toast('That blast is no longer on the map.'); return false; }
       if (typeof total !== 'number' || !isFinite(total)) return false;
       applyBlastDamage(b, total, sys && sys.combat ? sys.combat.hpResource : '');
@@ -8428,8 +8472,11 @@ if(_el_clearWbBtn) _el_clearWbBtn.addEventListener('click', function() {
       var tok = myCharacterToken(m);
       if (!tok) { toast('No character token of yours on this map.'); return; }
       var wrap = document.getElementById('whiteboardWrap');
+      if (window.wpView && window.wpView.place) window.wpView.place(wrap, tok.x + (tok.w || 100) / 2, tok.y + (tok.h || 100) / 2, wrap.clientWidth / 2, wrap.clientHeight / 2);   // 1.6.3 (the review, finding 7): centered where a turned view draws it
+      else {
       wrap.scrollLeft = ((tok.x + (tok.w || 100) / 2) * state.zoomLevel) - wrap.clientWidth / 2;
       wrap.scrollTop = ((tok.y + (tok.h || 100) / 2) * state.zoomLevel) - wrap.clientHeight / 2;
+      }
       if (!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) { state.selWbId = tok.id; state.selWbIds = [tok.id]; render(); }
       if (_el_wbCenterMenu) _el_wbCenterMenu.classList.remove('show');
       toast('Centered on ' + (tok.charName || 'your character') + '.');

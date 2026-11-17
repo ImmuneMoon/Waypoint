@@ -191,8 +191,8 @@ function call(h, method, p, body) {
             const answers = o.answers || {};
             const fetchS = (p, op) => { const m = (op && op.method) || 'GET', key = m + ' ' + p; calls.push(key + (op && op.body ? ' ' + op.body : '')); const a = answers[key]; const r = typeof a === 'function' ? a(op && op.body ? JSON.parse(op.body) : null) : a || { status: 200, json: {} }; return Promise.resolve({ status: r.status, json: () => Promise.resolve(r.json || {}) }); };
             const dialogs = { showConfirm: (q, cb, opts) => { asked.push({ q, opts }); setTimeout(() => cb(o.pick), 0); } };
-            const win = { wpProfileCore: PC.default || PC, wpNet: { active: false, hostId: () => 'u_mine' } };
-            const body = sSrc.slice(pc0, pc1).replace('function profWire() {', 'function profWireOff() {') + '\n' + sSrc.slice(a0, a1).replace(/import\('\.\/dialogs\.js'\)/g, 'Promise.resolve(DIALOGS)') + '\nreturn { acctDecide: acctDecide, ACCT: ACCT, acctPlayed: acctPlayed, acctRefresh: acctRefresh, acctStop: typeof acctStop === "function" ? acctStop : null, acctStopPoll: acctStopPoll };';
+            const win = { wpProfileCore: PC.default || PC, wpNet: Object.assign({ active: false, hostId: () => 'u_mine' }, o.net || {}) };
+            const body = sSrc.slice(pc0, pc1).replace('function profWire() {', 'function profWireOff() {') + '\n' + sSrc.slice(a0, a1).replace(/import\('\.\/dialogs\.js'\)/g, 'Promise.resolve(DIALOGS)') + '\nreturn { acctDecide: acctDecide, ACCT: ACCT, acctPlayed: acctPlayed, acctRefresh: acctRefresh, acctStop: typeof acctStop === "function" ? acctStop : null, acctStopPoll: acctStopPoll, acctUnlink: acctUnlink };';
             const api = new Function('window', 'localStorage', 'fetch', 'ui', 'toast', 'DIALOGS', 'location', 'syncPanel', "'use strict';\n" + body)(win, ls, fetchS, el, t => toasts.push(t), dialogs, { search: '' }, () => {});
             return { api, calls, toasts, asked, store, els };
         };
@@ -208,6 +208,17 @@ function call(h, method, p, body) {
             await r0.api.acctRefresh(); const again = !!r0.api.ACCT.poll; r0.api.acctStopPoll();
             check('Stop ends the wait: the page stops asking, tells its server to end the wait (DELETE /api/account/link), and draws Link to my account again; a server that still holds the wait for that code (one older than the page) does not start it again at the next read',
                 before === true && !!r0.api.acctStop && after === false && again === false && r0.calls.includes('DELETE /api/account/link') && codeHidden === true && linkShown && /^Link this computer/.test(lineAfter), J([before, after, again, r0.calls, lineAfter]));
+        }
+        // 1.6.4, the review of 2026-11-17: the plan's relay follows the link. A read that says not linked, and an unlink, let the held set go
+        // (net.js siteRelayForget); a read that says linked takes back a "not linked" said before (siteRelayLinked); a read that failed says nothing
+        {
+            const told = []; const relayNet = { siteRelayForget: () => told.push('forget'), siteRelayLinked: () => told.push('linked') };
+            const rf1 = run({ local: { wp_profile: PROF }, net: relayNet, answers: { 'GET /api/account': { status: 200, json: { linked: false } } } }); await rf1.api.acctRefresh(); const t1 = told.splice(0);
+            const rf2 = run({ local: { wp_profile: PROF }, net: relayNet, answers: { 'GET /api/account': acct(true) } }); await rf2.api.acctRefresh(); const t2 = told.splice(0);
+            const rf3 = run({ local: { wp_profile: PROF }, net: relayNet, answers: { 'GET /api/account': { status: 500, json: {} } } }); await rf3.api.acctRefresh(); const t3 = told.splice(0);
+            const rf4 = run({ local: { wp_profile: PROF }, net: relayNet, answers: { 'DELETE /api/account': { status: 200, json: {} }, 'GET /api/account': { status: 200, json: { linked: false } } } }); await rf4.api.acctUnlink('test'); const t4 = told.splice(0);
+            check('1.6.4 the plan\'s relay follows the link: a read of the account that says not linked lets a held relay go, one that says linked takes back a not linked said before, a read that failed says nothing, and an unlink lets it go',
+                J(t1) === J(['forget']) && J(t2) === J(['linked']) && J(t3) === J([]) && t4[0] === 'forget', J([t1, t2, t3, t4]));
         }
         // 1: an account that played nowhere adopts this computer's player, and nothing is sent before the account is read
         const r1 = run({ local: { wp_profile: PROF }, answers: { 'GET /api/account': acct(false), 'POST /api/account/adopt': b => ({ status: 200, json: { updated: 77, prefs: Object.assign({}, b.prefs, { wp_profile: J({ id: 'p_here', name: 'Kael', color: '#5976cf' }) }) } }) } });

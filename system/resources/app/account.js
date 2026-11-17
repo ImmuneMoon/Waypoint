@@ -71,25 +71,31 @@ function cleanAccount(a) {
 */
 const RELAY_HOSTS = ['turn.cloudflare.com'], RELAY_DOMAIN = 'waypointvtt.com', RELAY_WAIT_MS = 4000;
 const RELAY_LOOP = ['localhost', '127.0.0.1'];
+// A host name as a browser's own relay parser takes it, label by label (the review of 2026-11-17: turn:.waypointvtt.com and turn:a..b passed the
+// old pattern, and one such address in a set makes every player's connection to the host throw): no empty label, none that begins or ends
+// with a hyphen, none past 63 characters, 253 in all. net.js's SITE_RELAY_NAME is the same.
+const RELAY_NAME = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/;
 // One relay address, as the contract allows it: turn: or turns:, a named host, an optional port that is not 53, an optional transport
 function relayUrlOk(u, test) {
     if (typeof u !== 'string' || u.length > 256) return false;
     const m = /^(turns?):([a-z0-9.-]{1,200})(?::([0-9]{1,5}))?(?:\?transport=(?:udp|tcp))?$/i.exec(u);
     if (!m) return false;
     const host = m[2].toLowerCase(), port = m[3] === undefined ? 0 : Number(m[3]);
+    if (!RELAY_NAME.test(host)) return false;
     if (m[3] !== undefined && (port < 1 || port > 65535 || port === 53)) return false;
     if (RELAY_HOSTS.includes(host) || host === RELAY_DOMAIN || host.endsWith('.' + RELAY_DOMAIN)) return true;
     return !!test && RELAY_LOOP.includes(host);
 }
 // A username or a credential: printable ASCII, 1 to 512 characters (the site's own bound)
 function relayText(v) { return typeof v === 'string' && v.length >= 1 && v.length <= 512 && /^[\x20-\x7e]+$/.test(v); }
-// The site's iceServers, cleaned: each server keeps only the addresses that pass, and a server with none, or with no usable username and
-// credential, is dropped whole. Answers [] for anything that holds no server.
+// The site's iceServers, cleaned: each server keeps only the addresses that pass, written in lower case (a browser's parser may refuse a
+// scheme or a transport in capitals), and a server with none, or with no usable username and credential, is dropped whole. Answers [] for
+// anything that holds no server.
 function cleanIceServers(raw, test) {
     const list = Array.isArray(raw) ? raw.slice(0, 4) : [], out = [];
     list.forEach(s => {
         if (!isObj(s) || !relayText(s.username) || !relayText(s.credential)) return;
-        const urls = (Array.isArray(s.urls) ? s.urls : [s.urls]).slice(0, 8).filter(u => relayUrlOk(u, test));
+        const urls = (Array.isArray(s.urls) ? s.urls : [s.urls]).slice(0, 8).filter(u => relayUrlOk(u, test)).map(u => u.toLowerCase());
         if (urls.length) out.push({ urls, username: s.username, credential: s.credential });
     });
     return out;

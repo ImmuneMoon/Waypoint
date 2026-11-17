@@ -350,6 +350,9 @@ globalThis.fetch = function(url, opts) {
     rec.fetches.push({ url: String(url), method: opts && opts.method || 'GET' });
     const u = String(url);
     if (/version/.test(u)) return Promise.resolve({ ok: true, json: () => Promise.resolve({ version: '1.5.0' }) });
+    // 1.6.4: the plan's relay, as the website answers at ship time with its relay switched off (404, quiet). A busy answer would arm the ten-minute
+    // retry (net.js siteRelayArm), which this world's flushTimers fires at every message, so every message would seem to cause the ask
+    if (/\/api\/(account\/)?relay$/.test(u)) return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({ error: 'off' }) });
     // the local server states every file's length (servefile.js): a picture of the budget probe (/saves/images/pN.png) states 1 MB, any other file its 4 bytes
     const stated = /\/saves\/images\/p\d+\.png$/.test(u) ? 1048576 : 4;
     return Promise.resolve({ ok: true, status: 200, headers: { get: h => (String(h).toLowerCase() === 'content-length' ? String(stated) : null) }, body: { cancel() { rec.cancels++; } }, json: () => Promise.resolve({}), text: () => Promise.resolve(''), arrayBuffer: () => { rec.reads++; return Promise.resolve(new Uint8Array([137, 80, 78, 71]).buffer); }, blob: () => Promise.resolve(new Blob([new Uint8Array([1, 2, 3])])) });

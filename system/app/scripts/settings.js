@@ -1524,7 +1524,7 @@ function acctRename() {
 }
 function acctRefresh() {
     return acctApi('GET', '/api/account').then(function(r) {
-        var j = r.status === 200 ? r.json : { err: true }; ACCT.linked = j.linked === true;
+        var j = r.status === 200 ? r.json : { err: true }; ACCT.linked = j.linked === true; acctRelayFollow(r.status === 200, j.linked === true);
         if (!ACCT.poll && j.linked !== true && j.pending && typeof j.pending.userCode === 'string' && typeof j.pending.url === 'string' && j.pending.userCode !== ACCT.stopped) { ACCT.url = j.pending.url; ACCT.code = j.pending.userCode; acctDraw({ code: j.pending.userCode }); acctStep('resumed', {}); acctPoll(5); return j; }   // a wait this page did not begin (a reload, another window) is taken up again
         if (!ACCT.poll) acctDraw(j); return j;
     });
@@ -1552,10 +1552,19 @@ function acctTake(how, given) {   // given: the account's copy already in hand (
 }
 function acctSync(why) {
     if (!ACCT.linked) return Promise.resolve(false);
-    return acctApi('POST', '/api/account/prefs', acctPrefs()).then(function(r) { if (r.status === 200) { acctMark(); acctStep('sent', { why: why }); return true; } if (r.json.gone || r.json.error === 'unlinked') { ACCT.linked = false; acctRefresh(); } acctStep('send-failed', { why: why, status: r.status }); return false; });
+    return acctApi('POST', '/api/account/prefs', acctPrefs()).then(function(r) { if (r.status === 200) { acctMark(); acctStep('sent', { why: why }); return true; } if (r.json.gone || r.json.error === 'unlinked') { ACCT.linked = false; acctRelayFollow(true, false); acctRefresh(); } acctStep('send-failed', { why: why, status: r.status }); return false; });
 }
 function acctSoon() { if (!ACCT.linked) return; if (ACCT.timer) clearTimeout(ACCT.timer); ACCT.timer = setTimeout(function() { ACCT.timer = null; if (acctSig() !== (localStorage.getItem('wp_acctSig') || '')) acctSync('change'); }, 2000); }
-function acctUnlink(why) { acctStopPoll(); return acctApi('DELETE', '/api/account').then(function() { ACCT.linked = false; acctStep('unlinked', { why: why }); return acctRefresh(); }); }
+function acctUnlink(why) { acctStopPoll(); return acctApi('DELETE', '/api/account').then(function() { ACCT.linked = false; acctRelayFollow(true, false); acctStep('unlinked', { why: why }); return acctRefresh(); }); }
+// 1.6.4: the plan's relay follows the link (the review of 2026-11-17). An answer that says this computer is not linked (a read of the account,
+// an unlink, a key the site no longer knows) lets a held set go at once (net.js siteRelayForget), so a computer unlinked from its account
+// hosts on no relay of the account's; one that says it is linked takes back a "not linked" said before (siteRelayLinked). read is false
+// where this computer's own server could not be read, which says nothing either way.
+function acctRelayFollow(read, linked) {
+    var N = window.wpNet; if (!N || !read) return;
+    if (linked) { if (typeof N.siteRelayLinked === 'function') N.siteRelayLinked(); }
+    else if (typeof N.siteRelayForget === 'function') N.siteRelayForget();
+}
 // Once the key is here: the account read first, then decided on, and only then the first sync
 function acctDecide() {
     return acctApi('GET', '/api/account').then(function(r) {

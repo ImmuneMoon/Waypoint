@@ -532,6 +532,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
                   // Portal travel: double-click an item linked to a room with a Linked Map
 
+                  // [placescheck:dbltravel-start]
                   el.addEventListener('dblclick', function(e) {
 
                       e.stopPropagation();
@@ -568,6 +569,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                       }
 
                   });
+                  // [placescheck:dbltravel-end]
 
               }
 
@@ -615,6 +617,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
               
 
+              // [placescheck:hovercard-start]
               el.addEventListener('pointerenter', function(e) {
 
                   if (!item.isChar && tokCardUp()) { _tc.next = { el: el, x: e.clientX, y: e.clientY }; return; }   // backlog 236: a token's card stays through its grace; this piece shows its own once it has gone
@@ -740,6 +743,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                   tt.style.display = 'block';
 
               });
+              // [placescheck:hovercard-end]
 
               
 
@@ -1300,8 +1304,10 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
   // 1.5.6, a door lights up as a token comes near (backlog 188; the owner, 2026-10-24: "id like doors to change on hover and indicate when youre
   // actually over them", then "or even detect a token's proximity and auto highlight"): a door within DOOR_NEAR board pixels of a token of yours
   // wears wb-door-near, the look a door under the pointer has. Yours: on a player's app their own character tokens, on the GM's screen the tokens
-  // selected; nothing in the stream window. A door is fogcore isDoor; a door drawn as a line is measured to its own strokes, any other to its box
-  var DOOR_NEAR = 40;   // a token in the cell beside the door, on squares and on hexagons (a hex cell's edge door stands 34 px off a token seated beside it); a door two cells away is 50 px or more
+  // selected; nothing in the stream window. A door is fogcore isDoor. Whether a token is beside a door is fogcore doorBeside, the rule the host
+  // opens a player's door by (1.6.3, the review of finding 14): by cells on a map with a lattice, by DOOR_NEAR pixels only where it has none.
+  // The copies below stand in only where no core is at hand (a door drawn as a line measured to its own strokes, any other to its box)
+  var DOOR_NEAR = 40;   // fogcore's: the reach in pixels on a map with no lattice
   function doorGap(box, door, F) {
       if (F && typeof F.doorGap === 'function') return F.doorGap(box, door);   // 1.6.3 (the review, finding 14): fogcore's, the rule the host judges a player's door by; this copy only where no core is at hand
       var x1 = box.x, y1 = box.y, x2 = box.x + (box.w || 0), y2 = box.y + (box.h || 0);
@@ -1318,25 +1324,30 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
       var gx = Math.max(door.x - x2, 0, x1 - (door.x + dw)), gy = Math.max(door.y - y2, 0, y1 - (door.y + dh));
       return Math.sqrt(gx * gx + gy * gy);
   }
-  function doorNearIds(items, mine, F) {   // the ids of the doors within reach of any of the boxes in mine
+  // The ids of the doors beside any of the tokens in mine. grid: the map's lattice as fogcore gridFor answers it (null with none), which
+  // doorNearSync works out; with fogcore's doorBeside at hand that rule decides, else the board's own copy of the pixel reach
+  function doorNearIds(items, mine, F, grid) {
       var out = []; if (!Array.isArray(items) || !Array.isArray(mine) || !mine.length || !F || typeof F.isDoor !== 'function') return out;
+      var useCore = typeof F.doorBeside === 'function';
       items.forEach(function(w) {
           if (!w || typeof w.id !== 'string' || typeof w.x !== 'number' || typeof w.y !== 'number' || !isFinite(w.x) || !isFinite(w.y) || !F.isDoor(w)) return;
-          if (mine.some(function(b) { return doorGap(b, w, F) <= DOOR_NEAR; })) out.push(w.id);
+          var dc = useCore && grid ? (w.type === 'path' ? F.pathCells(w, grid) : F.itemCells(w, grid)) : null;   // the door's own cells, once for every token
+          if (mine.some(function(b) { return useCore ? F.doorBeside(b, w, grid || null, dc) : doorGap(b, w, F) <= DOOR_NEAR; })) out.push(w.id);
       });
       return out;
   }
-  function doorNearMine(am, sel, n) {   // the boxes of the tokens of yours on this map
+  function doorNearMine(am, sel, n) {   // the tokens of yours on this map (the tokens themselves: doorBeside reads their shape and turn)
       if (window.wpStream || !am || !Array.isArray(am.whiteboard)) return [];
       var player = !!(n && n.active && n.role === 'client'), ids = Array.isArray(sel) ? sel : [];
       return am.whiteboard.filter(function(w) {
           if (!w || !w.isChar || w.waiting || typeof w.x !== 'number' || typeof w.y !== 'number') return false;
           return player ? (!w.hidden && w.ownerId === n.myId) : ids.indexOf(w.id) >= 0;
-      }).map(function(w) { return { x: w.x, y: w.y, w: w.w || 0, h: w.h || 0 }; });
+      });
   }
   function doorNearSync(am) {
       var board = document.getElementById('whiteboard'); if (!board || !am || am.type !== 'map') return;
-      var sel = state.selWbIds || (state.selWbId ? [state.selWbId] : []), near = doorNearIds(am.whiteboard, doorNearMine(am, sel, window.wpNet), window.wpFogCore), on = Object.create(null);
+      var Fn = window.wpFogCore, gridN = Fn && typeof Fn.gridFor === 'function' ? Fn.gridFor((am.meta && am.meta.gridType) || 'off', am.fog && am.fog.cell, am.meta && am.meta.cell) : null;   // the lattice the host judges the door by (net.js's door branch asks the same)
+      var sel = state.selWbIds || (state.selWbId ? [state.selWbId] : []), near = doorNearIds(am.whiteboard, doorNearMine(am, sel, window.wpNet), Fn, gridN), on = Object.create(null);
       near.forEach(function(id) { on[id] = 1; });
       board.querySelectorAll('.wb-item.wb-door, .wb-item.wb-door-near').forEach(function(el) { el.classList.toggle('wb-door-near', on[el.dataset.id] === 1 && el.classList.contains('wb-door')); });
   }
@@ -2357,7 +2368,8 @@ window.wpFitToGrid = fitToGrid;
       var at = -1; toks.forEach(function(x, i) { if (x.id === state.selWbId) at = i; }); var nx = toks[(at + 1) % toks.length];
       state.selWbIds = [nx.id]; state.selWbId = nx.id; render();
       var wrap = document.getElementById('whiteboardWrap'), z = state.zoomLevel || 1;
-      if (wrap) { wrap.scrollLeft = Math.max(0, (nx.x + (nx.w || 60) / 2) * z - wrap.clientWidth / 2); wrap.scrollTop = Math.max(0, (nx.y + (nx.h || 52) / 2) * z - wrap.clientHeight / 2); }
+      if (wrap && typeof centerWrapOn === 'function') centerWrapOn(wrap, nx.x + (nx.w || 60) / 2, nx.y + (nx.h || 52) / 2);   // 1.6.3 (the review of finding 7's fix): centered where a turned view draws it
+      else if (wrap) { wrap.scrollLeft = Math.max(0, (nx.x + (nx.w || 60) / 2) * z - wrap.clientWidth / 2); wrap.scrollTop = Math.max(0, (nx.y + (nx.h || 52) / 2) * z - wrap.clientHeight / 2); }
       return true;
   };
   /* Stage 5h Fold 3: the character sheet's facing dial. It turns a token on ITS OWN map (the step from that map's grid, never the
@@ -5169,9 +5181,13 @@ window.wpFitToGrid = fitToGrid;
   // aside: the host sends the blasts of a map to whoever arrives on it (net.js blastsSendTo). blastsMapSwitch is asked by renderWhiteboard
   // when the map on screen changes; blastsFind, blastsShownOn and blastsGoOn read and clear the blasts of any map, on screen or put aside
   var _blastsAway = Object.create(null);
+  function blastsKeepHere() {   // playerScreen's own test, written out: the GM's screen alone keeps blasts aside (a player's app and the stream window are sent them)
+      var nB = window.wpNet; return !(nB && (nB.foreign || (nB.active && nB.role === 'client'))) && !window.wpStream;
+  }
   function blastsMapSwitch(fromId, toId) {
-      var nB = window.wpNet, keep = !(nB && (nB.foreign || (nB.active && nB.role === 'client'))) && !window.wpStream;   // playerScreen's own test, written out: the GM's screen alone keeps blasts aside
-      if (keep && typeof fromId === 'string' && fromId) {
+      var keep = blastsKeepHere(), cmpS = typeof state !== 'undefined' && state && state.appState && state.appState.campaigns ? state.appState.campaigns : null;
+      var fromGone = !!cmpS && typeof fromId === 'string' && !Object.keys(cmpS).some(function(k) { var c = cmpS[k]; return !!(c && c.items && Object.prototype.hasOwnProperty.call(c.items, fromId)); });   // the map left was deleted (in no campaign of this save): nothing is kept for it, as wpBlastsForget let it go; a map of another campaign keeps its own
+      if (keep && typeof fromId === 'string' && fromId && !fromGone) {
           var left = blasts.filter(function(b) { return !ownCircle(b); });
           if (left.length) _blastsAway[fromId] = left.slice(-BLAST_CAP); else delete _blastsAway[fromId];
       }
@@ -5188,6 +5204,24 @@ window.wpFitToGrid = fitToGrid;
       for (var k in _blastsAway) { var hit = _blastsAway[k].filter(pred)[0]; if (hit) return { b: hit, mapId: k }; }
       return null;
   }
+  // The review of finding 6's fix: a blast that lands on a map the GM is NOT looking at (a player throws on map A while the GM looks at map B,
+  // a fused explosive landing there) goes straight into that map's put-aside store, so the GM finds its circle on returning, a latecomer is
+  // sent it (wpBlastsShown) and the card's Apply to all in the blast finds it. Asked by placeThrownBlast alone; the oldest go past BLAST_CAP,
+  // as on screen. Nothing on a player's app or in the stream window, which keep nothing aside
+  function blastsAwayPush(mapId, b) {
+      if (!blastsKeepHere() || typeof mapId !== 'string' || !mapId || !b) return;
+      var am = getActiveMap(); if (am && am.id === mapId) return;   // the map on screen holds its own (blasts)
+      var list = Object.prototype.hasOwnProperty.call(_blastsAway, mapId) ? _blastsAway[mapId] : (_blastsAway[mapId] = []);
+      list.push(b); if (list.length > BLAST_CAP) list.splice(0, list.length - BLAST_CAP);
+  }
+  // A map deleted: its put-aside blasts go with it (dialogs.js's two deletes ask this through typeof)
+  window.wpBlastsForget = function(mapId) { if (typeof mapId === 'string') delete _blastsAway[mapId]; };
+  // A table begun or ended: what an earlier table was told of a blast (wire, wireMap, wireChar) is not told to a latecomer of the next one, on
+  // the map on screen or on any map kept aside. The blasts themselves stay on the GM's screen. net.js startHosting and leaveSession ask it
+  window.wpBlastsUnwire = function() {
+      var drop = function(b) { if (b) { delete b.wire; delete b.wireMap; delete b.wireChar; } };
+      blasts.forEach(drop); for (var k in _blastsAway) _blastsAway[k].forEach(drop);
+  };
   // [systemcheck:blastaway-end]
   var circleKept = circleShape({ yd: 4, as: 'r' });   // the Radius tool's shape, kept on this computer (wp_radius); a thrown blast takes its feet and its name from the item
   try { circleKept = circlePref(JSON.parse(localStorage.getItem('wp_radius') || 'null'), JSON.parse(localStorage.getItem('wp_blast') || 'null')); } catch (e) {}
@@ -5409,6 +5443,7 @@ window.wpFitToGrid = fitToGrid;
       if (pre && typeof blastEnvAt === 'function') { var enB = blastEnvAt(getActiveCampaign(), map, b); if (enB) b.env = enB; var rdF = typeof blastRules === 'function' ? blastRules(getActiveCampaign() && getActiveCampaign().system) : null; if (rdF && rdF.radius) { b.cell = blastCell(map); var rdV = blastFig(rdF.radius, function(nm) { var l = String(nm).toLowerCase(); return l === 'blastradius' ? b.ft / 3 : l === 'mapcell' ? b.cell : l === 'blastscale' ? (typeof b.iscale === 'number' && b.iscale > 0 ? b.iscale : 1) : l === 'blastdice' ? (window.wpBlastCore && window.wpBlastCore.diceCount ? window.wpBlastCore.diceCount(b.dmgExpr || '') : 0) : l.indexOf('env.') === 0 && window.wpBlastCore && window.wpBlastCore.envRead ? window.wpBlastCore.envRead(b.env, l.slice(4)) : undefined; }, false); if (typeof rdV === 'number' && rdV > 0) b.ft = Math.max(1, Math.min(3000, Math.round(rdV * 3))); } }   // 1.6.2: the readings where it lands, and its radius by them (vacuum, water)
       if (seatB) { b.x = seatB.x; b.y = seatB.y; if (b.autoElev) { var underB = tokenAtPoint(map, b.x, b.y, true); b.elev = underB ? tokenElevation(underB, map, true) : groundAt(map, b.x, b.y, true); } }
       if (onScreen) { pushBlast(b); renderMeasures(); syncBlastMenu(); }
+      else if (typeof blastsAwayPush === 'function') blastsAwayPush(map.id, b);   // the review of finding 6's fix: a map not on screen keeps it aside for when the GM comes to it
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) { b.wire = { x: b.x, y: b.y, ft: b.ft, name: opts.gmOnly ? '' : b.name, elev: b.elev, by: b.by }; b.wireMap = map.id; b.wireChar = opts.charId; window.wpNet.broadcastBlast(b.wire, map.id, opts.charId); }   // a GM-only item's blast reaches players unnamed
       var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;
       var rw = typeof blastSize === 'function' && typeof rulerUnitNow === 'function' ? blastSize({ ft: b.ft }, rulerUnitNow(), typeof rulerImpNow === 'function' ? rulerImpNow() : '') : 'Radius ' + b.ft + ' ft';   // in the ruler's unit, as its label (1.5.4): in meters as the sheet says a measure
@@ -8426,10 +8461,31 @@ if(_el_clearWbBtn) _el_clearWbBtn.addEventListener('click', function() {
   var _el_wbCenterCanvasBtn = document.getElementById('wbCenterCanvasBtn');
   var _el_wbCenterItemsBtn = document.getElementById('wbCenterItemsBtn');
 
+  // [placescheck:centeritems-start]
+  // 1.6.3 (the review of findings 3 and 7): the Center menu's pieces and where it puts the camera. centerItemsOf is what Center on items
+  // frames and what its row is offered by: on the Data Map the rooms; on the play map every piece, but on a player's app no light marker
+  // (they are never framed, as Shift+1 leaves them out) and, on a fogged map, only the pieces they have seen or remember (fog.js seenJudge,
+  // null on the GM's screen and wherever fog does not apply), so the button never moves a player's camera to the middle of the GM's whole
+  // layout. dataView: the Data Map is on screen; n: window.wpNet; Fog: window.wpFog. centerWrapOn scrolls a wrap so a board point stands in
+  // its middle, through view.js's place (where a turned view draws it), else the plain reading b * zoom - half the wrap
+  function centerItemsOf(m, dataView, n, Fog) {
+      var items = (m ? (dataView ? m.rooms : m.whiteboard) : null) || [];
+      if (dataView) return items;
+      if (n && n.active && n.role === 'client') items = items.filter(function(w) { return !(w && w.type === 'light'); });
+      var seen = Fog && typeof Fog.seenJudge === 'function' ? Fog.seenJudge(m) : null;
+      return seen ? items.filter(function(w) { return seen(w); }) : items;
+  }
+  function centerWrapOn(wrap, bx, by) {
+      if (!wrap) return;
+      if (window.wpView && typeof window.wpView.place === 'function') { window.wpView.place(wrap, bx, by, wrap.clientWidth / 2, wrap.clientHeight / 2); return; }
+      var z = state.zoomLevel || 1; wrap.scrollLeft = bx * z - wrap.clientWidth / 2; wrap.scrollTop = by * z - wrap.clientHeight / 2;
+  }
+  // [placescheck:centeritems-end]
+
   if(_el_wbCenterBtn) _el_wbCenterBtn.addEventListener('click', function(e) {
       e.stopPropagation();
       var m = getActiveMap(); if(!m || m.type === 'planner') return;
-      var items = (state.viewMode === 'data' ? m.rooms : m.whiteboard) || [];
+      var items = centerItemsOf(m, state.viewMode === 'data', window.wpNet, window.wpFog);
       var hasItems = items.length > 0;
       if(!hasItems) {
           if(_el_wbCenterItemsBtn) {
@@ -8485,8 +8541,7 @@ if(_el_clearWbBtn) _el_clearWbBtn.addEventListener('click', function() {
   if(_el_wbCenterCanvasBtn) _el_wbCenterCanvasBtn.addEventListener('click', function(e) {
       e.stopPropagation();
       var wrap = state.viewMode === 'data' ? document.getElementById('canvasWrap') : document.getElementById('whiteboardWrap');
-      wrap.scrollLeft = (15000 * state.zoomLevel) - wrap.clientWidth/2;
-      wrap.scrollTop = (15000 * state.zoomLevel) - wrap.clientHeight/2;
+      centerWrapOn(wrap, 15000, 15000);   // 1.6.3: the board's middle, where a turned view draws it (the Data Map's wrap is never turned)
       if(_el_wbCenterMenu) _el_wbCenterMenu.classList.remove('show');
       toast('Camera centered on canvas.');
   });
@@ -8494,7 +8549,7 @@ if(_el_clearWbBtn) _el_clearWbBtn.addEventListener('click', function() {
   if(_el_wbCenterItemsBtn) _el_wbCenterItemsBtn.addEventListener('click', function(e) {
       e.stopPropagation();
       var m = getActiveMap(); if(!m || m.type === 'planner') return;
-      var items = (state.viewMode === 'data' ? m.rooms : m.whiteboard) || [];
+      var items = centerItemsOf(m, state.viewMode === 'data', window.wpNet, window.wpFog);   // 1.6.3: a player's seen pieces alone, never a light marker
       var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       items.forEach(function(i) {
           if(i.x < minX) minX = i.x;
@@ -8506,8 +8561,7 @@ if(_el_clearWbBtn) _el_clearWbBtn.addEventListener('click', function() {
           var wrap = state.viewMode === 'data' ? document.getElementById('canvasWrap') : document.getElementById('whiteboardWrap');
           var curCenterX = minX + (maxX - minX)/2;
           var curCenterY = minY + (maxY - minY)/2;
-          wrap.scrollLeft = (curCenterX * state.zoomLevel) - wrap.clientWidth/2;
-          wrap.scrollTop = (curCenterY * state.zoomLevel) - wrap.clientHeight/2;
+          centerWrapOn(wrap, curCenterX, curCenterY);   // 1.6.3 (the review of finding 7's fix): where a turned view draws it
           toast('Camera centered on items.');
       }
       if(_el_wbCenterMenu) _el_wbCenterMenu.classList.remove('show');

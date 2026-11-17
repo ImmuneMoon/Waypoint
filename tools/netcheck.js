@@ -2453,6 +2453,17 @@ pendingChecks.push((async () => {
     const big = [runDoor({}, { tok: { x: 100, y: 0, w: 100, h: 100 } }), runDoor({}, { tok: { x: 100, y: 50, w: 150, h: 150 } }), runDoor({}, { tok: { x: 0, y: 100, w: 100, h: 100 } }), runDoor({}, { tok: { x: 200, y: 50, w: 100, h: 100 } }), runDoor({}, { meta: hexM, tok: { x: 100, y: 0, w: 120, h: 104 } })].map(r => j(r));
     check('1.6.3 door-req (run for real with the real fogcore): on a map with no grid a door beside a token of theirs opens and one too far is answered far, where both were dropped with no word; a locked one answers locked there, a line gate beside it opens; on a grid a token two or three cells wide beside a door (on its right, below it, on a hex grid) opens it, where its middle cell two cells off was answered far; one whose nearest edge stands two cells from the door is still far',
         j(noGrid) === j([openD, openD, farD, lockedD, openD]) && j(big) === j([openD, openD, openD, farD, openD]), j([noGrid, big]));
+    // 1.6.3 (the review of finding 14's fix): on a lattice the host judges by cells alone (fogcore doorBeside), never by a flat 40 px reach. A
+    // hexagon door at q2 r2 and a 60 by 52 token two hexes off (q4 r2, q4 r1, q0 r3) stand 30 px apart, and opened the door; on a map whose own
+    // cell is 20 px a token two or three cells off stands 20 or 40 px away, and opened it too. All are far now; the token one hex or one cell off
+    // still opens it. And the host and the board's cue agree token for token (the board lights a door by the same doorBeside)
+    const hexDoor = { type: 'hexagon', x: 75, y: 130, w: 60, h: 52 }, own20 = { gridType: 'square', cell: { size: 20 } }, d20 = { x: 100, y: 100, w: 20, h: 20 };
+    const lat = [runDoor(hexDoor, { meta: hexM, tok: { x: 165, y: 182, w: 60, h: 52 } }), runDoor(hexDoor, { meta: hexM, tok: { x: 165, y: 130, w: 60, h: 52 } }), runDoor(hexDoor, { meta: hexM, tok: { x: -15, y: 130, w: 60, h: 52 } }),
+        runDoor(hexDoor, { meta: hexM, tok: { x: 120, y: 156, w: 60, h: 52 } }), runDoor(d20, { meta: own20, tok: { x: 140, y: 100, w: 20, h: 20 } }), runDoor(d20, { meta: own20, tok: { x: 160, y: 100, w: 20, h: 20 } }), runDoor(d20, { meta: own20, tok: { x: 120, y: 100, w: 20, h: 20 } })].map(r => j(r));
+    const gH = FCd.gridFor('hex'), hexD = Object.assign({ blocksSight: true, sightType: 'door' }, hexDoor);
+    check('1.6.3 door-req on a lattice (run for real with the real fogcore): a 60 by 52 token two hexes from a hexagon door, 30 px off it, is far, and so is a token two or three cells off on a map whose own cell is 20 px (20 and 40 px off); a token one hex or one cell off opens the door; fogcore doorBeside, the board cue\'s rule, says the same of each',
+        j(lat) === j([farD, farD, farD, openD, farD, farD, openD]) && typeof FCd.doorBeside === 'function' && FCd.doorBeside({ x: 165, y: 182, w: 60, h: 52 }, hexD, gH) === false && FCd.doorBeside({ x: 120, y: 156, w: 60, h: 52 }, hexD, gH) === true
+        && FCd.doorGap({ x: 165, y: 182, w: 60, h: 52 }, hexD) <= FCd.DOOR_NEAR, j(lat));
 })());
 // Forget: asked first, and whole — a player at the table plays on, but nothing brings their record back until the GM's next Allow
 {

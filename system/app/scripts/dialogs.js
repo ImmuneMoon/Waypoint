@@ -702,6 +702,7 @@ if(_el_ctxRenameItem) _el_ctxRenameItem.addEventListener('click', function() {
               }
               delete camp.items[id];
               if (window.wpNet && window.wpNet.itemGone) window.wpNet.itemGone(camp.id, id, removed && removed.meta ? removed.meta.title : undefined);   // hosting: the item leaves every player's copy too (a fight on a map ends, named as the map was)
+              if (typeof window.wpBlastsForget === 'function') window.wpBlastsForget(id);   // 1.6.3: the blasts kept aside for that map go with it (whiteboard.js)
               if (camp.activeItemId === id) { var nextM = removed && removed.type === 'map' ? Object.keys(camp.items).find(function(k) { return camp.items[k].type === 'map'; }) : null; camp.activeItemId = nextM || Object.keys(camp.items)[0] || null; if (!(nextM && state.viewMode === 'visual')) state.viewMode = 'data'; }   // 1.6.0 (found by hand): a map deleted on the play map leaves you on the next map's play map
               updateSidebarNav(); render(); save(true);
               if (window.appRestoreCamera) window.appRestoreCamera();
@@ -737,6 +738,7 @@ if(_el_delItemBtn) _el_delItemBtn.addEventListener('click', function() {
               var goneId = camp.activeItemId, goneIt = camp.items[goneId];
               delete camp.items[goneId];
               if (window.wpNet && window.wpNet.itemGone) window.wpNet.itemGone(camp.id, goneId, goneIt && goneIt.meta ? goneIt.meta.title : undefined);   // hosting: the item leaves every player's copy too (a fight on a map ends, named as the map was)
+              if (typeof window.wpBlastsForget === 'function') window.wpBlastsForget(goneId);   // 1.6.3: the blasts kept aside for that map go with it (whiteboard.js)
 
               camp.activeItemId = (goneIt && goneIt.type === 'map' && Object.keys(camp.items).find(function(k) { return camp.items[k].type === 'map'; })) || Object.keys(camp.items)[0];
 

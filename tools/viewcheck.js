@@ -162,6 +162,13 @@ check('a token\'s words read level: its own turn taken back from them as a value
         && mn.includes('if (zAt) zV.place(wrap, zAt.x, zAt.y, mouseX, mouseY); else {') && mn.includes('window.wpView.place(wrap, cx, cy, wrap.clientWidth / 2, wrap.clientHeight / 2);') && mn.includes('window.wpView.pointAt(wrap, e.clientX - wrapBox.left, e.clientY - wrapBox.top)')
         && pl.includes('window.wpView.place(wrap, x, y, wrap.clientWidth / 2, wrap.clientHeight / 2);') && ins.includes('window.wpView.place(wrap, cx, cy, wrap.clientWidth / 2, wrap.clientHeight / 2);')
         && viewSrc.includes('pointAt: function(w, sx, sy) { return pointAt(w, sx, sy, isTurned() && !!w && w === wrapEl()); },') && viewSrc.includes('place: function(w, bx, by, sx, sy) { placeAt(w, bx, by, sx, sy, isTurned() && !!w && w === wrapEl()); },'));
+    // The review of finding 7's fix: Next token (N), Center on canvas and Center on items centre through the view as well (whiteboard.js
+    // centerWrapOn, which hands view.js place the wrap's middle and keeps the plain reading only where no view module is at hand)
+    const wbN = wb.replace(/\r\n/g, '\n'), keyNext = wbN.slice(wbN.indexOf('window.wpKeyNext = function() {'), wbN.indexOf('window.wpKeyNext = function() {') + 1400);
+    check('1.6.3 wired: Next token, Center on canvas and Center on items centre through the view (whiteboard.js centerWrapOn and view.js place), none by the plain scroll reading',
+        keyNext.includes("if (wrap && typeof centerWrapOn === 'function') centerWrapOn(wrap, nx.x + (nx.w || 60) / 2, nx.y + (nx.h || 52) / 2);") && wbN.includes('centerWrapOn(wrap, 15000, 15000);') && wbN.includes('centerWrapOn(wrap, curCenterX, curCenterY);')
+        && wbN.includes("if (window.wpView && typeof window.wpView.place === 'function') { window.wpView.place(wrap, bx, by, wrap.clientWidth / 2, wrap.clientHeight / 2); return; }")
+        && !wbN.includes('wrap.scrollLeft = (15000 * state.zoomLevel) - wrap.clientWidth/2;') && !wbN.includes('wrap.scrollLeft = (curCenterX * state.zoomLevel) - wrap.clientWidth/2;'));
 }
 console.log(pass + ' passed, ' + fail + ' failed.');
 process.exit(fail ? 1 : 0);

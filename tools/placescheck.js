@@ -148,6 +148,49 @@ const byClass = (n, cls) => all(n).filter(e => (' ' + e.className + ' ').include
             mainS.includes("var mmSeen = state.viewMode === 'data' || !window.wpFog || typeof window.wpFog.seenJudge !== 'function' ? null : window.wpFog.seenJudge(am);") && mainS.includes(": (am.whiteboard || []).filter(function(w) { return !mmSeen || mmSeen(w); }).filter(")
             && mainS.includes("if (fitSeen) items = items.filter(function(w) { return fitSeen(w); });") && count(wbS, "!window.wpFog.pieceSeen(_am, wItem)") === 2 && wbS.includes("if (!wItem.isChar && window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && window.wpFog && typeof window.wpFog.pieceSeen === 'function' && !window.wpFog.pieceSeen(_am, wItem)) return;")
             && fogS.includes('    seenJudge: seenJudge, pieceSeen: pieceSeen,   // 1.6.3') && !/\bsend\(|wpNet|localStorage/.test(pieceS));
+
+        // The review of findings 3 and 4's fix: the hover card and the double-click handlers themselves (whiteboard.js, their hovercard and
+        // dbltravel slices), run in a scope of their own in which every name the slice does not find is a function that does nothing. On a
+        // player's app a piece under the fog writes no card (the tooltip is never even fetched) and asks the host for no travel; a seen piece does
+        // both, and on the GM's screen nothing is judged
+        const runH = (who, seen, piece) => {
+            const out = { tip: 0, travel: [], toasts: [] }, ls = {}, el = { addEventListener: (t, f) => { ls[t] = f; }, classList: { add() {}, remove() {}, contains: () => false }, style: {}, dataset: {} };
+            const tt = { style: {}, set innerHTML(v) { out.html = v; }, get innerHTML() { return out.html || ''; }, firstElementChild: null, getBoundingClientRect: () => ({ width: 10, height: 10 }), querySelector: () => null };
+            const am = { id: 'm1', type: 'map', rooms: [], whiteboard: [piece] }, n = { active: who !== 'solo', role: who === 'player' ? 'client' : 'host', requestTravel: id => out.travel.push(id) };
+            const scope = { el, item: piece, getActiveMap: () => am, toast: t => out.toasts.push(t), state: { wbEls: {} },
+                window: { wpNet: n, wpFog: { pieceSeen: (m, w) => { out.asked = (out.asked || 0) + 1; return seen; } } },
+                document: { getElementById: id => { if (id === 'wbTooltip') out.tip++; return id === 'wbTooltip' ? tt : { scrollLeft: 0, scrollTop: 0, getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 600 }) }; }, elementFromPoint: () => null } };
+            const keep = new Set(Object.getOwnPropertyNames(globalThis));
+            const P = new Proxy(scope, { has: (t, k) => typeof k === 'string' && (k in t || !keep.has(k)), get: (t, k) => k === Symbol.unscopables ? undefined : k in t ? t[k] : function() { return ''; } });
+            new Function('S', 'with (S) {\n' + slice(wbS, 'placescheck:hovercard') + '\n' + slice(wbS, 'placescheck:dbltravel') + '\n}')(P);
+            try { ls.pointerenter({ clientX: 5, clientY: 5 }); } catch (e) { out.hoverErr = String(e && e.message); }
+            try { ls.dblclick({ clientX: 5, clientY: 5, stopPropagation() {} }); } catch (e) { out.dblErr = String(e && e.message); }
+            return out;
+        };
+        const way = () => ({ id: 'way', type: 'rect', x: 400, y: 400, w: 50, h: 50, targetMapId: 'm2', name: 'Cellar stair' });
+        const hUnseen = runH('player', false, way()), hSeen = runH('player', true, way()), hGm = runH('host', false, way());
+        check('1.6.3 the hover card and double-click travel run for real (whiteboard.js hovercard and dbltravel slices): on a player\'s app a way to another map under the fog writes no card and asks no travel; a seen one fetches its card and asks the host to travel there; on the GM\'s screen the fog judges nothing and the card is drawn',
+            hUnseen.tip === 0 && hUnseen.travel.length === 0 && hUnseen.asked === 2 && hSeen.tip === 1 && J(hSeen.travel) === J(['way']) && hGm.tip === 1 && !hGm.asked && !hUnseen.dblErr && !hSeen.dblErr,
+            J([hUnseen, hSeen, hGm].map(o => [o.tip, o.travel, o.asked, o.hoverErr, o.dblErr])));
+
+        // The review of finding 3's fix: Center on items frames what Shift+1 frames (whiteboard.js centerItemsOf, its centeritems slice run for
+        // real): on a player's app only the pieces they have seen or remember and never a light marker, so the button never moves their camera
+        // to the middle of the GM's whole layout and is offered only where something seen stands; the GM's screen and the Data Map as before
+        const CI = new Function('state', 'window', slice(wbS, 'placescheck:centeritems') + '\nreturn { items: centerItemsOf, on: centerWrapOn };');
+        const ciWin = {}, ciState = { zoomLevel: 2 }, C = CI(ciState, ciWin);
+        const lamp = { id: 'lamp', type: 'light', x: 900, y: 900, w: 10, h: 10 }, cMap = { type: 'map', id: 'm1', whiteboard: [room, portal, lamp], rooms: [{ id: 'r1' }] };
+        const fogSeen = { seenJudge: m => m === cMap ? (w => w.id === 'room' || w.id === 'lamp') : null }, plN = { active: true, role: 'client' }, gmN = { active: true, role: 'host' };
+        const ids = l => l.map(w => w.id).join();
+        const ciPl = ids(C.items(cMap, false, plN, fogSeen)), ciGm = ids(C.items(cMap, false, gmN, { seenJudge: () => null })), ciData = ids(C.items(cMap, true, plN, fogSeen)), ciNoFog = ids(C.items(cMap, false, plN, null)), ciNone = C.items({ type: 'map', whiteboard: [portal] }, false, plN, { seenJudge: () => () => false }).length;
+        const wrapC = { clientWidth: 400, clientHeight: 200, scrollLeft: 0, scrollTop: 0 }; C.on(wrapC, 300, 150); const plainC = [wrapC.scrollLeft, wrapC.scrollTop];
+        let placed = null; ciWin.wpView = { place: (w, bx, by, sx, sy) => { placed = [bx, by, sx, sy]; } }; C.on(wrapC, 300, 150);
+        check('1.6.3 Center on items frames only what a player has seen or remembers on a fogged map and never a light marker (whiteboard.js centerItemsOf, run for real); the GM\'s screen frames every piece, the Data Map its rooms; nothing seen offers nothing; the camera goes through view.js place, else the plain reading',
+            ciPl === 'room' && ciGm === 'room,way,lamp' && ciData === 'r1' && ciNoFog === 'room,way' && ciNone === 0 && J(plainC) === J([400, 200]) && J(placed) === J([300, 150, 200, 100])
+            && count(wbS, 'centerItemsOf(m, state.viewMode === \'data\', window.wpNet, window.wpFog)') === 2, J([ciPl, ciGm, ciData, ciNoFog, ciNone, plainC, placed]));
+        const helpS = read('index.html');
+        check('1.6.3 Help says it: the minimap entry tells a player\'s minimap and Shift+1 show only seen or remembered ground on a fogged map and a piece under the fog gives no card; Preview a player\'s view says players who are not connected but have a token on the map are listed, marked as such',
+            helpS.includes('On a fogged map a player&rsquo;s minimap and <kbd>Shift</kbd>+<kbd>1</kbd> show only the ground they have seen or remember, and a piece under the fog gives them no card.</li>')
+            && helpS.includes('Players who are not connected but have a token on this map are in the list too, marked as not connected.</li>'));
     }
 
     /* ---- places.js: the lines a screen draws, the box and a legend, on a page of plain objects ---- */

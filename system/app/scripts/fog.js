@@ -1105,9 +1105,12 @@ function wallEdged(tiers, map, grid) {
 // 1.6.3 (the game of 2026-11-15: a GM hosting a map of 33 character tokens, a campaign of 158 characters, the screen two thirds busy doing
 // nothing): the overlay draws at most every 60 ms, and every frame it built the whole revealed set again (revealedTiers, then wallEdged), some
 // 45 ms each time though nothing had moved. drawTiers keeps the tiers of the frame before and hands them back while every input they are
-// worked out from is the same; anything else is worked out afresh exactly as before. Only the overlay asks it (draw, inside a frame, never
-// the stream window, whose tiers are the host's word): a judgment the host makes for a player (fogDropIds, canSeePoint, the marks) never
-// reads it, and revealedTiers itself stays new at every call, as wallEdged and heightShown expect.
+// worked out from is the same; anything else is worked out afresh exactly as before. Two readers ask it, both on the screen's own behalf and
+// never in the stream window, whose tiers are the host's word: the overlay (draw, inside a frame) and seenJudge below (1.6.3, the review of
+// findings 3 and 4: the minimap, Shift+1, a player's hover card and double-click), which asks it OUTSIDE a frame. There dtKey's viewersFor
+// reads each token's senses from its sheet afresh (the senses memo holds only inside a frame), so a minimap draw or a hover reuses the kept
+// tiers but still pays for making their key again: the price of an answer that is never a frame old. A judgment the host makes for a player
+// (fogDropIds, canSeePoint, the marks) never reads it, and revealedTiers itself stays new at every call, as wallEdged and heightShown expect.
 // The key (dtKey) names everything revealedTiers and wallEdged read, each as cheaply as it can be read again:
 //   the map (the very object, and its id), the screen's role (a player's copy reads the host's lit cells, fogLit), the owner whose tokens
 //   reveal (drawOwner: the GM, a preview, a player), the grid, the map's fog mode, the cells shown and hidden by hand (each by its key);
@@ -2726,9 +2729,12 @@ function placeSeen(map, pts) {
 // the doors, the labels and the ways to other maps of rooms they had never seen. seenJudge(map) answers null where nothing is to be judged
 // (the GM's own screen, a player whose fog does not apply: Fog of war off, this map's fog off, no grid, no play area with the rest left clear,
 // Reveal all), else a function of one piece that says whether it is seen, by the very rule placeSeen uses for a place: any of its cells seen
-// now (the overlay's own tiers, drawTiers, which keeps them while nothing changed, so a scroll that redraws the minimap works nothing out
-// again), remembered by this screen (S6), or outside the play area. The stream window reads the party's cells the host sent it. The judge is
-// made again only when the tiers, the play area or the memory changed, and keeps each piece's answer while the piece stands where it stood
+// now (the overlay's own tiers, drawTiers, which hands back the kept tiers while nothing changed: a scroll that redraws the minimap works no
+// tiers out again, though it makes their key again, which reads each token's senses afresh outside the overlay's frame), remembered by this
+// screen (S6), or outside the play area. The stream window reads the party's cells the host sent it. Not counted: a cell a player sees over
+// a low wall by the height rules, which the overlay adds only to its own copy of the tiers (heightShown), so a piece standing only there
+// shows here once a cell of it is seen otherwise or remembered. The judge is made again only when the tiers, the play area or the memory
+// changed, and keeps each piece's answer while the piece stands where it stood
 var _sj = null, _sjCells = typeof WeakMap === 'function' ? new WeakMap() : null;   // each piece's cells, kept while the piece and the grid stand as they stood, so a new judge (a token moved) reads cells it already listed
 function seenJudge(map) {
     var C = core(); if (!map || map.type !== 'map' || !C) return null;

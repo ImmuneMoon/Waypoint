@@ -71,7 +71,6 @@ function pieceTurn(item, deg, follow, moveTurn, heading) {
     if (item.type === 'text' || follow || !moveTurn) return uprightTurn(deg);
     return typeof heading === 'number' && Math.abs(heading) > 0.01 ? (Math.round(heading * 100) / 100) + 'deg' : '';
 }
-// Which turn a screen wears: the GM's for everyone where it holds or the screen follows no token of its own; else the screen's own, or none
 // 1.6.3 (the improvement week's review, finding 7): the board point at (sx, sy) pixels from a wrap's top left, and the wrap scrolled so a board
 // point stands there. turned says the view is turned and the wrap is the play map's (window.wpView.pointAt and place say it); otherwise each is
 // the plain reading the callers always had, (scroll + s) / zoom and b * zoom - s, number for number
@@ -86,6 +85,7 @@ function placeAt(w, bx, by, sx, sy, turned) {
     if (turned) { var s = sxy(bx, by); w.scrollLeft = s.x - sx; w.scrollTop = s.y - sy; return; }
     w.scrollLeft = bx * z - sx; w.scrollTop = by * z - sy;
 }
+// Which turn a screen wears: the GM's for everyone where it holds or the screen follows no token of its own; else the screen's own, or none
 function viewSource(gmTurn, mine) { return gmTurn && (gmTurn.hold || !mine) ? 'gm' : mine ? 'own' : ''; }
 // [viewcheck:core-end]
 

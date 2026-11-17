@@ -24582,12 +24582,36 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const onB = G.api.get().slice(), keptA = G.api.on('A').slice(), foundA = G.api.find(x => x.bid === 'b1');
         G.env.map = { id: 'A' }; G.api.sw('B', 'A'); const backA = G.api.get().slice(), awayAfter = Object.keys(G.api.away());
         const P = runA(true); P.api.set([shared]); P.env.map = { id: 'B' }; P.api.sw('A', 'B'); P.env.map = { id: 'A' }; P.api.sw('B', 'A');
-        check('1.6.3 a blast thrown on a map is kept for that map while the GM looks at another and is back on screen when the GM returns, so Apply to all in the blast, Undo last throw and a latecomer still find it; the Radius tool\'s own circle goes with the switch, as a ruler does; a player\'s app keeps nothing aside (the host sends a map\'s blasts to whoever arrives on it)',
+        check('1.6.3 a blast thrown on a map is kept for that map while the GM looks at another and is back on screen when the GM returns, so Apply to all in the blast and a latecomer still find it; the Radius tool\'s own circle goes with the switch, as a ruler does; a player\'s app keeps nothing aside (the host sends a map\'s blasts to whoever arrives on it)',
             awaySrc.length > 400 && onB.length === 0 && keptA.length === 1 && keptA[0] === thrown && !!foundA && foundA.mapId === 'A' && backA.length === 1 && backA[0] === thrown && awayAfter.length === 0 && P.api.get().length === 0 && Object.keys(P.api.away()).length === 0,
             JSON.stringify([onB.length, keptA.length, !!foundA, backA.length, awayAfter, P.api.get().length]));
         check('1.6.3 wired (whiteboard.js): the map switch keeps the blasts of the map left and tells the table nothing; a latecomer is sent the blasts of the map they come to wherever the GM looks; the end of a fight on a map the GM is not looking at clears that map\'s blasts and none on screen; Apply to all in the blast says where a blast put aside stands',
             wbA.includes("if (typeof blastsMapSwitch === 'function') blastsMapSwitch(_blastsFrom, activeMap.id);") && !wbA.includes("if (typeof clearBlasts === 'function') clearBlasts();") && wbA.includes('window.wpBlastsShown = function(mapId) { return blastsOn(mapId).filter(')
             && wbA.includes("if (typeof mapId === 'string' && amG && amG.id !== mapId) {") && wbA.includes("toast('That blast is on another map. Open that map to apply it.')"));
+        // The review of finding 6's fix: a blast that LANDS on a map the GM is not looking at (a player throws on map A while the GM looks at map B)
+        // is kept for that map (blastsAwayPush, from placeThrownBlast), so the GM finds it on returning, a latecomer is sent it and the card's
+        // Apply to all in the blast finds it; a player's app keeps nothing, and the map on screen holds its own. A map deleted keeps nothing
+        // (wpBlastsForget, and a switch away from it puts nothing aside); a new or ended table tells no latecomer of an earlier table's blast
+        // (wpBlastsUnwire drops what the table was told, on screen and aside)
+        const runB = (player, campaigns) => { const env = { map: { id: 'B' } }, win = player ? { wpNet: { active: true, role: 'client' } } : {}, st = campaigns ? { appState: { campaigns } } : undefined;
+            const api = new Function('getActiveMap', 'ownCircle', 'renderMeasures', 'syncBlastMenu', 'window', 'BLAST_CAP', 'state', 'var blasts = [];\n' + awaySrc + '\nreturn { sw: blastsMapSwitch, on: blastsOn, find: blastsAwayFind, push: blastsAwayPush, set: function(l) { blasts = l; }, get: function() { return blasts; }, away: function() { return _blastsAway; } };')(
+                () => env.map, b => !!b && typeof b.yd === 'number' && b.yd > 0, () => {}, () => {}, win, 3, st);
+            return { api, env, win }; };
+        const H = runB(false), thrA = { x: 5, y: 5, ft: 9, bid: 'bA' }; H.api.push('A', thrA); thrA.wire = { x: 5 }; thrA.wireMap = 'A';
+        const awayOn = H.api.on('A').slice(), awayFound = H.api.find(x => x.bid === 'bA'), shownA = H.api.on('A').filter(b => !!b.wire && b.wireMap === 'A').length;
+        H.api.push('B', { x: 1, bid: 'onB' }); const pushedOnScreen = H.api.get().length + (H.api.away().B ? 1 : 0);
+        ['b1', 'b2', 'b3'].forEach(id => H.api.push('A', { bid: id, wire: { x: 1 }, wireMap: 'A', wireChar: 'c' })); const capped = H.api.on('A').map(b => b.bid).join();
+        const onC = { bid: 'c1', wire: { x: 2 }, wireMap: 'C' }; H.api.push('C', onC);
+        H.env.map = { id: 'A' }; H.api.sw('B', 'A'); const backOn = H.api.get().map(b => b.bid).join(), wiredBefore = H.api.get().filter(b => 'wire' in b).length + ('wire' in onC ? 1 : 0);
+        H.win.wpBlastsUnwire(); const unwired = wiredBefore === 4 && H.api.get().every(b => !('wire' in b) && !('wireMap' in b) && !('wireChar' in b)) && !('wire' in onC) && H.api.on('C')[0] === onC;
+        const Pp = runB(true); Pp.api.push('A', { bid: 'p' }); const playerKept = Object.keys(Pp.api.away()).length;
+        const Dd = runB(false, { c1: { items: { B: {} } } }); Dd.api.set([{ x: 1, bid: 'gone' }]); Dd.env.map = { id: 'B' }; Dd.api.sw('Z', 'B'); const goneKept = Object.keys(Dd.api.away()).length;
+        Dd.api.push('Q', { bid: 'q' }); Dd.win.wpBlastsForget('Q'); const forgot = Object.keys(Dd.api.away()).length;
+        const dlgA = fs.readFileSync(path.join(app, 'scripts', 'dialogs.js'), 'utf8'), netA = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8');
+        check('1.6.3 a blast that lands on a map the GM is not looking at is kept for that map: blastsOn and blastsAwayFind find it and the table\'s word on it is there for a latecomer, the oldest go past the cap, and it is on screen when the GM opens that map; the map on screen and a player\'s app keep nothing aside; a deleted map keeps nothing (wpBlastsForget, a switch away from it); a new or ended table drops what the table was told (wpBlastsUnwire); wired from placeThrownBlast, both deletes and startHosting and leaveSession',
+            awayOn.length === 1 && awayOn[0] === thrA && !!awayFound && awayFound.mapId === 'A' && shownA === 1 && pushedOnScreen === 0 && capped === 'b1,b2,b3' && backOn === 'b1,b2,b3' && unwired && playerKept === 0 && goneKept === 0 && forgot === 0
+            && wbA.includes("else if (typeof blastsAwayPush === 'function') blastsAwayPush(map.id, b);") && dlgA.split('window.wpBlastsForget(').length === 3 && netA.split('window.wpBlastsUnwire();').length === 3,
+            JSON.stringify([awayOn.length, !!awayFound, shownA, pushedOnScreen, capped, backOn, unwired, playerKept, goneKept, forgot]));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

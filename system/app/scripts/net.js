@@ -9703,22 +9703,17 @@ function handleMessage(msg, conn) {
         var FCsd = window.wpFogCore; if (FCsd && typeof FCsd.secretOn === 'function' ? FCsd.secretOn(doorEl) : doorEl.secret === true) return;   // a secret door answers nothing, as the wall the players hold there would: before its lock is asked, which would say that it is a door
         if (doorEl.doorLock) { denyDR('locked'); return; }                            // GM-locked against players
         var Cdr = window.wpFogCore; if (!Cdr) return;
-        // 1.6.3 (the improvement week's review, finding 14): a token of theirs is beside the door where the door lights up for them, its box within
-        // fogcore's DOOR_NEAR of the door (doorGap, the rule whiteboard.js's cue reads), on any grid and on a map with no grid, where the request
-        // was dropped with no word; and, on a grid, where any cell of its footprint (fogcore itemCells) touches a cell of the door, so a token two or
-        // three cells wide beside a door is never answered as too far by its middle alone. A token's own middle cell stays the rule's last resort
-        // (a token too large to list, itemOver)
+        // 1.6.3 (the improvement week's review, finding 14, and the review of its fix): a token of theirs is beside the door by fogcore doorBeside,
+        // the one rule whiteboard.js's door cue lights a door by, so a door that lights up for them is never answered as too far. On a map with a
+        // lattice (a grid, or a gridless map that names a fog cell) any cell of the token's footprint, or its middle cell, touching a cell of the
+        // door counts, so a token two or three cells wide beside a door opens it; on a map with no lattice, where the request was dropped with no
+        // word before, its box within DOOR_NEAR (40 px) of the door. A flat reach in pixels is never used on a lattice: it opened a door from two
+        // hexes away, or from three cells away on a map whose own cell is 20 px
         var gridDR = Cdr.gridFor((amDR.meta && amDR.meta.gridType) || 'off', amDR.fog && amDR.fog.cell, amDR.meta && amDR.meta.cell);
-        var dNearR = typeof Cdr.DOOR_NEAR === 'number' ? Cdr.DOOR_NEAR : 40;
-        var dCellsR = !gridDR ? [] : doorEl.type === 'path' ? Cdr.pathCells(doorEl, gridDR) : Cdr.itemCells(doorEl, gridDR);   // item 18: the door's own cells, by its outline (a turned door as it is drawn); W2: a line door's, the cells its line passes
+        var dCellsR = !gridDR ? null : doorEl.type === 'path' ? Cdr.pathCells(doorEl, gridDR) : Cdr.itemCells(doorEl, gridDR);   // item 18: the door's own cells, by its outline (a turned door as it is drawn); W2: a line door's, the cells its line passes; worked out once for every token
         var adjacentR = (amDR.whiteboard || []).some(function(w) {
             if (!w || !(w.isChar || w.waiting) || w.hidden || w.ownerId !== profDR.id) return false;   // a shown token of theirs: a character's or a waiting one (the same walls stop it, so it opens the same doors)
-            if (typeof w.x !== 'number' || typeof w.y !== 'number' || !isFinite(w.x) || !isFinite(w.y)) return false;
-            if (typeof Cdr.doorGap === 'function' && Cdr.doorGap({ x: w.x, y: w.y, w: w.w || 0, h: w.h || 0 }, doorEl) <= dNearR) return true;
-            if (!gridDR) return false;
-            var tCells = typeof Cdr.itemOver === 'function' && Cdr.itemOver(w, gridDR) ? [] : Cdr.itemCells(w, gridDR);
-            tCells = tCells.concat([Cdr.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, gridDR)]);
-            return tCells.some(function(tc) { return dCellsR.some(function(dc) { return gridDR.type === 'square' ? (Math.max(Math.abs((dc.c || 0) - (tc.c || 0)), Math.abs((dc.r || 0) - (tc.r || 0))) <= 1) : (Cdr.hexDist(dc, tc) <= 1); }); });
+            return typeof Cdr.doorBeside === 'function' && Cdr.doorBeside(w, doorEl, gridDR, dCellsR);
         });
         if (!adjacentR) { denyDR('far'); return; }
         doorEl.doorOpen = !doorEl.doorOpen;
@@ -11171,6 +11166,7 @@ function startHosting(forceFresh) {
     diceSessionReset(true);   // and from an empty chat: the last table's lines never reach the next one
     if (typeof tradeForget === 'function') tradeForget();   // 1.5.6: a new table starts with no trade
     if (typeof boxForget === 'function') boxForget();   // 1.6.2 (backlog 42): and with no container open
+    if (typeof window !== 'undefined' && typeof window.wpBlastsUnwire === 'function') window.wpBlastsUnwire();   // 1.6.3: and with no blast an earlier table was told of, so none is sent to a latecomer of this one (whiteboard.js)
     if (peerLibMissing()) return;
     if (typeof signalWeb === 'function' && signalWeb() && !_hostTok) {   // 1.6.2 (backlog 220): a browser hosts on the app's own server with a host token, a new one each try; with none, nothing is hosted
         setStatus('Asking the website to host\u2026');
@@ -11432,6 +11428,7 @@ function leaveSession(silent) {
     net.conns = []; net.roster = Object.create(null); if (!silent) net.away = Object.create(null); net.active = false; net.role = null; net.code = null; net.roomPeer = null; net.lastStage = null;   // a reconnect retry (silent) keeps the away map: tokens stay on their last-known maps while it retries
     diceSessionReset(!silent);   // a deliberate leave or end clears the chat panel too; a retry keeps it
     if (!silent && typeof tradeLost === 'function') tradeLost('The table ended, so the trade ended.');
+    if (wasHost && typeof window !== 'undefined' && typeof window.wpBlastsUnwire === 'function') window.wpBlastsUnwire();   // 1.6.3: what this table was told of a blast still on a map is told to no one of the next table (whiteboard.js)
     // do not null net.stance / net.stanceCamps / net.gmId here — joinSession calls leaveSession(true) on every retry,
     // and the GM's campaign stays on screen until load() brings the player's own back; load() is the one clear point
     net.syncedPeer = null;

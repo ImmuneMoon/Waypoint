@@ -879,6 +879,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             fs.writeFileSync(path.join(r, 'system', 'app', 'version.json'), '{"version":"0.0.0"}' + NL); fs.writeFileSync(path.join(r, 'system', 'app', 'index.html'), '<!doctype html>');
             fs.writeFileSync(path.join(r, 'README.md'), 'Current release: **0.0.0**' + NL); fs.writeFileSync(path.join(r, 'WHATSNEW.txt'), 'WAYPOINT ' + JSON.parse(fs.readFileSync(path.join(r, 'system/resources/app/package.json'), 'utf8')).version + ' — What\'s New' + NL + '====' + NL + NL + '- x' + NL + NL + 'WAYPOINT 0.0.1' + NL + '====' + NL + '- older' + NL);
             fs.writeFileSync(path.join(r, 'Waypoint.exe'), 'MZ'); fs.writeFileSync(path.join(r, 'license.txt'), 'the license' + NL);   // the rest of what the installer's stage takes from the top
+            fs.mkdirSync(path.join(r, 'system', 'app', 'assets'), { recursive: true }); fs.copyFileSync(path.join(r, 'WHATSNEW.txt'), path.join(r, 'system', 'app', 'assets', 'whatsnew.txt'));   // the notes the app shows: the same text, or the build refuses
             return r;
         }
         const scratchRepoWith = pubPem => { const r = scratchRepo(pubPem); fs.writeFileSync(path.join(r, 'tools', 'tutorialcheck.js'), "'use strict';" + NL); return r; };
@@ -998,7 +999,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                 fs.mkdirSync(stub, { recursive: true });
                 fs.writeFileSync(isccJs, ["'use strict';", "const fs = require('fs'), path = require('path'), crypto = require('crypto');", "const iss = process.argv[2], dir = path.dirname(iss), files = {};",
                     "const walk = rel => { for (const n of fs.readdirSync(rel ? path.join(dir, rel) : dir)) { const r = rel ? rel + '/' + n : n, p = path.join(dir, r), st = fs.lstatSync(p); if (st.isSymbolicLink()) files[r] = 'link'; else if (st.isDirectory()) { files[r + '/'] = 'folder'; walk(r); } else files[r] = crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex'); } };",
-                    "walk('');", "fs.writeFileSync(process.env.WP_ISCC_LOG, JSON.stringify({ args: process.argv.slice(2), files: files }));", "fs.writeFileSync(path.join(dir, 'Waypoint_Setup.exe'), 'an installer the stand-in made');"].join(NL) + NL);
+                    "walk('');", "fs.writeFileSync(process.env.WP_ISCC_LOG, JSON.stringify({ args: process.argv.slice(2), files: files, env: Object.keys(process.env).filter(k => /^(WAYPOINT_R2_|WAYPOINT_DISPATCH_TOKEN|GITHUB_TOKEN|WAYPOINT_SIGNING_KEY)/i.test(k)) }));", "fs.writeFileSync(path.join(dir, 'Waypoint_Setup.exe'), 'an installer the stand-in made');"].join(NL) + NL);
                 fs.writeFileSync(psJs, ["'use strict';", "const fs = require('fs'), path = require('path'), a = process.argv.slice(2).join(' ');",
                     "const dest = /-DestinationPath '([^']+)'/.exec(a)[1], src = /-Path '([^']+)'/.exec(a)[1].replace(/[\\\\/]\\*$/, '');",
                     "const T = new Int32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); T[n] = c; }",
@@ -1123,13 +1124,28 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     check('release.js refuses before the first thing the build writes (exit 1, one plain line, no dist folder, the README as it was): --publish while the bucket is not named, half named, named by an address that is not https or by one of this machine that no test asked for, while WAYPOINT_DISPATCH_TOKEN is not set or WAYPOINT_DISPATCH_REPO names no repository; --github without GITHUB_TOKEN, and --github alone; the old --publish-site (no option now) and --notes-only with --publish; a test\'s stand-in named without WAYPOINT_RELEASE_TEST=1, one not of this machine, and a test setting it does not know; and a build whose WHATSNEW.txt\'s newest section is not this release\'s',
                         said.every((r, i) => r.status === 1 && cases[i][2].test(r.said) && r.said.trim().split('\n').length === 1) && !fs.existsSync(path.join(nr, 'dist')) && fs.readFileSync(path.join(nr, 'README.md'), 'utf8') === nB.readme
                         && wRun.status === 1 && /Not built: WHATSNEW\.txt's newest section is for 0\.0\.9, not for this release/.test(wSaid) && !fs.existsSync(path.join(wr, 'dist')), j(said.map((r, i) => [i, r.status, r.said.slice(0, 160)]).concat([[wRun.status, wSaid.slice(0, 160)]])));
+                    // the notes the app itself shows (system/app/assets/whatsnew.txt, in the zip and the installer) begin with the very section
+                    // WHATSNEW.txt begins with, or nothing is built (the review of 2026-11-17)
+                    const ar = scratchRepo(pub2); fs.writeFileSync(path.join(ar, 'system', 'app', 'assets', 'whatsnew.txt'), 'WAYPOINT 0.0.1' + NL + '====' + NL + '- older' + NL);
+                    const aRun = node(path.join(ar, 'tools', 'release.js'), [], envOf()), aSaid = String(aRun.stdout) + String(aRun.stderr);
+                    const mr2 = scratchRepo(pub2); fs.unlinkSync(path.join(mr2, 'system', 'app', 'assets', 'whatsnew.txt'));
+                    const mRun2 = node(path.join(mr2, 'tools', 'release.js'), [], envOf()), mSaid2 = String(mRun2.stdout) + String(mRun2.stderr);
+                    const spT = require(path.join(ROOT, 'tools', 'sitepub.js')), oneTop = 'WAYPOINT 9.9.9 \u2014 What\'s New' + NL + '====' + NL + NL + '- a' + NL + NL + 'WAYPOINT 9.9.8' + NL + '- b' + NL;
+                    check('release.js refuses to build, exit 1, in one plain line and before it writes anything, where the notes the app itself shows (system/app/assets/whatsnew.txt) do not begin with the section WHATSNEW.txt begins with, or are missing; the two are compared as text (a byte order mark, CRLF or LF, and the sections after the first make no difference)',
+                        aRun.status === 1 && /Not built: system\/app\/assets\/whatsnew\.txt, the notes the app itself shows, does not begin with the section WHATSNEW\.txt begins with \(its newest is for 0\.0\.1\)/.test(aSaid) && aSaid.trim().split('\n').length === 1 && !fs.existsSync(path.join(ar, 'dist'))
+                        && mRun2.status === 1 && /whatsnew\.txt, the notes the app itself shows, is missing/.test(mSaid2) && !fs.existsSync(path.join(mr2, 'dist'))
+                        && spT.topSection('\uFEFF' + oneTop.replace(/\n/g, '\r\n')) === spT.topSection(oneTop + 'WAYPOINT 9.9.7' + NL) && spT.topSection(oneTop) !== spT.topSection(oneTop.replace('- a', '- c')), j([aRun.status, aSaid.slice(0, 200), mRun2.status, mSaid2.slice(0, 200)]));
                 }
                 // and run to its end against stand-ins of the suite's own (WAYPOINT_RELEASE_TEST=1): a bucket speaking Cloudflare R2's S3 API on
-                // loopback (every request's AWS Signature Version 4 checked here, with the token's secret, over what arrived), and GitHub's API
-                // for the website's dispatch and the GitHub Release. One log of every request across both, in the order they came
+                // loopback (every request's AWS Signature Version 4 checked here, with the token's secret, over what arrived; ETags as R2 gives them,
+                // the MD5 of an object put in one go; If-None-Match: * and If-Match kept), and GitHub's API for the website's dispatch and the GitHub
+                // Release (releases kept, drafts among them, as GitHub keeps them). One log of every request across both, in the order they came
                 {
                     const store = {}, reqs = [], all = [], SECRET = 'the bucket token secret ' + crypto.randomBytes(8).toString('hex'), KEYID = 'test-key-id', BUCKET = 'waypoint-test', DTOKEN = 'dispatch-token-' + crypto.randomBytes(6).toString('hex'), GTOKEN = 'github-token-' + crypto.randomBytes(6).toString('hex');
-                    let failOn = null;
+                    // the bucket's stand-in can be told to fail a put (failOn, failLeft times, with failCode), to store a put and then drop the line
+                    // before it answers (dropOn), to run something just before it judges a put (onPut: { key, fn }), and to give ETags that are no plain MD5
+                    let failOn = null, failLeft = 0, failCode = 500, dropOn = null, onPut = null, multiEtag = false;
+                    const etagOf = b => '"' + crypto.createHash('md5').update(b).digest('hex') + (multiEtag ? '-1' : '') + '"';
                     const sitepubOf = () => require(path.join(ROOT, 'tools', 'sitepub.js'));
                     const s3 = http.createServer((req, res) => {
                         const bufs = []; req.on('data', b => bufs.push(b)); req.on('end', () => {
@@ -1137,98 +1153,191 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                             let signedOk = false, hs = null;
                             if (m) { hs = {}; for (const n of m[3].split(';')) hs[n] = req.headers[n]; const want = sitepubOf().s3Auth({ method: req.method, host: req.headers.host, path: req.url, query: '', headers: hs, payloadHash: sha256(body), keyId: KEYID, secret: SECRET, region: 'auto', amzDate: req.headers['x-amz-date'] }); signedOk = want === auth && m[1] === KEYID && m[2] === String(req.headers['x-amz-date']).slice(0, 8) && req.headers['x-amz-content-sha256'] === sha256(body) && m[3].split(';').indexOf('host') >= 0 && m[3].split(';').indexOf('x-amz-content-sha256') >= 0 && m[3].split(';').indexOf('x-amz-date') >= 0; }
                             const key = decodeURIComponent(req.url.replace('/' + BUCKET + '/', ''));
-                            reqs.push({ method: req.method, url: req.url, key, signedOk, signed: m ? m[3] : null, inm: req.headers['if-none-match'] || null, cc: req.headers['cache-control'] || null, type: req.headers['content-type'] || null, sha: sha256(body) });
+                            reqs.push({ method: req.method, url: req.url, key, signedOk, signed: m ? m[3] : null, inm: req.headers['if-none-match'] || null, ifm: req.headers['if-match'] || null, cc: req.headers['cache-control'] || null, type: req.headers['content-type'] || null, sha: sha256(body) });
                             all.push(req.method + ' bucket ' + key);
                             if (!signedOk) { res.writeHead(403); return res.end('<Error>SignatureDoesNotMatch</Error>'); }
-                            if (req.method === 'HEAD') { res.writeHead(store[key] ? 200 : 404); return res.end(); }
-                            if (req.method === 'GET') { if (!store[key]) { res.writeHead(404); return res.end('<Error>NoSuchKey</Error>'); } res.writeHead(200); return res.end(store[key]); }
+                            if (req.method === 'HEAD') { if (!store[key]) { res.writeHead(404); return res.end(); } res.writeHead(200, { 'content-length': store[key].length, etag: etagOf(store[key]) }); return res.end(); }
+                            if (req.method === 'GET') { if (!store[key]) { res.writeHead(404); return res.end('<Error>NoSuchKey</Error>'); } res.writeHead(200, { etag: etagOf(store[key]) }); return res.end(store[key]); }
                             if (req.method === 'PUT') {
-                                if (failOn && key === failOn) { res.writeHead(500); return res.end('<Error>InternalError\n  try again</Error>'); }
+                                if (onPut && onPut.key === key) { const f = onPut.fn; onPut = null; f(); }
+                                if (failOn && key === failOn && failLeft > 0) { failLeft--; res.writeHead(failCode); return res.end('<Error>InternalError\n  try again</Error>'); }
                                 if (req.headers['if-none-match'] === '*' && store[key]) { res.writeHead(412); return res.end(); }
-                                store[key] = body; res.writeHead(200); return res.end();
+                                if (req.headers['if-match'] !== undefined && (!store[key] || req.headers['if-match'] !== etagOf(store[key]))) { res.writeHead(412); return res.end(); }
+                                store[key] = body;
+                                if (dropOn === key) { dropOn = null; return req.socket.destroy(); }   // put, then the line goes before the answer
+                                res.writeHead(200); return res.end();
                             }
                             res.writeHead(405); res.end();
                         });
                     });
-                    const ghReqs = [], WEBREPO = sitepubOf().WEBSITE_REPO;
+                    // GitHub's stand-in: the dispatch, and releases kept as GitHub keeps them (a draft among them), so a run that stops part way can be
+                    // finished; ghFailUpload names an asset whose upload fails once
+                    const ghReqs = [], WEBREPO = sitepubOf().WEBSITE_REPO, ghRel = {}, RELS = '/repos/ImmuneMoon/Waypoint/releases';
+                    let ghNext = 1, ghFailUpload = null;
                     const gh = http.createServer((req, res) => {
                         const bufs = []; req.on('data', b => bufs.push(b)); req.on('end', () => {
                             const body = Buffer.concat(bufs), u = new URL(req.url, 'http://x'), origin = 'http://127.0.0.1:' + gh.address().port;
                             ghReqs.push({ method: req.method, path: u.pathname, name: u.searchParams.get('name'), auth: req.headers.authorization || null, sha: sha256(body), body: body.toString('utf8') });
                             all.push(req.method + ' github ' + u.pathname + (u.searchParams.get('name') ? '?' + u.searchParams.get('name') : ''));
+                            const json = (code, o) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
                             if (req.method === 'POST' && u.pathname === '/repos/' + WEBREPO + '/dispatches') { res.writeHead(req.headers.authorization === 'Bearer ' + DTOKEN ? 204 : 401); return res.end(); }
                             if (req.headers.authorization !== 'Bearer ' + GTOKEN) { res.writeHead(401); return res.end('{}'); }
-                            if (req.method === 'POST' && u.pathname === '/repos/ImmuneMoon/Waypoint/releases') { res.writeHead(201, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ upload_url: origin + '/upload/assets{?name,label}', html_url: origin + '/the-release' })); }
-                            if (req.method === 'POST' && u.pathname === '/upload/assets') { res.writeHead(201, { 'content-type': 'application/json' }); return res.end('{}'); }
+                            const one = /^\/repos\/ImmuneMoon\/Waypoint\/releases\/(\d+)$/.exec(u.pathname), up = /^\/upload\/(\d+)\/assets$/.exec(u.pathname);
+                            if (req.method === 'GET' && u.pathname === RELS) return json(200, Object.values(ghRel).map(r => ({ id: r.id, tag_name: r.tag_name, draft: r.draft, html_url: origin + '/the-release', assets: r.assets.map(n => ({ name: n })) })));
+                            if (req.method === 'POST' && u.pathname === RELS) { const b = JSON.parse(body.toString('utf8')), id = ghNext++; ghRel[id] = { id, tag_name: b.tag_name, draft: b.draft === true, made: b.draft, assets: [] }; return json(201, { id, upload_url: origin + '/upload/' + id + '/assets{?name,label}', html_url: origin + '/the-release' }); }
+                            if (req.method === 'POST' && up && ghRel[up[1]]) { if (ghFailUpload === u.searchParams.get('name')) { ghFailUpload = null; return json(502, { message: 'Bad Gateway' }); } ghRel[up[1]].assets.push(u.searchParams.get('name')); return json(201, {}); }
+                            if (req.method === 'PATCH' && one && ghRel[one[1]]) { ghRel[one[1]].draft = JSON.parse(body.toString('utf8')).draft === true; return json(200, { id: +one[1], html_url: origin + '/the-release' }); }
+                            if (req.method === 'DELETE' && one && ghRel[one[1]]) { delete ghRel[one[1]]; res.writeHead(204); return res.end(); }
                             res.writeHead(404); res.end('{}');
                         });
                     });
                     await new Promise(r => s3.listen(0, '127.0.0.1', r)); await new Promise(r => gh.listen(0, '127.0.0.1', r));
                     const GHO = 'http://127.0.0.1:' + gh.address().port;
                     const r2env = extra => Object.assign(envOf(), { WAYPOINT_RELEASE_TEST: '1', WAYPOINT_R2_ENDPOINT: 'http://127.0.0.1:' + s3.address().port, WAYPOINT_R2_BUCKET: BUCKET, WAYPOINT_R2_KEY_ID: KEYID, WAYPOINT_R2_SECRET: SECRET,
-                        WAYPOINT_DISPATCH_TOKEN: DTOKEN, WAYPOINT_RELEASE_TEST_DISPATCH: GHO, WAYPOINT_RELEASE_TEST_GITHUB: GHO }, extra || {});
-                    const base = 'waypoint/' + vNow + '/', FIVE = [zipN, zipN + '.sha256', zipN + '.sig', SETUP_NAME, SETUP_NAME + '.sig'];
+                        WAYPOINT_DISPATCH_TOKEN: DTOKEN, WAYPOINT_RELEASE_TEST_DISPATCH: GHO, WAYPOINT_RELEASE_TEST_GITHUB: GHO, GITHUB_TOKEN: GTOKEN }, extra || {});
+                    const base = 'waypoint/' + vNow + '/', FIVE = [zipN, zipN + '.sha256', zipN + '.sig', SETUP_NAME, SETUP_NAME + '.sig'], LATEST = 'waypoint/latest.json';
+                    const readOf = (dir, n) => { try { return fs.readFileSync(path.join(dir, n)); } catch (e) { return Buffer.alloc(0); } };
+                    const isccEnv = () => { try { return JSON.parse(fs.readFileSync(log, 'utf8')).env; } catch (e) { return null; } };
                     const pr = scratchRepoWith(pub2);
+                    try { fs.unlinkSync(log); } catch (e) {}
                     const up = await nodeAsync(path.join(pr, 'tools', 'release.js'), ['--publish'], r2env()), upSaid = String(up.stdout) + String(up.stderr), pd = path.join(pr, 'dist', vNow);
-                    const fileOf = n => { try { return fs.readFileSync(path.join(pd, n)); } catch (e) { return Buffer.alloc(0); } };
-                    const wantOrder = FIVE.concat(['manifest.json']).map(n => 'HEAD bucket ' + base + n).concat(['GET bucket waypoint/latest.json'], FIVE.map(n => 'PUT bucket ' + base + n), ['PUT bucket ' + base + 'manifest.json', 'PUT bucket waypoint/latest.json', 'POST github /repos/' + WEBREPO + '/dispatches']);
+                    const fileOf = n => readOf(pd, n), childEnv = isccEnv();
+                    const look = FIVE.concat(['manifest.json']).map(n => 'HEAD bucket ' + base + n).concat(['GET bucket ' + LATEST]);
+                    const wantOrder = look.concat(look, FIVE.map(n => 'PUT bucket ' + base + n), ['PUT bucket ' + base + 'manifest.json', 'PUT bucket ' + LATEST, 'POST github /repos/' + WEBREPO + '/dispatches']);
                     const puts = reqs.filter(r => r.method === 'PUT'), last = puts[puts.length - 1] || {};
-                    check('release.js --publish, run to its end against a stand-in for the bucket (WAYPOINT_RELEASE_TEST=1): every key of the version asked for first (HEAD) and latest.json read, then the zip, its .sha256 and .sig, the installer and its .sig, then the version\'s list as waypoint/<version>/manifest.json, then LAST of all the same list as waypoint/latest.json; every request signed with the token (Signature Version 4, path-style, region auto, the Authorization header well formed and its signed headers naming host, the date and the body\'s digest, the digest the very body\'s); each body byte for byte the file in dist/<version>/ (the list both times), every key of the version put with If-None-Match: * and kept for a year, latest.json with Cache-Control: no-cache; then the website woken with the dispatch token; and the secrets never printed',
+                    check('release.js --publish, run to its end against a stand-in for the bucket (WAYPOINT_RELEASE_TEST=1): the bucket looked at BEFORE the build (every key of the version asked for, and latest.json read: the review of 2026-11-17) and again before the upload, then the zip, its .sha256 and .sig, the installer and its .sig, then the version\'s list as waypoint/<version>/manifest.json, then LAST of all the same list as waypoint/latest.json; every request signed with the token (Signature Version 4, path-style, region auto, the Authorization header well formed and its signed headers naming host, the date and the body\'s digest, the digest the very body\'s); each body byte for byte the file in dist/<version>/ (the list both times), every key of the version put with If-None-Match: * and kept for a year, latest.json with Cache-Control: no-cache and, where there was none, If-None-Match: *; then the website woken with the dispatch token; and the secrets never printed',
                         up.status === 0 && j(all) === j(wantOrder) && reqs.every(r => r.signedOk) && puts.length === 7
-                        && puts.slice(0, 6).every(r => r.inm === '*' && r.cc === 'public, max-age=31536000, immutable') && last.key === 'waypoint/latest.json' && last.cc === 'no-cache' && last.inm === null && last.type === 'application/json'
+                        && puts.slice(0, 6).every(r => r.inm === '*' && r.cc === 'public, max-age=31536000, immutable') && last.key === LATEST && last.cc === 'no-cache' && last.inm === '*' && last.ifm === null && last.type === 'application/json'
                         && puts[0].type === 'application/zip' && puts[1].type === 'text/plain; charset=utf-8' && puts[5].type === 'application/json'
-                        && FIVE.every(n => !!store[base + n] && store[base + n].equals(fileOf(n)) && fileOf(n).length > 0) && store[base + 'manifest.json'].equals(fileOf('envelope.json')) && store['waypoint/latest.json'].equals(fileOf('envelope.json'))
+                        && FIVE.every(n => !!store[base + n] && store[base + n].equals(fileOf(n)) && fileOf(n).length > 0) && store[base + 'manifest.json'].equals(fileOf('envelope.json')) && store[LATEST].equals(fileOf('envelope.json'))
                         && ghReqs.length === 1 && ghReqs[0].auth === 'Bearer ' + DTOKEN && JSON.parse(ghReqs[0].body).event_type === 'waypoint-release' && Object.keys(JSON.parse(ghReqs[0].body)).length === 1
                         && upSaid.indexOf(SECRET) < 0 && upSaid.indexOf(DTOKEN) < 0 && /The website was told/.test(upSaid) && /sitepub\.js --check/.test(upSaid), j([up.status, upSaid.slice(-600), all, reqs.filter(r => !r.signedOk)]));
+                    check('every child process of the build (here Inno Setup\'s stand-in) is handed the environment without the bucket\'s token, the dispatch token, GITHUB_TOKEN and the signing key\'s path (release.js CHILD_ENV; the review of 2026-11-17), though the run itself was given all of them',
+                        Array.isArray(childEnv) && childEnv.length === 0 && /const CHILD_ENV = /.test(read('tools/release.js')) && (read('tools/release.js').match(/\{ stdio: 'inherit', env: CHILD_ENV \}/g) || []).length === 4 && !/execSync\([^\n]*\{ stdio: 'inherit' \}\)/.test(read('tools/release.js')), j(childEnv));
                     // the list on the bucket is one an install takes, as the shell reads it
-                    let lt = null; try { lt = updater.cleanManifest(updater.readEnvelope(store['waypoint/latest.json'], pub2), updater.updateHosts({ site: 'https://waypointvtt.com' })); } catch (e) { lt = String(e && e.message || e); }
+                    let lt = null; try { lt = updater.cleanManifest(updater.readEnvelope(store[LATEST], pub2), updater.updateHosts({ site: 'https://waypointvtt.com' })); } catch (e) { lt = String(e && e.message || e); }
                     check('the list put on the bucket (latest.json and the version\'s manifest.json, the same bytes) is read by the shell\'s own readEnvelope and cleanManifest with the release\'s public key: this version, its notes page the site\'s What\'s new at the version, its zip and installer the very files put beside it',
                         !!lt && typeof lt === 'object' && lt.version === vNow && lt.notesUrl === 'https://waypointvtt.com/whats-new#' + vNow && lt.zip.sha256 === sha256(store[base + zipN]) && lt.installer.sha256 === sha256(store[base + SETUP_NAME]) && lt.installer.size === store[base + SETUP_NAME].length, j(lt));
-                    check('--github stays behind its flag: a run with --publish alone sends nothing to GitHub but the website\'s dispatch, though a stand-in for GitHub was named',
+                    check('--github stays behind its flag: a run with --publish alone sends nothing to GitHub but the website\'s dispatch, though a stand-in for GitHub and its token were named',
                         ghReqs.every(r => r.path === '/repos/' + WEBREPO + '/dispatches'), j(ghReqs.map(r => r.path)));
-                    // a second run of the same version: its list is already there, so nothing is put, and nothing is woken
+                    // a second run of the same version, from the same dist: the bucket holds this very build, so nothing is built, nothing put, nothing woken
+                    const env0 = fileOf('envelope.json'), setup0 = fileOf(SETUP_NAME);
                     const n0 = reqs.length, g0 = ghReqs.length, again = await nodeAsync(path.join(pr, 'tools', 'release.js'), ['--publish'], r2env()), againSaid = String(again.stdout) + String(again.stderr);
-                    const n1 = reqs.length, wrong = await nodeAsync(path.join(scratchRepoWith(pub2), 'tools', 'release.js'), ['--publish'], r2env({ WAYPOINT_R2_SECRET: 'not the secret' })), wrongSaid = String(wrong.stdout) + String(wrong.stderr);
-                    check('a version already on the download host is never uploaded again: a second run asks for its keys, finds its list, puts nothing, wakes nothing and says so in one line (exit 1); a token the bucket refuses puts nothing (exit 1, the bucket\'s answer said)',
-                        again.status === 1 && reqs.slice(n0, n1).every(r => r.method === 'HEAD') && ghReqs.length === g0 && /Not uploaded to the site: version .* is already on the site/.test(againSaid)
-                        && wrong.status === 1 && reqs.slice(n1).filter(r => r.method === 'PUT' && r.signedOk).length === 0 && /answered 403/.test(wrongSaid), j([again.status, againSaid.slice(-300), wrong.status, wrongSaid.slice(-300)]));
-                    // sitePublish itself, against the same bucket and the build of the first run: an object already there, a newer latest.json, one
-                    // that is no list of the release key, and a put that fails part way
+                    const n1 = reqs.length, wr2 = scratchRepoWith(pub2), wrong = await nodeAsync(path.join(wr2, 'tools', 'release.js'), ['--publish'], r2env({ WAYPOINT_R2_SECRET: 'not the secret' })), wrongSaid = String(wrong.stdout) + String(wrong.stderr);
+                    check('a version already on the download host is never built or uploaded again (the review of 2026-11-17): a second run looks at the bucket first, finds this very build, builds nothing (dist/<version>/ as it was, byte for byte), puts nothing, wakes nothing and says so in one line (exit 1); a token the bucket refuses refuses the run before anything is built (exit 1, the bucket\'s answer said, with the likely cause of a 403: a token that may not read)',
+                        again.status === 1 && reqs.slice(n0, n1).every(r => r.method === 'HEAD' || r.method === 'GET') && ghReqs.length === g0 && /Not uploaded to the site: version .* is already on the site as this very build, and nothing was built or put/.test(againSaid)
+                        && !/Copying what an install needs/.test(againSaid) && /nothing is built/.test(againSaid) && fileOf('envelope.json').equals(env0) && fileOf(SETUP_NAME).equals(setup0)
+                        && wrong.status === 1 && reqs.slice(n1).filter(r => r.method === 'PUT' && r.signedOk).length === 0 && /Not built: the bucket answered 403 .*give the token read as well as write/.test(wrongSaid) && !fs.existsSync(path.join(wr2, 'dist')), j([again.status, againSaid.slice(-300), wrong.status, wrongSaid.slice(-300)]));
+                    // another build of the same version (its own dist), and a copy with no build at all: refused before anything is built or put
+                    const xr = scratchRepoWith(pub2), xb = node(path.join(xr, 'tools', 'release.js'), [], envOf()), xd = path.join(xr, 'dist', vNow), xEnv = readOf(xd, 'envelope.json');
+                    const n2 = reqs.length, xp = await nodeAsync(path.join(xr, 'tools', 'release.js'), ['--publish'], r2env()), xSaid = String(xp.stdout) + String(xp.stderr);
+                    const nr2 = scratchRepoWith(pub2), ng = await nodeAsync(path.join(nr2, 'tools', 'release.js'), ['--publish', '--github'], r2env()), ngSaid = String(ng.stdout) + String(ng.stderr);
+                    const ns = await nodeAsync(path.join(nr2, 'tools', 'release.js'), ['--publish'], r2env()), nsSaid = String(ns.stdout) + String(ns.stderr), n3 = reqs.length;
+                    check('another build of a version already on the site is refused before anything is built or put, and its dist/<version>/ is left as it was; a copy with no build of it is told, with --github, that its GitHub Release can only be made where that build is, and without, that the site holds it already and nothing was built or put',
+                        xb.status === 0 && xEnv.length > 0 && !xEnv.equals(env0) && xp.status === 1 && /Not built: version .* is already on the site .* from another build/.test(xSaid) && !/Copying what an install needs/.test(xSaid) && readOf(xd, 'envelope.json').equals(xEnv)
+                        && ng.status === 1 && /Not built: version .* is on the site, but dist\/.* does not hold the build that was put there/.test(ngSaid) && !fs.existsSync(path.join(nr2, 'dist'))
+                        && ns.status === 1 && /is already on the site, and nothing was built or put/.test(nsSaid) && !fs.existsSync(path.join(nr2, 'dist')) && reqs.slice(n2, n3).every(r => r.method !== 'PUT') && ghReqs.length === g0,
+                        j([xb.status, xp.status, xSaid.slice(-300), ng.status, ngSaid.slice(-300), ns.status, nsSaid.slice(-300)]));
+                    // sitePublish itself, against the same bucket and the build of the first run
                     const sp = sitepubOf(), cfg = { endpoint: 'http://127.0.0.1:' + s3.address().port, bucket: BUCKET, keyId: KEYID, secret: SECRET };
                     let envObj = null; try { envObj = JSON.parse(fs.readFileSync(path.join(pd, 'envelope.json'), 'utf8')); } catch (e) { envObj = null; }
                     const manO = envObj ? JSON.parse(envObj.manifest) : { files: [] }, fz = manO.files.find(x => x.name === zipN) || {}, fi = manO.files.find(x => x.name === SETUP_NAME) || {};
                     const want = { version: vNow, minShell: manO.minShell, electron: manO.electron, notes: manO.notes, notesUrl: manO.notesUrl, files: { [zipN]: { size: fz.size, sha256: fz.sha256 }, [SETUP_NAME]: { size: fi.size, sha256: fi.sha256 } } };
-                    const pub = () => sp.sitePublish({ cfg, dist: pd, version: vNow, pubKey: pub2, site: 'https://waypointvtt.com', want }).then(r => ({ ok: true, r }), e => ({ ok: false, why: String(e && e.message || e) }));
-                    const clear = () => { for (const k of Object.keys(store)) delete store[k]; };
+                    const pubWith = (o, dist) => sp.sitePublish(Object.assign({ cfg, dist: dist || pd, version: vNow, pubKey: pub2, site: 'https://waypointvtt.com', want, retry: [10, 10] }, o || {})).then(r => ({ ok: true, r }), e => ({ ok: false, why: String(e && e.message || e) }));
+                    const pub = () => pubWith();
+                    const clear = () => { for (const k of Object.keys(store)) delete store[k]; failOn = null; failLeft = 0; failCode = 500; dropOn = null; onPut = null; multiEtag = false; };
+                    const putsFrom = k => reqs.slice(k).filter(r => r.method === 'PUT');
                     // an envelope signed with the release key for another version, to stand as latest.json
                     const listFor = ver => { const k = crypto.createPrivateKey(fs.readFileSync(priv2, 'utf8')), zn = 'waypoint-app-' + ver + '.zip', zb = Buffer.from('zip ' + ver), sb = Buffer.from('setup ' + ver);
                         const files = [sp.fileEntry('https://waypointvtt.com', ver, zn, zb, signkey.signZip(zn, sha256(zb), ver, k)), sp.fileEntry('https://waypointvtt.com', ver, SETUP_NAME, sb, signkey.signZip(SETUP_NAME, sha256(sb), ver, k))];
                         return Buffer.from(sp.envelopeOf(sp.siteManifest({ version: ver, minShell: ver, published: 'x', notes: '', notesUrl: sp.notesUrlOf('https://waypointvtt.com', ver), files }), k), 'utf8'); };
-                    clear(); store[base + zipN + '.sig'] = Buffer.from('a part of an earlier run'); const k0 = reqs.length; const partial = await pub(); const partialPuts = reqs.slice(k0).filter(r => r.method === 'PUT').length;
-                    clear(); store['waypoint/latest.json'] = listFor('99.0.0'); const k1 = reqs.length; const newer = await pub(); const newerPuts = reqs.slice(k1).filter(r => r.method === 'PUT').length;
-                    clear(); store['waypoint/latest.json'] = listFor('0.0.2'); const older = await pub(); const olderOk = older.ok && store['waypoint/latest.json'].equals(fileOf('envelope.json'));
-                    clear(); store['waypoint/latest.json'] = Buffer.from('{"manifest":"{}","sig":"nope"}'); const k2 = reqs.length; const junk = await pub(); const junkPuts = reqs.slice(k2).filter(r => r.method === 'PUT').length;
-                    clear(); failOn = base + SETUP_NAME; const k3 = reqs.length; const failed = await pub(); failOn = null; const failedPuts = reqs.slice(k3).filter(r => r.method === 'PUT').map(r => r.key);
-                    check('sitePublish refuses, in one plain line and before anything is put: an object of the version already in the bucket with no list beside it (an earlier run stopped part way: said so, nothing written over), a latest.json naming a newer version, and one that is no list of the release key; a latest.json of an older version is replaced, last; a put that fails part way stops there, before the version\'s list and latest.json, and says that what was put is named by no list',
-                        !partial.ok && /\.sig is already in the bucket, though no list of .* an earlier run stopped part way/.test(partial.why) && partialPuts === 0
+                    const whole = () => FIVE.every(n => !!store[base + n] && store[base + n].equals(fileOf(n))) && !!store[base + 'manifest.json'] && store[base + 'manifest.json'].equals(env0) && !!store[LATEST] && store[LATEST].equals(env0);
+                    clear(); store[base + zipN + '.sig'] = Buffer.from('a part of an earlier run'); const k0 = reqs.length; const partial = await pub(); const partialPuts = putsFrom(k0).length;
+                    clear(); store['waypoint/latest.json'] = listFor('99.0.0'); const k1 = reqs.length; const newer = await pub(); const newerPuts = putsFrom(k1).length;
+                    clear(); store[LATEST] = listFor('0.0.2'); const oldTag = etagOf(store[LATEST]), k1b = reqs.length; const older = await pub(); const olderPut = putsFrom(k1b).find(r => r.key === LATEST) || {}; const olderOk = older.ok && whole() && olderPut.ifm === oldTag && olderPut.inm === null && older.r.latest === 'put';
+                    clear(); store[LATEST] = Buffer.from('{"manifest":"{}","sig":"nope"}'); const k2 = reqs.length; const junk = await pub(); const junkPuts = putsFrom(k2).length;
+                    clear(); failOn = base + SETUP_NAME; failLeft = 9; const k3 = reqs.length; const failed = await pub(); failOn = null; const failedPuts = putsFrom(k3).map(r => r.key);
+                    check('sitePublish refuses, in one plain line and before anything is put: an object of the version already in the bucket, with no list beside it, that is not the file of this build (an earlier run of another build stopped part way: said so, nothing written over), a latest.json naming a newer version, and one that is no list of the release key; a latest.json of an older version is replaced, last, on the condition (If-Match) that it is still the one read; a put that fails part way stops there, before the version\'s list and latest.json, and says that what is in the bucket is named by no list and that running --publish again finishes it',
+                        !partial.ok && /\.sig is already in the bucket, though no list of .* is, and it is not the file in .*an earlier run of another build stopped part way/.test(partial.why) && partialPuts === 0
                         && !newer.ok && /the site already names 99\.0\.0 as the newest/.test(newer.why) && newerPuts === 0 && olderOk
                         && !junk.ok && /waypoint\/latest\.json is there but is not a list the shell's key signs/.test(junk.why) && junkPuts === 0
-                        && !failed.ok && /answered 500 \(<Error>InternalError try again<\/Error>\) for waypoint\/[^ ]+\/Waypoint_Setup\.exe\. What was put .* is named by no list, so no install sees it\. Neither list was put\./.test(failed.why)
-                        && j(failedPuts) === j([zipN, zipN + '.sha256', zipN + '.sig', SETUP_NAME].map(n => base + n)) && !store[base + 'manifest.json'] && !store['waypoint/latest.json']
-                        && [partial, newer, junk, failed].every(x => x.why.indexOf('\n') < 0), j([partial, newer, older.ok, junk, failed, failedPuts]));
-                    // --publish --github: the site, the dispatch, then the GitHub Release with every asset, in that order
+                        && !failed.ok && /answered 500 \(<Error>InternalError try again<\/Error>\) for waypoint\/[^ ]+\/Waypoint_Setup\.exe\. What of .* is in the bucket \(.*\) is named by no list, so no install sees it\. Run node tools\/release\.js --publish again with .* as it is: it builds nothing, checks what is there and puts the rest\./.test(failed.why)
+                        && j(failedPuts) === j([zipN, zipN + '.sha256', zipN + '.sig', SETUP_NAME].map(n => base + n)) && !store[base + 'manifest.json'] && !store[LATEST]
+                        && [partial, newer, junk, failed].every(x => x.why.indexOf('\n') < 0), j([partial, newer, older, junk, failed, failedPuts]));
+                    // the stopped run of the last case finished, from the same dist: what is there is checked to be this build (its MD5 ETag, or read back
+                    // where the ETag is no plain MD5) and only the rest is put
+                    const k4 = reqs.length, resumed = await pub(), resumedPuts = putsFrom(k4).map(r => r.key);
+                    clear(); multiEtag = true; store[base + zipN] = fileOf(zipN); store[base + SETUP_NAME] = fileOf(SETUP_NAME); const k5 = reqs.length, resumedB = await pub();
+                    const readBack = reqs.slice(k5).filter(r => r.method === 'GET').map(r => r.key), resumedBPuts = putsFrom(k5).map(r => r.key);
+                    check('a run that stopped part way is finished, never rebuilt (the review of 2026-11-17): run again from the same dist/<version>/, sitePublish finds the files already in the bucket to be the very files of this build (by their MD5 ETag, or read back byte for byte where the ETag is no plain MD5), puts only what is missing, then the list, then latest.json, and says so',
+                        resumed.ok && j(resumedPuts) === j([base + SETUP_NAME, base + SETUP_NAME + '.sig', base + 'manifest.json', LATEST]) && whole() && j(resumed.r.keys) === j(resumedPuts) && resumed.r.latest === 'put' && resumed.r.local === true
+                        && resumedB.ok && readBack.indexOf(base + zipN) >= 0 && readBack.indexOf(base + SETUP_NAME) >= 0 && j(resumedBPuts) === j([zipN + '.sha256', zipN + '.sig', SETUP_NAME + '.sig', 'manifest.json'].map(n => base + n).concat([LATEST])) && whole(),
+                        j([resumed, resumedPuts, resumedB, readBack, resumedBPuts]));
+                    // latest.json: the one key written over, tried again where the bucket fails or the line drops, and put only while it is what was read
+                    clear(); failOn = LATEST; failLeft = 9; const k6 = reqs.length, latestDown = await pub(), latestTries = putsFrom(k6).filter(r => r.key === LATEST).length;
+                    failOn = null; const k7 = reqs.length, latestBack = await pub(), latestBackPuts = putsFrom(k7).map(r => r.key);
+                    clear(); failOn = LATEST; failLeft = 1; const k8 = reqs.length, blip = await pub(), blipTries = putsFrom(k8).filter(r => r.key === LATEST).length;
+                    clear(); dropOn = LATEST; const lost = await pub();
+                    clear(); store[LATEST] = listFor('0.0.2'); onPut = { key: LATEST, fn: () => { store[LATEST] = listFor('99.0.0'); } }; const race = await pub(); const raceLv = (() => { try { return sp.latestOf({ latest: { status: 200, buf: store[LATEST] } }, pub2, 'https://waypointvtt.com'); } catch (e) { return null; } })();
+                    clear(); dropOn = base + zipN; const dropV = await pub(); const k9 = reqs.length, dropVBack = await pub(), dropVBackPuts = putsFrom(k9).map(r => r.key);
+                    check('waypoint/latest.json (the review of 2026-11-17): a put the bucket keeps failing is tried three times, then refused in words of its own (the version\'s list and files are up, latest.json is not, no install is offered the version yet, and --publish again finishes it with no build), and the next run puts latest.json alone; a failure the bucket mends is tried again and goes through; a put whose answer the line lost is found to be there and taken; and one put meanwhile by another run (If-Match no longer the ETag read) is never written over, in words that say to look first. A put of a version\'s key whose line drops is said in the upload\'s own words, and finished by the next run',
+                        !latestDown.ok && latestTries === 3 && /for waypoint\/latest\.json, after 3 tries\. The list of .* and its files are up \(waypoint\/[^ ]+\/manifest\.json\), but waypoint\/latest\.json is not, so no install is offered .* yet\. Run node tools\/release\.js --publish again: it builds nothing, finds the list on the bucket and puts it as latest\.json\./.test(latestDown.why)
+                        && !/is named by no list/.test(latestDown.why) && latestBack.ok && j(latestBackPuts) === j([LATEST]) && latestBack.r.latest === 'put' && whole()
+                        && blip.ok && blipTries === 2 && whole() && lost.ok && whole() && lost.r.keys.indexOf(LATEST) >= 0
+                        && !race.ok && /waypoint\/latest\.json changed meanwhile \(another release run\?\): look at what it names before writing/.test(race.why) && raceLv === '99.0.0'
+                        && !dropV.ok && /^Not uploaded to the site: no answer could be had from the bucket for waypoint\/[^ ]+\.zip \(.*\), so it may or may not be there\. Run node tools\/release\.js --publish again with .* as it is: it builds nothing/.test(dropV.why)
+                        && dropVBack.ok && dropVBackPuts.indexOf(base + zipN) < 0 && whole() && [latestDown, race, dropV].every(x => x.why.indexOf('\n') < 0),
+                        j([latestDown, latestTries, latestBack, blip, blipTries, lost, race, raceLv, dropV, dropVBack]));
+                    // the bucket not there at all, and a token it refuses: each read said in the upload's own words, a 403 with its likely cause
+                    const nowhere = await pubWith({ cfg: Object.assign({}, cfg, { endpoint: 'http://127.0.0.1:1' }) }), refused = await pubWith({ cfg: Object.assign({}, cfg, { secret: 'not the secret' }) });
+                    check('a bucket that cannot be reached, and one that refuses the token, are said in the upload\'s own words before anything is put: no answer could be had when asked for a key; the bucket answered 403, where R2 answers 403 for a key that is not there to a token that may not read (the review of 2026-11-17)',
+                        !nowhere.ok && /^Not uploaded to the site: no answer could be had from the bucket when asked for waypoint\/[^ ]+ \(/.test(nowhere.why) && !refused.ok && /^Not uploaded to the site: the bucket answered 403.*when asked for waypoint\/.*give the token read as well as write/.test(refused.why), j([nowhere, refused]));
+                    // the smoke run before the first real release: --probe asks the bucket as a release does, and writes nothing
+                    clear(); store[base + zipN] = fileOf(zipN); store[LATEST] = listFor('0.0.2');
+                    const k10 = reqs.length, pr1 = await nodeAsync(path.join(pr, 'tools', 'sitepub.js'), ['--probe'], r2env()), pr1Said = String(pr1.stdout) + String(pr1.stderr);
+                    const pr2 = await nodeAsync(path.join(pr, 'tools', 'sitepub.js'), ['--probe'], r2env({ WAYPOINT_R2_SECRET: 'not the secret' })), pr2Said = String(pr2.stdout) + String(pr2.stderr);
+                    const pr3 = await nodeAsync(path.join(pr, 'tools', 'sitepub.js'), ['--probe'], cleanEnv());
+                    check('node tools/sitepub.js --probe (the review of 2026-11-17: the smoke run before the first real release) asks the bucket what it holds of the version and of latest.json, as a release does before it builds, says what it found and writes nothing (exit 0); a token the bucket refuses is said with its likely cause (exit 1); with no bucket named it says what is not set (exit 1)',
+                        pr1.status === 0 && /The bucket answered every read/.test(pr1Said) && new RegExp(base.replace(/\./g, '\\.') + zipN.replace(/\./g, '\\.') + ': there \\(').test(pr1Said) && /manifest\.json: not there/.test(pr1Said) && /waypoint\/latest\.json: names 0\.0\.2, with an ETag/.test(pr1Said)
+                        && reqs.slice(k10).every(r => r.method !== 'PUT') && pr2.status === 1 && /give the token read as well as write/.test(pr2Said) && pr3.status === 1 && /Not probed: WAYPOINT_R2_ENDPOINT/.test(String(pr3.stderr)),
+                        j([pr1.status, pr1Said.slice(-500), pr2.status, pr2Said.slice(-300), pr3.status, String(pr3.stderr).slice(0, 200)]));
+                    // release.js finishes a release whose latest.json put was refused, with no build: the latest.json alone, then the website woken
+                    clear(); const lr = scratchRepoWith(pub2), gl0 = ghReqs.length; failOn = LATEST; failCode = 403; failLeft = 1;
+                    const lDown = await nodeAsync(path.join(lr, 'tools', 'release.js'), ['--publish'], r2env()), lDownSaid = String(lDown.stdout) + String(lDown.stderr), ld = path.join(lr, 'dist', vNow), lEnv = readOf(ld, 'envelope.json'), gl1 = ghReqs.length;
+                    const k11 = reqs.length, lBack = await nodeAsync(path.join(lr, 'tools', 'release.js'), ['--publish'], r2env()), lBackSaid = String(lBack.stdout) + String(lBack.stderr);
+                    check('release.js --publish run again after the put of latest.json was refused (the review of 2026-11-17): the first run ends with exit 1 in the words of a latest.json not put, and wakes nobody; the second builds nothing (dist/<version>/ as it was), puts latest.json alone, its list the bucket\'s, and wakes the website',
+                        lDown.status === 1 && /answered 403 .* for waypoint\/latest\.json\. The list of .* and its files are up .* but waypoint\/latest\.json is not, so no install is offered/.test(lDownSaid) && gl1 === gl0
+                        && lBack.status === 0 && !/Copying what an install needs/.test(lBackSaid) && /nothing is built/.test(lBackSaid) && j(putsFrom(k11).map(r => r.key)) === j([LATEST]) && store[LATEST].equals(lEnv) && readOf(ld, 'envelope.json').equals(lEnv)
+                        && ghReqs.length === gl1 + 1 && ghReqs[gl1].path === '/repos/' + WEBREPO + '/dispatches' && /The website was told/.test(lBackSaid), j([lDown.status, lDownSaid.slice(-400), lBack.status, lBackSaid.slice(-400)]));
+                    // --publish --github: the site, the dispatch, then the GitHub Release: a draft first, its six assets, then published
                     clear(); const gr = scratchRepoWith(pub2), a0 = all.length;
-                    const both = await nodeAsync(path.join(gr, 'tools', 'release.js'), ['--publish', '--github'], r2env({ GITHUB_TOKEN: GTOKEN })), bothSaid = String(both.stdout) + String(both.stderr), gd = path.join(gr, 'dist', vNow);
-                    const tail = all.slice(a0).filter(x => !/^HEAD|^GET/.test(x)), ASSETS6 = [SETUP_NAME, SETUP_NAME + '.sig', zipN, zipN + '.sha256', zipN + '.sig', 'manifest.json'];
-                    const ups = ghReqs.filter(r => r.path === '/upload/assets');
-                    check('release.js --publish --github: the site first (the five files, the version\'s list, latest.json), then the website\'s dispatch, then the GitHub Release on the repository as before, with GITHUB_TOKEN, and its six assets uploaded byte for byte; the token never printed',
-                        both.status === 0 && j(tail) === j(FIVE.concat(['manifest.json']).map(n => 'PUT bucket ' + base + n).concat(['PUT bucket waypoint/latest.json', 'POST github /repos/' + WEBREPO + '/dispatches', 'POST github /repos/ImmuneMoon/Waypoint/releases'], ASSETS6.map(n => 'POST github /upload/assets?' + n)))
-                        && ups.length === 6 && ups.every(r => r.auth === 'Bearer ' + GTOKEN && (() => { try { return r.sha === sha256(fs.readFileSync(path.join(gd, r.name))); } catch (e) { return false; } })()) && bothSaid.indexOf(GTOKEN) < 0 && /Published: http:\/\/127\.0\.0\.1:\d+\/the-release/.test(bothSaid), j([both.status, bothSaid.slice(-500), tail]));
+                    const both = await nodeAsync(path.join(gr, 'tools', 'release.js'), ['--publish', '--github'], r2env()), bothSaid = String(both.stdout) + String(both.stderr), gd = path.join(gr, 'dist', vNow);
+                    const tail = all.slice(a0).filter(x => !/^HEAD|^GET bucket/.test(x)), ASSETS6 = [SETUP_NAME, SETUP_NAME + '.sig', zipN, zipN + '.sha256', zipN + '.sig', 'manifest.json'];
+                    const relIds = Object.keys(ghRel), relNow = ghRel[relIds[0]] || {}, ups = ghReqs.filter(r => /^\/upload\//.test(r.path));
+                    check('release.js --publish --github: the site first (the five files, the version\'s list, latest.json), then the website\'s dispatch, then the GitHub Release on the repository as before, with GITHUB_TOKEN: looked for first, made as a DRAFT (which no install sees), its six assets uploaded byte for byte, and only then published (the review of 2026-11-17); the token never printed',
+                        both.status === 0 && j(tail) === j(FIVE.concat(['manifest.json']).map(n => 'PUT bucket ' + base + n).concat(['PUT bucket ' + LATEST, 'POST github /repos/' + WEBREPO + '/dispatches', 'GET github ' + RELS, 'POST github ' + RELS], ASSETS6.map(n => 'POST github /upload/' + relNow.id + '/assets?' + n), ['PATCH github ' + RELS + '/' + relNow.id]))
+                        && relIds.length === 1 && relNow.made === true && relNow.draft === false && j(relNow.assets) === j(ASSETS6)
+                        && ups.length === 6 && ups.every(r => r.auth === 'Bearer ' + GTOKEN && (() => { try { return r.sha === sha256(fs.readFileSync(path.join(gd, r.name))); } catch (e) { return false; } })()) && bothSaid.indexOf(GTOKEN) < 0 && /Published: http:\/\/127\.0\.0\.1:\d+\/the-release/.test(bothSaid), j([both.status, bothSaid.slice(-500), tail, ghRel]));
+                    // a GitHub step that fails part way leaves a draft alone; the same command again builds nothing, takes the draft away, and makes the release whole
+                    clear(); for (const k of Object.keys(ghRel)) delete ghRel[k];
+                    const hr = scratchRepoWith(pub2), hd = path.join(hr, 'dist', vNow); ghFailUpload = zipN;
+                    const hDown = await nodeAsync(path.join(hr, 'tools', 'release.js'), ['--publish', '--github'], r2env()), hDownSaid = String(hDown.stdout) + String(hDown.stderr);
+                    const draftId = (Object.values(ghRel)[0] || {}).id, draftLeft = Object.values(ghRel).map(r => ({ draft: r.draft, assets: r.assets.slice() })), hEnv = readOf(hd, 'envelope.json'), a1 = all.length, g2 = ghReqs.length;
+                    const hBack = await nodeAsync(path.join(hr, 'tools', 'release.js'), ['--publish', '--github'], r2env()), hBackSaid = String(hBack.stdout) + String(hBack.stderr);
+                    const hTail = all.slice(a1).filter(x => !/^HEAD|^GET bucket/.test(x)), hRel = Object.values(ghRel), hId = hRel.length ? hRel[0].id : null;
+                    const a2 = all.length, hThird = await nodeAsync(path.join(hr, 'tools', 'release.js'), ['--publish', '--github'], r2env()), hThirdSaid = String(hThird.stdout) + String(hThird.stderr);
+                    check('a GitHub Release whose upload failed part way is left as a draft, which no install of 1.6.3 sees; the same command again builds nothing (dist/<version>/ as it was), puts nothing on the site and wakes nobody, takes the draft away, and makes the release again from dist/<version>/: a draft, its six assets, published; and a third run finds it whole and makes nothing',
+                        hDown.status === 1 && j(draftLeft) === j([{ draft: true, assets: [SETUP_NAME, SETUP_NAME + '.sig'] }])
+                        && hBack.status === 0 && !/Copying what an install needs/.test(hBackSaid) && readOf(hd, 'envelope.json').equals(hEnv) && /Taking away the draft/.test(hBackSaid)
+                        && j(hTail) === j(['GET github ' + RELS, 'DELETE github ' + RELS + '/' + draftId, 'POST github ' + RELS].concat(ASSETS6.map(n => 'POST github /upload/' + hId + '/assets?' + n), ['PATCH github ' + RELS + '/' + hId]))
+                        && hRel.length === 1 && hRel[0].draft === false && j(hRel[0].assets) === j(ASSETS6) && !ghReqs.slice(g2).some(r => r.path === '/repos/' + WEBREPO + '/dispatches')
+                        && hThird.status === 0 && /The GitHub Release of .* is there already, with its six assets/.test(hThirdSaid) && j(all.slice(a2).filter(x => / github /.test(x))) === j(['GET github ' + RELS]),
+                        j([hDown.status, hDownSaid.slice(-300), draftLeft, hBack.status, hBackSaid.slice(-400), hTail, hThird.status, hThirdSaid.slice(-200)]));
                     // a dispatch GitHub does not take: the release is up, the GitHub Release still follows, the run ends with exit 1 and says so
                     clear(); const dr = scratchRepoWith(pub2), g1 = ghReqs.length;
                     const noTell = await nodeAsync(path.join(dr, 'tools', 'release.js'), ['--publish'], r2env({ WAYPOINT_DISPATCH_TOKEN: 'a token GitHub refuses' })), noTellSaid = String(noTell.stdout) + String(noTell.stderr);
                     check('a dispatch GitHub refuses leaves the release up (its list and latest.json put) and ends the run with exit 1, said in one line: the website records it at its daily look',
-                        noTell.status === 1 && !!store[base + 'manifest.json'] && !!store['waypoint/latest.json'] && ghReqs.length === g1 + 1 && /The release is on the download host, but the website was not told \(GitHub answered 401\)/.test(noTellSaid), j([noTell.status, noTellSaid.slice(-300)]));
+                        noTell.status === 1 && !!store[base + 'manifest.json'] && !!store[LATEST] && ghReqs.length === g1 + 1 && /The release is on the download host, but the website was not told \(GitHub answered 401\)/.test(noTellSaid), j([noTell.status, noTellSaid.slice(-300)]));
                     // the dispatch's repository: the one .github/workflows/notify-website.yml names, while it stands
                     const ny = (() => { try { return fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'notify-website.yml'), 'utf8'); } catch (e) { return ''; } })();
                     check('the release\'s own dispatch goes by default to the website repository .github/workflows/notify-website.yml names, which stays for the changeover and says that the release tool now dispatches too; repoOk takes owner/name alone',

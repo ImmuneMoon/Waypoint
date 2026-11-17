@@ -12,7 +12,10 @@
      notesText, topVersion,     the release's notes (the section of WHATSNEW.txt for its version, as plain text) and the page
      notesUrlOf                 that shows them on the site
      s3Auth, r2Config, r2Put,   the upload to Cloudflare R2 through its S3 API, signed with AWS Signature Version 4 (plain
-     r2Head, r2Get, sitePublish Node, no dependencies), with the owner's write-only token from the environment
+     r2Head, r2Get, sitePublish Node, no dependencies), with the owner's token from the environment (it must read as well as
+                                write: every run looks at what the bucket holds before it writes anything)
+     siteState, latestOf,       what the bucket holds of a version, read and never written: tools/release.js asks it before it
+     probe                      builds, and node tools/sitepub.js --probe asks it of the real bucket and says what it found
      dispatch, repoOk           tells the website's repository that a release is there (repository_dispatch waypoint-release)
      testHosts                  the stand-in hosts a test may name, read only where WAYPOINT_RELEASE_TEST=1 is set
      checkSite                  asks the live site as an install would, and says whether it names this release
@@ -24,15 +27,23 @@
    manifest.json there is the older GitHub one); and a copy of the newest envelope at waypoint/latest.json (LATEST_KEY), with
    Cache-Control: no-cache, which the site's watcher reads. Files first, then the version's envelope, then latest.json, so a
    list is never there before what it names. Nothing under waypoint/<version>/ is ever written over (a version on the download
-   host is immutable): every key of the version is asked for first (HEAD), and one that is already there refuses the whole upload
-   before anything is put, in words that say whether the version is on the site already or an earlier run stopped part way. Every
+   host is immutable): every key of the version is asked for first (HEAD), and one that is already there is never put again: it
+   must be the very file of this build, or the whole upload is refused before anything is put. Every
    put of a version's key also says If-None-Match: *, so a key put meanwhile by another run is refused by the bucket itself.
-   latest.json alone is written over at each release, and only by a newer version: a latest.json that names this version or a
-   newer one, or that is no list the shell's key signs, refuses the upload too.
+   latest.json alone is written over at each release, and only by a newer version: a latest.json that names a newer version, or
+   that is no list the shell's key signs, refuses the upload too, and latest.json is put only on the condition that it is still
+   what was read (If-Match its ETag), so two release runs that overlap never put an older version back over a newer one.
+   A run that stopped part way is finished, never rebuilt (the review of 2026-11-17): what is in the bucket is checked to be the
+   very build in dist/<version>/, and only what is missing is put (sitePublish says how in every refusal).
 
    Usage (the checklist step before an installer goes out): node tools/sitepub.js --check [version]
    asks the site's /api/updates/latest through the shell's own checking code and says whether it names that version (by
-   default the one in package.json), signed by the key the shell carries, with its zip and installer. It writes nothing. */
+   default the one in package.json), signed by the key the shell carries, with its zip and installer. It writes nothing.
+   node tools/sitepub.js --probe [version], with the bucket's settings (WAYPOINT_R2_*), is the smoke run before the first real
+   release (the review of 2026-11-17): it asks the real bucket what it holds of that version and of latest.json, exactly as a
+   release does before it builds, and says what it found, so a token that may not read, or a bucket that answers 403 for a key
+   that is not there, is found without a build. It writes nothing; whether the bucket keeps If-None-Match: * is learned by the
+   first real --publish, which refuses in plain words where it does not. */
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -68,6 +79,12 @@ function topVersion(whatsnew) {
     const m = /^WAYPOINT (\S+)/.exec(first);
     return m ? m[1] : null;
 }
+
+/* The top section of a WHATSNEW file as text to compare: its first heading and all up to the next "WAYPOINT <n>" heading, with a
+   byte order mark, the line ends (CRLF or LF) and the white space at its ends left out. tools/release.js refuses to build where the
+   notes the app itself shows (system/app/assets/whatsnew.txt) do not begin with the very section WHATSNEW.txt begins with (the
+   review of 2026-11-17: the notes the site shows and the notes the app shows are one text). */
+function topSection(whatsnew) { return (String(whatsnew || '').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').split(/\n(?=WAYPOINT \d)/)[0] || '').trim(); }
 
 /* A release's notes as plain text: the top section of WHATSNEW.txt (the text up to the next "WAYPOINT <n>" heading) with its
    title and its ==== underline left off, line ends as LF, white space trimmed, cut at the most an install shows. */
@@ -219,10 +236,12 @@ function r2Config(env, opts) {
 }
 
 /* One signed request to the bucket. method: 'PUT', 'HEAD' or 'GET'; key: the object's key (its segments encoded here); body: a
-   Buffer or null; headers: more headers, signed with the rest (content-type, cache-control, if-none-match). now: the time to sign
-   with (a Date; the test's own, else now). cap: for a GET, the most bytes of the answer kept (a longer answer rejects). Resolves
-   { status, body, buf } whatever the status: body is the first 300 characters as text (for a refusal's words), buf the whole
-   answer as bytes; the caller judges the status. */
+   Buffer or null; headers: more headers, signed with the rest (content-type, cache-control, if-none-match, if-match). now: the
+   time to sign with (a Date; the test's own, else now). cap: for a GET, the most bytes of the answer kept (a longer answer
+   rejects). Resolves { status, body, buf, headers } whatever the status: body is the first 300 characters as text (for a
+   refusal's words), buf the whole answer as bytes, headers the answer's own (lower-case names: content-length and etag are read
+   from them); the caller judges the status. Rejects only where no answer could be had (the connection failed, the bucket went
+   quiet for 300 s, or a GET's answer is longer than cap): callers turn that into a refusal of their own words (ask, below). */
 function r2Request(cfg, method, key, body, headers, now, cap) {
     const u = new URL(cfg.endpoint);
     const p = '/' + s3Encode(cfg.bucket) + '/' + key.split('/').map(s3Encode).join('/');
@@ -237,7 +256,7 @@ function r2Request(cfg, method, key, body, headers, now, cap) {
         const req = (u.protocol === 'http:' ? http : https).request({ protocol: u.protocol, hostname: u.hostname, port: u.port || undefined, method, path: p, headers: send }, res => {
             const chunks = []; let got = 0;
             res.on('data', c => { got += c.length; if (cap && got > cap) { req.destroy(new Error('the bucket\'s answer for ' + key + ' is longer than ' + cap + ' bytes')); return; } chunks.push(c); });
-            res.on('end', () => { const buf = Buffer.concat(chunks); resolve({ status: res.statusCode, body: buf.toString('utf8').slice(0, 300), buf }); });
+            res.on('end', () => { const buf = Buffer.concat(chunks); resolve({ status: res.statusCode, body: buf.toString('utf8').slice(0, 300), buf, headers: res.headers || {} }); });
             res.on('error', reject);
         });
         req.on('error', reject);
@@ -252,75 +271,223 @@ function r2Put(cfg, key, body, headers, now) { return r2Request(cfg, 'PUT', key,
 /* One line of a bucket's refusal: its status and the first words it said, white space folded, so a refusal stays one line. */
 function bucketSaid(r) { return 'the bucket answered ' + r.status + (r.body ? ' (' + String(r.body).replace(/\s+/g, ' ').trim().slice(0, 200) + ')' : ''); }
 
-/* Upload a built release to the bucket. o: { cfg (r2Config's), dist (dist/<version>/), version, pubKey, site, want (as
-   envelopeCheck takes it), now, log }. Resolves { keys } (what was put, in order); rejects with one plain line, and every refusal
-   but a failed put comes before anything is put.
+/* Every refusal of the upload begins with these words, so a run that stops is never read as one that went through. */
+const noUp = why => new Error('Not uploaded to the site: ' + why);
+/* An error's own words on one line. */
+const errText = e => String(e && e.message || e).replace(/\s+/g, ' ').trim();
+
+/* One read of the bucket (a HEAD or a GET) that the bucket did not answer at all (the review of 2026-11-17: a reset, a DNS
+   failure or the idle timeout used to stop the run with Node's own words alone). fn: the request, as a function; what: where
+   the run stood ('when asked for <key>'). Resolves the answer; rejects with a refusal of the upload's own words. */
+async function ask(fn, what) {
+    try { return await fn(); }
+    catch (e) { throw noUp('no answer could be had from the bucket ' + what + ' (' + errText(e) + ').'); }
+}
+
+/* A refusal of a read the bucket did answer, with the status it gave. A 403 says what it most likely means: R2 answers 403, not
+   404, for a key that is not there where the token may write but not read (the review of 2026-11-17; the agreed API names a
+   write-only token), and the run needs to read the version's keys and latest.json before it writes anything. */
+function readRefused(r, k) {
+    return bucketSaid(r) + ' when asked for ' + k + (r.status === 403 ? ' (where its token may not read the bucket, R2 answers 403 for a key that is not there: give the token read as well as write, and check WAYPOINT_R2_KEY_ID and WAYPOINT_R2_SECRET)' : '') + '.';
+}
+
+/* The five files of a release, by their exact names, in the order they are put. */
+function siteNames(version) {
+    const zipName = 'waypoint-app-' + version + '.zip', inst = updater.INSTALLER_NAME;
+    return [zipName, zipName + '.sha256', zipName + '.sig', inst, inst + '.sig'];
+}
+
+/* What the bucket holds of a version, read and never written (the review of 2026-11-17: tools/release.js asks it before it builds,
+   so it never rebuilds over a dist/<version>/ the bucket already holds, and sitePublish asks it again before it puts anything).
+   o: { cfg (r2Config's), version, now }. Each key of the version is asked for (HEAD), the version's own list is read where it is
+   there, and latest.json is read. Resolves { names (siteNames), base ('waypoint/<version>/'), envKey, keys (the five and the
+   list), there: { <key>: { size, etag } } for each key that is there, env (the version's list as bytes, or null), latest:
+   { status (200 or 404), etag, buf } }. Rejects with one plain line where the bucket refuses a read or cannot be reached. */
+async function siteState(o) {
+    const names = siteNames(o.version), base = 'waypoint/' + o.version + '/', envKey = base + ENVELOPE_KEY;
+    const keys = names.map(n => base + n).concat([envKey]), there = {};
+    for (const k of keys) {
+        const h = await ask(() => r2Head(o.cfg, k, o.now), 'when asked for ' + k);
+        if (h.status === 200) there[k] = { size: Number((h.headers || {})['content-length']), etag: (h.headers || {}).etag || null };
+        else if (h.status !== 404) throw noUp(readRefused(h, k));
+    }
+    let env = null;
+    if (there[envKey]) {
+        const g = await ask(() => r2Get(o.cfg, envKey, LIST_CAP, o.now), 'when reading ' + envKey);
+        if (g.status !== 200) throw noUp(readRefused(g, envKey));
+        env = g.buf;
+    }
+    const lt = await ask(() => r2Get(o.cfg, LATEST_KEY, LIST_CAP, o.now), 'when reading ' + LATEST_KEY);
+    if (lt.status !== 200 && lt.status !== 404) throw noUp(readRefused(lt, LATEST_KEY));
+    return { names, base, envKey, keys, there, env, latest: { status: lt.status, etag: (lt.headers || {}).etag || null, buf: lt.status === 200 ? lt.buf : null } };
+}
+
+/* The version latest.json names, read as an install reads it: null where there is none (404); else its version, or a refusal in
+   one plain line where it is no list the shell's key signs (a release never puts itself over a list it cannot read).
+   st: siteState's answer. */
+function latestOf(st, pubKey, site) {
+    if (st.latest.status !== 200) return null;
+    try { return updater.cleanManifest(updater.readEnvelope(st.latest.buf, pubKey), updater.updateHosts({ site: site })).version; }
+    catch (e) { throw noUp(LATEST_KEY + ' is there but is not a list the shell\'s key signs (' + errText(e) + '): look at it before anything is put, and delete it by hand if it is not Waypoint\'s.'); }
+}
+
+/* What a list names, read from its own manifest as envelopeCheck takes it (version, minShell, electron, notes, notesUrl, and each
+   file's size and digest by its name): a run that builds nothing holds the list and the files to this. null where the text is no
+   envelope. The list's signature is not read here: envelopeCheck reads it with the shell's key. */
+function wantOf(text) {
+    let m = null; try { m = JSON.parse(JSON.parse(String(text)).manifest); } catch (e) { return null; }
+    if (!m || typeof m !== 'object' || !Array.isArray(m.files)) return null;
+    const files = {};
+    for (const f of m.files) if (f && typeof f.name === 'string') files[f.name] = { size: f.size, sha256: f.sha256 };
+    return { version: m.version, minShell: m.minShell, electron: m.electron, notes: m.notes, notesUrl: m.notesUrl, files };
+}
+
+/* Is the object the bucket holds at key the very file b? Its size first; then, where the bucket's ETag is a plain MD5 (as R2 gives
+   for an object put in one go), that; otherwise the object is read back and compared byte for byte. info: siteState's there[key]. */
+async function sameInBucket(o, key, b, info) {
+    if (!info || info.size !== b.length) return false;
+    const tag = String(info.etag || '').replace(/^W\//, '').replace(/"/g, '').toLowerCase();
+    if (/^[0-9a-f]{32}$/.test(tag)) return tag === crypto.createHash('md5').update(b).digest('hex');
+    const g = await ask(() => r2Get(o.cfg, key, b.length + 1, o.now), 'when reading ' + key + ' back');
+    return g.status === 200 && g.buf.equals(b);
+}
+
+/* Upload a built release to the bucket, or finish one an earlier run began. o: { cfg (r2Config's), dist (dist/<version>/), version,
+   pubKey, site, want (as envelopeCheck takes it; where absent, read from dist's own list by wantOf: a run that builds nothing),
+   now, log, retry (the waits, in ms, before each further try of latest.json; by default 2 s and 6 s) }. Resolves { keys (what
+   this run put, in order), latest ('put', 'already': latest.json was this very list before the run, or 'newer': it names a newer
+   version and is left as it is), newest (the version latest.json named before the run, or null), local (true where dist/<version>/
+   holds the list that is on the site: only then may its files go to GitHub too) }; rejects with one plain line.
 
    In order:
-   1. The envelope on disk is read back and checked as an install will check it (envelopeCheck). The zip and the installer must be
-      the very files it names; the zip's .sha256 must name the zip's digest; each .sig must be the signature the list carries.
-   2. Every key of the version (the five files and manifest.json) is asked for (HEAD). One already there refuses the upload: a
-      version on the download host is never written over. Where manifest.json is there the version is on the site already;
-      otherwise an earlier run stopped part way, which no install has seen (no list names it), and the words say so.
-   3. waypoint/latest.json is read (GET): where it is there, it must be a list the shell's key signs and name an older version
-      than this one, or the upload is refused (a release never takes the newest place from a newer one).
-   4. The five files are put (If-None-Match: *, kept for a year), then the version's envelope as manifest.json (If-None-Match: *),
-      then, LAST of all, the same envelope as waypoint/latest.json with Cache-Control: no-cache. A put that fails stops the run
-      there: neither list is put, so no install is offered what is only half there. */
+   1. Where dist/<version>/ holds envelope.json, it is read back and checked as an install will check it (envelopeCheck). The zip
+      and the installer must be the very files it names; the zip's .sha256 must name the zip's digest; each .sig must be the
+      signature the list carries.
+   2. What the bucket holds of the version is read (siteState): each key (HEAD), the version's list where it is there, latest.json.
+   3. Nothing under waypoint/<version>/ is ever written over (a version on the download host is immutable):
+      - where the version's list is there, dist's list must be that very list, byte for byte (else the version is on the site from
+        another build, and the run is refused), or dist holds none (a run on another machine, which finishes latest.json from the
+        bucket's own list, checked with the shell's key, and puts nothing else); the five files must be there, of the sizes listed;
+      - where it is not, every key that is there must be the very file in dist (an earlier run stopped part way: what is missing is
+        put now), else the run is refused before anything is put.
+   4. latest.json: where it is there it must be a list the shell's key signs. One naming a newer version refuses a version whose list
+      is not up yet (a release never takes the newest place from a newer one), and is left as it is otherwise; one naming this
+      version must be this very list.
+   5. The files that are missing are put (If-None-Match: *, kept for a year), then the version's list as manifest.json (If-None-Match:
+      *), then, LAST of all, the same list as waypoint/latest.json with Cache-Control: no-cache, on the condition that it is still
+      what step 2 read (If-Match its ETag, or If-None-Match: * where there was none: the review of 2026-11-17, so a newer release
+      put meanwhile is never put back by an older one), tried up to three times where the bucket fails or cannot be reached. A
+      put that fails stops the run there, and says what is up and how to finish: run tools/release.js --publish again, which
+      builds nothing and puts what is missing. */
 async function sitePublish(o) {
     const say = typeof o.log === 'function' ? o.log : () => {};
-    const no = why => new Error('Not uploaded to the site: ' + why);
-    let envText = '';
-    try { envText = fs.readFileSync(path.join(o.dist, ENVELOPE_NAME), 'utf8'); } catch (e) { throw no(ENVELOPE_NAME + ' is missing from ' + o.dist + ' (build first).'); }
-    const why = envelopeCheck(envText, o.pubKey, o.site, o.want);
-    if (why) throw no(why + '.');
-    const listed = {};   // each file's signature as the list carries it, read from the text that was just checked
-    for (const f of JSON.parse(JSON.parse(envText).manifest).files) listed[f.name] = f.sig;
-    const zipName = 'waypoint-app-' + o.version + '.zip', inst = updater.INSTALLER_NAME;
-    const names = [zipName, zipName + '.sha256', zipName + '.sig', inst, inst + '.sig'], bytes = {};
-    for (const n of names) {
-        try { bytes[n] = fs.readFileSync(path.join(o.dist, n)); } catch (e) { throw no(n + ' is missing from ' + o.dist + '.'); }
+    const names = siteNames(o.version), base = 'waypoint/' + o.version + '/', envKey = base + ENVELOPE_KEY;
+    let envText = null;
+    try { envText = fs.readFileSync(path.join(o.dist, ENVELOPE_NAME), 'utf8'); } catch (e) { envText = null; }
+    let bytes = null;   // the five files in dist, by name: only where dist holds a list
+    if (envText !== null) {
+        const want = o.want || wantOf(envText);
+        if (!want) throw noUp(ENVELOPE_NAME + ' in ' + o.dist + ' is not a list.');
+        const why = envelopeCheck(envText, o.pubKey, o.site, want);
+        if (why) throw noUp(why + '.');
+        const listed = {};   // each file's signature as the list carries it, read from the text that was just checked
+        for (const f of JSON.parse(JSON.parse(envText).manifest).files) listed[f.name] = f.sig;
+        const zipName = names[0], inst = names[3];
+        bytes = {};
+        for (const n of names) {
+            try { bytes[n] = fs.readFileSync(path.join(o.dist, n)); } catch (e) { throw noUp(n + ' is missing from ' + o.dist + '.'); }
+        }
+        for (const n of [zipName, inst]) {   // the bytes about to be put are the ones the list names
+            const b = bytes[n], w = want.files[n];
+            if (!w || b.length !== w.size || hexHash(b) !== w.sha256) throw noUp(n + ' changed since the list was written.');
+            if (bytes[n + '.sig'].toString('utf8').trim() !== listed[n]) throw noUp(n + '.sig is not the signature the list carries for ' + n + '.');
+        }
+        const shaLine = bytes[zipName + '.sha256'].toString('utf8').trim().split(/\s+/);
+        if (shaLine[0] !== want.files[zipName].sha256 || shaLine[1] !== zipName) throw noUp(zipName + '.sha256 does not name the zip\'s digest.');
     }
-    for (const n of [zipName, inst]) {   // the bytes about to be put are the ones the list names
-        const b = bytes[n], w = o.want.files[n];
-        if (!w || b.length !== w.size || hexHash(b) !== w.sha256) throw no(n + ' changed since the list was written.');
-        if (bytes[n + '.sig'].toString('utf8').trim() !== listed[n]) throw no(n + '.sig is not the signature the list carries for ' + n + '.');
-    }
-    const shaLine = bytes[zipName + '.sha256'].toString('utf8').trim().split(/\s+/);
-    if (shaLine[0] !== o.want.files[zipName].sha256 || shaLine[1] !== zipName) throw no(zipName + '.sha256 does not name the zip\'s digest.');
 
-    const base = 'waypoint/' + o.version + '/', envKey = base + ENVELOPE_KEY, keys = names.map(n => base + n).concat([envKey]);
-    const there = [];
-    for (const k of keys) {
-        const h = await r2Head(o.cfg, k, o.now);
-        if (h.status === 200) there.push(k);
-        else if (h.status !== 404) throw no(bucketSaid(h) + ' when asked for ' + k + '.');
+    const st = await siteState(o);
+    const had = Object.keys(st.there);
+    let list = envText !== null ? Buffer.from(envText, 'utf8') : null;   // the list this run stands by
+    if (st.env) {
+        if (list && !st.env.equals(list)) throw noUp('version ' + o.version + ' is already on the site (' + envKey + '), and ' + ENVELOPE_NAME + ' in ' + o.dist + ' is not the list put there: a release on the download host is never replaced. Build the next version.');
+        if (!list) {   // no build here: the list on the bucket is checked as an install reads it, and stood by
+            const w = wantOf(st.env.toString('utf8'));
+            const why = w ? envelopeCheck(st.env.toString('utf8'), o.pubKey, o.site, w) : 'it is no list';
+            if (why) throw noUp(envKey + ' is there but ' + why + ': look at it by hand.');
+            list = st.env;
+        }
+        const w = wantOf(list.toString('utf8'));
+        for (const n of names) {
+            const k = base + n, t = st.there[k];
+            if (!t) throw noUp(k + ' is missing from the bucket, though the list of ' + o.version + ' there names it: put it back by hand from the build that was published.');
+            const size = bytes ? bytes[n].length : (w.files[n] ? w.files[n].size : null);
+            if (size !== null && t.size !== size) throw noUp(k + ' in the bucket is ' + t.size + ' bytes, not the ' + size + ' of the build that was published: look at it by hand.');
+        }
+    } else if (!list) {
+        throw noUp(had.length ? had[0] + (had.length > 1 ? ' and ' + (had.length - 1) + ' more are' : ' is') + ' already in the bucket, though no list of ' + o.version + ' is: an earlier run stopped part way, and no install has seen it. ' + ENVELOPE_NAME + ' is missing from ' + o.dist + ', so it cannot be finished from here: delete ' + base + ' in the bucket by hand and run again, or build the next version.'
+            : ENVELOPE_NAME + ' is missing from ' + o.dist + ' (build first).');
+    } else {
+        for (const k of had) {
+            const n = k.slice(base.length);
+            if (!(await sameInBucket(o, k, bytes[n], st.there[k]))) throw noUp(k + ' is already in the bucket, though no list of ' + o.version + ' is, and it is not the file in ' + o.dist + ': an earlier run of another build stopped part way, and no install has seen it. Nothing is written over: delete ' + base + ' in the bucket by hand and run again, or build the next version.');
+        }
+        if (had.length) say('An earlier run stopped part way: ' + had.length + ' of the version\'s files are in the bucket already, the very files in ' + o.dist + '. The rest follow.');
     }
-    if (there.indexOf(envKey) >= 0) throw no('version ' + o.version + ' is already on the site (' + envKey + '). A release on the download host is never replaced: build the next version.');
-    if (there.length) throw no(there[0] + (there.length > 1 ? ' and ' + (there.length - 1) + ' more are' : ' is') + ' already in the bucket, though no list of ' + o.version + ' is: an earlier run stopped part way, and no install has seen it. Nothing is written over: delete ' + base + ' in the bucket by hand and run again, or build the next version.');
 
-    const lt = await r2Get(o.cfg, LATEST_KEY, LIST_CAP, o.now);
-    if (lt.status === 200) {
-        let lv = null;
-        try { lv = updater.cleanManifest(updater.readEnvelope(lt.buf, o.pubKey), updater.updateHosts({ site: o.site })).version; }
-        catch (e) { throw no(LATEST_KEY + ' is there but is not a list the shell\'s key signs (' + (e && e.message || String(e)) + '): look at it before anything is put, and delete it by hand if it is not Waypoint\'s.'); }
-        if (updater.cmpVersion(lv, o.version) >= 0) throw no('the site already names ' + lv + ' as the newest (' + LATEST_KEY + '), and ' + o.version + ' is not newer: build the next version.');
-    } else if (lt.status !== 404) throw no(bucketSaid(lt) + ' when asked for ' + LATEST_KEY + '.');
+    const lv = latestOf(st, o.pubKey, o.site);
+    let latest = 'put';
+    if (lv !== null) {
+        const c = updater.cmpVersion(lv, o.version);
+        if (c > 0 && !st.env) throw noUp('the site already names ' + lv + ' as the newest (' + LATEST_KEY + '), and ' + o.version + ' is not newer: build the next version.');
+        if (c > 0) latest = 'newer';
+        else if (c === 0) {
+            if (!st.latest.buf.equals(list)) throw noUp(LATEST_KEY + ' names ' + o.version + ' but is not the list of this build: look at it by hand.');
+            latest = 'already';
+        }
+    }
 
     const put = [];
+    // What a stop leaves behind, and how to finish: the version's files and list are immutable, so the only way on is to put what is missing
+    const stuck = () => {
+        const up = had.concat(put).filter(k => k.indexOf(base) === 0);
+        return (up.length ? ' What of ' + o.version + ' is in the bucket (' + up.join(', ') + ') is named by no list, so no install sees it.' : '')
+            + ' Run node tools/release.js --publish again with ' + o.dist + ' as it is: it builds nothing, checks what is there and puts the rest.';
+    };
     const putOne = async (k, b, headers) => {
         say('Uploading ' + k + ' (' + Math.max(1, Math.round(b.length / 1024)) + ' KB)');
-        const r = await r2Put(o.cfg, k, b, headers, o.now);
+        let r = null;
+        try { r = await r2Put(o.cfg, k, b, headers, o.now); } catch (e) { throw noUp('no answer could be had from the bucket for ' + k + ' (' + errText(e) + '), so it may or may not be there.' + stuck()); }
         if (r.status === 200) { put.push(k); return; }
-        const done = put.length ? ' What was put (' + put.join(', ') + ') is named by no list, so no install sees it.' : '';
-        if (r.status === 412) throw no(k + ' was put there meanwhile by another run.' + done);
-        throw no(bucketSaid(r) + ' for ' + k + '.' + done + ' Neither list was put.');
+        if (r.status === 412) throw noUp(k + ' was put there meanwhile by another run: look at what the bucket holds of ' + o.version + ' before anything else.');
+        throw noUp(bucketSaid(r) + ' for ' + k + '.' + stuck());
     };
-    for (const n of names) await putOne(base + n, bytes[n], { 'content-type': TYPES[path.extname(n)] || 'application/octet-stream', 'cache-control': IMMUTABLE, 'if-none-match': '*' });
-    const envBytes = Buffer.from(envText, 'utf8');
-    await putOne(envKey, envBytes, { 'content-type': TYPES['.json'], 'cache-control': IMMUTABLE, 'if-none-match': '*' });
-    await putOne(LATEST_KEY, envBytes, { 'content-type': TYPES['.json'], 'cache-control': NO_CACHE });
-    return { keys: put };
+    for (const n of names) if (!st.there[base + n]) await putOne(base + n, bytes[n], { 'content-type': TYPES[path.extname(n)] || 'application/octet-stream', 'cache-control': IMMUTABLE, 'if-none-match': '*' });
+    if (!st.env) await putOne(envKey, list, { 'content-type': TYPES['.json'], 'cache-control': IMMUTABLE, 'if-none-match': '*' });
+    if (latest === 'put') {
+        // latest.json, on the condition that it is still what was read (the review of 2026-11-17): If-Match its ETag, or If-None-Match: *
+        // where there was none. It is the one key that is written over, so a failure the bucket or the line may mend is tried again.
+        const headers = { 'content-type': TYPES['.json'], 'cache-control': NO_CACHE };
+        if (st.latest.status !== 200) headers['if-none-match'] = '*'; else if (st.latest.etag) headers['if-match'] = st.latest.etag;
+        const waits = Array.isArray(o.retry) ? o.retry : [2000, 6000];
+        const upNot = ' The list of ' + o.version + ' and its files are up (' + envKey + '), but ' + LATEST_KEY + ' is not, so no install is offered ' + o.version + ' yet. Run node tools/release.js --publish again: it builds nothing, finds the list on the bucket and puts it as latest.json.';
+        for (let i = 0; ; i++) {
+            say('Uploading ' + LATEST_KEY + (i ? ' (try ' + (i + 1) + ')' : ''));
+            let r = null, err = null;
+            try { r = await r2Put(o.cfg, LATEST_KEY, list, headers, o.now); } catch (e) { err = e; }
+            if (r && r.status === 200) { put.push(LATEST_KEY); break; }
+            if (r && r.status === 412) {
+                // an earlier try that went through though its answer was lost, or another run: what is there now tells which
+                let g = null; try { g = await r2Get(o.cfg, LATEST_KEY, LIST_CAP, o.now); } catch (e) { g = null; }
+                if (g && g.status === 200 && g.buf.equals(list)) { put.push(LATEST_KEY); break; }
+                throw noUp(LATEST_KEY + ' changed meanwhile (another release run?): look at what it names before writing.' + upNot);
+            }
+            const again = !r || r.status === 429 || r.status >= 500;
+            if (!again || i >= waits.length) throw noUp((r ? bucketSaid(r) : 'no answer could be had from the bucket (' + errText(err) + ')') + ' for ' + LATEST_KEY + (i ? ', after ' + (i + 1) + ' tries' : '') + '.' + upNot);
+            await new Promise(res => setTimeout(res, waits[i]));
+        }
+    }
+    return { keys: put, latest, newest: lv, local: bytes !== null };
 }
 
 /* Is this a repository's name as GitHub writes one (owner/name)? Answers it, trimmed, or null. The dispatch's repository is read
@@ -368,13 +535,35 @@ async function checkSite(o) {
     return { ok, lines };
 }
 
-module.exports = { ENVELOPE_NAME, ENVELOPE_KEY, LATEST_KEY, WEBSITE_REPO, siteOf, topVersion, notesText, notesUrlOf, fileUrl, fileEntry, siteManifest, envelopeOf, envelopeCheck,
-    s3Encode, s3Auth, loopOrigin, testHosts, r2Config, r2Request, r2Head, r2Get, r2Put, sitePublish, repoOk, dispatch, checkSite };
+/* The smoke run before a first real release (the review of 2026-11-17): siteState of the real bucket, said in plain lines. o: { cfg,
+   version, pubKey, site, now }. Resolves { ok, lines }: ok where every read was answered (a key that is there or not, latest.json
+   readable as a list of the shell's key, or absent); else the refusal's own line. Nothing is written. */
+async function probe(o) {
+    let st = null;
+    try { st = await siteState(o); } catch (e) { return { ok: false, lines: [errText(e)] }; }
+    const lines = ['The bucket answered every read: the token may read it.'];
+    for (const k of st.keys) lines.push(k + ': ' + (st.there[k] ? 'there (' + st.there[k].size + ' bytes)' : 'not there'));
+    let lv = null;
+    try { lv = latestOf(st, o.pubKey, o.site); } catch (e) { return { ok: false, lines: lines.concat([errText(e)]) }; }
+    lines.push(LATEST_KEY + ': ' + (st.latest.status === 200 ? 'names ' + lv + (st.latest.etag ? ', with an ETag' : ', with no ETag (latest.json would be put with no condition)') : 'not there'));
+    return { ok: true, lines };
+}
+
+module.exports = { ENVELOPE_NAME, ENVELOPE_KEY, LATEST_KEY, WEBSITE_REPO, siteOf, topVersion, topSection, notesText, notesUrlOf, fileUrl, fileEntry, siteManifest, envelopeOf, envelopeCheck,
+    s3Encode, s3Auth, loopOrigin, testHosts, r2Config, r2Request, r2Head, r2Get, r2Put, siteNames, siteState, latestOf, wantOf, sitePublish, probe, repoOk, dispatch, checkSite };
 
 if (require.main === module) {
     const argv = process.argv.slice(2);
-    if (argv[0] !== '--check') { console.error('Usage: node tools/sitepub.js --check [version]   (a release is uploaded by node tools/release.js --publish)'); process.exit(1); }
+    if (argv[0] !== '--check' && argv[0] !== '--probe') { console.error('Usage: node tools/sitepub.js --check [version]  or  --probe [version]   (a release is uploaded by node tools/release.js --publish)'); process.exit(1); }
     const version = argv[1] || JSON.parse(fs.readFileSync(path.join(ROOT, 'system', 'resources', 'app', 'package.json'), 'utf8')).version;
+    if (argv[0] === '--probe') {
+        // the bucket's settings as a release takes them (a test's own bucket on this machine only with WAYPOINT_RELEASE_TEST=1)
+        const t = testHosts(process.env), cfg = t.why ? t : r2Config(process.env, { test: t.test === true });
+        if (cfg.why) { console.error(cfg.why.replace(/^Not (built|uploaded to the site): /, 'Not probed: ')); process.exit(1); }
+        probe({ cfg, version, pubKey: require('../system/resources/app/updatekey.js').UPDATE_PUBKEY, site: siteOf(ROOT) }).then(r => { for (const l of r.lines) (r.ok ? console.log : console.error)(l); process.exit(r.ok ? 0 : 1); },
+            e => { console.error(errText(e)); process.exit(1); });
+        return;
+    }
     checkSite({ version, site: siteOf(ROOT) }).then(r => { for (const l of r.lines) (r.ok ? console.log : console.error)(l); process.exit(r.ok ? 0 : 1); },
         e => { console.error(String(e && e.message || e)); process.exit(1); });
 }

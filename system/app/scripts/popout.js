@@ -21,7 +21,8 @@ import { twTick } from './tablewin.js';
 function popPlace(a) {
     a = typeof a === 'string' ? a : '';
     var s1 = a.indexOf('/'), rest = s1 >= 0 ? a.slice(s1 + 1) : a, s2 = rest.indexOf('/'), item = s2 >= 0 ? rest.slice(0, s2) : rest, tail = s2 >= 0 ? rest.slice(s2 + 1) : '';
-    var land = tail.indexOf('at:') === 0 ? { at: tail.slice(3) } : tail.indexOf('q:') === 0 ? { q: tail.slice(2) } : null;
+    // 1.6.3: bi:<a block's place in its page>, for a block with no id (docpanel.js popLand); pagenav.js landOf cleans it where it is used
+    var land = tail.indexOf('at:') === 0 ? { at: tail.slice(3) } : tail.indexOf('q:') === 0 ? { q: tail.slice(2) } : tail.indexOf('bi:') === 0 ? { bi: tail.slice(3) } : null;
     var out = { camp: s1 >= 0 ? a.slice(0, s1) : '', head: s1 >= 0 ? a.slice(0, s1 + 1) : '', item: item, rest: rest, land: land };
     if (!land && tail.indexOf('part:') === 0 && /^[A-Za-z0-9_-]{1,64}$/.test(tail.slice(5))) out.part = tail.slice(5);   // 1.6.2: a part of the page shown alone (popPart)
     if (!land && tail.indexOf('table:') === 0 && /^[A-Za-z0-9_-]{1,64}$/.test(tail.slice(6))) out.table = tail.slice(6);   // 1.6.2: one big table of the page, edited here (tablewin.js)

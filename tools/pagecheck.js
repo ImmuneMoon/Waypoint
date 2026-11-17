@@ -564,6 +564,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             J(qs) === J(QS) && J(blanks) === J([null, null, null, { at: 'b_1' }, { q: 'x' }, { at: 'b_1' }])
             && J(ats) === J([{ at: 'b_abc12' }, { at: 'A'.repeat(64) }, null, null, null, null, null, null, null, null, { at: '__proto__' }, { at: 'constructor' }, null, { at: '-_-' }])
             && threw === '' && junk.every(v => v === null) && qs.concat(ats).filter(Boolean).every(v => Object.keys(v).length === 1) && ({}).q === undefined && ({}).at === undefined && N.api.landCaps.q === 200, J([qs, blanks, ats, junk, threw]));
+        // 1.6.3: a block's place in its page ({ bi }), for a block with no id a landing takes: a whole number 0 to 999999, as a number or as its
+        // digits written plainly; after words and after an id, so every landing that cleaned before cleans as it did
+        const bis = [lo({ bi: 0 }), lo({ bi: 7 }), lo({ bi: 999999 }), lo({ bi: '0' }), lo({ bi: '12' }), lo({ bi: '999999' }), lo({ q: 'Ula', bi: 3 }), lo({ at: 'b_1', bi: 3 }), lo({ q: '  ', at: 'b x', bi: 3 })];
+        const badBis = [{ bi: -1 }, { bi: 1.5 }, { bi: 1e6 }, { bi: NaN }, { bi: Infinity }, { bi: '' }, { bi: '00' }, { bi: '07' }, { bi: '-1' }, { bi: '+1' }, { bi: '1e2' }, { bi: ' 1' }, { bi: '1 ' }, { bi: '1000000' }, { bi: '\uff11' }, { bi: [3] }, { bi: { valueOf: () => 3 } }, { bi: 3n }, Object.create({ bi: 3 })].map(v => { try { return lo(v); } catch (e) { return 'threw'; } });
+        check('1.6.3 a landing at a block\'s place in its page (pagenav.js landOf, run for real): a whole number 0 to 999999, as a number or as its digits written plainly (no leading 0, sign, exponent, space or other digits); words come before it and an id before it; anything else is no landing and nothing throws',
+            J(bis) === J([{ bi: 0 }, { bi: 7 }, { bi: 999999 }, { bi: 0 }, { bi: 12 }, { bi: 999999 }, { q: 'Ula' }, { at: 'b_1' }, { bi: 3 }]) && badBis.every(v => v === null), J([bis, badBis]));
     }
     {
         // a drawn page opened at a block: found by its own entry of the item's blocks, the folds around it opened, brought into view and lit
@@ -593,6 +599,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const oddReads = [0, 3, 4, 7, 10].map(i => O.api.land(ro, { blocks: oddList }, { at: 'b_' + i })).concat([Array.isArray(inh), IN.api.land(rin, { blocks: inh }, { at: 'b_inh' })]);
         check('the item\'s blocks read as data: a block is matched only by an id of its own at the very number its drawn box carries — never one an entry only inherits, an entry that is no object, a number written otherwise (04, a space, a sign, an exponent) or a block that is not drawn —; two blocks of one id land on the first; a list with a hole a billion long is read only as far as the page is drawn',
             J(reads) === J([[true, [3]], [true, [1]], [false, []], [false, []], [true, [4]], [true, [4]], [false, []]]) && took < 500 && J(oddReads) === J([false, false, false, false, false, true, false]), J([reads, took, oddReads]));
+        // 1.6.3: a landing at a place: the drawn block that carries that very number, only where the item's blocks hold an object of their own there
+        const atBi = (blocksOf, bi) => { const was = blocks(rm).map(b => b.calls.length); const r = M.api.land(rm, { blocks: blocksOf }, { bi: bi }); return [r, blocks(rm).map((b, i) => b.calls.length > was[i] ? i : -1).filter(i => i >= 0)]; };
+        const noIds = [{ type: 'text' }, { type: 'text' }, { type: 'text' }, { type: 'text' }, { type: 'text' }];
+        const biReads = [atBi(noIds, 3), atBi(noIds, '0'), atBi(noIds, 4), atBi(noIds, 5), atBi(noIds.slice(0, 2), 3), atBi(protoList, 1), atBi(protoList, 2), atBi(protoList, 3), atBi(sparse, 3), atBi(noIds, -1), atBi(noIds, '04')];
+        const BI = mkNav(), rbi = BI.el.plannerPreview; draw(BI, rbi, [['p', 'a'], ['p', 'b'], ['p', 'c'], ['p', 'd']]);
+        const biInh = BI.api.land(rbi, { blocks: inh }, { bi: 3 }), biNoIt = BI.api.land(rbi, null, { bi: 1 }), biThrows = BI.api.land(rbi, { get blocks() { throw new Error('read'); } }, { bi: 1 });
+        check('1.6.3 a page opened at a block\'s place (pagenav.js land, run for real): the drawn block whose own number is that place, only where the item\'s blocks hold an object of their own at it; a place past the drawn page or the item\'s end, an entry that is no object or one the list only inherits, no item and a place that does not clean land nowhere',
+            J(biReads) === J([[true, [3]], [true, [0]], [true, [4]], [false, []], [false, []], [true, [1]], [false, []], [false, []], [true, [3]], [false, []], [false, []]]) && biInh === false && biNoIt === false && biThrows === false, J([biReads, biInh, biNoIt, biThrows]));
     }
     {
         // a drawn page opened at a search hit: the first block that holds the words, as the page's Find folds them

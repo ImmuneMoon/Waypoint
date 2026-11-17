@@ -67,6 +67,9 @@ Smaller things
   opened whole at its top.
 - Docking such a window back now opens that same page in the panel.
   Before, a page whose id began the same way could open in its place.
+- Mentioned in on a person or place card now opens right on the block
+  that names the card, in a page brought in from a file too. Before, such
+  a page was searched for the card's name and could land on the card itself.
 
 WAYPOINT 1.6.2 — What's New
 ============================

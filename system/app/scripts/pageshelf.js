@@ -497,6 +497,8 @@ function namedNames(names, plain) {
 // [{ id, type, title, at, where, n, q }]: each page or planner that names one of the names, with the first block that does (its id, the card or
 // the section it stands in, and the name found there) and how many of its blocks do. self: { id, at, i } the card asking, which is passed over,
 // by its place in its page where that is known, since two blocks of a file may share an id
+// 1.6.3: a row whose first block has no id a landing takes (only a file makes one) also carries bi, that block's place in its page, so the row
+// opens on that very block (pagenav.js landOf's { bi }). Landing at the name as words could land on the card itself. A row with an id is as before
 function namedIn(camp, names, self, plain) {
     var list = namedNames(names, plain); if (!camp || !camp.items || typeof camp.items !== 'object' || !list.length) return [];
     var out = [], si = self && typeof self.i === 'number' && self.i >= 0 ? self.i : -1;
@@ -510,9 +512,12 @@ function namedIn(camp, names, self, plain) {
             var t = namedFold(namedText(b)), hit = null; for (var k = 0; k < list.length && !hit; k++) if (list[k].re.test(t)) hit = list[k];
             if (!hit) return;
             n++;
-            if (!first) first = { at: typeof b.id === 'string' && NAMED_ID.test(b.id) ? b.id : '', where: (b.type === 'node' && namedSay(b.title)) || head, q: hit.say };
+            if (!first) first = { at: typeof b.id === 'string' && NAMED_ID.test(b.id) ? b.id : '', bi: bi, where: (b.type === 'node' && namedSay(b.title)) || head, q: hit.say };
         });
-        if (first) out.push({ id: id, type: it.type, title: String((it.meta && it.meta.title) || (it.type === 'planner' ? 'Planner' : 'Page')), at: first.at, where: first.where, n: n, q: first.q });
+        if (!first) return;
+        var row = { id: id, type: it.type, title: String((it.meta && it.meta.title) || (it.type === 'planner' ? 'Planner' : 'Page')), at: first.at, where: first.where, n: n, q: first.q };
+        if (!first.at) row.bi = first.bi;
+        out.push(row);
     });
     out.sort(function(a, b) { return natCmp(a.title, b.title) || natCmp(a.id, b.id); });
     return out.slice(0, NAMED_MAX);
@@ -550,6 +555,7 @@ function namedOpen(btn, rows, name) {
     var hd = document.createElement('div'); hd.className = rows.length ? 'nin-head' : 'nin-none'; hd.appendChild(document.createTextNode(rows.length ? 'Mentioned in' : 'Nothing else names ' + name + '.')); m.appendChild(hd);
     rows.forEach(function(r) {
         var b = document.createElement('button'); b.type = 'button'; b.className = 'nin-row'; b.setAttribute('role', 'menuitem'); b.dataset.id = r.id; if (r.at) b.dataset.at = r.at; if (r.q) b.dataset.q = r.q;
+        if (!r.at && typeof r.bi === 'number' && r.bi >= 0) b.dataset.bi = String(r.bi);   // 1.6.3: the block's place, for a block with no id
         var t = document.createElement('span'); t.className = 'nin-title'; t.appendChild(document.createTextNode(r.title)); b.appendChild(t);
         var w = (r.where && r.where !== r.title ? r.where : '') + (r.n > 1 ? (r.where && r.where !== r.title ? ', and ' : '') + (r.n - 1) + ' more ' + (r.n === 2 ? 'place' : 'places') : '');
         if (w) { var sm = document.createElement('small'); sm.appendChild(document.createTextNode(w)); b.appendChild(sm); }
@@ -601,8 +607,9 @@ function namedWire() {
         if (b) { e.preventDefault(); e.stopPropagation(); namedPress(b); return; }
         var row = _named && t && t.closest ? t.closest('.nin-row') : null; if (!row || !_named.el.contains(row)) return;
         e.preventDefault(); e.stopPropagation();
-        var id = row.dataset.id, at = row.dataset.at, q = row.dataset.q || _named.q; namedClose(false);
-        openPage(id, pageWay(viewNow(), e), at ? { at: at } : { q: q });
+        // a row opens at its block's id; else, 1.6.3, at the block's place in its page (bi); else at the name found there, as words
+        var id = row.dataset.id, at = row.dataset.at, bi = row.dataset.bi, q = row.dataset.q || _named.q; namedClose(false);
+        openPage(id, pageWay(viewNow(), e), at ? { at: at } : typeof bi === 'string' && /^(?:0|[1-9][0-9]{0,5})$/.test(bi) ? { bi: Number(bi) } : { q: q });
     }, true);
     // a quick second press on the button puts its menu away: it is no double-click on the card, which in the Read view would leave it for the editor
     document.addEventListener('dblclick', function(e) { if (e.target && e.target.closest && e.target.closest('.pv-ment')) e.stopPropagation(); }, true);

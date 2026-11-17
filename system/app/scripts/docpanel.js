@@ -429,12 +429,13 @@ function refresh() { if (openId) draw(false); }   // called from the app's rende
 // [textcheck:panelpop-start]
 // A page or a planner in a window of its own (read-only: popout.js draws it, follows the GM's edits and can dock it back). One address, the
 // only one the shell lets a page open for a page. Asked by the panel's own button and by the left panel's menu (Open in a new window)
+// 1.6.3: or /bi:<a block's place in its page>, for a block with no id (pagenav.js landOf's { bi })
 // 1.5.4: where the window lands, after the item in its address: /at:<block id> or /q:<words>, each encoded, inside the doc: part the shell's
 // own window rule takes (shellguard.js childWindowOk), so that rule is untouched and a window that opens fresh is told too. pagenav.js cleans
 // the landing first; none adds nothing, and a landing that cannot be read never keeps the page from opening
 function popLand(land) {
     var L = null; try { var nav = window.wpPageNav; L = nav && typeof nav.landOf === 'function' ? nav.landOf(land) : null; } catch (e) { L = null; }
-    return !L ? '' : L.q ? '/q:' + encodeURIComponent(L.q) : '/at:' + encodeURIComponent(L.at);
+    return !L ? '' : L.q ? '/q:' + encodeURIComponent(L.q) : L.at ? '/at:' + encodeURIComponent(L.at) : typeof L.bi === 'number' ? '/bi:' + L.bi : '';
 }
 // 1.6.2 (docs/PLANNER_ORG_DESIGN.md 6.1): part, a block's id, opens that part of the page alone (a card, or a section with what stands under
 // it): /part:<block id> after the item, inside the same doc: part of the address, in a window named for the page AND the part, so several

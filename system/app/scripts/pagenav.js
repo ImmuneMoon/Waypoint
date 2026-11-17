@@ -447,13 +447,19 @@ function tfitWatch(root, Obs, later) {
 // Landing (1.5.4; the owner, 2026-10-16, by prompt: "Landing now, rest after Sunday (Recommended)"). Every way of opening a page can open it
 // at one block ({ at: the block's id }) or at a search hit ({ q: the words }): the page is scrolled there, the folds around it are opened, and the
 // block is lit for a moment, as a row of the Outline lights its heading. Nothing is stored and nothing is sent.
-var LAND_Q = 200, LAND_AT = /^[A-Za-z0-9_-]{1,64}$/;
+// 1.6.3: a landing may also name a block by its place in its page ({ bi: a whole number, 0 the first block }), for a block that has no id a
+// landing takes (only a file can make one). Mentioned in (pageshelf.js namedIn) lands so on the very block that names a card, where landing
+// at the card's name as words could land on the card itself. LAND_BI is the most a drawn block's number can be (data-blk holds 1 to 6 digits)
+var LAND_Q = 200, LAND_AT = /^[A-Za-z0-9_-]{1,64}$/, LAND_BI = 999999, LAND_BI_TEXT = /^(?:0|[1-9][0-9]{0,5})$/;
 // The one cleaner of a landing: { q } where q is text that trims to 1 to 200 characters (cut by whole characters; half a character, which no
-// address can carry, is dropped), else { at } where at is 1 to 64 letters, digits, _ and -, else null. Own keys only; it never throws
+// address can carry, is dropped), else { at } where at is 1 to 64 letters, digits, _ and -, else { bi } where bi is a whole number from 0 to
+// LAND_BI, given as a number or as its digits written plainly (a window reads its landing from its address as text: no sign, no leading 0, no
+// exponent), else null. Words come before an id, and an id before a place, so every landing that cleaned before cleans exactly as it did.
+// Own keys only; it never throws
 function landOf(v) {
     try {
         if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
-        var own = function(k) { return Object.prototype.hasOwnProperty.call(v, k) ? v[k] : undefined; }, q = own('q'), at;
+        var own = function(k) { return Object.prototype.hasOwnProperty.call(v, k) ? v[k] : undefined; }, q = own('q'), at, bi;
         if (typeof q === 'string') {
             var s = Array.from(q).filter(function(c) { var u = c.charCodeAt(0); return c.length > 1 || u < 0xd800 || u > 0xdfff; }).join('').trim();
             s = Array.from(s).slice(0, LAND_Q).join('').trim();
@@ -461,6 +467,9 @@ function landOf(v) {
         }
         at = own('at');
         if (typeof at === 'string' && LAND_AT.test(at)) return { at: at };
+        bi = own('bi');
+        if (typeof bi === 'number' && Number.isInteger(bi) && bi >= 0 && bi <= LAND_BI) return { bi: bi };
+        if (typeof bi === 'string' && LAND_BI_TEXT.test(bi)) return { bi: Number(bi) };
     } catch (e) {}
     return null;
 }
@@ -522,6 +531,8 @@ function navGo(el) { navTop(el); navFlash(el); }
 // drawn a moment ago), then those around the block are opened, as the Outline opens them. Answers whether it landed; it never throws.
 // again (true only): the landing made once more after the page's charts were drawn (docpanel.js, popout.js): brought into view and its folds
 // opened as before, and not lit a second time
+// 1.6.3: a landing at a place ({ bi }) is the drawn block that carries that very number, and only where the item's blocks hold an entry of their
+// own there that is an object: a place past the page's end, or one the page draws nothing for, lands nowhere
 function land(root, it, lnd, again) {
     try {
         var L = landOf(lnd), el = null, blocks, i; if (!L || !root || typeof root !== 'object') return false;
@@ -532,6 +543,10 @@ function land(root, it, lnd, again) {
                 var n = blocks[i].dataset ? blocks[i].dataset.blk : '', b = typeof n === 'string' && /^\d{1,6}$/.test(n) && Object.prototype.hasOwnProperty.call(list, n) ? list[n] : null;
                 if (b && typeof b === 'object' && Object.prototype.hasOwnProperty.call(b, 'id') && b.id === L.at) el = blocks[i];
             }
+        } else if (typeof L.bi === 'number') {
+            var lb = it && typeof it === 'object' && Array.isArray(it.blocks) ? it.blocks : null, key = String(L.bi);
+            var eb = lb && Object.prototype.hasOwnProperty.call(lb, key) ? lb[key] : null;
+            for (i = 0; eb && typeof eb === 'object' && i < blocks.length && !el; i++) if (blocks[i].dataset && blocks[i].dataset.blk === key) el = blocks[i];
         } else el = landFind(blocks, L.q);
         if (!el) return false;
         if (NAV_PLACES.some(function(p) { return p[1] === root.id; })) foldApply(root);

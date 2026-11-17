@@ -3497,7 +3497,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var pv = document.getElementById('plannerPreview'), pn = window.wpPageNav; if (!pv || !pn || typeof pn.land !== 'function') return false;
       var was = Array.prototype.slice.call(pv.querySelectorAll('.pagenav-hit'));
       if (!pn.land(pv, am, w.land)) return false;
-      var bi = typeof w.land.q === 'string' ? pvLitIndex(pv, was) : pvIndexOf(am, w.land.at);
+      // 1.6.3: a landing at a place ({ bi }, pagenav.js landOf) names the block's place itself
+      var bi = typeof w.land.q === 'string' ? pvLitIndex(pv, was) : typeof w.land.bi === 'number' ? w.land.bi : pvIndexOf(am, w.land.at);
       if (bi >= 0 && !plannerFullscreen) pvEditorTo(bi);
       return true;
   }

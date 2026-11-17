@@ -3385,6 +3385,40 @@ pendingChecks.push((async () => {
         !!gE && j(gE) === j([{ sent: [4], placed: [4] }, { sent: [4], placed: [4] }, { sent: [0], placed: [0] }, { sent: [], placed: [6] }, { sent: [7], placed: [7] }, { sent: [3], placed: [3] }, { sent: [], placed: [9] }, { sent: [4], placed: [4] }, { sent: [3], placed: [3] }]), j(gE));
 })());
 
+// 1.6.3 (backlog 170): a field Locked while a test of the character holds. The host's char-edit and char-edits (sliced, run for real with the real
+// systemcore and formula engine and the host's own per-peer sync) refuse a player's change to it in the lock's own words while the test holds,
+// store, send and save nothing, and let it through once the test no longer holds. A player is judged by their own view's lock, so a lock whose
+// test reads a GM-only value never holds them back, and the host works their view out only where the field has a lock
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const edSrc = between('// [netcheck:charedit-start]', '// [netcheck:charedit-end]', 'charedit'), msSrc = between('// [netcheck:charedits-start]', '// [netcheck:charedits-end]', 'charedits'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const sysL = Sx.cleanSystem({ v: 1, name: 'L', rolls: [], fields: [
+        { id: 'f_off', key: 'Off', kind: 'toggle', edit: 'owner' }, { id: 'f_sec', key: 'Secret', kind: 'number', def: 2, vis: 'gm' },
+        { id: 'f_hp', key: 'HP', kind: 'number', def: 5, edit: 'owner', lock: { 'if': 'Off', says: 'Switched off.' } },
+        { id: 'f_gr', key: 'Grit', kind: 'number', def: 1, edit: 'owner', lock: { 'if': 'Secret > 0' } }] }, { F: Fx, gmView: true });
+    const host = (src, msg, off) => {
+        const camp = { id: 'k', system: sysL, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_off: off, f_hp: 5, f_gr: 1 } } } };
+        const out = { answer: [], owner: [], saves: 0, views: 0 }, box = bx => m => { packCheck(m); bx.push(JSON.parse(JSON.stringify(m))); };
+        const conn = { peer: 'pA', send: box(out.answer) };
+        const net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }], roster: { pA: { id: 'u_a' } } };
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => { out.views++; return Sx.cleanSystem(c.system, { F: Fx, gmView: false }); }, charChanged() {} }, wpDiceCore: null };
+        new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + src)(
+            msg, conn, net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true });
+        out.vals = camp.chars.c_1.values; return out;
+    };
+    const E1 = (fid, v) => ({ type: 'char-edit', rid: 'e1', charId: 'c_1', fieldId: fid, value: v }), B = values => ({ type: 'char-edits', rid: 'e1', charId: 'c_1', values });
+    const said = r => j(r.answer) === j([{ type: 'char-deny', rid: 'e1', reason: 'value', msg: 'Switched off.' }]) && r.owner.length === 0 && r.saves === 0 && r.vals.f_hp === 5 && r.vals.f_gr === 1;
+    const lock1 = host(edSrc, E1('f_hp', 9), true), open1 = host(edSrc, E1('f_hp', 9), false), gm1 = host(edSrc, E1('f_gr', 7), true), plain1 = host(edSrc, E1('f_off', false), true);
+    check('1.6.3 Locked while (host char-edit): a player\'s change to a locked field is refused in the lock\'s own words while its test holds, nothing stored, sent or saved; once it no longer holds the change is acked and stored; every message packs',
+        said(lock1) && j(open1.answer) === j([{ type: 'char-ack', rid: 'e1' }]) && open1.vals.f_hp === 9 && open1.saves === 1 && open1.owner.length === 1, j([lock1.answer, open1.answer, open1.vals]));
+    check('1.6.3 Locked while (host char-edit): a lock whose test reads a GM-only value is not in the player\'s view, so it never holds them back; the player\'s view is worked out only for a field with a lock (the host\'s own sync to the owner counts one more where a change is stored)',
+        j(gm1.answer) === j([{ type: 'char-ack', rid: 'e1' }]) && gm1.vals.f_gr === 7 && gm1.views === plain1.views + 1 && j(plain1.answer) === j([{ type: 'char-ack', rid: 'e1' }]) && lock1.views === 1, j([gm1.answer, gm1.views, plain1.views, lock1.views]));
+    const lockB = host(msSrc, B([{ fieldId: 'f_gr', value: 4 }, { fieldId: 'f_hp', value: 9 }]), true), openB = host(msSrc, B([{ fieldId: 'f_gr', value: 4 }, { fieldId: 'f_hp', value: 9 }]), false);
+    check('1.6.3 Locked while (host char-edits): one locked field refuses the whole batch in the lock\'s words with nothing stored, and the batch goes through whole once the test no longer holds; the view is worked out once a batch',
+        said(lockB) && j(openB.answer) === j([{ type: 'char-ack', rid: 'e1' }]) && openB.vals.f_gr === 4 && openB.vals.f_hp === 9 && openB.views === lockB.views + 1 && lockB.views === 1, j([lockB.answer, openB.answer, openB.vals, openB.views]));
+})());
+
 // 1.5.0 GM-only pools: a visible pool whose max is worked out from a GM-only field is GM-only as a whole. The host's char-edit, char-edits and
 // char-effect (sliced, run for real with the real systemcore, formula engine and the host's own per-peer sync, also sliced) never let the hidden
 // max reach a player: an edit of such a pool is refused (never clamped and answered), and what the host stores in it (an effect's clamp, the GM's

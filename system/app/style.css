@@ -5874,6 +5874,7 @@
   .sheet-read.sheet-text { white-space: pre; overflow: hidden; text-overflow: ellipsis; }
   .sheet-read.sheet-notes, .sheet-box.sheet-notes { height: calc(6em + 8px); min-height: 60px; overflow-y: auto; resize: vertical; }   /* the plain notes box: four lines, a scroll of its own, its grip */
   .sheet-locked .sheet-read { color: inherit; background: transparent; border-color: transparent; }
+  .sheet-lockmark { margin-left: 4px; font-size: .9em; color: var(--muted, currentColor); opacity: .8; }   /* 1.6.3 (backlog 170): a field held by its Locked while, beside its label; the field's box carries the words as its tooltip */
   .sheet-read a { color: var(--blue); }
   /* ... the header's own bare box, and a one-line text in an Inline rows section, which sizes there as the plain input does */
   .sheet-idn-edit .sheet-box.ts-box { min-width: 0; min-height: 0; border: 0; background: transparent; padding: 4px; font-size: 14px; line-height: 1.3; color: inherit; }   /* the header input's own sizes (.sheet-hdr-edit input.field) */

@@ -3696,7 +3696,7 @@ net.charEdit = function(charId, fieldId, value) {
     var c = (camp && camp.chars && typeof charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, charId) ? camp.chars[charId] : null); if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };   // another PC's hover copy is never edited, not even optimistically
     if (!camp.system) return { error: 'No system at this table.' };
     var res = S.applyEdit(camp.system, c, fieldId, value, window.wpFormula, { player: true });
-    if (!res.ok) return { error: res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed.' };
+    if (!res.ok) return { error: res.locked && res.msg ? res.msg : res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed.' };   // 1.6.3 (backlog 170): a lock says its own words
     var rid = 'e' + Math.random().toString(36).slice(2, 10);
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, fieldId) ? JSON.parse(JSON.stringify(c.values[fieldId])) : undefined;
     c.values = c.values || {}; c.values[fieldId] = res.value;
@@ -3826,7 +3826,7 @@ net.charEdits = function(charId, list) {
     for (var i = 0; i < list.length; i++) {
         var e = list[i]; if (!e || typeof e.fieldId !== 'string' || Object.prototype.hasOwnProperty.call(seen, e.fieldId)) return { error: 'That change is not allowed.' }; seen[e.fieldId] = 1;
         var res = S.applyEdit(camp.system, work, e.fieldId, e.value, window.wpFormula, { player: true });
-        if (!res.ok) return { error: res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed.' };
+        if (!res.ok) return { error: res.locked && res.msg ? res.msg : res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed.' };   // 1.6.3 (backlog 170)
         work.values[e.fieldId] = res.value;
         batch.push({ fieldId: e.fieldId, value: res.value, prev: c.values && Object.prototype.hasOwnProperty.call(c.values, e.fieldId) ? JSON.parse(JSON.stringify(c.values[e.fieldId])) : undefined });
     }
@@ -9132,7 +9132,9 @@ function handleMessage(msg, conn) {
         var campE = getActiveCampaign(), chE = (campE && campE.chars && typeof q.charId === 'string' && Object.prototype.hasOwnProperty.call(campE.chars, q.charId) ? campE.chars[q.charId] : null);
         if (!campE || !campE.system || !chE) { denyE('missing'); return; }
         var profE = net.roster[conn.peer]; if (chE.npc || !chE.ownerId || !profE || (chE.ownerId !== profE.id && !(typeof handsTo === 'function' && handsTo(chE, profE.id)))) { denyE('owner'); return; }
-        var resE = Se.applyEdit(campE.system, chE, q.fieldId, q.value, Fe, { player: true });
+        var lkFE = Se.fieldById(campE.system, q.fieldId), viewE = lkFE && lkFE.lock && window.wpSheets && typeof window.wpSheets.playerSystem === 'function' ? window.wpSheets.playerSystem(campE) : null;   // 1.6.3 (backlog 170): where the field has a lock, the player is judged by their own view's (none where its test reads a GM-only value)
+        var resE = Se.applyEdit(campE.system, chE, q.fieldId, q.value, Fe, viewE ? { player: true, view: viewE } : { player: true });
+        if (!resE.ok && resE.locked) { try { conn.send({ type: 'char-deny', rid: q.rid, reason: resE.reason, msg: resE.msg }); } catch (e) { sendFailed(e); } return; }   // 1.6.3 (backlog 170): Locked while, said in its own words
         if (!resE.ok) { denyE(resE.reason); return; }
         var flE = resE.clear || typeof Se.autoFills !== 'function' ? {} : Se.autoFills(campE.system, chE, q.fieldId, resE.value, Fe);   // 1.6.2 (auto apply): what typing it fills, in the same change
         var bcE = {}; bcE[q.fieldId] = resE.value; Object.keys(flE).forEach(function(k) { bcE[k] = flE[k]; }); var bwE = Se.budgetWatch(campE.system, chE, bcE, Fe);   // 126: a point budget is judged before anything is stored
@@ -9208,8 +9210,11 @@ function handleMessage(msg, conn) {
         if (!campM || !campM.system || !chM) { denyM('missing'); return; }
         var profM = net.roster[conn.peer]; if (chM.npc || !chM.ownerId || !profM || (chM.ownerId !== profM.id && !(typeof handsTo === 'function' && handsTo(chM, profM.id)))) { denyM('owner'); return; }
         var workM = Object.assign({}, chM, { values: JSON.parse(JSON.stringify(chM.values || {})), af: chM.af && typeof chM.af === 'object' ? Object.assign({}, chM.af) : undefined }), dM = {};   // 1.6.2 (auto apply): its marks with it
+        var viewM;   // 1.6.3 (backlog 170): the player's own view, made below only where a field of the batch has a lock
         for (var iM = 0; iM < qm.values.length; iM++) {
-            var resM = Sm.applyEdit(campM.system, workM, qm.values[iM].fieldId, qm.values[iM].value, Fm, { player: true });
+            var lkFM = Sm.fieldById(campM.system, qm.values[iM].fieldId); if (lkFM && lkFM.lock && viewM === undefined) viewM = window.wpSheets && typeof window.wpSheets.playerSystem === 'function' ? window.wpSheets.playerSystem(campM) : null;   // 1.6.3 (backlog 170): the player's own view, worked out once a batch and only where a field it names has a lock
+            var resM = Sm.applyEdit(campM.system, workM, qm.values[iM].fieldId, qm.values[iM].value, Fm, viewM ? { player: true, view: viewM } : { player: true });
+            if (!resM.ok && resM.locked) { try { conn.send({ type: 'char-deny', rid: qm.rid, reason: resM.reason, msg: resM.msg }); } catch (e) { sendFailed(e); } return; }   // 1.6.3 (backlog 170): Locked while, said in its own words
             if (!resM.ok) { denyM(resM.reason); return; }   // one refused value refuses the batch: nothing is stored
             var fidM = qm.values[iM].fieldId, flM = resM.clear || typeof Sm.autoFills !== 'function' ? {} : Sm.autoFills(campM.system, workM, fidM, resM.value, Fm);   // 1.6.2 (auto apply)
             if (typeof Sm.autoStore === 'function') Sm.autoStore(workM, fidM, resM.value, flM); else workM.values[fidM] = resM.value;

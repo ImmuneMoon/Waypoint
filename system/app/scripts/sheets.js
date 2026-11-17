@@ -2212,7 +2212,7 @@ function headerBlocks(head, sys, c, all, gm, own) {
         var nm = el('div', 'sheet-head-name', c.name || ''); nm.title = c.name || ''; if (window.wpPlook) window.wpPlook.dress(nm, window.wpPlook.ofChar(c)); main.appendChild(nm);
     }
     var IDN_EDIT = { text: 1, select: 1, number: 1, toggle: 1 };   // Stage 6 look fold: identity rows edited in place
-    var openF = function(f) { return typeof fieldOpen !== 'function' || fieldOpen(f); };   // the sheet's lock (through typeof, as in fieldNodeBody)
+    var openF = function(f) { return (typeof fieldOpen !== 'function' || fieldOpen(f)) && !(all && all[f.id] && all[f.id].locked); };   // the sheet's lock (through typeof, as in fieldNodeBody), and 1.6.3 (backlog 170): a field whose Locked while holds now is read only here too
     var idnOk = function(f) { return !c.partial && openF(f) && (gm || (own && f.vis === 'all' && (f.edit === 'owner' || c.making === 1 || c.unlocked === 1))); };   // the section's own rule, under the sheet's lock
     function block(list, cls, itemCls, ledger) {
         if (!Array.isArray(list) || !list.length) return;
@@ -2238,6 +2238,7 @@ function headerBlocks(head, sys, c, all, gm, own) {
             if (!ledger && IDN_EDIT[f.kind] === 1 && !en.error && !(all[f.id] && all[f.id].over) && idnOk(f)) { it.appendChild(idnControl(f, c, all[f.id], tone)); box.appendChild(it); return; }   // Stage 6: changed right here, so the field needs no second copy
             var v = el('span', 'sheet-hdr-val' + (en.chip ? ' sheet-hdr-chip' : '') + (en.error ? ' sheet-err' : '') + tone + (en.empty ? ' sheet-hdr-empty' : ''), en.chip ? 'on' : en.text);
             v.title = en.error ? en.error : en.empty ? f.label + ': not set' : en.why ? en.text + '\n' + en.why : en.text;   // a long value is ellipsised in its box: the tooltip carries the whole of it (the error's reason when there is one)
+            if (all[f.id] && typeof all[f.id].locked === 'string') v.title += '\n' + all[f.id].locked;   // 1.6.3 (backlog 170): a locked figure in the header says why it cannot be changed here
             if (!en.chip && !en.error && !en.empty && typeof lookInto === 'function') lookInto(v, f, c, en.text);   // item 35: a one-line text with a look is read with it here too
             it.appendChild(v); box.appendChild(it);
         });
@@ -5706,6 +5707,13 @@ function trackNode(f, c, e, use, raw) {
     return wrap;
 }
 // [markcheck:track-end]
+// 1.6.3 (backlog 170): a field whose Locked while test holds now (resolveAll's e.locked, the lock's words). Its control is drawn closed
+// by fieldNodeBody's use, and this marks it: the field's box wears sheet-locked, its label a small lock, and both carry the words as
+// their tooltip, so the reader is told why. Words set as a title only, never as markup
+function lockMark(box, lab, words) {
+    box.classList.add('sheet-locked'); box.title = words;
+    var m = el('i', 'wib wi-lock sheet-lockmark'); m.title = words; lab.appendChild(m);
+}
 function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the section placement drawn (an item list may show only its rows switched on); sysArg: the system being drawn (the pop-out's cleaned copy, the Layout preview's draft); the item list resolves its defs from it
     var box = el('div', 'sheet-field sheet-kind-' + f.kind);
     if (f.tile) box.classList.add('sheet-tile');   // Stage 3: compact stat tile (value big, label small)
@@ -5714,10 +5722,11 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
     if (f.explain && typeof explainTo === 'function') explainTo(lab, f.explain, c, f.kind === 'formula' && typeof formulaSays === 'function' ? formulaSays(sysArg, f.formula) : '');   // 1.6.2 (backlog 218 fold 3): its (i)
     if (f.roll) { var rb = el('button', 'tool ghost sheet-field-roll', typeof dieFor === 'function' ? undefined : String.fromCharCode(55356, 57266)); if (typeof dieFor === 'function') rb.appendChild(dieFor(f.rollDie, f.roll)); rb.title = 'Roll ' + (f.label || f.key) + ' · shift-click to add a modifier'; rb.disabled = !canRoll(c); var goF = function(e) { sheetRoll(e, c.id, f.roll, f.label || f.key, f.vis === 'gm' ? { gmOnly: true } : undefined, { f: f.id }); }; rb.addEventListener('click', goF); lab.appendChild(rb); var pmF = typeof rollModBtn === 'function' ? rollModBtn(rb, goF, typeof swCount === 'function' ? swCount(c, { f: f.id }) : 0) : null; if (pmF) lab.appendChild(pmF); }   // the field's own roll (1.5.0); a GM-only field's stays the GM's
     var editable = gm || (own && f.vis === 'all' && (f.edit === 'owner' || c.making === 1 || c.unlocked === 1));
-    var lk = typeof lockedNow === 'function' && lockedNow(), use = editable && (typeof fieldOpen !== 'function' || fieldOpen(f));   // the sheet's lock: this field's own control in the view being drawn (locked, only what changes in play). Asked through typeof: a harness that slices this function alone draws it unlocked
+    var lk = typeof lockedNow === 'function' && lockedNow(), use = editable && (typeof fieldOpen !== 'function' || fieldOpen(f)) && !(e && e.locked);   // the sheet's lock: this field's own control in the view being drawn (locked, only what changes in play). Asked through typeof: a harness that slices this function alone draws it unlocked
     var playOk = editable && (!lk || f.live !== false), editOk = editable && (!lk || f.live === true);   // a list's two halves: what is used in play (a switch, a count, a use), and what changes the character (a level, a row, a note)
     var ownOk = !gm && !!own && f.vis === 'all' && !lk && !c.partial && (typeof _fxLive === 'undefined' || _fxLive);   // 1.6.2: a stat its list ticks Player sets this, on their own open sheet, whoever edits the list
     var raw = c.values ? c.values[f.id] : undefined;
+    if (e && typeof e.locked === 'string') lockMark(box, lab, e.locked);   // 1.6.3 (backlog 170): Locked while: its control is closed above (use), and the lock says why
     var k = f.kind;
     if (f.track && typeof trackNode === 'function' && !(e && e.error) && !(k === 'number' && e && e.over === true)) { var trN = trackNode(f, c, e, k === 'formula' ? false : use, raw); if (trN) { box.classList.add('sheet-has-track'); box.appendChild(trN); return box; } }   // 1.6.2: a track in place of its box
     if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : e ? (f.unit && e.text !== '' && !e.label ? (typeof figWords === 'function' ? figWords(f, e.value, e.text) : e.text + ' ' + f.unit) : e.text) : ''); v.title = e && e.error ? (typeof sheetFault === 'function' ? sheetFault(sysArg, e.error) : e.error) : typeof formulaSays === 'function' ? formulaSays(sysArg, f.formula) : ''; if (e && !e.error && e.unrounded !== undefined && typeof roundSays === 'function') v.title += '\n' + roundSays(f, e.unrounded); if (f.badge && e && !e.error) { var tnB = valueTone(f, e), bd = el('span', 'sheet-badge' + (Object.prototype.hasOwnProperty.call(TONE_CLASS, tnB) ? TONE_CLASS[tnB] : ''), v.textContent); v.textContent = ''; v.appendChild(bd); } var fmF = fxMark(e); if (fmF) { v.appendChild(fmF); v.title += '\n' + fmF.title; } box.appendChild(v); return box; }
@@ -6859,8 +6868,8 @@ function commit(c, f, value) {
         return;
     }
     if (!canWrite()) return;
-    var res = applyEdit(sys, c, f.id, value, F(), {});
-    if (!res.ok) { toast(res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed here.'); renderViews(c.id); return; }
+    var res = applyEdit(sys, c, f.id, value, F(), { hand: true });   // 1.6.3 (backlog 170): the GM's own hand, which a field's Locked while holds too
+    if (!res.ok) { toast(res.locked && res.msg ? res.msg : res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed here.'); renderViews(c.id); return; }
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined;
     var fillG = res.clear || typeof autoFills !== 'function' ? {} : autoFills(sys, c, f.id, res.value, F()), extraG = null;   // 1.6.2 (auto apply): what typing it fills, in the same change, so one Revert takes it all back
     Object.keys(fillG).forEach(function(k) { (extraG = extraG || {})[k] = c.values && Object.prototype.hasOwnProperty.call(c.values, k) ? clone(c.values[k]) : undefined; });
@@ -7227,8 +7236,8 @@ function commitMany(c, list) {
     var work = Object.assign({}, c, { values: clone(c.values || {}), af: c.af ? clone(c.af) : undefined }), d = {}, prevs = {}, ids = [], af0 = c.af ? clone(c.af) : null;   // judged in order on a working copy, all or none (1.6.2: its marks with it)
     for (var i = 0; i < list.length; i++) {
         var q = list[i]; if (!q || typeof q.fieldId !== 'string' || Object.prototype.hasOwnProperty.call(d, q.fieldId)) continue;
-        var res = applyEdit(sys, work, q.fieldId, q.value, F(), {});
-        if (!res.ok) { toast(res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed here.'); renderViews(c.id); return; }
+        var res = applyEdit(sys, work, q.fieldId, q.value, F(), { hand: true });   // 1.6.3 (backlog 170): by hand, as one commit is
+        if (!res.ok) { toast(res.locked && res.msg ? res.msg : res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed here.'); renderViews(c.id); return; }
         prevs[q.fieldId] = c.values && Object.prototype.hasOwnProperty.call(c.values, q.fieldId) ? clone(c.values[q.fieldId]) : undefined;
         var flC = res.clear || typeof autoFills !== 'function' ? {} : autoFills(sys, work, q.fieldId, res.value, F());   // 1.6.2 (auto apply)
         if (typeof autoStore === 'function') autoStore(work, q.fieldId, res.value, flC); else work.values[q.fieldId] = res.value;
@@ -9979,6 +9988,14 @@ function spillCtl(flags, f) {
 }
 // 1.6.2 Costs more while (a campaign build; the CORE session read its book: every cost, read before it is paid): while this test of the
 // character holds, every cost the pool pays takes more. The test is a form; by is how much more, 1 unless set
+// 1.6.3 (backlog 170): a field's Locked while, on its row in the Fields tab. The test is a form box (formbox.js BOXES 'sys-fldlock-if',
+// a condition read on the character, empty for never), and its words box shows once there is a test: what the sheet and a refusal
+// say while it holds. Both are written into the draft by onInput, and Save cleans them through systemcore cleanFieldLock
+function fieldLockCtl(flags, f) {
+    var lk = f.lock && typeof f.lock === 'object' ? f.lock : null;
+    var li = input('sys-fldlock-if field', lk && typeof lk['if'] === 'string' ? lk['if'] : '', 'While this holds, nobody changes the field by hand, you included. Its value stays as it is, and the rules still change it: an action, damage, a time rule, an effect', 'Locked while (blank: never)'); li.maxLength = LIMITS.formula; flags.appendChild(li);
+    if (lk && lk['if']) { var ls = input('sys-fldlock-says field', typeof lk.says === 'string' ? lk.says : '', 'What the sheet says while it is locked, and what someone who tries to change it is told. Blank: This field is locked for now', 'Why it is locked'); ls.maxLength = 200; flags.appendChild(capInline(ls, 'Says: ')); }
+}
 function surchargeCtl(flags, f) {
     var sc = f.surcharge && typeof f.surcharge === 'object' ? f.surcharge : null;
     var si = input('sys-surch-if field', sc && typeof sc['if'] === 'string' ? sc['if'] : '', 'While this holds, every cost this pool pays takes more, read before it is paid. A Subtract set to Subtract, not a cost (a drain, a stun) and damage never do', 'Costs more while (blank: never)'); si.maxLength = LIMITS.formula; flags.appendChild(si);
@@ -10055,6 +10072,7 @@ function fieldRow(f) {
     if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list' && f.kind !== 'effects' && ((Array.isArray(draft.tests) && draft.tests.length) || f.test)) flags.appendChild(capInline(select('sys-fieldtest', [['', 'Its own roll']].concat((Array.isArray(draft.tests) ? draft.tests : []).filter(function(x) { return x && typeof x.key === 'string'; }).map(function(x) { return [x.key, x.label || 'A test']; })), f.test || '', 'Which of the system\u2019s tests this field rolls, from the Rules tab, or a roll of its own'), 'Rolls by: '));   // 1.6.2 (backlog 59)
     if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list' && f.kind !== 'effects' && !f.test) { flags.appendChild(capInline(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'optional'), 'Roll: ')); if (typeof dieSel === 'function') flags.appendChild(dieSel('sys-fielddie', f.rollDie, 'The die its roll button wears. From its formula: the die it rolls, so 3d6 shows three dice and d20 a d20. Kept only beside a roll')); }
     if (f.kind === 'number' || f.kind === 'formula') flags.appendChild(capInline(input('sys-vnames field', (f.labels || []).join(', '),'Names for the values 0, 1, 2\u2026 separated by commas (Not stunned, Physical, Mental): a number becomes a dropdown, a formula shows the name for its value; formulas still read the number. A named value is a word: \u00b1 color, unit and slider do not apply to it', 'optional'), 'Value names: '));   // Stage 6
+    if (f.kind !== 'formula' && f.kind !== 'item-list' && f.kind !== 'effects') fieldLockCtl(flags, f);   // 1.6.3 (backlog 170): Locked while
     if (f.kind === 'number') { var ovF = f.override && typeof f.override === 'object' ? f.override : {}; flags.appendChild(capInline(input('sys-ovr-value field', ovF.value, 'The number reads this formula instead of what is typed, closed to editing, while the next formula holds: Chassis.Might', 'none'), 'Taken from: ')); if (ovF.value || ovF.when) flags.appendChild(capInline(input('sys-ovr-when field', ovF.when, 'While this holds, no dice: Bodies.count > 0. Otherwise the number is what is typed, as before', 'Bodies.count > 0'), 'while: ')); }   // 205 (6)
     if ((f.kind === 'number' || f.kind === 'toggle' || (f.kind === 'text' && (f.unit === 'height' || f.unit === 'weight'))) && typeof autoBox === 'function') flags.appendChild(autoBox(f));   // 1.6.2 (auto apply): Worked out until typed, Typing it fills (a toggle too, since the session that builds a game system asked)
     if (f.kind === 'formula') { var bgl = el('label', 'sys-hover'), bgc = el('input'); bgc.type = 'checkbox'; bgc.checked = !!f.badge; bgc.className = 'sys-badge-chk'; bgl.appendChild(bgc); bgl.appendChild(document.createTextNode(' Badge')); bgl.title = 'Show the value as a small pill; with value names, each name can have its own color'; flags.appendChild(bgl); }   // Stage 6 look fold (L7)
@@ -15699,6 +15717,8 @@ function onInput(e) {
         else if (c.indexOf('sys-res-icon') >= 0) { if (t.value.trim()) f.icon = t.value.slice(0, 32); else delete f.icon; }   // Fold B
         else if (c.indexOf('sys-ovr-value') >= 0 || c.indexOf('sys-ovr-when') >= 0) { var ovK = c.indexOf('sys-ovr-value') >= 0 ? 'value' : 'when', ovT = t.value.trim() ? t.value.slice(0, LIMITS.formula) : ''; var ovO = Object.assign({}, f.override && typeof f.override === 'object' ? f.override : {}); if (ovT) ovO[ovK] = ovT; else delete ovO[ovK]; if (ovO.value || ovO.when) f.override = ovO; else delete f.override; if (ovK === 'value') { markDirty(); renderAll(); return; } }   // 205 (6): Taken from, then while
         else if (c.indexOf('sys-trackof') >= 0) { if (f.track && typeof f.track === 'object') { if (t.value.trim()) f.track.of = t.value.slice(0, LIMITS.formula); else delete f.track.of; } }   // 1.6.2: a track's Out of
+        else if (c.indexOf('sys-fldlock-if') >= 0) { var flH = !!(f.lock && typeof f.lock === 'object' && f.lock['if']), flO = Object.assign({}, f.lock && typeof f.lock === 'object' ? f.lock : {}); if (t.value.trim()) { flO['if'] = t.value.slice(0, LIMITS.formula); f.lock = flO; } else delete f.lock; if (flH !== !!f.lock) { markDirty(); renderAll(); return; } }   // 1.6.3 (backlog 170): Locked while (its words box comes and goes with the test)
+        else if (c.indexOf('sys-fldlock-says') >= 0) { if (f.lock && typeof f.lock === 'object') { if (t.value.trim()) f.lock.says = t.value.slice(0, 200); else delete f.lock.says; } }
         else if (c.indexOf('sys-surch-if') >= 0) { var scO = Object.assign({}, f.surcharge && typeof f.surcharge === 'object' ? f.surcharge : {}); if (t.value.trim()) { scO['if'] = t.value.slice(0, LIMITS.formula); f.surcharge = scO; } else delete f.surcharge; }   // 1.6.2 Costs more while
         else if (c.indexOf('sys-surch-add') >= 0) { if (f.surcharge && typeof f.surcharge === 'object') { var scA = Math.round(Number(t.value)); if (isFinite(scA) && scA >= 1) f.surcharge.add = Math.min(99, scA); else delete f.surcharge.add; } }
         else if (c.indexOf('sys-spill-below') >= 0) { if (f.spill && typeof f.spill === 'object') { if (t.value.trim()) f.spill.below = t.value.slice(0, LIMITS.formula); else delete f.spill.below; } }   // 1.6.0 Spills into: below a formula

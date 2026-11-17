@@ -24485,6 +24485,46 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             shP.includes("pcv = sp && sp.priceCol && typeof priceColOf === 'function' ? priceColOf(sys, c, f, row, F()) : null;") && shP.includes("unit = priceUnit(sys, sp, row, c, f);") && shP.includes("unit = priceUnit(sys, sp, was, c, f);")
             && shP.includes("pcs = el('select', 'sys-list-paycol');") && shP.includes("else if (c.indexOf('sys-list-paycol') >= 0) { if (t.value) lsc.priceCol = t.value; else delete lsc.priceCol; }") && shP.includes("st = el('option', null, 'The Price stat');"));
     }
+    {   // 1.6.3, backlog 170 (the owner's list of 2026-11-16): a field Locked while a test of the character holds
+        const J = JSON.stringify, rawL = { v: 1, name: 'L', fields: [
+            { id: 'f_off', key: 'Off', label: 'Off', kind: 'toggle', vis: 'all', edit: 'owner' },
+            { id: 'f_sec', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm', def: 2 },
+            { id: 'f_hp', key: 'HP', label: 'HP', kind: 'number', vis: 'all', edit: 'owner', def: 5, lock: { 'if': 'Off', says: 'Switched\noff.' } },
+            { id: 'f_gr', key: 'Grit', label: 'Grit', kind: 'number', vis: 'all', edit: 'owner', def: 1, lock: { 'if': 'Secret > 0' } },
+            { id: 'f_nm', key: 'Moniker', label: 'Moniker', kind: 'text', vis: 'all', edit: 'owner', lock: { 'if': 'Off', says: 'x'.repeat(300) } },
+            { id: 'f_dc', key: 'Dice', label: 'Dice', kind: 'number', vis: 'all', lock: { 'if': '1d6 > 3' } },
+            { id: 'f_fm', key: 'Calc', label: 'Calc', kind: 'formula', formula: 'HP + 1', vis: 'all', lock: { 'if': 'Off' } },
+            { id: 'f_sf', key: 'Self', label: 'Self', kind: 'number', vis: 'all', lock: { 'if': 'Self > 3' } },
+            { id: 'f_pl', key: 'Plain', label: 'Plain', kind: 'number', vis: 'all' }],
+            rolls: [{ id: 'r_heal', label: 'Mend', apply: [{ f: 'f_hp', formula: '2', add: true }] }] };
+        const sysL = cleanSystem(rawL, { F, gmView: true }), pvL = cleanSystem(sysL, { F, gmView: false }), fL = (s, id) => s.fields.find(x => x.id === id);
+        check('backlog 170: Locked while is kept on a field typed by hand as { if, says }, its words one line of 200 at most; a test that rolls dice, a formula field and a field with none keep no lock; the players\' view drops a lock whose test reads a GM-only value and keeps the rest',
+            J(fL(sysL, 'f_hp').lock) === J({ 'if': 'Off', says: 'Switched off.' }) && fL(sysL, 'f_nm').lock.says.length === 200 && !('lock' in fL(sysL, 'f_dc')) && !('lock' in fL(sysL, 'f_fm')) && !('lock' in fL(sysL, 'f_pl'))
+            && J(fL(pvL, 'f_hp').lock) === J(fL(sysL, 'f_hp').lock) && !('lock' in fL(pvL, 'f_gr')) && J(fL(sysL, 'f_gr').lock) === J({ 'if': 'Secret > 0' })
+            && J(cleanSystem(pvL, { F, gmView: false })) === J(pvL), J([fL(sysL, 'f_hp').lock, fL(pvL, 'f_gr').lock]));
+        const ch = off => ({ id: 'c_l', name: 'Lo', ownerId: 'u_a', values: { f_off: off, f_sec: 2, f_hp: 5, f_gr: 1, f_sf: 4 } });
+        const hand = S.applyEdit(sysL, ch(true), 'f_hp', 7, F, { hand: true }), pl = S.applyEdit(sysL, ch(true), 'f_hp', 7, F, { player: true }), rule = S.applyEdit(sysL, ch(true), 'f_hp', 7, F, {});
+        const open = S.applyEdit(sysL, ch(false), 'f_hp', 7, F, { hand: true }), clear = S.applyEdit(sysL, ch(true), 'f_nm', 'Bo', F, { hand: true });
+        const grGm = S.applyEdit(sysL, ch(false), 'f_gr', 9, F, { hand: true }), grPl = S.applyEdit(sysL, ch(false), 'f_gr', 9, F, { player: true, view: pvL }), grPlNoView = S.applyEdit(sysL, ch(false), 'f_gr', 9, F, { player: true });
+        check('backlog 170: while the test holds the GM\'s hand (opts.hand) and a player\'s alike are refused in the lock\'s own words, else in the app\'s sentence; a change by the rules (neither mark) goes through; once the test no longer holds the hand goes through',
+            J(hand) === J({ ok: false, reason: 'value', msg: 'Switched off.', locked: true }) && J(pl) === J(hand) && J(rule) === J({ ok: true, value: 7 }) && J(open) === J({ ok: true, value: 7 })
+            && clear.ok === false && clear.msg.length === 200 && S.fieldLockSays(fL(sysL, 'f_gr')) === 'This field is locked for now.', J([hand, pl, rule, open]));
+        check('backlog 170: a lock whose test reads a GM-only value holds the GM\'s hand and never a player judged by their own view; with no view at hand the host judges by its own, failing closed',
+            grGm.ok === false && grGm.msg === 'This field is locked for now.' && J(grPl) === J({ ok: true, value: 9 }) && grPlNoView.ok === false, J([grGm, grPl, grPlNoView]));
+        const act = S.applyAct(sysL, ch(true), sysL.rolls[0], makeResolver(sysL, ch(true), F), F, null, null);
+        const rsT = S.resolveAll(sysL, ch(true), F), rsF = S.resolveAll(sysL, ch(false), F), sfR = S.applyEdit(sysL, ch(false), 'f_sf', 2, F, { hand: true });
+        check('backlog 170: an action\'s change to a locked field goes through (the rules are never held) and the stored value stays as it was while locked; resolveAll marks the field with its words while the test holds and not after; a field may read itself in its own lock',
+            act.ok !== false && act.values && act.values.f_hp === 7 && rsT.f_hp.locked === 'Switched off.' && rsT.f_hp.value === 5 && rsF.f_hp.locked === undefined && rsT.f_pl.locked === undefined
+            && sfR.ok === false && !S.validateSystem(sysL, F).errors.some(e => e.prop === 'lock'), J([act.values, rsT.f_hp, rsF.f_hp, sfR]));
+        const vBad = S.validateSystem(Object.assign({}, sysL, { fields: sysL.fields.concat([{ id: 'f_x', key: 'X', label: 'X', kind: 'number', vis: 'all', lock: { 'if': 'Nope > 1' } }]) }), F);
+        check('backlog 170: the validator reads a lock\'s test (an unknown name is an error under it) and warns that a test reading a GM-only value does not hold players back',
+            vBad.errors.some(e => e.id === 'f_x' && e.prop === 'lock' && /Nope/.test(e.message)) && vBad.warnings.some(e => e.id === 'f_gr' && e.prop === 'lock' && /not held back/.test(e.message)), J([vBad.errors, vBad.warnings.filter(e => e.prop === 'lock')]));
+        const shL = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), fbL = fs.readFileSync(path.join(app, 'scripts', 'formbox.js'), 'utf8'), suL = fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8'), ixL = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        check('backlog 170, the sheet and the editor: a locked field\'s control is closed and marked with its words; the header draws it read only; the GM\'s commit and Reset all are by hand; the Fields tab\'s Locked while is a form with its words box; Help says it',
+            shL.includes("fieldOpen(f)) && !(e && e.locked);") && shL.includes("if (e && typeof e.locked === 'string') lockMark(box, lab, e.locked);") && shL.includes("var res = applyEdit(sys, c, f.id, value, F(), { hand: true });") && shL.includes("var res = applyEdit(sys, work, q.fieldId, q.value, F(), { hand: true });")
+            && shL.includes("var openF = function(f) { return (typeof fieldOpen !== 'function' || fieldOpen(f)) && !(all && all[f.id] && all[f.id].locked); };") && shL.includes("input('sys-fldlock-if field'") && shL.includes("else if (c.indexOf('sys-fldlock-says') >= 0)")
+            && fbL.includes("'sys-fldlock-if': 'cond'") && fbL.includes("'sys-fldlock-if': 'Never'") && suL.includes("'sys-live-sel', 'sys-fldlock-*'") && suL.includes("[/^lock$/, ['sys-fldlock-if']]") && ixL.includes('A field can be <b>Locked while</b> something holds'));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

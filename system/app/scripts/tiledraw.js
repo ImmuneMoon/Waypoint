@@ -15,7 +15,7 @@ function tileDrawOf(said, name) {
     var n = ' ' + String(name || '').toLowerCase().replace(/[^a-z]+/g, ' ') + ' ', hit = ''; WORDS.forEach(function(k) { if (!hit && (n.indexOf(' ' + k + ' ') >= 0 || n.indexOf(' ' + k + 's ') >= 0)) hit = k; }); return hit;
 }
 // what a part is made of, from a stat's words: f organic, p prosthetic, r robotic, '' for none said
-function tileMakeOf(said) { var w = typeof said === 'string' ? said.toLowerCase() : ''; return /prosthe|cyber|replac/.test(w) ? 'p' : /robot|droid|mech/.test(w) ? 'r' : /organ|flesh|natural/.test(w) ? 'f' : ''; }
+function tileMakeOf(said) { var w = typeof said === 'string' ? said.toLowerCase() : ''; return /prosthe|cyber|replac/.test(w) ? 'p' : /robot|mech/.test(w) ? 'r' : /organ|flesh|natural/.test(w) ? 'f' : ''; }
 function nodeOf(doc, parts, box, cls) {
     var s = doc.createElementNS(SVG_NS, 'svg'); s.setAttribute('viewBox', '0 0 ' + box + ' ' + box); s.setAttribute('aria-hidden', 'true'); s.setAttribute('class', cls);
     parts.forEach(function(p) { var e = doc.createElementNS(SVG_NS, 'path'); e.setAttribute('d', p.d); if (p.odd) e.setAttribute('fill-rule', 'evenodd'); if (p.line) { e.setAttribute('fill', 'none'); e.setAttribute('stroke', 'currentColor'); e.setAttribute('stroke-width', String(p.line)); e.setAttribute('stroke-linecap', 'round'); } s.appendChild(e); });

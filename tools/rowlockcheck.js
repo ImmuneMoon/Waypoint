@@ -1,4 +1,4 @@
-// rowlockcheck — Locked while and Laid from (1.6.2; asked by a build session for a droid's location rows, which its fitted parts lay; the owner, 2026-11-05,
+// rowlockcheck — Locked while and Laid from (1.6.2; asked by a build session for a robot's location rows, which its fitted parts lay; the owner, 2026-11-05,
 // by prompt: "Locked for all (Recommended)"). systemcore's cleaner and judge imported and run, the real applyRowOp on each way a row's cell
 // changes, the sheet's half (sheets.js's rowlockui slice) run on a page of plain objects, and the wiring pinned. No browser, no network.
 'use strict';
@@ -12,24 +12,24 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
 (async () => {
     const S = await import(url.pathToFileURL(app('scripts/systemcore.js')).href), F = await import(url.pathToFileURL(app('scripts/formula.js')).href);
     const RAW = { v: 1, name: 'L', fields: [
-        { id: 'f_droid', key: 'Droid', label: 'Droid', kind: 'toggle', vis: 'all', edit: 'owner' },
+        { id: 'f_robot', key: 'Robot', label: 'Robot', kind: 'toggle', vis: 'all', edit: 'owner' },
         { id: 'f_sec', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm' },
         { id: 'f_loc', key: 'Locs', label: 'Locations', kind: 'item-list', vis: 'all', edit: 'owner', list: { custom: true, lvl: { label: 'Rank', min: 0, max: 5 }, stats: [{ key: 'loc', label: 'Kind', kind: 'num' }, { key: 'side', label: 'Side', kind: 'num' }, { key: 'Wt', label: 'Weight', kind: 'num' }],
-            lock: { if: 'Droid', cells: ['name', 'LOC', 'side', 'qty', 'lvl', 'nope', 'name', 7], says: 'Set by the build.\nIts parts lay it.' } } },
-        { id: 'f_nq', key: 'Parts', label: 'Parts', kind: 'item-list', vis: 'all', edit: 'owner', list: { noQty: true, lock: { if: 'Droid', cells: ['qty', 'lvl'] } } },
+            lock: { if: 'Robot', cells: ['name', 'LOC', 'side', 'qty', 'lvl', 'nope', 'name', 7], says: 'Set by the build.\nIts parts lay it.' } } },
+        { id: 'f_nq', key: 'Parts', label: 'Parts', kind: 'item-list', vis: 'all', edit: 'owner', list: { noQty: true, lock: { if: 'Robot', cells: ['qty', 'lvl'] } } },
         { id: 'f_gm', key: 'Hidden', label: 'Hidden', kind: 'item-list', vis: 'all', edit: 'owner', list: { lock: { if: 'Secret > 0', cells: ['name'] } } },
         { id: 'f_dice', key: 'Dice', label: 'Dice', kind: 'item-list', vis: 'all', edit: 'owner', list: { lock: { if: '1d6 > 3', cells: ['name'] } } }] };
     const sy = S.cleanSystem(RAW, { F, gmView: true }), pv = S.cleanSystem(sy, { F, gmView: false }), fld = (s, id) => s.fields.filter(f => f.id === id)[0], lk = (s, id) => { const f = fld(s, id); return f && f.list ? f.list.lock : undefined; };
     check('a lock keeps its test, the cells its list has (a stat by the list’s own spelling, each once) and its words on one line; a level with no level and a count with no quantity are no cells, and a lock with no cell is none',
-        J(fld(sy, 'f_loc').list.lock) === J({ if: 'Droid', cells: ['name', 'loc', 'side', 'qty', 'lvl'], says: 'Set by the build. Its parts lay it.' }) && lk(sy, 'f_nq') === undefined
-        && S.cleanLock({ cells: ['name'] }, { stats: [] }) === undefined && S.cleanLock({ if: 'Droid', cells: [] }, {}) === undefined && S.cleanLock('x', {}) === undefined, J(fld(sy, 'f_loc').list.lock));
+        J(fld(sy, 'f_loc').list.lock) === J({ if: 'Robot', cells: ['name', 'loc', 'side', 'qty', 'lvl'], says: 'Set by the build. Its parts lay it.' }) && lk(sy, 'f_nq') === undefined
+        && S.cleanLock({ cells: ['name'] }, { stats: [] }) === undefined && S.cleanLock({ if: 'Robot', cells: [] }, {}) === undefined && S.cleanLock('x', {}) === undefined, J(fld(sy, 'f_loc').list.lock));
     check('a lock its players could read stands in both views; one that reads a GM-only value on a list players see, or rolls dice, goes from both, so a player’s app and the host judge alike',
         J(lk(pv, 'f_loc')) === J(lk(sy, 'f_loc')) && lk(pv, 'f_gm') === undefined && lk(pv, 'f_dice') === undefined && lk(sy, 'f_dice') === undefined && lk(sy, 'f_gm') === undefined);
     const errs = S.validateSystem(Object.assign({}, sy, { fields: sy.fields.map(f => f.id === 'f_loc' ? Object.assign({}, f, { list: Object.assign({}, f.list, { lock: { if: 'Nope +', cells: ['name'] } }) }) : f) }), F);
     check('the validator reads a lock’s test as the character’s and says it under Locked while', J(errs).includes('Locked while: '), J(errs).slice(0, 300));
     const row = () => ({ id: 'w_abcd1234', qty: 2, lvl: 1, def: { name: 'Arm', category: '', icon: '', notes: '', vis: 'all', stats: { loc: 2, side: 1, Wt: 3 } } });
     const lib = () => ({ id: 'w_libr1234', defId: 'i_arm', qty: 1, lvl: 1, ov: { name: 'Left arm', stats: { side: 1 } } });
-    const ch = (on, more) => Object.assign({ id: 'c1', values: { f_droid: on, f_loc: [row(), lib()] } }, more || {});
+    const ch = (on, more) => Object.assign({ id: 'c1', values: { f_robot: on, f_loc: [row(), lib()] } }, more || {});
     const op = (q, on, o) => S.applyRowOp(sy, ch(on), 'f_loc', q, F, o || {});
     const R = 'w_abcd1234', L = 'w_libr1234';
     const cases = [
@@ -53,7 +53,7 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
     check('a file that fills a character still lays a locked cell', fill.ok === true, J(fill));
     const noF = S.applyRowOp(sy, ch(true), 'f_loc', { op: 'custom', rowId: R, def: { name: 'Leg' } }, null, {});
     check('with no formula engine the test does not hold, so nothing is refused for want of one', noF.ok === true);
-    const plain = S.applyRowOp(Object.assign({}, sy, { fields: sy.fields.map(f => f.id === 'f_loc' ? Object.assign({}, f, { list: Object.assign({}, f.list, { lock: { if: 'Droid', cells: ['name'] } }) }) : f) }), ch(true), 'f_loc', { op: 'custom', rowId: R, def: { name: 'Leg', stats: { loc: 9 } } }, F, {});
+    const plain = S.applyRowOp(Object.assign({}, sy, { fields: sy.fields.map(f => f.id === 'f_loc' ? Object.assign({}, f, { list: Object.assign({}, f.list, { lock: { if: 'Robot', cells: ['name'] } }) }) : f) }), ch(true), 'f_loc', { op: 'custom', rowId: R, def: { name: 'Leg', stats: { loc: 9 } } }, F, {});
     check('with no words of its own a refusal names the cells it locks', plain.ok === false && plain.msg === 'This row’s name cannot be changed while its rule holds.', J(plain));
     check('lockCells says what is locked now, null while the test does not hold', J(S.lockCells(sy, ch(true), fld(sy, 'f_loc').list, F)) === J({ name: 1, 's:loc': 1, 's:side': 1, qty: 1, lvl: 1 }) && S.lockCells(sy, ch(false), fld(sy, 'f_loc').list, F) === null);
 
@@ -106,7 +106,7 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
         UI.lockedHere(c1, f1, 'qty') && UI.lockedHere(c1, f1, 'lvl') && UI.lockedHere(c1, f1, 's:loc') && !UI.lockedHere(c1, f1, 's:wt') && !UI.lockedHere(ch(true), f1, 'qty')
         && J(parts.map(p => p.disabled)) === J([true, true, false, false, false]) && parts[0].title === 'Set by the build. Its parts lay it.', J(parts.map(p => p.disabled)));
     UI.lockSet(f1, ch(false), sy); const c3 = { id: 'c3' };
-    check('while the test does not hold nothing is locked on the sheet, and a list with no lock locks nothing', !UI.lockedHere(c3, f1, 'qty') && (UI.lockSet(fld(sy, 'f_droid'), c3, sy), !UI.lockedHere(c3, fld(sy, 'f_droid'), 'name')));
+    check('while the test does not hold nothing is locked on the sheet, and a list with no lock locks nothing', !UI.lockedHere(c3, f1, 'qty') && (UI.lockSet(fld(sy, 'f_robot'), c3, sy), !UI.lockedHere(c3, fld(sy, 'f_robot'), 'name')));
     check('the row’s controls ask it: its count, its level, a stat’s menu and both ✎ forms',
         /function itemQtyCell\(entry, c, f\) \{\n    if \(typeof lockedHere === 'function' && \(lockedHere\(c, f, 'qty'\) \|\| layHere\(entry, f, 'qty'\)\)\)/.test(sh) && /function lvlCtl\(entry, def, c, f, spec, editable\) \{\n    if \(typeof lockedHere === 'function' && lockedHere\(c, f, 'lvl'\)\) editable = false;/.test(sh)
         && /function statMenu\(s, sv, entry, rd, c, f, spec, mode\) \{\n    if \(s && typeof s\.key === 'string' && typeof lockedHere === 'function' && \(lockedHere\(c, f, 's:' \+ s\.key\.toLowerCase\(\)\) \|\| layHere\(entry, f, 's:' \+ s\.key\.toLowerCase\(\)\)\)\) return null;/.test(sh)

@@ -870,7 +870,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             if (r4r) check('152 fold 4b\'s review a character with no player yet is no NPC (calendar.js, run for real) could be run', false, r4r);
         }
     }
-    {   // 1.5.5 (the owner, 2026-10-23, of a droid's sleep draw taken only where it slept at the moment each day began: "everything needs to be accounted
+    {   // 1.5.5 (the owner, 2026-10-23, of a robot's sleep draw taken only where it slept at the moment each day began: "everything needs to be accounted
         // for, no shortcuts"): a time rule's By the clock or In a fight ticked Only while its needs hold (whileNeeds) counts only the time its needs hold.
         // The pure core (calendarcore ruleFires' ninth argument), the judge (systemcore needsHeld) and the window (calendar.js ownTime and needsAt, the
         // time kept behind a list and its answer, the clock's own minutes, a fight's round), each run for real, in a scope of their own; each check runs
@@ -913,7 +913,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         });
 
         // (2) the judge (systemcore needsHeld), with the sheet's own resolver
-        const rawJ = { v: 1, name: 'Droids', calendar: tw, combat: { turn: { secs: 6 } }, fields: [{ id: 'f_sl', key: 'Asleep', kind: 'toggle' }, { id: 'f_ch', key: 'Charging', kind: 'toggle' }, { id: 'f_pp', key: 'PP', kind: 'resource', maxFormula: '10', def: 'max', min: 0 }, { id: 'f_fx', key: 'Fx', kind: 'effects' }],
+        const rawJ = { v: 1, name: 'Robots', calendar: tw, combat: { turn: { secs: 6 } }, fields: [{ id: 'f_sl', key: 'Asleep', kind: 'toggle' }, { id: 'f_ch', key: 'Charging', kind: 'toggle' }, { id: 'f_pp', key: 'PP', kind: 'resource', maxFormula: '10', def: 'max', min: 0 }, { id: 'f_fx', key: 'Fx', kind: 'effects' }],
             effects: [{ id: 'e_nap', name: 'Nap', mods: [{ f: 'f_sl', op: 'on' }] }],
             rolls: [{ id: 'r_sl', label: 'Sleep draw', apply: [{ f: 'f_pp', formula: '1' }], needs: 'Asleep', every: { n: 1, u: 'day', whileNeeds: true } },
                 { id: 'r_ch', label: 'Charge', apply: [{ f: 'f_pp', formula: '1', add: true }], needs: 'Charging', every: { n: 1, u: 'hour', whileNeeds: true }, inFight: { n: 1, u: 'round', whileNeeds: true } },
@@ -994,7 +994,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         // the window with the REAL runs behind it, end to end: calendar.js ownTime, the timed effects run as net.fxSpans runs them (systemcore fxTick, stored
         // as fxApply stores them), sheets.js runTimeRules sliced by its timerules markers and run for real over the real timeRuleRun, and what it tells
         // calendar.js of each run (heldBack). Each check fails without the review's fix
-        const rawE = { v: 1, name: 'Droids', calendar: tw, combat: { turn: { secs: 6 } },
+        const rawE = { v: 1, name: 'Robots', calendar: tw, combat: { turn: { secs: 6 } },
             fields: [{ id: 'f_sl', key: 'Asleep', kind: 'toggle' }, { id: 'f_ch', key: 'Charging', kind: 'toggle' }, { id: 'f_pp', key: 'PP', kind: 'resource', maxFormula: '20', def: 'max', min: 0 }, { id: 'f_lm', key: 'Lumen', kind: 'number', def: 0 }, { id: 'f_fx', key: 'Fx', kind: 'effects' }],
             effects: [{ id: 'e_nap', name: 'Nap', mods: [{ f: 'f_sl', op: 'on' }] }, { id: 'e_dock', name: 'Dock', mods: [{ f: 'f_ch', op: 'on' }] }],
             rolls: [{ id: 'r_sl', label: 'Sleep draw', apply: [{ f: 'f_pp', formula: '1' }], needs: 'Asleep', every: { n: 1, u: 'day', whileNeeds: true } },

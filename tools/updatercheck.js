@@ -888,15 +888,21 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             // gap, then tail characters that with head hash, in lower case, to pin. The gap is what git grep -ni reads between the two
             // halves (no character, or one that is no line break), or two or three characters that are neither a letter, a digit nor a
             // line break. Every file is read as UTF-8 and again byte for byte, and its path is read too. A new term joins TERMS by its
-            // hash, never by its name.
-            const TERMS = [{ head: 'shadow', tail: 4, pin: 'ed9d02bbb2b13ee09bf52ab20c35784f17c8b1e8c84babbb552de3aa911d0fa0' }, { head: 'sot', tail: 2, pin: 'abe9f2488d8fc5604c52e2eb36c7f150268d05145b7663df92a415b576090de1' }];   // the second since 2026-11-01: a release's comments held the owner's campaign's short name, and the website refused it
+            // hash, never by its name. A term may also name notAfter, letters that, standing right before its head, make the place no
+            // hit: the third term, another company's word for a robot (the owner, 2026-11-17, by prompt: "Scrub it all"), stands inside
+            // the name of a phone platform, which stays, so those letters before it are passed over there and nothing else is. A term
+            // may name tight, true only, where its halves must stand together with no gap: a short word read across a gap of one letter
+            // is half the code (a drop of something with its id), so the third term is tight.
+            const TERMS = [{ head: 'shadow', tail: 4, pin: 'ed9d02bbb2b13ee09bf52ab20c35784f17c8b1e8c84babbb552de3aa911d0fa0' }, { head: 'sot', tail: 2, pin: 'abe9f2488d8fc5604c52e2eb36c7f150268d05145b7663df92a415b576090de1' },   // the second since 2026-11-01: a release's comments held the owner's campaign's short name, and the website refused it
+                { head: 'dro', tail: 2, notAfter: 'an', tight: true, pin: 'fab16132ae80815d3eec988aab6eae703c71db0fd0cae9b2b8e02dae2383c671' }];   // the third since 2026-11-17: another company's word for a robot, scrubbed from every file
             const GAP = /^[^\p{L}\p{N}\n]{2,3}$/u;
             // the lines (from 1) where a term stands in a text
             const termHits = (text, t) => {
                 const low = String(text).toLowerCase(), h = t.head.toLowerCase(), out = [];
                 for (let i = low.indexOf(h); i >= 0; i = low.indexOf(h, i + 1)) {
+                    if (t.notAfter && i >= t.notAfter.length && low.slice(i - t.notAfter.length, i) === t.notAfter) continue;   // the letters that make this place another word
                     const at = i + h.length;
-                    for (let g = 0; g <= 3; g++) {
+                    for (let g = 0; g <= (t.tight === true ? 0 : 3); g++) {
                         const gap = low.slice(at, at + g), tail = low.slice(at + g, at + g + t.tail);
                         if (gap.length !== g || tail.length !== t.tail) break;
                         if (g === 1 ? gap === NL : g > 1 && !GAP.test(gap)) continue;
@@ -911,6 +917,17 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                 n('a Pebble-Pouch b') === 1 && n('PEBBLEPOUCH') === 1 && n('pebblepouches') === 1 && n('pebble pouch') === 1 && n('pebble1pouch') === 1 && n('Pebble - Pouch') === 1 && n('pebble . pouch') === 1 && n('Pebble–Pouch') === 1
                 && n('pebble\npouch') === 0 && n('pebbles pouch') === 0 && n('pebble    pouch') === 0 && n('pebble 1 pouch') === 0 && n('pebblepouc') === 0 && n('pebble') === 0 && n('') === 0
                 && n('pebblepouch pebble pouch\nPebblePouch') === 3 && j(termHits('x\ny\npebblepouch', pouch)) === '[3]' && TERMS.every(t => /^[0-9a-f]{64}$/.test(t.pin) && t.head.length > 2 && t.tail > 0));
+            // notAfter, on the term it was made for: the word is found again from its hash at run time (every tail of two letters tried),
+            // so it is written nowhere in this file, and a text that holds it is a hit while the phone platform's name is not
+            {
+                const rb = TERMS[2], abc = 'abcdefghijklmnopqrstuvwxyz'; let w = null;
+                for (const x of abc) for (const y of abc) if (!w && sha256(rb.head + x + y) === rb.pin) w = rb.head + x + y;
+                const W = w ? w[0].toUpperCase() + w.slice(1) : '', hits = s => termHits(s, rb).length;
+                check('the website\'s list, notAfter: the robot word is a hit in any case and form (alone, plural, with an apostrophe, in a key and a file name), the phone platform\'s name is none, nor a word read across a gap (it is tight), and a term with no notAfter still finds its word after those letters',
+                    !!w && hits('a ' + w) === 1 && hits(W + 's') === 1 && hits('a ' + w + "'s draw") === 1 && hits('f_' + w) === 1 && hits('protocol_' + w + '_book.png') === 1 && hits(w.toUpperCase()) === 1
+                    && hits('an' + w) === 0 && hits('An' + w) === 0 && hits('AN' + w.toUpperCase() + 's') === 0 && hits('an' + w + ' and a ' + w) === 1 && hits('') === 0 && hits('dropId') === 0 && hits(rb.head + ' ' + w.slice(3)) === 0
+                    && termHits('anpebblepouch', pouch).length === 1, w ? null : 'no tail found for the pin');
+            }
             // the app folder as it stands on disk, as a release zips it: every file in it, tracked or not, but for its own private folder
             const appFiles = [], walk = rel => {
                 let names = []; try { names = fs.readdirSync(path.join(ROOT, rel)); } catch (e) { return; }
@@ -934,7 +951,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     if (bytes.length) found.push(f + ' (read byte for byte)');
                 }
             }
-            check('no tracked file, and no file of the app folder a release zips, names the owner\'s own sheet website, which the website that serves Waypoint refuses a release for (the owner, 2026-10-22: "Refuse; clean the app first (Recommended)"): ' + how + ', its path and its text, the name written here only as its SHA-256',
+            check('no tracked file, and no file of the app folder a release zips, names a term of the list: the owner\'s own sheet website, which the website that serves Waypoint refuses a release for (the owner, 2026-10-22: "Refuse; clean the app first (Recommended)"), the campaign\'s short name, and another company\'s word for a robot (the owner, 2026-11-17: "Scrub it all"): ' + how + ', its path and its text, each written here only as its SHA-256',
                 files.length > 100 && readN > 100 && appFiles.length > 100 && found.length === 0, { files: files.length, read: readN, app: appFiles.length, untracked: untracked.slice(0, 20), found: found.slice(0, 40) });
         }
 

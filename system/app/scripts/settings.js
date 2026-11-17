@@ -95,6 +95,7 @@ function syncPanel() {
     var ryState = ui('setRelayState');
     if (ryState) ryState.textContent = localStorage.getItem('wp_relayOnly') !== '1' ? 'off — direct first' : (window.wpNet && window.wpNet.relayActive && window.wpNet.relayActive()) ? 'on — relay only' : 'on, but no relay set — connecting directly';   // the truth: the switch does nothing without a relay on this computer
     var ryBlock = ui('setRelayBlock'); if (ryBlock && localStorage.getItem('wp_relayOnly') === '1') ryBlock.style.display = 'block';   // and the switch is in view whenever it is on (it follows the saves folder; the relay does not)
+    siteRelaySync();   // 1.6.4: and what the plan's relay is doing
     var go = ui('setGridOpacity');
     var gpct = Math.round(gridOpacity() * 100);
     if (go) go.value = gpct;
@@ -403,7 +404,20 @@ function loadTurnFields() {
     var rb = ui('setRelayBlock'), hasRelay = !!(window.wpNet && window.wpNet.turnConfig && window.wpNet.turnConfig()), relayFlag = false;
     try { relayFlag = localStorage.getItem('wp_relayOnly') === '1'; } catch (e) {}
     if (rb) rb.style.display = (hasRelay || relayFlag) ? 'block' : 'none';   // shown with a relay — and whenever the switch is on without one (it follows the saves folder; the relay does not), so it can be seen and switched off
+    siteRelaySync();
 }
+/* 1.6.4: the plan's relay, in one plain line under the relay box (#setSiteRelay). net.js siteRelayWords says it, from this session's last
+   ask: the month's use against the allowance, the warning near it and when it starts again, or why there is no plan relay (not linked,
+   the plan, the allowance used up, the website busy). Nothing before the first Host, and nothing while the website's relay is switched off.
+   net.js calls window.wpSiteRelaySync after each ask, so an open Settings follows. While the plan's relay carries the table, Firewall-friendly
+   connections is shown as it is with a relay of your own. */
+function siteRelaySync() {
+    var el = ui('setSiteRelay'); if (!el) return;
+    var w = window.wpNet && typeof window.wpNet.siteRelayWords === 'function' ? window.wpNet.siteRelayWords() : '';
+    el.textContent = w; el.hidden = !w;
+    var rb = ui('setRelayBlock'); if (rb && window.wpNet && typeof window.wpNet.relayServers === 'function' && window.wpNet.relayServers()) rb.style.display = 'block';
+}
+window.wpSiteRelaySync = siteRelaySync;
 function saveTurnFields() {
     var u = ui('setTurnUrls'), n = ui('setTurnUser'), p = ui('setTurnPass');
     try {

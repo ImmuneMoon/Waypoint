@@ -908,6 +908,7 @@ function mutations(tpl) {
     const pristine = clone(camp0);
     document.getElementById('netNameInput').value = 'GM';
     document.getElementById('netHostBtn').click();
+    await settle(() => net.role === 'host');   // 1.6.4: hosting first asks for the plan's relay (siteRelayAsk), which the stub's fetch answers with none, and then goes on
     const hostPeer = peers[peers.length - 1];
     check('hosting starts through the real Host button on a stub Peer', !!hostPeer && net.role === 'host' && /^waypoint-/.test(hostPeer.id));
     hostPeer.emit('open'); flushTimers(); await drain();

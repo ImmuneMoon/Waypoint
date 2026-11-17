@@ -3,7 +3,8 @@
    What it covers, each block as it stood in netcheck.js: asset requests (the picture limiter, a refusal answered), security R2 cluster C
    (the asset gate serving only what a connection was sent), the transport T1 to T7 (the room code, a room id taken, relay-only, the
    transport guard, backpressure, the signalling gate, the key proof bound to the channel), security R2 cluster K (the player's side
-   against a hostile host), and voice chat's two words.
+   against a hostile host), and voice chat's two words. 1.6.4 adds the plan's relay (the website's relay for a host on a Waypoint plan) just after
+   T3, since it shares T3's relay slice.
    It reads the joined net.js through srcjoin, as netcheck did, and takes the gate's harness from tools/checkkit.js (netGate).
    Run: node tools/nettransportcheck.js   (exit 1 on any failure) */
 require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
@@ -508,6 +509,122 @@ pendingChecks.push((async () => {
         check('transport T3 (wired): one judge everywhere — the host\'s status line reads relayNote and warns, a join the player began warns, the video cap reads relayActive, and the raw switch is read nowhere outside the relay slice; Settings shows the switch whenever it is on (so one that came with the saves folder can be seen and switched off), says "on, but no relay set", and removing the relay switches it off',
             !!rlSrc && !/relayOnly\(/.test(outside) && /'Starting host\.\.\.'\) \+ relayNote\(\)\);\n\s*relayWarn\(\);/.test(src) && /setStatus\('Connecting to ' \+ showCode\(code\) \+ '\.\.\.'\); relayWarn\(\); \}/.test(src) && /only = relayActive\(\);/.test(src)
             && /try \{ localStorage\.setItem\('wp_relayOnly', '0'\); \} catch \(e\) \{\}[^\n]*\n\s*saveTurnFields\(\); syncPanel\(\);/.test(settingsSrc) && /on, but no relay set/.test(settingsSrc) && /wpNet\.relayActive\(\)/.test(settingsSrc) && /rb\.style\.display = \(hasRelay \|\| relayFlag\) \? 'block' : 'none';/.test(settingsSrc) && /if \(ryBlock && localStorage\.getItem\('wp_relayOnly'\) === '1'\) ryBlock\.style\.display = 'block';/.test(settingsSrc));
+    }
+
+    /* ---- 1.6.4: the plan's relay, the host's ask and its precedence (the siterelay and relay slices run for real together) ---- */
+    {
+        const srSrc = sl('siterelay'), rlSrc = sl('relay'); let r = {}, err = 'no slice';
+        const CRED = 'Cred+/=Secret99', T0 = 5e12;
+        const site1 = { urls: ['turn:turn.cloudflare.com:3478?transport=udp', 'turns:turn.cloudflare.com:443?transport=tcp'], username: 'u1', credential: CRED };
+        // one page: the two slices with stand-ins for the browser's parts; fetch answers from a table and writes every call down
+        const mkP = o => {
+            o = o || {}; const w = { store: Object.assign({}, o.store || {}), calls: [], timers: [], logs: [], toasts: [], clock: T0, said: 0 };
+            const ls = { getItem: k => (k in w.store ? w.store[k] : null), setItem: (k, v) => { w.store[k] = String(v); } };
+            const win = { wpStepLog: (v, s, f) => w.logs.push(v + '|' + s + '|' + JSON.stringify(f)), wpWebMode: o.web ? { web: () => true } : { web: () => false }, wpSiteRelaySync: () => { w.said++; } };
+            const fetchF = (url, opt) => { w.calls.push({ url, opt }); const a = typeof w.answer === 'function' ? w.answer(url) : w.answer; if (a === 'never') return new Promise(() => {}); if (!a) return Promise.reject(new Error('down')); return Promise.resolve({ status: a.status, json: () => (a.json === undefined ? Promise.reject(new Error('no json')) : Promise.resolve(a.json)) }); };
+            const st = (fn, ms) => { w.timers.push({ fn, ms }); return w.timers.length; }, ct = () => {};
+            const DateS = class extends Date {}; DateS.now = () => w.clock;   // the page's clock is the suite's, a date still a date
+            const net = { peer: null };
+            w.api = new Function('window', 'fetch', 'localStorage', 'location', 'setTimeout', 'clearTimeout', 'Date', 'net', 'toast', srSrc + rlSrc
+                + '\nreturn { ask: siteRelayAsk, servers: siteRelayServers, hosting: siteRelayHosting, words: siteRelayWords, peerOpts: peerOpts, relayActive: relayActive, relayServers: relayServers, apply: siteRelayApply, arm: siteRelayArm, refresh: siteRelayRefresh, clean: cleanSiteRelay, urlOk: siteRelayUrlOk, usage: cleanSiteRelayUsage, held: function() { return _siteRelay; }, why: function() { return _siteRelayWhy; }, WAIT: SITE_RELAY_WAIT };')
+                (win, fetchF, ls, { hostname: o.host || 'localhost' }, st, ct, DateS, net, t => w.toasts.push(t));
+            Object.assign(w, w.api); w.net = net; w.fire = () => { const t = w.timers.splice(0); t.forEach(x => x.fn()); return t.map(x => x.ms); };
+            return w;
+        };
+        const set = (extra) => ({ status: 200, json: Object.assign({ iceServers: [site1], expires: T0 + 12 * 3600000, usage: { used: 41e9, allowance: 50e9, warning: true, over: false, resets: Date.UTC(2026, 11, 1) } }, extra || {}) });
+        const ice = cfg => cfg.iceServers.map(s => [].concat(s.urls).join('+'));
+        if (srSrc && rlSrc) err = await (async () => { try {
+            // (1) a desktop: its own server asked, the set used only while hosting, as STUN and the plan's relay; relay-only with the plan's alone
+            const P = mkP(); P.answer = set();
+            const a1 = await P.ask(), c1 = P.calls[0];
+            r.desk = { a1, url: c1.url, method: c1.opt.method, cred: 'credentials' in c1.opt, body: 'body' in c1.opt, before: P.servers(), beforeIce: ice(P.peerOpts().config) };
+            P.hosting(true);
+            r.desk.hostIce = ice(P.peerOpts().config); r.desk.cred2 = P.peerOpts().config.iceServers[2].credential; r.desk.active = P.relayActive();
+            P.store.wp_relayOnly = '1'; r.desk.only = [P.peerOpts().config.iceTransportPolicy, ice(P.peerOpts().config), P.relayActive()]; delete P.store.wp_relayOnly;
+            P.hosting(false); r.desk.after = [P.servers(), ice(P.peerOpts().config)];
+            // (2) the GM's own relay wins: the site is never asked, and a set already held is not used beside it
+            const O = mkP({ store: { turn_urls: 'turn:own.example.net:3478', turn_user: 'me', turn_pass: 'pw' } }); O.answer = set();
+            const aO = await O.ask(); O.hosting(true);
+            const Q = mkP(); Q.answer = set(); await Q.ask(); Q.hosting(true); Q.store.turn_urls = 'turns:own.example.net:5349';
+            r.own = { aO, calls: O.calls.length, ice: ice(O.peerOpts().config), heldIce: ice(Q.peerOpts().config), words: Q.words() };
+            // (3) a browser: the play host itself, its play cookie, same origin
+            const W = mkP({ web: true, host: 'play.waypointvtt.com' }); W.answer = set(); await W.ask();
+            r.web = { url: W.calls[0].url, opt: W.calls[0].opt };
+            // (4) a hostile set dropped whole or in part; a loopback relay only from a loopback test site
+            const hostile = [{ urls: ['turn:evil.example:3478', 'stun:turn.cloudflare.com', 'turn:turn.cloudflare.com:53', 'turns:turn.cloudflare.com:443?transport=tcp'], username: 'u', credential: 'c' }, { urls: ['turn:turn.cloudflare.com'], username: '', credential: 'c' }, { urls: ['turn:turn.cloudflare.com'], username: 'u\n', credential: 'c' }, { urls: ['turn:turn.cloudflare.com'], username: 'u', credential: 'x'.repeat(513) }, null, 'turn:turn.cloudflare.com'];
+            const H = mkP(); H.answer = { status: 200, json: { iceServers: hostile, expires: T0 + 3600000 } }; await H.ask(); H.hosting(true);
+            const loop = { iceServers: [{ urls: ['turn:127.0.0.1:3478?transport=udp'], username: 'waypoint-dev', credential: 'waypoint-dev' }], expires: T0 + 3600000 };
+            const L1 = mkP(); L1.answer = { status: 200, json: loop }; const l1 = await L1.ask();
+            const L2 = mkP(); L2.answer = { status: 200, json: Object.assign({ test: true }, loop) }; const l2 = await L2.ask();
+            const L3 = mkP({ web: true, host: 'play.waypointvtt.com' }); L3.answer = { status: 200, json: Object.assign({ test: true }, loop) }; const l3 = await L3.ask();
+            const L4 = mkP({ web: true, host: 'localhost' }); L4.answer = { status: 200, json: loop }; const l4 = await L4.ask();
+            const X1 = mkP(); X1.answer = { status: 200, json: { iceServers: [site1], expires: T0 - 5 } }; const x1 = await X1.ask();
+            const X2 = mkP(); X2.answer = { status: 200, json: { iceServers: 'turn:turn.cloudflare.com', expires: T0 + 3600000 } }; const x2 = await X2.ask();
+            r.hostile = { ice: ice(H.peerOpts().config), l: [l1, l2, l3, l4], x: [x1, x2], heldX: [X1.held(), X2.held()] };
+            // (5) every refusal, by its word; the held set kept only through too many asks or a busy site
+            const why = async (ans, held) => { const Z = mkP(); if (held) { Z.answer = set(); await Z.ask(); Z.clock += 7 * 3600000; } Z.answer = ans; const a = await Z.ask(); return { a, kept: !!Z.held(), words: Z.words() }; };
+            r.no = {
+                u401: await why({ status: 401, json: { error: 'unlinked' } }, true), u409: await why({ status: 409, json: { error: 'unlinked' } }),
+                plan: await why({ status: 403, json: { error: 'plan' } }, true), allow: await why({ status: 403, json: { error: 'allowance', usage: { used: 51e9, allowance: 50e9, warning: false, over: true, resets: Date.UTC(2026, 11, 1) } } }, true),
+                off: await why({ status: 404, json: null }, true), slow: await why({ status: 429, json: {} }, true), busy: await why({ status: 503, json: { error: 'unavailable' } }, true), down: await why(null, true), bad: await why({ status: 200 }, false)
+            };
+            // (6) never more than SITE_RELAY_WAIT: a site that never answers is no relay once the wait is up, and hosting goes on
+            const N = mkP(); N.answer = 'never'; let nDone = null; N.ask().then(a => { nDone = a; }); await Promise.resolve(); const waits = N.timers.map(t => t.ms); N.fire(); for (let i = 0; i < 5; i++) await Promise.resolve();
+            r.wait = { waits, nDone, held: N.held() };
+            // (7) a set with more than half its life left is used again with no ask; past half the site is asked; two asks at once ask once
+            const R = mkP(); R.answer = set(); await R.ask(); R.clock += 5 * 3600000; const r2 = await R.ask(); const n2 = R.calls.length; R.clock += 2 * 3600000; await R.ask(); const n3 = R.calls.length;
+            const R2 = mkP(); R2.answer = set(); const pa = R2.ask(), pb = R2.ask(); await pa; await pb;
+            r.reuse = { r2, n2, n3, once: R2.calls.length, same: pa === pb };
+            // (8) the refresh: armed at half life; it asks again and the host's peer takes the new set for the connections after
+            const F = mkP(); F.answer = set(); await F.ask(); F.hosting(true); const peer = { options: { config: { iceServers: [] } } }; F.net.peer = peer; F.timers.length = 0; F.arm(peer);
+            const armed = F.timers.map(t => t.ms); F.clock += 6 * 3600000 + 1; F.answer = set({ iceServers: [{ urls: ['turns:turn.cloudflare.com:443?transport=tcp'], username: 'u2', credential: 'c2' }], expires: F.clock + 12 * 3600000 }); F.fire(); for (let i = 0; i < 6; i++) await Promise.resolve();
+            r.refresh = { armed, calls: F.calls.length, ice: ice(peer.options.config), rearmed: F.timers.filter(t => t.ms !== F.WAIT).map(t => t.ms) };
+            F.hosting(false); r.refresh.cleared = F.servers();
+            const E = mkP(); E.answer = set(); E.hosting(true); const pE = {}; E.net.peer = pE; E.refresh(pE); E.refresh(pE, true); r.refresh.none = E.calls.length;   // no set held: a new player's connection asks the site nothing
+            // (9) nothing of a credential in a log line, words for Settings
+            r.logs = [P.logs, H.logs, F.logs].flat(); r.cred = r.logs.some(l => l.includes(CRED) || l.includes('cloudflare'));
+            r.words = { on: P.words(), said: P.said };
+            // (10) the page's rules are account.js's: the same addresses pass and the same usage reads alike
+            const Acct = require(require('path').join(__dirname, '..', 'system', 'resources', 'app', 'account.js'));
+            const urls = ['turn:turn.cloudflare.com', 'turns:turn.cloudflare.com:443?transport=tcp', 'TURN:TURN.CLOUDFLARE.COM:3478?transport=UDP', 'turn:waypointvtt.com', 'turn:x.waypointvtt.com:1', 'turn:evilwaypointvtt.com', 'turn:waypointvtt.com.evil', 'stun:turn.cloudflare.com', 'turn:turn.cloudflare.com:53', 'turn:turn.cloudflare.com:65536', 'turn:turn.cloudflare.com:0', 'turn:u@turn.cloudflare.com', 'turn:turn.cloudflare.com/p', 'turn:turn.cloudflare.com?transport=x', 'turn:127.0.0.1', 'turn:localhost:3478', 'turn:[::1]:3478', '', 5, null, 'turn:' + 'a'.repeat(260)];
+            r.same = [true, false].every(t => urls.every(u => Acct.relayUrlOk(u, t) === P.urlOk(u, t))) && J(Acct.cleanIceServers(hostile, false)) === J(P.clean(hostile, false))
+                && [{ used: 1, allowance: 2, warning: true, over: 'x', resets: 9 }, { used: -1 }, null, [], { used: 1e19, allowance: 1 }].every(u => J(Acct.cleanRelayUsage(u)) === J(P.usage(u)));
+            return '';
+        } catch (e) { return String(e && e.stack); } })();
+        const STUN2 = ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'], SITE = ['turn:turn.cloudflare.com:3478?transport=udp+turns:turn.cloudflare.com:443?transport=tcp'];
+        const d = r.desk || {}, o2 = r.own || {}, h = r.hostile || {}, n = r.no || {}, wt = r.wait || {}, ru = r.reuse || {}, rf = r.refresh || {};
+        check('1.6.4 the plan\'s relay on a desktop (net.js siterelay and relay sliced and run for real): the host asks its own server (POST /api/account/relay, no body, no cookie); the set is used only while this machine hosts, after STUN as a relay is, its credential as given; Firewall-friendly connections then names the plan\'s relay alone and is active; once hosting ends, the plan\'s relay is no one\'s',
+            err === '' && J(d.a1) === J({ ok: true }) && d.url === '/api/account/relay' && d.method === 'POST' && d.cred === false && d.body === false && d.before === null && J(d.beforeIce) === J(STUN2)
+            && J(d.hostIce) === J(STUN2.concat(SITE)) && d.cred2 === CRED && d.active === false && J(d.only) === J(['relay', SITE, true]) && d.after[0] === null && J(d.after[1]) === J(STUN2), J([err, d]));
+        check('1.6.4 the GM\'s own relay wins: with one set the site is never asked and only it is used, and a plan\'s set already held stands aside the moment one is set, Settings saying so',
+            err === '' && J(o2.aO) === J({ why: 'own' }) && o2.calls === 0 && J(o2.ice) === J(STUN2.concat(['turn:own.example.net:3478'])) && J(o2.heldIce) === J(STUN2.concat(['turns:own.example.net:5349'])) && /Your own relay server above is used/.test(o2.words), J([err, o2]));
+        check('1.6.4 a browser host asks the play host itself, POST /api/relay with its play cookie on the same origin',
+            err === '' && r.web && r.web.url === '/api/relay' && r.web.opt.method === 'POST' && r.web.opt.credentials === 'same-origin', J([err, r.web]));
+        check('1.6.4 a hostile set is checked again on the page whatever the server said: only turn: and turns: on the relay service\'s host or the site\'s domain, no port 53, no STUN entry, a username and a credential as short printable text, or the server goes; a loopback relay only where a desktop\'s own server says it came from a test site or a browser\'s page is itself on a loopback name; a set out of date or a list that is no list is no relay',
+            err === '' && J(h.ice) === J(STUN2.concat(['turns:turn.cloudflare.com:443?transport=tcp'])) && J(h.l.map(x => x.ok === true ? 'ok' : x.why)) === J(['busy', 'ok', 'busy', 'ok']) && J(h.x) === J([{ why: 'busy' }, { why: 'busy' }]) && J(h.heldX) === J([null, null]), J([err, h]));
+        check('1.6.4 every answer that is no relay hosts as before, said by its own word: 401 and the own server\'s 409 not linked, 403 the plan, 403 allowance the month used up, 404 the switch off (said nothing of), 429 too many, 503 and an unreachable site busy, a 200 with no body busy; the plan, the allowance, the link and the switch let a held set go, too many asks and a busy site keep one still in its life; Settings says each in one plain sentence',
+            err === '' && n.u401 && n.u401.a.why === 'unlinked' && !n.u401.kept && /not linked to a Waypoint account/.test(n.u401.words) && n.u409.a.why === 'unlinked'
+            && n.plan.a.why === 'plan' && !n.plan.kept && /your plan does not include one/.test(n.plan.words) && n.allow.a.why === 'allowance' && !n.allow.kept && /used up\. It starts again on December 1\. Players who can connect directly still join\./.test(n.allow.words)
+            && n.off.a.why === 'off' && !n.off.kept && n.off.words === '' && n.slow.a.why === 'slow' && n.slow.kept && n.busy.a.why === 'busy' && n.busy.kept && /website was busy/.test(n.busy.words) && n.down.a.why === 'busy' && n.down.kept && n.bad.a.why === 'busy', J([err, n]));
+        check('1.6.4 hosting never waits on the site more than SITE_RELAY_WAIT (4 s): a site that never answers is no relay once it is up',
+            err === '' && J(wt.waits) === J([4000]) && wt.nDone && wt.nDone.why === 'busy' && wt.held === null, J([err, wt]));
+        check('1.6.4 a set with more than half its life left is used again with no ask, past half the site is asked, and two asks at once are one',
+            err === '' && J(ru.r2) === J({ ok: true, held: true }) && ru.n2 === 1 && ru.n3 === 2 && ru.once === 1 && ru.same === true, J([err, ru]));
+        check('1.6.4 the refresh: armed at half the set\'s life, it asks again and puts the new set into the host peer\'s own options for every connection made after, then arms again; hosting ending lets it go; with no set held a new player\'s connection asks the site nothing',
+            err === '' && J(rf.armed) === J([6 * 3600000]) && rf.calls === 2 && J(rf.ice) === J(STUN2.concat(['turns:turn.cloudflare.com:443?transport=tcp'])) && rf.rearmed.length === 1 && rf.rearmed[0] >= 6 * 3600000 - 1000 && rf.cleared === null && rf.none === 0, J([err, rf]));
+        check('1.6.4 the step log (relay v1) says where it asked, how many servers came and why there was none, and never a credential or an address; Settings is told after each answer, and its line reads the month\'s use against the allowance, the warning near it and when it starts again',
+            err === '' && r.cred === false && r.logs.some(l => l.startsWith('relay v1|ask|{"where":"desktop"}')) && r.logs.some(l => /^relay v1\|got\|\{"servers":1,/.test(l)) && r.words.said >= 1
+            && /^Your plan\u2019s relay carries this table/.test(r.words.on) && r.words.on.includes('41 GB used of 50 GB.') && r.words.on.includes('It starts again on December 1.') && /used most of this month/.test(r.words.on), J([err, r.logs, r.words]));
+        check('1.6.4 the page\'s rules are account.js\'s own: the same addresses pass and fail, the same hostile set cleans alike and the same usage reads alike',
+            err === '' && r.same === true, J([err, r.same]));
+        const outsideSR = srSrc ? noCm(src.replace(srSrc, '')) : 'siteRelayAsk(';
+        const shSR = fnSrc('function startHosting(forceFresh) {', '\n    peer.on(\'open\'', 'startHosting'), lvSR = fnSrc('function leaveSession(silent) {', '\n}\n', 'leaveSession'), jsSR = fnSrc('function joinSession(code, name, isRetry, probe) {', '\n}\n', 'joinSession');
+        check('1.6.4 (wired): only the host asks, in startHosting before any Peer is made and after a browser\'s host token, and as its peer takes a new connection; a player never asks (joinSession names nothing of it); hosting is marked before the Peer is made and let go in leaveSession; the refresh is armed after the gate goes on; no credential is kept in storage (the slice names neither localStorage nor sessionStorage); the Test button tests whichever relay is in use; Settings shows the line',
+            !!srSrc && !/siteRelayAsk\(/.test(outsideSR.replace(/if \(!_siteRelayGo && typeof siteRelayAsk === 'function' && !siteRelayOwn\(\)\) \{[^]*?siteRelayAsk\(\)\.then\(/, '')) && shSR.indexOf('siteRelayAsk().then(') > 0 && shSR.indexOf('siteRelayAsk().then(') < shSR.indexOf('new Peer(') && shSR.indexOf('signalWeb()') < shSR.indexOf('siteRelayAsk().then(')
+            && /siteRelayHosting\(true\);[^\n]*\n\s*gmSignArm\(\);/.test(shSR) && /sigGate\(peer, true, roomPeerId\(code, gen\)\);[^\n]*\n\s*if \(typeof siteRelayArm === 'function'\) siteRelayArm\(peer\);/.test(shSR)
+            && /net\.conns\.push\(conn\);\n\s*if \(typeof siteRelayRefresh === 'function'\) siteRelayRefresh\(peer\);/.test(src) && /siteRelayHosting\(false\)/.test(lvSR) && !/siteRelay/.test(jsSR)
+            && !/localStorage|sessionStorage/.test(noCm((srSrc || 'localStorage').replace(/\/\*[\s\S]*?\*\//g, ''))) && /var t = relayServers\(\);/.test(src) && /new RTCPeerConnection\(\{ iceServers: t, iceTransportPolicy: 'relay' \}\)/.test(src)
+            && /window\.wpSiteRelaySync = siteRelaySync;/.test(settingsSrc) && /id="setSiteRelay"/.test(html) && /id="helpPlanRelay"/.test(html), J([!!srSrc, shSR.length, jsSR.length]));
     }
 
     /* ---- T4 (TRANSPORT-5): the transport guard ---- */

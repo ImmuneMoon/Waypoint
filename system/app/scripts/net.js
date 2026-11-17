@@ -8777,6 +8777,172 @@ net.showCode = showCode; net.typedCode = typedCode; net.codeOwn = codeOwn; net.c
    Waypoint once used has shut down, so the GM configures their own in Settings ▸ Relay server
    (stored under turn_* keys, which stay on this machine — never mirrored to the saves folder).
    One side with a relay is enough: the host's relayed address is reachable from anywhere. */
+// [netcheck:siterelay-start]
+/* The plan's relay (1.6.4; the owner, 2026-11-16, of the relay a Waypoint plan includes; the website's contract of 2026-11-10 and its part 12,
+   the monthly allowance). A GM who hosts on a paid Waypoint plan gets the website's TURN relay for the table, so players behind strict networks
+   (carrier-grade NAT, many mobile networks) can still join. The rules, in order:
+   - Only the HOST asks, as hosting starts (startHosting) and again once a set is half way through its life (a timer, and a new player's
+     connection as a backstop). Players never ask: one side with a relay is enough, since the host's relayed address reaches every player.
+   - The GM's own relay server in Settings wins and is used alone, exactly as before; with one set the site is never asked.
+   - A browser host asks the play host itself (POST /api/relay, its play cookie, same origin). A desktop asks its own server
+     (POST /api/account/relay, system/resources/app/account.js), which holds the install key the page never sees; an unlinked desktop's server
+     answers at once and asks the site nothing.
+   - Hosting never waits on it more than SITE_RELAY_WAIT and never fails because of it: every answer that is no relay hosts as before.
+   - What comes back is checked here whatever the server said (cleanSiteRelay, the same rules as account.js's cleanIceServers, which netcheck
+     holds to each other): turn: or turns: on the relay service's host or the site's own domain, no port 53, a short printable username and
+     credential. A loopback relay (the site's fake one, for a local test) only where the answer came from a loopback test site.
+   - The credentials live in this page's memory alone: never in localStorage, the preferences, the save, a message or a log line. The step
+     log (relay v1) says only what happened and how many.
+   What Settings > Relay server says about it is siteRelayWords, made from the last answer of this session. */
+var SITE_RELAY_WAIT = 4000, SITE_RELAY_HOSTS = ['turn.cloudflare.com'], SITE_RELAY_DOMAIN = 'waypointvtt.com', SITE_RELAY_LOOP = ['localhost', '127.0.0.1'];
+var _siteRelay = null;          // the set held: { servers, expires, got }, this page's memory only
+var _siteRelayHost = false;     // true while this machine hosts a table: only then is the held set used (a GM who then joins another table uses none)
+var _siteRelayWhy = '';         // why the last ask gave no relay: unlinked, plan, allowance, off, slow, busy; '' after one that gave a set
+var _siteRelayUsage = null;     // the month's relay use the site last told us (part 12), for the Settings line
+var _siteRelayAsking = null;    // the ask in flight, so two presses of Host never ask twice
+var _siteRelayTimer = null;     // the refresh at half life
+var _siteRelayGo = false, _siteRelayWait = false;   // startHosting's own: the ask is over and hosting goes on (Go), and an ask is under way (Wait)
+function siteRelayLog(step, facts) { try { if (typeof window !== 'undefined' && typeof window.wpStepLog === 'function') window.wpStepLog('relay v1', step, facts || {}); } catch (e) {} }
+// One relay address as the contract allows it (account.js relayUrlOk says the same)
+function siteRelayUrlOk(u, test) {
+    if (typeof u !== 'string' || u.length > 256) return false;
+    var m = /^(turns?):([a-z0-9.-]{1,200})(?::([0-9]{1,5}))?(?:\?transport=(?:udp|tcp))?$/i.exec(u);
+    if (!m) return false;
+    var host = m[2].toLowerCase(), port = m[3] === undefined ? 0 : Number(m[3]);
+    if (m[3] !== undefined && (port < 1 || port > 65535 || port === 53)) return false;
+    if (SITE_RELAY_HOSTS.indexOf(host) >= 0 || host === SITE_RELAY_DOMAIN || host.slice(-SITE_RELAY_DOMAIN.length - 1) === '.' + SITE_RELAY_DOMAIN) return true;
+    return !!test && SITE_RELAY_LOOP.indexOf(host) >= 0;
+}
+function siteRelayText(v) { return typeof v === 'string' && v.length >= 1 && v.length <= 512 && /^[\x20-\x7e]+$/.test(v); }
+// The site's iceServers, cleaned: a server keeps only the addresses that pass, and one with none or no usable username and credential goes
+function cleanSiteRelay(raw, test) {
+    var list = Array.isArray(raw) ? raw.slice(0, 4) : [], out = [];
+    list.forEach(function(s) {
+        if (!s || typeof s !== 'object' || Array.isArray(s) || !siteRelayText(s.username) || !siteRelayText(s.credential)) return;
+        var urls = (Array.isArray(s.urls) ? s.urls : [s.urls]).slice(0, 8).filter(function(u) { return siteRelayUrlOk(u, test); });
+        if (urls.length) out.push({ urls: urls, username: s.username, credential: s.credential });
+    });
+    return out;
+}
+// The month's use, as account.js cleanRelayUsage reads it: null where it cannot be read
+function cleanSiteRelayUsage(u) {
+    if (!u || typeof u !== 'object' || Array.isArray(u)) return null;
+    var n = function(v) { return typeof v === 'number' && isFinite(v) && v >= 0 && v <= 1e18 ? Math.floor(v) : null; };
+    var used = n(u.used), allowance = n(u.allowance), resets = n(u.resets);
+    if (used === null || allowance === null) return null;
+    var out = { used: used, allowance: allowance, warning: u.warning === true, over: u.over === true };
+    if (resets) out.resets = resets;
+    return out;
+}
+// The set held, while this machine hosts and it has more than a minute left; else null. The relay slice's relayServers asks it.
+function siteRelayServers() {
+    if (!_siteRelayHost || !_siteRelay) return null;
+    return Date.now() < _siteRelay.expires - 60000 ? _siteRelay.servers : null;
+}
+// Is the held set half way through its life (the site gives the same set until then, a new one after)?
+function siteRelayHalf() { return !_siteRelay || Date.now() >= _siteRelay.got + (_siteRelay.expires - _siteRelay.got) / 2; }
+function siteRelayOwn() { return typeof turnConfig === 'function' && !!turnConfig(); }
+// Where to ask: the play host itself on a website's page, else this computer's own server, which holds the install key
+function siteRelayWeb() { var W = typeof window !== 'undefined' ? window.wpWebMode : null; return !!(W && typeof W.web === 'function' && W.web()); }
+// What an answer means: { servers, expires, usage } for a set, else { why, usage? }. status 0 is no answer at all.
+function siteRelayRead(status, j, web) {
+    var o = j && typeof j === 'object' && !Array.isArray(j) ? j : {}, usage = cleanSiteRelayUsage(o.usage), now = Date.now();
+    if (status === 200) {
+        var loop = false; try { loop = web ? SITE_RELAY_LOOP.indexOf(String(location.hostname)) >= 0 : o.test === true; } catch (e) {}
+        var servers = cleanSiteRelay(o.iceServers, loop), ex = typeof o.expires === 'number' && isFinite(o.expires) && o.expires > now && o.expires <= now + 48 * 3600000 ? Math.floor(o.expires) : 0;
+        return servers.length && ex ? { servers: servers, expires: ex, usage: usage } : { why: 'busy', usage: usage };
+    }
+    var why = status === 401 || status === 409 ? 'unlinked' : status === 403 ? (o.error === 'allowance' ? 'allowance' : 'plan') : status === 404 ? 'off' : status === 429 ? 'slow' : 'busy';
+    return { why: why, usage: usage };
+}
+// Ask for the plan's relay (the host alone). Resolves { ok } or { why }; never rejects and never waits past SITE_RELAY_WAIT. A set held with
+// more than half its life left is used again with no ask. A refusal for the plan, the allowance, the link or the switch lets the held set go;
+// too many asks or a busy site keeps a set still in its life.
+function siteRelayAsk() {
+    if (siteRelayOwn()) { _siteRelayWhy = 'own'; return Promise.resolve({ why: 'own' }); }   // the GM's own relay wins: the site is never asked
+    if (_siteRelay && !siteRelayHalf()) return Promise.resolve({ ok: true, held: true });
+    if (_siteRelayAsking) return _siteRelayAsking;
+    if (typeof fetch !== 'function') return Promise.resolve({ why: 'busy' });
+    var web = siteRelayWeb(), done = false;
+    siteRelayLog('ask', { where: web ? 'browser' : 'desktop' });
+    var ask = fetch(web ? '/api/relay' : '/api/account/relay', web ? { method: 'POST', credentials: 'same-origin', cache: 'no-store' } : { method: 'POST', cache: 'no-store' }).then(function(r) {
+        var st = r && typeof r.status === 'number' ? r.status : 0;
+        return (r && typeof r.json === 'function' ? r.json() : Promise.resolve(null)).then(function(j) { return siteRelayRead(st, j, web); }, function() { return siteRelayRead(st, null, web); });
+    }, function() { return { why: 'busy' }; });
+    var wait = new Promise(function(resolve) { setTimeout(function() { resolve({ why: 'busy', late: true }); }, SITE_RELAY_WAIT); });
+    _siteRelayAsking = Promise.race([ask, wait]).then(function(a) {
+        _siteRelayAsking = null; if (done) return a; done = true;
+        if (a.usage) _siteRelayUsage = a.usage;
+        if (a.servers) {
+            _siteRelay = { servers: a.servers, expires: a.expires, got: Date.now() }; _siteRelayWhy = '';
+            siteRelayLog('got', { servers: a.servers.length, hours: Math.round((a.expires - Date.now()) / 360000) / 10, warning: !!(a.usage && a.usage.warning) });
+            siteRelaySay();
+            return { ok: true };
+        }
+        _siteRelayWhy = a.why;
+        if (a.why !== 'slow' && a.why !== 'busy') _siteRelay = null;   // the plan, the allowance, the link or the switch: the held set is not ours to use any more
+        else if (_siteRelay && Date.now() >= _siteRelay.expires - 60000) _siteRelay = null;
+        siteRelayLog('none', { why: a.why, late: !!a.late, kept: !!_siteRelay });
+        siteRelaySay();
+        return { why: a.why };
+    });
+    return _siteRelayAsking;
+}
+// Tell Settings, where it is drawn, that the words changed
+function siteRelaySay() { try { if (typeof window !== 'undefined' && typeof window.wpSiteRelaySync === 'function') window.wpSiteRelaySync(); } catch (e) {} }
+// Hosting begins (true) or ends (false). Ending lets the refresh go; the set itself stays in memory for its life, since the site gives the same.
+function siteRelayHosting(on) {
+    _siteRelayHost = !!on;
+    if (!on && _siteRelayTimer) { clearTimeout(_siteRelayTimer); _siteRelayTimer = null; }
+}
+// After a refresh, the host's peer takes the new set for every connection made from now on (the connection library reads options.config for
+// each new one; connections already up keep their own). Asked with the peer the table was hosted with.
+function siteRelayApply(peer) {
+    if (!peer || net.peer !== peer || !peer.options || typeof peerOpts !== 'function') return;
+    var c = peerOpts().config, oc = peer.options.config || (peer.options.config = {});
+    oc.iceServers = c.iceServers;
+    if (c.iceTransportPolicy) oc.iceTransportPolicy = c.iceTransportPolicy; else delete oc.iceTransportPolicy;
+}
+// Ask again at half life, while this machine still hosts with that peer and no own relay was set meanwhile. A failed refresh tries again in
+// ten minutes while the held set has life left.
+function siteRelayArm(peer) {
+    if (_siteRelayTimer) { clearTimeout(_siteRelayTimer); _siteRelayTimer = null; }
+    if (!_siteRelayHost || !_siteRelay || siteRelayOwn()) return;
+    var at = _siteRelay.got + (_siteRelay.expires - _siteRelay.got) / 2, wait = Math.max(60000, at - Date.now());
+    _siteRelayTimer = setTimeout(function() { _siteRelayTimer = null; siteRelayRefresh(peer, true); }, wait);
+}
+function siteRelayRefresh(peer, timer) {
+    if (!_siteRelay || !_siteRelayHost ||   // only a set this table holds is refreshed: with none, a new player's connection asks the site nothing
+        net.peer !== peer || siteRelayOwn() || (!timer && !siteRelayHalf())) return;
+    siteRelayAsk().then(function(a) {
+        if (net.peer !== peer || !_siteRelayHost) return;
+        siteRelayApply(peer);
+        if (a.ok) siteRelayArm(peer);
+        else if (_siteRelay) { if (_siteRelayTimer) clearTimeout(_siteRelayTimer); _siteRelayTimer = setTimeout(function() { _siteRelayTimer = null; siteRelayRefresh(peer, true); }, 600000); }   // one timer at a time, whichever way the refresh came
+    });
+}
+// What Settings > Relay server says of the plan's relay, in plain sentences, from this session's last answer ('' before any ask)
+function siteRelayWords() {
+    var u = _siteRelayUsage, gb = function(n) { var v = n / 1e9; return (v >= 10 ? Math.round(v) : Math.round(v * 10) / 10) + ' GB'; };
+    var day = ''; if (u && u.resets) { try { day = new Date(u.resets).toLocaleDateString(undefined, { month: 'long', day: 'numeric', timeZone: 'UTC' }); } catch (e) { day = ''; } }
+    var month = u && u.allowance ? 'Your plan’s relay this month: ' + gb(u.used) + ' used of ' + gb(u.allowance) + '.' + (day ? ' It starts again on ' + day + '.' : '') : '';
+    if (siteRelayOwn()) return 'Your own relay server above is used. Your plan’s relay is not asked for while one is set.';
+    if (_siteRelay && !_siteRelayWhy) {
+        var lines = ['Your plan’s relay carries this table for players who cannot connect directly.'];
+        if (month) lines.push(month);
+        if (u && u.warning) lines.push('You have used most of this month’s relay. Once it is used up, players who need the relay cannot join until it starts again. Everyone else still joins.');
+        return lines.join(' ');
+    }
+    switch (_siteRelayWhy) {
+        case 'unlinked': return 'No plan relay: this computer is not linked to a Waypoint account. Link it under Profile to use your plan’s relay.';
+        case 'plan': return 'No plan relay: your plan does not include one. The GM plans do.';
+        case 'allowance': return 'No plan relay: this month’s relay is used up.' + (day ? ' It starts again on ' + day + '.' : '') + ' Players who can connect directly still join.';
+        case 'slow': case 'busy': return 'No plan relay this time: the website was busy or could not be reached. It is asked again the next time you host.';
+        default: return '';   // 'off' (the site's relay is switched off) and before any ask: nothing to say
+    }
+}
+net.siteRelayWords = siteRelayWords;
+// [netcheck:siterelay-end]
 // [netcheck:relay-start]
 var STUN_SERVERS = [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -8792,9 +8958,18 @@ function turnConfig() {
     return { urls: urls, username: user, credential: pass };
 }
 net.turnConfig = turnConfig;
+// 1.6.4: the relay in use, as a list of ICE servers or null. The GM's own relay on this computer comes first and is used alone, exactly as
+// before; else, while this machine hosts, the plan's relay from the website (the siterelay slice above, asked through typeof so that this
+// slice runs alone as it always did). Every reader of "is there a relay" asks this, never turnConfig, which is the own relay alone.
+function relayServers() {
+    var t = turnConfig(); if (t) return [t];
+    var s = typeof siteRelayServers === 'function' ? siteRelayServers() : null;
+    return s && s.length ? s : null;
+}
+net.relayServers = relayServers;
 function iceServers() {
-    var t = turnConfig();
-    return t ? STUN_SERVERS.concat([t]) : STUN_SERVERS.slice();
+    var r = relayServers();
+    return r ? STUN_SERVERS.concat(r) : STUN_SERVERS.slice();
 }
 // Settings ▸ Firewall-friendly connections (wp_relayOnly): force every path through the relay.
 // A direct connection attempt probes many ports in a burst, which some firewalls (Avira, Norton,
@@ -8805,13 +8980,13 @@ function relayOnly() { try { return localStorage.getItem('wp_relayOnly') === '1'
 // the relay does not). One judge for every reader: relay-only is ACTIVE when the switch is on and a relay is set — then the relay is the only server
 // named (no public address lookup beside it) and the only kind of path allowed. Otherwise connections go direct as ever, and the status line and a
 // notice say so instead of claiming a relay.
-function relayActive() { return relayOnly() && !!turnConfig(); }
+function relayActive() { return relayOnly() && !!relayServers(); }
 net.relayActive = relayActive;
 function relayNote() { return relayActive() ? ' (relay-only connections)' : relayOnly() ? ' (Firewall-friendly connections is on, but no relay server is set on this computer: connecting directly)' : ''; }
 function relayWarn() { if (relayOnly() && !relayActive()) toast('Firewall-friendly connections is on, but no relay server is set on this computer, so you are connecting directly. Set one under Settings \u25B8 Relay server, or switch the option off there.'); }
 function peerOpts(key, own) {   // own: true for a join whose room code carries the mark of Waypoint's own signaling server (1.6.3, backlog 241)
-    var t = turnConfig(), o;
-    if (relayOnly() && t) o = { config: { iceServers: [t], iceTransportPolicy: 'relay' } };   // relay-only: the relay alone
+    var r = relayServers(), o;
+    if (relayOnly() && r) o = { config: { iceServers: r, iceTransportPolicy: 'relay' } };   // relay-only: the relay alone
     else o = { config: { iceServers: iceServers() } };   // relay-only means nothing without a relay
     return typeof signalOn === 'function' ? signalOn(o, key, own) : o;   // 1.6.2 (backlog 220): the app's own signaling server, while it is switched on
 }
@@ -8877,12 +9052,12 @@ net.rtcConfig = function() { return peerOpts().config; };   // voice chat (voice
 /* Try the configured relay: gather with relay-only ICE and see whether a relay candidate
    arrives. Resolves { ok, detail }. Used by the Test button in Settings. */
 net.testRelay = function() {
-    var t = turnConfig();
+    var t = relayServers();   // 1.6.4: whichever relay is in use, the GM's own or, while hosting, the plan's
     if (!t) return Promise.resolve({ ok: false, detail: 'No relay configured.' });
     return new Promise(function(resolve) {
         var pc, done = false, errs = [];
         var finish = function(ok, detail) { if (done) return; done = true; try { pc.close(); } catch (e) {} resolve({ ok: ok, detail: detail }); };
-        try { pc = new RTCPeerConnection({ iceServers: [t], iceTransportPolicy: 'relay' }); }
+        try { pc = new RTCPeerConnection({ iceServers: t, iceTransportPolicy: 'relay' }); }
         catch (e) { return resolve({ ok: false, detail: 'Bad relay settings: ' + (e.message || e) }); }
         pc.createDataChannel('probe');
         pc.onicecandidate = function(e) { if (e.candidate && e.candidate.type === 'relay') finish(true, 'Relay answered (' + e.candidate.protocol + ' ' + e.candidate.address + ').'); };
@@ -9077,6 +9252,15 @@ function startHosting(forceFresh) {
         load();
         return;
     }
+    // 1.6.4: with no relay of the GM's own, the plan's relay is asked for first (siteRelayAsk, at most SITE_RELAY_WAIT), and hosting then goes on
+    // whatever the answer: a relay only helps, so none never stops a table. A second press of Host while it asks does nothing. A browser's host
+    // token, asked for above, is carried across the wait.
+    if (!_siteRelayGo && typeof siteRelayAsk === 'function' && !siteRelayOwn()) {
+        if (_siteRelayWait) return;
+        var tokR = _hostTok; _siteRelayWait = true; setStatus('Starting host\u2026');
+        siteRelayAsk().then(function() { _siteRelayWait = false; _siteRelayGo = true; _hostTok = tokR; try { startHosting(forceFresh); } finally { _siteRelayGo = false; _hostTok = null; } });
+        return;
+    }
     if (typeof fightsHold === 'function') fightsHold();   // 1.6.2: a fight running on this machine alone goes in the save before the table empties net.combats, and comes back with the table (fightsBack)
     leaveSession(true);
     defaultStageMode(getActiveCampaign());   // hosting without opening the panel first still starts on the default
@@ -9089,9 +9273,11 @@ function startHosting(forceFresh) {
     if (resumed && !net._sessBack && typeof lastHostSess === 'function') net._sessBack = lastHostSess(resumed);   // 1.6.3 (finding 1): a crash's record of the table's own state, kept beside the code (a reload's own came through SESS_KEEP)
     var code = resumed || (ownSig ? CODE_MARK : '') + makeCode();
     var gen = resumed ? net._hostGen : 0;
+    if (typeof siteRelayHosting === 'function') siteRelayHosting(true);   // 1.6.4: from here the plan's relay, where one is held, is this table's
     gmSignArm();   // security (2026-10-01): this GM's signing key, read or made the first time, before anyone can connect
     var peer = new Peer(roomPeerId(code, gen), peerOpts(_hostTok || undefined));   // 1.6.2: a browser's host token as its key, on the app's own server
     sigGate(peer, true, roomPeerId(code, gen));   // transport: every signaling message is judged before the library acts on it
+    if (typeof siteRelayArm === 'function') siteRelayArm(peer);   // 1.6.4: and it is asked for again at half its life, for the connections made after
     net.peer = peer; net.role = 'host'; net.code = code; net.roomPeer = roomPeerId(code, gen);   // the room id players dial: what a player's proof of their table key is checked over
     net._lastStanceSig = null;   // the first save after hosting starts sends the ceiling
     net._lastSoundSig = null;    // and the sound list
@@ -9150,6 +9336,7 @@ function startHosting(forceFresh) {
     peer.on('connection', function(conn) {
         if (!connShapeOk(conn) || !wireGuard(conn) || !unadmittedRoom(conn)) { try { conn.close(); } catch (e) {} return; }   // security (2026-10-01): not the library's own data connection in the one encoding every Waypoint asks for, one whose transport cannot be guarded, or no room among those waiting for the GM — refused unanswered, never listed
         net.conns.push(conn);
+        if (typeof siteRelayRefresh === 'function') siteRelayRefresh(peer);   // 1.6.4: a plan's relay past half its life is asked for again, for the players after this one
         _connMeta[conn.peer] = { openedAt: Date.now(), hellos: 0 };
         assetNoteSends(conn);   // security (2026-10-01): what this connection is sent is noted, so the asset gate serves it only that
         wireConn(conn);
@@ -9390,6 +9577,7 @@ function leaveSession(silent) {
     if (window.wpRenderCombatStrip) setTimeout(function() { window.wpRenderCombatStrip(); }, 0);
     if (window.wpSheets && window.wpSheets.tokenTurned) setTimeout(function() { window.wpSheets.tokenTurned(null, true); }, 0);   // HUD frame (HF5b): CombatRound reads 0 again, so a sheet or HUD showing it repaints (no render runs on a leave)
     stopHeartbeat();
+    if (typeof siteRelayHosting === 'function') siteRelayHosting(false);   // 1.6.4: the plan's relay is this machine's only while it hosts
     if (!silent) setIndicator(null);
     setPausedLocal(false);
     setTravelLockLocal(false);

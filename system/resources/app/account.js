@@ -15,6 +15,10 @@
 //   DELETE /api/account                          -> { ok: true }   unlinked here whether or not the site could be told
 //   POST   /api/account/name   { name }          -> { name } | 409 { error: 'taken' } | 429 { error: 'slow' } | 400 { error: 'empty' }   this computer's name
 //                                                   on the account (1.6.2; the owner, 2026-11-09: each computer named in the app's settings)
+//   POST   /api/account/relay                    -> { iceServers, expires, usage?, test? } | 409 { error: 'unlinked' } (asks nothing) | 401 { error:
+//                                                   'unlinked' } | 403 { error: 'plan' } | 403 { error: 'allowance', usage? } | 404 { error: 'off' } |
+//                                                   429 { error: 'slow' } | 503 { error: 'unavailable' } | 502 { error: 'site' | 'offline' }   the plan's relay
+//                                                   for a table this computer hosts (1.6.4, below)
 // Every answer the site gives is read as data: only the fields named here, each by its own rule.
 'use strict';
 const fs = require('fs');
@@ -22,7 +26,7 @@ const path = require('path');
 const os = require('os');
 
 const SITE = 'https://waypointvtt.com';   // the apex: www answers with a 301, and a redirected POST becomes a GET
-const ACCOUNT_ROUTES = ['/api/account', '/api/account/link', '/api/account/poll', '/api/account/prefs', '/api/account/adopt', '/api/account/name'];
+const ACCOUNT_ROUTES = ['/api/account', '/api/account/link', '/api/account/poll', '/api/account/prefs', '/api/account/adopt', '/api/account/name', '/api/account/relay'];
 const KEY_RE = /^wpk_[0-9a-f]{16}_[A-Za-z0-9_-]{43}$/, KEYID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const CODE_RE = /^[BCDFGHJKLMNPQRSTVWXZ2-9]{4}-[BCDFGHJKLMNPQRSTVWXZ2-9]{4}$/, DEVICE_RE = /^[A-Za-z0-9_-]{16,200}$/;
 const PREF_KEYS = ['wp_profile', 'wp_tableKeys', 'wp_gmPins', 'wp_gmRooms'];   // what the account keeps: who you are at a table, never wp_hostId
@@ -51,6 +55,59 @@ function cleanAccount(a) {
     return out;
 }
 
+/*
+  The plan's relay (1.6.4; the owner, 2026-11-16, of the relay a Waypoint plan includes; the website's contract of 2026-11-10 and its part 12,
+  the monthly allowance). A GM who hosts on a paid plan gets short-lived TURN credentials from the site, so players behind strict networks can
+  still reach the table. Only the host asks, by POST /api/relay with no body and the install key as a bearer; an unlinked computer never asks.
+  The page cannot hold the key, so it asks this server (POST /api/account/relay) and this server asks the site on its behalf, as every other
+  account call does. The credentials are handed to the page, which needs them to open its connections, and nowhere else: never written to
+  disk, never put in a log line.
+
+  Everything the site says is cleaned here and cleaned again on the page (net.js's siterelay slice holds the same rules, and netcheck holds
+  the two to each other): a relay address only turn: or turns: on a host the contract names (RELAY_HOSTS: the managed relay service's own
+  host, and the site's own domain and its subdomains), a port other than 53, nothing after the host but ?transport=udp or tcp; a username
+  and a credential as short printable strings; at most 4 servers of 8 addresses each. A loopback relay (the site's fake one for a local
+  test) is taken only while this server talks to a loopback test site, and the answer then says test: true so that the page takes it too.
+*/
+const RELAY_HOSTS = ['turn.cloudflare.com'], RELAY_DOMAIN = 'waypointvtt.com', RELAY_WAIT_MS = 4000;
+const RELAY_LOOP = ['localhost', '127.0.0.1'];
+// One relay address, as the contract allows it: turn: or turns:, a named host, an optional port that is not 53, an optional transport
+function relayUrlOk(u, test) {
+    if (typeof u !== 'string' || u.length > 256) return false;
+    const m = /^(turns?):([a-z0-9.-]{1,200})(?::([0-9]{1,5}))?(?:\?transport=(?:udp|tcp))?$/i.exec(u);
+    if (!m) return false;
+    const host = m[2].toLowerCase(), port = m[3] === undefined ? 0 : Number(m[3]);
+    if (m[3] !== undefined && (port < 1 || port > 65535 || port === 53)) return false;
+    if (RELAY_HOSTS.includes(host) || host === RELAY_DOMAIN || host.endsWith('.' + RELAY_DOMAIN)) return true;
+    return !!test && RELAY_LOOP.includes(host);
+}
+// A username or a credential: printable ASCII, 1 to 512 characters (the site's own bound)
+function relayText(v) { return typeof v === 'string' && v.length >= 1 && v.length <= 512 && /^[\x20-\x7e]+$/.test(v); }
+// The site's iceServers, cleaned: each server keeps only the addresses that pass, and a server with none, or with no usable username and
+// credential, is dropped whole. Answers [] for anything that holds no server.
+function cleanIceServers(raw, test) {
+    const list = Array.isArray(raw) ? raw.slice(0, 4) : [], out = [];
+    list.forEach(s => {
+        if (!isObj(s) || !relayText(s.username) || !relayText(s.credential)) return;
+        const urls = (Array.isArray(s.urls) ? s.urls : [s.urls]).slice(0, 8).filter(u => relayUrlOk(u, test));
+        if (urls.length) out.push({ urls, username: s.username, credential: s.credential });
+    });
+    return out;
+}
+// The month's relay use as the site counts it (part 12): bytes used and allowed, the 80% warning and over only as true, and when it resets
+// (milliseconds since the epoch). null where it cannot be read, so the page says nothing about it.
+function cleanRelayUsage(u) {
+    if (!isObj(u)) return null;
+    const n = (v) => typeof v === 'number' && isFinite(v) && v >= 0 && v <= 1e18 ? Math.floor(v) : null;
+    const used = n(u.used), allowance = n(u.allowance), resets = n(u.resets);
+    if (used === null || allowance === null) return null;
+    const out = { used, allowance, warning: u.warning === true, over: u.over === true };
+    if (resets) out.resets = resets;
+    return out;
+}
+// When a set runs out: a time ahead of now and no more than two days ahead (the site says about 12 hours), else none
+function cleanExpires(v, now) { return typeof v === 'number' && isFinite(v) && v > now && v <= now + 48 * 3600 * 1000 ? Math.floor(v) : 0; }
+
 function makeHandler(cfg) {
     const file = path.join(cfg.savesDir, 'account.json'), base = cfg.base || SITE, version = cfg.version || '';
     const doFetch = cfg.fetch || (typeof fetch === 'function' ? fetch : null), now = cfg.now || Date.now, log = cfg.log || function() {};
@@ -60,9 +117,9 @@ function makeHandler(cfg) {
     const keep = (rec) => { const tmp = file + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(rec, null, 1), 'utf8'); fs.renameSync(tmp, file); };
     const drop = () => { try { fs.unlinkSync(file); } catch (e) {} };
     // One call to the site: { status, json } or { status: 0 } where it could not be reached
-    const site = async (method, p, body, key) => {
+    const site = async (method, p, body, key, ms) => {   // ms: a shorter wait than TIMEOUT_MS, for a call hosting waits on (the relay)
         if (!doFetch) return { status: 0 };
-        const ac = typeof AbortController === 'function' ? new AbortController() : null, t = ac ? setTimeout(() => ac.abort(), TIMEOUT_MS) : null;
+        const ac = typeof AbortController === 'function' ? new AbortController() : null, t = ac ? setTimeout(() => ac.abort(), ms || TIMEOUT_MS) : null;
         try {
             const h = { 'Accept': 'application/json' }; if (body !== undefined) h['Content-Type'] = 'application/json'; if (key) h.Authorization = 'Bearer ' + key;
             const r = await doFetch(base + p, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body), redirect: 'error', signal: ac ? ac.signal : undefined });
@@ -147,9 +204,27 @@ function makeHandler(cfg) {
                 try { keep(Object.assign({}, k, { name: got })); } catch (e) {}
                 log('renamed'); send(res, 200, { name: got });   // what the site kept, never what was typed
             });
+            if (p === '/api/account/relay' && m === 'POST') return body(req, res, async () => {   // 1.6.4: the plan's relay for a table this computer hosts
+                const k = keyOf(); if (!k) { log('relay: not linked, nothing asked'); return send(res, 409, { error: 'unlinked' }); }   // an unlinked computer never asks the site
+                const test = /^http:\/\/(localhost|127\.0\.0\.1):/.test(base), r = await site('POST', '/api/relay', undefined, k.key, RELAY_WAIT_MS);
+                if (r.status === 401) { drop(); log('relay: unlinked by the site'); return send(res, 401, { error: 'unlinked' }); }   // as every other account call: a key the site no longer knows goes
+                const o = isObj(r.json) ? r.json : {}, usage = cleanRelayUsage(o.usage);
+                if (r.status === 200) {
+                    const servers = cleanIceServers(o.iceServers, test), expires = cleanExpires(o.expires, now());
+                    if (!servers.length || !expires) { log('relay: an answer with no usable relay'); return send(res, 502, { error: 'site' }); }
+                    log('relay: got ' + servers.length + ' server' + (servers.length === 1 ? '' : 's'));   // never the addresses or the credentials
+                    const out = { iceServers: servers, expires }; if (usage) out.usage = usage; if (test) out.test = true;
+                    return send(res, 200, out);
+                }
+                if (r.status === 403) { const allow = o.error === 'allowance'; log('relay: ' + (allow ? 'allowance used up' : 'not on the plan')); return send(res, 403, allow && usage ? { error: 'allowance', usage } : { error: allow ? 'allowance' : 'plan' }); }
+                if (r.status === 404) { log('relay: switched off on the site'); return send(res, 404, { error: 'off' }); }
+                if (r.status === 429) { log('relay: too many asks'); return send(res, 429, { error: 'slow' }); }
+                if (r.status === 503) { log('relay: the site\'s relay did not answer'); return send(res, 503, { error: 'unavailable' }); }
+                log('relay ' + (r.status || 'offline')); send(res, 502, { error: r.status ? 'site' : 'offline' });
+            });
             send(res, 404, { error: 'not found' });
         })().catch(() => { try { send(res, 500, { error: 'failed' }); } catch (e) {} });
     };
 }
 
-module.exports = { SITE, ACCOUNT_ROUTES, PREF_KEYS, siteBase, cleanPrefs, cleanAccount, cleanName, makeHandler };
+module.exports = { SITE, ACCOUNT_ROUTES, PREF_KEYS, RELAY_HOSTS, RELAY_DOMAIN, siteBase, cleanPrefs, cleanAccount, cleanName, relayUrlOk, cleanIceServers, cleanRelayUsage, makeHandler };

@@ -3466,6 +3466,32 @@ function fxLib(sys) { var lib = {}; (sys && Array.isArray(sys.effects) ? sys.eff
 // Stage 6 F4a: the full item library by id (host-local, never sent): a GM-only item on a PC reaches its owner inline through it (players' fields only)
 // Stage 6 library L1c: with a library on this machine, a lookup (the system's items first, then the library) rather than a map of thousands
 function itemLib(sys) { var lib = {}; (sys && Array.isArray(sys.items) ? sys.items : []).forEach(function(d) { if (d && typeof d.id === 'string' && /^i_[A-Za-z0-9_]{1,24}$/.test(d.id)) lib[d.id] = d; }); var L = typeof window !== 'undefined' ? window.wpLibrary : null; return L && typeof L.size === 'function' && L.size() > 0 ? function(id) { return Object.prototype.hasOwnProperty.call(lib, id) ? lib[id] : (L.entryFor || L.entry)(id); } : lib; }   // a GM-only pack's entry reads GM-only (entryFor)
+// [netcheck:lockopts-start]
+// 1.6.3 (the review of backlog 170): how the host judges a player's change by hand to a field with a Locked while, the same way their own sheet
+// judges it. It answers applyEdit's opts: { player: true, view, lockChar, lockCtx }. view is their own view of the system (wpSheets.playerSystem),
+// which drops a lock whose test reads a GM-only value, so such a lock never holds them back nor tells them of itself. lockChar is the copy of
+// the character they hold (systemcore charFor: no GM-only row, a kept curse read off, GM-only effects inline), so the test reads what their
+// sheet reads; it is made from ch as it stands, which a batch hands in before it changes anything. lockCtx is their token's context on the
+// map they are on, with its round and its range, as char-apply builds it, so a lock on a posture or a token's own effect holds here as their
+// sheet draws it. Asked by the char-edit, char-edits and char-style branches only where the field can meet a lock, since all this costs.
+// Where no view can be made it answers { player: true }, which judges by the GM's own lock: closed, never open
+function lockOptsHost(S, camp, ch, prof, F) {
+    var o = { player: true }, W = window.wpSheets, view = W && typeof W.playerSystem === 'function' ? W.playerSystem(camp) : null; if (!view || !prof) return o;
+    o.view = view;
+    try { var cp = typeof S.charFor === 'function' ? S.charFor(ch, view, prof.id, { lib: typeof fxLib === 'function' ? fxLib(camp.system) : undefined, items: typeof itemLib === 'function' ? itemLib(camp.system) : undefined, full: camp.system }) : null; if (cp) o.lockChar = cp; } catch (e) {}
+    try {
+        var loc = prof.location, map = typeof loc === 'string' && camp.items && Object.prototype.hasOwnProperty.call(camp.items, loc) ? camp.items[loc] : null;
+        if (map && typeof S.tokenCtx === 'function' && typeof S.charTokenOn === 'function') {
+            var vt = window.wpVtt, rl = function(k) { return !vt || (vt.rulesOn ? vt.rulesOn(k) : vt.on(k)); }, tk = S.charTokenOn(map, ch.id, prof.id, { strict: true });
+            var tc = S.tokenCtx(map, tk, { turning: rl('turning'), posture: rl('posture'), elevation: rl('elevation'), viewer: prof.id });
+            if (typeof S.withRound === 'function') tc = S.withRound(tc, typeof net.combatRoundOf === 'function' ? net.combatRoundOf(loc, tk && tk.id) : null);
+            if (typeof rangeTo === 'function' && typeof S.withRange === 'function') tc = S.withRange(tc, rangeTo(camp, map, loc, tk, prof.id));
+            if (tc) o.lockCtx = tc;
+        }
+    } catch (e) {}
+    return o;
+}
+// [netcheck:lockopts-end]
 // 5h: a teammate's copy (partial: hover fields only) cannot work out a hover line whose formula reads a field it does not hold (HP max from
 // ST read the default: "HP 9 / 10" where the owner saw "9 / 14"), so the host sends the lines it works out from the owner's own view.
 function withHoverLines(v, src, view, lib, items, full) {   // full (F6): the GM's system, so the owner's view counts what rows they cannot see change
@@ -3623,11 +3649,11 @@ function styleTake(charId, named, got, sys) {
 }
 // The answer to a look we sent: the host's, or our own clock's, or a send that failed. Kept: the host holds what was sent. Refused or
 // unanswered: back to what the host last said, and said as any refused or unanswered change is: a look never goes back without a word
-function styleDone(rid, ok, reason) {
+function styleDone(rid, ok, reason, msg) {   // msg (1.6.3, backlog 170): the host's words for a refusal, as text (a field's Locked while)
     var p = styleOwn(_stylePending, rid) ? _stylePending[rid] : null; if (!p) return; clearTimeout(p.timer); delete _stylePending[rid];
     if (ok) { var hl = styleOwn(_charHostLook, p.charId) ? _charHostLook[p.charId] : (_charHostLook[p.charId] = {}); if (p.look) hl[p.fieldId] = JSON.parse(JSON.stringify(p.look)); else delete hl[p.fieldId]; }
     styleLay(p.charId);
-    if (!ok && window.wpSheets && window.wpSheets.styleResult) window.wpSheets.styleResult(rid, false, reason);
+    if (!ok && window.wpSheets && window.wpSheets.styleResult) window.wpSheets.styleResult(rid, false, reason, msg || '');
     if (window.wpSheets) window.wpSheets.charChanged(p.charId);
 }
 // Host: a character's changed looks, to each connection that holds the character WHOLE (its owner's). looks names the fields; what is sent is
@@ -3656,8 +3682,9 @@ net.charStyle = function(charId, fieldId, rec) {
     var c = camp.chars && styleOwn(camp.chars, charId) ? camp.chars[charId] : null; if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
     if (!camp.system) return { error: 'No system at this table.' };
     if (!_styleHostOk) return { error: 'The GM\'s Waypoint is older than yours. It keeps no text style on sheets.' };   // known from its snapshot: nothing is sent, laid or waited for
-    var res = S.applyStyle(camp.system, c, fieldId, rec, window.wpFormula, { player: true });
-    if (!res.ok) return { error: res.reason === 'stale' ? 'That text changed. Its look was not kept.' : res.reason === 'style' ? 'That look cannot be kept here.' : 'That text cannot be styled.' };
+    var lkZ = (S.editHasLock && S.editHasLock(camp.system, fieldId) && window.wpSheets && typeof window.wpSheets.tokenCtxFor === 'function' ? window.wpSheets.tokenCtxFor(charId, camp) : null);
+    var res = S.applyStyle(camp.system, c, fieldId, rec, window.wpFormula, lkZ ? { player: true, lockCtx: lkZ } : { player: true });
+    if (!res.ok) return { error: res.locked && res.msg ? res.msg : res.reason === 'stale' ? 'That text changed. Its look was not kept.' : res.reason === 'style' ? 'That look cannot be kept here.' : 'That text cannot be styled.' };   // 1.6.3 (backlog 170): a lock says its own words
     var rid = 'y' + Math.random().toString(36).slice(2, 10);
     _stylePending[rid] = { charId: charId, fieldId: fieldId, look: res.look, timer: setTimeout(function() { styleDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
     styleLay(charId);
@@ -3695,7 +3722,8 @@ net.charEdit = function(charId, fieldId, value) {
     if (window.wpVtt && !window.wpVtt.on('sheets')) return { error: 'Character sheets are off here.' };
     var c = (camp && camp.chars && typeof charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, charId) ? camp.chars[charId] : null); if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };   // another PC's hover copy is never edited, not even optimistically
     if (!camp.system) return { error: 'No system at this table.' };
-    var res = S.applyEdit(camp.system, c, fieldId, value, window.wpFormula, { player: true });
+    var lkX = (S.editHasLock && S.editHasLock(camp.system, fieldId) && window.wpSheets && typeof window.wpSheets.tokenCtxFor === 'function' ? window.wpSheets.tokenCtxFor(charId, camp) : null);   // 1.6.3 (the review of backlog 170): a lock is read in the token context this app's own sheet reads it in, so the two never differ
+    var res = S.applyEdit(camp.system, c, fieldId, value, window.wpFormula, lkX ? { player: true, lockCtx: lkX } : { player: true });
     if (!res.ok) return { error: res.locked && res.msg ? res.msg : res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed.' };   // 1.6.3 (backlog 170): a lock says its own words
     var rid = 'e' + Math.random().toString(36).slice(2, 10);
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, fieldId) ? JSON.parse(JSON.stringify(c.values[fieldId])) : undefined;
@@ -3825,7 +3853,8 @@ net.charEdits = function(charId, list) {
     var work = Object.assign({}, c, { values: JSON.parse(JSON.stringify(c.values || {})) }), batch = [], seen = {};   // judged in order on a working copy, as the host does
     for (var i = 0; i < list.length; i++) {
         var e = list[i]; if (!e || typeof e.fieldId !== 'string' || Object.prototype.hasOwnProperty.call(seen, e.fieldId)) return { error: 'That change is not allowed.' }; seen[e.fieldId] = 1;
-        var res = S.applyEdit(camp.system, work, e.fieldId, e.value, window.wpFormula, { player: true });
+        var lkY = (S.editHasLock && S.editHasLock(camp.system, e.fieldId) && window.wpSheets && typeof window.wpSheets.tokenCtxFor === 'function' ? window.wpSheets.tokenCtxFor(charId, camp) : null);
+        var res = S.applyEdit(camp.system, work, e.fieldId, e.value, window.wpFormula, { player: true, lockChar: c, lockCtx: lkY });   // 1.6.3 (backlog 170, and its review): a lock is judged on the character as it stood before the batch (c), as the host judges it, so the batch never hangs on its order
         if (!res.ok) return { error: res.locked && res.msg ? res.msg : res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed.' };   // 1.6.3 (backlog 170)
         work.values[e.fieldId] = res.value;
         batch.push({ fieldId: e.fieldId, value: res.value, prev: c.values && Object.prototype.hasOwnProperty.call(c.values, e.fieldId) ? JSON.parse(JSON.stringify(c.values[e.fieldId])) : undefined });
@@ -9044,7 +9073,7 @@ function handleMessage(msg, conn) {
         // is never taken off by an older word of the host's
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSystemCore) return;
         var SY = window.wpSystemCore;
-        if (msg.type !== 'charStyle') { if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_stylePending, msg.rid)) return; styleDone(msg.rid, msg.type === 'charstyle-ack', SY.cleanDenyReason(msg.reason)); return; }
+        if (msg.type !== 'charStyle') { if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_stylePending, msg.rid)) return; styleDone(msg.rid, msg.type === 'charstyle-ack', SY.cleanDenyReason(msg.reason), typeof SY.cleanItemMsg === 'function' ? SY.cleanItemMsg(msg.msg) : ''); return; }
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
         var campL = campOf(msg.campId); if (!campL || !campL.system || !campL.chars) return;   // the system always comes first
         if (typeof msg.id !== 'string' || !Object.prototype.hasOwnProperty.call(campL.chars, msg.id) || !campL.chars[msg.id] || !msg.looks || typeof msg.looks !== 'object' || Array.isArray(msg.looks)) return;   // own ids only
@@ -9099,7 +9128,7 @@ function handleMessage(msg, conn) {
         // text, then the record against the text the host holds). Every refusal past the ids' shape is answered
         var Sy = SC(), Fy = window.wpFormula; if (!Sy || !Fy) return;
         var qy = Sy.cleanCharStyle(msg); if (!qy) return;
-        var denyY = function(reason) { try { conn.send({ type: 'charstyle-deny', rid: qy.rid, reason: reason }); } catch (e) { sendFailed(e); } };
+        var denyY = function(reason, words) { try { conn.send(words ? { type: 'charstyle-deny', rid: qy.rid, reason: reason, msg: words } : { type: 'charstyle-deny', rid: qy.rid, reason: reason }); } catch (e) { sendFailed(e); } };   // words (1.6.3): a lock's own
         if (net.paused || peerPaused(conn.peer)) { denyY('paused'); return; }   // frozen table (or this player is paused): no looks either
         if (!styleLimit && window.wpDiceCore) styleLimit = window.wpDiceCore.RateLimit({ perMs: 100, burst: Sy.LIMITS.editsPerWindow, windowMs: Sy.LIMITS.editWindowMs, table: 400 });
         var limY = styleLimit ? styleLimit.allow(conn.peer, Date.now()) : true;
@@ -9108,8 +9137,9 @@ function handleMessage(msg, conn) {
         var campY = getActiveCampaign(), chY = (campY && campY.chars && Object.prototype.hasOwnProperty.call(campY.chars, qy.charId) ? campY.chars[qy.charId] : null);
         if (!campY || !campY.system || !chY) { denyY('missing'); return; }
         var profY = net.roster[conn.peer]; if (chY.npc || !chY.ownerId || !profY || (chY.ownerId !== profY.id && !(typeof handsTo === 'function' && handsTo(chY, profY.id)))) { denyY('owner'); return; }
-        var resY = Sy.applyStyle(campY.system, chY, qy.fieldId, qy.look, Fy, { player: true });
-        if (!resY.ok) { denyY(resY.reason); return; }
+        var lkFY = Sy.fieldById(campY.system, qy.fieldId), optY = lkFY && lkFY.lock ? (typeof lockOptsHost === 'function' ? lockOptsHost(Sy, campY, chY, profY, Fy) : { player: true }) : { player: true };   // 1.6.3 (the review of backlog 170): a look is judged by the player's own view's lock, as an edit is, so a GM-only lock never holds them back nor tells them of itself
+        var resY = Sy.applyStyle(campY.system, chY, qy.fieldId, qy.look, Fy, optY);
+        if (!resY.ok) { denyY(resY.reason, resY.locked ? resY.msg : ''); return; }
         if (resY.look) { if (!chY.looks || typeof chY.looks !== 'object') chY.looks = {}; chY.looks[qy.fieldId] = resY.look; }
         else if (chY.looks && typeof chY.looks === 'object') { delete chY.looks[qy.fieldId]; if (!Object.keys(chY.looks).length) delete chY.looks; }
         chY.updated = Date.now();
@@ -9132,11 +9162,11 @@ function handleMessage(msg, conn) {
         var campE = getActiveCampaign(), chE = (campE && campE.chars && typeof q.charId === 'string' && Object.prototype.hasOwnProperty.call(campE.chars, q.charId) ? campE.chars[q.charId] : null);
         if (!campE || !campE.system || !chE) { denyE('missing'); return; }
         var profE = net.roster[conn.peer]; if (chE.npc || !chE.ownerId || !profE || (chE.ownerId !== profE.id && !(typeof handsTo === 'function' && handsTo(chE, profE.id)))) { denyE('owner'); return; }
-        var lkFE = Se.fieldById(campE.system, q.fieldId), viewE = lkFE && lkFE.lock && window.wpSheets && typeof window.wpSheets.playerSystem === 'function' ? window.wpSheets.playerSystem(campE) : null;   // 1.6.3 (backlog 170): where the field has a lock, the player is judged by their own view's (none where its test reads a GM-only value)
-        var resE = Se.applyEdit(campE.system, chE, q.fieldId, q.value, Fe, viewE ? { player: true, view: viewE } : { player: true });
+        var optE = typeof Se.editHasLock === 'function' && Se.editHasLock(campE.system, q.fieldId) ? (typeof lockOptsHost === 'function' ? lockOptsHost(Se, campE, chE, profE, Fe) : { player: true }) : { player: true };   // 1.6.3 (backlog 170, and its review): where the field or one it fills has a lock, the player is judged as their own sheet judges it (lockOptsHost)
+        var resE = Se.applyEdit(campE.system, chE, q.fieldId, q.value, Fe, optE);
         if (!resE.ok && resE.locked) { try { conn.send({ type: 'char-deny', rid: q.rid, reason: resE.reason, msg: resE.msg }); } catch (e) { sendFailed(e); } return; }   // 1.6.3 (backlog 170): Locked while, said in its own words
         if (!resE.ok) { denyE(resE.reason); return; }
-        var flE = resE.clear || typeof Se.autoFills !== 'function' ? {} : Se.autoFills(campE.system, chE, q.fieldId, resE.value, Fe);   // 1.6.2 (auto apply): what typing it fills, in the same change
+        var flE = resE.clear || typeof Se.autoFills !== 'function' ? {} : Se.autoFills(campE.system, chE, q.fieldId, resE.value, Fe, optE);   // 1.6.2 (auto apply): what typing it fills, in the same change (1.6.3: never a field locked for this player now)
         var bcE = {}; bcE[q.fieldId] = resE.value; Object.keys(flE).forEach(function(k) { bcE[k] = flE[k]; }); var bwE = Se.budgetWatch(campE.system, chE, bcE, Fe);   // 126: a point budget is judged before anything is stored
         if (bwE.refuse) { try { conn.send({ type: 'char-deny', rid: q.rid, reason: 'budget', msg: Se.budgetSays(bwE.refuse) }); } catch (e) { sendFailed(e); } return; }
         if (typeof Se.autoStore === 'function') Se.autoStore(chE, q.fieldId, resE.value, flE); else { chE.values = chE.values || {}; chE.values[q.fieldId] = resE.value; } chE.updated = Date.now();   // 1.6.2 (auto apply): its own mark goes, each field filled is marked
@@ -9210,13 +9240,13 @@ function handleMessage(msg, conn) {
         if (!campM || !campM.system || !chM) { denyM('missing'); return; }
         var profM = net.roster[conn.peer]; if (chM.npc || !chM.ownerId || !profM || (chM.ownerId !== profM.id && !(typeof handsTo === 'function' && handsTo(chM, profM.id)))) { denyM('owner'); return; }
         var workM = Object.assign({}, chM, { values: JSON.parse(JSON.stringify(chM.values || {})), af: chM.af && typeof chM.af === 'object' ? Object.assign({}, chM.af) : undefined }), dM = {};   // 1.6.2 (auto apply): its marks with it
-        var viewM;   // 1.6.3 (backlog 170): the player's own view, made below only where a field of the batch has a lock
+        var optM;   // 1.6.3 (backlog 170, and its review): how a lock is judged for this player (lockOptsHost: their view, their copy as it stood BEFORE the batch, their token's context), made below once a batch and only where a field of the batch can meet a lock
         for (var iM = 0; iM < qm.values.length; iM++) {
-            var lkFM = Sm.fieldById(campM.system, qm.values[iM].fieldId); if (lkFM && lkFM.lock && viewM === undefined) viewM = window.wpSheets && typeof window.wpSheets.playerSystem === 'function' ? window.wpSheets.playerSystem(campM) : null;   // 1.6.3 (backlog 170): the player's own view, worked out once a batch and only where a field it names has a lock
-            var resM = Sm.applyEdit(campM.system, workM, qm.values[iM].fieldId, qm.values[iM].value, Fm, viewM ? { player: true, view: viewM } : { player: true });
+            if (optM === undefined && typeof Sm.editHasLock === 'function' && Sm.editHasLock(campM.system, qm.values[iM].fieldId)) optM = typeof lockOptsHost === 'function' ? lockOptsHost(Sm, campM, chM, profM, Fm) : { player: true };   // worked out on chM, the character before the batch, so the answer never hangs on the batch's order
+            var resM = Sm.applyEdit(campM.system, workM, qm.values[iM].fieldId, qm.values[iM].value, Fm, optM || { player: true });
             if (!resM.ok && resM.locked) { try { conn.send({ type: 'char-deny', rid: qm.rid, reason: resM.reason, msg: resM.msg }); } catch (e) { sendFailed(e); } return; }   // 1.6.3 (backlog 170): Locked while, said in its own words
             if (!resM.ok) { denyM(resM.reason); return; }   // one refused value refuses the batch: nothing is stored
-            var fidM = qm.values[iM].fieldId, flM = resM.clear || typeof Sm.autoFills !== 'function' ? {} : Sm.autoFills(campM.system, workM, fidM, resM.value, Fm);   // 1.6.2 (auto apply)
+            var fidM = qm.values[iM].fieldId, flM = resM.clear || typeof Sm.autoFills !== 'function' ? {} : Sm.autoFills(campM.system, workM, fidM, resM.value, Fm, optM || { player: true });   // 1.6.2 (auto apply); 1.6.3: never a field locked for this player
             if (typeof Sm.autoStore === 'function') Sm.autoStore(workM, fidM, resM.value, flM); else workM.values[fidM] = resM.value;
             dM[fidM] = resM.value; Object.keys(flM).forEach(function(k) { dM[k] = flM[k]; });
         }

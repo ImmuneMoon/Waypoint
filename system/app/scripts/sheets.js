@@ -8,6 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast, toastAction, pressHold, keepPlace } from './io.js';
 import { autoFills, autoStore } from './systemcore.js';   // 1.6.2 (auto apply)
 import { REST_MAX } from './systemcore.js';   // 1.6.2 (backlog 138 (j) fold R1)
+import { editHasLock, cleanFieldLock } from './systemcore.js';   // 1.6.3 (the review of backlog 170): whether a change can meet a field's Locked while, and what Save keeps of one
 import { laySync } from './systemcore.js';   // 1.6.2 Laid from: rows another list's rows lay, kept in step beside openSync
 import { picRef, cssColor } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
@@ -2452,11 +2453,12 @@ function pinChip(g, ctx) {   // a Pin in a section's header (like a handbook chi
 // and sets its counters back to their start, as ONE change (commitMany). Live only on the real sheet or HUD (decided when drawn, as the dial is),
 // inert when there is nothing to reset; null when the section places no pool and no counter
 function resetChip(sec, ctx) {
-    var who = { gm: ctx.gm, own: ctx.own }, rt = resetTargets(ctx.sys, ctx.c, sec, F(), who); if (!rt.any) return null;
+    var lockedWords = function(list, after) { if (!Array.isArray(list) || !list.length) return ''; var s = list.join(', ') + (list.length > 1 ? ' are locked' : ' is locked'); return after ? ' (' + s + ')' : ' ' + s + '.'; };   // 1.6.3 (the review of backlog 170): the words the chip adds for the fields it leaves out because their Locked while holds now, set as its title, never as markup
+    var who = { gm: ctx.gm, own: ctx.own, tctx: function() { return typeof tokenCtxFor === 'function' && typeof getActiveCampaign === 'function' ? tokenCtxFor(ctx.c.id, getActiveCampaign()) : null; } }, rt = resetTargets(ctx.sys, ctx.c, sec, F(), who); if (!rt.any) return null;   // 1.6.3 (the review of backlog 170): a field locked now is left out (resetTargets' locked), its lock read in the sheet's token context
     var live = _fxLive && !(ctx.vctx && ctx.vctx.preview) && !window.wpPopout, targets = rt.targets, barred = typeof fillBarred === 'function' && fillBarred(), on = live && targets.length > 0 && !barred;   // K5b: the GM fills pools at this table
     var ch = el('span', 'sheet-sec-chip sheet-sec-reset'); ch.setAttribute('role', 'button'); ch.tabIndex = 0; ch.dataset.reset = sec.id; ch.setAttribute('aria-disabled', on ? 'false' : 'true');   // focusable even when inert (it says why); data-reset keeps the focus across a redraw
     ch.appendChild(iconNode('icon:rotate-left', 'sheet-chip-ico')); ch.appendChild(el('span', 'sheet-chip-txt', sec.resetText || 'Reset all'));
-    ch.title = !live ? 'Resets this section\u2019s pools and counters (on the sheet itself)' : barred ? 'The GM resets pools at this table' : !rt.allowed ? 'Only the GM resets these' : targets.length ? 'Resets ' + targets.map(function(t) { return t.label; }).join(', ') : 'Nothing to reset: every pool is full and every counter at its start';
+    ch.title = !live ? 'Resets this section\u2019s pools and counters (on the sheet itself)' : barred ? 'The GM resets pools at this table' : !rt.allowed ? 'Only the GM resets these' : targets.length ? 'Resets ' + targets.map(function(t) { return t.label; }).join(', ') + lockedWords(rt.locked, true) : rt.locked && rt.locked.length ? 'Nothing to reset now.' + lockedWords(rt.locked, false) : 'Nothing to reset: every pool is full and every counter at its start';
     var go = function(e) {
         e.preventDefault(); e.stopPropagation(); if (!on || ch.closest('#systemModal')) return;
         sec.fields.forEach(function(pl) { var pk = pl && typeof pl.id === 'string' ? ctx.c.id + '|' + pl.id : ''; if (pk && _stepPend[pk]) { clearTimeout(_stepPend[pk].timer); delete _stepPend[pk]; } });   // the reset is the later action: a minus/plus burst still waiting on this section's counters is dropped
@@ -6868,10 +6870,11 @@ function commit(c, f, value) {
         return;
     }
     if (!canWrite()) return;
-    var res = applyEdit(sys, c, f.id, value, F(), { hand: true });   // 1.6.3 (backlog 170): the GM's own hand, which a field's Locked while holds too
+    var lkO = { hand: true }; if (typeof editHasLock === 'function' && editHasLock(sys, f.id) && typeof tokenCtxFor === 'function') lkO.lockCtx = tokenCtxFor(c.id, camp);   // 1.6.3 (the review of backlog 170): a lock is read in the token context the sheet draws it in (tokenCtxFor), worked out only where the field or one it fills has a lock
+    var res = applyEdit(sys, c, f.id, value, F(), lkO);   // 1.6.3 (backlog 170): the GM's own hand, which a field's Locked while holds too
     if (!res.ok) { toast(res.locked && res.msg ? res.msg : res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed here.'); renderViews(c.id); return; }
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined;
-    var fillG = res.clear || typeof autoFills !== 'function' ? {} : autoFills(sys, c, f.id, res.value, F()), extraG = null;   // 1.6.2 (auto apply): what typing it fills, in the same change, so one Revert takes it all back
+    var fillG = res.clear || typeof autoFills !== 'function' ? {} : autoFills(sys, c, f.id, res.value, F(), lkO), extraG = null;   // 1.6.2 (auto apply): what typing it fills, in the same change, so one Revert takes it all back
     Object.keys(fillG).forEach(function(k) { (extraG = extraG || {})[k] = c.values && Object.prototype.hasOwnProperty.call(c.values, k) ? clone(c.values[k]) : undefined; });
     lastChange = { charId: c.id, fieldId: f.id, prev: prev, extra: extraG, af: c.af ? clone(c.af) : null };
     if (typeof budgetNote === 'function') budgetNote(sys, c, f.id, res.value);   // 126: the GM's own change is never refused; a notice says when it takes the character over a budget
@@ -7224,7 +7227,7 @@ function lookPrune(who) {
 }
 function lookSays(reason) { return reason === 'stale' ? 'That text changed. Its look was not kept.' : reason === 'style' ? 'That look cannot be kept here.' : reason === 'field' ? 'That text cannot be styled.' : ''; }
 // A player's look the host refused or never answered (net.js styleDone): its own words for a look, the edit's words for the rest
-function styleResult(rid, ok, reason) { if (ok) return; var w = lookSays(reason); if (w) { toast(w); renderViews(null); } else editResult(rid, false, reason, '', ''); }
+function styleResult(rid, ok, reason, msg) { if (ok) return; var w = lookSays(reason); if (w) { toast(w); renderViews(null); } else editResult(rid, false, reason, typeof msg === 'string' ? msg : '', ''); }   // msg (1.6.3, backlog 170): the host's own words, a field's Locked while
 // [systemcheck:commitlook-end]
 // HUD frame (HF4b): several values of one character as ONE change (a section's Reset all). The GM's is one delta, and one Revert undoes it all
 // (lastChange.extra); a player's is one char-edits message the host judges all-or-nothing. At most LIMITS.editBatch values
@@ -7234,12 +7237,14 @@ function commitMany(c, list) {
     if (isClient()) { var n = net(); if (!n || !n.charEdits) return; var r = n.charEdits(c.id, list); if (r && r.error) toast(r.error); renderViews(c.id); return; }
     if (!canWrite()) return;
     var work = Object.assign({}, c, { values: clone(c.values || {}), af: c.af ? clone(c.af) : undefined }), d = {}, prevs = {}, ids = [], af0 = c.af ? clone(c.af) : null;   // judged in order on a working copy, all or none (1.6.2: its marks with it)
+    var lkM = { hand: true, lockChar: c }, lkCtxDone = false;   // 1.6.3 (the review of backlog 170): a lock is judged on the character as it stood BEFORE the batch (c), so the batch never hangs on its order, in the sheet's token context, worked out once and only where a field can meet a lock
     for (var i = 0; i < list.length; i++) {
         var q = list[i]; if (!q || typeof q.fieldId !== 'string' || Object.prototype.hasOwnProperty.call(d, q.fieldId)) continue;
-        var res = applyEdit(sys, work, q.fieldId, q.value, F(), { hand: true });   // 1.6.3 (backlog 170): by hand, as one commit is
+        if (!lkCtxDone && typeof editHasLock === 'function' && editHasLock(sys, q.fieldId)) { lkCtxDone = true; if (typeof tokenCtxFor === 'function') lkM.lockCtx = tokenCtxFor(c.id, camp); }
+        var res = applyEdit(sys, work, q.fieldId, q.value, F(), lkM);   // 1.6.3 (backlog 170): by hand, as one commit is
         if (!res.ok) { toast(res.locked && res.msg ? res.msg : res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed here.'); renderViews(c.id); return; }
         prevs[q.fieldId] = c.values && Object.prototype.hasOwnProperty.call(c.values, q.fieldId) ? clone(c.values[q.fieldId]) : undefined;
-        var flC = res.clear || typeof autoFills !== 'function' ? {} : autoFills(sys, work, q.fieldId, res.value, F());   // 1.6.2 (auto apply)
+        var flC = res.clear || typeof autoFills !== 'function' ? {} : autoFills(sys, work, q.fieldId, res.value, F(), lkM);   // 1.6.2 (auto apply); 1.6.3: never a field locked now
         if (typeof autoStore === 'function') autoStore(work, q.fieldId, res.value, flC); else work.values[q.fieldId] = res.value;
         d[q.fieldId] = res.value; ids.push(q.fieldId);
         Object.keys(flC).forEach(function(k) { if (!Object.prototype.hasOwnProperty.call(prevs, k)) prevs[k] = c.values && Object.prototype.hasOwnProperty.call(c.values, k) ? clone(c.values[k]) : undefined; d[k] = flC[k]; if (ids.indexOf(k) < 0) ids.push(k); });
@@ -9175,6 +9180,13 @@ function refreshErrors() {
         if (numK && dec(f.decMin) !== null && dec(f.decMax) !== null && dec(f.decMax) < dec(f.decMin)) said.push('The most decimals is below the fewest, so Save shows ' + dec(f.decMin) + ' always.');
         if (f.group === true && !numK) said.push('Only a number, a formula or a skill groups its thousands, so Save drops 1,000s.');
         if (said.length) said.forEach(function(m) { (warningsById[f.id] = warningsById[f.id] || []).push({ prop: 'fmt', message: m }); });
+    });
+    draft.fields.forEach(function(f) {   // 1.6.3 (the review of backlog 170): a field's Locked while, as the cleaner reads it (systemcore cleanFieldLock), so what Save drops is said under the row
+        var lk = f && f.lock && typeof f.lock === 'object' ? f.lock : null, t = lk && typeof lk['if'] === 'string' ? lk['if'].trim() : ''; if (!t) return;
+        var say = '';
+        if (f.kind === 'formula' || f.kind === 'item-list' || f.kind === 'effects') say = 'Only a field someone types in can be locked, so Save drops Locked while.';
+        else if (typeof cleanFieldLock === 'function' && !cleanFieldLock(lk, F())) { var pk = null; try { pk = F().parse(typeof cleanFormulaText === 'function' ? (cleanFormulaText(t) || t) : t); } catch (er) { pk = null; } say = (pk && pk.ok ? 'Locked while rolls dice' : 'Locked while is no test Save can keep') + ', so Save drops it. The field is then never locked.'; }
+        if (say) (errorsById[f.id] = errorsById[f.id] || []).push({ prop: 'lock', message: say });
     });
     draft.fields.forEach(function(f) {   // 1.6.0: a pool down to minus its max, as the cleaner reads it
         if (!f || f.minNeg !== true) return;
@@ -14649,7 +14661,7 @@ function restDoes(ids, does, times, rest) {
         });
         does.forEach(function(x) {   // the sections first, whatever the list's order
             if (!x || x.k !== 'reset' || !S || typeof S.resetTargets !== 'function') return; var sc = (sys.sheet && Array.isArray(sys.sheet.sections) ? sys.sheet.sections : []).filter(function(y) { return y && y.id === x.id; })[0]; if (!sc) return;
-            S.resetTargets(sys, work, sc, F(), { gm: true }).targets.forEach(function(t) { put(t.fieldId, t.value); });
+            S.resetTargets(sys, work, sc, F(), { gm: true, rules: true }).targets.forEach(function(t) { put(t.fieldId, t.value); });   // rules (1.6.3): a rest is the rules, so a field's Locked while holds it back no more than an action
         });
         does.forEach(function(x) {   // then the pools, against the counters as reset
             if (!x || x.k !== 'pool' || !S || typeof S.makeResolver !== 'function') return; var f = (sys.fields || []).filter(function(y) { return y && y.id === x.id && y.kind === 'resource'; })[0]; if (!f) return;

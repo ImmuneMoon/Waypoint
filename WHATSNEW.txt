@@ -73,10 +73,10 @@ Smaller things
 - That list now checks the page again when you pick a row, so an undo made
   while it was open still takes you to the block that names the card.
 - A field can be locked while something about the character holds, such as
-  a droid that's switched off. Set Locked while on its row in the Fields
+  a robot that's switched off. Set Locked while on its row in the Fields
   tab. Nobody can change it by hand then, you included, and the sheet shows
   a small lock with your words for why, while damage and actions still
-  reach it.
+  reach it. A section's Reset all skips a locked field and resets the rest.
 
 WAYPOINT 1.6.2 — What's New
 ============================

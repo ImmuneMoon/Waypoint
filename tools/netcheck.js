@@ -3393,6 +3393,7 @@ pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
     const edSrc = between('// [netcheck:charedit-start]', '// [netcheck:charedit-end]', 'charedit'), msSrc = between('// [netcheck:charedits-start]', '// [netcheck:charedits-end]', 'charedits'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const lkSrcL = between('// [netcheck:lockopts-start]', '// [netcheck:lockopts-end]', 'lockopts');   // the review: how the host judges a player's lock
     const sysL = Sx.cleanSystem({ v: 1, name: 'L', rolls: [], fields: [
         { id: 'f_off', key: 'Off', kind: 'toggle', edit: 'owner' }, { id: 'f_sec', key: 'Secret', kind: 'number', def: 2, vis: 'gm' },
         { id: 'f_hp', key: 'HP', kind: 'number', def: 5, edit: 'owner', lock: { 'if': 'Off', says: 'Switched off.' } },
@@ -3403,7 +3404,7 @@ pendingChecks.push((async () => {
         const conn = { peer: 'pA', send: box(out.answer) };
         const net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }], roster: { pA: { id: 'u_a' } } };
         const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => { out.views++; return Sx.cleanSystem(c.system, { F: Fx, gmView: false }); }, charChanged() {} }, wpDiceCore: null };
-        new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + src)(
+        new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + lkSrcL + '\n' + dlSrc + '\n' + src)(
             msg, conn, net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true });
         out.vals = camp.chars.c_1.values; return out;
     };
@@ -3417,6 +3418,60 @@ pendingChecks.push((async () => {
     const lockB = host(msSrc, B([{ fieldId: 'f_gr', value: 4 }, { fieldId: 'f_hp', value: 9 }]), true), openB = host(msSrc, B([{ fieldId: 'f_gr', value: 4 }, { fieldId: 'f_hp', value: 9 }]), false);
     check('1.6.3 Locked while (host char-edits): one locked field refuses the whole batch in the lock\'s words with nothing stored, and the batch goes through whole once the test no longer holds; the view is worked out once a batch',
         said(lockB) && j(openB.answer) === j([{ type: 'char-ack', rid: 'e1' }]) && openB.vals.f_gr === 4 && openB.vals.f_hp === 9 && openB.views === lockB.views + 1 && lockB.views === 1, j([lockB.answer, openB.answer, openB.vals, openB.views]));
+})());
+
+// 1.6.3, the review of backlog 170: the host judges a player's change by hand to a locked field as their own sheet judges it (lockOptsHost, sliced
+// and run for real): by their own view's lock, on the copy of the character they hold (systemcore charFor), in their token's context on the map
+// they are on, so a lock on a posture holds on the host as their sheet draws it; a field their typing fills is passed over while its lock holds, the typed field still stored; and a look on a text is held by
+// the lock as an edit is, in the lock's own words, while a lock whose test reads a GM-only value never holds it back
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const edSrc = between('// [netcheck:charedit-start]', '// [netcheck:charedit-end]', 'charedit'), msSrc = between('// [netcheck:charedits-start]', '// [netcheck:charedits-end]', 'charedits'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const lkSrc = between('// [netcheck:lockopts-start]', '// [netcheck:lockopts-end]', 'lockopts'), stSrc = between('// [netcheck:charstyle-start]', '// [netcheck:charstyle-end]', 'charstyle');
+    const sysK = Sx.cleanSystem({ v: 1, name: 'K', rolls: [], combat: { postures: [{ id: 'p_stand', name: 'Standing' }, { id: 'p_prone', name: 'Prone' }] }, items: [{ id: 'i_a', key: 'Ring', name: 'Ring', category: 'Gear' }, { id: 'i_g', key: 'Gem', name: 'Gem', category: 'Gear', vis: 'gm', mods: [{ f: 'f_st', op: 'add', v: 2 }] }], fields: [
+        { id: 'f_off', key: 'Off', kind: 'toggle', edit: 'owner' }, { id: 'f_sec', key: 'Secret', kind: 'number', def: 2, vis: 'gm' },
+        { id: 'f_gear', key: 'Gear', kind: 'item-list', edit: 'owner', list: { cats: ['Gear'], on: {} } }, { id: 'f_st', key: 'ST', kind: 'number', def: 1, edit: 'owner' },
+        { id: 'f_hp', key: 'HP', kind: 'number', def: 5, edit: 'owner', lock: { 'if': 'Posture = Posture.Prone', says: 'Down.' } },
+        { id: 'f_cnt', key: 'Charm', kind: 'number', edit: 'owner', lock: { 'if': 'ST < 2', says: 'Too weak.' } },
+        { id: 'f_ht', key: 'Ht', kind: 'number', edit: 'owner', fills: [{ f: 'f_wt', formula: 'Ht * 2' }] }, { id: 'f_wt', key: 'Wt', kind: 'number', edit: 'owner', lock: { 'if': 'Off', says: 'Switched off.' } },
+        { id: 'f_nk', key: 'Nick', kind: 'text', edit: 'owner', lock: { 'if': 'Off', says: 'Switched off.' } }, { id: 'f_ng', key: 'Tag', kind: 'text', edit: 'owner', lock: { 'if': 'Secret > 0' } }] }, { F: Fx, gmView: true });
+    const chK = (off, rows) => ({ id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_off: off, f_hp: 5, f_nk: 'Bo', f_ng: 'Al', f_gear: rows || [{ id: 'r_1', defId: 'i_a', qty: 1 }, { id: 'r_2', defId: 'i_g', qty: 1 }] } });
+    const host = (src, msg, off, pos, rows) => {   // pos: the posture of the player's token on the map they are on; rows: the character's Gear, where it differs
+        const camp = { id: 'k', system: sysK, chars: { c_1: chK(off, rows) }, items: { m_1: { id: 'm_1', type: 'map', meta: {}, whiteboard: [{ id: 't_1', type: 'rect', isChar: true, charId: 'c_1', ownerId: 'u_a', posture: pos || 'p_stand', x: 0, y: 0, width: 50, height: 50 }] } } };
+        const out = { answer: [], owner: [], saves: 0 }, box = bx => m => { packCheck(m); bx.push(JSON.parse(JSON.stringify(m))); };
+        const conn = { peer: 'pA', send: box(out.answer) };
+        const net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }], roster: { pA: { id: 'u_a', location: 'm_1' } }, syncCharStyle() {} };
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null };
+        new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'var charLimit = lim, styleLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + lkSrc + '\n' + dlSrc + '\n' + src)(
+            msg, conn, net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true });
+        out.ch = camp.chars.c_1; return out;
+    };
+    const E1 = (fid, v) => ({ type: 'char-edit', rid: 'e1', charId: 'c_1', fieldId: fid, value: v }), ack = [{ type: 'char-ack', rid: 'e1' }];
+    const B1 = (fid, v) => ({ type: 'char-edits', rid: 'e1', charId: 'c_1', values: [{ fieldId: fid, value: v }] }), down = [{ type: 'char-deny', rid: 'e1', reason: 'value', msg: 'Down.' }];
+    const prE = host(edSrc, E1('f_hp', 9), false, 'p_prone'), stE = host(edSrc, E1('f_hp', 9), false, 'p_stand'), prB = host(msSrc, B1('f_hp', 9), false, 'p_prone'), stB = host(msSrc, B1('f_hp', 9), false, 'p_stand');
+    check('the review of backlog 170 (host char-edit and char-edits): a lock that reads the token (Posture = Posture.Prone) is judged in the player\'s token context on the map they are on, as their own sheet draws it: refused in its words while their token lies prone, nothing stored, and acked while it stands',
+        j(prE.answer) === j(down) && prE.ch.values.f_hp === 5 && prE.saves === 0 && j(stE.answer) === j(ack) && stE.ch.values.f_hp === 9 && j(prB.answer) === j(down) && prB.ch.values.f_hp === 5 && j(stB.answer) === j(ack) && stB.ch.values.f_hp === 9, j([prE.answer, stE.answer, prB.answer, stB.answer]));
+    const lohF = new Function('window', 'net', lkSrc + '\nreturn lockOptsHost;'), campO = { system: sysK, items: {} }, ownCp = Sx.charFor(chK(true), Sx.cleanSystem(sysK, { F: Fx, gmView: false }), 'u_a', { full: sysK });
+    const lo = lohF({ wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) } }, {})(Sx, campO, chK(true), { id: 'u_a' }, Fx), loNo = lohF({}, {})(Sx, campO, chK(true), { id: 'u_a' }, Fx);
+    check('the review of backlog 170 (lockOptsHost): it answers the player\'s own view and the copy of the character they hold (charFor\'s, the same values key for key), with no token context where they stand on no map; with no view to be had it answers a plain player\'s mark, which judges by the GM\'s own lock',
+        j(Object.keys(lo)) === j(['player', 'view', 'lockChar']) && j(lo.lockChar.values) === j(ownCp.values) && lo.view.fields.every(f => f.id !== 'f_sec') && j(loNo) === j({ player: true }), j([Object.keys(lo), loNo]));
+    // A GM-only item whose change raises ST reaches its owner as a nameless inline row (F4a), which their sheet counts, while the players'
+    // view of the system has no such item, so the GM's own character read on that view leaves the change out. The lock "ST < 2" is open on
+    // their sheet (ST 3, with the row as a plain GM-only row or as a curse the GM keeps on) and held on that wrong reading (ST 1)
+    const curse = [{ id: 'r_1', defId: 'i_a', qty: 1 }, { id: 'r_2', defId: 'i_g', qty: 1, on: true, keptOn: 1 }], viewK = Sx.cleanSystem(sysK, { F: Fx, gmView: false }), itemsK = {}; sysK.items.forEach(d => { itemsK[d.id] = d; });
+    const cntG = host(edSrc, E1('f_cnt', 3), false), cntC = host(edSrc, E1('f_cnt', 3), false, null, curse), cntB = host(msSrc, B1('f_cnt', 3), false, null, curse), cntL = host(edSrc, E1('f_cnt', 3), false, null, [{ id: 'r_1', defId: 'i_a', qty: 1 }]);
+    const oldWay = Sx.applyEdit(sysK, chK(false, curse), 'f_cnt', 3, Fx, { player: true, view: viewK }), ownOf = rows => Sx.resolveAll(viewK, Sx.charFor(chK(false, rows), viewK, 'u_a', { items: itemsK, full: sysK }), Fx).f_cnt.locked;
+    check('the review of backlog 170 (host char-edit and char-edits, finding 4): a lock is read on the copy of the character the player holds, so a GM-only row, or a curse the GM keeps on, counts on the host exactly as on their sheet: a lock their sheet shows open (ST 3, its change carried inline) is open on the host and the value stored, where judging the GM\'s own character on their view refused it; a lock that holds on their sheet is still refused in its words, nothing stored',
+        ownOf(curse) === undefined && ownOf(chK(false).values.f_gear) === undefined && oldWay.locked === true && j(cntG.answer) === j(ack) && cntG.ch.values.f_cnt === 3 && j(cntC.answer) === j(ack) && cntC.ch.values.f_cnt === 3 && j(cntB.answer) === j(ack) && cntB.ch.values.f_cnt === 3
+        && ownOf([{ id: 'r_1', defId: 'i_a', qty: 1 }]) === 'Too weak.' && j(cntL.answer) === j([{ type: 'char-deny', rid: 'e1', reason: 'value', msg: 'Too weak.' }]) && cntL.ch.values.f_cnt === undefined && cntL.saves === 0, j([oldWay, cntG.answer, cntC.answer, cntB.answer, cntL.answer]));
+    const fl = host(edSrc, E1('f_ht', 5), true), flO = host(edSrc, E1('f_ht', 5), false), flB = host(msSrc, { type: 'char-edits', rid: 'e1', charId: 'c_1', values: [{ fieldId: 'f_ht', value: 5 }] }, true);
+    check('the review of backlog 170 (host char-edit and char-edits): typing a field never fills a field locked for that player now; the typed field is stored and acked, and once the lock no longer holds the fill is written',
+        j(fl.answer) === j(ack) && fl.ch.values.f_ht === 5 && fl.ch.values.f_wt === undefined && j(flB.answer) === j(ack) && flB.ch.values.f_wt === undefined && flO.ch.values.f_wt === 10, j([fl.ch.values, flO.ch.values, flB.ch.values]));
+    const S1 = fid => ({ type: 'char-style', rid: 'y1', charId: 'c_1', fieldId: fid, look: null });
+    const stL = host(stSrc, S1('f_nk'), true), stO = host(stSrc, S1('f_nk'), false), stG = host(stSrc, S1('f_ng'), true);
+    check('the review of backlog 170 (host char-style): a look on a locked text is refused in the lock\'s own words, nothing stored or saved; with the lock not holding it is acked; a lock whose test reads a GM-only value never holds a player\'s look back, as their own view has none',
+        j(stL.answer) === j([{ type: 'charstyle-deny', rid: 'y1', reason: 'value', msg: 'Switched off.' }]) && stL.saves === 0 && j(stO.answer) === j([{ type: 'charstyle-ack', rid: 'y1' }]) && j(stG.answer) === j([{ type: 'charstyle-ack', rid: 'y1' }]), j([stL.answer, stO.answer, stG.answer]));
 })());
 
 // 1.5.0 GM-only pools: a visible pool whose max is worked out from a GM-only field is GM-only as a whole. The host's char-edit, char-edits and
@@ -19016,7 +19071,7 @@ pendingChecks.push((async () => {
     check('fold 2\'s review (source): the join snapshot seeds what its connection holds of the fights, and its close (fogForgetConn) and a new table (combatForget) forget it; CombatRound reads net.combatRoundOf in the host\'s roll for a player, in an apply action and on the sheet, never the fight the GM plays; the board\'s ring on a token whose turn it is asks every fight on the map through onTurnHere',
         /\n    if \(snapOk && typeof combatsSentSeed === 'function'\) combatsSentSeed\(conn, snap\.combats\);/.test(src) && /function fogForgetConn\(peer\) \{[^\n]*if \(typeof combatsSentForget === 'function'\) combatsSentForget\(peer\); \}/.test(src)
         && /function combatForget\(fid\) \{ if \(fid === undefined\) \{ _combatSeen = Object\.create\(null\); _combatsSent = Object\.create\(null\); \}/.test(src)
-        && (src.match(/net\.combatRoundOf\(/g) || []).length === 3 /* 1.6.0: and Or resisted by's list roll, judging its Shown where in the target's fight (moved on purpose) */ && !/net\.combatFor\(loc[QA]\)/.test(src) && (shSrcR.match(/n\.combatRoundOf\(/g) || []).length === 1
+        && (src.match(/net\.combatRoundOf\(/g) || []).length === 4 /* 1.6.0: and Or resisted by's list roll, judging its Shown where in the target's fight (moved on purpose); 1.6.3: and lockOptsHost, reading a field's Locked while in the round the player's own sheet reads it in (moved on purpose) */ && !/net\.combatFor\(loc[QA]\)/.test(src) && (shSrcR.match(/n\.combatRoundOf\(/g) || []).length === 1
         && /el\.classList\.toggle\('wb-turn', onTurnHere\(window\.wpNet, activeMap\.id, item\.id\)\);/.test(wbSrcR) && (wbSrcR.match(/onTurnHere\(/g) || []).length === 2);
     check('fold 2 (source): the join snapshot says fights (true) and carries the fights on the map the player lands on; a player\'s app takes the word through typeof before it reads the snapshot\'s fights and reads every later copy by it; nothing of the host reads a fight by its map\'s id any more (net.js, whiteboard.js, pills.js and sheets.js); fights start, change and end in fightSet alone and end in combatOver alone; the host\'s branches are 31 (voice-up of voice chat, 1.5.9, the newest) (1.6.0, a deliberate change of this pin: blast-roll, the core\'s gap 8, a player\'s press of a blast card, makes the host\'s branches 34; 1.6.0 B5, a deliberate change of this pin: hit-ask, a player asking which locations their target has, makes them 35; 1.6.0, a deliberate change of this pin: sheet-out, a player asking the host\'s reader for a file of their own character, makes them 36; 1.6.2, a deliberate change of this pin: show-ask, a player asking to put drawings on the map, makes them 37)',
         /combats: combatsFor\(prof\.id, prof\.location\), fights: true,/.test(src) && /\n    if \(typeof fightsKnow === 'function'\) fightsKnow\(msg\.fights\);[^\n]*\n    net\.combats = typeof cleanFightsIn === 'function' \? cleanFightsIn\(msg\.combats\) : cleanCombats\(msg\.combats\);/.test(snapBody)

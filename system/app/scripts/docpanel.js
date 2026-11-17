@@ -438,18 +438,24 @@ function popLand(land) {
 }
 // 1.6.2 (docs/PLANNER_ORG_DESIGN.md 6.1): part, a block's id, opens that part of the page alone (a card, or a section with what stands under
 // it): /part:<block id> after the item, inside the same doc: part of the address, in a window named for the page AND the part, so several
-// parts of one planner stand side by side and one part never opens twice. An id that is no block id opens the page as before, and so does
-// a page whose own id holds a slash (only a file makes one): the window reads its address by its slashes. A part's window is a smaller
+// parts of one planner stand side by side and one part never opens twice. An id that is no block id opens the page as before. A page whose
+// own id holds a slash (only a file makes one) has its id written by popId, so the slash is never read as the end of the item. A part's window is a smaller
 // box, 640 by 760, which the desktop shell gives it too whatever is asked here (shellguard.js childWindowOptions: the two keep one size)
 // 1.6.2 (the owner, 2026-11-14, by prompt: "Edit a big table in its own window"): table true with a part opens that one table to EDIT, in a
 // big window (1280 by 860, shellguard.js TABLE_QUERY gives the same) named for the page and the table: /table:<block id> after the item,
 // inside the same doc: part of the address, so the shell's rule is untouched. popout.js draws it with tablewin.js, which writes nothing:
 // each edit is a word to this window (planner.js tbEditTake)
 var POP_PART = /^[A-Za-z0-9_-]{1,64}$/;
+// 1.6.3: how a page's id is written in a window's address. The window reads its address by its slashes (popout.js popPlace: the campaign to
+// its slash, the item to the next, then a part or a landing), and the browser takes one layer of percent-encoding off before the window
+// reads it, so an id that holds a slash (only a file makes one) was read as an item and a tail, and its window opened the page whole and at
+// its top. Such an id is encoded twice here: once the browser has taken its layer off, the item still holds %2F where the id holds a slash,
+// and popout.js popItem takes the second layer off. An id with no slash is written exactly as before, byte for byte
+function popId(id) { return id.indexOf('/') < 0 ? encodeURIComponent(id) : encodeURIComponent(encodeURIComponent(id)); }
 function popOut(id, land, part, table) {
     var camp = activeCamp(); if (!camp || typeof camp.id !== 'string' || typeof id !== 'string' || !id) return false;
-    var p = typeof part === 'string' && POP_PART.test(part) && id.indexOf('/') < 0 ? part : '', tb = table === true ? p : '';
-    var made = null; try { made = window.open(location.origin + '/?popout=doc:' + encodeURIComponent(camp.id) + '/' + encodeURIComponent(id) + (tb ? '/table:' + tb : p ? '/part:' + p : popLand(land)), 'wpPopout_' + id + (tb ? '_table_' + tb : p ? '_part_' + p : ''), tb ? 'width=1280,height=860' : p ? 'width=640,height=760' : 'width=820,height=1000'); } catch (e) { made = null; }
+    var p = typeof part === 'string' && POP_PART.test(part) ? part : '', tb = table === true ? p : '';   // 1.6.3: a page whose own id holds a slash takes a part too (popId)
+    var made = null; try { made = window.open(location.origin + '/?popout=doc:' + encodeURIComponent(camp.id) + '/' + popId(id) + (tb ? '/table:' + tb : p ? '/part:' + p : popLand(land)), 'wpPopout_' + id + (tb ? '_table_' + tb : p ? '_part_' + p : ''), tb ? 'width=1280,height=860' : p ? 'width=640,height=760' : 'width=820,height=1000'); } catch (e) { made = null; }
     if (!made) return false;   // the owed review, 2026-10-09: no window came up (refused or blocked). The caller falls back to the panel, and no tab is closed for a window that is not there
     if (window.wpPageShelf && window.wpPageShelf.opened) window.wpPageShelf.opened(id);   // 1.5.4 (pageshelf.js): one of the last pages opened
     return true;

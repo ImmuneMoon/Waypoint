@@ -15,6 +15,9 @@ import { twTick } from './tablewin.js';
 // id> or <campaign>/<item>/q:<words>, each part encoded by docpanel.js popOut and read here as the browser decoded it. The campaign runs to its
 // slash, the item to the next one, and after it a landing begins with at: or q: (words run to the end, slashes and all). Anything else after
 // the item is no landing. pagenav.js (wpPageNav.landOf) cleans the landing where it is used. head is what stands before the item
+// 1.6.3: enc is the item read once more, kept only where that gives an id with a slash in it. docpanel.js popId writes such an id encoded
+// twice, so the browser's own reading leaves %2F in the item where the id holds a slash, and the slash can never end the item early.
+// popItem decides which of the two is the page; an address with no such item has no enc key and reads exactly as before
 function popPlace(a) {
     a = typeof a === 'string' ? a : '';
     var s1 = a.indexOf('/'), rest = s1 >= 0 ? a.slice(s1 + 1) : a, s2 = rest.indexOf('/'), item = s2 >= 0 ? rest.slice(0, s2) : rest, tail = s2 >= 0 ? rest.slice(s2 + 1) : '';
@@ -22,12 +25,18 @@ function popPlace(a) {
     var out = { camp: s1 >= 0 ? a.slice(0, s1) : '', head: s1 >= 0 ? a.slice(0, s1 + 1) : '', item: item, rest: rest, land: land };
     if (!land && tail.indexOf('part:') === 0 && /^[A-Za-z0-9_-]{1,64}$/.test(tail.slice(5))) out.part = tail.slice(5);   // 1.6.2: a part of the page shown alone (popPart)
     if (!land && tail.indexOf('table:') === 0 && /^[A-Za-z0-9_-]{1,64}$/.test(tail.slice(6))) out.table = tail.slice(6);   // 1.6.2: one big table of the page, edited here (tablewin.js)
+    if (item.indexOf('%') >= 0) { var dec = ''; try { dec = decodeURIComponent(item); } catch (e) { dec = ''; } if (dec.indexOf('/') >= 0) out.enc = dec; }   // 1.6.3: an id with a slash, written twice encoded (docpanel.js popId)
     return out;
 }
 // the page the window shows: the item its address names; where that is no page of the campaign, the address names no landing and the whole of
 // what follows the campaign is a page (an id with a slash in it, as an address made before 1.5.4 was read), that page
+// 1.6.3: the item as it reads comes first, so a page whose own id really is what the address says opens as before; then the item read once
+// more (enc, an id with a slash that docpanel.js popId wrote), then the old reading of a whole rest as the id (a window docked back and
+// reopened hands the id over as it is, slashes and all). A LIMIT, kept: an id with no slash whose own words are an encoded slash (a%2Fb)
+// is written as the id a/b is, and where both are pages the one named literally wins
 function popItem(pl, items) {
     var page = function(id) { var it = items && typeof items === 'object' && Object.prototype.hasOwnProperty.call(items, id) ? items[id] : null; return !!it && typeof it === 'object' && (it.type === 'doc' || it.type === 'planner'); };
+    if (!page(pl.item) && typeof pl.enc === 'string' && page(pl.enc)) return pl.enc;
     return !pl.land && pl.rest !== pl.item && !page(pl.item) && page(pl.rest) ? pl.rest : pl.item;
 }
 // a page opened at its landing once it is drawn: words go into the window's own Find, which marks them and goes to the first (finder: a
@@ -144,6 +153,7 @@ if (spec) {
         if (!camp) return;
         body.classList.add('doc-view');
         var itemId = itemNow = popItem(pp, camp.items); window.wpPopoutKey = pp.head + itemId;
+        if (typeof pp.enc === 'string' && itemId === pp.enc) { pp.item = itemId; pp.rest = itemId; delete pp.enc; }   // 1.6.3: an id with a slash read from the address is the window's item from here on, so its part, its table and its landing are its own
         var it = camp.items && camp.items[itemId];
         if (!it || (it.type !== 'doc' && it.type !== 'planner')) { window.wpPopoutPart = ''; window.wpPopoutFoldKey = ''; }   // a page that is gone shows no part
         if (!it || (it.type !== 'doc' && it.type !== 'planner')) { if (lastSig !== ' GONE') { lastSig = ' GONE'; msg('This page is no longer in the campaign.'); document.title = 'Waypoint — (removed)'; } return; }

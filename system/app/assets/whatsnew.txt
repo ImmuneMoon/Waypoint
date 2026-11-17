@@ -62,6 +62,9 @@ Smaller things
   site would turn away. Dropping or pasting a picture from your computer
   onto the map says your plan doesn't include uploads, where before it
   only said the upload failed.
+- A page from a file whose id holds a slash now opens at the part, the
+  table or the place you asked for in a window of its own. Before, it
+  opened whole at its top.
 
 WAYPOINT 1.6.2 — What's New
 ============================

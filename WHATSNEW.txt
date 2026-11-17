@@ -55,7 +55,8 @@ Smaller things
 - A player on the desktop app can join a table hosted in a browser. Such
   a table's room code begins with WP, like WP-AB2CD-EF3GH, and Waypoint
   finds it on its own server with nothing to tick. A code without WP
-  joins as before.
+  joins as before. A WP code typed with a character Waypoint never uses
+  in a code, such as O or 1, says so instead of sending you to a setting.
 
 WAYPOINT 1.6.2 — What's New
 ============================

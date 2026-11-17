@@ -10910,6 +10910,10 @@ var CODE_MARK = 'wp';
 // codeOwn: whether a code (as stored, or as typed or pasted, read through typedCode) carries the mark: the two letters and then a whole code of the
 // alphabet. Asked by showCode, joinSession, startHosting (a remembered code from the other server is not taken up again) and signalMiss.
 function codeOwn(code) { return new RegExp('^' + CODE_MARK + '[' + CODE_CHARS + ']{' + CODE_LEN + '}$').test(typedCode(code)); }
+// codeTypo (the review of 241): whether a code was typed as if it carried the mark (the two letters and ten more letters or digits) but holds a
+// character the alphabet leaves out (i, l, o, 0 or 1), so it was misread or mistyped. Such a code is no room on any server: it is dialed as a
+// usual one would be and found nowhere, and signalMiss then says what is wrong with it. Nothing is reached by mistake either way.
+function codeTypo(code) { var t = typedCode(code); return new RegExp('^' + CODE_MARK + '[a-z0-9]{' + CODE_LEN + '}$').test(t) && !codeOwn(t); }
 // showCode: a code as it is shown and copied. A marked code reads WP-XXXXX-XXXXX, a usual ten-character code XXXXX-XXXXX, any other as it is.
 function showCode(code) {
     var s = String(code === null || code === undefined ? '' : code).toUpperCase();
@@ -10917,7 +10921,7 @@ function showCode(code) {
     return s.length === CODE_LEN ? s.slice(0, 5) + '-' + s.slice(5) : s;
 }
 function typedCode(v) { return String(v === null || v === undefined ? '' : v).replace(/[\s\u00ad\u2010-\u2015\u2212-]+/g, '').toLowerCase().slice(0, 64); }   // what was typed or pasted: spaces and hyphens (a dash of any kind) out, lower case
-net.showCode = showCode; net.typedCode = typedCode; net.codeOwn = codeOwn;
+net.showCode = showCode; net.typedCode = typedCode; net.codeOwn = codeOwn; net.codeTypo = codeTypo;
 // [netcheck:roomcode-end]
 
 // Direct peer-to-peer is always tried first (STUN). The TURN entries are a
@@ -10972,10 +10976,13 @@ function peerOpts(key, own) {   // own: true for a join whose room code carries 
 // [netcheck:relay-end]
 // [netcheck:signal-start]
 // 1.6.2 (backlog 220; the owner, by prompt: "Yes, after the fonts", and of the switch "by the website and a settings
-// option"): the app's own signaling server, built dark. signalHost is the one judge of which server a Peer dials, for a host and a joiner alike,
-// with nothing taken from a room code and no fallback either way: the app's own while the play host's GET /api/version names it (web.signal
+// option"): the app's own signaling server, built dark. signalHost is the one judge of which server a Peer dials for a host, and for a joiner
+// whose room code is a usual one, with no fallback either way: the app's own while the play host's GET /api/version names it (web.signal
 // { host }, read from webmode.js's one answer) or this computer's Own signaling server is ticked (wp_signalOwn, '1'); else the public server, as
-// before. In a browser (webmode.js says the page is a website's) hosting first asks the site for a host token, a new one for each Peer: the key
+// before. 1.6.3 (backlog 241): a code that carries the mark CODE_MARK (codeOwn, in the roomcode slice) is joined on SIGNAL_OWN whatever
+// signalHost says, through signalOn's third argument, which peerOpts(key, own) hands on. That is the one thing taken from a room code, and it can
+// only ever name SIGNAL_OWN, the server the page policy already allows.
+// In a browser (webmode.js says the page is a website's) hosting first asks the site for a host token, a new one for each Peer: the key
 // that Peer registers its room with. A desktop's key is waypoint
 var SIGNAL_OWN = 'signal.waypointvtt.com', SIGNAL_PLAN = 'This plan joins tables. Hosting in the browser needs a GM plan.', _sigWeb = null, _hostTok = null;
 if (typeof window !== 'undefined' && window.wpWebMode && window.wpWebMode.answer && typeof window.wpWebMode.answer.then === 'function') window.wpWebMode.answer.then(function(a) { _sigWeb = a; }, function() {});
@@ -11005,9 +11012,17 @@ net.signalHost = signalHost;
 // a room not found while this app looks on Waypoint's own server: the GM may still be on the public one (the coordinator, 2026-11-10: once the
 // website switches it on, a browser player reaches only our server, so a desktop GM needs the tick too)
 var SIGNAL_MISS = ' The GM may be on the public server. Ask them to tick Own signaling server in Settings, under Multiplayer, and host again: their new room code begins with WP.';
+// a code typed with the mark that holds a character no room code has (codeTypo, in the roomcode slice): misread or mistyped, so no room is behind it
+var CODE_TYPO = ' That code begins with WP but holds a character Waypoint room codes never use: i, l, o, 0 or 1. Check it with your GM and type it again.';
 // signalMiss: the advice added where a room was not found. A code that carries the mark (1.6.3, backlog 241) was dialed on the own server because
-// the GM hosts there, so the public server is no reason and nothing is added.
-function signalMiss(code) { return signalHost() && !(typeof codeOwn === 'function' && codeOwn(code)) ? SIGNAL_MISS : ''; }
+// the GM hosts there, so the public server is no reason and nothing is added. A code typed as if it carried the mark that holds a character the
+// alphabet leaves out says so in place of any other advice (the review of 241), with the tick on or off: telling the player to have the GM tick
+// a setting would send them after the wrong thing, since what they typed already begins with WP. Its callers say what it answers in place of
+// the advice about a relay server.
+function signalMiss(code) {
+    if (typeof codeTypo === 'function' && codeTypo(code)) return CODE_TYPO;
+    return signalHost() && !(typeof codeOwn === 'function' && codeOwn(code)) ? SIGNAL_MISS : '';
+}
 // [netcheck:signal-end]
 net.rtcConfig = function() { return peerOpts().config; };   // voice chat (voice.js): its links take the table's own ICE servers and relay rule
 /* Try the configured relay: gather with relay-only ICE and see whether a relay candidate
@@ -11136,7 +11151,10 @@ function startHosting(forceFresh) {
     defaultStageMode(getActiveCampaign());   // hosting without opening the panel first still starts on the default
     var ownSig = typeof signalHost === 'function' && !!signalHost();   // 1.6.3 (backlog 241): a table on Waypoint's own signaling server gets a room code that carries the mark, so a player's app joins it there
     var resumed = !forceFresh ? recentHostCode() : null;
-    if (resumed && codeOwn(resumed) !== ownSig) resumed = null;   // a code remembered from the other server is not taken up again: its players would dial where the table is not
+    // a code remembered from the other server is not taken up again: its players would dial where the table is not. That happens to a GM who
+    // switched Own signaling server on or off between a crash and Host, or who hosted with it on before 1.6.3, and it is said as the path of a
+    // room id taken by someone else says it (the review of 241), so the GM knows to hand the players the new code
+    if (resumed && codeOwn(resumed) !== ownSig) { resumed = null; toast('Your last room code could not be resumed. Starting with a new code. Players will need the new one.'); }
     var code = resumed || (ownSig ? CODE_MARK : '') + makeCode();
     var gen = resumed ? net._hostGen : 0;
     gmSignArm();   // security (2026-10-01): this GM's signing key, read or made the first time, before anyone can connect

@@ -14389,14 +14389,24 @@ pendingChecks.push((async () => {
         const rcSrc = sl('roomcode'), rlSrc = sl('relay'), sgSrc = sl('signal'), store = {}, ls = { getItem: k => (k in store ? store[k] : null) };
         const pick = (from, to) => { const i = src.indexOf(from), j = i < 0 ? -1 : src.indexOf(to, i); return i < 0 || j < 0 ? '' : src.slice(i, src.indexOf('\n', j)); };
         const hostLines = pick('    var ownSig = typeof signalHost', '    var code = resumed ||'), joinLine = pick('    var peer = new Peer(peerOpts(undefined', '    var peer = new Peer(peerOpts(undefined');
+        // the review of 241: a reconnect (scheduleReconnect) and a reload's rejoin (the rejoin slice) dial again through joinSession; here joinSession
+        // is the join line itself, so the Peer each one makes is read
+        const rjSrc = sl('rejoin'), schedSrc = (() => { const i = src.indexOf('function scheduleReconnect() {'); return i < 0 ? '' : src.slice(i, src.indexOf('\n}\n', i) + 2); })();
+        const toasts = [];
         let r = {}, err = 'no slice';
-        if (rcSrc && rlSrc && sgSrc && hostLines && joinLine) err = noThrow(() => {
+        if (rcSrc && rlSrc && sgSrc && hostLines && joinLine && rjSrc && schedSrc) err = noThrow(() => {
             // one world: the three slices, a Peer that keeps the options it was made with, a website's answer or none, and the code chooser and the join line
-            const mk = answer => new Function('window', 'localStorage', 'fetch', 'net', 'toast', 'crypto', [rcSrc, rlSrc, sgSrc,
+            const mk = answer => new Function('window', 'localStorage', 'fetch', 'net', 'toast', 'crypto', 'setTimeout', [rcSrc, rlSrc, sgSrc,
                 'function Peer(a, b) { this.opts = b === undefined ? a : b; this.id = b === undefined ? null : a; }',
                 'function host(forceFresh, remembered) { var recentHostCode = function() { return remembered; };', hostLines, 'return code; }',
                 'function join(code) { code = typedCode(code);', joinLine, 'return peer.opts; }',
-                'return { host: host, join: join, codeOwn: codeOwn, showCode: showCode, typedCode: typedCode, makeCode: makeCode, miss: signalMiss, mark: CODE_MARK };'].join('\n'))({ wpWebMode: { answer: Promise.resolve(answer), web: () => !!answer } }, ls, () => Promise.reject(new Error('no')), {}, () => {}, globalThis.crypto);
+                'var RECONNECT_TRIES = 30, reconn = { tries: 0, timer: null, code: null, name: null, pending: false, gen: 0 }, dialed = [];',
+                'function giveUpAndRestore() {} function setIndicator() {} function setStatus() {}',
+                'function joinSession(code, name, isRetry, probe) { dialed.push(join(code)); }',
+                rjSrc, schedSrc,
+                'function reconnect(code) { reconn.code = code; reconn.tries = 0; scheduleReconnect(); return dialed[dialed.length - 1]; }',
+                'function rejoin(code) { rejoinArm(code, "Ayla"); return rejoinKeep() ? dialed[dialed.length - 1] : null; }',
+                'return { host: host, join: join, codeOwn: codeOwn, showCode: showCode, typedCode: typedCode, makeCode: makeCode, miss: signalMiss, mark: CODE_MARK, typo: codeTypo, reconnect: reconnect, rejoin: rejoin };'].join('\n'))({ wpWebMode: { answer: Promise.resolve(answer), web: () => !!answer } }, ls, () => Promise.reject(new Error('no')), {}, t => toasts.push(String(t)), globalThis.crypto, f => f());
             const off = mk(null), M = 'wpabcdefghjk';
             r.own = [M, 'WP-ABCDE-FGHJK', ' wp abcde – fghjk ', 'Wp‑ABCDE‑FGHJK'].map(c => off.codeOwn(c));
             r.not = ['abcdefghjk', 'wpabcdefghj', 'wpabcdefghjkm', 'wpabcdefghjl', 'wpab23', 'xyabcdefghjk', '', null, undefined, 7, {}].map(c => off.codeOwn(c));
@@ -14413,6 +14423,17 @@ pendingChecks.push((async () => {
             // a room not found: no advice of the public server for a marked code, the advice as before for a usual one while the own server is on
             store.wp_signalOwn = '1'; r.miss = [off.miss(M), /Own signaling server/.test(off.miss('abcdefghjk')), /begins with WP/.test(off.miss('abcdefghjk'))]; delete store.wp_signalOwn;
             r.missOff = [off.miss(M), off.miss('abcdefghjk')];
+            // the review of 241: a code remembered from the other server is dropped and the GM is told the code is new
+            const tw = (fresh, remembered) => { const n = toasts.length; off.host(fresh, remembered); return toasts.slice(n); };
+            store.wp_signalOwn = '1'; r.said = [tw(false, M), tw(false, 'abcdefghjk'), tw(true, M), tw(false, null)]; delete store.wp_signalOwn;
+            r.said.push(tw(false, M), tw(false, 'abcdefghjk'));
+            // the review of 241: a WP code mistyped with a character no code has is said as such, with the tick on or off, never as the tick's advice
+            r.typo = ['WP-ABCD0-FGHJK', 'wpabcdefghjl', 'Wp-ABCDE-FGHJ1', M, 'WP-ABCDE-FGHJK', 'abcdefghjk', 'wpabcdefgh', 'wpabcdefghjkm', 'wp abcde-fghj!', '', null, 7].map(c => off.typo(c));
+            const tm = off.miss('WP-ABCD0-FGHJK'); store.wp_signalOwn = '1'; const tmOn = off.miss('wp-abcdo-fghjk'); delete store.wp_signalOwn;
+            r.typoMiss = [/never use: i, l, o, 0 or 1/.test(tm), tm === tmOn, /Own signaling server/.test(tm + tmOn), /relay/i.test(tm)];
+            // the review of 241: a reconnect, a reload's rejoin and the code a reload keeps, with a marked code and the tick off, all dial the own server
+            const rc = off.reconnect('wpabcdefghjk'), rj = off.rejoin('wpabcdefghjk'), rjU = off.rejoin('abcdefghjk'), kept = off.join(JSON.parse(JSON.stringify({ code: 'wpabcdefghjk', name: 'Ayla' })).code);
+            r.again = [rc && rc.host, rj && rj.host, rjU && 'host' in rjU, kept.host];
             r.web = mk({ web: { signal: { host: 'signal.waypointvtt.com' } } });
         });
         if (r.web) { await Promise.resolve(); await Promise.resolve(); r.webHost = r.web.codeOwn(r.web.host(false, null)); r.webJoin = r.web.join('abcdefghjk').host; delete r.web; }
@@ -14422,7 +14443,21 @@ pendingChecks.push((async () => {
             err === '' && J(r.host) === J([true, true, true, true, true, true, true]) && r.webHost === true && /var code = resumed \|\| \(ownSig \? CODE_MARK : ''\) \+ makeCode\(\);/.test(hostLines), J([err, r.host, r.webHost]));
         check('1.6.3 (backlog 241) a marked code is joined on the own server for that join alone (joinSession\'s line run for real): whatever this computer\'s tick says, the Peer names signal.waypointvtt.com on port 443, path /, secure, key waypoint, the ICE config kept; a usual code joins as today, on the public server with the tick off and on the own server with it on or on a website; a room not found with a marked code adds no advice of the public server, and the advice for a usual code says the new code begins with WP',
             err === '' && J(r.join) === J(['signal.waypointvtt.com', 443, '/', true, 'waypoint', true, false, 'signal.waypointvtt.com', 'signal.waypointvtt.com']) && r.webJoin === 'signal.waypointvtt.com' && J(r.miss) === J(['', true, true]) && J(r.missOff) === J(['', '']), J([err, r.join, r.webJoin, r.miss, r.missOff]));
+        check('1.6.3 (the review of backlog 241) a code remembered for a crash resume that is dropped because the GM switched servers is said (startHosting\'s lines run for real): the tick on with a remembered usual code, and the tick off with a remembered marked one, each say the last room code could not be resumed and the players need the new one, in the words of the path where a room id is taken; a code kept, a fresh host and no remembered code say nothing',
+            err === '' && J(r.said) === J([[], ['Your last room code could not be resumed. Starting with a new code. Players will need the new one.'], [], [], ['Your last room code could not be resumed. Starting with a new code. Players will need the new one.'], []])
+            && src.includes("if (resumed) toast('Your last room code could not be resumed. Starting with a new code. Players will need the new one.');"), J([err, r.said]));
+        check('1.6.3 (the review of backlog 241) a code typed as if it carried the mark but holding a character no code has (i, l, o, 0 or 1) is told apart (codeTypo, the roomcode and signal slices run for real): a misread or mistyped WP code in any case or spacing is one, a real marked code, a usual code, a shorter or longer one, a character that is no letter or digit and anything that is no code are not; a room not found with such a code says it holds a character Waypoint never uses, with the tick on or off alike, and names neither the tick nor a relay; both places a room is not found hand signalMiss the code, and its answer stands in place of the relay advice',
+            err === '' && J(r.typo) === J([true, true, true, false, false, false, false, false, false, false, false, false]) && J(r.typoMiss) === J([true, true, false, false])
+            && src.includes("(typeof signalMiss === 'function' && signalMiss(code) ? signalMiss(code) : ' This usually means"), J([err, r.typo, r.typoMiss]));
+        check('1.6.3 (the review of backlog 241) every way a join is made again keeps the mark\'s route (the rejoin slice and scheduleReconnect run for real, joinSession\'s Peer line behind them): with the tick off, an automatic reconnect with a marked code in reconn.code, a reload\'s rejoin that goes on as a reconnect, and the code a reload keeps in wp_rejoin each make the Peer on signal.waypointvtt.com, and a usual code\'s rejoin names no server; each of them, and a retry through the room generations, goes back through joinSession with the code as stored (reconn.code is net.code, wp_rejoin holds net.code, the reload and the generations call joinSession), and net.js makes exactly two Peers, the host\'s and joinSession\'s, so a new one has to come through peerOpts',
+            err === '' && J(r.again) === J(['signal.waypointvtt.com', 'signal.waypointvtt.com', false, 'signal.waypointvtt.com'])
+            && (src.match(/new Peer\(/g) || []).length === 2 && src.includes('            reconn.code = net.code;') && /var rjM = \{ code: net\.code, /.test(src) && src.includes('                joinSession(j.code, j.name);')
+            && src.includes('if (typeof rejoinArm === \'function\') rejoinArm(j.code, j.name);') && (src.match(/joinSession\(code, name, false, probe \+ 1\)/g) || []).length === 2 && src.includes('reconn.timer = setTimeout(function() { joinSession(reconn.code, reconn.name, true); }'), J([err, r.again]));
         const html241 = rd('system/app/index.html'), lk241 = rd('tools/lookcheck.js');
+        check('1.6.3 (the review of backlog 241) every place that says what a room code looks like names a marked one too: the Join box\'s tooltip says ten characters as XXXXX-XXXXX or WP-XXXXX-XXXXX on the Waypoint server, the host\'s Help tip and the player\'s join steps give WP-AB2CD-EF3GH, the crash tip says the code is new where Own signaling server was switched in between, and the Own signaling server tip says where any other code is looked for, a browser included; lookcheck\'s pin of the tooltip moved with it',
+            tipsSrc.includes("    netCodeInput: 'The room code your GM gave you: ten characters shown as XXXXX-XXXXX, or WP-XXXXX-XXXXX for a table on the Waypoint server. Type or paste it with or without the hyphens.',") && lk241.includes('or WP-XXXXX-XXXXX for a table on the Waypoint server. Type or paste it with or without the hyphens.\',") === 1')
+            && html241.includes('like <b>AB2CD-EF3GH</b>. A table on Waypoint&rsquo;s own server has <b>WP</b> in front, like <b>WP-AB2CD-EF3GH</b>.') && html241.includes('A code looks like <b>AB2CD-EF3GH</b>, or <b>WP-AB2CD-EF3GH</b> for a table on Waypoint&rsquo;s own server, such as one hosted in a browser.')
+            && html241.includes('You get the same room code back, unless you switched <b>Own signaling server</b> on or off in between: then the code is new.') && html241.includes('Any other code is looked for on the server Waypoint uses for you: the public one, unless this tick is on or you play in a browser.</div>') && !html241.includes('the server the tick names'));
         check('1.6.3 (backlog 241) said plainly: Help says a table on the own server, as every table hosted in a browser is, has a code that begins with WP and is joined there whatever the tick says; the Join box\'s line and the tick\'s tooltip say it; the key proof, the signaling gate and the page policy are untouched (the own server is the one already named)',
             /has a room code that begins with <b>WP<\/b>, like <b>WP-AB2CD-EF3GH<\/b>\. Waypoint joins such a code through its own server whatever the tick says/.test(html241) && /A code that begins with WP is found on the Waypoint server\.<\/div>/.test(html241)
             && /A table you host then has a room code that begins with WP, and a player joins such a code there whatever their own tick says\./.test(html241) && /sigGate\(peer, false, roomPeerId\(code, gen\)\);/.test(src) && / A code that begins with WP is found on the Waypoint server\.'\]/.test(lk241));

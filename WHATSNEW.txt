@@ -70,6 +70,8 @@ Smaller things
 - Mentioned in on a person or place card now opens right on the block
   that names the card, in a page brought in from a file too. Before, such
   a page was searched for the card's name and could land on the card itself.
+- That list now checks the page again when you pick a row, so an undo made
+  while it was open still takes you to the block that names the card.
 
 WAYPOINT 1.6.2 — What's New
 ============================

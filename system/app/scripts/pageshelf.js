@@ -600,6 +600,18 @@ function namedPress(btn) {
     var camp = getActiveCampaign(), card = namedCard(camp, btn.dataset.page, btn.dataset.at, namedBi(btn)); if (!card || !card.names.length) return null;
     return namedOpen(btn, namedIn(camp, card.names, card.self, card.plain), card.plain ? card.names[0] : namedSay(card.names[0]));
 }
+// The row of one page as the campaign stands now, or null. A row's place in its page (bi) is worked out when the menu opens, and the menu may
+// stay up while the page changes under it (an undo or a redo with Ctrl held goes on to the page): before a row opens at that place, the card
+// the menu came from is found again (namedCard, by its id where its place has moved) and the pages are read again (namedIn), so the press
+// lands on the block that names the card now. st is the menu's own state (_named), read before the menu is put away. Asked by namedWire's
+// row press for a row that carries a place; null where the card or the page no longer names anything, and the row then opens at its words
+function namedRowNow(st, id) {
+    if (!st) return null;
+    var camp = getActiveCampaign(), card = namedCard(camp, st.page, st.at, st.bi); if (!card || !card.names.length) return null;
+    var rows = namedIn(camp, card.names, card.self, card.plain);
+    for (var i = 0; i < rows.length; i++) if (rows[i].id === id) return rows[i];
+    return null;
+}
 function namedWire() {
     var qs = new URLSearchParams(location.search); if (qs.has('popout') || qs.has('stream')) return;   // the main window's own: a window of its own shows the page, never this button
     document.addEventListener('click', function(e) {
@@ -607,9 +619,15 @@ function namedWire() {
         if (b) { e.preventDefault(); e.stopPropagation(); namedPress(b); return; }
         var row = _named && t && t.closest ? t.closest('.nin-row') : null; if (!row || !_named.el.contains(row)) return;
         e.preventDefault(); e.stopPropagation();
-        // a row opens at its block's id; else, 1.6.3, at the block's place in its page (bi); else at the name found there, as words
-        var id = row.dataset.id, at = row.dataset.at, bi = row.dataset.bi, q = row.dataset.q || _named.q; namedClose(false);
-        openPage(id, pageWay(viewNow(), e), at ? { at: at } : typeof bi === 'string' && /^(?:0|[1-9][0-9]{0,5})$/.test(bi) ? { bi: Number(bi) } : { q: q });
+        // a row opens at its block's id; else, 1.6.3, at the block's place in its page (bi), checked against the page as it stands now
+        // (namedRowNow: a place taken when the menu opened may name another block after an undo); else at the name found there, as words
+        var id = row.dataset.id, at = row.dataset.at, bi = row.dataset.bi, q = row.dataset.q || _named.q, land = at ? { at: at } : { q: q };
+        if (!at && typeof bi === 'string' && /^(?:0|[1-9][0-9]{0,5})$/.test(bi)) {
+            var now = namedRowNow(_named, id);
+            land = now && now.at ? { at: now.at } : now && typeof now.bi === 'number' && now.bi >= 0 ? { bi: now.bi } : { q: (now && now.q) || q };
+        }
+        namedClose(false);
+        openPage(id, pageWay(viewNow(), e), land);
     }, true);
     // a quick second press on the button puts its menu away: it is no double-click on the card, which in the Read view would leave it for the editor
     document.addEventListener('dblclick', function(e) { if (e.target && e.target.closest && e.target.closest('.pv-ment')) e.stopPropagation(); }, true);

@@ -92,7 +92,7 @@ function onInput(t) {
 }
 // A stroke: begun at a press, carried by the moves, laid at the release (a box at once, as the fog's box is)
 function strokeStart(x, y) { if (!envMay()) return; _env.stroke = { pts: [{ x: x, y: y }] }; if (_env.brush === 'paint' || _env.brush === 'erase') draw(); }
-function strokeMove(x, y) { var s = _env.stroke; if (!s) return; if (_env.brush === 'box') { s.pts[1] = { x: x, y: y }; draw(); return; } if (_env.brush === 'paint' || _env.brush === 'erase') { s.pts.push({ x: x, y: y }); if (s.pts.length > 4000) s.pts.splice(1, 1); } }
+function strokeMove(x, y) { var s = _env.stroke; if (!s) return; if (_env.brush === 'box') { s.pts[1] = { x: x, y: y }; draw(); return; } if (_env.brush === 'paint' || _env.brush === 'erase') { s.pts.push({ x: x, y: y }); if (s.pts.length > 4000) s.pts.splice(1, 1); } }   // a box's move draws again, and draw() then moves only the box's outline (finding 34)
 function strokeEnd(cancel) {
     var s = _env.stroke; _env.stroke = null; if (!s || cancel) { draw(); return; }
     var map = getActiveMap(), FC = envCore(), grid = envGrid(map, FC);
@@ -112,23 +112,43 @@ function strokeEnd(cancel) {
 }
 function setBrush(b) { if (ENV_BRUSHES.indexOf(b) < 0) return; _env.brush = b; envKeep(); sync(); }
 function setWidth(w) { if (ENV_WIDTHS.indexOf(w) < 0) return; _env.w = w; envKeep(); sync(); }
-// The layer over the board while the tool is in hand: each painted cell tinted, with its first reading's figure; a dragged box as an outline
+// [systemcheck:envdraw-start]
+// The layer over the board while the tool is in hand: each painted cell tinted, with its first reading's figure; a dragged box as an outline.
+// 1.6.3 (the improvement week's review, finding 34): it used to empty the layer and make a polygon and a text for every painted cell (up to the
+// core's cap of 12,000) at every board render and at every move of a box being dragged. Now the cells stand in a group of their own (<g
+// class="env-cells">), made again only when what they are drawn from changed: the map's painted cells (map.meta.envCells, which every writer
+// replaces whole: a stroke, a change of the grid's cell, a load, the undo, never one written into in place) by which object it is and how many
+// cells it holds, the grid, the readings and the viewer's half of Imperial or Metric. The box being dragged is one <rect class="env-box"> after
+// the group, moved in place at each move and taken away when no box is dragged. What is drawn is the very elements the old draw made
 function draw() {
     var wb = document.getElementById('whiteboard'); if (!wb) return;
     var svg = document.getElementById('envLayer'), on = !!window.isEnvMode && envMay(), map = on ? getActiveMap() : null, FC = envCore(), grid = map ? envGrid(map, FC) : null;
     if (!on || !grid) { if (svg) svg.remove(); return; }
     var NS = 'http://www.w3.org/2000/svg';
     if (!svg) { svg = document.createElementNS(NS, 'svg'); svg.setAttribute('id', 'envLayer'); svg.setAttribute('aria-hidden', 'true'); wb.appendChild(svg); }
-    while (svg.firstChild) svg.removeChild(svg.firstChild);
     var cells = map.meta && map.meta.envCells && typeof map.meta.envCells === 'object' ? map.meta.envCells : {}, rs = envReadings(getActiveCampaign()), metric = envMetric();
-    Object.keys(cells).forEach(function(k) {
-        var cell = envCellOfKey(k, grid); if (!cell) return; var vals = cells[k] || {};
-        var poly = document.createElementNS(NS, 'polygon'); poly.setAttribute('points', FC.cellCorners(cell, grid).map(function(p) { return p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ')); poly.setAttribute('fill', envTint(vals, rs)); poly.setAttribute('class', 'env-cell'); svg.appendChild(poly);
-        var e = rs.filter(function(x) { return typeof vals[x.key] === 'number'; })[0] || null; if (!e) return;
-        var ctr = FC.cellCenter(cell, grid), tx = document.createElementNS(NS, 'text'); tx.setAttribute('x', ctr.x.toFixed(1)); tx.setAttribute('y', (ctr.y + 4).toFixed(1)); tx.setAttribute('class', 'env-fig'); tx.textContent = envFig(envShown(e, vals[e.key], metric)) + envUnit(e, metric).replace(/^\s*/, ''); svg.appendChild(tx);
-    });
-    var st = _env.stroke; if (st && _env.brush === 'box' && st.pts.length >= 2) { var a = st.pts[0], b = st.pts[1], rc = document.createElementNS(NS, 'rect'); rc.setAttribute('x', Math.min(a.x, b.x)); rc.setAttribute('y', Math.min(a.y, b.y)); rc.setAttribute('width', Math.abs(a.x - b.x)); rc.setAttribute('height', Math.abs(a.y - b.y)); rc.setAttribute('class', 'env-box'); svg.appendChild(rc); }
+    var sig = Object.keys(cells).length + '|' + JSON.stringify(grid) + '|' + JSON.stringify(rs) + '|' + (metric ? 'm' : 'i');
+    var g = svg._envCells;
+    if (!g || g.parentNode !== svg || svg._envFrom !== cells || svg._envSig !== sig) {   // the cells, made again only where what they show changed
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+        svg._envBox = null;
+        g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'env-cells'); svg.appendChild(g);
+        Object.keys(cells).forEach(function(k) {
+            var cell = envCellOfKey(k, grid); if (!cell) return; var vals = cells[k] || {};
+            var poly = document.createElementNS(NS, 'polygon'); poly.setAttribute('points', FC.cellCorners(cell, grid).map(function(p) { return p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ')); poly.setAttribute('fill', envTint(vals, rs)); poly.setAttribute('class', 'env-cell'); g.appendChild(poly);
+            var e = rs.filter(function(x) { return typeof vals[x.key] === 'number'; })[0] || null; if (!e) return;
+            var ctr = FC.cellCenter(cell, grid), tx = document.createElementNS(NS, 'text'); tx.setAttribute('x', ctr.x.toFixed(1)); tx.setAttribute('y', (ctr.y + 4).toFixed(1)); tx.setAttribute('class', 'env-fig'); tx.textContent = envFig(envShown(e, vals[e.key], metric)) + envUnit(e, metric).replace(/^\s*/, ''); g.appendChild(tx);
+        });
+        svg._envCells = g; svg._envFrom = cells; svg._envSig = sig;
+    }
+    var st = _env.stroke, rc = svg._envBox && svg._envBox.parentNode === svg ? svg._envBox : null;
+    if (st && _env.brush === 'box' && st.pts.length >= 2) {   // the box's outline, one rect moved in place
+        var a = st.pts[0], b = st.pts[1];
+        if (!rc) { rc = document.createElementNS(NS, 'rect'); rc.setAttribute('class', 'env-box'); svg.appendChild(rc); svg._envBox = rc; }
+        rc.setAttribute('x', Math.min(a.x, b.x)); rc.setAttribute('y', Math.min(a.y, b.y)); rc.setAttribute('width', Math.abs(a.x - b.x)); rc.setAttribute('height', Math.abs(a.y - b.y));
+    } else if (rc) { svg.removeChild(rc); svg._envBox = null; }
 }
+// [systemcheck:envdraw-end]
 function wire() {
     envLoad();
     var menu = document.getElementById('envMenu'); if (!menu) return;

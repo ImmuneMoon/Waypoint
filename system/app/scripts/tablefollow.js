@@ -168,6 +168,10 @@ function tfWire() {
     var q = new URLSearchParams(location.search); if (q.has('stream')) return;   // the stream window shows the table's view, never a page
     document.addEventListener('scroll', function(e) {
         if (e.target === tf.bar) return;
+        // 1.6.3 (the improvement week's review, finding 31): the play map's own box holds no table of a page, so its scroll (every step of a pan)
+        // measures nothing: tfNow walked and measured every table of the document at each one. A table in a page standing over the map (the panel,
+        // a reader) scrolls in a box of its own, which is heard as ever, and the half-second look below still runs
+        if (e.target && e.target.id === 'whiteboardWrap') return;
         // the scroller the reader is moving now, tried first by tfBar and tfHead (tfFirst): an element that scrolls up and down, or null for the page
         var st = e.target; if (st && st.nodeType === 1 && st.scrollHeight > st.clientHeight + 1 && st !== document.body && st !== document.documentElement) tf.lastSc = st; else if (st && (st.nodeType === 9 || st === document.body || st === document.documentElement)) tf.lastSc = null;
         if (tf.box && e.target === tf.box && tf.bar && tf.bar.scrollLeft !== tf.box.scrollLeft) tf.bar.scrollLeft = tf.box.scrollLeft; tfSoon(); }, true);

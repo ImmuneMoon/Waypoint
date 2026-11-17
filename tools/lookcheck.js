@@ -4292,8 +4292,17 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         inS.includes("var la = LAYER_ORDER.indexOf(layerNow(a.it)), lb = LAYER_ORDER.indexOf(layerNow(b.it));") && inS.includes("              var lay = layerNow(item);") && inS.includes("              var i = LAYER_ORDER.indexOf(layerNow(it));") && !inS.includes("layer || 'middle'")
         && inS.includes("if (item.flatPic === true) return 'Flattened picture';") && inS.includes('placeholder="Find a piece"'));
     check('the bar\'s Group button wears the app\'s own chain drawing, in Help too, and no emoji', ix.includes('<button data-st="group" class="st-group" title="Group"><i class="wib wi-chain"></i></button>') && ix.includes('<li><i class="wib wi-chain"></i> is <b>group/ungroup</b>.') && !ix.includes('&#128279;'));
-    check('a piece drawn into a flattened picture stays out of sight and out of reach on the GM\'s map while its picture is there, so a press finds the picture',
-        wbSrc.includes("el.classList.toggle('wb-flat-in', !clientView && typeof item.flatIn === 'string' && activeMap.whiteboard.some(") && css.includes('#whiteboard .wb-item.wb-flat-in { visibility: hidden !important; pointer-events: none !important; }'));
+    // 1.6.3 (the improvement week's review, finding 35): the flattened pictures' ids are gathered once a draw, before the loop over the pieces, and
+    // the loop asks that map: the gathering run for real gives what the old search over the whole map gave, for every piece of a seeded map
+    const fpA = wbSrc.indexOf('      var flatPics = Object.create(null);\n'), fpLoop = wbSrc.indexOf('      activeMap.whiteboard.forEach(function(item) {', fpA), fpGather = fpA >= 0 ? wbSrc.slice(fpA, wbSrc.indexOf('\n', wbSrc.indexOf('\n', fpA) + 1)) : '';
+    const fpRun = (wb) => { const activeMap = { whiteboard: wb }; return new Function('activeMap', fpGather + '\nreturn flatPics;')(activeMap); };
+    let fpSeed = 11; const fpR = () => (fpSeed = (fpSeed * 16807) % 2147483647) / 2147483647, fpIds = ['a', 'b', '__proto__', 'constructor', 'pic1', 'pic2', 'x'], fpBad = [];
+    for (let t = 0; t < 300 && fpGather; t++) {
+        const wb = []; for (let i = 0; i < 6; i++) { const w = { id: fpIds[Math.floor(fpR() * fpIds.length)] }; if (fpR() < 0.4) w.flatPic = fpR() < 0.8 ? true : 'yes'; if (fpR() < 0.5) w.flatIn = fpIds[Math.floor(fpR() * fpIds.length)]; wb.push(fpR() < 0.05 ? null : w); }
+        const fp = fpRun(wb); wb.forEach(item => { if (!item || typeof item.flatIn !== 'string') return; const old = wb.some(f => f && f.id === item.flatIn && f.flatPic === true), now = fp[item.flatIn] === 1; if (old !== now) fpBad.push([item.flatIn, old, now]); });
+    }
+    check('a piece drawn into a flattened picture stays out of sight and out of reach on the GM\'s map while its picture is there, so a press finds the picture; the pictures are found once a draw (finding 35: a gathering before the loop, run for real over 300 seeded maps against the old search of the whole map for each piece, never a search inside the loop)',
+        fpA >= 0 && fpLoop > fpA && fpBad.length === 0 && wbSrc.includes("el.classList.toggle('wb-flat-in', !clientView && typeof item.flatIn === 'string' && flatPics[item.flatIn] === 1);") && !wbSrc.includes("activeMap.whiteboard.some(function(f) { return f && f.id === item.flatIn") && css.includes('#whiteboard .wb-item.wb-flat-in { visibility: hidden !important; pointer-events: none !important; }'), JSON.stringify(fpBad.slice(0, 5)));
 }
 {   // 1.6.2 (the owner: a map's faces overlap, four on the row, the rest in a list over the panel sorted by who arrived last or first, a press jumping to that player)
     const sbS = read('scripts/sidebar.js'), netS = read('scripts/net.js'), escS = read('scripts/esckey.js'), setS = read('scripts/settings.js');
@@ -4640,6 +4649,44 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
     check('the review of the rail\'s merge (7): both release notes and Help say Properties opens from the right-click row and the selection bar (and on the Data Map a room\'s and a link\'s menu), never by a double-click or by selecting',
         wn162.every(t => !t.includes('a double-click or the\n  selection bar') && !t.includes("right-click menu, a double-click") && t.includes("  Open Properties from a piece's right-click menu or the selection bar,\n  and close it by its X. On the Data Map a room's right-click menu and a\n  link's menu have Properties too."))
         && !ix.includes('opens when you select a room or an item') && ix.includes('<li>The <b>Properties</b> sidebar on the right opens from <b>Properties</b> on a piece&rsquo;s right-click menu or on the selection bar. It closes when the selection clears, and the <b>&times;</b> at its top closes it by hand. On the Data Map a room&rsquo;s right-click menu and a link&rsquo;s menu have <b>Properties</b> too.'));
+}
+{   // 1.6.3 (the improvement week's review, finding 30): the tooltip pass reads only what a change added (tips.js, sliced by its tips markers and run
+    // for real on a page of plain objects that counts what it is asked): never the whole document, never a node inside the board or the fog's
+    // screen, and the inputs by id only where an added node holds one of the dictionary's ids
+    const tsS = sliceOf(read('scripts/tips.js'), 'tips'), tipsSrc = read('scripts/tips.js');
+    const docQ = { qsa: 0, byId: 0 }, byIdEls = {};
+    const mk = (tag, o) => { const e = Object.assign({ nodeType: 1, tag, id: '', title: '', text: '', kids: [], parentNode: null, isConnected: true, dataset: {}, cls: new Set() }, o || {});
+        e.classList = { contains: c => e.cls.has(c), add: c => e.cls.add(c) };
+        e.matches = sel => sel.split(',').map(s => s.trim()).includes(e.tag);
+        const all = () => { const out = []; const walk = n => n.kids.forEach(k => { if (k.nodeType === 1) { out.push(k); walk(k); } }); walk(e); return out; };
+        e.querySelectorAll = sel => sel === '[id]' ? all().filter(k => k.id) : all().filter(k => k.matches(sel));
+        e.closest = sel => { for (let n = e; n; n = n.parentNode) if (n.id && sel.split(',').map(s => s.trim()).includes('#' + n.id)) return n; return null; };
+        e.add = k => { k.parentNode = e; e.kids.push(k); if (k.id) byIdEls[k.id] = k; return k; };
+        return e; };
+    const body = mk('body'), board = body.add(mk('div', { id: 'whiteboard' })), fog = body.add(mk('div', { id: 'fogScreen' }));
+    let timers = [];
+    const doc = { querySelectorAll: () => { docQ.qsa++; return []; }, getElementById: id => { docQ.byId++; return byIdEls[id] || null; }, body };
+    let api = null, tsErr = '';
+    try { api = new Function('document', 'setTimeout', 'BY_ID', 'tipFor', 'SELECTOR', "'use strict';" + tsS + '\nreturn { schedule: schedule, flush: function() { var t = timers; return t; } };')(doc, fn => { timers.push(fn); return timers.length; }, { fName: 'The name' }, el => (el.text === 'Known' ? 'Tip of Known' : ''), 'h2, h4, label'); } catch (e) { tsErr = e.message; }
+    const run = () => { const t = timers; timers = []; t.forEach(f => f()); };
+    const res = [];
+    if (api) {
+        // a label added inside the board, and a token's own node: nothing read, no timer even
+        const inBoard = board.add(mk('label', { text: 'Known' })), inFog = fog.add(mk('label', { text: 'Known' }));
+        api.schedule([{ addedNodes: [inBoard] }, { addedNodes: [inFog] }]); res.push(timers.length); run();
+        res.push(inBoard.title, inFog.title, docQ.qsa, docQ.byId);
+        // a box added outside, with a known label and an input of the dictionary's: both get their tips, the ids looked up once
+        const box = body.add(mk('div')), lab = box.add(mk('label', { text: 'Known' })), inp = box.add(mk('input', { id: 'fName' }));
+        api.schedule([{ addedNodes: [box] }]); api.schedule([{ addedNodes: [box] }]); res.push(timers.length); run();
+        res.push(lab.title, inp.title, docQ.qsa, docQ.byId > 0);
+        // a heading whose words were set afresh: the text node's element is read again; and one with no dictionary id costs no lookup by id
+        const h = body.add(mk('h2', { text: 'Other' })); const before = docQ.byId; h.text = 'Known';
+        api.schedule([{ addedNodes: [{ nodeType: 3, parentNode: h }] }]); run(); res.push(h.title, docQ.byId === before);
+        // a node taken off the page before the pass is passed over
+        const gone = body.add(mk('label', { text: 'Known', isConnected: false })); api.schedule([{ addedNodes: [gone] }]); run(); res.push(gone.title);
+    }
+    check('the tooltip pass after a change reads only the nodes the change added (finding 30, tips.js run for real): nothing inside the board or the fog\'s screen and not even a timer for them, a label and an input added outside them tipped in one pass for any number of records, the ids of the dictionary looked up only where an added node holds one, a heading whose words were set afresh read again, a node already taken off passed over, and the whole document never walked',
+        !tsErr && JSON.stringify(res) === JSON.stringify([0, '', '', 0, 0, 1, 'Tip of Known', 'The name', 0, true, 'Tip of Known', true, '']) && tipsSrc.includes('applyTips(document);\nnew MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });'), tsErr || JSON.stringify(res));
 }
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

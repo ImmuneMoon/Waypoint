@@ -497,6 +497,11 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
       var selItem = null;
       var rnPlaces = typeof roomNamePlaces === 'function' ? roomNamePlaces(activeMap) : null;   // 1.6.2 (backlog 45, fold 3): which pieces wear a room's name, once a draw
+      // 1.6.3 (the improvement week's review, finding 35): the ids of the map's flattened pictures, gathered once a draw. The loop below asks it of each
+      // piece drawn into one (flatIn), where it used to search the whole map for that piece's picture: flattened pieces times all pieces on every redraw.
+      // A map with no prototype, so an id such as __proto__ is an id like any other; the same answer as the search, since only a flatPic of true counts
+      var flatPics = Object.create(null);
+      activeMap.whiteboard.forEach(function(f) { if (f && f.flatPic === true && typeof f.id === 'string') flatPics[f.id] = 1; });
 
       activeMap.whiteboard.forEach(function(item) {
 
@@ -923,7 +928,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
           el.classList.toggle('wb-hidden-gm', !!item.hidden && !clientView);
           el.classList.toggle('wb-room-area', item.roomArea === true && !!item.nodeId && !clientView);   // 1.6.2 (backlog 45, fold 3): a room's area only the GM sees
-          el.classList.toggle('wb-flat-in', !clientView && typeof item.flatIn === 'string' && activeMap.whiteboard.some(function(f) { return f && f.id === item.flatIn && f.flatPic === true; }));   // 1.6.2, found by hand: a piece drawn into a flattened picture stays out of sight and out of reach on the map, its picture showing it; Layers lists it under the picture
+          el.classList.toggle('wb-flat-in', !clientView && typeof item.flatIn === 'string' && flatPics[item.flatIn] === 1);   // 1.6.2, found by hand: a piece drawn into a flattened picture stays out of sight and out of reach on the map, its picture showing it; Layers lists it under the picture
 
           el.classList.toggle('wb-trap', !!item.trap && !!el.dataset.portal && !!item.hidden && !clientView);   // GM-only: an armed hidden trap portal
           // [sinkcheck:portalcue-start]
@@ -9443,7 +9448,12 @@ function buildTake() {
     window.isDrawingMode = false; window.isEraserMode = false; window.isMeasureMode = false;
     if (window.wpPlace) disarmPlacement();
     updateWbToolbar('buildModeBtn'); closeDrawMenu();
-    state.selWbId = null; state.selWbIds = []; render();
+    // 1.6.3 (the improvement week's review, finding 29): the selection is let go, and the whole board is drawn again only where there was one to let
+    // go. Taking Build, or opening its options by the small arrow, which takes it too, drew every piece of the map again even when nothing was
+    // selected, and that worked out every token's effects (a few tenths of a second on a full map). With nothing selected nothing on the board
+    // changes: the bar has been told above (updateWbToolbar), and buildArm below arms the board itself
+    var hadSel = !!state.selWbId || (Array.isArray(state.selWbIds) && state.selWbIds.length > 0);
+    state.selWbId = null; state.selWbIds = []; if (hadSel) render();
     buildArm();
 }
 // The options from the choices. The material rows are made once, by name: a swatch of the material's own tile, its name, one gray line

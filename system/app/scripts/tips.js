@@ -194,28 +194,72 @@ function tipFor(el) {
     return null;
 }
 var SELECTOR = 'h2, h4, label, .section-title, .set-section-label, .set-field-label, #settingsModal details.set-group > summary, .draw-menu-label, .stc-title, #inspector h3, .net-section-label';
-function applyTips(root) {
-    (root || document).querySelectorAll(SELECTOR).forEach(function(el) {
-        if (el.dataset.tipped) return;
-        var tip = tipFor(el);
-        if (!tip) return;
-        if (el.classList.contains('section-title')) el.title = tip + (el.parentNode && el.parentNode.querySelector && el.parentNode.querySelector('.section-actions') ? ' (Click to collapse or expand · right-click for actions.)' : ' (Click to collapse or expand.)');   // a title with no actions promises none
-        else if (!el.title) el.title = tip;
-        else return;
-        el.dataset.tipped = '1';
-        el.classList.add('has-tip');
-    });
-    // Inputs the dictionary knows by id get the tip too, so hovering the field itself helps
+// [lookcheck:tips-start]
+// One heading or label: its tip from the dictionary, once (dataset.tipped), never over a title it already has (a section title's collapse hint
+// is the one exception, appended). Asked by applyTips for each element its selector finds
+function tipOne(el) {
+    if (el.dataset.tipped) return;
+    var tip = tipFor(el);
+    if (!tip) return;
+    if (el.classList.contains('section-title')) el.title = tip + (el.parentNode && el.parentNode.querySelector && el.parentNode.querySelector('.section-actions') ? ' (Click to collapse or expand · right-click for actions.)' : ' (Click to collapse or expand.)');   // a title with no actions promises none
+    else if (!el.title) el.title = tip;
+    else return;
+    el.dataset.tipped = '1';
+    el.classList.add('has-tip');
+}
+// Inputs the dictionary knows by id get the tip too, so hovering the field itself helps
+function tipIds() {
     Object.keys(BY_ID).forEach(function(id) {
         var f = document.getElementById(id);
         if (f && !f.title) f.title = BY_ID[id];
     });
 }
-var pending = null;
-function schedule() {
-    if (pending) return;
-    pending = setTimeout(function() { pending = null; applyTips(document); }, 60);
+// The whole pass: every heading and label under root (and root itself where it is one), then the inputs by id. Run once at the start over the
+// whole document, and by hand from the console (window.wpApplyTips)
+function applyTips(root) {
+    var r = root || document;
+    if (r !== document && r.matches && r.matches(SELECTOR)) tipOne(r);
+    r.querySelectorAll(SELECTOR).forEach(tipOne);
+    tipIds();
 }
+// 1.6.3 (the improvement week's review, finding 30): after a change to the page, only what was added is read. The observer used to walk the whole
+// document and every id of the dictionary 60 ms after ANY change, a drag of the board's tokens included, at up to 4.5 ms a time. Now each record's
+// added nodes are kept as roots (a text node by the element it went into, so a heading whose words change is read again), never one inside the
+// board or the fog's screen (#whiteboard, #fogScreen), which hold no heading or label of the app's own; and the inputs by id are looked at only
+// where a root holds an element with one of the dictionary's ids. Only additions are watched, as before
+function tipsSkip(el) { return !!(el.closest && el.closest('#whiteboard, #fogScreen')); }
+function tipsHasId(el) {
+    if (el.id && Object.prototype.hasOwnProperty.call(BY_ID, el.id)) return true;
+    var all = el.querySelectorAll ? el.querySelectorAll('[id]') : [];
+    for (var i = 0; i < all.length; i++) if (Object.prototype.hasOwnProperty.call(BY_ID, all[i].id)) return true;
+    return false;
+}
+var pending = null, pendRoots = [];
+function tipsFlush() {
+    pending = null;
+    var roots = pendRoots; pendRoots = [];
+    var seen = typeof Set === 'function' ? new Set() : null, ids = false;
+    roots.forEach(function(el) {
+        if ((seen && seen.has(el)) || el.isConnected === false || tipsSkip(el)) return;
+        if (seen) seen.add(el);
+        if (el.matches && el.matches(SELECTOR)) tipOne(el);
+        if (el.querySelectorAll) el.querySelectorAll(SELECTOR).forEach(tipOne);
+        if (!ids && tipsHasId(el)) ids = true;
+    });
+    if (ids) tipIds();
+}
+function schedule(records) {
+    (records || []).forEach(function(rec) {
+        var added = rec && rec.addedNodes ? rec.addedNodes : [];
+        for (var i = 0; i < added.length; i++) {
+            var n = added[i], el = n && n.nodeType === 1 ? n : n && n.parentNode && n.parentNode.nodeType === 1 ? n.parentNode : null;
+            if (el && !tipsSkip(el)) pendRoots.push(el);
+        }
+    });
+    if (pending || !pendRoots.length) return;
+    pending = setTimeout(tipsFlush, 60);
+}
+// [lookcheck:tips-end]
 applyTips(document);
 new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
 window.wpApplyTips = applyTips;

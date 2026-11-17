@@ -250,6 +250,28 @@ function world(opts) {
             && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'notice.js'), 'utf8').includes("kept: function() { var n = window.wpNet; if (n && n.fightsKeepSoon) n.fightsKeepSoon(); },"));
         void k3s;
     }
+    {   // 1.6.3 (the improvement week's review, finding 23): the sneak formula's answer is kept while nothing it is worked out from moved (notice.js
+        // sneakKey, run for real): a GM previewing a player's view judged every creature's sneak on every frame, a whole resolver each time
+        const Wk = world(); Wk.notice = N.make(Wk.D);
+        const S = Wk.D.S(), F = Wk.D.F(), evals = [];
+        Wk.outside = 'a'; S.outsideKey = (sys, ch, id, oc) => 'out:' + Wk.outside + ':' + id + ':' + oc; S.outsideCamp = () => 'camp';
+        const ev0 = F.evaluate; F.evaluate = (text, o) => { if (text === 'Sneaking') { evals.push(o.vars.ch.sneaking === true); return { ok: true, value: o.vars.ch.sneaking === true }; } return ev0(text, o); };
+        Wk.round = 1; Wk.D.ctxFor = () => ({ round: Wk.round });
+        const T2 = Wk.camp.chars.c2, steps = [];
+        Wk.judge(); Wk.judge(); Wk.judge(); steps.push(evals.length);                       // three frames, nothing moved: worked out once
+        T2.sneaking = true; Wk.judge(); steps.push(evals.length, evals[evals.length - 1]);  // a value of its sheet written in place: worked out again, and true
+        Wk.judge(); steps.push(evals.length);                                               // and kept again
+        Wk.round = 2; Wk.judge(); steps.push(evals.length);                                 // its context moved (the round): again
+        Wk.outside = 'b'; Wk.judge(); steps.push(evals.length);                             // what it reads from outside its sheet moved: again
+        Wk.camp.system = Object.assign({}, Wk.camp.system); Wk.judge(); steps.push(evals.length);   // another system object: again
+        Wk.camp.system.extra = [1]; Wk.judge(); steps.push(evals.length);                   // a part written into the system in place: again
+        T2.sneaking = false; Wk.judge(); steps.push(evals.length, evals[evals.length - 1]);
+        // with no way to read what is outside the sheet, it is worked out every time, as before
+        const Wn = world(); Wn.notice = N.make(Wn.D); let nEv = 0; const Fn = Wn.D.F(), evn = Fn.evaluate; Fn.evaluate = (t, o) => { if (t === 'Sneaking') nEv++; return evn(t, o); };
+        Wn.judge(); Wn.judge(); Wn.judge();
+        check('1.6.3 (finding 23) the sneak formula is worked out once while nothing it reads moved (notice.js sneakKey, run for real): three frames one evaluation; a value of its sheet written in place, its context (the round), what it reads from outside the sheet, another system object and a part written into the system each work it out again with the new answer; with no reading of the outside every frame works it out, as before',
+            JSON.stringify(steps) === JSON.stringify([1, 2, true, 2, 3, 4, 5, 6, 7, false]) && nEv === 3, JSON.stringify([steps, nEv]));
+    }
     console.log(pass + ' passed, ' + fail + ' failed.');
     summed = true;
     if (fail) process.exitCode = 1;

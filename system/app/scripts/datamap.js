@@ -1099,6 +1099,9 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
         var actualDx = snapItem.x - primaryDrag.ox;
         var actualDy = snapItem.y - primaryDrag.oy;
         lastDx = actualDx; lastDy = actualDy;
+        // 1.6.3 (the improvement week's review, finding 24): the GM's own drag on the play map is moving now. fog.js draw reads it, and while it
+        // moved within half a second a slow map's overlay works its tiers out at most every 200 ms (drawTiers' hold); a player's drag never sets it
+        if (modeStr === 'visual' && !clientVis) window.wpBoardDragAt = Date.now();
 
         multiDrag.forEach(m => {
             if (m.lost) return;
@@ -1145,6 +1148,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
         if (window.wpMoveTip) window.wpMoveTip(null);   // 1.5.7: the live move label goes with the drag
         if(!dragging) return;
         if (window.wpHostGestureEnd) window.wpHostGestureEnd();   // fold M6: whatever it was, the gesture is over (abortDrag ends here too)
+        window.wpBoardDragAt = 0;   // 1.6.3 (finding 24): the drag is let go, so the fog is worked out afresh at its next frame
         if (lockedMq) {   // finish a locked-item interaction: a drag became a marquee, a still click selects the locked item
             dragging = false;
             try { el.releasePointerCapture(e.pointerId); } catch(_) {}

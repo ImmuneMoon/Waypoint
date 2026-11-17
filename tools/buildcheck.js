@@ -625,6 +625,12 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             { color: '#2e5d86', layer: 'back', name: 'Water', texture: 'ripples', terrain: 2 }, { color: '#2e5d86', layer: 'back', name: 'Water', texture: 'ripples' }, { color: '#2e5d86', layer: 'back', name: 'Water', texture: 'ripples', terrain: 5 }, { color: '#55505c', layer: 'back-mid', name: 'Rubble', texture: 'stone', cover: 'yes' },
             { color: '#4b6b36', layer: 'back', name: 'Grass' }, { color: '#101010', layer: 'back', name: 'Floor', texture: 'cobbles' }]), j(pr));
     // (3) taking the tool, arming, another tool
+    // 1.6.3 (the improvement week's review, finding 29): taking Build draws the board again only where a selection was let go: with none, no render
+    // (the options opened by the small arrow drew every piece of the map again); with one, the one render that takes it off the board
+    const Wnone = world(); Wnone.st.selWbId = null; Wnone.st.selWbIds = []; Wnone.api.buildTake();
+    const Wsel = world(); Wsel.st.selWbId = 'a1'; Wsel.st.selWbIds = ['a1']; Wsel.api.buildTake(); const Wsel2 = world(); Wsel2.st.selWbId = null; Wsel2.st.selWbIds = ['a1', 'a2']; Wsel2.api.buildTake();
+    const selTake = [Wnone.renders.length, Wnone.win.isBuildMode, j(Wnone.win.wpPlace && Wnone.win.wpPlace.build), Wsel.renders.length, Wsel.st.selWbId, j(Wsel.st.selWbIds), Wsel2.renders.length, j(Wsel2.st.selWbIds)];
+    check('taking Build with a selection lets it go and draws the board once; with none it draws nothing and still arms Build (finding 29, buildTake run for real)', j(selTake) === j([0, true, j({ mat: 'floor', shape: 'rect', corridorW: 1 }), 1, null, '[]', 1, '[]']), j(selTake));
     const Wt = world(); Wt.api.buildTake(); const t1 = [Wt.log.join(), Wt.win.isBuildMode, j(Wt.win.wpPlace && Wt.win.wpPlace.build), Wt.win.wpPlace && Wt.win.wpPlace.type, Wt.doc.body.cls.has('placing'), Wt.st.selWbId, j(Wt.st.selWbIds), Wt.renders.length, Wt.wbWrap.style.cursor, Wt.win.isDrawingMode, Wt.toasts.length];
     Wt.api.buildPick(() => Wt.api.buildMaterial('door')); const t2 = [j(Wt.win.wpPenPreset), Wt.win.isDrawingMode, Wt.win.wpPlace, Wt.win.isBuildMode, Wt.api._build.pen];
     Wt.api.buildPick(() => Wt.api.buildMaterial('floor')); const t3 = [Wt.win.wpPenPreset, Wt.win.isDrawingMode, j(Wt.win.wpPlace && Wt.win.wpPlace.build), Wt.api._build.pen];

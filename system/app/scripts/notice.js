@@ -27,9 +27,37 @@ function make(D) {
     function quiet(fn) { R.busy = (R.busy || 0) + 1; try { return fn(); } finally { R.busy--; } }
 
     // Whether a creature is sneaking: the formula on its own sheet. Its Stealth roll goes with the mark
+    // 1.6.3 (the improvement week's review, finding 23): what the sneak formula is worked out from, as one text, so that its answer is kept while
+    // none of it moved. A GM previewing a player's view judged every creature's sneak on every frame of the overlay (fog.js asks the judgment as it
+    // draws the previewed player's marks), and each one made a whole resolver of the creature's sheet: 96 a second, a quarter of a second of work.
+    // The text names everything the resolver and the formula read, as the fog's own kept senses name it (fog.js sensesContent): the formula, the
+    // context the creature's sheet is read with (its token, its range and round, worked out as before), the whole character as stored, what its
+    // sheet reads from outside it (systemcore outsideKey and outsideCamp: linked sheets, the date, shared values, decks), the library (the
+    // campaign's packs and the library's own state and size) and the system (by which object it is, its stamp and the shape of its parts). Null
+    // where any of it cannot be read, which works the formula out as before
+    function sneakKey(camp, ch, w, rule, ctx) {
+        var S = D.S(); if (!S || typeof S.outsideKey !== 'function') return null;
+        try {
+            var sys = camp.system, oc = typeof S.outsideCamp === 'function' ? S.outsideCamp(sys) : undefined; if (oc === null) return null;
+            var out = S.outsideKey(sys, ch, typeof w.id === 'string' ? w.id : '', typeof oc === 'string' ? oc : undefined); if (typeof out !== 'string') return null;
+            var L = typeof window !== 'undefined' ? window.wpLibrary : null, lib = L ? [typeof L.state === 'function' ? String(L.state()) : '', typeof L.size === 'function' ? String(L.size()) : ''] : null;
+            var shape = sys && typeof sys === 'object' ? Object.keys(sys).sort().map(function(k) { var v = sys[k]; return k + ':' + (Array.isArray(v) ? 'a' + idOf(v) + '.' + v.length : v && typeof v === 'object' ? 'o' + idOf(v) : typeof v + ':' + String(v)); }).join(',') : '';
+            return JSON.stringify([rule.sneak, ctx === undefined ? null : ctx, ch, camp.library === undefined ? null : camp.library, lib, shape]) + '\u0002' + out;
+        } catch (e) { return null; }
+    }
+    function idOf(o) { if (!R.ids) R.ids = typeof WeakMap === 'function' ? new WeakMap() : null; if (!R.ids) return 0; var n = R.ids.get(o); if (!n) { R.idN = (R.idN || 0) + 1; n = R.idN; R.ids.set(o, n); } return n; }   // a number for an object, the same while it is the same object
     function sneakRoll(camp, map, w, rule) {
         var ch = charOf(camp, w), F = D.F(), S = D.S(); if (!ch || !rule.sneak || !F || !S) return null;
-        var on1 = false; try { var res = quiet(function() { return F.evaluate(rule.sneak, { vars: S.makeResolver(camp.system, ch, F, D.ctxFor(ch.id, camp)) }); }); on1 = !!(res && res.ok && res.value); } catch (e) { on1 = false; }
+        var on1 = false;
+        try {
+            var ctx = quiet(function() { return D.ctxFor(ch.id, camp); });
+            var key = sneakKey(camp, ch, w, rule, ctx), kept = R.snk && R.snk[ch.id];
+            if (key !== null && kept && kept.key === key && kept.sys === camp.system) on1 = kept.on;   // nothing it reads moved: the answer it gave
+            else {
+                var res = quiet(function() { return F.evaluate(rule.sneak, { vars: S.makeResolver(camp.system, ch, F, ctx) }); }); on1 = !!(res && res.ok && res.value);
+                if (key !== null) (R.snk || (R.snk = Object.create(null)))[ch.id] = { key: key, sys: camp.system, on: on1 };
+            }
+        } catch (e) { on1 = false; }
         if (!on1) { if (R.was[ch.id]) { delete R.was[ch.id]; delete R.sn[ch.id]; } return null; }
         R.was[ch.id] = 1;
         return own(R.sn, ch.id) ? R.sn[ch.id] : null;

@@ -1298,6 +1298,25 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && css4.includes('.planner-block-edit .pg-done { display: none; }') && css4.includes('.pbe-layer .planner-block-edit.pg-open .pg-done { display: inline-flex;') && /\.pbe-layer \.planner-block-edit\.pg-open > \.block-head \{ position: sticky; top: var\(--pg-top, 0px\);/.test(css4)
                 && plS.includes("form.style.setProperty('--pg-top', Math.max(0, fbh - 20) + 'px');") && css4.includes('.pbe-page #plannerFindBar { z-index: 21; }') /* found live: a tall open block scrolled over the Find bar (the layer stands at 20) */);
         }
+        {   // 1.6.3 (the improvement week's review, finding 31): a pan of the play map asks the table follow nothing (tablefollow.js tfWire, run for real
+            // on a page of plain objects): its scroll listener passes over the map's own box, and a scroll of any other box asks for a frame as before
+            const tfS = read('scripts/tablefollow.js'), wA = tfS.indexOf('function tfSoon()'), wZ = tfS.indexOf("if (typeof window !== 'undefined' && typeof document !== 'undefined') { tfWire();");
+            const heard = {}, rafs = [];
+            let tfErr = '', TW = null;
+            try {
+                TW = new Function('document', 'window', 'location', 'URLSearchParams', 'requestAnimationFrame', 'setInterval', 'tfNow', "'use strict';\nvar tf = { bar: null, inner: null, head: null, box: null, raf: 0, wired: false, lastSc: undefined };\n" + tfS.slice(wA, wZ) + '\nreturn { tfWire: tfWire, tf: tf };')(
+                    { addEventListener: (t, f) => { heard[t] = f; }, body: { id: 'body' }, documentElement: { id: 'html' } }, { addEventListener: () => {} }, { search: '' }, URLSearchParams, f => { rafs.push(f); return rafs.length; }, () => 0, () => {});
+            } catch (e) { tfErr = e.message; }
+            const tfOut = [];
+            if (TW) {
+                TW.tfWire(); const wrapT = { id: 'whiteboardWrap', nodeType: 1, scrollHeight: 4000, clientHeight: 600 }, sheetT = { id: 'docPanelBody', nodeType: 1, scrollHeight: 4000, clientHeight: 600 };
+                heard.scroll({ target: wrapT }); tfOut.push(rafs.length, TW.tf.lastSc === undefined);
+                heard.scroll({ target: sheetT }); tfOut.push(rafs.length, TW.tf.lastSc === sheetT);
+                TW.tf.raf = 0; heard.scroll({ target: wrapT }); tfOut.push(rafs.length, TW.tf.lastSc === sheetT);
+            }
+            check('1.6.3 (finding 31) a pan of the play map asks the table follow nothing (tablefollow.js tfWire, run for real): a scroll of the map\'s own box asks for no frame and is not taken for the scroller the reader moved, while a scroll of a page\'s box asks for one and is',
+                !tfErr && JSON.stringify(tfOut) === JSON.stringify([0, true, 1, true, 1, true]), tfErr || JSON.stringify(tfOut));
+        }
         {   // 1.6.2, wide tables (the owner, 2026-11-14, by prompt: "Scroll, first column stays", cards only for a very narrow window)
             const TW = new Function('setTimeout', "'use strict';\n" + slice('tfit') + '\nreturn { tfitMode: tfitMode, TFIT_NARROW: TFIT_NARROW, tableFit: tableFit, tableUnfit: tableUnfit };')(() => { throw new Error('a timer of the page'); });
             const M = TW.tfitMode, heads17 = Array.from({ length: 17 }, (_, i) => 'C' + i), row17 = heads17.map((_, i) => String(i));

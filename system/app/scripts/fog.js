@@ -39,11 +39,30 @@ function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').repla
 
 /* ---------- the persisted fog data (travels in FV2) ---------- */
 function DEF_MAP() { return { on: false, mode: 'auto', manual: { adds: [], cuts: [] } }; }
+// A map's fog, cleaned (fogcore cleanFog). 1.6.3 (the improvement week's review, finding 9): it used to be cleaned and replaced on EVERY read,
+// some 1,500 times a second on a fogged map left alone (mapLevel asks it for every token the overlay judges), each time walking every cell
+// painted by hand. Now an object this function cleaned is kept in a WeakMap (on the function itself, so a suite that slices this function alone
+// runs it) with what cleanFog read of it: its own keys, each of its values (JSON tells true from 'true', 1 from '1'), the manual's keys, and
+// the two lists by which array they are and how long. A read where all of that is as it was hands back the very object; anything written into
+// it since (a value set, a cell pushed, a list put in its place, a key added) has it cleaned again, as before. A cell object written into in
+// place is not seen: nothing in the app does that (paintCells filters into a new list and pushes cleaned cells). The answer is the same as
+// cleaning it again would give, which fogcheck holds over seeded objects and writes
 function mapFog(map) {
     if (!map) return DEF_MAP();
     var C = core();
     if (!map.fog || typeof map.fog !== 'object') map.fog = DEF_MAP();
-    else if (C) map.fog = C.cleanFog(map.fog) || DEF_MAP();
+    else if (C) {
+        var kept = mapFog.kept || (mapFog.kept = typeof WeakMap === 'function' ? new WeakMap() : null), f = map.fog, was = kept ? kept.get(f) : null;
+        var sigOf = function(o) {   // what cleanFog reads of o, as a text and the two lists by which array they are
+            var m = o.manual, a = m && m.adds, u = m && m.cuts;
+            return { s: JSON.stringify([Object.keys(o), o.on, o.mode, o.vision, o.light, o.cell, o.epoch, m && typeof m === 'object' ? Object.keys(m) : typeof m]), m: m, a: a, an: a && a.length, u: u, un: u && u.length };
+        };
+        var now = null; if (was) { try { now = sigOf(f); } catch (e) { now = null; } }   // a value JSON cannot write: cleaned again
+        if (!(was && now && now.s === was.s && now.m === was.m && now.a === was.a && now.an === was.an && now.u === was.u && now.un === was.un)) {
+            map.fog = C.cleanFog(f) || DEF_MAP();
+            if (kept) { try { kept.set(map.fog, sigOf(map.fog)); } catch (e) { /* not kept: cleaned at the next read */ } }
+        }
+    }
     if (!map.fog.manual) map.fog.manual = { adds: [], cuts: [] };
     return map.fog;
 }
@@ -180,6 +199,20 @@ function tokenSightCells(token, map, camp) { return tokenSenses(token, map, camp
 //    to key) shows within that time, as it showed within a second before. Spread by each token's own moment, that costs one resolver a token
 //    every 30 s, a thirtieth of the old cost
 var SENSES_KEEP_MS = 1000, SENSES_SPREAD = 1000, SENSES_MAX_MS = 30000, _sensesDraw = false, _sensesBusy = false, _sensesCheck = 0, _sensesCamp = null, _sensesMemo = typeof WeakMap === 'function' ? new WeakMap() : null;
+// 1.6.3 (the improvement week's review, finding 9): a token's signature (sensesSig) is written once a frame, not once each time a frame asks for
+// its senses. A frame of the overlay asks for each token's senses more than once (the kept tiers' key, the tiers themselves, the marks), and each
+// time wrote the signature again, the token's context (systemcore tokenCtx) among it: some 1,440 contexts a second on a map left alone. A frame
+// is one task with nothing changing in it, so the signature written for a token in this frame, for this map and campaign, is the one it would
+// write again. _sensesTick is the frame's number, raised by tick() alone; at 0 (no frame yet, or a suite that opens frames of its own) every
+// ask writes it afresh, as before
+var _sensesTick = 0, _tokSigs = typeof WeakMap === 'function' ? new WeakMap() : null;
+function sensesSigNow(token, map, camp) {
+    if (!_sensesTick || !_tokSigs) return sensesSig(token, map, camp);
+    var e = _tokSigs.get(token);
+    if (e && e.f === _sensesTick && e.map === map && e.camp === camp) return e.s;
+    var s = sensesSig(token, map, camp); _tokSigs.set(token, { f: _sensesTick, map: map, camp: camp, s: s });
+    return s;
+}
 var _sensesDates = typeof WeakMap === 'function' ? new WeakMap() : null, _sensesIds = typeof WeakMap === 'function' ? new WeakMap() : null, _sensesIdN = 0;
 function sensesForget() { _sensesCheck++; }   // every kept result looks at its key again at the next frame (see above)
 // 1.6.3 (the game of 2026-11-15, a GM's map of 158 characters that lagged): the signature names what the senses READ from the map, never the
@@ -290,7 +323,7 @@ function sensesKept(token, map, camp, waived) {   // the kept result while a fra
     if (!_sensesDraw || _sensesBusy || !_sensesMemo || !token || typeof token !== 'object') return null;
     var ch = camp && camp.chars && typeof camp.chars === 'object' && typeof token.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, token.charId) ? camp.chars[token.charId] : null, vals = ch ? ch.values : null, sys = camp ? camp.system : null;
     var slot = _sensesMemo.get(token); if (!slot) { slot = {}; _sensesMemo.set(token, slot); }
-    var k = waived === true ? 'w' : 'o', hit = slot[k], now = Date.now(), sig = sensesSig(token, map, camp) + '|' + (ch ? JSON.stringify(ch.updated) : '-') + '|' + (sys ? JSON.stringify(sys.updated) : '-');
+    var k = waived === true ? 'w' : 'o', hit = slot[k], now = Date.now(), sig = sensesSigNow(token, map, camp) + '|' + (ch ? JSON.stringify(ch.updated) : '-') + '|' + (sys ? JSON.stringify(sys.updated) : '-');
     var same = !!hit && hit.sig === sig && hit.ch === ch && hit.vals === vals && hit.sys === sys && now >= hit.at;   // nothing the signature names moved, and the clock did not go back
     if (same && now < hit.until && hit.chk === _sensesCheck) return hit.out;   // its second is not up and nothing said to look again
     var young = same && now - hit.born < SENSES_MAX_MS;   // it may still be renewed by its key
@@ -1126,7 +1159,7 @@ function dtId(o) { if (!o || typeof o !== 'object') return '0'; if (!_dtIds) ret
 function dtKey(map, camp, ownerId, grid) {   // the text every input of the tiers is named in; null where the tiers are not to be kept (worked out afresh)
     var C = core(); if (!C || !map || !grid || !_dtIds) return null;
     var mf = mapFog(map); if (mf.mode === 'reveal') return null;   // Reveal all: revealedTiers answers null at once, nothing to keep
-    var cellsOf = function(l) { var s = ''; for (var i = 0; l && i < l.length; i++) s += C.cellKey(l[i], grid) + ';'; return s; };
+    var cellsOf = function(l) { return dtCells(l, grid, C); };   // 1.6.3 (finding 9): kept for each list (dtCells)
     var k = [dtId(map), map.id, roleNow(), String(ownerId), JSON.stringify(grid), mf.mode, cellsOf(mf.manual.adds), cellsOf(mf.manual.cuts)];
     // the walls only where the tiers read them: under Cover all neither revealedTiers nor wallEdged asks blockersFor, and asking it here would
     // raise its Too many sight-blockers notice on a screen that never read the walls
@@ -1141,13 +1174,38 @@ function dtKey(map, camp, ownerId, grid) {   // the text every input of the tier
     var ph = typeof pieceHand === 'function' ? pieceHand(map, grid) : null; k.push(ph ? ph.sig : '');
     return k.join('\u0001');
 }
-function drawTiers(map, camp, ownerId, grid) {   // the overlay's tiers (revealedTiers, then the cells a wall runs through): the kept ones while dtKey is the same
+// 1.6.3 (the improvement week's review, finding 9): the cells painted by hand as the text dtKey names them by. A map left alone kept writing all
+// of them (731 on the campaign that was measured: some 11,700 cellKey calls a second) for a key that did not change. Now the text is kept for each
+// list, with the grid it was written for and the cells it held, one by one, by which object each is: the same list holding the same cells under
+// the same grid gives the same text it gave, anything else is written again. A cell object written into in place is not seen (nothing does that)
+var _dtCellKeys = typeof WeakMap === 'function' ? new WeakMap() : null;
+function dtCells(l, grid, C) {
+    if (!l || !l.length) return '';
+    var gk = JSON.stringify(grid), hit = _dtCellKeys && typeof l === 'object' ? _dtCellKeys.get(l) : null, i;
+    if (hit && hit.g === gk && hit.refs.length === l.length) { for (i = 0; i < l.length; i++) if (hit.refs[i] !== l[i]) break; if (i === l.length) return hit.s; }
+    var s = ''; for (i = 0; i < l.length; i++) s += C.cellKey(l[i], grid) + ';';
+    if (_dtCellKeys && typeof l === 'object') _dtCellKeys.set(l, { g: gk, refs: Array.prototype.slice.call(l), s: s });
+    return s;
+}
+// 1.6.3 (the improvement week's review, finding 24): while the GM drags a piece on a slow map, the overlay works its tiers out at most every
+// DT_HOLD_MS. The NPC dragged is one of the GM's viewers, so every move named a new key and every frame worked the whole revealed set out
+// again, 85 to 115 ms a frame on the campaign's largest map, which held the drag itself back. hold (only true counts, which draw() passes while
+// the GM's own board drag is moving: window.wpBoardDragAt, datamap.js) hands back the tiers kept last, without asking dtKey, where they were
+// worked out for the very same map object and owner less than DT_HOLD_MS ago and the last frame that worked tiers out took DT_SLOW_MS or more
+// (_dtSlow, which tick() measures); a map that draws fast is never held, so its frames are exactly as before. Once the drag stops moving, or is
+// let go, the next frame works them out afresh, so where the piece lands is drawn as it always was. Nothing a player is sent reads this
+var DT_HOLD_MS = 200, DT_SLOW_MS = 25, _dtSlow = 0, _dtFresh = false;
+function drawTiers(map, camp, ownerId, grid, hold) {   // the overlay's tiers (revealedTiers, then the cells a wall runs through): the kept ones while dtKey is the same
+    var now = Date.now();
+    if (hold === true && _dtKept && _dtKept.map === map && _dtKept.owner === ownerId && _dtSlow >= DT_SLOW_MS && now >= _dtKept.at && now - _dtKept.at < DT_HOLD_MS) return _dtKept.tiers;
     var key = dtKey(map, camp, ownerId, grid);
     if (key !== null && _dtKept && _dtKept.key === key) return _dtKept.tiers;
     var t = revealedTiers(map, camp, ownerId); if (t !== null && typeof wallEdged === 'function') t = wallEdged(t, map, grid);
-    _dtKept = key !== null && t !== null ? { key: key, tiers: t } : null;
+    _dtKept = key !== null && t !== null ? { key: key, tiers: t, map: map, owner: ownerId, at: now } : null;
+    _dtFresh = true;
     return t;
 }
+function drawTiersSlow(ms) { _dtSlow = typeof ms === 'number' && isFinite(ms) && ms > 0 ? ms : 0; }   // how long the last frame that worked tiers out took (tick)
 function drawTiersOwn(t, map, camp, ownerId, grid) {   // the tiers for a caller that writes into them: a copy of the kept object where the heights would add cells (heightShown), else the very tiers
     if (!t || !_dtKept || _dtKept.tiers !== t) return t;
     var hr = typeof heightRules === 'function' ? heightRules(map, camp, grid, ownerId) : null; if (!hr || !hr.hs.split) return t;   // heightShown changes nothing then
@@ -1831,6 +1889,20 @@ function maskClip(mask, grid, z, sx, sy, W, H, traceOn) {
 // ones in the other), and the frames after it trace nothing. A frame whose tiers or view have just changed gets null and is traced on the
 // canvas as ever. Null too where there is no Path2D. vk: the view by its numbers (zoom, scroll, size, the pad a turned view adds, the grid)
 var _punchTiers = null, _punchKey = null, _punchDim = null, _punchClear = null;
+// 1.6.3 (the improvement week's review, finding 31): the window of the board the kept punches hold, in the board's own scale (a cell's center
+// times the zoom), never by the view's scroll: a pan inside it keeps the very paths, and draw() lays them on the canvas with the scroll as a
+// translation. It is the view's own cull (the cells whose center lies within pad of the screen) and half a screen more each way, so a pan of
+// up to half a screen reuses the paths; a pan past that, a zoom, a change of the screen's size or of pad gives a new window and new paths.
+// Every cell the screen's own trace would draw is in it, and a cell it adds beyond that has its center past pad and so lies wholly off the
+// screen (fogcheck holds both), so the pixels are the ones the trace gives. { x0, y0, x1, y1, key }
+var _punchWin = null, _punchWinN = 0;
+function punchWin(z, sx, sy, W, H, pad) {
+    var w = _punchWin, a = sx - pad, b = sy - pad, c = sx + W + pad, d = sy + H + pad;
+    if (w && w.z === z && w.W === W && w.H === H && w.pad === pad && a >= w.x0 && b >= w.y0 && c <= w.x1 && d <= w.y1) return w;
+    var mx = W / 2, my = H / 2;
+    w = _punchWin = { z: z, W: W, H: H, pad: pad, x0: a - mx, y0: b - my, x1: c + mx, y1: d + my, key: 'w' + (++_punchWinN) };
+    return w;
+}
 function punchPaths(tiers, vk, traceOn) {
     if (typeof Path2D !== 'function' || !tiers || !Array.isArray(tiers.list) || !tiers.keys) return null;
     if (_punchTiers !== tiers || _punchKey !== vk) { _punchTiers = tiers; _punchKey = vk; _punchDim = null; _punchClear = null; return null; }
@@ -1874,7 +1946,8 @@ function draw() {
         return;
     }
     var keptT = !isStreamView() && typeof drawTiers === 'function';   // 1.6.3: the tiers of the frame before, while nothing they read changed (drawTiers: revealedTiers and wallEdged, kept)
-    var tiers = keptT ? drawTiers(map, camp, drawOwner(), grid) : isStreamView() ? partyTiers(map, grid) : revealedTiers(map, camp, drawOwner());   // R2 #14: the stream window draws the host's word
+    var holdT = keptT && !isClientView() && typeof window !== 'undefined' && window.wpBoardDragAt > 0 && Date.now() - window.wpBoardDragAt < 500;   // 1.6.3 (finding 24): the GM's own drag is moving (datamap.js stamps each move)
+    var tiers = keptT ? drawTiers(map, camp, drawOwner(), grid, holdT) : isStreamView() ? partyTiers(map, grid) : revealedTiers(map, camp, drawOwner());   // R2 #14: the stream window draws the host's word
     if (tiers === null) return;                                    // reveal-all: no fog
     if (!keptT && !isStreamView() && typeof wallEdged === 'function') tiers = wallEdged(tiers, map, grid);   // the cells a wall runs through (the stream window's come with the host's word; drawTiers adds them itself)
     var z = state.zoomLevel || 1, sx = wrap.scrollLeft, sy = wrap.scrollTop;
@@ -1914,8 +1987,17 @@ function draw() {
     for (var di = 0; di < tl.length && !anyDim; di++) if (tk[tl[di].key] === 1) anyDim = true;
     // 1.6.3: while the tiers are the kept ones (drawTiers) and the view has not moved, the two punches are kept paths (punchPaths), made
     // once by the very calls below; else (pp null) each cell is traced on the canvas as ever. fillP fills the kept path or the traced one
-    var pp = keptT && typeof punchPaths === 'function' ? punchPaths(tiers, [z, sx, sy, W, H, pad, grid.type, grid.size, grid.s, grid.h].join('|'), traceOn) : null;
-    var fillP = function(p) { if (pp) { if (p) ctx.fill(p); } else ctx.fill(); };
+    // 1.6.3 (finding 31): the kept paths are in the board's own scale (punchWin), traced by traceWin, and laid with the scroll as a translation,
+    // so a pan inside the window traces nothing again (each step of a pan used to trace every cell twice)
+    var pw = keptT && typeof punchWin === 'function' ? punchWin(z, sx, sy, W, H, pad) : null;
+    var traceWin = function(cx2, cell) {   // one cell's outline in the board's own scale, as traceOn draws it less the scroll; a cell outside the window is skipped
+        var ctr = C.cellCenter(cell, grid), lx = ctr.x * z, ly = ctr.y * z;
+        if (lx < pw.x0 || ly < pw.y0 || lx > pw.x1 || ly > pw.y1) return;
+        if (grid.type === 'square') { var half = grid.size * z / 2; cx2.rect(lx - half - 1, ly - half - 1, half * 2 + 2, half * 2 + 2); }
+        else hexPath(cx2, lx, ly, grid.s * z * 1.02);
+    };
+    var pp = pw && typeof punchPaths === 'function' ? punchPaths(tiers, [z, W, H, pad, grid.type, grid.size, grid.s, grid.h, pw.key].join('|'), traceWin) : null;
+    var fillP = function(p) { if (pp) { if (p) { ctx.save(); ctx.translate(-sx, -sy); ctx.fill(p); ctx.restore(); } } else ctx.fill(); };
     if (anyDim) {
         if (!pp) { ctx.beginPath(); for (var dj = 0; dj < tl.length; dj++) if (tk[tl[dj].key] === 1) traceCell(tl[dj].cell); }
         if (memLay) { ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = 'rgba(5,6,12,0.97)'; fillP(pp && pp.dim); ctx.globalCompositeOperation = 'destination-out'; }   // a dim cell it remembers is as dim as any other
@@ -2216,12 +2298,20 @@ function btnSync() {
 }
 // [fogcheck:fogbtn-end]
 /* ---------- the throttled redraw loop (runs only while the overlay is active) ---------- */
+// 1.6.3 (the improvement week's review, finding 31): whether a scroll moves the board under the fog's canvas, so that the fog is drawn again at
+// once: a scroll of the board's own box, the page, or a box that holds the board. Any other scroll (a sheet, a list, a panel's page) used to
+// draw the fog at once too, past the overlay's 60 ms pace, for nothing it shows. The scroll listener asks it; t is the scroll's target
+function scrollMovesBoard(t, doc, wrap) {
+    if (!t || !doc || t === doc || t === doc.documentElement || t === doc.body) return true;
+    if (!wrap) return true;
+    return t === wrap || (typeof t.contains === 'function' && t.contains(wrap));
+}
 var raf = null, lastDraw = 0;
 function tick() {
     raf = null;
     if (!active()) { clearCanvas(); return; }
     var now = Date.now();
-    if (now - lastDraw >= 60) { lastDraw = now; _sensesDraw = true; try { draw(); if (typeof drawBox === 'function') drawBox(); } finally { _sensesDraw = false; } }   // a frame: the tokens' senses are kept while nothing they read changed
+    if (now - lastDraw >= 60) { lastDraw = now; _sensesTick++; _sensesDraw = true; _dtFresh = false; try { draw(); if (typeof drawBox === 'function') drawBox(); } finally { _sensesDraw = false; if (_dtFresh) drawTiersSlow(Date.now() - now); } }   // a frame: the tokens' senses are kept while nothing they read changed; 1.6.3 (finding 24): a frame that worked tiers out says how long it took
     raf = requestAnimationFrame(tick);
 }
 function kick() { if (!raf) raf = requestAnimationFrame(tick); }
@@ -2663,7 +2753,7 @@ var LIGHT_SAID = {
     var wrap = ui('whiteboardWrap');
     if (wrap && window.ResizeObserver) { try { new ResizeObserver(function() { if (active()) draw(); }).observe(wrap); } catch (e) {} }
     window.addEventListener('resize', function() { if (active()) draw(); });
-    window.addEventListener('scroll', function() { _whyPt = null; if (active()) { lastDraw = 0; kick(); } }, true);
+    window.addEventListener('scroll', function(e) { _whyPt = null; if (active() && scrollMovesBoard(e && e.target, document, wrap)) { lastDraw = 0; kick(); } }, true);   // 1.6.3 (finding 31): a scroll of a sheet or a list waits for the next frame as anything else does
     document.addEventListener('click', function(e) {
         if (menu.classList.contains('show') && !e.target.closest('#fogMenu') && !e.target.closest('#fogModeBtn') && !window.isFogMode) closeMenu();
     });

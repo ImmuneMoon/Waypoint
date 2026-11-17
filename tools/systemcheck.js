@@ -19225,6 +19225,46 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /90,150,230/.test(tints[0]) && /230,90,70/.test(tints[1]) && /212,166,74/.test(tints[2]) && /212,166,74/.test(tints[3]) && J(T.envCellOfKey('3:-2', hx)) === J({ q: 3, r: -2 }) && T.envCellOfKey('3,2', hx) === null,
             J([conv, one, three, fiveHex, box, piece, p1, p2, p3 && p3.cells, pOver.over, tints]));
     }
+    {   // 1.6.3 (the improvement week's review, finding 34): the Environment tool's layer (envtool.js draw, sliced by its envdraw markers and run for
+        // real beside the envtool slice and the real fogcore, on a page of plain objects that counts each element made): the very elements the old draw
+        // made, but the cells are made again only when the painted cells, the grid, the readings or the half of Imperial or Metric changed, and a box
+        // being dragged is one rect moved in place
+        const J = JSON.stringify, FCd = await import('file:///' + path.resolve(path.join(app, 'scripts', 'fogcore.js')).split(String.fromCharCode(92)).join('/') + '?envdraw');
+        const etD = fs.readFileSync(path.join(app, 'scripts', 'envtool.js'), 'utf8').replace(/\r\n/g, '\n');
+        const cut = n => { const a = etD.indexOf('// [systemcheck:' + n + '-start]'), z = etD.indexOf('// [systemcheck:' + n + '-end]'); return a >= 0 && z > a ? etD.slice(a, z) : ''; };
+        const made = { n: 0 };
+        const el = tag => { const e = { tag, attrs: {}, kids: [], parentNode: null, textContent: '' };
+            e.setAttribute = (k, v) => { e.attrs[k] = String(v); }; e.appendChild = k => { if (k.parentNode) k.parentNode.removeChild(k); k.parentNode = e; e.kids.push(k); return k; };
+            e.removeChild = k => { const i = e.kids.indexOf(k); if (i >= 0) e.kids.splice(i, 1); k.parentNode = null; return k; }; Object.defineProperty(e, 'firstChild', { get: () => e.kids[0] || null });
+            e.remove = () => { if (e.parentNode) e.parentNode.removeChild(e); }; return e; };
+        const wbD = el('div'), docD = { getElementById: id => (id === 'whiteboard' ? wbD : id === 'envLayer' ? wbD.kids.find(k => k.attrs.id === 'envLayer') || null : null), createElementNS: (ns, tag) => { made.n++; return el(tag); } };
+        const stD = { measureUnit: 'imperial' }, mapD = { meta: { gridType: 'square', envCells: { '0,0': { temp: 5 }, '1,0': { temp: 40 }, '2,2': { grav: 2 } } } }, campD = { system: { env: [{ key: 'temp', unit: 'temp' }, { key: 'grav', unit: 'g' }] } };
+        const winD = { wpFogCore: FCd, isEnvMode: true };
+        let ED = null, edErr = '';
+        try { ED = new Function('state', 'window', 'localStorage', 'document', 'getActiveMap', 'getActiveCampaign', 'envMay', cut('envtool') + cut('envdraw') + '\nreturn { draw: draw, _env: _env };')(stD, winD, { getItem: () => null, setItem: () => {} }, docD, () => mapD, () => campD, () => true); } catch (e) { edErr = e.message; }
+        // what the old draw made, written out: the polygons and texts in order, each with its attributes and words, then the box
+        const shape = svg => { const out = []; const walk = n => n.kids.forEach(k => { out.push([k.tag, J(k.attrs), k.textContent]); walk(k); }); walk(svg); return out.filter(r => r[0] !== 'g'); };
+        const oldDraw = (cells, box) => { const rows = []; const rs = campD.system.env, metric = stD.measureUnit === 'metric', grid = FCd.gridFor('square');
+            Object.keys(cells).forEach(k => { const m = /^(-?\d+),(-?\d+)$/.exec(k); const cell = { c: +m[1], r: +m[2] }, vals = cells[k];
+                rows.push(['polygon', J({ points: FCd.cellCorners(cell, grid).map(p => p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' '), fill: vals.temp === undefined ? 'rgba(212,166,74,0.22)' : vals.temp < 10 ? 'rgba(90,150,230,0.30)' : vals.temp > 32 ? 'rgba(230,90,70,0.30)' : 'rgba(212,166,74,0.18)', class: 'env-cell' }), '']);
+                const e = rs.filter(x => typeof vals[x.key] === 'number')[0]; if (!e) return; const ctr = FCd.cellCenter(cell, grid), v = e.unit === 'temp' && !metric ? vals[e.key] * 9 / 5 + 32 : vals[e.key];
+                rows.push(['text', J({ x: ctr.x.toFixed(1), y: (ctr.y + 4).toFixed(1), class: 'env-fig' }), String(Math.round(v * 10) / 10) + (e.unit === 'temp' ? (metric ? '°C' : '°F') : e.unit)]); });
+            if (box) rows.push(['rect', J({ class: 'env-box', x: String(Math.min(box[0], box[2])), y: String(Math.min(box[1], box[3])), width: String(Math.abs(box[0] - box[2])), height: String(Math.abs(box[1] - box[3])) }), '']);
+            return rows; };
+        const ed = [];
+        if (ED) {
+            ED.draw(); const svg = wbD.kids[0], n1 = made.n; ed.push(J(shape(svg)) === J(oldDraw(mapD.meta.envCells)));
+            ED.draw(); ED.draw(); ed.push(made.n === n1);   // nothing changed: nothing made again
+            ED._env.brush = 'box'; ED._env.stroke = { pts: [{ x: 10, y: 20 }, { x: 140, y: 90 }] }; ED.draw(); const n2 = made.n; ED._env.stroke.pts[1] = { x: 200, y: 5 }; ED.draw(); ED._env.stroke.pts[1] = { x: 0, y: 300 }; ED.draw();
+            ed.push(n2 === n1 + 1 && made.n === n2, J(shape(svg)) === J(oldDraw(mapD.meta.envCells, [10, 20, 0, 300])));   // the box: one rect, moved in place, after the cells
+            ED._env.stroke = null; ED.draw(); ed.push(J(shape(svg)) === J(oldDraw(mapD.meta.envCells)) && made.n === n2);   // let go: the box goes, nothing made
+            mapD.meta.envCells = Object.assign({}, mapD.meta.envCells, { '3,3': { temp: 20 } }); ED.draw(); ed.push(made.n > n2 && J(shape(svg)) === J(oldDraw(mapD.meta.envCells)));   // a stroke's new cells: made again
+            const n3 = made.n; stD.measureUnit = 'metric'; ED.draw(); ed.push(made.n > n3 && J(shape(svg)) === J(oldDraw(mapD.meta.envCells)));   // the other half of Imperial or Metric: made again
+            winD.isEnvMode = false; ED.draw(); ed.push(wbD.kids.length === 0); winD.isEnvMode = true; ED.draw(); ed.push(wbD.kids.length === 1 && J(shape(wbD.kids[0])) === J(oldDraw(mapD.meta.envCells)));   // put away and back
+        }
+        check('1.6.3 (finding 34) the Environment tool\'s layer is made again only when what it shows changed (envtool.js draw, run for real on a page that counts what it makes): the very polygons, figures and box the old draw made, in its order; nothing made at a redraw that changed nothing; a box being dragged is one rect moved in place and gone at the release; new cells and the other half of Imperial or Metric are made again; the layer goes with the tool and comes back whole',
+            !edErr && J(ed) === J([true, true, true, true, true, true, true, true, true]), edErr || J(ed));
+    }
     {   // 1.6.0: the map environment, fold 4: the bands judged in one place (systemcore envBands), the figure's words and color, the token's badge, and the System editor's readings box
         const J = JSON.stringify;
         const sysB = S.cleanSystem({ v: 1, name: 'B', sheet: { sections: [] }, rolls: [], fields: [{ id: 'f_t', key: 'Temp', label: 'Temperature', kind: 'number', min: -100, max: 100 }, { id: 'f_tol', key: 'Tol', label: 'Tolerance', kind: 'number' }, { id: 'f_g', key: 'Grav', label: 'Gravity', kind: 'number' }, { id: 'f_s', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm' }],

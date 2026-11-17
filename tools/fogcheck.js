@@ -3292,7 +3292,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             !drErr && J(dr) === J({ base: ['rgba(5,6,12,0.97)'], punches: [['destination-out', 'rgba(0,0,0,0.5)', 1], ['destination-out', 'rgba(0,0,0,1)', 2]], img: false, asked: ['party:amap:square'] }), drErr || J(dr));
         check('R2 #14 pinned: the stream window\'s fog in fog.js — active says yes for the stream, drawOwner the PARTY, draw takes the party\'s tiers and the opaque fill in stream mode, the party and its cells are published to net.js, and the GM\'s star still reads as every character token',
             /if \(isStreamView\(\)\) return true;/.test(cutF('function active()')) && /if \(isStreamView\(\)\) return PARTY;/.test(cutF('function drawOwner()'))
-            && /var keptT = !isStreamView\(\) && typeof drawTiers === 'function';/.test(fogS) && /var tiers = keptT \? drawTiers\(map, camp, drawOwner\(\), grid\) : isStreamView\(\) \? partyTiers\(map, grid\) : revealedTiers\(map, camp, drawOwner\(\)\);/.test(fogS) && /ctx\.fillStyle = isClientView\(\) \|\| isStreamView\(\) \? 'rgba\(5,6,12,0\.97\)' : 'rgba\(9,11,20,0\.62\)';/.test(fogS)
+            && /var keptT = !isStreamView\(\) && typeof drawTiers === 'function';/.test(fogS) && /var tiers = keptT \? drawTiers\(map, camp, drawOwner\(\), grid, holdT\) : isStreamView\(\) \? partyTiers\(map, grid\) : revealedTiers\(map, camp, drawOwner\(\)\);/.test(fogS) && /ctx\.fillStyle = isClientView\(\) \|\| isStreamView\(\) \? 'rgba\(5,6,12,0\.97\)' : 'rgba\(9,11,20,0\.62\)';/.test(fogS)
             && /\n    PARTY: PARTY, fogPartyCells: fogPartyCells,/.test(fogS) && /ownerId: a player's profile id \(their own tokens only\) or '\*' \(every character token — the GM's party preview\)\./.test(fogS));
     }
     {   // conditions C2: fogcore cleanTokFx — a token with no sheet keeps its own effects, structure only (names and icons cleaned where drawn)
@@ -5839,7 +5839,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const shS = rd4('system/app/scripts/sheets.js');
         check('the real tokenSenses with the memory beside it (run strict): outside a frame each call reads the sheet; inside frames it is read once and kept, read again when the sheet is stamped and when the sheet says to forget; wired — the function asks the memory first, only the overlay\'s own loop opens a frame, what is seen being judged afresh forgets, and the sheet\'s two funnels say so',
             rOut[0] > 0 && rOut[0] === rOut[1] && rOut[2] === 2 && rIn[0] === rOut[0] && rIn[1] === rOut[0] && rIn[2] === rOut[0] && rIn[3] === 3 && rStamp[0] > rOut[0] && rStamp[1] === 4 && rForget[0] > rStamp[0] && rForget[1] === 5
-            && fog4.includes("    if (typeof sensesKept === 'function') { var kept = sensesKept(token, map, camp, waived); if (kept) return kept; }") && fog4.includes("    if (now - lastDraw >= 60) { lastDraw = now; _sensesDraw = true; try { draw(); if (typeof drawBox === 'function') drawBox(); } finally { _sensesDraw = false; } }") && (fog4.match(/_sensesDraw = true/g) || []).length === 1
+            && fog4.includes("    if (typeof sensesKept === 'function') { var kept = sensesKept(token, map, camp, waived); if (kept) return kept; }") && fog4.includes("    if (now - lastDraw >= 60) { lastDraw = now; _sensesTick++; _sensesDraw = true; _dtFresh = false; try { draw(); if (typeof drawBox === 'function') drawBox(); } finally { _sensesDraw = false; if (_dtFresh) drawTiersSlow(Date.now() - now); } }") && (fog4.match(/_sensesDraw = true/g) || []).length === 1
             && fog4.includes("    var oneSeen = typeof mapId === 'string' && !!mapId && typeof recipientId === 'string' && !!recipientId;" + NL + "    if (!oneSeen && typeof sensesForget === 'function') sensesForget();") && fog4.includes("_maskStamp = Object.create(null); if (typeof sensesForget === 'function') sensesForget(); }") && fog4.includes('    sensesForget: sensesForget,')
             && (shS.match(/if \(typeof window !== 'undefined' && window\.wpFog && window\.wpFog\.sensesForget\) window\.wpFog\.sensesForget\(\);/g) || []).length === 2 && /function afterCharChange\(c, whole, values\) \{\n[^\n]*\n    c\.updated = Date\.now\(\);\n    if \(typeof window !== 'undefined' && window\.wpFog && window\.wpFog\.sensesForget\)/.test(shS) && /function charChanged\(id\) \{\n    if \(typeof window !== 'undefined' && window\.wpFog && window\.wpFog\.sensesForget\)/.test(shS)
             && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].map(rd4).every(t => t.includes('- The fog of war is lighter on a busy map')), JSON.stringify([rOut, rIn, rStamp, rForget]));
@@ -6187,7 +6187,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('painting fog by hand is wired: the board hands the fog tool\'s pointer to the stroke — its press after a door click was tried, its moves while a button is down, its release, and a cancel that paints no box; the box is drawn in the overlay\'s own frame; the menu has the three brushes and the five strokes, the stroke in hand lit; the module publishes the stroke',
             wbD.includes("          if (window.wpFog) window.wpFog.strokeStart(pt.x, pt.y, e.button === 2);") && wbD.includes("          var pt = _fogBoard(e); if (window.wpFog) window.wpFog.strokeMove(pt.x, pt.y, _fogPaintBtn === 2);")
             && wbD.includes("if (_fogPaintBtn >= 0) { hostGestureEnd(); if (window.wpFog && window.wpFog.strokeEnd) window.wpFog.strokeEnd(); } _fogPaintBtn = -1; });") && wbD.includes("if (_fogPaintBtn >= 0) { hostGestureEnd(); if (window.wpFog && window.wpFog.strokeEnd) window.wpFog.strokeEnd(true); } _fogPaintBtn = -1; });") && !/wpFog\.paintAt/.test(wbD)
-            && fogD.includes("try { draw(); if (typeof drawBox === 'function') drawBox(); } finally { _sensesDraw = false; }") && fogD.includes("b.classList.toggle('active', b.dataset.fstroke === stroke); });") && fogD.includes("b.addEventListener('click', function() { strokePick(b.dataset.fstroke); }); });")
+            && fogD.includes("try { draw(); if (typeof drawBox === 'function') drawBox(); } finally { _sensesDraw = false; if (_dtFresh) drawTiersSlow(Date.now() - now); } }") && fogD.includes("b.classList.toggle('active', b.dataset.fstroke === stroke); });") && fogD.includes("b.addEventListener('click', function() { strokePick(b.dataset.fstroke); }); });")
             && fogD.includes("    paintAt: paintAt, strokeStart: strokeStart, strokeMove: strokeMove, strokeEnd: strokeEnd, stroke: function() { return stroke; },")
             && J((ixD.match(/class="draw-style-btn fog-brush-btn" data-fbrush="([a-z]+)"/g) || []).map(s => s.slice(s.indexOf('fbrush="') + 8, -1))) === J(['reveal', 'hide', 'clear'])
             && J((ixD.match(/class="draw-style-btn fog-stroke-btn" data-fstroke="([a-z0-9]+)"/g) || []).map(s => s.slice(s.indexOf('fstroke="') + 9, -1))) === J(['1', '3', '5', 'box', 'piece']) && !/fog-stroke-btn active/.test(ixD));
@@ -6452,7 +6452,131 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const IS = new Function('sensesForget', "'use strict';" + NL + isSrc + NL + 'return invalidateSeen;')(() => forgot.push(1));
         IS('m1', 'p1'); const one = forgot.length; IS('m1'); const map1 = forgot.length; IS(); const all = forgot.length; IS('m1', ''); const blank = forgot.length;
         check('1.6.3 a token\'s kept senses are forgotten when a whole map or every map is judged afresh, never when one player\'s own token moved (fog.js invalidateSeen, run strict: its place is in the senses\' own signature), and the overlay asks drawTiers outside the stream window alone, which adds the cells a wall runs through itself',
-            one === 0 && map1 === 1 && all === 2 && blank === 3 && fogT.includes("    var keptT = !isStreamView() && typeof drawTiers === 'function';") && (fogT.match(/drawTiers\(map, camp, drawOwner\(\), grid\)/g) || []).length === 1, J([one, map1, all, blank]));
+            one === 0 && map1 === 1 && all === 2 && blank === 3 && fogT.includes("    var keptT = !isStreamView() && typeof drawTiers === 'function';") && (fogT.match(/drawTiers\(map, camp, drawOwner\(\), grid, holdT\)/g) || []).length === 1, J([one, map1, all, blank]));
+    }
+
+    {   // 1.6.3 (the improvement week's review, findings 9, 24 and 31): the fog's own speed, each fix run strict and held to the answer the code
+        // before it gave. (9) mapFog cleans a fog object once and again only when something it reads was written, dtKey keeps each hand-painted
+        // list's text; (24) drawTiers holds the kept tiers during the GM's drag on a slow map; (31) the punches kept in the board's own scale, and
+        // only a scroll that moves the board draws the fog at once
+        const fogS = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, NL), J = JSON.stringify;
+        const cutS = a => { const i = fogS.indexOf(a), k = fogS.indexOf(NL + '}' + NL, i); if (i < 0 || k < 0) throw new Error('fogcheck: ' + a + ' not found'); return fogS.slice(i, k + 2); };
+        const lineS = a => { const i = fogS.indexOf(a), k = fogS.indexOf(NL, i); if (i < 0 || k < 0) throw new Error('fogcheck: ' + a + ' not found'); return fogS.slice(i, k + 1); };
+        const betweenS = (a, b) => { const i = fogS.indexOf(a), k = fogS.indexOf(b, i); if (i < 0 || k < i) throw new Error('fogcheck: ' + a + ' not found'); return fogS.slice(i, k); };
+        const FS = await import(url('fogcore.js') + '?speed');
+        // (9 a) mapFog: the same object while nothing it reads moved, cleaned again after any write, and always what cleanFog gives
+        const cf = { n: 0 }, CS = Object.assign({}, FS, { cleanFog: f => { cf.n++; return FS.cleanFog(f); } });
+        let MF = null, mfErr = ''; try { MF = new Function('core', "'use strict';" + NL + lineS('function DEF_MAP()') + cutS('function mapFog(') + NL + 'return mapFog;')(() => CS); } catch (e) { mfErr = e.message; }
+        const mfOut = [];
+        if (MF) {
+            const m = { fog: { on: true, mode: 'auto', manual: { adds: [{ c: 1, r: 1 }, { c: 2, r: 2 }], cuts: [] }, junk: 1 } };
+            const a1 = MF(m); const n1 = cf.n; const a2 = MF(m), a3 = MF(m); mfOut.push(n1, cf.n === n1, a1 === a2 && a2 === a3, !('junk' in a1));
+            let seed = 5; const R = () => (seed = (seed * 16807) % 2147483647) / 2147483647, bad = [];
+            const writes = [f => { f.on = !f.on; }, f => { f.on = 'true'; }, f => { f.mode = R() < 0.5 ? 'cover' : 'auto'; }, f => { f.mode = 'nonsense'; }, f => { f.cell = { grid: 'square', len: 99999 }; }, f => { f.cell = { grid: 'hex', len: 30 }; },
+                f => { f.vision = { mode: 'arc', arc: 7777 }; }, f => { f.vision = { mode: 'all', extra: 1 }; }, f => { f.light = 'dim'; }, f => { delete f.light; }, f => { f.epoch = 2.7; }, f => { f.epoch = NaN; }, f => { f.extra = { x: 1 }; },
+                f => { f.manual.adds.push({ c: Math.floor(R() * 20), r: Math.floor(R() * 20) }); }, f => { f.manual.adds.push('junk'); }, f => { f.manual.cuts = f.manual.cuts.concat([{ c: 3, r: 4 }]); }, f => { f.manual.adds = f.manual.adds.filter((c, i) => i % 2); },
+                f => { f.manual.extra = 1; }, f => { f.manual = null; }, () => {}, () => {}];
+            for (let t = 0; t < 1500; t++) {
+                const fog = MF(m); writes[Math.floor(R() * writes.length)](fog);
+                const want = J(FS.cleanFog(JSON.parse(J(m.fog === fog ? fog : m.fog))) || null);   // what cleaning it again would give, judged on a copy
+                const got = MF(m); if (J(got) !== want) { bad.push([t, J(got).slice(0, 120), want.slice(0, 120)]); break; }
+            }
+            mfOut.push(bad.length === 0 ? 'same' : J(bad[0]));
+            const mN = { fog: 'not an object' }; mfOut.push(J(MF(mN)) === J({ on: false, mode: 'auto', manual: { adds: [], cuts: [] } }), J(MF(null)) === J({ on: false, mode: 'auto', manual: { adds: [], cuts: [] } }));
+        }
+        check('1.6.3 (finding 9) a map\'s fog is cleaned once and handed back as the very object while nothing cleanFog reads of it moved (fog.js mapFog, run strict with the real fogcore): three reads, one clean; and over 1,500 seeded writes of every kind the app and a file can make (a value of another type, a value out of bounds, a key added, a cell pushed, a list put in its place or filtered, the manual taken away) each read gives exactly what cleaning it again gives',
+            !mfErr && J(mfOut) === J([1, true, true, true, 'same', true, true]), mfErr || J(mfOut));
+        // (9 b) dtCells: each list's text kept, the same text, a cellKey a cell only when the list or the grid moved
+        const ck = { n: 0 }, CK = Object.assign({}, FS, { cellKey: (c, g) => { ck.n++; return FS.cellKey(c, g); } });
+        let DC = null, dcErr = ''; try { DC = new Function("'use strict';" + NL + lineS('var _dtCellKeys = ') + cutS('function dtCells(') + NL + 'return dtCells;')(); } catch (e) { dcErr = e.message; }
+        const dcOut = [];
+        if (DC) {
+            const sq = FS.squareGrid(50), hx = FS.hexGrid(30, 52), plain = (l, g) => { let s = ''; for (let i = 0; l && i < l.length; i++) s += FS.cellKey(l[i], g) + ';'; return s; };
+            const L = []; for (let i = 0; i < 731; i++) L.push({ c: i % 40, r: Math.floor(i / 40) });
+            const s1 = DC(L, sq, CK), n1 = ck.n, s2 = DC(L, sq, CK), s3 = DC(L, sq, CK); dcOut.push(s1 === plain(L, sq), n1, ck.n === n1, s2 === s1 && s3 === s1);
+            L.push({ c: 99, r: 99 }); dcOut.push(DC(L, sq, CK) === plain(L, sq)); L[3] = { c: 77, r: 1 }; dcOut.push(DC(L, sq, CK) === plain(L, sq)); dcOut.push(DC(L, hx, CK) === plain(L, hx), DC([], sq, CK) === '', DC(null, sq, CK) === '');
+        }
+        check('1.6.3 (finding 9) the cells painted by hand are written as the key\'s text once a list (fog.js dtCells, run strict): the very text the old loop wrote, 731 cellKey calls the first time and none while the list, its cells and the grid stand; a cell pushed, a cell put in another\'s place and another grid each written again',
+            !dcErr && J(dcOut) === J([true, 731, true, true, true, true, true, true, true]), dcErr || J(dcOut));
+        // (24) drawTiers' hold: the real drawTiers on the real revealedTiers, as the kept-tiers harness above builds it
+        const stH = { role: 'host', grid: FS.squareGrid(50), lit: false, heights: false, revealed: 0 };
+        let DH = null, dhErr = '';
+        try {
+            DH = new Function('core', 'vtt', 'mapFog', 'gridForMap', 'viewersFor', 'fogFeatureOn', 'toast', 'isGmView', 'isClientView', 'isStreamView', 'roleNow', 'heightRules', '__st', "'use strict';" + NL
+                + lineS('function lightingOn()') + lineS('function placedLights(') + cutS('function mapLevel(') + lineS('var _blockerCache = Object.create(null)') + lineS('var _blockerSig = Object.create(null)')
+                + lineS('var UNIT_YD = ') + cutS('function cellYardsForMap(') + lineS('var _litCache = Object.create(null)') + cutS('function lightSources(') + cutS('function litFor(')
+                + cutS('function eligibleBlocker(') + cutS('function footprintCells(') + lineS('var _smokeCache = Object.create(null)') + cutS('function smokeFor(') + cutS('function smokeUnion(') + cutS('function blockersFor(')
+                + lineS('var _moveCache = Object.create(null)') + cutS('function barBox(') + lineS('var _viewCache = Object.create(null), _viewCells = 0') + cutS('function viewEvict(') + cutS('function viewSeen(')
+                + betweenS('// [fogcheck:piecehand-start]', '// [fogcheck:piecehand-end]') + cutS('function revealedTiers(') + betweenS('// [fogcheck:walledge-start]', '// [fogcheck:walledge-end]') + betweenS('// [fogcheck:drawtiers-start]', '// [fogcheck:drawtiers-end]')
+                + NL + 'var counted = revealedTiers; revealedTiers = function(m, c, o) { __st.revealed++; return counted(m, c, o); };' + NL
+                + 'return { drawTiers: drawTiers, slow: drawTiersSlow, forget: drawTiersForget, fresh: function(m, c, o, g) { var t = counted(m, c, o); return t === null ? null : wallEdged(t, m, g); } };')(
+                () => FS, () => ({ on: () => true }), m => m.fog, () => stH.grid, (m) => m.viewers.map(v => Object.assign({}, v)), () => true, () => {}, () => true, () => false, () => false, () => 'host', () => null, stH);
+        } catch (e) { dhErr = e.message; }
+        const shapeH = t => (t === null ? null : J({ list: t.list.map(o => o.key), keys: t.keys }));
+        const mapH = { id: 'mH', type: 'map', meta: { updated: 1, gridType: 'square' }, fog: { on: true, mode: 'auto', manual: { adds: [], cuts: [] } }, whiteboard: [{ id: 'w', type: 'rect', x: 300, y: 0, w: 50, h: 400, blocksSight: true }], viewers: [{ x: 125, y: 125, front: 0, range: 4, arc: 360 }] };
+        const dh = [];
+        if (DH) {
+            const t0 = DH.drawTiers(mapH, {}, '*', stH.grid); mapH.viewers[0].x = 175;
+            const r0 = stH.revealed, fastHold = DH.drawTiers(mapH, {}, '*', stH.grid, true); dh.push(fastHold !== t0 && stH.revealed === r0 + 1);   // a fast map is never held: the move is drawn at once
+            DH.slow(40); mapH.viewers[0].x = 225; const r1 = stH.revealed, held = DH.drawTiers(mapH, {}, '*', stH.grid, true), rHeld = stH.revealed, notHold = DH.drawTiers(mapH, {}, '*', stH.grid, 'yes'), rNot = stH.revealed;
+            dh.push(held === fastHold && rHeld === r1, notHold !== held && rNot === r1 + 1 && shapeH(notHold) === shapeH(DH.fresh(mapH, {}, '*', stH.grid)));   // held on a slow map while the drag moves; only true holds
+            mapH.viewers[0].x = 275; const other = DH.drawTiers(mapH, {}, 'p1', stH.grid, true); dh.push(other !== notHold);   // another owner is never held
+            const mapH2 = JSON.parse(J(mapH)); const otherMap = DH.drawTiers(mapH2, {}, 'p1', stH.grid, true); dh.push(otherMap !== other);   // nor another map object
+            await new Promise(r => setTimeout(r, 230)); mapH2.viewers[0].x = 125; const late = DH.drawTiers(mapH2, {}, 'p1', stH.grid, true); dh.push(late !== otherMap && shapeH(late) === shapeH(DH.fresh(mapH2, {}, 'p1', stH.grid)));   // and never past DT_HOLD_MS
+            DH.slow(0); mapH2.viewers[0].x = 175; dh.push(shapeH(DH.drawTiers(mapH2, {}, 'p1', stH.grid, true)) === shapeH(DH.fresh(mapH2, {}, 'p1', stH.grid)));
+        }
+        const datS = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'datamap.js'), 'utf8').replace(/\r\n/g, NL);
+        check('1.6.3 (finding 24) while the GM drags on a slow map the overlay works its tiers out at most every 200 ms (fog.js drawTiers, run strict on the real revealedTiers): a map whose last fresh frame was quick is never held, a slow one hands back the kept tiers for the same map object and owner within 200 ms, only a hold of true holds, another owner, another map object and a kept set older than 200 ms are worked out afresh and as fresh; draw holds only for the GM\'s own drag that moved within half a second, tick() measures a frame that worked tiers out, and datamap.js stamps each move of the GM\'s drag and clears it at the release',
+            !dhErr && J(dh) === J([true, true, true, true, true, true, true]) && fogS.includes("    var holdT = keptT && !isClientView() && typeof window !== 'undefined' && window.wpBoardDragAt > 0 && Date.now() - window.wpBoardDragAt < 500;")
+            && datS.includes("        if (modeStr === 'visual' && !clientVis) window.wpBoardDragAt = Date.now();") && datS.includes("        window.wpBoardDragAt = 0;"), dhErr || J(dh));
+        // (31) the punches in the board's own scale: the window, and every cell the screen's trace draws drawn the same, a cell more lying wholly off the screen
+        let PW = null, pwErr = ''; try { PW = new Function("'use strict';" + NL + lineS('var _punchWin = null, _punchWinN = 0;') + cutS('function punchWin(') + NL + 'return punchWin;')(); } catch (e) { pwErr = e.message; }
+        const traceSrc = betweenS('    var traceOn = function(cx2, cell) {', '    var traceCell = '), winSrc = betweenS('    var traceWin = function(cx2, cell) {', '    var pp = pw && ');
+        const pwOut = [], pwBad = [];
+        if (PW) {
+            const w1 = PW(1, 0, 0, 800, 600, 110), w2 = PW(1, 300, 200, 800, 600, 110), w3 = PW(1, 401, 0, 800, 600, 110), w4 = PW(2, 401, 0, 800, 600, 110), w5 = PW(2, 401, 0, 900, 600, 110);
+            pwOut.push(w1 === w2, w3 !== w1, w4 !== w3, w5 !== w4, w2.key === w1.key && w3.key !== w1.key);
+            class Rec { constructor() { this.r = []; } rect(x, y, w, h) { this.r.push(['r', x, y, w, h]); } moveTo(x, y) { this.r.push(['m', x, y]); } lineTo(x, y) { this.r.push(['l', x, y]); } closePath() { this.r.push(['c']); } }
+            const hexP = new Function("'use strict';" + NL + lineS('var HEX_COS = ') + lineS('function hexPath(') + NL + 'return hexPath;')();
+            let seed = 9; const R = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+            for (let t = 0; t < 400; t++) {
+                const grid = R() < 0.5 ? FS.squareGrid(50) : FS.hexGrid(30, 52), z = [0.25, 0.5, 1, 1.5, 2.25][Math.floor(R() * 5)], W = 300 + Math.floor(R() * 900), H = 200 + Math.floor(R() * 700);
+                const pad = 80 + (grid.type === 'square' ? grid.size * z / 2 : grid.s * z * 1.02);
+                const sx0 = Math.floor(R() * 3000), sy0 = Math.floor(R() * 3000), pw = PW(z, sx0, sy0, W, H, pad), sx = sx0 + Math.floor((R() - 0.5) * W * 0.9), sy = sy0 + Math.floor((R() - 0.5) * H * 0.9), pw2 = PW(z, sx, sy, W, H, pad);
+                const mkT = new Function('C', 'grid', 'z', 'sx', 'sy', 'W', 'H', 'pad', 'pw', 'hexPath', "'use strict';" + NL + traceSrc + winSrc + NL + 'return [traceOn, traceWin];');
+                const [tOn, tWin] = mkT(FS, grid, z, sx, sy, W, H, pad, pw2, hexP), cells = [];
+                for (let i = 0; i < 120; i++) cells.push(grid.type === 'square' ? { c: Math.floor(R() * 120) - 10, r: Math.floor(R() * 120) - 10 } : { q: Math.floor(R() * 120) - 10, r: Math.floor(R() * 120) - 70 });
+                cells.forEach(cell => {
+                    const a = new Rec(), b = new Rec(); tOn(a, cell); tWin(b, cell);
+                    const moved = b.r.map(s => s[0] === 'c' ? s : [s[0], s[1] - sx, s[2] - sy].concat(s.length > 3 ? [s[3], s[4]] : []));
+                    if (a.r.length) { const near = a.r.length === moved.length && a.r.every((s, i) => s.every((v, k) => typeof v === 'string' ? v === moved[i][k] : Math.abs(v - moved[i][k]) < 1e-6)); if (!near) pwBad.push(['differs', t, cell]); }
+                    else if (moved.length) { const xs = moved.filter(s => s[0] !== 'c'), lo = s => s[0] === 'r' ? [s[1], s[2], s[1] + s[3], s[2] + s[4]] : [s[1], s[2], s[1], s[2]];
+                        const box = xs.map(lo).reduce((m2, q) => [Math.min(m2[0], q[0]), Math.min(m2[1], q[1]), Math.max(m2[2], q[2]), Math.max(m2[3], q[3])], [Infinity, Infinity, -Infinity, -Infinity]);
+                        if (!(box[2] < 0 || box[3] < 0 || box[0] > W || box[1] > H)) pwBad.push(['extra on screen', t, cell]); }
+                });
+            }
+        }
+        check('1.6.3 (finding 31) the fog\'s kept punches are in the board\'s own scale (fog.js punchWin and traceWin, run strict): a pan within half a screen keeps the window and so the paths, a pan past it, a zoom and another size of screen give a new one; and over 400 seeded views on both grids, every zoom and a pan inside the window, each cell the screen\'s own trace draws is drawn by the window\'s trace at the same place less the scroll, and a cell only the window draws lies wholly off the screen, so the pixels are the same; draw lays the kept paths with the scroll as a translation',
+            !pwErr && J(pwOut) === J([true, true, true, true, true]) && pwBad.length === 0 && fogS.includes("    var fillP = function(p) { if (pp) { if (p) { ctx.save(); ctx.translate(-sx, -sy); ctx.fill(p); ctx.restore(); } } else ctx.fill(); };"), pwErr || J([pwOut, pwBad.slice(0, 3)]));
+        // (9 c) a token's signature written once a frame (fog.js sensesSigNow, run strict with a counting signature)
+        const sgCalls = []; let SG = null, sgErr = '';
+        try { SG = new Function('sensesSig', "'use strict';" + NL + lineS('var _sensesTick = 0, _tokSigs = ') + cutS('function sensesSigNow(') + NL + 'return { now: sensesSigNow, tick: function() { _sensesTick++; } };')((t, m, c) => { sgCalls.push(t.id); return t.id + '@' + t.x + '/' + m.id + '/' + c.id; }); } catch (e) { sgErr = e.message; }
+        const sg = [];
+        if (SG) {
+            const tA = { id: 'A', x: 1 }, tB = { id: 'B', x: 1 }, mA = { id: 'm' }, mB = { id: 'n' }, cA = { id: 'c' };
+            SG.now(tA, mA, cA); SG.now(tA, mA, cA); sg.push(sgCalls.length);                                   // no frame yet: each ask writes it, as before
+            SG.tick(); SG.now(tA, mA, cA); SG.now(tA, mA, cA); SG.now(tB, mA, cA); sg.push(sgCalls.length);     // one frame: once a token
+            sg.push(SG.now(tA, mB, cA), sgCalls.length);                                                       // another map in the same frame: written for it
+            tA.x = 2; SG.tick(); sg.push(SG.now(tA, mA, cA), sgCalls.length);                                  // the next frame: written again, with what moved
+        }
+        check('1.6.3 (finding 9) a token\'s signature is written once a frame (fog.js sensesSigNow, run strict): before any frame each ask writes it as before, in a frame a token\'s is written once for its map and campaign, another map writes its own, and the next frame writes it again with what moved; tick() alone raises the frame\'s number',
+            !sgErr && JSON.stringify(sg) === JSON.stringify([2, 4, 'A@1/n/c', 5, 'A@2/m/c', 6]) && fogS.includes('lastDraw = now; _sensesTick++; _sensesDraw = true;') && (fogS.match(/_sensesTick\+\+/g) || []).length === 1 && fogS.includes("sig = sensesSigNow(token, map, camp) + '|'"), sgErr || JSON.stringify(sg));
+        // (31) only a scroll that moves the board draws the fog at once
+        const SM = new Function("'use strict';" + NL + cutS('function scrollMovesBoard(') + NL + 'return scrollMovesBoard;')();
+        const docS = { documentElement: { id: 'html' }, body: { id: 'body' } }, wrapS = { id: 'whiteboardWrap' }, mainS = { id: 'main', contains: n => n === wrapS }, sheetS = { id: 'sheetBody', contains: () => false };
+        const sm = [SM(docS, docS, wrapS), SM(docS.documentElement, docS, wrapS), SM(docS.body, docS, wrapS), SM(wrapS, docS, wrapS), SM(mainS, docS, wrapS), SM(sheetS, docS, wrapS), SM(null, docS, wrapS), SM(sheetS, docS, null)];
+        check('1.6.3 (finding 31) only a scroll that moves the board draws the fog at once (fog.js scrollMovesBoard, run strict): the page, the board\'s own box and a box that holds it do; a sheet\'s or a list\'s scroll waits for the next frame as anything else does; with no target or no board, as before; the listener asks it',
+            J(sm) === J([true, true, true, true, true, false, true, true]) && fogS.includes("if (active() && scrollMovesBoard(e && e.target, document, wrap)) { lastDraw = 0; kick(); }"), J(sm));
     }
 
     summed = true;

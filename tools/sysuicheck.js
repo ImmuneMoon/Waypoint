@@ -369,6 +369,24 @@ const kids = n => n.childNodes.slice();
     check('the layer failing leaves the row as its builder made it', (() => { const row = d.mk('div', 'sys-row'); const r = window.wpSysUi.arrange(row, 'nothing'); return r === row; })());
 }
 
+/* ---------- 1.6.3 (the review of defense fold 3, finding 8): a fault of a line of When it answers an attack lands on its own box ---------- */
+{
+    // the errors slice of sysui.js (boxIn), run for real on a page of plain objects: a roll's box of three lines, the first with an If alone, the second with How
+    // many hits, the third with How much gets through, so the nth box of a class is not the nth line; and a list card holding the boxes of its rolls 0 and 2
+    const d = makeDom(), m = d.mk, boxIn = new Function(src.slice(src.indexOf('// [sysuicheck:errors-start]'), src.indexOf('// [sysuicheck:errors-end]')) + '\nreturn boxIn;')();
+    const mkAns = ri => { const bx = m('div', 'sys-alt sys-answers', ri !== undefined ? { ri } : null); [['sys-ans-if'], ['sys-ans-if', 'sys-ans-hits'], ['sys-ans-if', 'sys-ans-share']].forEach((cls, j) => { const rw = m('div', 'sys-alt-row sys-ans-row', { j }); cls.forEach(c => rw.appendChild(m('input', c + ' field'))); bx.appendChild(rw); }); return bx; };
+    const rollRow = m('div', 'sys-row'), a0 = mkAns(); rollRow.appendChild(a0); const card = m('div', 'sys-list-card'), l0 = mkAns(0), l2 = mkAns(2); card.appendChild(l0); card.appendChild(l2);
+    const at = (bx, j, c) => bx.querySelectorAll('.sys-ans-row')[j].querySelector('.' + c);
+    check('a roll\'s line lands on its own box: answers.1.hits on the second line\'s How many hits, answers.2.share on the third line\'s How much gets through, answers.2.if on the third line\'s If', boxIn(rollRow, 'answers.1.hits') === at(a0, 1, 'sys-ans-hits') && boxIn(rollRow, 'answers.2.share') === at(a0, 2, 'sys-ans-share') && boxIn(rollRow, 'answers.2.if') === at(a0, 2, 'sys-ans-if'));
+    check('a list roll\'s line lands in its own roll\'s box by its place: list.ans.2.1.hits and list.ans.0.2.if; a line whose row has no such box lands on its roll\'s box; a roll with no box lands nowhere', boxIn(card, 'list.ans.2.1.hits') === at(l2, 1, 'sys-ans-hits') && boxIn(card, 'list.ans.0.2.if') === at(l0, 2, 'sys-ans-if') && boxIn(card, 'list.ans.2.0.hits') === l2 && boxIn(card, 'list.ans.5.0.if') === null);
+    // sheets.js formulaTextFor shows the text under a list roll's line fault, as it does a roll's, and the list's own box carries the roll's place
+    const ftA = sh.indexOf('function formulaTextFor(id, prop) {'), ftSrc = sh.slice(ftA, sh.indexOf('\n}\n', ftA) + 3);
+    const draftF = { fields: [{ id: 'f_b', kind: 'item-list', list: { rolls: [{ label: 'Parry', formula: 'P', resist: true, answers: [{ does: 'hits', hits: ' Wrong + 1 ' }, { if: 'Bad > 2', does: 'share', share: 'Blow.dmg / 9' }] }] } }], rolls: [{ id: 'r_d', label: 'Dodge', formula: 'D', answers: [{ does: 'hits', hits: 'Two' }] }], items: [] };
+    const ft = new Function('draft', 'DEF_PROP', ftSrc + '\nreturn formulaTextFor;')(draftF, { 'item-list': 'nothing' });
+    check('the text under a list roll\'s line fault is that line\'s own formula (list.ans.<roll>.<line>.<box>), as a roll\'s is, and the list\'s answers box carries its roll\'s place', ft('f_b', 'list.ans.0.0.hits') === 'Wrong + 1' && ft('f_b', 'list.ans.0.1.if') === 'Bad > 2' && ft('f_b', 'list.ans.0.1.share') === 'Blow.dmg / 9' && ft('f_b', 'list.ans.3.0.if') === '' && ft('r_d', 'answers.0.hits') === 'Two'
+        && sh.includes('var ansBx = answersBox(rr, typeof draft !== \'undefined\' ? draft : null, f); ansBx.dataset.ri = String(ri); cb2.appendChild(ansBx);'));
+}
+
 /* ---------- nothing removed, in the page ---------- */
 {
     // every id the editor's page held before this work, and every tooltip it held (the owner: "lets not remove functionality with these updates, thats critical")

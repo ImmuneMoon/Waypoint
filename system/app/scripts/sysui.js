@@ -358,6 +358,14 @@ var PROP_BOX = [[/^loot$/, ['sys-loot-if']], [/^(?:apply|then)\.(\d+)$/, ['sys-a
 function formToo(b) { if (b && b.hidden && window.wpFormBox && typeof window.wpFormBox.openFor === 'function') window.wpFormBox.openFor(b); return b; }
 function boxIn(scope, prop) {
     if (typeof prop !== 'string' || !scope) return null;
+    // 1.6.3 (the review of defense fold 3, finding 8): a line of When it answers an attack lands on its own box in its own line's row, in its roll's box (a
+    // list's roll by its place, the box's data-ri), since How many hits and How much gets through stand only on the lines that use them, so the nth of a class is
+    // not the nth line. The box itself where the line's row is not drawn. Fixed class names alone: the place is compared, never put in a selector
+    var an = /^(?:list\.ans\.(\d+)\.|answers\.)(\d+)\.(if|hits|share)$/.exec(prop);
+    if (an) {
+        var bxs = scope.querySelectorAll('.sys-answers'), bx = null; for (var k = 0; k < bxs.length && !bx; k++) if (an[1] === undefined || (bxs[k].dataset && bxs[k].dataset.ri === an[1])) bx = bxs[k];
+        var rws = bx ? bx.querySelectorAll('.sys-ans-row') : [], rw = rws[+an[2]] || null, hitA = rw ? rw.querySelector('.sys-ans-' + an[3]) : null; if (hitA) return hitA; if (bx) return bx;
+    }
     for (var i = 0; i < PROP_BOX.length; i++) {
         var m = PROP_BOX[i][0].exec(prop); if (!m) continue;
         for (var j = 0; j < PROP_BOX[i][1].length; j++) { var l = scope.querySelectorAll('.' + PROP_BOX[i][1][j]), hit = l[m[1] ? Math.min(+m[1], l.length - 1) : 0]; if (hit) return hit; }

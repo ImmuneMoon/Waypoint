@@ -16,7 +16,7 @@ import { cleanDamageRules, CUR_MAX, priceCurOf, priceColOf, moneySummary, condSh
 import { cleanFormulaText } from './systemcore.js';   // 1.6.2: refreshErrors reads a rule's needs as the cleaner does
 import { swDice, renamesOf, renamesCarry, renamesOnChars, renamesSay, swGone, goneRefs, catsGone, catNear, keysGone, keyUses, keyUseSays } from './systemcore.js';   // 1.6.2: backlog 208, the tracing audit
 import { cleanCardActs, CARD_MAX, cleanHelp } from './systemcore.js';
-import { ANS_MAX, ANS_HALF } from './systemcore.js';   // 1.6.3 (defense fold 3): When it answers an attack, its most lines and its first share
+import { ANS_MAX, ANS_HALF, ansShareWord } from './systemcore.js';   // 1.6.3 (defense fold 3): When it answers an attack, its most lines and its first share; the review of that fold: what a share comes to in words
 import { deckTrial, deckTrialRead } from './systemcore.js';
 import { cleanTests, testFormula } from './systemcore.js';   // 1.6.2 (backlog 59): a system's tests   // 1.6.2: Try it for a roll that draws first   // 1.6.2: what a card offers
 import { cleanAsks, askEnds, askJudge, withAsk, ASKS_MAX, ASK_OPTS } from './systemcore.js';   // 1.6.2: a roll's questions
@@ -8883,11 +8883,17 @@ function ansCond(sys, text) {
     var FC = typeof window !== 'undefined' ? window.wpFormCore : null, r = FC && text ? FC.readCond(String(text)) : null; if (!r || !r.ok) return 'a test of its own';
     try { return FC.saysCond(r.cond, { name: function(n) { return nameWord(sys, n); } }) || 'a test of its own'; } catch (e) { return 'a test of its own'; }
 }
+// The review of defense fold 3 (finding 10): a share said by what it comes to (systemcore ansShareWord, read as a formula), so Blow.dmg/2 is half as
+// Blow.dmg / 2 is; with no formula engine at hand, half only where its text is half's with its spaces left out
+function ansShareSaid(sys, text) {
+    var Fw = typeof window !== 'undefined' ? window.wpFormula : null; if (typeof ansShareWord === 'function' && Fw) return ansShareWord(sys, text, Fw);
+    return String(text || '').replace(/\s+/g, '').toLowerCase() === 'blow.dmg/2' ? 'half' : '';
+}
 function ansLineWords(sys, name, a, rowList) {
     var types = sys && sys.combat && sys.combat.damage && Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [], ty = a.type ? types.filter(function(y) { return y && y.key === a.type; })[0] : null;
     var rollName = function(ref) { var m = /^(f_[A-Za-z0-9_]+)#(\d+)$/.exec(String(ref || '')), f = m ? (sys.fields || []).filter(function(x) { return x && x.id === m[1]; })[0] : null, lr = f && f.list && Array.isArray(f.list.rolls) ? f.list.rolls[+m[2]] : null; return lr ? (lr.label || 'a roll') : 'a roll that is gone'; };
     var w = 'When ' + (name || 'this roll') + ' answers an attack' + (a.if ? ', where ' + ansCond(sys, a.if) : '') + ', ';
-    w += a.does === 'thru' ? 'it lands and the parrying row takes it first' : a.does === 'share' ? (a.share === (typeof ANS_HALF === 'string' ? ANS_HALF : 'Blow.dmg / 2') ? 'half of it gets through' : 'some of it gets through') : a.does === 'hits' ? (a.hits === '1' ? 'it stops one hit and the rest land' : 'it stops a number of hits and the rest land') : 'it stops the attack';
+    w += a.does === 'thru' ? 'it lands and the parrying row takes it first' : a.does === 'share' ? ({ half: 'half of it gets through', none: 'none of it gets through', all: 'all of it gets through' }[ansShareSaid(sys, a.share)] || 'some of it gets through') : a.does === 'hits' ? (a.hits === '1' ? 'it stops one hit and the rest land' : 'it stops a number of hits and the rest land') : 'it stops the attack';
     if (ty && a.does !== 'stop') w += a.all === true ? ', every part as ' + (ty.label || ty.key) : ', as ' + (ty.label || ty.key);
     if (a.test) w += ', and tests the parrying weapon with ' + rollName(a.test);
     if (a.testAtk) w += ', and tests the attacking weapon with ' + rollName(a.testAtk);
@@ -8905,7 +8911,7 @@ function ansOverview(sys) {
         f.list.rolls.forEach(function(r) {
             if (!r || r.resist !== true || Array.isArray(r.apply)) return; var nm = (f.label || 'A list') + ': ' + (r.label || 'Roll');
             (Array.isArray(r.answers) ? r.answers : []).forEach(function(a) { if (a && typeof a === 'object') out.push({ text: ansLineWords(sys, nm, a, f), go: 'list:' + f.id, name: f.label || 'the list' }); });
-            if (r.thru === true) out.push({ text: 'When ' + nm + ' answers an attack, it lands and the parrying row takes it first.', go: 'list:' + f.id, name: f.label || 'the list' });
+            if (r.thru === true) out.push({ text: 'When ' + nm + ' answers an attack, it lands and the parrying row takes it first, except an attack along a line, which it stops.', go: 'list:' + f.id, name: f.label || 'the list' });   // the review of defense fold 3 (finding 10): the tick never lets a line through
         });
     });
     return out;
@@ -10163,6 +10169,7 @@ function formulaTextFor(id, prop) {
     if (/^b_/.test(id)) { var bdF = (draft.budgets || []).find(function(x) { return x && x.id === id; }); return bdF && (prop === 'has' || prop === 'spent') && typeof bdF[prop] === 'string' ? bdF[prop] : ''; }   // 126: a budget's formula, as the validator read it
     if (/^e_/.test(id)) { var dAu = (draft.effects || []).find(function(x) { return x && x.id === id; }); return prop === 'formula' && dAu && typeof dAu.auto === 'string' ? dAu.auto.trim() : ''; }   // conditions C4: an effect's automatic formula, as refreshErrors read it
     var f = draft.fields.find(function(x) { return x.id === id; });
+    var laF = f ? /^list\.ans\.(\d+)\.(\d+)\.(if|hits|share)$/.exec(prop || '') : null; if (laF) { var laR = f.list && Array.isArray(f.list.rolls) ? f.list.rolls[+laF[1]] : null, laL = laR && Array.isArray(laR.answers) ? laR.answers[+laF[2]] : null; return laL && typeof laL[laF[3]] === 'string' ? laL[laF[3]].trim() : ''; }   // the review of defense fold 3 (finding 8): a list roll's line, as the validator read it
     if (f) return prop === 'roll' ? f.roll || '' : f[DEF_PROP[f.kind]] || '';
     var r = draft.rolls.find(function(x) { return x.id === id; });
     if (r && prop === 'malf') return r.malf || '';   // R3
@@ -11574,7 +11581,7 @@ function ctKeySays(sp, F0) {
         cb2.appendChild(ndRow); if (typeof whyBox === 'function') cb2.appendChild(whyBox(rr, 'list'));   // 1.6.2: each reason, with its own words
         var lxR = typeof listCrossRow === 'function' ? listCrossRow(rr, ri, sp.counters) : null; if (lxR) cb2.appendChild(lxR);   // 1.6.0
         if (typeof callsBox === 'function') cb2.appendChild(callsBox(rr, typeof draft !== 'undefined' ? draft : null, false));   // 1.6.0: Calls for
-        if (!rApply && rr.resist === true && typeof answersBox === 'function') cb2.appendChild(answersBox(rr, typeof draft !== 'undefined' ? draft : null, f));   // 1.6.3 (defense fold 3): When it answers an attack, the parrying row a row of this list
+        if (!rApply && rr.resist === true && typeof answersBox === 'function') { var ansBx = answersBox(rr, typeof draft !== 'undefined' ? draft : null, f); ansBx.dataset.ri = String(ri); cb2.appendChild(ansBx); }   // the review of defense fold 3 (finding 8): with the roll's place, so a fault of list.ans.<ri>.<line> lands on its own box (sysui boxIn)   // 1.6.3 (defense fold 3): When it answers an attack, the parrying row a row of this list
         if (typeof helpBox === 'function') cb2.appendChild(helpBox(rr));   // 1.6.2 Assist
         listApplyEditor(cb2, rr, ri, 'then', sp, targets);
     });

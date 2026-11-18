@@ -12203,6 +12203,18 @@ function attRowAlts(camp, tch, ref, toO, out, at, room) {
     });
     return cut;
 }
+// 1.6.3 (the review of defense fold 3, finding 6): whether an attempt is an attack's, whose defense reads the lines of When it answers an attack. It is where the
+// attacking roll deals damage itself, names Its damage, rolls a burst, hits along a line with damage, or calls for a damage roll, or where it was made from a row
+// of a list that holds a damage roll, a weapon whose damage the GM may apply by hand. A grab, a pin, an influence roll or a spell that deals no damage is no
+// attack, so a line with no condition never answers one and no weapon is tested for one. Read on the GM's own entry (attemptEntry, areaEntry)
+function atkDeals(camp, entry, rowRef) {
+    var sys = camp && camp.system, S = typeof SC === 'function' ? SC() : null; if (!sys || !entry || typeof entry !== 'object') return false;
+    if (entry.dmg === true || entry.landDmg !== undefined || !!entry.burst || (entry.area && typeof entry.area === 'object' && entry.area.dmg !== undefined)) return true;
+    var fields = Array.isArray(sys.fields) ? sys.fields : [], listHurts = function(fid) { var f = fields.filter(function(x) { return x && x.id === fid && x.kind === 'item-list'; })[0]; return !!(f && f.list && Array.isArray(f.list.rolls) && f.list.rolls.some(function(r) { return r && r.dmg === true; })); };
+    var rollHurts = function(id) { if (typeof id !== 'string' || !id) return false; var lr = S && typeof S.listRollRef === 'function' ? S.listRollRef(id) : null; if (lr) { var f = fields.filter(function(x) { return x && x.id === lr.f; })[0], r = f && f.list && Array.isArray(f.list.rolls) ? f.list.rolls[lr.i] : null; return !!(r && r.dmg === true); } return (Array.isArray(sys.rolls) ? sys.rolls : []).some(function(r) { return r && r.id === id && r.dmg === true; }); };
+    if (Array.isArray(entry.calls) && entry.calls.some(function(c) { return c && rollHurts(c.roll); })) return true;
+    return !!(rowRef && typeof rowRef.f === 'string' && listHurts(rowRef.f));
+}
 function attemptMake(camp, entry, vd, malf, range, fromCh, priv, vars, rowRef) {   // vars: the roller's names, which a Calls for that waits for it to be resisted is read with; rowRef: the row a list's roll was made on, where an attempt's kind is read
     var S = SC(); if (!S || !camp || !camp.system || !entry || typeof entry.resistBy !== 'string' || !vd || vd.kind !== 'check' || vd.pass !== true || malf === true) return null;
     var critOnly = entry.noResistOnCrit === true && typeof S.thenCrit === 'function' && S.thenCrit(vd, malf) === 'crit';   // 1.6.0: a critical success its system does not let be resisted makes no attempt; 1.6.2, but for a defense whose Answers a critical where holds for its defender (below)
@@ -12246,7 +12258,7 @@ function attemptMake(camp, entry, vd, malf, range, fromCh, priv, vars, rowRef) {
         if (noMain || !cOk(rr)) { if (alts.length) { rr = alts.shift(); noMain = false; } else if (withsA.length) noMain = true; else { if (window.wpStepLog) window.wpStepLog('attempt v1', 'crit unanswered', {}); return null; } }
     }
     var hdA = typeof S.hideFigOn === 'function' && S.hideFigOn(camp.system, fromCh);   // 1.6.2: its figure is hidden, on the host's own record
-    _attempts[id] = { charId: tch.id, act: noMain ? '' : rr.id, m: m, atk: 1 }; if (fromCh && typeof fromCh.id === 'string') _attempts[id].atkBy = fromCh.id; if (rowRef && typeof rowRef.f === 'string' && typeof rowRef.r === 'string') _attempts[id].atkRow = { f: rowRef.f, r: rowRef.r }; if (priv) _attempts[id].atkPriv = true; if (hdA) _attempts[id].hide = true;   /* 1.6.3 (defense fold 3): atk, an attack's attempt, whose defense reads the lines of When it answers an attack (ansPick); atkBy and atkRow, who made it and from which row, where a line tests the attacking weapon */ if (range.area) _attempts[id].area = range.area; if (kindOn) { _attempts[id].k = kindA.k; if (typeof kindA.t === 'number') _attempts[id].t = kindA.t; if (priv) _attempts[id].kp = true; } if (rdA) { _attempts[id].rd = rdA; if (priv) _attempts[id].kp = true; } if (alts.length) _attempts[id].alts = alts.map(function(r) { return r.id; }); if (rowsA.length) _attempts[id].rows = rowsA.map(function(x) { return x.f + '#' + x.i + '#' + x.r; }); if (withsA.length) _attempts[id].withs = withsA.map(function(x) { return x.act + '#' + x.f + '#' + x.r; }); _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
+    _attempts[id] = { charId: tch.id, act: noMain ? '' : rr.id, m: m }; if (typeof atkDeals !== 'function' || atkDeals(camp, entry, rowRef)) _attempts[id].atk = 1;   /* the review of fold 3 (finding 6): atk only for an attack that deals damage (atkDeals), so a grab, a pin or an influence roll reads no lines */ if (fromCh && typeof fromCh.id === 'string') _attempts[id].atkBy = fromCh.id; if (rowRef && typeof rowRef.f === 'string' && typeof rowRef.r === 'string') _attempts[id].atkRow = { f: rowRef.f, r: rowRef.r }; if (priv) _attempts[id].atkPriv = true; if (hdA) _attempts[id].hide = true;   /* 1.6.3 (defense fold 3): atk, an attack's attempt, whose defense reads the lines of When it answers an attack (ansPick); atkBy and atkRow, who made it and from which row, where a line tests the attacking weapon */ if (range.area) _attempts[id].area = range.area; if (kindOn) { _attempts[id].k = kindA.k; if (typeof kindA.t === 'number') _attempts[id].t = kindA.t; if (priv) _attempts[id].kp = true; } if (rdA) { _attempts[id].rd = rdA; if (priv) _attempts[id].kp = true; } if (alts.length) _attempts[id].alts = alts.map(function(r) { return r.id; }); if (rowsA.length) _attempts[id].rows = rowsA.map(function(x) { return x.f + '#' + x.i + '#' + x.r; }); if (withsA.length) _attempts[id].withs = withsA.map(function(x) { return x.act + '#' + x.f + '#' + x.r; }); _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
     var csA = vars && typeof S.callsDue === 'function' ? S.callsDue(entry, 'resisted', vars, window.wpFormula) : []; if (csA.length) { _attempts[id].calls = csA.map(function(c) { var cK = { roll: c.roll, by: c.by || '' }; if (c.byIf) cK.byIf = c.byIf; if (c.to === 'self') cK.to = 'self'; if (c.crew) cK.crew = c.crew; if (c.on) cK.on = c.on; return cK; }); _attempts[id].callBy = callName(entry); if (fromCh && typeof fromCh.id === 'string') { _attempts[id].callFrom = fromCh.id; if (typeof tokNameOf === 'function') _attempts[id].callFromName = tokNameOf(camp, range && range.mapId, fromCh); } if (rowRef && typeof rowRef.f === 'string' && typeof rowRef.r === 'string') _attempts[id].callRow = { f: rowRef.f, r: rowRef.r }; if (priv) _attempts[id].callPriv = true; }   // 1.6.0: Calls for, waiting for the target's roll   // 1.6.2: and who made it, on which row, for a call to the roller
     if (typeof net.postDue === 'function') net.postDue(tch, rr, 'resist', 1, toO, { att: id, by: fromCh && fromCh.name ? (toO && typeof npcByOf === 'function' ? npcByOf(camp, fromCh, tch.ownerId) : fromCh.name) : '', m: hdA && toO ? undefined : m, or: alts, rows: rowsA, withs: withsA, nm: noMain, kn: kindOn && !priv ? attKindWord(camp, entry, fromCh, rowRef) : '', lnd: entry.landDmg !== undefined && typeof landDmgOf === 'function' && !!landDmgOf(camp, { dmg: entry.landDmg, row: rowRef && typeof rowRef.f === 'string' && typeof rowRef.r === 'string' ? { f: rowRef.f, r: rowRef.r } : null }) });   // 1.6.3 (the review of defense fold 1): Take it only where a landing will be made: its damage roll is there (landAfter's own test)
     return id;
@@ -12496,7 +12508,8 @@ function attemptCalled(camp, rec, act, row, pass, ch, priv, tc, pick) {   // the
     if (rec && typeof rec.lw === 'string' && typeof landAnswered === 'function') landAnswered(camp, rec.lw, pass, row, pass === true ? pick || null : null);   // 1.6.3 (defense fold 1): an attack that carries its damage lands unless its defense succeeded; fold 3: and then as its line says
     if (pass === true && pick && atkC && typeof ansTests === 'function') ansTests(camp, rec, pick, ch, priv, act, row);   // 1.6.3 (defense fold 3): a weapon test the line calls for, only on a success (the core's answer 1)
     if (rec && rec.fw && (pass === true || pass === false)) { var fwA = rec.fw; rec.fw = null; if (typeof window !== 'undefined' && typeof window.wpFlyLand === 'function') window.wpFlyLand(fwA, pass); if (rec.htAtt && typeof net.dueRolled === 'function') net.dueRolled(rec.htAtt); }   // 1.6.2 (the core's gap 214): a thing in flight lands where its target fails to resist, and is avoided where it resists
-    if (pass === true && ch && typeof thruNote === 'function' && !(rec && typeof rec.lw === 'string')) thruNote(camp, ch, row, pick && pick.line ? pick.line.does === 'thru' : undefined);   // 1.6.2: a parry on a row ticked Takes the blow on this row. 1.6.3 (defense fold 3): never for a landing, whose record carries its row (thru keyed to the record), and as the line picked says where one was
+    if (pass === true && ch && typeof thruNote === 'function' && !(rec && (typeof rec.lw === 'string' || rec.area))) thruNote(camp, ch, row, pick && pick.line ? pick.line.does === 'thru' : undefined);   // the review of fold 3 (finding 3): nor for a line's hit, which areaAnswered rolls with its row stamped on it, so thruOf is never used beside a record
+    if (pass === true && ch && pick && pick.line && atkC && !(typeof rec.lw === 'string' || rec.area) && typeof ansNote === 'function') ansNote(camp, ch, pick);   // the review of fold 3 (finding 2): with no landing record, the damage is applied by hand, so the GM is told what the line says   // 1.6.2: a parry on a row ticked Takes the blow on this row. 1.6.3 (defense fold 3): never for a landing, whose record carries its row (thru keyed to the record), and as the line picked says where one was
     if (!rec || pass !== true || !Array.isArray(rec.calls) || !ch) return;
     var ref = row && typeof row.f === 'string' && typeof row.i === 'number' ? row.f + '#' + row.i : act;
     rec.calls.forEach(function(c) {
@@ -12551,7 +12564,7 @@ function areaAfter(camp, entry, vd, malf, aim, ch, priv, vars, row, map, tok, fr
     ids.forEach(function(tid) {
         var w = map.whiteboard.filter(function(x) { return !!x && x.id === tid; })[0], tc = w && camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null; if (!tc || tc.id === ch.id) return;
         var hit = Object.assign({}, by, { to: tc.id, nm: w.charName || w.name || tc.name });
-        if (entry.resistAll === true && typeof entry.resistBy === 'string') attemptMake(camp, entry, vd, malf, { tid: tid, mapId: mapId, area: hit }, ch, priv, vars); else areaHit(camp, hit);
+        if (entry.resistAll === true && typeof entry.resistBy === 'string') attemptMake(camp, entry, vd, malf, { tid: tid, mapId: mapId, area: hit }, ch, priv, vars, row); else areaHit(camp, hit);   // the review of defense fold 3 (finding 7): with the attacking row, so a line that tests the attacking weapon finds it
     });
     if (window.wpStepLog) window.wpStepLog('line v1', 'found', { tokens: ids.length, resisted: entry.resistAll === true });
     return ids;
@@ -12561,7 +12574,8 @@ function areaAnswered(camp, hit, pass, pick) {   // pick (1.6.3, defense fold 3)
     if (pass !== true) { areaHit(camp, hit); return; }
     var a = pick && pick.line ? pick.line : null; if (!a || a.does === 'stop') return;   // stopped, as every line attack a defense resisted was
     if (a.does === 'thru' && !(pick.row && typeof pick.row.r === 'string')) return;
-    if (a.does === 'hits' && pick.n >= 1) { var ent = areaDmgEnt(camp && camp.system, hit); if (!(ent && typeof ent.hits === 'string' && ent.hits)) return; }
+    if (a.does === 'hits' && pick.nBad === true) { if (typeof ansBadSay === 'function') ansBadSay(hit.nm); return; }   // the review of fold 3 (finding 1): a count that cannot be worked out stops it, and the GM is told
+    if (a.does === 'hits' && pick.n >= 1) { var ent = areaDmgEnt(camp && camp.system, hit); if (!(ent && typeof ent.hits === 'string' && ent.hits)) return; var chA = camp.chars && typeof hit.by === 'string' && own(camp.chars, hit.by) ? camp.chars[hit.by] : null, hnA = typeof ansHitsNow === 'function' ? ansHitsNow(camp, chA, typeof hit.dmg === 'number' ? hit.row : null, ent, null, null) : null; if (typeof hnA === 'number' && hnA <= pick.n) return; }   // finding 11: hits that come to no more than it stops roll nothing
     var e = typeof ansEff === 'function' ? ansEff(pick) : null, h = Object.assign({}, hit); if (e && (a.does !== 'thru' || e.type)) h.ans = e; if (a.does === 'thru') h.thru = pick.row.r;
     if (window.wpStepLog) window.wpStepLog('attempt v1', 'answered', { does: a.does, line: true });
     areaHit(camp, h);
@@ -12798,7 +12812,8 @@ function landAnswered(camp, id, pass, row, pick) {
     var a = pick && pick.line ? pick.line : null;
     if (!a || a.does === 'stop') { landEnd(id, 'stopped'); return; }
     if (a.does === 'thru') { if (!pick.row || typeof pick.row.r !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(pick.row.r)) { landEnd(id, 'stopped'); return; } rec.thru = pick.row.r; }
-    if (a.does === 'hits' && pick.n >= 1) { var dmH = landDmgOf(camp, rec); if (!(dmH && dmH.ent && typeof dmH.ent.hits === 'string' && dmH.ent.hits)) { landEnd(id, 'stopped'); return; } }
+    if (a.does === 'hits' && pick.nBad === true) { if (typeof ansBadSay === 'function') ansBadSay(rec.toName); landEnd(id, 'stopped'); return; }   // the review of fold 3 (finding 1): a count that cannot be worked out stops it, and the GM is told
+    if (a.does === 'hits' && pick.n >= 1) { var dmH = landDmgOf(camp, rec); if (!(dmH && dmH.ent && typeof dmH.ent.hits === 'string' && dmH.ent.hits)) { landEnd(id, 'stopped'); return; } var chH = camp.chars && typeof rec.by === 'string' && own(camp.chars, rec.by) ? camp.chars[rec.by] : null, hnH = typeof ansHitsNow === 'function' ? ansHitsNow(camp, chH, dmH.row || null, dmH.ent, chH && typeof landVals === 'function' ? landVals(chH, rec) : null, rec.range) : null; if (typeof hnH === 'number' && hnH <= pick.n) { landEnd(id, 'stopped'); return; } }   // finding 11: a burst whose hits, worked out now, come to no more than the line stops is stopped here, so nobody is asked to roll damage that lands nowhere
     var e = typeof ansEff === 'function' ? ansEff(pick) : null; if (e && (a.does !== 'thru' || e.type)) { rec.ans = e; landLog('answered', { does: a.does, type: !!e.type }); }
     landFire(camp, id, a.does);
 }
@@ -12975,7 +12990,7 @@ function ansPick(camp, rec, act, row, ch, tc, rv, noTick) {   // rv: { vd, mf, r
         var a = lines[i]; if (!a || typeof a !== 'object') continue;
         if (a.if) { var vv = vars(); if (typeof vv !== 'function' || !S.rollNeedsOk({ needs: a.if }, vv, Fc)) continue; }   // a condition that cannot be worked out does not hold
         var out = { line: a, at: i < own ? i : -1, row: row && typeof row.f === 'string' && typeof row.r === 'string' ? { f: row.f, r: row.r } : null };
-        if (a.does === 'hits') { var vh = vars(), q = null; try { q = typeof vh === 'function' ? Fc.evaluate(a.hits, { vars: vh, random: function() { throw new Error('no dice'); } }) : null; } catch (e) { q = null; } out.n = q && q.ok && typeof q.value === 'number' && isFinite(q.value) ? Math.max(0, Math.min(999, Math.floor(q.value))) : 0; }
+        if (a.does === 'hits') { var vh = vars(), q = null; try { q = typeof vh === 'function' ? Fc.evaluate(a.hits, { vars: vh, random: function() { throw new Error('no dice'); } }) : null; } catch (e) { q = null; } var qOk = !!(q && q.ok && typeof q.value === 'number' && isFinite(q.value)); out.n = qOk ? Math.max(0, Math.min(999, Math.floor(q.value))) : 0; if (!qOk) out.nBad = true; }   // nBad (the review of fold 3, finding 1): How many hits could not be worked out, or rolls dice. It is never read as 0: the attack is stopped whole, the default of a success, and the GM is told (ansBadSay)
         if (window.wpStepLog) window.wpStepLog('attempt v1', 'line', { at: out.at, does: a.does });
         return out;
     }
@@ -13018,11 +13033,44 @@ function ansStamp(camp, rec, res, eff) {
         if (more.length) out.hits = more.map(function(h) { var o = { amt: cut(h && h.t, h && h.dtype, h && h.dkind) }, ph = h ? partsOf(h) : null; if (ph) o.p = ph; return o; });
         say.push('The defense let ' + got + ' of ' + tot + ' through.'); if (odd) say.push('How much gets through could not be worked out for some of it, so that came through whole.');
     }
-    if (eff.does === 'hits' && typeof eff.n === 'number' && eff.n >= 1) { out.keep = Math.max(0, H - Math.floor(eff.n)); say.push(out.keep === 0 ? 'The defense stopped every hit.' : 'The defense stopped ' + (H - out.keep) + ' of ' + H + ' hits.'); }
+    if (eff.does === 'hits' && typeof eff.n === 'number' && eff.n >= 0) { out.keep = Math.max(0, H - Math.floor(eff.n)); say.push(out.keep === 0 ? 'The defense stopped every hit.' : out.keep === H ? (H === 1 ? 'The defense stopped no hit.' : 'The defense stopped none of the ' + H + ' hits.') : 'The defense stopped ' + (H - out.keep) + ' of ' + H + ' hits.'); }   // the review of fold 3 (finding 1): How many hits that comes to 0 stops none, as its line says, and says so
     if (tyD) { out.type = tyD.key; if (eff.all === true) out.all = true; say.push((eff.all === true ? 'Every part lands as ' : 'It lands as ') + String(tyD.label || tyD.key).slice(0, 60) + '.'); }
     if (!say.length) return;
     out.say = say; rec.ans = out;
     if (window.wpStepLog) window.wpStepLog('attempt v1', 'stamped', { does: eff.does, hits: H });
+}
+// 1.6.3 (the review of defense fold 3, finding 11): how many hits the attack's damage will roll, worked out now on the attacker (ch) as the host holds them,
+// with the attacking row (row: { f, r }, for a list's damage roll) and the values and range kept at the attack (vals, range), as roll-req and net.diceRoll will
+// work it out (systemcore hitCount). null where it cannot be told, which leaves the attack to land and the count to be read as its damage is rolled
+function ansHitsNow(camp, ch, row, ent, vals, range) {
+    var S = SC(), Fc = window.wpFormula; if (!S || !Fc || !camp || !camp.system || !ch || !ent || typeof S.hitCount !== 'function') return null;
+    try {
+        var c = vals && typeof vals === 'object' ? Object.assign({}, ch, { values: vals }) : ch, tc = range && typeof S.withRange === 'function' ? S.withRange({}, range) : null, v = S.makeResolver(camp.system, c, Fc, tc);
+        if (typeof v === 'function' && row && typeof row.f === 'string' && typeof row.r === 'string') v = typeof v.row === 'function' ? v.row(row.f, row.r) : null;
+        var n = S.hitCount(ent, v, Fc); return typeof n === 'number' ? n : null;
+    } catch (e) { return null; }
+}
+// The review of defense fold 3 (finding 1): How many hits could not be worked out, so the defense stopped the whole attack, the default of a success. The GM
+// is told by the defender's name (who), since the line said a number and the table sees no damage
+function ansBadSay(who) {
+    var words = String(who || 'A character').slice(0, 60) + '’s defense could not work out how many hits it stops, so it stopped the whole attack.';
+    if (typeof logEvent === 'function') logEvent('table', words); if (typeof toast === 'function') toast(words); if (window.wpStepLog) window.wpStepLog('attempt v1', 'hits unread', {});
+    return words;
+}
+// The review of defense fold 3 (finding 2): a line that lets some through, stops a number of hits or names a type, answering an attack that has no landing
+// record and no line's hit (its damage is applied by hand, so nothing carries the line to it): the GM is told what the line says, by the defender's name
+// (ch). A line that takes it on the parrying row is said by thruNote, its type here, and a stop needs no word. The words name nothing a GM does not see
+function ansNote(camp, ch, pick) {
+    var a = pick && pick.line; if (!a || !ch || !(a.does === 'share' || a.does === 'hits' || (a.does === 'thru' && a.type))) return '';
+    var nm = String(ch.name || 'A character').slice(0, 60); if (a.does === 'hits' && pick.nBad === true) return ansBadSay(nm);
+    var S = SC(), Fc = window.wpFormula, sys = camp && camp.system, parts = [];
+    if (a.does === 'share') { var w = S && typeof S.ansShareWord === 'function' ? S.ansShareWord(sys, a.share, Fc) : ''; parts.push(w === 'half' ? 'half of it gets through' : w === 'none' ? 'none of it gets through' : w === 'all' ? 'all of it gets through' : 'only part of it gets through, as its line says'); }
+    if (a.does === 'hits') { var n = typeof pick.n === 'number' ? pick.n : 0; parts.push(n === 0 ? 'it stops no hit' : 'it stops ' + n + (n === 1 ? ' hit' : ' hits') + ' and the rest land'); }
+    if (typeof a.type === 'string' && a.type) { var types = sys && sys.combat && sys.combat.damage && Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [], ty = types.filter(function(y) { return y && typeof y.key === 'string' && y.key.toLowerCase() === a.type.toLowerCase(); })[0]; if (ty) parts.push((a.all === true ? 'every part lands as ' : 'it lands as ') + String(ty.label || ty.key).slice(0, 60)); }
+    if (!parts.length) return '';
+    var words = nm + '’s defense: ' + parts.join(', ') + '. Apply its damage from Take damage as that says.';
+    if (typeof logEvent === 'function') logEvent('table', words); if (typeof toast === 'function') toast(words); if (window.wpStepLog) window.wpStepLog('attempt v1', 'line by hand', { does: a.does, type: !!a.type });
+    return words;
 }
 // How a weapon test a line calls for is made: the Combat tab's combat.testBy, 'card' (absent: a card the weapon's owner presses), 'now' or 'both'
 function testRule(camp) { var c = camp && camp.system && camp.system.combat; return c && (c.testBy === 'now' || c.testBy === 'both') ? c.testBy : 'card'; }
@@ -13052,7 +13100,7 @@ function testRollNow(camp, lr, ch, row, priv) {
     var e = f ? f.list.rolls[lr.i] : null; if (!e || typeof e.formula !== 'string' || !e.formula || Array.isArray(e.apply)) return false;
     if (!(ch.values && Array.isArray(ch.values[f.id]) && ch.values[f.id].some(function(x) { return S.rowIdOf(x) === row.r; }))) return false;
     if (e.needs || e.needsWhy) { var cv = null; try { cv = S.makeResolver(camp.system, ch, Fc, null); cv = typeof cv === 'function' ? cv.row(f.id, row.r) : null; } catch (er) { cv = null; } if (typeof cv !== 'function' || !S.rollNeedsOk(e, cv, Fc)) return false; }
-    var o = { charId: ch.id, row: { f: f.id, r: row.r, i: lr.i }, label: String(e.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll' }; if (priv) o.priv = true;
+    var o = { charId: ch.id, row: { f: f.id, r: row.r, i: lr.i }, label: String(e.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll', called: true }; if (priv) o.priv = true;   // called (the review of fold 3, finding 5): the host's own word that this is no press its owner chose, so net.diceRoll spends nothing of theirs on a counting clock, says nothing of acting off its turn and holds it for no help or card action
     var r = net.diceRoll(e.formula, o); return !(r && r.error);
 }
 // The GM's Roll it now on their copy of a weapon test's card under Both: rolled here as the row's owner; the card's own record is let go and every copy of the
@@ -13137,7 +13185,7 @@ net.rollsFor = function(charId, name, sinceSeq, max) {   // newest first: tagged
         if (e.cid ? e.cid === charId : !!(name && e.m.roll.as === name && e.m.from && (e.m.from.gm === true || e.m.from.id === net.myId))) out.push({ from: e.m.from, scope: e.m.scope, ts: e.m.ts, seq: e.seq, fresh: !e.replay, roll: e.m.roll, res: e.m.res, rollBad: e.m.rollBad, toName: e.m.toName }); }
     return out;
 };
-function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !== 'whisper'; }).filter(function(m) { return !m.help; }).slice(-60).map(function(m) { var wr = m.roll || m.apply; if (typeof figOf === 'function') wr = figOf(wr); return m.roll ? { from: m.from, text: '', scope: m.scope, ts: m.ts, roll: wr } : m.apply ? { from: m.from, text: '', scope: m.scope, ts: m.ts, apply: wr } : m; }); }   // the join's recent chat (a roll rebuilt: nothing local rides along)
+function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !== 'whisper'; }).filter(function(m) { return !m.help; }).slice(-60).map(function(m) { var wr = m.roll || m.apply; if (typeof figOf === 'function') wr = figOf(wr); if (m.roll && wr && (wr.ans !== undefined || wr.landed !== undefined || wr.thru !== undefined || wr.hit !== undefined)) { var wk = typeof _npcCards !== 'undefined' && _npcCards ? _npcCards.get(wr) : null; wr = Object.assign({}, wr); delete wr.ans; delete wr.landed; delete wr.thru; delete wr.hit; if (wk) _npcCards.set(wr, wk); }   /* 1.6.3 (the review of defense fold 3, finding 4): ans, landed, thru and hit are the GM's own, set past the table's copy, so a copy without them, still judged by historySeen as the record was */ return m.roll ? { from: m.from, text: '', scope: m.scope, ts: m.ts, roll: wr } : m.apply ? { from: m.from, text: '', scope: m.scope, ts: m.ts, apply: wr } : m; }); }   // the join's recent chat (a roll rebuilt: nothing local rides along)
 // [netcheck:rolltag-end]
 function pushRoll(rec, res, scope, opts) {
     if (rec && typeof rec.id === 'string') for (var iR = chatLog.length - 1; iR >= 0; iR--) if (chatLog[iR] && chatLog[iR].roll && chatLog[iR].roll.id === rec.id) { chatLog[iR].roll = rec; chatLog[iR].res = res; if (!rec.pend) ringPush(chatLog[iR], opts && opts.cid); renderChat(); return; }   // 1.6.2 (G5): a held roll's card, changed or landed, takes the place of the one before it
@@ -13420,7 +13468,7 @@ net.diceRoll = function(expr, o) {
     if (o.with && !(entR && entR.resist === true && entR.withRow === o.with.f)) return { error: 'That roll is not answered with a row of that list.' };   // 1.6.3 (defense fold 2)
     if (!o.with && entR && typeof entR.withRow === 'string' && entR.withRow) return { error: typeof WITH_ONLY === 'string' ? WITH_ONLY : 'That roll is made from a defense card, with a row.' };   // 1.6.3 (the review of defense fold 2, findings 3 and 4): never bare
     if (o.row && entR && typeof entR.showIf === 'string' && entR.showIf && varsR && !SR.rollNeedsOk({ needs: entR.showIf }, varsR, F)) return { error: 'That roll is not offered on this row.' };   // 1.6.0: Shown where
-    if (lndR && entR && (entR.needs || entR.needsWhy || entR.job)) { entR = Object.assign({}, entR); delete entR.needs; delete entR.needsWhy; delete entR.job; }   // 1.6.3 (defense fold 1): a landed attack's damage was earned by the attack, so its roll's own needs hold nothing back, and it counts no job (clockPress below passes it by too)
+    if ((lndR || o.called === true) && entR && (entR.needs || entR.needsWhy || entR.job)) { entR = Object.assign({}, entR); delete entR.needs; delete entR.needsWhy; delete entR.job; }   // 1.6.3 (defense fold 1): a landed attack's damage was earned by the attack, so its roll's own needs hold nothing back, and it counts no job (clockPress below passes it by too)
     if (entR && (entR.needs || entR.needsWhy) && entR.needsGm !== true && varsR && !SR.rollNeedsOk(entR, varsR, F)) return { error: SR.rollNeedsSays(entR, varsR, F) };
     if (entR && entR.area && !(o.aim && typeof o.aim === 'object')) return { error: AREA_AIM };   // 1.6.0: a line takes an aim
     var hbR = chR && typeof holdsBar === 'function' && typeof SR.holdRefOf === 'function' ? holdsBar(campR, chR, SR.holdRefOf(o.act, o.row)) : ''; if (hbR) return { error: hbR };   // 1.6.0 Who holds whom
@@ -13428,7 +13476,7 @@ net.diceRoll = function(expr, o) {
     var swR = null; if (Array.isArray(o.sw) && o.sw.length) { var refSw = o.act && !o.row ? { r: String(o.act) } : o.fr ? { f: String(o.fr) } : o.row ? { l: String(o.row.f), row: String(o.row.r), i: typeof o.row.i === 'number' ? o.row.i : undefined } : null; swR = chR && SR && campR && campR.system && refSw && typeof SR.swJudge === 'function' ? SR.swJudge(campR.system, chR, refSw, o.sw) : { ok: false }; if (!swR.ok) return { error: 'That bonus is not this character\u2019s to add to this roll now.' }; }   // 1.6.0: the roll switches ticked, judged as a player's are (the formula already holds them)   // R2b: its needs (before anything is rolled)   // Stage 6 F5b: a roll on one row — its Row.* names
     if (entR && entR.burst === 'extra' && o.row && SR && typeof SR.burstBar === 'function') { var bbR = SR.burstBar(campR.system, chR, o.row.f, o.row.r); if (bbR) return { error: bbR }; }   // 1.6.0 A burst: its extra dice, once, after an attack that hit
     var hvR = null, rnR = null; if (entR && entR.dmg === true && entR.hits && varsR && SR && typeof SR.hitCount === 'function') { var hnR = SR.hitCount(entR, varsR, F); if (hnR === null) return { error: 'How many hits it rolls for could not be worked out.' }; if (hnR < 1) return { error: 'There are no hits to roll for.' }; hvR = SR.hitVars(varsR, hnR); rnR = SR.hitRounds(campR.system, varsR, hnR); varsR = hvR[0]; }   // 1.6.0 A burst: how many times it rolls, from the entry; the first hit reads its own round
-    if (chR && entR && entR.help && o.helped !== true && !o.priv && !o.gmOnly && o.used !== true && !o.blast && !o.range && !o.cross && !o.att && typeof helpHold === 'function') {   // 1.6.2 Assist: a roll that waits for help, before anything of it is rolled
+    if (chR && entR && entR.help && o.helped !== true && !o.priv && !o.gmOnly && o.used !== true && !o.blast && !o.range && !o.cross && !o.att && o.called !== true && typeof helpHold === 'function') {   // 1.6.2 Assist: a roll that waits for help, before anything of it is rolled
         var ftH = window.wpSheets && window.wpSheets.facingTarget ? window.wpSheets.facingTarget(chR, campR) : null;
         if (helpHold({ S: SR, D: D, F: F, camp: campR, ent: entR, ch: chR, pid: '', conn: null, label: o.label || entR.label, from: o.from || diceFrom(getProfile(), true), mapId: ftH && ftH.tok ? ftH.mapId : null, go: function(n) { var cmH = n ? D.composeModifier(expr, n, F.parse) : { ok: true, expr: expr }; var rH = net.diceRoll(cmH.ok ? cmH.expr : expr, Object.assign({}, o, { helped: true })); if (rH && rH.error && typeof toast === 'function') toast(rH.error); } })) return { ok: true, held: true };
     }
@@ -13442,8 +13490,8 @@ net.diceRoll = function(expr, o) {
     if (entR && entR.job && chR && o.row && typeof o.row.r === 'string' && SR && typeof SR.jobStep === 'function') { var jrR = typeof jobRound === 'function' ? jobRound(campR, chR.id) : null, jbR = SR.jobBar(chR, o.row, entR, varsR, F, jrR); if (jbR) return cardR && cardR.undo && cardR.undo(), { error: jbR }; var jsR = jobPress(SR, campR, chR, o.row, entR, varsR, F, jrR, o.label, function() { save(true); }); if (jsR) return cardR && cardR.undo && cardR.undo(), { error: jsR }; }   // 1.6.0: a job counted across turns
     var moR = hvR && hvR.length > 1 ? SR.hitRolls(campR.system, entR, expr, hvR.slice(1), F, D, { rounds: rnR.slice(1) }) : null; if (moR && moR.error) return cardR && cardR.undo && cardR.undo(), { error: moR.error };   // ... and each hit after it, rolled here
     var swpR = swR && swR.pays && chR && typeof swPayPlan === 'function' ? swPayPlan(SR, campR, chR, swR.pays, F, D, tcR) : null; if (swpR && swpR.error) return cardR && cardR.undo && cardR.undo(), { error: swpR.error }; if (swpR) swPayDo(chR, swpR);   // 1.6.2 (G6)
-    if (chR && entR && !lndR && typeof clockPress === 'function') clockPress(campR, chR.id, entR);   // 1.6.2 (G10): what the GM's own press spends on a counting clock
-    if (chR && !o.att && typeof net.offTurnSay === 'function') net.offTurnSay(chR, o.act, o.row, o.label);   // 1.6.0: off its turn, the GM is told, once nothing has refused it
+    if (chR && entR && !lndR && o.called !== true && typeof clockPress === 'function') clockPress(campR, chR.id, entR);   // 1.6.2 (G10): what the GM's own press spends on a counting clock
+    if (chR && !o.att && o.called !== true && typeof net.offTurnSay === 'function') net.offTurnSay(chR, o.act, o.row, o.label);   // 1.6.0: off its turn, the GM is told, once nothing has refused it
     var cardNR = cardR && cardR.done ? cardR.done() : '';   // nothing refused it, so the card stays drawn
     var restR = function(res, heldR) {   // 1.6.2 (G5): all that follows a roll, which a roll with card actions holds until it is accepted
     var rec = { type: 'roll', id: D.uid(), from: o.from || diceFrom(getProfile(), true), expr: expr, draws: res.draws, v: F.VERSION, ts: Date.now() }; if (heldR) rec.id = heldR; if (!o.from) { var dlR = rollLookOwn(); if (dlR) rec.dl = dlR; }   // o.from: this machine's own word, the player whose press this roll follows (a line's damage)
@@ -13574,7 +13622,7 @@ net.diceRoll = function(expr, o) {
     net.rollCheck = D.checkOf ? D.checkOf(res, ruleR) : null;   // 1.5.8 explosives: this roll's pass, critical and margin, read by a throw right after it (this machine's own)
     return { ok: true, value: res.value, priv: !!rec.priv };
     };
-    if (chR && entR && o.used !== true && !o.blast && !o.range && !o.cross && typeof cardHold === 'function' && cardHold({ dl: o.from ? null : rollLookOwn(), asked: askedR, S: SR, D: D, F: F, camp: campR, ent: entR, res: res, expr: expr, vars: varsR, tc: tcR, ch: chR, pid: '', conn: null, priv: !!(o.priv || o.gmOnly), from: o.from || diceFrom(getProfile(), true), label: o.label, as: chR.name, cid: chR.id, go: function(r, e, id, st) { expr = e; if (st) varsR.bandStep = st; restR(r, id); } })) { if (typeof o.att === 'string' && typeof attemptRec === 'function') { var bzR = attemptRec(o.att); if (bzR) bzR.busy = 1; } return { ok: true, pending: true, value: res.value }; }   // 1.6.3: held until Accept, its card answers no second press meanwhile
+    if (chR && entR && o.used !== true && !o.blast && !o.range && !o.cross && o.called !== true && typeof cardHold === 'function' && cardHold({ dl: o.from ? null : rollLookOwn(), asked: askedR, S: SR, D: D, F: F, camp: campR, ent: entR, res: res, expr: expr, vars: varsR, tc: tcR, ch: chR, pid: '', conn: null, priv: !!(o.priv || o.gmOnly), from: o.from || diceFrom(getProfile(), true), label: o.label, as: chR.name, cid: chR.id, go: function(r, e, id, st) { expr = e; if (st) varsR.bandStep = st; restR(r, id); } })) { if (typeof o.att === 'string' && typeof attemptRec === 'function') { var bzR = attemptRec(o.att); if (bzR) bzR.busy = 1; } return { ok: true, pending: true, value: res.value }; }   // 1.6.3: held until Accept, its card answers no second press meanwhile
     return restR(res);
 };
 // [netcheck:diceroll-end]

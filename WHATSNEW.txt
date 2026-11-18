@@ -117,8 +117,11 @@ What a successful defense does
   The new Attacks and defenses topic on the Combat tab says how that test
   is made, as a card for its owner or rolled at once, and lists every
   rule as a sentence you can press to open its roll.
-- A line attack where each one resists reads the lines too, so a dodge
-  that succeeds can still take half.
+- An attack along a line that each target resists reads the lines too,
+  so a dodge that succeeds can still take half.
+- Only attacks read them: a roll that deals damage or calls for it, or
+  one made with a weapon that does. A grab or a shove doesn't. Where you
+  apply the damage yourself, you're told what the line says.
 
 Smaller things
 - The game clock in the top row shows seconds for the GM. The clock still

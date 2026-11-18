@@ -27,6 +27,8 @@
       It is the whole of fuzzcheck, its seeded mutations included, twice at once (some 40 seconds). It runs each part in sloppy mode
       (a scope made with `with` cannot be strict), while the browser runs it as a strict module; what only strict mode would refuse is
       judged statically in 2.
+   5b. sheets.js, which no suite loads as a module: its joined text and its real wiring each load in a page of stubs, set the same window
+      globals and the same window.wpSheets, bind every name a part returns, and each such name, called in both alike, ends alike.
    6. Under the wrap a part reads as one neutral line, and each marker of a suite in a part's body stands in the joined root as often
       as in the part.
    7. A part's area's tests read it by name: in tools/*.js (but srcjoin, splitlib, splitcheck, checkkit and suitecount), a line that
@@ -55,6 +57,53 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
 const argAgainst = (() => { const i = process.argv.indexOf('--against'); return i > 0 ? process.argv[i + 1] : (process.env.CI ? 'HEAD' : null); })();   // on CI (a fresh checkout, where a part's line endings may differ from Windows) the proof runs against HEAD by itself
 const bare = l => l.replace(/\r$/, '');
 const git = (args, enc) => { const r = cp.spawnSync('git', args, { cwd: ROOT, encoding: enc === 'buffer' ? 'buffer' : 'utf8', maxBuffer: 64 * 1024 * 1024 }); return r.status === 0 ? r.stdout : null; };
+
+// ---- a page of stubs, for a giant script that is only ever tested as text (5b) ----
+// pageStub(name) is a value that takes anything: any property is another stub, a call or a new answers a stub, a write is kept nowhere,
+// and it reads as 0 or '' where a number or text is wanted. A script's imports are made stubs (its other modules are not loaded), and so
+// are the page's document, storage, observers and channels; timers never fire. The window keeps what the script writes on it.
+const vm = require('vm');
+function pageStub(nm) {
+    const f = function() {};
+    return new Proxy(f, {
+        get(o, k) { if (k === Symbol.toPrimitive) return () => 0; if (k === 'then' || k === Symbol.iterator) return undefined; if (k === 'toString' || k === 'valueOf') return () => ''; if (k === 'length') return 0; return pageStub(nm + '.' + String(k)); },
+        set() { return true; }, apply() { return pageStub(nm + '()'); }, construct() { return pageStub('new ' + nm); }, has() { return true; }
+    });
+}
+// Loads a script's joined text, or (bundle true) srcjoin.bundle's real wiring, as one function in a page of stubs. Answers the context,
+// the window, and what the script's own scope holds: each name its parts return, by kind, and those names themselves (a function or null).
+function pageLoad(name, bundle) {
+    let t = bundle ? srcjoin.bundle(name) : (srcjoin.isRoot(name) ? srcjoin.joinRoot(name).text : srcjoin.raw(name, 'latin1'));
+    t = Buffer.from(t, 'latin1').toString('utf8');
+    t = t.replace(/^import \{([^}]*)\} from '\.\/([A-Za-z0-9_.-]+\.js)';[^\n]*$/gm, (a, names, mod) => 'var ' + names.split(',').map(s => s.trim()).filter(Boolean).map(s => { const p = s.split(/\s+as\s+/); return (p[1] || p[0]) + ' = __stub(' + JSON.stringify(mod + ':' + p[0]) + ')'; }).join(', ') + ';');
+    const win = {};
+    const ctx = { console: { log() {}, warn() {}, error() {}, info() {}, debug() {} }, Object, JSON, Math, Array, String, Number, Boolean, Date, RegExp, Error, TypeError, RangeError, SyntaxError, Map, Set, WeakMap, WeakSet, Promise, Symbol, Proxy, Reflect,
+        parseInt, parseFloat, isNaN, isFinite, encodeURIComponent, decodeURIComponent, Infinity, NaN, undefined,
+        setTimeout() { return 0; }, setInterval() { return 0; }, clearTimeout() {}, clearInterval() {}, requestAnimationFrame() { return 0; }, cancelAnimationFrame() {},
+        document: pageStub('document'), location: { search: '', origin: 'http://localhost', href: 'http://localhost/' }, navigator: pageStub('navigator'), localStorage: pageStub('localStorage'), sessionStorage: pageStub('sessionStorage'),
+        BroadcastChannel: pageStub('BroadcastChannel'), ResizeObserver: pageStub('ResizeObserver'), MutationObserver: pageStub('MutationObserver'), getComputedStyle: pageStub('getComputedStyle'), performance: { now: () => 0 }, __stub: pageStub };
+    ctx.window = new Proxy(win, { get(o, k) { if (k in o) return o[k]; if (k in ctx && k !== 'window') return ctx[k]; return pageStub('window.' + String(k)); }, set(o, k, v) { o[k] = v; return true; } });
+    ctx.self = ctx.window;
+    vm.createContext(ctx);
+    const names = []; srcjoin.partsOf(name).forEach(p => (L.partGlue(p).returns || []).forEach(n => names.push(n)));
+    const tail = '\n;return { names: {' + names.map(n => JSON.stringify(n) + ': typeof ' + n).join(', ') + '}, fns: {' + names.map(n => JSON.stringify(n) + ': typeof ' + n + " === 'function' ? " + n + ' : null').join(', ') + '} };';
+    const out = vm.runInContext('(function(){' + t + tail + '\n})', ctx, { filename: name + (bundle ? ' (real wiring)' : ' (joined)') })();
+    return { ctx, win, names: Object.keys(out.names).map(n => n + ' ' + out.names[n]), fns: out.fns, order: names };
+}
+// What the window holds after the load (each global's kind, and window.wpSheets key by key), and how each call of a part's names ends.
+function pageCalls(name, bundle) {
+    const r = pageLoad(name, bundle), calls = [];
+    const kind = v => (typeof v === 'function' ? 'function ' + v.name + '/' + v.length : typeof v);
+    const shape = Object.keys(r.win).sort().map(k => 'window.' + k + ' = ' + kind(r.win[k])).concat(Object.keys(r.win.wpSheets || {}).map(k => 'wpSheets.' + k + ' = ' + kind(r.win.wpSheets[k])));
+    r.ctx.__fns = r.fns;
+    [false, true].forEach(withArgs => r.order.forEach(n => {
+        let o;
+        try { r.ctx.__n = n; const v = vm.runInContext('__fns[__n] ? (' + (withArgs ? '__fns[__n](__stub("a"), __stub("b"), __stub("c"), __stub("d"))' : '__fns[__n]()') + ') : "not a function"', r.ctx, { timeout: 500 }); o = 'answers ' + typeof v; }
+        catch (e) { o = 'throws ' + (e && e.name) + ': ' + String(e && e.message).slice(0, 120); }
+        calls.push(n + (withArgs ? ' (stubs)' : ' ()') + ' ' + o);
+    }));
+    return { shape, names: r.names, calls };
+}
 
 (async () => {
     check('the parser Node ships is reachable (node --expose-internals)', !!L.acorn());
@@ -240,6 +289,29 @@ const git = (args, enc) => { const r = cp.spawnSync('git', args, { cwd: ROOT, en
         const over = (x, y) => [...x].filter(([k, n]) => (y.get(k) || 0) !== n).map(([k, n]) => n + 'x ' + k + ' (other run ' + (y.get(k) || 0) + 'x)');
         const onlyJ = over(cj, cb).slice(0, 5), onlyB = over(cb, cj).slice(0, 5);
         check('net.js: fuzzcheck gives the same lines and exit code on the joined text and on the real wiring, each part seeing only what it imports (' + nj.length + ' lines, exit ' + j.code + ')', j.code === b.code && !onlyJ.length && !onlyB.length && /net\.js loads whole/.test(b.text), { exit: [j.code, b.code], joinedOnly: onlyJ, realOnly: onlyB });
+    }
+
+    // ---- 5b. sheets.js: its joined text and its real wiring load alike, and its parts' functions run alike ----
+    // sheets.js is only ever tested as text, so this is the one place its real wiring runs (docs/REFACTOR_SPLIT_PLAN.md, area 2's
+    // prerequisite). Both texts load in a page of stubs (pageLoad): the joined text, and srcjoin.bundle's real wiring, in which each part
+    // sees only the names it imports. They must set the same window globals, give window.wpSheets the same keys (each the same kind, and
+    // a function the same name and length), and bind every name a part returns, each the same kind. Then each name a part returns is
+    // called in both, in the same order, once with no arguments and once with stubs for its arguments, and each call must end alike
+    // (the kind of what it answers, or the same error): a part function that misses an import throws a ReferenceError only in the
+    // real wiring, and only when its path runs. Before sheets.js is split the bundle is its own text, and the check shows the harness runs.
+    {
+        const name = 'sheets.js', split = srcjoin.isRoot(name);
+        let a = null, b = null, err = null;
+        try { a = pageCalls(name, false); b = pageCalls(name, true); } catch (e) { err = e; }
+        if (err) check(name + ': the joined text and the real wiring load in a page of stubs', false, String(err && err.stack || err).slice(0, 600));
+        else {
+            const diff = (x, y) => x.filter((v, i) => v !== y[i]).slice(0, 8);
+            const shapeA = a.shape, shapeB = b.shape;
+            check(name + (split ? '' : ' (not split yet)') + ': the joined text and the real wiring set the same window globals and give window.wpSheets the same ' + shapeA.length + ' keys, each the same kind, function name and length', shapeA.length > 20 && shapeA.length === shapeB.length && diff(shapeA, shapeB).length === 0, diff(shapeA, shapeB));
+            const unbound = b.names.filter(x => / undefined$/.test(x));
+            check(name + ': the real wiring binds every name its parts return (' + b.names.length + '), each the same kind as in the joined text', unbound.length === 0 && a.names.length === b.names.length && diff(a.names, b.names).length === 0, { unbound: unbound.slice(0, 8), differ: diff(a.names, b.names) });
+            check(name + ': each name its parts return, called in the same order in both (with no arguments, then with stubs), ends alike: the same kind of answer or the same error (' + a.calls.length + ' calls)', a.calls.length === b.calls.length && diff(a.calls, b.calls).length === 0, diff(b.calls, a.calls));
+        }
     }
 
     // ---- 6. sweeps ----

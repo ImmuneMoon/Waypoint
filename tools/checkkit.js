@@ -21,7 +21,8 @@
      between(a, b, label, file), tryBetween(a, b, file), fnSrc(start, end, label, file), range(file, a, b) (the text from a up to b,
      both in the part) and lineOf(k). A call that names a part's file reads that part; one that names none reads the joined net.js.
    - packCheck(v): PeerJS's BinaryPack refusals, which netcheck runs on every send of a harness (moved here from netcheck).
-   - url(name): a file URL of a script, for import(). APP and SCRIPTS: the app's folders. */
+   - url(name): a file URL of a script, for import(). fresh(root, tag): the file URLs of a private copy of a split root and its
+     parts, by name, so that an import runs the real split wiring (a part as a module of its own). APP and SCRIPTS: the app's folders. */
 'use strict';
 const srcjoin = require('./srcjoin');
 srcjoin.install();
@@ -94,4 +95,14 @@ function packCheck(v) {
 
 const url = f => 'file:///' + path.resolve(path.join(SCRIPTS, f)).replace(/[\\]/g, '/');
 
-module.exports = { suite, joined, part, netSlices, packCheck, url, APP, SCRIPTS, lf };
+// The file URLs of a private copy of a split root and its parts (srcjoin.freshUrl), by name. An import of the real folder's root
+// runs the joined text srcjoin answers (the parts' lines put back in place), and an import of a real part answers its one neutral
+// line; an import from the copy runs the real split wiring instead, as the browser does: the part is a module of its own, read by
+// its own name, and the root installs it. So a suite that tests an area imports that area's part from here, and through it the
+// root. The copy's imports of other modules point at the real folder.
+function fresh(root, tag) {
+    const u = srcjoin.freshUrl(root, tag);
+    return name => u.slice(0, u.lastIndexOf('/') + 1) + name;
+}
+
+module.exports = { suite, joined, part, netSlices, packCheck, url, fresh, APP, SCRIPTS, lf };

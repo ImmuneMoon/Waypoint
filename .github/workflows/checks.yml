@@ -48,6 +48,9 @@ jobs:
       - name: systemcheck — character system + sheet model
         if: ${{ !cancelled() }}
         run: node tools/systemcheck.js
+      - name: damagecheck — the damage step and a burst, read from damagecore.js by name
+        if: ${{ !cancelled() }}
+        run: node tools/damagecheck.js
       - name: dicecheck — dice engine
         if: ${{ !cancelled() }}
         run: node tools/dicecheck.js

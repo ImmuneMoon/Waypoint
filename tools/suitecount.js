@@ -31,8 +31,9 @@ function suites() {
     return fs.readdirSync(TOOLS).filter(f => /check\.js$/.test(f)).map(f => f.slice(0, -3)).filter(n => !only || only.includes(n)).sort();
 }
 
-// A result line as it is compared: one space after its word, no trailing space, every measured time in milliseconds as "# ms".
-const norm = l => l.replace(/^(ok|FAIL)\s+/, '$1 ').replace(/\s+$/, '').replace(/\d[\d.,]*\s*ms\b/g, '# ms');
+// A result line as it is compared: one space after its word, no trailing space, every measured time in milliseconds as "# ms", and a
+// count of suites as "# suites" (splitcheck names how many suites it read, which a new suite moves).
+const norm = l => l.replace(/^(ok|FAIL)\s+/, '$1 ').replace(/\s+$/, '').replace(/\d[\d.,]*\s*ms\b/g, '# ms').replace(/\(\d+ suites\)/g, '(# suites)');
 
 // One suite's run: its result lines (squeezed and sorted), its summary line and its exit code.
 function runOne(name) {

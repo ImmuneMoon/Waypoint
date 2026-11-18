@@ -561,7 +561,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                               // 1.6.3 (the review, finding 4): a way to another map under the fog is no way the player can see, so a double-click there asks
                               // nothing (fog.js pieceSeen, the rule the minimap and the hover card read)
                               if (window.wpFog && typeof window.wpFog.pieceSeen === 'function' && !window.wpFog.pieceSeen(_am, wItem)) return;
-                              if (!wItem.hidden) { window.wpNet.requestTravel(wItem.id); if (wItem.portalLock !== true) toast('Traveling...'); }   // a portal locked for players: the request still goes (the host is the judge, and its answer says why), without the promise
+                              if (!wItem.hidden) { window.wpNet.requestTravel(wItem.id); if (wItem.portalLock !== true && portalNearMine(_am, wItem)) toast('Traveling...'); }   // a portal locked for players, or one no token of theirs stands next to (1.6.3, finding 2): the request still goes (the host is the judge, and its answer says why), without the promise
 
                               return;
 
@@ -655,7 +655,8 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                       tt.innerHTML = '<div class="room" style="border-left-color:var(--gold); margin:0; pointer-events:none;">' +
                                      '<div class="rn">' + esc(wItem.name || 'Trigger zone') + '</div>' +
                                      '<div class="rc" style="color:var(--ink); font-size:11px; white-space:pre-wrap; text-transform:none; letter-spacing:0;">' + esc(wItem.eventMessage || 'No event message yet \u2014 write one in Properties.') + '</div>' +
-                                     '<div class="rc" style="color:var(--dim); font-size:11px; text-transform:none; letter-spacing:0;">Trigger zone \u00b7 fires when a character token is dropped here</div></div>';
+                                     '<div class="rc" style="color:var(--dim); font-size:11px; text-transform:none; letter-spacing:0;">Trigger zone \u00b7 fires when a character token is dropped here</div>' +
+                                     (zoneHidMe(wItem) ? '<div class="rc" style="color:var(--steel); font-size:11px; text-transform:none; letter-spacing:0;">Players do not see this zone. Its message still comes up for them.</div>' : '') + '</div>';   // 1.6.3 (finding 8): a zone players do not see says so, in fixed words
                       if (wItem.targetMapId) portalPicFill(tt, wItem.targetMapId);   // 1.6.0: a portal drawn as a zone shows the map it leads to too
                       tt.style.display = 'block';
                       return;
@@ -691,7 +692,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                       tt.innerHTML = '<div class="room" style="border-left-color:var(--gold); margin:0; pointer-events:none;">' +
                                      '<div class="rn">' + esc(wItem.name || (wItem.type === 'trigger' ? 'Portal zone' : 'Portal')) + '</div>' +
                                      '<div class="rc" style="color:var(--gold)">&rarr; ' + esc(destP && destP.meta && destP.meta.title || 'another map') + '</div>' +
-                                     lockTipP + (lockTipP && isClientP ? '' : '<div class="rc" style="color:var(--dim); font-size:11px;">' + (isClientP ? 'Drop your token here (or double-click) to travel' : 'Double-click to travel · drop a player\'s token here to send them through') + '</div>') +
+                                     lockTipP + (lockTipP && isClientP ? '' : '<div class="rc" style="color:var(--dim); font-size:11px;">' + (isClientP ? 'Drop your token here, or stand next to it and double-click, to travel' : 'Double-click to travel · drop a player\'s token here to send them through') + '</div>') +
                                      '</div>';
                       if (destP) portalPicFill(tt, wItem.targetMapId);   // 1.6.0: a small picture of the map it leads to, beside its name
                       tt.style.display = 'block';
@@ -722,7 +723,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                   var lockTT = destTT && destTT.meta && destTT.meta.playerLock ? ' \u00b7 ' + (isClientTT ? 'closed for now' : 'locked for players') : '';
                   var destLine = destTT ? '<div class="rn" style="color:var(--gold);">\u2192 ' + esc(destTT.meta && destTT.meta.title || r.targetMapId) + (destRoomTT ? ' \u00b7 ' + esc(destRoomTT.name || '') : '') + lockTT + '</div>' : '';
                   var lockTipTT = portalLockTip(wItem, activeMap, !!isClientTT);   // a portal's own lock: a player is told it is locked in place of how to travel
-                  var travelHint = r.targetMapId ? destLine + (lockTipTT && isClientTT ? '' : '<div class="rc" style="color:var(--gold)">' + (isClientTT ? 'Drop your token here (or double-click) to travel' : 'Double-click to travel · drop a player\'s token here to send them through') + '</div>') : '';
+                  var travelHint = r.targetMapId ? destLine + (lockTipTT && isClientTT ? '' : '<div class="rc" style="color:var(--gold)">' + (isClientTT ? 'Drop your token here, or stand next to it and double-click, to travel' : 'Double-click to travel · drop a player\'s token here to send them through') + '</div>') : '';
 
                   var thumb = r.image ? '<img src="'+esc(resolveImg(r.image))+'" loading="lazy" decoding="async" style="width:100%; height:90px; object-fit:cover; border-radius:4px; margin-bottom:6px; display:block;">' : '';
 
@@ -928,6 +929,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
           el.classList.toggle('wb-hidden-gm', !!item.hidden && !clientView);
           el.classList.toggle('wb-room-area', item.roomArea === true && !!item.nodeId && !clientView);   // 1.6.2 (backlog 45, fold 3): a room's area only the GM sees
+          el.classList.toggle('wb-zone-gm', !clientView && zoneHidMe(item));   // 1.6.3 (finding 8): a trigger zone players do not see, drawn dotted in steel on the GM's screen (style.css); a player's copy never holds one
           el.classList.toggle('wb-flat-in', !clientView && typeof item.flatIn === 'string' && flatPics[item.flatIn] === 1);   // 1.6.2, found by hand: a piece drawn into a flattened picture stays out of sight and out of reach on the map, its picture showing it; Layers lists it under the picture
 
           el.classList.toggle('wb-trap', !!item.trap && !!el.dataset.portal && !!item.hidden && !clientView);   // GM-only: an armed hidden trap portal
@@ -1357,6 +1359,17 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
       board.querySelectorAll('.wb-item.wb-door, .wb-item.wb-door-near').forEach(function(el) { el.classList.toggle('wb-door-near', on[el.dataset.id] === 1 && el.classList.contains('wb-door')); });
   }
   // [fogcheck:doornear-end]
+  // 1.6.3 (the owner's ruling of 2026-11-17, finding 2 of the improvement week's review: a player travels through a portal "Next to it"): whether a
+  // token of yours stands on a portal or next to it on this screen's copy, by fogcore portalBeside (the door's own rule, which the host's travelBar
+  // judges the request by). Read only so that a double-click from afar does not promise Traveling: the host is the judge and says why. With no core
+  // at hand it promises as before
+  function portalNearMine(am, portal) {
+      var F = window.wpFogCore; if (!F || typeof F.portalBeside !== 'function' || !am || !portal) return true;
+      var grid = typeof F.gridFor === 'function' ? F.gridFor((am.meta && am.meta.gridType) || 'off', am.fog && am.fog.cell, am.meta && am.meta.cell) : null;
+      return doorNearMine(am, [], window.wpNet).some(function(b) { return F.portalBeside(b, portal, grid); });
+  }
+  // 1.6.3 (finding 8): a trigger zone the GM unticked Players see this zone, by fogcore zoneHid (the host's own judge); with no core, the tick on a trigger
+  function zoneHidMe(w) { var F = window.wpFogCore; return F && typeof F.zoneHid === 'function' ? F.zoneHid(w) : !!w && w.type === 'trigger' && w.zoneHidden === true; }
 
   /* ---------- floating mini-toolbar over the selection ---------- */
 

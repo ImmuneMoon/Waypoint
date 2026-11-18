@@ -6777,6 +6777,25 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             J(sm) === J([true, true, true, true, true, false, true, true]) && fogS.includes("if (active() && scrollMovesBoard(e && e.target, document, wrap)) { lastDraw = 0; kick(); }"), J(sm));
     }
 
+    // 1.6.3 (the owner's rulings of 2026-11-17, findings 2 and 8 of the improvement week's review): the three new judges of fogcore, run for real.
+    // portalBeside is the door's own rule (doorBeside) on every lattice; zoneHid says which trigger zone players do not see (a plain message zone
+    // whose tick is true, never one that leads to a map, hangs on a room or is a mine); zoneHolds reads a zone by its own shape, as itemCovers reads a
+    // piece of that type (a zone with no size 100 by 100), so a circle, a diamond and a hexagon never hold their box's corners
+    {
+        const Z = X, sqZ = Z.gridFor('square', null, null), hxZ = Z.gridFor('hex', null, null);
+        let same = true, seen = 0; const doorZ = { id: 'd', type: 'rect', x: 200, y: 200, w: 50, h: 50 };
+        [sqZ, hxZ, null].forEach(g => { for (let x = 50; x <= 400; x += 17) for (let y = 50; y <= 400; y += 19) { const t = { id: 't', x, y, w: 60, h: 52 }; if (Z.portalBeside(t, doorZ, g) !== Z.doorBeside(t, doorZ, g)) same = false; seen++; } });
+        const zh = [Z.zoneHid({ type: 'trigger', zoneHidden: true }), Z.zoneHid({ type: 'trigger', zoneHidden: 'yes' }), Z.zoneHid({ type: 'trigger' }), Z.zoneHid({ type: 'trigger', zoneHidden: true, targetMapId: 'm' }), Z.zoneHid({ type: 'trigger', zoneHidden: true, nodeId: 'r' }),
+            Z.zoneHid({ type: 'trigger', zoneHidden: true, mine: {} }), Z.zoneHid({ type: 'rect', zoneHidden: true }), Z.zoneHid(null)];
+        let agree = true; const shapes = ['circle', 'diamond', 'hexagon', undefined];
+        shapes.forEach(sh => { const t = { type: 'trigger', shape: sh, x: 10, y: 20, w: 120, h: 104, rot: sh === 'diamond' ? 30 : undefined }; const p = { type: sh === 'hexagon' ? 'hexagon' : sh || 'rect', x: 10, y: 20, w: 120, h: 104, rot: t.rot };
+            for (let px = 0; px <= 140; px += 3) for (let py = 10; py <= 134; py += 3) if (Z.zoneHolds(t, px, py) !== Z.itemCovers(p, px, py, null)) agree = false; });
+        const corners = [Z.zoneHolds({ type: 'trigger', shape: 'circle', x: 0, y: 0, w: 100, h: 100 }, 5, 5), Z.zoneHolds({ type: 'trigger', shape: 'diamond', x: 0, y: 0, w: 100, h: 100 }, 5, 95), Z.zoneHolds({ type: 'trigger', shape: 'hexagon', x: 0, y: 0, w: 120, h: 104 }, 3, 3),
+            Z.zoneHolds({ type: 'trigger', x: 0, y: 0, w: 100, h: 100 }, 3, 3), Z.zoneHolds({ type: 'trigger', x: 0, y: 0 }, 99, 99), Z.zoneHolds({ type: 'trigger', x: 0, y: 0 }, 101, 50), Z.zoneHolds(null, 1, 1), Z.zoneHolds({ type: 'trigger', x: 0, y: 0 }, NaN, 1)];
+        check('1.6.3 portalBeside, zoneHid and zoneHolds (fogcore, run for real): a portal is reached by the door\'s own rule on a square grid, a hex grid and with no lattice, token for token; zoneHid takes only a plain message zone whose tick is true; zoneHolds reads a zone by its own shape as itemCovers reads a piece of that shape (turned too), a zone with no size being 100 by 100, so a round, diamond or hex zone never holds its box\'s corners while a box does; all three published',
+            same && seen > 1000 && JSON.stringify(zh) === JSON.stringify([true, false, false, false, false, false, false, false]) && agree && JSON.stringify(corners) === JSON.stringify([false, false, false, true, true, false, false, false])
+            && typeof Z.portalBeside === 'function' && typeof Z.zoneHolds === 'function' && typeof Z.zoneHid === 'function' && typeof Z.cleanZoneHidden === 'function', JSON.stringify([same, seen, zh, agree, corners]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

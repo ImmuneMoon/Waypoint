@@ -33,7 +33,8 @@ function door(map, w, secret, by) {   // a door moved. secret: it was a secret d
     return fire({ k: 'door', on: w.doorOpen ? 'open' : 'close', map: map.id, pc: w.id }, { map: map.id, secret: !!secret || !!w.hidden, at: { x: (Number(w.x) || 0) + (Number(w.w) || 0) / 2, y: (Number(w.y) || 0) + (Number(w.h) || 0) / 2 }, by: by });
 }
 function zoneDrop(map, w, from) {   // a token's move landed: a zone it was carried into
-    var z = map && w ? C.zoneOf(map, w, from) : null; if (!z) return false;
+    var FCz = typeof window === 'object' && window ? window.wpFogCore : null;   // 1.6.3 (finding 8): a zone by its own shape, as the host's triggerFire reads it
+    var z = map && w ? C.zoneOf(map, w, from, FCz && typeof FCz.zoneHolds === 'function' ? FCz.zoneHolds : null) : null; if (!z) return false;
     return fire({ k: 'zone', map: map.id, pc: z.id }, { map: map.id, tok: w.id, secret: !!w.hidden });
 }
 // [soundoncheck:fire-end]

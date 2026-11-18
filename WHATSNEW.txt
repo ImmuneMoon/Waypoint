@@ -40,6 +40,17 @@ Fog of war
 - Reveal all and Cover all ask before they change the whole map. One
   slip beside the fog brushes could show players everything, so now you
   get a question first, and Undo still puts the fog back afterwards.
+- A player now goes through a portal only from beside it. A double-click
+  used to send them across the whole map, past walls and fog they hadn't
+  explored, while dropping a token on it was stopped by the walls. Now
+  their token has to stand on the portal or next to it, the same reach a
+  door asks for, and from farther off they're told to move up first.
+  Your own drops and summons work as before.
+- Trigger zones can stay off the players' maps. Untick Players see this
+  zone in a zone's Properties and players never see its gold outline,
+  while its message still comes up when their token walks in. A zone now
+  fires by its own shape too, so a round or hex zone stays quiet in its
+  corners.
 
 Smaller things
 - The game clock in the top row shows seconds for the GM. The clock still

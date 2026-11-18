@@ -114,6 +114,13 @@ const engine = () => ({ played: [], heard: [], list: [{ id: 's_shot', name: 'Gun
     const tk = x => ({ id: 't', x, y: 20, w: 60, h: 60 });
     check('the zone a move carried a token into, by the test the zone\'s message goes by: none where it stood in it already, a hidden zone and a mine no zone',
         (C.zoneOf(zmap, tk(20), { x: 900, y: 0 }) || {}).id === 'z1' && (C.zoneOf(zmap, tk(20), null) || {}).id === 'z1' && C.zoneOf(zmap, tk(20), { x: 40, y: 20 }) === null && C.zoneOf(zmap, tk(320), null) === null && C.zoneOf(zmap, tk(520), null) === null && C.zoneOf(zmap, tk(800), null) === null && C.zoneOf(null, tk(0)) === null);
+    // 1.6.3 (finding 8 of the review): zoneOf takes the zone's own shape where it is handed one (soundon.js hands fogcore zoneHolds), so a token in
+    // a round zone's box corner is in no zone; with none, its box as before
+    const cmap = { whiteboard: [{ id: 'zc', type: 'trigger', shape: 'circle', x: 0, y: 0, w: 200, h: 200 }] }, inCirc = (t, px, py) => Math.pow(px - 100, 2) + Math.pow(py - 100, 2) <= 10000;
+    check('1.6.3 the zone by its own shape: handed a test of the zone\'s shape, a token whose center stands in the box\'s corner is in no zone and one in the middle is; a token that began inside the shape is not carried in again; with no test the box as before; and soundon.js hands it fogcore zoneHolds',
+        C.zoneOf(cmap, { id: 't', x: -20, y: -20, w: 60, h: 60 }, null, inCirc) === null && (C.zoneOf(cmap, { id: 't', x: 70, y: 70, w: 60, h: 60 }, null, inCirc) || {}).id === 'zc' && (C.zoneOf(cmap, { id: 't', x: -20, y: -20, w: 60, h: 60 }, null) || {}).id === 'zc'
+        && (C.zoneOf(cmap, { id: 't', x: 70, y: 70, w: 60, h: 60 }, { x: -20, y: -20 }, inCirc) || {}).id === 'zc' && C.zoneOf(cmap, { id: 't', x: 70, y: 70, w: 60, h: 60 }, { x: 60, y: 60 }, inCirc) === null
+        && readU('scripts/soundon.js').includes("C.zoneOf(map, w, from, FCz && typeof FCz.zoneHolds === 'function' ? FCz.zoneHolds : null)"));
     const camp = { items: { m: { meta: { title: 'Cellar' }, whiteboard: [{ id: 'p', name: 'Vault door' }, { id: 'q' }] } } };
     check('its words: a roll by its own words with no captions, a list\'s with its kind, a named door and zone by name and map, each kind in a plain sentence',
         C.whatWords({ k: 'roll', r: 'r_b' }, sys).text === 'Swing' && C.whatWords({ k: 'list', f: 'f_g', i: 0, l: 'Fire' }, sys).text === 'Gear: Fire' && C.whatWords({ k: 'list', f: 'f_g', i: 0, l: 'Fire', cat: 'Beam' }, sys).text === 'Gear: Fire for Beam' && C.whatWords({ k: 'list', f: 'f_g', i: 0, l: 'Fire', key: 'k', kn: 'Pistol' }, sys).text === 'Gear: Fire for Pistol'

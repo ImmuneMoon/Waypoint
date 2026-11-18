@@ -1093,6 +1093,9 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             // [furncheck:insp-end]
             if (w.type === 'trigger') {
                 html += '<div class="field"><label for="wbEventMsg">Event Message</label><textarea id="wbEventMsg" placeholder="Message when character drops here...">'+esc(w.eventMessage||'')+'</textarea></div>';
+                // 1.6.3 (the owner's ruling of 2026-11-17, finding 8 of the review: whether players see a zone "should be optional"): the tick, on a
+                // plain message zone only (fogcore zoneHid's own test: no way to another map, no room, no mine). Fixed words, nothing of the piece in it
+                if (!w.targetMapId && !w.nodeId && !w.mine) html += '<div class="field check-row"><input type="checkbox" id="wbZoneSeen" ' + (w.zoneHidden === true ? '' : 'checked') + '> <label for="wbZoneSeen">Players see this zone</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Untick it to keep the zone off the players\' maps. Its message still comes up when their token goes in. Hidden turns the zone off.</div>';
                 html += soundOnRow(w);   // 1.6.2
             } else if (w.type !== 'light') {   // a light source is never a character
                 html += '<div class="field check-row"><input type="checkbox" id="wbIsChar" '+(w.isChar?'checked':'')+'> <label for="wbIsChar">Is Character</label></div>';
@@ -1376,6 +1379,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (w.type === 'trigger') {
                 var wbEventMsg = document.getElementById('wbEventMsg');
                 if(wbEventMsg) wbEventMsg.addEventListener('input', function() { w.eventMessage = this.value; save(); });
+                var wbZoneSeen = document.getElementById('wbZoneSeen');   // 1.6.3 (finding 8): Players see this zone, unticked as zoneHidden: true, ticked as no key
+                if (wbZoneSeen) wbZoneSeen.addEventListener('change', function() { if (this.checked) delete w.zoneHidden; else w.zoneHidden = true; save(); render(); });
             } else {
                 var wbIsChar = document.getElementById('wbIsChar');
                 // 1.6.0, found by hand: with no layer a token stood at a picture's height, and a picture laid later covered it. 1.6.2 (backlog 141): a picture made a token fits one cell, in this same change

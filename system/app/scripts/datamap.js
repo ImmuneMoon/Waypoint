@@ -1275,10 +1275,11 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
               var cx = item.x + (item.w||100)/2;
               var cy = item.y + (item.h||100)/2;
               var triggers = am.whiteboard.filter(function(x) { return x.type === 'trigger'; });
+              var FCtz = window.wpFogCore;   // 1.6.3 (finding 8 of the review): a zone by its own shape (fogcore zoneHolds), as the host's triggerFire reads it; its box with no core
               for(var i=0; i<triggers.length; i++) {
                   var t = triggers[i];
                   var tw = t.w || 100; var th = t.h || 100;
-                  if(cx >= t.x && cx <= t.x+tw && cy >= t.y && cy <= t.y+th) {
+                  if(FCtz && typeof FCtz.zoneHolds === 'function' ? FCtz.zoneHolds(t, cx, cy) : (cx >= t.x && cx <= t.x+tw && cy >= t.y && cy <= t.y+th)) {
                       if (t.eventMessage) {
                           import('./dialogs.js').then(d => d.showAlert(t.eventMessage, function(){}));
                       }

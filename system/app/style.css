@@ -1330,6 +1330,10 @@
   .wb-item.hexagon { clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); background: var(--faint); }
   .wb-item.hex-trigger { clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
   .wb-item.trigger.trigger-circle { border-radius: 50%; }
+  /* 1.6.3 (finding 8): a trigger zone players do not see (Players see this zone unticked), on the GM's screen alone: its edge dotted in steel, a
+     clipped hexagon or diamond grayed, so it is told apart from a zone the players see (whiteboard.js wb-zone-gm) */
+  .wb-item.trigger.wb-zone-gm { border-color: var(--steel) !important; border-style: dotted !important; }
+  .wb-item.trigger.wb-zone-gm:is(.hex-trigger, .trigger-diamond) { filter: grayscale(1); }
   /* Stand-in character tokens: initials centered in the shape */
   /* Token front-side arrow: a small gold wedge at the "forward" edge. The wrapper
      is turned by item.front (0 top / 90 right / 180 bottom / 270 left). */

@@ -136,16 +136,19 @@ function pressOf(sys, press, ch, S, view) {
     return out;
 }
 // The zone a token's move carried it into: the first shown zone that holds its center, none where it held it when the gesture began. The
-// test net.js triggerFire runs for a zone's message; a mine is a blast, never a zone
-function zoneOf(map, w, from) {
+// test net.js triggerFire runs for a zone's message; a mine is a blast, never a zone. 1.6.3 (finding 8 of the improvement week's review): holds,
+// where handed in, is fogcore zoneHolds (soundon.js hands it), so a zone is judged by its own shape as triggerFire judges it; with none, its box.
+// A zone players do not see (zoneHidden) is not hidden: it speaks, so it sounds too
+function zoneOf(map, w, from, holds) {
     if (!isObj(map) || !isObj(w) || !Array.isArray(map.whiteboard)) return null;
     var hw = (Number(w.w) || 100) / 2, hh = (Number(w.h) || 100) / 2, cx = (Number(w.x) || 0) + hw, cy = (Number(w.y) || 0) + hh;
     var fx = isObj(from) ? (Number(from.x) || 0) + hw : null, fy = isObj(from) ? (Number(from.y) || 0) + hh : null;
     for (var i = 0; i < map.whiteboard.length; i++) {
         var t = map.whiteboard[i]; if (!isObj(t) || t.type !== 'trigger' || t.hidden || t.mine) continue;
         var tx = Number(t.x) || 0, ty = Number(t.y) || 0, tw = Number(t.w) || 100, th = Number(t.h) || 100;
-        if (!(cx >= tx && cx <= tx + tw && cy >= ty && cy <= ty + th)) continue;
-        return fx !== null && fx >= tx && fx <= tx + tw && fy >= ty && fy <= ty + th ? null : t;
+        var inZ = typeof holds === 'function' ? function(px, py) { return holds(t, px, py) === true; } : function(px, py) { return px >= tx && px <= tx + tw && py >= ty && py <= ty + th; };
+        if (!inZ(cx, cy)) continue;
+        return fx !== null && inZ(fx, fy) ? null : t;
     }
     return null;
 }

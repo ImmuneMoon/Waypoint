@@ -216,9 +216,11 @@ const DOTS = '<path d="M12 5h.01M12 12h.01M12 19h.01"/>', TICK = '<path d="M5 12
         draw('wbMoreBtn') === DOTS && innerOfBtn('id="wbMoreBtn"').indexOf('<svg class="ico ico-dots"') === 0 && css.includes('    .ico.ico-dots { stroke-width: 2.6; }')
         && ['wbRulersBtn', 'wbZoomCtlBtn', 'wbPointerPosBtn'].every(id => draw(id) === TICK) && svgIn(innerOfBtn('data-mode="both"')) === TICK
         && draw('zoomOutBtn') === MINUS && draw('zoomInBtn') === '<path d="M12 4.5v15M4.5 12h15"/>' && draw('zoomInBtn').includes(MINUS.slice(9, -3)), J([draw('wbMoreBtn'), draw('wbRulersBtn'), draw('zoomOutBtn'), draw('zoomInBtn')]));
-    // left as they are, on purpose: a pen tip IS its shape, and Snap's switch row has its words written by the script
-    check('left as they were, on purpose: the pen\'s three tips are their own shapes, and Snap\'s switch row keeps the words its script writes',
-        innerOfBtn('data-nib="round"') === '&#9679; Round' && innerOfBtn('data-nib="square"') === '&#9632; Square' && innerOfBtn('data-nib="flat"') === '&#9698; Flat' && innerOfBtn('id="snapOffBtn"') === '&#9211; Turn snapping off');
+    // left as they are, on purpose: a pen tip IS its shape, and Snap's switch row has its words written by the script (1.6.3, finding 37: those words
+    // are plain now, the power glyph left out of the page and the script alike; moved on purpose)
+    check('left as they were, on purpose: the pen\'s three tips are their own shapes, and Snap\'s switch row keeps the words its script writes, in plain words',
+        innerOfBtn('data-nib="round"') === '&#9679; Round' && innerOfBtn('data-nib="square"') === '&#9632; Square' && innerOfBtn('data-nib="flat"') === '&#9698; Flat' && innerOfBtn('id="snapOffBtn"') === 'Turn snapping off'
+        && wbSrc.includes("off.textContent = state.snap ? 'Turn snapping off' : 'Turn snapping on';") && !wbSrc.includes('\\u23FB'));
     // every drawing is a plain path (or, for the note, a path and two circles): nothing else can stand in an icon
     const zoomIcons = ['zoomOutBtn', 'zoomInBtn'].map(id => [id, innerOfBtn('id="' + id + '"')]);
     const odd = bar.concat(menu, zoomIcons).filter(b => { const s = svgIn(b[1]); return typeof s !== 'string' || !/^<path d="[MmLlHhVvAaCcSsZz0-9 .,-]+"\/>(<circle cx="[\d.]+" cy="[\d.]+" r="[\d.]+"\/>){0,2}$/.test(s); }).map(b => b[0]);
@@ -648,7 +650,7 @@ function runPress(P, win) {
         && wbSrc.includes("    if (_el_snapOptBtn) _el_snapOptBtn.addEventListener('click', function(e) { e.stopPropagation(); if (_el_snapMenu) { syncSnapMenu(); _el_snapMenu.classList.toggle('show'); } });\n")
         && wbSrc.includes("? 'Snap is on, aligning to ' + ({ grid: 'grid cells', items: 'other items', both: 'grid cells and other items' })[state.snapMode] + '. Press to turn it off.'\n            : 'Snap is off. Press to turn it on.';")
         && wbSrc.includes("!e.target.closest('#snapMenu') && !e.target.closest('#snapOptBtn')) _el_snapMenu.classList.remove('show');") && count(wbSrc, "setSnap(true); if (_el_snapMenu) _el_snapMenu.classList.add('show');") === 0
-        && innerOfBtn('id="snapOffBtn"') === '&#9211; Turn snapping off');
+        && innerOfBtn('id="snapOffBtn"') === 'Turn snapping off' /* 1.6.3, finding 37: plain words, the power glyph left out (moved on purpose) */);
     // the review of the corner mark: a mark lies over its button's corner by a margin, so a mark whose button is put away would lie over the tool before it and take that tool's presses.
     // Every rule of the style sheet that puts a pair's own button away by its id names the mark in the very same way beside it (a rule that puts the whole pair away names no button as its subject)
     const hungIn = text => { const rules = text.replace(/\/\*[\s\S]*?\*\//g, '').split('}').map(ch => { const i = ch.lastIndexOf('{'); return i < 0 ? null : [ch.slice(0, i).split(',').map(x => x.trim()), ch.slice(i + 1)]; }).filter(x => x && /display\s*:\s*none/.test(x[1]));
@@ -1192,7 +1194,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && count(tourSrc, "'#wbFloatingToolbar .shape-menu.show, #wbEdgeTools .shape-menu.show'") === 2 && count(ix, 'the minimap fold, rulers, the zoom buttons, the pointer location, panel sizes,') === 1);
     check('Help says how a press works now: a tip of its own on tool options (the small arrow, the icon, a second press, options that stay up), the Snap entry and the Measure entry in the new words, and the four tools\' own tooltips say what a press does',
         count(ix, '<div class="help-tip"><b>Tool options:</b> a tool that has options has a <b>small mark</b> in the corner of its button. The button takes the tool, and a second press puts it away. The corner mark opens the tool&rsquo;s options. They stay up while you work, until you press the mark again or take another tool. The pen, the eraser, fill, measure and radius work this way. A button that only opens a menu has the same mark, and either of the two opens the menu. A right-click on any of these buttons does what its corner mark does.</div>') === 1 /* 1.6.2, moved on purpose: the right-click (the owner, 2026-11-13) */
-        && count(ix, '<b>Snap To</b> picks what a drag aligns to. The Snap button switches snapping on and off, and the mark in its corner opens Snap To.') === 1
+        && count(ix, '<b>Snap to</b> picks what a drag aligns to. The Snap button switches snapping on and off, and the mark in its corner opens Snap to.') === 1 /* 1.6.3, finding 37: sentence case (moved on purpose) */
         && count(ix, 'drag across the map to place a ruler. Press the mark in the tool&rsquo;s corner for its options.</li>') === 1
         && count(ix, '<li><b>Select and Pan</b> share one place on the toolbar. The mark in its corner switches between them.</li>') === 1
         && [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')].every(t => count(t.replace(/\r\n/g, '\n'), "- A tool's options open from a small mark in the corner of its button now,\n  where an arrow used to hang beside it. The toolbar is shorter for it, and\n  a lit button stands clean. Select and Pan switch by the same mark.\n- Right-click a toolbar button to open its options. It does just what the\n  corner mark does, so you no longer have to aim for the little corner.\n- The pointer location wears its own drawing, a pointer beside a crosshair,\n  so it no longer looks like the Select tool.\n") === 1)
@@ -4780,6 +4782,40 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         && JSON.stringify(now.sel) === JSON.stringify([2, false, 'ga', 'g2', true, 2, 2]) && JSON.stringify(now.click) === JSON.stringify(['g2', 'ga', 'g2']) && JSON.stringify(now.other) === JSON.stringify(['', 'b1'])
         && was && was.same === 3 && was.sel[2] === '' && was.click[1] === '',
         JSON.stringify([errs, now, was]));
+}
+/* ---------- 1.6.3 (the improvement week's review, finding 27): the zoom box's minus and plus work from the keyboard ---------- */
+{
+    // main.js holdRepeat, sliced by its markers and run for real on buttons of plain objects. A pointer's press steps at once and repeats while held;
+    // Enter, Space and a script's .click() fire only a click, whose detail is 0, and that steps once; a mouse click (detail 1) was already stepped by
+    // its pointerdown and steps nothing more. Without the click listener the keyboard's click stepped nothing
+    const mainH = mainSrc.replace(/\r\n/g, '\n'), a = mainH.indexOf('  // [lookcheck:holdrepeat-start]'), z = mainH.indexOf('  // [lookcheck:holdrepeat-end]');
+    const mkBtn = () => { const on = {}; return { on, addEventListener(k, fn) { (on[k] = on[k] || []).push(fn); }, setPointerCapture() {}, fire(k, e) { (on[k] || []).forEach(f => f(e)); } }; };
+    const timers = [], win = { addEventListener() {} };
+    let got = 'no slice';
+    try {
+        const holdRepeat = new Function('window', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', mainH.slice(a, z) + '\nreturn holdRepeat;')(win, (f) => { timers.push(f); return timers.length; }, () => {}, () => 1, () => {});
+        let n = 0; const btn = mkBtn(); holdRepeat(btn, () => { n++; });
+        btn.fire('click', { detail: 0 }); const kb = n;                                   // Enter or Space on the focused button, or .click()
+        btn.fire('pointerdown', { button: 0, pointerId: 1, preventDefault() {} }); btn.fire('pointerup', {}); btn.fire('click', { detail: 1 }); const mouse = n - kb;   // a mouse click: one step, not two
+        btn.fire('pointerdown', { button: 2, pointerId: 1, preventDefault() {} }); const right = n - kb - mouse;   // a right press steps nothing
+        holdRepeat(null, () => { n++; });                                                  // no button in the page: nothing wired, nothing thrown
+        got = [kb, mouse, right, n];
+    } catch (e) { got = 'threw ' + (e && e.message); }
+    check('1.6.3 (finding 27) the zoom box\'s minus and plus step from the keyboard (main.js holdRepeat, run for real): Enter, Space or a script\'s click steps once, a mouse click steps once and never twice, a right press steps nothing, and a page with no button wires nothing; both buttons are wired through it',
+        a > 0 && z > a && J(got) === J([1, 1, 0, 2]) && count(mainSrc, 'holdRepeat(_el_zoomInBtn, _zoomStep(1));') === 1 && count(mainSrc, 'holdRepeat(_el_zoomOutBtn, _zoomStep(-1));') === 1, J(got));
+}
+/* ---------- 1.6.3 (the improvement week's review, finding 37): the fog, measure and Snap menus say what is true, in plain sentence case ---------- */
+{
+    // what each said before and what it says now: the gridless Square and Hex choose cells alone (Vision is its own list), map pieces under fog are
+    // still sent (only creatures a player cannot see are not), each map keeps its own scale, and the Snap rows say grid and cell, never lattice
+    const GONE = ['radius vision', 'front-arc vision', 'crosses the wire', 'Measurement System', 'Map Scale', '<div class="draw-menu-label">Snap To</div>', '<b>Snap To</b>', 'seat to the lattice', 'Hex cells measure 1 yard across', 'Hex cells measure 0.91 m across', '&#9211;'];
+    const NOW = ['<div class="draw-menu-label">Measurement system</div>', '<div class="draw-menu-label gm-only">Map scale (per grid cell)</div>', '<div class="draw-menu-label">Snap to</div>',
+        'title="Distances in yards and feet. Each map keeps its own scale.">Imperial</button>', 'title="Distances in meters and kilometers. Each map keeps its own scale.">Metric</button>',
+        'data-fgrid="square" title="Measure sight in square cells. Vision is set on its own.">Square</button>', 'data-fgrid="hex" title="Measure sight in hex cells. Vision is set on its own.">Hex</button>',
+        'In a session each player sees fog from their own tokens, and creatures they cannot see are not sent to them.', 'title="Grid cells only. A dropped piece sits in a cell, and neighbors don\'t pull it.">'];
+    const left = GONE.filter(g => count(ix, g) > 0), missing = NOW.filter(n => count(ix, n) !== 1), tourStale = count(tourSrc, '<b>Map Scale</b>');
+    check('1.6.3 (finding 37) the fog, measure and Snap menus and Help say what is true in plain sentence case: no vision promised by the gridless cells, no claim that nothing hidden is sent, no fixed cell size on Imperial or Metric, no lattice and no power glyph; Measurement system, Map scale and Snap to in sentence case, the tour\'s step too',
+        !left.length && !missing.length && tourStale === 0 && count(tourSrc, '<b>Map scale</b>') === 1, J([left, missing, tourStale]));
 }
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

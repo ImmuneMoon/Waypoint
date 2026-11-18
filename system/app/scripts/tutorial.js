@@ -21,7 +21,7 @@ import { save, toast, canPersistLocal, resetHistory, takeSafetyCopy, withoutHist
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 import { showConfirm } from './dialogs.js';
 
-var TUTORIAL_VERSION = '1.6.2';          // bump when STEPS or the demo campaign change
+var TUTORIAL_VERSION = '1.6.3';          // bump when STEPS or the demo campaign change
 var TUTORIAL_CAMP_ID = 'camp_tutorial';  // one Tutorial campaign per save
 var TUTORIAL_NAME = 'Tutorial';
 var TUTORIAL_ART_CAT = 'Default';   // the category every tutorial picture sits in (its own shelf, not under All)
@@ -826,7 +826,7 @@ var STEPS = [
       help: ['grids', 'Grids'],
       before: function() { openItem('map_tut_inn'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#whiteboardWrap', title: 'No grid at all',
-      html: '<b>Eldara</b> has no grid. Pictures, shapes and tokens sit wherever you drop them, at any size. That suits region maps, city streets and theater-of-mind scenes. Rulers still work: set <b>Map Scale</b> in the measure options so distances read right. The tinted district shapes are linked to rooms: hover one for its card.',
+      html: '<b>Eldara</b> has no grid. Pictures, shapes and tokens sit wherever you drop them, at any size. That suits region maps, city streets and theater-of-mind scenes. Rulers still work: set <b>Map scale</b> in the measure options so distances read right. The tinted district shapes are linked to rooms: hover one for its card.',
       help: ['grids', 'Measuring'],
       before: function() { openItem('map_tut_city'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#imgLibBtn', title: 'The picture library',

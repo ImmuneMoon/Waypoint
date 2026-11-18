@@ -834,16 +834,27 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
   // table, and never where this screen may not write the campaign (the stream window, a window of its own). The press itself goes on
   // through handOn, so the bound on hand-overs holds; a right-click and a double-click ask wallPickAt for the same answer
   var WALL_REACH = 8;
+  // 1.6.3 (the improvement week's review, finding 21): WALL_REACH is 8 SCREEN pixels, never fewer than 8 board pixels. At 25% zoom a door line is
+  // under one screen pixel wide and 8 board pixels were 2 on screen, so a GM looking over a large map could not pick a door without zooming in.
+  // wallReach turns the 8 screen pixels into board pixels at the zoom in use (8 / zoom), never under 8 (zoomed in, a press reaches as far on the
+  // board as it always did) and never over WALL_REACH_MAX (40, so far out a press does not grab a wall across a room). wallPick works it out once
+  // a press and hands it to wallGap, whose quick box test uses the same reach. A zoom that is no number above 0 reads as 1
+  var WALL_REACH_MAX = 40;
+  function wallReach() {
+      var z = typeof state !== 'undefined' && state && typeof state.zoomLevel === 'number' && isFinite(state.zoomLevel) && state.zoomLevel > 0 ? state.zoomLevel : 1;
+      return Math.max(WALL_REACH, Math.min(WALL_REACH_MAX, WALL_REACH / z));
+  }
   function wallLine(c) { return !!c && typeof c === 'object' && c.type === 'path' && c.tip !== 'fill' && Array.isArray(c.pts) && (c.blocksSight === true || c.barrier === true); }
   function wallPickGm() { var n = window.wpNet; return !(n && (n.foreign || (n.active && n.role === 'client'))) && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()); }
-  // how far a point lies outside a line's drawn stroke, in board pixels (0 or less on it); Infinity for a line with no stretch
-  function wallGap(c, px, py) {
+  // how far a point lies outside a line's drawn stroke, in board pixels (0 or less on it); Infinity for a line with no stretch.
+  // reach is how far from the stroke a press still counts (wallPick hands it the zoom's own, wallReach); with none it is WALL_REACH
+  function wallGap(c, px, py, reach) {
       var num = function(v) { return typeof v === 'number' && isFinite(v); };
       if (!num(c.x) || !num(c.y) || !num(px) || !num(py)) return Infinity;
       var ww = num(c.w) && c.w > 0 ? c.w : 0, hh = num(c.h) && c.h > 0 ? c.h : 0, bw = num(c.baseW) && c.baseW > 0 ? c.baseW : (ww || 1), bh = num(c.baseH) && c.baseH > 0 ? c.baseH : (hh || 1);
       var sx = ww ? ww / bw : 1, sy = hh ? hh / bh : 1, rot = num(c.rot) ? c.rot % 360 : 0, cx = c.x + ww / 2, cy = c.y + hh / 2;
       if (rot) { var ra = -rot * Math.PI / 180, co = Math.cos(ra), si = Math.sin(ra), rx = px - cx, ry = py - cy; px = cx + rx * co - ry * si; py = cy + rx * si + ry * co; }   // the board turns a line about its box's center: the point is turned back
-      var sw = typeof c.strokeWidth === 'number' ? c.strokeWidth : parseFloat(c.strokeWidth), half = Math.min(200, (num(sw) && sw > 0 ? sw : 3) * Math.max(sx, sy) / 2), far = half + WALL_REACH + 1;
+      var sw = typeof c.strokeWidth === 'number' ? c.strokeWidth : parseFloat(c.strokeWidth), half = Math.min(200, (num(sw) && sw > 0 ? sw : 3) * Math.max(sx, sy) / 2), far = half + (num(reach) && reach > 0 ? reach : WALL_REACH) + 1;
       if (ww && hh && (px < c.x - far || px > c.x + ww + far || py < c.y - far || py > c.y + hh + far)) return Infinity;   // a line far from the pointer is passed over by its box alone
       var best = Infinity, prev = null, n = Math.min(c.pts.length, 4000);
       for (var i = 0; i < n; i++) {
@@ -862,12 +873,12 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
   // the wall or door line a press on `pressed` at (px, py) goes to, or null
   function wallPick(list, pressed, px, py) {
       if (!Array.isArray(list) || !pressed || typeof pressed !== 'object' || pressed.isChar || pressed.waiting || pressed.gmNoteFor || wallLine(pressed)) return null;
-      var best = null, bestD = Infinity, bestZ = -Infinity, bestI = -1, inTok = false;
+      var best = null, bestD = Infinity, bestZ = -Infinity, bestI = -1, inTok = false, reach = wallReach();   // finding 21: the reach at the zoom in use
       list.forEach(function(c, idx) {
           if (!c || typeof c !== 'object' || c === pressed || c.id === pressed.id) return;
           if ((c.isChar || c.waiting) && !c.locked && px >= c.x && px <= c.x + (c.w || 0) && py >= c.y && py <= c.y + (c.h || 0)) { inTok = true; return; }
           if (!wallLine(c) || (c.locked && !pressed.locked) || (typeof window !== 'undefined' && window.wpILayers && window.wpILayers.through(c))) return;   // 231: a locked line is picked from a locked piece (a map whose structure is locked); from a free one it is not, or the two would hand the press back and forth   // backlog 43: a wall set to take no clicks is never picked
-          var d = wallGap(c, px, py); if (!(d <= WALL_REACH)) return;
+          var d = wallGap(c, px, py, reach); if (!(d <= reach)) return;
           d = Math.max(0, d);   // on the stroke is on it, however deep
           var z = handZ(c);
           if (d < bestD || (d === bestD && (z > bestZ || (z === bestZ && idx > bestI)))) { best = c; bestD = d; bestZ = z; bestI = idx; }

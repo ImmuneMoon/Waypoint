@@ -11367,7 +11367,7 @@ if(_el_wbSnapBtn) {
     function syncSnapMenu() {
         document.querySelectorAll('.snap-mode-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.mode === state.snapMode); });
         var off = document.getElementById('snapOffBtn');
-        if (off) off.textContent = state.snap ? '\u23FB Turn snapping off' : '\u23FB Turn snapping on';
+        if (off) off.textContent = state.snap ? 'Turn snapping off' : 'Turn snapping on';   // 1.6.3 (finding 37): plain words, the power glyph left out
         _el_wbSnapBtn.classList.toggle('active', !!state.snap);
         var ds = document.getElementById('snapBtn');
         if (ds) ds.classList.toggle('active', !!state.snap);

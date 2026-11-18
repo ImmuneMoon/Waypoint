@@ -177,6 +177,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   // Zoom -/+ buttons: a single click steps once; press-and-hold auto-repeats (350ms before it kicks in, then every 70ms).
   function _zoomStep(dir){ return function(){ setZoom(Math.round((state.zoomLevel + dir * 0.05) * 100) / 100); }; }
+  // [lookcheck:holdrepeat-start]
   function holdRepeat(btn, step){
     if(!btn) return;
     var to=null, iv=null;
@@ -188,8 +189,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       try{ btn.setPointerCapture(e.pointerId); }catch(_){}
     });
     ['pointerup','pointerleave','pointercancel'].forEach(function(ev){ btn.addEventListener(ev, stop); });
+    // 1.6.3 (the improvement week's review, finding 27): Enter or Space on a focused button, a switch control and a script's .click() fire a click
+    // with no pointerdown, and nothing stepped, so the buttons were dead from the keyboard. Such a click has a detail of 0 (no mouse press counted),
+    // and it steps once here. A mouse or touch click has a detail of 1 or more and was already stepped by its pointerdown, so it steps nothing again
+    btn.addEventListener('click', function(e){ if (e && e.detail === 0) step(); });
     window.addEventListener('blur', stop);
   }
+  // [lookcheck:holdrepeat-end]
   holdRepeat(_el_zoomInBtn, _zoomStep(1));
 
   var _el_zoomOutBtn = document.getElementById('zoomOutBtn');

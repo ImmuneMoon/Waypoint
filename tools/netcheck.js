@@ -29,22 +29,7 @@ const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end
 const fightIn = (cs, mapId) => { if (!cs || typeof cs !== 'object') return undefined; const k = Object.keys(cs).find(x => !!cs[x] && cs[x].mapId === mapId); return k === undefined ? undefined : cs[k]; };   // a fight by its map, in a copy keyed by the fights' own ids
 
 let pass = 0, fail = 0;
-// PeerJS 1.5.2's default serializer is BinaryPack (inside the bundled library file, assets/vendor/peerjs.min.js, which this suite does not load): its pack() reads value.constructor for every
-// object and throws on one it does not know — an object with no prototype, or an own "constructor" / "hasOwnProperty" — and the real
-// broadcast() swallows the throw. Every harness send runs this emulation, so a payload production could not deliver never passes here.
-function packCheck(v) {
-    if (typeof v === 'number') { if (Math.floor(v) === v && (v > 18446744073709551615 || v < -9223372036854775808)) throw new Error('Invalid integer'); return; }   // an "integer" past 64 bits (1e300, Infinity)
-    if (typeof v === 'function') throw new Error('Type "function" not yet supported');
-    if (v === null || typeof v !== 'object') return;
-    if ('BYTES_PER_ELEMENT' in v && !ArrayBuffer.isView(v)) throw new Error('an object with BYTES_PER_ELEMENT is packed as an (empty) typed array');
-    const C = v.constructor;
-    if (C === undefined) throw new TypeError("Cannot read properties of undefined (reading 'toString')");
-    if (Array.isArray(v)) { v.forEach(packCheck); return; }
-    if (ArrayBuffer.isView(v) || v instanceof ArrayBuffer || C === Date) return;
-    if (C !== Object) throw new Error('Type "' + String(C) + '" not yet supported');
-    if (typeof v.hasOwnProperty !== 'function') throw new TypeError('obj.hasOwnProperty is not a function');
-    for (const k in v) if (v.hasOwnProperty(k)) packCheck(v[k]);
-}
+const { packCheck } = require('./checkkit');   // PeerJS's BinaryPack refusals, run on every send of a harness (tools/checkkit.js says why; the suites that came out of this one share it)
 const pendingChecks = [];   // checks that finish asynchronously, awaited before the summary
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail !== undefined ? '  -> ' + (typeof detail === 'string' ? detail : JSON.stringify(detail)) : '')); } }
 

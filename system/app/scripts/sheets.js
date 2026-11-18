@@ -6465,7 +6465,7 @@ function applyAction(r, c, label, row, on, cx, ask) {   // cx (1.6.0): a crossin
     if (n && n.postApplyCard && res.lines.length) n.postApplyCard(c, label, res.lines, scope, undefined, askedS);
     if (n && typeof n.soundAfter === 'function') n.soundAfter(camp, row ? { row: row } : { act: r.id }, c, '', scope === 'gm', scope === 'owner' ? c.ownerId : undefined);   // 1.6.2: a sound on this action, for whoever its card goes to
     if (res.gone) goneLocal(c.id, res.gone);   // 1.6.0: a row it used up, with its Undo
-    if (n && typeof n.callsAfter === 'function') n.callsAfter(camp, act, null, vv, onT ? onT.ch : c, scope === 'gm');   // 1.6.0: Calls for
+    if (n && typeof n.callsAfter === 'function') n.callsAfter(camp, act, null, vv, onT ? onT.ch : c, scope === 'gm', undefined, false, tc);   // 1.6.0: Calls for
     if (n && typeof n.holdsPressed === 'function') n.holdsPressed(camp, c, row ? row.f + '#' + row.i : r.id, tc);   // 1.6.0 Who holds whom
     if (onT && onIds.length && n && typeof n.allyCard === 'function') n.allyCard(c, onT.ch, onT.tok.charName || onT.tok.name || onT.ch.name, label, res.onLines, applyScope(sys, onT.ch, act, hit.length > 0 || gmRow || keptRow, F()));   // 1.5.9: the card of what moved on the one it was used on
 }
@@ -8688,22 +8688,30 @@ function callsBox(obj, sys, isApply) {
         var m = /^(f_[A-Za-z0-9_]+)#(\d+)$/.exec(String(id)), lf = m && sys && Array.isArray(sys.fields) ? sys.fields.filter(function(x) { return x && x.id === m[1]; })[0] : null, lr = lf && lf.list && Array.isArray(lf.list.rolls) ? lf.list.rolls[+m[2]] : null;
         return lr ? (lf.label || lf.key || 'List') + ': ' + (lr.label || 'Roll') : 'a roll that is gone';
     };
+    var dmgOf = function(id) {   // 1.6.3 (defense fold 0): whether the roll a call posts is a damage roll, so whether it has a Lands on
+        var hit = rollsOf().filter(function(x) { return x.id === id; })[0]; if (hit) return hit.dmg === true;
+        var m = /^(f_[A-Za-z0-9_]+)#(\d+)$/.exec(String(id)), lf = m && sys && Array.isArray(sys.fields) ? sys.fields.filter(function(x) { return x && x.id === m[1]; })[0] : null, lr = lf && lf.list && Array.isArray(lf.list.rolls) ? lf.list.rolls[+m[2]] : null;
+        return !!lr && lr.dmg === true;
+    };
+    var refocus = function(j, cls) {   // after a redraw, the focus back on the control that was changed, so the keys stay on the list
+        var rw = box.children[j], k = rw && rw.children ? Array.prototype.slice.call(rw.children).filter(function(x) { return x && typeof x.className === 'string' && x.className.split(' ').indexOf(cls) >= 0; })[0] : null; if (k && k.focus) k.focus();
+    };
     var draw = function() {
         box.textContent = ''; var list = Array.isArray(obj.calls) ? obj.calls : [], rolls = rollsOf();
         list.forEach(function(c, j) {
             var toSel = null, rw = el('span', 'sys-alt-row sys-call-row'), opts = rolls.map(function(x) { return [x.id, 'Calls for: ' + (x.label || 'Roll')]; }).concat(listRolls()); if (!opts.some(function(x) { return x[0] === c.roll; })) opts.push([c.roll, 'Calls for: a roll that is gone']);
             var rs = select('sys-call-roll', opts, c.roll, 'The roll posted as a card to press. It comes only while that roll\u2019s own needs hold. A list\u2019s roll is posted on a row: the row that resisted, or the roller\u2019s own row');
-            rs.addEventListener('change', function(e) { e.stopPropagation(); c.roll = rs.value; said(); }); rw.appendChild(rs);
+            rs.addEventListener('change', function(e) { e.stopPropagation(); c.roll = rs.value; if (!dmgOf(c.roll)) delete c.on; said(); draw(); refocus(j, 'sys-call-roll'); }); rw.appendChild(rs);   // 1.6.3: drawn anew, since Lands on comes and goes with a damage roll
             if (!isApply) {
                 var whs = [['', 'Whatever comes of it'], ['hit', 'On a success'], ['miss', 'On a failure']]; if (typeof obj.resistBy === 'string' || c.when === 'resisted') whs.push(['resisted', 'When it is resisted']);
                 var ws = select('sys-call-when', whs, c.when || '', 'When the card comes. When it is resisted: as the target\u2019s roll succeeds, and the card goes to the target');
-                ws.addEventListener('change', function(e) { e.stopPropagation(); if (ws.value) c.when = ws.value; else delete c.when; if (c.when !== 'resisted') { delete c.by; delete c.byIf; delete c.to; } said(); draw(); var nw = box.children[j] && box.children[j].children[1]; if (nw && nw.focus) nw.focus(); }); rw.appendChild(ws);   // the box is drawn anew, so the keys stay on the list
+                ws.addEventListener('change', function(e) { e.stopPropagation(); if (ws.value) c.when = ws.value; else delete c.when; if (c.when !== 'resisted') { delete c.by; delete c.byIf; delete c.to; } delete c.on; said(); draw(); var nw = box.children[j] && box.children[j].children[1]; if (nw && nw.focus) nw.focus(); }); rw.appendChild(ws);   // the box is drawn anew, so the keys stay on the list
                 if (c.when === 'resisted') {
                     var bys = [['', 'By any roll']]; [obj.resistBy].concat(Array.isArray(obj.resistOr) ? obj.resistOr : []).forEach(function(id) { if (typeof id === 'string' && id) bys.push([id, 'By ' + nameOf(id)]); }); if (c.by && !bys.some(function(x) { return x[0] === c.by; })) bys.push([c.by, 'By a roll that does not resist it']);
                     var bs = select('sys-call-by', bys, c.by || '', 'Which of the rolls that may resist it brings the card');
                     bs.addEventListener('change', function(e) { e.stopPropagation(); if (bs.value) c.by = bs.value; else delete c.by; said(); }); rw.appendChild(bs);
                     var ts = select('sys-call-to', [['', 'To the one who resisted'], ['self', 'To the roller']], c.to === 'self' ? 'self' : '', 'Who the card goes to. To the roller: on the roller\u2019s own row, so a weapon that was parried can roll for itself');   // 1.6.2
-                    ts.addEventListener('change', function(e) { e.stopPropagation(); if (ts.value === 'self') c.to = 'self'; else delete c.to; said(); }); toSel = ts;   // drawn last, before x
+                    ts.addEventListener('change', function(e) { e.stopPropagation(); if (ts.value === 'self') c.to = 'self'; else delete c.to; delete c.on; said(); draw(); refocus(j, 'sys-call-to'); }); toSel = ts;   // drawn last, before x; 1.6.3: Lands on starts again from who the card goes to
                 }
             }
             var fi = input('sys-call-if field', typeof c.if === 'string' ? c.if : '', 'Only while this is true, read with the roller\u2019s names. On a list Row.<name> reads its row. No dice', 'Only where (optional)'); fi.maxLength = LIMITS.formula;
@@ -8714,6 +8722,13 @@ function callsBox(obj, sys, isApply) {
                 bc.appendChild(el('span', 'sys-num-cap', 'Read on the one who resisted')); bc.appendChild(bi); rw.appendChild(bc);
             }
             if (toSel) rw.appendChild(toSel);
+            if (!c.crew && dmgOf(c.roll)) {   // 1.6.3 (defense fold 0; Fulllion's decision 7): where a called damage roll lands, The roller or Their target. It starts from When:
+                // On a success their target, and on a failure, for an action or whatever comes of it the roller; on a call that waits for it to be resisted the
+                // one the card goes to. Only a pick that differs from that start is kept, so a call nobody set reads as systemcore callLandOf says
+                var lDef = c.when === 'hit' || (c.when === 'resisted' && c.to !== 'self') ? 'target' : 'roller', lNow = c.on === 'roller' || c.on === 'target' ? c.on : lDef;
+                var ls = select('sys-call-on', [['roller', 'Lands on the roller'], ['target', 'Lands on their target']], lNow, 'Who its damage lands on. Their target is the one the roll was aimed at, and on a call that waits for it to be resisted the one who resisted. It is fixed when the card comes, so the damage never moves to whoever is pointed at later');
+                ls.addEventListener('change', function(e) { e.stopPropagation(); if (ls.value === lDef) delete c.on; else c.on = ls.value; said(); }); rw.appendChild(ls);
+            }
             if (c.to !== 'self' && !/#/.test(String(c.roll || '')) && typeof crewPick === 'function') rw.appendChild(crewPick(c, draw));   // 1.6.2 (fold (f))
             var x = el('button', 'tool ghost sys-btn sys-call-del', '\u00d7'); x.type = 'button'; x.title = 'Stop calling for this roll';
             x.addEventListener('click', function(e) { e.stopPropagation(); if (!Array.isArray(obj.calls)) return; obj.calls.splice(j, 1); if (!obj.calls.length) delete obj.calls; said(); draw(); }); rw.appendChild(x);

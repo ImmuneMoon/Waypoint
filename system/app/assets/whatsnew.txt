@@ -57,6 +57,17 @@ Fog of war
   solid, where it used to let map art and a bright piece behind a wall
   show through faintly. Your own fog stays see-through either way.
 
+Called damage rolls
+- A damage roll that another roll calls for lands where the call says
+  now. Each such call has Lands on, the roller or their target, and a
+  call on a success starts on their target. So a Swing that calls for a
+  Cut card hits the guard you swung at, where it used to land on you.
+- Who it lands on is fixed when the card comes. Press it a minute later
+  with your pointer on someone else and it still hits the guard. After
+  the GM reloads, that card can't be pressed at all.
+- A call that waits for a roll to be resisted and goes to the crew now
+  reaches the crew at their stations. It used to go to the sheet itself.
+
 Smaller things
 - The game clock in the top row shows seconds for the GM. The clock still
   moves the campaign by whole minutes, so you'll see 14:03:27 count up to

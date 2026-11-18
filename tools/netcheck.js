@@ -5652,6 +5652,53 @@ pendingChecks.push((async () => {
     wL.dq([6, 6, 6, 4]); const lA = wL.W.dr('3d6 <= 10 - AttemptMargin', { charId: 'c_3', act: 'r_dd', att: wL.out.due[2].att }), lDm = wL.out.table.filter(m => m.type === 'roll' && m.dmg === 1);
     check('1.6.0 ... and its damage roll is that row\'s, landing on the token hit', lA.ok === true && lDm.length === 1 && lDm[0].dmgOn === 'c_3', j(lDm));
 })());
+// 1.6.3 (defense fold 0; Fulllion's decision 7 of 2026-11-17): where a called damage roll lands, end to end on both roll paths: a player's roll and the GM's own
+// call for a damage roll as a card, and the card's press lands on the one its record names, however long it waited and wherever the roller points by then.
+// roll-req, net.diceRoll and the attempt slice run for real with the real core and dice; invented names
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx0 = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const src4 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+    const line = k => { const i = src4.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src4.slice(i, src4.indexOf('\n', i)); };
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(line).join('\n') + '\n';
+    const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq')), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll'), atSrc = between('// [netcheck:attempt-start]', '// [netcheck:attempt-end]', 'attempt');
+    let dq = []; const Fx = Object.assign({}, Fx0, { evaluate: (e, o) => Fx0.evaluate(e, Object.assign({ random: () => { if (!dq.length) throw new Error('netcheck: no die left'); return dq.shift(); } }, o)) });
+    const CK = '3d6 <= 12', sysL = Sx.cleanSystem({ v: 1, name: 'L', combat: { checks: 'under3d6' }, fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'number', vis: 'all', edit: 'owner', def: 5 }],
+        rolls: [{ id: 'r_swing', label: 'Swing', formula: CK, vis: 'all', calls: [{ roll: 'r_cut', when: 'hit' }, { roll: 'r_trip', when: 'miss' }] }, { id: 'r_cut', label: 'Cut', formula: '1d6', vis: 'all', dmg: true }, { id: 'r_trip', label: 'Trip', formula: '1d6', vis: 'all', dmg: true }] }, { F: Fx, gmView: true });
+    const RG = { tid: 't_5', mapId: 'm1', mod: 0, dist: 5 };
+    const world = () => { const out = { table: [], due: [], gm: [] };
+        const tok = (id, charId, x, y) => ({ id, isChar: true, charId, x, y, w: 60, h: 52 }), wb = [Object.assign(tok('t_me', 'c_a', 0, 0), { ownerId: 'u_a' }), tok('t_5', 'c_1', 300, 0), tok('t_9', 'c_2', 600, 0)];
+        const camp = { id: 'k', activeItemId: 'm1', system: sysL, chars: { c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_a', values: {} }, c_1: { id: 'c_1', name: 'Pebbles', npc: true, values: {} }, c_2: { id: 'c_2', name: 'Coin', npc: true, values: {} } }, items: { m1: { id: 'm1', type: 'map', meta: { gridType: 'square' }, whiteboard: wb } } };
+        const net = { role: 'host', active: true, stream: false, paused: false, conns: [], targets: {}, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {}, syncCharDelta: () => {}, postDue: (c, rr, kind, r, toO, more) => out.due.push({ ch: c.id, roll: rr.id, kind, att: more.att }), damageCard: () => {} };
+        let rg = RG;
+        const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {}, tokenCtxFor: () => null }, wpVtt: { on: () => true, rulesOn: () => true } };
+        const cA = { peer: 'pA', send(m) { packCheck(m); out.table.push(JSON.parse(JSON.stringify(m))); } };
+        const W = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'rangeTo', 'getProfile', 'toast', 'ui', 'save', 'var diceLimit = null, _diceSlowSaid = {}, _dicePending = null;\n' + helpers + atSrc + '\n' + drSrc + '\nreturn { rq: function(msg, conn) {\ndiceLimit = null; _diceSlowSaid = {};\n' + rqSrc + '\n}, dr: net.diceRoll };')(
+            net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, rec => out.gm.push(JSON.parse(JSON.stringify(rec))), () => {}, () => {}, () => rg, () => ({ id: 'u_gm', name: 'GM' }), () => {}, () => null, () => {});
+        const press = (act, dice, x) => { dq = dice.slice(); W.rq(Object.assign({ type: 'roll-req', rid: 'q' + Math.random().toString(36).slice(2, 7), charId: 'c_a', act, expr: CK }, x || {}), cA); };
+        return { camp, net, out, W, press, aim: r => { rg = r; }, dq: d => { dq = d.slice(); } }; };
+    const dmgOf = out => out.table.filter(m => m.type === 'roll' && m.dmg === 1).map(m => m.dmgOn === undefined ? 'nobody' : m.dmgOn);
+    // a player's Swing hits: its Cut card lands on the one it was aimed at, after a hundred newer attempts and with the player now aimed elsewhere
+    const w1 = world(); w1.press('r_swing', [2, 3, 3]); const cut1 = w1.out.due.filter(d => d.roll === 'r_cut')[0], kept1 = w1.net.attemptsKept();
+    for (let i = 0; i < 101; i++) w1.net.blowMake(w1.camp.chars.c_a, 'r_x', {}, '', '', null, true);
+    w1.aim({ tid: 't_9', mapId: 'm1', mod: 0, dist: 9 }); w1.press('r_cut', [4], { expr: '1d6', att: cut1 && cut1.att });
+    const land1 = dmgOf(w1.out), gm1 = w1.out.gm.filter(m => m.dmg === 1).map(m => m.onName);
+    w1.press('r_cut', [4], { expr: '1d6', att: cut1 && cut1.att }); const twice1 = w1.out.table.filter(m => m.type === 'roll-deny').length;
+    check('1.6.3 Lands on, end to end (roll-req run for real): a player\'s hit posts its damage roll\'s card on a hard record kept apart, and its press, after a hundred and one newer attempts and with the player now aimed at another, lands on the one it was aimed at, named on the GM\'s own copy; a second press of that card is refused, not aimed again',
+        cut1 && /^a_/.test(cut1.att) && kept1 === 0 && j(land1) === j(['c_1']) && j(gm1) === j(['Pebbles']) && twice1 === 1 && dmgOf(w1.out).length === 1, j([cut1, kept1, land1, gm1, twice1]));
+    const w2 = world(); w2.press('r_swing', [6, 6, 6]); const trip2 = w2.out.due.filter(d => d.roll === 'r_trip')[0]; w2.press('r_trip', [2], { expr: '1d6', att: trip2 && trip2.att });
+    const w3 = world(); w3.press('r_swing', [2, 3, 3]); const cut3 = w3.out.due.filter(d => d.roll === 'r_cut')[0]; delete w3.camp.chars.c_1; w3.press('r_cut', [4], { expr: '1d6', att: cut3 && cut3.att });
+    const deny3 = w3.out.table.filter(m => m.type === 'roll-deny').map(m => m.message || (m.error && m.error.message) || '');
+    const w4 = world(); w4.aim(null); w4.press('r_swing', [2, 3, 3]); const cut4 = w4.out.due.filter(d => d.roll === 'r_cut')[0]; w4.aim(RG); w4.press('r_cut', [4], { expr: '1d6', att: cut4 && cut4.att });
+    check('1.6.3 ... a miss\'s card lands on the roller; a card whose target has left the campaign is refused in words, nothing rolled; a hit with no target lands on nobody, so the GM\'s Apply aims it, never on the roller',
+        trip2 && j(dmgOf(w2.out)) === j(['c_a']) && deny3.length === 1 && /not in the campaign now/.test(deny3[0]) && dmgOf(w3.out).length === 0 && cut4 && j(dmgOf(w4.out)) === j(['nobody']), j([dmgOf(w2.out), deny3, dmgOf(w4.out)]));
+    // the GM's own roll alike (net.diceRoll)
+    const w5 = world(); w5.dq([2, 3, 3]); const g5 = w5.W.dr(CK, { charId: 'c_a', act: 'r_swing', range: RG }), cut5 = w5.out.due.filter(d => d.roll === 'r_cut')[0];
+    w5.dq([4]); const p5 = w5.W.dr('1d6', { charId: 'c_a', act: 'r_cut', att: cut5 && cut5.att }), land5 = dmgOf(w5.out), gm5 = w5.out.gm.filter(m => m.dmg === 1).map(m => m.onName);
+    w5.dq([4]); const again5 = w5.W.dr('1d6', { charId: 'c_a', act: 'r_cut', att: cut5 && cut5.att });
+    check('1.6.3 ... the GM\'s own roll (net.diceRoll run for real): the same card lands on the same target, named on the GM\'s copy, and its second press is refused',
+        g5 && g5.ok === true && cut5 && p5 && p5.ok === true && j(land5) === j(['c_1']) && j(gm5) === j(['Pebbles']) && again5 && typeof again5.error === 'string', j([g5, p5, land5, gm5, again5]));
+})());
 // 1.6.0 A blast's own Defense roll: its card (net.defendPost) and the roll that answers it, on a player's roll and the GM's own, run for real with the attempt slice
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
@@ -20676,8 +20723,8 @@ pendingChecks.push((async () => {
         run.callsAfter(camp, run.callEntry(sys, { act: 'r_go' }, goP), true, names, npc, false); const a2 = j(posted); posted.length = 0;
         run.callsAfter(camp, go, false, names, low, false); const a3 = j(posted); posted.length = 0;
         run.callsAfter(camp, go, null, names, pc, true); const a4 = j(posted); posted.length = 0;
-        check('1.6.0 Calls for on the host (callsAfter, callPost, run for real): a card to the player of a character of theirs with a soft record, the roll\'s name with no formula, a GM-only roll\'s to the GM alone; for an NPC or a private roll the GM\'s; an action with no record; a called roll whose own needs fail makes no card; Only where read with the roller\'s names',
-            a1 === j([['c_p', 'r_burn', 'called', true, 'b_abcd1234', 'Go'], ['c_p', 'r_quiet', 'called', false, 'b_abcd1234', 'Go']]) && a2 === j([['c_n', 'r_quiet', 'called', false, 'b_abcd1234', 'Go'], ['c_n', 'r_act', 'called', false, '', 'Go']]) && a3 === j([['c_l', 'r_quiet', 'called', false, 'b_abcd1234', 'Go']]) && a4 === j([['c_p', 'r_quiet', 'called', false, 'b_abcd1234', 'Go']]) && blown.every(b => b[2] === '{}' && b[3] === true), [a1, a2, a3, a4].join(' || '));
+        check('1.6.0 Calls for on the host (callsAfter, callPost, run for real): a card to the player of a character of theirs with a soft record (1.6.3: a hard one for a damage roll, which says where it lands; moved on purpose), the roll\'s name with no formula, a GM-only roll\'s to the GM alone; for an NPC or a private roll the GM\'s; an action with no record; a called roll whose own needs fail makes no card; Only where read with the roller\'s names',
+            a1 === j([['c_p', 'r_burn', 'called', true, 'b_abcd1234', 'Go'], ['c_p', 'r_quiet', 'called', false, 'b_abcd1234', 'Go']]) && a2 === j([['c_n', 'r_quiet', 'called', false, 'b_abcd1234', 'Go'], ['c_n', 'r_act', 'called', false, '', 'Go']]) && a3 === j([['c_l', 'r_quiet', 'called', false, 'b_abcd1234', 'Go']]) && a4 === j([['c_p', 'r_quiet', 'called', false, 'b_abcd1234', 'Go']]) && blown.every(b => b[2] === '{}' && b[3] === (b[1] !== 'r_burn')), [a1, a2, a3, a4].join(' || '));
         const rec = { calls: [{ roll: 'r_burn', by: 'r_duck' }, { roll: 'r_quiet', by: 'f_w#3' }, { roll: 'r_act', by: '' }], callBy: 'Attack' };
         run.attemptCalled(camp, rec, 'r_duck', undefined, true, pc, false); const b1 = j(posted.map(p => p[1])); posted.length = 0;
         run.attemptCalled(camp, rec, undefined, { f: 'f_w', r: 'w_a', i: 3 }, true, pc, false); const b2 = j(posted.map(p => p[1])); posted.length = 0;
@@ -20685,7 +20732,8 @@ pendingChecks.push((async () => {
         check('1.6.0 a call that waits for the target (attemptCalled, run for real): as their roll succeeds, by the roll or the list roll it names and by any where it names none; a roll that fails, no record and no calls say nothing', b1 === j(['r_burn', 'r_act']) && b2 === j(['r_quiet', 'r_act']) && b3 === 0, [b1, b2, b3].join(' | '));
         const full = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
         check('1.6.0 every path asks: a player\'s roll and the GM\'s own with their Then landed, a player\'s action, attemptMake keeping the calls that wait, and the GM\'s action (sheets.js applyAction)',
-            full.indexOf('callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ,') > full.indexOf('var taQ = thQ.length') && full.indexOf('callsAfter(campR, entR, pcR, varsR,') > full.indexOf('var taR = thR.length') && full.includes('callsAfter(campA, callEntry(campA.system, qa.row ? { row: qa.row } : { act: qa.act }, actA), null, varsA, onA ? onA.ch : chA, false);') && full.includes("S.callsDue(entry, 'resisted', vars, window.wpFormula)") && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').includes("n.callsAfter(camp, act, null, vv, onT ? onT.ch : c, scope === 'gm');"));
+            full.indexOf('callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ,') > full.indexOf('var taQ = thQ.length') && full.indexOf('callsAfter(campR, entR, pcR, varsR,') > full.indexOf('var taR = thR.length') && full.includes('callsAfter(campA, callEntry(campA.system, qa.row ? { row: qa.row } : { act: qa.act }, actA), null, varsA, onA ? onA.ch : chA, false, undefined, false, tcA);') && full.includes("S.callsDue(entry, 'resisted', vars, window.wpFormula)") && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').includes("n.callsAfter(camp, act, null, vv, onT ? onT.ch : c, scope === 'gm', undefined, false, tc);")
+            && full.includes('!!recQ.priv, q.row, recQ.big === true, tcQ);') && full.includes('!!rec.priv || !!rec.to, o.row, rec.big === true, tcR);'));   // 1.6.3: each with its token context, whose target a call's damage may land on (moved on purpose)
         // 1.6.0 (the owner, 2026-10-31, of a call that came for any parry): a call's byIf, read on the one who resisted (attemptMake and attemptCalled, run for real)
         const sysB = Sc.cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_hp', key: 'HP', kind: 'number', label: 'HP', vis: 'all', edit: 'owner', def: 5 }, { id: 'f_sec', key: 'Sec', kind: 'number', label: 'Sec', vis: 'gm', edit: 'gm', def: 0 },
             { id: 'f_bl', key: 'Blades', kind: 'item-list', label: 'Blades', vis: 'all', edit: 'owner', list: { noQty: true, custom: true, stats: [{ key: 'hot', label: 'Hot', show: true }], rolls: [{ label: 'Parry', formula: '3d6 <= 10', resist: true }, { label: 'Block', formula: '3d6 <= 9', resist: true }] } }],
@@ -20712,6 +20760,45 @@ pendingChecks.push((async () => {
         check('1.6.2 attemptMake keeps the darkness at the attacker\'s place, which the range carried, on the attempt\'s own figures, and the Defense reads it as AttackerDark and AttackerDarkPen; an attack with none keeps none; both roll paths hand the record\'s figures on',
             recD.rd && recD.rd['@dk'] === 2 && recD.rd['@dkp'] === -8 && !(recD0 && recD0.rd) && RdD('AttackerDark') === 2 && RdD('AttackerDarkPen') === -8 && full.includes('rc.adk = adN.i; rc.adkp = adN.pen;'), j([recD && recD.rd, recD0 && recD0.rd]));
         check('1.6.0 both paths hand the resist roll its token context (a player\'s roll and the GM\'s own)', full.includes('attemptCalled(campQ, blowRecQ, q.act, rowGQ, pcQ, chQ, !!recQ.priv, tcQ);') && full.includes('attemptCalled(campR, blowRecR, o.act, o.row, pcR, chR, !!rec.priv || !!rec.to, tcR);'));
+        /* ---- 1.6.3 (defense fold 0; docs/DEFENSE_INTERACTIONS_DESIGN.md, Fulllion's decision 7 of 2026-11-17: "a choice on the call, The roller or Their target,
+           starting as the target on a hit and the roller on a miss"): where a called damage roll lands, stamped on a hard record as its card is posted and kept
+           apart from the other attempts. The attempt store and the rollcalls slice run for real with the real core; invented names ---- */
+        {
+            const bmL = full.slice(full.indexOf('net.blowMake = function('), full.indexOf('\n};\n', full.indexOf('net.blowMake = function(')) + 4), stL = full.slice(full.indexOf('function attemptForget('), full.indexOf('\n', full.indexOf('function attemptDrop(')) + 1);
+            const pL = [], nL = { postDue: (ch, rr, kind, n, toO, more) => pL.push({ ch: ch.id, act: rr.id, kind, att: more.att }) };
+            const runL = new Function('net', 'SC', 'window', 'ATT_MAX', 'attRowAlts', 'var _attempts = Object.create(null), _attIds = [];\n' + stL + bmL + full.slice(full.indexOf('function attemptMake('), full.indexOf('// [netcheck:rollcalls-start]')) + src + '\nreturn { attemptMake, attemptCalled, callsAfter, attemptDrop, attemptForget, att: () => _attempts, ids: () => _attIds, calls: () => _callIds, CALL_MAX };')(nL, () => Sc, { wpFormula: Fc }, 100, () => {});
+            const sysL = Sc.cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_hp', key: 'HP', kind: 'number', label: 'HP', vis: 'all', edit: 'owner', def: 5 }],
+                rolls: [{ id: 'r_cut', label: 'Cut', formula: '1d6', dmg: true }, { id: 'r_trip', label: 'Trip', formula: '1d6', dmg: true }, { id: 'r_look', label: 'Look', formula: '3d6 <= 10' }, { id: 'r_duck', label: 'Duck', formula: '3d6 <= 10', resist: true },
+                    { id: 'r_swing', label: 'Swing', formula: '3d6 <= 12', calls: [{ roll: 'r_cut', when: 'hit' }, { roll: 'r_trip', when: 'miss' }, { roll: 'r_look', when: 'hit' }, { roll: 'r_trip', when: 'hit', on: 'roller' }, { roll: 'r_cut', when: 'miss', on: 'target' }] },
+                    { id: 'r_jab', label: 'Jab', formula: '3d6 <= 12', resistBy: 'r_duck', calls: [{ roll: 'r_cut', when: 'resisted' }, { roll: 'r_trip', when: 'resisted', on: 'roller' }, { roll: 'r_cut', when: 'resisted', to: 'self', on: 'target' }, { roll: 'r_trip', when: 'resisted', to: 'self' }] }] }, { F: Fc });
+            const kael = { id: 'c_k', name: 'Kael', ownerId: 'u1', values: { f_hp: 5 } }, peb = { id: 'c_pb', name: 'Pebbles', npc: true, values: { f_hp: 5 } };
+            const campL = { system: sysL, items: { m1: { whiteboard: [{ id: 't1', charId: 'c_pb', isChar: true, name: 'Pebbles at the gate' }, { id: 't2', charId: 'c_pb', isChar: true, hidden: true }, { id: 't3', charId: 'c_pb', isChar: true, waiting: true }] } }, chars: { c_k: kael, c_pb: peb } };
+            const rlL = id => sysL.rolls.filter(r => r.id === id)[0], atL = tid => ({ range: { tid, mapId: 'm1', mod: 0, dist: 3 } }), nmL = () => undefined, landL = p => { const a = runL.att()[p.att]; return a ? (a.land || null) : 'gone'; };
+            const postL = (ent, pass, ch, tc) => { pL.length = 0; runL.callsAfter(campL, ent, pass, nmL, ch, false, null, false, tc); return pL.map(p => [p.act, p.ch, String(p.att).slice(0, 2), landL(p)]); };
+            const hitL = postL(rlL('r_swing'), true, kael, atL('t1')), cutId = pL[0].att, lookId = pL[1].att, missL = postL(rlL('r_swing'), false, kael, atL('t1'));
+            check('1.6.3 Lands on (callsAfter, run for real): a call On a success lands its damage on the target as the card is posted, its token, map and name stamped on a hard record; a call On a failure on the roller; a pick of the roller or their target overrules When; a called roll that is no damage roll keeps its soft record and says nothing of where',
+                j(hitL) === j([['r_cut', 'c_k', 'a_', { on: 'c_pb', tok: 't1', map: 'm1', name: 'Pebbles at the gate' }], ['r_look', 'c_k', 'b_', null], ['r_trip', 'c_k', 'a_', { on: 'c_k', name: 'Kael' }]])
+                && j(missL) === j([['r_trip', 'c_k', 'a_', { on: 'c_k' }], ['r_cut', 'c_k', 'a_', { on: 'c_pb', tok: 't1', map: 'm1', name: 'Pebbles at the gate' }]]), j([hitL, missL]));
+            const noneL = [null, atL('t2'), atL('t3'), atL('t9'), { range: { tid: 't1', mapId: 'm9', mod: 0, dist: 3 } }].map(tc => postL(Object.assign({}, rlL('r_swing'), { calls: [{ roll: 'r_cut', when: 'hit' }] }), true, kael, tc)[0][3]);
+            check('1.6.3 ... a call to a target where the roll had none, or one hidden, waiting, not on the map or on a map that is not there, is stamped as landing on nobody, so the GM\'s Apply aims it, never on the roller',
+                noneL.every(l => j(l) === j({ on: '' })), j(noneL));
+            check('1.6.3 ... those records are kept apart from the other attempts: the damage cards\' are on the list of calls and not on the attempts\' own, the soft one is',
+                runL.calls().indexOf(cutId) >= 0 && runL.ids().indexOf(cutId) < 0 && runL.ids().indexOf(lookId) >= 0, j([runL.calls().length, runL.ids().length]));
+            for (let i = 0; i < 101; i++) nL.blowMake(kael, 'r_look', {}, '', '', null, i % 2 === 0);
+            check('1.6.3 ... a hundred and one newer attempts later the damage card\'s record still stands and lands where it did, while the soft record of a roll of another kind went as before',
+                j(landL({ att: cutId })) === j({ on: 'c_pb', tok: 't1', map: 'm1', name: 'Pebbles at the gate' }) && landL({ att: lookId }) === 'gone', j([landL({ att: cutId }), landL({ att: lookId })]));
+            pL.length = 0; const idJ = runL.attemptMake(campL, rlL('r_jab'), { kind: 'check', pass: true, margin: 2 }, false, { tid: 't1', mapId: 'm1' }, kael, false, nmL), recJ = runL.att()[idJ];
+            pL.length = 0; runL.attemptCalled(campL, recJ, 'r_duck', undefined, true, peb, false, null); const resL = pL.map(p => [p.act, p.ch, landL(p)]);
+            check('1.6.3 ... a call that waits for it to be resisted keeps its Lands on on the attempt, and lands, as its target\'s roll succeeds, on the one the card goes to by default; the roller there is the one who attacked and their target the one who resisted',
+                j(recJ.calls) === j([{ roll: 'r_cut', by: '' }, { roll: 'r_trip', by: '', on: 'roller' }, { roll: 'r_cut', by: '', to: 'self', on: 'target' }, { roll: 'r_trip', by: '', to: 'self' }])
+                && j(resL) === j([['r_cut', 'c_pb', { on: 'c_pb' }], ['r_trip', 'c_pb', { on: 'c_k', name: 'Kael' }], ['r_cut', 'c_k', { on: 'c_pb', name: 'Pebbles' }], ['r_trip', 'c_k', { on: 'c_k' }]]), j([recJ.calls, resL]));
+            runL.attemptDrop(cutId); const dropped = runL.calls().indexOf(cutId) < 0 && landL({ att: cutId }) === 'gone';
+            let oldId = ''; for (let i = 0; i < 260; i++) { postL(rlL('r_swing'), true, kael, atL('t1')); if (i === 0) oldId = pL[0].att; }
+            const capL = runL.calls().length, oldGone = landL({ att: oldId }) === 'gone', newStands = j(landL({ att: pL[0].att })) === j({ on: 'c_pb', tok: 't1', map: 'm1', name: 'Pebbles at the gate' });
+            runL.attemptForget(); const forgot = runL.calls().length === 0 && Object.keys(runL.att()).length === 0;
+            check('1.6.3 ... a record is let off the list once its roll is made (attemptDrop); the list keeps its newest CALL_MAX and lets the oldest go; the table\'s end lets them all go (attemptForget)',
+                dropped && runL.CALL_MAX === 500 && capL === 500 && oldGone && newStands && forgot, j([dropped, capL, oldGone, newStands, forgot]));
+        }
     }
 })());
 {   // the review of backlog 237: a token given its own copy of a sheet while a fight runs (net.js charSplitFight and fightRowsRenamed, sliced by their charsplit markers and run for real)

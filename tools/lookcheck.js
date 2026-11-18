@@ -4808,13 +4808,15 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
 {
     // what each said before and what it says now: the gridless Square and Hex choose cells alone (Vision is its own list), map pieces under fog are
     // still sent (only creatures a player cannot see are not), each map keeps its own scale, and the Snap rows say grid and cell, never lattice
-    const GONE = ['radius vision', 'front-arc vision', 'crosses the wire', 'Measurement System', 'Map Scale', '<div class="draw-menu-label">Snap To</div>', '<b>Snap To</b>', 'seat to the lattice', 'Hex cells measure 1 yard across', 'Hex cells measure 0.91 m across', '&#9211;'];
+    const GONE = ['Vision is set on its own', 'as on any map.</li>', 'radius vision', 'front-arc vision', 'crosses the wire', 'Measurement System', 'Map Scale', '<div class="draw-menu-label">Snap To</div>', '<b>Snap To</b>', 'seat to the lattice', 'Hex cells measure 1 yard across', 'Hex cells measure 0.91 m across', '&#9211;'];
     const NOW = ['<div class="draw-menu-label">Measurement system</div>', '<div class="draw-menu-label gm-only">Map scale (per grid cell)</div>', '<div class="draw-menu-label">Snap to</div>',
         'title="Distances in yards and feet. Each map keeps its own scale.">Imperial</button>', 'title="Distances in meters and kilometers. Each map keeps its own scale.">Metric</button>',
-        'data-fgrid="square" title="Measure sight in square cells. Vision is set on its own.">Square</button>', 'data-fgrid="hex" title="Measure sight in hex cells. Vision is set on its own.">Hex</button>',
+        'data-fgrid="square" title="Measure sight in square cells. Where no Vision is set, tokens see all around.">Square</button>', 'data-fgrid="hex" title="Measure sight in hex cells. Where no Vision is set, tokens see in a facing cone, as on a hex map.">Hex</button>',
+        // the review of finding 37: with no Vision of its own a gridless map's sight follows Square or Hex (fog.js visionOf through gridIsHexMap), so the words and Help say so
+        'Which way a token sees is set by Vision. Where none is set, Square means all around and Hex a facing cone.',
         'In a session each player sees fog from their own tokens, and creatures they cannot see are not sent to them.', 'title="Grid cells only. A dropped piece sits in a cell, and neighbors don\'t pull it.">'];
     const left = GONE.filter(g => count(ix, g) > 0), missing = NOW.filter(n => count(ix, n) !== 1), tourStale = count(tourSrc, '<b>Map Scale</b>');
-    check('1.6.3 (finding 37) the fog, measure and Snap menus and Help say what is true in plain sentence case: no vision promised by the gridless cells, no claim that nothing hidden is sent, no fixed cell size on Imperial or Metric, no lattice and no power glyph; Measurement system, Map scale and Snap to in sentence case, the tour\'s step too',
+    check('1.6.3 (finding 37) the fog, measure and Snap menus and Help say what is true in plain sentence case: the gridless cells say how tokens see where no Vision is set, as fog.js visionOf does, no claim that nothing hidden is sent, no fixed cell size on Imperial or Metric, no lattice and no power glyph; Measurement system, Map scale and Snap to in sentence case, the tour\'s step too',
         !left.length && !missing.length && tourStale === 0 && count(tourSrc, '<b>Map scale</b>') === 1, J([left, missing, tourStale]));
 }
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

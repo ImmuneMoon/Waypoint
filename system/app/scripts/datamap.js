@@ -827,9 +827,12 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
   // [systemcheck:wallpick-start]
   // A wall or a door drawn as a line is easy for the GM to pick (the owner, at the table on 2026-10-25: "id like to be able to more easily
   // erase, or delete a drawn wall. i couldnt select it for delete either from what I could tell"). A line takes a press on its stroke alone,
-  // and a floor laid after the walls lies over it. On the GM's own screen a press within WALL_REACH board pixels of the stroke of a wall's or
-  // a door's line goes to that line, before a floor, a plain shape, a picture or a text box under the pointer: the nearest line, then the
-  // topmost (handZ), then the later in the list. A token, a waiting token and a GM note card keep their own press, and an unlocked token
+  // and a floor laid after the walls lies over it. On the GM's own screen a press near the stroke of a wall's or a door's line goes to that
+  // line, before a floor, a plain shape, a picture or a text box under the pointer: the nearest line, then the topmost (handZ), then the
+  // later in the list. How near is wallReachFor: on ground (a floor or a map picture) wallReach() board pixels, which is 8 on screen at the
+  // zoom in use and never under 8 nor over 40 board pixels; on any other piece WALL_REACH, 8 board pixels, as it always was. A piece that
+  // itself blocks sight, is a see-through barrier or is a door (a door block, a wall block) keeps its own press, so its Open door, Lock door
+  // and Secret rows stay its own. A token, a waiting token and a GM note card keep their own press, and an unlocked token
   // under the pointer still wins. A locked line is not picked: a locked piece hands its press on. Never on a player's app or at someone else's
   // table, and never where this screen may not write the campaign (the stream window, a window of its own). The press itself goes on
   // through handOn, so the bound on hand-overs holds; a right-click and a double-click ask wallPickAt for the same answer
@@ -838,12 +841,26 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
   // under one screen pixel wide and 8 board pixels were 2 on screen, so a GM looking over a large map could not pick a door without zooming in.
   // wallReach turns the 8 screen pixels into board pixels at the zoom in use (8 / zoom), never under 8 (zoomed in, a press reaches as far on the
   // board as it always did) and never over WALL_REACH_MAX (40, so far out a press does not grab a wall across a room). wallPick works it out once
-  // a press and hands it to wallGap, whose quick box test uses the same reach. A zoom that is no number above 0 reads as 1
+  // a press and hands it to wallGap, whose quick box test uses the same reach. A zoom that is no number above 0 reads as 1.
+  // The review of that fix: the wider reach is only for GROUND (wallReachFor). A door block in a gap between wall lines, or a chair laid
+  // against a wall, lies within 40 board px of a line, and at 20% zoom every press on it went to the line. So a piece that is no ground
+  // keeps the old 8 board px, and a piece that blocks sight or is a barrier never hands its press to a line at all (wallPick's first test)
   var WALL_REACH_MAX = 40;
   function wallReach() {
       var z = typeof state !== 'undefined' && state && typeof state.zoomLevel === 'number' && isFinite(state.zoomLevel) && state.zoomLevel > 0 ? state.zoomLevel : 1;
       return Math.max(WALL_REACH, Math.min(WALL_REACH_MAX, WALL_REACH / z));
   }
+  // Is the pressed piece GROUND, which may hand a press to a wall line from as far as wallReach()? A floor, a plain area of ground or a map
+  // picture: on the back or back-mid layer, with no purpose of its own. Furnishings (furn), placed map objects (mobj), lights, room areas,
+  // trigger zones, text boxes and cover pieces (rubble's cover, a map object's grade) are not ground: each is something a GM picks for its
+  // own sake, and a small one laid against a wall must keep its press when zoomed out. Asked only by wallReachFor
+  function wallGround(p) {
+      if (!p || typeof p !== 'object' || (p.layer !== 'back' && p.layer !== 'back-mid')) return false;
+      return !(p.furn || p.mobj || p.light || p.roomArea || p.type === 'trigger' || p.type === 'text' || p.cover || p.coverAs || p.coverPro);
+  }
+  // How far from a wall line's stroke a press on the piece `pressed` still goes to the line, in board pixels: the zoom's own reach on ground,
+  // else the fixed WALL_REACH. Asked by wallPick once a press
+  function wallReachFor(pressed) { return wallGround(pressed) ? wallReach() : WALL_REACH; }
   function wallLine(c) { return !!c && typeof c === 'object' && c.type === 'path' && c.tip !== 'fill' && Array.isArray(c.pts) && (c.blocksSight === true || c.barrier === true); }
   function wallPickGm() { var n = window.wpNet; return !(n && (n.foreign || (n.active && n.role === 'client'))) && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()); }
   // how far a point lies outside a line's drawn stroke, in board pixels (0 or less on it); Infinity for a line with no stretch.
@@ -872,8 +889,10 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
   }
   // the wall or door line a press on `pressed` at (px, py) goes to, or null
   function wallPick(list, pressed, px, py) {
-      if (!Array.isArray(list) || !pressed || typeof pressed !== 'object' || pressed.isChar || pressed.waiting || pressed.gmNoteFor || wallLine(pressed)) return null;
-      var best = null, bestD = Infinity, bestZ = -Infinity, bestI = -1, inTok = false, reach = wallReach();   // finding 21: the reach at the zoom in use
+      // a piece that blocks sight or is a see-through barrier (a wall block, a door block: fogcore isDoor needs one of the two) is a wall of
+      // its own and keeps its press, whatever line lies near it (the review of finding 21)
+      if (!Array.isArray(list) || !pressed || typeof pressed !== 'object' || pressed.isChar || pressed.waiting || pressed.gmNoteFor || wallLine(pressed) || pressed.blocksSight === true || pressed.barrier === true) return null;
+      var best = null, bestD = Infinity, bestZ = -Infinity, bestI = -1, inTok = false, reach = wallReachFor(pressed);   // finding 21: the zoom's reach on ground, 8 board px on anything else
       list.forEach(function(c, idx) {
           if (!c || typeof c !== 'object' || c === pressed || c.id === pressed.id) return;
           if ((c.isChar || c.waiting) && !c.locked && px >= c.x && px <= c.x + (c.w || 0) && py >= c.y && py <= c.y + (c.h || 0)) { inTok = true; return; }

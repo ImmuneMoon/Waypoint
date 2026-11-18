@@ -103,15 +103,16 @@ Smaller things
   picture, zooming at the pointer, Center on my token, Shift+1 and the
   pointer's numbers all land where the map is drawn.
 - Next token and the Center menu's other choices land there too.
-- Walls and doors are easier to pick when you're zoomed out. A press
-  reaches as far on screen at any zoom, so at 25% you no longer have to
-  land within 2 pixels of a door line.
+- Walls and doors are easier to pick when you're zoomed out. At 25% a
+  click on the floor now reaches about 8 pixels on screen to a door line,
+  where it used to be 2. A door block, or a chair against a wall, still
+  takes its own click.
 - The zoom box's minus and plus work from the keyboard now. Tab to one
   and press Enter or Space.
 - The fog, measure and Snap menus say what they do in plainer words. The
-  gridless Square and Hex buttons no longer promise a kind of vision, and
-  Imperial and Metric no longer claim a fixed cell size, since each map
-  keeps its own scale.
+  gridless Square and Hex buttons say how tokens see where no Vision is
+  set, and Imperial and Metric no longer claim a fixed cell size, since
+  each map keeps its own scale.
 
 WAYPOINT 1.6.2 — What's New
 ============================

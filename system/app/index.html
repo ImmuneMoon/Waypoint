@@ -1127,7 +1127,7 @@
                               <ul>
                                   <li>Optionally set <b>Sight from a character field</b>. Pick a field of your system, as Help &#9656; Character sheets tells, and each character sees as far as its own value. With <b>Lighting</b> on, that is how far it sees in the dark, and on a lit map it sees everything in its line of sight.</li>
                                   <li>A field its players cannot read is not used. That is a GM-only field, or one worked out from a GM-only field. Their tokens then see by the default range, on your screen and theirs alike, and the menu says so.</li>
-                                  <li>On a <b>gridless</b> map, choose <b>Square</b> or <b>Hex</b> cells and set the pixels per cell. Waypoint can then measure sight without drawing a grid. Which way a token sees is set by Vision, as on any map.</li>
+                                  <li>On a <b>gridless</b> map, choose <b>Square</b> or <b>Hex</b> cells and set the pixels per cell. Waypoint can then measure sight without drawing a grid. Which way a token sees is set by Vision. Where none is set, Square means all around and Hex a facing cone.</li>
                               </ul>
                           </li>
                           <li><b>All around or a facing cone</b>: set <b>Vision</b> to <b>All around</b> or <b>Facing cone</b>. With All around a token sees in every direction, which is the default on square maps. With a Facing cone it sees only ahead, and the cone turns as the token turns. That is the default on hex maps.
@@ -4062,8 +4062,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <div id="fogGridlessRow" style="display:none;">
                           <div class="draw-menu-label">Gridless &mdash; measure vision with</div>
                           <div class="draw-menu-row">
-                              <button class="draw-style-btn fog-grid-btn" data-fgrid="square" title="Measure sight in square cells. Vision is set on its own.">Square</button>
-                              <button class="draw-style-btn fog-grid-btn" data-fgrid="hex" title="Measure sight in hex cells. Vision is set on its own.">Hex</button>
+                              <button class="draw-style-btn fog-grid-btn" data-fgrid="square" title="Measure sight in square cells. Where no Vision is set, tokens see all around.">Square</button>
+                              <button class="draw-style-btn fog-grid-btn" data-fgrid="hex" title="Measure sight in hex cells. Where no Vision is set, tokens see in a facing cone, as on a hex map.">Hex</button>
                           </div>
                           <div class="draw-menu-row">
                               <input type="number" id="fogCellLen" min="10" step="1" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">

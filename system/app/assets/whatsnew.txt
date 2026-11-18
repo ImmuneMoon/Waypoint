@@ -69,6 +69,21 @@ Called damage rolls
 - A call that waits for a roll to be resisted and goes to the crew now
   reaches the crew at their stations. It used to go to the sheet itself.
 
+Attacks that carry their damage
+- An attack can name its own damage roll now, under Resisted by in the
+  System editor. Once the attack lands, the attacker gets the damage
+  card, still aimed at the guard they swung at and the arm they picked,
+  wherever their pointer has moved by then.
+- A defense card for such an attack has Take it, for a player who would
+  rather not roll, and your copy has No defense. The Combat tab can give
+  a defense a time limit too, and the attack lands when it runs out.
+- On the Combat tab you pick who rolls a landed attack's damage. The
+  attacker can press a card, it can roll at once, or the attacker gets
+  the card and your copy has Roll it now.
+- An attack that is waiting to land is saved with its fight, so a
+  reload in the middle of a fight keeps it. Pressing its damage card
+  costs no action.
+
 Smaller things
 - The game clock in the top row shows seconds for the GM. The clock still
   moves the campaign by whole minutes, so you'll see 14:03:27 count up to

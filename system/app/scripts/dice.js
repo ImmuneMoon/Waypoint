@@ -3,7 +3,7 @@
    feature switch. The wire and the rolling itself live in net.js (net.diceRoll, the roll-req / roll / roll-deny
    handlers); the validators, replay and text in dicecore.js. Design of record: docs/DICE_PLAN.md. */
 import { toast } from './io.js';
-import { cleanDiceBonus, malfWords, coverHitWords, LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf, ruleOf, resistWhy, dueMajor, hitFaces, cleanPos, posWords } from './dicecore.js';
+import { cleanDiceBonus, malfWords, coverHitWords, LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf, ruleOf, resistWhy, landWhy, dueMajor, hitFaces, cleanPos, posWords } from './dicecore.js';
 import { getActiveCampaign } from './models.js';   // 1.6.2: the campaign a player's roller reads its character from
 import { dieNode } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
 
@@ -223,19 +223,36 @@ function hitInto(wrap, i, h, t, words, faces) {
 // "Fatigue \u22123 \u2192 0"; text only
 // Turn-based combat T2b: a reminder card — what is due, for whom and when, and Run (the sheet's own press: the GM's, or the player's through
 // the host); once pressed here it says so. The GM's copy of a player's reminder has no button (theirs to press); nor has a pop-out window
+// 1.6.3 (defense fold 1; Fulllion's decisions 1 and 5 of 2026-11-17): the buttons of an attack that carries its damage. On a defense card: Take it, the
+// defender's own (a player's app asks the host, which judges it; off where the host is older and would not answer it), and No defense, the GM's, on their
+// copy of a player's card and on their own card for an NPC. On the GM's copy of a player's damage card under the Combat tab's Both: Roll it now, which the
+// host rolls as the attacker. bs: the card's other buttons, put out of reach with these once one is pressed. theirs: the GM's copy of a player's card
+function landBtns(wrap, rec, m, bs, theirs) {
+    var n = net(); if (!n || m.done || m.over) return;
+    var host = n.role !== 'client', all = bs.slice();
+    var mk = function(word, tip, go) {
+        var x = el('button', 'tool chat-due-run chat-land', word); x.type = 'button'; x.title = tip; all.push(x);
+        x.addEventListener('click', function() { if (m.done) return; m.done = true; all.forEach(function(y) { y.disabled = true; }); var ok = false; try { ok = go(); } catch (e) { ok = false; } if (!ok) { m.done = false; all.forEach(function(y) { y.disabled = false; }); } });
+        wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(x); return x;
+    };
+    if (rec.why === 'resist') {
+        if (host) mk('No defense', 'The attack lands now, with no roll to resist it. Its damage then comes to the attacker', function() { return typeof n.landNoDefense === 'function' && n.landNoDefense(rec.att); });
+        else if (!theirs) { var tk = mk('Take it', 'Make no roll to resist it: the attack lands now, and its damage comes to the attacker', function() { return typeof n.landTake === 'function' && n.landTake(rec.att); }); if (typeof n.landsOk === 'function' && !n.landsOk()) { tk.disabled = true; tk.title = 'The GM\u2019s Waypoint is older and cannot take this. Roll to resist it, or ask the GM'; } }
+    } else if (rec.why === 'called' && theirs && host && rec.now === 1) mk('Roll it now', 'Roll this damage now, as the attacker, without waiting for their press', function() { return typeof n.landNow === 'function' && n.landNow(rec.att); });
+}
 function renderDue(m) {
     var rec = m.due, wrap = el('div', 'chat-roll chat-due whisper');
     var who = el('b', null, 'Due'); who.style.color = 'var(--gold)'; wrap.appendChild(who);
     if (rec.as) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(typeof asTag === 'function' ? asTag('for ', rec, wrap) : el('span', 'chat-tag', 'for ' + rec.as)); }
     wrap.appendChild(el('span', 'chat-time', chatTime(rec.ts)));
     wrap.appendChild(el('br'));
-    var whD = rec.why === 'called' ? (rec.by ? 'called for by ' + rec.by : 'called for') : rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : rec.why === 'resist' ? (typeof resistWhy === 'function' ? resistWhy(rec) : 'resisting an attempt') : rec.why === 'major' ? (typeof dueMajor === 'function' ? dueMajor(rec) : 'a Major Wound') : rec.why === 'wound' ? 'a wound' : rec.hold === 1 ? 'waiting for their roll' : rec.why === 'blast' ? 'a blast' : 'round ' + rec.round;
+    var whD = rec.why === 'called' && rec.lnd === 1 ? (typeof landWhy === 'function' ? landWhy(rec) : 'the attack landed') : rec.why === 'called' ? (rec.by ? 'called for by ' + rec.by : 'called for') : rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : rec.why === 'resist' ? (typeof resistWhy === 'function' ? resistWhy(rec) : 'resisting an attempt') : rec.why === 'major' ? (typeof dueMajor === 'function' ? dueMajor(rec) : 'a Major Wound') : rec.why === 'wound' ? 'a wound' : rec.hold === 1 ? 'waiting for their roll' : rec.why === 'blast' ? 'a blast' : 'round ' + rec.round;
     wrap.appendChild(el('div', 'roll-expr chat-due-what', (rec.label || (rec.roll === 1 ? 'A roll' : 'An action')) + (whD ? ' \u2014 ' + whD : '')));   // 1.6.0 (B2): an attempt to resist   // 1.6.0 (the core's gap 6): or a wound
-    if (m.over) wrap.appendChild(el('div', 'chat-due-note', rec.hold === 1 ? (m.rolled ? 'Their roll is in.' : 'Applied.') : rec.why === 'resist' ? 'The GM applied it, so this roll is over.' : 'The blast went off, so this roll is over.'));
-    else if (rec.theirs) wrap.appendChild(el('div', 'chat-due-note', 'Its player presses it.'));
+    if (m.over) wrap.appendChild(el('div', 'chat-due-note', m.overSay === 'land' ? 'The attack landed, so this roll is over.' : m.overSay === 'rolled' ? 'Its damage was rolled.' : m.overSay === 'gone' ? 'That attack did not land, so this card is over.' : rec.hold === 1 ? (m.rolled ? 'Their roll is in.' : 'Applied.') : rec.why === 'resist' ? 'The GM applied it, so this roll is over.' : 'The blast went off, so this roll is over.'));   // 1.6.3 (defense fold 1): why a landing's card is over, in the host's fixed word
+    else if (rec.theirs) { wrap.appendChild(el('div', 'chat-due-note', 'Its player presses it.')); if (rec.lnd === 1 && !window.wpPopout) landBtns(wrap, rec, m, [], true); }   // 1.6.3 (defense fold 1): the GM's copy of a player's card offers No defense, or Roll it now
     else if (m.done) wrap.appendChild(el('div', 'chat-due-note', 'Pressed.'));
     else if (!window.wpPopout) {
-        var spentD = window.wpSheets && window.wpSheets.dueBlock ? window.wpSheets.dueBlock(rec.charId, rec.act) : '';   // 1.6.0 (the live test, 2026-10-30): it looked ready with none left. Grayed and said, never disabled: a card is not drawn again when a new turn gives them back, and the host judges the press
+        var spentD = rec.lnd !== 1 && window.wpSheets && window.wpSheets.dueBlock ? window.wpSheets.dueBlock(rec.charId, rec.act) : '';   /* 1.6.3: a landed attack's damage card spends nothing */   // 1.6.0 (the live test, 2026-10-30): it looked ready with none left. Grayed and said, never disabled: a card is not drawn again when a new turn gives them back, and the host judges the press
         if (spentD) { wrap.className += ' chat-due-spent'; wrap.appendChild(el('div', 'chat-due-note', spentD + '.')); }
         if (rec.why === 'blast') {   // 1.6.0 (the core's gap 8): its own dice of a blast, rolled by the host on the press (whiteboard.js wpBlastOwedPress)
             var bbW = rec.go === 1 ? 'Apply now' : 'Roll', bb = el('button', 'tool chat-due-run', bbW); bb.type = 'button'; bb.title = rec.hold === 1 ? 'Land the hold now, without their roll' : rec.go === 1 ? 'Let the blast go off now. Anyone who has not rolled takes it with no Defense' : 'Roll your own dice of this blast; the GM\u2019s machine rolls them and applies what gets through';   // 1.6.0: go, the GM's card that stops waiting for a blast's Defense rolls
@@ -249,11 +266,11 @@ function renderDue(m) {
                 pb.addEventListener('click', function() { if (m.done) return; m.done = true; bs.forEach(function(x) { x.disabled = true; }); var ok = window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, p.act, rec.att, p.row) : false; if (!ok) { m.done = false; bs.forEach(function(x) { x.disabled = false; }); } });   // done first: the press's own card redraws the chat
                 wrap.appendChild(pb); wrap.appendChild(document.createTextNode(' '));
             });
-            return wrap;
+            if (rec.lnd === 1) landBtns(wrap, rec, m, bs, false); return wrap;   // 1.6.3 (defense fold 1): and Take it, or No defense
         }
         var runW = rec.roll === 1 ? 'Roll' : 'Run', b = el('button', 'tool chat-due-run', runW); b.type = 'button'; b.title = rec.roll === 1 ? 'Roll it now, as its button on the sheet does' : 'Apply it now, as its button on the sheet does';   // 1.5.9: a roll that is due
-        b.addEventListener('click', function() { if (m.done) return; m.done = true; b.disabled = true; b.textContent = 'Pressed'; var ok = window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, rec.act, typeof rec.att === 'string' ? rec.att : undefined, rec.why === 'called' && rec.nm === 1 && Array.isArray(rec.or) && rec.or[0] ? rec.or[0].row : undefined) : false; if (!ok) { m.done = false; b.disabled = false; b.textContent = runW; } });   // 1.6.0 (the core's gaps 6 and 7): a blow's card names its record too   // done first: the press's own card redraws the chat
-        wrap.appendChild(b);
+        b.addEventListener('click', function() { if (m.done) return; m.done = true; b.disabled = true; b.textContent = 'Pressed'; var ok = rec.lnd === 1 && rec.why === 'called' && window.wpSheets && window.wpSheets.runLand ? window.wpSheets.runLand(rec.charId, rec.act, rec.att, rec.nm === 1 && Array.isArray(rec.or) && rec.or[0] ? rec.or[0].row : undefined) : window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, rec.act, typeof rec.att === 'string' ? rec.att : undefined, rec.why === 'called' && rec.nm === 1 && Array.isArray(rec.or) && rec.or[0] ? rec.or[0].row : undefined) : false; if (!ok) { m.done = false; b.disabled = false; b.textContent = runW; } });   // 1.6.0 (the core's gaps 6 and 7): a blow's card names its record too   // done first: the press's own card redraws the chat
+        wrap.appendChild(b); if (rec.lnd === 1 && rec.why === 'resist') landBtns(wrap, rec, m, [b], false);   // 1.6.3 (defense fold 1): and Take it, or No defense
     }
     return wrap;
 }

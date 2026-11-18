@@ -1004,6 +1004,7 @@ function mutations(tpl) {
             'throw-req': { type: 'throw-req', charId: 'c_p1', fieldId: 'f_inv', rowId: 'w_1', mapId: 'm_open', x: 200, y: 200 },
             'door-req': { type: 'door-req', mapId: 'm_open', itemId: 'door1' },
             'box': { type: 'box', op: 'open', mapId: 'm_open', itemId: 'door1', tok: 'tok_p1' },   // 1.6.2 (backlog 42): a container asked to open; the world holds none, so it answers nothing and changes nothing
+            'land-take': { type: 'land-take', att: 'a_nosuchhe' },   // 1.6.3 (defense fold 1): Take it on a defense card, its own player's alone; no attack waits here, so it is refused in words and lands nothing
             'card-act': { type: 'card-act', id: 'r_nosuchhe', key: 'accept' },   // 1.6.2 (G5): a press on a held roll's card, its roller's alone; none is held here
             'show-ask': { type: 'show-ask', campId: 'c1', itemId: 'm_open', ids: ['stroke_show', 'draw_show', 'stroke_onmap'] },   // 1.6.2: an ask to put a drawing on the map changes nothing by itself
             'door-req-secret': { type: 'door-req', mapId: 'm_open', itemId: 'door_secret' },   // fold B5: a secret door: a door request naming it is answered as a wall's is — with nothing — and changes nothing
@@ -1213,6 +1214,7 @@ function mutations(tpl) {
         'char-delete': o => o.p1.some(m => m.type === 'char-delete-ans' && m.reason === 'inplay'),
         'char-ask': o => o.p1.some(m => m.type === 'char-ask-ans' && typeof m.reason === 'string') && !(campH().uploads || []).some(u => u && u.ask === true),
         'char-token': o => o.p1.some(m => m.type === 'char-token-ans' && m.reason === 'have'),
+        'land-take': o => o.p1.some(m => m.type === 'turn-note' && /not there now|answered already/.test(m.text)) && !o.p2.some(m => m.type === 'turn-note' || m.type === 'roll'),   // 1.6.3 (defense fold 1)
         'hit-ask': o => o.p1.some(m => m.type === 'hit-rows' && m.rid === 'r13h' && Array.isArray(m.rows) && m.rows.length === 0),
         'sheet-out': o => o.p1.some(m => m.type === 'sheet-out-ans' && m.rid === 'r13o' && m.reason === 'none'),
         'tok-pic': o => rec.pics.length === 1 && o.p1.some(m => m.type === 'tok-pic-ans' && m.ok === true),

@@ -102,6 +102,9 @@ jobs:
       - name: netcheck — host-side wire gates (admission, identity, chat)
         if: ${{ !cancelled() }}
         run: node tools/netcheck.js
+      - name: attackcheck — attacks and defenses on the host, read from netattack.js by name
+        if: ${{ !cancelled() }}
+        run: node tools/attackcheck.js
       - name: sinkcheck — the GM's renderers against a campaign from a file
         if: ${{ !cancelled() }}
         run: node tools/sinkcheck.js

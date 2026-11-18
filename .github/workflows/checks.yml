@@ -18,7 +18,7 @@ jobs:
   checks:
     name: Test suites (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
-    timeout-minutes: 10   # a whole run takes under a minute: a suite that hangs (a handle left open) fails here instead of waiting out GitHub's six hours
+    timeout-minutes: 10   # a whole run takes a few minutes (splitcheck alone runs fuzzcheck twice, some 40 seconds): a suite that hangs (a handle left open) fails here instead of waiting out GitHub's six hours
     strategy:
       fail-fast: false
       matrix:

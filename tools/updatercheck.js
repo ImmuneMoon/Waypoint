@@ -943,7 +943,8 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             const trackedSet = new Set(tracked), untracked = appFiles.filter(f => !trackedSet.has(f)), files = tracked.concat(untracked);
             const found = []; let readN = 0;
             for (const f of files) {
-                let b = null; try { b = fs.readFileSync(path.join(ROOT, f)); } catch (e) { continue; }
+                // the real bytes, never the joined text: a part of a split giant reads as one neutral line under the wrap, and its header and glue ship too (tools/splitcheck.js holds this line)
+                let b = null; try { b = require('./srcjoin').raw(path.join(ROOT, f)); } catch (e) { continue; }
                 readN++;
                 for (const t of TERMS) {
                     if (termHits(f, t).length) found.push(f + ' (its path)');

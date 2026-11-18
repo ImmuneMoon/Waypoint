@@ -6,21 +6,27 @@
       install; a part names its root back in a `// [split:of x.js]` header line, after comments alone, then its import from the root,
       its install function's first line, its body between `// [split:body-start]` and `// [split:body-end]`, its return and its closing
       line, and nothing more. Every glue line matches one strict pattern, carries no marker of a suite, and the root imports each part
-      after all its other imports. A part is named in lower case letters and digits, and has its root's git attributes.
+      after all its other imports. A part is named in lower case letters and digits, and has its root's git attributes; a root git
+      keeps byte for byte has a -text line of its own in .gitattributes.
    2. The names, judged on the joined text (the old file) by a real parser: what a part uses that is declared outside it is in its
       import line, what the root uses of the part is in its return line (and so in the root's binding line), every word of a part's
       text that names a top-level name counts as a use too, and the root exports all a part imports. No name is assigned across a cut,
       none is declared on both sides, and no top-level statement that runs before a part is installed reaches one of its names,
-      directly or through the functions it calls.
+      directly or through the functions it calls. No part assigns a name declared nowhere (what only strict mode refuses; see 5), and
+      no module in an import cycle with the root reaches a name bound from a part in its top-level code (splitlib.cycleRisks).
    3. Every suite reads the giants through tools/srcjoin.js, installed as its first statement; the private bridge's three entry files
       install it too where that folder is there; no suite imports a split root with a query (a fresh instance comes from
-      srcjoin.freshUrl).
+      srcjoin.freshUrl). The scans of what ships (updatercheck's list of names, sinkcheck's scans) read the real bytes through
+      srcjoin.raw. A name a root exports through a glue line is imported by no script but its own parts.
    4. systemcore.js, when it is split: the real module graph and the joined text, each imported, give the same API object (the same
       keys in the same order, the same kind of value for each, the same name and length for each function and the same JSON for each
       other value), and the same exports but for the names the root re-exports to its parts.
    5. net.js, when it is split: fuzzcheck runs twice, once on the joined text and once on a bundle of the real wiring, in which each
-      part sees only the names it imports (srcjoin.bundle); both give the same lines and the same exit code. That is the behavior pass:
-      a part function that misses an import throws only when its path runs, and fuzzcheck's world runs the paths.
+      part sees only the names it imports (srcjoin.bundle); both give the same lines, each as many times, and the same exit code. That
+      is the behavior pass: a part function that misses an import throws only when its path runs, and fuzzcheck's world runs the paths.
+      It is the whole of fuzzcheck, its seeded mutations included, twice at once (some 40 seconds). It runs each part in sloppy mode
+      (a scope made with `with` cannot be strict), while the browser runs it as a strict module; what only strict mode would refuse is
+      judged statically in 2.
    6. Under the wrap a part reads as one neutral line, and each marker of a suite in a part's body stands in the joined root as often
       as in the part.
    `node tools/splitcheck.js --against <commit>` also proves the joined text of each root equal to that commit's (joined) root: the raw
@@ -52,6 +58,10 @@ const git = (args, enc) => { const r = cp.spawnSync('git', args, { cwd: ROOT, en
     // ---- 1. the shape ----
     const attrs = (() => { try { return fs.readFileSync(path.join(ROOT, '.gitattributes'), 'utf8').replace(/\r\n/g, '\n'); } catch (e) { return ''; } })();
     const SUITE_MARK = /\[(?!split:)[a-z0-9]+:[A-Za-z0-9_-]+\]/;
+    // A root git keeps byte for byte says so by a line of its own in .gitattributes (net.js: git would keep it so by itself today, only
+    // because it holds two control bytes, and a later cut could move them into a part). Its parts then need the same line.
+    const attrLine = n => attrs.split('\n').map(l => l.trim()).indexOf('system/app/scripts/' + n + ' -text') >= 0;
+    const gitBinary = n => (git(['ls-files', '--eol', 'system/app/scripts/' + n]) || '').indexOf('i/-text') >= 0;
     parts.forEach(p => {
         const root = srcjoin.rootOf(p), bad = [];
         if (!/^[a-z0-9]+\.js$/.test(p)) bad.push('its name');
@@ -72,9 +82,8 @@ const git = (args, enc) => { const r = cp.spawnSync('git', args, { cwd: ROOT, en
         const body = after.slice(ibs + 1, ibe);
         if (body.some(l => l.indexOf('// [split:') >= 0)) bad.push('a split line in its body');
         [after[0], after[1], after[after.length - 2], after[after.length - 1]].forEach(l => { if (SUITE_MARK.test(String(l))) bad.push('a suite marker in glue'); });
-        const rootRaw = root ? srcjoin.raw(root, 'latin1') : '';
-        const rootBin = /\r\n/.test(rootRaw) && (git(['ls-files', '--eol', 'system/app/scripts/' + root]) || '').indexOf('i/-text') >= 0;
-        if (rootBin && attrs.split('\n').indexOf('system/app/scripts/' + p + ' -text') < 0) bad.push('.gitattributes has no -text line for it');
+        const rootBin = !!root && attrLine(root);
+        if (rootBin && !attrLine(p)) bad.push('.gitattributes has no -text line for it');
         check('the shape of ' + p + ': named in lower case, its root ' + root + ' names it once, a header of comments, its import from the root, its install, its body, its return and its closing line, no suite marker in its glue' + (rootBin ? ', and -text in .gitattributes as its root is' : ''), bad.length === 0, bad);
     });
     roots.forEach(r => {
@@ -105,7 +114,8 @@ const git = (args, enc) => { const r = cp.spawnSync('git', args, { cwd: ROOT, en
             bad.push('a glue line of no known form: ' + l.slice(0, 120));
         });
         lines.forEach(l => { if (l.indexOf('// [split:glue]') >= 0 && SUITE_MARK.test(l)) bad.push('a suite marker in glue'); });
-        check('the shape of ' + r + ': each part named once by its marker line, the line after it binding exactly the names the part returns, each part imported once and after every other import, every glue line of a known form with no suite marker', bad.length === 0, bad);
+        if (gitBinary(r) && !attrLine(r)) bad.push('git keeps it byte for byte, but .gitattributes has no -text line of its own to keep it so');
+        check('the shape of ' + r + ': each part named once by its marker line, the line after it binding exactly the names the part returns, each part imported once and after every other import, every glue line of a known form with no suite marker, and a -text line of its own in .gitattributes where git keeps it byte for byte', bad.length === 0, bad);
     });
 
     // ---- 2. the names ----
@@ -116,6 +126,14 @@ const git = (args, enc) => { const r = cp.spawnSync('git', args, { cwd: ROOT, en
         check(r + ': the joined text parses and every name is judged (' + regions.length + ' parts)', !err, err && String(err.stack || err).slice(0, 400));
         if (!res) return;
         check(r + ': no name is assigned across a cut, none is declared on both sides, and no statement that runs before a part is installed reaches one of its names', res.problems.length === 0, res.problems.slice(0, 10));
+        // The behavior pass runs each part in sloppy mode (srcjoin.bundle cannot be strict), so what only strict mode refuses is
+        // judged here: no part assigns a name declared nowhere (a strict module throws there; sloppy code would make a global).
+        const starts = L.lineStarts(J.text), undeclared = res.A.refs.filter(x => x.write && !x.at).map(x => ({ name: x.name, line: L.lineOf(starts, x.start) })).filter(x => regions.some(g => x.line >= g.from && x.line <= g.to));
+        check(r + ': no part assigns a name declared nowhere (what only strict mode would refuse, which the sloppy behavior pass cannot see)', undeclared.length === 0, undeclared.slice(0, 10));
+        // A module in an import cycle with the root may run its top-level code before a part is installed (splitlib.cycleRisks).
+        let cyc = null, cycErr = null;
+        try { cyc = L.cycleRisks(r, res); } catch (e) { cycErr = e; }
+        check(r + ': no module in an import cycle with it' + (cyc ? ' (' + cyc.inCycle.length + ': ' + cyc.inCycle.slice(0, 6).join(', ') + (cyc.inCycle.length > 6 ? ', ...' : '') + ')' : '') + ' reaches, in its top-level code, a name the root binds from a part, directly or through a root function it calls', !cycErr && cyc.risks.length === 0, cycErr ? String(cycErr.stack || cycErr).slice(0, 400) : cyc.risks.slice(0, 10));
         const RA = L.analyze(srcjoin.raw(r, 'utf8')), exported = new Set(RA.exports.map(e => e.exported)), rootNames = RA.mod.names;
         regions.forEach(reg => {
             const g = L.partGlue(reg.part), imp = new Set(g.imports || []), ret = new Set(g.returns || []);
@@ -145,6 +163,38 @@ const git = (args, enc) => { const r = cp.spawnSync('git', args, { cwd: ROOT, en
         const miss = ['overlay.js', 'sbscan.js', 'sbv2.js'].filter(f => { try { return fs.readFileSync(path.join(priv, 'tools', f), 'utf8').indexOf("require(path.join(ROOT, 'tools', 'srcjoin.js')).install();") < 0; } catch (e) { return true; } });
         check('the private bridge\'s overlay.js, sbscan.js and sbv2.js install srcjoin (' + priv + ')', miss.length === 0, miss);
     } else console.log('note      the private bridge folder is not here: its three entry files are not judged');
+    // A scan of what ships reads the real bytes: under the wrap a part reads as one neutral line, so its header comment and its glue
+    // lines, which ship, would be read by nothing. The website's list of names (updatercheck) and the page's security scans (sinkcheck)
+    // read every script through srcjoin.raw; the line each reads with is held here, and raw is proven to answer a part's real bytes.
+    const SHIPPED = [['updatercheck.js', "let b = null; try { b = require('./srcjoin').raw(path.join(ROOT, f)); } catch (e) { continue; }"], ['sinkcheck.js', "allScripts = scriptNames.map(f => [f, require('./srcjoin').raw(path.join(dir, f), 'utf8').replace(/\\r\\n/g, '\\n')]);"]];
+    const plainRead = SHIPPED.filter(s => { try { return fs.readFileSync(path.join(__dirname, s[0]), 'utf8').indexOf(s[1]) < 0; } catch (e) { return true; } }).map(s => s[0]);
+    const rawReal = parts.every(p => { const t = srcjoin.raw(path.join(SCRIPTS, p), 'latin1'); return t.indexOf('// [split:of ' + srcjoin.rootOf(p) + ']') >= 0 && t.indexOf('// [split:glue]') >= 0 && t.indexOf(srcjoin.BODY_START) >= 0; });
+    check('the scans of what ships (updatercheck\'s list of names the website refuses, sinkcheck\'s scans of every script) read each script through srcjoin.raw, which answers a part\'s real bytes, its header and glue included', plainRead.length === 0 && rawReal, { plainRead: plainRead, rawReal: rawReal });
+
+    // ---- 3b. a name a root exports through a glue line is for its own parts alone ----
+    // The glue re-exports some of the root's private names (a sink, a helper) so that a part can import them. Any module may import
+    // what is exported, so this holds that only the root's own parts do, through a static import or a namespace import's member.
+    roots.forEach(r => {
+        const rawR = srcjoin.raw(r, 'latin1'), glueNames = new Set();
+        rawR.split('\n').map(bare).forEach(l => { const m = /^export \{ (.*) \};   \/\/ \[split:glue\]$/.exec(l); if (m) m[1].split(', ').forEach(n => glueNames.add(n)); });
+        // names the joined text (the old file) exports already are no new door
+        L.parse(srcjoin.joinRoot(r).text).body.forEach(s => {
+            if (s.type !== 'ExportNamedDeclaration') return;
+            s.specifiers.forEach(sp => glueNames.delete(sp.exported.name || sp.exported.value));
+            const d = s.declaration; if (!d) return;
+            if (d.id) glueNames.delete(d.id.name);
+            (d.declarations || []).forEach(x => { if (x.id && x.id.type === 'Identifier') glueNames.delete(x.id.name); });
+        });
+        const own = new Set(srcjoin.partsOf(r)), esc = r.replace('.', '\\.'), bad = [];
+        files.filter(f => f !== r && !own.has(f)).forEach(f => {
+            const t = srcjoin.raw(f, 'latin1');
+            const named = new RegExp("import\\s*\\{([^}]*)\\}\\s*from\\s*['\"]\\./" + esc + "['\"]", 'g'); let m;
+            while ((m = named.exec(t))) m[1].split(',').map(s => s.trim().split(/\s+as\s+/)[0].trim()).filter(n => glueNames.has(n)).forEach(n => bad.push(f + ' imports ' + n));
+            const ns = new RegExp("import\\s*\\*\\s*as\\s+([A-Za-z_$][\\w$]*)\\s+from\\s*['\"]\\./" + esc + "['\"]", 'g');
+            while ((m = ns.exec(t))) { const a = m[1]; glueNames.forEach(n => { if (new RegExp('\\b' + a.replace(/\$/g, '\\$') + '\\s*\\.\\s*' + n.replace(/\$/g, '\\$') + '\\b').test(t)) bad.push(f + ' reads ' + a + '.' + n); }); }
+        });
+        check(r + ': the ' + glueNames.size + ' names it exports through a glue line alone (for its parts) are imported by no other script', bad.length === 0, bad.slice(0, 10));
+    });
 
     // ---- 4. systemcore: the real graph against the joined text ----
     if (srcjoin.isRoot('systemcore.js')) {
@@ -177,7 +227,11 @@ const git = (args, enc) => { const r = cp.spawnSync('git', args, { cwd: ROOT, en
         });
         const [j, b] = await Promise.all([run(false), run(true)]);
         const norm = s => s.replace(/\r\n/g, '\n').replace(/\b\d+(\.\d+)?\s*(ms|s)\b/g, '<t>').replace(/(tools[\\\/][a-z0-9]+\.js):\d+:\d+/g, '$1').split('\n').filter(Boolean).sort();
-        const nj = norm(j.text), nb = norm(b.text), onlyJ = nj.filter(x => nb.indexOf(x) < 0).slice(0, 5), onlyB = nb.filter(x => nj.indexOf(x) < 0).slice(0, 5);
+        // compared as counts, line by line: a line printed twice in one run and once in the other is a difference
+        const counts = a => { const m = new Map(); a.forEach(x => m.set(x, (m.get(x) || 0) + 1)); return m; };
+        const nj = norm(j.text), nb = norm(b.text), cj = counts(nj), cb = counts(nb);
+        const over = (x, y) => [...x].filter(([k, n]) => (y.get(k) || 0) !== n).map(([k, n]) => n + 'x ' + k + ' (other run ' + (y.get(k) || 0) + 'x)');
+        const onlyJ = over(cj, cb).slice(0, 5), onlyB = over(cb, cj).slice(0, 5);
         check('net.js: fuzzcheck gives the same lines and exit code on the joined text and on the real wiring, each part seeing only what it imports (' + nj.length + ' lines, exit ' + j.code + ')', j.code === b.code && !onlyJ.length && !onlyB.length && /net\.js loads whole/.test(b.text), { exit: [j.code, b.code], joinedOnly: onlyJ, realOnly: onlyB });
     }
 
@@ -206,7 +260,7 @@ const git = (args, enc) => { const r = cp.spawnSync('git', args, { cwd: ROOT, en
                 }).filter(l => l !== null).join('\n');
             }
             const now = srcjoin.isRoot(r) ? srcjoin.joinRoot(r).text : srcjoin.raw(r, 'latin1');
-            const keptBytes = (git(['ls-files', '--eol', 'system/app/scripts/' + r]) || '').indexOf('i/-text') >= 0;
+            const keptBytes = attrLine(r) || gitBinary(r);
             if (keptBytes) check(r + ': its joined text is the one at ' + argAgainst + ', byte for byte (git keeps it so)', now === oldTxt, 'joined ' + now.length + ' bytes, old ' + oldTxt.length);
             else {
                 const eolNow = now.indexOf('\r\n') >= 0, mixed = eolNow ? /[^\r]\n/.test(now) : false;

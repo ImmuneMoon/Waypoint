@@ -10,7 +10,10 @@
    - the two hard failures: a name assigned across the cut (an import is read-only, a glue var is a copy), and a name declared on
      both sides;
    - the load order: a top-level statement that runs before a part is installed, and reaches one of its names directly or through
-     any chain of functions it calls, would see undefined.
+     any chain of functions it calls, would see undefined;
+   - the load order across modules (cycleRisks): a module in an import cycle with the root may run its top-level code before the
+     root's body has installed a part, so its top-level code may not reach a name the root binds from a part, directly or through a
+     root function it calls.
    On the command line it makes a cut:
      node --expose-internals tools/splitlib.js make <root.js> <part.js> <installName> <first line starts with> <last line starts with> <header file>
    It writes the part (its header from the file, the glue, the body exactly), rewrites the root (the marker, the binding line, the
@@ -247,7 +250,60 @@ function judge(src, regions) {
         wordNeed[r.part] = new Set([...inP].filter(w => { const s = declRegion.get(w); return s && ![...s].includes(r.part); }));
         wordGive[r.part] = new Set([...outside].filter(w => { const s = declRegion.get(w); return s && s.size === 1 && s.has(r.part); }));
     });
-    return { A, need, give, wordNeed, wordGive, problems, declRegion };
+    // What a top-level function of the joined text reaches when it is called: every name it reads, through the functions it calls.
+    const fnReach = name => { const seen = new Set(), done = new Set(), todo = [name]; while (todo.length) { const n = todo.pop(); if (done.has(n)) continue; done.add(n); (fnUses.get(n) || []).forEach(x => seen.add(x)); (fnCalls.get(n) || []).forEach(x => todo.push(x)); } return seen; };
+    return { A, need, give, wordNeed, wordGive, problems, declRegion, fnReach };
+}
+
+// ---------- a module in an import cycle with a root ----------
+// A moved function declaration becomes a `var` of the root, bound by its glue line once the part is installed, and undefined before.
+// The load-order rule of judge() reads the root's own text only. A module in an import cycle with the root may be evaluated BEFORE the
+// root's body runs (which one comes first depends on where the page enters the cycle), and if its top-level code then reaches a name
+// the root binds from a part, directly or by calling a root function that reaches one, it sees undefined. cycleRisks says where.
+// The graph is read from each script's real text, so an import inside a comment adds an edge: too many rather than too few.
+const IMPORT_RE = /^[ \t]*(?:import|export)\b[^;'"]*?\bfrom[ \t]*['"]\.\/([A-Za-z0-9_.-]+\.js)['"]|^[ \t]*import[ \t]*['"]\.\/([A-Za-z0-9_.-]+\.js)['"]/gm;
+function importGraph() {
+    const g = new Map();
+    fs.readdirSync(SCRIPTS).filter(f => f.endsWith('.js')).forEach(f => {
+        const t = srcjoin.raw(f, 'latin1'), out = new Set();
+        IMPORT_RE.lastIndex = 0; let m;
+        while ((m = IMPORT_RE.exec(t))) out.add(m[1] || m[2]);
+        g.set(f, out);
+    });
+    return g;
+}
+// judged: what judge() gave for the joined text and its regions; extra: a part about to be cut ({ part, returns }), so that the cut
+// maker can ask before it writes anything.
+function cycleRisks(rootName, judged, extra) {
+    const g = importGraph(), parts = new Set(srcjoin.partsOf(rootName));
+    if (extra) parts.add(extra.part);
+    const reach = from => { const seen = new Set(), todo = [from]; while (todo.length) { const n = todo.pop(); (g.get(n) || []).forEach(x => { if (!seen.has(x)) { seen.add(x); todo.push(x); } }); } return seen; };
+    const fwd = reach(rootName);
+    const inCycle = [...fwd].filter(m => m !== rootName && !parts.has(m) && reach(m).has(rootName));
+    const bound = new Set(); parts.forEach(p => { if (extra && p === extra.part) (extra.returns || []).forEach(n => bound.add(n)); else (partGlue(p).returns || []).forEach(n => bound.add(n)); });
+    const partOf = n => { const s = judged.declRegion.get(n); if (!s || s.size !== 1) return null; const h = [...s][0]; return h && parts.has(h) ? h : null; };
+    const touches = n => (bound.has(n) ? n : [...judged.fnReach(n)].find(x => partOf(x)) || null);
+    const risks = [];
+    inCycle.forEach(m => {
+        const A = analyze(srcjoin.raw(m, 'utf8'));
+        const fromRoot = new Map(); A.imports.forEach((v, local) => { if (v.from === './' + rootName) fromRoot.set(local, v.imported); });
+        if (!fromRoot.size) return;
+        const fnUses = new Map(), fnCalls = new Map(), stmtUses = [], stmtCalls = [];
+        const add = (mp, k, v) => { if (!mp.has(k)) mp.set(k, new Set()); mp.get(k).add(v); };
+        A.refs.forEach(r => {
+            if (!r.module || !r.eager) return;
+            const s = A.top[r.top];
+            if (r.fn && (s.type === 'FunctionDeclaration' || s.type === 'VariableDeclaration')) { add(fnUses, r.fn, r.name); if (r.call) add(fnCalls, r.fn, r.name); }
+            else { (stmtUses[r.top] = stmtUses[r.top] || new Set()).add(r.name); if (r.call) (stmtCalls[r.top] = stmtCalls[r.top] || new Set()).add(r.name); }
+        });
+        stmtUses.forEach((uses, i) => {
+            if (!uses || /^Export|^Import/.test(A.top[i].type)) return;
+            const seen = new Set(uses), done = new Set(), todo = [...(stmtCalls[i] || [])];
+            while (todo.length) { const n = todo.pop(); if (done.has(n)) continue; done.add(n); (fnUses.get(n) || []).forEach(x => seen.add(x)); (fnCalls.get(n) || []).forEach(x => todo.push(x)); }
+            seen.forEach(local => { if (!fromRoot.has(local)) return; const t = touches(fromRoot.get(local)); if (t) risks.push({ module: m, name: fromRoot.get(local), reaches: t, line: lineOf(lineStarts(A.src), A.top[i].start) }); });
+        });
+    });
+    return { inCycle, risks };
 }
 
 // The names a part's real glue says it imports and returns, and what its root's glue binds and exports.
@@ -293,6 +349,9 @@ function makeCut(rootName, partName, install, firstStarts, lastStarts, header) {
     if (J2.problems.length) { const e = new Error('the cut breaks a rule:\n' + J2.problems.map(p => '  ' + JSON.stringify(p)).join('\n')); e.problems = J2.problems; throw e; }
     const imports = [...new Set([...J2.need[partName], ...J2.wordNeed[partName]])].sort();
     const returns = [...new Set([...J2.give[partName], ...J2.wordGive[partName]])].sort();
+    // A module in an import cycle with the root whose top-level code would reach one of the moved names before the part is installed.
+    const cyc = cycleRisks(rootName, J2, { part: partName, returns: returns });
+    if (cyc.risks.length) { const e = new Error('the cut breaks the load order of a module in a cycle with ' + rootName + ':\n' + cyc.risks.map(p => '  ' + JSON.stringify(p)).join('\n')); e.problems = cyc.risks; throw e; }
     // The root's names it must export for the part: those it does not export already.
     const R = analyze(srcjoin.raw(rootName, 'utf8'));
     const exported = new Set(R.exports.map(e => e.exported));
@@ -333,7 +392,7 @@ function makeCut(rootName, partName, install, firstStarts, lastStarts, header) {
     return { part, root: out.join('\n'), imports, returns, reexport, region };
 }
 
-module.exports = { acorn, parse, analyze, judge, regionsOf, partGlue, makeCut, lineStarts, lineOf, GLUE_IMPORT };
+module.exports = { acorn, parse, analyze, judge, regionsOf, partGlue, makeCut, lineStarts, lineOf, GLUE_IMPORT, importGraph, cycleRisks };
 
 if (require.main === module) {
     const a = process.argv.slice(2);

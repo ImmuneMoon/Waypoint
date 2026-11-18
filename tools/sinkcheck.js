@@ -551,7 +551,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     /* ---- cluster P of the outside audit: the page runs only the app's own files (the policy both servers send says so; a script written into the page or a handler attribute would simply stop working) ---- */
     {
         const j = JSON.stringify, crypto = require('crypto'), appDir = path.join(dir, '..'), repo = path.join(appDir, '..', '..'), vendor = path.join(appDir, 'assets', 'vendor');
-        const scriptNames = fs.readdirSync(dir).filter(f => f.endsWith('.js')).sort(), allScripts = scriptNames.map(f => [f, read(f)]);
+        const scriptNames = fs.readdirSync(dir).filter(f => f.endsWith('.js')).sort(), allScripts = scriptNames.map(f => [f, require('./srcjoin').raw(path.join(dir, f), 'utf8').replace(/\r\n/g, '\n')]);   // what ships, byte for byte: a part of a split giant with its header and glue, a root with its glue lines (tools/splitcheck.js holds this line)
         check('mermaid config: there is one, in scripts/bootdiagram.js — the page holds none of its own and no other script writes it — and it starts the library once the page is parsed',
             !!mm && (idx + allScripts.map(p => p[1]).join('\n')).split('window.wpMermaidConfig = ').length === 2 && !/wpMermaidConfig/.test(idx) && /document\.addEventListener\("DOMContentLoaded", function\(\) \{\n\s*if \(window\.mermaid\) \{\n\s*mermaid\.initialize\(window\.wpMermaidConfig\);/.test(bootDiagram));
         // every <script> of the page, as the parser reads them

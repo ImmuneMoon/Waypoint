@@ -118,14 +118,16 @@ function answer(latin1, opts) {
     return enc ? buf.toString(enc) : buf;
 }
 
-// The name of a scripts-folder file a path names, or null.
+// The name of a scripts-folder file a path names, or null. The folder is found ignoring case (Windows paths come in any case), but
+// the name handed back keeps the case the path wrote: on a disk whose names have case (Linux, as on CI) the file is opened by that
+// very name, and a lowered one would not be found.
 function scriptName(p) {
     if (p instanceof URL) { try { p = url.fileURLToPath(p); } catch (e) { return null; } }
     if (typeof p !== 'string') return null;
-    const k = key(p);
+    const full = path.resolve(String(p)), k = full.toLowerCase();
     if (k.indexOf(scriptsKey) !== 0) return null;
-    const rest = k.slice(scriptsKey.length);
-    return /^[a-z0-9._-]+\.js$/.test(rest) ? rest : null;
+    const rest = full.slice(scriptsKey.length);
+    return /^[A-Za-z0-9._-]+\.js$/.test(rest) ? rest : null;
 }
 
 function joined(p, opts) {
@@ -182,6 +184,10 @@ function freshUrl(name, tag) {
 // resolves only through the names the part imports (a getter for each, so the bindings stay live) and then through the globals.
 // A name the part uses but does not import is then a ReferenceError there, as it would be in the browser. The root's glue export
 // lines are dropped (a function body can hold no export); everything else of the root is as it is.
+// One thing the bundle does NOT give: strict mode. A scope made with `with` cannot be strict, so each part runs here in sloppy mode,
+// while the browser runs every part as a strict module. A failure that only strict mode raises (an assignment to a name declared
+// nowhere, a write to an import binding, which is a getter here and fails in silence) is not caught by the behavior pass. The static
+// rules of splitcheck 2 cover the writes across a cut, and fuzzcheck's own run of the joined text was sloppy too, so little rests on it.
 function bundle(name) {
     const txt = rawBytes(name).toString('latin1');
     const lines = txt.split('\n');

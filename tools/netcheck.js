@@ -9918,6 +9918,16 @@ pendingChecks.push((async () => {
     check('Lighting: a client cleans the Sight unit its host sends again — feet, meters or cells are kept, anything else is dropped (the unit it had goes with it) and nothing but the known keys comes in — then works the fog out afresh and redraws; another peer changes nothing',
         j(c1) === j([{ fields: { sight: 'f_sight', sightUnit: 'ft' }, defaults: { sight: 9 } }, ['inv', 'draw']]) && j(c2) === j([{ fields: { sight: 'f_sight' }, defaults: { sight: 9 } }, ['inv', 'draw']]) && j(c3) === j([{ fields: { sightUnit: 'cells' }, defaults: { sight: 9 } }, ['inv', 'draw']])
         && j(c4) === j([{ fields: {}, defaults: { sight: 9 } }, ['inv', 'draw']]) && j(c6) === j(c4) && j(c5) === j([{ defaults: { sight: 2 }, fields: { sightUnit: 'm' } }, []]), j([c1, c2, c3, c4, c5, c6]));
+    {   // 1.6.3 (the owner, 2026-11-18, by prompt: "A setting"): how dark players' fog is travels with the campaign fog defaults, cleaned by the
+        // host as it sends (campFogMessage) and again by a player's app as it takes them (the client's campFog branch); solid is no key
+        const dkSend = [90, 84.6, 10, 100, 120, 'dark', null].map(v => rmOf({ dark: v }).dark);
+        const mkD = v => ({ type: 'campFog', campId: 'k_1', fog: { defaults: { sight: 9, dark: v } } }), dkTake = [92, 70, 99.7, '80', { valueOf: () => 85 }, -Infinity].map(v => runL(mkD(v), 'host1')[0].defaults.dark);
+        const dkEvil = runL(mkD(85), 'evil')[0].defaults.dark;
+        const campDk = { id: 'k_1', fog: { defaults: { sight: 6 } } }, hD = hostL(campDk); hD.net.syncCampFog(); campDk.fog.defaults.dark = 88; hD.net.syncCampFog(); hD.net.syncCampFog();
+        check('1.6.3 how dark players\' fog is: the host sends the campaign\'s "dark" with the fog defaults only as a whole percent from 80 to 99 (below 80 held to 80; 100 or more and anything that is no number, solid, no key); a change of it alone goes to admitted players once; a player\'s app cleans what its host sends again by the same rule, and another peer\'s word changes nothing',
+            j(dkSend) === j([90, 85, 80, undefined, undefined, undefined, undefined]) && j(dkTake) === j([92, 80, undefined, undefined, undefined, undefined]) && dkEvil === undefined
+            && hD.sent.a.length === 2 && hD.sent.a[1].fog.defaults.dark === 88 && hD.sent.a[0].fog.defaults.dark === undefined && hD.sent.w.length === 0, j([dkSend, dkTake, dkEvil, hD.sent.a]));
+    }
 
     // (b) an item's light as a client keeps it
     const lineL = k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); if (src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' is not unique'); return src.slice(i, src.indexOf('\n', i)); };

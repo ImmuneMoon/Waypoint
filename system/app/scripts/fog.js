@@ -2245,6 +2245,17 @@ function partyTiers(map, grid) {
     });
     return { list: list, keys: keys };
 }
+// 1.6.3 (the owner, 2026-11-18, by prompt: "A setting"): how dark the fog is over ground a player has never seen, as the alpha draw fills it
+// with on a player's screen and in the stream window. It reads the campaign's fog default "dark" (a whole percent) by fogcore cleanFogDark's
+// own rule, written out here so that it holds with no core at hand: no number, or 100 or more, is solid (1); below 80 is held to 80. The
+// fog menu's "How dark players' fog is" slider sets it, and a player's app gets it with the campaign fog defaults (net.js campFog). Remembered
+// ground and a dim cell keep their look against it, since both are drawn as a share of this very fill
+function veilAlpha(camp) {
+    var d = camp && camp.fog && typeof camp.fog === 'object' && camp.fog.defaults && typeof camp.fog.defaults === 'object' ? camp.fog.defaults.dark : undefined;
+    if (typeof d !== 'number' || !isFinite(d)) return 1;
+    var n = Math.round(d); if (n >= 100) return 1;
+    return Math.max(80, n) / 100;
+}
 function draw() {
     if (typeof capsShow === 'function') capsShow(false);           // the board shows the distances again unless this frame draws them over the fog
     var s = screenEl(), wrap = ui('whiteboardWrap'), C = core(); if (!s || !wrap || !C) return;
@@ -2305,7 +2316,8 @@ function draw() {
         else { ctx.beginPath(); for (var mi = 0; mi < mask.cells.length; mi++) traceCell(mask.cells[mi]); ctx.clip(); }
     }
     ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = isClientView() || isStreamView() ? 'rgba(5,6,12,0.97)' : 'rgba(9,11,20,0.62)';   // players and the stream window: opaque; the GM: see-through
+    var veil = 'rgba(5,6,12,' + (typeof veilAlpha === 'function' ? veilAlpha(camp) : 1) + ')';   // 1.6.3: players' fog, as dark as the campaign says (solid by default)
+    ctx.fillStyle = isClientView() || isStreamView() ? veil : 'rgba(9,11,20,0.62)';   // players and the stream window: opaque; the GM: see-through
     if (turnV) { var dg = Math.hypot(W, H); ctx.fillRect(-dg, -dg, W + 2 * dg, H + 2 * dg); } else   // turned, the fill covers the screen's turned corners too
     ctx.fillRect(0, 0, W, H);                                      // one flat fill (clipped to the mask when set) — no per-cell alpha seams
     ctx.globalCompositeOperation = 'destination-out';
@@ -2323,7 +2335,7 @@ function draw() {
     var fillP = function(p) { if (pp) { if (p) { ctx.save(); ctx.translate(-sx, -sy); ctx.fill(p); ctx.restore(); } } else ctx.fill(); };
     if (anyDim) {
         if (!pp) { ctx.beginPath(); for (var dj = 0; dj < tl.length; dj++) if (tk[tl[dj].key] === 1) traceCell(tl[dj].cell); }
-        if (memLay) { ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = 'rgba(5,6,12,0.97)'; fillP(pp && pp.dim); ctx.globalCompositeOperation = 'destination-out'; }   // a dim cell it remembers is as dim as any other
+        if (memLay) { ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = veil; fillP(pp && pp.dim); ctx.globalCompositeOperation = 'destination-out'; }   // a dim cell it remembers is as dim as any other
         ctx.fillStyle = 'rgba(0,0,0,0.5)'; fillP(pp && pp.dim);
     }
     ctx.fillStyle = 'rgba(0,0,0,1)';
@@ -2884,6 +2896,7 @@ function syncMenu() {
     var vdef = ui('fogVisionDefault'); if (vdef) { var dv = cf.defaults.vision; vdef.checked = !!(dv && dv.mode === vis.mode && (dv.mode === 'all' || dv.arc === vis.arc)); }
     var fDef = ui('fogOnDefault'); if (fDef) fDef.checked = !!cf.defaults.on;   // "new maps start with fog on" (campaign default)
     var frem = ui('fogRemember'); if (frem) frem.checked = cf.defaults.remember !== false;   // senses S6: players remember what they have seen
+    var fdark = ui('fogDark'); if (fdark && document.activeElement !== fdark) fdark.value = String(typeof cf.defaults.dark === 'number' ? cf.defaults.dark : 100);   // 1.6.3: how dark players' fog is (absent: solid)
     var lrow = ui('fogLightRow'); if (lrow) lrow.style.display = lightingOn() ? '' : 'none';   // lighting: the map's light
     var lsel = ui('fogLight'); if (lsel && document.activeElement !== lsel) lsel.value = mf.light === 'bright' || mf.light === 'dim' || mf.light === 'dark' ? mf.light : 'auto';
     var fEmpty = ui('fogEmptyScope'); if (fEmpty && document.activeElement !== fEmpty) fEmpty.value = cf.defaults.emptyFog === 'none' ? 'none' : 'whole';   // what a map with no play area marked does
@@ -3058,6 +3071,18 @@ var LIGHT_SAID = {
         if (!frem.checked) hostMemForgetAll(camp);   // the review of 1.6.3 (finding 13): no ground is kept for anyone, so the host's kept ground of every map goes too
         save(); syncMenu();
         toast(frem.checked ? 'Players now keep the ground they have seen, dimmed, each on their own screen.' : 'Players no longer keep the ground they have seen.');
+    });
+    // 1.6.3 (the owner, 2026-11-18, by prompt: "A setting"): how dark players' fog is, from 80% to solid. Kept only through fogcore
+    // cleanFogDark (solid stores no key); the save tells the table at once, through the campaign fog defaults (net.js syncCampFog). Stored
+    // at the slider's change (a drag's end, or a figure typed in its box), never at each step of a drag
+    var fdark = ui('fogDark');
+    if (fdark) fdark.addEventListener('change', function() {
+        var camp = activeCamp(), C = core(); if (!camp || !C || !C.cleanFogDark) return; var cf = campFog(camp);
+        var dk = C.cleanFogDark(Number(fdark.value));
+        if (dk === cf.defaults.dark) { syncMenu(); return; }
+        if (dk === undefined) delete cf.defaults.dark; else cf.defaults.dark = dk;
+        save(); syncMenu(); redraw();
+        toast(dk === undefined ? 'Players\u2019 fog is solid again.' : 'Players\u2019 fog is now ' + dk + '% dark: the map shows through it faintly.');
     });
     var fEmpty = ui('fogEmptyScope');
     if (fEmpty) fEmpty.addEventListener('change', function() {

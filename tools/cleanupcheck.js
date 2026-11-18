@@ -1555,6 +1555,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('a secret door as the app itself writes it (the tick as true on a shut door, a wall\'s, a see-through barrier\'s, a line\'s or a hidden one, with a look as the two cleaners keep one) comes through a Replace and a Merge exactly as it was, key for key; a load is no import: the load\'s own normaliser (io.js migrateAppState, run for real with the fog core at hand) leaves every piece of the GM\'s own save as it stands, so no start of the app loses a secret door, and a door that was found keeps the look named for it there, as it does through a Replace and a Merge',
                 !ldErr && Js(ldWb) === Js(ownBoard()) && Js(wbOf(repl(ownMap, depsS))) === Js(ownWant) && Js(wbOf(merg(ownMap, depsS))) === Js(ownWant) && Js(secOf({ whiteboard: ownWant })) === Js([[true, 'none', 'none'], [true, '#aabbcc', ''], [true, '#3f3b47', 'cobbles'], [true, '#555566', 'none'], [true, 'none', 'none'], ['none', '#aabbcc', 'stone']]),
                 ldErr || Js([Js(ldWb) === Js(ownBoard()), secOf(repl(ownMap, depsS)), secOf(merg(ownMap, depsS))]));
+            {   // 1.6.3 (the owner, 2026-11-18, by prompt: "A setting"): how dark players' fog is, a campaign fog default, cleaned by the load's own
+                // normaliser (io.js migrateAppState, run for real with the fog core), which a Replace and a Merge both shape a file through
+                let dkOut = null, dkErr = '';
+                try {
+                    const migD = new Function('window', 'CATS', 'CURRENT_SCHEMA', 'createNewCampaign', '"use strict";\n' + ioSrc.slice(mi, mk) + '\nreturn function(d) { return migrateAppState(d).data; };')({ wpSystemCore: S, wpFormula: F, wpLibraryCore: LBC, wpFogCore: FCs }, { default: { label: 'Default', color: '#ccc' } }, 2, nm => ({ id: 'camp_v0', name: nm, items: {} }));
+                    const ins = [90, 85.4, 50, -3, 99.6, 100, 140, '90', null, true, { v: 90 }, undefined], cs = {};
+                    ins.forEach((v, i) => { cs['cD' + i] = { id: 'cD' + i, name: 'D' + i, items: {}, fog: { defaults: { sight: 3, dark: v } } }; });
+                    const got = migD({ activeCampaignId: 'cD0', campaigns: cs }).campaigns;
+                    dkOut = ins.map((v, i) => got['cD' + i].fog.defaults.dark === undefined ? 'solid' : got['cD' + i].fog.defaults.dark);
+                } catch (e) { dkErr = String((e && e.message) || e); }
+                check('1.6.3 how dark players\' fog is: a campaign\'s fog default "dark" comes through a load (and so a Replace and a Merge) as a whole percent from 80 to 99, a figure below 80 held to 80, 100 or more, and anything that is no number, solid (no key)',
+                    !dkErr && Js(dkOut) === Js([90, 85, 80, 80, 'solid', 'solid', 'solid', 'solid', 'solid', 'solid', 'solid', 'solid']), dkErr || Js(dkOut));
+            }
 
             // 6. the import's Merge itself: main.js mergeAppState, sliced and run for real
             const mergeSrcS = mainSrc.slice(mainSrc.indexOf('  function mergeAppState(imported) {'), mainSrc.indexOf('var _el_importMergeBtn'));

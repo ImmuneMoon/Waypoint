@@ -52,6 +52,10 @@ Fog of war
   while its message still comes up when their token walks in. A zone now
   fires by its own shape too, so a round or hex zone stays quiet in its
   corners.
+- You can pick how dark your players' fog is, with a slider in This
+  campaign's fog settings that runs from 80% up to solid. It starts
+  solid, where it used to let map art and a bright piece behind a wall
+  show through faintly. Your own fog stays see-through either way.
 
 Smaller things
 - The game clock in the top row shows seconds for the GM. The clock still

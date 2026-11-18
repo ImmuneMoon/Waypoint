@@ -1155,6 +1155,7 @@
                                   <li>Your preview never shows it. A player sees only their own, and a reload or a rejoin brings it back.</li>
                               </ul>
                           </li>
+                          <li><b>How dark players&rsquo; fog is</b>, a slider under This campaign&rsquo;s fog settings, sets their fog from 80% up to solid, the default, while your own fog stays see-through.</li>
                           <li><b>Preview a player&rsquo;s view</b>: the <b>Preview a player&rsquo;s view</b> picker drops the fog onto your own screen as one player, or the whole party, would see it. So you can check a reveal before you make it. Set the picker back to <b>Off</b> to see everything again. Players who are not connected but have a token on this map are in the list too, marked as not connected.</li>
                           <li>The <b><i class="wib wi-eye"></i></b> eye on a selected token&rsquo;s toolbar outlines the area that one token sees. Its sight arc, walls, smoke and its sheet&rsquo;s senses are counted, on any map with a grid, fogged or not. The outline stays on for whichever single token you select until you press the eye again. It is drawn for you alone and never dims the map.</li>
                       </ul>
@@ -4107,6 +4108,11 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <div style="font-size:11px; color:var(--dim); padding:0 2px 4px;">On your own turn keeps a lone player from matching a moving mark to a turn; it does not hide what players tell each other.</div>
                       </div>
                       <label class="draw-menu-row" style="align-items:center; gap:6px; cursor:pointer; font-size:11px; color:var(--dim);" title="Each player keeps the ground they have explored, dimmed, from one session to the next. Remembered ground shows every piece on it that is not a character token, as it is now (a prop, a picture, an opened door); creatures there stay hidden. Cover all clears everyone&rsquo;s memory of the map; hiding a cell by hand clears that cell."><input type="checkbox" id="fogRemember"> <span>Players remember what they have seen</span></label>
+                      <div class="menu-block" title="How dark the fog is on players&rsquo; screens and in the stream window, over ground they have never seen. Solid hides the map completely; a lower figure lets map art and bright pieces show through faintly. Your own fog stays see-through.">
+                          <div class="draw-menu-label">How dark players&rsquo; fog is</div>
+                          <input type="range" id="fogDark" min="80" max="100" step="1" value="100" style="width:100%;" data-typed data-unit="%" aria-label="How dark players&rsquo; fog is, in percent">
+                          <div style="font-size:11px; color:var(--dim); padding:0 2px 4px;">100% is solid. Ground they remember and dim light keep their look against it.</div>
+                      </div>
                   </div>
               </div>
           </div>

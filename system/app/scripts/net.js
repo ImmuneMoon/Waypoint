@@ -12939,7 +12939,8 @@ function landAttRead(a, rec, camp) {
 function landRead(r, camp) {
     if (!r || typeof r !== 'object' || typeof r.id !== 'string' || !LAND_ID.test(r.id) || (r.st !== 'wait' && r.st !== 'card' && r.st !== 'send') || !camp || !camp.chars) return null;
     var cid = function(x) { return typeof x === 'string' && x.length <= 80 && own(camp.chars, x) ? x : ''; }, txt = function(x, n) { return typeof x === 'string' ? x.replace(/[\u0000-\u001f\u007f]+/g, ' ').slice(0, n) : ''; };
-    var by = cid(r.by), to = cid(r.to), S = SC(); if (!by || !to || by === to || !S || typeof S.withRange !== 'function') return null;
+    var by = cid(r.by), to = cid(r.to), S = SC(); if (!by || !to || !S || typeof S.withRange !== 'function') return null;
+    if (by === to && !(typeof r.hops === 'number' && r.hops > 0 && cid(r.sby) && r.sby !== to)) return null;   // the review of defense fold 4 (finding 4): an attack sent on may come back at the one who made it, so that is no fault where another sent it
     var rg = r.range && typeof r.range === 'object' ? (S.withRange({}, r.range) || {}).range : null; if (!rg) return null;
     var out = { id: r.id, st: r.st, at: typeof r.at === 'number' && isFinite(r.at) ? r.at : Date.now(), by: by, byName: txt(r.byName, 60), to: to, toTok: txt(r.toTok, 80), toName: txt(r.toName, 60), map: txt(r.map, 80), range: rg, hops: typeof r.hops === 'number' && isFinite(r.hops) ? Math.max(0, Math.min(8, Math.floor(r.hops))) : 0, atk: 1, fid: typeof r.fid === 'string' && /^f_[a-z0-9]{8}$/.test(r.fid) ? r.fid : '' };
     if (typeof r.dmg === 'string' && /^r_[A-Za-z0-9_]{1,24}$/.test(r.dmg)) out.dmg = r.dmg; else if (typeof r.dmg === 'number' && Math.floor(r.dmg) === r.dmg && r.dmg >= 0 && r.dmg < 64) out.dmg = r.dmg; else return null;
@@ -12991,7 +12992,7 @@ function landByAway(camp, rec) {
 }
 net.landStuck = function(id) { var r = landOf(id); return !!r && r.st === 'card' && net.role !== 'client' && landByAway(getActiveCampaign(), r); };
 // The roster moved (broadcastRoster): a landing's card may now have nobody to press it, or somebody again, so the GM's chat is drawn again
-function landRosterMoved() { if (_landIds.some(function(id) { return _lands[id] && _lands[id].st === 'card'; }) && typeof renderChatSoon === 'function') renderChatSoon(); }
+function landRosterMoved() { if (_landIds.some(function(id) { return _lands[id] && (_lands[id].st === 'card' || _lands[id].st === 'send'); }) && typeof renderChatSoon === 'function') renderChatSoon(); }   // 1.6.3 (the review of defense fold 4, finding 6): and a card to send it on
 // [netcheck:attland-end]
 // [netcheck:sendon-start]
 // 1.6.3 (defense fold 4; docs/DEFENSE_INTERACTIONS_DESIGN.md 4.3, backlog 243, Fulllion's decision 4 of 2026-11-17 and the core's answers 4 to 6 of the same day).
@@ -13013,11 +13014,12 @@ function sendOnHops(camp) { var c = camp && camp.system && camp.system.combat; v
 function sendOnSay(words) { if (typeof logEvent === 'function') logEvent('table', words); if (typeof toast === 'function') toast(words); return words; }
 function sendOnNames(rec) { return (rec && rec.sbyName ? rec.sbyName : rec && rec.byName ? rec.byName : 'An attacker') + '\u2019s attack on ' + (rec && rec.toName ? rec.toName : 'its target'); }
 // What the GM is told where a line would send an attack on that cannot be: who (the defender's name), and why: 'line', a hit along a line; 'none', an attack
-// with no landing, whose damage is applied by hand and so nothing carries it on
+// with no landing, whose damage is applied by hand and so nothing carries it on; 'gone' (the review of fold 4, finding 5), an attack whose own roll the system no
+// longer holds (a landing saved before this fold, or a roll moved or removed in the System editor while it waited), so nothing could make the next attempt from it
 function sendOnNone(who, why) {
     var nm = String(who || 'A character').slice(0, 60);
     landLog('send none', { why: why });
-    return sendOnSay(nm + '\u2019s defense would send the attack on, but ' + (why === 'line' ? 'an attack along a line cannot be sent on' : 'it names no damage of its own to send') + ', so it stopped it.');
+    return sendOnSay(nm + '\u2019s defense would send the attack on, but ' + (why === 'line' ? 'an attack along a line cannot be sent on' : why === 'gone' ? 'the roll the attack was made with is not there now' : 'it names no damage of its own to send') + ', so it stopped it.');
 }
 // The attack a landing was made by, as a reference: a roll of the system by its id, or a list's roll by its place on the GM's list (f#i). '' where it is neither
 function sendOnEntRef(camp, entry, rowRef) {
@@ -13049,6 +13051,7 @@ function sendOnOffer(camp, id, pick) {
     var tch = camp && camp.chars && own(camp.chars, rec.to) ? camp.chars[rec.to] : null; if (!tch) return false;
     if ((rec.hops || 0) >= sendOnHops(camp)) { landLog('send no further', { hops: rec.hops || 0 }); sendOnSay(sendOnNames(rec) + ' can be sent on no further, so ' + String(tch.name || 'the defense').slice(0, 60) + ' stopped it.'); return false; }
     if (pick.sBad === true) { landLog('send unread', {}); sendOnSay(String(tch.name || 'A character').slice(0, 60) + '\u2019s defense could not work out how far or how well it sends the attack on, so it stopped it.'); return false; }
+    if (!sendOnEnt(camp, rec.ent)) { sendOnNone(tch.name, 'gone'); return false; }   // the review of fold 4 (finding 5): with no roll of its own to make the next attempt from, it is stopped here, never sent on undefended
     var snd = {}; if (a.back === true) snd.back = true;
     if (a.noRoll === true) { snd.noRoll = true; snd.margin = typeof pick.margin === 'number' ? pick.margin : 0; }
     else if (typeof a.roll === 'string' && a.roll) { snd.roll = a.roll; if (typeof pick.mod === 'number' && pick.mod) snd.mod = pick.mod; }
@@ -13072,44 +13075,83 @@ function sendOnPress(camp, id, how, pid, from) {
     if (pid && !(!tch.npc && (tch.ownerId === pid || (typeof handsTo === 'function' && handsTo(tch, pid))))) return 'That attack is not yours to send on.';
     if (how === 'aside') { sendOnEnd(id, 'aside', 'turned aside'); return true; }
     if ((rec.hops || 0) >= sendOnHops(camp)) { sendOnEnd(id, 'aside', 'no further'); sendOnSay(sendOnNames(rec) + ' can be sent on no further, so it was turned aside.'); return true; }
+    if (!sendOnEnt(camp, rec.ent)) { sendOnEnd(id, 'aside', 'no attack'); landLog('send none', { why: 'gone' }); sendOnSay('The roll ' + sendOnNames(rec) + ' was made with is not there now, so it was turned aside.'); return true; }   // the review of fold 4 (finding 5): never sent on undefended for want of its own roll
     var snd = rec.snd, map = camp.items && own(camp.items, rec.map) ? camp.items[rec.map] : null, tok = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return !!x && x.id === rec.toTok; }) : null;
     if (!tok || tok.waiting || tok.charId !== tch.id) return 'Your token is not on that map now, so it cannot be sent on from there.';
-    var ptr = pid || (!tch.npc && tch.ownerId ? tch.ownerId : net.targets && own(net.targets, 'tk:' + tok.id) ? 'tk:' + tok.id : typeof net.myId === 'string' ? net.myId : '');   // a press of the GM's: the player's own pointer for their character, else the token's own or the GM's
-    var rg = typeof rangeTo === 'function' ? rangeTo(camp, map, rec.map, tok, ptr) : null;
+    // Whose pointer aims it. A player's press: their own, always, judged by rangeTo as them (so a target their fog drops reads as nobody pointed at). The GM's own
+    // press (the review of fold 4, finding 7): the GM's own pointer where it stands on that map, which the card asks them to set, else the token's own (Target
+    // as), else, for a player's character whose player is away, that player's; the first that stands on that map aims it, judged as the GM sees the map (no
+    // viewer's fog: rangeTo with no profile and the pointer's token), since the GM sees every token there
+    var rg = null;
+    if (pid) rg = typeof rangeTo === 'function' ? rangeTo(camp, map, rec.map, tok, pid) : null;
+    else [typeof net.myId === 'string' ? net.myId : '', 'tk:' + tok.id, !tch.npc && tch.ownerId ? tch.ownerId : ''].forEach(function(p) {
+        var t = !rg && p && net.targets && own(net.targets, p) ? net.targets[p] : null; if (!t || t.mapId !== rec.map || typeof t.id !== 'string' || typeof rangeTo !== 'function') return;
+        var rgP = rangeTo(camp, map, rec.map, tok, '', t.id); if (rgP && typeof rgP.tid === 'string') rg = rgP;
+    });
     if (!rg || typeof rg.tid !== 'string') return 'Point at who you send it to first, on the map you stand on.';
     var w = map.whiteboard.find(function(x) { return !!x && x.id === rg.tid; }), ch2 = w && typeof w.charId === 'string' && own(camp.chars, w.charId) ? camp.chars[w.charId] : null;
     if (!w || !ch2 || w.hidden || w.waiting) return 'That is not someone it can be sent at.';
     if (ch2.id === tch.id) return 'It cannot be sent at yourself.';
     var backTo = typeof rec.sby === 'string' && rec.sby ? rec.sby : rec.by; if (snd.back !== true && ch2.id === backTo) return 'It cannot go straight back at the one who sent it.';
-    var fmt = function(n) { return D && typeof D.fmtNum === 'function' ? D.fmtNum(n) : String(n); };
-    if (typeof snd.far === 'number' && !(typeof rg.dist === 'number' && isFinite(rg.dist) && rg.dist <= snd.far)) return 'That is out of reach. It can be sent ' + fmt(snd.far) + ' at most, and that is ' + (typeof rg.dist === 'number' && isFinite(rg.dist) ? fmt(rg.dist) : 'farther') + ' away.';
-    var vd = null;
+    var fmt = function(n) { return D && typeof D.fmtNum === 'function' ? D.fmtNum(n) : String(n); }, uw = function(n) { return S && typeof S.rangeUnitWord === 'function' ? ' ' + S.rangeUnitWord(camp.system, n) : ''; };   // the review of fold 4 (finding 9): in the unit the range counts in, named
+    if (typeof snd.far === 'number' && !(typeof rg.dist === 'number' && isFinite(rg.dist) && rg.dist <= snd.far)) return 'That is out of reach. It can be sent ' + fmt(snd.far) + uw(snd.far) + ' at most, and that is ' + (typeof rg.dist === 'number' && isFinite(rg.dist) ? fmt(rg.dist) + uw(rg.dist) : 'farther') + ' away.';
+    var vd = null, privS = false;   // privS: the roll that sends it on was kept the GM's own (the review of fold 4, finding 1), so what follows is kept so too
     if (snd.noRoll === true) vd = { kind: 'check', pass: true, margin: typeof snd.margin === 'number' ? snd.margin : 0 };
     else {
         var sr = sendOnRoll(camp, snd); if (!sr) { sendOnEnd(id, 'aside', 'no roll'); sendOnSay('The roll ' + String(tch.name || 'the defender').slice(0, 60) + ' sends it on with is not there now, so ' + sendOnNames(rec) + ' was turned aside.'); return true; }
         var tcS = S && typeof S.withRange === 'function' ? S.withRange({}, rg) : null;
-        if (sr.ent.needs || sr.ent.needsWhy) { var cv = null; try { cv = S.makeResolver(camp.system, tch, Fc, tcS); if (typeof cv === 'function' && sr.row) cv = cv.row(sr.row.f, sr.row.r); } catch (e) { cv = null; } if (typeof cv !== 'function') return SEND_NOT; if (!S.rollNeedsOk(sr.ent, cv, Fc)) return S.rollNeedsSays(sr.ent, cv, Fc); }   // its own needs, a rank or once a round, judged as its press would be
+        var ndS = sendOnNeeds(camp, snd.roll, sr, tch, pid, tcS); if (ndS !== true) return ndS;   // its own needs, a rank or once a round, judged as its press would be (by the presser's own view: the review of fold 4, finding 3)
         var ex = sr.ent.formula; if (snd.mod && D && typeof D.composeModifier === 'function' && Fc) { var cm = D.composeModifier(ex, snd.mod, Fc.parse); if (!cm || !cm.ok) return 'Its modifier cannot be added to that roll.'; ex = cm.expr; }
         var o = { charId: tch.id, label: (String(sr.ent.label || 'Roll').split('{')[0].trim().slice(0, 40) || 'Roll') + ', sending it on', range: rg, called: true };   // called: no press its owner chose, so nothing is spent and Off a character's turn says nothing (the core's answer 6)
         if (sr.row) o.row = { f: sr.row.f, r: sr.row.r }; if (rec.priv) o.priv = true; if (from && typeof from === 'object') o.from = from;
+        if (sendOnGmRoll(camp, sr)) o.gmOnly = true;   // the review of fold 4 (finding 2): a roll the GM keeps (a GM-only roll, or a roll of a GM-only list or one ticked GM only) is posted to the GM alone, its label and formula with it
         net.rollVerdict = null; var r = typeof net.diceRoll === 'function' ? net.diceRoll(ex, o) : { error: SEND_NOT }; if (r && r.error) return r.error;
-        vd = net.rollVerdict; net.rollVerdict = null;
+        vd = net.rollVerdict; net.rollVerdict = null; privS = !!(r && r.priv);
         if (!vd || vd.kind !== 'check') { sendOnEnd(id, 'aside', 'no check'); sendOnSay('The roll ' + String(tch.name || 'the defender').slice(0, 60) + ' sent it on with is no check, so ' + sendOnNames(rec) + ' was turned aside.'); return true; }
     }
     if (vd.pass !== true) { sendOnEnd(id, 'missed', 'missed'); landLog('send missed', {}); sendOnSay(String(tch.name || 'The defender').slice(0, 60) + ' sent ' + (rec.byName || 'an attacker') + '’s attack on at ' + String(w.charName || w.name || ch2.name || 'someone').slice(0, 60) + ', and it missed.'); return true; }
-    sendOnGo(camp, rec, tch, tok, rg, w, ch2, vd);
+    sendOnGo(camp, rec, tch, tok, rg, w, ch2, vd, privS);
     return true;
+}
+// The review of fold 4 (finding 2): whether the roll a line sends it on with is the GM's own: a roll of the system marked GM only, a roll of a list players do
+// not see, or a list roll ticked GM only. Such a roll's card is the GM's alone, as its own press would be
+function sendOnGmRoll(camp, sr) {
+    if (!sr || !sr.ent) return false; if (sr.ent.vis === 'gm' || sr.ent.gm === true) return true;
+    var f = sr.row ? (camp && camp.system && Array.isArray(camp.system.fields) ? camp.system.fields : []).filter(function(x) { return !!x && x.id === sr.row.f; })[0] : null;
+    return !!(f && f.vis === 'gm');
+}
+// The review of fold 4 (finding 3): the needs of the roll a line sends it on with, judged as that roll's own press would be. A player's press is judged by their
+// own view (playerSystem, the roll by its place there, rollPlace, and their own copy of the character), so a need the players' view leaves out, one on a
+// GM-only value, never holds them back, and the words they are told are their view's. The GM's own press is judged by the system, and a roll ticked Needs
+// judged only for players (needsGm) lets it past. ref: the line's roll as it names it (a roll of the system by id, a list's by f#i). true, or the words why not
+function sendOnNeeds(camp, ref, sr, tch, pid, tcS) {
+    var S = SC(), Fc = window.wpFormula, sys = camp.system, ent = sr.ent, chv = tch; if (!S || !Fc) return SEND_NOT;
+    if (pid) {
+        var W = window.wpSheets; if (!W || typeof W.playerSystem !== 'function' || typeof S.charFor !== 'function') return SEND_NOT;
+        sys = W.playerSystem(camp); if (!sys) return SEND_NOT; ent = null;
+        var lr = typeof S.listRollRef === 'function' ? S.listRollRef(ref) : null;
+        if (lr) { var vf = (Array.isArray(sys.fields) ? sys.fields : []).filter(function(x) { return !!x && x.id === lr.f && x.kind === 'item-list'; })[0], ri = typeof S.rollPlace === 'function' ? S.rollPlace(camp.system, sys, lr.f, lr.i) : lr.i; ent = vf && vf.list && Array.isArray(vf.list.rolls) ? vf.list.rolls[ri] || null : null; }
+        else (Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(x) { if (x && x.id === ref) ent = x; });
+        if (!ent) return true;   // the players' view holds no such roll: nothing of it they may read holds them back
+        if (!ent.needs && !(Array.isArray(ent.needsWhy) && ent.needsWhy.length)) return true;
+        chv = S.charFor(tch, sys, pid, { lib: fxLib(camp.system), items: itemLib(camp.system), full: camp.system }); if (!chv) return SEND_NOT;
+    } else if (ent.needsGm === true) return true;
+    if (!ent.needs && !(Array.isArray(ent.needsWhy) && ent.needsWhy.length)) return true;
+    var cv = null; try { cv = S.makeResolver(sys, chv, Fc, tcS); if (typeof cv === 'function' && sr.row) cv = cv.row(sr.row.f, sr.row.r); } catch (e) { cv = null; }
+    if (typeof cv !== 'function') return SEND_NOT;
+    return S.rollNeedsOk(ent, cv, Fc) ? true : S.rollNeedsSays(ent, cv, Fc);
 }
 // It goes on: a new attempt from the one who sent it, at the new target, and a new landing that keeps the first attack's damage (decision 4). The old landing
 // ends, its card saying it was sent on. A new target no defense is offered to is hit at once, as a hit with no defense is (landFire)
-function sendOnGo(camp, old, tch, tok, rg, w, ch2, vd) {
+function sendOnGo(camp, old, tch, tok, rg, w, ch2, vd, privS) {   // privS (the review of fold 4, finding 1): the roll that sent it on was kept the GM's own
     var S = SC(), rgc = S && typeof S.withRange === 'function' ? (S.withRange({}, rg) || {}).range : null; if (!rgc) { sendOnEnd(old.id, 'aside', 'no range'); return ''; }
-    var ent = sendOnEnt(camp, old.ent), snd = old.snd || {}, oc = camp.chars && own(camp.chars, old.by) ? camp.chars[old.by] : null;
+    var ent = sendOnEnt(camp, old.ent), snd = old.snd || {}, oc = camp.chars && own(camp.chars, old.by) ? camp.chars[old.by] : null, pv = old.priv === true || privS === true;
+    if (!ent) { sendOnEnd(old.id, 'aside', 'no attack'); sendOnSay('The roll ' + sendOnNames(old) + ' was made with is not there now, so it was turned aside.'); return ''; }   // the review of fold 4 (finding 5): never on to a new target undefended
     var kn = oc && old.ak && ent && typeof attKindWord === 'function' ? attKindWord(camp, ent, Object.assign({}, oc, { values: landVals(oc, old) }), old.row) : '';
     var att = '';
-    if (ent && typeof ent.resistBy === 'string' && typeof attemptMake === 'function') att = attemptMake(camp, ent, vd, false, rg, tch, old.priv === true, null, snd.row || null, { kon: !!old.ak, k: old.ak ? old.ak.k : 0, t: old.ak ? old.ak.t : undefined, kn: kn }) || '';
+    if (typeof ent.resistBy === 'string' && typeof attemptMake === 'function') att = attemptMake(camp, ent, vd, false, rg, tch, pv, null, snd.row || null, { kon: !!old.ak, k: old.ak ? old.ak.k : 0, t: old.ak ? old.ak.t : undefined, kn: kn }) || '';
     var rec = { st: 'wait', at: Date.now(), by: old.by, byName: old.byName, to: ch2.id, toTok: w.id, toName: typeof tokNameOf === 'function' ? tokNameOf(camp, old.map, ch2, w.id) : String(ch2.name || '').slice(0, 60), map: old.map, range: rgc, dmg: old.dmg, hops: (old.hops || 0) + 1, atk: 1, sby: tch.id, sbyName: typeof tokNameOf === 'function' ? tokNameOf(camp, old.map, tch, tok.id) : String(tch.name || '').slice(0, 60) };
-    ['ent', 'row', 'rowCopy', 'big', 'priv', 'from', 'cid'].forEach(function(k) { if (old[k] !== undefined) rec[k] = JSON.parse(JSON.stringify(old[k])); }); if (old.ak) rec.ak = JSON.parse(JSON.stringify(old.ak));
+    ['ent', 'row', 'rowCopy', 'big', 'priv', 'from', 'cid'].forEach(function(k) { if (old[k] !== undefined) rec[k] = JSON.parse(JSON.stringify(old[k])); }); if (old.ak) rec.ak = JSON.parse(JSON.stringify(old.ak)); if (pv) rec.priv = true;
     var fid = typeof fightOfTok === 'function' ? fightOfTok(old.map, tok.id) : null; rec.fid = typeof fid === 'string' && fid ? fid : old.fid || '';
     sendOnEnd(old.id, 'sent', 'sent on');
     var waits = typeof att === 'string' && att && Object.prototype.hasOwnProperty.call(_attempts, att), id = waits ? att : landNewId(); rec.id = id;
@@ -13150,6 +13192,9 @@ net.sendOn = function(id, how) {
     if (net.active && net.role !== 'host') return false;
     var r = sendOnPress(getActiveCampaign(), id, how === 'aside' ? 'aside' : 'send', '', null); if (r !== true && typeof toast === 'function') toast(r); return r === true;
 };
+// The review of fold 4 (finding 6): a card to send it on whose defender's player is away from the table, so its GM's copy offers Send it on too (as landStuck
+// offers Roll it now). The GM aims it with their own pointer (sendOnPress), and the card is drawn again as the roster moves (landRosterMoved)
+net.sendStuck = function(id) { var r = landOf(id); return !!r && r.st === 'send' && net.role !== 'client' && typeof landAway === 'function' && landAway(getActiveCampaign(), { charId: r.to }); };
 net.sendOnAsk = function(id, how) {
     if (!net.active || net.role !== 'client' || !net.conns || !net.conns[0] || !net.conns[0].open || typeof id !== 'string') return false;
     try { net.conns[0].send(how === 'aside' ? { type: 'send-on', att: id, how: 'aside' } : { type: 'send-on', att: id }); return true; } catch (e) { sendFailed(e); return false; }

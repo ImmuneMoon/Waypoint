@@ -244,6 +244,11 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
     check('1.6.2 an empty Worked out until set on a toggle says nothing is worked out, never Always (the toggle then follows its default and what is stored, as its tooltip says)', B.kindOf({ classList: { contains: c => c === 'sys-wout-on' || c === 'field' } }) === 'cond' && B.emptyWord('cond', { classList: { contains: c => c === 'sys-wout-on' || c === 'field' } }) === 'Not worked out' && B.emptyWord('amt', { classList: { contains: c => c === 'sys-wout' || c === 'field' } }) === 'Not set');
     check('no line of the blast boxes names a code name', !/reads it as Blast|Names: Blast|Name: Natural/.test(sheetsT));
     check('the Library window\u2019s boxes ask too, by the ids it gives them', B.kindOf({ id: 'libF_needsIf' }) === 'cond' && B.kindOf({ id: 'libF_damage' }) === 'dice' && B.askOf({ id: 'libF_needsIf' })[0] === 'What must be true before it can be taken?' && B.emptyWord('cond', { id: 'libF_needsIf' }) === 'Nothing' && ['needsIf', 'damage', 'cost', 'areaFrag'].every(k => readU('scripts/librarywin.js').includes("'" + k + "'")), B.kindOf({ id: 'libF_needsIf' }));
+    {   // 1.6.3 (the review of defense fold 4, finding 9): a box may carry its own second line, as How far names the system's unit; its question stays the table's
+        const fx = { classList: { contains: c => c === 'sys-ans-far' }, dataset: { fbSay: 'In feet, as the range counts them. Leave it empty for any distance.' } }, fp = { classList: { contains: c => c === 'sys-ans-far' }, dataset: {} };
+        check('1.6.3 the review of defense fold 4: How far\u2019s question says the unit its box names (data-fb-say), and keeps the table\u2019s words where it names none',
+            j(B.askOf(fx)) === j(['How far can it be sent?', 'In feet, as the range counts them. Leave it empty for any distance.']) && B.askOf(fp)[0] === 'How far can it be sent?' && /range counts in/.test(B.askOf(fp)[1]), j([B.askOf(fx), B.askOf(fp)]));
+    }
     check('a press on a fault opens the form that stands over its box', /formToo\(box\)/.test(readU('scripts/sysui.js')) && /function openFor\(inp\)/.test(fbs));
 
     /* ================= one stat a player sets, and a list gathered by a stat ================= */

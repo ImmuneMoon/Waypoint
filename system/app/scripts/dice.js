@@ -280,6 +280,7 @@ function sendBtns(wrap, rec, m, theirs) {
         wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(x); return x;
     };
     if (!theirs) mk('Send it on', 'Send the attack at the one you point at now. Its roll is made as you, from where you stand, and its damage stays the first attack\u2019s', 'send');
+    else if (host && typeof n.sendStuck === 'function' && n.sendStuck(rec.att)) mk('Send it on', 'Its player is not at the table. Send the attack at the one you point at now: its roll is made as their character, from where it stands', 'send');   // the review of defense fold 4 (finding 6): while the defender's player is away
     mk('Turn it aside', 'Send it nowhere: the attack is stopped, with no roll', 'aside');
 }
 // 1.6.3 (defense fold 3; Fulllion's decision 8): on the GM's copy of a weapon test's card under the Combat tab's Both, Roll it now, which the host rolls as the

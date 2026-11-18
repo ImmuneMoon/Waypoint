@@ -124,15 +124,18 @@ What a successful defense does
   apply the damage yourself, you're told what the line says.
 
 Sending an attack on
-- A parry can send a bolt on now. Pick "it can be sent on" as a line's
+- A defense can send an attack on now. Pick "it can be sent on" as a line's
   Then, and the defender gets a card to aim it at whoever they're
   pointing at, rolled as them from where they stand.
 - Whoever sends it on is the attacker from then, so the next defense
-  reads their weapon. The damage stays the shot's own, and its card
-  still goes to whoever fired it.
+  reads their weapon. The damage stays the first attack's own, and its
+  card still goes to whoever made it.
 - It can't go straight back at the one who just sent it, and the Combat
   tab says how many times one attack can be sent on, once to start.
   Turn it aside closes the card without a roll.
+- If the defender's player has stepped away, your copy of their card
+  can send it on too, aimed with your own pointer. How far it can go
+  counts in your range's own unit.
 
 Smaller things
 - The game clock in the top row shows seconds for the GM. The clock still

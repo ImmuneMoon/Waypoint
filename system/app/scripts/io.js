@@ -2465,6 +2465,7 @@ window.wpReloadFromDisk = function() {
 
 // Dev/console: force an immediate save now, skipping the ~500ms debounce (io.js save(true)).
 window.wpSave = save;
+window.wpSaveView = saveView;   // 1.6.3 (finding 13): the quiet save, for what is no change of the GM's own (fog.js hostMemFlush: the players' explored ground)
 
 
 

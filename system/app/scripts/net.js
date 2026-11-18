@@ -1346,7 +1346,7 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
         delete camp.handoutLog;
         delete camp.cast;
         delete camp.pinnedMaps;
-        delete camp.pinnedPages; delete camp.groups; delete camp.panelOrder;   // 1.5.4 (pageshelf.js): the pages pinned for the session name planners, which never leave this machine; backlog 31: and the GM's encounter groups
+        delete camp.pinnedPages; delete camp.groups; delete camp.panelOrder; delete camp.fogMem;   // 1.6.3 (finding 13): the players' explored ground, which the host keeps and sends each player their own of (memSendTo)   // 1.5.4 (pageshelf.js): the pages pinned for the session name planners, which never leave this machine; backlog 31: and the GM's encounter groups
         delete camp.buildPins;   // 1.6.2: the GM's own palette in Build
         delete camp.opensOn;   // 1.6.2 (backlog 221): which view the GM's maps open on, the GM's own (io.js opensOf)
         delete camp.fxSaved;   // 1.6.2 (backlog 81): the GM's saved effects (fxcore cleanSaved)
@@ -1475,8 +1475,24 @@ function fogSeed(conn, mapId, out) {
 function fogSeedSnapshot(conn, snap) {   // every fogged map of the hosted campaign, as the join snapshot carried it
     var camp = getActiveCampaign(), cs = snap && snap.appState && snap.appState.campaigns, sc = camp && cs && own(cs, camp.id) ? cs[camp.id] : null;
     if (!sc || !sc.items || !camp.items) return;
-    Object.keys(camp.items).forEach(function(id) { if (mapFogged(camp.items[id]) && own(sc.items, id) && sc.items[id].stub !== true) fogSeed(conn, id, sc.items[id]); });   // possession: a stub is no copy of the map
+    Object.keys(camp.items).forEach(function(id) { if (mapFogged(camp.items[id]) && own(sc.items, id) && sc.items[id].stub !== true) { fogSeed(conn, id, sc.items[id]); var prS = net.roster[conn.peer]; if (prS && typeof prS.id === 'string') memSendTo(conn, prS.id, camp, id); } });   // possession: a stub is no copy of the map; 1.6.3 (finding 13): and their explored ground of each map they hold
 }
+// [netcheck:memsend-start]
+// 1.6.3 (the owner's ruling of 2026-11-17, finding 13: "Keep it across sessions"): a player's explored ground of a fogged map, which the host
+// keeps (fog.js memHostNote, camp.fogMem), sent to one connection of theirs as the message fogMem { campId, itemId, k, c } once for each map and
+// for each grid and fog epoch, right after a whole copy of that map goes to it (the join snapshot, a whole copy sent alone or to the table). Their
+// app lays it into its own store (fog.js memSeed); what their tokens see afterwards their own screen adds to it as before. _memSent: the key last
+// sent, by connection and map, the host's memory only, forgotten with the connection, the map and the table
+var _memSent = Object.create(null);
+function memSendTo(conn, pid, camp, mapId) {
+    var F = window.wpFog; if (!conn || !conn.open || typeof conn.peer !== 'string' || !F || typeof F.memOut !== 'function' || !camp || !camp.items || !own(camp.items, mapId)) return;
+    var per = own(_memSent, conn.peer) ? _memSent[conn.peer] : (_memSent[conn.peer] = Object.create(null)), out = F.memOut(camp, camp.items[mapId], pid, own(per, mapId) ? per[mapId] : null);
+    if (!out) return;
+    try { conn.send({ type: 'fogMem', campId: camp.id, itemId: mapId, k: out.k, c: out.c }); } catch (e) { sendFailed(e); return; }
+    per[mapId] = out.k;
+}
+function memSentForget(peer, mapId) { if (typeof peer === 'string') { delete _memSent[peer]; return; } if (typeof mapId === 'string') Object.keys(_memSent).forEach(function(p) { delete _memSent[p][mapId]; }); else _memSent = Object.create(null); }
+// [netcheck:memsend-end]
 // [netcheck:acks-start]
 // 14c (the step-back): the highest action number the host has finished handling from each connection ('a' on a player's final, map patch and
 // threat marks), whatever became of it; every copy of a map sent to that connection says it ('ack'), so their app keeps the actions of theirs a
@@ -1533,10 +1549,10 @@ function hidPendOf(peer, mapId) { return typeof peer === 'string' && own(_hidPen
 function hidNamed(peer, mapId, ids) { var p = hidPendOf(peer, mapId); if (p) Object.keys(ids).forEach(function(id) { delete p[id]; }); }
 function hidForgetMap(mapId) { Object.keys(_hidPend).forEach(function(p) { delete _hidPend[p][mapId]; }); }
 // [netcheck:hidpend-end]
-function fogForgetConn(peer) { if (typeof peer === 'string') { delete _fogHeld[peer]; delete _acks[peer]; delete _hidPend[peer]; if (typeof boxForgetConn === 'function') boxForgetConn(peer); } if (typeof mapForgetConn === 'function') mapForgetConn(peer); if (typeof combatsSentForget === 'function') combatsSentForget(peer); }   // 14c: and how far its copies go; hidden pieces: and the drawings of theirs the GM hid
-function fogForgetMap(mapId) { Object.keys(_fogHeld).forEach(function(p) { delete _fogHeld[p][mapId]; }); }
+function fogForgetConn(peer) { if (typeof memSentForget === 'function') memSentForget(peer); if (typeof peer === 'string') { delete _fogHeld[peer]; delete _acks[peer]; delete _hidPend[peer]; if (typeof boxForgetConn === 'function') boxForgetConn(peer); } if (typeof mapForgetConn === 'function') mapForgetConn(peer); if (typeof combatsSentForget === 'function') combatsSentForget(peer); }   // 14c: and how far its copies go; hidden pieces: and the drawings of theirs the GM hid
+function fogForgetMap(mapId) { Object.keys(_fogHeld).forEach(function(p) { delete _fogHeld[p][mapId]; }); if (typeof memSentForget === 'function') memSentForget(null, mapId); }
 function fogForgetOne(peer, mapId) { if (typeof peer !== 'string' || typeof mapId !== 'string') return; if (own(_fogHeld, peer)) delete _fogHeld[peer][mapId]; if (own(_hidPend, peer)) delete _hidPend[peer][mapId]; }   // possession (the take-back): one connection's copy of one map is gone — what it held (fold M5) and the drawings of theirs the GM hid on it (the whole copy they get on their return notes those afresh)
-function fogForgetAll() { if (typeof window !== 'undefined' && window.wpNotice) window.wpNotice.forget(); _fogHeld = Object.create(null); _acks = Object.create(null); _hidPend = Object.create(null); if (typeof mapForgetAll === 'function') mapForgetAll(); Object.keys(_fogPend).forEach(function(k) { clearTimeout(_fogPend[k]); }); _fogPend = Object.create(null); _fogCost = Object.create(null); if (typeof combatForget === 'function') combatForget(); }   // a new table: no fight's rows seen
+function fogForgetAll() { if (typeof window !== 'undefined' && window.wpNotice) window.wpNotice.forget(); if (typeof memSentForget === 'function') memSentForget(null, null); _fogHeld = Object.create(null); _acks = Object.create(null); _hidPend = Object.create(null); if (typeof mapForgetAll === 'function') mapForgetAll(); Object.keys(_fogPend).forEach(function(k) { clearTimeout(_fogPend[k]); }); _fogPend = Object.create(null); _fogCost = Object.create(null); if (typeof combatForget === 'function') combatForget(); }   // a new table: no fight's rows seen
 // Fold M7: the landing. A player's move that lands in another cell, facing or stance (their drop, or a map copy their app saves) arms a short
 // timer on that map; when it fires, every admitted connection's copy of the map is caught up in place: the creatures that player now sees
 // or no longer sees, the lit cells a light they cannot see gives them, the light cap ('fogDiff', the player's side is applyFogDiff), judged
@@ -2419,6 +2435,7 @@ net.sendItem = function(campId, itemId, onlyConn, exceptConn, at) {   // fold M1
                 if (typeof fogOwnLive === 'function') out = fogOwnLive(out, itemId, pr.id);
                 try { conn.send(ak({ type: 'item', campId: campId, itemId: itemId, item: out }, conn, at)); } catch (e) { sendFailed(e); return; }   // 14c: how far that copy goes
                 if (typeof fogSeed === 'function' && fogSeed(conn, itemId, out)) fogRoster(conn, pr.id, itemId);   // fold M5: what that copy now holds; fold R: the order and the pointers where it changed them
+                if (typeof memSendTo === 'function') memSendTo(conn, pr.id, camp, itemId);   // 1.6.3 (finding 13): their explored ground of it, once a connection
             };
             var clean = sanitizeItem(it); if (!clean) return;
             if (onlyConn) sendOne(onlyConn); else net.conns.forEach(sendOne);
@@ -2456,6 +2473,7 @@ net.broadcastItemFiltered = function(campId, itemId) {
             if (typeof fogOwnLive === 'function') out = fogOwnLive(out, itemId, pr.id);
             try { conn.send(typeof withAck === 'function' ? withAck({ type: 'item', campId: campId, itemId: itemId, item: out }, conn) : { type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) { sendFailed(e); return; }   // 14c: how far that copy goes
             if (typeof fogSeed === 'function' && fogSeed(conn, itemId, out)) fogRoster(conn, pr.id, itemId);   // fold M5: what that copy now holds; fold R: the order and the pointers where it changed them
+            if (typeof memSendTo === 'function') memSendTo(conn, pr.id, camp, itemId);   // 1.6.3 (finding 13): their explored ground of it, once a connection
         });
     };
     if (typeof fogLanded === 'function') fogLanded(itemId, fogSend); else fogSend();
@@ -9890,6 +9908,15 @@ function handleMessage(msg, conn) {
         var trkIn = TKm.cleanTrackers(msg.list, { wire: true });
         if (window.wpTrackers && typeof window.wpTrackers.receive === 'function') window.wpTrackers.receive(trkIn, Date.now());
         // [netcheck:trkmsg-end]
+    } else if (msg.type === 'fogMem' && net.role === 'client') {
+        // [netcheck:fogmem-start]
+        // 1.6.3 (finding 13): the explored ground of one fogged map the host keeps for this player, from the synced host only, after its
+        // snapshot, never in the stream window, for the campaign on screen; fog.js memSeed reads it as data (each cell key by its pattern and
+        // the map's own lattice, under the very key this screen judges the map by, within the screen's bounds) and keeps it nowhere else
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId || !validKey(msg.itemId) || typeof msg.k !== 'string' || !Array.isArray(msg.c)) return;
+        if (window.wpFog && typeof window.wpFog.memSeed === 'function') window.wpFog.memSeed(msg.itemId, msg.k, msg.c);
+        // [netcheck:fogmem-end]
     } else if (msg.type === 'fogDiff' && net.role === 'client') {
         // [netcheck:fogdiff-start]
         // Fold M: the host catching this player's copy of one fogged map up in place (applyFogDiff): from the synced host only, never in the

@@ -27,6 +27,19 @@ Smoother tables
   longer empties it, so the list stays filtered until you go to another
   map.
 
+Fog of war
+- Players keep the ground they've explored from one session to the next.
+  Your machine keeps it with each map, for each player, so a reload, a
+  rejoin or next week's game starts with the rooms they already walked
+  still dimmed in. Cover all clears it. Reveal all now leaves it alone.
+- Walls always block sight now, however many a map has. A big city used
+  to run past a limit of 6,000 wall cells, and then every wall on it let
+  players see straight through. A sense that sees through walls still
+  does, and so do the cells you reveal by hand.
+- Reveal all and Cover all ask before they change the whole map. One
+  slip beside the fog brushes could show players everything, so now you
+  get a question first, and Undo still puts the fog back afterwards.
+
 Smaller things
 - The game clock in the top row shows seconds for the GM. The clock still
   moves the campaign by whole minutes, so you'll see 14:03:27 count up to

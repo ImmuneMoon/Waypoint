@@ -12,8 +12,8 @@ var LIMITS = Object.freeze({
     cells: 12000,       // the most visible cells one recompute yields (the whole disc at rangeCells: 11,289 on square, 10,981 on hex)
     manual: 4000,       // manual reveal/hide cells stored per map
     hand: 12000,        // 1.5.4: the cells all of a map's pieces marked Always revealed may add (a piece that would pass it is left out whole)
-    blockerCells: 6000, // sight-blocker cells resolved per map — over this, occlusion falls open (no blocking)
-    wallSegs: 8000,     // item 18 W2: the straight pieces of the pen lines that block, per map — over this, occlusion falls open as for cells
+    blockerCells: 6000, // the cap a barrier, smoke, terrain and cover count toward, and forty times it the box of a piece listed cell by cell (itemOver); 1.6.3 (finding 0): the walls that block sight have no cap
+    wallSegs: 8000,     // item 18 W2: the straight pieces of a pen line the readers other than the walls take (pathSegs); 1.6.3 (finding 0): the walls take every piece
     wallSamples: 400000, // item 18 W2: the samples all of a set's walls may take to index (a quarter cell each) — past this the rest are left out, on every side alike
     lights: 200,        // lighting (L2): light sources counted per map — over this the map reads dark (never more light than there is)
     lightVisits: 120000, // lighting (L2): cells all of a map's light sources may walk — over this the map reads dark
@@ -220,19 +220,56 @@ function itemCells(w, grid) {
    (visibleCells through its own quick copy of it). Each wall is registered in the cells of its samples (every quarter cell, both ends) and in
    their neighbors: a line sampled every half cell always visits a cell a wall it crosses is registered in (two points under 0.375 of a cell
    apart lie in the same or neighboring cells, on both grids). A line is stopped where it crosses a wall strictly between its ends (a line
-   ending on a wall, or starting on one, passes), a wall's own ends included; a line running along a wall passes it */
+   ending on a wall, or starting on one, passes), a wall's own ends included; a line running along a wall passes it.
+   1.6.3 (the owner's ruling of 2026-11-17, finding 0 of the improvement week's review: "walls should always block sight, except for anything
+   intentionally revealed outside them, or in cases where characters can 'see' through them"): no wall is ever left out of the index. Before,
+   the walls past LIMITS.wallSegs, past the LIMITS.wallSamples budget, or longer than 5000 cells were dropped, and a line of sight passed
+   through them. Now the first walls, while the budget of samples lasts, are registered cell by cell exactly as before, and every other wall
+   (past the budget, or too long to sample cell by cell) goes into a COARSE index of its own: buckets of WALL_COARSE cells a side, a wall
+   registered in each bucket it passes through (walked exactly, wallBuckets) and in that bucket's eight neighbors, and a line looking up each
+   bucket it passes through. The point where a line crosses a wall lies in a bucket both pass through, so the line finds the wall there; the
+   neighbors cover a point that lies on a bucket's very edge. A wall is first cut to the board's world (WALL_WORLD pixels each way from the
+   corner: no token stands farther out), so a wall of any length costs at most the buckets of that world's width. The work is bounded by what
+   the map holds and never by a cap that lets sight through */
 var WALLS = typeof WeakMap === 'function' ? new WeakMap() : null;
+var WALL_WORLD = 4e6, WALL_COARSE = 32;
+// A wall cut to the world's box (Liang and Barsky's clip): the part of it that lies inside, or null where none does
+function wallClip(s) {
+    var x0 = s[0], y0 = s[1], dx = s[2] - s[0], dy = s[3] - s[1], t0 = 0, t1 = 1, W = WALL_WORLD;
+    var edge = function(p, q) { if (p === 0) return q >= 0; var r = q / p; if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; } else { if (r < t0) return false; if (r < t1) t1 = r; } return true; };
+    if (!edge(-dx, x0 + W) || !edge(dx, W - x0) || !edge(-dy, y0 + W) || !edge(dy, W - y0)) return null;
+    if (t0 === 0 && t1 === 1) return [s[0], s[1], s[2], s[3]];
+    return [x0 + dx * t0, y0 + dy * t0, x0 + dx * t1, y0 + dy * t1];
+}
+// Each bucket (B pixels a side) the straight line from (x0, y0) to (x1, y1) passes through, in order, handed to fn(bx, by): a grid walk
+// (Amanatides and Woo), as many buckets as the line crosses and no more
+function wallBuckets(x0, y0, x1, y1, B, fn) {
+    var bx = Math.floor(x0 / B), by = Math.floor(y0 / B), ex = Math.floor(x1 / B), ey = Math.floor(y1 / B), dx = x1 - x0, dy = y1 - y0;
+    var sx = dx > 0 ? 1 : dx < 0 ? -1 : 0, sy = dy > 0 ? 1 : dy < 0 ? -1 : 0;
+    var tMaxX = sx ? ((sx > 0 ? (bx + 1) * B : bx * B) - x0) / dx : Infinity, tMaxY = sy ? ((sy > 0 ? (by + 1) * B : by * B) - y0) / dy : Infinity;
+    var tDX = sx ? B / Math.abs(dx) : Infinity, tDY = sy ? B / Math.abs(dy) : Infinity, n = Math.abs(ex - bx) + Math.abs(ey - by);
+    fn(bx, by);
+    for (var i = 0; i < n; i++) { if (tMaxX < tMaxY) { tMaxX += tDX; bx += sx; } else { tMaxY += tDY; by += sy; } fn(bx, by); }
+}
 function wallIndex(segs, grid) {
     var idx = { segs: [], cells: Object.create(null), box: [Infinity, Infinity, -Infinity, -Infinity] }, used = 0;
     if (!Array.isArray(segs) || !isObj(grid)) return idx;
-    var step = (grid.type === 'square' ? grid.size : grid.s) / 4;
-    for (var i = 0; i < segs.length && idx.segs.length < LIMITS.wallSegs; i++) {
+    var step = (grid.type === 'square' ? grid.size : grid.s) / 4, B = (grid.type === 'square' ? grid.size : grid.s) * WALL_COARSE;
+    for (var i = 0; i < segs.length; i++) {
         var s = segs[i]; if (!Array.isArray(s) || s.length !== 4 || !fin(s[0]) || !fin(s[1]) || !fin(s[2]) || !fin(s[3])) continue;
+        s = wallClip(s); if (!s) continue;   // wholly outside the world: no line of sight reaches it
         var dx = s[2] - s[0], dy = s[3] - s[1], steps = Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy) / step));
-        if (steps > 20000) continue;   // a wall longer than 5000 cells is no wall on a map (a hostile number): it blocks nothing, on every side alike
-        if ((used += steps + 1) > LIMITS.wallSamples) break;   // the walls past the budget are left out (a map drawn to freeze a player's app)
         var n = idx.segs.length, done = Object.create(null); idx.segs.push([s[0], s[1], s[2], s[3]]);
         idx.box = [Math.min(idx.box[0], s[0], s[2]), Math.min(idx.box[1], s[1], s[3]), Math.max(idx.box[2], s[0], s[2]), Math.max(idx.box[3], s[1], s[3])];
+        if (steps > 20000 || used + steps + 1 > LIMITS.wallSamples) {   // too long to sample cell by cell, or past the budget: in the coarse index, never left out
+            if (!idx.coarse) { idx.coarse = Object.create(null); idx.cb = B; }
+            var mark = Object.create(null);
+            wallBuckets(s[0], s[1], s[2], s[3], B, function(bx, by) {
+                for (var ox = -1; ox <= 1; ox++) for (var oy = -1; oy <= 1; oy++) { var bk = (bx + ox) + ',' + (by + oy); if (mark[bk]) continue; mark[bk] = 1; (idx.coarse[bk] || (idx.coarse[bk] = [])).push(n); }
+            });
+            continue;
+        }
+        used += steps + 1;
         for (var k = 0; k <= steps; k++) {
             var c = cellOf(s[0] + dx * k / steps, s[1] + dy * k / steps, grid), ck = cellKey(c, grid); if (done[ck] === 2) continue;
             var near = [c].concat(neighbourCells(c, grid));
@@ -267,14 +304,28 @@ function wallHit(pax, pay, pbx, pby, grid, lists) {
             var ws = idx.cells[key]; if (!ws) continue;
             for (var j = 0; j < ws.length; j++) { var n = ws[j]; if (tried[n]) continue; tried[n] = 1; if (crossesWall(pax, pay, pbx, pby, idx.segs[n])) return true; }
         }
+        if (idx.coarse && wallCoarseHit(pax, pay, pbx, pby, idx, tried)) return true;   // 1.6.3: the walls in the coarse index, by the buckets the line passes through
     }
     return false;
 }
+// 1.6.3 (finding 0): whether a line crosses a wall of an index's coarse part, looked up in each bucket the line passes through (wallBuckets).
+// tried: the walls already tested for this line. A line that runs past the world's box is cut to it first, as the walls were
+function wallCoarseHit(pax, pay, pbx, pby, idx, tried) {
+    var c = wallClip([pax, pay, pbx, pby]); if (!c) return false;
+    var hit = false;
+    wallBuckets(c[0], c[1], c[2], c[3], idx.cb, function(bx, by) {
+        if (hit) return; var ws = idx.coarse[bx + ',' + by]; if (!ws) return;
+        for (var j = 0; j < ws.length; j++) { var n = ws[j]; if (tried[n]) continue; tried[n] = 1; if (crossesWall(pax, pay, pbx, pby, idx.segs[n])) { hit = true; return; } }
+    });
+    return hit;
+}
 // Item 18 W2: a pen line's board segments — its points (pts, in its own box of baseW x baseH) scaled to its box (w x h) and turned by its rot
 // about the box's center, as the board draws it; a filled region (tip 'fill') closed, with each of its holes (50 at most). A point that is no
-// pair of numbers is passed over; at most 20000 points a run and LIMITS.wallSegs segments; none for anything but a path
-function pathSegs(w) {
-    var out = [];
+// pair of numbers is passed over; at most 20000 points a run and LIMITS.wallSegs segments; none for anything but a path.
+// all (true only; 1.6.3, finding 0): every segment of the line, with neither bound, for the walls that stop sight (fog.js blockersFor), since a
+// wall's tail past a bound let sight through it. Every other reader keeps the bounds
+function pathSegs(w, all) {
+    var out = [], big = all === true, maxP = big ? Infinity : 20000, maxS = big ? Infinity : LIMITS.wallSegs;
     if (!isObj(w) || w.type !== 'path' || !fin(w.x) || !fin(w.y) || !Array.isArray(w.pts)) return out;
     var ww = fin(w.w) && w.w > 0 ? w.w : 0, hh = fin(w.h) && w.h > 0 ? w.h : 0, bw = fin(w.baseW) && w.baseW > 0 ? w.baseW : (ww || 1), bh = fin(w.baseH) && w.baseH > 0 ? w.baseH : (hh || 1);
     var sx = ww ? ww / bw : 1, sy = hh ? hh / bh : 1, rot = fin(w.rot) ? w.rot % 360 : 0, rad = rot * Math.PI / 180, co = Math.cos(rad), si = Math.sin(rad), cx = w.x + ww / 2, cy = w.y + hh / 2;
@@ -285,11 +336,28 @@ function pathSegs(w) {
     };
     var run = function(pts, closed) {
         var first = null, prev = null;
-        for (var i = 0; i < pts.length && i < 20000 && out.length < LIMITS.wallSegs; i++) { var q = pt(pts[i]); if (!q) continue; if (!first) first = q; if (prev && (prev[0] !== q[0] || prev[1] !== q[1])) out.push([prev[0], prev[1], q[0], q[1]]); prev = q; }
-        if (closed && first && prev && out.length < LIMITS.wallSegs && (first[0] !== prev[0] || first[1] !== prev[1])) out.push([prev[0], prev[1], first[0], first[1]]);
+        for (var i = 0; i < pts.length && i < maxP && out.length < maxS; i++) { var q = pt(pts[i]); if (!q) continue; if (!first) first = q; if (prev && (prev[0] !== q[0] || prev[1] !== q[1])) out.push([prev[0], prev[1], q[0], q[1]]); prev = q; }
+        if (closed && first && prev && out.length < maxS && (first[0] !== prev[0] || first[1] !== prev[1])) out.push([prev[0], prev[1], first[0], first[1]]);
     };
     run(w.pts, w.tip === 'fill');
-    if (w.tip === 'fill' && Array.isArray(w.holes)) w.holes.slice(0, 50).forEach(function(h) { if (Array.isArray(h)) run(h, true); });
+    if (w.tip === 'fill' && Array.isArray(w.holes)) (big ? w.holes : w.holes.slice(0, 50)).forEach(function(h) { if (Array.isArray(h)) run(h, true); });
+    return out;
+}
+// 1.6.3 (finding 0): a piece too large to list its cells (itemOver) as the walls of its outline, so that it still stops every line of sight
+// that crosses into it, where before it switched off every wall of its map. Its outline as the board draws it and as itemCells reads it: a
+// rectangle or a picture its box, a diamond its four points, a hexagon its six (pointInFlatHex's own), a circle its ellipse as 48 straight
+// pieces, each turned by its rot about its box's center. A size that is no number counts as none, as the lister reads it. A token standing
+// inside such a piece sees inside it, where cell by cell it would see nothing: no token stands inside a wall that size
+function outlineSegs(w) {
+    var out = []; if (!isObj(w) || !fin(w.x) || !fin(w.y)) return out;
+    var ww = fin(w.w) ? w.w : 0, hh = fin(w.h) ? w.h : 0, cx = w.x + ww / 2, cy = w.y + hh / 2, rx = ww / 2, ry = hh / 2, pts;
+    if (w.type === 'circle') { pts = []; for (var i = 0; i < 48; i++) { var a = i * Math.PI / 24; pts.push([rx * Math.cos(a), ry * Math.sin(a)]); } }
+    else if (w.type === 'diamond') pts = [[0, -ry], [rx, 0], [0, ry], [-rx, 0]];
+    else if (w.type === 'hexagon') pts = [[-rx, 0], [-rx / 2, -ry], [rx / 2, -ry], [rx, 0], [rx / 2, ry], [-rx / 2, ry]];
+    else pts = [[-rx, -ry], [rx, -ry], [rx, ry], [-rx, ry]];
+    var rot = fin(w.rot) ? w.rot % 360 : 0, rad = rot * Math.PI / 180, co = Math.cos(rad), si = Math.sin(rad);
+    var world = pts.map(function(p) { return [cx + p[0] * co - p[1] * si, cy + p[0] * si + p[1] * co]; });
+    for (var j = 0; j < world.length; j++) { var p0 = world[j], p1 = world[(j + 1) % world.length]; if (p0[0] !== p1[0] || p0[1] !== p1[1]) out.push([p0[0], p0[1], p1[0], p1[1]]); }
     return out;
 }
 // ... and the cells its line passes through (a door's neighbors are judged from them, and a click in fog mode finds the door there)
@@ -354,6 +422,15 @@ function firstWallAt(ax, ay, bx, by, lists, ka, kb) {   // how far along a -> b 
                 if (t > 1e-9 && t < 1 - 1e-9 && u >= -1e-9 && u <= 1 + 1e-9 && (best === null || t < best)) best = t;   // crossesWall's own test
             }
         }
+        if (idx.coarse) wallBuckets(ax, ay, bx, by, idx.cb, function(qx, qy) {   // 1.6.3 (finding 0): the walls of the coarse index too, by the buckets the short line passes through
+            var cw = idx.coarse[qx + ',' + qy]; if (!cw) return;
+            for (var j = 0; j < cw.length; j++) {
+                var n = cw[j]; if (tried[n]) continue; tried[n] = 1;
+                var s = idx.segs[n], sx = s[2] - s[0], sy = s[3] - s[1], den = rx * sy - ry * sx; if (Math.abs(den) < 1e-12) continue;
+                var qx2 = s[0] - ax, qy2 = s[1] - ay, t = (qx2 * sy - qy2 * sx) / den, u = (qx2 * ry - qy2 * rx) / den;
+                if (t > 1e-9 && t < 1 - 1e-9 && u >= -1e-9 && u <= 1 + 1e-9 && (best === null || t < best)) best = t;
+            }
+        });
     }
     return best;
 }
@@ -361,34 +438,64 @@ function firstWallAt(ax, ay, bx, by, lists, ka, kb) {   // how far along a -> b 
 // geometry, so it is worked out once a set (and a grid) and every draw only walks the list. A square cell that no side neighbor lends to
 // (a room's corner, its center past two walls) takes its corner neighbors by the same rule (1.6.0, 96): the line from such a neighbor
 // meets the walls where they turn, well inside this cell
+// The cells a cut cell takes its light from: its side neighbors whose line to its center meets the first wall past EDGE_AT of the way, and
+// for a square cell none of whose sides lends, its corner neighbors by the same rule. k: the cell's key, uc the cell, wl the walls' indexes
+function cutLend(uc, k, sq, grid, wl) {
+    var pu = cellCenter(uc, grid), lend = [];
+    var nb = sq ? [{ c: uc.c + 1, r: uc.r }, { c: uc.c - 1, r: uc.r }, { c: uc.c, r: uc.r + 1 }, { c: uc.c, r: uc.r - 1 }] : neighbourCells(uc, grid);
+    for (var j = 0; j < nb.length; j++) {
+        var ks = cellKey(nb[j], grid), ps = cellCenter(nb[j], grid), t = firstWallAt(ps.x, ps.y, pu.x, pu.y, wl, ks, k);
+        if (t !== null && t > EDGE_AT) lend.push(ks);   // the first wall lies well inside this cell's half: it runs through this cell
+    }
+    if (sq && !lend.length) for (var dc = -1; dc <= 1; dc += 2) for (var dr = -1; dr <= 1; dr += 2) {
+        var nd = { c: uc.c + dc, r: uc.r + dr }, kd = cellKey(nd, grid), pd = cellCenter(nd, grid), td = firstWallAt(pd.x, pd.y, pu.x, pu.y, wl, kd, k);
+        if (td !== null && td > EDGE_AT) lend.push(kd);
+    }
+    return lend;
+}
+// 1.6.3 (finding 0): a set whose walls are registered in more than EDGE_BIG cells (12,000: a map past the old walls' cap, which no longer switches its
+// walls off) is not walked whole: wallCutCells answers null, and wallEdgeCells asks only the cells beside the cells seen, each worked out once
+// for the set (kept.memo). A smaller set is walked whole and kept as its list, exactly as before
+var EDGE_BIG = 12000;
 function wallCutCells(blockers, grid) {
     var wl = wallsOf(blockers); if (!wl) return [];
     var sq = grid.type === 'square', sig = grid.type + ':' + (sq ? grid.size : grid.s + '/' + grid.h) + (grid.ox || grid.oy ? '@' + (grid.ox || 0) + ',' + (grid.oy || 0) : ''), kept = EDGE ? EDGE.get(blockers) : null;
     if (kept && kept.n === wl.length && kept.sig === sig) return kept.list;
+    var many = 0; for (var L0 = 0; L0 < wl.length && many <= EDGE_BIG; L0++) for (var k0 in wl[L0].cells) { if (++many > EDGE_BIG) break; }
+    if (many > EDGE_BIG) { if (EDGE) EDGE.set(blockers, { n: wl.length, sig: sig, list: null, memo: Object.create(null) }); return null; }
     var out = [], done = Object.create(null);
     for (var L = 0; L < wl.length; L++) for (var k in wl[L].cells) {
         if (done[k]) continue; done[k] = 1;
         var sp = k.split(sq ? ',' : ':'); if (sp.length !== 2 || !fin(+sp[0]) || !fin(+sp[1])) continue;
         var uc = sq ? { c: +sp[0], r: +sp[1] } : { q: +sp[0], r: +sp[1] }; if (cellKey(uc, grid) !== k) continue;   // a key that is no cell's
-        var pu = cellCenter(uc, grid), lend = [];
-        var nb = sq ? [{ c: uc.c + 1, r: uc.r }, { c: uc.c - 1, r: uc.r }, { c: uc.c, r: uc.r + 1 }, { c: uc.c, r: uc.r - 1 }] : neighbourCells(uc, grid);
-        for (var j = 0; j < nb.length; j++) {
-            var ks = cellKey(nb[j], grid), ps = cellCenter(nb[j], grid), t = firstWallAt(ps.x, ps.y, pu.x, pu.y, wl, ks, k);
-            if (t !== null && t > EDGE_AT) lend.push(ks);   // the first wall lies well inside this cell's half: it runs through this cell
-        }
-        if (sq && !lend.length) for (var dc = -1; dc <= 1; dc += 2) for (var dr = -1; dr <= 1; dr += 2) {
-            var nd = { c: uc.c + dc, r: uc.r + dr }, kd = cellKey(nd, grid), pd = cellCenter(nd, grid), td = firstWallAt(pd.x, pd.y, pu.x, pu.y, wl, kd, k);
-            if (td !== null && td > EDGE_AT) lend.push(kd);
-        }
+        var lend = cutLend(uc, k, sq, grid, wl);
         if (lend.length) out.push({ key: k, cell: uc, lend: lend });
     }
     if (EDGE) EDGE.set(blockers, { n: wl.length, sig: sig, list: out });
+    return out;
+}
+// The cut cells beside the cells seen, for a set too large to walk whole: each unseen neighbor of a seen cell (a square's eight, a hexagon's
+// six) in which a wall is registered, its lenders worked out once for the set
+function wallCutNear(keys, grid, blockers) {
+    var wl = wallsOf(blockers), sq = grid.type === 'square', kept = EDGE ? EDGE.get(blockers) : null, memo = kept && kept.memo ? kept.memo : Object.create(null), out = [], done = Object.create(null);
+    for (var ks in keys) {
+        var sp = ks.split(sq ? ',' : ':'); if (sp.length !== 2 || !fin(+sp[0]) || !fin(+sp[1])) continue;
+        var c = sq ? { c: +sp[0], r: +sp[1] } : { q: +sp[0], r: +sp[1] };
+        var nb = sq ? [{ c: c.c + 1, r: c.r }, { c: c.c - 1, r: c.r }, { c: c.c, r: c.r + 1 }, { c: c.c, r: c.r - 1 }, { c: c.c + 1, r: c.r + 1 }, { c: c.c - 1, r: c.r + 1 }, { c: c.c + 1, r: c.r - 1 }, { c: c.c - 1, r: c.r - 1 }] : neighbourCells(c, grid);
+        for (var j = 0; j < nb.length; j++) {
+            var k = cellKey(nb[j], grid); if (done[k] || keys[k] !== undefined) continue; done[k] = 1;
+            var reg = false; for (var L = 0; L < wl.length && !reg; L++) reg = !!wl[L].cells[k]; if (!reg) continue;
+            var lend = memo[k]; if (lend === undefined) lend = memo[k] = cutLend(nb[j], k, sq, grid, wl);
+            if (lend.length) out.push({ key: k, cell: nb[j], lend: lend });
+        }
+    }
     return out;
 }
 function wallEdgeCells(keys, grid, blockers, opts) {
     var out = []; if (!isObj(keys) || !isObj(grid) || !isObj(blockers)) return out;
     if (!wallsOf(blockers)) return out;
     var skip = isObj(opts) && isObj(opts.skip) ? opts.skip : null, th = isObj(opts) && isObj(opts.through) ? opts.through : null, cut = wallCutCells(blockers, grid);
+    if (cut === null) cut = wallCutNear(keys, grid, blockers);   // 1.6.3: a set too large to walk whole, read beside the cells seen
     for (var i = 0; i < cut.length && out.length < LIMITS.cells; i++) {
         var U = cut[i]; if (keys[U.key] !== undefined || blockers[U.key] || (skip && skip[U.key])) continue;
         var tier = 0;
@@ -1114,6 +1221,26 @@ function heightStops(a, b, grid, ha, hb, hs, rule) {
     return false;
 }
 
+// 1.6.3 (finding 0): a large set of blocker cells by buckets of BLK_B cells a side, { "bucket": [c, r, c, r, ...] }, made once for each set
+// (kept by the set itself, in a WeakMap) and read by visibleCells for the buckets near a viewer, so a map of any number of walls costs each
+// viewer only the walls near it; before, every viewer read every blocker's key, which is what the walls' cap was there for. A set smaller than
+// BLK_BIG keys is read key by key as before (null). A set this large is the walls' own (blockersFor, a union of them): none is ever written
+// into after it is first read, which is what lets the index be kept by the set alone. A key that is no cell's is passed over, as before
+var BLK_IDX = typeof WeakMap === 'function' ? new WeakMap() : null, BLK_B = 16, BLK_BIG = 4096;
+function blockIdx(blockers, sqG) {
+    if (!BLK_IDX) return null;
+    var kept = BLK_IDX.get(blockers); if (kept && kept.sq === sqG) return kept.idx;
+    var n = 0; for (var k0 in blockers) { if (++n >= BLK_BIG) break; }
+    if (n < BLK_BIG) return null;
+    var idx = Object.create(null);
+    for (var k in blockers) {
+        var sp = k.split(sqG ? ',' : ':'); if (sp.length !== 2 || !fin(+sp[0]) || !fin(+sp[1])) continue;
+        var a = +sp[0], b = +sp[1], key = Math.floor(a / BLK_B) + ',' + Math.floor(b / BLK_B);
+        (idx[key] || (idx[key] = [])).push(a, b);
+    }
+    BLK_IDX.set(blockers, { sq: sqG, idx: idx });
+    return idx;
+}
 /* ---------- one viewer's visible cells ----------
    viewer: { x, y, front(deg), range(cells), arc(deg) }. Returns an array of { key, cell }. The vision SHAPE is the
    grid's (square = Euclidean radius disc; hex = the flat-top ring within hex distance), but the ARC is DECOUPLED from
@@ -1143,13 +1270,23 @@ function visibleCells(viewer, grid, blockers) {
     var sqG = grid.type === 'square', OFF = R + 3, STR = 2 * OFF + 1, bset = null;
     var code = function(cc) { return sqG ? (cc.c - here.c + OFF) * STR + (cc.r - here.r + OFF) : (cc.q - here.q + OFF) * STR + (cc.r - here.r + OFF); };
     if (blockers) {
-        for (var bk in blockers) {
-            var sp = bk.split(sqG ? ',' : ':'), bc = sqG ? { c: +sp[0], r: +sp[1] } : { q: +sp[0], r: +sp[1] };
-            if (sp.length !== 2 || !fin(+sp[0]) || !fin(+sp[1])) continue;
+        var bix = blockIdx(blockers, sqG);   // 1.6.3 (finding 0): a large set read by its buckets, so a viewer reads only the blockers near it
+        var near = function(bc) {
             var bd = sqG ? Math.sqrt((bc.c - here.c) * (bc.c - here.c) + (bc.r - here.r) * (bc.r - here.r)) : hexDist(here, bc);
-            if (bd > R + 2) continue;
+            if (bd > R + 2) return;
             if (!bset) bset = Object.create(null);
             bset[code(bc)] = 1;
+        };
+        if (bix) {
+            var hb = sqG ? here.c : here.q, b0 = Math.floor((hb - R - 2) / BLK_B), b1 = Math.floor((hb + R + 2) / BLK_B), r0 = Math.floor((here.r - R - 2) / BLK_B), r1 = Math.floor((here.r + R + 2) / BLK_B);
+            for (var ba = b0; ba <= b1; ba++) for (var bb = r0; bb <= r1; bb++) {
+                var bl = bix[ba + ',' + bb]; if (!bl) continue;
+                for (var bi = 0; bi < bl.length; bi += 2) near(sqG ? { c: bl[bi], r: bl[bi + 1] } : { q: bl[bi], r: bl[bi + 1] });
+            }
+        } else for (var bk in blockers) {
+            var sp = bk.split(sqG ? ',' : ':'), bc = sqG ? { c: +sp[0], r: +sp[1] } : { q: +sp[0], r: +sp[1] };
+            if (sp.length !== 2 || !fin(+sp[0]) || !fin(+sp[1])) continue;
+            near(bc);
         }
     }
     var stepPx = (sqG ? grid.size : grid.s) / 2, hereCode = code(here);
@@ -1709,6 +1846,6 @@ function trimRebase(t, x, y, w, h, g, cell) {
     });
     return base;
 }
-var API = { cleanTerrainKind: cleanTerrainKind, terrainOf: terrainOf, terrainSettle: terrainSettle, cleanHazard: cleanHazard, cleanFollow: cleanFollow, spreadCells: spreadCells, CELL_SIZE: CELL_SIZE, cleanMapCell: cleanMapCell, TRIM_MAX: TRIM_MAX, cleanTrim: cleanTrim, trimPolys: trimPolys, trimPath: trimPath, trimRebase: trimRebase, showOk: showOk, showOn: showOn, cleanShowFor: cleanShowFor, keepShow: keepShow, showToMap: showToMap, cleanNullFx: cleanNullFx, cleanCoverAs: cleanCoverAs, cleanCoverPro: cleanCoverPro, proOnLine: proOnLine, coverAsOf: coverAsOf, gradeOnLine: gradeOnLine, coverOfGrade: coverOfGrade, objectOn: objectOn, coverMost: coverMost, VERSION: VERSION, cleanEnvVals: cleanEnvVals, cleanEnvCells: cleanEnvCells, envAt: envAt, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, nearTokens: nearTokens, DOOR_NEAR: DOOR_NEAR, doorGap: doorGap, doorBeside: doorBeside, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, itemOver: itemOver, pathSegs: pathSegs, pathCells: pathCells, withWalls: withWalls, wallsOf: wallsOf, copyWalls: copyWalls, wallEdgeCells: wallEdgeCells, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, lineFirst: lineFirst, coverRole: coverRole, barrierOn: barrierOn, isDoor: isDoor, strokeHeld: strokeHeld, cleanBarrier: cleanBarrier, blastStopOn: blastStopOn, cleanBlastStop: cleanBlastStop, fogHandOf: fogHandOf, cleanFogHand: cleanFogHand, cellsNear: cellsNear, isPortal: isPortal, cleanPortalLock: cleanPortalLock, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX_TILES: TEX_TILES, cleanTexSrc: cleanTexSrc, cleanTexTile: cleanTexTile, cleanHeight: cleanHeight, cleanGround: cleanGround, itemCovers: itemCovers, groundAt: groundAt, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, lineOverHeight: lineOverHeight, lineOverWall: lineOverWall, heightStops: heightStops, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog, secretOk: secretOk, secretOn: secretOn, cleanSecret: cleanSecret, SECRET_WALL: SECRET_WALL, cleanSeenColor: cleanSeenColor, cleanSeenTexture: cleanSeenTexture, secretLook: secretLook, secretSeen: secretSeen, secretReveal: secretReveal, lineOf: lineOf, lineWidth: lineWidth, lineOpacity: lineOpacity, lineTip: lineTip, lineScale: lineScale, lineFactor: lineFactor, cleanSeenWidth: cleanSeenWidth, cleanSeenOpacity: cleanSeenOpacity, cleanSeenTip: cleanSeenTip, MATCH: MATCH, secretMatch: secretMatch, seenDrawn: seenDrawn };
+var API = { cleanTerrainKind: cleanTerrainKind, terrainOf: terrainOf, terrainSettle: terrainSettle, cleanHazard: cleanHazard, cleanFollow: cleanFollow, spreadCells: spreadCells, CELL_SIZE: CELL_SIZE, cleanMapCell: cleanMapCell, TRIM_MAX: TRIM_MAX, cleanTrim: cleanTrim, trimPolys: trimPolys, trimPath: trimPath, trimRebase: trimRebase, showOk: showOk, showOn: showOn, cleanShowFor: cleanShowFor, keepShow: keepShow, showToMap: showToMap, cleanNullFx: cleanNullFx, cleanCoverAs: cleanCoverAs, cleanCoverPro: cleanCoverPro, proOnLine: proOnLine, coverAsOf: coverAsOf, gradeOnLine: gradeOnLine, coverOfGrade: coverOfGrade, objectOn: objectOn, coverMost: coverMost, VERSION: VERSION, cleanEnvVals: cleanEnvVals, cleanEnvCells: cleanEnvCells, envAt: envAt, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, nearTokens: nearTokens, DOOR_NEAR: DOOR_NEAR, doorGap: doorGap, doorBeside: doorBeside, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, itemOver: itemOver, outlineSegs: outlineSegs, pathSegs: pathSegs, pathCells: pathCells, withWalls: withWalls, wallsOf: wallsOf, copyWalls: copyWalls, wallEdgeCells: wallEdgeCells, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, lineFirst: lineFirst, coverRole: coverRole, barrierOn: barrierOn, isDoor: isDoor, strokeHeld: strokeHeld, cleanBarrier: cleanBarrier, blastStopOn: blastStopOn, cleanBlastStop: cleanBlastStop, fogHandOf: fogHandOf, cleanFogHand: cleanFogHand, cellsNear: cellsNear, isPortal: isPortal, cleanPortalLock: cleanPortalLock, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX_TILES: TEX_TILES, cleanTexSrc: cleanTexSrc, cleanTexTile: cleanTexTile, cleanHeight: cleanHeight, cleanGround: cleanGround, itemCovers: itemCovers, groundAt: groundAt, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, lineOverHeight: lineOverHeight, lineOverWall: lineOverWall, heightStops: heightStops, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog, secretOk: secretOk, secretOn: secretOn, cleanSecret: cleanSecret, SECRET_WALL: SECRET_WALL, cleanSeenColor: cleanSeenColor, cleanSeenTexture: cleanSeenTexture, secretLook: secretLook, secretSeen: secretSeen, secretReveal: secretReveal, lineOf: lineOf, lineWidth: lineWidth, lineOpacity: lineOpacity, lineTip: lineTip, lineScale: lineScale, lineFactor: lineFactor, cleanSeenWidth: cleanSeenWidth, cleanSeenOpacity: cleanSeenOpacity, cleanSeenTip: cleanSeenTip, MATCH: MATCH, secretMatch: secretMatch, seenDrawn: seenDrawn };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { cleanTerrainKind, terrainOf, terrainSettle, cleanHazard, cleanFollow, spreadCells, CELL_SIZE, cleanMapCell, TRIM_MAX, cleanTrim, trimPolys, trimPath, trimRebase, showOk, showOn, cleanShowFor, keepShow, showToMap, cleanNullFx, cleanCoverAs, cleanCoverPro, proOnLine, coverAsOf, gradeOnLine, coverOfGrade, objectOn, coverMost, cleanEnvVals, cleanEnvCells, envAt, VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, nearTokens, DOOR_NEAR, doorGap, doorBeside, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, itemOver, pathSegs, pathCells, withWalls, wallsOf, copyWalls, wallEdgeCells, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, lineFirst, coverRole, barrierOn, isDoor, strokeHeld, cleanBarrier, blastStopOn, cleanBlastStop, fogHandOf, cleanFogHand, cellsNear, isPortal, cleanPortalLock, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, TEXTURES, cleanTexture, TEX_TILES, cleanTexSrc, cleanTexTile, cleanHeight, cleanGround, itemCovers, groundAt, cleanTokFx, terrainFactor, cleanFogOff, markCells, lineOverHeight, lineOverWall, heightStops, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog, secretOk, secretOn, cleanSecret, SECRET_WALL, cleanSeenColor, cleanSeenTexture, secretLook, secretSeen, secretReveal, lineOf, lineWidth, lineOpacity, lineTip, lineScale, lineFactor, cleanSeenWidth, cleanSeenOpacity, cleanSeenTip, MATCH, secretMatch, seenDrawn };
+export { cleanTerrainKind, terrainOf, terrainSettle, cleanHazard, cleanFollow, spreadCells, CELL_SIZE, cleanMapCell, TRIM_MAX, cleanTrim, trimPolys, trimPath, trimRebase, showOk, showOn, cleanShowFor, keepShow, showToMap, cleanNullFx, cleanCoverAs, cleanCoverPro, proOnLine, coverAsOf, gradeOnLine, coverOfGrade, objectOn, coverMost, cleanEnvVals, cleanEnvCells, envAt, VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, nearTokens, DOOR_NEAR, doorGap, doorBeside, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, itemOver, outlineSegs, pathSegs, pathCells, withWalls, wallsOf, copyWalls, wallEdgeCells, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, lineFirst, coverRole, barrierOn, isDoor, strokeHeld, cleanBarrier, blastStopOn, cleanBlastStop, fogHandOf, cleanFogHand, cellsNear, isPortal, cleanPortalLock, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, TEXTURES, cleanTexture, TEX_TILES, cleanTexSrc, cleanTexTile, cleanHeight, cleanGround, itemCovers, groundAt, cleanTokFx, terrainFactor, cleanFogOff, markCells, lineOverHeight, lineOverWall, heightStops, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog, secretOk, secretOn, cleanSecret, SECRET_WALL, cleanSeenColor, cleanSeenTexture, secretLook, secretSeen, secretReveal, lineOf, lineWidth, lineOpacity, lineTip, lineScale, lineFactor, cleanSeenWidth, cleanSeenOpacity, cleanSeenTip, MATCH, secretMatch, seenDrawn };

@@ -18,6 +18,7 @@ function wbDX(dx, dy) { var V = typeof window !== 'undefined' ? window.wpView : 
 function wbDY(dx, dy) { var V = typeof window !== 'undefined' ? window.wpView : null; return V && V.turned && V.turned() ? V.dy(dx, dy) : dy / state.zoomLevel; }
 // [view:helpers-end]
 import { getActiveMap, getActiveCampaign } from './models.js';
+import { showConfirm } from './dialogs.js';   // 1.6.3 (finding 5): Reveal all and Cover all ask first
 
 var ui = function(id) { return document.getElementById(id); };
 function core() { return window.wpFogCore || null; }
@@ -463,7 +464,7 @@ function viewersFor(map, camp, ownerId, withH) {   // withH (item 19b): each vie
 }
 // ---- sight-blockers: the opaque-cell key set for a map, built from flagged board items (v1: static walls) ----
 var _blockerCache = Object.create(null), _blockerStamp = Object.create(null), _blockerWarned = Object.create(null);
-var _blockerSig = Object.create(null), _blockerVer = Object.create(null), _blockerOver = Object.create(null);   // lighting review: a map's blocker CONTENT version (the viewer memo keys on it, not on every save)
+var _blockerSig = Object.create(null), _blockerVer = Object.create(null), _blockerOver = Object.create(null);   // lighting review: a map's blocker CONTENT version (the viewer memo keys on it, not on every save). 1.6.3 (finding 0): _blockerOver is always false now, since the walls have no cap; the readers below that fall back where it is true are kept as they were and never take that branch
 function eligibleBlocker(w) {
     if (!w || !w.blocksSight || w.hidden) return false;             // hidden never blocks (host & client must agree)
     if (w.isChar || w.waiting) return false;                        // a token never blocks sight: a player's copy may lack it (fog drops it), so host and client would disagree
@@ -534,23 +535,31 @@ function smokeUnion(map, blk, sm, tag) {   // the walls and the smoke as one set
 // 16 million cells wide stalled a player's app before any cap was counted. A piece past the bound gives no cell and says so (`over`): it
 // reads as over the walls' cap where it would have been a wall, and as nothing anywhere else
 function footprintCells(w, grid, C) { if (C.itemOver(w, grid)) { var noneF = []; noneF.over = true; return noneF; } return C.itemCells(w, grid); }   // item 18: by its outline, turned as the board draws it (unturned: as before)
+// 1.6.3 (the owner's ruling of 2026-11-17, finding 0 of the improvement week's review, VERBATIM: "walls should always block sight, except for
+// anything intentionally revealed outside them, or in cases where characters can 'see' through them. like a miraluka using force sight, or a
+// kryptonian with xray vision, etc."): every wall blocks, however many a map has. Before, past LIMITS.blockerCells cells or LIMITS.wallSegs line
+// pieces, or with one piece too large to list, this answered null and every wall of the map let sight through, said in one notice. Now there is
+// no cap: every blocking piece's cells are listed, a pen line gives every piece of its line (pathSegs with its second argument), and a piece too
+// large to list gives the walls of its outline (fogcore outlineSegs). What made the cap needed is gone: a viewer reads only the blockers near it
+// (fogcore blockIdx) and the walls near its lines (the walls' own index, with its coarse part for what the budget leaves over). _blockerOver
+// stays false, so every reader that once fell open past the cap (the light, the marks, the heights, the cells a wall runs through) reads the
+// walls as it always did under the cap. A sense that passes walls (its pass) and the cells the GM reveals by hand are read as before
 function blockersFor(map, grid) {
     if (!map || !grid) return null;
     // Key the memo on map.meta.updated (stamped every save, io.js) as well as map.id, so a blocker MOVE busts it even
     // in solo mode — there onLocalSave early-returns before invalidateVision(), so id alone would go stale.
     var stamp = (map.meta && map.meta.updated) || 0;
     if (_blockerCache[map.id] !== undefined && _blockerStamp[map.id] === stamp) return _blockerCache[map.id];
-    var C = core(), wb = map.whiteboard || [], set = Object.create(null), n = 0, over = false, segs = [];
-    for (var i = 0; i < wb.length && !over; i++) {
+    var C = core(), wb = map.whiteboard || [], set = Object.create(null), n = 0, segs = [];
+    for (var i = 0; i < wb.length; i++) {
         var w = wb[i]; if (!eligibleBlocker(w)) continue;
-        if (w.type === 'path') { var ps = C.pathSegs(w); for (var q = 0; q < ps.length; q++) { segs.push(ps[q]); if (segs.length > C.LIMITS.wallSegs) { over = true; break; } } continue; }   // item 18 W2: a pen line blocks as its line
-        var cells = footprintCells(w, grid, C); if (cells.over) { over = true; break; }   // too large to list: over the cap by itself
-        for (var j = 0; j < cells.length; j++) { var k = C.cellKey(cells[j], grid); if (!set[k]) { set[k] = 1; if (++n > C.LIMITS.blockerCells) { over = true; break; } } }
+        if (w.type === 'path') { var ps = C.pathSegs(w, true); for (var q = 0; q < ps.length; q++) segs.push(ps[q]); continue; }   // item 18 W2: a pen line blocks as its line
+        var cells = footprintCells(w, grid, C);
+        if (cells.over) { var os = C.outlineSegs ? C.outlineSegs(w) : []; for (var oq = 0; oq < os.length; oq++) segs.push(os[oq]); continue; }   // 1.6.3: too large to list, so it blocks by its outline
+        for (var j = 0; j < cells.length; j++) { var k = C.cellKey(cells[j], grid); if (!set[k]) { set[k] = 1; n++; } }
     }
-    if (over && !_blockerWarned[map.id]) { _blockerWarned[map.id] = 1; toast('Too many sight-blockers on this map. Vision is not being blocked here.'); }
-    if (!over) _blockerWarned[map.id] = 0;
-    var result = (over || (n === 0 && !segs.length)) ? null : C.withWalls(set, segs, grid);   // over cap or none → no occlusion (fail open); item 18 W2: the lines' walls on the set
-    _blockerOver[map.id] = over;   // lighting review: over the cap no wall blocks, so no light may be judged through them (the map reads by sight only)
+    var result = (n === 0 && !segs.length) ? null : C.withWalls(set, segs, grid);   // none → no occlusion; item 18 W2: the lines' walls on the set
+    _blockerOver[map.id] = false;   // 1.6.3: never over a cap any more (read by the light, the marks and the heights as before)
     var bsig = result ? Object.keys(result).sort().join(';') + (segs.length ? '|' + segs.map(function(s) { return s.map(function(v) { return Math.round(v * 10) / 10; }).join(','); }).join(';') : '') : '';   // W2: a moved line is a new version
     if (_blockerSig[map.id] !== bsig) { _blockerSig[map.id] = bsig; _blockerVer[map.id] = (_blockerVer[map.id] || 0) + 1; }
     _blockerStamp[map.id] = stamp;
@@ -832,10 +841,12 @@ function moveSetFor(map, grid, walls) {
     if (!bars.length) return walls;   // no barrier on this map: the walls' own set, exactly as before
     var stamp = ((map.meta && map.meta.updated) || 0) + '|' + grid.type + ':' + (grid.size || grid.s) + '|' + sig, hit = _moveCache[map.id];
     if (hit && hit.stamp === stamp && hit.walls === walls) return hit.set;
-    var cap = C.LIMITS.blockerCells, capS = C.LIMITS.wallSegs, set = Object.create(null), n = 0, ns = 0, segs = [], k, big = 0, over = !!_blockerOver[map.id];   // the walls over their cap: the shared cap is spent
+    // 1.6.3 (finding 0): the walls have no cap any more (blockersFor), so the barriers count toward the caps by themselves: their own cells (a
+    // cell a wall already holds adds none) and their own line pieces. Before, they counted after the walls' cells and line pieces, so a map
+    // with walls near the old cap stopped no barrier at all
+    var cap = C.LIMITS.blockerCells, capS = C.LIMITS.wallSegs, set = Object.create(null), n = 0, ns = 0, segs = [], k, big = 0, over = false;
     var cw = grid.type === 'square' ? grid.size : 1.5 * grid.s, ch = grid.type === 'square' ? grid.size : grid.h;
-    if (walls) for (k in walls) { set[k] = 1; n++; }
-    (C.wallsOf(walls) || []).forEach(function(ix) { ns += ix.segs.length; });
+    if (walls) for (k in walls) set[k] = 1;
     for (var b = 0; b < bars.length && !over; b++) {
         var p = bars[b];
         if (p.type === 'path') { var ps = C.pathSegs(p); for (var q = 0; q < ps.length; q++) { segs.push(ps[q]); if (++ns > capS) { over = true; break; } } continue; }   // a pen line stops a token as its line
@@ -1162,7 +1173,7 @@ function dtKey(map, camp, ownerId, grid) {   // the text every input of the tier
     var cellsOf = function(l) { return dtCells(l, grid, C); };   // 1.6.3 (finding 9): kept for each list (dtCells)
     var k = [dtId(map), map.id, roleNow(), String(ownerId), JSON.stringify(grid), mf.mode, cellsOf(mf.manual.adds), cellsOf(mf.manual.cuts)];
     // the walls only where the tiers read them: under Cover all neither revealedTiers nor wallEdged asks blockersFor, and asking it here would
-    // raise its Too many sight-blockers notice on a screen that never read the walls
+    // build the walls on a screen that never reads them (1.6.3: the notice it raised past the walls' cap is gone with the cap)
     if (mf.mode === 'cover') k.push('cover');
     else {
         var blk = blockersFor(map, grid), over = !!_blockerOver[map.id];
@@ -1308,6 +1319,7 @@ function noticeFacts(map, camp, from, to) {
 function revealedCellList(map, camp, ownerId) {
     if (!gridForMap(map)) return [];
     var t = revealedTiers(map, camp, ownerId);
+    if (t && typeof memHostNote === 'function') memHostNote(map, camp, ownerId, t);   // 1.6.3 (finding 13): what a player's tokens see is what the host keeps as their explored ground
     return t === null ? null : t.list.map(function(o) { return o.cell; });
 }
 
@@ -1438,8 +1450,9 @@ function heightSetsFor(map, grid, hm, blk) {
         for (var i = 0; i < wb.length; i++) {
             var w = wb[i]; if (!eligibleBlocker(w)) continue;
             var H = C.cleanHeight(w.height);
-            if (w.type === 'path') { var ps = C.pathSegs(w); if (!ps.length) continue; if (H) { lines.push({ segs: ps, h: H }); nh++; } else for (var q = 0; q < ps.length; q++) fsegs.push(ps[q]); continue; }
+            if (w.type === 'path') { var ps = C.pathSegs(w, true); if (!ps.length) continue; if (H) { lines.push({ segs: ps, h: H }); nh++; } else for (var q = 0; q < ps.length; q++) fsegs.push(ps[q]); continue; }
             var fc = footprintCells(w, grid, C);
+            if (fc.over) { var os = C.outlineSegs ? C.outlineSegs(w) : []; if (!os.length) continue; if (H) { lines.push({ segs: os, h: H }); nh++; } else for (var oq = 0; oq < os.length; oq++) fsegs.push(os[oq]); continue; }   // 1.6.3 (finding 0): a wall too large to list blocks by its outline here too, as blockersFor reads it
             for (var j = 0; j < fc.length; j++) { var ck = C.cellKey(fc[j], grid); if (H) { if (!(hcells[ck] >= H)) hcells[ck] = H; nh++; } else if (!fset[ck]) { fset[ck] = 1; nf++; } }
         }
         if (nh) {
@@ -1787,10 +1800,13 @@ function drawOwner() {
     return (previewMode === 'off' || previewMode === 'party') ? '*' : previewMode;   // GM: all tokens, or one player
 }
 // Senses S6 (the owner's answer 3a): explored terrain. With "Players remember what they have seen" on (camp.fog.defaults.remember), a player's
-// own screen keeps the cells it has seen this session, per map, and draws them at a third, heavier dim; the host still withholds every creature
+// own screen keeps the cells it has seen, per map, and draws them at a third, heavier dim; the host still withholds every creature
 // there, so remembered ground shows only the pieces that are not characters, as they are now. Never what only a sense that passes walls
-// showed; a cell the GM cuts by hand leaves it; a new fog epoch (the GM's Cover all or Reveal all), a change of grid or cell size, and a table
-// of another campaign empty it. At most 60,000 cells a map and 200,000 in all (the oldest map goes first); a full map stops adding, said once
+// showed; a cell the GM cuts by hand leaves it; a new fog epoch (the GM's Cover all), a change of grid or cell size, and a table
+// of another campaign empty it. At most 60,000 cells a map and 200,000 in all (the oldest map goes first); a full map stops adding, said once.
+// 1.6.3 (the owner's ruling of 2026-11-17, finding 13: "Keep it across sessions"): this screen's store is seeded from what the HOST keeps for
+// this player (memSeed, from the host's fogMem message), so a reload, a rejoin and the next session start from the ground explored before. The
+// host's half is below the memory slice (memHostNote)
 // [fogcheck:memory-start]
 var MEM_MAP = 60000, MEM_ALL = 200000, _mem = Object.create(null), _memOrder = [], _memTotal = 0, _memVer = 0, _memFullSaid = Object.create(null), _memCamp = null, _memCanvas = null, _memSig = '';
 function rememberOn(camp) { var d = camp && camp.fog && typeof camp.fog === 'object' && camp.fog.defaults && typeof camp.fog.defaults === 'object' ? camp.fog.defaults : null; return !(d && d.remember === false); }   // on unless the GM unticked it
@@ -1847,6 +1863,123 @@ function memLayer(map, m, z, sx, sy, W, H, traceOn, win, traceWin) {
     return _memCanvas;
 }
 // [fogcheck:memory-end]
+// [fogcheck:hostmem-start]
+// 1.6.3 (the owner's ruling of 2026-11-17, finding 13 of the improvement week's review: "Keep it across sessions"). A player's explored ground is
+// kept with the map, for each player, on the GM's machine: camp.fogMem = { mapId: { profileId: { k, t, c } } } (k: the grid and fog epoch it
+// was seen under, as memFor keys a screen's own store; t: when it last grew; c: the cell keys joined by ';'). It is worked out by the host alone,
+// from what it judges each player's tokens see (revealedCellList, which every copy of a fogged map sent to a player and every live relay asks),
+// never from a player's word, so no player can write to it; the save is the GM's, and net.js sanitizeAppState never sends it. A player is sent
+// only their own, once a connection and map (net.js memSendTo, the fogMem message), and their screen seeds its own store from it (memSeed).
+// What clears it: the GM's Cover all (a new fog epoch, which hostMemDrop also takes off at once), a change of the map's grid or cell size (its
+// key), the cells the GM hides by hand and the pieces marked Under fog (swept as a screen sweeps its own). A reload, a rejoin and the end of a
+// session no longer do. The bounds are a screen's: 60,000 cells a map and 200,000 a player in all, the map that grew longest ago going first.
+// Kept in memory as sets (_hmem) and written into camp.fogMem a moment after it grows (hostMemFlush), then to the disk by the quiet save a
+// moved view uses (window.wpSaveView): no undo step, no send to the table
+var _hmem = Object.create(null), _hmemDirty = Object.create(null), _hmemTimer = null, HMEM_FLUSH_MS = 2000, HMEM_CELL = /^-?\d{1,7}[,:]-?\d{1,7}$/;
+function hostMemOn(camp) {   // the GM's machine, hosting this very campaign, with remembering on
+    var n = net(), all = state && state.appState && state.appState.campaigns;
+    return isGmView() && !!n && n.active === true && n.role === 'host' && !!camp && typeof camp.id === 'string' && !!all && Object.prototype.hasOwnProperty.call(all, camp.id) && all[camp.id] === camp && rememberOn(camp);
+}
+function hostMemKey(map, grid) { return grid.type + ':' + (grid.size || grid.s) + '|' + (mapFog(map).epoch || 0); }   // memFor's own key
+function hostMemSaved(camp, mapId, pid) {   // the kept entry as the save holds it, read as data: null where there is none or it is not sound
+    var fm = camp.fogMem; if (!fm || typeof fm !== 'object' || Array.isArray(fm) || !Object.prototype.hasOwnProperty.call(fm, mapId)) return null;
+    var pm = fm[mapId]; if (!pm || typeof pm !== 'object' || Array.isArray(pm) || !Object.prototype.hasOwnProperty.call(pm, pid)) return null;
+    var e = pm[pid]; return e && typeof e === 'object' && typeof e.k === 'string' && e.k.length <= 120 && typeof e.c === 'string' ? e : null;
+}
+function hostMemStore(camp, map, pid, key) {   // this player's store of this map, loaded from the save the first time, empty under another key
+    var cs = _hmem[camp.id] || (_hmem[camp.id] = Object.create(null)), ms = cs[map.id] || (cs[map.id] = Object.create(null)), st = ms[pid];
+    if (st && st.key === key) return st;
+    st = ms[pid] = { key: key, cells: Object.create(null), n: 0, t: 0, handSig: '' };
+    var e = hostMemSaved(camp, map.id, pid);
+    if (e && e.k === key) {
+        var parts = e.c ? e.c.split(';') : [];
+        for (var i = 0; i < parts.length && st.n < MEM_MAP; i++) { var k = parts[i]; if (HMEM_CELL.test(k) && !st.cells[k]) { st.cells[k] = 1; st.n++; } }
+        st.t = typeof e.t === 'number' && isFinite(e.t) ? e.t : 0;
+    } else if (e) _hmemDirty[camp.id + '\u0000' + map.id + '\u0000' + pid] = 1;   // kept under another grid or epoch: written away at the next flush
+    return st;
+}
+// What one player's tokens see now, added to their store: never a cell seen only through a sense that passes walls, never one the GM cut; the
+// cells a wall runs through as their screen draws them (wallEdged on a copy, so the tiers the host judges by are never touched). Asked by
+// revealedCellList with the tiers it worked out, for a real player only (never the party view or the GM's '*')
+function memHostNote(map, camp, pid, tiers) {
+    if (!tiers || !Array.isArray(tiers.list) || typeof pid !== 'string' || !pid || pid === '*' || pid === PARTY || !map || typeof map.id !== 'string' || !hostMemOn(camp)) return;
+    var C = core(), grid = gridForMap(map); if (!C || !grid) return;
+    var st = hostMemStore(camp, map, pid, hostMemKey(map, grid)), changed = false, cut = Object.create(null), th = tiers.through || null;
+    (mapFog(map).manual.cuts || []).forEach(function(c) { var k = C.cellKey(c, grid); cut[k] = 1; if (st.cells[k]) { delete st.cells[k]; st.n--; changed = true; } });
+    var ph = typeof pieceHand === 'function' ? pieceHand(map, grid) : null;   // ground under a piece marked Under fog is forgotten, swept once for each way the marked pieces stand
+    if (ph && ph.hides) { if (st.handSig !== ph.sig) { st.handSig = ph.sig; for (var hk in st.cells) { var hp = hk.split(grid.type === 'square' ? ',' : ':'), hc = grid.type === 'square' ? { c: +hp[0], r: +hp[1] } : { q: +hp[0], r: +hp[1] }; if (ph.under(hk, hc)) { delete st.cells[hk]; st.n--; changed = true; } } } } else if (st.handSig) st.handSig = '';
+    var list = tiers.list;
+    if (typeof wallEdged === 'function') { var cp = { list: tiers.list.slice(), keys: Object.assign(Object.create(null), tiers.keys) }; if (th) cp.through = th; list = wallEdged(cp, map, grid).list; }
+    for (var i = 0; i < list.length; i++) {
+        var o = list[i]; if (st.cells[o.key] || cut[o.key] === 1 || (th && th[o.key] === 1)) continue;
+        if (st.n >= MEM_MAP) break;
+        st.cells[o.key] = 1; st.n++; changed = true;
+    }
+    if (!changed) return;
+    st.t = Date.now(); _hmemDirty[camp.id + '\u0000' + map.id + '\u0000' + pid] = 1;
+    if (!_hmemTimer) _hmemTimer = setTimeout(hostMemFlush, HMEM_FLUSH_MS);
+}
+// The stores that grew, written into each campaign's fogMem, then the quiet save. A map that is gone takes its entries with it; a player whose
+// maps hold more than 200,000 cells in all loses the map that grew longest ago first (never the one that just grew)
+function hostMemFlush() {
+    _hmemTimer = null;
+    var all = state && state.appState && state.appState.campaigns, wrote = false;
+    Object.keys(_hmemDirty).forEach(function(dk) {
+        var p = dk.split('\u0000'), camp = all && Object.prototype.hasOwnProperty.call(all, p[0]) ? all[p[0]] : null; if (!camp) return;
+        var fm = camp.fogMem && typeof camp.fogMem === 'object' && !Array.isArray(camp.fogMem) ? camp.fogMem : (camp.fogMem = Object.create(null));
+        var gone = !camp.items || !Object.prototype.hasOwnProperty.call(camp.items, p[1]) || !camp.items[p[1]] || camp.items[p[1]].type !== 'map';
+        var st = !gone && _hmem[p[0]] && _hmem[p[0]][p[1]] ? _hmem[p[0]][p[1]][p[2]] : null;
+        if (gone || !st || !st.n) { if (Object.prototype.hasOwnProperty.call(fm, p[1]) && fm[p[1]] && typeof fm[p[1]] === 'object') { delete fm[p[1]][p[2]]; if (!Object.keys(fm[p[1]]).length) delete fm[p[1]]; } wrote = true; return; }
+        var pm = Object.prototype.hasOwnProperty.call(fm, p[1]) && fm[p[1]] && typeof fm[p[1]] === 'object' && !Array.isArray(fm[p[1]]) ? fm[p[1]] : (fm[p[1]] = Object.create(null));
+        pm[p[2]] = { k: st.key, t: st.t, c: Object.keys(st.cells).join(';') }; wrote = true;
+        var total = 0, mine = [];   // this player's maps of this campaign, as the save now holds them
+        Object.keys(fm).forEach(function(mid) { var e = hostMemSaved(camp, mid, p[2]); if (!e) return; var n = e.c ? e.c.split(';').length : 0; total += n; mine.push({ mid: mid, t: e.t || 0, n: n }); });
+        mine.sort(function(a, b) { return a.t - b.t; });
+        for (var j = 0; j < mine.length && total > MEM_ALL; j++) { if (mine[j].mid === p[1]) continue; delete fm[mine[j].mid][p[2]]; if (!Object.keys(fm[mine[j].mid]).length) delete fm[mine[j].mid]; if (_hmem[p[0]] && _hmem[p[0]][mine[j].mid]) delete _hmem[p[0]][mine[j].mid][p[2]]; total -= mine[j].n; }
+    });
+    _hmemDirty = Object.create(null);
+    if (wrote && typeof window !== 'undefined' && typeof window.wpSaveView === 'function') window.wpSaveView();
+}
+// The GM's Cover all: every player's explored ground of this map is let go at once, in memory and in the save
+function hostMemDrop(camp, mapId) {
+    if (!camp || typeof mapId !== 'string') return;
+    if (_hmem[camp.id]) delete _hmem[camp.id][mapId];
+    if (camp.fogMem && typeof camp.fogMem === 'object' && Object.prototype.hasOwnProperty.call(camp.fogMem, mapId)) delete camp.fogMem[mapId];
+    Object.keys(_hmemDirty).forEach(function(dk) { if (dk.split('\u0000')[1] === mapId) delete _hmemDirty[dk]; });
+}
+// For net.js: this player's explored ground of a map as the message that sends it, { k, c: [cell keys] }, or null where there is nothing to send
+// or the connection already holds it (sent: the key the connection was last sent for this map)
+function memOut(camp, map, pid, sent) {
+    if (!map || typeof map.id !== 'string' || typeof pid !== 'string' || !hostMemOn(camp)) return null;
+    var grid = gridForMap(map); if (!grid) return null;
+    var key = hostMemKey(map, grid); if (key === sent) return null;
+    var st = hostMemStore(camp, map, pid, key); if (!st.n) return null;
+    return { k: key, c: Object.keys(st.cells) };
+}
+// On a player's app: the explored ground the host keeps for them on a map, laid into this screen's own store under the same rules as what it
+// sees (a key only of the very grid and epoch this screen judges the map by, never a cell cut by hand, the bounds of a map and of all maps).
+// Nothing is kept with no remembering, on the GM's screen or in the stream window
+function memSeed(mapId, k, list) {
+    if (!isClientView() || typeof mapId !== 'string' || typeof k !== 'string' || !Array.isArray(list)) return 0;
+    var camp = activeCamp(), map = camp && camp.items && Object.prototype.hasOwnProperty.call(camp.items, mapId) ? camp.items[mapId] : null;
+    if (!map || map.type !== 'map' || map.stub === true || !rememberOn(camp)) return 0;
+    var C = core(), grid = gridForMap(map); if (!C || !grid) return 0;
+    var m = memFor(map, grid); if (m.key !== k) return 0;
+    var sq = grid.type === 'square', cut = Object.create(null), added = 0;
+    (mapFog(map).manual.cuts || []).forEach(function(c) { cut[C.cellKey(c, grid)] = 1; });
+    for (var i = 0; i < list.length && i < MEM_MAP; i++) {
+        var key = list[i]; if (typeof key !== 'string' || !HMEM_CELL.test(key) || m.cells[key] || cut[key] === 1) continue;
+        var sp = key.split(sq ? ',' : ':'); if (sp.length !== 2) continue;
+        var cell = sq ? { c: +sp[0], r: +sp[1] } : { q: +sp[0], r: +sp[1] }; if (C.cellKey(cell, grid) !== key) continue;
+        if (m.n >= MEM_MAP) break;
+        while (_memTotal >= MEM_ALL && _memOrder.length && _memOrder[0] !== map.id) memDrop(_memOrder[0]);
+        if (_memTotal >= MEM_ALL) break;
+        m.cells[key] = cell; m.n++; _memTotal++; added++;
+    }
+    if (added) { _memVer++; redraw(); }
+    return added;
+}
+// [fogcheck:hostmem-end]
 var HEX_COS = [0, 1, 2, 3, 4, 5].map(function(i) { return Math.cos(Math.PI / 180 * (60 * i)); }), HEX_SIN = [0, 1, 2, 3, 4, 5].map(function(i) { return Math.sin(Math.PI / 180 * (60 * i)); });   // a hexagon's six corners, worked out once: the very numbers each cell used to work out for itself
 function hexPath(ctx, cx, cy, s) { for (var i = 0; i < 6; i++) { var px = cx + s * HEX_COS[i], py = cy + s * HEX_SIN[i]; if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); } ctx.closePath(); }
 // [fogcheck:seenpic-start]
@@ -2771,9 +2904,25 @@ var LIGHT_SAID = {
     document.querySelectorAll('#fogMenu .fog-brush-btn').forEach(function(b) { b.addEventListener('click', function() { brushPress(b.dataset.fbrush); }); });
     document.querySelectorAll('#fogMenu .fog-stroke-btn').forEach(function(b) { b.addEventListener('click', function() { strokePick(b.dataset.fstroke); }); });
     var rev = ui('fogRevealAll');
-    if (rev) rev.addEventListener('click', function() { var map = activeMap(); if (!map) return; var mfR = mapFog(map); mfR.mode = 'reveal'; mfR.epoch = (mfR.epoch || 0) + 1; save(); syncMenu(); redraw(); toast('Whole map revealed. Paint a cell with a brush to fog it again by what the tokens see.'); });   // senses S6: a new epoch empties every player's memory of it
+    // 1.6.3 (the owner's rulings of 2026-11-17). Finding 5, "Ask first": each of the two changes the whole map's fog for every player on it, so
+    // each asks one plain question first (buttons alone answer it), and Undo still takes it back afterwards (the save is an undo step as ever).
+    // Finding 13: Reveal all no longer raises the fog epoch, so it keeps every player's explored ground; Cover all does, and lets that ground go
+    // (hostMemDrop on the GM's machine, and each player's screen by its key)
+    if (rev) rev.addEventListener('click', function() {
+        var map = activeMap(); if (!map) return;
+        showConfirm('Show the whole map to every player on it? They see all of it until you paint fog again. Undo puts the fog back, but not what they have seen.', function(ok) {
+            if (!ok || activeMap() !== map) return;
+            var mfR = mapFog(map); mfR.mode = 'reveal'; save(); syncMenu(); redraw(); toast('Whole map revealed. Paint a cell with a brush to fog it again by what the tokens see.');
+        }, { noEnter: true, yes: 'Reveal all' });
+    });
     var cov = ui('fogCoverAll');
-    if (cov) cov.addEventListener('click', function() { var map = activeMap(); if (!map) return; var mfC = mapFog(map); mfC.mode = 'cover'; mfC.epoch = (mfC.epoch || 0) + 1; save(); syncMenu(); redraw(); toast('Whole map covered. Only cells you reveal by hand show.'); });   // senses S6: a new epoch empties every player's memory of it
+    if (cov) cov.addEventListener('click', function() {
+        var map = activeMap(); if (!map) return;
+        showConfirm('Cover the whole map? Players see only the cells you reveal by hand, and every player forgets the ground of this map they explored.', function(ok) {
+            if (!ok || activeMap() !== map) return;
+            var mfC = mapFog(map); mfC.mode = 'cover'; mfC.epoch = (mfC.epoch || 0) + 1; hostMemDrop(activeCamp(), map.id); save(); syncMenu(); redraw(); toast('Whole map covered. Only cells you reveal by hand show.');
+        }, { noEnter: true, yes: 'Cover all' });
+    });
     var prev = ui('fogPreview');
     if (prev) prev.addEventListener('change', function() { previewMode = prev.value || 'off'; redraw(); });
     FOG_FOLDS.forEach(function(id) { var fb = ui(id); if (fb) fb.addEventListener('click', function() { foldPress(id); }); });   // 1.5.4: the menu's three folds
@@ -2903,6 +3052,7 @@ window.wpFog = {
     fogOffFor: fogOffFor, nullsAt: nullsAt,   // senses S7a: a player's word of their own tokens' senses a null area switches off, and what is off where a token stands
     placeSeen: placeSeen,   // 1.6.3: which of a map's places this screen's viewer has seen (places.js)
     seenJudge: seenJudge, pieceSeen: pieceSeen,   // 1.6.3: which pieces a player's minimap, Shift+1, hover card and double-click may show (main.js, whiteboard.js)
+    memOut: memOut, memSeed: memSeed,   // 1.6.3 (finding 13): a player's explored ground, kept by the host (net.js memSendTo) and laid into their screen's store
     seenKind: seenKind, memSeenSig: memSeenSig, memTrace: memTrace, rememberOff: function() { return !rememberOn(activeCamp()); },   // 1.6.0: what a portal's picture of a map may hold on a player's screen (mapshot.js)
     stats: function() { var map = activeMap(); return { on: map ? !!mapFog(map).on : false, light: map ? mapLevel(map) : null, mode: map ? mapFog(map).mode : null, preview: previewMode, brush: brush, fogMode: !!window.isFogMode, role: roleNow() }; }
 };

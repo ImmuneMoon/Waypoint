@@ -425,9 +425,11 @@ function mkFogStub() {
         sightSigFor() { return 'S'; }, fogLitFor() { return null; }, fogMarksFor() { return null; }, fogOffFor() { return null; },
         invalidateSeen() {}, invalidateVision() {}, redraw() {}, seenKeyOf(map, w) { return (Number(w.x) || 0) + ',' + (Number(w.y) || 0) + ',' + (Number(w.rot) || 0); },
         moveBlocked(map, w, x0, y0, x1, y1) { return x1 >= 600 && x1 < 610; },   // the wall at x 600..610
-        lightCount() { return 0; }, lightMoves() { return false; }, marksForget() {}, canSeePoint() { return true; }, sightUnit() { return 'yd'; }
+        lightCount() { return 0; }, lightMoves() { return false; }, marksForget() {}, canSeePoint() { return true; }, sightUnit() { return 'yd'; },
+        memSeed(id, k, c) { fuzzMemSeeds.push([id, k, Array.isArray(c) ? c.length : -1]); return 0; }   // 1.6.3 (finding 13): a player's explored ground the host sends (what was handed on, read by the fogMem check)
     };
 }
+const fuzzMemSeeds = [];
 
 /* ---------- the world ---------- */
 const K1 = 'a'.repeat(32), K2 = 'b'.repeat(32), K3 = 'c'.repeat(32);   // K3: a known player who is never at the table (the transport probe's)
@@ -1037,6 +1039,7 @@ function mutations(tpl) {
             'char@host': { type: 'char', campId: 'c1', char: { id: 'c_p2', name: 'Stolen', ownerId: 'u_p1', values: {} } },
             'handout@host': { type: 'handout', kind: 'text', text: 'x', title: 'T' },
             'fogDiff@host': { type: 'fogDiff', campId: 'c1', itemId: 'm_fog', drop: ['tok_far'] },
+            'fogMem@host': { type: 'fogMem', campId: 'c1', itemId: 'm_fog', k: 'square:50|0', c: ['1,1'] },   // 1.6.3 (finding 13): a player's explored ground, from the host alone
             'voice@host': { type: 'voice', act: 'offer', id: '0123456789abcdef', sdp: 'v=0\r\n', who: { 0: { pid: 'u_p1', name: 'Ayla' } } }
         }
     };
@@ -2829,6 +2832,7 @@ function mutations(tpl) {
         'clock': { type: 'clock', campId: 'c1', clock: { t: 3600, notes: [{ id: 'n_1', day: 1, text: 'Market' }] } },
         'fogDiff': { type: 'fogDiff', campId: 'c1', itemId: 'm_fog', add: [{ item: { id: 'tok_new', type: 'circle', isChar: true, x: 1, y: 1, w: 50, h: 50, secret: true, seenColor: '#112233', seenTexture: 'grass', seenWidth: 6, seenOpacity: 0.5, seenTip: 'flat' }, after: null }], drop: ['tok_far'], lit: [], capped: false, marks: [{ c: 3, r: 3, k: 1, s: 1 }] },   // item 19b: a mark's word s (a creature hidden in a seen cell), cleaned by the player's app
         'campName': { type: 'campName', campId: 'c1', name: 'Renamed' },
+        'fogMem': { type: 'fogMem', campId: 'c1', itemId: 'm_fog', k: 'square:50|0', c: ['1,1', '2,1'] },   // 1.6.3 (finding 13): a player's explored ground the host keeps
         'libManifest': { type: 'libManifest', campId: 'c1', packs: [{ id: 'p_core', name: 'Core', n: 1, hash: 'abcdef12' }] },
         'lib-idx-ans': { type: 'lib-idx-ans', rid: 'q1', packId: 'p_core', hash: 'abcdef12', page: 0, pages: 1, rows: [] },
         'turnRules': { type: 'turnRules', campId: 'c1', timers: 'owner', fill: 'owner' },
@@ -2874,7 +2878,7 @@ function mutations(tpl) {
         'charDelta': () => campC().chars.c_p1.values.f_str === 17 && campC().chars.c_p1.values.f_gmfig === undefined,
         'charStyle': () => !!campC().chars.c_p1.looks && Object.keys(campC().chars.c_p1.looks).join() === 'f_class' && campC().chars.c_p1.looks.f_class.fmt.b === true,
         'charGone': () => !campC().chars.c_p2, 'campName': () => campC().name === 'Renamed', 'clock': () => campC().clock && campC().clock.t === 3600,
-        'fogDiff': () => !!tokC('m_fog', 'tok_new') && !tokC('m_fog', 'tok_far'), 'docStyle': () => campC().docStyle && campC().docStyle.font === 'serif',
+        'fogDiff': () => !!tokC('m_fog', 'tok_new') && !tokC('m_fog', 'tok_far'), 'fogMem': () => fuzzMemSeeds.some(s => s[0] === 'm_fog' && s[1] === 'square:50|0' && s[2] === 2), 'docStyle': () => campC().docStyle && campC().docStyle.font === 'serif',
         'turnRules': () => campC().turnRules.timers === 'owner', 'acts-left': () => cnet.actsLeft && cnet.actsLeft.c_p1 && cnet.actsLeft.c_p1.left.attack === 1,
         'chat': () => rec.text.some(t => t.v === 'hi'), 'turn-note': () => rec.toasts.some(t => t === 'Your turn.'), 'travelDenied': () => rec.toasts.some(t => /Cellar/.test(t)),
         'roster': () => cnet.roster.u_p2 && cnet.roster.u_p2.name === 'Bram' && cnet.away.u_p3 === 'm_fog' && rec.html.some(h => /Bram/.test(h.v)),

@@ -1712,6 +1712,13 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
       if (_elFind.q) { inp.value = _elFind.q; elFindApply(listEl, _elFind.q); }
       if (had) { try { inp.focus(); if (typeof s0 === 'number' && typeof s1 === 'number') inp.setSelectionRange(s0, s1); } catch (e) {} }
   }
+  // The find box's own listener: what is typed is kept (_elFind, by the view and the map) and filters the rows. Asked by renderElementList right
+  // after each elWrite, for the empty list as for the full one (1.6.3, the review of finding 18: the empty list's box had none, so words cleared
+  // there were not forgotten, and came back to hide the next piece added)
+  function elFindWire(listEl, map) {
+      var inp = listEl._elInp;
+      if (inp) inp.addEventListener('input', function() { _elFind = { key: elFindKey(map), q: this.value }; elFindApply(listEl, this.value); });
+  }
   // [lookcheck:elkeep-end]
   function elRoomOrder() { var v = ''; try { v = localStorage.getItem('wp_roomOrder') || ''; } catch (e) {} return v === 'name' || v === 'cat' ? v : 'made'; }   // 1.6.2 (backlog 45): read back as one of three words
   function renderElementList() {
@@ -1741,7 +1748,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
           html += '<div class="muted">No elements found.</div>';
 
-          if (!elKept(listEl, html, activeMap, items)) elWrite(listEl, html, activeMap, items);   // 1.6.3 (finding 18): written only where it changed, the find box kept
+          if (!elKept(listEl, html, activeMap, items)) { elWrite(listEl, html, activeMap, items); elFindWire(listEl, activeMap); }   // 1.6.3 (finding 18): written only where it changed, the find box kept and heard
 
           return;
 
@@ -1887,16 +1894,9 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
       
 
-      // search filter
+      // search filter: the box elWrite just wrote (1.6.3, finding 18: what is typed is kept for the next redraw)
 
-      var _el_elementSearchInput = listEl._elInp;   // the box elWrite just wrote (1.6.3, finding 18: what is typed is kept for the next redraw)
-
-if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', function() {
-
-          _elFind = { key: elFindKey(activeMap), q: this.value };
-          elFindApply(listEl, this.value);
-
-      });
+      elFindWire(listEl, activeMap);
 
       
 

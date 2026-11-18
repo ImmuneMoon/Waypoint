@@ -1213,7 +1213,7 @@ function tokenFxCharOp(charId, fieldId, q) {   // a character token's menu: the 
 // stance, the round of its fight, its range to a target) reads the same, so a fight that ends or a target that moves within the pass is
 // read afresh. Each caller gets its own copy of the lines
 var _hlPass = null;
-function passForget() { _hlPass = null; _tokAt = null; var S = window.wpSystemCore; if (S && typeof S.tokenEffectsForget === 'function') S.tokenEffectsForget(); }   // 1.6.3 (finding 26): and where each token stands (_tokAt, below)   // what one pass kept (these lines, and systemcore's tokenEffectsPass) is read again
+function passForget() { _hlPass = null; var S = window.wpSystemCore; if (S && typeof S.tokenEffectsForget === 'function') S.tokenEffectsForget(); }   // what one pass kept (these lines, and systemcore's tokenEffectsPass) is read again
 function hlKept(w, sys, c, ctx) {
     var Fh = F(); if (typeof Map !== 'function' || !w || typeof w.id !== 'string') return hoverLines(sys, c, Fh, ctx);
     var ctxS = ''; try { ctxS = JSON.stringify(ctx === undefined ? null : ctx); } catch (e) { return hoverLines(sys, c, Fh, ctx); }   // a context that cannot be written out is never kept
@@ -1225,41 +1225,44 @@ function hlKept(w, sys, c, ctx) {
     return out;
 }
 // 1.6.3 (the improvement week's review, finding 26): hoverLinesForTokenId found its token by walking every map's pieces each time it was asked,
-// and the party strip asks for every member at every draw, so a map switch on a campaign of 38 maps walked them all a dozen times. _tokAt keeps,
-// for one pass of the app, the first place each token id stands: the same first map, in the campaign's own order of items, and the same first
-// piece on it that the walk (tokWalk, kept as it was) finds, so the answer is the walk's. It is made again where the campaign or any map's list of
-// pieces is another (another object, or another length), it is let go at the end of the pass (a microtask, as the hover lines kept above are)
-// and by passForget, and a place that no longer holds the piece it names is read by the walk. A map whose pieces are no list, and a token id that
-// is no plain value (NaN, which no strict comparison finds), are read by the walk too
-var _tokAt = null;   // { camp, ids, wbs, lens, at: Map(token id -> { mapId, wb, idx, w }) } for one pass, or null
+// and the party strip asks for every member at every draw, so a map switch on a campaign of 38 maps walked them all a dozen times. An index of
+// the first place each token id stands (the same first map, in the campaign's own order of items, and the same first piece on it that the walk,
+// tokWalk, kept as it was, finds) is made once a DRAW of the party strip: the strip hands hoverLinesForTokenId one object of its own (ix) for that
+// draw, which the index is kept on, and nothing changes a map's pieces while the strip draws. With no ix, as every other caller asks, the walk
+// answers. The first cut kept the index for a whole pass of the app (a microtask), and a list of pieces of the same length that another piece took a
+// place in within the pass (one piece taken out and another put in, or one put in another's place) answered no token, or the token's later place
+// where an earlier place now held it (the review of finding 26). The guards stay within a draw too: the index is made again where the campaign
+// or any map's list of pieces is another (another object, or another length), a place that no longer holds the piece it names is read by the walk,
+// and so is an id the index does not hold. A map whose pieces are no list, and a token id that is no plain value (NaN, which no strict comparison
+// finds), are read by the walk too
 function tokWalk(camp, tokId) {   // the old walk, as it was: the first map (in the order of the campaign's items) whose pieces hold the id, and the piece
     var w = null, onMap = null; Object.keys(camp.items || {}).some(function(id) { var m = camp.items[id]; if (!m || m.type !== 'map') return false; w = (m.whiteboard || []).find(function(x) { return x && x.id === tokId; }) || null; if (w) onMap = id; return !!w; });
     return { w: w, onMap: onMap };
 }
-function tokFind(camp, tokId) {   // asked by hoverLinesForTokenId: { w, onMap } exactly as tokWalk answers, from the pass's index where it still stands
-    if (typeof Map !== 'function' || tokId !== tokId) return tokWalk(camp, tokId);
+function tokFind(camp, tokId, ix) {   // asked by hoverLinesForTokenId: { w, onMap } exactly as tokWalk answers, from the draw's index (kept on ix as ix.k) where it still stands
+    if (typeof Map !== 'function' || tokId !== tokId || !ix || typeof ix !== 'object') return tokWalk(camp, tokId);
     var items = camp.items || {}, ids = Object.keys(items), wbs = [], i;
     for (i = 0; i < ids.length; i++) {
         var m = items[ids[i]], wb = m && m.type === 'map' ? m.whiteboard : null;
         if (wb && !Array.isArray(wb)) return tokWalk(camp, tokId);
         wbs.push(m && m.type === 'map' && wb ? wb : null);
     }
-    var k = _tokAt, same = !!k && k.camp === camp && k.ids.length === ids.length;
+    var k = ix.k, same = !!k && k.camp === camp && k.ids.length === ids.length;
     for (i = 0; same && i < ids.length; i++) same = k.ids[i] === ids[i] && k.wbs[i] === wbs[i] && (!wbs[i] || k.lens[i] === wbs[i].length);
     if (!same) {
         var at = new Map(), lens = [];
         ids.forEach(function(id, n) { var wb = wbs[n]; lens.push(wb ? wb.length : 0); if (!wb) return; for (var j = 0; j < wb.length; j++) { var x = wb[j]; if (x && !at.has(x.id)) at.set(x.id, { mapId: id, wb: wb, idx: j, w: x }); } });
-        var mine = _tokAt = { camp: camp, ids: ids, wbs: wbs, lens: lens, at: at }, drop = function() { if (_tokAt === mine) _tokAt = null; };
-        if (typeof queueMicrotask === 'function') queueMicrotask(drop); else Promise.resolve().then(drop);
+        ix.k = { camp: camp, ids: ids, wbs: wbs, lens: lens, at: at };
     }
-    var e = _tokAt.at.get(tokId);
-    if (!e) return { w: null, onMap: null };
-    if (e.wb[e.idx] !== e.w || e.w.id !== tokId) return tokWalk(camp, tokId);   // a piece put in another's place within the pass
+    var e = ix.k.at.get(tokId);
+    if (!e) return tokWalk(camp, tokId);   // an id the index does not hold (the review of finding 26): the walk says whether it stands anywhere now
+    if (e.wb[e.idx] !== e.w || e.w.id !== tokId) return tokWalk(camp, tokId);   // a piece put in another's place since the index was made
     return { w: e.w, onMap: e.mapId };
 }
-function hoverLinesForTokenId(camp, tokId) {
+// ix: the one object a caller hands in for one draw of its own (whiteboard.js renderPartyStrip), on which tokFind keeps its index; none, the walk
+function hoverLinesForTokenId(camp, tokId, ix) {
     if (!camp || !tokId) return [];
-    var f = tokFind(camp, tokId), w = f.w, onMap = f.onMap;
+    var f = tokFind(camp, tokId, ix), w = f.w, onMap = f.onMap;
     return w ? hoverLinesForToken(w, camp, onMap) : [];
 }
 // [systemcheck:hlpass-end]

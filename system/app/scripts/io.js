@@ -1339,12 +1339,16 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
   // of the state around them. Whether an item changed is known without writing its JSON again where the pass that ran this very save worked out
   // its projection (pp, from passTake) and that projection, the item's keys, its id, its type and its live meta (bodySig) are all what they were:
   // those say every byte of the item's JSON. Where there is no such projection (a host's save, whose table sync runs between the pass and the
-  // body and may write into an item; another campaign; saveView) the item's JSON is written and compared, and only the encoding is saved.
+  // body and may write into an item; another campaign; saveView) the projection is worked out here and judged the same way, so only the
+  // encoding is saved. What is kept per item is its Blob (the item's bytes, held by the browser's blob store: about the size of the state on
+  // disk, 17.8 MB on the owner's campaign) and its projection, which is the undo baseline's own string wherever it reads the same (bodyPart's
+  // last), so it costs nothing of its own; only the items of a campaign the undo history has not seen this session keep a projection apart
+  // (1.6.3, the review of finding 25: the first cut also kept each item's whole JSON, 36 to 54 MB more on that campaign).
   // The text is JSON.stringify(state.appState) itself: the state is written once with each item swapped for a mark that holds a random word of
   // this save's own, and each mark, found once and in order, is cut out for the item's part. Anything the mark cannot stand for (an item that
   // is no plain object or reads itself through toJSON, a campaign or a list of items that is no plain object, no Blob in this browser) is written
   // as it always was, and where the marks are not all found exactly once the whole save is the plain string. The server reads the same bytes
-  var _bodyKept = typeof WeakMap === 'function' ? new WeakMap() : null;   // item object -> { p: projection, sig: bodySig, s: its JSON, blob: its part }
+  var _bodyKept = typeof WeakMap === 'function' ? new WeakMap() : null;   // item object -> { p: projection, sig: bodySig, blob: its part }
   // what of an item its projection does not say, as one string, or null where the item cannot be judged that way: its own keys and its meta's
   // keys in order (the order JSON writes them in), its id and type, and its live meta values (project leaves META_LIVE out), each with its type,
   // since JSON writes undefined and a function as nothing and null as null. A key named __proto__ is no own key of the object project builds, so
@@ -1357,19 +1361,34 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       var live = []; mk.forEach(function(k) { if (META_LIVE[k]) live.push(k, typeof meta[k], meta[k]); });
       try { return JSON.stringify([ik, mk, typeof item.id, item.id, typeof item.type, item.type, live]); } catch (e) { return null; }
   }
-  // one item's part of the body: the part kept for it where its JSON is as it was, else a new one (and kept)
-  function bodyPart(item, pp) {
-      var k = _bodyKept.get(item), p = pp ? pp.get(item) : undefined, sig = p !== undefined ? bodySig(item) : null;
-      if (k && p !== undefined && sig !== null && k.p === p && k.sig === sig) return k.blob;   // the projection, the keys and the live meta as they were: the JSON is as it was
-      var s = JSON.stringify(item);
-      if (k && k.s === s) { if (p !== undefined) { k.p = p; k.sig = sig; } return k.blob; }   // the same JSON: the projection it was kept with still says it, so a save with none keeps it
-      var b = new Blob([s]); _bodyKept.set(item, { p: p, sig: sig, s: s, blob: b }); return b;
+  // one item's part of the body: the part kept for it where its projection, keys and live meta are as they were (its JSON is then as it was),
+  // else a new one, kept. The projection is the one this save's pass made (pp) where there is one, else it is worked out here (a host's save,
+  // saveView, an item of a campaign the pass does not walk). last: the item's undo baseline (histories[...].last), the string pushHistory keeps
+  // of this very projection; where the projection reads the same, that string is the one kept, so the kept projection holds no memory of its own.
+  // Called by saveBody alone, once an item, for every plain item of every campaign
+  function bodyPart(item, pp, last) {
+      var k = _bodyKept.get(item), p = pp ? pp.get(item) : undefined;
+      if (p === undefined) { try { p = project(item); } catch (e) { p = undefined; } }   // a value that cannot be written: the item is written as it is below (and fails there as the plain string would)
+      var sig = p !== undefined ? bodySig(item) : null;
+      if (sig !== null && typeof last === 'string' && last === p) p = last;   // the baseline's own string, where it reads the same
+      if (k && sig !== null && k.sig === sig && k.p === p) { k.p = p; return k.blob; }   // the projection, the keys and the live meta as they were: the JSON is as it was
+      var b = new Blob([JSON.stringify(item)]); _bodyKept.set(item, { p: sig !== null ? p : undefined, sig: sig, blob: b }); return b;   // an item that cannot be judged keeps no projection, so it is written each time
   }
   // the save's body: a Blob holding exactly JSON.stringify(state.appState), or that string itself where it cannot be put together from parts
   function saveBody(pp) {
       var all = state.appState, plain = function(o) { return !!o && typeof o === 'object' && !Array.isArray(o) && typeof o.toJSON !== 'function'; };
       if (typeof Blob !== 'function' || !_bodyKept || !plain(all) || !plain(all.campaigns)) return JSON.stringify(all);
       if (!pp || typeof pp.get !== 'function') pp = null;
+      // 1.6.3 (the review of finding 25): an own key named __proto__ (JSON.parse of a file makes one) on the state, its list of campaigns, a
+      // campaign or a campaign's list of items is lost when the skeleton below is built (Object.assign and an assignment go through the
+      // __proto__ setter, which drops it or, for a value that is no object, does nothing), and the count of marks does not always show it. The
+      // body is then the plain string, which writes the key as it stands. bodyProto is the one test, asked before anything is built
+      var bodyProto = function(o) { return Object.keys(o).indexOf('__proto__') >= 0; };
+      if (bodyProto(all) || bodyProto(all.campaigns)) return JSON.stringify(all);
+      var cids = Object.keys(all.campaigns);
+      for (var q = 0; q < cids.length; q++) { var cq = all.campaigns[cids[q]]; if (plain(cq) && (bodyProto(cq) || (plain(cq.items) && bodyProto(cq.items)))) return JSON.stringify(all); }
+      // the undo baseline of an item of a campaign, for bodyPart's last (none outside the history, or where the history holds none for it)
+      var lastOf = function(camp, id) { var h = typeof histories === 'object' && histories && typeof itemKey === 'function' ? histories[itemKey(camp, id)] : null; return h && typeof h.last === 'string' ? h.last : undefined; };
       try {
           var word = '\u0001wpb' + Math.random().toString(36).slice(2) + Date.now().toString(36) + ':', parts = [], camps = {};
           Object.keys(all.campaigns).forEach(function(cid) {
@@ -1379,7 +1398,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
               Object.keys(camp.items).forEach(function(id) {
                   var it = camp.items[id];
                   if (!plain(it)) { items[id] = it; return; }
-                  items[id] = word + parts.length; parts.push(bodyPart(it, pp));
+                  items[id] = word + parts.length; parts.push(bodyPart(it, pp, lastOf(camp, id)));
               });
               camps[cid] = Object.assign({}, camp, { items: items });   // the campaign's keys in their own order, its items swapped for marks
           });
@@ -1418,8 +1437,36 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       if (_saveLimit > 0) { var dL = new Date(_saveLimit); toast('Today’s saves to the website are used up, so changes are not kept. Saving starts again at ' + dL.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' on ' + dL.toLocaleDateString() + '.'); return; }
       toast('Saving failed. The campaign is not reaching the disk.');
   }
+  // [netcheck:saveswitch-start]
+  // 1.6.3 (the review of finding 26): the save after a map switch. sidebar.js navigateToMap asked save() so that it would wait the usual half
+  // second, but save() sets savePending, and pushHistory reads savePending as "the GM's own edit is waiting on the open item": a player's change
+  // to the map just opened, saved by the table within that half second (net.js saveRemoteSoon), was then recorded as a step of the GM's undo and
+  // emptied that map's redo list. A switch is no edit, so saveSwitch waits on a timer of its own (switchTimeout) and never sets savePending:
+  //   * where the GM's own edit is already waiting (savePending), the switch saves at once, as every switch did before 1.6.3, so that edit is
+  //     its own step and the window that pushHistory reads ends now;
+  //   * where the map opened has no undo history yet (a map just made: pushHistory seeds a map the first time a pass sees it), at once too, so
+  //     the map takes its baseline before anything is laid on it and the GM's first change there is an undo step;
+  //   * otherwise the map opened is stamped (as save() stamps it) and the save runs half a second later, save(true) on the timer. Any save()
+  //     before then carries the switch and cancels the timer (switchClear, asked by save()), and pagehide writes a switch still waiting, so a
+  //     switch made just before the app closes reaches the disk as it did when it saved at once
+  var switchTimeout = null;
+  function switchClear() { if (switchTimeout) { clearTimeout(switchTimeout); switchTimeout = null; } }
+  function saveSwitch() {
+      if (window.__wpNoSave) return;   // a snapshot is being restored: nothing is written
+      var camp = getActiveCampaign(), map = getActiveMap();
+      var seen = !!(camp && map && typeof map.id === 'string' && histories[itemKey(camp, map.id)]);
+      if (savePending || !seen) { switchClear(); save(true); return; }
+      if (map.meta && typeof map.meta === 'object') map.meta.updated = Date.now();   // the map opened is stamped now, as save() would stamp it
+      switchClear();
+      switchTimeout = setTimeout(function() { switchTimeout = null; save(true); }, 500);
+  }
+  if (typeof window.addEventListener === 'function') window.addEventListener('pagehide', function() { if (switchTimeout) { switchClear(); save(true); } });
+  // [netcheck:saveswitch-end]
+
   function save(immediate) {
     if (window.__wpNoSave) return;   // a snapshot is being restored: the in-memory copy must not win
+
+    if (typeof switchClear === 'function') switchClear();   // 1.6.3: a save carries a map switch still waiting (saveSwitch)
 
     var activeMap = getActiveMap();
 
@@ -1454,7 +1501,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
         if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host') {
 
             window.wpNet.onLocalSave();
-            passP = null;   // the table's sync may write into an item after the pass: every item's JSON is written for the body and compared
+            passP = null;   // the table's sync may write into an item after the pass: every item's projection is worked out again for the body and compared
 
         }
 
@@ -2257,6 +2304,8 @@ export {
     redo,
 
     save,
+
+    saveSwitch,   // sidebar.js navigateToMap: the save after a map switch, which is no edit (1.6.3)
 
     saveView,
 

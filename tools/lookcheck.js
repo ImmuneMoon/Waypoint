@@ -4703,9 +4703,12 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
     const rA = inS.indexOf('  function renderElementList() {'), rZ = inS.indexOf('\n  function esc(s){', rA), relS = rA >= 0 && rZ > rA ? inS.slice(rA, rZ) : '';
     const lnA = inS.indexOf('  function layerNow(w) {'), lnZ = inS.indexOf('\n  }\n', lnA), lnS = lnA >= 0 && lnZ > lnA ? inS.slice(lnA, lnZ + 4) : '';
     const OLD_EL = keepS ? relS
-        .split("          if (!elKept(listEl, html, activeMap, items)) elWrite(listEl, html, activeMap, items);   // 1.6.3 (finding 18): written only where it changed, the find box kept\n").join('          listEl.innerHTML = html;\n')
+        .split("          if (!elKept(listEl, html, activeMap, items)) { elWrite(listEl, html, activeMap, items); elFindWire(listEl, activeMap); }   // 1.6.3 (finding 18): written only where it changed, the find box kept and heard\n").join('          listEl.innerHTML = html;\n')
         .split("      if (elKept(listEl, html, activeMap, items)) return;   // 1.6.3 (finding 18): the list already shows exactly this, with its listeners and its find box as they are\n      elWrite(listEl, html, activeMap, items);\n").join('      listEl.innerHTML = html;\n')
-        .split("      var _el_elementSearchInput = listEl._elInp;").join("      var _el_elementSearchInput = document.getElementById('elementSearchInput');") : '';
+        .split("      elFindWire(listEl, activeMap);\n").join("      var _el_elementSearchInput = document.getElementById('elementSearchInput');\nif(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', function() { _elFind = { key: elFindKey(activeMap), q: this.value }; elFindApply(listEl, this.value); });\n") : '';
+    // the review of finding 18: the empty list's find box had no listener, so words cleared there came back and hid the next piece added. PRE_EMPTY
+    // is the source as that commit left it (the empty list written with no elFindWire)
+    const PRE_EMPTY = relS.split(" elWrite(listEl, html, activeMap, items); elFindWire(listEl, activeMap); }").join(" elWrite(listEl, html, activeMap, items); }");
     // a list element: innerHTML read back into plain elements by a reader of the suite's own (each tag's class, id and data keys; an el-name's words)
     const page = () => {
         const P = { writes: 0, active: null, lists: {} };
@@ -4753,6 +4756,22 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         cur = mapB; rel(); out.other = [L.querySelector('#elementSearchInput').value, shown()];
         return out;
     };
+    // words typed, every piece deleted (the empty list, the words given back to its box), the box cleared, a piece added: the piece shows and the box is empty
+    const emptyScene = src => {
+        const P = page(), st = { viewMode: 'visual', selWbIds: [], selWbId: null, selId: null, zoomLevel: 1 };
+        const mapE = { id: 'mE', type: 'map', whiteboard: [{ id: 'g1', type: 'rect', name: 'Guard', x: 10, y: 10, w: 50, h: 50 }] };
+        const rel = run(src, P, st, () => mapE); P.again = () => rel(); const L = P.lists.layersList;
+        const shown = () => L.querySelectorAll('.element-list-item').filter(r => r.style.display !== 'none').map(r => r.dataset.id).join();
+        rel(); const b1 = L.querySelector('#elementSearchInput'); b1.value = 'gu'; b1.fire('input');
+        mapE.whiteboard.length = 0; rel(); const b2 = L.querySelector('#elementSearchInput'), kept = b2.value;
+        b2.value = ''; b2.fire('input');
+        mapE.whiteboard.push({ id: 'n1', type: 'rect', name: 'Barrel', x: 1, y: 1, w: 10, h: 10 }); rel();
+        return [kept, L.querySelector('#elementSearchInput').value, shown()];
+    };
+    let emNow = null, emPre = null;
+    try { emNow = emptyScene(relS); emPre = emptyScene(PRE_EMPTY); } catch (e) { emNow = emNow || 'err ' + (e && e.message); }
+    check('1.6.3 (the review of finding 18) the empty list\'s Find a piece box is heard as the full list\'s is (inspector.js elFindWire, run for real): words typed, every piece deleted (the box keeps the words), the box cleared and a piece added: the piece shows and the box is empty. Without the listener on the empty list the cleared words come back and hide the new piece',
+        !!relS && PRE_EMPTY !== relS && JSON.stringify(emNow) === JSON.stringify(['gu', '', 'n1']) && JSON.stringify(emPre) === JSON.stringify(['gu', 'gu', '']), JSON.stringify([emNow, emPre]));
     let now = null, was = null, errs = [];
     try { now = scene(relS); } catch (e) { errs.push('now: ' + (e && e.message)); }
     try { was = scene(OLD_EL); } catch (e) { errs.push('old: ' + (e && e.message)); }

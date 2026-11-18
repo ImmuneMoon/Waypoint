@@ -3102,8 +3102,10 @@ window.wpFitToGrid = fitToGrid;
           c.flag = fl; c.flagName = fx && typeof fx.name === 'string' ? fx.name : '';
       });
       // 1.6.3 (the improvement week's review, finding 26): a member's hover lines are worked out ONCE a draw (hlOf, kept on the member as c.hl)
-      // and read by both the strip's signature and the chip's tooltip below, which each asked for them before. The lines are the same: one ask
-      var hlOf = function(c) { if (c.hl === undefined) c.hl = window.wpSheets && c.tokId ? window.wpSheets.hoverLinesForTokenId(camp, c.tokId) : []; return c.hl; };
+      // and read by both the strip's signature and the chip's tooltip below, which each asked for them before. The lines are the same: one ask.
+      // tokIx is this draw's own: sheets.js keeps on it where each token stands, made once for every member's ask, and it goes with the draw
+      var tokIx = {};
+      var hlOf = function(c) { if (c.hl === undefined) c.hl = window.wpSheets && c.tokId ? window.wpSheets.hoverLinesForTokenId(camp, c.tokId, tokIx) : []; return c.hl; };
       var sig = list.map(function(c) { return c.key + (c.flag ? '~' + c.flag + '~' + c.flagName : '') + (c.waiting ? '~w' : '') + (c.emoji ? '~' + c.emoji : '') + '|' + c.name + '|' + c.mapId + '|' + (c.src ? c.src.length + c.src.slice(-16) : '') + '|' + (atTable ? (present[c.ownerId] ? 1 : 0) : 2) + '|' + (window.wpSheets && c.tokId ? hlOf(c).join(',') : '') + '|' + (hosting && c.ownerId && window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(c.ownerId) ? 'P' : ''); }).join(';') + '#' + am.id;
       if (strip.dataset.sig === sig) return;
       strip.dataset.sig = sig;

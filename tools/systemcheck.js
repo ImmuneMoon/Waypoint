@@ -4116,7 +4116,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         await Promise.resolve(); HLK.byId(campH, 't_h'); const n8 = hlCalls;
         check('1.6.3 the party strip\'s hover lines kept for one pass of the app (sheets.js hlKept, run for real): asked again in the same pass they are worked out once and each caller gets its own copy; a fight whose round moved, the sheet stamped, new values and passForget read them afresh, and so does the next pass',
             j(k1) === j(['Round 3']) && n1 === 1 && n2 === 1 && j(k3) === j(['Round 3']) && n3 === 1 && j(k4) === j(['Round 4']) && n4 === 2 && n5 === 3 && n6 === 4 && n7 === 5 && n8 === 6, j([k1, k3, k4, n1, n2, n3, n4, n5, n6, n7, n8]));
-        {   // 1.6.3 (the improvement week's review, finding 26): where a token stands, kept for one pass (sheets.js tokFind beside the walk it replaces,
+        {   // 1.6.3 (the improvement week's review, finding 26): where a token stands, kept for one draw of the party strip (sheets.js tokFind beside the walk it replaces,
             // tokWalk, in the same slice, run for real). Over seeded campaigns (maps in any order of the campaign's items, integer-like ids among them,
             // items that are no map, pieces that are none, a hole in a list, one id on several maps) and the changes the app makes between two asks in one
             // pass (a piece pushed onto an earlier map under an id that stands later, a list spliced, a list replaced, the found piece put in another's
@@ -4132,16 +4132,21 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const same = (a, b) => a.w === b.w && a.onMap === b.onMap;
             const offT = []; let askedT = 0;
             for (let s = 0; s < 400; s++) {
-                const campT = mkCampT(); HT.forget();
-                const askAll = tag => POOL.concat(['zz']).forEach(id => { askedT++; const f = HT.find(campT, id), w = HT.walk(campT, id); if (!same(f, w) && offT.length < 4) offT.push([s, tag, id, f.onMap, w.onMap]); });
+                const campT = mkCampT(); HT.forget(); let ixT = {};   // ixT: one draw's own index (the party strip hands one in a draw)
+                const askAll = tag => POOL.concat(['zz']).forEach(id => { askedT++; const f = HT.find(campT, id, ixT), w = HT.walk(campT, id); if (!same(f, w) && offT.length < 4) offT.push([s, tag, id, f.onMap, w.onMap]); });
                 askAll('first'); askAll('again');
                 const maps = Object.keys(campT.items).filter(k => campT.items[k] && campT.items[k].type === 'map' && Array.isArray(campT.items[k].whiteboard));
-                const kind = Math.floor(rnd() * 6), mk = maps.length ? campT.items[pickT(maps)] : null;
+                const kind = Math.floor(rnd() * 8), mk = maps.length ? campT.items[pickT(maps)] : null;
                 if (kind === 0 && mk) mk.whiteboard.unshift({ id: pickT(POOL), n: 99 });
                 else if (kind === 1 && mk && mk.whiteboard.length) mk.whiteboard.splice(Math.floor(rnd() * mk.whiteboard.length), 1);
                 else if (kind === 2 && mk) mk.whiteboard = mk.whiteboard.filter(x => !x || x.id !== pickT(POOL));
                 else if (kind === 3 && mk && mk.whiteboard.length) { const at = Math.floor(rnd() * mk.whiteboard.length); mk.whiteboard[at] = { id: mk.whiteboard[at] && mk.whiteboard[at].id || 'q', n: 77 }; }
                 else if (kind === 4 && maps.length) delete campT.items[pickT(maps)];
+                // the review of finding 26: one piece taken out and a new one put in, the list of the same length (its id one the index never held:
+                // answered by the walk, where the first cut answered no token); and another id put in a piece's place, which only a new draw (a
+                // fresh index) can read rightly, since nothing tells a list of the same length apart: the strip makes a new one each draw
+                else if (kind === 6 && mk && mk.whiteboard.length) { mk.whiteboard.splice(Math.floor(rnd() * mk.whiteboard.length), 1); mk.whiteboard.push({ id: 'zz', n: 66 }); }
+                else if (kind === 7 && mk && mk.whiteboard.length) { mk.whiteboard[Math.floor(rnd() * mk.whiteboard.length)] = { id: pickT(POOL), n: 55 }; ixT = {}; }
                 else campT.items['m' + s] = { type: 'map', whiteboard: [{ id: pickT(POOL), n: 5 }] };
                 askAll('changed');
             }
@@ -4149,37 +4154,47 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             let readsT = 0; const bigT = { items: {} };
             for (let m = 0; m < 40; m++) { const wb = []; for (let i = 0; i < 60; i++) wb.push({ id: 'p' + m + '_' + i }); bigT.items['map' + m] = { type: 'map', whiteboard: new Proxy(wb, { get(t, k) { if (typeof k === 'string' && /^\d+$/.test(k)) readsT++; return t[k]; } }) }; }
             const party = ['p39_59', 'p38_1', 'p20_30', 'p0_0', 'p5_5', 'p33_3', 'p12_40', 'p27_8'];
-            HT.forget(); readsT = 0; const foundT = party.map(id => HT.find(bigT, id).onMap); const readFind = readsT;
+            HT.forget(); readsT = 0; const ixB = {}, foundT = party.map(id => HT.find(bigT, id, ixB).onMap); const readFind = readsT;
+            readsT = 0; party.forEach(id => HT.find(bigT, id)); const readNoIx = readsT;   // with no draw's own index handed in, the walk itself
+            // why the index is a draw's and never the pass's (the review of finding 26): another id put in an earlier piece's place, the lists of the
+            // same length; an index made before that answers the later place, the walk and a new draw's index the earlier one
+            const campK = { items: { m1: { type: 'map', whiteboard: [{ id: 'a' }] }, m2: { type: 'map', whiteboard: [{ id: 't' }] } } }, ixK = {};
+            const k0 = HT.find(campK, 't', ixK).onMap; campK.items.m1.whiteboard[0] = { id: 't' };
+            const kOld = HT.find(campK, 't', ixK).onMap, kNew = HT.find(campK, 't', {}).onMap, kWalk = HT.walk(campK, 't').onMap, kNone = HT.find(campK, 't').onMap;
             readsT = 0; party.forEach(id => HT.walk(bigT, id)); const readWalk = readsT;
-            check('1.6.3 (finding 26) where a token stands is kept for one pass (sheets.js tokFind, run for real beside the walk it replaces): over 400 seeded campaigns and the changes the app makes between two asks of one pass, it answers what the walk answers, the same piece on the same map, every time; and asked for a party of eight on a campaign of 40 maps it reads the pieces once (and each piece it hands back once more, to see it still stands there), where the walk read them for every ask',
-                !offT.length && askedT > 10000 && foundT.join() === 'map39,map38,map20,map0,map5,map33,map12,map27' && readFind === 2400 + party.length && readWalk > 4 * readFind, j([offT, askedT, foundT, readFind, readWalk]));
+            check('1.6.3 (finding 26) where a token stands is kept for one draw of the party strip (sheets.js tokFind, run for real beside the walk it replaces, with the draw\'s own index handed in): over 400 seeded campaigns and changes made between two asks (one piece taken out and a new one put in, a list of the same length, among them: the walk answers an id the index never held), it answers what the walk answers, the same piece on the same map, every time; and asked for a party of eight on a campaign of 40 maps it reads the pieces once (and each piece it hands back once more, to see it still stands there), where the walk read them for every ask; with no index handed in it walks, and a new draw reads another id put in an earlier piece\'s place where an index made before answers the later one (the review of finding 26)',
+                !offT.length && askedT > 10000 && foundT.join() === 'map39,map38,map20,map0,map5,map33,map12,map27' && readFind === 2400 + party.length && readWalk > 4 * readFind && readNoIx === readWalk
+                && k0 === 'm2' && kOld === 'm2' && kNew === 'm1' && kWalk === 'm1' && kNone === 'm1', j([offT, askedT, foundT, readFind, readWalk, readNoIx, k0, kOld, kNew, kWalk, kNone]));
         }
         {   // 1.6.3 (finding 26) the party strip asks each member's hover lines once a draw (whiteboard.js renderPartyStrip, run for real on a page of
             // plain objects, with a counting wpSheets): the signature and the chip's tooltip read the one answer, and the markup is what the two asks wrote
-            // before (the strip drawn by the source before the fix, which asked twice, gives the same markup). And a map switch saves on save's own timer
+            // before (the strip drawn by the source before the fix, which asked twice, gives the same markup). And a map switch saves on io.js saveSwitch's own timer
             // (sidebar.js navigateToMap, run for real): the map opened, the selection cleared and the board drawn as before, the save asked with no word
             // that it is at once
             const wbP = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, NL), pA = wbP.indexOf('  function renderPartyStrip() {'), pZ = wbP.indexOf('\n  window.wpRenderPartyStrip = renderPartyStrip;', pA), psS = pA >= 0 && pZ > pA ? wbP.slice(pA, pZ) : '';
-            const OLD_PS = psS.split("      var hlOf = function(c) { if (c.hl === undefined) c.hl = window.wpSheets && c.tokId ? window.wpSheets.hoverLinesForTokenId(camp, c.tokId) : []; return c.hl; };\n").join('')
+            const OLD_PS = psS.split("      var hlOf = function(c) { if (c.hl === undefined) c.hl = window.wpSheets && c.tokId ? window.wpSheets.hoverLinesForTokenId(camp, c.tokId, tokIx) : []; return c.hl; };\n").join('')
                 .split("hlOf(c).join(',')").join("window.wpSheets.hoverLinesForTokenId(camp, c.tokId).join(',')").split("var hlT = hlOf(c);").join("var hlT = window.wpSheets.hoverLinesForTokenId(camp, c.tokId);");
-            const stripRun = src => { let asks = 0; const strip = { innerHTML: '', dataset: {} };
+            const stripRun = src => { let asks = 0; const ixs = []; const strip = { innerHTML: '', dataset: {} };
                 const campP = { id: 'k', items: { mA: { id: 'mA', type: 'map', meta: { title: 'A' } }, mB: { id: 'mB', type: 'map', meta: { title: 'B' } } } };
                 const list = [{ key: 'o:p1', ownerId: 'p1', tokId: 't1', name: 'Ana', mapId: 'mA', map: 'A', src: null, color: '#336699' }, { key: 'o:p2', ownerId: 'p2', tokId: 't2', name: 'Bo', mapId: 'mB', map: 'B', src: null, color: null }, { key: 'i:t3', ownerId: null, tokId: 't3', name: 'Cy', mapId: 'mA', map: 'A', src: null }];
-                const win = { wpSheets: { hoverLinesForTokenId: (c, id) => { asks++; return id === 't2' ? [] : ['HP 7/9', 'Guard ' + id]; } }, wpDefaultAvatar: c => 'data:' + c };
+                const win = { wpSheets: { hoverLinesForTokenId: (c, id, ix) => { asks++; ixs.push(ix); return id === 't2' ? [] : ['HP 7/9', 'Guard ' + id]; } }, wpDefaultAvatar: c => 'data:' + c };
                 const run = new Function('getActiveCampaign', 'getActiveMap', 'state', 'characterList', 'chipPlace', 'playerNow', 'window', 'document', 'cssColor', 'esc', 'resolveImg', 'wbHashHue', 'PARTY_SHOWN', src + '\nreturn renderPartyStrip;')(
                     () => campP, () => campP.items.mA, { viewMode: 'visual' }, () => list.map(c => Object.assign({}, c)), (camp, c) => c, () => null, win, { getElementById: id => id === 'partyStrip' ? strip : null }, c => c, s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'), s => s, () => 200, 4);
-                run(); const first = asks, html = strip.innerHTML; run(); return { first, again: asks - first, html, same: strip.innerHTML === html }; };
+                run(); const first = asks, html = strip.innerHTML; run();
+                // the review of finding 26: every ask of one draw hands the same object of that draw's own, and the next draw another
+                const ixOne = ixs.length === 6 && !!ixs[0] && typeof ixs[0] === 'object' && ixs[1] === ixs[0] && ixs[2] === ixs[0] && ixs[3] !== ixs[0] && ixs[4] === ixs[3] && ixs[5] === ixs[3];
+                return { first, again: asks - first, html, same: strip.innerHTML === html, ixOne }; };
             let psNow = null, psOld = null, psErr = '';
             try { psNow = stripRun(psS); psOld = stripRun(OLD_PS); } catch (e) { psErr = String(e && e.message); }
             const sbP = fs.readFileSync(path.join(app, 'scripts', 'sidebar.js'), 'utf8').replace(/\r\n/g, NL), nA = sbP.indexOf('  function navigateToMap(mapId, landRoomId, now) {'), nZ = sbP.indexOf('\n  }\n', nA), navS = nA >= 0 && nZ > nA ? sbP.slice(nA, nZ + 4) : '';
             const navRun = () => { const log = [], campN = { activeItemId: 'm1', items: { m1: { type: 'map', meta: {} }, m2: { type: 'map', meta: {} } } }, stN = { selWbIds: ['x'], selWbId: 'x', selId: 'r', linkStart: 1, viewMode: 'visual' };
-                const nav = new Function('window', 'getActiveCampaign', 'state', 'landingPoint', 'updateSidebarNav', 'render', 'save', 'restoreCameraPosition', navS + '\nreturn navigateToMap;')(
-                    { wpApplyRememberedView: () => log.push('view') }, () => campN, stN, () => ({}), () => log.push('nav'), () => log.push('render'), function() { log.push('save' + (arguments.length ? ':' + arguments[0] : '')); }, () => log.push('camera'));
+                const nav = new Function('window', 'getActiveCampaign', 'state', 'landingPoint', 'updateSidebarNav', 'render', 'save', 'restoreCameraPosition', 'saveSwitch', navS + '\nreturn navigateToMap;')(
+                    { wpApplyRememberedView: () => log.push('view') }, () => campN, stN, () => ({}), () => log.push('nav'), () => log.push('render'), function() { log.push('save' + (arguments.length ? ':' + arguments[0] : '')); }, () => log.push('camera'), () => log.push('switch'));
                 const ok = nav('m2'), plain = log.join(); log.length = 0; nav('m1', null, true); const atOnce = log.join(); log.length = 0; nav('m2', null, 'yes'); return [ok, campN.activeItemId, stN.selWbIds.length, plain, atOnce, log.join()]; };
             let navOut = null; try { navOut = navRun(); } catch (e) { psErr += ' nav: ' + String(e && e.message); }
-            check('1.6.3 (finding 26) the party strip asks each member\'s hover lines once a draw (whiteboard.js renderPartyStrip, run for real with a counting wpSheets): three members, three asks, where the source before the fix asked six times, with the same markup; drawn again with nothing changed it asks once a member and writes nothing new. A map switch saves on save\'s own timer (sidebar.js navigateToMap, run for real), and at once only for a caller that says now as true (the three generators, whose new map takes its undo baseline before their pieces are laid; buildcheck runs them with a navigation that saves only then)',
-                !psErr && !!psS && psNow.first === 3 && psOld.first === 6 && psNow.html === psOld.html && psNow.html.indexOf('Guard t1') > 0 && psNow.again === 3 && psNow.same
-                && j(navOut) === j([true, 'm2', 0, 'view,nav,render,save,camera', 'view,nav,render,save:true,camera', 'view,nav,render,save,camera']), j([psErr, psNow && [psNow.first, psNow.again], psOld && psOld.first, navOut]));
+            check('1.6.3 (finding 26) the party strip asks each member\'s hover lines once a draw (whiteboard.js renderPartyStrip, run for real with a counting wpSheets): three members, three asks, where the source before the fix asked six times, with the same markup; drawn again with nothing changed it asks once a member and writes nothing new. A map switch saves on saveSwitch\'s own timer (sidebar.js navigateToMap, run for real; netcheck runs saveSwitch), and at once only for a caller that says now as true (the three generators, whose new map takes its undo baseline before their pieces are laid; buildcheck runs them with a navigation that saves only then)',
+                !psErr && !!psS && psNow.first === 3 && psOld.first === 6 && psNow.html === psOld.html && psNow.html.indexOf('Guard t1') > 0 && psNow.again === 3 && psNow.same && psNow.ixOne
+                && j(navOut) === j([true, 'm2', 0, 'view,nav,render,switch,camera', 'view,nav,render,save:true,camera', 'view,nav,render,switch,camera']), j([psErr, psNow && [psNow.first, psNow.again], psOld && psOld.first, navOut]));
         }
         {   // 1.6.3: a token's effects kept for one pass of the app (systemcore tokenEffectsPass and tokenEffectsForget, run for real): every token of one sheet
             // shows the same list, worked out once a pass by the character object and whether the GM reads it, and read afresh where anything it reads is another

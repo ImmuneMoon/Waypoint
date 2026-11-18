@@ -33,7 +33,7 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, getMapParentId, getMapChildren, getMapAncestors, isMapDescendantOf, isTreeItem, findLandingRoom, landingPoint } from './models.js';
 
-import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image } from './io.js';
+import { load, updateUndoBtn, pushHistory, undo, save, saveSwitch, download, getBase64Image } from './io.js';
 
 import { showPrompt, showConfirm, isCampaignNameTaken, getUniqueCampaignTitle, promptForCampaignName, isItemNameTaken, getUniqueItemTitle, promptForItemName } from './dialogs.js';
 
@@ -791,12 +791,14 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
 
       updateSidebarNav();
 
-      // 1.6.3 (the improvement week's review, finding 26): the save after a map switch waits the usual half a second (save's own debounce), as
-      // every other change does. It ran at once, so the whole campaign was written while the switch was still drawing the new map, and a quick
-      // run of switches wrote it once each; the map opened is stamped as before, and the next change or the timer writes it. A caller that
-      // changes the map right after opening it and wants that change to be one step of the map's undo passes now as true (the three generators
-      // on a map they just made: the pass at once gives the new map its baseline before their pieces are laid, so one Undo takes them back)
-      render(); if (now === true) save(true); else save();
+      // 1.6.3 (the improvement week's review, finding 26): the save after a map switch waits half a second. It ran at once, so the whole
+      // campaign was written while the switch was still drawing the new map, and a quick run of switches wrote it once each; the map opened is
+      // stamped as before, and the next change or the timer writes it. It waits on io.js saveSwitch's own timer, never save()'s debounce: save()
+      // marks the GM's own edit as waiting, and a player's change to this map saved by the table in that half second was then taken for a step
+      // of the GM's undo (the review of finding 26). A caller that changes the map right after opening it and wants that change to be one step
+      // of the map's undo passes now as true (the three generators on a map they just made: the pass at once gives the new map its baseline
+      // before their pieces are laid, so one Undo takes them back)
+      render(); if (now === true) save(true); else saveSwitch();
 
       restoreCameraPosition();
 

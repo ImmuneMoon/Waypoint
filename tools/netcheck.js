@@ -8424,12 +8424,14 @@ pendingChecks.push((async () => {
         const slT = n => { const A = '  // [textcheck:' + n + '-start]', Z = '  // [textcheck:' + n + '-end]', a = ioE.indexOf(A), z = ioE.indexOf(Z); return a >= 0 && z > a ? ioE.slice(a, z) : ''; };
         const slN = n => { const A = '  // [netcheck:' + n + '-start]', Z = '  // [netcheck:' + n + '-end]', a = ioE.indexOf(A), z = ioE.indexOf(Z); return a >= 0 && z > a ? ioE.slice(a, z) : ''; };
         const histS = slT('history'), bodyS = slN('savebody');
-        const realJ = JSON, cnt = { items: 0, enc: 0, blobs: 0 };
+        const realJ = JSON, cnt = { items: 0, enc: 0, blobs: 0, proj: 0 };
         let itemSet = new WeakSet();
-        const JC = { parse: realJ.parse, stringify: function(v) { if (v && typeof v === 'object' && itemSet.has(v)) cnt.items++; return realJ.stringify.apply(realJ, arguments); } };
+        // proj: a projection written (project's own { c, m }), which is what a save with no pass's projections works out to compare (the review of finding 25)
+        const isProj = v => !!v && typeof v === 'object' && !itemSet.has(v) && Object.keys(v).length === 2 && Object.prototype.hasOwnProperty.call(v, 'c') && Object.prototype.hasOwnProperty.call(v, 'm');
+        const JC = { parse: realJ.parse, stringify: function(v) { if (v && typeof v === 'object' && itemSet.has(v)) cnt.items++; else if (isProj(v)) cnt.proj++; return realJ.stringify.apply(realJ, arguments); } };
         class BlobC extends Blob { constructor(parts, o) { (parts || []).forEach(p => { if (typeof p === 'string') cnt.enc += p.length; }); cnt.blobs++; super(parts, o); } }
         const mk = (appState, camp) => new Function('window', 'state', 'getActiveCampaign', 'getActiveMap', 'localStorage', 'document', 'setTimeout', 'clearTimeout', 'Date', 'render', 'save', 'toast', 'saveTimeout', 'mergeLivePlayerState', 'Blob', 'JSON',
-            histS + '\n' + bodyS + '\nreturn { pushHistory: pushHistory, passTake: passTake, saveBody: saveBody };')(
+            histS + '\n' + bodyS + '\nreturn { pushHistory: pushHistory, passTake: passTake, saveBody: saveBody, kept: _bodyKept };')(
             { wpNet: null }, { appState }, () => camp, () => null, { getItem: () => null }, { getElementById: () => null, activeElement: null }, () => 0, () => {}, Date, () => {}, () => {}, () => {}, undefined, () => {}, BlobC, JC);
         let seedB = 7; const rnd = () => { seedB = (seedB * 1103515245 + 12345) & 0x7fffffff; return seedB / 0x7fffffff; };
         const WORDS = ['Torch', 'gate', '\u0001wpb', '"quoted"', 'café', '\u{1F600}', '\\', '12'];
@@ -8472,18 +8474,85 @@ pendingChecks.push((async () => {
         const campC = { id: 'cc', activeItemId: 'a', items: itemsC, chars: { c1: { id: 'c1', name: 'Kael' } } }, stC = { activeCampaignId: 'cc', campaigns: { cc: campC } };
         itemSet = new WeakSet(); Object.values(itemsC).forEach(x => itemSet.add(x));
         const SC = mk(stC, campC), passC = () => { SC.pushHistory(); return SC.passTake(); }, whole = realJ.stringify(stC).length, rest = whole - Object.values(itemsC).reduce((n, x) => n + realJ.stringify(x).length, 0);   // rest: the state around the items
-        const costOf = async (pp, tag) => { const was = { items: cnt.items, enc: cnt.enc }; const b = await sameBody(SC, stC, pp, tag); return [cnt.items - was.items, cnt.enc - was.enc, typeof b]; };
+        const costOf = async (pp, tag) => { const was = { items: cnt.items, enc: cnt.enc, proj: cnt.proj }; const b = await sameBody(SC, stC, pp, tag); return [cnt.items - was.items, cnt.enc - was.enc, typeof b, cnt.proj - was.proj]; };
         const firstC = await costOf(passC(), 'cost first');
         const twoC = await costOf(passC(), 'cost again');                                             // nothing changed, the GM's own save
         itemsC.c.whiteboard[3].x += 1; const pieceC = realJ.stringify(itemsC.c).length;
         const oneC = await costOf(passC(), 'cost one');                                               // one map changed
         const hostC = await costOf(null, 'cost host');                                                // a host's save: no projections
         itemsC.d.whiteboard[0].y += 1; const hostOne = await costOf(null, 'cost host one');
+        const keptKeys = Object.keys(SC.kept.get(itemsC.a) || {}).join();   // the review of finding 25: no item's whole JSON is kept beside its part
+        // the review of finding 25: an own key named __proto__ on the state, its list of campaigns, a campaign or a campaign's list of items, each
+        // with a value that is no plain object (JSON.parse of a file makes such a key): the body is the plain string, which keeps the key. PROTO_OLD
+        // is the slice without its bodyProto test, which loses the key at a campaign and at the state and writes the rest wrong
+        const PROTO_OLD = bodyS.split("      if (bodyProto(all) || bodyProto(all.campaigns)) return JSON.stringify(all);\n").join('').split("      for (var q = 0; q < cids.length; q++) { var cq = all.campaigns[cids[q]]; if (plain(cq) && (bodyProto(cq) || (plain(cq.items) && bodyProto(cq.items)))) return JSON.stringify(all); }\n").join('');
+        const protoRun = async (body, where) => {
+            const itemsP = { m1: mapOf('m1', 2), m2: mapOf('m2', 2) }, campP = { id: 'cp', activeItemId: 'm1', items: itemsP }, stP = { activeCampaignId: 'cp', campaigns: { cp: campP } };
+            const own = (o, v) => Object.defineProperty(o, '__proto__', { value: v, enumerable: true, configurable: true, writable: true });
+            if (where === 'state') own(stP, null); else if (where === 'campaigns') own(stP.campaigns, [1, 2]); else if (where === 'camp') own(campP, { toJSON: () => 'as JSON' }); else if (where === 'items') own(itemsP, null);
+            const SP = new Function('window', 'state', 'getActiveCampaign', 'getActiveMap', 'localStorage', 'document', 'setTimeout', 'clearTimeout', 'Date', 'render', 'save', 'toast', 'saveTimeout', 'mergeLivePlayerState', 'Blob', 'JSON',
+                histS + '\n' + body + '\nreturn { pushHistory: pushHistory, passTake: passTake, saveBody: saveBody };')(
+                { wpNet: null }, { appState: stP }, () => campP, () => null, { getItem: () => null }, { getElementById: () => null, activeElement: null }, () => 0, () => {}, Date, () => {}, () => {}, () => {}, undefined, () => {}, BlobC, JC);
+            SP.pushHistory(); const b = SP.saveBody(SP.passTake()), txt = typeof b === 'string' ? b : await b.text();
+            return txt === realJ.stringify(stP) && txt.indexOf('"__proto__"') >= 0; };
+        const protoNow = [], protoOld = [];
+        for (const wh of ['state', 'campaigns', 'camp', 'items']) { protoNow.push(await protoRun(bodyS, wh)); protoOld.push(await protoRun(PROTO_OLD, wh)); }
         check('1.6.3 (finding 25) a save\'s body is put together from parts (io.js saveBody with pushHistory, run for real): over 40 seeded campaigns and every kind of change between saves, on the GM\'s own machine and on a host\'s, the body read back is exactly JSON.stringify(state.appState) of that moment; and after the first save a save with nothing changed writes no item again and encodes only the state around the items, one map changed is the only one written and encoded, and a host\'s save writes each item to compare and encodes only the one that changed, where the plain string encoded every character every time',
-            !offB.length && savesB > 900 && firstC[0] === 5 && firstC[1] === whole && twoC[0] === 0 && twoC[1] === rest && twoC[2] === 'object' && rest < whole / 50
-            && oneC[0] === 1 && oneC[1] === rest + pieceC && hostC[0] === 5 && hostC[1] === rest && hostOne[0] === 5 && hostOne[1] === rest + realJ.stringify(itemsC.d).length && !!histS && !!bodyS,
+            !offB.length && savesB > 900 && firstC[0] === 5 && firstC[1] === whole && firstC[3] === 0 && twoC[0] === 0 && twoC[1] === rest && twoC[2] === 'object' && twoC[3] === 0 && rest < whole / 50
+            && oneC[0] === 1 && oneC[1] === rest + pieceC && oneC[3] === 0 && hostC[0] === 0 && hostC[1] === rest && hostC[3] === 5 && hostOne[0] === 1 && hostOne[1] === rest + realJ.stringify(itemsC.d).length && hostOne[3] === 5 && !!histS && !!bodyS,
             j([offB, savesB, firstC, twoC, oneC, hostC, hostOne, whole, rest, pieceC]));
+        check('1.6.3 (the review of finding 25) what a save keeps of each item is its part and its projection, never its whole JSON (a host\'s save works out each item\'s projection to compare, as the GM\'s own save reads the pass\'s, and writes only what changed); and an own key named __proto__ on the state, its campaigns, a campaign or a campaign\'s items, each with a value that is no plain object, is kept: the body is the plain string. The slice without that test loses the key',
+            keptKeys === 'p,sig,blob' && j(protoNow) === j([true, true, true, true]) && protoOld.some(x => !x) && PROTO_OLD !== bodyS, j([keptKeys, protoNow, protoOld]));
     })());
+    // 1.6.3 (the review of finding 26): the save after a map switch is no edit of the GM's (io.js saveSwitch, which sidebar.js navigateToMap asks, run
+    // for real with pushHistory, the history slice, and save itself, on a clock of the suite's own). A map switched to, then a player's change to that
+    // map saved by the table within the half second (a remote save, as net.js saveRemoteSoon makes it): no step of the GM's undo is recorded and the
+    // map's redo list stays. The commit before (navigateToMap asking save(), which marks the GM's own edit as waiting) recorded that change as the
+    // GM's step and emptied the redo list. And: an edit of the GM's already waiting is saved at once at the switch, as every switch did before; a map
+    // with no undo history yet (one just made) is saved at once; a switch still waiting is written at pagehide, carried by any save before its time
+    // (its timer cleared), and otherwise written by its own timer half a second later
+    {
+        const slT = n => { const A = '  // [textcheck:' + n + '-start]', Z = '  // [textcheck:' + n + '-end]', a = ioE.indexOf(A), z = ioE.indexOf(Z); return a >= 0 && z > a ? ioE.slice(a, z) : ''; };
+        const swS = ioE.slice(ioE.indexOf('  var _saveFailSaid = false'), ioE.indexOf('  function save(immediate) {'));
+        const runSw = how => {
+            const timers = [], disk = [], heard = {};
+            const mapA = { id: 'mA', type: 'map', meta: { title: 'A', updated: 1 }, whiteboard: [{ id: 'd1', type: 'rect', x: 0 }] }, mapB = { id: 'mB', type: 'map', meta: { title: 'B', updated: 1 }, whiteboard: [{ id: 'door', type: 'rect', x: 0, doorOpen: false }] };
+            const camp = { id: 'cp', activeItemId: 'mA', items: { mA: mapA, mB: mapB } }, st = { appState: { activeCampaignId: 'cp', campaigns: { cp: camp } } };
+            const win = { wpNet: null, addEventListener: (t, f) => { heard[t] = f; } };
+            const api = new Function('window', 'state', 'getActiveCampaign', 'getActiveMap', 'localStorage', 'document', 'setTimeout', 'clearTimeout', 'Date', 'render', 'toast', 'mergeLivePlayerState', 'saveNote', 'fetch',
+                slT('history') + '\nvar saveTimeout;\n' + swS + fnIo('  function save(immediate) {', '\n  }\n', 'save') + '\nreturn { save: save, saveSwitch: typeof saveSwitch === "function" ? saveSwitch : null, hist: function() { return histories; }, pending: function() { return savePending; } };')(
+                win, st, () => camp, () => camp.items[camp.activeItemId] || null, { getItem: () => null }, { getElementById: () => null, activeElement: null },
+                (fn, ms) => { timers.push({ fn, ms, on: true }); return timers.length; }, id => { if (timers[id - 1]) timers[id - 1].on = false; }, Date, () => {}, () => {}, () => {}, { innerHTML: '' },
+                () => { disk.push(camp.activeItemId); return { then() { return { then() {}, catch() {} }; } }; });
+            const fire = () => { timers.forEach(t => { if (t.on) { t.on = false; t.fn(); } }); };
+            const armed = () => timers.filter(t => t.on).length;
+            const sw = how === 'old' ? () => api.save() : () => api.saveSwitch();   // old: the commit before, navigateToMap asking save()
+            api.save(true);                                                         // a first save: every map has its undo history
+            const hB = api.hist()['cp/mB']; hB.redo = ['R'];                         // map B has a step to redo
+            camp.activeItemId = 'mB'; sw();                                         // the GM opens map B
+            const atSwitch = [api.pending(), armed(), disk.length];
+            win.wpNet = { active: true, role: 'host', applyingRemote: true, onLocalSave() {} }; mapB.whiteboard[0].doorOpen = true; api.save(true); win.wpNet.applyingRemote = false;   // a player opens B's door within the half second
+            const afterRemote = [api.hist()['cp/mB'].undo.length, api.hist()['cp/mB'].redo.join(), armed()];
+            fire(); win.wpNet = null;
+            // an edit of the GM's waiting at the switch: saved at once, and its own step
+            mapB.whiteboard[0].x = 40; api.save(); camp.activeItemId = 'mA'; const dW = disk.length; sw();
+            const editWaiting = [disk.length - dW, api.pending(), api.hist()['cp/mB'].undo.length, armed()]; fire();
+            // a map just made (no undo history): saved at once
+            camp.items.mC = { id: 'mC', type: 'map', meta: { title: 'C' }, whiteboard: [] }; camp.activeItemId = 'mC'; const dN = disk.length; sw(); const fresh = [disk.length - dN, armed()]; fire();
+            // a switch still waiting at pagehide is written then; one carried by a save before its time; one written by its own timer
+            camp.activeItemId = 'mA'; const dP = disk.length; sw(); const armedP = armed(); if (heard.pagehide) heard.pagehide(); const atHide = [armedP, disk.length - dP, armed()];
+            camp.activeItemId = 'mB'; const dC = disk.length; sw(); api.save(true); const carried = [disk.length - dC, armed()];
+            camp.activeItemId = 'mA'; const dT = disk.length; sw(); const before = disk.length - dT; fire(); const byTimer = [before, disk.length - dT, timers.filter(t => t.ms === 500).length > 0];
+            return { atSwitch, afterRemote, editWaiting, fresh, atHide, carried, byTimer };
+        };
+        let swNow = null, swOld = null, swErr = '';
+        try { swNow = runSw('now'); swOld = runSw('old'); } catch (e) { swErr = String(e && e.stack); }
+        check('1.6.3 (the review of finding 26) a map switch\'s save is no edit of the GM\'s (io.js saveSwitch with pushHistory and save, run for real): a player\'s change to the map just opened, saved by the table within the half second, records no step of the GM\'s undo and keeps the map\'s redo list, where the switch saving through save() recorded it and emptied the list; an edit already waiting is saved at once at the switch as its own step; a map with no undo history yet is saved at once; a switch still waiting is written at pagehide, carried by a save before its time, and else written by its own timer',
+            !swErr && !!swS && j(swNow.atSwitch) === j([false, 1, 1]) && j(swNow.afterRemote) === j([0, 'R', 0])
+            && j(swOld.afterRemote) === j([1, '', 0])
+            && j(swNow.editWaiting) === j([1, false, 1, 0]) && j(swNow.fresh) === j([1, 0]) && j(swNow.atHide) === j([1, 1, 0]) && j(swNow.carried) === j([1, 0]) && j(swNow.byTimer) === j([0, 1, true]),
+            j([swErr, swNow, swOld]));
+    }
     // The camera is no change to the campaign (the owner, 2026-10-04: "seems the whole map lags at a distance"): io.js saveView, run for real, and
     // main.js's scroll handler pinned to it
     const viewSrc = ['var saveTimeout, viewTimeout, savePending = false;', fnIo('  function canPersistLocal() {', '\n  }\n', 'canPersistLocal'), fnIo('  function saveView() {', '\n  }\n', 'saveView'), 'return { saveView: saveView, pending: function(v) { savePending = v; } };'].join('\n');

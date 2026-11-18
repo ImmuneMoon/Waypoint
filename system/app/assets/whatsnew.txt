@@ -22,6 +22,10 @@ Smoother tables
   with nothing happening, so dragging a token, opening a sheet and a
   roll that changes a sheet all respond sooner, and players' screens
   gain too. Nothing about what anyone sees has changed.
+- Find a piece in Layers holds on to what you typed. A token moving at
+  the table, a click on a row, or closing and opening Layers again no
+  longer empties it, so the list stays filtered until you go to another
+  map.
 
 Smaller things
 - The game clock in the top row shows seconds for the GM. The clock still

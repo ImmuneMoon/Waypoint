@@ -6,7 +6,8 @@
    the same block: an attempt's kind, a move by giving up an action, a named hold, a trade in a fight, Load takes a job, a blast and the
    Environment readings, Row.pastSlot, Thrown only where), a crossing's roll read as the blow left it, what stands where a blow lands,
    Spills into, a kind that goes round armor, bleeding as rows, a pool down to minus its max, a burst, an effect's end and damage
-   spending an effect's number first, and an every-row change's Only rows where.
+   spending an effect's number first, an every-row change's Only rows where, and temporary hit points (a wound taken off a number
+   first), which stood in the auto-apply block there.
    Usage: node tools/damagecheck.js   (exit 1 on any failure) */
 require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 'use strict';
@@ -1834,7 +1835,7 @@ const j = v => JSON.stringify(v);
             const R7 = S.makeResolver(S.cleanSystem(pRaw(true), { F, gmView: true }), dcN(7), F, S.withBlow(null, { first: 7, wound: 2 }));
             check('1.6.2 Blow.first reads what Taken first from took (7 of a 5 and 4 blow against a number of 7), ticked Not a wound or not; an Any wound row reads it, a posted roll reads it through withBlow, a layer\'s wear formula reads it, and a blow it took nothing from has no such key and reads 0',
                 f7.ok && tiredOn(f7) && f6.ok && !tiredOn(f6) && fOff.ok && tiredOn(fOff) && f0.ok && !('first' in (f0.info.blow || {}))
-                && R7('blow.first') === 7 && S.BLOW_NAMES.first === 1 && /if \(l === 'blow\.first'\) return bn\(bw\.first\);/.test(fs.readFileSync(path.join(app, 'scripts', 'systemcore.js'), 'utf8')),
+                && R7('blow.first') === 7 && S.BLOW_NAMES.first === 1 && /if \(l === 'blow\.first'\) return bn\(bw\.first\);/.test(kit.part('damagecore.js')),
                 J([f7.info, f6.info.woundFx, fOff.info, f0.info]));
         }
         // the follow, run for real on the machine that owns the campaign
@@ -1875,6 +1876,20 @@ const j = v => JSON.stringify(v);
             && vr.errors.some(e => e.id === 'r_bad' && /\.rows$/.test(e.prop))
             && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').includes("input('sys-apply-rows field'") && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'formbox.js'), 'utf8').includes("'sys-apply-rows': 'cond',"),
             J([sy.rolls[0].then, aR, aL, vr.errors]));
+    }
+    {   // temporary hit points, the damage step taking a wound off a number first (combat.damage.first): moved from systemcheck.js
+        // with its area (the review of area 1's tests, 2026-11-18); it stood in the auto-apply block there, and needs nothing of it
+        const J = v => JSON.stringify(v);
+        // temporary hit points (the rule modules session's ask, 2026-11-04): combat.damage.first, a number a wound to the main pool comes off first
+        const tmpRaw = tw => ({ v: 1, name: 'T', rolls: [], sheet: { sections: [] }, fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '12', min: -99, vis: 'all', edit: 'owner' }, { id: 'f_tmp', key: 'TempHP', label: 'Temporary HP', kind: 'number', vis: tw || 'all' }, { id: 'f_txt', key: 'Note', kind: 'text' }],
+            combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: 'f_hp', damage: { pool: 'f_hp', first: 'f_tmp', major: '5', types: [{ key: 'cut', label: 'Cut', mult: 1 }] } } });
+        const tS = S.cleanSystem(tmpRaw(), { F, gmView: true }), tC = tmp => ({ id: 'c', name: 'Bo', values: { f_hp: { cur: 12 }, f_tmp: tmp } });
+        const t1 = S.damageStep(tS, tC(3), { amt: 5, type: 'cut' }, F, undefined, { now: 1 }), t2 = S.damageStep(tS, tC(9), { amt: 5, type: 'cut' }, F, undefined, { now: 1 }), t3 = S.damageStep(tS, tC(0), { amt: 4, type: 'cut' }, F, undefined, { now: 1 });
+        const tG = S.cleanSystem(tmpRaw('gm'), { F, gmView: true }), t4 = S.damageStep(tG, tC(3), { amt: 5, type: 'cut' }, F, undefined, { now: 1 });
+        const tBad = S.cleanSystem(Object.assign(tmpRaw(), { combat: Object.assign({}, tmpRaw().combat, { damage: Object.assign({}, tmpRaw().combat.damage, { first: 'f_txt' }) }) }), { F, gmView: true });
+        check('temporary hit points: a wound to the main pool comes off the number the rules name first, down to 0, and the rest off the pool, said in its line; one it holds whole moves no pool; a Major Wound reads the whole wound; a GM-only number is not named; a field that is no number is no such rule',
+            tS.combat.damage.first === 'f_tmp' && t1.values.f_tmp === 0 && J(t1.values.f_hp) === J({ cur: 10 }) && t1.lines.some(l => l === '3 taken by Temporary HP.') && t1.info.first === 3 && t1.info.major === true
+            && t2.values.f_tmp === 4 && !('f_hp' in t2.values) && t2.info.major === true && !('f_tmp' in t3.values) && J(t3.values.f_hp) === J({ cur: 8 }) && t4.values.f_tmp === 0 && !t4.lines.some(l => /Temporary/.test(l)) && !('first' in tBad.combat.damage), J([t1, t2.values, t3.values, t4.lines]));
     }
     await T.finish();
 })();

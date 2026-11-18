@@ -115,7 +115,7 @@ const slice = (s, t) => { const a = s.indexOf('// [' + t + '-start]'), b = s.ind
         const av = S.rollSwitches(sy, ch(), { f: 'f_ab' }), j1 = S.swJudge(sy, ch(), { f: 'f_ab' }, [{ s: av[0].s, i: 0 }]), j0 = S.swJudge(sy, ch(), { f: 'f_ab' }, [{ s: av[1].s, i: 1 }]), jA = S.swJudge(sy, ch(), { f: 'f_ab' }, [{ s: av[0].s, i: 0 }, { s: av[2].s, i: 2 }]);
         check('the judge says what a tick costs, and a bonus with no cost answers as it did', J(j1.pays) === J(['r_pay']) && !('pays' in j0) && J(jA.pays) === J(['r_pay', 'r_pay']), J([j1, j0, jA]));
         const nt = fs.readFileSync(app('scripts/net.js'), 'latin1').replace(/\r\n/g, NL), posted = [], sent = [], net = { syncCharDelta: (i, v) => sent.push(v), postApplyCard: (c, l, ln, sc) => posted.push([l, sc]) }, saves = [];
-        const mk = new Function('net', 'saveRemoteSoon', 'window', slice(nt, 'netcheck:swpay') + '\nreturn { swPayPlan, swPayDo };')(net, () => saves.push(1), {});
+        const mk = new Function('net', 'saveRemoteSoon', 'window', slice(require('./srcjoin').raw(app('scripts/nethold.js'), 'latin1').replace(/\r\n/g, NL), 'netcheck:swpay') + '\nreturn { swPayPlan, swPayDo };')(net, () => saves.push(1), {});
         const c1 = ch(), p1 = mk.swPayPlan(S, { system: sy }, c1, ['r_pay'], F, D, null);
         check('a cost is worked out on a copy: nothing is spent until the roll goes on', J(p1.values) === J({ f_ep: 1 }) && c1.values.f_ep === 3 && p1.cards.length === 1 && p1.cards[0].label === 'Spend 2', J(p1));
         mk.swPayDo(c1, p1);

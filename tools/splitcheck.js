@@ -32,7 +32,10 @@
    7. A part's area's tests read it by name: in tools/*.js (but srcjoin, splitlib, splitcheck, checkkit and suitecount), a line that
       holds the literal of a marker only a part holds also names that part's file, so the slice is cut from the part itself
       (tools/checkkit.js netSlices with the file, or srcjoin.raw) and never from the joined root alone (docs/REFACTOR_SPLIT_PLAN.md,
-      "Tests move with their area").
+      "Tests move with their area"). So does a line that names such a marker as a quoted string (a suite may build the marker at run
+      time from 'netcheck:swpay'), and a line where a slice's anchor (a quoted string in a call of fnSrc, cut, indexOf, range,
+      between, tryBetween or lineOf) holds a definition that only a part holds: a function, a net. function or a var declared at the
+      left margin of the part's body and nowhere in its root's own text (the review of area 1's tests, 2026-11-18).
    `node tools/splitcheck.js --against <commit>` also proves the joined text of each root equal to that commit's (joined) root: the raw
    bytes for a root git keeps byte for byte (net.js), the text with CRLF read as LF for the others, with one line ending throughout.
    It needs the parser Node ships, so it runs itself again with --expose-internals. */
@@ -258,13 +261,34 @@ const git = (args, enc) => { const r = cp.spawnSync('git', args, { cwd: ROOT, en
         const names = new Set((srcjoin.raw(p, 'latin1').match(/\/\/ \[([a-z0-9]+:[A-Za-z0-9_]+)-(?:start|end)\]/g) || []).map(m => m.slice(4, m.lastIndexOf('-'))));
         names.forEach(n => { if (n.indexOf('split:') !== 0 && rootRaw.indexOf('[' + n + '-') < 0) byPart7.push([n, p]); });   // a suite's markers, never the split's own body lines
     });
+    // the definitions only a part holds: each line of its body that begins a function, a net. function or a var at the left margin,
+    // up to and including its "(" or "=", where the root's own text (its lines that stayed) holds no such text
+    const defs7 = [];   // [the definition's text, e.g. "function attRowAlts(", the part that holds it]
+    parts.forEach(p => {
+        const rootRaw = srcjoin.raw(srcjoin.rootOf(p), 'latin1').replace(/\r\n/g, '\n'), body = srcjoin.raw(p, 'latin1').replace(/\r\n/g, '\n');
+        const seen = new Set();
+        (body.match(/^(?:function [A-Za-z0-9_$]+\(|net\.[A-Za-z0-9_$]+ = function\(|var [A-Za-z0-9_$]+ =)/gm) || []).forEach(d => {
+            if (seen.has(d)) return; seen.add(d);
+            if (rootRaw.indexOf(d) < 0) defs7.push([d, p]);
+        });
+    });
+    const anchorCall7 = /\b(?:fnSrc|cut|indexOf|range|between|tryBetween|lineOf)\(/;
+    const quoted7 = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"/g;
     const unnamed7 = [];
     fs.readdirSync(__dirname).filter(f => /\.js$/.test(f) && !own7.has(f)).forEach(f => {
         fs.readFileSync(path.join(__dirname, f), 'utf8').split('\n').forEach((line, i) => {
-            byPart7.forEach(([n, p]) => { if (line.indexOf('[' + n + '-start]') >= 0 || line.indexOf('[' + n + '-end]') >= 0) { if (line.indexOf(p) < 0) unnamed7.push(f + ':' + (i + 1) + ' reads [' + n + '] without naming ' + p); } });
+            byPart7.forEach(([n, p]) => {
+                const tag = line.indexOf('[' + n + '-start]') >= 0 || line.indexOf('[' + n + '-end]') >= 0, said = line.indexOf("'" + n + "'") >= 0 || line.indexOf('"' + n + '"') >= 0;
+                if ((tag || said) && line.indexOf(p) < 0) unnamed7.push(f + ':' + (i + 1) + ' reads [' + n + ']' + (tag ? '' : ' (a quoted marker)') + ' without naming ' + p);
+            });
+            if (!anchorCall7.test(line)) return;
+            // the line's quoted strings, as written (an escaped quote stays inside its string); a definition is matched on its own text
+            const lits = []; let m; quoted7.lastIndex = 0;
+            while ((m = quoted7.exec(line))) lits.push(m[1] !== undefined ? m[1] : m[2]);
+            defs7.forEach(([d, p]) => { if (lits.some(s => s.indexOf(d) >= 0) && line.indexOf(p) < 0) unnamed7.push(f + ':' + (i + 1) + ' cuts at "' + d + '", which only ' + p + ' holds, without naming it'); });
         });
     });
-    check('7. a line of a tool that holds the literal of a marker only a part holds names that part\'s file (' + byPart7.length + ' such markers), so the area\'s tests read it by name', byPart7.length > 0 && unnamed7.length === 0, unnamed7.slice(0, 20));
+    check('7. a line of a tool that holds the literal of a marker only a part holds (' + byPart7.length + ' such markers), names one as a quoted string, or cuts a slice at a definition only a part holds (' + defs7.length + ' such definitions), names that part\'s file, so the area\'s tests read it by name', byPart7.length > 0 && defs7.length > 0 && unnamed7.length === 0, unnamed7.slice(0, 20));
 
     // ---- --against <commit>: the joined text equals the old file ----
     if (argAgainst) {

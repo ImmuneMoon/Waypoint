@@ -5,8 +5,12 @@
    What it does. It runs every tools/*check.js with plain Node (a few at a time), and keeps, for each suite, the sorted list of its
    result lines (a line that begins with "ok" or "FAIL" and then a space), its last summary line and its exit code. A result line is
    kept with its run of spaces after the word squeezed to one, so that two suites that print the same check with a different number
-   of spaces after "ok" count as the same line, and with every time it measured in milliseconds written as "# ms", since a
-   timing differs from one run to the next.
+   of spaces after "ok" count as the same line, and with a time a suite measured written as "# ms", since a timing differs from one
+   run to the next. Only a measured time is so written: one in parentheses at the end of the line ("(12 ms)"), a ceiling ceilingcheck
+   works out from how fast the machine runs ("stays under 340 ms", on its "at the ceilings:" lines), and any time in a failure's
+   detail after its "->". A figure in milliseconds that is part of a check's own words ("within 700 ms of the last") is kept as it
+   is, so a check whose figure changed is a check that left (the review of area 1's tests, 2026-11-18). A count written before that
+   review (it holds no "__norm" key) read every figure in milliseconds as "# ms", and is compared with this run read the same way.
 
    Usage:
      node tools/suitecount.js --write <file.json>       runs every suite and writes what each one checked
@@ -31,9 +35,19 @@ function suites() {
     return fs.readdirSync(TOOLS).filter(f => /check\.js$/.test(f)).map(f => f.slice(0, -3)).filter(n => !only || only.includes(n)).sort();
 }
 
-// A result line as it is compared: one space after its word, no trailing space, every measured time in milliseconds as "# ms", and a
-// count of suites as "# suites" (splitcheck names how many suites it read, which a new suite moves).
-const norm = l => l.replace(/^(ok|FAIL)\s+/, '$1 ').replace(/\s+$/, '').replace(/\d[\d.,]*\s*ms\b/g, '# ms').replace(/\(\d+ suites\)/g, '(# suites)');
+// A result line as it is compared: one space after its word, no trailing space, a measured time as "# ms" (above: at the end in
+// parentheses, ceilingcheck's ceilings, and the detail after "->"), and a count of suites as "# suites" (splitcheck names how many
+// suites it read, which a new suite moves).
+const MS = /\d[\d.,]*\s*ms\b/g;
+const norm = l => {
+    l = l.replace(/^(ok|FAIL)\s+/, '$1 ').replace(/\s+$/, '').replace(/\(\d+ suites\)/g, '(# suites)');
+    const k = l.indexOf(' -> '), head = k < 0 ? l : l.slice(0, k), tail = k < 0 ? '' : l.slice(k).replace(MS, '# ms');
+    let h = head.replace(/\(\d[\d.,]*\s*ms\)$/, '(# ms)');
+    if (/^(ok|FAIL) at the ceilings: /.test(h)) h = h.replace(/ under \d[\d.,]*\s*ms\b/g, ' under # ms');
+    return h + tail;
+};
+// what a count written before the review read as a time: every figure in milliseconds, wherever it stood
+const normWide = l => norm(l).replace(MS, '# ms');
 
 // One suite's run: its result lines (squeezed and sorted), its summary line and its exit code.
 function runOne(name) {
@@ -68,13 +82,17 @@ function countOf(list) { const m = new Map(); list.forEach(l => m.set(l, (m.get(
     if (!wr && !cmp) { console.log('usage: node tools/suitecount.js --write <file> | --compare <file> [--only a,b] [--jobs N]'); process.exit(2); }
     const now = await runAll();
     if (wr) {
-        fs.writeFileSync(wr, JSON.stringify(now));
+        fs.writeFileSync(wr, JSON.stringify(Object.assign({ __norm: 2 }, now)));
         const tot = Object.values(now).reduce((a, r) => a + r.ok, 0);
         console.log('wrote ' + wr + ': ' + Object.keys(now).length + ' suites, ' + tot + ' ok lines');
         return;
     }
-    const before = JSON.parse(fs.readFileSync(cmp, 'utf8'));
-    Object.values(before).forEach(r => { r.lines = r.lines.map(norm).sort(); });   // a file an older count wrote is read as this one writes
+    const before = JSON.parse(fs.readFileSync(cmp, 'utf8')), wide = before.__norm !== 2;
+    delete before.__norm;
+    // a file an older count wrote is read as this one writes; one written before the review, with every figure in ms read as "# ms"
+    const nm = wide ? normWide : norm;
+    Object.values(before).forEach(r => { r.lines = r.lines.map(nm).sort(); });
+    if (wide) Object.values(now).forEach(r => { r.lines = r.lines.map(normWide).sort(); });
     const names = Object.keys(before).filter(n => !only || only.includes(n));
     let bad = 0;
     // every line of before, as many times as before, somewhere now

@@ -107,7 +107,7 @@ const j = v => JSON.stringify(v);
         /* ---- 1.6.3 (defense fold 3; docs/DEFENSE_INTERACTIONS_DESIGN.md 4.2 and 5.2, Fulllion's decisions 3, 6 and 8 of 2026-11-17): When it answers an attack, its
            cleaner in both views, the share, the validator, a move of a test's roll, the editor's box and the Combat tab's sentences, and the GM's Apply laid over ---- */
         {
-            const SA = await import(url('systemcore.js')), FA = (await import(url('formula.js'))).default || (await import(url('formula.js'))), FCA = await import(url('formcore.js')), JA = JSON.stringify;
+            const SA = await import(real('systemcore.js')), FA = (await import(url('formula.js'))).default || (await import(url('formula.js'))), FCA = await import(url('formcore.js')), JA = JSON.stringify;
             const rawA = { v: 1, name: 'A', combat: { checks: 'under3d6', testBy: 'both', damage: { types: [{ key: 'cut', label: 'Cutting' }, { key: 'cold', label: 'Cold' }] } },
                 fields: [{ id: 'f_b', key: 'Blades', label: 'Blades', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Edge' }], rolls: [{ label: 'Parry', formula: '3d6 <= 10', resist: true, answers: [{ if: 'RollMargin >= Row.Edge', does: 'share', type: 'cold', all: true, test: 'f_b#1', testAtk: 'f_b#1' }, { does: 'nonsense', type: 'cut', all: true }] }, { label: 'Wear', formula: '3d6' }] } }],
                 rolls: [{ id: 'r_d', label: 'Dodge', formula: '3d6 <= 10', vis: 'all', resist: true, answers: [{ does: 'hits', if: 'Attempt.kind = 2' }, { does: 'share' }, { does: 'stop', type: 'cut' }, { does: 'thru' }].concat(Array.from({ length: 8 }, () => ({ does: 'stop' }))) }, { id: 'r_n', label: 'Plain', formula: '3d6', vis: 'all', answers: [{ does: 'stop' }] }] };
@@ -195,7 +195,7 @@ const j = v => JSON.stringify(v);
         /* ---- 1.6.3 (defense fold 4; docs/DEFENSE_INTERACTIONS_DESIGN.md 4.3, backlog 243, Fulllion's decision 4 and the core's answers 4 to 6): a line that sends
            an attack on, its cleaner in both views, the Combat tab's Can be sent on at most, the validator, a move of its roll, the editor's box and its sentence ---- */
         {
-            const SS = await import(url('systemcore.js')), FS = (await import(url('formula.js'))).default || (await import(url('formula.js'))), FCS = await import(url('formcore.js')), JS = JSON.stringify;
+            const SS = await import(real('systemcore.js')), FS = (await import(url('formula.js'))).default || (await import(url('formula.js'))), FCS = await import(url('formcore.js')), JS = JSON.stringify;
             const rawS = { v: 1, name: 'S', combat: { checks: 'under3d6', sendHops: 3, damage: { types: [{ key: 'cold', label: 'Cold' }] } },
                 fields: [{ id: 'f_b', key: 'Blades', label: 'Blades', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Rank' }], rolls: [{ label: 'Parry', formula: '3d6 <= 10', resist: true, answers: [{ if: 'Row.Rank >= 3', does: 'send', roll: 'f_b#1', mod: 'Row.Rank - 4', far: '10 + RollMargin', type: 'cold', all: true }, { does: 'send', noRoll: true, margin: 'RollMargin', roll: 'r_aim', mod: '2', back: true }] }, { label: 'Return', formula: '3d6 <= 12' }] } }],
                 rolls: [{ id: 'r_d', label: 'Dodge', formula: '3d6 <= 10', vis: 'all', resist: true, answers: [{ does: 'send', roll: 'r_aim', back: 'yes' }, { does: 'send', roll: 'nonsense', far: '' }] }, { id: 'r_aim', label: 'Aim', formula: '3d6 <= 11', vis: 'all' }] };
@@ -536,8 +536,8 @@ const j = v => JSON.stringify(v);
             items: [{ id: 'i_ax', name: 'Axe', stats: { dmg: 4 } }] };
         const sy = S.cleanSystem(raw, { F, gmView: true }), vr = S.validateSystem(sy, F);
         const parV = r => S.makeResolver(sy, { id: 'c_d', values: {} }, F, S.withAttempt({}, 2, undefined, r))('Attempter.Row.pen');
-        const ntR = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'latin1').replace(/\r\n/g, '\n'), aA = ntR.indexOf('var _attRowW = '), aZ = ntR.indexOf('function attKindOf(', aA);
-        const attRowFigs = new Function('SC', 'window', ntR.slice(aA, aZ) + '\nreturn attRowFigs;')(() => S, { wpFormula: F });
+        const atR = kit.part('netattack.js'), aA = atR.indexOf('var _attRowW = '), aZ = atR.indexOf('function attKindOf(', aA);   // attRowFigs and its wiring stand in netattack.js, read by its own name
+        const attRowFigs = new Function('SC', 'window', atR.slice(aA, aZ) + '\nreturn attRowFigs;')(() => S, { wpFormula: F });
         const camp = { system: sy }, atk = { id: 'c_a', values: { f_w: [{ id: 'w_ax', defId: 'i_ax', qty: 1 }] } };
         const figs = attRowFigs(camp, atk, { f: 'f_w', r: 'w_ax' }), noRow = attRowFigs(camp, atk, null), sy0 = S.cleanSystem(Object.assign({}, raw, { rolls: [{ id: 'r_par', label: 'Parry', resist: true, formula: '3d6 <= 10' }] }), { F, gmView: true }), none = attRowFigs({ system: sy0 }, atk, { f: 'f_w', r: 'w_ax' });
         check('1.6.2 a roll ticked Resists an attempt reads a stat or column of the attacking row as Attempter.Row.<name>: the host works out each such name any formula of the system names, with that row\'s names, as the attempt is made, and keeps it beside the attacker\'s figures; it reads 0 for any other press; the validator knows it only in a resist roll and only for a number stat or column some list has; a GM-only stat read so is GM-only; its words, and the form offers it',
@@ -546,7 +546,7 @@ const j = v => JSON.stringify(v);
             && S.validateSystem(S.cleanSystem(Object.assign({}, raw, { rolls: [{ id: 'r_par', label: 'Parry', resist: true, formula: '3d6 <= Attempter.Row.nope' }] }), { F, gmView: true }), F).errors.some(e => /no list has a number stat or column nope/.test(e.message))
             && S.gmOnlyNames(sy, [{ name: 'Attempter.Row.secret' }]).length === 1 && S.gmOnlyNames(sy, [{ name: 'Attempter.Row.pen' }]).length === 0
             && S.nameWord(sy, 'Attempter.Row.pen') === 'the Pen of the attacking row' && J(S.readsOf(sy, { roll: sy.rolls[0] }).filter(g => g.name === 'Their attempt').map(g => g.items.map(x => x.s))[0] || []).includes('Attempter.Row.pen')
-            && ntR.includes("var rfA = attRowFigs(camp, fromCh, rowRef);"),
+            && atR.includes("var rfA = attRowFigs(camp, fromCh, rowRef);"),
             J([figs, noRow, none, parV(figs), vr.errors, S.gmOnlyNames(sy, [{ name: 'Attempter.Row.secret' }]), S.nameWord(sy, 'Attempter.Row.pen'), S.readsOf(sy, { roll: sy.rolls[0] })]));
     }
     await T.finish();

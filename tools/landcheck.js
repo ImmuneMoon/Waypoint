@@ -246,7 +246,7 @@ pendingChecks.push((async () => {
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const Sx = await import(url('systemcore.js')), Fx0 = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
-    const src6 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+    const src6 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n'), att6 = kit.part('netattack.js');   // the joined net.js for the wiring, the attempt's own lines by netattack.js's name
     const line = k => { const i = src6.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src6.slice(i, src6.indexOf('\n', i)); };
     const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(line).join('\n') + '\n';
     const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq')), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll'), atSrc = between('// [netcheck:attempt-start]', '// [netcheck:attempt-end]', 'attempt', 'netattack.js');
@@ -330,8 +330,8 @@ pendingChecks.push((async () => {
     check('1.6.3 defense fold 3: both roll paths work the line out once (ansFrom) and hand it to areaAnswered and attemptCalled; attemptMake marks an attack\'s attempt (atk, atkBy, atkRow); a landing never notes thru by the defender; the stamp stands past the table\'s copy on every path',
         src6.includes("var ansQ = typeof ansFrom === 'function' ? ansFrom(campQ, blowRecQ, q.act, rowGQ || (q.with ? { f: q.with.f, r: q.with.r } : null), chQ, tcQ, Dq, resQ, ruleQ, mfQ, recQ.big === true) : undefined;") && src6.includes("var ansR = typeof ansFrom === 'function' ? ansFrom(campR, blowRecR, o.act, o.row || (o.with ? { f: o.with.f, r: o.with.r } : null), chR, tcR, D, res, ruleR, mfR, rec.big === true) : undefined;")
         && src6.indexOf('var ansQ = ') < src6.indexOf("areaAnswered(campQ, blowRecQ.area") && src6.indexOf('var ansR = ') < src6.indexOf("areaAnswered(campR, blowRecR.area")
-        && src6.includes("_attempts[id] = { charId: tch.id, act: noMain ? '' : rr.id, m: m }; if (ov || typeof atkDeals !== 'function' || atkDeals(camp, entry, rowRef)) _attempts[id].atk = 1;")   /* the review of fold 3 (finding 6): atk only for an attack that deals damage (moved on purpose); defense fold 4: or one sent on (ov), whatever the one who sends it holds (moved on purpose) */ && src6.split("if (lndQ && typeof ansStampLand === 'function') ansStampLand(campQ, recQ, resQ, lndQ);").length === 4 && src6.includes("if (lndR && typeof ansStampLand === 'function') ansStampLand(campR, rec, res, lndR);")
-        && src6.includes("if (pass === true && ch && typeof thruNote === 'function' && !(rec && (typeof rec.lw === 'string' || rec.area))) thruNote(camp, ch, row, pick && pick.line ? pick.line.does === 'thru' : undefined);"));   /* the review of fold 3 (finding 3): nor for a line's hit (moved on purpose) */
+        && att6.includes("_attempts[id] = { charId: tch.id, act: noMain ? '' : rr.id, m: m }; if (ov || typeof atkDeals !== 'function' || atkDeals(camp, entry, rowRef)) _attempts[id].atk = 1;")   /* the review of fold 3 (finding 6): atk only for an attack that deals damage (moved on purpose); defense fold 4: or one sent on (ov), whatever the one who sends it holds (moved on purpose) */ && src6.split("if (lndQ && typeof ansStampLand === 'function') ansStampLand(campQ, recQ, resQ, lndQ);").length === 4 && src6.includes("if (lndR && typeof ansStampLand === 'function') ansStampLand(campR, rec, res, lndR);")
+        && att6.includes("if (pass === true && ch && typeof thruNote === 'function' && !(rec && (typeof rec.lw === 'string' || rec.area))) thruNote(camp, ch, row, pick && pick.line ? pick.line.does === 'thru' : undefined);"));   /* the review of fold 3 (finding 3): nor for a line's hit (moved on purpose) */
     // ---- 1.6.3 follow-ups of the defense folds (2026-11-18), with the same world. Invented names ----
     // Fulllion's ruling: Lets some through may say Dice counted per die, The same share of the dice (dice: 'share'). The landing keeps it, a save reads it back,
     // and the stamp on the GM's own copy says dc, which dice.js ansOn cuts the dice by (systemcheck runs that); a line with no such key stamps no dc
@@ -355,7 +355,7 @@ pendingChecks.push((async () => {
     wNt.dq([2, 3, 3]); const ntGm = wNt.net.diceRoll(CK, { charId: 'c_a', act: 'r_swing' }), ntToast = wNt.out.toasts.slice();
     check('1.6.3 (a live two-peer check) an attack with Its damage that hits with no target makes no attempt and no landing, and its roller is told in one plain line, a player through a note to them and the GM\'s own press as a notice; the roll stands, and a miss says nothing',
         j(ntNotes) === j([NOTGT]) && ntRes === null && ntRoll >= 1 && ntMiss === 1 && !!ntGm && ntGm.ok === true && ntToast.filter(t => t === NOTGT).length === 1
-        && src6.includes("var LAND_NO_TARGET = 'This attack had no one to land on, so its damage does not come. Target someone before you attack.';"), j([ntNotes, ntRes, ntRoll, ntMiss, ntGm, ntToast]));
+        && att6.includes("var LAND_NO_TARGET = 'This attack had no one to land on, so its damage does not come. Target someone before you attack.';"), j([ntNotes, ntRes, ntRoll, ntMiss, ntGm, ntToast]));
     // ---- the review of defense fold 3 (2026-11-18), with the same world. Invented names ----
     // finding 1: How many hits that cannot be worked out stops the attack whole and is said to the GM, never read as 0; a real 0 stops none, and the GM's copy says so
     const sprayRow = { row: { f: 'f_gun', r: 'w_g1', i: 2 } }, sprayDmg = { f: 'f_gun', r: 'w_g1', i: 3 };
@@ -402,7 +402,7 @@ pendingChecks.push((async () => {
         !!rA.ans && rA.landed === 1 && !!hr6 && hr6 !== gmRec6 && !('ans' in hr6) && !('landed' in hr6) && !('thru' in hr6) && !('hit' in hr6) && hr6.onName === 'Sela' && hr6.id === gmRec6.id && npcW6.get(hr6) === npcW6.get(gmRec6) && !!gmRec6.ans && hOut6[1].roll === plain6, j(hr6));
     // finding 7: a line attack's attempt knows the attacking row
     check('1.6.3 the review of defense fold 3 (finding 7): areaAfter hands attemptMake the attacking row, so a line that tests the attacking weapon finds it',
-        src6.includes("attemptMake(camp, entry, vd, malf, { tid: tid, mapId: mapId, area: hit }, ch, priv, vars, row); else areaHit(camp, hit);"));
+        att6.includes("attemptMake(camp, entry, vd, malf, { tid: tid, mapId: mapId, area: hit }, ch, priv, vars, row); else areaHit(camp, hit);"));
 })());
 // 1.6.3 (defense fold 4; docs/DEFENSE_INTERACTIONS_DESIGN.md 4.3, backlog 243, Fulllion's decision 4 and the core's answers 4 to 6 of 2026-11-17): a defense that
 // sends the attack on. roll-req, net.diceRoll, the attempt slice, the landing slice, the ansline slice, the sendon slice and the host's send-on branch run for real
@@ -581,7 +581,7 @@ pendingChecks.push((async () => {
     const wN = world({}, { lines: [] }); const dN = wN.fire(); wN.parry(dN); const tN = !wN.W.land(dN.att) && !wN.due(null, 'send') && !wN.out.over.some(x => /sent|aside|missed/.test(x[1] || ''));
     check('1.6.3 defense fold 4 (source): the host\'s send-on branch sits before card-act and hands sendOnPress the landing\'s id, Turn it aside or not, and the sender\'s own profile id; net.diceRoll leaves its verdict for it; attemptMake keeps an attack sent on to the kind it was first made with; a Parry with no line that sends it on stops the attack as before',
         src7.indexOf("    } else if (msg.type === 'send-on' && net.role === 'host') {") > 0 && src7.indexOf("    } else if (msg.type === 'send-on' && net.role === 'host') {") < src7.indexOf("    } else if (msg.type === 'card-act' && net.role === 'host') {")
-        && src7.includes("sendOnPress(getActiveCampaign(), qso.att, qso.how, peerProfileId(conn), diceFrom(net.roster[conn.peer], false))") && src7.includes("    net.rollVerdict = D.verdictOf(res, ruleR);") && src7.includes("function attemptMake(camp, entry, vd, malf, range, fromCh, priv, vars, rowRef, ov) {") && tN, JSON.stringify(tN));
+        && src7.includes("sendOnPress(getActiveCampaign(), qso.att, qso.how, peerProfileId(conn), diceFrom(net.roster[conn.peer], false))") && src7.includes("    net.rollVerdict = D.verdictOf(res, ruleR);") && kit.part('netattack.js').includes("function attemptMake(camp, entry, vd, malf, range, fromCh, priv, vars, rowRef, ov) {") && tN, JSON.stringify(tN));
 })());
 // 1.6.3 (the review of defense fold 0): the press of a called damage roll's card, end to end with the table's own sends (roll-req, net.diceRoll, the attempt slice,
 // the npcseen slice and sendTable run for real with the real core and dice, two players at the table). Invented names

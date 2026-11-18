@@ -34,6 +34,8 @@ import './trackcore.js';   // 1.6.0 backlog 29: the trackers' cleaner (window.wp
 import './imgtagcore.js';   // 1.6.0 backlog 34: the Image Library tags' cleaner (window.wpImgTagCore), there before the first load
 import './soundoncore.js';   // 1.6.2: the cleaner of the sounds on actions (window.wpSoundOnCore), there before the first load
 import * as Share from './sharecore.js';   // 1.6.0 backlog 34: the share sheet's pure half (what an export leaves out, and its card)
+import { flatFollow } from './flatten.js';   // 1.6.3 (finding 16): a flattened picture's pieces move with it, in the save that moves it
+import { delWb, delRooms, delSaid } from './delask.js';   // 1.6.3 (findings 15 and 16): Delete asks first where it takes locked structure, a token, a room or a flattened picture's pieces
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap } from './models.js';
 
@@ -1506,6 +1508,9 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
             return;
         }
 
+        // 1.6.3 (Fulllion's ruling of 2026-11-17 on finding 16, "move with it"): a flattened picture that moved since its last save brings the
+        // pieces drawn into it along, keeping their place beside it, before the step is recorded, so one Undo takes the picture and its pieces back
+        if (typeof flatFollow === 'function' && activeMap) { try { flatFollow(activeMap); } catch (e) {} }
         pushHistory();   // below the return: a GM's table is never recorded
 
         var passP = typeof passTake === 'function' ? passTake() : null;   // 1.6.3 (finding 25): the projections this pass made, for the body below
@@ -1813,14 +1818,11 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
               if (!ids.length) return;
 
-              m.whiteboard.forEach(x => { if (ids.includes(x.id) && x.waiting && window.wpNet && window.wpNet.noWaiting) window.wpNet.noWaiting(x.ownerId); });   // Onboarding F1a: a deleted waiting token stays away this session
-              m.whiteboard = m.whiteboard.filter(x => !ids.includes(x.id));
-
-              state.selWbIds = []; state.selWbId = null;
-
-              save(); render(); toast('Deleted.');
-
               e.preventDefault();
+
+              // 1.6.3 (findings 15 and 16): delask.js asks first where the selection holds a locked piece, a token or a flattened picture's pieces,
+              // and takes everything picked on a yes (a waiting token that goes stays away this session, Onboarding F1a). A plain piece goes at once
+              delWb(m, ids.slice(), showConfirm, function(out) { state.selWbIds = []; state.selWbId = null; save(); render(); toast(delSaid(out)); });
 
           } else if (state.viewMode === 'data' && state.selLink != null && m.links && m.links[state.selLink]) {
               m.links.splice(state.selLink, 1); state.selLink = null;
@@ -1828,15 +1830,11 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
               e.preventDefault();
           } else if (state.viewMode === 'data' && state.selId) {
 
-              m.rooms = m.rooms.filter(x => x.id !== state.selId);
-
-              m.links = m.links.filter(l => l[0] !== state.selId && l[1] !== state.selId);
-
-              state.selId = null;
-
-              save(); render(); toast('Node deleted.');
-
               e.preventDefault();
+
+              // 1.6.3 (finding 15): a room takes its links with it, so the Data Map asks first (delask.js)
+              var roomId = state.selId;
+              delRooms(m, [roomId], showConfirm, function() { if (state.selId === roomId) state.selId = null; save(); render(); toast('Room deleted.'); });
 
           }
 

@@ -74,7 +74,7 @@ function fitStep(rec, x, y) {
 function wire() {
     var sz = el('measureCellPx'); if (!sz || sz.dataset.wired) return; sz.dataset.wired = '1';
     ['measureCellPx', 'measureCellOx', 'measureCellOy'].forEach(function(id) { var b = el(id); if (b) b.addEventListener('change', function() { cellSet(typedCell()); }); });
-    var fit = el('measureCellFit'); if (fit) fit.addEventListener('click', function() { var m = getActiveMap(); if (!m || !gridOf(m) || !gmHere()) return; fitArm({ map: m.id, step: 1 }); });
+    var fit = el('measureCellFit'); if (fit) fit.addEventListener('click', function() { var m = getActiveMap(); if (!m || !gridOf(m) || !gmHere()) return; var gm = el('gridMenu'); if (gm) gm.classList.remove('show'); fitArm({ map: m.id, step: 1 }); });   // 1.6.3 (finding 17): the button stands in the Grid menu now, which steps aside for the two clicks on the map
     var rs = el('measureCellReset'); if (rs) rs.addEventListener('click', function() { cellSet(null); });
     var ask = el('measureCellAsk'); if (ask) ask.addEventListener('change', function() { try { if (ask.checked) localStorage.setItem(ASK_KEY, 'on'); else localStorage.removeItem(ASK_KEY); } catch (e) {} });
 }

@@ -126,6 +126,7 @@ import { renderDataMap, clearSnaps, drawSnap, doSmartSnapping, attachDrag, attac
 
 import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, uploadImageFile } from './whiteboard.js';
 
+import { delWb, delRooms, delSaid } from './delask.js';   // 1.6.3 (findings 15 and 16): Delete asks first where it takes locked structure, a token, a room or a flattened picture's pieces
 import { cssColor, num, picRef } from './safecore.js';   // a campaign from a file reaches these panels too: colors, numbers and pictures are checked where they land
 
 
@@ -542,21 +543,22 @@ if(_el_fNotes) _el_fNotes.addEventListener('input',function(){r.notes=this.value
 
 if(_el_delBtn) _el_delBtn.addEventListener('click',function(){
 
-          activeMap.rooms = activeMap.rooms.filter(x=>x.id!==r.id);
+          // 1.6.3 (finding 15): a room takes its links with it, so it asks first (delask.js), then saves once
+          delRooms(activeMap, [r.id], showConfirm, function() {
 
-          activeMap.links = activeMap.links.filter(l=>l[0]!==r.id&&l[1]!==r.id);
+              if (state.viewMode === 'data') state.selId = null;
 
-          if (state.viewMode === 'data') state.selId = null;
+              else {
 
-          else {
+                  var w = activeMap.whiteboard.find(x=>x.id===state.selWbId);
 
-              var w = activeMap.whiteboard.find(x=>x.id===state.selWbId);
+                  if(w) delete w.nodeId;
 
-              if(w) delete w.nodeId;
+              }
 
-          }
+              render(); save(true); toast('Room deleted.');
 
-          render(); save(true); toast('Node deleted.');
+          });
 
       });
 
@@ -999,9 +1001,9 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             });
             var _wbDelMulti = document.getElementById('wbDelMulti');
             if(_wbDelMulti) _wbDelMulti.addEventListener('click', function() {
-                if (window.wpWaitingGone) window.wpWaitingGone(activeMap.whiteboard.filter(x => selectedIds.includes(x.id)));   // Onboarding F1a: a deleted waiting token stays away this session
-                activeMap.whiteboard = activeMap.whiteboard.filter(x => !selectedIds.includes(x.id));
-                state.selWbIds = []; state.selWbId = null; save(); render();
+                // 1.6.3 (findings 15 and 16): asks first where the selection holds a locked piece, a token or a flattened picture's pieces (delask.js;
+                // a deleted waiting token stays away this session, Onboarding F1a)
+                delWb(activeMap, selectedIds.slice(), showConfirm, function(out) { state.selWbIds = []; state.selWbId = null; save(); render(); toast(delSaid(out)); });
             });
             ['multiBringFrontBtn', 'multiBringFwdBtn', 'multiSendBwdBtn', 'multiSendBackBtn'].forEach(btnId => {
                 var btn = document.getElementById(btnId);
@@ -1598,8 +1600,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbDup) _el_wbDup.addEventListener('click', function() { if (window.wpDuplicateWb) window.wpDuplicateWb([w]); });
             var _el_wbDel = document.getElementById('wbDel');
             if(_el_wbDel) _el_wbDel.addEventListener('click', function() {
-                activeMap.whiteboard = activeMap.whiteboard.filter(x=>x.id!==w.id);
-                state.selWbIds = []; state.selWbId = null; save(); render();
+                // 1.6.3 (findings 15 and 16): asks first where the piece is locked, a token or a flattened picture that holds pieces (delask.js)
+                delWb(activeMap, [w.id], showConfirm, function(out) { state.selWbIds = []; state.selWbId = null; save(); render(); toast(delSaid(out)); });
             });
 
             var _el_setHomeVisualBtn = document.getElementById('setHomeVisualBtn');
@@ -1790,7 +1792,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                   '<button class="tool ghost el-rename" aria-label="Rename" title="Rename" data-id="'+esc(item.id)+'"><i class="wib wi-pen"></i></button>' +
                   (visual ? '<span class="ui-seg el-moves"><button class="tool ghost el-up" aria-label="Move up a layer" title="Move up a layer (toward the front)" data-id="'+esc(item.id)+'">&#9650;</button>' +
                             '<button class="tool ghost el-down" aria-label="Move down a layer" title="Move down a layer (toward the back)" data-id="'+esc(item.id)+'">&#9660;</button></span>' : '') +
-                  '<button class="tool ghost danger el-del" aria-label="Delete Element" title="Delete Element" data-id="'+esc(item.id)+'">X</button>' +
+                  '<button class="tool ghost danger el-del" aria-label="Delete" title="Delete. A locked piece, a token, a room or a flattened picture asks first" data-id="'+esc(item.id)+'"><i class="wib wi-bin"></i></button>' +   /* 1.6.3 (finding 15): the app's bin, set apart from the order arrows */
                   '</div>';
       };
       var withKids = function(item, deep) { var h = rowOf(item, deep); done[item.id] = 1; (kids[item.id] || []).forEach(function(k) { done[k.id] = 1; if (!_lyShut[item.id]) h += rowOf(k, deep + 1); }); return h; };
@@ -1958,24 +1960,21 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
               var id = this.dataset.id;
 
+              // 1.6.3 (findings 15 and 16): the Layers bin goes through delask.js as the Delete key does: a room, a locked piece, a token or a
+              // flattened picture that holds pieces asks first, a plain piece goes at once. One save each way
               if (state.viewMode === 'data') {
 
-                  activeMap.rooms = activeMap.rooms.filter(x => x.id !== id);
-
-                  activeMap.links = activeMap.links.filter(l => l[0] !== id && l[1] !== id);
-
-                  if (state.selId === id) state.selId = null;
+                  delRooms(activeMap, [id], showConfirm, function() { if (state.selId === id) state.selId = null; save(); render(); toast('Room deleted.'); });
 
               } else {
 
-                  if (window.wpWaitingGone) window.wpWaitingGone(activeMap.whiteboard.filter(x => x.id === id));   // Onboarding F1a
-                  activeMap.whiteboard = activeMap.whiteboard.filter(x => x.id !== id);
-
-                  if (state.selWbId === id) state.selWbId = null;
+                  delWb(activeMap, [id], showConfirm, function(out) {   // a deleted waiting token stays away this session (Onboarding F1a)
+                      if (state.selWbId === id) state.selWbId = null;
+                      if (Array.isArray(state.selWbIds)) state.selWbIds = state.selWbIds.filter(function(s) { return s !== id; });
+                      save(); render(); toast(delSaid(out));
+                  });
 
               }
-
-              save(); render();
 
           });
 

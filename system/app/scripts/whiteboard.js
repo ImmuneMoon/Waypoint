@@ -453,6 +453,8 @@ import { renderDataMap, clearSnaps, drawSnap, doSmartSnapping, attachDrag, attac
 import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  renderElementList, esc } from './inspector.js';
 
 import { cssColor, picRef } from './safecore.js';
+import { flatAnchor } from './flatten.js';   // 1.6.3 (finding 16): where a flattened picture stands when first drawn, so its pieces can follow it
+import { delWb, delRooms, delSaid } from './delask.js';   // 1.6.3 (findings 15 and 16): Delete asks first where it takes locked structure, a token, a room or a flattened picture's pieces
 import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Library's tags, cleaned and drawn as text   // a map from a file: colors that are colors, pictures that are the app's own
 
 
@@ -501,7 +503,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
       // piece drawn into one (flatIn), where it used to search the whole map for that piece's picture: flattened pieces times all pieces on every redraw.
       // A map with no prototype, so an id such as __proto__ is an id like any other; the same answer as the search, since only a flatPic of true counts
       var flatPics = Object.create(null);
-      activeMap.whiteboard.forEach(function(f) { if (f && f.flatPic === true && typeof f.id === 'string') flatPics[f.id] = 1; });
+      activeMap.whiteboard.forEach(function(f) { if (f && f.flatPic === true && typeof f.id === 'string') { flatPics[f.id] = 1; if (typeof flatAnchor === 'function' && typeof window.wpCanPersistLocal === 'function' && window.wpCanPersistLocal() === true) flatAnchor(f); } });   // 1.6.3 (finding 16): a picture flattened before 1.6.3 notes where it stands before anyone can move it (flatten.js flatFollow); only on the machine that owns the campaign
 
       activeMap.whiteboard.forEach(function(item) {
 
@@ -2050,11 +2052,11 @@ window.wpFitToGrid = fitToGrid;
                   i.layer = LAYERS[act === 'up' ? Math.min(LAYERS.length - 1, idx + 1) : Math.max(0, idx - 1)];
               });
           } else if (act === 'del') {
+              // 1.6.3 (findings 15 and 16): delask.js asks first where the selection holds a locked piece, a token or a flattened picture's
+              // pieces, and saves and draws once the pieces have gone (a waiting token stays away this session, Onboarding F1a)
               var am = getActiveMap();
-              var ids = its.map(function(i) { return i.id; });
-              if (window.wpWaitingGone) window.wpWaitingGone(its);   // Onboarding F1a
-              am.whiteboard = am.whiteboard.filter(function(x) { return ids.indexOf(x.id) === -1; });
-              state.selWbIds = []; state.selWbId = null;
+              delWb(am, its.map(function(i) { return i.id; }), showConfirm, function(out) { state.selWbIds = []; state.selWbId = null; save(); if (window.appRender) window.appRender(); toast(delSaid(out)); });
+              return;
           } else return;
           save();
           if (window.appRender) window.appRender();
@@ -11346,11 +11348,25 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
 
   var _el_wbGridBtn = document.getElementById('wbGridBtn');
 
+  // 1.6.3 (Fulllion's ruling of 2026-11-17 on the map and fog review, finding 17, "Into the Grid menu"): the Grid menu holds the map's scale,
+  // its own cell (Cell size, Offset, Fit grid to picture, Usual size) and a Grid opacity slider beside Label opacity, moved from the measure
+  // options and from Settings. Every control keeps its id and its handler (the scale's in this file, the cell's in cellsize.js, the opacity's in
+  // settings.js), so only where it stands changed. They are filled from the map on screen as the menu opens, as the measure options were
+  function gridMenuSync() {
+      if (window.wpCellSize && typeof window.wpCellSize.menuSync === 'function') window.wpCellSize.menuSync();   // the map's own cell, shown only on a map with a grid
+      var cfg = mapMeasureConfig(), vEl = document.getElementById('measureCellValue'), uEl = document.getElementById('measureCellUnit');
+      if (vEl && document.activeElement !== vEl) vEl.value = cfg.per;
+      if (uEl && document.activeElement !== uEl) uEl.value = cfg.unit;
+      if (typeof window.wpGridOpacitySync === 'function') window.wpGridOpacitySync();   // this computer's grid opacity, the same figure Settings shows
+  }
   if(_el_wbGridBtn) _el_wbGridBtn.addEventListener('click', function() {
 
-      document.getElementById('gridMenu').classList.toggle('show');
+      var gmn = document.getElementById('gridMenu');
+      gmn.classList.toggle('show');
+      if (gmn.classList.contains('show')) { gridMenuSync(); optsFit(gmn, document); }   // taller now that it holds the map's cell: kept clear of the top row, scrolling inside
 
   });
+  window.addEventListener('resize', function() { var gmn = document.getElementById('gridMenu'); if (gmn && gmn.classList.contains('show')) optsFit(gmn, document); });
 
   var _el_gridOffBtn = document.getElementById('gridOffBtn');
     if(_el_gridOffBtn) _el_gridOffBtn.addEventListener('click', function() { setGridType('off'); });
@@ -12834,9 +12850,11 @@ document.addEventListener('contextmenu', function(e) {
                     });
                     import('./io.js').then(m => m.toast(liftThem ? 'Rendering above the grid.' : 'Back under the grid.'));
                 } else if (action.includes('cm-del')) {
-                    am.whiteboard.forEach(x => { if (selectedIds.includes(x.id) && x.waiting && window.wpNet && window.wpNet.noWaiting) window.wpNet.noWaiting(x.ownerId); });   // Onboarding F1a: a deleted waiting token stays away this session
-                    am.whiteboard = am.whiteboard.filter(x => !selectedIds.includes(x.id));
-                    state.selWbIds = []; state.selWbId = null;
+                    // 1.6.3 (findings 15 and 16): delask.js asks first where the selection holds a locked piece, a token or a flattened picture's
+                    // pieces; the menu goes at once, and the save and the draw come once the pieces have gone (a waiting token stays away, F1a)
+                    cMenu.style.display = 'none';
+                    delWb(am, selectedIds.slice(), showConfirm, function(out) { state.selWbIds = []; state.selWbId = null; save(); if (window.appRender) window.appRender(); toast(delSaid(out)); });
+                    return;
                 } else {
                     var layers = ['back', 'back-mid', 'middle', 'front-mid', 'front'];
                     selectedIds.forEach(id => {
@@ -12851,8 +12869,11 @@ document.addEventListener('contextmenu', function(e) {
                 }
             } else {
                 if (action.includes('cm-del')) {
-                    am.rooms = am.rooms.filter(x => !selectedIds.includes(x.id));
-                    state.selId = null;
+                    // 1.6.3 (finding 15): a room takes its links with it, so the Data Map asks first (delask.js). The links went with the room
+                    // only from the Delete key before; every way of deleting a room now takes them
+                    cMenu.style.display = 'none';
+                    delRooms(am, selectedIds.slice(), showConfirm, function() { state.selId = null; save(); if (window.appRender) window.appRender(); toast('Room deleted.'); });
+                    return;
                 } else {
                     var layers = ['back', 'back-mid', 'middle', 'front-mid', 'front'];
                     selectedIds.forEach(id => {

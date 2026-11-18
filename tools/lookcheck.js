@@ -679,8 +679,8 @@ function runPress(P, win) {
     const ST = ' style="bottom:100%; top:auto; flex-direction:column; min-width:', C = '; left:50%; transform:translateX(-50%); margin-bottom:10px;">';
     const MENUS_BY_NAME = [
         ['<div class="shape-menu menu-list" id="gridMenu">', [['gridOffBtn', 'Off', '', 'Off'], ['gridSqBtn', 'Square', '', 'Square'], ['gridHexBtn', 'Hex', '', 'Hex'], '-',
-            ['gridLabelsBtn', 'Cell labels', 'Each hex cell shows its name, as A1.', 'Cell labels. On a hex grid each cell shows its column letter and row number, as A1. Kept with this map, and everyone at the table sees them. Press again to take them off.'], 'block', '-',
-            ['gridOpacityBtn', 'Grid opacity&hellip;', 'Opens Settings at the grid&rsquo;s look.', 'Grid opacity&hellip; (opens Settings)']]],
+            ['gridLabelsBtn', 'Cell labels', 'Each hex cell shows its name, as A1.', 'Cell labels. On a hex grid each cell shows its column letter and row number, as A1. Kept with this map, and everyone at the table sees them. Press again to take them off.'], 'block', 'block', '-', 'block', '-',   /* 1.6.3 (finding 17, "Into the Grid menu", moved on purpose): Grid opacity's slider beside Label opacity, then the map's scale and its own cell; the last row opens the rest of the grid's look in Settings */
+            ['gridOpacityBtn', 'Grid look in Settings&hellip;', 'The stream window&rsquo;s grid and more.', 'The grid&rsquo;s look in Settings (opens Settings)']]],
         ['<div class="shape-menu menu-list" id="shapeMenu">', [['shapeRectBtn', 'Rectangle', '', 'Rectangle'], ['shapeCircBtn', 'Circle', '', 'Circle'], ['shapeDiaBtn', 'Diamond', '', 'Diamond'],
             ['shapeHexBtn', 'Hexagon', 'Seats onto the cells of a hex grid.', 'Hexagon &mdash; resizes like any shape; centers onto hex grid cells'], '-',
             ['shapeTriggerBtn', 'Trigger zone', 'Says its message when a character token is dropped inside.', 'Trigger Zone &mdash; fires its Event Message when a character token is dropped inside'],

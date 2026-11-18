@@ -726,6 +726,7 @@
   .element-list-item .el-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .element-list-item button.tool { padding: 1px 5px; margin: 0; font-size: 10px; line-height: 16px; opacity: 0.55; }
   .element-list-item:hover button.tool { opacity: 1; }
+  .element-list-item .el-del { margin-left: 10px; }   /* 1.6.3 (finding 15): the bin stands apart from the order arrows, so a press meant for one never lands on it */
   .element-list-item .el-rename-in { width: 100%; box-sizing: border-box; padding: 3px 6px; font: inherit; font-size: 12px; background: var(--panel); color: var(--ink); border: 1px solid var(--gold); border-radius: 4px; outline: none; color-scheme: dark; margin: 0; }   /* the app's own box (the owner, 2026-11-12) */
   .el-layer-head { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); padding: 6px 2px 2px; border-bottom: 1px dashed var(--edge); margin-top: 4px; }
   .el-layer-head:first-child { margin-top: 0; }
@@ -807,6 +808,7 @@
        where the Environment tool's ran 50 px past their own box */
     #envMenu, #measureMenu, #fillMenu, #eraserMenu, #snapMenu, #linkMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; }
     #envMenu > *, #measureMenu > *, #fillMenu > *, #eraserMenu > *, #snapMenu > *, #linkMenu > * { flex-shrink: 0; }
+    #gridMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; } #gridMenu > * { flex-shrink: 0; }   /* 1.6.3 (finding 17): the Grid menu holds the map's scale and cell now, so it scrolls in a short window as the measure options do */
     .fog-tick { flex-wrap: wrap; }   /* a tick of the fog menu: its name, and under it a gray line that says what it does */
     .fog-tick > small { flex-basis: 100%; padding-left: 21px; color: var(--dim); font-size: 11px; line-height: 1.35; }
     .menu-fold {   /* a fold of a toolbar menu: a line that shows or puts away the part under it */

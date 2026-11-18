@@ -448,14 +448,34 @@ if (_sg) {
         toast(w === 'hidden' ? 'The stream window draws no grid.' : w === 'faint' ? 'The stream window draws a faint grid.' : 'The stream window draws the grid as your screen does.');
     });
 }
-var _go = ui('setGridOpacity');
-if (_go) _go.addEventListener('input', function() {
+// Grid opacity is this computer's own (wp_gridOpacity). Two sliders set it: Settings' own and, since 1.6.3, the Grid menu's beside Label
+// opacity (Fulllion's ruling of 2026-11-17 on the map and fog review, finding 17, "Into the Grid menu"). Either one sets the figure, draws the
+// grid again and moves the other, so the two always say the same. gridOpacitySync fills both from what is kept; the Grid menu asks it as it opens
+function gridOpacitySync() {
+    var pct = Math.round(gridOpacity() * 100);
+    [['setGridOpacity', 'setGridOpacityVal'], ['gridOpacityRange', 'gridOpacityVal']].forEach(function(p) {
+        var s = ui(p[0]), t = ui(p[1]);
+        if (s && document.activeElement !== s && String(s.value) !== String(pct)) s.value = pct;
+        if (t) t.textContent = pct + '%';
+    });
+}
+window.wpGridOpacitySync = gridOpacitySync;
+function gridOpacityTake() {
     var v = Math.max(0.1, Math.min(1, parseInt(this.value, 10) / 100));
+    if (!isFinite(v)) return;
     try { localStorage.setItem('wp_gridOpacity', v); } catch (e) {}
     applyGridOpacity();
-    var gov = ui('setGridOpacityVal');
-    if (gov) gov.textContent = Math.round(v * 100) + '%';
-});
+    var pct = Math.round(v * 100), self = this;
+    [['setGridOpacity', 'setGridOpacityVal'], ['gridOpacityRange', 'gridOpacityVal']].forEach(function(p) {
+        var s = ui(p[0]), t = ui(p[1]);
+        if (s && s !== self && String(s.value) !== String(pct)) s.value = pct;
+        if (t) t.textContent = pct + '%';
+    });
+}
+var _go = ui('setGridOpacity');
+if (_go) _go.addEventListener('input', gridOpacityTake);
+var _gor = ui('gridOpacityRange');
+if (_gor) { _gor.addEventListener('input', gridOpacityTake); gridOpacitySync(); }
 var _ud = ui('setUndoDepth');
 if (_ud) _ud.addEventListener('input', function() {
     var v = Math.max(10, Math.min(500, Math.round((parseInt(this.value, 10) || 100) / 10) * 10));

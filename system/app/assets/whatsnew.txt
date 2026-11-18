@@ -139,6 +139,19 @@ Smaller things
   gridless Square and Hex buttons say how tokens see where no Vision is
   set, and Imperial and Metric no longer claim a fixed cell size, since
   each map keeps its own scale.
+- Deleting asks first where it matters. A locked wall or floor, a token,
+  and a room on the Data Map each get one question before they go, from
+  the Delete key, the right-click menu and the bin in Layers alike. A
+  plain shape still goes at once, and Undo still brings anything back.
+- The delete button in Layers is a bin now, set a little apart from the
+  up and down arrows, so a press meant to move a piece doesn't remove it.
+- A flattened picture takes its pieces along when you move it. The walls
+  drawn into it used to stay where the picture had been, still blocking
+  sight there. Deleting one asks whether to put its pieces back or delete
+  them too.
+- The Grid menu holds the grid's own settings now: the map's scale, Cell
+  size, Offset, Fit grid to picture, and a Grid opacity slider beside
+  Label opacity. The measure options keep Imperial and Metric.
 
 WAYPOINT 1.6.2 — What's New
 ============================

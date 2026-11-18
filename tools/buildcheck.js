@@ -1420,6 +1420,55 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             && back === 3 && j(after) === j([['a', false, false, false, undefined], ['b', false, false, false, undefined], ['w', false, false, false, 0.8], ['t', false, false, false, undefined], ['h', true, false, false, undefined], ['o', false, false, false, undefined]]),
             j([pk, laid, back, after]));
     }
+    /* -- 1.6.3, Fulllion's rulings of 2026-11-17 on the map and fog review: findings 15 ("Ask when locked") and 16 ("Move with it, ask on delete"),
+       flatten.js flatDrop, flatAnchor and flatFollow and delask.js run for real -- */
+    {
+        const FL = await import(url('flatten.js') + '?f16').catch(() => null), DA = await import(url('delask.js') + '?f15').catch(() => null), j = JSON.stringify;
+        const rdS = f => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8');
+        const flatMap = () => ({ whiteboard: [{ id: 'P', type: 'image', x: 100, y: 100, w: 50, h: 50, flatPic: true, flatAt: { x: 100, y: 100 } },
+            { id: 'a', type: 'rect', x: 110, y: 120, w: 5, h: 5, hidden: true, flatIn: 'P' }, { id: 'w', type: 'path', x: 90, y: 95, w: 60, h: 2, opacity: 0, flatIn: 'P', flatWas: { o: null }, blocksSight: true, locked: true },
+            { id: 'o', type: 'rect', x: 400, y: 400, w: 10, h: 10 }, { id: 'L', type: 'rect', x: 0, y: 0, w: 10, h: 10, locked: true }, { id: 't', type: 'circle', x: 1, y: 1, isChar: true }, { id: 'wt', type: 'circle', waiting: 1, ownerId: 'u1' }] });
+        // move with it: the picture moved 30 right and 20 down since its last save brings its two pieces along by the same; a second save moves nothing
+        const mv = flatMap(); mv.whiteboard[0].x = 130; mv.whiteboard[0].y = 120; const n1 = FL ? FL.flatFollow(mv) : -1, n2 = FL ? FL.flatFollow(mv) : -1;
+        const at = id => { const w = mv.whiteboard.find(x => x.id === id); return [w.x, w.y]; };
+        // a picture flattened before 1.6.3 has no flatAt: the first look notes it and moves nothing, and a picture that is no flatPic is never noted
+        const old = { whiteboard: [{ id: 'Q', type: 'image', x: 5, y: 6, flatPic: true }, { id: 'q', type: 'rect', x: 7, y: 8, flatIn: 'Q' }, { id: 'n', type: 'image', x: 1, y: 1 }] };
+        const o1 = FL ? FL.flatFollow(old) : -1, oAt = j(old.whiteboard[0].flatAt), oN = 'flatAt' in old.whiteboard[2]; old.whiteboard[0].x = 15; const o2 = FL ? FL.flatFollow(old) : -1;
+        const anc = FL ? [FL.flatAnchor({ flatPic: true, x: 1, y: 2 }), FL.flatAnchor({ flatPic: true, x: 1, y: 2, flatAt: { x: 0, y: 0 } }), FL.flatAnchor({ x: 1, y: 2 }), FL.flatAnchor({ flatPic: true, x: NaN, y: 2 }), FL.flatAnchor(null)] : [];
+        check('1.6.3 finding 16 (Fulllion\'s ruling "Move with it"): a flattened picture\'s pieces move with it, by however far the picture moved since its last save (flatFollow, asked by io.js save before the step is recorded), each keeping its place beside the picture, locked or hidden; nothing moves twice; a picture flattened before 1.6.3 notes where it stands at first sight and moves nothing then, and follows after; flatLay notes it as it lays the picture',
+            !!FL && n1 === 2 && n2 === 0 && j(at('a')) === j([140, 140]) && j(at('w')) === j([120, 115]) && j(at('o')) === j([400, 400]) && j(mv.whiteboard[0].flatAt) === j({ x: 130, y: 120 })
+            && o1 === 0 && oAt === j({ x: 5, y: 6 }) && !oN && o2 === 1 && old.whiteboard[1].x === 17 && j(anc) === j([true, false, false, false, false])
+            && /flatPic: true, flatAt: \{ x: fp\.box\.x, y: fp\.box\.y \} \};/.test(rdS('flatten.js'))
+            && /if \(typeof flatFollow === 'function' && activeMap\) \{ try \{ flatFollow\(activeMap\); \} catch \(e\) \{\} \}\r?\n\s*pushHistory\(\);/.test(rdS('io.js')), j([n1, n2, at('a'), at('w'), o1, oAt, o2, anc]));
+        // delete with it, or put them back
+        const dAll = flatMap(), oAll = DA ? DA.delApply(dAll, ['P'], 'all') : null, dBack = flatMap(), oBack = DA ? DA.delApply(dBack, ['P'], 'back') : null, dDef = flatMap(), oDef = DA ? DA.delApply(dDef, ['P']) : null;
+        const ids = m => m.whiteboard.map(w => w.id);
+        check('1.6.3 finding 16 ("ask on delete"): a flattened picture deleted with Delete them too takes the pieces drawn into it (flatDrop); with Put the pieces back they come back as Unflatten puts them (hidden off, opacity as it was, no flatIn); a delete that names neither puts them back, so no path can strand them',
+            !!DA && j(ids(dAll)) === j(['o', 'L', 't', 'wt']) && j(oAll) === j({ gone: 1, back: 0, with: 2 }) && j(ids(dBack)) === j(['a', 'w', 'o', 'L', 't', 'wt']) && j(oBack) === j({ gone: 1, back: 2, with: 0 })
+            && !dBack.whiteboard[0].hidden && !('flatIn' in dBack.whiteboard[0]) && !('opacity' in dBack.whiteboard[1]) && !('flatWas' in dBack.whiteboard[1]) && j(ids(dDef)) === j(ids(dBack)) && j(oDef) === j(oBack)
+            && FL.flatDrop({ whiteboard: [] }, 'P') === -1 && DA.delSaid(oAll) === 'Deleted with 2 pieces drawn into it.' && DA.delSaid(oBack) === 'Deleted. 2 pieces are back as they were.' && DA.delSaid({ gone: 1, back: 0, with: 0 }) === 'Deleted.', j([ids(dAll), oAll, ids(dBack), oBack]));
+        // who is asked: counts, words and answers, through a stand-in for showConfirm
+        const cnt = (pick, list) => DA.delCount(list || flatMap().whiteboard, pick), W = (pick, list) => DA.delWords(cnt(pick, list));
+        const asks = [];
+        const conf = ans => (t, cb, o) => { asks.push([t, o && o.yes, o && o.alt, o && o.noEnter]); cb(ans); };
+        const run = (pick, ans) => { const m = flatMap(); let got = 'none'; DA.delWb(m, pick, conf(ans), out => { got = [ids(m), out]; }); return got; };
+        const plain = run(['o'], true), lockY = run(['L'], true), lockN = run(['L'], false), tokY = run(['t'], true), flatB = run(['P'], true), flatA = run(['P'], 'alt'), flatC = run(['P'], false), both = run(['P', 'L', 'o'], 'alt');
+        const FQ = 'Delete the flattened picture? Its 2 pieces can be put back as they were, or deleted with it.', LQ = 'Delete this locked piece? It is part of the map’s structure.';
+        check('1.6.3 finding 15 (Fulllion\'s ruling "Ask when locked"): a plain unlocked piece goes at once with no question; a locked piece or a token asks one question (Delete, buttons alone), and everything picked goes on a yes and nothing on Cancel; a flattened picture that holds pieces asks Put the pieces back or Delete them too, and that one question also covers locked pieces and tokens picked beside it; a waiting token counts as a token; a piece picked beside its own picture is not one to put back',
+            !!DA && j(plain[0]) === j(['P', 'a', 'w', 'L', 't', 'wt']) && j(lockY[0]) === j(['P', 'a', 'w', 'o', 't', 'wt']) && lockN === 'none' && j(tokY[0]) === j(['P', 'a', 'w', 'o', 'L', 'wt'])
+            && j(flatB[0]) === j(['a', 'w', 'o', 'L', 't', 'wt']) && j(flatA[0]) === j(['o', 'L', 't', 'wt']) && flatC === 'none' && j(both[0]) === j(['t', 'wt'])
+            && j(asks) === j([[LQ, 'Delete', undefined, true], [LQ, 'Delete', undefined, true], ['Delete this token?', 'Delete', undefined, true], [FQ, 'Put the pieces back', 'Delete them too', true], [FQ, 'Put the pieces back', 'Delete them too', true], [FQ, 'Put the pieces back', 'Delete them too', true],
+                [FQ + ' What else is picked goes too, with 1 locked piece.', 'Put the pieces back', 'Delete them too', true]])
+            && W(['wt']).text === 'Delete this token?' && W(['L', 't', 'wt', 'o']).text === 'Delete 4 pieces? This takes 1 locked piece and 2 tokens.' && W(['o']).text === '' && W([]).text === '' && W(['nobody']).text === ''
+            && j(cnt(['P', 'a']).flats) === j([{ id: 'P', kids: 1 }]) && cnt(['P', 'a', 'w']).flats.length === 0 && W(['P', 'a', 'w']).text === 'Delete 3 pieces? This takes 1 locked piece.', j([plain, lockY, lockN, tokY, flatB, flatA, flatC, both, asks]));
+        // rooms on the Data Map: always asked, the room's links go with it, and nothing on Cancel
+        const rm = () => ({ rooms: [{ id: 'r1', name: 'Inn' }, { id: 'r2', name: 'Cellar' }], links: [['r1', 'r2'], ['r2', 'r3']] }), rAsk = [];
+        const rY = rm(); let rN = -1; DA.delRooms(rY, ['r1'], (t, cb, o) => { rAsk.push([t, o.yes, o.noEnter]); cb(true); }, n => { rN = n; });
+        const rC = rm(); DA.delRooms(rC, ['r1', 'r2'], (t, cb) => { rAsk.push([t]); cb(false); }, () => { rN = 99; });
+        check('1.6.3 finding 15 on the Data Map: deleting a room asks first, by name, with its links; a yes takes the room and every link that names it; Cancel takes nothing; two rooms are counted',
+            j(rY.rooms) === j([{ id: 'r2', name: 'Cellar' }]) && j(rY.links) === j([['r2', 'r3']]) && rN === 1 && j(rC.rooms.map(r => r.id)) === j(['r1', 'r2']) && rC.links.length === 2
+            && j(rAsk) === j([['Delete the room Inn? Its links go with it.', 'Delete', true], ['Delete 2 rooms? Their links go with them.']]) && DA.roomWords(DA.roomCount([], ['x'])) === '', j([rY, rAsk, rN]));
+    }
     /* -- which pieces -- */
     const P0 = { x: 10, y: 20, w: 30, h: 40 }, pc = o => Object.assign({}, P0, o), KINDS_IN = ['image', 'path', 'rect', 'circle', 'hexagon', 'diamond', 'triangle', 'star', 'line'];
     check('shows: a picture, a drawing and every plain shape belong in the picture, a text box only where labels are asked for (only true asks); never a token, a waiting token, a hidden piece or a GM note card of any kind, never a light, a trigger zone or a kind the list lacks (a prototype\'s name, another case, a space); never a piece with no place or size that is a number, nor one of a negative size; a door, open or shut and locked or not, a wall, a see-through barrier, a portal, a piece with a fog mark and a locked piece are pieces like any other ("Plain pieces")',
@@ -5072,7 +5121,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         const LBLOCK = '<div class="menu-block" title="How strongly this map&rsquo;s cell labels show. Kept with the map.">\n                      <div class="draw-menu-label">Label opacity <span id="gridLabelsVal">50%</span></div>\n                      <input type="range" id="gridLabelsOpacity" min="10" max="100" step="5" value="50" style="width:100%;" disabled data-typed data-unit="%" data-hide="gridLabelsVal" aria-label="Label opacity in percent">\n                  </div>';
         const board = ixL.slice(ixL.indexOf('<div id="main" class="main">'), ixL.indexOf('<div id="whiteboardWrap">'));
         check('cell labels in the page: the Grid menu holds Cell labels after the grids, wearing the drawing the Text box row wears, with Label opacity under it, then Grid opacity; the canvas stands in the map\'s area right after the rulers, once, and out of a screen reader\'s way',
-            gm.includes('id="gridHexBtn"') && gm.indexOf('<div class="menu-rule"></div>\n                  ' + LROW + '\n                  ' + LBLOCK + '\n                  <div class="menu-rule"></div>\n                  <button class="wb-tool-btn menu-row" id="gridOpacityBtn"') > gm.indexOf('id="gridHexBtn"')
+            gm.includes('id="gridHexBtn"') && gm.indexOf('<div class="menu-rule"></div>\n                  ' + LROW + '\n                  ' + LBLOCK + '\n                  <div class="menu-block" title="How strongly the grid lines draw over the map.') > gm.indexOf('id="gridHexBtn"') && gm.indexOf('<div class="menu-rule"></div>\n                  <button class="wb-tool-btn menu-row" id="gridOpacityBtn"') > gm.indexOf('id="gridOpacityRange"') /* 1.6.3 (finding 17, moved on purpose): Grid opacity's slider stands beside Label opacity, the map's scale and cell under them, and the Settings row last */
             && ixL.split(' id="gridLabelsBtn"').length === 2 && ixL.split(' id="cellLabels"').length === 2 && board.includes('      <canvas id="rulerLeft" width="36"></canvas>\n      <canvas id="cellLabels" aria-hidden="true"></canvas>\n')
             && ixL.split('<path d="M5 7V5h14v2M12 5v14M9.5 19h5"/>').length === 4,   /* 1.6.2 (backlog 232): the paint window's Text tool wears it too, moved on purpose */ gm.slice(0, 200));
         check('cell labels: the canvas lies over the map\'s view as the rulers do, under the fog of war as the grid is, and takes no press; the stream window keeps it where it keeps the grid; main.js asks for the labels at every scroll, zoom and resize of the view before the rulers\' own way out; the board asks at every redraw, once the grid is set; the slice writes no markup, and is wired once',

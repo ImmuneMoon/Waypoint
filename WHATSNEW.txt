@@ -43,8 +43,9 @@ Fog of war
 - A player now goes through a portal only from beside it. A double-click
   used to send them across the whole map, past walls and fog they hadn't
   explored, while dropping a token on it was stopped by the walls. Now
-  their token has to stand on the portal or next to it, the same reach a
-  door asks for, and from farther off they're told to move up first.
+  their token has to stand on the portal, or next to it with no wall or
+  closed door in between, the same reach a door asks for. From farther
+  off, or from the far side of a wall, they're told to walk up first.
   Your own drops and summons work as before.
 - Trigger zones can stay off the players' maps. Untick Players see this
   zone in a zone's Properties and players never see its gold outline,

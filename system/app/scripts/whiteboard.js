@@ -1360,13 +1360,14 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
   }
   // [fogcheck:doornear-end]
   // 1.6.3 (the owner's ruling of 2026-11-17, finding 2 of the improvement week's review: a player travels through a portal "Next to it"): whether a
-  // token of yours stands on a portal or next to it on this screen's copy, by fogcore portalBeside (the door's own rule, which the host's travelBar
-  // judges the request by). Read only so that a double-click from afar does not promise Traveling: the host is the judge and says why. With no core
-  // at hand it promises as before
+  // token of yours may reach a portal on this screen's copy. The review of that fold: it asks the host's own rule (net.js portalReach, through
+  // net.portalReach), so the tokens that count are the host's (a character's or a waiting one, never a hidden or locked one), a token on the portal
+  // passes as a drop does, and a wall between counts. Before it read doorNearMine, which leaves waiting tokens out, so a player whose waiting
+  // token stood beside the portal traveled with no promise. Read only so that a double-click from afar does not promise Traveling: the host is
+  // the judge and says why. With no net module at hand it promises as before
   function portalNearMine(am, portal) {
-      var F = window.wpFogCore; if (!F || typeof F.portalBeside !== 'function' || !am || !portal) return true;
-      var grid = typeof F.gridFor === 'function' ? F.gridFor((am.meta && am.meta.gridType) || 'off', am.fog && am.fog.cell, am.meta && am.meta.cell) : null;
-      return doorNearMine(am, [], window.wpNet).some(function(b) { return F.portalBeside(b, portal, grid); });
+      var n = window.wpNet; if (!n || typeof n.portalReach !== 'function' || !am || !portal) return true;
+      return n.portalReach(portal, am);
   }
   // 1.6.3 (finding 8): a trigger zone the GM unticked Players see this zone, by fogcore zoneHid (the host's own judge); with no core, the tick on a trigger
   function zoneHidMe(w) { var F = window.wpFogCore; return F && typeof F.zoneHid === 'function' ? F.zoneHid(w) : !!w && w.type === 'trigger' && w.zoneHidden === true; }

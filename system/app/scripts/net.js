@@ -4831,7 +4831,7 @@ function applyPosToDom(msg) {
    that player to change map. Returns true when the travel happened.
    What refuses a player, in this order (pinned by netcheck): Lock travel between maps, a destination closed to players (the map's Lock for
    players), then whatever travelBar says — the map they stand on being locked for players (a locked map is closed both ways), then this
-   portal's own lock, then whether a token of theirs stands on it or next to it (1.6.3). gmHand (true only, from net.tokenDropped's third argument: the GM's
+   portal's own lock, then whether a token of theirs stands on it, or next to it with no wall between (1.6.3). gmHand (true only, from net.tokenDropped's third argument: the GM's
    own drop of that player's token on the board) is never asked travelBar: a portal locked for players does not stop the GM's own hand. */
 function hostTravel(conn, traveler, portal, fromMap, gmHand) {
     var tCamp = getActiveCampaign();
@@ -4908,31 +4908,79 @@ function hostTravel(conn, traveler, portal, fromMap, gmHand) {
 // 1.6.3 (the owner's ruling of 2026-11-17, finding 2 of the improvement week's review: a player travels through a portal "Next to it"): the third
 // rule, after the two locks, is that a token of the player stands on the portal or next to it (portalReach). Before, a double-click on a portal
 // sent its player through from anywhere on the map, past walls, locked doors and unexplored fog, while a drop on it was judged by the walls.
-// A drop puts the token on the portal, so it always passes; a double-click from afar is refused with the reason far, in fixed words
+// A drop puts the token on the portal, and a token on the portal always passes (the drop's own test, portalUnder); a double-click from afar is
+// refused with the reason far, in fixed words.
+// The review of that fold (1.6.3): next to it is no reach where a wall or a closed door stands between the token and the portal (the reason wall,
+// in words of its own), since a portal, unlike a door, does not stand in its wall: stairs in a sealed room were reached from the corridor outside
 function travelBar(traveler, portal, fromMap, destMap) {
     if (fromMap && fromMap.meta && fromMap.meta.playerLock) return { reason: 'here', gm: 'on a map that is locked for players' };   // closed both ways (the owner, 2026-10-03): no player leaves a locked map through a portal
     if (portal && portal.portalLock === true) return { reason: 'portal', gm: 'that is locked for players' };
-    if (!portalReach(traveler, portal, fromMap)) return { reason: 'far', gm: 'from too far away' };
+    var reach = portalReach(traveler, portal, fromMap);
+    if (reach === 'wall') return { reason: 'wall', gm: 'from beyond a wall' };
+    if (!reach) return { reason: 'far', gm: 'from too far away' };
     return null;
 }
-// Whether a shown token of the traveler's own on the map (a character's or a waiting one, as the door branch counts them) stands on the portal or
-// next to it, by fogcore portalBeside, which is the door's own rule (doorBeside): by cells on a map with a lattice (a grid, or a gridless map that
-// names a fog cell), within DOOR_NEAR (40 px) of the portal's box only where there are no cells to count. The portal's cells are worked out once.
-// With no core at hand the box rule alone, so the rule still holds. A traveler with no token on the map is never next to it
+// Whether a token of the traveler's own on the map may reach the portal. Answers true, false (no token of theirs is on it or next to it) or
+// 'wall' (one is next to it, but a wall or a closed door stands between them). The tokens that count: a character's or a waiting one, as the
+// door branch counts them, never a hidden one and never one the GM locked (a locked token cannot leave its place, and the travel branch's
+// locked-token note reads characters alone, so a locked waiting token beside the portal gave reach while its lock was never asked).
+// In this order, for each such token:
+// 1. On it: portalUnder, the very test a drop is judged by (the token's center in the portal's box, or a third of the token over it). The review
+//    of that fold: a filled region or a long diagonal line read by its stroke alone refused a token dropped in the middle of it.
+// 2. Next to it: fogcore portalBeside, the door's own rule (doorBeside): by cells on a map with a lattice (a grid, or a gridless map that
+//    names a fog cell), within DOOR_NEAR (40 px) of the portal's box only where there are no cells to count. With no core the box rule alone.
+// 3. Not walled off: portalWalled, by the walls the table judges a player's move by, where its walls rule is Refuse.
+// The portal's cells are worked out once. A traveler with no token on the map never reaches it. net.portalReach (below the slice) asks the same
+// for a player's own app, so its double-click promises Traveling only where the host will let it through
 function portalReach(traveler, portal, fromMap) {
     if (!traveler || typeof traveler.id !== 'string' || !traveler.id || !portal || typeof portal !== 'object' || !fromMap || !Array.isArray(fromMap.whiteboard)) return false;
     var F = typeof window === 'object' && window && window.wpFogCore && typeof window.wpFogCore.portalBeside === 'function' ? window.wpFogCore : null, meta = fromMap.meta || {};
     var grid = F && typeof F.gridFor === 'function' ? F.gridFor(meta.gridType || 'off', fromMap.fog && fromMap.fog.cell, meta.cell) : null;
-    var pCells = F && grid ? (portal.type === 'path' ? F.pathCells(portal, grid) : F.itemCells(portal, grid)) : null;
-    return fromMap.whiteboard.some(function(w) {
-        if (!w || typeof w !== 'object' || !(w.isChar || w.waiting) || w.hidden || w.ownerId !== traveler.id) return false;
-        if (F) return F.portalBeside(w, portal, grid, pCells);
-        var px = Number(portal.x), py = Number(portal.y), tx = Number(w.x), ty = Number(w.y); if (!isFinite(px) || !isFinite(py) || !isFinite(tx) || !isFinite(ty)) return false;
+    var pCells = null, walled = false;
+    var mine = fromMap.whiteboard.filter(function(w) { return !!w && typeof w === 'object' && (w.isChar || w.waiting) && !w.hidden && !w.locked && w.ownerId === traveler.id; });
+    if (typeof portalUnder === 'function' && mine.some(function(w) { return portalUnder(w, fromMap) === portal; })) return true;   // standing on it, as a drop is judged
+    for (var i = 0; i < mine.length; i++) {
+        var w = mine[i];
+        if (F) {
+            if (pCells === null) pCells = grid ? (portal.type === 'path' ? F.pathCells(portal, grid) : F.itemCells(portal, grid)) : undefined;
+            if (!F.portalBeside(w, portal, grid, pCells)) continue;
+            if (grid && portalWalled(w, portal, fromMap, grid, pCells, F)) { walled = true; continue; }
+            return true;
+        }
+        var px = Number(portal.x), py = Number(portal.y), tx = Number(w.x), ty = Number(w.y); if (!isFinite(px) || !isFinite(py) || !isFinite(tx) || !isFinite(ty)) continue;
         var gx = Math.max(px - (tx + (Number(w.w) || 0)), 0, tx - (px + (Number(portal.w) || 0))), gy = Math.max(py - (ty + (Number(w.h) || 0)), 0, ty - (py + (Number(portal.h) || 0)));
-        return Math.sqrt(gx * gx + gy * gy) <= 40;   // fogcore DOOR_NEAR
-    });
+        if (Math.sqrt(gx * gx + gy * gy) <= 40) return true;   // fogcore DOOR_NEAR
+    }
+    return walled ? 'wall' : false;
+}
+// The review of that fold (1.6.3): whether a wall or a closed door stands between a token next to a portal and the portal. A token beside the
+// portal may step into a cell of the portal that touches one of its own cells (one square cell, corners included; one hex) with no wall in the
+// way, by fog.js moveBlocked: the walls, the closed doors and the see-through barriers a player's move is judged by, a move from the token's
+// middle to the middle of that portal cell. Asked only where the table's walls rule is Refuse (moveMode, absent read as Refuse), since under
+// Warn or Off the player could walk the token there anyway. Never for a portal that is itself a wall, a door or a barrier (it stands in its
+// own wall, and is reached from either side as a door is). Answers true only where every such step is blocked; no fog module, no lattice or
+// no cell to step into answers false, so nothing is refused that the walls cannot judge. At most 48 cells of a large portal are tried
+function portalWalled(tok, portal, fromMap, grid, pCells, F) {
+    var fog = typeof window === 'object' && window ? window.wpFog : null;
+    if (!fog || typeof fog.moveBlocked !== 'function' || !grid || !Array.isArray(pCells) || !pCells.length) return false;
+    if (portal.blocksSight === true || portal.barrier === true) return false;
+    var camp = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null;
+    if (typeof moveMode === 'function' && moveMode(camp, 'walls') !== 'refuse') return false;
+    var tw = Number(tok.w) || 60, th = Number(tok.h) || 52, tc = (typeof F.itemOver === 'function' && F.itemOver(tok, grid) ? [] : F.itemCells(tok, grid)).concat([F.cellOf(tok.x + tw / 2, tok.y + th / 2, grid)]);
+    var sq = grid.type === 'square', tries = 0;
+    for (var i = 0; i < pCells.length && tries < 48; i++) {
+        var d = pCells[i];
+        if (!tc.some(function(t) { return sq ? Math.max(Math.abs((d.c || 0) - (t.c || 0)), Math.abs((d.r || 0) - (t.r || 0))) <= 1 : F.hexDist(d, t) <= 1; })) continue;
+        tries++;
+        var c = F.cellCenter(d, grid);
+        if (!fog.moveBlocked(fromMap, tok, tok.x, tok.y, c.x - tw / 2, c.y - th / 2)) return false;
+    }
+    return tries > 0;
 }
 // [netcheck:travelbar-end]
+// A player's own app asks the host's rule (portalReach) of its own copy of the map before it promises Traveling (whiteboard.js portalNearMine):
+// true only where a token of theirs on that copy may reach the portal. The host is still the judge and says why where it refuses
+net.portalReach = function(portal, map) { return portalReach({ id: net.myId }, portal, map) === true; };
 // A hidden trap tile that could not fire tells the GM what happened, at most once in 4 s per player and tile, under every lock: a token
 // resting on a locked tile sends a final for every turn in place, and each would say it again
 function trapToast(traveler, portal, text) {
@@ -8953,6 +9001,7 @@ function handleMessage(msg, conn) {
         else if (msg.reason === 'here') toast('This map is locked. Nobody leaves it until the GM opens it.');   // the map they stand on is locked for players (closed both ways): fixed words
         else if (msg.reason === 'portal') toast('That way is locked. The GM will unlock it when the time comes.');   // a portal's own lock: fixed words, nothing of the message in them
         else if (msg.reason === 'far') toast('Move your token next to it first. Then double-click it to go through.');   // 1.6.3 (finding 2): a token of theirs is not on the portal or next to it; fixed words
+        else if (msg.reason === 'wall') toast('A wall is in the way. Walk your token to it first.');   // 1.6.3, the review of finding 2: a token of theirs is next to it, past a wall or a closed door; fixed words
         else toast('Travel between maps is locked right now. The GM will open it when the time comes.');
     } else if (msg.type === 'travel' && net.role === 'host') {
         // [netcheck:travelmsg-start]

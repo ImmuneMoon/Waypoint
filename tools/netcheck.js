@@ -955,7 +955,7 @@ pendingChecks.push((async () => {
         const sayF = msg => { const out = []; new Function('msg', 'conn', 'net', 'fromHost', 'toast', 'if (false) {\n' + tdCli + '\n}')(Object.assign({ type: 'travelDenied' }, msg), { peer: 'h' }, { role: 'client' }, () => true, t => out.push(t)); return out; };
         const FARW = 'Move your token next to it first. Then double-click it to go through.';
         const ok2 = j(sqGot) === j([null, null, null, 'far', 'far', 'far', null, 'far', null, 'portal', 'here']) && j(offGot) === j([null, 'far', null, 'far', 'far']) && hexSame && hexN > 0 && hexY > 0
-            && j(sayF({ reason: 'far' })) === j([FARW]) && j(sayF({ reason: 'far', map: '<b>x</b>' })) === j([FARW]) && (src.match(/function portalReach\(/g) || []).length === 1 && (src.match(/portalReach\(/g) || []).length === 2;
+            && j(sayF({ reason: 'far' })) === j([FARW]) && j(sayF({ reason: 'far', map: '<b>x</b>' })) === j([FARW]) && (src.match(/function portalReach\(/g) || []).length === 1 && (src.match(/portalReach\(/g) || []).length === 3;
         check(T2, ok2, j([sqGot, offGot, hexSame, hexN, hexY, sayF({ reason: 'far' })]));
         // (8) the wire
         const [, wireC] = new Function('window', '"use strict";\n' + siSrc() + '\nreturn [sanitizeItem, wireWbItem];')({ wpFogCore: FCz });
@@ -988,6 +988,82 @@ pendingChecks.push((async () => {
             && /<li><b>Doors &amp; stairs:<\/b> stand your token next to a portal marker and double-click it to travel through on your own\./.test(idxZ);
         check(T8, okWire && okClean && okPos && okFire && okUi, j([okWire, okClean, okPos, okFire, okUi, wz, tfGot]).slice(0, 1500));
     } catch (e) { check(T2, false, String(e && e.stack || e)); }
+})());
+// 1.6.3, the review of findings 2 and 8's fold, run for real with the real fogcore, portalUnder and fog.js moveBlocked:
+// (1) a token on the portal, as a drop is judged (portalUnder: its middle in the portal's box, or a third of it over the box), always reaches it, so a
+// drop in the middle of a filled-region portal or on a box corner of a long diagonal line travels on a lattice and gridless, as before the fold;
+// (2) next to it is no reach where a wall line or a closed door stands between the token and the portal (the reason wall, said in fixed words),
+// an open door and the walls rule set to Off or Warn letting it through, a portal that is itself a door never walled off; (4) a locked token gives no
+// reach, a waiting one does, and a player's own app asks the same rule (net.portalReach), so its double-click promises Traveling exactly where the
+// host lets it through; (3) the GM's own drop says a zone's message as the host's triggerFire does: never a Hidden zone or a mine, never again for a
+// token that began inside it, by the zone's own shape
+pendingChecks.push((async () => {
+    const T = '1.6.3 the review of the play batch: a drop on a filled-region or diagonal-line portal travels (portalUnder first); a wall or a closed door between a token and the portal beside it refuses with the word wall (Refuse only; an open door, Off and Warn pass; a door portal is never walled off); a locked token gives no reach, a waiting one does, and the player\'s app asks the host\'s rule; the GM\'s drop never says a Hidden zone, a mine, or a zone the token began in; a zone made a portal, a room\'s link or a mine loses its Players see this zone tick';
+    try {
+        const urlR = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+        const FCr = await import(urlR('fogcore.js')), Sr = await import(urlR('systemcore.js'));
+        const J = JSON.stringify;
+        const camp = { id: 'k', items: {}, chars: {}, players: {}, turnRules: {} };
+        const fogT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, '\n');
+        const fogV = fogT.slice(fogT.indexOf('function core() {'), fogT.indexOf('/* ---------- the overlay'));
+        const winF = { wpFogCore: FCr, wpSystemCore: Sr, wpVtt: { on: () => true, campaignOn: () => true, mode: () => 'host' } };
+        const fog = new Function('window', 'document', 'getActiveMap', 'getActiveCampaign', 'state', "'use strict';\n" + fogV + '\nreturn { moveBlocked: moveBlocked };')(winF, { getElementById: () => null }, () => null, () => camp, { appState: { campaigns: { k: camp } } });
+        const barS = between('// [netcheck:travelbar-start]', '// [netcheck:travelbar-end]', 'travelbar');
+        const puS = fnSrc('function portalUnder(item, map) {', '\n}\n', 'portalUnder') + '\n}\n';
+        const mmS = fnSrc('function moveMode(camp, k) {', '\n', 'moveMode');
+        const nprA = src.indexOf('net.portalReach = function(portal, map) {'), nprS = src.slice(nprA, src.indexOf('\n', nprA));
+        const mk = (win, withPU) => new Function('window', 'getActiveCampaign', 'net', barS + '\n' + (withPU ? puS : '') + '\n' + mmS + '\n' + nprS + '\nreturn { travelBar: travelBar, portalReach: portalReach, net: net };')(win, () => camp, { myId: 'u_p' });
+        const H = mk({ wpFogCore: FCr, wpFog: fog }, true), H0 = mk({ wpFogCore: FCr, wpFog: fog }, false), Hn = mk({}, true);
+        let n = 0; const M = (grid, wb, more) => { const m = Object.assign({ id: 'mr' + (++n), type: 'map', meta: { title: 'T', gridType: grid, updated: n }, rooms: [], whiteboard: wb }, more || {}); camp.items[m.id] = m; return m; };
+        const tok = (x, y, k) => Object.assign({ id: 't' + x + '_' + y, type: 'image', isChar: true, ownerId: 'u_p', x, y, w: 50, h: 50 }, k || {});
+        const why = (h, p, m) => { const r = h.travelBar({ id: 'u_p' }, p, m, { id: 'm2' }); return r ? r.reason : null; };
+        // (1) a filled region and a diagonal line, each 500 px across
+        const region = { id: 'pf', type: 'path', tip: 'fill', x: 0, y: 0, w: 500, h: 500, baseW: 500, baseH: 500, pts: [[0, 0], [500, 0], [500, 500], [0, 500]], targetMapId: 'm2' };
+        const diag = { id: 'pd', type: 'path', x: 0, y: 0, w: 500, h: 500, baseW: 500, baseH: 500, pts: [[0, 0], [500, 500]], strokeWidth: 3, targetMapId: 'm2' };
+        const d1 = [why(H, region, M('square', [region, tok(225, 225)])), why(H, region, M('off', [region, tok(225, 225)])), why(H, diag, M('square', [diag, tok(450, 0)])), why(H, diag, M('off', [diag, tok(450, 0)])),
+            why(H0, region, M('square', [region, tok(225, 225)])), why(H0, diag, M('off', [diag, tok(450, 0)])), why(Hn, region, M('square', [region, tok(225, 225)]))];
+        const ok1 = J(d1) === J([null, null, null, null, 'far', 'far', null]);
+        // (2) a wall line and a door line along x = 550, between the portal's cell (10, 10) and the cells right of it
+        const po = { id: 'po', type: 'rect', x: 500, y: 500, w: 50, h: 50, targetMapId: 'm2' };
+        const line = k => Object.assign({ id: 'wl', type: 'path', x: 550, y: 450, w: 0, h: 150, pts: [[0, 0], [0, 150]], blocksSight: true, sightType: 'wall' }, k || {});
+        const at = (wb, more) => M('square', [po].concat(wb), more);
+        const rule = (mode, f) => { camp.turnRules = mode ? { walls: mode } : {}; try { return f(); } finally { camp.turnRules = {}; } };
+        const d2 = [why(H, po, at([tok(550, 500)])), why(H, po, at([line(), tok(550, 500)])), why(H, po, at([line(), tok(550, 450)])), why(H, po, at([line(), tok(450, 500)])),
+            why(H, po, at([line({ sightType: 'door' }), tok(550, 500)])), why(H, po, at([line({ sightType: 'door', doorOpen: true }), tok(550, 500)])),
+            rule('off', () => why(H, po, at([line(), tok(550, 500)]))), rule('warn', () => why(H, po, at([line(), tok(550, 500)]))), rule('refuse', () => why(H, po, at([line(), tok(550, 500)]))),
+            why(H, Object.assign({}, po, { blocksSight: true, sightType: 'door' }), at([line(), tok(550, 500)])), why(H, po, at([line(), tok(550, 500), tok(450, 500)])), why(H, po, M('off', [po, line(), tok(570, 500)])),
+            why(Hn, po, at([line(), tok(550, 500)])), why(H, po, at([line({ hidden: true }), tok(550, 500)]))];
+        const ok2 = J(d2) === J([null, 'wall', 'wall', null, 'wall', null, null, null, 'wall', null, null, null, null, null]);
+        // (4) a locked token, a waiting one, and the player's own app
+        const d4 = [why(H, po, at([tok(450, 500, { locked: true })])), why(H, po, at([tok(450, 500, { isChar: false, waiting: true, locked: true })])), why(H, po, at([tok(450, 500, { isChar: false, waiting: true })])), why(H, po, at([tok(500, 500, { locked: true })])),
+            H.net.portalReach(po, at([tok(450, 500, { isChar: false, waiting: true })])), H.net.portalReach(po, at([tok(900, 900)])), H.net.portalReach(po, at([line(), tok(550, 500)])), H.net.portalReach(po, at([tok(450, 500, { ownerId: 'u_q' })]))];
+        const ok4 = J(d4) === J(['far', 'far', null, 'far', true, false, false, false]);
+        const tdI = src.indexOf("} else if (msg.type === 'travelDenied' && net.role === 'client') {"), tdCli = src.slice(tdI, src.indexOf("} else if (msg.type === 'travel' && net.role === 'host') {", tdI));
+        const said = []; new Function('msg', 'conn', 'net', 'fromHost', 'toast', 'if (false) {\n' + tdCli + '\n}')({ type: 'travelDenied', reason: 'wall' }, { peer: 'h' }, { role: 'client' }, () => true, t => said.push(t));
+        const wbR = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
+        const okSay = J(said) === J(['A wall is in the way. Walk your token to it first.']) && /function portalNearMine\(am, portal\) \{\n\s*var n = window\.wpNet; if \(!n \|\| typeof n\.portalReach !== 'function' \|\| !am \|\| !portal\) return true;\n\s*return n\.portalReach\(portal, am\);\n\s*\}/.test(wbR);
+        // (3) the GM's own drop (datamap.js gmZoneSay), with the real core and with none
+        const dmR = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'datamap.js'), 'utf8').replace(/\r\n/g, '\n');
+        const gzS = dmR.slice(dmR.indexOf('// [netcheck:gmzone-start]'), dmR.indexOf('// [netcheck:gmzone-end]'));
+        const gz = win => new Function('window', gzS + '\nreturn gmZoneSay;')(win);
+        const GZ = gz({ wpFogCore: FCr }), GZ0 = gz({});
+        const Zr = k => Object.assign({ id: 'z', type: 'trigger', x: 0, y: 0, w: 100, h: 100, eventMessage: 'Box.' }, k || {});
+        const tk = (cx, cy) => ({ id: 'tk', isChar: true, x: cx - 25, y: cy - 25, w: 50, h: 50 }), from = (cx, cy) => ({ x: cx - 25, y: cy - 25 });
+        const d3 = [GZ({ whiteboard: [Zr()] }, tk(50, 50), null), GZ({ whiteboard: [Zr({ hidden: true })] }, tk(50, 50), null), GZ({ whiteboard: [Zr({ mine: { f: 'x' } })] }, tk(50, 50), null),
+            GZ({ whiteboard: [Zr()] }, tk(50, 50), from(40, 40)), GZ({ whiteboard: [Zr()] }, tk(50, 50), from(300, 300)), GZ({ whiteboard: [Zr({ shape: 'circle', eventMessage: 'Round.' })] }, tk(6, 6), null),
+            GZ0({ whiteboard: [Zr({ shape: 'circle', eventMessage: 'Round.' })] }, tk(6, 6), null), GZ({ whiteboard: [Zr({ hidden: true }), Zr({ id: 'z2', eventMessage: 'Second.' })] }, tk(50, 50), null),
+            GZ({ whiteboard: [Zr({ zoneHidden: true })] }, tk(50, 50), null), GZ({ whiteboard: [Zr({ eventMessage: '' }), Zr({ id: 'z2', eventMessage: 'Second.' })] }, tk(50, 50), null), GZ(null, tk(50, 50), null)];
+        const ok3 = J(d3) === J(['Box.', '', '', '', 'Box.', '', 'Round.', 'Second.', 'Box.', '', '']);
+        // (5) a zone that becomes a portal, a room's link or a mine loses its Players see this zone tick (inspector.js zoneTidy), so clearing the
+        // portal again never brings the zone back off the players' maps unseen; asked by the Link Node and Portal to Map setters
+        const inR = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'inspector.js'), 'utf8').replace(/\r\n/g, '\n');
+        const ztA = inR.indexOf('  function zoneTidy(w) {'), zt = new Function(inR.slice(ztA, inR.indexOf('\n', ztA)) + '\nreturn zoneTidy;')();
+        const tidy = w => { zt(w); return 'zoneHidden' in w; };
+        const d5 = [tidy(Zr({ zoneHidden: true, targetMapId: 'm2' })), tidy(Zr({ zoneHidden: true, nodeId: 'r1' })), tidy(Zr({ zoneHidden: true, mine: {} })), tidy(Zr({ zoneHidden: true })), tidy(Zr({ zoneHidden: true, targetMapId: null }))];
+        const ok5 = J(d5) === J([false, false, false, true, true]) && (() => { try { zt(null); return true; } catch (e) { return false; } })()
+            && inR.includes('w.nodeId = this.value || null; portalLockTidy(w, activeMap); zoneTidy(w); save(); render();') && /portalLockTidy\(w, activeMap\);   \/\/ no longer a portal: its lock goes with it\n\s*zoneTidy\(w\);/.test(inR);
+        check(T, ok1 && ok2 && ok4 && okSay && ok3 && ok5, J([d1, d2, d4, said, d3, d5]));
+    } catch (e) { check(T, false, String(e && e.stack || e)); }
 })());
 const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) { this.sent.push(m); } });
 // text style (1.5.0): a page's formats on the wire — the look of a title, a table cell or a flowchart label, stored beside its text. The host's real
@@ -2426,7 +2502,7 @@ pendingChecks.push((async () => {
     check('portal lock (Help and the guide): Help names the three locks side by side and says what each does — a map closed to arriving players, all travel, one portal — with where a portal\'s lock is set (the play map\'s right-click menu, or its Properties), what players see and are told, and that it stops neither a summon, Bring nor the GM\'s own drop; the trap tile\'s line names the tile\'s own lock; the player\'s Doors and stairs line says what the small lock means; the guide lists portalLock (true only, with a shown portal, never stopping the GM); the menu, the tick and the button are worded as Help words them',
         /<li><b>Three locks on travel\.<\/b> Each stops players at a different place\. None of the three stops a summon, Bring or the table following your map, and your own characters walk through any portal\./.test(helpL) && /<li><b>Lock for players<\/b> on a map closes that map both ways\. Right-click the map in the Maps list to set it\. Every portal into it refuses players, who are told the map isn&rsquo;t open yet\. No player who is on it leaves it through a portal: they are told <i>This map is locked<\/i>\.<\/li>/.test(helpL) && /<li><b>Lock travel between maps<\/b>, in the Multiplayer panel, stops all travel by players, on every map, until you allow it again\.<\/li>/.test(helpL) && /<li><b>Locked for players<\/b> on a portal locks that one portal\. Right-click the portal on the play map &#9656; <b>Lock portal for players<\/b>, or tick <b>Locked for players<\/b> in its Properties\.[^\n]*until you pick <b>Unlock portal<\/b>\. Every other way off the map stays as it was\.<\/li>/.test(helpL) && /<li>You and your players see a small <i class="wib wi-lock"><\/i> beside a locked portal&rsquo;s marker, and its hover says it is locked\. A player who tries is told <i>That way is locked<\/i>\.<\/li>/.test(helpL) && /<li>Your own hand passes a portal&rsquo;s lock, and a locked map&rsquo;s hold on the players in it\. Dropping a player&rsquo;s token on a portal you locked, or on any portal of a locked map, sends them through\. A closed destination and Lock travel between maps still stop that drop\.<\/li>/.test(helpL) && /<li>A portal&rsquo;s lock is the piece&rsquo;s own: where two pieces lead through the same room, lock each\.<\/li>/.test(helpL)
         && /A <b>locked destination map<\/b>, locked travel or the tile&rsquo;s own lock still stops it, silently: the player is told nothing, and you are told\./.test(helpL) && /<li><b>Doors &amp; stairs:<\/b>[^\n]*A portal with a small <i class="wib wi-lock"><\/i> beside its marker is locked by your GM: it lets you through once they unlock it\.<\/li>/.test(helpL)
-        && /<li>The GM can send a player through by dropping that player's token there\.<\/li>\s*<li>A portal you locked for players still lets your own drop through\.<\/li>/.test(helpL) && /<li><b>Split party:<\/b> a player can double-click a door or stairs portal to move to that map alone\. Their token must stand on it or next to it first\. That fails where you locked that portal, the map it leads to, the map they are on or all travel: see <b>Three locks on travel<\/b>\./.test(helpL)
+        && /<li>The GM can send a player through by dropping that player's token there\.<\/li>\s*<li>A portal you locked for players still lets your own drop through\.<\/li>/.test(helpL) && /<li><b>Split party:<\/b> a player can double-click a door or stairs portal to move to that map alone\. Their token must stand on it or next to it first, with no wall or closed door between\. That fails where you locked that portal, the map it leads to, the map they are on or all travel: see <b>Three locks on travel<\/b>\./.test(helpL)
         && /may carry `portalLock: true` \(1\.5\.1, the GM's \*\*Locked for players\*\*; only `true` counts, any other value is dropped on import\): no player travels through it, by double-click or by dropping their token on it, until the GM unlocks it\. It travels to players with a shown portal, so their board shows a small lock on it, and never with a hidden one\. It never stops the GM: a summon, Bring, an NPC walked through and the GM's own drop of a player's token all pass\. On an item that is no portal the key does nothing\. A map's own `meta\.playerLock: true` \(the GM's \*\*Lock for players\*\* in the Maps list\) closes that map both ways \(1\.5\.0\): no player travels to it, and no player who is on it leaves it through a portal; the GM's summon, Bring and own drop still move them\./.test(guideL)
         && /si-lock" title="Locked for players — closed both ways until you unlock it: no player travels here, and no player who is here leaves through a portal \(your summon and Bring still move them\)\. A player who is not here holds only its name/.test(rdL('system/app/scripts/sidebar.js')) && /id="ctxLockItem"[^\n]*title="A locked map is closed both ways: players cannot travel to it — portals, warps and room links into it are refused — and players who are on it cannot leave it through a portal\. You can still summon or bring them\./.test(idxL)
         && /id="ctxLockItem"[^\n]*><i class="wib wi-lock"><\/i> Lock for players<\/div>/.test(idxL) && /id="netTravelLockBtn"[^\n]*><i class="wib wi-unlock"><\/i> Lock travel between maps<\/button>/.test(idxL) /* 1.6.2, backlog 230: the padlock shows how travel stands, open until it is locked, moved on purpose */
@@ -6805,7 +6881,7 @@ pendingChecks.push((async () => {
     // (wireWbItem), so the host's trigmsg is the one word; at an older host, whose copies still carry it, the message shows as it always did
     check('trigmsg (source): the client branch runs only for a client and the host\'s branch fires at a final drop, with where the gesture began, beside the room note and the travel; a player\'s app reads its own copy at a drop as before and speaks only for a zone that carries a message (none at a 1.5.0 host; an older host\'s copies still carry it), and net.js imports showAlert from the dialogs',
         /\} else if \(msg\.type === 'trigmsg' && net\.role === 'client'\) \{\n\s*\/\/ \[netcheck:trigmsg-start\]/.test(src) && /if \(msg\.final\) \{\n\s*if \(typeof triggerFire === 'function'\) triggerFire\(conn, map, w, frW\);/.test(src) && /^import \{ showConfirm, showAlert \} from '\.\/dialogs\.js';/m.test(src)
-        && /var triggers = am\.whiteboard\.filter\(function\(x\) \{ return x\.type === 'trigger'; \}\);\n[^\n]*var FCtz = window\.wpFogCore;[^\n]*\n\s*for\(var i=0; i<triggers\.length; i\+\+\) \{\n\s*var t = triggers\[i\];\n\s*var tw = t\.w \|\| 100; var th = t\.h \|\| 100;\n\s*if\(FCtz && typeof FCtz\.zoneHolds === 'function' \? FCtz\.zoneHolds\(t, cx, cy\) : \(cx >= t\.x && cx <= t\.x\+tw && cy >= t\.y && cy <= t\.y\+th\)\) \{\n\s*if \(t\.eventMessage\) \{\n\s*import\('\.\/dialogs\.js'\)\.then\(d => d\.showAlert\(t\.eventMessage, function\(\)\{\}\)\);/.test(dmT) && !/trigLocal/.test(dmT));
+        && /var mdZn = multiDrag\.filter\(function\(m\) \{ return m\.item === item; \}\)\[0\], zoneMsg = gmZoneSay\(am, item, mdZn \? \{ x: mdZn\.ox, y: mdZn\.oy \} : null\);[^\n]*\n\s*if \(zoneMsg\) import\('\.\/dialogs\.js'\)\.then\(d => d\.showAlert\(zoneMsg, function\(\)\{\}\)\);/.test(dmT) && !/trigLocal/.test(dmT));
 }
 
 // Turn-based combat T3b (D2, D3, D5): the move limit and the out-of-turn lock on the host — the real pos gate and the real patch path together (a

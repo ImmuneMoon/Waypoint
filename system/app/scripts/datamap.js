@@ -925,6 +925,30 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
   // session piled up thousands of listeners that kept removed elements alive. Now there is ONE listener: _dragAbort is the abortDrag of
   // the drag in progress (set by attachDrag's pointerdown as it starts one, cleared by its pointerup), and the blur ends that drag where
   // the pointer last was, exactly as each element's own listener did. No drag in progress, nothing to do.
+  // [netcheck:gmzone-start]
+  // 1.6.3 (the review of finding 8's fold): the trigger zone whose message comes up on this screen when the board's own drag (the GM's hand on
+  // the host) drops a character token, judged as the host's triggerFire judges a player's (net.js): the first zone whose own shape holds the
+  // token's middle (fogcore zoneHolds, its box where no core is at hand), never a zone the GM hid with the Hidden tick (Help: "A zone you mark
+  // Hidden is turned off") and never a mine (a mine is a blast of its own, set off by wpMineCheck), and no zone at all where that first zone
+  // already held the token's middle where its drag began (from: the drag's start, its stored top-left), so shuffling a token about inside a
+  // zone does not say it again. Before, every trigger zone counted, a hidden one and a mine among them, and from anywhere. Answers the message
+  // to show, or '' for none; the caller shows it. am: the map; item: the dropped token; from: { x, y } or null
+  function gmZoneSay(am, item, from) {
+      if (!am || !Array.isArray(am.whiteboard) || !item) return '';
+      var hw = (item.w || 100) / 2, hh = (item.h || 100) / 2, cx = item.x + hw, cy = item.y + hh;
+      var fx = from && typeof from === 'object' && isFinite(from.x) && isFinite(from.y) ? from.x + hw : null, fy = fx === null ? null : from.y + hh;
+      var FCtz = window.wpFogCore;
+      for (var i = 0; i < am.whiteboard.length; i++) {
+          var t = am.whiteboard[i]; if (!t || t.type !== 'trigger' || t.hidden || t.mine) continue;
+          var tw = t.w || 100, th = t.h || 100;
+          var holds = function(px, py) { return FCtz && typeof FCtz.zoneHolds === 'function' ? FCtz.zoneHolds(t, px, py) : (px >= t.x && px <= t.x + tw && py >= t.y && py <= t.y + th); };
+          if (!holds(cx, cy)) continue;
+          if (fx !== null && holds(fx, fy)) return '';   // it was in this zone when the drag began
+          return typeof t.eventMessage === 'string' ? t.eventMessage : '';
+      }
+      return '';
+  }
+  // [netcheck:gmzone-end]
   var _dragAbort = null;
   function dragBlur() { var f = _dragAbort; _dragAbort = null; if (f) f(null); }
   window.addEventListener('blur', dragBlur);
@@ -1272,20 +1296,8 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
           if(modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(item, true, dragMapId); // final, post-snap position
           if(modeStr === 'visual' && item.isChar) {
               var am = getActiveMap();
-              var cx = item.x + (item.w||100)/2;
-              var cy = item.y + (item.h||100)/2;
-              var triggers = am.whiteboard.filter(function(x) { return x.type === 'trigger'; });
-              var FCtz = window.wpFogCore;   // 1.6.3 (finding 8 of the review): a zone by its own shape (fogcore zoneHolds), as the host's triggerFire reads it; its box with no core
-              for(var i=0; i<triggers.length; i++) {
-                  var t = triggers[i];
-                  var tw = t.w || 100; var th = t.h || 100;
-                  if(FCtz && typeof FCtz.zoneHolds === 'function' ? FCtz.zoneHolds(t, cx, cy) : (cx >= t.x && cx <= t.x+tw && cy >= t.y && cy <= t.y+th)) {
-                      if (t.eventMessage) {
-                          import('./dialogs.js').then(d => d.showAlert(t.eventMessage, function(){}));
-                      }
-                      break;
-                  }
-              }
+              var mdZn = multiDrag.filter(function(m) { return m.item === item; })[0], zoneMsg = gmZoneSay(am, item, mdZn ? { x: mdZn.ox, y: mdZn.oy } : null);   // 1.6.3 (the review of finding 8): the zone it went into, as the host judges a player's (gmZoneSay above)
+              if (zoneMsg) import('./dialogs.js').then(d => d.showAlert(zoneMsg, function(){}));
               if (window.wpMineCheck) { var mdM = multiDrag.filter(function(m) { return m.item === item; })[0]; try { window.wpMineCheck(am, item, mdM ? { x: mdM.ox, y: mdM.oy } : null); } catch (e) { console.error(e); } }   // 1.5.8 explosives: a mine the token stepped into goes off (the GM's own drag; never a player's app)
               if (window.wpSoundOn) { var mdZ = multiDrag.filter(function(m) { return m.item === item; })[0]; try { window.wpSoundOn.zoneDrop(am, item, mdZ ? { x: mdZ.ox, y: mdZ.oy } : null); } catch (e) { console.error(e); } }   // 1.6.2: a sound on a zone the GM's own drag carried a token into
               if (window.wpNet && window.wpNet.holdsMoved && item.isChar) { var mdH = multiDrag.filter(function(m) { return m.item === item; })[0]; try { if (mdH) window.wpNet.holdsMoved(am, item, { x: mdH.ox, y: mdH.oy }); } catch (e) { console.error(e); } }   // 1.6.0 Who holds whom: the GM's own drop drags, or lets go

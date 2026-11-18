@@ -1332,7 +1332,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
             var _el_wbNodeLink = document.getElementById('wbNodeLink');
             if(_el_wbNodeLink) _el_wbNodeLink.addEventListener('change', function() {
-                w.nodeId = this.value || null; portalLockTidy(w, activeMap); save(); render();
+                w.nodeId = this.value || null; portalLockTidy(w, activeMap); zoneTidy(w); save(); render();
             });
             var _el_wbFurnEra = document.getElementById('wbFurnEra'), _el_wbFurnTint = document.getElementById('wbFurnTint'), _el_wbFurnNoTint = document.getElementById('wbFurnNoTint');   // 1.6.2 (backlog 222)
             var furnSet = function(ch) { var FUh = window.wpFurnCore, cur = FUh ? FUh.cleanFurn(w.furn) : null, nx = cur ? FUh.cleanFurn(Object.assign({}, cur, ch)) : null; if (!nx) return; if (w.name === FUh.furnWords(cur)) w.name = FUh.furnWords(nx); w.furn = nx; save(); render(); };   // a name made from the look follows it
@@ -1353,6 +1353,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 if (this.value !== w.targetMapId) delete w.targetRoomId;   // a landing room is a room of the map it was picked for
                 if (this.value) w.targetMapId = this.value; else { delete w.targetMapId; delete w.portalIcon; }
                 portalLockTidy(w, activeMap);   // no longer a portal: its lock goes with it
+                zoneTidy(w);   // 1.6.3: now a portal, a zone keeps no Players see this zone tick
                 save(); render();
                 if (w.targetMapId) import('./io.js').then(function(io) { io.toast('Portal set. Double-click it, or drop a player token on it, to travel.'); });
             });
@@ -2546,6 +2547,11 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
   // Only where the rule can be asked: with no core on hand nothing is taken away
   function portalLockTidy(w, map) { var FC = window.wpFogCore; if (w && w.portalLock !== undefined && FC && typeof FC.isPortal === 'function' && !FC.isPortal(w, map)) delete w.portalLock; }
   // [sinkcheck:portallockbox-end]
+  // 1.6.3 (the review of finding 8's fold): a trigger zone that gains a Portal to Map, a Link Node or a mine is no plain message zone, so it shows
+  // no Players see this zone tick and the tick counts for nothing on it (fogcore zoneHid). Its zoneHidden key goes at once: left there, it came
+  // back into force when the portal or the link was cleared again, and the zone vanished from the players' maps with no tick on screen that
+  // set it. Asked by the Portal to Map and Link Node setters below the panel, right after portalLockTidy
+  function zoneTidy(w) { if (w && w.zoneHidden !== undefined && (w.targetMapId || w.nodeId || w.mine)) delete w.zoneHidden; }
 
   /* ---------- roster characters ↔ board tokens ----------
      A character added to a node's roster gets a token immediately: a stand-in

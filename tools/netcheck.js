@@ -5913,7 +5913,7 @@ pendingChecks.push((async () => {
         const camp = { id: 'k', activeItemId: 'm1', system: Sx.cleanSystem(rawOf(combat, o.noLines, o.ans), { F: Fx, gmView: true }), chars: { c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_a', values: { f_gun: [{ id: 'w_g1', def: { name: 'Pistol' } }] } }, c_b: { id: 'c_b', name: 'Sela', ownerId: 'u_b', values: { f_blade: [{ id: 'w_b1', def: { name: 'Saber' } }] } } }, items: { m1: { id: 'm1', type: 'map', meta: { gridType: 'square' }, whiteboard: wb } } };
         const conn = p => ({ peer: p, open: true, send(m) { packCheck(m); out.sent[p].push(JSON.parse(JSON.stringify(m))); } }), cA = conn('pA'), cB = conn('pB');
         const net = { role: 'host', active: true, stream: false, paused: false, conns: [cA, cB], targets: {}, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' }, pB: { id: 'u_b', name: 'Bo', location: 'm1' } }, combats: o.fid ? { [o.fid]: { mapId: 'm1', rows: [] } } : {}, syncCharDelta: () => {},
-            postDue: (c, rr, kind, r, toO, more) => out.due.push({ ch: c.id, roll: rr.id, kind, att: more && more.att, toO: !!toO, lnd: !!(more && more.lnd), row: more && more.row, tnow: !!(more && more.tnow) }), damageCard: () => {}, dueOver: (att, say) => out.over.push([att, say]), offTurnSay: (c, act, row, label) => out.off.push([c.id, label]) };
+            postDue: (c, rr, kind, r, toO, more) => out.due.push({ ch: c.id, roll: rr.id, kind, att: more && more.att, toO: !!toO, lnd: !!(more && more.lnd), row: more && more.row, tnow: !!(more && more.tnow), by: more && more.by }), damageCard: () => {}, dueOver: (att, say) => out.over.push([att, say]), offTurnSay: (c, act, row, label) => out.off.push([c.id, label]) };
         let rg = RG('t_b');
         const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {}, tokenCtxFor: () => rg ? { range: rg } : null }, wpVtt: { on: () => true, rulesOn: () => true }, wpStepLog: (w, s, x) => out.steps.push([w, s, x]) };
         const Wd = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'rangeTo', 'getProfile', 'toast', 'ui', 'save', 'fogDrop', 'targetHitIn', 'turnNote', 'actSpend', 'clockPress', 'fightOfTok', 'pushChat', 'sendTable',
@@ -5924,7 +5924,7 @@ pendingChecks.push((async () => {
         const due = (roll, kind, ch) => { const d = out.due.filter(x => x.roll === roll && (!kind || x.kind === kind) && (!ch || x.ch === ch)); return d.length ? d[d.length - 1] : null; };
         const dmgRec = () => { const l = out.gm.filter(m => m.rec.dmg === 1); return l.length ? l[l.length - 1].rec : null; };
         const seenBy = () => JSON.stringify([out.table, out.sent.pA, out.sent.pB]);
-        return { camp, net, out, W: Wd, press, due, dmgRec, seenBy, dq: d => { dq = d.slice(); } }; };
+        return { camp, net, out, W: Wd, press, due, dmgRec, seenBy, dq: d => { dq = d.slice(); }, aim: t => { rg = t ? RG(t) : null; } }; };
     // (a) Lets some through, as Cold: Sela's Dodge succeeds by 7, the first line holds; the attack lands with what its defense did kept on the landing, and its
     // damage, pressed by Kael, carries the share and the type on the GM's own copy alone
     const wA = world(); wA.press('r_swing', CK, [2, 3, 3]); const dA = wA.due('r_def', 'resist'); wA.press('r_def', DEF, [1, 1, 1], { att: dA && dA.att }, 'pB');
@@ -5976,6 +5976,30 @@ pendingChecks.push((async () => {
         && src6.indexOf('var ansQ = ') < src6.indexOf("areaAnswered(campQ, blowRecQ.area") && src6.indexOf('var ansR = ') < src6.indexOf("areaAnswered(campR, blowRecR.area")
         && src6.includes("_attempts[id] = { charId: tch.id, act: noMain ? '' : rr.id, m: m }; if (ov || typeof atkDeals !== 'function' || atkDeals(camp, entry, rowRef)) _attempts[id].atk = 1;")   /* the review of fold 3 (finding 6): atk only for an attack that deals damage (moved on purpose); defense fold 4: or one sent on (ov), whatever the one who sends it holds (moved on purpose) */ && src6.split("if (lndQ && typeof ansStampLand === 'function') ansStampLand(campQ, recQ, resQ, lndQ);").length === 4 && src6.includes("if (lndR && typeof ansStampLand === 'function') ansStampLand(campR, rec, res, lndR);")
         && src6.includes("if (pass === true && ch && typeof thruNote === 'function' && !(rec && (typeof rec.lw === 'string' || rec.area))) thruNote(camp, ch, row, pick && pick.line ? pick.line.does === 'thru' : undefined);"));   /* the review of fold 3 (finding 3): nor for a line's hit (moved on purpose) */
+    // ---- 1.6.3 follow-ups of the defense folds (2026-11-18), with the same world. Invented names ----
+    // Fulllion's ruling: Lets some through may say Dice counted per die, The same share of the dice (dice: 'share'). The landing keeps it, a save reads it back,
+    // and the stamp on the GM's own copy says dc, which dice.js ansOn cuts the dice by (systemcheck runs that); a line with no such key stamps no dc
+    const wDc = world(null, { ans: [{ if: 'RollMargin >= 4', does: 'share', dice: 'share' }] }); wDc.press('r_swing', CK, [2, 3, 3]); const dDc = wDc.due('r_def', 'resist'); wDc.press('r_def', DEF, [1, 1, 1], { att: dDc && dDc.att }, 'pB');
+    const lDc = dDc && wDc.W.land(dDc.att), cDc = wDc.due('r_cut', 'called'); wDc.press('r_cut', '1d6', [5], { att: cDc && cDc.att }); const rDc = wDc.dmgRec();
+    const clDc = [wDc.W.ansClean({ does: 'share', share: 'Blow.dmg', dice: 'share' }), wDc.W.ansClean({ does: 'share', share: 'Blow.dmg', dice: 'every' }), wDc.W.ansClean({ does: 'hits', n: 2, dice: 'share' })];
+    check('1.6.3 Dice counted per die (Fulllion\'s ruling of 2026-11-18): a line that lets some through with The same share of the dice is kept on the landing, read back from a save only on a share and only as that word, and its damage carries dc on the GM\'s own copy with words that say so, never at the table; the line with no such key stamps no dc (a) above',
+        !!lDc && j(lDc.ans) === j({ does: 'share', share: 'Blow.dmg / 2', dice: 'share' }) && !!rDc && rDc.ans && rDc.ans.amt === 2 && rDc.ans.dc === 1 && j(rDc.ans.say) === j(['The defense let 2 of 5 through.', 'What is counted per die counts the same share of its dice.'])
+        && j(clDc) === j([{ does: 'share', share: 'Blow.dmg', dice: 'share' }, { does: 'share', share: 'Blow.dmg' }, { does: 'hits', n: 2 }]) && !('dc' in rA.ans) && !/"dc"|"dice":"share"/.test(wDc.seenBy()), j([lDc, rDc, clDc]));
+    // found in a live two-peer check: the weapon test's card says the defense and the row it was made with (withLabel), "Parry with Saber"; the attacker's own
+    // test names the parrying row only where the defense was not kept the GM's
+    const wTn = world(), dTn = fire(wTn, [1, 1, 1]), byTn = wTn.out.due.filter(d => d.roll === 'r_row' && d.kind === 'called').map(d => [d.ch, d.by]);
+    const wTp = world(); wTp.press(undefined, CK, [2, 3, 3], { row: { f: 'f_gun', r: 'w_g1', i: 0 } }); const dTp = wTp.due('r_def', 'resist'); wTp.press(undefined, DEF, [1, 1, 1], { row: { f: 'f_blade', r: 'w_b1', i: 0 }, att: dTp && dTp.att, priv: 'gm' }, 'pB'); const byTp = wTp.out.due.filter(d => d.roll === 'r_row' && d.kind === 'called').map(d => [d.ch, d.by]);
+    check('1.6.3 (a live two-peer check) a weapon test a parry calls for says it was called for by the parry and the row it was made with, on the parrying weapon\'s card and the attacker\'s; a parry kept the GM\'s names the row on its own weapon\'s card alone',
+        !!dTn && j(byTn) === j([['c_b', 'Parry with Saber'], ['c_a', 'Parry with Saber']]) && !!dTp && j(byTp) === j([['c_b', 'Parry with Saber'], ['c_a', 'Parry']]), j([byTn, byTp]));
+    // found in a live two-peer check: an attack with Its damage made with no target makes no attempt and no landing, and tells its roller in one plain line: a
+    // player's press through a note to their own connection, the GM's own press on this screen. The roll itself stands, and an attack that misses says nothing
+    const NOTGT = 'This attack had no one to land on, so its damage does not come. Target someone before you attack.';
+    const wNt = world(); wNt.aim(null); const nT0 = wNt.out.table.length; wNt.press('r_swing', CK, [2, 3, 3]); const ntNotes = wNt.out.notes.slice(), ntRes = wNt.due('r_def', 'resist'), ntRoll = wNt.out.table.slice(nT0).filter(r => r.type === 'roll').length;
+    wNt.press('r_swing', CK, [6, 6, 6]); const ntMiss = wNt.out.notes.length;
+    wNt.dq([2, 3, 3]); const ntGm = wNt.net.diceRoll(CK, { charId: 'c_a', act: 'r_swing' }), ntToast = wNt.out.toasts.slice();
+    check('1.6.3 (a live two-peer check) an attack with Its damage that hits with no target makes no attempt and no landing, and its roller is told in one plain line, a player through a note to them and the GM\'s own press as a notice; the roll stands, and a miss says nothing',
+        j(ntNotes) === j([NOTGT]) && ntRes === null && ntRoll >= 1 && ntMiss === 1 && !!ntGm && ntGm.ok === true && ntToast.filter(t => t === NOTGT).length === 1
+        && src6.includes("var LAND_NO_TARGET = 'This attack had no one to land on, so its damage does not come. Target someone before you attack.';"), j([ntNotes, ntRes, ntRoll, ntMiss, ntGm, ntToast]));
     // ---- the review of defense fold 3 (2026-11-18), with the same world. Invented names ----
     // finding 1: How many hits that cannot be worked out stops the attack whole and is said to the GM, never read as 0; a real 0 stops none, and the GM's copy says so
     const sprayRow = { row: { f: 'f_gun', r: 'w_g1', i: 2 } }, sprayDmg = { f: 'f_gun', r: 'w_g1', i: 3 };
@@ -6827,7 +6851,7 @@ pendingChecks.push((async () => {
     const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {}, tokenCtxFor: () => aim.gm ? { range: rng(aim.gm) } : null }, wpVtt: { on: () => true, rulesOn: () => true } };
     const W = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'rangeTo', 'getProfile', 'toast', 'ui', 'save',
         'var diceLimit = null, _diceSlowSaid = {}, _dicePending = null;\n' + helpers + atSrc + '\n' + drSrc + '\nreturn { rq: function(msg, conn) {\ndiceLimit = null; _diceSlowSaid = {};\n' + rqSrc + '\n}, dr: net.diceRoll, att: function(id) { return _attempts[id]; }, cp: callPost };')(
-        net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, () => {}, () => {},
+        net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, rec => { (out.gmR = out.gmR || []).push(JSON.parse(JSON.stringify(rec))); }, () => {}, () => {},
         (c, m, l, tok, pid) => rng(aim[pid]), () => ({ id: 'u_gm', name: 'GM' }), () => {}, () => null, () => {});
     const roll = (cn, charId, extra, expr, dice) => { dq = dice.slice(); W.rq(Object.assign({ type: 'roll-req', rid: 'q' + Math.random().toString(36).slice(2, 7), charId: charId, expr: expr }, extra), cn); };
     const last = p => out.sent[p][out.sent[p].length - 1];
@@ -6902,6 +6926,21 @@ pendingChecks.push((async () => {
     camp.system = sys; delete camp.chars.c_b.values.f_sh; win.wpStepLog = logKeep;
     check('1.6.3 (the review of defense fold 2, finding 7) the main Defend' + "'" + 's rows are offered first, so 85 shields on an Or resisted by roll leave both weapons on the card and fill the rest to 80; the rows left out for room are logged',
         !!a7 && j(a7.withs) === j(['r_df#f_wp#w_sw', 'r_df#f_wp#w_st']) && Array.isArray(a7.rows) && a7.rows.length === 78 && logs7.some(x => x[0] === 'attempt v1' && x[1] === 'rows cut' && x[2] && x[2].cut === 7), j([a7 && a7.withs, a7 && a7.rows && a7.rows.length, logs7]));
+    // 1.6.3 (found in a live two-peer check): the card of a defense made with a row names that row, as its button did, from the host's own record (withLabel):
+    // "Defend with Staff" on the player's own copy and the table's; the GM's own press with the GM-only hook names no row; a press that names no label takes the
+    // roll's own, and a label that names the row already is kept as it is
+    const rollAt = n => out.table.slice(n).filter(m => m.type === 'roll').pop();   // a public roll goes to the whole table, its roller among them (sendTable)
+    roll(cA, 'c_a', { act: 'r_tr' }, '3d6 <= 13', [2, 3, 4]); const dLb = out.dues[out.dues.length - 1], nLb = out.table.length;
+    roll(cB, 'c_b', { act: 'r_df', label: 'Defend', with: { f: 'f_wp', r: 'w_st' }, att: dLb.att }, DEF, [1, 1, 1]); const tLb = rollAt(nLb);
+    roll(cA, 'c_a', { act: 'r_tr' }, '3d6 <= 13', [2, 3, 4]); const dLb2 = out.dues[out.dues.length - 1], nLb2 = out.table.length;
+    roll(cB, 'c_b', { act: 'r_df', with: { f: 'f_wp', r: 'w_sw' }, att: dLb2.att }, DEF, [1, 1, 1]); const pLb2 = rollAt(nLb2), pLb = tLb;
+    roll(cA, 'c_a', { act: 'r_tr', priv: 'gm' }, '3d6 <= 13', [2, 3, 4]); const dLb3 = out.dues[out.dues.length - 1]; const nGr = (out.gmR || []).length;
+    net._attNext = { att: dLb3.att, charId: 'c_b', act: 'r_df', with: { f: 'f_wp', r: 'w_gm' } }; dq = [1, 1, 1]; W.dr(DEF, { charId: 'c_b', act: 'r_df', label: 'Defend' }); net._attNext = null; const gLb = (out.gmR || []).slice(nGr).filter(r => r.type === 'roll').pop();
+    roll(cA, 'c_a', { act: 'r_tr', priv: 'gm' }, '3d6 <= 13', [2, 3, 4]); const dLb4 = out.dues[out.dues.length - 1]; const nGr2 = (out.gmR || []).length;
+    net._attNext = { att: dLb4.att, charId: 'c_b', act: 'r_df', with: { f: 'f_wp', r: 'w_sw' } }; dq = [1, 1, 1]; W.dr(DEF, { charId: 'c_b', act: 'r_df', label: 'Defend with Blade' }); net._attNext = null; const gLb2 = (out.gmR || []).slice(nGr2).filter(r => r.type === 'roll').pop();
+    check('1.6.3 (a live two-peer check) a defense made with a row names that row on its card, as its button did: Defend with Staff on the card the table and its player get, the roll\'s own label where the press names none, never the GM-only hook, and a label that names it already is not named twice',
+        pLb && pLb.type === 'roll' && pLb.label === 'Defend with Staff' && tLb && tLb.label === 'Defend with Staff' && pLb2 && pLb2.label === 'Defend with Blade' && gLb && gLb.label === 'Defend' && gLb2 && gLb2.label === 'Defend with Blade',
+        j([pLb && pLb.label, tLb && tLb.label, pLb2 && pLb2.label, gLb && gLb.label, gLb2 && gLb2.label]));
     // finding 10: a defense answered with a row that is itself an attack, or carries its damage, names that row; finding 2's hidden steps (thengmcheck runs them)
     check('1.6.3 (the review of defense fold 2, findings 2 and 10, source) both roll paths hand the row a defense was answered with to attemptMake, landRowNow and landAfter as its row, and thenGmRun reads q.with',
         src4.includes('tcQ && tcQ.range, chQ, !!recQ.priv, varsQ, q.row || q.with);') && src4.includes('tcR && tcR.range, chR, !!rec.priv || !!rec.to, varsR, o.row || o.with);') && src4.includes('landRowNow(chQ, q.row || q.with)') && src4.includes('landRowNow(chR, o.row || o.with)')

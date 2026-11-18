@@ -10502,6 +10502,7 @@ function handleMessage(msg, conn) {
                 if (!q.att) { denyQ('error', { error: { message: 'A row is named only answering a defense card.', pos: 0, len: 0 } }); return; }
                 var wvQ = varsQ.row(q.with.f, q.with.r); if (!wvQ) { denyQ('error', { error: { message: typeof WITH_GONE === 'string' ? WITH_GONE : 'That row cannot answer this card now.', pos: 0, len: 0 } }); return; }   // the review of fold 2 (finding 9): the row is gone since the card, in words that say so
                 varsQ = wvQ; if (SQ.rowRollNames(campQ.system, srcQ, q.with.f, q.with.r, [], Fq).gm) q.priv = 'gm';
+                if (typeof withLabel === 'function') q.label = withLabel(campQ, srcQ, q.with, q.label, q.act);   // 1.6.3 (a live two-peer check): its card says "Parry with Sword", as its button did
             }
             if (q.act || q.fr || (q.row && typeof q.row.i === 'number')) {   // 1.6.0: or a field's own roll with roll switches ticked (fr)   // Stage 6 HUD R1/R2b: a roll with consequences or needs — the entry as their view has it (a system roll, a list's roll), its formula rebuilt from it (no faked hit), its needs met
                 if (q.act) (Array.isArray(viewQ.rolls) ? viewQ.rolls : []).forEach(function(r) { if (r && r.id === q.act && typeof r.formula === 'string' && !r.apply) actQ = r; });
@@ -10643,7 +10644,7 @@ function handleMessage(msg, conn) {
         if (chQ && actQ && typeof boxTryAfter === 'function' && typeof _boxTries !== 'undefined' && _boxTries[conn.peer]) { var vbQ = Dq.verdictOf(resQ, ruleQ), mbQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ; boxTryAfter(conn, q.charId, q.act, mbQ ? false : recQ.body === 1 ? true : vbQ && vbQ.kind === 'check' ? vbQ.pass === true : null, atQ); }   // 1.6.2 (backlog 42, fold 2b): a try at a container's lock   // 1.6.2 Kept for the scene
         if (chQ && (actQ || blowRecQ) && typeof callsAfter === 'function') { var vcQ = Dq.verdictOf(resQ, ruleQ), pcQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ ? false : recQ.body === 1 ? true : vcQ && vcQ.kind === 'check' ? vcQ.pass === true : null; if (actQ) callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ, typeof onQ !== 'undefined' && onQ ? onQ.ch : chQ, !!recQ.priv, q.row || (q.with ? { f: q.with.f, r: q.with.r } : q.row), recQ.big === true, tcQ, chQ); attemptCalled(campQ, blowRecQ, q.act, rowGQ || (q.with ? { f: q.with.f, r: q.with.r } : rowGQ), pcQ, chQ, !!recQ.priv, tcQ, ansQ);   /* 1.6.3 (defense fold 2): a roll answered with a row hands its row on, with no place among a list's rolls, so a call reads it and a call to a roll of that list lands there */ if (typeof holdsRolled === 'function' && typeof SQ.holdRefOf === 'function') holdsRolled(campQ, chQ, actQ, holdRefQ(campQ, q, actQ), pcQ, tcQ, blowRecQ, atQ); if (typeof stealRolled === 'function') stealRolled(campQ, pcQ, blowRecQ); }   // 1.6.0: Calls for, with its Then landed; Who holds whom
         if (actQ && actQ.burst && q.row && typeof burstAfter === 'function') burstAfter(campQ, chQ, actQ, q.row, resQ, ruleQ, mfQ !== null && Dq.naturalOf(resQ) >= mfQ, typeof taQ !== 'undefined' ? taQ : null, tcQ, saveRemoteSoon);   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
-        if (actQ && chQ && !actQ.area && !lndQ && typeof landAfter === 'function') { var lvQ = Dq.verdictOf(resQ, ruleQ); landAfter(campQ, cardEnt(campQ, q.act, rowGQ, null), !(mfQ !== null && Dq.naturalOf(resQ) >= mfQ) && (recQ.body === 1 || (!!lvQ && lvQ.kind === 'check' && lvQ.pass === true)), tcQ, chQ, !!recQ.priv, q.row || q.with, atQ, recQ.from, q.hit, recQ.big === true, lrwQ); }   /* 1.6.3 (the review of defense fold 2, finding 10): a defense answered with a row that is itself an attack, or carries its damage, names that row (Attempter.Row.*, its kind, the landing's row) */   // 1.6.3 (defense fold 1): an attack that names Its damage lands, or waits for its defense. The review of that fold: made last, after its Then and its burst, so the row it keeps (and a damage rolled at once) reads the round this very shot fired and the burst's marks
+        if (actQ && chQ && !actQ.area && !lndQ && typeof landAfter === 'function') { var lvQ = Dq.verdictOf(resQ, ruleQ); landAfter(campQ, cardEnt(campQ, q.act, rowGQ, null), !(mfQ !== null && Dq.naturalOf(resQ) >= mfQ) && (recQ.body === 1 || (!!lvQ && lvQ.kind === 'check' && lvQ.pass === true)), tcQ, chQ, !!recQ.priv, q.row || q.with, atQ, recQ.from, q.hit, recQ.big === true, lrwQ, function(w) { if (typeof turnNote === 'function') turnNote(conn, w, chQ.id); }); }   /* 1.6.3 (the review of defense fold 2, finding 10): a defense answered with a row that is itself an attack, or carries its damage, names that row (Attempter.Row.*, its kind, the landing's row) */   // 1.6.3 (defense fold 1): an attack that names Its damage lands, or waits for its defense. The review of that fold: made last, after its Then and its burst, so the row it keeps (and a damage rolled at once) reads the round this very shot fired and the burst's marks
         };
         var heldCQ = chQ && actQ && !tgQ && typeof cardHold === 'function' ? cardHold({ dl: q.dl || null, asked: typeof askedQ !== 'undefined' ? askedQ : null, S: SQ, D: Dq, F: Fq, camp: campQ, ent: cardEnt(campQ, q.act, rowGQ, actQ), res: resQ, expr: q.expr, vars: varsQ, tc: tcQ, ch: chQ, pid: pidQ, conn: conn, priv: q.priv === 'gm', from: diceFrom(net.roster[conn.peer], false), rid: q.rid, label: q.label, as: String(typeof pressQ !== 'undefined' && pressQ ? (pressQ.char.name || 'Crew') + ' on ' + (chQ.name || '') : chQ.name || '').slice(0, Dq.LIMITS.label), cid: q.charId, go: function(r, e, id, st) { q.expr = e; if (st) varsQ.bandStep = st; restQ(r, id); } }) : false;
         if (heldCQ && q.att && typeof attemptRec === 'function') { var bzQ = attemptRec(q.att); if (bzQ) bzQ.busy = 1; }   // 1.6.3 (the review of fold 0): held until Accept, its card answers no second press meanwhile (attemptPeek); restQ drops it once it is made
@@ -12323,6 +12324,21 @@ function attWithRows(camp, tch, rr, toO, out, at, room) {   // answers how many 
     });
     return cut;
 }
+// 1.6.3 (found in a live two-peer check of the defense folds): the label a defense made with a row is recorded under, its own label and the row's name,
+// "Parry with Sword", as its card's button said (attWithRows), so the roll's card says which weapon parried. Made here on the host from its own records:
+// the roll's label as pressed, the row by its id on the host's own copy of the character (ch). A row kept from players (systemcore rowKeptFrom), a row of a
+// list the players do not see, and a row with no name are never named, since the card may go to the table: base comes back alone then. A label that
+// names the row already is kept as it is. w: { f, r }, the row; base: the label as pressed; act: the roll's id, whose own label stands where the press
+// names none. Both roll paths ask it where a press names its row (q.with, o.with), and ansTests asks it for the weapon test's "called for by"
+function withLabel(camp, ch, w, base, act) {
+    var S = SC(); if (!base && typeof act === 'string' && camp && camp.system && Array.isArray(camp.system.rolls)) camp.system.rolls.forEach(function(x) { if (!base && x && x.id === act && typeof x.label === 'string') base = x.label; });
+    var lb = String(base || 'Roll').split('{')[0].trim() || 'Roll'; if (!S || !camp || !camp.system || !ch || !w || typeof w.f !== 'string' || typeof w.r !== 'string') return lb;
+    var f = null; (Array.isArray(camp.system.fields) ? camp.system.fields : []).forEach(function(x) { if (x && x.id === w.f && x.kind === 'item-list') f = x; }); if (!f || f.vis === 'gm') return lb;
+    var row = null; (ch.values && Array.isArray(ch.values[w.f]) ? ch.values[w.f] : []).forEach(function(x) { if (!row && S.rowIdOf(x) === w.r) row = x; });
+    if (!row || (typeof S.rowKeptFrom === 'function' && S.rowKeptFrom(camp.system, row))) return lb;
+    var rd = S.rowDef(camp.system, row), nm = rd && rd.def && typeof rd.def.name === 'string' ? rd.def.name.trim() : ''; if (!nm) return lb;
+    var tail = ' with ' + nm; return lb.length >= tail.length && lb.slice(lb.length - tail.length) === tail ? lb : (lb + tail).slice(0, 60);
+}
 // [netcheck:bodyin-start]
 // 1.6.2 (build 14; the owner by way of the Campaign beats session, 2026-11-04: "a miss by no more than that cover's penalty switches to the body
 // automatically, the card says so, and the damage card goes to that body's token"). A roll that reads TargetBodyCover and misses by no more than it
@@ -12762,11 +12778,14 @@ function landCardAtt(camp, rec, dm, ch) {
 // After an attack roll on the host (both roll paths): where it hit and names Its damage, a landing is made. pass: the attack hit (a body in the way counts);
 // att: the attempt it made, if any, which the landing waits on; otherwise it lands at once. rowRef: the row a list's roll was made on; from: the player whose
 // press it was; hit: the location they picked; big: it landed as a heavy hit. The landing's id, or ''
-function landAfter(camp, entry, pass, tc, ch, priv, rowRef, att, from, hit, big, was) {   // was (the review of fold 1): the attacking row before the attack's Then, from landRowNow, kept where the Then used the row up
+// say (1.6.3, found in a live two-peer check): how to tell the roller in one plain line that an attack that hit had no one to land on (LAND_NO_TARGET); the
+// roll stays as it is, and no attempt or landing is made. roll-req hands a note to the player's connection, net.diceRoll a notice on this screen
+var LAND_NO_TARGET = 'This attack had no one to land on, so its damage does not come. Target someone before you attack.';
+function landAfter(camp, entry, pass, tc, ch, priv, rowRef, att, from, hit, big, was, say) {   // was (the review of fold 1): the attacking row before the attack's Then, from landRowNow, kept where the Then used the row up
     if (net.active && net.role !== 'host') return '';
     if (!camp || !camp.system || !entry || entry.landDmg === undefined || !ch || typeof ch.id !== 'string' || pass !== true) return '';
     var tg = typeof callTarget === 'function' ? callTarget(camp, tc) : null;
-    if (!tg || !tg.on || tg.on === ch.id) { landLog('no target', {}); return ''; }
+    if (!tg || !tg.on || tg.on === ch.id) { landLog('no target', {}); if (typeof say === 'function') { try { say(LAND_NO_TARGET); } catch (e) { /* the note is a courtesy: the roll stands */ } } return ''; }
     var S = SC(), rg = tc && tc.range && S && typeof S.withRange === 'function' ? (S.withRange({}, tc.range) || {}).range : null; if (!rg) { landLog('no range', {}); return ''; }
     var rec = { st: 'wait', at: Date.now(), by: ch.id, byName: typeof tokNameOf === 'function' ? tokNameOf(camp, tc && tc.selfMap, ch, tc && tc.self) : String(ch.name || '').slice(0, 60), to: tg.on, toTok: tg.tok, toName: tg.name, map: tg.map, range: rg, dmg: entry.landDmg, hops: 0, atk: 1 };
     if (rowRef && typeof rowRef.f === 'string' && typeof rowRef.r === 'string') {
@@ -12990,6 +13009,7 @@ function landByAway(camp, rec) {
     var ch = rec && camp && camp.chars && own(camp.chars, rec.by) ? camp.chars[rec.by] : null; if (!ch || ch.npc || !ch.ownerId) return false;
     return !(net.active && net.conns.some(function(c) { return c && c.open && net.roster[c.peer] && peerProfileId(c) === ch.ownerId; }));
 }
+net.landBy = function() { return landRule(getActiveCampaign()).by; };   // 1.6.3 (a live two-peer check): who rolls a landed attack's damage, for the words of No defense (dice.js noDefTip)
 net.landStuck = function(id) { var r = landOf(id); return !!r && r.st === 'card' && net.role !== 'client' && landByAway(getActiveCampaign(), r); };
 // The roster moved (broadcastRoster): a landing's card may now have nobody to press it, or somebody again, so the GM's chat is drawn again
 function landRosterMoved() { if (_landIds.some(function(id) { return _lands[id] && (_lands[id].st === 'card' || _lands[id].st === 'send'); }) && typeof renderChatSoon === 'function') renderChatSoon(); }   // 1.6.3 (the review of defense fold 4, finding 6): and a card to send it on
@@ -13247,14 +13267,14 @@ function ansFrom(camp, rec, act, row, ch, tc, D, res, rule, mf, big) {
 // What a landing or a line's hit keeps of the line: { does, share?, n?, type?, all? }, the effect alone (its condition was judged already)
 function ansEff(pick) {
     var a = pick && pick.line; if (!a) return null; var e = { does: a.does };
-    if (a.does === 'share' && typeof a.share === 'string') e.share = a.share; if (a.does === 'hits') e.n = typeof pick.n === 'number' ? pick.n : 0;
+    if (a.does === 'share' && typeof a.share === 'string') e.share = a.share; if (a.does === 'share' && a.dice === 'share') e.dice = 'share'; if (a.does === 'hits') e.n = typeof pick.n === 'number' ? pick.n : 0;   // dice (Fulllion's ruling of 2026-11-18): Dice counted per die, The same share of the dice
     if (typeof a.type === 'string' && a.type) { e.type = a.type; if (a.all === true) e.all = true; }
     return e;
 }
 // ... read back as data from a fight's save (landRead): null where it does not read
 function ansClean(e) {
     if (!e || typeof e !== 'object' || Array.isArray(e) || ['thru', 'share', 'hits'].indexOf(e.does) < 0) return null; var o = { does: e.does };
-    if (e.does === 'share') { if (typeof e.share !== 'string' || !e.share || e.share.length > 10000) return null; o.share = e.share; }
+    if (e.does === 'share') { if (typeof e.share !== 'string' || !e.share || e.share.length > 10000) return null; o.share = e.share; if (e.dice === 'share') o.dice = 'share'; }
     if (e.does === 'hits') o.n = typeof e.n === 'number' && isFinite(e.n) ? Math.max(0, Math.min(999, Math.floor(e.n))) : 0;
     if (typeof e.type === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(e.type)) { o.type = e.type; if (e.all === true) o.all = true; }
     return o;
@@ -13274,6 +13294,7 @@ function ansStamp(camp, rec, res, eff) {
         out.amt = cut(first, rec.dtype, rec.dkind); var p0 = partsOf(rec); if (p0) out.p = p0;
         if (more.length) out.hits = more.map(function(h) { var o = { amt: cut(h && h.t, h && h.dtype, h && h.dkind) }, ph = h ? partsOf(h) : null; if (ph) o.p = ph; return o; });
         say.push('The defense let ' + got + ' of ' + tot + ' through.'); if (odd) say.push('How much gets through could not be worked out for some of it, so that came through whole.');
+        if (eff.dice === 'share') { out.dc = 1; say.push('What is counted per die counts the same share of its dice.'); }   // 1.6.3 (Fulllion's ruling of 2026-11-18): dc, so dice.js ansOn cuts the dice each part hands the damage step by the same fraction as its damage
     }
     if (eff.does === 'hits' && typeof eff.n === 'number' && eff.n >= 0) { out.keep = Math.max(0, H - Math.floor(eff.n)); say.push(out.keep === 0 ? 'The defense stopped every hit.' : out.keep === H ? (H === 1 ? 'The defense stopped no hit.' : 'The defense stopped none of the ' + H + ' hits.') : 'The defense stopped ' + (H - out.keep) + ' of ' + H + ' hits.'); }   // the review of fold 3 (finding 1): How many hits that comes to 0 stops none, as its line says, and says so
     if (tyD) { out.type = tyD.key; if (eff.all === true) out.all = true; say.push((eff.all === true ? 'Every part lands as ' : 'It lands as ') + String(tyD.label || tyD.key).slice(0, 60) + '.'); }
@@ -13307,7 +13328,7 @@ function ansNote(camp, ch, pick) {
     if (!a || !ch || !(a.does === 'share' || a.does === 'hits' || (a.does === 'thru' && a.type))) return '';
     var nm = String(ch.name || 'A character').slice(0, 60); if (a.does === 'hits' && pick.nBad === true) return ansBadSay(nm);
     var S = SC(), Fc = window.wpFormula, sys = camp && camp.system, parts = [];
-    if (a.does === 'share') { var w = S && typeof S.ansShareWord === 'function' ? S.ansShareWord(sys, a.share, Fc) : ''; parts.push(w === 'half' ? 'half of it gets through' : w === 'none' ? 'none of it gets through' : w === 'all' ? 'all of it gets through' : 'only part of it gets through, as its line says'); }
+    if (a.does === 'share') { var w = S && typeof S.ansShareWord === 'function' ? S.ansShareWord(sys, a.share, Fc) : ''; parts.push(w === 'half' ? 'half of it gets through' : w === 'none' ? 'none of it gets through' : w === 'all' ? 'all of it gets through' : 'only part of it gets through, as its line says'); if (a.dice === 'share') parts.push('what is counted per die counts the same share of its dice'); }
     if (a.does === 'hits') { var n = typeof pick.n === 'number' ? pick.n : 0; parts.push(n === 0 ? 'it stops no hit' : 'it stops ' + n + (n === 1 ? ' hit' : ' hits') + ' and the rest land'); }
     if (typeof a.type === 'string' && a.type) { var types = sys && sys.combat && sys.combat.damage && Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [], ty = types.filter(function(y) { return y && typeof y.key === 'string' && y.key.toLowerCase() === a.type.toLowerCase(); })[0]; if (ty) parts.push((a.all === true ? 'every part lands as ' : 'it lands as ') + String(ty.label || ty.key).slice(0, 60)); }
     if (!parts.length) return '';
@@ -13322,11 +13343,14 @@ function testRule(camp) { var c = camp && camp.system && camp.system.combat; ret
 function ansTests(camp, rec, pick, ch, priv, act, row) {
     var a = pick && pick.line, S = SC(); if (!a || !S || (!a.test && !a.testAtk)) return;
     var by = typeof callName === 'function' ? callName(cardEnt(camp, act, row && typeof row.i === 'number' ? row : null, null)) : '', how = testRule(camp);
-    if (a.test && pick.row) ansTest(camp, a.test, ch, pick.row, !!priv, how, by);
+    // 1.6.3 (found in a live two-peer check): the test's card says it was called for by the defense AND the row it was made with, "Parry with Sword", as the
+    // defense card's button said, where that row may be named (withLabel). The attacker's card names it only where the defense itself was not kept the GM's
+    var byW = by && pick.row && typeof withLabel === 'function' ? withLabel(camp, ch, pick.row, by) : by;
+    if (a.test && pick.row) ansTest(camp, a.test, ch, pick.row, !!priv, how, byW);
     if (a.testAtk) {
         var lnd = typeof rec.lw === 'string' && typeof landOf === 'function' ? landOf(rec.lw) : null, byId = lnd ? lnd.by : rec.atkBy || rec.callFrom, aRow = lnd && lnd.row ? lnd.row : rec.atkRow || rec.callRow;
         var aCh = typeof byId === 'string' && camp.chars && own(camp.chars, byId) ? camp.chars[byId] : null;
-        if (aCh && aRow) ansTest(camp, a.testAtk, aCh, aRow, lnd ? lnd.priv === true : rec.atkPriv === true || rec.callPriv === true, how, by);
+        if (aCh && aRow) ansTest(camp, a.testAtk, aCh, aRow, lnd ? lnd.priv === true : rec.atkPriv === true || rec.callPriv === true, how, priv ? by : byW);
     }
 }
 function ansTest(camp, ref, ch, row, priv, how, by) {
@@ -13692,7 +13716,7 @@ net.diceRoll = function(expr, o) {
         if (Array.isArray(o.sw) && o.sw.length) return { error: 'A roll on an entry nobody holds takes no bonus.' };
         var uvR = typeof varsR.unheld === 'function' ? varsR.unheld(o.row.f, uDefR) : null; if (!uvR) return { error: (uDefR.name || 'That entry') + ' has no unheld level here.' }; varsR = uvR;
     } else if (o.row && varsR) { var rvR = varsR.row(o.row.f, o.row.r, typeof o.row.lv === 'number' ? o.row.lv : undefined); if (!rvR) return { error: D.denyText('char') }; varsR = rvR; }   // 1.6.0 R12: at the level asked
-    else if (o.with && varsR) { if (typeof o.att !== 'string' || typeof o.with !== 'object' || typeof o.with.f !== 'string' || typeof o.with.r !== 'string') return { error: 'A row is named only answering a defense card.' }; var wvR = varsR.row(o.with.f, o.with.r); if (!wvR) return { error: typeof WITH_GONE === 'string' ? WITH_GONE : 'That row cannot answer this card now.' }; varsR = wvR; }   // 1.6.3 (defense fold 2): a roll answered with a row, read on the row its card's press named
+    else if (o.with && varsR) { if (typeof o.att !== 'string' || typeof o.with !== 'object' || typeof o.with.f !== 'string' || typeof o.with.r !== 'string') return { error: 'A row is named only answering a defense card.' }; var wvR = varsR.row(o.with.f, o.with.r); if (!wvR) return { error: typeof WITH_GONE === 'string' ? WITH_GONE : 'That row cannot answer this card now.' }; varsR = wvR; if (chR && typeof withLabel === 'function') o = Object.assign({}, o, { label: withLabel(campR, chR, o.with, o.label, o.act) }); }   /* 1.6.3 (a live two-peer check): its card names the row, "Parry with Sword" */   // 1.6.3 (defense fold 2): a roll answered with a row, read on the row its card's press named
     var entR = null;   // Stage 6 HUD R1/R2b: the entry a roll with consequences or needs names — a system roll by act, a list's roll by its index
     if (chR && SR && campR && campR.system) {
         if (o.act && !o.row) (Array.isArray(campR.system.rolls) ? campR.system.rolls : []).forEach(function(r) { if (r && r.id === o.act && typeof r.formula === 'string' && !r.apply) entR = r; });
@@ -13860,7 +13884,7 @@ net.diceRoll = function(expr, o) {
     if (chR && (entR || blowRecR) && typeof callsAfter === 'function') { var vcR = D.verdictOf(res, ruleR), pcR = mfR !== null && D.naturalOf(res) >= mfR ? false : rec.body === 1 ? true : vcR && vcR.kind === 'check' ? vcR.pass === true : null; if (entR) callsAfter(campR, entR, pcR, varsR, typeof onR !== 'undefined' && onR ? onR.ch : chR, !!rec.priv || !!rec.to, o.row || (o.with ? { f: o.with.f, r: o.with.r } : o.row), rec.big === true, tcR, chR); attemptCalled(campR, blowRecR, o.act, o.row || (o.with ? { f: o.with.f, r: o.with.r } : o.row), pcR, chR, !!rec.priv || !!rec.to, tcR, ansR); }   /* 1.6.3 (defense fold 2): a roll answered with a row hands its row on */   // 1.6.0: Calls for, with its Then landed
     if (chR && typeof holdsRolled === 'function' && SR && typeof SR.holdRefOf === 'function') { var vhR = D.verdictOf(res, ruleR); holdsRolled(campR, chR, entR, SR.holdRefOf(o.act, o.row), mfR !== null && D.naturalOf(res) >= mfR ? false : vhR && vhR.kind === 'check' ? vhR.pass === true : null, tcR, typeof blowRecR !== 'undefined' ? blowRecR : null, atR); } if (typeof stealRolled === 'function' && typeof blowRecR !== 'undefined' && blowRecR && blowRecR.st) { var vsR = D.verdictOf(res, ruleR); stealRolled(campR, mfR !== null && D.naturalOf(res) >= mfR ? false : vsR && vsR.kind === 'check' ? vsR.pass === true : null, blowRecR); }   // 1.6.0 Who holds whom
     if (entR && entR.burst && o.row && typeof burstAfter === 'function') burstAfter(campR, chR, entR, o.row, res, ruleR, mfR !== null && D.naturalOf(res) >= mfR, typeof taR !== 'undefined' ? taR : null, tcR, function() { save(true); });   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
-    if (entR && chR && !entR.area && !lndR && typeof landAfter === 'function') { var lvR = D.verdictOf(res, ruleR); landAfter(campR, entR, !(mfR !== null && D.naturalOf(res) >= mfR) && (rec.body === 1 || (!!lvR && lvR.kind === 'check' && lvR.pass === true)), tcR, chR, !!rec.priv || !!rec.to, o.row || o.with, atR, rec.from, typeof o.hit === 'string' ? o.hit : '', rec.big === true, lrwR); }   /* 1.6.3 (the review of defense fold 2, finding 10): and the row a defense answered with */   // 1.6.3 (defense fold 1): an attack that names Its damage lands, or waits for its defense. The review of that fold: made last, after its Then and its burst, as in roll-req
+    if (entR && chR && !entR.area && !lndR && typeof landAfter === 'function') { var lvR = D.verdictOf(res, ruleR); landAfter(campR, entR, !(mfR !== null && D.naturalOf(res) >= mfR) && (rec.body === 1 || (!!lvR && lvR.kind === 'check' && lvR.pass === true)), tcR, chR, !!rec.priv || !!rec.to, o.row || o.with, atR, rec.from, typeof o.hit === 'string' ? o.hit : '', rec.big === true, lrwR, function(w) { if (typeof toast === 'function') toast(w); }); }   /* 1.6.3 (the review of defense fold 2, finding 10): and the row a defense answered with */   // 1.6.3 (defense fold 1): an attack that names Its damage lands, or waits for its defense. The review of that fold: made last, after its Then and its burst, as in roll-req
     net.rollMade = typeof atR === 'string' ? atR : '';   // 1.6.2 (the core's gap 214): the attempt this roll made, which a thing in flight waits on
     net.rollCheck = D.checkOf ? D.checkOf(res, ruleR) : null;
     net.rollVerdict = D.verdictOf(res, ruleR);   // 1.6.3 (defense fold 4): the verdict as the attempt reads one, for a roll that sends an attack on (sendOnPress), read right after it   // 1.5.8 explosives: this roll's pass, critical and margin, read by a throw right after it (this machine's own)

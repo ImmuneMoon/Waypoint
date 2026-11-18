@@ -90,6 +90,11 @@ Attacks that carry their damage
   from the table, your copy has Roll it now whatever the setting.
 - If a player's Take it is turned down, for instance while the table is
   paused, their card comes back so they can roll or try again.
+- An attack that carries its damage but has no target now tells whoever
+  rolled it, where it used to say nothing at all. Point at someone and
+  roll again.
+- No defense says what happens next under your own setting, a card for
+  the attacker or the damage rolled at once.
 
 Defending with a row
 - A roll that resists can be answered with a row of a list now. Tick
@@ -103,6 +108,9 @@ Defending with a row
   the sheet stays off, and the System editor tells you if a reminder, a
   clock rule or a crossing set on it has to go, since none of those
   would know which weapon to use.
+- The roll's card names the weapon now, Parry with Sword, just like the
+  button. A weapon test it calls for says so too, where it used to say
+  only Parry.
 
 What a successful defense does
 - A defense can do more than stop an attack now. Under Resists an
@@ -113,6 +121,10 @@ What a successful defense does
 - A line can let the parrying row take the blow first, or stop part of a
   burst and let the rest land. It can also change the type the blow
   lands as.
+- A line that lets some through has Dice counted per die. Every die
+  rolled keeps today's count, and The same share of the dice cuts the
+  dice that armor or a wound per die reads, so half a 4-die blow counts
+  2 dice. Where any of it gets through it counts at least one.
 - A line can test the weapon that parried, or the one that was parried.
   The new Attacks and defenses topic on the Combat tab says how that test
   is made, as a card for its owner or rolled at once, and lists every

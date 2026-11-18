@@ -220,9 +220,14 @@ function ansOn(a, dv, type, more) {
     var m = Object.assign({}, more || {}), n = function(v, d) { return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.floor(v) : d; }, ks = [2, 3, 4, 5];
     var partSet = function(o, key, put) { var p = o[key]; if (p && typeof p === 'object') o[key] = Object.assign({}, p, put); };
     if (typeof a.amt === 'number') {
-        dv = n(a.amt, dv);
-        ks.forEach(function(k) { var pk = m['part' + k]; if (pk && a.p && typeof a.p[k] === 'number') partSet(m, 'part' + k, { amt: n(a.p[k], pk.amt) }); });
-        if (Array.isArray(m.hits) && Array.isArray(a.hits)) m.hits = m.hits.map(function(h, i) { var s = a.hits[i]; if (!h || !s || typeof s !== 'object') return h; var o = Object.assign({}, h, { amt: n(s.amt, h.amt) }); ks.forEach(function(k) { if (o['part' + k] && s.p && typeof s.p[k] === 'number') partSet(o, 'part' + k, { amt: n(s.p[k], o['part' + k].amt) }); }); return o; });
+        // Dice counted per die (Fulllion's ruling of 2026-11-18): where the host stamped dc, the line said The same share of the dice, so the dice a part
+        // hands the damage step are cut by the same fraction as its damage (got of was), rounded down, at least 1 where any gets through and none where
+        // none does. A part rolled as 0, a share that keeps it whole, or no dice count leaves the count as it was, and with no dc nothing changes at all
+        var cutD = function(d, was, got) { if (a.dc !== 1 || typeof d !== 'number' || !isFinite(d) || d <= 0 || typeof was !== 'number' || !isFinite(was) || was <= 0 || got >= was) return d; return got > 0 ? Math.max(1, Math.floor(d * got / was)) : 0; };
+        var put = function(pk, got) { var o = { amt: got }; if (a.dc === 1 && typeof pk.dice === 'number') o.dice = cutD(pk.dice, pk.amt, got); return o; };
+        var dv0 = dv; dv = n(a.amt, dv); if (a.dc === 1 && typeof m.dice === 'number') m.dice = cutD(m.dice, dv0, dv);
+        ks.forEach(function(k) { var pk = m['part' + k]; if (pk && a.p && typeof a.p[k] === 'number') partSet(m, 'part' + k, put(pk, n(a.p[k], pk.amt))); });
+        if (Array.isArray(m.hits) && Array.isArray(a.hits)) m.hits = m.hits.map(function(h, i) { var s = a.hits[i]; if (!h || !s || typeof s !== 'object') return h; var o = Object.assign({}, h, put(h, n(s.amt, h.amt))); ks.forEach(function(k) { if (o['part' + k] && s.p && typeof s.p[k] === 'number') partSet(o, 'part' + k, put(o['part' + k], n(s.p[k], o['part' + k].amt))); }); return o; });
     }
     if (typeof a.keep === 'number' && isFinite(a.keep) && Array.isArray(m.hits)) { var kp = Math.max(1, Math.floor(a.keep)); m.hits = kp > 1 ? m.hits.slice(0, kp - 1) : undefined; }   // the first hits land, the rest were stopped
     if (typeof a.type === 'string' && a.type) {
@@ -264,9 +269,16 @@ function landBtns(wrap, rec, m, bs, theirs) {
         wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(x); return x;
     };
     if (rec.why === 'resist') {
-        if (host) mk('No defense', 'The attack lands now, with no roll to resist it. Its damage then comes to the attacker', function() { return typeof n.landNoDefense === 'function' && n.landNoDefense(rec.att); });
-        else if (!theirs) { var tk = mk('Take it', 'Make no roll to resist it: the attack lands now, and its damage comes to the attacker', function() { return typeof n.landTake === 'function' && n.landTake(rec.att); }); if (typeof n.landsOk === 'function' && !n.landsOk()) { tk.disabled = true; tk.title = 'The GM\u2019s Waypoint is older and cannot take this. Roll to resist it, or ask the GM'; } }
+        if (host) mk('No defense', noDefTip(typeof n.landBy === 'function' ? n.landBy() : 'card'), function() { return typeof n.landNoDefense === 'function' && n.landNoDefense(rec.att); });
+        else if (!theirs) { var tk = mk('Take it', 'Make no roll to resist it: the attack lands now, and its damage follows', function() { return typeof n.landTake === 'function' && n.landTake(rec.att); }); if (typeof n.landsOk === 'function' && !n.landsOk()) { tk.disabled = true; tk.title = 'The GM\u2019s Waypoint is older and cannot take this. Roll to resist it, or ask the GM'; } }
     } else if (rec.why === 'called' && theirs && host && (rec.now === 1 || (typeof n.landStuck === 'function' && n.landStuck(rec.att)))) mk('Roll it now', rec.now === 1 ? 'Roll this damage now, as the attacker, without waiting for their press' : 'Its player is not at the table. Roll this damage now, as the attacker', function() { return typeof n.landNow === 'function' && n.landNow(rec.att); });   // the review of fold 1: offered under any setting while the attacker's player is away, so the damage never waits with nobody to roll it
+}
+// 1.6.3 (found in a live two-peer check of the defense folds): what No defense says it does follows the Combat tab's When an attack lands (by, from
+// net.landBy, the host's own rule: 'card', 'now' or 'both'), since under 'now' no card comes to the attacker at all. A player's Take it cannot know the rule,
+// which is the GM's view alone, so its words say only that the damage follows
+function noDefTip(by) {
+    var lead = 'The attack lands now, with no roll to resist it. ';
+    return lead + (by === 'now' ? 'Its damage is then rolled at once' : by === 'both' ? 'Its damage then comes to the attacker as a card, and your copy of it can roll it now' : 'Its damage then comes to the attacker as a card');
 }
 // 1.6.3 (defense fold 4; docs/DEFENSE_INTERACTIONS_DESIGN.md 4.3, backlog 243): the buttons of a card to send an attack on. Send it on aims it at the one this
 // screen's player (or, for an NPC, the GM) points at now, and Turn it aside closes it with no roll; the host judges both from its own record (net.sendOn on the

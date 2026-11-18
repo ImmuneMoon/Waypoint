@@ -1167,6 +1167,9 @@ function landSays(sys, r, lf) {
 //   thru:  Takes it on this row. It lands, and the Take damage window tests the parrying row first, as the list roll's own tick always did.
 //   share: Lets some through. Each part of the blow, and each hit of a burst, is cut to share, a formula of the blow (Blow.dmg, the part's own amount;
 //          Blow.type and Blow.kind, its places; Type.<key> and Kind.<key>), before DR, so the Major Wound test and every wound row read what got through.
+//          Beside it, dice (Dice counted per die; Fulllion's ruling of 2026-11-18): absent, Every die rolled, so a figure counted per die (a type's DR,
+//          wound, vital wound and wear per die, a location's wound per die) counts every die the blow rolled, as before; 'share', The same share of the
+//          dice, so the dice each part hands the damage step are cut by the same fraction as its damage, rounded down, at least 1 where any gets through
 //   hits:  Stops a number of hits. hits is a formula read as the defense comes in (1 + RollMargin, say); the rest of a burst's hits land. An attack of one
 //          hit is stopped where it stops one or more.
 // Beside any of the last three, type (a damage type's key) is the type it lands as, the first part's, or every part's with all. And any line may test a
@@ -1189,6 +1192,7 @@ function cleanAnswers(v) {
         var does = typeof a.does === 'string' && ANS_DOES[a.does] === 1 ? a.does : 'stop', o = { does: does };
         var fi = cleanFormulaText(a.if); if (fi) o.if = fi;
         if (does === 'share') o.share = cleanFormulaText(a.share) || ANS_HALF;   // "Half of it" is the first pick
+        if (does === 'share' && a.dice === 'share') o.dice = 'share';   // 1.6.3 (Fulllion's ruling of 2026-11-18): Dice counted per die, The same share of the dice (absent: Every die rolled, as before)
         if (does === 'hits') o.hits = cleanFormulaText(a.hits) || '1';
         if (does !== 'stop' && does !== 'send' && typeof a.type === 'string' && STAT_KEY.test(a.type)) { o.type = a.type; if (a.all === true) o.all = true; }
         if (does === 'send') {   // 1.6.3 (defense fold 4): the roll it is sent on with, or Placed with no roll and Its margin; How far; May go straight back

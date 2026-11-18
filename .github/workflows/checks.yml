@@ -54,6 +54,9 @@ jobs:
       - name: answercheck — a card to press and what an attack reads of its attacker, read from answercore.js by name
         if: ${{ !cancelled() }}
         run: node tools/answercheck.js
+      - name: timerulecheck — time rules, read from everycore.js, timecore.js, sheettime.js and sheetevery.js by name
+        if: ${{ !cancelled() }}
+        run: node tools/timerulecheck.js
       - name: dicecheck — dice engine
         if: ${{ !cancelled() }}
         run: node tools/dicecheck.js

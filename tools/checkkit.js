@@ -18,6 +18,8 @@
    - part(name): a part's own text, read by its name (srcjoin.raw), with CRLF read as LF. It throws for a file that is not a part, so
      a test that says it reads a part really does. cut(name, a, b): that text from a up to the first b after it, as a suite's own
      slicer of the joined sheets.js cut it before the lines moved into the part.
+   - sheetsSlicer(label), plainPage(): systemcheck's slicer of the joined sheets.js and its page of plain objects, as its lighting
+     block defines them, for the blocks that came out of it (timerulecheck's K5 scope).
    - netSlices(who): the slice helpers netcheck has at its top, over the joined net.js, each also able to read a part by name:
      between(a, b, label, file), tryBetween(a, b, file), fnSrc(start, end, label, file), range(file, a, b) (the text from a up to b,
      both in the part) and lineOf(k). A call that names a part's file reads that part; one that names none reads the joined net.js.
@@ -62,6 +64,21 @@ function cut(name, a, b) {
     const t = part(name), i = t.indexOf(a), k = t.indexOf(b, i + 1);
     if (i < 0 || k < 0) throw new Error('checkkit: ' + a + ' to ' + b + ' not found in ' + name);
     return t.slice(i, k);
+}
+
+// systemcheck's slicer of the joined sheets.js, as its blocks define it (cutL in the lighting L4 block): shL the text with CRLF read as
+// LF, cutL(a, b) the text from a up to the first b after it, oneL(a) the line that begins at a. label names the slicer in its error.
+function sheetsSlicer(label) {
+    const shL = joined('sheets.js'), NL = '\n';
+    const cutL = (a, b) => { const i = shL.indexOf(a), k = shL.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error(label + ' slice: ' + a); return shL.slice(i, k); }, oneL = a => cutL(a, NL);
+    return { shL, cutL, oneL };
+}
+// systemcheck's page of plain objects, as its blocks define it (the lighting L4 block): feL(tag, text) an element that keeps its children,
+// docL a document that makes them, walkL and findL the elements under one (findL by a class), pickedL the values of a select's picked options
+function plainPage() {
+    const feL = (tag, text) => ({ tag, className: '', textContent: text === undefined ? '' : String(text), children: [], title: '', type: '', value: '', checked: false, disabled: false, selected: false, dataset: {}, style: {}, get childNodes() { return this.children; }, appendChild(x) { this.children.push(x); return x; } });
+    const docL = { createElement: t => feL(t), createTextNode: t => feL('#text', t) }, walkL = (n, p, acc) => { if (p(n)) acc.push(n); (n.children || []).forEach(k => walkL(k, p, acc)); return acc; }, findL = (n, c) => walkL(n, x => (' ' + x.className + ' ').indexOf(' ' + c + ' ') >= 0, []), pickedL = s => s.children.filter(o => o.selected).map(o => o.value);
+    return { feL, docL, walkL, findL, pickedL };
 }
 
 // netcheck's slice helpers. Each takes the text it cuts by the file it names: a part by its name, else the joined net.js.
@@ -113,4 +130,4 @@ function fresh(root, tag) {
     return name => u.slice(0, u.lastIndexOf('/') + 1) + name;
 }
 
-module.exports = { suite, joined, part, cut, netSlices, packCheck, url, fresh, APP, SCRIPTS, lf };
+module.exports = { suite, joined, part, cut, sheetsSlicer, plainPage, netSlices, packCheck, url, fresh, APP, SCRIPTS, lf };

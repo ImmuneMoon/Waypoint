@@ -4710,6 +4710,7 @@ function loadCtl(host, entry, c, f, spec, editable, sysI, okL) {
 }
 // the rows the load takes, by name and what each holds, then Unload. On the page, as the Download menu is (its class, its Escape)
 var _ldPop = null;
+function ldPopSet(p) { _ldPop = p; }   // the one load menu up now, set from a part file too (sheetlink.js), which cannot assign sheets.js's own name
 function closeLoadMenu() { if (_ldPop) { _ldPop.remove(); _ldPop = null; document.removeEventListener('mousedown', ldOutside, true); document.removeEventListener('keydown', ldKey, true); } }
 function ldOutside(e) { if (_ldPop && !_ldPop.contains(e.target) && !(_ldPop._anchor && _ldPop._anchor.contains(e.target))) { var hitP = _ldPop._hit === true; closeLoadMenu(); if (hitP) toast('Roll called off: no location was picked.'); } }   // 1.6.0: a called shot's menu gone with no word read as a roll that did not happen
 function ldKey(e) { if (_ldPop && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); var a = _ldPop._anchor; closeLoadMenu(); try { if (a) a.focus(); } catch (er) {} } }
@@ -6784,7 +6785,7 @@ function crewAddPick(anchor, sys, k, c, camp) {
     pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
     pop.addEventListener('keydown', function(e) { e.stopPropagation(); });
     draw();
-    document.body.appendChild(pop); _ldPop = pop;
+    document.body.appendChild(pop); ldPopSet(pop);
     var r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 8, bottom: 8 }; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - 320, r.bottom + 4)) + 'px';
     document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
     try { sel.focus(); } catch (er) {}

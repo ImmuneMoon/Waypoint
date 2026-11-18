@@ -7888,12 +7888,25 @@ var FACING_NAMES = Object.freeze(['Facing', 'Arc', 'Arc.front', 'Arc.side', 'Arc
 // VTT feature is off. The ids below are only how a posture written before 1.6.0 is read: no list of postures is a default (the owner's legal
 // ruling of 2026-10-24, backlog 183 (3))
 var POSTURE_IDS = Object.freeze(['standing', 'crouching', 'sitting', 'kneeling', 'crawling', 'lying-prone', 'lying-face-up']);
+// The state linked sheets keep as they run, which the resolver reads as it changes. It stands here, before linked sheets, and not with them,
+// because the rest of linked sheets is to move into a part file of its own (docs/REFACTOR_SPLIT_PLAN.md, area 3), and a name a part assigns
+// reaches systemcore.js only as a copy made when the part is installed: the resolver would never see a source set later.
+// _linkSrc: the source of a linked sheet: fn(id, sys) answers the character a link holds, as it is to be read with that system (sheets.js:
+// the GM's own for the system, the owner's projection for the players' view; on a player's app their own copy). None: every link reads as none.
+// _crewSrc: the source of a vehicle's crew: fn(vehicle id, link id, sys) answers the characters whose link holds it, each as it is to be read
+// with that system (sheets.js crewSource; a player's app none: their copy reads the figures its host worked out, ck). None: every group read is 0.
+// _holdSrc: the source of the row that holds a sheet, which Holder.<stat> and Owner.<name> read (what holdFigs says below).
+// _inVeh: while a vehicle name is read inside a group figure (figVeh, and the resolver's vehicle read), every group read reads 0, so it never loops
+var _linkSrc = null, _crewSrc = null, _holdSrc = null, _inVeh = 0;
+function setLinkSource(fn) { _linkSrc = typeof fn === 'function' ? fn : null; return !!_linkSrc; }
+function setCrewSource(fn) { _crewSrc = typeof fn === 'function' ? fn : null; return !!_crewSrc; }
+function setHolderSource(fn) { _holdSrc = typeof fn === 'function' ? fn : null; return !!_holdSrc; }
 // 1.6.0, linked sheets (the owner, by prompt: "Two kinds", "A menu on the sheet", "lets go with mount.name then", "Its owner and the GM",
 // "Each keeps its own", "Only the figures read"). A system's links, sys.links: [{ id, key, label, kind, edit }], kind a Mount (one rider to
 // one mount) or a Crew link (many people to one vehicle); a character holds links: { <link id>: <character id> }. A formula reads the sheet
 // a link holds, live, as <Key>.<name> (Mount.Move, Vehicle.HP.max), and <Key>.has 1 while linked; with no link every name reads 0. A field
 // of the system's own keyed like the link keeps the whole family. Absent: the system and its characters are as before
-var LINK_ID = /^lk_[A-Za-z0-9_]{1,24}$/, LINK_KINDS = Object.freeze({ mount: 'Mount', crew: 'Crew' }), LINK_NOT = Object.freeze({ row: 1, on: 1, date: 1, facing: 1, arc: 1, threats: 1 }), _linkSrc = null;
+var LINK_ID = /^lk_[A-Za-z0-9_]{1,24}$/, LINK_KINDS = Object.freeze({ mount: 'Mount', crew: 'Crew' }), LINK_NOT = Object.freeze({ row: 1, on: 1, date: 1, facing: 1, arc: 1, threats: 1 });
 function cleanLinks(raw, F) {
     if (!Array.isArray(raw)) return null;
     var out = [], ids = map(), ks = map();
@@ -7936,7 +7949,7 @@ function linkByKey(sys) { var m = map(); (sys && Array.isArray(sys.links) ? sys.
 // <group>.max.<name>, .min.<name> and .sum.<name> read a name over them; <group>.<Station>.count and <group>.<Station>.max.<name> (min, sum)
 // over those at that station alone. Each crew sheet is read with the very system the vehicle is read with (crewSource: the players' view on
 // the host reads each as its owner holds it, so a GM-only figure never counts for a player), one level deep. None of a number: 0
-var LINK_STATIONS = 80, LINK_FIGS = 40, STATION_KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/, CREW_WORDS = Object.freeze({ count: 1, max: 1, min: 1, sum: 1, has: 1 }), _crewSrc = null;
+var LINK_STATIONS = 80, LINK_FIGS = 40, STATION_KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/, CREW_WORDS = Object.freeze({ count: 1, max: 1, min: 1, sum: 1, has: 1 });
 function groupLink(k) { return isObj(k) && (k.kind === 'crew' || k.kind === 'mount'); }   // 1.6.0: a link whose linked sheet reads those who link it as a group (a vehicle its crew, a mount its riders)
 function groupByKey(sys) { var m = map(); (sys && Array.isArray(sys.links) ? sys.links : []).forEach(function(k) { if (groupLink(k) && typeof k.id === 'string' && typeof k.group === 'string' && k.group && k.group.indexOf('.') < 0 && !m[lower(k.group)]) m[lower(k.group)] = k; }); return m; }
 // A crew sheet's stations on a link, as a list: each a station of the link in its own spelling, once, at most the link's most (one where none);
@@ -7979,7 +7992,6 @@ function figRead(sys, ix, name) {
 // and a field keyed like the link keeps its family. figVeh answers the vehicle's name (lower case), or ''. While a vehicle name is read (_inVeh) every group read reads 0, so a vehicle
 // name that itself reads the group's figures never loops. The GM-only judges read such a name as the name it reads (linkBare), as any
 // <LinkKey>.<name>, so a figure worked out from a GM-only value of the vehicle is GM-only too
-var _inVeh = 0;
 function figVeh(k, ix, name) {
     var l = lower(String(name || '')), vk = isObj(k) && typeof k.key === 'string' ? lower(k.key) : '';
     if (!vk || !ix || ix[vk] || l.length <= vk.length + 1 || l.slice(0, vk.length + 1) !== vk + '.') return '';
@@ -7997,9 +8009,6 @@ function figExpand(sys, names) {
     });
     return out;
 }
-// The source of a vehicle's crew: fn(vehicle id, link id, sys) answers the characters whose link holds it, each as it is to be read with that
-// system (sheets.js crewSource; a player's app none: their copy reads the figures its host worked out, ck). None: every group read is 0
-function setCrewSource(fn) { _crewSrc = typeof fn === 'function' ? fn : null; return !!_crewSrc; }
 // A crew sheet's stations, by link, each a station of that link and only for a link it holds
 function cleanCharStn(raw, sys, links) {
     if (!isObj(raw) || !isObj(links) || !sys || !Array.isArray(sys.links)) return null;
@@ -8092,16 +8101,11 @@ function linkBare(sys, ix, name) {
     if (crewStation(linkByKey(sys)[k], lower(s.slice(d + 1)), ix || keyIndex(sys))) return s;   // 1.6.0: <Key>.station.<Station> reads this very sheet's own station, no figure of the linked sheet
     return s.slice(d + 1);
 }
-// The source of a linked sheet: fn(id, sys) answers the character a link holds, as it is to be read with that system (sheets.js: the GM's own
-// for the system, the owner's projection for the players' view; on a player's app their own copy). None: every link reads as none
-function setLinkSource(fn) { _linkSrc = typeof fn === 'function' ? fn : null; return !!_linkSrc; }
 // 1.6.2 (the owner, 2026-11-08: "Add reading names for the row and its owner regardless, as a general builder option"): a sheet a row is
 // joined to (Rows are sheets) reads the row that holds it as Holder.<stat> and the character that holds that row as Owner.<name>, one level
 // deep, as a link reads its sheet. The source: fn(id, sys) answers { c: the character holding the row, f: its list, row: its id } (sheets.js),
 // that character then read through the link source as it is to be read with that system. A player's copy reads the figures its host worked
 // out (char.hk). None: both read 0. A field, a link or a crew group keyed Owner or Holder keeps its own name
-var _holdSrc = null;
-function setHolderSource(fn) { _holdSrc = typeof fn === 'function' ? fn : null; return !!_holdSrc; }
 function holdNamesIn(sys) { return { owner: linkNamesIn(sys, 'Owner'), holder: linkNamesIn(sys, 'Holder') }; }
 function holdFigs(sys, char, F) {
     if (!sheetsAny(sys) || !isObj(char) || !F || !_holdSrc || !_linkSrc) return null;

@@ -215,6 +215,25 @@ function judge(src, regions) {
         if (home !== null) give[home].add(r.name);   // a name of a part used outside it
         if (r.write) problems.push({ rule: 'assigned across a cut', name: r.name, at: at || '(root)', declaredIn: home || '(root)', line: lineOf(starts, r.start) });
     });
+    // A name a part declares and assigns again later (a source a set... function stores, a counter), read outside that part. The root
+    // reads a part's name through its glue var, which is a copy made once when the part is installed, so it would never see the new
+    // value (found by area 3, 2026-11-18: linked sheets' _linkSrc and _crewSrc, stored by setLinkSource and read by the resolver). Only
+    // a part's own name is judged here: a root name the root assigns is read by a part through a live import, which is right.
+    const partWrites = new Map();   // name -> the first line a part's own name is assigned on
+    A.refs.forEach(r => {
+        if (!r.module || !r.write) return;
+        const home = one(declRegion.get(r.name));
+        if (home === undefined || home === null) return;
+        if (!partWrites.has(r.name)) partWrites.set(r.name, lineOf(starts, r.start));
+    });
+    const copyRead = new Set();
+    A.refs.forEach(r => {
+        if (!r.module || !partWrites.has(r.name) || copyRead.has(r.name)) return;
+        const at = regionAt(r.start), home = one(declRegion.get(r.name));
+        if (at === home) return;
+        copyRead.add(r.name);
+        problems.push({ rule: 'a part name that changes is read through a copy', name: r.name, at: at || '(root)', declaredIn: home, line: lineOf(starts, r.start), assignedOn: partWrites.get(r.name) });
+    });
     // The load order: a top-level statement that runs before a part is installed, and reaches one of its names.
     // Each top-level statement's uses that run at once, and each top-level function's when it is called: every name it reads, and the
     // names it calls, through which the walk goes on. A function only passed along as a value (net._x = handleMessage) is not entered.

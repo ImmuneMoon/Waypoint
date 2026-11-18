@@ -13,7 +13,8 @@
       text that names a top-level name counts as a use too, and the root exports all a part imports. No name is assigned across a cut,
       none is declared on both sides, and no top-level statement that runs before a part is installed reaches one of its names,
       directly or through the functions it calls. No part assigns a name declared nowhere (what only strict mode refuses; see 5), and
-      no module in an import cycle with the root reaches a name bound from a part in its top-level code (splitlib.cycleRisks).
+      no module in an import cycle with the root reaches a name bound from a part in its top-level code (splitlib.cycleRisks). A name
+      a part declares and assigns again later is never read outside it (the root reads a part's name through a copy made at install).
    3. Every suite reads the giants through tools/srcjoin.js, installed as its first statement (after a 'use strict' directive); the private bridge's three entry files
       install it too where that folder is there; no suite imports a split root with a query (a fresh instance comes from
       srcjoin.freshUrl). The scans of what ships (updatercheck's list of names, sinkcheck's scans) read the real bytes through
@@ -175,6 +176,17 @@ function pageCalls(name, bundle) {
     });
 
     // ---- 2. the names ----
+    // The rule that a part's name which changes is never read through the root's copy of it (splitlib.judge, added by area 3 on 2026-11-18,
+    // when linked sheets' sources would have read null for good), tried on a small text of its own: a part assigns its own var, the
+    // root reads it, so judge must name it; and the same text with the var assigned only where it is declared names nothing.
+    {
+        const txt = ['var a = 1;', '// p', 'var src = null;', 'function setSrc(f) { src = f; }', '// q', 'function read() { return src; }', ''].join('\n');
+        const quiet = txt.replace('function setSrc(f) { src = f; }', 'function setSrc(f) { return f; }');
+        let r1 = null, r2 = null, e1 = null;
+        try { r1 = L.judge(txt, [{ part: 'p.js', from: 2, to: 4 }]); r2 = L.judge(quiet, [{ part: 'p.js', from: 2, to: 4 }]); } catch (e) { e1 = e; }
+        const named = r1 && r1.problems.filter(x => x.rule === 'a part name that changes is read through a copy' && x.name === 'src');
+        check('splitlib: a name a part assigns again later and its root reads (through a copy made at install) is named, and one never assigned again is not', !e1 && named && named.length === 1 && r2 && r2.problems.length === 0, e1 ? String(e1) : { r1: r1 && r1.problems, r2: r2 && r2.problems });
+    }
     roots.forEach(r => {
         const J = srcjoin.joinRoot(r), regions = L.regionsOf(r);
         let res = null, err = null;

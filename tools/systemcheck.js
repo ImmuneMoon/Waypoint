@@ -5611,7 +5611,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('fold 2 (A) the host\'s round hook (sheets.js, run for real): a reminder to press is posted only while its action\'s needs are met (Shake it off, while stunned), and an automatic action whose needs fail moves nothing (Bleed, while not bleeding) while one whose needs are met runs',
             j(hk) === j([[[], undefined], [['c_a:r_due'], 7]]), j(hk));
         // runTimeRules: a rule held from the start says nothing
-        const trSrcN = cutN('// [sinkcheck:timerules-start]', '// [sinkcheck:timerules-end]'), campTN = { system: gmN, chars: { c_a: chN({ f_hp: 12 }), c_b: Object.assign(chN({ f_hp: 10 }), { id: 'c_b', name: 'Bo' }) } }, cardsN = [];
+        const trSrcN = require('./checkkit').cut('sheettime.js', '// [sinkcheck:timerules-start]', '// [sinkcheck:timerules-end]'), campTN = { system: gmN, chars: { c_a: chN({ f_hp: 12 }), c_b: Object.assign(chN({ f_hp: 10 }), { id: 'c_b', name: 'Bo' }) } }, cardsN = [];
         const runTN = new Function('getActiveCampaign', 'systemOf', 'net', 'F', 'charById', 'timeRuleRun', 'gmOnlyNames', 'applyScope', 'renderViews', 'save', 'window', 'makeResolver', 'hasDice', 'figText', 'ruleRunCtx', 'chainsShallow', "'use strict';" + NL + trSrcN + NL + 'return runTimeRules;')(
             () => campTN, c => c.system, () => ({ active: true, role: 'host', syncCharDelta() {}, timeCard: (ch, text) => cardsN.push([ch.id, text]) }), () => F, (id, c) => (Object.prototype.hasOwnProperty.call(c.chars, id) ? c.chars[id] : null), S.timeRuleRun, S.gmOnlyNames, S.applyScope, () => {}, () => {}, {}, S.makeResolver, S.hasDice, S.figText, S.ruleRunCtx, trFlat('fold 2 (A)'));
         const firesTN = [{ c: 'c_a', r: 'r_clock', n: 3 }, { c: 'c_b', r: 'r_clock', n: 3 }];
@@ -9093,7 +9093,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && j(tMalf.rolls) === j({ made: 1, pass: 0, fail: 1 }) && j(tMalf.lines) === j([{ f: 'f_fp', n: 'FP', d: 3, v: 5 }]) && tCap.ran === 500 && tCap.lines[0].v === 10
             && tNone.every(t => t.ran === 0 && j(t.values) === '{}') && j(chEv.values) === j({ f_hp: { cur: 5 }, f_fp: { cur: 2 } }) && j(ruleSeen) === j(['under3d6', 'under3d6', '']), j([tHeal, tFp, tFail, tMalf, tCap.lines, ruleSeen]));
         // the editor's By the clock row (sheets.js everyRow / everyEdit, sliced by its everyrow markers, run for real)
-        const erSrc = cutL('// [sinkcheck:everyrow-start]', '// [sinkcheck:everyrow-end]');
+        const erSrc = require('./checkkit').cut('sheetevery.js', '// [sinkcheck:everyrow-start]', '// [sinkcheck:everyrow-end]');   // sheetevery.js, read by its own name
         const edE = drft => new Function('draft', 'document', 'NL', "'use strict';" + NL + domSrc + NL + erSrc + NL + 'return { everyRow: everyRow, everyEdit: everyEdit };')(drft, docL, NL);
         const drE = { combat: { turn: { units: [{ key: 'Watch', label: HOSTILE, secs: 14400 }, { key: '', secs: 1 }, null] } } }, E1 = edE(drE);
         const rowE = E1.everyRow({ id: 'r_x', every: { n: 3, u: 'Watch', rest: true } }), rowE0 = E1.everyRow({ id: 'r_y' }), rowEu = E1.everyRow({ id: 'r_z', every: { n: 1, u: 'shift' } });
@@ -9112,7 +9112,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('item 20 K5 what Save drops of a clock rule is said under its roll (refreshErrors, run for real): a number that is no whole 1 to 1000, no unit, a unit the Combat tab does not have (it runs by nothing, players never see it); a unit of the Combat tab in any case, a calendar unit or no rule says nothing',
             j(msgE) === j([['By the clock: every 1 to 1000 (a whole number), or Save drops it.'], ['By the clock: pick what it counts in, or Save drops it.'], ['By the clock: shift is no time unit of yours (the Combat tab\u2019s Turns box), so it runs by nothing and players never see it.'], [], [], []]), j(msgE));
         // runTimeRules (sheets.js, run for real over the real systemcore): the ticked fires run, stored, sent, redrawn and summed up per character
-        const trSrc = cutL('// [sinkcheck:timerules-start]', '// [sinkcheck:timerules-end]');
+        const trSrc = require('./checkkit').cut('sheettime.js', '// [sinkcheck:timerules-start]', '// [sinkcheck:timerules-end]');   // sheettime.js, read by its own name
         const campTR = { system: evG, chars: { c_a: { id: 'c_a', name: 'Pat', ownerId: 'u_a', values: { f_hp: { cur: 5 }, f_fp: { cur: 2 } } }, c_n: { id: 'c_n', name: 'Orc', npc: true, values: { f_fp: { cur: 1 } } }, c_f: { id: 'c_f', name: 'Full', ownerId: 'u_b', values: { f_fp: { cur: 10 } } } } }, outTR = { cards: [], deltas: [], views: [], saves: 0, renders: 0 };
         const netTR = { active: true, role: 'host', syncCharDelta: (id, v) => outTR.deltas.push([id, JSON.parse(j(v))]), timeCard: (ch, text, gm) => outTR.cards.push([ch.id, text, gm]) };
         const runTR = new Function('getActiveCampaign', 'systemOf', 'net', 'F', 'charById', 'timeRuleRun', 'gmOnlyNames', 'applyScope', 'renderViews', 'save', 'window', 'makeResolver', 'hasDice', 'figText', 'ruleRunCtx', 'chainsShallow', "'use strict';" + NL + trSrc + NL + 'return runTimeRules;')(
@@ -16117,7 +16117,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && rdA.ran === 1 && rdA.values.f_wk === wantR && rdN.ran === 0 && jr(rdN.values) === '{}', jr([tA, tN, rdA, rdN, want, wantR]));
         // runTimeRules (sheets.js, its timerules slice run for real): a run whose Rolled amount drew dice rolled them, so the flood rule says it
         const shRl = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), cutRl = (a, b) => { const i = shRl.indexOf(a), k = shRl.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('rolled slice: ' + a); return shRl.slice(i, k); };
-        const trSrcR = cutRl('// [sinkcheck:timerules-start]', '// [sinkcheck:timerules-end]');
+        const trSrcR = require('./checkkit').cut('sheettime.js', '// [sinkcheck:timerules-start]', '// [sinkcheck:timerules-end]');   // sheettime.js, read by its own name
         const runRl = (fires, D) => { const camp = { system: gmR, chars: { c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_k', values: { f_hp: { cur: 20 } } } } }, out = { cards: [], deltas: [], saves: 0 };
             const netR = { active: true, role: 'host', syncCharDelta: (id, v) => out.deltas.push([id, JSON.parse(jr(v))]), timeCard: (ch, text, gm) => out.cards.push([ch.id, text, gm]) };
             out.n = new Function('getActiveCampaign', 'systemOf', 'net', 'F', 'charById', 'timeRuleRun', 'gmOnlyNames', 'applyScope', 'renderViews', 'save', 'window', 'makeResolver', 'hasDice', 'figText', 'ruleRunCtx', 'chainsShallow', "'use strict';" + NL + trSrcR + NL + 'return runTimeRules;')(
@@ -16326,7 +16326,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const q = mk(); q.api.crossSeed(); q.api.postureSeed(q.camp); q.c.values.f_hp = { cur: 0 }; const qRuns = q.api.ruleFollow(q.c, q.camp);
         const followOk = rRuns === 1 && J(r.out.rolls) === J([['c_a', 'Death check']]) && r.out.saves.length === 0 && qRuns === 0 && q.tok.posture === 'lying-prone' && J(q.out.saves) === J([true]) && q.n.applyingRemote === false && J(q.out.sent) === J([['k', 'm1']]);
         // runTimeRules (its timerules slice run for real) asks ruleFollow once a character's run is stored, with what it wrote, after its summary
-        const trSrcV = cutV('// [sinkcheck:timerules-start]', '// [sinkcheck:timerules-end]'), seq = [];
+        const trSrcV = require('./checkkit').cut('sheettime.js', '// [sinkcheck:timerules-start]', '// [sinkcheck:timerules-end]'), seq = [];   // sheettime.js, read by its own name
         const campT = { id: 'k', system: gm, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', values: { f_hp: { cur: -9 } } }, c_b: { id: 'c_b', name: 'Bo', values: { f_hp: { cur: 5 } } } } };
         const netT = { active: true, role: 'host', syncCharDelta: () => {}, timeCard: ch => seq.push(['card', ch.id]) };
         new Function('getActiveCampaign', 'systemOf', 'net', 'F', 'charById', 'timeRuleRun', 'gmOnlyNames', 'applyScope', 'renderViews', 'save', 'window', 'makeResolver', 'hasDice', 'figText', 'ruleRunCtx', 'chainsShallow', 'ruleFollow', "'use strict';" + NLr + trSrcV + NLr + 'return runTimeRules;')(
@@ -16334,7 +16334,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             (ch, k) => seq.push(['follow', ch.id, J(ch.values.f_hp), k === campT]))([{ c: 'c_a', r: 'r_bleed', n: 1 }, { c: 'c_b', r: 'r_nothing', n: 1 }], '1 hour');
         const trOk = J(seq) === J([['card', 'c_a'], ['follow', 'c_a', J({ cur: -10 }), true]]);
         // timedHook: a round's or a turn's action stored, then ruleFollow
-        const thSrc = cutV('function timedHook(', '// [sinkcheck:timerules-start]');
+        const thSrc = require('./checkkit').cut('sheettime.js', 'function timedHook(', '// [sinkcheck:timerules-start]');   // sheettime.js, read by its own name
         const thOk = /renderViews\(c\.id\); done\+\+;\n        if \(typeof ruleFollow === 'function'\) ruleFollow\(c, camp\);/.test(thSrc);
         check('the review of folds 4a and 6b (1.5.9): postureSeed notes at the load\'s redraw what the posture rule last saw, once a character, never on a player\'s app nor in a system with no effect that sets a posture, so the first change after a load that brings Down on lays the token prone; crossSeed reads a value in its token\'s context as crossFollow does, so a pool whose most reads CombatRound crosses nothing at its first look; ruleFollow runs a death check for a bleed from -9 to -10 and lays a token down for an effect it brought on, saved outside the GM\'s undo with its map sent; runTimeRules asks it once a character\'s run is stored, after its summary, and never for a character it wrote nothing for; timedHook asks it after a round\'s or a turn\'s action is stored',
             seedOk && ctxOk && followOk && trOk && thOk, J([seedOk, pSeed, pAgain, pMaps, p.tok, pNone, pClN, ctxOk, xRuns, x.out, followOk, rRuns, r.out, qRuns, q.tok, q.out, trOk, seq, thOk]));
@@ -16473,7 +16473,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             seedX === 1 && x1 === 0 && x2 === 1 && J(cX.values.f_loc) === J(h1.values.f_loc) && J(storedX) === J([['c_a', ['f_loc']]]) && J(cardsX) === J([['c_a', 'Full again', [{ f: 'f_loc', n: 'Locations: Crippled (4 rows)', d: 0, v: 0, all: 4, k: 'Cripd', set: true }], 'owner']]),
             J([seedX, x1, x2, cX.values.f_loc, storedX, cardsX]));
         // the summary of a time rule, the card on the wire and the editor
-        const rmApi = new Function('makeResolver', 'F', 'figText', shY.slice(shY.indexOf('function ruleReads('), shY.indexOf('function ruleDice(')) + '\nreturn { ruleMoves: ruleMoves, ruleLineWords: ruleLineWords };')(S.makeResolver, () => F, S.figText);
+        const rmApi = new Function('makeResolver', 'F', 'figText', require('./checkkit').cut('sheettime.js', 'function ruleReads(', 'function ruleDice(') + '\nreturn { ruleMoves: ruleMoves, ruleLineWords: ruleLineWords };')(S.makeResolver, () => F, S.figText);
         const mvA = rmApi.ruleMoves(gA, chA, ['f_loc'], {}, null, t1.lines);
         const cardA = { type: 'apply', id: 'r_x', from: { id: 'u', name: 'U', gm: false }, lines: [{ n: 'Locations: Crippled (4 rows)', s: 1, v: 0 }, { n: 'Locations: Crippled (4 rows)', d: 2 }], ts: 1 };
         const ceApi = new Function('draft', shY.slice(shY.indexOf('function allRowTargets('), shY.indexOf('function applyChangeOf(')) + '\nreturn { allRowTargets: allRowTargets, allRowValue: allRowValue, setChangeTarget: setChangeTarget };')({ fields: rawA.fields });
@@ -16556,7 +16556,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             J([dnoD, sv(dD), dD.lines, nr1, nr2.onValues]));
         const t2 = S.timeRuleRun(gR, chR, rR('r_t'), 2, F), t3 = S.timeRuleRun(gR, chR, rR('r_ts'), 1, F);
         const shR = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
-        const rmR = new Function('makeResolver', 'F', 'figText', shR.slice(shR.indexOf('function ruleReads('), shR.indexOf('function ruleDice(')) + '\nreturn { ruleMoves: ruleMoves, ruleLineWords: ruleLineWords };')(S.makeResolver, () => F, S.figText);
+        const rmR = new Function('makeResolver', 'F', 'figText', require('./checkkit').cut('sheettime.js', 'function ruleReads(', 'function ruleDice(') + '\nreturn { ruleMoves: ruleMoves, ruleLineWords: ruleLineWords };')(S.makeResolver, () => F, S.figText);
         check("1.6.0 every row of a list worked out row by row by the clock (timeRuleRun, ruleMoves, ruleLineWords): two runs of Add Row.Wt move each row twice by its own Weight and add up as one line that says the figure differs by row; a Set worked out row by row to the same figure says it; a time rule's summary says moved row by row, set row by row, or the figure",
             t2.ran === 2 && sv(t2) === 'w_a:7 w_l:8 w_o:10 w_h:- w_z:1' && J(t2.lines) === J([{ f: 'f_loc', n: 'Locations: Severity (3 rows)', d: 0, v: 0, all: 3, k: 'Sev', vary: true }])
             && J(t3.lines) === J([{ f: 'f_loc', n: 'Locations: Severity (4 rows)', d: 0, v: 0, all: 4, k: 'Sev', set: true }]) && J(rmR.ruleMoves(gR, chR, ['f_loc'], {}, null, t2.lines)) === J(t2.lines)
@@ -17509,7 +17509,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && J(w.rec.applied) === J([['Hunger', 'c_a', at1, J({ step: 1, n: 2 })], ['Hunger', 'c_a', at1, J({ step: 2, n: 2 })], ['Hunger', 'c_a', at1, J({ step: 3, n: 2 })], ['Hunger', 'c_a', at1, J({ step: 4, n: 2 })], ['Hunger', 'c_a', at2, J({ step: 4, n: 1 })]])
             && J(w.rec.rolls) === J([['c_a', '3d6', 'Check', J({ row: { f: 'f_g', r: 'w_1', i: 1 }, cross: { step: 1, n: 1 } })]]);   // 1.6.0: each run with its CrossStep and Crossed (moved on purpose)
         const off = mk({ off: true }); off.api.crossSeed(); const rOff = off.days(3);
-        const edOk = shX.includes('function listCrossRow(rr, ri, cts) {') && shX.includes("if (c.indexOf('sys-list-xsct') >= 0) { if (t.value) rr.cross = Object.assign({ dir: 'up', at: '1', step: '1', count: 20 }, cr || {}, { ct: t.value }); else delete rr.cross; return 'all'; }")
+        const edOk = require('./checkkit').part('sheetevery.js').includes('function listCrossRow(rr, ri, cts) {') && require('./checkkit').part('sheetevery.js').includes("if (c.indexOf('sys-list-xsct') >= 0) { if (t.value) rr.cross = Object.assign({ dir: 'up', at: '1', step: '1', count: 20 }, cr || {}, { ct: t.value }); else delete rr.cross; return 'all'; }")
             && shX.includes("else if (lcc.indexOf('sys-list-xs') >= 0) {") && shX.includes("else if (c.indexOf('sys-list-xs') >= 0) {");
         check('1.6.0 a list\'s roll or action that runs when a row\'s counter crosses a step (cross.ct: the campaign build, a per-period cost as days go by): the cleaner keeps it in the GM\'s view alone, on a counter of the list spelled as the list spells it, with its first step, steps, count and Once, never By, and drops one on no counter or with no first step; the validator reads its steps with the row\'s names; the follower (sheets.js crossSeed and crossFollow, run for real with the real resolver) notes each row\'s counter at first sight, a new row too, runs an action on its row through applyAction and a roll through the dice with the row named, once per step passed or once in all with Once, the steps read with the row\'s own names, and runs nothing for an NPC whose rules are switched off; the Lists card\'s row and its handlers',
             clOk && runOk && rOff >= 0 && off.rec.applied.length === 0 && off.rec.rolls.length === 0 && edOk, J([clOk, seeded, [r1, r2, r3, r4, r5], w.rec, rOff, off.rec, edOk]));

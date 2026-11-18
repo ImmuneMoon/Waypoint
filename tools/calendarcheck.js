@@ -1005,7 +1005,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                 { id: 'r_gl', label: 'Glow', apply: [{ f: 'f_lm', formula: '1', add: true }], needs: 'PP > 2', every: { n: 1, u: 'hour', whileNeeds: true } },
                 { id: 'r_rs', label: 'Dream', apply: [{ f: 'f_lm', formula: '1', add: true }], needs: 'Asleep', every: { n: 1, u: 'hour', rest: true, whileNeeds: true } }] };
         const sysE = S.cleanSystem(rawE, { F, gmView: true }), RE = id => sysE.rolls.find(r => r.id === id), sysOfE = ids => Object.assign({}, sysE, { rolls: ids.map(RE) });
-        const shE = read('system/app/scripts/sheets.js'), trA = shE.indexOf('// [sinkcheck:timerules-start]'), trB = shE.indexOf('// [sinkcheck:timerules-end]'), trSrcE = trA >= 0 && trB > trA ? shE.slice(trA, trB) : '';
+        const shE = require('./checkkit').part('sheettime.js'), trA = shE.indexOf('// [sinkcheck:timerules-start]'), trB = shE.indexOf('// [sinkcheck:timerules-end]'), trSrcE = trA >= 0 && trB > trA ? shE.slice(trA, trB) : '';
         const napE = h => ({ id: 'n' + h, ref: 'e_nap', on: true, t: { left: h * 3600, at: 0 } }), dockE = h => ({ id: 'd' + h, ref: 'e_dock', on: true, t: { left: h * 3600, at: 0 } });
         const mkE = (sys, chars, tr, more) => {   // the window with the real runs behind it
             const H = mkH(sys, tr, chars, more), camp = H.camp, cards = [];

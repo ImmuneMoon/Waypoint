@@ -16,7 +16,8 @@
      answers) is caught by the exit guard both giants have: it prints a failure and exits 1.
    - joined(name): a script's text as srcjoin answers it (a split root's joined text), with CRLF read as LF.
    - part(name): a part's own text, read by its name (srcjoin.raw), with CRLF read as LF. It throws for a file that is not a part, so
-     a test that says it reads a part really does.
+     a test that says it reads a part really does. cut(name, a, b): that text from a up to the first b after it, as a suite's own
+     slicer of the joined sheets.js cut it before the lines moved into the part.
    - netSlices(who): the slice helpers netcheck has at its top, over the joined net.js, each also able to read a part by name:
      between(a, b, label, file), tryBetween(a, b, file), fnSrc(start, end, label, file), range(file, a, b) (the text from a up to b,
      both in the part) and lineOf(k). A call that names a part's file reads that part; one that names none reads the joined net.js.
@@ -54,6 +55,13 @@ function joined(name) { return lf(fs.readFileSync(path.join(SCRIPTS, name), 'utf
 function part(name) {
     if (!srcjoin.isPart(name)) throw new Error('checkkit: ' + name + ' is not a part of a split script');
     return lf(srcjoin.raw(path.join(SCRIPTS, name), 'utf8'));
+}
+// The text of a part read by its name, from a (included) up to b (not included, the first b after a): what each suite's own sheets.js
+// slicer (cutL, cutN, cutV and their kin) cuts from the joined text, cut instead from the part that now holds both anchors.
+function cut(name, a, b) {
+    const t = part(name), i = t.indexOf(a), k = t.indexOf(b, i + 1);
+    if (i < 0 || k < 0) throw new Error('checkkit: ' + a + ' to ' + b + ' not found in ' + name);
+    return t.slice(i, k);
 }
 
 // netcheck's slice helpers. Each takes the text it cuts by the file it names: a part by its name, else the joined net.js.
@@ -105,4 +113,4 @@ function fresh(root, tag) {
     return name => u.slice(0, u.lastIndexOf('/') + 1) + name;
 }
 
-module.exports = { suite, joined, part, netSlices, packCheck, url, fresh, APP, SCRIPTS, lf };
+module.exports = { suite, joined, part, cut, netSlices, packCheck, url, fresh, APP, SCRIPTS, lf };

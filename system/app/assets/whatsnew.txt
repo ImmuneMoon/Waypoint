@@ -104,6 +104,22 @@ Defending with a row
   clock rule or a crossing set on it has to go, since none of those
   would know which weapon to use.
 
+What a successful defense does
+- A defense can do more than stop an attack now. Under Resists an
+  attempt there's When it answers an attack, a few short lines that each
+  have an If and a Then. A parry with a light blade can let half a heavy
+  blow through, for instance, and the first line that holds is the one
+  that counts.
+- A line can let the parrying row take the blow first, or stop part of a
+  burst and let the rest land. It can also change the type the blow
+  lands as.
+- A line can test the weapon that parried, or the one that was parried.
+  The new Attacks and defenses topic on the Combat tab says how that test
+  is made, as a card for its owner or rolled at once, and lists every
+  rule as a sentence you can press to open its roll.
+- A line attack where each one resists reads the lines too, so a dodge
+  that succeeds can still take half.
+
 Smaller things
 - The game clock in the top row shows seconds for the GM. The clock still
   moves the campaign by whole minutes, so you'll see 14:03:27 count up to

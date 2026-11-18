@@ -10595,9 +10595,9 @@ function handleMessage(msg, conn) {
         if (recQ.dmg !== 1 && chQ && typeof bodySwitch === 'function' && bodySwitch(campQ, chQ.id, recQ, resQ, Dq, mfQ, tcQ && tcQ.range, function() { return rangeReadBy(SQ, viewQ, chvQ, Fq, tcQ, q.expr, q.row && q.row.k ? q.row : null, 'bodyRead'); })) tcQ = bodyAim(tcQ, recQ);   // 1.6.2: a miss within a body's cover hits the body, a full hit aimed at it
         var hsQ = typeof holdsSqueeze === 'function' && chQ && typeof SQ.holdRefOf === 'function' ? holdsSqueeze(campQ, chQ, holdRefQ(campQ, q, actQ), recQ, Dq) : null;   // 1.6.0 Who holds whom: a squeeze lands on each held character, with no attack and no resist
         var hdQ = !!(blowRecQ && typeof figAnswers === 'function' && figAnswers(blowRecQ, q.expr, Fq)); if (hdQ) figMark(recQ, resQ, Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : ''), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, Dq, Fq);   // 1.6.2: a roll answering an attempt whose figure is hidden: what leaves here is its copy
-        if (tgQ) { recQ.priv = 'gm'; var stQ = { type: 'roll', id: recQ.id, from: recQ.from, expr: '0', draws: [], v: recQ.v, ts: recQ.ts, rid: q.rid, hid: 'gm', priv: 'gm' }; if (recQ.label) stQ.label = recQ.label; if (recQ.as) stQ.as = recQ.as; try { conn.send(stQ); } catch (e) { sendFailed(e); } if (typeof toGmKeep === 'function') toGmKeep(recQ.id, { wait: tgQ === 'wait', crit: (function() { var tvQ = Dq.verdictOf(resQ, ruleQ), tmQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ; return tmQ || (typeof SQ.thenCrit === 'function' && SQ.thenCrit(tvQ, tmQ) === 'fumble') ? 'fumble' : ''; })(), S: SQ, D: Dq, F: Fq, camp: campQ, ch: chQ, q: q, view: viewQ, act: actQ, res: resQ, rule: ruleQ, mf: mfQ, vars: varsQ, tc: tcQ, big: recQ.big === true, band: recQ.band, label: recQ.label || '', as: recQ.as, from: recQ.from, expr: q.expr }); if (cvQ) recQ.hit = cvQ.row; if (lndQ && lndQ.thru) recQ.thru = lndQ.thru; if (onLQ) recQ.onName = onLQ.name; pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }   // HR1: its roller gets a card that says only it went; the GM gets the roll
-         else if (q.priv) { recQ.priv = 'gm'; try { conn.send(onLQ && typeof landCopy === 'function' ? landCopy(hdQ ? figOf(recQ) : recQ, onLQ, net.roster[conn.peer], campQ) : hdQ ? figOf(recQ) : recQ); } catch (e) { sendFailed(e); } if (cvQ) recQ.hit = cvQ.row; if (lndQ && lndQ.thru) recQ.thru = lndQ.thru; if (onLQ) recQ.onName = onLQ.name; pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }   // cvQ: the card's Apply to target, the GM's own: past the table's copy, as the row may be one players do not see
-        else { if (onLQ && typeof sendTableAs === 'function') { try { conn.send(typeof landCopy === 'function' ? landCopy(hdQ ? figOf(recQ) : recQ, onLQ, net.roster[conn.peer], campQ) : hdQ ? figOf(recQ) : recQ); } catch (e) { sendFailed(e); } sendTableAs(recQ, chQ, onLQ, conn); } else sendTable(hdQ ? figOf(recQ) : recQ, null); if (cvQ) recQ.hit = cvQ.row; if (lndQ && lndQ.thru) recQ.thru = lndQ.thru; if (onLQ) recQ.onName = onLQ.name; pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
+        if (tgQ) { recQ.priv = 'gm'; var stQ = { type: 'roll', id: recQ.id, from: recQ.from, expr: '0', draws: [], v: recQ.v, ts: recQ.ts, rid: q.rid, hid: 'gm', priv: 'gm' }; if (recQ.label) stQ.label = recQ.label; if (recQ.as) stQ.as = recQ.as; try { conn.send(stQ); } catch (e) { sendFailed(e); } if (typeof toGmKeep === 'function') toGmKeep(recQ.id, { wait: tgQ === 'wait', crit: (function() { var tvQ = Dq.verdictOf(resQ, ruleQ), tmQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ; return tmQ || (typeof SQ.thenCrit === 'function' && SQ.thenCrit(tvQ, tmQ) === 'fumble') ? 'fumble' : ''; })(), S: SQ, D: Dq, F: Fq, camp: campQ, ch: chQ, q: q, view: viewQ, act: actQ, res: resQ, rule: ruleQ, mf: mfQ, vars: varsQ, tc: tcQ, big: recQ.big === true, band: recQ.band, label: recQ.label || '', as: recQ.as, from: recQ.from, expr: q.expr }); if (cvQ) recQ.hit = cvQ.row; if (lndQ && lndQ.thru) recQ.thru = lndQ.thru; if (lndQ && typeof ansStampLand === 'function') ansStampLand(campQ, recQ, resQ, lndQ); if (onLQ) recQ.onName = onLQ.name; pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }   // HR1: its roller gets a card that says only it went; the GM gets the roll
+         else if (q.priv) { recQ.priv = 'gm'; try { conn.send(onLQ && typeof landCopy === 'function' ? landCopy(hdQ ? figOf(recQ) : recQ, onLQ, net.roster[conn.peer], campQ) : hdQ ? figOf(recQ) : recQ); } catch (e) { sendFailed(e); } if (cvQ) recQ.hit = cvQ.row; if (lndQ && lndQ.thru) recQ.thru = lndQ.thru; if (lndQ && typeof ansStampLand === 'function') ansStampLand(campQ, recQ, resQ, lndQ); if (onLQ) recQ.onName = onLQ.name; pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }   // cvQ: the card's Apply to target, the GM's own: past the table's copy, as the row may be one players do not see
+        else { if (onLQ && typeof sendTableAs === 'function') { try { conn.send(typeof landCopy === 'function' ? landCopy(hdQ ? figOf(recQ) : recQ, onLQ, net.roster[conn.peer], campQ) : hdQ ? figOf(recQ) : recQ); } catch (e) { sendFailed(e); } sendTableAs(recQ, chQ, onLQ, conn); } else sendTable(hdQ ? figOf(recQ) : recQ, null); if (cvQ) recQ.hit = cvQ.row; if (lndQ && lndQ.thru) recQ.thru = lndQ.thru; if (lndQ && typeof ansStampLand === 'function') ansStampLand(campQ, recQ, resQ, lndQ); if (onLQ) recQ.onName = onLQ.name; pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
         if (hsQ) hsQ.forEach(function(rxQ) { if (q.priv) { rxQ.priv = 'gm'; try { conn.send(rxQ); } catch (e) { sendFailed(e); } pushRoll(rxQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); } else { sendTable(rxQ, null); pushRoll(rxQ, resQ, 'global', { cid: chQ ? q.charId : '' }); } });
         var ruleQ = Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : '');   // Stage 6 F8: the system's roll outcomes (1.6.0: or the record's own critical range)
         logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars, rule: ruleQ }), { w: recQ.as || (recQ.from && recQ.from.name) || '', h: !!recQ.priv });
@@ -10606,7 +10606,8 @@ function handleMessage(msg, conn) {
         var atQ = ''; if (actQ && !actQ.area && actQ.resisted === true && chQ && typeof attemptMake === 'function') atQ = attemptMake(campQ, attemptEntry(campQ.system, q, actQ), Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, tcQ && tcQ.range, chQ, !!recQ.priv, varsQ, q.row || q.with);   // 1.6.0 (B2): a success against their target that it resists
         var lrwQ = actQ && chQ && !actQ.area && !lndQ && typeof landRowNow === 'function' ? landRowNow(chQ, q.row || q.with) : null;   // 1.6.3 (the review of defense fold 1): the attacking row as it stands before the Then, kept only for a Then that uses the row up
         if (actQ && actQ.area && chQ && typeof areaAfter === 'function') areaAfter(campQ, areaEntry(campQ.system, q, actQ), Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, q.aim, chQ, !!recQ.priv, varsQ, q.row, mapQ, mapQ ? SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ) : null, recQ.from);   // 1.6.0: a line
-        if (blowRecQ && blowRecQ.area && typeof areaAnswered === 'function') { var arvQ = Dq.verdictOf(resQ, ruleQ); areaAnswered(campQ, blowRecQ.area, !!arvQ && arvQ.kind === 'check' && arvQ.pass === true && !(mfQ !== null && Dq.naturalOf(resQ) >= mfQ)); }   // 1.6.0: a resist against a line
+        var ansQ = typeof ansFrom === 'function' ? ansFrom(campQ, blowRecQ, q.act, rowGQ || (q.with ? { f: q.with.f, r: q.with.r } : null), chQ, tcQ, Dq, resQ, ruleQ, mfQ, recQ.big === true) : undefined;   // 1.6.3 (defense fold 3): the line of When it answers an attack this defense's success is judged by, once
+        if (blowRecQ && blowRecQ.area && typeof areaAnswered === 'function') { var arvQ = Dq.verdictOf(resQ, ruleQ); areaAnswered(campQ, blowRecQ.area, !!arvQ && arvQ.kind === 'check' && arvQ.pass === true && !(mfQ !== null && Dq.naturalOf(resQ) >= mfQ), ansQ); }   // 1.6.0: a resist against a line
         if (blowRecQ && blowRecQ.defend && typeof window.wpBlastDefended === 'function') { var dfvQ = Dq.verdictOf(resQ, ruleQ); window.wpBlastDefended(blowRecQ.defend, !!dfvQ && dfvQ.kind === 'check' && dfvQ.pass === true && !(mfQ !== null && Dq.naturalOf(resQ) >= mfQ)); }   // 1.6.0: a blast's own Defense roll
         if (blowRecQ && typeof blowCrip === 'function') blowCripWrite(blowCrip(campQ, blowRecQ, Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, Dq.naturalOf(resQ)), saveRemoteSoon);   // 1.6.0 (the core's gap 7): a failed roll of a blow cripples the location struck
         if (actQ && actQ.init === true && typeof initIntoFight === 'function') initIntoFight(campQ, locQ, q.charId, pidQ, resQ.value);   // initiative O1: their own initiative roll into the fight on their map, once
@@ -10627,7 +10628,7 @@ function handleMessage(msg, conn) {
         if (chQ && actQ && tgQ !== 'wait' && Array.isArray(actQ.thenGm) && actQ.thenGm.length && typeof thenGmRun === 'function') { var mfGQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ, vdGQ = Dq.verdictOf(resQ, ruleQ); thenGmRun(campQ, chQ, q, viewQ, actQ, { cr: typeof SQ.thenCrit === 'function' ? SQ.thenCrit(vdGQ, mfGQ) : '', mf: mfGQ, vd: vdGQ, big: recQ.big === true, res: resQ, band: recQ.band, tc: tcQ, D: Dq, F: Fq, label: recQ.label }); }   // 1.6.2: the Then's steps the players' view could not hold, run here alone, also where it held none of them
         if (actQ && typeof sceneKeep === 'function') sceneKeep(campQ, actQ, resQ, tcQ);
         if (chQ && actQ && typeof boxTryAfter === 'function' && typeof _boxTries !== 'undefined' && _boxTries[conn.peer]) { var vbQ = Dq.verdictOf(resQ, ruleQ), mbQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ; boxTryAfter(conn, q.charId, q.act, mbQ ? false : recQ.body === 1 ? true : vbQ && vbQ.kind === 'check' ? vbQ.pass === true : null, atQ); }   // 1.6.2 (backlog 42, fold 2b): a try at a container's lock   // 1.6.2 Kept for the scene
-        if (chQ && (actQ || blowRecQ) && typeof callsAfter === 'function') { var vcQ = Dq.verdictOf(resQ, ruleQ), pcQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ ? false : recQ.body === 1 ? true : vcQ && vcQ.kind === 'check' ? vcQ.pass === true : null; if (actQ) callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ, typeof onQ !== 'undefined' && onQ ? onQ.ch : chQ, !!recQ.priv, q.row || (q.with ? { f: q.with.f, r: q.with.r } : q.row), recQ.big === true, tcQ, chQ); attemptCalled(campQ, blowRecQ, q.act, rowGQ || (q.with ? { f: q.with.f, r: q.with.r } : rowGQ), pcQ, chQ, !!recQ.priv, tcQ);   /* 1.6.3 (defense fold 2): a roll answered with a row hands its row on, with no place among a list's rolls, so a call reads it and a call to a roll of that list lands there */ if (typeof holdsRolled === 'function' && typeof SQ.holdRefOf === 'function') holdsRolled(campQ, chQ, actQ, holdRefQ(campQ, q, actQ), pcQ, tcQ, blowRecQ, atQ); if (typeof stealRolled === 'function') stealRolled(campQ, pcQ, blowRecQ); }   // 1.6.0: Calls for, with its Then landed; Who holds whom
+        if (chQ && (actQ || blowRecQ) && typeof callsAfter === 'function') { var vcQ = Dq.verdictOf(resQ, ruleQ), pcQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ ? false : recQ.body === 1 ? true : vcQ && vcQ.kind === 'check' ? vcQ.pass === true : null; if (actQ) callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ, typeof onQ !== 'undefined' && onQ ? onQ.ch : chQ, !!recQ.priv, q.row || (q.with ? { f: q.with.f, r: q.with.r } : q.row), recQ.big === true, tcQ, chQ); attemptCalled(campQ, blowRecQ, q.act, rowGQ || (q.with ? { f: q.with.f, r: q.with.r } : rowGQ), pcQ, chQ, !!recQ.priv, tcQ, ansQ);   /* 1.6.3 (defense fold 2): a roll answered with a row hands its row on, with no place among a list's rolls, so a call reads it and a call to a roll of that list lands there */ if (typeof holdsRolled === 'function' && typeof SQ.holdRefOf === 'function') holdsRolled(campQ, chQ, actQ, holdRefQ(campQ, q, actQ), pcQ, tcQ, blowRecQ, atQ); if (typeof stealRolled === 'function') stealRolled(campQ, pcQ, blowRecQ); }   // 1.6.0: Calls for, with its Then landed; Who holds whom
         if (actQ && actQ.burst && q.row && typeof burstAfter === 'function') burstAfter(campQ, chQ, actQ, q.row, resQ, ruleQ, mfQ !== null && Dq.naturalOf(resQ) >= mfQ, typeof taQ !== 'undefined' ? taQ : null, tcQ, saveRemoteSoon);   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
         if (actQ && chQ && !actQ.area && !lndQ && typeof landAfter === 'function') { var lvQ = Dq.verdictOf(resQ, ruleQ); landAfter(campQ, cardEnt(campQ, q.act, rowGQ, null), !(mfQ !== null && Dq.naturalOf(resQ) >= mfQ) && (recQ.body === 1 || (!!lvQ && lvQ.kind === 'check' && lvQ.pass === true)), tcQ, chQ, !!recQ.priv, q.row || q.with, atQ, recQ.from, q.hit, recQ.big === true, lrwQ); }   /* 1.6.3 (the review of defense fold 2, finding 10): a defense answered with a row that is itself an attack, or carries its damage, names that row (Attempter.Row.*, its kind, the landing's row) */   // 1.6.3 (defense fold 1): an attack that names Its damage lands, or waits for its defense. The review of that fold: made last, after its Then and its burst, so the row it keeps (and a damage rolled at once) reads the round this very shot fired and the burst's marks
         };
@@ -12043,7 +12044,9 @@ net.postDue = function(ch, act, kind, round, toOwner, more) {   // more (1.6.0, 
     if (rec.why === 'resist' && more.nm === true && Array.isArray(rec.or) && rec.or.length) { rec.nm = 1; rec.label = String(rec.or[0].label || rec.label).slice(0, 60); }   // 1.6.0: only those rows: its own roll's needs fail against this kind
     if ((rec.why === 'resist' || rec.why === 'called') && more && more.lnd === true) { rec.lnd = 1; if (rec.why === 'called') { if (typeof more.on === 'string' && more.on) rec.on = more.on.slice(0, 60); if (more.now === true) rec.now = 1; } }   // 1.6.3 (defense fold 1): a defense card of an attack that carries its damage (Take it), and a landed attack's damage card, with whom it landed on and the GM's Roll it now
     if (!Array.isArray(act.apply)) { rec.roll = 1; if (rec.label === 'Apply') rec.label = String(act.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll'; }   // 1.5.9 (book es/et plan 4b): a roll that is due; its card's button rolls it
-    postDue(rec, ch, !!toOwner, rec.why === 'called' && rec.lnd === 1 && more && typeof more.onGm === 'string' && more.onGm ? { on: more.onGm.slice(0, 60) } : null);   // 1.6.3 (the review of defense fold 1): onGm, the GM's own copy's
+    var gmXd = rec.why === 'called' && rec.lnd === 1 && more && typeof more.onGm === 'string' && more.onGm ? { on: more.onGm.slice(0, 60) } : null;   // 1.6.3 (the review of defense fold 1): onGm, the GM's own copy's
+    if (rec.why === 'called' && more && more.tnow === true && rec.att) gmXd = Object.assign(gmXd || {}, { tnow: 1 });   // 1.6.3 (defense fold 3): a weapon test under Both: the GM's copy alone offers Roll it now
+    postDue(rec, ch, !!toOwner, gmXd);
 };
 // 1.6.0 (the core's gap 8): a blast's share a character rolls of its own (the Combat tab's eachBy 'victim'): its card, the record's id and
 // words alone (whiteboard.js keeps the dice), to the character's player where toOwner, else the GM's
@@ -12243,7 +12246,7 @@ function attemptMake(camp, entry, vd, malf, range, fromCh, priv, vars, rowRef) {
         if (noMain || !cOk(rr)) { if (alts.length) { rr = alts.shift(); noMain = false; } else if (withsA.length) noMain = true; else { if (window.wpStepLog) window.wpStepLog('attempt v1', 'crit unanswered', {}); return null; } }
     }
     var hdA = typeof S.hideFigOn === 'function' && S.hideFigOn(camp.system, fromCh);   // 1.6.2: its figure is hidden, on the host's own record
-    _attempts[id] = { charId: tch.id, act: noMain ? '' : rr.id, m: m }; if (hdA) _attempts[id].hide = true; if (range.area) _attempts[id].area = range.area; if (kindOn) { _attempts[id].k = kindA.k; if (typeof kindA.t === 'number') _attempts[id].t = kindA.t; if (priv) _attempts[id].kp = true; } if (rdA) { _attempts[id].rd = rdA; if (priv) _attempts[id].kp = true; } if (alts.length) _attempts[id].alts = alts.map(function(r) { return r.id; }); if (rowsA.length) _attempts[id].rows = rowsA.map(function(x) { return x.f + '#' + x.i + '#' + x.r; }); if (withsA.length) _attempts[id].withs = withsA.map(function(x) { return x.act + '#' + x.f + '#' + x.r; }); _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
+    _attempts[id] = { charId: tch.id, act: noMain ? '' : rr.id, m: m, atk: 1 }; if (fromCh && typeof fromCh.id === 'string') _attempts[id].atkBy = fromCh.id; if (rowRef && typeof rowRef.f === 'string' && typeof rowRef.r === 'string') _attempts[id].atkRow = { f: rowRef.f, r: rowRef.r }; if (priv) _attempts[id].atkPriv = true; if (hdA) _attempts[id].hide = true;   /* 1.6.3 (defense fold 3): atk, an attack's attempt, whose defense reads the lines of When it answers an attack (ansPick); atkBy and atkRow, who made it and from which row, where a line tests the attacking weapon */ if (range.area) _attempts[id].area = range.area; if (kindOn) { _attempts[id].k = kindA.k; if (typeof kindA.t === 'number') _attempts[id].t = kindA.t; if (priv) _attempts[id].kp = true; } if (rdA) { _attempts[id].rd = rdA; if (priv) _attempts[id].kp = true; } if (alts.length) _attempts[id].alts = alts.map(function(r) { return r.id; }); if (rowsA.length) _attempts[id].rows = rowsA.map(function(x) { return x.f + '#' + x.i + '#' + x.r; }); if (withsA.length) _attempts[id].withs = withsA.map(function(x) { return x.act + '#' + x.f + '#' + x.r; }); _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
     var csA = vars && typeof S.callsDue === 'function' ? S.callsDue(entry, 'resisted', vars, window.wpFormula) : []; if (csA.length) { _attempts[id].calls = csA.map(function(c) { var cK = { roll: c.roll, by: c.by || '' }; if (c.byIf) cK.byIf = c.byIf; if (c.to === 'self') cK.to = 'self'; if (c.crew) cK.crew = c.crew; if (c.on) cK.on = c.on; return cK; }); _attempts[id].callBy = callName(entry); if (fromCh && typeof fromCh.id === 'string') { _attempts[id].callFrom = fromCh.id; if (typeof tokNameOf === 'function') _attempts[id].callFromName = tokNameOf(camp, range && range.mapId, fromCh); } if (rowRef && typeof rowRef.f === 'string' && typeof rowRef.r === 'string') _attempts[id].callRow = { f: rowRef.f, r: rowRef.r }; if (priv) _attempts[id].callPriv = true; }   // 1.6.0: Calls for, waiting for the target's roll   // 1.6.2: and who made it, on which row, for a call to the roller
     if (typeof net.postDue === 'function') net.postDue(tch, rr, 'resist', 1, toO, { att: id, by: fromCh && fromCh.name ? (toO && typeof npcByOf === 'function' ? npcByOf(camp, fromCh, tch.ownerId) : fromCh.name) : '', m: hdA && toO ? undefined : m, or: alts, rows: rowsA, withs: withsA, nm: noMain, kn: kindOn && !priv ? attKindWord(camp, entry, fromCh, rowRef) : '', lnd: entry.landDmg !== undefined && typeof landDmgOf === 'function' && !!landDmgOf(camp, { dmg: entry.landDmg, row: rowRef && typeof rowRef.f === 'string' && typeof rowRef.r === 'string' ? { f: rowRef.f, r: rowRef.r } : null }) });   // 1.6.3 (the review of defense fold 1): Take it only where a landing will be made: its damage roll is there (landAfter's own test)
     return id;
@@ -12410,7 +12413,7 @@ function callEntry(sys, q, act) {   // the whole entry behind what a player's vi
 // 1.6.2: a list's roll posted on one row of the character the card is for: that list's roll, on a row it holds that its player may see, while the
 // roll's needs hold on that row. The card's one button is that row's, at the place the press will name it (a player's own view may stand lower), and
 // its record names that row alone, so the press passes as an answer (attemptPeek) and nothing else does
-function callPostRow(camp, ref, ch, by, priv, row, big, land) {   // land (1.6.3): where its damage lands, as callLand says
+function callPostRow(camp, ref, ch, by, priv, row, big, land, tnow) {   // land (1.6.3): where its damage lands, as callLand says; tnow (1.6.3, defense fold 3): a weapon test under the Combat tab's Both, whose GM copy offers Roll it now (net.testNow)
     var S = SC(), Fc = window.wpFormula; if (!S || !Fc || !row || typeof row.r !== 'string' || row.f !== ref.f) return false;
     var f = null; (Array.isArray(camp.system.fields) ? camp.system.fields : []).forEach(function(x) { if (x && x.id === ref.f && x.kind === 'item-list' && x.list && Array.isArray(x.list.rolls)) f = x; }); if (!f) return false;
     var lr = f.list.rolls[ref.i]; if (!lr || typeof lr.formula !== 'string' || !lr.formula || lr.apply) return false;
@@ -12426,12 +12429,13 @@ function callPostRow(camp, ref, ch, by, priv, row, big, land) {   // land (1.6.3
     if (typeof net.blowMake !== 'function' || typeof net.postDue !== 'function') return false;
     var dmC = lr.dmg === true && callHard(land, ch), id = net.blowMake(ch, 'r_row', {}, '', '', null, !dmC); if (!id) return false; _attempts[id].rows = [f.id + '#' + ri + '#' + row.r]; if (big === true) _attempts[id].big = true; if (dmC) callKeep(id, land, ch, by);   // 1.6.3: a damage roll that lands on someone else has a hard record that says where
     var lb = String(lr.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll';
-    net.postDue(ch, { id: 'r_row', label: lb }, 'called', 1, toO, { att: id, by: by, row: { f: f.id, r: row.r, i: ri }, label: lb }); return true;
+    if (tnow === true) _attempts[id].tst = { f: f.id, r: row.r, i: ref.i, priv: !!priv };   // what the GM's Roll it now rolls: the roll by its place on the GM's own list
+    net.postDue(ch, { id: 'r_row', label: lb }, 'called', 1, toO, { att: id, by: by, row: { f: f.id, r: row.r, i: ri }, label: lb, tnow: tnow === true && toO }); return true;
 }
 // big (1.6.2): the attack that called it landed as a heavy hit; kept on the card's record, so a damage roll made with it is a Major Wound if it injures at all
-function callPost(camp, rollId, ch, by, priv, row, big, land) {   // row (1.6.2): the row a list's roll it names is posted on; land (1.6.3): where its damage lands, as callLand says
+function callPost(camp, rollId, ch, by, priv, row, big, land, tnow) {   // row (1.6.2): the row a list's roll it names is posted on; land (1.6.3): where its damage lands, as callLand says; tnow (1.6.3, defense fold 3): a weapon test whose GM copy offers Roll it now
     var S = SC(), Fc = window.wpFormula; if (!S || !Fc || !camp || !camp.system || !ch || typeof ch.id !== 'string') return false;
-    var lref = typeof S.listRollRef === 'function' ? S.listRollRef(rollId) : null; if (lref) return callPostRow(camp, lref, ch, by, priv, row, big, land);
+    var lref = typeof S.listRollRef === 'function' ? S.listRollRef(rollId) : null; if (lref) return callPostRow(camp, lref, ch, by, priv, row, big, land, tnow);
     var rr = null; (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === rollId && (Array.isArray(r.apply) || typeof r.formula === 'string')) rr = r; }); if (!rr) return false;
     if (withRowNo(rr, 'Calls for')) return false;   // 1.6.3 (the review of defense fold 2, finding 3): made only from a defense card, with a row
     if (rr.needs || rr.needsWhy) { var cv = null; try { cv = S.makeResolver(camp.system, ch, Fc, null); } catch (e) { cv = null; } if (typeof cv !== 'function' || !S.rollNeedsOk(rr, (rr.to === 'near' || rr.to === 'target') && S.withOnSelf ? S.withOnSelf(cv, true) : cv, Fc)) return false; }
@@ -12475,9 +12479,10 @@ function attemptByIf(camp, text, row, ch, tc) {
 // attempt: the host keeps which row took it, for two minutes, in its memory alone, and the Take damage window on this machine names that row and
 // ticks What is over its Dur goes on (sheets.js takeDamage through net.thruOf). The GM is told
 var _thru = Object.create(null);
-function thruNote(camp, ch, row) {
-    if (!camp || !camp.system || !ch || typeof ch.id !== 'string' || !row || typeof row.f !== 'string' || typeof row.r !== 'string' || typeof row.i !== 'number') return false;
-    var f = (Array.isArray(camp.system.fields) ? camp.system.fields : []).filter(function(x) { return x && x.id === row.f; })[0], rr = f && f.list && Array.isArray(f.list.rolls) ? f.list.rolls[row.i] : null; if (!rr || rr.thru !== true) return false;
+function thruNote(camp, ch, row, force) {   // force (1.6.3, defense fold 3): true where a line of When it answers an attack says Takes it on this row, false where the line picked says otherwise; absent, the list roll's own tick decides, as before
+    if (force === false) return false;
+    if (!camp || !camp.system || !ch || typeof ch.id !== 'string' || !row || typeof row.f !== 'string' || typeof row.r !== 'string' || (force !== true && typeof row.i !== 'number')) return false;
+    var f = (Array.isArray(camp.system.fields) ? camp.system.fields : []).filter(function(x) { return x && x.id === row.f; })[0], rr = f && f.list && Array.isArray(f.list.rolls) && typeof row.i === 'number' ? f.list.rolls[row.i] : null; if (force !== true && (!rr || rr.thru !== true)) return false; if (!f) return false;
     var S = SC(), rw = (ch.values && Array.isArray(ch.values[f.id]) ? ch.values[f.id] : []).filter(function(r) { return S && S.rowIdOf(r) === row.r; })[0], rd = rw && S ? S.rowDef(camp.system, rw) : null, nm = rd && rd.def && rd.def.name ? String(rd.def.name).slice(0, 60) : 'a row';
     _thru[ch.id] = { r: row.r, at: Date.now() };
     var words = String(ch.name || 'A character').slice(0, 60) + ' took the blow on ' + nm + '. Apply its damage from Take damage: what is over its Dur goes on.';
@@ -12485,10 +12490,13 @@ function thruNote(camp, ch, row) {
 }
 net.thruOf = function(charId) { var t = typeof charId === 'string' && _thru[charId] ? _thru[charId] : null; return t && Date.now() - t.at < 120000 ? t.r : null; };
 // [netcheck:thru-end]
-function attemptCalled(camp, rec, act, row, pass, ch, priv, tc) {   // the target's roll against an attempt came in; tc: that roll's token context
-    if (rec && typeof rec.lw === 'string' && typeof landAnswered === 'function') landAnswered(camp, rec.lw, pass, row);   // 1.6.3 (defense fold 1): an attack that carries its damage lands unless its defense succeeded
+function attemptCalled(camp, rec, act, row, pass, ch, priv, tc, pick) {   // the target's roll against an attempt came in; tc: that roll's token context; pick (1.6.3, defense fold 3): the line of When it answers an attack that roll's success was judged by (ansPick), which both roll paths work out once, with the roll's result, and hand to areaAnswered too
+    var atkC = !!rec && (rec.atk === 1 || typeof rec.lw === 'string');   // an attack's attempt (a landing's is one, whenever it was made)
+    if (pick === undefined && pass === true && atkC && typeof ansPick === 'function') pick = ansPick(camp, rec, act, row, ch, tc, null, !!rec.area && typeof rec.lw !== 'string');   // a caller that handed none: judged here, with no result of the roll
+    if (rec && typeof rec.lw === 'string' && typeof landAnswered === 'function') landAnswered(camp, rec.lw, pass, row, pass === true ? pick || null : null);   // 1.6.3 (defense fold 1): an attack that carries its damage lands unless its defense succeeded; fold 3: and then as its line says
+    if (pass === true && pick && atkC && typeof ansTests === 'function') ansTests(camp, rec, pick, ch, priv, act, row);   // 1.6.3 (defense fold 3): a weapon test the line calls for, only on a success (the core's answer 1)
     if (rec && rec.fw && (pass === true || pass === false)) { var fwA = rec.fw; rec.fw = null; if (typeof window !== 'undefined' && typeof window.wpFlyLand === 'function') window.wpFlyLand(fwA, pass); if (rec.htAtt && typeof net.dueRolled === 'function') net.dueRolled(rec.htAtt); }   // 1.6.2 (the core's gap 214): a thing in flight lands where its target fails to resist, and is avoided where it resists
-    if (pass === true && ch && typeof thruNote === 'function') thruNote(camp, ch, row);   // 1.6.2: a parry on a row ticked Takes the blow on this row
+    if (pass === true && ch && typeof thruNote === 'function' && !(rec && typeof rec.lw === 'string')) thruNote(camp, ch, row, pick && pick.line ? pick.line.does === 'thru' : undefined);   // 1.6.2: a parry on a row ticked Takes the blow on this row. 1.6.3 (defense fold 3): never for a landing, whose record carries its row (thru keyed to the record), and as the line picked says where one was
     if (!rec || pass !== true || !Array.isArray(rec.calls) || !ch) return;
     var ref = row && typeof row.f === 'string' && typeof row.i === 'number' ? row.f + '#' + row.i : act;
     rec.calls.forEach(function(c) {
@@ -12548,7 +12556,23 @@ function areaAfter(camp, entry, vd, malf, aim, ch, priv, vars, row, map, tok, fr
     if (window.wpStepLog) window.wpStepLog('line v1', 'found', { tokens: ids.length, resisted: entry.resistAll === true });
     return ids;
 }
-function areaAnswered(camp, hit, pass) { if (window.wpStepLog) window.wpStepLog('line v1', 'answered', { pass: pass === true }); if (pass !== true) areaHit(camp, hit); }
+function areaAnswered(camp, hit, pass, pick) {   // pick (1.6.3, defense fold 3): the line of When it answers an attack its success was judged by (ansPick), only an explicit line: the list roll's own Takes the blow tick never let a line through, and still does not
+    if (window.wpStepLog) window.wpStepLog('line v1', 'answered', { pass: pass === true });
+    if (pass !== true) { areaHit(camp, hit); return; }
+    var a = pick && pick.line ? pick.line : null; if (!a || a.does === 'stop') return;   // stopped, as every line attack a defense resisted was
+    if (a.does === 'thru' && !(pick.row && typeof pick.row.r === 'string')) return;
+    if (a.does === 'hits' && pick.n >= 1) { var ent = areaDmgEnt(camp && camp.system, hit); if (!(ent && typeof ent.hits === 'string' && ent.hits)) return; }
+    var e = typeof ansEff === 'function' ? ansEff(pick) : null, h = Object.assign({}, hit); if (e && (a.does !== 'thru' || e.type)) h.ans = e; if (a.does === 'thru') h.thru = pick.row.r;
+    if (window.wpStepLog) window.wpStepLog('attempt v1', 'answered', { does: a.does, line: true });
+    areaHit(camp, h);
+}
+// The damage roll a line's hit names, as the GM's system holds it (h.dmg: a system roll's id, or a place among the attacking row's list's rolls)
+function areaDmgEnt(sys, h) {
+    var ent = null; if (!sys || !h) return null;
+    if (typeof h.dmg === 'number' && h.row) (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (f && f.id === h.row.f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls)) ent = f.list.rolls[h.dmg] || null; });
+    else if (typeof h.dmg === 'string') (Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (r && r.id === h.dmg) ent = r; });
+    return ent;
+}
 function areaHit(camp, h) {
     var S = SC(), F = window.wpFormula, sys = camp && camp.system, tc = sys && camp.chars && own(camp.chars, h.to) ? camp.chars[h.to] : null, ch = sys && camp.chars && own(camp.chars, h.by) ? camp.chars[h.by] : null; if (!S || !F || !tc) return;
     if (typeof h.fx === 'string' && h.fx) {   // on whatever comes of the damage: a hit armor stops whole still sets it
@@ -12558,6 +12582,7 @@ function areaHit(camp, h) {
     }
     if (!ch || h.dmg === undefined) return;
     var ent = null, o = { charId: ch.id, label: (h.gm ? 'Line' : h.label) + ' damage', landOn: tc.id, onName: String(h.nm || tc.name || '').slice(0, 60), gmOnly: h.gm === true }; if (h.from) o.from = h.from; if (h.priv === true) o.priv = true;
+    if (h.ans) o.ansLine = h.ans; if (typeof h.thru === 'string') o.thruRow = h.thru;   // 1.6.3 (defense fold 3): what the defense let through, stamped on the GM's copy alone (host-only keys: net.diceRoll is called with them by the host's own code)
     if (typeof h.dmg === 'number' && h.row) { (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (f && f.id === h.row.f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls)) ent = f.list.rolls[h.dmg] || null; }); o.row = { f: h.row.f, r: h.row.r, i: h.dmg }; }
     else if (typeof h.dmg === 'string') { (Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (r && r.id === h.dmg) ent = r; }); o.act = h.dmg; }
     if (!ent || ent.dmg !== true || typeof ent.formula !== 'string' || !ent.formula || typeof net.diceRoll !== 'function') return;
@@ -12761,14 +12786,26 @@ function landRoll(camp, id) {
 }
 // The damage card's roll was made (both roll paths, as they drop its record): the landing is over, and every copy of its card says so
 function landDone(id) { if (!landOf(id)) return; landEnd(id, 'rolled'); if (typeof net.dueOver === 'function') net.dueOver(id, 'rolled'); }
-// The defense of a landing came in (attemptCalled, with the roll's verdict): it lands unless it succeeded, and a success on a list's roll ticked Takes the
-// blow on this row lands too (row: that roll on the GM's list); any other success stops it
-function landAnswered(camp, id, pass, row) {
+// The defense of a landing came in (attemptCalled, with the roll's verdict): it lands unless it succeeded. 1.6.3 (defense fold 3): a success does what the
+// line it was answered with says (pick, from ansPick: the first line of When it answers an attack whose condition held, the list roll's own Takes the blow on
+// this row tick read as such a line, or none, which stops it). Takes it on this row keeps the parrying row on the landing, stamped on its damage roll's record
+// however late it is pressed (net.thruOf forgets after two minutes, and is never asked for a landing's damage); Lets some through, Stops a number of hits and
+// a type are kept as the landing's ans, which the damage roll's GM copy carries (ansStamp). An attack of one hit that a line stops one hit of is stopped here
+function landAnswered(camp, id, pass, row, pick) {
     var rec = landOf(id); if (!rec || rec.st !== 'wait') return;
     if (pass !== true) { landFire(camp, id, 'failed'); return; }
+    if (pick === undefined) pick = landTickPick(camp, row);   // a caller that judged no line (an older caller): the list roll's own tick alone, as before
+    var a = pick && pick.line ? pick.line : null;
+    if (!a || a.does === 'stop') { landEnd(id, 'stopped'); return; }
+    if (a.does === 'thru') { if (!pick.row || typeof pick.row.r !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(pick.row.r)) { landEnd(id, 'stopped'); return; } rec.thru = pick.row.r; }
+    if (a.does === 'hits' && pick.n >= 1) { var dmH = landDmgOf(camp, rec); if (!(dmH && dmH.ent && typeof dmH.ent.hits === 'string' && dmH.ent.hits)) { landEnd(id, 'stopped'); return; } }
+    var e = typeof ansEff === 'function' ? ansEff(pick) : null; if (e && (a.does !== 'thru' || e.type)) { rec.ans = e; landLog('answered', { does: a.does, type: !!e.type }); }
+    landFire(camp, id, a.does);
+}
+// The list roll's own Takes the blow on this row tick, read as a line with no condition (row: that roll on the GM's list, with its place i), or null
+function landTickPick(camp, row) {
     var thru = false; if (row && typeof row.f === 'string' && typeof row.i === 'number') (camp && camp.system && Array.isArray(camp.system.fields) ? camp.system.fields : []).forEach(function(f) { if (f && f.id === row.f && f.list && Array.isArray(f.list.rolls) && f.list.rolls[row.i] && f.list.rolls[row.i].thru === true) thru = true; });
-    if (thru) { if (typeof row.r === 'string' && /^w_[A-Za-z0-9_]{1,24}$/.test(row.r)) rec.thru = row.r; landFire(camp, id, 'thru'); return; }   // the review of fold 1: the row is kept on the landing and stamped on its damage roll's record, however late it is pressed (net.thruOf forgets after two minutes)
-    landEnd(id, 'stopped');
+    return thru ? { line: { does: 'thru' }, at: -1, row: { f: row.f, r: row.r } } : null;
 }
 // Take it (the defender's player, pid), No defense (the GM, pid '') and the wait: the defense is closed and the attack lands at once. true, or the words why not
 function landClose(camp, id, how, pid) {
@@ -12850,6 +12887,7 @@ function landAttRead(a, rec, camp) {
     // left the card's Defend with buttons pressing an attempt that took none of them
     if (Array.isArray(a.withs)) out.withs = a.withs.filter(function(x) { return typeof x === 'string' && /^r_[A-Za-z0-9_]{1,24}#f_[A-Za-z0-9_]{1,24}#w_[A-Za-z0-9_]{1,24}$/.test(x); }).slice(0, 80);
     if (typeof a.k === 'number') out.k = num(a.k); if (typeof a.t === 'number') out.t = num(a.t); if (a.kp === true) out.kp = true; if (a.hide === true) out.hide = true;
+    out.atk = 1; if (typeof a.atkBy === 'string' && camp.chars && own(camp.chars, a.atkBy)) out.atkBy = a.atkBy; if (a.atkRow && typeof a.atkRow.f === 'string' && /^f_[A-Za-z0-9_]{1,24}$/.test(a.atkRow.f) && typeof a.atkRow.r === 'string' && /^w_[A-Za-z0-9_]{1,24}$/.test(a.atkRow.r)) out.atkRow = { f: a.atkRow.f, r: a.atkRow.r }; if (a.atkPriv === true) out.atkPriv = true;   // 1.6.3 (defense fold 3): a landing's attempt is an attack's, whose defense reads its lines
     if (a.rd && typeof a.rd === 'object' && !Array.isArray(a.rd)) { var rd = {}; Object.keys(a.rd).slice(0, 80).forEach(function(k) { if (k.length <= 60 && typeof a.rd[k] === 'number' && isFinite(a.rd[k])) rd[k] = a.rd[k]; }); out.rd = rd; }
     if (Array.isArray(a.calls)) { out.calls = a.calls.filter(function(c) { return c && typeof c === 'object' && typeof c.roll === 'string'; }).slice(0, 12).map(function(c) { var k = { roll: c.roll.slice(0, 40), by: txt(c.by, 40) }; if (typeof c.byIf === 'string') k.byIf = c.byIf.slice(0, 10000); if (c.to === 'self') k.to = 'self'; if (c.on === 'roller' || c.on === 'target') k.on = c.on; if (typeof c.crew === 'string' || Array.isArray(c.crew)) k.crew = typeof c.crew === 'string' ? c.crew.slice(0, 40) : c.crew.filter(function(x) { return typeof x === 'string'; }).slice(0, 8).map(function(x) { return x.slice(0, 40); }); return k; }); out.callBy = txt(a.callBy, 60); if (typeof a.callFrom === 'string' && camp.chars && own(camp.chars, a.callFrom)) out.callFrom = a.callFrom; out.callFromName = txt(a.callFromName, 60); if (a.callRow && typeof a.callRow.f === 'string' && typeof a.callRow.r === 'string') out.callRow = { f: a.callRow.f.slice(0, 30), r: a.callRow.r.slice(0, 30) }; if (a.callPriv === true) out.callPriv = true; }
     return out;
@@ -12870,7 +12908,8 @@ function landRead(r, camp) {
     if (typeof r.hit === 'string' && /^w_[A-Za-z0-9_]{1,24}$/.test(r.hit)) out.hit = r.hit;
     if (r.big === true) out.big = true; if (r.priv === true) out.priv = true;
     if (out.st === 'wait' && typeof r.until === 'number' && isFinite(r.until)) out.until = r.until;
-    if (typeof r.thru === 'string' && /^w_[A-Za-z0-9_]{1,24}$/.test(r.thru)) out.thru = r.thru; if (typeof camp.id === 'string') out.cid = camp.id;   // the review of fold 1: the row a parry took the blow on, and the campaign it is read into
+    if (typeof r.thru === 'string' && /^w_[A-Za-z0-9_]{1,24}$/.test(r.thru)) out.thru = r.thru; if (typeof camp.id === 'string') out.cid = camp.id;
+    if (r.ans !== undefined && typeof ansClean === 'function') { var anL = ansClean(r.ans); if (anL) out.ans = anL; }   // 1.6.3 (defense fold 3): what its defense did, read back as data   // the review of fold 1: the row a parry took the blow on, and the campaign it is read into
     var D = DC(); if (r.from && D && typeof D.cleanFrom === 'function') { var fr = D.cleanFrom(r.from); if (fr) out.from = fr; }
     var cd = r.card && D && typeof D.cleanDue === 'function' ? D.cleanDue(r.card) : null; if (cd && cd.att === r.id) out.card = cd;
     if (out.st === 'wait') { var a = landAttRead(r.att, out, camp); if (!a) return null; out.attSaved = a; }
@@ -12910,6 +12949,124 @@ net.landStuck = function(id) { var r = landOf(id); return !!r && r.st === 'card'
 // The roster moved (broadcastRoster): a landing's card may now have nobody to press it, or somebody again, so the GM's chat is drawn again
 function landRosterMoved() { if (_landIds.some(function(id) { return _lands[id] && _lands[id].st === 'card'; }) && typeof renderChatSoon === 'function') renderChatSoon(); }
 // [netcheck:attland-end]
+// [netcheck:ansline-start]
+// 1.6.3 (defense fold 3; docs/DEFENSE_INTERACTIONS_DESIGN.md 4.2, Fulllion's decisions 3, 6 and 8 of 2026-11-17, and the core's answers 1 to 3): what a defense that
+// succeeds does to the attack it answers, judged here on the host from its own records alone. The lines are the defense roll's own (systemcore cleanAnswers,
+// When it answers an attack, the GM's view only). ansPick reads them as the defense comes in: the first line whose condition holds, read on the defender with
+// the parrying row's names, the attempt laid on and the defense roll's result (RollMargin, RollTotal, Natural, RollCrit, RollBig), and for Stops a number of hits
+// how many, read the same way. A list roll's own Takes the blow on this row tick is read as a last line with no condition (but never for a line attack, which
+// it never let through). Only an attack's attempt reads them (atk, set by attemptMake; a landing's): a blast's own Defense, a called roll and a wound roll never
+// do. The effect is applied when the damage lands: landAnswered (a landing) and areaAnswered (a line resisted by each target) keep it, ansStamp writes what it
+// comes to on the GM's own copy of the damage roll (the table's copy shows the dice as rolled), and dice.js lays it on the Take damage window's figures. A
+// weapon test the line names is made by ansTests as the defense succeeds, as the Combat tab's How a weapon test is made says (Fulllion's decision 8): a card
+// the weapon's owner presses (callPost), rolled at once (testRollNow), or both, the GM's copy then offering Roll it now (net.testNow). Each step logs as attempt v1
+function ansPick(camp, rec, act, row, ch, tc, rv, noTick) {   // rv: { vd, mf, res, big }, the defense roll's verdict, malfunction, result and heavy hit (none: its result reads 0); noTick: the list roll's own tick is no line here
+    var S = SC(), Fc = window.wpFormula; if (!S || !Fc || !camp || !camp.system || !rec || !ch || typeof cardEnt !== 'function') return null;
+    var ent = cardEnt(camp, act, row && typeof row.i === 'number' ? row : null, null); if (!ent || ent.resist !== true) return null;
+    var lines = Array.isArray(ent.answers) ? ent.answers.slice() : [], own = lines.length; if (ent.thru === true && !noTick) lines.push({ does: 'thru' });   // the tick, after the GM's own lines
+    if (!lines.length) return null;
+    var v = null, vOk = false, vars = function() {
+        if (vOk) return v; vOk = true;
+        try { v = S.makeResolver(camp.system, ch, Fc, tc || null); if (typeof v === 'function' && row && typeof row.f === 'string' && typeof row.r === 'string') v = v.row(row.f, row.r); } catch (e) { v = null; }
+        if (typeof v === 'function' && typeof S.withRollCrit === 'function') v = S.withRollCrit(v, rv ? S.thenCrit(rv.vd, rv.mf) : '', rv ? S.thenMargin(rv.vd, rv.mf) : 0, !!rv && rv.big === true, rv ? rv.res : undefined);
+        return v;
+    };
+    for (var i = 0; i < lines.length; i++) {
+        var a = lines[i]; if (!a || typeof a !== 'object') continue;
+        if (a.if) { var vv = vars(); if (typeof vv !== 'function' || !S.rollNeedsOk({ needs: a.if }, vv, Fc)) continue; }   // a condition that cannot be worked out does not hold
+        var out = { line: a, at: i < own ? i : -1, row: row && typeof row.f === 'string' && typeof row.r === 'string' ? { f: row.f, r: row.r } : null };
+        if (a.does === 'hits') { var vh = vars(), q = null; try { q = typeof vh === 'function' ? Fc.evaluate(a.hits, { vars: vh, random: function() { throw new Error('no dice'); } }) : null; } catch (e) { q = null; } out.n = q && q.ok && typeof q.value === 'number' && isFinite(q.value) ? Math.max(0, Math.min(999, Math.floor(q.value))) : 0; }
+        if (window.wpStepLog) window.wpStepLog('attempt v1', 'line', { at: out.at, does: a.does });
+        return out;
+    }
+    return null;
+}
+// Both roll paths ask this once: the line a defense's success is judged by, or undefined where the roll answered no attack's attempt or did not succeed
+function ansFrom(camp, rec, act, row, ch, tc, D, res, rule, mf, big) {
+    if (!rec || !(rec.atk === 1 || typeof rec.lw === 'string') || !ch || !D) return undefined;
+    var vd = D.verdictOf(res, rule), mfH = mf !== null && mf !== undefined && D.naturalOf(res) >= mf; if (mfH || !vd || vd.kind !== 'check' || vd.pass !== true) return undefined;
+    return ansPick(camp, rec, act, row, ch, tc, { vd: vd, mf: mfH, res: res, big: big === true }, !!rec.area && typeof rec.lw !== 'string');
+}
+// What a landing or a line's hit keeps of the line: { does, share?, n?, type?, all? }, the effect alone (its condition was judged already)
+function ansEff(pick) {
+    var a = pick && pick.line; if (!a) return null; var e = { does: a.does };
+    if (a.does === 'share' && typeof a.share === 'string') e.share = a.share; if (a.does === 'hits') e.n = typeof pick.n === 'number' ? pick.n : 0;
+    if (typeof a.type === 'string' && a.type) { e.type = a.type; if (a.all === true) e.all = true; }
+    return e;
+}
+// ... read back as data from a fight's save (landRead): null where it does not read
+function ansClean(e) {
+    if (!e || typeof e !== 'object' || Array.isArray(e) || ['thru', 'share', 'hits'].indexOf(e.does) < 0) return null; var o = { does: e.does };
+    if (e.does === 'share') { if (typeof e.share !== 'string' || !e.share || e.share.length > 10000) return null; o.share = e.share; }
+    if (e.does === 'hits') o.n = typeof e.n === 'number' && isFinite(e.n) ? Math.max(0, Math.min(999, Math.floor(e.n))) : 0;
+    if (typeof e.type === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(e.type)) { o.type = e.type; if (e.all === true) o.all = true; }
+    return o;
+}
+// The damage roll of a landing was made (both roll paths): what its defense let through goes on the GM's own copy, and the copy is marked as a landing's, so the
+// Take damage window reads the parrying row from the record alone (never net.thruOf, which is the defender's and may be another blow's)
+function ansStampLand(camp, rec, res, lnd) { if (!rec || rec.dmg !== 1 || !lnd) return; rec.landed = 1; if (lnd.ans) ansStamp(camp, rec, res, lnd.ans); }
+// What the line comes to on this very roll, on the GM's copy as rec.ans: { say: its words, amt and p (each part's share, by slot) and hits (each later hit's)
+// for Lets some through, keep (how many hits land) for Stops a number of hits, type and all for a type }. dice.js lays it on what Apply hands the window
+function ansStamp(camp, rec, res, eff) {
+    var S = SC(), Fc = window.wpFormula, sys = camp && camp.system; if (!S || !sys || !rec || rec.dmg !== 1 || !eff || typeof eff !== 'object') return;
+    var out = {}, say = [], more = Array.isArray(rec.more) ? rec.more : [], H = 1 + more.length, first = res && typeof res.value === 'number' && isFinite(res.value) ? Math.max(0, Math.floor(res.value)) : 0;
+    var types = sys.combat && sys.combat.damage && Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [], tyD = typeof eff.type === 'string' ? types.filter(function(y) { return y && typeof y.key === 'string' && y.key.toLowerCase() === eff.type.toLowerCase(); })[0] : null;
+    if (eff.does === 'share' && typeof eff.share === 'string' && typeof S.ansShare === 'function') {
+        var tot = 0, got = 0, odd = false, cut = function(amt, ty, kd) { var a = typeof amt === 'number' && isFinite(amt) ? Math.max(0, Math.floor(amt)) : 0, v = S.ansShare(sys, eff.share, a, ty, kd, Fc); if (v === null) { odd = true; v = a; } tot += a; got += v; return v; };
+        var partsOf = function(h) { var p = {}, any = false; [2, 3, 4, 5].forEach(function(k) { var pk = h['dmg' + k]; if (pk && typeof pk === 'object' && typeof pk.t === 'number') { p[k] = cut(pk.t, pk.dtype, pk.dkind); any = true; } }); return any ? p : null; };
+        out.amt = cut(first, rec.dtype, rec.dkind); var p0 = partsOf(rec); if (p0) out.p = p0;
+        if (more.length) out.hits = more.map(function(h) { var o = { amt: cut(h && h.t, h && h.dtype, h && h.dkind) }, ph = h ? partsOf(h) : null; if (ph) o.p = ph; return o; });
+        say.push('The defense let ' + got + ' of ' + tot + ' through.'); if (odd) say.push('How much gets through could not be worked out for some of it, so that came through whole.');
+    }
+    if (eff.does === 'hits' && typeof eff.n === 'number' && eff.n >= 1) { out.keep = Math.max(0, H - Math.floor(eff.n)); say.push(out.keep === 0 ? 'The defense stopped every hit.' : 'The defense stopped ' + (H - out.keep) + ' of ' + H + ' hits.'); }
+    if (tyD) { out.type = tyD.key; if (eff.all === true) out.all = true; say.push((eff.all === true ? 'Every part lands as ' : 'It lands as ') + String(tyD.label || tyD.key).slice(0, 60) + '.'); }
+    if (!say.length) return;
+    out.say = say; rec.ans = out;
+    if (window.wpStepLog) window.wpStepLog('attempt v1', 'stamped', { does: eff.does, hits: H });
+}
+// How a weapon test a line calls for is made: the Combat tab's combat.testBy, 'card' (absent: a card the weapon's owner presses), 'now' or 'both'
+function testRule(camp) { var c = camp && camp.system && camp.system.combat; return c && (c.testBy === 'now' || c.testBy === 'both') ? c.testBy : 'card'; }
+// The tests a line calls for, as its defense succeeds: test on the parrying row (row), testAtk on the attacking row (the attempt's atkRow, or a landing's row),
+// each only where that row is a row of the roll's list. by: the defense's name, which its card says called for it
+function ansTests(camp, rec, pick, ch, priv, act, row) {
+    var a = pick && pick.line, S = SC(); if (!a || !S || (!a.test && !a.testAtk)) return;
+    var by = typeof callName === 'function' ? callName(cardEnt(camp, act, row && typeof row.i === 'number' ? row : null, null)) : '', how = testRule(camp);
+    if (a.test && pick.row) ansTest(camp, a.test, ch, pick.row, !!priv, how, by);
+    if (a.testAtk) {
+        var lnd = typeof rec.lw === 'string' && typeof landOf === 'function' ? landOf(rec.lw) : null, byId = lnd ? lnd.by : rec.atkBy || rec.callFrom, aRow = lnd && lnd.row ? lnd.row : rec.atkRow || rec.callRow;
+        var aCh = typeof byId === 'string' && camp.chars && own(camp.chars, byId) ? camp.chars[byId] : null;
+        if (aCh && aRow) ansTest(camp, a.testAtk, aCh, aRow, lnd ? lnd.priv === true : rec.atkPriv === true || rec.callPriv === true, how, by);
+    }
+}
+function ansTest(camp, ref, ch, row, priv, how, by) {
+    var S = SC(), lr = S && typeof S.listRollRef === 'function' ? S.listRollRef(ref) : null; if (!lr || !ch || !row || row.f !== lr.f || typeof row.r !== 'string') return false;
+    var ok = how === 'now' ? testRollNow(camp, lr, ch, row, priv) : typeof callPost === 'function' ? callPost(camp, ref, ch, by, priv, row, false, undefined, how === 'both') : false;
+    if (window.wpStepLog) window.wpStepLog('attempt v1', 'weapon test', { how: how, made: ok === true });
+    return ok;
+}
+// A weapon test rolled here, on the host, as the row's owner, through net.diceRoll on that row (the roll by its place on the GM's own list), while its needs
+// hold on that row. true where it was rolled
+function testRollNow(camp, lr, ch, row, priv) {
+    var S = SC(), Fc = window.wpFormula, f = null; if (!S || !Fc || !camp || !camp.system || typeof net.diceRoll !== 'function') return false;
+    (Array.isArray(camp.system.fields) ? camp.system.fields : []).forEach(function(x) { if (x && x.id === lr.f && x.kind === 'item-list' && x.list && Array.isArray(x.list.rolls)) f = x; });
+    var e = f ? f.list.rolls[lr.i] : null; if (!e || typeof e.formula !== 'string' || !e.formula || Array.isArray(e.apply)) return false;
+    if (!(ch.values && Array.isArray(ch.values[f.id]) && ch.values[f.id].some(function(x) { return S.rowIdOf(x) === row.r; }))) return false;
+    if (e.needs || e.needsWhy) { var cv = null; try { cv = S.makeResolver(camp.system, ch, Fc, null); cv = typeof cv === 'function' ? cv.row(f.id, row.r) : null; } catch (er) { cv = null; } if (typeof cv !== 'function' || !S.rollNeedsOk(e, cv, Fc)) return false; }
+    var o = { charId: ch.id, row: { f: f.id, r: row.r, i: lr.i }, label: String(e.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll' }; if (priv) o.priv = true;
+    var r = net.diceRoll(e.formula, o); return !(r && r.error);
+}
+// The GM's Roll it now on their copy of a weapon test's card under Both: rolled here as the row's owner; the card's own record is let go and every copy of the
+// card says it was rolled, so the owner's press then finds nothing
+net.testNow = function(att) {
+    if (net.active && net.role !== 'host') return false;
+    var a = typeof attemptRec === 'function' ? attemptRec(att) : null, camp = getActiveCampaign(), t = a && a.tst, S = SC();
+    var ch = t && camp && camp.chars && own(camp.chars, a.charId) ? camp.chars[a.charId] : null;
+    if (!t || !ch || a.busy || !S) { if (typeof toast === 'function') toast(typeof ATT_GONE === 'string' ? ATT_GONE : 'That card is not there now.'); return false; }
+    if (!testRollNow(camp, { f: t.f, i: t.i }, ch, { f: t.f, r: t.r }, t.priv === true)) { if (typeof toast === 'function') toast('That test cannot be rolled now: its row or its roll is gone, or what it needs does not hold.'); return false; }
+    attemptDrop(att); if (typeof net.dueOver === 'function') net.dueOver(att, 'rolled'); if (window.wpStepLog) window.wpStepLog('attempt v1', 'weapon test', { how: 'gm now' });
+    return true;
+};
+// [netcheck:ansline-end]
 // Stage 6 HUD H7: the GM's own press (sheets.js has worked it out and stored it): the card, as the GM's
 net.postApplyCard = function(ch, label, lines, scope, hid, asked, by) {   // hid (1.6.2): a roll whose figure is hidden: its card says what moved and no figure. by (1.6.2): who did it, where that is not the GM
     var rec = { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: by && by.name ? by : diceFrom(getProfile(), true), lines: applyLines(lines), ts: Date.now() };
@@ -13363,7 +13520,8 @@ net.diceRoll = function(expr, o) {
     var hsR = typeof holdsSqueeze === 'function' && chR && SR && typeof SR.holdRefOf === 'function' ? holdsSqueeze(campR, chR, SR.holdRefOf(o.act, o.row), rec, D) : null;   // 1.6.0 Who holds whom: a squeeze lands on each held character, with no attack and no resist
     if (hosting && scope === 'global') { if (chR && typeof sendTableAs === 'function') sendTableAs(rec, chR, landR ? { ch: landR, name: o.onName } : null); else sendTable(hdR ? figOf(rec) : rec, null); }
     if (landR && o.onName) rec.onName = o.onName;   // the GM's own copy, past the table's
-    if (cvR) rec.hit = cvR.row; if (lndR && lndR.thru) rec.thru = lndR.thru;   // 1.6.3 (the review of defense fold 1): and the row a parry took the blow on   // the card's Apply to target, the GM's own: past the table's copy, as the row may be one players do not see
+    if (cvR) rec.hit = cvR.row; if (lndR && lndR.thru) rec.thru = lndR.thru;   // 1.6.3 (the review of defense fold 1): and the row a parry took the blow on
+    if (lndR && typeof ansStampLand === 'function') ansStampLand(campR, rec, res, lndR); else if ((o.ansLine || typeof o.thruRow === 'string') && rec.dmg === 1 && typeof ansStamp === 'function') { if (typeof o.thruRow === 'string' && /^w_[A-Za-z0-9_]{1,24}$/.test(o.thruRow)) rec.thru = o.thruRow; if (o.ansLine) ansStamp(campR, rec, res, o.ansLine); rec.landed = 1; }   // 1.6.3 (defense fold 3): what a landing's defense let through, and a line's hit that a defense let partly through, on the GM's own copy past the table's   // the card's Apply to target, the GM's own: past the table's copy, as the row may be one players do not see
     pushRoll(rec, res, scope, { toName: toName, cid: chR ? chR.id : '' });
     if (hsR) hsR.forEach(function(rxR) { if (hosting && scope === 'global') { if (chR && typeof sendTableAs === 'function') sendTableAs(rxR, chR); else sendTable(rxR, null); } pushRoll(rxR, res, scope, { toName: toName, cid: chR ? chR.id : '' }); });
     var ruleR = D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '');   // Stage 6 F8 (1.6.0: or the record's own critical range)
@@ -13373,7 +13531,8 @@ net.diceRoll = function(expr, o) {
     var atR = ''; if (entR && !entR.area && typeof entR.resistBy === 'string' && chR && typeof attemptMake === 'function') atR = attemptMake(campR, entR, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR, tcR && tcR.range, chR, !!rec.priv || !!rec.to, varsR, o.row || o.with);   // 1.6.0 (B2): a success against its target that it resists
     var lrwR = entR && chR && !entR.area && !lndR && typeof landRowNow === 'function' ? landRowNow(chR, o.row || o.with) : null;   // 1.6.3 (the review of defense fold 1): the attacking row as it stands before the Then, kept only for a Then that uses the row up
     if (entR && entR.area && chR && typeof areaAfter === 'function') { var ftA = window.wpSheets && window.wpSheets.facingTarget ? window.wpSheets.facingTarget(chR, campR) : null; areaAfter(campR, entR, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR, o.aim, chR, !!rec.priv || !!rec.to, varsR, o.row, ftA && ftA.map, ftA && ftA.tok); }   // 1.6.0: a line
-    if (blowRecR && blowRecR.area && typeof areaAnswered === 'function') { var arvR = D.verdictOf(res, ruleR); areaAnswered(campR, blowRecR.area, !!arvR && arvR.kind === 'check' && arvR.pass === true && !(mfR !== null && D.naturalOf(res) >= mfR)); }   // 1.6.0: a resist against a line
+    var ansR = typeof ansFrom === 'function' ? ansFrom(campR, blowRecR, o.act, o.row || (o.with ? { f: o.with.f, r: o.with.r } : null), chR, tcR, D, res, ruleR, mfR, rec.big === true) : undefined;   // 1.6.3 (defense fold 3): the line this defense's success is judged by, once
+    if (blowRecR && blowRecR.area && typeof areaAnswered === 'function') { var arvR = D.verdictOf(res, ruleR); areaAnswered(campR, blowRecR.area, !!arvR && arvR.kind === 'check' && arvR.pass === true && !(mfR !== null && D.naturalOf(res) >= mfR), ansR); }   // 1.6.0: a resist against a line
     if (blowRecR && blowRecR.defend && typeof window.wpBlastDefended === 'function') { var dfvR = D.verdictOf(res, ruleR); window.wpBlastDefended(blowRecR.defend, !!dfvR && dfvR.kind === 'check' && dfvR.pass === true && !(mfR !== null && D.naturalOf(res) >= mfR)); }   // 1.6.0: a blast's own Defense roll
     if (blowRecR && typeof blowCrip === 'function') blowCripWrite(blowCrip(campR, blowRecR, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR, D.naturalOf(res)), function() { save(true); });   // 1.6.0 (the core's gap 7): a failed roll of a blow cripples the location struck
     if (entR && entR.then && chR && SR && campR && campR.system) {   // Stage 6 HUD R1/R2b: the GM's own roll's consequences, here (a player's are the host's); a list's roll may move its row's counters
@@ -13407,7 +13566,7 @@ net.diceRoll = function(expr, o) {
     }
     if (chR && entR && entR.blastHit === true && o.row && typeof o.row.f === 'string' && typeof o.row.r === 'string') { var bhMR = mfR !== null && D.naturalOf(res) >= mfR, bhVR = D.verdictOf(res, ruleR), bhTR = tcR && tcR.range && typeof tcR.range.tid === 'string' ? tcR.range : null; if (!bhMR && bhVR && bhVR.kind === 'check') { if ((bhVR.pass === true || rec.body === 1) && bhTR && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: chR.id, fieldId: o.row.f, rowId: o.row.r, tid: bhTR.tid, mapId: bhTR.mapId, margin: bhVR.margin, own: true }); else if (bhVR.pass === false && rec.body !== 1 && typeof window.wpLaunchMiss === 'function') window.wpLaunchMiss({ charId: chR.id, fieldId: o.row.f, rowId: o.row.r, tid: bhTR ? bhTR.tid : '', mapId: bhTR ? bhTR.mapId : '', margin: bhVR.margin, own: true, crit: ((typeof D.checkOf === 'function' ? D.checkOf(res, ruleR) : null) || bhVR).crit === 'fumble' ? 'fumble' : '' }); } }   // 1.6.2 (the CORE session): Bursts at its target
     if (entR && typeof sceneKeep === 'function') sceneKeep(campR, entR, res, tcR);   // 1.6.2 Kept for the scene
-    if (chR && (entR || blowRecR) && typeof callsAfter === 'function') { var vcR = D.verdictOf(res, ruleR), pcR = mfR !== null && D.naturalOf(res) >= mfR ? false : rec.body === 1 ? true : vcR && vcR.kind === 'check' ? vcR.pass === true : null; if (entR) callsAfter(campR, entR, pcR, varsR, typeof onR !== 'undefined' && onR ? onR.ch : chR, !!rec.priv || !!rec.to, o.row || (o.with ? { f: o.with.f, r: o.with.r } : o.row), rec.big === true, tcR, chR); attemptCalled(campR, blowRecR, o.act, o.row || (o.with ? { f: o.with.f, r: o.with.r } : o.row), pcR, chR, !!rec.priv || !!rec.to, tcR); }   /* 1.6.3 (defense fold 2): a roll answered with a row hands its row on */   // 1.6.0: Calls for, with its Then landed
+    if (chR && (entR || blowRecR) && typeof callsAfter === 'function') { var vcR = D.verdictOf(res, ruleR), pcR = mfR !== null && D.naturalOf(res) >= mfR ? false : rec.body === 1 ? true : vcR && vcR.kind === 'check' ? vcR.pass === true : null; if (entR) callsAfter(campR, entR, pcR, varsR, typeof onR !== 'undefined' && onR ? onR.ch : chR, !!rec.priv || !!rec.to, o.row || (o.with ? { f: o.with.f, r: o.with.r } : o.row), rec.big === true, tcR, chR); attemptCalled(campR, blowRecR, o.act, o.row || (o.with ? { f: o.with.f, r: o.with.r } : o.row), pcR, chR, !!rec.priv || !!rec.to, tcR, ansR); }   /* 1.6.3 (defense fold 2): a roll answered with a row hands its row on */   // 1.6.0: Calls for, with its Then landed
     if (chR && typeof holdsRolled === 'function' && SR && typeof SR.holdRefOf === 'function') { var vhR = D.verdictOf(res, ruleR); holdsRolled(campR, chR, entR, SR.holdRefOf(o.act, o.row), mfR !== null && D.naturalOf(res) >= mfR ? false : vhR && vhR.kind === 'check' ? vhR.pass === true : null, tcR, typeof blowRecR !== 'undefined' ? blowRecR : null, atR); } if (typeof stealRolled === 'function' && typeof blowRecR !== 'undefined' && blowRecR && blowRecR.st) { var vsR = D.verdictOf(res, ruleR); stealRolled(campR, mfR !== null && D.naturalOf(res) >= mfR ? false : vsR && vsR.kind === 'check' ? vsR.pass === true : null, blowRecR); }   // 1.6.0 Who holds whom
     if (entR && entR.burst && o.row && typeof burstAfter === 'function') burstAfter(campR, chR, entR, o.row, res, ruleR, mfR !== null && D.naturalOf(res) >= mfR, typeof taR !== 'undefined' ? taR : null, tcR, function() { save(true); });   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
     if (entR && chR && !entR.area && !lndR && typeof landAfter === 'function') { var lvR = D.verdictOf(res, ruleR); landAfter(campR, entR, !(mfR !== null && D.naturalOf(res) >= mfR) && (rec.body === 1 || (!!lvR && lvR.kind === 'check' && lvR.pass === true)), tcR, chR, !!rec.priv || !!rec.to, o.row || o.with, atR, rec.from, typeof o.hit === 'string' ? o.hit : '', rec.big === true, lrwR); }   /* 1.6.3 (the review of defense fold 2, finding 10): and the row a defense answered with */   // 1.6.3 (defense fold 1): an attack that names Its damage lands, or waits for its defense. The review of that fold: made last, after its Then and its burst, as in roll-req

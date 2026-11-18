@@ -16,6 +16,7 @@ import { cleanDamageRules, CUR_MAX, priceCurOf, priceColOf, moneySummary, condSh
 import { cleanFormulaText } from './systemcore.js';   // 1.6.2: refreshErrors reads a rule's needs as the cleaner does
 import { swDice, renamesOf, renamesCarry, renamesOnChars, renamesSay, swGone, goneRefs, catsGone, catNear, keysGone, keyUses, keyUseSays } from './systemcore.js';   // 1.6.2: backlog 208, the tracing audit
 import { cleanCardActs, CARD_MAX, cleanHelp } from './systemcore.js';
+import { ANS_MAX, ANS_HALF } from './systemcore.js';   // 1.6.3 (defense fold 3): When it answers an attack, its most lines and its first share
 import { deckTrial, deckTrialRead } from './systemcore.js';
 import { cleanTests, testFormula } from './systemcore.js';   // 1.6.2 (backlog 59): a system's tests   // 1.6.2: Try it for a roll that draws first   // 1.6.2: what a card offers
 import { cleanAsks, askEnds, askJudge, withAsk, ASKS_MAX, ASK_OPTS } from './systemcore.js';   // 1.6.2: a roll's questions
@@ -8592,7 +8593,7 @@ var KIND_LABEL = { number: 'Number', formula: 'Derived', resource: 'Resource', s
 var KIND_HELP = { number: 'A stored number (an attribute): default, min, max, step. With a min and a max it can show as a slider on a two-color track.', formula: 'A figure worked out from others: a modifier, a secondary attribute, a derived stat. Worked out from other fields, never stored and never typed.', resource: 'A current value with a formula for its max (HP): a bar with - and + on the sheet.', skill: 'Stored ranks plus a base formula; its value is ranks + base.', toggle: 'On or off (a condition); true or false in formulas.', text: 'A short text (up to 200 characters); not a number for formulas.', notes: 'A long text; never read by formulas.', select: 'One of a fixed list of options.', 'item-list': 'A list of items the character carries, filled from the Items library on the sheet.', effects: 'The status effects the character carries: added from the Effects library in one click, or made on the spot with their own numbers. Each changes its numbers everywhere they are used.' };
 // [formcheck:source-start]
 // 1.6.2: what a formula's form may offer, and every name in words, for the box it stands over
-var FORM_ONLY = { 'sys-range-formula': ['Distance'], 'sys-height-formula': ['HeightDiff'], 'sys-combat-bfall': ['BlastDamage', 'BlastDistance', 'BlastDice', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop', 'BlastScale', 'MapCell', 'HitScale'], 'sys-combat-beach': ['BlastDice', 'BlastDistance', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop', 'BlastScale', 'MapCell', 'HitScale'], 'sys-combat-bradius': ['BlastRadius', 'MapCell', 'BlastDice', 'BlastScale'], 'sys-combat-cover-body': ['TargetSize', 'BodySize'], 'sys-combat-bscatter': ['Margin', 'ThrowDistance'], 'sys-combat-bhand': ['Natural'], 'sys-combat-fgreach': ['FragDice', 'BlastDice', 'MapCell', 'BlastScale'] };
+var FORM_ONLY = { 'sys-ans-share': ['Blow.dmg', 'Blow.type', 'Blow.kind'], 'sys-range-formula': ['Distance'], 'sys-height-formula': ['HeightDiff'], 'sys-combat-bfall': ['BlastDamage', 'BlastDistance', 'BlastDice', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop', 'BlastScale', 'MapCell', 'HitScale'], 'sys-combat-beach': ['BlastDice', 'BlastDistance', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop', 'BlastScale', 'MapCell', 'HitScale'], 'sys-combat-bradius': ['BlastRadius', 'MapCell', 'BlastDice', 'BlastScale'], 'sys-combat-cover-body': ['TargetSize', 'BodySize'], 'sys-combat-bscatter': ['Margin', 'ThrowDistance'], 'sys-combat-bhand': ['Natural'], 'sys-combat-fgreach': ['FragDice', 'BlastDice', 'MapCell', 'BlastScale'] };
 var FORM_MORE = { 'sys-dmgr-woundf': ['Blow.through', 'Blow.dmg'], 'sys-dmgr-ywf': ['Blow.through', 'Blow.dmg'], 'sys-dmgr-mjcripby': ['Margin', 'Natural'], 'sys-dmgr-ocripby': ['Margin', 'Natural'], 'sys-card-pts': ['RollTotal', 'Natural', 'RollMargin', 'RollCrit', 'RollBig'], 'sys-band-if': ['RollTotal', 'Natural', 'RollMargin', 'RollCrit', 'RollBig'], 'sys-combat-broll': ['ThrowSkill', 'ThrowDistance'], 'sys-combat-resist': ['Resist'], 'sys-dmgr-lat': ['Listed'], 'sys-dmgr-lhitw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-ladby': ['Listed', 'Worn', 'ToDestroy', 'Divisor'], 'sys-dmgr-lmajw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lbrkw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lbrkm': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lwcap': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-ltplus': ['Listed', 'Worn'], 'sys-dmgr-ohto': ['Held.count'] };
 // the list a box of the damage step stands on: the list picked in its own row
 function formRowList(inp) {
@@ -8615,6 +8616,7 @@ function formCtx(inp) {
     if (more) return { more: more };
     // 1.6.3 (the review of defense fold 2, finding 8): a call's Read on the one who resisted reads the resister and, where its By names a list's roll or a roll
     // answered with a row, that row's names, so its form offers that list's row by name and never the calling roll's own
+    if (cl && (cl.contains('sys-ans-if') || cl.contains('sys-ans-hits'))) { var anL0 = fieldOf(inp.dataset ? String(inp.dataset.ansl || '') : ''); return { subject: 'The one who defends', list: anL0 && anL0.kind === 'item-list' && anL0.list ? anL0.list : undefined, roll: { id: 'r_answers', resist: true }, then: true }; }   // 1.6.3 (defense fold 3): a line of When it answers an attack reads the defender, their parrying row, the attempt and the roll's own result
     if (cl && cl.contains('sys-call-byif')) { var byB = inp.dataset ? String(inp.dataset.by || '') : '', byM = /^(f_[A-Za-z0-9_]+)#\d+$/.exec(byB), byR = byM ? null : (Array.isArray(draft.rolls) ? draft.rolls : []).filter(function(x) { return x && x.id === byB && x.resist === true && typeof x.withRow === 'string'; })[0], byL = byM ? fieldOf(byM[1]) : byR ? fieldOf(byR.withRow) : null; return { subject: 'The one who resisted', list: byL && byL.kind === 'item-list' && byL.list ? byL.list : undefined }; }
     var rw = inp && inp.closest ? inp.closest('.sys-row') : null, id = rw && rw.dataset ? rw.dataset.id : '', r = null, cs = inp && inp.classList;
     var card = inp && inp.closest ? inp.closest('.sys-list-card') : null, lid = card && card.dataset ? card.dataset.lid : '';
@@ -8825,6 +8827,99 @@ function callsBox(obj, sys, isApply) {
     return box;
 }
 // [systemcheck:callsbox-end]
+// [systemcheck:answersbox-start] 1.6.3 (defense fold 3; docs/DEFENSE_INTERACTIONS_DESIGN.md 5.2, Fulllion's decision 3: "On the defense roll, as short lines
+// picked by name"): When it answers an attack, on a roll ticked Resists an attempt, edited in place on the draft roll it is handed (obj.answers), with
+// listeners of its own and class names (sys-ans-*) no handler of the Rolls or Lists tab reads. Each line: If, a form ("Always" until opened); Then, a list of
+// what the defense does; beside it the type it lands as, picked by name; and the weapon tests, picked by name. rowList: the list the parrying row is a row of
+// (a list's roll's own list, or the list a roll of the system is Answered with a row of), none where the defense is made with no row. Every label is an
+// option's text or a value, and what Save says of a line comes from the validator through the roll's errors
+var ANS_DOES_WORDS = [['stop', 'Then: it stops the attack'], ['thru', 'Then: the parrying row takes it first'], ['share', 'Then: it lets some through'], ['hits', 'Then: it stops a number of hits']];
+function answersBox(obj, sys, rowList) {
+    var box = el('div', 'sys-alt sys-answers'), max = typeof ANS_MAX === 'number' ? ANS_MAX : 8;
+    var said = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var types = sys && sys.combat && sys.combat.damage && Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types.filter(function(y) { return y && typeof y.key === 'string'; }) : [];
+    var listRolls = function(f) { return f && f.list && Array.isArray(f.list.rolls) ? f.list.rolls.map(function(lr, i) { return lr && typeof lr.formula === 'string' && lr.formula && !Array.isArray(lr.apply) ? [f.id + '#' + i, (lr.label || 'Roll')] : null; }).filter(Boolean) : []; };
+    var allLists = (sys && Array.isArray(sys.fields) ? sys.fields : []).filter(function(f) { return f && f.kind === 'item-list'; });
+    var refocus = function(j, cls) { var rw = box.querySelectorAll ? box.querySelectorAll('.sys-ans-row')[j] : null, k = rw && rw.querySelector ? rw.querySelector('.' + cls) : null; if (k && k.focus) k.focus(); };
+    var draw = function() {
+        box.textContent = ''; var list = Array.isArray(obj.answers) ? obj.answers : [];
+        box.appendChild(el('div', 'sys-num-cap', 'When it answers an attack'));
+        box.appendChild(el('small', 'sys-line', 'What a success does to the attack. The first line that holds is the one that counts. With none, it stops the attack.'));
+        list.forEach(function(a, j) {
+            if (!a || typeof a !== 'object') return;
+            var rw = el('div', 'sys-alt-row sys-ans-row'); rw.dataset.j = String(j);
+            var fi = input('sys-ans-if field', typeof a.if === 'string' ? a.if : '', 'Only where this holds, read as the defense succeeds: the one defending, the row they parry with, what the attack is and how far each roll got. No dice. Empty: always', 'If (optional)'); fi.maxLength = LIMITS.formula; fi.dataset.ansl = rowList && rowList.id ? rowList.id : '';
+            fi.addEventListener('input', function(e) { e.stopPropagation(); if (fi.value.trim()) a.if = fi.value.slice(0, LIMITS.formula); else delete a.if; said(); }); rw.appendChild(fi);
+            var dOpts = ANS_DOES_WORDS.filter(function(x) { return x[0] !== 'thru' || !!rowList || a.does === 'thru'; }), ds = select('sys-ans-does', dOpts, a.does || 'stop', 'What the defense does where this line holds. Stopped, nothing lands. The parrying row takes it first: it lands, and only what is over that row\u2019s figure goes on. Some through: each part is cut to a share before armor. A number of hits: that many hits of a burst are stopped and the rest land');
+            ds.addEventListener('change', function(e) { e.stopPropagation(); a.does = ds.value; if (a.does !== 'share') delete a.share; else if (!a.share) a.share = typeof ANS_HALF === 'string' ? ANS_HALF : 'Blow.dmg / 2'; if (a.does !== 'hits') delete a.hits; else if (!a.hits) a.hits = '1'; if (a.does === 'stop') { delete a.type; delete a.all; } said(); draw(); refocus(j, 'sys-ans-does'); }); rw.appendChild(ds);
+            if (a.does === 'share') { var sh = input('sys-ans-share field', typeof a.share === 'string' ? a.share : '', 'How much of each part of the blow gets through, before armor, worked out from the damage rolled. Half of it to start. No dice', 'How much gets through'); sh.maxLength = LIMITS.formula; sh.addEventListener('input', function(e) { e.stopPropagation(); a.share = sh.value.trim() ? sh.value.slice(0, LIMITS.formula) : (typeof ANS_HALF === 'string' ? ANS_HALF : 'Blow.dmg / 2'); said(); }); rw.appendChild(sh); }
+            if (a.does === 'hits') { var hn = input('sys-ans-hits field', typeof a.hits === 'string' ? a.hits : '', 'How many hits of a burst it stops, worked out as the defense succeeds, such as one more than how far it succeeded by. The rest land. An attack of one hit is stopped where this is 1 or more. No dice', 'How many hits'); hn.maxLength = LIMITS.formula; hn.dataset.ansl = rowList && rowList.id ? rowList.id : ''; hn.addEventListener('input', function(e) { e.stopPropagation(); a.hits = hn.value.trim() ? hn.value.slice(0, LIMITS.formula) : '1'; said(); }); rw.appendChild(hn); }
+            if (a.does && a.does !== 'stop') {
+                var tOpts = [['', 'As its own type']].concat(types.map(function(y) { return [y.key, 'As ' + (y.label || 'a type')]; })); if (a.type && !types.some(function(y) { return y.key === a.type; })) tOpts.push([a.type, 'As a type that is gone']);
+                var ts = select('sys-ans-type', tOpts, a.type || '', 'The damage type it lands as, from the Combat tab\u2019s types. Its own type: as it was rolled');
+                ts.addEventListener('change', function(e) { e.stopPropagation(); if (ts.value) a.type = ts.value; else { delete a.type; delete a.all; } said(); draw(); refocus(j, 'sys-ans-type'); }); rw.appendChild(ts);
+                if (a.type) { var al = checkLabel('sys-ans-all', a.all === true, 'Every part', 'Every part of the blow lands as that type. Off: only its first part'), alc = al.querySelector('input'); alc.addEventListener('change', function(e) { e.stopPropagation(); if (alc.checked) a.all = true; else delete a.all; said(); }); rw.appendChild(al); }
+            }
+            if (rowList || a.test) { var tsO = [['', 'Tests no parrying weapon']].concat(listRolls(rowList).map(function(x) { return [x[0], 'Tests the parrying weapon with ' + x[1]]; })); if (a.test && !tsO.some(function(x) { return x[0] === a.test; })) tsO.push([a.test, 'Tests with a roll that is gone']);
+                var tt = select('sys-ans-test', tsO, a.test || '', 'A roll made on the row they parried with, such as a test of whether it holds. How it is made is the Combat tab\u2019s Attacks and defenses');
+                tt.addEventListener('change', function(e) { e.stopPropagation(); if (tt.value) a.test = tt.value; else delete a.test; said(); }); rw.appendChild(tt); }
+            var taO = [['', 'Tests no attacking weapon']]; allLists.forEach(function(f) { listRolls(f).forEach(function(x) { taO.push([x[0], 'Tests the attacking weapon with ' + (f.label || 'a list') + ': ' + x[1]]); }); }); if (a.testAtk && !taO.some(function(x) { return x[0] === a.testAtk; })) taO.push([a.testAtk, 'Tests with a roll that is gone']);
+            if (taO.length > 1 || a.testAtk) { var ta = select('sys-ans-tatk', taO, a.testAtk || '', 'A roll made on the row the attack was made with, where it is a row of that roll\u2019s list. How it is made is the Combat tab\u2019s Attacks and defenses');
+                ta.addEventListener('change', function(e) { e.stopPropagation(); if (ta.value) a.testAtk = ta.value; else delete a.testAtk; said(); }); rw.appendChild(ta); }
+            var x = el('button', 'tool ghost sys-btn sys-ans-del', '\u00d7'); x.type = 'button'; x.title = 'Take this line away';
+            x.addEventListener('click', function(e) { e.stopPropagation(); if (!Array.isArray(obj.answers)) return; obj.answers.splice(j, 1); if (!obj.answers.length) delete obj.answers; said(); draw(); }); rw.appendChild(x);
+            box.appendChild(rw);
+        });
+        if (list.length < max) { var ad = el('button', 'tool ghost sys-btn sys-ans-add', list.length ? '+ Another line' : '+ What a success does'); ad.type = 'button'; ad.title = 'Add a line: where it holds, what the defense does to the attack'; ad.addEventListener('click', function(e) { e.stopPropagation(); if (!Array.isArray(obj.answers)) obj.answers = []; if (obj.answers.length >= max) return; obj.answers.push({ does: 'stop' }); said(); draw(); refocus(obj.answers.length - 1, 'sys-ans-does'); }); box.appendChild(ad); }
+    };
+    draw();
+    return box;
+}
+// [systemcheck:answersbox-end]
+// [systemcheck:ansview-start] 1.6.3 (defense fold 3; Fulllion's decision 3: "with a read-only overview in the Combat tab"): the Combat tab's Attacks and defenses,
+// How a weapon test is made (combat.testBy) and every rule a defense follows when it answers an attack, one sentence a line, each a button that opens its roll's
+// row (errGo). The sentences are worked out from the draft (ansOverview), in the sheet's own words, never a formula
+function ansCond(sys, text) {
+    var FC = typeof window !== 'undefined' ? window.wpFormCore : null, r = FC && text ? FC.readCond(String(text)) : null; if (!r || !r.ok) return 'a test of its own';
+    try { return FC.saysCond(r.cond, { name: function(n) { return nameWord(sys, n); } }) || 'a test of its own'; } catch (e) { return 'a test of its own'; }
+}
+function ansLineWords(sys, name, a, rowList) {
+    var types = sys && sys.combat && sys.combat.damage && Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [], ty = a.type ? types.filter(function(y) { return y && y.key === a.type; })[0] : null;
+    var rollName = function(ref) { var m = /^(f_[A-Za-z0-9_]+)#(\d+)$/.exec(String(ref || '')), f = m ? (sys.fields || []).filter(function(x) { return x && x.id === m[1]; })[0] : null, lr = f && f.list && Array.isArray(f.list.rolls) ? f.list.rolls[+m[2]] : null; return lr ? (lr.label || 'a roll') : 'a roll that is gone'; };
+    var w = 'When ' + (name || 'this roll') + ' answers an attack' + (a.if ? ', where ' + ansCond(sys, a.if) : '') + ', ';
+    w += a.does === 'thru' ? 'it lands and the parrying row takes it first' : a.does === 'share' ? (a.share === (typeof ANS_HALF === 'string' ? ANS_HALF : 'Blow.dmg / 2') ? 'half of it gets through' : 'some of it gets through') : a.does === 'hits' ? (a.hits === '1' ? 'it stops one hit and the rest land' : 'it stops a number of hits and the rest land') : 'it stops the attack';
+    if (ty && a.does !== 'stop') w += a.all === true ? ', every part as ' + (ty.label || ty.key) : ', as ' + (ty.label || ty.key);
+    if (a.test) w += ', and tests the parrying weapon with ' + rollName(a.test);
+    if (a.testAtk) w += ', and tests the attacking weapon with ' + rollName(a.testAtk);
+    return w + '.';
+}
+function ansOverview(sys) {
+    var out = []; if (!sys) return out;
+    (Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) {
+        if (!r || r.resist !== true || Array.isArray(r.apply) || !Array.isArray(r.answers) || !r.answers.length) return;
+        var rl = typeof r.withRow === 'string' ? (sys.fields || []).filter(function(f) { return f && f.id === r.withRow; })[0] : null;
+        r.answers.forEach(function(a) { if (a && typeof a === 'object') out.push({ text: ansLineWords(sys, r.label, a, rl), go: r.id, name: r.label || 'the roll' }); });
+    });
+    (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) {
+        if (!f || f.kind !== 'item-list' || !f.list || !Array.isArray(f.list.rolls)) return;
+        f.list.rolls.forEach(function(r) {
+            if (!r || r.resist !== true || Array.isArray(r.apply)) return; var nm = (f.label || 'A list') + ': ' + (r.label || 'Roll');
+            (Array.isArray(r.answers) ? r.answers : []).forEach(function(a) { if (a && typeof a === 'object') out.push({ text: ansLineWords(sys, nm, a, f), go: 'list:' + f.id, name: f.label || 'the list' }); });
+            if (r.thru === true) out.push({ text: 'When ' + nm + ' answers an attack, it lands and the parrying row takes it first.', go: 'list:' + f.id, name: f.label || 'the list' });
+        });
+    });
+    return out;
+}
+function defenseOverview(box, cm) {
+    box.appendChild(labeledSelect('sys-combat-testby', 'A weapon test a defense calls for', [['', 'Its owner gets a card'], ['now', 'It is rolled at once'], ['both', 'A card, and you may roll it at once']], cm && (cm.testBy === 'now' || cm.testBy === 'both') ? cm.testBy : '', 'A defense that succeeds may test the parrying weapon, or the attacking one, by a line of When it answers an attack. Here: its owner presses a card, it is rolled at once as its owner, or the owner gets a card and you may roll it at once'));
+    var wrap = el('div', 'sys-ansview');
+    wrap.appendChild(el('small', 'sys-line', 'Every rule a defense follows when it answers an attack, one sentence each. Press one to open its roll. They are set on each roll ticked Resists an attempt.'));
+    var lines = ansOverview(typeof draft !== 'undefined' ? draft : null);
+    if (!lines.length) wrap.appendChild(el('div', 'sys-ansview-none', 'No roll says yet what it does when it answers an attack, so a defense that succeeds stops the attack.'));
+    lines.forEach(function(l) { var b = el('button', 'tool ghost sys-ansview-go', l.text); b.type = 'button'; b.title = 'Open ' + l.name; b.addEventListener('click', function(e) { e.stopPropagation(); if (typeof errGo === 'function') errGo(l.go); }); wrap.appendChild(b); });
+    box.appendChild(wrap);
+}
+// [systemcheck:ansview-end]
 // [systemcheck:rowswitchbox-start] 1.6.0 R6 and R7: the Lists tab's Word while off and Icon beside the switch, and a list roll's Icon and Shows
 // figure, each edited in place on the draft object it is handed, with listeners of its own and class names no handler of the Lists tab reads
 function swWordsBox(row, sw) {
@@ -10057,7 +10152,7 @@ function errorCell(id) {
     if (!cell.childNodes.length) cell.style.display = 'none';
     return cell;
 }
-function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'turn.run') return 'Move by giving up an action: '; if (p === 'turn.face') return 'Facing changes per turn: '; if (p === 'turn.holdLost') return 'An action is lost when: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (p === 'needs') return 'Needs: '; if (p === 'cross.at') return 'First at: '; if (p === 'cross.step') return 'Then every: '; var nwP = /^needsWhy\.(\d+)$/.exec(p || ''); if (nwP) return 'Reason ' + (+nwP[1] + 1) + ': '; if (/^(?:list\.)?byIf(\.|$)/.test(p || '')) return 'Read on the one who resisted: '; if (p === 'area' || /^list\.area\./.test(p || '')) return ''; if (p === 'hits' || /^list\.hits\./.test(p || '')) return 'Hits it rolls for: '; if (p === 'dmgMajorIf' || /^list\.mjif\./.test(p || '')) return 'A Major Wound where: '; if (p === 'dmg2' || /^list\.dmg2\./.test(p || '')) return 'Second part: '; var pk3 = /^(?:list\.)?(dmg|ad)([345])(\.|$)/.exec(p || ''); if (pk3) return (pk3[2] === '3' ? 'Third' : pk3[2] === '4' ? 'Fourth' : 'Fifth') + ' part' + (pk3[1] === 'ad' ? ' armor divisor' : '') + ': '; if (p === 'ad2' || /^list\.ad2\./.test(p || '')) return 'Second part armor divisor: '; var pkK = /^(?:list\.)?dkind([2345]?)(\.|$)/.exec(p || ''); if (pkK) return (pkK[1] === '' ? 'Kind' : pkK[1] === '2' ? 'Second part kind' : pkK[1] === '3' ? 'Third part kind' : pkK[1] === '4' ? 'Fourth part kind' : 'Fifth part kind') + ': '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; if (p === 'critAt') return 'Critical at: '; if (p === 'fumbleAt') return 'Critical failure at: '; if (p === 'bigAt') return 'Lands as a heavy hit at: '; var words = { maxFormula: 'Its most: ', base: 'Its base: ', key: 'Short name: ', label: 'Its name: ', caption: 'Line under it: ', resistBy: 'Resisted by: ', resistOr: 'Or resisted by: ', asks: 'What it asks: ', calls: 'Calls for: ', lvlOnly: 'Levels it may be: ', mods: 'Changes: ', holds: 'Holds: ', malf: 'Jams at: ', roll: 'Its roll: ', throwSkill: 'Thrown with: ' }; return Object.prototype.hasOwnProperty.call(words, p) ? words[p] : ''; }   // 1.6.2 (found building a system by hand): a part in words, never its short name in the file, and none where it has no word   // Stage 6 HUD H7: an apply action's change by its number
+function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'turn.run') return 'Move by giving up an action: '; if (p === 'turn.face') return 'Facing changes per turn: '; if (p === 'turn.holdLost') return 'An action is lost when: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (p === 'needs') return 'Needs: '; if (p === 'cross.at') return 'First at: '; if (p === 'cross.step') return 'Then every: '; var nwP = /^needsWhy\.(\d+)$/.exec(p || ''); if (nwP) return 'Reason ' + (+nwP[1] + 1) + ': '; if (/^(?:list\.)?byIf(\.|$)/.test(p || '')) return 'Read on the one who resisted: '; var anP = /^(?:list\.ans\.\d+\.|answers\.)(\d+)\.(if|hits|share)$/.exec(p || ''); if (anP) return 'When it answers an attack, line ' + (+anP[1] + 1) + ', ' + (anP[2] === 'if' ? 'its If' : anP[2] === 'hits' ? 'how many hits' : 'how much gets through') + ': '; if (p === 'answers') return 'When it answers an attack: '; if (p === 'area' || /^list\.area\./.test(p || '')) return ''; if (p === 'hits' || /^list\.hits\./.test(p || '')) return 'Hits it rolls for: '; if (p === 'dmgMajorIf' || /^list\.mjif\./.test(p || '')) return 'A Major Wound where: '; if (p === 'dmg2' || /^list\.dmg2\./.test(p || '')) return 'Second part: '; var pk3 = /^(?:list\.)?(dmg|ad)([345])(\.|$)/.exec(p || ''); if (pk3) return (pk3[2] === '3' ? 'Third' : pk3[2] === '4' ? 'Fourth' : 'Fifth') + ' part' + (pk3[1] === 'ad' ? ' armor divisor' : '') + ': '; if (p === 'ad2' || /^list\.ad2\./.test(p || '')) return 'Second part armor divisor: '; var pkK = /^(?:list\.)?dkind([2345]?)(\.|$)/.exec(p || ''); if (pkK) return (pkK[1] === '' ? 'Kind' : pkK[1] === '2' ? 'Second part kind' : pkK[1] === '3' ? 'Third part kind' : pkK[1] === '4' ? 'Fourth part kind' : 'Fifth part kind') + ': '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; if (p === 'critAt') return 'Critical at: '; if (p === 'fumbleAt') return 'Critical failure at: '; if (p === 'bigAt') return 'Lands as a heavy hit at: '; var words = { maxFormula: 'Its most: ', base: 'Its base: ', key: 'Short name: ', label: 'Its name: ', caption: 'Line under it: ', resistBy: 'Resisted by: ', resistOr: 'Or resisted by: ', asks: 'What it asks: ', calls: 'Calls for: ', lvlOnly: 'Levels it may be: ', mods: 'Changes: ', holds: 'Holds: ', malf: 'Jams at: ', roll: 'Its roll: ', throwSkill: 'Thrown with: ' }; return Object.prototype.hasOwnProperty.call(words, p) ? words[p] : ''; }   // 1.6.2 (found building a system by hand): a part in words, never its short name in the file, and none where it has no word   // Stage 6 HUD H7: an apply action's change by its number
 function formulaTextFor(id, prop) {
     if (id === 'combat' && prop === 'turn.move') return (draft.combat && draft.combat.turn && draft.combat.turn.move) || '';   // turn-based combat T1
     if (id === 'combat' && prop === 'turn.run') return (draft.combat && draft.combat.turn && draft.combat.turn.run) || '';   // 1.6.0
@@ -10075,6 +10170,7 @@ function formulaTextFor(id, prop) {
     if (r && prop === 'needs') return r.needs || '';   // 1.5.4
     if (r && (prop === 'cross.at' || prop === 'cross.step')) return r.cross && typeof r.cross[prop.slice(6)] === 'string' ? r.cross[prop.slice(6)].trim() : '';   // 1.6.2 (the review of backlog 242): a crossing's own steps, as the validator read them
     var nwT = r ? /^needsWhy\.(\d+)$/.exec(prop || '') : null; if (nwT) { var nwL = Array.isArray(r.needsWhy) ? r.needsWhy[+nwT[1]] : null, nwC = nwL && typeof cleanNeedsWhy === 'function' ? cleanNeedsWhy([nwL]) : null; return nwC ? nwC[0]['if'] : (nwL && typeof nwL['if'] === 'string' ? nwL['if'].trim() : ''); }   // 1.6.2: a reason's test, as the validator read it
+    var anF = r ? /^answers\.(\d+)\.(if|hits|share)$/.exec(prop || '') : null; if (anF) return Array.isArray(r.answers) && r.answers[+anF[1]] && typeof r.answers[+anF[1]][anF[2]] === 'string' ? r.answers[+anF[1]][anF[2]].trim() : '';   // 1.6.3 (defense fold 3), as the validator read it
     var biF = r ? /^byIf\.(\d+)$/.exec(prop || '') : null; if (biF) return Array.isArray(r.calls) && r.calls[+biF[1]] && typeof r.calls[+biF[1]].byIf === 'string' ? r.calls[+biF[1]].byIf.trim() : '';   // 1.6.0, as the validator read it
     if (r && prop === 'dmgMajorIf') return r.dmgMajorIf || '';   // 1.6.0
     if (r && prop === 'hits') return r.hits || '';   // 1.6.0 A burst
@@ -10568,6 +10664,7 @@ function rollRow(r) {
     if (!isApply && typeof cardBox === 'function') row.appendChild(cardBox(function() { return r.cardActs; }, function(l) { if (l) r.cardActs = l; else delete r.cardActs; }, r));   // 1.6.2: and what its card offers
     if (!isApply && r.init !== true && typeof helpBox === 'function') row.appendChild(helpBox(r));   // 1.6.2 Assist: and whether others may help
     if (typeof callsBox === 'function') row.appendChild(callsBox(r, typeof draft !== 'undefined' ? draft : null, isApply));   // 1.6.0: Calls for
+    if (!isApply && !r.init && r.resist === true && typeof answersBox === 'function') row.appendChild(answersBox(r, typeof draft !== 'undefined' ? draft : null, typeof r.withRow === 'string' ? (draft.fields || []).filter(function(f) { return f && f.id === r.withRow && f.kind === 'item-list'; })[0] || null : null));   // 1.6.3 (defense fold 3): When it answers an attack
     if (!isApply && typeof bandBox === 'function') row.appendChild(bandBox(function() { return r.bands; }, function(l) { if (l) r.bands = l; else delete r.bands; }, true, function() { renderAll(); }));   // 1.6.2: result bands
     row.appendChild(applyEditor(r, isApply ? 'apply' : 'then'));   // R1: a roll's consequences under it
     if (typeof explainBox === 'function') row.appendChild(explainBox(r));   // 1.6.2 (backlog 218 fold 3)
@@ -11477,6 +11574,7 @@ function ctKeySays(sp, F0) {
         cb2.appendChild(ndRow); if (typeof whyBox === 'function') cb2.appendChild(whyBox(rr, 'list'));   // 1.6.2: each reason, with its own words
         var lxR = typeof listCrossRow === 'function' ? listCrossRow(rr, ri, sp.counters) : null; if (lxR) cb2.appendChild(lxR);   // 1.6.0
         if (typeof callsBox === 'function') cb2.appendChild(callsBox(rr, typeof draft !== 'undefined' ? draft : null, false));   // 1.6.0: Calls for
+        if (!rApply && rr.resist === true && typeof answersBox === 'function') cb2.appendChild(answersBox(rr, typeof draft !== 'undefined' ? draft : null, f));   // 1.6.3 (defense fold 3): When it answers an attack, the parrying row a row of this list
         if (typeof helpBox === 'function') cb2.appendChild(helpBox(rr));   // 1.6.2 Assist
         listApplyEditor(cb2, rr, ri, 'then', sp, targets);
     });
@@ -12037,6 +12135,7 @@ function combatBody() {
     lineUnder(box, 'How a check against a target reads its dice.');
     if (typeof checksBox === 'function') checksBox(box, cm);   // 1.6.0 (the v2 sort's B1): the critical range, and a named success
     if (typeof landBox === 'function') landBox(box, cm);   // 1.6.3 (defense fold 1): when an attack lands
+    if (typeof tp === 'function') tp('defenses'); if (typeof defenseOverview === 'function') defenseOverview(box, cm);   // 1.6.3 (defense fold 3): how a weapon test is made, and every rule a defense follows
     if (typeof tp === 'function') tp('blasts');
     if (typeof blastBox === 'function') blastBox(box, cm);   // 1.5.8 explosives: the falloff, the throw's roll, the scatter, the hand, how far and how near, the ways and the fuse
     if (typeof defendBox === 'function') defendBox(box, cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : {}, cm);   // 1.6.0: a blast's own Defense roll
@@ -15947,6 +16046,7 @@ function onChange(e) {
     if (typeof onBlastChange === 'function' && onBlastChange(t)) return;   // 1.5.8 explosives
     if (typeof onAreaEdit === 'function' && onAreaEdit(t, false)) return;   // 1.6.0: a line a roll hits
     if (typeof onDefendChange === 'function' && onDefendChange(t)) return;   // 1.6.0: a blast's own Defense roll
+    if (c.indexOf('sys-combat-testby') >= 0) { if (t.value === 'now' || t.value === 'both') draft.combat.testBy = t.value; else delete draft.combat.testBy; markDirty(); patchErrors(); return; }   // 1.6.3 (defense fold 3, Fulllion's decision 8)
     if (c.indexOf('sys-combat-landby') >= 0) { if (t.value === 'now' || t.value === 'both') draft.combat.landBy = t.value; else delete draft.combat.landBy; markDirty(); patchErrors(); return; }   // 1.6.3 (defense fold 1)
     if (c.indexOf('sys-combat-checks') >= 0) { if (t.value === 'under3d6' || t.value === 'fixed') draft.combat.checks = t.value; else delete draft.combat.checks; markDirty(); patchErrors(); renderCombat(); return; }   // Stage 6 F8 (1.6.0: or criticals at fixed rolls, whose two boxes it shows)
     if (c.indexOf('sys-combat-hp') >= 0) { draft.combat.hpResource = t.value; markDirty(); patchErrors(); return; }
@@ -16676,7 +16776,7 @@ function takeDamage(charId, pre) {
         row('Weapon tested', wsel, 'A weapon targeted, or one held on a hard hit. Its Dur is tested.');
         var ol = el('label', 'dmg-tick'); ol.appendChild(only); ol.appendChild(document.createTextNode(' Only the weapon was hit')); card.appendChild(ol);
         var tl = el('label', 'dmg-tick'); tl.appendChild(thru); tl.appendChild(document.createTextNode(' What is over its Dur goes on')); tl.title = 'A blade or a shield took the blow: its listed Dur stops that much, and the rest hits as a normal blow'; card.appendChild(tl);   // 1.6.2
-        var thruR = typeof pre.thru === 'string' && pre.thru ? pre.thru : window.wpNet && typeof window.wpNet.thruOf === 'function' ? window.wpNet.thruOf(charId) : null; if (thruR && wps.some(function(w) { return w.id === thruR; })) { wsel.value = thruR; thru.checked = true; }   // a parry that took the blow, on the host; 1.6.3 (the review of defense fold 1): a landed attack's card names the row itself, however late it is pressed
+        var thruR = typeof pre.thru === 'string' && pre.thru ? pre.thru : pre.noThru !== true && window.wpNet && typeof window.wpNet.thruOf === 'function' ? window.wpNet.thruOf(charId) : null;   /* 1.6.3 (defense fold 3): a landing's damage names the parrying row from its record alone (noThru), never the defender's last parry */ if (thruR && wps.some(function(w) { return w.id === thruR; })) { wsel.value = thruR; thru.checked = true; }   // a parry that took the blow, on the host; 1.6.3 (the review of defense fold 1): a landed attack's card names the row itself, however late it is pressed
     }
     var p2p = dmgObj(pre.part2) && typeof pre.part2.amt === 'number' && isFinite(pre.part2.amt) && pre.part2.amt >= 0 ? pre.part2 : null, p2amt = el('input', 'dmg-amt2'), p2sel = el('select', 'dmg-type2'), p2ad = el('input', 'dmg-ad2'), p2kd = el('select', 'dmg-kind2');   // 1.6.0 (B3): a card's second part, of another type, the same blow
     if (p2p) {
@@ -16787,6 +16887,7 @@ function damageFromRoll(fromId, total, done, type, more) {   // 1.5.7: done, cal
     if (!onC && (!tok || typeof tok.charId !== 'string' || !tok.charId)) { toast(aimS ? 'Select the token this damage lands on, then press Apply again.' : 'Target a character first, or select its token, then press Apply to target again.'); return false; }
     var pre = { amt: total }; if (aimD) pre.loc = aimD; if (typeof done === 'function') pre.done = done; if (typeof type === 'string' && type) pre.type = type; if (dmgObj(more) && typeof more.kind === 'string' && more.kind) pre.kind = more.kind;
     if (dmgObj(more) && typeof more.thru === 'string' && /^w_[A-Za-z0-9_]{1,24}$/.test(more.thru)) pre.thru = more.thru;   // 1.6.3 (the review of defense fold 1): the row a parry took the blow on, from the landing's record
+    if (dmgObj(more) && more.noThru === true) pre.noThru = true;   // 1.6.3 (defense fold 3): a damage roll a defense judged names its row itself or none
     if (dmgObj(more) && typeof more.tb === 'number' && isFinite(more.tb) && Math.abs(more.tb) <= 180) pre.tb = Math.round(more.tb);   // 1.6.2 (13): where the attacker stood
     if (dmgObj(more)) { if (typeof more.dice === 'number' && isFinite(more.dice) && more.dice > 0) pre.dice = more.dice; if (typeof more.ad === 'number' && isFinite(more.ad) && more.ad > 0) pre.ad = more.ad; if (more.major === true) pre.major = true; if (more.big === true) { pre.major = true; pre.big = true; } }   // 1.6.2: an attack's heavy hit   // 1.6.0: a roll ticked Always a Major Wound
     if (dmgObj(more) && dmgObj(more.part2) && typeof more.part2.amt === 'number' && isFinite(more.part2.amt) && more.part2.amt >= 0) { var p2m = { amt: Math.floor(more.part2.amt) }; if (typeof more.part2.type === 'string' && more.part2.type) p2m.type = more.part2.type; if (typeof more.part2.ad === 'number' && isFinite(more.part2.ad) && more.part2.ad > 0) p2m.ad = more.part2.ad; if (typeof more.part2.dice === 'number' && isFinite(more.part2.dice) && more.part2.dice > 0) p2m.dice = more.part2.dice; if (typeof more.part2.kind === 'string' && more.part2.kind) p2m.kind = more.part2.kind; pre.part2 = p2m; }   // 1.6.0 (B3): the blow's second part, of another type

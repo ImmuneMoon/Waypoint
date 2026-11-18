@@ -2110,6 +2110,15 @@ function memOut(camp, map, pid, sent) {
     var st = hostMemStore(camp, map, pid, key); if (!st.n) return null;
     return { k: key, c: Object.keys(st.cells) };
 }
+// For net.js (the live two-peer check of 1.6.3): the key this player's explored ground of a map stands under on the host now, or null where the
+// host keeps none (not hosting this campaign, remembering unticked, a map with no lattice). memSendTo asks it where memOut sends nothing, so that
+// what it records for a connection is the key the host is at even when that store is empty: under Cover all's new epoch the store is empty, and
+// unless the connection is marked as standing at that epoch, Undo (the old epoch, and with it the old key, back) looked like "already sent" and
+// the player, whose own screen had emptied its store at the epoch change, got their ground back only on a reload
+function memKeyNow(camp, map) {
+    if (!map || typeof map.id !== 'string' || !hostMemOn(camp)) return null;
+    var grid = gridForMap(map); return grid ? hostMemKey(map, grid) : null;
+}
 // On a player's app: the explored ground the host keeps for them on a map, laid into this screen's own store under the same rules as what it
 // sees (a key only of the very grid and epoch this screen judges the map by, never a cell cut by hand, the bounds of a map and of all maps).
 // Nothing is kept with no remembering, on the GM's screen or in the stream window
@@ -3210,7 +3219,7 @@ window.wpFog = {
     fogOffFor: fogOffFor, nullsAt: nullsAt,   // senses S7a: a player's word of their own tokens' senses a null area switches off, and what is off where a token stands
     placeSeen: placeSeen,   // 1.6.3: which of a map's places this screen's viewer has seen (places.js)
     seenJudge: seenJudge, pieceSeen: pieceSeen,   // 1.6.3: which pieces a player's minimap, Shift+1, hover card and double-click may show (main.js, whiteboard.js)
-    memOut: memOut, memSeed: memSeed,   // 1.6.3 (finding 13): a player's explored ground, kept by the host (net.js memSendTo) and laid into their screen's store
+    memOut: memOut, memSeed: memSeed, memKeyNow: memKeyNow,   // 1.6.3 (finding 13): a player's explored ground, kept by the host (net.js memSendTo) and laid into their screen's store
     memHostPath: memHostPath, memFlushNow: memFlushNow, memFlush: hostMemFlush, memVer: memVer,   // the review of 1.6.3: the ground a drag passed (net.js pos gate), written at once (pagehide, leaveSession), at a real save (io.js save), and fogMem's part of the save (io.js saveBody)
     seenKind: seenKind, memSeenSig: memSeenSig, memTrace: memTrace, rememberOff: function() { return !rememberOn(activeCamp()); },   // 1.6.0: what a portal's picture of a map may hold on a player's screen (mapshot.js)
     stats: function() { var map = activeMap(); return { on: map ? !!mapFog(map).on : false, light: map ? mapLevel(map) : null, mode: map ? mapFog(map).mode : null, preview: previewMode, brush: brush, fogMode: !!window.isFogMode, role: roleNow() }; }

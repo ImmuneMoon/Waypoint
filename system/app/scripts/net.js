@@ -1491,12 +1491,15 @@ function fogSeedSnapshot(conn, snap) {   // every fogged map of the hosted campa
 // keeps (fog.js memHostNote, camp.fogMem), sent to one connection of theirs as the message fogMem { campId, itemId, k, c } once for each map and
 // for each grid and fog epoch, right after a whole copy of that map goes to it (the join snapshot, a whole copy sent alone or to the table). Their
 // app lays it into its own store (fog.js memSeed); what their tokens see afterwards their own screen adds to it as before. _memSent: the key last
-// sent, by connection and map, the host's memory only, forgotten with the connection, the map and the table
+// sent, by connection and map, the host's memory only, forgotten with the connection, the map and the table. Where memOut sends nothing the record
+// still follows the key the host is at now (fog.js memKeyNow), an empty store's too: the live two-peer check of 1.6.3 found that after Cover all
+// (a new epoch, nothing kept under it) the record stayed at the old epoch's key, so Undo, which brings that key back, read as already sent and
+// the player, whose screen had emptied its store at the epoch change, saw their ground again only after a reload
 var _memSent = Object.create(null);
 function memSendTo(conn, pid, camp, mapId) {
     var F = window.wpFog; if (!conn || !conn.open || typeof conn.peer !== 'string' || !F || typeof F.memOut !== 'function' || !camp || !camp.items || !own(camp.items, mapId)) return;
     var per = own(_memSent, conn.peer) ? _memSent[conn.peer] : (_memSent[conn.peer] = Object.create(null)), out = F.memOut(camp, camp.items[mapId], pid, own(per, mapId) ? per[mapId] : null);
-    if (!out) return;
+    if (!out) { var kn = typeof F.memKeyNow === 'function' ? F.memKeyNow(camp, camp.items[mapId]) : null; if (typeof kn === 'string') per[mapId] = kn; return; }   // nothing to send: the connection now stands at this key all the same
     try { conn.send({ type: 'fogMem', campId: camp.id, itemId: mapId, k: out.k, c: out.c }); } catch (e) { sendFailed(e); return; }
     per[mapId] = out.k;
 }

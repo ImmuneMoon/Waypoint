@@ -1,3 +1,4 @@
+'use strict';
 /* damagecheck.js: the damage step's tests, which came out of systemcheck.js with their area (docs/REFACTOR_SPLIT_PLAN.md, "Tests move
    with their area", 2026-11-18). The damage step and a burst live in system/app/scripts/damagecore.js, a part of systemcore.js; this
    suite imports that part by its own name, from a private copy of systemcore.js and its parts (tools/checkkit.js fresh), so the part
@@ -10,7 +11,6 @@
    first), which stood in the auto-apply block there.
    Usage: node tools/damagecheck.js   (exit 1 on any failure) */
 require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
-'use strict';
 const kit = require('./checkkit');   // what the suites that came out of the giant ones share (tools/checkkit.js)
 const path = require('path'), fs = require('fs');
 const NL = String.fromCharCode(10);

@@ -7,8 +7,9 @@
    kept with its run of spaces after the word squeezed to one, so that two suites that print the same check with a different number
    of spaces after "ok" count as the same line, and with a time a suite measured written as "# ms", since a timing differs from one
    run to the next. Only a measured time is so written: one in parentheses at the end of the line ("(12 ms)"), a ceiling ceilingcheck
-   works out from how fast the machine runs ("stays under 340 ms", on its "at the ceilings:" lines), and any time in a failure's
-   detail after its "->". A figure in milliseconds that is part of a check's own words ("within 700 ms of the last") is kept as it
+   works out from how fast the machine runs ("stays under 340 ms", on its "at the ceilings:" lines), a time a check says it took on
+   this machine, anywhere in its words ("takes 134 ms here", "139 ms here)", fogcheck's "built in 412 ms and"; found by the review of
+   area 2, 2026-11-18, where two such lines of timerulecheck read as lost), and any time in a failure's detail after its "->". A figure in milliseconds that is part of a check's own words ("within 700 ms of the last") is kept as it
    is, so a check whose figure changed is a check that left (the review of area 1's tests, 2026-11-18). A count written before that
    review (it holds no "__norm" key) read every figure in milliseconds as "# ms", and is compared with this run read the same way.
 
@@ -36,13 +37,16 @@ function suites() {
 }
 
 // A result line as it is compared: one space after its word, no trailing space, a measured time as "# ms" (above: at the end in
-// parentheses, ceilingcheck's ceilings, and the detail after "->"), and a count of suites as "# suites" (splitcheck names how many
-// suites it read, which a new suite moves).
+// parentheses, ceilingcheck's ceilings, a time taken "here" or "built in", and the detail after "->"), and a count of suites as
+// "# suites" (splitcheck names how many suites it read, which a new suite moves). A line already so written reads the same again, so
+// a count file written before a rule was added compares as one written after it.
 const MS = /\d[\d.,]*\s*ms\b/g;
 const norm = l => {
     l = l.replace(/^(ok|FAIL)\s+/, '$1 ').replace(/\s+$/, '').replace(/\(\d+ suites\)/g, '(# suites)');
     const k = l.indexOf(' -> '), head = k < 0 ? l : l.slice(0, k), tail = k < 0 ? '' : l.slice(k).replace(MS, '# ms');
     let h = head.replace(/\(\d[\d.,]*\s*ms\)$/, '(# ms)');
+    // a time the check measured on this machine and names in its own words: "134 ms here" and "built in 412 ms"
+    h = h.replace(/\d[\d.,]*\s*ms here\b/g, '# ms here').replace(/\bbuilt in \d[\d.,]*\s*ms\b/g, 'built in # ms');
     if (/^(ok|FAIL) at the ceilings: /.test(h)) h = h.replace(/ under \d[\d.,]*\s*ms\b/g, ' under # ms');
     return h + tail;
 };

@@ -1,3 +1,4 @@
+'use strict';
 /* timerulecheck.js: time rules, the tests that came out of systemcheck.js with their area (docs/REFACTOR_SPLIT_PLAN.md, area 2, "Tests
    move with their area", 2026-11-18). How a rule that runs by time is written and cleaned lives in system/app/scripts/everycore.js and
    what runs it on one character in timecore.js, both parts of systemcore.js; this suite imports both parts by their own names, from a
@@ -12,7 +13,6 @@
    paid, the Time rules panel, and a run by itself writing a linked sheet.
    Usage: node tools/timerulecheck.js   (exit 1 on any failure) */
 require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
-'use strict';
 const kit = require('./checkkit');   // what the suites that came out of the giant ones share (tools/checkkit.js)
 const path = require('path'), fs = require('fs');
 const NL = String.fromCharCode(10);
@@ -600,7 +600,7 @@ const starterFile = n => n === '3d6' ? path.join(__dirname, 'fixtures', 'starter
             // a tripwire: chainsShallow reads the five kinds of definition the resolver puts on its chain, and the two places it evaluates with its depth
             const scSrc = fs.readFileSync(path.join(app, 'scripts', 'systemcore.js'), 'utf8'), mrSrc = scSrc.slice(scSrc.indexOf('function makeResolver('), scSrc.indexOf('// Stage 6: a caption\'s {…}'));
             check('1.5.5 a tripwire on the resolver: makeResolver puts a definition on its chain in exactly five places (a formula, a skill\'s base or a pool\'s most; a choice\'s option; a column of one row; a total; a highest or lowest) and evaluates with its depth in exactly two, each of which chainsShallow reads: a new one must be taught to chainsShallow, or a run that shares its resolvers could answer a name the old path did not',
-                mrSrc.length > 1000 && mrSrc.split('chain.push(').length - 1 === 5 && mrSrc.split('depth: chain.length').length - 1 === 2 && /function chainsShallow\(sys, F\)/.test(scSrc), j([mrSrc.split('chain.push(').length - 1, mrSrc.split('depth: chain.length').length - 1]));
+                mrSrc.length > 1000 && mrSrc.split('chain.push(').length - 1 === 5 && mrSrc.split('depth: chain.length').length - 1 === 2 && /function chainsShallow\(sys, F\)/.test(kit.part('timecore.js')), j([mrSrc.split('chain.push(').length - 1, mrSrc.split('depth: chain.length').length - 1]));
             const rdBig = f => fs.readFileSync(path.join(app, '..', '..', f), 'utf8').replace(/\r\n/g, NL), noteBig = "- A time rule's run that moved nothing and rolled no dice now posts\n  nothing: no summary in chat and no Game Record line. So a rule that\n  fills a pool says nothing while the pool is full, and many NPCs at\n  their most no longer fill the chat every game hour.\n", rnLine ='- A game hour of time rules on a large campaign no longer stalls your\n  screen.\n';
             check('1.5.5 both release notes say it in the 1.5.5 part, under Calendar, right after the flood fix\'s point',
                 [rdBig('WHATSNEW.txt'), rdBig('system/app/assets/whatsnew.txt')].every(t => { const p = t.indexOf('WAYPOINT 1.5.5'), q = t.indexOf('WAYPOINT 1.5.4'), k = t.indexOf(rnLine), f = t.indexOf(noteBig); return p >= 0 && f > p && k === f + noteBig.length && k < q && t.split(rnLine).length === 2; }));
@@ -1059,8 +1059,8 @@ const starterFile = n => n === '3d6' ? path.join(__dirname, 'fixtures', 'starter
             jr([tickOf(boxA, 'sys-apply-rolled'), lblOf(boxA, 'sys-apply-rolled'), findR(cardR, 'sys-list-applyrolled').map(x => x.checked)]));
         // the host's own presses and hooks hand their dice on (pinned): the GM's press, the round and turn hook, a time rule's flood line
         check('1.5.9 Rolled, the host\'s own paths (sheets.js, pinned): the GM\'s press of an apply action hands applyAct this machine\'s dice core, the round and turn hook hands applyRound the same, and a time rule\'s run that drew dice counts as rolled for the flood rule',
-            shRl.includes("var res = applyAct(sys, c, act, vv, F(), tc, row ? { f: row.f, r: row.r } : null, undefined, window.wpDiceCore || null, onT ? { char: onT.ch, tctx: ")   /* 1.5.9 (book es/et plan, section 3): a deliberate change of this pin, the press on an adjacent character */ && shRl.includes("F(), tc, kind, window.wpDiceCore || null, { now: Date.now(), inCombat: true }), ids = Object.keys(res.values);")   /* 1.6.0: and the clock an effect it switches on starts its timer by */
-            && shRl.includes("!(res.rolls.made && ruleDice(rule)) && !(res.drew > 0)) return;"));
+            shRl.includes("var res = applyAct(sys, c, act, vv, F(), tc, row ? { f: row.f, r: row.r } : null, undefined, window.wpDiceCore || null, onT ? { char: onT.ch, tctx: ")   /* 1.5.9 (book es/et plan, section 3): a deliberate change of this pin, the press on an adjacent character */ && kit.part('sheettime.js').includes("F(), tc, kind, window.wpDiceCore || null, { now: Date.now(), inCombat: true }), ids = Object.keys(res.values);")   /* 1.6.0: and the clock an effect it switches on starts its timer by */
+            && kit.part('sheettime.js').includes("!(res.rolls.made && ruleDice(rule)) && !(res.drew > 0)) return;"));
     }
 
     {   // 1.6.0 (the review of 96e39ae6): an entry used on the user or an adjacent character that runs by itself runs on its own character, OnSelf 1
@@ -1114,7 +1114,7 @@ const starterFile = n => n === '3d6' ? path.join(__dirname, 'fixtures', 'starter
         check('1.6.0 Counts by the game clock on the sheet: a timed counter says so (tm) and a count down at 0 shows its end word; a player never sets a timed counter by hand, the GM does, and an untimed counter of the same row is as ever',
             J(ctsT.w_b.slice(0, 3)) === J([{ key: 'Fresh', label: 'Fresh', value: 0, max: null, tm: 'down', word: 'Spoiled' }, { key: 'Burn', label: 'Burning', value: 0, max: null, tm: 'up' }, { key: 'Uses', label: 'Uses', value: 2, max: null }])
             && edP.ok === false && edP.reason === 'field' && edG.ok === true && edU.ok === true, J([ctsT.w_b, edP, edG.ok, edU]));
-        const shT = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), caT = fs.readFileSync(path.join(app, 'scripts', 'calendar.js'), 'utf8').replace(/\r\n/g, '\n'), ntT = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+        const shT = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), caT = fs.readFileSync(path.join(app, 'scripts', 'calendar.js'), 'utf8').replace(/\r\n/g, '\n');
         const ntP = require('./checkkit').part('nettime.js'), rsA = ntP.indexOf('net.rowSpans = function('), rsB = ntP.indexOf('net.fxGameTime = function(', rsA);   // nettime.js, read by its own name
         const told = [], logs = [], deltas = [], changed = [];
         const campT = { system: gT, chars: { c_t: JSON.parse(J(ch0)), c_n: { id: 'c_n', name: 'Bob', npc: true, values: {} } } };
@@ -1166,7 +1166,7 @@ const starterFile = n => n === '3d6' ? path.join(__dirname, 'fixtures', 'starter
             mpOf(sC, c2, k1.values) === 4 && k1.values.f_pw[0].ut === 30 && k1.moved.indexOf('f_mp') >= 0 && k1.moved.indexOf('f_pw') < 0 && mpOf(sC, c2b, k2.values) === 1 && !('ut' in k2.values.f_pw[0]) && !('f_mp' in k3.values) && k3.values.f_pw[0].ut === 30
             && keptGm[0].ut === 30 && !('ut' in ownC.values.f_pw[0]),
             J([k1.values, k1.moved, k2.values, k3.values, keptGm, ownC.values.f_pw]));
-        const shU = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), ixU = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n'), nU = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+        const shU = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), ixU = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n');
         const ntU = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n'));
         const vU = S.validateSystem(cleanSystem(rawU('turn', { amt: 'Row.nope + 1' }), { F, gmView: true }), F);
         const rawK = JSON.parse(J(rawU('turn', { ct: 'kept' }))); rawK.fields[1].list.counters = [{ key: 'Kept', label: 'Kept' }];
@@ -1188,8 +1188,8 @@ const starterFile = n => n === '3d6' ? path.join(__dirname, 'fixtures', 'starter
             offMsgs.length === 0 && vOff2.errors.filter(e => /: Switch this row off needs a switch, but this list has none\.$/.test(e.message)).length === 3 && vOff2.errors.every(e => !/Pick the pool/.test(e.message))
             && J(plOff.map(r => r.then || r.apply)) === J([[{ off: true, when: 'miss' }, { off: true }], [{ off: true }]]), J([offMsgs, vOff2.errors, plOff]));
         check('CORE gap 13 is in the editor, logged and said (source): Keeps paying under a list\'s switch, its pool, amount, when, step and stop; the round hook and the clock log each payment (upkeep v1); the validator reads the amount with the row\'s names; Help and both 1.6.0 notes say it',
-            shU.includes("if (sw && typeof upkeepBox === 'function') upkeepBox(card, sp);") && shU.includes("checkLabel('sys-list-upon', !!up, 'Keeps paying'") && shU.includes("lsc.upkeep = { pool: p0 ? p0.id : '', amt: '1', each: 'turn' };") && shU.includes("window.wpStepLog('upkeep v1', 'paid', { when: kind")
-            && nU.includes("window.wpStepLog('upkeep v1', 'paid', { when: 'clock'") && vU.errors.concat(vU.warnings).some(e => /^Keeps paying: /.test(e.message) && /nope/i.test(e.message))
+            shU.includes("if (sw && typeof upkeepBox === 'function') upkeepBox(card, sp);") && shU.includes("checkLabel('sys-list-upon', !!up, 'Keeps paying'") && shU.includes("lsc.upkeep = { pool: p0 ? p0.id : '', amt: '1', each: 'turn' };") && kit.part('sheettime.js').includes("window.wpStepLog('upkeep v1', 'paid', { when: kind")
+            && kit.part('nettime.js').includes("window.wpStepLog('upkeep v1', 'paid', { when: 'clock'") && vU.errors.concat(vU.warnings).some(e => /^Keeps paying: /.test(e.message) && /nope/i.test(e.message))
             && ixU.includes('<li><b>Keeps paying</b>, under the switch, is what a row switched on keeps paying') && ntU.every(t => t.indexOf("- A list's rows can keep paying while switched on") > 0 && t.indexOf("- A list's rows can keep paying while switched on") < t.indexOf('WAYPOINT 1.5.')),
             J(vU.errors.concat(vU.warnings).map(e => e.message)));
     }
@@ -1243,7 +1243,8 @@ const starterFile = n => n === '3d6' ? path.join(__dirname, 'fixtures', 'starter
         const gn = v => v.map(g => g.name + ':' + g.rows.map(r => r.name + '/' + r.lines.length).join(','));
         const muteOk = T.tpMuted('k1', 'r_m') && !T.tpMuted('k2', 'r_m') && T.tpMuteSet('k1', 'r_m', false) && !T.tpMuted('k1', 'r_m') && !T.tpMuteSet('k1', 'bad id!', true) && !T.tpMuteSet('', 'r_x', true) && T.tpMuteSet('k1', 'r_q', true) && J(JSON.parse(store.wp_timeMute)) === J({ k1: ['r_q'] });
         const shS = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
-        const srcOk = shS.includes("if (nt !== 'quiet') pl.push(head + ': ' + body);") && shS.includes("n.timeCard(c, lead + parts.join('; '), gm, { player: pl.length ? lead + pl.join('; ') : '', gmChat: !tp })") && shS.includes("window.wpTimePanel.add(camp, sys, words, runChars)")
+        const shSt = kit.part('sheettime.js');   // sheettime.js, read by its own name: the run's summary and its hand-off to the Time rules panel
+        const srcOk = shSt.includes("if (nt !== 'quiet') pl.push(head + ': ' + body);") && shSt.includes("n.timeCard(c, lead + parts.join('; '), gm, { player: pl.length ? lead + pl.join('; ') : '', gmChat: !tp })") && shSt.includes("window.wpTimePanel.add(camp, sys, words, runChars)")
             && !/innerHTML|insertAdjacentHTML|outerHTML/.test(tpS) && shS.includes("if (r.every || r.inFight || r.notes) row.appendChild(noteRow(r));");
         check('1.6.0, backlog 173: a time rule\'s Notes (Panel only, or Panel only with its players never told) kept only on a time rule and only in the GM\'s view; a run handed to the Time rules panel keeps each character with lines, players first by name, then NPCs by the map they stand on with no map last, a player\'s name from the table, names as text cut to their bounds, a line on the chat line only where its rule is In chat and not muted; the chat line\'s words count characters, changes and rolls; the filter and the search narrow the groups; Mute is per campaign on this computer, by a rule id of the system\'s shape; runTimeRules leaves a Players never told rule out of its player\'s summary, keeps the GM\'s chat for the run\'s one line and hands the run over; the panel writes no markup',
             coreOk && J(order) === J(['<b>Hostile</b>|a player|', 'Kael|Pat|', 'Aba||Docks', 'Zed||']) && J(chatOf) === J(['1', '00', '0', '1']) && run.changes === 5 && run.rolls === 2 && run.chat === 2
@@ -1290,7 +1291,7 @@ const starterFile = n => n === '3d6' ? path.join(__dirname, 'fixtures', 'starter
         const cardsOk = J(hk1.cards) === J([['c_k', 'Upkeep', J([{ n: 'Shield: MP', d: -3 }, { n: 'Shield: Kept', d: 1 }, { n: 'Glow (not enough MP)', fx: 0 }]), 'owner'], ['c_k', 'Upkeep', J([{ n: 'Veil: MP', d: -1, v: 0 }, { n: 'Veil: Kept', d: 1, v: 1 }]), 'gm']])
             && hk1.ch.values.f_mp.cur === 0 && J(hkN.cards.map(c => c[3])) === J(['gm']) && hkNone.cards.length === 0 && hkNone.ch.values.f_mp.cur === 0
             && manyN === 2 && many.cards.slice(-2).map(c => JSON.parse(c[2]).length).join() === '120,15';
-        const wiredK = shK.includes("if (res.upkeepSaid) upkeepCards(c, res.upkeepSaid, n);   // 205 follow-up (3)") && shK.includes("import { upkeepLines } from './systemcore.js';");
+        const wiredK = kit.part('sheettime.js').includes("if (res.upkeepSaid) upkeepCards(c, res.upkeepSaid, n);   // 205 follow-up (3)") && shK.includes("import { upkeepLines } from './systemcore.js';");
         const ixK = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), ntK = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n'));
         const wordsK = ixK.includes('Each payment is said in chat to you and the row&rsquo;s player, or to you alone for a row they cannot see.') && ntK.every(t => t.indexOf('- Each payment of Keeps paying is now said in chat') > 0 && t.indexOf('- Each payment of Keeps paying is now said in chat') < t.indexOf('WAYPOINT 1.5.'));
         check('205 follow-up (3): what Keeps paying paid is said. rowUpkeep keeps what each row\'s payments moved and a row switched off for lack of its pool (said, handed on by applyRound and rowTimers as upkeepSaid beside upkeep, which is as it was); upkeepLines and upkeepWords say it whole to the GM and to the row\'s owner only the rows they may see, with no figure where a row out of their sight paid too (an NPC, a character with no player, a GM-only list or pool, a row kept on out of their sight and an amount that reads a GM-only value are the GM\'s alone); the round hook posts one card for the owner and the GM and one for the GM alone, twelve lines a card; Help and both release notes say it',
@@ -1313,6 +1314,114 @@ const starterFile = n => n === '3d6' ? path.join(__dirname, 'fixtures', 'starter
             && rd.ran === 1 && J(rd.linkValues) === J({ c_h: { f_end: { cur: 7 } } })
             && (shR.split('linkValuesWrite(res.linkValues)').length - 1) >= 4,
             J([tr, rd]));
+    }
+
+    {   // 1.5.5 and 1.5.9, from systemcheck's [m410] block (the review of area 2, 2026-11-18): the round and turn hooks (timedHook, runDue), whose
+        // code is in sheettime.js. The slice from the round hook to the combat roster runs past the part's end into sheets.js, so it is read
+        // from the joined sheets.js, as systemcheck read it
+        const sh4 = kit.joined('sheets.js'), hk5i = sh4.indexOf("// Stage 6 HUD G10: the host's round hook"), hk5k = sh4.indexOf("// The combat roster (whiteboard.js): initiative from the system's init roll", hk5i + 1);
+        if (hk5i < 0 || hk5k < 0) throw new Error('m410 slice: the round hook');
+        const hk5 = sh4.slice(hk5i, hk5k);
+        // 1.5.5 (the release trace, F2): the round and turn hooks judge a player's character by what its player sees, as net.js turnMoveStart does. timedHook
+        // run for real with the real tokenCtx, and what targets a token answered by net.js's own aimsOf (its targetas slice): an NPC the GM targets Ana
+        // with through Target as, hidden from her, is no threat to an action or a reminder that reads Threats; shown, it is. Before, the hooks asked
+        // with no viewer, so the hidden NPC counted: her value changed and a reminder was posted to her while her own sheet showed no threat
+        const ntF2 = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, NL), taF2 = ntF2.slice(ntF2.indexOf('// [netcheck:targetas-start]'), ntF2.indexOf('// [netcheck:targetas-end]'));
+        const sysF2 = cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_th', key: 'Seen', kind: 'number', def: 0 }],
+            rolls: [{ id: 'r_seen', label: 'Seen', apply: [{ f: 'f_th', formula: 'Threats + 1', add: true }], each: 'turn' }, { id: 'r_rseen', label: 'Round seen', apply: [{ f: 'f_th', formula: 'Threats + 10', add: true }], each: 'round' },
+                { id: 'r_warn', label: 'Warn', apply: [{ f: 'f_th', formula: '1', add: true }], each: 'turn', by: 'owner', needs: 'Threats > 0' }] }, { F, gmView: true });
+        const hookF2 = (hidden, kind) => {
+            const posted = [], ana = { id: 't1', isChar: true, charId: 'c_a', ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50, rot: 0 }, orc = { id: 't_orc', isChar: true, charId: 'c_o', charName: 'Orc', x: 0, y: 200, w: 50, h: 50 };
+            if (hidden) orc.hidden = true;
+            const chars = { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: {} } }, camp = { items: { m1: { id: 'm1', type: 'map', meta: { gridType: 'square' }, whiteboard: [ana, orc] } }, chars, system: sysF2 };
+            const nT = { active: true, role: 'host', targets: { 'tk:t_orc': { id: 't1', mapId: 'm1', name: 'Orc', from: 't_orc' } } };
+            const N = new Function('net', 'applyTarget', 'broadcastTargets', 'toast', 'getActiveCampaign', 'fogDrop', 'mapFogged', taF2 + '\nreturn net;')(nT, () => {}, () => {}, () => {}, () => camp, () => null, m => !!(m && m.fog && m.fog.on === true));
+            const n = { role: 'host', active: true, syncCharDelta() {}, postDue: (c, a, k, rd) => posted.push(c.id + ':' + a.id + ':' + k + ':' + rd) };
+            const hooks = new Function('getActiveCampaign', 'systemOf', 'net', 'F', 'window', 'combatChars', 'charsOf', 'charById', 'withRound', 'tokenCtx', 'tokenFlags', 'applyRound', 'dueActs', 'resolveAll', 'renderViews', 'save', 'rollNeedsOk', hk5 + NL + 'return { turnHook: turnHook, roundHook: roundHook };')(
+                () => camp, c => c.system, () => n, () => F, { wpVtt: { on: () => true } }, S.combatChars, c => c.chars, (id, c) => c.chars[id] || null, S.withRound, S.tokenCtx, () => ({ turning: true }), S.applyRound, S.dueActs, S.resolveAll, () => {}, () => {}, S.rollNeedsOk);
+            let done = null; S.setAimSource((m, t, v) => N.aimsOf(m, t, v));
+            try { done = hooks[kind === 'round' ? 'roundHook' : 'turnHook']('m1', { rows: [{ tokId: 't1' }], turn: 0, round: 2 }); } finally { S.setAimSource(null); }
+            return [done, posted, chars.c_a.values.f_th === undefined ? '-' : chars.c_a.values.f_th];
+        };
+        const tF2 = [hookF2(true, 'turn'), hookF2(false, 'turn'), hookF2(true, 'round'), hookF2(false, 'round')];
+        check('1.5.5 (the release trace, F2) the round and turn hooks judge a player\'s character by what its player sees (timedHook, run for real with net.js\'s own aimsOf): an NPC that targets Ana through Target as while it is hidden from her is no threat to an Also at its turn\'s start action that reads Threats, to a reminder whose needs read it, or to an Also each round action; shown, it is a threat to all three',
+            j(tF2) === j([[1, [], 1], [1, ['c_a:r_warn:turn:2'], 2], [1, [], 10], [1, [], 11]]), j(tF2));
+        // 1.5.9 (docs/BOOK_ES_ET_PLAN.md 4b; the owner: "Reminder card"): a roll may be due each round or at its turn's start, a reminder card with its
+        // roll button for its player or the GM, never rolled by itself and never on the initiative roll; timedHook and runDue run for real
+        const sysF6 = { v: 1, name: 'T', fields: [{ id: 'f_dn', key: 'Down', kind: 'toggle' }], rolls: [
+            { id: 'r_ht', label: 'Stay awake', formula: '3d6 <= 10', each: 'turn', by: 'owner', needs: 'Down' }, { id: 'r_auto', label: 'Auto', formula: '1d6', each: 'turn' },
+            { id: 'r_ini', label: 'Init', formula: '1d6', init: true, each: 'turn', by: 'gm' }, { id: 'r_rd', label: 'Each round', formula: '1d6', each: 'round', by: 'gm' }, { id: 'r_odd', label: 'Odd', formula: '1d6', each: 'now', by: 'gm' }] };
+        const gF6 = cleanSystem(sysF6, { F, gmView: true }), pF6 = cleanSystem(sysF6, { F, gmView: false }), rF6 = (s, id) => s.rolls.filter(r => r.id === id)[0] || {};
+        const clF6 = rF6(gF6, 'r_ht').each === 'turn' && rF6(gF6, 'r_ht').by === 'owner' && rF6(gF6, 'r_rd').each === 'round' && rF6(gF6, 'r_rd').by === 'gm'
+            && !('each' in rF6(gF6, 'r_auto')) && !('by' in rF6(gF6, 'r_auto')) && !('each' in rF6(gF6, 'r_ini')) && !('each' in rF6(gF6, 'r_odd'))
+            && j(gF6.rolls.map(r => [r.each, r.by])) === j(pF6.rolls.map(r => [r.each, r.by])) && j(cleanSystem(gF6, { F, gmView: true })) === j(gF6)
+            && j(S.dueActs(gF6, 'turn').map(r => r.id)) === j(['r_ht']) && j(S.dueActs(gF6, 'round').map(r => r.id)) === j(['r_rd']) && S.roundActs(gF6, 'turn').length === 0;
+        const hookF6 = (down) => {
+            const posted = [], tok = { id: 't1', isChar: true, charId: 'c_a', ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50 };
+            const chars = { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_dn: !!down } } }, camp = { items: { m1: { id: 'm1', type: 'map', meta: { gridType: 'square' }, whiteboard: [tok] } }, chars, system: gF6 };
+            const n = { role: 'host', active: true, syncCharDelta() {}, postDue: (c, a, k, rd, own) => posted.push(c.id + ':' + a.id + ':' + k + ':' + rd + ':' + own) };
+            const hooks = new Function('getActiveCampaign', 'systemOf', 'net', 'F', 'window', 'combatChars', 'charsOf', 'charById', 'withRound', 'tokenCtx', 'tokenFlags', 'applyRound', 'dueActs', 'resolveAll', 'renderViews', 'save', 'rollNeedsOk', hk5 + NL + 'return { turnHook: turnHook, roundHook: roundHook };')(
+                () => camp, c => c.system, () => n, () => F, { wpVtt: { on: () => true } }, S.combatChars, c => c.chars, (id, c) => c.chars[id] || null, S.withRound, S.tokenCtx, () => ({ turning: true }), S.applyRound, S.dueActs, S.resolveAll, () => {}, () => {}, S.rollNeedsOk);
+            hooks.turnHook('m1', { rows: [{ tokId: 't1' }], turn: 0, round: 3 }); hooks.roundHook('m1', { rows: [{ tokId: 't1' }], turn: 0, round: 3 });
+            return posted;
+        };
+        const hkF6 = [hookF6(true), hookF6(false)];
+        const runDueF6 = (canR, disabled) => { const out = { clicks: 0, toasts: [], applied: 0 }, c = { id: 'c_a', name: 'Ana', values: {} }, camp = { system: gF6, chars: { c_a: c } };
+            const btn = { disabled: !!disabled, title: 'Not now — it needs Down', click() { out.clicks++; } };
+            const rd = new Function('getActiveCampaign', 'systemOf', 'charById', 'canRoll', 'rollNode', 'toast', 'canApply', 'applyAction', hk5 + NL + 'return runDue;')(
+                () => camp, x => x.system, (id, k) => k.chars[id] || null, () => !!canR, () => ({ querySelector: s => (s === 'button.sheet-roll' ? btn : null) }), t => out.toasts.push(t), () => true, () => { out.applied++; });
+            out.ret = rd('c_a', 'r_ht'); return out; };
+        const dF6 = [runDueF6(true, false), runDueF6(false, false), runDueF6(true, true)];
+        {   // 1.6.0: due, or run by itself, at its turn's END
+            const sysE = { v: 1, name: 'T', fields: [{ id: 'f_hp', key: 'HP', kind: 'number', def: 8 }], rolls: [
+                { id: 'r_end', label: 'Shake it off', formula: '3d6 <= 10', each: 'turnEnd', by: 'owner' }, { id: 'r_aend', label: 'Bleed', apply: [{ f: 'f_hp', formula: '7' }], each: 'turnEnd' },
+                { id: 'r_aendgm', label: 'Ask', apply: [{ f: 'f_hp', formula: '0', set: true }], each: 'turnEnd', by: 'gm' }, { id: 'r_ini', label: 'Init', formula: '1d6', init: true, each: 'turnEnd', by: 'gm' }] };
+            const gE = cleanSystem(sysE, { F, gmView: true }), pE = cleanSystem(sysE, { F, gmView: false }), rE = (sx, id) => sx.rolls.filter(r => r.id === id)[0] || {};
+            const posted = [], tok = { id: 't1', isChar: true, charId: 'c_a', ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50 }, ch = { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_hp: 8 } };
+            const campE = { items: { m1: { id: 'm1', type: 'map', meta: { gridType: 'square' }, whiteboard: [tok] } }, chars: { c_a: ch }, system: gE };
+            const nE = { role: 'host', active: false, syncCharDelta() {}, postDue: (c, a, k, rd, own) => posted.push(c.id + ':' + a.id + ':' + k + ':' + rd + ':' + own) };
+            const hE = new Function('getActiveCampaign', 'systemOf', 'net', 'F', 'window', 'combatChars', 'charsOf', 'charById', 'withRound', 'tokenCtx', 'tokenFlags', 'applyRound', 'dueActs', 'resolveAll', 'renderViews', 'save', 'rollNeedsOk', hk5 + NL + 'return { turnEndHook: turnEndHook, turnHook: turnHook };')(
+                () => campE, c => c.system, () => nE, () => F, { wpVtt: { on: () => true } }, S.combatChars, c => c.chars, (id, c) => c.chars[id] || null, S.withRound, S.tokenCtx, () => ({ turning: true }), S.applyRound, S.dueActs, S.resolveAll, () => {}, () => {}, S.rollNeedsOk);
+            const ranE = hE.turnEndHook('m1', { rows: [{ tokId: 't1' }], turn: 0, round: 2 }), afterE = j(ch.values.f_hp), postedE = posted.slice(); hE.turnHook('m1', { rows: [{ tokId: 't1' }], turn: 0, round: 3 });
+            check('1.6.0 at its turn\'s end (cleanSystem, dueActs, roundActs and the real turnEndHook): the cleaner keeps Also at its turn\'s end on a roll with its by, the same in both views, and on an apply action, never on the initiative roll; the turn-end hook runs its character\'s own turn-end action and posts the due roll\'s and the GM\'s reminders for the round it ended in, and the turn-start hook none of them',
+                rE(gE, 'r_end').each === 'turnEnd' && rE(gE, 'r_end').by === 'owner' && rE(pE, 'r_end').each === 'turnEnd' && rE(gE, 'r_aend').each === 'turnEnd' && !('each' in rE(gE, 'r_ini'))
+                && j(S.dueActs(gE, 'turnEnd').map(r => r.id)) === j(['r_end', 'r_aendgm']) && j(S.roundActs(gE, 'turnEnd').map(r => r.id)) === j(['r_aend']) && S.dueActs(gE, 'turn').length === 0 && S.roundActs(gE, 'turn').length === 0
+                && ranE === 1 && afterE === j(1) && j(postedE) === j(['c_a:r_end:turnEnd:2:true', 'c_a:r_aendgm:turnEnd:2:false']) && posted.length === 2, j([gE.rolls.map(r => [r.id, r.each, r.by]), ranE, afterE, posted]));
+        }
+        check('1.5.9 a roll due at its turn\'s start or each round (the owner: "Reminder card"; cleanSystem, dueActs, and timedHook and runDue run for real): the cleaner keeps each with its by on a roll, the same in both views, and drops a roll\'s each with no by, on the initiative roll or by a word it does not know; dueActs lists a due roll by its kind, roundActs never a roll; the turn hook posts the roll\'s reminder for its player at its turn\'s start only while its needs hold, the round hook the GM\'s at each round; the reminder\'s button presses the roll\'s own sheet button, and says why where it cannot be rolled or is not theirs',
+            clF6 && j(hkF6) === j([['c_a:r_ht:turn:3:true', 'c_a:r_rd:round:3:false'], ['c_a:r_rd:round:3:false']])
+            && dF6[0].ret === true && dF6[0].clicks === 1 && dF6[0].applied === 0 && dF6[1].ret === false && dF6[1].clicks === 0 && /not yours to roll/.test(dF6[1].toasts[0] || '')
+            && dF6[2].ret === false && dF6[2].clicks === 0 && /needs Down/.test(dF6[2].toasts[0] || ''),
+            j([clF6, hkF6, dF6.map(d => [d.ret, d.clicks, d.toasts])]));
+    }
+    {   /* 1.6.0 (the v2 combat module), from systemcheck (the review of area 2, 2026-11-18): a list counter that starts again at its character's
+           turn start (timecore.js turnCounters, through applyRound 'turn', which sheettime.js's round and turn hook runs) */
+            const mkT = gm => S.cleanSystem({ v: 1, name: 'T', rolls: [], fields: [{ id: 'f_w', key: 'Arms', label: 'Arms', kind: 'item-list', edit: 'owner', vis: 'all', list: { stats: [{ key: 'wt', label: 'Wt' }],
+                counters: [{ key: 'swings', label: 'Swings', turn: true }, { key: 'ammo', label: 'Ammo', def: 5, turn: true }, { key: 'hits', label: 'Hits' }, { key: 'odd', label: 'Odd', turn: 'yes' }] } }],
+                items: [{ id: 'i_axe', name: 'Sela\'s axe', stats: { wt: 4 } }, { id: 'i_bow', name: 'Bow', stats: { wt: 2 } }, { id: 'i_rod', name: 'Rod', stats: { wt: 1 } }] }, { F, gmView: gm });
+            const tG = mkT(true), tP = mkT(false), ctT = tG.fields[0].list.counters, vfT = w => S.resolveAll(tG, w, F, null).vars;
+            const chT = { id: 'c_t', values: { f_w: [{ defId: 'i_axe', qty: 1, ct: { swings: 2, hits: 3 } }, { defId: 'i_bow', qty: 1, ct: { ammo: 2 } }, { defId: 'i_rod', qty: 1, ct: { ammo: 5, swings: 0 } }] } };
+            const rT = S.applyRound(tG, chT, vfT, F, null, 'turn'), rR = S.applyRound(tG, chT, vfT, F, null, 'round'), rE = S.applyRound(tG, chT, vfT, F, null, 'turnEnd');
+            const shT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8');
+            check('1.6.0 a counter ticked Starts again each turn: the cleaner keeps turn only as true, in both views; at its character\'s turn start (applyRound \'turn\', which the host\'s turn hook runs) each such count goes back to where a row starts, its stored count taken off, other counters and a row already at its start left as they are, nothing written over the character; a new round or a turn\'s end does nothing; the Lists tab ticks it',
+                ctT[0].turn === true && ctT[1].turn === true && !('turn' in ctT[2]) && !('turn' in ctT[3]) && j(tP.fields[0].list.counters) === j(ctT)
+                && j(rT.values.f_w) === j([{ defId: 'i_axe', qty: 1, ct: { hits: 3 } }, { defId: 'i_bow', qty: 1 }, { defId: 'i_rod', qty: 1, ct: { ammo: 5, swings: 0 } }]) && rT.values.f_w[2] === chT.values.f_w[2] && j(chT.values.f_w[0].ct) === j({ swings: 2, hits: 3 })
+                && j(rR.values) === '{}' && j(rE.values) === '{}' && kit.part('sheettime.js').includes("var res = applyRound(sys, c, function(w) { return resolveAll(sys, w, F(), tc).vars; }, F(), tc, kind,") && shT.includes("checkLabel('sys-list-ctnewturn', tt.turn === true, 'Starts again each turn',"), j([ctT, rT, rR, rE]));
+            {   /* 1.6.0 (the core's gap 14, heavy swings): a counter ticked Starts again each turn may pass its count to another counter of its list first */
+                const mkP = gm => S.cleanSystem({ v: 1, name: 'P', rolls: [], fields: [{ id: 'f_w', key: 'Arms', label: 'Arms', kind: 'item-list', edit: 'owner', vis: 'all', list: { stats: [{ key: 'wt', label: 'Wt' }],
+                    counters: [{ key: 'swung', label: 'Swung', turn: true, pass: 'LAST' }, { key: 'last', label: 'Swung last turn' }, { key: 'a', label: 'A', turn: true, pass: 'b' }, { key: 'b', label: 'B', def: 2, turn: true, pass: 'a' },
+                        { key: 'self', label: 'Self', turn: true, pass: 'self' }, { key: 'lost', label: 'Lost', turn: true, pass: 'nothing' }, { key: 'plain', label: 'Plain', pass: 'last' }] } }],
+                    items: [{ id: 'i_maul', name: 'Maul', stats: { wt: 9 } }, { id: 'i_rod', name: 'Rod', stats: { wt: 1 } }, { id: 'i_bow', name: 'Bow', stats: { wt: 2 } }] }, { F, gmView: gm });
+                const pG = mkP(true), pP = mkP(false), ctP = pG.fields[0].list.counters, vfP = w => S.resolveAll(pG, w, F, null).vars;
+                const chP = { id: 'c_p', values: { f_w: [{ defId: 'i_maul', qty: 1, ct: { swung: 1, a: 3 } }, { defId: 'i_rod', qty: 1, ct: { last: 1 } }, { defId: 'i_bow', qty: 1, ct: { b: 2, a: 0 } }] } };
+                const pT = S.applyRound(pG, chP, vfP, F, null, 'turn'), pR = S.applyRound(pG, chP, vfP, F, null, 'round');
+                const pT2 = S.applyRound(pG, { id: 'c_p', values: pT.values }, vfP, F, null, 'turn'), shP = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8');
+                check('1.6.0 a counter ticked Starts again each turn may name Passes its count to: the cleaner keeps it only beside Starts again each turn, as another counter of the list spelled as the list spells it, in both views; at the turn start each such count, its start where none is stored, goes into that counter, read as the turn found them before any is reset (two that pass to each other swap), a count at the other\'s start stored as none; the next turn start passes the 0 on, so it lasts one turn; a new round does nothing; the Lists tab offers it',
+                    ctP[0].pass === 'last' && ctP[2].pass === 'b' && ctP[3].pass === 'a' && !('pass' in ctP[4]) && !('pass' in ctP[5]) && !('pass' in ctP[6]) && !('pass' in ctP[1]) && j(pP.fields[0].list.counters) === j(ctP)
+                    && j(pT.values.f_w) === j([{ defId: 'i_maul', qty: 1, ct: { last: 1, b: 3, a: 2 } }, { defId: 'i_rod', qty: 1, ct: { b: 0, a: 2 } }, { defId: 'i_bow', qty: 1, ct: { b: 0, a: 2 } }])
+                    && j(pT2.values.f_w) === j([{ defId: 'i_maul', qty: 1, ct: { a: 3 } }, { defId: 'i_rod', qty: 1 }, { defId: 'i_bow', qty: 1 }]) && j(chP.values.f_w[0].ct) === j({ swung: 1, a: 3 }) && j(pR.values) === '{}'
+                    && shP.includes("var tps = el('select', 'sys-list-ctpass');") && shP.includes("if (t.value) ctD6.pass = t.value; else delete ctD6.pass; }") && shP.includes("else { delete ctD5.turn; delete ctD5.pass; } }"), j([ctP, pT, pT2, pR]));
+            }
     }
 
     await T.finish();

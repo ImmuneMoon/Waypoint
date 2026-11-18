@@ -1,3 +1,4 @@
+'use strict';
 /* answercheck.js: a card to press and what an attack reads of its attacker, the tests that came out of systemcheck.js with their
    area (docs/REFACTOR_SPLIT_PLAN.md, "Tests move with their area", 2026-11-18). How an attack is answered lives in
    system/app/scripts/answercore.js, a part of systemcore.js; this suite imports that part by its own name, from a private copy of
@@ -8,7 +9,6 @@
    Attempter.Row.<name>. (An attempt's kind stood inside the damage step's block and moved with it, to damagecheck.js.)
    Usage: node tools/answercheck.js   (exit 1 on any failure) */
 require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
-'use strict';
 const kit = require('./checkkit');   // what the suites that came out of the giant ones share (tools/checkkit.js)
 const path = require('path'), fs = require('fs');
 const NL = String.fromCharCode(10);

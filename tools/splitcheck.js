@@ -14,7 +14,7 @@
       none is declared on both sides, and no top-level statement that runs before a part is installed reaches one of its names,
       directly or through the functions it calls. No part assigns a name declared nowhere (what only strict mode refuses; see 5), and
       no module in an import cycle with the root reaches a name bound from a part in its top-level code (splitlib.cycleRisks).
-   3. Every suite reads the giants through tools/srcjoin.js, installed as its first statement; the private bridge's three entry files
+   3. Every suite reads the giants through tools/srcjoin.js, installed as its first statement (after a 'use strict' directive); the private bridge's three entry files
       install it too where that folder is there; no suite imports a split root with a query (a fresh instance comes from
       srcjoin.freshUrl). The scans of what ships (updatercheck's list of names, sinkcheck's scans) read the real bytes through
       srcjoin.raw. A name a root exports through a glue line is imported by no script but its own parts.
@@ -204,9 +204,16 @@ function pageCalls(name, bundle) {
 
     // ---- 3. every suite reads through srcjoin, no queried root ----
     const tools = fs.readdirSync(__dirname).filter(f => /check\.js$/.test(f) && f !== 'parsecheck.js' && f !== 'splitcheck.js');
-    const firstStmt = s => { let i = 0; const n = s.length; for (;;) { while (i < n && /\s/.test(s[i])) i++; if (s.startsWith('#!', i) || s.startsWith('//', i)) { i = s.indexOf('\n', i); if (i < 0) i = n; continue; } if (s.startsWith('/*', i)) { i = s.indexOf('*/', i) + 2; continue; } break; } let t = s.slice(i); const m = /^(['"])use strict\1;[^\n]*\n\s*/.exec(t); if (m) t = t.slice(m[0].length); return t; };
+    // A suite's first statement, past white space, comments and a 'use strict' directive wherever it stands among them: the review of
+    // area 2 (2026-11-18) put the directive back as the very first line of the suites that came out of systemcheck, since one written
+    // after the install line is only a string and leaves the suite in sloppy mode
+    const firstStmt = s => { let i = 0; const n = s.length; for (;;) { while (i < n && /\s/.test(s[i])) i++; if (s.startsWith('#!', i) || s.startsWith('//', i)) { i = s.indexOf('\n', i); if (i < 0) i = n; continue; } if (s.startsWith('/*', i)) { i = s.indexOf('*/', i) + 2; continue; } const m = /^(['"])use strict\1;[^\n]*(\n|$)/.exec(s.slice(i, i + 200)); if (m) { i += m[0].length; continue; } break; } return s.slice(i); };
     const noInstall = tools.filter(f => firstStmt(fs.readFileSync(path.join(__dirname, f), 'utf8')).indexOf("require('./srcjoin').install();") !== 0);
+    // a 'use strict' line at the left margin past the first statement is no directive, only a string: such a suite runs sloppy, so it
+    // is named too (one inside a function built from text stands in a string of its own, never at the left margin)
+    const lateStrict = tools.filter(f => /^(['"])use strict\1;/m.test(firstStmt(fs.readFileSync(path.join(__dirname, f), 'utf8'))));
     check('every suite but parsecheck and splitcheck installs srcjoin as its first statement (' + tools.length + ' suites)', tools.length >= 80 && noInstall.length === 0, noInstall);
+    check('no suite writes \'use strict\' after its install line, where it is only a string and the suite runs in sloppy mode (the review of area 2)', lateStrict.length === 0, lateStrict);
     const allRoots = new Set(roots.concat(['systemcore.js', 'net.js', 'sheets.js', 'whiteboard.js']));
     const queried = [];
     fs.readdirSync(__dirname).filter(f => /\.(js|mjs|cjs)$/.test(f) && f !== 'splitcheck.js').forEach(f => {

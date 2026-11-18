@@ -5209,7 +5209,7 @@ function applyRound(sys, char, varsFor, F, tctx, kind, D, fxo) {   // fxo (1.6.0
     roundActs(sys, kind).forEach(function(act) {
         var vv = varsFor(work); if (typeof vv !== 'function') return;
         if (onOther(act)) vv = withOnSelf(vv, true);   // 1.6.0 (the review of 96e39ae6): a run by itself is on its own character, so OnSelf reads 1
-        var loR = _linkOver, res; _linkOver = lvR; try { res = applyAct(sys, work, act, vv, F, tctx || null, null, undefined, D, null, fxo); } finally { _linkOver = loR; } if (!res.ok) return;
+        var loR = linkOverSwap(lvR), res; try { res = applyAct(sys, work, act, vv, F, tctx || null, null, undefined, D, null, fxo); } finally { linkOverSwap(loR); } if (!res.ok) return;
         Object.keys(res.values).forEach(function(k) { work.values[k] = res.values[k]; out.values[k] = res.values[k]; }); out.ran++;
         if (res.linkValues) Object.keys(res.linkValues).forEach(function(id) { lvR[id] = Object.assign(lvR[id] || {}, res.linkValues[id]); });   // 1.6.2: what it moved on a linked sheet, which the next action reads
     });
@@ -5279,7 +5279,7 @@ function timeRuleRun(sys, char, rule, n, F, D, at, opt) {
         }
         if (!act) break;
         act.apply.forEach(function(c) { if (isObj(c) && typeof c.f === 'string' && init[c.f] === undefined) { var fd = fieldById(sys, c.f), iv = fd ? vars(fd.key) : null; init[c.f] = typeof iv === 'number' && fin(iv) ? iv : 0; } });   // where each field began, for how far it really moved
-        var loT = _linkOver, r; _linkOver = lvT; try { r = applyAct(sys, wk, act, vars, F, tctx, null, lazy, D); } finally { _linkOver = loT; } if (!r.ok) continue;   // 1.5.9: D rolls a Rolled amount   // 1.6.2: on what it already moved on a linked sheet
+        var loT = linkOverSwap(lvT), r; try { r = applyAct(sys, wk, act, vars, F, tctx, null, lazy, D); } finally { linkOverSwap(loT); } if (!r.ok) continue;   // 1.5.9: D rolls a Rolled amount   // 1.6.2: on what it already moved on a linked sheet
         if (r.linkValues) Object.keys(r.linkValues).forEach(function(id) { lvT[id] = Object.assign(lvT[id] || {}, r.linkValues[id]); });
         if (r.drew) out.drew = (out.drew || 0) + 1;   // and a run that drew dice says so (the flood rule counts it as rolled)
         Object.keys(r.values).forEach(function(k) { work.values[k] = r.values[k]; out.values[k] = r.values[k]; });
@@ -8890,6 +8890,10 @@ function setTagSource(fn) { _tagSrc = typeof fn === 'function' ? fn : null; retu
 // 1.6.2 (vehicles, fold (d)): the host's own, which puts a launched thing on the map: fn([{ by, f, r, def, from, map, target }])
 var _launchSink = null;
 var _linkOver = null;   // 1.6.2: while a run by itself goes on (applyRound, timeRuleRun), what it already moved on each linked sheet, by its id, laid over the stored sheet
+// 1.6.3 (area 2 of the split, docs/REFACTOR_SPLIT_PLAN.md): the one writer of _linkOver. It sets what a run by itself has moved on each linked sheet
+// and hands back what stood before, which the run puts back once its applyAct is done. applyRound and timeRuleRun go through it so that they can
+// stand in a part of their own (timecore.js): a part may not assign a name of systemcore.js, since an import cannot be written to
+function linkOverSwap(v) { var was = _linkOver; _linkOver = v; return was; }
 var _linkCharSrc = null;   // 1.6.2 (the CORE session's batch 6, 12): the stored character a link holds, on the machine that owns the campaign (sheets.js), which a change that names a link lands on
 function setLinkCharSource(fn) { _linkCharSrc = typeof fn === 'function' ? fn : null; return !!_linkCharSrc; }
 var _setOffSink = null;   // 1.6.2 (the CORE session's batch 6, 10): the host sets off a placed blast (whiteboard.js wpSetOffNear); answers how many went off

@@ -4062,7 +4062,7 @@ check('the paused dim is set with a true or a false, so an unset hold never flip
 
 check('a card that names its character says so on its button and hands that character on, and the host writes the word from the entry on both roads',
     /rec\.dmgOn \? 'Apply to this character\\u2026' : 'Apply to target\\u2026'/.test(rootRead('system/app/scripts/dice.js')) && rootRead('system/app/scripts/dice.js').includes("{ on: typeof rec.dmgOn === 'string' ? rec.dmgOn : undefined, tb: typeof rec.tb === 'number' ? rec.tb : undefined, dice: dN,")
-    && rootRead('system/app/scripts/net.js').includes('SQ.dmgOnSelf(fullQ || actQ, q.att)) recQ.dmgOn = chQ.id;') && rootRead('system/app/scripts/net.js').includes('SC().dmgOnSelf(entR, o.att)) rec.dmgOn = o.charId;'));
+    && rootRead('system/app/scripts/net.js').includes("SQ.dmgOnSelf(fullQ || actQ, q.att || (typeof goneQ !== 'undefined' && goneQ ? 'gone' : undefined))) recQ.dmgOn = chQ.id;") && rootRead('system/app/scripts/net.js').includes("SC().dmgOnSelf(entR, o.att || (typeof goneR !== 'undefined' && goneR ? 'gone' : undefined))) rec.dmgOn = o.charId;"));   // 1.6.3, the review of defense fold 0: a card whose soft record is gone still lands on its own character (moved on purpose)
 
 check('a grayed roll, action or switch says its own words to a player and never its formula, which the GM still reads',
     rootRead('system/app/scripts/sheets.js').split("(r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : typeof needsTip === 'function' ? needsTip(r.needs) : ' \\u2014 it needs ' + r.needs);").length === 5

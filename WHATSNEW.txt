@@ -63,8 +63,9 @@ Called damage rolls
   call on a success starts on their target. So a Swing that calls for a
   Cut card hits the guard you swung at, where it used to land on you.
 - Who it lands on is fixed when the card comes. Press it a minute later
-  with your pointer on someone else and it still hits the guard. After
-  the GM reloads, that card can't be pressed at all.
+  with your pointer on someone else and it still lands on the guard when
+  the GM applies it. Once the GM's Waypoint reloads, a card that lands on
+  someone else can't be pressed. One that lands on you still can.
 - A call that waits for a roll to be resisted and goes to the crew now
   reaches the crew at their stations. It used to go to the sheet itself.
 

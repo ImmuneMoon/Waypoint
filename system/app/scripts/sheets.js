@@ -6376,7 +6376,7 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
     if (r.icon) b.insertBefore(iconNode(r.icon, 'sheet-roll-icon'), b.firstChild); if (typeof dieFor === 'function') b.insertBefore(dieFor(r.die, r.formula, 'sheet-roll-die'), b.firstChild);   // 1.5.8: its die (the GM's pick, else its formula's); 1.6.0 (the owner, 2026-10-27: "small dice icons on, or before the dice rolling buttons ... without removing any of the current settings"): before an icon of its own too, which stays
     b.title = can ? 'Roll ' + label + ' · shift-click to add a modifier' : 'Dice are off here, or this is not your character'; b.disabled = !can;
     var cbR = can && typeof costBlock === 'function' ? costBlock(c, r.cost, r.costN) : ''; if (cbR) { b.disabled = true; b.title = cbR; }
-    if (typeof r.withRow === 'string' && r.withRow && typeof withRowReads === 'function' && withRowReads(r)) { var wfR = (sys && Array.isArray(sys.fields) ? sys.fields : []).filter(function(x) { return x && x.id === r.withRow; })[0]; b.disabled = true; b.title = 'Rolled from a defense card, with a row of ' + ((wfR && (wfR.label || wfR.key)) || 'a list') + '. It reads that row, so it has no roll of its own here'; }   // 1.6.3 (defense fold 2): a press here names no row, so its Row.* names would read nothing   // turn-based combat T4
+    if (typeof r.withRow === 'string' && r.withRow) { var wfR = (sys && Array.isArray(sys.fields) ? sys.fields : []).filter(function(x) { return x && x.id === r.withRow; })[0]; b.disabled = true; b.title = typeof withRowTip === 'function' ? withRowTip(wfR) : 'Rolled from a defense card'; }   // 1.6.3 (defense fold 2; the review of that fold, finding 4): a press here names no row, and the host refuses a press of it that names none, so it is always off here, said why   // turn-based combat T4
     var ndF = can && (r.needs || r.needsWhy) && !(r.needsGm === true && !isClient()) && typeof rollNeedsOk === 'function' && typeof rollNeedsFails === 'function' && typeof vars === 'function' ? rollNeedsFails(r, (r.to === 'near' || r.to === 'target') && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F(), undefined, true) : null; if (ndF) { b.disabled = true; b.title = ndF.at >= 0 ? ndF.says : (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : typeof needsTip === 'function' ? needsTip(r.needs) : ' \u2014 it needs ' + r.needs); }   // 1.6.2: the one judge, the first that fails; a reason says its own words   // 1.5.4: what it needs, as a list roll's button (the host judges a player's roll); 1.5.9: read as on its user, OnSelf 1
     var goN = function(e) {   // 1.5.9: named, so its ± runs the very same click
         if ((r.to === 'near' || r.to === 'target') && typeof allyPick === 'function' && !(e && e.wpAlly !== undefined)) { var evN = typeof pressOf === 'function' ? pressOf(e, b) : e; allyPick(evN.currentTarget || b, c, r.to === 'target', function(on) { evN.wpAlly = on || ''; goN(evN); }); return; }   // 1.5.9 (book es/et plan, section 3): whom it is for first, where someone stands next to it
@@ -6690,10 +6690,24 @@ function withRowSel(cls, cur, sys) {
     if (cv && !ls.some(function(x) { return x[0] === cv; })) o.push([cv, 'Answered with a row of a list that is gone']);
     return select(cls, o, cv, 'Answered with a row of: the card that asks for this roll has a button for each row of this list the defender holds, such as Defend with each weapon. The roll then reads that row, and so does a call\u2019s Read on the one who resisted. A defender who holds no such row is not offered this roll.');
 }
-// whether a roll's own formulas read a row's names (Row.*), so a press that names no row cannot make it
-function withRowReads(r) {
-    var Fw = typeof F === 'function' ? F() : null; if (!Fw || typeof Fw.names !== 'function') return false;
-    return [r.formula, r.needs].some(function(t) { if (typeof t !== 'string' || !t) return false; try { return Fw.names(t).some(function(n) { return /^row\./i.test(String(n)); }); } catch (e) { return false; } });
+// The review of that fold (finding 4): the words on the sheet's own button of such a roll, which is always off, since it is made only from a defense card with
+// a row (net.js refuses a press of it that names none, WITH_ONLY). wf: the list it is answered with, or none where it is gone. Its first part is what
+// greyPress says on a press
+function withRowTip(wf) { return 'Rolled from a defense card, with a row of ' + ((wf && (wf.label || wf.key)) || 'a list') + ' \u2014 it reads that row, so it has no roll of its own here'; }
+// whether a roll of the draft is answered with a row, by its id: such a roll is made only from a defense card, so the places that would make it by itself
+// (Calls for, a blast's Defense roll, Who holds whom) offer it no more, and say so where one is picked already
+function withRowRoll(id) { var d = typeof draft !== 'undefined' && draft ? draft : null; return !!(d && Array.isArray(d.rolls) && d.rolls.some(function(x) { return x && x.id === id && typeof x.withRow === 'string' && !!x.withRow; })); }
+// what Save does beside a roll answered with a row, as the cleaner reads it (systemcore cleanSystem, WITH_ROW_DROPS), in the words the Rolls tab shows its
+// controls in: a list that is gone takes the pick off, and what would run the roll by itself with no row is dropped. r: the draft's roll; clean: the cleaned
+// system. Lines for refreshErrors (the review of that fold, findings 3 and 11)
+var WITH_ROW_WORDS = { each: 'Also due each round or at its turn', every: 'By the clock', inFight: 'In a fight', cross: 'When a value crosses a step' };
+function withRowDrops(r, clean) {
+    var out = []; if (!r || typeof r !== 'object' || typeof r.withRow !== 'string' || !r.withRow || r.resist !== true || Array.isArray(r.apply)) return out;
+    var cr = (clean && Array.isArray(clean.rolls) ? clean.rolls : []).filter(function(x) { return x && x.id === r.id; })[0]; if (!cr) return out;
+    if (typeof cr.withRow !== 'string') { out.push('Answered with a row of names a list that is gone, so Save takes it off.'); return out; }
+    var gone = Object.keys(WITH_ROW_WORDS).filter(function(k) { return r[k] !== undefined && r[k] !== null && r[k] !== '' && r[k] !== false; }).map(function(k) { return WITH_ROW_WORDS[k]; });
+    if (gone.length) out.push('It is answered with a row, so it is made only from a defense card. Save drops ' + gone.join(', ') + '.');
+    return out;
 }
 function resistBySel(cls, cur, sys) {
     var rs = (sys && Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(x) { return x && typeof x.id === 'string' && x.resist === true && !Array.isArray(x.apply); }).map(function(x) { return [x.id, 'Resisted by: ' + (x.label || 'Roll')]; });
@@ -8599,6 +8613,9 @@ function formCtx(inp) {
     if (cl && cl.contains('sys-item-mamtf')) { var irw = inp.closest ? inp.closest('.sys-row') : null, iid = irw && irw.dataset ? (irw.dataset.iid || irw.dataset.id || '') : '', itF = (Array.isArray(draft.items) ? draft.items : []).filter(function(x) { return x && x.id === iid; })[0], cat = itF && typeof itF.category === 'string' ? itF.category.toLowerCase() : ''; var ilF = (Array.isArray(draft.fields) ? draft.fields : []).filter(function(x) { return x && x.kind === 'item-list' && x.list && (!Array.isArray(x.list.cats) || !x.list.cats.length || x.list.cats.some(function(k) { return String(k).toLowerCase() === cat; })); })[0]; return { list: ilF ? ilF.list : undefined, subject: itF ? itF.name || '' : '' }; }   // 1.6.2 (205): an item's change by a formula reads its row, on the list its category stands on
     if (dmg) return { blow: true, more: more || undefined, list: formRowList(inp) };
     if (more) return { more: more };
+    // 1.6.3 (the review of defense fold 2, finding 8): a call's Read on the one who resisted reads the resister and, where its By names a list's roll or a roll
+    // answered with a row, that row's names, so its form offers that list's row by name and never the calling roll's own
+    if (cl && cl.contains('sys-call-byif')) { var byB = inp.dataset ? String(inp.dataset.by || '') : '', byM = /^(f_[A-Za-z0-9_]+)#\d+$/.exec(byB), byR = byM ? null : (Array.isArray(draft.rolls) ? draft.rolls : []).filter(function(x) { return x && x.id === byB && x.resist === true && typeof x.withRow === 'string'; })[0], byL = byM ? fieldOf(byM[1]) : byR ? fieldOf(byR.withRow) : null; return { subject: 'The one who resisted', list: byL && byL.kind === 'item-list' && byL.list ? byL.list : undefined }; }
     var rw = inp && inp.closest ? inp.closest('.sys-row') : null, id = rw && rw.dataset ? rw.dataset.id : '', r = null, cs = inp && inp.classList;
     var card = inp && inp.closest ? inp.closest('.sys-list-card') : null, lid = card && card.dataset ? card.dataset.lid : '';
     if (lid) {   // a box of a list: its row's figures, and the roll it belongs to where it belongs to one
@@ -8767,7 +8784,7 @@ function callsBox(obj, sys, isApply) {
     var draw = function() {
         box.textContent = ''; var list = Array.isArray(obj.calls) ? obj.calls : [], rolls = rollsOf();
         list.forEach(function(c, j) {
-            var toSel = null, rw = el('span', 'sys-alt-row sys-call-row'), opts = rolls.map(function(x) { return [x.id, 'Calls for: ' + (x.label || 'Roll')]; }).concat(listRolls()); if (!opts.some(function(x) { return x[0] === c.roll; })) opts.push([c.roll, 'Calls for: a roll that is gone']);
+            var toSel = null, rw = el('span', 'sys-alt-row sys-call-row'), opts = rolls.filter(function(x) { return !(typeof x.withRow === 'string' && x.withRow) || x.id === c.roll; }).map(function(x) { return [x.id, 'Calls for: ' + (x.label || 'Roll') + (typeof x.withRow === 'string' && x.withRow ? ', made only from a defense card' : '')]; }).concat(listRolls());   /* 1.6.3 (the review of defense fold 2, finding 3): a roll answered with a row is offered no more, and one picked already says why it posts nothing */ if (!opts.some(function(x) { return x[0] === c.roll; })) opts.push([c.roll, 'Calls for: a roll that is gone']);
             var rs = select('sys-call-roll', opts, c.roll, 'The roll posted as a card to press. It comes only while that roll\u2019s own needs hold. A list\u2019s roll is posted on a row: the row that resisted, or the roller\u2019s own row');
             rs.addEventListener('change', function(e) { e.stopPropagation(); c.roll = rs.value; if (!dmgOf(c.roll)) delete c.on; said(); draw(); refocus(j, 'sys-call-roll'); }); rw.appendChild(rs);   // 1.6.3: drawn anew, since Lands on comes and goes with a damage roll
             if (!isApply) {
@@ -8777,7 +8794,7 @@ function callsBox(obj, sys, isApply) {
                 if (c.when === 'resisted') {
                     var bys = [['', 'By any roll']]; [obj.resistBy].concat(Array.isArray(obj.resistOr) ? obj.resistOr : []).forEach(function(id) { if (typeof id === 'string' && id) bys.push([id, 'By ' + nameOf(id)]); }); if (c.by && !bys.some(function(x) { return x[0] === c.by; })) bys.push([c.by, 'By a roll that does not resist it']);
                     var bs = select('sys-call-by', bys, c.by || '', 'Which of the rolls that may resist it brings the card');
-                    bs.addEventListener('change', function(e) { e.stopPropagation(); if (bs.value) c.by = bs.value; else delete c.by; said(); }); rw.appendChild(bs);
+                    bs.addEventListener('change', function(e) { e.stopPropagation(); if (bs.value) c.by = bs.value; else delete c.by; var biN = rw.querySelector ? rw.querySelector('.sys-call-byif') : null; if (biN && biN.dataset) biN.dataset.by = c.by || ''; said(); }); rw.appendChild(bs);   // 1.6.3 (the review of defense fold 2, finding 8): its Read on the one who resisted follows the By picked
                     var ts = select('sys-call-to', [['', 'To the one who resisted'], ['self', 'To the roller']], c.to === 'self' ? 'self' : '', 'Who the card goes to. To the roller: on the roller\u2019s own row, so a weapon that was parried can roll for itself');   // 1.6.2
                     ts.addEventListener('change', function(e) { e.stopPropagation(); if (ts.value === 'self') c.to = 'self'; else delete c.to; delete c.on; said(); draw(); refocus(j, 'sys-call-to'); }); toSel = ts;   // drawn last, before x; 1.6.3: Lands on starts again from who the card goes to
                 }
@@ -8785,7 +8802,7 @@ function callsBox(obj, sys, isApply) {
             var fi = input('sys-call-if field', typeof c.if === 'string' ? c.if : '', 'Only while this is true, read with the roller\u2019s names. On a list Row.<name> reads its row. No dice', 'Only where (optional)'); fi.maxLength = LIMITS.formula;
             fi.addEventListener('input', function() { if (fi.value.trim()) c.if = fi.value.slice(0, LIMITS.formula); else delete c.if; said(); }); rw.appendChild(fi);
             if (!isApply && c.when === 'resisted') {   // a second condition, on the one who resisted, as their roll succeeds
-                var bi = input('sys-call-byif field', typeof c.byIf === 'string' ? c.byIf : '', 'Only while this is true of the one who resisted, read as their roll succeeds with their own names. Where the call names a list\u2019s roll, Row.<name> reads the row they used. No dice', 'Only where (optional)'), bc = el('label', 'sys-num sys-cap'); bi.maxLength = LIMITS.formula;
+                var bi = input('sys-call-byif field', typeof c.byIf === 'string' ? c.byIf : '', 'Only while this is true of the one who resisted, read as their roll succeeds with their own names. Where the call names a list\u2019s roll, or a roll answered with a row, Row.<name> reads the row they used. No dice', 'Only where (optional)'), bc = el('label', 'sys-num sys-cap'); bi.maxLength = LIMITS.formula; bi.dataset.by = typeof c.by === 'string' ? c.by : '';   /* 1.6.3 (the review of defense fold 2, finding 8): its form offers the names of the row the By roll is answered with (formCtx) */
                 bi.addEventListener('input', function() { if (bi.value.trim()) c.byIf = bi.value.slice(0, LIMITS.formula); else delete c.byIf; said(); });
                 bc.appendChild(el('span', 'sys-num-cap', 'Read on the one who resisted')); bc.appendChild(bi); rw.appendChild(bc);
             }
@@ -9604,6 +9621,7 @@ function refreshErrors() {
         else {
             if (typeof hdD.ends === 'string' && hdD.ends.trim() && hdC.ends !== hdD.ends.trim()) hdE('All holds end where is no formula Save can keep, so Save drops it.');
             if (hdD.drag !== undefined && hdC.drag === undefined) hdE('Drags is no number above 0, so Save drops it.');
+            if (window.wpSystemCore && Array.isArray(window.wpSystemCore.HOLD_ROLLS) && typeof withRowRoll === 'function' && window.wpSystemCore.HOLD_ROLLS.concat(['also']).some(function(k) { return (Array.isArray(hdD[k]) ? hdD[k] : [hdD[k]]).some(function(v) { return typeof v === 'string' && withRowRoll(v); }); })) hdE('Who holds whom names a roll answered with a row, which is made only from a defense card, so it cannot be made there.');   // 1.6.3 (the review of defense fold 2, finding 3)
             if (Array.isArray(hdD.also) && hdD.also.length > (hdC.also || []).length) hdE('Attacks that keep too takes ' + (window.wpSystemCore ? window.wpSystemCore.HOLD_ALSO : 80) + ' rolls at most. Save keeps the first ones.');
         }
     }
@@ -9621,6 +9639,7 @@ function refreshErrors() {
         if (!cr || cr.length !== f.list.rolls.length) return;
         f.list.rolls.forEach(function(r, i) { if (!r || typeof r !== 'object' || r.dmg !== true || typeof r.dmgMajorIf !== 'string' || !r.dmgMajorIf.trim() || !cr[i] || cr[i].dmgMajorIf) return; (errorsById[f.id] = errorsById[f.id] || []).push({ prop: 'list.mjif.' + i + '.' + (r.label || 'Roll'), message: 'This is no formula Save can keep, so Save drops it.' }); });
     });
+    if (typeof withRowDrops === 'function') (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) { withRowDrops(r, clean).forEach(function(m) { (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'withRow', message: m }); }); });   // 1.6.3 (the review of defense fold 2, findings 3 and 11): what Save does beside a roll answered with a row, from the draft, as the cleaner reads it
     (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) {   // 1.5.9 (book es/et plan, section 3): Applies to as the cleaner reads it, never on the initiative roll
         if (!r || typeof r !== 'object' || !(r.to === 'near' || r.to === 'target')) return;
         var cn = (clean.rolls || []).filter(function(x) { return x && x.id === r.id; })[0]; if (cn && !(cn.to === 'near' || cn.to === 'target')) (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'to', message: 'The initiative roll is always its own character\u2019s, so Save drops Applies to.' });
@@ -11806,8 +11825,8 @@ function blastBox(box, cm) {
 // 1.6.0 A blast's own Defense roll: the Blasts and throws part's rows for combat.blast.defend. Save cleans it (systemcore cleanBlastDefend); defendSays says what it drops, under errorCell('blastdefend')
 var DEFEND_LINE = 'Each character in reach gets a card of this roll before its share. A success counts it as further off. The blast waits for the cards, and Apply now on the GM\u2019s card lets it go. Who rolled nothing takes it whole. The roll\u2019s Needs may hold it back. A launched burst takes one roll.';
 function defendOpts(rows, cur, none) { var o = [['', none]].concat(rows); if (typeof cur === 'string' && cur && !o.some(function(x) { return x[0] === cur; })) o.push([cur, cur]); return o; }   // a stored id the card no longer lists stays as it is
-function defendBox(box, bl, cm) {
-    var df = bl.defend && typeof bl.defend === 'object' && !Array.isArray(bl.defend) ? bl.defend : {}, rolls = (draft.rolls || []).filter(function(r) { return r && typeof r.id === 'string' && !Array.isArray(r.apply); }).map(function(r) { return [r.id, String(r.label || r.id).split('{')[0].trim() || r.id]; });
+function defendBox(box, bl, cm) {   // 1.6.3 (the review of defense fold 2, finding 3): it offers no roll answered with a row
+    var df = bl.defend && typeof bl.defend === 'object' && !Array.isArray(bl.defend) ? bl.defend : {}, rolls = (draft.rolls || []).filter(function(r) { return r && typeof r.id === 'string' && !Array.isArray(r.apply) && (!(typeof r.withRow === 'string' && r.withRow) || r.id === df.roll); }).map(function(r) { return [r.id, (String(r.label || r.id).split('{')[0].trim() || r.id) + (typeof r.withRow === 'string' && r.withRow ? ', made only from a defense card' : '')]; });   // one picked already is named so, never shown by its short name
     box.appendChild(labeledSelect('sys-combat-dfroll', 'A blast\u2019s Defense roll', defendOpts(rolls, df.roll, 'None'), typeof df.roll === 'string' ? df.roll : '', DEFEND_LINE)); lineUnder(box, DEFEND_LINE);
     if (typeof df.roll === 'string' && df.roll) {
         var posts = (Array.isArray(cm.postures) ? cm.postures : []).filter(function(p) { return p && typeof p.id === 'string'; }).map(function(p) { return [p.id, p.name || p.id]; }), counts = (draft.fields || []).filter(function(f) { return f && (f.kind === 'number' || f.kind === 'resource'); }).map(function(f) { return [f.id, f.label || f.key || f.id]; });
@@ -11833,6 +11852,7 @@ function defendSays(df, rolls, cm, fields) {
     var c = SCd.cleanBlastDefend(df); if (!c) { if (Object.keys(df).length) errs.push({ message: 'A blast\u2019s Defense roll: it names no roll, so Save drops it.' }); return { errs: errs, warns: warns }; }
     if (df.yards !== undefined && c.yards === undefined) errs.push({ message: 'A success counts as further off: it must be more than 0, so Save drops it.' }); else if (typeof df.yards === 'number' && c.yards !== df.yards) warns.push({ message: 'A success counts as further off: Save keeps ' + c.yards + '.' });
     if (!(Array.isArray(rolls) ? rolls : []).some(function(r) { return r && r.id === c.roll && !Array.isArray(r.apply); })) warns.push({ message: 'A blast\u2019s Defense roll: that roll is gone, so no card goes out.' });
+    else if ((Array.isArray(rolls) ? rolls : []).some(function(r) { return r && r.id === c.roll && typeof r.withRow === 'string' && !!r.withRow; })) warns.push({ message: 'A blast\u2019s Defense roll: that roll is answered with a row, which is made only from a defense card, so no card goes out.' });   // 1.6.3 (the review of defense fold 2, finding 3)
     if (c.posture && !(cm && Array.isArray(cm.postures) ? cm.postures : []).some(function(p) { return p && p.id === c.posture; })) warns.push({ message: 'A success leaves its token: that posture is gone, so it stays as it stands.' });
     if (c.count && !(Array.isArray(fields) ? fields : []).some(function(f) { return f && f.id === c.count && (f.kind === 'number' || f.kind === 'resource'); })) warns.push({ message: 'Defenses are counted in: that field is gone, so nothing counts them.' });
     return { errs: errs, warns: warns };
@@ -13410,7 +13430,7 @@ function barsBox(box, cm) {
 // 1.6.0 Who holds whom: combat.holds, off until Add. Every text lands as a value or a text node; Save cleans it (systemcore cleanHolds); refreshErrors says what it would drop, under errorCell('holds')
 function holdRollOpts(cur) {
     var o = [['', 'None']], d = typeof draft !== 'undefined' && draft ? draft : {};
-    (Array.isArray(d.rolls) ? d.rolls : []).forEach(function(r) { if (r && typeof r.id === 'string') o.push([r.id, r.label || 'Roll']); });
+    (Array.isArray(d.rolls) ? d.rolls : []).forEach(function(r) { if (r && typeof r.id === 'string' && (!(typeof r.withRow === 'string' && r.withRow) || r.id === cur)) o.push([r.id, (r.label || 'Roll') + (typeof r.withRow === 'string' && r.withRow ? ', made only from a defense card' : '')]); });   // 1.6.3 (the review of defense fold 2, finding 3): never a roll answered with a row, which is made only from a defense card
     (Array.isArray(d.fields) ? d.fields : []).forEach(function(f) { if (f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls)) f.list.rolls.forEach(function(r, i) { o.push([f.id + '#' + i, (f.label || f.key || 'List') + ': ' + ((r && r.label) || 'Roll')]); }); });
     if (typeof cur === 'string' && cur && !o.some(function(x) { return x[0] === cur; })) o.push([cur, 'A roll that is gone']);
     return o;

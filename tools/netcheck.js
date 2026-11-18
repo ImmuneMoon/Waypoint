@@ -5805,6 +5805,16 @@ pendingChecks.push((async () => {
     wK.dq([6, 6, 6]); wK.W.dr(DEF, { charId: 'c_1', act: 'r_def', att: dK.att }); const cK = wK.due('r_cut', 'called');
     const hostile = [{ id: 'a_zzzzzzzz', st: 'wait', by: 'c_a', to: 'c_a', range: RG('t_5'), dmg: 'r_cut', att: {} }, { id: 'bad', st: 'card' }, { id: 'a_yyyyyyyy', st: 'card', by: 'c_a', to: 'c_1', range: { tid: 't_5' }, dmg: 'r_cut' }, { id: 'a_xxxxxxxx', st: 'wait', by: 'c_a', to: 'c_1', range: RG('t_5'), dmg: 'r_cut', att: { charId: 'c_2', lw: 'a_xxxxxxxx' } }, null, 7];
     const wK2 = world(); const nBad = wK2.W.back(hostile, wK2.camp);
+    // 1.6.3 (the review of defense fold 2, finding 1): a waiting landing whose Defend is answered with a row keeps the rows it offered (withs) through the save, so the
+    // card put back after a reload still answers "Defend with Blade"; before, landAttRead read them not, and every press was refused as gone
+    const sysWr = Sx.cleanSystem({ v: 1, name: 'L', combat: { checks: 'under3d6' }, fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'number', vis: 'all', edit: 'owner', def: 5 }, { id: 'f_bl', key: 'Blades', label: 'Blades', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Def', label: 'Defense' }] } }],
+        rolls: [{ id: 'r_swing', label: 'Swing', formula: CK, vis: 'all', resistBy: 'r_dw', landDmg: 'r_cut' }, { id: 'r_dw', label: 'Defend', formula: '3d6 <= Row.Def - AttemptMargin', vis: 'all', resist: true, withRow: 'f_bl' }, { id: 'r_cut', label: 'Cut', formula: '1d6', vis: 'all', dmg: true }] }, { F: Fx, gmView: true });
+    const wW = world(undefined, { fid: 'f_aaaaaaaa' }); wW.camp.system = sysWr; wW.camp.chars.c_1.values = { f_bl: [{ id: 'w_b1', def: { name: 'Blade', stats: { Def: 11 } } }] };
+    wW.press('r_swing', CK, [2, 3, 3]); const dW = wW.due('r_dw', 'resist'), keptW = JSON.parse(JSON.stringify(wW.W.keep()));
+    wW.camp.fights = { list: {}, lands: keptW }; wW.W.forget(); wW.W.back(keptW, wW.camp); const attW = dW && wW.W.rec(dW.att) ? JSON.parse(JSON.stringify(wW.W.rec(dW.att))) : null;
+    wW.dq([6, 6, 6]); const gW = dW ? wW.W.dr('3d6 <= Row.Def - AttemptMargin', { charId: 'c_1', act: 'r_dw', att: dW.att, with: { f: 'f_bl', r: 'w_b1' } }) : null; const cW = wW.due('r_cut', 'called');
+    check('1.6.3 (the review of defense fold 2, finding 1) a waiting landing whose Defend is answered with a row keeps the row it offered through the save and back (landAttRead reads withs), so Defend with Blade still answers it after a reload, and a failed defense lands the damage',
+        !!dW && !!attW && j(attW.withs) === j(['r_dw#f_bl#w_b1']) && attW.act === '' && !!gW && gW.ok === true && !!cW && cW.att === dW.att, j([dW, attW, gW, cW]));
     const wL = world(); wL.press('r_swing', CK, [2, 3, 3]); wL.W.forget(); const goneL = wL.out.toasts.slice();
     check('1.6.3 (defense fold 1) the landings of a fight that runs are saved with it as data and come back as the table opens: kept silently when the save holds them, the waiting attempt rebuilt so a defense that fails then lands it; a saved landing that does not read (to itself, no range, a defense of another character, junk) is left out; one with no fight is not saved and is said to the GM by name when the table lets it go',
         Array.isArray(kept) && kept.length === 1 && kept[0].att && kept[0].att.lw === dK.att && goneK.length === 0 && !!backK && backK.st === 'wait' && !!attK && attK.charId === 'c_1' && !!cK && cK.att === dK.att
@@ -6496,7 +6506,7 @@ pendingChecks.push((async () => {
     const rng = t => t ? { mod: 0, dist: 2, tid: t, mapId: 'm1' } : null;
     const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {}, tokenCtxFor: () => aim.gm ? { range: rng(aim.gm) } : null }, wpVtt: { on: () => true, rulesOn: () => true } };
     const W = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'rangeTo', 'getProfile', 'toast', 'ui', 'save',
-        'var diceLimit = null, _diceSlowSaid = {}, _dicePending = null;\n' + helpers + atSrc + '\n' + drSrc + '\nreturn { rq: function(msg, conn) {\ndiceLimit = null; _diceSlowSaid = {};\n' + rqSrc + '\n}, dr: net.diceRoll, att: function(id) { return _attempts[id]; } };')(
+        'var diceLimit = null, _diceSlowSaid = {}, _dicePending = null;\n' + helpers + atSrc + '\n' + drSrc + '\nreturn { rq: function(msg, conn) {\ndiceLimit = null; _diceSlowSaid = {};\n' + rqSrc + '\n}, dr: net.diceRoll, att: function(id) { return _attempts[id]; }, cp: callPost };')(
         net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, () => {}, () => {},
         (c, m, l, tok, pid) => rng(aim[pid]), () => ({ id: 'u_gm', name: 'GM' }), () => {}, () => null, () => {});
     const roll = (cn, charId, extra, expr, dice) => { dq = dice.slice(); W.rq(Object.assign({ type: 'roll-req', rid: 'q' + Math.random().toString(36).slice(2, 7), charId: charId, expr: expr }, extra), cn); };
@@ -6543,6 +6553,39 @@ pendingChecks.push((async () => {
         j([sysP.rolls.map(r => r.id), sysGP.rolls.map(r => r.id), dG, sysSP.rolls.map(r => r.id)]));
     check('1.6.3 defense fold 2: postDue puts a button for each row a roll answered with a row offers first on the card, as { act, w: { f, r }, label }',
         src4.includes("if (rec.why === 'resist' && Array.isArray(more.withs) && more.withs.length) rec.or = more.withs.slice(0, 80).map(function(x) { return { act: x.act, w: { f: x.f, r: x.r }, label: String(x.label || 'Roll').slice(0, 60) }; }).concat(rec.or || []);"));
+    /* ---- 1.6.3 (the review of defense fold 2): what the review found, run for real in the same world ---- */
+    const WGONE = 'That row cannot answer this card now.', WONLY = 'That roll is made from a defense card, with one of your rows.';
+    // finding 9: a row the card did not offer, and a row gone from the sheet since the card, are said as a row that cannot answer it (never "not yours", never "resisted already")
+    roll(cA, 'c_a', { act: 'r_tr' }, '3d6 <= 13', [2, 3, 4]); const d9 = out.dues[out.dues.length - 1];
+    roll(cB, 'c_b', { act: 'r_df', with: { f: 'f_wp', r: 'w_sk' }, att: d9.att }, DEF, [1, 1, 1]); const w9a = last('pB');
+    const wpKeep = camp.chars.c_b.values.f_wp; camp.chars.c_b.values.f_wp = wpKeep.filter(r => r.id !== 'w_st');
+    roll(cB, 'c_b', { act: 'r_df', with: { f: 'f_wp', r: 'w_st' }, att: d9.att }, DEF, [1, 1, 1]); const w9b = last('pB');
+    dq = [1, 1, 1]; const g9 = W.dr(DEF, { charId: 'c_b', act: 'r_df', att: d9.att, with: { f: 'f_wp', r: 'w_st' } }); camp.chars.c_b.values.f_wp = wpKeep;
+    check('1.6.3 (the review of defense fold 2, finding 9) a press with a row the card did not offer, and with a row gone from the sheet since the card, is told the row cannot answer this card now, on a player' + "'" + 's press and the GM' + "'" + 's own; the card stays',
+        w9a.type === 'roll-deny' && w9a.message === WGONE && w9b.type === 'roll-deny' && w9b.message === WGONE && g9 && g9.error === WGONE && !!W.att(d9.att), j([w9a, w9b, g9]));
+    // findings 3 and 4: a roll answered with a row is never made bare, a player's press or the GM's own, however it is reached; a call or a blast's Defense roll naming it posts no card
+    roll(cB, 'c_b', { act: 'r_df' }, DEF, [1, 1, 1]); const b3 = last('pB'); dq = [1, 1, 1]; const g3 = W.dr(DEF, { charId: 'c_b', act: 'r_df' });
+    const nP = out.dues.length, cp3 = W.cp(camp, 'r_df', camp.chars.c_b, 'Kael', false), df3 = net.defendPost(camp, 'r_df', camp.chars.c_b, 'Kael', 0, {}, false, null), dues3 = out.dues.length - nP;
+    check('1.6.3 (the review of defense fold 2, findings 3 and 4) a roll answered with a row pressed with no card and no row is refused in words, a player' + "'" + 's press and the GM' + "'" + 's own; a call (callPost) and a blast' + "'" + 's Defense roll (net.defendPost) that name it post no card',
+        b3.type === 'roll-deny' && b3.message === WONLY && g3 && g3.error === WONLY && cp3 === false && df3 === '' && dues3 === 0, j([b3, g3, cp3, df3, dues3]));
+    // finding 6: an Or resisted by roll answered with a row their view cannot offer sends the whole card to the GM, rows and all, rather than dropping it from theirs
+    const rawO = JSON.parse(JSON.stringify(raw)); rawO.fields[2].vis = 'gm'; rawO.rolls.push({ id: 'r_t3', label: 'Feint', formula: '3d6 <= 13', vis: 'all', resistBy: 'r_dg', resistOr: ['r_df'] });
+    camp.system = Sx.cleanSystem(rawO, { F: Fx, gmView: true }); const nO = out.dues.length; roll(cA, 'c_a', { act: 'r_t3' }, '3d6 <= 13', [2, 3, 4]); const d6 = out.dues[nO]; camp.system = sys;
+    check('1.6.3 (the review of defense fold 2, finding 6) a defense card whose Or resisted by roll is answered with a row of a list the player' + "'" + 's view does not hold goes to the GM, the plain Duck first and every row of that roll offered, where before that defense dropped off the player' + "'" + 's card unsaid',
+        !!d6 && d6.act === 'r_dg' && d6.toOwner === false && j((d6.withs || []).map(x => x.r)) === j(['w_sw', 'w_st', 'w_gm']), j(d6));
+    // finding 7: a defender holding many rows of an Or resisted by list's roll never crowds the main Defend off the card; what is left out for room is logged
+    const rawC = JSON.parse(JSON.stringify(raw)); rawC.fields.push({ id: 'f_sh', key: 'Shields', label: 'Shields', kind: 'item-list', vis: 'all', edit: 'owner', list: { rolls: [{ label: 'Block', formula: '3d6 <= 10', resist: true }] } });
+    rawC.rolls.push({ id: 'r_t4', label: 'Bash', formula: '3d6 <= 13', vis: 'all', resistBy: 'r_df', resistOr: ['f_sh#0'] });
+    const logs7 = [], logKeep = win.wpStepLog; win.wpStepLog = (k, w, d) => logs7.push([k, w, d]);
+    camp.system = Sx.cleanSystem(rawC, { F: Fx, gmView: true }); camp.chars.c_b.values.f_sh = Array.from({ length: 85 }, (x, i) => ({ id: 'w_s' + i, def: { name: 'Shield' } }));
+    const n7 = out.dues.length; roll(cA, 'c_a', { act: 'r_t4' }, '3d6 <= 13', [2, 3, 4]); const d7 = out.dues[n7], a7 = d7 && W.att(d7.att);
+    camp.system = sys; delete camp.chars.c_b.values.f_sh; win.wpStepLog = logKeep;
+    check('1.6.3 (the review of defense fold 2, finding 7) the main Defend' + "'" + 's rows are offered first, so 85 shields on an Or resisted by roll leave both weapons on the card and fill the rest to 80; the rows left out for room are logged',
+        !!a7 && j(a7.withs) === j(['r_df#f_wp#w_sw', 'r_df#f_wp#w_st']) && Array.isArray(a7.rows) && a7.rows.length === 78 && logs7.some(x => x[0] === 'attempt v1' && x[1] === 'rows cut' && x[2] && x[2].cut === 7), j([a7 && a7.withs, a7 && a7.rows && a7.rows.length, logs7]));
+    // finding 10: a defense answered with a row that is itself an attack, or carries its damage, names that row; finding 2's hidden steps (thengmcheck runs them)
+    check('1.6.3 (the review of defense fold 2, findings 2 and 10, source) both roll paths hand the row a defense was answered with to attemptMake, landRowNow and landAfter as its row, and thenGmRun reads q.with',
+        src4.includes('tcQ && tcQ.range, chQ, !!recQ.priv, varsQ, q.row || q.with);') && src4.includes('tcR && tcR.range, chR, !!rec.priv || !!rec.to, varsR, o.row || o.with);') && src4.includes('landRowNow(chQ, q.row || q.with)') && src4.includes('landRowNow(chR, o.row || o.with)')
+        && src4.includes('tcQ, chQ, !!recQ.priv, q.row || q.with, atQ, recQ.from') && src4.includes('tcR, chR, !!rec.priv || !!rec.to, o.row || o.with, atR, rec.from') && src4.includes("var rq = q.row && q.row.r ? q.row : q.with && typeof q.with.f === 'string' && typeof q.with.r === 'string' ? q.with : null;"));
 })());
 
 // Chat cards (owner 2026-09-27): a damage roll's mark — the host puts it on the record from the roll entry its formula matched (a system roll by
@@ -21079,7 +21122,7 @@ pendingChecks.push((async () => {
         const bladesB = () => [{ id: 'w_a', def: { name: 'A', stats: { hot: 2 } } }, { id: 'w_b', def: { name: 'B', stats: { hot: 0 } } }];
         const att = { id: 'c_a', name: 'Att', values: { f_hp: 1 } }, tar = { id: 'c_t', name: 'Tar', npc: true, values: { f_hp: 5, f_sec: 0, f_bl: bladesB() } }, weak = { id: 'c_w', name: 'Weak', npc: true, values: { f_hp: 1, f_sec: 3, f_bl: bladesB() } }, campB = { system: sysB, items: { m1: { whiteboard: [{ id: 't1', charId: 'c_t' }] } }, chars: { c_a: att, c_t: tar, c_w: weak } };
         const pB = [], nB = { blowMake: () => 'b_abcd1234', postDue: (ch, rr, kind) => pB.push(rr.id + ':' + kind) }, attB = {}, attIdsB = [];
-        const runB = new Function('net', 'SC', 'window', '_attempts', '_attIds', 'ATT_MAX', 'attRowAlts', full.slice(full.indexOf('function attemptMake('), full.indexOf('// [netcheck:rollcalls-start]')) + src + '\nreturn { attemptMake, attemptCalled };')(nB, () => Sc, { wpFormula: Fc }, attB, attIdsB, 8, () => {});
+        const runB = new Function('net', 'SC', 'window', '_attempts', '_attIds', 'ATT_MAX', 'attRowAlts', 'ATT_ROWS', full.slice(full.indexOf('function attemptMake('), full.indexOf('// [netcheck:rollcalls-start]')) + src + '\nreturn { attemptMake, attemptCalled };')(nB, () => Sc, { wpFormula: Fc }, attB, attIdsB, 8, () => {}, 80);   /* 1.6.3 (the review of defense fold 2): attemptMake reads ATT_ROWS for every list roll it offers now */
         const hitB = sysB.rolls.filter(r => r.id === 'r_hit')[0], idB = runB.attemptMake(campB, hitB, { kind: 'check', pass: true, margin: 3 }, false, { tid: 't1', mapId: 'm1' }, att, false, n => (String(n).toLowerCase() === 'hp' ? 1 : undefined)), recB = attB[idB];
         const says = (rec, act, row, ch, tc) => { pB.length = 0; runB.attemptCalled(campB, rec, act, row, true, ch, false, tc); return pB.map(s => s.split(':')[0]).join(); };
         check('1.6.0 byIf is kept on the attempt beside what it was kept with before, in the order of the calls, and a call with none is held to the very same record as ever',

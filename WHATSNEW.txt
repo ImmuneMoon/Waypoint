@@ -99,6 +99,10 @@ Defending with a row
 - The roll reads the weapon it was pressed with. So a parry can use that
   weapon's own figure, and a call that waits for the parry can check
   which weapon parried and test that very one.
+- Such a roll is only ever made from a defense card. Its own button on
+  the sheet stays off, and the System editor tells you if a reminder, a
+  clock rule or a crossing set on it has to go, since none of those
+  would know which weapon to use.
 
 Smaller things
 - The game clock in the top row shows seconds for the GM. The clock still

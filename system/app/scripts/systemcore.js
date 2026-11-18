@@ -852,6 +852,7 @@ function callSays(sys, r, lf) {   // what the editor says of a roll's Calls for;
             else if (c.when === 'resisted' && c.to !== 'self' && typeof c.by === 'string' && c.by && c.by.indexOf('#') < 0) out.push('Calls for runs a list’s roll on the row that resisted, but the roll that brings it is no list’s roll, so no card comes.');
             else if ((c.when !== 'resisted' || c.to === 'self') && !(isObj(lf) && lf.id === lr.f)) out.push('Calls for runs a list’s roll on the roller’s own row, which is a row of that list only where this roll is that list’s own, so no card comes.'); }
         else if (!rolls.some(function(x) { return isObj(x) && x.id === c.roll; })) out.push('Calls for names a roll that is not in the system, so no card comes.');
+        else if (rolls.some(function(x) { return isObj(x) && x.id === c.roll && typeof x.withRow === 'string' && !!x.withRow; })) out.push(WITH_ROW_CALL);   // 1.6.3 (the review of defense fold 2, finding 3)
         if (c.crew) out = out.concat(crewSays(sys, c.crew, 'Calls for'));
         if (c.when === 'resisted' && typeof r.resistBy !== 'string') out.push('Calls for waits for it to be resisted, but nothing resists it, so no card comes.');
         else if (c.when === 'resisted' && c.by && c.by !== r.resistBy && !(Array.isArray(r.resistOr) && r.resistOr.indexOf(c.by) >= 0)) out.push('Calls for names a roll that does not resist this one, so no card comes.');
@@ -1039,6 +1040,13 @@ function applyTargets(out, fieldIds, gmView, fxSeen) {   // fxSeen (1.6.0): the 
         if (!Object.keys(f.list).length) delete f.list;
     });
 }
+// 1.6.3 (the review of defense fold 2, finding 3): what a roll Answered with a row of a list keeps none of, since each would run it by itself with no row (its
+// reminder each turn or round with whose it is, By the clock, In a fight with Ask me first and where its runs are said, When a value crosses a step).
+// cleanSystem drops them beside such a roll, and the System editor names them by these keys (sheets.js withRowDrops)
+var WITH_ROW_DROPS = ['each', 'by', 'every', 'inFight', 'ask', 'notes', 'cross'];
+// and what the editor says where another part of a system names such a roll to be made by itself: a call, a blast's Defense roll, Who holds whom. Each place
+// that would post it refuses it on the host (net.js callPost, net.defendPost), and the host refuses a press of it that names no row (WITH_ONLY)
+var WITH_ROW_CALL = 'Calls for names a roll answered with a row, which is made only from a defense card, so no card comes.';
 function cleanRollDef(r, gmView) {
     if (!isObj(r) || typeof r.id !== 'string' || !ROLL_ID.test(r.id)) return null;
     var vis = r.vis === 'gm' ? 'gm' : 'all';
@@ -1073,7 +1081,7 @@ function cleanRollDef(r, gmView) {
     // 1.6.3 (defense fold 2; docs/DEFENSE_INTERACTIONS_DESIGN.md 4.4, backlog 245): Answered with a row of, a list's field id beside Resists an attempt on a roll of
     // the system. Its defense card then offers it once for each row of that list the defender holds, and the roll reads that row's names (net.js attWithRows).
     // Both views keep it, since a player's sheet and the host's check of their press read it; cleanSystem takes off one whose list its view does not hold
-    if (out.resist === true && typeof r.withRow === 'string' && FIELD_ID.test(r.withRow)) out.withRow = r.withRow;
+    if (out.resist === true && typeof r.withRow === 'string' && FIELD_ID.test(r.withRow)) out.withRow = r.withRow;   // what runs it by itself is dropped beside it in cleanSystem, once its list is known to be there (WITH_ROW_DROPS)
     if (gmView && out.resist && typeof r.critOk === 'string' && r.critOk.trim()) out.critOk = cutText(r.critOk, LIMITS.formula);   // 1.6.2 (the CORE session): Answers a critical where, read on the defender as a critical that is not resisted is made; the host's alone
     resistByInto(out, r, gmView);   // 1.6.0 (B2): and Resisted by, the roll its target resists it with
     rollAreaInto(out, r, gmView, false);   // 1.6.0: and a line it hits
@@ -5288,6 +5296,10 @@ function cleanSystem(sys, opts) {
     // roll answered with a row of a list they do not see goes whole, since its names read that list's rows; the host then sends its defense card to the GM
     var wlS = map(); out.fields.forEach(function(f) { if (f.kind === 'item-list') wlS[f.id] = 1; });
     if (gmView) out.rolls.forEach(function(r) { if (typeof r.withRow === 'string' && wlS[r.withRow] !== 1) delete r.withRow; }); else out.rolls = out.rolls.filter(function(r) { return typeof r.withRow !== 'string' || wlS[r.withRow] === 1; });
+    // The review of that fold (finding 3): a roll answered with a row is made only from a defense card, with a row, so nothing that runs it by itself with no
+    // row stays beside it: its reminder each turn or round, By the clock and In a fight (with Ask me first and where its runs are said), and When a value
+    // crosses a step. The System editor says what Save drops of them (sheets.js withRowDrops). A system with no such roll is not touched
+    out.rolls.forEach(function(r) { if (typeof r.withRow === 'string') WITH_ROW_DROPS.forEach(function(k) { delete r[k]; }); });
     var gmKeys = gmView ? map() : gmEntryKeys(sys, out.fields), hasGmKeys = Object.keys(gmKeys).length > 0;   // F5a1: per visible list, the keys of the GM-only entries in its scope
     var hasPicks = out.fields.some(function(f) { return f.kind === 'item-list' && isObj(f.list) && Array.isArray(f.list.stats) && f.list.stats.some(function(x) { return x.kind === 'pick'; }); });   // F5a2
     var tbS = gmView ? null : { fields: Array.isArray(sys.fields) ? sys.fields : [], links: cleanLinks(sys.links, F) || [], tables: cleanTables(sys.tables, true) || [], values: cleanValues(sys.values, true), decks: cleanDecks(sys.decks, true, /^D[0-9]+$/), effects: Array.isArray(sys.effects) ? sys.effects : [] }, tbLive = !!tbS && tableFam(tbS), tbGm = tbLive && (tbS.tables.some(function(t) { return t.vis === 'gm'; }) || tbS.values.some(function(t) { return t.vis === 'gm'; }) || tbS.decks.some(function(t) { return t.vis === 'gm'; }) || tbS.effects.some(function(t) { return isObj(t) && t.vis === 'gm'; }));   // 1.6.2: and a GM-only effect, which Fx.<effect> reads   // 1.6.0: a formula that reads a GM-only table is blanked as one that reads a GM-only field is
@@ -5450,8 +5462,11 @@ function cleanSystem(sys, opts) {
     // player holds never names what they may not see and both machines read the row alike; the host then sends its card to the GM (net.js attWithView)
     if (!gmView && F && typeof F.parse === 'function' && out.rolls.some(function(r) { return typeof r.withRow === 'string'; })) {
         var sysWr = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables, values: sys.values, decks: sys.decks, effects: sys.effects };
-        var wrTexts = function(r) { var t = [r.formula, r.needs, r.malf, r.critAt, r.fumbleAt, r.bigAt]; (Array.isArray(r.needsWhy) ? r.needsWhy : []).forEach(function(l) { if (isObj(l)) t.push(l['if']); }); (Array.isArray(r.then) ? r.then : []).forEach(function(c) { if (isObj(c)) t.push(c.formula, c['if'], c.n); }); return t.filter(function(x) { return typeof x === 'string' && !!x; }); };
-        out.rolls = out.rolls.filter(function(r) { if (typeof r.withRow !== 'string') return true; var wf = fieldById(sysWr, r.withRow); return wrTexts(r).every(function(t) { return !readsRow(t, F) || allRowOk(sysWr, F, wf, t); }); });
+        // The review of that fold (finding 5): every text the roll keeps in this view is read, not a list of them, since the validator knows Row.* in each of
+        // its formulas (its A Major Wound where, its type and kind, its hits, each part of a blow, a question's ends and the rest) and the host reads them on the
+        // row alike. A text that names no row passes; one past WR_TEXTS texts, which no roll the cleaner keeps comes near, leaves the roll out to be safe
+        var WR_TEXTS = 2000, wrTexts = function(r) { var t = [], over = false; (function walk(v, d) { if (over || d > 8) return; if (typeof v === 'string') { if (v) { if (t.length >= WR_TEXTS) over = true; else t.push(v); } return; } if (Array.isArray(v)) { v.forEach(function(x) { walk(x, d + 1); }); return; } if (isObj(v)) Object.keys(v).forEach(function(k) { if (k !== 'id' && k !== 'withRow') walk(v[k], d + 1); }); })(r, 0); return over ? null : t; };
+        out.rolls = out.rolls.filter(function(r) { if (typeof r.withRow !== 'string') return true; var wf = fieldById(sysWr, r.withRow), ts = wrTexts(r); return !!ts && ts.every(function(t) { return !readsRow(t, F) || allRowOk(sysWr, F, wf, t); }); });
     }
     if (effs.length) out.effects = effs;
     effs.forEach(function(d) { if (Array.isArray(d.end)) { d.end = d.end.filter(function(c) { return typeof c.fx !== 'string' || seenFx[c.fx] === 1; }); if (!d.end.length) delete d.end; } if (typeof d.endRoll === 'string' && rollIds[d.endRoll] !== 1) delete d.endRoll; if (d.endOff && !d.end && !d.endRoll) delete d.endOff; });   // 1.6.2: an effect's end switches an effect and asks a roll of this system
@@ -14674,7 +14689,8 @@ export { specWords, specContains, specCoversRow, fitBroke, fitAgain, specBase, s
 export { hitRounds, hitsSecret, HITS_MAX, burstList, cleanBu, hitShots, burstBar, burstOpen, burstDice, burstExtra, hitCount, hitVars, hitRolls, damageBurst, cleanCharHit };   // 1.6.0 A burst
 export { HOLD_ALSO, HOLD_ROLLS, cleanHolds, holdRefOf, DMG_LIM, COVER_HIT_ROWS, OPENS_MAX };   // 1.6.2: DMG_LIM and COVER_HIT_ROWS, so the editor reads the one figure
 export { FEEDS_MAX, FEED_STACK, feedOf, feedSpec, feedCt, feedStack, feedAt, feedLive, feedRoom, feedShort, feedShortOf, feedCount };
-export { callLandOf, dmgLandOf };   // 1.6.3 (defense fold 0): where a called damage roll lands
+export { callLandOf, dmgLandOf };
+export { WITH_ROW_DROPS };   // 1.6.3 (the review of defense fold 2): what a roll answered with a row keeps none of   // 1.6.3 (defense fold 0): where a called damage roll lands
 export { majorWords, dmgOnSelf, dmgMajorOf, dmgPart2Of, dmgPartOf, DMG_MORE };   // 1.6.0: A Major Wound where; B3: a blow's second part
 export { upkeepLines, upkeepWords };   // 205 follow-up (3): an upkeep's payments said
 export { cleanLvlOnly, lvlOnlyRead, lvlOnlyText, lvlOnlyOn, lvlOnlyHas, lvlOnlyMiss, lvlOnlyList, lvlOnlyHit, lvlOnlySays, lvlStart, lvlNear, modTiersRead, cleanModTiers, modTiersText, modAt };   // 1.6.0: Levels it may be, and a change's figures By level

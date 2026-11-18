@@ -16653,13 +16653,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             J(ctsT.w_b.slice(0, 3)) === J([{ key: 'Fresh', label: 'Fresh', value: 0, max: null, tm: 'down', word: 'Spoiled' }, { key: 'Burn', label: 'Burning', value: 0, max: null, tm: 'up' }, { key: 'Uses', label: 'Uses', value: 2, max: null }])
             && edP.ok === false && edP.reason === 'field' && edG.ok === true && edU.ok === true, J([ctsT.w_b, edP, edG.ok, edU]));
         const shT = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), caT = fs.readFileSync(path.join(app, 'scripts', 'calendar.js'), 'utf8').replace(/\r\n/g, '\n'), ntT = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
-        const rsA = ntT.indexOf('net.rowSpans = function('), rsB = ntT.indexOf('net.fxGameTime = function(', rsA);
+        const ntP = require('./checkkit').part('nettime.js'), rsA = ntP.indexOf('net.rowSpans = function('), rsB = ntP.indexOf('net.fxGameTime = function(', rsA);   // nettime.js, read by its own name
         const told = [], logs = [], deltas = [], changed = [];
         const campT = { system: gT, chars: { c_t: JSON.parse(J(ch0)), c_n: { id: 'c_n', name: 'Bob', npc: true, values: {} } } };
         const netT = { role: 'host', active: true, myId: 'u_gm', conns: [{ open: true, peer: 'p1', send: m => told.push(['p1', m.text]) }, { open: true, peer: 'p2', send: m => told.push(['p2', m.text]) }], roster: { p1: 1, p2: 1 }, syncCharDelta: (id, v) => deltas.push([id, Object.keys(v)]) };
         const winT = { wpVtt: { on: () => true }, wpSheets: { charChanged: id => changed.push(id) }, wpStepLog: (a, st, fx) => logs.push([a, st, fx]) };
         let saves = 0;
-        const RS = new Function('net', 'window', 'getActiveCampaign', 'SC', 'own', 'saveRemoteSoon', 'peerProfileId', 'sendFailed', 'pushChat', ntT.slice(rsA, rsB) + '\nreturn net.rowSpans;')(netT, winT, () => campT, () => S, (o, k) => Object.prototype.hasOwnProperty.call(o, k), () => saves++, c => c.peer === 'p1' ? 'u_p' : 'u_x', () => {}, m => told.push(['gm', m.text]));
+        const RS = new Function('net', 'window', 'getActiveCampaign', 'SC', 'own', 'saveRemoteSoon', 'peerProfileId', 'sendFailed', 'pushChat', ntP.slice(rsA, rsB) + '\nreturn net.rowSpans;')(netT, winT, () => campT, () => S, (o, k) => Object.prototype.hasOwnProperty.call(o, k), () => saves++, c => c.peer === 'p1' ? 'u_p' : 'u_x', () => {}, m => told.push(['gm', m.text]));
         RS({ c_t: 129600, c_n: 50 }, perOf); const afterHalf = [deltas.length, changed.length, saves];
         RS({ c_t: 1800 }, perOf); const afterPart = [deltas.length, changed.length, saves];
         RS({ c_t: 172800 }, perOf);

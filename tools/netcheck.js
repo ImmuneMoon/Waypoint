@@ -6768,7 +6768,7 @@ pendingChecks.push((async () => {
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
-    const ftS = between('// [netcheck:fxtime-start]', '// [netcheck:fxtime-end]', 'fxtime'), pidF = (() => { const i = src.indexOf('function peerProfileId('); return src.slice(i, src.indexOf('\n', i)) + '\n'; })();
+    const ftS = between('// [netcheck:fxtime-start]', '// [netcheck:fxtime-end]', 'fxtime', 'nettime.js'), pidF = (() => { const i = src.indexOf('function peerProfileId('); return src.slice(i, src.indexOf('\n', i)) + '\n'; })();
     const sysF = Sx.cleanSystem({ v: 1, name: 'F', fields: [{ id: 'f_fx', key: 'Effects', kind: 'effects' }], rolls: [], effects: [{ id: 'e_b', name: 'Bless', dur: '2 turns', mods: [] }, { id: 'e_q', name: 'Quick', dur: '10 seconds', mods: [] }] }, { F: Fx, gmView: true });
     const mkF = o => {
         o = o || {};
@@ -9823,7 +9823,7 @@ pendingChecks.push((async () => {
     const whole = k => { const i = src.indexOf(k), e = src.indexOf('\n};\n', i); if (i < 0 || e < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, e + 4); };
     const flS = between('// [netcheck:foglit-start]', '// [netcheck:foglit-end]', 'foglit'), smS = between('// [netcheck:sensesmoved-start]', '// [netcheck:sensesmoved-end]', 'sensesmoved');
     const dlS = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta'), edS = between('// [netcheck:charedit-start]', '// [netcheck:charedit-end]', 'charedit'), fxS = between('// [netcheck:charfx-start]', '// [netcheck:charfx-end]', 'charfx');
-    const ftS = between('// [netcheck:fxtime-start]', '// [netcheck:fxtime-end]', 'fxtime'), cbS = between('// [netcheck:combats-start]', '// [netcheck:combats-end]', 'combats'), bpS = between('// [netcheck:bpos-start]', '// [netcheck:bpos-end]', 'bpos');
+    const ftS = between('// [netcheck:fxtime-start]', '// [netcheck:fxtime-end]', 'fxtime', 'nettime.js'), cbS = between('// [netcheck:combats-start]', '// [netcheck:combats-end]', 'combats'), bpS = between('// [netcheck:bpos-start]', '// [netcheck:bpos-end]', 'bpos');
     const siS = siSrc();
     const afS = fnSrc('function anyFog(', '\n}\n', 'anyFog') + '\n}\n', mfS = lineOf('function mapFogged('), svS = lineOf('var _saveSoon = null;') + '\n' + lineOf('function saveRemoteSoon()');
     const nsS2 = between('// [netcheck:newplayerssync-start]', '// [netcheck:newplayerssync-end]', 'newplayerssync'), thS2 = between('// [netcheck:threats-start]', '// [netcheck:threats-end]', 'threats');
@@ -12807,7 +12807,7 @@ pendingChecks.push((async () => {
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
-    const ftS = between('// [netcheck:fxtime-start]', '// [netcheck:fxtime-end]', 'fxtime'), tcS = between('// [netcheck:timecard-start]', '// [netcheck:timecard-end]', 'timecard'), pidU = (() => { const i = src.indexOf('function peerProfileId('); return src.slice(i, src.indexOf('\n', i)) + '\n'; })();
+    const ftS = between('// [netcheck:fxtime-start]', '// [netcheck:fxtime-end]', 'fxtime', 'nettime.js'), tcS = between('// [netcheck:timecard-start]', '// [netcheck:timecard-end]', 'timecard', 'nettime.js'), pidU = (() => { const i = src.indexOf('function peerProfileId('); return src.slice(i, src.indexOf('\n', i)) + '\n'; })();
     const sysU = Sx.cleanSystem({ v: 1, name: 'U', rolls: [], fields: [{ id: 'f_mp', key: 'MP', label: 'MP', kind: 'resource', maxFormula: '10', def: 'max', vis: 'all' },
         { id: 'f_pw', key: 'Powers', label: 'Powers', kind: 'item-list', vis: 'all', edit: 'owner', list: { on: { label: 'Up' }, stats: [{ key: 'keep' }], upkeep: { pool: 'f_mp', amt: 'Row.keep', each: 'clock', per: { n: 1, u: 'min' }, stop: true } } }],
         items: [{ id: 'i_sh', name: 'Shield', stats: { keep: 3 } }, { id: 'i_ve', name: 'Veil', vis: 'gm', stats: { keep: 1 } }, { id: 'i_gl', name: 'Glow', stats: { keep: 9 } }], sheet: { sections: [] } }, { F: Fx, gmView: true });
@@ -12835,7 +12835,7 @@ pendingChecks.push((async () => {
 })());
 // Item 20 K5: a time rules summary (net.timeCard) to its player and the GM, or the GM alone; the counts never on the wire; a fight's end asks
 {
-    const tcS = between('// [netcheck:timecard-start]', '// [netcheck:timecard-end]', 'timecard'), pidT = (() => { const i = src.indexOf('function peerProfileId('); return src.slice(i, src.indexOf('\n', i)) + '\n'; })();
+    const tcS = between('// [netcheck:timecard-start]', '// [netcheck:timecard-end]', 'timecard', 'nettime.js'), pidT = (() => { const i = src.indexOf('function peerProfileId('); return src.slice(i, src.indexOf('\n', i)) + '\n'; })();
     const mkT = role => { const out = { chat: [], log: [] }, mk = (p) => ({ peer: p, open: true, sent: [], send(m) { this.sent.push(m); } }), conns = [mk('pA'), mk('pA2'), mk('pB'), Object.assign(mk('pW'), {})];
         const net = { active: true, role: role || 'host', stream: false, myId: 'u_gm', conns, roster: { pA: { id: 'u_a' }, pA2: { id: 'u_a' }, pB: { id: 'u_b' } } };
         new Function('net', 'pushChat', 'logEvent', 'sendFailed', pidT + tcS)(net, m => out.chat.push(m), (k, t) => out.log.push([k, t]), e => { throw e; });
@@ -19270,7 +19270,7 @@ pendingChecks.push((async () => {
 })());
     /* ---- 1.5.6, backlog 173: a player's time rule notes, as they chose (the timenote slice, run for real) ---- */
     {
-        const tnS = src.slice(src.indexOf('// [netcheck:timenote-start]'), src.indexOf('// [netcheck:timenote-end]'));
+        const ntN = require('./checkkit').part('nettime.js'), tnS = ntN.slice(ntN.indexOf('// [netcheck:timenote-start]'), ntN.indexOf('// [netcheck:timenote-end]'));   // nettime.js, read by its own name
         const world = (mode, role) => { const st = { pushed: [], timers: [], store: { wp_timeNotes: mode } };
             const ls = { getItem: k => (k in st.store ? st.store[k] : null) };
             const net = { active: true, role: role === undefined ? 'client' : role };
@@ -19291,9 +19291,9 @@ pendingChecks.push((async () => {
             const H = world(null, 'host'), Hoff = world('off', 'host'), Cl = world(null, 'client');
             const okH = H.net.timeRunLine({ id: 'tr1', text: 'Time rules: 1 hour', sub: '2 characters, 3 changes.' }) === true && H.pushed.length === 1 && H.pushed[0].scope === 'whisper' && H.pushed[0].from.gm === true && JSON.stringify(H.pushed[0].trun) === JSON.stringify({ id: 'tr1', sub: '2 characters, 3 changes.' }) && H.pushed[0].text === 'Time rules: 1 hour';
             const okOff = Hoff.net.timeRunLine({ id: 'tr2', text: 'x' }) === false && Hoff.pushed.length === 0 && Cl.net.timeRunLine({ id: 'tr3', text: 'x' }) === false && Cl.pushed.length === 0 && H.net.timeRunLine(null) === false;
-            const tcA = flat.indexOf('// [netcheck:timecard-start]'), tcZ = flat.indexOf('// [netcheck:timecard-end]'), sent = [], gmChat = [], logs = [];
+            const ntC = require('./checkkit').part('nettime.js'), tcA = ntC.indexOf('// [netcheck:timecard-start]'), tcZ = ntC.indexOf('// [netcheck:timecard-end]'), sent = [], gmChat = [], logs = [];   // nettime.js, read by its own name
             const netT = { active: true, role: 'host', myId: 'gm', roster: { p1: {} }, conns: [{ open: true, peer: 'p1', send: m => sent.push(m.text) }] };
-            new Function('net', 'timeNote', 'pushChat', 'logEvent', 'peerProfileId', 'sendFailed', flat.slice(tcA, tcZ))(netT, m => gmChat.push(m.text), m => gmChat.push(m.text), (k, t) => logs.push(t), () => 'u_a', () => {});
+            new Function('net', 'timeNote', 'pushChat', 'logEvent', 'peerProfileId', 'sendFailed', ntC.slice(tcA, tcZ))(netT, m => gmChat.push(m.text), m => gmChat.push(m.text), (k, t) => logs.push(t), () => 'u_a', () => {});
             const pc = { id: 'c_a', ownerId: 'u_a' };
             netT.timeCard(pc, 'all of it', false); netT.timeCard(pc, 'all of it 2', false, { player: 'part', gmChat: false }); netT.timeCard(pc, 'all of it 3', false, { player: '', gmChat: false }); netT.timeCard(pc, 'gm only', true, { player: 'never', gmChat: true });
             check('1.6.0, backlog 173: net.timeRunLine posts the GM\'s one line a run as a whisper of the GM\'s own that no player and no join\'s history ever holds, with the run\'s id and its words, none under the GM\'s Off and none on a player\'s app; net.timeCard tells a player only what opts.player says (none where it is empty), keeps the GM\'s chat out where opts.gmChat is false, and the Game Record keeps every whole line',

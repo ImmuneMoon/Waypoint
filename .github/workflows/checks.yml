@@ -105,6 +105,9 @@ jobs:
       - name: attackcheck — attacks and defenses on the host, read from netattack.js by name
         if: ${{ !cancelled() }}
         run: node tools/attackcheck.js
+      - name: landcheck — a landed attack, the answers and an attack sent on, read from netattack.js and nethold.js by name
+        if: ${{ !cancelled() }}
+        run: node tools/landcheck.js
       - name: sinkcheck — the GM's renderers against a campaign from a file
         if: ${{ !cancelled() }}
         run: node tools/sinkcheck.js

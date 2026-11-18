@@ -361,7 +361,7 @@ function boxIn(scope, prop) {
     // 1.6.3 (the review of defense fold 3, finding 8): a line of When it answers an attack lands on its own box in its own line's row, in its roll's box (a
     // list's roll by its place, the box's data-ri), since How many hits and How much gets through stand only on the lines that use them, so the nth of a class is
     // not the nth line. The box itself where the line's row is not drawn. Fixed class names alone: the place is compared, never put in a selector
-    var an = /^(?:list\.ans\.(\d+)\.|answers\.)(\d+)\.(if|hits|share)$/.exec(prop);
+    var an = /^(?:list\.ans\.(\d+)\.|answers\.)(\d+)\.(if|hits|share|far|mod|margin)$/.exec(prop);   // 1.6.3 (defense fold 4): and a line that sends it on: How far, its modifier, Its margin
     if (an) {
         var bxs = scope.querySelectorAll('.sys-answers'), bx = null; for (var k = 0; k < bxs.length && !bx; k++) if (an[1] === undefined || (bxs[k].dataset && bxs[k].dataset.ri === an[1])) bx = bxs[k];
         var rws = bx ? bx.querySelectorAll('.sys-ans-row') : [], rw = rws[+an[2]] || null, hitA = rw ? rw.querySelector('.sys-ans-' + an[3]) : null; if (hitA) return hitA; if (bx) return bx;

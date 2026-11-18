@@ -123,6 +123,17 @@ What a successful defense does
   one made with a weapon that does. A grab or a shove doesn't. Where you
   apply the damage yourself, you're told what the line says.
 
+Sending an attack on
+- A parry can send a bolt on now. Pick "it can be sent on" as a line's
+  Then, and the defender gets a card to aim it at whoever they're
+  pointing at, rolled as them from where they stand.
+- Whoever sends it on is the attacker from then, so the next defense
+  reads their weapon. The damage stays the shot's own, and its card
+  still goes to whoever fired it.
+- It can't go straight back at the one who just sent it, and the Combat
+  tab says how many times one attack can be sent on, once to start.
+  Turn it aside closes the card without a roll.
+
 Smaller things
 - The game clock in the top row shows seconds for the GM. The clock still
   moves the campaign by whole minutes, so you'll see 14:03:27 count up to

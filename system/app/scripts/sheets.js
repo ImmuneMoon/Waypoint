@@ -16,7 +16,7 @@ import { cleanDamageRules, CUR_MAX, priceCurOf, priceColOf, moneySummary, condSh
 import { cleanFormulaText } from './systemcore.js';   // 1.6.2: refreshErrors reads a rule's needs as the cleaner does
 import { swDice, renamesOf, renamesCarry, renamesOnChars, renamesSay, swGone, goneRefs, catsGone, catNear, keysGone, keyUses, keyUseSays } from './systemcore.js';   // 1.6.2: backlog 208, the tracing audit
 import { cleanCardActs, CARD_MAX, cleanHelp } from './systemcore.js';
-import { ANS_MAX, ANS_HALF, ansShareWord } from './systemcore.js';   // 1.6.3 (defense fold 3): When it answers an attack, its most lines and its first share; the review of that fold: what a share comes to in words
+import { ANS_MAX, ANS_HALF, ansShareWord, SEND_HOPS_MAX } from './systemcore.js';   // 1.6.3 (defense fold 3): When it answers an attack, its most lines and its first share; the review of that fold: what a share comes to in words
 import { deckTrial, deckTrialRead } from './systemcore.js';
 import { cleanTests, testFormula } from './systemcore.js';   // 1.6.2 (backlog 59): a system's tests   // 1.6.2: Try it for a roll that draws first   // 1.6.2: what a card offers
 import { cleanAsks, askEnds, askJudge, withAsk, ASKS_MAX, ASK_OPTS } from './systemcore.js';   // 1.6.2: a roll's questions
@@ -8616,7 +8616,7 @@ function formCtx(inp) {
     if (more) return { more: more };
     // 1.6.3 (the review of defense fold 2, finding 8): a call's Read on the one who resisted reads the resister and, where its By names a list's roll or a roll
     // answered with a row, that row's names, so its form offers that list's row by name and never the calling roll's own
-    if (cl && (cl.contains('sys-ans-if') || cl.contains('sys-ans-hits'))) { var anL0 = fieldOf(inp.dataset ? String(inp.dataset.ansl || '') : ''); return { subject: 'The one who defends', list: anL0 && anL0.kind === 'item-list' && anL0.list ? anL0.list : undefined, roll: { id: 'r_answers', resist: true }, then: true }; }   // 1.6.3 (defense fold 3): a line of When it answers an attack reads the defender, their parrying row, the attempt and the roll's own result
+    if (cl && (cl.contains('sys-ans-if') || cl.contains('sys-ans-hits') || cl.contains('sys-ans-far') || cl.contains('sys-ans-mod') || cl.contains('sys-ans-margin'))) { var anL0 = fieldOf(inp.dataset ? String(inp.dataset.ansl || '') : ''); return { subject: 'The one who defends', list: anL0 && anL0.kind === 'item-list' && anL0.list ? anL0.list : undefined, roll: { id: 'r_answers', resist: true }, then: true }; }   // 1.6.3 (defense fold 3): a line of When it answers an attack reads the defender, their parrying row, the attempt and the roll's own result
     if (cl && cl.contains('sys-call-byif')) { var byB = inp.dataset ? String(inp.dataset.by || '') : '', byM = /^(f_[A-Za-z0-9_]+)#\d+$/.exec(byB), byR = byM ? null : (Array.isArray(draft.rolls) ? draft.rolls : []).filter(function(x) { return x && x.id === byB && x.resist === true && typeof x.withRow === 'string'; })[0], byL = byM ? fieldOf(byM[1]) : byR ? fieldOf(byR.withRow) : null; return { subject: 'The one who resisted', list: byL && byL.kind === 'item-list' && byL.list ? byL.list : undefined }; }
     var rw = inp && inp.closest ? inp.closest('.sys-row') : null, id = rw && rw.dataset ? rw.dataset.id : '', r = null, cs = inp && inp.classList;
     var card = inp && inp.closest ? inp.closest('.sys-list-card') : null, lid = card && card.dataset ? card.dataset.lid : '';
@@ -8833,7 +8833,7 @@ function callsBox(obj, sys, isApply) {
 // what the defense does; beside it the type it lands as, picked by name; and the weapon tests, picked by name. rowList: the list the parrying row is a row of
 // (a list's roll's own list, or the list a roll of the system is Answered with a row of), none where the defense is made with no row. Every label is an
 // option's text or a value, and what Save says of a line comes from the validator through the roll's errors
-var ANS_DOES_WORDS = [['stop', 'Then: it stops the attack'], ['thru', 'Then: the parrying row takes it first'], ['share', 'Then: it lets some through'], ['hits', 'Then: it stops a number of hits']];
+var ANS_DOES_WORDS = [['stop', 'Then: it stops the attack'], ['thru', 'Then: the parrying row takes it first'], ['share', 'Then: it lets some through'], ['hits', 'Then: it stops a number of hits'], ['send', 'Then: it can be sent on']];   // 1.6.3 (defense fold 4): and Sends it on
 function answersBox(obj, sys, rowList) {
     var box = el('div', 'sys-alt sys-answers'), max = typeof ANS_MAX === 'number' ? ANS_MAX : 8;
     var said = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
@@ -8851,10 +8851,11 @@ function answersBox(obj, sys, rowList) {
             var fi = input('sys-ans-if field', typeof a.if === 'string' ? a.if : '', 'Only where this holds, read as the defense succeeds: the one defending, the row they parry with, what the attack is and how far each roll got. No dice. Empty: always', 'If (optional)'); fi.maxLength = LIMITS.formula; fi.dataset.ansl = rowList && rowList.id ? rowList.id : '';
             fi.addEventListener('input', function(e) { e.stopPropagation(); if (fi.value.trim()) a.if = fi.value.slice(0, LIMITS.formula); else delete a.if; said(); }); rw.appendChild(fi);
             var dOpts = ANS_DOES_WORDS.filter(function(x) { return x[0] !== 'thru' || !!rowList || a.does === 'thru'; }), ds = select('sys-ans-does', dOpts, a.does || 'stop', 'What the defense does where this line holds. Stopped, nothing lands. The parrying row takes it first: it lands, and only what is over that row\u2019s figure goes on. Some through: each part is cut to a share before armor. A number of hits: that many hits of a burst are stopped and the rest land');
-            ds.addEventListener('change', function(e) { e.stopPropagation(); a.does = ds.value; if (a.does !== 'share') delete a.share; else if (!a.share) a.share = typeof ANS_HALF === 'string' ? ANS_HALF : 'Blow.dmg / 2'; if (a.does !== 'hits') delete a.hits; else if (!a.hits) a.hits = '1'; if (a.does === 'stop') { delete a.type; delete a.all; } said(); draw(); refocus(j, 'sys-ans-does'); }); rw.appendChild(ds);
+            ds.addEventListener('change', function(e) { e.stopPropagation(); a.does = ds.value; if (a.does !== 'share') delete a.share; else if (!a.share) a.share = typeof ANS_HALF === 'string' ? ANS_HALF : 'Blow.dmg / 2'; if (a.does !== 'hits') delete a.hits; else if (!a.hits) a.hits = '1'; if (a.does === 'stop' || a.does === 'send') { delete a.type; delete a.all; } if (a.does !== 'send') ['roll', 'noRoll', 'mod', 'margin', 'far', 'back'].forEach(function(k) { delete a[k]; }); said(); draw(); refocus(j, 'sys-ans-does'); }); rw.appendChild(ds);
+            if (a.does === 'send') sendOnBox(rw, a, j, sys, rowList, said, draw, refocus);   // 1.6.3 (defense fold 4): the roll it is sent on with, its modifier or Its margin, How far, and May go straight back
             if (a.does === 'share') { var sh = input('sys-ans-share field', typeof a.share === 'string' ? a.share : '', 'How much of each part of the blow gets through, before armor, worked out from the damage rolled. Half of it to start. No dice', 'How much gets through'); sh.maxLength = LIMITS.formula; sh.addEventListener('input', function(e) { e.stopPropagation(); a.share = sh.value.trim() ? sh.value.slice(0, LIMITS.formula) : (typeof ANS_HALF === 'string' ? ANS_HALF : 'Blow.dmg / 2'); said(); }); rw.appendChild(sh); }
             if (a.does === 'hits') { var hn = input('sys-ans-hits field', typeof a.hits === 'string' ? a.hits : '', 'How many hits of a burst it stops, worked out as the defense succeeds, such as one more than how far it succeeded by. The rest land. An attack of one hit is stopped where this is 1 or more. No dice', 'How many hits'); hn.maxLength = LIMITS.formula; hn.dataset.ansl = rowList && rowList.id ? rowList.id : ''; hn.addEventListener('input', function(e) { e.stopPropagation(); a.hits = hn.value.trim() ? hn.value.slice(0, LIMITS.formula) : '1'; said(); }); rw.appendChild(hn); }
-            if (a.does && a.does !== 'stop') {
+            if (a.does && a.does !== 'stop' && a.does !== 'send') {
                 var tOpts = [['', 'As its own type']].concat(types.map(function(y) { return [y.key, 'As ' + (y.label || 'a type')]; })); if (a.type && !types.some(function(y) { return y.key === a.type; })) tOpts.push([a.type, 'As a type that is gone']);
                 var ts = select('sys-ans-type', tOpts, a.type || '', 'The damage type it lands as, from the Combat tab\u2019s types. Its own type: as it was rolled');
                 ts.addEventListener('change', function(e) { e.stopPropagation(); if (ts.value) a.type = ts.value; else { delete a.type; delete a.all; } said(); draw(); refocus(j, 'sys-ans-type'); }); rw.appendChild(ts);
@@ -8875,6 +8876,24 @@ function answersBox(obj, sys, rowList) {
     draw();
     return box;
 }
+// 1.6.3 (defense fold 4; docs/DEFENSE_INTERACTIONS_DESIGN.md 5.2, backlog 243): what a line that sends the attack on holds, edited in place on the line a (its own
+// listeners, class names sys-ans-*). The roll they make: a roll of the system, or a roll of the parrying row's own list, by name, or Placed with no roll. Beside
+// a roll, a Modifier; beside no roll, Its margin; then How far, in the unit the range counts in; then May go straight back, which the core never allows. The three
+// boxes are forms read as the If is (the defender, the parrying row, the attempt and the defense roll's own result), worked out once as the defense succeeds
+function sendOnBox(rw, a, j, sys, rowList, said, draw, refocus) {
+    var opts = [['', 'Sent on with which roll?']], seen = {};
+    (sys && Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (r && typeof r.id === 'string' && typeof r.formula === 'string' && r.formula && !Array.isArray(r.apply) && !r.dmg) { opts.push([r.id, 'Sent on with ' + (r.label || 'a roll')]); seen[r.id] = 1; } });
+    (rowList && rowList.list && Array.isArray(rowList.list.rolls) ? rowList.list.rolls : []).forEach(function(r, i) { if (r && typeof r.formula === 'string' && r.formula && !Array.isArray(r.apply) && !r.dmg) { var k = rowList.id + '#' + i; opts.push([k, 'Sent on with ' + (r.label || 'a roll') + ' of the parrying row']); seen[k] = 1; } });
+    opts.push(['@none', 'Placed with no roll']); if (a.roll && !seen[a.roll]) opts.push([a.roll, 'Sent on with a roll that is gone']);
+    var rs = select('sys-ans-sroll', opts, a.noRoll === true ? '@none' : a.roll || '', 'The roll the defender makes to send it on, as themselves, from where they stand, at the one they point at. A roll of the parrying row\u2019s list reads that row. Placed with no roll: it goes on at once');
+    rs.addEventListener('change', function(e) { e.stopPropagation(); if (rs.value === '@none') { a.noRoll = true; delete a.roll; delete a.mod; } else { delete a.noRoll; delete a.margin; if (rs.value) a.roll = rs.value; else delete a.roll; } said(); draw(); refocus(j, 'sys-ans-sroll'); }); rw.appendChild(rs);
+    var bx = function(cls, key, tip, ph) { var b = input(cls + ' field', typeof a[key] === 'string' ? a[key] : '', tip, ph); b.maxLength = LIMITS.formula; b.dataset.ansl = rowList && rowList.id ? rowList.id : ''; b.addEventListener('input', function(e) { e.stopPropagation(); if (b.value.trim()) a[key] = b.value.slice(0, LIMITS.formula); else delete a[key]; said(); }); rw.appendChild(b); };
+    if (a.noRoll === true) bx('sys-ans-margin', 'margin', 'How far it is placed by, as if a roll made it by that much, for the next defense to read. Worked out as the defense succeeds. No dice. Empty: 0', 'Its margin (optional)');
+    else bx('sys-ans-mod', 'mod', 'Added to the roll they make, such as less at a lower rank. Worked out as the defense succeeds. No dice. Empty: none', 'Modifier (optional)');
+    bx('sys-ans-far', 'far', 'How far it can be sent, in the unit the range counts in, worked out as the defense succeeds. No dice. Empty: any distance', 'How far (optional)');
+    var bk = checkLabel('sys-ans-back', a.back === true, 'May go straight back', 'It may be sent straight back at the one who sent it. Off: never at them, though another may'), bkc = bk.querySelector('input');
+    bkc.addEventListener('change', function(e) { e.stopPropagation(); if (bkc.checked) a.back = true; else delete a.back; said(); }); rw.appendChild(bk);
+}
 // [systemcheck:answersbox-end]
 // [systemcheck:ansview-start] 1.6.3 (defense fold 3; Fulllion's decision 3: "with a read-only overview in the Combat tab"): the Combat tab's Attacks and defenses,
 // How a weapon test is made (combat.testBy) and every rule a defense follows when it answers an attack, one sentence a line, each a button that opens its roll's
@@ -8893,8 +8912,9 @@ function ansLineWords(sys, name, a, rowList) {
     var types = sys && sys.combat && sys.combat.damage && Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [], ty = a.type ? types.filter(function(y) { return y && y.key === a.type; })[0] : null;
     var rollName = function(ref) { var m = /^(f_[A-Za-z0-9_]+)#(\d+)$/.exec(String(ref || '')), f = m ? (sys.fields || []).filter(function(x) { return x && x.id === m[1]; })[0] : null, lr = f && f.list && Array.isArray(f.list.rolls) ? f.list.rolls[+m[2]] : null; return lr ? (lr.label || 'a roll') : 'a roll that is gone'; };
     var w = 'When ' + (name || 'this roll') + ' answers an attack' + (a.if ? ', where ' + ansCond(sys, a.if) : '') + ', ';
-    w += a.does === 'thru' ? 'it lands and the parrying row takes it first' : a.does === 'share' ? ({ half: 'half of it gets through', none: 'none of it gets through', all: 'all of it gets through' }[ansShareSaid(sys, a.share)] || 'some of it gets through') : a.does === 'hits' ? (a.hits === '1' ? 'it stops one hit and the rest land' : 'it stops a number of hits and the rest land') : 'it stops the attack';
-    if (ty && a.does !== 'stop') w += a.all === true ? ', every part as ' + (ty.label || ty.key) : ', as ' + (ty.label || ty.key);
+    var sendW = function() { var rr = a.roll && /^r_/.test(a.roll) ? (sys && Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(x) { return x && x.id === a.roll; })[0] : null; return 'it can be sent on at someone else ' + (a.noRoll === true ? 'with no roll' : a.roll ? 'with ' + (rr ? rr.label || 'a roll' : rollName(a.roll)) : 'once a roll is picked') + (a.far ? ', within a reach of its own' : '') + (a.back === true ? ', even straight back' : ''); };   // 1.6.3 (defense fold 4)
+    w += a.does === 'send' ? sendW() : a.does === 'thru' ? 'it lands and the parrying row takes it first' : a.does === 'share' ? ({ half: 'half of it gets through', none: 'none of it gets through', all: 'all of it gets through' }[ansShareSaid(sys, a.share)] || 'some of it gets through') : a.does === 'hits' ? (a.hits === '1' ? 'it stops one hit and the rest land' : 'it stops a number of hits and the rest land') : 'it stops the attack';
+    if (ty && a.does !== 'stop' && a.does !== 'send') w += a.all === true ? ', every part as ' + (ty.label || ty.key) : ', as ' + (ty.label || ty.key);
     if (a.test) w += ', and tests the parrying weapon with ' + rollName(a.test);
     if (a.testAtk) w += ', and tests the attacking weapon with ' + rollName(a.testAtk);
     return w + '.';
@@ -8918,12 +8938,25 @@ function ansOverview(sys) {
 }
 function defenseOverview(box, cm) {
     box.appendChild(labeledSelect('sys-combat-testby', 'A weapon test a defense calls for', [['', 'Its owner gets a card'], ['now', 'It is rolled at once'], ['both', 'A card, and you may roll it at once']], cm && (cm.testBy === 'now' || cm.testBy === 'both') ? cm.testBy : '', 'A defense that succeeds may test the parrying weapon, or the attacking one, by a line of When it answers an attack. Here: its owner presses a card, it is rolled at once as its owner, or the owner gets a card and you may roll it at once'));
+    sendHopsBox(box, cm);   // 1.6.3 (defense fold 4): how many times an attack may be sent on
     var wrap = el('div', 'sys-ansview');
     wrap.appendChild(el('small', 'sys-line', 'Every rule a defense follows when it answers an attack, one sentence each. Press one to open its roll. They are set on each roll ticked Resists an attempt.'));
     var lines = ansOverview(typeof draft !== 'undefined' ? draft : null);
     if (!lines.length) wrap.appendChild(el('div', 'sys-ansview-none', 'No roll says yet what it does when it answers an attack, so a defense that succeeds stops the attack.'));
     lines.forEach(function(l) { var b = el('button', 'tool ghost sys-ansview-go', l.text); b.type = 'button'; b.title = 'Open ' + l.name; b.addEventListener('click', function(e) { e.stopPropagation(); if (typeof errGo === 'function') errGo(l.go); }); wrap.appendChild(b); });
     box.appendChild(wrap);
+}
+// 1.6.3 (defense fold 4; docs/DEFENSE_INTERACTIONS_DESIGN.md 5.3, the core's answer 5): Can be sent on at most, the app's own counter from 1 to SEND_HOPS_MAX (8).
+// At 1, its first figure, no key is kept (once); above it, combat.sendHops. A line of When it answers an attack that sends it on is stopped past it
+function sendHopsBox(box, cm) {
+    var mx = typeof SEND_HOPS_MAX === 'number' ? SEND_HOPS_MAX : 8, cur = cm && typeof cm.sendHops === 'number' && isFinite(cm.sendHops) ? Math.max(1, Math.min(mx, Math.floor(cm.sendHops))) : 1;
+    var set = function(n) { var v = Math.max(1, Math.min(mx, Math.floor(n))); if (!cm) return; if (v > 1) cm.sendHops = v; else delete cm.sendHops; markDirty(); };
+    var row = el('div', 'sys-ask-end sys-combat-sendhopsrow'); row.appendChild(document.createTextNode('An attack can be sent on at most '));
+    var Uw = typeof window !== 'undefined' && window.wpUi && window.wpUi.step ? window.wpUi : null;
+    var st = Uw ? Uw.step({ value: cur, min: 1, max: mx, step: 1, label: 'Times an attack can be sent on', valCls: 'sys-combat-sendhops', lessTip: 'Once less', moreTip: 'Once more', set: set }) : input('sys-combat-sendhops field', String(cur), 'How many times one attack can be sent on, from 1 to ' + mx, '1');
+    if (!Uw) st.addEventListener('input', function() { var n = Math.floor(Number(st.value)); if (n >= 1) set(n); });   // the suites' page, which has no counter
+    row.appendChild(st); row.appendChild(document.createTextNode(' times')); box.appendChild(row);
+    box.appendChild(el('small', 'sys-line', 'Where a defense says it can be sent on. Once it has gone that many times, a defense stops it.'));
 }
 // [systemcheck:ansview-end]
 // [systemcheck:rowswitchbox-start] 1.6.0 R6 and R7: the Lists tab's Word while off and Icon beside the switch, and a list roll's Icon and Shows

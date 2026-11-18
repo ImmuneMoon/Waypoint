@@ -136,6 +136,7 @@ function analyze(src) {
             case 'LabeledStatement': visit(n.body, ctx); return;
             case 'BreakStatement': case 'ContinueStatement': return;
             case 'MetaProperty': return;
+            case 'TaggedTemplateExpression': if (n.tag.type === 'Identifier') refs.push({ name: n.tag.name, start: n.tag.start, scope: ctx.scope, write: false, top: ctx.top, fn: ctx.fn, eager: ctx.eager, call: true }); else visit(n.tag, ctx); visit(n.quasi, ctx); return;
             case 'ImportDeclaration': return;
             case 'ExportNamedDeclaration': if (n.declaration) visit(n.declaration, ctx); if (!n.source) n.specifiers.forEach(s => visit(s.local, ctx)); return;
             case 'ExportDefaultDeclaration': visit(n.declaration, ctx); return;
@@ -147,9 +148,12 @@ function analyze(src) {
                 // An immediately called function, a function's .call / .apply, a callback a known synchronous method runs, a new Promise's executor: run now.
                 if (isFn(c)) { fnNode(c, ctx, true); n.arguments.forEach(a => visit(a, ctx)); return; }
                 if (c.type === 'MemberExpression' && !c.computed && isFn(c.object) && (c.property.name === 'call' || c.property.name === 'apply')) { fnNode(c.object, ctx, true); n.arguments.forEach(a => visit(a, ctx)); return; }
-                visit(c, ctx);
+                // a name that is called (not only read) is marked so: the load order follows calls, never a function passed along as a value
+                if (c.type === 'Identifier') refs.push({ name: c.name, start: c.start, scope: ctx.scope, write: false, top: ctx.top, fn: ctx.fn, eager: ctx.eager, call: true });
+                else if (c.type === 'MemberExpression' && !c.computed && c.object.type === 'Identifier' && (c.property.name === 'call' || c.property.name === 'apply')) refs.push({ name: c.object.name, start: c.object.start, scope: ctx.scope, write: false, top: ctx.top, fn: ctx.fn, eager: ctx.eager, call: true });
+                else visit(c, ctx);
                 const sync = (c.type === 'MemberExpression' && !c.computed && SYNC_CALLBACKS.has(c.property.name)) || (n.type === 'NewExpression' && c.type === 'Identifier' && c.name === 'Promise');
-                n.arguments.forEach(a => { if (isFn(a)) fnNode(a, ctx, sync); else visit(a, ctx); });
+                n.arguments.forEach(a => { if (isFn(a)) fnNode(a, ctx, sync); else if (sync && a.type === 'Identifier') refs.push({ name: a.name, start: a.start, scope: ctx.scope, write: false, top: ctx.top, fn: ctx.fn, eager: ctx.eager, call: true }); else visit(a, ctx); });
                 return;
             }
         }
@@ -209,20 +213,23 @@ function judge(src, regions) {
         if (r.write) problems.push({ rule: 'assigned across a cut', name: r.name, at: at || '(root)', declaredIn: home || '(root)', line: lineOf(starts, r.start) });
     });
     // The load order: a top-level statement that runs before a part is installed, and reaches one of its names.
-    const fnUses = new Map(), stmtUses = [];
+    // Each top-level statement's uses that run at once, and each top-level function's when it is called: every name it reads, and the
+    // names it calls, through which the walk goes on. A function only passed along as a value (net._x = handleMessage) is not entered.
+    const fnUses = new Map(), fnCalls = new Map(), stmtUses = [], stmtCalls = [];
+    const add = (m, k, v) => { if (!m.has(k)) m.set(k, new Set()); m.get(k).add(v); };
     A.refs.forEach(r => {
         if (!r.module || !r.eager) return;
         const s = A.top[r.top];
-        if (r.fn && (s.type === 'FunctionDeclaration' || s.type === 'VariableDeclaration')) { if (!fnUses.has(r.fn)) fnUses.set(r.fn, new Set()); fnUses.get(r.fn).add(r.name); }
-        else { if (!stmtUses[r.top]) stmtUses[r.top] = new Set(); stmtUses[r.top].add(r.name); }
+        if (r.fn && (s.type === 'FunctionDeclaration' || s.type === 'VariableDeclaration')) { add(fnUses, r.fn, r.name); if (r.call) add(fnCalls, r.fn, r.name); }
+        else { if (!stmtUses[r.top]) stmtUses[r.top] = new Set(); stmtUses[r.top].add(r.name); if (r.call) { if (!stmtCalls[r.top]) stmtCalls[r.top] = new Set(); stmtCalls[r.top].add(r.name); } }
     });
-    const reach = (seed) => { const seen = new Set(), todo = [...seed]; while (todo.length) { const n = todo.pop(); if (seen.has(n)) continue; seen.add(n); const u = fnUses.get(n); if (u) u.forEach(x => todo.push(x)); } return seen; };
+    const reachOf = i => { const seen = new Set(stmtUses[i]), done = new Set(), todo = [...(stmtCalls[i] || [])]; while (todo.length) { const n = todo.pop(); if (done.has(n)) continue; done.add(n); (fnUses.get(n) || []).forEach(x => seen.add(x)); (fnCalls.get(n) || []).forEach(x => todo.push(x)); } return seen; };
     stmtUses.forEach((uses, i) => {
         if (!uses) return;
         const s = A.top[i];
         if (/^Export|^Import/.test(s.type)) return;   // an export or an import runs nothing
         const at = regionAt(s.start), line = lineOf(starts, s.start);
-        reach(uses).forEach(name => {
+        reachOf(i).forEach(name => {
             const home = one(declRegion.get(name) || new Set());
             if (home === undefined || home === null || home === at) return;
             const reg = regions.find(r => r.part === home);

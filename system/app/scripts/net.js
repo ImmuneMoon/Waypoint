@@ -16,6 +16,8 @@ import { getActiveCampaign, findLandingRoom, landingPoint, getActiveMap } from '
 import { save, toast, load } from './io.js';
 import { updateCampaignSelect, updateSidebarNav } from './sidebar.js';
 import { showConfirm, showAlert } from './dialogs.js';
+import { netHold } from './nethold.js';   // [split:glue]
+export { own, pushRoll, saveRemoteSoon, sendFailed, sendTable, toast, turnNote };   // [split:glue]
 
 /* ---------- version gate ----------
    The join handshake carries the player's app version. A host turns away anyone
@@ -13460,101 +13462,8 @@ function pushRoll(rec, res, scope, opts) {
     if (rec.pend) { pushChat(m); return; }
     pushChat(m); ringPush(m, opts && opts.cid);
 }
-// [netcheck:cardhold-start]
-// 1.6.2 (backlog 210 b, G5; the owner: "Wait for Accept, then run", and "a roll with no card actions shouldn't wait, so ordinary rolls stay instant"): a roll
-// whose card offers something is held here, its Then and all that follows it not run, and its card says so plainly. Accept, or the time the system sets,
-// runs what follows once. The time does not run on while its roller is away, since it could spend a choice for them, and the GM may accept for them. Each
-// action works on the roll in hand and sends the card again under its one id, so the final card takes its place. Nothing here is stored
-var _cardHeld = Object.create(null);
-function cardEnt(camp, act, row, seen) {   // a player's press is judged through their view, which holds no card actions, so they are read from the GM's entry
-    var sys = camp && camp.system, hit = null; if (!sys) return seen;
-    if (typeof act === 'string' && act) (Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (r && r.id === act) hit = r; });
-    else if (row && typeof row.i === 'number') (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (f && f.id === row.f && f.list && Array.isArray(f.list.rolls)) hit = f.list.rolls[row.i] || null; });
-    return hit || seen;
-}
-function cardVars(h) { var o = h.o, vd = o.D.verdictOf(h.res, o.D.ruleOf({}, o.camp.system && o.camp.system.combat ? o.camp.system.combat.checks : '')); return o.S.withRollCrit(o.vars, o.S.thenCrit(vd, false), o.S.thenMargin(vd, false), false, h.res); }
-// 1.6.2 (G5): what a roll has left to spend: its figure, worked out from the roll as it stands, less what was spent. A roll with none has no points, and an action that spends is not offered
-function cardPoints(h) { var o = h.o, p = typeof o.S.cardPtsOf === 'function' ? o.S.cardPtsOf(o.camp.system, o.ent) : null; if (!p) return null; var r = null; try { r = o.F.evaluate(p.text, { vars: cardVars(h), random: function() { return 1; } }); } catch (e) { r = null; } var n = r && r.ok && typeof r.value === 'number' && isFinite(r.value) ? Math.floor(r.value) : 0; return { n: Math.max(0, Math.min(999, n - (h.spent || 0))), w: p.word }; }
-function cardRunAct(o, id) { var hit = null; (Array.isArray(o.camp.system.rolls) ? o.camp.system.rolls : []).forEach(function(r) { if (r && r.id === id && Array.isArray(r.apply)) hit = r; }); return hit; }
-function cardOffers(h) {
-    var o = h.o, v = cardVars(h), out = [], pts = cardPoints(h);
-    h.acts.forEach(function(a, i) { if ((h.used[i] || 0) >= (a.times || 1)) return; if (a.pay && !cardPayAct(o, a)) return; if (a.spend && (!pts || pts.n < a.spend)) return; if (a.does === 'run' && (!o.ch || !cardRunAct(o, a.act))) return; if (a.does === 'bandUp' && !(o.S.bandsFor(o.camp.system, o.ent).length > h.step + 1)) return; if (o.S.cardActOk(a, v, o.F)) out.push({ k: String(i), l: a.spend ? a.label + ' (' + a.spend + ')' : a.label }); });
-    return out;
-}
-// [netcheck:swpay-start]
-// 1.6.2 (G6): a roll bonus with a cost, a system action run as it is ticked, from the GM's system whatever the roller's view holds. Worked out whole on a copy before anything is spent, so a bonus that cannot be paid refuses the roll, and stored once nothing else has refused it
-function swPayPlan(S, camp, ch, pays, F, D, tc) {
-    var sys = camp.system, rolls = Array.isArray(sys.rolls) ? sys.rolls : [], work = Object.assign({}, ch, { values: Object.assign({}, ch.values) }), all = {}, cards = [], links = {};
-    for (var i = 0; i < pays.length; i++) {
-        var act = rolls.filter(function(r) { return !!r && r.id === pays[i] && Array.isArray(r.apply); })[0]; if (!act) return { error: 'That bonus cannot be paid now.' };
-        var res = S.applyAct(sys, work, act, S.makeResolver(sys, work, F, tc || null), F, tc || null, null, undefined, D); if (!res || !res.ok) return { error: (res && res.message) || 'That bonus cannot be paid now.' };
-        Object.keys(res.values).forEach(function(k) { work.values[k] = res.values[k]; all[k] = res.values[k]; }); if (res.linkValues) Object.keys(res.linkValues).forEach(function(id) { links[id] = Object.assign(links[id] || {}, res.linkValues[id]); }); /* 1.6.2 (the CORE session's batch 6, 12): a cost paid from a linked sheet */ if (Array.isArray(res.lines) && res.lines.length) cards.push({ label: act.label, lines: res.lines, scope: S.applyScope(sys, work, act, false, F) });
-    }
-    return { values: all, cards: cards, links: links };
-}
-function swPayDo(ch, plan) {
-    if (plan.links && Object.keys(plan.links).length && window.wpSheets && window.wpSheets.linkValuesWrite) { window.wpSheets.linkValuesWrite(plan.links); saveRemoteSoon(); }   // 1.6.2 (12)
-    var ks = Object.keys(plan.values); if (!ks.length) { plan.cards.forEach(function(c) { net.postApplyCard(ch, c.label, c.lines, c.scope); }); return; } ch.values = ch.values || {}; ks.forEach(function(k) { ch.values[k] = plan.values[k]; }); ch.updated = Date.now(); saveRemoteSoon(); net.syncCharDelta(ch.id, plan.values); if (window.wpSheets) window.wpSheets.charChanged(ch.id);
-    plan.cards.forEach(function(c) { net.postApplyCard(ch, c.label, c.lines, c.scope); });
-}
-// [netcheck:swpay-end]
-function cardPayAct(o, a) { var hit = null; (Array.isArray(o.camp.system.rolls) ? o.camp.system.rolls : []).forEach(function(r) { if (r && r.id === a.pay && Array.isArray(r.apply)) hit = r; }); return hit; }
-function cardSend(h, offers) {
-    var o = h.o, rec = { type: 'roll', id: h.id, from: o.from, expr: h.expr, draws: h.res.draws, v: o.F.VERSION, ts: Date.now(), pend: h.wait, offers: offers }, ptsS = cardPoints(h); if (ptsS) rec.pts = ptsS;
-    if (o.dl) rec.dl = o.dl; if (o.rid) rec.rid = o.rid; if (o.label) rec.label = o.label; if (o.as) rec.as = o.as; if (o.priv) rec.priv = 'gm'; if (o.asked && o.asked.length) rec.asked = o.asked;
-    if (h.res.breakdown && h.res.breakdown.names && h.res.breakdown.names.length) { var nmH = o.D.cleanNames(h.res.breakdown.names); if (nmH && nmH.length) rec.names = nmH; }   // what its formula read, without which no other machine can draw the card
-    if (o.conn) { if (o.priv) { try { o.conn.send(rec); } catch (e) { sendFailed(e); } } else sendTable(rec, null); } else if (!o.priv) sendTable(rec, null);
-    pushRoll(rec, h.res, o.priv ? 'whisper' : 'global', { cid: o.cid });
-}
-function cardClock(h) { if (h.timer) clearTimeout(h.timer); h.timer = null; if (h.away) return; h.timer = setTimeout(function() { cardSettle(h); }, h.wait * 1000); }
-function cardSettle(h) { if (!_cardHeld[h.id]) return; delete _cardHeld[h.id]; if (h.timer) clearTimeout(h.timer); h.timer = null; h.o.go(h.res, h.expr, h.id, h.step); cardRuns(h); }
-function cardRuns(h) {   // 1.6.2 (G5): what was picked runs once the roll has landed, in the order picked, each read on the sheet as the one before left it
-    var o = h.o, vd = o.D.verdictOf(h.res, o.D.ruleOf({}, o.camp.system && o.camp.system.combat ? o.camp.system.combat.checks : ''));
-    (h.queue || []).forEach(function(id) {
-        var act = cardRunAct(o, id); if (!act || !o.ch) return; var v = o.S.withRollCrit(o.S.makeResolver(o.camp.system, o.ch, o.F, o.tc || null), o.S.thenCrit(vd, false), o.S.thenMargin(vd, false), false, h.res), pr = o.S.applyAct(o.camp.system, o.ch, act, v, o.F, o.tc || null, null, undefined, o.D); if (!pr || !pr.ok) { cardSay(h, (pr && pr.message) || 'That could not be done.'); return; }
-        var ks = Object.keys(pr.values); if (ks.length) { o.ch.values = o.ch.values || {}; ks.forEach(function(k) { o.ch.values[k] = pr.values[k]; }); o.ch.updated = Date.now(); saveRemoteSoon(); net.syncCharDelta(o.ch.id, pr.values); if (window.wpSheets) window.wpSheets.charChanged(o.ch.id); }
-        if (Array.isArray(pr.lines) && pr.lines.length && typeof net.postApplyCard === 'function') net.postApplyCard(o.ch, act.label, pr.lines, o.S.applyScope(o.camp.system, o.ch, act, false, o.F));
-    });
-}
-function cardHold(o) {
-    if (!o || !o.camp || !o.camp.system || !o.ent || typeof o.S.cardActsOf !== 'function') return false;
-    var acts = o.S.cardActsOf(o.camp.system, o.ent); if (!acts.length) return false;
-    var h = { id: o.D.uid(), o: o, acts: acts, used: {}, spent: 0, queue: [], res: o.res, expr: o.expr, step: 0, wait: o.S.cardWaitOf(o.camp.system), timer: null, away: false }, off = cardOffers(h); if (!off.length) return false;
-    _cardHeld[h.id] = h; cardSend(h, off); cardClock(h); return true;
-}
-function cardSay(h, words) { var o = h.o; if (o.conn && typeof turnNote === 'function') turnNote(o.conn, words, o.cid); else if (typeof toast === 'function') toast(words); }
-// who: the profile that pressed, '' for the GM's own hand. A press is its roller's or the GM's, and an action is the roller's alone
-function cardPress(id, key, who) {
-    var h = typeof id === 'string' && Object.prototype.hasOwnProperty.call(_cardHeld, id) ? _cardHeld[id] : null; if (!h) return false;
-    var o = h.o, mine = who === '' || who === o.pid; if (!mine) return false;
-    if (key === 'accept') { cardSettle(h); return true; }
-    if (who === '' && o.pid) return false;
-    var i = Number(key), a = h.acts[i]; if (!a || !cardOffers(h).some(function(x) { return x.k === String(i); })) return false;
-    if (a.pay) {
-        var pa = cardPayAct(o, a), pr = pa ? o.S.applyAct(o.camp.system, o.ch, pa, o.vars, o.F, o.tc, null, undefined, o.D) : null;
-        if (!pr || !pr.ok) { cardSay(h, (pr && pr.message) || 'That cannot be paid now.'); return false; }
-        o.ch.values = o.ch.values || {}; Object.keys(pr.values).forEach(function(k) { o.ch.values[k] = pr.values[k]; }); o.ch.updated = Date.now(); saveRemoteSoon(); net.syncCharDelta(o.ch.id, pr.values); if (window.wpSheets) window.wpSheets.charChanged(o.ch.id);
-    }
-    h.used[i] = (h.used[i] || 0) + 1; if (a.spend) h.spent += a.spend; if (a.does === 'run') h.queue.push(a.act);
-    var again = null, keep = h.res.draws.slice(), at = 0;
-    if (a.does === 'again') again = o.F.evaluate(h.expr, { vars: o.vars });
-    else if (a.does === 'againIf') again = o.F.evaluate(h.expr, { vars: o.vars, random: function(fc) { var raw = keep[at++]; if (typeof raw === 'number' && raw >= 1 && raw <= fc && !o.S.cardDieHolds(raw, a.test)) return raw; return 1 + Math.floor(Math.random() * fc); } });
-    else if (a.does === 'add' || a.does === 'sub') {
-        var nv = o.F.evaluate(a.n, { vars: cardVars(h) }), md = nv.ok && typeof nv.value === 'number' && isFinite(nv.value) ? Math.round(nv.value) : null; if (md === null) { cardSay(h, 'That amount could not be worked out.'); return false; }
-        var cm = o.D.composeModifier(h.expr, a.does === 'add' ? md : -md, o.F.parse); if (!cm.ok) { cardSay(h, 'That roll cannot take that change.'); return false; }
-        h.expr = cm.expr; again = o.F.evaluate(h.expr, { vars: o.vars, random: function(fc) { var raw = keep[at++]; return typeof raw === 'number' && raw >= 1 && raw <= fc ? raw : 1 + Math.floor(Math.random() * fc); } });
-    } else if (a.does === 'bandUp') h.step += 1;
-    if (again) { if (!again.ok) { cardSay(h, 'That roll cannot take that change.'); return false; } h.res = again; }
-    var off = cardOffers(h); if (!off.length) { cardSettle(h); return true; }
-    cardSend(h, off); cardClock(h); return true;
-}
-function cardAway(peer) { Object.keys(_cardHeld).forEach(function(id) { var h = _cardHeld[id]; if (h.o.conn && h.o.conn.peer === peer) { h.away = true; if (h.timer) clearTimeout(h.timer); h.timer = null; } }); }
-function cardForget() { Object.keys(_cardHeld).forEach(function(id) { if (_cardHeld[id].timer) clearTimeout(_cardHeld[id].timer); delete _cardHeld[id]; }); }
-net.cardAct = function(id, key) {
-    if (net.role === 'client') { if (!net.conns[0] || !net.conns[0].open) return false; try { net.conns[0].send({ type: 'card-act', id: String(id), key: String(key) }); } catch (e) { return false; } return true; }
-    return cardPress(id, key, '');
-};
-// [netcheck:cardhold-end]
+// [split:nethold.js]
+var _netHold = netHold(), cardAway = _netHold.cardAway, cardEnt = _netHold.cardEnt, cardForget = _netHold.cardForget, cardHold = _netHold.cardHold, cardPress = _netHold.cardPress, swPayDo = _netHold.swPayDo, swPayPlan = _netHold.swPayPlan;   // [split:glue]
 // [netcheck:helphold-start]
 // 1.6.2 Assist (the owner, 2026-11-03, by prompt: "The roll waits for help"; others "on the same map"; "Yes, the GM picks one", since allies and a rider's
 // mount can help): a roll whose entry is ticked Others may help is held here before anything of it is rolled or spent. Its card goes to the table: each

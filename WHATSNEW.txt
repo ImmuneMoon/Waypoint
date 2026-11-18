@@ -83,6 +83,13 @@ Attacks that carry their damage
 - An attack that is waiting to land is saved with its fight, so a
   reload in the middle of a fight keeps it. Pressing its damage card
   costs no action.
+- If you end a fight while an attack's damage is still to roll, it's let
+  go and you get a note naming whose attack on whom, so nothing slips
+  away quietly on a reload.
+- When nobody can press a player's damage card, say they've stepped away
+  from the table, your copy has Roll it now whatever the setting.
+- If a player's Take it is turned down, for instance while the table is
+  paused, their card comes back so they can roll or try again.
 
 Smaller things
 - The game clock in the top row shows seconds for the GM. The clock still

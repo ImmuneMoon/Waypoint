@@ -6375,7 +6375,8 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
     b.appendChild(el('span', 'sheet-roll-text', label));   // 1.6.3 (the owner, 2026-11-15: "this button on scorch isnt laid out well"): the name in a box of its own, so a long one wraps beside the die and the icon, never under them, and is cut at two lines (style.css)
     if (r.icon) b.insertBefore(iconNode(r.icon, 'sheet-roll-icon'), b.firstChild); if (typeof dieFor === 'function') b.insertBefore(dieFor(r.die, r.formula, 'sheet-roll-die'), b.firstChild);   // 1.5.8: its die (the GM's pick, else its formula's); 1.6.0 (the owner, 2026-10-27: "small dice icons on, or before the dice rolling buttons ... without removing any of the current settings"): before an icon of its own too, which stays
     b.title = can ? 'Roll ' + label + ' · shift-click to add a modifier' : 'Dice are off here, or this is not your character'; b.disabled = !can;
-    var cbR = can && typeof costBlock === 'function' ? costBlock(c, r.cost, r.costN) : ''; if (cbR) { b.disabled = true; b.title = cbR; }   // turn-based combat T4
+    var cbR = can && typeof costBlock === 'function' ? costBlock(c, r.cost, r.costN) : ''; if (cbR) { b.disabled = true; b.title = cbR; }
+    if (typeof r.withRow === 'string' && r.withRow && typeof withRowReads === 'function' && withRowReads(r)) { var wfR = (sys && Array.isArray(sys.fields) ? sys.fields : []).filter(function(x) { return x && x.id === r.withRow; })[0]; b.disabled = true; b.title = 'Rolled from a defense card, with a row of ' + ((wfR && (wfR.label || wfR.key)) || 'a list') + '. It reads that row, so it has no roll of its own here'; }   // 1.6.3 (defense fold 2): a press here names no row, so its Row.* names would read nothing   // turn-based combat T4
     var ndF = can && (r.needs || r.needsWhy) && !(r.needsGm === true && !isClient()) && typeof rollNeedsOk === 'function' && typeof rollNeedsFails === 'function' && typeof vars === 'function' ? rollNeedsFails(r, (r.to === 'near' || r.to === 'target') && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F(), undefined, true) : null; if (ndF) { b.disabled = true; b.title = ndF.at >= 0 ? ndF.says : (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : typeof needsTip === 'function' ? needsTip(r.needs) : ' \u2014 it needs ' + r.needs); }   // 1.6.2: the one judge, the first that fails; a reason says its own words   // 1.5.4: what it needs, as a list roll's button (the host judges a player's roll); 1.5.9: read as on its user, OnSelf 1
     var goN = function(e) {   // 1.5.9: named, so its ± runs the very same click
         if ((r.to === 'near' || r.to === 'target') && typeof allyPick === 'function' && !(e && e.wpAlly !== undefined)) { var evN = typeof pressOf === 'function' ? pressOf(e, b) : e; allyPick(evN.currentTarget || b, c, r.to === 'target', function(on) { evN.wpAlly = on || ''; goN(evN); }); return; }   // 1.5.9 (book es/et plan, section 3): whom it is for first, where someone stands next to it
@@ -6680,6 +6681,20 @@ function landBox(box, cm) {
     wtb.addEventListener('change', function(e) { e.stopPropagation(); if (wtb.checked) cm.defenseWait = wVal; else delete cm.defenseWait; wl.hidden = !wtb.checked; markDirty(); });
     wl.appendChild(wi); wl.appendChild(document.createTextNode(' seconds, then the attack lands')); box.appendChild(wt); box.appendChild(wl);
 }
+// 1.6.3 (defense fold 2; docs/DEFENSE_INTERACTIONS_DESIGN.md 4.4 and 5.2, backlog 245): Answered with a row of, on a roll of the system ticked Resists an attempt: None
+// first, then the system's item lists by name. Its defense card then has a button for each row of that list the defender holds (net.js attWithRows), and the roll
+// reads that row's names as Row.<name>. A pick whose list is gone stays, said so, until another is picked (Save takes it off)
+function withRowSel(cls, cur, sys) {
+    var ls = (sys && Array.isArray(sys.fields) ? sys.fields : []).filter(function(f) { return f && f.kind === 'item-list' && typeof f.id === 'string'; }).map(function(f) { return [f.id, 'Answered with a row of ' + (f.label || f.key || 'a list')]; });
+    var o = [['', 'Not answered with a row']].concat(ls), cv = typeof cur === 'string' ? cur : '';
+    if (cv && !ls.some(function(x) { return x[0] === cv; })) o.push([cv, 'Answered with a row of a list that is gone']);
+    return select(cls, o, cv, 'Answered with a row of: the card that asks for this roll has a button for each row of this list the defender holds, such as Defend with each weapon. The roll then reads that row, and so does a call\u2019s Read on the one who resisted. A defender who holds no such row is not offered this roll.');
+}
+// whether a roll's own formulas read a row's names (Row.*), so a press that names no row cannot make it
+function withRowReads(r) {
+    var Fw = typeof F === 'function' ? F() : null; if (!Fw || typeof Fw.names !== 'function') return false;
+    return [r.formula, r.needs].some(function(t) { if (typeof t !== 'string' || !t) return false; try { return Fw.names(t).some(function(n) { return /^row\./i.test(String(n)); }); } catch (e) { return false; } });
+}
 function resistBySel(cls, cur, sys) {
     var rs = (sys && Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(x) { return x && typeof x.id === 'string' && x.resist === true && !Array.isArray(x.apply); }).map(function(x) { return [x.id, 'Resisted by: ' + (x.label || 'Roll')]; });
     var o = [['', 'Not resisted']].concat(rs); if (typeof cur === 'string' && cur && !rs.some(function(x) { return x[0] === cur; })) o.push([cur, 'Resisted by: a roll no longer ticked Resists an attempt']);
@@ -6715,8 +6730,19 @@ function runLand(charId, actId, att, row) {
     try { window.wpDice.rollFor(c.id, ent.formula, String(ent.label || 'Damage').split('{')[0].trim() || 'Damage', o); } finally { if (n) n._attNext = null; }
     return true;
 }
-function runDue(charId, actId, att, row, ask) {   // ask (1.6.2): what the card's press answered   // att (1.6.0, B2): the attempt a resist card answers, handed to the roll its button makes; row (1.6.0): a list's roll on one row, { f, r, i }
-    if (ask === undefined && typeof askEntry === 'function') { var enD = askEntry(row ? { row: row } : { act: actId }, null), cD = enD ? charById(charId, getActiveCampaign()) : null; if (enD && cD) { askThen(enD, cD, document.activeElement, row ? { row: row } : { act: actId }, null, function(ans) { runDue(charId, actId, att, row, ans); }); return true; } }   // 1.6.2: what it asks first
+function runDue(charId, actId, att, row, ask, wr) {   // wr (1.6.3, defense fold 2): the row a roll Answered with a row of a list is pressed with, { f, r }   // ask (1.6.2): what the card's press answered   // att (1.6.0, B2): the attempt a resist card answers, handed to the roll its button makes; row (1.6.0): a list's roll on one row, { f, r, i }
+    if (ask === undefined && typeof askEntry === 'function') { var enD = askEntry(row ? { row: row } : { act: actId }, null), cD = enD ? charById(charId, getActiveCampaign()) : null; if (enD && cD) { askThen(enD, cD, document.activeElement, row ? { row: row } : { act: actId }, null, function(ans) { runDue(charId, actId, att, row, ans, wr); }); return true; } }   // 1.6.2: what it asks first
+    if (wr && typeof wr === 'object' && typeof att === 'string') {   // 1.6.3 (defense fold 2; backlog 245): a defense card's button for a roll answered with a row, on one row the defender holds: the system roll, made with that row named beside it (net.diceRoll takes the row from _attNext, as it takes the attempt), which the host judges against the rows it offered and works out with that row's names
+        var campV = getActiveCampaign(), sysV = systemOf(campV), cV = charById(charId, campV), rlV = null;
+        (sysV && Array.isArray(sysV.rolls) ? sysV.rolls : []).forEach(function(x) { if (x && x.id === actId && typeof x.formula === 'string' && x.formula && !Array.isArray(x.apply)) rlV = x; });
+        var rowsV = cV && cV.values && Array.isArray(cV.values[wr.f]) ? cV.values[wr.f] : [];
+        if (!cV || !rlV || rlV.withRow !== wr.f || !rowsV.some(function(x) { return rowIdOf(x) === wr.r; })) { toast('That roll is not on the sheet any more.'); return false; }
+        if (!canRoll(cV)) { toast('That character is not yours to roll for here.'); return false; }
+        if (!window.wpDice || !window.wpDice.rollFor) return false;
+        var nV = net(); if (nV) nV._attNext = { att: att, charId: cV.id, act: rlV.id, with: { f: wr.f, r: wr.r } };
+        try { window.wpDice.rollFor(cV.id, rlV.formula, String(rlV.label || 'Roll').split('{')[0].trim() || 'Roll', { act: rlV.id, ask: ask || undefined, gmOnly: rlV.vis === 'gm' }); } finally { if (nV) nV._attNext = null; }
+        return true;
+    }
     if (row && typeof row === 'object') {   // a resist card's button for one row the target holds: its list's roll, made as that row's button makes it, which the host judges
         var campW = getActiveCampaign(), sysW = systemOf(campW), cW = charById(charId, campW), lfW = null;
         (sysW && Array.isArray(sysW.fields) ? sysW.fields : []).forEach(function(x) { if (x && x.id === row.f && x.kind === 'item-list' && x.list && Array.isArray(x.list.rolls)) lfW = x; });
@@ -8584,7 +8610,8 @@ function formCtx(inp) {
     // 1.6.2 (the review of backlog 242): a crossing's own steps (First at, Then every) are read on the sheet as it stands before the roll runs, so their
     // form is offered nothing of the roll's own moment (crossStep: no blow, no CrossStep, no answer), as the validator refuses it there
     if (r && cs && (cs.contains('sys-roll-xsat') || cs.contains('sys-roll-xsstep'))) return { roll: r, subject: r.label, crossStep: true };
-    if (r) return { roll: r, subject: r.label, then: !Array.isArray(r.apply) && !!cs && (cs.contains('sys-apply-formula') || cs.contains('sys-apply-if') || cs.contains('sys-card-n') || cs.contains('sys-card-needs')) };
+    var wlC = r && typeof r.withRow === 'string' && r.withRow && r.resist === true && !Array.isArray(r.apply) && !(cs && cs.contains('sys-roll-critok')) ? fieldOf(r.withRow) : null;   // 1.6.3 (defense fold 2)
+    if (r) return { roll: r, subject: r.label, list: wlC && wlC.list ? wlC.list : undefined, then: !Array.isArray(r.apply) && !!cs && (cs.contains('sys-apply-formula') || cs.contains('sys-apply-if') || cs.contains('sys-card-n') || cs.contains('sys-card-needs')) };
     var fd = null; if (typeof id === 'string') (Array.isArray(draft.fields) ? draft.fields : []).forEach(function(x) { if (x && x.id === id) fd = x; });
     return fd ? { subject: fd.label || '', list: fd.kind === 'item-list' && fd.list ? fd.list : undefined } : {};
 }
@@ -10488,6 +10515,7 @@ function rollRow(r) {
     if (typeof rollStationBox === 'function') { var rsB = rollStationBox(r); if (rsB) top.appendChild(rsB); }   // 1.6.0
     if (isApply) { var ea0 = r.each === 'round' || r.each === 'turn' || r.each === 'turnEnd' ? r.each : r.round === true ? 'round' : ''; top.appendChild(select('sys-roll-each', [['', 'Only when pressed'], ['round', 'Also each round'], ['turn', 'Also at its turn\u2019s start'], ['turnEnd', 'Also at its turn\u2019s end']], ea0, 'Runs during a combat as well: on every new round (every character in it, as parries counted back to 0), or when its character\u2019s turn begins (a bleed, a reaction back); pressed, it runs now')); if (ea0) top.appendChild(select('sys-roll-by', [['', 'automatically'], ['gm', 'when the GM presses it'], ['owner', 'when its player presses it']], r.by === 'gm' || r.by === 'owner' ? r.by : '', 'Automatically, or as a reminder in chat with a Run button: for you, or for the character\u2019s player (yours when they are not at the table, or the action is GM only)')); }   // Stage 6 HUD G10 + turn-based combat T2b
     if (!isApply && !r.init) { var eaR = r.each === 'round' || r.each === 'turn' || r.each === 'turnEnd' ? r.each : ''; top.appendChild(select('sys-roll-each', [['', 'Only when pressed'], ['round', 'Also due each round'], ['turn', 'Also due at its turn\u2019s start'], ['turnEnd', 'Also due at its turn\u2019s end']], eaR, 'Due during a combat as well: a reminder in chat with a Roll button, on every new round or when its character\u2019s turn begins (an HT roll to stay awake, say). It never rolls by itself')); if (eaR) top.appendChild(select('sys-roll-by', [['owner', 'for its player'], ['gm', 'for the GM']], r.by === 'gm' ? 'gm' : 'owner', 'Whose reminder it is: the character\u2019s player (yours when they are not at the table, or the roll is GM only), or yours')); }   // 1.5.9 (book es/et plan 4b): a roll at its turn's start, as a reminder card
+    if (!isApply && !r.init && r.resist === true && typeof withRowSel === 'function') top.appendChild(withRowSel('sys-roll-anslist', r.withRow, typeof draft !== 'undefined' ? draft : null));   // 1.6.3 (defense fold 2): Answered with a row of
     if (!isApply && !r.init && typeof checkLabel === 'function') top.appendChild(checkLabel('sys-roll-rsist', r.resist === true, 'Resists an attempt', 'This roll answers an attempt made on its character. It can read how far the attempt succeeded, to be that much harder.'));   // 1.6.0 (B2)
     if (!r.init && typeof checkLabel === 'function' && (r.keep === 'scene' || (Array.isArray(draft.scenes) && draft.scenes.length))) top.appendChild(checkLabel('sys-roll-keepscene', r.keep === 'scene', 'Kept for the scene', 'What it comes to stays on the one it was rolled at, for later rolls to read as Target.Reaction, until the scene ends. Such as a reaction rolled once for a meeting'));   // 1.6.2
     if (!r.init && typeof checkLabel === 'function') top.appendChild(checkLabel('sys-roll-anytime', r.free === true, 'Any time', 'Called for off a character\u2019s turn, whatever Off a character\u2019s turn says, as a check you ask for. A roll that resists, the initiative roll, a roll due at a turn or a round and a roll from a card need no tick'));   // 1.6.0
@@ -16207,7 +16235,8 @@ function onChange(e) {
         else if (c.indexOf('sys-dmg-chk') >= 0) { if (t.checked) r.dmg = true; else { delete r.dmg; delete r.dmgMajor; } markDirty(); renderAll(); return; }   // chat cards: a damage roll
         else if (c.indexOf('sys-roll-keepscene') >= 0) { if (t.checked) r.keep = 'scene'; else delete r.keep; }   // 1.6.2 Kept for the scene
         else if (c.indexOf('sys-roll-anytime') >= 0) { if (t.checked) r.free = true; else delete r.free; }   // 1.6.0 Any time
-        else if (c.indexOf('sys-roll-rsist') >= 0) { if (t.checked) r.resist = true; else delete r.resist; markDirty(); renderAll(); return; }   // 1.6.0 (B2): the Resisted by lists follow
+        else if (c.indexOf('sys-roll-rsist') >= 0) { if (t.checked) r.resist = true; else { delete r.resist; delete r.withRow; } markDirty(); renderAll(); return; }   // 1.6.0 (B2): the Resisted by lists follow; 1.6.3: Answered with a row of goes with the tick
+        else if (c.indexOf('sys-roll-anslist') >= 0) { if (t.value) r.withRow = t.value; else delete r.withRow; markDirty(); renderAll(); return; }   // 1.6.3 (defense fold 2): Answered with a row of
         else if (c.indexOf('sys-roll-lnddmg') >= 0) { if (t.value) r.landDmg = t.value; else delete r.landDmg; markDirty(); renderAll(); return; }   // 1.6.3 (defense fold 1): Its damage
         else if (c.indexOf('sys-roll-rsby') >= 0) { if (t.value) { r.resistBy = t.value; if (Array.isArray(r.resistOr)) { r.resistOr = r.resistOr.filter(function(x) { return x !== t.value; }); if (!r.resistOr.length) delete r.resistOr; } } else { delete r.resistBy; delete r.resistOr; } markDirty(); renderAll(); return; }   // 1.6.0 (B2)   // 1.6.0 (the core's gap 5): Or resisted by follows it
         else if (c.indexOf('sys-roll-rsor') >= 0) resistOrTick(r, t);   // 1.6.0 (the core's gap 5)

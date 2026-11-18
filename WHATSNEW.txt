@@ -91,6 +91,15 @@ Attacks that carry their damage
 - If a player's Take it is turned down, for instance while the table is
   paused, their card comes back so they can roll or try again.
 
+Defending with a row
+- A roll that resists can be answered with a row of a list now. Tick
+  Resists an attempt on your Defend roll, pick Weapons under Answered
+  with a row of, and the defense card shows Defend with Blade and Defend
+  with Staff, one button for each weapon the defender holds.
+- The roll reads the weapon it was pressed with. So a parry can use that
+  weapon's own figure, and a call that waits for the parry can check
+  which weapon parried and test that very one.
+
 Smaller things
 - The game clock in the top row shows seconds for the GM. The clock still
   moves the campaign by whole minutes, so you'll see 14:03:27 count up to

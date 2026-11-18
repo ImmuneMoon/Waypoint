@@ -1070,6 +1070,10 @@ function cleanRollDef(r, gmView) {
     if (onOther(r) && out.init !== true) out.to = r.to;   // 1.5.9 (book es/et plan, section 3): Applies to the user or an adjacent character; the initiative roll is always its own character's
     if (r.named === true || hasRange(out) || out.drawFirst) out.named = true;   // 1.6.0: it names itself as it is rolled, so the host can tell a sneak's roll; true only, and it says nothing of why
     if (r.resist === true && out.init !== true) out.resist = true;   // 1.6.0 (a build's sort, B2): Resists an attempt, so it reads AttemptMargin
+    // 1.6.3 (defense fold 2; docs/DEFENSE_INTERACTIONS_DESIGN.md 4.4, backlog 245): Answered with a row of, a list's field id beside Resists an attempt on a roll of
+    // the system. Its defense card then offers it once for each row of that list the defender holds, and the roll reads that row's names (net.js attWithRows).
+    // Both views keep it, since a player's sheet and the host's check of their press read it; cleanSystem takes off one whose list its view does not hold
+    if (out.resist === true && typeof r.withRow === 'string' && FIELD_ID.test(r.withRow)) out.withRow = r.withRow;
     if (gmView && out.resist && typeof r.critOk === 'string' && r.critOk.trim()) out.critOk = cutText(r.critOk, LIMITS.formula);   // 1.6.2 (the CORE session): Answers a critical where, read on the defender as a critical that is not resisted is made; the host's alone
     resistByInto(out, r, gmView);   // 1.6.0 (B2): and Resisted by, the roll its target resists it with
     rollAreaInto(out, r, gmView, false);   // 1.6.0: and a line it hits
@@ -5280,6 +5284,10 @@ function cleanSystem(sys, opts) {
     if (gmStK) out.fields.forEach(function(f) { if (!isObj(f.list)) return; [f.list.load, f.list.chamber].concat(Array.isArray(f.list.feeds) ? f.list.feeds : []).forEach(function(x) { if (isObj(x) && typeof x.to === 'string' && gmStK[lower(x.to)] === 1) { delete x.by; delete x.to; } }); });   // 1.6.0: a match to a GM-only stat of the list it loads from
     var seenR = map();
     (Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (out.rolls.length >= LIMITS.rolls) return; var c = cleanRollDef(r, gmView); if (!c || seenR[c.id]) return; seenR[c.id] = 1; out.rolls.push(c); });
+    // 1.6.3 (defense fold 2): Answered with a row of names an item list of this view. In the GM's view a list that is gone takes the pick off. In a players' view a
+    // roll answered with a row of a list they do not see goes whole, since its names read that list's rows; the host then sends its defense card to the GM
+    var wlS = map(); out.fields.forEach(function(f) { if (f.kind === 'item-list') wlS[f.id] = 1; });
+    if (gmView) out.rolls.forEach(function(r) { if (typeof r.withRow === 'string' && wlS[r.withRow] !== 1) delete r.withRow; }); else out.rolls = out.rolls.filter(function(r) { return typeof r.withRow !== 'string' || wlS[r.withRow] === 1; });
     var gmKeys = gmView ? map() : gmEntryKeys(sys, out.fields), hasGmKeys = Object.keys(gmKeys).length > 0;   // F5a1: per visible list, the keys of the GM-only entries in its scope
     var hasPicks = out.fields.some(function(f) { return f.kind === 'item-list' && isObj(f.list) && Array.isArray(f.list.stats) && f.list.stats.some(function(x) { return x.kind === 'pick'; }); });   // F5a2
     var tbS = gmView ? null : { fields: Array.isArray(sys.fields) ? sys.fields : [], links: cleanLinks(sys.links, F) || [], tables: cleanTables(sys.tables, true) || [], values: cleanValues(sys.values, true), decks: cleanDecks(sys.decks, true, /^D[0-9]+$/), effects: Array.isArray(sys.effects) ? sys.effects : [] }, tbLive = !!tbS && tableFam(tbS), tbGm = tbLive && (tbS.tables.some(function(t) { return t.vis === 'gm'; }) || tbS.values.some(function(t) { return t.vis === 'gm'; }) || tbS.decks.some(function(t) { return t.vis === 'gm'; }) || tbS.effects.some(function(t) { return isObj(t) && t.vis === 'gm'; }));   // 1.6.2: and a GM-only effect, which Fx.<effect> reads   // 1.6.0: a formula that reads a GM-only table is blanked as one that reads a GM-only field is
@@ -5436,6 +5444,14 @@ function cleanSystem(sys, opts) {
         var sysAr = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables, values: sys.values, decks: sys.decks, effects: sys.effects }, rowBad = function(c) { return rowAll(c) && (typeof c.rand === 'string' ? [c.test, isObj(c.next) ? c.next.formula : ''].some(function(t) { return !!t && !allRowOk(sysAr, F, fieldById(sysAr, c.rand), t); }) : ((typeof c.sw !== 'boolean' && !allRowOk(sysAr, F, fieldById(sysAr, c.list), c.formula)) || (typeof c.rows === 'string' && !!c.rows && !allRowOk(sysAr, F, fieldById(sysAr, c.list), c.rows)))); };
         out.rolls = out.rolls.filter(function(r) { return !(Array.isArray(r.apply) && r.apply.some(rowBad)); });
         out.rolls.forEach(function(r) { if (Array.isArray(r.then) && r.then.some(rowBad)) thenGmCut(r, rowBad); });
+    }
+    // 1.6.3 (defense fold 2): a roll answered with a row reads that row's names (Row.*) in its formula, its needs and its Then. In a players' view it goes whole where
+    // one of them reads a row's name that is GM only or worked out from a GM-only value, judged over the GM's view as a list's gate is (allRowOk), so the formula a
+    // player holds never names what they may not see and both machines read the row alike; the host then sends its card to the GM (net.js attWithView)
+    if (!gmView && F && typeof F.parse === 'function' && out.rolls.some(function(r) { return typeof r.withRow === 'string'; })) {
+        var sysWr = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables, values: sys.values, decks: sys.decks, effects: sys.effects };
+        var wrTexts = function(r) { var t = [r.formula, r.needs, r.malf, r.critAt, r.fumbleAt, r.bigAt]; (Array.isArray(r.needsWhy) ? r.needsWhy : []).forEach(function(l) { if (isObj(l)) t.push(l['if']); }); (Array.isArray(r.then) ? r.then : []).forEach(function(c) { if (isObj(c)) t.push(c.formula, c['if'], c.n); }); return t.filter(function(x) { return typeof x === 'string' && !!x; }); };
+        out.rolls = out.rolls.filter(function(r) { if (typeof r.withRow !== 'string') return true; var wf = fieldById(sysWr, r.withRow); return wrTexts(r).every(function(t) { return !readsRow(t, F) || allRowOk(sysWr, F, wf, t); }); });
     }
     if (effs.length) out.effects = effs;
     effs.forEach(function(d) { if (Array.isArray(d.end)) { d.end = d.end.filter(function(c) { return typeof c.fx !== 'string' || seenFx[c.fx] === 1; }); if (!d.end.length) delete d.end; } if (typeof d.endRoll === 'string' && rollIds[d.endRoll] !== 1) delete d.endRoll; if (d.endOff && !d.end && !d.endRoll) delete d.endOff; });   // 1.6.2: an effect's end switches an effect and asks a roll of this system
@@ -12888,16 +12904,19 @@ function validateSystem(sys, F) {
     var rollGroups = function(fm) { var p = F && typeof fm === 'string' && fm ? F.parse(fm) : null; return p && p.ok && Array.isArray(p.groups) ? p.groups : []; };
     var nearV = false;   // 1.5.9 (book es/et plan, section 3): the entry being read Applies to an adjacent character, so OnSelf is known in it
     var byIfV = false;   // 1.6.0: a call's Read on the one who resisted is being read, so a row is known in it only where it names a list's roll
+    var withV = null;   // 1.6.3 (defense fold 2): the list a roll Answered with a row of reads its rows of, so Row.* is known in that roll's own formulas (never in its crossing's steps or its Answers a critical where, read with no row)
     function isApplyProp(p) { return typeof p === 'string' && (p.indexOf('apply.') === 0 || p.indexOf('list.apply.') === 0 || p.indexOf('then.') === 0 || p.indexOf('list.then.') === 0); }   // R2b: a list roll's consequence too   // R1: a roll's consequence too   // Stage 6 HUD H7: an apply action's amount (no dice, no loop edge: nothing reads an action)
-    function rowOutSays(n) { return '"' + n + '" names a row, so ' + (byIfV ? 'it is known here only where the call names a list\u2019s roll.' : 'it is known only in a list\u2019s own columns.'); }
+    function rowOutSays(n) { return '"' + n + '" names a row, so ' + (byIfV ? 'it is known here only where the call names a list\u2019s roll, or a roll answered with a row.' : 'it is known only in a list\u2019s own columns.'); }
     function checkByIf(own, prop, cl) {   // 1.6.0: the resister's names, not the roller's: their roll's list, what their roll reads (AttemptMargin), and every value, since the host reads it whole
-        var m = /^(f_[A-Za-z0-9_]+)#\d+$/.exec(typeof cl.by === 'string' ? cl.by : ''), lf = m ? fieldById(sys, m[1]) : null, wN = nearV, wC = crossV, wR = resistV, wB = blowV, wX = blowX;
-        nearV = false; crossV = false; blowV = false; blowX = false; resistV = true; byIfV = true;
+        var m = /^(f_[A-Za-z0-9_]+)#\d+$/.exec(typeof cl.by === 'string' ? cl.by : ''), lf = m ? fieldById(sys, m[1]) : null, wN = nearV, wC = crossV, wR = resistV, wB = blowV, wX = blowX, wW = withV;
+        if (!lf && typeof cl.by === 'string' && cl.by) sys.rolls.forEach(function(x) { if (isObj(x) && x.id === cl.by && x.resist === true && typeof x.withRow === 'string') lf = fieldById(sys, x.withRow); });   // 1.6.3 (defense fold 2): By a roll answered with a row reads that row
+        nearV = false; crossV = false; blowV = false; blowX = false; resistV = true; byIfV = true; withV = null;
         checkFormula(own, prop, cl.byIf, false, 'gm', lf && lf.kind === 'item-list' ? lf : null);
-        nearV = wN; crossV = wC; resistV = wR; blowV = wB; blowX = wX; byIfV = false;
+        nearV = wN; crossV = wC; resistV = wR; blowV = wB; blowX = wX; byIfV = false; withV = wW;
     }
     function checkFormula(owner, prop, text, allowDice, vis, rowList) {   // rowList (F5a1): the list whose column this is (Row.* is known there)
         if (text === null) return;
+        if (!rowList && withV) rowList = withV;   // 1.6.3 (defense fold 2): in a roll answered with a row, that row's names
         if (!text) { errors.push({ id: owner.id, prop: prop, message: 'Missing formula', pos: 0, len: 0 }); return; }
         var p = F.parse(text);
         if (!p.ok) { errors.push({ id: owner.id, prop: prop, message: p.error.message, pos: p.error.pos, len: p.error.len }); return; }
@@ -13026,6 +13045,9 @@ function validateSystem(sys, F) {
     var noCheck = function(fm) { var p = F && typeof fm === 'string' && fm ? F.parse(fm) : null, t = p && p.ok && isObj(p.ast) ? p.ast.top || p.ast.body : null; return !!(isObj(t) && t.t !== 'cmp'); }, NO_CHECK = 'Resisted by does nothing here: this roll has no check, so it never succeeds against its target and nothing is posted to the target.';
     sys.rolls.forEach(function(r) {
         rollG = rollGroups(r.formula); nearV = onOther(r); crossV = isObj(r.cross); resistV = r.resist === true; blowV = blowRolls[r.id] === 1 || crossBlow(r); blowX = blowRolls[r.id] !== 1 && crossBlow(r);   // 1.5.9; 1.6.0: crossV; B2: resistV; the core's gaps 6 and 7: blowV; 1.6.2 (242): or a crossing that reads the sheet as the blow left it
+        withV = r.resist === true && !Array.isArray(r.apply) && typeof r.withRow === 'string' ? fieldById(sys, r.withRow) : null; if (withV && withV.kind !== 'item-list') withV = null;   // 1.6.3 (defense fold 2)
+        if (typeof r.withRow === 'string' && !withV) warnings.push({ id: r.id, prop: 'withRow', message: 'Answered with a row of names a list that is not here, so Save takes it off.' });
+        else if (withV && r.vis !== 'gm' && withV.vis === 'gm') warnings.push({ id: r.id, prop: 'withRow', message: '"' + (withV.label || withV.key) + '" is GM only, so a player\u2019s card never offers this roll. Their defense card comes to you instead.' });
         askV = askOf(r); if (askV) { r.asks.forEach(function(a) { if (isObj(a) && a.kind === 'num') { var sv = askV; askV = null; if (a.min) checkFormula({ id: r.id, key: r.id }, 'ask.min', a.min, false, r.vis); if (a.max) checkFormula({ id: r.id, key: r.id }, 'ask.max', a.max, false, r.vis); askV = sv; } }); if (r.every || r.inFight || r.cross || (r.each && !r.by)) warnings.push({ id: r.id, prop: 'asks', message: 'When it runs by itself nobody is asked, so each question takes its first answer.' }); }
         if (typeof r.resistBy === 'string' && noCheck(r.formula)) warnings.push({ id: r.id, prop: 'resistBy', message: NO_CHECK });
         if (typeof r.resistBy === 'string' && !sys.rolls.some(function(x) { return isObj(x) && x.id === r.resistBy && x.resist === true && !x.apply; })) warnings.push({ id: r.id, prop: 'resistBy', message: 'Resisted by names a roll that is not ticked Resists an attempt, so nothing is posted to the target.' });   // 1.6.0 (B2)
@@ -13038,12 +13060,12 @@ function validateSystem(sys, F) {
             // They are read on the sheet as it stands, before the roll runs, so while they are checked nothing of the roll's own moment is known: no blow
             // (Blow. and Hit. names, even on a roll ticked Reads the sheet as the blow left it), no answer, no attempt and no one it is used on. CrossStep
             // and Crossed are refused there by their prop (cross.*), which the messages read too
-            var sbV = blowV, sbX = blowX, snV = nearV, srV = resistV, saV = askV; blowV = false; blowX = false; nearV = false; resistV = false; askV = null;
+            var sbV = blowV, sbX = blowX, snV = nearV, srV = resistV, saV = askV, swV = withV; blowV = false; blowX = false; nearV = false; resistV = false; askV = null; withV = null;
             if (typeof r.cross.at === 'string' && r.cross.at) checkFormula({ id: r.id, key: r.id }, 'cross.at', r.cross.at, false, 'gm');
             if (typeof r.cross.step === 'string' && r.cross.step) checkFormula({ id: r.id, key: r.id }, 'cross.step', r.cross.step, false, 'gm');
-            blowV = sbV; blowX = sbX; nearV = snV; resistV = srV; askV = saV;
+            blowV = sbV; blowX = sbX; nearV = snV; resistV = srV; askV = saV; withV = swV;
         }
-        if (r.critOk && r.resist === true) checkFormula({ id: r.id, key: r.id }, 'critOk', r.critOk, false, 'gm');   // 1.6.2: Answers a critical where (no dice), read on the defender, the host's alone
+        if (r.critOk && r.resist === true) { var cwV = withV; withV = null; checkFormula({ id: r.id, key: r.id }, 'critOk', r.critOk, false, 'gm'); withV = cwV; }   // 1.6.3 (defense fold 2): read on the defender with no row   // 1.6.2: Answers a critical where (no dice), read on the defender, the host's alone
         if (Array.isArray(r.calls)) { r.calls.forEach(function(cl, j) { if (isObj(cl) && cl.if) checkFormula({ id: r.id, key: r.id }, 'calls', cl.if, false, r.vis); if (isObj(cl) && cl.byIf) checkByIf({ id: r.id, key: r.id }, 'byIf.' + j, cl); }); callSays(sys, r).forEach(function(m) { warnings.push({ id: r.id, prop: 'calls', message: m }); }); }   // 1.6.0: Calls for
         if (r.dmgMajorIf) checkFormula({ id: r.id, key: r.id }, 'dmgMajorIf', r.dmgMajorIf, false, r.vis);   // 1.6.0: A Major Wound where (no dice)
         if (r.hits) checkFormula({ id: r.id, key: r.id }, 'hits', r.hits, false, r.vis);   // 1.6.0: Hits it rolls for (no dice)
@@ -13090,7 +13112,7 @@ function validateSystem(sys, F) {
             checkFormula({ id: r.id, key: r.id }, pr, c.formula, c.roll === true, r.vis); rolledWarn(r.id, pr, c);   // 1.5.9: a Rolled amount may roll dice
         });
     });
-    rollG = null; nearV = false; crossV = false; resistV = false; blowV = false; blowX = false; askV = null;
+    rollG = null; nearV = false; crossV = false; resistV = false; blowV = false; blowX = false; askV = null; withV = null;
     (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) {   // 1.6.2: an effect's end, its amounts reading EffectNumber
         if (!isObj(d) || typeof d.id !== 'string') return;
         if (Array.isArray(d.end)) { endV = true; try { d.end.forEach(function(c, i) { var pr = 'end.' + i; if (!isObj(c)) return; if (typeof c.fx === 'string') { fxSays(d.id, pr, c, d.vis); return; } var tf = c.f ? fieldById(sys, c.f) : null; if (!tf || APPLY_KINDS[tf.kind] !== 1) errors.push({ id: d.id, prop: pr, message: 'Pick the pool or number this changes.' }); checkFormula({ id: d.id, key: 'fx#' + d.id }, pr, c.formula, c.roll === true, d.vis); rolledWarn(d.id, pr, c); }); } finally { endV = false; } }

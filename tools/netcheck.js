@@ -6123,7 +6123,7 @@ pendingChecks.push((async () => {
         cdO && j(cdO.or) === j([{ act: 'r_pa', label: 'Ward' }, { act: 'r_gm' }]) && Dx.cleanDue(Object.assign({}, dueO, { or: [{ act: 'r_a' }, { act: 'r_b' }, { act: 'r_c' }, { act: 'r_d' }] })) === null
         && Dx.cleanDue(Object.assign({}, dueO, { or: [{ act: 'r_dg' }] })) === null && Dx.cleanDue(Object.assign({}, dueO, { or: [{ act: 'r_pa' }, { act: 'r_pa' }] })) === null && Dx.cleanDue(Object.assign({}, dueO, { or: [{ act: 'x' }] })) === null && Dx.cleanDue(Object.assign({}, dueO, { or: [] })) === null
         && Dx.cleanDue(Object.assign({}, dueO, { why: 'turn', att: undefined, by: undefined, m: undefined })) === null && Dx.cleanDue(Object.assign({}, dueO, { why: 'turn', att: undefined, by: undefined, m: undefined, or: undefined })) !== null
-        && dcO.includes("var picks = [{ act: rec.act, label: rec.label || 'Roll' }].concat(rec.or), bs = [];") && dcO.includes("window.wpSheets.runDue(rec.charId, p.act, rec.att, p.row)") /* 1.6.0: and a row's list roll (moved on purpose) */
+        && dcO.includes("var picks = [{ act: rec.act, label: rec.label || 'Roll' }].concat(rec.or), bs = [];") && dcO.includes("window.wpSheets.runDue(rec.charId, p.act, rec.att, p.row, undefined, p.w)") /* 1.6.0: and a row's list roll; 1.6.3 (defense fold 2): and the row a roll answered with a row is pressed with (moved on purpose) */
         && src4.includes("if (Array.isArray(more.or) && more.or.length) rec.or = more.or.slice(0, 3).map(function(r) { return { act: r.id, label: String(r.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll' }; }); }"), j(cdO));
 })());
 
@@ -6463,6 +6463,86 @@ pendingChecks.push((async () => {
     { const ixT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8'), ntT = [path.join(__dirname, '..', 'WHATSNEW.txt'), path.join(__dirname, '..', 'system', 'app', 'assets', 'whatsnew.txt')].map(p => fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n'));
     check('1.6.0 a row offered only where its Shown where holds is said: Help, the integration guide and both 1.6.0 notes',
         ixT.includes('Where that roll has a <b>Shown where</b>, only the rows where it is true are offered.</li>') && fs.readFileSync(path.join(__dirname, '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8').includes('only the rows where it holds for the target') && ntT.every(t => t.indexOf("nor a row where that roll's Shown where is not true.") > 0 && t.indexOf("nor a row where that roll's Shown where is not true.") < t.indexOf('WAYPOINT 1.5.'))); }
+})());
+// 1.6.3 (defense fold 2; docs/DEFENSE_INTERACTIONS_DESIGN.md 4.4, backlog 245): a roll of the system that resists may be Answered with a row of a list. Its card
+// offers it once for each row of that list the defender may answer with, the press names that row beside the roll (the wire's with: { f, r }, never q.row), and
+// the host takes the attempt only on a row it offered, reads the roll, its Then and a call's Read on the one who resisted on that row, and lands a call to a roll
+// of that list there. The roll-req branch, net.diceRoll and the attempt slice run for real with the real core (invented data: Kael, Sela, Tor, Pebbles)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx0 = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const src4 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+    const line = k => { const i = src4.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src4.slice(i, src4.indexOf('\n', i)); };
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(line).join('\n') + '\n';
+    const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq')), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll'), atSrc = between('// [netcheck:attempt-start]', '// [netcheck:attempt-end]', 'attempt');
+    let dq = []; const Fx = Object.assign({}, Fx0, { evaluate: (e, o) => Fx0.evaluate(e, Object.assign({ random: () => { if (!dq.length) throw new Error('netcheck: no die left'); return dq.shift(); } }, o)) });
+    const DEF = '3d6 <= Row.Def - AttemptMargin';
+    const raw = { v: 1, name: 'W', combat: { checks: 'under3d6' }, fields: [{ id: 'f_wl', key: 'Will', label: 'Will', kind: 'number', vis: 'all', edit: 'owner', def: 12 }, { id: 'f_sn', key: 'Seen', label: 'Seen', kind: 'number', vis: 'all', edit: 'owner', def: 0 },
+        { id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Def' }], rolls: [{ label: 'Wear', formula: '3d6' }] } }],
+        items: [{ id: 'i_sw', name: 'Blade', stats: { Def: 11 } }, { id: 'i_st', name: 'Staff', stats: { Def: 10 } }, { id: 'i_sk', name: 'Stick', stats: { Def: 5 } }, { id: 'i_gm', name: 'Cursed hook', vis: 'gm', stats: { Def: 9 } }],
+        rolls: [{ id: 'r_tr', label: 'Lunge', formula: '3d6 <= 13', vis: 'all', resistBy: 'r_df', resistOr: ['r_dg'], calls: [{ roll: 'f_wp#0', when: 'resisted', by: 'r_df', byIf: 'Row.Def >= 11' }] },
+            { id: 'r_t2', label: 'Jab', formula: '3d6 <= 13', vis: 'all', resistBy: 'r_df' },
+            { id: 'r_df', label: 'Defend', formula: DEF, vis: 'all', resist: true, withRow: 'f_wp', needs: 'Row.Def >= 8', then: [{ f: 'f_sn', formula: 'Row.Def', set: true }] },
+            { id: 'r_dg', label: 'Duck', formula: '3d6 <= Will - AttemptMargin', vis: 'all', resist: true }] };
+    const sys = Sx.cleanSystem(raw, { F: Fx, gmView: true }), sysP = Sx.cleanSystem(sys, { F: Fx, gmView: false });
+    const out = { table: [], sent: { pA: [], pB: [] }, dues: [] }, aim = { u_a: 't_b', u_b: 't_a', gm: 't_b' };
+    const camp = { id: 'k', activeItemId: 'm1', system: sys, chars: { c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_a', npc: false, values: {} },
+        c_b: { id: 'c_b', name: 'Sela', ownerId: 'u_b', npc: false, values: { f_wp: [{ id: 'w_sw', defId: 'i_sw', qty: 1 }, { id: 'w_st', defId: 'i_st', qty: 1 }, { id: 'w_sk', defId: 'i_sk', qty: 1 }, { id: 'w_gm', defId: 'i_gm', qty: 1 }, { id: 'w_hd', defId: 'i_sw', qty: 1, hid: 1 }] } },
+        c_c: { id: 'c_c', name: 'Tor', ownerId: 'u_c', npc: false, values: {} } },
+        items: { m1: { type: 'map', whiteboard: [{ id: 't_a', charId: 'c_a', ownerId: 'u_a', isChar: true, x: 0, y: 0 }, { id: 't_b', charId: 'c_b', ownerId: 'u_b', isChar: true, x: 50, y: 0 }, { id: 't_c', charId: 'c_c', ownerId: 'u_c', isChar: true, x: 100, y: 0 }] } } };
+    const net = { role: 'host', active: true, stream: false, paused: false, conns: [], roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' }, pB: { id: 'u_b', name: 'Bo', location: 'm1' } }, combats: {}, syncCharDelta() {},
+        postDue: (ch, act, kind, round, toOwner, more) => out.dues.push({ ch: ch.id, act: act.id, kind: kind, toOwner: toOwner, or: more && Array.isArray(more.or) ? more.or.map(r => r.id) : null, withs: more && Array.isArray(more.withs) ? more.withs : null, nm: more && more.nm === true, att: more && more.att, m: more && more.m, row: more && more.row ? more.row : null }) };
+    const conn = p => ({ peer: p, send(m) { packCheck(m); out.sent[p].push(JSON.parse(JSON.stringify(m))); } }), cA = conn('pA'), cB = conn('pB');
+    const rng = t => t ? { mod: 0, dist: 2, tid: t, mapId: 'm1' } : null;
+    const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {}, tokenCtxFor: () => aim.gm ? { range: rng(aim.gm) } : null }, wpVtt: { on: () => true, rulesOn: () => true } };
+    const W = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'rangeTo', 'getProfile', 'toast', 'ui', 'save',
+        'var diceLimit = null, _diceSlowSaid = {}, _dicePending = null;\n' + helpers + atSrc + '\n' + drSrc + '\nreturn { rq: function(msg, conn) {\ndiceLimit = null; _diceSlowSaid = {};\n' + rqSrc + '\n}, dr: net.diceRoll, att: function(id) { return _attempts[id]; } };')(
+        net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, () => {}, () => {},
+        (c, m, l, tok, pid) => rng(aim[pid]), () => ({ id: 'u_gm', name: 'GM' }), () => {}, () => null, () => {});
+    const roll = (cn, charId, extra, expr, dice) => { dq = dice.slice(); W.rq(Object.assign({ type: 'roll-req', rid: 'q' + Math.random().toString(36).slice(2, 7), charId: charId, expr: expr }, extra), cn); };
+    const last = p => out.sent[p][out.sent[p].length - 1];
+    roll(cA, 'c_a', { act: 'r_tr' }, '3d6 <= 13', [2, 3, 4]); const d1 = out.dues[out.dues.length - 1], rec1 = W.att(d1.att);
+    roll(cB, 'c_b', { act: 'r_df', att: d1.att }, DEF, [1, 1, 1]); const bare = last('pB');
+    roll(cB, 'c_b', { act: 'r_df', with: { f: 'f_wp', r: 'w_sk' }, att: d1.att }, DEF, [1, 1, 1]); const stick = last('pB');
+    roll(cB, 'c_b', { act: 'r_df', with: { f: 'f_wp', r: 'w_gm' }, att: d1.att }, DEF, [1, 1, 1]); const hook = last('pB');
+    roll(cB, 'c_b', { act: 'r_dg', with: { f: 'f_wp', r: 'w_st' }, att: d1.att }, '3d6 <= Will - AttemptMargin', [1, 1, 1]); const duckW = last('pB'), keptA = !!W.att(d1.att);
+    const nC0 = out.dues.length; roll(cB, 'c_b', { act: 'r_df', with: { f: 'f_wp', r: 'w_st' }, att: d1.att }, DEF, [1, 1, 2]); const seenSt = camp.chars.c_b.values.f_sn, goneA = !W.att(d1.att), calls1 = out.dues.slice(nC0).filter(d => d.kind === 'called');
+    roll(cB, 'c_b', { act: 'r_df', with: { f: 'f_wp', r: 'w_sw' }, att: d1.att }, DEF, [1, 1, 1]); const again = last('pB');
+    roll(cA, 'c_a', { act: 'r_tr' }, '3d6 <= 13', [2, 3, 4]); const d2 = out.dues[out.dues.length - 1];
+    const nC1 = out.dues.length; roll(cB, 'c_b', { act: 'r_df', with: { f: 'f_wp', r: 'w_sw' }, att: d2.att }, DEF, [1, 1, 1]); const seenSw = camp.chars.c_b.values.f_sn, calls2 = out.dues.slice(nC1).filter(d => d.kind === 'called');
+    roll(cA, 'c_a', { act: 'r_tr', priv: 'gm' }, '3d6 <= 13', [2, 3, 4]); const dP = out.dues[out.dues.length - 1];
+    net._attNext = { att: dP.att, charId: 'c_b', act: 'r_df', with: { f: 'f_wp', r: 'w_gm' } }; dq = [1, 1, 1]; const gR = W.dr(DEF, { charId: 'c_b', act: 'r_df' }); net._attNext = null; const seenGm = camp.chars.c_b.values.f_sn, goneP = !W.att(dP.att);
+    roll(cA, 'c_a', { act: 'r_tr', priv: 'gm' }, '3d6 <= 13', [2, 3, 4]); const dP2 = out.dues[out.dues.length - 1]; dq = [1, 1, 1]; const gBare = W.dr(DEF, { charId: 'c_b', act: 'r_df', att: dP2.att }), gWrong = W.dr(DEF, { charId: 'c_b', act: 'r_dg', att: dP2.att, with: { f: 'f_wp', r: 'w_sw' } });
+    aim.u_a = 't_c'; const nT = out.dues.length; roll(cA, 'c_a', { act: 'r_tr' }, '3d6 <= 13', [2, 3, 4]); const dT = out.dues.slice(nT); roll(cA, 'c_a', { act: 'r_t2' }, '3d6 <= 13', [2, 3, 4]); const dT2 = out.dues.length - nT - dT.length; aim.u_a = 't_b';
+    check('1.6.3 defense fold 2: a Defend Answered with a row of Weapons is offered on Sela\'s card once for each row she may answer with, as "Defend with Blade" (never the GM-only hook, the hidden row, or the Stick its needs Row.Def >= 8 leave out), the plain Duck beside them and never the Defend bare; a bare press, a row not offered, the hook, and Duck naming a row are refused with the attempt kept; Defend with Staff reads Row.Def 10 in its formula and its Then (Seen 10) and uses the attempt up, so a second press is refused; a call By Defend with Read on the one who resisted Row.Def >= 11 comes for the Blade alone, posted on that very row; the GM\'s private card offers every row its needs hold on (the hook too; a row kept out of sight is read as nothing by its own resolver, as a list\'s roll with needs reads it), and the GM\'s own press with the hook reads it; Tor, who holds no weapon, gets Duck alone, and an attack resisted by Defend alone sends him nothing',
+        d1 && d1.ch === 'c_b' && d1.act === 'r_df' && d1.toOwner === true && d1.nm === true && j(d1.or) === j(['r_dg']) && j(d1.withs) === j([{ act: 'r_df', f: 'f_wp', r: 'w_sw', label: 'Defend with Blade' }, { act: 'r_df', f: 'f_wp', r: 'w_st', label: 'Defend with Staff' }])
+        && rec1 && rec1.act === '' && j(rec1.withs) === j(['r_df#f_wp#w_sw', 'r_df#f_wp#w_st']) && j(rec1.alts) === j(['r_dg'])
+        && bare.type === 'roll-deny' && stick.type === 'roll-deny' && hook.type === 'roll-deny' && duckW.type === 'roll-deny' && keptA
+        && seenSt === 10 && goneA && calls1.length === 0 && again.type === 'roll-deny' && /resisted already/.test(again.message)
+        && seenSw === 11 && calls2.length === 1 && j(calls2[0].row) === j({ f: 'f_wp', r: 'w_sw', i: 0 })
+        && dP && dP.toOwner === false && j(dP.withs.map(x => x.r)) === j(['w_sw', 'w_st', 'w_gm']) && gR && gR.ok === true && seenGm === 9 && goneP
+        && gBare && !!gBare.error && gWrong && !!gWrong.error && !!W.att(dP2.att)
+        && dT.length === 1 && dT[0].ch === 'c_c' && dT[0].act === 'r_df' && dT[0].nm === true && j(dT[0].or) === j(['r_dg']) && j(dT[0].withs) === j([]) && dT2 === 0,
+        j([d1, rec1, bare, stick, hook, duckW, seenSt, calls1, again, seenSw, calls2, dP && dP.withs, gR, seenGm, gBare, gWrong, dT, dT2]));
+    // a player's app sends the row beside the roll and the attempt (net.diceRoll's client path, from the card's _attNext), and nothing else carries it
+    const sentC = [], keepN = { role: net.role, foreign: net.foreign, syncedPeer: net.syncedPeer, conns: net.conns };
+    Object.assign(net, { role: 'client', foreign: true, syncedPeer: 'h', conns: [{ open: true, peer: 'h', send(m) { sentC.push(JSON.parse(JSON.stringify(m))); throw new Error('stop'); } }] });
+    net._attNext = { att: 'a_abcd1234', charId: 'c_b', act: 'r_df', with: { f: 'f_wp', r: 'w_sw' } }; W.dr(DEF, { charId: 'c_b', act: 'r_df' }); net._attNext = null; W.dr('3d6 <= 13', { charId: 'c_b', act: 'r_tr' });
+    Object.assign(net, keepN);
+    const cq = sentC[0] ? Dx.cleanRollReq(sentC[0]) : null;
+    check('1.6.3 defense fold 2: the card\'s press goes out as act, att and with: { f, r } (never row), which the host\'s cleaner keeps; a plain press carries no with',
+        sentC.length === 2 && j(sentC[0].with) === j({ f: 'f_wp', r: 'w_sw' }) && sentC[0].act === 'r_df' && sentC[0].att === 'a_abcd1234' && !('row' in sentC[0]) && cq && j(cq.with) === j({ f: 'f_wp', r: 'w_sw' }) && !('with' in sentC[1]), j(sentC));
+    // the players' view: the roll keeps its list; a GM-only list, or a formula that reads a GM-only stat of the row, leaves the roll out of their view, and the
+    // defense card then goes to the GM with every row
+    const rawG = JSON.parse(JSON.stringify(raw)); rawG.fields[2].vis = 'gm'; const sysG = Sx.cleanSystem(rawG, { F: Fx, gmView: true }), sysGP = Sx.cleanSystem(sysG, { F: Fx, gmView: false });
+    camp.system = sysG; const nG = out.dues.length; roll(cA, 'c_a', { act: 'r_tr' }, '3d6 <= 13', [2, 3, 4]); const dG = out.dues[nG]; camp.system = sys;
+    const rawS = JSON.parse(JSON.stringify(raw)); rawS.fields[2].list.stats.push({ key: 'Flaw', vis: 'gm' }); rawS.rolls[2].formula = '3d6 <= Row.Def + Row.Flaw - AttemptMargin'; const sysSP = Sx.cleanSystem(Sx.cleanSystem(rawS, { F: Fx, gmView: true }), { F: Fx, gmView: false });
+    check('1.6.3 defense fold 2: Answered with a row of is kept in both views beside Resists an attempt; where the list is GM only or the roll reads a GM-only stat of the row, a players\' view leaves the roll out, and the defense card goes to the GM with every row its needs hold on',
+        sys.rolls[2].withRow === 'f_wp' && sysP.rolls.filter(r => r.id === 'r_df')[0].withRow === 'f_wp' && sysGP.rolls.every(r => r.id !== 'r_df') && dG && dG.toOwner === false && j(dG.withs.map(x => x.r)) === j(['w_sw', 'w_st', 'w_gm'])
+        && sysSP.rolls.every(r => r.id !== 'r_df') && sysSP.rolls.some(r => r.id === 'r_dg'),
+        j([sysP.rolls.map(r => r.id), sysGP.rolls.map(r => r.id), dG, sysSP.rolls.map(r => r.id)]));
+    check('1.6.3 defense fold 2: postDue puts a button for each row a roll answered with a row offers first on the card, as { act, w: { f, r }, label }',
+        src4.includes("if (rec.why === 'resist' && Array.isArray(more.withs) && more.withs.length) rec.or = more.withs.slice(0, 80).map(function(x) { return { act: x.act, w: { f: x.f, r: x.r }, label: String(x.label || 'Roll').slice(0, 60) }; }).concat(rec.or || []);"));
 })());
 
 // Chat cards (owner 2026-09-27): a damage roll's mark — the host puts it on the record from the roll entry its formula matched (a system roll by
@@ -20990,7 +21070,7 @@ pendingChecks.push((async () => {
         const full = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
         check('1.6.0 every path asks: a player\'s roll and the GM\'s own with their Then landed, a player\'s action, attemptMake keeping the calls that wait, and the GM\'s action (sheets.js applyAction)',
             full.indexOf('callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ,') > full.indexOf('var taQ = thQ.length') && full.indexOf('callsAfter(campR, entR, pcR, varsR,') > full.indexOf('var taR = thR.length') && full.includes('callsAfter(campA, callEntry(campA.system, qa.row ? { row: qa.row } : { act: qa.act }, actA), null, varsA, onA ? onA.ch : chA, false, undefined, false, tcA, chA);') && full.includes("S.callsDue(entry, 'resisted', vars, window.wpFormula)") && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').includes("n.callsAfter(camp, act, null, vv, onT ? onT.ch : c, scope === 'gm', undefined, false, tc, c);")
-            && full.includes('!!recQ.priv, q.row, recQ.big === true, tcQ, chQ);') && full.includes('!!rec.priv || !!rec.to, o.row, rec.big === true, tcR, chR);'));   // 1.6.3: each with its token context, whose target a call's damage may land on, and (the review of fold 0) who rolled (moved on purpose)
+            && full.includes('!!recQ.priv, q.row || (q.with ? { f: q.with.f, r: q.with.r } : q.row), recQ.big === true, tcQ, chQ);') && full.includes('!!rec.priv || !!rec.to, o.row || (o.with ? { f: o.with.f, r: o.with.r } : o.row), rec.big === true, tcR, chR);'));   /* 1.6.3 (defense fold 2): a roll answered with a row hands its row on (moved on purpose) */   // 1.6.3: each with its token context, whose target a call's damage may land on, and (the review of fold 0) who rolled (moved on purpose)
         // 1.6.0 (the owner, 2026-10-31, of a call that came for any parry): a call's byIf, read on the one who resisted (attemptMake and attemptCalled, run for real)
         const sysB = Sc.cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_hp', key: 'HP', kind: 'number', label: 'HP', vis: 'all', edit: 'owner', def: 5 }, { id: 'f_sec', key: 'Sec', kind: 'number', label: 'Sec', vis: 'gm', edit: 'gm', def: 0 },
             { id: 'f_bl', key: 'Blades', kind: 'item-list', label: 'Blades', vis: 'all', edit: 'owner', list: { noQty: true, custom: true, stats: [{ key: 'hot', label: 'Hot', show: true }], rolls: [{ label: 'Parry', formula: '3d6 <= 10', resist: true }, { label: 'Block', formula: '3d6 <= 9', resist: true }] } }],
@@ -21016,7 +21096,7 @@ pendingChecks.push((async () => {
         const RdD = Sc.makeResolver(sysB, tar, Fc, Sc.withAttempt(null, recD.m, recD.k, recD.rd, recD.t));
         check('1.6.2 attemptMake keeps the darkness at the attacker\'s place, which the range carried, on the attempt\'s own figures, and the Defense reads it as AttackerDark and AttackerDarkPen; an attack with none keeps none; both roll paths hand the record\'s figures on',
             recD.rd && recD.rd['@dk'] === 2 && recD.rd['@dkp'] === -8 && !(recD0 && recD0.rd) && RdD('AttackerDark') === 2 && RdD('AttackerDarkPen') === -8 && full.includes('rc.adk = adN.i; rc.adkp = adN.pen;'), j([recD && recD.rd, recD0 && recD0.rd]));
-        check('1.6.0 both paths hand the resist roll its token context (a player\'s roll and the GM\'s own)', full.includes('attemptCalled(campQ, blowRecQ, q.act, rowGQ, pcQ, chQ, !!recQ.priv, tcQ);') && full.includes('attemptCalled(campR, blowRecR, o.act, o.row, pcR, chR, !!rec.priv || !!rec.to, tcR);'));
+        check('1.6.0 both paths hand the resist roll its token context (a player\'s roll and the GM\'s own)', full.includes('attemptCalled(campQ, blowRecQ, q.act, rowGQ || (q.with ? { f: q.with.f, r: q.with.r } : rowGQ), pcQ, chQ, !!recQ.priv, tcQ);') && full.includes('attemptCalled(campR, blowRecR, o.act, o.row || (o.with ? { f: o.with.f, r: o.with.r } : o.row), pcR, chR, !!rec.priv || !!rec.to, tcR);'));   // 1.6.3 (defense fold 2): and the row a roll answered with a row was pressed with (moved on purpose)
         /* ---- 1.6.3 (defense fold 0; docs/DEFENSE_INTERACTIONS_DESIGN.md, Fulllion's decision 7 of 2026-11-17: "a choice on the call, The roller or Their target,
            starting as the target on a hit and the roller on a miss"): where a called damage roll lands, stamped on a hard record as its card is posted and kept
            apart from the other attempts. The attempt store and the rollcalls slice run for real with the real core; invented names ---- */

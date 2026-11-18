@@ -263,7 +263,7 @@ function renderDue(m) {
             var picks = [{ act: rec.act, label: rec.label || 'Roll' }].concat(rec.or), bs = []; if (rec.nm === 1) picks.shift();   // 1.6.0: nm, only the rows it offers
             picks.forEach(function(p) {
                 var pb = el('button', 'tool chat-due-run', p.label || 'Roll'); pb.type = 'button'; pb.title = 'Resist with ' + (p.label || 'this roll') + ', as its button on the sheet rolls it'; bs.push(pb);
-                pb.addEventListener('click', function() { if (m.done) return; m.done = true; bs.forEach(function(x) { x.disabled = true; }); var ok = window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, p.act, rec.att, p.row) : false; if (!ok) { m.done = false; bs.forEach(function(x) { x.disabled = false; }); } });   // done first: the press's own card redraws the chat
+                pb.addEventListener('click', function() { if (m.done) return; m.done = true; bs.forEach(function(x) { x.disabled = true; }); var ok = window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, p.act, rec.att, p.row, undefined, p.w) : false;   /* 1.6.3 (defense fold 2): p.w, the row a roll answered with a row is pressed with */ if (!ok) { m.done = false; bs.forEach(function(x) { x.disabled = false; }); } });   // done first: the press's own card redraws the chat
                 wrap.appendChild(pb); wrap.appendChild(document.createTextNode(' '));
             });
             if (rec.lnd === 1) landBtns(wrap, rec, m, bs, false); return wrap;   // 1.6.3 (defense fold 1): and Take it, or No defense

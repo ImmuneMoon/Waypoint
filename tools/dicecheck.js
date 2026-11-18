@@ -668,6 +668,23 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         com(camp('c2'), list) === 'c2' && com(camp('c9'), list) === null && com({ activeItemId: 'toString', items: {} }, list) === null && com(null, list) === null && com({ activeItemId: 'm1', items: { m1: { type: 'map' } } }, list) === null
         && dj.includes("if (!list.some(function(c) { return c.id === pl; })) pl = charOnMap(camp, list);"));
     }
+    { // 1.6.3 (defense fold 2; backlog 245): a roll Answered with a row of a list. The press names its row as with: { f, r }, never as a list's row, and a defense card's button for it is { act, w: { f, r } }
+      const rq = o => D.cleanRollReq(Object.assign({ rid: 'q1', expr: '3d6 <= Row.Def', charId: 'c_ab12', act: 'r_df', att: 'a_abcd1234' }, o));
+      const okW = rq({ with: { f: 'f_wp', r: 'w_b1' } });
+      check('1.6.3 cleanRollReq: with: { f, r } rides beside a system roll that answers an attempt (act and att), and refuses the message beside a list\'s row, with no attempt, with no act, with a bad id, with another key or as no object',
+        !!okW && JSON.stringify(okW.with) === JSON.stringify({ f: 'f_wp', r: 'w_b1' }) && okW.act === 'r_df' && okW.att === 'a_abcd1234' && !('with' in rq({}))
+        && rq({ with: { f: 'f_wp', r: 'w_b1' }, att: undefined }) === null && rq({ with: { f: 'f_wp', r: 'w_b1' }, act: undefined }) === null && rq({ act: undefined, row: { f: 'f_wp', r: 'w_b1', i: 0 }, with: { f: 'f_wp', r: 'w_b1' } }) === null
+        && rq({ with: { f: 'f wp', r: 'w_b1' } }) === null && rq({ with: { f: 'f_wp', r: 'x_b1' } }) === null && rq({ with: { f: 'f_wp', r: 'w_b1', i: 0 } }) === null && rq({ with: 'f_wp' }) === null && rq({ with: [] }) === null && rq({ with: null }) === null,
+        JSON.stringify(okW));
+      const due = or => D.cleanDue({ type: 'due', id: 'r_abcdefgh', from: { id: 'u_gm', name: 'GM', gm: true }, charId: 'c_b1', act: 'r_df', label: 'Defend', why: 'resist', round: 1, roll: 1, att: 'a_abcd1234', ts: 1, nm: 1, or: or });
+      const wb = (r, l) => ({ act: 'r_df', w: { f: 'f_wp', r: r }, label: l }), d1 = due([wb('w_b1', 'Defend with Blade'), wb('w_b2', 'Defend with Staff'), { act: 'r_dg', label: 'Duck' }, { row: { f: 'f_wp', r: 'w_b1', i: 0 }, label: 'Parry with Blade' }]);
+      const many = n => Array.from({ length: n }, (_, k) => wb('w_' + k, 'Defend'));
+      check('1.6.3 cleanDue: a resist card keeps a button for each row a roll answered with a row offers, { act, w: { f, r }, label }, its act the card\'s own roll too, counted with the list rows (eighty in all), each once; a row beside it, a bad id, a repeat or an 81st is no card',
+        !!d1 && JSON.stringify(d1.or) === JSON.stringify([wb('w_b1', 'Defend with Blade'), wb('w_b2', 'Defend with Staff'), { act: 'r_dg', label: 'Duck' }, { row: { f: 'f_wp', r: 'w_b1', i: 0 }, label: 'Parry with Blade' }]) && d1.nm === 1
+        && due(many(80)) !== null && due(many(81)) === null && due(many(79).concat([{ row: { f: 'f_wp', r: 'w_z', i: 0 } }, { row: { f: 'f_wp', r: 'w_y', i: 0 } }])) === null
+        && due([{ act: 'r_df', w: { f: 'f_wp', r: 'w_b1' }, row: { f: 'f_wp', r: 'w_b1', i: 0 } }]) === null && due([{ act: 'r_df', w: { f: 'x', r: 'w_b1' } }]) === null && due([{ act: 'r_df', w: { f: 'f_wp', r: 'b1' } }]) === null && due([{ act: 'x', w: { f: 'f_wp', r: 'w_b1' } }]) === null
+        && due([wb('w_b1'), wb('w_b1')]) === null && due([{ act: 'r_df', w: 'f_wp' }]) === null, JSON.stringify(d1));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

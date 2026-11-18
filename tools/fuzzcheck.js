@@ -1025,6 +1025,7 @@ function mutations(tpl) {
             'voice-up': { type: 'voice-up', act: 'join', id: '0123456789abcdef', sdp: 'v=0\r\n', cand: { candidate: 'candidate:1 1 udp 1 1.2.3.4 5 typ host', sdpMid: '0', sdpMLineIndex: 0 } },   // voice chat (1.5.9): a player's word about their voice link
             'roll-req': { type: 'roll-req', rid: 'r16', expr: '1d20 + 3', label: 'Attack' },
             'roll-req-char': { type: 'roll-req', rid: 'r17', expr: 'd20 + STRmod + Prof', charId: 'c_p1', act: 'r_atk', mod: 0, src: { r: 'r_atk' } },
+            'roll-req-with': { type: 'roll-req', rid: 'r17w', expr: 'd20 + STRmod + Prof', charId: 'c_p1', act: 'r_atk', att: 'a_abcd1234', with: { f: 'f_wp', r: 'w_x1' } },   // 1.6.3 (defense fold 2): a defense card's press with its row, for an attempt the host does not hold
             'asset-req': { type: 'asset-req', path: '/saves/images/pic.png' },
             'asset-req-audio': { type: 'asset-req', path: '/saves/images/audio/song.mp3' },
             'chat': { type: 'chat', text: 'hello table', from: { id: 'u_gm', name: 'GM', gm: true }, scope: 'whisper' },
@@ -1222,6 +1223,7 @@ function mutations(tpl) {
         'my-look': o => net.roster.peer_p1.face === '\ud83d\ude42' && o.p2.some(m => m.type === 'roster'),
         'roll-req': o => o.p2.some(m => m.type === 'roll' && m.expr === '1d20 + 3') && o.p1.some(m => m.type === 'roll'),
         'roll-req-char': o => o.p2.some(m => m.type === 'roll' && m.as === 'Ayla'),
+        'roll-req-with': o => o.p1.some(m => m.type === 'roll-deny' && /not there now|resisted already/.test(m.message || '')) && !o.p2.some(m => m.type === 'roll'),   // 1.6.3 (defense fold 2): refused by its attempt, nothing rolled
         'asset-req': o => rec.fetches.length === 1 && o.p1.some(m => m.type === 'asset' && m.path === '/saves/images/pic.png'),
         'asset-req-audio': o => o.p1.some(m => m.type === 'asset-part'),
         'chat': o => o.p2.some(m => m.type === 'chat' && m.text === 'hello table' && m.from.id === 'u_p1' && !m.from.gm) && !o.p1.some(m => m.type === 'chat'),

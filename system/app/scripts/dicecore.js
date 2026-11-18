@@ -313,6 +313,10 @@ function cleanRollReq(msg) {
         if (!(out.act || (out.row && out.row.i !== undefined && out.row.r !== undefined)) || typeof msg.att !== 'string' || !ATT_RE.test(msg.att)) return null;   // 1.6.0: or a list's roll on one row, offered on a resist card
         out.att = msg.att;
     }
+    if (msg.with !== undefined) {   // 1.6.3 (defense fold 2): the row a roll Answered with a row of a list was pressed with on a defense card, { f, r }, only beside a system roll that answers an attempt (the host judges it against the rows that attempt offered)
+        var wq = msg.with; if (!out.act || out.row || !out.att || !wq || typeof wq !== 'object' || Array.isArray(wq) || Object.keys(wq).length !== 2 || typeof wq.f !== 'string' || !/^f_[A-Za-z0-9_]{1,24}$/.test(wq.f) || typeof wq.r !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(wq.r)) return null;
+        out.with = { f: wq.f, r: wq.r };
+    }
     if (msg.aim !== undefined) {   // 1.6.0 An attack on a line: the point it is aimed at, beside a named roll only, board numbers (the host works out who stands in it)
         var am = msg.aim; if (!(out.act || (out.row && out.row.i !== undefined && out.row.r !== undefined)) || !am || typeof am !== 'object' || Array.isArray(am) || typeof am.x !== 'number' || typeof am.y !== 'number' || !isFinite(am.x) || !isFinite(am.y) || Math.abs(am.x) > 1e6 || Math.abs(am.y) > 1e6) return null;
         out.aim = { x: am.x, y: am.y };
@@ -515,6 +519,10 @@ function cleanDue(rec) {
                 if (o && typeof o === 'object' && o.row !== undefined) {   // 1.6.0: a list's roll on one row the target holds ({ f, r, i }), RESIST_ROWS at most, each once
                     var ow = o.row; if (o.act !== undefined || !ow || typeof ow !== 'object' || Array.isArray(ow) || typeof ow.f !== 'string' || !/^f_[A-Za-z0-9_]{1,24}$/.test(ow.f) || typeof ow.r !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(ow.r) || !isInt(ow.i) || ow.i < 0 || ow.i >= LIMITS.rowRolls || ++nRw > RESIST_ROWS || ors.some(function(x) { return x.row && x.row.f === ow.f && x.row.r === ow.r && x.row.i === ow.i; })) return null;
                     var owl = cleanLabel(o.label); if (owl === null) return null; ors.push(owl ? { row: { f: ow.f, r: ow.r, i: ow.i }, label: owl } : { row: { f: ow.f, r: ow.r, i: ow.i } }); continue;
+                }
+                if (o && typeof o === 'object' && o.w !== undefined) {   // 1.6.3 (defense fold 2): a roll answered with a row, on one row the target holds ({ act, w: { f, r } }), counted with the rows (RESIST_ROWS at most), each once
+                    var wo = o.w; if (o.row !== undefined || typeof o.act !== 'string' || !/^r_[A-Za-z0-9_]{1,24}$/.test(o.act) || !wo || typeof wo !== 'object' || Array.isArray(wo) || typeof wo.f !== 'string' || !/^f_[A-Za-z0-9_]{1,24}$/.test(wo.f) || typeof wo.r !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(wo.r) || ++nRw > RESIST_ROWS || ors.some(function(x) { return x.w && x.act === o.act && x.w.f === wo.f && x.w.r === wo.r; })) return null;
+                    var wl = cleanLabel(o.label); if (wl === null) return null; ors.push(wl ? { act: o.act, w: { f: wo.f, r: wo.r }, label: wl } : { act: o.act, w: { f: wo.f, r: wo.r } }); continue;
                 }
                 if (++nOr > 3) return null;
                 if (!o || typeof o !== 'object' || typeof o.act !== 'string' || !/^r_[A-Za-z0-9_]{1,24}$/.test(o.act) || o.act === out.act || ors.some(function(x) { return x.act === o.act; })) return null; var ol = cleanLabel(o.label); if (ol === null) return null; ors.push(ol ? { act: o.act, label: ol } : { act: o.act }); }

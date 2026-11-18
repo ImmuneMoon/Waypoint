@@ -5,6 +5,7 @@
    bans before version/password, the password lockout, the hello storm), the join queue (one place per connection,
    bounded), broadcast() (admitted peers only on the host), and chat (the sender is the roster's, never the claim).
    Run: node tools/netcheck.js */
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 const src = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
 

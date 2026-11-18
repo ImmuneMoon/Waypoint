@@ -6,6 +6,7 @@
    from a file sinkcheck's and a file's list cleanupcheck's. The page, the Sound panel's hook, Help, both release notes and the CI step are pinned.
    Usage: node tools/soundoncheck.js   (exit 1 on any failure) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const path = require('path'), fs = require('fs'), url = require('url');
 const NL = String.fromCharCode(10);
 const root = path.join(__dirname, '..'), app = path.join(root, 'system', 'app');

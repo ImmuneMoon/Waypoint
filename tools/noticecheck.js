@@ -2,6 +2,7 @@
    the game system yet, they need to be"; the rule came from the game system's own session and is kept general here: a system sets it on a sense, off
    unless it does. noticecore.js and notice.js are run for real on stand-ins of the page, and systemcore.js for what a system keeps; the wiring is pinned. */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), os = require('os');
 const dir = path.join(__dirname, '..'), scripts = path.join(dir, 'system', 'app', 'scripts');
 let pass = 0, fail = 0, summed = false;

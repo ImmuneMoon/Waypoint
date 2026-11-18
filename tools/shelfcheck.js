@@ -4,6 +4,7 @@
    The module's slices and quick-jump's rule (main.js) are run for real on plain objects; the wiring is pinned by its text. No browser.
    Usage: node tools/shelfcheck.js */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 const app = path.join(__dirname, '..', 'system', 'app'), root = path.join(__dirname, '..');
 const read = f => fs.readFileSync(path.join(app, f), 'utf8').replace(/\r\n/g, '\n');

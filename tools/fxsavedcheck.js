@@ -5,6 +5,7 @@
    (a host world and a player's world joined by the very messages the host sends, a latecomer's list, an older host), and fx.js's saved
    effects (the panel's rows through esc, a press, a map left and a map opened). Usage: node tools/fxsavedcheck.js   (exit 1 on any failure) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), { pathToFileURL } = require('url');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name); } }

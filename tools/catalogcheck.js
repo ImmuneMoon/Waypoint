@@ -4,6 +4,7 @@
    window's takeEntry), and the page, the styles, Help, the notes and CI.
    Usage: node tools/catalogcheck.js   (exit 1 on any failure) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 const NL = String.fromCharCode(10), CR = String.fromCharCode(13), TAB = String.fromCharCode(9), BOM = String.fromCharCode(0xFEFF);
 const app = path.join(__dirname, '..', 'system', 'app');

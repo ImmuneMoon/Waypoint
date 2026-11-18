@@ -3,6 +3,7 @@
 // its pure core (the cleaner, the nine places, a drop, the toolbar's side, what the others step in by), then the module on a page of plain
 // objects (nothing written with no layout, a layout drawn, a narrow area and the other map putting it all back, the edit mode and Escape),
 // and every place that wires it pinned. Plain Node, no dependencies, exits 1 on any failure.
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail !== undefined ? ' -> ' + detail : '')); } }

@@ -4,6 +4,7 @@
    librarycore: a starter's packs written into the campaign's library at Save, made or merged by id into a pack of the same name, nothing
    removed. Every name and entry here is invented. Usage: node tools/startercheck.js   (exit 1 on any failure) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), { pathToFileURL } = require('url');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail !== undefined ? ' -> ' + String(detail).slice(0, 300) : '')); } }

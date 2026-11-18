@@ -6,6 +6,7 @@
    microphone while the player is not in voice, the offer's map cleaned, the host's bye and full, mute and deafen, what stays on this
    computer), the popover's Escape and its words as text alone. No browser, no network. Usage: node tools/voicecheck.js   (exit 1 on any failure) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const path = require('path'), fs = require('fs');
 const NL = String.fromCharCode(10);
 const app = path.join(__dirname, '..', 'system', 'app');

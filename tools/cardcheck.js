@@ -2,6 +2,7 @@
 // actions shouldn't wait, so ordinary rolls stay instant"; the time a setting a GM can change, off while the roller is away, and the card saying plainly that
 // the result is pending). systemcore's cleaners imported and run, and the host's real roll branch with the real hold, on plain objects and a clock of the suite's own.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), url = require('url');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail === undefined ? '' : ' -> ' + String(detail).slice(0, 900))); } }

@@ -2,6 +2,7 @@
    functionality with these updates, thats critical"). scripts/sysui.js is run for real on a page of plain objects (tools/boxdom.js, which refuses
    markup). It arranges what the row builders of sheets.js build and decides nothing of a system. Plain Node, no dependencies, exits 1 on any failure. */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const { makeDom } = require('./boxdom.js');
 const app = path.join(__dirname, '..', 'system', 'app');

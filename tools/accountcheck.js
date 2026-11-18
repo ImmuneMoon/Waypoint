@@ -2,6 +2,7 @@
 // the suite's own (a stand-in fetch, no network), on a scratch saves folder; and settings.js's account slice run for real on a page of plain
 // objects, for the order the site asks for (the account read first, then decided on, and only then the first sync). Plain Node, exits 1 on failure.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), os = require('os');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, info) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (info !== undefined ? ' -> ' + String(info).slice(0, 600) : '')); } }

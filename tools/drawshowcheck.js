@@ -5,6 +5,7 @@
    netcheck's, the fog's canvas fogcheck's, the file cleanupcheck's, the map's picture buildcheck's, and the right-click rows sinkcheck's; the page is pinned here.
    Usage: node tools/drawshowcheck.js   (exit 1 on any failure) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), os = require('os');
 const dir = path.join(__dirname, '..'), scripts = path.join(dir, 'system', 'app', 'scripts');
 let pass = 0, fail = 0, summed = false;

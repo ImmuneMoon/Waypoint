@@ -2,6 +2,7 @@
 // entry it rebuilds the roll from, what a player's view keeps, and the names, imported and run; dicecore's wire; the host's real roll-req branch and the
 // real press of the sheet, sliced by their markers and run on plain objects. No browser, no network.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), url = require('url');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail === undefined ? '' : ' -> ' + String(detail).slice(0, 900))); } }

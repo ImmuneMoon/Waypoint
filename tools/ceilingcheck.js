@@ -1,4 +1,5 @@
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 // A system at its ceilings (the owner, 2026-11-01, by prompt: "Safety ceilings only", of "why have caps? what if someone wants to create a bigger system
 // than mine?"). A limit on how much a system holds is there to stop a broken or hostile file from freezing the app, and no real game should meet one, so
 // this suite builds a system at every ceiling at once and times what a table does with it: the cleaners, the sheet's figures, the System editor, a sheet's

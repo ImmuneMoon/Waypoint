@@ -1,6 +1,7 @@
 // The Prep column (1.6.2, backlog 107 (a)): prep.js's core slice run for real with the real card core (what the column lists for a map, Find a
 // card, what is kept for this computer), its draw slice run on a page of plain objects that refuses markup, and the wiring pinned.
 // Plain Node, no dependencies, exits 1 on any failure.
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail !== undefined ? ' -> ' + String(detail).slice(0, 1200) : '')); } }

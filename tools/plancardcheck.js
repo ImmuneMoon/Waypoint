@@ -5,6 +5,7 @@
    and the wiring pinned (the editor, the preview, the page search, quick jump, the drawings, Help and both release notes).
    Usage: node tools/plancardcheck.js (exit 1 on failure) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const path = require('path'), fs = require('fs');
 const NL = String.fromCharCode(10), root = path.join(__dirname, '..'), app = path.join(root, 'system', 'app');
 const read = f => fs.readFileSync(path.join(app, f), 'utf8').replace(/\r\n/g, NL);

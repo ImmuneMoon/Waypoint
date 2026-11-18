@@ -3,6 +3,7 @@
    with no window (the guard) and once with a stub window (the publication).
    Usage: node tools/soundcheck.js   (exit 1 on any failure) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const path = require('path');
 const url = 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'soundcore.js')).replace(/\\/g, '/');
 let pass = 0, fail = 0;

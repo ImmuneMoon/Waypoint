@@ -3,6 +3,7 @@
 // systemcore's cleaner and what the editor says, net.js's rollcalls slice run for real on stand-ins of the table, dicecore's card, dice.js's press,
 // the System editor's box, Help and both notes.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail === undefined ? '' : ' -> ' + String(detail).slice(0, 900))); } }

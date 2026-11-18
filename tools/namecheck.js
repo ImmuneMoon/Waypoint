@@ -3,6 +3,7 @@
    list's cleaner in both views, a pick from the lists or the maker), names.js's menu sliced by its namecheck markers and run on a page of
    plain objects that refuses markup, and the wiring pinned. Usage: node tools/namecheck.js (exit 1 on failure) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const path = require('path'), fs = require('fs');
 const NL = String.fromCharCode(10), root = path.join(__dirname, '..'), app = path.join(root, 'system', 'app');
 const read = f => fs.readFileSync(path.join(app, f), 'utf8').replace(/\r\n/g, NL);

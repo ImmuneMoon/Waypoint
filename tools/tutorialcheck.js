@@ -3,6 +3,7 @@
    it — a missing target fails the build, because a tour that points at nothing is worse
    than no tour. Usage: node tools/tutorialcheck.js */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs');
 const path = require('path');
 const app = path.join(__dirname, '..', 'system', 'app');

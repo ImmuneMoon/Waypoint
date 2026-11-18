@@ -1,6 +1,7 @@
 // The Data Map's rooms (1.6.2, backlog 45, fold 1: adding and linking rooms): roomcore.js imported and run as it is, datamap.js's page slice and
 // whiteboard.js's play map row sliced by their [roomcheck:*] markers and run for real on a page of plain objects, and the wiring, the styles, Help and
 // both release notes pinned. Plain Node, no dependencies, exits 1 on any failure.
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail !== undefined ? ' -> ' + detail : '')); } }

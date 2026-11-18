@@ -13,6 +13,7 @@
    [lookcheck:*] markers and run for real on a page of plain objects. No browser.
    Usage: node tools/lookcheck.js */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const app = path.join(__dirname, '..', 'system', 'app'), root = path.join(__dirname, '..');
 const read = f => { const t = fs.readFileSync(path.join(app, f), 'utf8').replace(/\r\n/g, '\n'); return f === 'index.html' ? t.replace(/<b data-ctl="[^"]*">/g, '<b>') : t; };   // 1.6.2: Help's words read without a chip's mark (backlog 142), which helpchipcheck holds

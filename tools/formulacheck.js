@@ -4,6 +4,7 @@
    goldens of docs/FORMULA_ENGINE_PLAN.md section 8, the random source, and a seeded fuzz loop.
    Usage: node tools/formulacheck.js   (exit 1 on any failure; the whole run stays under two seconds) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const path = require('path');
 const mod = path.join(__dirname, '..', 'system', 'app', 'scripts', 'formula.js');
 const t0 = Date.now();

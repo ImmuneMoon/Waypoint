@@ -3,6 +3,7 @@
 // the spot (lk), cleaned for the very words it was made for, never on a definition; the row ops and the wire carry it; the sheet draws the
 // texts in its own text box and reads them with their looks. No browser, no network.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail === undefined ? '' : ' -> ' + String(detail).slice(0, 600))); } }

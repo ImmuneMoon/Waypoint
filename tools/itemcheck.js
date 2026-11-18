@@ -3,6 +3,7 @@
    inventory op (applyRowOp, Stage 6), the throw item lookup (rowDef), and validation. Runs under Node against the real formula engine.
    Usage: node tools/itemcheck.js   (exit 1 on any failure) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const path = require('path');
 const NL = String.fromCharCode(10);
 const app = path.join(__dirname, '..', 'system', 'app');

@@ -1,6 +1,7 @@
 // Waypoint — the view that turns with your token (1.6.2, backlog 82b, fold 2): view.js's core run for real, and its wiring.
 // Plain Node, no dependencies, exits 1 on any failure.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..'), APP = path.join(ROOT, 'system', 'app');
 const read = p => fs.readFileSync(path.join(APP, p), 'utf8').replace(/\r\n/g, '\n');

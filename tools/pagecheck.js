@@ -4,6 +4,7 @@
    a small reader of this suite's own, with a storage, a campaign and a page observer of the suite's own. No browser.
    Usage: node tools/pagecheck.js */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 const { makeDom } = require('./boxdom.js');
 const app = path.join(__dirname, '..', 'system', 'app'), root = path.join(__dirname, '..');

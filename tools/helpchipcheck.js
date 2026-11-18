@@ -3,6 +3,7 @@
 // helpchips.js sliced by its helpchipcheck markers and run for real on a small page of plain objects of the suite's own (it copies a control whole,
 // which tools/boxdom.js refuses); every mark Help carries held to a control the page has; the script, the styles, Help's words, both notes and CI.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 let pass = 0, fail = 0;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail === undefined ? '' : ' -> ' + String(detail).slice(0, 700))); } }

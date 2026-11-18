@@ -2,6 +2,7 @@
    default (the old automatic center crop), always inside the picture, zoomed about a point, moved by a drag — the saved size, the format a
    picture is encoded in, the outline guide the grid gives, and a stored framing cleaned. Usage: node tools/framecheck.js (exit 1 on failure) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const path = require('path'), fs = require('fs');
 const NL = String.fromCharCode(10);
 const app = path.join(__dirname, '..', 'system', 'app');

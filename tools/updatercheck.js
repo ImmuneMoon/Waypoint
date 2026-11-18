@@ -19,6 +19,7 @@
    the owner's own sheet website, which this suite writes only as the SHA-256 of its name.
    Usage: node tools/updatercheck.js   (exit 1 on any failure) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const http = require('http'), fs = require('fs'), path = require('path'), os = require('os'), zlib = require('zlib'), crypto = require('crypto'), cp = require('child_process');
 const NL = String.fromCharCode(10);
 let pass = 0, fail = 0;

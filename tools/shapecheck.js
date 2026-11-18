@@ -1,4 +1,5 @@
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 // shapecheck.js: the turn shapes of backlog 210 (d) (1.6.2): a roll's cost that names how many, and the shapes a fight may take. Pure parts run for real; a slice of net.js and of sheets.js run on stand-ins
 const fs = require('fs'), path = require('path'), url = require('url');
 const app = p => path.join(__dirname, '..', 'system', 'app', p), read = p => fs.readFileSync(app(p), 'utf8').replace(/\r\n/g, '\n'), readL = p => fs.readFileSync(app(p), 'latin1').replace(/\r\n/g, '\n');

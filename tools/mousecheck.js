@@ -2,6 +2,7 @@
 // gestures (Recommended)", "Yes, like keys (Recommended)", "A short list each (Recommended)" and "Side buttons anywhere (Recommended)").
 // mousecore.js imported and run; mousemap.js run on a page of plain objects; the board's four gestures, Settings, the profile and the words pinned.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), url = require('url'), vm = require('vm');
 const root = path.join(__dirname, '..'), app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSync(p, 'utf8');
 let pass = 0, fail = 0, summed = false;

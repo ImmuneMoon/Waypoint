@@ -3,6 +3,7 @@
 // allows"). systemcore's cleaner, a row's number through applyEffectOp and a real action, a change Times its number in the sheet's figures, the
 // fall in fxTick, the owner's copy and the wire's cleaner; the sheet's number and the editor's controls, Help and both notes. No browser.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail === undefined ? '' : ' -> ' + String(detail).slice(0, 600))); } }

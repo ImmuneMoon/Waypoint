@@ -1,6 +1,7 @@
 /* Offline check of the music feature's pure half (system/app/scripts/musiccore.js): the playlist / per-map /
    override validators for what gets stored and what rides the wire. Usage: node tools/musiccheck.js (exit 1 on fail) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const path = require('path'), fs = require('fs');
 const NL = String.fromCharCode(10);
 const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, NL);

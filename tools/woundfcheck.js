@@ -3,6 +3,7 @@
 // "The system says ... Default: layers still wear"). systemcore's cleaner and the real damage step on a sheet with a location and a worn layer;
 // the editor's boxes, its words, Help and both notes. No browser, no network.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail === undefined ? '' : ' -> ' + String(detail).slice(0, 700))); } }

@@ -1,6 +1,7 @@
 // Interaction layers (1.6.2, backlog 43): ilayers.js run for real, its core sliced by its [ilayerscheck:*] markers and the whole module on a page
 // of plain objects with a storage of the suite's own; the board's marks and picks, the styles, the page, Help and both release notes pinned.
 // Plain Node, no dependencies, exits 1 on any failure.
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail !== undefined ? ' -> ' + detail : '')); } }

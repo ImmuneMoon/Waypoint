@@ -2,6 +2,7 @@
 // wraps, a color picked, a brush's spacing, the layers' list, undo and redo, the selection and its turn, the zoom, what it starts from),
 // and the paint window (drawwin.js), the pack maker's Draw…, the page, the styles, Escape, Help and both release notes pinned.
 // Plain Node, no dependencies, exits 1 on any failure.
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail !== undefined ? ' -> ' + detail : '')); } }

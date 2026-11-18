@@ -3,6 +3,7 @@
 // cleaner, the words of marked boxes, how many marks a track draws, the fill rule through a real action, the players' view and the validator;
 // the sheet's trackNode run on a page of plain objects; the editor's controls, the style sheet, Help and both notes. No browser, no network.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail === undefined ? '' : ' -> ' + String(detail).slice(0, 600))); } }

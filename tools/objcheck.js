@@ -4,6 +4,7 @@
 // the GM's view alone. The window's own judges (mapobjects.js, sliced by its [objcheck:win-*] markers) run on plain objects, and its wiring pinned:
 // the page, the Add row, Escape, the wire, the import, Help, the guide and both release notes. No browser, no network.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), url = require('url');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail !== undefined ? '  -> ' + JSON.stringify(detail) : '')); } }

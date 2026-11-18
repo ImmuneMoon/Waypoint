@@ -6,6 +6,7 @@
    overrides of 2026-09-18. The last check reads saves/data.json READ-ONLY, prints counts only, and is
    skipped when the file is absent. Usage: node tools/cleanupcheck.js   (exit 1 on any failure) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs');
 const path = require('path');
 const mod = path.join(__dirname, '..', 'system', 'app', 'scripts', 'cleanup.js');

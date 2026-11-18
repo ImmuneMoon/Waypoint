@@ -2,6 +2,7 @@
 // converted, it isn't picked by the smallest-first rule"). systemcore's cleaners and the real moneyHeld and moneyMove imported and run, a system
 // with no currency held to what the code before gave by a seeded walk pinned by its hash, and the editor's boxes. No browser, no network.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), url = require('url'), crypto = require('crypto');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail === undefined ? '' : ' -> ' + String(detail).slice(0, 900))); } }

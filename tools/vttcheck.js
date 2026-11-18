@@ -6,6 +6,7 @@
    decided logic; a fake extra feature (id 'zzz') pushed onto FEATURES; and fog — the noLocal feature, now on by
    default (GM-controlled, no per-player switch). Usage: node tools/vttcheck.js  (exit 1 on any failure) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const path = require('path');
 const mod = path.join(__dirname, '..', 'system', 'app', 'scripts', 'vtt.js');
 

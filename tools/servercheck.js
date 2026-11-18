@@ -11,6 +11,7 @@
    (tools/electronstub.js, a child process — Node alone, a scratch folder, loopback only; no Electron is ever started).
    Usage: node tools/servercheck.js   (exit 1 on any failure) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const http = require('http'), fs = require('fs'), path = require('path'), os = require('os');
 const NL = String.fromCharCode(10);
 let pass = 0, fail = 0;

@@ -4,6 +4,7 @@
    through the corpus HANDBOOK_PLAN.md §11 asks for. Every output is also checked for balance and
    for the absence of anything that could run. Usage: node tools/doccheck.js */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const path = require('path');
 const mod = path.join(__dirname, '..', 'system', 'app', 'scripts', 'docrender.js');
 const url = 'file:///' + path.resolve(mod).replace(/\\/g, '/');

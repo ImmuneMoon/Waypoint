@@ -9,6 +9,7 @@
    url() in a style, no src or href that leaves the app.
    Run: node tools/sinkcheck.js */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 const dir = path.join(__dirname, '..', 'system', 'app', 'scripts');
 const modUrl = f => 'file:///' + path.resolve(path.join(dir, f)).replace(/\\/g, '/');
@@ -2302,7 +2303,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     }
     {   // conditions C1: a token's effects drawn on it (whiteboard.js tokenFxHtml, sliced by its tokenfx markers) and which list a screen draws
         // (sheets.js tokenFx, tokenfxlist), run for real on hostile names and icons
-        const J = JSON.stringify, SYc = await import(modUrl('systemcore.js') + '?c1'), inspC = read('inspector.js'), escC = new Function((/\n  function esc\(s\)\{[^\n]*\}\n/.exec(inspC) || ['function esc(s){return String(s)}'])[0] + '\nreturn esc;')();
+        const J = JSON.stringify, SYc = await import(require('./srcjoin').freshUrl('systemcore.js', 'c1')), inspC = read('inspector.js'), escC = new Function((/\n  function esc\(s\)\{[^\n]*\}\n/.exec(inspC) || ['function esc(s){return String(s)}'])[0] + '\nreturn esc;')();
         const txS = slice('whiteboard.js', 'tokenfx'), TX = new Function('esc', 'window', "'use strict';\n" + txS + '\nreturn tokenFxHtml;')(escC, { wpSystemCore: SYc });
         const hostile = [{ n: '<img src=x onerror=alert(1)>', i: 'icon:bolt', t: 'buff' }, { n: 'P"q', i: '<script>x</script>', t: 'debuff' }, { n: 'quiet', i: '', t: 'x" onclick="y', g: 1 }, { n: 'E4', i: 'icon:bolt' }, { n: 'E5', i: 'a' }, { n: 'E6', i: 'b' }, { n: 'E7', i: 'c' }, { n: 'E8', i: 'd' }, { n: 'E9', i: 'e' }];
         const hx = TX(hostile), glyphs = hx.match(/url\(&quot;[^&]*&quot;\)/g) || [];
@@ -2350,7 +2351,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     const HOSTILE_C4 = '<img src=x onerror=alert(1)>';
     {   // conditions C3: a system's own postures — the menus' options (whiteboard.js postureOptionsHtml, postopts, with the postures in use from its
         // postranged slice), the chip and Properties (pinned), the stance control's words (sheets.js postureWords, posturewords), run for real
-        const J = JSON.stringify, SYp = await import(modUrl('systemcore.js') + '?c3'), inspP = read('inspector.js'), escP = new Function((/\n  function esc\(s\)\{[^\n]*\}\n/.exec(inspP) || ['function esc(s){return String(s)}'])[0] + '\nreturn esc;')();
+        const J = JSON.stringify, SYp = await import(require('./srcjoin').freshUrl('systemcore.js', 'c3')), inspP = read('inspector.js'), escP = new Function((/\n  function esc\(s\)\{[^\n]*\}\n/.exec(inspP) || ['function esc(s){return String(s)}'])[0] + '\nreturn esc;')();
         const wbP = read('whiteboard.js').replace(/\r\n/g, '\n'), prA = wbP.indexOf('// [systemcheck:postranged-start]'), prZ = wbP.indexOf('// [systemcheck:postranged-end]'), sysP = { v: null };
         const POP = new Function('esc', 'window', 'stanceOn', "'use strict';\n" + wbP.slice(prA, prZ) + slice('whiteboard.js', 'postopts') + '\nreturn postureOptionsHtml;')(escP, { wpSystemCore: SYp, wpSheets: { systemOf: () => sysP.v } }, () => true);
         sysP.v = { combat: { postures: [{ id: 'standing', name: '<b>Up</b>', tag: 'U' }, { id: 'p_h', name: '<img src=x onerror=1>', tag: '<i>', ranged: -2 }, { id: 'x" onmouseover="y', name: 'Q"r' }] } };
@@ -2389,7 +2390,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && inspP.replace(/\r\n/g, '\n').includes("html += '<div class=\"field\"><label for=\"wbPosture\">Posture</label><select id=\"wbPosture\">' + stanceApi.postures().map(function(p, i) { return '<option value=\"' + esc(p.id) + '\"' + (i === curPI ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select></div>'; }"));
     }
     {   // 1.6.0, backlog 206: a row's look and its work log on the sheet (sheets.js rowlook slice, run for real with the real core and safecore)
-        const J = JSON.stringify, SYl = await import(modUrl('systemcore.js') + '?rl'), SFl = await import(modUrl('safecore.js') + '?rl'), FRl = await import(modUrl('formula.js') + '?rl'), rlS = slice('sheets.js', 'rowlook');
+        const J = JSON.stringify, SYl = await import(require('./srcjoin').freshUrl('systemcore.js', 'rl')), SFl = await import(modUrl('safecore.js') + '?rl'), FRl = await import(modUrl('formula.js') + '?rl'), rlS = slice('sheets.js', 'rowlook');
         const mkL = (tag, cls, text) => ({ tag, className: cls || '', textContent: text === undefined ? '' : String(text), title: '', value: '', type: '', placeholder: '', children: [], dataset: {}, style: {}, attrs: {}, on: {}, get childNodes() { return this.children; }, appendChild(c) { this.children.push(c); return c; }, setAttribute(k, v) { this.attrs[k] = String(v); }, addEventListener(ty, fn) { this.on[ty] = fn; } });
         const optL = (value, text, selected) => { const o = mkL('option', null, text); o.value = value; if (selected) o.selected = true; return o; };
         const sent = [], toasts = [], logs = [];
@@ -2434,7 +2435,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             n0 === 1 && toasts.length === 1 && /whole number/.test(toasts[0]) && wq.op === 'work' && J(wq.work) === J({ kind: 'repair', by: 'hired', fee: 25, note: HOST }) && !!find(wkB, 'sheet-rf-ask') && find(wkB, 'sheet-work-kind').children.length === 4, J([toasts, wq]));
     }
     {   // backlog 28, token bars: the ring (whiteboard.js tokenBarsSvg), the System editor's Token bars box (sheets.js barsBox) and a token's Bars in its Properties (inspector.js barsFieldHtml), each run for real
-        const J = JSON.stringify, SYb = await import(modUrl('systemcore.js') + '?b28'), inspB = read('inspector.js'), escB = new Function((/\n  function esc\(s\)\{[^\n]*\}\n/.exec(inspB) || ['function esc(s){return String(s)}'])[0] + '\nreturn esc;')();
+        const J = JSON.stringify, SYb = await import(require('./srcjoin').freshUrl('systemcore.js', 'b28')), inspB = read('inspector.js'), escB = new Function((/\n  function esc\(s\)\{[^\n]*\}\n/.exec(inspB) || ['function esc(s){return String(s)}'])[0] + '\nreturn esc;')();
         const mkN = (ns, tag) => ({ ns, tag, attrs: {}, kids: [], style: {}, setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return this.attrs[k]; }, appendChild(k) { this.kids.push(k); return k; } });
         const docB = { createElementNS: mkN, createElement() { throw new Error('createElement'); } };
         const tbS = slice('whiteboard.js', 'tokenbars');
@@ -5521,7 +5522,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     /* ---- 1.5.6: the System editor's Taking damage box against a hostile system file — every label, stat or column key, type's key and label and
        formula reaches the box as a value, an option's text, a text node or a data value only, on a page that records every node and refuses markup ---- */
     {
-        const SYd = await import(modUrl('systemcore.js') + '?dmg'), FOd = await import(modUrl('formula.js')), shd = read('sheets.js'), dbS = slice('sheets.js', 'dmgbox');
+        const SYd = await import(require('./srcjoin').freshUrl('systemcore.js', 'dmg')), FOd = await import(modUrl('formula.js')), shd = read('sheets.js'), dbS = slice('sheets.js', 'dmgbox');
         const one = a => { const i = shd.indexOf(a); return shd.slice(i, shd.indexOf('\n', i)); }, cut = (a, b) => { const i = shd.indexOf(a); return shd.slice(i, shd.indexOf(b, i + 1)); };
         const domS = [one('function el(tag, cls, text) {'), one('function opt(value, text, selected) {'), one('function input(cls, value, title, placeholder) {'), one('function select(cls, options, value, title) {'), cut('function errorCell(', 'function errPrefix('), one('function errPrefix(')].join('\n');
         const made = [], marks = [];
@@ -5627,7 +5628,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     }
     {   // 1.5.8, backlog 149: a roll's die from a campaign file reaches a button only as a drawing of the set (sheets.js dieFor and the four buttons'
         // own statements, run for real with the real systemcore and dieicons.js on a page that writes down every node and refuses markup)
-        const J = JSON.stringify, SYd = await import(modUrl('systemcore.js') + '?dice'), DId = await import(modUrl('dieicons.js') + '?dice'), FRd = await import(modUrl('formula.js') + '?dice'), shD = read('sheets.js');
+        const J = JSON.stringify, SYd = await import(require('./srcjoin').freshUrl('systemcore.js', 'dice')), DId = await import(modUrl('dieicons.js') + '?dice'), FRd = await import(modUrl('formula.js') + '?dice'), shD = read('sheets.js');
         const made = [], mkD = (tag, cls, text) => { const e = { tag, className: cls || '', children: [], attrs: {}, title: '', disabled: false, dataset: {}, appendChild(c) { this.children.push(c); return c; }, insertBefore(c, ref) { const i = ref ? this.children.indexOf(ref) : -1; if (i < 0) this.children.push(c); else this.children.splice(i, 0, c); return c; }, setAttribute(k, v) { this.attrs[k] = String(v); }, addEventListener() {} };
             Object.defineProperty(e, 'firstChild', { get() { return e.children[0] || null; } }); Object.defineProperty(e, 'innerHTML', { set() { throw new Error('markup'); } }); if (text !== undefined) e.textContent = String(text); made.push(e); return e; };
         const docD = { createElementNS: (ns, tag) => Object.assign(mkD(tag), { ns }), createElement: tag => mkD(tag), createTextNode: t => ({ text: String(t) }) };

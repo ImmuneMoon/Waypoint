@@ -1,6 +1,7 @@
 // cloudcheck.js — cloud saves, the shell's half (system/resources/app/cloudsync.js), run for real on a scratch saves folder against a site
 // of the suite's own that answers as docs/CLOUD_SAVES_API.md (the website's) says. No network: fetch is the suite's.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), os = require('os'), crypto = require('crypto');
 const NL = String.fromCharCode(10);
 const CS = require('../system/resources/app/cloudsync.js'), RG = require('../system/resources/app/reqguard.js');

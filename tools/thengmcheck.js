@@ -3,6 +3,7 @@
 // the places of the rest (systemcore thenGmCut), and the host runs those from the GM's own entry (net.js thenGmRun, sliced by its markers and run on
 // stand-ins of the page with the real systemcore and formula engine). No browser, no network.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), url = require('url'), vm = require('vm');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail === undefined ? '' : ' -> ' + String(detail).slice(0, 600))); } }

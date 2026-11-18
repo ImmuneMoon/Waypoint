@@ -3,6 +3,7 @@
    tracks who joins and leaves, who the player is and who their character is. reccore.js and the shell's recstore.js are run for real;
    the wiring is pinned. */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), os = require('os');
 const dir = path.join(__dirname, '..'), app = path.join(dir, 'system', 'app');
 let pass = 0, fail = 0, summed = false;

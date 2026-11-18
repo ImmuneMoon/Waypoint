@@ -208,6 +208,7 @@
    printed as accepted and counted apart, and the run still exits 1 for any red line not in it.
    Run: node tools/fuzzcheck.js */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), { pathToFileURL } = require('url'), nodeCrypto = require('crypto');
 const ROOT = path.join(__dirname, '..', 'system', 'app', 'scripts');
 const CANARY = '<svg onload=FUZZCANARY>';   // raw in a markup sink = a finding (escaped it reads &lt;svg…)

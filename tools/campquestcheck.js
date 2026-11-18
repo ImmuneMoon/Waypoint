@@ -1,5 +1,6 @@
 // Start a campaign with questions (1.6.2, backlog 166 e): campquest.js's core slice run for real, what it writes read by the real page
 // sanitiser and card cleaner, and the dialog's wiring pinned. Plain Node, no dependencies, exits 1 on any failure.
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail !== undefined ? ' -> ' + detail : '')); } }

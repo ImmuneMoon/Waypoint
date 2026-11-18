@@ -3,6 +3,7 @@
    grid type), sight-blocker occlusion, range→cells, the revealed-point test, and the map.fog / camp.fog validators
    (vision mode + the new-map vision default). No DOM. Usage: node tools/fogcheck.js */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const path = require('path');
 const NL = String.fromCharCode(10);
 const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).replace(/[\\]/g, '/');

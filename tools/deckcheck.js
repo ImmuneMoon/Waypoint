@@ -1,5 +1,6 @@
 // deckcheck — decks and bags (1.6.2, backlog 210 d, docs/DECKS_PLAN.md; the owner, by prompt: "Either place", one thing with a choice of three after a draw). deckcore, the real applyAct and resolver, and the one editor on tools/boxdom.js, a page that refuses markup. No browser, no network.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), url = require('url');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail === undefined ? '' : ' -> ' + String(detail).slice(0, 900))); } }

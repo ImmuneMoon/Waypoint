@@ -26,6 +26,7 @@
    a word drawn as several runs is one hit of several marks); the text blocks' own bar is wired by the real wireRte ([textcheck:rtewire]).
    Run: node tools/textcheck.js */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 const dir = path.join(__dirname, '..', 'system', 'app', 'scripts');
 const modUrl = f => 'file:///' + path.resolve(path.join(dir, f)).replace(/\\/g, '/');

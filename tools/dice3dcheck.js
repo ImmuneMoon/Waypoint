@@ -2,6 +2,7 @@
 // stand-in dice built from plain geometry, the reader of a Blender model file, the turn that lands a face toward the viewer, the tumble
 // that ends exactly on it, and which dice a roll's result shows. dice3dcore.js imported and run.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), url = require('url');
 let pass = 0, fail = 0;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail === undefined ? '' : ' -> ' + String(detail).slice(0, 600))); } }

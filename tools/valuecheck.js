@@ -1,6 +1,7 @@
 // valuecheck — a number the whole table shares (1.6.2, backlog 210 c, G8; the owner, by prompt: "In the system, shown"). systemcore's cleaners, the resolver and the real applyAct imported and
 // run, the host's tell and a player's taking of it read from net.js, the box's wiring. No browser, no network.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), url = require('url');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail === undefined ? '' : ' -> ' + String(detail).slice(0, 900))); } }

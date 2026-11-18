@@ -3,6 +3,7 @@
 // composeModifier run on the real formula engine, the criticals that must never read an added die, the wire's cleaner, a roll bonus's dice
 // through systemcore's cleaner and judge, the ± window's own pieces sliced from dice.js, the host's compose pinned, Help and both notes.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail === undefined ? '' : ' -> ' + String(detail).slice(0, 700))); } }

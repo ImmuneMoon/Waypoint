@@ -2,6 +2,7 @@
 // correcting things please", and "any slider, or increment control should allow the typing of values"): uiparts.js imported and run on a
 // page of plain objects (a counter's presses, its typed value held to its bounds, setValue, a figure written by its caller; a slider's typed
 // value both ways, a time as m:ss), and every site that builds one pinned. Plain Node, no dependencies, exits 1 on any failure.
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail !== undefined ? ' -> ' + detail : '')); } }

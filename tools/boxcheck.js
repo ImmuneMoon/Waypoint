@@ -2,6 +2,7 @@
 // newBoxId), boxes.js's GM slice run on a page of plain objects (which pieces may hold items, Holds items ticked and unticked), the container
 // window drawn with text nodes, and the wiring: Properties, the right-click menu, Show on my map, the wire, a load, the floating box lists,
 // the page, the styles, Help and both release notes. Plain Node, no dependencies, exits 1 on any failure.
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), url = require('url');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail !== undefined ? ' -> ' + detail : '')); } }

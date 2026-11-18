@@ -7,6 +7,7 @@
    box, a corridor, a polygon's vertex and item, the piece already seated), and the wall lines around a set of floor pieces
    (outlineWalls, with the row on the GM's menu run for real). No DOM. Usage: node tools/buildcheck.js   (exit 1 on any failure) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const path = require('path'), fs = require('fs'), os = require('os'), cp = require('child_process');
 const NL = String.fromCharCode(10);
 const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).replace(/[\\]/g, '/');

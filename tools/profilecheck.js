@@ -4,6 +4,7 @@
 // 1.6.0, the Profile window (the owner: "a dedicated profile section in waypoint thats easy to get to"): the list of the tables that know you
 // (profilecore tablesOf, run), the small record net.js keeps at a snapshot (run), the window's wiring and its words.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), url = require('url');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail !== undefined ? '  -> ' + (typeof detail === 'string' ? detail : JSON.stringify(detail)) : '')); } }

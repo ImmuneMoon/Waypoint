@@ -1,6 +1,7 @@
 // resultcheck — result tables (1.6.2, backlog 210 c, G7): a table of ranges and words a roll's Then or an action reads, on its own dice or at a figure. systemcore's cleaners and the
 // real applyAct imported and run, dicecore's wire, the card as the sheet's real line drawing writes it, and the box's wiring. No browser, no network.
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path'), url = require('url');
 let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail === undefined ? '' : ' -> ' + String(detail).slice(0, 900))); } }

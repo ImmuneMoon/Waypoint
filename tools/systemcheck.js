@@ -3,6 +3,7 @@
    keys, cleaners, the GM-view stripping, the validator (carets, loops, dice in definitions), the resolver, the
    per-recipient view, edits, the auto layout and the hook an outside sheet reader registers through.
    Usage: node tools/systemcheck.js   (exit 1 on any failure) */
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 function css0911() { return require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8'); }   // the viewing of 2026-11-09: the HUD fits what it holds
 'use strict';
 const path = require('path'), fs = require('fs');
@@ -5258,7 +5259,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
 
     /* ---- publication ---- */
     global.window = {};
-    const S2 = await import(url('systemcore.js') + '?x');
+    const S2 = await import(require('./srcjoin').freshUrl('systemcore.js', 'x'));
     check('window.wpSystemCore published', !!(global.window.wpSystemCore && global.window.wpSystemCore.cleanSystem && global.window.wpSystemCore.VERSION === S2.VERSION));
     delete global.window;
 
@@ -8115,7 +8116,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('snap rule: wpSnapOn (datamap.js, run for real) — Snap on to the grid or to both, not to other items only; a connected player follows the GM\'s Snap as the table was told it (true only), whatever their own; off the table, their own',
                 srA > 0 && srB > srA && j(onGot) === j([true, true, false, false, true, false, false, false, true]), j(onGot));
             {   // 1.6.2, backlog 38 fold 2: range and a token's one cell on a map of its own cell (systemcore rangeDist, tokenCell, shapeStandIn)
-                const SCL = await import(url('systemcore.js') + '?lat');
+                const SCL = await import(require('./srcjoin').freshUrl('systemcore.js', 'lat'));
                 const sqM = { meta: { gridType: 'square', cell: { size: 70 }, cellValue: 5, cellUnit: 'ft' } }, hxM = { meta: { gridType: 'hex', cell: { size: 104 }, cellValue: 1, cellUnit: 'yd' } }, plain = { meta: { gridType: 'square', cellValue: 5, cellUnit: 'ft' } };
                 const dSq = SCL.rangeDist(null, sqM, { x: 35, y: 35 }, { x: 315, y: 35 }, 'ft'), dPl = SCL.rangeDist(null, plain, { x: 25, y: 25 }, { x: 225, y: 25 }, 'ft');
                 const dHx = SCL.rangeDist(null, hxM, { x: 30, y: 0 }, { x: 30, y: 312 }, 'yd');

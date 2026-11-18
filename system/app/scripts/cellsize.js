@@ -29,7 +29,7 @@ function cellSet(next, why) {
     if (!asks()) { go(true); return; }
     showConfirm((why || 'The grid of this map changes size.') + ' Resize the tokens on it to the new cells?', function(a) { if (a === 'alt') go(false); else if (a) go(true); }, { yes: 'Resize them', alt: 'Leave them', noEnter: true });
 }
-// The Measure options' Cell size part, as the map on screen stands
+// The Grid menu's Cell size part (moved there from the Measure options in 1.6.3, finding 17), as the map on screen stands
 function menuSync() {
     var part = el('measureCell'); if (!part) return;
     var m = getActiveMap(), g = gridOf(m), FC = window.wpFogCore, c = g && FC && typeof FC.cleanMapCell === 'function' ? FC.cleanMapCell(m.meta.cell, g) : null;

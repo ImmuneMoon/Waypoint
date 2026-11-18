@@ -1436,9 +1436,9 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         const o1 = FL ? FL.flatFollow(old) : -1, oAt = j(old.whiteboard[0].flatAt), oN = 'flatAt' in old.whiteboard[2]; old.whiteboard[0].x = 15; const o2 = FL ? FL.flatFollow(old) : -1;
         const anc = FL ? [FL.flatAnchor({ flatPic: true, x: 1, y: 2 }), FL.flatAnchor({ flatPic: true, x: 1, y: 2, flatAt: { x: 0, y: 0 } }), FL.flatAnchor({ x: 1, y: 2 }), FL.flatAnchor({ flatPic: true, x: NaN, y: 2 }), FL.flatAnchor(null)] : [];
         check('1.6.3 finding 16 (Fulllion\'s ruling "Move with it"): a flattened picture\'s pieces move with it, by however far the picture moved since its last save (flatFollow, asked by io.js save before the step is recorded), each keeping its place beside the picture, locked or hidden; nothing moves twice; a picture flattened before 1.6.3 notes where it stands at first sight and moves nothing then, and follows after; flatLay notes it as it lays the picture',
-            !!FL && n1 === 2 && n2 === 0 && j(at('a')) === j([140, 140]) && j(at('w')) === j([120, 115]) && j(at('o')) === j([400, 400]) && j(mv.whiteboard[0].flatAt) === j({ x: 130, y: 120 })
-            && o1 === 0 && oAt === j({ x: 5, y: 6 }) && !oN && o2 === 1 && old.whiteboard[1].x === 17 && j(anc) === j([true, false, false, false, false])
-            && /flatPic: true, flatAt: \{ x: fp\.box\.x, y: fp\.box\.y \} \};/.test(rdS('flatten.js'))
+            !!FL && n1 === 2 && n2 === 0 && j(at('a')) === j([140, 140]) && j(at('w')) === j([120, 115]) && j(at('o')) === j([400, 400]) && j(mv.whiteboard[0].flatAt) === j({ x: 130, y: 120, w: 50, h: 50, r: 0 })
+            && o1 === 0 && oAt === j({ x: 5, y: 6, w: 100, h: 100, r: 0 }) && !oN && o2 === 1 && old.whiteboard[1].x === 17 && j(anc) === j([true, false, false, false, false])
+            && /flatPic: true, flatAt: \{ x: fp\.box\.x, y: fp\.box\.y, w: fp\.box\.w, h: fp\.box\.h, r: 0 \} \};/.test(rdS('flatten.js'))
             && /if \(typeof flatFollow === 'function' && activeMap\) \{ try \{ flatFollow\(activeMap\); \} catch \(e\) \{\} \}\r?\n\s*pushHistory\(\);/.test(rdS('io.js')), j([n1, n2, at('a'), at('w'), o1, oAt, o2, anc]));
         // delete with it, or put them back
         const dAll = flatMap(), oAll = DA ? DA.delApply(dAll, ['P'], 'all') : null, dBack = flatMap(), oBack = DA ? DA.delApply(dBack, ['P'], 'back') : null, dDef = flatMap(), oDef = DA ? DA.delApply(dDef, ['P']) : null;
@@ -1453,7 +1453,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         const conf = ans => (t, cb, o) => { asks.push([t, o && o.yes, o && o.alt, o && o.noEnter]); cb(ans); };
         const run = (pick, ans) => { const m = flatMap(); let got = 'none'; DA.delWb(m, pick, conf(ans), out => { got = [ids(m), out]; }); return got; };
         const plain = run(['o'], true), lockY = run(['L'], true), lockN = run(['L'], false), tokY = run(['t'], true), flatB = run(['P'], true), flatA = run(['P'], 'alt'), flatC = run(['P'], false), both = run(['P', 'L', 'o'], 'alt');
-        const FQ = 'Delete the flattened picture? Its 2 pieces can be put back as they were, or deleted with it.', LQ = 'Delete this locked piece? It is part of the map’s structure.';
+        const FQ = 'Delete the flattened picture? Its 2 pieces can be put back as they were, or deleted with it.', LQ = 'Delete this locked piece?';
         check('1.6.3 finding 15 (Fulllion\'s ruling "Ask when locked"): a plain unlocked piece goes at once with no question; a locked piece or a token asks one question (Delete, buttons alone), and everything picked goes on a yes and nothing on Cancel; a flattened picture that holds pieces asks Put the pieces back or Delete them too, and that one question also covers locked pieces and tokens picked beside it; a waiting token counts as a token; a piece picked beside its own picture is not one to put back',
             !!DA && j(plain[0]) === j(['P', 'a', 'w', 'L', 't', 'wt']) && j(lockY[0]) === j(['P', 'a', 'w', 'o', 't', 'wt']) && lockN === 'none' && j(tokY[0]) === j(['P', 'a', 'w', 'o', 'L', 'wt'])
             && j(flatB[0]) === j(['a', 'w', 'o', 'L', 't', 'wt']) && j(flatA[0]) === j(['o', 'L', 't', 'wt']) && flatC === 'none' && j(both[0]) === j(['t', 'wt'])
@@ -1468,6 +1468,82 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         check('1.6.3 finding 15 on the Data Map: deleting a room asks first, by name, with its links; a yes takes the room and every link that names it; Cancel takes nothing; two rooms are counted',
             j(rY.rooms) === j([{ id: 'r2', name: 'Cellar' }]) && j(rY.links) === j([['r2', 'r3']]) && rN === 1 && j(rC.rooms.map(r => r.id)) === j(['r1', 'r2']) && rC.links.length === 2
             && j(rAsk) === j([['Delete the room Inn? Its links go with it.', 'Delete', true], ['Delete 2 rooms? Their links go with them.']]) && DA.roomWords(DA.roomCount([], ['x'])) === '', j([rY, rAsk, rN]));
+        /* -- the review of 87d9b6e0: flatFollow places each piece from where it stands beside the picture (flatOff), so it is idempotent and follows
+           a resize and a turn; copies of a flattened picture carry its pieces; a lone locked piece is called structure only where it is; a question
+           answered after the map changed deletes nothing; and Undo through io.js's own history takes a move, Put the pieces back and Delete them too back -- */
+        {
+            const bx = (m, id) => { const w = m.whiteboard.find(x => x.id === id); return w ? [w.x, w.y, w.w, w.h, w.rot === undefined ? null : w.rot] : null; };
+            // a drag or a nudge that picked a piece with its picture (a marquee used to), after a save that noted where each piece stands: the piece is placed beside the picture once, never twice
+            const dm = flatMap(); FL.flatFollow(dm); dm.whiteboard[0].x = 130; dm.whiteboard[0].y = 120; dm.whiteboard[1].x += 30; dm.whiteboard[1].y += 20; const d1 = FL ? FL.flatFollow(dm) : -1, d2 = FL ? FL.flatFollow(dm) : -1;
+            // a piece moved on its own (picked in Layers) keeps where it was moved, and follows the picture from there
+            const om = flatMap(); FL.flatFollow(om); om.whiteboard[1].x = 160; const o3 = FL.flatFollow(om); om.whiteboard[0].x = 110; FL.flatFollow(om); const oNow = bx(om, 'a');
+            // turned a quarter and back, and made twice the size (after a save that noted the frame whole): P is 50 by 50 at (100,100), its middle (125,125); a (5 by 5 at 110,120, its middle (112.5,122.5)) stands 12.5 left and 2.5 up of it
+            const tm = flatMap(); FL.flatFollow(tm); tm.whiteboard[0].rot = 90; const t1 = FL.flatFollow(tm), tq = bx(tm, 'a'), tw = bx(tm, 'w'); tm.whiteboard[0].rot = 0; FL.flatFollow(tm); const tBack = [bx(tm, 'a'), bx(tm, 'w')];
+            tm.whiteboard[0].w = 100; tm.whiteboard[0].h = 100; const t2 = FL.flatFollow(tm), sq = bx(tm, 'a'), sw = bx(tm, 'w');
+            check('1.6.3, the review of 87d9b6e0 (findings 1, 3 and 7): flatFollow is idempotent and goes wherever the picture goes. A piece dragged or nudged WITH its picture is placed beside it once, not twice; a piece moved on its own keeps where it was moved and follows the picture from there; a quarter turn of the picture turns each piece about the picture\'s middle and adds to its own turn, and a turn back puts it where it stood; twice the size doubles each piece\'s place from the middle and its size. io.js save() places them at once on the machine that owns the campaign, as well as before the step is recorded, and the drag\'s release and a nudge before any place is told to the table; the marquee passes over a piece drawn into a picture on the map',
+                d1 === 2 && d2 === 0 && j(bx(dm, 'a')) === j([140, 140, 5, 5, null]) && j(bx(dm, 'w')) === j([120, 115, 60, 2, null])
+                && o3 === 0 && j(oNow) === j([170, 120, 5, 5, null])
+                && t1 === 2 && j(tq) === j([125, 110, 5, 5, 90]) && j(tw) === j([124, 119, 60, 2, 90]) && j(tBack) === j([[110, 120, 5, 5, 0], [90, 95, 60, 2, 0]])
+                && t2 === 2 && j(sq) === j([120, 140, 10, 10, 0]) && j(sw) === j([80, 90, 120, 4, 0])
+                && /if \(typeof flatFollow === 'function' && activeMap && canPersistLocal\(\)\) \{ try \{ flatFollow\(activeMap\); \} catch \(e\) \{\} \}/.test(rdS('io.js'))
+                && /if \(typeof flatFollow === 'function' && canPersistLocal\(\)\) \{ try \{ flatFollow\(m2\); \} catch \(e\) \{\} \}\r?\n\s*sent\.forEach\(function\(it\) \{ if \(window\.wpNet && window\.wpNet\.active && window\.wpNet\.streamPos\) window\.wpNet\.streamPos\(it, true\); \}\);/.test(rdS('io.js'))
+                && /window\.wpFlatten\.follow\(getActiveMap\(\)\); \} catch \(e\) \{\} \}\r?\n\s*if \(modeStr === 'visual' && window\.wpNet && window\.wpNet\.active && window\.wpNet\.streamPos\) multiDrag\.forEach/.test(rdS('datamap.js'))
+                && /if \(w && typeof w\.flatIn === 'string' && flatOn\[w\.flatIn\] === 1\) return;/.test(rdS('datamap.js')) && /window\.wpFlatten = \{ lay: lay, undo: undo, follow: flatFollow \};/.test(rdS('flatten.js')),
+                j([d1, d2, bx(dm, 'a'), o3, oNow, t1, tq, tw, tBack, t2, sq, sw]));
+            // Copy, Cut, Paste and Duplicate (the review's second finding)
+            const km = flatMap(), kids = FL.flatKids(km.whiteboard, [km.whiteboard[0]]).map(w => w.id), kidsNone = FL.flatKids(km.whiteboard, [km.whiteboard[3]]).length, kidsBoth = FL.flatKids(km.whiteboard, [km.whiteboard[0], km.whiteboard[1]]).map(w => w.id);
+            const cp = (ids, mk) => { const src = mk || flatMap(), pairs = ids.map(id => { const it = JSON.parse(JSON.stringify(src.whiteboard.find(x => x.id === id))); it.id = id + '2'; it.x += 25; it.y += 25; return { old: id, it }; }); const held = FL.flatRemap(pairs); return { by: Object.fromEntries(pairs.map(p => [p.old, p.it])), held: Object.keys(held) }; };
+            const all3 = cp(['P', 'a', 'w']), picOnly = cp(['P']), aOnly = cp(['a']), wOnly = cp(['w']);
+            const pasted = flatMap(); [all3.by.P, all3.by.a, all3.by.w].forEach(x => pasted.whiteboard.push(JSON.parse(JSON.stringify(x)))); const pMoves = FL.flatFollow(pasted); pasted.whiteboard.find(x => x.id === 'P2').x += 10; FL.flatFollow(pasted);
+            check('1.6.3, the review of 87d9b6e0 (finding 2): a copy of a flattened picture carries the pieces drawn into it (flatten.js flatKids, which never takes a piece already picked); the copies name each other (flatRemap): the pieces name the copy of the picture, never the picture they came from, stay out of sight and are not picked, and the copy keeps its frame where it stands; a picture copied without its pieces is a plain picture; a piece copied without its picture gets its own look back (shown again, or its own opacity) and names nothing; Cut goes through delask.js delWb, so it asks where Delete asks and puts the pieces back or takes them with it, and Paste and Duplicate name the copies again; Merge drawings is never offered over a locked line',
+                j(kids) === j(['a', 'w']) && kidsNone === 0 && j(kidsBoth) === j(['w'])
+                && all3.by.a.flatIn === 'P2' && all3.by.w.flatIn === 'P2' && all3.by.a.hidden === true && all3.by.w.opacity === 0 && j(all3.held.sort()) === j(['a2', 'w2']) && all3.by.P.flatPic === true && j(all3.by.P.flatAt) === j({ x: 125, y: 125, w: 50, h: 50, r: 0 })
+                && pMoves === 0 && j(bx(pasted, 'a2')) === j([145, 145, 5, 5, null]) && j(bx(pasted, 'a')) === j([110, 120, 5, 5, null])
+                && !('flatPic' in picOnly.by.P) && !('flatAt' in picOnly.by.P) && picOnly.held.length === 0
+                && !('flatIn' in aOnly.by.a) && !('hidden' in aOnly.by.a) && !('flatOff' in aOnly.by.a) && !('flatIn' in wOnly.by.w) && !('opacity' in wOnly.by.w) && !('flatWas' in wOnly.by.w) && wOnly.by.w.blocksSight === true
+                && /delWb\(m, ids\.slice\(\), showConfirm, function\(out, how\) \{\r?\n\s*wbClipboard = how === 'all' \? picked\.concat\(kids\) : picked;/.test(rdS('io.js')) && /var kidsP = typeof flatRemap === 'function' \? flatRemap\(pairs\) : \{\};/.test(rdS('io.js'))
+                && /var flatAlso = typeof flatKids === 'function' \? flatKids\(am\.whiteboard, its\.filter\(Boolean\)\) : \[\];/.test(rdS('whiteboard.js')) && /var flatHeld = typeof flatRemap === 'function' \? flatRemap\(pairs\) : \{\};/.test(rdS('whiteboard.js'))
+                && /return it && it\.type === 'path' && it\.tip !== 'fill' && !it\.locked;/.test(rdS('whiteboard.js')),
+                j([kids, all3, picOnly, aOnly, wOnly, bx(pasted, 'a2')]));
+            // the words (the review's eighth finding): structure by buildcore structOk alone, and a locked flattened picture is not counted again
+            const sList = [{ id: 'S', type: 'rect', x: 0, y: 0, w: 10, h: 80, blocksSight: true, locked: true }, { id: 'T', type: 'text', x: 0, y: 0, locked: true }];
+            const lockedFlat = flatMap(); lockedFlat.whiteboard[0].locked = true; lockedFlat.whiteboard[0].layer = 'back';
+            const wS = DA.delWords(DA.delCount(sList, ['S'])).text, wT = DA.delWords(DA.delCount(sList, ['T'])).text, wLF = DA.delWords(DA.delCount(lockedFlat.whiteboard, ['P'])).text, wLF2 = DA.delWords(DA.delCount(lockedFlat.whiteboard, ['P', 'L'])).text;
+            // a question answered after the map changed (the review's sixth finding): another map deletes nothing; the same map put in place by an Undo is the one changed
+            const mA = flatMap(); mA.id = 'm1'; let cb = null, doneA = 0; DA.delWb(mA, ['L'], (t, f) => { cb = f; }, () => { doneA++; }, () => ({ id: 'm2', whiteboard: [] })); cb(true);
+            const mB = flatMap(); mB.id = 'm1'; const mB2 = flatMap(); mB2.id = 'm1'; let cb2 = null, outB = null; DA.delWb(mB, ['L'], (t, f) => { cb2 = f; }, o => { outB = o; }, () => mB2); cb2(true);
+            const mC = flatMap(); mC.id = 'm1'; let doneC = 0; DA.delWb(mC, ['o'], () => { throw new Error('asked'); }, () => { doneC++; }, () => null);   // a plain piece is taken at once on the map handed in, with no question
+            const rA = { id: 'm1', rooms: [{ id: 'r1', name: 'Inn' }], links: [] }; let rcb = null, rDone = 0; DA.delRooms(rA, ['r1'], (t, f) => { rcb = f; }, () => { rDone++; }, () => ({ id: 'm9' })); rcb(true);
+            check('1.6.3, the review of 87d9b6e0 (findings 6 and 8): a lone locked piece is said to be part of the map\'s structure only where buildcore structOk says so (a locked wall is, a text box locked by hand is not); a flattened picture that is itself locked is not counted again as a further locked piece; and a question answered after the map on screen changed deletes nothing on the map it was asked on: another map by its id takes nothing, the same map put in its place by an Undo is the one the pieces go from, and a plain piece with no question goes at once',
+                wS === 'Delete this locked piece? It is part of the map’s structure.' && wT === 'Delete this locked piece?'
+                && wLF === 'Delete the flattened picture? Its 2 pieces can be put back as they were, or deleted with it.' && wLF2 === wLF + ' What else is picked goes too, with 1 locked piece.'
+                && doneA === 0 && mA.whiteboard.some(w => w.id === 'L') && !!outB && mB.whiteboard.some(w => w.id === 'L') && !mB2.whiteboard.some(w => w.id === 'L')
+                && doneC === 1 && !mC.whiteboard.some(w => w.id === 'o') && rDone === 0 && rA.rooms.length === 1 && DA.DEL_MOVED === 'Nothing was deleted: the map changed before you answered.'
+                && (rdS('inspector.js').match(/\}, getActiveMap\);/g) || []).length === 5 && (rdS('whiteboard.js').match(/\}, getActiveMap\);/g) || []).length === 3 && (rdS('io.js').match(/\}, getActiveMap\);/g) || []).length === 3,
+                j([wS, wT, wLF, wLF2, doneA, outB, doneC, rDone]));
+            // Undo through io.js's own history (textcheck's history, steps and chunks slices, run for real), the save being flatFollow and then the pass
+            const ioT2 = read('system/app/scripts/io.js'), cut2 = name => { const a = '// [textcheck:' + name + '-start]', b = '// [textcheck:' + name + '-end]', i = ioT2.indexOf(a), k = ioT2.indexOf(b); if (i < 0 || k < i) throw new Error('io.js ' + name); return ioT2.slice(i, k); };
+            const undoRun = act => { const items = { m1: Object.assign(flatMap(), { id: 'm1', type: 'map', meta: { title: 'M' }, rooms: [], links: [] }) }, camp = { id: 'c1', activeItemId: 'm1', items }, st = { viewMode: 'visual', appState: { campaigns: { c1: camp } } }, getMap = () => items[camp.activeItemId] || null;
+                const doc = { addEventListener() {}, createElement: () => ({ style: {}, classList: { add() {}, remove() {} } }), createTextNode: t => ({ text: t }), getElementById: () => null, body: {}, activeElement: null, querySelectorAll: () => [], querySelector: () => null };
+                const win = Object.assign(winRec(), { wpCanPersistLocal: () => true }), H = {};
+                const io = new Function('window', 'state', 'getActiveCampaign', 'getActiveMap', 'localStorage', 'document', 'setTimeout', 'clearTimeout', 'Date', 'render', 'save', 'toast', 'saveTimeout', 'mergeLivePlayerState',
+                    cut2('history') + NL + cut2('steps') + NL + cut2('chunks') + NL + 'return { pushHistory: pushHistory, undo: undo, redo: redo, pending: function(v) { if (v !== undefined) savePending = v; return savePending; } };')(
+                    win, st, () => camp, getMap, { getItem: () => null }, doc, () => 0, () => {}, { now: () => 1000 }, () => {}, im => H.save(im), () => {}, undefined, () => {});
+                H.save = () => { FL.flatFollow(getMap()); io.pushHistory(); io.pending(false); };   // the save as io.js makes it: the pieces placed, then the pass
+                io.pushHistory();   // the first pass seeds the baseline, as the app's first save does
+                act(getMap()); H.save();
+                const rows = () => getMap().whiteboard.filter(w => !w.waiting).map(w => [w.id, w.x, w.y, !!w.hidden, w.flatIn || '']);   // a waiting token is never kept in a step (Onboarding F1a), so it is left out of the reading
+                const after = rows(); io.undo(); const undone = rows(); io.redo(); const redone = rows();
+                return { after, undone, redone }; };
+            let uMove = null, uBack = null, uAll = null, uErr = '';
+            try { uMove = undoRun(m => { m.whiteboard[0].x = 130; }); uBack = undoRun(m => { DA.delApply(m, ['P'], 'back'); }); uAll = undoRun(m => { DA.delApply(m, ['P'], 'all'); }); } catch (e) { uErr = String(e && e.stack || e); }
+            const before = flatMap().whiteboard.filter(w => !w.waiting).map(w => [w.id, w.x, w.y, !!w.hidden, w.flatIn || '']);
+            check('1.6.3, the review of 87d9b6e0 (finding 11): one Undo through io.js\'s own history (pushHistory and the steps, run for real) takes back a flattened picture moved with its pieces, Put the pieces back and Delete them too, each as one step, and Redo makes each again',
+                !uErr && !!uMove && j(uMove.undone) === j(before) && uMove.after[0][1] === 130 && uMove.after[1][1] === 140 && j(uMove.redone) === j(uMove.after)
+                && j(uBack.undone) === j(before) && uBack.after.length === 5 && uBack.after.every(r => r[4] === '') && j(uBack.redone) === j(uBack.after)
+                && j(uAll.undone) === j(before) && j(uAll.after.map(r => r[0])) === j(['o', 'L', 't']) && j(uAll.redone) === j(uAll.after),
+                uErr || j([uMove, uBack, uAll]));
+        }
     }
     /* -- which pieces -- */
     const P0 = { x: 10, y: 20, w: 30, h: 40 }, pc = o => Object.assign({}, P0, o), KINDS_IN = ['image', 'path', 'rect', 'circle', 'hexagon', 'diamond', 'triangle', 'star', 'line'];

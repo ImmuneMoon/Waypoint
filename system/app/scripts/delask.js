@@ -15,6 +15,7 @@
    it in Node. The flow (delAsk, delWb, delRooms) takes the app's question as an argument (dialogs.js showConfirm, which every caller already
    imports), so this module imports no page module. Each caller still saves once and draws once, so one Undo takes the whole delete back. */
 import { flatUndo, flatDrop } from './flatten.js';
+import { structOk } from './buildcore.js';   // the review of 87d9b6e0: a locked piece is said to be part of the map's structure only where it is
 
 // [buildcheck:delask-start]
 // A piece that counts as a token for the question: a character token or a waiting token (Onboarding F1a)
@@ -24,16 +25,19 @@ function delTok(w) { return !!w && (w.isChar === true || !!w.isChar || !!w.waiti
 // among them with how many pieces it holds. A flattened picture that holds no piece any more is a plain picture here. The ids are read as a set,
 // so a piece named twice counts once; an id the map does not hold counts for nothing.
 function delCount(list, ids) {
-    var want = Object.create(null), c = { n: 0, locked: 0, tokens: 0, flats: [], kids: 0 };
+    var want = Object.create(null), c = { n: 0, locked: 0, struct: 0, tokens: 0, flats: [], kids: 0 };
     (Array.isArray(ids) ? ids : []).forEach(function(id) { if (typeof id === 'string') want[id] = 1; });
     var items = Array.isArray(list) ? list : [], kidsOf = Object.create(null);
     items.forEach(function(w) { if (w && typeof w.flatIn === 'string' && want[w.id] !== 1) kidsOf[w.flatIn] = (kidsOf[w.flatIn] || 0) + 1; });   // a piece picked itself goes anyway, so it is no piece to put back
     items.forEach(function(w) {
         if (!w || typeof w.id !== 'string' || want[w.id] !== 1) return;
         want[w.id] = 2; c.n++;
-        if (w.locked) c.locked++;
+        var flat = w.flatPic === true && kidsOf[w.id] > 0;
+        // a flattened picture that holds pieces has a question of its own, so its own lock (a picture on the back layer is structure) is not
+        // counted again as a further locked piece (the review of 87d9b6e0)
+        if (w.locked && !flat) { c.locked++; if (structOk(w)) c.struct++; }
         if (delTok(w)) c.tokens++;
-        if (w.flatPic === true && kidsOf[w.id] > 0) { c.flats.push({ id: w.id, kids: kidsOf[w.id] }); c.kids += kidsOf[w.id]; }
+        if (flat) { c.flats.push({ id: w.id, kids: kidsOf[w.id] }); c.kids += kidsOf[w.id]; }
     });
     return c;
 }
@@ -60,7 +64,7 @@ function delWords(c) {
         return { text: (one ? 'Delete the flattened picture? Its ' : 'Delete ' + c.flats.length + ' flattened pictures? Their ') + plural(c.kids, 'piece', 'pieces') + ' can be put back as ' + (c.kids === 1 ? 'it was' : 'they were') + ', or deleted with ' + (one ? 'it.' : 'them.') + extra(c.n > c.flats.length), flat: true };
     }
     if (!c.locked && !c.tokens) return { text: '', flat: false };
-    if (c.n === 1) return { text: c.tokens ? 'Delete this token?' : 'Delete this locked piece? It is part of the map’s structure.', flat: false };
+    if (c.n === 1) return { text: c.tokens ? 'Delete this token?' : c.struct ? 'Delete this locked piece? It is part of the map’s structure.' : 'Delete this locked piece?', flat: false };   // structure by buildcore structOk alone: a text box or a shape locked by hand is no part of it
     return { text: 'Delete ' + plural(c.n, 'piece', 'pieces') + '?' + extra(false), flat: false };
 }
 // The question for a delete of rooms on the Data Map: always asked, since a room takes its links with it
@@ -115,28 +119,45 @@ function delAsk(q, confirm, go) {
 // [buildcheck:delask-end]
 
 function step(s, f) { try { if (typeof window.wpStepLog === 'function') window.wpStepLog('delete v1', s, f || {}); } catch (e) {} }
-// The whole of a delete on the board: asks where it must, then takes the pieces and calls done(out) for the caller to clear its selection,
-// save once and draw (out is delApply's answer). Nothing happens on Cancel.
-function delWb(map, ids, confirm, done) {
+function say(t) { if (typeof window !== 'undefined' && typeof window.appToast === 'function') window.appToast(t); }   // the page's notice, through its window name, so the pure part loads in Node
+// What is said where the map changed under an open question (the review of 87d9b6e0)
+var DEL_MOVED = 'Nothing was deleted: the map changed before you answered.';
+// The map a question was asked on, found again when it is answered (the review of 87d9b6e0): showConfirm queues questions behind each other, so
+// the GM may switch maps, or an Undo may put a new copy of the map in its place, before the answer comes. `now` (the caller's getActiveMap)
+// answers the map on screen then: the question goes on with it only while it is the same map by its id, so the delete lands in the map that is
+// saved, recorded as a step and sent to the table, and otherwise nothing is deleted and the GM is told. With no `now` the map handed in stands
+function delAgain(map, now) {
+    if (typeof now !== 'function') return map;
+    var cur = null; try { cur = now(); } catch (e) { cur = null; }
+    return cur && map && cur.id === map.id ? cur : null;
+}
+// The whole of a delete on the board: asks where it must, then takes the pieces and calls done(out, how) for the caller to clear its
+// selection, save once and draw (out is delApply's answer, how the answer: null where nothing was asked, 'back', 'all' or 'yes'). Nothing
+// happens on Cancel, nor where the map changed before the answer (`now`, delAgain above)
+function delWb(map, ids, confirm, done, now) {
     if (!map || !Array.isArray(map.whiteboard)) return;
     var c = delCount(map.whiteboard, ids), q = delWords(c);
     if (!c.n) return;
     delAsk(q, confirm, function(how) {
-        var out = delApply(map, ids, how === 'all' ? 'all' : 'back');
+        var m = how ? delAgain(map, now) : map;   // a delete with no question is made at once, on the map handed in
+        if (!m || !Array.isArray(m.whiteboard)) { step('moved', { pieces: c.n }); say(DEL_MOVED); return; }
+        var out = delApply(m, ids, how === 'all' ? 'all' : 'back');
         step(q.text ? 'asked' : 'plain', { pieces: c.n, locked: c.locked, tokens: c.tokens, flats: c.flats.length, how: how || 'none' });
-        if (typeof done === 'function') done(out);
+        if (typeof done === 'function') done(out, how);
     });
 }
-// The whole of a delete of rooms on the Data Map: always asks, then takes the rooms and their links and calls done(n)
-function delRooms(map, ids, confirm, done) {
+// The whole of a delete of rooms on the Data Map: always asks, then takes the rooms and their links and calls done(n). `now` as for delWb
+function delRooms(map, ids, confirm, done, now) {
     if (!map) return;
     var c = roomCount(map.rooms, ids);
     if (!c.n) return;
     delAsk({ text: roomWords(c), flat: false }, confirm, function() {
-        var n = roomApply(map, ids);
+        var m = delAgain(map, now);
+        if (!m) { step('moved', { rooms: c.n }); say(DEL_MOVED); return; }
+        var n = roomApply(m, ids);
         step('rooms', { rooms: n });
         if (typeof done === 'function') done(n);
     });
 }
 if (typeof window !== 'undefined') window.wpDelAsk = { delWb: delWb, delRooms: delRooms, delSaid: delSaid };
-export { delTok, delCount, roomCount, delWords, roomWords, delApply, roomApply, delSaid, delAsk, delWb, delRooms };
+export { delTok, delCount, roomCount, delWords, roomWords, delApply, roomApply, delSaid, delAsk, delAgain, DEL_MOVED, delWb, delRooms };

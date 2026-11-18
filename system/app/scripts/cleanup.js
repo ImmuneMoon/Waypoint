@@ -708,6 +708,17 @@ function cleanImportItems(ic, deps) {
             if (w.ground !== undefined) { var GR = FC && typeof FC.cleanGround === 'function' ? FC.cleanGround(w.ground) : null; if (GR) w.ground = GR; else delete w.ground; }   // item 19b H5: a piece's ground height in yards (a pit below 0)
             if (w.texture !== undefined) { var TX = FC && typeof FC.cleanTexture === 'function' ? FC.cleanTexture(w.texture) : null; if (TX) w.texture = TX; else delete w.texture; }   // map builder B1: a texture only as a name of the app's own list
             if (w.furn !== undefined) { var FUd = deps && deps.FU && typeof deps.FU.cleanFurn === 'function' ? deps.FU : null, FUv = FUd && w.type === 'image' ? FUd.cleanFurn(w.furn) : null; if (FUv) w.furn = FUv; else delete w.furn; }   // 1.6.2 (backlog 222): a furnishing only as its kind, its version and its tint, none without the cleaner
+            // 1.6.3, the review of 87d9b6e0 (finding 16): a flattened picture's frame (flatAt) and where a piece stands beside it (flatOff) move pieces
+            // at the next save (flatten.js flatFollow), so a file's are kept only as sound figures within the bound flatten.js reads them by (FLAT_LIM,
+            // 1e7), and each only beside its own mark: flatAt beside flatPic true, flatOff beside a flatIn. A figure past it, or one that is no number,
+            // drops the key, and the board notes the picture's frame afresh where it stands (flatAnchor), moving nothing
+            if (w.flatPic !== undefined && w.flatPic !== true) delete w.flatPic;
+            if (w.flatIn !== undefined && !(typeof w.flatIn === 'string' && w.flatIn.length > 0 && w.flatIn.length <= 80)) delete w.flatIn;
+            if (w.flatAt !== undefined) { var FA = w.flatAt, flN = function(v, pos) { return typeof v === 'number' && isFinite(v) && (pos ? v > 0 && v <= 1e7 : Math.abs(v) <= 1e7); };
+                if (w.flatPic === true && isObj(FA) && flN(FA.x) && flN(FA.y) && (FA.w === undefined || flN(FA.w, true)) && (FA.h === undefined || flN(FA.h, true)) && (FA.r === undefined || flN(FA.r))) { w.flatAt = { x: FA.x, y: FA.y }; if (FA.w !== undefined && FA.h !== undefined) { w.flatAt.w = FA.w; w.flatAt.h = FA.h; } if (FA.r !== undefined) w.flatAt.r = FA.r; }
+                else delete w.flatAt; }
+            if (w.flatOff !== undefined) { var FO = w.flatOff, foN = function(v, pos) { return typeof v === 'number' && isFinite(v) && (pos ? v > 0 && v <= 1e7 : Math.abs(v) <= 1e7); };
+                if (typeof w.flatIn === 'string' && isObj(FO) && foN(FO.dx) && foN(FO.dy) && foN(FO.w, true) && foN(FO.h, true) && foN(FO.r)) w.flatOff = { dx: FO.dx, dy: FO.dy, w: FO.w, h: FO.h, r: FO.r }; else delete w.flatOff; }
             if (w.trim !== undefined) { var TR = FC && typeof FC.cleanTrim === 'function' && w.type === 'image' && !w.isChar ? FC.cleanTrim(w.trim) : null; if (TR) w.trim = TR; else delete w.trim; }   // 1.6.2 (backlog 37): a picture's trim only as its cleaner keeps it, none without the cleaner
             if (w.texSrc !== undefined || w.texTile !== undefined) { var TS = FC && typeof FC.cleanTexSrc === 'function' ? FC.cleanTexSrc(w.texSrc) : null, TT = TS && typeof FC.cleanTexTile === 'function' ? FC.cleanTexTile(w.texTile) : null; if (TS) w.texSrc = TS; else delete w.texSrc; if (TT) w.texTile = TT; else delete w.texTile; }   // map builder B3: a picture fill only as a plain path under saves/images and a known tile, none without the cleaners
             delete w.boxed;   // 1.6.2 (backlog 42): the host works its mark out for players, never a file

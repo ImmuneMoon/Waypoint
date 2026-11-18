@@ -4819,5 +4819,20 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
     check('1.6.3 (finding 37) the fog, measure and Snap menus and Help say what is true in plain sentence case: the gridless cells say how tokens see where no Vision is set, as fog.js visionOf does, no claim that nothing hidden is sent, no fixed cell size on Imperial or Metric, no lattice and no power glyph; Measurement system, Map scale and Snap to in sentence case, the tour\'s step too',
         !left.length && !missing.length && tourStale === 0 && count(tourSrc, '<b>Map scale</b>') === 1, J([left, missing, tourStale]));
 }
+// 1.6.3, the review of 87d9b6e0 (finding 4): the Layers bin stands apart from the order arrows. A rule's place in the sheet is not enough: the
+// row's own rule gives every button of it no margin, so the bin's rule must be the more specific of the two, or come after it where they weigh the
+// same. The rules are read from the style sheet with their selectors, and each selector's weight counted (ids, then classes, attributes and
+// pseudo-classes, then elements)
+{
+    const rulesOf = s => { const out = [], re = /([^{}]+)\{([^{}]*)\}/g; let m; while ((m = re.exec(s))) out.push({ sel: m[1].replace(/\/\*[\s\S]*?\*\//g, '').trim(), body: m[2], at: m.index }); return out; };
+    const weight = sel => { const s = sel.replace(/::[a-z-]+/g, ' '); return [(s.match(/#[\w-]+/g) || []).length, (s.match(/\.[\w-]+|\[[^\]]*\]|:[a-z-]+/g) || []).length, (s.replace(/[#.][\w-]+|\[[^\]]*\]|:[a-z-]+/g, ' ').match(/(^|[\s>+~])[a-z][\w-]*/g) || []).length]; };
+    const beats = (a, b) => a[0] !== b[0] ? a[0] > b[0] : a[1] !== b[1] ? a[1] > b[1] : a[2] >= b[2];
+    const R = rulesOf(css), rowRule = R.find(r => r.sel === '.element-list-item button.tool' && /(^|;)\s*margin:\s*0\s*;/.test(r.body)), binRule = R.find(r => /\bel-del\b/.test(r.sel) && /margin-left:\s*10px/.test(r.body));
+    const wRow = rowRule ? weight(rowRule.sel) : null, wBin = binRule ? weight(binRule.sel) : null, after = !!(rowRule && binRule && binRule.at > rowRule.at);
+    const lastBin = binRule ? /\.el-del$/.test(binRule.sel.split(/[\s>+~]+/).pop()) : false, same = !!(wRow && wBin && J(wRow) === J(wBin));
+    check('1.6.3, the review of 87d9b6e0 (finding 4): the Layers bin\'s 10 px margin wins over the row\'s rule that gives every button no margin, by the weight of its selector as counted from the style sheet, or by coming after it where they weigh the same; the rule names the bin itself (the first build\'s .element-list-item .el-del weighed less and lost)',
+        !!rowRule && !!binRule && lastBin && beats(wBin, wRow) && (!same || after) && J(weight('.element-list-item .el-del')) === J([0, 2, 0]) && J(weight('.element-list-item button.tool')) === J([0, 2, 1]) && J(weight('#a .b button.c:hover')) === J([1, 3, 1]),
+        J([rowRule && rowRule.sel, wRow, binRule && binRule.sel, wBin, after]));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

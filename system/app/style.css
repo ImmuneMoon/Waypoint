@@ -726,7 +726,7 @@
   .element-list-item .el-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .element-list-item button.tool { padding: 1px 5px; margin: 0; font-size: 10px; line-height: 16px; opacity: 0.55; }
   .element-list-item:hover button.tool { opacity: 1; }
-  .element-list-item .el-del { margin-left: 10px; }   /* 1.6.3 (finding 15): the bin stands apart from the order arrows, so a press meant for one never lands on it */
+  .element-list-item button.tool.el-del { margin-left: 10px; }   /* 1.6.3 (finding 15): the bin stands apart from the order arrows, so a press meant for one never lands on it. button.tool.el-del, so it wins over the rule above that gives every button of the row no margin (the review of 87d9b6e0) */
   .element-list-item .el-rename-in { width: 100%; box-sizing: border-box; padding: 3px 6px; font: inherit; font-size: 12px; background: var(--panel); color: var(--ink); border: 1px solid var(--gold); border-radius: 4px; outline: none; color-scheme: dark; margin: 0; }   /* the app's own box (the owner, 2026-11-12) */
   .el-layer-head { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); padding: 6px 2px 2px; border-bottom: 1px dashed var(--edge); margin-top: 4px; }
   .el-layer-head:first-child { margin-top: 0; }

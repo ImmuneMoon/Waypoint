@@ -780,8 +780,12 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
       if (!(mw > 5 && mh > 5)) { render(); return; }
       var activeMap = getActiveMap(); if (!activeMap) return;
       var selected = [], nM = window.wpNet, onlyOwn = !!(nM && nM.active && nM.role === 'client');   // fold M8: a player's marquee takes only what they may move
+      // 1.6.3, the review of 87d9b6e0: a piece drawn into a flattened picture that is still on the map is out of sight and out of reach (whiteboard.js
+      // wb-flat-in), so a sweep passes over it as a press does: picked with its picture it went with the picture's drag and then moved again with it
+      var flatOn = Object.create(null); activeMap.whiteboard.forEach(function(f) { if (f && f.flatPic === true && typeof f.id === 'string') flatOn[f.id] = 1; });
       activeMap.whiteboard.forEach(function(w) {
           if (onlyOwn && !(w && (w.isChar || w.waiting) && w.ownerId === nM.myId && !w.hidden && !w.locked)) return;
+          if (w && typeof w.flatIn === 'string' && flatOn[w.flatIn] === 1) return;
           if (!onlyOwn && window.wpILayers && window.wpILayers.through(w)) return;   // backlog 43: a marquee passes over a kind that takes no clicks
           var cx = w.x + (w.w || 100) / 2, cy = w.y + (w.h || 100) / 2;
           if (cx >= mx && cx <= mx + mw && cy >= my && cy <= my + mh) selected.push(w.id);
@@ -1292,6 +1296,10 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
           }
           // fold M9: every other dragged token's drop lands as well, on any grid (a character or a waiting token, not a hidden one; a player's drag
           // holds only their own): before, only a hex map's seat sent them, and elsewhere they reached the table with the next save
+          // 1.6.3, the review of 87d9b6e0: a flattened picture dropped brings the pieces drawn into it beside it before the final places below are
+          // told to the table, so the host judges a token's drop against the walls where they are drawn (flatten.js flatFollow, through its window
+          // name; only on the machine that owns the campaign, and again by the save below)
+          if (modeStr === 'visual' && window.wpFlatten && typeof window.wpFlatten.follow === 'function' && window.wpCanPersistLocal && window.wpCanPersistLocal()) { try { window.wpFlatten.follow(getActiveMap()); } catch (e) {} }
           if (modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.streamPos) multiDrag.forEach(function(md) { if (md.item !== item && (md.item.isChar || md.item.waiting) && !md.item.hidden) window.wpNet.streamPos(md.item, true, dragMapId); });
           if(modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(item, true, dragMapId); // final, post-snap position
           if(modeStr === 'visual' && item.isChar) {

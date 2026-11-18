@@ -34,7 +34,7 @@ import './trackcore.js';   // 1.6.0 backlog 29: the trackers' cleaner (window.wp
 import './imgtagcore.js';   // 1.6.0 backlog 34: the Image Library tags' cleaner (window.wpImgTagCore), there before the first load
 import './soundoncore.js';   // 1.6.2: the cleaner of the sounds on actions (window.wpSoundOnCore), there before the first load
 import * as Share from './sharecore.js';   // 1.6.0 backlog 34: the share sheet's pure half (what an export leaves out, and its card)
-import { flatFollow } from './flatten.js';   // 1.6.3 (finding 16): a flattened picture's pieces move with it, in the save that moves it
+import { flatFollow, flatKids, flatRemap } from './flatten.js';   // 1.6.3 (finding 16): a flattened picture's pieces move with it, in the save that moves it, and are copied with it (the review of 87d9b6e0)
 import { delWb, delRooms, delSaid } from './delask.js';   // 1.6.3 (findings 15 and 16): Delete asks first where it takes locked structure, a token, a room or a flattened picture's pieces
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap } from './models.js';
@@ -1488,6 +1488,12 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
     if(activeMap && activeMap.meta && typeof activeMap.meta === 'object') { activeMap.meta.updated = Date.now(); }   // an item from a file may have no meta
 
+    // 1.6.3, the review of 87d9b6e0: a flattened picture's pieces are placed beside it at once, as save() is called, on the machine that owns the
+    // campaign: a drag's release, a nudge, a resize or a turn that ends in save() then never leaves its walls where the picture stood while the
+    // debounced save below waits, so the host's fog and the table's catch-ups read them where they are drawn. flatFollow is idempotent, so the
+    // call before the step is recorded below stays as the net for a change that reached the map some other way
+    if (typeof flatFollow === 'function' && activeMap && canPersistLocal()) { try { flatFollow(activeMap); } catch (e) {} }
+
     saveNote.innerHTML = 'Saving...';
 
     
@@ -1668,15 +1674,27 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       if (!m || m.type !== 'map') return false;
       var ids = selectedWbIds();
       if (!ids.length) return false;
-      wbClipboard = ids.map(function(id) { return m.whiteboard.find(function(x) { return x.id === id; }); }).filter(function(x) { return x && !x.waiting; }).map(clone);   // Onboarding F1a: a waiting token is never copied
-      wbPasteCount = 0;
+      var picked = ids.map(function(id) { return m.whiteboard.find(function(x) { return x.id === id; }); }).filter(function(x) { return x && !x.waiting; }).map(clone);   // Onboarding F1a: a waiting token is never copied
+      // 1.6.3, the review of 87d9b6e0: a flattened picture is copied with the pieces drawn into it (flatten.js flatKids), so that a paste of it
+      // holds them too, its walls among them; pasteWbClipboard names them again for the copy of the picture (flatRemap)
+      var kids = typeof flatKids === 'function' ? flatKids(m.whiteboard, picked).map(clone) : [];
       if (cut) {
-          m.whiteboard.forEach(function(x) { if (ids.includes(x.id) && x.waiting && window.wpNet && window.wpNet.noWaiting) window.wpNet.noWaiting(x.ownerId); });   // Onboarding F1a: cut away, it stays away this session
-          m.whiteboard = m.whiteboard.filter(function(x) { return !ids.includes(x.id); });
-          state.selWbIds = []; state.selWbId = null;
-          save(); render();
+          // Cut takes what is picked as Delete does (delask.js delWb): it asks where Delete asks (a locked piece, a token, a flattened picture's
+          // pieces), takes a waiting token away for the session (Onboarding F1a), and never strands what is drawn into a flattened picture. The
+          // clipboard is filled once the pieces have gone, and holds the pieces drawn into a picture only where they went with it (Delete them
+          // too); where they were put back, the picture is pasted as a plain picture. Nothing is cut, and the clipboard is as it was, on Cancel
+          delWb(m, ids.slice(), showConfirm, function(out, how) {
+              wbClipboard = how === 'all' ? picked.concat(kids) : picked;
+              wbPasteCount = 0;
+              state.selWbIds = []; state.selWbId = null;
+              save(); render();
+              toast('Cut ' + picked.length + ' item(s).' + (out && out.back ? delSaid(out).slice('Deleted.'.length) : ''));
+          }, getActiveMap);
+          return true;
       }
-      toast((cut ? 'Cut ' : 'Copied ') + wbClipboard.length + ' item(s).');
+      wbClipboard = picked.concat(kids);
+      wbPasteCount = 0;
+      toast('Copied ' + picked.length + ' item(s).');
       return true;
   }
 
@@ -1685,7 +1703,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       if (!m || m.type !== 'map' || !wbClipboard || !wbClipboard.length) return false;
       wbPasteCount++;
       var off = 25 * wbPasteCount;
-      var gidMap = {}, newIds = [];
+      var gidMap = {}, newIds = [], pairs = [];
       wbClipboard.forEach(function(src) {
           var it = clone(src);
           it.id = 'wb' + uid() + Math.random().toString(36).slice(2, 5);
@@ -1698,8 +1716,13 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
           it.x += off; it.y += off;
           if (window.wpSeatHex) window.wpSeatHex(it, m);   // pasted tokens land in a cell, not beside one
           m.whiteboard.push(it);
-          newIds.push(it.id);
+          pairs.push({ old: src.id, it: it });
       });
+      // 1.6.3, the review of 87d9b6e0: the copies of a flattened picture and of the pieces drawn into it name each other (flatten.js flatRemap),
+      // never the picture they were copied from; a piece whose picture was not copied gets its own look back, and a picture whose pieces were
+      // not copied is a plain picture. The pieces drawn into a pasted picture stay out of sight, so they are not picked
+      var kidsP = typeof flatRemap === 'function' ? flatRemap(pairs) : {};
+      pairs.forEach(function(p) { if (kidsP[p.it.id] !== 1) newIds.push(p.it.id); });
       state.selWbIds = newIds; state.selWbId = newIds[0] || null;
       save(); render();
       toast('Pasted ' + newIds.length + ' item(s).');
@@ -1714,7 +1737,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       var step = shift ? 10 : 1;
       var dx = mvDir[0] * step, dy = mvDir[1] * step;
       if (state.viewMode === 'visual') {
-          var ids2 = selectedWbIds();
+          var ids2 = selectedWbIds(), sent = [];
           if (!ids2.length) return false;
               ids2.forEach(function(id) {
                   var it = m2.whiteboard.find(function(x) { return x.id === id; });
@@ -1733,8 +1756,12 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
                       it.x += Math.sign(dx) * nq; it.y += Math.sign(dy) * nq;
                       window.wpSeatDrop(it, m2);
                   } else { it.x += dx; it.y += dy; }
-                  if (window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(it, true);
+                  sent.push(it);
               });
+          // 1.6.3, the review of 87d9b6e0: a flattened picture's pieces are placed beside it before any move is told to the table, so the host
+          // judges a token's new place against the walls where they are drawn (flatten.js flatFollow; only on the machine that owns the campaign)
+          if (typeof flatFollow === 'function' && canPersistLocal()) { try { flatFollow(m2); } catch (e) {} }
+          sent.forEach(function(it) { if (window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(it, true); });
           save(); render(); return true;
       } else if (state.viewMode === 'data' && state.selId) {
           var room = m2.rooms.find(function(r) { return r.id === state.selId; });
@@ -1822,7 +1849,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
               // 1.6.3 (findings 15 and 16): delask.js asks first where the selection holds a locked piece, a token or a flattened picture's pieces,
               // and takes everything picked on a yes (a waiting token that goes stays away this session, Onboarding F1a). A plain piece goes at once
-              delWb(m, ids.slice(), showConfirm, function(out) { state.selWbIds = []; state.selWbId = null; save(); render(); toast(delSaid(out)); });
+              delWb(m, ids.slice(), showConfirm, function(out) { state.selWbIds = []; state.selWbId = null; save(); render(); toast(delSaid(out)); }, getActiveMap);
 
           } else if (state.viewMode === 'data' && state.selLink != null && m.links && m.links[state.selLink]) {
               m.links.splice(state.selLink, 1); state.selLink = null;
@@ -1834,7 +1861,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
               // 1.6.3 (finding 15): a room takes its links with it, so the Data Map asks first (delask.js)
               var roomId = state.selId;
-              delRooms(m, [roomId], showConfirm, function() { if (state.selId === roomId) state.selId = null; save(); render(); toast('Room deleted.'); });
+              delRooms(m, [roomId], showConfirm, function() { if (state.selId === roomId) state.selId = null; save(); render(); toast('Room deleted.'); }, getActiveMap);
 
           }
 

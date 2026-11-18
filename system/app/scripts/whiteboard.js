@@ -453,7 +453,7 @@ import { renderDataMap, clearSnaps, drawSnap, doSmartSnapping, attachDrag, attac
 import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  renderElementList, esc } from './inspector.js';
 
 import { cssColor, picRef } from './safecore.js';
-import { flatAnchor } from './flatten.js';   // 1.6.3 (finding 16): where a flattened picture stands when first drawn, so its pieces can follow it
+import { flatAnchor, flatKids, flatRemap } from './flatten.js';   // 1.6.3 (finding 16): where a flattened picture stands when first drawn, so its pieces can follow it; a duplicate of one carries its pieces (the review of 87d9b6e0)
 import { delWb, delRooms, delSaid } from './delask.js';   // 1.6.3 (findings 15 and 16): Delete asks first where it takes locked structure, a token, a room or a flattened picture's pieces
 import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Library's tags, cleaned and drawn as text   // a map from a file: colors that are colors, pictures that are the app's own
 
@@ -1906,8 +1906,11 @@ window.wpFitToGrid = fitToGrid;
   function duplicateWbItems(its) {
       var am = getActiveMap();
       if (!am || am.type !== 'map' || !its.length) return [];
-      var gidMap = {}, copies = [];
-      its.forEach(function(src) {
+      var gidMap = {}, copies = [], pairs = [];
+      // 1.6.3, the review of 87d9b6e0: a flattened picture is duplicated with the pieces drawn into it (flatten.js flatKids), and the copies are
+      // named for each other below (flatRemap), so the copy holds its own walls and never names the picture it was made from
+      var flatAlso = typeof flatKids === 'function' ? flatKids(am.whiteboard, its.filter(Boolean)) : [];
+      its.concat(flatAlso).forEach(function(src) {
           if (!src || src.waiting) return;   // Onboarding F1a: a waiting token is the host's alone, never copied
           var it = JSON.parse(JSON.stringify(src));
           it.id = 'wb' + uid() + Math.random().toString(36).slice(2, 5);
@@ -1921,8 +1924,10 @@ window.wpFitToGrid = fitToGrid;
           if (hexy) { it.x += 45; it.y += 26; if (window.wpSeatHex) window.wpSeatHex(it, am); }   // the next cell over (flat-top: down-right)
           else { it.x += 25; it.y += 25; }
           am.whiteboard.push(it);
-          copies.push(it);
+          pairs.push({ old: src.id, it: it });
       });
+      var flatHeld = typeof flatRemap === 'function' ? flatRemap(pairs) : {};
+      pairs.forEach(function(p) { if (flatHeld[p.it.id] !== 1) copies.push(p.it); });   // a piece drawn into a copied picture stays out of sight, so it is not picked
       state.selWbIds = copies.map(function(c) { return c.id; });
       state.selWbId = state.selWbIds[0] || null;
       save(); render();
@@ -2055,7 +2060,7 @@ window.wpFitToGrid = fitToGrid;
               // 1.6.3 (findings 15 and 16): delask.js asks first where the selection holds a locked piece, a token or a flattened picture's
               // pieces, and saves and draws once the pieces have gone (a waiting token stays away this session, Onboarding F1a)
               var am = getActiveMap();
-              delWb(am, its.map(function(i) { return i.id; }), showConfirm, function(out) { state.selWbIds = []; state.selWbId = null; save(); if (window.appRender) window.appRender(); toast(delSaid(out)); });
+              delWb(am, its.map(function(i) { return i.id; }), showConfirm, function(out) { state.selWbIds = []; state.selWbId = null; save(); if (window.appRender) window.appRender(); toast(delSaid(out)); }, getActiveMap);
               return;
           } else return;
           save();
@@ -12496,7 +12501,7 @@ document.addEventListener('contextmenu', function(e) {
                 // Check if merge drawings is possible (all selected are open pen strokes — never a freeform fill region)
                 var allPaths = selectedIds.length > 1 && selectedIds.every(id => {
                     var it = am.whiteboard.find(x=>x.id===id);
-                    return it && it.type === 'path' && it.tip !== 'fill';
+                    return it && it.type === 'path' && it.tip !== 'fill' && !it.locked;   // 1.6.3, the review of 87d9b6e0: a locked line (a wall laid by Build, the map's structure) is never merged away without a word
                 });
                 if (allPaths) {
                     html += '<div class="menu-item cm-merge">Merge drawings</div>';
@@ -12853,7 +12858,7 @@ document.addEventListener('contextmenu', function(e) {
                     // 1.6.3 (findings 15 and 16): delask.js asks first where the selection holds a locked piece, a token or a flattened picture's
                     // pieces; the menu goes at once, and the save and the draw come once the pieces have gone (a waiting token stays away, F1a)
                     cMenu.style.display = 'none';
-                    delWb(am, selectedIds.slice(), showConfirm, function(out) { state.selWbIds = []; state.selWbId = null; save(); if (window.appRender) window.appRender(); toast(delSaid(out)); });
+                    delWb(am, selectedIds.slice(), showConfirm, function(out) { state.selWbIds = []; state.selWbId = null; save(); if (window.appRender) window.appRender(); toast(delSaid(out)); }, getActiveMap);
                     return;
                 } else {
                     var layers = ['back', 'back-mid', 'middle', 'front-mid', 'front'];
@@ -12872,7 +12877,7 @@ document.addEventListener('contextmenu', function(e) {
                     // 1.6.3 (finding 15): a room takes its links with it, so the Data Map asks first (delask.js). The links went with the room
                     // only from the Delete key before; every way of deleting a room now takes them
                     cMenu.style.display = 'none';
-                    delRooms(am, selectedIds.slice(), showConfirm, function() { state.selId = null; save(); if (window.appRender) window.appRender(); toast('Room deleted.'); });
+                    delRooms(am, selectedIds.slice(), showConfirm, function() { state.selId = null; save(); if (window.appRender) window.appRender(); toast('Room deleted.'); }, getActiveMap);
                     return;
                 } else {
                     var layers = ['back', 'back-mid', 'middle', 'front-mid', 'front'];

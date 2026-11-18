@@ -550,7 +550,7 @@ if(_el_delBtn) _el_delBtn.addEventListener('click',function(){
 
               else {
 
-                  var w = activeMap.whiteboard.find(x=>x.id===state.selWbId);
+                  var amR = getActiveMap(), w = amR && Array.isArray(amR.whiteboard) ? amR.whiteboard.find(x=>x.id===state.selWbId) : null;   // the map as it stands at the answer
 
                   if(w) delete w.nodeId;
 
@@ -558,7 +558,7 @@ if(_el_delBtn) _el_delBtn.addEventListener('click',function(){
 
               render(); save(true); toast('Room deleted.');
 
-          });
+          }, getActiveMap);   // the map found again when the question is answered (delask.js delAgain)
 
       });
 
@@ -1003,7 +1003,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if(_wbDelMulti) _wbDelMulti.addEventListener('click', function() {
                 // 1.6.3 (findings 15 and 16): asks first where the selection holds a locked piece, a token or a flattened picture's pieces (delask.js;
                 // a deleted waiting token stays away this session, Onboarding F1a)
-                delWb(activeMap, selectedIds.slice(), showConfirm, function(out) { state.selWbIds = []; state.selWbId = null; save(); render(); toast(delSaid(out)); });
+                delWb(activeMap, selectedIds.slice(), showConfirm, function(out) { state.selWbIds = []; state.selWbId = null; save(); render(); toast(delSaid(out)); }, getActiveMap);
             });
             ['multiBringFrontBtn', 'multiBringFwdBtn', 'multiSendBwdBtn', 'multiSendBackBtn'].forEach(btnId => {
                 var btn = document.getElementById(btnId);
@@ -1601,7 +1601,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var _el_wbDel = document.getElementById('wbDel');
             if(_el_wbDel) _el_wbDel.addEventListener('click', function() {
                 // 1.6.3 (findings 15 and 16): asks first where the piece is locked, a token or a flattened picture that holds pieces (delask.js)
-                delWb(activeMap, [w.id], showConfirm, function(out) { state.selWbIds = []; state.selWbId = null; save(); render(); toast(delSaid(out)); });
+                delWb(activeMap, [w.id], showConfirm, function(out) { state.selWbIds = []; state.selWbId = null; save(); render(); toast(delSaid(out)); }, getActiveMap);
             });
 
             var _el_setHomeVisualBtn = document.getElementById('setHomeVisualBtn');
@@ -1964,7 +1964,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               // flattened picture that holds pieces asks first, a plain piece goes at once. One save each way
               if (state.viewMode === 'data') {
 
-                  delRooms(activeMap, [id], showConfirm, function() { if (state.selId === id) state.selId = null; save(); render(); toast('Room deleted.'); });
+                  delRooms(activeMap, [id], showConfirm, function() { if (state.selId === id) state.selId = null; save(); render(); toast('Room deleted.'); }, getActiveMap);
 
               } else {
 
@@ -1972,7 +1972,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                       if (state.selWbId === id) state.selWbId = null;
                       if (Array.isArray(state.selWbIds)) state.selWbIds = state.selWbIds.filter(function(s) { return s !== id; });
                       save(); render(); toast(delSaid(out));
-                  });
+                  }, getActiveMap);
 
               }
 

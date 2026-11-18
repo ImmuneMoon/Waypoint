@@ -11,7 +11,9 @@ require('./srcjoin').install();   // a split giant script reads joined, exactly 
 const fs = require('fs'), path = require('path');
 const src = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
 
-function between(a, b, label) {
+let partSlices = null;   // tools/checkkit.js netSlices, made the first time a slice names a part of net.js
+function between(a, b, label, file) {
+    if (file) return (partSlices || (partSlices = require('./checkkit').netSlices('netcheck'))).between(a, b, label, file);   // a part of net.js (netattack.js, nethold.js), read by its own name
     const i = src.indexOf(a), j = src.indexOf(b);
     if (i < 0 || j < 0 || j <= i) throw new Error('netcheck: marker ' + label + ' not found in net.js');
     if (src.indexOf(a, i + 1) >= 0 || src.indexOf(b, j + 1) >= 0) throw new Error('netcheck: marker ' + label + ' is not unique');
@@ -5637,7 +5639,7 @@ pendingChecks.push((async () => {
     const src4 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
     const line = k => { const i = src4.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src4.slice(i, src4.indexOf('\n', i)); };
     const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom(', 'function applyLines(', 'function chatHistoryOf('].map(line).join('\n') + '\n';
-    const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq')), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll'), atSrc = between('// [netcheck:attempt-start]', '// [netcheck:attempt-end]', 'attempt');
+    const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq')), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll'), atSrc = between('// [netcheck:attempt-start]', '// [netcheck:attempt-end]', 'attempt', 'netattack.js');
     const hfSrc = between('// [netcheck:hidefig-start]', '// [netcheck:hidefig-end]', 'hidefig'), nsSrc = between('// [netcheck:npcseen-start]', '// [netcheck:npcseen-end]', 'npcseen'), paSrc = between('// [netcheck:postapply-start]', '// [netcheck:postapply-end]', 'postapply'), stSrc = fnSrc('function sendTable(msg, exceptConn) {', '\n}\n', 'sendTable') + '\n}\n', pcSrc = line('net.postApplyCard = function(') + '\n' + src4.slice(src4.indexOf('net.postApplyCard = function(') + line('net.postApplyCard = function(').length, src4.indexOf('\n};\n', src4.indexOf('net.postApplyCard = function(')) + 4);
     const DUCK = '3d6 <= Will - AttemptMargin', GRIT = '3d6 <= 5 + Attempter.Drill', PLAIN = '3d6 <= Will', WARD = '3d6 <= Row.Def - AttemptMargin', JAM = '3d6 <= Will - AttemptMargin + 20';
     const mk = o => {

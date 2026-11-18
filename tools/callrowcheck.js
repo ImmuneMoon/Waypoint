@@ -35,7 +35,7 @@ const imp = p => import('file:///' + path.resolve(app(p)).replace(/\\/g, '/'));
         && /no list’s roll/.test(says([{ roll: 'f_w#1', when: 'resisted', by: 'r_dodge' }])[0]) && /roller’s own row/.test(says([{ roll: 'f_w#1', when: 'resisted', to: 'self' }])[0]) && /roller’s own row/.test(says([{ roll: 'f_w#1', when: 'hit' }])[0])
         && says([{ roll: 'f_w#1', when: 'resisted', by: 'f_w#2' }]).length === 0 && says([{ roll: 'f_w#1', when: 'resisted', to: 'self' }], true).length === 0 && says([{ roll: 'f_w#1', when: 'hit' }], true).length === 0, J([says([{ roll: 'f_w#7' }]), says([{ roll: 'f_w#1', when: 'resisted', to: 'self' }], true)]));
     // ---- the host's slice, run for real
-    const src = read('scripts/net.js'), sl = src.slice(src.indexOf('// [netcheck:rollcalls-start]'), src.indexOf('// [netcheck:rollcalls-end]'));
+    const src = read('scripts/net.js'), sl = require('./checkkit').netSlices('callrowcheck').range('netattack.js', '// [netcheck:rollcalls-start]', '// [netcheck:rollcalls-end]');   // the attempt record's own code, read by its part's name
     const posted = [], _attempts = {}; let nId = 0;
     const net = { postDue: (ch, act, kind, round, toO, more) => posted.push({ ch: ch.id, act: act.id, label: act.label, kind, toO, more }), blowMake: (ch, act) => { const id = 'b_abcd' + String(1000 + nId++); _attempts[id] = { charId: ch.id, act, m: 0, blow: {} }; return id; } };
     const win = { wpFormula: F, wpSheets: { playerSystem: () => view } };

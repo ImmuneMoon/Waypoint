@@ -27,7 +27,7 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
     // the host's real roll branch with the real hold
     const nsrc = read('scripts/net.js'), between = (a, b) => { const i = nsrc.indexOf(a), k = nsrc.indexOf(b); if (i < 0 || k < i) throw new Error('no slice ' + a); return nsrc.slice(i + a.length, k); };
     const line = k => { const i = nsrc.indexOf(k); if (i < 0) throw new Error('no line ' + k); return nsrc.slice(i, nsrc.indexOf(NL, i)); };
-    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(line).join(NL) + NL, rq = between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]'), hold = between('// [netcheck:cardhold-start]', '// [netcheck:cardhold-end]');
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(line).join(NL) + NL, rq = between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]'), hold = require('./checkkit').netSlices('cardcheck').between('// [netcheck:cardhold-start]', '// [netcheck:cardhold-end]', 'cardhold', 'nethold.js');
     const world = (o) => {
         o = o || {}; const W = { table: [], pushed: [], sent: [], timers: [], notes: [], deltas: [] };
         W.camp = { id: 'k', activeItemId: 'm1', system: JSON.parse(J(SYS)), chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: Object.assign({ f_luck: 2 }, o.vals) } }, items: { m1: { type: 'map', whiteboard: [] } } };

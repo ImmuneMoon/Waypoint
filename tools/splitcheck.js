@@ -29,6 +29,10 @@
       judged statically in 2.
    6. Under the wrap a part reads as one neutral line, and each marker of a suite in a part's body stands in the joined root as often
       as in the part.
+   7. A part's area's tests read it by name: in tools/*.js (but srcjoin, splitlib, splitcheck, checkkit and suitecount), a line that
+      holds the literal of a marker only a part holds also names that part's file, so the slice is cut from the part itself
+      (tools/checkkit.js netSlices with the file, or srcjoin.raw) and never from the joined root alone (docs/REFACTOR_SPLIT_PLAN.md,
+      "Tests move with their area").
    `node tools/splitcheck.js --against <commit>` also proves the joined text of each root equal to that commit's (joined) root: the raw
    bytes for a root git keeps byte for byte (net.js), the text with CRLF read as LF for the others, with one line ending throughout.
    It needs the parser Node ships, so it runs itself again with --expose-internals. */
@@ -243,6 +247,24 @@ const git = (args, enc) => { const r = cp.spawnSync('git', args, { cwd: ROOT, en
         const off = [...new Set(marks)].filter(m => J.split(m).length - 1 !== (rawRoot.split(m).length - 1) + (marks.filter(x => x === m).length));
         check(p + ': under the wrap it reads as one neutral line, and each of its ' + marks.length + ' suite markers stands in the joined ' + root + ' as often as in the part and the root together', w === '// [split:part of ' + root + ']\n' && off.length === 0, off);
     });
+
+    // ---- 7. a part's markers are read by the part's name ----
+    // A suite that cuts a moved region out by its markers reads it from the part by name (tools/checkkit.js netSlices with the file, or
+    // srcjoin.raw), never from the joined root alone: a line that holds the literal of a marker only a part holds names that part's file
+    const own7 = new Set(['srcjoin.js', 'splitlib.js', 'splitcheck.js', 'checkkit.js', 'suitecount.js']);
+    const byPart7 = [];   // [the marker's words, e.g. "netcheck:attempt", the part that holds it]
+    parts.forEach(p => {
+        const rootRaw = srcjoin.raw(srcjoin.rootOf(p), 'latin1');
+        const names = new Set((srcjoin.raw(p, 'latin1').match(/\/\/ \[([a-z0-9]+:[A-Za-z0-9_]+)-(?:start|end)\]/g) || []).map(m => m.slice(4, m.lastIndexOf('-'))));
+        names.forEach(n => { if (n.indexOf('split:') !== 0 && rootRaw.indexOf('[' + n + '-') < 0) byPart7.push([n, p]); });   // a suite's markers, never the split's own body lines
+    });
+    const unnamed7 = [];
+    fs.readdirSync(__dirname).filter(f => /\.js$/.test(f) && !own7.has(f)).forEach(f => {
+        fs.readFileSync(path.join(__dirname, f), 'utf8').split('\n').forEach((line, i) => {
+            byPart7.forEach(([n, p]) => { if (line.indexOf('[' + n + '-start]') >= 0 || line.indexOf('[' + n + '-end]') >= 0) { if (line.indexOf(p) < 0) unnamed7.push(f + ':' + (i + 1) + ' reads [' + n + '] without naming ' + p); } });
+        });
+    });
+    check('7. a line of a tool that holds the literal of a marker only a part holds names that part\'s file (' + byPart7.length + ' such markers), so the area\'s tests read it by name', byPart7.length > 0 && unnamed7.length === 0, unnamed7.slice(0, 20));
 
     // ---- --against <commit>: the joined text equals the old file ----
     if (argAgainst) {

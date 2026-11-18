@@ -201,7 +201,7 @@ const git = (args, enc) => { const r = cp.spawnSync('git', args, { cwd: ROOT, en
                 const eol = oldTxt.indexOf('\r\n') >= 0 ? '\r\n' : '\n';
                 oldTxt = oldTxt.split('\n').map(l => {
                     const t = bare(l), m = srcjoin.MARK.exec(t);
-                    if (m) { const pt = (git(['show', argAgainst + ':system/app/scripts/' + m[1]], 'buffer') || Buffer.alloc(0)).toString('latin1'); const a = pt.indexOf('\n', pt.indexOf(srcjoin.BODY_START)) + 1, b = pt.lastIndexOf('\n', pt.indexOf(srcjoin.BODY_END)) + 1; let body = pt.slice(a, b); body = body.replace(/\r\n/g, '\n'); if (eol === '\r\n') body = body.replace(/\n/g, '\r\n'); return body.slice(0, -eol.length); }
+                    if (m) { const pt = (git(['show', argAgainst + ':system/app/scripts/' + m[1]], 'buffer') || Buffer.alloc(0)).toString('latin1'); const a = pt.indexOf('\n', pt.indexOf(srcjoin.BODY_START)) + 1, b = pt.lastIndexOf('\n', pt.indexOf(srcjoin.BODY_END)) + 1; let body = pt.slice(a, b); body = body.replace(/\r\n/g, '\n'); if (eol === '\r\n') body = body.replace(/\n/g, '\r\n'); return body.slice(0, -1); }   // the line's own LF comes back from the join; a CR, where the root has one, stays
                     return t.indexOf('// [split:glue]') >= 0 ? null : l;
                 }).filter(l => l !== null).join('\n');
             }

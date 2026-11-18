@@ -6,3 +6,4 @@
 system/app/assets/vendor/*.js binary
 # the parts split out of net.js are kept byte for byte, with their CRLF line endings, as net.js is (git keeps net.js so since it holds control bytes; tools/splitcheck.js holds the line)
 system/app/scripts/nethold.js -text
+system/app/scripts/netattack.js -text

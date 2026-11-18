@@ -8495,6 +8495,25 @@ pendingChecks.push((async () => {
                 { wpNet: null }, { appState: stP }, () => campP, () => null, { getItem: () => null }, { getElementById: () => null, activeElement: null }, () => 0, () => {}, Date, () => {}, () => {}, () => {}, undefined, () => {}, BlobC, JC);
             SP.pushHistory(); const b = SP.saveBody(SP.passTake()), txt = typeof b === 'string' ? b : await b.text();
             return txt === realJ.stringify(stP) && txt.indexOf('"__proto__"') >= 0; };
+        // the review of 1.6.3 (finding 13): a campaign's fogMem (the players' explored ground) is a part of its own, written again only when fog.js
+        // says a fogMem was written since (wpFog.memVer), wherever it stands among the campaign's keys; with no fog.js it stays in the skeleton
+        {
+            let ver = 1, fmJ = 0; const fmA = { mA: { u_a: { k: 'square:50|0', t: 1, c: '1,1;2,2' } } }, fmB = { mB: { u_b: { k: 'k', t: 2, c: '3,3' } } };
+            const JF = { parse: realJ.parse, stringify: function(v) { if (v === fmA || v === fmB) fmJ++; return realJ.stringify.apply(realJ, arguments); } };
+            const campA = { id: 'ca', fogMem: fmA, items: { m1: mapOf('m1', 2) }, name: 'A' }, campB = { id: 'cb', items: { m2: mapOf('m2', 1) }, fogMem: fmB }, stF = { activeCampaignId: 'ca', campaigns: { ca: campA, cb: campB } };
+            const mkF = winF => new Function('window', 'state', 'getActiveCampaign', 'getActiveMap', 'localStorage', 'document', 'setTimeout', 'clearTimeout', 'Date', 'render', 'save', 'toast', 'saveTimeout', 'mergeLivePlayerState', 'Blob', 'JSON',
+                histS + '\n' + bodyS + '\nreturn { pushHistory: pushHistory, passTake: passTake, saveBody: saveBody };')(
+                winF, { appState: stF }, () => campA, () => null, { getItem: () => null }, { getElementById: () => null, activeElement: null }, () => 0, () => {}, Date, () => {}, () => {}, () => {}, undefined, () => {}, BlobC, JF);
+            const SFm = mkF({ wpNet: null, wpFog: { memVer: () => ver } }), SFn = mkF({ wpNet: null });
+            const bodyOf = async S => { S.pushHistory(); const b = S.saveBody(S.passTake()), txt = typeof b === 'string' ? b : await b.text(); return [typeof b, txt === realJ.stringify(stF)]; };
+            const f1 = await bodyOf(SFm), n1 = fmJ, f2 = await bodyOf(SFm), n2 = fmJ;
+            fmA.mA.u_a.c += ';4,4'; ver++; const f3 = await bodyOf(SFm), n3 = fmJ;
+            fmB.mB.u_b.c += ';5,5'; const stale = await bodyOf(SFm);   // written with no word from fog.js: the part kept still stands (fog.js moves the version at every write it makes)
+            ver++; const f4 = await bodyOf(SFm), fn = await bodyOf(SFn), n4 = fmJ;
+            check('the review of 1.6.3 (finding 13): a campaign\'s fogMem is a part of the save of its own (io.js saveBody, run for real): the body is still exactly JSON.stringify of the state, a fogMem before or after the campaign\'s items alike; it is written again only when fog.js says a fogMem was written since (wpFog.memVer), and a save with no word from fog.js keeps it in the skeleton, as before',
+                j(f1) === j(['object', true]) && n1 === 2 && j(f2) === j(['object', true]) && n2 === 2 && j(f3) === j(['object', true]) && n3 === 4 && j(stale) === j(['object', false]) && j(f4) === j(['object', true]) && j(fn) === j(['object', true]) && n4 === 6,
+                j([f1, n1, f2, n2, f3, n3, stale, f4, fn, n4]));
+        }
         const protoNow = [], protoOld = [];
         for (const wh of ['state', 'campaigns', 'camp', 'items']) { protoNow.push(await protoRun(bodyS, wh)); protoOld.push(await protoRun(PROTO_OLD, wh)); }
         check('1.6.3 (finding 25) a save\'s body is put together from parts (io.js saveBody with pushHistory, run for real): over 40 seeded campaigns and every kind of change between saves, on the GM\'s own machine and on a host\'s, the body read back is exactly JSON.stringify(state.appState) of that moment; and after the first save a save with nothing changed writes no item again and encodes only the state around the items, one map changed is the only one written and encoded, and a host\'s save writes each item to compare and encodes only the one that changed, where the plain string encoded every character every time',
@@ -20258,6 +20277,30 @@ pendingChecks.push((async () => {
         /delete camp\.pinnedPages; delete camp\.groups; delete camp\.panelOrder; delete camp\.fogMem;/.test(src) && !/msg\.type === 'fogMem' && net\.role === 'host'/.test(src) && /msg\.type === 'fogMem' && net\.role === 'client'/.test(src)
         && (src.match(/if \(typeof memSendTo === 'function'\) memSendTo\(conn, pr\.id, camp, itemId\);/g) || []).length === 2 && /fogSeed\(conn, id, sc\.items\[id\]\); var prS = net\.roster\[conn\.peer\]; if \(prS && typeof prS\.id === 'string'\) memSendTo\(conn, prS\.id, camp, id\);/.test(src)
         && /function fogForgetConn\(peer\) \{ if \(typeof memSentForget === 'function'\) memSentForget\(peer\);/.test(src) && /if \(typeof memSentForget === 'function'\) memSentForget\(null, mapId\);/.test(src) && /if \(typeof memSentForget === 'function'\) memSentForget\(null, null\);/.test(src));
+    // the review of 1.6.3 (finding 13). (a) A map taken back from a connection (the take-back, fogForgetOne, its line run for real) forgets the key
+    // of the ground last sent to that connection for that map alone, so it is sent again on their return though their screen let it go meanwhile
+    const ffLine = (src.match(/\nfunction fogForgetOne\([^\n]*/) || [''])[0];
+    const FF = new Function('own', "'use strict'; var _fogHeld = { pA: { mA: 1, mB: 1 } }, _hidPend = { pA: { mA: 1 } }, _memSent = { pA: { mA: 'K1', mB: 'K2' }, pB: { mA: 'K3' } };" + ffLine + '\nreturn { run: fogForgetOne, sent: function() { return _memSent; }, held: function() { return _fogHeld; } };')(ownM);
+    FF.run('pA', 'mA'); FF.run('pZ', 'mA'); FF.run(5, 'mA');
+    const FF2 = new Function('own', "'use strict'; var _fogHeld = { pA: { mA: 1 } }, _hidPend = {};" + ffLine + '\nreturn fogForgetOne;')(ownM); let ff2 = ''; try { FF2('pA', 'mA'); } catch (e) { ff2 = String(e); }
+    check('the review of 1.6.3 (finding 13): a map taken back from a connection forgets the explored ground last sent to it for that map alone (fogForgetOne, its line run for real), so their return sends it again; another map, another connection and a stranger are left as they were; with no record of what was sent nothing throws',
+        j(FF.sent()) === j({ pA: { mB: 'K2' }, pB: { mA: 'K3' } }) && j(FF.held()) === j({ pA: { mB: 1 } }) && ff2 === '', j([FF.sent(), ff2]));
+    // (b) the ground a token is dragged through: an accepted drag notes the places it passes, about half a cell apart and 400 at most, thinned
+    // evenly (the pos gate's line, run for real), and an accepted drop hands them a moment later to fog.js memHostPath with every other open drag
+    // held at its start (the drop's line, run for real); a drop never hands the same path twice
+    const recLine = src.split('\n').find(l => l.indexOf('var pthW = frW.path') >= 0) || '', dropLine = src.split('\n').find(l => l.indexOf('window.wpFog.memHostPath(mapD, campD, pidD, wD, pathD)') >= 0) || '';
+    const rec = new Function('frW', 'w', 'msg', recLine);
+    const frR = { x: 0, y: 0 }, moves = [[10, 0], [30, 0], [40, 0], [70, 5], [70, 5], [200, 0]]; moves.forEach(m => rec(frR, { x: m[0], y: m[1], rot: 90 }, { final: false })); rec(frR, { x: 900, y: 0 }, { final: true });
+    const frBig = { x: 0, y: 0 }; for (let i = 1; i <= 1000; i++) rec(frBig, { x: i * 30, y: 0 }, { final: false });
+    const ran = [], timers = [], landed = [], winD = { wpFog: { memHostPath: (m, c, p, w, pts) => { ran.push([m.id, c.id, p, w.id, pts.length]); return pts.length; } } };
+    const drop = new Function('frW', 'map', 'w', 'camp', 'pr', 'window', 'setTimeout', 'fogLanded', 'console', dropLine);
+    const frD = { path: [{ x: 1, y: 1 }, { x: 40, y: 1 }] }; drop(frD, { id: 'mA' }, { id: 'tA' }, { id: 'k1' }, { id: 'u_a' }, winD, f => timers.push(f), (mid, fn) => { landed.push(mid); return fn(); }, console);
+    const before = ran.length; timers.forEach(f => f()); drop(frD, { id: 'mA' }, { id: 'tA' }, { id: 'k1' }, { id: 'u_a' }, winD, f => timers.push(f), (mid, fn) => fn(), console); const again = timers.length;
+    check('the review of 1.6.3 (finding 13): an accepted drag notes the places it passes, about half a cell apart, with its facing, the drop itself not among them and 400 at most, thinned evenly; an accepted drop hands them to fog.js memHostPath a moment later, with the other open drags held at their start, and never twice (the pos gate\'s two lines, run for real)',
+        j(frR.path) === j([{ x: 30, y: 0, rot: 90, front: 0 }, { x: 70, y: 5, rot: 90, front: 0 }, { x: 200, y: 0, rot: 90, front: 0 }]) && frBig.path.length <= 400 && frBig.path.length > 200 && frBig.path[0].x === 30 && frBig.path[frBig.path.length - 1].x === 30000
+        && before === 0 && j(ran) === j([['mA', 'k1', 'u_a', 'tA', 2]]) && j(landed) === j(['mA']) && frD.path === null && again === 1
+        && src.indexOf(recLine) > src.indexOf('        if (fbW && conn && conn.open && typeof conn.send === ') && src.indexOf(recLine) < src.indexOf('        if (msg.final) {', src.indexOf(recLine)) && src.indexOf('            net.tokenDropped(w, map);') < src.indexOf(dropLine) && src.indexOf(dropLine) < src.indexOf('window.wpRecord.moved(map, w, frW')
+        && /if \(wasHost && typeof fogDragSweep === 'function'\) fogDragSweep\(true\);[^\n]*\n\s*if \(wasHost && window\.wpFog && typeof window\.wpFog\.memFlush === 'function'\) \{ try \{ window\.wpFog\.memFlush\(true\);/.test(src), j([frR.path, frBig.path.length, ran, landed, again]));
 }
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');

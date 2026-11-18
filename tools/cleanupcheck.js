@@ -1310,6 +1310,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && named.name === 'Theirs' && named.activeItemId === 'm9' && bareM.name === 'Theirs' && bareM.activeItemId === 'm9' && Jt(nothing.r) === Jt({ added: 0, updated: 0, newCamps: 0 }) && nothingAt
                 && mainSrc.includes("          imported = cleanImport(imported, importDeps());\n") && mainSrc.includes("          if (nameM) existing.name = nameM;") && mainSrc.includes("          if (openM && Object.prototype.hasOwnProperty.call(existing.items, openM)) existing.activeItemId = openM;"),
                 Jt([mg.r, m1 && [m1.id, m1.rooms, m1.whiteboard.length, m1.fog], m2 && [m2.type, m2.whiteboard[0].text], c1 && [c1.name, c1.activeItemId], c2 && [c2.name, c2.items.n1.type, c2.clock, c2.uploads], [named.name, named.activeItemId], [bareM.name, bareM.activeItemId], nothing.r, nothingAt]));
+            {   // the review of 1.6.3 (finding 13): the players' explored ground (fogMem) was another table's, so a campaign that comes in new by Merge or
+                // by Import as a new campaign (both end in mergeAppState) keeps none; a campaign already here keeps its own, and a file's never reaches it
+                const fmF = () => ({ m1: { u_a: { k: 'square:50|0', t: 1, c: '1,1;2,1' } } }), hereF = here(); hereF.campaigns.c1.fogMem = { m0: { u_b: { k: 'square:50|0', t: 2, c: '3,3' } } };
+                const fileF = () => ({ campaigns: { c9: { id: 'c9', name: 'New', fogMem: fmF(), items: { m1: { id: 'm1', type: 'map', meta: { title: 'M' } } } }, c1: { id: 'c1', fogMem: fmF(), items: { m5: { id: 'm5', type: 'map', meta: { title: 'Five' } } } } } });
+                const gF = merge(hereF, fileF()), gB = merge(here(), fileF(), true);
+                check('import (the review of 1.6.3, finding 13): a campaign that comes in new by Merge or Import as a new campaign keeps no player\'s explored ground from the file, with the cleaner at hand or not; a campaign already here keeps its own and takes none of the file\'s',
+                    !!gF.camps.c9 && !('fogMem' in gF.camps.c9) && Jt(gF.camps.c1.fogMem) === Jt({ m0: { u_b: { k: 'square:50|0', t: 2, c: '3,3' } } }) && !!gB.camps.c9 && !('fogMem' in gB.camps.c9) && !('fogMem' in gB.camps.c1)
+                    && /takeImportedLibrary\(ic, ic, null\);[^\n]*\n\s*delete ic\.fogMem;/.test(mainSrc), Jt([gF.camps.c9, gF.camps.c1.fogMem, gB.camps.c9]));
+            }
             // The review of the fold's own fixes, 2026-10-09. A Merge file is a PART of a campaign, and the normaliser judged it as a whole save: an
             // item whose parent was not in the file came in un-nested, a file's campaign landed under its key and not in the campaign its id names,
             // the open item a file named was replaced by the file's first item, and a new campaign's one-time notice of who was bound to which

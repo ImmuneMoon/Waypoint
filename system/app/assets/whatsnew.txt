@@ -31,7 +31,8 @@ Fog of war
 - Players keep the ground they've explored from one session to the next.
   Your machine keeps it with each map, for each player, so a reload, a
   rejoin or next week's game starts with the rooms they already walked
-  still dimmed in. Cover all clears it. Reveal all now leaves it alone.
+  still dimmed in, and the corridor they were dragged along too. Cover
+  all clears it and Undo brings it back. Reveal all now leaves it alone.
 - Walls always block sight now, however many a map has. A big city used
   to run past a limit of 6,000 wall cells, and then every wall on it let
   players see straight through. A sense that sees through walls still

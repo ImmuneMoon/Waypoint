@@ -14,7 +14,7 @@ var LIMITS = Object.freeze({
     hand: 12000,        // 1.5.4: the cells all of a map's pieces marked Always revealed may add (a piece that would pass it is left out whole)
     blockerCells: 6000, // the cap a barrier, smoke, terrain and cover count toward, and forty times it the box of a piece listed cell by cell (itemOver); 1.6.3 (finding 0): the walls that block sight have no cap
     wallSegs: 8000,     // item 18 W2: the straight pieces of a pen line the readers other than the walls take (pathSegs); 1.6.3 (finding 0): the walls take every piece
-    wallSamples: 400000, // item 18 W2: the samples all of a set's walls may take to index (a quarter cell each) — past this the rest are left out, on every side alike
+    wallSamples: 400000, // item 18 W2: the samples all of a set's walls may take to index cell by cell (a quarter cell each); 1.6.3 (finding 0): the walls past it go into buckets of one cell (WALL_NEAR) and are never left out
     lights: 200,        // lighting (L2): light sources counted per map — over this the map reads dark (never more light than there is)
     lightVisits: 120000, // lighting (L2): cells all of a map's light sources may walk — over this the map reads dark
     lightName: 60,      // lighting (L4): the name a light keeps of the preset it came from
@@ -225,14 +225,17 @@ function itemCells(w, grid) {
    intentionally revealed outside them, or in cases where characters can 'see' through them"): no wall is ever left out of the index. Before,
    the walls past LIMITS.wallSegs, past the LIMITS.wallSamples budget, or longer than 5000 cells were dropped, and a line of sight passed
    through them. Now the first walls, while the budget of samples lasts, are registered cell by cell exactly as before, and every other wall
-   (past the budget, or too long to sample cell by cell) goes into a COARSE index of its own: buckets of WALL_COARSE cells a side, a wall
-   registered in each bucket it passes through (walked exactly, wallBuckets) and in that bucket's eight neighbors, and a line looking up each
-   bucket it passes through. The point where a line crosses a wall lies in a bucket both pass through, so the line finds the wall there; the
-   neighbors cover a point that lies on a bucket's very edge. A wall is first cut to the board's world (WALL_WORLD pixels each way from the
-   corner: no token stands farther out), so a wall of any length costs at most the buckets of that world's width. The work is bounded by what
-   the map holds and never by a cap that lets sight through */
+   goes into a COARSE index (idx.coarse, a list of tiers { b, m }: b the side of a bucket in pixels, m the buckets): a wall past the budget
+   into a tier of buckets WALL_NEAR cells a side, and a wall too long to sample cell by cell (over 5000 cells) into a tier of WALL_COARSE
+   cells a side, so that such a rare wall costs few buckets. A wall is registered in each bucket it passes through (walked exactly,
+   wallBuckets) and in that bucket's eight neighbors, and a line looks up each bucket it passes through. The point where a line crosses a
+   wall lies in a bucket both pass through, so the line finds the wall there; the neighbors cover a point on a bucket's very edge. The review
+   of 1.6.3: the walls past the budget went into buckets of 32 cells too, so one bucket listed every wall of a square 96 cells wide and a map
+   of 200,000 short pen pieces took 23 seconds to see; in buckets of one cell a line reads about as many walls as the cell-by-cell index
+   gives it, and the same map sees in about a second (fogcheck times it). A wall is first cut to the board's world (WALL_WORLD pixels each way from the corner: no token stands farther out), so a wall of any
+   length costs at most the buckets of that world's width. The work is bounded by what the map holds and never by a cap that lets sight through */
 var WALLS = typeof WeakMap === 'function' ? new WeakMap() : null;
-var WALL_WORLD = 4e6, WALL_COARSE = 32;
+var WALL_WORLD = 4e6, WALL_COARSE = 32, WALL_NEAR = 1;
 // A wall cut to the world's box (Liang and Barsky's clip): the part of it that lies inside, or null where none does
 function wallClip(s) {
     var x0 = s[0], y0 = s[1], dx = s[2] - s[0], dy = s[3] - s[1], t0 = 0, t1 = 1, W = WALL_WORLD;
@@ -254,7 +257,9 @@ function wallBuckets(x0, y0, x1, y1, B, fn) {
 function wallIndex(segs, grid) {
     var idx = { segs: [], cells: Object.create(null), box: [Infinity, Infinity, -Infinity, -Infinity] }, used = 0;
     if (!Array.isArray(segs) || !isObj(grid)) return idx;
-    var step = (grid.type === 'square' ? grid.size : grid.s) / 4, B = (grid.type === 'square' ? grid.size : grid.s) * WALL_COARSE;
+    var unit = grid.type === 'square' ? grid.size : grid.s, step = unit / 4, tierOf = Object.create(null);
+    // the coarse tier of buckets so many cells a side, made the first time a wall needs it (idx.coarse lists them in that order)
+    var tier = function(cells) { var b = unit * cells; if (!tierOf[b]) { tierOf[b] = { b: b, m: Object.create(null) }; (idx.coarse || (idx.coarse = [])).push(tierOf[b]); } return tierOf[b]; };
     for (var i = 0; i < segs.length; i++) {
         var s = segs[i]; if (!Array.isArray(s) || s.length !== 4 || !fin(s[0]) || !fin(s[1]) || !fin(s[2]) || !fin(s[3])) continue;
         s = wallClip(s); if (!s) continue;   // wholly outside the world: no line of sight reaches it
@@ -262,10 +267,9 @@ function wallIndex(segs, grid) {
         var n = idx.segs.length, done = Object.create(null); idx.segs.push([s[0], s[1], s[2], s[3]]);
         idx.box = [Math.min(idx.box[0], s[0], s[2]), Math.min(idx.box[1], s[1], s[3]), Math.max(idx.box[2], s[0], s[2]), Math.max(idx.box[3], s[1], s[3])];
         if (steps > 20000 || used + steps + 1 > LIMITS.wallSamples) {   // too long to sample cell by cell, or past the budget: in the coarse index, never left out
-            if (!idx.coarse) { idx.coarse = Object.create(null); idx.cb = B; }
-            var mark = Object.create(null);
-            wallBuckets(s[0], s[1], s[2], s[3], B, function(bx, by) {
-                for (var ox = -1; ox <= 1; ox++) for (var oy = -1; oy <= 1; oy++) { var bk = (bx + ox) + ',' + (by + oy); if (mark[bk]) continue; mark[bk] = 1; (idx.coarse[bk] || (idx.coarse[bk] = [])).push(n); }
+            var T = tier(steps > 20000 ? WALL_COARSE : WALL_NEAR), mark = Object.create(null);
+            wallBuckets(s[0], s[1], s[2], s[3], T.b, function(bx, by) {
+                for (var ox = -1; ox <= 1; ox++) for (var oy = -1; oy <= 1; oy++) { var bk = (bx + ox) + ',' + (by + oy); if (mark[bk]) continue; mark[bk] = 1; (T.m[bk] || (T.m[bk] = [])).push(n); }
             });
             continue;
         }
@@ -308,15 +312,18 @@ function wallHit(pax, pay, pbx, pby, grid, lists) {
     }
     return false;
 }
-// 1.6.3 (finding 0): whether a line crosses a wall of an index's coarse part, looked up in each bucket the line passes through (wallBuckets).
-// tried: the walls already tested for this line. A line that runs past the world's box is cut to it first, as the walls were
+// 1.6.3 (finding 0): whether a line crosses a wall of an index's coarse part, looked up, tier by tier, in each bucket the line passes through
+// (wallBuckets). tried: the walls already tested for this line. A line that runs past the world's box is cut to it first, as the walls were
 function wallCoarseHit(pax, pay, pbx, pby, idx, tried) {
     var c = wallClip([pax, pay, pbx, pby]); if (!c) return false;
     var hit = false;
-    wallBuckets(c[0], c[1], c[2], c[3], idx.cb, function(bx, by) {
-        if (hit) return; var ws = idx.coarse[bx + ',' + by]; if (!ws) return;
-        for (var j = 0; j < ws.length; j++) { var n = ws[j]; if (tried[n]) continue; tried[n] = 1; if (crossesWall(pax, pay, pbx, pby, idx.segs[n])) { hit = true; return; } }
-    });
+    for (var t = 0; t < idx.coarse.length && !hit; t++) {
+        var T = idx.coarse[t];
+        wallBuckets(c[0], c[1], c[2], c[3], T.b, function(bx, by) {
+            if (hit) return; var ws = T.m[bx + ',' + by]; if (!ws) return;
+            for (var j = 0; j < ws.length; j++) { var n = ws[j]; if (tried[n]) continue; tried[n] = 1; if (crossesWall(pax, pay, pbx, pby, idx.segs[n])) { hit = true; return; } }
+        });
+    }
     return hit;
 }
 // Item 18 W2: a pen line's board segments — its points (pts, in its own box of baseW x baseH) scaled to its box (w x h) and turned by its rot
@@ -422,15 +429,15 @@ function firstWallAt(ax, ay, bx, by, lists, ka, kb) {   // how far along a -> b 
                 if (t > 1e-9 && t < 1 - 1e-9 && u >= -1e-9 && u <= 1 + 1e-9 && (best === null || t < best)) best = t;   // crossesWall's own test
             }
         }
-        if (idx.coarse) wallBuckets(ax, ay, bx, by, idx.cb, function(qx, qy) {   // 1.6.3 (finding 0): the walls of the coarse index too, by the buckets the short line passes through
-            var cw = idx.coarse[qx + ',' + qy]; if (!cw) return;
+        if (idx.coarse) idx.coarse.forEach(function(T) { wallBuckets(ax, ay, bx, by, T.b, function(qx, qy) {   // 1.6.3 (finding 0): the walls of the coarse index too, tier by tier, by the buckets the short line passes through
+            var cw = T.m[qx + ',' + qy]; if (!cw) return;
             for (var j = 0; j < cw.length; j++) {
                 var n = cw[j]; if (tried[n]) continue; tried[n] = 1;
                 var s = idx.segs[n], sx = s[2] - s[0], sy = s[3] - s[1], den = rx * sy - ry * sx; if (Math.abs(den) < 1e-12) continue;
                 var qx2 = s[0] - ax, qy2 = s[1] - ay, t = (qx2 * sy - qy2 * sx) / den, u = (qx2 * ry - qy2 * rx) / den;
                 if (t > 1e-9 && t < 1 - 1e-9 && u >= -1e-9 && u <= 1 + 1e-9 && (best === null || t < best)) best = t;
             }
-        });
+        }); });
     }
     return best;
 }
@@ -1747,7 +1754,7 @@ function cleanFog(fog) {   // per-map: { on, mode, vision?, cell?, manual:{adds,
     var vis = cleanVision(fog.vision); if (vis) out.vision = vis;   // absent → grid-type default is resolved at read time
     if (fog.light === 'bright' || fog.light === 'dim' || fog.light === 'dark') out.light = fog.light;   // lighting (backlog 14): the map's light; absent = auto
     if (isObj(fog.cell) && (fog.cell.grid === 'square' || fog.cell.grid === 'hex') && fin(fog.cell.len)) out.cell = { grid: fog.cell.grid, len: clamp(fog.cell.len, LIMITS.len[0], LIMITS.len[1]) };
-    if (fin(fog.epoch) && fog.epoch >= 1) out.epoch = clamp(Math.floor(fog.epoch), 1, 1e9);   // senses S6: bumped by Cover all and Reveal all, which empties every player's memory of the map; absent = 0
+    if (fin(fog.epoch) && fog.epoch >= 1) out.epoch = clamp(Math.floor(fog.epoch), 1, 1e9);   // senses S6: bumped by Cover all (1.6.3, finding 13: Reveal all no longer does), which empties every player's memory of the map; absent = 0
     var m = isObj(fog.manual) ? fog.manual : {};
     var adds = [], cuts = [];
     (Array.isArray(m.adds) ? m.adds : []).forEach(function(c) { if (adds.length < LIMITS.manual) { var cc = cleanCell(c); if (cc) adds.push(cc); } });

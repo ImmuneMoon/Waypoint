@@ -1349,6 +1349,17 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
   // is no plain object or reads itself through toJSON, a campaign or a list of items that is no plain object, no Blob in this browser) is written
   // as it always was, and where the marks are not all found exactly once the whole save is the plain string. The server reads the same bytes
   var _bodyKept = typeof WeakMap === 'function' ? new WeakMap() : null;   // item object -> { p: projection, sig: bodySig, blob: its part }
+  // The review of 1.6.3 (finding 13): a campaign's fogMem (the players' explored ground the host keeps, fog.js) may hold hundreds of thousands
+  // of cells, and it stood in the skeleton, which is written whole at every save. It is a part of its own: its JSON is made again only where
+  // fog.js says it was written since (wpFog.memVer, which moves at every write into any fogMem) or it is another object, else the part kept
+  // for it is used. Where fog.js is not there to say, it stays in the skeleton, as before. The bytes are the same either way
+  var _fogMemKept = typeof WeakMap === 'function' ? new WeakMap() : null;   // fogMem object -> { ver, blob }
+  function fogMemPart(fm) {
+      var F = window.wpFog, ver = F && typeof F.memVer === 'function' ? F.memVer() : null;
+      if (typeof ver !== 'number' || !_fogMemKept) return null;
+      var k = _fogMemKept.get(fm); if (k && k.ver === ver) return k.blob;
+      var b = new Blob([JSON.stringify(fm)]); _fogMemKept.set(fm, { ver: ver, blob: b }); return b;
+  }
   // what of an item its projection does not say, as one string, or null where the item cannot be judged that way: its own keys and its meta's
   // keys in order (the order JSON writes them in), its id and type, and its live meta values (project leaves META_LIVE out), each with its type,
   // since JSON writes undefined and a function as nothing and null as null. A key named __proto__ is no own key of the object project builds, so
@@ -1401,14 +1412,17 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
                   items[id] = word + parts.length; parts.push(bodyPart(it, pp, lastOf(camp, id)));
               });
               camps[cid] = Object.assign({}, camp, { items: items });   // the campaign's keys in their own order, its items swapped for marks
+              var fmB = plain(camp.fogMem) && Object.keys(camp.fogMem).indexOf('__proto__') < 0 ? fogMemPart(camp.fogMem) : null;
+              if (fmB) { camps[cid].fogMem = word + parts.length; parts.push(fmB); }   // the review of 1.6.3: the players' explored ground, a part of its own (fogMemPart)
           });
           var skel = JSON.stringify(Object.assign({}, all, { campaigns: camps })), wordJ = JSON.stringify(word).slice(1, -1);
           if (skel.split(wordJ).length - 1 !== parts.length) return JSON.stringify(all);   // a mark found more or fewer times than it was put in
-          var out = [], at = 0;
+          // each mark found in the order the text holds them (a campaign's fogMem may stand before or after its items), each number once
+          var out = [], at = 0, open = '"' + wordJ, used = Object.create(null);
           for (var n = 0; n < parts.length; n++) {
-              var mark = JSON.stringify(word + n), i = skel.indexOf(mark, at);
-              if (i < 0) return JSON.stringify(all);
-              out.push(skel.slice(at, i), parts[n]); at = i + mark.length;
+              var i = skel.indexOf(open, at), j = i < 0 ? -1 : skel.indexOf('"', i + open.length), num = j < 0 ? NaN : Number(skel.slice(i + open.length, j));
+              if (i < 0 || !(num >= 0 && num < parts.length && num % 1 === 0) || used[num] || skel.slice(i, j + 1) !== JSON.stringify(word + num)) return JSON.stringify(all);
+              used[num] = 1; out.push(skel.slice(at, i), parts[num]); at = j + 1;
           }
           out.push(skel.slice(at));
           return new Blob(out);
@@ -1495,6 +1509,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
         pushHistory();   // below the return: a GM's table is never recorded
 
         var passP = typeof passTake === 'function' ? passTake() : null;   // 1.6.3 (finding 25): the projections this pass made, for the body below
+        if (window.wpFog && typeof window.wpFog.memFlush === 'function') { try { window.wpFog.memFlush(true); } catch (e) {} }   // the review of 1.6.3 (finding 13): the players' explored ground still waiting rides on this save, with no quiet save of its own
 
         savePending = false;   // cleared AFTER the pass: pushHistory reads it (a remote save flushing the GM's own pending edit)
 
@@ -2125,6 +2140,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       // the review of backlog 227: a Full export is made to hand to someone else, and a private mark stays on this computer (Help says so):
       // the private tags and their marks, and which pictures wore them, leave data.json (sharecore stripPrivate). A backup export keeps them
       if (share && share.full === true && typeof Share.stripPrivate === 'function') Share.stripPrivate(payload, [state.appState && state.appState.imageCats]);
+      if (share && typeof Share.stripTable === 'function') Share.stripTable(payload);   // the review of 1.6.3 (finding 13): the players' explored ground is this table's, never in a share or a Full export (sharecore stripTable)
 
       var json = JSON.stringify(payload, null, 2);
       var libMissing = 0, unlisted = false;   // what could not be read is said at the end, never passed over (the owed review, 2026-10-09)

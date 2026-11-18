@@ -41,8 +41,15 @@ var FILE_KINDS = ['pictures', 'sounds', 'music', 'videos'];
 var LIMITS = Object.freeze({ title: 120, author: 80, version: 24, desc: 1000, descLines: 20, card: 64 * 1024, cover: 16 * 1024 * 1024, coverName: 300, count: 1e7, bytes: 1e15, leftPics: 2000 });
 var TAG_NONE = '__none';
 // What the Players tick takes: the registry with each player's name and history, the ban list, the Game Record, who was handed what and who
-// saw it, and the sheet uploads waiting for review. A handout keeps its pages and loses only the players it waits for (giveTo)
-var PLAYER_KEYS = ['players', 'bannedPlayers', 'handoutReveals', 'handoutLog', 'sessionLog', 'uploads'];
+// saw it, the sheet uploads waiting for review, and each player's explored ground of each map (fogMem, the review of 1.6.3: it is kept by
+// profile id). A handout keeps its pages and loses only the players it waits for (giveTo)
+var PLAYER_KEYS = ['players', 'bannedPlayers', 'handoutReveals', 'handoutLog', 'sessionLog', 'uploads', 'fogMem'];
+// The review of 1.6.3 (finding 13): the players' explored ground (camp.fogMem) is the state of one table, its players named by their profile ids.
+// A share and a Full export are made to hand to someone else, so it never travels in one, Players ticked or not: at another GM's table the same
+// player would be sent ground of rooms they never entered there. A plain backup export keeps it. Answers how many campaigns lost it
+function stripTable(payload) {
+    var n = 0; campsOf(payload).forEach(function(c) { if (own(c, 'fogMem')) { delete c.fogMem; n++; } }); return n;
+}
 
 function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
 function own(o, k) { return isObj(o) && Object.prototype.hasOwnProperty.call(o, k); }
@@ -330,10 +337,10 @@ function byWords(card) {
     return a && v ? a + ' \u00b7 ' + v : a || (v ? v.charAt(0).toUpperCase() + v.slice(1) : '');
 }
 
-var API = { TAG_NONE: TAG_NONE, LOOK_KINDS: LOOK_KINDS, picTags: picTags, privOff: privOff, tagRows: tagRows, picsOut: picsOut, templatesIn: templatesIn, leftPicName: leftPicName, lookOf: lookOf, lookWords: lookWords, asNewCamps: asNewCamps, freeNames: freeNames, stripPrivate: stripPrivate,
+var API = { stripTable: stripTable, TAG_NONE: TAG_NONE, LOOK_KINDS: LOOK_KINDS, picTags: picTags, privOff: privOff, tagRows: tagRows, picsOut: picsOut, templatesIn: templatesIn, leftPicName: leftPicName, lookOf: lookOf, lookWords: lookWords, asNewCamps: asNewCamps, freeNames: freeNames, stripPrivate: stripPrivate,
     KINDS: KINDS, NAMES: NAMES, WORDS: WORDS, FILE_KINDS: FILE_KINDS, LIMITS: LIMITS, PLAYER_KEYS: PLAYER_KEYS, fileSets: fileSets, kindOf: kindOf, tally: tally,
     leaveOut: leaveOut, keepPaths: keepPaths, cleanLeave: cleanLeave, coverName: coverName, cleanCard: cleanCard, isBlank: isBlank, cardFor: cardFor, sizeWords: sizeWords,
     countWords: countWords, contentsWords: contentsWords, leftWords: leftWords, byWords: byWords };
 if (typeof window !== 'undefined') window.wpShareCore = API;
-export { TAG_NONE, LOOK_KINDS, picTags, privOff, tagRows, picsOut, templatesIn, leftPicName, lookOf, lookWords, asNewCamps, freeNames, stripPrivate, KINDS, NAMES, WORDS, FILE_KINDS, LIMITS, PLAYER_KEYS, fileSets, kindOf, tally, leaveOut, keepPaths, cleanLeave, coverName, cleanCard, isBlank, cardFor, sizeWords,
+export { stripTable, TAG_NONE, LOOK_KINDS, picTags, privOff, tagRows, picsOut, templatesIn, leftPicName, lookOf, lookWords, asNewCamps, freeNames, stripPrivate, KINDS, NAMES, WORDS, FILE_KINDS, LIMITS, PLAYER_KEYS, fileSets, kindOf, tally, leaveOut, keepPaths, cleanLeave, coverName, cleanCard, isBlank, cardFor, sizeWords,
     countWords, contentsWords, leftWords, byWords };

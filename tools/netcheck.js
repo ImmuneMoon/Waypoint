@@ -8411,6 +8411,79 @@ pendingChecks.push((async () => {
             j(f1.notes) === j(['Saved to disk ✓', 'Error saving.', 'Error saving.', 'Network error saving.', 'Saved to disk ✓', 'Network error saving.', 'Error saving.', 'Saved to disk ✓', 'Saved to disk ✓'].map(s => s.replace('✓', '&#10003;'))) && j(f1.toasts) === j([SAID, BACK, SAID, BACK])
             && j(f2.toasts) === j([]) && j(f3.toasts) === j([SAID]) && j(f4.toasts) === j([SAID, SAID, SAID]) && j(races) === j([[2, [SAID]], [2, []], [2, [SAID]], [2, []]]) && failSrc.includes("toast('Saving failed. The campaign is not reaching the disk.');") && failSrc.includes("if (!bad) { if (_saveFailSaid) toast('Saving works again. The campaign is on the disk.'); _saveFailSaid = false; return; }"), j([f1, f2, f3, f4]));
     })());
+    // 1.6.3 (the improvement week's review, finding 25): a save sent JSON.stringify(state.appState) as one string, written and encoded whole at every
+    // save. io.js saveBody (its savebody slice) with pushHistory (the history slice), run for real with a JSON that counts what it writes and a Blob that
+    // counts the characters it is handed to encode: over seeded campaigns and a run of saves with every kind of change between them (an item's content
+    // in place, its live meta only, a key taken away, put back at the end or given undefined or a function, its meta made null, an own __proto__ key, an
+    // item that reads itself through toJSON, items that are no object, words that hold the save's own mark, integer-like ids, a campaign added and its
+    // items taken away), each body read back is exactly JSON.stringify(state.appState) of that moment. And the cost: after the first save, a save with
+    // nothing changed writes no item again on the GM's own machine (the pass's projections say them) and encodes only the state around the items; one
+    // item changed, that item alone is written and encoded; a host's save (no projections: its table sync runs between the pass and the body) writes
+    // each item to compare and encodes only what changed. The plain string a save sent before encoded every character every time
+    pendingChecks.push((async () => {
+        const slT = n => { const A = '  // [textcheck:' + n + '-start]', Z = '  // [textcheck:' + n + '-end]', a = ioE.indexOf(A), z = ioE.indexOf(Z); return a >= 0 && z > a ? ioE.slice(a, z) : ''; };
+        const slN = n => { const A = '  // [netcheck:' + n + '-start]', Z = '  // [netcheck:' + n + '-end]', a = ioE.indexOf(A), z = ioE.indexOf(Z); return a >= 0 && z > a ? ioE.slice(a, z) : ''; };
+        const histS = slT('history'), bodyS = slN('savebody');
+        const realJ = JSON, cnt = { items: 0, enc: 0, blobs: 0 };
+        let itemSet = new WeakSet();
+        const JC = { parse: realJ.parse, stringify: function(v) { if (v && typeof v === 'object' && itemSet.has(v)) cnt.items++; return realJ.stringify.apply(realJ, arguments); } };
+        class BlobC extends Blob { constructor(parts, o) { (parts || []).forEach(p => { if (typeof p === 'string') cnt.enc += p.length; }); cnt.blobs++; super(parts, o); } }
+        const mk = (appState, camp) => new Function('window', 'state', 'getActiveCampaign', 'getActiveMap', 'localStorage', 'document', 'setTimeout', 'clearTimeout', 'Date', 'render', 'save', 'toast', 'saveTimeout', 'mergeLivePlayerState', 'Blob', 'JSON',
+            histS + '\n' + bodyS + '\nreturn { pushHistory: pushHistory, passTake: passTake, saveBody: saveBody };')(
+            { wpNet: null }, { appState }, () => camp, () => null, { getItem: () => null }, { getElementById: () => null, activeElement: null }, () => 0, () => {}, Date, () => {}, () => {}, () => {}, undefined, () => {}, BlobC, JC);
+        let seedB = 7; const rnd = () => { seedB = (seedB * 1103515245 + 12345) & 0x7fffffff; return seedB / 0x7fffffff; };
+        const WORDS = ['Torch', 'gate', '\u0001wpb', '"quoted"', 'café', '\u{1F600}', '\\', '12'];
+        const piece = n => ({ id: 'p' + n, type: rnd() < 0.5 ? 'rect' : 'circle', x: Math.floor(rnd() * 900), y: Math.floor(rnd() * 900), name: WORDS[Math.floor(rnd() * WORDS.length)] });
+        const mapOf = (id, n) => { const wb = []; for (let i = 0; i < n; i++) wb.push(piece(i)); return { id, type: 'map', meta: { title: 'Map ' + id, updated: 1, lastWbX: 10, gridType: 'square', fog: { mode: 'auto' } }, whiteboard: wb, rooms: [], links: [] }; };
+        const offB = []; let savesB = 0;
+        const sameBody = async (S, appState, pp, tag) => { const b = S.saveBody(pp), txt = typeof b === 'string' ? b : await b.text(); savesB++; if (txt !== realJ.stringify(appState) && offB.length < 4) offB.push(tag); return b; };
+        for (let s = 0; s < 40; s++) {
+            const items = {}; ['m1', '12', 'm2', '3', 'pl'].forEach((k, i) => { items[k] = k === 'pl' ? { id: 'pl', type: 'planner', meta: { title: 'Plan', status: 'next' }, blocks: [{ type: 'text', html: WORDS[s % WORDS.length] }] } : mapOf(k, 3 + (s + i) % 5); });
+            items.nul = null; items.arr = [1, 2];
+            const camp = { id: 'c' + s, name: 'Camp \u0001wpb', activeItemId: 'm1', items, chars: { c1: { id: 'c1', name: 'Kael', values: { hp: 7 } } }, system: { v: 1 } };
+            const appState = { activeCampaignId: camp.id, campaigns: { [camp.id]: camp, other: { id: 'other', items: { o1: mapOf('o1', 2) } } }, _schema: 1 };
+            itemSet = new WeakSet(); [items.m1, items['12'], items.m2, items['3'], items.pl, appState.campaigns.other.items.o1].forEach(x => itemSet.add(x));
+            const S = mk(appState, camp), pass = () => { S.pushHistory(); return S.passTake(); };
+            await sameBody(S, appState, pass(), s + ' first');
+            const steps = [
+                () => { items.m1.whiteboard[0].x += 5; }, () => { items.m2.meta.lastWbX = 99; }, () => { delete items['3'].rooms; }, () => { items['3'].rooms = []; },
+                () => { items.m1.extra = undefined; }, () => { items.m1.fn = function() {}; }, () => { items.pl.meta = null; }, () => { items.pl.meta = { title: 'Plan' }; },
+                () => { items.m2.whiteboard.push(piece(77)); }, () => { const o = realJ.parse('{"__proto__": {"x": 1}}'); items['12'].bag = o; }, () => { Object.defineProperty(items['12'], '__proto__', { value: 5, enumerable: true, configurable: true, writable: true }); },
+                () => { items.m2.toJSON = () => ({ m2: 'as JSON' }); }, () => { delete items.m2.toJSON; }, () => { items.m1.whiteboard[1].name = '\u0001wpb' + 'x:0'; }, () => { items.m1.meta.title = 'Renamed'; },
+                () => { appState.campaigns.late = { id: 'late', items: { l1: mapOf('l1', 1) } }; itemSet.add(appState.campaigns.late.items.l1); }, () => { appState.campaigns.late.items = null; }, () => {},
+                () => { Object.defineProperty(items['12'], '__proto__', { value: 6, enumerable: true, configurable: true, writable: true }); }, () => { items.m1.id = 'm1x'; }, () => { items.m1.id = undefined; }, () => { items.m1.id = null; },
+                () => { items.m2.type = 'room'; }, () => { items.m2.meta.lastWbX = undefined; }, () => { items.m2.meta.lastWbX = null; }, () => { items.m2.meta.lastWbX = function() {}; }
+            ];
+            for (let k = 0; k < steps.length; k++) { steps[k](); await sameBody(S, appState, pass(), s + ' step ' + k + ' pass'); if ((k + s) % 3 === 0) await sameBody(S, appState, null, s + ' step ' + k + ' host'); }   // the GM's own saves in a row, a host's now and then
+        }
+        // words that ARE one of the save's own marks (a save's random word made known by a fixed clock and a fixed Math.random): the body is the plain
+        // string, still exactly the state, never a part put where the words stood
+        {
+            const MF = Object.assign(Object.create(Math), { random: () => 0.123 }), word = '\u0001wpb' + (0.123).toString(36).slice(2) + (1000).toString(36) + ':';
+            const itemsF = { m1: mapOf('m1', 2), m2: mapOf('m2', 2) }, campF = { id: 'cf', name: word + '0', activeItemId: 'm1', items: itemsF }, stF = { activeCampaignId: 'cf', campaigns: { cf: campF } };
+            const SF = new Function('window', 'state', 'getActiveCampaign', 'getActiveMap', 'localStorage', 'document', 'setTimeout', 'clearTimeout', 'Date', 'render', 'save', 'toast', 'saveTimeout', 'mergeLivePlayerState', 'Blob', 'JSON', 'Math',
+                histS + '\n' + bodyS + '\nreturn { pushHistory: pushHistory, passTake: passTake, saveBody: saveBody };')(
+                { wpNet: null }, { appState: stF }, () => campF, () => null, { getItem: () => null }, { getElementById: () => null, activeElement: null }, () => 0, () => {}, { now: () => 1000 }, () => {}, () => {}, () => {}, undefined, () => {}, BlobC, JC, MF);
+            SF.pushHistory(); const bF = SF.saveBody(SF.passTake()); if ((typeof bF === 'string' ? bF : await bF.text()) !== realJ.stringify(stF)) offB.push('planted mark');
+            campF.name = 'Camp'; itemsF.m2.whiteboard[0].name = word + '1'; SF.pushHistory(); const bG = SF.saveBody(SF.passTake()); if ((typeof bG === 'string' ? bG : await bG.text()) !== realJ.stringify(stF)) offB.push('planted mark in an item');
+        }
+        // the cost on one campaign of five big maps
+        const itemsC = {}; ['a', 'b', 'c', 'd', 'e'].forEach(k => { itemsC[k] = mapOf(k, 400); });
+        const campC = { id: 'cc', activeItemId: 'a', items: itemsC, chars: { c1: { id: 'c1', name: 'Kael' } } }, stC = { activeCampaignId: 'cc', campaigns: { cc: campC } };
+        itemSet = new WeakSet(); Object.values(itemsC).forEach(x => itemSet.add(x));
+        const SC = mk(stC, campC), passC = () => { SC.pushHistory(); return SC.passTake(); }, whole = realJ.stringify(stC).length, rest = whole - Object.values(itemsC).reduce((n, x) => n + realJ.stringify(x).length, 0);   // rest: the state around the items
+        const costOf = async (pp, tag) => { const was = { items: cnt.items, enc: cnt.enc }; const b = await sameBody(SC, stC, pp, tag); return [cnt.items - was.items, cnt.enc - was.enc, typeof b]; };
+        const firstC = await costOf(passC(), 'cost first');
+        const twoC = await costOf(passC(), 'cost again');                                             // nothing changed, the GM's own save
+        itemsC.c.whiteboard[3].x += 1; const pieceC = realJ.stringify(itemsC.c).length;
+        const oneC = await costOf(passC(), 'cost one');                                               // one map changed
+        const hostC = await costOf(null, 'cost host');                                                // a host's save: no projections
+        itemsC.d.whiteboard[0].y += 1; const hostOne = await costOf(null, 'cost host one');
+        check('1.6.3 (finding 25) a save\'s body is put together from parts (io.js saveBody with pushHistory, run for real): over 40 seeded campaigns and every kind of change between saves, on the GM\'s own machine and on a host\'s, the body read back is exactly JSON.stringify(state.appState) of that moment; and after the first save a save with nothing changed writes no item again and encodes only the state around the items, one map changed is the only one written and encoded, and a host\'s save writes each item to compare and encodes only the one that changed, where the plain string encoded every character every time',
+            !offB.length && savesB > 900 && firstC[0] === 5 && firstC[1] === whole && twoC[0] === 0 && twoC[1] === rest && twoC[2] === 'object' && rest < whole / 50
+            && oneC[0] === 1 && oneC[1] === rest + pieceC && hostC[0] === 5 && hostC[1] === rest && hostOne[0] === 5 && hostOne[1] === rest + realJ.stringify(itemsC.d).length && !!histS && !!bodyS,
+            j([offB, savesB, firstC, twoC, oneC, hostC, hostOne, whole, rest, pieceC]));
+    })());
     // The camera is no change to the campaign (the owner, 2026-10-04: "seems the whole map lags at a distance"): io.js saveView, run for real, and
     // main.js's scroll handler pinned to it
     const viewSrc = ['var saveTimeout, viewTimeout, savePending = false;', fnIo('  function canPersistLocal() {', '\n  }\n', 'canPersistLocal'), fnIo('  function saveView() {', '\n  }\n', 'saveView'), 'return { saveView: saveView, pending: function(v) { savePending = v; } };'].join('\n');

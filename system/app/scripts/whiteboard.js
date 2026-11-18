@@ -3101,7 +3101,10 @@ window.wpFitToGrid = fitToGrid;
           var fx = hit('review'), fl = fx ? 'review' : (fx = hit('unlocked')) ? 'unlocked' : (fx = hit('making')) ? 'making' : '';
           c.flag = fl; c.flagName = fx && typeof fx.name === 'string' ? fx.name : '';
       });
-      var sig = list.map(function(c) { return c.key + (c.flag ? '~' + c.flag + '~' + c.flagName : '') + (c.waiting ? '~w' : '') + (c.emoji ? '~' + c.emoji : '') + '|' + c.name + '|' + c.mapId + '|' + (c.src ? c.src.length + c.src.slice(-16) : '') + '|' + (atTable ? (present[c.ownerId] ? 1 : 0) : 2) + '|' + (window.wpSheets && c.tokId ? window.wpSheets.hoverLinesForTokenId(camp, c.tokId).join(',') : '') + '|' + (hosting && c.ownerId && window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(c.ownerId) ? 'P' : ''); }).join(';') + '#' + am.id;
+      // 1.6.3 (the improvement week's review, finding 26): a member's hover lines are worked out ONCE a draw (hlOf, kept on the member as c.hl)
+      // and read by both the strip's signature and the chip's tooltip below, which each asked for them before. The lines are the same: one ask
+      var hlOf = function(c) { if (c.hl === undefined) c.hl = window.wpSheets && c.tokId ? window.wpSheets.hoverLinesForTokenId(camp, c.tokId) : []; return c.hl; };
+      var sig = list.map(function(c) { return c.key + (c.flag ? '~' + c.flag + '~' + c.flagName : '') + (c.waiting ? '~w' : '') + (c.emoji ? '~' + c.emoji : '') + '|' + c.name + '|' + c.mapId + '|' + (c.src ? c.src.length + c.src.slice(-16) : '') + '|' + (atTable ? (present[c.ownerId] ? 1 : 0) : 2) + '|' + (window.wpSheets && c.tokId ? hlOf(c).join(',') : '') + '|' + (hosting && c.ownerId && window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(c.ownerId) ? 'P' : ''); }).join(';') + '#' + am.id;
       if (strip.dataset.sig === sig) return;
       strip.dataset.sig = sig;
       if (list.length > PARTY_SHOWN) strip.dataset.more = String(list.length - PARTY_SHOWN); else delete strip.dataset.more;   // on a narrow map area the style sheet shows four faces and this count, and all of them under the pointer
@@ -3111,7 +3114,7 @@ window.wpFitToGrid = fitToGrid;
           var pausedC = hosting && c.ownerId && window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(c.ownerId);
           var cls = 'party-tok' + (here ? ' here' : '') + (away ? ' away' : '') + (pausedC ? ' paused' : '') + (c.waiting ? ' party-waiting' : '') + (c.flag ? ' party-' + c.flag : '');
           var tip = c.name + (here ? ' \u2014 on this map' : ' \u2014 on ' + c.map) + (away ? ' (player not connected)' : '') + (pausedC ? ' \u2014 PAUSED by you' : '') + (c.flag === 'making' ? ' \u2014 making ' + (c.flagName || 'a character') : c.flag === 'review' ? ' \u2014 ' + (c.flagName || 'a character') + ' is new: review it on its sheet' : c.flag === 'unlocked' ? ' \u2014 ' + (c.flagName || 'a character') + ' is unlocked for its player' : '') + (c.noToken ? (c.waiting ? ' \u2014 waiting for a character' : ' \u2014 no token yet') : '') + (atTable && !hosting ? (here ? '. Click to find them.' : '') : '. Click to jump to them.');
-          if (window.wpSheets && c.tokId) { var hlT = window.wpSheets.hoverLinesForTokenId(camp, c.tokId); if (hlT.length) tip += String.fromCharCode(10) + hlT.join(' · '); }
+          if (window.wpSheets && c.tokId) { var hlT = hlOf(c); if (hlT.length) tip += String.fromCharCode(10) + hlT.join(' · '); }   // 1.6.3 (finding 26): the lines the signature already asked for
           if (c.emoji) return '<span class="' + cls + ' party-face party-emoji" data-key="' + esc(c.key) + '" data-tip="' + esc(tip) + '">' + esc(c.emoji) + '</span>';   // Onboarding F1b: an emoji face (pictographic only, net.js cleanFace)
           if (c.src) return '<img class="' + cls + (c.noToken ? ' party-face' : '') + '" data-key="' + esc(c.key) + '" src="' + esc(c.avatar ? c.src : resolveImg(c.src)) + '" alt="" data-tip="' + esc(tip) + '">';
           var pcol = c.color || ('hsl(' + wbHashHue(c.key) + ',55%,55%)');   // no picture → the color-tinted silhouette default
@@ -10371,7 +10374,7 @@ function genGo() {
     if (map === here) save(true);
     else {
         map.meta.lastView = 'visual'; if (typeof window !== 'undefined' && window.wpOpensNext) window.wpOpensNext('visual');   // backlog 221: over Maps open on
-        if (!navigateToMap(map.id)) { if (plan.fresh) delete camp.items[map.id]; toast('That map could not be opened. Nothing was changed.'); return false; }
+        if (!navigateToMap(map.id, null, true)) { if (plan.fresh) delete camp.items[map.id]; toast('That map could not be opened. Nothing was changed.'); return false; }
     }
     if (map.whiteboard.length + items.length > BUILD_MAX) { toast('That dungeon could not be laid. Nothing was changed.'); return false; }
     var lockedN = typeof structLaid === 'function' ? structLaid(items) : 0;   // 231
@@ -10596,7 +10599,7 @@ function cityGo() {
     if (map === here) save(true);
     else {
         map.meta.lastView = 'visual'; if (typeof window !== 'undefined' && window.wpOpensNext) window.wpOpensNext('visual');   // backlog 221: over Maps open on
-        if (!navigateToMap(map.id)) { if (plan.fresh) delete camp.items[map.id]; toast('That map could not be opened. Nothing was changed.'); return false; }
+        if (!navigateToMap(map.id, null, true)) { if (plan.fresh) delete camp.items[map.id]; toast('That map could not be opened. Nothing was changed.'); return false; }
     }
     if (map.whiteboard.length + items.length > BUILD_MAX) { toast('That city could not be laid. Nothing was changed.'); return false; }
     var lockedN = typeof structLaid === 'function' ? structLaid(items) : 0;   // 231
@@ -10827,7 +10830,7 @@ function worldGo() {
     if (map === here) save(true);
     else {
         map.meta.lastView = 'visual'; if (typeof window !== 'undefined' && window.wpOpensNext) window.wpOpensNext('visual');   // backlog 221: over Maps open on
-        if (!navigateToMap(map.id)) { if (plan.fresh) delete camp.items[map.id]; toast('That map could not be opened. Nothing was changed.'); return false; }
+        if (!navigateToMap(map.id, null, true)) { if (plan.fresh) delete camp.items[map.id]; toast('That map could not be opened. Nothing was changed.'); return false; }
     }
     if (map.whiteboard.length + items.length > BUILD_MAX) { toast('That world could not be laid. Nothing was changed.'); return false; }
     var lockedN = typeof structLaid === 'function' ? structLaid(items) : 0;   // 231

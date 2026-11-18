@@ -763,7 +763,7 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
 
   // Switch the active item of the current campaign (used by sidebar clicks and map portals).
 
-  function navigateToMap(mapId, landRoomId) {
+  function navigateToMap(mapId, landRoomId, now) {   // now: true only, a caller that needs the map's save pass at once (below)
 
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') return false; // the GM drives the stage
 
@@ -791,7 +791,12 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
 
       updateSidebarNav();
 
-      render(); save(true);
+      // 1.6.3 (the improvement week's review, finding 26): the save after a map switch waits the usual half a second (save's own debounce), as
+      // every other change does. It ran at once, so the whole campaign was written while the switch was still drawing the new map, and a quick
+      // run of switches wrote it once each; the map opened is stamped as before, and the next change or the timer writes it. A caller that
+      // changes the map right after opening it and wants that change to be one step of the map's undo passes now as true (the three generators
+      // on a map they just made: the pass at once gives the new map its baseline before their pieces are laid, so one Undo takes them back)
+      render(); if (now === true) save(true); else save();
 
       restoreCameraPosition();
 

@@ -890,6 +890,14 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
   }
   window.wpWallPick = wallPickAt;
   // [systemcheck:wallpick-end]
+  // 1.6.3 (the improvement week's review, finding 10): a drag can lose its pointer when the window loses the focus, and attachDrag
+  // used to add a window blur listener for every board element it was handed. Elements are made anew at every map switch, so a long
+  // session piled up thousands of listeners that kept removed elements alive. Now there is ONE listener: _dragAbort is the abortDrag of
+  // the drag in progress (set by attachDrag's pointerdown as it starts one, cleared by its pointerup), and the blur ends that drag where
+  // the pointer last was, exactly as each element's own listener did. No drag in progress, nothing to do.
+  var _dragAbort = null;
+  function dragBlur() { var f = _dragAbort; _dragAbort = null; if (f) f(null); }
+  window.addEventListener('blur', dragBlur);
   function attachDrag(el, modeStr){
       var startX,startY,moved,dragging=false,item;
       var multiDrag = [];
@@ -977,6 +985,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
                 // a DRAG sweeps a marquee over the items on top/behind it (click-vs-drag decided in pointermove/up).
                 lockedMq = { item: item };
                 dragging = true; moved = false;
+                _dragAbort = abortDrag;   // 1.6.3 (finding 10): the module's one blur listener ends this drag if the window loses the focus
                 startX = e.clientX; startY = e.clientY;
                 try { el.setPointerCapture(e.pointerId); } catch(_) {}
                 e.preventDefault();
@@ -1053,6 +1062,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
         }
 
         dragging=true; moved=false;
+        _dragAbort = abortDrag;   // 1.6.3 (finding 10): the module's one blur listener ends this drag if the window loses the focus
         doSmartSnapping.last = null;   // fresh drag: no item-snap memory yet
         startX=e.clientX; startY=e.clientY;
         try { el.setPointerCapture(e.pointerId); } catch(_) {} el.classList.add('dragging');
@@ -1132,7 +1142,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
       }
       el.addEventListener('pointercancel', abortDrag);
       el.addEventListener('lostpointercapture', function(e) { if (dragging) abortDrag(e); });
-      window.addEventListener('blur', function() { abortDrag(null); });
+      // the window losing the focus mid-drag is heard by ONE listener of the module's (dragBlur, just above attachDrag), never one an element
       el.addEventListener('dblclick', function(e) {
           if (modeStr !== 'visual') return;
           if (window.wpMouse && typeof window.wpMouse.gesture === 'function' && window.wpMouse.gesture('open') === 'shiftdbl' && !e.shiftKey) return;   // 1.6.2: a piece opens on Shift + double-click where the player picked it
@@ -1149,6 +1159,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
         if(!dragging) return;
         if (window.wpHostGestureEnd) window.wpHostGestureEnd();   // fold M6: whatever it was, the gesture is over (abortDrag ends here too)
         window.wpBoardDragAt = 0;   // 1.6.3 (finding 24): the drag is let go, so the fog is worked out afresh at its next frame
+        if (_dragAbort === abortDrag) _dragAbort = null;   // 1.6.3 (finding 10): this drag is over, so a later blur has nothing of it to end
         if (lockedMq) {   // finish a locked-item interaction: a drag became a marquee, a still click selects the locked item
             dragging = false;
             try { el.releasePointerCapture(e.pointerId); } catch(_) {}

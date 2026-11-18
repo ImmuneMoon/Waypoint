@@ -1669,6 +1669,50 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
 
   var _lyShut = Object.create(null);   // 1.6.2, backlog 217: the groups and flattened pictures folded in Layers, by id, in memory
+  // [lookcheck:elkeep-start]
+  // 1.6.3 (the improvement week's review, finding 18): main.js render() asks renderElementList at EVERY redraw while Layers (or the Data Map's
+  // Elements tab) is up, and every token move at the table, every save and a click on one of the list's own rows ends in a redraw. Each one
+  // rebuilt the whole list by innerHTML, put a fresh listener on every row, and drew a new "Find a piece" box with nothing in it, so a word
+  // typed there was lost (and the focus with it) the moment anything moved. Two things fix it, both here:
+  //   * elKept: the list is not written again where the markup it would write is the very markup the list already holds, for the same map
+  //     object and the same list of pieces (the rows' listeners close over both), the find box still standing in the list and no rename box
+  //     open in it. Nothing the list shows can differ then, so a redraw that changed nothing in the list costs only the building of the text.
+  //   * _elFind: what was typed in the find box, kept by the view and the map it was typed on (elFindKey). elWrite, the one place the list is
+  //     written, puts it back into the new box, filters the rows again (elFindApply, the filter the box's own input listener runs) and, where
+  //     the old box held the focus, gives the focus and the caret back to the new one. Another map, or the other view, starts with an empty box
+  var _elFind = { key: '', q: '' };
+  function elFindKey(map) { return String(state.viewMode) + ':' + String(map && map.id); }
+  // The find box's filter, on the rows of ONE list: a row shows where its name holds the words (any case), and the layer headings and the
+  // group rows are put away while anything is typed. The same rule the box always ran, now kept to the list it stands in
+  function elFindApply(listEl, q) {
+      q = String(q || '').toLowerCase();
+      listEl.querySelectorAll('.element-list-item').forEach(function(row) {
+          var nm = row.querySelector('.el-name'), txt = nm ? String(nm.textContent).toLowerCase() : '';
+          row.style.display = (txt.indexOf(q) !== -1 || q === '') ? 'flex' : 'none';
+      });
+      listEl.querySelectorAll('.el-layer-head, .element-group').forEach(function(h) { h.style.display = q ? 'none' : ''; });
+  }
+  // Whether the list already shows exactly this: the markup it was last written with, for the same map and pieces, with its find box still in
+  // it (a list another module emptied, layers.js's close or the Elements tab handing over to Layers, has none) and no rename box open in it
+  // (a rename takes a row's name cell over until it ends, and it ends in a redraw that must draw that row again)
+  function elKept(listEl, html, map, items) {
+      return listEl._elHtml === html && listEl._elMap === map && listEl._elItems === items && !!listEl._elInp && listEl._elInp.parentNode === listEl && !listEl.querySelector('.el-rename-in');
+  }
+  // The one place the list is written: the markup, what elKept compares next time, and the find box as it was (its words, its filter, its
+  // focus and caret). Called by renderElementList for the empty list and the full one
+  function elWrite(listEl, html, map, items) {
+      var old = listEl._elInp, had = !!old && typeof document !== 'undefined' && document.activeElement === old, s0 = null, s1 = null;
+      if (had) { try { s0 = old.selectionStart; s1 = old.selectionEnd; } catch (e) {} }
+      listEl.innerHTML = html;
+      var inp = listEl.querySelector('#elementSearchInput');
+      listEl._elHtml = html; listEl._elMap = map; listEl._elItems = items; listEl._elInp = inp;
+      var key = elFindKey(map);
+      if (_elFind.key !== key) _elFind = { key: key, q: '' };
+      if (!inp) return;
+      if (_elFind.q) { inp.value = _elFind.q; elFindApply(listEl, _elFind.q); }
+      if (had) { try { inp.focus(); if (typeof s0 === 'number' && typeof s1 === 'number') inp.setSelectionRange(s0, s1); } catch (e) {} }
+  }
+  // [lookcheck:elkeep-end]
   function elRoomOrder() { var v = ''; try { v = localStorage.getItem('wp_roomOrder') || ''; } catch (e) {} return v === 'name' || v === 'cat' ? v : 'made'; }   // 1.6.2 (backlog 45): read back as one of three words
   function renderElementList() {
 
@@ -1697,7 +1741,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
           html += '<div class="muted">No elements found.</div>';
 
-          listEl.innerHTML = html;
+          if (!elKept(listEl, html, activeMap, items)) elWrite(listEl, html, activeMap, items);   // 1.6.3 (finding 18): written only where it changed, the find box kept
 
           return;
 
@@ -1767,7 +1811,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
       html += '</div>';
 
-      listEl.innerHTML = html;
+      if (elKept(listEl, html, activeMap, items)) return;   // 1.6.3 (finding 18): the list already shows exactly this, with its listeners and its find box as they are
+      elWrite(listEl, html, activeMap, items);
 
       var ordSel = listEl.querySelector('#elementRoomOrder'); if (ordSel) ordSel.addEventListener('change', function() { try { localStorage.setItem('wp_roomOrder', ordSel.value); } catch (e) {} renderElementList(); var ns = document.getElementById('elementRoomOrder'); if (ns) ns.focus(); });   // 1.6.2 (backlog 45)
       listEl.querySelectorAll('.el-fold').forEach(function(b) { b.addEventListener('click', function(e) { e.stopPropagation(); var g = b.dataset.g; if (_lyShut[g]) delete _lyShut[g]; else _lyShut[g] = 1; renderElementList(); }); });   // 1.6.2, backlog 217: a group or a flattened picture folds
@@ -1844,20 +1889,12 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
       // search filter
 
-      var _el_elementSearchInput = document.getElementById('elementSearchInput');
+      var _el_elementSearchInput = listEl._elInp;   // the box elWrite just wrote (1.6.3, finding 18: what is typed is kept for the next redraw)
 
 if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', function() {
 
-          var q = this.value.toLowerCase();
-
-          document.querySelectorAll('.element-list-item').forEach(function(row) {
-
-              var txt = row.querySelector('.el-name').textContent.toLowerCase();
-
-              row.style.display = (txt.indexOf(q) !== -1 || q === '') ? 'flex' : 'none';
-
-          });
-          document.querySelectorAll('.el-layer-head, .element-group').forEach(function(h) { h.style.display = q ? 'none' : ''; });
+          _elFind = { key: elFindKey(activeMap), q: this.value };
+          elFindApply(listEl, this.value);
 
       });
 

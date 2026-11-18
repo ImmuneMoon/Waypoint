@@ -4693,5 +4693,74 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
     check('the tooltip pass after a change reads only the nodes the change added (finding 30, tips.js run for real): nothing inside the board or the fog\'s screen and not even a timer for them, a label and an input added outside them tipped in one pass for any number of records, the ids of the dictionary looked up only where an added node holds one, a heading whose words were set afresh read again, a node already taken off passed over, a heading that gets its words as an element inside it read again and tipped, and the whole document never walked',
         !tsErr && JSON.stringify(res) === JSON.stringify([0, '', '', 0, 0, 1, 'Tip of Known', 'The name', 0, true, 'Tip of Known', true, '', '', 'Tip of Known', '']) && tipsSrc.includes('applyTips(document);\nnew MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });'), tsErr || JSON.stringify(res));
 }
+{   // 1.6.3 (the improvement week's review, finding 18): Layers was rebuilt by innerHTML at every redraw, and its "Find a piece" box lost what was typed
+    // (and the focus) whenever anything moved at the table, or a found row was clicked. inspector.js's elkeep slice and the whole renderElementList, run
+    // for real on a page of plain objects whose list counts its writes and reads the markup it is handed back into elements: an unchanged list is not
+    // written again; what is typed stays through a redraw that changes nothing in the list, through one that does (a selection: the list is written
+    // again, the words, the filter, the focus and the caret given back) and through a click on a found row, which ends in a redraw; another map starts
+    // with an empty box. The source before the fix writes the list at every redraw and draws an empty box each time
+    const inS = read('scripts/inspector.js').replace(/\r\n/g, '\n'), keepS = sliceOf(inS, 'elkeep');
+    const rA = inS.indexOf('  function renderElementList() {'), rZ = inS.indexOf('\n  function esc(s){', rA), relS = rA >= 0 && rZ > rA ? inS.slice(rA, rZ) : '';
+    const lnA = inS.indexOf('  function layerNow(w) {'), lnZ = inS.indexOf('\n  }\n', lnA), lnS = lnA >= 0 && lnZ > lnA ? inS.slice(lnA, lnZ + 4) : '';
+    const OLD_EL = keepS ? relS
+        .split("          if (!elKept(listEl, html, activeMap, items)) elWrite(listEl, html, activeMap, items);   // 1.6.3 (finding 18): written only where it changed, the find box kept\n").join('          listEl.innerHTML = html;\n')
+        .split("      if (elKept(listEl, html, activeMap, items)) return;   // 1.6.3 (finding 18): the list already shows exactly this, with its listeners and its find box as they are\n      elWrite(listEl, html, activeMap, items);\n").join('      listEl.innerHTML = html;\n')
+        .split("      var _el_elementSearchInput = listEl._elInp;").join("      var _el_elementSearchInput = document.getElementById('elementSearchInput');") : '';
+    // a list element: innerHTML read back into plain elements by a reader of the suite's own (each tag's class, id and data keys; an el-name's words)
+    const page = () => {
+        const P = { writes: 0, active: null, lists: {} };
+        const mkEl = (tag, attrs, list) => {
+            const cls = (/\bclass="([^"]*)"/.exec(attrs) || [])[1] || '', idA = (/\bid="([^"]*)"/.exec(attrs) || [])[1] || '', L = {};
+            const el = { tag, cls: cls.split(/\s+/).filter(Boolean), id: idA, dataset: {}, style: {}, textContent: '', value: '', parentNode: list, L,
+                addEventListener(t, f) { (L[t] = L[t] || []).push(f); }, fire(t, ev) { (L[t] || []).forEach(f => f.call(el, Object.assign({ stopPropagation() {}, preventDefault() {} }, ev || {}))); },
+                focus() { P.active = el; }, selectionStart: null, selectionEnd: null, setSelectionRange(a, b) { el.selectionStart = a; el.selectionEnd = b; }, classList: { contains: c => el.cls.indexOf(c) >= 0 } };
+            attrs.replace(/\bdata-([a-z]+)="([^"]*)"/g, (m, k, v) => { el.dataset[k] = v; return m; });
+            return el;
+        };
+        const hit = (el, sel) => sel.split(',').map(s => s.trim()).some(s => s.charAt(0) === '#' ? el.id === s.slice(1) : s.charAt(0) === '.' ? el.cls.indexOf(s.slice(1)) >= 0 : el.tag === s);
+        const mkList = name => {
+            const list = { name, els: [], _html: '' };
+            Object.defineProperty(list, 'innerHTML', { get() { return list._html; }, set(h) { P.writes++; list._html = h; list.els = [];
+                const re = /<([a-zA-Z0-9]+)([^>]*)>([^<]*)/g; let m, row = null;
+                while ((m = re.exec(h))) { const el = mkEl(m[1].toLowerCase(), m[2], list); if (el.cls.indexOf('element-list-item') >= 0) row = el; if (el.cls.indexOf('el-name') >= 0) { el.textContent = m[3]; if (row) row.nameEl = el; } list.els.push(el); }
+                list.els.forEach(el => { if (el.cls.indexOf('element-list-item') >= 0) el.querySelector = s => s === '.el-name' ? el.nameEl || null : null; }); } });
+            list.querySelector = sel => list.els.find(e => hit(e, sel)) || null;
+            list.querySelectorAll = sel => list.els.filter(e => hit(e, sel));
+            P.lists[name] = list; return list;
+        };
+        mkList('layersList'); mkList('elementList'); P.wrap = { clientWidth: 800, clientHeight: 600, scrollLeft: 0, scrollTop: 0 };
+        P.doc = { get activeElement() { return P.active; }, getElementById: id => P.lists[id] || (id === 'whiteboardWrap' ? P.wrap : null) || P.lists.layersList.els.find(e => e.id === id) || P.lists.elementList.els.find(e => e.id === id) || null, createElement: () => ({ set innerHTML(h) { this.textContent = String(h).replace(/<[^>]*>/g, ''); }, textContent: '' }), querySelectorAll: () => [] };
+        return P;
+    };
+    const run = (src, P, st, mapNow) => new Function('state', 'window', 'document', 'getActiveMap', 'layerNow', 'esc', 'render', 'save', 'toast', 'CSS', '_lyShut', keepS + src + '\nreturn renderElementList;')(
+        st, { wpLayers: { shown: () => true, title() {} } }, P.doc, mapNow, new Function('window', lnS + '\nreturn layerNow;')({}), s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'), () => P.again(), () => {}, () => {}, undefined, Object.create(null));
+    const scene = src => {
+        const P = page(), st = { viewMode: 'visual', selWbIds: [], selWbId: null, selId: null, zoomLevel: 1 };
+        const mapA = { id: 'mA', type: 'map', whiteboard: [{ id: 'g1', type: 'rect', name: 'Guard', x: 10, y: 10, w: 50, h: 50 }, { id: 'g2', type: 'rect', name: 'Gate', x: 90, y: 10, w: 50, h: 50 }, { id: 't1', type: 'circle', name: 'Torch', x: 200, y: 50, w: 20, h: 20 }] };
+        const mapB = { id: 'mB', type: 'map', whiteboard: [{ id: 'b1', type: 'rect', name: 'Barrel', x: 1, y: 1, w: 10, h: 10 }] };
+        let cur = mapA; const rel = run(src, P, st, () => cur); P.again = () => rel(); const L = P.lists.layersList, out = {};
+        const shown = () => L.querySelectorAll('.element-list-item').filter(r => r.style.display !== 'none').map(r => r.dataset.id).join();
+        rel(); out.first = P.writes;
+        rel(); rel(); out.same = P.writes;                                                                       // two redraws that change nothing in the list
+        const box = L.querySelector('#elementSearchInput'); box.focus(); box.value = 'ga'; box.selectionStart = 2; box.selectionEnd = 2; box.fire('input');
+        out.typed = shown();
+        mapA.whiteboard[2].x = 300; rel(); out.moved = [P.writes, L.querySelector('#elementSearchInput').value, shown()];   // a token moved: nothing in the list changed
+        st.selWbIds = ['g2']; st.selWbId = 'g2'; rel();                                                          // a selection: the list is written again
+        const box2 = L.querySelector('#elementSearchInput');
+        out.sel = [P.writes, box2 === box, box2.value, shown(), P.active === box2, box2.selectionStart, box2.selectionEnd];
+        const nm = L.querySelectorAll('.el-name').find(e => e.dataset.id === 'g2'); nm.fire('click');            // a found row clicked: its handler ends in render()
+        const box3 = L.querySelector('#elementSearchInput'); out.click = [st.selWbId, box3.value, shown()];
+        cur = mapB; rel(); out.other = [L.querySelector('#elementSearchInput').value, shown()];
+        return out;
+    };
+    let now = null, was = null, errs = [];
+    try { now = scene(relS); } catch (e) { errs.push('now: ' + (e && e.message)); }
+    try { was = scene(OLD_EL); } catch (e) { errs.push('old: ' + (e && e.message)); }
+    check('1.6.3 (finding 18) Layers keeps itself and its Find box through redraws (inspector.js renderElementList with its elkeep slice, run for real on a page whose list counts its writes): a redraw that changes nothing in the list writes nothing; a word typed in Find a piece stays, with its filter, through a token moved at the table, through a selection that writes the list again (the focus and the caret given back to the new box) and through a click on a found row; another map starts with an empty box. The source before the fix writes the list at every redraw and empties the box',
+        !errs.length && !!keepS && !!relS && !!lnS && now && now.first === 1 && now.same === 1 && now.typed === 'g2' && JSON.stringify(now.moved) === JSON.stringify([1, 'ga', 'g2'])
+        && JSON.stringify(now.sel) === JSON.stringify([2, false, 'ga', 'g2', true, 2, 2]) && JSON.stringify(now.click) === JSON.stringify(['g2', 'ga', 'g2']) && JSON.stringify(now.other) === JSON.stringify(['', 'b1'])
+        && was && was.same === 3 && was.sel[2] === '' && was.click[1] === '',
+        JSON.stringify([errs, now, was]));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

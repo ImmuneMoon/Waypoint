@@ -4116,6 +4116,71 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         await Promise.resolve(); HLK.byId(campH, 't_h'); const n8 = hlCalls;
         check('1.6.3 the party strip\'s hover lines kept for one pass of the app (sheets.js hlKept, run for real): asked again in the same pass they are worked out once and each caller gets its own copy; a fight whose round moved, the sheet stamped, new values and passForget read them afresh, and so does the next pass',
             j(k1) === j(['Round 3']) && n1 === 1 && n2 === 1 && j(k3) === j(['Round 3']) && n3 === 1 && j(k4) === j(['Round 4']) && n4 === 2 && n5 === 3 && n6 === 4 && n7 === 5 && n8 === 6, j([k1, k3, k4, n1, n2, n3, n4, n5, n6, n7, n8]));
+        {   // 1.6.3 (the improvement week's review, finding 26): where a token stands, kept for one pass (sheets.js tokFind beside the walk it replaces,
+            // tokWalk, in the same slice, run for real). Over seeded campaigns (maps in any order of the campaign's items, integer-like ids among them,
+            // items that are no map, pieces that are none, a hole in a list, one id on several maps) and the changes the app makes between two asks in one
+            // pass (a piece pushed onto an earlier map under an id that stands later, a list spliced, a list replaced, the found piece put in another's
+            // place, a whole map taken away or added), tokFind answers exactly what the walk answers, piece for piece and map for map. Asked for every
+            // member of a party in one pass, it reads the campaign's pieces once where the walk read them once an ask
+            const HT = new Function('featureOn', 'F', 'getActiveCampaign', 'systemOf', 'charById', 'isClient', 'hoverLines', 'withRound', 'tokenCtx', 'tokenFlags', 'combatOn', 'withRange', 'rangeFor', 'window', hlSrc + '\nreturn { find: tokFind, walk: tokWalk, forget: passForget, byId: hoverLinesForTokenId };')(
+                () => true, () => F, () => null, c => c.system, () => null, () => false, () => [], S.withRound, S.tokenCtx, () => flagsR, () => null, S.withRange, () => null, {});
+            let seedT = 42; const rnd = () => { seedT = (seedT * 1103515245 + 12345) & 0x7fffffff; return seedT / 0x7fffffff; }, pickT = a => a[Math.floor(rnd() * a.length)];
+            const POOL = ['a', 'b', 'c', 'd', 'e', 'f', 'g', '7', '__proto__'];
+            const mkCampT = () => { const items = {}, keys = ['m1', '12', 'doc', 'm0', '3', 'mz', 'gone'].filter(() => rnd() < 0.85);
+                keys.forEach(k => { if (k === 'doc') items[k] = { type: 'planner', whiteboard: [{ id: 'a' }] }; else if (k === 'gone') items[k] = null; else { const wb = []; const n = Math.floor(rnd() * 7); for (let i = 0; i < n; i++) wb.push(rnd() < 0.12 ? null : { id: pickT(POOL), n: i }); if (rnd() < 0.1) wb.length += 2; items[k] = rnd() < 0.08 ? { type: 'map' } : { type: 'map', whiteboard: wb }; } });
+                return { items }; };
+            const same = (a, b) => a.w === b.w && a.onMap === b.onMap;
+            const offT = []; let askedT = 0;
+            for (let s = 0; s < 400; s++) {
+                const campT = mkCampT(); HT.forget();
+                const askAll = tag => POOL.concat(['zz']).forEach(id => { askedT++; const f = HT.find(campT, id), w = HT.walk(campT, id); if (!same(f, w) && offT.length < 4) offT.push([s, tag, id, f.onMap, w.onMap]); });
+                askAll('first'); askAll('again');
+                const maps = Object.keys(campT.items).filter(k => campT.items[k] && campT.items[k].type === 'map' && Array.isArray(campT.items[k].whiteboard));
+                const kind = Math.floor(rnd() * 6), mk = maps.length ? campT.items[pickT(maps)] : null;
+                if (kind === 0 && mk) mk.whiteboard.unshift({ id: pickT(POOL), n: 99 });
+                else if (kind === 1 && mk && mk.whiteboard.length) mk.whiteboard.splice(Math.floor(rnd() * mk.whiteboard.length), 1);
+                else if (kind === 2 && mk) mk.whiteboard = mk.whiteboard.filter(x => !x || x.id !== pickT(POOL));
+                else if (kind === 3 && mk && mk.whiteboard.length) { const at = Math.floor(rnd() * mk.whiteboard.length); mk.whiteboard[at] = { id: mk.whiteboard[at] && mk.whiteboard[at].id || 'q', n: 77 }; }
+                else if (kind === 4 && maps.length) delete campT.items[pickT(maps)];
+                else campT.items['m' + s] = { type: 'map', whiteboard: [{ id: pickT(POOL), n: 5 }] };
+                askAll('changed');
+            }
+            // the cost: a party of eight in one pass over a campaign of 40 maps of 60 pieces each, its pieces counted as they are read
+            let readsT = 0; const bigT = { items: {} };
+            for (let m = 0; m < 40; m++) { const wb = []; for (let i = 0; i < 60; i++) wb.push({ id: 'p' + m + '_' + i }); bigT.items['map' + m] = { type: 'map', whiteboard: new Proxy(wb, { get(t, k) { if (typeof k === 'string' && /^\d+$/.test(k)) readsT++; return t[k]; } }) }; }
+            const party = ['p39_59', 'p38_1', 'p20_30', 'p0_0', 'p5_5', 'p33_3', 'p12_40', 'p27_8'];
+            HT.forget(); readsT = 0; const foundT = party.map(id => HT.find(bigT, id).onMap); const readFind = readsT;
+            readsT = 0; party.forEach(id => HT.walk(bigT, id)); const readWalk = readsT;
+            check('1.6.3 (finding 26) where a token stands is kept for one pass (sheets.js tokFind, run for real beside the walk it replaces): over 400 seeded campaigns and the changes the app makes between two asks of one pass, it answers what the walk answers, the same piece on the same map, every time; and asked for a party of eight on a campaign of 40 maps it reads the pieces once (and each piece it hands back once more, to see it still stands there), where the walk read them for every ask',
+                !offT.length && askedT > 10000 && foundT.join() === 'map39,map38,map20,map0,map5,map33,map12,map27' && readFind === 2400 + party.length && readWalk > 4 * readFind, j([offT, askedT, foundT, readFind, readWalk]));
+        }
+        {   // 1.6.3 (finding 26) the party strip asks each member's hover lines once a draw (whiteboard.js renderPartyStrip, run for real on a page of
+            // plain objects, with a counting wpSheets): the signature and the chip's tooltip read the one answer, and the markup is what the two asks wrote
+            // before (the strip drawn by the source before the fix, which asked twice, gives the same markup). And a map switch saves on save's own timer
+            // (sidebar.js navigateToMap, run for real): the map opened, the selection cleared and the board drawn as before, the save asked with no word
+            // that it is at once
+            const wbP = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, NL), pA = wbP.indexOf('  function renderPartyStrip() {'), pZ = wbP.indexOf('\n  window.wpRenderPartyStrip = renderPartyStrip;', pA), psS = pA >= 0 && pZ > pA ? wbP.slice(pA, pZ) : '';
+            const OLD_PS = psS.split("      var hlOf = function(c) { if (c.hl === undefined) c.hl = window.wpSheets && c.tokId ? window.wpSheets.hoverLinesForTokenId(camp, c.tokId) : []; return c.hl; };\n").join('')
+                .split("hlOf(c).join(',')").join("window.wpSheets.hoverLinesForTokenId(camp, c.tokId).join(',')").split("var hlT = hlOf(c);").join("var hlT = window.wpSheets.hoverLinesForTokenId(camp, c.tokId);");
+            const stripRun = src => { let asks = 0; const strip = { innerHTML: '', dataset: {} };
+                const campP = { id: 'k', items: { mA: { id: 'mA', type: 'map', meta: { title: 'A' } }, mB: { id: 'mB', type: 'map', meta: { title: 'B' } } } };
+                const list = [{ key: 'o:p1', ownerId: 'p1', tokId: 't1', name: 'Ana', mapId: 'mA', map: 'A', src: null, color: '#336699' }, { key: 'o:p2', ownerId: 'p2', tokId: 't2', name: 'Bo', mapId: 'mB', map: 'B', src: null, color: null }, { key: 'i:t3', ownerId: null, tokId: 't3', name: 'Cy', mapId: 'mA', map: 'A', src: null }];
+                const win = { wpSheets: { hoverLinesForTokenId: (c, id) => { asks++; return id === 't2' ? [] : ['HP 7/9', 'Guard ' + id]; } }, wpDefaultAvatar: c => 'data:' + c };
+                const run = new Function('getActiveCampaign', 'getActiveMap', 'state', 'characterList', 'chipPlace', 'playerNow', 'window', 'document', 'cssColor', 'esc', 'resolveImg', 'wbHashHue', 'PARTY_SHOWN', src + '\nreturn renderPartyStrip;')(
+                    () => campP, () => campP.items.mA, { viewMode: 'visual' }, () => list.map(c => Object.assign({}, c)), (camp, c) => c, () => null, win, { getElementById: id => id === 'partyStrip' ? strip : null }, c => c, s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'), s => s, () => 200, 4);
+                run(); const first = asks, html = strip.innerHTML; run(); return { first, again: asks - first, html, same: strip.innerHTML === html }; };
+            let psNow = null, psOld = null, psErr = '';
+            try { psNow = stripRun(psS); psOld = stripRun(OLD_PS); } catch (e) { psErr = String(e && e.message); }
+            const sbP = fs.readFileSync(path.join(app, 'scripts', 'sidebar.js'), 'utf8').replace(/\r\n/g, NL), nA = sbP.indexOf('  function navigateToMap(mapId, landRoomId, now) {'), nZ = sbP.indexOf('\n  }\n', nA), navS = nA >= 0 && nZ > nA ? sbP.slice(nA, nZ + 4) : '';
+            const navRun = () => { const log = [], campN = { activeItemId: 'm1', items: { m1: { type: 'map', meta: {} }, m2: { type: 'map', meta: {} } } }, stN = { selWbIds: ['x'], selWbId: 'x', selId: 'r', linkStart: 1, viewMode: 'visual' };
+                const nav = new Function('window', 'getActiveCampaign', 'state', 'landingPoint', 'updateSidebarNav', 'render', 'save', 'restoreCameraPosition', navS + '\nreturn navigateToMap;')(
+                    { wpApplyRememberedView: () => log.push('view') }, () => campN, stN, () => ({}), () => log.push('nav'), () => log.push('render'), function() { log.push('save' + (arguments.length ? ':' + arguments[0] : '')); }, () => log.push('camera'));
+                const ok = nav('m2'), plain = log.join(); log.length = 0; nav('m1', null, true); const atOnce = log.join(); log.length = 0; nav('m2', null, 'yes'); return [ok, campN.activeItemId, stN.selWbIds.length, plain, atOnce, log.join()]; };
+            let navOut = null; try { navOut = navRun(); } catch (e) { psErr += ' nav: ' + String(e && e.message); }
+            check('1.6.3 (finding 26) the party strip asks each member\'s hover lines once a draw (whiteboard.js renderPartyStrip, run for real with a counting wpSheets): three members, three asks, where the source before the fix asked six times, with the same markup; drawn again with nothing changed it asks once a member and writes nothing new. A map switch saves on save\'s own timer (sidebar.js navigateToMap, run for real), and at once only for a caller that says now as true (the three generators, whose new map takes its undo baseline before their pieces are laid; buildcheck runs them with a navigation that saves only then)',
+                !psErr && !!psS && psNow.first === 3 && psOld.first === 6 && psNow.html === psOld.html && psNow.html.indexOf('Guard t1') > 0 && psNow.again === 3 && psNow.same
+                && j(navOut) === j([true, 'm2', 0, 'view,nav,render,save,camera', 'view,nav,render,save:true,camera', 'view,nav,render,save,camera']), j([psErr, psNow && [psNow.first, psNow.again], psOld && psOld.first, navOut]));
+        }
         {   // 1.6.3: a token's effects kept for one pass of the app (systemcore tokenEffectsPass and tokenEffectsForget, run for real): every token of one sheet
             // shows the same list, worked out once a pass by the character object and whether the GM reads it, and read afresh where anything it reads is another
             const sysE = cleanSystem({ v: 1, name: 'E', fields: [{ id: 'f_fx', key: 'Effects', label: 'Effects', kind: 'effects' }], rolls: [], effects: [{ id: 'e_a', name: 'Blessed', tone: 'buff', vis: 'all', mods: [] }, { id: 'e_g', name: 'Cursed', tone: 'debuff', vis: 'gm', mods: [] }] }, GVR);
@@ -12451,7 +12516,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const page = (mk, pieces, o) => {
                 o = o || {};
                 const V = { zoom: o.zoom || 1, sl: o.sl || 0, st: o.st || 0, left: o.left || 0, top: o.top || 0 };
-                const B = { n: 0, max: 0, depth: 0, cut: 0, errs: [], made: [], said: [], caps: [], cap: null, sent: [], imps: 0, cls: {} };
+                const B = { n: 0, max: 0, depth: 0, cut: 0, errs: [], made: [], said: [], caps: [], cap: null, sent: [], imps: 0, cls: {}, winL: {} };   // winL: the listeners put on the window, by type (1.6.3, finding 10)
                 const els = {}, map = { id: 'm1', type: 'map', whiteboard: pieces, rooms: o.rooms || [], links: [] }, camp = { id: 'k', activeItemId: 'm1', items: { m1: map } };
                 const state = { zoomLevel: V.zoom, selWbIds: (o.sel || []).slice(), selWbId: o.sel && o.sel.length ? o.sel[o.sel.length - 1] : null, selId: null, selLink: null, gridType: 'off', snap: false, wbEls: els, els: els };
                 class PointerEvent { constructor(type, init) { this.type = type; Object.assign(this, init || {}); this.app = true; this.keys = Object.keys(init || {}).sort().join(); B.made.push(this); } preventDefault() { this.prevented = true; } stopPropagation() {} }
@@ -12470,7 +12535,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                         } };
                     els[w.id] = el; attach(el, mode);
                 };
-                const win = { addEventListener() {}, removeEventListener() {}, isDrawingMode: false, isEraserMode: false, isMeasureMode: false, isFogMode: false, isFillMode: false, isPanMode: false, wpSpacePan: false,
+                const win = { addEventListener(t, f) { (B.winL[t] = B.winL[t] || []).push(f); }, removeEventListener() {}, isDrawingMode: false, isEraserMode: false, isMeasureMode: false, isFogMode: false, isFillMode: false, isPanMode: false, wpSpacePan: false,
                     wpSnapOn() { return false; }, wpHostGestureStart() { B.said.push('open'); }, wpHostGestureEnd() { B.said.push('close'); } };
                 if (o.netRaw) win.wpNet = o.netRaw; else if (o.net) win.wpNet = Object.assign({ streamPos(item, fin, mapId) { B.sent.push([item.id, !!fin, mapId, item.x, item.y]); } }, o.net);
                 if (o.core !== null) win.wpSystemCore = o.core === undefined ? S : o.core;
@@ -12489,6 +12554,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 const W = { state, B, win, handOn: made.handOn, handZ: made.handZ,   // the two helpers of this very page (the count of hand-overs is the page's own)
                     dbl(id, wx, wy) { const d = ev('dblclick', wx, wy); d.stopImmediatePropagation = function() { this.imm = true; }; els[id].dispatchEvent(d); return d; },   // 1.5.9: a double-click on a piece's element
                     at(wx, wy) { return [wx * V.zoom - V.sl + V.left, wy * V.zoom - V.st + V.top]; },   // a board point in the screen's coordinates
+                    blurs() { return (B.winL.blur || []).length; },   // 1.6.3 (finding 10): how many blur listeners the window holds
+                    blur() { (B.winL.blur || []).slice().forEach(f => f()); return W; },   // the window loses the focus: every blur listener is run
                     down(id, wx, wy, mods) { W.first = ev('pointerdown', wx, wy, mods); els[id].dispatchEvent(W.first); return W; },
                     move(id, wx, wy, mods) { (B.cap || els[id]).dispatchEvent(ev('pointermove', wx, wy, mods)); return W; },   // a held pointer's moves and its release go to whoever holds it
                     up(id, wx, wy, mods) { (B.cap || els[id]).dispatchEvent(ev('pointerup', wx, wy, mods)); return W; },
@@ -12925,6 +12992,29 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('the board\'s drag, 1.5.9, over 1,500 seeded scenes on the GM\'s machines with wall, door, barrier and plain lines around the pointer (two to six pieces of eleven kinds, locked or not, hidden or not, on a layer, at a level or neither; a piece under the pointer is pressed, with a modifier for one press in seven, with systemcore at hand for half of them): each press ends as a reading of the suite\'s own says, written from the four hand-overs (the fourth: a wall\'s line within 8 px of its stroke, never from a token, a waiting token, a GM note card or a line, never where an unlocked token lies under the pointer, the nearer first, then the higher): who is handed the press and in what order, what is selected and who holds the pointer; many presses end on a wall, some after two hand-overs, and none is handed on three times',
                 !swW.off.length && swW.ran > 1200 && swW.toWall > 150 && swW.two > 5 && swW.hops[3] === 0,
                 j([swW.off.slice(0, 2), swW.off.length, swW.ran, swW.toWall, swW.two, swW.hops]));
+            }
+            // 1.6.3 (the improvement week's review, finding 10): attachDrag used to put a window blur listener on for every element it was handed, which
+            // were never taken off, so each map switch piled up more (and kept removed elements alive). Now the module holds ONE, which ends the drag in
+            // progress. Run for real: a page of three, six and forty pieces holds one blur listener; a blur in the middle of a drag ends that drag at the
+            // pointer's last place (nothing left held, the gesture closed, the token where the move put it); a blur after a drag ended, and a blur with no
+            // drag at all, do nothing; and the same holds for a drag on a locked piece that has not become a marquee. The source before the fix (one blur
+            // listener an element) gives as many listeners as pieces
+            {
+                const many = n => Array.from({ length: n }, (_, i) => box('b' + i, { x: 10 + i * 3, y: 10 }));
+                const counts = [3, 6, 40].map(n => page(now, many(n), { gm: true }).blurs());
+                const OLD = dSrc.split("      // the window losing the focus mid-drag is heard by ONE listener of the module's (dragBlur, just above attachDrag), never one an element\n").join("      window.addEventListener('blur', function() { abortDrag(null); });\n").split("  window.addEventListener('blur', dragBlur);\n").join('');
+                const oldCounts = OLD !== dSrc ? [3, 6, 40].map(n => page(maker(OLD), many(n), { gm: true }).blurs()) : [];
+                const D = page(now, [box('bx')], { gm: true });
+                D.down('bx', 300, 250).move('bx', 340, 270); const mid = { held: D.told().held, x: D.state && D.told().at[0] };
+                D.blur(); const afterBlur = D.told();
+                const said0 = afterBlur.said.length; D.blur(); const again = D.told();
+                const Q = page(now, [box('q1')], { gm: true }); Q.blur(); const quiet = Q.told();
+                const L = page(now, [box('lk', { locked: true })], { gm: true }); L.down('lk', 300, 250); const lHeld = L.told().held; L.blur(); const lAfter = L.told();
+                check('1.6.3 (finding 10) the board\'s drag keeps ONE window blur listener whatever the number of pieces (attachDrag run for real on pages of 3, 6 and 40 pieces; the source before the fix had one an element), and a blur mid-drag still ends that drag where the pointer last was (nothing held, the gesture closed, the piece moved), while a blur after it, or with no drag, does nothing; a press held on a locked piece is let go by a blur too',
+                    j(counts) === j([1, 1, 1]) && j(oldCounts) === j([3, 6, 40]) && mid.held === 'bx' && afterBlur.held === null && afterBlur.said.indexOf('close') >= 0 && afterBlur.dragging.length === 0
+                    && j(afterBlur.at[0]) === j(['bx', 290, 220]) && again.said.length === said0 && j(again.at) === j(afterBlur.at) && quiet.said.length === 0 && quiet.held === null
+                    && lHeld === 'lk' && lAfter.held === null && !lAfter.errs.length && !afterBlur.errs.length,
+                    j([counts, oldCounts, mid, afterBlur.held, afterBlur.said, afterBlur.at, again.said, quiet.said, lHeld, lAfter.held, afterBlur.errs, lAfter.errs]));
             }
             check('the board\'s drag: in all of the scenes above no listener threw anything (the page gives the sliced code every name it reads on these paths, and no dispatch was left open)', !thrown.length, j(thrown));
         }

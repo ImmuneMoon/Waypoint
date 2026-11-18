@@ -481,6 +481,14 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
   var selNote = null;        // the selection around the open planner field's pending edit: { before, after } (stepSel) — the next pass takes it
 
+  // 1.6.3 (the improvement week's review, finding 25): the projection pushHistory works out for each item of the active campaign (project, the
+  // item's content as JSON), kept for the ONE save that ran that pass, by the item object. save's doSave takes it with passTake right after its
+  // pushHistory and hands it to saveBody, which then knows that an item whose projection, keys and live meta are as they were when its piece of
+  // the save was last written needs no new JSON. pushHistory empties it first thing whatever it does, so a pass that returned early (an undo
+  // under way, someone else's campaign) leaves none, and none outlives the save it was made for
+  var _passP = null;
+  function passTake() { var p = _passP; _passP = null; return p; }
+
   var HIST_BUDGET_BYTES = 64 * 1024 * 1024;
     // Undo/redo depth per map & per planner: user-configurable via wp_undoDepth (Settings), default 100 (doubled from the old 50), clamped 10..500. The 64 MB byte budget above still caps total memory.
     function histDepth() { var v = 0; try { v = parseInt(localStorage.getItem('wp_undoDepth'), 10); } catch (e) {} return (v >= 10 && v <= 500) ? v : 100; }
@@ -755,6 +763,8 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
   // after a map switch, and a few sites (travel, spawn, handout sweeps) write into maps that are not open.
   function pushHistory() {
 
+      _passP = null;   // 1.6.3 (finding 25): what an earlier pass worked out is never taken for this one's
+
       if (isUndoing) return;
 
       var native = nativeEdit;   // read once per pass, whatever the pass decides
@@ -779,6 +789,8 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
       pruneDeadKeys();
 
+      var passMap = typeof Map === 'function' ? new Map() : null;   // 1.6.3 (finding 25): item -> the projection this pass made of it
+
       Object.keys(camp.items).forEach(function(id) {
 
           var item = camp.items[id];
@@ -786,6 +798,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
           if (!item) return;
 
           var key = itemKey(camp, id), cur = project(item), h = histories[key];
+          if (passMap && typeof item === 'object') passMap.set(item, cur);
 
           if (!h) { histories[key] = seed(cur, camp.id, id); if (sq) histories[key].lastQ = sq; return; }   // lazy seed: new, imported, first seen
 
@@ -820,6 +833,8 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
           else typeSlot.key = null;
 
       });
+
+      _passP = passMap;   // the save that ran this pass takes it (passTake) for its body
 
       enforceBudget();
 
@@ -1315,6 +1330,73 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
 
 
+  // [netcheck:savebody-start]
+  // 1.6.3 (the improvement week's review, finding 25): a save sent JSON.stringify(state.appState), the whole campaign as one string (17.8 MB on
+  // the owner's campaign), and the browser encoded all of it again for the request at every save, on the page's own thread: each drop, fog
+  // stroke and door at the table ended in a hitch of about 190 ms. saveBody makes the very same bytes as a Blob put together from parts: each
+  // item of every campaign (a map, a planner, a page) is its own part, kept by the item object (_bodyKept) with the JSON it was written as, and an
+  // item whose JSON is the same as last time hands back the part it already has, so the browser encodes only the items that changed and the rest
+  // of the state around them. Whether an item changed is known without writing its JSON again where the pass that ran this very save worked out
+  // its projection (pp, from passTake) and that projection, the item's keys, its id, its type and its live meta (bodySig) are all what they were:
+  // those say every byte of the item's JSON. Where there is no such projection (a host's save, whose table sync runs between the pass and the
+  // body and may write into an item; another campaign; saveView) the item's JSON is written and compared, and only the encoding is saved.
+  // The text is JSON.stringify(state.appState) itself: the state is written once with each item swapped for a mark that holds a random word of
+  // this save's own, and each mark, found once and in order, is cut out for the item's part. Anything the mark cannot stand for (an item that
+  // is no plain object or reads itself through toJSON, a campaign or a list of items that is no plain object, no Blob in this browser) is written
+  // as it always was, and where the marks are not all found exactly once the whole save is the plain string. The server reads the same bytes
+  var _bodyKept = typeof WeakMap === 'function' ? new WeakMap() : null;   // item object -> { p: projection, sig: bodySig, s: its JSON, blob: its part }
+  // what of an item its projection does not say, as one string, or null where the item cannot be judged that way: its own keys and its meta's
+  // keys in order (the order JSON writes them in), its id and type, and its live meta values (project leaves META_LIVE out), each with its type,
+  // since JSON writes undefined and a function as nothing and null as null. A key named __proto__ is no own key of the object project builds, so
+  // an item or a meta that holds one is never judged by its projection
+  function bodySig(item) {
+      var meta = item.meta, ik = Object.keys(item);
+      if (meta !== undefined && (meta === null || typeof meta !== 'object' || Array.isArray(meta) || typeof meta.toJSON === 'function')) return null;
+      var mk = meta ? Object.keys(meta) : [];
+      if (ik.indexOf('__proto__') >= 0 || mk.indexOf('__proto__') >= 0) return null;
+      var live = []; mk.forEach(function(k) { if (META_LIVE[k]) live.push(k, typeof meta[k], meta[k]); });
+      try { return JSON.stringify([ik, mk, typeof item.id, item.id, typeof item.type, item.type, live]); } catch (e) { return null; }
+  }
+  // one item's part of the body: the part kept for it where its JSON is as it was, else a new one (and kept)
+  function bodyPart(item, pp) {
+      var k = _bodyKept.get(item), p = pp ? pp.get(item) : undefined, sig = p !== undefined ? bodySig(item) : null;
+      if (k && p !== undefined && sig !== null && k.p === p && k.sig === sig) return k.blob;   // the projection, the keys and the live meta as they were: the JSON is as it was
+      var s = JSON.stringify(item);
+      if (k && k.s === s) { if (p !== undefined) { k.p = p; k.sig = sig; } return k.blob; }   // the same JSON: the projection it was kept with still says it, so a save with none keeps it
+      var b = new Blob([s]); _bodyKept.set(item, { p: p, sig: sig, s: s, blob: b }); return b;
+  }
+  // the save's body: a Blob holding exactly JSON.stringify(state.appState), or that string itself where it cannot be put together from parts
+  function saveBody(pp) {
+      var all = state.appState, plain = function(o) { return !!o && typeof o === 'object' && !Array.isArray(o) && typeof o.toJSON !== 'function'; };
+      if (typeof Blob !== 'function' || !_bodyKept || !plain(all) || !plain(all.campaigns)) return JSON.stringify(all);
+      if (!pp || typeof pp.get !== 'function') pp = null;
+      try {
+          var word = '\u0001wpb' + Math.random().toString(36).slice(2) + Date.now().toString(36) + ':', parts = [], camps = {};
+          Object.keys(all.campaigns).forEach(function(cid) {
+              var camp = all.campaigns[cid];
+              if (!plain(camp) || !plain(camp.items)) { camps[cid] = camp; return; }
+              var items = {};
+              Object.keys(camp.items).forEach(function(id) {
+                  var it = camp.items[id];
+                  if (!plain(it)) { items[id] = it; return; }
+                  items[id] = word + parts.length; parts.push(bodyPart(it, pp));
+              });
+              camps[cid] = Object.assign({}, camp, { items: items });   // the campaign's keys in their own order, its items swapped for marks
+          });
+          var skel = JSON.stringify(Object.assign({}, all, { campaigns: camps })), wordJ = JSON.stringify(word).slice(1, -1);
+          if (skel.split(wordJ).length - 1 !== parts.length) return JSON.stringify(all);   // a mark found more or fewer times than it was put in
+          var out = [], at = 0;
+          for (var n = 0; n < parts.length; n++) {
+              var mark = JSON.stringify(word + n), i = skel.indexOf(mark, at);
+              if (i < 0) return JSON.stringify(all);
+              out.push(skel.slice(at, i), parts[n]); at = i + mark.length;
+          }
+          out.push(skel.slice(at));
+          return new Blob(out);
+      } catch (e) { return JSON.stringify(all); }
+  }
+  // [netcheck:savebody-end]
+
   var saveTimeout;
 
   // A failed save was said only in the row's saved note, which is out of sight while the row is hidden (the owed review, 2026-10-09): it is
@@ -1365,11 +1447,14 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
         pushHistory();   // below the return: a GM's table is never recorded
 
+        var passP = typeof passTake === 'function' ? passTake() : null;   // 1.6.3 (finding 25): the projections this pass made, for the body below
+
         savePending = false;   // cleared AFTER the pass: pushHistory reads it (a remote save flushing the GM's own pending edit)
 
         if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host') {
 
             window.wpNet.onLocalSave();
+            passP = null;   // the table's sync may write into an item after the pass: every item's JSON is written for the body and compared
 
         }
 
@@ -1379,7 +1464,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
           headers: { 'Content-Type': 'application/json' },
 
-          body: JSON.stringify(state.appState)
+          body: typeof saveBody === 'function' ? saveBody(passP) : JSON.stringify(state.appState)   // 1.6.3 (finding 25): the same bytes, from parts that did not change kept as they were
 
         });
         var answerS = saveAnswer(rawS);   // 1.6.2 backlog 235: taken first, so a copy of the answer is read before the note below reads it
@@ -1435,7 +1520,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
     if (!canPersistLocal()) return;
     viewTimeout = setTimeout(function() {
         if (savePending || !canPersistLocal()) return;   // a real save is on its way and carries the view; or the table changed hands meanwhile
-        fetch('/api/data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state.appState) }).then(function() {}, function() {});
+        fetch('/api/data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: typeof saveBody === 'function' ? saveBody(null) : JSON.stringify(state.appState) }).then(function() {}, function() {});   // 1.6.3 (finding 25): the same bytes, its unchanged items' parts kept
     }, 2000);
   }
 

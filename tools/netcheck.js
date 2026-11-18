@@ -19374,7 +19374,7 @@ pendingChecks.push((async () => {
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
-    const lkS = between('// [netcheck:charlink-start]', '// [netcheck:charlink-end]', 'charlink'), ltS = between('// [netcheck:linktell-start]', '// [netcheck:linktell-end]', 'linktell');
+    const lkS = between('// [netcheck:charlink-start]', '// [netcheck:charlink-end]', 'charlink'), ltS = between('// [netcheck:linktell-start]', '// [netcheck:linktell-end]', 'linktell', 'netlink.js');
     const raw = { v: 1, name: 'L', rolls: [], fields: [{ id: 'f_mv', key: 'Move', kind: 'number', def: 5 }, { id: 'f_sc', key: 'Secret', kind: 'number', def: 9, vis: 'gm' }, { id: 'f_sp', key: 'Speed', kind: 'formula', formula: 'if(Mount.has, Mount.Move, Move)' }, { id: 'f_sn', key: 'Sneak', kind: 'formula', formula: 'Mount.Secret + 1' }],
         links: [{ id: 'lk_m', key: 'Mount', label: 'Mount', kind: 'mount' }, { id: 'lk_v', key: 'Vehicle', label: 'Vehicle', kind: 'crew', edit: 'gm' }] };
     const sys = Sx.cleanSystem(raw, { F: Fx, gmView: true }), view = Sx.cleanSystem(raw, { F: Fx, gmView: false });
@@ -19500,7 +19500,7 @@ pendingChecks.push((async () => {
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
-    const ltS = between('// [netcheck:linktell-start]', '// [netcheck:linktell-end]', 'linktell');
+    const ltS = between('// [netcheck:linktell-start]', '// [netcheck:linktell-end]', 'linktell', 'netlink.js');
     const raw = { v: 1, name: 'V', rolls: [], fields: [{ id: 'f_cl', key: 'Class', kind: 'number', def: 0 }, { id: 'f_sk', key: 'Skiffs', kind: 'number', def: 0 }, { id: 'f_hl', key: 'Haulers', kind: 'number', def: 0 },
         { id: 'f_hu', key: 'Hush', kind: 'number', def: 0, vis: 'gm' }, { id: 'f_he', key: 'Helm', kind: 'formula', formula: 'Crew.Pilot.max.Fly' }, { id: 'f_qu', key: 'Quiet', kind: 'formula', formula: 'Crew.max.Hidden' }],
         links: [{ id: 'lk_v', key: 'Vehicle', label: 'Vehicle', kind: 'crew', group: 'Crew', stations: ['Pilot'], figs: [{ key: 'Fly', formula: 'if(Vehicle.Class = 1, Skiffs, Haulers)' }, { key: 'Hidden', formula: 'Vehicle.Hush + 1' }] }] };

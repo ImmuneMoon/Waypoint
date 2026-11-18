@@ -33,6 +33,9 @@ jobs:
       # after an earlier failure (!cancelled()); the job fails if any step did.
       - name: parsecheck — every module loads
         run: node tools/parsecheck.js
+      - name: splitcheck — the giant scripts split into parts are wired as the single file they were
+        if: ${{ !cancelled() }}
+        run: node tools/splitcheck.js
       - name: tutorialcheck — tour targets exist
         if: ${{ !cancelled() }}
         run: node tools/tutorialcheck.js

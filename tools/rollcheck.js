@@ -2,9 +2,8 @@
 /* rollcheck.js: a roll and what it does: its cleaner, apply actions as a roll entry and on a list's rows (Stage 6 HUD H7, H7b), show-if (C8),
    a roll's consequences and Set to (R1), a system roll's needs and the reasons they give (fold 2, m410 and its review, needsWhy), a
    list's counters (R2a, R2b), a roll's Malf (R3), a Then on a critical success or failure, a list switch's needs, a removed row's
-   Undo, a group roll by its weakest member, a damage roll's type, a change on one entry of a list and an entry's What it opens; the
-   sheet's own look (doc theming) stood at the head of these blocks and came with them, as the plan's ranges have it; step 3 moves it on to
-   sheetlookcheck.js, the feature it serves (the plan's firm item from the review of step 2).
+   Undo, a group roll by its weakest member, a damage roll's type, a change on one entry of a list and an entry's What it opens. The
+   sheet's own look (doc theming), which came here at the head of these blocks, moved on to sheetlookcheck.js at step 3.
    These are the tests that came out of systemcheck.js with their area (docs/REFACTOR_SPLIT_PLAN.md, "Finishing the test split",
    step 2, 2026-11-19). Their code is systemcore.js's own lines and the parts and slices each block reads by name, so the suite
    imports systemcore.js as systemcheck.js does (kit.sysCore, the top every suite out of it starts from). Each block is as it stood
@@ -25,18 +24,6 @@ const j = v => JSON.stringify(v);
     if (!S || !F) { await T.finish(); return; }
     const { LIMITS, cleanSystem, cleanChar, makeResolver, resolveAll, validateSystem, charFor } = core;
 
-    /* ---- the sheet's own look (doc theming): bounded plain values, players' view included; docrender validates strictly at render ---- */
-    {
-        const withLook = cleanSystem({ v: 1, name: 'L', fields: [], rolls: [], sheetStyle: { font: 'mono', textColor: '#fff', bgColor: '#102030', bgImage: '/saves/images/m/a b.png', bgDim: 140, evil: '<script>', onclick: 'x' } }, { F, gmView: true });
-        check('cleanSystem: sheetStyle keeps the look fields, clamps bgDim, drops anything else', withLook && withLook.sheetStyle && withLook.sheetStyle.font === 'mono' && withLook.sheetStyle.textColor === '#fff' && withLook.sheetStyle.bgColor === '#102030' && withLook.sheetStyle.bgImage === '/saves/images/m/a b.png' && withLook.sheetStyle.bgDim === 90 && !('evil' in withLook.sheetStyle) && !('onclick' in withLook.sheetStyle), JSON.stringify(withLook && withLook.sheetStyle));
-        const playerLook = cleanSystem({ v: 1, name: 'L', fields: [], rolls: [], sheetStyle: { font: 'serif', bgDim: 20 } }, { F, gmView: false });
-        check('cleanSystem: the sheet look travels in the players\' view too', playerLook && playerLook.sheetStyle && playerLook.sheetStyle.font === 'serif' && playerLook.sheetStyle.bgDim === 20);
-        const noLook = cleanSystem({ v: 1, name: 'L', fields: [], rolls: [], sheetStyle: 'red' }, { F, gmView: true }), longLook = cleanSystem({ v: 1, name: 'L', fields: [], rolls: [], sheetStyle: { font: 'x'.repeat(401), bgColor: 'a\u0001b' } }, { F, gmView: true });
-        check('cleanSystem: a non-object, over-long or control-character look is absent', noLook && !('sheetStyle' in noLook) && longLook && !('sheetStyle' in longLook));
-        // The sheet builder's picture picker (the library at z 99999) opens from a modal at z 100000: the library must lift over it and settle back
-        const wbSrc = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8');
-        check('image library: a pick lifts the library above the caller and every close path settles it back', /window\.wpPickImage = async function[\s\S]{0,600}?imgLibLift\(true\)/.test(require('./checkkit').part('wbimglib.js')) && require('./checkkit').familyCount('whiteboard.js', /imgLibLift\(false\)/) >= 3 && /m\.style\.zIndex = '100005'/.test(require('./checkkit').part('wbimglib.js')));
-    }
     /* ---- Stage 6 HUD H7: the apply action — a roll entry of a second kind that moves pools or numbers by an amount (no dice) ---- */
     {
         const rawA = { v: 1, name: 'A', fields: [

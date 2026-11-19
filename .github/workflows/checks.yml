@@ -78,6 +78,24 @@ jobs:
       - name: envcheck — the map environment, a row taken off, other names and tables, out of systemcheck
         if: ${{ !cancelled() }}
         run: node tools/envcheck.js
+      - name: hudcheck — the HUD frame HF0 to HF5 and a redraw keeping the sheet and HUD in place, out of systemcheck
+        if: ${{ !cancelled() }}
+        run: node tools/hudcheck.js
+      - name: sheetlookcheck — the sheet look L1 to L7, doc theming, the typefaces and a character text looks, out of systemcheck
+        if: ${{ !cancelled() }}
+        run: node tools/sheetlookcheck.js
+      - name: onboardcheck — onboarding F0 to F4, uploads, a sheet reader hook, the token creator and the sheet revision, out of systemcheck
+        if: ${{ !cancelled() }}
+        run: node tools/onboardcheck.js
+      - name: sensecheck — the light, senses, range, height and cover rules, conditions C1 and a player light, out of systemcheck
+        if: ${{ !cancelled() }}
+        run: node tools/sensecheck.js
+      - name: boardcheck — the board, Enter on a checkbox, menus, the drag hand-overs and grid fitting, out of systemcheck
+        if: ${{ !cancelled() }}
+        run: node tools/boardcheck.js
+      - name: sitecheck — the website forms, renames, auto apply, CORE batch 6, 167 and 218 and rests, out of systemcheck
+        if: ${{ !cancelled() }}
+        run: node tools/sitecheck.js
       - name: corecheck — the core's cleaners and validator, read from cleancore.js and validcore.js by name, with the core's first tests
         if: ${{ !cancelled() }}
         run: node tools/corecheck.js
